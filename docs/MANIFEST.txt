@@ -1,0 +1,81 @@
+Open Cube OS — Complete Project Package
+=======================================
+
+Version: WP-08b Batch 6 (Final)
+Date: 2026-09-25
+License: Apache 2.0
+
+WHAT IS THIS
+-----------
+This package contains the complete Open Cube OS project — an open-source
+x86_64 L0 kernel with a WinRE-style recovery shell, BIOS+UEFI dual boot,
+40 L1 extension interfaces, 23 system calls, and full dynamic linking
+support (independent ld.so with 5 relocation types, dlopen/dlsym/dlclose,
+ldd command, 5 dynamic linking test programs).
+
+CONTENTS
+--------
+1. Source code (kernel/ + boot/ + userprogs/ + tools/)
+2. Build artifacts (ISO — see /downloads/ separately if too large)
+3. All documentation (docs/*.md + README.md + VERIFICATION_REPORT.md)
+4. Web page source (src/app/page.tsx + layout.tsx)
+5. Build/test scripts (run_wp08a_tests.py)
+6. This manifest
+
+SHA256 CHECKSUMS
+----------------
+ISO:       fe0b62b8d945cbfc1ba79de45da07559fd1f783f27e044dec39c673798cd459e
+SRC ZIP:   ad13517f83832b4bf5d9c13cfc159b601203d78d327b6a76fd121194223745e7
+FULL ZIP:  (see website /downloads/ for the latest SHA256)
+
+HOW TO BUILD
+------------
+  cd src-WP08a
+  source source env.sh (toolchain setup)   # or set up gcc/nasm/xorriso/grub-mkimage/qemu
+  make clean && make          # builds kernel ELF (build/opencube.elf)
+  make iso                   # builds bootable ISO (build/opencube.iso)
+
+Requirements: gcc (freestanding, -Werror), nasm, xorriso, grub-mkimage,
+grub-efi-amd64-bin, qemu-system-x86_64, mtools, seabios, ovmf.
+
+HOW TO RUN
+---------
+  qemu-system-x86_64 \
+    -m 256M -cdrom build/opencube.iso -boot d \
+    -no-reboot -display none -serial stdio -monitor none \
+    -vga std -snapshot
+
+Shell prompt "oc>" appears after boot. Type "help" for commands.
+
+HOW TO TEST
+----------
+  # WP-08a regression (7 tests)
+  run hello / fork_test / exec_test / pipe_test / signal_test / select_test / mmap_test
+
+  # WP-08b dynamic linking (5 tests + ldd)
+  run dyn_hello / so_test / dlsym_test / pie_test / reloc_test
+  ldd so_test / ldd hello
+
+All 12 tests must PASS.
+
+PROJECT STRUCTURE
+-----------------
+src-WP08a/           — kernel source tree
+  kernel/            — 90+ C/H/S files (kernel core + WP-08b dynamic linking)
+  boot/              — 3 assembly files (multiboot2 + long mode entry)
+  userprogs/         — user programs (hello.asm, ld_so.c, main_dyn.c, etc.)
+  tools/             — build scripts (build_iso.sh, gen_font.py, etc.)
+  docs/              — extension interface docs (EXTENSIONS_WP01..WP08b.md)
+  Makefile           — top-level build
+  linker.ld          — kernel link script
+  grub.cfg           — GRUB boot config
+  LICENSE            — Apache 2.0
+
+src/app/             — Next.js web page (page.tsx + layout.tsx)
+
+run_wp08a_tests.py   — QEMU automated test runner
+
+LINE COUNT
+----------
+Source code (no docs, no auto-gen): 23,088 lines
+With docs:                          26,904 lines
