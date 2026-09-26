@@ -11,32 +11,28 @@ WP-08 (Final)
 ```
 oc-os/                        ← repository root
 ├── boot/                     ← boot assembly (3 .S files)
-├── kernel/                   ← kernel source (42 .c + 46 .h + 4 .S = 92 files)
-├── userprogs/                ← user programs (.c/.asm/.ld/.elf/.o/.so)
-├── tools/                    ← build/test scripts (10 files)
-├── docs/                     ← documentation (EXTENSIONS_WP01..WP08cd.md + BUILD.md + STATUS.md + WORKFLOW.md + HANDOFF.md + worklog.md + MANIFEST.txt)
-├── build/                    ← build artifacts (opencube.elf + opencube.iso + .o files) — gitignored
-├── web/                      ← Next.js web page source (page.tsx + layout.tsx)
-│   └── app/
-├── releases/                 ← release artifacts
-│   ├── WP08/                 ← WP-08 release
-│   │   ├── opencube-wp08.iso
-│   │   └── SHA256SUMS
-│   └── WP08b/                ← WP-08b archived release (ISO + src zip)
+├── kernel/                   ← kernel source (94 files: .c + .h + .S)
+├── userprogs/                ← user programs (.c/.asm/.ld — 21 files)
+├── tools/                    ← build/test scripts (5 files, public)
+├── docs/                     ← documentation (15 files)
+├── build/                    ← build artifacts (opencube.elf + .o files) — gitignored
 ├── archive/                  ← archived old versions (see archive/README.md)
-│   ├── old-src-tree/         ← earlier-era source tree (contains dynlink.c/h)
-│   ├── WP06/                 ← WP-06 source zip
-│   ├── old-ldso/             ← Batch 2 assembly ld.so
-│   └── old-tests/            ← old dyn_test.elf
+│   └── old-ldso/             ← Batch 2 assembly ld.so (only tracked subdir)
 ├── Makefile                  ← top-level build
 ├── linker.ld                ← kernel link script
 ├── grub.cfg                  ← GRUB boot config
-├── LICENSE                   ← Apache 2.0
-├── README.md                 ← project overview
-├── VERIFICATION_REPORT.md    ← WP-01..08 verification report
-├── .gitignore                ← excludes build/, *.o, node_modules/, __pycache__/
-└── run_wp08a_tests.py        ← QEMU automated test runner
+├── LICENSE                   ← Apache 2.0 (201 lines, full text)
+├── NOTICE                    ← copyright + third-party components
+├── README.md                 ← project overview (WP-01..WP-08)
+├── MANIFEST.md               ← this file
+├── VERIFICATION_REPORT.md     ← WP-01..WP-08 verification report
+└── .gitignore                ← excludes build/, *.o, *.elf, *.iso, *.zip, releases/, etc.
 ```
+
+**Note:** Binary releases (ISO + src zip) are hosted on
+[GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases),
+not stored in this repo. The `releases/` directory (if it exists locally)
+is gitignored. Use the website or GitHub Releases page to download.
 
 ## How to Build
 
@@ -75,5 +71,10 @@ All 12 tests must PASS.
 
 ## Line Count (WP-08)
 
-- Source code (no docs, no auto-gen): 26,xxx lines
-- With docs: 31,xxx lines
+- Source code (no docs, no auto-gen): **26,018 lines**
+- With docs: **30,062 lines**
+- Verify with:
+  ```bash
+  git ls-files | grep -E '\.(c|h|S|asm|ld)$|^Makefile$|^grub\.cfg$|^linker\.ld$|^\.gitignore$' \
+    | grep -v 'userprogs_data.h\|solib_data.h\|font_data.c' | xargs wc -l
+  ```
