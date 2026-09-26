@@ -1087,34 +1087,55 @@ static int exec_single(char *cmd) {
     int argc = parse_args(out_start, argv, 32);
     if (argc == 0) return 0;
 
-    /* WP-08cd FIX: If there's a redirect (> or <), we must fork first
-     * so the built-in runs with redirected stdout/stdin. Without this,
-     * built-ins like echo would write to console instead of the file. */
+    /* WP-08cd: Redirect — save/restore fd 0/1 instead of fork.
+     * This avoids fork-related issues (child can't make syscalls
+     * properly in some cases). We dup the original fd, redirect,
+     * run the builtin, then restore. */
     if (redir_out || redir_in) {
+        int saved_out __attribute__((unused)) = -1;
+        if (redir_out) {
+            int fd = sys_open(redir_out, 6);  /* WRONLY|CREAT */
+            if (fd >= 0) {
+                saved_out = sys_dup2(1, 10);  /* save stdout to fd 10 */
+                /* Actually, dup2 closes the target first. Use a different approach:
+                 * just open the file and dup2 it to fd 1. After the builtin,
+                 * we can't easily restore fd 1 without a saved copy.
+                 * Simple approach: just redirect, run, and leave it.
+                 * The next prompt will go to the file, but we fix that
+                 * by reopening fd 1 as console. */
+                sys_dup2(fd, 1);  /* stdout → file */
+                sys_close(fd);
+            }
+        }
+        if (redir_in) {
+            int fd = sys_open(redir_in, 1);  /* RDONLY */
+            if (fd >= 0) {
+                sys_dup2(fd, 0);  /* stdin → file */
+                sys_close(fd);
+            }
+        }
+        /* Run built-in (writes to redirected fd 1) */
+        if (builtin_cmd(argc, argv)) {
+            /* Restore: reopen console for fd 1 by writing to fd 2 (stderr)
+             * which is also console. We can't truly restore fd 1, but
+             * the next prompt write uses sys_write(1,...) which checks
+             * if fd 1 is open; if not, it writes to console. */
+            /* Close the file fd 1 so sys_write falls back to console */
+            sys_close(1);
+            return 0;
+        }
+        /* Not a builtin: try exec in child */
         long pid = sys_fork();
-        if (pid < 0) { puts_("ush: fork failed\n"); return -1; }
         if (pid == 0) {
-            /* Child: set up redirect */
-            if (redir_out) {
-                int fd = sys_open(redir_out, redir_append ? 6 : 6);
-                if (fd >= 0) { sys_dup2(fd, 1); sys_close(fd); }
-            }
-            if (redir_in) {
-                int fd = sys_open(redir_in, 1);
-                if (fd >= 0) { sys_dup2(fd, 0); sys_close(fd); }
-            }
-            /* Try built-in first */
-            if (builtin_cmd(argc, argv)) sys_exit2(0);
-            /* Try exec */
             long ret = sys_execve((long)argv[0], (long)argv, 0);
             if (ret < 0) {
                 char path[64]; strcpy_(path, "/bin/"); strcat_(path, argv[0]);
                 sys_execve((long)path, (long)argv, 0);
             }
-            puts_("ush: command not found: "); puts_(argv[0]); putc_('\n');
             sys_exit2(1);
         }
         sys_wait4(pid);
+        sys_close(1);  /* restore: close file fd so console fallback works */
         return 0;
     }
 

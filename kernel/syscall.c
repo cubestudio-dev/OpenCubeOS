@@ -15,6 +15,7 @@
 #include "console.h"
 #include "console_in.h"
 #include "string.h"
+#include "keyboard.h"
 #include "shell.h"
 #include "idt.h"
 
@@ -867,9 +868,9 @@ static u64 sys_open(u64 path, u64 flags, u64 a3, u64 a4) {
     if (vfs_fd < 0) return (u64)-1;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
-    for (int i = 0; i < PROC_MAX_FDS; i++) {
+    for (int i = 3; i < PROC_MAX_FDS; i++) {
         if (proc->fds[i].kind == 0) {
-            proc->fds[i].kind = 1;  /* VFS fd */
+            proc->fds[i].kind = 1;
             proc->fds[i].vfs_fd = vfs_fd;
             return (u64)i;
         }
@@ -990,19 +991,47 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
     return (u64)-1;
 }
 
-/* SYS_READLINE(73): read a line from keyboard with line editing.
- * (buf, maxlen) → bytes read (including \n) or -1.
- * Uses the kernel's oc_console_in_readline for line editing
- * (backspace, arrow keys, etc.). */
+/* SYS_READLINE(73): read a line from keyboard.
+ * (buf, maxlen) → bytes read (not including \n) or 0.
+ * WP-08cd: Reads raw characters from keyboard queue, echoes them,
+ * handles backspace. Does NOT use the kernel's global readline
+ * state (g_line/g_line_ready) to avoid interference between
+ * the kernel shell and ush. */
 static u64 sys_readline(u64 buf, u64 maxlen, u64 a3, u64 a4) {
     (void)a3; (void)a4;
     if (!valid_user_ptr(buf)) return (u64)-1;
     if (maxlen == 0) return 0;
-    /* Use the kernel's console input line editor */
-    char line[256];
     if (maxlen > 255) maxlen = 255;
-    int len = oc_console_in_readline(line, (int)maxlen);
-    if (len <= 0) return 0;
+    char line[256];
+    int len = 0;
+    for (;;) {
+        /* Enable interrupts and halt until a key arrives */
+        __asm__ volatile("sti");
+        __asm__ volatile("hlt");
+        int k = oc_keyboard_getch();
+        if (k < 0) continue;
+        if (k == 0x0A || k == 0x0D) {
+            /* Enter: finish line */
+            oc_console_putc('\n');
+            break;
+        }
+        if (k == 0x08 || k == 0x7F) {
+            /* Backspace */
+            if (len > 0) {
+                len--;
+                oc_console_putc('\b');
+                oc_console_putc(' ');
+                oc_console_putc('\b');
+            }
+            continue;
+        }
+        if (k >= 0x20 && k < 0x7F && len < (int)maxlen - 1) {
+            line[len++] = (char)k;
+            oc_console_putc((char)k);
+        }
+    }
+    line[len] = 0;
     oc_memcpy((void*)(uintptr_t)buf, line, (u64)len);
+    ((char*)(uintptr_t)buf)[len] = 0;  /* null-terminate user buffer */
     return (u64)len;
 }
