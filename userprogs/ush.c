@@ -1096,22 +1096,15 @@ static int exec_single(char *cmd) {
         if (redir_out) {
             int fd = sys_open(redir_out, 6);  /* WRONLY|CREAT */
             if (fd >= 0) {
-                saved_out = sys_dup2(1, 10);  /* save stdout to fd 10 */
-                /* Actually, dup2 closes the target first. Use a different approach:
-                 * just open the file and dup2 it to fd 1. After the builtin,
-                 * we can't easily restore fd 1 without a saved copy.
-                 * Simple approach: just redirect, run, and leave it.
-                 * The next prompt will go to the file, but we fix that
-                 * by reopening fd 1 as console. */
                 sys_dup2(fd, 1);  /* stdout → file */
-                sys_close(fd);
+                /* DON'T close fd — VFS has no refcount, closing would
+                 * invalidate the VFS fd that fd 1 now points to. */
             }
         }
         if (redir_in) {
             int fd = sys_open(redir_in, 1);  /* RDONLY */
             if (fd >= 0) {
                 sys_dup2(fd, 0);  /* stdin → file */
-                sys_close(fd);
             }
         }
         /* Run built-in (writes to redirected fd 1) */
@@ -1171,7 +1164,6 @@ static int exec_single(char *cmd) {
             int fd = sys_open(redir_in, 1);
             if (fd >= 0) {
                 sys_dup2(fd, 0);  /* redirect stdin from file */
-                sys_close(fd);
             }
         }
         /* Exec */

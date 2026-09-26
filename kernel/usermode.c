@@ -420,11 +420,9 @@ void user_task_launcher(void *arg) {
     __asm__ volatile("mov %0, %%cr3\n" :: "r"(user_as) : "memory");
 
     if (proc->is_fork_child) {
-        /* Fork child: enter ring 3 at the saved fork-return point.
-         * RAX=0 so the child sees fork() returning 0.
-         * True POSIX fork semantics — no is_fork_child check in user code. */
-        enter_ring3_fork(proc->fork_rip, proc->fork_rsp, proc->fork_rflags,
-                         proc->fork_rax, user_as);
+        /* WP-08cd: Fork child — restore ALL callee-saved registers
+         * from the saved IRQ frame, then IRETQ to user mode. */
+        enter_ring3_fork(proc->fork_regs, user_as);
     } else {
         enter_ring3(proc->entry_point, proc->user_rsp, user_as);
     }

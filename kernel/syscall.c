@@ -185,6 +185,15 @@ static u64 sys_fork(u64 a1, u64 a2, u64 a3, u64 a4) {
     child->fork_rsp = f->rsp;
     child->fork_rflags = f->rflags;
     child->fork_rax = 0;
+    /* WP-08cd: Copy the full IRQ frame into proc struct.
+     * The struct has 22 u64 fields (r15-rax, int_no, error_code, rip-ss). */
+    {
+        u64 *src = (u64*)frame;
+        for (int i = 0; i < 22; i++)
+            child->fork_regs[i] = src[i];
+        /* Override rax to 0 (fork return value for child) */
+        child->fork_regs[14] = 0;
+    }
 
     for (int i = 0; i < NSIG; i++)
         child->sig_handlers[i] = parent->sig_handlers[i];

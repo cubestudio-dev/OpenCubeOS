@@ -91,6 +91,7 @@ typedef struct user_proc {
     u64        fork_rsp;
     u64        fork_rflags;
     u64        fork_rax;
+    u64        fork_regs[22];  /* WP-08cd: full saved register array (22 u64) */
 
     /* WP-08b Batch 5: per-process bump allocator for dlopen'd .so files.
      * Starts at USER_SOLIB_BASE (0x38000000) and grows up. */
@@ -143,7 +144,7 @@ void enter_ring3(u64 entry_point, u64 user_rsp, u64 user_cr3);
 
 /* WP-08a: Enter ring 3 with a saved fork frame (pure assembly).
  * Arguments: rdi=rip, rsi=rsp, rdx=rflags, rcx=rax, r8=cr3 */
-void enter_ring3_fork(u64 rip, u64 rsp, u64 rflags, u64 rax_val, u64 cr3);
+void enter_ring3_fork(u64 *frame, u64 cr3);
 
 /* WP-08a: Get the current process. */
 user_proc_t *user_process_current(void);
