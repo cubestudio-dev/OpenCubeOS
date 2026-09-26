@@ -23,7 +23,8 @@ static syscall_handler_fn g_syscalls[MAX_SYSCALLS];
 
 /* User process table. (non-static for syscall.c) */
 user_proc_t g_procs[MAX_USER_PROCS];
-int g_next_pid = 1;  /* BUG-047: non-static for fork() access */
+int g_next_pid = 1;
+int g_usershell_running = 0;  // WP-08cd: set by cmd_run when ush starts  /* BUG-047: non-static for fork() access */
 
 /* WP-08a: saved interrupt frame pointer (for fork). */
 static u64 *g_current_frame = NULL;

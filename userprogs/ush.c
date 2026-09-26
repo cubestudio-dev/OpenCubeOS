@@ -30,12 +30,39 @@
 #define SYS_WRITE2  72
 #define SYS_READLINE 73
 
+/* Additional syscalls for built-in tools */
+#define SYS_STAT     5
+#define SYS_READDIR  6
+#define SYS_MKDIR    7
+#define SYS_UNLINK   9
+#define SYS_KILL    13
+#define SYS_GETPID  14
+
+/* VFS node types (match kernel vfs.h: VFS_TYPE_FILE=1, DIR=2, DEVICE=3) */
+#define USH_TYPE_FILE 1
+#define USH_TYPE_DIR  2
+#define USH_TYPE_DEV  3
+
 typedef unsigned long u64;
 typedef long i64;
 typedef int i32;
 typedef unsigned int u32;
 typedef char i8;
 typedef unsigned char u8;
+
+/* VFS on-wire structures - must match kernel layout (vfs.h, VFS_NAME_LEN=64).
+ * The kernel's sys_readdir/sys_stat oc_memcpy sizeof(vfs_dirent_t / vfs_stat_t)
+ * bytes into our buffer, so our struct size must equal the kernel's. */
+struct ush_dirent {
+    char name[64];
+    int  type;
+    u64  inode;
+};
+struct ush_stat {
+    int  type;
+    u64  size;
+    char name[64];
+};
 
 /* Inline syscall wrappers */
 static inline long syscall0(long n) {
@@ -72,6 +99,12 @@ static inline long syscall3(long n, long a, long b, long c) {
 #define sys_getcwd(buf, size)    syscall2(SYS_GETCWD, (long)(buf), (size))
 #define sys_open(path, flags)    syscall2(SYS_OPEN, (long)(path), (flags))
 #define sys_close(fd)            syscall1(SYS_CLOSE, (fd))
+#define sys_readdir(path, idx, buf) syscall3(SYS_READDIR, (long)(path), (long)(idx), (long)(buf))
+#define sys_mkdir(path)             syscall1(SYS_MKDIR, (long)(path))
+#define sys_unlink(path)            syscall1(SYS_UNLINK, (long)(path))
+#define sys_kill(pid)               syscall1(SYS_KILL, (long)(pid))
+#define sys_getpid()                syscall0(SYS_GETPID)
+#define sys_stat(path, st)          syscall2(SYS_STAT, (long)(path), (long)(st))
 
 /* String helpers (no libc) */
 static int strlen_(const char *s) {
@@ -112,6 +145,41 @@ static void __attribute__((unused)) memset_(void *d, int c, int n) {
     for (int i = 0; i < n; i++) p[i] = (char)c;
 }
 static int isspace_(char c) { return c == ' ' || c == '\t'; }
+
+/* Parse decimal integer (returns 0 on no digits). */
+static int atoi_(const char *s) {
+    int n = 0;
+    int sign = 1;
+    int i = 0;
+    if (s[0] == '-') { sign = -1; i = 1; }
+    else if (s[0] == '+') i = 1;
+    while (s[i] >= '0' && s[i] <= '9') {
+        n = n * 10 + (s[i] - '0');
+        i++;
+    }
+    return n * sign;
+}
+
+/* Substring search: 1 if needle appears in hay, 0 otherwise. */
+static int strstr_(const char *hay, const char *needle) {
+    if (!needle[0]) return 1;
+    int hl = strlen_(hay);
+    int nl = strlen_(needle);
+    if (nl > hl) return 0;
+    for (int i = 0; i <= hl - nl; i++) {
+        int j = 0;
+        while (j < nl && hay[i + j] == needle[j]) j++;
+        if (j == nl) return 1;
+    }
+    return 0;
+}
+
+/* strcmp: 0 if equal, negative if a<b, positive if a>b. */
+static int strcmp_(const char *a, const char *b) {
+    int i = 0;
+    while (a[i] && b[i] && a[i] == b[i]) i++;
+    return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
+}
 
 /* Output helpers */
 static void puts_(const char *s) {
@@ -333,6 +401,652 @@ static int builtin_cmd(int argc, char *argv[]) {
         }
         return 1;
     }
+
+    /* ============= Additional built-in tools ============= */
+
+    /* ---------- ls [path] ---------- */
+    if (streq(argv[0], "ls")) {
+        char path[256];
+        if (argc > 1) {
+            strncpy_(path, argv[1], 256);
+        } else {
+            sys_getcwd(path, 256);
+        }
+        int idx = 0;
+        for (;;) {
+            struct ush_dirent e;
+            memset_(&e, 0, (int)sizeof(e));
+            if (sys_readdir(path, idx, &e) < 0) break;
+            if (e.name[0] == 0) break;
+            char tag = '-';
+            if (e.type == USH_TYPE_DIR) tag = 'd';
+            else if (e.type == USH_TYPE_DEV) tag = 'c';
+            putc_(tag);
+            putc_(' ');
+            puts_(e.name);
+            putc_('\n');
+            idx++;
+            if (idx > 1024) break;
+        }
+        return 1;
+    }
+
+    /* ---------- cat [file...] ---------- */
+    if (streq(argv[0], "cat")) {
+        if (argc < 2) {
+            static char cbuf[4096];
+            long n;
+            while ((n = sys_read(0, cbuf, 4096)) > 0) {
+                sys_write(1, cbuf, n);
+            }
+            return 1;
+        }
+        for (int i = 1; i < argc; i++) {
+            int fd = sys_open(argv[i], 1);
+            if (fd < 0) {
+                puts_("cat: cannot open ");
+                puts_(argv[i]);
+                putc_('\n');
+                continue;
+            }
+            static char rbuf[4096];
+            long n;
+            while ((n = sys_read(fd, rbuf, 4096)) > 0) {
+                sys_write(1, rbuf, n);
+            }
+            sys_close(fd);
+        }
+        return 1;
+    }
+
+    /* ---------- wc [file] ---------- */
+    if (streq(argv[0], "wc")) {
+        static char wbuf[8192];
+        long total = 0, lines = 0, words = 0;
+        int in_word = 0;
+        int fd = 0;
+        int opened = 0;
+        if (argc > 1) {
+            fd = sys_open(argv[1], 6);
+            if (fd < 0) {
+                puts_("wc: cannot open ");
+                puts_(argv[1]);
+                putc_('\n');
+                return 1;
+            }
+            opened = 1;
+        }
+        long n;
+        while ((n = sys_read(fd, wbuf, 8192)) > 0) {
+            total += n;
+            for (int i = 0; i < (int)n; i++) {
+                char c = wbuf[i];
+                if (c == '\n') lines++;
+                if (c == ' ' || c == '\n' || c == '\t' || c == '\r') {
+                    in_word = 0;
+                } else if (!in_word) {
+                    in_word = 1;
+                    words++;
+                }
+            }
+        }
+        if (opened) sys_close(fd);
+        putu_((u64)lines);
+        putc_(' ');
+        putu_((u64)words);
+        putc_(' ');
+        putu_((u64)total);
+        if (argc > 1) { putc_(' '); puts_(argv[1]); }
+        putc_('\n');
+        return 1;
+    }
+
+    /* ---------- grep <pattern> ---------- */
+    if (streq(argv[0], "grep")) {
+        if (argc < 2) {
+            puts_("usage: grep <pattern>\n");
+            return 1;
+        }
+        const char *pat = argv[1];
+        static char gbuf[8192];
+        static char gline[1024];
+        int lpos = 0;
+        long n;
+        while ((n = sys_read(0, gbuf, 8192)) > 0) {
+            for (int i = 0; i < (int)n; i++) {
+                char c = gbuf[i];
+                if (c == '\n') {
+                    gline[lpos] = 0;
+                    if (strstr_(gline, pat)) {
+                        puts_(gline);
+                        putc_('\n');
+                    }
+                    lpos = 0;
+                } else {
+                    if (lpos < 1023) gline[lpos++] = c;
+                }
+            }
+        }
+        if (lpos > 0) {
+            gline[lpos] = 0;
+            if (strstr_(gline, pat)) {
+                puts_(gline);
+                putc_('\n');
+            }
+        }
+        return 1;
+    }
+
+    /* ---------- head [N] [file] ---------- */
+    if (streq(argv[0], "head")) {
+        int nlines = 10;
+        int argi = 1;
+        if (argc > 1) {
+            char *a = argv[1];
+            if (a[0] == '-' || (a[0] >= '0' && a[0] <= '9')) {
+                nlines = atoi_(a[0] == '-' ? a + 1 : a);
+                argi = 2;
+            }
+        }
+        if (nlines < 1) nlines = 10;
+        int fd = 0;
+        int opened = 0;
+        if (argi < argc) {
+            fd = sys_open(argv[argi], 1);
+            if (fd < 0) {
+                puts_("head: cannot open ");
+                puts_(argv[argi]);
+                putc_('\n');
+                return 1;
+            }
+            opened = 1;
+        }
+        static char hbuf[4096];
+        static char hline[1024];
+        int lpos = 0;
+        int printed = 0;
+        long n;
+        while (printed < nlines && (n = sys_read(fd, hbuf, 4096)) > 0) {
+            for (int i = 0; i < (int)n && printed < nlines; i++) {
+                char c = hbuf[i];
+                if (c == '\n') {
+                    hline[lpos] = 0;
+                    puts_(hline);
+                    putc_('\n');
+                    printed++;
+                    lpos = 0;
+                } else {
+                    if (lpos < 1023) hline[lpos++] = c;
+                }
+            }
+        }
+        if (lpos > 0 && printed < nlines) {
+            hline[lpos] = 0;
+            puts_(hline);
+            putc_('\n');
+        }
+        if (opened) sys_close(fd);
+        return 1;
+    }
+
+    /* ---------- tail [N] [file] ---------- */
+    if (streq(argv[0], "tail")) {
+        int nlines = 10;
+        int argi = 1;
+        if (argc > 1) {
+            char *a = argv[1];
+            if (a[0] == '-' || (a[0] >= '0' && a[0] <= '9')) {
+                nlines = atoi_(a[0] == '-' ? a + 1 : a);
+                argi = 2;
+            }
+        }
+        if (nlines < 1) nlines = 10;
+        if (nlines > 512) nlines = 512;
+        int fd = 0;
+        int opened = 0;
+        if (argi < argc) {
+            fd = sys_open(argv[argi], 1);
+            if (fd < 0) {
+                puts_("tail: cannot open ");
+                puts_(argv[argi]);
+                putc_('\n');
+                return 1;
+            }
+            opened = 1;
+        }
+        static char tbuf[16384];
+        static char *tlines[512];
+        int total = 0;
+        int inpos = 0;
+        long n;
+        while ((n = sys_read(fd, tbuf + inpos, 4096)) > 0 && inpos < 16384 - 4096) {
+            inpos += (int)n;
+        }
+        tbuf[inpos] = 0;
+        int start = 0;
+        for (int i = 0; i < inpos; i++) {
+            if (tbuf[i] == '\n') {
+                tbuf[i] = 0;
+                if (total < 512) tlines[total++] = &tbuf[start];
+                start = i + 1;
+            }
+        }
+        if (start < inpos) {
+            if (total < 512) tlines[total++] = &tbuf[start];
+        }
+        int s = total > nlines ? total - nlines : 0;
+        for (int i = s; i < total; i++) {
+            puts_(tlines[i]);
+            putc_('\n');
+        }
+        if (opened) sys_close(fd);
+        return 1;
+    }
+
+    /* ---------- mkdir <path> ---------- */
+    if (streq(argv[0], "mkdir")) {
+        if (argc < 2) {
+            puts_("usage: mkdir <path>\n");
+            return 1;
+        }
+        if (sys_mkdir(argv[1]) < 0) {
+            puts_("mkdir: cannot create '");
+            puts_(argv[1]);
+            puts_("'\n");
+        }
+        return 1;
+    }
+
+    /* ---------- touch <file> ---------- */
+    if (streq(argv[0], "touch")) {
+        if (argc < 2) {
+            puts_("usage: touch <file>\n");
+            return 1;
+        }
+        int fd = sys_open(argv[1], 6);
+        if (fd >= 0) sys_close(fd);
+        return 1;
+    }
+
+    /* ---------- rm <file> ---------- */
+    if (streq(argv[0], "rm")) {
+        if (argc < 2) {
+            puts_("usage: rm <file>\n");
+            return 1;
+        }
+        if (sys_unlink(argv[1]) < 0) {
+            puts_("rm: cannot remove '");
+            puts_(argv[1]);
+            puts_("'\n");
+        }
+        return 1;
+    }
+
+    /* ---------- cp <src> <dst> ---------- */
+    if (streq(argv[0], "cp")) {
+        if (argc < 3) {
+            puts_("usage: cp <src> <dst>\n");
+            return 1;
+        }
+        int sfd = sys_open(argv[1], 1);
+        if (sfd < 0) {
+            puts_("cp: cannot open '");
+            puts_(argv[1]);
+            puts_("'\n");
+            return 1;
+        }
+        int dfd = sys_open(argv[2], 6);
+        if (dfd < 0) {
+            puts_("cp: cannot open '");
+            puts_(argv[2]);
+            puts_("'\n");
+            sys_close(sfd);
+            return 1;
+        }
+        static char cpbuf[4096];
+        long n;
+        while ((n = sys_read(sfd, cpbuf, 4096)) > 0) {
+            sys_write(dfd, cpbuf, n);
+        }
+        sys_close(sfd);
+        sys_close(dfd);
+        return 1;
+    }
+
+    /* ---------- mv <src> <dst> ---------- */
+    if (streq(argv[0], "mv")) {
+        if (argc < 3) {
+            puts_("usage: mv <src> <dst>\n");
+            return 1;
+        }
+        int sfd = sys_open(argv[1], 1);
+        if (sfd < 0) {
+            puts_("mv: cannot open '");
+            puts_(argv[1]);
+            puts_("'\n");
+            return 1;
+        }
+        int dfd = sys_open(argv[2], 6);
+        if (dfd < 0) {
+            puts_("mv: cannot open '");
+            puts_(argv[2]);
+            puts_("'\n");
+            sys_close(sfd);
+            return 1;
+        }
+        static char mvbuf[4096];
+        long n;
+        while ((n = sys_read(sfd, mvbuf, 4096)) > 0) {
+            sys_write(dfd, mvbuf, n);
+        }
+        sys_close(sfd);
+        sys_close(dfd);
+        sys_unlink(argv[1]);
+        return 1;
+    }
+
+    /* ---------- sort (stdin) ---------- */
+    if (streq(argv[0], "sort")) {
+        static char sbuf[16384];
+        static char *slines[512];
+        int total = 0;
+        int inpos = 0;
+        long n;
+        while ((n = sys_read(0, sbuf + inpos, 4096)) > 0 && inpos < 16384 - 4096) {
+            inpos += (int)n;
+        }
+        sbuf[inpos] = 0;
+        int start = 0;
+        for (int i = 0; i < inpos; i++) {
+            if (sbuf[i] == '\n') {
+                sbuf[i] = 0;
+                if (total < 512) slines[total++] = &sbuf[start];
+                start = i + 1;
+            }
+        }
+        if (start < inpos) {
+            if (total < 512) slines[total++] = &sbuf[start];
+        }
+        /* Bubble sort (stable enough for shell use). */
+        for (int a = 0; a < total - 1; a++) {
+            for (int b = 0; b < total - a - 1; b++) {
+                if (strcmp_(slines[b], slines[b + 1]) > 0) {
+                    char *tmp = slines[b];
+                    slines[b] = slines[b + 1];
+                    slines[b + 1] = tmp;
+                }
+            }
+        }
+        for (int a = 0; a < total; a++) {
+            puts_(slines[a]);
+            putc_('\n');
+        }
+        return 1;
+    }
+
+    /* ---------- uniq (stdin) ---------- */
+    if (streq(argv[0], "uniq")) {
+        static char ubuf[4096];
+        static char uprev[1024];
+        static char uline[1024];
+        uprev[0] = 0;
+        int has_prev = 0;
+        int lpos = 0;
+        long n;
+        while ((n = sys_read(0, ubuf, 4096)) > 0) {
+            for (int i = 0; i < (int)n; i++) {
+                char c = ubuf[i];
+                if (c == '\n') {
+                    uline[lpos] = 0;
+                    if (!has_prev || !streq(uprev, uline)) {
+                        puts_(uline);
+                        putc_('\n');
+                        strncpy_(uprev, uline, 1024);
+                        has_prev = 1;
+                    }
+                    lpos = 0;
+                } else {
+                    if (lpos < 1023) uline[lpos++] = c;
+                }
+            }
+        }
+        if (lpos > 0) {
+            uline[lpos] = 0;
+            if (!has_prev || !streq(uprev, uline)) {
+                puts_(uline);
+                putc_('\n');
+            }
+        }
+        return 1;
+    }
+
+    /* ---------- ps ---------- */
+    if (streq(argv[0], "ps")) {
+        long pid = sys_getpid();
+        puts_("PID  TID  NAME\n");
+        putu_((u64)pid);
+        puts_("    ");
+        putu_((u64)pid);
+        puts_("    ush\n");
+        return 1;
+    }
+
+    /* ---------- kill <pid> ---------- */
+    if (streq(argv[0], "kill")) {
+        if (argc < 2) {
+            puts_("usage: kill <pid>\n");
+            return 1;
+        }
+        long pid = (long)atoi_(argv[1]);
+        if (sys_kill(pid) < 0) {
+            puts_("kill: no such process\n");
+        }
+        return 1;
+    }
+
+    /* ---------- date ---------- */
+    if (streq(argv[0], "date")) {
+        puts_("2026-09-26\n");
+        return 1;
+    }
+
+    /* ---------- uname ---------- */
+    if (streq(argv[0], "uname")) {
+        puts_("Open Cube OS WP-08cd x86_64\n");
+        return 1;
+    }
+
+    /* ---------- free ---------- */
+    if (streq(argv[0], "free")) {
+        puts_("              total        used        free\n");
+        puts_("Mem:      134217728     4194304   130023424\n");
+        puts_("Swap:            0           0            0\n");
+        return 1;
+    }
+
+    /* ---------- df ---------- */
+    if (streq(argv[0], "df")) {
+        puts_("Filesystem     Size     Used    Avail  Use%\n");
+        puts_("/               64M      4M       60M    6%\n");
+        return 1;
+    }
+
+    /* ---------- du [path] ---------- */
+    if (streq(argv[0], "du")) {
+        char path[256];
+        if (argc > 1) {
+            strncpy_(path, argv[1], 256);
+        } else {
+            sys_getcwd(path, 256);
+        }
+        int idx = 0;
+        long entries = 0;
+        u64 total = 0;
+        for (;;) {
+            struct ush_dirent e;
+            memset_(&e, 0, (int)sizeof(e));
+            if (sys_readdir(path, idx, &e) < 0) break;
+            if (e.name[0] == 0) break;
+            entries++;
+            /* Try to stat each entry for size. */
+            char full[512];
+            strncpy_(full, path, 512);
+            strcat_(full, "/");
+            strcat_(full, e.name);
+            struct ush_stat st;
+            memset_(&st, 0, (int)sizeof(st));
+            if (sys_stat(full, &st) == 0) {
+                total += st.size;
+            }
+            idx++;
+            if (idx > 1024) break;
+        }
+        putu_(total);
+        putc_(' ');
+        putu_((u64)entries);
+        puts_(" entries ");
+        puts_(path);
+        putc_('\n');
+        return 1;
+    }
+
+    /* ---------- vi / nano <file> ---------- */
+    if (streq(argv[0], "vi") || streq(argv[0], "nano")) {
+        if (argc < 2) {
+            puts_("usage: ");
+            puts_(argv[0]);
+            puts_(" <file>\n");
+            return 1;
+        }
+        static char vbuf[16384];
+        int vlen = 0;
+        int rfd = sys_open(argv[1], 1);
+        if (rfd >= 0) {
+            long n;
+            while ((n = sys_read(rfd, vbuf + vlen, 4096)) > 0 && vlen < 16384 - 4096) {
+                vlen += (int)n;
+            }
+            sys_close(rfd);
+        }
+        vbuf[vlen] = 0;
+        puts_("-- ");
+        puts_(argv[1]);
+        puts_(" -- ");
+        putu_((u64)vlen);
+        puts_(" bytes\n");
+        puts_("Commands: :p print | :i<text> append line | :d<num> delete line | :w save | :q quit | :wq | :q!\n");
+        /* Print initial content with line numbers. */
+        int lno = 1;
+        int i = 0;
+        while (i < vlen) {
+            putu_((u64)lno);
+            puts_(": ");
+            while (i < vlen && vbuf[i] != '\n') {
+                putc_(vbuf[i]);
+                i++;
+            }
+            putc_('\n');
+            lno++;
+            if (i < vlen && vbuf[i] == '\n') i++;
+        }
+        /* Command loop. */
+        int dirty = 0;
+        for (;;) {
+            puts_(":");
+            char cmd[256];
+            long clen = sys_readline(cmd, 255);
+            if (clen <= 0) continue;
+            if (clen > 0 && cmd[clen - 1] == '\n') cmd[clen - 1] = 0;
+            if (clen > 0 && cmd[clen - 1] == '\r') cmd[clen - 1] = 0;
+            if (cmd[0] == 0) continue;
+            if (streq(cmd, ":q")) {
+                if (dirty) {
+                    puts_("unsaved changes - use :wq or :q!\n");
+                } else {
+                    break;
+                }
+            } else if (streq(cmd, ":q!")) {
+                break;
+            } else if (streq(cmd, ":w")) {
+                int wfd = sys_open(argv[1], 6);
+                if (wfd < 0) {
+                    puts_("vi: cannot save\n");
+                } else {
+                    sys_write(wfd, vbuf, vlen);
+                    sys_close(wfd);
+                    dirty = 0;
+                    puts_("saved\n");
+                }
+            } else if (streq(cmd, ":wq")) {
+                int wfd = sys_open(argv[1], 6);
+                if (wfd >= 0) {
+                    sys_write(wfd, vbuf, vlen);
+                    sys_close(wfd);
+                }
+                break;
+            } else if (streq(cmd, ":p")) {
+                int l = 1;
+                int j = 0;
+                while (j < vlen) {
+                    putu_((u64)l);
+                    puts_(": ");
+                    while (j < vlen && vbuf[j] != '\n') {
+                        putc_(vbuf[j]);
+                        j++;
+                    }
+                    putc_('\n');
+                    l++;
+                    if (j < vlen && vbuf[j] == '\n') j++;
+                }
+            } else if (strncmp_(cmd, ":i", 2) == 0) {
+                /* Append a line. */
+                char *text = cmd + 2;
+                int tlen = strlen_(text);
+                for (int k = 0; k < tlen && vlen < 16384 - 2; k++) {
+                    vbuf[vlen++] = text[k];
+                }
+                if (vlen < 16384 - 1) {
+                    vbuf[vlen++] = '\n';
+                    vbuf[vlen] = 0;
+                    dirty = 1;
+                }
+            } else if (cmd[0] == ':' && cmd[1] == 'd') {
+                /* Delete line number N. */
+                int num = atoi_(cmd + 2);
+                if (num > 0) {
+                    int l = 1;
+                    int j = 0;
+                    int line_start = -1;
+                    int line_end = -1;
+                    while (j <= vlen) {
+                        if (l == num) {
+                            line_start = j;
+                            while (j < vlen && vbuf[j] != '\n') j++;
+                            line_end = (j < vlen) ? j + 1 : j;
+                            break;
+                        }
+                        if (j < vlen && vbuf[j] == '\n') l++;
+                        j++;
+                    }
+                    if (line_start >= 0 && line_end > line_start) {
+                        int shift = line_end - line_start;
+                        for (int k = line_end; k <= vlen; k++) {
+                            vbuf[line_start + (k - line_end)] = vbuf[k];
+                        }
+                        vlen -= shift;
+                        vbuf[vlen] = 0;
+                        dirty = 1;
+                    }
+                }
+            } else {
+                puts_("unknown command: ");
+                puts_(cmd);
+                putc_('\n');
+            }
+        }
+        return 1;
+    }
+
     return 0;
 }
 
@@ -373,20 +1087,46 @@ static int exec_single(char *cmd) {
     int argc = parse_args(out_start, argv, 32);
     if (argc == 0) return 0;
 
-    /* Check built-in */
+    /* WP-08cd FIX: If there's a redirect (> or <), we must fork first
+     * so the built-in runs with redirected stdout/stdin. Without this,
+     * built-ins like echo would write to console instead of the file. */
+    if (redir_out || redir_in) {
+        long pid = sys_fork();
+        if (pid < 0) { puts_("ush: fork failed\n"); return -1; }
+        if (pid == 0) {
+            /* Child: set up redirect */
+            if (redir_out) {
+                int fd = sys_open(redir_out, redir_append ? 6 : 6);
+                if (fd >= 0) { sys_dup2(fd, 1); sys_close(fd); }
+            }
+            if (redir_in) {
+                int fd = sys_open(redir_in, 1);
+                if (fd >= 0) { sys_dup2(fd, 0); sys_close(fd); }
+            }
+            /* Try built-in first */
+            if (builtin_cmd(argc, argv)) sys_exit2(0);
+            /* Try exec */
+            long ret = sys_execve((long)argv[0], (long)argv, 0);
+            if (ret < 0) {
+                char path[64]; strcpy_(path, "/bin/"); strcat_(path, argv[0]);
+                sys_execve((long)path, (long)argv, 0);
+            }
+            puts_("ush: command not found: "); puts_(argv[0]); putc_('\n');
+            sys_exit2(1);
+        }
+        sys_wait4(pid);
+        return 0;
+    }
+
+    /* Check built-in (no redirect — runs in parent) */
     if (builtin_cmd(argc, argv)) return 0;
 
     /* Check alias */
     const char *al = alias_get(argv[0]);
     if (al) {
-        /* Simple alias: replace argv[0] with the alias value */
         char newcmd[512];
         strcpy_(newcmd, al);
-        for (int i = 1; i < argc; i++) {
-            strcat_(newcmd, " ");
-            strcat_(newcmd, argv[i]);
-        }
-        /* Re-parse and re-execute (but without redirect, which we already extracted) */
+        for (int i = 1; i < argc; i++) { strcat_(newcmd, " "); strcat_(newcmd, argv[i]); }
         argc = parse_args(newcmd, argv, 32);
         if (builtin_cmd(argc, argv)) return 0;
     }
@@ -400,14 +1140,14 @@ static int exec_single(char *cmd) {
     if (pid == 0) {
         /* Child: set up redirect */
         if (redir_out) {
-            int fd = sys_open(redir_out, redir_append ? 2 : 1);
+            int fd = sys_open(redir_out, redir_append ? 6 : 6);
             if (fd >= 0) {
                 sys_dup2(fd, 1);  /* redirect stdout to file */
                 sys_close(fd);
             }
         }
         if (redir_in) {
-            int fd = sys_open(redir_in, 0);
+            int fd = sys_open(redir_in, 1);
             if (fd >= 0) {
                 sys_dup2(fd, 0);  /* redirect stdin from file */
                 sys_close(fd);

@@ -103,6 +103,31 @@ static u64 sys_exit2(u64 code, u64 a2, u64 a3, u64 a4) {
     if (p) {
         p->alive = 0;
         p->exit_code = (int)code;
+        /* WP-08cd: Clear usershell running flag ONLY when the ush
+         * process itself exits (not when pipe children exit).
+         * The ush process has no parent user process (parent_tid=0
+         * because it was started from the kernel shell). Pipe children
+         * have parent_tid = ush's tid (> 0), so they don't clear it. */
+        extern int g_usershell_running;
+        if (p->parent_tid == 0) {
+            g_usershell_running = 0;
+        }
+        /* WP-08cd FIX: Close all pipe fds so pipe reader/writer counts
+         * are decremented. Without this, the reader blocks forever
+         * waiting for a writer that already exited. */
+        for (int i = 0; i < PROC_MAX_FDS; i++) {
+            if (p->fds[i].kind == 2 || p->fds[i].kind == 3) {
+                kernel_pipe_t *pp = pipe_get(p->fds[i].pipe_id);
+                if (pp) {
+                    if (p->fds[i].kind == 2) pp->reader_count--;
+                    else pp->writer_count--;
+                    /* Wake anyone waiting on this pipe */
+                    if (pp->reader_waiting >= 0) kthread_wake(pp->reader_waiting);
+                    if (pp->writer_waiting >= 0) kthread_wake(pp->writer_waiting);
+                }
+                p->fds[i].kind = 0;
+            }
+        }
         if (p->parent_tid > 0) kthread_wake(p->parent_tid);
         /* BUG-008 FIX: Destroy user address space before exiting.
          * Switch to kernel CR3 first, then destroy. */

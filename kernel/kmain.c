@@ -893,13 +893,20 @@ static int cmd_run(const char *args) {
         char buf[40]; char n[20];
         oc_strcpy(buf, "started pid="); oc_u64_to_str((u64)pid, n); oc_strcpy(buf+oc_strlen(buf), n);
         oc_strcpy(buf+oc_strlen(buf), "\n"); oc_console_puts(buf);
-        /* WP-08cd: For user-space shell (ush), block the kernel shell
-         * until ush exits. This prevents both shells from competing
-         * for keyboard input. When ush exits (sys_exit2), it wakes
-         * the parent (tid 0 = kernel shell), which resumes here. */
+        /* WP-08cd: For user-space shell (ush), set a flag so the kernel
+         * shell's main loop skips readline while ush is running.
+         * This prevents both shells from competing for keyboard input.
+         * When ush exits (sys_exit2), it clears the flag and the
+         * kernel shell resumes its normal readline loop. */
         if (oc_strcmp(args, "ush") == 0 || oc_strcmp(args, "usershell") == 0) {
-            kthread_block();
-            /* Resumed: ush has exited */
+            extern int g_usershell_running;
+            g_usershell_running = 1;
+            /* Spin-wait until ush exits. The timer IRQ + scheduler
+             * will keep ush running. When ush exits, sys_exit2
+             * sets g_usershell_running = 0. */
+            while (g_usershell_running) {
+                __asm__ volatile("sti; hlt");
+            }
         }
     } else {
         oc_console_puts("failed to create process\n");
