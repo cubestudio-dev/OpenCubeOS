@@ -10,7 +10,6 @@
 #include "usermode.h"
 #include "syscall.h"
 #include "sched.h"
-#include "kmain.h"
 
 #define MAX_TOOLS 32
 #define MAX_JOBS  16
