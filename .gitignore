@@ -2,6 +2,10 @@
 build/
 *.o
 *.d
+*.elf
+*.so
+*.iso
+*.zip
 
 # Python cache
 __pycache__/
@@ -11,10 +15,14 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Test logs
+# Test logs and captures
 audit-test-*
 wp08a-test-*
 *.log
+*.pcap
+
+# Screenshots
+web-*.png
 
 # Internal scripts (not for public)
 run_audit_tests*.py
@@ -22,21 +30,26 @@ run_wp08a_tests.py
 test_bug003_tcp.py
 upload_iso.py
 
-# Screenshots
-web-*.png
-
-# Internal docs
+# Internal docs (contains server info, SSH paths)
 docs/WORKFLOW.md
 docs/worklog.md
 docs/HANDOFF.md
 
-# Internal tools
+# Internal tools (contains credentials, server info)
 tools/push_to_git.py
 tools/release.sh
 tools/wp02_test.py
 tools/wp03_test.py
 tools/wp04_test.py
 tools/wp06_socket_test.py
+
+# Binary releases (use GitHub Releases, not git)
+releases/
+
+# Old archived trees (not needed in main repo)
+archive/old-src-tree/
+archive/old-tests/
+archive/WP06/
 
 # Dist
 dist/
