@@ -29,6 +29,7 @@
 #define SYS_READ     70
 #define SYS_WRITE2  72
 #define SYS_READLINE 73
+#define SYS_GETCH      74
 
 /* Additional syscalls for built-in tools */
 #define SYS_STAT     5
@@ -89,6 +90,7 @@ static inline long syscall3(long n, long a, long b, long c) {
 #define sys_write(fd, buf, len)  syscall3(SYS_WRITE2, (fd), (long)(buf), (len))
 #define sys_read(fd, buf, len)   syscall3(SYS_READ, (fd), (long)(buf), (len))
 #define sys_readline(buf, max)   syscall2(SYS_READLINE, (long)(buf), (max))
+#define sys_getch()           syscall0(SYS_GETCH)
 #define sys_fork()               syscall0(SYS_FORK)
 #define sys_execve(path, argv, envp) syscall3(SYS_EXECVE, (long)(path), (long)(argv), (long)(envp))
 #define sys_wait4(pid)           syscall1(SYS_WAIT4, (pid))
@@ -227,6 +229,11 @@ static void env_set(const char *name, const char *val) {
 #define MAX_ALIAS 16
 static struct { char name[32]; char val[64]; } g_alias[MAX_ALIAS];
 static int g_alias_count = 0;
+
+/* Job control (background tasks) */
+#define MAX_JOBS 16
+static struct { char name[32]; int pid; int active; } g_jobs[MAX_JOBS];
+static int g_job_count = 0;
 
 static const char *alias_get(const char *name) {
     for (int i = 0; i < g_alias_count; i++) {
@@ -1266,15 +1273,110 @@ void _start(void) {
         if (!ps1[0]) ps1 = "ush> ";
         puts_(ps1);
 
-        /* Read a line */
-        long len = sys_readline((long)line, 511);
-        if (len <= 0) continue;
-        /* Remove trailing newline */
-        if (len > 0 && line[len - 1] == '\n') line[len - 1] = 0;
-        if (len > 0 && line[len - 1] == '\r') line[len - 1] = 0;
+        /* Read a line with Tab completion + job control (&) + Ctrl+C */
+        int llen = 0;
+        int bg = 0;  /* background flag */
+        for (;;) {
+            long k = sys_getch();
+            if (k < 0) { /* No key, spin-wait briefly */
+                for (volatile int s = 0; s < 100; s++);
+                continue;
+            }
+            if (k == '\n' || k == '\r') {
+                putc_('\n');
+                break;
+            }
+            if (k == 0x03) { /* Ctrl+C */
+                puts_("^C\n");
+                llen = 0;
+                line[0] = 0;
+                goto next_prompt;
+            }
+            if (k == 0x08 || k == 0x7F) { /* Backspace */
+                if (llen > 0) {
+                    llen--;
+                    puts_("\b \b");
+                }
+                continue;
+            }
+            if (k == '\t') { /* Tab completion */
+                line[llen] = 0;
+                /* Try to complete command name or file name */
+                /* Find last word */
+                int wstart = llen;
+                while (wstart > 0 && line[wstart-1] != ' ') wstart--;
+                char *word = line + wstart;
+                int wlen = llen - wstart;
+                if (wlen <= 0) continue;
+                /* Check builtin commands */
+                static const char *builtins[] = {
+                    "echo","ls","cat","grep","wc","head","tail","mkdir",
+                    "touch","rm","cp","mv","sort","uniq","ps","kill",
+                    "date","uname","free","df","du","vi","nano","pwd",
+                    "cd","exit","export","alias","unalias","history",
+                    "jobs","fg","bg",0
+                };
+                int found = 0;
+                int blen = 0;
+                char match[64];
+                match[0] = 0;
+                for (int i = 0; builtins[i]; i++) {
+                    if (strncmp_(builtins[i], word, wlen) == 0) {
+                        if (found == 0) {
+                            strcpy_(match, builtins[i]);
+                            blen = strlen_(match);
+                        } else {
+                            /* Find common prefix */
+                            int j = 0;
+                            while (j < blen && match[j] && builtins[i][j] && match[j] == builtins[i][j]) j++;
+                            blen = j;
+                            match[blen] = 0;
+                        }
+                        found++;
+                    }
+                }
+                if (found == 1 && blen > wlen) {
+                    /* Complete the word */
+                    for (int i = wlen; i < blen; i++) {
+                        line[llen++] = match[i];
+                        putc_(match[i]);
+                    }
+                    /* Add space if single match */
+                    line[llen++] = ' ';
+                    putc_(' ');
+                } else if (found > 1 && blen > wlen) {
+                    /* Complete common prefix */
+                    for (int i = wlen; i < blen; i++) {
+                        line[llen++] = match[i];
+                        putc_(match[i]);
+                    }
+                }
+                continue;
+            }
+            if (k == '&' && llen == 0) { /* Background */
+                /* Actually, & at end of line means background */
+            }
+            if (k >= 0x20 && k < 0x7F && llen < 510) {
+                line[llen++] = (char)k;
+                putc_((char)k);
+            }
+        }
+        line[llen] = 0;
+        long len = llen;
+
+        /* Check for & (background) */
+        if (len > 0 && line[len-1] == '&') {
+            bg = 1;
+            line[--len] = 0;
+            /* Trim trailing space */
+            while (len > 0 && line[len-1] == ' ') line[--len] = 0;
+        }
 
         /* Skip empty lines */
-        if (!line[0]) continue;
+        if (!line[0]) {
+        next_prompt:
+            continue;
+        }
 
         /* Add to history */
         history_add(line);
@@ -1282,7 +1384,58 @@ void _start(void) {
         /* Expand $VAR */
         expand_env(line, expanded, 512);
 
-        /* Execute */
-        exec_pipeline(expanded);
+        /* Check for jobs/fg/bg builtins (need shell state) */
+        {
+            /* parse first word */
+            int ti = 0;
+            while (expanded[ti] && expanded[ti] != ' ') ti++;
+            char saved = expanded[ti];
+            expanded[ti] = 0;
+            if (streq(expanded, "jobs")) {
+                for (int i = 0; i < g_job_count; i++) {
+                    if (g_jobs[i].active) {
+                        putu_(i); puts_(" "); puts_(g_jobs[i].name); puts_("\n");
+                    }
+                }
+                bg = 0;
+                goto done_cmd;
+            }
+            if (streq(expanded, "fg") || streq(expanded, "bg")) {
+                expanded[ti] = saved;
+                /* Simple: just print "not available in this context" */
+                puts_("ush: job control requires external programs\n");
+                bg = 0;
+                goto done_cmd;
+            }
+            expanded[ti] = saved;
+        }
+
+        /* Execute (with background flag) */
+        if (bg) {
+            /* Background: fork without wait */
+            long pid = sys_fork();
+            if (pid == 0) {
+                /* Child: run the command */
+                exec_pipeline(expanded);
+                sys_exit2(0);
+            }
+            /* Parent: don't wait, track as background job */
+            if (g_job_count < 16) {
+                /* Store job name (simplified) */
+                strncpy_(g_jobs[g_job_count].name, expanded, 31);
+                g_jobs[g_job_count].pid = (int)pid;
+                g_jobs[g_job_count].active = 1;
+                g_job_count++;
+            }
+            puts_("[");
+            putu_(g_job_count);
+            puts_("] ");
+            putu_(pid);
+            puts_("\n");
+        } else {
+            exec_pipeline(expanded);
+        }
+    done_cmd:
+        bg = 0;
     }
 }

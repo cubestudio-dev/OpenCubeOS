@@ -60,6 +60,7 @@
 /* WP-08cd: User-space shell support */
 #define SYS_WRITE2        72   /* (fd, buf, len) — fd-aware write for pipes/redirect */
 #define SYS_READLINE      73   /* (buf, maxlen) — read a line from keyboard */
+#define SYS_GETCH         74   /* (void) -> int: read one raw key from keyboard (no echo) */
 
 /* WP-08a: I/O multiplexing */
 #define SYS_SELECT        80

@@ -824,6 +824,7 @@ static u64 sys_unlink(u64 path, u64 a2, u64 a3, u64 a4);
 static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4);
 static u64 sys_readline(u64 buf, u64 maxlen, u64 a3, u64 a4);
 
+static u64 sys_getch(u64 a1, u64 a2, u64 a3, u64 a4);
 void syscall_wp08a_init(void) {
     syscall_register(SYS_FORK, sys_fork);
     syscall_register(SYS_EXECVE, sys_execve);
@@ -860,6 +861,7 @@ void syscall_wp08a_init(void) {
     syscall_register(SYS_UNLINK, sys_unlink);
     syscall_register(SYS_WRITE2, sys_write2);
     syscall_register(SYS_READLINE, sys_readline);
+    syscall_register(SYS_GETCH, sys_getch);
     oc_memset(g_pipes, 0, sizeof(g_pipes));
 }
 
@@ -1043,4 +1045,13 @@ static u64 sys_readline(u64 buf, u64 maxlen, u64 a3, u64 a4) {
     oc_memcpy((void*)(uintptr_t)buf, line, (u64)len);
     ((char*)(uintptr_t)buf)[len] = 0;  /* null-terminate user buffer */
     return (u64)len;
+}
+
+/* SYS_GETCH(74): read one raw character from keyboard (no echo, no line edit).
+ * Returns the ASCII key, or -1 if no key available. Non-blocking. */
+static u64 sys_getch(u64 a1, u64 a2, u64 a3, u64 a4) {
+    (void)a1;(void)a2;(void)a3;(void)a4;
+    int k = oc_keyboard_getch();
+    if (k < 0) return (u64)-1;
+    return (u64)k;
 }
