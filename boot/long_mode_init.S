@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: Apache-2.0
-; Copyright 2026 Cube Studio <cubestudio@qq.com>
+; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 ; Open Cube OS — WP-01
 ; File: boot/long_mode_init.S
 ; Purpose: 64-bit entry point. Reload data segments with 64-bit selectors,

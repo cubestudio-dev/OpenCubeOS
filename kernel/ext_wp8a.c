@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* Copyright 2026 Cube Studio <cubestudio@qq.com> */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-08a
  * File: kernel/ext_wp8a.c
  * Purpose: L1 extension API — int 0x80 syscall wrappers.

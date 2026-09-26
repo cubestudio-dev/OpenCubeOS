@@ -1,7 +1,7 @@
 # Open Cube OS - WP-08b Batch 6 (Audit P0/P1 Fixed)
 
 
-Copyright 2026 Cube Studio <cubestudio@qq.com>
+Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 Licensed under the Apache License, Version 2.0.
 **Open Cube OS** is an open-source operating-system kernel. Its positioning:
 
@@ -93,6 +93,14 @@ Once the `oc>` prompt appears, type `help` for commands. Try `mem`, `heap`,
 
 Apache 2.0. See `LICENSE`.
 
+## AI Disclosure
+
+This project was developed by cubestudio-dev with the assistance
+of AI tools. All design decisions, architecture, specifications,
+project management, code review, quality assurance, and acceptance
+testing were performed by cubestudio-dev. AI tools were used as
+implementation assistants.
+
 ## Copyright
 
-Copyright 2026 Cube Studio <cubestudio@qq.com>.
+Copyright 2026 cubestudio-dev <cubestudio@qq.com>.

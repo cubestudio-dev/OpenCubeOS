@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* Copyright 2026 Cube Studio <cubestudio@qq.com> */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 
 /* libfoo.c - shared library for WP-08b dynamic linking tests.
  * Exports:

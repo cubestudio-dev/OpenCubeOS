@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: Apache-2.0
-; Copyright 2026 Cube Studio <cubestudio@qq.com>
+; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 ; Open Cube OS — WP-01
 ; File: boot/multiboot2_header.S
 ; Purpose: Multiboot2 header so GRUB (BIOS or UEFI) recognizes our kernel

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* Copyright 2026 Cube Studio <cubestudio@qq.com> */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
  * File: kernel/console_in.c
  * Purpose: Console input line editor + L1 input hooks.

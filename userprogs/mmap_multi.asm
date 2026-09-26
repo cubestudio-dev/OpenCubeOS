@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: Apache-2.0
-; Copyright 2026 Cube Studio <cubestudio@qq.com>
+; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 
 ; BUG-010 test: multi-process mmap independence
 ; Parent mmaps "PAAA", forks, child mmaps "CBBB".

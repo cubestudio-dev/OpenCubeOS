@@ -1,6 +1,6 @@
 # Copyright
 
-Copyright 2026 Cube Studio <cubestudio@qq.com>
+Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,15 +16,23 @@ limitations under the License.
 
 ## Copyright Holder
 
-- **Name**: Cube Studio
+- **Name**: cubestudio-dev
 - **Contact**: cubestudio@qq.com
 - **Year**: 2026
+
+## AI Disclosure
+
+This project was developed by cubestudio-dev with the assistance
+of AI tools. All design decisions, architecture, specifications,
+project management, code review, quality assurance, and acceptance
+testing were performed by cubestudio-dev. AI tools were used as
+implementation assistants.
 
 All source files contain the following header:
 
 ```
 SPDX-License-Identifier: Apache-2.0
-Copyright 2026 Cube Studio <cubestudio@qq.com>
+Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 ```
 
 ## Third-Party Components

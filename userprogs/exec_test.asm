@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: Apache-2.0
-; Copyright 2026 Cube Studio <cubestudio@qq.com>
+; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 
 ; WP-08a exec test: fork, child execs hello, parent waits
 bits 64

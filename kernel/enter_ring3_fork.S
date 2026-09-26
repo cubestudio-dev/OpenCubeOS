@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: Apache-2.0
-; Copyright 2026 Cube Studio <cubestudio@qq.com>
+; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 ; Open Cube OS - WP-08a
 ; File: kernel/enter_ring3_fork.S
 ; Purpose: Enter ring 3 with a saved fork frame (RIP, RSP, RFLAGS, RAX).

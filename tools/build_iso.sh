@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Cube Studio <cubestudio@qq.com>
+# Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 # Open Cube OS - WP-01
 # File: tools/build_iso.sh
 # Purpose: Build a hybrid BIOS+UEFI bootable ISO using grub-mkimage + xorriso
