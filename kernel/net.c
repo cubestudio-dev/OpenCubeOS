@@ -2246,34 +2246,9 @@ int cmd_ifconfig(const char *args) {
         return 0;
     }
 
-    /* Debug: print descriptor addresses (only for e1000). */
-    if (!g_use_virtio && g_e1000_mmio) {
-        oc_strcpy(buf, "e1000 debug: rx_descs=0x");
-        oc_u64_to_hex((u64)(uintptr_t)g_rx_descs, n_tmp, 16); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " tx_descs=0x");
-        oc_u64_to_hex((u64)(uintptr_t)g_tx_descs, n_tmp, 16); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, "\n");
-        oc_console_puts(buf);
-        oc_strcpy(buf, "  RDBAL=0x");
-        oc_u64_to_hex(mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_RDBAL)), n_tmp, 8); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " TDBAL=0x");
-        oc_u64_to_hex(mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDBAL)), n_tmp, 8); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, "\n");
-        oc_console_puts(buf);
-        oc_strcpy(buf, "  CTRL=0x");
-        oc_u64_to_hex(mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_CTRL)), n_tmp, 8); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, "\n");
-        oc_console_puts(buf);
-    } else if (g_use_virtio) {
-        oc_strcpy(buf, "virtio-net: I/O=0x");
-        oc_u64_to_hex(g_virtio_io_base, n_tmp, 4); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " TX avail="); oc_u64_to_str(g_vtx_avail_idx, n_tmp); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " TX used="); oc_u64_to_str(g_vtx_used_idx, n_tmp); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " RX avail="); oc_u64_to_str(g_vrx_avail_idx, n_tmp); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " RX used="); oc_u64_to_str(g_vrx_used_idx, n_tmp); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, "\n");
-        oc_console_puts(buf);
-    }
+    /* BUG-035 FIX: Remove e1000 debug register dump from ifconfig.
+     * Old code printed rx_descs/tx_descs/RDBAL/TDBAL/CTRL — internal
+     * debug info not useful to users. */
 
     oc_console_puts(g_use_virtio ? "virtio-net:\n" : "e1000:\n");
 
@@ -2414,34 +2389,9 @@ int cmd_netstat(const char *args) {
     (void)args;
     char buf[80];
 
-    /* Debug: dump NIC register state. */
-    if (g_nic_ok && !g_use_virtio && g_e1000_mmio) {
-        u32 rdh = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_RDH));
-        u32 rdt = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_RDT));
-        u32 tdh = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDH));
-        u32 tdt = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDT));
-        u32 status = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_STATUS));
-        u32 rctl = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_RCTL));
-        u32 tctl = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_TCTL));
-        oc_strcpy(buf, "e1000 debug: RDH="); oc_u64_to_str(rdh, n_tmp); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " RDT="); oc_u64_to_str(rdt, n_tmp); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " TDH="); oc_u64_to_str(tdh, n_tmp); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " TDT="); oc_u64_to_str(tdt, n_tmp); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, "\n");
-        oc_console_puts(buf);
-        oc_strcpy(buf, "  STATUS=0x"); oc_u64_to_hex(status, n_tmp, 8); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " RCTL=0x"); oc_u64_to_hex(rctl, n_tmp, 8); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " TCTL=0x"); oc_u64_to_hex(tctl, n_tmp, 8); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, "\n");
-        oc_console_puts(buf);
-    } else if (g_nic_ok && g_use_virtio) {
-        oc_strcpy(buf, "virtio: TX avail="); oc_u64_to_str(g_vtx_avail_idx, n_tmp); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " used="); oc_u64_to_str(g_vtx_used_idx, n_tmp); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " RX avail="); oc_u64_to_str(g_vrx_avail_idx, n_tmp); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, " used="); oc_u64_to_str(g_vrx_used_idx, n_tmp); oc_strcat(buf, n_tmp);
-        oc_strcat(buf, "\n");
-        oc_console_puts(buf);
-    }
+    /* BUG-035 FIX: Remove e1000 debug register dump from netstat.
+     * Old code printed RDH/RDT/TDH/TDT/STATUS/RCTL/TCTL — internal
+     * debug info not useful to users. */
 
     net_stats_t st;
     net_get_stats(&st);

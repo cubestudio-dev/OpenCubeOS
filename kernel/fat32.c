@@ -164,6 +164,12 @@ static int fat32_parse_device(const char *device) {
         if (c >= '0' && c <= '3' && device[4] == 0) return c - '0';
         return -1;
     }
+    /* Accept "hda".."hdd" (standard block device names). */
+    if (oc_strncmp(device, "hd", 2) == 0) {
+        char c = device[2];
+        if (c >= 'a' && c <= 'd' && device[3] == 0) return c - 'a';
+        return -1;
+    }
     if (device[0] >= '0' && device[0] <= '3' && device[1] == 0) {
         return device[0] - '0';
     }
