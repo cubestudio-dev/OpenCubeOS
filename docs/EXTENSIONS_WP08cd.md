@@ -1,13 +1,13 @@
-# WP-08cd L1 Extension Interfaces (Items 51-57)
+# WP-08 L1 Extension Interfaces — User-space Shell + Toolset (Items 51-57)
 
-**Work Package**: WP-08cd — User-space Shell + Toolset
+**Work Package**: WP-08 — User-space Shell + Toolset
 **Total L1 Interfaces**: 7 (items 51-57)
 **Status**: Complete
 **License**: Apache 2.0
 
 ## Overview
 
-WP-08cd adds 7 L1 extension interfaces for user-space shell, tools, job control, and signal handling.
+WP-08 adds 7 L1 extension interfaces for user-space shell, tools, job control, and signal handling.
 
 ## Interface 51: shell_run
 
@@ -70,8 +70,8 @@ Control a job: 0=fg, 1=bg, 2=kill.
 
 ## ABI Stability
 
-All interfaces are stable. WP-01..WP-08b interfaces remain backward compatible.
+All interfaces are stable. WP-01..WP-08 interfaces remain backward compatible.
 
 ## Total L1 Surface
 
-57 interfaces: WP-01..07 (32) + WP-08a (8) + WP-08b (10) + WP-08cd (7) = 57.
+57 interfaces: WP-01..07 (32) + WP-08 (25 = 8+10+7) = 57.

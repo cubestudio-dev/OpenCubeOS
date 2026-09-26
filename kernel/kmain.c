@@ -147,7 +147,7 @@ static void draw_banner(void) {
     u32 saved_bg = oc_console_get()->bg_pixel;
     oc_console_get()->fg_pixel = oc_fb_rgb(0xFF, 0xFF, 0xFF);
     oc_console_get()->bg_pixel = band_color;
-    oc_console_puts("Open Cube OS  [WP-08b Batch 6]");
+    oc_console_puts("Open Cube OS  [WP-08]");
     oc_console_get()->fg_pixel = saved_fg;
     oc_console_get()->bg_pixel = saved_bg;
     oc_console_move_cursor(0, 4);
@@ -1316,7 +1316,7 @@ static void interactive_loop(void) {
     (void)tm_id;
 
     oc_console_putc('\n');
-    oc_console_puts("Open Cube OS WP-08b ready. Type 'help' for commands.\n");
+    oc_console_puts("Open Cube OS WP-08 ready. Type 'help' for commands.\n");
     oc_console_puts("(Try: ifconfig, ping 10.0.2.2, dhcp, dns example.com, netstat)\n\n");
 
     char line[256];
@@ -1340,7 +1340,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     /* ---- 0. Serial console ---- */
     serial_init();
     serial_putc('\r'); serial_putc('\n');
-    serial_puts("[oc] Open Cube OS WP-08b kmain entered\r\n");
+    serial_puts("[oc] Open Cube OS WP-08 kmain entered\r\n");
 
     /* ---- 1. Validate multiboot2 ---- */
     if (magic != OC_MB2_MAGIC) {
@@ -1370,7 +1370,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     draw_banner();
 
     /* ---- 5. Boot log (WP-01 stages) ---- */
-    oc_log_info("Open Cube OS - L0 kernel (WP-08b)");
+    oc_log_info("Open Cube OS - L0 kernel (WP-08)");
     oc_log_info("Apache 2.0 licensed. See LICENSE.");
     oc_console_putc('\n');
 

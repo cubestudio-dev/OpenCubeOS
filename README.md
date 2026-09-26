@@ -1,4 +1,4 @@
-# Open Cube OS - WP-08b Batch 6 (Audit P0/P1 Fixed)
+# Open Cube OS - WP-08
 
 **官网**: https://helloopencubeos.space-z.ai
 

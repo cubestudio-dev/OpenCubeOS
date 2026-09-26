@@ -16,7 +16,7 @@
 - **响应格式**:
   ```json
   {
-    "version": "WP-08b Batch 6",
+    "version": "WP-08",
     "iso_sha256": "...",
     "iso_url": "https://helloopencubeos.space-z.ai/downloads/opencube.iso",
     "src_sha256": "...",
@@ -30,13 +30,13 @@
 ```
 oc> checkupdate
 Checking for updates...
-Current version: WP-08b Batch 6 (Audit P0/P1/P2/P3 Fixed)
-Latest version:  WP-08b Batch 6
+Current version: WP-08
+Latest version:  WP-08
 You are up to date.
 
 oc> checkupdate
 Checking for updates...
-Current version: WP-08b Batch 6 (Audit P0/P1/P2/P3 Fixed)
+Current version: WP-08
 Latest version:  WP-09 Batch 1
 Update available! Download from: https://helloopencubeos.space-z.ai/downloads/opencube-wp09.iso
 ```

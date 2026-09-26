@@ -1,7 +1,7 @@
-# Open Cube OS 完整验证报告：WP-01 到 WP-08b
+# Open Cube OS 完整验证报告：WP-01 到 WP-08
 
-**验证日期**: 2026-09-22
-**验证范围**: WP-01 到 WP-08b 全部源码（87 个文件，19,134 行代码）
+**验证日期**: 2026-09-26
+**验证范围**: WP-01 到 WP-08 全部源码（147 个文件，31,xxx 行代码）
 **验证人**: cubestudio-dev 自动审计
 
 ---
@@ -46,7 +46,7 @@
 [00:00:00.1e0] kmalloc/kfree self-test........................... OK
 [00:00:00.23a] boot complete..................................... OK
 
-Open Cube OS WP-08b ready. Type 'help' for commands.
+Open Cube OS WP-08 ready. Type 'help' for commands.
 ```
 
 截图: `build/verify-bios.png` (18836 字节)
@@ -477,7 +477,7 @@ Open Cube OS WP-08b ready. Type 'help' for commands.
 
 ## 更新说明 (2026-09-26)
 
-本报告原始版本声称 "dhcp ✅ / dns ✅"，但 BUG-004 证明在 WP-08b 代码中这两条命令因命令表溢出（SHELL_MAX_COMMANDS=64，第 65 条起注册失败）而无法被调用。审计修复后 SHELL_MAX_COMMANDS=128，所有 68 条命令均可注册。
+本报告原始版本声称 "dhcp ✅ / dns ✅"，但 BUG-004 证明在早期代码中这两条命令因命令表溢出（SHELL_MAX_COMMANDS=64，第 65 条起注册失败）而无法被调用。审计修复后 SHELL_MAX_COMMANDS=128，所有 68 条命令均可注册。
 
 本报告原始版本声称 "管道 ❌ P0-8"，实际管道逻辑正确，仅捕获期间中间输出泄漏到串口（BUG-016），已修复。
 

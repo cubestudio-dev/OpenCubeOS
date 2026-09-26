@@ -859,7 +859,7 @@ static int builtin_cmd(int argc, char *argv[]) {
 
     /* ---------- uname ---------- */
     if (streq(argv[0], "uname")) {
-        puts_("Open Cube OS WP-08cd x86_64\n");
+        puts_("Open Cube OS WP-08 x86_64\n");
         return 1;
     }
 
@@ -1261,7 +1261,7 @@ void _start(void) {
     env_set("HOME", "/");
     env_set("PS1", "ush> ");
 
-    puts_("\nOpen Cube OS User-space Shell (WP-08cd)\n");
+    puts_("\nOpen Cube OS User-space Shell (WP-08)\n");
     puts_("Type 'help' for built-in commands.\n\n");
 
     char line[512];

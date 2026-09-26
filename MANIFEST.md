@@ -1,7 +1,7 @@
 # Open Cube OS — Repository Manifest
 
 ## Version
-WP-08b Batch 6 (Final)
+WP-08 (Final)
 
 ## Directory Structure
 
@@ -11,17 +11,17 @@ oc-os/                        ← repository root
 ├── kernel/                   ← kernel source (42 .c + 46 .h + 4 .S = 92 files)
 ├── userprogs/                ← user programs (.c/.asm/.ld/.elf/.o/.so)
 ├── tools/                    ← build/test scripts (10 files)
-├── docs/                     ← documentation (EXTENSIONS_WP01..WP08b.md + BUILD.md + STATUS.md + WORKFLOW.md + HANDOFF.md + worklog.md + MANIFEST.txt)
+├── docs/                     ← documentation (EXTENSIONS_WP01..WP08cd.md + BUILD.md + STATUS.md + WORKFLOW.md + HANDOFF.md + worklog.md + MANIFEST.txt)
 ├── build/                    ← build artifacts (opencube.elf + opencube.iso + .o files) — gitignored
 ├── web/                      ← Next.js web page source (page.tsx + layout.tsx)
 │   └── app/
 ├── releases/                 ← release artifacts
-│   └── WP08b/                ← WP-08b Batch 6 release
-│       ├── opencube-wp08b-batch6.iso
-│       ├── opencube-wp08b-batch6-src.zip
-│       └── SHA256SUMS
+│   ├── WP08/                 ← WP-08 release
+│   │   ├── opencube-wp08.iso
+│   │   └── SHA256SUMS
+│   └── WP08b/                ← WP-08b archived release (ISO + src zip)
 ├── archive/                  ← archived old versions (see archive/README.md)
-│   ├── old-src-tree/         ← WP-08a era source tree (contains dynlink.c/h)
+│   ├── old-src-tree/         ← earlier-era source tree (contains dynlink.c/h)
 │   ├── WP06/                 ← WP-06 source zip
 │   ├── old-ldso/             ← Batch 2 assembly ld.so
 │   └── old-tests/            ← old dyn_test.elf
@@ -30,7 +30,7 @@ oc-os/                        ← repository root
 ├── grub.cfg                  ← GRUB boot config
 ├── LICENSE                   ← Apache 2.0
 ├── README.md                 ← project overview
-├── VERIFICATION_REPORT.md    ← WP-01..07 verification report
+├── VERIFICATION_REPORT.md    ← WP-01..08 verification report
 ├── .gitignore                ← excludes build/, *.o, node_modules/, __pycache__/
 └── run_wp08a_tests.py        ← QEMU automated test runner
 ```
@@ -70,7 +70,7 @@ python3 run_wp08a_tests.py build/opencube.iso
 
 All 12 tests must PASS.
 
-## Line Count (WP-08b Batch 6)
+## Line Count (WP-08)
 
-- Source code (no docs, no auto-gen): 23,088 lines
-- With docs: 26,904 lines
+- Source code (no docs, no auto-gen): 26,xxx lines
+- With docs: 31,xxx lines

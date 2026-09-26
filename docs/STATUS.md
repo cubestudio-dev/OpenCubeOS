@@ -1,4 +1,4 @@
-# Open Cube OS - WP-08b Batch 6 Project Status
+# Open Cube OS - WP-08 Project Status
 
 ## WP-03: Physical memory + Virtual memory + Kernel heap
 
