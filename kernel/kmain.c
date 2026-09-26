@@ -96,6 +96,12 @@ extern const u8 userprog_reloc_test[];
 extern const u64 userprog_reloc_test_size;
 extern const u8 userprog_mmap_multi[];
 extern const u64 userprog_mmap_multi_size;
+extern const u8 userprog_ush[];
+extern const u8 userprog_test_min[];
+extern const u64 userprog_test_min_size;
+extern const u8 userprog_test_bss[];
+extern const u64 userprog_test_bss_size;
+extern const u64 userprog_ush_size;
 
 /* Direct serial output via I/O port 0x3F8 (COM1). */
 static inline void outb(u16 port, u8 v) {
@@ -869,6 +875,13 @@ static int cmd_run(const char *args) {
     } else if (oc_strcmp(args, "mmap_multi") == 0) {
         /* BUG-010 test: multi-process mmap independence (fork + mmap). */
         elf = userprog_mmap_multi; size = userprog_mmap_multi_size;
+    } else if (oc_strcmp(args, "ush") == 0 || oc_strcmp(args, "usershell") == 0) {
+        /* WP-08cd: User-space shell. */
+        elf = userprog_ush; size = userprog_ush_size;
+    } else if (oc_strcmp(args, "test_min") == 0) {
+        elf = userprog_test_min; size = userprog_test_min_size;
+    } else if (oc_strcmp(args, "test_bss") == 0) {
+        elf = userprog_test_bss; size = userprog_test_bss_size;
     } else {
         oc_console_puts("unknown program: ");
         oc_console_puts(args);
@@ -880,6 +893,14 @@ static int cmd_run(const char *args) {
         char buf[40]; char n[20];
         oc_strcpy(buf, "started pid="); oc_u64_to_str((u64)pid, n); oc_strcpy(buf+oc_strlen(buf), n);
         oc_strcpy(buf+oc_strlen(buf), "\n"); oc_console_puts(buf);
+        /* WP-08cd: For user-space shell (ush), block the kernel shell
+         * until ush exits. This prevents both shells from competing
+         * for keyboard input. When ush exits (sys_exit2), it wakes
+         * the parent (tid 0 = kernel shell), which resumes here. */
+        if (oc_strcmp(args, "ush") == 0 || oc_strcmp(args, "usershell") == 0) {
+            kthread_block();
+            /* Resumed: ush has exited */
+        }
     } else {
         oc_console_puts("failed to create process\n");
     }

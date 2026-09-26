@@ -17,6 +17,15 @@
 #define SYS_WRITE          1
 #define SYS_WRITE_AND_EXIT 2
 
+/* WP-08cd: File operations (user-space shell + tools) */
+#define SYS_OPEN           3
+#define SYS_CLOSE          4
+#define SYS_STAT           5
+#define SYS_READDIR        6
+#define SYS_MKDIR          7
+#define SYS_RMDIR          8
+#define SYS_UNLINK         9
+
 /* WP-08a: Process management */
 #define SYS_FORK          10
 #define SYS_EXECVE        11
@@ -47,6 +56,10 @@
 #define SYS_GETCWD        61
 #define SYS_IOCTL         62
 #define SYS_READ          70
+
+/* WP-08cd: User-space shell support */
+#define SYS_WRITE2        72   /* (fd, buf, len) — fd-aware write for pipes/redirect */
+#define SYS_READLINE      73   /* (buf, maxlen) — read a line from keyboard */
 
 /* WP-08a: I/O multiplexing */
 #define SYS_SELECT        80

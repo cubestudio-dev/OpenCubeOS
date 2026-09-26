@@ -13,6 +13,7 @@
 #include "heap.h"
 #include "vfs.h"
 #include "console.h"
+#include "console_in.h"
 #include "string.h"
 #include "shell.h"
 #include "idt.h"
@@ -609,7 +610,7 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     extern const u8 userprog_pie_test[];
     extern const u8 userprog_reloc_test[];
     extern const u8 userprog_mmap_multi[];
-
+    extern const u8 userprog_ush[];
     const u8 *elf = NULL;
     if (oc_strcmp(name, "hello") == 0) elf = userprog_hello;
     else if (oc_strcmp(name, "fork_test") == 0) elf = userprog_fork_test;
@@ -624,6 +625,8 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     else if (oc_strcmp(name, "pie_test") == 0) elf = userprog_pie_test;
     else if (oc_strcmp(name, "reloc_test") == 0) elf = userprog_reloc_test;
     else if (oc_strcmp(name, "mmap_multi") == 0) elf = userprog_mmap_multi;
+    else if (oc_strcmp(name, "ush") == 0 || oc_strcmp(name, "usershell") == 0)
+        elf = userprog_ush;
     if (!elf) return (u64)-1;
 
     user_proc_t *proc = user_process_current();
@@ -775,6 +778,17 @@ static u64 sys_map_solib(u64 name_ptr, u64 name_len, u64 flags, u64 a4) {
     return base;
 }
 
+/* WP-08cd forward declarations */
+static u64 sys_open(u64 path, u64 flags, u64 a3, u64 a4);
+static u64 sys_close(u64 fd, u64 a2, u64 a3, u64 a4);
+static u64 sys_stat(u64 path, u64 stat_buf, u64 a3, u64 a4);
+static u64 sys_readdir(u64 path, u64 index, u64 dirent_buf, u64 a4);
+static u64 sys_mkdir(u64 path, u64 a2, u64 a3, u64 a4);
+static u64 sys_rmdir(u64 path, u64 a2, u64 a3, u64 a4);
+static u64 sys_unlink(u64 path, u64 a2, u64 a3, u64 a4);
+static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4);
+static u64 sys_readline(u64 buf, u64 maxlen, u64 a3, u64 a4);
+
 void syscall_wp08a_init(void) {
     syscall_register(SYS_FORK, sys_fork);
     syscall_register(SYS_EXECVE, sys_execve);
@@ -801,5 +815,169 @@ void syscall_wp08a_init(void) {
     syscall_register(SYS_POLL, sys_poll);
     syscall_register(SYS_WRITE, sys_write);
     syscall_register(SYS_MAP_SOLIB, sys_map_solib);  /* WP-08b Batch 5 */
+    /* WP-08cd: File operations + shell support */
+    syscall_register(SYS_OPEN, sys_open);
+    syscall_register(SYS_CLOSE, sys_close);
+    syscall_register(SYS_STAT, sys_stat);
+    syscall_register(SYS_READDIR, sys_readdir);
+    syscall_register(SYS_MKDIR, sys_mkdir);
+    syscall_register(SYS_RMDIR, sys_rmdir);
+    syscall_register(SYS_UNLINK, sys_unlink);
+    syscall_register(SYS_WRITE2, sys_write2);
+    syscall_register(SYS_READLINE, sys_readline);
     oc_memset(g_pipes, 0, sizeof(g_pipes));
+}
+
+/* ============================================================
+ * WP-08cd: File operations + user-space shell support
+ * ============================================================ */
+
+/* SYS_OPEN(3): open a file path, return fd >= 0 or -1.
+ * Maps to vfs_open. flags: 0=read, 1=write, 2=read+write. */
+static u64 sys_open(u64 path, u64 flags, u64 a3, u64 a4) {
+    (void)a3; (void)a4;
+    if (!valid_user_ptr(path)) return (u64)-1;
+    const char *p = (const char*)(uintptr_t)path;
+    int vfs_fd = vfs_open(p, (int)flags);
+    if (vfs_fd < 0) return (u64)-1;
+    user_proc_t *proc = user_process_current();
+    if (!proc) return (u64)-1;
+    for (int i = 0; i < PROC_MAX_FDS; i++) {
+        if (proc->fds[i].kind == 0) {
+            proc->fds[i].kind = 1;  /* VFS fd */
+            proc->fds[i].vfs_fd = vfs_fd;
+            return (u64)i;
+        }
+    }
+    vfs_close(vfs_fd);
+    return (u64)-1;  /* no free fd */
+}
+
+/* SYS_CLOSE(4): close a file descriptor. */
+static u64 sys_close(u64 fd, u64 a2, u64 a3, u64 a4) {
+    (void)a2; (void)a3; (void)a4;
+    user_proc_t *proc = user_process_current();
+    if (!proc) return (u64)-1;
+    if (fd >= PROC_MAX_FDS) return (u64)-1;
+    proc_fd_t *pfd = &proc->fds[fd];
+    if (pfd->kind == 0) return (u64)-1;
+    if (pfd->kind == 1) vfs_close(pfd->vfs_fd);
+    /* kind 2/3 = pipe, just close the fd */
+    pfd->kind = 0;
+    return 0;
+}
+
+/* SYS_STAT(5): stat a file path. stat_buf points to a user buffer
+ * of at least sizeof(vfs_stat_t) bytes. Returns 0 or -1. */
+static u64 sys_stat(u64 path, u64 stat_buf, u64 a3, u64 a4) {
+    (void)a3; (void)a4;
+    if (!valid_user_ptr(path)) return (u64)-1;
+    if (!valid_user_ptr(stat_buf)) return (u64)-1;
+    vfs_stat_t st;
+    if (vfs_stat((const char*)(uintptr_t)path, &st) < 0) return (u64)-1;
+    oc_memcpy((void*)(uintptr_t)stat_buf, &st, sizeof(st));
+    return 0;
+}
+
+/* SYS_READDIR(6): read directory entry by index.
+ * (path, index, dirent_buf) → 0 on success, -1 on end/error. */
+static u64 sys_readdir(u64 path, u64 index, u64 dirent_buf, u64 a4) {
+    (void)a4;
+    if (!valid_user_ptr(path)) return (u64)-1;
+    if (!valid_user_ptr(dirent_buf)) return (u64)-1;
+    vfs_dirent_t e;
+    if (vfs_readdir((const char*)(uintptr_t)path, (int)index, &e) < 0)
+        return (u64)-1;
+    oc_memcpy((void*)(uintptr_t)dirent_buf, &e, sizeof(e));
+    return 0;
+}
+
+/* SYS_MKDIR(7): create a directory. */
+static u64 sys_mkdir(u64 path, u64 a2, u64 a3, u64 a4) {
+    (void)a2; (void)a3; (void)a4;
+    if (!valid_user_ptr(path)) return (u64)-1;
+    return (u64)vfs_mkdir((const char*)(uintptr_t)path);
+}
+
+/* SYS_RMDIR(8): remove a directory. */
+static u64 sys_rmdir(u64 path, u64 a2, u64 a3, u64 a4) {
+    (void)a2; (void)a3; (void)a4;
+    if (!valid_user_ptr(path)) return (u64)-1;
+    return (u64)vfs_rmdir((const char*)(uintptr_t)path);
+}
+
+/* SYS_UNLINK(9): delete a file. */
+static u64 sys_unlink(u64 path, u64 a2, u64 a3, u64 a4) {
+    (void)a2; (void)a3; (void)a4;
+    if (!valid_user_ptr(path)) return (u64)-1;
+    return (u64)vfs_unlink((const char*)(uintptr_t)path);
+}
+
+/* SYS_WRITE2(72): fd-aware write.
+ * (fd, buf, len) → bytes written or -1.
+ * fd=1 → console (stdout), fd=2 → console (stderr),
+ * fd=pipe_write → pipe, fd=vfs → vfs_write. */
+static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
+    (void)a4;
+    if (!valid_user_buf(buf, len)) return (u64)-1;
+    user_proc_t *proc = user_process_current();
+    if (!proc) return (u64)-1;
+    if (fd >= PROC_MAX_FDS) return (u64)-1;
+    proc_fd_t *pfd = &proc->fds[fd];
+    if (pfd->kind == 0) {
+        /* fd not open: check if it's stdout/stderr (1 or 2) */
+        if (fd == 1 || fd == 2) {
+            const char *p = (const char*)(uintptr_t)buf;
+            for (u64 i = 0; i < len; i++) oc_console_putc(p[i]);
+            return len;
+        }
+        return (u64)-1;
+    }
+    if (pfd->kind == 1) {
+        /* VFS fd: write to file */
+        return (u64)vfs_write(pfd->vfs_fd, (const void*)(uintptr_t)buf, (int)len);
+    }
+    if (pfd->kind == 3) {
+        /* pipe-write fd */
+        kernel_pipe_t *p = pipe_get(pfd->pipe_id);
+        if (!p) return (u64)-1;
+        const u8 *src = (const u8*)(uintptr_t)buf;
+        u64 written = 0;
+        while (written < len) {
+            u32 space = pipe_space_avail(p);
+            if (space == 0) {
+                p->writer_waiting = kthread_current_tid();
+                kthread_block();
+                p->writer_waiting = -1;
+                space = pipe_space_avail(p);
+                if (space == 0) break;
+            }
+            u32 to_copy = (u32)((len - written < space) ? (len - written) : space);
+            u32 wpos = p->write_pos % PIPE_BUF_SIZE;
+            if (wpos + to_copy > PIPE_BUF_SIZE) to_copy = PIPE_BUF_SIZE - wpos;
+            oc_memcpy(p->buf + wpos, src + written, to_copy);
+            p->write_pos += to_copy;
+            written += to_copy;
+            if (p->reader_waiting >= 0) kthread_wake(p->reader_waiting);
+        }
+        return written;
+    }
+    return (u64)-1;
+}
+
+/* SYS_READLINE(73): read a line from keyboard with line editing.
+ * (buf, maxlen) → bytes read (including \n) or -1.
+ * Uses the kernel's oc_console_in_readline for line editing
+ * (backspace, arrow keys, etc.). */
+static u64 sys_readline(u64 buf, u64 maxlen, u64 a3, u64 a4) {
+    (void)a3; (void)a4;
+    if (!valid_user_ptr(buf)) return (u64)-1;
+    if (maxlen == 0) return 0;
+    /* Use the kernel's console input line editor */
+    char line[256];
+    if (maxlen > 255) maxlen = 255;
+    int len = oc_console_in_readline(line, (int)maxlen);
+    if (len <= 0) return 0;
+    oc_memcpy((void*)(uintptr_t)buf, line, (u64)len);
+    return (u64)len;
 }
