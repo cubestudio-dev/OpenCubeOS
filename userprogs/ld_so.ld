@@ -1,4 +1,7 @@
-/* ld_so.ld - link script for the ld.so test program (C version, Batch 3+).
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright 2026 cubestudio-dev <cubestudio@qq.com>
+ *
+ * ld_so.ld - link script for the ld.so test program (C version, Batch 3+).
  *
  * Combines .text, .rodata, .data, .bss into a single output .text section
  * so the kernel can map ld.so with one R+E PT_LOAD segment (matching

@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
 # Open Cube OS — WP-02 Extension API
 
 WP-02 adds **four** new L0→L1 extension points (on top of WP-01's four). All WP-01 interfaces (`kernel/ext.h`) remain unchanged. WP-02 interfaces are additive.

@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
 # Open Cube OS — WP-06 Extension Interfaces
 
 **WP-06 adds 5 new extension points (items 22-26). Total L1 surface is now 26.**

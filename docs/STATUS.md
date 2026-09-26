@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
 # Open Cube OS - WP-08 Project Status
 
 ## WP-03: Physical memory + Virtual memory + Kernel heap

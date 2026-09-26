@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
 # WP-08 L1 Extension Interfaces — User-space Shell + Toolset (Items 51-57)
 
 **Work Package**: WP-08 — User-space Shell + Toolset

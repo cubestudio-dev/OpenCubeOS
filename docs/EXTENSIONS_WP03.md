@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
 # Open Cube OS - WP-03 Extension API
 
 WP-03 adds **four** new L0->L1 extension points (on top of WP-01's 4 and WP-02's 6). All previous interfaces remain unchanged.

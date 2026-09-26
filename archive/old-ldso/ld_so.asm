@@ -1,3 +1,6 @@
+; SPDX-License-Identifier: Apache-2.0
+; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
+
 ; Open Cube OS WP-08b Batch 2 - minimal ld.so test program.
 ;
 ; When the kernel encounters an ET_DYN ELF (a PIE executable) with

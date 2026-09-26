@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
 # Open Cube OS — WP-08b Extension Interfaces
 
 WP-08b adds 10 new extension points (items 41-50). Total L1 surface is now 50

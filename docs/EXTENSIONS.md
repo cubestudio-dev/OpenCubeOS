@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
 # Open Cube OS — WP-01 Extension API
 
 WP-01 ships **four** L0→L1 extension points. Each is a global C function declared in `kernel/ext.h`. L1 code calls these without linking anything else from L0.

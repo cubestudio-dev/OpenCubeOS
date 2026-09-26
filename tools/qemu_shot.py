@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 """Run QEMU, wait, send screendump, kill QEMU, return.
 
 Usage: qemu_shot.py <iso> <out.ppm> <serial.log> [uefi]

@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
 # Open Cube OS — WP-05 Extension Interfaces
 
 **WP-05 adds 4 new extension points (items 18-21). Total L1 surface is now 21.**

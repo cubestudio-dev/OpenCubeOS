@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
 # Open Cube OS - WP-04 Extension API
 
 WP-04 adds **three** new L0->L1 extension points (on top of WP-01's 4, WP-02's 6, and WP-03's 4). All previous interfaces remain unchanged. The total L1 surface is now 17 stable entry points.

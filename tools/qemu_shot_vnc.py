@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 """Run QEMU with VNC display, capture screenshot via monitor."""
 import subprocess, time, os, sys, socket
 

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 cubestudio-dev <cubestudio@qq.com>
+#
 # Open Cube OS — WP-08 GitHub Release helper
 #
 # Usage:
@@ -6,9 +9,9 @@
 #
 # Prerequisites:
 #   - Your GitHub PAT (Personal Access Token) with repo + workflow scopes
-#   - Local commit `da51f46` (WP-08 rename) already created
+#   - Local commit (WP-08 rename) already created
 #   - Local tag `WP-08` already created
-#   - ISO at /home/z/my-project/public/downloads/opencube-wp08.iso
+#   - ISO at $OC_ROOT/public/downloads/opencube-wp08.iso (or set ISO_LOCAL env)
 #
 # What this script does:
 #   1. Push commit da51f46 to origin/main
@@ -29,7 +32,8 @@ if [ -z "$GITHUB_TOKEN" ]; then
 fi
 
 REPO='cubestudio-dev/OpenCubeOS'
-ISO_LOCAL='/home/z/my-project/public/downloads/opencube-wp08.iso'
+# ISO path: default to repo-relative, override via ISO_LOCAL env if needed
+ISO_LOCAL="${ISO_LOCAL:-$(cd "$(dirname "$0")/.." && pwd)/build/opencube.iso}"
 TAG='WP-08'
 
 # ---- 1. Push commit + tag to origin ----

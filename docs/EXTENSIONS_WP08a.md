@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
 # WP-08a L1 Extension Interfaces (Items 33-40)
 
 **Work Package**: WP-08a — Complete syscall set (process & IPC)
