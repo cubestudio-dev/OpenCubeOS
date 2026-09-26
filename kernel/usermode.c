@@ -760,7 +760,25 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
             u64 page = bss_start & ~0xFFFULL;
             while (page < bss_end) {
                 u64 phys;
-                if (!vmm_is_mapped(proc->as, page, &phys)) {
+                if (vmm_is_mapped(proc->as, page, &phys)) {
+                    /* BSS FIX: Page is mapped (from split PT in
+                     * create_user_address_space) but might lack the
+                     * USER flag. Ensure it's user-accessible + writable
+                     * + zeroed in the bss portion. */
+                    vmm_protect_page(proc->as, page,
+                        VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
+                    /* Zero the bss portion within this page.
+                     * The page is identity-mapped (phys == page for
+                     * the split PT range), so we can zero directly. */
+                    u64 zero_start = (page < bss_start) ? bss_start : page;
+                    u64 zero_end = (page + PMM_PAGE_SIZE < bss_end)
+                                   ? page + PMM_PAGE_SIZE : bss_end;
+                    if (zero_end > zero_start) {
+                        oc_memset((void*)(uintptr_t)zero_start, 0,
+                                  (int)(zero_end - zero_start));
+                    }
+                } else {
+                    /* Page not mapped: allocate fresh zero page. */
                     phys = pmm_alloc_frame();
                     if (phys) {
                         vmm_map_page(proc->as, page, phys,
