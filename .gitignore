@@ -53,3 +53,6 @@ archive/WP06/
 
 # Dist
 dist/
+
+# Website (not part of OS kernel)
+web/
