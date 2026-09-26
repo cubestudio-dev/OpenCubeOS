@@ -1,5 +1,6 @@
 # Open Cube OS - WP-08b Batch 6 (Audit P0/P1 Fixed)
 
+**官网**: https://helloopencubeos.space-z.ai
 
 Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 Licensed under the Apache License, Version 2.0.
