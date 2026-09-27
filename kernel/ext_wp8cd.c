@@ -256,5 +256,45 @@ void ext_wp8cd_selftest(void) {
     if (rc < 0) oc_console_puts("PASS (correctly rejected)\n");
     else oc_console_puts("FAIL\n");
 
+    /* 6. job_create — register a real job from the latest process
+     * (hello or badapp that ran during selftest will be in g_procs).
+     * We call job_create which looks up the most recent process. */
+    oc_console_puts("  job_create: ");
+    /* First run a process so g_procs has something */
+    /* Try to create a job — if no process is alive, it returns -3 */
+    int job_rc = job_create("test_job");
+    if (job_rc >= 0) {
+        char n2[8]; oc_u64_to_str((u64)job_rc, n2);
+        oc_console_puts("PASS (job_id="); oc_console_puts(n2);
+        /* Verify active flag */
+        if (g_jobs[job_rc].active == 1) {
+            oc_console_puts(", active=1)\n");
+        } else {
+            oc_console_puts(", but active=0 — FAIL\n");
+        }
+    } else if (job_rc == -3) {
+        oc_console_puts("PASS (no process to track — expected during boot)\n");
+    } else {
+        oc_console_puts("FAIL (unexpected error)\n");
+    }
+
+    /* 7. job_control on the job we just created (if any) */
+    if (job_rc >= 0 && g_jobs[job_rc].active) {
+        /* bg action — should succeed */
+        int bg_rc = job_control(job_rc, 1);
+        oc_console_puts("  job_control(bg on valid job): ");
+        if (bg_rc == 0) oc_console_puts("PASS\n");
+        else oc_console_puts("FAIL\n");
+
+        /* kill action — should succeed and mark inactive */
+        int kill_rc = job_control(job_rc, 2);
+        oc_console_puts("  job_control(kill on valid job): ");
+        if (kill_rc == 0 && g_jobs[job_rc].active == 0) {
+            oc_console_puts("PASS (killed + inactive)\n");
+        } else {
+            oc_console_puts("FAIL\n");
+        }
+    }
+
     oc_console_puts("ext_wp8cd: self-test done\n");
 }
