@@ -512,14 +512,22 @@ int vfs_open(const char *path, int flags) {
                 !parent->fs_type->dir_ops->lookup) {
                 return -3;
             }
-            /* ramfs-specific create: call mkdir then patch the type. */
-            if (parent->fs_type->dir_ops->mkdir) {
+            /* P1-2 FIX: if the fs has a create function, use it (creates a
+             * regular file with correct on-disk attributes). Otherwise fall
+             * back to mkdir + type patch (ramfs style — works because ramfs
+             * is in-memory; would corrupt on-disk fs like exFAT). */
+            if (parent->fs_type->dir_ops->create) {
+                int rc = parent->fs_type->dir_ops->create(parent, base);
+                if (rc < 0) return -4;
+            } else if (parent->fs_type->dir_ops->mkdir) {
                 int rc = parent->fs_type->dir_ops->mkdir(parent, base);
                 if (rc < 0) return -4;
             }
             n = parent->fs_type->dir_ops->lookup(parent, base);
             if (!n) return -5;
-            /* Convert the just-created dir node into a regular file. */
+            /* Convert the just-created dir node into a regular file.
+             * (Only needed for the mkdir fallback path; create path
+             * already sets VFS_TYPE_FILE.) */
             n->type = VFS_TYPE_FILE;
             n->size = 0;
         } else {

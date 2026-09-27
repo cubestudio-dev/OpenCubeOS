@@ -102,6 +102,10 @@ typedef struct {
     /* WP-05 shell: rename a child within the same parent. May be NULL (the
      * shell falls back to copy+unlink). Returns 0 on success. */
     int         (*rename )(vfs_node_t *parent, const char *oldname, const char *newname);
+    /* P1-2 FIX: create a regular file (not a directory). Used by vfs_open
+     * with O_CREAT so the on-disk entry has file attributes (not dir).
+     * May be NULL — VFS falls back to mkdir + type patch (ramfs style). */
+    int         (*create )(vfs_node_t *parent, const char *name);
 } vfs_dir_ops_t;
 
 /* Registered file system type. */

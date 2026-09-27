@@ -334,6 +334,43 @@ static int builtin_cmd(int argc, char *argv[]) {
         sys_exit2(argc > 1 ? 0 : 0);
         return 1;
     }
+    /* P1-4 FIX: add help builtin */
+    if (streq(argv[0], "help")) {
+        puts_("\nOpen Cube OS User-space Shell (ush) — built-in commands:\n\n");
+        puts_("  cd [dir]        Change directory\n");
+        puts_("  exit [code]     Exit shell\n");
+        puts_("  help            Show this help\n");
+        puts_("  export VAR=val  Set environment variable\n");
+        puts_("  alias name=val  Set command alias\n");
+        puts_("  unalias name    Remove alias\n");
+        puts_("  env             Show environment variables\n");
+        puts_("  pwd             Print working directory\n");
+        puts_("  echo [text]     Print text to stdout\n");
+        puts_("  cat <file>      Print file contents\n");
+        puts_("  grep <pat> [f]  Filter lines matching pattern\n");
+        puts_("  wc <file>       Count lines/words/chars\n");
+        puts_("  head <file>     Print first 10 lines\n");
+        puts_("  tail <file>     Print last 10 lines\n");
+        puts_("  sort <file>     Sort lines alphabetically\n");
+        puts_("  uniq <file>     Remove duplicate consecutive lines\n");
+        puts_("  ls [dir]        List directory contents\n");
+        puts_("  cp <src> <dst>  Copy file\n");
+        puts_("  mv <src> <dst>  Move/rename file\n");
+        puts_("  rm <file>       Remove file\n");
+        puts_("  mkdir <dir>     Create directory\n");
+        puts_("  rmdir <dir>     Remove directory\n");
+        puts_("  touch <file>    Create empty file / update timestamp\n");
+        puts_("  stat <file>     Show file info\n");
+        puts_("  uname           Print OS name\n");
+        puts_("  free            Show memory info\n");
+        puts_("  date            Show date/time\n");
+        puts_("  df              Show disk usage\n");
+        puts_("  jobs            List background jobs\n");
+        puts_("  fg [job]        Bring job to foreground\n");
+        puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
+        puts_("\n");
+        return 1;
+    }
     if (streq(argv[0], "export")) {
         if (argc > 1) {
             char *eq = argv[1];
@@ -1101,7 +1138,7 @@ static int exec_single(char *cmd) {
     if (redir_out || redir_in) {
         int saved_out __attribute__((unused)) = -1;
         if (redir_out) {
-            int fd = sys_open(redir_out, 6);  /* WRONLY|CREAT */
+            int fd = sys_open(redir_out, redir_append ? 14 : 6);  /* P1-5 FIX: 14=WR|CREAT|APPEND, 6=WR|CREAT */
             if (fd >= 0) {
                 sys_dup2(fd, 1);  /* stdout → file */
                 /* DON'T close fd — VFS has no refcount, closing would
@@ -1161,7 +1198,7 @@ static int exec_single(char *cmd) {
     if (pid == 0) {
         /* Child: set up redirect */
         if (redir_out) {
-            int fd = sys_open(redir_out, redir_append ? 6 : 6);
+            int fd = sys_open(redir_out, redir_append ? 14 : 6);  /* P1-5 FIX: 14=WR|CREAT|APPEND */
             if (fd >= 0) {
                 sys_dup2(fd, 1);  /* redirect stdout to file */
                 sys_close(fd);

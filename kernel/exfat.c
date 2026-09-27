@@ -660,6 +660,44 @@ static int exfat_stat(vfs_node_t *node, vfs_stat_t *st) {
 
 /* ---- VFS directory operations ---- */
 
+/* P1-2 FIX: create a regular file (not a directory) in the exFAT on-disk
+ * directory. Unlike the old VFS approach (call mkdir then patch the in-memory
+ * node type), this creates the on-disk entry with FILE attributes (not DIR),
+ * so a later readdir/ls correctly reports it as a regular file. */
+static int exfat_create(vfs_node_t *parent, const char *name) {
+    if (!parent || !name) return -1;
+    exfat_inode_t *pino = (exfat_inode_t *)parent->private;
+    if (!pino || !pino->ctx) return -2;
+    if (!pino->is_dir) return -3;
+    exfat_ctx_t *ctx = pino->ctx;
+    /* Already exists? */
+    if (exfat_find_in_dir(ctx, pino->first_cluster, name,
+                          NULL, NULL, NULL, NULL, NULL, 0) == 1) {
+        return -4;
+    }
+    /* Create a file entry with is_dir=0 (no cluster allocated yet —
+     * first_cluster=0, data_length=0. Data will be allocated on write.) */
+    u32 ec, eo;
+    if (exfat_add_entry(ctx, pino->first_cluster, name, 0 /*is_dir*/,
+                        0 /*first_cluster*/, 0 /*data_length*/, &ec, &eo) != 0) {
+        return -5;
+    }
+    /* Create an in-memory inode for the new file. */
+    exfat_inode_t *child_ino = (exfat_inode_t *)kmalloc(sizeof(exfat_inode_t));
+    if (!child_ino) return -6;
+    oc_memset(child_ino, 0, sizeof(*child_ino));
+    child_ino->ctx = ctx;
+    child_ino->first_cluster = 0;
+    child_ino->is_dir = 0;
+    child_ino->entry_cluster = ec;
+    child_ino->entry_offset = eo;
+    vfs_node_t *cn = vfs_alloc_node(name, VFS_TYPE_FILE, &g_exfat_fs_type);
+    if (!cn) { kfree(child_ino); return -7; }
+    cn->private = child_ino;
+    cn->parent = parent;
+    return 0;
+}
+
 static int exfat_mkdir(vfs_node_t *parent, const char *name) {
     if (!parent || !name) return -1;
     exfat_inode_t *pino = (exfat_inode_t *)parent->private;
@@ -996,6 +1034,7 @@ void exfat_init(void) {
     g_exfat_file_ops.close = exfat_close;
     g_exfat_file_ops.stat  = exfat_stat;
     g_exfat_dir_ops.mkdir   = exfat_mkdir;
+    g_exfat_dir_ops.create  = exfat_create;  /* P1-2 FIX */
     g_exfat_dir_ops.rmdir   = exfat_rmdir;
     g_exfat_dir_ops.readdir = exfat_readdir;
     g_exfat_dir_ops.lookup  = exfat_lookup;

@@ -17,6 +17,7 @@
 #include "string.h"
 #include "console.h"
 #include "timer.h"
+#include "vfs.h"   /* P1-3 FIX: for vfs_open / VFS_O_WRONLY in cmd_wget */
 
 /* Allocate identity-mapped memory for DMA (e1000 needs physical addresses).
  * kmalloc returns heap memory at 0xC0000000 which is NOT identity-mapped.
@@ -2568,22 +2569,104 @@ int cmd_wget(const char *args) {
     oc_strcat(request, "\r\n\r\n");
     net_send(sock, request, oc_strlen(request));
 
-    /* Receive response. */
-    char rbuf[1024];
-    int n = net_recv(sock, rbuf, sizeof(rbuf) - 1);
-    if (n > 0) {
-        rbuf[n] = 0;
-        oc_console_puts("Response (");
-        oc_u64_to_str(n, n_tmp); oc_console_puts(n_tmp);
-        oc_console_puts(" bytes):\n");
-        /* Print first 500 bytes. */
-        int show = n > 500 ? 500 : n;
-        for (int k = 0; k < show; k++) oc_console_putc(rbuf[k]);
-        oc_console_putc('\n');
+    /* P1-3 FIX: Save response body to a VFS file instead of just printing
+     * the first 500 bytes. Extract filename from the URL path. */
+    /* Extract filename from path (last component after last '/') */
+    char fname[64];
+    const char *last = path;
+    for (const char *p = path; *p; p++) { if (*p == '/') last = p + 1; }
+    if (*last) {
+        int k = 0;
+        while (last[k] && k < 63) { fname[k] = last[k]; k++; }
+        fname[k] = 0;
     } else {
-        oc_console_puts("no response (timeout)\n");
+        oc_strcpy(fname, "index.html");
     }
+
+    /* Receive response — loop until we get headers + full body. */
+    char rbuf[1024];
+    int total_header = 0;
+    int header_end = -1;  /* index of \r\n\r\n in rbuf */
+    int content_length = -1;
+    int body_start = 0;
+    int body_received = 0;
+    /* Phase 1: receive until we find \r\n\r\n (end of headers). */
+    while (header_end < 0) {
+        int n = net_recv(sock, rbuf + total_header, sizeof(rbuf) - 1 - total_header);
+        if (n <= 0) { oc_console_puts("no response (timeout)\n"); net_close(sock); return 1; }
+        total_header += n;
+        rbuf[total_header] = 0;
+        /* Search for \r\n\r\n */
+        for (int k = 0; k <= total_header - 4; k++) {
+            if (rbuf[k] == '\r' && rbuf[k+1] == '\n' &&
+                rbuf[k+2] == '\r' && rbuf[k+3] == '\n') {
+                header_end = k;
+                body_start = k + 4;
+                body_received = total_header - body_start;
+                break;
+            }
+        }
+        if (total_header >= (int)sizeof(rbuf) - 1) {
+            /* Buffer full but no header end found — malformed response. */
+            oc_console_puts("malformed HTTP response\n");
+            net_close(sock);
+            return 1;
+        }
+    }
+    /* Parse Content-Length from headers (case-insensitive). */
+    for (int k = 0; k < header_end; k++) {
+        if (rbuf[k] == 'C' || rbuf[k] == 'c') {
+            if (((rbuf[k+1] == 'o' || rbuf[k+1] == 'O') &&
+                 (oc_strncmp(rbuf + k, "Content-Length:", 15) == 0 ||
+                  oc_strncmp(rbuf + k, "content-length:", 15) == 0))) {
+                int v = k + 15;
+                while (rbuf[v] == ' ' || rbuf[v] == '\t') v++;
+                content_length = 0;
+                while (rbuf[v] >= '0' && rbuf[v] <= '9') {
+                    content_length = content_length * 10 + (rbuf[v] - '0');
+                    v++;
+                }
+                break;
+            }
+        }
+    }
+    if (content_length < 0) content_length = body_received;  /* unknown — save what we have */
+
+    /* Open VFS file for writing. */
+    char fpath[80];
+    oc_strcpy(fpath, "/");
+    oc_strcat(fpath, fname);
+    int fd = vfs_open(fpath, VFS_O_WRONLY | VFS_O_CREAT);
+    if (fd < 0) {
+        /* If VFS create fails, print to console as fallback. */
+        oc_console_puts("wget: cannot create file, printing to console:\n");
+        int show = body_received > 500 ? 500 : body_received;
+        for (int k = 0; k < show; k++) oc_console_putc(rbuf[body_start + k]);
+        oc_console_putc('\n');
+        net_close(sock);
+        return 1;
+    }
+
+    /* Write the initial body data (already received with headers). */
+    vfs_write(fd, rbuf + body_start, body_received);
+    int total_saved = body_received;
+
+    /* Phase 2: loop net_recv until we have all content_length bytes. */
+    while (total_saved < content_length) {
+        int n = net_recv(sock, rbuf, sizeof(rbuf));
+        if (n <= 0) break;  /* timeout or connection closed */
+        vfs_write(fd, rbuf, n);
+        total_saved += n;
+    }
+    vfs_close(fd);
     net_close(sock);
+
+    /* Report. */
+    oc_console_puts("Saved ");
+    oc_u64_to_str(total_saved, n_tmp); oc_console_puts(n_tmp);
+    oc_console_puts(" bytes to ");
+    oc_console_puts(fpath);
+    oc_console_putc('\n');
     return 0;
 }
 
