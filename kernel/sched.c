@@ -237,9 +237,23 @@ int kthread_set_priority(tid_t tid, int priority) {
     return 0;
 }
 
+/* BUG-001 FIX (P0): Don't overwrite TASK_EXITED with TASK_BLOCKED.
+ *
+ * sys_exit2 sets current->state = TASK_EXITED then calls kthread_block()
+ * in a loop. Without this guard, kthread_block would overwrite EXITED
+ * with BLOCKED, so sched_reap_exited() (which only reaps TASK_EXITED)
+ * would never reclaim the slot. After MAX_TASKS (32) user-program
+ * exits, the task table is full and no new process can be created —
+ * system user-mode functionality is permanently paralyzed.
+ *
+ * Fix: if the current task is already EXITED, leave the state alone and
+ * just yield to the scheduler (which will run sched_reap_exited to
+ * reclaim the slot, then pick the next ready task). */
 int kthread_block(void) {
     if (!g_current) return -1;
-    g_current->state = TASK_BLOCKED;
+    if (g_current->state != TASK_EXITED) {
+        g_current->state = TASK_BLOCKED;
+    }
     sched_yield();
     return 0;
 }

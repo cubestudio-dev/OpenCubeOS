@@ -424,10 +424,29 @@ static u64 sys_mmap(u64 addr, u64 length, u64 prot, u64 a4) {
     return result;
 }
 
+/* BUG-003 FIX (P0): Validate that the target address range lies within
+ * user-accessible virtual memory (USER_BRK_BASE .. USER_MMAP_BASE+LIMIT)
+ * BEFORE modifying PTEs. Without this check, a malicious or buggy user
+ * program could call sys_munmap on a kernel address (e.g., 0x100000)
+ * and unmap kernel pages — the kernel would then triple-fault on the
+ * next access to that address, or worse, the freed frames could be
+ * reused by a subsequent mmap, giving the user program read/write
+ * access to kernel physical memory (privilege escalation).
+ *
+ * The same risk exists for sys_mprotect — modifying protection bits on
+ * a kernel page could grant user write access to kernel data.
+ *
+ * Fix: reject any address outside the user-mapped region. */
 static u64 sys_munmap(u64 addr, u64 length, u64 a3, u64 a4) {
     (void)a3;(void)a4;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
+    /* BUG-003 FIX (P0): reject addresses outside user-mapped region.
+     * User mappings live in [USER_BRK_BASE, USER_MMAP_BASE+USER_MMAP_LIMIT).
+     * Anything outside this range is either kernel identity-mapped
+     * (0..USER_BRK_BASE) or unmapped. We refuse to munmap kernel pages. */
+    if (addr < USER_BRK_BASE) return (u64)-1;
+    if (addr + length > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
     u64 pages = (length + 0xFFF) / 0x1000;
     for (u64 i = 0; i < pages; i++) vmm_unmap_page(proc->as, addr + i * 0x1000);
     return 0;
@@ -437,6 +456,11 @@ static u64 sys_mprotect(u64 addr, u64 len, u64 prot, u64 a4) {
     (void)a4;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
+    /* BUG-003 FIX (P0): reject addresses outside user-mapped region.
+     * Same rationale as sys_munmap — don't let user code modify
+     * protection bits on kernel pages. */
+    if (addr < USER_BRK_BASE) return (u64)-1;
+    if (addr + len > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
     u64 flags = VMM_FLAG_PRESENT | VMM_FLAG_USER;
     if (prot & 2) flags |= VMM_FLAG_WRITE;
     if (!(prot & 4)) flags |= VMM_FLAG_NOEXEC;
@@ -891,6 +915,11 @@ static u64 sys_open(u64 path, u64 flags, u64 a3, u64 a4) {
 }
 
 /* SYS_CLOSE(4): close a file descriptor. */
+/* SYS_CLOSE(4): close a file descriptor.
+ * BUG-001 FIX (P0): For pipe fds (kind 2/3), decrement reader_count /
+ * writer_count and wake waiters. Without this, the count never reaches 0
+ * so sys_read's EOF branch (`if (writer_count == 0) return 0`) is never
+ * taken, causing permanent deadlock after any `cmd1 | cmd2` in ush. */
 static u64 sys_close(u64 fd, u64 a2, u64 a3, u64 a4) {
     (void)a2; (void)a3; (void)a4;
     user_proc_t *proc = user_process_current();
@@ -898,9 +927,25 @@ static u64 sys_close(u64 fd, u64 a2, u64 a3, u64 a4) {
     if (fd >= PROC_MAX_FDS) return (u64)-1;
     proc_fd_t *pfd = &proc->fds[fd];
     if (pfd->kind == 0) return (u64)-1;
-    if (pfd->kind == 1) vfs_close(pfd->vfs_fd);
-    /* kind 2/3 = pipe, just close the fd */
+    int saved_kind = pfd->kind;
+    int saved_pipe_id = pfd->pipe_id;
+    int saved_vfs_fd = pfd->vfs_fd;
+    /* Mark free first so concurrent ops don't see stale state */
     pfd->kind = 0;
+    pfd->pipe_id = 0;
+    pfd->vfs_fd = 0;
+    if (saved_kind == 1) {
+        vfs_close(saved_vfs_fd);
+    } else if (saved_kind == 2 || saved_kind == 3) {
+        /* Decrement pipe reference count and wake any waiters */
+        kernel_pipe_t *pp = pipe_get(saved_pipe_id);
+        if (pp) {
+            if (saved_kind == 2) pp->reader_count--;
+            else                  pp->writer_count--;
+            if (pp->reader_waiting >= 0) kthread_wake(pp->reader_waiting);
+            if (pp->writer_waiting >= 0) kthread_wake(pp->writer_waiting);
+        }
+    }
     return 0;
 }
 

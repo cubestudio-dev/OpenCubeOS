@@ -229,29 +229,34 @@ vmm_as_t vmm_create_address_space(void) {
     return pml4_phys;
 }
 
+/* BUG-002 FIX (P0): Differentiate AS created by vmm_create_address_space
+ * (plain AS — pml4[0..3] COPIED from kernel, so they point to kernel's
+ * PDPTs, which are SHARED) vs AS created by create_user_address_space
+ * (user AS — pml4[0] points to a NEW per-process PDPT, only pml4[1..3]
+ * are shared with kernel).
+ *
+ * For plain AS (vmtest, etc.): pml4[0] == kern_pml4[0] — we must NOT
+ * free the PDPT/PD0 subtree because those pages belong to the kernel.
+ *   Just free the pml4 page itself.
+ *
+ * For user AS (user processes): pml4[0] != kern_pml4[0] — the PDPT and
+ *   PD0 are per-process; safe to free them along with user pages and PTs.
+ *
+ * Without this distinction, running vmtest followed by `run hello` would
+ * free the kernel's PD0, causing a triple fault on the next user-mode
+ * context switch. */
 void vmm_destroy_address_space(vmm_as_t as) {
     if (as == g_kernel_pml4) return;  /* don't destroy kernel space */
     if (as == 0) return;
 
     u64 *pml4 = (u64*)as;
+    u64 *kern_pml4 = (u64*)g_kernel_pml4;
 
-    /* BUG-008 FIX: Walk PML4[0] subtree (user space is in 0-1GB, under
-     * PDPT[0]). The old code only freed PML4[4..511] which had nothing
-     * — user address space is under PML4[0] → PDPT[0] → PD0.
-     *
-     * Critical: PML4[1..3] and PDPT[1..3] are SHARED with the kernel
-     * (copied during create_user_address_space). We must NOT free those.
-     * Also, PD0 was copied from the kernel's PD0 (identity-mapped huge
-     * pages). The physical pages of those huge pages belong to the kernel.
-     * We only free:
-     *   - Per-user PTs (PD0 entries without the PS/huge bit)
-     *   - Physical pages mapped with VMM_FLAG_USER (user pages, not kernel)
-     *   - The PT frames themselves (per-process)
-     *   - PD0 frame (per-process copy)
-     *   - PDPT frame (per-process, = what PML4[0] points to)
-     *   - PML4 frame (per-process) */
+    /* If pml4[0] points to the kernel's PDPT (same physical address),
+     * this is a plain AS — don't free the shared PDPT subtree. */
+    int is_plain_as = (pml4[0] == kern_pml4[0]);
 
-    if (pml4[0] & VMM_FLAG_PRESENT) {
+    if (!is_plain_as && (pml4[0] & VMM_FLAG_PRESENT)) {
         u64 pdpt_phys = pml4[0] & PTE_ADDR_MASK;
         u64 *pdpt = (u64*)pdpt_phys;
 
@@ -264,54 +269,45 @@ void vmm_destroy_address_space(vmm_as_t as) {
                 if (!(pd0[k] & VMM_FLAG_PRESENT)) continue;
 
                 if (pd0[k] & 0x80) {
-                    /* BUG-013 FIX: Huge page (2 MiB = 512 × 4K pages).
-                     * If it has the USER flag, it's a user-owned huge page
-                     * and we must free all 512 physical pages. If it
-                     * doesn't have USER, it's a kernel identity-mapped
-                     * huge page — skip (kernel owns it).
-                     * Old code only freed 1 page for user huge pages. */
+                    /* Huge page (2 MiB = 512 × 4K pages).
+                     * Only free if it has USER flag (user-owned).
+                     * Kernel huge pages (no USER) are skipped. */
                     if (pd0[k] & VMM_FLAG_USER) {
                         u64 huge_phys = pd0[k] & 0x000FFFFFFFE00000ULL;
                         for (int hp = 0; hp < 512; hp++) {
                             pmm_free_frame(huge_phys + (u64)hp * PMM_PAGE_SIZE);
                         }
                     }
-                    /* Kernel huge page: skip (don't free). */
                     continue;
                 }
 
-                /* Regular page table: per-user (created by walk_pt/
-                 * map_user_pages). Walk and free user pages. */
+                /* Regular page table: per-user. Walk and free user pages. */
                 u64 pt_phys = pd0[k] & PTE_ADDR_MASK;
                 u64 *pt = (u64*)pt_phys;
 
                 for (int l = 0; l < 512; l++) {
                     if (!(pt[l] & VMM_FLAG_PRESENT)) continue;
-                    /* Only free pages mapped with USER flag.
-                     * Entries without USER flag are kernel identity-mapped
-                     * pages (e.g., from create_user_address_space's split
-                     * of the huge page at PD0[2]). Those physical pages
-                     * belong to the kernel and must not be freed. */
+                    /* Only free pages with USER flag (kernel identity-mapped
+                     * pages without USER belong to the kernel). */
                     if (pt[l] & VMM_FLAG_USER) {
                         u64 page = pt[l] & PTE_ADDR_MASK;
                         pmm_free_frame(page);
                     }
                 }
-                /* Free the PT frame (it's per-process). */
+                /* Free the PT frame (per-process). */
                 pmm_free_frame(pt_phys);
             }
             /* Free PD0 frame (per-process copy of kernel PD0). */
             pmm_free_frame(pd0_phys);
         }
-        /* Free PDPT frame (per-process; PDPT[1..3] are shared, but the
-         * PDPT page itself is per-process — it was allocated by
-         * create_user_address_space). */
+        /* Free PDPT frame (per-process). PDPT[1..3] entries point to
+         * shared kernel PDs but the PDPT page itself is per-process. */
         pmm_free_frame(pdpt_phys);
     }
 
     /* Free the PML4 frame (per-process). PML4[1..3] are shared kernel
      * entries — we don't free the PDPTs they point to, just the PML4
-     * page itself. */
+     * page itself. This is safe for both plain and user AS. */
     pmm_free_frame(as);
 }
 
