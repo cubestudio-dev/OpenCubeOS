@@ -287,13 +287,14 @@ static int cmd_fsck(const char *args) {
     oc_strcat(buf, "\n");
     oc_console_puts(buf);
 
-    /* Scan FAT for used/free clusters */
+    /* P1-7 FIX: Scan FAT for used/free/bad clusters — only count REAL data clusters.
+     * Only count entries 2..total_clusters+1 (the actual data area).
+     * Previously we counted ALL zero entries as free, including reserved
+     * entries (0,1) and out-of-range entries (beyond total_clusters). */
     u32 fat_start = reserved_sectors;
     u32 data_start = reserved_sectors + (num_fats * secs_per_fat32);
     u32 total_clusters = (total_sectors32 - data_start) / secs_per_clus;
     u32 used = 0, free_clust = 0, bad = 0;
-    u32 check = total_clusters;
-    if (check > 100000) check = 100000;  /* limit for speed */
 
     u8 *fat_buf = (u8*)kmalloc(bytes_per_sec);
     if (!fat_buf) {
@@ -301,15 +302,25 @@ static int cmd_fsck(const char *args) {
         return 1;
     }
     u32 entries_per_sector = bytes_per_sec / 4;  /* FAT32: 4 bytes per entry */
-    for (u32 s = 0; s < secs_per_fat32 && s < (check / entries_per_sector + 1); s++) {
+    u32 cluster_idx = 0;  /* global FAT entry index (0-based) */
+    u32 max_scan = total_clusters + 2;  /* +2 for reserved entries 0,1 */
+    if (max_scan > 100000) max_scan = 100000;
+
+    for (u32 s = 0; s < secs_per_fat32 && cluster_idx < max_scan; s++) {
         n = ata_read_sectors(drive, fat_start + s, 1, fat_buf);
         if (n != 1) break;
-        for (u32 e = 0; e < entries_per_sector; e++) {
+        for (u32 e = 0; e < entries_per_sector && cluster_idx < max_scan; e++) {
             u32 entry = *(u32*)(fat_buf + e * 4) & 0x0FFFFFFF;
-            if (entry == 0) free_clust++;
-            else if (entry >= 0x0FFFFFF7 && entry <= 0x0FFFFFFF) {
-                if (entry == 0x0FFFFFF7) bad++;
-            } else used++;
+            if (cluster_idx < 2) {
+                /* Reserved entries (0,1) — skip, not data clusters */
+            } else if (entry == 0) {
+                free_clust++;
+            } else if (entry == 0x0FFFFFF7) {
+                bad++;
+            } else {
+                used++;
+            }
+            cluster_idx++;
         }
     }
     kfree(fat_buf);
@@ -317,6 +328,7 @@ static int cmd_fsck(const char *args) {
     oc_strcpy(buf, "  clusters: used="); oc_u64_to_str(used, num); oc_strcat(buf, num);
     oc_strcat(buf, " free="); oc_u64_to_str(free_clust, num); oc_strcat(buf, num);
     oc_strcat(buf, " bad="); oc_u64_to_str(bad, num); oc_strcat(buf, num);
+    oc_strcat(buf, " total="); oc_u64_to_str(total_clusters, num); oc_strcat(buf, num);
     oc_strcat(buf, "\n  fsck: PASS (basic checks OK)\n");
     oc_console_puts(buf);
     return 0;
