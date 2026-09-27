@@ -1585,6 +1585,10 @@ void kmain(u64 magic, u64 mbi_phys) {
         }
     }
 
+    /* ---- 15a. WP-08cd L1 extension self-test ---- */
+    extern void ext_wp8cd_selftest(void);
+    ext_wp8cd_selftest();
+
     /* ---- 15. ASCII text demo ---- */
     oc_console_putc('\n');
     oc_log_info("ASCII demo: !\"#$%&'()*+,-./");

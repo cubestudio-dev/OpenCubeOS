@@ -14,6 +14,7 @@
 #include "vfs.h"
 #include "ramfs.h"
 #include "fat32.h"
+#include "ata.h"
 #include "console.h"
 #include "string.h"
 #include "heap.h"
@@ -248,7 +249,7 @@ static int cmd_fsck(const char *args) {
 
     /* Read boot sector */
     u8 boot[512];
-    int n = blk_read_sectors(drive, 0, 1, boot);
+    int n = ata_read_sectors(drive, 0, 1, boot);
     if (n != 1) {
         oc_console_puts("fsck: cannot read boot sector\n");
         return 1;
@@ -301,7 +302,7 @@ static int cmd_fsck(const char *args) {
     }
     u32 entries_per_sector = bytes_per_sec / 4;  /* FAT32: 4 bytes per entry */
     for (u32 s = 0; s < secs_per_fat32 && s < (check / entries_per_sector + 1); s++) {
-        n = blk_read_sectors(drive, fat_start + s, 1, fat_buf);
+        n = ata_read_sectors(drive, fat_start + s, 1, fat_buf);
         if (n != 1) break;
         for (u32 e = 0; e < entries_per_sector; e++) {
             u32 entry = *(u32*)(fat_buf + e * 4) & 0x0FFFFFFF;
