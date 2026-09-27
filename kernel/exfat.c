@@ -143,12 +143,21 @@ static vfs_dir_ops_t  g_exfat_dir_ops;
 
 /* Parse "ata0".."ata3", "ata", or "0".."3" into a drive number 0..3.
  * Returns -1 on bad input. Mirrors fat32_parse_device. */
+/* P1-2 FIX: Accept "hda".."hdd" (standard block device names shown by lsblk)
+ * in addition to "ata0".."ata3" and "0".."3". Without this, `mount exfat hda /x`
+ * fails and the write silently falls through to ramfs. */
 static int exfat_parse_device(const char *device) {
     if (!device) return 0;
     if (oc_strcmp(device, "ata") == 0) return 0;
     if (oc_strncmp(device, "ata", 3) == 0) {
         char c = device[3];
         if (c >= '0' && c <= '3' && device[4] == 0) return c - '0';
+        return -1;
+    }
+    /* Accept "hda".."hdd" (standard block device names). */
+    if (oc_strncmp(device, "hd", 2) == 0) {
+        char c = device[2];
+        if (c >= 'a' && c <= 'd' && device[3] == 0) return c - 'a';
         return -1;
     }
     if (device[0] >= '0' && device[0] <= '3' && device[1] == 0) {

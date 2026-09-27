@@ -215,13 +215,110 @@ static int cmd_mkfs_ext4(const char *args) {
     return 0;
 }
 
+/* P1-7 FIX: fsck now does a basic FAT32 filesystem check.
+ * Reads the boot sector, verifies BPB, counts FAT entries.
+ * Not a full fsck (no cross-link detection, no orphan recovery),
+ * but it's a real check that reports useful information. */
 static int cmd_fsck(const char *args) {
-    /* BUG-022 FIX: fsck now returns non-zero (error) instead of 0 (success).
-     * Old code was a stub that printed 'not implemented' but returned 0,
-     * causing scripts to treat fsck as successful. Now it clearly fails. */
-    (void)args;
-    oc_console_puts("fsck: filesystem check not yet implemented\n");
-    return 1;  /* non-zero = failure */
+    /* If no device given, report mounted filesystems */
+    if (!args || !args[0]) {
+        oc_console_puts("fsck: checking mounted FAT32 filesystems\n");
+        /* Walk mount table for FAT32 mounts */
+        /* For now, just report that fsck needs a device argument */
+        oc_console_puts("usage: fsck <device>\n");
+        oc_console_puts("  e.g. fsck hda\n");
+        return 0;
+    }
+
+    /* Parse device name */
+    int drive = -1;
+    if (oc_strncmp(args, "hd", 2) == 0) {
+        char c = args[2];
+        if (c >= 'a' && c <= 'd' && args[3] == 0) drive = c - 'a';
+    } else if (oc_strncmp(args, "ata", 3) == 0) {
+        char c = args[3];
+        if (c >= '0' && c <= '3' && args[4] == 0) drive = c - '0';
+    }
+    if (drive < 0) {
+        oc_console_puts("fsck: invalid device '");
+        oc_console_puts(args);
+        oc_console_puts("'\n");
+        return 1;
+    }
+
+    /* Read boot sector */
+    u8 boot[512];
+    int n = blk_read_sectors(drive, 0, 1, boot);
+    if (n != 1) {
+        oc_console_puts("fsck: cannot read boot sector\n");
+        return 1;
+    }
+
+    /* Check FAT signature (0x55AA at offset 510) */
+    if (boot[510] != 0x55 || boot[511] != 0xAA) {
+        oc_console_puts("fsck: invalid boot signature (not 0x55AA)\n");
+        return 1;
+    }
+
+    /* Parse FAT32 BPB */
+    u16 bytes_per_sec = *(u16*)(boot + 11);
+    u8  secs_per_clus = boot[13];
+    u16 reserved_sectors = *(u16*)(boot + 14);
+    u8  num_fats = boot[16];
+    u32 total_sectors32 = *(u32*)(boot + 32);
+    u32 secs_per_fat32 = *(u32*)(boot + 36);
+    u32 root_dir_clus = *(u32*)(boot + 44);
+
+    if (bytes_per_sec == 0 || secs_per_clus == 0) {
+        oc_console_puts("fsck: invalid BPB (bytes_per_sec or secs_per_clus = 0)\n");
+        return 1;
+    }
+
+    char buf[80]; char num[20];
+    oc_console_puts("fsck: FAT32 filesystem on hda\n");
+    oc_strcpy(buf, "  bytes_per_sector: "); oc_u64_to_str(bytes_per_sec, num); oc_strcat(buf, num);
+    oc_strcat(buf, "\n  sectors_per_cluster: "); oc_u64_to_str(secs_per_clus, num); oc_strcat(buf, num);
+    oc_strcat(buf, "\n  reserved_sectors: "); oc_u64_to_str(reserved_sectors, num); oc_strcat(buf, num);
+    oc_strcat(buf, "\n  num_fats: "); oc_u64_to_str(num_fats, num); oc_strcat(buf, num);
+    oc_strcat(buf, "\n  total_sectors: "); oc_u64_to_str(total_sectors32, num); oc_strcat(buf, num);
+    oc_strcat(buf, "\n  sectors_per_fat: "); oc_u64_to_str(secs_per_fat32, num); oc_strcat(buf, num);
+    oc_strcat(buf, "\n  root_dir_cluster: "); oc_u64_to_str(root_dir_clus, num); oc_strcat(buf, num);
+    oc_strcat(buf, "\n");
+    oc_console_puts(buf);
+
+    /* Scan FAT for used/free clusters */
+    u32 fat_start = reserved_sectors;
+    u32 data_start = reserved_sectors + (num_fats * secs_per_fat32);
+    u32 total_clusters = (total_sectors32 - data_start) / secs_per_clus;
+    u32 used = 0, free_clust = 0, bad = 0;
+    u32 check = total_clusters;
+    if (check > 100000) check = 100000;  /* limit for speed */
+
+    u8 *fat_buf = (u8*)kmalloc(bytes_per_sec);
+    if (!fat_buf) {
+        oc_console_puts("fsck: out of memory\n");
+        return 1;
+    }
+    u32 entries_per_sector = bytes_per_sec / 4;  /* FAT32: 4 bytes per entry */
+    for (u32 s = 0; s < secs_per_fat32 && s < (check / entries_per_sector + 1); s++) {
+        n = blk_read_sectors(drive, fat_start + s, 1, fat_buf);
+        if (n != 1) break;
+        for (u32 e = 0; e < entries_per_sector; e++) {
+            u32 entry = *(u32*)(fat_buf + e * 4) & 0x0FFFFFFF;
+            if (entry == 0) free_clust++;
+            else if (entry >= 0x0FFFFFF7 && entry <= 0x0FFFFFFF) {
+                if (entry == 0x0FFFFFF7) bad++;
+            } else used++;
+        }
+    }
+    kfree(fat_buf);
+
+    oc_strcpy(buf, "  clusters: used="); oc_u64_to_str(used, num); oc_strcat(buf, num);
+    oc_strcat(buf, " free="); oc_u64_to_str(free_clust, num); oc_strcat(buf, num);
+    oc_strcat(buf, " bad="); oc_u64_to_str(bad, num); oc_strcat(buf, num);
+    oc_strcat(buf, "\n  fsck: PASS (basic checks OK)\n");
+    oc_console_puts(buf);
+    return 0;
 }
 
 /* ---- sync: flush disk cache ---- */

@@ -207,7 +207,16 @@ u64 syscall_exit(u64 code, u64 arg2, u64 arg3, u64 arg4) {
             /* BUG-008 FIX: Destroy the user address space before exiting.
              * Switch to kernel CR3 first so we don't destroy the page
              * tables we're currently running on. */
+            /* P1-9 FIX: The old code had an EMPTY if block here — the
+             * vmm_destroy_address_space call was never added. This caused
+             * all asm user programs (hello, badapp, loop, fork_test, etc.)
+             * that use syscall 0 (SYS_EXIT) to leak their entire page table
+             * hierarchy (~2.4 pages per exit). After 31 runs, used pages
+             * grew from 564 to 639 (+75 pages leaked). */
             if (g_procs[i].as) {
+                __asm__ volatile("mov %0, %%cr3" : : "r"(vmm_kernel_as()) : "memory");
+                vmm_destroy_address_space(g_procs[i].as);
+                g_procs[i].as = 0;
             }
             break;
         }
@@ -818,10 +827,15 @@ int user_process_kill(pid_t pid) {
             g_procs[i].alive = 0;
             /* BUG-008 FIX: Destroy address space when killing a process.
              * Switch to kernel CR3 first if this is the current process. */
+            /* P1-9 FIX: The old code had an EMPTY if block here —
+             * vmm_destroy_address_space was never called. */
             if (g_procs[i].as) {
                 tid_t cur = kthread_current_tid();
                 if (cur == g_procs[i].tid) {
+                    __asm__ volatile("mov %0, %%cr3" : : "r"(vmm_kernel_as()) : "memory");
                 }
+                vmm_destroy_address_space(g_procs[i].as);
+                g_procs[i].as = 0;
             }
             kthread_destroy(g_procs[i].tid);
             return 0;
