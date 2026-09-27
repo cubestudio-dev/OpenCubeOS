@@ -63,13 +63,13 @@ Licensed under the Apache License, Version 2.0.
 ## WP-04 (done) - Scheduler + sync primitives + user mode
 
 - Preemptive scheduler: priority + round-robin, 32 priority levels, per-task time slice.
-- Sync primitives: spinlock (with CLI/STI), semaphore, mutex (with priority inheritance), condvar.
+- Sync primitives: spinlock (with CLI/STI), semaphore, mutex (no priority inheritance), condvar.
 - Ring 3 user mode: TSS RSP0 switch, user-mode page-fault handling, ELF loader (static, PIE).
 - Three new L0->L1 extension interfaces: scheduler, sync, user-mode launcher.
 
 ## WP-05 (done) - Shell enhancements + file system
 
-- Shell: env vars, aliases, cwd, quoting, command history.
+- Shell: env vars, aliases, cwd, quoting (no command history).
 - VFS: virtual file system with mount/unmount, open/close/read/write/stat/readdir/mkdir/rmdir/unlink.
 - RamFS: in-memory file system mounted at root.
 - Shell file commands: ls, cd, pwd, cat, mkdir, rm, mv, cp, touch, stat.

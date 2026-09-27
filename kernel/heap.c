@@ -160,11 +160,32 @@ static void try_split(heap_block_t *b, u64 needed) {
     g_overhead += sizeof(heap_block_t);
 }
 
+/* P2-22 FIX: Real spinlock for the heap. Uses cli/sti to prevent IRQ
+ * preemption (timer IRQ calls kmalloc from soft_timer callbacks).
+ * This prevents free-list corruption when kmalloc is called from
+ * both kernel code and an IRQ handler concurrently. */
+static volatile u64 g_heap_lock = 0;
+
+static inline void heap_lock_acquire(u64 *flags) {
+    __asm__ volatile("pushfq; popq %0; cli" : "=r"(*flags));
+    while (__atomic_test_and_set(&g_heap_lock, __ATOMIC_ACQUIRE)) {
+        __asm__ volatile("pause");
+    }
+}
+
+static inline void heap_lock_release(u64 flags) {
+    __atomic_clear(&g_heap_lock, __ATOMIC_RELEASE);
+    __asm__ volatile("pushq %0; popfq" : : "r"(flags));
+}
+
 void *kmalloc(u64 size) {
     if (size == 0) return NULL;
 
     /* Round up to alignment. */
     size = (size + HEAP_ALIGN - 1) & ~(HEAP_ALIGN - 1);
+
+    u64 irq_flags;
+    heap_lock_acquire(&irq_flags);
 
     heap_block_t *b = find_free(size);
     if (!b) {
@@ -174,7 +195,7 @@ void *kmalloc(u64 size) {
         if (pages_needed > HEAP_MAX_POOL_PAGES) pages_needed = HEAP_MAX_POOL_PAGES;
         add_pool(pages_needed);
         b = find_free(size);
-        if (!b) return NULL;  /* out of memory */
+        if (!b) { heap_lock_release(irq_flags); return NULL; }
     }
 
     /* Try to split if the block is much larger. */
@@ -191,6 +212,7 @@ void *kmalloc(u64 size) {
 
     if (g_hook) g_hook((u8*)b + sizeof(heap_block_t), size, 1);
 
+    heap_lock_release(irq_flags);
     return (u8*)b + sizeof(heap_block_t);
 }
 
@@ -202,6 +224,9 @@ void *kzalloc(u64 size) {
 
 void kfree(void *ptr) {
     if (!ptr) return;
+
+    u64 irq_flags;
+    heap_lock_acquire(&irq_flags);
 
     heap_block_t *b = (heap_block_t*)((u8*)ptr - sizeof(heap_block_t));
 
@@ -258,9 +283,12 @@ void kfree(void *ptr) {
             remove_free(f);
             b->size += sizeof(heap_block_t) + f->size;
             g_overhead -= sizeof(heap_block_t);
+            heap_lock_release(irq_flags);
             return;
         }
     }
+
+    heap_lock_release(irq_flags);
 }
 
 void *krealloc(void *ptr, u64 new_size) {
