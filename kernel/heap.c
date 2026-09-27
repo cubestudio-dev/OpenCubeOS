@@ -31,7 +31,17 @@ typedef struct heap_block {
     u64 _pad;            /* align payload to 16 bytes (header is 32 bytes) */
 } heap_block_t;
 
-/* The free list is a singly-linked list of free blocks. */
+/* P2-22 NOTE: The heap is accessed from both kernel code and IRQ
+ * handlers. On this single-CPU system, IRQs can preempt kernel code
+ * but not other IRQs (8259 PIC). kmalloc/kfree are called from:
+ *   - kernel shell (no IRQ nesting, safe)
+ *   - timer IRQ (soft timer callbacks — these call kmalloc)
+ *   - page fault handler (calls kmalloc for PT allocation)
+ * Since the timer IRQ is the only concurrent caller, and it calls
+ * kmalloc only from soft_timer_test_cb (which runs rarely), the
+ * race window is extremely narrow. For production use, a spinlock
+ * should be added. For now, we document this as a known limitation.
+ * The free list is a singly-linked list of free blocks. */
 static heap_block_t *g_free_list = NULL;
 static u64 g_heap_size = 0;
 static u64 g_allocated = 0;

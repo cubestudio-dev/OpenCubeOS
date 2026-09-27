@@ -62,6 +62,9 @@
 #define SYS_READLINE      73   /* (buf, maxlen) — read a line from keyboard */
 #define SYS_GETCH         74   /* (void) -> int: read one raw key from keyboard (no echo) */
 
+/* P2-04 FIX: uptime / time syscall so userland can read kernel tick counter. */
+#define SYS_UPTIME        75   /* (void) -> u64: milliseconds since boot */
+
 /* WP-08a: I/O multiplexing */
 #define SYS_SELECT        80
 #define SYS_POLL          81

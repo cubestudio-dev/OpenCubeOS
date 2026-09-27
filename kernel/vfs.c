@@ -541,6 +541,14 @@ int vfs_open(const char *path, int flags) {
     if (fd < 0) return -8;
     g_fds[fd].node = n;
     g_fds[fd].flags = flags;
+    /* P2-15 FIX: when reopening an existing file with O_TRUNC and the
+     * file system has no fs-specific truncate op, zero the in-memory
+     * size here as a defensive fallback. fs-specific truncation (freeing
+     * data buffers / disk clusters) is done by the file_ops->open
+     * callback below. */
+    if (flags & VFS_O_TRUNC) {
+        n->size = 0;
+    }
     g_fds[fd].offset = (flags & VFS_O_APPEND) ? n->size : 0;
     if (n->fs_type && n->fs_type->file_ops && n->fs_type->file_ops->open) {
         int rc = n->fs_type->file_ops->open(n, flags);
@@ -740,4 +748,25 @@ void vfs_list_mounts(void) {
         oc_console_puts(line);
     }
     if (!any) oc_console_puts("  (no mounts)\n");
+}
+
+/* P2-06 FIX: read-only access to the mount table for commands like df. */
+int vfs_get_mounts(vfs_mount_info_t *out, int max) {
+    if (!out || max <= 0) return 0;
+    int count = 0;
+    for (int i = 0; i < VFS_MAX_MOUNTS && count < max; i++) {
+        if (!g_mounts[i].in_use) continue;
+        vfs_mount_info_t *e = &out[count];
+        oc_memset(e, 0, sizeof(*e));
+        oc_strncpy(e->mount_point, g_mounts[i].mount_point,
+                   sizeof(e->mount_point) - 1);
+        if (g_mounts[i].fs_type) {
+            oc_strncpy(e->fs_type, g_mounts[i].fs_type->name,
+                       sizeof(e->fs_type) - 1);
+        }
+        oc_strncpy(e->device, g_mounts[i].device, sizeof(e->device) - 1);
+        e->in_use = 1;
+        count++;
+    }
+    return count;
 }

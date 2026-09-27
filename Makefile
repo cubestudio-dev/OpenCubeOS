@@ -144,8 +144,8 @@ clean:
 dist: $(KERNEL_ISO)
 	mkdir -p $(DIST)
 	TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
-	SRCZIP=$(DIST)/OpenCubeOS-src-WP01-$$TIMESTAMP.zip; \
-	ISOCOPY=$(DIST)/OpenCubeOS-WP01-$$TIMESTAMP.iso; \
+	SRCZIP=$(DIST)/OpenCubeOS-src-WP08-$$TIMESTAMP.zip; \
+	ISOCOPY=$(DIST)/OpenCubeOS-WP08-$$TIMESTAMP.iso; \
 	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*"); \
 	cp $(KERNEL_ISO) $$ISOCOPY; \
 	echo "SRC: $$SRCZIP"; \

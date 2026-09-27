@@ -446,7 +446,7 @@ void enter_ring3(u64 entry_point, u64 user_rsp, u64 user_cr3) {
         "push %%rax\n"
         "push %0\n"
         "pushf\n"
-        "or $0x200, (%%rsp)\n"
+        "orl $0x200, (%%rsp)\n"
         "mov $0x33, %%ax\n"
         "push %%rax\n"
         "push %1\n"

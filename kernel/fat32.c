@@ -668,10 +668,33 @@ done:
 /* ---- VFS file operations ---- */
 
 static int fat32_open(vfs_node_t *node, int flags) {
-    (void)flags;
     if (!node) return -1;
     fat32_inode_t *ino = (fat32_inode_t *)node->private;
     if (!ino || !ino->ctx) return -2;
+    fat32_ctx_t *ctx = ino->ctx;
+    /* P2-15 FIX: O_TRUNC — free the cluster chain, reset the inode, and
+     * update the on-disk directory entry so subsequent reads of this file
+     * return 0 bytes. Without this, `echo new > existing` would overwrite
+     * only the first few bytes and leave the old tail bytes still
+     * visible (the cluster chain stayed allocated, file_size unchanged). */
+    if ((flags & VFS_O_TRUNC) && !ino->is_dir) {
+        if (ino->start_cluster >= 2) {
+            fat32_free_cluster_chain(ctx, ino->start_cluster);
+            ino->start_cluster = 0;
+        }
+        ino->size = 0;
+        node->size = 0;
+        if (node->parent) {
+            fat32_inode_t *pino = (fat32_inode_t *)node->parent->private;
+            if (pino && pino->start_cluster >= 2) {
+                u32 ec = 0, eo = 0;
+                if (fat32_find_entry(ctx, pino->start_cluster, node->name,
+                                     &ec, &eo, NULL) == 0) {
+                    fat32_update_dir_entry(ctx, ec, eo, 0, 0);
+                }
+            }
+        }
+    }
     /* If the VFS patched this node's type to FILE but the on-disk entry is
      * still a DIRECTORY (happens when vfs_open's O_CREAT path calls
      * fat32_mkdir then patches the in-memory type to FILE), convert the
@@ -679,7 +702,6 @@ static int fat32_open(vfs_node_t *node, int flags) {
      * reset the size to 0. The first_cluster is kept (the empty cluster
      * allocated by fat32_mkdir) so the first write can reuse it. */
     if (node->type == VFS_TYPE_FILE && ino->is_dir && node->parent) {
-        fat32_ctx_t *ctx = ino->ctx;
         fat32_inode_t *pino = (fat32_inode_t *)node->parent->private;
         if (pino && pino->start_cluster >= 2) {
             u32 ec = 0, eo = 0;
@@ -1023,18 +1045,45 @@ static int fat32_readdir(vfs_node_t *dir, int index, vfs_dirent_t *entry) {
     if (n < 0) return -3;
 
     /* Walk entries, skipping deleted (0xE5), end-of-dir (0x00), LFN slots,
-     * and volume-label entries. Map the index-th surviving entry. */
+     * and volume-label entries. Map the index-th surviving entry.
+     * P2-12 FIX: collect LFN slots before each 8.3 entry; when the 8.3
+     * entry is the index-th survivor, prefer the assembled LFN long name
+     * over the 8.3 short name. */
+    u8 lfn_buf[20 * 32];
+    int lfn_count = 0;
     int shown = 0;
     int rc = -4;
     for (int i = 0; i < n; i++) {
         fat32_dirent_t *e = &buf[i];
         if (e->name[0] == 0x00) break;            /* end of dir */
-        if (e->name[0] == 0xE5) continue;          /* deleted */
-        if ((e->attr & FAT_ATTR_LFN) == FAT_ATTR_LFN) continue;  /* LFN slot */
-        if (e->attr & FAT_ATTR_VOLUME_ID) continue; /* volume label */
+        if (e->name[0] == 0xE5) { lfn_count = 0; continue; }  /* deleted */
+        if ((e->attr & FAT_ATTR_LFN) == FAT_ATTR_LFN) {
+            /* Collect LFN slots — these precede the 8.3 entry in reverse
+             * order (last entry has 0x40 bit set in the order field). */
+            if (lfn_count < 20) {
+                oc_memcpy(lfn_buf + lfn_count * 32, e, 32);
+                lfn_count++;
+            }
+            continue;
+        }
+        if (e->attr & FAT_ATTR_VOLUME_ID) { lfn_count = 0; continue; }
         if (shown == index) {
             oc_memset(entry, 0, sizeof(*entry));
-            fat32_format_short_name(e->name, entry->name);
+            /* P2-12: prefer the long name if we collected any LFN slots. */
+            int have_lfn = 0;
+            if (lfn_count > 0) {
+                char lfn_name[VFS_NAME_LEN];
+                if (fat32_extract_lfn_name(lfn_buf, lfn_count,
+                                           lfn_name, sizeof(lfn_name)) == 0
+                        && lfn_name[0]) {
+                    oc_strncpy(entry->name, lfn_name, VFS_NAME_LEN - 1);
+                    entry->name[VFS_NAME_LEN - 1] = 0;
+                    have_lfn = 1;
+                }
+            }
+            if (!have_lfn) {
+                fat32_format_short_name(e->name, entry->name);
+            }
             entry->type = (e->attr & FAT_ATTR_DIRECTORY) ? VFS_TYPE_DIR : VFS_TYPE_FILE;
             u32 cluster = ((u32)e->first_cluster_hi << 16) | e->first_cluster_lo;
             entry->inode = cluster;
@@ -1042,6 +1091,7 @@ static int fat32_readdir(vfs_node_t *dir, int index, vfs_dirent_t *entry) {
             break;
         }
         shown++;
+        lfn_count = 0;
     }
     kfree(buf);
     return rc;

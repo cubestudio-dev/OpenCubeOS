@@ -562,10 +562,8 @@ static int e1000_init(void) {
     {
         char buf[80]; char n[20];
         u32 cmd_reg = pci_read_config(bus, dev, func, 0x04);
-        oc_strcpy(buf, "e1000: PCI bus="); oc_u64_to_str(bus, n); oc_strcat(buf, n);
         oc_strcat(buf, " dev="); oc_u64_to_str(dev, n); oc_strcat(buf, n);
         oc_strcat(buf, " func="); oc_u64_to_str(func, n); oc_strcat(buf, n);
-        oc_strcat(buf, " BAR0=0x"); oc_u64_to_hex(bar0, n, 8); oc_strcat(buf, n);
         oc_strcat(buf, " cmd=0x"); oc_u64_to_hex(cmd_reg, n, 4); oc_strcat(buf, n);
         oc_strcat(buf, "\n");
         oc_console_puts(buf);
@@ -647,8 +645,7 @@ static int e1000_init(void) {
         pci_write_config(bus, dev, func, 0x04, cmd_new);
         u32 cmd_after = pci_read_config(bus, dev, func, 0x04);
         char dbuf[100]; char dn[20];
-        oc_strcpy(dbuf, "e1000: PCI cmd before=0x"); oc_u64_to_hex(cmd_before, dn, 4); oc_strcat(dbuf, dn);
-        oc_strcat(dbuf, " wrote=0x"); oc_u64_to_hex(cmd_new, dn, 4); oc_strcat(dbuf, dn);
+            oc_strcat(dbuf, " wrote=0x"); oc_u64_to_hex(cmd_new, dn, 4); oc_strcat(dbuf, dn);
         oc_strcat(dbuf, " after=0x"); oc_u64_to_hex(cmd_after, dn, 4); oc_strcat(dbuf, dn);
         oc_strcat(dbuf, " bus="); oc_u64_to_str(bus, dn); oc_strcat(dbuf, dn);
         oc_strcat(dbuf, " dev="); oc_u64_to_str(dev, dn); oc_strcat(dbuf, dn);
@@ -783,84 +780,35 @@ static int e1000_send(const void *data, int len) {
     g_tx_descs[g_tx_tail].errors = 0;
     g_tx_descs[g_tx_tail].special = 0;
 
-    /* Advance tail. Ensure descriptor writes are visible before TDT write. */
+    /* Advance tail. */
     int old_tail = g_tx_tail;
     g_tx_tail = (g_tx_tail + 1) % E1000_NUM_DESC;
-    
-    /* CRITICAL: Re-enable PCI bus master right before writing TDT.
-     * QEMU's e1000 checks pci_bus_master() on every TX attempt.
-     * If any MMIO write to the e1000 CTRL register caused an internal
-     * reset that cleared the PCI command register, the bus master flag
-     * would be lost. We re-assert it here to be safe. */
+
+    /* Re-assert PCI bus master right before writing TDT. QEMU's e1000
+     * checks pci_bus_master() on every TX attempt; some MMIO writes to
+     * CTRL can clear the PCI command register. */
     {
         u32 cs = pci_read_config(g_e1000_bus, g_e1000_dev, g_e1000_func, 0x04);
-        if (!(cs & 0x04)) {  /* bus master not set */
+        if (!(cs & 0x04)) {
             cs = (cs & 0xFFFF0000) | 0x0107;
             pci_write_config(g_e1000_bus, g_e1000_dev, g_e1000_func, 0x04, cs);
         }
     }
-    
+
+    /* Make sure descriptor writes are visible before TDT write. */
     __asm__ volatile("sfence" ::: "memory");
-    
-    /* Toggle TCTL.EN off then on to kick the TX state machine */
-    u32 tctl = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_TCTL));
-    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_TCTL), tctl & ~1u);  /* clear EN */
-    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_TCTL), tctl);  /* restore EN */
-    __asm__ volatile("mfence" ::: "memory");
-    
-    /* Debug: read TDT before write */
-    u32 tdt_before = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDT));
-    
+
+    /* P2-07 FIX: removed the TCTL.EN toggle and all the debug
+     * oc_console_puts() / oc_u64_to_str() dumping that ran on every TX
+     * path. The toggle was a debug rescue mechanism, not part of the
+     * normal hardware path — the e1000 datasheet says TDT writes alone
+     * are sufficient to launch a TX descriptor. */
     mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDT), (u32)g_tx_tail);
     __asm__ volatile("mfence" ::: "memory");
-    
-    /* Debug: read TDT after write to confirm it took effect */
-    u32 tdt_after = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDT));
-    
-    /* Debug: if TDT didn't change, MMIO is broken */
-    if (tdt_after != (u32)g_tx_tail) {
-        char dbuf[100]; char dn[20];
-        oc_strcpy(dbuf, "e1000: MMIO WRITE FAIL! TDT before="); oc_u64_to_str(tdt_before, dn); oc_strcat(dbuf, dn);
-        oc_strcat(dbuf, " wrote="); oc_u64_to_str(g_tx_tail, dn); oc_strcat(dbuf, dn);
-        oc_strcat(dbuf, " readback="); oc_u64_to_str(tdt_after, dn); oc_strcat(dbuf, dn);
-        oc_strcat(dbuf, "\n");
-        oc_console_puts(dbuf);
-    }
 
-    /* Wait for TX to complete (DD bit in status).
-     * Poll for up to 3 seconds. */
-    for (int timeout = 0; timeout < 3000000; timeout++) {
+    /* Wait for TX to complete (DD bit in status). Poll for up to 1 s. */
+    for (int timeout = 0; timeout < 1000000; timeout++) {
         if (g_tx_descs[old_tail].status & 0x01) break;
-        /* Also check TDH directly every 100000 iterations */
-        if (timeout % 100000 == 99999) {
-            u32 tdh_now = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDH));
-            if (tdh_now != 0) {
-                char dbuf2[80]; char dn2[20];
-                oc_strcpy(dbuf2, "e1000: TDH moved to "); oc_u64_to_str(tdh_now, dn2); oc_strcat(dbuf2, dn2);
-                oc_strcat(dbuf2, " at timeout "); oc_u64_to_str(timeout, dn2); oc_strcat(dbuf2, dn2);
-                oc_strcat(dbuf2, "\n");
-                oc_console_puts(dbuf2);
-            }
-        }
-    }
-
-    /* Debug: if TX didn't complete, print state. */
-    if (!(g_tx_descs[old_tail].status & 0x01)) {
-        char buf[150]; char n[20];
-        u32 tdh = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDH));
-        u32 tdt = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDT));
-        u32 icr = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + 0x00C0));
-        u32 tctl = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_TCTL));
-        u32 ctrl = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_CTRL));
-        u32 pcicmd = pci_read_config(g_e1000_bus, g_e1000_dev, g_e1000_func, 0x04);
-        oc_strcpy(buf, "e1000 TX: TDH="); oc_u64_to_str(tdh, n); oc_strcat(buf, n);
-        oc_strcat(buf, " TDT="); oc_u64_to_str(tdt, n); oc_strcat(buf, n);
-        oc_strcat(buf, " ICR=0x"); oc_u64_to_hex(icr, n, 8); oc_strcat(buf, n);
-        oc_strcat(buf, " PCICMD=0x"); oc_u64_to_hex(pcicmd, n, 4); oc_strcat(buf, n);
-        oc_strcat(buf, " TCTL=0x"); oc_u64_to_hex(tctl, n, 8); oc_strcat(buf, n);
-        oc_strcat(buf, " CTRL=0x"); oc_u64_to_hex(ctrl, n, 8); oc_strcat(buf, n);
-        oc_strcat(buf, "\n");
-        oc_console_puts(buf);
     }
 
     g_stats.tx_packets++;
@@ -1095,9 +1043,15 @@ typedef struct __attribute__((packed)) {
 static u16 g_ip_id = 1;
 
 static int ip_send(u32 dst_ip, u8 protocol, const void *payload, int len) {
-    /* P0-7 FIX: bound payload so 20 (IP header) + len fits in ETH_FRAME_MAX. */
+    /* P2-08 FIX: use a consistent IP payload MTU. The Ethernet frame
+     * payload is 1500 bytes (ETH_FRAME_MAX 1514 - 14 eth header). The
+     * IP header is 20 bytes, so the IP *payload* MTU is 1500 - 20 = 1480
+     * bytes. The previous code clamped to 1494 with a comment that
+     * contradicted the math ("... = 1480, use 1494 to be safe").
+     * This matches udp_send (clamp to 1492 so 1492 + 8 = 1500) and
+     * tcp_send_raw (clamp to 1480 so 1480 + 20 = 1500). */
     if (len < 0) return -1;
-    if (len > 1494) len = 1494;  /* 1514 - 14 (eth) - 20 (IP) = 1480, use 1494 to be safe */
+    if (len > 1480) len = 1480;  /* 1500 - 20 (IP header) */
     /* Resolve destination MAC (via gateway if needed). */
     u32 next_hop = dst_ip;
     /* Broadcast addresses (255.255.255.255 or subnet broadcast) go directly,
@@ -2165,7 +2119,6 @@ void net_init(void) {
         g_gateway = IP4(10,0,2,2);
         g_dns = IP4(10,0,2,3);
     } else if (e1000_init() == 0) {
-        oc_console_puts("e1000: initialized\n");
         g_ip = IP4(10,0,2,15);
         g_mask = IP4(255,255,255,0);
         g_gateway = IP4(10,0,2,2);

@@ -80,40 +80,70 @@ static void print_dirent(const char *name, int type, u64 size) {
 }
 
 /* ---- ls ---- */
+/* P2-16 FIX: iterate over space-separated args so that wildcard
+ * expansion (`ls *.c` → `ls foo.c bar.c`) reaches every file. The
+ * previous implementation resolved the whole `args` string as one
+ * path, so `ls foo.c bar.c` tried to stat a non-existent file named
+ * "foo.c bar.c" and printed "no such path" for the whole batch. */
 static int cmd_ls(const char *args) {
-    const char *path = (args && args[0]) ?
-        shell_resolve_path_static(args) : shell_get_cwd();
-    vfs_stat_t st;
-    if (vfs_stat(path, &st) < 0) {
-        oc_console_puts("ls: no such path: ");
-        oc_console_puts(path);
-        oc_console_putc('\n');
-        return 1;
+    int err = 0;
+    const char *cursor = args;
+    int listed = 0;
+    /* If no args, list the cwd once. */
+    if (!args || !args[0]) {
+        cursor = "";
     }
-    if (st.type != VFS_TYPE_DIR) {
-        /* It's a file - print its name and size. */
-        print_dirent(st.name, st.type, st.size);
-        return 0;
-    }
-    for (int i = 0; ; i++) {
-        vfs_dirent_t e;
-        if (vfs_readdir(path, i, &e) < 0) break;
-        /* Stat each entry to get size for files. */
-        vfs_stat_t es;
-        u64 sz = 0;
-        /* Build child path. */
-        char child[VFS_PATH_LEN];
-        int pl = (int)oc_strlen(path);
-        oc_strcpy(child, path);
-        if (pl > 0 && child[pl - 1] != '/') {
-            child[pl++] = '/';
-            child[pl] = 0;
+    while (1) {
+        const char *this_arg;
+        char path[VFS_PATH_LEN];
+        if (listed == 0 && (!args || !args[0])) {
+            /* Single iteration with the cwd. */
+            oc_strcpy(path, shell_get_cwd());
+            this_arg = NULL;  /* sentinel: no more args */
+        } else {
+            /* Skip whitespace. */
+            while (*cursor == ' ' || *cursor == '\t') cursor++;
+            if (!*cursor) break;
+            const char *next;
+            split_first(cursor, path, sizeof(path), &next);
+            cursor = next;
+            this_arg = next;  /* keep iterating */
+            if (!path[0]) continue;
         }
-        oc_strcpy(child + pl, e.name);
-        if (vfs_stat(child, &es) == 0) sz = es.size;
-        print_dirent(e.name, e.type, sz);
+        const char *resolved = shell_resolve_path_static(path);
+        vfs_stat_t st;
+        if (vfs_stat(resolved, &st) < 0) {
+            oc_console_puts("ls: no such path: ");
+            oc_console_puts(resolved);
+            oc_console_putc('\n');
+            err = 1;
+        } else if (st.type != VFS_TYPE_DIR) {
+            /* It's a file - print its name and size. */
+            print_dirent(st.name, st.type, st.size);
+        } else {
+            for (int i = 0; ; i++) {
+                vfs_dirent_t e;
+                if (vfs_readdir(resolved, i, &e) < 0) break;
+                /* Stat each entry to get size for files. */
+                vfs_stat_t es;
+                u64 sz = 0;
+                /* Build child path. */
+                char child[VFS_PATH_LEN];
+                int pl = (int)oc_strlen(resolved);
+                oc_strcpy(child, resolved);
+                if (pl > 0 && child[pl - 1] != '/') {
+                    child[pl++] = '/';
+                    child[pl] = 0;
+                }
+                oc_strcpy(child + pl, e.name);
+                if (vfs_stat(child, &es) == 0) sz = es.size;
+                print_dirent(e.name, e.type, sz);
+            }
+        }
+        listed++;
+        if (this_arg == NULL) break;
     }
-    return 0;
+    return err;
 }
 
 /* ---- cd ---- */
@@ -494,26 +524,66 @@ static int cmd_tree(const char *args) {
 static int cmd_df(const char *args) {
     (void)args;
     oc_console_puts("Filesystem     Mount     Device    Use\n");
-    /* ramfs stats. */
-    int nn, ss;
-    ramfs_get_stats(&nn, &ss);
-    char line[120]; char num[20];
-    oc_strcpy(line, "ramfs          /         -         ");
-    fmt_u64((u64)nn, num); oc_strcpy(line + oc_strlen(line), num);
-    oc_strcpy(line + oc_strlen(line), " nodes, ");
-    fmt_u64((u64)ss, num); oc_strcpy(line + oc_strlen(line), num);
-    oc_strcpy(line + oc_strlen(line), " bytes\n");
-    oc_console_puts(line);
-    /* FAT32 stats if mounted. */
-    u64 ts, fc; u32 cs;
-    fat32_get_stats(&ts, &fc, &cs);
-    if (ts > 0) {
-        oc_strcpy(line, "fat32          /mnt      ata0      ");
-        fmt_u64(fc, num); oc_strcpy(line + oc_strlen(line), num);
-        oc_strcpy(line + oc_strlen(line), " free clusters, ");
-        fmt_u64((u64)cs, num); oc_strcpy(line + oc_strlen(line), num);
-        oc_strcpy(line + oc_strlen(line), " bytes/cluster\n");
+
+    /* P2-06 FIX: iterate the real VFS mount table instead of hardcoding
+     * "ramfs" and "fat32 /mnt ata0". For each active mount we print the
+     * fs-type name, mount point, device, and (when available) some live
+     * stats from the underlying fs. For mounts we have no stat accessor
+     * for, we still list them so the user sees the truth. */
+    vfs_mount_info_t mounts[VFS_MAX_MOUNTS];
+    int n = vfs_get_mounts(mounts, VFS_MAX_MOUNTS);
+    char line[160];
+    char num[24];
+    for (int i = 0; i < n; i++) {
+        vfs_mount_info_t *m = &mounts[i];
+        oc_memset(line, 0, sizeof(line));
+
+        /* Build a single padded line of three fixed-width columns. */
+        oc_strcpy(line, m->fs_type);
+        int pl = (int)oc_strlen(line);
+        while (pl < 14) line[pl++] = ' ';
+        line[pl] = 0;
+
+        int mp_len = (int)oc_strlen(m->mount_point);
+        int mp_to_copy = mp_len < 9 ? mp_len : 9;
+        for (int k = 0; k < mp_to_copy; k++) line[pl++] = m->mount_point[k];
+        while (pl < 14 + 9) line[pl++] = ' ';
+        line[pl] = 0;
+
+        const char *dev = m->device[0] ? m->device : "-";
+        int dv_len = (int)oc_strlen(dev);
+        int dv_to_copy = dv_len < 9 ? dv_len : 9;
+        for (int k = 0; k < dv_to_copy; k++) line[pl++] = dev[k];
+        while (pl < 14 + 9 + 9) line[pl++] = ' ';
+        line[pl] = 0;
+
+        /* Best-effort live stats per fs type. */
+        if (oc_strcmp(m->fs_type, "ramfs") == 0) {
+            int nn, ss;
+            ramfs_get_stats(&nn, &ss);
+            fmt_u64((u64)nn, num); oc_strcpy(line + pl, num); pl += (int)oc_strlen(num);
+            oc_strcpy(line + pl, " nodes, "); pl += 8;
+            fmt_u64((u64)ss, num); oc_strcpy(line + pl, num); pl += (int)oc_strlen(num);
+            oc_strcpy(line + pl, " bytes");
+        } else if (oc_strcmp(m->fs_type, "fat32") == 0) {
+            u64 ts, fc; u32 cs;
+            fat32_get_stats(&ts, &fc, &cs);
+            if (ts > 0) {
+                fmt_u64(fc, num); oc_strcpy(line + pl, num); pl += (int)oc_strlen(num);
+                oc_strcpy(line + pl, " free clusters, "); pl += 16;
+                fmt_u64((u64)cs, num); oc_strcpy(line + pl, num); pl += (int)oc_strlen(num);
+                oc_strcpy(line + pl, " bytes/cluster");
+            } else {
+                oc_strcpy(line + pl, "(not mounted)");
+            }
+        } else {
+            oc_strcpy(line + pl, "(no stat accessor)");
+        }
+        oc_strcat(line, "\n");
         oc_console_puts(line);
+    }
+    if (n == 0) {
+        oc_console_puts("(no mounts)\n");
     }
     return 0;
 }

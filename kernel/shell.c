@@ -1149,6 +1149,7 @@ static int shell_exec_segment(token_t *toks, int ntoks) {
                     const char *resolved = shell_resolve_path_static(redir_out);
                     int flags = VFS_O_WRONLY | VFS_O_CREAT;
                     if (redir_out_append) flags |= VFS_O_APPEND;
+                    else flags |= VFS_O_TRUNC;  /* P2-15: `>` truncates */
                     int fd = vfs_open(resolved, flags);
                     if (fd >= 0) {
                         vfs_write(fd, g_capture.buf, g_capture.size);

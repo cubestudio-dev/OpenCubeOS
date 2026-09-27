@@ -304,7 +304,8 @@ static int cmd_echo(const char *args) {
         oc_memcpy(text, args, text_len);
         text[text_len] = 0;
         int flags = VFS_O_WRONLY | VFS_O_CREAT;
-        if (append) flags |= VFS_O_APPEND; else { /* TRUNC not in WP-05 VFS; just reopen */ }
+        if (append) flags |= VFS_O_APPEND;
+        else flags |= VFS_O_TRUNC;  /* P2-15 FIX: `>` truncates existing content */
         int fd = vfs_open(fname, flags);
         if (fd < 0) { oc_console_puts("echo: cannot open file\n"); return 1; }
         if (text_len > 0) vfs_write(fd, text, text_len);
@@ -560,6 +561,41 @@ static int cmd_frag(const char *args) {
 /* ---- WP-04 commands ---- */
 
 /* WP-03 fix 1: pftest - test page fault handling. */
+/* P2-14 FIX: Test 2 now registers a temporary L1 fault handler that
+ * catches an illegal PF on a specific unmapped test address, maps a
+ * page so the faulting instruction can resume, and records that the
+ * fault was actually observed by the dispatcher. Without this, test 2
+ * unconditionally printed "PASS" without exercising the illegal-PF
+ * code path at all (the comment admitted "we can't actually trigger
+ * an illegal PF without crashing" — but with an L1 handler we can).
+ *
+ * The test address must be OUTSIDE the kernel's identity-mapped first
+ * 4 GiB (otherwise the access succeeds without faulting). We pick
+ * 0xFFFF810000000000 — the second entry of PML4 in the upper canonical
+ * half (PML4[0x101]). The boot-time PML4 only fills entry 0 (the first
+ * 4 GiB identity map), so any PML4 entry above 0 — low or high half —
+ * is "not present" and triggers a #PF. */
+static volatile u8 g_pftest_illegal_armed = 0;
+static volatile u8 g_pftest_illegal_caught = 0;
+#define P2_14_TEST_VADDR 0xFFFF810000000000ULL
+
+static int pftest_illegal_handler(u64 vaddr, u64 error_code, u64 rip) {
+    (void)error_code;
+    (void)rip;
+    if (g_pftest_illegal_armed && (vaddr & ~0xFFF) == P2_14_TEST_VADDR) {
+        u64 page = pmm_alloc_frame();
+        if (page == 0) return 0;  /* let L0 abort */
+        if (vmm_map_page(vmm_current_as(), vaddr & ~0xFFF, page,
+                         VMM_FLAG_PRESENT | VMM_FLAG_WRITE) != 0) {
+            pmm_free_frame(page);
+            return 0;
+        }
+        g_pftest_illegal_caught = 1;
+        return 1;  /* handled — resume the faulting instruction */
+    }
+    return 0;  /* not our test — fall through to L0 default */
+}
+
 static int cmd_pftest(const char *args) {
     (void)args;
     oc_console_puts("Page fault test:\n");
@@ -581,13 +617,34 @@ static int cmd_pftest(const char *args) {
     }
 
     /* Test 2: illegal page fault - access unmapped high address.
-     * We use a registered exception handler to catch this and skip. */
+     * P2-14 FIX: register a temporary L1 fault handler that catches the
+     * PF on the test address, maps a writable page so the faulting
+     * instruction can resume, and records that the dispatcher saw the
+     * fault. We can then verify the handler ran and the write completed. */
     oc_console_puts("  test 2: illegal PF (unmapped address)...\n");
     vmm_fault_stats_t fs_before, fs_after;
     vmm_get_fault_stats(&fs_before);
-    /* We can't actually trigger an illegal PF without crashing, because
-     * the default handler halts. Instead, we verify the fault stats
-     * changed (from the stack growth test). */
+
+    /* Register the L1 handler and arm the test. */
+    vmm_register_fault_handler(pftest_illegal_handler);
+    g_pftest_illegal_caught = 0;
+    g_pftest_illegal_armed = 1;
+
+    /* Trigger the illegal PF: write to an unmapped address. The L1
+     * handler will catch it, map the page, and let the instruction
+     * complete. We then read the value back to confirm the page was
+     * really mapped. */
+    volatile u8 *bad = (volatile u8 *)(uintptr_t)P2_14_TEST_VADDR;
+    __asm__ volatile("" ::: "memory");  /* full memory barrier */
+    *bad = 0x57;
+    __asm__ volatile("" ::: "memory");
+    u8 readback = *bad;
+    __asm__ volatile("" ::: "memory");
+
+    /* Disarm so future faults on this address go to L0 (and future
+     * pftest runs re-arm cleanly). */
+    g_pftest_illegal_armed = 0;
+
     vmm_get_fault_stats(&fs_after);
     char buf[120]; char n[20];
     oc_strcpy(buf, "    faults before="); oc_u64_to_str(fs_before.total_faults, n); oc_strcpy(buf+oc_strlen(buf), n);
@@ -598,7 +655,28 @@ static int cmd_pftest(const char *args) {
     oc_strcpy(buf+oc_strlen(buf), " stack="); oc_u64_to_str(fs_after.stack_growth, n); oc_strcpy(buf+oc_strlen(buf), n);
     oc_strcpy(buf+oc_strlen(buf), " heap="); oc_u64_to_str(fs_after.heap_growth, n); oc_strcpy(buf+oc_strlen(buf), n);
     oc_strcpy(buf+oc_strlen(buf), "\n"); oc_console_puts(buf);
-    oc_console_puts("  PASS\n");
+
+    /* Real verdict: the L1 handler must have run (caught==1) AND the
+     * write must have completed (readback==0x57) AND the legal_faults
+     * counter must have increased (because L1-handled faults count as
+     * legal). If any of these failed, the illegal-PF path is broken. */
+    int legal_delta = (int)(fs_after.legal_faults - fs_before.legal_faults);
+    if (g_pftest_illegal_caught && readback == 0x57 && legal_delta > 0) {
+        oc_strcpy(buf, "    L1 handler ran, page mapped, write verified, ");
+        oc_u64_to_str((u64)legal_delta, n); oc_strcpy(buf+oc_strlen(buf), n);
+        oc_strcpy(buf+oc_strlen(buf), " legal PFs counted\n");
+        oc_console_puts(buf);
+        oc_console_puts("  PASS\n");
+    } else {
+        oc_console_puts("    FAIL: L1 handler did not catch the illegal PF\n");
+        oc_strcpy(buf, "    caught="); oc_u64_to_str(g_pftest_illegal_caught, n);
+        oc_strcpy(buf+oc_strlen(buf), n);
+        oc_strcpy(buf+oc_strlen(buf), " readback=0x"); oc_u64_to_hex((u64)readback, n, 2);
+        oc_strcpy(buf+oc_strlen(buf), n);
+        oc_strcpy(buf+oc_strlen(buf), " legal_delta="); oc_u64_to_str((u64)legal_delta, n);
+        oc_strcpy(buf+oc_strlen(buf), n);
+        oc_strcpy(buf+oc_strlen(buf), "\n"); oc_console_puts(buf);
+    }
     return 0;
 }
 
@@ -719,13 +797,19 @@ static int cmd_kill(const char *args) {
     int tid = 0;
     const char *p = args;
     while (*p >= '0' && *p <= '9') { tid = tid * 10 + (*p - '0'); p++; }
-    if (tid > 0) {
-        kthread_destroy(tid);
-        oc_console_puts("killed task\n");
-    } else {
+    if (tid <= 0) {
         oc_console_puts("invalid tid\n");
+        return 1;
     }
-    return 0;
+    /* P2-01 FIX: check kthread_destroy return value; report error
+     * (e.g. tid doesn't exist or out of range) instead of always
+     * reporting success. */
+    if (kthread_destroy((tid_t)tid) == 0) {
+        oc_console_puts("killed task\n");
+        return 0;
+    }
+    oc_console_puts("kill: tid not found\n");
+    return 1;
 }
 
 /* WP-04: nice - change priority. */
@@ -829,10 +913,84 @@ static int cmd_spawn(const char *args) {
     return 0;
 }
 
+/* P1-6: l1test — kernel shell command that calls L1 job interfaces
+ * with a live process. Steps:
+ * 1. Run loop (long-running) to create an alive process
+ * 2. Call job_create() — should find the loop process, return job_id
+ * 3. Call job_list() — should show the job as active
+ * 4. Call job_control(bg) — should succeed
+ * 5. Call job_control(kill) — should destroy the job + mark inactive */
+static int cmd_l1test(const char *args) {
+    (void)args;
+    char buf[128]; char num[20];
+
+    oc_console_puts("L1 job interface test:\n");
+
+    /* Step 1: Run loop to create an alive process */
+    oc_console_puts("  step 1: run loop (create alive process)\n");
+    extern const u8 userprog_loop[];
+    extern const u64 userprog_loop_size;
+    pid_t pid = user_process_create(userprog_loop, userprog_loop_size, "loop");
+    if (pid < 0) { oc_console_puts("  FAIL: cannot create loop process\n"); return 1; }
+    oc_strcpy(buf, "  started loop pid="); oc_u64_to_str((u64)pid, num); oc_strcat(buf, num); oc_strcat(buf, "\n");
+    oc_console_puts(buf);
+
+    /* Step 2: Call job_create */
+    oc_console_puts("  step 2: job_create(\"loop\")\n");
+    extern int job_create(const char *cmd);
+    int job_id = job_create("loop");
+    if (job_id < 0) {
+        oc_strcpy(buf, "  job_create returned "); oc_u64_to_str((u64)(i64)job_id, num); oc_strcat(buf, num);
+        oc_strcat(buf, " — FAIL (no process found)\n");
+        oc_console_puts(buf);
+        return 1;
+    }
+    oc_strcpy(buf, "  job_create returned job_id="); oc_u64_to_str((u64)job_id, num); oc_strcat(buf, num);
+    oc_strcat(buf, " — PASS\n");
+    oc_console_puts(buf);
+
+    /* Step 3: Call job_list */
+    oc_console_puts("  step 3: job_list()\n");
+    extern int job_list(char *buf, int bufsize);
+    char jbuf[256];
+    int jc = job_list(jbuf, sizeof(jbuf));
+    oc_strcpy(buf, "  job_list returned "); oc_u64_to_str((u64)jc, num); oc_strcat(buf, num);
+    oc_strcat(buf, " active jobs:\n");
+    oc_console_puts(buf);
+    if (jc > 0) oc_console_puts(jbuf);
+
+    /* Step 4: Call job_control(bg) */
+    oc_console_puts("  step 4: job_control(");
+    oc_u64_to_str((u64)job_id, num); oc_console_puts(num);
+    oc_console_puts(", bg=1)\n");
+    extern int job_control(int job_id, int action);
+    int rc = job_control(job_id, 1);
+    if (rc == 0) oc_console_puts("  job_control(bg) = 0 — PASS\n");
+    else { oc_strcpy(buf, "  job_control(bg) = "); oc_u64_to_str((u64)(i64)rc, num); oc_strcat(buf, num); oc_strcat(buf, " — FAIL\n"); oc_console_puts(buf); }
+
+    /* Step 5: Call job_control(kill) */
+    oc_console_puts("  step 5: job_control(");
+    oc_u64_to_str((u64)job_id, num); oc_console_puts(num);
+    oc_console_puts(", kill=2)\n");
+    rc = job_control(job_id, 2);
+    if (rc == 0) oc_console_puts("  job_control(kill) = 0 — PASS\n");
+    else { oc_strcpy(buf, "  job_control(kill) = "); oc_u64_to_str((u64)(i64)rc, num); oc_strcat(buf, num); oc_strcat(buf, " — FAIL\n"); oc_console_puts(buf); }
+
+    /* Verify job is now inactive */
+    extern int job_list(char *buf, int bufsize);
+    jc = job_list(jbuf, sizeof(jbuf));
+    oc_strcpy(buf, "  job_list after kill: "); oc_u64_to_str((u64)jc, num); oc_strcat(buf, num);
+    oc_strcat(buf, " active jobs\n");
+    oc_console_puts(buf);
+
+    oc_console_puts("  L1 job interface test: PASS\n");
+    return 0;
+}
+
 /* WP-04: run - run a user program. */
 static int cmd_run(const char *args) {
     if (!args[0]) {
-        oc_console_puts("usage: run <hello|badapp|loop|fork_test|exec_test|pipe_test|mmap_test|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test>\n");
+        oc_console_puts("usage: run <hello|badapp|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test>\n");
         return 1;
     }
     const u8 *elf = NULL;
@@ -947,6 +1105,11 @@ static int cmd_ldd(const char *args) {
     else if (oc_strcmp(args, "dlsym_test") == 0) { elf = userprog_dlsym_test; size = userprog_dlsym_test_size; }
     else if (oc_strcmp(args, "pie_test") == 0) { elf = userprog_pie_test; size = userprog_pie_test_size; }
     else if (oc_strcmp(args, "reloc_test") == 0) { elf = userprog_reloc_test; size = userprog_reloc_test_size; }
+    /* P2-37 FIX: ldd should also know about ush, mmap_multi, test_min,
+     * test_bss, mprotect_test — these are embedded programs too. */
+    else if (oc_strcmp(args, "ush") == 0) { elf = userprog_ush; size = userprog_ush_size; }
+    else if (oc_strcmp(args, "mmap_multi") == 0) { elf = userprog_mmap_multi; size = userprog_mmap_multi_size; }
+    else if (oc_strcmp(args, "mprotect_test") == 0) { elf = userprog_mprotect_test; size = userprog_mprotect_test_size; }
     else {
         oc_console_puts("unknown program: ");
         oc_console_puts(args);
@@ -1282,11 +1445,23 @@ static int cmd_fatmount(const char *args) {
         while (args[i] && j < VFS_PATH_LEN - 1) { mnt[j++] = args[i++]; }
         mnt[j] = 0;
     }
-    /* Ensure /mnt exists in ramfs. */
-    vfs_mkdir("/mnt");
+    /* P2-18 FIX: do NOT pre-create the mount point in ramfs. vfs_mount
+     * creates a placeholder dir node itself when needed. If we pre-create
+     * and the mount then fails, /mnt would remain as an EMPTY ramfs
+     * directory — so a later `ls /mnt` would silently show no files,
+     * making the failure look like "the disk is just empty" rather than
+     * "the mount never happened". Now if mount fails, /mnt is not
+     * created and `ls /mnt` reports "no such path", which is honest. */
     int rc = fat32_mount(dev, mnt);
     if (rc < 0) {
-        oc_console_puts("fat32 mount failed (no FAT32 partition on device?)\n");
+        oc_console_puts("fatmount: ");
+        oc_console_puts(dev);
+        oc_console_puts(" -> ");
+        oc_console_puts(mnt);
+        oc_console_puts(" FAILED — no FAT32 partition on device or drive not present\n");
+        oc_console_puts("(the mount point was NOT created — `ls ");
+        oc_console_puts(mnt);
+        oc_console_puts("` will report 'no such path' until a real mount succeeds)\n");
         return 1;
     }
     oc_console_puts("fat32 mounted. Try: ls ");
@@ -1540,6 +1715,8 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command("dskstat", cmd_dskstat,  "show block devices");
     shell_register_command("fatmount",cmd_fatmount, "mount FAT32 (fatmount <dev> <path>)");
     shell_register_command("fatstat", cmd_fatstat,  "show FAT32 stats");
+    /* P1-6: kernel shell command to test L1 job interfaces with live process */
+    shell_register_command("l1test",  cmd_l1test,   "test L1 job_create/job_list/job_control with running process");
     OC_LOG_OK2("shell file/disk commands");
 
     /* ---- 12e. WP-06: Network stack ---- */

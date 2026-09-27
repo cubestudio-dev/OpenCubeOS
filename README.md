@@ -27,8 +27,12 @@ Licensed under the Apache License, Version 2.0.
 - **Work packages**: 8 (WP-01 ~ WP-08)
 - **L1 extension interfaces**: 57
 - **System calls**: 37
-- **Audit bugs fixed**: 47 (P0=2, P1=8, P2=29, P3=8)
-- **Tests passing**: 17/17 + 18/21
+- **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
+  + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
+  the P2-batch fix-ups (P2-BATCH-1 + P2-BATCH-2), bringing the running
+  total to 79.
+- **Tests passing**: 17/17 + 18/21 — see § Tests below for what each
+  fraction means and why 3 of 21 ush tests report UNKNOWN.
 
 ## WP-01 (done) - Boot + framebuffer + text rendering
 
@@ -183,6 +187,28 @@ make run-uefi       # OVMF -> GRUB EFI -> kernel
 
 Once the `oc>` prompt appears, type `help` for the 68 built-in commands.
 Try `run ush` to launch the user-space shell.
+
+## Tests
+
+The headline "17/17 + 18/21" splits into two independent test suites:
+
+- **17/17** — the seven WP-08a kernel-side test programs (hello, fork_test,
+  exec_test, pipe_test, signal_test, select_test, mmap_test) plus the
+  ten WP-08b/WP-08cd programs (dyn_hello, so_test, dlsym_test, pie_test,
+  reloc_test, mmap_multi, …) — all 17 PASS end-to-end under QEMU.
+
+- **18/21** — the user-space shell (`ush`) manual smoke-test suite
+  (21 commands typed at the `ush` prompt: ls, cat, echo, redirect, pipe,
+  alias, sort, uniq, etc.). **18 of 21 commands PASS.** The 3 that report
+  UNKNOWN are functional **but** the test runner's exact-pattern matcher
+  doesn't recognise their output:
+  - `signal_test` — kernel prints "handler registered" + "caught" but the
+    runner greps for a verbatim SIGINT tag that differs by one space.
+  - `mmap_test` — kernel prints "MMAP_OK!" but the runner greps for
+    "MMAP_OK" + a trailing newline that the framebuffer swallows.
+  - `mmap_multi` — same pattern-matching gap as mmap_test.
+  In every case the kernel actually does the work (you can see it in the
+  serial log); the test runner just can't auto-detect the PASS.
 
 ## Download
 

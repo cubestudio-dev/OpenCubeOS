@@ -213,6 +213,15 @@ static int ext4_parse_device(const char *device) {
         if (c >= '0' && c <= '3' && device[4] == 0) return c - '0';
         return -1;
     }
+    /* P2-05 FIX: accept "hda".."hdd" (standard block device names) in
+     * addition to "ata0".."ata3" and "0".."3". This mirrors the fix
+     * already applied to exfat_parse_device (P1-2). Without this,
+     * `mount ext4 hda /x` fails. */
+    if (oc_strncmp(device, "hd", 2) == 0) {
+        char c = device[2];
+        if (c >= 'a' && c <= 'd' && device[3] == 0) return c - 'a';
+        return -1;
+    }
     if (device[0] >= '0' && device[0] <= '3' && device[1] == 0) {
         return device[0] - '0';
     }
@@ -594,7 +603,12 @@ static int ext4_readdir(vfs_node_t *dir, int index, vfs_dirent_t *entry) {
         while (off < ctx->block_size) {
             ext4_dirent_t *de = (ext4_dirent_t *)(buf + off);
             if (de->rec_len == 0) break;
-            if (de->inode != 0) {
+            /* P2-13 FIX: skip "ghost" entries — inode 0 (deleted/unused slot)
+             * OR empty name (name_len == 0, sometimes written by buggy
+             * mkfs / fsck utilities as padding). Without this check, an
+             * empty-name entry would surface in `ls` as a blank line and
+             * an inode-0 entry would yield a bogus "inode 0" dirent. */
+            if (de->inode != 0 && de->name_len != 0) {
                 int skip = 0;
                 if (de->name_len == 1 && de->name[0] == '.') skip = 1;
                 else if (de->name_len == 2 && de->name[0] == '.' &&

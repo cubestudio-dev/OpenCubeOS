@@ -18,6 +18,7 @@
 #include "keyboard.h"
 #include "shell.h"
 #include "idt.h"
+#include "timer.h"   /* P2-04: oc_timer_now_ms() for sys_uptime */
 
 /* WP-08b Batch 5: libfoo.so bytes are defined in usermode.c (which
  * #includes solib_data.h). We just reference them here so sys_map_solib
@@ -331,38 +332,48 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
         for (u64 i = 0; i < len; i++) oc_console_putc(p[i]);
         return len;
     }
+    /* P2-10 FIX: do NOT hardcode fd 1/2 to console. A user process can
+     * redirect stdout/stderr via dup2 (e.g. `cmd > file` runs in ush:
+     * sys_dup2(vfs_fd, 1)). The old code unconditionally wrote to the
+     * console for fd==1 or fd==2, bypassing the fd table and breaking
+     * output redirection. Now we consult the fd table first, and only
+     * fall back to the console if the fd slot is genuinely empty. */
+    if (fd < PROC_MAX_FDS) {
+        proc_fd_t *pfd = &proc->fds[fd];
+        if (pfd->kind == 1) {
+            return (u64)vfs_write(pfd->vfs_fd, (const void*)(uintptr_t)buf, (int)len);
+        }
+        if (pfd->kind == 3) {
+            kernel_pipe_t *p = pipe_get(pfd->pipe_id);
+            if (!p) return (u64)-1;
+            u32 remaining = (u32)len;
+            u64 total_written = 0;
+            const u8 *src = (const u8*)(uintptr_t)buf;
+            while (remaining > 0) {
+                while (pipe_space_avail(p) == 0) {
+                    if (p->reader_count == 0) return total_written > 0 ? total_written : (u64)-1;
+                    p->writer_waiting = kthread_current_tid();
+                    kthread_block();
+                    p->writer_waiting = -1;
+                }
+                u32 space = pipe_space_avail(p);
+                u32 to_write = remaining < space ? remaining : space;
+                for (u32 i = 0; i < to_write; i++)
+                    p->buf[(p->write_pos + i) % PIPE_BUF_SIZE] = src[total_written + i];
+                p->write_pos += to_write;
+                total_written += to_write;
+                remaining -= to_write;
+                if (p->reader_waiting > 0) kthread_wake(p->reader_waiting);
+            }
+            return total_written;
+        }
+    }
+    /* fd not pointing to a real file/pipe. For the conventional
+     * "stdout/stderr" fds 1 and 2, fall back to the console. */
     if (fd == 1 || fd == 2) {
         const char *p = (const char*)(uintptr_t)buf;
         for (u64 i = 0; i < len; i++) oc_console_putc(p[i]);
         return len;
-    }
-    if (fd >= PROC_MAX_FDS) return (u64)-1;
-    proc_fd_t *pfd = &proc->fds[fd];
-    if (pfd->kind == 0) return (u64)-1;
-    if (pfd->kind == 1) return (u64)vfs_write(pfd->vfs_fd, (const void*)(uintptr_t)buf, (int)len);
-    if (pfd->kind == 3) {
-        kernel_pipe_t *p = pipe_get(pfd->pipe_id);
-        if (!p) return (u64)-1;
-        u32 remaining = (u32)len;
-        u64 total_written = 0;
-        const u8 *src = (const u8*)(uintptr_t)buf;
-        while (remaining > 0) {
-            while (pipe_space_avail(p) == 0) {
-                if (p->reader_count == 0) return total_written > 0 ? total_written : (u64)-1;
-                p->writer_waiting = kthread_current_tid();
-                kthread_block();
-                p->writer_waiting = -1;
-            }
-            u32 space = pipe_space_avail(p);
-            u32 to_write = remaining < space ? remaining : space;
-            for (u32 i = 0; i < to_write; i++)
-                p->buf[(p->write_pos + i) % PIPE_BUF_SIZE] = src[total_written + i];
-            p->write_pos += to_write;
-            total_written += to_write;
-            remaining -= to_write;
-            if (p->reader_waiting > 0) kthread_wake(p->reader_waiting);
-        }
-        return total_written;
     }
     return (u64)-1;
 }
@@ -448,7 +459,18 @@ static u64 sys_munmap(u64 addr, u64 length, u64 a3, u64 a4) {
     if (addr < USER_BRK_BASE) return (u64)-1;
     if (addr + length > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
     u64 pages = (length + 0xFFF) / 0x1000;
-    for (u64 i = 0; i < pages; i++) vmm_unmap_page(proc->as, addr + i * 0x1000);
+    /* P2-26 FIX: Free the physical pages backing the unmapped VA range.
+     * vmm_unmap_page returns the old PTE, from which we extract the
+     * physical frame and return it to PMM. Without this, munmap leaks
+     * physical memory (the VA is unmapped but the frame remains
+     * allocated). */
+    for (u64 i = 0; i < pages; i++) {
+        u64 old_pte = vmm_unmap_page(proc->as, addr + i * 0x1000);
+        if (old_pte & VMM_FLAG_PRESENT) {
+            u64 phys = old_pte & 0x000FFFFFFFFFF000ULL;
+            if (phys != 0) pmm_free_frame(phys);
+        }
+    }
     return 0;
 }
 
@@ -849,6 +871,7 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4);
 static u64 sys_readline(u64 buf, u64 maxlen, u64 a3, u64 a4);
 
 static u64 sys_getch(u64 a1, u64 a2, u64 a3, u64 a4);
+static u64 sys_uptime(u64 a1, u64 a2, u64 a3, u64 a4);
 void syscall_wp08a_init(void) {
     syscall_register(SYS_FORK, sys_fork);
     syscall_register(SYS_EXECVE, sys_execve);
@@ -886,6 +909,7 @@ void syscall_wp08a_init(void) {
     syscall_register(SYS_WRITE2, sys_write2);
     syscall_register(SYS_READLINE, sys_readline);
     syscall_register(SYS_GETCH, sys_getch);
+    syscall_register(SYS_UPTIME, sys_uptime);  /* P2-04 */
     oc_memset(g_pipes, 0, sizeof(g_pipes));
 }
 
@@ -1099,4 +1123,11 @@ static u64 sys_getch(u64 a1, u64 a2, u64 a3, u64 a4) {
     int k = oc_keyboard_getch();
     if (k < 0) return (u64)-1;
     return (u64)k;
+}
+
+/* P2-04 FIX: SYS_UPTIME(75): return milliseconds since boot from the kernel
+ * PIT-driven tick counter. Replaces the hardcoded date string in ush. */
+static u64 sys_uptime(u64 a1, u64 a2, u64 a3, u64 a4) {
+    (void)a1;(void)a2;(void)a3;(void)a4;
+    return oc_timer_now_ms();
 }

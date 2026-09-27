@@ -79,6 +79,14 @@ void oc_console_in_inject(const char *text) {
 }
 
 static void finish_line(void) {
+    /* P2-09 FIX: defensive bounds check on the line buffer index. Even
+     * though the pump's per-keystroke cases clamp g_line_len below
+     * OC_CONS_IN_BUF_LEN - 1, finish_line() is called from inject
+     * paths and from any future caller that may have bypassed the per-
+     * keystroke guard. Without this clamp, `g_line[g_line_len] = 0`
+     * could write past the end of the static buffer. */
+    if (g_line_len < 0) g_line_len = 0;
+    if (g_line_len >= OC_CONS_IN_BUF_LEN) g_line_len = OC_CONS_IN_BUF_LEN - 1;
     g_line[g_line_len] = 0;
     /* Run L1 hooks. */
     for (int i = 0; i < OC_CONS_HOOK_LEN; i++) {

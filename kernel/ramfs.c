@@ -65,8 +65,22 @@ static vfs_node_t *ramfs_new_node(const char *name, int type) {
 /* ---- File operations ---- */
 
 static int ramfs_open(vfs_node_t *node, int flags) {
-    (void)node;
-    (void)flags;
+    /* P2-15 FIX: handle O_TRUNC — free the in-memory data buffer and
+     * reset size/capacity so the next write starts from a clean slate.
+     * Without this, `echo new > existing` would leave the old content
+     * appended/prepended depending on the offset the caller picked. */
+    if (node && (flags & VFS_O_TRUNC)) {
+        ramfs_inode_t *ri = (ramfs_inode_t *)node->private;
+        if (ri) {
+            if (ri->data) {
+                kfree(ri->data);
+                ri->data = NULL;
+            }
+            ri->capacity = 0;
+            ri->size = 0;
+            node->size = 0;
+        }
+    }
     return 0;
 }
 

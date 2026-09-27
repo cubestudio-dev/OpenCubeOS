@@ -34,13 +34,20 @@ static tid_t g_ready_queue[32][MAX_TASKS];  /* per-priority queue of tids */
 static int   g_ready_count[32];             /* number of tasks in each queue */
 static u32   g_ready_bitmap = 0;            /* bit i set = priority i has a ready task */
 
+/* P2-23 FIX: ready_push must be called with interrupts disabled (cli),
+ * matching the protection in ready_pop. Without this, an IRQ between
+ * reading g_ready_count[p] and writing g_ready_queue[p][...] could
+ * corrupt the queue. */
 static void ready_push(tid_t tid) {
+    u64 flags;
+    __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags));
     int p = g_tasks[tid].priority;
     if (p < 0 || p >= 32) p = TASK_PRIO_DEFAULT;
     if (g_ready_count[p] < MAX_TASKS) {
         g_ready_queue[p][g_ready_count[p]++] = tid;
         g_ready_bitmap |= (1u << p);
     }
+    __asm__ volatile("pushq %0; popfq" : : "r"(flags));
 }
 
 static tid_t ready_pop_highest(void) {

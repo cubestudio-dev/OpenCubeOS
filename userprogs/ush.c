@@ -30,6 +30,7 @@
 #define SYS_WRITE2  72
 #define SYS_READLINE 73
 #define SYS_GETCH      74
+#define SYS_UPTIME     75   /* P2-04: kernel tick counter */
 
 /* Additional syscalls for built-in tools */
 #define SYS_STAT     5
@@ -107,6 +108,7 @@ static inline long syscall3(long n, long a, long b, long c) {
 #define sys_kill(pid)               syscall1(SYS_KILL, (long)(pid))
 #define sys_getpid()                syscall0(SYS_GETPID)
 #define sys_stat(path, st)          syscall2(SYS_STAT, (long)(path), (long)(st))
+#define sys_uptime()                syscall0(SYS_UPTIME)
 
 /* String helpers (no libc) */
 static int strlen_(const char *s) {
@@ -405,8 +407,34 @@ static int builtin_cmd(int argc, char *argv[]) {
         char *eq = argv[1];
         while (*eq && *eq != '=') eq++;
         if (*eq == '=') {
+            /* P2-02 FIX: support `alias name=value` form */
             *eq = 0;
             alias_set(argv[1], eq + 1);
+        } else if (argc >= 3) {
+            /* P2-02 FIX: support `alias name value` (space) form */
+            char combined[256];
+            strncpy_(combined, argv[1], (int)sizeof(combined));
+            int used = strlen_(combined);
+            for (int i = 2; i < argc && used + 2 < (int)sizeof(combined); i++) {
+                if (i > 2) combined[used++] = ' ';
+                int l = strlen_(argv[i]);
+                if (used + l >= (int)sizeof(combined))
+                    l = (int)sizeof(combined) - 1 - used;
+                for (int k = 0; k < l; k++) combined[used++] = argv[i][k];
+            }
+            combined[used] = 0;
+            alias_set(argv[1], combined);
+        } else {
+            /* `alias name` with no value — print the alias if defined. */
+            const char *v = alias_get(argv[1]);
+            if (v) {
+                puts_(argv[1]);
+                puts_("='");
+                puts_(v);
+                puts_("'\n");
+            } else {
+                puts_("alias: no such alias\n");
+            }
         }
         return 1;
     }
@@ -789,16 +817,32 @@ static int builtin_cmd(int argc, char *argv[]) {
         return 1;
     }
 
-    /* ---------- sort (stdin) ---------- */
+    /* ---------- sort (file or stdin) ---------- */
     if (streq(argv[0], "sort")) {
         static char sbuf[16384];
         static char *slines[512];
         int total = 0;
         int inpos = 0;
         long n;
-        while ((n = sys_read(0, sbuf + inpos, 4096)) > 0 && inpos < 16384 - 4096) {
+        /* P2-03 FIX: if a filename argument is provided, read from the
+         * file instead of stdin. */
+        int src_fd = 0;
+        int opened = 0;
+        if (argc >= 2) {
+            int fd = sys_open(argv[1], 0);  /* O_RDONLY */
+            if (fd < 0) {
+                puts_("sort: cannot open ");
+                puts_(argv[1]);
+                putc_('\n');
+                return 1;
+            }
+            src_fd = fd;
+            opened = 1;
+        }
+        while ((n = sys_read(src_fd, sbuf + inpos, 4096)) > 0 && inpos < 16384 - 4096) {
             inpos += (int)n;
         }
+        if (opened) sys_close(src_fd);
         sbuf[inpos] = 0;
         int start = 0;
         for (int i = 0; i < inpos; i++) {
@@ -828,7 +872,7 @@ static int builtin_cmd(int argc, char *argv[]) {
         return 1;
     }
 
-    /* ---------- uniq (stdin) ---------- */
+    /* ---------- uniq (file or stdin) ---------- */
     if (streq(argv[0], "uniq")) {
         static char ubuf[4096];
         static char uprev[1024];
@@ -837,7 +881,22 @@ static int builtin_cmd(int argc, char *argv[]) {
         int has_prev = 0;
         int lpos = 0;
         long n;
-        while ((n = sys_read(0, ubuf, 4096)) > 0) {
+        /* P2-03 FIX: if a filename argument is provided, read from the
+         * file instead of stdin. */
+        int src_fd = 0;
+        int opened = 0;
+        if (argc >= 2) {
+            int fd = sys_open(argv[1], 0);  /* O_RDONLY */
+            if (fd < 0) {
+                puts_("uniq: cannot open ");
+                puts_(argv[1]);
+                putc_('\n');
+                return 1;
+            }
+            src_fd = fd;
+            opened = 1;
+        }
+        while ((n = sys_read(src_fd, ubuf, 4096)) > 0) {
             for (int i = 0; i < (int)n; i++) {
                 char c = ubuf[i];
                 if (c == '\n') {
@@ -854,6 +913,7 @@ static int builtin_cmd(int argc, char *argv[]) {
                 }
             }
         }
+        if (opened) sys_close(src_fd);
         if (lpos > 0) {
             uline[lpos] = 0;
             if (!has_prev || !streq(uprev, uline)) {
@@ -888,9 +948,15 @@ static int builtin_cmd(int argc, char *argv[]) {
         return 1;
     }
 
-    /* ---------- date ---------- */
+    /* ---------- date ----------
+     * P2-04 FIX: the kernel has no RTC driver, so we cannot read a real
+     * wall-clock date. Instead of printing a hardcoded fake date string,
+     * we report the kernel uptime (PIT tick counter in ms since boot) via
+     * SYS_UPTIME. This is a real value from the kernel, not fabricated. */
     if (streq(argv[0], "date")) {
-        puts_("2026-09-26\n");
+        puts_("Open Cube OS uptime: ");
+        putu_((u64)sys_uptime());
+        puts_(" ms since boot (no RTC driver)\n");
         return 1;
     }
 
@@ -908,10 +974,40 @@ static int builtin_cmd(int argc, char *argv[]) {
         return 1;
     }
 
-    /* ---------- df ---------- */
+    /* ---------- df ----------
+     * P2-04 FIX: the user-space shell cannot access the kernel's VFS mount
+     * table directly. Rather than printing fabricated "/ 64M 4M 60M 6%"
+     * data, we report the real info we CAN observe from ring3 — for each
+     * path that user-mode VFS exposes via sys_readdir/stat — and clearly
+     * label that detailed mount info is only available from the kernel
+     * shell's `df` command. */
     if (streq(argv[0], "df")) {
-        puts_("Filesystem     Size     Used    Avail  Use%\n");
-        puts_("/               64M      4M       60M    6%\n");
+        puts_("Filesystem     Mount     Size     Used    Avail  Use%\n");
+        /* Walk root directory, count nodes/sizes (real VFS data). */
+        int idx = 0;
+        u64 total_bytes = 0;
+        int file_count = 0;
+        for (;;) {
+            struct ush_dirent e;
+            memset_(&e, 0, (int)sizeof(e));
+            if (sys_readdir("/", idx, &e) < 0) break;
+            if (e.name[0] == 0) break;
+            file_count++;
+            struct ush_stat st;
+            memset_(&st, 0, (int)sizeof(st));
+            char full[80];
+            strncpy_(full, "/", 80);
+            strcat_(full, e.name);
+            if (sys_stat(full, &st) == 0) total_bytes += st.size;
+            idx++;
+            if (idx > 1024) break;
+        }
+        /* Print a single ramfs row reflecting the actual counted totals. */
+        puts_("ramfs          /         ");
+        putu_(total_bytes);
+        puts_("        ");
+        putu_((u64)file_count);
+        puts_(" files (kernel df for full mount table)\n");
         return 1;
     }
 
@@ -1138,7 +1234,13 @@ static int exec_single(char *cmd) {
     if (redir_out || redir_in) {
         int saved_out __attribute__((unused)) = -1;
         if (redir_out) {
-            int fd = sys_open(redir_out, redir_append ? 14 : 6);  /* P1-5 FIX: 14=WR|CREAT|APPEND, 6=WR|CREAT */
+            /* P2-15 FIX: pass O_TRUNC (0x10) when not appending so that
+             * `echo new > existing` truncates the existing content instead
+             * of leaving the old tail bytes still visible. Flag values:
+             *   6  = WRONLY(2) | CREAT(4)
+             *   14 = 6 | APPEND(8)
+             *   22 = 6 | TRUNC(16)  -- used for `>` */
+            int fd = sys_open(redir_out, redir_append ? 14 : 22);
             if (fd >= 0) {
                 sys_dup2(fd, 1);  /* stdout → file */
                 /* DON'T close fd — VFS has no refcount, closing would
@@ -1198,7 +1300,8 @@ static int exec_single(char *cmd) {
     if (pid == 0) {
         /* Child: set up redirect */
         if (redir_out) {
-            int fd = sys_open(redir_out, redir_append ? 14 : 6);  /* P1-5 FIX: 14=WR|CREAT|APPEND */
+            /* P2-15 FIX: pass O_TRUNC for non-append `>` */
+            int fd = sys_open(redir_out, redir_append ? 14 : 22);
             if (fd >= 0) {
                 sys_dup2(fd, 1);  /* redirect stdout to file */
                 sys_close(fd);

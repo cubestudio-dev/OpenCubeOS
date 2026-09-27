@@ -37,6 +37,7 @@
 #define VFS_O_RDWR    0x0003   /* convenience: RDONLY | WRONLY == RDWR */
 #define VFS_O_CREAT   0x0004
 #define VFS_O_APPEND  0x0008
+#define VFS_O_TRUNC   0x0010   /* P2-15: truncate existing file to 0 on open */
 
 /* ---- Seek whence ---- */
 #define VFS_SEEK_SET  0
@@ -172,6 +173,20 @@ vfs_node_t *vfs_resolve(const char *path);
 
 int  vfs_register_hook(int (*hook)(int op, const char *path));
 void vfs_list_mounts(void);
+
+/* P2-06 FIX: expose the mount table so user-facing commands like `df`
+ * don't have to hard-code strings. Each entry corresponds to one active
+ * mount (mount_point + fs type name + device name). */
+typedef struct {
+    char mount_point[VFS_PATH_LEN];
+    char fs_type[16];
+    char device[VFS_NAME_LEN];
+    int  in_use;
+} vfs_mount_info_t;
+
+/* Fill `out[]` with up to `max` mount entries. Returns count of entries
+ * written. */
+int vfs_get_mounts(vfs_mount_info_t *out, int max);
 
 /* Allocate a new VFS node (kmalloc'd, zeroed). */
 vfs_node_t *vfs_alloc_node(const char *name, int type, vfs_fs_type_t *fs_type);
