@@ -573,9 +573,11 @@ int vfs_read(int fd, void *buf, int size) {
     return n;
 }
 
+/* P2-46 FIX: Check if the fd is open for writing before writing. */
 int vfs_write(int fd, const void *buf, int size) {
     if (fd < 0 || fd >= VFS_MAX_FDS || !g_fds[fd].in_use) return -1;
     vfs_file_t *f = &g_fds[fd];
+    if (f->flags == VFS_O_RDONLY) return -1;  /* read-only fd */
     if (!f->node || !f->node->fs_type || !f->node->fs_type->file_ops ||
         !f->node->fs_type->file_ops->write) {
         return -2;

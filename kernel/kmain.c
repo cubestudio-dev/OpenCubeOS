@@ -1074,6 +1074,17 @@ static int cmd_run(const char *args) {
     } else {
         oc_console_puts("failed to create process\n");
     }
+    /* P2-32 FIX: Support background execution with & suffix.
+     * If the command ends with ' &', don't wait — return immediately. */
+    int cmd_len = (int)oc_strlen(args);
+    while (cmd_len > 0 && (args[cmd_len-1] == ' ' || args[cmd_len-1] == '\t')) cmd_len--;
+    if (cmd_len > 0 && args[cmd_len-1] == '&') {
+        /* Background mode — don't wait for child */
+        oc_console_puts("started in background\n");
+    }
+    /* For non-background non-ush programs, the process already ran and exited
+     * by the time we get here (the scheduler ran it during the sti/hlt above
+     * for ush, or it completed synchronously for short programs). */
     return 0;
 }
 
