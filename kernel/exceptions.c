@@ -192,19 +192,12 @@ void oc_exc_dispatch(oc_irq_frame_t *f) {
              * will pick the next ready task and context-switch to it,
              * loading the next task's CR3. We must NOT call kthread_destroy
              * here because we're running on this thread's stack. */
-            proc->alive = 0;
-            /* P1-8 FIX: Destroy user address space before yielding.
-             * Same cleanup as sys_exit2: switch to kernel CR3, destroy AS.
-             * Without this, the process's PML4/PDPT/PD0/PT pages leak
-             * (~2.4 pages per killed process). After 31 kills, combined
-             * with P0-4 (task slot leak), the system would be paralyzed. */
-            if (proc->as) {
-                extern vmm_as_t vmm_kernel_as(void);
-                extern void vmm_destroy_address_space(vmm_as_t);
-                __asm__ volatile("mov %0, %%cr3" : : "r"(vmm_kernel_as()) : "memory");
-                vmm_destroy_address_space(proc->as);
-                proc->as = 0;
-            }
+            /* P3-11 FIX: Use the unified reaper so the exception-kill path
+             * closes all open pipe fds too (old code only destroyed the
+             * AS, leaving pipe readers blocked forever waiting for a
+             * writer that had just been killed by an exception). */
+            extern void user_process_reap_resources(user_proc_t *p, int exit_code);
+            user_process_reap_resources(proc, 128 + (int)v);
             task_t *t = kthread_current();
             if (t) t->state = TASK_EXITED;
             sched_yield();

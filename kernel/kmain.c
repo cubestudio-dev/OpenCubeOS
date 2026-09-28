@@ -105,6 +105,9 @@ extern const u64 userprog_ush_size;
 extern const u8 userprog_mprotect_test[];
 extern const u64 userprog_mprotect_test_size;
 
+extern const u8 userprog_p3_test[];
+extern const u64 userprog_p3_test_size;
+
 /* Direct serial output via I/O port 0x3F8 (COM1). */
 static inline void outb(u16 port, u8 v) {
     __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(port));
@@ -1038,6 +1041,9 @@ static int cmd_run(const char *args) {
     } else if (oc_strcmp(args, "mprotect_test") == 0) {
         /* P0-3 test: verify mprotect rejects kernel addresses. */
         elf = userprog_mprotect_test; size = userprog_mprotect_test_size;
+    } else if (oc_strcmp(args, "p3_test") == 0) {
+        /* P3 batch test: kernel-mem isolation + munmap return + write_and_exit. */
+        elf = userprog_p3_test; size = userprog_p3_test_size;
     } else if (oc_strcmp(args, "ush") == 0 || oc_strcmp(args, "usershell") == 0) {
         /* WP-08cd: User-space shell. */
         elf = userprog_ush; size = userprog_ush_size;
@@ -1121,6 +1127,7 @@ static int cmd_ldd(const char *args) {
     else if (oc_strcmp(args, "ush") == 0) { elf = userprog_ush; size = userprog_ush_size; }
     else if (oc_strcmp(args, "mmap_multi") == 0) { elf = userprog_mmap_multi; size = userprog_mmap_multi_size; }
     else if (oc_strcmp(args, "mprotect_test") == 0) { elf = userprog_mprotect_test; size = userprog_mprotect_test_size; }
+    else if (oc_strcmp(args, "p3_test") == 0) { elf = userprog_p3_test; size = userprog_p3_test_size; }
     else {
         oc_console_puts("unknown program: ");
         oc_console_puts(args);

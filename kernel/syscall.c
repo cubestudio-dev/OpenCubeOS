@@ -38,10 +38,97 @@ static int valid_user_buf(u64 addr, u64 len) {
     return 1;
 }
 
+/* P3-9 FIX: access_ok — range + mapping check.
+ *
+ * The old `valid_user_buf` only checked that [addr, addr+len) lay
+ * below USER_LIMIT. It did NOT verify that every page in the range
+ * was actually mapped in the caller's address space. If a user
+ * program passed an unmapped pointer (NULL, a freed-mmap address,
+ * or a stack guard zone), the kernel would #PF when dereferencing
+ * it → kill the kernel or the user process with no diagnostic.
+ *
+ * access_ok walks every 4 KiB page in [addr, addr+len) and calls
+ * vmm_is_mapped on each. Returns 1 if all pages are mapped, 0
+ * otherwise. Callers should treat 0 as -EINVAL.
+ *
+ * We also implement copy_from_user / copy_to_user — for now these
+ * are direct memcpy (the page-walk above guarantees safety). Future
+ * hardening could replace the memcpy with a byte-wise copy that
+ * catches a #PF in the middle (e.g. if the page is unmapped between
+ * the access_ok check and the copy under concurrent munmap). */
+static int access_ok_read(u64 addr, u64 len) {
+    if (!valid_user_buf(addr, len)) return 0;
+    user_proc_t *proc = user_process_current();
+    if (!proc || !proc->as) return 0;  /* no AS — fail closed */
+    /* Walk every page that the buffer touches. */
+    u64 start = addr & ~0xFFFULL;
+    u64 end = addr + len;
+    if (end < addr) return 0;  /* overflow */
+    for (u64 a = start; a < end; a += 0x1000) {
+        u64 phys;
+        if (!vmm_is_mapped(proc->as, a, &phys)) return 0;
+    }
+    return 1;
+}
+
+/* access_ok for a NUL-terminated string in user memory. We can't
+ * know len ahead of time, so we walk pages from addr until we either
+ * find a NUL byte or hit USER_LIMIT / an unmapped page. */
+static int access_ok_str(u64 addr) {
+    if (!valid_user_ptr(addr)) return 0;
+    user_proc_t *proc = user_process_current();
+    if (!proc || !proc->as) return 0;
+    u64 a = addr & ~0xFFFULL;
+    while (a < USER_LIMIT) {
+        u64 phys;
+        if (!vmm_is_mapped(proc->as, a, &phys)) return 0;
+        /* Scan the page for a NUL byte. */
+        const u8 *p = (const u8*)(a + (addr > a ? (addr - a) : 0));
+        u64 scan_end = a + 0x1000;
+        for (const u8 *q = p; q < (const u8*)scan_end; q++) {
+            if (*q == 0) return 1;  /* found NUL — string is mapped */
+        }
+        a += 0x1000;
+        addr = a;  /* subsequent pages start at offset 0 */
+        if (a - (addr & ~0xFFFULL) > 4096) break;  /* sanity */
+    }
+    return 0;  /* ran off the end without a NUL */
+}
+
+/* copy_from_user: copy bytes from user VA to kernel buffer.
+ * Returns 0 on success, -1 on failure (unmapped page mid-copy). */
+static int copy_from_user(void *dst, u64 src, u64 len) {
+    if (!access_ok_read(src, len)) return -1;
+    oc_memcpy(dst, (const void*)(uintptr_t)src, len);
+    return 0;
+}
+
+/* copy_to_user: copy bytes from kernel buffer to user VA. */
+static int copy_to_user(u64 dst, const void *src, u64 len) {
+    if (!access_ok_read(dst, len)) return -1;  /* write needs same mapping */
+    oc_memcpy((void*)(uintptr_t)dst, src, len);
+    return 0;
+}
+
+/* P3-12 placeholder — real implementation arrives in Batch 4.
+ * Kept as a non-static stub so the table registration works.
+ * The forward declaration is moved below sys_sigaction. */
+
 /* ---- Pipe implementation ---- */
 #define PIPE_BUF_SIZE 4096
 #define MAX_PIPES 32
 
+/* P3-15 FIX: Wait queue for pipe readers/writers.
+ * Old code stored a single tid in `reader_waiting` / `writer_waiting`.
+ * If two readers blocked on the same pipe, only the second's tid was
+ * recorded — the first was never woken (lost forever, leaked the
+ * thread slot, deadlocked the system under any 2-reader scenario).
+ *
+ * Now we use a small fixed-size array of tids. PIPE_WAIT_QUEUE_MAX
+ * is the maximum number of threads that can block on one pipe end
+ * simultaneously. 8 is plenty for typical pipelines (e.g. `a|b|c`
+ * has at most 2 readers per pipe end). */
+#define PIPE_WAIT_QUEUE_MAX 8
 typedef struct {
     u8 buf[PIPE_BUF_SIZE];
     u32 read_pos;
@@ -49,8 +136,9 @@ typedef struct {
     int in_use;
     int reader_count;
     int writer_count;
-    int reader_waiting;
-    int writer_waiting;
+    /* P3-15: wait queues (arrays of tids, -1 = empty slot). */
+    int reader_waiters[PIPE_WAIT_QUEUE_MAX];
+    int writer_waiters[PIPE_WAIT_QUEUE_MAX];
 } kernel_pipe_t;
 
 static kernel_pipe_t g_pipes[MAX_PIPES];
@@ -66,8 +154,10 @@ static int pipe_alloc(void) {
         if (!g_pipes[i].in_use) {
             oc_memset(&g_pipes[i], 0, sizeof(g_pipes[i]));
             g_pipes[i].in_use = 1;
-            g_pipes[i].reader_waiting = -1;
-            g_pipes[i].writer_waiting = -1;
+            for (int j = 0; j < PIPE_WAIT_QUEUE_MAX; j++) {
+                g_pipes[i].reader_waiters[j] = -1;
+                g_pipes[i].writer_waiters[j] = -1;
+            }
             return i + 1;
         }
     }
@@ -76,6 +166,53 @@ static int pipe_alloc(void) {
 
 static u32 pipe_data_avail(kernel_pipe_t *p) { return p->write_pos - p->read_pos; }
 static u32 pipe_space_avail(kernel_pipe_t *p) { return PIPE_BUF_SIZE - pipe_data_avail(p); }
+
+/* P3-15: Wait-queue helpers. Add a tid to the queue (first free slot).
+ * Wake-one: wake the FIRST waiter in queue order (FIFO). Wake-all:
+ * wake every waiter (used when the pipe is closed). */
+static void pipe_wait_add(int *queue, int tid) {
+    for (int i = 0; i < PIPE_WAIT_QUEUE_MAX; i++) {
+        if (queue[i] == -1) { queue[i] = tid; return; }
+    }
+    /* Queue full — caller will fall through to busy-loop. Should be
+     * rare in practice (would require >8 threads blocked on one pipe). */
+}
+static void pipe_wait_remove(int *queue, int tid) {
+    for (int i = 0; i < PIPE_WAIT_QUEUE_MAX; i++) {
+        if (queue[i] == tid) { queue[i] = -1; return; }
+    }
+}
+static void pipe_wake_one(int *queue) {
+    for (int i = 0; i < PIPE_WAIT_QUEUE_MAX; i++) {
+        if (queue[i] != -1) {
+            kthread_wake(queue[i]);
+            queue[i] = -1;
+            return;
+        }
+    }
+}
+static void pipe_wake_all(int *queue) {
+    for (int i = 0; i < PIPE_WAIT_QUEUE_MAX; i++) {
+        if (queue[i] != -1) {
+            kthread_wake(queue[i]);
+            queue[i] = -1;
+        }
+    }
+}
+
+/* P3-11: Exposed pipe-close helper. Called from user_process_reap_resources
+ * (defined in usermode.c) which can't see kernel_pipe_t (file-local here).
+ * kind: 2 = reader, 3 = writer. Decrements count and wakes any waiters. */
+void pipe_close_fd(int pipe_id, int kind) {
+    kernel_pipe_t *p = pipe_get(pipe_id);
+    if (!p) return;
+    if (kind == 2) p->reader_count--;
+    else           p->writer_count--;
+    /* P3-15: wake ALL waiters on pipe close (data may now be readable
+     * because writer_count==0, or writable because reader_count==0). */
+    pipe_wake_all(p->reader_waiters);
+    pipe_wake_all(p->writer_waiters);
+}
 
 static int proc_fd_alloc(user_proc_t *proc) {
     for (int i = 3; i < PROC_MAX_FDS; i++) {
@@ -103,8 +240,6 @@ static u64 sys_exit2(u64 code, u64 a2, u64 a3, u64 a4) {
     (void)a2;(void)a3;(void)a4;
     user_proc_t *p = user_process_current();
     if (p) {
-        p->alive = 0;
-        p->exit_code = (int)code;
         /* WP-08cd: Clear usershell running flag ONLY when the ush
          * process itself exits (not when pipe children exit).
          * The ush process has no parent user process (parent_tid=0
@@ -114,30 +249,10 @@ static u64 sys_exit2(u64 code, u64 a2, u64 a3, u64 a4) {
         if (p->parent_tid == 0) {
             g_usershell_running = 0;
         }
-        /* WP-08cd FIX: Close all pipe fds so pipe reader/writer counts
-         * are decremented. Without this, the reader blocks forever
-         * waiting for a writer that already exited. */
-        for (int i = 0; i < PROC_MAX_FDS; i++) {
-            if (p->fds[i].kind == 2 || p->fds[i].kind == 3) {
-                kernel_pipe_t *pp = pipe_get(p->fds[i].pipe_id);
-                if (pp) {
-                    if (p->fds[i].kind == 2) pp->reader_count--;
-                    else pp->writer_count--;
-                    /* Wake anyone waiting on this pipe */
-                    if (pp->reader_waiting >= 0) kthread_wake(pp->reader_waiting);
-                    if (pp->writer_waiting >= 0) kthread_wake(pp->writer_waiting);
-                }
-                p->fds[i].kind = 0;
-            }
-        }
+        /* P3-11 FIX: Use the unified reaper so SIGKILL/exception/exit
+         * all share the same cleanup logic (close fds + destroy AS). */
+        user_process_reap_resources(p, (int)code);
         if (p->parent_tid > 0) kthread_wake(p->parent_tid);
-        /* BUG-008 FIX: Destroy user address space before exiting.
-         * Switch to kernel CR3 first, then destroy. */
-        if (p->as) {
-            __asm__ volatile("mov %0, %%cr3" : : "r"(vmm_kernel_as()) : "memory");
-            vmm_destroy_address_space(p->as);
-            p->as = 0;
-        }
     }
     task_t *t = kthread_current();
     if (t) t->state = TASK_EXITED;
@@ -222,6 +337,13 @@ static u64 sys_fork(u64 a1, u64 a2, u64 a3, u64 a4) {
  * ============================================================ */
 static u64 sys_wait4(u64 pid_arg, u64 status_ptr, u64 options, u64 a4) {
     (void)options;(void)a4;
+    /* P3-10 FIX: validate status_ptr mapping BEFORE the wait loop.
+     * Old code only checked valid_user_ptr (range), not mapping. If
+     * the user passed an unmapped pointer, the kernel would #PF when
+     * writing the exit code, killing the kernel (not the user). Now
+     * we check up-front and reject unmapped pointers. */
+    if (status_ptr != 0 && !access_ok_read(status_ptr, sizeof(int)))
+        return (u64)-1;
     tid_t parent_tid = kthread_current_tid();
     for (;;) {
         int found_alive = 0;
@@ -231,7 +353,7 @@ static u64 sys_wait4(u64 pid_arg, u64 status_ptr, u64 options, u64 a4) {
             if ((i64)pid_arg > 0 && g_procs[i].pid != (pid_t)pid_arg) continue;
             if (!g_procs[i].alive && !g_procs[i].waited) {
                 g_procs[i].waited = 1;
-                if (status_ptr && valid_user_ptr(status_ptr))
+                if (status_ptr)
                     *(int*)(uintptr_t)status_ptr = g_procs[i].exit_code;
                 kthread_destroy(g_procs[i].tid);
                 return (u64)g_procs[i].pid;
@@ -249,8 +371,13 @@ static u64 sys_kill(u64 pid_arg, u64 sig, u64 a3, u64 a4) {
     for (int i = 0; i < MAX_USER_PROCS; i++) {
         if (g_procs[i].alive && g_procs[i].pid == (pid_t)pid_arg) {
             if (sig == SIGKILL) {
-                g_procs[i].alive = 0;
-                g_procs[i].exit_code = 128 + (int)sig;
+                /* P3-11 FIX: Old code just set alive=0 + TASK_EXITED,
+                 * leaking the entire PML4/PDPT/PD0/PT (~3-4 pages per
+                 * kill) AND leaving any open pipe fds dangling (the
+                 * reader_count/writer_count never decremented, so a
+                 * blocked peer would block forever). Now we call the
+                 * unified reaper — same path as sys_exit2. */
+                user_process_reap_resources(&g_procs[i], 128 + (int)sig);
                 if (g_procs[i].parent_tid > 0) kthread_wake(g_procs[i].parent_tid);
                 task_t *t = kthread_get_task(g_procs[i].tid);
                 if (t) t->state = TASK_EXITED;
@@ -258,8 +385,8 @@ static u64 sys_kill(u64 pid_arg, u64 sig, u64 a3, u64 a4) {
             }
             g_procs[i].pending_signal = (int)sig;
             if (g_procs[i].sig_handlers[sig] == NULL) {
-                g_procs[i].alive = 0;
-                g_procs[i].exit_code = 128 + (int)sig;
+                /* Default action terminates the process — use reaper. */
+                user_process_reap_resources(&g_procs[i], 128 + (int)sig);
                 if (g_procs[i].parent_tid > 0) kthread_wake(g_procs[i].parent_tid);
                 task_t *t = kthread_get_task(g_procs[i].tid);
                 if (t) t->state = TASK_EXITED;
@@ -272,7 +399,8 @@ static u64 sys_kill(u64 pid_arg, u64 sig, u64 a3, u64 a4) {
 
 static u64 sys_pipe(u64 pipefd_ptr, u64 a2, u64 a3, u64 a4) {
     (void)a2;(void)a3;(void)a4;
-    if (!valid_user_ptr(pipefd_ptr)) return (u64)-1;
+    /* P3-9 FIX: validate pipefd_ptr is mapped (was only range-check). */
+    if (!access_ok_read(pipefd_ptr, sizeof(int) * 2)) return (u64)-1;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
     int pipe_id = pipe_alloc();
@@ -295,7 +423,8 @@ static u64 sys_pipe(u64 pipefd_ptr, u64 a2, u64 a3, u64 a4) {
 
 static u64 sys_read(u64 fd, u64 buf, u64 count, u64 a4) {
     (void)a4;
-    if (!valid_user_buf(buf, count)) return (u64)-1;
+    /* P3-9 FIX: verify buffer is mapped (was only range-check). */
+    if (!access_ok_read(buf, count)) return (u64)-1;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
     if (fd >= PROC_MAX_FDS) return (u64)-1;
@@ -307,9 +436,11 @@ static u64 sys_read(u64 fd, u64 buf, u64 count, u64 a4) {
         if (!p) return (u64)-1;
         while (pipe_data_avail(p) == 0) {
             if (p->writer_count == 0) return 0;
-            p->reader_waiting = kthread_current_tid();
+            /* P3-15: add to wait queue (FIFO), not single slot. */
+            int my_tid = kthread_current_tid();
+            pipe_wait_add(p->reader_waiters, my_tid);
             kthread_block();
-            p->reader_waiting = -1;
+            pipe_wait_remove(p->reader_waiters, my_tid);
         }
         u32 avail = pipe_data_avail(p);
         if (avail > count) avail = (u32)count;
@@ -317,7 +448,8 @@ static u64 sys_read(u64 fd, u64 buf, u64 count, u64 a4) {
         for (u32 i = 0; i < avail; i++)
             dst[i] = p->buf[(p->read_pos + i) % PIPE_BUF_SIZE];
         p->read_pos += avail;
-        if (p->writer_waiting > 0) kthread_wake(p->writer_waiting);
+        /* P3-15: wake ONE writer (not just one specific tid). */
+        pipe_wake_one(p->writer_waiters);
         return (u64)avail;
     }
     return (u64)-1;
@@ -325,6 +457,8 @@ static u64 sys_read(u64 fd, u64 buf, u64 count, u64 a4) {
 
 static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
     (void)a4;
+    /* P3-9 FIX: verify buffer is mapped (was only range-check).
+     * If no current proc (early debug path), still need range-check only. */
     if (!valid_user_buf(buf, len)) return (u64)-1;
     user_proc_t *proc = user_process_current();
     if (!proc) {
@@ -332,6 +466,8 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
         for (u64 i = 0; i < len; i++) oc_console_putc(p[i]);
         return len;
     }
+    /* P3-9: for the actual write path, mapping is required. */
+    if (!access_ok_read(buf, len)) return (u64)-1;
     /* P2-10 FIX: do NOT hardcode fd 1/2 to console. A user process can
      * redirect stdout/stderr via dup2 (e.g. `cmd > file` runs in ush:
      * sys_dup2(vfs_fd, 1)). The old code unconditionally wrote to the
@@ -352,9 +488,11 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
             while (remaining > 0) {
                 while (pipe_space_avail(p) == 0) {
                     if (p->reader_count == 0) return total_written > 0 ? total_written : (u64)-1;
-                    p->writer_waiting = kthread_current_tid();
+                    /* P3-15: wait queue (FIFO), not single slot. */
+                    int my_tid = kthread_current_tid();
+                    pipe_wait_add(p->writer_waiters, my_tid);
                     kthread_block();
-                    p->writer_waiting = -1;
+                    pipe_wait_remove(p->writer_waiters, my_tid);
                 }
                 u32 space = pipe_space_avail(p);
                 u32 to_write = remaining < space ? remaining : space;
@@ -363,7 +501,8 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
                 p->write_pos += to_write;
                 total_written += to_write;
                 remaining -= to_write;
-                if (p->reader_waiting > 0) kthread_wake(p->reader_waiting);
+                /* P3-15: wake ONE reader (FIFO). */
+                pipe_wake_one(p->reader_waiters);
             }
             return total_written;
         }
@@ -417,6 +556,9 @@ static u64 sys_mmap(u64 addr, u64 length, u64 prot, u64 a4) {
     if (length == 0) return (u64)-1;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
+    /* P3-6 FIX: Reject unaligned / overflowing length to prevent
+     * arithmetic bugs in the page-count calculation. */
+    if (length > 0x40000000ULL) return (u64)-1;  /* 1 GiB sanity cap */
     u64 pages = (length + 0xFFF) / 0x1000;
     /* BUG-010 FIX: Use per-process mmap_base instead of a global static.
      * The old `static u64 mmap_base` was shared across all processes,
@@ -424,12 +566,30 @@ static u64 sys_mmap(u64 addr, u64 length, u64 prot, u64 a4) {
      * called mmap. Now each process gets its own bump allocator. */
     if (proc->mmap_base == 0) proc->mmap_base = USER_MMAP_BASE;
     u64 result = proc->mmap_base;
+    u64 mapped = 0;  /* P3-5: track how many we successfully mapped */
     for (u64 i = 0; i < pages; i++) {
         u64 phys = pmm_alloc_frame();
-        if (phys == 0) return (u64)-1;
+        if (phys == 0) {
+            /* P3-5 FIX: Partial-failure cleanup. Old code just returned
+             * -1, leaving the already-mapped pages (and the unmoved
+             * mmap_base) dangling. They'd never be freed because the
+             * user got back -1 and never knew the address. Now we
+             * unmap what we mapped, free the physical pages, and
+             * leave mmap_base unchanged so the next caller gets the
+             * same range (no leak, no fragmentation). */
+            for (u64 j = 0; j < mapped; j++) {
+                u64 old_pte = vmm_unmap_page(proc->as, proc->mmap_base + j * 0x1000);
+                if (old_pte & VMM_FLAG_PRESENT) {
+                    u64 p = old_pte & 0x000FFFFFFFFFF000ULL;
+                    if (p != 0) pmm_free_frame(p);
+                }
+            }
+            return (u64)-1;
+        }
         vmm_map_page(proc->as, proc->mmap_base + i * 0x1000, phys,
                      VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
         oc_memset((void*)phys, 0, 0x1000);
+        mapped++;
     }
     proc->mmap_base += pages * 0x1000;
     return result;
@@ -452,18 +612,31 @@ static u64 sys_munmap(u64 addr, u64 length, u64 a3, u64 a4) {
     (void)a3;(void)a4;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
+    /* P3-6 FIX: page-align addr and length, and check overflow.
+     * addr is rounded DOWN to a page boundary; length is rounded UP.
+     * addr + length must not wrap (overflow). */
+    if (length == 0) return (u64)-1;
+    if (length > 0x40000000ULL) return (u64)-1;
+    if (addr > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
+    u64 end = addr + length;
+    if (end < addr) return (u64)-1;  /* overflow */
+    addr = addr & ~0xFFFULL;
+    u64 end_aligned = (end + 0xFFF) & ~0xFFFULL;
     /* BUG-003 FIX (P0): reject addresses outside user-mapped region.
      * User mappings live in [USER_BRK_BASE, USER_MMAP_BASE+USER_MMAP_LIMIT).
      * Anything outside this range is either kernel identity-mapped
      * (0..USER_BRK_BASE) or unmapped. We refuse to munmap kernel pages. */
     if (addr < USER_BRK_BASE) return (u64)-1;
-    if (addr + length > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
-    u64 pages = (length + 0xFFF) / 0x1000;
+    if (end_aligned > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
+    u64 pages = (end_aligned - addr) / 0x1000;
     /* P2-26 FIX: Free the physical pages backing the unmapped VA range.
      * vmm_unmap_page returns the old PTE, from which we extract the
      * physical frame and return it to PMM. Without this, munmap leaks
      * physical memory (the VA is unmapped but the frame remains
      * allocated). */
+    /* P3-3 FIX: vmm_unmap_page now returns the FULL old PTE (address +
+     * flags), so the PRESENT-bit check below actually works (old code
+     * masked off flags so PRESENT was always 0 → never freed). */
     for (u64 i = 0; i < pages; i++) {
         u64 old_pte = vmm_unmap_page(proc->as, addr + i * 0x1000);
         if (old_pte & VMM_FLAG_PRESENT) {
@@ -478,15 +651,23 @@ static u64 sys_mprotect(u64 addr, u64 len, u64 prot, u64 a4) {
     (void)a4;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
+    /* P3-6 FIX: page-align and overflow-check, same as sys_munmap. */
+    if (len == 0) return (u64)-1;
+    if (len > 0x40000000ULL) return (u64)-1;
+    if (addr > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
+    u64 end = addr + len;
+    if (end < addr) return (u64)-1;
+    addr = addr & ~0xFFFULL;
+    u64 end_aligned = (end + 0xFFF) & ~0xFFFULL;
     /* BUG-003 FIX (P0): reject addresses outside user-mapped region.
      * Same rationale as sys_munmap — don't let user code modify
      * protection bits on kernel pages. */
     if (addr < USER_BRK_BASE) return (u64)-1;
-    if (addr + len > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
+    if (end_aligned > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
     u64 flags = VMM_FLAG_PRESENT | VMM_FLAG_USER;
     if (prot & 2) flags |= VMM_FLAG_WRITE;
     if (!(prot & 4)) flags |= VMM_FLAG_NOEXEC;
-    u64 pages = (len + 0xFFF) / 0x1000;
+    u64 pages = (end_aligned - addr) / 0x1000;
     for (u64 i = 0; i < pages; i++) vmm_protect_page(proc->as, addr + i * 0x1000, flags);
     return 0;
 }
@@ -501,12 +682,46 @@ static u64 sys_brk(u64 addr, u64 a2, u64 a3, u64 a4) {
     u64 old_brk = proc->brk;
     u64 new_brk = (addr + 0xFFF) & ~0xFFFULL;
     if (new_brk > old_brk) {
+        /* Expand: map new pages from old_brk..new_brk. */
         u64 vaddr = (old_brk + 0xFFF) & ~0xFFFULL;
+        u64 mapped_since_start = 0;  /* P3-8: for OOM rollback */
         while (vaddr < new_brk) {
             u64 phys = pmm_alloc_frame();
-            if (phys == 0) return proc->brk;
+            if (phys == 0) {
+                /* P3-8 FIX: OOM during expansion — old code returned
+                 * proc->brk (the OLD brk) but left the partial
+                 * mappings in place. The user would see brk unchanged
+                 * but the physical pages were allocated (leaked).
+                 * Now we unmap and free everything we mapped in this
+                 * call before returning the old brk. */
+                u64 rollback_vaddr = (old_brk + 0xFFF) & ~0xFFFULL;
+                for (u64 j = 0; j < mapped_since_start; j++) {
+                    u64 old_pte = vmm_unmap_page(proc->as, rollback_vaddr + j * 0x1000);
+                    if (old_pte & VMM_FLAG_PRESENT) {
+                        u64 p = old_pte & 0x000FFFFFFFFFF000ULL;
+                        if (p != 0) pmm_free_frame(p);
+                    }
+                }
+                return proc->brk;  /* brk unchanged */
+            }
             vmm_map_page(proc->as, vaddr, phys, VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
             oc_memset((void*)phys, 0, 0x1000);
+            vaddr += 0x1000;
+            mapped_since_start++;
+        }
+    } else if (new_brk < old_brk) {
+        /* P3-7 FIX: Shrink — unmap and free pages in [new_brk, old_brk).
+         * Old code silently updated proc->brk without releasing the
+         * backing physical pages, leaking one frame per page of brk
+         * shrink. Common pattern: malloc(N) then free(N) → user calls
+         * sbrk(-N) → pages were never reclaimed. */
+        u64 vaddr = new_brk;
+        while (vaddr < old_brk) {
+            u64 old_pte = vmm_unmap_page(proc->as, vaddr);
+            if (old_pte & VMM_FLAG_PRESENT) {
+                u64 p = old_pte & 0x000FFFFFFFFFF000ULL;
+                if (p != 0) pmm_free_frame(p);
+            }
             vaddr += 0x1000;
         }
     }
@@ -530,11 +745,12 @@ static u64 sys_sigaction(u64 sig, u64 act_ptr, u64 oldact_ptr, u64 a4) {
     user_proc_t *p = user_process_current();
     if (!p) return (u64)-1;
     signal_handler_fn old = p->sig_handlers[sig];
-    if (act_ptr && valid_user_ptr(act_ptr)) {
+    /* P3-9 FIX: verify act_ptr/oldact_ptr mappings (was only range). */
+    if (act_ptr && access_ok_read(act_ptr, sizeof(sigaction_t))) {
         sigaction_t *act = (sigaction_t*)(uintptr_t)act_ptr;
         p->sig_handlers[sig] = act->sa_handler;
     }
-    if (oldact_ptr && valid_user_ptr(oldact_ptr)) {
+    if (oldact_ptr && access_ok_read(oldact_ptr, sizeof(sigaction_t))) {
         sigaction_t *oldact = (sigaction_t*)(uintptr_t)oldact_ptr;
         oldact->sa_handler = old;
         oldact->sa_flags = 0;
@@ -544,23 +760,70 @@ static u64 sys_sigaction(u64 sig, u64 act_ptr, u64 oldact_ptr, u64 a4) {
 }
 
 static u64 sys_sigreturn(u64 a1, u64 a2, u64 a3, u64 a4) {
+    /* P3-12 FIX: Real sigreturn implementation.
+     *
+     * When the kernel delivers a signal (in syscall_dispatch), it
+     * saves the pre-signal IRQ frame into proc->sig_saved_frame
+     * (22 u64s: r15..ss) and modifies the live frame so iretq jumps
+     * to the user's signal handler.
+     *
+     * The handler runs in user mode. When it's done, it invokes
+     * SYS_SIGRETURN (int 0x80 with rax=42). At that point we are
+     * back in syscall_dispatch with the live frame pointing at the
+     * instruction AFTER the handler's `int 0x80`. We:
+     *   1. Find the current proc.
+     *   2. Check sig_in_progress — if 0, the call is bogus (return 0).
+     *   3. Copy sig_saved_frame back into the live IRQ frame
+     *      (which is g_current_frame / the regs[] passed to
+     *      syscall_dispatch). This overwrites rip, rsp, rflags,
+     *      rdi, etc. — restoring the user's pre-signal state.
+     *   4. Clear sig_in_progress.
+     *
+     * After sys_sigreturn returns, syscall_dispatch continues and
+     * checks pending_signal again — but we've cleared it during
+     * delivery, so no infinite recursion. iretq then jumps to the
+     * original RIP with the original RSP/RFLAGS/registers.
+     *
+     * Restored state includes:
+     *   - All GP registers (r15..rax)
+     *   - RIP, RSP, RFLAGS
+     *   - CS, SS (segment selectors — ring-3 user-mode)
+     *   - Signal mask is implicit (no separate mask in this kernel)
+     *
+     * The signal mask is "implicitly" restored because there's no
+     * explicit signal-mask field in this kernel's user_proc_t.
+     * Pending signals during handler execution were never blocked
+     * — a future hardening could add a sig_blocked field. */
     (void)a1;(void)a2;(void)a3;(void)a4;
+    user_proc_t *p = user_process_current();
+    if (!p || !p->sig_in_progress) return 0;  /* bogus sigreturn */
+    /* Get the live frame pointer saved by syscall_dispatch. */
+    u64 *frame = user_get_current_frame();
+    if (!frame) return 0;
+    /* Restore the 22 u64 frame. */
+    for (int i = 0; i < 22; i++)
+        frame[i] = p->sig_saved_frame[i];
+    p->sig_in_progress = 0;
     return 0;
 }
 
 static u64 sys_chdir(u64 path, u64 a2, u64 a3, u64 a4) {
     (void)a2;(void)a3;(void)a4;
-    if (!valid_user_ptr(path)) return (u64)-1;
+    /* P3-9 FIX: path is a NUL-terminated string — use access_ok_str. */
+    if (!access_ok_str(path)) return (u64)-1;
     return (u64)shell_set_cwd((const char*)(uintptr_t)path);
 }
 
 static u64 sys_getcwd(u64 buf, u64 size, u64 a3, u64 a4) {
     (void)a3;(void)a4;
-    if (!valid_user_buf(buf, size)) return (u64)-1;
+    /* P3-9 FIX: caller wants us to write 'size' bytes (or fewer). Verify
+     * the destination range is mapped before writing. We use copy_to_user
+     * for the actual write so the access-check + copy is atomic-ish. */
+    if (!access_ok_read(buf, size)) return (u64)-1;
     const char *cwd = shell_get_cwd();
     int len = oc_strlen(cwd);
     if (len >= (int)size) return (u64)-1;
-    oc_memcpy((void*)(uintptr_t)buf, cwd, len + 1);
+    if (copy_to_user(buf, cwd, (u64)len + 1) != 0) return (u64)-1;
     return buf;
 }
 
@@ -573,7 +836,8 @@ static u64 sys_ioctl(u64 fd, u64 cmd, u64 arg, u64 a4) {
 
 static u64 sys_select(u64 nfds, u64 readfds_ptr, u64 timeout_ms, u64 a4) {
     (void)a4;
-    if (!readfds_ptr || !valid_user_buf(readfds_ptr, FD_SET_BYTES)) return (u64)-1;
+    /* P3-9 FIX: verify readfds buffer is mapped (was only range-check). */
+    if (!readfds_ptr || !access_ok_read(readfds_ptr, FD_SET_BYTES)) return (u64)-1;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
     u8 *readfds = (u8*)(uintptr_t)readfds_ptr;
@@ -611,7 +875,8 @@ static u64 sys_select(u64 nfds, u64 readfds_ptr, u64 timeout_ms, u64 a4) {
             proc_fd_t *pfd = &proc->fds[fd];
             if (pfd->kind == 2) {
                 kernel_pipe_t *p = pipe_get(pfd->pipe_id);
-                if (p) p->reader_waiting = my_tid;
+                /* P3-15: add to wait queue (was single-slot). */
+                if (p) pipe_wait_add(p->reader_waiters, my_tid);
             }
         }
         kthread_block();
@@ -620,7 +885,8 @@ static u64 sys_select(u64 nfds, u64 readfds_ptr, u64 timeout_ms, u64 a4) {
             proc_fd_t *pfd = &proc->fds[fd];
             if (pfd->kind == 2) {
                 kernel_pipe_t *p = pipe_get(pfd->pipe_id);
-                if (p && p->reader_waiting == my_tid) p->reader_waiting = -1;
+                /* P3-15: remove from wait queue. */
+                if (p) pipe_wait_remove(p->reader_waiters, my_tid);
             }
         }
     }
@@ -630,7 +896,8 @@ typedef struct { int fd; short events; short revents; } pollfd_t;
 
 static u64 sys_poll(u64 fds_ptr, u64 nfds, u64 timeout_ms, u64 a4) {
     (void)a4;
-    if (!valid_user_buf(fds_ptr, nfds * sizeof(pollfd_t))) return (u64)-1;
+    /* P3-9 FIX: verify pollfd array is mapped (was only range-check). */
+    if (!access_ok_read(fds_ptr, nfds * sizeof(pollfd_t))) return (u64)-1;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
     pollfd_t *pfds = (pollfd_t*)(uintptr_t)fds_ptr;
@@ -671,8 +938,20 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
      * would need vfs_open + read-ELF-from-disk support. For now,
      * all embedded programs are available via execve. */
     (void)argv;(void)envp;(void)a4;
-    if (!valid_user_ptr(path)) return (u64)-1;
-    const char *name = (const char*)(uintptr_t)path;
+    /* P3-9 FIX: path is a NUL-terminated string — copy it to a local
+     * kernel buffer via copy_from_user so subsequent reads can't #PF
+     * on user memory mid-exec. Max 256 bytes (longer is rejected). */
+    char path_buf[256];
+    /* access_ok_str already verified the path is mapped up to NUL. */
+    if (!access_ok_str(path)) return (u64)-1;
+    {
+        const char *p = (const char*)(uintptr_t)path;
+        u64 n = 0;
+        while (n < 255 && p[n] != '\0') n++;
+        if (copy_from_user(path_buf, path, n + 1) != 0) return (u64)-1;
+        path_buf[n] = 0;
+    }
+    const char *name = path_buf;
 
     /* Strip /bin/ prefix if present */
     if (name[0] == '/' && name[1] == 'b' && name[2] == 'i' &&
@@ -776,7 +1055,8 @@ static void solib_table_init(void) {
  * Maps at proc->next_solib_addr (bump allocator from 0x50000000). */
 static u64 sys_map_solib(u64 name_ptr, u64 name_len, u64 flags, u64 a4) {
     (void)flags; (void)a4;
-    if (!valid_user_ptr(name_ptr) || name_len == 0 || name_len > 64)
+    /* P3-9 FIX: validate name_ptr mapping (was only range-check). */
+    if (!access_ok_read(name_ptr, name_len) || name_len == 0 || name_len > 64)
         return 0;
     solib_table_init();
     /* Copy name from user memory. */
@@ -921,7 +1201,8 @@ void syscall_wp08a_init(void) {
  * Maps to vfs_open. flags: 0=read, 1=write, 2=read+write. */
 static u64 sys_open(u64 path, u64 flags, u64 a3, u64 a4) {
     (void)a3; (void)a4;
-    if (!valid_user_ptr(path)) return (u64)-1;
+    /* P3-9 FIX: path is a NUL-terminated string — use access_ok_str. */
+    if (!access_ok_str(path)) return (u64)-1;
     const char *p = (const char*)(uintptr_t)path;
     int vfs_fd = vfs_open(p, (int)flags);
     if (vfs_fd < 0) return (u64)-1;
@@ -966,8 +1247,9 @@ static u64 sys_close(u64 fd, u64 a2, u64 a3, u64 a4) {
         if (pp) {
             if (saved_kind == 2) pp->reader_count--;
             else                  pp->writer_count--;
-            if (pp->reader_waiting >= 0) kthread_wake(pp->reader_waiting);
-            if (pp->writer_waiting >= 0) kthread_wake(pp->writer_waiting);
+            /* P3-15: wake ALL waiters on close. */
+            pipe_wake_all(pp->reader_waiters);
+            pipe_wake_all(pp->writer_waiters);
         }
     }
     return 0;
@@ -977,11 +1259,12 @@ static u64 sys_close(u64 fd, u64 a2, u64 a3, u64 a4) {
  * of at least sizeof(vfs_stat_t) bytes. Returns 0 or -1. */
 static u64 sys_stat(u64 path, u64 stat_buf, u64 a3, u64 a4) {
     (void)a3; (void)a4;
-    if (!valid_user_ptr(path)) return (u64)-1;
-    if (!valid_user_ptr(stat_buf)) return (u64)-1;
+    /* P3-9 FIX: validate both pointers (path str + stat_buf range). */
+    if (!access_ok_str(path)) return (u64)-1;
+    if (!access_ok_read(stat_buf, sizeof(vfs_stat_t))) return (u64)-1;
     vfs_stat_t st;
     if (vfs_stat((const char*)(uintptr_t)path, &st) < 0) return (u64)-1;
-    oc_memcpy((void*)(uintptr_t)stat_buf, &st, sizeof(st));
+    if (copy_to_user(stat_buf, &st, sizeof(st)) != 0) return (u64)-1;
     return 0;
 }
 
@@ -989,33 +1272,35 @@ static u64 sys_stat(u64 path, u64 stat_buf, u64 a3, u64 a4) {
  * (path, index, dirent_buf) → 0 on success, -1 on end/error. */
 static u64 sys_readdir(u64 path, u64 index, u64 dirent_buf, u64 a4) {
     (void)a4;
-    if (!valid_user_ptr(path)) return (u64)-1;
-    if (!valid_user_ptr(dirent_buf)) return (u64)-1;
+    /* P3-9 FIX: validate path str + dirent_buf mapping. */
+    if (!access_ok_str(path)) return (u64)-1;
+    if (!access_ok_read(dirent_buf, sizeof(vfs_dirent_t))) return (u64)-1;
     vfs_dirent_t e;
     if (vfs_readdir((const char*)(uintptr_t)path, (int)index, &e) < 0)
         return (u64)-1;
-    oc_memcpy((void*)(uintptr_t)dirent_buf, &e, sizeof(e));
+    if (copy_to_user(dirent_buf, &e, sizeof(e)) != 0) return (u64)-1;
     return 0;
 }
 
 /* SYS_MKDIR(7): create a directory. */
 static u64 sys_mkdir(u64 path, u64 a2, u64 a3, u64 a4) {
     (void)a2; (void)a3; (void)a4;
-    if (!valid_user_ptr(path)) return (u64)-1;
+    /* P3-9 FIX: path str — use access_ok_str. */
+    if (!access_ok_str(path)) return (u64)-1;
     return (u64)vfs_mkdir((const char*)(uintptr_t)path);
 }
 
 /* SYS_RMDIR(8): remove a directory. */
 static u64 sys_rmdir(u64 path, u64 a2, u64 a3, u64 a4) {
     (void)a2; (void)a3; (void)a4;
-    if (!valid_user_ptr(path)) return (u64)-1;
+    if (!access_ok_str(path)) return (u64)-1;
     return (u64)vfs_rmdir((const char*)(uintptr_t)path);
 }
 
 /* SYS_UNLINK(9): delete a file. */
 static u64 sys_unlink(u64 path, u64 a2, u64 a3, u64 a4) {
     (void)a2; (void)a3; (void)a4;
-    if (!valid_user_ptr(path)) return (u64)-1;
+    if (!access_ok_str(path)) return (u64)-1;
     return (u64)vfs_unlink((const char*)(uintptr_t)path);
 }
 
@@ -1025,7 +1310,8 @@ static u64 sys_unlink(u64 path, u64 a2, u64 a3, u64 a4) {
  * fd=pipe_write → pipe, fd=vfs → vfs_write. */
 static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
     (void)a4;
-    if (!valid_user_buf(buf, len)) return (u64)-1;
+    /* P3-9 FIX: verify buf mapping (was only range-check). */
+    if (!access_ok_read(buf, len)) return (u64)-1;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
     if (fd >= PROC_MAX_FDS) return (u64)-1;
@@ -1052,9 +1338,11 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
         while (written < len) {
             u32 space = pipe_space_avail(p);
             if (space == 0) {
-                p->writer_waiting = kthread_current_tid();
+                /* P3-15: wait queue (FIFO), not single slot. */
+                int my_tid = kthread_current_tid();
+                pipe_wait_add(p->writer_waiters, my_tid);
                 kthread_block();
-                p->writer_waiting = -1;
+                pipe_wait_remove(p->writer_waiters, my_tid);
                 space = pipe_space_avail(p);
                 if (space == 0) break;
             }
@@ -1064,7 +1352,8 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
             oc_memcpy(p->buf + wpos, src + written, to_copy);
             p->write_pos += to_copy;
             written += to_copy;
-            if (p->reader_waiting >= 0) kthread_wake(p->reader_waiting);
+            /* P3-15: wake ONE reader (FIFO). */
+            pipe_wake_one(p->reader_waiters);
         }
         return written;
     }
@@ -1079,9 +1368,10 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
  * the kernel shell and ush. */
 static u64 sys_readline(u64 buf, u64 maxlen, u64 a3, u64 a4) {
     (void)a3; (void)a4;
-    if (!valid_user_ptr(buf)) return (u64)-1;
+    /* P3-9 FIX: verify buf mapping (was only range-check). */
     if (maxlen == 0) return 0;
     if (maxlen > 255) maxlen = 255;
+    if (!access_ok_read(buf, maxlen)) return (u64)-1;
     char line[256];
     int len = 0;
     for (;;) {

@@ -82,6 +82,17 @@ typedef struct user_proc {
     /* WP-08a: signal handlers */
     signal_handler_fn sig_handlers[NSIG];
 
+    /* P3-12: Saved user-mode register frame for sigreturn.
+     * When a signal is delivered (in syscall_dispatch, after the syscall
+     * returns but before iretq), the kernel saves the current IRQ frame
+     * here, then modifies the live frame to call the user's handler.
+     * When the handler invokes SYS_SIGRETURN (42), the kernel copies
+     * this saved frame back into the live frame so iretq restores the
+     * pre-signal RIP/RSP/RFLAGS/registers.
+     * sig_in_progress: 1 = saved frame is valid (next sigreturn restores it). */
+    u64 sig_saved_frame[22];
+    int sig_in_progress;
+
     /* WP-08a: fork-child state. When is_fork_child=1, the launcher
      * enters ring 3 at fork_rip/fork_rsp with fork_rax in RAX,
      * implementing true POSIX fork semantics (child continues from
@@ -152,5 +163,9 @@ user_proc_t *user_process_current(void);
 /* WP-08a: Save/restore the current interrupt frame (for fork). */
 void user_set_current_frame(u64 *frame_regs);
 u64 *user_get_current_frame(void);
+
+/* P3-11: Unified resource reaper — called from sys_exit2, sys_kill,
+ * and exception kill. Closes all fds + destroys the user AS. */
+void user_process_reap_resources(user_proc_t *p, int exit_code);
 
 #endif /* OC_USERMODE_H */

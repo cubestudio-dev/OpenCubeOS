@@ -184,6 +184,23 @@ u64 syscall_write_and_exit(u64 buf, u64 len, u64 arg3, u64 arg4) {
     (void)arg3; (void)arg4;
     const u64 USER_LIMIT = 0x0000800000000000ULL;
     if (buf < USER_LIMIT && buf + len <= USER_LIMIT && len <= 65536) {
+        /* P3-4 FIX: Add the same mapping check as syscall_write.
+         * Old code only validated the address RANGE, not whether the
+         * pages were actually mapped. If a user program passed an
+         * unmapped pointer (e.g. NULL or a guard-zone address), the
+         * kernel would #PF on the read → kill/halt. Now we check
+         * vmm_is_mapped for every page in the buffer range first. */
+        user_proc_t *proc = user_process_current();
+        if (proc && proc->as) {
+            for (u64 a = buf & ~0xFFFULL; a < buf + len; a += 0x1000) {
+                u64 phys;
+                if (!vmm_is_mapped(proc->as, a, &phys)) {
+                    /* Unmapped pointer — exit silently with no output */
+                    syscall_exit(0, 0, 0, 0);
+                    return 0;
+                }
+            }
+        }
         const char *p = (const char*)buf;
         for (u64 i = 0; i < len; i++) oc_console_putc(p[i]);
     }
@@ -244,11 +261,108 @@ void syscall_dispatch(u64 *regs) {
         f->rax = (u64)-1;
     }
 
+    /* P3-12 FIX: Signal delivery.
+     * After the syscall returns (but before iretq), check if this
+     * process has a pending signal with a registered handler. If so:
+     *   1. Save the current IRQ frame (22 u64s) into sig_saved_frame.
+     *   2. Modify the live frame: rip = handler, rdi = signal number,
+     *      rsp = current user rsp - 128 (skip red zone) - 8 (fake
+     *      return address for the handler's `ret`). Actually we just
+     *      set rsp = current user rsp (the handler runs on the user
+     *      stack — the handler itself uses normal call/ret with its
+     *      own stack frame).
+     *   3. Clear pending_signal.
+     *   4. Set sig_in_progress = 1.
+     * When the handler calls SYS_SIGRETURN (42), sys_sigreturn
+     * restores sig_saved_frame → the original RIP/RSP/RFLAGS/
+     * registers — and iretq returns the user to where they were
+     * before the signal. */
+    user_proc_t *proc = user_process_current();
+    if (proc && proc->pending_signal > 0 && proc->pending_signal < NSIG) {
+        int sig = proc->pending_signal;
+        signal_handler_fn handler = proc->sig_handlers[sig];
+        if (handler != NULL) {
+            /* Save the 22 u64 frame (r15..ss). */
+            u64 *src = regs;
+            for (int i = 0; i < 22; i++)
+                proc->sig_saved_frame[i] = src[i];
+            proc->sig_in_progress = 1;
+            proc->pending_signal = 0;
+            /* Modify the live frame so iretq jumps to the handler. */
+            f->rip = (u64)(uintptr_t)handler;
+            f->rdi = (u64)sig;          /* first arg = signal number */
+            /* Leave RSP unchanged — handler uses the user stack and
+             * its own call frame. The handler's `ret` would return
+             * to wherever the user stack's return slot points; the
+             * test handler calls sys_sigreturn BEFORE ret, so ret
+             * is never reached. For robustness, push a fake return
+             * address that points to a small trampoline that does
+             * mov rax,42; int 0x80. For now, rely on the handler
+             * calling sigreturn. */
+            (void)arg2; (void)arg3; (void)arg4;
+        }
+    }
+
     g_current_frame = NULL;
 }
 
 void user_set_current_frame(u64 *frame_regs) { g_current_frame = frame_regs; }
 u64 *user_get_current_frame(void) { return g_current_frame; }
+
+/* P3-11 FIX: Unified resource reaper.
+ *
+ * Old code had THREE separate paths that "killed" a user process:
+ *   1. sys_exit2 — closed pipe fds + destroyed AS ✓
+ *   2. sys_kill (SIGKILL + default action) — set alive=0 + EXITED,
+ *      but did NOT close fds or destroy AS ✗ (leaked PML4/PDPT/PD0/PT
+ *      and any open VFS/pipe fds — pipe counts never decremented)
+ *   3. exception kill — destroyed AS but did NOT close pipe fds ✗
+ *      (pipe readers could block forever waiting for a writer that
+ *      had been killed by an exception)
+ *
+ * Now all three call this single helper, which:
+ *   - marks the process dead
+ *   - sets the exit code
+ *   - closes ALL pipe fds (decrements reader/writer counts, wakes waiters)
+ *   - closes ALL VFS fds (vfs_close)
+ *   - destroys the user AS (after switching to kernel CR3)
+ *
+ * Note: the caller is responsible for setting task->state = TASK_EXITED
+ * and waking parent_tid (this helper doesn't know the calling context). */
+
+/* Forward-declared helpers in syscall.c — keep the pipe struct private
+ * (kernel_pipe_t is file-local in syscall.c). We just call these accessors
+ * via their non-static exports. */
+extern void pipe_close_fd(int pipe_id, int kind);  /* syscall.c */
+extern void vfs_close(int fd);  /* vfs.h */
+
+void user_process_reap_resources(user_proc_t *p, int exit_code) {
+    if (!p) return;
+    p->alive = 0;
+    p->exit_code = exit_code;
+    /* Close all fds (VFS + pipe). */
+    for (int i = 0; i < PROC_MAX_FDS; i++) {
+        int kind = p->fds[i].kind;
+        int pipe_id = p->fds[i].pipe_id;
+        int vfs_fd = p->fds[i].vfs_fd;
+        if (kind == 0) continue;
+        p->fds[i].kind = 0;
+        p->fds[i].pipe_id = 0;
+        p->fds[i].vfs_fd = 0;
+        if (kind == 2 || kind == 3) {
+            pipe_close_fd(pipe_id, kind);
+        } else if (kind == 1) {
+            vfs_close(vfs_fd);
+        }
+    }
+    /* Destroy the user AS. Switch to kernel CR3 first so we don't
+     * destroy the page tables we're running on. */
+    if (p->as) {
+        __asm__ volatile("mov %0, %%cr3" : : "r"(vmm_kernel_as()) : "memory");
+        vmm_destroy_address_space(p->as);
+        p->as = 0;
+    }
+}
 
 user_proc_t *user_process_current(void) {
     tid_t tid = kthread_current_tid();
@@ -294,20 +408,32 @@ vmm_as_t create_user_address_space(void) {
     /* Copy PDPT[1..3] from kernel (1-4GiB, no user pages, safe to share) */
     for (int i = 1; i < 4; i++) pdpt[i] = kern_pdpt[i];
 
-    /* Split the 2MiB huge page at PD0[2] (0x400000, user code region) */
-    u64 old_pde = pd0[2];
-    u64 base_phys = old_pde & 0x000FFFFFFFE00000ULL;
+    /* P3-1 FIX (security): The old code split the 2MiB huge page at PD0[2]
+     * (0x400000-0x600000) and PRE-POPULATED all 512 PT entries with
+     * `base_phys + i*0x1000` — pointing them at the KERNEL's identity-
+     * mapped physical pages. Although the flags lacked the USER bit
+     * (so ring-3 couldn't read them directly), the kernel's physical
+     * pages were still mapped into the user AS. Any future bug that
+     * accidentally set USER on these PTEs would leak kernel memory.
+     *
+     * Fix: allocate an empty PT, leave all entries 0 (Not Present).
+     * User memory allocators (map_user_pages, sys_brk, sys_mmap) call
+     * vmm_map_page → walk_pt(create=1) which fills entries on demand
+     * with NEW physical pages from pmm_alloc_frame.
+     *
+     * Kernel still has access to its 0x400000-0x600000 data via the
+     * shared kernel PML4[1..3] identity mapping (1-4GiB region), and
+     * via the un-split huge pages at PD0[0,1,3..511]. */
     u64 pt_phys = pmm_alloc_frame();
     if (pt_phys == 0) {
         pmm_free_frame(pd0_phys); pmm_free_frame(pdpt_phys); pmm_free_frame(pml4_phys);
         return 0;
     }
-    u64 *pt = (u64*)pt_phys;
-    oc_memset(pt, 0, PMM_PAGE_SIZE);
-    for (int i = 0; i < 512; i++) {
-        u64 page_phys = base_phys + (u64)i * PMM_PAGE_SIZE;
-        pt[i] = page_phys | 0x003 | 0x0800000000000000ULL;
-    }
+    oc_memset((void*)pt_phys, 0, PMM_PAGE_SIZE);
+    /* Replace the huge PDE with the empty PT pointer. P|W|U so the
+     * walk can succeed for ring-0 in supervisor mode (USER bit on
+     * intermediate tables is required so user code can traverse to
+     * its own leaf PTEs which ARE User-flagged). */
     pd0[2] = pt_phys | 0x007;
 
     return pml4_phys;
@@ -756,8 +882,113 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
     }
 
     elf64_phdr_t *phdr = (elf64_phdr_t*)(elf_data + hdr->phoff);
+
+    /* P3-13 FIX: ELF program-header bounds validation.
+     *
+     * Old code did ZERO validation on the program-header table or
+     * individual program-header fields before dereferencing them.
+     * A malformed (or malicious) ELF could specify:
+     *   - phoff pointing past end of file → OOB read of kernel memory
+     *   - phentsize != sizeof(elf64_phdr_t) → misaligned iteration
+     *   - p_offset + p_filesz > elf_size → OOB read during map_user_pages
+     *   - p_vaddr + p_memsz overflow → wraps to small VA, clobbering kernel
+     *   - p_memsz < p_filesz → negative BSS size (underflow in loop)
+     *   - p_vaddr in kernel space (>= USER_LIMIT) → kernel-page overwrite
+     * Each of these is a real, exploitable bug. The kernel MUST validate
+     * before trusting any field from a user-supplied binary.
+     *
+     * The fix: before the load loop, verify:
+     *   1. phoff + phnum * phentsize <= elf_size (program-header table fits)
+     *   2. phentsize == sizeof(elf64_phdr_t) (no misalignment)
+     *   3. For each PT_LOAD: p_offset+p_filesz <= elf_size,
+     *      p_vaddr+p_memsz doesn't overflow, p_memsz >= p_filesz,
+     *      p_vaddr is in user space (< USER_LIMIT).
+     */
+    if (hdr->phentsize != sizeof(elf64_phdr_t)) {
+        oc_console_puts("[user] bad phentsize\n");
+        proc->alive = 0; return -1;
+    }
+    /* Check phoff + phnum * phentsize <= elf_size (with overflow guard). */
+    {
+        u64 phdr_table_end = (u64)hdr->phoff + (u64)hdr->phnum * (u64)hdr->phentsize;
+        if (hdr->phoff >= elf_size || hdr->phnum == 0 ||
+            phdr_table_end < hdr->phoff ||  /* overflow */
+            phdr_table_end > elf_size) {
+            oc_console_puts("[user] program-header table out of bounds\n");
+            proc->alive = 0; return -1;
+        }
+    }
+    /* P3-14 FIX: Pre-validate every PT_LOAD range and check for overlaps.
+     * Overlapping PT_LOAD segments would cause the second one to silently
+     * overwrite the first one's mappings (and the backing physical pages
+     * would be leaked, because map_user_pages allocates a fresh frame and
+     * overwrites the PTE without freeing the old frame). */
+    for (int i = 0; i < hdr->phnum; i++) {
+        if (phdr[i].type != 1 /* PT_LOAD */) continue;
+        /* p_offset + p_filesz must be within the ELF file. */
+        u64 file_end = phdr[i].offset + phdr[i].filesz;
+        if (file_end < phdr[i].offset || file_end > elf_size) {
+            oc_console_puts("[user] PT_LOAD file range out of bounds\n");
+            proc->alive = 0; return -1;
+        }
+        /* p_vaddr + p_memsz must not overflow. */
+        u64 mem_end = phdr[i].vaddr + phdr[i].memsz;
+        if (mem_end < phdr[i].vaddr) {
+            oc_console_puts("[user] PT_LOAD vaddr+memsz overflow\n");
+            proc->alive = 0; return -1;
+        }
+        /* p_memsz must be >= p_filesz (BSS section is memsz - filesz). */
+        if (phdr[i].memsz < phdr[i].filesz) {
+            oc_console_puts("[user] PT_LOAD memsz < filesz\n");
+            proc->alive = 0; return -1;
+        }
+        /* p_vaddr must be in user space. */
+        if (phdr[i].vaddr >= 0x0000800000000000ULL) {
+            oc_console_puts("[user] PT_LOAD vaddr in kernel space\n");
+            proc->alive = 0; return -1;
+        }
+        /* Check for overlap with previous PT_LOAD segments. */
+        for (int j = 0; j < i; j++) {
+            if (phdr[j].type != 1) continue;
+            u64 j_start = phdr[j].vaddr;
+            u64 j_end = phdr[j].vaddr + phdr[j].memsz;
+            u64 i_start = phdr[i].vaddr;
+            u64 i_end = phdr[i].vaddr + phdr[i].memsz;
+            /* Overlap if i_start < j_end && j_start < i_end. */
+            if (i_start < j_end && j_start < i_end) {
+                oc_console_puts("[user] PT_LOAD segments overlap\n");
+                proc->alive = 0; return -1;
+            }
+        }
+    }
+
+    /* P3-14 FIX (additional): before mapping each PT_LOAD, if a page is
+     * already mapped (from a previous PT_LOAD — should NOT happen now
+     * because we rejected overlaps above, but be defensive), free the
+     * old physical frame first. The old map_user_pages path allocated
+     * a fresh frame and overwrote the PTE — leaking the old frame.
+     * We do this per-page in the loop below. */
     for (int i = 0; i < hdr->phnum; i++) {
         if (phdr[i].type != 1) continue;
+        /* For each page in this PT_LOAD's range, if already mapped,
+         * free the old physical frame BEFORE map_user_pages allocates
+         * a new one and overwrites the PTE. This prevents the leak. */
+        {
+            u64 v = phdr[i].vaddr & ~0xFFFULL;
+            u64 end = phdr[i].vaddr + phdr[i].filesz;
+            while (v < end) {
+                u64 old_phys;
+                if (vmm_is_mapped(proc->as, v, &old_phys)) {
+                    /* Unmap + free the old frame. */
+                    u64 old_pte = vmm_unmap_page(proc->as, v);
+                    if (old_pte & VMM_FLAG_PRESENT) {
+                        u64 p = old_pte & 0x000FFFFFFFFFF000ULL;
+                        if (p != 0) pmm_free_frame(p);
+                    }
+                }
+                v += 0x1000;
+            }
+        }
         if (map_user_pages(proc->as, phdr[i].vaddr,
                            elf_data + phdr[i].offset, phdr[i].filesz) != 0) {
             proc->alive = 0; return -1;

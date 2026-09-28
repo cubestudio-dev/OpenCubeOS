@@ -186,7 +186,14 @@ u64 vmm_unmap_page(vmm_as_t as, u64 vaddr) {
     volatile u64 *pte = walk_pt(as, vaddr, 0);
     if (!pte || !(*pte & VMM_FLAG_PRESENT)) return 0;
 
-    u64 old = *pte & PTE_ADDR_MASK;
+    /* P3-3 FIX: Return the FULL old PTE (address + flags) so callers
+     * can inspect the PRESENT bit (and any other flags) to decide
+     * whether to free the physical frame. The old code did
+     * `*pte & PTE_ADDR_MASK` which stripped all flag bits, so the
+     * PRESENT bit was always 0 in the return value — callers
+     * checking `ret & VMM_FLAG_PRESENT` always saw 0 and never
+     * freed the physical page (silent leak on every munmap). */
+    u64 old = *pte;
     *pte = 0;
     if (as == vmm_current_as()) invlpg(vaddr);
     return old;
