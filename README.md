@@ -22,8 +22,8 @@ Licensed under the Apache License, Version 2.0.
 
 ## Stats (WP-08)
 
-- **Source code**: 26,018 lines (no docs, no auto-gen)
-- **With docs**: 30,062 lines
+- **Source code**: 27158 lines (no docs, no auto-gen)
+- **With docs**: 31381 lines
 - **Work packages**: 8 (WP-01 ~ WP-08)
 - **L1 extension interfaces**: 57
 - **System calls**: 37
