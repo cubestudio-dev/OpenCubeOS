@@ -3377,12 +3377,22 @@ int cmd_lspci(const char *args) {
 
 int cmd_wget(const char *args) {
     if (!args[0]) {
-        oc_console_puts("usage: wget <host> [port] [path]\n");
+        oc_console_puts("usage: wget <http://host:port/path> | wget <host> [port] [path]\n");
         return 1;
+    }
+    /* WP-09: Check for https:// prefix → use TLS */
+    int use_tls = 0;
+    if (args[0]=='h' && args[1]=='t' && args[2]=='t' && args[3]=='p' &&
+        args[4]=='s' && args[5]==':' && args[6]=='/' && args[7]=='/') {
+        use_tls = 1;
+        args += 8; /* skip "https://" */
+    } else if (args[0]=='h' && args[1]=='t' && args[2]=='t' && args[3]=='p' &&
+               args[4]==':' && args[5]=='/' && args[6]=='/') {
+        args += 7; /* skip "http://" */
     }
     /* Parse: wget host [port] [path] */
     char host[64] = {0};
-    int port = 80;
+    int port = use_tls ? 443 : 80;
     char path[128] = "/";
     int i = 0, j = 0;
     while (args[i] && args[i] != ' ' && j < 63) host[j++] = args[i++];
@@ -3391,7 +3401,7 @@ int cmd_wget(const char *args) {
     if (args[i]) {
         port = 0;
         while (args[i] && args[i] >= '0' && args[i] <= '9') { port = port*10 + (args[i]-'0'); i++; }
-        if (port == 0) port = 80;
+        if (port == 0) port = use_tls ? 443 : 80;
         while (args[i] == ' ') i++;
         if (args[i]) {
             j = 0;
@@ -3413,8 +3423,44 @@ int cmd_wget(const char *args) {
     ipstr[0] = 0; format_ip(ip, ipstr);
     oc_strcpy(buf, "Connecting to "); oc_strcat(buf, ipstr);
     oc_strcat(buf, ":"); oc_u64_to_str(port, n_tmp); oc_strcat(buf, n_tmp);
-    oc_strcat(buf, path); oc_strcat(buf, "\n");
+    oc_strcat(buf, path); oc_strcat(buf, use_tls ? " (TLS)\n" : "\n");
     oc_console_puts(buf);
+
+    /* WP-09: HTTPS path — use TLS */
+    if (use_tls) {
+        extern int tls_https_get(u32 ip, u16 port, const char *hostname, const char *path, void *out, int outlen);
+        u8 *resp = (u8 *)(uintptr_t)pmm_alloc_frame();
+        if (!resp) { oc_console_puts("out of memory\n"); return 1; }
+        int n = tls_https_get(ip, (u16)port, host, path, resp, 4096);
+        if (n > 0) {
+            /* Find body (after \r\n\r\n) */
+            int body_start = 0;
+            for (int k = 0; k < n - 3; k++) {
+                if (resp[k]=='\r' && resp[k+1]=='\n' && resp[k+2]=='\r' && resp[k+3]=='\n') {
+                    body_start = k + 4; break;
+                }
+            }
+            int body_len = n - body_start;
+            /* Save to VFS */
+            int fd = vfs_open("/wget_https.html", VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+            if (fd >= 0) {
+                vfs_write(fd, resp + body_start, body_len);
+                vfs_close(fd);
+                char b[80];
+                oc_strcpy(b, "Saved "); oc_u64_to_str(body_len, n_tmp); oc_strcat(b, n_tmp);
+                oc_strcat(b, " bytes to /wget_https.html\n");
+                oc_console_puts(b);
+            } else {
+                /* Print to console */
+                for (int k = body_start; k < n; k++) oc_console_putc(resp[k]);
+            }
+        } else {
+            char b[40]; oc_strcpy(b, "TLS failed (code "); oc_u64_to_str((u64)(-n), n_tmp); oc_strcat(b, n_tmp); oc_strcat(b, ")\n");
+            oc_console_puts(b);
+        }
+        pmm_free_frame((u64)(uintptr_t)resp);
+        return 0;
+    }
 
     int sock = net_socket(SOCK_TCP);
     if (sock < 0) { oc_console_puts("socket failed\n"); return 1; }
