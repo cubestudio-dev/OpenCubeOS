@@ -109,6 +109,55 @@ int dhcp_discover(void);
 
 /* ---- DNS ---- */
 int dns_resolve(const char *name, u32 *ip_out);
+/* WP-09: DNS CNAME + AAAA */
+int dns_resolve_cname(const char *name, char *cname_out, int cname_len, u32 *ip_out);
+int dns_resolve_aaaa(const char *name, u8 *ipv6_out);
+
+/* ---- WP-09: Netfilter (firewall) ---- */
+#define NF_CHAIN_INPUT  0
+#define NF_CHAIN_OUTPUT 1
+#define NF_ACTION_ACCEPT 0
+#define NF_ACTION_DROP   1
+#define NF_ACTION_REJECT 2
+
+typedef int (*nf_hook_fn)(u8 chain, u32 src_ip, u32 dst_ip, u8 protocol, u16 port);
+
+typedef struct {
+    u32 src_ip, src_mask;
+    u32 dst_ip, dst_mask;
+    u8  protocol;
+    u16 port;
+    u8  chain;
+    u8  action;
+    int in_use;
+} nf_rule_t;
+
+void netfilter_register_hook(nf_hook_fn fn);
+int netfilter_add_rule(u8 chain, u32 src_ip, u32 src_mask, u32 dst_ip, u32 dst_mask,
+                       u8 protocol, u16 port, u8 action);
+int netfilter_del_rule(int index);
+int netfilter_list_rules(nf_rule_t *out, int max);
+
+/* ---- WP-09: Routing ---- */
+typedef struct {
+    u32 dst;
+    u32 mask;
+    u32 gateway;
+    int in_use;
+} route_entry_t;
+int route_add(u32 dst, u32 mask, u32 gateway);
+int route_del(u32 dst, u32 mask);
+int route_list(route_entry_t *out, int max);
+
+/* ---- WP-09: ARP ---- */
+typedef struct {
+    u32 ip;
+    u8  mac[6];
+    int valid;
+    u64 timestamp;
+} arp_entry_t;
+int arp_refresh(u32 ip);
+int arp_list(arp_entry_t *out, int max);
 
 /* ---- Stats ---- */
 typedef struct {

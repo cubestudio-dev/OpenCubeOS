@@ -893,12 +893,7 @@ typedef struct __attribute__((packed)) {
 } arp_pkt_t;
 
 #define ARP_CACHE_SIZE 16
-typedef struct {
-    u32 ip;
-    u8  mac[6];
-    int valid;
-    u64 timestamp;  /* WP-09: when entry was added (for TTL/refresh) */
-} arp_entry_t;
+/* arp_entry_t is defined in net.h */
 
 static arp_entry_t g_arp_cache[ARP_CACHE_SIZE];
 static int g_arp_reply_received = 0;
@@ -906,12 +901,7 @@ static u8  g_arp_reply_mac[6];
 
 /* WP-09: Routing table */
 #define ROUTE_TABLE_SIZE 16
-typedef struct {
-    u32 dst;       /* destination network */
-    u32 mask;      /* netmask */
-    u32 gateway;   /* gateway (0 = direct) */
-    int in_use;
-} route_entry_t;
+/* route_entry_t is defined in net.h */
 
 static route_entry_t g_routes[ROUTE_TABLE_SIZE];
 
@@ -1214,12 +1204,98 @@ static int ip_send(u32 dst_ip, u8 protocol, const void *payload, int len) {
     return eth_send(dst_mac, ETH_TYPE_IP, buf, 20 + len);
 }
 
+/* WP-09: Netfilter firewall subsystem */
+#define NF_MAX_RULES 32
+/* nf_rule_t, nf_hook_fn, NF_CHAIN_*, NF_ACTION_* are defined in net.h */
+
+static nf_rule_t g_nf_rules[NF_MAX_RULES];
+static nf_hook_fn g_nf_hooks[4];  /* L1 hooks */
+static int g_nf_hook_count = 0;
+
+/* WP-09: netfilter_register_hook — register an L1 hook function */
+void netfilter_register_hook(nf_hook_fn fn) {
+    if (g_nf_hook_count < 4) g_nf_hooks[g_nf_hook_count++] = fn;
+}
+
+/* WP-09: netfilter_add_rule — add a firewall rule */
+int netfilter_add_rule(u8 chain, u32 src_ip, u32 src_mask, u32 dst_ip, u32 dst_mask,
+                       u8 protocol, u16 port, u8 action) {
+    for (int i = 0; i < NF_MAX_RULES; i++) {
+        if (!g_nf_rules[i].in_use) {
+            g_nf_rules[i].src_ip = src_ip;
+            g_nf_rules[i].src_mask = src_mask;
+            g_nf_rules[i].dst_ip = dst_ip;
+            g_nf_rules[i].dst_mask = dst_mask;
+            g_nf_rules[i].protocol = protocol;
+            g_nf_rules[i].port = port;
+            g_nf_rules[i].chain = chain;
+            g_nf_rules[i].action = action;
+            g_nf_rules[i].in_use = 1;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+/* WP-09: netfilter_del_rule — remove a rule by index */
+int netfilter_del_rule(int index) {
+    if (index < 0 || index >= NF_MAX_RULES) return -1;
+    g_nf_rules[index].in_use = 0;
+    return 0;
+}
+
+/* WP-09: netfilter_list_rules — list all rules */
+int netfilter_list_rules(nf_rule_t *out, int max) {
+    int count = 0;
+    for (int i = 0; i < NF_MAX_RULES && count < max; i++) {
+        if (g_nf_rules[i].in_use) out[count++] = g_nf_rules[i];
+    }
+    return count;
+}
+
+/* WP-09: netfilter_check — check a packet against the rules.
+ * Returns NF_ACTION_ACCEPT or NF_ACTION_DROP. */
+static u8 netfilter_check(u8 chain, u32 src_ip, u32 dst_ip, u8 protocol, u16 port) {
+    /* Call L1 hooks first */
+    for (int i = 0; i < g_nf_hook_count; i++) {
+        if (g_nf_hooks[i]) {
+            int verdict = g_nf_hooks[i](chain, src_ip, dst_ip, protocol, port);
+            if (verdict == NF_ACTION_DROP) return NF_ACTION_DROP;
+            if (verdict == NF_ACTION_ACCEPT) return NF_ACTION_ACCEPT;
+        }
+    }
+    /* Check rules in order */
+    for (int i = 0; i < NF_MAX_RULES; i++) {
+        if (!g_nf_rules[i].in_use) continue;
+        if (g_nf_rules[i].chain != chain) continue;
+        /* Match source IP */
+        if (g_nf_rules[i].src_mask != 0) {
+            if ((src_ip & g_nf_rules[i].src_mask) != (g_nf_rules[i].src_ip & g_nf_rules[i].src_mask))
+                continue;
+        }
+        /* Match dest IP */
+        if (g_nf_rules[i].dst_mask != 0) {
+            if ((dst_ip & g_nf_rules[i].dst_mask) != (g_nf_rules[i].dst_ip & g_nf_rules[i].dst_mask))
+                continue;
+        }
+        /* Match protocol */
+        if (g_nf_rules[i].protocol != 0 && g_nf_rules[i].protocol != protocol)
+            continue;
+        /* Match port */
+        if (g_nf_rules[i].port != 0 && g_nf_rules[i].port != port)
+            continue;
+        /* Rule matched — return action */
+        return g_nf_rules[i].action;
+    }
+    /* Default: ACCEPT */
+    return NF_ACTION_ACCEPT;
+}
+
 static void ip_handle_packet(const void *data, int len) {
     if (len < 20) return;
     const ip_hdr_t *iph = (const ip_hdr_t *)data;
 
-    /* BUG-035 FIX: Remove per-packet debug output that floods the console.
-     * This was useful during development but should not be in production. */
+    /* BUG-035 FIX: Remove per-packet debug output that floods the console. */
     /* DEBUG removed: RX IP/RX ICMP/RX UDP prints */
 
     /* Check if packet is for us. */
@@ -1227,7 +1303,6 @@ static void ip_handle_packet(const void *data, int len) {
     if (dst != g_ip && dst != 0xFFFFFFFF && g_ip != 0) {
         /* Check broadcast. */
         if ((dst & 0xFF) != 0xFF) {
-            oc_console_puts("  RX: dropping, dst not us\n");
             return;
         }
     }
@@ -1238,6 +1313,11 @@ static void ip_handle_packet(const void *data, int len) {
     const void *payload = (const u8 *)data + hdr_len;
     int payload_len = ntohs(iph->total_len) - hdr_len;
     u32 src_ip = ntohl(iph->src_ip);
+
+    /* WP-09: Netfilter INPUT chain check */
+    if (netfilter_check(NF_CHAIN_INPUT, src_ip, dst, iph->protocol, 0) == NF_ACTION_DROP) {
+        return;  /* packet dropped by firewall */
+    }
 
     switch (iph->protocol) {
         case IP_PROTO_ICMP:
