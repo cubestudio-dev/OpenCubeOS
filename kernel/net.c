@@ -897,14 +897,119 @@ typedef struct {
     u32 ip;
     u8  mac[6];
     int valid;
+    u64 timestamp;  /* WP-09: when entry was added (for TTL/refresh) */
 } arp_entry_t;
 
 static arp_entry_t g_arp_cache[ARP_CACHE_SIZE];
 static int g_arp_reply_received = 0;
 static u8  g_arp_reply_mac[6];
 
+/* WP-09: Routing table */
+#define ROUTE_TABLE_SIZE 16
+typedef struct {
+    u32 dst;       /* destination network */
+    u32 mask;      /* netmask */
+    u32 gateway;   /* gateway (0 = direct) */
+    int in_use;
+} route_entry_t;
+
+static route_entry_t g_routes[ROUTE_TABLE_SIZE];
+
+static void route_init(void) {
+    oc_memset(g_routes, 0, sizeof(g_routes));
+}
+
+/* WP-09: route_add — add a route entry */
+int route_add(u32 dst, u32 mask, u32 gateway) {
+    for (int i = 0; i < ROUTE_TABLE_SIZE; i++) {
+        if (g_routes[i].in_use && g_routes[i].dst == dst && g_routes[i].mask == mask) {
+            g_routes[i].gateway = gateway;  /* update existing */
+            return 0;
+        }
+    }
+    for (int i = 0; i < ROUTE_TABLE_SIZE; i++) {
+        if (!g_routes[i].in_use) {
+            g_routes[i].dst = dst;
+            g_routes[i].mask = mask;
+            g_routes[i].gateway = gateway;
+            g_routes[i].in_use = 1;
+            return 0;
+        }
+    }
+    return -1;  /* table full */
+}
+
+/* WP-09: route_del — remove a route entry */
+int route_del(u32 dst, u32 mask) {
+    for (int i = 0; i < ROUTE_TABLE_SIZE; i++) {
+        if (g_routes[i].in_use && g_routes[i].dst == dst && g_routes[i].mask == mask) {
+            g_routes[i].in_use = 0;
+            return 0;
+        }
+    }
+    return -1;  /* not found */
+}
+
+/* WP-09: route_list — list all routes (returns count) */
+int route_list(route_entry_t *out, int max) {
+    int count = 0;
+    for (int i = 0; i < ROUTE_TABLE_SIZE && count < max; i++) {
+        if (g_routes[i].in_use) {
+            out[count++] = g_routes[i];
+        }
+    }
+    return count;
+}
+
+/* WP-09: route_lookup — find next hop for a destination IP.
+ * Returns gateway IP (0 = direct/deliver), or -1 if no route found. */
+static int route_lookup(u32 dst_ip, u32 *gateway_out) {
+    u32 best_mask = 0;
+    u32 best_gw = 0;
+    int found = 0;
+    for (int i = 0; i < ROUTE_TABLE_SIZE; i++) {
+        if (!g_routes[i].in_use) continue;
+        if ((dst_ip & g_routes[i].mask) == (g_routes[i].dst & g_routes[i].mask)) {
+            if (g_routes[i].mask >= best_mask) {
+                best_mask = g_routes[i].mask;
+                best_gw = g_routes[i].gateway;
+                found = 1;
+            }
+        }
+    }
+    if (found) {
+        *gateway_out = best_gw;
+        return 0;
+    }
+    return -1;
+}
+
+/* WP-09: arp_refresh — proactively refresh an ARP entry */
+int arp_refresh(u32 ip) {
+    /* Invalidate cache entry and re-resolve */
+    for (int i = 0; i < ARP_CACHE_SIZE; i++) {
+        if (g_arp_cache[i].valid && g_arp_cache[i].ip == ip) {
+            g_arp_cache[i].valid = 0;  /* invalidate */
+        }
+    }
+    u8 mac[6];
+    return arp_resolve(ip, mac);  /* re-resolve (sends ARP request) */
+}
+
+/* WP-09: arp_list — list ARP cache entries */
+int arp_list(arp_entry_t *out, int max) {
+    int count = 0;
+    for (int i = 0; i < ARP_CACHE_SIZE && count < max; i++) {
+        if (g_arp_cache[i].valid) {
+            out[count++] = g_arp_cache[i];
+        }
+    }
+    return count;
+}
+
 static void arp_init(void) {
     oc_memset(g_arp_cache, 0, sizeof(g_arp_cache));
+    route_init();
 }
 
 static int arp_cache_lookup(u32 ip, u8 *mac) {
@@ -1076,9 +1181,15 @@ static int ip_send(u32 dst_ip, u8 protocol, const void *payload, int len) {
         return eth_send(bcast, ETH_TYPE_IP, buf, 20 + len);
     }
     if ((dst_ip & g_mask) != (g_ip & g_mask)) {
-        /* Different subnet: use gateway. */
-        if (g_gateway == 0) return -1;
-        next_hop = g_gateway;
+        /* WP-09: Use routing table first, then fall back to default gateway */
+        u32 gw = 0;
+        if (route_lookup(dst_ip, &gw) == 0 && gw != 0) {
+            next_hop = gw;  /* route found via routing table */
+        } else if (g_gateway != 0) {
+            next_hop = g_gateway;  /* default gateway */
+        } else {
+            return -1;  /* no route */
+        }
     }
 
     u8 dst_mac[6];
