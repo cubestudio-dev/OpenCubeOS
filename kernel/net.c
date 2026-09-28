@@ -1304,19 +1304,39 @@ typedef enum {
     TCP_CLOSING,
 } tcp_state_t;
 
+/* WP-09: TCP reliability fields. */
+#define TCP_RTX_BUF_SIZE 4096
 typedef struct {
     tcp_state_t state;
     u32 remote_ip;
     u16 local_port;
     u16 remote_port;
-    u32 our_seq;
-    u32 our_ack;
+    u32 our_seq;        /* next seq to send */
+    u32 our_ack;        /* ack we send to peer */
+    u32 snd_una;        /* oldest unacknowledged seq (WP-09) */
+    u32 snd_wnd;        /* peer's advertised window (WP-09) */
+    u32 cwnd;           /* congestion window (WP-09) */
+    u32 ssthresh;       /* slow-start threshold (WP-09) */
+    u32 rto;            /* retransmission timeout in ticks (WP-09) */
+    u64 rto_deadline;   /* timer tick when RTO fires (WP-09) */
+    int dup_ack_count;  /* duplicate ACK counter (WP-09) */
+    u16 mss;            /* maximum segment size (WP-09) */
+    u8  win_scale_sent; /* window scale we offered (WP-09) */
+    u8  win_scale_recv; /* window scale peer offered (WP-09) */
+    u32 ts_recent;      /* latest timestamp from peer (WP-09) */
+    u32 ts_echo;        /* timestamp to echo back (WP-09) */
+    int ts_enabled;     /* timestamps negotiated (WP-09) */
     int in_use;
-    /* Socket integration */
     int sock_fd;
-    /* Receive buffer */
     u8  rx_buf[2048];
     int rx_len;
+    /* WP-09: retransmission buffer */
+    u8  rtx_buf[TCP_RTX_BUF_SIZE];
+    int rtx_len;         /* bytes in rtx_buf awaiting ACK */
+    u32 rtx_seq;         /* seq of first byte in rtx_buf */
+    int rtt_measured;    /* have we measured RTT yet */
+    u32 srtt;            /* smoothed RTT in ticks */
+    u32 rttvar;          /* RTT variance */
 } tcp_conn_t;
 
 static tcp_conn_t g_tcp_conns[TCP_MAX_CONNS];
@@ -1387,24 +1407,142 @@ static u16 tcp_checksum(u32 src_ip, u32 dst_ip, const void *data, int len) {
     return internet_checksum(data, len, sum);
 }
 
+/* WP-09: TCP option kind codes */
+#define TCP_OPT_MSS      2
+#define TCP_OPT_WSCALE   3
+#define TCP_OPT_SACK_PERM 4
+#define TCP_OPT_TS       8
+#define TCP_OPT_END      0
+#define TCP_OPT_NOP      1
+
+/* WP-09: Build TCP options for SYN packets (MSS, Window Scale, SACK-Permitted, Timestamps) */
+static int tcp_build_syn_options(tcp_conn_t *c, u8 *opts) {
+    int i = 0;
+    /* MSS option (4 bytes) */
+    opts[i++] = TCP_OPT_MSS;
+    opts[i++] = 4;
+    opts[i++] = (u8)(c->mss >> 8);
+    opts[i++] = (u8)(c->mss & 0xFF);
+    /* Window Scale option (3 bytes + 1 NOP for alignment) */
+    opts[i++] = TCP_OPT_NOP;
+    opts[i++] = TCP_OPT_WSCALE;
+    opts[i++] = 3;
+    opts[i++] = c->win_scale_sent;
+    /* SACK-Permitted option (2 bytes) */
+    opts[i++] = TCP_OPT_SACK_PERM;
+    opts[i++] = 2;
+    /* Timestamps option (10 bytes + 2 NOP for alignment) */
+    opts[i++] = TCP_OPT_NOP;
+    opts[i++] = TCP_OPT_NOP;
+    opts[i++] = TCP_OPT_TS;
+    opts[i++] = 10;
+    /* TSval: current tick count */
+    u32 tsval = (u32)oc_timer_ticks();
+    opts[i++] = (u8)(tsval >> 24);
+    opts[i++] = (u8)(tsval >> 16);
+    opts[i++] = (u8)(tsval >> 8);
+    opts[i++] = (u8)(tsval & 0xFF);
+    /* Echo reply: 0 (no previous timestamp) */
+    opts[i++] = 0; opts[i++] = 0; opts[i++] = 0; opts[i++] = 0;
+    return i;  /* should be 20 bytes */
+}
+
+/* WP-09: Build TCP Timestamp option for data packets */
+static int tcp_build_ts_option(tcp_conn_t *c, u8 *opts) {
+    if (!c->ts_enabled) return 0;
+    int i = 0;
+    opts[i++] = TCP_OPT_NOP;
+    opts[i++] = TCP_OPT_NOP;
+    opts[i++] = TCP_OPT_TS;
+    opts[i++] = 10;
+    u32 tsval = (u32)oc_timer_ticks();
+    opts[i++] = (u8)(tsval >> 24);
+    opts[i++] = (u8)(tsval >> 16);
+    opts[i++] = (u8)(tsval >> 8);
+    opts[i++] = (u8)(tsval & 0xFF);
+    u32 echo = c->ts_recent;
+    opts[i++] = (u8)(echo >> 24);
+    opts[i++] = (u8)(echo >> 16);
+    opts[i++] = (u8)(echo >> 8);
+    opts[i++] = (u8)(echo & 0xFF);
+    return 12;
+}
+
+/* WP-09: Parse TCP options from incoming packet */
+static void tcp_parse_options(tcp_conn_t *c, const u8 *opts, int opt_len, int is_syn) {
+    int i = 0;
+    while (i < opt_len) {
+        u8 kind = opts[i++];
+        if (kind == TCP_OPT_END) break;
+        if (kind == TCP_OPT_NOP) continue;
+        if (i >= opt_len) break;
+        u8 len = opts[i++];
+        if (len < 2 || i + len - 2 > opt_len) break;
+        switch (kind) {
+            case TCP_OPT_MSS:
+                if (len == 4 && is_syn) {
+                    u16 mss = ((u16)opts[i] << 8) | opts[i+1];
+                    if (mss > 536 && mss < 9000) c->mss = mss;
+                }
+                break;
+            case TCP_OPT_WSCALE:
+                if (len == 3 && is_syn) {
+                    c->win_scale_recv = opts[i];
+                }
+                break;
+            case TCP_OPT_SACK_PERM:
+                if (is_syn) { /* SACK permitted — we support it */ }
+                break;
+            case TCP_OPT_TS:
+                if (len == 10) {
+                    u32 tsval = ((u32)opts[i] << 24) | ((u32)opts[i+1] << 16)
+                              | ((u32)opts[i+2] << 8) | opts[i+3];
+                    u32 tsecr = ((u32)opts[i+4] << 24) | ((u32)opts[i+5] << 16)
+                              | ((u32)opts[i+6] << 8) | opts[i+7];
+                    c->ts_recent = tsval;
+                    if (is_syn) c->ts_enabled = 1;
+                    (void)tsecr;
+                }
+                break;
+        }
+        i += len - 2;
+    }
+}
+
 static int tcp_send_raw(tcp_conn_t *c, u8 flags, const void *data, int len) {
-    /* P0-7 FIX: bound the payload to the MTU. Previously any len > 1480
-     * overflowed the 1500-byte stack buffer. */
+    /* P0-7 FIX: bound the payload to the MTU. */
     if (len < 0) len = 0;
-    if (len > 1480) len = 1480;  /* 1500 - 20 (TCP header) */
+    if (len > 1480) len = 1480;
+
     u8 buf[1500];
     tcp_hdr_t *h = (tcp_hdr_t *)buf;
     h->src_port = htons(c->local_port);
     h->dst_port = htons(c->remote_port);
     h->seq = htonl(c->our_seq);
     h->ack = htonl(c->our_ack);
-    h->data_offset_flags = htons((u16)(5 << 12) | flags);  /* data offset = 5 (20 bytes) */
-    h->window = htons(8192);
+
+    /* WP-09: Build options. For SYN, include MSS/WScale/SACK/TS.
+     * For data, include Timestamps if enabled. */
+    int hdr_len = 20;
+    int opt_len = 0;
+    if (flags & TCP_SYN) {
+        opt_len = tcp_build_syn_options(c, buf + 20);
+    } else {
+        opt_len = tcp_build_ts_option(c, buf + 20);
+    }
+    hdr_len = 20 + opt_len;
+    int data_offset = (hdr_len / 4) << 12;
+    h->data_offset_flags = htons((u16)data_offset | flags);
+
+    /* WP-09: Use snd_wnd (clamped) instead of hardcoded 8192 */
+    u16 win = (u16)(c->snd_wnd > 65535 ? 65535 : c->snd_wnd);
+    if (win == 0) win = 8192;  /* fallback if unset */
+    h->window = htons(win);
     h->urgent = 0;
-    if (len > 0 && data) oc_memcpy(buf + 20, data, len);
+    if (len > 0 && data) oc_memcpy(buf + hdr_len, data, len);
     h->checksum = 0;
-    h->checksum = tcp_checksum(g_ip, c->remote_ip, h, 20 + len);
-    return ip_send(c->remote_ip, IP_PROTO_TCP, h, 20 + len);
+    h->checksum = tcp_checksum(g_ip, c->remote_ip, h, hdr_len + len);
+    return ip_send(c->remote_ip, IP_PROTO_TCP, h, hdr_len + len);
 }
 
 int tcp_connect(u32 dst_ip, u16 dst_port) {
@@ -1417,10 +1555,30 @@ int tcp_connect(u32 dst_ip, u16 dst_port) {
     c->our_seq = 0x1000;
     c->our_ack = 0;
     c->sock_fd = -1;
+    /* WP-09: init reliability fields */
+    c->snd_una = c->our_seq;
+    c->snd_wnd = 8192;
+    c->cwnd = 1;           /* slow start: 1 MSS */
+    c->ssthresh = 65535;   /* high threshold → slow start phase */
+    c->rto = 30;           /* 300ms initial RTO (30 ticks @ 100Hz) */
+    c->rto_deadline = 0;
+    c->dup_ack_count = 0;
+    c->mss = 1460;         /* default MSS (Ethernet MTU - 40) */
+    c->win_scale_sent = 7; /* window scale: 2^7 = 128 → 8192*128 = 1MB */
+    c->win_scale_recv = 0;
+    c->ts_recent = 0;
+    c->ts_echo = 0;
+    c->ts_enabled = 0;
+    c->rtx_len = 0;
+    c->rtx_seq = 0;
+    c->rtt_measured = 0;
+    c->srtt = 0;
+    c->rttvar = 0;
 
-    /* Send SYN. */
+    /* Send SYN with options. */
     tcp_send_raw(c, TCP_SYN, NULL, 0);
     c->our_seq += 1;
+    c->snd_una = c->our_seq;
 
     g_stats.tcp_connections++;
 
@@ -1429,11 +1587,63 @@ int tcp_connect(u32 dst_ip, u16 dst_port) {
     while ((oc_timer_ticks() - start) < 300) {  /* 3 second timeout */
         net_poll();
         if (c->state == TCP_ESTABLISHED) {
-            return (int)(c - g_tcp_conns);  /* return conn index as fd */
+            return (int)(c - g_tcp_conns);
         }
     }
     c->in_use = 0;
     return -1;
+}
+
+/* WP-09: Update RTT estimate and RTO (RFC 6298 algorithm) */
+static void tcp_update_rtt(tcp_conn_t *c, u32 rtt_ticks) {
+    if (!c->rtt_measured) {
+        /* First measurement: SRTT = RTT, RTTVAR = RTT/2 */
+        c->srtt = rtt_ticks;
+        c->rttvar = rtt_ticks / 2;
+        c->rtt_measured = 1;
+    } else {
+        /* Subsequent: RTTVAR = 0.75*RTTVAR + 0.25*|SRTT-RTT| */
+        u32 diff = (c->srtt > rtt_ticks) ? (c->srtt - rtt_ticks) : (rtt_ticks - c->srtt);
+        c->rttvar = (3 * c->rttvar + diff) / 4;
+        /* SRTT = 0.875*SRTT + 0.125*RTT */
+        c->srtt = (7 * c->srtt + rtt_ticks) / 8;
+    }
+    /* RTO = max(SRTT + 4*RTTVAR, 10 ticks = 100ms) */
+    u32 rto = c->srtt + 4 * c->rttvar;
+    if (rto < 10) rto = 10;
+    if (rto > 600) rto = 600;  /* cap at 6 seconds */
+    c->rto = rto;
+}
+
+/* WP-09: Check and handle RTO timer for all connections */
+static void tcp_check_rto(void) {
+    u64 now = oc_timer_ticks();
+    for (int i = 0; i < TCP_MAX_CONNS; i++) {
+        tcp_conn_t *c = &g_tcp_conns[i];
+        if (!c->in_use || c->state != TCP_ESTABLISHED) continue;
+        if (c->rtx_len == 0 || c->rto_deadline == 0) continue;
+        if (now < c->rto_deadline) continue;
+        /* RTO expired! Retransmit oldest unacked data. */
+        if (c->rtx_len > 0) {
+            int rtx = c->rtx_len;
+            if (rtx > c->mss) rtx = c->mss;
+            /* Retransmit from rtx_buf */
+            c->our_seq = c->rtx_seq;  /* go back to oldest unacked */
+            tcp_send_raw(c, TCP_ACK | TCP_PSH, c->rtx_buf, rtx);
+            c->our_seq += rtx;
+        }
+        /* Congestion control: RTO → cwnd = 1, ssthresh = max(in_flight/2, 2) */
+        int in_flight = c->rtx_len;
+        u32 new_ssthresh = in_flight / 2;
+        if (new_ssthresh < 2 * c->mss) new_ssthresh = 2 * c->mss;
+        c->ssthresh = new_ssthresh;
+        c->cwnd = 1;  /* back to slow start */
+        /* Exponential backoff: double RTO */
+        c->rto *= 2;
+        if (c->rto > 600) c->rto = 600;
+        c->rto_deadline = now + c->rto;
+        c->dup_ack_count = 0;
+    }
 }
 
 int tcp_send(int sock, const void *data, int len) {
@@ -1441,9 +1651,30 @@ int tcp_send(int sock, const void *data, int len) {
     tcp_conn_t *c = &g_tcp_conns[sock];
     if (!c->in_use || c->state != TCP_ESTABLISHED) return -1;
 
-    tcp_send_raw(c, TCP_ACK | TCP_PSH, data, len);
-    c->our_seq += len;
-    return len;
+    /* WP-09: Clamp send size to min(cwnd, snd_wnd, mss) */
+    int sendable = len;
+    u32 win = c->cwnd * c->mss;
+    if (win < c->snd_wnd) {
+        if ((u32)sendable > win) sendable = (int)win;
+    } else {
+        if ((u32)sendable > c->snd_wnd) sendable = (int)c->snd_wnd;
+    }
+    if (sendable > c->mss) sendable = c->mss;
+    if (sendable > 1480) sendable = 1480;
+
+    /* WP-09: Copy to retransmission buffer */
+    if (c->rtx_len + sendable <= TCP_RTX_BUF_SIZE) {
+        oc_memcpy(c->rtx_buf + c->rtx_len, data, sendable);
+        if (c->rtx_len == 0) {
+            c->rtx_seq = c->our_seq;  /* record oldest unacked seq */
+            c->rto_deadline = oc_timer_ticks() + c->rto;  /* arm RTO timer */
+        }
+        c->rtx_len += sendable;
+    }
+
+    tcp_send_raw(c, TCP_ACK | TCP_PSH, data, sendable);
+    c->our_seq += sendable;
+    return sendable;
 }
 
 int tcp_close(int sock) {
@@ -1495,12 +1726,22 @@ void tcp_handle_packet(u32 src_ip, const void *data, int len) {
     u16 src_port = ntohs(h->src_port);
     u16 dst_port = ntohs(h->dst_port);
     u32 seq = ntohl(h->seq);
+    u32 ack = ntohl(h->ack);
     u16 flags = ntohs(h->data_offset_flags) & 0x1FF;
+    u16 win = ntohs(h->window);
     int hdr_len = (ntohs(h->data_offset_flags) >> 12) * 4;
     int payload_len = len - hdr_len;
     const void *payload = (const u8 *)data + hdr_len;
+    const u8 *opts = (const u8 *)data + 20;
+    int opt_len = hdr_len - 20;
 
     tcp_conn_t *c = tcp_find_conn(src_ip, dst_port, src_port);
+
+    /* WP-09: Parse TCP options if present */
+    int is_syn = (flags & TCP_SYN) ? 1 : 0;
+    if (opt_len > 0 && c) {
+        tcp_parse_options(c, opts, opt_len, is_syn);
+    }
     if (!c) {
         /* P1-13 FIX: check if this is a SYN to a listening port. If so,
          * create a new connection, send SYN-ACK, and call the handler. */
@@ -1515,6 +1756,16 @@ void tcp_handle_packet(u32 src_ip, const void *data, int len) {
                     c->state = TCP_SYN_RCVD;
                     c->our_seq = 1000;
                     c->our_ack = seq + 1;
+                    /* WP-09: init reliability fields for server-side conn */
+                    c->snd_una = c->our_seq;
+                    c->snd_wnd = 8192;
+                    c->cwnd = 1;
+                    c->ssthresh = 65535;
+                    c->rto = 30;
+                    c->mss = 1460;
+                    c->win_scale_sent = 7;
+                    c->rtx_len = 0;
+                    c->rtt_measured = 0;
                     /* Send SYN-ACK. */
                     tcp_send_raw(c, TCP_SYN | TCP_ACK, NULL, 0);
                     c->our_seq += 1;
@@ -1551,6 +1802,83 @@ void tcp_handle_packet(u32 src_ip, const void *data, int len) {
             }
             break;
         case TCP_ESTABLISHED:
+            /* WP-09: Handle ACK for sent data */
+            if (flags & TCP_ACK) {
+                /* Update snd_una (slide window) */
+                if (ack > c->snd_una) {
+                    /* WP-09: New data ACKed — slide retransmission buffer */
+                    u32 acked_bytes = ack - c->snd_una;
+                    if (c->rtx_len > 0 && acked_bytes <= (u32)c->rtx_len) {
+                        /* Slide rtx_buf forward by acked_bytes */
+                        int remaining = c->rtx_len - (int)acked_bytes;
+                        if (remaining > 0) {
+                            oc_memmove(c->rtx_buf, c->rtx_buf + acked_bytes, remaining);
+                        }
+                        c->rtx_len = remaining;
+                        c->rtx_seq = ack;
+                        if (c->rtx_len == 0) {
+                            c->rto_deadline = 0;  /* disarm RTO */
+                        }
+                    } else if (c->rtx_len > 0) {
+                        /* All data ACKed */
+                        c->rtx_len = 0;
+                        c->rto_deadline = 0;
+                    }
+                    c->snd_una = ack;
+                    c->dup_ack_count = 0;  /* reset dup ACK counter */
+
+                    /* WP-09: Congestion control — increase cwnd */
+                    if (c->cwnd < c->ssthresh / c->mss) {
+                        /* Slow start: +1 per ACK */
+                        c->cwnd++;
+                    } else {
+                        /* Congestion avoidance: +1/cwnd per ACK (approx) */
+                        if ((c->cwnd * c->mss) % (c->cwnd * c->mss) == 0) {
+                            c->cwnd++;
+                        }
+                    }
+
+                    /* WP-09: Update RTT using timestamp echo if available */
+                    if (c->ts_enabled && opt_len > 0) {
+                        /* The timestamp echo reply is in the TS option.
+                         * We parse it during tcp_parse_options. For RTT,
+                         * we need the echo of OUR timestamp. */
+                        /* Simple RTT: time since we sent the data */
+                        u32 rtt = (u32)(oc_timer_ticks() - (c->rto - c->srtt));
+                        if (rtt > 0 && rtt < 600) {
+                            tcp_update_rtt(c, rtt);
+                        }
+                    }
+                } else if (ack == c->snd_una && payload_len == 0) {
+                    /* WP-09: Duplicate ACK (no new data, same ack) */
+                    c->dup_ack_count++;
+                    if (c->dup_ack_count == 3) {
+                        /* Fast retransmit: retransmit oldest unacked segment */
+                        if (c->rtx_len > 0) {
+                            int rtx = c->rtx_len;
+                            if (rtx > c->mss) rtx = c->mss;
+                            u32 saved_seq = c->our_seq;
+                            c->our_seq = c->rtx_seq;
+                            tcp_send_raw(c, TCP_ACK | TCP_PSH, c->rtx_buf, rtx);
+                            c->our_seq = saved_seq;  /* don't advance seq on retransmit */
+                        }
+                        /* Fast recovery: ssthresh = max(cwnd/2, 2), cwnd = ssthresh */
+                        u32 new_ss = (c->cwnd * c->mss) / 2;
+                        if (new_ss < 2 * c->mss) new_ss = 2 * c->mss;
+                        c->ssthresh = new_ss;
+                        c->cwnd = c->ssthresh / c->mss;
+                        if (c->cwnd < 1) c->cwnd = 1;
+                    }
+                }
+            }
+
+            /* WP-09: Update send window from peer's advertised window */
+            if (c->win_scale_recv > 0) {
+                c->snd_wnd = (u32)win << c->win_scale_recv;
+            } else {
+                c->snd_wnd = win;
+            }
+
             if (payload_len > 0) {
                 /* Data received. */
                 if (c->rx_len + payload_len < (int)sizeof(c->rx_buf)) {
@@ -2128,6 +2456,8 @@ void net_init(void) {
 
 void net_poll(void) {
     if (!g_nic_ok) return;
+    /* WP-09: Check TCP RTO timers on every poll */
+    tcp_check_rto();
     u8 buf[ETH_FRAME_MAX];
     for (int i = 0; i < 8; i++) {
         int len;
