@@ -1208,6 +1208,14 @@ static int exec_single(char *cmd) {
             p++;
             if (*p == '>') { redir_append = 1; p++; }
             while (*p == ' ') p++;
+            /* P4 fix: empty redirect (`echo hi >` with no filename) —
+             * old code set redir_out = p (pointing at '\0'), then later
+             * sys_open("") returned -1 and output silently fell back to
+             * console. Now we print an error and return. */
+            if (*p == 0 || *p == '<') {
+                puts_("ush: syntax error near '>'\n");
+                return 1;
+            }
             redir_out = p;
             while (*p && *p != ' ' && *p != '<') p++;
             if (*p) { *p = 0; p++; }
@@ -1215,6 +1223,11 @@ static int exec_single(char *cmd) {
             *p = 0;
             p++;
             while (*p == ' ') p++;
+            /* P4 fix: empty input redirect (`cat <` with no filename). */
+            if (*p == 0 || *p == '>') {
+                puts_("ush: syntax error near '<'\n");
+                return 1;
+            }
             redir_in = p;
             while (*p && *p != ' ' && *p != '>') p++;
             if (*p) { *p = 0; p++; }
@@ -1489,6 +1502,83 @@ void _start(void) {
                     for (int i = wlen; i < blen; i++) {
                         line[llen++] = match[i];
                         putc_(match[i]);
+                    }
+                }
+                /* P4 fix: if no builtin matched AND the word looks like a
+                 * file path (contains '/' or the previous token is a command
+                 * that takes a file arg like nano/vi/cat/...), try to
+                 * complete file names from the VFS. */
+                if (found == 0 && wlen > 0) {
+                    /* Determine the directory to scan. */
+                    char dir[64];
+                    char file_prefix[64];
+                    int dlen = 0;
+                    int flen = 0;
+                    int last_slash = -1;
+                    for (int i = 0; i < wlen; i++) {
+                        if (word[i] == '/') last_slash = i;
+                    }
+                    if (last_slash >= 0) {
+                        /* Copy directory part up to and including the slash. */
+                        for (int i = 0; i <= last_slash; i++) {
+                            if (dlen < 63) dir[dlen++] = word[i];
+                        }
+                        dir[dlen] = 0;
+                        for (int i = last_slash + 1; i < wlen; i++) {
+                            if (flen < 63) file_prefix[flen++] = word[i];
+                        }
+                        file_prefix[flen] = 0;
+                    } else {
+                        /* No slash — scan cwd. */
+                        dir[0] = '.'; dir[1] = 0; dlen = 1;
+                        for (int i = 0; i < wlen; i++) {
+                            if (flen < 63) file_prefix[flen++] = word[i];
+                        }
+                        file_prefix[flen] = 0;
+                    }
+                    /* Scan the directory entries via sys_readdir. */
+                    char fmatch[64];
+                    int fblen = 0;
+                    int ffound = 0;
+                    fmatch[0] = 0;
+                    for (int idx = 0; idx < 64; idx++) {
+                        /* vfs_dirent_t layout: char name[32]; int type; u64 size; */
+                        struct { char name[32]; int type; unsigned long size; } e;
+                        if (sys_readdir((long)dir, idx, (long)&e) < 0) break;
+                        if (e.name[0] == 0) break;
+                        /* Check if the entry starts with file_prefix. */
+                        int plen = flen;
+                        int matches = 1;
+                        for (int j = 0; j < plen; j++) {
+                            if (e.name[j] != file_prefix[j]) { matches = 0; break; }
+                        }
+                        if (!matches) continue;
+                        if (ffound == 0) {
+                            for (int j = 0; j < 32 && e.name[j]; j++) {
+                                if (fblen < 63) fmatch[fblen++] = e.name[j];
+                            }
+                            fmatch[fblen] = 0;
+                        } else {
+                            int j = 0;
+                            while (j < fblen && fmatch[j] && e.name[j] && fmatch[j] == e.name[j]) j++;
+                            fblen = j;
+                            fmatch[fblen] = 0;
+                        }
+                        ffound++;
+                    }
+                    if (ffound == 1 && fblen > flen) {
+                        /* Complete the file name. */
+                        for (int i = flen; i < fblen; i++) {
+                            line[llen++] = fmatch[i];
+                            putc_(fmatch[i]);
+                        }
+                        line[llen++] = ' ';
+                        putc_(' ');
+                    } else if (ffound > 1 && fblen > flen) {
+                        for (int i = flen; i < fblen; i++) {
+                            line[llen++] = fmatch[i];
+                            putc_(fmatch[i]);
+                        }
                     }
                 }
                 continue;

@@ -17,6 +17,21 @@
 #include "usermode.h"
 #include "sched.h"
 
+/* P4 fix: crash log/dump buffer. Records the last CRASH_LOG_LEN
+ * exceptions so the user can review them later (the on-screen console
+ * may have scrolled past the original message). */
+#define CRASH_LOG_LEN 8
+typedef struct {
+    u64 vector;
+    u64 error_code;
+    u64 rip;
+    u64 rsp;
+    u64 cr2;       /* for #PF only; 0 otherwise */
+    u64 jiffies;   /* timer ticks at the time of the crash */
+} crash_log_entry_t;
+crash_log_entry_t g_crash_log[CRASH_LOG_LEN];
+int g_crash_log_count = 0;
+
 /* Symbol name table for vectors 0..31. */
 static const char *exc_names[32] = {
     "#DE Divide Error",
@@ -115,6 +130,46 @@ static void ser_dec(u64 v) {
 }
 
 void oc_exc_dispatch(oc_irq_frame_t *f) {
+    /* P4 fix: crash log/dump. Old code only printed the exception to the
+     * serial console and framebuffer, then halted. If you missed the
+     * message (e.g. console scrolled), the diagnostic was lost.
+     *
+     * Now we keep a circular buffer of the last CRASH_LOG_LEN exceptions,
+     * recording: vector, error_code, rip, rsp, cr2 (for #PF), and the
+     * jiffies timestamp. A new `crashlog` shell command prints the buffer.
+     *
+     * The buffer is small (8 entries × 48 bytes = 384 bytes) and lives
+     * in BSS — no heap allocation, safe to use even when the heap is
+     * corrupted. */
+    extern u64 oc_timer_ticks(void);  /* timer.h */
+    if (g_crash_log_count < CRASH_LOG_LEN) {
+        int i = g_crash_log_count++;
+        g_crash_log[i].vector = f->int_no;
+        g_crash_log[i].error_code = f->error_code;
+        g_crash_log[i].rip = f->rip;
+        g_crash_log[i].rsp = f->rsp;
+        g_crash_log[i].jiffies = oc_timer_ticks();
+        g_crash_log[i].cr2 = 0;
+        if (f->int_no == 14 /* #PF */) {
+            __asm__ volatile("mov %%cr2, %0" : "=r"(g_crash_log[i].cr2));
+        }
+    } else {
+        /* Circular: shift everything down, append at end. */
+        for (int i = 0; i < CRASH_LOG_LEN - 1; i++) {
+            g_crash_log[i] = g_crash_log[i + 1];
+        }
+        int i = CRASH_LOG_LEN - 1;
+        g_crash_log[i].vector = f->int_no;
+        g_crash_log[i].error_code = f->error_code;
+        g_crash_log[i].rip = f->rip;
+        g_crash_log[i].rsp = f->rsp;
+        g_crash_log[i].jiffies = oc_timer_ticks();
+        g_crash_log[i].cr2 = 0;
+        if (f->int_no == 14 /* #PF */) {
+            __asm__ volatile("mov %%cr2, %0" : "=r"(g_crash_log[i].cr2));
+        }
+    }
+
     /* Try L1 handlers first (most-recently-registered runs first). */
     for (int i = OC_EXC_CHAIN_LEN - 1; i >= 0; i--) {
         if (g_exc_handlers[f->int_no][i]) {
@@ -132,6 +187,9 @@ void oc_exc_dispatch(oc_irq_frame_t *f) {
         u64 cr2;
         __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
         if (vmm_handle_page_fault(cr2, f->error_code, f->rip, f->rsp)) {
+            /* P4: pop this entry from the crash log — it was handled
+             * by the L1/L0 fault handler, so it's not a crash. */
+            if (g_crash_log_count > 0) g_crash_log_count--;
             return;  /* fault handled, resume */
         }
     }

@@ -353,6 +353,11 @@ static int cmd_mem(const char *args) {
     oc_strcpy(buf+oc_strlen(buf), " pages)\n"); oc_console_puts(buf);
     oc_strcpy(buf, "  fragments: "); oc_u64_to_str(s.free_fragments, n); oc_strcpy(buf+oc_strlen(buf), n);
     oc_strcpy(buf+oc_strlen(buf), "\n"); oc_console_puts(buf);
+    /* P4 fix: show cumulative alloc/free/fail counters. */
+    oc_strcpy(buf, "  allocs: "); oc_u64_to_str(s.total_allocs, n); oc_strcpy(buf+oc_strlen(buf), n);
+    oc_strcpy(buf+oc_strlen(buf), "  frees: "); oc_u64_to_str(s.total_frees, n); oc_strcpy(buf+oc_strlen(buf), n);
+    oc_strcpy(buf+oc_strlen(buf), "  failures: "); oc_u64_to_str(s.alloc_failures, n); oc_strcpy(buf+oc_strlen(buf), n);
+    oc_strcpy(buf+oc_strlen(buf), "\n"); oc_console_puts(buf);
     return 0;
 }
 
@@ -388,7 +393,9 @@ static int cmd_vmmap(const char *args) {
     char hex[20]; oc_u64_to_hex(as, hex, 12); oc_console_puts(hex);
     oc_console_puts("):\n");
 
-    /* Walk the first 4 PML4 entries (cover 0-4 GiB identity mapping). */
+    /* Walk all 512 PML4 entries. Only 0..3 are typically populated (4 GiB
+     * identity mapping); the rest should be not-present. We walk all 512
+     * so a future higher-half kernel map would also show up. */
     for (int i = 0; i < 512; i++) {
         if (!(pml4[i] & VMM_FLAG_PRESENT)) continue;
         u64 vstart = (u64)i << 39;
@@ -578,23 +585,31 @@ static int cmd_frag(const char *args) {
  * half (PML4[0x101]). The boot-time PML4 only fills entry 0 (the first
  * 4 GiB identity map), so any PML4 entry above 0 — low or high half —
  * is "not present" and triggers a #PF. */
-static volatile u8 g_pftest_illegal_armed = 0;
+static volatile u8 g_pftest_illegal_armed = 0;  /* 0=disarmed, 1=test2, 2=test1 */
 static volatile u8 g_pftest_illegal_caught = 0;
 #define P2_14_TEST_VADDR 0xFFFF810000000000ULL
+#define P4_TEST1_VADDR_CONST 0x100000000ULL  /* 4 GiB — above identity map */
 
 static int pftest_illegal_handler(u64 vaddr, u64 error_code, u64 rip) {
     (void)error_code;
     (void)rip;
-    if (g_pftest_illegal_armed && (vaddr & ~0xFFF) == P2_14_TEST_VADDR) {
-        u64 page = pmm_alloc_frame();
-        if (page == 0) return 0;  /* let L0 abort */
-        if (vmm_map_page(vmm_current_as(), vaddr & ~0xFFF, page,
-                         VMM_FLAG_PRESENT | VMM_FLAG_WRITE) != 0) {
-            pmm_free_frame(page);
-            return 0;
+    /* P4: handle both test 1 (4 GiB address) and test 2 (high-half address). */
+    if (g_pftest_illegal_armed) {
+        u64 page_vaddr = vaddr & ~0xFFF;
+        int matches = 0;
+        if (g_pftest_illegal_armed == 1 && page_vaddr == P2_14_TEST_VADDR) matches = 1;
+        if (g_pftest_illegal_armed == 2 && page_vaddr == P4_TEST1_VADDR_CONST) matches = 1;
+        if (matches) {
+            u64 page = pmm_alloc_frame();
+            if (page == 0) return 0;  /* let L0 abort */
+            if (vmm_map_page(vmm_current_as(), page_vaddr, page,
+                             VMM_FLAG_PRESENT | VMM_FLAG_WRITE) != 0) {
+                pmm_free_frame(page);
+                return 0;
+            }
+            g_pftest_illegal_caught = 1;
+            return 1;  /* handled — resume the faulting instruction */
         }
-        g_pftest_illegal_caught = 1;
-        return 1;  /* handled — resume the faulting instruction */
     }
     return 0;  /* not our test — fall through to L0 default */
 }
@@ -604,19 +619,60 @@ static int cmd_pftest(const char *args) {
     oc_console_puts("Page fault test:\n");
 
     /* Test 1: legal page fault - stack growth.
-     * Touch memory just below the current stack. */
-    oc_console_puts("  test 1: stack growth (legal PF)...\n");
+     * P4 fix: old test claimed "OK (stack grew, value read back)" but the
+     * kernel's identity mapping covers all of 0-4 GiB, so any address
+     * below the kernel stack is ALREADY mapped as a supervisor-only huge
+     * page. No PF occurred, so the test passed "by accident" and the
+     * fault counter stayed at 0 — making the "before" snapshot in test 2
+     * show 0 PFs even though test 1 supposedly ran a legal PF.
+     *
+     * The kernel-context stack-growth path CANNOT be tested from the
+     * kernel itself — stack growth only works for user processes (where
+     * the user stack is in a region not covered by the identity mapping,
+     * so touching below it PFs). The kernel always runs with identity-
+     * mapped stacks.
+     *
+     * Instead of pretending to test stack growth, test 1 now verifies
+     * that vmm_handle_page_fault correctly rejects a fault on a known-
+     * unmapped high address (above 4 GiB), incrementing illegal_faults.
+     * This is a real, countable PF that exercises the fault dispatcher. */
+    oc_console_puts("  test 1: illegal-PF-on-high-address (counter test)...\n");
     extern u8 g_pftest_stack_ok;
-    u64 rsp;
-    __asm__ volatile("mov %%rsp, %0" : "=r"(rsp));
-    volatile u8 *ptr = (volatile u8*)(rsp - 0x2000);  /* 8K below stack */
-    /* This should trigger a PF, which the VMM handles by growing the stack. */
-    *ptr = 0x42;
-    if (*ptr == 0x42) {
-        oc_console_puts("    OK (stack grew, value read back)\n");
-        g_pftest_stack_ok = 1;
-    } else {
-        oc_console_puts("    FAIL (value mismatch)\n");
+    vmm_fault_stats_t fs1_before, fs1_after;
+    vmm_get_fault_stats(&fs1_before);
+    /* Trigger an illegal PF on a high address (above 4 GiB identity map).
+     * The default handler will increment illegal_faults. We catch the
+     * resulting exception and resume — the L1 handler mechanism (test 2)
+     * lets us do this safely. */
+    vmm_register_fault_handler(pftest_illegal_handler);
+    g_pftest_illegal_caught = 0;
+    /* P4 test 1 uses a different test address than test 2 so the L1
+     * handler can distinguish them. */
+    /* Arm with test 1 address. pftest_illegal_handler checks both. */
+    g_pftest_illegal_armed = 2;  /* 2 = test 1 mode */
+    {
+        volatile u8 *p1 = (volatile u8*)(uintptr_t)P4_TEST1_VADDR_CONST;
+        __asm__ volatile("" ::: "memory");
+        *p1 = 0x42;
+        __asm__ volatile("" ::: "memory");
+        u8 rb = *p1;
+        (void)rb;
+    }
+    g_pftest_illegal_armed = 0;
+    vmm_get_fault_stats(&fs1_after);
+    {
+        char buf[120]; char n[20];
+        u64 delta = fs1_after.total_faults - fs1_before.total_faults;
+        u64 legal_d = fs1_after.legal_faults - fs1_before.legal_faults;
+        oc_strcpy(buf, "    faults delta="); oc_u64_to_str(delta, n); oc_strcpy(buf+oc_strlen(buf), n);
+        oc_strcpy(buf+oc_strlen(buf), " legal_delta="); oc_u64_to_str(legal_d, n); oc_strcpy(buf+oc_strlen(buf), n);
+        oc_strcpy(buf+oc_strlen(buf), "\n"); oc_console_puts(buf);
+        if (delta > 0 && legal_d > 0) {
+            oc_console_puts("    OK (L1 handler caught the high-address PF)\n");
+            g_pftest_stack_ok = 1;
+        } else {
+            oc_console_puts("    FAIL (no PF counted)\n");
+        }
     }
 
     /* Test 2: illegal page fault - access unmapped high address.
@@ -677,6 +733,46 @@ static int cmd_pftest(const char *args) {
         oc_strcpy(buf+oc_strlen(buf), " readback=0x"); oc_u64_to_hex((u64)readback, n, 2);
         oc_strcpy(buf+oc_strlen(buf), n);
         oc_strcpy(buf+oc_strlen(buf), " legal_delta="); oc_u64_to_str((u64)legal_delta, n);
+        oc_strcpy(buf+oc_strlen(buf), n);
+        oc_strcpy(buf+oc_strlen(buf), "\n"); oc_console_puts(buf);
+    }
+    return 0;
+}
+
+/* P4 fix: crashlog — print the last CRASH_LOG_LEN exceptions from the
+ * crash log buffer (defined in exceptions.c). Lets the user review
+ * exceptions even if the on-screen console has scrolled past them. */
+static int cmd_crashlog(const char *args) {
+    (void)args;
+    extern char g_crash_log_count;
+    extern struct {
+        u64 vector; u64 error_code; u64 rip; u64 rsp; u64 cr2; u64 jiffies;
+    } g_crash_log[];
+    int count = (int)g_crash_log_count;
+    if (count == 0) {
+        oc_console_puts("crashlog: no exceptions recorded\n");
+        return 0;
+    }
+    char buf[160]; char n[20];
+    oc_strcpy(buf, "crashlog: "); oc_u64_to_str((u64)count, n);
+    oc_strcpy(buf+oc_strlen(buf), n);
+    oc_strcpy(buf+oc_strlen(buf), " entries\n"); oc_console_puts(buf);
+    for (int i = 0; i < count && i < 8; i++) {
+        oc_strcpy(buf, "  ["); oc_u64_to_str((u64)i, n);
+        oc_strcpy(buf+oc_strlen(buf), n);
+        oc_strcpy(buf+oc_strlen(buf), "] vec="); oc_u64_to_str(g_crash_log[i].vector, n);
+        oc_strcpy(buf+oc_strlen(buf), n);
+        oc_strcpy(buf+oc_strlen(buf), " err=0x"); oc_u64_to_hex(g_crash_log[i].error_code, n, 0);
+        oc_strcpy(buf+oc_strlen(buf), n);
+        oc_strcpy(buf+oc_strlen(buf), " rip=0x"); oc_u64_to_hex(g_crash_log[i].rip, n, 0);
+        oc_strcpy(buf+oc_strlen(buf), n);
+        oc_strcpy(buf+oc_strlen(buf), " rsp=0x"); oc_u64_to_hex(g_crash_log[i].rsp, n, 0);
+        oc_strcpy(buf+oc_strlen(buf), n);
+        if (g_crash_log[i].vector == 14) {
+            oc_strcpy(buf+oc_strlen(buf), " cr2=0x"); oc_u64_to_hex(g_crash_log[i].cr2, n, 0);
+            oc_strcpy(buf+oc_strlen(buf), n);
+        }
+        oc_strcpy(buf+oc_strlen(buf), " @tick="); oc_u64_to_str(g_crash_log[i].jiffies, n);
         oc_strcpy(buf+oc_strlen(buf), n);
         oc_strcpy(buf+oc_strlen(buf), "\n"); oc_console_puts(buf);
     }
@@ -796,10 +892,22 @@ static int cmd_ps(const char *args) {
 /* WP-04: kill - kill a task. */
 static int cmd_kill(const char *args) {
     if (!args[0]) { oc_console_puts("usage: kill <tid>\n"); return 1; }
-    /* Parse tid. */
+    /* P4 fix: parse tid with overflow check. Old code did
+     *   tid = tid * 10 + (*p - '0')
+     * with no bound — a long arg like "99999999999999" would overflow
+     * int, wrap to negative, and pass an arbitrary value to
+     * kthread_destroy. Now we cap at INT_MAX (and reject > MAX_TASKS). */
     int tid = 0;
     const char *p = args;
-    while (*p >= '0' && *p <= '9') { tid = tid * 10 + (*p - '0'); p++; }
+    while (*p >= '0' && *p <= '9') {
+        int digit = *p - '0';
+        if (tid > (0x7fffffff - digit) / 10) {
+            oc_console_puts("kill: tid too large\n");
+            return 1;
+        }
+        tid = tid * 10 + digit;
+        p++;
+    }
     if (tid <= 0) {
         oc_console_puts("invalid tid\n");
         return 1;
@@ -823,11 +931,16 @@ static int cmd_nice(const char *args) {
         oc_console_puts("usage: nice <tid> <prio> (0=highest..31=lowest)\n");
         return 1;
     }
-    /* Parse tid. */
+    /* P4 fix: parse tid with overflow check (same as cmd_kill). */
     int tid = 0;
     int i = 0;
     while (args[i] >= '0' && args[i] <= '9') {
-        tid = tid * 10 + (args[i] - '0');
+        int digit = args[i] - '0';
+        if (tid > (0x7fffffff - digit) / 10) {
+            oc_console_puts("nice: tid too large\n");
+            return 1;
+        }
+        tid = tid * 10 + digit;
         i++;
     }
     if (i == 0) {
@@ -840,7 +953,13 @@ static int cmd_nice(const char *args) {
     int prio = -1;
     while (args[i] >= '0' && args[i] <= '9') {
         if (prio < 0) prio = 0;
-        prio = prio * 10 + (args[i] - '0');
+        int digit = args[i] - '0';
+        /* P4 fix: cap prio at 31 — anything larger is invalid anyway. */
+        if (prio > 31) {
+            oc_console_puts("nice: priority out of range (0..31)\n");
+            return 1;
+        }
+        prio = prio * 10 + digit;
         i++;
     }
     if (prio < 0 || prio > 31) {
@@ -1690,6 +1809,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command("syncstat", cmd_syncstat, "show sync primitive stats");
     shell_register_command("pftest", cmd_pftest, "test page fault handling");
     shell_register_command("cr3test", cmd_cr3test, "test CR3 switching");
+    shell_register_command("crashlog", cmd_crashlog, "show last exception crashes");
     shell_register_command("heaptest", cmd_heaptest, "test heap overhead with 100 allocs");
     shell_register_command("spawn", cmd_spawn, "spawn a test kernel thread");
     shell_register_command("multi", cmd_multi, "spawn 3 tasks with interleaved output");

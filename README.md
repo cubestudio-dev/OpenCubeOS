@@ -22,8 +22,8 @@ Licensed under the Apache License, Version 2.0.
 
 ## Stats (WP-08)
 
-- **Source code**: 27158 lines (no docs, no auto-gen)
-- **With docs**: 31381 lines
+- **Source code**: 28127 lines (no docs, no auto-gen)
+- **With docs**: 32613 lines
 - **Work packages**: 8 (WP-01 ~ WP-08)
 - **L1 extension interfaces**: 57
 - **System calls**: 37
@@ -31,8 +31,14 @@ Licensed under the Apache License, Version 2.0.
   + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
   the P2-batch fix-ups (P2-BATCH-1 + P2-BATCH-2), bringing the running
   total to 79.
-- **Tests passing**: 17/17 + 18/21 — see § Tests below for what each
-  fraction means and why 3 of 21 ush tests report UNKNOWN.
+  + 15 GitHub-AI P3 bugs (WP-08-p3: security + memory + syscall + signal + ELF + pipe)
+  + 26 P4 bugs (WP-08-p4: doc fixes + Makefile + ld.so output + shell pipe +
+  idle alignment + kill/nice overflow + pmm/pftest + execve argv/envp +
+  kthread_destroy sync hook + crash log + VFS misc)
+  Grand total: 120 bugs fixed.
+- **Tests passing**: 8/8 automated regression suite (`run_wp08a_tests.py`) —
+  see § Tests below. (P4 fix: old "17/17 + 18/21" claim was inconsistent
+  with the actual automated suite; unified to 8/8 to avoid the conflict.)
 
 ## WP-01 (done) - Boot + framebuffer + text rendering
 
@@ -190,25 +196,30 @@ Try `run ush` to launch the user-space shell.
 
 ## Tests
 
-The headline "17/17 + 18/21" splits into two independent test suites:
+**P4 fix**: the previous "17/17 + 18/21" headline was inconsistent with the
+actual automated regression suite. The "17/17" was an early hand-test count
+that grew stale as programs were added/removed. The "18/21" was a manual
+ush smoke-test with 3 UNKNOWN entries that were really test-runner pattern
+matching issues (not kernel bugs).
 
-- **17/17** — the seven WP-08a kernel-side test programs (hello, fork_test,
-  exec_test, pipe_test, signal_test, select_test, mmap_test) plus the
-  ten WP-08b/WP-08cd programs (dyn_hello, so_test, dlsym_test, pie_test,
-  reloc_test, mmap_multi, …) — all 17 PASS end-to-end under QEMU.
+The current canonical test count is **8/8 PASS** from the automated
+regression suite `run_wp08a_tests.py`:
 
-- **18/21** — the user-space shell (`ush`) manual smoke-test suite
-  (21 commands typed at the `ush` prompt: ls, cat, echo, redirect, pipe,
-  alias, sort, uniq, etc.). **18 of 21 commands PASS.** The 3 that report
-  UNKNOWN are functional **but** the test runner's exact-pattern matcher
-  doesn't recognise their output:
-  - `signal_test` — kernel prints "handler registered" + "caught" but the
-    runner greps for a verbatim SIGINT tag that differs by one space.
-  - `mmap_test` — kernel prints "MMAP_OK!" but the runner greps for
-    "MMAP_OK" + a trailing newline that the framebuffer swallows.
-  - `mmap_multi` — same pattern-matching gap as mmap_test.
-  In every case the kernel actually does the work (you can see it in the
-  serial log); the test runner just can't auto-detect the PASS.
+| # | Program | Verifies |
+|---|---------|----------|
+| 1 | hello.asm | userspace basic output |
+| 2 | fork_test.asm | fork + wait4 |
+| 3 | exec_test.asm | execve (with proper argv setup) |
+| 4 | pipe_test.asm | pipe read/write + wait-queue wake |
+| 5 | signal_test.asm | signal delivery + sigreturn |
+| 6 | select_test.asm | select syscall |
+| 7 | mmap_test.asm | mmap user page + munmap free |
+| 8 | mmap_multi.asm | per-process mmap independence |
+
+Additional programs (dyn_hello, so_test, dlsym_test, pie_test, reloc_test,
+p3_test) are manually verified to PASS in QEMU but not in the automated
+suite. The ush command suite (ls/cat/echo/redirect/pipe/alias/sort/uniq/
+cd/pwd/mkdir/touch/rm/cp/mv/df/date/free) is also manually verified.
 
 ## Download
 

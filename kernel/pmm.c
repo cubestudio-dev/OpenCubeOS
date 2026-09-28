@@ -21,6 +21,10 @@ static u64 g_total_pages = 0;
 static u64 g_used_pages  = 0;
 static u64 g_free_pages  = 0;
 static u64 g_last_scan   = 0;  /* hint: start scanning from here */
+/* P4 fix: cumulative alloc/free/fail counters for diagnostics. */
+static u64 g_total_allocs = 0;
+static u64 g_total_frees = 0;
+static u64 g_alloc_failures = 0;
 
 /* Emergency callbacks (up to 4). */
 #define PMM_MAX_EMERGENCY_CBS 4
@@ -127,6 +131,7 @@ u64 pmm_alloc_frame(void) {
             g_used_pages++;
             g_free_pages--;
             g_last_scan = idx + 1;
+            g_total_allocs++;  /* P4: counter */
             return idx << PMM_PAGE_SHIFT;
         }
     }
@@ -142,12 +147,14 @@ u64 pmm_alloc_frame(void) {
                     g_used_pages++;
                     g_free_pages--;
                     g_last_scan = j + 1;
+                    g_total_allocs++;  /* P4: counter */
                     return j << PMM_PAGE_SHIFT;
                 }
             }
         }
     }
 
+    g_alloc_failures++;  /* P4: counter */
     return 0;  /* truly out of memory */
 }
 
@@ -168,9 +175,11 @@ u64 pmm_alloc_contig(u64 count) {
             g_used_pages += count;
             g_free_pages -= count;
             g_last_scan = i + count;
+            g_total_allocs += count;  /* P4: counter (one per page) */
             return i << PMM_PAGE_SHIFT;
         }
     }
+    g_alloc_failures++;  /* P4: counter */
     return 0;
 }
 
@@ -183,6 +192,7 @@ void pmm_free_frame(u64 paddr) {
         g_used_pages--;
         g_free_pages++;
         if (idx < g_last_scan) g_last_scan = idx;
+        g_total_frees++;  /* P4: counter */
     }
 }
 
@@ -212,6 +222,11 @@ void pmm_get_stats(pmm_stats_t *out) {
             in_run = 0;
         }
     }
+
+    /* P4 fix: cumulative counters for diagnostics + leak detection. */
+    out->total_allocs   = g_total_allocs;
+    out->total_frees    = g_total_frees;
+    out->alloc_failures = g_alloc_failures;
 }
 
 void pmm_register_emergency_callback(pmm_emergency_cb_fn fn) {

@@ -18,6 +18,20 @@
 static task_t g_tasks[MAX_TASKS];
 static tid_t  g_next_tid = 1;
 static task_t *g_current = NULL;
+
+/* P4 fix: destroyed-tid hooks. Subsystems with tid waiters register
+ * here so kthread_destroy can notify them. sync.c (semaphores) uses
+ * this to remove dead tids from sem->waiters[] arrays. */
+#define MAX_DESTROYED_HOOKS 4
+static tid_destroyed_hook_fn g_destroyed_hooks[MAX_DESTROYED_HOOKS];
+void kthread_register_destroyed_hook(tid_destroyed_hook_fn fn) {
+    for (int i = 0; i < MAX_DESTROYED_HOOKS; i++) {
+        if (g_destroyed_hooks[i] == NULL) {
+            g_destroyed_hooks[i] = fn;
+            return;
+        }
+    }
+}
 static task_t *g_idle_task = NULL;
 
 /* Scheduler stats. */
@@ -96,6 +110,31 @@ void sched_init(void) {
 
     /* Set up the idle task's saved state. */
     u64 *sp = (u64*)((u8*)g_idle_task->stack_base + g_idle_task->stack_size);
+    /* P4 fix: stack alignment. The old code set rsp = stack_base + size,
+     * which is 4096-byte aligned (also 16-byte aligned). But the SysV ABI
+     * requires rsp = 16n+8 at function entry (the +8 accounts for the
+     * return address that CALL would push). Our context switch does
+     * `mov rsp,[saved]; push [rip]; ret` — the push decrements rsp by 8,
+     * making it 16n, and after ret rsp = 16n (no return addr). So saved
+     * rsp must be 16n+8 to make the function entry see 16n+8 - 8 = 16n.
+     * Wait that's wrong. Let me reconsider.
+     *
+     * Actually, the context switch pushes rip then rets. After ret, the
+     * popped rip is gone, rsp = saved - 8 (because push subtracted 8).
+     * Hmm no — push then ret: push [rip] writes to saved-8, rsp=saved-8.
+     * Then ret pops from rsp (= saved-8), rsp = saved. So at function
+     * entry, rsp = saved. We want rsp = 16n+8, so saved = 16n+8.
+     *
+     * stack_base + size is 4096-aligned = 16-aligned = 16n. Subtract 8
+     * to get 16n+8. This matches the regular kthread_create path
+     * (line 176: sp = sp - 8).
+     *
+     * The old idle-task code skipped this -8, leaving rsp = 16n. Then
+     * at function entry rsp = 16n (not 16n+8), which is wrong per ABI.
+     * Most C code doesn't care (we use -mno-sse so no aligned SSE moves),
+     * but hand-written asm or compiler intrinsics that assume ABI
+     * alignment could fault on movaps. */
+    sp = (u64*)((u8*)sp - 8);  /* P4 fix: 16n+8 alignment */
     /* The idle task starts at idle_task_fn. */
     g_idle_task->rip = (u64)(uintptr_t)idle_task_fn;
     g_idle_task->cs = 0x18;  /* kernel code segment */
@@ -218,6 +257,14 @@ int kthread_destroy(tid_t tid) {
                     }
                 }
             }
+        }
+        /* P4 fix: Notify subsystems (sync.c semaphores, pipe wait queues)
+         * that this tid is being destroyed, so they can remove it from
+         * their waiter lists. Without this, dead tids stay in sem->waiters[]
+         * forever (taking up slots and eventually causing new waiters to
+         * be rejected with "table full"). */
+        for (int h = 0; h < MAX_DESTROYED_HOOKS; h++) {
+            if (g_destroyed_hooks[h]) g_destroyed_hooks[h](tid);
         }
         if (flags & 0x200) __asm__ volatile("sti");
     }

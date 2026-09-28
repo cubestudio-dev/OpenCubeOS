@@ -6,9 +6,11 @@
 ;          protected mode with paging OFF, IRQs OFF, with:
 ;            eax = 0x36d76289  (Multiboot2 magic)
 ;            ebx = pointer to Multiboot2 info structure
-;          We set up our own GDT, identity-map the first 2 GiB with 2 MiB
+;          We set up our own GDT, identity-map the first 4 GiB with 2 MiB
 ;          pages, enable PAE+LME+PGE, switch to 64-bit long mode, and call
 ;          kmain(eax, ebx) — preserving the multiboot2 magic/info pointer.
+;          (P4 fix: comment said "2 GiB" but the actual mapping is 4 GiB
+;           — 4 PD tables × 512 entries × 2 MiB = 4 GiB, see .fill_pd loop.)
 
 bits 32
 

@@ -14,7 +14,7 @@ print_str:
     ret
 _start:
     lea rdi, [rel start_msg]
-    mov rsi, 16
+    mov rsi, 17          ; P4 fix: was 16 (off-by-one, missing \n)
     call print_str
     mov rax, 10          ; fork
     int 0x80
@@ -22,21 +22,21 @@ _start:
     jz .child
     ; Parent
     lea rdi, [rel wait_msg]
-    mov rsi, 27
+    mov rsi, 28          ; P4 fix: was 27
     call print_str
     mov rax, 12          ; wait
     xor rdi, rdi
     xor rsi, rsi
     int 0x80
     lea rdi, [rel pass_msg]
-    mov rsi, 16
+    mov rsi, 17          ; P4 fix: was 16
     call print_str
     mov rax, 16
     xor rdi, rdi
     int 0x80
 .child:
     lea rdi, [rel exec_msg]
-    mov rsi, 28
+    mov rsi, 30          ; P4 fix: was 28
     call print_str
     mov rax, 11          ; execve
     lea rdi, [rel hello_name]
@@ -44,7 +44,7 @@ _start:
     xor rdx, rdx
     int 0x80
     lea rdi, [rel fail_msg]
-    mov rsi, 16
+    mov rsi, 17          ; P4 fix: was 16
     call print_str
     mov rax, 16
     mov rdi, 1

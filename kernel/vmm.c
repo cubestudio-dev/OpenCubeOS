@@ -27,8 +27,12 @@
 /* Kernel virtual region: we map the kernel into every address space at
  * the same location (identity-mapped first 4 GiB from boot.S). For new
  * address spaces, we copy the kernel PML4 entries (entries 0-3 cover the
- * first 4 GiB). We also map entries 256-259 (the higher-half aliases)
- * so the kernel can run from either mapping. */
+ * first 4 GiB).
+ *
+ * P4 fix: the old comment claimed "We also map entries 256-259 (the
+ * higher-half aliases)" — but the kernel never sets PML4[256..259].
+ * Only PML4[0..3] are populated (4 GiB identity mapping for the
+ * low half). The kernel runs from the low-half identity mapping only. */
 
 static vmm_fault_stats_t g_fault_stats;
 static vmm_fault_handler_fn g_fault_handlers[4];

@@ -258,11 +258,7 @@ static void process_relocations(elf64_rela *rela, unsigned long count,
             /* RELATIVE: just base + addend. No symbol lookup. */
             value = base + (unsigned long)rela[k].r_addend;
             *((unsigned long *)target) = value;
-            puts_str("ld.so: reloc type 8 at 0x");
-            puts_hex(target);
-            puts_str(" -> 0x");
-            puts_hex(value);
-            puts_str("\n");
+            /* P4 fix: was putting verbose per-reloc info here. */
             continue;
         }
 
@@ -285,29 +281,7 @@ static void process_relocations(elf64_rela *rela, unsigned long count,
                 value = (unsigned long)rela[k].r_addend;
             }
             *((unsigned long *)target) = value;
-            puts_str("ld.so: reloc type ");
-            /* print type as decimal digit(s); for our cases types are
-             * single digit (1/5/6/7), but be robust up to two digits. */
-            {
-                char tbuf[4];
-                int ti = 0;
-                unsigned long t = rtype;
-                if (t == 0) { tbuf[ti++] = '0'; }
-                while (t > 0 && ti < 3) {
-                    tbuf[ti++] = (char)('0' + (t % 10));
-                    t /= 10;
-                }
-                /* reverse into out */
-                int x;
-                for (x = ti - 1; x >= 0; x--) {
-                    sys_write(1, &tbuf[x], 1);
-                }
-            }
-            puts_str(" at 0x");
-            puts_hex(target);
-            puts_str(" -> 0x");
-            puts_hex(value);
-            puts_str("\n");
+            /* P4 fix: was putting verbose per-reloc info here. */
             continue;
         }
 
@@ -335,26 +309,7 @@ static void process_relocations(elf64_rela *rela, unsigned long count,
             for (b = 0; b < sym_size; b++) {
                 dst[b] = sp[b];
             }
-            puts_str("ld.so: reloc type 5 at 0x");
-            puts_hex(target);
-            puts_str(" -> 0x");
-            puts_hex(value);
-            puts_str(" (copied ");
-            {
-                char nbuf[16];
-                int ni = 0;
-                unsigned long t = sym_size;
-                if (t == 0) { nbuf[ni++] = '0'; }
-                while (t > 0 && ni < 15) {
-                    nbuf[ni++] = (char)('0' + (t % 10));
-                    t /= 10;
-                }
-                int x;
-                for (x = ni - 1; x >= 0; x--) {
-                    sys_write(1, &nbuf[x], 1);
-                }
-            }
-            puts_str(" bytes)\n");
+            /* P4 fix: was putting verbose COPY info here. */
             continue;
         }
 
@@ -501,8 +456,10 @@ struct ldso_api {
 };
 
 void _start(void) {
-    puts_str("ld.so started\n");
-    puts_str("ld.so: reading main program ELF at 0x20000000\n");
+    /* P4 fix: ld.so was printing verbose relocation info on every run
+     * (one line per relocation + several informational lines). This
+     * cluttered the console and intermixed with the main program's
+     * output. Now ld.so is silent on success and only prints on error. */
 
     /* --- Validate main ELF header at 0x20000000 --- */
     elf64_hdr *ehdr = (elf64_hdr *)MAIN_ELF_BASE;
@@ -527,9 +484,8 @@ void _start(void) {
         sys_exit2(1);
     }
     unsigned long dyn_addr = (unsigned long)main_dyn;
-    puts_str("ld.so: PT_DYNAMIC at 0x");
-    puts_hex(dyn_addr);
-    puts_str("\n");
+    /* P4 fix: silenced — was puts_str("ld.so: PT_DYNAMIC at 0x..."); */
+    (void)dyn_addr;
 
     unsigned long main_strtab_addr = 0;
     unsigned long main_symtab_addr = 0;
@@ -552,17 +508,11 @@ void _start(void) {
     for (i = 0; ; i++) {
         if (main_dyn[i].tag == DT_NULL) break;
         if (main_dyn[i].tag == DT_NEEDED) {
-            const char *name =
-                (const char *)(main_strtab_addr + main_dyn[i].val);
-            puts_str("ld.so: DT_NEEDED: ");
-            puts_str(name);
-            puts_str("\n");
+            /* P4 fix: silenced — was puts_str("ld.so: DT_NEEDED: <name>"); */
             needed_count++;
         }
     }
-    if (needed_count == 0) {
-        puts_str("ld.so: (no DT_NEEDED entries)\n");
-    }
+    /* P4 fix: silenced — was puts_str("ld.so: (no DT_NEEDED entries)"); */
 
     /* --- Validate libfoo.so at 0x30000000 --- */
     elf64_hdr *libfoo_ehdr = (elf64_hdr *)LIBFOO_BASE;
@@ -584,9 +534,7 @@ void _start(void) {
         puts_str("ld.so: libfoo.so has invalid phoff\n");
         sys_exit2(1);
     }
-    puts_str("ld.so: libfoo.so loaded at 0x");
-    puts_hex(LIBFOO_BASE);
-    puts_str("\n");
+    /* P4 fix: silenced — was puts_str("ld.so: libfoo.so loaded at 0x..."); */
 
     /* --- Parse libfoo.so .dynamic -> DT_SYMTAB / DT_STRTAB --- */
     elf64_dyn *libfoo_dyn = find_dynamic(libfoo_ehdr, LIBFOO_BASE);
@@ -618,42 +566,21 @@ void _start(void) {
     g_libfoo_base = LIBFOO_BASE;
     g_libfoo_symtab = libfoo_symtab_addr;
     g_libfoo_strtab = libfoo_strtab_addr;
-    puts_str("ld.so: libfoo.so .dynsym at 0x");
-    puts_hex(libfoo_symtab_addr);
-    puts_str("\n");
-    puts_str("ld.so: libfoo.so .dynstr at 0x");
-    puts_hex(libfoo_strtab_addr);
-    puts_str("\n");
+    /* P4 fix: silenced — was puts_str("ld.so: libfoo.so .dynsym at 0x...");
+     * was puts_str("ld.so: libfoo.so .dynstr at 0x..."); */
 
     /* --- Process libfoo.so's .rela.dyn (base = LIBFOO_BASE) --- */
     if (libfoo_rela_addr_vaddr != 0 && libfoo_relasz != 0) {
         elf64_rela *libfoo_rela =
             (elf64_rela *)(LIBFOO_BASE + libfoo_rela_addr_vaddr);
         unsigned long libfoo_rela_count = libfoo_relasz / 24;
-        puts_str("ld.so: libfoo.so .rela.dyn at 0x");
-        puts_hex((unsigned long)libfoo_rela);
-        puts_str(" (");
-        {
-            char nbuf[16];
-            int ni = 0;
-            unsigned long t = libfoo_rela_count;
-            if (t == 0) { nbuf[ni++] = '0'; }
-            while (t > 0 && ni < 15) {
-                nbuf[ni++] = (char)('0' + (t % 10));
-                t /= 10;
-            }
-            int x;
-            for (x = ni - 1; x >= 0; x--) {
-                sys_write(1, &nbuf[x], 1);
-            }
-        }
-        puts_str(" entries)\n");
+        /* P4 fix: silenced — was puts_str("ld.so: libfoo.so .rela.dyn at 0x..."); */
         process_relocations(libfoo_rela, libfoo_rela_count, LIBFOO_BASE,
                             libfoo_symtab_addr, libfoo_strtab_addr,
                             LIBFOO_BASE, libfoo_symtab_addr,
                             libfoo_strtab_addr);
     } else {
-        puts_str("ld.so: libfoo.so has no .rela.dyn\n");
+        /* P4 fix: silenced — was puts_str("ld.so: libfoo.so has no .rela.dyn"); */
     }
 
     /* --- Process main's .rela.dyn (if DT_RELA present) --- */
@@ -672,30 +599,13 @@ void _start(void) {
             elf64_rela *main_rela =
                 (elf64_rela *)(MAIN_ELF_BASE + main_rela_vaddr);
             unsigned long main_rela_count = main_relasz / 24;
-            puts_str("ld.so: main .rela.dyn at 0x");
-            puts_hex((unsigned long)main_rela);
-            puts_str(" (");
-            {
-                char nbuf[16];
-                int ni = 0;
-                unsigned long t = main_rela_count;
-                if (t == 0) { nbuf[ni++] = '0'; }
-                while (t > 0 && ni < 15) {
-                    nbuf[ni++] = (char)('0' + (t % 10));
-                    t /= 10;
-                }
-                int x;
-                for (x = ni - 1; x >= 0; x--) {
-                    sys_write(1, &nbuf[x], 1);
-                }
-            }
-            puts_str(" entries)\n");
+            /* P4 fix: silenced — was puts_str("ld.so: main .rela.dyn at 0x..."); */
             process_relocations(main_rela, main_rela_count, MAIN_ELF_BASE,
                                 main_symtab_addr, main_strtab_addr,
                                 LIBFOO_BASE, libfoo_symtab_addr,
                                 libfoo_strtab_addr);
         } else {
-            puts_str("ld.so: (no .rela.dyn)\n");
+            /* P4 fix: silenced — was puts_str("ld.so: (no .rela.dyn)"); */
         }
     }
 
@@ -715,30 +625,13 @@ void _start(void) {
             elf64_rela *main_plt =
                 (elf64_rela *)(MAIN_ELF_BASE + main_jmprel_vaddr);
             unsigned long main_plt_count = main_pltrelsz / 24;
-            puts_str("ld.so: main .rela.plt at 0x");
-            puts_hex((unsigned long)main_plt);
-            puts_str(" (");
-            {
-                char nbuf[16];
-                int ni = 0;
-                unsigned long t = main_plt_count;
-                if (t == 0) { nbuf[ni++] = '0'; }
-                while (t > 0 && ni < 15) {
-                    nbuf[ni++] = (char)('0' + (t % 10));
-                    t /= 10;
-                }
-                int x;
-                for (x = ni - 1; x >= 0; x--) {
-                    sys_write(1, &nbuf[x], 1);
-                }
-            }
-            puts_str(" entries)\n");
+            /* P4 fix: silenced — was puts_str("ld.so: main .rela.plt at 0x..."); */
             process_relocations(main_plt, main_plt_count, MAIN_ELF_BASE,
                                 main_symtab_addr, main_strtab_addr,
                                 LIBFOO_BASE, libfoo_symtab_addr,
                                 libfoo_strtab_addr);
         } else {
-            puts_str("ld.so: (no .rela.plt)\n");
+            /* P4 fix: silenced — was puts_str("ld.so: (no .rela.plt)"); */
         }
     }
 
@@ -748,17 +641,13 @@ void _start(void) {
         api->dlopen  = ldso_dlopen;
         api->dlsym   = ldso_dlsym;
         api->dlclose = ldso_dlclose;
-        puts_str("ld.so: API table installed at 0x");
-        puts_hex(LDSO_API_TABLE_ADDR);
-        puts_str("\n");
+        /* P4 fix: silenced — was puts_str("ld.so: API table installed at 0x..."); */
     }
 
     /* --- Jump to main entry --- */
     {
         unsigned long main_entry = MAIN_ELF_BASE + ehdr->entry;
-        puts_str("ld.so: jumping to main entry at 0x");
-        puts_hex(main_entry);
-        puts_str("\n");
+        /* P4 fix: silenced — was puts_str("ld.so: jumping to main entry at 0x..."); */
         __asm__ volatile (
             "jmp *%0\n"
             : : "r"(main_entry)

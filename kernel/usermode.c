@@ -620,8 +620,9 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
      * Batch 2 does all three. The ld.so itself only prints a banner
      * and exits (real dynamic linking is later batches). */
     if (hdr->type == 3 /* ET_DYN */) {
-        oc_console_puts("ET_DYN detected\n");
-        oc_console_puts("dynlink: dynamic ELF, requires ld.so (WP-08b)\n");
+        /* P4 fix: silenced success-path messages — was printing "ET_DYN detected",
+         * "dynlink: dynamic ELF, requires ld.so", etc. on every dynamic load.
+         * Now silent on success; only error messages are printed. */
 
         /* Parse program headers looking for PT_INTERP (type == 3). */
         elf64_phdr_t *phdr = (elf64_phdr_t*)(elf_data + hdr->phoff);
@@ -638,15 +639,10 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
             break;
         }
         if (!interp_path) {
-            oc_console_puts("PT_INTERP: (not present)\n");
+            oc_console_puts("dynlink: PT_INTERP not present\n");
             return -1;
         }
-        /* Print the path byte-by-byte (freestanding kernel: no printf %s). */
-        oc_console_puts("PT_INTERP: ");
-        for (u64 i = 0; i < interp_path_len && interp_path[i] != '\0'; i++) {
-            oc_console_putc(interp_path[i]);
-        }
-        oc_console_putc('\n');
+        /* P4 fix: silenced — was printing the PT_INTERP path here. */
 
         /* Look up the embedded ld.so ELF by interpreter path. */
         u64 ldso_size = 0;
@@ -673,11 +669,9 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         /* Find ld.so's first PT_LOAD vaddr — this is the "load base"
          * we report to the user. ld.so (ET_EXEC) is linked at 0x10000000. */
         elf64_phdr_t *ldso_phdr = (elf64_phdr_t*)(ldso_data + ldso_hdr->phoff);
-        u64 ldso_load_base = 0;
         int has_load = 0;
         for (int i = 0; i < ldso_hdr->phnum; i++) {
             if (ldso_phdr[i].type == 1 /* PT_LOAD */) {
-                ldso_load_base = ldso_phdr[i].vaddr;
                 has_load = 1;
                 break;
             }
@@ -686,15 +680,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
             oc_console_puts("dynlink: ld.so has no PT_LOAD segment\n");
             return -1;
         }
-        /* Print "mapping ld.so at <addr>" (the load base vaddr). */
-        {
-            char buf[40]; char n[20];
-            oc_strcpy(buf, "mapping ld.so at 0x");
-            oc_u64_to_hex(ldso_load_base, n, 0);  /* 0 = no minimum digit padding */
-            oc_strcpy(buf + oc_strlen(buf), n);
-            oc_strcpy(buf + oc_strlen(buf), "\n");
-            oc_console_puts(buf);
-        }
+        /* P4 fix: silenced — was printing "mapping ld.so at 0x...". */
 
         /* WP-08b Batch 3: save the main program ELF data + size so we
          * can map it to MAIN_PROG_BASE after the user address space is
@@ -706,17 +692,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         main_elf_data_orig = elf_data;
         main_elf_size_orig = elf_size;
 
-        /* Print "mapping main program ELF at <addr>" — the kernel will
-         * map the main program's PT_LOAD segments at MAIN_PROG_BASE so
-         * that ld.so can find them. */
-        {
-            char buf[40]; char n[20];
-            oc_strcpy(buf, "mapping main program ELF at 0x");
-            oc_u64_to_hex(MAIN_PROG_BASE, n, 0);
-            oc_strcpy(buf + oc_strlen(buf), n);
-            oc_strcpy(buf + oc_strlen(buf), "\n");
-            oc_console_puts(buf);
-        }
+        /* P4 fix: silenced — was printing "mapping main program ELF at 0x...". */
 
         /* WP-08b Batch 4a: the kernel also maps the embedded libfoo.so
          * to SOLIB_LIBFOO_BASE so ld.so can read its ELF header +
@@ -725,19 +701,9 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
          * For Batch 4a the kernel always maps libfoo.so unconditionally
          * (it's the only embedded .so for now). Later batches will let
          * ld.so drive the loading via DT_NEEDED + name → syscall → map. */
-        {
-            char buf[40]; char n[20];
-            oc_strcpy(buf, "mapping libfoo.so at 0x");
-            oc_u64_to_hex(SOLIB_LIBFOO_BASE, n, 0);
-            oc_strcpy(buf + oc_strlen(buf), n);
-            oc_strcpy(buf + oc_strlen(buf), "\n");
-            oc_console_puts(buf);
-        }
+        /* P4 fix: silenced — was printing "mapping libfoo.so at 0x...". */
 
-        /* Print "jumping to ld.so entry" — the kernel is now configured
-         * to jump to ldso_hdr->entry (not the main ELF's entry) when the
-         * scheduler launches this task. */
-        oc_console_puts("jumping to ld.so entry\n");
+        /* P4 fix: silenced — was printing "jumping to ld.so entry". */
 
         /* Redirect: from here on, load ld.so instead of the main program.
          * The PT_LOAD loop below will iterate ldso's program headers and

@@ -123,14 +123,33 @@ void sem_post(sem_t *sem) {
      * a waiter) so no token is ever lost — the woken waiter sees count>0
      * and decrements it. */
     tid_t to_wake = -1;
-    if (sem->num_waiters > 0) {
-        /* BUG-020 FIX: Wake in FIFO order (waiters[0] is the oldest waiter).
-         * Old code popped waiters[--num_waiters] (LIFO — last registered
-         * is woken first). Documentation says FIFO. */
-        to_wake = sem->waiters[0];
+    /* P4 fix: scan the waiter list, removing dead tids (state != BLOCKED
+     * means kthread_wake would fail anyway — they were destroyed while
+     * waiting). Old code popped waiters[0] unconditionally; if that tid
+     * was dead, kthread_wake returned -1 and the wake was lost (the token
+     * stayed in count but no real waiter was woken). Now we skip dead
+     * waiters and wake the first live one. */
+    while (sem->num_waiters > 0) {
+        /* BUG-020 FIX: Wake in FIFO order (waiters[0] is the oldest). */
+        tid_t cand = sem->waiters[0];
+        /* Shift the queue down (remove waiters[0]). */
         for (int i = 1; i < sem->num_waiters; i++)
             sem->waiters[i - 1] = sem->waiters[i];
         sem->num_waiters--;
+        /* Check if this tid is still a valid blocked task.
+         * kthread_wake returns -1 if state != BLOCKED (incl. EXITED).
+         * We can't call kthread_wake here while holding the spinlock
+         * (kthread_wake can take the ready-queue lock). So we just
+         * try the wake after unlocking — and if it fails, we retry
+         * the loop to find the next live waiter.
+         * To keep this simple, we check task state via kthread_get_task. */
+        extern task_t *kthread_get_task(tid_t);  /* sched.h */
+        task_t *t = kthread_get_task(cand);
+        if (t && t->state == TASK_BLOCKED) {
+            to_wake = cand;
+            break;
+        }
+        /* Else: dead tid, continue scanning. */
     }
     spin_unlock(&sem->lock);
     sem->post_count++;

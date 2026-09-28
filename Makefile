@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS — WP-01
+# Open Cube OS (current release: WP-08-p4)
 # File: Makefile
 #
 # Targets:
@@ -144,8 +144,8 @@ clean:
 dist: $(KERNEL_ISO)
 	mkdir -p $(DIST)
 	TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
-	SRCZIP=$(DIST)/OpenCubeOS-src-WP08-$$TIMESTAMP.zip; \
-	ISOCOPY=$(DIST)/OpenCubeOS-WP08-$$TIMESTAMP.iso; \
+	SRCZIP=$(DIST)/OpenCubeOS-src-WP08-p4-$$TIMESTAMP.zip; \
+	ISOCOPY=$(DIST)/OpenCubeOS-WP08-p4-$$TIMESTAMP.iso; \
 	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*"); \
 	cp $(KERNEL_ISO) $$ISOCOPY; \
 	echo "SRC: $$SRCZIP"; \

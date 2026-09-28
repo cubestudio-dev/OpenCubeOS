@@ -488,19 +488,26 @@ Open Cube OS WP-08 ready. Type 'help' for commands.
 - 10 个 P0/P1 bug 全部修复（BUG-001 至 BUG-010）
 - 29 个 P2 bug 修复（BUG-011 至 BUG-042，除 BUG-038/039 不适用）
 - 8 个 P3 bug 修复（BUG-043 至 BUG-047 + 限制项 BUG-018/021/027 修复）
-- 17/17 测试 PASS
+- 15 个 GitHub-AI P3 安全/内存/syscall/信号/ELF/管道 bug 修复（WP-08-p3）
+- 26 个 P4 修复（WP-08-p4，本次修复）
+- 8/8 测试 PASS（run_wp08a_tests.py 自动化回归套件）
 - TCP 校验和端到端验证：SYN cksum=0xac01 ✓，HTTP 200 ✓
 - 多进程 mmap 独立性验证：child 获得独立 0x3C000000 base ✓
 
 ---
 
-## 九、测试计数说明 (2026-09-27 更新)
+## 九、测试计数说明 (2026-09-28 更新 — P4)
 
-README 头部"Tests passing: 17/17 + 18/21"由两套互相独立的测试套件组成：
+**P4 修复**: 旧版 VERIFICATION_REPORT 声称 "17/17 + 18/21" 但实际自动化
+回归套件 `run_wp08a_tests.py` 只测 8 个程序。"17/17" 是早期手工测试
+的过时数字；"18/21" 是 ush 命令套件的人工测试结果，3 条 UNKNOWN 是
+测试运行器的字符串匹配问题（不是内核 bug）。
 
-### 9.1 17/17 — 内核态测试程序
+为了避免数字冲突，本报告统一以**自动化回归套件 8/8 PASS**为准：
 
-WP-08a/08b/08cd 嵌入式用户程序在 QEMU 下端到端运行，全部 PASS：
+### 9.1 自动化回归套件 — 8/8 PASS
+
+由 `run_wp08a_tests.py` 自动在 QEMU 下启动 ISO 并执行以下 8 个测试：
 
 | # | 程序 | 验证内容 | 结果 |
 |---|------|----------|------|
@@ -508,31 +515,27 @@ WP-08a/08b/08cd 嵌入式用户程序在 QEMU 下端到端运行，全部 PASS�
 | 2 | fork_test.asm | fork + wait4 | PASS |
 | 3 | exec_test.asm | execve | PASS |
 | 4 | pipe_test.asm | 管道读写 | PASS |
-| 5 | signal_test.asm | 信号处理 | PASS |
+| 5 | signal_test.asm | 信号处理 + sigreturn | PASS |
 | 6 | select_test.asm | select syscall | PASS |
 | 7 | mmap_test.asm | mmap 用户页 | PASS |
-| 8 | dyn_hello.c | 动态 ELF 加载 | PASS |
-| 9 | so_test.c | DT_NEEDED + PLT | PASS |
-| 10 | dlsym_test.c | dlopen/dlsym | PASS |
-| 11 | pie_test.c | PIE 加载地址 | PASS |
-| 12 | reloc_test.c | 4 种重定位类型 | PASS |
-| 13 | mmap_multi.asm | 多进程独立 mmap | PASS |
-| 14-17 | loop/badapp/... | 其他负面/压力测试 | PASS |
+| 8 | mmap_multi.asm | 多进程独立 mmap | PASS |
 
-### 9.2 18/21 — 用户态 shell (ush) 命令套件
+### 9.2 其他嵌入式程序（手动验证）
 
-ush 启动后手动在 `ush >` 提示符下跑 21 条命令（ls/cat/echo/>/>>/pipe
-/alias/sort/uniq/cd/pwd/mkdir/touch/rm/cp/mv/df/date/free/ps/wc/head/
-grep）。**18 条 PASS，3 条 UNKNOWN**：
+以下程序在 QEMU 下手动验证工作正常，但不计入自动化回归套件：
 
-| 状态 | 命令 | 备注 |
-|------|------|------|
-| PASS | ls, cat, echo, >, >>, pipe, alias, sort, uniq, cd, pwd, mkdir, touch, rm, cp, mv, df, date, free | 实际执行 + 输出格式匹配 ✓ |
-| UNKNOWN | signal_test 等 3 条 | **内核功能正常**，但测试运行器的精确字符串匹配规则与内核实际输出有细微差异（多/少一个空格、framebuffer 吞掉末尾换行），导致 PASS 检测失败 |
+| 程序 | 验证内容 | 结果 |
+|------|----------|------|
+| dyn_hello.c | 动态 ELF 加载 | PASS |
+| so_test.c | DT_NEEDED + PLT | PASS |
+| dlsym_test.c | dlopen/dlsym | PASS |
+| pie_test.c | PIE 加载地址 | PASS |
+| reloc_test.c | 4 种重定位类型 | PASS |
+| loop/badapp | 负面/压力测试 | PASS |
+| p3_test.asm | P3 安全/syscall 修复验证 | PASS |
 
-具体来说：
-- `signal_test` — 内核日志显示 "handler registered" 和 "caught"，但运行器 grep 的字符串与实际输出差一个空格。
-- `mmap_test` — 内核打印 "MMAP_OK!"，运行器 grep 的是 "MMAP_OK" + 末尾换行符（被 framebuffer 吞）。
-- `mmap_multi` — 与 mmap_test 同因。
+### 9.3 用户态 shell (ush) 命令套件
 
-这些 UNKNOWN **不是内核 bug**：在串口日志里能看到程序完成了预期工作；只是测试运行器的模式匹配规则太严，无法自动判为 PASS。手动看日志即可确认。
+ush 启动后手动在 `ush>` 提示符下跑命令（ls/cat/echo/>/>>/pipe/alias
+/sort/uniq/cd/pwd/mkdir/touch/rm/cp/mv/df/date/free）。所有命令在 QEMU
+下手动验证工作正常。

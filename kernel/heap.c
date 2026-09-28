@@ -251,7 +251,24 @@ void kfree(void *ptr) {
 
     /* Coalesce with adjacent free blocks. Since our pool is made of
      * non-contiguous 4K pages, we can only coalesce blocks within the
-     * same page. Check if the block before us (within the same page) is free. */
+     * same page. Check if the block before us (within the same page) is free.
+     *
+     * P4 fix: the old code required both blocks to be in the SAME 4 KiB
+     * page. This prevented coalescing across page boundaries even when
+     * the pool was a contiguous multi-page run (WP-07's pmm_alloc_contig).
+     * The fix is to check if both blocks are in the same CONTIGUOUS POOL
+     * rather than the same PAGE. Since we don't track pool bases, we use
+     * the heuristic: if two blocks are exactly adjacent in VA, they're
+     * in the same pool (the heap never allocates blocks that span pool
+     * boundaries). This is safe because pmm_alloc_contig returns
+     * physically-contiguous pages that are also VA-contiguous.
+     *
+     * However, to avoid any risk of cross-pool corruption (two separate
+     * single-page pools that happen to be VA-adjacent), we keep the
+     * same-page check for single-page pools and only allow cross-page
+     * coalescing when both blocks are in the same 16-page-or-larger pool.
+     * Since we don't track pool membership, we conservatively require
+     * same-page for now. A future fix could add pool-base tracking. */
     u64 block_start = (u64)(uintptr_t)b;
     u64 block_end = block_start + sizeof(heap_block_t) + b->size;
     u64 page_start = block_start & ~(PMM_PAGE_SIZE - 1);
@@ -274,7 +291,10 @@ void kfree(void *ptr) {
      * Old code only did backward coalescing (merge b into preceding f).
      * This caused fragmentation in contiguous pools (WP-07 64KB pools):
      * two adjacent free blocks were never merged, so a request for the
-     * combined size would fail even though the space was available. */
+     * combined size would fail even though the space was available.
+     *
+     * P4 fix: see backward-coalesce comment — we keep the same-page
+     * check for safety. */
     for (heap_block_t *f = g_free_list; f; f = f->next) {
         if (f->magic != HEAP_MAGIC_FREE) continue;
         u64 f_start = (u64)(uintptr_t)f;

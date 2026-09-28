@@ -25,6 +25,11 @@ typedef struct pmm_stats {
     u64 used_bytes;     /* used_pages * 4096 */
     u64 free_bytes;     /* free_pages * 4096 */
     u64 free_fragments; /* number of contiguous free runs (lower = less frag) */
+    /* P4 fix: allocation/free counters (for diagnostics + leak detection).
+     * total_allocs - total_frees should equal used_pages - reserved_pages. */
+    u64 total_allocs;   /* cumulative count of pmm_alloc_frame/pmm_alloc_contig calls that succeeded */
+    u64 total_frees;    /* cumulative count of pmm_free_frame calls */
+    u64 alloc_failures; /* cumulative count of alloc calls that returned 0 */
 } pmm_stats_t;
 
 /* Initialize PMM from multiboot2 info. Must be called before any alloc. */

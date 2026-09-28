@@ -1123,9 +1123,14 @@ static int shell_exec_segment(token_t *toks, int ntoks) {
              *   - there's a redirect to a file, OR
              *   - there's a next pipe stage. */
             int capture = (has_redir_out || !is_last) ? 1 : 0;
-            int cap_size = 16384;
+            /* P4 fix: was 16384 (16 KiB) per pipe stage — wasteful heap
+             * allocation that could fail on small heap pools. Reduced to
+             * 4 KiB (one page, matches PIPE_BUF_SIZE). For redirect-to-file,
+             * use 8 KiB (was 64 KiB — overkill for typical shell redirects).
+             * Larger outputs are truncated with a warning. */
+            int cap_size = 4096;
             if (has_redir_out) {
-                cap_size = 65536;
+                cap_size = 8192;
             }
 
             (void)background;  /* we run synchronously; & is a no-op */

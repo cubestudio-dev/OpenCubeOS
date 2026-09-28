@@ -74,6 +74,14 @@ void sched_init(void);
 /* Create a kernel thread. Returns tid >= 0, or -1 on failure. */
 tid_t kthread_create(void (*fn)(void *arg), void *arg, const char *name, int prio);
 
+/* P4 fix: Register a callback invoked when a tid is destroyed.
+ * Lets subsystems with tid waiters (sync.c's semaphores, pipe wait
+ * queues) remove the dead tid from their waiter lists, preventing
+ * slot leaks. The hook is called with interrupts OFF inside
+ * kthread_destroy, so the hook must NOT call kthread_block/yield. */
+typedef void (*tid_destroyed_hook_fn)(tid_t tid);
+void kthread_register_destroyed_hook(tid_destroyed_hook_fn fn);
+
 /* Destroy a task. Returns 0 on success. */
 int kthread_destroy(tid_t tid);
 

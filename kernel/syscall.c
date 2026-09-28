@@ -931,18 +931,22 @@ static u64 sys_poll(u64 fds_ptr, u64 nfds, u64 timeout_ms, u64 a4) {
 }
 
 static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
-    /* BUG-021 FIX: Add ALL embedded programs (was only 7 hardcoded names).
-     * argv/envp are currently ignored — the kernel's ELF loader uses
-     * embedded byte arrays, not VFS file loading. This is a design
-     * limitation: to support arbitrary path-based exec, the kernel
-     * would need vfs_open + read-ELF-from-disk support. For now,
-     * all embedded programs are available via execve. */
-    (void)argv;(void)envp;(void)a4;
+    /* P4 fix: actually USE argv (was ignored). The kernel still uses
+     * embedded ELF byte arrays (no VFS file loading yet), but argv[0]
+     * is now used to set up the user stack properly:
+     *   argc = number of argv entries
+     *   argv[] pointers (NULL-terminated)
+     *   envp[] pointers (NULL-terminated)
+     *   strings (the actual argv/envp content)
+     * RSP points to argc on entry.
+     *
+     * If argv is NULL or argv[0] is NULL, we fall back to using `path`
+     * as the program name (back-compat with old callers). */
+    (void)a4;
     /* P3-9 FIX: path is a NUL-terminated string — copy it to a local
      * kernel buffer via copy_from_user so subsequent reads can't #PF
      * on user memory mid-exec. Max 256 bytes (longer is rejected). */
     char path_buf[256];
-    /* access_ok_str already verified the path is mapped up to NUL. */
     if (!access_ok_str(path)) return (u64)-1;
     {
         const char *p = (const char*)(uintptr_t)path;
@@ -952,6 +956,35 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
         path_buf[n] = 0;
     }
     const char *name = path_buf;
+
+    /* P4 fix: if argv is provided and argv[0] is non-NULL, use argv[0]
+     * as the program name (POSIX semantics — `execv("/bin/ls", ["ls",
+     * "-l"])` should resolve to "ls"). We strip /bin/ from argv[0]
+     * the same way we do for path. */
+    char argv0_buf[256];
+    argv0_buf[0] = 0;
+    if (argv != 0 && access_ok_read(argv, sizeof(u64))) {
+        u64 argv0_ptr = *(u64*)(uintptr_t)argv;
+        if (argv0_ptr != 0 && access_ok_str(argv0_ptr)) {
+            const char *p = (const char*)(uintptr_t)argv0_ptr;
+            u64 n = 0;
+            while (n < 255 && p[n] != '\0') n++;
+            if (copy_from_user(argv0_buf, argv0_ptr, n + 1) == 0) {
+                argv0_buf[n] = 0;
+            }
+        }
+    }
+    /* If argv[0] was provided, use it as the program name. */
+    if (argv0_buf[0] != 0) {
+        /* Copy argv0_buf to path_buf (reuse the buffer). */
+        int i = 0;
+        while (i < 255 && argv0_buf[i] != 0) {
+            path_buf[i] = argv0_buf[i];
+            i++;
+        }
+        path_buf[i] = 0;
+        name = path_buf;
+    }
 
     /* Strip /bin/ prefix if present */
     if (name[0] == '/' && name[1] == 'b' && name[2] == 'i' &&
@@ -1021,9 +1054,99 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
         if (phys) vmm_map_page(proc->as, vaddr, phys, VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
     }
     proc->entry_point = hdr->entry;
-    proc->user_rsp = USER_STACK_TOP - 16;
     proc->brk = USER_BRK_BASE;
     proc->is_fork_child = 0;
+
+    /* P4 fix: build a proper user stack with argc + argv[] + envp[].
+     * Layout (top to bottom, RSP grows down):
+     *   [strings area]     <- strings for argv and envp, packed
+     *   [envp ptrs]        <- NULL-terminated array of u64 pointers
+     *   [argv ptrs]        <- NULL-terminated array of u64 pointers
+     *   argc (u64)         <- RSP points here on entry
+     *
+     * We compute the total size needed, allocate from the top of the
+     * stack downward, and set proc->user_rsp to point at argc. */
+    u64 rsp = USER_STACK_TOP;
+    /* Count argv entries and copy strings. */
+    int argc = 0;
+    u64 argv_str_addrs[32];  /* max 32 argv entries */
+    u64 envp_str_addrs[32]; /* max 32 envp entries */
+    int envc = 0;
+    /* Copy argv strings to top of stack (growing down). */
+    if (argv != 0) {
+        for (int a = 0; a < 32; a++) {
+            u64 entry_ptr = argv + (u64)a * sizeof(u64);
+            if (!access_ok_read(entry_ptr, sizeof(u64))) break;
+            u64 str_ptr = *(u64*)(uintptr_t)entry_ptr;
+            if (str_ptr == 0) break;  /* NULL terminator */
+            if (!access_ok_str(str_ptr)) break;
+            /* Find string length. */
+            const char *sp = (const char*)(uintptr_t)str_ptr;
+            int slen = 0;
+            while (slen < 256 && sp[slen] != 0) slen++;
+            /* Copy to stack: rsp -= slen+1, then write. */
+            rsp -= (u64)slen + 1;
+            /* The stack page is mapped + writable + user-accessible. */
+            char *dst = (char*)(uintptr_t)rsp;
+            for (int j = 0; j < slen; j++) dst[j] = sp[j];
+            dst[slen] = 0;
+            argv_str_addrs[argc++] = rsp;
+        }
+    }
+    if (argc == 0) {
+        /* Fallback: use path as argv[0]. */
+        int slen = 0;
+        while (slen < 255 && path_buf[slen] != 0) slen++;
+        rsp -= (u64)slen + 1;
+        char *dst = (char*)(uintptr_t)rsp;
+        for (int j = 0; j < slen; j++) dst[j] = path_buf[j];
+        dst[slen] = 0;
+        argv_str_addrs[argc++] = rsp;
+    }
+    /* Copy envp strings to stack. */
+    if (envp != 0) {
+        for (int e = 0; e < 32; e++) {
+            u64 entry_ptr = envp + (u64)e * sizeof(u64);
+            if (!access_ok_read(entry_ptr, sizeof(u64))) break;
+            u64 str_ptr = *(u64*)(uintptr_t)entry_ptr;
+            if (str_ptr == 0) break;
+            if (!access_ok_str(str_ptr)) break;
+            const char *sp = (const char*)(uintptr_t)str_ptr;
+            int slen = 0;
+            while (slen < 256 && sp[slen] != 0) slen++;
+            rsp -= (u64)slen + 1;
+            char *dst = (char*)(uintptr_t)rsp;
+            for (int j = 0; j < slen; j++) dst[j] = sp[j];
+            dst[slen] = 0;
+            envp_str_addrs[envc++] = rsp;
+        }
+    }
+    /* Align RSP to 16 bytes (ABI requirement). */
+    rsp &= ~0xFFULL;
+    /* Push envp[] pointer array (NULL-terminated). */
+    rsp -= sizeof(u64);  /* NULL terminator */
+    *(u64*)(uintptr_t)rsp = 0;
+    for (int i = envc - 1; i >= 0; i--) {
+        rsp -= sizeof(u64);
+        *(u64*)(uintptr_t)rsp = envp_str_addrs[i];
+    }
+    u64 envp_array_addr = rsp;
+    /* Push argv[] pointer array (NULL-terminated). */
+    rsp -= sizeof(u64);  /* NULL terminator */
+    *(u64*)(uintptr_t)rsp = 0;
+    for (int i = argc - 1; i >= 0; i--) {
+        rsp -= sizeof(u64);
+        *(u64*)(uintptr_t)rsp = argv_str_addrs[i];
+    }
+    u64 argv_array_addr = rsp;
+    /* Push argc. */
+    rsp -= sizeof(u64);
+    *(u64*)(uintptr_t)rsp = (u64)argc;
+    /* RSP now points at argc. argv_array_addr is at RSP+8, envp at the
+     * appropriate offset. The user's _start can read argc from (RSP),
+     * argv from (RSP+8), envp from (RSP+8 + (argc+1)*8). */
+    (void)argv_array_addr; (void)envp_array_addr;
+    proc->user_rsp = rsp;
     kthread_set_cr3(proc->tid, proc->as);
     __asm__ volatile("mov %0, %%cr3" :: "r"(proc->as) : "memory");
     enter_ring3(proc->entry_point, proc->user_rsp, proc->as);
