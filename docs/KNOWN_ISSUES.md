@@ -10,23 +10,17 @@ and plan.
 
 ## 1. Unfixed Bugs (Technical Reasons)
 
-### 1.1 ush pipe with certain builtins is non-deterministic
-- **Description**: `echo abc | cat` sometimes produces no output. `echo abc | grep abc` usually works but can also fail. `cat file | grep pattern` works more reliably.
+### 1.1 heaptest command hangs
+- **Description**: `heaptest` command (kernel shell) hangs — never returns to the prompt.
+- **Impact**: Cannot run heaptest to verify heap overhead.
+- **Cause**: The heaptest command does 100 kmalloc/kfree cycles. Somewhere in the cycle, a kfree coalesces two blocks incorrectly (or a kmalloc finds a corrupted block), causing an infinite loop in the free-list traversal. The exact root cause is in the heap coalescing logic — the same-page check combined with the contiguous-pool layout causes edge cases at page boundaries.
+- **Plan**: Rewrite the heap with a slab allocator or a buddy allocator that doesn't have coalescing edge cases.
+
+### 1.2 ush pipe with certain builtins is non-deterministic
+- **Description**: `echo abc | cat` sometimes produces no output. `echo abc | grep abc` usually works but can also fail.
 - **Impact**: Pipe commands in ush may silently produce no output.
-- **Cause**: Race condition in the fork+pipe mechanism. The producer child (echo/cat) may exit before the consumer child (cat/grep) is scheduled. When the producer exits, `user_process_reap_resources` closes all pipe fds, decrementing `writer_count`. If `writer_count` reaches 0 before the consumer reads, the consumer gets EOF immediately. The pipe buffer data IS preserved (pipe slots are not freed on close), but the consumer may read 0 bytes if the scheduler hasn't run the consumer yet.
-- **Plan**: Redesign the pipe lifecycle: (a) don't decrement writer_count on child exit until the parent explicitly closes the pipe, or (b) use a reference-counted pipe that persists until ALL references are closed, or (c) add a `pipe_notransfer` flag that keeps the pipe alive until sys_wait4 reaps the child.
-
-### 1.2 Heap cross-page coalescing not implemented
-- **Description**: `kfree` only coalesces adjacent free blocks within the same 4 KiB page. Blocks in different pages of the same contiguous pool are not merged.
-- **Impact**: Heap fragmentation in multi-page pools. A large allocation may fail even though the total free space is sufficient.
-- **Cause**: The heap doesn't track pool base addresses. It can't distinguish "two blocks in the same contiguous pool" from "two blocks in separate single-page pools that happen to be VA-adjacent."
-- **Plan**: Add a pool-base registry (`g_pool_bases[]`) that `kfree` can check to determine if two adjacent blocks are in the same pool.
-
-### 1.3 execve doesn't handle BSS (memsz > filesz)
-- **Description**: `sys_execve` maps PT_LOAD segments using only `filesz`, ignoring `memsz`. BSS pages (the difference) are not allocated.
-- **Impact**: Programs loaded via execve that have BSS data will page-fault when accessing BSS variables. (Currently mitigated because ush's pipe children inherit BSS from the parent via fork, not execve.)
-- **Cause**: The `sys_execve` implementation was written before BSS handling was added to `user_process_create`. The BSS-handling code was not backported.
-- **Plan**: Copy the BSS-handling loop from `user_process_create` into `sys_execve`.
+- **Cause**: Race condition in the fork+pipe mechanism. The producer child may exit before the consumer child is scheduled. When the producer exits, `user_process_reap_resources` closes pipe fds, decrementing `writer_count`. If `writer_count` reaches 0 before the consumer reads, the consumer gets EOF immediately.
+- **Plan**: Use deferred pipe close — don't close pipe fds until sys_wait4 reaps the child.
 
 ## 2. Design Limitations (With Rationale)
 

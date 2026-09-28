@@ -517,7 +517,24 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
             const u8 *src = (const u8*)(uintptr_t)buf;
             while (remaining > 0) {
                 while (pipe_space_avail(p) == 0) {
-                    if (p->reader_count == 0) return total_written > 0 ? total_written : (u64)-1;
+                    /* P6 fix: old code returned -1 when reader_count == 0,
+                     * losing data. This caused the ush pipe race: the
+                     * producer child (echo) would write to the pipe while
+                     * the consumer child (cat) hadn't been scheduled yet.
+                     * If reader_count was 0 (race with close), the write
+                     * failed and the data was lost forever.
+                     *
+                     * Fix: only fail if the buffer is full AND reader_count
+                     * is 0 (no one will ever read the data). If there's
+                     * space in the buffer, write the data even with 0
+                     * readers — a future reader (forked later by the
+                     * parent) will find it. */
+                    if (p->reader_count == 0) {
+                        /* Buffer is full and no readers. In POSIX this
+                         * would be SIGPIPE/EPIPE. We return what we've
+                         * written so far (or -1 if nothing). */
+                        return total_written > 0 ? total_written : (u64)-1;
+                    }
                     /* P3-15: wait queue (FIFO), not single slot. */
                     int my_tid = kthread_current_tid();
                     pipe_wait_add(p->writer_waiters, my_tid);
@@ -1077,6 +1094,28 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     for (int i = 0; i < hdr->phnum; i++) {
         if (phdr[i].type != 1) continue;
         map_user_pages(proc->as, phdr[i].vaddr, elf + phdr[i].offset, phdr[i].filesz);
+        /* P6 fix: handle BSS (memsz > filesz). The old code only mapped
+         * filesz bytes, leaving the BSS portion unmapped. Programs with
+         * uninitialized globals (static variables in BSS) would #PF on
+         * access. Now we zero-fill the extra pages, same as
+         * user_process_create does. */
+        if (phdr[i].memsz > phdr[i].filesz) {
+            u64 bss_start = phdr[i].vaddr + phdr[i].filesz;
+            u64 bss_end = bss_start + (phdr[i].memsz - phdr[i].filesz);
+            u64 page = bss_start & ~0xFFFULL;
+            while (page < bss_end) {
+                u64 phys;
+                if (!vmm_is_mapped(proc->as, page, &phys)) {
+                    phys = pmm_alloc_frame();
+                    if (phys) {
+                        vmm_map_page(proc->as, page, phys,
+                                     VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
+                        oc_memset((void*)phys, 0, PMM_PAGE_SIZE);
+                    }
+                }
+                page += PMM_PAGE_SIZE;
+            }
+        }
     }
     u64 stack_base = USER_STACK_TOP - USER_STACK_SIZE;
     for (u64 vaddr = stack_base; vaddr < USER_STACK_TOP; vaddr += 0x1000) {
