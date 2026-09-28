@@ -2930,15 +2930,220 @@ int cmd_ip(const char *args) {
 }
 
 int cmd_route(const char *args) {
-    (void)args;
-    char buf[80]; char ipstr[20];
+    char buf[120]; char ipstr[20];
+    /* WP-09: show full routing table + support add/del */
+    if (args[0] == 'a' && args[1] == 'd' && args[2] == 'd') {
+        /* route add <dst> <mask> <gw> */
+        /* Parse: route add 10.0.0.0 255.0.0.0 10.0.2.2 */
+        const char *p = args + 4;
+        while (*p == ' ') p++;
+        u32 dst = parse_ip(p);
+        while (*p && *p != ' ') p++;
+        while (*p == ' ') p++;
+        u32 mask = parse_ip(p);
+        while (*p && *p != ' ') p++;
+        while (*p == ' ') p++;
+        u32 gw = parse_ip(p);
+        if (dst == 0 && mask == 0) {
+            oc_console_puts("usage: route add <dst> <mask> <gw>\n");
+            return 1;
+        }
+        if (route_add(dst, mask, gw) == 0) {
+            oc_console_puts("route added\n");
+        } else {
+            oc_console_puts("route table full\n");
+        }
+        return 0;
+    }
+    if (args[0] == 'd' && args[1] == 'e' && args[2] == 'l') {
+        const char *p = args + 4;
+        while (*p == ' ') p++;
+        u32 dst = parse_ip(p);
+        while (*p && *p != ' ') p++;
+        while (*p == ' ') p++;
+        u32 mask = parse_ip(p);
+        route_del(dst, mask);
+        oc_console_puts("route deleted\n");
+        return 0;
+    }
+    /* Show routing table */
     oc_console_puts("Routing table:\n");
+    /* Default route */
     ipstr[0] = 0; format_ip(0, ipstr);
-    oc_strcpy(buf, "  dst="); oc_strcat(buf, ipstr);
+    oc_strcpy(buf, "  "); oc_strcat(buf, ipstr);
     oc_strcat(buf, " mask=0.0.0.0 gw=");
     ipstr[0] = 0; format_ip(g_gateway, ipstr);
     oc_strcat(buf, ipstr); oc_strcat(buf, " (default)\n");
     oc_console_puts(buf);
+    /* WP-09: show route table entries */
+    route_entry_t routes[16];
+    int n = route_list(routes, 16);
+    for (int i = 0; i < n; i++) {
+        ipstr[0] = 0; format_ip(routes[i].dst, ipstr);
+        oc_strcpy(buf, "  dst="); oc_strcat(buf, ipstr);
+        oc_strcat(buf, " mask=");
+        ipstr[0] = 0; format_ip(routes[i].mask, ipstr);
+        oc_strcat(buf, ipstr);
+        oc_strcat(buf, " gw=");
+        ipstr[0] = 0; format_ip(routes[i].gateway, ipstr);
+        oc_strcat(buf, ipstr); oc_strcat(buf, "\n");
+        oc_console_puts(buf);
+    }
+    if (n == 0) oc_console_puts("  (no custom routes)\n");
+    return 0;
+}
+
+/* WP-09: arp command — show ARP cache */
+int cmd_arp(const char *args) {
+    (void)args;
+    char buf[80]; char ipstr[20];
+    oc_console_puts("ARP cache:\n");
+    arp_entry_t entries[16];
+    int n = arp_list(entries, 16);
+    for (int i = 0; i < n; i++) {
+        ipstr[0] = 0; format_ip(entries[i].ip, ipstr);
+        oc_strcpy(buf, "  "); oc_strcat(buf, ipstr);
+        oc_strcat(buf, " -> ");
+        /* format MAC */
+        char macstr[20];
+        int mi = 0;
+        for (int j = 0; j < 6; j++) {
+            u8 b = entries[i].mac[j];
+            macstr[mi++] = "0123456789abcdef"[b >> 4];
+            macstr[mi++] = "0123456789abcdef"[b & 0xF];
+            if (j < 5) macstr[mi++] = ':';
+        }
+        macstr[mi] = 0;
+        oc_strcat(buf, macstr); oc_strcat(buf, "\n");
+        oc_console_puts(buf);
+    }
+    if (n == 0) oc_console_puts("  (cache empty)\n");
+    return 0;
+}
+
+/* WP-09: firewall command — add/del/list rules */
+int cmd_firewall(const char *args) {
+    char buf[120]; char ipstr[20];
+    if (args[0] == 0) {
+        /* List rules */
+        oc_console_puts("Firewall rules:\n");
+        nf_rule_t rules[32];
+        int n = netfilter_list_rules(rules, 32);
+        for (int i = 0; i < n; i++) {
+            oc_strcpy(buf, "  [");
+            char n2[8]; oc_u64_to_str((u64)i, n2); oc_strcat(buf, n2);
+            oc_strcat(buf, "] ");
+            oc_strcat(buf, rules[i].chain == 0 ? "INPUT " : "OUTPUT");
+            oc_strcat(buf, rules[i].action == 0 ? " ACCEPT" : " DROP");
+            if (rules[i].protocol) {
+                oc_strcat(buf, rules[i].protocol == 6 ? " tcp" :
+                                 rules[i].protocol == 17 ? " udp" : " icmp");
+            }
+            if (rules[i].port) {
+                oc_strcat(buf, " port=");
+                char p2[8]; oc_u64_to_str(rules[i].port, p2);
+                oc_strcat(buf, p2);
+            }
+            if (rules[i].src_mask) {
+                ipstr[0] = 0; format_ip(rules[i].src_ip, ipstr);
+                oc_strcat(buf, " src="); oc_strcat(buf, ipstr);
+            }
+            oc_strcat(buf, "\n");
+            oc_console_puts(buf);
+        }
+        if (n == 0) oc_console_puts("  (no rules — default ACCEPT)\n");
+        return 0;
+    }
+    if (args[0] == 'a' && args[1] == 'd' && args[2] == 'd') {
+        /* firewall add drop tcp port 80 */
+        /* Parse: firewall add <action> <proto> [port <n>] [src <ip>] */
+        const char *p = args + 4;
+        while (*p == ' ') p++;
+        u8 action = NF_ACTION_ACCEPT;
+        if (*p == 'd') { action = NF_ACTION_DROP; p += 4; }
+        else if (*p == 'a') { action = NF_ACTION_ACCEPT; p += 6; }
+        else { oc_console_puts("usage: firewall add <drop|accept> <tcp|udp|icmp> [port <n>] [src <ip>]\n"); return 1; }
+        while (*p == ' ') p++;
+        u8 proto = 0;
+        if (*p == 't') { proto = 6; p += 3; }
+        else if (*p == 'u') { proto = 17; p += 3; }
+        else if (*p == 'i') { proto = 1; p += 4; }
+        while (*p == ' ') p++;
+        u16 port = 0;
+        u32 src_ip = 0, src_mask = 0;
+        while (*p) {
+            if (*p == 'p') {
+                p += 5; /* skip "port " */
+                while (*p == ' ') p++;
+                int v = 0;
+                while (*p >= '0' && *p <= '9') { v = v*10 + (*p - '0'); p++; }
+                port = (u16)v;
+            } else if (*p == 's' && p[1] == 'r') {
+                p += 4; /* skip "src " */
+                while (*p == ' ') p++;
+                src_ip = parse_ip(p);
+                src_mask = 0xFFFFFFFF;
+                while (*p && *p != ' ') p++;
+            } else { p++; }
+            while (*p == ' ') p++;
+        }
+        if (netfilter_add_rule(NF_CHAIN_INPUT, src_ip, src_mask, 0, 0, proto, port, action) == 0) {
+            oc_console_puts("firewall rule added\n");
+        } else {
+            oc_console_puts("firewall rule table full\n");
+        }
+        return 0;
+    }
+    if (args[0] == 'd' && args[1] == 'e' && args[2] == 'l') {
+        int idx = 0;
+        const char *p = args + 4;
+        while (*p == ' ') p++;
+        while (*p >= '0' && *p <= '9') { idx = idx*10 + (*p - '0'); p++; }
+        if (netfilter_del_rule(idx) == 0) {
+            oc_console_puts("rule deleted\n");
+        } else {
+            oc_console_puts("rule not found\n");
+        }
+        return 0;
+    }
+    oc_console_puts("usage: firewall [add <drop|accept> <tcp|udp|icmp> [port <n>] [src <ip>] | del <n>]\n");
+    return 1;
+}
+
+/* WP-09: tcpstats command — show TCP reliability stats */
+int cmd_tcpstats(const char *args) {
+    (void)args;
+    char buf[120]; char n[20];
+    oc_console_puts("TCP reliability stats:\n");
+    for (int i = 0; i < TCP_MAX_CONNS; i++) {
+        tcp_conn_t *c = &g_tcp_conns[i];
+        if (!c->in_use) continue;
+        oc_strcpy(buf, "  conn[");
+        oc_u64_to_str((u64)i, n); oc_strcat(buf, n);
+        oc_strcat(buf, "] state=");
+        oc_u64_to_str((u64)c->state, n); oc_strcat(buf, n);
+        oc_strcat(buf, " cwnd=");
+        oc_u64_to_str(c->cwnd, n); oc_strcat(buf, n);
+        oc_strcat(buf, " ssthresh=");
+        oc_u64_to_str(c->ssthresh, n); oc_strcat(buf, n);
+        oc_strcat(buf, " mss=");
+        oc_u64_to_str(c->mss, n); oc_strcat(buf, n);
+        oc_strcat(buf, " rto=");
+        oc_u64_to_str(c->rto, n); oc_strcat(buf, n);
+        oc_strcat(buf, " rtx_len=");
+        oc_u64_to_str((u64)c->rtx_len, n); oc_strcat(buf, n);
+        oc_strcat(buf, " dup_acks=");
+        oc_u64_to_str((u64)c->dup_ack_count, n); oc_strcat(buf, n);
+        oc_strcat(buf, " ts=");
+        oc_strcat(buf, c->ts_enabled ? "on" : "off");
+        oc_strcat(buf, "\n");
+        oc_console_puts(buf);
+    }
+    if (TCP_MAX_CONNS == 0) oc_console_puts("  (no connections)\n");
+    /* Check if any connections exist */
+    int any = 0;
+    for (int i = 0; i < TCP_MAX_CONNS; i++) if (g_tcp_conns[i].in_use) any = 1;
+    if (!any) oc_console_puts("  (no active TCP connections)\n");
     return 0;
 }
 
@@ -3079,18 +3284,84 @@ int cmd_dhcp(const char *args) {
 
 int cmd_dns(const char *args) {
     if (!args[0]) {
-        oc_console_puts("usage: dns <name>\n");
+        oc_console_puts("usage: dns <name> [aaaa|cname]\n");
         return 1;
     }
-    char buf[80];
-    oc_strcpy(buf, "Resolving "); oc_strcat(buf, args); oc_strcat(buf, "...\n");
+    char buf[256];
+    /* WP-09: check for subcommand */
+    int do_aaaa = 0;
+    int do_cname = 0;
+    const char *name = args;
+    if (oc_strlen(args) > 5 && args[0]=='a' && args[1]=='a' && args[2]=='a' && args[3]=='a' && args[4]==' ') {
+        do_aaaa = 1; name = args + 5;
+    } else if (oc_strlen(args) > 6 && args[0]=='c' && args[1]=='n' && args[2]=='a' && args[3]=='m' && args[4]=='e' && args[5]==' ') {
+        do_cname = 1; name = args + 6;
+    }
+    oc_strcpy(buf, "Resolving "); oc_strcat(buf, name); oc_strcat(buf, "...\n");
     oc_console_puts(buf);
+
+    if (do_aaaa) {
+        /* WP-09: AAAA query */
+        u8 ipv6[16];
+        if (dns_resolve_aaaa(name, ipv6) == 0) {
+            oc_strcpy(buf, "AAAA: ");
+            /* Format IPv6 address */
+            int bi = 6;
+            for (int i = 0; i < 16; i += 2) {
+                u16 w = ((u16)ipv6[i] << 8) | ipv6[i+1];
+                char hex[8];
+                int hi = 0;
+                if (w == 0) { hex[hi++] = '0'; }
+                else {
+                    char tmp[8]; int ti = 0;
+                    while (w) { tmp[ti++] = "0123456789abcdef"[w & 0xF]; w >>= 4; }
+                    while (ti > 0) hex[hi++] = tmp[--ti];
+                }
+                hex[hi] = 0;
+                if (bi > 6) buf[bi++] = ':';
+                oc_strcpy(buf + bi, hex); bi += oc_strlen(hex);
+            }
+            buf[bi] = 0;
+            oc_strcat(buf, "\n");
+            oc_console_puts(buf);
+        } else {
+            oc_console_puts("AAAA: no IPv6 record (or timeout)\n");
+        }
+        return 0;
+    }
+    if (do_cname) {
+        /* WP-09: CNAME query */
+        char cname[256];
+        u32 ip;
+        if (dns_resolve_cname(name, cname, sizeof(cname), &ip) == 0) {
+            oc_strcpy(buf, "CNAME: "); oc_strcat(buf, cname); oc_strcat(buf, "\n");
+            oc_console_puts(buf);
+            char ipstr[20];
+            ipstr[0] = 0; format_ip(ip, ipstr);
+            oc_strcpy(buf, "A: "); oc_strcat(buf, ipstr); oc_strcat(buf, "\n");
+            oc_console_puts(buf);
+        } else {
+            oc_console_puts("CNAME: not a CNAME or resolution failed\n");
+        }
+        return 0;
+    }
+    /* Default: A record query + show CNAME if present */
     u32 ip;
-    int rc = dns_resolve(args, &ip);
-    if (rc == 0) {
+    char cname[256];
+    cname[0] = 0;
+    u32 cname_ip;
+    /* Try CNAME first to see if it's a CNAME */
+    if (dns_resolve_cname(name, cname, sizeof(cname), &cname_ip) == 0 && oc_strlen(cname) > 0 && oc_strcmp(cname, name) != 0) {
+        oc_strcpy(buf, "CNAME: "); oc_strcat(buf, cname); oc_strcat(buf, "\n");
+        oc_console_puts(buf);
+        char ipstr[20];
+        ipstr[0] = 0; format_ip(cname_ip, ipstr);
+        oc_strcpy(buf, "A: "); oc_strcat(buf, ipstr); oc_strcat(buf, "\n");
+        oc_console_puts(buf);
+    } else if (dns_resolve(name, &ip) == 0) {
         char ipstr[20];
         ipstr[0] = 0; format_ip(ip, ipstr);
-        oc_strcpy(buf, "Result: "); oc_strcat(buf, ipstr); oc_strcat(buf, "\n");
+        oc_strcpy(buf, "A: "); oc_strcat(buf, ipstr); oc_strcat(buf, "\n");
         oc_console_puts(buf);
     } else {
         oc_console_puts("DNS resolution failed (timeout)\n");
@@ -3269,7 +3540,10 @@ void net_register_shell_commands(void) {
     extern int shell_register_command(const char *name, int (*fn)(const char *), const char *help);
     shell_register_command("ifconfig", cmd_ifconfig, "show network interface info");
     shell_register_command("ip", cmd_ip, "show/set IP address");
-    shell_register_command("route", cmd_route, "show routing table");
+    shell_register_command("route", cmd_route, "show/add/del routing table (route add <dst> <mask> <gw>)");
+    shell_register_command("arp", cmd_arp, "show ARP cache");
+    shell_register_command("firewall", cmd_firewall, "show/add/del firewall rules");
+    shell_register_command("tcpstats", cmd_tcpstats, "show TCP reliability stats (cwnd, rto, etc.)");
     shell_register_command("ping", cmd_ping, "send ICMP echo (ping <host>)");
     shell_register_command("netstat", cmd_netstat, "show network statistics and sockets");
     shell_register_command("dhcp", cmd_dhcp, "get IP via DHCP");
