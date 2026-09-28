@@ -1371,8 +1371,25 @@ static void exec_pipeline(char *line) {
         return;
     }
 
-    /* Create pipes */
+    /* Create pipes
+     * P5 fix: old code had two bugs:
+     * 1. Called sys_wait4(pid) AFTER each child — deadlocked when the
+     *    producer's pipe buffer filled before the consumer was forked.
+     * 2. Closed prev_read (pipe read end) at the START of the next
+     *    iteration, BEFORE the next child was forked. This dropped
+     *    reader_count to 0, causing the producer's sys_write to fail
+     *    (writer_count > 0 but reader_count == 0 → write returns -1,
+     *    data lost).
+     *
+     * Fix: fork ALL children first (so all pipe ends are connected),
+     * close the parent's copies of all pipe fds AFTER all forks,
+     * then wait for all children. */
     int prev_read = -1;
+    long pids[8];
+    int npids = 0;
+    /* Track pipe fds the parent needs to close after all forks. */
+    int parent_close_after[16];
+    int n_parent_close = 0;
     for (int i = 0; i < nseg; i++) {
         int pipefds[2] = {0, 0};
         int has_next = (i < nseg - 1);
@@ -1395,15 +1412,31 @@ static void exec_pipeline(char *line) {
             exec_single(segments[i]);
             sys_exit2(0);
         }
-        /* Parent */
-        if (prev_read >= 0) sys_close(prev_read);
+        /* Parent: DON'T close prev_read yet — the next child needs
+         * to inherit it via fork. Close it AFTER the next fork. */
+        if (prev_read >= 0 && n_parent_close < 16) {
+            parent_close_after[n_parent_close++] = prev_read;
+        }
         if (has_next) {
-            sys_close(pipefds[1]);  /* close write end */
+            /* Close the write end in the parent — the child has it
+             * via dup2. But DON'T close the read end yet (it's prev_read
+             * for the next child). */
+            sys_close(pipefds[1]);
             prev_read = pipefds[0];
         } else {
             prev_read = -1;
         }
-        sys_wait4(pid);
+        if (pid > 0 && npids < 8) pids[npids++] = pid;
+    }
+    /* P5 fix: NOW close all parent's pipe read ends (after all children
+     * are forked). This ensures reader_count stays > 0 while producers
+     * are writing. */
+    for (int i = 0; i < n_parent_close; i++) {
+        sys_close(parent_close_after[i]);
+    }
+    /* P5 fix: wait for ALL children after all are forked. */
+    for (int i = 0; i < npids; i++) {
+        sys_wait4(pids[i]);
     }
 }
 

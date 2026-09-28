@@ -335,6 +335,30 @@ static int cmd_halt(const char *args) {
     return 0;
 }
 
+/* P5 fix: uname command — was missing from kernel shell (only existed in ush).
+ * Supports -a (all), -s (kernel name, default), -r (release), -m (machine). */
+static int cmd_uname(const char *args) {
+    int show_all = 0, show_s = 0, show_r = 0, show_m = 0;
+    if (args && args[0] == '-' && args[1]) {
+        for (int i = 1; args[i] && args[i] != ' '; i++) {
+            if (args[i] == 'a') show_all = 1;
+            else if (args[i] == 's') show_s = 1;
+            else if (args[i] == 'r') show_r = 1;
+            else if (args[i] == 'm') show_m = 1;
+        }
+    } else {
+        show_s = 1;  /* default */
+    }
+    if (show_all) {
+        oc_console_puts("Open Cube OS WP-08-p5 x86_64\n");
+        return 0;
+    }
+    if (show_s) oc_console_puts("Open Cube OS\n");
+    if (show_r) oc_console_puts("WP-08-p5\n");
+    if (show_m) oc_console_puts("x86_64\n");
+    return 0;
+}
+
 /* WP-03: mem command - physical memory stats. */
 static int cmd_mem(const char *args) {
     (void)args;
@@ -1793,6 +1817,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command("exc", cmd_exc, "run exception self-test (#DE/#UD/#PF)");
     shell_register_command("timer", cmd_timer, "register a 500ms one-shot timer");
     shell_register_command("echo", cmd_echo, "echo the text back");
+    shell_register_command("uname", cmd_uname, "print OS name (uname [-a|-s|-r|-m])");
     shell_register_command("clear", cmd_clear, "clear screen");
     shell_register_command("halt", cmd_halt, "halt the kernel");
     shell_register_command("mem", cmd_mem, "show physical memory stats");

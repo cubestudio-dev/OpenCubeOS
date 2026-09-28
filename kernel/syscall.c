@@ -110,6 +110,36 @@ static int copy_to_user(u64 dst, const void *src, u64 len) {
     return 0;
 }
 
+/* P5 fix: resolve a user-supplied path against the shell's cwd.
+ * The VFS requires absolute paths (vfs_normalize rejects paths not
+ * starting with '/'). User programs like ush pass relative paths
+ * (e.g. "test.txt") which the kernel must resolve against the cwd
+ * before passing to vfs_open/vfs_stat/vfs_readdir/etc.
+ *
+ * shell_resolve_path prepends g_cwd to relative paths and normalizes
+ * the result. We then copy the resolved absolute path into a kernel
+ * buffer so subsequent VFS calls don't touch user memory.
+ *
+ * Returns:
+ *   0 on success — `out` contains the resolved absolute path
+ *  -1 on failure — path is NULL, unmapped, or too long */
+static int resolve_user_path(u64 user_path, char *out, int out_len) {
+    if (!access_ok_str(user_path)) return -1;
+    /* First copy the user path into a local buffer. */
+    char user_buf[256];
+    {
+        const char *p = (const char*)(uintptr_t)user_path;
+        u64 n = 0;
+        while (n < 255 && p[n] != '\0') n++;
+        if (copy_from_user(user_buf, user_path, n + 1) != 0) return -1;
+        user_buf[n] = 0;
+    }
+    /* Now resolve against cwd. */
+    extern int shell_resolve_path(const char *path, char *out, int out_len);
+    if (shell_resolve_path(user_buf, out, out_len) < 0) return -1;
+    return 0;
+}
+
 /* P3-12 placeholder — real implementation arrives in Batch 4.
  * Kept as a non-static stub so the table registration works.
  * The forward declaration is moved below sys_sigaction. */
@@ -1324,10 +1354,12 @@ void syscall_wp08a_init(void) {
  * Maps to vfs_open. flags: 0=read, 1=write, 2=read+write. */
 static u64 sys_open(u64 path, u64 flags, u64 a3, u64 a4) {
     (void)a3; (void)a4;
-    /* P3-9 FIX: path is a NUL-terminated string — use access_ok_str. */
-    if (!access_ok_str(path)) return (u64)-1;
-    const char *p = (const char*)(uintptr_t)path;
-    int vfs_fd = vfs_open(p, (int)flags);
+    /* P5 fix: resolve relative paths against cwd before passing to VFS.
+     * Old code passed "test.txt" directly to vfs_open which rejected it
+     * because vfs_normalize requires absolute paths. */
+    char resolved[256];
+    if (resolve_user_path(path, resolved, sizeof(resolved)) < 0) return (u64)-1;
+    int vfs_fd = vfs_open(resolved, (int)flags);
     if (vfs_fd < 0) return (u64)-1;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
@@ -1382,11 +1414,12 @@ static u64 sys_close(u64 fd, u64 a2, u64 a3, u64 a4) {
  * of at least sizeof(vfs_stat_t) bytes. Returns 0 or -1. */
 static u64 sys_stat(u64 path, u64 stat_buf, u64 a3, u64 a4) {
     (void)a3; (void)a4;
-    /* P3-9 FIX: validate both pointers (path str + stat_buf range). */
-    if (!access_ok_str(path)) return (u64)-1;
+    /* P5 fix: resolve relative paths. */
+    char resolved[256];
+    if (resolve_user_path(path, resolved, sizeof(resolved)) < 0) return (u64)-1;
     if (!access_ok_read(stat_buf, sizeof(vfs_stat_t))) return (u64)-1;
     vfs_stat_t st;
-    if (vfs_stat((const char*)(uintptr_t)path, &st) < 0) return (u64)-1;
+    if (vfs_stat(resolved, &st) < 0) return (u64)-1;
     if (copy_to_user(stat_buf, &st, sizeof(st)) != 0) return (u64)-1;
     return 0;
 }
@@ -1395,11 +1428,12 @@ static u64 sys_stat(u64 path, u64 stat_buf, u64 a3, u64 a4) {
  * (path, index, dirent_buf) → 0 on success, -1 on end/error. */
 static u64 sys_readdir(u64 path, u64 index, u64 dirent_buf, u64 a4) {
     (void)a4;
-    /* P3-9 FIX: validate path str + dirent_buf mapping. */
-    if (!access_ok_str(path)) return (u64)-1;
+    /* P5 fix: resolve relative paths. */
+    char resolved[256];
+    if (resolve_user_path(path, resolved, sizeof(resolved)) < 0) return (u64)-1;
     if (!access_ok_read(dirent_buf, sizeof(vfs_dirent_t))) return (u64)-1;
     vfs_dirent_t e;
-    if (vfs_readdir((const char*)(uintptr_t)path, (int)index, &e) < 0)
+    if (vfs_readdir(resolved, (int)index, &e) < 0)
         return (u64)-1;
     if (copy_to_user(dirent_buf, &e, sizeof(e)) != 0) return (u64)-1;
     return 0;
@@ -1408,23 +1442,26 @@ static u64 sys_readdir(u64 path, u64 index, u64 dirent_buf, u64 a4) {
 /* SYS_MKDIR(7): create a directory. */
 static u64 sys_mkdir(u64 path, u64 a2, u64 a3, u64 a4) {
     (void)a2; (void)a3; (void)a4;
-    /* P3-9 FIX: path str — use access_ok_str. */
-    if (!access_ok_str(path)) return (u64)-1;
-    return (u64)vfs_mkdir((const char*)(uintptr_t)path);
+    /* P5 fix: resolve relative paths. */
+    char resolved[256];
+    if (resolve_user_path(path, resolved, sizeof(resolved)) < 0) return (u64)-1;
+    return (u64)vfs_mkdir(resolved);
 }
 
-/* SYS_RMDIR(8): remove a directory. */
 static u64 sys_rmdir(u64 path, u64 a2, u64 a3, u64 a4) {
     (void)a2; (void)a3; (void)a4;
-    if (!access_ok_str(path)) return (u64)-1;
-    return (u64)vfs_rmdir((const char*)(uintptr_t)path);
+    /* P5 fix: resolve relative paths. */
+    char resolved[256];
+    if (resolve_user_path(path, resolved, sizeof(resolved)) < 0) return (u64)-1;
+    return (u64)vfs_rmdir(resolved);
 }
 
-/* SYS_UNLINK(9): delete a file. */
 static u64 sys_unlink(u64 path, u64 a2, u64 a3, u64 a4) {
     (void)a2; (void)a3; (void)a4;
-    if (!access_ok_str(path)) return (u64)-1;
-    return (u64)vfs_unlink((const char*)(uintptr_t)path);
+    /* P5 fix: resolve relative paths. */
+    char resolved[256];
+    if (resolve_user_path(path, resolved, sizeof(resolved)) < 0) return (u64)-1;
+    return (u64)vfs_unlink(resolved);
 }
 
 /* SYS_WRITE2(72): fd-aware write.
