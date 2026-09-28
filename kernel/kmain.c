@@ -892,7 +892,11 @@ static int cmd_heaptest(const char *args) {
     oc_strcpy(buf+oc_strlen(buf), "\n"); oc_console_puts(buf);
 
     /* Free all. */
-    for (int i = 0; i < 100; i++) { if (ptrs[i]) kfree(ptrs[i]); }
+    for (int i = 0; i < 100; i++) {
+        if (ptrs[i]) {
+            kfree(ptrs[i]);
+        }
+    }
 
     heap_get_stats(&hs);
     oc_strcpy(buf, "  after free: alloc="); oc_u64_to_str(hs.alloc_count, n); oc_strcpy(buf+oc_strlen(buf), n);

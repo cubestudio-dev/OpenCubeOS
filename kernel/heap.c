@@ -53,9 +53,24 @@ static u64 g_total_frees = 0;
 static heap_hook_fn g_hook = NULL;
 
 /* Pool regions allocated from PMM. We track them so we could (in theory)
- * return them to PMM. Max 16 pool regions. */
+ * return them to PMM. Max 16 pool regions.
+ * P7 fix: also track pool base addresses so kfree can check if two
+ * adjacent blocks are in the same contiguous pool (for cross-page
+ * coalescing). */
 static u64 g_pool_pages[16];
+static u64 g_pool_bases[16];  /* P7: base VA of each pool (0 = single-page fallback) */
 static int g_pool_count = 0;
+
+/* P7: check if two addresses are in the same contiguous pool. */
+static int in_same_pool(u64 a1, u64 a2) {
+    for (int i = 0; i < g_pool_count; i++) {
+        u64 base = g_pool_bases[i];
+        if (base == 0) continue;  /* single-page pool — not contiguous */
+        u64 end = base + g_pool_pages[i] * PMM_PAGE_SIZE;
+        if (a1 >= base && a1 < end && a2 >= base && a2 < end) return 1;
+    }
+    return 0;
+}
 
 static void add_pool(u64 page_count) {
     if (g_pool_count >= 16) return;
@@ -81,7 +96,9 @@ static void add_pool(u64 page_count) {
             g_overhead += sizeof(heap_block_t);
             g_free_count++;
         }
-        g_pool_pages[g_pool_count++] = page_count;
+        g_pool_pages[g_pool_count] = page_count;
+        g_pool_bases[g_pool_count] = 0; /* single-page fallback */
+        g_pool_count++;
         return;
     }
     /* One big contiguous free block spanning all pages. */
@@ -96,7 +113,9 @@ static void add_pool(u64 page_count) {
     g_heap_size += page_count * PMM_PAGE_SIZE;
     g_overhead += sizeof(heap_block_t);
     g_free_count++;
-    g_pool_pages[g_pool_count++] = page_count;
+    g_pool_pages[g_pool_count] = page_count;
+    g_pool_bases[g_pool_count] = phys; /* P7: record contiguous pool base */
+    g_pool_count++;
 }
 
 void heap_init(void) {
@@ -273,38 +292,54 @@ void kfree(void *ptr) {
     u64 block_end = block_start + sizeof(heap_block_t) + b->size;
     u64 page_start = block_start & ~(PMM_PAGE_SIZE - 1);
 
+    /* P7 fix: Backward coalescing. The old code had a critical bug:
+     * the return after backward coalesce did NOT call heap_lock_release,
+     * leaving the heap spinlock locked. The next kmalloc/kfree would
+     * spin forever on heap_lock_acquire → heaptest hung after the 2nd
+     * kfree (which triggered the first backward coalesce). */
+
     /* Walk the free list looking for a block that ends right where we start. */
     for (heap_block_t *f = g_free_list; f; f = f->next) {
         if (f->magic != HEAP_MAGIC_FREE) continue;
         u64 f_end = (u64)(uintptr_t)f + sizeof(heap_block_t) + f->size;
-        if (f_end == block_start && (u64)(uintptr_t)f >= page_start) {
-            /* Coalesce: merge b into f. */
-            remove_free(b);
-            f->size += sizeof(heap_block_t) + b->size;
-            g_overhead -= sizeof(heap_block_t);
-            return;
+        if (f_end == block_start) {
+            /* P7: check same-page (for single-page pools) OR same
+             * contiguous pool (for multi-page pools, tracked by
+             * g_pool_bases). */
+            int same_page = ((u64)(uintptr_t)f & ~(PMM_PAGE_SIZE - 1)) == page_start
+                         || (u64)(uintptr_t)f >= page_start;
+            /* Actually, for backward coalesce: f is BEFORE b, so f could
+             * be on the same page or the previous page. The old check
+             * (f >= page_start) only allowed same-page. For contiguous
+             * pools, we need to also allow the previous page if both
+             * blocks are in the same pool. */
+            int same_pool = in_same_pool((u64)(uintptr_t)f, block_start);
+            if (same_page || same_pool) {
+                /* Coalesce: merge b into f. */
+                remove_free(b);
+                f->size += sizeof(heap_block_t) + b->size;
+                g_overhead -= sizeof(heap_block_t);
+                heap_lock_release(irq_flags);  /* P7 FIX: was missing! */
+                return;
+            }
         }
     }
 
-    /* BUG-012 FIX: Forward coalescing — check if the block AFTER us
-     * (within the same page) is free. If so, merge it into b.
-     * Old code only did backward coalescing (merge b into preceding f).
-     * This caused fragmentation in contiguous pools (WP-07 64KB pools):
-     * two adjacent free blocks were never merged, so a request for the
-     * combined size would fail even though the space was available.
-     *
-     * P4 fix: see backward-coalesce comment — we keep the same-page
-     * check for safety. */
+    /* Forward coalescing — check if the block AFTER us is free. */
     for (heap_block_t *f = g_free_list; f; f = f->next) {
         if (f->magic != HEAP_MAGIC_FREE) continue;
         u64 f_start = (u64)(uintptr_t)f;
-        if (f_start == block_end && (f_start & ~(PMM_PAGE_SIZE - 1)) == page_start) {
-            /* Coalesce: merge f into b. */
-            remove_free(f);
-            b->size += sizeof(heap_block_t) + f->size;
-            g_overhead -= sizeof(heap_block_t);
-            heap_lock_release(irq_flags);
-            return;
+        if (f_start == block_end) {
+            int same_page = (f_start & ~(PMM_PAGE_SIZE - 1)) == page_start;
+            int same_pool = in_same_pool(f_start, block_start);
+            if (same_page || same_pool) {
+                /* Coalesce: merge f into b. */
+                remove_free(f);
+                b->size += sizeof(heap_block_t) + f->size;
+                g_overhead -= sizeof(heap_block_t);
+                heap_lock_release(irq_flags);
+                return;
+            }
         }
     }
 
