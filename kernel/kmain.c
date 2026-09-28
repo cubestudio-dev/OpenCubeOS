@@ -13,6 +13,7 @@
 #include "types.h"
 #include "multiboot2.h"
 #include "fb.h"
+#include "crypto.h"
 #include "font.h"
 #include "console.h"
 #include "ext.h"
@@ -333,6 +334,92 @@ static int cmd_halt(const char *args) {
     __asm__ volatile("cli");
     for (;;) __asm__ volatile("hlt");
     return 0;
+}
+
+/* WP-09: cryptotest — verify AES + SHA-256 with NIST test vectors */
+static int cmd_cryptotest(const char *args) {
+    (void)args;
+    char buf[200]; char hex[20];
+    int pass = 0;
+
+    oc_console_puts("Crypto self-test (NIST vectors):\n");
+
+    /* Test 1: SHA-256("abc") = ba7816bf 8cf01e3e 5143715e 5f6e1851 ... */
+    u8 sha_result[32];
+    sha256((const u8*)"abc", 3, sha_result);
+    oc_strcpy(buf, "  SHA-256(\"abc\") = ");
+    for (int i = 0; i < 32; i++) {
+        oc_u64_to_hex(sha_result[i], hex, 2);
+        oc_strcat(buf, hex);
+    }
+    oc_strcat(buf, "\n");
+    oc_console_puts(buf);
+    /* Check first 4 bytes match ba7816bf */
+    if (sha_result[0] == 0xba && sha_result[1] == 0x78 &&
+        sha_result[2] == 0x16 && sha_result[3] == 0xbf) {
+        oc_console_puts("    SHA-256: PASS\n");
+        pass++;
+    } else {
+        oc_console_puts("    SHA-256: FAIL\n");
+    }
+
+    /* Test 2: AES-128 ECB test vector (FIPS-197 Appendix B)
+     * Key:     000102030405060708090a0b0c0d0e0f
+     * Plain:   00112233445566778899aabbccddeeff
+     * Cipher:  69c4e0d86a7b0430d8cdb78070b4c55a
+     */
+    u8 aes_key[16] = {0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
+                      0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
+    u8 aes_plain[16] = {0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,
+                        0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff};
+    u8 aes_cipher[16];
+    aes128_encrypt_block(aes_key, aes_plain, aes_cipher);
+    oc_strcpy(buf, "  AES-128(plain) = ");
+    for (int i = 0; i < 16; i++) {
+        oc_u64_to_hex(aes_cipher[i], hex, 2);
+        oc_strcat(buf, hex);
+    }
+    oc_strcat(buf, "\n");
+    oc_console_puts(buf);
+    /* Check: 69c4e0d86a7b0430d8cdb78070b4c55a */
+    if (aes_cipher[0] == 0x69 && aes_cipher[1] == 0xc4 &&
+        aes_cipher[2] == 0xe0 && aes_cipher[3] == 0xd8) {
+        oc_console_puts("    AES-128: PASS\n");
+        pass++;
+    } else {
+        oc_console_puts("    AES-128: FAIL\n");
+    }
+
+    /* Test 3: HMAC-SHA-256 test vector (RFC 4231 Test Case 1)
+     * Key: 0x0b*20, Data: "Hi There" = 4869205468657265
+     * Expected HMAC: b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da7...
+     */
+    u8 hmac_key[20];
+    for (int i = 0; i < 20; i++) hmac_key[i] = 0x0b;
+    u8 hmac_result[32];
+    hmac_sha256(hmac_key, 20, (const u8*)"Hi There", 8, hmac_result);
+    oc_strcpy(buf, "  HMAC-SHA256 = ");
+    for (int i = 0; i < 8; i++) {
+        oc_u64_to_hex(hmac_result[i], hex, 2);
+        oc_strcat(buf, hex);
+    }
+    oc_strcat(buf, "...\n");
+    oc_console_puts(buf);
+    /* Check first 4 bytes: b0344c61 */
+    if (hmac_result[0] == 0xb0 && hmac_result[1] == 0x34 &&
+        hmac_result[2] == 0x4c && hmac_result[3] == 0x61) {
+        oc_console_puts("    HMAC-SHA256: PASS\n");
+        pass++;
+    } else {
+        oc_console_puts("    HMAC-SHA256: FAIL\n");
+    }
+
+    oc_strcpy(buf, "  ");
+    oc_u64_to_str((u64)pass, hex);
+    oc_strcat(buf, hex);
+    oc_strcat(buf, "/3 tests passed\n");
+    oc_console_puts(buf);
+    return (pass == 3) ? 0 : 1;
 }
 
 /* P5 fix: uname command — was missing from kernel shell (only existed in ush).
@@ -1822,6 +1909,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command("timer", cmd_timer, "register a 500ms one-shot timer");
     shell_register_command("echo", cmd_echo, "echo the text back");
     shell_register_command("uname", cmd_uname, "print OS name (uname [-a|-s|-r|-m])");
+    shell_register_command("cryptotest", cmd_cryptotest, "test AES/SHA-256/HMAC with NIST vectors");
     shell_register_command("clear", cmd_clear, "clear screen");
     shell_register_command("halt", cmd_halt, "halt the kernel");
     shell_register_command("mem", cmd_mem, "show physical memory stats");
