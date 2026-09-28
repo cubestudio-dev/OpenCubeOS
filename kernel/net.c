@@ -2404,6 +2404,11 @@ typedef struct __attribute__((packed)) {
 
 static u32 g_dns_result_ip = 0;
 static int g_dns_got_response = 0;
+/* WP-09: DNS CNAME + AAAA support */
+static u8  g_dns_result_aaaa[16];  /* IPv6 address */
+static int g_dns_got_aaaa = 0;
+static char g_dns_cname[256];      /* CNAME target */
+static int g_dns_got_cname = 0;
 
 static void dns_handler(u32 src_ip, u16 src_port, const void *data, int len) {
     (void)src_ip;
@@ -2445,10 +2450,46 @@ static void dns_handler(u32 src_ip, u16 src_port, const void *data, int len) {
         if (p + rdlen > end) return;  /* P1-14: bounds */
         if (type == 1 && rdlen == 4) {
             /* A record. */
-            if (p + 4 > end) return;  /* P1-14: bounds */
+            if (p + 4 > end) return;
             g_dns_result_ip = ntohl(*(u32 *)p);
             g_dns_got_response = 1;
-            return;
+        } else if (type == 28 && rdlen == 16) {
+            /* WP-09: AAAA record (IPv6). */
+            if (p + 16 > end) return;
+            oc_memcpy(g_dns_result_aaaa, p, 16);
+            g_dns_got_aaaa = 1;
+        } else if (type == 5 && rdlen > 0) {
+            /* WP-09: CNAME record — extract the target name. */
+            const u8 *rdata = p;
+            int ci = 0;
+            while (rdata < p + rdlen && rdata < end && ci < 255) {
+                if (*rdata & 0xC0) {
+                    /* Compression pointer — follow it. */
+                    u16 offset = ((u16)(*rdata & 0x3F) << 8) | *(rdata + 1);
+                    const u8 *ptr = (const u8 *)data + offset;
+                    if (ptr >= (const u8 *)data && ptr < end) {
+                        while (ptr < end && *ptr != 0 && ci < 255) {
+                            if (*ptr & 0xC0) break;
+                            int lablen = *ptr;
+                            if (ci > 0) g_dns_cname[ci++] = '.';
+                            for (int l = 0; l < lablen && ci < 255 && ptr + 1 + l < end; l++)
+                                g_dns_cname[ci++] = ptr[1 + l];
+                            ptr += lablen + 1;
+                        }
+                    }
+                    break;
+                } else if (*rdata == 0) {
+                    break;
+                } else {
+                    int lablen = *rdata;
+                    if (ci > 0) g_dns_cname[ci++] = '.';
+                    for (int l = 0; l < lablen && ci < 255 && rdata + 1 + l < end; l++)
+                        g_dns_cname[ci++] = rdata[1 + l];
+                    rdata += lablen + 1;
+                }
+            }
+            g_dns_cname[ci] = 0;
+            g_dns_got_cname = 1;
         }
         p += rdlen;
     }
@@ -2501,6 +2542,85 @@ int dns_resolve(const char *name, u32 *ip_out) {
         net_poll();
         if (g_dns_got_response) {
             *ip_out = g_dns_result_ip;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+/* WP-09: dns_resolve_cname — resolve a CNAME chain and return the canonical name.
+ * Also resolves the final A record if available. */
+int dns_resolve_cname(const char *name, char *cname_out, int cname_len, u32 *ip_out) {
+    if (!g_nic_ok || g_dns == 0) return -1;
+    /* First do a normal A query — the response often includes CNAME records
+     * if the name is a CNAME. */
+    g_dns_got_cname = 0;
+    g_dns_got_response = 0;
+    g_dns_cname[0] = 0;
+    u32 ip;
+    if (dns_resolve(name, &ip) == 0) {
+        /* Got an A record directly. Name is not a CNAME. */
+        if (cname_len > 0) {
+            oc_strncpy(cname_out, name, cname_len - 1);
+            cname_out[cname_len - 1] = 0;
+        }
+        if (ip_out) *ip_out = ip;
+        return 0;
+    }
+    if (g_dns_got_cname && cname_out && cname_len > 0) {
+        oc_strncpy(cname_out, g_dns_cname, cname_len - 1);
+        cname_out[cname_len - 1] = 0;
+        /* Try to resolve the CNAME target */
+        if (dns_resolve(g_dns_cname, &ip) == 0) {
+            if (ip_out) *ip_out = ip;
+            return 0;
+        }
+        return 0;  /* CNAME found but no A record for target */
+    }
+    return -1;
+}
+
+/* WP-09: dns_resolve_aaaa — resolve an AAAA record (IPv6).
+ * Returns 16 bytes of IPv6 address, or -1 on failure. */
+int dns_resolve_aaaa(const char *name, u8 *ipv6_out) {
+    if (!g_nic_ok || g_dns == 0) return -1;
+
+    u8 buf[512];
+    dns_hdr_t *h = (dns_hdr_t *)buf;
+    h->id = htons(0x5678);
+    h->flags = htons(0x0100);
+    h->qdcount = htons(1);
+    h->ancount = 0; h->nscount = 0; h->arcount = 0;
+
+    u8 *q = buf + sizeof(dns_hdr_t);
+    const char *p = name;
+    while (*p) {
+        const char *dot = p;
+        while (*dot && *dot != '.') dot++;
+        int labellen = dot - p;
+        if (labellen > 63) return -1;
+        *q++ = (u8)labellen;
+        for (int i = 0; i < labellen; i++) *q++ = p[i];
+        if (*dot == '.') p = dot + 1;
+        else { p = dot; break; }
+    }
+    *q++ = 0;
+    *(u16 *)q = htons(28);  /* QTYPE = AAAA */
+    q += 2;
+    *(u16 *)q = htons(1);   /* QCLASS = IN */
+    q += 2;
+
+    int pkt_len = (int)(q - buf);
+    g_dns_got_aaaa = 0;
+    u16 dns_src_port = 2048 + DNS_PORT;
+    udp_bind(dns_src_port, dns_handler);
+    udp_send(g_dns, DNS_PORT, dns_src_port, buf, pkt_len);
+
+    u64 start = oc_timer_ticks();
+    while ((oc_timer_ticks() - start) < 500) {
+        net_poll();
+        if (g_dns_got_aaaa) {
+            if (ipv6_out) oc_memcpy(ipv6_out, g_dns_result_aaaa, 16);
             return 0;
         }
     }
