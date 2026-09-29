@@ -46,6 +46,10 @@ void hkdf_expand(const u8 *prk, int prk_len, const u8 *info, int info_len, u8 *o
 void dh_modexp(const u8 base[DH_BYTES], const u8 exp[DH_BYTES],
                const u8 mod[DH_BYTES], u8 result[DH_BYTES]);
 
+/* Generic modular exponentiation with explicit length (in bytes).
+ * Used by SSH for 2048-bit (256-byte) group 14 DH. */
+void dh_modexp_n(const u8 *base, const u8 *exp, const u8 *mod, u8 *result, int len);
+
 /* Generate random bytes (using timer + xorshift PRNG — not cryptographic, but
  * sufficient for non-production TLS/SSH in QEMU). */
 void crypto_random(u8 *buf, int len);

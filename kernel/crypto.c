@@ -448,13 +448,20 @@ static u8 bn_sub(u8 *a, const u8 *b, int len) {
  *  - result is len bytes
  * WP-09 fix: use len+1 byte remainder buffer so the shift left doesn't
  * lose the MSB (otherwise we'd compare 2m > m incorrectly when m's MSB
- * is 1, leading to wrong result like g^x mod p = 0). */
+ * is 1, leading to wrong result like g^x mod p = 0).
+ * WP-09 SSH fix: temp buffer must be 2*len bytes (was hardcoded 2*DH_BYTES=256,
+ * which overflowed when called with len=256 for SSH group14 2048-bit DH). */
 static void bn_mod(u8 *result, const u8 *a, const u8 *m, int len) {
-    u8 temp[2 * DH_BYTES];
+    /* Allocate buffers via pmm_alloc_frame to support arbitrary len
+     * (stack arrays would be too large for 256-byte = 2048-bit DH). */
+    u8 *temp = (u8 *)(uintptr_t)pmm_alloc_frame();  /* 2*len bytes */
+    u8 *rem = (u8 *)(uintptr_t)pmm_alloc_frame();    /* len+1 bytes */
+    if (!temp || !rem) {
+        if (temp) pmm_free_frame((u64)(uintptr_t)temp);
+        if (rem) pmm_free_frame((u64)(uintptr_t)rem);
+        return;
+    }
     oc_memcpy(temp, a, len * 2);
-
-    /* rem is len+1 bytes (big-endian): rem[0] = MSB overflow, rem[1..len] = current remainder */
-    u8 rem[DH_BYTES + 4];
     oc_memset(rem, 0, len + 1);
 
     for (int bit = 0; bit < len * 8 * 2; bit++) {
@@ -465,20 +472,15 @@ static void bn_mod(u8 *result, const u8 *a, const u8 *m, int len) {
             rem[i] = (u8)((rem[i] << 1) | carry);
             carry = new_carry;
         }
-        /* carry from rem[0] is discarded (it's overflow beyond len+1 bytes,
-         * but since rem < 2m at this point, it's always 0 anyway). */
 
         /* Bring in next bit of a from MSB */
         int byte_idx = bit / 8;
         int bit_idx = 7 - (bit % 8);
         if (byte_idx < len * 2 && (temp[byte_idx] >> bit_idx) & 1) {
-            rem[len] |= 1;  /* LSB of rem is at index len */
+            rem[len] |= 1;
         }
 
-        /* If rem >= m, subtract m.
-         * rem is len+1 bytes, m is len bytes (aligned to rem[1..len]).
-         * If rem[0] != 0, rem > m (because m fits in len bytes).
-         * Else compare rem[1..len] vs m[0..len-1]. */
+        /* If rem >= m, subtract m */
         int geq;
         if (rem[0] != 0) {
             geq = 1;
@@ -490,7 +492,6 @@ static void bn_mod(u8 *result, const u8 *a, const u8 *m, int len) {
             }
         }
         if (geq >= 0) {
-            /* subtract m (len bytes, aligned to rem[1..len]) */
             int borrow = 0;
             for (int i = len; i >= 1; i--) {
                 int diff = (int)rem[i] - m[i - 1] - borrow;
@@ -498,13 +499,13 @@ static void bn_mod(u8 *result, const u8 *a, const u8 *m, int len) {
                 else borrow = 0;
                 rem[i] = (u8)diff;
             }
-            /* borrow propagates into rem[0] (should always become 0) */
             rem[0] = (u8)((int)rem[0] - borrow);
         }
     }
 
-    /* Copy rem[1..len] to result[0..len-1] */
     oc_memcpy(result, rem + 1, len);
+    pmm_free_frame((u64)(uintptr_t)temp);
+    pmm_free_frame((u64)(uintptr_t)rem);
 }
 
 /* Modular exponentiation: result = base^exp mod mod
@@ -513,28 +514,42 @@ static void bn_mod(u8 *result, const u8 *a, const u8 *m, int len) {
  * acceptable as a one-time cost per session. */
 void dh_modexp(const u8 base[DH_BYTES], const u8 exp[DH_BYTES],
                const u8 mod[DH_BYTES], u8 result[DH_BYTES]) {
-    u8 r[DH_BYTES];
-    oc_memset(r, 0, DH_BYTES);
-    r[DH_BYTES - 1] = 1; /* r = 1 */
+    dh_modexp_n(base, exp, mod, result, DH_BYTES);
+}
 
-    u8 b[DH_BYTES];
-    /* b = base; reduce if >= mod */
-    oc_memcpy(b, base, DH_BYTES);
-    if (bn_cmp(b, mod, DH_BYTES) >= 0) {
-        bn_sub(b, mod, DH_BYTES);
+/* Generic modular exponentiation with explicit length (in bytes).
+ * Used by SSH for 2048-bit (256-byte) DH group 14.
+ * Allocates work buffers via pmm_alloc_frame to avoid stack overflow. */
+void dh_modexp_n(const u8 *base, const u8 *exp, const u8 *mod, u8 *result, int len) {
+    u8 *r = (u8 *)(uintptr_t)pmm_alloc_frame();     /* len bytes */
+    u8 *b = (u8 *)(uintptr_t)pmm_alloc_frame();      /* len bytes */
+    u8 *product = (u8 *)(uintptr_t)pmm_alloc_frame(); /* 2*len bytes */
+    u8 *prod2 = (u8 *)(uintptr_t)pmm_alloc_frame();   /* 2*len bytes */
+    if (!r || !b || !product || !prod2) {
+        if (r) pmm_free_frame((u64)(uintptr_t)r);
+        if (b) pmm_free_frame((u64)(uintptr_t)b);
+        if (product) pmm_free_frame((u64)(uintptr_t)product);
+        if (prod2) pmm_free_frame((u64)(uintptr_t)prod2);
+        return;
     }
 
-    u8 product[2 * DH_BYTES];
-    u8 prod2[2 * DH_BYTES];
+    oc_memset(r, 0, len);
+    r[len - 1] = 1;  /* r = 1 */
+
+    /* b = base; reduce if >= mod */
+    oc_memcpy(b, base, len);
+    if (bn_cmp(b, mod, len) >= 0) {
+        bn_sub(b, mod, len);
+    }
 
     /* Square-and-multiply: scan exp from MSB */
-    for (int i = 0; i < DH_BYTES; i++) {
+    for (int i = 0; i < len; i++) {
         for (int bit = 7; bit >= 0; bit--) {
             /* r = r^2 mod mod */
-            oc_memset(product, 0, 2 * DH_BYTES);
-            /* Schoolbook multiply: r * r → 2*DH_BYTES-byte product */
-            for (int j = DH_BYTES - 1; j >= 0; j--) {
-                for (int k = DH_BYTES - 1; k >= 0; k--) {
+            oc_memset(product, 0, 2 * len);
+            /* Schoolbook multiply: r * r → 2*len-byte product */
+            for (int j = len - 1; j >= 0; j--) {
+                for (int k = len - 1; k >= 0; k--) {
                     int prod_idx = j + k + 1;
                     u16 prod = (u16)r[j] * (u16)r[k];
                     int carry = prod;
@@ -545,13 +560,13 @@ void dh_modexp(const u8 base[DH_BYTES], const u8 exp[DH_BYTES],
                     }
                 }
             }
-            bn_mod(r, product, mod, DH_BYTES);
+            bn_mod(r, product, mod, len);
 
             /* If exp bit is set: r = r * b mod mod */
             if ((exp[i] >> bit) & 1) {
-                oc_memset(prod2, 0, 2 * DH_BYTES);
-                for (int j = DH_BYTES - 1; j >= 0; j--) {
-                    for (int k = DH_BYTES - 1; k >= 0; k--) {
+                oc_memset(prod2, 0, 2 * len);
+                for (int j = len - 1; j >= 0; j--) {
+                    for (int k = len - 1; k >= 0; k--) {
                         int prod_idx = j + k + 1;
                         u16 prod = (u16)r[j] * (u16)b[k];
                         int carry = prod;
@@ -562,10 +577,14 @@ void dh_modexp(const u8 base[DH_BYTES], const u8 exp[DH_BYTES],
                         }
                     }
                 }
-                bn_mod(r, prod2, mod, DH_BYTES);
+                bn_mod(r, prod2, mod, len);
             }
         }
     }
 
-    oc_memcpy(result, r, DH_BYTES);
+    oc_memcpy(result, r, len);
+    pmm_free_frame((u64)(uintptr_t)r);
+    pmm_free_frame((u64)(uintptr_t)b);
+    pmm_free_frame((u64)(uintptr_t)product);
+    pmm_free_frame((u64)(uintptr_t)prod2);
 }

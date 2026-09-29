@@ -542,6 +542,108 @@ static int cmd_dhtest(const char *args) {
     return (pass == 2) ? 0 : 1;
 }
 
+/* WP-09: ssh command — connect to SSH server, do KEX, print status. */
+static int cmd_ssh(const char *args) {
+    /* Parse: ssh <ip> [port] [user] [password] */
+    char host[64] = {0};
+    int port = 2222;  /* default (Python ssh server) */
+    char user[32] = "oc";
+    char pass[32] = "oc";
+    int i = 0, j = 0;
+    /* Skip leading spaces */
+    while (args[i] == ' ') i++;
+    while (args[i] && args[i] != ' ' && j < 63) host[j++] = args[i++];
+    host[j] = 0;
+    while (args[i] == ' ') i++;
+    if (args[i]) {
+        port = 0;
+        while (args[i] && args[i] >= '0' && args[i] <= '9') {
+            port = port * 10 + (args[i] - '0');
+            i++;
+        }
+        if (port == 0) port = 2222;
+        while (args[i] == ' ') i++;
+        if (args[i]) {
+            j = 0;
+            while (args[i] && args[i] != ' ' && j < 31) user[j++] = args[i++];
+            user[j] = 0;
+            while (args[i] == ' ') i++;
+            if (args[i]) {
+                j = 0;
+                while (args[i] && j < 31) pass[j++] = args[i++];
+                pass[j] = 0;
+            }
+        }
+    }
+    if (!host[0]) {
+        oc_console_puts("usage: ssh <ip> [port=2222] [user=oc] [password=oc]\n");
+        return 1;
+    }
+    /* Resolve host (IP first) */
+    u32 ip = 0;
+    /* Try parsing as IP "a.b.c.d" */
+    int a = 0, b = 0, c = 0, d = 0;
+    int ai = 0;
+    int ok = 1;
+    int parts[4] = {0, 0, 0, 0};
+    int pp = 0;
+    int cur = 0;
+    int got_digit = 0;
+    while (host[ai]) {
+        if (host[ai] >= '0' && host[ai] <= '9') {
+            cur = cur * 10 + (host[ai] - '0');
+            got_digit = 1;
+        } else if (host[ai] == '.') {
+            if (!got_digit || pp >= 3) { ok = 0; break; }
+            parts[pp++] = cur;
+            cur = 0; got_digit = 0;
+        } else {
+            ok = 0; break;
+        }
+        ai++;
+    }
+    if (ok && got_digit && pp == 3) {
+        parts[3] = cur;
+        a = parts[0]; b = parts[1]; c = parts[2]; d = parts[3];
+        if (a < 256 && b < 256 && c < 256 && d < 256) {
+            ip = ((u32)a << 24) | ((u32)b << 16) | ((u32)c << 8) | (u32)d;
+        } else ok = 0;
+    } else ok = 0;
+    if (!ok) {
+        extern int dns_resolve(const char *name, u32 *ip);
+        if (dns_resolve(host, &ip) != 0) {
+            oc_console_puts("cannot resolve host\n");
+            return 1;
+        }
+    }
+    char buf[80];
+    extern int ssh_connect(u32 ip, u16 port, const char *user, const char *pass);
+    oc_strcpy(buf, "[ssh] connecting to ");
+    /* Big-endian display */
+    char num[10];
+    oc_u64_to_str((u64)((ip >> 24) & 0xFF), num); oc_strcat(buf, num); oc_strcat(buf, ".");
+    oc_u64_to_str((u64)((ip >> 16) & 0xFF), num); oc_strcat(buf, num); oc_strcat(buf, ".");
+    oc_u64_to_str((u64)((ip >> 8) & 0xFF), num); oc_strcat(buf, num); oc_strcat(buf, ".");
+    oc_u64_to_str((u64)(ip & 0xFF), num); oc_strcat(buf, num);
+    oc_strcat(buf, ":");
+    char n[10]; oc_u64_to_str((u64)port, n); oc_strcat(buf, n);
+    oc_strcat(buf, " user="); oc_strcat(buf, user);
+    oc_strcat(buf, "\n");
+    oc_console_puts(buf);
+    int rc = ssh_connect(ip, (u16)port, user, pass);
+    if (rc == 0) {
+        oc_console_puts("[ssh] transport layer established\n");
+    } else {
+        char b2[40]; oc_strcpy(b2, "[ssh] failed (code ");
+        char num2[10]; oc_u64_to_str((u64)(-rc), num2);
+        oc_strcat(b2, num2); oc_strcat(b2, ")\n");
+        oc_console_puts(b2);
+    }
+    extern void ssh_close(void);
+    ssh_close();
+    return (rc == 0) ? 0 : 1;
+}
+
 /* P5 fix: uname command — was missing from kernel shell (only existed in ush).
  * Supports -a (all), -s (kernel name, default), -r (release), -m (machine). */
 static int cmd_uname(const char *args) {
@@ -2031,6 +2133,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command("uname", cmd_uname, "print OS name (uname [-a|-s|-r|-m])");
     shell_register_command("cryptotest", cmd_cryptotest, "test AES/SHA-256/HMAC with NIST vectors");
     shell_register_command("dhtest", cmd_dhtest, "DH modexp 1024-bit (Oakley Group 1) timing + correctness");
+    shell_register_command("ssh", cmd_ssh, "SSH client connect (ssh <ip> [port] [user] [password])");
     shell_register_command("clear", cmd_clear, "clear screen");
     shell_register_command("halt", cmd_halt, "halt the kernel");
     shell_register_command("mem", cmd_mem, "show physical memory stats");
