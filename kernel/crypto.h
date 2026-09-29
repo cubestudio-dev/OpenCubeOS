@@ -25,6 +25,12 @@
 void aes128_encrypt_block(const u8 key[16], const u8 plaintext[16], u8 ciphertext[16]);
 void aes128_ctr_encrypt(const u8 key[16], const u8 nonce[16], const u8 *in, int in_len, u8 *out);
 
+/* AES-128-CBC encrypt/decrypt (in_len must be multiple of 16).
+ * iv is 16 bytes; output is in_len bytes. For TLS 1.2, iv is the explicit
+ * per-record IV (random). For decryption, iv is the first 16 bytes of record. */
+void aes128_cbc_encrypt(const u8 key[16], const u8 iv[16], const u8 *in, int in_len, u8 *out);
+void aes128_cbc_decrypt(const u8 key[16], const u8 iv[16], const u8 *in, int in_len, u8 *out);
+
 /* ---- SHA-256 (FIPS-180-4) ---- */
 void sha256(const u8 *data, int len, u8 hash[32]);
 

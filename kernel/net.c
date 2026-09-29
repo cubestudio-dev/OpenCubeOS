@@ -2233,7 +2233,20 @@ int net_recv(int fd, void *buf, int len) {
                 int n = g_tcp_conns[conn].rx_len;
                 if (n > len) n = len;
                 oc_memcpy(buf, g_tcp_conns[conn].rx_buf, n);
-                g_tcp_conns[conn].rx_len = 0;
+                /* WP-09 fix: support partial reads — instead of clearing the
+                 * entire rx_buf, only consume n bytes by shifting the rest
+                 * forward. This lets callers do "read 5-byte header, then read
+                 * body" without losing the body bytes that arrived in the
+                 * same TCP segment. */
+                if (n < g_tcp_conns[conn].rx_len) {
+                    int remaining = g_tcp_conns[conn].rx_len - n;
+                    /* memmove the rest to the front */
+                    u8 *p = g_tcp_conns[conn].rx_buf;
+                    for (int i = 0; i < remaining; i++) p[i] = p[n + i];
+                    g_tcp_conns[conn].rx_len = remaining;
+                } else {
+                    g_tcp_conns[conn].rx_len = 0;
+                }
                 return n;
             }
         }
@@ -3394,25 +3407,58 @@ int cmd_wget(const char *args) {
                args[4]==':' && args[5]=='/' && args[6]=='/') {
         args += 7; /* skip "http://" */
     }
-    /* Parse: wget host [port] [path] */
+    /* Parse URL: host[:port][/path]   (after http:// or https:// stripped)
+     * OR:  host [port] [path]         (whitespace separated, legacy form)
+     * WP-09 fix: support host:port/path in a single arg (URL form).
+     */
     char host[64] = {0};
     int port = use_tls ? 443 : 80;
     char path[128] = "/";
     int i = 0, j = 0;
-    while (args[i] && args[i] != ' ' && j < 63) host[j++] = args[i++];
+    /* If we just stripped http(s)://, args[i] is now the host portion of a URL.
+     * Look for ':' (port) or '/' (path) or ' ' (legacy) as host terminator. */
+    int url_form = (args[i] != 0);  /* if there's any content after stripping, treat as URL form */
+    while (args[i] && j < 63) {
+        char c = args[i];
+        if (c == ':' || c == '/' || c == ' ') break;
+        host[j++] = c;
+        i++;
+    }
     host[j] = 0;
-    while (args[i] == ' ') i++;
-    if (args[i]) {
+    /* Parse optional port: ":NNN" */
+    if (args[i] == ':') {
+        i++;
         port = 0;
-        while (args[i] && args[i] >= '0' && args[i] <= '9') { port = port*10 + (args[i]-'0'); i++; }
+        while (args[i] && args[i] >= '0' && args[i] <= '9') {
+            port = port * 10 + (args[i] - '0');
+            i++;
+        }
         if (port == 0) port = use_tls ? 443 : 80;
+    }
+    /* Parse optional path: starts with '/' */
+    if (args[i] == '/') {
+        j = 0;
+        while (args[i] && j < 127) path[j++] = args[i++];
+        path[j] = 0;
+    } else if (args[i] == ' ') {
+        /* Legacy form: "host port path" */
         while (args[i] == ' ') i++;
         if (args[i]) {
-            j = 0;
-            while (args[i] && j < 127) path[j++] = args[i++];
-            path[j] = 0;
+            port = 0;
+            while (args[i] && args[i] >= '0' && args[i] <= '9') {
+                port = port * 10 + (args[i] - '0');
+                i++;
+            }
+            if (port == 0) port = use_tls ? 443 : 80;
+            while (args[i] == ' ') i++;
+            if (args[i]) {
+                j = 0;
+                while (args[i] && j < 127) path[j++] = args[i++];
+                path[j] = 0;
+            }
         }
     }
+    (void)url_form;
 
     /* Resolve host (try as IP first). */
     u32 ip = parse_ip(host);

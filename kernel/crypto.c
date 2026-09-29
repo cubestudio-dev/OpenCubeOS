@@ -153,6 +153,32 @@ void aes128_ctr_encrypt(const u8 key[16], const u8 nonce[16], const u8 *in, int 
     }
 }
 
+/* AES-128-CBC encrypt (in_len must be multiple of 16).
+ * Cipher[i] = AES_E(Plain[i] XOR Cipher[i-1]); Cipher[-1] = IV. */
+void aes128_cbc_encrypt(const u8 key[16], const u8 iv[16], const u8 *in, int in_len, u8 *out) {
+    u8 prev[16];
+    u8 xored[16];
+    u8 cipher[16];
+    oc_memcpy(prev, iv, 16);
+    for (int off = 0; off < in_len; off += 16) {
+        for (int i = 0; i < 16; i++) xored[i] = in[off + i] ^ prev[i];
+        aes128_encrypt_block(key, xored, cipher);
+        oc_memcpy(out + off, cipher, 16);
+        oc_memcpy(prev, cipher, 16);
+    }
+}
+
+/* AES-128-CBC decrypt (in_len must be multiple of 16).
+ * Plain[i] = AES_D(Cipher[i]) XOR Cipher[i-1]; Cipher[-1] = IV.
+ * NOTE: requires aes128_decrypt_block which we currently do NOT have.
+ * For TLS-1.2 read direction we'd need it. WP-09 limitation: only
+ * encrypt implemented for client-side Finished/send; server responses
+ * are not decrypted (we just accept the bytes). */
+void aes128_cbc_decrypt(const u8 key[16], const u8 iv[16], const u8 *in, int in_len, u8 *out) {
+    (void)key; (void)iv; (void)in; (void)in_len; (void)out;
+    /* stub — not used by client Finished send path */
+}
+
 /* ============================================================
  * SHA-256 (FIPS-180-4)
  * ============================================================ */

@@ -36,7 +36,9 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
         "-L", SEABIOS_DIR,
         "-vga", "std", "-display", "none",
         "-serial", "mon:stdio",
-        "-net", "none",
+        # User-mode networking + e1000 NIC (so the kernel e1000 driver finds it)
+        "-netdev", "user,id=n1",
+        "-device", "e1000,netdev=n1",
     ]
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = ENV_LD

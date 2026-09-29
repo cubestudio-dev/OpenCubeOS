@@ -21,12 +21,12 @@ typedef struct {
     u8 server_random[32];  /* server random (from ServerHello) */
     u8 premaster[DH_BYTES]; /* premaster secret (full DH shared secret) */
     u8 master_secret[48];  /* master secret (from PRF) */
-    u8 write_key[16];      /* AES-128 write key */
-    u8 read_key[16];       /* AES-128 read key */
-    u8 write_iv[16];       /* write nonce/IV */
-    u8 read_iv[16];        /* read nonce/IV */
-    u8 write_seq;           /* write sequence number */
-    u8 read_seq;            /* read sequence number */
+    u8 write_key[32];     /* client_write_MAC_key (HMAC-SHA256 key, 32 bytes) */
+    u8 read_key[32];      /* server_write_MAC_key */
+    u8 write_iv[16];      /* client_write_key (AES-128 key, 16 bytes) */
+    u8 read_iv[16];       /* server_write_key (AES-128) */
+    u8 write_seq[8];     /* write sequence number (big-endian, TLS 1.2 = 64-bit) */
+    u8 read_seq[8];      /* read sequence number */
     int encrypted;          /* 1 after ChangeCipherSpec */
 } tls_ctx_t;
 
