@@ -35,9 +35,9 @@ typedef struct {
     /* KEX state */
     u8 client_cookie[16];  /* random cookie for KEXINIT */
     u8 server_cookie[16];
-    u8 client_kexinit[512];
+    u8 client_kexinit[1024];
     int client_kexinit_len;
-    u8 server_kexinit[512];
+    u8 server_kexinit[4096];  /* paramiko KEXINIT can be > 512 bytes */
     int server_kexinit_len;
 
     /* DH state (SSH uses group 14 = 2048-bit DH, so 256 bytes) */
@@ -55,8 +55,8 @@ typedef struct {
     u8 enc_key_s2c[16];     /* server→client AES-128-CBC key */
     u8 initial_iv_c2s[16];  /* client→server initial IV */
     u8 initial_iv_s2c[16];  /* server→client initial IV */
-    u8 mac_key_c2s[20];     /* client→server HMAC-SHA1 key (20 bytes) */
-    u8 mac_key_s2c[20];     /* server→client HMAC-SHA1 key */
+    u8 mac_key_c2s[32];     /* client→server HMAC-SHA-256 key (32 bytes) */
+    u8 mac_key_s2c[32];     /* server→client HMAC-SHA-256 key */
 
     /* Sequence numbers (32-bit, per SSH spec) */
     u32 write_seq;
@@ -68,7 +68,9 @@ typedef struct {
     char username[32];
     char password[32];
 
-    /* Server channel id (assigned by server) */
+    /* Server host key (K_S from KEXDH_REPLY) — needed for exchange hash H */
+    u8 server_host_key[1024];
+    int server_host_key_len;
     u32 server_channel_id;
     u32 client_channel_id;  /* our channel id (always 0) */
 } ssh_ctx_t;

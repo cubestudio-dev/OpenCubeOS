@@ -1844,7 +1844,24 @@ static void tcp_check_rto(void) {
 int tcp_send(int sock, const void *data, int len) {
     if (sock < 0 || sock >= TCP_MAX_CONNS) return -1;
     tcp_conn_t *c = &g_tcp_conns[sock];
-    if (!c->in_use || c->state != TCP_ESTABLISHED) return -1;
+    if (!c->in_use || c->state != TCP_ESTABLISHED) {
+        /* WP-09 SSH debug: log why tcp_send failed */
+        static const char *state_names[] = {
+            "CLOSED", "SYN_SENT", "SYN_RCVD", "ESTABLISHED",
+            "FIN_WAIT_1", "FIN_WAIT_2", "CLOSE_WAIT", "LAST_ACK", "CLOSING"
+        };
+        const char *sn = c->state < 9 ? state_names[c->state] : "?";
+        char dbg[100];
+        oc_strcpy(dbg, "[tcp] send fail: sock=");
+        char num[10];
+        oc_u64_to_str((u64)sock, num); oc_strcat(dbg, num);
+        oc_strcat(dbg, " in_use="); oc_u64_to_str((u64)c->in_use, num); oc_strcat(dbg, num);
+        oc_strcat(dbg, " state="); oc_u64_to_str((u64)c->state, num); oc_strcat(dbg, num);
+        oc_strcat(dbg, " ("); oc_strcat(dbg, sn); oc_strcat(dbg, ")");
+        oc_strcat(dbg, "\n");
+        oc_console_puts(dbg);
+        return -1;
+    }
 
     /* WP-09: Clamp send size to min(cwnd, snd_wnd, mss) */
     int sendable = len;
