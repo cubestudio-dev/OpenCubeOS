@@ -611,23 +611,22 @@ int tls_recv(tls_ctx_t *ctx, void *buf, int len) {
     if (tls_read_record(ctx, &rtype, rbuf, &rlen) < 0) return -1;
     /* WP-09: server-side records are encrypted (after server's CCS).
      * Decrypt with AES-128-CBC using server_write_key + per-record IV.
-     * Record body layout: IV(16) || AES-CBC-encrypt(data || MAC(32) || padding)
-     */
-    if (ctx->encrypted && rtype == TLS_APPLICATION_DATA && rlen >= 16) {
+     * Applies to both APPLICATION_DATA (23) and ALERT (21) records,
+     * because after NEWKEYS both record types are encrypted. */
+    if (ctx->encrypted && (rtype == TLS_APPLICATION_DATA || rtype == TLS_ALERT) && rlen >= 16) {
         u8 *iv = rbuf;
         u8 *enc = rbuf + 16;
         int enc_len = rlen - 16;
-        if (enc_len % 16 != 0) return -1;
+        if (enc_len % 16 != 0 || enc_len <= 0) return -1;
         u8 *dec = (u8 *)(uintptr_t)pmm_alloc_frame();
         if (!dec) return -1;
         aes128_cbc_decrypt(ctx->read_iv, iv, enc, enc_len, dec);
-        /* dec = data(N) + MAC(32) + padding(pad_count) + padding_length(1)
-         * Read pad_length from last byte, validate, then verify MAC. */
+        /* dec = data(N) + MAC(32) + padding(pad_count) + padding_length(1) */
         u8 pad_len = dec[enc_len - 1];
         int data_len = enc_len - 32 - pad_len - 1;
         if (data_len < 0) {
             pmm_free_frame((u64)(uintptr_t)dec);
-            ctx->read_seq[7]++;
+            seq_inc(ctx->read_seq);
             return -1;
         }
         /* Verify MAC: HMAC(server_MAC_key, seq(8) + type(1) + version(2) + length(2) + data) */
@@ -651,6 +650,15 @@ int tls_recv(tls_ctx_t *ctx, void *buf, int len) {
             pmm_free_frame((u64)(uintptr_t)dec);
             seq_inc(ctx->read_seq);
             return -1;
+        }
+        /* If it's an encrypted ALERT, parse and return 0 (treat as EOF). */
+        if (rtype == TLS_ALERT) {
+            /* dec[0] = alert_level (1=warning, 2=fatal), dec[1] = alert_description */
+            /* For close_notify (level=1, desc=0), this is the normal end-of-stream. */
+            pmm_free_frame((u64)(uintptr_t)dec);
+            seq_inc(ctx->read_seq);
+            /* Return 0 to signal EOF — caller should stop reading */
+            return 0;
         }
         int copy = len < data_len ? len : data_len;
         oc_memcpy(buf, dec, copy);

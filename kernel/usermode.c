@@ -291,15 +291,6 @@ void syscall_dispatch(u64 *regs) {
             /* Modify the live frame so iretq jumps to the handler. */
             f->rip = (u64)(uintptr_t)handler;
             f->rdi = (u64)sig;          /* first arg = signal number */
-            /* Leave RSP unchanged — handler uses the user stack and
-             * its own call frame. The handler's `ret` would return
-             * to wherever the user stack's return slot points; the
-             * test handler calls sys_sigreturn BEFORE ret, so ret
-             * is never reached. For robustness, push a fake return
-             * address that points to a small trampoline that does
-             * mov rax,42; int 0x80. For now, rely on the handler
-             * calling sigreturn. */
-            (void)arg2; (void)arg3; (void)arg4;
         }
     }
 
