@@ -23,6 +23,7 @@
 
 /* ---- AES-128 (FIPS-197) ---- */
 void aes128_encrypt_block(const u8 key[16], const u8 plaintext[16], u8 ciphertext[16]);
+void aes128_decrypt_block(const u8 key[16], const u8 ciphertext[16], u8 plaintext[16]);
 void aes128_ctr_encrypt(const u8 key[16], const u8 nonce[16], const u8 *in, int in_len, u8 *out);
 
 /* AES-128-CBC encrypt/decrypt (in_len must be multiple of 16).

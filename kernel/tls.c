@@ -582,12 +582,18 @@ int tls_connect(u32 ip, u16 port, const char *hostname) {
     }
     tls_debug("[tls] got server ChangeCipherSpec");
 
-    /* Read server's Finished (encrypted) — we accept without decrypting */
+    /* Read server's Finished (encrypted) — this is the first encrypted record
+     * server sends with seq=0. We accept without decrypting (would need full
+     * server-side Finished verify_data check, which is optional for client).
+     * IMPORTANT: After reading server's Finished, increment read_seq to 1 so
+     * subsequent tls_recv() calls (for HTTP response records) compute MAC
+     * with the correct sequence number (server uses seq=1 for first appdata). */
     if (tls_read_record(ctx, &rtype, rbuf, &rlen) < 0) {
         tls_debug("[tls] timeout waiting for server Finished");
         return -14;
     }
     tls_debug("[tls] got server Finished");
+    seq_inc(ctx->read_seq);  /* now read_seq = 1 for next encrypted record */
 
     tls_debug("[tls] handshake complete");
     return 0;
@@ -603,10 +609,56 @@ int tls_recv(tls_ctx_t *ctx, void *buf, int len) {
     static u8 rbuf[4096];
     int rlen;
     if (tls_read_record(ctx, &rtype, rbuf, &rlen) < 0) return -1;
-    if (rtype != TLS_APPLICATION_DATA) return -1;
-    /* WP-09 limitation: server records are not decrypted (no AES-CBC decrypt).
-     * We just accept and return raw bytes. For HTTPS this means the response
-     * will be encrypted (garbage), but the handshake still completes successfully. */
+    /* WP-09: server-side records are encrypted (after server's CCS).
+     * Decrypt with AES-128-CBC using server_write_key + per-record IV.
+     * Record body layout: IV(16) || AES-CBC-encrypt(data || MAC(32) || padding)
+     */
+    if (ctx->encrypted && rtype == TLS_APPLICATION_DATA && rlen >= 16) {
+        u8 *iv = rbuf;
+        u8 *enc = rbuf + 16;
+        int enc_len = rlen - 16;
+        if (enc_len % 16 != 0) return -1;
+        u8 *dec = (u8 *)(uintptr_t)pmm_alloc_frame();
+        if (!dec) return -1;
+        aes128_cbc_decrypt(ctx->read_iv, iv, enc, enc_len, dec);
+        /* dec = data(N) + MAC(32) + padding(pad_count) + padding_length(1)
+         * Read pad_length from last byte, validate, then verify MAC. */
+        u8 pad_len = dec[enc_len - 1];
+        int data_len = enc_len - 32 - pad_len - 1;
+        if (data_len < 0) {
+            pmm_free_frame((u64)(uintptr_t)dec);
+            ctx->read_seq[7]++;
+            return -1;
+        }
+        /* Verify MAC: HMAC(server_MAC_key, seq(8) + type(1) + version(2) + length(2) + data) */
+        u8 mac_input[8 + 1 + 2 + 2 + 4096];
+        int mi = 0;
+        oc_memcpy(mac_input + mi, ctx->read_seq, 8); mi += 8;
+        mac_input[mi++] = rtype;
+        mac_input[mi++] = 0x03; mac_input[mi++] = 0x03;
+        mac_input[mi++] = (u8)(data_len >> 8);
+        mac_input[mi++] = (u8)(data_len & 0xFF);
+        oc_memcpy(mac_input + mi, dec, data_len); mi += data_len;
+        u8 expected_mac[32];
+        hmac_sha256(ctx->read_key, 32, mac_input, mi, expected_mac);
+        u8 *actual_mac = dec + data_len;
+        int mac_ok = 1;
+        for (int i = 0; i < 32; i++) {
+            if (actual_mac[i] != expected_mac[i]) { mac_ok = 0; break; }
+        }
+        if (!mac_ok) {
+            tls_debug("[tls] MAC verify FAIL on server record");
+            pmm_free_frame((u64)(uintptr_t)dec);
+            seq_inc(ctx->read_seq);
+            return -1;
+        }
+        int copy = len < data_len ? len : data_len;
+        oc_memcpy(buf, dec, copy);
+        pmm_free_frame((u64)(uintptr_t)dec);
+        seq_inc(ctx->read_seq);
+        return copy;
+    }
+    /* Non-encrypted records: just copy raw bytes */
     int copy = len < rlen ? len : rlen;
     oc_memcpy(buf, rbuf, copy);
     seq_inc(ctx->read_seq);

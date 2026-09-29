@@ -35,6 +35,15 @@ static const u8 sbox[256] = {
     0x8c,0xa1,0x89,0x0d,0xbf,0xe6,0x42,0x68,0x41,0x99,0x2d,0x0f,0xb0,0x54,0xbb,0x16
 };
 
+/* Inverse S-box (for AES decrypt). Built from sbox: inv_sbox[sbox[i]] = i. */
+static u8 inv_sbox[256];
+static int inv_sbox_init = 0;
+static void ensure_inv_sbox(void) {
+    if (inv_sbox_init) return;
+    for (int i = 0; i < 256; i++) inv_sbox[sbox[i]] = (u8)i;
+    inv_sbox_init = 1;
+}
+
 /* Rcon for key expansion */
 static const u8 rcon[11] = {0x00,0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80,0x1b,0x36};
 
@@ -110,6 +119,35 @@ static void mix_columns(u8 s[16]) {
     }
 }
 
+/* InvSubBytes */
+static void inv_sub_bytes(u8 state[16]) {
+    ensure_inv_sbox();
+    for (int i = 0; i < 16; i++) state[i] = inv_sbox[state[i]];
+}
+
+/* InvShiftRows (reverse of shift_rows) */
+static void inv_shift_rows(u8 s[16]) {
+    u8 t;
+    /* Row 1: shift right by 1 (reverse of shift left by 1) */
+    t = s[13]; s[13] = s[9]; s[9] = s[5]; s[5] = s[1]; s[1] = t;
+    /* Row 2: shift right by 2 (reverse of shift left by 2) */
+    t = s[2]; s[2] = s[10]; s[10] = t; t = s[6]; s[6] = s[14]; s[14] = t;
+    /* Row 3: shift right by 3 = shift left by 1 (reverse of shift left by 3) */
+    t = s[3]; s[3] = s[7]; s[7] = s[11]; s[11] = s[15]; s[15] = t;
+}
+
+/* InvMixColumns (matrix: [14,11,13,9; 9,14,11,13; 13,9,14,11; 11,13,9,14]) */
+static void inv_mix_columns(u8 s[16]) {
+    for (int c = 0; c < 4; c++) {
+        u8 *col = s + c * 4;
+        u8 a0 = col[0], a1 = col[1], a2 = col[2], a3 = col[3];
+        col[0] = gmul(a0, 14) ^ gmul(a1, 11) ^ gmul(a2, 13) ^ gmul(a3, 9);
+        col[1] = gmul(a0, 9)  ^ gmul(a1, 14) ^ gmul(a2, 11) ^ gmul(a3, 13);
+        col[2] = gmul(a0, 13) ^ gmul(a1, 9)  ^ gmul(a2, 14) ^ gmul(a3, 11);
+        col[3] = gmul(a0, 11) ^ gmul(a1, 13) ^ gmul(a2, 9)  ^ gmul(a3, 14);
+    }
+}
+
 /* AES-128 encrypt single block */
 void aes128_encrypt_block(const u8 key[16], const u8 plaintext[16], u8 ciphertext[16]) {
     u8 round_keys[176];
@@ -130,6 +168,31 @@ void aes128_encrypt_block(const u8 key[16], const u8 plaintext[16], u8 ciphertex
     add_round_key(state, round_keys + 10 * 16);
 
     oc_memcpy(ciphertext, state, 16);
+}
+
+/* AES-128 decrypt single block (WP-09: needed for TLS server-side records) */
+void aes128_decrypt_block(const u8 key[16], const u8 ciphertext[16], u8 plaintext[16]) {
+    u8 round_keys[176];
+    aes128_key_expansion(key, round_keys);
+
+    u8 state[16];
+    oc_memcpy(state, ciphertext, 16);
+
+    /* Initial AddRoundKey with last round key */
+    add_round_key(state, round_keys + 10 * 16);
+    /* 9 rounds of inverse: InvShiftRows, InvSubBytes, AddRoundKey, InvMixColumns */
+    for (int round = 9; round >= 1; round--) {
+        inv_shift_rows(state);
+        inv_sub_bytes(state);
+        add_round_key(state, round_keys + round * 16);
+        inv_mix_columns(state);
+    }
+    /* Final round: InvShiftRows, InvSubBytes, AddRoundKey (no InvMixColumns) */
+    inv_shift_rows(state);
+    inv_sub_bytes(state);
+    add_round_key(state, round_keys);
+
+    oc_memcpy(plaintext, state, 16);
 }
 
 /* AES-128-CTR mode encrypt/decrypt (same operation) */
@@ -169,14 +232,18 @@ void aes128_cbc_encrypt(const u8 key[16], const u8 iv[16], const u8 *in, int in_
 }
 
 /* AES-128-CBC decrypt (in_len must be multiple of 16).
- * Plain[i] = AES_D(Cipher[i]) XOR Cipher[i-1]; Cipher[-1] = IV.
- * NOTE: requires aes128_decrypt_block which we currently do NOT have.
- * For TLS-1.2 read direction we'd need it. WP-09 limitation: only
- * encrypt implemented for client-side Finished/send; server responses
- * are not decrypted (we just accept the bytes). */
+ * Plain[i] = AES_D(Cipher[i]) XOR Cipher[i-1]; Cipher[-1] = IV. */
 void aes128_cbc_decrypt(const u8 key[16], const u8 iv[16], const u8 *in, int in_len, u8 *out) {
-    (void)key; (void)iv; (void)in; (void)in_len; (void)out;
-    /* stub — not used by client Finished send path */
+    u8 prev[16];
+    u8 cipher[16];
+    u8 dec[16];
+    oc_memcpy(prev, iv, 16);
+    for (int off = 0; off < in_len; off += 16) {
+        oc_memcpy(cipher, in + off, 16);  /* save cipher block (will be XORed) */
+        aes128_decrypt_block(key, cipher, dec);
+        for (int i = 0; i < 16; i++) out[off + i] = dec[i] ^ prev[i];
+        oc_memcpy(prev, cipher, 16);
+    }
 }
 
 /* ============================================================
