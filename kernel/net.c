@@ -1606,7 +1606,8 @@ static u16 tcp_checksum(u32 src_ip, u32 dst_ip, const void *data, int len) {
 #define TCP_OPT_END      0
 #define TCP_OPT_NOP      1
 
-/* WP-09: Build TCP options for SYN packets (MSS, Window Scale, SACK-Permitted, Timestamps) */
+/* WP-09: Build TCP options for SYN packets (MSS, Window Scale, SACK-Permitted, Timestamps)
+ * P7-FIX: total must be multiple of 4 (20 bytes = 5 words) */
 static int tcp_build_syn_options(tcp_conn_t *c, u8 *opts) {
     int i = 0;
     /* MSS option (4 bytes) */
@@ -1614,31 +1615,34 @@ static int tcp_build_syn_options(tcp_conn_t *c, u8 *opts) {
     opts[i++] = 4;
     opts[i++] = (u8)(c->mss >> 8);
     opts[i++] = (u8)(c->mss & 0xFF);
-    /* Window Scale option (3 bytes + 1 NOP for alignment) */
+    /* Window Scale option (3 bytes + 1 NOP for alignment = 4 bytes) */
     opts[i++] = TCP_OPT_NOP;
     opts[i++] = TCP_OPT_WSCALE;
     opts[i++] = 3;
     opts[i++] = c->win_scale_sent;
-    /* SACK-Permitted option (2 bytes) */
+    /* SACK-Permitted option (2 bytes + 2 NOP for alignment = 4 bytes) */
+    opts[i++] = TCP_OPT_NOP;
+    opts[i++] = TCP_OPT_NOP;
     opts[i++] = TCP_OPT_SACK_PERM;
     opts[i++] = 2;
-    /* Timestamps option (10 bytes + 2 NOP for alignment) */
+    /* Timestamps option (10 bytes + 2 NOP for alignment = 12 bytes) */
     opts[i++] = TCP_OPT_NOP;
     opts[i++] = TCP_OPT_NOP;
     opts[i++] = TCP_OPT_TS;
     opts[i++] = 10;
-    /* TSval: current tick count */
     u32 tsval = (u32)oc_timer_ticks();
     opts[i++] = (u8)(tsval >> 24);
     opts[i++] = (u8)(tsval >> 16);
     opts[i++] = (u8)(tsval >> 8);
     opts[i++] = (u8)(tsval & 0xFF);
-    /* Echo reply: 0 (no previous timestamp) */
     opts[i++] = 0; opts[i++] = 0; opts[i++] = 0; opts[i++] = 0;
-    return i;  /* should be 20 bytes */
+    return i;  /* 4 + 4 + 4 + 12 = 24 bytes (multiple of 4) */
 }
 
 /* WP-09: Build TCP Timestamp option for data packets */
+/* WP-09: Build TCP Timestamp option for data packets
+ * Currently disabled to isolate TCP send bug — will re-enable after fix */
+__attribute__((unused))
 static int tcp_build_ts_option(tcp_conn_t *c, u8 *opts) {
     if (!c->ts_enabled) return 0;
     int i = 0;
@@ -1713,14 +1717,14 @@ static int tcp_send_raw(tcp_conn_t *c, u8 flags, const void *data, int len) {
     h->ack = htonl(c->our_ack);
 
     /* WP-09: Build options. For SYN, include MSS/WScale/SACK/TS.
-     * For data, include Timestamps if enabled. */
+     * For data, include Timestamps if enabled.
+     * P7-debug: disable options on data packets to isolate TCP send bug */
     int hdr_len = 20;
     int opt_len = 0;
     if (flags & TCP_SYN) {
         opt_len = tcp_build_syn_options(c, buf + 20);
-    } else {
-        opt_len = tcp_build_ts_option(c, buf + 20);
     }
+    /* Don't add timestamp options on data packets for now */
     hdr_len = 20 + opt_len;
     int data_offset = (hdr_len / 4) << 12;
     h->data_offset_flags = htons((u16)data_offset | flags);
@@ -1857,8 +1861,8 @@ int tcp_send(int sock, const void *data, int len) {
     if (c->rtx_len + sendable <= TCP_RTX_BUF_SIZE) {
         oc_memcpy(c->rtx_buf + c->rtx_len, data, sendable);
         if (c->rtx_len == 0) {
-            c->rtx_seq = c->our_seq;  /* record oldest unacked seq */
-            c->rto_deadline = oc_timer_ticks() + c->rto;  /* arm RTO timer */
+            c->rtx_seq = c->our_seq;
+            c->rto_deadline = oc_timer_ticks() + c->rto;
         }
         c->rtx_len += sendable;
     }
