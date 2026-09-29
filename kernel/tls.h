@@ -28,6 +28,11 @@ typedef struct {
     u8 write_seq[8];     /* write sequence number (big-endian, TLS 1.2 = 64-bit) */
     u8 read_seq[8];      /* read sequence number */
     int encrypted;          /* 1 after ChangeCipherSpec */
+    /* Handshake message log: concatenated bytes of all Handshake records
+     * (type byte + 3-byte length + body), excluding record layer (5B header).
+     * Used to compute SHA-256 for Finished verify_data per RFC 5246 §7.4.9. */
+    u8 handshake_log[4096];
+    int handshake_log_len;
 } tls_ctx_t;
 
 /* Connect to a TLS server. Returns 0 on success. */

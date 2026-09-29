@@ -116,6 +116,22 @@ static void tls_prf(const u8 *secret, int secret_len,
     pmm_free_frame((u64)(uintptr_t)ls);
 }
 
+/* Append a handshake record body to the handshake_log (for Finished hash).
+ * Only called for unencrypted handshake records (i.e. before client's CCS). */
+static void tls_log_handshake(tls_ctx_t *ctx, const u8 *data, int len) {
+    if (ctx->handshake_log_len + len > (int)sizeof(ctx->handshake_log)) {
+        /* truncate — shouldn't happen for normal handshakes */
+        int avail = (int)sizeof(ctx->handshake_log) - ctx->handshake_log_len;
+        if (avail > 0) {
+            oc_memcpy(ctx->handshake_log + ctx->handshake_log_len, data, avail);
+            ctx->handshake_log_len += avail;
+        }
+        return;
+    }
+    oc_memcpy(ctx->handshake_log + ctx->handshake_log_len, data, len);
+    ctx->handshake_log_len += len;
+}
+
 /* Send a TLS record — header + data in a single TCP segment. */
 static int tls_send_record(tls_ctx_t *ctx, u8 type, const void *data, int len) {
     static u8 record[16384];
@@ -127,6 +143,10 @@ static int tls_send_record(tls_ctx_t *ctx, u8 type, const void *data, int len) {
     record[4] = (u8)(len & 0xFF);
     if (len > 0 && total <= 16384) {
         oc_memcpy(record + 5, data, total - 5);
+    }
+    /* Log unencrypted handshake records for Finished hash. */
+    if (type == TLS_HANDSHAKE && !ctx->encrypted) {
+        tls_log_handshake(ctx, (const u8 *)data, len);
     }
     return net_send(ctx->tcp_sock, record, total);
 }
@@ -189,6 +209,15 @@ static int tls_send_encrypted(tls_ctx_t *ctx, u8 type, const void *data, int len
     /* WP-09 layout: write_iv holds the AES-128 key (16 bytes).
      * write_key holds the HMAC-SHA256 MAC key (32 bytes). */
 
+    tls_debug_hex("[tls]   AES key: ", ctx->write_iv, 16);
+    tls_debug_hex("[tls]   IV (rand): ", iv, 16);
+    tls_debug_hex("[tls]   MAC key (32): ", ctx->write_key, 32);
+    tls_debug_hex("[tls]   MAC computed (32): ", mac, 32);
+    tls_debug_hex("[tls]   plain[0..15] (data): ", plain, 16);
+    tls_debug_hex("[tls]   plain[16..47] (MAC): ", plain + 16, 32);
+    tls_debug_hex("[tls]   plain[48..63] (pad): ", plain + 48, 16);
+    tls_debug_hex("[tls]   encrypted[0..15]: ", enc, 16);
+
     /* Step 4: Build record = header(5) + IV(16) + encrypted(plain_len) */
     int total = 5 + 16 + plain_len;
     record[0] = type;
@@ -234,6 +263,10 @@ static int tls_read_record(tls_ctx_t *ctx, u8 *type, u8 *buf, int *len) {
                 }
             }
             *len = got;
+            /* Log unencrypted handshake records for Finished hash. */
+            if (*type == TLS_HANDSHAKE && !ctx->encrypted) {
+                tls_log_handshake(ctx, buf, got);
+            }
             /* debug */
             char b[80];
             oc_strcpy(b, "[tls] read record type=");
@@ -362,21 +395,44 @@ int tls_connect(u32 ip, u16 port, const char *hostname) {
         tls_debug("[tls] timeout waiting for ServerKeyExchange");
         return -8;
     }
-    tls_debug("[tls] got ServerKeyExchange");
-    /* Parse: handshake header(4) + p_len(2) + p + g_len(2) + g + Ys_len(2) + Ys + sig */
-    int soff = 4;
-    if (soff + 2 > rlen) return -9;
+    /* Parse ServerKeyExchange to extract DH parameters.
+     * Server sends its own p/g/Ys. Client MUST use the server's p (not
+     * hardcoded Oakley Group 1) — otherwise DH shared secret won't match.
+     * Format: handshake header(4) + DH p_len(2) + p(n) + g_len(2) + g(n) + Ys_len(2) + Ys(n) + sig */
+    int soff = 4; /* skip handshake header */
+    if (soff + 2 > rlen) return -8;
     int p_len = (rbuf[soff] << 8) | rbuf[soff + 1];
     soff += 2;
-    if (soff + p_len > rlen) return -9;
-    soff += p_len;  /* skip p (we use Oakley Group 1) */
-    if (soff + 2 > rlen) return -10;
+    if (soff + p_len > rlen) return -8;
+    /* WP-09 fix: use server's p, not hardcoded Oakley Group 1 prime.
+     * If p_len == DH_BYTES, copy directly. If p_len > DH_BYTES, take low
+     * DH_BYTES bytes. If p_len < DH_BYTES, right-align in DH_BYTES buffer. */
+    u8 server_p[DH_BYTES];
+    oc_memset(server_p, 0, DH_BYTES);
+    if (p_len == DH_BYTES) {
+        oc_memcpy(server_p, rbuf + soff, DH_BYTES);
+    } else if (p_len < DH_BYTES) {
+        oc_memcpy(server_p + (DH_BYTES - p_len), rbuf + soff, p_len);
+    } else {
+        /* p_len > DH_BYTES — take low DH_BYTES bytes (drop high zero padding) */
+        oc_memcpy(server_p, rbuf + soff + (p_len - DH_BYTES), DH_BYTES);
+    }
+    tls_debug_hex("[tls]   server p (first 16): ", server_p, 16);
+    soff += p_len;
+    if (soff + 2 > rlen) return -9;
     int g_len = (rbuf[soff] << 8) | rbuf[soff + 1];
-    soff += 2 + g_len;
-    if (soff + 2 > rlen) return -11;
+    soff += 2;
+    /* Use server's g if it's a small integer; else fall back to g=2 */
+    u8 g_byte = 2;  /* default g = 2 */
+    if (g_len >= 1) {
+        g_byte = rbuf[soff + g_len - 1];  /* take last byte */
+    }
+    soff += g_len;
+    if (soff + 2 > rlen) return -10;
     int ys_len = (rbuf[soff] << 8) | rbuf[soff + 1];
     soff += 2;
-    if (soff + ys_len > rlen) return -11;
+    if (soff + ys_len > rlen) return -10;
+    /* Server's DH public value (Ys) — right-aligned in DH_BYTES buffer */
     u8 server_dh_pub[DH_BYTES];
     oc_memset(server_dh_pub, 0, DH_BYTES);
     if (ys_len <= DH_BYTES) {
@@ -399,22 +455,25 @@ int tls_connect(u32 ip, u16 port, const char *hostname) {
     client_priv[0] &= 0x0F;
     client_priv[DH_BYTES - 1] &= 0xFE;
 
-    /* Compute Yc = g^x mod p */
+    /* Compute Yc = g^x mod p (using server's p) */
     tls_debug("[tls] computing Yc = g^x mod p (DH modexp, ~3s)...");
     u8 client_dh_pub[DH_BYTES];
     u8 g_val[DH_BYTES];
     oc_memset(g_val, 0, DH_BYTES);
-    g_val[DH_BYTES - 1] = 2;
-    dh_modexp(g_val, client_priv, dh_group1_prime, client_dh_pub);
+    g_val[DH_BYTES - 1] = g_byte;
+    dh_modexp(g_val, client_priv, server_p, client_dh_pub);
     tls_debug_hex("[tls]   Yc (first 8): ", client_dh_pub, 8);
 
-    /* Compute premaster = Ys^x mod p */
+    /* Compute premaster = Ys^x mod p (using server's p) */
     tls_debug("[tls] computing premaster = Ys^x mod p (DH modexp, ~3s)...");
     u8 premaster_full[DH_BYTES];
-    dh_modexp(server_dh_pub, client_priv, dh_group1_prime, premaster_full);
+    dh_modexp(server_dh_pub, client_priv, server_p, premaster_full);
+    tls_debug_hex("[tls]   Ys (128): ", server_dh_pub, DH_BYTES);
+    tls_debug_hex("[tls]   client_priv (32 of 128): ", client_priv, 32);
+    tls_debug_hex("[tls]   Yc (128): ", client_dh_pub, DH_BYTES);
+    tls_debug_hex("[tls]   premaster (128): ", premaster_full, DH_BYTES);
     oc_memcpy(ctx->premaster, premaster_full, DH_BYTES);
     tls_debug_hex("[tls]   premaster (first 8): ", ctx->premaster, 8);
-
     /* Send ClientKeyExchange */
     u8 cke[4 + 2 + DH_BYTES];
     int cke_len = 0;
@@ -473,6 +532,10 @@ int tls_connect(u32 ip, u16 port, const char *hostname) {
     oc_memcpy(ctx->write_iv,  key_exp + 64, 16);     /* client_write_key (AES) */
     oc_memcpy(ctx->read_key,  key_exp + 32, 32);     /* server_write_MAC_key */
     oc_memcpy(ctx->read_iv,   key_exp + 80, 16);     /* server_write_key (AES) */
+    tls_debug_hex("[tls]   master_secret (48): ", ctx->master_secret, 48);
+    tls_debug_hex("[tls]   client_random (32): ", ctx->client_random, 32);
+    tls_debug_hex("[tls]   server_random (32): ", ctx->server_random, 32);
+    tls_debug_hex("[tls]   premaster (32 of 128): ", ctx->premaster, 32);
     tls_debug("[tls] derived keys (128 bytes key material)");
 
     /* Send ChangeCipherSpec */
@@ -482,19 +545,26 @@ int tls_connect(u32 ip, u16 port, const char *hostname) {
     tls_debug("[tls] sent ChangeCipherSpec");
 
     /* Compute Finished verify_data:
-     * verify_data = PRF(master_secret, "client finished", SHA256(handshake_msgs), 12)[0..12]
-     * handshake_msgs = ClientHello + ServerHello + ... + ClientKeyExchange
-     * (excluding ChangeCipherSpec and Finished itself)
-     * WP-09 simplified: hash = SHA256(client_random || server_random || Yc) */
-    u8 hs_data[32 + 32 + DH_BYTES];
-    oc_memcpy(hs_data, ctx->client_random, 32);
-    oc_memcpy(hs_data + 32, ctx->server_random, 32);
-    oc_memcpy(hs_data + 64, client_dh_pub, DH_BYTES);
+     * verify_data = PRF(master_secret, "client finished", SHA256(handshake_log), 12)[0..11]
+     * handshake_log = ClientHello + ServerHello + Certificate + ServerKeyExchange +
+     *                  ServerHelloDone + ClientKeyExchange (all handshake messages
+     *                  seen/sent before client's CCS, excluding CCS and Finished). */
     u8 hs_hash[32];
-    sha256(hs_data, 32 + 32 + DH_BYTES, hs_hash);
+    sha256(ctx->handshake_log, ctx->handshake_log_len, hs_hash);
+
+    /* Debug: print handshake_log_len and hs_hash so we can verify with Python */
+    char dbg[80];
+    oc_strcpy(dbg, "[tls]   handshake_log_len=");
+    char num[10];
+    oc_u64_to_str((u64)ctx->handshake_log_len, num);
+    oc_strcat(dbg, num);
+    oc_strcat(dbg, "\n");
+    oc_console_puts(dbg);
+    tls_debug_hex("[tls]   SHA256(handshake_log): ", hs_hash, 32);
 
     u8 verify_data[12];
     tls_prf(ctx->master_secret, 48, "client finished", hs_hash, 32, verify_data, 12);
+    tls_debug_hex("[tls]   verify_data (12): ", verify_data, 12);
 
     u8 fin_msg[4 + 12];
     fin_msg[0] = TLS_FINISHED;
