@@ -5,20 +5,21 @@
  * Purpose: TLS 1.2 client — minimal implementation for HTTPS.
  *   - TLS 1.2 handshake (ClientHello → ... → Finished)
  *   - AES-128-CTR record encryption/decryption
- *   - DH group 14 key exchange
+ *   - DH 1024-bit key exchange (Oakley Group 1)
  *   - Certificate verification: skipped (accept any cert)
  */
 #ifndef OC_TLS_H
 #define OC_TLS_H
 
 #include "types.h"
+#include "crypto.h"  /* for DH_BYTES */
 
 /* TLS connection context */
 typedef struct {
     int tcp_sock;          /* underlying TCP socket */
     u8 client_random[32];  /* client random (from ClientHello) */
     u8 server_random[32];  /* server random (from ServerHello) */
-    u8 premaster[32];      /* premaster secret (from DH) */
+    u8 premaster[DH_BYTES]; /* premaster secret (full DH shared secret) */
     u8 master_secret[48];  /* master secret (from PRF) */
     u8 write_key[16];      /* AES-128 write key */
     u8 read_key[16];       /* AES-128 read key */

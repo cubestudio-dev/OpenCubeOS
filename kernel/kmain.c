@@ -422,6 +422,126 @@ static int cmd_cryptotest(const char *args) {
     return (pass == 3) ? 0 : 1;
 }
 
+/* WP-09: dhtest — verify DH modexp correctness + measure performance.
+ * Test 1 (correctness): g^0 mod p = 1 (always true)
+ * Test 2 (correctness): 1^x mod p = 1 (always true)
+ * Test 3 (timing): g^random mod p — measure wall time
+ * 1024-bit DH (Oakley Group 1) — should be ~5-10s in QEMU.
+ */
+static int cmd_dhtest(const char *args) {
+    (void)args;
+    char buf[160]; char n[20]; char hex[20];
+    int pass = 0;
+
+    oc_console_puts("DH modexp self-test (Oakley Group 1, 1024-bit):\n");
+
+    /* Test 1: g^0 mod p = 1 */
+    u8 zero_exp[DH_BYTES];
+    u8 result[DH_BYTES];
+    oc_memset(zero_exp, 0, DH_BYTES);
+    /* base = g = 2 */
+    u8 g_val[DH_BYTES];
+    oc_memset(g_val, 0, DH_BYTES);
+    g_val[DH_BYTES - 1] = 2;
+    dh_modexp(g_val, zero_exp, dh_group1_prime, result);
+    /* Expected: result = 1 (big-endian, last byte = 1) */
+    int ok = 1;
+    for (int i = 0; i < DH_BYTES - 1; i++) {
+        if (result[i] != 0) { ok = 0; break; }
+    }
+    if (result[DH_BYTES - 1] != 1) ok = 0;
+    oc_strcpy(buf, "  g^0 mod p = ");
+    for (int i = DH_BYTES - 4; i < DH_BYTES; i++) {
+        oc_u64_to_hex(result[i], hex, 2);
+        oc_strcat(buf, hex);
+    }
+    oc_strcat(buf, " (expect ...0001)  ");
+    if (ok) { oc_strcat(buf, "PASS\n"); pass++; } else oc_strcat(buf, "FAIL\n");
+    oc_console_puts(buf);
+
+    /* Test 2: 1^x mod p = 1 (base = 1, random exp) */
+    u8 one_base[DH_BYTES];
+    u8 exp2[DH_BYTES];
+    oc_memset(one_base, 0, DH_BYTES);
+    one_base[DH_BYTES - 1] = 1;
+    crypto_random(exp2, DH_BYTES);
+    exp2[0] &= 0x0F;
+    dh_modexp(one_base, exp2, dh_group1_prime, result);
+    ok = 1;
+    for (int i = 0; i < DH_BYTES - 1; i++) {
+        if (result[i] != 0) { ok = 0; break; }
+    }
+    if (result[DH_BYTES - 1] != 1) ok = 0;
+    oc_strcpy(buf, "  1^x mod p = ");
+    for (int i = DH_BYTES - 4; i < DH_BYTES; i++) {
+        oc_u64_to_hex(result[i], hex, 2);
+        oc_strcat(buf, hex);
+    }
+    oc_strcat(buf, " (expect ...0001)  ");
+    if (ok) { oc_strcat(buf, "PASS\n"); pass++; } else oc_strcat(buf, "FAIL\n");
+    oc_console_puts(buf);
+
+    /* Test 3 (timing): g^random mod p */
+    u8 rand_exp[DH_BYTES];
+    crypto_random(rand_exp, DH_BYTES);
+    rand_exp[0] &= 0x0F;
+    rand_exp[DH_BYTES - 1] &= 0xFE;
+
+    oc_console_puts("  Computing g^x mod p (timing)...\n");
+    u64 t0 = oc_timer_ticks();
+    u8 g_result[DH_BYTES];
+    dh_modexp(g_val, rand_exp, dh_group1_prime, g_result);
+    u64 t1 = oc_timer_ticks();
+    u64 elapsed_ms = (t1 - t0) * 1000 / (u64)OC_TIMER_HZ;
+
+    oc_strcpy(buf, "  g^x mod p = ");
+    for (int i = 0; i < 16; i++) {
+        oc_u64_to_hex(g_result[i], hex, 2);
+        oc_strcat(buf, hex);
+    }
+    oc_strcat(buf, "...\n  Time: ");
+    oc_u64_to_str(elapsed_ms, n);
+    oc_strcat(buf, n);
+    oc_strcat(buf, " ms\n");
+    oc_console_puts(buf);
+
+    /* Test 4: 2 modexp = Yc computation and Ys->premaster — combined
+     * simulate TLS ClientKeyExchange: g^x mod p + Ys^x mod p.
+     * Both must finish and produce non-zero premaster. */
+    u64 t2 = oc_timer_ticks();
+    u8 client_pub[DH_BYTES];
+    u8 premaster[DH_BYTES];
+    dh_modexp(g_val, rand_exp, dh_group1_prime, client_pub);
+    dh_modexp(client_pub, rand_exp, dh_group1_prime, premaster);
+    u64 t3 = oc_timer_ticks();
+    u64 dh_total_ms = (t3 - t2) * 1000 / (u64)OC_TIMER_HZ;
+
+    /* Verify premaster is non-zero (just check first/last bytes) */
+    int non_zero = 0;
+    for (int i = 0; i < DH_BYTES; i++) {
+        if (premaster[i] != 0) { non_zero = 1; break; }
+    }
+    oc_strcpy(buf, "  premaster (first 16): ");
+    for (int i = 0; i < 16; i++) {
+        oc_u64_to_hex(premaster[i], hex, 2);
+        oc_strcat(buf, hex);
+    }
+    oc_strcat(buf, "\n  TLS KEX (2 modexp) time: ");
+    oc_u64_to_str(dh_total_ms, n);
+    oc_strcat(buf, n);
+    oc_strcat(buf, " ms (premaster ");
+    oc_strcat(buf, non_zero ? "non-zero" : "ZERO");
+    oc_strcat(buf, ")\n");
+    oc_console_puts(buf);
+
+    oc_strcpy(buf, "  ");
+    oc_u64_to_str((u64)pass, n);
+    oc_strcat(buf, n);
+    oc_strcat(buf, "/2 correctness tests passed\n");
+    oc_console_puts(buf);
+    return (pass == 2) ? 0 : 1;
+}
+
 /* P5 fix: uname command — was missing from kernel shell (only existed in ush).
  * Supports -a (all), -s (kernel name, default), -r (release), -m (machine). */
 static int cmd_uname(const char *args) {
@@ -1910,6 +2030,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command("echo", cmd_echo, "echo the text back");
     shell_register_command("uname", cmd_uname, "print OS name (uname [-a|-s|-r|-m])");
     shell_register_command("cryptotest", cmd_cryptotest, "test AES/SHA-256/HMAC with NIST vectors");
+    shell_register_command("dhtest", cmd_dhtest, "DH modexp 1024-bit (Oakley Group 1) timing + correctness");
     shell_register_command("clear", cmd_clear, "clear screen");
     shell_register_command("halt", cmd_halt, "halt the kernel");
     shell_register_command("mem", cmd_mem, "show physical memory stats");

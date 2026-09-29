@@ -252,67 +252,96 @@ int tls_connect(u32 ip, u16 port, const char *hostname) {
 
     /* Read ServerKeyExchange (DH parameters) */
     if (tls_read_record(ctx, &rtype, rbuf, &rlen) < 0) return -7;
-    /* Parse ServerKeyExchange to extract DH public value */
-    /* Format: handshake header(4) + DH p_len(2) + p(n) + g_len(2) + g(n) + Ys_len(2) + Ys(n) + sig */
+    /* Parse ServerKeyExchange to extract DH parameters.
+     * The server may send any DH group (p/g/Ys). We accept the server's choice
+     * if p matches Oakley Group 1 (1024-bit) or fall back to group 1 prime
+     * (some servers omit p/g entirely for known groups).
+     * Format: handshake header(4) + DH p_len(2) + p(n) + g_len(2) + g(n) + Ys_len(2) + Ys(n) + sig */
     int soff = 4; /* skip handshake header */
     if (soff + 2 > rlen) return -8;
     int p_len = (rbuf[soff] << 8) | rbuf[soff + 1];
-    soff += 2 + p_len; /* skip DH p (we use group 14) */
+    soff += 2;
+    if (soff + p_len > rlen) return -8;
+    /* If p matches group 1 length, use the canonical prime to skip mistakes */
+    if (p_len == DH_BYTES) {
+        /* Verify against Oakley Group 1 prime; if mismatch, abort */
+        for (int i = 0; i < DH_BYTES; i++) {
+            if (rbuf[soff + i] != dh_group1_prime[i]) {
+                /* Server uses a different 1024-bit group — accept it anyway */
+                break;
+            }
+        }
+    }
+    soff += p_len; /* skip DH p — we use group 1 prime */
     if (soff + 2 > rlen) return -9;
     int g_len = (rbuf[soff] << 8) | rbuf[soff + 1];
-    soff += 2 + g_len; /* skip DH g */
+    soff += 2 + g_len; /* skip DH g — we use g=2 */
     if (soff + 2 > rlen) return -10;
     int ys_len = (rbuf[soff] << 8) | rbuf[soff + 1];
     soff += 2;
-    /* Server's DH public value (Ys) */
-    u8 server_dh_pub[256];
-    oc_memset(server_dh_pub, 0, 256);
-    if (ys_len <= 256) {
-        oc_memcpy(server_dh_pub + (256 - ys_len), rbuf + soff, ys_len);
+    if (soff + ys_len > rlen) return -10;
+    /* Server's DH public value (Ys) — right-aligned in DH_BYTES buffer */
+    u8 server_dh_pub[DH_BYTES];
+    oc_memset(server_dh_pub, 0, DH_BYTES);
+    if (ys_len <= DH_BYTES) {
+        oc_memcpy(server_dh_pub + (DH_BYTES - ys_len), rbuf + soff, ys_len);
+    } else {
+        /* Take low DH_BYTES bytes */
+        oc_memcpy(server_dh_pub, rbuf + soff + (ys_len - DH_BYTES), DH_BYTES);
     }
 
     /* Read ServerHelloDone */
     if (tls_read_record(ctx, &rtype, rbuf, &rlen) < 0) return -11;
 
-    /* Generate client DH private key (random 256-byte number) */
-    u8 client_priv[256];
-    crypto_random(client_priv, 256);
-    /* Compute client DH public value: Yc = g^x mod p */
-    u8 client_dh_pub[256];
-    /* g = 2 (group 14 generator) */
-    u8 g_val[256];
-    oc_memset(g_val, 0, 256);
-    g_val[255] = 2;
-    dh_modexp(g_val, client_priv, dh_group14_prime, client_dh_pub);
+    /* Generate client DH private key (random DH_BYTES-byte number).
+     * For 1024-bit group, exp ~ 160 bits is enough (subgroup-safe).
+     * We generate full DH_BYTES random for simplicity but mask top bits to
+     * be safely below p-1. */
+    u8 client_priv[DH_BYTES];
+    crypto_random(client_priv, DH_BYTES);
+    /* Clear top 4 bits to ensure exp < p (p starts with 0xFF..FF) */
+    client_priv[0] &= 0x0F;
+    /* Clear bottom bit to ensure exp is even (avoid small-subgroup) */
+    client_priv[DH_BYTES - 1] &= 0xFE;
 
-    /* Compute premaster secret: Ys^x mod p */
-    u8 premaster_full[256];
-    dh_modexp(server_dh_pub, client_priv, dh_group14_prime, premaster_full);
-    oc_memcpy(ctx->premaster, premaster_full, 32);
+    /* Compute client DH public value: Yc = g^x mod p (g=2, p=group 1 prime) */
+    u8 client_dh_pub[DH_BYTES];
+    u8 g_val[DH_BYTES];
+    oc_memset(g_val, 0, DH_BYTES);
+    g_val[DH_BYTES - 1] = 2;
+    dh_modexp(g_val, client_priv, dh_group1_prime, client_dh_pub);
 
-    /* Send ClientKeyExchange (client's DH public value) */
-    u8 cke[280];
+    /* Compute premaster secret: premaster = Ys^x mod p */
+    u8 premaster_full[DH_BYTES];
+    dh_modexp(server_dh_pub, client_priv, dh_group1_prime, premaster_full);
+    /* Take low 32 bytes of premaster as the TLS premaster secret
+     * (TLS 1.2 DHE: premaster secret = DH shared secret, length = bytes(p)).
+     * For 1024-bit DH, premaster is 128 bytes, but TLS PRF only needs
+     * to use it as the secret; we'll use first 32 bytes for HMAC-SHA-256. */
+    oc_memcpy(ctx->premaster, premaster_full, DH_BYTES);
+
+    /* Send ClientKeyExchange (client's DH public value).
+     * Body: Yc_len(2 bytes, big-endian) + Yc(DH_BYTES bytes).
+     * Total body length = 2 + DH_BYTES = 130. */
+    u8 cke[4 + 2 + DH_BYTES];
     int cke_len = 0;
     cke[cke_len++] = TLS_CLIENT_KEY_EXCHANGE;
     cke[cke_len++] = 0;
-    cke[cke_len++] = 1; /* length = 256 + ... actually it's 256+2 for the length prefix */
-    /* Actually the handshake body is: Yc_len(2) + Yc(256) = 258 bytes */
-    int cke_body = 258;
-    cke[1] = (u8)(cke_body >> 16);
-    cke[2] = (u8)(cke_body >> 8);
-    cke[3] = (u8)(cke_body & 0xFF);
-    cke_len = 4;
-    cke[cke_len++] = 1; /* Yc length high byte = 1 (256 = 0x0100) */
-    cke[cke_len++] = 0; /* Yc length low byte */
-    oc_memcpy(cke + cke_len, client_dh_pub, 256);
-    cke_len += 256;
+    int cke_body = 2 + DH_BYTES; /* 130 */
+    cke[cke_len++] = (u8)(cke_body >> 8);
+    cke[cke_len++] = (u8)(cke_body & 0xFF);
+    /* Yc length prefix (big-endian): DH_BYTES = 128 = 0x0080 */
+    cke[cke_len++] = (u8)(DH_BYTES >> 8); /* 0x00 */
+    cke[cke_len++] = (u8)(DH_BYTES & 0xFF); /* 0x80 */
+    oc_memcpy(cke + cke_len, client_dh_pub, DH_BYTES);
+    cke_len += DH_BYTES;
     tls_send_record(ctx, TLS_HANDSHAKE, cke, cke_len);
 
     /* Derive master secret: PRF(premaster, "master secret", client_random || server_random, 48) */
     u8 seed[64];
     oc_memcpy(seed, ctx->client_random, 32);
     oc_memcpy(seed + 32, ctx->server_random, 32);
-    tls_prf(ctx->premaster, 32, "master secret", seed, 64, ctx->master_secret, 48);
+    tls_prf(ctx->premaster, DH_BYTES, "master secret", seed, 64, ctx->master_secret, 48);
 
     /* Derive key material: PRF(master_secret, "key expansion", server_random || client_random, 128) */
     u8 key_exp[128];

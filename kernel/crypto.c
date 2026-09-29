@@ -305,33 +305,25 @@ void crypto_random(u8 *buf, int len) {
 }
 
 /* ============================================================
- * DH big-integer (2048-bit modular exponentiation)
+ * DH big-integer (1024-bit modular exponentiation, Oakley Group 1)
  * Uses schoolbook multiplication — slow but correct.
+ * WP-09: switched from 2048-bit (group 14) to 1024-bit (group 1) for speed.
  * ============================================================ */
 
-/* DH group 14 prime (RFC 3526) — 2048 bits = 256 bytes, big-endian */
-const u8 dh_group14_prime[256] = {
+/* DH group 1 prime (RFC 2409 Oakley Group 1) — 1024 bits = 128 bytes, big-endian */
+const u8 dh_group1_prime[DH_BYTES] = {
     0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xC9,0x0F,0xDA,0xA2,0x21,0x68,0xC2,0x34,
     0xC4,0xC6,0x62,0x8B,0x80,0xDC,0x1C,0xD1,0x29,0x02,0x4E,0x08,0x8A,0x67,0xCC,0x74,
     0x02,0x0B,0xBE,0xA6,0x3B,0x13,0x9B,0x22,0x51,0x4A,0x08,0x79,0x8E,0x34,0x04,0xDD,
     0xEF,0x95,0x19,0xB3,0xCD,0x3A,0x43,0x1B,0x30,0x2B,0x0A,0x6D,0xF2,0x5F,0x14,0x37,
-    0xEF,0x51,0x0F,0x9E,0x03,0x4C,0x15,0xE9,0x09,0x9E,0x09,0x3B,0x63,0x12,0x3E,0x5B,
-    0x59,0x8B,0x07,0x18,0x00,0x01,0xDA,0xCF,0x49,0x09,0x71,0x4B,0x4B,0x48,0xA2,0x86,
-    0x8C,0x4B,0xF1,0x16,0x9F,0x1F,0x16,0x03,0x57,0x49,0x16,0x7D,0x45,0x86,0x2F,0x72,
-    0x54,0x69,0x2B,0x53,0x01,0x9E,0x05,0x6B,0x3E,0x97,0xD0,0x5F,0x0F,0x33,0x0F,0x93,
-    0x05,0x59,0xE7,0xB0,0x02,0x8E,0x89,0xC6,0xE4,0x01,0x01,0x27,0x40,0x22,0x6E,0x82,
-    0x49,0x53,0x4B,0x09,0x6B,0x3A,0x5C,0x18,0xB2,0x52,0x6E,0x6D,0x3C,0x47,0x60,0x2A,
-    0xA8,0xC1,0x8B,0x3B,0x5C,0x70,0x31,0x1B,0x1C,0x43,0x05,0x5C,0x44,0x7C,0xF6,0x05,
-    0x4B,0x3B,0x81,0x50,0x3C,0x2C,0xB5,0x1E,0x49,0x4C,0x1A,0x52,0x8B,0x24,0xFD,0x03,
-    0x89,0x6E,0x39,0xDB,0x12,0xC0,0xC5,0x36,0x88,0x60,0x77,0xB4,0x8A,0x12,0x06,0x3A,
-    0xBF,0x64,0xD8,0x76,0x33,0x44,0xA4,0x2B,0xA6,0xF2,0xE9,0x59,0x33,0x4D,0x96,0x21,
-    0x20,0xC1,0xC9,0x44,0x29,0x04,0x9A,0xE5,0x14,0x9D,0x18,0x5F,0x97,0xB2,0x71,0x5D,
-    0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF
+    0x77,0x4F,0xE1,0x26,0xB7,0x4D,0x05,0x16,0xD0,0x17,0x70,0xE1,0xC8,0xC0,0xFF,0xB0,
+    0xF4,0xE6,0x18,0xB6,0x56,0x4F,0xFE,0x2D,0xD4,0xAF,0xB7,0xF3,0xB2,0x9A,0xB8,0xA2,
+    0x47,0x91,0xB8,0x17,0xF4,0xE1,0xAC,0x6B,0x7E,0x0D,0xC0,0xE3,0x7D,0x3B,0x0C,0x0E,
+    0xE8,0x9F,0x3F,0x37,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF
 };
-const u8 dh_group14_generator[1] = { 0x02 };
+const u8 dh_group1_generator[1] = { 0x02 };
 
-/* Big-integer helpers (256-byte = 2048-bit numbers) */
-#define DH_BYTES 256
+/* Big-integer helpers (DH_BYTES-byte = 1024-bit numbers) */
 
 /* Compare: a < b → -1, a == b → 0, a > b → 1 */
 static int bn_cmp(const u8 *a, const u8 *b, int len) {
@@ -354,67 +346,100 @@ static u8 bn_sub(u8 *a, const u8 *b, int len) {
     return (u8)borrow;
 }
 
-/* Shift left by 1 bit: a <<= 1, len bytes */
-static void bn_shl1(u8 *a, int len) {
-    int carry = 0;
-    for (int i = len - 1; i >= 0; i--) {
-        int new_carry = a[i] >> 7;
-        a[i] = (a[i] << 1) | carry;
-        carry = new_carry;
-    }
-}
+/* (WP-09 bn_mod rewrite: bn_shl1 helper removed — bn_mod now uses inline
+ * shift that preserves overflow into a len+1 byte remainder buffer.) */
 
-/* Modular reduction: result = a mod m (a is 2*len bytes, result and m are len bytes) */
+/* Modular reduction: result = a mod m
+ *  - a is 2*len bytes (big-endian)
+ *  - m is len bytes
+ *  - result is len bytes
+ * WP-09 fix: use len+1 byte remainder buffer so the shift left doesn't
+ * lose the MSB (otherwise we'd compare 2m > m incorrectly when m's MSB
+ * is 1, leading to wrong result like g^x mod p = 0). */
 static void bn_mod(u8 *result, const u8 *a, const u8 *m, int len) {
-    /* Simple long division: subtract m shifted until a < m */
-    u8 temp[512];
+    u8 temp[2 * DH_BYTES];
     oc_memcpy(temp, a, len * 2);
-    /* Initialize result = 0 */
-    oc_memset(result, 0, len);
-    /* For each bit position from MSB to LSB */
+
+    /* rem is len+1 bytes (big-endian): rem[0] = MSB overflow, rem[1..len] = current remainder */
+    u8 rem[DH_BYTES + 4];
+    oc_memset(rem, 0, len + 1);
+
     for (int bit = 0; bit < len * 8 * 2; bit++) {
-        /* Shift result left by 1 */
-        bn_shl1(result, len);
+        /* shift rem left by 1, preserving overflow into rem[0] */
+        int carry = 0;
+        for (int i = len; i >= 0; i--) {
+            int new_carry = rem[i] >> 7;
+            rem[i] = (u8)((rem[i] << 1) | carry);
+            carry = new_carry;
+        }
+        /* carry from rem[0] is discarded (it's overflow beyond len+1 bytes,
+         * but since rem < 2m at this point, it's always 0 anyway). */
+
         /* Bring in next bit of a from MSB */
         int byte_idx = bit / 8;
         int bit_idx = 7 - (bit % 8);
         if (byte_idx < len * 2 && (temp[byte_idx] >> bit_idx) & 1) {
-            result[len - 1] |= 1;
+            rem[len] |= 1;  /* LSB of rem is at index len */
         }
-        /* If result >= m, subtract m */
-        if (bn_cmp(result, m, len) >= 0) {
-            bn_sub(result, m, len);
+
+        /* If rem >= m, subtract m.
+         * rem is len+1 bytes, m is len bytes (aligned to rem[1..len]).
+         * If rem[0] != 0, rem > m (because m fits in len bytes).
+         * Else compare rem[1..len] vs m[0..len-1]. */
+        int geq;
+        if (rem[0] != 0) {
+            geq = 1;
+        } else {
+            geq = 0;
+            for (int i = 0; i < len; i++) {
+                if (rem[1 + i] < m[i]) { geq = -1; break; }
+                if (rem[1 + i] > m[i]) { geq = 1; break; }
+            }
+        }
+        if (geq >= 0) {
+            /* subtract m (len bytes, aligned to rem[1..len]) */
+            int borrow = 0;
+            for (int i = len; i >= 1; i--) {
+                int diff = (int)rem[i] - m[i - 1] - borrow;
+                if (diff < 0) { diff += 256; borrow = 1; }
+                else borrow = 0;
+                rem[i] = (u8)diff;
+            }
+            /* borrow propagates into rem[0] (should always become 0) */
+            rem[0] = (u8)((int)rem[0] - borrow);
         }
     }
+
+    /* Copy rem[1..len] to result[0..len-1] */
+    oc_memcpy(result, rem + 1, len);
 }
 
 /* Modular exponentiation: result = base^exp mod mod
- * Uses square-and-multiply. All 256-byte numbers.
- * NOTE: This is SLOW for 2048-bit — each modexp takes ~2^11 iterations
- * of 256-byte multiply+reduce. In QEMU this takes ~30-60 seconds.
- * For TLS/SSH in QEMU, this is acceptable (one-time cost per session). */
-void dh_modexp(const u8 base[256], const u8 exp[256], const u8 mod[256], u8 result[256]) {
-    u8 r[256];
+ * Uses square-and-multiply. All DH_BYTES-byte (1024-bit) numbers.
+ * WP-09: each modexp takes ~5-10s in QEMU (1024-bit). For TLS/SSH this is
+ * acceptable as a one-time cost per session. */
+void dh_modexp(const u8 base[DH_BYTES], const u8 exp[DH_BYTES],
+               const u8 mod[DH_BYTES], u8 result[DH_BYTES]) {
+    u8 r[DH_BYTES];
     oc_memset(r, 0, DH_BYTES);
     r[DH_BYTES - 1] = 1; /* r = 1 */
 
-    u8 b[256];
-    /* b = base mod mod */
-    bn_mod(b, base, mod, DH_BYTES);
-    /* Actually base is already < mod, so b = base. But for safety: */
+    u8 b[DH_BYTES];
+    /* b = base; reduce if >= mod */
     oc_memcpy(b, base, DH_BYTES);
-    /* Reduce b if >= mod */
     if (bn_cmp(b, mod, DH_BYTES) >= 0) {
         bn_sub(b, mod, DH_BYTES);
     }
+
+    u8 product[2 * DH_BYTES];
+    u8 prod2[2 * DH_BYTES];
 
     /* Square-and-multiply: scan exp from MSB */
     for (int i = 0; i < DH_BYTES; i++) {
         for (int bit = 7; bit >= 0; bit--) {
             /* r = r^2 mod mod */
-            u8 product[512];
-            oc_memset(product, 0, 512);
-            /* Schoolbook multiply: r * r → 512-byte product */
+            oc_memset(product, 0, 2 * DH_BYTES);
+            /* Schoolbook multiply: r * r → 2*DH_BYTES-byte product */
             for (int j = DH_BYTES - 1; j >= 0; j--) {
                 for (int k = DH_BYTES - 1; k >= 0; k--) {
                     int prod_idx = j + k + 1;
@@ -424,9 +449,6 @@ void dh_modexp(const u8 base[256], const u8 exp[256], const u8 mod[256], u8 resu
                         int sum = product[l] + (carry & 0xFF);
                         product[l] = (u8)sum;
                         carry = (carry >> 8) + (sum >> 8);
-                        if (l == 0) {
-                            /* overflow into high bytes — ignore (we mod later) */
-                        }
                     }
                 }
             }
@@ -434,8 +456,7 @@ void dh_modexp(const u8 base[256], const u8 exp[256], const u8 mod[256], u8 resu
 
             /* If exp bit is set: r = r * b mod mod */
             if ((exp[i] >> bit) & 1) {
-                u8 prod2[512];
-                oc_memset(prod2, 0, 512);
+                oc_memset(prod2, 0, 2 * DH_BYTES);
                 for (int j = DH_BYTES - 1; j >= 0; j--) {
                     for (int k = DH_BYTES - 1; k >= 0; k--) {
                         int prod_idx = j + k + 1;
