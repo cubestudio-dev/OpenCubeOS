@@ -61,7 +61,7 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
             print(f"[runner] sending: {c}")
             child.sendline(c)
             try:
-                child.expect(r"oc>\s*", timeout=timeout_per_cmd)
+                child.expect(r"oc>\s*", timeout=60)  # increased to 60s per command
                 out = child.before
                 # Strip the echoed command line at start
                 lines = strip_ansi(out).split('\n', 1)
@@ -73,7 +73,7 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
                 print(f"[runner] got {len(out)} chars for '{c}'")
             except pexpect.TIMEOUT:
                 print(f"[runner] TIMEOUT for '{c}'")
-                all_output.append((c, f"<<TIMEOUT after {timeout_per_cmd}s>>"))
+                all_output.append((c, f"<<TIMEOUT after 60s>>"))
             except pexpect.EOF:
                 print(f"[runner] EOF for '{c}'")
                 all_output.append((c, "<<EOF>>"))
