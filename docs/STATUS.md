@@ -1,7 +1,40 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS - WP-08 Project Status
+# Open Cube OS - WP-09 Project Status
+
+## WP-09: Security transport (SSH client+server, TLS 1.2/HTTPS, crypto core)
+
+**Status: COMPLETE.** All acceptance criteria met (2026-09-30).
+Full evidence with real outputs: docs/VERIFICATION_BATCH_B.md,
+docs/verification/*.log, VERIFICATION_REPORT.md §10.
+
+### Acceptance criteria
+
+| Criterion | Status | Evidence (real outputs) |
+|---|---|---|
+| Compiles with no errors / warnings | OK | `make clean` all: 0 errors 0 warnings (-Wall -Wextra -Werror) |
+| 18/18 full QEMU regression | OK | boot banner "WP-09 ready", uname, 12 user progs, p3_test, heaptest (overhead%=5), l1test, crashlog (3 self-test exceptions) |
+| dhtest 5/5 | OK | g^0/1^x + group14 truth e/K2 + determinism IDENTICAL + scale sweep 8..256 |
+| SSH client ↔ paramiko server | OK | K[:8]=2f4130816e935c6a byte-identical (len=256), exec round trip |
+| paramiko client ↔ kernel sshd | OK | 4/4 checks PASS, exec captured 32 bytes, session finished cleanly |
+| HTTPS E2E (TLS 1.2, 0x0067) | OK | dual-side logs; encrypted GET; MAC-verified; body = hello-from-opencube-tls |
+| ISO reproducible | OK | opencube.elf SHA256 0b330b69... (byte-identical to batch-14 Release src) |
+
+### WP-09 scope shipped
+
+- kernel/crypto.{c,h} + dh_scale_vectors.h (AES-128, SHA-256, HMAC, DH modexp, random)
+- kernel/ssh.{c,h} (client), kernel/sshd.c + sshd_rsa_key.h (server)
+- kernel/tls.{c,h} (TLS 1.2 client) + HTTPS in wget
+- Shell: ssh, sshd, route, arp, firewall, tcpstats, dns (68 commands total)
+- userprogs: mprotect_test.asm, p3_test.asm
+- Test tools: tools/qemu_runner.py, sshd_test.py, paramiko_sshd.py, https_test_server.py
+
+### Known / accepted behaviors
+
+See docs/KNOWN_ISSUES.md §2A (7 items: close_notify, server Finished,
+stale comment, no cert/host-key verification, paramiko probe, QEMU modexp
+speed, crashlog tick display).
 
 ## WP-03: Physical memory + Virtual memory + Kernel heap
 

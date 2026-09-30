@@ -1,10 +1,10 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS 完整验证报告：WP-01 到 WP-08
+# Open Cube OS 完整验证报告：WP-01 到 WP-09
 
-**验证日期**: 2026-09-26
-**验证范围**: WP-01 到 WP-08 全部源码（147 个文件，31,xxx 行代码）
+**验证日期**: 2026-09-26（WP-01..WP-08 基线）/ 2026-09-30（WP-09 更新）
+**验证范围**: WP-01 到 WP-09 全部源码（kernel + boot + userprogs 共 46,014 行）
 **验证人**: cubestudio-dev 自动审计
 
 ---
@@ -539,3 +539,49 @@ Open Cube OS WP-08 ready. Type 'help' for commands.
 ush 启动后手动在 `ush>` 提示符下跑命令（ls/cat/echo/>/>>/pipe/alias
 /sort/uniq/cd/pwd/mkdir/touch/rm/cp/mv/df/date/free）。所有命令在 QEMU
 下手动验证工作正常。
+
+---
+
+## 十、WP-09 验证 (2026-09-30，全部真实输出)
+
+WP-09 基线：`opencube.elf` SHA256
+`0b330b6915653705bcb079afb83acdfadf8c9150065f95542d26dfe846a17b12`
+（510,808 B），与 batch-14 Release 同源。
+
+### 10.1 18/18 全量回归 — PASS
+
+一次 QEMU 会话（tools/qemu_runner.py）执行 16 条命令 + 启动横幅，全部真实
+输出见 docs/VERIFICATION_BATCH_B.md §1 与 docs/verification/regression_18.log：
+横幅 "Open Cube OS WP-09 ready."、uname "Open Cube OS WP-09 x86_64"、
+12 项用户程序、p3_test、heaptest（overhead%=5）、l1test、crashlog（3 条
+开机自检故意异常）— 18/18 PASS。
+
+### 10.2 dhtest — 5/5 PASS
+
+g^0=1、1^x=1、group14 真值 g^x=e(32a09a91...) / f^x=K2(5962870f...)、
+确定性 3 次 IDENTICAL、scale sweep len=8/16/32/64/128/256 全 PASS、
+2048-bit modexp 10200 ms。
+
+### 10.3 HTTPS E2E — PASS（双侧外部证据）
+
+内核 TLS 1.2 客户端（0x0067 / RFC 3526 1024-bit DH）对 tools/
+https_test_server.py：握手完成 → 加密 GET → 服务器解密收请求（43 B）
+→ 响应 108 B → 内核解密（MAC 校验通过）→ Saved 24 bytes → cat 得
+"hello-from-opencube-tls"。server p 前 16 字节两侧一致。
+
+### 10.4 SSH 双向 — PASS（K 字节级一致）
+
+方向 1：paramiko 5.0 → 内核 sshd 4/4 PASS（exec 捕获 32 B，session
+finished cleanly）。
+方向 2：内核 ssh → paramiko 服务端：内核 K[:8]=2f4130816e935c6a ==
+服务器截获 K (len=256) K[:8]=2f4130816e935c6a；EXEC request
+b'echo hello-from-OpenCubeOS-kernel-ssh' 真实送达。
+
+### 10.5 已知良性现象（记录在案）
+
+- 内核 tls_close() 直接 TCP FIN、不发 close_notify → 服务器 unwrap 报
+  UNEXPECTED_EOF（不影响功能）。
+- paramiko 服务端 direct-mode probe 报 "Socket is closed"（probe 假设
+  客户端先发数据；内核 exec 数据经 check_channel_exec_request 正常送达）。
+- tls.c 头注释 "server-side records NOT decrypted" 已过时（tls_recv 实已
+  解密+验 MAC）；注释待后续批次修正。

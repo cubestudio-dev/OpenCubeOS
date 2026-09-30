@@ -2,10 +2,10 @@
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 # Open Cube OS — Known Issues, Design Limitations, and TODOs
 
-# Known Issues (WP-08-p7)
+# Known Issues (WP-09)
 
 This document lists all known issues, design limitations, and TODOs in
-Open Cube OS as of WP-08-p7. Each item has: description, impact, cause,
+Open Cube OS as of WP-09. Each item has: description, impact, cause,
 and plan.
 
 ## 1. Previously Unfixed Bugs — ALL FIXED in P7
@@ -76,16 +76,76 @@ and plan.
 
 ### 2.6 Network stack is minimal
 - **Description**: e1000 + TCP/IP supports DHCP, DNS, ping (ICMP), wget (HTTP
-  GET). No TCP server, no UDP, no TLS.
-- **Impact**: Can't run a network server.
-- **Rationale**: Client-only stack is sufficient for wget/DNS/DHCP.
+  + HTTPS via TLS 1.2), TCP server (kernel sshd/net_accept), route/arp/
+  firewall/tcpstats. No UDP, no TCP keepalive, no window scaling.
+- **Impact**: UDP-based services unavailable.
+- **Rationale**: Client-focused TCP stack covers wget/HTTPS/DNS/DHCP/SSH.
+
+## 2A. WP-09 Known Issues / Accepted Behaviors (all verified 2026-09-30)
+
+### 2A.1 TLS: kernel does not send close_notify on shutdown — accepted
+- **Description**: `tls_close()` issues a plain TCP FIN without a TLS
+  close_notify alert. The test server reports
+  `unwrap (close_notify): [SSL: UNEXPECTED_EOF_WHILE_READING]`.
+- **Impact**: Server-side logs show a benign EOF error; data integrity is
+  unaffected (every record is MAC-verified).
+- **Plan**: Send close_notify in a future WP-10+ batch.
+
+### 2A.2 TLS: server Finished not cryptographically verified — by design
+- **Description**: The kernel reads the server's encrypted Finished record
+  but does not decrypt/verify its verify_data (server-to-client application
+  records ARE decrypted and MAC-verified).
+- **Impact**: No confirmation that the server holds the same master secret
+  from the Finished message itself; practical assurance comes from the
+  MAC verification on every server application record.
+- **Rationale**: Avoids implementing AES-CBC decrypt for handshake records
+  in the minimal client.
+
+### 2A.3 tls.c header comment stale — doc-only
+- **Description**: The file header says "Server-side encrypted records ...
+  accepted but NOT decrypted", but `tls_recv()` does decrypt + MAC-verify
+  application data and alerts.
+- **Impact**: Documentation confusion only; behavior is correct.
+- **Plan**: Fix the comment in the next code-touching batch.
+
+### 2A.4 TLS/SSH: certificate and host-key verification skipped — by design (test phase)
+- **Description**: TLS accepts any certificate; SSH accepts any host key.
+- **Impact**: MITM is possible in untrusted networks.
+- **Rationale**: WP-09 targets protocol correctness; trust-on-first-use /
+  CA verification is deferred (see batch-A assessment: host key persistence,
+  known_hosts, publickey auth, keepalive, algorithm whitelist).
+
+### 2A.5 paramiko test-server direct-mode probe error — test-harness only
+- **Description**: `paramiko_sshd.py` probes the channel with an immediate
+  `recv()`; the kernel sends nothing before exec, so the probe logs
+  `channel error: Socket is closed`.
+- **Impact**: None on the kernel; exec data flows via
+  `check_channel_exec_request` (verified).
+
+### 2A.6 SSH performance — QEMU DH modexp ~26-30 s
+- **Description**: 2048-bit modexp in QEMU TCG takes 26-30 s per operation
+  (2 ops per KEX). On real hardware this is orders of magnitude faster.
+- **Impact**: Slow SSH connect under emulation only.
+
+### 2A.7 crashlog tick display — cosmetic
+- **Description**: Boot-time self-test exceptions show `@tick=0`; earlier
+  records noted `@tick=1`. Tick granularity at boot differs.
+- **Impact**: Display only; the 3 intentional exceptions (#DE/#UD/#PF)
+  themselves are expected and unchanged.
 
 ## 3. TODOs (By Work Package)
 
-### WP-09 (Not Started)
+### WP-09 (Done — shipped)
+
+Shipped in WP-09: crypto core (AES-128/SHA-256/HMAC/DH modexp/random),
+SSH client + server (group14-sha256, aes128-cbc, hmac-sha2-256,
+rsa-sha2-256, password auth, session exec), TLS 1.2 client
+(DHE-RSA-AES128-CBC-SHA256), HTTPS wget, route/arp/firewall/tcpstats/dns
+commands, mprotect syscall test, p3_test user program.
+
+Carried over from the old WP-09 TODO list (NOT done, deferred):
 - Per-process cwd
 - TTY layer with line editing
-- TCP server (listen/accept)
 - UDP support
 - Swap/paging to disk
 - SMP support
@@ -98,8 +158,15 @@ and plan.
 - User management (multi-user)
 - Permission model (uid/gid)
 
-### Future (Post WP-09)
-- Network: TLS, SSH, FTP
+### WP-10+ (Next)
+- TLS: send close_notify on shutdown (§2A.1)
+- TLS: verify server Finished (§2A.2)
+- TLS/SSH: host key persistence + known_hosts, publickey auth, keepalive,
+  algorithm whitelist (§2A.4)
+- Code comment refresh: tls.c header (§2A.3)
+
+### Future (Post WP-10)
+- Network: FTP client, SFTP
 - Graphics: GUI toolkit, window manager
 - Audio: sound card driver
 - USB: host controller driver

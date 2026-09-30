@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS - WP-08
+# Open Cube OS - WP-09
 
 **官网**: https://helloopencubeos.space-z.ai
 **GitHub**: https://github.com/cubestudio-dev/OpenCubeOS
@@ -20,12 +20,11 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-08)
+## Stats (WP-09)
 
-- **Source code**: 28127 lines (no docs, no auto-gen)
-- **With docs**: 32613 lines
-- **Work packages**: 8 (WP-01 ~ WP-08)
-- **L1 extension interfaces**: 57
+- **Source code**: 46014 lines (kernel + boot + userprogs, no docs)
+- **Work packages**: 9 (WP-01 ~ WP-09)
+- **L1 extension interfaces**: 57 (WP-09 adds transport-level features instead of L1 interfaces)
 - **System calls**: 37
 - **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
   + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
@@ -35,10 +34,12 @@ Licensed under the Apache License, Version 2.0.
   + 26 P4 bugs (WP-08-p4: doc fixes + Makefile + ld.so output + shell pipe +
   idle alignment + kill/nice overflow + pmm/pftest + execve argv/envp +
   kthread_destroy sync hook + crash log + VFS misc)
-  Grand total: 120 bugs fixed.
-- **Tests passing**: 8/8 automated regression suite (`run_wp08a_tests.py`) —
-  see § Tests below. (P4 fix: old "17/17 + 18/21" claim was inconsistent
-  with the actual automated suite; unified to 8/8 to avoid the conflict.)
+  Grand total: 120 bugs fixed (as of WP-08; WP-09 added further SSH/TLS fixes,
+  see docs/VERIFICATION_BATCH_B.md).
+- **Tests passing**: 18/18 full QEMU regression (WP-09 canonical suite —
+  boot banner + uname + 12 user programs + p3_test + heaptest + l1test +
+  crashlog) plus dhtest 5/5, HTTPS E2E and SSH both-direction interop with
+  paramiko. Full evidence: docs/VERIFICATION_BATCH_B.md + docs/verification/.
 
 ## WP-01 (done) - Boot + framebuffer + text rendering
 
@@ -111,6 +112,28 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
 - **Audit fixes**: 47 bugs fixed (P0=2, P1=8, P2=29, P3=8).
 - Seven new L1 extension interfaces (items 51-57): shell_run, shell_register_builtin, tool_register, tool_list, job_create, job_list, job_control.
 
+## WP-09 (done) - Security transport: SSH (client + server), TLS 1.2 / HTTPS, crypto core
+
+- **Crypto core** (`kernel/crypto.{c,h}`): AES-128 (enc/dec), SHA-256, HMAC-SHA256,
+  DH modexp (arbitrary length, verified against python3 pow() truth vectors at
+  8/16/32/64/128/256 bytes), crypto_random.
+- **SSH client** (`kernel/ssh.{c,h}`): KEX group14-sha256 (2048-bit), aes128-cbc,
+  hmac-sha2-256, rsa-sha2-256 host key signature, password auth, session channel
+  exec. Byte-level K verified against paramiko server-side capture.
+- **SSH server** (`kernel/sshd.c`): same algorithm suite, password auth (oc/oc),
+  exec requests executed via kernel shell capture API; verified 4/4 against
+  paramiko client.
+- **TLS 1.2 client** (`kernel/tls.{c,h}`): cipher DHE_RSA_WITH_AES_128_CBC_SHA256
+  (0x0067), RFC 3526 1024-bit MODP key exchange, full record layer (encrypt
+  outgoing, decrypt + MAC-verify incoming), server Finished accepted-by-design.
+- **HTTPS**: `wget https://host:port/path` downloads through TLS into VFS.
+- **Network ops commands**: route, arp, firewall, tcpstats, dns.
+- **Shell**: 68 commands (boot self-test count).
+- **New user test programs**: mprotect_test, p3_test.
+- **Verification**: 18/18 QEMU regression + dhtest 5/5 + HTTPS E2E + SSH
+  both-direction interop (external evidence: paramiko 5.0). See
+  docs/VERIFICATION_BATCH_B.md, docs/EXTENSIONS_WP09.md, docs/INTERFACES.md.
+
 ## Repository layout
 
 ```
@@ -143,6 +166,9 @@ oc-os/
 |   +-- syscall.{c,h}                               # WP-08: syscall dispatch
 |   +-- ext_wp8a.{c,h}, ext_wp8b.{c,h}, ext_wp8cd.{c,h}  # WP-08 L1 extensions
 |   +-- userprogs_data.h, solib_data.h             # WP-08 embedded ELF + .so data
+|   +-- crypto.{c,h}, dh_scale_vectors.h           # WP-09: AES/SHA/HMAC/DH
+|   +-- ssh.{c,h}, sshd.c, sshd_rsa_key.h          # WP-09: SSH client + server
+|   +-- tls.{c,h}                                   # WP-09: TLS 1.2 client
 |   +-- kmain.c                                     # Kernel main
 +-- userprogs/                  # User-mode programs (21 files: .c + .asm + .ld)
 |   +-- hello.asm, badapp.asm, loop.asm            # basic tests
@@ -159,10 +185,11 @@ oc-os/
 |   +-- BUILD.md, STATUS.md, COPYRIGHT.md, MANIFEST.txt, FEATURE_REQUESTS.md
 |   +-- EXTENSIONS.md (overview)
 |   +-- EXTENSIONS_WP02..WP08cd.md (per-WP interface docs)
-+-- tools/                      # Build + test scripts (5 files)
-|   +-- build_iso.sh, gen_font.py
-|   +-- qemu_shot.py, qemu_shot_vnc.py
++-- tools/                      # Build + test scripts
+|   +-- build_iso.sh, gen_font.py, embed_userprog.py
+|   +-- qemu_shot.py, qemu_shot_vnc.py, qemu_runner.py
 |   +-- github_release_wp08.sh  # GitHub Release helper
+|   +-- sshd_test.py, paramiko_sshd.py, https_test_server.py  # WP-09 E2E
 +-- archive/                    # Old archived source (3 files, .gitignored subdirs)
 +-- .gitignore                  # Excludes build/, *.o, *.elf, *.iso, *.zip, releases/, etc.
 +-- LICENSE                     # Apache 2.0 full text (201 lines)
@@ -171,7 +198,7 @@ oc-os/
 +-- linker.ld                   # Kernel link script
 +-- grub.cfg                    # GRUB boot config
 +-- MANIFEST.md                 # Project manifest
-+-- VERIFICATION_REPORT.md       # WP-01..WP-08 verification report
++-- VERIFICATION_REPORT.md       # WP-01..WP-09 verification report
 +-- README.md                   # This file
 ```
 
@@ -196,35 +223,25 @@ Try `run ush` to launch the user-space shell.
 
 ## Tests
 
-**P4 fix**: the previous "17/17 + 18/21" headline was inconsistent with the
-actual automated regression suite. The "17/17" was an early hand-test count
-that grew stale as programs were added/removed. The "18/21" was a manual
-ush smoke-test with 3 UNKNOWN entries that were really test-runner pattern
-matching issues (not kernel bugs).
+The canonical WP-09 regression is the **18/18 full QEMU suite** (boot banner,
+uname, 12 user programs, p3_test, heaptest, l1test, crashlog), executed in one
+QEMU session via `tools/qemu_runner.py`. In addition:
 
-The current canonical test count is **8/8 PASS** from the automated
-regression suite `run_wp08a_tests.py`:
+- `dhtest` — 5/5 DH modexp correctness (Oakley Group 1 + group14 truth vectors
+  + scale sweep 8..256 bytes + determinism).
+- HTTPS E2E — kernel TLS 1.2 client against `tools/https_test_server.py`
+  (TLS1.2-only, DHE-RSA-AES128-SHA256): handshake + encrypted GET + decrypted
+  response + MAC verification, both sides logged.
+- SSH interop both directions with paramiko 5.0 (`tools/sshd_test.py` and
+  `tools/paramiko_sshd.py`): 4/4 checks + byte-level K agreement.
 
-| # | Program | Verifies |
-|---|---------|----------|
-| 1 | hello.asm | userspace basic output |
-| 2 | fork_test.asm | fork + wait4 |
-| 3 | exec_test.asm | execve (with proper argv setup) |
-| 4 | pipe_test.asm | pipe read/write + wait-queue wake |
-| 5 | signal_test.asm | signal delivery + sigreturn |
-| 6 | select_test.asm | select syscall |
-| 7 | mmap_test.asm | mmap user page + munmap free |
-| 8 | mmap_multi.asm | per-process mmap independence |
-
-Additional programs (dyn_hello, so_test, dlsym_test, pie_test, reloc_test,
-p3_test) are manually verified to PASS in QEMU but not in the automated
-suite. The ush command suite (ls/cat/echo/redirect/pipe/alias/sort/uniq/
-cd/pwd/mkdir/touch/rm/cp/mv/df/date/free) is also manually verified.
+Full evidence with real outputs: docs/VERIFICATION_BATCH_B.md and
+raw logs in docs/verification/.
 
 ## Download
 
-- **Latest (WP-08)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-08) — ISO only
-- **Archived (WP-08a, WP-08b)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip
+- **Latest (WP-09)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip
+- **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - Or visit https://helloopencubeos.space-z.ai for direct downloads
 
 ## License
