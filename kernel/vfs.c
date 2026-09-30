@@ -669,7 +669,17 @@ int vfs_rmdir(const char *path) {
         !parent->fs_type->dir_ops->rmdir) {
         return -3;
     }
-    return parent->fs_type->dir_ops->rmdir(parent, base);
+    int rc = parent->fs_type->dir_ops->rmdir(parent, base);
+    if (rc == 0) {
+        /* WP-09-FIX BUG-009: drop the cached node for the removed entry
+         * so later lookups cannot hit the stale cached node. */
+        vfs_node_t *dead = NULL;
+        for (vfs_node_t *c = parent->first_child; c; c = c->next_sibling) {
+            if (oc_strcasecmp(c->name, base) == 0) { dead = c; break; }
+        }
+        if (dead) vfs_detach_child(dead);
+    }
+    return rc;
 }
 
 int vfs_readdir(const char *path, int index, vfs_dirent_t *entry) {
@@ -693,7 +703,19 @@ int vfs_unlink(const char *path) {
      * on a file as an error, so this won't delete files - caller should
      * print "not supported"). */
     if (parent->fs_type->dir_ops->unlink) {
-        return parent->fs_type->dir_ops->unlink(parent, base);
+        int rc = parent->fs_type->dir_ops->unlink(parent, base);
+        if (rc == 0) {
+            /* WP-09-FIX BUG-009: drop the cached node for the deleted
+             * entry. Previously `cat` after `rm` on FAT32 still returned
+             * the old bytes read from the freed cluster chain via the
+             * stale cached node (while `ls` showed the file gone). */
+            vfs_node_t *dead = NULL;
+            for (vfs_node_t *c = parent->first_child; c; c = c->next_sibling) {
+                if (oc_strcasecmp(c->name, base) == 0) { dead = c; break; }
+            }
+            if (dead) vfs_detach_child(dead);
+        }
+        return rc;
     }
     return -4;
 }

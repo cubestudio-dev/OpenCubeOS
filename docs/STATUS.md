@@ -51,6 +51,7 @@ speed, crashlog tick display).
 | PMM: alloc/free 4KB page frames | OK | `memtest`: alloc 10 pages OK, free OK |
 | VMM: create AS, map/unmap/protect | OK | `vmtest`: create AS, map, is_mapped=1, protect, unmap, is_mapped=0, PASS |
 | Kernel heap: kmalloc/kfree/krealloc | OK | `memtest`: kmalloc 5 blocks, krealloc, kfree, double-free detection |
+| Shell survives `memtest` (WP-09-fix1) | OK | `memtest` PASS -> `uname -a` answers (kfree early-return lock leak fixed) |
 | Real page fault handling | OK | #PF handler calls vmm_handle_page_fault, distinguishes legal/illegal |
 | Memory stats correct | OK | `mem`: 65504 pages, 234 used, 65173 free |
 | Extension interfaces available | OK | PMM, VMM, heap, shell command registration |

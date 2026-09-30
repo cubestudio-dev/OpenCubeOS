@@ -696,7 +696,12 @@ static int cmd_write(const char *args) {
     split_first(args, path, sizeof(path), &rest);
     if (!path[0] || !rest[0]) { oc_console_puts("write: no text\n"); return 1; }
     const char *resolved = shell_resolve_path_static(path);
-    int fd = vfs_open(resolved, VFS_O_WRONLY | VFS_O_CREAT);
+    /* WP-09-FIX BUG-006: open with O_TRUNC — without it a second
+     * `write` to the same path kept the tail of the old content
+     * (write /tmp/a.txt 0123456789ABCDEF; write /tmp/a.txt XY; cat
+     * printed "XY23456789ABCDEF"). `>` redirection already truncates;
+     * the write command and wget must agree. */
+    int fd = vfs_open(resolved, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
     if (fd < 0) { oc_console_puts("write: open failed\n"); return 1; }
     int len = (int)oc_strlen(rest);
     int n = vfs_write(fd, rest, len);

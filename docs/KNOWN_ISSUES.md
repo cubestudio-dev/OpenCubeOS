@@ -10,13 +10,21 @@ and plan.
 
 ## 1. Previously Unfixed Bugs — ALL FIXED in P7
 
-### 1.1 heaptest hang — FIXED (P7)
+### 1.1 heaptest hang — FIXED (P7), re-fixed (WP-09-fix1)
 - **Root cause**: `kfree` backward coalescing path returned without calling
   `heap_lock_release(irq_flags)`, leaving the heap spinlock locked. The next
   `kmalloc`/`kfree` would spin forever on `heap_lock_acquire`.
 - **Fix**: Added `heap_lock_release(irq_flags)` before the `return` in the
   backward coalesce path.
-- **Test**: `heaptest` now completes: "Heap overhead test (100 allocs): ... PASS"
+- **WP-09-fix1 (re-review BUG-001, P0)**: The P7 fix only covered the
+  backward-coalesce path. Two MORE early-return paths in `kfree` had the
+  same lock leak: double-free detection (`magic == HEAP_MAGIC_FREE`) and
+  invalid-magic detection. `memtest` (which deliberately double-frees)
+  printed PASS and then permanently locked the whole shell. Both paths now
+  release the lock before returning.
+- **Test**: `heaptest` now completes: "Heap overhead test (100 allocs): ... PASS";
+  `memtest` completes AND the shell stays interactive afterwards
+  (`memtest` -> `uname -a` answers).
 
 ### 1.2 ush pipe race (echo abc | cat) — FIXED (P7)
 - **Root cause**: Same as §1.1 — the stuck heap lock caused `fork` to hang

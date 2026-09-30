@@ -3733,11 +3733,14 @@ int cmd_wget(const char *args) {
     }
     if (content_length < 0) content_length = body_received;  /* unknown — save what we have */
 
-    /* Open VFS file for writing. */
+    /* Open VFS file for writing.
+     * WP-09-FIX BUG-006: open with O_TRUNC (the HTTPS path already did;
+     * without it re-downloading over an existing larger file kept the
+     * old tail bytes). */
     char fpath[80];
     oc_strcpy(fpath, "/");
     oc_strcat(fpath, fname);
-    int fd = vfs_open(fpath, VFS_O_WRONLY | VFS_O_CREAT);
+    int fd = vfs_open(fpath, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
     if (fd < 0) {
         /* If VFS create fails, print to console as fallback. */
         oc_console_puts("wget: cannot create file, printing to console:\n");

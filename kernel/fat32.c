@@ -310,7 +310,26 @@ static int fat32_mark_entry_deleted(fat32_ctx_t *ctx, u32 dir_cluster, u32 entry
     fat32_dirent_t e;
     if (fat32_read_dirent(ctx, dir_cluster, entry_offset, &e) < 0) return -1;
     e.name[0] = 0xE5;
-    return fat32_write_dirent(ctx, dir_cluster, entry_offset, &e);
+    if (fat32_write_dirent(ctx, dir_cluster, entry_offset, &e) < 0) return -1;
+
+    /* WP-09-FIX BUG-009: also mark the LFN slots that precede the short
+     * entry as deleted. Previously only the 8.3 entry got 0xE5, leaving
+     * orphan LFN slots that were later glued onto the NEXT entry created
+     * in this directory (e.g. after `rm file1`, a later `mkdir d1`
+     * showed up as "d1file1" in tree/ls). LFN slots always sit
+     * immediately before the 8.3 entry (attr == 0x0F) and this driver
+     * only ever allocates them in the same cluster as the 8.3 entry
+     * (fat32_create_entry). */
+    u32 off = entry_offset;
+    while (off >= 32) {
+        off -= 32;
+        fat32_dirent_t l;
+        if (fat32_read_dirent(ctx, dir_cluster, off, &l) < 0) break;
+        if (l.attr != FAT_ATTR_LFN) break;  /* reached a real 8.3 / end */
+        l.name[0] = 0xE5;
+        if (fat32_write_dirent(ctx, dir_cluster, off, &l) < 0) break;
+    }
+    return 0;
 }
 
 /* Scan a directory for an entry matching `name` (8.3 display form). On success
@@ -1097,6 +1116,23 @@ static int fat32_readdir(vfs_node_t *dir, int index, vfs_dirent_t *entry) {
     return rc;
 }
 
+/* WP-09-FIX BUG-010: create a regular FILE entry (attr=0, cluster 0).
+ * vfs_open(O_CREAT) previously fell back to mkdir-then-type-patch for
+ * FAT32 (this fs had no create op), which left a real DIRECTORY entry
+ * on disk whenever a later step failed — e.g. a failed `mv` still left
+ * a "[D] renamed" entry behind that no command could open. */
+static int fat32_create(vfs_node_t *parent, const char *name) {
+    if (!parent || !name) return -1;
+    fat32_inode_t *pino = (fat32_inode_t *)parent->private;
+    if (!pino || !pino->ctx || pino->start_cluster < 2) return -2;
+    fat32_ctx_t *ctx = pino->ctx;
+    if (fat32_create_entry(ctx, pino->start_cluster, name, 0, 0, 0,
+                           NULL, NULL) < 0) {
+        return -3;
+    }
+    return 0;
+}
+
 static vfs_node_t *fat32_lookup(vfs_node_t *parent, const char *name) {
     if (!parent || !name) return NULL;
     fat32_inode_t *pino = (fat32_inode_t *)parent->private;
@@ -1162,6 +1198,13 @@ static vfs_node_t *fat32_lookup(vfs_node_t *parent, const char *name) {
             }
             break;
         }
+        /* WP-09-FIX BUG-010: reset the LFN accumulation after each 8.3
+         * entry (fat32_readdir does the same). Without this, the second
+         * file's LFN slots concatenated with the first file's in lfn_buf
+         * and the long-name match always failed — every SECOND create
+         * in a directory failed with "cannot create destination"/
+         * "open failed" even though the entry was written to disk. */
+        lfn_count = 0;
     }
     kfree(buf);
     return result;
@@ -1322,6 +1365,7 @@ void fat32_init(void) {
     g_fat32_dir_ops.readdir = fat32_readdir;
     g_fat32_dir_ops.lookup  = fat32_lookup;
     g_fat32_dir_ops.unlink  = fat32_unlink;
+    g_fat32_dir_ops.create  = fat32_create;  /* WP-09-FIX BUG-010 */
     /* rename is not supported; the VFS layer falls back to copy+unlink. */
     g_fat32_fs_type.fs_ops   = &g_fat32_fs_ops;
     g_fat32_fs_type.file_ops = &g_fat32_file_ops;

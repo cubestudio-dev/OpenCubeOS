@@ -681,7 +681,18 @@ static int shell_glob_match(const char *pat, const char *str) {
  * Negative on error. The first match always sorts first by readdir order. */
 static int shell_expand_wildcards(const token_t *tok, token_t *out, int max_out) {
     if (tok->kind != TOK_WORD) return 0;
-    if (tok->flags & (TOK_QUOTED_SINGLE | TOK_QUOTED_DOUBLE)) return 0;
+    if (tok->flags & (TOK_QUOTED_SINGLE | TOK_QUOTED_DOUBLE)) {
+        /* WP-09-FIX BUG-005: quoted words are not wildcard-expanded but
+         * MUST still be passed through. The contract comment below says
+         * "the token is left untouched in out[0]" — the old code returned
+         * 0 without filling out[0], and the caller copies ne tokens, so
+         * quoted arguments silently vanished (echo 'ab' printed an empty
+         * line; alias p='echo hi' never registered; export V1='a b'
+         * failed). */
+        if (max_out < 1) return -1;
+        out[0] = *tok;
+        return 1;
+    }
     if (!tok->text[0]) return 0;
 
     /* Find first wildcard char. */
