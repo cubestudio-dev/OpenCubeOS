@@ -73,6 +73,27 @@ static int cmd_mkfs_fat32(const char *args) {
         return 1;
     }
     /* Minimal FAT32 format: write a BPB + empty FAT + root dir cluster. */
+    blk_device_t *dev0 = blk_get_device(dev_idx);
+    if (!dev0 || dev0->sectors < 40) {
+        oc_console_puts("mkfs.fat32: device too small\n");
+        return 1;
+    }
+    /* WP-09-FIX BUG-016: compute the FAT size from the actual disk size.
+     * The old code hardcoded 128 FAT sectors (= 16384 clusters), which
+     * only covers ~25% of a 32 MB disk (65248 clusters) — fsck showed
+     * free=16381 on a 65248-cluster volume. Two iterations converge on
+     * a self-consistent FAT size. */
+    u32 total_sect = (u32)dev0->sectors;
+    u32 fat_secs = 128;
+    for (int it = 0; it < 2; it++) {
+        u32 data_secs = (total_sect > 32 + 2 * fat_secs)
+                            ? total_sect - 32 - 2 * fat_secs : 1;
+        u32 fat_bytes = (data_secs + 2 + 1) * 4;   /* clusters + 2 reserved entries, round up */
+        u32 need = (fat_bytes + 511) / 512;
+        if (need > fat_secs) fat_secs = need;
+        else if (it > 0) fat_secs = need;          /* allow shrink on 2nd pass */
+    }
+    if (fat_secs < 1) fat_secs = 1;
     u8 buf[512];
     oc_memset(buf, 0, 512);
     /* BPB */
@@ -91,7 +112,7 @@ static int cmd_mkfs_fat32(const char *args) {
     *(u32*)(buf + 28) = 0;                           /* hidden sectors */
     blk_device_t *dev = blk_get_device(dev_idx);
     *(u32*)(buf + 32) = (u32)dev->sectors;           /* total sectors 32 */
-    *(u32*)(buf + 36) = 128;                         /* FAT size sectors */
+    *(u32*)(buf + 36) = fat_secs;                    /* FAT size sectors (BUG-016: computed) */
     *(u16*)(buf + 40) = 0;                           /* ext flags */
     *(u16*)(buf + 42) = 0;                           /* FS version */
     *(u32*)(buf + 44) = 2;                           /* root cluster */
@@ -116,27 +137,24 @@ static int cmd_mkfs_fat32(const char *args) {
     *(u32*)(fat + 4) = 0x0FFFFFF8;   /* cluster 1 */
     *(u32*)(fat + 8) = 0x0FFFFFFF;   /* cluster 2 = root dir, EOC */
     /* FAT starts at sector 32 (reserved), write to both FAT copies.
-     * BUG-014 FIX: Zero-fill ALL FAT sectors (each FAT is 128 sectors).
-     * Old code only wrote the first sector of each FAT copy (12 bytes),
-     * leaving sectors 33..159 and 161..287 with stale data from the
-     * previous filesystem. Now we write zeroed sectors for the full
-     * FAT area (32..287). */
+     * WP-09-FIX BUG-016: zero-fill ALL FAT sectors (each FAT is fat_secs
+     * sectors, computed from the actual disk size). */
     {
         u8 zero_fat[512];
         oc_memset(zero_fat, 0, 512);
-        /* Zero all reserved + FAT sectors (32 to 32+2*128-1 = 287) */
-        for (int s = 32; s < 32 + 2 * 128; s++) {
+        /* Zero all reserved + FAT sectors (32 to 32+2*fat_secs-1) */
+        for (u32 s = 32; s < 32 + 2 * fat_secs; s++) {
             blk_write_sectors_raw(dev_idx, s, 1, zero_fat);
         }
         /* Now write the FAT entry markers */
         for (int i = 0; i < 2; i++)
-            blk_write_sectors_raw(dev_idx, 32 + i * 128, 1, fat);
+            blk_write_sectors_raw(dev_idx, 32 + (u32)i * fat_secs, 1, fat);
     }
 
-    /* Root dir cluster (cluster 2) = data_start sector. Data starts at 32 + 2*128 = 288. */
+    /* Root dir cluster (cluster 2) = data_start sector. Data starts at 32 + 2*fat_secs (BUG-016). */
     u8 dir[512];
     oc_memset(dir, 0, 512);
-    blk_write_sectors_raw(dev_idx, 288, 1, dir);
+    blk_write_sectors_raw(dev_idx, 32 + 2 * fat_secs, 1, dir);
 
     oc_console_puts("FAT32 formatted on ");
     oc_console_puts(args);
@@ -212,7 +230,7 @@ static int cmd_mkfs_ext4(const char *args) {
     blk_write_sectors_raw(dev_idx, 2, 1, buf);
     oc_console_puts("ext4 formatted on ");
     oc_console_puts(args);
-    oc_console_puts(" (minimal — use mkfs.ext4 on host for full format)\n");
+    oc_console_puts(" (minimal — superblock only, no directory entries: ls will show an empty volume; use mkfs.ext4 on the host for a full format)\n");  /* WP-09-FIX BUG-033 */
     return 0;
 }
 
@@ -271,12 +289,19 @@ static int cmd_fsck(const char *args) {
     u32 root_dir_clus = *(u32*)(boot + 44);
 
     if (bytes_per_sec == 0 || secs_per_clus == 0) {
-        oc_console_puts("fsck: invalid BPB (bytes_per_sec or secs_per_clus = 0)\n");
+        /* WP-09-FIX BUG-021: say what fsck actually supports instead of a
+         * bare "invalid BPB" for non-FAT32 volumes (exFAT/ext4 also have
+         * zeroed FAT BPB fields at these offsets). */
+        oc_console_puts("fsck: not a FAT32 volume (fsck supports FAT32 only; got invalid BPB)\n");
         return 1;
     }
 
     char buf[80]; char num[20];
-    oc_console_puts("fsck: FAT32 filesystem on hda\n");
+    /* WP-09-FIX BUG-021: report the device the user actually asked
+     * about, not a hardcoded "hda". */
+    oc_console_puts("fsck: FAT32 filesystem on ");
+    oc_console_puts(args);
+    oc_console_puts("\n");
     oc_strcpy(buf, "  bytes_per_sector: "); oc_u64_to_str(bytes_per_sec, num); oc_strcat(buf, num);
     oc_strcat(buf, "\n  sectors_per_cluster: "); oc_u64_to_str(secs_per_clus, num); oc_strcat(buf, num);
     oc_strcat(buf, "\n  reserved_sectors: "); oc_u64_to_str(reserved_sectors, num); oc_strcat(buf, num);

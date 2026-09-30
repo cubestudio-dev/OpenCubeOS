@@ -1752,6 +1752,13 @@ static int cmd_run(const char *args) {
         oc_console_putc('\n');
         return 1;
     }
+    /* P2-32 FIX (WP-09-FIX BUG-020): detect the '&' suffix BEFORE the
+     * ush spin-wait. The old code detected '&' after waiting, so
+     * `run ush &` blocked exactly like `run ush` — the suffix was
+     * dead code. */
+    int cmd_len = (int)oc_strlen(args);
+    while (cmd_len > 0 && (args[cmd_len-1] == ' ' || args[cmd_len-1] == '\t')) cmd_len--;
+    int background = (cmd_len > 0 && args[cmd_len-1] == '&');
     pid_t pid = user_process_create(elf, size, args);
     if (pid >= 0) {
         char buf[40]; char n[20];
@@ -1761,8 +1768,11 @@ static int cmd_run(const char *args) {
          * shell's main loop skips readline while ush is running.
          * This prevents both shells from competing for keyboard input.
          * When ush exits (sys_exit2), it clears the flag and the
-         * kernel shell resumes its normal readline loop. */
-        if (oc_strcmp(args, "ush") == 0 || oc_strcmp(args, "usershell") == 0) {
+         * kernel shell resumes its normal readline loop.
+         * WP-09-FIX BUG-020: with '&' the caller asked for background
+         * execution — do NOT block on ush here. */
+        if (!background &&
+            (oc_strcmp(args, "ush") == 0 || oc_strcmp(args, "usershell") == 0)) {
             extern int g_usershell_running;
             g_usershell_running = 1;
             /* Spin-wait until ush exits. The timer IRQ + scheduler
@@ -1772,16 +1782,11 @@ static int cmd_run(const char *args) {
                 __asm__ volatile("sti; hlt");
             }
         }
+        if (background) {
+            oc_console_puts("started in background\n");
+        }
     } else {
         oc_console_puts("failed to create process\n");
-    }
-    /* P2-32 FIX: Support background execution with & suffix.
-     * If the command ends with ' &', don't wait — return immediately. */
-    int cmd_len = (int)oc_strlen(args);
-    while (cmd_len > 0 && (args[cmd_len-1] == ' ' || args[cmd_len-1] == '\t')) cmd_len--;
-    if (cmd_len > 0 && args[cmd_len-1] == '&') {
-        /* Background mode — don't wait for child */
-        oc_console_puts("started in background\n");
     }
     /* For non-background non-ush programs, the process already ran and exited
      * by the time we get here (the scheduler ran it during the sti/hlt above

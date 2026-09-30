@@ -180,3 +180,35 @@ Carried over from the old WP-09 TODO list (NOT done, deferred):
 - USB: host controller driver
 - Multi-core: SMP scheduler
 - Virtualization: KVM-like hypervisor
+
+## 4. Known Issues Recorded During the WP-09 Fix Rounds
+
+### 4.1 FAT32 mount point occasionally disappears — OPEN (BUG-019, non-deterministic)
+- **Observed once** during the WP-09 re-review (1 in 4 runs): right after
+  `mkfs.fat32 hda` -> `fatmount hda /mnt` -> `ls`/`mounts`/`fatstat`/`sync`,
+  a subsequent `write /mnt/big.txt AAAA` failed with `open failed` and
+  `ls /mnt` reported `no such path: /mnt`. The same sequence passed in 3
+  re-runs. Root cause not located (suspected mount-table/heap race).
+  We chose NOT to blind-patch; the issue is recorded here for the next
+  investigation round.
+
+### 4.2 umount keeps the (empty) mount-point directory — BY DESIGN (BUG-032)
+- POSIX `umount` does not remove the mount-point directory either. The
+  empty directory left behind (e.g. `/a1`) is the mount point the user
+  created, and it is preserved so the volume can be re-mounted without
+  re-creating the directory.
+
+### 4.3 SSH client does not verify host keys; TLS client does not verify
+     certificates — BY DESIGN for the L0 scope (BUG-034)
+- Both clients were built for the WP-09 E2E scope (encryption + MAC +
+  exec/download). Certificate/host-key verification requires a trust
+  store, clock sanity (validity windows) and persistence (known_hosts),
+  which are WP-10+ work items (see "WP-10+ (Next)" below). Headers
+  document this decision at the call sites.
+
+### 4.4 ush `df` Size column — PARTIAL (BUG-026)
+- The user-space shell cannot read the kernel mount table from ring 3.
+  It reports real observed data (files found + summed sizes from
+  sys_stat). Directory entries legitimately report size 0, so the
+  aggregated "Size" can be 0 on an empty-ish root. The kernel shell's
+  `df` shows the full mount table.

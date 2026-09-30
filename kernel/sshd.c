@@ -761,11 +761,15 @@ static void sd_handle_exec(sshd_ctx_t *ctx, u8 payload[], int plen) {
     }
     if (off + 4 > plen) return;
     int clen = (int)sd_read_u32(payload + off); off += 4;
-    if (off + clen > plen || clen >= 256) {
+    /* WP-09-FIX BUG-013: the old hard limit of 256 bytes rejected most
+     * real exec commands (a 405-byte command got CHANNEL_FAILURE) even
+     * though the exec output buffer is 4096. Raise the limit to 1024
+     * bytes (keeps the on-stack buffer modest). */
+    if (off + clen > plen || clen < 0 || clen >= 1024) {
         if (want_reply) sd_send_packet_encrypted(ctx, SSHD_MSG_CHANNEL_FAILURE, payload, 4);
         return;
     }
-    char cmd[256];
+    char cmd[1024];
     oc_memcpy(cmd, payload + off, clen);
     cmd[clen] = 0;
 

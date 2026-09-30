@@ -31,11 +31,13 @@
 #define SYS_READLINE 73
 #define SYS_GETCH      74
 #define SYS_UPTIME     75   /* P2-04: kernel tick counter */
+#define SYS_MEMINFO    76   /* WP-09-FIX BUG-014: real PMM stats */
 
 /* Additional syscalls for built-in tools */
 #define SYS_STAT     5
 #define SYS_READDIR  6
 #define SYS_MKDIR    7
+#define SYS_RMDIR    8
 #define SYS_UNLINK   9
 #define SYS_KILL    13
 #define SYS_GETPID  14
@@ -104,11 +106,13 @@ static inline long syscall3(long n, long a, long b, long c) {
 #define sys_close(fd)            syscall1(SYS_CLOSE, (fd))
 #define sys_readdir(path, idx, buf) syscall3(SYS_READDIR, (long)(path), (long)(idx), (long)(buf))
 #define sys_mkdir(path)             syscall1(SYS_MKDIR, (long)(path))
+#define sys_rmdir(path)             syscall1(SYS_RMDIR, (long)(path))
 #define sys_unlink(path)            syscall1(SYS_UNLINK, (long)(path))
 #define sys_kill(pid)               syscall1(SYS_KILL, (long)(pid))
 #define sys_getpid()                syscall0(SYS_GETPID)
 #define sys_stat(path, st)          syscall2(SYS_STAT, (long)(path), (long)(st))
 #define sys_uptime()                syscall0(SYS_UPTIME)
+#define sys_meminfo(buf)            syscall1(SYS_MEMINFO, (long)(buf))
 
 /* String helpers (no libc) */
 static int strlen_(const char *s) {
@@ -729,6 +733,20 @@ static int builtin_cmd(int argc, char *argv[]) {
         return 1;
     }
 
+    /* ---------- rmdir <path> ---------- */
+    if (streq(argv[0], "rmdir")) {
+        if (argc < 2) {
+            puts_("usage: rmdir <path>\n");
+            return 1;
+        }
+        if (sys_rmdir(argv[1]) < 0) {
+            puts_("rmdir: cannot remove '");
+            puts_(argv[1]);
+            puts_("'\n");
+        }
+        return 1;
+    }
+
     /* ---------- touch <file> ---------- */
     if (streq(argv[0], "touch")) {
         if (argc < 2) {
@@ -968,9 +986,21 @@ static int builtin_cmd(int argc, char *argv[]) {
 
     /* ---------- free ---------- */
     if (streq(argv[0], "free")) {
-        puts_("              total        used        free\n");
-        puts_("Mem:      134217728     4194304   130023424\n");
-        puts_("Swap:            0           0            0\n");
+        /* WP-09-FIX BUG-014: query real PMM numbers via SYS_MEMINFO
+         * instead of printing hardcoded fake data (the old line claimed
+         * 128 MiB total on a 512 MiB VM). Falls back to an honest
+         * message if the syscall is unavailable. */
+        unsigned long long mi[3];
+        if (sys_meminfo((long)mi) == 0) {
+            puts_("              total        used        free\n");
+            puts_("Mem:     ");
+            putu_(mi[0]); puts_(" ");
+            putu_(mi[1]); puts_(" ");
+            putu_(mi[2]); puts_("\n");
+            puts_("Swap:            0           0            0\n");
+        } else {
+            puts_("free: SYS_MEMINFO unavailable (kernel too old)\n");
+        }
         return 1;
     }
 
@@ -1497,7 +1527,7 @@ void _start(void) {
                 /* Check builtin commands */
                 static const char *builtins[] = {
                     "echo","ls","cat","grep","wc","head","tail","mkdir",
-                    "touch","rm","cp","mv","sort","uniq","ps","kill",
+                    "touch","rm","rmdir","cp","mv","sort","uniq","ps","kill",
                     "date","uname","free","df","du","vi","nano","pwd",
                     "cd","exit","export","alias","unalias","history",
                     "jobs","fg","bg",0

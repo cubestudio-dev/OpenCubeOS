@@ -772,6 +772,7 @@ typedef struct {
     int   size;
     int   cap;
     int   active;
+    int   overflowed;  /* WP-09-FIX BUG-025: set when output was dropped */
 } shell_capture_t;
 
 static shell_capture_t g_capture = {0};
@@ -796,6 +797,10 @@ static int shell_capture_hook(void *ctx, u8 ch) {
         if (g_capture.size + 1 < g_capture.cap) {
             g_capture.buf[g_capture.size++] = (char)ch;
             g_capture.buf[g_capture.size] = 0;
+        } else {
+            /* WP-09-FIX BUG-025: mark overflow so the caller can warn
+             * (the old code silently dropped the excess). */
+            g_capture.overflowed = 1;
         }
         return 1;  /* suppress framebuffer AND serial during capture */
     }
@@ -836,6 +841,7 @@ static int shell_capture_begin(int cap) {
     if (!g_capture.buf) return -1;
     g_capture.size = 0;
     g_capture.cap = cap;
+    g_capture.overflowed = 0;  /* WP-09-FIX BUG-025 */
     g_capture.buf[0] = 0;
     g_capture.active = 1;
     shell_capture_install();
@@ -1088,7 +1094,12 @@ static int shell_exec_segment(token_t *toks, int ntoks) {
                     }
                 } else if (stage[j].kind == TOK_LT) {
                     if (j + 1 < stage_ntoks && stage[j + 1].kind == TOK_WORD) {
-                        oc_strcpy(redir_in, stage[j + 1].text);
+                        /* WP-09-FIX BUG-018: bounded copy, same as the
+                         * redir_out path above. The old oc_strcpy could
+                         * overflow redir_in[256] with a long expanded
+                         * token. */
+                        oc_strncpy(redir_in, stage[j + 1].text, VFS_PATH_LEN - 1);
+                        redir_in[VFS_PATH_LEN - 1] = 0;
                         has_redir_in = 1;
                         j++;
                     }
@@ -1165,6 +1176,11 @@ static int shell_exec_segment(token_t *toks, int ntoks) {
             /* If we captured, hand the output to the next stage or write it
              * to the redirect file. */
             if (capture && g_capture.buf) {
+                if (g_capture.overflowed) {
+                    /* WP-09-FIX BUG-025: the code above promised a warning
+                     * for truncated captures — actually emit it now. */
+                    oc_console_puts("shell: warning: output exceeded the capture buffer and was truncated\n");
+                }
                 if (has_redir_out) {
                     /* Write to file. */
                     const char *resolved = shell_resolve_path_static(redir_out);

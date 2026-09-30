@@ -555,10 +555,23 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
         }
     }
     /* fd not pointing to a real file/pipe. For the conventional
-     * "stdout/stderr" fds 1 and 2, fall back to the console. */
+     * "stdout/stderr" fds 1 and 2, fall back to the console.
+     * WP-09-FIX BUG-023: emit the whole write atomically (cli window,
+     * capped at 512 bytes per chunk) so concurrent user processes cannot
+     * interleave character-by-character on the serial console
+     * ("parent: pid= 3 ppid=0 child=4child: pid= 4 ppid=3"). */
     if (fd == 1 || fd == 2) {
         const char *p = (const char*)(uintptr_t)buf;
-        for (u64 i = 0; i < len; i++) oc_console_putc(p[i]);
+        u64 done = 0;
+        while (done < len) {
+            u64 chunk = len - done;
+            if (chunk > 512) chunk = 512;
+            u64 eflags;
+            __asm__ volatile("pushfq; popq %0; cli" : "=r"(eflags));
+            for (u64 i = 0; i < chunk; i++) oc_console_putc(p[done + i]);
+            __asm__ volatile("pushq %0; popfq" : : "r"(eflags));
+            done += chunk;
+        }
         return len;
     }
     return (u64)-1;
@@ -1344,6 +1357,7 @@ static u64 sys_readline(u64 buf, u64 maxlen, u64 a3, u64 a4);
 
 static u64 sys_getch(u64 a1, u64 a2, u64 a3, u64 a4);
 static u64 sys_uptime(u64 a1, u64 a2, u64 a3, u64 a4);
+static u64 sys_meminfo(u64 buf, u64 a2, u64 a3, u64 a4);
 void syscall_wp08a_init(void) {
     syscall_register(SYS_FORK, sys_fork);
     syscall_register(SYS_EXECVE, sys_execve);
@@ -1382,6 +1396,7 @@ void syscall_wp08a_init(void) {
     syscall_register(SYS_READLINE, sys_readline);
     syscall_register(SYS_GETCH, sys_getch);
     syscall_register(SYS_UPTIME, sys_uptime);  /* P2-04 */
+    syscall_register(SYS_MEMINFO, sys_meminfo);  /* WP-09-FIX BUG-014 */
     oc_memset(g_pipes, 0, sizeof(g_pipes));
 }
 
@@ -1619,4 +1634,19 @@ static u64 sys_getch(u64 a1, u64 a2, u64 a3, u64 a4) {
 static u64 sys_uptime(u64 a1, u64 a2, u64 a3, u64 a4) {
     (void)a1;(void)a2;(void)a3;(void)a4;
     return oc_timer_now_ms();
+}
+
+/* WP-09-FIX BUG-014: SYS_MEMINFO(76): fill a user buffer with REAL PMM
+ * numbers (total/used/free bytes) so ush `free` no longer prints
+ * hardcoded fake data (it claimed 128 MiB total on a 512 MiB VM). */
+static u64 sys_meminfo(u64 buf, u64 a2, u64 a3, u64 a4) {
+    (void)a2;(void)a3;(void)a4;
+    pmm_stats_t s;
+    pmm_get_stats(&s);
+    u64 out[3];
+    out[0] = s.total_bytes;
+    out[1] = s.used_bytes;
+    out[2] = s.free_bytes;
+    if (copy_to_user(buf, out, sizeof(out)) < 0) return (u64)-1;
+    return 0;
 }

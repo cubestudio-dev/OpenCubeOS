@@ -135,6 +135,11 @@ int oc_console_in_pump(void) {
                 g_line[g_line_len++] = (char)k;
                 oc_console_putc((char)k);
             }
+            /* WP-09-FIX BUG-015: characters beyond the 255-char line
+             * buffer are still dropped, but with the keyboard ring now at
+             * 1024 entries the ENTER byte reliably arrives, so readline
+             * returns (previously a pasted long line could lose the
+             * ENTER byte to ring overflow and hang the shell forever). */
             return 0;
     }
 }

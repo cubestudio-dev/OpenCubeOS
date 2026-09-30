@@ -329,6 +329,20 @@ int vfs_mount(const char *fs_type, const char *mount_point, const char *device) 
     return 0;
 }
 
+/* WP-09-FIX BUG-017: does `n` belong to the cached subtree rooted at
+ * `root`? Used to close only the fds that really belong to the mount
+ * being unmounted. The old check compared fs_type, which closed every
+ * fd of the same filesystem TYPE (two FAT32 mounts: unmounting one
+ * killed the other's open files). */
+static int vfs_node_in_subtree(vfs_node_t *root, vfs_node_t *n) {
+    if (!root || !n) return 0;
+    if (n == root) return 1;
+    for (vfs_node_t *c = root->first_child; c; c = c->next_sibling) {
+        if (vfs_node_in_subtree(c, n)) return 1;
+    }
+    return 0;
+}
+
 int vfs_umount(const char *mount_point) {
     if (!mount_point) return -1;
     char norm[VFS_PATH_LEN];
@@ -336,10 +350,10 @@ int vfs_umount(const char *mount_point) {
     vfs_mount_t *m = vfs_find_mount(norm);
     if (!m) return -2;
 
-    /* Close any fds pointing at nodes in this mount. */
+    /* Close any fds pointing at nodes inside THIS mount only. */
     for (int i = 0; i < VFS_MAX_FDS; i++) {
         if (g_fds[i].in_use && g_fds[i].node &&
-            g_fds[i].node->fs_type == m->fs_type) {
+            vfs_node_in_subtree(m->root_node, g_fds[i].node)) {
             g_fds[i].in_use = 0;
             g_fds[i].node = NULL;
         }
@@ -611,7 +625,12 @@ int vfs_seek(int fd, int offset, int whence) {
 
     if (f->node->fs_type && f->node->fs_type->file_ops &&
         f->node->fs_type->file_ops->seek) {
-        f->offset = f->node->fs_type->file_ops->seek(f->node, new_off, whence);
+        /* WP-09-FIX BUG-029: pass SEEK_SET — new_off is already an
+         * absolute offset (VFS computed SET/CUR/END above). The old code
+         * re-passed the original whence, so ramfs/fat32 applied their
+         * size-offset END formula AGAIN on the absolute value, making
+         * SEEK_END collapse to 0. */
+        f->offset = f->node->fs_type->file_ops->seek(f->node, new_off, VFS_SEEK_SET);
     }
     return (int)f->offset;
 }

@@ -21,7 +21,12 @@ static u8 g_mods = 0;
 static int g_pause_bytes = 0;  /* P1-23: Pause/Break multi-byte sequence */
 
 /* Ring buffer for produced keycodes. */
-#define OC_KBD_BUF_LEN 128
+/* WP-09-FIX BUG-015: enlarge the key ring buffer from 128 to 1024.
+ * The COM1 bridge pushes whole serial FIFO bursts (up to 16+ bytes per
+ * IRQ) and a pasted 190-character command line arrived faster than the
+ * shell drained it — the ring overflowed, characters were silently
+ * dropped, the ENTER byte got lost and readline never returned. */
+#define OC_KBD_BUF_LEN 1024
 static u16 g_buf[OC_KBD_BUF_LEN];
 static u32 g_buf_head = 0;  /* consumer reads here */
 static u32 g_buf_tail = 0;  /* producer writes here */
@@ -91,6 +96,17 @@ static void push_key(u16 key) {
 }
 
 void oc_keyboard_inject(u16 keycode) {
+    /* WP-09-FIX BUG-030: run the L1 handler chain for injected keys too —
+     * the COM1 serial RX bridge feeds the queue through this entry point.
+     * Previously only the PS/2 IRQ path ran the chain, so L1 extension
+     * handlers never saw serial input (inconsistent extension behavior). */
+    for (int i = 0; i < OC_KBD_CHAIN_LEN; i++) {
+        if (g_handlers[i]) {
+            if (g_handlers[i](keycode, g_mods)) {
+                return;  /* L1 consumed it */
+            }
+        }
+    }
     push_key(keycode);
 }
 

@@ -1522,7 +1522,9 @@ typedef struct {
     int ts_enabled;     /* timestamps negotiated (WP-09) */
     int in_use;
     int sock_fd;
-    u8  rx_buf[2048];
+    /* WP-09-FIX BUG-002: 8 KiB receive buffer (was 2048 — less than two
+     * MSS segments, so any bulk transfer immediately overflowed). */
+    u8  rx_buf[8192];
     int rx_len;
     /* WP-09: retransmission buffer */
     u8  rtx_buf[TCP_RTX_BUF_SIZE];
@@ -1743,9 +1745,19 @@ static int tcp_send_raw(tcp_conn_t *c, u8 flags, const void *data, int len) {
     int data_offset = (hdr_len / 4) << 12;
     h->data_offset_flags = htons((u16)data_offset | flags);
 
-    /* WP-09: Use snd_wnd (clamped) instead of hardcoded 8192 */
-    u16 win = (u16)(c->snd_wnd > 65535 ? 65535 : c->snd_wnd);
-    if (win == 0) win = 8192;  /* fallback if unset */
+    /* WP-09-FIX BUG-002: advertise our REAL receive window (free space in
+     * rx_buf) instead of the send window. The old code never shrank the
+     * advertised window, so the peer kept a full send pipeline running
+     * while our rx buffer was already full. With a truthful window the
+     * peer throttles itself before we ever have to drop a segment. */
+    u32 rcv_free = (u32)sizeof(c->rx_buf) - (u32)(c->rx_len < 0 ? 0 : c->rx_len);
+    u16 win = (u16)(rcv_free > 65535 ? 65535 : rcv_free);
+    if (win == 0) {
+        /* Advertise a tiny non-zero window: keeps the window open in the
+         * peer's eyes so it resumes on the next window update instead of
+         * falling into a 5s+ zero-window probe loop. */
+        win = 64;
+    }
     h->window = htons(win);
     h->urgent = 0;
     if (len > 0 && data) oc_memcpy(buf + hdr_len, data, len);
@@ -2367,7 +2379,7 @@ int net_recv(int fd, void *buf, int len) {
         if (conn < 0 || !g_tcp_conns[conn].in_use) return -1;
         /* Wait for data. */
         u64 start = oc_timer_ticks();
-        while ((oc_timer_ticks() - start) < 500) {
+        while ((oc_timer_ticks() - start) < 1500) {
             net_poll();
             if (g_tcp_conns[conn].rx_len > 0) {
                 int n = g_tcp_conns[conn].rx_len;
@@ -2387,6 +2399,10 @@ int net_recv(int fd, void *buf, int len) {
                 } else {
                     g_tcp_conns[conn].rx_len = 0;
                 }
+                /* WP-09-FIX BUG-002: send a window-update ACK after
+                 * consuming data so a peer that throttled itself on our
+                 * shrunken advertised window resumes sending. */
+                tcp_send_raw(&g_tcp_conns[conn], TCP_ACK, NULL, 0);
                 return n;
             }
         }
@@ -2922,8 +2938,18 @@ void net_init(void) {
     }
 }
 
+static int g_net_polling = 0;  /* WP-09-FIX BUG-002: reentrancy guard */
+
 void net_poll(void) {
     if (!g_nic_ok) return;
+    /* WP-09-FIX BUG-002: net_poll runs BOTH from the timer IRQ
+     * (net_timer_cb, every 10ms) and from thread context (net_recv's
+     * wait loop). Without this guard the two contexts raced on the
+     * e1000 RX/TX rings — outgoing pure-ACK window updates were
+     * silently lost, the peer's send window never advanced and bulk
+     * downloads stalled. */
+    if (g_net_polling) return;
+    g_net_polling = 1;
     /* WP-09: Check TCP RTO timers on every poll */
     tcp_check_rto();
     u8 buf[ETH_FRAME_MAX];
@@ -2946,6 +2972,7 @@ void net_poll(void) {
             ip_handle_packet(payload, payload_len);
         }
     }
+    g_net_polling = 0;  /* WP-09-FIX BUG-002: release reentrancy guard */
 }
 
 /* ============================================================
@@ -3619,9 +3646,12 @@ int cmd_wget(const char *args) {
     /* WP-09: HTTPS path — use TLS */
     if (use_tls) {
         extern int tls_https_get(u32 ip, u16 port, const char *hostname, const char *path, void *out, int outlen);
-        u8 *resp = (u8 *)(uintptr_t)pmm_alloc_frame();
+        /* WP-09-FIX BUG-022: use a 16 KiB response buffer instead of one
+         * 4 KiB page — larger HTTPS responses were silently truncated. */
+        enum { WGET_TLS_BUFSZ = 16384 };
+        u8 *resp = (u8 *)(uintptr_t)pmm_alloc_contig(WGET_TLS_BUFSZ / PMM_PAGE_SIZE);
         if (!resp) { oc_console_puts("out of memory\n"); return 1; }
-        int n = tls_https_get(ip, (u16)port, host, path, resp, 4096);
+        int n = tls_https_get(ip, (u16)port, host, path, resp, WGET_TLS_BUFSZ);
         if (n > 0) {
             /* Find body (after \r\n\r\n) */
             int body_start = 0;
@@ -3648,7 +3678,9 @@ int cmd_wget(const char *args) {
             char b[40]; oc_strcpy(b, "TLS failed (code "); oc_u64_to_str((u64)(-n), n_tmp); oc_strcat(b, n_tmp); oc_strcat(b, ")\n");
             oc_console_puts(b);
         }
-        pmm_free_frame((u64)(uintptr_t)resp);
+        /* WP-09-FIX BUG-022: free the whole 16 KiB contiguous block. */
+        for (int pg = 0; pg < WGET_TLS_BUFSZ / PMM_PAGE_SIZE; pg++)
+            pmm_free_frame((u64)(uintptr_t)resp + (u64)pg * PMM_PAGE_SIZE);
         return 0;
     }
 
@@ -3684,8 +3716,11 @@ int cmd_wget(const char *args) {
         oc_strcpy(fname, "index.html");
     }
 
-    /* Receive response — loop until we get headers + full body. */
-    char rbuf[1024];
+    /* Receive response — loop until we get headers + full body.
+     * WP-09-FIX BUG-002: rbuf enlarged 1024 -> 4096 — with the 8 KiB
+     * rx_buf several segments can be waiting at once and a 1 KiB header
+     * buffer mis-split the stream ("malformed HTTP response"). */
+    char rbuf[4096];
     int total_header = 0;
     int header_end = -1;  /* index of \r\n\r\n in rbuf */
     int content_length = -1;

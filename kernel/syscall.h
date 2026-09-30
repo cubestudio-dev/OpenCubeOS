@@ -64,6 +64,7 @@
 
 /* P2-04 FIX: uptime / time syscall so userland can read kernel tick counter. */
 #define SYS_UPTIME        75   /* (void) -> u64: milliseconds since boot */
+#define SYS_MEMINFO       76   /* (buf) -> 0: fills 3 u64s (total/used/free bytes) from PMM */
 
 /* WP-08a: I/O multiplexing */
 #define SYS_SELECT        80

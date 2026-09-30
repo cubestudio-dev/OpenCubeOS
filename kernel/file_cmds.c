@@ -855,7 +855,7 @@ void file_cmds_register(void) {
     shell_register_command("tree",   cmd_tree,   "tree view of directory (tree [path])");
     shell_register_command("df",     cmd_df,     "show disk/mount usage");
     shell_register_command("du",     cmd_du,     "directory usage (du [path])");
-    shell_register_command("mount",  cmd_mount,  "list mounts (alias for mounts)");
+    shell_register_command("mount",  cmd_mount,  "list mounts, or mount a fs: mount <type> <device> <path>");  /* WP-09-FIX BUG-031 */
     shell_register_command("umount", cmd_umount, "unmount (umount <path>)");
     shell_register_command("write",  cmd_write,  "write text to file (write <path> <text>)");
     shell_register_command("grep",   cmd_grep,   "filter lines matching pattern (grep <pattern> [file])");
