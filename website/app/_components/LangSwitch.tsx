@@ -4,6 +4,7 @@
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 
 import { usePathname } from "next/navigation";
+import { BASE } from "@/lib/site";
 import type { Locale } from "@/lib/i18n";
 
 const LS_KEY = "oc-lang";
@@ -28,7 +29,8 @@ function swapLocale(pathname: string, to: Locale): string {
       ? "about"
       : "";
   const base = pathname.replace(/\/(docs|about)\/?$/, "").replace(/\/$/, "");
-  return sub ? `${base}/${to}/${sub}/` : `${base}/${to}/`;
+  const next = `${base}/${to}${sub ? `/${sub}` : ""}/`;
+  return next.startsWith("//") ? next.slice(1) : next;
 }
 
 export default function LangSwitch() {
@@ -42,7 +44,9 @@ export default function LangSwitch() {
     } catch {
       /* storage unavailable — still navigate */
     }
-    window.location.assign(swapLocale(pathname, to));
+    // usePathname() strips the basePath (/OpenCubeOS), so the swapped path
+    // must be re-prefixed before assigning — otherwise GH Pages 404s.
+    window.location.assign(`${BASE}${swapLocale(pathname, to)}`);
   }
 
   return (
