@@ -49,25 +49,7 @@
 #define SSH_MSG_CHANNEL_EOF    96
 #define SSH_MSG_CHANNEL_CLOSE  97
 
-/* DH group 14 prime (RFC 3526, 2048-bit = 256 bytes) */
-static const u8 dh_group14_prime[256] = {
-    0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xC9,0x0F,0xDA,0xA2,0x21,0x68,0xC2,0x34,
-    0xC4,0xC6,0x62,0x8B,0x80,0xDC,0x1C,0xD1,0x29,0x02,0x4E,0x08,0x8A,0x67,0xCC,0x74,
-    0x02,0x0B,0xBE,0xA6,0x3B,0x13,0x9B,0x22,0x51,0x4A,0x08,0x79,0x8E,0x34,0x04,0xDD,
-    0xEF,0x95,0x19,0xB3,0xCD,0x3A,0x43,0x1B,0x30,0x2B,0x0A,0x6D,0xF2,0x5F,0x14,0x37,
-    0xEF,0x51,0x0F,0x9E,0x03,0x4C,0x15,0xE9,0x09,0x9E,0x09,0x3B,0x63,0x12,0x3E,0x5B,
-    0x59,0x8B,0x07,0x18,0x00,0x01,0xDA,0xCF,0x49,0x09,0x71,0x4B,0x4B,0x48,0xA2,0x86,
-    0x8C,0x4B,0xF1,0x16,0x9F,0x1F,0x16,0x03,0x57,0x49,0x16,0x7D,0x45,0x86,0x2F,0x72,
-    0x54,0x69,0x2B,0x53,0x01,0x9E,0x05,0x6B,0x3E,0x97,0xD0,0x5F,0x0F,0x33,0x0F,0x93,
-    0x05,0x59,0xE7,0xB0,0x02,0x8E,0x89,0xC6,0xE4,0x01,0x01,0x27,0x40,0x22,0x6E,0x82,
-    0x49,0x53,0x4B,0x09,0x6B,0x3A,0x5C,0x18,0xB2,0x52,0x6E,0x6D,0x3C,0x47,0x60,0x2A,
-    0xA8,0xC1,0x8B,0x3B,0x5C,0x70,0x31,0x1B,0x1C,0x43,0x05,0x5C,0x44,0x7C,0xF6,0x05,
-    0x4B,0x3B,0x81,0x50,0x3C,0x2C,0xB5,0x1E,0x49,0x4C,0x1A,0x52,0x8B,0x24,0xFD,0x03,
-    0x89,0x6E,0x39,0xDB,0x12,0xC0,0xC5,0x36,0x88,0x60,0x77,0xB4,0x8A,0x12,0x06,0x3A,
-    0xBF,0x64,0xD8,0x76,0x33,0x44,0xA4,0x2B,0xA6,0xF2,0xE9,0x59,0x33,0x4D,0x96,0x21,
-    0x20,0xC1,0xC9,0x44,0x29,0x04,0x9A,0xE5,0x14,0x9D,0x18,0x5F,0x97,0xB2,0x71,0x5D,
-    0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF
-};
+/* DH group 14 prime now lives in crypto.c (dh_group14_prime, declared in crypto.h). */
 #define SSH_DH_BYTES 256
 
 static ssh_ctx_t g_ssh_ctx;
@@ -120,6 +102,13 @@ static int ssh_send_packet_unencrypted(ssh_ctx_t *ctx, u8 msg_type, const u8 *pa
     crypto_random(pkt + 6 + payload_len, pad_len);
     int rc = net_send(ctx->tcp_sock, pkt, 4 + pkt_len);
     pmm_free_frame((u64)(uintptr_t)pkt);
+    /* WP-09 fix: sequence number MUST advance for EVERY packet, including
+     * unencrypted KEX packets (RFC 4253 §6.4). MAC covers seq, so if the
+     * 3 KEX-phase packets don't advance write_seq, the first encrypted
+     * packet (USERAUTH) is sent with seq=0 while the peer expects 3 ->
+     * "Mismatched MAC" on the server. Root cause #2 of K mismatch-era
+     * USERAUTH failure (after the group14 prime fix). */
+    if (rc >= 0) ctx->write_seq++;
     return rc;
 }
 
@@ -159,9 +148,18 @@ static int ssh_recv_packet_unencrypted(ssh_ctx_t *ctx, u8 *msg_type, u8 *payload
     int plen = pkt_len - 1 - pad_len - 1;  /* subtract padding_length byte + msg_type byte + padding */
     if (plen < 0) plen = 0;
     if (plen > *payload_len) plen = *payload_len;
+    {
+        char dbg2[80]; oc_strcpy(dbg2, "[ssh]   recv encrypted: type=");
+        char nn[10]; oc_u64_to_str((u64)*msg_type, nn); oc_strcat(dbg2, nn);
+        oc_strcat(dbg2, " plen="); oc_u64_to_str((u64)plen, nn); oc_strcat(dbg2, nn);
+        oc_strcat(dbg2, "\n"); oc_console_puts(dbg2);
+    }
     oc_memcpy(payload, body + 2, plen);  /* skip padding_length + msg_type */
     *payload_len = plen;
     pmm_free_frame((u64)(uintptr_t)body);
+    /* WP-09 fix: read_seq must advance for every received packet, same
+     * rationale as write_seq above (affects verifying peer MACs later). */
+    ctx->read_seq++;
     return 0;
 }
 
@@ -444,10 +442,9 @@ static void ssh_compute_hash(ssh_ctx_t *ctx, u8 hash[32]) {
     ssh_debug_hex("[ssh] I_S[0..15]: ", ctx->server_kexinit, 16);
     ssh_debug_hex("[ssh] H (first 16): ", hash, 16);
 
-    /* WP-09 debug: print K and first derived key for comparison */
+    /* WP-09 debug: print K and H for comparison with server.
+     * (Derived keys are printed after ssh_derive_keys(), see below.) */
     ssh_debug_hex("[ssh] K (first 8): ", ctx->shared_secret, 8);
-    ssh_debug_hex("[ssh] enc_key_c2s (first 8): ", ctx->enc_key_c2s, 8);
-    ssh_debug_hex("[ssh] iv_c2s (first 8): ", ctx->initial_iv_c2s, 8);
 }
 
 /* Derive encryption keys via plain SHA-256 (paramiko's _compute_key algorithm,
@@ -596,6 +593,14 @@ int ssh_connect(u32 ip, u16 port, const char *username, const char *password) {
 
     /* Derive keys */
     ssh_derive_keys(ctx);
+    /* WP-09 debug: now print the real derived key material. */
+    ssh_debug_hex("[ssh] enc_key_c2s (first 8): ", ctx->enc_key_c2s, 8);
+    ssh_debug_hex("[ssh] iv_c2s (first 8): ", ctx->initial_iv_c2s, 8);
+    /* WP-09 fix: initialize the rolling CBC IVs (first packet uses the
+     * initial IV; every subsequent packet uses the last ciphertext block
+     * of the previous packet, RFC 4253 §6.3). */
+    oc_memcpy(ctx->iv_c2s_next, ctx->initial_iv_c2s, 16);
+    oc_memcpy(ctx->iv_s2c_next, ctx->initial_iv_s2c, 16);
 
     /* NEWKEYS exchange */
     if (ssh_send_newkeys(ctx) < 0) {
@@ -752,7 +757,10 @@ int ssh_send_packet_encrypted(ssh_ctx_t *ctx, u8 msg_type, const u8 *payload, in
      * (4 + packet_length) must be a multiple of 16. */
     static u8 enc[16384];
     if (total_unenc > (int)sizeof(enc)) return -1;
-    aes128_cbc_encrypt(ctx->enc_key_c2s, ctx->initial_iv_c2s, pkt, total_unenc, enc);
+    aes128_cbc_encrypt(ctx->enc_key_c2s, ctx->iv_c2s_next, pkt, total_unenc, enc);
+    /* WP-09 fix: CBC chaining — the IV for the next outgoing packet is the
+     * last ciphertext block of this one. */
+    oc_memcpy(ctx->iv_c2s_next, enc + total_unenc - 16, 16);
 
     /* Reassemble: encrypted (total_unenc bytes) + MAC (32 bytes) */
     static u8 out[16384];
@@ -797,7 +805,9 @@ int ssh_recv_packet_encrypted(ssh_ctx_t *ctx, u8 *msg_type, u8 *payload, int *pa
 
     /* Decrypt first block to get packet_length */
     u8 dec_first[16];
-    aes128_cbc_decrypt(ctx->enc_key_s2c, ctx->initial_iv_s2c, first_block, block_size, dec_first);
+    /* WP-09 fix: use the rolling IV (equals the last ciphertext block of the
+     * previous packet), NOT the fixed initial IV. */
+    aes128_cbc_decrypt(ctx->enc_key_s2c, ctx->iv_s2c_next, first_block, block_size, dec_first);
     int packet_length = ((int)dec_first[0] << 24) | ((int)dec_first[1] << 16) |
                         ((int)dec_first[2] << 8) | dec_first[3];
     if (packet_length < 1 || packet_length > 35000) {
@@ -827,10 +837,17 @@ int ssh_recv_packet_encrypted(ssh_ctx_t *ctx, u8 *msg_type, u8 *payload, int *pa
     /* Decrypt remaining body (encrypted part, not MAC) */
     static u8 dec_rest[16384];
     if (remaining > 0) {
-        aes128_cbc_decrypt(ctx->enc_key_s2c, ctx->initial_iv_s2c, rest_buf, remaining, dec_rest);
-        /* WP-09 note: this uses initial_iv_s2c for every block, which is wrong
-         * for CBC chaining. For correct chaining, IV for second block onwards
-         * should be the last ciphertext block of the previous decryption. */
+        /* WP-09 fix: the IV for the rest of THIS packet is the first
+         * ciphertext block we just read (first_block) — CBC chains block to
+         * block within the packet too. */
+        aes128_cbc_decrypt(ctx->enc_key_s2c, first_block, rest_buf, remaining, dec_rest);
+    }
+    /* WP-09 fix: roll the incoming IV = last ciphertext block of this packet
+     * (rest_buf's last block if any, else first_block itself). */
+    if (remaining >= 16) {
+        oc_memcpy(ctx->iv_s2c_next, rest_buf + remaining - 16, 16);
+    } else {
+        oc_memcpy(ctx->iv_s2c_next, first_block, 16);
     }
 
     /* Combine decrypted body: dec_first[4..15] + dec_rest[0..remaining-1] */
@@ -874,6 +891,12 @@ int ssh_recv_packet_encrypted(ssh_ctx_t *ctx, u8 *msg_type, u8 *payload, int *pa
     int plen = body_len - 1 - pad_len - 1;  /* padding_length byte + msg_type + padding */
     if (plen < 0) plen = 0;
     if (plen > *payload_len) plen = *payload_len;
+    {
+        char dbg2[80]; oc_strcpy(dbg2, "[ssh]   recv encrypted: type=");
+        char nn[10]; oc_u64_to_str((u64)*msg_type, nn); oc_strcat(dbg2, nn);
+        oc_strcat(dbg2, " plen="); oc_u64_to_str((u64)plen, nn); oc_strcat(dbg2, nn);
+        oc_strcat(dbg2, "\n"); oc_console_puts(dbg2);
+    }
     oc_memcpy(payload, body + 2, plen);  /* skip padding_length + msg_type */
     *payload_len = plen;
 
@@ -980,12 +1003,20 @@ int ssh_exec(const char *command, void *output, int output_len) {
             break;
         }
         if (rtype == SSH_MSG_CHANNEL_DATA) {
-            /* rbuf[0..3] = recipient_channel (4 bytes), rbuf[4..] = data */
-            if (rlen >= 4) {
-                int data_len = rlen - 4;
-                int copy = output_len - total < data_len ? output_len - total : data_len;
-                oc_memcpy(out + total, rbuf + 4, copy);
-                total += copy;
+            /* WP-09 fix: CHANNEL_DATA payload = u32 recipient_channel +
+             * string(data) = u32 chan + u32 data_len + data bytes.
+             * The old code copied from rbuf+4, which copied the 4-byte
+             * data_len prefix into the output — a leading NUL made the
+             * shell print an empty string even though data arrived. */
+            if (rlen >= 8) {
+                u32 dlen = ((u32)rbuf[4] << 24) | ((u32)rbuf[5] << 16) |
+                           ((u32)rbuf[6] << 8) | (u32)rbuf[7];
+                if (dlen > (u32)(rlen - 8)) dlen = (u32)(rlen - 8);
+                int copy = ((int)dlen > output_len - total) ? (output_len - total) : (int)dlen;
+                if (copy > 0) {
+                    oc_memcpy(out + total, rbuf + 8, copy);
+                    total += copy;
+                }
             }
         } else if (rtype == SSH_MSG_CHANNEL_EOF) {
             ssh_debug("[ssh] got CHANNEL_EOF");
@@ -995,6 +1026,9 @@ int ssh_exec(const char *command, void *output, int output_len) {
             break;
         } else {
             /* Ignore other messages (CHANNEL_REQUEST success, WINDOW_ADJUST, etc.) */
+            char dbg[64]; oc_strcpy(dbg, "[ssh]   (exec loop) ignored msg type ");
+            char nn[10]; oc_u64_to_str((u64)rtype, nn); oc_strcat(dbg, nn); oc_strcat(dbg, "\n");
+            oc_console_puts(dbg);
         }
     }
     ssh_debug("[ssh] exec complete");

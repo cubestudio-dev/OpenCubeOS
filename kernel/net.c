@@ -1497,6 +1497,9 @@ typedef enum {
 
 /* WP-09: TCP reliability fields. */
 #define TCP_RTX_BUF_SIZE 4096
+/* WP-09 fix: out-of-order receive cache sizing */
+#define TCP_OOO_MAX 4
+#define TCP_OOO_SEG 1024
 typedef struct {
     tcp_state_t state;
     u32 remote_ip;
@@ -1528,6 +1531,12 @@ typedef struct {
     int rtt_measured;    /* have we measured RTT yet */
     u32 srtt;            /* smoothed RTT in ticks */
     u32 rttvar;          /* RTT variance */
+    /* WP-09 fix: out-of-order segment cache. Segments arriving with seq >
+     * our_ack are held here and drained in order when the gap fills. */
+    u32 ooo_seq[TCP_OOO_MAX];
+    u16 ooo_len[TCP_OOO_MAX];
+    u8  ooo_data[TCP_OOO_MAX][TCP_OOO_SEG];
+    int ooo_count;
 } tcp_conn_t;
 
 static tcp_conn_t g_tcp_conns[TCP_MAX_CONNS];
@@ -1553,6 +1562,11 @@ static tcp_conn_t *tcp_alloc_conn(void) {
         if (!g_tcp_conns[i].in_use) {
             oc_memset(&g_tcp_conns[i], 0, sizeof(tcp_conn_t));
             g_tcp_conns[i].in_use = 1;
+            /* WP-09 fix: memset leaves sock_fd == 0, which looks like a valid
+             * socket. Initialize to -1 ("not bound to any socket") so that
+             * net_accept() can find freshly-handshaked server-side
+             * connections via its sock_fd < 0 predicate. */
+            g_tcp_conns[i].sock_fd = -1;
             return &g_tcp_conns[i];
         }
     }
@@ -2092,12 +2106,80 @@ void tcp_handle_packet(u32 src_ip, const void *data, int len) {
             }
 
             if (payload_len > 0) {
-                /* Data received. */
+                /* WP-09 fix: proper receive-side segmentation handling.
+                 * - fully-duplicate segments are re-ACKed, not re-buffered
+                 * - in-order segments are appended to rx_buf
+                 * - future (out-of-order) segments are cached and drained in
+                 *   order when the gap fills (real TCP reliability) */
+                if (seq + payload_len <= c->our_ack) {
+                    {
+                        char b[96]; oc_strcpy(b, "[tcp] dup: seg seq=");
+                        char n2[12]; oc_u64_to_str((u64)seq, n2); oc_strcat(b, n2);
+                        oc_strcat(b, " len="); oc_u64_to_str((u64)payload_len, n2); oc_strcat(b, n2);
+                        oc_strcat(b, " ack="); oc_u64_to_str((u64)c->our_ack, n2); oc_strcat(b, n2);
+                        oc_console_puts(b); oc_console_puts("\n");
+                    }
+                    tcp_send_raw(c, TCP_ACK, NULL, 0);
+                    break;
+                }
+                if (seq < c->our_ack) {
+                    /* partially-duplicate segment: trim overlapped head */
+                    int skip = (int)(c->our_ack - seq);
+                    payload += skip;
+                    payload_len -= skip;
+                    seq = c->our_ack;
+                    if (payload_len <= 0) { tcp_send_raw(c, TCP_ACK, NULL, 0); break; }
+                }
+                if (seq != c->our_ack) {
+                    /* future segment: cache it, then re-ACK the left edge so
+                     * the peer fills the gap */
+                    int slot = c->ooo_count;
+                    int dup = 0;
+                    for (int k = 0; k < c->ooo_count; k++) {
+                        if (c->ooo_seq[k] == seq) { dup = 1; break; }
+                    }
+                    if (!dup && slot < TCP_OOO_MAX && payload_len <= TCP_OOO_SEG) {
+                        c->ooo_seq[slot] = seq;
+                        c->ooo_len[slot] = (u16)payload_len;
+                        oc_memcpy(c->ooo_data[slot], payload, payload_len);
+                        c->ooo_count++;
+                    }
+                    tcp_send_raw(c, TCP_ACK, NULL, 0);
+                    break;
+                }
+                {
+                    char b[96]; oc_strcpy(b, "[tcp] in-order: seq=");
+                    char n2[12]; oc_u64_to_str((u64)seq, n2); oc_strcat(b, n2);
+                    oc_strcat(b, " len="); oc_u64_to_str((u64)payload_len, n2); oc_strcat(b, n2);
+                    oc_console_puts(b); oc_console_puts("\n");
+                }
                 if (c->rx_len + payload_len < (int)sizeof(c->rx_buf)) {
                     oc_memcpy(c->rx_buf + c->rx_len, payload, payload_len);
                     c->rx_len += payload_len;
                 }
                 c->our_ack = seq + payload_len;
+                /* drain cached segments that are now in order */
+                int drained = 1;
+                while (drained) {
+                    drained = 0;
+                    for (int k = 0; k < c->ooo_count; k++) {
+                        if (c->ooo_seq[k] == c->our_ack && c->ooo_len[k] > 0) {
+                            if (c->rx_len + c->ooo_len[k] < (int)sizeof(c->rx_buf)) {
+                                oc_memcpy(c->rx_buf + c->rx_len, c->ooo_data[k], c->ooo_len[k]);
+                                c->rx_len += c->ooo_len[k];
+                                c->our_ack += c->ooo_len[k];
+                                for (int j = k; j < c->ooo_count - 1; j++) {
+                                    c->ooo_seq[j] = c->ooo_seq[j+1];
+                                    c->ooo_len[j] = c->ooo_len[j+1];
+                                    oc_memcpy(c->ooo_data[j], c->ooo_data[j+1], TCP_OOO_SEG);
+                                }
+                                c->ooo_count--;
+                                drained = 1;
+                            }
+                            break;
+                        }
+                    }
+                }
                 tcp_send_raw(c, TCP_ACK, NULL, 0);
             }
             if (flags & TCP_FIN) {
@@ -2224,6 +2306,39 @@ int net_connect(int fd, u32 ip, u16 port) {
         g_tcp_conns[conn].sock_fd = fd;
     }
     return 0;
+}
+
+/* WP-09: Accept an incoming TCP connection on a listening socket.
+ * tcp_listen() registered the port; the SYN path creates a conn with
+ * sock_fd == -1. When its handshake completes (ESTABLISHED) we claim it
+ * here, allocate a fresh socket for it, and return the new fd. */
+int net_accept(int listen_fd, u32 *client_ip, u16 *client_port) {
+    if (listen_fd < 0 || listen_fd >= MAX_SOCKETS || !g_sockets[listen_fd].in_use) return -1;
+    u16 lport = g_sockets[listen_fd].local_port;
+    u64 start = oc_timer_ticks();
+    for (int loop = 0; ; loop++) {                       /* bounded by tick timeout */
+        for (int i = 0; i < TCP_MAX_CONNS; i++) {
+            tcp_conn_t *c = &g_tcp_conns[i];
+            if (c->in_use && c->local_port == lport && c->sock_fd < 0 &&
+                c->state == TCP_ESTABLISHED) {
+                int fd = net_socket(SOCK_TCP);
+                if (fd < 0) return -1;
+                c->sock_fd = fd;
+                g_sockets[fd].tcp_conn = i;
+                g_sockets[fd].local_port = lport;
+                g_sockets[fd].remote_ip = c->remote_ip;
+                g_sockets[fd].remote_port = c->remote_port;
+                if (client_ip) *client_ip = c->remote_ip;
+                if (client_port) *client_port = c->remote_port;
+                return fd;
+            }
+        }
+        net_poll();
+        for (volatile int d = 0; d < 30000; d++) { /* brief yield */ }
+        if (oc_timer_ticks() - start > 120 * 1000) {     /* 120 s @1000 Hz */
+            return -1;  /* timed out */
+        }
+    }
 }
 
 int net_send(int fd, const void *data, int len) {

@@ -945,7 +945,12 @@ static int shell_exec_stage(token_t *toks, int ntoks,
             oc_console_puts("shell: out of memory for capture\n");
             return 1;
         }
-    } else {
+    } else if (!g_capture_installed) {
+        /* WP-09 fix: only clear a stale active flag when no outer capture is
+         * running. The unconditional reset killed hierarchical capture (e.g.
+         * sshd's shell_execute_captured): the inner segment deactivated the
+         * outer capture, so sshd captured 0 bytes and the output leaked to
+         * the local console instead of the SSH client. */
         g_capture.active = 0;  /* paranoid */
     }
 
@@ -1267,6 +1272,31 @@ int shell_execute_line(const char *line) {
 
     kfree(toks);
     return last_rc;
+}
+
+/* ================================================================== *
+ * WP-09: shell_execute_captured - run a line, capture console output
+ * ================================================================== */
+
+int shell_execute_captured(const char *line, char *out, int out_cap) {
+    if (out && out_cap > 0) out[0] = 0;
+
+    int rc;
+    if (shell_capture_begin(out_cap > 0 ? out_cap : 8192) == 0) {
+        rc = shell_execute_line(line);
+        shell_capture_end();
+        if (out && out_cap > 0 && g_capture.buf) {
+            int n = g_capture.size;
+            if (n > out_cap - 1) n = out_cap - 1;
+            if (n > 0) oc_memcpy(out, g_capture.buf, (usize)n);
+            out[n] = 0;
+        }
+        shell_capture_free();
+    } else {
+        /* Capture busy (nested capture): run un-captured rather than fail. */
+        rc = shell_execute_line(line);
+    }
+    return rc;
 }
 
 /* ================================================================== *
