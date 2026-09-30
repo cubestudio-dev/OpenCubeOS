@@ -53,8 +53,14 @@ typedef struct {
     /* Encryption keys (derived from K + H via HMAC-SHA1) */
     u8 enc_key_c2s[16];     /* client→server AES-128-CBC key */
     u8 enc_key_s2c[16];     /* server→client AES-128-CBC key */
-    u8 initial_iv_c2s[16];  /* client→server initial IV */
-    u8 initial_iv_s2c[16];  /* server→client initial IV */
+    u8 initial_iv_c2s[16];  /* client→server initial IV (first packet) */
+    u8 initial_iv_s2c[16];  /* server→client initial IV (first packet) */
+    /* WP-09 fix: RFC 4253 §6.3 CBC chaining — after the first packet, the IV
+     * for each packet is the last ciphertext block of the previous packet.
+     * Without rolling these, the SECOND encrypted packet decrypts to garbage
+     * on the peer ("Invalid packet blocking"). */
+    u8 iv_c2s_next[16];     /* rolling IV for outgoing CBC packets */
+    u8 iv_s2c_next[16];     /* rolling IV for incoming CBC packets */
     u8 mac_key_c2s[32];     /* client→server HMAC-SHA-256 key (32 bytes) */
     u8 mac_key_s2c[32];     /* server→client HMAC-SHA-256 key */
 

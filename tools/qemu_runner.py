@@ -7,17 +7,17 @@ import sys, os, re, time, signal
 import pexpect
 
 # Setup LD_LIBRARY_PATH + QEMU paths
-OC_TOOLS = "/home/z/my-project/oc-tools-debs/extract"
-LIB_PATHS = []
-for d in sorted(os.listdir(OC_TOOLS)):
-    libdir = f"{OC_TOOLS}/{d}/usr/lib/x86_64-linux-gnu"
-    if os.path.isdir(libdir):
-        LIB_PATHS.append(libdir)
-LIB_PATHS.append(f"{OC_TOOLS}/qemu-system-x86/usr/lib/x86_64-linux-gnu")
+# Toolchain layout (no-root sandbox install):
+#   /home/z/opt/install-toolchain.sh  -> apt-get download + dpkg-deb -x
+#   /home/z/opt/extract/              -> unified tree (usr/bin, usr/lib, usr/share)
+#   /home/z/opt/env.sh                -> PATH / LD_LIBRARY_PATH / firmware dirs
+OC_TOOLS = "/home/z/opt/extract"
+LIB_PATHS = [f"{OC_TOOLS}/usr/lib/x86_64-linux-gnu", f"{OC_TOOLS}/usr/lib"]
 ENV_LD = ":".join(LIB_PATHS)
 
-QEMU_BIN = f"{OC_TOOLS}/qemu-system-x86/usr/bin/qemu-system-x86_64"
-SEABIOS_DIR = f"{OC_TOOLS}/seabios/usr/share/seabios"
+QEMU_BIN = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
+SEABIOS_DIR = f"{OC_TOOLS}/usr/share/seabios"
+QEMU_DATADIR = f"{OC_TOOLS}/usr/share/qemu"
 
 def strip_ansi(s):
     s = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', s)
@@ -33,11 +33,13 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
         "-cdrom", iso_path,
         "-boot", "d",
         "-no-reboot",
+        "-L", QEMU_DATADIR,
         "-L", SEABIOS_DIR,
         "-vga", "std", "-display", "none",
         "-serial", "mon:stdio",
         # User-mode networking + e1000 NIC (so the kernel e1000 driver finds it)
-        "-netdev", "user,id=n1",
+        "-netdev", "user,id=n1,hostfwd=tcp::2223-:22",
+        "-object", "filter-dump,id=f0,netdev=n1,file=/tmp/guest_net.pcap",
         "-device", "e1000,netdev=n1",
     ]
     env = os.environ.copy()
@@ -46,8 +48,11 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
     print(f"[runner] starting QEMU: {os.path.basename(iso_path)}")
     print(f"[runner] will run {len(commands)} command(s): {commands}")
     
-    child = pexpect.spawn(cmd[0], cmd[1:], env=env, timeout=60,
+    cmd_timeout = int(os.environ.get("OC_CMD_TIMEOUT", "300"))
+    child = pexpect.spawn(cmd[0], cmd[1:], env=env, timeout=cmd_timeout,
                           encoding='utf-8', codec_errors='replace')
+    # real-time passthrough of all serial output to our stdout
+    child.logfile_read = sys.stdout
     
     all_output = []
     try:
@@ -61,7 +66,8 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
             print(f"[runner] sending: {c}")
             child.sendline(c)
             try:
-                child.expect(r"oc>\s*", timeout=60)  # increased to 60s per command
+                # 300s: 2048-bit DH modexp takes ~60-120s per op in QEMU (dhtest does 2)
+                child.expect(r"oc>\s*", timeout=cmd_timeout)
                 out = child.before
                 # Strip the echoed command line at start
                 lines = strip_ansi(out).split('\n', 1)
@@ -73,7 +79,7 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
                 print(f"[runner] got {len(out)} chars for '{c}'")
             except pexpect.TIMEOUT:
                 print(f"[runner] TIMEOUT for '{c}'")
-                all_output.append((c, f"<<TIMEOUT after 60s>>"))
+                all_output.append((c, f"<<TIMEOUT after {cmd_timeout}s>>"))
             except pexpect.EOF:
                 print(f"[runner] EOF for '{c}'")
                 all_output.append((c, "<<EOF>>"))

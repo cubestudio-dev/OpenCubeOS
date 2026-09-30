@@ -100,6 +100,7 @@ int tcp_listen(u16 port, tcp_handler_fn handler);
 int net_socket(int type);
 int net_bind(int fd, u32 ip, u16 port);
 int net_connect(int fd, u32 ip, u16 port);
+int net_accept(int listen_fd, u32 *client_ip, u16 *client_port);
 int net_send(int fd, const void *data, int len);
 int net_recv(int fd, void *buf, int len);
 int net_close(int fd);

@@ -56,6 +56,7 @@ void crypto_random(u8 *buf, int len);
 
 /* DH group 1 prime (1024-bit, RFC 2409 Oakley Group 1) */
 extern const u8 dh_group1_prime[DH_BYTES];
+extern const u8 dh_group14_prime[256];  /* RFC 3526 group 14 (2048-bit) */
 extern const u8 dh_group1_generator[1]; /* g = 2 */
 
 #endif /* OC_CRYPTO_H */

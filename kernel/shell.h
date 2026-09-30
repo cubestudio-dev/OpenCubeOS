@@ -84,6 +84,13 @@ void shell_install_console_hook(shell_hook_fn_t hook, void *ctx);
  * and wildcards. Returns 0 normally, non-zero on parser error. */
 int shell_execute_line(const char *line);
 
+/* WP-09: execute one command line and capture its console output.
+ * Uses the shell's internal capture hook (which chains to and restores the
+ * boot-time user hook, e.g. the serial mirror). The captured output is
+ * copied NUL-terminated into out (max out_cap bytes). Returns the command
+ * exit code; returns the uncaptured exit code if capture is unavailable. */
+int shell_execute_captured(const char *line, char *out, int out_cap);
+
 /* ---- Environment variables ---- */
 int shell_setenv(const char *name, const char *value);
 const char *shell_getenv(const char *name);
