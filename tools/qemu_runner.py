@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 #!/usr/bin/env python3
 """Run QEMU ISO boot and execute shell commands, capturing output.
 

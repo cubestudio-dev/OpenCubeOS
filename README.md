@@ -3,7 +3,7 @@
 
 # Open Cube OS - WP-09
 
-**官网**: https://helloopencubeos.space-z.ai
+**官网**: https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**: https://github.com/cubestudio-dev/OpenCubeOS
 **Releases**: https://github.com/cubestudio-dev/OpenCubeOS/releases
 
@@ -203,7 +203,7 @@ oc-os/
 ```
 
 **Note:** Binary releases (ISO + src zip) are hosted on GitHub Releases —
-not stored in this repo. Use the website (https://helloopencubeos.space-z.ai)
+not stored in this repo. Use the website (https://cubestudio-dev.github.io/OpenCubeOS)
 or GitHub Releases page to download.
 
 ## Quick start
@@ -242,7 +242,7 @@ raw logs in docs/verification/.
 
 - **Latest (WP-09)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip
 - **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
-- Or visit https://helloopencubeos.space-z.ai for direct downloads
+- Or visit https://cubestudio-dev.github.io/OpenCubeOS for direct downloads
 
 ## License
 

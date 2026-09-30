@@ -19,12 +19,12 @@ def main():
         print(f"asm not found: {asm_path}", file=sys.stderr); sys.exit(1)
 
     # 1. Compile asm to ELF binary
-    build_dir = '/home/z/my-project/oc-os-fresh/build'
+    build_dir = '/home/z/my-project/oc-os/build'
     os.makedirs(build_dir, exist_ok=True)
     elf_path = os.path.join(build_dir, f'{name}.elf')
     nasm = '/home/z/opt/extract/usr/bin/nasm'
     ld = '/usr/bin/ld'
-    user_ld = '/home/z/my-project/oc-os-fresh/userprogs/user.ld'
+    user_ld = '/home/z/my-project/oc-os/userprogs/user.ld'
     obj_path = os.path.join(build_dir, f'{name}.o')
     r = subprocess.run([nasm, '-f', 'elf64', '-F', 'dwarf', '-g', asm_path, '-o', obj_path],
                        capture_output=True, text=True)
@@ -56,7 +56,7 @@ def main():
 
     # 4. Append to userprogs_data.h before the closing line (if any)
     # The header is just a list of arrays — append at the end.
-    header_path = '/home/z/my-project/oc-os-fresh/kernel/userprogs_data.h'
+    header_path = '/home/z/my-project/oc-os/kernel/userprogs_data.h'
     with open(header_path, 'r') as f:
         content = f.read()
     if f"const u8 userprog_{name}[]" in content:

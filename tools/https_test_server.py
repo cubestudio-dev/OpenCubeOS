@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 #!/usr/bin/env python3
 """Minimal HTTPS test server for OpenCubeOS kernel TLS client (WP-09) E2E test.
 

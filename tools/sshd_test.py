@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 #!/usr/bin/env python3
 """End-to-end test: Open Cube OS kernel sshd (guest) vs paramiko client (host).
 
