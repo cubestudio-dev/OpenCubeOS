@@ -4,3 +4,7 @@ out/
 next-env.d.ts
 *.tsbuildinfo
 .DS_Store
+# Downloadable WP-09 assets are part of the site (self-hosted downloads);
+# un-ignore them against the repo-root "*.iso" / "*.zip" rules.
+!public/downloads/*.iso
+!public/downloads/*.zip
