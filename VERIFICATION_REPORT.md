@@ -4,7 +4,7 @@
 # Open Cube OS 完整验证报告：WP-01 到 WP-09
 
 **验证日期**: 2026-09-26（WP-01..WP-08 基线）/ 2026-09-30（WP-09 更新）
-**验证范围**: WP-01 到 WP-09 全部源码（kernel + boot + userprogs 共 46,014 行）
+**验证范围**: WP-01 到 WP-09 全部源码（kernel + boot + userprogs 共 46,058 行）
 **验证人**: cubestudio-dev 自动审计
 
 ---

@@ -76,7 +76,7 @@ docs/VERIFICATION_BATCH_B.md + docs/verification/.
 
 ## Line Count (WP-09)
 
-- Source code (kernel + boot + userprogs, no docs): **46,014 lines**
+- Source code (kernel + boot + userprogs, no docs): **46,058 lines**
 - Verify with:
   ```bash
   git ls-files | grep -E '\.(c|h|S|asm|ld)$|^Makefile$|^grub\.cfg$|^linker\.ld$|^\.gitignore$' \
