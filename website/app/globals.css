@@ -138,6 +138,23 @@ a {
   border-color: var(--accent);
 }
 
+.lang-btn {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  min-height: 34px;
+}
+
+.lang-btn:hover {
+  border-color: var(--accent);
+  background: var(--bg-raise);
+}
+
 /* ---------- hero ---------- */
 
 .hero {
@@ -484,6 +501,24 @@ section {
 }
 
 /* ---------- docs page ---------- */
+
+.docs-lang-note {
+  margin-top: 10px !important;
+  font-size: 13px;
+  color: var(--text-faint);
+  border-left: 3px solid var(--border-strong);
+  padding-left: 12px;
+}
+
+.redirect-box {
+  padding: 80px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.redirect-box a {
+  font-family: var(--mono);
+}
 
 .page-head {
   padding: 44px 0 4px;

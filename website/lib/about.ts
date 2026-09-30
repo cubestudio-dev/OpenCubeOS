@@ -1,0 +1,113 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 cubestudio-dev <cubestudio@qq.com>
+//
+// Bilingual about-page data. zh strings are verbatim from the previous
+// single-locale about page (app/about/page.tsx, sourced from README.md /
+// docs/VERIFICATION_BATCH_B.md / docs/WORK_LOG.md); en strings are their
+// translations — no facts or numbers changed.
+
+import type { Locale } from "@/lib/i18n";
+import type { Bi } from "@/lib/home";
+
+export const TIMELINE: Bi<
+  { no: string; title: string; desc: string }[]
+> = {
+  zh: [
+    {
+      no: "WP-01",
+      title: "引导 + framebuffer + 文本渲染",
+      desc: "BIOS + UEFI 双引导（GRUB multiboot2）、64-bit long mode、4 GiB 恒等映射、800x600x32 帧缓冲、8x16 位图字体控制台，首批 4 个 L0→L1 扩展接口。",
+    },
+    {
+      no: "WP-02",
+      title: "中断 + 定时器 + 键盘",
+      desc: "256 项 IDT + GDT/TSS、PIC remap、CPU 异常处理、PIT @ 100Hz 真实系统滴答、PS/2 键盘 + COM1 串口输入、oc> 交互行编辑器。",
+    },
+    {
+      no: "WP-03",
+      title: "物理内存 + 虚拟内存 + 内核堆",
+      desc: "bitmap PMM（解析 multiboot2 mmap）、4 级页表 VMM、真实页错误处理（栈/堆增长）、free-list 堆分配器（first-fit + 合并 + 双重释放检测）。",
+    },
+    {
+      no: "WP-04",
+      title: "调度器 + 同步原语 + 用户态",
+      desc: "抢占式调度器（32 优先级 + 时间片）、spinlock/semaphore/mutex/condvar、Ring 3 用户态（TSS RSP0 切换）、静态 ELF + PIE 装载。",
+    },
+    {
+      no: "WP-05",
+      title: "Shell 增强 + 文件系统",
+      desc: "Shell 环境变量/别名/引号处理、VFS（mount/unmount/open/read/write/stat/readdir/…）、RamFS 根文件系统、ls/cd/cat/mkdir 等文件命令。",
+    },
+    {
+      no: "WP-06",
+      title: "网络协议栈",
+      desc: "e1000 网卡驱动（PCI bus master）、ARP + IPv4 + ICMP + TCP + UDP、socket API（socket/bind/listen/accept/connect/send/recv/close）、dhcp/ping/wget/dns/netstat。",
+    },
+    {
+      no: "WP-07",
+      title: "磁盘子系统",
+      desc: "ATA/IDE PIO（LBA28）、virtio-blk（modern PCI）、NVMe（admin + IO 队列）、64 槽 LRU 回写块缓存、MBR 分区、FAT32(R/W) exFAT(R/W) ext4(RO)。",
+    },
+    {
+      no: "WP-08",
+      title: "完整 syscall + 动态链接 + 用户 shell + 审计修复",
+      desc: "37 个系统调用、用户态 ld.so（5 种重定位、dlopen/dlsym/dlclose、ldd）、ush 用户 shell（20 内建工具 + Tab 补全 + 作业控制 + 管道）、15 个用户态测试程序；47 项原始审计修复，截至 WP-08 累计修复 120 个 bug。",
+    },
+    {
+      no: "WP-09",
+      title: "安全传输：SSH + TLS 1.2 / HTTPS + crypto 核心",
+      desc: "crypto 核心（AES-128、SHA-256、HMAC-SHA256、任意长度 DH modexp、crypto_random）；SSH 客户端 + 服务端（group14-sha256、aes128-cbc、hmac-sha2-256、rsa-sha2-256、密码认证、session exec，与 paramiko 双向互操作、K 字节级一致）；TLS 1.2 客户端（DHE_RSA_WITH_AES_128_CBC_SHA256、RFC 3526 1024-bit MODP、记录层双向加解密）；HTTPS 下载入 VFS；route/arp/firewall/tcpstats/dns 运维命令；TCP 选项（MSS、Window Scale、SACK-Permitted、Timestamps）。",
+    },
+  ],
+  en: [
+    {
+      no: "WP-01",
+      title: "Boot + framebuffer + text rendering",
+      desc: "BIOS + UEFI dual boot (GRUB multiboot2), 64-bit long mode, 4 GiB identity mapping, 800x600x32 framebuffer, 8x16 bitmap-font console, and the first 4 L0→L1 extension interfaces.",
+    },
+    {
+      no: "WP-02",
+      title: "Interrupts + timer + keyboard",
+      desc: "256-entry IDT + GDT/TSS, PIC remap, CPU exception handling, PIT @ 100Hz real system tick, PS/2 keyboard + COM1 serial input, oc> interactive line editor.",
+    },
+    {
+      no: "WP-03",
+      title: "Physical memory + virtual memory + kernel heap",
+      desc: "bitmap PMM (parses multiboot2 mmap), 4-level page-table VMM, real page-fault handling (stack/heap growth), free-list heap allocator (first-fit + coalescing + double-free detection).",
+    },
+    {
+      no: "WP-04",
+      title: "Scheduler + sync primitives + user mode",
+      desc: "Preemptive scheduler (32 priorities + time slices), spinlock/semaphore/mutex/condvar, Ring 3 user mode (TSS RSP0 switch), static ELF + PIE loading.",
+    },
+    {
+      no: "WP-05",
+      title: "Shell enhancements + file system",
+      desc: "Shell env vars/aliases/quoting, VFS (mount/unmount/open/read/write/stat/readdir/…), RamFS root file system, ls/cd/cat/mkdir file commands.",
+    },
+    {
+      no: "WP-06",
+      title: "Network protocol stack",
+      desc: "e1000 NIC driver (PCI bus master), ARP + IPv4 + ICMP + TCP + UDP, socket API (socket/bind/listen/accept/connect/send/recv/close), dhcp/ping/wget/dns/netstat.",
+    },
+    {
+      no: "WP-07",
+      title: "Disk subsystem",
+      desc: "ATA/IDE PIO (LBA28), virtio-blk (modern PCI), NVMe (admin + IO queues), 64-slot LRU write-back block cache, MBR partitions, FAT32(R/W) exFAT(R/W) ext4(RO).",
+    },
+    {
+      no: "WP-08",
+      title: "Complete syscall + dynamic linking + user shell + audit fixes",
+      desc: "37 syscalls, user-space ld.so (5 relocation types, dlopen/dlsym/dlclose, ldd), ush user shell (20 built-in tools + Tab completion + job control + pipes), 15 user-mode test programs; 47 original audit fixes, 120 bugs fixed cumulatively as of WP-08.",
+    },
+    {
+      no: "WP-09",
+      title: "Secure transport: SSH + TLS 1.2 / HTTPS + crypto core",
+      desc: "Crypto core (AES-128, SHA-256, HMAC-SHA256, arbitrary-length DH modexp, crypto_random); SSH client + server (group14-sha256, aes128-cbc, hmac-sha2-256, rsa-sha2-256, password auth, session exec, bidirectional paramiko interop with byte-identical K); TLS 1.2 client (DHE_RSA_WITH_AES_128_CBC_SHA256, RFC 3526 1024-bit MODP, full record layer); HTTPS downloads into VFS; route/arp/firewall/tcpstats/dns ops commands; TCP options (MSS, Window Scale, SACK-Permitted, Timestamps).",
+    },
+  ],
+};
+
+export function pickAbout<T>(bi: Bi<T>, locale: Locale): T {
+  return bi[locale];
+}

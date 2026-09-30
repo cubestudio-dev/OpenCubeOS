@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 cubestudio-dev <cubestudio@qq.com>
+
 import type { Metadata } from "next";
-import { BASE, GITHUB_REPO, SITE_URL } from "@/lib/site";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,52 +20,15 @@ export const metadata: Metadata = {
   },
 };
 
+// Single root layout (App Router requirement). Static export has exactly
+// one <html>, so per-locale lang is set by a tiny inline script in each
+// locale layout (no hydration flash: it runs during parse).
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-CN">
-      <body>
-        <header className="site-header">
-          <div className="container header-inner">
-            <a href={`${BASE}/`} className="brand">
-              <span className="brand-mark">OC</span>
-              <span>
-                Open Cube OS{" "}
-                <small>
-                  WP-09 · Apache 2.0
-                </small>
-              </span>
-            </a>
-            <nav className="nav" aria-label="站点导航">
-              <a href={`${BASE}/`}>首页</a>
-              <a href={`${BASE}/#downloads`}>下载</a>
-              <a href={`${BASE}/docs/`}>文档</a>
-              <a href={`${BASE}/about/`}>关于</a>
-              <a href={GITHUB_REPO} target="_blank" rel="noopener noreferrer">
-                GitHub
-              </a>
-            </nav>
-          </div>
-        </header>
-        <main>{children}</main>
-        <footer className="site-footer">
-          <div className="container footer-inner">
-            <span>
-              © 2026 cubestudio-dev &lt;cubestudio@qq.com&gt; · Apache License
-              2.0
-            </span>
-            <span className="footer-links">
-              <a href={GITHUB_REPO} target="_blank" rel="noopener noreferrer">
-                GitHub
-              </a>
-              <a href={`${BASE}/docs/`}>文档</a>
-              <a href={`${BASE}/about/`}>关于</a>
-              <a href={`${BASE}/downloads/opencube-wp09.iso`}>下载 ISO</a>
-            </span>
-          </div>
-        </footer>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
