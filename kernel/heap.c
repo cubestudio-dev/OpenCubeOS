@@ -252,10 +252,14 @@ void kfree(void *ptr) {
     /* Double-free detection. */
     if (b->magic == HEAP_MAGIC_FREE) {
         /* Double free! Don't crash, just ignore. */
+        /* WP-09-FIX BUG-001: was bare return, leaking heap_lock. */
+        heap_lock_release(irq_flags);
         return;
     }
     if (b->magic != HEAP_MAGIC) {
         /* Not a valid heap block. Ignore. */
+        /* WP-09-FIX BUG-001: was bare return, leaking heap_lock. */
+        heap_lock_release(irq_flags);
         return;
     }
 

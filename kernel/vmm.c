@@ -228,34 +228,57 @@ vmm_as_t vmm_create_address_space(void) {
     /* Zero it. */
     oc_memset((void*)pml4_phys, 0, PMM_PAGE_SIZE);
 
-    /* Copy the kernel entries from the boot PML4. Entries 0-3 cover the
-     * first 4 GiB (identity-mapped). This makes the kernel accessible
-     * in the new address space. */
     u64 *new_pml4 = (u64*)pml4_phys;
     u64 *kern_pml4 = (u64*)g_kernel_pml4;
-    for (int i = 0; i < 4; i++) {
+
+    /* PML4[1..3] stay shared with the kernel (supervisor-only regions
+     * above 512 GiB — vmtest/cr3test never map there). */
+    for (int i = 1; i < 4; i++) {
         new_pml4[i] = kern_pml4[i];
     }
+
+    /* WP-09-FIX BUG-003: PML4[0] now points at a PRIVATE copy of the
+     * kernel PDPT instead of sharing kern_pml4[0] directly. Previously
+     * any vmm_map_page() into the new AS (e.g. vmtest/cr3test mapping
+     * 4 GiB) created fresh PD/PT pages UNDER the kernel's shared PDPT,
+     * polluting the kernel page tables; the destroy path only freed the
+     * PML4, leaving the kernel pointing at orphan tables. Running pftest
+     * afterwards then triple-faulted. With a private PDPT every
+     * walk_pt(create=1) write for 0-512 GiB stays inside this AS, and
+     * the low 4 GiB identity view is preserved (all 512 PDPT entries
+     * copied, PDs themselves remain shared and read-only by convention). */
+    u64 pdpt_phys = pmm_alloc_frame();
+    if (pdpt_phys == 0) { pmm_free_frame(pml4_phys); return 0; }
+    oc_memset((void*)pdpt_phys, 0, PMM_PAGE_SIZE);
+    {
+        u64 *pdpt = (u64*)pdpt_phys;
+        u64 *kern_pdpt = (u64*)(kern_pml4[0] & PTE_ADDR_MASK);
+        for (int i = 0; i < 512; i++) {
+            pdpt[i] = kern_pdpt[i];
+        }
+    }
+    new_pml4[0] = pdpt_phys | VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER;
 
     return pml4_phys;
 }
 
-/* BUG-002 FIX (P0): Differentiate AS created by vmm_create_address_space
- * (plain AS — pml4[0..3] COPIED from kernel, so they point to kernel's
- * PDPTs, which are SHARED) vs AS created by create_user_address_space
- * (user AS — pml4[0] points to a NEW per-process PDPT, only pml4[1..3]
- * are shared with kernel).
+/* BUG-002 FIX (P0): Differentiate AS shapes in vmm_destroy_address_space.
  *
- * For plain AS (vmtest, etc.): pml4[0] == kern_pml4[0] — we must NOT
- * free the PDPT/PD0 subtree because those pages belong to the kernel.
- *   Just free the pml4 page itself.
- *
- * For user AS (user processes): pml4[0] != kern_pml4[0] — the PDPT and
- *   PD0 are per-process; safe to free them along with user pages and PTs.
+ * WP-09-FIX BUG-003: three shapes now exist:
+ *  a) plain AS — pml4[0] == kern_pml4[0] (fully shared; legacy shape).
+ *     Only the PML4 page itself may be freed.
+ *  b) private-PDPT AS — created by vmm_create_address_space():
+ *     pml4[0] points to a private PDPT whose entries are COPIES of the
+ *     kernel PDPT (pdpt[0] == kern_pdpt[0] — the PD subtree is still
+ *     shared). Free only the PDPT entries that DIVERGE from the kernel
+ *     PDPT (plus their private PD/PT subtrees and USER pages), then the
+ *     PDPT frame and the PML4 frame.
+ *  c) user AS — created by create_user_address_space():
+ *     pdpt[0] != kern_pdpt[0] (per-process PD0). Full free path as before.
  *
  * Without this distinction, running vmtest followed by `run hello` would
- * free the kernel's PD0, causing a triple fault on the next user-mode
- * context switch. */
+ * free kernel-owned tables, causing a triple fault on the next context
+ * switch. */
 void vmm_destroy_address_space(vmm_as_t as) {
     if (as == g_kernel_pml4) return;  /* don't destroy kernel space */
     if (as == 0) return;
@@ -270,9 +293,38 @@ void vmm_destroy_address_space(vmm_as_t as) {
     if (!is_plain_as && (pml4[0] & VMM_FLAG_PRESENT)) {
         u64 pdpt_phys = pml4[0] & PTE_ADDR_MASK;
         u64 *pdpt = (u64*)pdpt_phys;
+        u64 *kern_pdpt = (kern_pml4[0] & VMM_FLAG_PRESENT)
+                             ? (u64*)(kern_pml4[0] & PTE_ADDR_MASK)
+                             : 0;
 
-        /* Walk PDPT[0] only (0-1GB, user space). PDPT[1..3] are shared. */
-        if (pdpt[0] & VMM_FLAG_PRESENT) {
+        /* WP-09-FIX BUG-003: shape (b) — private PDPT, shared PD subtree. */
+        int is_priv_pdpt_as = (kern_pdpt != 0 && pdpt[0] == kern_pdpt[0]);
+
+        if (is_priv_pdpt_as) {
+            for (int k = 0; k < 512; k++) {
+                if (!(pdpt[k] & VMM_FLAG_PRESENT)) continue;
+                if (pdpt[k] == kern_pdpt[k]) continue;  /* shared with kernel */
+                if (pdpt[k] & 0x80) continue;           /* huge PDPT entry: not ours */
+                u64 pd_phys = pdpt[k] & PTE_ADDR_MASK;
+                u64 *pd = (u64*)pd_phys;
+                for (int l = 0; l < 512; l++) {
+                    if (!(pd[l] & VMM_FLAG_PRESENT)) continue;
+                    if (pd[l] & 0x80) continue;         /* huge page: kernel-owned */
+                    u64 pt_phys = pd[l] & PTE_ADDR_MASK;
+                    u64 *pt = (u64*)pt_phys;
+                    for (int m = 0; m < 512; m++) {
+                        if ((pt[m] & VMM_FLAG_PRESENT) && (pt[m] & VMM_FLAG_USER)) {
+                            pmm_free_frame(pt[m] & PTE_ADDR_MASK);
+                        }
+                    }
+                    pmm_free_frame(pt_phys);
+                }
+                pmm_free_frame(pd_phys);
+            }
+            /* Free the private PDPT frame and the PML4 frame below. */
+            pmm_free_frame(pdpt_phys);
+        } else if (pdpt[0] & VMM_FLAG_PRESENT) {
+            /* Shape (c) — user AS: per-process PD0. */
             u64 pd0_phys = pdpt[0] & PTE_ADDR_MASK;
             u64 *pd0 = (u64*)pd0_phys;
 
@@ -313,7 +365,9 @@ void vmm_destroy_address_space(vmm_as_t as) {
         }
         /* Free PDPT frame (per-process). PDPT[1..3] entries point to
          * shared kernel PDs but the PDPT page itself is per-process. */
-        pmm_free_frame(pdpt_phys);
+        if (!is_priv_pdpt_as) {
+            pmm_free_frame(pdpt_phys);
+        }
     }
 
     /* Free the PML4 frame (per-process). PML4[1..3] are shared kernel

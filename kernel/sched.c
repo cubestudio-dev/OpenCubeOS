@@ -85,6 +85,62 @@ static tid_t ready_pop_highest(void) {
     return tid;
 }
 
+/* WP-09-FIX BUG-008: pop the FIFO head of one specific priority level.
+ * Used by the starvation guard to hand a lower-priority task a turn. */
+static tid_t ready_pop_level(int p);
+
+/* BUG-028: forward decl — sched_tick (WP-09-FIX BUG-004) now reaps too. */
+static void sched_reap_exited(void);
+
+/* WP-09-FIX BUG-008: ticks elapsed since the idle task (the shell) last
+ * got a turn. Drives the starvation guard in sched_tick. */
+static u64 g_ticks_since_idle_run = 0;
+
+static tid_t ready_pop_level(int p) {
+    u64 flags;
+    __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags));
+    if (p < 0 || p >= 32 || g_ready_count[p] == 0) {
+        if (flags & 0x200) __asm__ volatile("sti");
+        return -1;
+    }
+    tid_t tid = g_ready_queue[p][0];
+    for (int i = 1; i < g_ready_count[p]; i++)
+        g_ready_queue[p][i-1] = g_ready_queue[p][i];
+    g_ready_count[p]--;
+    if (g_ready_count[p] == 0)
+        g_ready_bitmap &= ~(1u << p);
+    if (flags & 0x200) __asm__ volatile("sti");
+    return tid;
+}
+
+/* WP-09-FIX BUG-004/BUG-007: mark a task EXITED and remove it from the
+ * ready queue. Without the queue removal, sched_switch_to() would set
+ * the task back to TASK_RUNNING on the next pop and keep running it on
+ * an address space the reaper just destroyed. */
+void sched_task_exited(tid_t tid) {
+    if (tid <= 0 || tid >= MAX_TASKS) return;
+    u64 flags;
+    __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags));
+    if (g_tasks[tid].in_use) g_tasks[tid].state = TASK_EXITED;
+    int p = g_tasks[tid].priority;
+    if (p >= 0 && p < 32) {
+        int w = 0;
+        for (int i = 0; i < g_ready_count[p]; i++) {
+            if (g_ready_queue[p][i] == tid) continue;
+            g_ready_queue[p][w++] = g_ready_queue[p][i];
+        }
+        g_ready_count[p] = w;
+        if (w == 0) g_ready_bitmap &= ~(1u << p);
+    }
+    /* Same notification contract as kthread_destroy: let subsystems with
+     * tid waiters (semaphores, pipe wait queues) drop the dead tid from
+     * their waiter lists. Called with interrupts OFF. */
+    for (int h = 0; h < MAX_DESTROYED_HOOKS; h++) {
+        if (g_destroyed_hooks[h]) g_destroyed_hooks[h](tid);
+    }
+    if (flags & 0x200) __asm__ volatile("sti");
+}
+
 void sched_init(void) {
     oc_memset(g_tasks, 0, sizeof(g_tasks));
     oc_memset(g_ready_queue, 0, sizeof(g_ready_queue));
@@ -380,6 +436,8 @@ static void sched_switch_to(task_t *next) {
 
     next->state = TASK_RUNNING;
     next->ticks_remaining = TIME_SLICE_TICKS;
+    if (next == g_idle_task)
+        g_ticks_since_idle_run = 0;  /* WP-09-FIX BUG-008 */
     g_current = next;
 
     /* P1-10 FIX: switch CR3 if the next task has a different address space.
@@ -410,6 +468,10 @@ static void sched_switch_to(task_t *next) {
 
 void sched_tick(void) {
     if (!g_current) return;
+    /* WP-09-FIX BUG-004: reap EXITED tasks from the timer tick as well,
+     * so killed tasks release their tid/stack promptly even when the
+     * shell never calls sched_yield (hlt-based readline). */
+    sched_reap_exited();
     g_current->cpu_time_ticks++;
     if (g_current->ticks_remaining > 0)
         g_current->ticks_remaining--;
@@ -441,12 +503,47 @@ void sched_tick(void) {
     }
 
     int should_switch = 0;
+    tid_t force_next = -1;
     if (g_current->ticks_remaining == 0) {
         /* Time slice expired: yield unconditionally. */
         should_switch = 1;
     } else if (g_ready_bitmap != 0 && highest_p < g_current->priority) {
         /* A higher-priority task is ready: preempt immediately. */
         should_switch = 1;
+    } else {
+        /* WP-09-FIX BUG-008: starvation guard.
+         * Track how long the idle task (which hosts the interactive
+         * shell) has gone WITHOUT being scheduled. Two equal-priority
+         * CPU-bound user tasks (prio 15) bounce between themselves via
+         * the time-slice-expiry path — the shell (idle, prio 31) never
+         * wins ready_pop_highest() and starves forever. After
+         * SCHED_STARVE_LIMIT ticks (1s @ 100 Hz) without an idle turn,
+         * force-switch to the lowest-priority ready task, or to idle
+         * itself when no lower-priority task is queued (idle is never
+         * queued — it must be forced directly). */
+        if (g_current != g_idle_task) {
+            g_ticks_since_idle_run++;
+            if (g_ticks_since_idle_run >= SCHED_STARVE_LIMIT) {
+                int p;
+                for (p = 31; p > g_current->priority; p--) {
+                    if (g_ready_bitmap & (1u << p)) break;
+                }
+                if (p > g_current->priority) {
+                    force_next = ready_pop_level(p);
+                    if (force_next > 0) {
+                        should_switch = 1;
+                        g_ticks_since_idle_run = 0;
+                    }
+                }
+                if (!should_switch) {
+                    /* No lower-priority queued task: hand the CPU back to
+                     * the idle/shell task directly (tid 0). */
+                    force_next = 0;
+                    should_switch = 1;
+                    g_ticks_since_idle_run = 0;
+                }
+            }
+        }
     }
 
     if (should_switch) {
@@ -457,13 +554,20 @@ void sched_tick(void) {
             g_current->state = TASK_READY;
             ready_push(g_current->tid);
         }
-        tid_t next_tid = ready_pop_highest();
-        /* If the popped task is the same as the current (only one task at
-         * this priority level), re-add it to the queue and switch to idle
-         * so that lower-priority tasks (the shell) get a turn. */
-        if (next_tid == g_current->tid && g_current != g_idle_task) {
-            ready_push(next_tid);
-            next_tid = 0;  /* idle */
+        tid_t next_tid;
+        if (force_next >= 0) {
+            /* Starvation-guard switch: target already popped (tid 0 = idle
+             * is never queued, so no pop happened for it). */
+            next_tid = force_next;
+        } else {
+            next_tid = ready_pop_highest();
+            /* If the popped task is the same as the current (only one task at
+             * this priority level), re-add it to the queue and switch to idle
+             * so that lower-priority tasks (the shell) get a turn. */
+            if (next_tid == g_current->tid && g_current != g_idle_task) {
+                ready_push(next_tid);
+                next_tid = 0;  /* idle */
+            }
         }
         if (next_tid != g_current->tid) {
             if (g_current->ticks_remaining == 0)
@@ -478,9 +582,9 @@ void sched_tick(void) {
 }
 
 /* BUG-028 FIX: Reap exited tasks (free stack + clear in_use).
- * Called from sched_yield to clean up zombie tasks that are not the
- * current task. Without this, exited tasks accumulate and fill the
- * 32-slot task table, eventually causing kthread_create to fail. */
+ * Called from sched_yield AND sched_tick (WP-09-FIX BUG-004: the shell's
+ * readline loop uses hlt and never yields, so relying on sched_yield alone
+ * let EXITED zombies pile up and occupy tid slots for a long time). */
 static void sched_reap_exited(void) {
     for (tid_t t = 1; t < MAX_TASKS; t++) {
         if (g_tasks[t].in_use && g_tasks[t].state == TASK_EXITED) {

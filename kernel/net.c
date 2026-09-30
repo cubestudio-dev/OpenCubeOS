@@ -2156,31 +2156,39 @@ void tcp_handle_packet(u32 src_ip, const void *data, int len) {
                 if (c->rx_len + payload_len < (int)sizeof(c->rx_buf)) {
                     oc_memcpy(c->rx_buf + c->rx_len, payload, payload_len);
                     c->rx_len += payload_len;
-                }
-                c->our_ack = seq + payload_len;
-                /* drain cached segments that are now in order */
-                int drained = 1;
-                while (drained) {
-                    drained = 0;
-                    for (int k = 0; k < c->ooo_count; k++) {
-                        if (c->ooo_seq[k] == c->our_ack && c->ooo_len[k] > 0) {
-                            if (c->rx_len + c->ooo_len[k] < (int)sizeof(c->rx_buf)) {
-                                oc_memcpy(c->rx_buf + c->rx_len, c->ooo_data[k], c->ooo_len[k]);
-                                c->rx_len += c->ooo_len[k];
-                                c->our_ack += c->ooo_len[k];
-                                for (int j = k; j < c->ooo_count - 1; j++) {
-                                    c->ooo_seq[j] = c->ooo_seq[j+1];
-                                    c->ooo_len[j] = c->ooo_len[j+1];
-                                    oc_memcpy(c->ooo_data[j], c->ooo_data[j+1], TCP_OOO_SEG);
+                    c->our_ack = seq + payload_len;
+                    /* drain cached segments that are now in order */
+                    int drained = 1;
+                    while (drained) {
+                        drained = 0;
+                        for (int k = 0; k < c->ooo_count; k++) {
+                            if (c->ooo_seq[k] == c->our_ack && c->ooo_len[k] > 0) {
+                                if (c->rx_len + c->ooo_len[k] < (int)sizeof(c->rx_buf)) {
+                                    oc_memcpy(c->rx_buf + c->rx_len, c->ooo_data[k], c->ooo_len[k]);
+                                    c->rx_len += c->ooo_len[k];
+                                    c->our_ack += c->ooo_len[k];
+                                    for (int j = k; j < c->ooo_count - 1; j++) {
+                                        c->ooo_seq[j] = c->ooo_seq[j+1];
+                                        c->ooo_len[j] = c->ooo_len[j+1];
+                                        oc_memcpy(c->ooo_data[j], c->ooo_data[j+1], TCP_OOO_SEG);
+                                    }
+                                    c->ooo_count--;
+                                    drained = 1;
                                 }
-                                c->ooo_count--;
-                                drained = 1;
+                                break;
                             }
-                            break;
                         }
                     }
+                    tcp_send_raw(c, TCP_ACK, NULL, 0);
+                } else {
+                    /* WP-09-FIX BUG-002: rx_buf full — do NOT consume this
+                     * segment, do NOT advance our_ack, do NOT ACK. The peer
+                     * retransmits once the app drains rx_buf (acts as a zero
+                     * window). Previously the payload was silently dropped
+                     * yet still ACKed (fake ACK) → 98% data loss on bulk
+                     * transfer. */
+                    break;
                 }
-                tcp_send_raw(c, TCP_ACK, NULL, 0);
             }
             if (flags & TCP_FIN) {
                 /* P1-12 FIX: remote sent FIN → go to CLOSE_WAIT, not LAST_ACK.

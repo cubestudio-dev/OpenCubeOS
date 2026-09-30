@@ -27,6 +27,11 @@
 /* Time slice in ticks (at 100 Hz, 1 tick = 10ms). */
 #define TIME_SLICE_TICKS 2  /* 20ms per slice */
 
+/* WP-09-FIX BUG-008: starvation guard. After this many consecutive ticks
+ * a running task is force-switched out in favour of the lowest-priority
+ * ready task (100 ticks = 1s at the 100 Hz timer). */
+#define SCHED_STARVE_LIMIT 100
+
 /* Task ID. 0 = kernel/idle task. */
 typedef int tid_t;
 
@@ -105,6 +110,13 @@ void kthread_list(void);
 
 /* Called from the timer IRQ to drive the scheduler. */
 void sched_tick(void);
+
+/* WP-09-FIX BUG-004/BUG-007: mark a task EXITED and remove it from the
+ * ready queue so the scheduler can never resurrect it (sched_switch_to
+ * sets state=TASK_RUNNING on the next pop). Its kernel stack is freed
+ * later by sched_reap_exited(). Safe to call from another task's
+ * context (e.g. the shell running `kill`). */
+void sched_task_exited(tid_t tid);
 
 /* Called to yield the CPU voluntarily. */
 void sched_yield(void);

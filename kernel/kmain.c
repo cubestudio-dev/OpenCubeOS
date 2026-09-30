@@ -1460,6 +1460,34 @@ static int cmd_kill(const char *args) {
         oc_console_puts("invalid tid\n");
         return 1;
     }
+    /* WP-09-FIX BUG-004 + BUG-007: if the tid refers to a USER process,
+     * run the unified reaper (user_process_reap_resources) instead of
+     * kthread_destroy. Old behavior had two defects:
+     *   BUG-004: kthread_destroy immediately freed the task's 4 KiB
+     *            kernel stack; when the scheduler later switched to the
+     *            dying task the context switch faulted → #DF after
+     *            ~15 kill cycles.
+     *   BUG-007: the g_procs slot and the user address space were never
+     *            reclaimed (zombie in `ps`, ~884 KB leaked per kill).
+     * Now: reap resources (fds + AS), wake the parent, mark the task
+     * TASK_EXITED and let sched_reap_exited() free the stack safely —
+     * the exact same path as sys_kill(SIGKILL). */
+    for (int i = 0; i < MAX_USER_PROCS; i++) {
+        if (g_procs[i].alive && g_procs[i].tid == (tid_t)tid) {
+            if (tid == kthread_current_tid()) {
+                oc_console_puts("kill: cannot kill self\n");
+                return 1;
+            }
+            user_process_reap_resources(&g_procs[i], 128 + 9 /* SIGKILL */);
+            if (g_procs[i].parent_tid > 0) kthread_wake(g_procs[i].parent_tid);
+            /* WP-09-FIX BUG-004: sched_task_exited also removes the task
+             * from the ready queue (plain state=EXITED gets overwritten
+             * back to RUNNING by sched_switch_to on the next pop). */
+            sched_task_exited(g_procs[i].tid);
+            oc_console_puts("killed task\n");
+            return 0;
+        }
+    }
     /* P2-01 FIX: check kthread_destroy return value; report error
      * (e.g. tid doesn't exist or out of range) instead of always
      * reporting success. */

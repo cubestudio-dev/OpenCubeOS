@@ -409,8 +409,9 @@ static u64 sys_kill(u64 pid_arg, u64 sig, u64 a3, u64 a4) {
                  * unified reaper — same path as sys_exit2. */
                 user_process_reap_resources(&g_procs[i], 128 + (int)sig);
                 if (g_procs[i].parent_tid > 0) kthread_wake(g_procs[i].parent_tid);
-                task_t *t = kthread_get_task(g_procs[i].tid);
-                if (t) t->state = TASK_EXITED;
+                /* WP-09-FIX BUG-004: remove from ready queue too (see
+                 * sched_task_exited). */
+                sched_task_exited(g_procs[i].tid);
                 return 0;
             }
             g_procs[i].pending_signal = (int)sig;
@@ -418,8 +419,7 @@ static u64 sys_kill(u64 pid_arg, u64 sig, u64 a3, u64 a4) {
                 /* Default action terminates the process — use reaper. */
                 user_process_reap_resources(&g_procs[i], 128 + (int)sig);
                 if (g_procs[i].parent_tid > 0) kthread_wake(g_procs[i].parent_tid);
-                task_t *t = kthread_get_task(g_procs[i].tid);
-                if (t) t->state = TASK_EXITED;
+                sched_task_exited(g_procs[i].tid);
             }
             return 0;
         }

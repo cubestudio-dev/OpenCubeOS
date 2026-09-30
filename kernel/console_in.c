@@ -144,8 +144,17 @@ int oc_console_in_readline(char *buf, int size) {
      * size==0 produced len=-1, then oc_memcpy with (usize)-1 copied ~2^64
      * bytes and buf[-1]=0 wrote out of bounds. */
     if (!buf || size <= 0) return 0;
-    /* Pump until a line is ready. */
+    /* Pump until a line is ready.
+     * WP-09-FIX BUG-008: drain the buffered characters before hlt-waiting.
+     * The old loop hlt-ed after every single character, so a shell that
+     * only gets scheduled once per starvation-guard window consumed just
+     * one buffered keystroke per turn — an 8-char command took 8 turns.
+     * Draining first keeps one full line per scheduling window. */
     while (!g_line_ready) {
+        int pumped = 0;
+        while (!g_line_ready && oc_console_in_pump()) pumped = 1;
+        if (g_line_ready) break;
+        if (pumped) continue;   /* buffer had data; drain more next spin */
         /* Enable interrupts so keyboard IRQs fire while we wait. */
         __asm__ volatile("sti");
         __asm__ volatile("hlt");
