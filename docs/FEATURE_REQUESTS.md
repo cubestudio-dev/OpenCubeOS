@@ -14,16 +14,16 @@
 
 ### 服务器
 
-- **域名**: `https://helloopencubeos.space-z.ai/`
+- **域名**: `https://cubestudio-dev.github.io/OpenCubeOS/`
 - **API**: `GET /latest.json`
 - **响应格式**:
   ```json
   {
     "version": "WP-08",
     "iso_sha256": "...",
-    "iso_url": "https://helloopencubeos.space-z.ai/downloads/opencube.iso",
+    "iso_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube.iso",
     "src_sha256": "...",
-    "src_url": "https://helloopencubeos.space-z.ai/downloads/opencube-src.zip",
+    "src_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-src.zip",
     "release_date": "2026-09-26"
   }
   ```
@@ -41,7 +41,7 @@ oc> checkupdate
 Checking for updates...
 Current version: WP-08
 Latest version:  WP-09 Batch 1
-Update available! Download from: https://helloopencubeos.space-z.ai/downloads/opencube-wp09.iso
+Update available! Download from: https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-wp09.iso
 ```
 
 ### 为什么 WP-09
@@ -56,7 +56,7 @@ Update available! Download from: https://helloopencubeos.space-z.ai/downloads/op
    - 实现 TLS 1.2 ClientHello/ServerKeyExchange/Finished
    - 或集成 mbedTLS/tinyTLS（需评估 Apache 2.0 兼容性）
 2. `checkupdate` 命令
-   - 读取 `/etc/version-server` 获取服务器 URL（默认 `https://helloopencubeos.space-z.ai`）
+   - 读取 `/etc/version-server` 获取服务器 URL（默认 `https://cubestudio-dev.github.io/OpenCubeOS`）
    - TCP 连接 + TLS 握手
    - 发送 `GET /latest.json HTTP/1.1\r\nHost: ...\r\n\r\n`
    - 解析 JSON 响应
@@ -65,5 +65,5 @@ Update available! Download from: https://helloopencubeos.space-z.ai/downloads/op
    - `version_server_set(const char *url)` — 写入 `/etc/version-server`
    - `version_server_get(char *buf, u64 size)` — 读取 `/etc/version-server`
 4. 服务器端
-   - 部署 `latest.json` 到 `https://helloopencubeos.space-z.ai/`
+   - 部署 `latest.json` 到 `https://cubestudio-dev.github.io/OpenCubeOS/`
    - 每次 release 更新 JSON
