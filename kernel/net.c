@@ -1138,6 +1138,12 @@ typedef struct __attribute__((packed)) {
 
 static u16 g_ip_id = 1;
 
+/* forward declarations: the OUTPUT hook runs inside ip_send, which is
+ * defined before the netfilter helpers below */
+static u8 netfilter_check(u8 chain, u32 src_ip, u32 dst_ip, u8 protocol,
+                          u16 sport, u16 dport, u8 state);
+static void nf_send_icmp_unreachable(u32 src_ip, const void *orig_pkt, int orig_len);
+
 static int ip_send(u32 dst_ip, u8 protocol, const void *payload, int len) {
     /* P2-08 FIX: use a consistent IP payload MTU. The Ethernet frame
      * payload is 1500 bytes (ETH_FRAME_MAX 1514 - 14 eth header). The
@@ -1151,6 +1157,32 @@ static int ip_send(u32 dst_ip, u8 protocol, const void *payload, int len) {
     /* Unspecified destination: drop silently (used by the CC simulation,
      * which must not inject real packets or attract peer RSTs). */
     if (dst_ip == 0) return -1;
+
+    /* WP-09 mainstream: Netfilter OUTPUT chain — parse transport ports and
+     * classify the outbound flow before it leaves the kernel. */
+    {
+        u8 proto = protocol;
+        const u8 *pl = (const u8 *)payload;
+        u16 sport = 0, dport = 0;
+        u16 out_flags = 0;
+        if ((proto == IP_PROTO_TCP || proto == IP_PROTO_UDP) && len >= 4) {
+            sport = (u16)((pl[0] << 8) | pl[1]);
+            dport = (u16)((pl[2] << 8) | pl[3]);
+        }
+        if (proto == IP_PROTO_TCP && len >= 14) {
+            out_flags = pl[13];
+        }
+        u8 state = netfilter_ct_classify(proto, g_ip, sport, dst_ip, dport, 1,
+                                         out_flags);
+        u8 verdict = netfilter_check(NF_CHAIN_OUTPUT, g_ip, dst_ip,
+                                     proto, sport, dport, state);
+        if (verdict != NF_ACTION_ACCEPT) {
+            if (verdict == NF_ACTION_REJECT) g_stats.nf_reject++;
+            else g_stats.nf_drop++;
+            return -1;   /* blocked by firewall */
+        }
+    }
+
     /* Resolve destination MAC (via gateway if needed). */
     u32 next_hop = dst_ip;
     /* Broadcast addresses (255.255.255.255 or subnet broadcast) go directly,
@@ -1208,22 +1240,127 @@ static int ip_send(u32 dst_ip, u8 protocol, const void *payload, int len) {
     return eth_send(dst_mac, ETH_TYPE_IP, buf, 20 + len);
 }
 
-/* WP-09: Netfilter firewall subsystem */
+/* WP-09 mainstream: Netfilter firewall subsystem
+ * Three chains (INPUT/OUTPUT/FORWARD), per-chain default policy, stateful
+ * rules (NEW/ESTABLISHED) backed by a connection-tracking table, per-rule
+ * hit counters, L1 hooks, and REJECT (drop + ICMP dest-unreachable on
+ * INPUT). FORWARD is enforced on any transit traffic if IP forwarding is
+ * ever enabled (g_ip_forward; the L0 image ships with one NIC and no
+ * forwarding path, so the chain is wired but dormant). */
 #define NF_MAX_RULES 32
+#define NF_CT_MAX 32
+#define NF_CT_TIMEOUT 600   /* 60 s flow idle timeout (ticks) */
 /* nf_rule_t, nf_hook_fn, NF_CHAIN_*, NF_ACTION_* are defined in net.h */
 
 static nf_rule_t g_nf_rules[NF_MAX_RULES];
 static nf_hook_fn g_nf_hooks[4];  /* L1 hooks */
 static int g_nf_hook_count = 0;
+static u8 g_nf_policy[NF_CHAIN_COUNT] = { NF_ACTION_ACCEPT, NF_ACTION_ACCEPT, NF_ACTION_ACCEPT };
+int g_ip_forward = 0;   /* IP forwarding off (single-NIC L0) */
+
+
+typedef struct {
+    u8  protocol;
+    u32 src_ip, dst_ip;
+    u16 src_port, dst_port;
+    u64 last_seen;
+    u8  established;   /* 1 = flow seen in both directions */
+    int in_use;
+} nf_ct_t;
+static nf_ct_t g_nf_ct[NF_CT_MAX];
+
+/* netfilter_ct_classify — look up (and refresh/insert) a flow.
+ * Returns NF_STATE_ESTABLISHED when the flow has been seen in both
+ * directions, else NF_STATE_NEW. `outbound` marks the direction of THIS
+ * packet relative to the kernel (1 = we are the source). */
+u8 netfilter_ct_classify(u8 protocol, u32 src_ip, u16 src_port,
+                         u32 dst_ip, u16 dst_port, int outbound,
+                         u16 tcp_flags) {
+    (void)outbound;   /* direction handled via tuple reversal below */
+    nf_ct_t *free_slot = 0;
+    nf_ct_t *match = 0;
+    u64 now = oc_timer_ticks();
+    for (int i = 0; i < NF_CT_MAX; i++) {
+        if (!g_nf_ct[i].in_use) { if (!free_slot) free_slot = &g_nf_ct[i]; continue; }
+        if (now - g_nf_ct[i].last_seen > NF_CT_TIMEOUT) {   /* expired */
+            g_nf_ct[i].in_use = 0;
+            if (!free_slot) free_slot = &g_nf_ct[i];
+            continue;
+        }
+        if (g_nf_ct[i].protocol == protocol &&
+            g_nf_ct[i].src_ip == src_ip && g_nf_ct[i].src_port == src_port &&
+            g_nf_ct[i].dst_ip == dst_ip && g_nf_ct[i].dst_port == dst_port) {
+            match = &g_nf_ct[i];
+            break;
+        }
+    }
+    if (!match) {
+        /* Also match the reversed tuple so one table row covers both
+         * directions of the same flow. */
+        for (int i = 0; i < NF_CT_MAX; i++) {
+            if (!g_nf_ct[i].in_use) continue;
+            if (g_nf_ct[i].protocol == protocol &&
+                g_nf_ct[i].src_ip == dst_ip && g_nf_ct[i].src_port == dst_port &&
+                g_nf_ct[i].dst_ip == src_ip && g_nf_ct[i].dst_port == src_port) {
+                match = &g_nf_ct[i];
+                break;
+            }
+        }
+    }
+    if (!match) {
+        /* New flow: insert in the direction this packet was seen. */
+        if (!free_slot) return NF_STATE_NEW;
+        free_slot->protocol = protocol;
+        free_slot->src_ip = src_ip;
+        free_slot->src_port = src_port;
+        free_slot->dst_ip = dst_ip;
+        free_slot->dst_port = dst_port;
+        free_slot->last_seen = now;
+        free_slot->established = 0;
+        free_slot->in_use = 1;
+        return NF_STATE_NEW;
+    }
+    /* Existing entry. If this packet travels the opposite direction of the
+     * stored tuple, the flow is now confirmed bidirectional. A bare SYN
+     * (SYN set, ACK clear) does NOT confirm — it is the initial connect
+     * attempt. SYN-ACK, data and FIN all do (Linux conntrack semantics). */
+    int reversed = (match->src_ip == dst_ip && match->src_port == dst_port &&
+                    match->dst_ip == src_ip && match->dst_port == src_port);
+    if (reversed && !match->established) {
+        int bare_syn = (protocol == IP_PROTO_TCP &&
+                        (tcp_flags & 0x12) == 0x02);
+        if (!bare_syn) match->established = 1;
+    }
+    match->last_seen = now;
+    return match->established ? NF_STATE_ESTABLISHED : NF_STATE_NEW;
+}
+
+int netfilter_ct_count(void) {
+    int n = 0;
+    for (int i = 0; i < NF_CT_MAX; i++) if (g_nf_ct[i].in_use) n++;
+    return n;
+}
+
+void netfilter_ct_flush(void) {
+    oc_memset(g_nf_ct, 0, sizeof(g_nf_ct));
+}
 
 /* WP-09: netfilter_register_hook — register an L1 hook function */
 void netfilter_register_hook(nf_hook_fn fn) {
     if (g_nf_hook_count < 4) g_nf_hooks[g_nf_hook_count++] = fn;
 }
 
-/* WP-09: netfilter_add_rule — add a firewall rule */
+/* WP-09: netfilter_add_rule (legacy signature: state = ANY) */
 int netfilter_add_rule(u8 chain, u32 src_ip, u32 src_mask, u32 dst_ip, u32 dst_mask,
                        u8 protocol, u16 port, u8 action) {
+    return netfilter_add_rule_st(chain, src_ip, src_mask, dst_ip, dst_mask,
+                                 protocol, port, action, NF_STATE_ANY);
+}
+
+/* WP-09 mainstream: stateful rule add */
+int netfilter_add_rule_st(u8 chain, u32 src_ip, u32 src_mask, u32 dst_ip, u32 dst_mask,
+                          u8 protocol, u16 port, u8 action, u8 state) {
+    if (chain >= NF_CHAIN_COUNT) return -1;
     for (int i = 0; i < NF_MAX_RULES; i++) {
         if (!g_nf_rules[i].in_use) {
             g_nf_rules[i].src_ip = src_ip;
@@ -1234,6 +1371,8 @@ int netfilter_add_rule(u8 chain, u32 src_ip, u32 src_mask, u32 dst_ip, u32 dst_m
             g_nf_rules[i].port = port;
             g_nf_rules[i].chain = chain;
             g_nf_rules[i].action = action;
+            g_nf_rules[i].state = state;
+            g_nf_rules[i].hits = 0;
             g_nf_rules[i].in_use = 1;
             return 0;
         }
@@ -1248,6 +1387,20 @@ int netfilter_del_rule(int index) {
     return 0;
 }
 
+void netfilter_reset(void) {
+    oc_memset(g_nf_rules, 0, sizeof(g_nf_rules));
+    oc_memset(g_nf_ct, 0, sizeof(g_nf_ct));
+    for (int i = 0; i < NF_CHAIN_COUNT; i++) g_nf_policy[i] = NF_ACTION_ACCEPT;
+}
+
+void netfilter_set_policy(u8 chain, u8 action) {
+    if (chain < NF_CHAIN_COUNT) g_nf_policy[chain] = action;
+}
+
+u8 netfilter_get_policy(u8 chain) {
+    return (chain < NF_CHAIN_COUNT) ? g_nf_policy[chain] : NF_ACTION_ACCEPT;
+}
+
 /* WP-09: netfilter_list_rules — list all rules */
 int netfilter_list_rules(nf_rule_t *out, int max) {
     int count = 0;
@@ -1257,13 +1410,16 @@ int netfilter_list_rules(nf_rule_t *out, int max) {
     return count;
 }
 
-/* WP-09: netfilter_check — check a packet against the rules.
- * Returns NF_ACTION_ACCEPT or NF_ACTION_DROP. */
-static u8 netfilter_check(u8 chain, u32 src_ip, u32 dst_ip, u8 protocol, u16 port) {
+/* WP-09 mainstream: netfilter_check — check a packet against the rules.
+ * sport/dport carry the transport-layer ports (0 for non-TCP/UDP).
+ * state is the conntrack classification for this flow.
+ * Returns NF_ACTION_ACCEPT/DROP/REJECT. */
+static u8 netfilter_check(u8 chain, u32 src_ip, u32 dst_ip, u8 protocol,
+                          u16 sport, u16 dport, u8 state) {
     /* Call L1 hooks first */
     for (int i = 0; i < g_nf_hook_count; i++) {
         if (g_nf_hooks[i]) {
-            int verdict = g_nf_hooks[i](chain, src_ip, dst_ip, protocol, port);
+            int verdict = g_nf_hooks[i](chain, src_ip, dst_ip, protocol, dport);
             if (verdict == NF_ACTION_DROP) return NF_ACTION_DROP;
             if (verdict == NF_ACTION_ACCEPT) return NF_ACTION_ACCEPT;
         }
@@ -1285,14 +1441,32 @@ static u8 netfilter_check(u8 chain, u32 src_ip, u32 dst_ip, u8 protocol, u16 por
         /* Match protocol */
         if (g_nf_rules[i].protocol != 0 && g_nf_rules[i].protocol != protocol)
             continue;
-        /* Match port */
-        if (g_nf_rules[i].port != 0 && g_nf_rules[i].port != port)
+        /* Match port (either direction of the connection) */
+        if (g_nf_rules[i].port != 0 && g_nf_rules[i].port != sport &&
+            g_nf_rules[i].port != dport)
             continue;
-        /* Rule matched — return action */
+        /* Match connection state */
+        if (g_nf_rules[i].state != NF_STATE_ANY && g_nf_rules[i].state != state)
+            continue;
+        /* Rule matched — count and return action */
+        g_nf_rules[i].hits++;
         return g_nf_rules[i].action;
     }
-    /* Default: ACCEPT */
-    return NF_ACTION_ACCEPT;
+    /* Per-chain default policy */
+    return g_nf_policy[chain];
+}
+
+/* Parse transport ports for the firewall (0 for non-TCP/UDP). */
+static void nf_parse_ports(const void *payload, int payload_len, u8 protocol,
+                           u16 *sport, u16 *dport) {
+    *sport = 0;
+    *dport = 0;
+    if (payload_len < 4) return;
+    if (protocol == IP_PROTO_TCP || protocol == IP_PROTO_UDP) {
+        const u8 *p = (const u8 *)payload;
+        *sport = (u16)((p[0] << 8) | p[1]);
+        *dport = (u16)((p[2] << 8) | p[3]);
+    }
 }
 
 static void ip_handle_packet(const void *data, int len) {
@@ -1307,6 +1481,26 @@ static void ip_handle_packet(const void *data, int len) {
     if (dst != g_ip && dst != 0xFFFFFFFF && g_ip != 0) {
         /* Check broadcast. */
         if ((dst & 0xFF) != 0xFF) {
+            /* WP-09 mainstream: FORWARD chain — transit traffic. The L0
+             * image has one NIC and no forwarding path (g_ip_forward = 0),
+             * so packets are counted and dropped either way; the chain is
+             * wired so a forwarding datapath can be added without touching
+             * the filter logic again. */
+            if (g_ip_forward) {
+                u16 fsport, fdport;
+                nf_parse_ports((const u8 *)data + (iph->ver_ihl & 0x0F) * 4,
+                               ntohs(iph->total_len) - (iph->ver_ihl & 0x0F) * 4,
+                               iph->protocol, &fsport, &fdport);
+                g_stats.nf_forward++;
+                u8 state = netfilter_ct_classify(iph->protocol,
+                                                 ntohl(iph->src_ip), fsport,
+                                                 dst, fdport, 0, 0);
+                u8 verdict = netfilter_check(NF_CHAIN_FORWARD,
+                                             ntohl(iph->src_ip), dst,
+                                             iph->protocol, fsport, fdport,
+                                             state);
+                if (verdict != NF_ACTION_ACCEPT) g_stats.nf_drop++;
+            }
             return;
         }
     }
@@ -1318,9 +1512,28 @@ static void ip_handle_packet(const void *data, int len) {
     int payload_len = ntohs(iph->total_len) - hdr_len;
     u32 src_ip = ntohl(iph->src_ip);
 
-    /* WP-09: Netfilter INPUT chain check */
-    if (netfilter_check(NF_CHAIN_INPUT, src_ip, dst, iph->protocol, 0) == NF_ACTION_DROP) {
-        return;  /* packet dropped by firewall */
+    /* WP-09 mainstream: Netfilter INPUT chain — transport ports + conntrack */
+    {
+        u16 sport, dport;
+        nf_parse_ports(payload, payload_len, iph->protocol, &sport, &dport);
+        u16 in_flags = 0;
+        if (iph->protocol == IP_PROTO_TCP && payload_len >= 14) {
+            const u8 *tp = (const u8 *)payload;
+            in_flags = tp[13];   /* flags byte (after the data-offset byte) */
+        }
+        u8 state = netfilter_ct_classify(iph->protocol, src_ip, sport,
+                                         dst, dport, 0, in_flags);
+        u8 verdict = netfilter_check(NF_CHAIN_INPUT, src_ip, dst,
+                                     iph->protocol, sport, dport, state);
+        if (verdict == NF_ACTION_REJECT) {
+            g_stats.nf_reject++;
+            nf_send_icmp_unreachable(src_ip, data, len);
+            return;
+        }
+        if (verdict == NF_ACTION_DROP) {
+            g_stats.nf_drop++;
+            return;  /* packet dropped by firewall */
+        }
     }
 
     switch (iph->protocol) {
@@ -1377,6 +1590,24 @@ void icmp_handle_packet(u32 src_ip, const void *data, int len) {
         ip_send(src_ip, IP_PROTO_ICMP, buf, 8 + plen);
     }
 }
+
+/* Send ICMP destination-unreachable for REJECT (INPUT only). */
+static void nf_send_icmp_unreachable(u32 src_ip, const void *orig_pkt, int orig_len) {
+    u8 buf[8 + 28];
+    icmp_hdr_t *r = (icmp_hdr_t *)buf;
+    r->type = 3;   /* destination unreachable */
+    r->code = 0;   /* net unreachable */
+    r->id = 0;
+    r->seq = 0;
+    /* ICMP error body: original IP header + first 8 bytes of payload */
+    int copy = orig_len > 28 ? 28 : orig_len;
+    oc_memset(buf + 8, 0, 28);
+    oc_memcpy(buf + 8, orig_pkt, copy);
+    r->checksum = 0;
+    r->checksum = internet_checksum(r, 8 + 28, 0);
+    ip_send(src_ip, IP_PROTO_ICMP, buf, 8 + 28);
+}
+
 
 int icmp_ping(u32 dst_ip, int timeout_ms) {
     u8 buf[8 + 32];
@@ -3326,9 +3557,9 @@ int cmd_arp(const char *args) {
 
 /* WP-09: firewall command — add/del/list rules */
 int cmd_firewall(const char *args) {
-    char buf[120]; char ipstr[20];
+    char buf[140]; char ipstr[20];
     if (args[0] == 0) {
-        /* List rules */
+        /* List rules + policies */
         oc_console_puts("Firewall rules:\n");
         nf_rule_t rules[32];
         int n = netfilter_list_rules(rules, 32);
@@ -3336,11 +3567,15 @@ int cmd_firewall(const char *args) {
             oc_strcpy(buf, "  [");
             char n2[8]; oc_u64_to_str((u64)i, n2); oc_strcat(buf, n2);
             oc_strcat(buf, "] ");
-            oc_strcat(buf, rules[i].chain == 0 ? "INPUT " : "OUTPUT");
-            oc_strcat(buf, rules[i].action == 0 ? " ACCEPT" : " DROP");
+            oc_strcat(buf, rules[i].chain == NF_CHAIN_INPUT ? "INPUT  " :
+                            rules[i].chain == NF_CHAIN_OUTPUT ? "OUTPUT " : "FWD    ");
+            oc_strcat(buf, rules[i].action == 0 ? "ACCEPT" :
+                            rules[i].action == 1 ? "DROP  " : "REJECT");
             if (rules[i].protocol) {
                 oc_strcat(buf, rules[i].protocol == 6 ? " tcp" :
                                  rules[i].protocol == 17 ? " udp" : " icmp");
+            } else {
+                oc_strcat(buf, " any");
             }
             if (rules[i].port) {
                 oc_strcat(buf, " port=");
@@ -3351,46 +3586,113 @@ int cmd_firewall(const char *args) {
                 ipstr[0] = 0; format_ip(rules[i].src_ip, ipstr);
                 oc_strcat(buf, " src="); oc_strcat(buf, ipstr);
             }
+            if (rules[i].state == NF_STATE_ESTABLISHED) oc_strcat(buf, " state=est");
+            else if (rules[i].state == NF_STATE_NEW) oc_strcat(buf, " state=new");
+            oc_strcat(buf, " hits=");
+            char h2[16]; oc_u64_to_str(rules[i].hits, h2); oc_strcat(buf, h2);
             oc_strcat(buf, "\n");
             oc_console_puts(buf);
         }
-        if (n == 0) oc_console_puts("  (no rules — default ACCEPT)\n");
+        if (n == 0) oc_console_puts("  (no rules)\n");
+        oc_console_puts("policies: input=");
+        oc_console_puts(netfilter_get_policy(NF_CHAIN_INPUT) == NF_ACTION_ACCEPT ? "ACCEPT" : "DROP");
+        oc_console_puts(" output=");
+        oc_console_puts(netfilter_get_policy(NF_CHAIN_OUTPUT) == NF_ACTION_ACCEPT ? "ACCEPT" : "DROP");
+        oc_console_puts(" forward=");
+        oc_console_puts(netfilter_get_policy(NF_CHAIN_FORWARD) == NF_ACTION_ACCEPT ? "ACCEPT" : "DROP");
+        oc_console_puts("\n");
+        oc_console_puts("conntrack: ");
+        char ctn[12];
+        oc_u64_to_str((u64)netfilter_ct_count(), ctn);
+        oc_console_puts(ctn);
+        oc_console_puts(" flows (firewall ct for details)\n");
+        return 0;
+    }
+    if (args[0] == 'c' && args[1] == 't') {
+        /* firewall ct — dump connection tracking table (external link) */
+        extern int cmd_firewall_ct(const char *args);
+        return cmd_firewall_ct(args + 3);
+    }
+    if (args[0] == 'r' && args[1] == 'e' && args[2] == 's') {
+        netfilter_reset();
+        oc_console_puts("firewall reset (rules, conntrack, policies)\n");
+        return 0;
+    }
+    if (args[0] == 'p' && args[1] == 'o') {
+        /* firewall policy <input|output|forward> <accept|drop> */
+        const char *p = args + 7;
+        while (*p == ' ') p++;
+        u8 chain;
+        if (p[0] == 'i') chain = NF_CHAIN_INPUT;
+        else if (p[0] == 'o') chain = NF_CHAIN_OUTPUT;
+        else if (p[0] == 'f') chain = NF_CHAIN_FORWARD;
+        else { oc_console_puts("usage: firewall policy <input|output|forward> <accept|drop>\n"); return 1; }
+        while (*p && *p != ' ') p++;
+        while (*p == ' ') p++;
+        u8 act;
+        if (p[0] == 'a') act = NF_ACTION_ACCEPT;
+        else if (p[0] == 'd') act = NF_ACTION_DROP;
+        else { oc_console_puts("usage: firewall policy <input|output|forward> <accept|drop>\n"); return 1; }
+        netfilter_set_policy(chain, act);
+        oc_console_puts("policy updated\n");
         return 0;
     }
     if (args[0] == 'a' && args[1] == 'd' && args[2] == 'd') {
-        /* firewall add drop tcp port 80 */
-        /* Parse: firewall add <action> <proto> [port <n>] [src <ip>] */
+        /* firewall add [input|output|forward] <drop|accept|reject> <tcp|udp|icmp|any>
+         *            [port <n>] [src <ip>] [dst <ip>] [state <new|est|any>] */
         const char *p = args + 4;
         while (*p == ' ') p++;
-        u8 action = NF_ACTION_ACCEPT;
-        if (*p == 'd') { action = NF_ACTION_DROP; p += 4; }
-        else if (*p == 'a') { action = NF_ACTION_ACCEPT; p += 6; }
-        else { oc_console_puts("usage: firewall add <drop|accept> <tcp|udp|icmp> [port <n>] [src <ip>]\n"); return 1; }
+        u8 chain = NF_CHAIN_INPUT;
+        /* optional chain word */
+        if (p[0] == 'i' && p[1] == 'n') { chain = NF_CHAIN_INPUT; p += 6; }
+        else if (p[0] == 'o' && p[1] == 'u') { chain = NF_CHAIN_OUTPUT; p += 7; }
+        else if (p[0] == 'f' && p[1] == 'o') { chain = NF_CHAIN_FORWARD; p += 8; }
+        while (*p == ' ') p++;
+        u8 action;
+        if (p[0] == 'd') { action = NF_ACTION_DROP; p += 4; }
+        else if (p[0] == 'a') { action = NF_ACTION_ACCEPT; p += 6; }
+        else if (p[0] == 'r') { action = NF_ACTION_REJECT; p += 6; }
+        else { oc_console_puts("usage: firewall add [chain] <drop|accept|reject> <tcp|udp|icmp|any> [port <n>] [src <ip>] [dst <ip>] [state <new|est|any>]\n"); return 1; }
         while (*p == ' ') p++;
         u8 proto = 0;
-        if (*p == 't') { proto = 6; p += 3; }
-        else if (*p == 'u') { proto = 17; p += 3; }
-        else if (*p == 'i') { proto = 1; p += 4; }
+        if (p[0] == 't') { proto = 6; p += 3; }
+        else if (p[0] == 'u') { proto = 17; p += 3; }
+        else if (p[0] == 'i') { proto = 1; p += 4; }
+        else if (p[0] == 'a') { proto = 0; p += 3; }
         while (*p == ' ') p++;
         u16 port = 0;
-        u32 src_ip = 0, src_mask = 0;
+        u32 src_ip = 0, src_mask = 0, dst_ip = 0, dst_mask = 0;
+        u8 state = NF_STATE_ANY;
         while (*p) {
             if (*p == 'p') {
-                p += 5; /* skip "port " */
+                p += 5;
                 while (*p == ' ') p++;
                 int v = 0;
                 while (*p >= '0' && *p <= '9') { v = v*10 + (*p - '0'); p++; }
                 port = (u16)v;
             } else if (*p == 's' && p[1] == 'r') {
-                p += 4; /* skip "src " */
+                p += 4;
                 while (*p == ' ') p++;
                 src_ip = parse_ip(p);
                 src_mask = 0xFFFFFFFF;
                 while (*p && *p != ' ') p++;
+            } else if (*p == 'd' && p[1] == 's') {
+                p += 4;
+                while (*p == ' ') p++;
+                dst_ip = parse_ip(p);
+                dst_mask = 0xFFFFFFFF;
+                while (*p && *p != ' ') p++;
+            } else if (*p == 's' && p[1] == 't') {
+                p += 6;
+                while (*p == ' ') p++;
+                if (p[0] == 'n') { state = NF_STATE_NEW; p += 3; }
+                else if (p[0] == 'e') { state = NF_STATE_ESTABLISHED; p += 3; }
+                else { state = NF_STATE_ANY; p += 3; }
             } else { p++; }
             while (*p == ' ') p++;
         }
-        if (netfilter_add_rule(NF_CHAIN_INPUT, src_ip, src_mask, 0, 0, proto, port, action) == 0) {
+        if (netfilter_add_rule_st(chain, src_ip, src_mask, dst_ip, dst_mask,
+                                  proto, port, action, state) == 0) {
             oc_console_puts("firewall rule added\n");
         } else {
             oc_console_puts("firewall rule table full\n");
@@ -3409,8 +3711,39 @@ int cmd_firewall(const char *args) {
         }
         return 0;
     }
-    oc_console_puts("usage: firewall [add <drop|accept> <tcp|udp|icmp> [port <n>] [src <ip>] | del <n>]\n");
+    oc_console_puts("usage: firewall | firewall add [in|out|fwd] <drop|accept|reject> <tcp|udp|icmp|any> [port <n>] [src <ip>] [dst <ip>] [state <new|est|any>] | del <n> | policy <in|out|fwd> <accept|drop> | ct | reset\n");
     return 1;
+}
+
+/* firewall ct — connection tracking table dump */
+int cmd_firewall_ct(const char *args) {
+    (void)args;
+    oc_console_puts("conntrack table:\n");
+    int n = 0;
+    for (int i = 0; i < NF_CT_MAX; i++) {
+        if (!g_nf_ct[i].in_use) continue;
+        n++;
+        char b[140]; char ipstr[20]; char n2[12];
+        oc_strcpy(b, "  [");
+        oc_u64_to_str((u64)i, n2); oc_strcat(b, n2);
+        oc_strcat(b, "] ");
+        oc_strcat(b, g_nf_ct[i].protocol == 6 ? "tcp" :
+                     g_nf_ct[i].protocol == 17 ? "udp" : "icmp");
+        ipstr[0] = 0; format_ip(g_nf_ct[i].src_ip, ipstr);
+        oc_strcat(b, " "); oc_strcat(b, ipstr);
+        oc_strcat(b, ":");
+        oc_u64_to_str(g_nf_ct[i].src_port, n2); oc_strcat(b, n2);
+        oc_strcat(b, " > ");
+        ipstr[0] = 0; format_ip(g_nf_ct[i].dst_ip, ipstr);
+        oc_strcat(b, ipstr);
+        oc_strcat(b, ":");
+        oc_u64_to_str(g_nf_ct[i].dst_port, n2); oc_strcat(b, n2);
+        oc_strcat(b, g_nf_ct[i].established ? " ESTABLISHED" : " NEW");
+        oc_strcat(b, "\n");
+        oc_console_puts(b);
+    }
+    if (n == 0) oc_console_puts("  (no active flows)\n");
+    return 0;
 }
 
 /* WP-09: tcpstats command — show TCP reliability stats */
@@ -4146,6 +4479,108 @@ static int cmd_tcpcc_test(const char *args) {
     return (fails == 0 && sim_ok) ? 0 : 1;
 }
 
+/* WP-09 mainstream: nf_test — netfilter self-test. Exercises rule matching,
+ * state matching, per-rule hits, default policies, REJECT classification and
+ * the conntrack state machine via the public netfilter interfaces, plus one
+ * REAL-path check: an OUTPUT DROP rule makes icmp_ping fail. */
+static int cmd_nf_test(const char *args) {
+    (void)args;
+    int fails = 0;
+    u32 peer = IP4(203, 0, 113, 7);
+    oc_console_puts("netfilter self-test:\n");
+
+    /* 1) rule match + hits: INPUT DROP icmp from 203.0.113.7 */
+    netfilter_reset();
+    netfilter_add_rule_st(NF_CHAIN_INPUT, peer, 0xFFFFFFFF, 0, 0, 1, 0,
+                          NF_ACTION_DROP, NF_STATE_ANY);
+    u8 v1 = netfilter_check(NF_CHAIN_INPUT, peer, g_ip, 1, 0, 0, NF_STATE_NEW);
+    nf_rule_t rl[32];
+    netfilter_list_rules(rl, 32);
+    int ok1 = (v1 == NF_ACTION_DROP && rl[0].hits == 1);
+    if (!ok1) fails++;
+    oc_console_puts(ok1 ? "  [PASS] input drop rule + hits\n"
+                        : "  [FAIL] input drop rule + hits\n");
+
+    /* 2) state match: rule allows established only; NEW must fall through */
+    netfilter_reset();
+    netfilter_add_rule_st(NF_CHAIN_INPUT, peer, 0xFFFFFFFF, 0, 0, 6, 80,
+                          NF_ACTION_DROP, NF_STATE_NEW);
+    v1 = netfilter_check(NF_CHAIN_INPUT, peer, g_ip, 6, 51000, 80,
+                         NF_STATE_ESTABLISHED);
+    u8 v2 = netfilter_check(NF_CHAIN_INPUT, peer, g_ip, 6, 51000, 80,
+                            NF_STATE_NEW);
+    int ok2 = (v1 == NF_ACTION_ACCEPT && v2 == NF_ACTION_DROP);
+    if (!ok2) fails++;
+    oc_console_puts(ok2 ? "  [PASS] state matching (est bypasses, new hits)\n"
+                        : "  [FAIL] state matching\n");
+
+    /* 3) REJECT classification */
+    netfilter_reset();
+    netfilter_add_rule_st(NF_CHAIN_INPUT, 0, 0, 0, 0, 17, 53,
+                          NF_ACTION_REJECT, NF_STATE_ANY);
+    v1 = netfilter_check(NF_CHAIN_INPUT, peer, g_ip, 17, 53000, 53,
+                         NF_STATE_NEW);
+    int ok3 = (v1 == NF_ACTION_REJECT);
+    if (!ok3) fails++;
+    oc_console_puts(ok3 ? "  [PASS] reject classification\n"
+                        : "  [FAIL] reject classification\n");
+
+    /* 4) default policy: OUTPUT DROP with no rules */
+    netfilter_reset();
+    netfilter_set_policy(NF_CHAIN_OUTPUT, NF_ACTION_DROP);
+    v1 = netfilter_check(NF_CHAIN_OUTPUT, g_ip, peer, 1, 0, 0, NF_STATE_NEW);
+    int ok4 = (v1 == NF_ACTION_DROP);
+    netfilter_set_policy(NF_CHAIN_OUTPUT, NF_ACTION_ACCEPT);
+    if (!ok4) fails++;
+    oc_console_puts(ok4 ? "  [PASS] per-chain default policy\n"
+                        : "  [FAIL] per-chain default policy\n");
+
+    /* 5) conntrack state machine (TCP): outbound SYN = NEW,
+     *    inbound SYN-ACK = ESTABLISHED, then data both ways */
+    netfilter_ct_flush();
+    u16 cs = 40000, cp = 443;
+    u8 s1 = netfilter_ct_classify(6, g_ip, cs, peer, cp, 1, 0x02);    /* SYN out */
+    u8 s2 = netfilter_ct_classify(6, peer, cp, g_ip, cs, 0, 0x12);    /* SYN-ACK in */
+    u8 s3 = netfilter_ct_classify(6, g_ip, cs, peer, cp, 1, 0x10);    /* ACK out */
+    int ok5 = (s1 == NF_STATE_NEW && s2 == NF_STATE_ESTABLISHED &&
+               s3 == NF_STATE_ESTABLISHED);
+    if (!ok5) fails++;
+    oc_console_puts(ok5 ? "  [PASS] conntrack TCP handshake\n"
+                        : "  [FAIL] conntrack TCP handshake\n");
+
+    /* 6) conntrack UDP: first outbound = NEW, reply = ESTABLISHED */
+    netfilter_ct_flush();
+    s1 = netfilter_ct_classify(17, g_ip, 5353, peer, 53, 1, 0);
+    s2 = netfilter_ct_classify(17, peer, 53, g_ip, 5353, 0, 0);
+    int ok6 = (s1 == NF_STATE_NEW && s2 == NF_STATE_ESTABLISHED);
+    if (!ok6) fails++;
+    oc_console_puts(ok6 ? "  [PASS] conntrack UDP flow\n"
+                        : "  [FAIL] conntrack UDP flow\n");
+
+    /* 7) REAL path: OUTPUT DROP tcp port 80 blocks icmp? no — blocks TCP.
+     *    Use OUTPUT DROP icmp and expect icmp_ping to fail. */
+    netfilter_reset();
+    netfilter_add_rule_st(NF_CHAIN_OUTPUT, 0, 0, 0, 0, 1, 0,
+                          NF_ACTION_DROP, NF_STATE_ANY);
+    int prc = icmp_ping(IP4(10, 0, 2, 2), 300);
+    int ok7 = (prc != 0);   /* ping must FAIL while ICMP is dropped */
+    netfilter_del_rule(0);
+    netfilter_ct_flush();
+    int prc2 = icmp_ping(IP4(10, 0, 2, 2), 300);
+    int ok8 = (prc2 == 0);  /* after removing the rule ping works */
+    if (!ok7) fails++;
+    if (!ok8) fails++;
+    oc_console_puts(ok7 ? "  [PASS] OUTPUT drop blocks ping (real path)\n"
+                        : "  [FAIL] OUTPUT drop blocks ping\n");
+    oc_console_puts(ok8 ? "  [PASS] rule removal restores ping\n"
+                        : "  [FAIL] rule removal restores ping\n");
+
+    netfilter_reset();
+    if (fails == 0) oc_console_puts("nf_test: ALL PASS\n");
+    else oc_console_puts("nf_test: FAILURES\n");
+    return fails == 0 ? 0 : 1;
+}
+
 /* Network shell command registration. */
 void net_register_shell_commands(void) {
     extern int shell_register_command(const char *name, int (*fn)(const char *), const char *help);
@@ -4153,7 +4588,8 @@ void net_register_shell_commands(void) {
     shell_register_command("ip", cmd_ip, "show/set IP address");
     shell_register_command("route", cmd_route, "show/add/del routing table (route add <dst> <mask> <gw>)");
     shell_register_command("arp", cmd_arp, "show ARP cache");
-    shell_register_command("firewall", cmd_firewall, "show/add/del firewall rules");
+    shell_register_command("firewall", cmd_firewall, "show/add/del firewall rules (chains, states, policies, conntrack)");
+    shell_register_command("nf_test", cmd_nf_test, "netfilter self-test (rules, conntrack, policies, real-path)");
     shell_register_command("tcpstats", cmd_tcpstats, "show TCP reliability stats (cwnd, rto, etc.)");
     shell_register_command("tcpcc_test", cmd_tcpcc_test, "CUBIC congestion control self-test vectors");
     shell_register_command("ping", cmd_ping, "send ICMP echo (ping <host>)");

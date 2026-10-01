@@ -119,30 +119,51 @@ int dns_resolve(const char *name, u32 *ip_out);
 int dns_resolve_cname(const char *name, char *cname_out, int cname_len, u32 *ip_out);
 int dns_resolve_aaaa(const char *name, u8 *ipv6_out);
 
-/* ---- WP-09: Netfilter (firewall) ---- */
-#define NF_CHAIN_INPUT  0
-#define NF_CHAIN_OUTPUT 1
+/* ---- WP-09 mainstream: Netfilter (firewall) ---- */
+#define NF_CHAIN_INPUT   0
+#define NF_CHAIN_OUTPUT  1
+#define NF_CHAIN_FORWARD 2
+#define NF_CHAIN_COUNT   3
 #define NF_ACTION_ACCEPT 0
 #define NF_ACTION_DROP   1
-#define NF_ACTION_REJECT 2
+#define NF_ACTION_REJECT 2   /* drop + ICMP dest-unreachable (INPUT) */
+/* connection-tracking states a rule can match on */
+#define NF_STATE_ANY         0xFF
+#define NF_STATE_NEW         0
+#define NF_STATE_ESTABLISHED 1
 
 typedef int (*nf_hook_fn)(u8 chain, u32 src_ip, u32 dst_ip, u8 protocol, u16 port);
 
 typedef struct {
     u32 src_ip, src_mask;
     u32 dst_ip, dst_mask;
-    u8  protocol;
-    u16 port;
+    u8  protocol;      /* 0 = any */
+    u16 port;          /* matches src OR dst port; 0 = any */
     u8  chain;
     u8  action;
+    u8  state;         /* NF_STATE_* ; 0xFF = any */
+    u64 hits;          /* packets matched by this rule */
     int in_use;
 } nf_rule_t;
 
 void netfilter_register_hook(nf_hook_fn fn);
 int netfilter_add_rule(u8 chain, u32 src_ip, u32 src_mask, u32 dst_ip, u32 dst_mask,
                        u8 protocol, u16 port, u8 action);
+/* Mainstream variants: stateful rule + per-chain default policy. */
+int netfilter_add_rule_st(u8 chain, u32 src_ip, u32 src_mask, u32 dst_ip, u32 dst_mask,
+                          u8 protocol, u16 port, u8 action, u8 state);
 int netfilter_del_rule(int index);
 int netfilter_list_rules(nf_rule_t *out, int max);
+void netfilter_set_policy(u8 chain, u8 action);
+u8  netfilter_get_policy(u8 chain);
+void netfilter_reset(void);
+/* Connection tracking (L0 conntrack): classify a flow as NEW or ESTABLISHED.
+ * Called by the INPUT/OUTPUT hooks; the table also feeds `firewall ct`. */
+u8  netfilter_ct_classify(u8 protocol, u32 src_ip, u16 src_port,
+                          u32 dst_ip, u16 dst_port, int outbound,
+                          u16 tcp_flags);
+int netfilter_ct_count(void);
+void netfilter_ct_flush(void);
 
 /* ---- WP-09: Routing ---- */
 typedef struct {
@@ -176,6 +197,9 @@ typedef struct {
     u64 icmp_echo_sent;
     u64 icmp_echo_recv;
     u64 tcp_connections;
+    u64 nf_drop;        /* WP-09 mainstream: netfilter drop counter */
+    u64 nf_reject;      /* netfilter reject counter */
+    u64 nf_forward;     /* packets seen on the FORWARD chain */
 } net_stats_t;
 
 void net_get_stats(net_stats_t *out);
