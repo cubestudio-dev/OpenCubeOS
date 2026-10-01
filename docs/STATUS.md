@@ -117,3 +117,30 @@ without explicit locking. This is safe in the current design because:
 3. The scheduler disables interrupts before modifying ready queues.
 
 When the kernel is ported to SMP, these will need proper spinlocks.
+
+---
+
+## WP-09-fix5: system configuration file + update check (2026-10-02)
+
+**Status: COMPLETE.** `/etc/opencube.conf` — the first user-editable
+system configuration file — plus `checkupdate` (HTTP/HTTPS, JSON
+manifest), non-blocking `auto_check` boot check, `config`/`edit` shell
+commands, and the `oc_ext_config_*` / `oc_ext_check_update*` L1
+interfaces.
+
+| Criterion | Status |
+|---|---|
+| Compiles 0 errors / 0 warnings (-Wall -Wextra -Werror) | OK |
+| ISO builds; BIOS + UEFI boot | OK (config mounted from FAT32 /etc on both) |
+| /etc/opencube.conf exists with English defaults | OK (update_url + auto_check=no) |
+| checkupdate over http:// and https:// | OK (real fetches, server-side logs) |
+| same/new version output format | OK (Current version is up to date. / New version available.) |
+| Error paths (config missing, invalid prefix, network, JSON, size) | OK (one-line English messages) |
+| auto_check yes/no boot behaviour | OK (async thread, never blocks, skip+log when network not ready) |
+| 13-case test matrix with real outputs | OK (docs/VERIFICATION_FIX5.md) |
+| WP-09 regression unchanged | OK (18/18, dhtest 5/5, cryptotest 3/3, SSH both ways, HTTPS E2E) |
+| Documentation | OK (docs/CONFIG.md, docs/VERIFICATION_FIX5.md, docs/EXTENSIONS_WP09.md §9, docs/KNOWN_ISSUES.md §5) |
+
+Honest limitation recorded: public TLS endpoints reject the kernel TLS
+client (WP-09 cipher scope); fix5 works against any server configured
+for the documented kernel cipher (tools/update_server.py).

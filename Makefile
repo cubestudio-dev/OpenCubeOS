@@ -57,7 +57,7 @@ KERNEL_ISO := $(BUILD)/opencube.iso
 
 # Default goal
 .DEFAULT_GOAL := all
-.PHONY: all iso run-bios run-uefi run-bios-gui run-uefi-gui shot-bios shot-uefi clean dist
+.PHONY: all iso run-bios run-uefi run-bios-gui run-uefi-gui run-bios-persist run-uefi-persist shot-bios shot-uefi clean dist
 
 all: $(KERNEL)
 
@@ -94,19 +94,33 @@ $(KERNEL_ISO): $(KERNEL) $(OC_ROOT)/grub.cfg $(OC_ROOT)/tools/build_iso.sh
 
 iso: $(KERNEL_ISO)
 
+# ---- /etc config disk (WP-09-fix5) ----
+# FAT32 volume mounted at /etc by the kernel; holds /etc/opencube.conf so
+# configuration edits survive reboots.  Built from etc/opencube.conf.
+ETC_IMG := $(BUILD)/etc.img
+
+$(ETC_IMG): $(OC_ROOT)/etc/opencube.conf | $(BUILD)
+	rm -f $(ETC_IMG)
+	truncate -s 32M $(ETC_IMG)
+	printf 'drive e: file="%s"\n' "$(abspath $(ETC_IMG))" > $(BUILD)/mtoolsrc
+	PATH=$(OC_TOOLS)/usr/bin:$$PATH MTOOLSRC=$(BUILD)/mtoolsrc mformat -F -v OCS_ETC e:
+	PATH=$(OC_TOOLS)/usr/bin:$$PATH MTOOLSRC=$(BUILD)/mtoolsrc mcopy $(OC_ROOT)/etc/opencube.conf e:opencube.conf
+
 # ---- QEMU runs ----
 
 # BIOS boot: SeaBIOS loads GRUB from El Torito, GRUB loads kernel.
-run-bios: $(KERNEL_ISO)
+run-bios: $(KERNEL_ISO) $(ETC_IMG)
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
 	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
+	  -drive if=ide,format=raw,file=$(ETC_IMG) \
 	  -no-reboot -display none -serial stdio -monitor none -vga std -snapshot
 
 # UEFI boot: OVMF loads GRUB EFI from El Torito, GRUB loads kernel.
-run-uefi: $(KERNEL_ISO)
+run-uefi: $(KERNEL_ISO) $(ETC_IMG)
 	cp $(OVMF_FD) $(BUILD)/OVMF_WORK.fd
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
 	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
+	  -drive if=ide,format=raw,file=$(ETC_IMG) \
 	  -no-reboot -display none -serial stdio -monitor none -vga std -snapshot \
 	  -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
 
@@ -117,15 +131,17 @@ run-uefi: $(KERNEL_ISO)
 # a GTK window opens showing the 800x600 framebuffer and captures keystrokes
 # (IRQ1 -> scancode -> queue).  Serial stays on stdio so you can still see
 # output and type there too; both feeds share the same input queue.
-run-bios-gui: $(KERNEL_ISO)
+run-bios-gui: $(KERNEL_ISO) $(ETC_IMG)
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
 	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
+	  -drive if=ide,format=raw,file=$(ETC_IMG) \
 	  -no-reboot -display gtk -serial stdio -monitor none -vga std -snapshot
 
-run-uefi-gui: $(KERNEL_ISO)
+run-uefi-gui: $(KERNEL_ISO) $(ETC_IMG)
 	cp $(OVMF_FD) $(BUILD)/OVMF_WORK.fd
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
 	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
+	  -drive if=ide,format=raw,file=$(ETC_IMG) \
 	  -no-reboot -display gtk -serial stdio -monitor none -vga std -snapshot \
 	  -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
 
@@ -137,6 +153,22 @@ shot-uefi: $(KERNEL_ISO)
 	cp $(OVMF_FD) $(BUILD)/OVMF_WORK.fd
 	python3 $(OC_ROOT)/tools/qemu_shot_vnc.py $(KERNEL_ISO) $(BUILD)/shot-uefi.png uefi
 
+# WP-09-fix5: persistent runs (-snapshot OFF) — edits to /etc/opencube.conf
+# are written back to build/etc.img and survive a reboot.
+run-bios-persist: $(KERNEL_ISO) $(ETC_IMG)
+	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
+	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
+	  -drive if=ide,format=raw,file=$(ETC_IMG) \
+	  -no-reboot -display none -serial stdio -monitor none -vga std
+
+run-uefi-persist: $(KERNEL_ISO) $(ETC_IMG)
+	cp $(OVMF_FD) $(BUILD)/OVMF_WORK.fd
+	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
+	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
+	  -drive if=ide,format=raw,file=$(ETC_IMG) \
+	  -no-reboot -display none -serial stdio -monitor none -vga std \
+	  -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
+
 clean:
 	rm -rf $(BUILD) $(DIST) $(ISO_DIR)/boot/opencube.elf
 
@@ -146,7 +178,7 @@ dist: $(KERNEL_ISO)
 	TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
 	SRCZIP=$(DIST)/OpenCubeOS-src-WP08-p4-$$TIMESTAMP.zip; \
 	ISOCOPY=$(DIST)/OpenCubeOS-WP08-p4-$$TIMESTAMP.iso; \
-	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*" "website/rw*.sh" "website/build-local.sh" "website/public/downloads/*" "website/out/*"); \
+	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*" "website/rw*.sh" "website/build-local.sh" "website/public/downloads/*" "website/out/*" "website/.next/*" "website/node_modules/*"); \
 	cp $(KERNEL_ISO) $$ISOCOPY; \
 	echo "SRC: $$SRCZIP"; \
 	echo "ISO: $$ISOCOPY"; \

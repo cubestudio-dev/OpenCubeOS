@@ -74,6 +74,11 @@ void net_set_dns(u32 dns);
 void net_get_mac(u8 mac[6]);
 int  net_get_link_status(void);
 
+/* WP-09-fix5: parse a dotted-quad IPv4 string ("10.0.2.2").  Returns the
+ * host-order address, or 0 when the string is not a valid dotted quad
+ * (callers then fall back to dns_resolve for hostnames). */
+u32  net_parse_ip(const char *s);
+
 /* ---- ARP ---- */
 int arp_resolve(u32 ip, u8 *mac_out);
 int arp_get_cache(int index, u32 *ip, u8 *mac);

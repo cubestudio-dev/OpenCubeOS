@@ -62,6 +62,8 @@ void ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "exfat.h"
 #include "ext4.h"
 #include "disk_cmds.h"
+#include "config.h"   /* WP-09-fix5: /etc/opencube.conf */
+#include "update.h"   /* WP-09-fix5: checkupdate */
 
 /* User program data (defined in usermode.c). */
 extern const u8 userprog_hello[];
@@ -2429,6 +2431,12 @@ void kmain(u64 magic, u64 mbi_phys) {
     ext4_init();
     OC_LOG_OK2("FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers");
 
+    /* ---- WP-09-fix5: system configuration (/etc/opencube.conf) ----
+     * Mounts the FAT32 /etc volume when a disk is attached (persistent
+     * config), falls back to a ramfs /etc seeded with defaults, and
+     * makes sure the config file exists. */
+    oc_config_init();
+
     /* WP-05 shell commands: file operations (in file_cmds.c) +
      * WP-07 disk commands (in disk_cmds.c). */
     file_cmds_register();
@@ -2440,6 +2448,16 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command("fatstat", cmd_fatstat,  "show FAT32 stats");
     /* P1-6: kernel shell command to test L1 job interfaces with live process */
     shell_register_command("l1test",  cmd_l1test,   "test L1 job_create/job_list/job_control with running process");
+
+    /* ---- WP-09-fix5: config + update check commands ---- */
+    shell_register_command("checkupdate",      cmd_checkupdate,
+                           "check for updates via /etc/opencube.conf (http/https)");
+    shell_register_command("config",           cmd_config,
+                           "read/write system config (config list|get|set|restore|path)");
+    shell_register_command("config_test",      cmd_config_test,
+                           "config subsystem self-test (write/read/get_all/delete/restore)");
+    shell_register_command("checkupdate_test", cmd_checkupdate_test,
+                           "update check self-test (URL/JSON units + live probe)");
     OC_LOG_OK2("shell file/disk commands");
 
     /* ---- 12e. WP-06: Network stack ---- */
@@ -2513,6 +2531,13 @@ void kmain(u64 magic, u64 mbi_phys) {
     /* ---- 16. Boot complete ---- */
     oc_console_putc('\n');
     OC_LOG_OK2("boot complete");
+
+    /* ---- 16b. WP-09-fix5: config-driven auto update check ----
+     * Runs in its own kernel thread; never blocks the boot path and
+     * skips (with a log entry) when the network is not ready. */
+    if (oc_config_autocheck_enabled()) {
+        oc_check_update_async();
+    }
 
     /* ---- 17. Interactive loop ---- */
     interactive_loop();

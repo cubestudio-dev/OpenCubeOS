@@ -212,3 +212,31 @@ Carried over from the old WP-09 TODO list (NOT done, deferred):
   sys_stat). Directory entries legitimately report size 0, so the
   aggregated "Size" can be 0 on an empty-ish root. The kernel shell's
   `df` shows the full mount table.
+
+## 5. WP-09-fix5 additions (2026-10-02)
+
+### 5.1 FAT32 create of non-8.3 names was impossible — FIXED (WP-09-fix5)
+- `fat32_create_entry` ran `fat32_encode_short_name()` BEFORE the LFN
+  check, so names that do not fit 8.3 (extension longer than 3 chars,
+  e.g. `opencube.conf`, or any lowercase name) were rejected with -1
+  before the LFN alias path could run. Reading such files (created by
+  mtools/other OSes) worked; creating them in-system did not. The fix
+  builds the 8.3 alias directly in the LFN path (`XXXXXX~1`). Verified:
+  `config_test` 7/7 (includes delete + recreate of `/etc/opencube.conf`)
+  and `touch /etc/longname.txt`.
+- Remaining limitation (documented, not fixed here): the generated `~1`
+  alias does not de-duplicate against existing aliases; two long names
+  with the same first six characters in one directory collide on FAT
+  (real FAT drivers add a numeric suffix, that machinery is not ported).
+
+### 5.2 Public-internet TLS endpoints reject the kernel TLS client —
+     KNOWN LIMITATION (WP-09 scope, unchanged by fix5)
+- The kernel TLS client offers TLS 1.2 with `DHE-RSA-AES128-SHA256`
+  (1024-bit DH) only. Public servers (modern stacks) require ECDHE/AEAD
+  or TLS 1.3 and answer the ClientHello with an alert. `checkupdate`
+  therefore works against any server configured for the kernel cipher
+  (e.g. tools/update_server.py, TLS 1.2 DHE-RSA-AES128-SHA256) but not
+  against arbitrary public HTTPS URLs. DNS + TCP to the default URL
+  succeed; the alert is answered cleanly (no crash, explicit
+  `connect failed` message). Extending the TLS cipher suite is WP-10+
+  work.

@@ -5,7 +5,8 @@
 
 The full engineering log (WP-01 → WP-09, every batch, every bug, every
 decision) lives in the private archive repository (`worklog.md`,
-cubestudio-dev/tdghuczhdmkwicsxzjduaychuyzshjufajckafk). This file is the
+cubestudio-dev — the private archive repository, name withheld from
+public docs on purpose). This file is the
 public summary of the WP-09 closeout batches.
 
 ## Batch 14 (2026-09-30) — SSH root-cause fixes + first full WP-09 regression

@@ -2995,6 +2995,12 @@ static u32 parse_ip(const char *s) {
     (void)n;
     return IP4(a, b, c, d);
 }
+/* WP-09-fix5: public wrapper so the update-check module can accept both
+ * dotted-quad IPs and hostnames in update_url without duplicating logic. */
+u32 net_parse_ip(const char *s) {
+    return parse_ip(s);
+}
+
 
 /* Helper: format IP address. */
 static void format_ip(u32 ip, char *out) {

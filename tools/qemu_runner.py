@@ -43,6 +43,12 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
         "-object", "filter-dump,id=f0,netdev=n1,file=/tmp/guest_net.pcap",
         "-device", "e1000,netdev=n1",
     ]
+    # WP-09-fix5: optional extra QEMU args (e.g. attach the /etc disk):
+    #   OC_EXTRA_QEMU_ARGS="-drive if=ide,format=raw,file=build/etc.img"
+    extra = os.environ.get("OC_EXTRA_QEMU_ARGS", "").split()
+    if extra:
+        cmd.extend(extra)
+        print(f"[runner] extra args: {extra}")
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = ENV_LD
 

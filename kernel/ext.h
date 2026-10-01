@@ -127,6 +127,44 @@ void oc_ext_set_console_hook(oc_console_hook_fn hook, void* ctx);
 void oc_ext_console_hook(u8 ch);
 
 /* ------------------------------------------------------------------ *
+ * 5. SYSTEM CONFIGURATION (WP-09-fix5)
+ *
+ * L1 reads/writes the system configuration file /etc/opencube.conf - the
+ * first user-editable config file of Open Cube OS.  ASCII "key=value"
+ * lines, '#' comments; see kernel/config.h and docs/CONFIG.md for the
+ * documented missing/empty/invalid-value semantics.
+ *
+ * Example (L1 code):
+ *     char url[256];
+ *     if (oc_ext_config_read("update_url", url, sizeof(url)) == 0)
+ *         use(url);
+ *     oc_ext_config_write("auto_check", "yes");
+ * ------------------------------------------------------------------ */
+int  oc_ext_config_read(const char *key, char *val_out, int outlen);
+int  oc_ext_config_write(const char *key, const char *value);
+int  oc_ext_config_get_all(char *buf, int buflen);
+
+/* ------------------------------------------------------------------ *
+ * 6. UPDATE CHECK (WP-09-fix5)
+ *
+ * L1 can run the online update check over HTTP or HTTPS.  The URL and
+ * the auto-check flag live in /etc/opencube.conf (see above).  The
+ * result codes match oc_check_update() in kernel/update.h:
+ *   0 = up to date, 1 = new version available, <0 = transport/parse error.
+ *
+ * oc_update_info_t is defined in kernel/update.h; declare it here so L1
+ * only needs this header.
+ * ------------------------------------------------------------------ */
+typedef struct {
+    char version[32];
+    char time[32];
+    char changes[128];
+} oc_ext_update_info_t;
+
+int  oc_ext_check_update(oc_ext_update_info_t *out);
+int  oc_ext_check_update_async(void);
+
+/* ------------------------------------------------------------------ *
  * Self-test: invokes every extension point from inside L0 (the kernel
  * calls this at the end of kmain as part of the WP-01 acceptance test).
  * Returns the number of points that passed (0..4).

@@ -132,3 +132,37 @@ includes the WP-01 self-test, l1test and the WP-08cd boot self-test).
 WP-09 adds new symbols only (`ssh_*`, `tls_*`, `shell_execute_captured`,
 crypto primitives) and one extended command (`wget` gained the `https://`
 prefix form).
+
+## 9. System configuration + update check (WP-09-fix5)
+
+WP-09-fix5 adds the first user-editable system configuration file and an
+online update check on top of the WP-06/09 transport stack.
+
+### Interfaces
+
+| Interface | Header | Purpose |
+|---|---|---|
+| `oc_ext_config_read(key, val_out, outlen)` | kernel/ext.h | strict config read (see docs/CONFIG.md §3 for missing/empty/invalid semantics) |
+| `oc_ext_config_write(key, value)` | kernel/ext.h | validated write preserving comments and other keys |
+| `oc_ext_config_get_all(buf, buflen)` | kernel/ext.h | whole config file |
+| `oc_ext_check_update(out)` | kernel/ext.h | synchronous update check over HTTP/HTTPS (`0` up-to-date, `1` new, `<0` error) |
+| `oc_ext_check_update_async()` | kernel/ext.h | spawn the non-blocking boot-check thread |
+
+Implementations live in kernel/config.c (config subsystem +
+`oc_config_autocheck_enabled`) and kernel/update.c (URL parsing, HTTP and
+HTTPS fetches, scoped JSON field parser, async kernel thread). Each has a
+contract comment at the declaration site and a default (non-stub)
+implementation in-tree.
+
+### Shell surface added
+
+`checkupdate`, `config` (list/get/set/restore/path), `edit <file>`,
+`config_test`, `checkupdate_test` — 83 shell commands total.
+
+### Verification
+
+docs/VERIFICATION_FIX5.md: 13-case matrix with real QEMU outputs
+(config read/write/delete/restore, URL prefix routing, HTTP and HTTPS
+manifest fetches, same/new version handling, auto_check boot behaviour,
+all five error paths), plus the unchanged WP-09 regression (18/18,
+dhtest 5/5, cryptotest 3/3, SSH both directions, HTTPS E2E).

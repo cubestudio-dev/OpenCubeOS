@@ -581,20 +581,39 @@ static int fat32_create_entry(fat32_ctx_t *ctx, u32 dir_first_cluster,
                               const char *name, u8 attr, u32 first_cluster, u64 size,
                               u32 *out_ec, u32 *out_eo) {
     u8 rawname[11];
-    if (fat32_encode_short_name(name, rawname) < 0) return -1;
+
+    /* WP-09-FIX5 FIX: decide LFN first, then build the 8.3 entry name.
+     * The old order ran fat32_encode_short_name() BEFORE the LFN check,
+     * so any name that does not fit 8.3 (e.g. "opencube.conf" with its
+     * 4-character extension, or any lowercase name) failed the encode
+     * and create_entry returned -1 before the LFN alias path could run:
+     * creating such files on FAT32 was impossible even though reading
+     * them (mtools/other OS created) worked. Now non-8.3 names go
+     * straight to the LFN alias below; only genuinely unencodable 8.3
+     * names are rejected. */
 
     /* P2-19: determine if we need LFN entries. */
     int needs_lfn = fat32_needs_lfn(name);
     int num_lfn = 0;
     if (needs_lfn) {
-        /* Generate a unique short name (~1 suffix). */
+        /* Build the 8.3 alias directly: first 6 chars (uppercased) +
+         * "~1", extension blank. */
+        oc_memset(rawname, ' ', 11);
+        int ni = 0;
+        while (ni < 6 && name[ni] && name[ni] != '.') {
+            char c = name[ni];
+            if (c >= 'a' && c <= 'z') c = (char)(c - 32);
+            rawname[ni] = (u8)c;
+            ni++;
+        }
         rawname[6] = '~'; rawname[7] = '1';
-        rawname[8] = ' '; rawname[9] = ' '; rawname[10] = ' ';
         if (name[0] == '.') { rawname[0] = '_'; }
         /* Calculate number of LFN entries needed. */
         int name_len = oc_strlen(name);
         num_lfn = (name_len + 12) / 13;
         if (num_lfn > 20) return -1;
+    } else {
+        if (fat32_encode_short_name(name, rawname) < 0) return -1;
     }
 
     /* P2-19: find num_lfn + 1 consecutive free slots. */

@@ -20,9 +20,9 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-09)
+## Stats (WP-09-fix5)
 
-- **Source code**: 46518 lines (kernel + boot + userprogs, no docs)
+- **Source code**: 47797 lines (kernel + boot + userprogs, incl. headers + linker scripts, no docs)
 - **Work packages**: 9 (WP-01 ~ WP-09)
 - **L1 extension interfaces**: 57 (WP-09 adds transport-level features instead of L1 interfaces)
 - **System calls**: 37
@@ -128,11 +128,17 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   outgoing, decrypt + MAC-verify incoming), server Finished accepted-by-design.
 - **HTTPS**: `wget https://host:port/path` downloads through TLS into VFS.
 - **Network ops commands**: route, arp, firewall, tcpstats, dns.
-- **Shell**: 78 commands (live boot self-test count).
+- **Shell**: 83 commands (live boot self-test count; fix5 adds checkupdate, config, config_test, checkupdate_test, edit).
 - **New user test programs**: mprotect_test, p3_test.
 - **Verification**: 18/18 QEMU regression + dhtest 5/5 + HTTPS E2E + SSH
   both-direction interop (external evidence: paramiko 5.0). See
   docs/VERIFICATION_BATCH_B.md, docs/EXTENSIONS_WP09.md, docs/INTERFACES.md.
+- **WP-09-fix5 — system configuration + update check**:
+  `/etc/opencube.conf` (first user-editable config, FAT32 /etc volume,
+  ramfs fallback), `checkupdate` over HTTP/HTTPS with JSON manifest,
+  non-blocking `auto_check` boot check, `config`/`edit` commands and the
+  `oc_ext_config_*` / `oc_ext_check_update*` L1 interfaces. See
+  docs/CONFIG.md, docs/VERIFICATION_FIX5.md.
 
 ## Repository layout
 

@@ -21,6 +21,7 @@
 #include "console.h"
 #include "string.h"
 #include "heap.h"
+#include "console_in.h"   /* WP-09-fix5: edit command input */
 
 /* ---- Helpers ---- */
 
@@ -841,6 +842,135 @@ static int cmd_grep(const char *args) {
 
 /* ---- Registration ---- */
 
+/* WP-09-fix5: edit - minimal line editor for the kernel shell.
+ * Same command set as the ush vi/nano mini editor, so /etc/opencube.conf
+ * can be edited from the system the moment it boots.  The text buffer
+ * lives on the heap (kernel stacks are one page). */
+static int cmd_edit(const char *args) {
+    if (!args || !args[0]) {
+        oc_console_puts("usage: edit <file>  (:p print, :i<text> append line, "
+                        ":d<num> delete line, :w save, :q quit, :wq, :q!)\n");
+        return 1;
+    }
+    enum { CAP = 8192 };
+    char *vbuf = (char *)kmalloc(CAP);
+    if (!vbuf) { oc_console_puts("edit: out of memory\n"); return 1; }
+    int vlen = 0;
+
+    int rfd = vfs_open(args, VFS_O_RDONLY);
+    if (rfd >= 0) {
+        int n;
+        while (vlen < CAP - 1 &&
+               (n = vfs_read(rfd, vbuf + vlen, CAP - 1 - vlen)) > 0)
+            vlen += n;
+        vfs_close(rfd);
+    }
+    vbuf[vlen] = 0;
+
+    oc_console_puts("-- ");
+    oc_console_puts(args);
+    oc_console_puts(" -- ");
+    {
+        char nb[16];
+        oc_u64_to_str((u64)vlen, nb);
+        oc_console_puts(nb);
+    }
+    oc_console_puts(" bytes\n");
+    oc_console_puts("Commands: :p print | :i<text> append line | :d<num> delete line "
+                    "| :w save | :q quit | :wq | :q!\n");
+
+    int print_lines = 1;
+    int dirty = 0;
+    char cmd[256];
+    for (;;) {
+        if (print_lines) {
+            /* print with 1-based line numbers */
+            int lno = 1;
+            for (int i = 0; i < vlen;) {
+                char head[16];
+                oc_u64_to_str((u64)lno, head);
+                oc_console_puts(head);
+                oc_console_puts(": ");
+                while (i < vlen && vbuf[i] != '\n') {
+                    oc_console_putc(vbuf[i]);
+                    i++;
+                }
+                oc_console_putc('\n');
+                lno++;
+                if (i < vlen && vbuf[i] == '\n') i++;
+            }
+            print_lines = 0;
+        }
+        oc_console_puts(":");
+        long clen = oc_console_in_readline(cmd, 255);
+        if (clen <= 0) continue;
+        if (cmd[clen - 1] == '\n' || cmd[clen - 1] == '\r') cmd[clen - 1] = 0;
+        if (cmd[0] == 0) continue;
+
+        if (oc_strcmp(cmd, ":q") == 0) {
+            if (dirty) oc_console_puts("unsaved changes - use :wq or :q!\n");
+            else break;
+        } else if (oc_strcmp(cmd, ":q!") == 0) {
+            break;
+        } else if (oc_strcmp(cmd, ":p") == 0) {
+            print_lines = 1;
+        } else if (oc_strcmp(cmd, ":w") == 0 || oc_strcmp(cmd, ":wq") == 0) {
+            int wfd = vfs_open(args, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+            if (wfd < 0) {
+                oc_console_puts("edit: cannot save\n");
+            } else {
+                vfs_write(wfd, vbuf, vlen);
+                vfs_close(wfd);
+                dirty = 0;
+                oc_console_puts("saved\n");
+            }
+            if (cmd[1] == 'w' && cmd[2] == 'q') break;
+        } else if (cmd[0] == ':' && cmd[1] == 'i') {
+            const char *text = cmd + 2;
+            int tl = 0;
+            while (text[tl]) tl++;
+            if (vlen + tl + 1 >= CAP) {
+                oc_console_puts("edit: buffer full\n");
+            } else {
+                for (int i = 0; i < tl; i++) vbuf[vlen++] = text[i];
+                vbuf[vlen++] = '\n';
+                vbuf[vlen] = 0;
+                dirty = 1;
+                print_lines = 1;
+            }
+        } else if (cmd[0] == ':' && cmd[1] == 'd') {
+            int lno = 0, i = 2;
+            while (cmd[i] >= '0' && cmd[i] <= '9') { lno = lno * 10 + (cmd[i] - '0'); i++; }
+            if (lno <= 0) {
+                oc_console_puts("edit: :d<line number>\n");
+            } else {
+                /* find line start */
+                int pos = 0, cur = 1;
+                while (pos < vlen && cur < lno) {
+                    if (vbuf[pos] == '\n') cur++;
+                    pos++;
+                }
+                if (cur != lno || pos >= vlen) {
+                    oc_console_puts("edit: no such line\n");
+                } else {
+                    int end = pos;
+                    while (end < vlen && vbuf[end] != '\n') end++;
+                    if (end < vlen) end++;       /* include the newline */
+                    while (end < vlen) vbuf[pos++] = vbuf[end++];
+                    vlen = pos;
+                    vbuf[vlen] = 0;
+                    dirty = 1;
+                    print_lines = 1;
+                }
+            }
+        } else {
+            oc_console_puts("edit: unknown command (:p :i<text> :d<num> :w :q :wq :q!)\n");
+        }
+    }
+    kfree(vbuf);
+    return 0;
+}
+
 void file_cmds_register(void) {
     shell_register_command("ls",     cmd_ls,     "list directory (ls [path])");
     shell_register_command("cd",     cmd_cd,     "change directory (cd [path])");
@@ -859,4 +989,5 @@ void file_cmds_register(void) {
     shell_register_command("umount", cmd_umount, "unmount (umount <path>)");
     shell_register_command("write",  cmd_write,  "write text to file (write <path> <text>)");
     shell_register_command("grep",   cmd_grep,   "filter lines matching pattern (grep <pattern> [file])");
+    shell_register_command("edit",   cmd_edit,   "line editor (edit <file>; :i :d :p :w :q :wq)");
 }
