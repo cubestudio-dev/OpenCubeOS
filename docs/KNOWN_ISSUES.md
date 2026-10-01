@@ -240,3 +240,24 @@ Carried over from the old WP-09 TODO list (NOT done, deferred):
   succeed; the alert is answered cleanly (no crash, explicit
   `connect failed` message). Extending the TLS cipher suite is WP-10+
   work.
+
+## 6. WP-09 mainstreaming additions (2026-10)
+
+### 6.1 Display-layer scroll-edge page fault (pre-existing, exposed by long sessions)
+- **Symptom**: kernel #PF (#14, error_code=2, write) at `cr2=0xFD1CF480`,
+  rip inside `oc_renderer_default_draw_glyph`, when a command's output
+  happens to land on the screen rows near y=592 in a session that has
+  scrolled to the bottom. The framebuffer is 800x600x32 (1,920,000 bytes,
+  0xFD000000..0xFD1D4C00); the faulting address sits inside the framebuffer
+  extent but in an unmapped 4 KiB page (0xFD1CF000).
+- **Analysis**: the boot identity-map covers the framebuffer with 2 MiB
+  pages, but somewhere between boot and the crashing context the effective
+  mapping of that page is lost; the renderer itself bounds-checks
+  (xpix/ypix vs width/height) and only reaches row 592 legitimately.
+  Root cause is in the AS/page-table layer, not the renderer.
+- **Impact**: rare — only hits when output lands on those rows; every
+  scripted test that triggers it retried with slightly different output
+  geometry passes.
+- **Status**: open; workaround for scripted tests is keeping per-command
+  output short (tcptest prints a single line). Fix belongs to WP-10+
+  (vmm/fb mapping audit).
