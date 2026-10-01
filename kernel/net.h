@@ -118,6 +118,13 @@ int dns_resolve(const char *name, u32 *ip_out);
 /* WP-09: DNS CNAME + AAAA */
 int dns_resolve_cname(const char *name, char *cname_out, int cname_len, u32 *ip_out);
 int dns_resolve_aaaa(const char *name, u8 *ipv6_out);
+/* WP-09 mainstream: MX / TXT / NS / SRV */
+int dns_resolve_mx(const char *name, u16 *pref_out, char *host_out,
+                   int host_stride, int max);
+int dns_resolve_txt(const char *name, char *txt_out, int txt_len);
+int dns_resolve_ns(const char *name, char *ns_out, int ns_len);
+int dns_resolve_srv(const char *name, u16 *pri, u16 *wgt, u16 *port,
+                    char *target_out, int target_len);
 
 /* ---- WP-09 mainstream: Netfilter (firewall) ---- */
 #define NF_CHAIN_INPUT   0

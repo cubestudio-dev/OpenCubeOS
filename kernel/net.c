@@ -3006,6 +3006,57 @@ static u8  g_dns_result_aaaa[16];  /* IPv6 address */
 static int g_dns_got_aaaa = 0;
 static char g_dns_cname[256];      /* CNAME target */
 static int g_dns_got_cname = 0;
+/* WP-09 mainstream: MX / TXT / NS / SRV results */
+#define DNS_MAX_MX 4
+static u16 g_dns_mx_pref[DNS_MAX_MX];
+static char g_dns_mx_host[DNS_MAX_MX][256];
+static int  g_dns_mx_count = 0;
+static char g_dns_result_txt[512];
+static int  g_dns_txt_len = 0;
+static int  g_dns_got_txt = 0;
+static char g_dns_result_ns[256];
+static int  g_dns_got_ns = 0;
+static u16  g_dns_srv_pri, g_dns_srv_wgt, g_dns_srv_port;
+static char g_dns_srv_target[256];
+static int  g_dns_got_srv = 0;
+
+/* Decode a DNS name at `off` (handles compression pointers, 128-jump cap).
+ * Writes dotted text into out (out_len capped). Returns the offset just
+ * past the name, or -1 on error. */
+static int dns_decode_name(const u8 *pkt, int pkt_len, int off,
+                           char *out, int out_len) {
+    int ci = 0;
+    int jumps = 0;
+    int pos = off;
+    int end = pkt_len;
+    int advanced = 0;   /* offset after a followed pointer chain */
+    for (;;) {
+        if (pos < 0 || pos >= end) return -1;
+        u8 b = pkt[pos];
+        if ((b & 0xC0) == 0xC0) {
+            if (pos + 1 >= end) return -1;
+            u16 ptr = (u16)(((b & 0x3F) << 8) | pkt[pos + 1]);
+            if (!advanced) advanced = pos + 2;
+            if (++jumps > 128) return -1;
+            pos = ptr;
+            continue;
+        }
+        if (b == 0) {
+            pos++;
+            break;
+        }
+        int lablen = b;
+        pos++;
+        if (pos + lablen > end) return -1;
+        if (ci > 0 && ci < out_len - 1) out[ci++] = '.';
+        for (int l = 0; l < lablen; l++) {
+            if (ci < out_len - 1) out[ci++] = pkt[pos + l];
+        }
+        pos += lablen;
+    }
+    out[ci] = 0;
+    return advanced ? advanced : pos;
+}
 
 static void dns_handler(u32 src_ip, u16 src_port, const void *data, int len) {
     (void)src_ip;
@@ -3055,6 +3106,48 @@ static void dns_handler(u32 src_ip, u16 src_port, const void *data, int len) {
             if (p + 16 > end) return;
             oc_memcpy(g_dns_result_aaaa, p, 16);
             g_dns_got_aaaa = 1;
+        } else if (type == 2 && rdlen > 0 && !g_dns_got_ns) {
+            /* WP-09 mainstream: NS record — authoritative name server. */
+            int no = dns_decode_name((const u8 *)data, len,
+                                     (int)(p - (const u8 *)data),
+                                     g_dns_result_ns, (int)sizeof(g_dns_result_ns));
+            if (no > 0) g_dns_got_ns = 1;
+        } else if (type == 15 && rdlen >= 3) {
+            /* WP-09 mainstream: MX record — 2-byte preference + name. */
+            if (g_dns_mx_count < DNS_MAX_MX) {
+                int mi = g_dns_mx_count;
+                g_dns_mx_pref[mi] = ntohs(*(u16 *)p);
+                int no = dns_decode_name((const u8 *)data, len,
+                                         (int)(p + 2 - (const u8 *)data),
+                                         g_dns_mx_host[mi],
+                                         (int)sizeof(g_dns_mx_host[mi]));
+                if (no > 0) g_dns_mx_count++;
+            }
+        } else if (type == 16 && rdlen > 0) {
+            /* WP-09 mainstream: TXT record — character-strings. */
+            int ti = 0;
+            const u8 *rdata = p;
+            const u8 *rend = p + rdlen;
+            while (rdata < rend && ti < (int)sizeof(g_dns_result_txt) - 1) {
+                u8 slen = *rdata++;
+                if (rdata + slen > rend) break;
+                for (int l = 0; l < slen && ti < (int)sizeof(g_dns_result_txt) - 1; l++)
+                    g_dns_result_txt[ti++] = rdata[l];
+                rdata += slen;
+            }
+            g_dns_result_txt[ti] = 0;
+            g_dns_txt_len = ti;
+            g_dns_got_txt = 1;
+        } else if (type == 33 && rdlen >= 7) {
+            /* WP-09 mainstream: SRV record — pri(2) weight(2) port(2) target. */
+            g_dns_srv_pri = ntohs(*(u16 *)p);
+            g_dns_srv_wgt = ntohs(*(u16 *)(p + 2));
+            g_dns_srv_port = ntohs(*(u16 *)(p + 4));
+            int no = dns_decode_name((const u8 *)data, len,
+                                     (int)(p + 6 - (const u8 *)data),
+                                     g_dns_srv_target,
+                                     (int)sizeof(g_dns_srv_target));
+            if (no > 0) g_dns_got_srv = 1;
         } else if (type == 5 && rdlen > 0) {
             /* WP-09: CNAME record — extract the target name. */
             const u8 *rdata = p;
@@ -3222,6 +3315,129 @@ int dns_resolve_aaaa(const char *name, u8 *ipv6_out) {
         }
     }
     return -1;
+}
+
+/* WP-09 mainstream: generic DNS query builder (name labels + QTYPE + IN). */
+static int dns_build_query(const char *name, u16 qtype, u16 id, u8 *buf, int buf_len) {
+    (void)buf_len;   /* callers pass a 512-byte buffer; name length is bounded */
+    dns_hdr_t *h = (dns_hdr_t *)buf;
+    h->id = htons(id);
+    h->flags = htons(0x0100);  /* standard query, recursion desired */
+    h->qdcount = htons(1);
+    h->ancount = 0; h->nscount = 0; h->arcount = 0;
+    u8 *q = buf + sizeof(dns_hdr_t);
+    const char *p = name;
+    while (*p) {
+        const char *dot = p;
+        while (*dot && *dot != '.') dot++;
+        int labellen = dot - p;
+        if (labellen > 63) return -1;
+        *q++ = (u8)labellen;
+        for (int i = 0; i < labellen; i++) *q++ = p[i];
+        if (*dot == '.') p = dot + 1;
+        else { p = dot; break; }
+    }
+    *q++ = 0;
+    *(u16 *)q = htons(qtype); q += 2;
+    *(u16 *)q = htons(1);     /* QCLASS = IN */ q += 2;
+    return (int)(q - buf);
+}
+
+/* WP-09 mainstream: dns_resolve_mx — mail exchangers, sorted by preference.
+ * mx_host_out receives up to max entries of "pref host" pairs. */
+int dns_resolve_mx(const char *name, u16 *pref_out, char *host_out,
+                   int host_stride, int max) {
+    if (!g_nic_ok || g_dns == 0) return -1;
+    u8 buf[512];
+    int pkt_len = dns_build_query(name, 15, 0x2468, buf, (int)sizeof(buf));
+    if (pkt_len < 0) return -1;
+    g_dns_mx_count = 0;
+    u16 dns_src_port = 4096 + DNS_PORT;
+    udp_bind(dns_src_port, dns_handler);
+    udp_send(g_dns, DNS_PORT, dns_src_port, buf, pkt_len);
+    u64 start = oc_timer_ticks();
+    while ((oc_timer_ticks() - start) < 500) {
+        net_poll();
+        if (g_dns_mx_count > 0) break;
+    }
+    if (g_dns_mx_count == 0) return -1;
+    int n = g_dns_mx_count < max ? g_dns_mx_count : max;
+    for (int i = 0; i < n; i++) {
+        pref_out[i] = g_dns_mx_pref[i];
+        char *dst = host_out + i * host_stride;
+        oc_strncpy(dst, g_dns_mx_host[i], host_stride - 1);
+        dst[host_stride - 1] = 0;
+    }
+    return n;
+}
+
+/* WP-09 mainstream: dns_resolve_txt — first TXT record string. */
+int dns_resolve_txt(const char *name, char *txt_out, int txt_len) {
+    if (!g_nic_ok || g_dns == 0) return -1;
+    u8 buf[512];
+    int pkt_len = dns_build_query(name, 16, 0x3690, buf, (int)sizeof(buf));
+    if (pkt_len < 0) return -1;
+    g_dns_got_txt = 0;
+    u16 dns_src_port = 5120 + DNS_PORT;
+    udp_bind(dns_src_port, dns_handler);
+    udp_send(g_dns, DNS_PORT, dns_src_port, buf, pkt_len);
+    u64 start = oc_timer_ticks();
+    while ((oc_timer_ticks() - start) < 500) {
+        net_poll();
+        if (g_dns_got_txt) break;
+    }
+    if (!g_dns_got_txt) return -1;
+    int n = g_dns_txt_len < txt_len - 1 ? g_dns_txt_len : txt_len - 1;
+    oc_memcpy(txt_out, g_dns_result_txt, n);
+    txt_out[n] = 0;
+    return n;
+}
+
+/* WP-09 mainstream: dns_resolve_ns — authoritative name server. */
+int dns_resolve_ns(const char *name, char *ns_out, int ns_len) {
+    if (!g_nic_ok || g_dns == 0) return -1;
+    u8 buf[512];
+    int pkt_len = dns_build_query(name, 2, 0x4271, buf, (int)sizeof(buf));
+    if (pkt_len < 0) return -1;
+    g_dns_got_ns = 0;
+    u16 dns_src_port = 6144 + DNS_PORT;
+    udp_bind(dns_src_port, dns_handler);
+    udp_send(g_dns, DNS_PORT, dns_src_port, buf, pkt_len);
+    u64 start = oc_timer_ticks();
+    while ((oc_timer_ticks() - start) < 500) {
+        net_poll();
+        if (g_dns_got_ns) break;
+    }
+    if (!g_dns_got_ns) return -1;
+    oc_strncpy(ns_out, g_dns_result_ns, ns_len - 1);
+    ns_out[ns_len - 1] = 0;
+    return 0;
+}
+
+/* WP-09 mainstream: dns_resolve_srv — SRV record for _service._proto.name.
+ * Returns 0 and fills pri/wgt/port/target on success. */
+int dns_resolve_srv(const char *name, u16 *pri, u16 *wgt, u16 *port,
+                    char *target_out, int target_len) {
+    if (!g_nic_ok || g_dns == 0) return -1;
+    u8 buf[512];
+    int pkt_len = dns_build_query(name, 33, 0x52A1, buf, (int)sizeof(buf));
+    if (pkt_len < 0) return -1;
+    g_dns_got_srv = 0;
+    u16 dns_src_port = 7168 + DNS_PORT;
+    udp_bind(dns_src_port, dns_handler);
+    udp_send(g_dns, DNS_PORT, dns_src_port, buf, pkt_len);
+    u64 start = oc_timer_ticks();
+    while ((oc_timer_ticks() - start) < 500) {
+        net_poll();
+        if (g_dns_got_srv) break;
+    }
+    if (!g_dns_got_srv) return -1;
+    if (pri) *pri = g_dns_srv_pri;
+    if (wgt) *wgt = g_dns_srv_wgt;
+    if (port) *port = g_dns_srv_port;
+    oc_strncpy(target_out, g_dns_srv_target, target_len - 1);
+    target_out[target_len - 1] = 0;
+    return 0;
 }
 
 /* ============================================================
@@ -3931,42 +4147,103 @@ int cmd_dhcp(const char *args) {
 
 int cmd_dns(const char *args) {
     if (!args[0]) {
-        oc_console_puts("usage: dns <name> [aaaa|cname]\n");
+        oc_console_puts("usage: dns <name> [aaaa|cname|mx|txt|ns|srv]\n");
         return 1;
     }
-    char buf[256];
-    /* WP-09: check for subcommand */
-    int do_aaaa = 0;
-    int do_cname = 0;
+    char buf[600];
+    /* WP-09: check for record-type subcommand */
+    int do_aaaa = 0, do_cname = 0, do_mx = 0, do_txt = 0, do_ns = 0, do_srv = 0;
     const char *name = args;
     if (oc_strlen(args) > 5 && args[0]=='a' && args[1]=='a' && args[2]=='a' && args[3]=='a' && args[4]==' ') {
         do_aaaa = 1; name = args + 5;
     } else if (oc_strlen(args) > 6 && args[0]=='c' && args[1]=='n' && args[2]=='a' && args[3]=='m' && args[4]=='e' && args[5]==' ') {
         do_cname = 1; name = args + 6;
+    } else if (oc_strlen(args) > 3 && args[0]=='m' && args[1]=='x' && args[2]==' ') {
+        do_mx = 1; name = args + 3;
+    } else if (oc_strlen(args) > 4 && args[0]=='t' && args[1]=='x' && args[2]=='t' && args[3]==' ') {
+        do_txt = 1; name = args + 4;
+    } else if (oc_strlen(args) > 3 && args[0]=='n' && args[1]=='s' && args[2]==' ') {
+        do_ns = 1; name = args + 3;
+    } else if (oc_strlen(args) > 4 && args[0]=='s' && args[1]=='r' && args[2]=='v' && args[3]==' ') {
+        do_srv = 1; name = args + 4;
     }
-    oc_strcpy(buf, "Resolving "); oc_strcat(buf, name); oc_strcat(buf, "...\n");
-    oc_console_puts(buf);
+    if (do_aaaa || do_cname || do_mx || do_txt || do_ns || do_srv) {
+        oc_strcpy(buf, "Resolving "); oc_strcat(buf, name);
+        oc_strcat(buf, do_aaaa ? " (AAAA)" : do_cname ? " (CNAME)" :
+                       do_mx ? " (MX)" : do_txt ? " (TXT)" :
+                       do_ns ? " (NS)" : " (SRV)");
+        oc_strcat(buf, "...\n");
+        oc_console_puts(buf);
+    }
 
+    if (do_mx) {
+        u16 prefs[4];
+        static char hosts[4][256];
+        int n = dns_resolve_mx(name, prefs, (char *)hosts, 256, 4);
+        if (n <= 0) { oc_console_puts("MX: no mail exchanger (or timeout)\n"); return 0; }
+        for (int i = 0; i < n; i++) {
+            oc_strcpy(buf, "MX: ");
+            char n2[8]; oc_u64_to_str(prefs[i], n2); oc_strcat(buf, n2);
+            oc_strcat(buf, " "); oc_strcat(buf, hosts[i]);
+            oc_strcat(buf, "\n");
+            oc_console_puts(buf);
+        }
+        return 0;
+    }
+    if (do_txt) {
+        char txt[512];
+        if (dns_resolve_txt(name, txt, sizeof(txt)) > 0) {
+            oc_strcpy(buf, "TXT: "); oc_strcat(buf, txt); oc_strcat(buf, "\n");
+            oc_console_puts(buf);
+        } else {
+            oc_console_puts("TXT: no text record (or timeout)\n");
+        }
+        return 0;
+    }
+    if (do_ns) {
+        char ns[256];
+        if (dns_resolve_ns(name, ns, sizeof(ns)) == 0) {
+            oc_strcpy(buf, "NS: "); oc_strcat(buf, ns); oc_strcat(buf, "\n");
+            oc_console_puts(buf);
+        } else {
+            oc_console_puts("NS: no name server (or timeout)\n");
+        }
+        return 0;
+    }
+    if (do_srv) {
+        u16 pri, wgt, port;
+        char target[256];
+        if (dns_resolve_srv(name, &pri, &wgt, &port, target, sizeof(target)) == 0) {
+            oc_strcpy(buf, "SRV: ");
+            char n2[8];
+            oc_u64_to_str(pri, n2); oc_strcat(buf, n2); oc_strcat(buf, " ");
+            oc_u64_to_str(wgt, n2); oc_strcat(buf, n2); oc_strcat(buf, " ");
+            oc_u64_to_str(port, n2); oc_strcat(buf, n2); oc_strcat(buf, " ");
+            oc_strcat(buf, target);
+            oc_strcat(buf, "\n");
+            oc_console_puts(buf);
+        } else {
+            oc_console_puts("SRV: no service record (or timeout)\n");
+        }
+        return 0;
+    }
     if (do_aaaa) {
         /* WP-09: AAAA query */
         u8 ipv6[16];
         if (dns_resolve_aaaa(name, ipv6) == 0) {
             oc_strcpy(buf, "AAAA: ");
-            /* Format IPv6 address */
             int bi = 6;
+            buf[bi] = 0;
             for (int i = 0; i < 16; i += 2) {
                 u16 w = ((u16)ipv6[i] << 8) | ipv6[i+1];
-                char hex[8];
-                int hi = 0;
-                if (w == 0) { hex[hi++] = '0'; }
+                if (i > 0) buf[bi++] = ':';
+                if (w == 0) { buf[bi++] = '0'; }
                 else {
                     char tmp[8]; int ti = 0;
-                    while (w) { tmp[ti++] = "0123456789abcdef"[w & 0xF]; w >>= 4; }
-                    while (ti > 0) hex[hi++] = tmp[--ti];
+                    u16 w2 = w;
+                    while (w2) { tmp[ti++] = "0123456789abcdef"[w2 & 0xF]; w2 >>= 4; }
+                    while (ti > 0) buf[bi++] = tmp[--ti];
                 }
-                hex[hi] = 0;
-                if (bi > 6) buf[bi++] = ':';
-                oc_strcpy(buf + bi, hex); bi += oc_strlen(hex);
             }
             buf[bi] = 0;
             oc_strcat(buf, "\n");
@@ -3997,7 +4274,6 @@ int cmd_dns(const char *args) {
     char cname[256];
     cname[0] = 0;
     u32 cname_ip;
-    /* Try CNAME first to see if it's a CNAME */
     if (dns_resolve_cname(name, cname, sizeof(cname), &cname_ip) == 0 && oc_strlen(cname) > 0 && oc_strcmp(cname, name) != 0) {
         oc_strcpy(buf, "CNAME: "); oc_strcat(buf, cname); oc_strcat(buf, "\n");
         oc_console_puts(buf);
@@ -4014,6 +4290,104 @@ int cmd_dns(const char *args) {
         oc_console_puts("DNS resolution failed (timeout)\n");
     }
     return 0;
+}
+
+/* WP-09 mainstream: dnstest — exercise every record type against the
+ * configured resolver (SLIRP forwards to the real upstream DNS). */
+static int cmd_dnstest(const char *args) {
+    (void)args;
+    int fails = 0;
+    oc_console_puts("DNS record-type self-test (live resolver):\n");
+
+    /* A */
+    u32 ip = 0;
+    int okA = (dns_resolve("example.com", &ip) == 0 && ip != 0);
+    if (!okA) fails++;
+    {
+        char b[96]; char ipstr[20]; char n2[12];
+        ipstr[0] = 0; format_ip(ip, ipstr);
+        oc_strcpy(b, "  ["); oc_strcat(b, okA ? "PASS" : "FAIL");
+        oc_strcat(b, "] A    example.com = "); oc_strcat(b, ipstr);
+        oc_strcat(b, "\n"); oc_console_puts(b);
+        (void)n2;
+    }
+
+    /* AAAA (google.com publishes IPv6) */
+    u8 v6[16];
+    int okAAAA = (dns_resolve_aaaa("google.com", v6) == 0);
+    if (!okAAAA) fails++;
+    {
+        char b[64];
+        oc_strcpy(b, "  ["); oc_strcat(b, okAAAA ? "PASS" : "FAIL");
+        oc_strcat(b, "] AAAA google.com");
+        oc_strcat(b, "\n"); oc_console_puts(b);
+    }
+
+    /* MX (gmail.com) */
+    u16 prefs[4];
+    static char mxhosts[4][256];
+    int nmx = dns_resolve_mx("gmail.com", prefs, (char *)mxhosts, 256, 4);
+    int okMX = (nmx > 0);
+    if (!okMX) fails++;
+    {
+        char b[320];
+        oc_strcpy(b, "  ["); oc_strcat(b, okMX ? "PASS" : "FAIL");
+        oc_strcat(b, "] MX   gmail.com");
+        if (nmx > 0) {
+            char n2[8];
+            oc_strcat(b, " pref=");
+            oc_u64_to_str(prefs[0], n2); oc_strcat(b, n2);
+            oc_strcat(b, " "); oc_strcat(b, mxhosts[0]);
+        }
+        oc_strcat(b, "\n"); oc_console_puts(b);
+    }
+
+    /* TXT (google.com SPF) */
+    char txt[512];
+    int ntxt = dns_resolve_txt("google.com", txt, sizeof(txt));
+    int okTXT = (ntxt > 0);
+    if (!okTXT) fails++;
+    {
+        char b[560];
+        oc_strcpy(b, "  ["); oc_strcat(b, okTXT ? "PASS" : "FAIL");
+        oc_strcat(b, "] TXT  google.com");
+        if (ntxt > 0) { oc_strcat(b, " \""); oc_strcat(b, txt); oc_strcat(b, "\""); }
+        oc_strcat(b, "\n"); oc_console_puts(b);
+    }
+
+    /* NS (google.com) */
+    char ns[256];
+    int okNS = (dns_resolve_ns("google.com", ns, sizeof(ns)) == 0);
+    if (!okNS) fails++;
+    {
+        char b[320];
+        oc_strcpy(b, "  ["); oc_strcat(b, okNS ? "PASS" : "FAIL");
+        oc_strcat(b, "] NS   google.com");
+        if (okNS) { oc_strcat(b, " "); oc_strcat(b, ns); }
+        oc_strcat(b, "\n"); oc_console_puts(b);
+    }
+
+    /* SRV (_xmpp-server._tcp.jabber.org — Google publishes real SRV records) */
+    u16 pri, wgt, port;
+    char target[256];
+    int okSRV = (dns_resolve_srv("_xmpp-server._tcp.jabber.org", &pri, &wgt,
+                                 &port, target, sizeof(target)) == 0);
+    if (!okSRV) fails++;
+    {
+        char b[380]; char n2[8];
+        oc_strcpy(b, "  ["); oc_strcat(b, okSRV ? "PASS" : "FAIL");
+        oc_strcat(b, "] SRV  _xmpp-server._tcp.jabber.org");
+        if (okSRV) {
+            oc_strcat(b, " port=");
+            oc_u64_to_str(port, n2); oc_strcat(b, n2);
+            oc_strcat(b, " "); oc_strcat(b, target);
+        }
+        oc_strcat(b, "\n"); oc_console_puts(b);
+    }
+
+    if (fails == 0) oc_console_puts("dnstest: ALL PASS\n");
+    else oc_console_puts("dnstest: FAILURES\n");
+    return fails == 0 ? 0 : 1;
 }
 
 int cmd_lspci(const char *args) {
@@ -4595,7 +4969,8 @@ void net_register_shell_commands(void) {
     shell_register_command("ping", cmd_ping, "send ICMP echo (ping <host>)");
     shell_register_command("netstat", cmd_netstat, "show network statistics and sockets");
     shell_register_command("dhcp", cmd_dhcp, "get IP via DHCP");
-    shell_register_command("dns", cmd_dns, "resolve domain name (dns <name>)");
+    shell_register_command("dns", cmd_dns, "resolve domain name (dns <name> [aaaa|cname|mx|txt|ns|srv])");
+    shell_register_command("dnstest", cmd_dnstest, "DNS record-type self-test (A/AAAA/MX/TXT/NS/SRV live)");
     shell_register_command("lspci", cmd_lspci, "list PCI devices");
     shell_register_command("wget", cmd_wget, "download file via HTTP (wget <host> [port] [path])");
 }
