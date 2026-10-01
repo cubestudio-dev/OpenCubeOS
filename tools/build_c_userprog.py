@@ -19,13 +19,16 @@ def main():
     if not os.path.exists(c_path):
         print(f"source not found: {c_path}", file=sys.stderr); sys.exit(1)
 
-    build_dir = '/home/z/my-project/oc-os/build'
+    # PRIVACY FIX: derive project root from this script's location instead of
+    # hardcoding a local sandbox path.
+    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    build_dir = os.path.join(_ROOT, 'build')
     os.makedirs(build_dir, exist_ok=True)
     elf_path = os.path.join(build_dir, f'{name}.elf')
     obj_path = os.path.join(build_dir, f'{name}_up.o')
     cc = os.environ.get('CC', '/usr/bin/gcc')
     ld = os.environ.get('LD', '/usr/bin/ld')
-    user_ld = '/home/z/my-project/oc-os/userprogs/user.ld'
+    user_ld = os.path.join(_ROOT, 'userprogs', 'user.ld')
 
     r = subprocess.run([cc, '-ffreestanding', '-fno-stack-protector', '-fno-pie',
                         '-fno-pic', '-mno-red-zone', '-mno-sse', '-mno-mmx',
@@ -59,7 +62,7 @@ def main():
     lines.append(f"const u64 userprog_{name}_size = {len(data)};")
     new_block = "\n".join(lines) + "\n"
 
-    header_path = '/home/z/my-project/oc-os/kernel/userprogs_data.h'
+    header_path = os.path.join(_ROOT, 'kernel', 'userprogs_data.h')
     with open(header_path, 'r') as f:
         content = f.read()
     pattern = re.compile(

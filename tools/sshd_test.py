@@ -26,13 +26,14 @@ from qemu_runner import strip_ansi  # noqa: E402
 
 ISO = sys.argv[1] if len(sys.argv) > 1 else "build/opencube.iso"
 
-QEMU = "/home/z/opt/extract/usr/bin/qemu-system-x86_64"
-LIB_PATHS = ["/home/z/opt/extract/usr/lib/x86_64-linux-gnu", "/home/z/opt/extract/usr/lib"]
+_OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+QEMU = _OC_TOOLS + "/usr/bin/qemu-system-x86_64"
+LIB_PATHS = [_OC_TOOLS + "/usr/lib/x86_64-linux-gnu", _OC_TOOLS + "/usr/lib"]
 ENV_LD = ":".join(LIB_PATHS)
 
 cmd = [QEMU, "-m", "512", "-cdrom", ISO, "-boot", "d", "-no-reboot",
-       "-L", "/home/z/opt/extract/usr/share/qemu",
-       "-L", "/home/z/opt/extract/usr/share/seabios",
+       "-L", _OC_TOOLS + "/usr/share/qemu",
+       "-L", _OC_TOOLS + "/usr/share/seabios",
        "-vga", "std", "-display", "none", "-serial", "mon:stdio",
        "-netdev", "user,id=n1,hostfwd=tcp::2223-:22",
        "-device", "e1000,netdev=n1"]

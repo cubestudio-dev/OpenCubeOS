@@ -19,12 +19,15 @@ def main():
         print(f"asm not found: {asm_path}", file=sys.stderr); sys.exit(1)
 
     # 1. Compile asm to ELF binary
-    build_dir = '/home/z/my-project/oc-os/build'
+    # PRIVACY FIX: derive project root from this script's location instead of
+    # hardcoding a local sandbox path.
+    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    build_dir = os.path.join(_ROOT, 'build')
     os.makedirs(build_dir, exist_ok=True)
     elf_path = os.path.join(build_dir, f'{name}.elf')
-    nasm = '/home/z/opt/extract/usr/bin/nasm'
-    ld = '/usr/bin/ld'
-    user_ld = '/home/z/my-project/oc-os/userprogs/user.ld'
+    nasm = os.environ.get('NASM', 'nasm')
+    ld = os.environ.get('LD', '/usr/bin/ld')
+    user_ld = os.path.join(_ROOT, 'userprogs', 'user.ld')
     obj_path = os.path.join(build_dir, f'{name}.o')
     r = subprocess.run([nasm, '-f', 'elf64', '-F', 'dwarf', '-g', asm_path, '-o', obj_path],
                        capture_output=True, text=True)
@@ -56,7 +59,7 @@ def main():
 
     # 4. Append to userprogs_data.h before the closing line (if any)
     # The header is just a list of arrays — append at the end.
-    header_path = '/home/z/my-project/oc-os/kernel/userprogs_data.h'
+    header_path = os.path.join(_ROOT, 'kernel', 'userprogs_data.h')
     with open(header_path, 'r') as f:
         content = f.read()
     if f"const u8 userprog_{name}[]" in content:

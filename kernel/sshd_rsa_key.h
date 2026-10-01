@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* WP-09: fixed RSA-2048 host key for the kernel sshd.
  * Generated once (Miller-Rabin primality, e=65537). The private exponent
  * stays in this kernel image; the matching public key is loaded by the

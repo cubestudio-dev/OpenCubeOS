@@ -2402,7 +2402,6 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command("synctest", cmd_synctest, "test sync primitives (spinlock/mutex/sem)");
     shell_register_command("run", cmd_run, "run a user program (hello/badapp/loop/fork_test/.../dyn_test/so_test/dyn_hello/dlsym_test/pie_test/reloc_test)");
     shell_register_command("ldd", cmd_ldd, "list dynamic dependencies (ldd <program>)");
-    OC_LOG_OK2("shell command system (68 commands)");
 
     /* ---- 12c. WP-04: Userspace ---- */
     usermode_init();
@@ -2448,6 +2447,18 @@ void kmain(u64 magic, u64 mbi_phys) {
     net_register_shell_commands();
     net_start_timer();
     OC_LOG_OK2("network stack (e1000 + TCP/IP + socket API)");
+
+    /* docs-sync FIX: report the LIVE registered command count once ALL
+     * registrations are done (kmain + file + disk + net commands). The old
+     * hardcoded "68 commands" ran mid-registration and contradicted help. */
+    {
+        char cs[80]; char num[12];
+        oc_strcpy(cs, "shell command system (");
+        oc_u64_to_str((u64)shell_command_count(), num);
+        oc_strcat(cs, num);
+        oc_strcat(cs, " commands)");
+        OC_LOG_OK2(cs);
+    }
 
     /* ---- 12f. WP-07: Disk subsystem summary ---- */
     {

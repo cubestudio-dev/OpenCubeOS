@@ -9,11 +9,10 @@ import sys, os, re, time, signal
 import pexpect
 
 # Setup LD_LIBRARY_PATH + QEMU paths
-# Toolchain layout (no-root sandbox install):
-#   /home/z/opt/install-toolchain.sh  -> apt-get download + dpkg-deb -x
-#   /home/z/opt/extract/              -> unified tree (usr/bin, usr/lib, usr/share)
-#   /home/z/opt/env.sh                -> PATH / LD_LIBRARY_PATH / firmware dirs
-OC_TOOLS = "/home/z/opt/extract"
+# Toolchain layout (no-root sandbox install): OC_TOOLS points at the
+# extracted toolchain root (usr/bin, usr/lib, usr/share). Override with
+# the OC_TOOLS environment variable when your layout differs.
+OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
 LIB_PATHS = [f"{OC_TOOLS}/usr/lib/x86_64-linux-gnu", f"{OC_TOOLS}/usr/lib"]
 ENV_LD = ":".join(LIB_PATHS)
 

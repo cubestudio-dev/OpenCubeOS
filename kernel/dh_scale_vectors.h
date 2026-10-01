@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* WP-09 debug: modexp scale-sweep vectors (generated with python3 pow()) */
 static const struct {
     int len;

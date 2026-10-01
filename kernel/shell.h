@@ -52,6 +52,9 @@ typedef int (*shell_cmd_fn)(const char *args);
  * Returns 0 on success, -1 on bad args, -2 if table full. */
 int shell_register_command(const char *name, shell_cmd_fn handler, const char *help);
 
+/* Live count of registered shell commands (for the boot self-test banner). */
+int shell_command_count(void);
+
 /* Unregister a command. */
 int shell_unregister_command(const char *name);
 

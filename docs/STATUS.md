@@ -26,7 +26,7 @@ docs/verification/*.log, VERIFICATION_REPORT.md §10.
 - kernel/crypto.{c,h} + dh_scale_vectors.h (AES-128, SHA-256, HMAC, DH modexp, random)
 - kernel/ssh.{c,h} (client), kernel/sshd.c + sshd_rsa_key.h (server)
 - kernel/tls.{c,h} (TLS 1.2 client) + HTTPS in wget
-- Shell: ssh, sshd, route, arp, firewall, tcpstats, dns (68 commands total)
+- Shell: ssh, sshd, route, arp, firewall, tcpstats, dns (78 commands total)
 - userprogs: mprotect_test.asm, p3_test.asm
 - Test tools: tools/qemu_runner.py, sshd_test.py, paramiko_sshd.py, https_test_server.py
 

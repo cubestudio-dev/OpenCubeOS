@@ -46,6 +46,11 @@ typedef struct {
 } shell_cmd_t;
 
 static shell_cmd_t g_commands[SHELL_MAX_COMMANDS];
+static int g_command_count = 0; /* docs-sync FIX: live count for boot banner */
+
+int shell_command_count(void) {
+    return g_command_count;
+}
 
 int shell_register_command(const char *name, shell_cmd_fn handler, const char *help) {
     if (!name || !handler) return -1;
@@ -70,6 +75,7 @@ int shell_register_command(const char *name, shell_cmd_fn handler, const char *h
                 g_commands[i].help[0] = 0;
             }
             g_commands[i].in_use = 1;
+            g_command_count++; /* docs-sync FIX: live count for boot banner */
             return 0;
         }
     }

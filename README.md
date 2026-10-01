@@ -128,7 +128,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   outgoing, decrypt + MAC-verify incoming), server Finished accepted-by-design.
 - **HTTPS**: `wget https://host:port/path` downloads through TLS into VFS.
 - **Network ops commands**: route, arp, firewall, tcpstats, dns.
-- **Shell**: 68 commands (boot self-test count).
+- **Shell**: 78 commands (live boot self-test count).
 - **New user test programs**: mprotect_test, p3_test.
 - **Verification**: 18/18 QEMU regression + dhtest 5/5 + HTTPS E2E + SSH
   both-direction interop (external evidence: paramiko 5.0). See
@@ -218,7 +218,7 @@ make run-bios       # SeaBIOS -> GRUB -> kernel
 make run-uefi       # OVMF -> GRUB EFI -> kernel
 ```
 
-Once the `oc>` prompt appears, type `help` for the 68 built-in commands.
+Once the `oc>` prompt appears, type `help` for the 78 built-in commands.
 Try `run ush` to launch the user-space shell.
 
 ## Tests
