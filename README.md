@@ -22,7 +22,7 @@ Licensed under the Apache License, Version 2.0.
 
 ## Stats (WP-09)
 
-- **Source code**: 46058 lines (kernel + boot + userprogs, no docs)
+- **Source code**: 46518 lines (kernel + boot + userprogs, no docs)
 - **Work packages**: 9 (WP-01 ~ WP-09)
 - **L1 extension interfaces**: 57 (WP-09 adds transport-level features instead of L1 interfaces)
 - **System calls**: 37

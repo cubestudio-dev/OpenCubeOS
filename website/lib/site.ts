@@ -1,39 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-09 value taken from the
+// Central site data. Every number is a real WP-09-fix4 value taken from the
 // repository docs (README.md, docs/INTERFACES.md, docs/EXTENSIONS_WP09.md)
-// and real sha256sum/build outputs — see docs/VERIFICATION_BATCH_B.md.
+// and real sha256sum/build outputs.
+// 3-way identical: local build + GitHub Release WP-09-fix4 + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_WP09 =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-09";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-09-fix4";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release WP-09 + this site /downloads/, 3-way identical)
+// Real assets (build/ + GitHub Release WP-09-fix4 + this site /downloads/, 3-way identical)
 export const ISO_FILE = "opencube-wp09.iso";
-export const ISO_SIZE_B = 10760192;
+export const ISO_SIZE_B = 10762240;
 export const ISO_SIZE_MB = "10.26";
 export const ISO_SHA256 =
-  "5e94d00d87f53a38ecb3dfdd31a8885205797876bf0b8714a152438e24491d85";
+  "b8c5bf7844091aaab843956276d53279c2634370812d90b66ef6d7e865e4321c";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
 export const SRC_FILE = "opencube-wp09-src.zip";
-export const SRC_SIZE_B = 1688019;
-export const SRC_SIZE_MB = "1.61";
+export const SRC_SIZE_B = 1763506;
+export const SRC_SIZE_MB = "1.68";
 export const SRC_SHA256 =
-  "19109ba9ac2cc7d8983df65975e0ec4a3d58bf2e5c605e7485097c0d00285f49";
+  "c5e54074ffa31e6a44184a506ec1473472b7b289a4bf15c43b0afc56531e5e36";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-09 stats (README.md "Stats (WP-09)")
+// WP-09-fix4 stats (README.md "Stats (WP-09)")
 export const STATS = [
-  { value: "46,058", label: "行源码" },
+  { value: "46,518", label: "行源码" },
   { value: "57", label: "L1 扩展接口" },
   { value: "37", label: "系统调用" },
-  { value: "68", label: "shell 命令" },
+  { value: "78", label: "shell 命令" },
   { value: "9", label: "工作包" },
   { value: "18/18", label: "QEMU 回归" },
 ];

@@ -21,18 +21,18 @@ export { fmtBytes };
 // WP-09 stats (README.md "Stats (WP-09)")
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "46,058", label: "行源码" },
+    { value: "46,518", label: "行源码" },
     { value: "57", label: "L1 扩展接口" },
     { value: "37", label: "系统调用" },
-    { value: "68", label: "shell 命令" },
+    { value: "78", label: "shell 命令" },
     { value: "9", label: "工作包" },
     { value: "18/18", label: "QEMU 回归" },
   ],
   en: [
-    { value: "46,058", label: "lines of source" },
+    { value: "46,518", label: "lines of source" },
     { value: "57", label: "L1 extension interfaces" },
     { value: "37", label: "system calls" },
-    { value: "68", label: "shell commands" },
+    { value: "78", label: "shell commands" },
     { value: "9", label: "work packages" },
     { value: "18/18", label: "QEMU regression" },
   ],
