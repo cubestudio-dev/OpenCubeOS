@@ -20,8 +20,8 @@ export function localePath(locale: Locale, sub: "" | "docs" | "about" = ""): str
 
 const zh = {
   htmlLang: "zh-CN",
-  badge: "WP-09-fix4 · 正式版 · Apache 2.0",
-  brandSub: "WP-09-fix4 · Apache 2.0",
+  badge: "WP-09-fix5 · 正式版 · Apache 2.0",
+  brandSub: "WP-09-fix5 · Apache 2.0",
   navAria: "站点导航",
   navHome: "首页",
   navDownloads: "下载",
@@ -42,7 +42,7 @@ const zh = {
   downloadIso: (mb: string) => `下载 ISO（${mb} MB）`,
   readDocs: "阅读文档",
   githubRepo: "GitHub 仓库",
-  dlSectionTitle: "下载 WP-09-fix4",
+  dlSectionTitle: "下载 WP-09-fix5",
   dlSectionDesc:
     "BIOS + UEFI 双引导 ISO 与完整源码包。文件在本站、GitHub Release 与本地构建三处 SHA256 字节级一致（核对方法见下方命令）。",
   isoMeta: (bytes: string, mb: string) =>
@@ -117,8 +117,8 @@ const zh = {
 
 const en: typeof zh = {
   htmlLang: "en",
-  badge: "WP-09-fix4 · Release · Apache 2.0",
-  brandSub: "WP-09-fix4 · Apache 2.0",
+  badge: "WP-09-fix5 · Release · Apache 2.0",
+  brandSub: "WP-09-fix5 · Apache 2.0",
   navAria: "Site navigation",
   navHome: "Home",
   navDownloads: "Downloads",
@@ -139,7 +139,7 @@ const en: typeof zh = {
   downloadIso: (mb: string) => `Download ISO (${mb} MB)`,
   readDocs: "Read the docs",
   githubRepo: "GitHub repository",
-  dlSectionTitle: "Download WP-09-fix4",
+  dlSectionTitle: "Download WP-09-fix5",
   dlSectionDesc:
     "BIOS + UEFI dual-boot ISO and the full source archive. The files are byte-identical (SHA256) across this site, the GitHub Release and the local build (see the command below).",
   isoMeta: (bytes: string, mb: string) =>
