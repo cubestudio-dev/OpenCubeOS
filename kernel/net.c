@@ -3719,8 +3719,22 @@ int cmd_wget(const char *args) {
     /* Receive response — loop until we get headers + full body.
      * WP-09-FIX BUG-002: rbuf enlarged 1024 -> 4096 — with the 8 KiB
      * rx_buf several segments can be waiting at once and a 1 KiB header
-     * buffer mis-split the stream ("malformed HTTP response"). */
-    char rbuf[4096];
+     * buffer mis-split the stream ("malformed HTTP response").
+     *
+     * BUG-002 FOLLOW-UP FIX (root cause of the ~7 KB wget stall):
+     * the 4096-byte rbuf lived ON THE STACK of this kernel thread —
+     * and kernel thread stacks are exactly 4096 bytes (one page).
+     * The oversized local overflowed the stack and corrupted the
+     * received bytes before the header search ever saw them, so Phase 1
+     * never found \r\n\r\n and wget aborted with "malformed HTTP
+     * response" after ~7 KB. Allocate the buffer from the heap instead. */
+    enum { RBUF_CAP = 4096 };
+    char *rbuf = (char *)kmalloc(RBUF_CAP);
+    if (!rbuf) {
+        oc_console_puts("wget: out of memory\n");
+        net_close(sock);
+        return 1;
+    }
     int total_header = 0;
     int header_end = -1;  /* index of \r\n\r\n in rbuf */
     int content_length = -1;
@@ -3728,8 +3742,8 @@ int cmd_wget(const char *args) {
     int body_received = 0;
     /* Phase 1: receive until we find \r\n\r\n (end of headers). */
     while (header_end < 0) {
-        int n = net_recv(sock, rbuf + total_header, sizeof(rbuf) - 1 - total_header);
-        if (n <= 0) { oc_console_puts("no response (timeout)\n"); net_close(sock); return 1; }
+        int n = net_recv(sock, rbuf + total_header, RBUF_CAP - 1 - total_header);
+        if (n <= 0) { oc_console_puts("no response (timeout)\n"); kfree(rbuf); net_close(sock); return 1; }
         total_header += n;
         rbuf[total_header] = 0;
         /* Search for \r\n\r\n */
@@ -3742,9 +3756,16 @@ int cmd_wget(const char *args) {
                 break;
             }
         }
-        if (total_header >= (int)sizeof(rbuf) - 1) {
-            /* Buffer full but no header end found — malformed response. */
+        /* BUG-002 FOLLOW-UP FIX (app layer): the buffer-full check below
+         * used to fire EVEN WHEN the header end had just been found.
+         * With the 8 KiB rx_buf, the first net_recv often returns a full
+         * 4095 bytes (headers + ~3.9 KB of body in one call); the old
+         * order (search → full-check) aborted with "malformed HTTP
+         * response" right after a SUCCESSFUL match at header_end=200.
+         * Only declare malformed when the buffer filled WITHOUT a match. */
+        if (header_end < 0 && total_header >= RBUF_CAP - 1) {
             oc_console_puts("malformed HTTP response\n");
+            kfree(rbuf);
             net_close(sock);
             return 1;
         }
@@ -3782,6 +3803,7 @@ int cmd_wget(const char *args) {
         int show = body_received > 500 ? 500 : body_received;
         for (int k = 0; k < show; k++) oc_console_putc(rbuf[body_start + k]);
         oc_console_putc('\n');
+        kfree(rbuf);
         net_close(sock);
         return 1;
     }
@@ -3792,12 +3814,13 @@ int cmd_wget(const char *args) {
 
     /* Phase 2: loop net_recv until we have all content_length bytes. */
     while (total_saved < content_length) {
-        int n = net_recv(sock, rbuf, sizeof(rbuf));
+        int n = net_recv(sock, rbuf, RBUF_CAP);
         if (n <= 0) break;  /* timeout or connection closed */
         vfs_write(fd, rbuf, n);
         total_saved += n;
     }
     vfs_close(fd);
+    kfree(rbuf);
     net_close(sock);
 
     /* Report. */

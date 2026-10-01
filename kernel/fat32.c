@@ -886,7 +886,10 @@ static u64 fat32_seek(vfs_node_t *node, u64 offset, int whence) {
     switch (whence) {
         case VFS_SEEK_SET: new_off = offset; break;
         case VFS_SEEK_CUR: break;
-        case VFS_SEEK_END: new_off = (sz > offset) ? (sz - offset) : 0; break;
+        /* BUG-029 FIX (P3): the VFS layer pre-computes SEEK_END as
+         * size + offset (absolute); the old size - offset here re-applied
+         * the computation and made seek(fd,0,SEEK_END) return 0. */
+        case VFS_SEEK_END: new_off = offset; break; /* pre-computed */
         default: break;
     }
     if (new_off > sz) new_off = sz;

@@ -130,7 +130,11 @@ static u64 ramfs_seek(vfs_node_t *node, u64 offset, int whence) {
     switch (whence) {
         case VFS_SEEK_SET: new_off = offset; break;
         case VFS_SEEK_CUR: /* VFS pre-computed; nothing extra */ break;
-        case VFS_SEEK_END: new_off = (size > offset) ? (size - offset) : 0; break;
+        /* BUG-029 FIX (P3): the VFS layer pre-computes SEEK_END as
+         * size + offset (absolute, offset usually negative) and passes
+         * that here. The old size - offset re-applied the computation,
+         * so seek(fd, 0, SEEK_END) returned 0 instead of size. */
+        case VFS_SEEK_END: new_off = offset; break; /* pre-computed */
         default: break;
     }
     if (new_off > size) new_off = size;

@@ -1165,6 +1165,24 @@ static int shell_exec_segment(token_t *toks, int ntoks) {
             rc = shell_exec_stage(clean, nclean,
                                   stage_stdin, stage_stdin_size,
                                   capture, cap_size);
+            if (rc == -127) {
+                /* FIX: report the command that was ACTUALLY not found (this
+                 * stage's first word), not the segment's first word — the
+                 * caller can only see the segment head, so `echo hi | wc`
+                 * used to print "unknown command: echo" while the missing
+                 * command was wc. Print here with the correct name, stop
+                 * the pipeline, and return 1 so the caller doesn't print
+                 * a second (wrong) message. */
+                char bad[64];
+                oc_strncpy(bad, clean[0].text, sizeof(bad) - 1);
+                bad[sizeof(bad) - 1] = 0;
+                oc_console_puts("unknown command: ");
+                oc_console_puts(bad);
+                oc_console_puts(" (try 'help')\n");
+                rc = 1;
+                stage_start = i + 1;
+                break;
+            }
 
             /* Free the previous stage's output (we've consumed it). */
             if (prev_output) {
