@@ -740,9 +740,14 @@ static int cmd_ssh(const char *args) {
         }
     }
     if (!host[0]) {
-        oc_console_puts("usage: ssh <ip> [port=2222] [user=oc] [password=oc]\n");
+        oc_console_puts("usage: ssh <ip> [port=2222] [user=oc] [password=oc|-]\n");
+        oc_console_puts("  password \"-\" = publickey auth with the kernel identity key\n");
         return 1;
     }
+    /* password "-" = use publickey authentication with the kernel's
+     * identity key instead of a password */
+    int use_pubkey = (pass[0] == '-' && pass[1] == 0);
+    if (use_pubkey) pass[0] = 0;
     /* Resolve host (IP first) */
     u32 ip = 0;
     /* Try parsing as IP "a.b.c.d" */
@@ -794,7 +799,7 @@ static int cmd_ssh(const char *args) {
     oc_strcat(buf, " user="); oc_strcat(buf, user);
     oc_strcat(buf, "\n");
     oc_console_puts(buf);
-    int rc = ssh_connect(ip, (u16)port, user, pass);
+    int rc = ssh_connect(ip, (u16)port, user, use_pubkey ? 0 : pass);
     if (rc == 0) {
         oc_console_puts("[ssh] authenticated (USERAUTH_SUCCESS)\n");
         /* WP-09: full channel open + exec round trip over the encrypted channel.

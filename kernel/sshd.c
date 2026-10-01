@@ -33,6 +33,9 @@
 #include "ssh.h"
 #include "shell.h"
 #include "sshd_rsa_key.h"
+#include "curve25519.h"
+#include "rsa.h"
+#include "sha512.h"
 
 /* ---- protocol constants (mirror ssh.c) ---- */
 #define SSHD_MSG_DISCONNECT        1
@@ -69,7 +72,11 @@ typedef struct {
     int client_kexinit_len;
     u8  server_kexinit[1024];
     int server_kexinit_len;
+    /* negotiated algorithms */
+    int kex_curve25519;             /* 1 = curve25519-sha256 */
+    int cipher_ctr;                 /* 1 = aes128-ctr */
     /* DH */
+    u8  x25519_priv[32];
     u8  dh_priv[SSHD_DH_BYTES];
     u8  dh_pub[SSHD_DH_BYTES];      /* f = g^y mod p */
     u8  client_pub[SSHD_DH_BYTES];  /* e */
@@ -80,6 +87,7 @@ typedef struct {
     /* direction keys (server视角: C=client-to-server = incoming, S = outgoing) */
     u8  iv_in[16], iv_in_next[16];       /* A: c2s */
     u8  iv_out[16], iv_out_next[16];     /* B: s2c */
+    u8  ctr_in[16], ctr_out[16];         /* aes128-ctr rolling counters */
     u8  enc_in[16];                      /* C */
     u8  enc_out[16];                     /* D */
     u8  mac_in[32];                      /* E */
@@ -260,8 +268,15 @@ static int sd_send_packet_encrypted(sshd_ctx_t *ctx, u8 msg_type, const u8 *payl
 
     static u8 enc[16384];
     if (total_unenc > (int)sizeof(enc)) return -1;
-    aes128_cbc_encrypt(ctx->enc_out, ctx->iv_out_next, pkt, total_unenc, enc);
-    oc_memcpy(ctx->iv_out_next, enc + total_unenc - 16, 16);  /* CBC chain */
+    if (ctx->cipher_ctr) {
+        aes128_ctr_encrypt(ctx->enc_out, ctx->ctr_out, pkt, total_unenc, enc);
+        for (int blk = 0; blk < total_unenc / 16; blk++)
+            for (int ci = 15; ci >= 0; ci--)
+                if (++ctx->ctr_out[ci] != 0) break;
+    } else {
+        aes128_cbc_encrypt(ctx->enc_out, ctx->iv_out_next, pkt, total_unenc, enc);
+        oc_memcpy(ctx->iv_out_next, enc + total_unenc - 16, 16);  /* CBC chain */
+    }
 
     static u8 out[16384];
     oc_memcpy(out, enc, total_unenc);
@@ -285,7 +300,13 @@ static int sd_recv_packet_encrypted(sshd_ctx_t *ctx, u8 *msg_type, u8 *payload, 
         }
     }
     u8 dec_first[16];
-    aes128_cbc_decrypt(ctx->enc_in, ctx->iv_in_next, first_block, block_size, dec_first);
+    if (ctx->cipher_ctr) {
+        aes128_ctr_encrypt(ctx->enc_in, ctx->ctr_in, first_block, block_size, dec_first);
+        for (int ci = 15; ci >= 0; ci--)
+            if (++ctx->ctr_in[ci] != 0) break;
+    } else {
+        aes128_cbc_decrypt(ctx->enc_in, ctx->iv_in_next, first_block, block_size, dec_first);
+    }
     int packet_length = ((int)dec_first[0] << 24) | ((int)dec_first[1] << 16) |
                         ((int)dec_first[2] << 8) | dec_first[3];
     {
@@ -319,11 +340,20 @@ static int sd_recv_packet_encrypted(sshd_ctx_t *ctx, u8 *msg_type, u8 *payload, 
         }
     }
     static u8 dec_rest[16384];
-    if (remaining > 0) {
-        aes128_cbc_decrypt(ctx->enc_in, first_block, rest_buf, remaining, dec_rest);
+    if (ctx->cipher_ctr) {
+        if (remaining > 0) {
+            aes128_ctr_encrypt(ctx->enc_in, ctx->ctr_in, rest_buf, remaining, dec_rest);
+            for (int blk = 0; blk < remaining / 16; blk++)
+                for (int ci = 15; ci >= 0; ci--)
+                    if (++ctx->ctr_in[ci] != 0) break;
+        }
+    } else {
+        if (remaining > 0) {
+            aes128_cbc_decrypt(ctx->enc_in, first_block, rest_buf, remaining, dec_rest);
+        }
+        if (remaining >= 16) oc_memcpy(ctx->iv_in_next, rest_buf + remaining - 16, 16);
+        else oc_memcpy(ctx->iv_in_next, first_block, 16);
     }
-    if (remaining >= 16) oc_memcpy(ctx->iv_in_next, rest_buf + remaining - 16, 16);
-    else oc_memcpy(ctx->iv_in_next, first_block, 16);
 
     static u8 body[16384];
     int body_len = leftover + remaining;
@@ -444,6 +474,8 @@ static void sd_derive_keys(sshd_ctx_t *ctx) {
     SD_COMPUTE_KEY('F', ctx->mac_out, 32);
 #undef SD_COMPUTE_KEY
     oc_memcpy(ctx->iv_in_next, ctx->iv_in, 16);
+    oc_memcpy(ctx->ctr_in, ctx->iv_in, 16);
+    oc_memcpy(ctx->ctr_out, ctx->iv_out, 16);
     oc_memcpy(ctx->iv_out_next, ctx->iv_out, 16);
 }
 
@@ -470,9 +502,18 @@ static void sd_compute_hash(sshd_ctx_t *ctx, u8 hash[32]) {
         sd_write_str(buf, &p, ks, kp);
     }
 
-    sd_write_mpint(buf, &p, ctx->client_pub, SSHD_DH_BYTES);  /* e */
-    sd_write_mpint(buf, &p, ctx->dh_pub, SSHD_DH_BYTES);      /* f */
-    sd_write_mpint(buf, &p, ctx->shared_secret, SSHD_DH_BYTES); /* K */
+    if (ctx->kex_curve25519) {
+        /* RFC 8731: e and f are 32-byte strings in the exchange hash */
+        sd_write_str(buf, &p, ctx->client_pub + SSHD_DH_BYTES - 32, 32);
+        u8 f_pub[32];
+        x25519_public(ctx->x25519_priv, f_pub);
+        sd_write_str(buf, &p, f_pub, 32);
+        sd_write_mpint(buf, &p, ctx->shared_secret, SSHD_DH_BYTES);
+    } else {
+        sd_write_mpint(buf, &p, ctx->client_pub, SSHD_DH_BYTES);  /* e */
+        sd_write_mpint(buf, &p, ctx->dh_pub, SSHD_DH_BYTES);      /* f */
+        sd_write_mpint(buf, &p, ctx->shared_secret, SSHD_DH_BYTES); /* K */
+    }
     sha256(buf, p, hash);
     pmm_free_frame((u64)(uintptr_t)buf);
 }
@@ -536,9 +577,9 @@ static int sd_recv_version(sshd_ctx_t *ctx) {
     return 0;
 }
 
-static const char *SSHD_KEX_KEXALGOS = "diffie-hellman-group14-sha256";
+static const char *SSHD_KEX_KEXALGOS = "curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group14-sha256";
 static const char *SSHD_KEX_HOSTKEYS = "rsa-sha2-256";
-static const char *SSHD_KEX_CIPHERS  = "aes128-cbc";
+static const char *SSHD_KEX_CIPHERS  = "aes128-ctr,aes128-cbc";
 static const char *SSHD_KEX_MACS     = "hmac-sha2-256";
 static const char *SSHD_KEX_COMP     = "none";
 
@@ -569,6 +610,20 @@ static int sd_send_kexinit(sshd_ctx_t *ctx) {
     return sd_send_packet_unencrypted(ctx, SSHD_MSG_KEXINIT, payload, p);
 }
 
+/* Check whether a comma-separated SSH name-list contains `name`
+ * (exact member match, RFC 4251 S6 name-list semantics). */
+static int sd_name_has(const u8 *list, int list_len, const char *name) {
+    int nlen = (int)oc_strlen(name);
+    for (int i = 0; i + nlen <= list_len; i++) {
+        int m = 1;
+        for (int j = 0; j < nlen; j++) {
+            if (list[i + j] != (u8)name[j]) { m = 0; break; }
+        }
+        if (m && (i + nlen == list_len || list[i + nlen] == (u8)',')) return 1;
+    }
+    return 0;
+}
+
 static int sd_recv_kexinit(sshd_ctx_t *ctx) {
     u8 rtype;
     u8 payload[4096];
@@ -580,10 +635,110 @@ static int sd_recv_kexinit(sshd_ctx_t *ctx) {
     oc_memcpy(wire + 1, payload, plen);
     oc_memcpy(ctx->client_kexinit, wire, plen + 1);
     ctx->client_kexinit_len = plen + 1;
+    /* Negotiate: pick our first-listed algorithm that the client offers.
+     * Client KEXINIT payload (after msg_type): cookie(16) + 10 name-lists. */
+    ctx->kex_curve25519 = 0;
+    ctx->cipher_ctr = 0;
+    {
+        int q = 16;
+        int lens[8] = {0};
+        const u8 *ptrs[8] = {0};
+        for (int li = 0; li < 8; li++) {
+            if (q + 4 > plen) break;
+            int L = (int)sd_read_u32(payload + q);
+            q += 4;
+            if (L < 0 || q + L > plen) break;
+            ptrs[li] = payload + q;
+            lens[li] = L;
+            q += L;
+        }
+        /* kex: accept either RFC 8731 spelling (comma-bounded) */
+        if (sd_name_has(ptrs[0], lens[0], "curve25519-sha256") ||
+            sd_name_has(ptrs[0], lens[0], "curve25519-sha256@libssh.org")) {
+            ctx->kex_curve25519 = 1;
+        }
+        /* cipher: aes128-ctr in both directions */
+        int c2s = sd_name_has(ptrs[2], lens[2], "aes128-ctr");
+        int s2c = sd_name_has(ptrs[3], lens[3], "aes128-ctr");
+        ctx->cipher_ctr = (c2s && s2c) ? 1 : 0;
+        char nb[64];
+        oc_strcpy(nb, ctx->kex_curve25519 ?
+                  "negotiated KEX: curve25519-sha256" :
+                  "negotiated KEX: diffie-hellman-group14-sha256");
+        sd_log(nb);
+        {
+            char db[64];
+            oc_strcpy(db, "kex list len: ");
+            char n2[10]; oc_u64_to_str((u64)lens[0], n2); oc_strcat(db, n2);
+            sd_log(db);
+            sd_log_hex("kex list head: ", ptrs[0], lens[0] > 32 ? 32 : lens[0]);
+        }
+        oc_strcpy(nb, ctx->cipher_ctr ? "negotiated cipher: aes128-ctr" :
+                    "negotiated cipher: aes128-cbc");
+        sd_log(nb);
+    }
     return 0;
 }
 
+static int sd_send_kexdh_reply_curve25519(sshd_ctx_t *ctx) {
+    /* server x25519: keypair, K = X25519(y, e), reply K_S || string f || sig */
+    crypto_random(ctx->x25519_priv, 32);
+    u8 f_pub[32];
+    x25519_public(ctx->x25519_priv, f_pub);
+    u8 shared32[32];
+    if (x25519_shared(ctx->x25519_priv, ctx->client_pub + SSHD_DH_BYTES - 32, shared32) != 0)
+        return -1;
+    oc_memset(ctx->shared_secret, 0, SSHD_DH_BYTES);
+    oc_memcpy(ctx->shared_secret + SSHD_DH_BYTES - 32, shared32, 32);
+    sd_log("curve25519 KEX: shared secret computed");
+
+    /* exchange hash H = SHA256(V_C||V_S||I_C||I_S||K_S||string e||string f||mpint K) */
+    sd_compute_hash(ctx, ctx->exchange_hash);
+    oc_memcpy(ctx->session_id, ctx->exchange_hash, 32);
+    ctx->session_id_set = 1;
+    sd_log_hex("H (first 16): ", ctx->exchange_hash, 16);
+
+    /* RSA signature: EM carries SHA256(H) per OpenSSH/paramiko semantics */
+    u8 em[256];
+    oc_memset(em, 0xFF, 256);
+    em[0] = 0x00; em[1] = 0x01;
+    static const u8 digest_info[] = {
+        0x30,0x31,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x01,0x05,0x00,0x04,0x20
+    };
+    u8 h_digest[32];
+    sha256(ctx->exchange_hash, 32, h_digest);
+    oc_memcpy(em + (256 - 51), digest_info, 19);
+    oc_memcpy(em + (256 - 32), h_digest, 32);
+    em[256 - 52] = 0x00;
+    sd_log("computing RSA signature (2048-bit modexp, ~26s)...");
+    u8 sig[256];
+    dh_modexp_n(em, sshd_rsa_d, sshd_rsa_n, sig, 256);
+
+    u8 blob[1400];
+    int p = 0;
+    {
+        u8 ks[400];
+        int kp = 0;
+        sd_write_cstr(ks, &kp, "ssh-rsa");
+        u8 em3[3] = {0x01, 0x00, 0x01};
+        sd_write_mpint(ks, &kp, em3, 3);
+        sd_write_mpint(ks, &kp, sshd_rsa_n, 256);
+        sd_write_str(blob, &p, ks, kp);
+    }
+    /* string f (32 bytes, RFC 8731) */
+    sd_write_str(blob, &p, f_pub, 32);
+    {
+        u8 sbuf[400];
+        int sp = 0;
+        sd_write_cstr(sbuf, &sp, "rsa-sha2-256");
+        sd_write_str(sbuf, &sp, sig, 256);
+        sd_write_str(blob, &p, sbuf, sp);
+    }
+    return sd_send_packet_unencrypted(ctx, SSHD_MSG_KEXDH_REPLY, blob, p);
+}
+
 static int sd_send_kexdh_reply(sshd_ctx_t *ctx) {
+    if (ctx->kex_curve25519) return sd_send_kexdh_reply_curve25519(ctx);
     /* server DH: y, f = g^y mod p, K = e^y mod p */
     crypto_random(ctx->dh_priv, SSHD_DH_BYTES);
     ctx->dh_priv[0] &= 0x7F;
@@ -695,11 +850,110 @@ static int sd_do_userauth(sshd_ctx_t *ctx, u8 payload[], int plen) {
      * "password" being NUL (it is the FALSE boolean in practice, but that is
      * luck, not correctness). */
     int is_password = (mlen == 8 && oc_memcmp((const char *)(payload + (off - mlen)), "password", 8) == 0);
+    int is_publickey = (mlen == 9 && oc_memcmp((const char *)(payload + (off - mlen)), "publickey", 9) == 0);
+    if (is_publickey) {
+        /* RFC 4252 §7: boolean TRUE, string algo, string blob, string sig.
+         * Trust policy: accept the kernel's own identity key (the sshd host
+         * key pair doubles as the authorized user key). */
+        if (off + 1 + 4 > plen) return -1;
+        off += 1;                                   /* boolean TRUE */
+        int alen = (int)sd_read_u32(payload + off); off += 4;
+        if (off + alen + 4 > plen) return -1;
+        off += alen;                                /* algorithm name */
+        int blen = (int)sd_read_u32(payload + off); off += 4;
+        if (blen < 0 || off + blen > plen) return -1;
+        const u8 *blob = payload + off; off += blen;
+        /* verify blob == our embedded public key */
+        u8 exp_blob[512];
+        int ep = 0;
+        sd_write_cstr(exp_blob, &ep, "ssh-rsa");
+        u8 em3[3] = {0x01, 0x00, 0x01};
+        sd_write_mpint(exp_blob, &ep, em3, 3);
+        sd_write_mpint(exp_blob, &ep, sshd_rsa_n, 256);
+        int blob_ok = (blen == ep && oc_memcmp(blob, exp_blob, ep) == 0);
+        int sig_ok = 0;
+        if (blob_ok && off + 4 <= plen) {
+            int slen = (int)sd_read_u32(payload + off); off += 4;
+            if (slen > 0 && off + slen <= plen) {
+                /* sig blob = string "rsa-sha2-256"|"rsa-sha2-512" + string sig(256) */
+                const u8 *sb = payload + off;
+                int sp = 0;
+                if (sp + 4 <= slen) {
+                    int an = (int)sd_read_u32(sb + sp); sp += 4;
+                    /* OpenSSH clients prefer rsa-sha2-512 (RFC 8332); both OK.
+                     * The echoed algorithm in the signed data MUST be the one
+                     * the client announced. */
+                    int sha_alg = 0;
+                    int dig_len = 0;
+                    if (an == 12 && sp + 12 <= slen &&
+                        oc_memcmp(sb + sp, "rsa-sha2-256", 12) == 0) {
+                        sha_alg = RSA_SHA256;
+                        dig_len = 32;
+                    } else if (an == 12 && sp + 12 <= slen &&
+                               oc_memcmp(sb + sp, "rsa-sha2-512", 12) == 0) {
+                        sha_alg = RSA_SHA512;
+                        dig_len = 64;
+                    }
+                    if (sha_alg != 0) {
+                        sp += 12;
+                        if (sp + 4 <= slen) {
+                            int siglen = (int)sd_read_u32(sb + sp); sp += 4;
+                            if (siglen == 256 && sp + siglen <= slen) {
+                                /* signed data: string session_id || byte 50 || user ||
+                                 * service || "publickey" || TRUE || algo || blob */
+                                static u8 sdata[2048];
+                                int sdp = 0;
+                                sdata[sdp++] = 0; sdata[sdp++] = 0; sdata[sdp++] = 0; sdata[sdp++] = 32;
+                                oc_memcpy(sdata + sdp, ctx->session_id, 32); sdp += 32;
+                                sdata[sdp++] = 50;
+                                int ul = (int)oc_strlen(ctx->auth_user);
+                                sdata[sdp++] = (u8)(ul >> 24); sdata[sdp++] = (u8)(ul >> 16);
+                                sdata[sdp++] = (u8)(ul >> 8); sdata[sdp++] = (u8)(ul & 0xFF);
+                                oc_memcpy(sdata + sdp, ctx->auth_user, ul); sdp += ul;
+                                sdata[sdp++] = 0; sdata[sdp++] = 0; sdata[sdp++] = 0; sdata[sdp++] = 14;
+                                oc_memcpy(sdata + sdp, "ssh-connection", 14); sdp += 14;
+                                sdata[sdp++] = 0; sdata[sdp++] = 0; sdata[sdp++] = 0; sdata[sdp++] = 9;
+                                oc_memcpy(sdata + sdp, "publickey", 9); sdp += 9;
+                                sdata[sdp++] = 1;
+                                sdata[sdp++] = 0; sdata[sdp++] = 0; sdata[sdp++] = 0; sdata[sdp++] = 12;
+                                oc_memcpy(sdata + sdp, (sha_alg == RSA_SHA512) ?
+                                          "rsa-sha2-512" : "rsa-sha2-256", 12); sdp += 12;
+                                sdata[sdp++] = (u8)(blen >> 24); sdata[sdp++] = (u8)(blen >> 16);
+                                sdata[sdp++] = (u8)(blen >> 8); sdata[sdp++] = (u8)(blen & 0xFF);
+                                oc_memcpy(sdata + sdp, blob, blen); sdp += blen;
+                                u8 sdig[64];
+                                if (sha_alg == RSA_SHA512) sha512(sdata, sdp, sdig);
+                                else sha256(sdata, sdp, sdig);
+                                const u8 *rsig = sb + sp;
+                                sig_ok = rsa_verify_pkcs1(sshd_rsa_n, 256,
+                                                          (const u8 *)"\x01\x00\x01", 3,
+                                                          sha_alg, sdig, dig_len,
+                                                          rsig, 256) == 1;
+                                sd_log(sig_ok ? "publickey signature VALID" :
+                                       "publickey signature INVALID");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (blob_ok && sig_ok) {
+            sd_send_packet_encrypted(ctx, SSHD_MSG_USERAUTH_SUCCESS, (const u8 *)0, 0);
+            sd_log("USERAUTH_SUCCESS sent (publickey)");
+            return 0;
+        }
+        u8 fail[32];
+        int fp = 0;
+        sd_write_cstr(fail, &fp, "password,publickey");
+        fail[fp++] = 0;
+        sd_send_packet_encrypted(ctx, SSHD_MSG_USERAUTH_FAILURE, fail, fp);
+        return -4;
+    }
     if (!is_password) {
         /* list allowed methods */
-        u8 fail[16];
+        u8 fail[24];
         int fp = 0;
-        sd_write_cstr(fail, &fp, "password");
+        sd_write_cstr(fail, &fp, "password,publickey");
         fail[fp++] = 0;  /* partial success = FALSE */
         sd_send_packet_encrypted(ctx, SSHD_MSG_USERAUTH_FAILURE, fail, fp);
         return -2;
@@ -840,12 +1094,15 @@ static int sd_serve_connection(sshd_ctx_t *ctx) {
     plen = sizeof(payload);
     if (sd_recv_packet_unencrypted(ctx, &msg_type, payload, &plen) < 0) return -5;
     if (msg_type != SSHD_MSG_KEXDH_INIT) return -6;
-    /* payload: mpint e */
+    /* payload: mpint e (group14) or string e (curve25519, 32 bytes) */
     if (plen < 4) return -7;
     int e_len = (int)sd_read_u32(payload);
     /* right-align into 256 bytes */
     oc_memset(ctx->client_pub, 0, SSHD_DH_BYTES);
-    {
+    if (ctx->kex_curve25519) {
+        if (e_len != 32) return -7;
+        oc_memcpy(ctx->client_pub + SSHD_DH_BYTES - 32, payload + 4, 32);
+    } else {
         const u8 *ed = payload + 4;
         int el = e_len;
         if (el > 0 && ed[0] == 0) { ed++; el--; }

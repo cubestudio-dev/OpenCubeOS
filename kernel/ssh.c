@@ -27,6 +27,9 @@
  */
 #include "ssh.h"
 #include "crypto.h"
+#include "curve25519.h"
+#include "rsa.h"
+#include "sha512.h"
 #include "net.h"
 #include "console.h"
 #include "string.h"
@@ -194,6 +197,20 @@ static int ssh_recv_version(ssh_ctx_t *ctx) {
  *         encryption_c2s + encryption_s2c + mac_c2s + mac_s2c +
  *         compression_c2s + compression_s2c + languages_c2s + languages_s2c +
  *         first_kex_packet_follows(1) + reserved(4) */
+/* Check whether a comma-separated SSH name-list contains `name`
+ * (exact member match, RFC 4251 S6 name-list semantics). */
+static int ssh_name_has(const char *list, int list_len, const char *name) {
+    int nlen = (int)oc_strlen(name);
+    for (int i = 0; i + nlen <= list_len; i++) {
+        int m = 1;
+        for (int j = 0; j < nlen; j++) {
+            if (list[i + j] != name[j]) { m = 0; break; }
+        }
+        if (m && (i + nlen == list_len || list[i + nlen] == ',')) return 1;
+    }
+    return 0;
+}
+
 static int ssh_send_kexinit(ssh_ctx_t *ctx) {
     u8 buf[400];
     int p = 0;
@@ -207,10 +224,13 @@ static int ssh_send_kexinit(ssh_ctx_t *ctx) {
         buf[p++] = (u8)(L >> 8); buf[p++] = (u8)(L & 0xFF); \
         for (int i = 0; s[i]; i++) buf[p++] = s[i]; \
     } while (0)
-    WRITE_STR("diffie-hellman-group14-sha256");
+    /* Both RFC 8731 spellings: OpenSSH prefers the bare name, paramiko 5
+     * only offers the @libssh.org variant. Listing both guarantees the
+     * negotiated kex agrees whichever name-list order the server uses. */
+    WRITE_STR("curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group14-sha256");
     WRITE_STR("rsa-sha2-256,rsa-sha2-512,ssh-rsa");
-    WRITE_STR("aes128-cbc");
-    WRITE_STR("aes128-cbc");
+    WRITE_STR("aes128-ctr,aes128-cbc");
+    WRITE_STR("aes128-ctr,aes128-cbc");
     WRITE_STR("hmac-sha2-256");
     WRITE_STR("hmac-sha2-256");
     WRITE_STR("none");
@@ -250,39 +270,114 @@ static int ssh_recv_kexinit(ssh_ctx_t *ctx) {
     if (payload_len >= 16) {
         oc_memcpy(ctx->server_cookie, payload, 16);
     }
+    /* Negotiate algorithms: parse the server's name-lists and pick the
+     * first entry we support, in OUR preference order (RFC 4253 §7.1).
+     * KEXINIT layout: cookie(16) + kex + hostkey + enc_c2s + enc_s2c +
+     * mac_c2s + mac_s2c + comp*2 + lang*2 + fkpf + reserved. */
+    {
+        ctx->kex_curve25519 = 0;
+        ctx->cipher_ctr = 0;
+        int q = 16;
+        const char *lists[8];
+        int lens[8];
+        for (int li = 0; li < 8; li++) {
+            if (q + 4 > payload_len) { lens[li] = 0; lists[li] = ""; q += 4; continue; }
+            int L = ((int)payload[q] << 24) | ((int)payload[q+1] << 16) |
+                    ((int)payload[q+2] << 8) | payload[q+3];
+            q += 4;
+            if (L < 0 || q + L > payload_len) { lens[li] = 0; lists[li] = ""; continue; }
+            lists[li] = (const char *)(payload + q);
+            lens[li] = L;
+            q += L;
+        }
+        /* lists[0] = kex_algorithms; both RFC 8731 spellings.
+         * Matches must respect name-list commas: a bare "curve25519-sha256"
+         * is NOT matched when it is merely the prefix of the
+         * "@libssh.org" variant. */
+        if (ssh_name_has(lists[0], lens[0], "curve25519-sha256") ||
+            ssh_name_has(lists[0], lens[0], "curve25519-sha256@libssh.org")) {
+            ctx->kex_curve25519 = 1;
+        }
+        /* lists[2] = encryption c2s, lists[3] = s2c: choose ctr if both support */
+        int c2s_ctr = ssh_name_has(lists[2], lens[2], "aes128-ctr");
+        int s2c_ctr = ssh_name_has(lists[3], lens[3], "aes128-ctr");
+        ctx->cipher_ctr = (c2s_ctr && s2c_ctr) ? 1 : 0;
+        ssh_debug(ctx->kex_curve25519 ?
+                  "[ssh] negotiated KEX: curve25519-sha256" :
+                  "[ssh] negotiated KEX: diffie-hellman-group14-sha256");
+        ssh_debug(ctx->cipher_ctr ?
+                  "[ssh] negotiated cipher: aes128-ctr" :
+                  "[ssh] negotiated cipher: aes128-cbc");
+    }
     return 0;
 }
 
-/* SSH mpint encoding: 4-byte length + bytes (high bit 0 → prepend 0x00).
- * For 256-byte DH values, encoded as 257 bytes (0x00 + 256 bytes) when MSB is set. */
+/* ---- curve25519-sha256 KEX (RFC 8731) ----
+ * KEX_ECDH_INIT (30): string e = X25519 public key (32 bytes)
+ * KEX_ECDH_REPLY (31): string K_S || string f || string signature
+ * K = raw 32-byte X25519 shared secret. */
+static int ssh_send_kex_ecdh_init(ssh_ctx_t *ctx) {
+    crypto_random(ctx->client_priv, 32);
+    x25519_public(ctx->client_priv, ctx->client_pub);  /* low 32 bytes used */
+
+    u8 payload[64];
+    int p = 0;
+    payload[p++] = 0; payload[p++] = 0; payload[p++] = 0; payload[p++] = 32;
+    oc_memcpy(payload + p, ctx->client_pub, 32); p += 32;
+    return ssh_send_packet_unencrypted(ctx, SSH_MSG_KEXDH_INIT, payload, p);
+}
+
+static int ssh_recv_kex_reply(ssh_ctx_t *ctx) {
+    u8 payload[4096];
+    int payload_len = sizeof(payload);
+    u8 msg_type;
+    if (ssh_recv_packet_unencrypted(ctx, &msg_type, payload, &payload_len) < 0) return -1;
+    if (msg_type != SSH_MSG_KEXDH_REPLY) return -2;
+    int off = 0;
+    if (off + 4 > payload_len) return -3;
+    int ks_len = (payload[off] << 24) | (payload[off+1] << 16) |
+                 (payload[off+2] << 8) | payload[off+3];
+    off += 4;
+    if (off + ks_len > payload_len) return -3;
+    if (ks_len <= (int)sizeof(ctx->server_host_key)) {
+        oc_memcpy(ctx->server_host_key, payload + off, ks_len);
+        ctx->server_host_key_len = ks_len;
+    }
+    off += ks_len;
+    if (off + 4 > payload_len) return -4;
+    int f_len = (payload[off] << 24) | (payload[off+1] << 16) |
+                (payload[off+2] << 8) | payload[off+3];
+    off += 4;
+    if (off + f_len > payload_len || f_len < 32) return -5;
+    /* server x25519 public key: last 32 bytes of the mpint */
+    oc_memcpy(ctx->server_pub + SSH_DH_BYTES - 32, payload + off + (f_len - 32), 32);
+    off += f_len;
+    /* string signature - verified against K_S after H is computed */
+    if (off + 4 > payload_len) return -6;
+    ctx->server_sig_len = (payload[off] << 24) | (payload[off+1] << 16) |
+                          (payload[off+2] << 8) | payload[off+3];
+    off += 4;
+    if (ctx->server_sig_len <= 0 ||
+        ctx->server_sig_len > (int)sizeof(ctx->server_sig) ||
+        off + ctx->server_sig_len > payload_len) return -6;
+    oc_memcpy(ctx->server_sig, payload + off, ctx->server_sig_len);
+    return 0;
+}
+
+/* SSH mpint encoding (RFC 4251 S5): 4-byte length + minimal big-endian
+ * magnitude + sign byte (0x00) iff the MSB of the first byte is set.
+ * This matches paramiko's deflate_long() and OpenSSH's buffer_put_bignum2. */
 static void ssh_write_mpint(u8 *buf, int *p, const u8 *val, int val_len) {
-    /* WP-09 fix: match paramiko's add_mpint() which uses deflate_long(i, formfactor)
-     * where formfactor = int(i.bit_length() / 8) + 1. This pads to a minimum size. */
     /* Skip leading zeros */
     int start = 0;
     while (start < val_len - 1 && val[start] == 0) start++;
     int n = val_len - start;
     int need_zero = (val[start] & 0x80) ? 1 : 0;
-    int total = n + need_zero;
-    /* Compute formfactor = int(bit_length / 8) + 1 */
-    int first_byte_bits = 0;
-    u8 fb = val[start];
-    for (int b = 7; b >= 0; b--) {
-        if (fb & (1 << b)) { first_byte_bits = b + 1; break; }
-    }
-    if (n == 1 && fb == 0) first_byte_bits = 0;
-    int bit_length = (n - 1) * 8 + first_byte_bits;
-    int formfactor = bit_length / 8 + 1;
-    if (formfactor < 1) formfactor = 1;
-    /* Use the larger of total or formfactor */
-    int final_len = (total > formfactor) ? total : formfactor;
+    int final_len = n + need_zero;
     buf[(*p)++] = (u8)(final_len >> 24);
     buf[(*p)++] = (u8)(final_len >> 16);
     buf[(*p)++] = (u8)(final_len >> 8);
     buf[(*p)++] = (u8)(final_len & 0xFF);
-    /* Pad with leading zeros to reach final_len */
-    int pad = final_len - total;
-    for (int i = 0; i < pad; i++) buf[(*p)++] = 0;
     if (need_zero) buf[(*p)++] = 0;
     oc_memcpy(buf + *p, val + start, n);
     *p += n;
@@ -367,15 +462,117 @@ static int ssh_recv_kexdh_reply(ssh_ctx_t *ctx) {
     }
     /* Right-align in SSH_DH_BYTES buffer */
     oc_memcpy(ctx->server_pub + (SSH_DH_BYTES - copy_len), payload + data_off, copy_len);
-    /* Skip signature (we don't verify) */
     ssh_debug_hex("[ssh]   server f (first 8): ", ctx->server_pub, 8);
+    /* string signature - verified against K_S after H is computed */
+    off += f_len;
+    if (off + 4 > payload_len) return -6;
+    ctx->server_sig_len = (payload[off] << 24) | (payload[off+1] << 16) |
+                          (payload[off+2] << 8) | payload[off+3];
+    off += 4;
+    if (ctx->server_sig_len <= 0 ||
+        ctx->server_sig_len > (int)sizeof(ctx->server_sig) ||
+        off + ctx->server_sig_len > payload_len) return -6;
+    oc_memcpy(ctx->server_sig, payload + off, ctx->server_sig_len);
+    return 0;
+}
+
+/* Verify the server host key signature over the exchange hash H (RFC 4253
+ * S8). Host key blob K_S = string "ssh-rsa" + mpint e + mpint n; signature
+ * blob = string "rsa-sha2-256" + string sig. Returns 0 = valid. On success
+ * also prints the SHA-256 fingerprint of K_S (TOFU: the user is the trust
+ * anchor, as in OpenSSH known_hosts first use). */
+static int ssh_verify_host_signature(ssh_ctx_t *ctx, const u8 hash[32]) {
+    if (ctx->server_host_key_len <= 0 || ctx->server_sig_len <= 0) {
+        ssh_debug("[ssh] host signature missing");
+        return -1;
+    }
+    const u8 *ks = ctx->server_host_key;
+    int ksl = ctx->server_host_key_len;
+    int off = 0;
+    if (off + 4 > ksl) return -1;
+    int alen = (ks[off] << 24) | (ks[off+1] << 16) | (ks[off+2] << 8) | ks[off+3];
+    off += 4;
+    if (alen != 7 || off + 7 > ksl || oc_memcmp(ks + off, "ssh-rsa", 7) != 0) {
+        ssh_debug("[ssh] host key algo not ssh-rsa");
+        return -1;
+    }
+    off += 7;
+    if (off + 4 > ksl) return -1;
+    int elen = (ks[off] << 24) | (ks[off+1] << 16) | (ks[off+2] << 8) | ks[off+3];
+    off += 4;
+    if (elen <= 0 || elen > 8 || off + elen > ksl) return -1;
+    const u8 *e = ks + off;
+    off += elen;
+    if (off + 4 > ksl) return -1;
+    int nlen = (ks[off] << 24) | (ks[off+1] << 16) | (ks[off+2] << 8) | ks[off+3];
+    off += 4;
+    /* strip mpint sign byte */
+    if (nlen > 0 && off < ksl && ks[off] == 0) { off++; nlen--; }
+    if (nlen <= 0 || off + nlen > ksl || nlen != 256) {
+        ssh_debug("[ssh] host key modulus not RSA-2048");
+        return -1;
+    }
+    const u8 *n = ks + off;
+    /* signature blob: string "rsa-sha2-256" + string sig */
+    const u8 *sb = ctx->server_sig;
+    int sl = ctx->server_sig_len;
+    int sp = 0;
+    if (sp + 4 > sl) return -1;
+    int san = (sb[sp] << 24) | (sb[sp+1] << 16) | (sb[sp+2] << 8) | sb[sp+3];
+    sp += 4;
+    /* Servers pick either rsa-sha2-256 or rsa-sha2-512 (RFC 8332); both OK. */
+    int sha_alg = 0;
+    int hash_len = 0;
+    if (san == 12 && sp + 12 <= sl && oc_memcmp(sb + sp, "rsa-sha2-256", 12) == 0) {
+        sha_alg = RSA_SHA256;
+        hash_len = 32;
+    } else if (san == 12 && sp + 12 <= sl && oc_memcmp(sb + sp, "rsa-sha2-512", 12) == 0) {
+        sha_alg = RSA_SHA512;
+        hash_len = 64;
+    } else {
+        ssh_debug("[ssh] signature algo not rsa-sha2-256/512");
+        return -1;
+    }
+    sp += 12;
+    if (sp + 4 > sl) return -1;
+    int siglen = (sb[sp] << 24) | (sb[sp+1] << 16) | (sb[sp+2] << 8) | sb[sp+3];
+    sp += 4;
+    if (siglen != nlen || sp + siglen > sl) {
+        ssh_debug("[ssh] signature length mismatch");
+        return -1;
+    }
+    /* RFC 4253 §8: the signature is computed over H itself. rsa-sha2-*
+     * signs Hash(H) internally (RFC 8332), so the verify digest is
+     * SHA-256(H) or SHA-512(H) — NOT H verbatim. */
+    u8 digest[64];
+    if (sha_alg == RSA_SHA512) sha512(hash, 32, digest);
+    else sha256(hash, 32, digest);
+    int ok = rsa_verify_pkcs1(n, nlen, e, elen, sha_alg, digest, hash_len,
+                              sb + sp, siglen);
+    if (ok != 1) {
+        ssh_debug("[ssh] HOST SIGNATURE INVALID - disconnecting");
+        return -1;
+    }
+    /* SHA-256 fingerprint of the host key blob (TOFU display) */
+    u8 fp[32];
+    sha256(ctx->server_host_key, ctx->server_host_key_len, fp);
+    char line[120];
+    oc_strcpy(line, "[ssh] host key fingerprint (sha256): ");
+    for (int i = 0; i < 24; i++) {
+        const char hexd[] = "0123456789abcdef";
+        char two[3] = { hexd[fp[i] >> 4], hexd[fp[i] & 0xF], 0 };
+        oc_strcat(line, two);
+        if (i % 8 == 7) oc_strcat(line, " ");
+    }
+    oc_strcat(line, "\n");
+    oc_console_puts(line);
+    ssh_debug("[ssh] host signature verified");
     return 0;
 }
 
 /* Compute exchange hash H = SHA-256(V_C || V_S || I_C || I_S || K_S || e || f || K).
- * For WP-09 simplification: we use H = SHA-256(client_banner || server_banner ||
- * client_kexinit || server_kexinit || e || f || K). Skip K_S verification.
- * Returns 32 bytes. */
+ * V_C/V_S/I_C/I_S/K_S are length-prefixed strings, e/f/K are mpints
+ * (e/f as 32-byte strings for curve25519 per RFC 8731). */
 static void ssh_compute_hash(ssh_ctx_t *ctx, u8 hash[32]) {
     /* Build hash input: strings (length-prefixed) + mpints */
     /* Use a page frame (4KB) since this can be large */
@@ -410,12 +607,22 @@ static void ssh_compute_hash(ssh_ctx_t *ctx, u8 hash[32]) {
         oc_memcpy(buf + p, ctx->server_host_key, ks_total);
         p += ks_total;
     }
-    /* e: client DH public value (as mpint: length + bytes) */
-    ssh_write_mpint(buf, &p, ctx->client_pub, SSH_DH_BYTES);
-    /* f: server DH public value */
-    ssh_write_mpint(buf, &p, ctx->server_pub, SSH_DH_BYTES);
-    /* K: shared secret */
-    ssh_write_mpint(buf, &p, ctx->shared_secret, SSH_DH_BYTES);
+    if (ctx->kex_curve25519) {
+        /* RFC 8731: e and f are 32-byte STRINGS in the exchange hash
+         * (no mpint sign-extension), K is a standard mpint. */
+        buf[p++] = 0; buf[p++] = 0; buf[p++] = 0; buf[p++] = 32;
+        oc_memcpy(buf + p, ctx->client_pub, 32); p += 32;
+        buf[p++] = 0; buf[p++] = 0; buf[p++] = 0; buf[p++] = 32;
+        oc_memcpy(buf + p, ctx->server_pub + SSH_DH_BYTES - 32, 32); p += 32;
+        ssh_write_mpint(buf, &p, ctx->shared_secret, SSH_DH_BYTES);
+    } else {
+        /* e: client DH public value (as mpint: length + bytes) */
+        ssh_write_mpint(buf, &p, ctx->client_pub, SSH_DH_BYTES);
+        /* f: server DH public value */
+        ssh_write_mpint(buf, &p, ctx->server_pub, SSH_DH_BYTES);
+        /* K: shared secret */
+        ssh_write_mpint(buf, &p, ctx->shared_secret, SSH_DH_BYTES);
+    }
 
     sha256(buf, p, hash);
     pmm_free_frame((u64)(uintptr_t)buf);
@@ -521,6 +728,9 @@ int ssh_connect(u32 ip, u16 port, const char *username, const char *password) {
     /* Save username/password for ssh_exec's USERAUTH step */
     if (username) oc_strncpy(ctx->username, username, sizeof(ctx->username)-1);
     if (password) oc_strncpy(ctx->password, password, sizeof(ctx->password)-1);
+    ctx->kex_curve25519 = 0;
+    ctx->cipher_ctr = 0;
+    ctx->auth_publickey = (password == 0 || password[0] == 0);
 
     ssh_debug("[ssh] connecting...");
     ctx->tcp_sock = net_socket(SOCK_TCP);
@@ -560,33 +770,58 @@ int ssh_connect(u32 ip, u16 port, const char *username, const char *password) {
     }
     ssh_debug("[ssh] KEXINIT exchange OK");
 
-    /* KEXDH (DH key exchange) */
-    if (ssh_send_kexdh_init(ctx) < 0) {
-        ssh_debug("[ssh] failed to send KEXDH_INIT");
-        return -6;
+    /* Key exchange: curve25519-sha256 (modern default) or group14 */
+    if (ctx->kex_curve25519) {
+        if (ssh_send_kex_ecdh_init(ctx) < 0) {
+            ssh_debug("[ssh] failed to send KEX_ECDH_INIT");
+            return -6;
+        }
+        if (ssh_recv_kex_reply(ctx) < 0) {
+            ssh_debug("[ssh] failed to receive KEX_ECDH_REPLY");
+            return -7;
+        }
+        /* K = X25519(x, f): 32-byte shared secret, right-aligned into
+         * shared_secret so the mpint encoder sees a plain big number. */
+        oc_memset(ctx->shared_secret, 0, SSH_DH_BYTES);
+        if (x25519_shared(ctx->client_priv, ctx->server_pub + SSH_DH_BYTES - 32,
+                          ctx->shared_secret + SSH_DH_BYTES - 32) != 0) {
+            ssh_debug("[ssh] x25519 shared secret computation failed");
+            return -7;
+        }
+        ssh_debug("[ssh] curve25519 KEX complete (no modexp needed)");
+    } else {
+        if (ssh_send_kexdh_init(ctx) < 0) {
+            ssh_debug("[ssh] failed to send KEXDH_INIT");
+            return -6;
+        }
+        if (ssh_recv_kexdh_reply(ctx) < 0) {
+            ssh_debug("[ssh] failed to receive KEXDH_REPLY");
+            return -7;
+        }
+        /* Compute shared secret K = f^x mod p */
+        ssh_debug("[ssh] computing K = f^x mod p (DH modexp, ~60s)...");
+        u64 t0 = oc_timer_ticks();
+        dh_modexp_n(ctx->server_pub, ctx->client_priv, dh_group14_prime, ctx->shared_secret, 256);
+        u64 t1 = oc_timer_ticks();
+        u64 ms = (t1 - t0) * 1000 / (u64)OC_TIMER_HZ;
+        char buf[80];
+        oc_strcpy(buf, "[ssh]   DH modexp time: ");
+        char num[10];
+        oc_u64_to_str(ms, num);
+        oc_strcat(buf, num);
+        oc_strcat(buf, " ms\n");
+        oc_console_puts(buf);
     }
-    if (ssh_recv_kexdh_reply(ctx) < 0) {
-        ssh_debug("[ssh] failed to receive KEXDH_REPLY");
-        return -7;
-    }
-
-    /* Compute shared secret K = f^x mod p */
-    ssh_debug("[ssh] computing K = f^x mod p (DH modexp, ~60s)...");
-    u64 t0 = oc_timer_ticks();
-    dh_modexp_n(ctx->server_pub, ctx->client_priv, dh_group14_prime, ctx->shared_secret, 256);
-    u64 t1 = oc_timer_ticks();
-    u64 ms = (t1 - t0) * 1000 / (u64)OC_TIMER_HZ;
-    char buf[80];
-    oc_strcpy(buf, "[ssh]   DH modexp time: ");
-    char num[10];
-    oc_u64_to_str(ms, num);
-    oc_strcat(buf, num);
-    oc_strcat(buf, " ms\n");
-    oc_console_puts(buf);
 
     /* Compute exchange hash H */
     u8 hash[32];
     ssh_compute_hash(ctx, hash);
+    /* RFC 4253 §8: verify the server signature over H with the host key
+     * from K_S BEFORE deriving/using any keys. */
+    if (ssh_verify_host_signature(ctx, hash) < 0) {
+        ssh_debug("[ssh] host key verification failed");
+        return -14;
+    }
     oc_memcpy(ctx->session_id, hash, 32);  /* session_id = first H */
     ctx->session_id_set = 1;
     ssh_debug_hex("[ssh]   session_id (first 8): ", ctx->session_id, 8);
@@ -601,6 +836,10 @@ int ssh_connect(u32 ip, u16 port, const char *username, const char *password) {
      * of the previous packet, RFC 4253 §6.3). */
     oc_memcpy(ctx->iv_c2s_next, ctx->initial_iv_c2s, 16);
     oc_memcpy(ctx->iv_s2c_next, ctx->initial_iv_s2c, 16);
+    /* RFC 4344: aes128-ctr uses a continuous counter stream per direction;
+     * packets are block-aligned so each packet starts on a counter block. */
+    oc_memcpy(ctx->ctr_c2s, ctx->initial_iv_c2s, 16);
+    oc_memcpy(ctx->ctr_s2c, ctx->initial_iv_s2c, 16);
 
     /* NEWKEYS exchange */
     if (ssh_send_newkeys(ctx) < 0) {
@@ -615,16 +854,131 @@ int ssh_connect(u32 ip, u16 port, const char *username, const char *password) {
     ssh_debug("[ssh] NEWKEYS exchange OK — encrypted mode active");
     ssh_debug("[ssh] SSH transport layer established (KEX + NEWKEYS complete)");
 
-    /* WP-09 batch 13: Send USERAUTH_REQUEST (password) */
-    /* USERAUTH_REQUEST format:
-     *   byte SSH_MSG_USERAUTH_REQUEST (50)
-     *   string user
-     *   string service ("ssh-connection")
-     *   string method ("password")
-     *   byte FALSE (0)
-     *   string password
-     */
-    {
+    /* WP-09 batch 13: Send USERAUTH_REQUEST (password or publickey) */
+    /* password format:
+     *   byte 50, string user, string "ssh-connection", string "password",
+     *   byte FALSE, string password
+     * publickey format (RFC 4252 §7):
+     *   byte 50, string user, string "ssh-connection", string "publickey",
+     *   boolean TRUE, string algorithm("rsa-sha2-256"), string blob,
+     *   string signature( "rsa-sha2-256" + string sig )
+     * sig = RSASSA-PKCS1-v1_5-SHA256 over
+     *   string session_id || byte 50 || string user || string "ssh-connection" ||
+     *   string "publickey" || boolean TRUE || string algo || string blob
+     * The kernel signs with its own identity key (same RSA-2048 pair the
+     * sshd uses as host key); the server must trust its public part. */
+    if (ctx->auth_publickey) {
+        u8 payload[1024];
+        int p = 0;
+        /* pubkey blob: string "ssh-rsa" + mpint e + mpint n */
+        u8 blob[512];
+        int bp = 0;
+        const char *kname = "ssh-rsa";
+        int klen2 = 7;
+        blob[bp++] = 0; blob[bp++] = 0; blob[bp++] = 0; blob[bp++] = klen2;
+        for (int i = 0; i < klen2; i++) blob[bp++] = kname[i];
+        extern const u8 sshd_rsa_n[256];
+        extern const u8 sshd_rsa_d[256];
+        u8 e_m[4];
+        e_m[0] = 0; e_m[1] = 0x01; e_m[2] = 0x00; e_m[3] = 0x01;
+        ssh_write_mpint(blob, &bp, e_m, 4);   /* leading zero stripped -> 0x010001 */
+        ssh_write_mpint(blob, &bp, sshd_rsa_n, 256);
+        /* signed data: string session_id || byte 50 || user ||
+         * service || "publickey" || TRUE || algo || blob */
+        u8 sdata[2048];
+        int sp = 0;
+        sdata[sp++] = 0; sdata[sp++] = 0; sdata[sp++] = 0; sdata[sp++] = 32;
+        oc_memcpy(sdata + sp, ctx->session_id, 32); sp += 32;
+        sdata[sp++] = 50;                                       /* USERAUTH_REQUEST */
+        int ulen = (int)oc_strlen(ctx->username);
+        sdata[sp++] = (u8)(ulen >> 24); sdata[sp++] = (u8)(ulen >> 16);
+        sdata[sp++] = (u8)(ulen >> 8); sdata[sp++] = (u8)(ulen & 0xFF);
+        for (int i = 0; i < ulen; i++) sdata[sp++] = ctx->username[i];
+        const char *svc = "ssh-connection";
+        sdata[sp++] = 0; sdata[sp++] = 0; sdata[sp++] = 0; sdata[sp++] = 14;
+        for (int i = 0; i < 14; i++) sdata[sp++] = svc[i];
+        const char *mth = "publickey";
+        sdata[sp++] = 0; sdata[sp++] = 0; sdata[sp++] = 0; sdata[sp++] = 9;
+        for (int i = 0; i < 9; i++) sdata[sp++] = mth[i];
+        sdata[sp++] = 1;                                        /* TRUE */
+        const char *algn = "rsa-sha2-256";
+        sdata[sp++] = 0; sdata[sp++] = 0; sdata[sp++] = 0; sdata[sp++] = 12;
+        for (int i = 0; i < 12; i++) sdata[sp++] = algn[i];
+        sdata[sp++] = (u8)(bp >> 24); sdata[sp++] = (u8)(bp >> 16);
+        sdata[sp++] = (u8)(bp >> 8); sdata[sp++] = (u8)(bp & 0xFF);
+        oc_memcpy(sdata + sp, blob, bp); sp += bp;
+        /* signature: RSASSA-PKCS1-v1_5-SHA256 */
+        u8 em[256];
+        oc_memset(em, 0xFF, 256);
+        em[0] = 0x00; em[1] = 0x01;
+        static const u8 dinfo[] = {
+            0x30,0x31,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,
+            0x03,0x04,0x02,0x01,0x05,0x00,0x04,0x20
+        };
+        u8 sdigest[32];
+        sha256(sdata, sp, sdigest);
+        oc_memcpy(em + (256 - 51), dinfo, 19);
+        oc_memcpy(em + (256 - 32), sdigest, 32);
+        em[256 - 52] = 0x00;
+        u8 sig[256];
+        dh_modexp_n(em, sshd_rsa_d, sshd_rsa_n, sig, 256);
+        /* assemble USERAUTH_REQUEST payload */
+        ulen = (int)oc_strlen(ctx->username);
+        payload[p++] = (u8)(ulen >> 24); payload[p++] = (u8)(ulen >> 16);
+        payload[p++] = (u8)(ulen >> 8); payload[p++] = (u8)(ulen & 0xFF);
+        for (int i = 0; i < ulen; i++) payload[p++] = ctx->username[i];
+        const char *svc2 = "ssh-connection";
+        payload[p++] = 0; payload[p++] = 0; payload[p++] = 0; payload[p++] = 14;
+        for (int i = 0; i < 14; i++) payload[p++] = svc2[i];
+        const char *mth2 = "publickey";
+        payload[p++] = 0; payload[p++] = 0; payload[p++] = 0; payload[p++] = 9;
+        for (int i = 0; i < 9; i++) payload[p++] = mth2[i];
+        payload[p++] = 1;                                       /* TRUE */
+        payload[p++] = 0; payload[p++] = 0; payload[p++] = 0; payload[p++] = 12;
+        for (int i = 0; i < 12; i++) payload[p++] = algn[i];
+        payload[p++] = (u8)(bp >> 24); payload[p++] = (u8)(bp >> 16);
+        payload[p++] = (u8)(bp >> 8); payload[p++] = (u8)(bp & 0xFF);
+        oc_memcpy(payload + p, blob, bp); p += bp;
+        /* RFC 4252: the signature field is a STRING wrapping
+         * (string algorithm || string sig) — two nesting levels. */
+        int sig_blob_len = 4 + 12 + 4 + 256;
+        payload[p++] = (u8)(sig_blob_len >> 24); payload[p++] = (u8)(sig_blob_len >> 16);
+        payload[p++] = (u8)(sig_blob_len >> 8); payload[p++] = (u8)(sig_blob_len & 0xFF);
+        const char *algn2 = "rsa-sha2-256";
+        payload[p++] = 0; payload[p++] = 0; payload[p++] = 0; payload[p++] = 12;
+        for (int i = 0; i < 12; i++) payload[p++] = algn2[i];
+        payload[p++] = 0; payload[p++] = 0; payload[p++] = 1; payload[p++] = 0;  /* 256 */
+        oc_memcpy(payload + p, sig, 256); p += 256;
+
+        extern int ssh_send_packet_encrypted(ssh_ctx_t *ctx, u8 msg_type, const u8 *payload, int payload_len);
+        if (ssh_send_packet_encrypted(ctx, SSH_MSG_USERAUTH_REQ, payload, p) < 0) {
+            ssh_debug("[ssh] failed to send USERAUTH_REQUEST");
+            return -10;
+        }
+        ssh_debug("[ssh] sent USERAUTH_REQUEST (publickey rsa-sha2-256)");
+        {
+            u8 rtype;
+            u8 rbuf[256];
+            int rlen = sizeof(rbuf);
+            extern int ssh_recv_packet_encrypted(ssh_ctx_t *ctx, u8 *msg_type, u8 *payload, int *payload_len);
+            if (ssh_recv_packet_encrypted(ctx, &rtype, rbuf, &rlen) < 0) {
+                ssh_debug("[ssh] failed to receive USERAUTH response");
+                return -11;
+            }
+            if (rtype == SSH_MSG_USERAUTH_SUCCESS) {
+                ssh_debug("[ssh] USERAUTH_SUCCESS — authenticated (publickey)");
+            } else if (rtype == SSH_MSG_USERAUTH_FAILURE) {
+                ssh_debug("[ssh] USERAUTH_FAILURE — public key rejected");
+                return -12;
+            } else {
+                char b[60]; oc_strcpy(b, "[ssh] unexpected msg type ");
+                char num2[10]; oc_u64_to_str((u64)rtype, num2);
+                oc_strcat(b, num2); oc_strcat(b, "\n");
+                oc_console_puts(b);
+                return -13;
+            }
+        }
+    } else {
         u8 payload[256];
         int p = 0;
         /* msg_type is added by ssh_send_packet_encrypted, NOT in payload */
@@ -757,10 +1111,18 @@ int ssh_send_packet_encrypted(ssh_ctx_t *ctx, u8 msg_type, const u8 *payload, in
      * (4 + packet_length) must be a multiple of 16. */
     static u8 enc[16384];
     if (total_unenc > (int)sizeof(enc)) return -1;
-    aes128_cbc_encrypt(ctx->enc_key_c2s, ctx->iv_c2s_next, pkt, total_unenc, enc);
-    /* WP-09 fix: CBC chaining — the IV for the next outgoing packet is the
-     * last ciphertext block of this one. */
-    oc_memcpy(ctx->iv_c2s_next, enc + total_unenc - 16, 16);
+    if (ctx->cipher_ctr) {
+        /* aes128-ctr: one continuous big-endian counter stream (RFC 4344) */
+        aes128_ctr_encrypt(ctx->enc_key_c2s, ctx->ctr_c2s, pkt, total_unenc, enc);
+        for (int blk = 0; blk < total_unenc / 16; blk++)
+            for (int ci = 15; ci >= 0; ci--)
+                if (++ctx->ctr_c2s[ci] != 0) break;
+    } else {
+        aes128_cbc_encrypt(ctx->enc_key_c2s, ctx->iv_c2s_next, pkt, total_unenc, enc);
+        /* WP-09 fix: CBC chaining — the IV for the next outgoing packet is the
+         * last ciphertext block of this one. */
+        oc_memcpy(ctx->iv_c2s_next, enc + total_unenc - 16, 16);
+    }
 
     /* Reassemble: encrypted (total_unenc bytes) + MAC (32 bytes) */
     static u8 out[16384];
@@ -805,9 +1167,15 @@ int ssh_recv_packet_encrypted(ssh_ctx_t *ctx, u8 *msg_type, u8 *payload, int *pa
 
     /* Decrypt first block to get packet_length */
     u8 dec_first[16];
-    /* WP-09 fix: use the rolling IV (equals the last ciphertext block of the
-     * previous packet), NOT the fixed initial IV. */
-    aes128_cbc_decrypt(ctx->enc_key_s2c, ctx->iv_s2c_next, first_block, block_size, dec_first);
+    if (ctx->cipher_ctr) {
+        aes128_ctr_encrypt(ctx->enc_key_s2c, ctx->ctr_s2c, first_block, block_size, dec_first);
+        for (int ci = 15; ci >= 0; ci--)
+            if (++ctx->ctr_s2c[ci] != 0) break;
+    } else {
+        /* WP-09 fix: use the rolling IV (equals the last ciphertext block of the
+         * previous packet), NOT the fixed initial IV. */
+        aes128_cbc_decrypt(ctx->enc_key_s2c, ctx->iv_s2c_next, first_block, block_size, dec_first);
+    }
     int packet_length = ((int)dec_first[0] << 24) | ((int)dec_first[1] << 16) |
                         ((int)dec_first[2] << 8) | dec_first[3];
     if (packet_length < 1 || packet_length > 35000) {
@@ -836,18 +1204,27 @@ int ssh_recv_packet_encrypted(ssh_ctx_t *ctx, u8 *msg_type, u8 *payload, int *pa
 
     /* Decrypt remaining body (encrypted part, not MAC) */
     static u8 dec_rest[16384];
-    if (remaining > 0) {
-        /* WP-09 fix: the IV for the rest of THIS packet is the first
-         * ciphertext block we just read (first_block) — CBC chains block to
-         * block within the packet too. */
-        aes128_cbc_decrypt(ctx->enc_key_s2c, first_block, rest_buf, remaining, dec_rest);
-    }
-    /* WP-09 fix: roll the incoming IV = last ciphertext block of this packet
-     * (rest_buf's last block if any, else first_block itself). */
-    if (remaining >= 16) {
-        oc_memcpy(ctx->iv_s2c_next, rest_buf + remaining - 16, 16);
+    if (ctx->cipher_ctr) {
+        if (remaining > 0) {
+            aes128_ctr_encrypt(ctx->enc_key_s2c, ctx->ctr_s2c, rest_buf, remaining, dec_rest);
+            for (int blk = 0; blk < remaining / 16; blk++)
+                for (int ci = 15; ci >= 0; ci--)
+                    if (++ctx->ctr_s2c[ci] != 0) break;
+        }
     } else {
-        oc_memcpy(ctx->iv_s2c_next, first_block, 16);
+        if (remaining > 0) {
+            /* WP-09 fix: the IV for the rest of THIS packet is the first
+             * ciphertext block we just read (first_block) — CBC chains block to
+             * block within the packet too. */
+            aes128_cbc_decrypt(ctx->enc_key_s2c, first_block, rest_buf, remaining, dec_rest);
+        }
+        /* WP-09 fix: roll the incoming IV = last ciphertext block of this packet
+         * (rest_buf's last block if any, else first_block itself). */
+        if (remaining >= 16) {
+            oc_memcpy(ctx->iv_s2c_next, rest_buf + remaining - 16, 16);
+        } else {
+            oc_memcpy(ctx->iv_s2c_next, first_block, 16);
+        }
     }
 
     /* Combine decrypted body: dec_first[4..15] + dec_rest[0..remaining-1] */

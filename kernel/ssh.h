@@ -28,6 +28,11 @@
 typedef struct {
     int tcp_sock;          /* underlying TCP socket */
 
+    /* Negotiated algorithms (WP-09 mainstream batch) */
+    int kex_curve25519;    /* 1 = curve25519-sha256, 0 = group14-sha256 */
+    int cipher_ctr;        /* 1 = aes128-ctr, 0 = aes128-cbc */
+    int auth_publickey;    /* 1 = publickey auth requested */
+
     /* Version banners */
     char client_banner[64];
     char server_banner[64];
@@ -53,6 +58,8 @@ typedef struct {
     /* Encryption keys (derived from K + H via HMAC-SHA1) */
     u8 enc_key_c2s[16];     /* client→server AES-128-CBC key */
     u8 enc_key_s2c[16];     /* server→client AES-128-CBC key */
+    u8 ctr_c2s[16];         /* rolling AES-128-CTR counter block, c2s */
+    u8 ctr_s2c[16];         /* rolling AES-128-CTR counter block, s2c */
     u8 initial_iv_c2s[16];  /* client→server initial IV (first packet) */
     u8 initial_iv_s2c[16];  /* server→client initial IV (first packet) */
     /* WP-09 fix: RFC 4253 §6.3 CBC chaining — after the first packet, the IV
@@ -77,6 +84,10 @@ typedef struct {
     /* Server host key (K_S from KEXDH_REPLY) — needed for exchange hash H */
     u8 server_host_key[1024];
     int server_host_key_len;
+    /* Server signature over H (KEXDH_REPLY / KEX_ECDH_REPLY), verified
+     * against the host key inside K_S before keys are accepted. */
+    u8 server_sig[512];
+    int server_sig_len;
     u32 server_channel_id;
     u32 client_channel_id;  /* our channel id (always 0) */
 } ssh_ctx_t;

@@ -22,7 +22,10 @@ import sys
 import socket
 import threading
 import binascii
+import logging
 import paramiko
+import paramiko.util
+paramiko.util.log_to_file("/tmp/paramiko_debug.log", level="DEBUG")
 
 HOST_KEY_PATH = "/tmp/oc_test_hostkey"
 
@@ -44,6 +47,8 @@ def _capture_set_K_H(self, k, h):
 paramiko.Transport._set_K_H = _capture_set_K_H
 
 
+
+
 def make_host_key():
     if os.path.exists(HOST_KEY_PATH):
         return paramiko.RSAKey(filename=HOST_KEY_PATH)
@@ -57,7 +62,39 @@ class ServerInterface(paramiko.ServerInterface):
         self.log = log
 
     def get_allowed_auths(self, username):
-        return "password"
+        return "password,publickey"
+
+    def check_auth_publickey(self, username, key):
+        # Accept the kernel's identity key: parse its public half (sshd_rsa_n)
+        # straight out of kernel/sshd_rsa_key.h so the test server trusts the
+        # exact key the kernel signs with.
+        ok = False
+        try:
+            import re as _re
+            hexdata = ""
+            with open(os.path.join(os.path.dirname(__file__), "..",
+                                   "kernel", "sshd_rsa_key.h")) as f:
+                hdr = f.read()
+            m = _re.search(r"sshd_rsa_n\[256\] = \{(.*?)\};", hdr, _re.S)
+            hexdata = _re.sub(r"0x|[^0-9a-fA-F]", "", m.group(1))
+            n = int.from_bytes(bytes.fromhex(hexdata)[:256], "big")
+            pn = key.public_numbers
+            ok = (key.get_name() == "ssh-rsa" and pn.n == n and pn.e == 65537)
+        except Exception as exc:
+            ok = False
+            self.log(f"publickey check error: {exc}")
+        self.log(f"AUTH publickey user={username!r} accepted={ok}")
+        if ok and username == "oc":
+            return paramiko.AUTH_SUCCESSFUL
+        return paramiko.AUTH_FAILED
+
+    def hostkey_n_bytes(self):
+        import re as _re, os as _os
+        hdr = open(_os.path.join(_os.path.dirname(__file__), "..",
+                                 "kernel", "sshd_rsa_key.h")).read()
+        mm = _re.search(r"sshd_rsa_n\[256\] = \{(.*?)\};", hdr, _re.S)
+        hd = _re.sub(r"0x|[^0-9a-fA-F]", "", mm.group(1))
+        return bytes.fromhex(hd)[:256]
 
     def check_auth_password(self, username, password):
         self.log(f"AUTH password user={username!r} pass={'ok' if password == 'oc' else 'WRONG'}")
@@ -85,6 +122,7 @@ class ServerInterface(paramiko.ServerInterface):
 
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 2222
+    legacy = len(sys.argv) > 2 and sys.argv[2] == "legacy"
     host = "127.0.0.1"
 
     events = []
@@ -101,30 +139,33 @@ def main():
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((host, port))
     sock.listen(2)
-    log(f"listening on {host}:{port}")
+    log(f"listening on {host}:{port} legacy={legacy}")
 
     def handle(client):
         CAPTURED_K["bytes"] = None
         client.settimeout(120)
         transport = paramiko.Transport(client)
         transport.add_server_key(hostkey)
-        # Restrict to the exact algorithms the kernel client offers so the
-        # negotiation matches production (kex group14-sha256, aes128-cbc,
-        # hmac-sha2-256, rsa-sha2-256 host signature).
-        transport.get_security_options().kex = ["diffie-hellman-group14-sha256"]
-        transport.get_security_options().ciphers = ["aes128-cbc"]
-        # paramiko >= 4 renamed macs -> digests; support both
+        # Mainstream algorithms first (curve25519-sha256, aes128-ctr);
+        # group14/aes128-cbc stay as fallbacks for the legacy client path.
+        kex_prefs = ["curve25519-sha256@libssh.org",
+                     "diffie-hellman-group14-sha256"]
+        cipher_prefs = ["aes128-ctr", "aes128-cbc"]
+        if legacy:
+            # Fallback-path test: force the oldest algorithms the kernel still
+            # offers, so the client must negotiate group14 + CBC.
+            kex_prefs = ["diffie-hellman-group14-sha256"]
+            cipher_prefs = ["aes128-cbc"]
         so = transport.get_security_options()
-        so.kex = ["diffie-hellman-group14-sha256"]
-        so.ciphers = ["aes128-cbc"]
+        so.kex = list(kex_prefs)
+        so.ciphers = list(cipher_prefs)
         if hasattr(so, "macs"):
             so.macs = ["hmac-sha2-256"]
         else:
             so.digests = ["hmac-sha2-256"]
         # NOTE: paramiko >= 5 dropped "ssh-rsa" (SHA-1 sigs); rsa-sha2-256 works
-# because the kernel client proposes it first.
-        # algorithm negotiated separately (paramiko picks it up from the
-        # client's proposal automatically).
+        # because the kernel client proposes it first. The signature algorithm
+        # is negotiated separately (paramiko picks it up automatically).
         so.key_types = ["rsa-sha2-256"]
         transport.local_version = "SSH-2.0-paramiko_oc_test"
         server = ServerInterface(log)
