@@ -17,6 +17,7 @@
 #include "string.h"
 #include "console.h"
 #include "timer.h"
+#include "tcp_cc.h"
 #include "vfs.h"   /* P1-3 FIX: for vfs_open / VFS_O_WRONLY in cmd_wget */
 
 /* Allocate identity-mapped memory for DMA (e1000 needs physical addresses).
@@ -1147,6 +1148,9 @@ static int ip_send(u32 dst_ip, u8 protocol, const void *payload, int len) {
      * tcp_send_raw (clamp to 1480 so 1480 + 20 = 1500). */
     if (len < 0) return -1;
     if (len > 1480) len = 1480;  /* 1500 - 20 (IP header) */
+    /* Unspecified destination: drop silently (used by the CC simulation,
+     * which must not inject real packets or attract peer RSTs). */
+    if (dst_ip == 0) return -1;
     /* Resolve destination MAC (via gateway if needed). */
     u32 next_hop = dst_ip;
     /* Broadcast addresses (255.255.255.255 or subnet broadcast) go directly,
@@ -1533,6 +1537,18 @@ typedef struct {
     int rtt_measured;    /* have we measured RTT yet */
     u32 srtt;            /* smoothed RTT in ticks */
     u32 rttvar;          /* RTT variance */
+    u64 send_tick;       /* tick when the oldest unacked data was sent */
+    int rtx_retransmitted; /* oldest unacked data was re-sent (Karn: no RTT) */
+    /* WP-09 mainstream: SACK blocks seen on the latest ACKs, per 256-byte
+     * block of the retransmission buffer. 1 = fully covered by a SACK block. */
+    u8  rtx_sacked[TCP_RTX_BUF_SIZE / 256];
+    u8  sack_permitted;  /* peer negotiated SACK-Permitted */
+    u8  fr_active;       /* fast recovery in progress */
+    /* SACK blocks from the most recent ACK (left/right seq, host order) */
+    u32 sack_l[3];
+    u32 sack_r[3];
+    int sack_count;
+    cubic_state_t cc;    /* CUBIC state (RFC 8312) */
     /* WP-09 fix: out-of-order segment cache. Segments arriving with seq >
      * our_ack are held here and drained in order when the gap fills. */
     u32 ooo_seq[TCP_OOO_MAX];
@@ -1618,6 +1634,7 @@ static u16 tcp_checksum(u32 src_ip, u32 dst_ip, const void *data, int len) {
 #define TCP_OPT_MSS      2
 #define TCP_OPT_WSCALE   3
 #define TCP_OPT_SACK_PERM 4
+#define TCP_OPT_SACK     5
 #define TCP_OPT_TS       8
 #define TCP_OPT_END      0
 #define TCP_OPT_NOP      1
@@ -1702,7 +1719,21 @@ static void tcp_parse_options(tcp_conn_t *c, const u8 *opts, int opt_len, int is
                 }
                 break;
             case TCP_OPT_SACK_PERM:
-                if (is_syn) { /* SACK permitted — we support it */ }
+                if (is_syn) { c->sack_permitted = 1; }
+                break;
+            case TCP_OPT_SACK:
+                if (!is_syn && len >= 10 && ((len - 2) % 8) == 0) {
+                    int nb = (len - 2) / 8;
+                    if (nb > 3) nb = 3;
+                    for (int b = 0; b < nb; b++) {
+                        int p = i + b * 8;
+                        c->sack_l[b] = ((u32)opts[p] << 24) | ((u32)opts[p+1] << 16)
+                                     | ((u32)opts[p+2] << 8) | opts[p+3];
+                        c->sack_r[b] = ((u32)opts[p+4] << 24) | ((u32)opts[p+5] << 16)
+                                     | ((u32)opts[p+6] << 8) | opts[p+7];
+                    }
+                    c->sack_count = nb;
+                }
                 break;
             case TCP_OPT_TS:
                 if (len == 10) {
@@ -1733,14 +1764,37 @@ static int tcp_send_raw(tcp_conn_t *c, u8 flags, const void *data, int len) {
     h->ack = htonl(c->our_ack);
 
     /* WP-09: Build options. For SYN, include MSS/WScale/SACK/TS.
-     * For data, include Timestamps if enabled.
-     * P7-debug: disable options on data packets to isolate TCP send bug */
+     * For data, include Timestamps if enabled. */
     int hdr_len = 20;
     int opt_len = 0;
     if (flags & TCP_SYN) {
         opt_len = tcp_build_syn_options(c, buf + 20);
+    } else if ((flags & TCP_ACK) && c->sack_permitted && c->ooo_count > 0) {
+        /* SACK option (RFC 2018): report up to 3 out-of-order blocks
+         * (the cached segments beyond our_ack). */
+        u8 *o = buf + 20;
+        int i = 0;
+        o[i++] = TCP_OPT_NOP;
+        o[i++] = TCP_OPT_NOP;
+        o[i++] = TCP_OPT_SACK;
+        int lenpos = i; i++;                 /* length byte filled later */
+        int n = 0;
+        for (int k = 0; k < c->ooo_count && n < 3; k++) {
+            if (c->ooo_len[k] == 0) continue;
+            u32 l = c->ooo_seq[k];
+            u32 r = l + (u32)c->ooo_len[k];
+            if (r <= c->our_ack) continue;
+            o[i++] = (u8)(l >> 24); o[i++] = (u8)(l >> 16);
+            o[i++] = (u8)(l >> 8);  o[i++] = (u8)(l);
+            o[i++] = (u8)(r >> 24); o[i++] = (u8)(r >> 16);
+            o[i++] = (u8)(r >> 8);  o[i++] = (u8)(r);
+            n++;
+        }
+        if (n > 0) {
+            o[lenpos] = (u8)(i - 2);   /* kind + length + 8*n bytes */
+            opt_len = i;               /* 4 + 8*n, always a multiple of 4 */
+        }
     }
-    /* Don't add timestamp options on data packets for now */
     hdr_len = 20 + opt_len;
     int data_offset = (hdr_len / 4) << 12;
     h->data_offset_flags = htons((u16)data_offset | flags);
@@ -1795,6 +1849,13 @@ int tcp_connect(u32 dst_ip, u16 dst_port) {
     c->rtt_measured = 0;
     c->srtt = 0;
     c->rttvar = 0;
+    /* WP-09 mainstream: CUBIC + SACK + fast recovery init */
+    cc_init(&c->cc);
+    c->fr_active = 0;
+    c->sack_permitted = 0;
+    c->send_tick = 0;
+    c->rtx_retransmitted = 0;
+    oc_memset(c->rtx_sacked, 0, sizeof(c->rtx_sacked));
 
     /* Send SYN with options. */
     tcp_send_raw(c, TCP_SYN, NULL, 0);
@@ -1852,18 +1913,23 @@ static void tcp_check_rto(void) {
             c->our_seq = c->rtx_seq;  /* go back to oldest unacked */
             tcp_send_raw(c, TCP_ACK | TCP_PSH, c->rtx_buf, rtx);
             c->our_seq += rtx;
+            c->rtx_retransmitted = 1;
         }
-        /* Congestion control: RTO → cwnd = 1, ssthresh = max(in_flight/2, 2) */
-        int in_flight = c->rtx_len;
-        u32 new_ssthresh = in_flight / 2;
-        if (new_ssthresh < 2 * c->mss) new_ssthresh = 2 * c->mss;
-        c->ssthresh = new_ssthresh;
-        c->cwnd = 1;  /* back to slow start */
+        /* CUBIC RTO response (RFC 8312 4.6): ssthresh = 0.7*cwnd,
+         * cwnd = 1 MSS, back to slow start. */
+        {
+            u32 in_flight = (u32)c->rtx_len;
+            c->ssthresh = cc_on_rto(&c->cc, in_flight ? in_flight
+                                                      : c->cwnd * c->mss);
+            c->cwnd = 1;
+            c->fr_active = 0;
+            c->dup_ack_count = 0;
+            oc_memset(c->rtx_sacked, 0, sizeof(c->rtx_sacked));
+        }
         /* Exponential backoff: double RTO */
         c->rto *= 2;
         if (c->rto > 600) c->rto = 600;
         c->rto_deadline = now + c->rto;
-        c->dup_ack_count = 0;
     }
 }
 
@@ -1906,6 +1972,8 @@ int tcp_send(int sock, const void *data, int len) {
         if (c->rtx_len == 0) {
             c->rtx_seq = c->our_seq;
             c->rto_deadline = oc_timer_ticks() + c->rto;
+            c->send_tick = oc_timer_ticks();
+            c->rtx_retransmitted = 0;
         }
         c->rtx_len += sendable;
     }
@@ -1974,6 +2042,9 @@ void tcp_handle_packet(u32 src_ip, const void *data, int len) {
     int opt_len = hdr_len - 20;
 
     tcp_conn_t *c = tcp_find_conn(src_ip, dst_port, src_port);
+
+    /* WP-09 mainstream: stale SACK blocks from previous packets are invalid */
+    if (c) c->sack_count = 0;
 
     /* WP-09: Parse TCP options if present */
     int is_syn = (flags & TCP_SYN) ? 1 : 0;
@@ -2056,6 +2127,24 @@ void tcp_handle_packet(u32 src_ip, const void *data, int len) {
                         c->rtx_seq = ack;
                         if (c->rtx_len == 0) {
                             c->rto_deadline = 0;  /* disarm RTO */
+                        } else {
+                            c->rto_deadline = oc_timer_ticks() + c->rto;
+                        }
+                        /* Slide the SACK bitmap: drop blocks fully covered by
+                         * the ack, keep partial ones conservatively cleared. */
+                        {
+                            int shift_blocks = (int)(acked_bytes / 256);
+                            int total = TCP_RTX_BUF_SIZE / 256;
+                            int partial = ((int)(acked_bytes % 256) != 0) ? 1 : 0;
+                            for (int bi = 0; bi < total; bi++) {
+                                int src = bi + shift_blocks;
+                                u8 v = 0;
+                                if (src < total && bi < total - shift_blocks) {
+                                    v = c->rtx_sacked[src];
+                                }
+                                if (src < total && partial) v = 0;
+                                c->rtx_sacked[bi] = v;
+                            }
                         }
                     } else if (c->rtx_len > 0) {
                         /* All data ACKed */
@@ -2063,49 +2152,73 @@ void tcp_handle_packet(u32 src_ip, const void *data, int len) {
                         c->rto_deadline = 0;
                     }
                     c->snd_una = ack;
+
+                    /* WP-09 mainstream: end fast recovery (deflate cwnd) */
+                    if (c->fr_active) {
+                        c->cwnd = c->ssthresh / (c->mss ? c->mss : 1);
+                        if (c->cwnd < 1) c->cwnd = 1;
+                        c->fr_active = 0;
+                        c->cc.epoch_start = 0;  /* start a new CUBIC epoch */
+                    } else {
+                        /* CUBIC congestion control (RFC 8312) */
+                        u32 now = oc_timer_ticks();
+                        u32 new_bytes = cc_on_ack(&c->cc,
+                                                  c->cwnd * c->mss,
+                                                  c->ssthresh, now, c->mss,
+                                                  acked_bytes);
+                        c->cwnd = new_bytes / c->mss;
+                        if (c->cwnd < 1) c->cwnd = 1;
+                    }
                     c->dup_ack_count = 0;  /* reset dup ACK counter */
 
-                    /* WP-09: Congestion control — increase cwnd */
-                    if (c->cwnd < c->ssthresh / c->mss) {
-                        /* Slow start: +1 per ACK */
-                        c->cwnd++;
-                    } else {
-                        /* Congestion avoidance: +1/cwnd per ACK (approx) */
-                        if ((c->cwnd * c->mss) % (c->cwnd * c->mss) == 0) {
-                            c->cwnd++;
-                        }
-                    }
-
-                    /* WP-09: Update RTT using timestamp echo if available */
-                    if (c->ts_enabled && opt_len > 0) {
-                        /* The timestamp echo reply is in the TS option.
-                         * We parse it during tcp_parse_options. For RTT,
-                         * we need the echo of OUR timestamp. */
-                        /* Simple RTT: time since we sent the data */
-                        u32 rtt = (u32)(oc_timer_ticks() - (c->rto - c->srtt));
+                    /* RTT sample (Karn's rule: skip retransmitted segments) */
+                    if (c->rtx_len > 0 && !c->rtx_retransmitted &&
+                        c->send_tick != 0) {
+                        u64 nowt = oc_timer_ticks();
+                        u32 rtt = (u32)(nowt - c->send_tick);
                         if (rtt > 0 && rtt < 600) {
                             tcp_update_rtt(c, rtt);
                         }
                     }
                 } else if (ack == c->snd_una && payload_len == 0) {
-                    /* WP-09: Duplicate ACK (no new data, same ack) */
+                    /* WP-09 mainstream: duplicate ACK → fast retransmit +
+                     * fast recovery (RFC 8312 4.5 / RFC 5681 3.2) */
                     c->dup_ack_count++;
                     if (c->dup_ack_count == 3) {
-                        /* Fast retransmit: retransmit oldest unacked segment */
+                        u32 ss = cc_on_fast_recovery_enter(&c->cc,
+                                                           c->cwnd * c->mss);
+                        c->ssthresh = ss;
+                        c->fr_active = 1;
+                        c->cwnd = ss / c->mss + 3;  /* inflate: 3 dup ACKs */
+                        /* Fast retransmit the FIRST not-yet-sacked segment */
                         if (c->rtx_len > 0) {
-                            int rtx = c->rtx_len;
-                            if (rtx > c->mss) rtx = c->mss;
-                            u32 saved_seq = c->our_seq;
-                            c->our_seq = c->rtx_seq;
-                            tcp_send_raw(c, TCP_ACK | TCP_PSH, c->rtx_buf, rtx);
-                            c->our_seq = saved_seq;  /* don't advance seq on retransmit */
+                            int off = 0;
+                            if (c->sack_count > 0) {
+                                int total = TCP_RTX_BUF_SIZE / 256;
+                                while (off < c->rtx_len) {
+                                    int blk = off / 256;
+                                    int overrun = blk >= total;
+                                    if (!overrun && c->rtx_sacked[blk]) {
+                                        off = (blk + 1) * 256;
+                                        if (off > c->rtx_len) off = c->rtx_len;
+                                        continue;
+                                    }
+                                    break;
+                                }
+                            }
+                            if (off < c->rtx_len) {
+                                int rtx = c->rtx_len - off;
+                                if (rtx > c->mss) rtx = c->mss;
+                                u32 saved_seq = c->our_seq;
+                                c->our_seq = c->rtx_seq + (u32)off;
+                                tcp_send_raw(c, TCP_ACK | TCP_PSH,
+                                             c->rtx_buf + off, rtx);
+                                c->our_seq = saved_seq;
+                                c->rtx_retransmitted = 1;
+                            }
                         }
-                        /* Fast recovery: ssthresh = max(cwnd/2, 2), cwnd = ssthresh */
-                        u32 new_ss = (c->cwnd * c->mss) / 2;
-                        if (new_ss < 2 * c->mss) new_ss = 2 * c->mss;
-                        c->ssthresh = new_ss;
-                        c->cwnd = c->ssthresh / c->mss;
-                        if (c->cwnd < 1) c->cwnd = 1;
+                    } else if (c->dup_ack_count > 3 && c->fr_active) {
+                        c->cwnd++;  /* window inflation per dup ACK */
                     }
                 }
             }
@@ -3326,6 +3439,17 @@ int cmd_tcpstats(const char *args) {
         oc_u64_to_str((u64)c->dup_ack_count, n); oc_strcat(buf, n);
         oc_strcat(buf, " ts=");
         oc_strcat(buf, c->ts_enabled ? "on" : "off");
+        oc_strcat(buf, " cc=cubic");
+        oc_strcat(buf, " w_max=");
+        oc_u64_to_str(c->cc.w_max, n); oc_strcat(buf, n);
+        oc_strcat(buf, " sack=");
+        oc_strcat(buf, c->sack_permitted ? "on" : "off");
+        oc_strcat(buf, " fr=");
+        oc_strcat(buf, c->fr_active ? "1" : "0");
+        oc_strcat(buf, " srtt=");
+        oc_u64_to_str(c->srtt, n); oc_strcat(buf, n);
+        oc_strcat(buf, " rttvar=");
+        oc_u64_to_str(c->rttvar, n); oc_strcat(buf, n);
         oc_strcat(buf, "\n");
         oc_console_puts(buf);
     }
@@ -3838,6 +3962,190 @@ int cmd_wget(const char *args) {
     return 0;
 }
 
+/* WP-09 mainstream: connection-level loss/congestion simulation.
+ * Builds a fake ESTABLISHED connection, sends 3 segments (segment 1
+ * "lost"), then feeds three duplicate ACKs through the REAL packet
+ * handling path (tcp_handle_packet). Asserts fast retransmit fires,
+ * fast recovery inflates/deflates the window, and the cumulative ACK
+ * drains the retransmission buffer. All packets go through the exact
+ * code path a real NIC delivery would take. */
+static int tcp_cc_sim_test(void) {
+    tcp_conn_t *c = 0;
+    for (int i = 0; i < TCP_MAX_CONNS; i++) {
+        if (!g_tcp_conns[i].in_use) { c = &g_tcp_conns[i]; break; }
+    }
+    if (!c) return 0;
+    oc_memset(c, 0, sizeof(*c));
+    c->in_use = 1;
+    c->sock_fd = -1;
+    c->remote_ip = 0;   /* unspecified: ip_send drops silently, no RSTs */
+    c->local_port = 55555;
+    c->remote_port = 55556;
+    c->state = TCP_ESTABLISHED;
+    c->mss = 536;
+    c->cwnd = 1;
+    c->ssthresh = 65535;
+    c->snd_wnd = 65535;
+    c->our_seq = 1000;
+    c->snd_una = 1000;
+    c->our_ack = 5000;
+    cc_init(&c->cc);
+
+    u8 data[536];
+    oc_memset(data, 'A', sizeof(data));
+    /* 3 segments in flight: 1000..1535, 1536..2071, 2072..2607.
+     * Segment 1 is "lost" on the wire (never reaches the peer).
+     * Fill the retransmission buffer directly (as tcp_send would) so the
+     * simulation does not depend on real NIC delivery or ARP timeouts. */
+    for (int sgi = 0; sgi < 3; sgi++) {
+        oc_memcpy(c->rtx_buf + sgi * 536, data, 536);
+    }
+    c->rtx_len = 3 * 536;
+    c->rtx_seq = 1000;
+    c->rto = 300;                        /* no RTO interference */
+    c->rto_deadline = oc_timer_ticks() + 300;
+    c->send_tick = oc_timer_ticks();
+    c->rtx_retransmitted = 0;
+    c->our_seq = 1000 + 3 * 536;
+
+    /* Build a raw ACK segment from the peer: ack = 1000 (dup).
+     * Layout: src(2) dst(2) seq(4) ack(4) doff|flags(2) win(2) cksum(2) urg(2) */
+    u8 seg[20];
+    #define CC_SIM_BUILD_ACK(seg, ackval) do { \
+        (seg)[0] = 0xD9; (seg)[1] = 0x04;                  /* src 55556 */ \
+        (seg)[2] = 0xD9; (seg)[3] = 0x03;                  /* dst 55555 */ \
+        (seg)[4] = 0; (seg)[5] = 0; (seg)[6] = 0; (seg)[7] = 0; /* seq */ \
+        (seg)[8] = (u8)((ackval) >> 24); (seg)[9] = (u8)((ackval) >> 16); \
+        (seg)[10] = (u8)((ackval) >> 8); (seg)[11] = (u8)(ackval); \
+        (seg)[12] = 0x50; (seg)[13] = 0x10;                /* hdr20, ACK */ \
+        (seg)[14] = 0xFF; (seg)[15] = 0xFF;                /* win */ \
+        (seg)[16] = 0; (seg)[17] = 0; (seg)[18] = 0; (seg)[19] = 0; \
+    } while (0)
+
+    for (int k = 0; k < 3; k++) {
+        CC_SIM_BUILD_ACK(seg, 1000);
+        tcp_handle_packet(c->remote_ip, seg, 20);
+        {
+            char db[120];
+            oc_strcpy(db, "    [sim] after dup ACK: fr=");
+            char nn[12];
+            oc_u64_to_str((u64)c->fr_active, nn); oc_strcat(db, nn);
+            oc_strcat(db, " dups=");
+            oc_u64_to_str((u64)c->dup_ack_count, nn); oc_strcat(db, nn);
+            oc_strcat(db, " rtx_len=");
+            oc_u64_to_str((u64)c->rtx_len, nn); oc_strcat(db, nn);
+            oc_strcat(db, " rtx_re=");
+            oc_u64_to_str((u64)c->rtx_retransmitted, nn); oc_strcat(db, nn);
+            oc_console_puts(db); oc_console_puts("\n");
+        }
+    }
+    int ok_fr = (c->fr_active == 1 && c->dup_ack_count == 3 &&
+                 c->rtx_retransmitted == 1 &&
+                 c->cwnd == c->ssthresh / c->mss + 3);
+
+    /* Peer receives the retransmission → cumulative ACK advances to 2608.
+     * Fast recovery ends: cwnd deflates to ssthresh, rtx buffer empties. */
+    CC_SIM_BUILD_ACK(seg, 2608);
+    tcp_handle_packet(c->remote_ip, seg, 20);
+    int ok_end = (c->fr_active == 0 && c->rtx_len == 0 &&
+                  c->snd_una == 2608 &&
+                  c->cwnd == c->ssthresh / c->mss);
+
+    c->in_use = 0;
+
+    char b[128];
+    oc_strcpy(b, "  fast retransmit + inflation: ");
+    oc_strcat(b, ok_fr ? "PASS" : "FAIL");
+    oc_console_puts(b); oc_console_puts("\n");
+    oc_strcpy(b, "  recovery end + deflate + rtx drain: ");
+    oc_strcat(b, ok_end ? "PASS" : "FAIL");
+    oc_console_puts(b); oc_console_puts("\n");
+    return ok_fr && ok_end;
+}
+
+/* WP-09 mainstream: tcpcc_test — run the CUBIC (RFC 8312) self-test vectors
+ * inside the kernel. Covers integer_cbrt, the beta decrease, the cubic
+ * growth curve at two sample points, RTO and fast-recovery bookkeeping,
+ * plus a connection-level loss/congestion simulation. */
+static int cmd_tcpcc_test(const char *args) {
+    (void)args;
+    int fails = 0;
+    oc_console_puts("CUBIC (RFC 8312) kernel self-test:\n");
+
+    struct { u32 x, want; const char *name; } crts[] = {
+        { 0, 0, "cbrt(0)" }, { 8, 2, "cbrt(8)" }, { 1000, 10, "cbrt(1000)" },
+        { 27000, 30, "cbrt(27000)" }, { 2147483647u, 1290, "cbrt(2^31-1)" },
+    };
+    for (int i = 0; i < 5; i++) {
+        u32 got = integer_cbrt(crts[i].x);
+        int ok = (got == crts[i].want);
+        if (!ok) fails++;
+        char b[96];
+        oc_strcpy(b, "  "); oc_strcat(b, crts[i].name);
+        oc_strcat(b, ": got=");
+        char n[12]; oc_u64_to_str(got, n); oc_strcat(b, n);
+        oc_strcat(b, ok ? "  PASS" : "  FAIL");
+        oc_console_puts(b); oc_console_puts("\n");
+    }
+
+    int ok7 = (cc_beta(10000) == 7000 && cc_beta(536) == 375);
+    if (!ok7) fails++;
+    oc_console_puts(ok7 ? "  beta decrease: PASS\n" : "  beta decrease: FAIL\n");
+
+    /* cubic curve: W_max=60 MSS, mss=536, K=350 ticks
+     * t=1s: W = 0.4*(1+3.5)^3+60 = 96.4 -> integer 96..99 MSS */
+    cubic_state_t s;
+    cc_init(&s);
+    s.w_max = 60 * 536;
+    cc_compute_k(&s, 60 * 536, 536);
+    s.epoch_start = 1;
+    s.tcp_cwnd = 60 * 536;
+    u32 w1 = cc_on_ack(&s, 60 * 536, 60 * 536, 101, 536, 536);
+    u32 m1 = w1 / 536;
+    int ok1 = (m1 >= 96 && m1 <= 99);
+    if (!ok1) fails++;
+    char b2[96];
+    oc_strcpy(b2, "  cubic t=1s (want 96..99 MSS): got=");
+    char n2[12]; oc_u64_to_str(m1, n2); oc_strcat(b2, n2);
+    oc_strcat(b2, ok1 ? "  PASS" : "  FAIL");
+    oc_console_puts(b2); oc_console_puts("\n");
+
+    /* t=10s: ~1055 MSS */
+    cc_init(&s);
+    s.w_max = 60 * 536;
+    cc_compute_k(&s, 60 * 536, 536);
+    s.epoch_start = 1;
+    s.tcp_cwnd = 60 * 536;
+    u32 w10 = cc_on_ack(&s, 60 * 536, 60 * 536, 1001, 536, 536);
+    u32 m10 = w10 / 536;
+    int ok10 = (m10 >= 500 && m10 <= 1100);
+    if (!ok10) fails++;
+    char b3[96];
+    oc_strcpy(b3, "  cubic t=10s (want ~1055 MSS): got=");
+    char n3[12]; oc_u64_to_str(m10, n3); oc_strcat(b3, n3);
+    oc_strcat(b3, ok10 ? "  PASS" : "  FAIL");
+    oc_console_puts(b3); oc_console_puts("\n");
+
+    cc_init(&s);
+    u32 ss = cc_on_rto(&s, 20000);
+    int okr = (ss == 14000 && s.w_max == 20000);
+    if (!okr) fails++;
+    oc_console_puts(okr ? "  rto: ssthresh=0.7*cwnd, w_max=cwnd: PASS\n"
+                        : "  rto: ssthresh=0.7*cwnd, w_max=cwnd: FAIL\n");
+
+    cc_init(&s);
+    ss = cc_on_fast_recovery_enter(&s, 20000);
+    int okf = (ss == 14000 && s.w_max == 20000);
+    if (!okf) fails++;
+    oc_console_puts(okf ? "  fast recovery enter: PASS\n"
+                        : "  fast recovery enter: FAIL\n");
+
+    if (fails == 0) oc_console_puts("tcpcc_test: ALL PASS\n");
+    else oc_console_puts("tcpcc_test: FAILURES\n");
+    int sim_ok = tcp_cc_sim_test();
+    return (fails == 0 && sim_ok) ? 0 : 1;
+}
+
 /* Network shell command registration. */
 void net_register_shell_commands(void) {
     extern int shell_register_command(const char *name, int (*fn)(const char *), const char *help);
@@ -3847,6 +4155,7 @@ void net_register_shell_commands(void) {
     shell_register_command("arp", cmd_arp, "show ARP cache");
     shell_register_command("firewall", cmd_firewall, "show/add/del firewall rules");
     shell_register_command("tcpstats", cmd_tcpstats, "show TCP reliability stats (cwnd, rto, etc.)");
+    shell_register_command("tcpcc_test", cmd_tcpcc_test, "CUBIC congestion control self-test vectors");
     shell_register_command("ping", cmd_ping, "send ICMP echo (ping <host>)");
     shell_register_command("netstat", cmd_netstat, "show network statistics and sockets");
     shell_register_command("dhcp", cmd_dhcp, "get IP via DHCP");
