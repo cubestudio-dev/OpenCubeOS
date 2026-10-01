@@ -268,58 +268,78 @@ static const u32 sha256_k[64] = {
 #define SIG0(x) (ROTR(x,7) ^ ROTR(x,18) ^ ((x) >> 3))
 #define SIG1(x) (ROTR(x,17) ^ ROTR(x,19) ^ ((x) >> 10))
 
-void sha256(const u8 *data, int len, u8 hash[32]) {
-    u32 h[8] = {
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
-    };
-
-    /* Padding: message + 0x80 + zeros + 8-byte length */
-    int padded_len = ((len + 9 + 63) / 64) * 64;
-    u8 *msg = (u8 *)(uintptr_t)pmm_alloc_frame(); /* use PMM for temp buffer */
-    if (!msg) {
-        /* Fallback: stack buffer for small messages */
-        static u8 small_buf[1024];
-        if (padded_len <= 1024) msg = small_buf;
-        else { /* too large, truncate */ return; }
+/* ---- streaming SHA-256: no large scratch buffers, arbitrary len ---- */
+static void sha256_block(const u8 *p, u32 h[8]) {
+    u32 w[64];
+    for (int i = 0; i < 16; i++)
+        w[i] = ((u32)p[i*4] << 24) | ((u32)p[i*4+1] << 16) |
+               ((u32)p[i*4+2] << 8) | (u32)p[i*4+3];
+    for (int i = 16; i < 64; i++)
+        w[i] = SIG1(w[i-2]) + w[i-7] + SIG0(w[i-15]) + w[i-16];
+    u32 a=h[0],b=h[1],c=h[2],d=h[3],e=h[4],f=h[5],g=h[6],hh=h[7];
+    for (int i = 0; i < 64; i++) {
+        u32 t1 = hh + EP1(e) + CH(e,f,g) + sha256_k[i] + w[i];
+        u32 t2 = EP0(a) + MAJ(a,b,c);
+        hh=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2;
     }
-    oc_memcpy(msg, data, len);
-    msg[len] = 0x80;
-    for (int i = len + 1; i < padded_len - 8; i++) msg[i] = 0;
-    /* Append length in bits (big-endian 64-bit) */
-    u64 bit_len = (u64)len * 8;
+    h[0]+=a; h[1]+=b; h[2]+=c; h[3]+=d; h[4]+=e; h[5]+=f; h[6]+=g; h[7]+=hh;
+}
+
+void sha256_init(sha256_ctx *c) {
+    c->h[0]=0x6a09e667; c->h[1]=0xbb67ae85; c->h[2]=0x3c6ef372; c->h[3]=0xa54ff53a;
+    c->h[4]=0x510e527f; c->h[5]=0x9b05688c; c->h[6]=0x1f83d9ab; c->h[7]=0x5be0cd19;
+    c->total = 0;
+    c->buflen = 0;
+}
+
+void sha256_update(sha256_ctx *c, const void *data, int len) {
+    const u8 *p = (const u8 *)data;
+    c->total += (u64)len;
+    if (c->buflen) {
+        int take = 64 - c->buflen;
+        if (take > len) take = len;
+        oc_memcpy(c->buf + c->buflen, p, take);
+        c->buflen += take; p += take; len -= take;
+        if (c->buflen == 64) {
+            sha256_block(c->buf, c->h);
+            c->buflen = 0;
+        }
+    }
+    while (len >= 64) {
+        sha256_block(p, c->h);
+        p += 64; len -= 64;
+    }
+    if (len > 0) {
+        oc_memcpy(c->buf, p, len);
+        c->buflen = len;
+    }
+}
+
+void sha256_final(sha256_ctx *c, u8 hash[32]) {
+    u64 bit_len = c->total * 8;
+    u8 pad[128];
+    int rem = c->buflen;
+    oc_memcpy(pad, c->buf, rem);
+    pad[rem] = 0x80;
+    int padded = (rem + 9 <= 64) ? 64 : 128;
+    for (int i = rem + 1; i < padded - 8; i++) pad[i] = 0;
     for (int i = 0; i < 8; i++)
-        msg[padded_len - 8 + i] = (u8)(bit_len >> (56 - 8 * i));
-
-    /* Process each 512-bit block */
-    for (int blk = 0; blk < padded_len; blk += 64) {
-        u32 w[64];
-        for (int i = 0; i < 16; i++) {
-            int off = blk + i * 4;
-            w[i] = ((u32)msg[off] << 24) | ((u32)msg[off+1] << 16) |
-                   ((u32)msg[off+2] << 8) | (u32)msg[off+3];
-        }
-        for (int i = 16; i < 64; i++)
-            w[i] = SIG1(w[i-2]) + w[i-7] + SIG0(w[i-15]) + w[i-16];
-
-        u32 a=h[0],b=h[1],c=h[2],d=h[3],e=h[4],f=h[5],g=h[6],hh=h[7];
-        for (int i = 0; i < 64; i++) {
-            u32 t1 = hh + EP1(e) + CH(e,f,g) + sha256_k[i] + w[i];
-            u32 t2 = EP0(a) + MAJ(a,b,c);
-            hh=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2;
-        }
-        h[0]+=a; h[1]+=b; h[2]+=c; h[3]+=d; h[4]+=e; h[5]+=f; h[6]+=g; h[7]+=hh;
-    }
-
-    /* Output big-endian */
+        pad[padded - 8 + i] = (u8)(bit_len >> (56 - 8 * i));
+    sha256_block(pad, c->h);
+    if (padded == 128) sha256_block(pad + 64, c->h);
     for (int i = 0; i < 8; i++) {
-        hash[i*4]   = (u8)(h[i] >> 24);
-        hash[i*4+1] = (u8)(h[i] >> 16);
-        hash[i*4+2] = (u8)(h[i] >> 8);
-        hash[i*4+3] = (u8)(h[i]);
+        hash[i*4]   = (u8)(c->h[i] >> 24);
+        hash[i*4+1] = (u8)(c->h[i] >> 16);
+        hash[i*4+2] = (u8)(c->h[i] >> 8);
+        hash[i*4+3] = (u8)(c->h[i]);
     }
+}
 
-    if (padded_len > 1024) pmm_free_frame((u64)(uintptr_t)msg);
+void sha256(const u8 *data, int len, u8 hash[32]) {
+    sha256_ctx c;
+    sha256_init(&c);
+    if (len > 0) sha256_update(&c, data, len);
+    sha256_final(&c, hash);
 }
 
 /* ============================================================
@@ -338,22 +358,19 @@ void hmac_sha256(const u8 *key, int key_len, const u8 *data, int data_len, u8 hm
     u8 ipad[64], opad[64];
     for (int i = 0; i < 64; i++) { ipad[i] = k[i] ^ 0x36; opad[i] = k[i] ^ 0x5c; }
 
-    /* Inner: H(ipad || data) */
-    u8 *inner = (u8 *)(uintptr_t)pmm_alloc_frame();
-    if (!inner) return;
-    oc_memcpy(inner, ipad, 64);
-    oc_memcpy(inner + 64, data, data_len);
+    /* Inner: H(ipad || data) — streaming, no large scratch buffer */
+    sha256_ctx c;
     u8 inner_hash[32];
-    sha256(inner, 64 + data_len, inner_hash);
-    pmm_free_frame((u64)(uintptr_t)inner);
+    sha256_init(&c);
+    sha256_update(&c, ipad, 64);
+    if (data_len > 0) sha256_update(&c, data, data_len);
+    sha256_final(&c, inner_hash);
 
     /* Outer: H(opad || inner_hash) */
-    u8 *outer = (u8 *)(uintptr_t)pmm_alloc_frame();
-    if (!outer) return;
-    oc_memcpy(outer, opad, 64);
-    oc_memcpy(outer + 64, inner_hash, 32);
-    sha256(outer, 64 + 32, hmac_out);
-    pmm_free_frame((u64)(uintptr_t)outer);
+    sha256_init(&c);
+    sha256_update(&c, opad, 64);
+    sha256_update(&c, inner_hash, 32);
+    sha256_final(&c, hmac_out);
 }
 
 /* ============================================================
@@ -381,6 +398,33 @@ void hkdf_expand(const u8 *prk, int prk_len, const u8 *info, int info_len, u8 *o
         counter++;
         prev_len = 32;
     }
+}
+
+/* ============================================================
+ * TLS 1.3 key schedule (RFC 8446 section 7.1) — shared by the
+ * kernel TLS stack and host tests.
+ * ============================================================ */
+void tls13_ks_expand_label(const u8 *secret, int slen, const char *label,
+                           const u8 *context, int ctx_len,
+                           u8 *out, int out_len) {
+    int label_len = 0;
+    while (label[label_len]) label_len++;
+    u8 info[2 + 1 + 32 + 1 + 64];
+    int n = 0;
+    info[n++] = (u8)(out_len >> 8);
+    info[n++] = (u8)out_len;
+    info[n++] = (u8)(6 + label_len);
+    oc_memcpy(info + n, "tls13 ", 6); n += 6;
+    oc_memcpy(info + n, label, label_len); n += label_len;
+    info[n++] = (u8)ctx_len;
+    if (ctx_len) oc_memcpy(info + n, context, ctx_len);
+    n += ctx_len;
+    hkdf_expand(secret, slen, info, n, out, out_len);
+}
+
+void tls13_ks_derive_secret(const u8 *secret, const char *label,
+                            const u8 *thash, int thash_len, u8 out[32]) {
+    tls13_ks_expand_label(secret, 32, label, thash, thash_len, out, 32);
 }
 
 /* ============================================================

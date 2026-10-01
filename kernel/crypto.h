@@ -35,11 +35,29 @@ void aes128_cbc_decrypt(const u8 key[16], const u8 iv[16], const u8 *in, int in_
 /* ---- SHA-256 (FIPS-180-4) ---- */
 void sha256(const u8 *data, int len, u8 hash[32]);
 
+/* Streaming SHA-256: no large scratch buffers; supports inputs > 4 KB
+ * (needed for TLS 1.3 transcript hashes over full certificate chains). */
+typedef struct {
+    u32 h[8];
+    u64 total;      /* bytes processed */
+    u8  buf[64];
+    int buflen;
+} sha256_ctx;
+void sha256_init(sha256_ctx *c);
+void sha256_update(sha256_ctx *c, const void *data, int len);
+void sha256_final(sha256_ctx *c, u8 hash[32]);
+
 /* ---- HMAC-SHA-256 (RFC 2104) ---- */
 void hmac_sha256(const u8 *key, int key_len, const u8 *data, int data_len, u8 hmac[32]);
 
 /* ---- HKDF-Expand (RFC 5869) ---- */
 void hkdf_expand(const u8 *prk, int prk_len, const u8 *info, int info_len, u8 *out, int out_len);
+
+/* ---- TLS 1.3 key schedule (RFC 8446 section 7.1) ---- */
+void tls13_ks_expand_label(const u8 *secret, int slen, const char *label,
+                           const u8 *context, int ctx_len, u8 *out, int out_len);
+void tls13_ks_derive_secret(const u8 *secret, const char *label,
+                            const u8 *thash, int thash_len, u8 out[32]);
 
 /* ---- DH big-integer (1024-bit, RFC 2409 Oakley Group 1) ---- */
 /* Modular exponentiation: result = base^exp mod mod, all DH_BYTES-byte (1024-bit). */

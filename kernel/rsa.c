@@ -11,6 +11,10 @@
 #include "crypto.h"   /* sha256 */
 #include "sha512.h"
 #include "string.h"
+#ifdef RSA_DEBUG
+#include <stdio.h>
+#endif
+int rsa_public_op_wrapper(const u8 *n, int n_len, const u8 *e, int e_len, const u8 *sig, int sig_len, u8 *m_out);
 
 static int rsa_hash_len(int sha_alg) {
     switch (sha_alg) {
@@ -81,6 +85,11 @@ int rsa_verify_pkcs1(const u8 *n, int n_len, const u8 *e, int e_len,
     return 1;
 }
 
+int rsa_public_op_wrapper(const u8 *n, int n_len, const u8 *e, int e_len,
+                          const u8 *sig, int sig_len, u8 *m_out) {
+    return rsa_public_op(m_out, n_len, n, n_len, e, e_len, sig, sig_len);
+}
+
 /* MGF1 (RFC 8017 B.2.1) with the given hash: mask = Hash(seed || counter) */
 static int mgf1(int sha_alg, const u8 *seed, int seed_len,
                 u8 *mask, int mask_len) {
@@ -132,6 +141,10 @@ int rsa_verify_pss(const u8 *n, int n_len, const u8 *e, int e_len,
     u8 m[BN_MAX_BYTES];
     if (rsa_public_op(m, (int)sizeof(m), n, n_len, e, e_len, sig, sig_len) != 0)
         return 0;
+#ifdef RSA_DEBUG
+    fprintf(stderr, "pss: em_len=%d s_len=%d em[0]=%02x em[last]=%02x\n",
+            em_len, s_len, m[0], m[em_len - 1]);
+#endif
 
     /* leftmost 8*emLen - emBits bits must be zero */
     int unused = 8 * em_len - em_bits;
@@ -155,9 +168,23 @@ int rsa_verify_pss(const u8 *n, int n_len, const u8 *e, int e_len,
     int salt_off = -1;
     for (int i = 0; i < db_len; i++) {
         if (dbx[i] == 0x01) { salt_off = i + 1; break; }
-        if (dbx[i] != 0x00) return 0;
+        if (dbx[i] != 0x00) {
+#ifdef RSA_DEBUG
+            fprintf(stderr, "pss: bad DB padding at %d: %02x\n", i, dbx[i]);
+#endif
+            return 0;
+        }
     }
-    if (salt_off < 0 || db_len - salt_off != s_len) return 0;
+    if (salt_off < 0 || db_len - salt_off != s_len) {
+#ifdef RSA_DEBUG
+        fprintf(stderr, "pss: salt_off=%d db_len=%d\n", salt_off, db_len);
+#endif
+        return 0;
+    }
+#ifdef RSA_DEBUG
+    fprintf(stderr, "pss: DB ok, salt at %d, H=%02x%02x%02x%02x\n",
+            salt_off, h[0], h[1], h[2], h[3]);
+#endif
 
     /* H' = Hash(00*8 || mHash || salt) */
     u8 mprime[8 + 64 + 64];
@@ -168,6 +195,10 @@ int rsa_verify_pss(const u8 *n, int n_len, const u8 *e, int e_len,
     if (sha_alg == RSA_SHA256) sha256(mprime, 8 + hlen + s_len, h2);
     else if (sha_alg == RSA_SHA384) sha384(mprime, 8 + hlen + s_len, h2);
     else sha512(mprime, 8 + hlen + s_len, h2);
+#ifdef RSA_DEBUG
+    fprintf(stderr, "pss: H =%02x%02x%02x%02x H'=%02x%02x%02x%02x\n",
+            h[0], h[1], h[2], h[3], h2[0], h2[1], h2[2], h2[3]);
+#endif
     if (oc_memcmp(h2, h, hlen) != 0) return 0;
     return 1;
 }
