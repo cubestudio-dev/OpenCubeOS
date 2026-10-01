@@ -55,7 +55,8 @@
 ## 4. 提交后
 
 1. `git log -1 --format="%H %an %ae"`
-2. 确认 author 是 `cubestudio-dev`（且不是 `Z User` / `z@container`）。
+2. 确认 author 是 `cubestudio-dev <cubestudio@qq.com>`（历史残留名如
+   `Z User` / `Cube Studio` 均不允许）。
 3. 如果不是：`git commit --amend --reset-author`（config 正确时）后
    `git push --force`。
 4. 有代码变更时创建 Release（tag 规范 `WP-XX-batch-N` / `WP-XX-fixN`），
@@ -65,6 +66,33 @@
    commit + push 后用 `git log --oneline origin/main -5`（私密仓）验证
    远程包含新 commit。
 6. `git push origin main`，**贴出实际输出**。
+
+### 批量检查（每批次完成后，覆盖 author + committer）
+
+1. `git log --format="%H %an <%ae>" | grep -v "cubestudio-dev <cubestudio@qq.com>"`
+   （注意：必须用 `%an <%ae>` 带尖括号的格式，否则 grep 模式匹配不到任何行，
+   `grep -v` 会误报全部行；committer 同法再查一遍：`%cn <%ce>`。）
+2. 如果有残留：条件性 `git filter-branch` 修复 —— 只改命中残留名的
+   author + committer，其他 commit 元数据不动：
+   ```
+   FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f --env-filter '
+   if [ "$GIT_AUTHOR_NAME" != "cubestudio-dev" ] || [ "$GIT_AUTHOR_EMAIL" != "cubestudio@qq.com" ]; then
+     export GIT_AUTHOR_NAME="cubestudio-dev"; export GIT_AUTHOR_EMAIL="cubestudio@qq.com"
+   fi
+   if [ "$GIT_COMMITTER_NAME" != "cubestudio-dev" ] || [ "$GIT_COMMITTER_EMAIL" != "cubestudio@qq.com" ]; then
+     export GIT_COMMITTER_NAME="cubestudio-dev"; export GIT_COMMITTER_EMAIL="cubestudio@qq.com"
+   fi
+   ' --tag-name-filter cat -- --branches --tags
+   ```
+3. tag 指向被改写 commit 时自动重指（`--tag-name-filter cat` 已处理；
+   lightweight tag 直接重指，annotated tag 重建对象）。本地与远程用
+   `git ls-remote origin refs/tags/<TAG>` vs `git rev-parse <TAG>` 抽查一致。
+4. `git push --force-with-lease origin main`；tags 因无 remote-tracking ref
+   会报 `stale info`（fetch 又会 `would clobber existing tag`），故对 tags
+   用 `git push origin --tags --force`（两步输出均需贴出）。
+5. 清理 filter-branch 备份：`git for-each-ref --format="%(refname)" refs/original
+   | while read r; do git update-ref -d "$r"; done`（不清会导致 `--all`
+   终查误报残留）。
 
 ## 5. 完整检查（提交/发布前必须全部通过，按顺序执行并留存实际输出）
 
@@ -135,5 +163,11 @@
   `Z User <z@container>`（沙箱重置后 config 丢失所致），已用
   `git filter-branch` 全部改写为 `cubestudio-dev <cubestudio@qq.com>` 并
   force push；同期把工具链重建脚本与 env.sh 持久化到私密仓 `tools/`。
+- 2026-10-02（同日二轮）：另发现 18 个公开仓 commit author 为
+  `Cube Studio <cubestudio@qq.com>`（email 正确、名字不同），一并改写；
+  累计改写公开仓 32 + 私密仓 4 个 commit、重指 31 个 tag 两轮；改写点
+  之前的 tag（如 WP-08a/WP-08b）也需随 e045bcf4 重指。由此把上面
+  "批量检查"固定进第 4 节：残留名 grep → 条件性 filter-branch → tag 重指
+  → force push → refs/original 清理。
 - Python 一律 `python3.13`（paramiko / pexpect 安装于该解释器）。
 - QEMU 版本 10.0.13；内核基线内存 698 页。
