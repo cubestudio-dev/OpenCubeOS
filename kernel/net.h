@@ -110,6 +110,13 @@ int net_send(int fd, const void *data, int len);
 int net_recv(int fd, void *buf, int len);
 int net_close(int fd);
 
+/* Returns 1 when the TCP connection behind socket fd is in the
+ * ESTABLISHED state (safe to send/receive), 0 otherwise -- including
+ * invalid/closed sockets and non-TCP sockets.  Callers that only need a
+ * best-effort close (e.g. tls_close) use this to skip writes that are
+ * guaranteed to fail after the peer has sent FIN (CLOSE_WAIT). */
+int net_tcp_established(int fd);
+
 /* ---- DHCP ---- */
 int dhcp_discover(void);
 

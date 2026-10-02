@@ -319,6 +319,23 @@ int oc_check_update(oc_update_info_t *out) {
                              (int)sizeof(out->time));
     int r3 = json_get_string(body, "changes", out->changes,
                              (int)sizeof(out->changes));
+    if (r3 == -8) {
+        /* changes is display-only: a longer server-side changelog must
+         * not fail the whole check.  Re-parse into a heap buffer and
+         * truncate (heap, never the 4 KiB kernel thread stack). */
+        char *tmp = kmalloc(1024);
+        if (tmp) {
+            if (json_get_string(body, "changes", tmp, 1024) == 0) {
+                oc_memcpy(out->changes, tmp, sizeof(out->changes) - 1);
+                out->changes[sizeof(out->changes) - 1] = 0;
+                r3 = 0;
+            }
+            kfree(tmp);
+        }
+        /* kmalloc failure or still unparsable: keep r3 != 0 so the
+         * caller sees the error - never silently report success with
+         * garbage in out->changes. */
+    }
     if (r1 != 0 || out->version[0] == 0) return OC_UPDATE_E_JSON;
     if (r2 != 0 || r3 != 0) return OC_UPDATE_E_JSON;
 
@@ -512,7 +529,44 @@ int cmd_checkupdate_test(const char *args) {
     }
     oc_console_puts("[checkupdate_test] broken JSON rejected: "); oc_console_puts(ok); oc_console_puts("\n");
 
-    /* 6. live probe with the configured update_url (HTTP or HTTPS) */
+    /* 6. 300-byte changes value parses into a 1 KiB buffer (the heap
+     * truncation path of oc_check_update relies on this) */
+    total++;
+    ok = "FAIL";
+    {
+        char doc[512];
+        char big[301];
+        for (int i = 0; i < 300; i++) big[i] = 'a';
+        big[300] = 0;
+        oc_strcpy(doc, "{\"version\":\"V\",\"time\":\"T\",\"changes\":\"");
+        oc_strcat(doc, big);
+        oc_strcat(doc, "\"}");
+        char c[1024];
+        if (json_get_string(doc, "changes", c, sizeof(c)) == 0 &&
+            (int)oc_strlen(c) == 300) { ok = "PASS"; pass++; }
+    }
+    oc_console_puts("[checkupdate_test] 300-byte changes parses into 1 KiB buffer: "); oc_console_puts(ok); oc_console_puts("\n");
+
+    /* 7. the old 128-byte buffer rejects a 300-byte value with -8 --
+     * the exact failure mode that broke checkupdate against the WP-10a
+     * manifest (174-byte changes) and motivated the truncation fix */
+    total++;
+    ok = "FAIL";
+    {
+        char doc[512];
+        char big[301];
+        for (int i = 0; i < 300; i++) big[i] = 'a';
+        big[300] = 0;
+        oc_strcpy(doc, "{\"version\":\"V\",\"time\":\"T\",\"changes\":\"");
+        oc_strcat(doc, big);
+        oc_strcat(doc, "\"}");
+        char c[128];
+        if (json_get_string(doc, "changes", c, sizeof(c)) == -8)
+            { ok = "PASS"; pass++; }
+    }
+    oc_console_puts("[checkupdate_test] 300-byte changes rejected by 128-byte buffer (-8): "); oc_console_puts(ok); oc_console_puts("\n");
+
+    /* 8. live probe with the configured update_url (HTTP or HTTPS) */
     total++;
     {
         oc_update_info_t info;

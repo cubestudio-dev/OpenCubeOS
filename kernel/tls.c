@@ -1268,11 +1268,19 @@ int tls_recv(tls_ctx_t *c, void *buf, int len) {
 
 void tls_close(tls_ctx_t *c) {
     if (!c->tcp_sock) return;
-    u8 alert[2] = { 1, 0 };
-    if (c->version == TLS13)
-        tls13_send_record(c, CT_ALERT, alert, 2);
-    else
-        tls12_send_record(c, CT_ALERT, alert, 2);
+    /* Only send the closing alert while the TCP connection is still
+     * ESTABLISHED.  Servers that answer with "Connection: close" send
+     * their close_notify/FIN right after the response, putting our side
+     * into CLOSE_WAIT; writing then is guaranteed to fail and only
+     * produced the noisy "[tcp] send fail ... (CLOSE_WAIT)" line.
+     * net_close below always completes the local teardown. */
+    if (net_tcp_established(c->tcp_sock)) {
+        u8 alert[2] = { 1, 0 };
+        if (c->version == TLS13)
+            tls13_send_record(c, CT_ALERT, alert, 2);
+        else
+            tls12_send_record(c, CT_ALERT, alert, 2);
+    }
     net_close(c->tcp_sock);
 }
 

@@ -1,5 +1,5 @@
 {
   "version": "WP-10a",
   "time": "2026-10-02",
-  "changes": "Storage drivers: AHCI SATA, NVMe (2 I/O queue pairs), ATA Bus-Master DMA, virtio-blk capacity fix; FAT32 on all block devices; MBR+GPT; blk_* extension API; fork #PF root fix"
+  "changes": "Storage drivers: AHCI/NVMe/ATA DMA/virtio-blk; FAT32 everywhere; MBR+GPT; blk_* API; fork #PF fix"
 }

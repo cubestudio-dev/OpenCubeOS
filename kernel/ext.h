@@ -158,7 +158,7 @@ int  oc_ext_config_get_all(char *buf, int buflen);
 typedef struct {
     char version[32];
     char time[32];
-    char changes[128];
+    char changes[256];  /* mirrors oc_update_info_t (kernel/update.h) */
 } oc_ext_update_info_t;
 
 int  oc_ext_check_update(oc_ext_update_info_t *out);

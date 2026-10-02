@@ -44,11 +44,17 @@ extern "C" {
 /* Current kernel version - must stay in sync with cmd_uname (kmain.c). */
 #define OC_UPDATE_CURRENT_VERSION "WP-10a"
 
-/* Manifest fields as parsed from the JSON body. */
+/* Manifest fields as parsed from the JSON body.  version/time are
+ * structural: if the server sends more than 31 bytes the check fails
+ * with OC_UPDATE_E_JSON.  changes is display-only: if the server sends
+ * more than 255 bytes the value is TRUNCATED and the check still
+ * succeeds (WP-10a-checkupdate-fix: a longer server-side changelog used
+ * to fail the whole check with "JSON parse failed" because of the old
+ * 128-byte buffer). */
 typedef struct {
     char version[32];
     char time[32];
-    char changes[128];
+    char changes[256];
 } oc_update_info_t;
 
 /* Error codes (see file header). */

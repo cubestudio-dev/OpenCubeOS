@@ -2780,6 +2780,13 @@ int net_close(int fd) {
     return 0;
 }
 
+int net_tcp_established(int fd) {
+    if (fd < 0 || fd >= MAX_SOCKETS || !g_sockets[fd].in_use) return 0;
+    if (g_sockets[fd].type != SOCK_TCP || g_sockets[fd].tcp_conn < 0) return 0;
+    return (g_tcp_conns[g_sockets[fd].tcp_conn].state == TCP_ESTABLISHED)
+               ? 1 : 0;
+}
+
 /* ============================================================
  * DHCP client
  * ============================================================ */
