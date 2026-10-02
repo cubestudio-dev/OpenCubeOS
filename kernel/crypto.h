@@ -2,23 +2,32 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09
  * File: kernel/crypto.h
- * Purpose: Cryptographic primitives for TLS 1.2 + SSH.
- *   - AES-128-CTR (FIPS-197)
- *   - SHA-256 (FIPS-180-4)
+ * Purpose: Core cryptographic primitives for TLS 1.3 / TLS 1.2 / SSH.
+ *   - AES-128 block / CTR / CBC (FIPS-197)
+ *   - SHA-256 one-shot + streaming (FIPS-180-4)
  *   - HMAC-SHA-256 (RFC 2104)
  *   - HKDF-Expand (RFC 5869)
- *   - DH big-integer modular exponentiation (1024-bit, RFC 2409 Oakley Group 1)
+ *   - TLS 1.3 key schedule (RFC 8446 S7.1)
+ *   - DH big-integer modular exponentiation (generic length via
+ *     dh_modexp_n; fixed 1024-bit helper for the cryptotest self-test)
  *
- * WP-09 design note: switched from 2048-bit (group 14) to 1024-bit (group 1)
- * for performance. 1024-bit schoolbook modexp in QEMU: ~5-10s vs ~60s.
- * For non-production TLS/SSH in QEMU this is acceptable.
+ * Companion primitive modules live in their own headers:
+ *   - aead.h      AES-GCM / ChaCha20-Poly1305 (TLS record protection)
+ *   - sha512.h    SHA-384/512 (TLS 1.3 AES-256-GCM suite)
+ *   - bn.h        big-number arithmetic (RSA, ECDSA)
+ *   - rsa.h       RSA verification/signing (TLS certs, SSH host keys)
+ *   - ec_nist.h   NIST P-256 ECDH/ECDSA (TLS 1.2 ECDHE, X.509)
+ *   - curve25519.h X25519 (TLS 1.3, SSH curve25519-sha256)
+ *   - x509.h      X.509 certificate parsing + CA chain validation (TLS)
  */
 #ifndef OC_CRYPTO_H
 #define OC_CRYPTO_H
 
 #include "types.h"
 
-/* DH modulus size in bytes — 1024-bit = 128 bytes (Oakley Group 1) */
+/* DH modulus size in bytes — 1024-bit = 128 bytes (Oakley Group 1).
+ * Used by the fixed-size dh_modexp() self-test path; SSH (group 14) and
+ * TLS DHE use dh_modexp_n() with explicit length instead. */
 #define DH_BYTES 128
 
 /* ---- AES-128 (FIPS-197) ---- */
@@ -59,8 +68,9 @@ void tls13_ks_expand_label(const u8 *secret, int slen, const char *label,
 void tls13_ks_derive_secret(const u8 *secret, const char *label,
                             const u8 *thash, int thash_len, u8 out[32]);
 
-/* ---- DH big-integer (1024-bit, RFC 2409 Oakley Group 1) ---- */
-/* Modular exponentiation: result = base^exp mod mod, all DH_BYTES-byte (1024-bit). */
+/* ---- DH big-integer (fixed 1024-bit, RFC 2409 Oakley Group 1) ---- */
+/* Modular exponentiation: result = base^exp mod mod, all DH_BYTES-byte (1024-bit).
+ * Self-test variant (boot-time cryptotest); protocol code uses dh_modexp_n(). */
 void dh_modexp(const u8 base[DH_BYTES], const u8 exp[DH_BYTES],
                const u8 mod[DH_BYTES], u8 result[DH_BYTES]);
 

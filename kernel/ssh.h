@@ -2,22 +2,33 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09
  * File: kernel/ssh.h
- * Purpose: SSH-2.0 client (minimal implementation).
+ * Purpose: SSH-2.0 client.
  *
  * Implements:
  *   - SSH-2.0 version banner exchange
  *   - KEXINIT (algorithm negotiation)
- *   - DH group 1 (1024-bit Oakley) + SHA-1 KEX
+ *   - KEX: curve25519-sha256 / curve25519-sha256@libssh.org (preferred,
+ *     RFC 8731), diffie-hellman-group14-sha256 fallback (2048-bit, RFC 8268)
+ *   - Host key algorithms: rsa-sha2-256 / rsa-sha2-512 (RFC 8332), ssh-rsa
  *   - NEWKEYS transition to encrypted mode
- *   - User authentication (password)
+ *   - User authentication: password, or publickey when password is empty
  *   - Channel open + exec command + receive output
  *
+ * Capabilities (post WP-09 mainstreaming):
+ *   - Cipher: aes128-ctr (preferred), aes128-cbc fallback (RFC 4253 S6.3
+ *     rolling IV)
+ *   - MAC: hmac-sha2-256
+ *   - Host key signature over H verified before keys are used (RFC 4253
+ *     S8); SHA-256 fingerprint printed; TOFU trust model (no known_hosts
+ *     store)
+ *   - Key derivation: SHA-256 (RFC 4253 S7.2), not HMAC-SHA1
+ *   - Interop tested against paramiko 5.0 in both directions (kernel
+ *     client to paramiko server; kernel sshd with paramiko client)
+ *
  * Limitations:
- *   - Only diffie-hellman-group1-sha256 KEX (1024-bit)
- *   - Only aes128-cbc cipher + hmac-sha1 MAC
- *   - Host key verification: skipped (accept any)
  *   - No compression
  *   - No PTY (exec only, no shell)
+ *   - No known_hosts persistence (TOFU: fingerprint shown, not stored)
  */
 #ifndef OC_SSH_H
 #define OC_SSH_H
@@ -55,9 +66,9 @@ typedef struct {
     u8 session_id[32];
     int session_id_set;
 
-    /* Encryption keys (derived from K + H via HMAC-SHA1) */
-    u8 enc_key_c2s[16];     /* client→server AES-128-CBC key */
-    u8 enc_key_s2c[16];     /* server→client AES-128-CBC key */
+    /* Encryption keys (derived from K + H via SHA-256, RFC 4253 S7.2) */
+    u8 enc_key_c2s[16];     /* client→server AES-128 key (CTR or CBC) */
+    u8 enc_key_s2c[16];     /* server→client AES-128 key (CTR or CBC) */
     u8 ctr_c2s[16];         /* rolling AES-128-CTR counter block, c2s */
     u8 ctr_s2c[16];         /* rolling AES-128-CTR counter block, s2c */
     u8 initial_iv_c2s[16];  /* client→server initial IV (first packet) */
