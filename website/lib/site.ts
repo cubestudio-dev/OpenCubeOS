@@ -1,40 +1,42 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-09-fix5 value taken from the
+// Central site data. Every number is a real WP-09 value taken from the
 // repository docs (README.md, docs/INTERFACES.md, docs/EXTENSIONS_WP09.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub Release WP-09-fix5 + this site /downloads/
+// 3-way identical: local build + GitHub Release WP-09-docs-comments + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_WP09 =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-09-fix5";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-09-docs-comments";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release WP-09-fix5 + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp09.iso";
-export const ISO_SIZE_B = 10780672;
-export const ISO_SIZE_MB = "10.28";
+// Real assets (build/ + GitHub Release WP-09-docs-comments + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp09-docs-comments.iso";
+export const ISO_SIZE_B = 10872832;
+export const ISO_SIZE_MB = "10.37";
 export const ISO_SHA256 =
-  "29360e9c2750acedb59da225e8ccb5004aadbdb69198e869169dc792773abd76";
+  "7c1399601549672f497995607f16c175acd9ea9b85648c926a31fab0f60bdfb9";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp09-src.zip";
-export const SRC_SIZE_B = 1798851;
-export const SRC_SIZE_MB = "1.72";
+export const SRC_FILE = "opencube-wp09-docs-comments-src.zip";
+export const SRC_SIZE_B = 7385488;
+export const SRC_SIZE_MB = "7.04";
 export const SRC_SHA256 =
-  "6f4668642f83c8bd5e322c9abc035f5e9f2709edec94d646c9f278a31d9ee076";
+  "bd5523bb2c48ee82ca0995551cf6731eec649d160537d7a902dca3da614b0481";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-09-fix5 stats (README.md "Stats (WP-09)")
+// WP-09 mainstream stats. Source lines: find kernel boot userprogs -name '*.c' -o -name '*.h' -o -name '*.S' -o -name '*.asm' -o -name '*.ld' | xargs wc -l (54,621 at commit 5fa087e).
+// Shell commands: live boot self-test + help count = 87 (includes nf_test, tcpstats, tcpcc_test, dnstest, tcptest).
+// L1 extension interfaces: 57 numbered items (docs/EXTENSIONS_WP08cd.md: WP-01..07 32 + WP-08 25); WP-09 adds transport APIs, not numbered L1 interfaces.
 export const STATS = [
-  { value: "47,797", label: "行源码" },
+  { value: "54,621", label: "行源码" },
   { value: "57", label: "L1 扩展接口" },
   { value: "37", label: "系统调用" },
-  { value: "83", label: "shell 命令" },
+  { value: "87", label: "shell 命令" },
   { value: "9", label: "工作包" },
   { value: "18/18", label: "QEMU 回归" },
 ];
@@ -67,19 +69,19 @@ export const FEATURES = [
     desc: "firewall 命令 — 内核包过滤运维接口，WP-09 网络可见性命令组。",
   },
   {
-    name: "TLS 1.2",
+    name: "TLS 1.3 / TLS 1.2",
     tag: "kernel/tls.c",
-    desc: "DHE_RSA_WITH_AES_128_CBC_SHA256 (0x0067)，RFC 3526 1024-bit MODP，记录层双向加解密 + MAC 校验。",
+    desc: "TLS 1.3（X25519 + AES-128-GCM，ChaCha20-Poly1305 套件）+ TLS 1.2 ECDHE-GCM 回退；X.509 CA 链验证（内嵌公共根），验证失败即握手失败。",
   },
   {
     name: "HTTPS",
     tag: "wget https://",
-    desc: "wget https://host:port/path 经 TLS 下载，直接落入 VFS 文件。",
+    desc: "wget https://host:port/path 经 TLS 下载，直接落入 VFS 文件；真实站点实测：GitHub Pages、google、cloudflare。",
   },
   {
     name: "SSH",
     tag: "ssh.c / sshd.c",
-    desc: "客户端 + 服务端：group14-sha256、aes128-cbc、hmac-sha2-256、rsa-sha2-256、密码认证、session exec；与 paramiko 双向互操作。",
+    desc: "客户端 + 服务端：curve25519-sha256 优先 + group14-sha256 回退、aes128-ctr 优先、hmac-sha2-256、主机密钥签名验证（TOFU + 指纹）、密码 + 公钥认证；与 paramiko 双向互操作。",
   },
 ];
 
@@ -134,11 +136,11 @@ export const WORK_PACKAGES = [
   },
   {
     no: "WP-09",
-    title: "安全传输：SSH（客户端 + 服务端）、TLS 1.2 / HTTPS、crypto 核心",
+    title: "安全传输：SSH（客户端 + 服务端）、TLS 1.3 / TLS 1.2 / HTTPS、crypto 核心",
   },
 ];
 
-// Verification (README.md "Tests" + docs/VERIFICATION_BATCH_B.md)
+// Verification (README.md "Tests" + docs/EXTENSIONS_WP09.md)
 export const VERIFY = [
   {
     name: "18/18 QEMU 全量回归",
@@ -150,7 +152,7 @@ export const VERIFY = [
   },
   {
     name: "HTTPS E2E",
-    desc: "内核 TLS 1.2 客户端 ↔ tools/https_test_server.py（TLS1.2-only）：握手 + 加密 GET + 解密响应 + MAC 校验，双侧留日志。",
+    desc: "内核 TLS 客户端访问三个真实站点：cubestudio-dev.github.io（10148 字节 update.json）、google.com、cloudflare.com——TLS 1.3 握手 + CA 链验证 + 加密传输全链路。",
   },
   {
     name: "SSH 双向互操作",

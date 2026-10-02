@@ -135,7 +135,7 @@ export default function HomeView({ locale }: { locale: Locale }) {
         </div>
         <p className="dl-note">
           {t.dlNotePre}
-          <code className="inline">sha256sum opencube-wp09.iso</code>
+          <code className="inline">sha256sum {ISO_FILE}</code>
           {t.dlNotePost}
         </p>
       </section>
@@ -206,11 +206,11 @@ export default function HomeView({ locale }: { locale: Locale }) {
           <p>
             {t.verifySectionPre}
             <a
-              href={`${GITHUB_REPO}/blob/main/docs/VERIFICATION_BATCH_B.md`}
+              href={`${GITHUB_REPO}/blob/main/docs/EXTENSIONS_WP09.md`}
               target="_blank"
               rel="noopener noreferrer"
             >
-              docs/VERIFICATION_BATCH_B.md
+              docs/EXTENSIONS_WP09.md
             </a>
             {t.verifySectionPost}
           </p>

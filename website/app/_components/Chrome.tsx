@@ -2,7 +2,7 @@
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 
 import type { ReactNode } from "react";
-import { BASE, GITHUB_REPO } from "@/lib/site";
+import { GITHUB_REPO, ISO_URL } from "@/lib/site";
 import { T, localePath, type Locale } from "@/lib/i18n";
 import LangSwitch from "@/app/_components/LangSwitch";
 
@@ -48,7 +48,7 @@ export default function Chrome({
             </a>
             <a href={localePath(locale, "docs")}>{t.navDocs}</a>
             <a href={localePath(locale, "about")}>{t.navAbout}</a>
-            <a href={`${BASE}/downloads/opencube-wp09.iso`}>{t.footerDlIso}</a>
+            <a href={ISO_URL}>{t.footerDlIso}</a>
           </span>
         </div>
       </footer>

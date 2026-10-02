@@ -3,7 +3,7 @@
 //
 // Bilingual about-page data. zh strings are verbatim from the previous
 // single-locale about page (app/about/page.tsx, sourced from README.md /
-// docs/VERIFICATION_BATCH_B.md / docs/WORK_LOG.md); en strings are their
+// docs/EXTENSIONS_WP09.md / docs/INTERFACES.md); en strings are their
 // translations — no facts or numbers changed.
 
 import type { Locale } from "@/lib/i18n";
@@ -55,8 +55,8 @@ export const TIMELINE: Bi<
     },
     {
       no: "WP-09",
-      title: "安全传输：SSH + TLS 1.2 / HTTPS + crypto 核心",
-      desc: "crypto 核心（AES-128、SHA-256、HMAC-SHA256、任意长度 DH modexp、crypto_random）；SSH 客户端 + 服务端（group14-sha256、aes128-cbc、hmac-sha2-256、rsa-sha2-256、密码认证、session exec，与 paramiko 双向互操作、K 字节级一致）；TLS 1.2 客户端（DHE_RSA_WITH_AES_128_CBC_SHA256、RFC 3526 1024-bit MODP、记录层双向加解密）；HTTPS 下载入 VFS；route/arp/firewall/tcpstats/dns 运维命令；TCP 选项（MSS、Window Scale、SACK-Permitted、Timestamps）。",
+      title: "安全传输：SSH + TLS 1.3 / TLS 1.2 / HTTPS + crypto 核心",
+      desc: "crypto 核心（AES-128、SHA-256、HMAC-SHA256、任意长度 DH modexp、bignum/P-256/X25519/RSA/AEAD 原语）；SSH 客户端 + 服务端（curve25519-sha256 优先 + group14-sha256 回退、aes128-ctr 优先、hmac-sha2-256、rsa-sha2-256/512 主机密钥签名验证 TOFU、密码 + 公钥认证、session exec，与 paramiko 双向互操作、K 字节级一致）；TLS 1.3（X25519 + AES-128-GCM）+ TLS 1.2 ECDHE-GCM 回退、X.509 CA 链验证（内嵌 10 个公共根，验证失败即握手失败）；HTTPS 下载入 VFS（真实站点实测：GitHub Pages / google / cloudflare）；route/arp/firewall/tcpstats/dns 运维命令；TCP 可靠性（CUBIC、SACK、快速重传）与完整选项（MSS、Window Scale、SACK-Permitted、Timestamps）；netfilter（规则/conntrack/策略）。",
     },
   ],
   en: [
@@ -102,8 +102,8 @@ export const TIMELINE: Bi<
     },
     {
       no: "WP-09",
-      title: "Secure transport: SSH + TLS 1.2 / HTTPS + crypto core",
-      desc: "Crypto core (AES-128, SHA-256, HMAC-SHA256, arbitrary-length DH modexp, crypto_random); SSH client + server (group14-sha256, aes128-cbc, hmac-sha2-256, rsa-sha2-256, password auth, session exec, bidirectional paramiko interop with byte-identical K); TLS 1.2 client (DHE_RSA_WITH_AES_128_CBC_SHA256, RFC 3526 1024-bit MODP, full record layer); HTTPS downloads into VFS; route/arp/firewall/tcpstats/dns ops commands; TCP options (MSS, Window Scale, SACK-Permitted, Timestamps).",
+      title: "Secure transport: SSH + TLS 1.3 / TLS 1.2 / HTTPS + crypto core",
+      desc: "Crypto core (AES-128, SHA-256, HMAC-SHA256, arbitrary-length DH modexp, bignum/P-256/X25519/RSA/AEAD primitives); SSH client + server (curve25519-sha256 preferred with group14-sha256 fallback, aes128-ctr preferred, hmac-sha2-256, rsa-sha2-256/512 host-key signature verification with TOFU, password + publickey auth, session exec, bidirectional paramiko interop with byte-identical K); TLS 1.3 (X25519 + AES-128-GCM) + TLS 1.2 ECDHE-GCM fallback, X.509 CA chain verification (10 embedded public roots, fails closed); HTTPS downloads into VFS (verified against real sites: GitHub Pages / google / cloudflare); route/arp/firewall/tcpstats/dns ops commands; TCP reliability (CUBIC, SACK, fast retransmit) and full options (MSS, Window Scale, SACK-Permitted, Timestamps); netfilter (rules/conntrack/policies).",
     },
   ],
 };

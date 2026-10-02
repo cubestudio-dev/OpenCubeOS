@@ -20,8 +20,8 @@ export function localePath(locale: Locale, sub: "" | "docs" | "about" = ""): str
 
 const zh = {
   htmlLang: "zh-CN",
-  badge: "WP-09-fix5 · 正式版 · Apache 2.0",
-  brandSub: "WP-09-fix5 · Apache 2.0",
+  badge: "WP-09 主流化 · Apache 2.0",
+  brandSub: "WP-09 · Apache 2.0",
   navAria: "站点导航",
   navHome: "首页",
   navDownloads: "下载",
@@ -36,13 +36,13 @@ const zh = {
   heroSubMid: "，而是",
   heroSubBold: "\u201c一个能被扩展成任何东西的内核\u201d",
   heroSubPost:
-    "。价值不在自带什么，而在向上层暴露的接口：L0 = 完整内核，L1 = 上层扩展，L0 不内置任何 L1。WP-09 新增安全传输层：",
-  heroSubBold2: "SSH（客户端 + 服务端）、TLS 1.2 / HTTPS、crypto 核心",
+    "。价值不在自带什么，而在向上层暴露的接口：L0 = 完整内核，L1 = 上层扩展，L0 不内置任何 L1。WP-09 安全传输层已主流化：",
+  heroSubBold2: "SSH（curve25519、主机密钥验证、公钥认证）、TLS 1.3 / TLS 1.2（CA 链验证）、crypto 核心",
   heroSubEnd: "。",
   downloadIso: (mb: string) => `下载 ISO（${mb} MB）`,
   readDocs: "阅读文档",
   githubRepo: "GitHub 仓库",
-  dlSectionTitle: "下载 WP-09-fix5",
+  dlSectionTitle: "下载 WP-09",
   dlSectionDesc:
     "BIOS + UEFI 双引导 ISO 与完整源码包。文件在本站、GitHub Release 与本地构建三处 SHA256 字节级一致（核对方法见下方命令）。",
   isoMeta: (bytes: string, mb: string) =>
@@ -65,8 +65,8 @@ const zh = {
   wpThContent: "内容",
   wpThStatus: "状态",
   verifySectionTitle: "验证",
-  verifySectionPre: "完整证据（真实输出 + 双侧日志）：",
-  verifySectionPost: "，原始日志在 docs/verification/。",
+  verifySectionPre: "完整验证记录：",
+  verifySectionPost: "，含真实输出与验证方法。",
   docsTitle: "文档",
   docsDescPre:
     "以下内容在构建时直接读取自仓库真实文档文件，原样展示、一字未改。如需查看最新版本，请访问 ",
@@ -78,7 +78,7 @@ const zh = {
     "本页为中文翻译版（由本站提供，便于阅读）。事实与数字以英文原文为准；英文原文见 English 版文档页。",
   aboutTitle: "关于",
   aboutDesc:
-    "Open Cube OS 的定位、历史与工程方法。所有数字来自仓库公开文档（README.md、docs/VERIFICATION_BATCH_B.md、docs/WORK_LOG.md）。",
+    "Open Cube OS 的定位、历史与工程方法。所有数字来自仓库公开文档（README.md、docs/EXTENSIONS_WP09.md、docs/INTERFACES.md）。",
   aboutPositioning: "定位",
   aboutPositioningBodyPre:
     "Open Cube OS 是一个开源操作系统内核，两层架构：",
@@ -92,8 +92,8 @@ const zh = {
   aboutHistory: "项目历史（九个工作包）",
   aboutMethod: "工程方法",
   aboutMethodBody:
-    "每个工作包以真实可复现的证据收尾：截至 WP-08 累计修复 120 个审计 bug；WP-09 又完成 SSH/TLS 专项修复。最终验证为 18/18 QEMU 全量回归 + dhtest 5/5 + HTTPS 双侧 E2E + SSH 双向互操作（paramiko K 字节级一致）。完整证据与原始日志：",
-  aboutMethodMid: " 与 docs/verification/。历史记录：",
+    "每个工作包以真实可复现的证据收尾：截至 WP-08 累计修复 120 个审计 bug；WP-09 完成 SSH/TLS 主流化与专项修复。最终验证为 18/18 QEMU 全量回归 + dhtest 5/5 + HTTPS 真实站点 E2E + SSH 双向互操作（paramiko K 字节级一致）。完整验证记录：",
+  aboutMethodMid: "。各工作包逐项记录：",
   aboutMethodEnd: "。",
   aboutAi: "AI 披露",
   aboutAiBody:
@@ -117,8 +117,8 @@ const zh = {
 
 const en: typeof zh = {
   htmlLang: "en",
-  badge: "WP-09-fix5 · Release · Apache 2.0",
-  brandSub: "WP-09-fix5 · Apache 2.0",
+  badge: "WP-09 mainstreaming · Apache 2.0",
+  brandSub: "WP-09 · Apache 2.0",
   navAria: "Site navigation",
   navHome: "Home",
   navDownloads: "Downloads",
@@ -133,13 +133,13 @@ const en: typeof zh = {
   heroSubMid: ". It is ",
   heroSubBold: "\u201ca kernel that can be extended into anything\u201d",
   heroSubPost:
-    ". Its value is not what it ships with, but the interfaces it exposes to upper layers: L0 = the complete kernel, L1 = upper-layer extensions, L0 ships without any L1. WP-09 adds a secure-transport layer: ",
-  heroSubBold2: "SSH (client + server), TLS 1.2 / HTTPS, crypto core",
+    ". Its value is not what it ships with, but the interfaces it exposes to upper layers: L0 = the complete kernel, L1 = upper-layer extensions, L0 ships without any L1. The WP-09 secure-transport layer has been mainstreamed: ",
+  heroSubBold2: "SSH (curve25519, host-key verification, publickey auth), TLS 1.3 / TLS 1.2 (CA chain verification), crypto core",
   heroSubEnd: ".",
   downloadIso: (mb: string) => `Download ISO (${mb} MB)`,
   readDocs: "Read the docs",
   githubRepo: "GitHub repository",
-  dlSectionTitle: "Download WP-09-fix5",
+  dlSectionTitle: "Download WP-09",
   dlSectionDesc:
     "BIOS + UEFI dual-boot ISO and the full source archive. The files are byte-identical (SHA256) across this site, the GitHub Release and the local build (see the command below).",
   isoMeta: (bytes: string, mb: string) =>
@@ -164,8 +164,8 @@ const en: typeof zh = {
   wpThContent: "Content",
   wpThStatus: "Status",
   verifySectionTitle: "Verification",
-  verifySectionPre: "Full evidence (real outputs + both-side logs): ",
-  verifySectionPost: "; raw logs in docs/verification/.",
+  verifySectionPre: "Full verification record: ",
+  verifySectionPost: ", with real outputs and verification methods.",
   docsTitle: "Docs",
   docsDescPre:
     "The content below is read verbatim from the real repository documents at build time. For the latest version, visit the ",
@@ -177,7 +177,7 @@ const en: typeof zh = {
     "This page shows the original English documents, read verbatim from the repository at build time. A Chinese translation is available on the 中文 docs page.",
   aboutTitle: "About",
   aboutDesc:
-    "Open Cube OS: positioning, history and engineering method. All numbers come from the public repository documents (README.md, docs/VERIFICATION_BATCH_B.md, docs/WORK_LOG.md).",
+    "Open Cube OS: positioning, history and engineering method. All numbers come from the public repository documents (README.md, docs/EXTENSIONS_WP09.md, docs/INTERFACES.md).",
   aboutPositioning: "Positioning",
   aboutPositioningBodyPre:
     "Open Cube OS is an open-source operating-system kernel with a two-tier architecture: ",
@@ -191,8 +191,8 @@ const en: typeof zh = {
   aboutHistory: "Project history (nine work packages)",
   aboutMethod: "Engineering method",
   aboutMethodBody:
-    "Every work package closes with real, reproducible evidence: 120 audit bugs fixed cumulatively as of WP-08; WP-09 added further SSH/TLS fixes. Final verification: 18/18 full QEMU regression + dhtest 5/5 + HTTPS both-side E2E + SSH both-direction interop (paramiko, byte-identical K). Full evidence and raw logs: ",
-  aboutMethodMid: " and docs/verification/. History: ",
+    "Every work package closes with real, reproducible evidence: 120 audit bugs fixed cumulatively as of WP-08; WP-09 added the SSH/TLS mainstreaming and targeted fixes. Final verification: 18/18 full QEMU regression + dhtest 5/5 + HTTPS E2E against real sites + SSH both-direction interop (paramiko, byte-identical K). Full verification record: ",
+  aboutMethodMid: ". Per-work-package records: ",
   aboutMethodEnd: ".",
   aboutAi: "AI disclosure",
   aboutAiBody:

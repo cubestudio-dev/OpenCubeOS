@@ -47,19 +47,19 @@ export default function AboutView({ locale }: { locale: Locale }) {
         <p>
           {t.aboutMethodBody}
           <a
-            href={`${GITHUB_REPO}/blob/main/docs/VERIFICATION_BATCH_B.md`}
+            href={`${GITHUB_REPO}/blob/main/docs/EXTENSIONS_WP09.md`}
             target="_blank"
             rel="noopener noreferrer"
           >
-            docs/VERIFICATION_BATCH_B.md
+            docs/EXTENSIONS_WP09.md
           </a>
           {t.aboutMethodMid}
           <a
-            href={`${GITHUB_REPO}/blob/main/docs/WORK_LOG.md`}
+            href={`${GITHUB_REPO}/blob/main/README.md`}
             target="_blank"
             rel="noopener noreferrer"
           >
-            docs/WORK_LOG.md
+            README.md
           </a>
           {t.aboutMethodEnd}
         </p>

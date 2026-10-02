@@ -18,21 +18,21 @@ function fmtBytes(n: number): string {
 }
 export { fmtBytes };
 
-// WP-09 stats (README.md "Stats (WP-09)")
+// WP-09 mainstream stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "46,518", label: "行源码" },
+    { value: "54,621", label: "行源码" },
     { value: "57", label: "L1 扩展接口" },
     { value: "37", label: "系统调用" },
-    { value: "78", label: "shell 命令" },
+    { value: "87", label: "shell 命令" },
     { value: "9", label: "工作包" },
     { value: "18/18", label: "QEMU 回归" },
   ],
   en: [
-    { value: "46,518", label: "lines of source" },
+    { value: "54,621", label: "lines of source" },
     { value: "57", label: "L1 extension interfaces" },
     { value: "37", label: "system calls" },
-    { value: "78", label: "shell commands" },
+    { value: "87", label: "shell commands" },
     { value: "9", label: "work packages" },
     { value: "18/18", label: "QEMU regression" },
   ],
@@ -69,19 +69,19 @@ export const FEATURES: Bi<
       desc: "firewall 命令 — 内核包过滤运维接口，WP-09 网络可见性命令组。",
     },
     {
-      name: "TLS 1.2",
+      name: "TLS 1.3 / TLS 1.2",
       tag: "kernel/tls.c",
-      desc: "DHE_RSA_WITH_AES_128_CBC_SHA256 (0x0067)，RFC 3526 1024-bit MODP，记录层双向加解密 + MAC 校验。",
+      desc: "TLS 1.3（X25519 + AES-128-GCM，ChaCha20-Poly1305 套件）+ TLS 1.2 ECDHE-GCM 回退；X.509 CA 链验证（内嵌公共根），验证失败即握手失败。",
     },
     {
       name: "HTTPS",
       tag: "wget https://",
-      desc: "wget https://host:port/path 经 TLS 下载，直接落入 VFS 文件。",
+      desc: "wget https://host:port/path 经 TLS 下载，直接落入 VFS 文件；真实站点实测：GitHub Pages、google、cloudflare。",
     },
     {
       name: "SSH",
       tag: "ssh.c / sshd.c",
-      desc: "客户端 + 服务端：group14-sha256、aes128-cbc、hmac-sha2-256、rsa-sha2-256、密码认证、session exec；与 paramiko 双向互操作。",
+      desc: "客户端 + 服务端：curve25519-sha256 优先 + group14-sha256 回退、aes128-ctr 优先、hmac-sha2-256、主机密钥签名验证（TOFU + 指纹）、密码 + 公钥认证；与 paramiko 双向互操作。",
     },
   ],
   en: [
@@ -111,19 +111,19 @@ export const FEATURES: Bi<
       desc: "firewall command — kernel packet-filtering ops interface, part of the WP-09 network-visibility command group.",
     },
     {
-      name: "TLS 1.2",
+      name: "TLS 1.3 / TLS 1.2",
       tag: "kernel/tls.c",
-      desc: "DHE_RSA_WITH_AES_128_CBC_SHA256 (0x0067), RFC 3526 1024-bit MODP, full record layer with bidirectional encryption + MAC verification.",
+      desc: "TLS 1.3 (X25519 + AES-128-GCM, ChaCha20-Poly1305 suites) + TLS 1.2 ECDHE-GCM fallback; X.509 CA chain verification against embedded public roots — the handshake fails closed on verification errors.",
     },
     {
       name: "HTTPS",
       tag: "wget https://",
-      desc: "wget https://host:port/path downloads over TLS, landing directly in a VFS file.",
+      desc: "wget https://host:port/path downloads over TLS, landing directly in a VFS file; verified against three real sites: GitHub Pages, google, cloudflare.",
     },
     {
       name: "SSH",
       tag: "ssh.c / sshd.c",
-      desc: "Client + server: group14-sha256, aes128-cbc, hmac-sha2-256, rsa-sha2-256, password auth, session exec; bidirectional interop with paramiko.",
+      desc: "Client + server: curve25519-sha256 preferred with group14-sha256 fallback, aes128-ctr preferred, hmac-sha2-256, host-key signature verification (TOFU + fingerprint), password + publickey auth; bidirectional interop with paramiko.",
     },
   ],
 };
@@ -216,7 +216,7 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
     },
     {
       no: "WP-09",
-      title: "安全传输：SSH（客户端 + 服务端）、TLS 1.2 / HTTPS、crypto 核心",
+      title: "安全传输：SSH（客户端 + 服务端）、TLS 1.3 / TLS 1.2 / HTTPS、crypto 核心",
     },
   ],
   en: [
@@ -233,12 +233,12 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
     },
     {
       no: "WP-09",
-      title: "Secure transport: SSH (client + server), TLS 1.2 / HTTPS, crypto core",
+      title: "Secure transport: SSH (client + server), TLS 1.3 / TLS 1.2 / HTTPS, crypto core",
     },
   ],
 };
 
-// Verification (README.md "Tests" + docs/VERIFICATION_BATCH_B.md)
+// Verification (README.md "Tests" + docs/EXTENSIONS_WP09.md)
 export const VERIFY: Bi<{ name: string; desc: string }[]> = {
   zh: [
     {
@@ -251,7 +251,7 @@ export const VERIFY: Bi<{ name: string; desc: string }[]> = {
     },
     {
       name: "HTTPS E2E",
-      desc: "内核 TLS 1.2 客户端 ↔ tools/https_test_server.py（TLS1.2-only）：握手 + 加密 GET + 解密响应 + MAC 校验，双侧留日志。",
+      desc: "内核 TLS 客户端访问三个真实站点：cubestudio-dev.github.io（10148 字节 update.json）、google.com、cloudflare.com——TLS 1.3 握手 + CA 链验证 + 加密传输全链路。",
     },
     {
       name: "SSH 双向互操作",
@@ -269,7 +269,7 @@ export const VERIFY: Bi<{ name: string; desc: string }[]> = {
     },
     {
       name: "HTTPS E2E",
-      desc: "Kernel TLS 1.2 client ↔ tools/https_test_server.py (TLS1.2-only): handshake + encrypted GET + decrypted response + MAC verification, both sides logged.",
+      desc: "Kernel TLS client against three real sites: cubestudio-dev.github.io (10148-byte update.json), google.com, cloudflare.com — TLS 1.3 handshake + CA chain verification + encrypted transport, end to end.",
     },
     {
       name: "SSH bidirectional interop",
