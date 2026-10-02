@@ -42,7 +42,7 @@ extern "C" {
 #endif
 
 /* Current kernel version - must stay in sync with cmd_uname (kmain.c). */
-#define OC_UPDATE_CURRENT_VERSION "WP-09"
+#define OC_UPDATE_CURRENT_VERSION "WP-10a"
 
 /* Manifest fields as parsed from the JSON body. */
 typedef struct {

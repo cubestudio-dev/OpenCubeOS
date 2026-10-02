@@ -1,72 +1,72 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-09 value taken from the
-// repository docs (README.md, docs/INTERFACES.md, docs/EXTENSIONS_WP09.md)
+// Central site data. Every number is a real WP-10a value taken from the
+// repository docs (README.md, docs/INTERFACES.md, docs/EXTENSIONS_WP10a.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub Release WP-09-mainstream-final + this site /downloads/
+// 3-way identical: local build + GitHub Release WP-10a + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_WP09 =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-09-mainstream-final";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10a";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release WP-09-mainstream-final + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp09-mainstream-final.iso";
-export const ISO_SIZE_B = 10872832;
-export const ISO_SIZE_MB = "10.37";
+// Real assets (build/ + GitHub Release WP-10a + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp10a.iso";
+export const ISO_SIZE_B = 10899456;
+export const ISO_SIZE_MB = "10.39";
 export const ISO_SHA256 =
-  "828df7ecc6e3779ca8548e08fc2e05663e2d59ae5ea3ac2aec41c4c72b2a2b0c";
+  "258e5894a5b92039e0f784c7068beb23e6738dc3ae715bc6415a83a55e9adc27";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp09-mainstream-final-src.zip";
-export const SRC_SIZE_B = 12962828;
-export const SRC_SIZE_MB = "12.36";
+export const SRC_FILE = "opencube-wp10a-src.zip";
+export const SRC_SIZE_B = 18581385;
+export const SRC_SIZE_MB = "17.72";
 export const SRC_SHA256 =
-  "75adbf66464a39ea7e6acd7cf177d1a25d0bd165fb4cae1893f9656e2a2b0256";
+  "065afd19982fe685b9de20fc1799b78a2968a902dc121323fc4b0cf898b47c3a";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-09 mainstream stats. Source lines: find kernel boot userprogs -name '*.c' -o -name '*.h' -o -name '*.S' -o -name '*.asm' -o -name '*.ld' | xargs wc -l (54,621 at commit 0da7cd3).
-// Shell commands: live boot self-test + help count = 87 (includes nf_test, tcpstats, tcpcc_test, dnstest, tcptest).
-// L1 extension interfaces: 57 numbered items (docs/EXTENSIONS_WP08cd.md: WP-01..07 32 + WP-08 25); WP-09 adds transport APIs, not numbered L1 interfaces.
+// WP-10a stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (56,019 at commit ea738df).
+// Shell commands: live boot self-test + help count = 98 (includes ahci/nvme/ata + the eight WP-10a storage tests).
+// L1 extension interfaces: 65 numbered items (57 through WP-09 + 8 WP-10a storage items; docs/EXTENSIONS_WP10a.md).
 export const STATS = [
-  { value: "54,621", label: "行源码" },
-  { value: "57", label: "L1 扩展接口" },
+  { value: "56,019", label: "行源码" },
+  { value: "65", label: "L1 扩展接口" },
   { value: "37", label: "系统调用" },
-  { value: "87", label: "shell 命令" },
-  { value: "9", label: "工作包" },
+  { value: "98", label: "shell 命令" },
+  { value: "10", label: "工作包" },
   { value: "18/18", label: "QEMU 回归" },
 ];
 
-// WP-09 security transport + network features (user-facing list)
+// WP-10a storage + WP-09 security transport features (user-facing list)
 export const FEATURES = [
   {
-    name: "TCP 可靠传输",
-    tag: "kernel/net.c",
-    desc: "面向连接的可靠字节流：三次握手建立连接、按需重传分段、四次挥手拆除（FIN/ACK）。",
+    name: "AHCI SATA",
+    tag: "WP-10a",
+    desc: "SATA 硬盘/SSD 驱动：精确类别 0x010601 枚举、命令列表/H2D FIS、48 位 LBA DMA 读写、FLUSH CACHE，多控制器多端口。",
   },
   {
-    name: "TCP 选项",
-    tag: "WP-09",
-    desc: "SYN 携带 MSS、Window Scale、SACK-Permitted、Timestamps 选项，入包选项双向解析。",
+    name: "NVMe SSD",
+    tag: "WP-10a",
+    desc: "NVMe 驱动：管理队列对 + 双 I/O 队列对轮询、Identify、Read/Write/Flush，doorbell 提交完成。",
   },
   {
-    name: "路由",
-    tag: "route",
-    desc: "route 命令 — WP-09 新增网络运维命令组（route / arp / firewall / tcpstats / dns）之一。",
+    name: "ATA Bus-Master DMA",
+    tag: "WP-10a",
+    desc: "经典 IDE 走 PCI BMDMA（BAR4 + PRDT）真 DMA 传输，PIO 路径保留为回退；自测含 DMA vs PIO 计时对比。",
   },
   {
-    name: "DNS",
-    tag: "dns_resolve",
-    desc: "内核 dns_resolve API + dns 命令；DHCP 自动下发 DNS 配置（option 6）。",
+    name: "virtio-blk",
+    tag: "WP-10a",
+    desc: "QEMU virtio 磁盘：容量读取修复（此前为 0）、virtqueue 请求/应答、读写刷全链路。",
   },
   {
-    name: "防火墙",
-    tag: "firewall",
-    desc: "firewall 命令 — 内核包过滤运维接口，WP-09 网络可见性命令组。",
+    name: "FAT32 全设备挂载",
+    tag: "WP-10a",
+    desc: "FAT32 从直连 ATA 迁移到 blk 层：hda/sda/vda/nvme0 四类驱动均可 mkfs + 挂载 + 文件往返；MBR + GPT 分区解析。",
   },
   {
     name: "TLS 1.3 / TLS 1.2",
@@ -138,13 +138,21 @@ export const WORK_PACKAGES = [
     no: "WP-09",
     title: "安全传输：SSH（客户端 + 服务端）、TLS 1.3 / TLS 1.2 / HTTPS、crypto 核心",
   },
+  {
+    no: "WP-10a",
+    title: "存储驱动：AHCI / NVMe / ATA DMA / virtio-blk + blk_* 扩展接口",
+  },
 ];
 
-// Verification (README.md "Tests" + docs/EXTENSIONS_WP09.md)
+// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a.md)
 export const VERIFY = [
   {
     name: "18/18 QEMU 全量回归",
-    desc: "boot 横幅 + uname + 12 个用户程序 + p3_test + heaptest + l1test + crashlog，单次 QEMU 会话完成。",
+    desc: "boot 横幅 + uname + 12 个用户程序 + p3_test + heaptest + l1test + crashlog，单次 QEMU 会话完成（挂全部四类盘）。",
+  },
+  {
+    name: "WP-10a 存储测试 8 项",
+    desc: "ahci_test / nvme_test / ata_dma_test（含 DMA vs PIO 计时）/ virtio_blk_test / disk_rw_test / partition_test（MBR+GPT）/ fs_mount_test（四设备 FAT32 往返）/ real_hw_test 全 PASS。",
   },
   {
     name: "dhtest 5/5",
@@ -152,10 +160,6 @@ export const VERIFY = [
   },
   {
     name: "HTTPS E2E",
-    desc: "内核 TLS 客户端访问三个真实站点：cubestudio-dev.github.io（10148 字节 update.json）、google.com、cloudflare.com——TLS 1.3 握手 + CA 链验证 + 加密传输全链路。",
-  },
-  {
-    name: "SSH 双向互操作",
-    desc: "与 paramiko 5.0 双向互通：客户端→内核 sshd 4/4 检查；内核 ssh→paramiko 服务端 K 字节级一致。",
+    desc: "内核 TLS 客户端访问三个真实站点：cubestudio-dev.github.io（update.json）、google.com、cloudflare.com——TLS 1.3 握手 + CA 链验证 + 加密传输全链路。",
   },
 ];

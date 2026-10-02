@@ -18,55 +18,55 @@ function fmtBytes(n: number): string {
 }
 export { fmtBytes };
 
-// WP-09 mainstream stats (same caliber as lib/site.ts; see there for verify commands)
+// WP-10a stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "54,621", label: "行源码" },
-    { value: "57", label: "L1 扩展接口" },
+    { value: "56,019", label: "行源码" },
+    { value: "65", label: "L1 扩展接口" },
     { value: "37", label: "系统调用" },
-    { value: "87", label: "shell 命令" },
-    { value: "9", label: "工作包" },
+    { value: "98", label: "shell 命令" },
+    { value: "10", label: "工作包" },
     { value: "18/18", label: "QEMU 回归" },
   ],
   en: [
-    { value: "54,621", label: "lines of source" },
-    { value: "57", label: "L1 extension interfaces" },
+    { value: "56,019", label: "lines of source" },
+    { value: "65", label: "L1 extension interfaces" },
     { value: "37", label: "system calls" },
-    { value: "87", label: "shell commands" },
-    { value: "9", label: "work packages" },
+    { value: "98", label: "shell commands" },
+    { value: "10", label: "work packages" },
     { value: "18/18", label: "QEMU regression" },
   ],
 };
 
-// WP-09 security transport + network features (user-facing list)
+// WP-10a storage + WP-09 security transport features (user-facing list)
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
     {
-      name: "TCP 可靠传输",
-      tag: "kernel/net.c",
-      desc: "面向连接的可靠字节流：三次握手建立连接、按需重传分段、四次挥手拆除（FIN/ACK）。",
+      name: "AHCI SATA",
+      tag: "WP-10a",
+      desc: "SATA 硬盘/SSD 驱动：精确类别 0x010601 枚举、命令列表/H2D FIS、48 位 LBA DMA 读写、FLUSH CACHE，多控制器多端口。",
     },
     {
-      name: "TCP 选项",
-      tag: "WP-09",
-      desc: "SYN 携带 MSS、Window Scale、SACK-Permitted、Timestamps 选项，入包选项双向解析。",
+      name: "NVMe SSD",
+      tag: "WP-10a",
+      desc: "NVMe 驱动：管理队列对 + 双 I/O 队列对轮询、Identify、Read/Write/Flush，doorbell 提交完成。",
     },
     {
-      name: "路由",
-      tag: "route",
-      desc: "route 命令 — WP-09 新增网络运维命令组（route / arp / firewall / tcpstats / dns）之一。",
+      name: "ATA Bus-Master DMA",
+      tag: "WP-10a",
+      desc: "经典 IDE 走 PCI BMDMA（BAR4 + PRDT）真 DMA 传输，PIO 路径保留为回退；自测含 DMA vs PIO 计时对比。",
     },
     {
-      name: "DNS",
-      tag: "dns_resolve",
-      desc: "内核 dns_resolve API + dns 命令；DHCP 自动下发 DNS 配置（option 6）。",
+      name: "virtio-blk",
+      tag: "WP-10a",
+      desc: "QEMU virtio 磁盘：容量读取修复（此前为 0）、virtqueue 请求/应答、读写刷全链路。",
     },
     {
-      name: "防火墙",
-      tag: "firewall",
-      desc: "firewall 命令 — 内核包过滤运维接口，WP-09 网络可见性命令组。",
+      name: "FAT32 全设备挂载",
+      tag: "WP-10a",
+      desc: "FAT32 从直连 ATA 迁移到 blk 层：hda/sda/vda/nvme0 四类驱动均可 mkfs + 挂载 + 文件往返；MBR + GPT 分区解析。",
     },
     {
       name: "TLS 1.3 / TLS 1.2",
@@ -86,29 +86,29 @@ export const FEATURES: Bi<
   ],
   en: [
     {
-      name: "TCP reliable transport",
-      tag: "kernel/net.c",
-      desc: "Connection-oriented reliable byte stream: three-way handshake, on-demand segment retransmission, four-way teardown (FIN/ACK).",
+      name: "AHCI SATA",
+      tag: "WP-10a",
+      desc: "SATA disk/SSD driver: exact class 0x010601 enumeration, command lists/H2D FIS, 48-bit LBA DMA, FLUSH CACHE, multi-controller multi-port.",
     },
     {
-      name: "TCP options",
-      tag: "WP-09",
-      desc: "SYN carries MSS, Window Scale, SACK-Permitted and Timestamps options; inbound options are parsed in both directions.",
+      name: "NVMe SSD",
+      tag: "WP-10a",
+      desc: "NVMe driver: admin queue pair + two round-robin I/O queue pairs, Identify, Read/Write/Flush with doorbells.",
     },
     {
-      name: "Routing",
-      tag: "route",
-      desc: "route command — part of the WP-09 network-ops command group (route / arp / firewall / tcpstats / dns).",
+      name: "ATA Bus-Master DMA",
+      tag: "WP-10a",
+      desc: "Classic IDE over PCI BMDMA (BAR4 + PRDT) with true DMA transfers; the PIO path stays as fallback; the self-test prints a DMA-vs-PIO timing comparison.",
     },
     {
-      name: "DNS",
-      tag: "dns_resolve",
-      desc: "Kernel dns_resolve API + dns command; DHCP installs the DNS configuration automatically (option 6).",
+      name: "virtio-blk",
+      tag: "WP-10a",
+      desc: "QEMU virtio disk: capacity read fixed (was 0), virtqueue request/reply, full read/write/flush path.",
     },
     {
-      name: "Firewall",
-      tag: "firewall",
-      desc: "firewall command — kernel packet-filtering ops interface, part of the WP-09 network-visibility command group.",
+      name: "FAT32 on every device",
+      tag: "WP-10a",
+      desc: "FAT32 moved from direct ATA I/O to the blk layer: mkfs + mount + file round-trips on hda/sda/vda/nvme0; MBR + GPT partition parsing.",
     },
     {
       name: "TLS 1.3 / TLS 1.2",
@@ -218,6 +218,10 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
       no: "WP-09",
       title: "安全传输：SSH（客户端 + 服务端）、TLS 1.3 / TLS 1.2 / HTTPS、crypto 核心",
     },
+    {
+      no: "WP-10a",
+      title: "存储驱动：AHCI / NVMe / ATA DMA / virtio-blk + blk_* 扩展接口",
+    },
   ],
   en: [
     { no: "WP-01", title: "Boot + framebuffer + text rendering" },
@@ -235,15 +239,23 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
       no: "WP-09",
       title: "Secure transport: SSH (client + server), TLS 1.3 / TLS 1.2 / HTTPS, crypto core",
     },
+    {
+      no: "WP-10a",
+      title: "Storage drivers: AHCI / NVMe / ATA DMA / virtio-blk + blk_* extension API",
+    },
   ],
 };
 
-// Verification (README.md "Tests" + docs/EXTENSIONS_WP09.md)
+// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a.md)
 export const VERIFY: Bi<{ name: string; desc: string }[]> = {
   zh: [
     {
       name: "18/18 QEMU 全量回归",
-      desc: "boot 横幅 + uname + 12 个用户程序 + p3_test + heaptest + l1test + crashlog，单次 QEMU 会话完成。",
+      desc: "boot 横幅 + uname + 12 个用户程序 + p3_test + heaptest + l1test + crashlog，单次 QEMU 会话完成（挂全部四类盘）。",
+    },
+    {
+      name: "WP-10a 存储测试 8 项",
+      desc: "ahci_test / nvme_test / ata_dma_test（含 DMA vs PIO 计时）/ virtio_blk_test / disk_rw_test / partition_test（MBR+GPT）/ fs_mount_test（四设备 FAT32 往返）/ real_hw_test 全 PASS。",
     },
     {
       name: "dhtest 5/5",
@@ -251,17 +263,17 @@ export const VERIFY: Bi<{ name: string; desc: string }[]> = {
     },
     {
       name: "HTTPS E2E",
-      desc: "内核 TLS 客户端访问三个真实站点：cubestudio-dev.github.io（10148 字节 update.json）、google.com、cloudflare.com——TLS 1.3 握手 + CA 链验证 + 加密传输全链路。",
-    },
-    {
-      name: "SSH 双向互操作",
-      desc: "与 paramiko 5.0 双向互通：客户端→内核 sshd 4/4 检查；内核 ssh→paramiko 服务端 K 字节级一致。",
+      desc: "内核 TLS 客户端访问三个真实站点：cubestudio-dev.github.io（update.json）、google.com、cloudflare.com——TLS 1.3 握手 + CA 链验证 + 加密传输全链路。",
     },
   ],
   en: [
     {
       name: "18/18 full QEMU regression",
-      desc: "boot banner + uname + 12 user programs + p3_test + heaptest + l1test + crashlog, executed in a single QEMU session.",
+      desc: "boot banner + uname + 12 user programs + p3_test + heaptest + l1test + crashlog, executed in a single QEMU session with all four disk types attached.",
+    },
+    {
+      name: "8 WP-10a storage tests",
+      desc: "ahci_test / nvme_test / ata_dma_test (with DMA-vs-PIO timing) / virtio_blk_test / disk_rw_test / partition_test (MBR+GPT) / fs_mount_test (FAT32 round-trip on all four drivers) / real_hw_test — all PASS.",
     },
     {
       name: "dhtest 5/5",
@@ -269,11 +281,7 @@ export const VERIFY: Bi<{ name: string; desc: string }[]> = {
     },
     {
       name: "HTTPS E2E",
-      desc: "Kernel TLS client against three real sites: cubestudio-dev.github.io (10148-byte update.json), google.com, cloudflare.com — TLS 1.3 handshake + CA chain verification + encrypted transport, end to end.",
-    },
-    {
-      name: "SSH bidirectional interop",
-      desc: "Both directions with paramiko 5.0: client→kernel sshd 4/4 checks; kernel ssh→paramiko server with byte-identical K.",
+      desc: "Kernel TLS client against three real sites: cubestudio-dev.github.io (update.json), google.com, cloudflare.com — TLS 1.3 handshake + CA chain verification + encrypted transport, end to end.",
     },
   ],
 };

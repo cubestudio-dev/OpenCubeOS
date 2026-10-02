@@ -58,6 +58,11 @@ export const TIMELINE: Bi<
       title: "安全传输：SSH + TLS 1.3 / TLS 1.2 / HTTPS + crypto 核心",
       desc: "crypto 核心（AES-128、SHA-256、HMAC-SHA256、任意长度 DH modexp、bignum/P-256/X25519/RSA/AEAD 原语）；SSH 客户端 + 服务端（curve25519-sha256 优先 + group14-sha256 回退、aes128-ctr 优先、hmac-sha2-256、rsa-sha2-256/512 主机密钥签名验证 TOFU、密码 + 公钥认证、session exec，与 paramiko 双向互操作、K 字节级一致）；TLS 1.3（X25519 + AES-128-GCM）+ TLS 1.2 ECDHE-GCM 回退、X.509 CA 链验证（内嵌 10 个公共根，验证失败即握手失败）；HTTPS 下载入 VFS（真实站点实测：GitHub Pages / google / cloudflare）；route/arp/firewall/tcpstats/dns 运维命令；TCP 可靠性（CUBIC、SACK、快速重传）与完整选项（MSS、Window Scale、SACK-Permitted、Timestamps）；netfilter（规则/conntrack/策略）。",
     },
+    {
+      no: "WP-10a",
+      title: "存储驱动：AHCI / NVMe / ATA DMA / virtio-blk + blk_* 扩展接口",
+      desc: "四类主流存储驱动统一注册到 blk 层：AHCI SATA（精确类别 0x010601、命令列表/H2D FIS、48 位 LBA DMA 读写、FLUSH CACHE、多控制器多端口）；NVMe（管理队列对 + 双 I/O 队列对轮询、Identify、Read/Write/Flush）；ATA Bus-Master DMA（BAR4 BMDMA + PRDT 真 DMA，PIO 回退保留，自测含 DMA vs PIO 计时）；virtio-blk（容量读取修复）；FAT32 迁移到 blk 层后四类设备均可挂载并完成文件往返（MBR + GPT 分区解析）；新增 blk_register/blk_read/blk_write/blk_flush/blk_set_ops 等 8 项 L1 接口与 ahci/nvme/ata 状态命令 + 八项存储测试；根治 fork #PF 潜伏缺陷（pmm 保留 0x400000-0x600000 物理窗口）。",
+    },
   ],
   en: [
     {
@@ -104,6 +109,11 @@ export const TIMELINE: Bi<
       no: "WP-09",
       title: "Secure transport: SSH + TLS 1.3 / TLS 1.2 / HTTPS + crypto core",
       desc: "Crypto core (AES-128, SHA-256, HMAC-SHA256, arbitrary-length DH modexp, bignum/P-256/X25519/RSA/AEAD primitives); SSH client + server (curve25519-sha256 preferred with group14-sha256 fallback, aes128-ctr preferred, hmac-sha2-256, rsa-sha2-256/512 host-key signature verification with TOFU, password + publickey auth, session exec, bidirectional paramiko interop with byte-identical K); TLS 1.3 (X25519 + AES-128-GCM) + TLS 1.2 ECDHE-GCM fallback, X.509 CA chain verification (10 embedded public roots, fails closed); HTTPS downloads into VFS (verified against real sites: GitHub Pages / google / cloudflare); route/arp/firewall/tcpstats/dns ops commands; TCP reliability (CUBIC, SACK, fast retransmit) and full options (MSS, Window Scale, SACK-Permitted, Timestamps); netfilter (rules/conntrack/policies).",
+    },
+    {
+      no: "WP-10a",
+      title: "Storage drivers: AHCI / NVMe / ATA DMA / virtio-blk + blk_* extension API",
+      desc: "Four mainstream storage drivers unified under the blk layer: AHCI SATA (exact class 0x010601, command lists/H2D FIS, 48-bit LBA DMA reads/writes, FLUSH CACHE, multi-controller multi-port); NVMe (admin queue pair + two round-robin I/O queue pairs, Identify, Read/Write/Flush); ATA Bus-Master DMA (BAR4 BMDMA + PRDT, true DMA with the PIO path kept as fallback, a DMA-vs-PIO timing self-test); virtio-blk (capacity read fixed); FAT32 moved to the blk layer so all four device types mount with file round-trips (MBR + GPT parsing); 8 new L1 interfaces (blk_register/blk_read/blk_write/blk_flush/blk_set_ops, ...) plus the ahci/nvme/ata status commands and an eight-test storage suite; root-fixed a latent fork #PF (pmm reserves the 0x400000-0x600000 physical window).",
     },
   ],
 };

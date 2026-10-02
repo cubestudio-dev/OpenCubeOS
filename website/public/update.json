@@ -1,5 +1,5 @@
 {
-  "version": "WP-09",
+  "version": "WP-10a",
   "time": "2026-10-02",
-  "changes": "TLS 1.3 + CA chain verification; SSH curve25519/publickey/TOFU; CUBIC/SACK; netfilter; DNS 7 types; TCP options"
+  "changes": "Storage drivers: AHCI SATA, NVMe (2 I/O queue pairs), ATA Bus-Master DMA, virtio-blk capacity fix; FAT32 on all block devices; MBR+GPT; blk_* extension API; fork #PF root fix"
 }

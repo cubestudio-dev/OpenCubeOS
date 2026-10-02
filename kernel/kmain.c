@@ -159,7 +159,7 @@ static void draw_banner(void) {
     u32 saved_bg = oc_console_get()->bg_pixel;
     oc_console_get()->fg_pixel = oc_fb_rgb(0xFF, 0xFF, 0xFF);
     oc_console_get()->bg_pixel = band_color;
-    oc_console_puts("Open Cube OS  [WP-09]");
+    oc_console_puts("Open Cube OS  [WP-10a]");
     oc_console_get()->fg_pixel = saved_fg;
     oc_console_get()->bg_pixel = saved_bg;
     oc_console_move_cursor(0, 4);
@@ -880,11 +880,11 @@ static int cmd_uname(const char *args) {
         show_s = 1;  /* default */
     }
     if (show_all) {
-        oc_console_puts("Open Cube OS WP-09 x86_64\n");
+        oc_console_puts("Open Cube OS WP-10a x86_64\n");
         return 0;
     }
     if (show_s) oc_console_puts("Open Cube OS\n");
-    if (show_r) oc_console_puts("WP-09\n");
+    if (show_r) oc_console_puts("WP-10a\n");
     if (show_m) oc_console_puts("x86_64\n");
     return 0;
 }
@@ -2258,7 +2258,7 @@ static void interactive_loop(void) {
     (void)tm_id;
 
     oc_console_putc('\n');
-    oc_console_puts("Open Cube OS WP-09 ready. Type 'help' for commands.\n");
+    oc_console_puts("Open Cube OS WP-10a ready. Type 'help' for commands.\n");
     oc_console_puts("(Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)\n\n");
 
     char line[256];
@@ -2282,7 +2282,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     /* ---- 0. Serial console ---- */
     serial_init();
     serial_putc('\r'); serial_putc('\n');
-    serial_puts("[oc] Open Cube OS WP-09 kmain entered\r\n");
+    serial_puts("[oc] Open Cube OS WP-10a kmain entered\r\n");
 
     /* ---- 1. Validate multiboot2 ---- */
     if (magic != OC_MB2_MAGIC) {
@@ -2312,7 +2312,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     draw_banner();
 
     /* ---- 5. Boot log (WP-01 stages) ---- */
-    oc_log_info("Open Cube OS - L0 kernel (WP-09)");
+    oc_log_info("Open Cube OS - L0 kernel (WP-10a)");
     oc_log_info("Apache 2.0 licensed. See LICENSE.");
     oc_console_putc('\n');
 
