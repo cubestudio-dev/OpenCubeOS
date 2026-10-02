@@ -27,8 +27,12 @@
  *   es1370     - ES1370 status
  *   virtiosnd  - virtio-snd status
  *   usbaudio   - USB audio status
- *   play       - play a test tone (play [rate])
- *   volume     - get/set volume (volume [0-100])
+ *   play       - play a test tone (play [device] [rate])
+ *   volume     - get/set volume (volume [device] [0-100])
+ *
+ * Both commands accept an optional leading device name token (e.g.
+ * 'volume hda 50', 'play ac97 48000'); an unknown token is rejected
+ * with usage text instead of silently reprogramming the hardware.
  */
 #include "snd.h"
 #include "usb.h"
@@ -379,6 +383,38 @@ static int cmd_usbaudio(const char *args) {
     return 0;
 }
 
+/* Copy the first whitespace-separated token of *rest into tok and
+ * advance *rest past it.  tok is always NUL-terminated. */
+static void snd_next_token(const char **rest, char *tok, int toklen) {
+    int i = 0;
+    const char *p = *rest;
+    while (*p == ' ' || *p == '\t') p++;
+    while (*p && *p != ' ' && *p != '\t' && i < toklen - 1)
+        tok[i++] = *p++;
+    tok[i] = '\0';
+    while (*p == ' ' || *p == '\t') p++;
+    *rest = p;
+}
+
+static int snd_tok_is_number(const char *tok) {
+    if (!tok[0]) return 0;
+    for (const char *p = tok; *p; p++)
+        if (*p < '0' || *p > '9') return 0;
+    return 1;
+}
+
+/* Find a registered card by its exact framework name (e.g. "hda").
+ * Returns NULL when name is empty or no card matches. */
+static snd_device_t *snd_find_by_name_tok(const char *name) {
+    if (!name[0]) return NULL;
+    for (int i = 0; i < SND_MAX_DEVICES; i++) {
+        snd_device_t *d = snd_get_device(i);
+        if (d && d->present && oc_strcmp(d->name, name) == 0)
+            return d;
+    }
+    return NULL;
+}
+
 static int cmd_play(const char *args) {
     int idx = snd_find_first_present();
     if (idx < 0) {
@@ -389,10 +425,24 @@ static int cmd_play(const char *args) {
 
     u32 rate = dev->rate;
     if (args && args[0]) {
-        u32 r = 0;
-        for (const char *p = args; *p >= '0' && *p <= '9'; p++)
-            r = r * 10 + (u32)(*p - '0');
-        if (r >= 4000 && r <= 96000) rate = r;
+        const char *rest = args;
+        char tok[24];
+        snd_next_token(&rest, tok, sizeof(tok));
+        if (!snd_tok_is_number(tok)) {
+            snd_device_t *by_name = snd_find_by_name_tok(tok);
+            if (!by_name) {
+                oc_console_puts("usage: play [device] [rate 4000-96000]\n");
+                return -1;
+            }
+            dev = by_name;
+            snd_next_token(&rest, tok, sizeof(tok));
+        }
+        if (snd_tok_is_number(tok)) {
+            u32 r = 0;
+            for (const char *p = tok; *p; p++)
+                r = r * 10 + (u32)(*p - '0');
+            if (r >= 4000 && r <= 96000) rate = r;
+        }
     }
 
     static u8 pcm[192000];
@@ -430,11 +480,25 @@ static int cmd_volume(const char *args) {
     char line[96];
     char n[24];
     if (args && args[0]) {
-        u32 v = 0;
-        for (const char *p = args; *p >= '0' && *p <= '9'; p++)
-            v = v * 10 + (u32)(*p - '0');
-        if (v > 100) v = 100;
-        snd_set_volume(dev, v);
+        const char *rest = args;
+        char tok[24];
+        snd_next_token(&rest, tok, sizeof(tok));
+        if (!snd_tok_is_number(tok)) {
+            snd_device_t *by_name = snd_find_by_name_tok(tok);
+            if (!by_name) {
+                oc_console_puts("usage: volume [device] [0-100]\n");
+                return -1;
+            }
+            dev = by_name;
+            snd_next_token(&rest, tok, sizeof(tok));
+        }
+        if (snd_tok_is_number(tok)) {
+            u32 v = 0;
+            for (const char *p = tok; *p; p++)
+                v = v * 10 + (u32)(*p - '0');
+            if (v > 100) v = 100;
+            snd_set_volume(dev, v);
+        }
     }
     oc_strcpy(line, "volume: ");
     oc_strcat(line, dev->name);
