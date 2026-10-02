@@ -18,31 +18,36 @@ function fmtBytes(n: number): string {
 }
 export { fmtBytes };
 
-// WP-10a stats (same caliber as lib/site.ts; see there for verify commands)
+// WP-10b stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "56,019", label: "行源码" },
-    { value: "65", label: "L1 扩展接口" },
+    { value: "59,662", label: "行源码" },
+    { value: "78", label: "L1 扩展接口" },
     { value: "37", label: "系统调用" },
-    { value: "98", label: "shell 命令" },
-    { value: "10", label: "工作包" },
+    { value: "116", label: "shell 命令" },
+    { value: "11", label: "工作包" },
     { value: "18/18", label: "QEMU 回归" },
   ],
   en: [
-    { value: "56,019", label: "lines of source" },
-    { value: "65", label: "L1 extension interfaces" },
+    { value: "59,662", label: "lines of source" },
+    { value: "78", label: "L1 extension interfaces" },
     { value: "37", label: "system calls" },
-    { value: "98", label: "shell commands" },
-    { value: "10", label: "work packages" },
+    { value: "116", label: "shell commands" },
+    { value: "11", label: "work packages" },
     { value: "18/18", label: "QEMU regression" },
   ],
 };
 
-// WP-10a storage + WP-09 security transport features (user-facing list)
+// WP-10b NIC + WP-10a storage + WP-09 security transport features (user-facing list)
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "网卡驱动（九族）",
+      tag: "WP-10b",
+      desc: "e1000e / igb / ixgbe / RTL8139 / RTL8168 / RTL8125 / RTL810x / BCM57xx 及 3c59x、nForce、AR81xx、Yukon 识别与驱动：nic_register/send/recv/link_status/get_mac 扩展接口；e1000e、igb、RTL8139 在 QEMU 实测 DHCP/ping/HTTPS 全链路。",
+    },
     {
       name: "AHCI SATA",
       tag: "WP-10a",
@@ -85,6 +90,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "NIC drivers (nine families)",
+      tag: "WP-10b",
+      desc: "e1000e / igb / ixgbe / RTL8139 / RTL8168 / RTL8125 / RTL810x / BCM57xx plus 3c59x, nForce, AR81xx and Yukon detection & drivers: the nic_register/send/recv/link_status/get_mac extension interfaces; e1000e, igb and RTL8139 verified live in QEMU with the DHCP/ping/HTTPS full chain.",
+    },
     {
       name: "AHCI SATA",
       tag: "WP-10a",
@@ -222,6 +232,10 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
       no: "WP-10a",
       title: "存储驱动：AHCI / NVMe / ATA DMA / virtio-blk + blk_* 扩展接口",
     },
+    {
+      no: "WP-10b",
+      title: "网卡驱动：九族主流有线网卡 + nic_* 扩展接口",
+    },
   ],
   en: [
     { no: "WP-01", title: "Boot + framebuffer + text rendering" },
@@ -243,10 +257,14 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
       no: "WP-10a",
       title: "Storage drivers: AHCI / NVMe / ATA DMA / virtio-blk + blk_* extension API",
     },
+    {
+      no: "WP-10b",
+      title: "NIC drivers: nine mainstream wired Ethernet families + the nic_* extension API",
+    },
   ],
 };
 
-// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a.md)
+// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a.md + docs/EXTENSIONS_WP10b.md)
 export const VERIFY: Bi<{ name: string; desc: string }[]> = {
   zh: [
     {
@@ -256,6 +274,10 @@ export const VERIFY: Bi<{ name: string; desc: string }[]> = {
     {
       name: "WP-10a 存储测试 8 项",
       desc: "ahci_test / nvme_test / ata_dma_test（含 DMA vs PIO 计时）/ virtio_blk_test / disk_rw_test / partition_test（MBR+GPT）/ fs_mount_test（四设备 FAT32 往返）/ real_hw_test 全 PASS。",
+    },
+    {
+      name: "WP-10b 网卡测试 10 项",
+      desc: "e1000e_test / igb_test / rtl8139_test 在 QEMU 实测注册、MAC、链路、TX/RX 与 dhcp/ping/wget HTTPS 全链路全 PASS；ixgbe_test / rtl8168_test / rtl8125_test / rtl810x_test / bcm57xx_test / other_nic_test / nic_rw_test 无 QEMU 设备模型时如实 SKIPPED（数据手册实现），绝不伪造输出。",
     },
     {
       name: "dhtest 5/5",
@@ -274,6 +296,10 @@ export const VERIFY: Bi<{ name: string; desc: string }[]> = {
     {
       name: "8 WP-10a storage tests",
       desc: "ahci_test / nvme_test / ata_dma_test (with DMA-vs-PIO timing) / virtio_blk_test / disk_rw_test / partition_test (MBR+GPT) / fs_mount_test (FAT32 round-trip on all four drivers) / real_hw_test — all PASS.",
+    },
+    {
+      name: "10 WP-10b NIC tests",
+      desc: "e1000e_test / igb_test / rtl8139_test verified live in QEMU: registration, MAC, link, TX/RX and the dhcp/ping/wget HTTPS chain all PASS; ixgbe_test / rtl8168_test / rtl8125_test / rtl810x_test / bcm57xx_test / other_nic_test / nic_rw_test report SKIPPED honestly without a QEMU device model (datasheet-derived), never fabricating results.",
     },
     {
       name: "dhtest 5/5",

@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS - WP-09
+# Open Cube OS - WP-10b
 
 **官网**: https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**: https://github.com/cubestudio-dev/OpenCubeOS
@@ -187,7 +187,7 @@ oc-os/
 |   +-- multiboot2_header.S
 |   +-- boot.S
 |   +-- long_mode_init.S
-+-- kernel/                     # C kernel (94 files: .c + .h + .S)
++-- kernel/                     # C kernel (142 files: .c + .h + .S)
 |   +-- types.h, string.{c,h}, multiboot2.{c,h}    # WP-01 base
 |   +-- fb.{c,h}, font.{c,h}, font_data.c          # WP-01 framebuffer + font
 |   +-- console.{c,h}, ext.{c,h}, ext_selftest.c   # WP-01 console + extensions
@@ -218,22 +218,28 @@ oc-os/
 |   +-- tcp_cc.{c,h}                               # WP-09 mainstream: CUBIC congestion control
 |   +-- ssh.{c,h}, sshd.c, sshd_rsa_key.h          # WP-09: SSH client + server
 |   +-- tls.{c,h}                                   # WP-09: TLS 1.3/1.2 client
+|   +-- config.{c,h}, update.{c,h}                  # WP-09-fix5: /etc config + update check
+|   +-- ahci.{c,h}, ata_dma.{c,h}                   # WP-10a: AHCI SATA + ATA Bus-Master DMA
+|   +-- nic.{c,h}, nic_e1000e.c, nic_igb.c,        # WP-10b: NIC framework + nine
+|   |   nic_ixgbe.c, nic_rtl8139.c, nic_rtl8169.c, #   driver families + tests
+|   |   nic_bcm57xx.c, nic_other.c, nic_test_cmds.c
 |   +-- kmain.c                                     # Kernel main
-+-- userprogs/                  # User-mode programs (21 files: .c + .asm + .ld)
++-- userprogs/                  # User-mode programs (23 files: .c + .asm + .ld)
 |   +-- hello.asm, badapp.asm, loop.asm            # basic tests
 |   +-- fork_test.asm, exec_test.asm               # process tests
 |   +-- pipe_test.asm, signal_test.asm, select_test.asm  # IPC tests
-|   +-- mmap_test.asm, mmap_multi.asm              # memory tests
-|   +-- dyn_hello.c, so_test.c, dlsym_test.c       # dynamic linking tests
+|   +-- mmap_test.asm, mmap_multi.asm, mprotect_test.asm  # memory tests
+|   +-- p3_test.asm                                 # WP-09: P3 regression
+|   +-- main_dyn.c, dyn_hello.c, so_test.c, dlsym_test.c  # dynamic linking tests
 |   +-- pie_test.c, reloc_test.c                   # PIE + relocation tests
 |   +-- ld_so.c                                    # dynamic linker (ld.so)
 |   +-- libfoo.c                                   # shared library
 |   +-- ush.c                                      # user-space shell
 |   +-- user.ld, ld_so.ld                          # link scripts
-+-- docs/                       # Documentation (16 files)
++-- docs/                       # Documentation (18 files)
 |   +-- BUILD.md, CONFIG.md, COPYRIGHT.md, INTERFACES.md, MANIFEST.txt
 |   +-- EXTENSIONS.md (overview)
-|   +-- EXTENSIONS_WP02..WP09.md (per-WP interface docs)
+|   +-- EXTENSIONS_WP02..WP10b.md (per-WP interface docs)
 +-- tools/                      # Build + test scripts
 |   +-- build_iso.sh, gen_font.py, embed_userprog.py
 |   +-- qemu_shot.py, qemu_shot_vnc.py, qemu_runner.py
@@ -289,7 +295,7 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-09)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip
+- **Latest (WP-10b)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip
 - **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - Or visit https://cubestudio-dev.github.io/OpenCubeOS for direct downloads
 

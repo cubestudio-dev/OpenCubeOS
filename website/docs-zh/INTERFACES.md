@@ -4,13 +4,16 @@
      reading convenience). The English original in the repository is
      authoritative. Signatures and code blocks are kept verbatim. -->
 
-# Open Cube OS — 接口索引（截至 WP-09）
+# Open Cube OS — 接口索引（截至 WP-10b）
 
 Open Cube OS 向上层（L1）与 shell 暴露的每一个接口的单页索引。
 签名逐字复制自头文件——完整文档与示例见各头文件。
 
 工作包总览：docs/EXTENSIONS.md（WP-01）至
-docs/EXTENSIONS_WP09.md（WP-09）。
+docs/EXTENSIONS_WP09.md（WP-09）、docs/EXTENSIONS_WP10a.md（WP-10a，
+存储驱动：AHCI / NVMe / ATA DMA / virtio-blk）与
+docs/EXTENSIONS_WP10b.md（WP-10b，网卡驱动：e1000e / igb / ixgbe /
+RTL8139 / RTL8168 / RTL8125 / RTL810x / BCM57xx / legacy 其他）。
 
 ## 1. L0 → L1 扩展 API（kernel/ext*.h）
 
@@ -112,12 +115,18 @@ DH 自测真值向量：kernel/dh_scale_vectors.h。
 | VFS + ramfs | kernel/vfs.h、ramfs.h | vfs_open/read/write/stat/... |
 | 网络（TCP/IP） | kernel/net.h | net_socket/connect/send/recv/accept/close、dns_resolve；命令级：dhcp/ping/wget/dns/route/arp/firewall/tcpstats |
 | 块 + 文件系统 | kernel/blk.h、part.h、fat32.h、exfat.h、ext4.h | blk_*、vfs 挂载（FAT32 R/W、exFAT R/W、ext4 RO） |
+| 存储驱动（WP-10a） | kernel/ahci.h、nvme.h、ata_dma.h、virtio_blk.h | ahci_init(pci_dev)、nvme_init(pci_dev)、ata_dma_init(pci_dev)、virtio_blk_init、pci_find_class_exact/mask（pci.h） |
+| 网卡驱动（WP-10b） | kernel/nic.h | nic_register(dev, ops)、nic_send/recv(dev, ...)、nic_link_status(dev)、nic_get_mac(dev, mac)、e1000e_init/igb_init/ixgbe_init/rtl8139_init/rtl8168_init/rtl8125_init/rtl810x_init/bcm57xx_init(pci_dev)、other_nics_init、nic_probe_all、nic_active |
+| TCP socket 状态（WP-10a-fix） | kernel/net.h | net_tcp_established(fd) |
 
 ## 4. Shell 命令面
 
-68 条命令在 boot 时注册（自检计数；见 `shell_register_command` 调用点：
-kmain.c 38、net.c 13、file_cmds.c 17、disk_cmds.c 7、shell.c 7、ext_wp8cd.c 1
-——部分在不同阶段注册同名命令）。完整列表：在 `oc>` 提示符输入 `help`。
+116 条命令在 boot 时注册（实测计数；`help` 列出 116 个不重复名）。
+`shell_register_command` 调用点：kmain.c 45、net.c 17、file_cmds.c 18、
+disk_cmds.c 7、disk_test_cmds.c 8（WP-10a 存储测试套件）、
+nic_test_cmds.c 18（WP-10b：10 个 NIC 测试 + 8 个 NIC 状态命令）、
+shell.c 6、ext_wp8cd.c 1——部分在不同阶段注册同名命令。
+完整列表：在 `oc>` 提示符输入 `help`。
 
 ## 5. 这些接口的验证
 

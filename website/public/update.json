@@ -1,5 +1,5 @@
 {
-  "version": "WP-10a",
+  "version": "WP-10b",
   "time": "2026-10-02",
-  "changes": "Storage drivers: AHCI/NVMe/ATA DMA/virtio-blk; FAT32 everywhere; MBR+GPT; blk_* API; fork #PF fix"
+  "changes": "NIC drivers: e1000e/igb/rtl8139 QEMU-verified; nic_* framework; 10 tests + 8 status cmds"
 }

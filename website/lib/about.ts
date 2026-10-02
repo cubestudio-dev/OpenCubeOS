@@ -63,6 +63,11 @@ export const TIMELINE: Bi<
       title: "存储驱动：AHCI / NVMe / ATA DMA / virtio-blk + blk_* 扩展接口",
       desc: "四类主流存储驱动统一注册到 blk 层：AHCI SATA（精确类别 0x010601、命令列表/H2D FIS、48 位 LBA DMA 读写、FLUSH CACHE、多控制器多端口）；NVMe（管理队列对 + 双 I/O 队列对轮询、Identify、Read/Write/Flush）；ATA Bus-Master DMA（BAR4 BMDMA + PRDT 真 DMA，PIO 回退保留，自测含 DMA vs PIO 计时）；virtio-blk（容量读取修复）；FAT32 迁移到 blk 层后四类设备均可挂载并完成文件往返（MBR + GPT 分区解析）；新增 blk_register/blk_read/blk_write/blk_flush/blk_set_ops 等 8 项 L1 接口与 ahci/nvme/ata 状态命令 + 八项存储测试；根治 fork #PF 潜伏缺陷（pmm 保留 0x400000-0x600000 物理窗口）。",
     },
+    {
+      no: "WP-10b",
+      title: "网卡驱动：九族主流有线网卡 + nic_* 扩展接口",
+      desc: "网卡驱动框架 + 九族驱动，使内核能在真机上识别并驱动主流有线以太网卡：e1000e（MMIO、legacy 16 B 描述符）、igb（MMIO、2 RX + 2 TX 队列）、ixgbe（MMIO）、rtl8139（PIO、4 个固定 TX 槽 + 64 KiB RX 环）、rtl8168/8125/810x（PIO 描述符环）、bcm57xx（MMIO、host rings + mailboxes）及 3c59x/nForce/AR81xx/Yukon 识别。nic 注册表（8 槽）与 blk 层同构，协议栈经框架路由帧，legacy e1000/virtio-net 路径保留为回退，WP-06..WP-09 行为不变。DMA 缓冲/描述符环全部来自恒等映射 PMM 区域。新增 nic_register/send/recv/link_status/get_mac 与八个 per-driver init 入口（L1 接口总数增至 78）；boot 实测 116 条命令（10 个 NIC 测试 + 8 个状态命令）。e1000e、igb、rtl8139 在 QEMU 实测 TX/RX/DHCP/ping/HTTPS 全链路；其余无 QEMU 设备模型时如实 SKIPPED（数据手册实现），绝不伪造输出。SeaBIOS 与 OVMF 双引导验证。",
+    },
   ],
   en: [
     {
@@ -114,6 +119,11 @@ export const TIMELINE: Bi<
       no: "WP-10a",
       title: "Storage drivers: AHCI / NVMe / ATA DMA / virtio-blk + blk_* extension API",
       desc: "Four mainstream storage drivers unified under the blk layer: AHCI SATA (exact class 0x010601, command lists/H2D FIS, 48-bit LBA DMA reads/writes, FLUSH CACHE, multi-controller multi-port); NVMe (admin queue pair + two round-robin I/O queue pairs, Identify, Read/Write/Flush); ATA Bus-Master DMA (BAR4 BMDMA + PRDT, true DMA with the PIO path kept as fallback, a DMA-vs-PIO timing self-test); virtio-blk (capacity read fixed); FAT32 moved to the blk layer so all four device types mount with file round-trips (MBR + GPT parsing); 8 new L1 interfaces (blk_register/blk_read/blk_write/blk_flush/blk_set_ops, ...) plus the ahci/nvme/ata status commands and an eight-test storage suite; root-fixed a latent fork #PF (pmm reserves the 0x400000-0x600000 physical window).",
+    },
+    {
+      no: "WP-10b",
+      title: "NIC drivers: nine mainstream wired Ethernet families + the nic_* extension API",
+      desc: "A NIC driver framework plus nine driver families so the kernel can detect and drive mainstream wired Ethernet adapters on real machines: e1000e (MMIO, legacy 16-byte descriptors), igb (MMIO, 2 RX + 2 TX queues), ixgbe (MMIO), rtl8139 (PIO, 4 fixed TX slots + a 64 KiB RX ring), rtl8168/8125/810x (PIO descriptor rings), bcm57xx (MMIO, host rings + mailboxes), plus 3c59x/nForce/AR81xx/Yukon detection. The NIC registry (8 slots) mirrors the blk layer; the protocol stack routes frames through the framework with the legacy e1000/virtio-net paths kept as fallbacks, so WP-06..WP-09 behaviour is unchanged. All DMA buffers/descriptor rings come from the identity-mapped PMM region. New nic_register/send/recv/link_status/get_mac plus eight per-driver init entry points (78 L1 interfaces in total); 116 commands registered at boot (10 NIC tests + 8 NIC status commands). e1000e, igb and rtl8139 verified live in QEMU with the TX/RX/DHCP/ping/HTTPS full chain; the rest report SKIPPED honestly without a QEMU device model (datasheet-derived), never fabricating results. Boot verified with SeaBIOS and OVMF.",
     },
   ],
 };

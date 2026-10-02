@@ -4,7 +4,7 @@
      convenience). The English original in the repository is authoritative.
      Commands, paths, links and identifiers are kept verbatim. -->
 
-# Open Cube OS - WP-09
+# Open Cube OS - WP-10b
 
 **官网**：https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**：https://github.com/cubestudio-dev/OpenCubeOS
@@ -23,11 +23,19 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 - L0 采用 Apache 2.0 许可。
 - 设计原则："一切皆可扩展"。
 
-## 统计（WP-09）
+## 统计（WP-10b）
 
-- **源码**：54621 行（kernel + boot + userprogs，不含文档）
-- **工作包**：9 个（WP-01 ~ WP-09）
-- **L1 扩展接口**：57 个（WP-09 新增的是传输层能力，而非 L1 接口）
+- **源码**：59,662 行（kernel + boot + userprogs，含头文件 + 链接脚本，不含文档；
+  验证：`find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`）
+- **工作包**：11 个（WP-01 ~ WP-09、WP-10a、WP-10b）
+- **L1 扩展接口**：78 个（WP-09 及以前 57 个 + WP-10a 新增 8 项：
+  blk_register / blk_read / blk_write / blk_flush（+ blk_set_ops）、
+  ahci_init(pci_dev)、nvme_init(pci_dev)、ata_dma_init(pci_dev)，
+  + WP-10b 新增 13 项：
+  nic_register / nic_send / nic_recv / nic_link_status / nic_get_mac、
+  e1000e_init / igb_init / ixgbe_init / rtl8139_init / rtl8168_init /
+  rtl8125_init / rtl810x_init / bcm57xx_init(pci_dev)、
+  pci_find_class_exact/mask、ata_identify_capacity）
 - **系统调用**：37 个
 - **审计 bug 修复**：原始 WP-08 审计修复 47 个（P0=2、P1=8、P2=29、P3=8）
   + 后续独立审计与 P2 批量收尾（P2-BATCH-1 + P2-BATCH-2）追加修复
@@ -39,7 +47,7 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
   总计：修复 120 个 bug（截至 WP-08；WP-09 又完成 SSH/TLS 专项修复）。
 - **测试通过**：18/18 QEMU 全量回归（WP-09 基准套件——boot 横幅 + uname +
   12 个用户程序 + p3_test + heaptest + l1test + crashlog），另有 dhtest 5/5、
-  HTTPS E2E 与 SSH 与 paramiko 双向互操作。
+  HTTPS E2E 与 SSH 和 paramiko 双向互操作。
 
 ## WP-01（完成）- 引导 + framebuffer + 文本渲染
 
@@ -140,12 +148,27 @@ WP-08 统一了此前分开的 WP-08a / WP-08b / WP-08cd 子包：
 - **网络运维命令**：route、arp、firewall（状态规则、conntrack、三链默认策略 +
   REJECT + 逐规则命中计数器）、tcpstats（CUBIC cwnd/RTO/SACK/快速重传可见性）、
   dns（A/AAAA/CNAME/MX/TXT/NS/SRV）。
-- **Shell**：87 条（boot 自检实测计数；help 列出 87 个不重复名）；含六批主流化新增的
-  nf_test、tcpstats、tcpcc_test、dnstest、tcptest。
+- **Shell**：116 条（boot 实测计数；`help` 列出 116 个不重复名）；含 WP-10a 存储命令面：
+  `ahci`、`nvme`、`ata`（驱动状态）与八项测试套件 `ahci_test`、`nvme_test`、
+  `ata_dma_test`、`virtio_blk_test`、`disk_rw_test`、`partition_test`、`fs_mount_test`、
+  `real_hw_test`，以及 WP-10b 网卡命令面：`e1000e`、`igb`、`ixgbe`、
+  `rtl8139`、`rtl8168`、`rtl8125`、`rtl810x`、`bcm57xx`（驱动状态）
+  与 `e1000e_test`、`igb_test`、`ixgbe_test`、`rtl8139_test`、
+  `rtl8168_test`、`rtl8125_test`、`rtl810x_test`、`bcm57xx_test`、
+  `other_nic_test`、`nic_rw_test`。
+- **存储（WP-10a）**：AHCI SATA（DMA、多端口、FLUSH）、NVMe（admin +
+  2 个 I/O 队列对、Identify、Read/Write/Flush）、ATA Bus-Master DMA
+  （PRDT + 保留 PIO 回退）、virtio-blk（容量修复）；
+  每类设备均支持 MBR + GPT 分区解析；FAT32 经统一 blk 层挂载到全部四类驱动。
 - **新用户测试程序**：mprotect_test、p3_test。
 - **验证**：18/18 QEMU 回归 + dhtest 5/5 + cryptotest 3/3 + nf_test 8/8 +
   tcpcc_test + dnstest 6/6（live）+ tcptest + HTTPS E2E（上述真实站点）+
   SSH 双向互操作（外部证据：paramiko 5.0）。见 docs/EXTENSIONS_WP09.md、docs/INTERFACES.md。
+- **WP-09-fix5 —— 系统配置 + 检查更新**：
+  `/etc/opencube.conf`（首个用户可编辑配置，FAT32 /etc 卷、
+  ramfs 回退）、`checkupdate` 经 HTTP/HTTPS 拉取 JSON manifest、
+  非阻塞 `auto_check` 开机检查、`config`/`edit` 命令与
+  `oc_ext_config_*` / `oc_ext_check_update*` L1 接口。见 docs/CONFIG.md。
 
 ## 仓库结构
 
@@ -155,7 +178,7 @@ oc-os/
 |   +-- multiboot2_header.S
 |   +-- boot.S
 |   +-- long_mode_init.S
-+-- kernel/                     # C 内核（94 个文件：.c + .h + .S）
++-- kernel/                     # C 内核（142 个文件：.c + .h + .S）
 |   +-- types.h, string.{c,h}, multiboot2.{c,h}    # WP-01 基础
 |   +-- fb.{c,h}, font.{c,h}, font_data.c          # WP-01 framebuffer + 字体
 |   +-- console.{c,h}, ext.{c,h}, ext_selftest.c   # WP-01 控制台 + 扩展
@@ -186,22 +209,28 @@ oc-os/
 |   +-- tcp_cc.{c,h}                               # WP-09 主流化：CUBIC 拥塞控制
 |   +-- ssh.{c,h}, sshd.c, sshd_rsa_key.h          # WP-09：SSH 客户端 + 服务端
 |   +-- tls.{c,h}                                   # WP-09：TLS 1.3/1.2 客户端
+|   +-- config.{c,h}, update.{c,h}                  # WP-09-fix5：/etc 配置 + 检查更新
+|   +-- ahci.{c,h}, ata_dma.{c,h}                   # WP-10a：AHCI SATA + ATA Bus-Master DMA
+|   +-- nic.{c,h}, nic_e1000e.c, nic_igb.c,        # WP-10b：网卡框架 + 九族
+|   |   nic_ixgbe.c, nic_rtl8139.c, nic_rtl8169.c, #   驱动 + 测试
+|   |   nic_bcm57xx.c, nic_other.c, nic_test_cmds.c
 |   +-- kmain.c                                     # 内核主入口
-+-- userprogs/                  # 用户态程序（21 个文件：.c + .asm + .ld）
++-- userprogs/                  # 用户态程序（23 个文件：.c + .asm + .ld）
 |   +-- hello.asm, badapp.asm, loop.asm            # 基础测试
 |   +-- fork_test.asm, exec_test.asm               # 进程测试
 |   +-- pipe_test.asm, signal_test.asm, select_test.asm  # IPC 测试
-|   +-- mmap_test.asm, mmap_multi.asm              # 内存测试
-|   +-- dyn_hello.c, so_test.c, dlsym_test.c       # 动态链接测试
+|   +-- mmap_test.asm, mmap_multi.asm, mprotect_test.asm  # 内存测试
+|   +-- p3_test.asm                                 # WP-09：P3 回归
+|   +-- main_dyn.c, dyn_hello.c, so_test.c, dlsym_test.c  # 动态链接测试
 |   +-- pie_test.c, reloc_test.c                   # PIE + 重定位测试
 |   +-- ld_so.c                                    # 动态链接器（ld.so）
 |   +-- libfoo.c                                   # 共享库
 |   +-- ush.c                                      # 用户态 shell
 |   +-- user.ld, ld_so.ld                          # 链接脚本
-+-- docs/                       # 文档（16 个文件）
++-- docs/                       # 文档（18 个文件）
 |   +-- BUILD.md, CONFIG.md, COPYRIGHT.md, INTERFACES.md, MANIFEST.txt
 |   +-- EXTENSIONS.md（总览）
-|   +-- EXTENSIONS_WP02..WP09.md（按 WP 接口文档）
+|   +-- EXTENSIONS_WP02..WP10b.md（按 WP 接口文档）
 +-- tools/                      # 构建 + 测试脚本
 |   +-- build_iso.sh, gen_font.py, embed_userprog.py
 |   +-- qemu_shot.py, qemu_shot_vnc.py, qemu_runner.py
@@ -234,7 +263,7 @@ make run-bios       # SeaBIOS -> GRUB -> 内核
 make run-uefi       # OVMF -> GRUB EFI -> 内核
 ```
 
-出现 `oc>` 提示符后，输入 `help` 查看 68 条内建命令。
+出现 `oc>` 提示符后，输入 `help` 查看完整命令列表。
 试试 `run ush` 启动用户态 shell。
 
 ## 测试
@@ -257,7 +286,7 @@ p3_test、heaptest、l1test、crashlog），经 `tools/qemu_runner.py` 在单次
 
 ## 下载
 
-- **最新（WP-09）**：[GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip
+- **最新（WP-10b）**：[GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip
 - **归档（WP-08 系列）**：[GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - 或访问 https://cubestudio-dev.github.io/OpenCubeOS 直接下载
 

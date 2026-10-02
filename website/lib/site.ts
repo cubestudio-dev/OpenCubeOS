@@ -1,48 +1,53 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10a value taken from the
-// repository docs (README.md, docs/INTERFACES.md, docs/EXTENSIONS_WP10a.md)
+// Central site data. Every number is a real WP-10b value taken from the
+// repository docs (README.md, docs/INTERFACES.md, docs/EXTENSIONS_WP10b.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub Release WP-10a + this site /downloads/
+// 3-way identical: local build + GitHub Release WP-10b + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_WP09 =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10a";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10b";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release WP-10a + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp10a.iso";
-export const ISO_SIZE_B = 10899456;
-export const ISO_SIZE_MB = "10.39";
+// Real assets (build/ + GitHub Release WP-10b + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp10b.iso";
+export const ISO_SIZE_B = 10930176;
+export const ISO_SIZE_MB = "10.42";
 export const ISO_SHA256 =
-  "0a1838930fc5f0694484e1804d7c7ae4b49988b58eb001db61b2fc560e056923";
+  "aaacd1451f8065026b8dd9e9c2063b4b5502606b6c7716caafbaf8c727fb559f";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp10a-src.zip";
-export const SRC_SIZE_B = 18582848;
-export const SRC_SIZE_MB = "17.77";
+export const SRC_FILE = "opencube-wp10b-src.zip";
+export const SRC_SIZE_B = 24253510;
+export const SRC_SIZE_MB = "23.13";
 export const SRC_SHA256 =
-  "c1b399778a3cdc26fa1810a86049fc4735e65ccd62568e83cf9c95edcdf696d6";
+  "1093bbed91c38a1e0395ac14a6a9ad2b0bcbe621a954c61578143a8cf14aafa5";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-10a stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (56,019 at commit ea738df).
-// Shell commands: live boot self-test + help count = 98 (includes ahci/nvme/ata + the eight WP-10a storage tests).
-// L1 extension interfaces: 65 numbered items (57 through WP-09 + 8 WP-10a storage items; docs/EXTENSIONS_WP10a.md).
+// WP-10b stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (59,662 at commit 0519921).
+// Shell commands: live boot count = 116 (adds the 10 WP-10b NIC tests + 8 NIC status commands).
+// L1 extension interfaces: 78 numbered items (57 through WP-09 + 8 WP-10a + 13 WP-10b NIC items; docs/EXTENSIONS_WP10b.md).
 export const STATS = [
-  { value: "56,019", label: "行源码" },
-  { value: "65", label: "L1 扩展接口" },
+  { value: "59,662", label: "行源码" },
+  { value: "78", label: "L1 扩展接口" },
   { value: "37", label: "系统调用" },
-  { value: "98", label: "shell 命令" },
-  { value: "10", label: "工作包" },
+  { value: "116", label: "shell 命令" },
+  { value: "11", label: "工作包" },
   { value: "18/18", label: "QEMU 回归" },
 ];
 
-// WP-10a storage + WP-09 security transport features (user-facing list)
+// WP-10b NIC + WP-10a storage + WP-09 security transport features (user-facing list)
 export const FEATURES = [
+  {
+    name: "网卡驱动（九族）",
+    tag: "WP-10b",
+    desc: "e1000e / igb / ixgbe / RTL8139 / RTL8168 / RTL8125 / RTL810x / BCM57xx 及 3c59x、nForce、AR81xx、Yukon 识别与驱动：nic_register/send/recv/link_status/get_mac 扩展接口；e1000e、igb、RTL8139 在 QEMU 实测 DHCP/ping/HTTPS 全链路。",
+  },
   {
     name: "AHCI SATA",
     tag: "WP-10a",
@@ -142,9 +147,13 @@ export const WORK_PACKAGES = [
     no: "WP-10a",
     title: "存储驱动：AHCI / NVMe / ATA DMA / virtio-blk + blk_* 扩展接口",
   },
+  {
+    no: "WP-10b",
+    title: "网卡驱动：九族主流有线网卡 + nic_* 扩展接口",
+  },
 ];
 
-// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a.md)
+// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a.md + docs/EXTENSIONS_WP10b.md)
 export const VERIFY = [
   {
     name: "18/18 QEMU 全量回归",
@@ -153,6 +162,10 @@ export const VERIFY = [
   {
     name: "WP-10a 存储测试 8 项",
     desc: "ahci_test / nvme_test / ata_dma_test（含 DMA vs PIO 计时）/ virtio_blk_test / disk_rw_test / partition_test（MBR+GPT）/ fs_mount_test（四设备 FAT32 往返）/ real_hw_test 全 PASS。",
+  },
+  {
+    name: "WP-10b 网卡测试 10 项",
+    desc: "e1000e_test / igb_test / rtl8139_test 在 QEMU 实测注册、MAC、链路、TX/RX 与 dhcp/ping/wget HTTPS 全链路全 PASS；ixgbe_test / rtl8168_test / rtl8125_test / rtl810x_test / bcm57xx_test / other_nic_test / nic_rw_test 无 QEMU 设备模型时如实 SKIPPED（数据手册实现），绝不伪造输出。",
   },
   {
     name: "dhtest 5/5",

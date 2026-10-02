@@ -20,8 +20,8 @@ export function localePath(locale: Locale, sub: "" | "docs" | "about" = ""): str
 
 const zh = {
   htmlLang: "zh-CN",
-  badge: "WP-10a 存储驱动 · Apache 2.0",
-  brandSub: "WP-10a · Apache 2.0",
+  badge: "WP-10b 网卡驱动 · Apache 2.0",
+  brandSub: "WP-10b · Apache 2.0",
   navAria: "站点导航",
   navHome: "首页",
   navDownloads: "下载",
@@ -36,13 +36,13 @@ const zh = {
   heroSubMid: "，而是",
   heroSubBold: "\u201c一个能被扩展成任何东西的内核\u201d",
   heroSubPost:
-    "。价值不在自带什么，而在向上层暴露的接口：L0 = 完整内核，L1 = 上层扩展，L0 不内置任何 L1。WP-10a 存储驱动已落地：",
+    "。价值不在自带什么，而在向上层暴露的接口：L0 = 完整内核，L1 = 上层扩展，L0 不内置任何 L1。WP-10b 网卡驱动与 WP-10a 存储驱动已落地，安全传输保持主流化：",
   heroSubBold2: "SSH（curve25519、主机密钥验证、公钥认证）、TLS 1.3 / TLS 1.2（CA 链验证）、crypto 核心",
   heroSubEnd: "。",
   downloadIso: (mb: string) => `下载 ISO（${mb} MB）`,
   readDocs: "阅读文档",
   githubRepo: "GitHub 仓库",
-  dlSectionTitle: "下载 WP-10a",
+  dlSectionTitle: "下载 WP-10b",
   dlSectionDesc:
     "BIOS + UEFI 双引导 ISO 与完整源码包。文件在本站、GitHub Release 与本地构建三处 SHA256 字节级一致（核对方法见下方命令）。",
   isoMeta: (bytes: string, mb: string) =>
@@ -56,11 +56,11 @@ const zh = {
   dlNotePost: "，结果应与上方及 GitHub Release 资产一致。",
   featSectionTitle: "功能",
   featSectionDesc:
-    "存储驱动（WP-10a）与安全传输（WP-06 基础 + WP-09 增强），全部在 QEMU 实测中验证。",
+    "网卡驱动（WP-10b）、存储驱动（WP-10a）与安全传输（WP-06 基础 + WP-09 增强），全部在 QEMU 实测中验证。",
   baseSectionTitle: "内核基础（WP-01 ~ WP-08）",
   baseSectionDesc: "从裸机引导到用户态动态链接，每一层都可扩展。",
   wpSectionTitle: "工作包",
-  wpSectionDesc: "10 个工作包，WP-01 到 WP-10a，全部完成（done）。",
+  wpSectionDesc: "11 个工作包，WP-01 到 WP-10b，全部完成（done）。",
   wpThNo: "编号",
   wpThContent: "内容",
   wpThStatus: "状态",
@@ -78,7 +78,7 @@ const zh = {
     "本页为中文翻译版（由本站提供，便于阅读）。事实与数字以英文原文为准；英文原文见 English 版文档页。",
   aboutTitle: "关于",
   aboutDesc:
-    "Open Cube OS 的定位、历史与工程方法。所有数字来自仓库公开文档（README.md、docs/EXTENSIONS_WP09.md、docs/INTERFACES.md）。",
+    "Open Cube OS 的定位、历史与工程方法。所有数字来自仓库公开文档（README.md、docs/EXTENSIONS_WP09.md、docs/EXTENSIONS_WP10b.md、docs/INTERFACES.md）。",
   aboutPositioning: "定位",
   aboutPositioningBodyPre:
     "Open Cube OS 是一个开源操作系统内核，两层架构：",
@@ -86,13 +86,13 @@ const zh = {
   aboutPositioningL0Body: " = 完整内核（本项目，Apache 2.0）；",
   aboutPositioningL1: "L1",
   aboutPositioningL1Body:
-    " = 上层扩展，构建在 L0 暴露的 65 个扩展接口之上，L0 不内置任何 L1。设计原则：一切皆可扩展——每个功能都有扩展接口，每个接口都有文档、默认实现与示例。",
+    " = 上层扩展，构建在 L0 暴露的 78 个扩展接口之上，L0 不内置任何 L1。设计原则：一切皆可扩展——每个功能都有扩展接口，每个接口都有文档、默认实现与示例。",
   aboutQuote:
     "It is not \u201ca system you can use daily\u201d. It is \u201ca kernel that can be extended into anything\u201d. — README.md",
-  aboutHistory: "项目历史（九个工作包）",
+  aboutHistory: "项目历史（11 个工作包）",
   aboutMethod: "工程方法",
   aboutMethodBody:
-    "每个工作包以真实可复现的证据收尾：截至 WP-08 累计修复 120 个审计 bug；WP-09 完成 SSH/TLS 主流化；WP-10a 落地四类存储驱动并根治 fork #PF 潜伏缺陷。最终验证为 18/18 QEMU 全量回归（挂四类盘）+ WP-10a 八项存储测试 + dhtest 5/5 + HTTPS 真实站点 E2E。完整验证记录：",
+    "每个工作包以真实可复现的证据收尾：截至 WP-08 累计修复 120 个审计 bug；WP-09 完成 SSH/TLS 主流化；WP-10a 落地四类存储驱动并根治 fork #PF 潜伏缺陷；WP-10b 落地九族网卡驱动与 nic_* 框架。最终验证为 18/18 QEMU 全量回归（挂四类盘）+ WP-10a 八项存储测试 + WP-10b 网卡测试（e1000e / igb / RTL8139 实测收发）+ dhtest 5/5 + HTTPS 真实站点 E2E。完整验证记录：",
   aboutMethodMid: "。各工作包逐项记录：",
   aboutMethodEnd: "。",
   aboutAi: "AI 披露",
@@ -117,8 +117,8 @@ const zh = {
 
 const en: typeof zh = {
   htmlLang: "en",
-  badge: "WP-10a storage drivers · Apache 2.0",
-  brandSub: "WP-10a · Apache 2.0",
+  badge: "WP-10b NIC drivers · Apache 2.0",
+  brandSub: "WP-10b · Apache 2.0",
   navAria: "Site navigation",
   navHome: "Home",
   navDownloads: "Downloads",
@@ -133,13 +133,13 @@ const en: typeof zh = {
   heroSubMid: ". It is ",
   heroSubBold: "\u201ca kernel that can be extended into anything\u201d",
   heroSubPost:
-    ". Its value is not what it ships with, but the interfaces it exposes to upper layers: L0 = the complete kernel, L1 = upper-layer extensions, L0 ships without any L1. The WP-09 secure-transport layer has been mainstreamed: ",
+    ". Its value is not what it ships with, but the interfaces it exposes to upper layers: L0 = the complete kernel, L1 = upper-layer extensions, L0 ships without any L1. NIC drivers (WP-10b) and storage drivers (WP-10a) have landed, with the secure-transport layer mainstreamed: ",
   heroSubBold2: "SSH (curve25519, host-key verification, publickey auth), TLS 1.3 / TLS 1.2 (CA chain verification), crypto core",
   heroSubEnd: ".",
   downloadIso: (mb: string) => `Download ISO (${mb} MB)`,
   readDocs: "Read the docs",
   githubRepo: "GitHub repository",
-  dlSectionTitle: "Download WP-10a",
+  dlSectionTitle: "Download WP-10b",
   dlSectionDesc:
     "BIOS + UEFI dual-boot ISO and the full source archive. The files are byte-identical (SHA256) across this site, the GitHub Release and the local build (see the command below).",
   isoMeta: (bytes: string, mb: string) =>
@@ -154,12 +154,12 @@ const en: typeof zh = {
     " — the result must match the value above and the GitHub Release asset.",
   featSectionTitle: "Features",
   featSectionDesc:
-    "Storage drivers (WP-10a) plus the network stack and secure transport (WP-06 base + WP-09 additions), all verified in real QEMU runs.",
+    "NIC drivers (WP-10b), storage drivers (WP-10a) plus the network stack and secure transport (WP-06 base + WP-09 additions), all verified in real QEMU runs.",
   baseSectionTitle: "Kernel base (WP-01 ~ WP-08)",
   baseSectionDesc:
     "From bare-metal boot to user-space dynamic linking — every layer is extensible.",
   wpSectionTitle: "Work packages",
-  wpSectionDesc: "10 work packages, WP-01 through WP-10a, all done.",
+  wpSectionDesc: "11 work packages, WP-01 through WP-10b, all done.",
   wpThNo: "No.",
   wpThContent: "Content",
   wpThStatus: "Status",
@@ -177,7 +177,7 @@ const en: typeof zh = {
     "This page shows the original English documents, read verbatim from the repository at build time. A Chinese translation is available on the 中文 docs page.",
   aboutTitle: "About",
   aboutDesc:
-    "Open Cube OS: positioning, history and engineering method. All numbers come from the public repository documents (README.md, docs/EXTENSIONS_WP09.md, docs/INTERFACES.md).",
+    "Open Cube OS: positioning, history and engineering method. All numbers come from the public repository documents (README.md, docs/EXTENSIONS_WP09.md, docs/EXTENSIONS_WP10b.md, docs/INTERFACES.md).",
   aboutPositioning: "Positioning",
   aboutPositioningBodyPre:
     "Open Cube OS is an open-source operating-system kernel with a two-tier architecture: ",
@@ -185,13 +185,13 @@ const en: typeof zh = {
   aboutPositioningL0Body: " = the complete kernel (this project, Apache 2.0); ",
   aboutPositioningL1: "L1",
   aboutPositioningL1Body:
-    " = upper-layer extensions, built on the 65 extension interfaces L0 exposes — L0 ships without any L1. Design principle: everything is extensible — every feature has an extension interface, and every interface has docs, a default implementation and examples.",
+    " = upper-layer extensions, built on the 78 extension interfaces L0 exposes — L0 ships without any L1. Design principle: everything is extensible — every feature has an extension interface, and every interface has docs, a default implementation and examples.",
   aboutQuote:
     "It is not \u201ca system you can use daily\u201d. It is \u201ca kernel that can be extended into anything\u201d. — README.md",
-  aboutHistory: "Project history (nine work packages)",
+  aboutHistory: "Project history (11 work packages)",
   aboutMethod: "Engineering method",
   aboutMethodBody:
-    "Every work package closes with real, reproducible evidence: 120 audit bugs fixed cumulatively as of WP-08; WP-09 added the SSH/TLS mainstreaming; WP-10a landed the four storage drivers and root-fixed a latent fork #PF. Final verification: 18/18 full QEMU regression (all four disk types attached) + the eight WP-10a storage tests + dhtest 5/5 + HTTPS E2E against real sites. Full verification record: ",
+    "Every work package closes with real, reproducible evidence: 120 audit bugs fixed cumulatively as of WP-08; WP-09 added the SSH/TLS mainstreaming; WP-10a landed the four storage drivers and root-fixed a latent fork #PF; WP-10b landed the nine NIC driver families and the nic_* framework. Final verification: 18/18 full QEMU regression (all four disk types attached) + the eight WP-10a storage tests + the WP-10b NIC tests (e1000e / igb / RTL8139 live TX/RX) + dhtest 5/5 + HTTPS E2E against real sites. Full verification record: ",
   aboutMethodMid: ". Per-work-package records: ",
   aboutMethodEnd: ".",
   aboutAi: "AI disclosure",
