@@ -14,7 +14,7 @@
  * Well-known keys (WP-09-fix5):
  *
  *   update_url  - HTTP or HTTPS URL of the update manifest (JSON).
- *                 default: https://helloopencubeos.space-z.ai/update.json
+ *                 default: https://cubestudio-dev.github.io/OpenCubeOS/update.json
  *   auto_check  - "yes" / "no": run the update check automatically after
  *                 boot completes.  default: "no".
  *
@@ -55,7 +55,7 @@ extern "C" {
 #define OC_CONFIG_KEY_URL     "update_url"
 #define OC_CONFIG_KEY_AUTOCHECK "auto_check"
 
-#define OC_CONFIG_DEFAULT_URL       "https://helloopencubeos.space-z.ai/update.json"
+#define OC_CONFIG_DEFAULT_URL       "https://cubestudio-dev.github.io/OpenCubeOS/update.json"
 #define OC_CONFIG_DEFAULT_AUTOCHECK "no"
 
 /* Limits (ASCII only; values are trimmed of surrounding spaces). */

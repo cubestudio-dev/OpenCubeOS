@@ -35,7 +35,7 @@ same defaults — every boot has a working config file either way.
 ```
 # Open Cube OS configuration
 # Update check URL (HTTP or HTTPS)
-update_url=https://helloopencubeos.space-z.ai/update.json
+update_url=https://cubestudio-dev.github.io/OpenCubeOS/update.json
 
 # Auto check on boot (yes / no)
 auto_check=no
@@ -56,7 +56,7 @@ Rules:
 
 | Key | Meaning | Default (file missing / key missing / empty value) |
 |---|---|---|
-| `update_url` | Manifest URL for `checkupdate`; scheme decides transport (`https://` → TLS 1.3/1.2 client, `http://` → plain TCP, anything else → error) | `https://helloopencubeos.space-z.ai/update.json` |
+| `update_url` | Manifest URL for `checkupdate`; scheme decides transport (`https://` → TLS 1.3/1.2 client, `http://` → plain TCP, anything else → error) | `https://cubestudio-dev.github.io/OpenCubeOS/update.json` |
 | `auto_check` | `yes` / `no` — run the update check automatically after boot completes | `no` |
 
 Defined behaviour (documented policy, implemented in `kernel/config.c`):

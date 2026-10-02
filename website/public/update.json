@@ -1,0 +1,5 @@
+{
+  "version": "WP-09",
+  "time": "2026-10-02",
+  "changes": "TLS 1.3 + CA chain verification; SSH curve25519/publickey/TOFU; CUBIC/SACK; netfilter; DNS 7 types; TCP options"
+}
