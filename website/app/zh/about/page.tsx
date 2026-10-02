@@ -7,7 +7,7 @@ import AboutView from "@/app/_components/AboutView";
 export const metadata: Metadata = {
   title: "关于 - Open Cube OS",
   description:
-    "Open Cube OS 项目历史：WP-01 到 WP-09 九个工作包、120 个审计修复、18/18 回归验证、AI 披露与许可证。",
+    "Open Cube OS 项目历史：WP-01 到 WP-10b 共 11 个工作包、120 个审计修复、18/18 回归验证、AI 披露与许可证。",
 };
 
 export default function ZhAboutPage() {
