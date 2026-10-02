@@ -19,14 +19,14 @@ export const ISO_FILE = "opencube-wp10a.iso";
 export const ISO_SIZE_B = 10899456;
 export const ISO_SIZE_MB = "10.39";
 export const ISO_SHA256 =
-  "258e5894a5b92039e0f784c7068beb23e6738dc3ae715bc6415a83a55e9adc27";
+  "0a1838930fc5f0694484e1804d7c7ae4b49988b58eb001db61b2fc560e056923";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
 export const SRC_FILE = "opencube-wp10a-src.zip";
-export const SRC_SIZE_B = 18581385;
-export const SRC_SIZE_MB = "17.72";
+export const SRC_SIZE_B = 18582848;
+export const SRC_SIZE_MB = "17.77";
 export const SRC_SHA256 =
-  "065afd19982fe685b9de20fc1799b78a2968a902dc121323fc4b0cf898b47c3a";
+  "c1b399778a3cdc26fa1810a86049fc4735e65ccd62568e83cf9c95edcdf696d6";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // WP-10a stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (56,019 at commit ea738df).
