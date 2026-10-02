@@ -13,7 +13,7 @@ git init -q -b gh-pages .
 git config user.name "cubestudio-dev"
 git config user.email "cubestudio@qq.com"
 git add -A
-git commit -q -m "WP-09 website build (full rewrite): static export, /docs + /about, trailingSlash"
+git commit -q -m "WP-10u website build: in-system update (A/B partitions), update.json with package fields, wp10u assets"
 git log --oneline -1
 echo "--- push gh-pages (force) ---"
 git push -f "$ORIGIN_URL" gh-pages 2>&1

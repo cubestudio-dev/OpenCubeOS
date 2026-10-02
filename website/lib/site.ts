@@ -1,48 +1,53 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10b value taken from the
-// repository docs (README.md, docs/INTERFACES.md, docs/EXTENSIONS_WP10b.md)
+// Central site data. Every number is a real WP-10u value taken from the
+// repository docs (README.md, docs/INTERFACES.md, docs/EXTENSIONS_WP10u.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub Release WP-10b + this site /downloads/
+// 3-way identical: local build + GitHub Release WP-10u + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_WP09 =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10b";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10u";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release WP-10b + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp10b.iso";
-export const ISO_SIZE_B = 10930176;
-export const ISO_SIZE_MB = "10.42";
+// Real assets (build/ + GitHub Release WP-10u + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp10u.iso";
+export const ISO_SIZE_B = 11003904;
+export const ISO_SIZE_MB = "10.49";
 export const ISO_SHA256 =
-  "aaacd1451f8065026b8dd9e9c2063b4b5502606b6c7716caafbaf8c727fb559f";
+  "a929999129826b0f695f123f3af8fa110cce49c9e91e53bc68efce4a919991e7";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp10b-src.zip";
-export const SRC_SIZE_B = 24253510;
-export const SRC_SIZE_MB = "23.13";
+export const SRC_FILE = "opencube-wp10u-src.zip";
+export const SRC_SIZE_B = 1986287;
+export const SRC_SIZE_MB = "1.89";
 export const SRC_SHA256 =
-  "1093bbed91c38a1e0395ac14a6a9ad2b0bcbe621a954c61578143a8cf14aafa5";
+  "9bc71af94b6eed106d690569d967e9fc4c9c37f1e707d2b4c3f6513931b5b81e";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-10b stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (59,662 at commit 0519921).
-// Shell commands: live boot count = 116 (adds the 10 WP-10b NIC tests + 8 NIC status commands).
-// L1 extension interfaces: 78 numbered items (57 through WP-09 + 8 WP-10a + 13 WP-10b NIC items; docs/EXTENSIONS_WP10b.md).
+// WP-10u stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (63,644 at commit f490328).
+// Shell commands: live boot count = 129 (adds the 11 WP-10u test commands + update/rollback/reboot).
+// L1 extension interfaces: 85 numbered items (57 through WP-09 + 8 WP-10a + 13 WP-10b + 7 WP-10u update items; docs/EXTENSIONS_WP10u.md).
 export const STATS = [
-  { value: "59,662", label: "行源码" },
-  { value: "78", label: "L1 扩展接口" },
+  { value: "63,644", label: "行源码" },
+  { value: "85", label: "L1 扩展接口" },
   { value: "37", label: "系统调用" },
-  { value: "116", label: "shell 命令" },
-  { value: "11", label: "工作包" },
+  { value: "129", label: "shell 命令" },
+  { value: "12", label: "工作包" },
   { value: "18/18", label: "QEMU 回归" },
 ];
 
-// WP-10b NIC + WP-10a storage + WP-09 security transport features (user-facing list)
+// WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport features (user-facing list)
 export const FEATURES = [
+  {
+    name: "系统内自动更新（A/B 分区）",
+    tag: "WP-10u",
+    desc: "Windows-Update 式更新：内核自带 gzip/DEFLATE + ustar 解包与流式 SHA256 校验，A/B 双分区安装、boot 标志自动回滚、update --local 离线更新；real_update_test 实测下载-安装-重启进入 slot B-回滚全链路。",
+  },
   {
     name: "网卡驱动（九族）",
     tag: "WP-10b",
@@ -151,6 +156,10 @@ export const WORK_PACKAGES = [
     no: "WP-10b",
     title: "网卡驱动：九族主流有线网卡 + nic_* 扩展接口",
   },
+  {
+    no: "WP-10u",
+    title: "系统内自动更新：A/B 分区 + tar.gz 更新包 + 回滚 + 离线更新",
+  },
 ];
 
 // Verification (README.md "Tests" + docs/EXTENSIONS_WP10a.md + docs/EXTENSIONS_WP10b.md)
@@ -166,6 +175,10 @@ export const VERIFY = [
   {
     name: "WP-10b 网卡测试 10 项",
     desc: "e1000e_test / igb_test / rtl8139_test 在 QEMU 实测注册、MAC、链路、TX/RX 与 dhcp/ping/wget HTTPS 全链路全 PASS；ixgbe_test / rtl8168_test / rtl8125_test / rtl810x_test / bcm57xx_test / other_nic_test / nic_rw_test 无 QEMU 设备模型时如实 SKIPPED（数据手册实现），绝不伪造输出。",
+  },
+  {
+    name: "WP-10u 更新测试 11 项",
+    desc: "update_pkg_test 12/12（gzip 三种块型/头选项/坏 CRC/截断/单字节流式恢复/ustar 解析与坏校验和）、ab_partition_test 7/7、update_check/download/verify/install/rollback/local/status 全 PASS；real_update_test 7/7 端到端：下载-校验-安装-slot B-真实重启进入 test1 内核-回滚回 A 全链路。",
   },
   {
     name: "dhtest 5/5",

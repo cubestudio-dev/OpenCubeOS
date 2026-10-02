@@ -1,5 +1,8 @@
 {
-  "version": "WP-10b",
+  "version": "WP-10u",
   "time": "2026-10-02",
-  "changes": "NIC drivers: e1000e/igb/rtl8139 QEMU-verified; nic_* framework; 10 tests + 8 status cmds"
+  "changes": "In-system update: A/B partitions, tar.gz packages (gzip/DEFLATE + ustar + SHA256), automatic rollback, offline update",
+  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/WP-10u/opencube-wp10u-update.tar.gz",
+  "package_sha256": "3ac9013a94ac5b02db08ebe3da18bc8e8ccea7aa636b59d47b2550a811d78740",
+  "package_size": 291264
 }

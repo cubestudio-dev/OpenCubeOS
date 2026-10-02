@@ -68,6 +68,11 @@ export const TIMELINE: Bi<
       title: "网卡驱动：九族主流有线网卡 + nic_* 扩展接口",
       desc: "网卡驱动框架 + 九族驱动，使内核能在真机上识别并驱动主流有线以太网卡：e1000e（MMIO、legacy 16 B 描述符）、igb（MMIO、2 RX + 2 TX 队列）、ixgbe（MMIO）、rtl8139（PIO、4 个固定 TX 槽 + 64 KiB RX 环）、rtl8168/8125/810x（PIO 描述符环）、bcm57xx（MMIO、host rings + mailboxes）及 3c59x/nForce/AR81xx/Yukon 识别。nic 注册表（8 槽）与 blk 层同构，协议栈经框架路由帧，legacy e1000/virtio-net 路径保留为回退，WP-06..WP-09 行为不变。DMA 缓冲/描述符环全部来自恒等映射 PMM 区域。新增 nic_register/send/recv/link_status/get_mac 与八个 per-driver init 入口（L1 接口总数增至 78）；boot 实测 116 条命令（10 个 NIC 测试 + 8 个状态命令）。e1000e、igb、rtl8139 在 QEMU 实测 TX/RX/DHCP/ping/HTTPS 全链路；其余无 QEMU 设备模型时如实 SKIPPED（数据手册实现），绝不伪造输出。SeaBIOS 与 OVMF 双引导验证。",
     },
+    {
+      no: "WP-10u",
+      title: "系统内自动更新：A/B 分区 + tar.gz 更新包 + 回滚 + 离线更新",
+      desc: "Windows-Update 式系统内更新：磁盘四分区布局（boot/flags + slot A + slot B + data），分区注册为独立块设备（hdapN）并挂载 /ab/boot、/ab/a、/ab/b、/data；内核自带完整 gzip（RFC 1952/1951，stored/fixed/dynamic 三种块、可跨 feed 恢复、CRC32+ISIZE 校验）与流式 ustar 解析（头部校验和、GNU 长名）；下载器为两阶段流式 HTTP/HTTPS（状态码 + Content-Length 校验）；SHA256 校验双层（update.json 的包哈希 + 包内 manifest 的载荷哈希）；boot 标志协议（next_B/ok_B/bootfail_B）实现 GRUB 侧自动回滚；配置扩至 4 项（package_url、online_update）；新增 update/update --local/update --status/rollback/reboot 命令与 7 项 L1 更新接口（总数 85）、11 项测试命令（共 129 条命令）；real_update_test 端到端实测：下载-校验-安装至 slot B-真实重启进入 test1 内核-确认-回滚回 slot A。SeaBIOS 与 OVMF 双引导验证。",
+    },
   ],
   en: [
     {
@@ -124,6 +129,11 @@ export const TIMELINE: Bi<
       no: "WP-10b",
       title: "NIC drivers: nine mainstream wired Ethernet families + the nic_* extension API",
       desc: "A NIC driver framework plus nine driver families so the kernel can detect and drive mainstream wired Ethernet adapters on real machines: e1000e (MMIO, legacy 16-byte descriptors), igb (MMIO, 2 RX + 2 TX queues), ixgbe (MMIO), rtl8139 (PIO, 4 fixed TX slots + a 64 KiB RX ring), rtl8168/8125/810x (PIO descriptor rings), bcm57xx (MMIO, host rings + mailboxes), plus 3c59x/nForce/AR81xx/Yukon detection. The NIC registry (8 slots) mirrors the blk layer; the protocol stack routes frames through the framework with the legacy e1000/virtio-net paths kept as fallbacks, so WP-06..WP-09 behaviour is unchanged. All DMA buffers/descriptor rings come from the identity-mapped PMM region. New nic_register/send/recv/link_status/get_mac plus eight per-driver init entry points (78 L1 interfaces in total); 116 commands registered at boot (10 NIC tests + 8 NIC status commands). e1000e, igb and rtl8139 verified live in QEMU with the TX/RX/DHCP/ping/HTTPS full chain; the rest report SKIPPED honestly without a QEMU device model (datasheet-derived), never fabricating results. Boot verified with SeaBIOS and OVMF.",
+    },
+    {
+      no: "WP-10u",
+      title: "In-system update: A/B partitions + tar.gz packages + rollback + offline update",
+      desc: "Windows-Update-style in-system updates: a four-partition disk layout (boot/flags + slot A + slot B + data) with partitions registered as their own block devices (hdapN) and mounted at /ab/boot, /ab/a, /ab/b and /data; the kernel ships a complete gzip decoder (RFC 1952/1951, stored/fixed/dynamic blocks, resumable across feed boundaries, CRC32+ISIZE verification) and a streaming ustar parser (header checksums, GNU long names); a two-phase streaming HTTP/HTTPS downloader (status code + Content-Length enforced); two SHA256 layers (the package digest in update.json plus the payload digest inside the package manifest); a boot-flag protocol (next_B/ok_B/bootfail_B) that gives GRUB-side automatic rollback; the config file grows to 4 keys (package_url, online_update); new update / update --local / update --status / rollback / reboot commands plus 7 L1 update interfaces (85 in total) and 11 test commands (129 commands at boot); real_update_test verifies the end-to-end chain: download, verify, install into slot B, a real reboot into the test1 kernel, confirmation, and rollback back to slot A. Boot verified with SeaBIOS and OVMF.",
     },
   ],
 };

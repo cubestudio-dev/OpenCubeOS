@@ -18,31 +18,36 @@ function fmtBytes(n: number): string {
 }
 export { fmtBytes };
 
-// WP-10b stats (same caliber as lib/site.ts; see there for verify commands)
+// WP-10u stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "59,662", label: "行源码" },
-    { value: "78", label: "L1 扩展接口" },
+    { value: "63,644", label: "行源码" },
+    { value: "85", label: "L1 扩展接口" },
     { value: "37", label: "系统调用" },
-    { value: "116", label: "shell 命令" },
-    { value: "11", label: "工作包" },
+    { value: "129", label: "shell 命令" },
+    { value: "12", label: "工作包" },
     { value: "18/18", label: "QEMU 回归" },
   ],
   en: [
-    { value: "59,662", label: "lines of source" },
-    { value: "78", label: "L1 extension interfaces" },
+    { value: "63,644", label: "lines of source" },
+    { value: "85", label: "L1 extension interfaces" },
     { value: "37", label: "system calls" },
-    { value: "116", label: "shell commands" },
-    { value: "11", label: "work packages" },
+    { value: "129", label: "shell commands" },
+    { value: "12", label: "work packages" },
     { value: "18/18", label: "QEMU regression" },
   ],
 };
 
-// WP-10b NIC + WP-10a storage + WP-09 security transport features (user-facing list)
+// WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport features (user-facing list)
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "系统内自动更新（A/B 分区）",
+      tag: "WP-10u",
+      desc: "Windows-Update 式更新：内核自带 gzip/DEFLATE + ustar 解包与流式 SHA256 校验，A/B 双分区安装、boot 标志自动回滚、update --local 离线更新；real_update_test 实测下载-安装-重启进入 slot B-回滚全链路。",
+    },
     {
       name: "网卡驱动（九族）",
       tag: "WP-10b",
@@ -90,6 +95,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "In-system update (A/B partitions)",
+      tag: "WP-10u",
+      desc: "Windows-Update-style updates: the kernel ships its own gzip/DEFLATE + ustar extraction with streaming SHA256 verification, A/B slot installation, boot-flag based automatic rollback and offline update --local; real_update_test verifies the full chain: download, install, reboot into slot B, rollback to A.",
+    },
     {
       name: "NIC drivers (nine families)",
       tag: "WP-10b",
@@ -236,6 +246,10 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
       no: "WP-10b",
       title: "网卡驱动：九族主流有线网卡 + nic_* 扩展接口",
     },
+    {
+      no: "WP-10u",
+      title: "系统内自动更新：A/B 分区 + tar.gz 更新包 + 回滚 + 离线更新",
+    },
   ],
   en: [
     { no: "WP-01", title: "Boot + framebuffer + text rendering" },
@@ -261,10 +275,14 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
       no: "WP-10b",
       title: "NIC drivers: nine mainstream wired Ethernet families + the nic_* extension API",
     },
+    {
+      no: "WP-10u",
+      title: "In-system update: A/B partitions + tar.gz packages + rollback + offline update",
+    },
   ],
 };
 
-// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a.md + docs/EXTENSIONS_WP10b.md)
+// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a.md + docs/EXTENSIONS_WP10b.md + docs/EXTENSIONS_WP10u.md)
 export const VERIFY: Bi<{ name: string; desc: string }[]> = {
   zh: [
     {
@@ -278,6 +296,10 @@ export const VERIFY: Bi<{ name: string; desc: string }[]> = {
     {
       name: "WP-10b 网卡测试 10 项",
       desc: "e1000e_test / igb_test / rtl8139_test 在 QEMU 实测注册、MAC、链路、TX/RX 与 dhcp/ping/wget HTTPS 全链路全 PASS；ixgbe_test / rtl8168_test / rtl8125_test / rtl810x_test / bcm57xx_test / other_nic_test / nic_rw_test 无 QEMU 设备模型时如实 SKIPPED（数据手册实现），绝不伪造输出。",
+    },
+    {
+      name: "WP-10u 更新测试 11 项",
+      desc: "update_pkg_test 12/12（gzip 三种块型/头选项/坏 CRC/截断/单字节流式恢复/ustar 解析与坏校验和）、ab_partition_test 7/7、update_check/download/verify/install/rollback/local/status 全 PASS；real_update_test 7/7 端到端：下载-校验-安装-slot B-真实重启进入 test1 内核-回滚回 A 全链路。",
     },
     {
       name: "dhtest 5/5",
@@ -300,6 +322,10 @@ export const VERIFY: Bi<{ name: string; desc: string }[]> = {
     {
       name: "10 WP-10b NIC tests",
       desc: "e1000e_test / igb_test / rtl8139_test verified live in QEMU: registration, MAC, link, TX/RX and the dhcp/ping/wget HTTPS chain all PASS; ixgbe_test / rtl8168_test / rtl8125_test / rtl810x_test / bcm57xx_test / other_nic_test / nic_rw_test report SKIPPED honestly without a QEMU device model (datasheet-derived), never fabricating results.",
+    },
+    {
+      name: "11 WP-10u update tests",
+      desc: "update_pkg_test 12/12 (all three DEFLATE block types, header options, bad CRC, truncation, 1-byte-chunk streaming resume, ustar parsing and bad checksums), ab_partition_test 7/7, update_check/download/verify/install/rollback/local/status all PASS; real_update_test 7/7 end-to-end: download, verify, install, reboot into slot B (WP-10u-test1 kernel), rollback to A.",
     },
     {
       name: "dhtest 5/5",

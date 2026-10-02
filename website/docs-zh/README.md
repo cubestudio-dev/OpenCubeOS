@@ -4,7 +4,7 @@
      convenience). The English original in the repository is authoritative.
      Commands, paths, links and identifiers are kept verbatim. -->
 
-# Open Cube OS - WP-10b
+# Open Cube OS - WP-10u
 
 **官网**：https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**：https://github.com/cubestudio-dev/OpenCubeOS
@@ -23,11 +23,11 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 - L0 采用 Apache 2.0 许可。
 - 设计原则："一切皆可扩展"。
 
-## 统计（WP-10b）
+## 统计（WP-10u）
 
 - **源码**：59,662 行（kernel + boot + userprogs，含头文件 + 链接脚本，不含文档；
   验证：`find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`）
-- **工作包**：11 个（WP-01 ~ WP-09、WP-10a、WP-10b）
+- **工作包**：12 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u）
 - **L1 扩展接口**：78 个（WP-09 及以前 57 个 + WP-10a 新增 8 项：
   blk_register / blk_read / blk_write / blk_flush（+ blk_set_ops）、
   ahci_init(pci_dev)、nvme_init(pci_dev)、ata_dma_init(pci_dev)，
@@ -286,7 +286,8 @@ p3_test、heaptest、l1test、crashlog），经 `tools/qemu_runner.py` 在单次
 
 ## 下载
 
-- **最新（WP-10b）**：[GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip
+- **最新（WP-10u）**：[GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip + 更新包
+- **WP-10u 更新**：系统内自动更新——A/B 双分区（boot/flags + slot A + slot B + data，分区注册为 hdapN 块设备并挂载 /ab/boot、/ab/a、/ab/b、/data）；内核自带 gzip 解压（RFC 1952/1951：stored/fixed/dynamic 块、可跨 feed 恢复、CRC32+ISIZE 校验）与流式 ustar 解析（头部校验和、GNU 长名、自动剥离顶层包裹目录）；两阶段流式 HTTP/HTTPS 下载（状态码 + Content-Length 校验）；SHA256 双层校验（update.json 包哈希 + 包内 manifest 载荷哈希）；boot 标志协议（next_B/ok_B/bootfail_B）实现 GRUB 侧自动回滚；配置扩至 4 项（package_url、online_update）；命令新增 update / update --local / update --status / rollback / reboot；L1 扩展接口新增 oc_ext_update_check_pkg / download / verify / install / rollback / set_boot / get_status 七项（共 85）；测试新增 update_pkg_test（12/12：gzip 三种块型、头选项、坏 CRC、截断、单字节流式恢复、ustar 解析与坏校验和）、ab_partition_test（7/7）、update_check/download/verify/install/rollback/local/status、real_update_test（7/7 端到端：下载-校验-安装至 slot B-真实重启进入 test1 内核-确认-回滚回 A）
 - **归档（WP-08 系列）**：[GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - 或访问 https://cubestudio-dev.github.io/OpenCubeOS 直接下载
 
