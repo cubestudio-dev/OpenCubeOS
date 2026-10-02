@@ -25,7 +25,6 @@ oc-os/                        ← repository root
 ├── NOTICE                    ← copyright + third-party components
 ├── README.md                 ← project overview (WP-01..WP-09)
 ├── MANIFEST.md               ← this file
-├── VERIFICATION_REPORT.md     ← WP-01..WP-09 verification report
 └── .gitignore                ← excludes build/, *.o, *.elf, *.iso, *.zip, releases/, etc.
 ```
 
@@ -71,8 +70,7 @@ python3.13 tools/paramiko_sshd.py 2222 &                # then in kernel: ssh 10
 python3.13 tools/https_test_server.py cert key dh 8443 & # then in kernel: wget https://10.0.2.2:8443/
 ```
 
-All 18 regression items + dhtest 5/5 must PASS. Evidence archived in
-docs/VERIFICATION_BATCH_B.md + docs/verification/.
+All 18 regression items + dhtest 5/5 must PASS.
 
 ## Line Count (WP-09)
 

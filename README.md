@@ -34,12 +34,11 @@ Licensed under the Apache License, Version 2.0.
   + 26 P4 bugs (WP-08-p4: doc fixes + Makefile + ld.so output + shell pipe +
   idle alignment + kill/nice overflow + pmm/pftest + execve argv/envp +
   kthread_destroy sync hook + crash log + VFS misc)
-  Grand total: 120 bugs fixed (as of WP-08; WP-09 added further SSH/TLS fixes,
-  see docs/VERIFICATION_BATCH_B.md).
+  Grand total: 120 bugs fixed (as of WP-08; WP-09 added further SSH/TLS fixes).
 - **Tests passing**: 18/18 full QEMU regression (WP-09 canonical suite —
   boot banner + uname + 12 user programs + p3_test + heaptest + l1test +
   crashlog) plus dhtest 5/5, HTTPS E2E and SSH both-direction interop with
-  paramiko. Full evidence: docs/VERIFICATION_BATCH_B.md + docs/verification/.
+  paramiko.
 
 ## WP-01 (done) - Boot + framebuffer + text rendering
 
@@ -132,13 +131,13 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
 - **New user test programs**: mprotect_test, p3_test.
 - **Verification**: 18/18 QEMU regression + dhtest 5/5 + HTTPS E2E + SSH
   both-direction interop (external evidence: paramiko 5.0). See
-  docs/VERIFICATION_BATCH_B.md, docs/EXTENSIONS_WP09.md, docs/INTERFACES.md.
+  docs/EXTENSIONS_WP09.md, docs/INTERFACES.md.
 - **WP-09-fix5 — system configuration + update check**:
   `/etc/opencube.conf` (first user-editable config, FAT32 /etc volume,
   ramfs fallback), `checkupdate` over HTTP/HTTPS with JSON manifest,
   non-blocking `auto_check` boot check, `config`/`edit` commands and the
   `oc_ext_config_*` / `oc_ext_check_update*` L1 interfaces. See
-  docs/CONFIG.md, docs/VERIFICATION_FIX5.md.
+  docs/CONFIG.md.
 
 ## Repository layout
 
@@ -187,10 +186,10 @@ oc-os/
 |   +-- libfoo.c                                   # shared library
 |   +-- ush.c                                      # user-space shell
 |   +-- user.ld, ld_so.ld                          # link scripts
-+-- docs/                       # Documentation (15 files)
-|   +-- BUILD.md, STATUS.md, COPYRIGHT.md, MANIFEST.txt, FEATURE_REQUESTS.md
++-- docs/                       # Documentation (16 files)
+|   +-- BUILD.md, CONFIG.md, COPYRIGHT.md, INTERFACES.md, MANIFEST.txt
 |   +-- EXTENSIONS.md (overview)
-|   +-- EXTENSIONS_WP02..WP08cd.md (per-WP interface docs)
+|   +-- EXTENSIONS_WP02..WP09.md (per-WP interface docs)
 +-- tools/                      # Build + test scripts
 |   +-- build_iso.sh, gen_font.py, embed_userprog.py
 |   +-- qemu_shot.py, qemu_shot_vnc.py, qemu_runner.py
@@ -204,7 +203,6 @@ oc-os/
 +-- linker.ld                   # Kernel link script
 +-- grub.cfg                    # GRUB boot config
 +-- MANIFEST.md                 # Project manifest
-+-- VERIFICATION_REPORT.md       # WP-01..WP-09 verification report
 +-- README.md                   # This file
 ```
 
@@ -240,9 +238,6 @@ QEMU session via `tools/qemu_runner.py`. In addition:
   response + MAC verification, both sides logged.
 - SSH interop both directions with paramiko 5.0 (`tools/sshd_test.py` and
   `tools/paramiko_sshd.py`): 4/4 checks + byte-level K agreement.
-
-Full evidence with real outputs: docs/VERIFICATION_BATCH_B.md and
-raw logs in docs/verification/.
 
 ## Download
 

@@ -36,12 +36,10 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
   + 26 个 P4 bug（WP-08-p4：文档修复 + Makefile + ld.so 输出 + shell 管道 +
   idle 对齐 + kill/nice 溢出 + pmm/pftest + execve argv/envp +
   kthread_destroy 同步钩子 + 崩溃日志 + VFS 杂项）
-  总计：修复 120 个 bug（截至 WP-08；WP-09 又完成 SSH/TLS 专项修复，
-  见 docs/VERIFICATION_BATCH_B.md）。
+  总计：修复 120 个 bug（截至 WP-08；WP-09 又完成 SSH/TLS 专项修复）。
 - **测试通过**：18/18 QEMU 全量回归（WP-09 基准套件——boot 横幅 + uname +
   12 个用户程序 + p3_test + heaptest + l1test + crashlog），另有 dhtest 5/5、
-  HTTPS E2E 与 SSH 与 paramiko 双向互操作。完整证据：docs/VERIFICATION_BATCH_B.md
-  + docs/verification/。
+  HTTPS E2E 与 SSH 与 paramiko 双向互操作。
 
 ## WP-01（完成）- 引导 + framebuffer + 文本渲染
 
@@ -131,7 +129,7 @@ WP-08 统一了此前分开的 WP-08a / WP-08b / WP-08cd 子包：
 - **Shell**：68 条命令（boot 自检计数）。
 - **新用户测试程序**：mprotect_test、p3_test。
 - **验证**：18/18 QEMU 回归 + dhtest 5/5 + HTTPS E2E + SSH 双向互操作
-  （外部证据：paramiko 5.0）。见 docs/VERIFICATION_BATCH_B.md、docs/EXTENSIONS_WP09.md、docs/INTERFACES.md。
+  （外部证据：paramiko 5.0）。见 docs/EXTENSIONS_WP09.md、docs/INTERFACES.md。
 
 ## 仓库结构
 
@@ -180,10 +178,10 @@ oc-os/
 |   +-- libfoo.c                                   # 共享库
 |   +-- ush.c                                      # 用户态 shell
 |   +-- user.ld, ld_so.ld                          # 链接脚本
-+-- docs/                       # 文档（15 个文件）
-|   +-- BUILD.md, STATUS.md, COPYRIGHT.md, MANIFEST.txt, FEATURE_REQUESTS.md
++-- docs/                       # 文档（16 个文件）
+|   +-- BUILD.md, CONFIG.md, COPYRIGHT.md, INTERFACES.md, MANIFEST.txt
 |   +-- EXTENSIONS.md（总览）
-|   +-- EXTENSIONS_WP02..WP08cd.md（按 WP 接口文档）
+|   +-- EXTENSIONS_WP02..WP09.md（按 WP 接口文档）
 +-- tools/                      # 构建 + 测试脚本
 |   +-- build_iso.sh, gen_font.py, embed_userprog.py
 |   +-- qemu_shot.py, qemu_shot_vnc.py, qemu_runner.py
@@ -197,7 +195,6 @@ oc-os/
 +-- linker.ld                   # 内核链接脚本
 +-- grub.cfg                    # GRUB 引导配置
 +-- MANIFEST.md                 # 项目清单
-+-- VERIFICATION_REPORT.md       # WP-01..WP-09 验证报告
 +-- README.md                   # 本文件
 ```
 
@@ -233,9 +230,6 @@ p3_test、heaptest、l1test、crashlog），经 `tools/qemu_runner.py` 在单次
   双侧留日志。
 - SSH 与 paramiko 5.0 双向互操作（`tools/sshd_test.py` 与
   `tools/paramiko_sshd.py`）：4/4 检查 + K 字节级一致。
-
-带真实输出的完整证据：docs/VERIFICATION_BATCH_B.md，
-原始日志在 docs/verification/。
 
 ## 下载
 

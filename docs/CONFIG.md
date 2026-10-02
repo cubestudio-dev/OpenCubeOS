@@ -196,4 +196,4 @@ Known environment note: the kernel TLS client negotiates TLS 1.2 with
 `DHE-RSA-AES128-SHA256` (1024-bit DH) only. Public HTTPS servers that
 require ECDHE/AEAD (the modern default) reject the handshake — use the
 bundled test server (or any server configured for this cipher) for
-end-to-end runs. See docs/KNOWN_ISSUES.md.
+end-to-end runs.

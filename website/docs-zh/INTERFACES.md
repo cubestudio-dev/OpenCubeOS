@@ -10,7 +10,7 @@ Open Cube OS 向上层（L1）与 shell 暴露的每一个接口的单页索引�
 签名逐字复制自头文件——完整文档与示例见各头文件。
 
 工作包总览：docs/EXTENSIONS.md（WP-01）至
-docs/EXTENSIONS_WP09.md（WP-09）。各 WP 验收标准：docs/STATUS.md。
+docs/EXTENSIONS_WP09.md（WP-09）。
 
 ## 1. L0 → L1 扩展 API（kernel/ext*.h）
 
@@ -118,5 +118,4 @@ kmain.c 38、net.c 13、file_cmds.c 17、disk_cmds.c 7、shell.c 7、ext_wp8cd.c
 
 - L1 自测：`ext_selftest`（WP-01）、l1test（WP-08cd）、ext_wp8cd
   boot 自测——在 18/18 回归中全部 PASS。
-- WP-09 传输 E2E：docs/VERIFICATION_BATCH_B.md（HTTPS 双侧、
-  SSH 双向、K 字节级一致）。
+- WP-09 传输 E2E：HTTPS 双侧、SSH 双向、K 字节级一致。

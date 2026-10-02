@@ -8,7 +8,7 @@ Single-page index of every interface Open Cube OS exposes to upper layers
 see each header for full docs and examples.
 
 Work-package overview: docs/EXTENSIONS.md (WP-01) through
-docs/EXTENSIONS_WP09.md (WP-09). Per-WP acceptance criteria: docs/STATUS.md.
+docs/EXTENSIONS_WP09.md (WP-09).
 
 ## 1. L0 → L1 extension API (kernel/ext*.h)
 
@@ -117,5 +117,5 @@ different stages). Full list: type `help` at the `oc>` prompt.
 
 - L1 self-tests: `ext_selftest` (WP-01), l1test (WP-08cd), ext_wp8cd
   boot self-test — all PASS in the 18/18 regression.
-- WP-09 transport E2E: docs/VERIFICATION_BATCH_B.md (HTTPS both sides,
-  SSH both directions, K byte-level match).
+- WP-09 transport E2E: HTTPS both sides, SSH both directions,
+  K byte-level match.

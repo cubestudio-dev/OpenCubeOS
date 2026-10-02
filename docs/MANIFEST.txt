@@ -20,7 +20,7 @@ CONTENTS
 --------
 1. Source code (kernel/ + boot/ + userprogs/ + tools/)
 2. Build artifacts (ISO — see /downloads/ separately if too large)
-3. All documentation (docs/*.md + README.md + VERIFICATION_REPORT.md)
+3. All documentation (docs/*.md + README.md)
 4. Web page source (src/app/page.tsx + layout.tsx)
 5. Build/test scripts (run_wp08a_tests.py)
 6. This manifest

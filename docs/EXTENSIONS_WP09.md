@@ -9,7 +9,7 @@ features are exposed through (a) kernel C APIs (ssh.h / tls.h / crypto.h)
 and (b) shell commands. All algorithm choices follow the minimal-dependency
 philosophy: everything implemented in-tree against kernel/crypto.c.
 
-Verification: docs/VERIFICATION_BATCH_B.md (real outputs, both sides).
+Verification: real QEMU outputs on both sides.
 
 ## 1. Crypto core (kernel/crypto.h)
 
@@ -22,7 +22,7 @@ Verification: docs/VERIFICATION_BATCH_B.md (real outputs, both sides).
 | `dh_modexp(base, exp, mod, out)` | Arbitrary-length big-integer modular exponentiation (byte arrays, big-endian) |
 | `crypto_random(buf, len)` | Entropy from timer jitter + RDTSC mixing |
 
-Correctness evidence (real output, docs/verification/dhtest.log):
+Correctness evidence (real `dhtest` kernel self-test output):
 
 ```
 DH modexp self-test (Oakley Group 1, 1024-bit):
@@ -57,8 +57,7 @@ void ssh_close(void);
 - **Shell command**: `ssh <ip> [port] [user] [password]`
   (port defaults to 2222, the Python paramiko test server port).
 
-Byte-level evidence (real output, docs/verification/ssh_dir2_kernel.log +
-paramiko_srv.log):
+Byte-level evidence (real output, kernel ssh + paramiko server logs):
 
 ```
 kernel:  [ssh] K (first 8): 2f4130816e935c6a
@@ -66,7 +65,7 @@ server:  [paramiko-sshd] K (server) len=256 K[:8]=2f4130816e935c6a
 server:  [paramiko-sshd] EXEC request: b'echo hello-from-OpenCubeOS-kernel-ssh'
 ```
 
-Timing under QEMU TCG: 26.5 s + 30.5 s per modexp pair (see KNOWN_ISSUES §2A.6).
+Timing under QEMU TCG: 26.5 s + 30.5 s per modexp pair.
 
 ## 3. SSH server — sshd (kernel/sshd.c)
 
@@ -80,8 +79,8 @@ then returns to the shell (single-session design for the test bench).
   capture API, WP-09 addition in shell.c), output returned as
   `SSH_MSG_CHANNEL_DATA`, followed by `exit-status` and channel close.
 
-Evidence (docs/verification/sshd_dir1.log): paramiko 5.0 client → kernel
-sshd, 4/4 checks PASS (listening / connection accepted / session finished
+Evidence (paramiko 5.0 client → kernel sshd E2E run):
+4/4 checks PASS (listening / connection accepted / session finished
 cleanly / auth + exec succeeded), 32-byte exec output captured.
 
 ## 4. TLS 1.2 client + HTTPS (kernel/tls.h)
@@ -99,19 +98,19 @@ int  tls_https_get(u32 ip, u16 port, const char *hostname, const char *path,
 - **KEX**: RFC 3526 1024-bit MODP ("Oakley Group 1"); the client **uses the
   server's p/g from ServerKeyExchange** (right-aligned into 128-byte
   buffers; p_len < 128 accepted).
-- **Server cert**: accepted but NOT verified (see KNOWN_ISSUES §2A.4).
+- **Server cert**: accepted but NOT verified.
 - **Record layer**: client→server records are AES-128-CBC encrypted with
   per-record explicit IV + HMAC-SHA256; server→server records (application
   data + alerts) are decrypted and MAC-verified. The server's encrypted
-  *Finished* handshake record is skipped by design (KNOWN_ISSUES §2A.2).
-- **close_notify**: not sent on `tls_close()` (KNOWN_ISSUES §2A.1).
+  *Finished* handshake record is skipped by design.
+- **close_notify**: not sent on `tls_close()`.
 
 **HTTPS shell command** (net.c): `wget https://host[:port]/path` — performs
 the handshake, sends `GET path HTTP/1.0`, decrypts the response, splits the
 body at `\r\n\r\n` and saves it to `/wget_https.html` (prints
 `Saved N bytes to /wget_https.html`). Plain `wget http://...` unchanged.
 
-E2E evidence (docs/verification/https_kernel.log + https_server.log):
+E2E evidence (kernel + server logs):
 handshake with `DHE-RSA-AES128-SHA256`@TLS1.2, encrypted GET, server saw a
 43-byte request, kernel decrypted a 24-byte body,
 `cat /wget_https.html` → `hello-from-opencube-tls`.
@@ -161,7 +160,7 @@ implementation in-tree.
 
 ### Verification
 
-docs/VERIFICATION_FIX5.md: 13-case matrix with real QEMU outputs
+13-case matrix with real QEMU outputs
 (config read/write/delete/restore, URL prefix routing, HTTP and HTTPS
 manifest fetches, same/new version handling, auto_check boot behaviour,
 all five error paths), plus the unchanged WP-09 regression (18/18,
