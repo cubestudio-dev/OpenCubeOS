@@ -18,31 +18,36 @@ function fmtBytes(n: number): string {
 }
 export { fmtBytes };
 
-// WP-10u stats (same caliber as lib/site.ts; see there for verify commands)
+// WP-10c stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "63,644", label: "行源码" },
-    { value: "85", label: "L1 扩展接口" },
+    { value: "68,305", label: "行源码" },
+    { value: "111", label: "L1 扩展接口" },
     { value: "37", label: "系统调用" },
-    { value: "129", label: "shell 命令" },
-    { value: "12", label: "工作包" },
+    { value: "146", label: "shell 命令" },
+    { value: "13", label: "工作包" },
     { value: "18/18", label: "QEMU 回归" },
   ],
   en: [
-    { value: "63,644", label: "lines of source" },
-    { value: "85", label: "L1 extension interfaces" },
+    { value: "68,305", label: "lines of source" },
+    { value: "111", label: "L1 extension interfaces" },
     { value: "37", label: "system calls" },
-    { value: "129", label: "shell commands" },
-    { value: "12", label: "work packages" },
+    { value: "146", label: "shell commands" },
+    { value: "13", label: "work packages" },
     { value: "18/18", label: "QEMU regression" },
   ],
 };
 
-// WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport features (user-facing list)
+// WP-10c sound + WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport features (user-facing list)
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "声卡驱动（六族）",
+      tag: "WP-10c",
+      desc: "Intel HDA（CORB/RIRB、codec/widget 枚举、BDL DMA、IOC 中断）、AC'97、Sound Blaster 16（ISA DMA）、ES1370、virtio-snd、USB Audio Class 1.0（新 UHCI 主机栈）：snd_register/play/stop/set_rate/set_volume/get_caps 扩展接口，44.1/48kHz，真 DMA 真中断，QEMU 五卡实测播放。",
+    },
     {
       name: "系统内自动更新（A/B 分区）",
       tag: "WP-10u",
@@ -95,6 +100,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "Sound card drivers (six families)",
+      tag: "WP-10c",
+      desc: "Intel HDA (CORB/RIRB, codec/widget enumeration, BDL DMA, IOC interrupts), AC'97, Sound Blaster 16 (ISA DMA), ES1370, virtio-snd and USB Audio Class 1.0 over a new UHCI host stack: the snd_register/play/stop/set_rate/set_volume/get_caps extension interfaces, 44.1/48 kHz, real DMA and real interrupts; five cards verified live in QEMU.",
+    },
     {
       name: "In-system update (A/B partitions)",
       tag: "WP-10u",
@@ -250,6 +260,10 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
       no: "WP-10u",
       title: "系统内自动更新：A/B 分区 + tar.gz 更新包 + 回滚 + 离线更新",
     },
+    {
+      no: "WP-10c",
+      title: "声卡驱动：Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB 音频 + snd_* 扩展接口",
+    },
   ],
   en: [
     { no: "WP-01", title: "Boot + framebuffer + text rendering" },
@@ -279,15 +293,23 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
       no: "WP-10u",
       title: "In-system update: A/B partitions + tar.gz packages + rollback + offline update",
     },
+    {
+      no: "WP-10c",
+      title: "Sound card drivers: Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB audio + the snd_* extension API",
+    },
   ],
 };
 
-// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a.md + docs/EXTENSIONS_WP10b.md + docs/EXTENSIONS_WP10u.md)
+// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a/b/u/c.md)
 export const VERIFY: Bi<{ name: string; desc: string }[]> = {
   zh: [
     {
       name: "18/18 QEMU 全量回归",
       desc: "boot 横幅 + uname + 12 个用户程序 + p3_test + heaptest + l1test + crashlog，单次 QEMU 会话完成（挂全部四类盘）。",
+    },
+    {
+      name: "WP-10c 声卡测试 9 项",
+      desc: "hda_test / ac97_test / sb16_test / es1370_test / usb_audio_test 在 QEMU 实测初始化、能力、DMA 播放与中断计数全 PASS；audio_rw_test 五卡逐个播放回读 PASS；sample_rate_test 44.1/48kHz 配置 PASS；virtio_snd_test 无 QEMU 设备模型如实 SKIPPED；real_hw_test 如实 NOT RUN。",
     },
     {
       name: "WP-10a 存储测试 8 项",
@@ -314,6 +336,10 @@ export const VERIFY: Bi<{ name: string; desc: string }[]> = {
     {
       name: "18/18 full QEMU regression",
       desc: "boot banner + uname + 12 user programs + p3_test + heaptest + l1test + crashlog, executed in a single QEMU session with all four disk types attached.",
+    },
+    {
+      name: "9 WP-10c sound tests",
+      desc: "hda_test / ac97_test / sb16_test / es1370_test / usb_audio_test verified live in QEMU: init, capabilities, DMA playback and IRQ counters all PASS; audio_rw_test plays every registered card in turn; sample_rate_test programs 44.1/48 kHz; virtio_snd_test reports SKIPPED honestly (no QEMU device model); real_hw_test reports NOT RUN.",
     },
     {
       name: "8 WP-10a storage tests",

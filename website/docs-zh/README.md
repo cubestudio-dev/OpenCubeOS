@@ -4,7 +4,7 @@
      convenience). The English original in the repository is authoritative.
      Commands, paths, links and identifiers are kept verbatim. -->
 
-# Open Cube OS - WP-10u
+# Open Cube OS - WP-10c
 
 **官网**：https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**：https://github.com/cubestudio-dev/OpenCubeOS
@@ -23,19 +23,27 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 - L0 采用 Apache 2.0 许可。
 - 设计原则："一切皆可扩展"。
 
-## 统计（WP-10u）
+## 统计（WP-10c）
 
-- **源码**：59,662 行（kernel + boot + userprogs，含头文件 + 链接脚本，不含文档；
+- **源码**：68,305 行（kernel + boot + userprogs，含头文件 + 链接脚本，不含文档；
   验证：`find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`）
-- **工作包**：12 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u）
-- **L1 扩展接口**：78 个（WP-09 及以前 57 个 + WP-10a 新增 8 项：
+- **工作包**：13 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c）
+- **L1 扩展接口**：111 个（WP-09 及以前 57 个 + WP-10a 新增 8 项：
   blk_register / blk_read / blk_write / blk_flush（+ blk_set_ops）、
   ahci_init(pci_dev)、nvme_init(pci_dev)、ata_dma_init(pci_dev)，
   + WP-10b 新增 13 项：
   nic_register / nic_send / nic_recv / nic_link_status / nic_get_mac、
   e1000e_init / igb_init / ixgbe_init / rtl8139_init / rtl8168_init /
   rtl8125_init / rtl810x_init / bcm57xx_init(pci_dev)、
-  pci_find_class_exact/mask、ata_identify_capacity）
+  pci_find_class_exact/mask、ata_identify_capacity，
+  + WP-10u 新增 7 项：ab_update.h（A/B 槽位、标志、校验、安装），
+  + WP-10c 新增 26 项：snd_register / snd_play / snd_stop / snd_set_rate /
+  snd_set_volume / snd_get_caps（+ snd_probe_all、snd_make_tone 与 snd.h
+  查找/列举辅助函数）、
+  hda_init / ac97_init / sb16_init / es1370_init / virtio_snd_init /
+  usb_audio_init(pci_dev / isa_dev / usb_dev)、
+  usb_init / usb_enumerate / usb_control / usb_set_interface /
+  usb_iso_out_submit（kernel/usb.h））
 - **系统调用**：37 个
 - **审计 bug 修复**：原始 WP-08 审计修复 47 个（P0=2、P1=8、P2=29、P3=8）
   + 后续独立审计与 P2 批量收尾（P2-BATCH-1 + P2-BATCH-2）追加修复
@@ -170,6 +178,28 @@ WP-08 统一了此前分开的 WP-08a / WP-08b / WP-08cd 子包：
   非阻塞 `auto_check` 开机检查、`config`/`edit` 命令与
   `oc_ext_config_*` / `oc_ext_check_update*` L1 接口。见 docs/CONFIG.md。
 
+## WP-10u（完成）- 系统内自动更新：A/B 分区 + tar.gz 更新包 + 回滚 + 离线更新
+
+- **A/B 分区布局**（boot/flags + slot A + slot B + data），分区注册为独立块设备（hdapN）并挂载 /ab/boot、/ab/a、/ab/b、/data。
+- **内核自带 gzip 解码器**（RFC 1952/1951：stored/fixed/dynamic 三种块、可跨 feed 恢复、CRC32+ISIZE 校验）与**流式 ustar 解析**（头部校验和、GNU 长名）。
+- **两阶段流式 HTTP/HTTPS 下载器**（状态码 + Content-Length 校验）与 **SHA256 双层校验**（update.json 包哈希 + 包内 manifest 载荷哈希）。
+- **boot 标志协议**（next_B/ok_B/bootfail_B）实现 GRUB 侧自动回滚；slot B 启动失败保留 bootfail_B，下次启动回 slot A。
+- **命令**：update、update --local、update --status、rollback、reboot。
+- **验证**：update_pkg_test 12/12、ab_partition_test 7/7、update_check/download/verify/install/rollback/local/status 全 PASS、real_update_test 7/7 端到端（下载-校验-安装 slot B-真实重启-确认 ok_B-回滚）。见 docs/EXTENSIONS_WP10u.md。
+
+## WP-10c（完成）- 声卡驱动：Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB 音频
+
+- **snd 框架**（kernel/snd.{c,h}）：8 槽注册表，snd_register / snd_play / snd_stop / snd_set_rate / snd_set_volume / snd_get_caps；每个驱动都是真 DMA + 真设备中断（每设备 IRQ 计数在 `sound` 与测试中可见）。
+- **Intel HDA**（kernel/hda.c）：MMIO BAR、控制器复位、CORB/RIRB 命令环、codec 地址发现、widget 树枚举（音频功能组、DAC/ADC、引脚）、流格式编程与 BDL DMA + IOC 中断、LPIB 流控。
+- **AC'97 82801AA**（kernel/ac97.c）：mixer（master/PCM 音量 + 采样率）与总线主控 BDL DMA + IOC 中断。
+- **Sound Blaster 16**（kernel/sb16.c）：ISA DSP 4.05（io 0x220、IRQ 5），8/16 位单周期 DMA + 自动初始化块中断。
+- **ES1370/1371**（kernel/es1370.c）：DAC2 帧 DMA + PCLKDIV 时钟，内存映射环 + 每缓冲中断。
+- **virtio-snd**（kernel/virtio_snd.c）：modern virtio-pci（1AF4:1059），控制队列 + TX 队列，PCM prepare/start/set_volume 请求；每次开机探测（QEMU 10 无设备模型，CI 中无实体卡）。
+- **USB Audio Class 1.0**（kernel/usb_audio.c）+ **新 UHCI 主机栈**（kernel/usb.{c,h}）：UHCI 控制器驱动（piix3/4）、阻塞控制传输、设备枚举（SET_ADDRESS/CONFIGURATION/INTERFACE）、同步 OUT 按 1ms 帧调度。
+- **44.1/48 kHz** 采样率配置（能力感知；sb16 按设计拒绝 48kHz，测试验证该拒绝）。
+- **命令**：sound、hda、ac97、sb16、es1370、virtiosnd、usbaudio、play [device] [rate]、volume [device] [0-100]；lspci 显示声卡控制器（class 0x04）。boot 实测 146 条命令。
+- **验证**：hda_test / ac97_test / sb16_test / es1370_test / usb_audio_test 在 QEMU 实测（初始化 + 能力 + DMA 字节数 + IRQ 计数），audio_rw_test 对每张卡播放，sample_rate_test 配置 44.1/48kHz，virtio_snd_test 如实 SKIPPED（无 QEMU 设备模型），real_hw_test 在 VM 中如实 NOT RUN。见 docs/EXTENSIONS_WP10c.md。
+
 ## 仓库结构
 
 ```
@@ -209,11 +239,15 @@ oc-os/
 |   +-- tcp_cc.{c,h}                               # WP-09 主流化：CUBIC 拥塞控制
 |   +-- ssh.{c,h}, sshd.c, sshd_rsa_key.h          # WP-09：SSH 客户端 + 服务端
 |   +-- tls.{c,h}                                   # WP-09：TLS 1.3/1.2 客户端
-|   +-- config.{c,h}, update.{c,h}                  # WP-09-fix5：/etc 配置 + 检查更新
+|   +-- config.{c,h}, update.{c,h}, ab_update.{c,h}  # WP-09-fix5/WP-10u：配置 + 检查更新 + A/B 更新
 |   +-- ahci.{c,h}, ata_dma.{c,h}                   # WP-10a：AHCI SATA + ATA Bus-Master DMA
 |   +-- nic.{c,h}, nic_e1000e.c, nic_igb.c,        # WP-10b：网卡框架 + 九族
 |   |   nic_ixgbe.c, nic_rtl8139.c, nic_rtl8169.c, #   驱动 + 测试
 |   |   nic_bcm57xx.c, nic_other.c, nic_test_cmds.c
+|   +-- snd.{c,h}, snd_test_cmds.c                   # WP-10c：声卡框架 + 测试
+|   +-- hda.{c,h}, ac97.{c,h}, sb16.{c,h},          # WP-10c：六族声卡驱动
+|   |   es1370.{c,h}, virtio_snd.{c,h},             #   + USB 音频
+|   |   usb.{c,h}, usb_audio.{c,h}
 |   +-- kmain.c                                     # 内核主入口
 +-- userprogs/                  # 用户态程序（23 个文件：.c + .asm + .ld）
 |   +-- hello.asm, badapp.asm, loop.asm            # 基础测试
@@ -230,12 +264,13 @@ oc-os/
 +-- docs/                       # 文档（18 个文件）
 |   +-- BUILD.md, CONFIG.md, COPYRIGHT.md, INTERFACES.md, MANIFEST.txt
 |   +-- EXTENSIONS.md（总览）
-|   +-- EXTENSIONS_WP02..WP10b.md（按 WP 接口文档）
+|   +-- EXTENSIONS_WP02..WP10c.md（按 WP 接口文档）
 +-- tools/                      # 构建 + 测试脚本
 |   +-- build_iso.sh, gen_font.py, embed_userprog.py
 |   +-- qemu_shot.py, qemu_shot_vnc.py, qemu_runner.py
 |   +-- github_release_wp08.sh  # GitHub Release 辅助脚本
 |   +-- sshd_test.py, paramiko_sshd.py, https_test_server.py  # WP-09 E2E
+|   +-- make_ab_disk.sh, make_update_pkg.sh, update_server.py # WP-10u OTA
 +-- archive/                    # 旧归档源码（3 个文件，.gitignore 子目录）
 +-- .gitignore                  # 排除 build/、*.o、*.elf、*.iso、*.zip、releases/ 等
 +-- LICENSE                     # Apache 2.0 全文（201 行）
@@ -283,10 +318,18 @@ p3_test、heaptest、l1test、crashlog），经 `tools/qemu_runner.py` 在单次
 - SSH 与 paramiko 5.0 双向互操作（`tools/sshd_test.py` 与
   `tools/paramiko_sshd.py`）：密码 + 公钥认证、curve25519/group14 KEX、
   aes128-ctr/cbc — 4/4 检查 + K 字节级一致 + 服务器主机密钥签名验证（TOFU 指纹）。
+- WP-10u 更新测试 — update_pkg_test 12/12、ab_partition_test 7/7、
+  update_check/download/verify/install/rollback/local/status 全 PASS、
+  real_update_test 7/7 真实重启进入 slot B（`tools/make_ab_disk.sh`、
+  `tools/make_update_pkg.sh`、`tools/update_server.py`）。
+- WP-10c 声卡测试 — hda_test / ac97_test / sb16_test / es1370_test /
+  usb_audio_test 在 QEMU 实测（真 DMA + 真 IRQ 计数）、audio_rw_test 对每张卡、
+  sample_rate_test 44.1/48kHz；virtio_snd_test SKIPPED（无 QEMU 设备模型）、
+  real_hw_test 在 VM 中 NOT RUN（如实申报）。
 
 ## 下载
 
-- **最新（WP-10u）**：[GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip + 更新包
+- **最新（WP-10c）**：[GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip + 系统内更新包
 - **WP-10u 更新**：系统内自动更新——A/B 双分区（boot/flags + slot A + slot B + data，分区注册为 hdapN 块设备并挂载 /ab/boot、/ab/a、/ab/b、/data）；内核自带 gzip 解压（RFC 1952/1951：stored/fixed/dynamic 块、可跨 feed 恢复、CRC32+ISIZE 校验）与流式 ustar 解析（头部校验和、GNU 长名、自动剥离顶层包裹目录）；两阶段流式 HTTP/HTTPS 下载（状态码 + Content-Length 校验）；SHA256 双层校验（update.json 包哈希 + 包内 manifest 载荷哈希）；boot 标志协议（next_B/ok_B/bootfail_B）实现 GRUB 侧自动回滚；配置扩至 4 项（package_url、online_update）；命令新增 update / update --local / update --status / rollback / reboot；L1 扩展接口新增 oc_ext_update_check_pkg / download / verify / install / rollback / set_boot / get_status 七项（共 85）；测试新增 update_pkg_test（12/12：gzip 三种块型、头选项、坏 CRC、截断、单字节流式恢复、ustar 解析与坏校验和）、ab_partition_test（7/7）、update_check/download/verify/install/rollback/local/status、real_update_test（7/7 端到端：下载-校验-安装至 slot B-真实重启进入 test1 内核-确认-回滚回 A）
 - **归档（WP-08 系列）**：[GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - 或访问 https://cubestudio-dev.github.io/OpenCubeOS 直接下载

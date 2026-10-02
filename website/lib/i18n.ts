@@ -20,8 +20,8 @@ export function localePath(locale: Locale, sub: "" | "docs" | "about" = ""): str
 
 const zh = {
   htmlLang: "zh-CN",
-  badge: "WP-10u 系统内更新 · Apache 2.0",
-  brandSub: "WP-10u · Apache 2.0",
+  badge: "WP-10c 声卡驱动 · Apache 2.0",
+  brandSub: "WP-10c · Apache 2.0",
   navAria: "站点导航",
   navHome: "首页",
   navDownloads: "下载",
@@ -36,13 +36,13 @@ const zh = {
   heroSubMid: "，而是",
   heroSubBold: "\u201c一个能被扩展成任何东西的内核\u201d",
   heroSubPost:
-    "。价值不在自带什么，而在向上层暴露的接口：L0 = 完整内核，L1 = 上层扩展，L0 不内置任何 L1。WP-10u 系统内自动更新（A/B 分区 + 回滚）已落地，网卡/存储驱动与安全传输保持主流化：",
+    "。价值不在自带什么，而在向上层暴露的接口：L0 = 完整内核，L1 = 上层扩展，L0 不内置任何 L1。WP-10c 声卡驱动（Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB 音频，真 DMA 真中断）已落地，系统内自动更新、网卡/存储驱动与安全传输保持主流化：",
   heroSubBold2: "SSH（curve25519、主机密钥验证、公钥认证）、TLS 1.3 / TLS 1.2（CA 链验证）、crypto 核心",
   heroSubEnd: "。",
   downloadIso: (mb: string) => `下载 ISO（${mb} MB）`,
   readDocs: "阅读文档",
   githubRepo: "GitHub 仓库",
-  dlSectionTitle: "下载 WP-10u",
+  dlSectionTitle: "下载 WP-10c",
   dlSectionDesc:
     "BIOS + UEFI 双引导 ISO 与完整源码包。文件在本站、GitHub Release 与本地构建三处 SHA256 字节级一致（核对方法见下方命令）。",
   isoMeta: (bytes: string, mb: string) =>
@@ -56,11 +56,11 @@ const zh = {
   dlNotePost: "，结果应与上方及 GitHub Release 资产一致。",
   featSectionTitle: "功能",
   featSectionDesc:
-    "系统内自动更新（WP-10u）、网卡驱动（WP-10b）、存储驱动（WP-10a）与安全传输（WP-06 基础 + WP-09 增强），全部在 QEMU 实测中验证。",
+    "声卡驱动（WP-10c：Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB 音频）、系统内自动更新（WP-10u）、网卡驱动（WP-10b）、存储驱动（WP-10a）与安全传输（WP-06 基础 + WP-09 增强），全部在 QEMU 实测中验证。",
   baseSectionTitle: "内核基础（WP-01 ~ WP-08）",
   baseSectionDesc: "从裸机引导到用户态动态链接，每一层都可扩展。",
   wpSectionTitle: "工作包",
-  wpSectionDesc: "12 个工作包，WP-01 到 WP-10u，全部完成（done）。",
+  wpSectionDesc: "13 个工作包，WP-01 到 WP-10c，全部完成（done）。",
   wpThNo: "编号",
   wpThContent: "内容",
   wpThStatus: "状态",
@@ -86,13 +86,13 @@ const zh = {
   aboutPositioningL0Body: " = 完整内核（本项目，Apache 2.0）；",
   aboutPositioningL1: "L1",
   aboutPositioningL1Body:
-    " = 上层扩展，构建在 L0 暴露的 85 个扩展接口之上，L0 不内置任何 L1。设计原则：一切皆可扩展——每个功能都有扩展接口，每个接口都有文档、默认实现与示例。",
+    " = 上层扩展，构建在 L0 暴露的 111 个扩展接口之上，L0 不内置任何 L1。设计原则：一切皆可扩展——每个功能都有扩展接口，每个接口都有文档、默认实现与示例。",
   aboutQuote:
     "It is not \u201ca system you can use daily\u201d. It is \u201ca kernel that can be extended into anything\u201d. — README.md",
-  aboutHistory: "项目历史（12 个工作包）",
+  aboutHistory: "项目历史（13 个工作包）",
   aboutMethod: "工程方法",
   aboutMethodBody:
-    "每个工作包以真实可复现的证据收尾：截至 WP-08 累计修复 120 个审计 bug；WP-09 完成 SSH/TLS 主流化；WP-10a 落地四类存储驱动并根治 fork #PF 潜伏缺陷；WP-10b 落地九族网卡驱动与 nic_* 框架；WP-10u 落地 A/B 分区系统内自动更新（内核 gzip/DEFLATE + ustar + SHA256 + 自动回滚）。最终验证为 18/18 QEMU 全量回归（挂四类盘）+ WP-10a 八项存储测试 + WP-10b 网卡测试 + WP-10u 十一项更新测试（含真实重启进入 slot B 的端到端）+ dhtest 5/5 + HTTPS 真实站点 E2E。完整验证记录：",
+    "每个工作包以真实可复现的证据收尾：截至 WP-08 累计修复 120 个审计 bug；WP-09 完成 SSH/TLS 主流化；WP-10a 落地四类存储驱动并根治 fork #PF 潜伏缺陷；WP-10b 落地九族网卡驱动与 nic_* 框架；WP-10u 落地 A/B 分区系统内自动更新（内核 gzip/DEFLATE + ustar + SHA256 + 自动回滚）；WP-10c 落地六族声卡驱动与 snd_* 框架（Intel HDA CORB/RIRB + codec/widget 枚举、AC'97、SB16 ISA DMA、ES1370、virtio-snd、USB Audio Class 1.0 + 新 UHCI 主机栈，真 DMA 真中断）。最终验证为 18/18 QEMU 全量回归（挂四类盘）+ WP-10a 八项存储测试 + WP-10b 网卡测试 + WP-10u 十一项更新测试（含真实重启进入 slot B 的端到端）+ WP-10c 九项声卡测试（QEMU 五卡实测播放、44.1/48kHz）+ dhtest 5/5 + HTTPS 真实站点 E2E。完整验证记录：",
   aboutMethodMid: "。各工作包逐项记录：",
   aboutMethodEnd: "。",
   aboutAi: "AI 披露",
@@ -117,8 +117,8 @@ const zh = {
 
 const en: typeof zh = {
   htmlLang: "en",
-  badge: "WP-10u in-system update · Apache 2.0",
-  brandSub: "WP-10u · Apache 2.0",
+  badge: "WP-10c sound card drivers · Apache 2.0",
+  brandSub: "WP-10c · Apache 2.0",
   navAria: "Site navigation",
   navHome: "Home",
   navDownloads: "Downloads",
@@ -133,13 +133,13 @@ const en: typeof zh = {
   heroSubMid: ". It is ",
   heroSubBold: "\u201ca kernel that can be extended into anything\u201d",
   heroSubPost:
-    ". Its value is not what it ships with, but the interfaces it exposes to upper layers: L0 = the complete kernel, L1 = upper-layer extensions, L0 ships without any L1. WP-10u in-system updates (A/B partitions + rollback) have landed, with NIC/storage drivers and the secure-transport layer mainstreamed: ",
+    ". Its value is not what it ships with, but the interfaces it exposes to upper layers: L0 = the complete kernel, L1 = upper-layer extensions, L0 ships without any L1. WP-10c sound card drivers (Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB audio, real DMA + real interrupts) have landed, with in-system updates, NIC/storage drivers and the secure-transport layer mainstreamed: ",
   heroSubBold2: "SSH (curve25519, host-key verification, publickey auth), TLS 1.3 / TLS 1.2 (CA chain verification), crypto core",
   heroSubEnd: ".",
   downloadIso: (mb: string) => `Download ISO (${mb} MB)`,
   readDocs: "Read the docs",
   githubRepo: "GitHub repository",
-  dlSectionTitle: "Download WP-10u",
+  dlSectionTitle: "Download WP-10c",
   dlSectionDesc:
     "BIOS + UEFI dual-boot ISO and the full source archive. The files are byte-identical (SHA256) across this site, the GitHub Release and the local build (see the command below).",
   isoMeta: (bytes: string, mb: string) =>
@@ -154,12 +154,12 @@ const en: typeof zh = {
     " — the result must match the value above and the GitHub Release asset.",
   featSectionTitle: "Features",
   featSectionDesc:
-    "In-system updates (WP-10u), NIC drivers (WP-10b), storage drivers (WP-10a) plus the network stack and secure transport (WP-06 base + WP-09 additions), all verified in real QEMU runs.",
+    "Sound card drivers (WP-10c: Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB audio), in-system updates (WP-10u), NIC drivers (WP-10b), storage drivers (WP-10a) plus the network stack and secure transport (WP-06 base + WP-09 additions), all verified in real QEMU runs.",
   baseSectionTitle: "Kernel base (WP-01 ~ WP-08)",
   baseSectionDesc:
     "From bare-metal boot to user-space dynamic linking — every layer is extensible.",
   wpSectionTitle: "Work packages",
-  wpSectionDesc: "12 work packages, WP-01 through WP-10u, all done.",
+  wpSectionDesc: "13 work packages, WP-01 through WP-10c, all done.",
   wpThNo: "No.",
   wpThContent: "Content",
   wpThStatus: "Status",
@@ -185,13 +185,13 @@ const en: typeof zh = {
   aboutPositioningL0Body: " = the complete kernel (this project, Apache 2.0); ",
   aboutPositioningL1: "L1",
   aboutPositioningL1Body:
-    " = upper-layer extensions, built on the 78 extension interfaces L0 exposes — L0 ships without any L1. Design principle: everything is extensible — every feature has an extension interface, and every interface has docs, a default implementation and examples.",
+    " = upper-layer extensions, built on the 111 extension interfaces L0 exposes — L0 ships without any L1. Design principle: everything is extensible — every feature has an extension interface, and every interface has docs, a default implementation and examples.",
   aboutQuote:
     "It is not \u201ca system you can use daily\u201d. It is \u201ca kernel that can be extended into anything\u201d. — README.md",
-  aboutHistory: "Project history (12 work packages)",
+  aboutHistory: "Project history (13 work packages)",
   aboutMethod: "Engineering method",
   aboutMethodBody:
-    "Every work package closes with real, reproducible evidence: 120 audit bugs fixed cumulatively as of WP-08; WP-09 added the SSH/TLS mainstreaming; WP-10a landed the four storage drivers and root-fixed a latent fork #PF; WP-10b landed the nine NIC driver families and the nic_* framework; WP-10u landed A/B-partition in-system updates (kernel-side gzip/DEFLATE + ustar + SHA256 + automatic rollback). Final verification: 18/18 full QEMU regression (all four disk types attached) + the eight WP-10a storage tests + the WP-10b NIC tests + the eleven WP-10u update tests (including an end-to-end with a real reboot into slot B) + dhtest 5/5 + HTTPS E2E against real sites. Full verification record: ",
+    "Every work package closes with real, reproducible evidence: 120 audit bugs fixed cumulatively as of WP-08; WP-09 added the SSH/TLS mainstreaming; WP-10a landed the four storage drivers and root-fixed a latent fork #PF; WP-10b landed the nine NIC driver families and the nic_* framework; WP-10u landed A/B-partition in-system updates (kernel-side gzip/DEFLATE + ustar + SHA256 + automatic rollback); WP-10c landed the six sound-driver families and the snd_* framework (Intel HDA CORB/RIRB + codec/widget enumeration, AC'97, SB16 ISA DMA, ES1370, virtio-snd, USB Audio Class 1.0 + a new UHCI host stack, real DMA + real interrupts). Final verification: 18/18 full QEMU regression (all four disk types attached) + the eight WP-10a storage tests + the WP-10b NIC tests + the eleven WP-10u update tests (including an end-to-end with a real reboot into slot B) + the nine WP-10c sound tests (five cards playing live in QEMU, 44.1/48 kHz) + dhtest 5/5 + HTTPS E2E against real sites. Full verification record: ",
   aboutMethodMid: ". Per-work-package records: ",
   aboutMethodEnd: ".",
   aboutAi: "AI disclosure",

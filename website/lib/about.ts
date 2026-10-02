@@ -73,6 +73,11 @@ export const TIMELINE: Bi<
       title: "系统内自动更新：A/B 分区 + tar.gz 更新包 + 回滚 + 离线更新",
       desc: "Windows-Update 式系统内更新：磁盘四分区布局（boot/flags + slot A + slot B + data），分区注册为独立块设备（hdapN）并挂载 /ab/boot、/ab/a、/ab/b、/data；内核自带完整 gzip（RFC 1952/1951，stored/fixed/dynamic 三种块、可跨 feed 恢复、CRC32+ISIZE 校验）与流式 ustar 解析（头部校验和、GNU 长名）；下载器为两阶段流式 HTTP/HTTPS（状态码 + Content-Length 校验）；SHA256 校验双层（update.json 的包哈希 + 包内 manifest 的载荷哈希）；boot 标志协议（next_B/ok_B/bootfail_B）实现 GRUB 侧自动回滚；配置扩至 4 项（package_url、online_update）；新增 update/update --local/update --status/rollback/reboot 命令与 7 项 L1 更新接口（总数 85）、11 项测试命令（共 129 条命令）；real_update_test 端到端实测：下载-校验-安装至 slot B-真实重启进入 test1 内核-确认-回滚回 slot A。SeaBIOS 与 OVMF 双引导验证。",
     },
+    {
+      no: "WP-10c",
+      title: "声卡驱动：Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB 音频 + snd_* 扩展接口",
+      desc: "声卡框架（snd.c，8 槽注册表）与六族驱动：Intel HDA（MMIO BAR、控制器复位/CORB/RIRB 命令环、codec 地址发现、widget 树枚举、流水线/转换器/引脚配置、BDL DMA + IOC 中断、LPIB 流控）、AC'97 82801AA（mixer + 总线主控 BDL DMA）、Sound Blaster 16（ISA DSP 4.05、8/16 位 DMA、块中断）、ES1370/1371（DAC2 帧 DMA + PCLKDIV）、virtio-snd（modern virtio-pci 控制队列 + TX 队列）、USB Audio Class 1.0（新 UHCI 主机栈：控制传输、设备枚举、同步 OUT 按 1ms 帧调度）；snd_register/play/stop/set_rate/set_volume/get_caps + 六个 per-driver init 入口与 usb.h 主机栈接口（L1 接口总数增至 111）；新增 sound/hda/ac97/sb16/es1370/virtiosnd/usbaudio/play/volume 命令（boot 实测 146 条命令）、9 项测试命令；44.1/48kHz 采样率配置。QEMU 五卡实测播放（真 DMA 真中断）；virtio-snd 无 QEMU 设备模型如实 SKIPPED。SeaBIOS 与 OVMF 双引导验证。",
+    },
   ],
   en: [
     {
@@ -134,6 +139,11 @@ export const TIMELINE: Bi<
       no: "WP-10u",
       title: "In-system update: A/B partitions + tar.gz packages + rollback + offline update",
       desc: "Windows-Update-style in-system updates: a four-partition disk layout (boot/flags + slot A + slot B + data) with partitions registered as their own block devices (hdapN) and mounted at /ab/boot, /ab/a, /ab/b and /data; the kernel ships a complete gzip decoder (RFC 1952/1951, stored/fixed/dynamic blocks, resumable across feed boundaries, CRC32+ISIZE verification) and a streaming ustar parser (header checksums, GNU long names); a two-phase streaming HTTP/HTTPS downloader (status code + Content-Length enforced); two SHA256 layers (the package digest in update.json plus the payload digest inside the package manifest); a boot-flag protocol (next_B/ok_B/bootfail_B) that gives GRUB-side automatic rollback; the config file grows to 4 keys (package_url, online_update); new update / update --local / update --status / rollback / reboot commands plus 7 L1 update interfaces (85 in total) and 11 test commands (129 commands at boot); real_update_test verifies the end-to-end chain: download, verify, install into slot B, a real reboot into the test1 kernel, confirmation, and rollback back to slot A. Boot verified with SeaBIOS and OVMF.",
+    },
+    {
+      no: "WP-10c",
+      title: "Sound card drivers: Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB audio + the snd_* extension API",
+      desc: "A sound-card framework (snd.c, 8-slot registry) plus six driver families: Intel HDA (MMIO BARs, controller reset, CORB/RIRB command rings, codec address discovery, widget-tree enumeration, pin/converter/nid wiring, BDL DMA + IOC interrupts, LPIB flow control), AC'97 82801AA (mixer + bus-master BDL DMA), Sound Blaster 16 (ISA DSP 4.05, 8/16-bit DMA, block interrupts), ES1370/1371 (DAC2 frame DMA + PCLKDIV), virtio-snd (modern virtio-pci control + TX queues) and USB Audio Class 1.0 over a new UHCI host stack (control transfers, device enumeration, isochronous OUT scheduled per 1 ms frame); snd_register/play/stop/set_rate/set_volume/get_caps plus six per-driver init entry points and the usb.h host-stack interface (111 L1 interfaces in total); new sound/hda/ac97/sb16/es1370/virtiosnd/usbaudio/play/volume commands (146 registered at boot) and 9 test commands; 44.1/48 kHz sample-rate configuration. Five cards verified playing live in QEMU (real DMA + real interrupts); virtio-snd reports SKIPPED honestly without a QEMU device model. Boot verified with SeaBIOS and OVMF.",
     },
   ],
 };

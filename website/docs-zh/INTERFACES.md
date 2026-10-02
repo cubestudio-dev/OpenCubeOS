@@ -4,7 +4,7 @@
      reading convenience). The English original in the repository is
      authoritative. Signatures and code blocks are kept verbatim. -->
 
-# Open Cube OS — 接口索引（截至 WP-10u）
+# Open Cube OS — 接口索引（截至 WP-10c）（截至 WP-10u）
 
 Open Cube OS 向上层（L1）与 shell 暴露的每一个接口的单页索引。
 签名逐字复制自头文件——完整文档与示例见各头文件。
@@ -120,14 +120,16 @@ DH 自测真值向量：kernel/dh_scale_vectors.h。
 | 存储驱动（WP-10a） | kernel/ahci.h、nvme.h、ata_dma.h、virtio_blk.h | ahci_init(pci_dev)、nvme_init(pci_dev)、ata_dma_init(pci_dev)、virtio_blk_init、pci_find_class_exact/mask（pci.h） |
 | 系统内更新（WP-10u） | kernel/ab_update.h | oc_ext_update_check_pkg(out)、oc_ext_update_download(url, path)、oc_ext_update_verify(path, sha256)、oc_ext_update_install(pkg, slot)、oc_ext_update_rollback()、oc_ext_update_set_boot(slot)、oc_ext_update_get_status(out) |
 | 网卡驱动（WP-10b） | kernel/nic.h | nic_register(dev, ops)、nic_send/recv(dev, ...)、nic_link_status(dev)、nic_get_mac(dev, mac)、e1000e_init/igb_init/ixgbe_init/rtl8139_init/rtl8168_init/rtl8125_init/rtl810x_init/bcm57xx_init(pci_dev)、other_nics_init、nic_probe_all、nic_active |
+| 声卡驱动（WP-10c） | kernel/snd.h、usb.h | snd_register(dev, ops)、snd_play/stop/set_rate/set_volume/get_caps(dev, ...)、hda_init/ac97_init/es1370_init/virtio_snd_init(pci_dev)、sb16_init(isa_dev)、usb_audio_init(usb_dev)、snd_probe_all；USB：usb_init、usb_enumerate、usb_control、usb_set_interface、usb_iso_out_submit（kernel/usb.h） |
 | TCP socket 状态（WP-10a-fix） | kernel/net.h | net_tcp_established(fd) |
 
 ## 4. Shell 命令面
 
-116 条命令在 boot 时注册（实测计数；`help` 列出 116 个不重复名）。
+146 条命令在 boot 时注册（实测计数；`help` 列出 146 个不重复名）。
 `shell_register_command` 调用点：kmain.c 45、net.c 17、file_cmds.c 18、
 disk_cmds.c 7、disk_test_cmds.c 8（WP-10a 存储测试套件）、
 nic_test_cmds.c 18（WP-10b：10 个 NIC 测试 + 8 个 NIC 状态命令）、
+snd_test_cmds.c 18（WP-10c：9 个声卡状态命令 + 9 个声卡测试）、
 update_test_cmds.c 10（WP-10u：update_pkg/ab_partition/update_check/update_download/update_verify/update_install/update_rollback/update_local/update_status/real_update）、update.c/.h 3（WP-10u：update/rollback/reboot）、
 shell.c 6、ext_wp8cd.c 1——部分在不同阶段注册同名命令。
 完整列表：在 `oc>` 提示符输入 `help`。

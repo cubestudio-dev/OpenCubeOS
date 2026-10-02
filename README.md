@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS - WP-10b
+# Open Cube OS - WP-10c
 
 **官网**: https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**: https://github.com/cubestudio-dev/OpenCubeOS
@@ -20,19 +20,27 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-10b)
+## Stats (WP-10c)
 
-- **Source code**: 59,662 lines (kernel + boot + userprogs, incl. headers + linker scripts, no docs;
+- **Source code**: 68,305 lines (kernel + boot + userprogs, incl. headers + linker scripts, no docs;
   verify: `find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
-- **Work packages**: 11 (WP-01 ~ WP-09, WP-10a, WP-10b)
-- **L1 extension interfaces**: 78 (57 through WP-09 + 8 WP-10a items:
+- **Work packages**: 13 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c)
+- **L1 extension interfaces**: 111 (57 through WP-09 + 8 WP-10a items:
   blk_register / blk_read / blk_write / blk_flush (+ blk_set_ops),
   ahci_init(pci_dev), nvme_init(pci_dev), ata_dma_init(pci_dev),
   + 13 WP-10b items:
   nic_register / nic_send / nic_recv / nic_link_status / nic_get_mac,
   e1000e_init / igb_init / ixgbe_init / rtl8139_init / rtl8168_init /
   rtl8125_init / rtl810x_init / bcm57xx_init(pci_dev),
-  pci_find_class_exact/mask, ata_identify_capacity)
+  pci_find_class_exact/mask, ata_identify_capacity,
+  + 7 WP-10u items: ab_update.h (A/B slots, flags, verify, install),
+  + 26 WP-10c items: snd_register / snd_play / snd_stop / snd_set_rate /
+  snd_set_volume / snd_get_caps (+ snd_probe_all, snd_make_tone and the
+  snd.h lookup/ listing helpers),
+  hda_init / ac97_init / sb16_init / es1370_init / virtio_snd_init /
+  usb_audio_init(pci_dev / isa_dev / usb_dev),
+  usb_init / usb_enumerate / usb_control / usb_set_interface /
+  usb_iso_out_submit (kernel/usb.h))
 - **System calls**: 37
 - **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
   + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
@@ -179,6 +187,62 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   `oc_ext_config_*` / `oc_ext_check_update*` L1 interfaces. See
   docs/CONFIG.md.
 
+## WP-10u (done) - In-system update: A/B partitions + tar.gz packages + rollback + offline update
+
+- **A/B partition layout** (boot/flags + slot A + slot B + data), partitions
+  registered as their own block devices (hdapN) and mounted at /ab/boot,
+  /ab/a, /ab/b and /data.
+- **Kernel-side gzip decoder** (RFC 1952/1951: stored/fixed/dynamic blocks,
+  resumable across feed boundaries, CRC32+ISIZE verification) and a
+  **streaming ustar parser** (header checksums, GNU long names).
+- **Two-phase streaming HTTP/HTTPS downloader** (status code + Content-Length
+  enforced) with **two SHA256 layers** (the package digest in update.json
+  plus the payload digest inside the package manifest).
+- **Boot-flag protocol** (next_B/ok_B/bootfail_B) gives GRUB-side automatic
+  rollback; a failed slot-B boot keeps bootfail_B so the next boot goes back
+  to slot A.
+- **Commands**: update, update --local, update --status, rollback, reboot.
+- **Verification**: update_pkg_test 12/12, ab_partition_test 7/7,
+  update_check/download/verify/install/rollback/local/status all PASS,
+  real_update_test 7/7 end-to-end (download, verify, install into slot B,
+  a real reboot into slot B, confirm ok_B, rollback). See
+  docs/EXTENSIONS_WP10u.md.
+
+## WP-10c (done) - Sound card drivers: Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB audio
+
+- **snd framework** (kernel/snd.{c,h}): 8-slot registry,
+  snd_register / snd_play / snd_stop / snd_set_rate / snd_set_volume /
+  snd_get_caps; every driver does real DMA and raises real device
+  interrupts (per-device IRQ counters visible in `sound` and the tests).
+- **Intel HDA** (kernel/hda.c): MMIO BARs, controller reset, CORB/RIRB
+  command rings, codec address discovery, widget-tree enumeration
+  (audio function group, DAC/ADC, pins), stream format programming and
+  BDL DMA with IOC interrupts, LPIB flow control.
+- **AC'97 82801AA** (kernel/ac97.c): mixer (master/PCM volume + rate) and
+  bus-master BDL DMA with IOC interrupts.
+- **Sound Blaster 16** (kernel/sb16.c): ISA DSP 4.05 (io 0x220, IRQ 5),
+  8/16-bit single-cycle DMA with auto-init block interrupts.
+- **ES1370/1371** (kernel/es1370.c): DAC2 frame DMA + PCLKDIV clocking,
+  memory-mapped ring with IRQ on every buffer.
+- **virtio-snd** (kernel/virtio_snd.c): modern virtio-pci (1AF4:1059),
+  control + TX queues, PCM prepare/start/set_volume requests; probed on
+  every boot (QEMU 10 has no device model, so no live card in CI).
+- **USB Audio Class 1.0** (kernel/usb_audio.c) over the **new UHCI host
+  stack** (kernel/usb.{c,h}): UHCI controller driver (piix3/4), blocking
+  control transfers, device enumeration (SET_ADDRESS/CONFIGURATION/
+  INTERFACE), isochronous OUT scheduled per 1 ms frame.
+- **44.1/48 kHz** sample-rate configuration (caps-aware; sb16 rejects
+  48 kHz by design and the test verifies the rejection).
+- **Commands**: sound, hda, ac97, sb16, es1370, virtiosnd, usbaudio,
+  play [device] [rate], volume [device] [0-100]; lspci shows sound
+  controllers (class 0x04). 146 commands registered at boot.
+- **Verification**: hda_test / ac97_test / sb16_test / es1370_test /
+  usb_audio_test live in QEMU (init + caps + DMA bytes + IRQ counters),
+  audio_rw_test plays every registered card, sample_rate_test programs
+  44.1/48 kHz on every card that supports them, virtio_snd_test reports
+  SKIPPED honestly (no QEMU device model), real_hw_test reports NOT RUN
+  in a VM. See docs/EXTENSIONS_WP10c.md.
+
 ## Repository layout
 
 ```
@@ -218,11 +282,15 @@ oc-os/
 |   +-- tcp_cc.{c,h}                               # WP-09 mainstream: CUBIC congestion control
 |   +-- ssh.{c,h}, sshd.c, sshd_rsa_key.h          # WP-09: SSH client + server
 |   +-- tls.{c,h}                                   # WP-09: TLS 1.3/1.2 client
-|   +-- config.{c,h}, update.{c,h}                  # WP-09-fix5: /etc config + update check
+|   +-- config.{c,h}, update.{c,h}, ab_update.{c,h}  # WP-09-fix5/WP-10u: config + checkupdate + A/B update
 |   +-- ahci.{c,h}, ata_dma.{c,h}                   # WP-10a: AHCI SATA + ATA Bus-Master DMA
 |   +-- nic.{c,h}, nic_e1000e.c, nic_igb.c,        # WP-10b: NIC framework + nine
 |   |   nic_ixgbe.c, nic_rtl8139.c, nic_rtl8169.c, #   driver families + tests
 |   |   nic_bcm57xx.c, nic_other.c, nic_test_cmds.c
+|   +-- snd.{c,h}, snd_test_cmds.c                   # WP-10c: sound framework + tests
+|   +-- hda.{c,h}, ac97.{c,h}, sb16.{c,h},          # WP-10c: six sound driver
+|   |   es1370.{c,h}, virtio_snd.{c,h},             #   families + USB audio
+|   |   usb.{c,h}, usb_audio.{c,h}
 |   +-- kmain.c                                     # Kernel main
 +-- userprogs/                  # User-mode programs (23 files: .c + .asm + .ld)
 |   +-- hello.asm, badapp.asm, loop.asm            # basic tests
@@ -239,12 +307,13 @@ oc-os/
 +-- docs/                       # Documentation (18 files)
 |   +-- BUILD.md, CONFIG.md, COPYRIGHT.md, INTERFACES.md, MANIFEST.txt
 |   +-- EXTENSIONS.md (overview)
-|   +-- EXTENSIONS_WP02..WP10b.md (per-WP interface docs)
+|   +-- EXTENSIONS_WP02..WP10c.md (per-WP interface docs)
 +-- tools/                      # Build + test scripts
 |   +-- build_iso.sh, gen_font.py, embed_userprog.py
 |   +-- qemu_shot.py, qemu_shot_vnc.py, qemu_runner.py
 |   +-- github_release_wp08.sh  # GitHub Release helper
 |   +-- sshd_test.py, paramiko_sshd.py, https_test_server.py  # WP-09 E2E
+|   +-- make_ab_disk.sh, make_update_pkg.sh, update_server.py # WP-10u OTA
 +-- archive/                    # Old archived source (3 files, .gitignored subdirs)
 +-- .gitignore                  # Excludes build/, *.o, *.elf, *.iso, *.zip, releases/, etc.
 +-- LICENSE                     # Apache 2.0 full text (201 lines)
@@ -292,10 +361,18 @@ QEMU session via `tools/qemu_runner.py`. In addition:
   `tools/paramiko_sshd.py`): password + publickey auth, curve25519/group14
   KEX, aes128-ctr/cbc — 4/4 checks + byte-level K agreement + server
   host-key signature verification (TOFU fingerprint).
+- WP-10u update tests — update_pkg_test 12/12, ab_partition_test 7/7,
+  update_check/download/verify/install/rollback/local/status all PASS and
+  real_update_test 7/7 with a real reboot into slot B (`tools/make_ab_disk.sh`,
+  `tools/make_update_pkg.sh`, `tools/update_server.py`).
+- WP-10c sound tests — hda_test / ac97_test / sb16_test / es1370_test /
+  usb_audio_test live in QEMU (real DMA + real IRQ counters), audio_rw_test
+  on every card, sample_rate_test for 44.1/48 kHz; virtio_snd_test SKIPPED
+  (no QEMU device model), real_hw_test NOT RUN in a VM (honest report).
 
 ## Download
 
-- **Latest (WP-10b)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip
+- **Latest (WP-10c)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip + in-system update package
 - **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - Or visit https://cubestudio-dev.github.io/OpenCubeOS for direct downloads
 

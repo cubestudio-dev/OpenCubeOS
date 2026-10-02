@@ -1,8 +1,8 @@
 {
-  "version": "WP-10u",
-  "time": "2026-10-02",
-  "changes": "In-system update: A/B partitions, tar.gz packages (gzip/DEFLATE + ustar + SHA256), automatic rollback, offline update",
-  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/WP-10u/opencube-wp10u-update.tar.gz",
-  "package_sha256": "3ac9013a94ac5b02db08ebe3da18bc8e8ccea7aa636b59d47b2550a811d78740",
-  "package_size": 291264
+    "version": "WP-10c",
+    "time": "2026-10-02",
+    "changes": "Sound card drivers: Intel HDA (CORB/RIRB, codec/widget enum, BDL DMA), AC'97, SB16, ES1370, virtio-snd, USB audio over a new UHCI host stack; snd_* framework; play/volume commands",
+    "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/WP-10c/opencube-wp10c-update.tar.gz",
+    "package_sha256": "79412bde3038a27912d02e927ad6fd18ce91c58d10bd1347cd4e9903c12d15ff",
+    "package_size": 309653
 }

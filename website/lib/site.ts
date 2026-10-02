@@ -1,48 +1,53 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10u value taken from the
-// repository docs (README.md, docs/INTERFACES.md, docs/EXTENSIONS_WP10u.md)
+// Central site data. Every number is a real WP-10c value taken from the
+// repository docs (README.md, docs/INTERFACES.md, docs/EXTENSIONS_WP10c.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub Release WP-10u + this site /downloads/
+// 3-way identical: local build + GitHub Release WP-10c + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_WP09 =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10u";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10c";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release WP-10u + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp10u.iso";
-export const ISO_SIZE_B = 11003904;
-export const ISO_SIZE_MB = "10.49";
+// Real assets (build/ + GitHub Release WP-10c + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp10c.iso";
+export const ISO_SIZE_B = 11038720;
+export const ISO_SIZE_MB = "10.53";
 export const ISO_SHA256 =
-  "a929999129826b0f695f123f3af8fa110cce49c9e91e53bc68efce4a919991e7";
+  "1f8edf001dff4eae71c61cc67e984d9bb2f9238d6e88793b32da81bdafd8e4f4";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp10u-src.zip";
-export const SRC_SIZE_B = 1986287;
-export const SRC_SIZE_MB = "1.89";
+export const SRC_FILE = "opencube-wp10c-src.zip";
+export const SRC_SIZE_B = 1965794;
+export const SRC_SIZE_MB = "1.87";
 export const SRC_SHA256 =
-  "9bc71af94b6eed106d690569d967e9fc4c9c37f1e707d2b4c3f6513931b5b81e";
+  "8af0734e2465bf7817be414d6e6430f13cac79afb179cfb465064e1f2f4aac8c";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-10u stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (63,644 at commit f490328).
-// Shell commands: live boot count = 129 (adds the 11 WP-10u test commands + update/rollback/reboot).
-// L1 extension interfaces: 85 numbered items (57 through WP-09 + 8 WP-10a + 13 WP-10b + 7 WP-10u update items; docs/EXTENSIONS_WP10u.md).
+// WP-10c stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (68,305 at commit 9f93b69).
+// Shell commands: live boot count = 146 (adds the 9 WP-10c sound status/test commands + play/volume).
+// L1 extension interfaces: 111 items (85 through WP-10u + 21 WP-10c snd.h public functions + 6 per-driver init entry points + 5 usb.h host-stack functions; docs/EXTENSIONS_WP10c.md).
 export const STATS = [
-  { value: "63,644", label: "行源码" },
-  { value: "85", label: "L1 扩展接口" },
+  { value: "68,305", label: "行源码" },
+  { value: "111", label: "L1 扩展接口" },
   { value: "37", label: "系统调用" },
-  { value: "129", label: "shell 命令" },
-  { value: "12", label: "工作包" },
+  { value: "146", label: "shell 命令" },
+  { value: "13", label: "工作包" },
   { value: "18/18", label: "QEMU 回归" },
 ];
 
-// WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport features (user-facing list)
+// WP-10c sound + WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport features (user-facing list)
 export const FEATURES = [
+  {
+    name: "声卡驱动（六族）",
+    tag: "WP-10c",
+    desc: "Intel HDA（CORB/RIRB、codec/widget 枚举、BDL DMA、IOC 中断）、AC'97、Sound Blaster 16（ISA DMA）、ES1370、virtio-snd、USB Audio Class 1.0（新 UHCI 主机栈）：snd_register/play/stop/set_rate/set_volume/get_caps 扩展接口，44.1/48kHz，真 DMA 真中断，QEMU 五卡实测播放。",
+  },
   {
     name: "系统内自动更新（A/B 分区）",
     tag: "WP-10u",
@@ -160,13 +165,21 @@ export const WORK_PACKAGES = [
     no: "WP-10u",
     title: "系统内自动更新：A/B 分区 + tar.gz 更新包 + 回滚 + 离线更新",
   },
+  {
+    no: "WP-10c",
+    title: "声卡驱动：Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB 音频 + snd_* 扩展接口",
+  },
 ];
 
-// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a.md + docs/EXTENSIONS_WP10b.md)
+// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a/b/u/c.md)
 export const VERIFY = [
   {
     name: "18/18 QEMU 全量回归",
     desc: "boot 横幅 + uname + 12 个用户程序 + p3_test + heaptest + l1test + crashlog，单次 QEMU 会话完成（挂全部四类盘）。",
+  },
+  {
+    name: "WP-10c 声卡测试 9 项",
+    desc: "hda_test / ac97_test / sb16_test / es1370_test / usb_audio_test 在 QEMU 实测初始化、能力、DMA 播放与中断计数全 PASS；audio_rw_test 五卡逐个播放回读 PASS；sample_rate_test 44.1/48kHz 配置 PASS；virtio_snd_test 无 QEMU 设备模型如实 SKIPPED；real_hw_test 如实 NOT RUN。",
   },
   {
     name: "WP-10a 存储测试 8 项",

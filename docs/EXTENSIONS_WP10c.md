@@ -92,8 +92,8 @@ void usb_audio_print_state(void);
 | es1370     | ES1370 status                               |
 | virtiosnd  | virtio-snd status                           |
 | usbaudio   | USB audio + UHCI host status                |
-| play       | play a 440 Hz tone (`play [rate]`)          |
-| volume     | get/set volume (`volume [0-100]`)           |
+| play       | play a 440 Hz tone (`play [device] [rate]`)        |
+| volume     | get/set volume (`volume [device] [0-100]`)         |
 
 `lspci` continues to list PCI devices (sound controllers appear with
 class 0x04); `real_hw_test` gained a WP-10c sound section.
