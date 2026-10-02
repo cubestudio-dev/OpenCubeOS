@@ -20,9 +20,10 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-09-fix5)
+## Stats (WP-09 mainstream)
 
-- **Source code**: 47797 lines (kernel + boot + userprogs, incl. headers + linker scripts, no docs)
+- **Source code**: 54,621 lines (kernel + boot + userprogs, incl. headers + linker scripts, no docs;
+  verify: `find kernel boot userprogs -name '*.c' -o -name '*.h' -o -name '*.S' -o -name '*.asm' -o -name '*.ld' | xargs wc -l`)
 - **Work packages**: 9 (WP-01 ~ WP-09)
 - **L1 extension interfaces**: 57 (WP-09 adds transport-level features instead of L1 interfaces)
 - **System calls**: 37
@@ -145,9 +146,9 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
 - **Network ops commands**: route, arp, firewall (stateful rules, conntrack,
   three chains with policies + REJECT + per-rule hit counters), tcpstats
   (CUBIC cwnd/RTO/SACK/fast-retransmit visibility), dns (A/AAAA/CNAME/MX/TXT/NS/SRV).
-- **Shell**: 83 commands as of WP-09-fix5 (live boot self-test count); the
-  six mainstreaming batches added nf_test, tcpstats, tcpcc_test, dnstest and
-  tcptest.
+- **Shell**: 87 commands (live boot self-test count; `help` lists 87 unique);
+  includes the five commands added by the mainstreaming batches: nf_test,
+  tcpstats, tcpcc_test, dnstest and tcptest.
 - **New user test programs**: mprotect_test, p3_test.
 - **Verification**: 18/18 QEMU regression + dhtest 5/5 + cryptotest 3/3 +
   nf_test 8/8 + tcpcc_test + dnstest 6/6 (live) + tcptest + HTTPS E2E

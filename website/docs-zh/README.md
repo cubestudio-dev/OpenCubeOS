@@ -25,7 +25,7 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 
 ## 统计（WP-09）
 
-- **源码**：46058 行（kernel + boot + userprogs，不含文档）
+- **源码**：54621 行（kernel + boot + userprogs，不含文档）
 - **工作包**：9 个（WP-01 ~ WP-09）
 - **L1 扩展接口**：57 个（WP-09 新增的是传输层能力，而非 L1 接口）
 - **系统调用**：37 个
@@ -140,7 +140,7 @@ WP-08 统一了此前分开的 WP-08a / WP-08b / WP-08cd 子包：
 - **网络运维命令**：route、arp、firewall（状态规则、conntrack、三链默认策略 +
   REJECT + 逐规则命中计数器）、tcpstats（CUBIC cwnd/RTO/SACK/快速重传可见性）、
   dns（A/AAAA/CNAME/MX/TXT/NS/SRV）。
-- **Shell**：截至 WP-09-fix5 为 83 条（boot 自检实测计数）；六批主流化新增
+- **Shell**：87 条（boot 自检实测计数；help 列出 87 个不重复名）；含六批主流化新增的
   nf_test、tcpstats、tcpcc_test、dnstest、tcptest。
 - **新用户测试程序**：mprotect_test、p3_test。
 - **验证**：18/18 QEMU 回归 + dhtest 5/5 + cryptotest 3/3 + nf_test 8/8 +

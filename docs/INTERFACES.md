@@ -115,10 +115,10 @@ DH truth vectors for self-test: kernel/dh_scale_vectors.h.
 
 ## 4. Shell command surface
 
-68 commands registered at boot (self-test count; see
-`shell_register_command` call sites: kmain.c 38, net.c 13, file_cmds.c 17,
-disk_cmds.c 7, shell.c 7, ext_wp8cd.c 1 — some register the same name at
-different stages). Full list: type `help` at the `oc>` prompt.
+87 commands registered at boot (live self-test count; `help` lists 87
+unique). `shell_register_command` call sites: kmain.c 42, net.c 17,
+file_cmds.c 18, disk_cmds.c 7, shell.c 5 — some register the same name at
+different stages. Full list: type `help` at the `oc>` prompt.
 
 ## 5. Verification of these interfaces
 

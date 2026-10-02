@@ -74,7 +74,7 @@ All 18 regression items + dhtest 5/5 must PASS.
 
 ## Line Count (WP-09 mainstream)
 
-- Source code (kernel + boot + userprogs, no docs): **54,600 lines**
+- Source code (kernel + boot + userprogs, no docs): **54,621 lines**
   (includes the embedded-data headers; verify with:
   ```bash
   find kernel boot userprogs -name '*.c' -o -name '*.h' -o -name '*.S' \
