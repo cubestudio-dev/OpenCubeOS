@@ -56,7 +56,7 @@ Rules:
 
 | Key | Meaning | Default (file missing / key missing / empty value) |
 |---|---|---|
-| `update_url` | Manifest URL for `checkupdate`; scheme decides transport (`https://` → TLS 1.2 client, `http://` → plain TCP, anything else → error) | `https://helloopencubeos.space-z.ai/update.json` |
+| `update_url` | Manifest URL for `checkupdate`; scheme decides transport (`https://` → TLS 1.3/1.2 client, `http://` → plain TCP, anything else → error) | `https://helloopencubeos.space-z.ai/update.json` |
 | `auto_check` | `yes` / `no` — run the update check automatically after boot completes | `no` |
 
 Defined behaviour (documented policy, implemented in `kernel/config.c`):
@@ -192,8 +192,12 @@ python3.13 tools/update_server.py --mode https --port 8443 --json '<json>' \
 
 The kernel reaches the host via the QEMU user network address `10.0.2.2`.
 
-Known environment note: the kernel TLS client negotiates TLS 1.2 with
-`DHE-RSA-AES128-SHA256` (1024-bit DH) only. Public HTTPS servers that
-require ECDHE/AEAD (the modern default) reject the handshake — use the
-bundled test server (or any server configured for this cipher) for
-end-to-end runs.
+TLS capability note: the kernel TLS client negotiates TLS 1.3 (X25519 key
+share, AES-128/256-GCM or ChaCha20-Poly1305, full key schedule and
+encrypted handshake) with certificate-chain + hostname verification
+against embedded public CA roots, and falls back to TLS 1.2 ECDHE_RSA
+with AES-GCM / ChaCha20-Poly1305 (legacy DHE-CBC retained). Public HTTPS
+servers work out of the box — verified against
+cubestudio-dev.github.io, www.google.com and www.cloudflare.com. The
+bundled test server above speaks TLS 1.2 DHE-CBC on purpose: it exercises
+the legacy fallback path end-to-end.

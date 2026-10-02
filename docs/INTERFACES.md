@@ -68,8 +68,9 @@ as direct kernel APIs (see §3) rather than oc_ext_* functions.
 ## 2. WP-09 transport APIs (kernel/ssh.h, kernel/tls.h)
 
 ```c
-/* SSH client (group14-sha256, aes128-cbc, hmac-sha2-256, rsa-sha2-256,
- * password auth, session exec) */
+/* SSH client (curve25519-sha256 / group14-sha256 KEX, aes128-ctr/cbc,
+ * hmac-sha2-256, rsa-sha2-256/512 host key verified over H with TOFU
+ * fingerprint, password + publickey auth, session exec) */
 int  ssh_connect(u32 ip, u16 port, const char *username, const char *password);
 int  ssh_exec(const char *command, void *output, int output_len);
 void ssh_close(void);
@@ -78,8 +79,10 @@ void ssh_close(void);
  * serves one session then returns. exec requests are executed through the
  * kernel shell capture API (shell_execute_captured). */
 
-/* TLS 1.2 client (DHE_RSA_WITH_AES_128_CBC_SHA256 = 0x0067,
- * RFC 3526 1024-bit MODP, server cert not verified) */
+/* TLS 1.3/1.2 client (TLS 1.3: X25519 + AES-GCM/ChaCha20-Poly1305;
+ * TLS 1.2 fallback: ECDHE_RSA + AES-GCM/ChaCha20-Poly1305, legacy DHE-CBC
+ * retained. X.509 chain + hostname verification against embedded public
+ * CA roots — handshake fails closed on verification errors) */
 int  tls_connect(u32 ip, u16 port, const char *hostname);
 int  tls_send(tls_ctx_t *ctx, const void *data, int len);
 int  tls_recv(tls_ctx_t *ctx, void *buf, int len);
@@ -88,8 +91,12 @@ int  tls_https_get(u32 ip, u16 port, const char *hostname, const char *path,
                    void *out_buf, int out_len);
 ```
 
-Crypto primitives (kernel/crypto.h): aes128_cbc_encrypt / aes128_cbc_decrypt,
-sha256, hmac_sha256, dh_modexp (arbitrary byte length), crypto_random.
+Crypto primitives: `kernel/crypto.h` (aes128 CTR/CBC, sha256, hmac_sha256,
+hkdf, dh_modexp, crypto_random), `kernel/bn.h` (bignum modexp, Montgomery
+core), `kernel/ec_nist.h` (P-256/P-384 ECDH+ECDSA), `kernel/curve25519.h`
+(X25519), `kernel/rsa.h` (PKCS#1 v1.5 + PSS verify), `kernel/aead.h`
+(AES-GCM, ChaCha20-Poly1305), `kernel/sha512.h` (SHA-512/384 + HMAC),
+`kernel/x509.h` (certificate parse + chain/hostname verification).
 DH truth vectors for self-test: kernel/dh_scale_vectors.h.
 
 ## 3. Kernel subsystem APIs (stable since their WP)

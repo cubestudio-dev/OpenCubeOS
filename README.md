@@ -111,27 +111,48 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
 - **Audit fixes**: 47 bugs fixed (P0=2, P1=8, P2=29, P3=8).
 - Seven new L1 extension interfaces (items 51-57): shell_run, shell_register_builtin, tool_register, tool_list, job_create, job_list, job_control.
 
-## WP-09 (done) - Security transport: SSH (client + server), TLS 1.2 / HTTPS, crypto core
+## WP-09 (done) - Security transport: SSH (client + server), TLS 1.3 / TLS 1.2 / HTTPS, crypto core
 
-- **Crypto core** (`kernel/crypto.{c,h}`): AES-128 (enc/dec), SHA-256, HMAC-SHA256,
-  DH modexp (arbitrary length, verified against python3 pow() truth vectors at
-  8/16/32/64/128/256 bytes), crypto_random.
-- **SSH client** (`kernel/ssh.{c,h}`): KEX group14-sha256 (2048-bit), aes128-cbc,
-  hmac-sha2-256, rsa-sha2-256 host key signature, password auth, session channel
-  exec. Byte-level K verified against paramiko server-side capture.
-- **SSH server** (`kernel/sshd.c`): same algorithm suite, password auth (oc/oc),
-  exec requests executed via kernel shell capture API; verified 4/4 against
-  paramiko client.
-- **TLS 1.2 client** (`kernel/tls.{c,h}`): cipher DHE_RSA_WITH_AES_128_CBC_SHA256
-  (0x0067), RFC 3526 1024-bit MODP key exchange, full record layer (encrypt
-  outgoing, decrypt + MAC-verify incoming), server Finished accepted-by-design.
+- **Crypto core** (`kernel/crypto.{c,h}` + bn/ec/rsa/aead/x509 modules):
+  AES-128 (CTR/CBC) + AES-128/256-GCM + ChaCha20-Poly1305, SHA-256, streaming
+  SHA-256/HMAC, SHA-512/384, HMAC-SHA-512, HKDF, big-integer modexp
+  (Montgomery core, RSA-4096 viable, verified against python3 pow() truth
+  vectors at 8/16/32/64/128/256 bytes), NIST P-256/P-384 ECDH+ECDSA, X25519
+  (RFC 7748 vectors), RSA PKCS#1 v1.5 + PSS verify, RFC 8439/NIST KAT-validated
+  AEAD, crypto_random.
+- **SSH client** (`kernel/ssh.{c,h}`): KEX curve25519-sha256 (+@libssh.org)
+  and diffie-hellman-group14-sha256, aes128-ctr (aes128-cbc fallback),
+  hmac-sha2-256, rsa-sha2-256/512 host key, password **and publickey** auth,
+  session channel exec, server host-key signature verified over H with TOFU
+  SHA-256 fingerprint display. Byte-level K verified against paramiko
+  server-side capture.
+- **SSH server** (`kernel/sshd.c`): same mainstream suite (curve25519 KEX,
+  aes128-ctr), password **and publickey** auth (kernel identity key doubles
+  as host key), exec requests executed via kernel shell capture API; verified
+  against the paramiko client.
+- **TLS 1.3 client** (RFC 8446, preferred): X25519, AES-128/256-GCM and
+  ChaCha20-Poly1305, full HKDF key schedule (RFC 8448 vectors), encrypted
+  handshake, server CertificateVerify checked.
+- **TLS 1.2 client** (RFC 5246, fallback): ECDHE_RSA with AES-GCM and
+  ChaCha20-Poly1305; legacy DHE-CBC (0x0067) retained for old servers.
+- **Certificate verification** (`kernel/x509.{c,h}`): X.509 chain verified
+  against embedded public CA roots (ISRG, Google GTS, DigiCert, GlobalSign,
+  Baltimore, Amazon, Microsoft) + SAN dNSName hostname match, validity via
+  RTC. Fails closed on verification errors.
 - **HTTPS**: `wget https://host:port/path` downloads through TLS into VFS.
-- **Network ops commands**: route, arp, firewall, tcpstats, dns.
-- **Shell**: 83 commands (live boot self-test count; fix5 adds checkupdate, config, config_test, checkupdate_test, edit).
+  Real-site verified: cubestudio-dev.github.io (10148-byte update.json),
+  google.com, cloudflare.com.
+- **Network ops commands**: route, arp, firewall (stateful rules, conntrack,
+  three chains with policies + REJECT + per-rule hit counters), tcpstats
+  (CUBIC cwnd/RTO/SACK/fast-retransmit visibility), dns (A/AAAA/CNAME/MX/TXT/NS/SRV).
+- **Shell**: 83 commands as of WP-09-fix5 (live boot self-test count); the
+  six mainstreaming batches added nf_test, tcpstats, tcpcc_test, dnstest and
+  tcptest.
 - **New user test programs**: mprotect_test, p3_test.
-- **Verification**: 18/18 QEMU regression + dhtest 5/5 + HTTPS E2E + SSH
-  both-direction interop (external evidence: paramiko 5.0). See
-  docs/EXTENSIONS_WP09.md, docs/INTERFACES.md.
+- **Verification**: 18/18 QEMU regression + dhtest 5/5 + cryptotest 3/3 +
+  nf_test 8/8 + tcpcc_test + dnstest 6/6 (live) + tcptest + HTTPS E2E
+  (real sites above) + SSH both-direction interop (external evidence:
+  paramiko 5.0). See docs/EXTENSIONS_WP09.md, docs/INTERFACES.md.
 - **WP-09-fix5 — system configuration + update check**:
   `/etc/opencube.conf` (first user-editable config, FAT32 /etc volume,
   ramfs fallback), `checkupdate` over HTTP/HTTPS with JSON manifest,
@@ -172,8 +193,12 @@ oc-os/
 |   +-- ext_wp8a.{c,h}, ext_wp8b.{c,h}, ext_wp8cd.{c,h}  # WP-08 L1 extensions
 |   +-- userprogs_data.h, solib_data.h             # WP-08 embedded ELF + .so data
 |   +-- crypto.{c,h}, dh_scale_vectors.h           # WP-09: AES/SHA/HMAC/DH
+|   +-- bn.{c,h}, ec_nist.{c,h}, curve25519.{c,h}  # WP-09 mainstream: bignum + P-256/384 + X25519
+|   +-- rsa.{c,h}, aead.{c,h}, sha512.{c,h}        # WP-09 mainstream: RSA verify + AEAD + SHA-512
+|   +-- x509.{c,h}                                 # WP-09 mainstream: X.509 chain + hostname verify
+|   +-- tcp_cc.{c,h}                               # WP-09 mainstream: CUBIC congestion control
 |   +-- ssh.{c,h}, sshd.c, sshd_rsa_key.h          # WP-09: SSH client + server
-|   +-- tls.{c,h}                                   # WP-09: TLS 1.2 client
+|   +-- tls.{c,h}                                   # WP-09: TLS 1.3/1.2 client
 |   +-- kmain.c                                     # Kernel main
 +-- userprogs/                  # User-mode programs (21 files: .c + .asm + .ld)
 |   +-- hello.asm, badapp.asm, loop.asm            # basic tests
@@ -222,7 +247,7 @@ make run-bios       # SeaBIOS -> GRUB -> kernel
 make run-uefi       # OVMF -> GRUB EFI -> kernel
 ```
 
-Once the `oc>` prompt appears, type `help` for the 78 built-in commands.
+Once the `oc>` prompt appears, type `help` for the full command list.
 Try `run ush` to launch the user-space shell.
 
 ## Tests
@@ -233,11 +258,15 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 - `dhtest` — 5/5 DH modexp correctness (Oakley Group 1 + group14 truth vectors
   + scale sweep 8..256 bytes + determinism).
-- HTTPS E2E — kernel TLS 1.2 client against `tools/https_test_server.py`
-  (TLS1.2-only, DHE-RSA-AES128-SHA256): handshake + encrypted GET + decrypted
-  response + MAC verification, both sides logged.
+- HTTPS E2E — real-site TLS through the kernel client
+  (`https://cubestudio-dev.github.io/OpenCubeOS/update.json` → 10148 bytes;
+  google.com, cloudflare.com), plus the local `tools/https_test_server.py`
+  (TLS1.2-only, DHE-RSA-AES128-SHA256) covering the legacy fallback:
+  handshake + encrypted GET + decrypted response + MAC verification.
 - SSH interop both directions with paramiko 5.0 (`tools/sshd_test.py` and
-  `tools/paramiko_sshd.py`): 4/4 checks + byte-level K agreement.
+  `tools/paramiko_sshd.py`): password + publickey auth, curve25519/group14
+  KEX, aes128-ctr/cbc — 4/4 checks + byte-level K agreement + server
+  host-key signature verification (TOFU fingerprint).
 
 ## Download
 

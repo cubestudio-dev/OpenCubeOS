@@ -83,7 +83,7 @@ Evidence (paramiko 5.0 client → kernel sshd E2E run):
 4/4 checks PASS (listening / connection accepted / session finished
 cleanly / auth + exec succeeded), 32-byte exec output captured.
 
-## 4. TLS 1.2 client + HTTPS (kernel/tls.h)
+## 4. TLS 1.3 / TLS 1.2 client + HTTPS (kernel/tls.h)
 
 ```c
 int  tls_connect(u32 ip, u16 port, const char *hostname);
@@ -94,26 +94,36 @@ int  tls_https_get(u32 ip, u16 port, const char *hostname, const char *path,
                    void *out_buf, int out_len);
 ```
 
-- **Cipher**: TLS_DHE_RSA_WITH_AES_128_CBC_SHA256 (0x0067) only.
-- **KEX**: RFC 3526 1024-bit MODP ("Oakley Group 1"); the client **uses the
-  server's p/g from ServerKeyExchange** (right-aligned into 128-byte
-  buffers; p_len < 128 accepted).
-- **Server cert**: accepted but NOT verified.
-- **Record layer**: client→server records are AES-128-CBC encrypted with
-  per-record explicit IV + HMAC-SHA256; server→server records (application
-  data + alerts) are decrypted and MAC-verified. The server's encrypted
-  *Finished* handshake record is skipped by design.
-- **close_notify**: not sent on `tls_close()`.
+- **TLS 1.3 (RFC 8446, preferred)**: X25519 key share, cipher suites
+  TLS_AES_128_GCM_SHA256 (0x1301), TLS_AES_256_GCM_SHA384 (0x1302),
+  TLS_CHACHA20_POLY1305_SHA256 (0x1303); full HKDF key schedule (validated
+  against RFC 8448 vectors), encrypted handshake, server CertificateVerify
+  checked, client Finished accepted.
+- **TLS 1.2 (RFC 5246, fallback)**: ECDHE_RSA with AES_128_GCM (0xC02F),
+  AES_256_GCM (0xC030) or ChaCha20-Poly1305 (0xCCA8); legacy
+  DHE_RSA_AES_128_CBC_SHA256 (0x0067, Oakley Group 1 — the client uses the
+  server's p/g from ServerKeyExchange) retained for old servers.
+- **Server certificate**: X.509 chain verified against embedded public CA
+  roots (ISRG Root X1/X2, Google GTS, DigiCert, GlobalSign, Baltimore,
+  Amazon, Microsoft) + hostname match via SAN dNSName (kernel/x509.c);
+  validity checked against the RTC clock. Handshake fails closed on
+  verification errors.
+- **Record layer**: AEAD (AES-GCM / ChaCha20-Poly1305) per negotiated
+  suite; TLS 1.3 handshake traffic and application traffic use separate
+  keys per the RFC 8446 key schedule.
+- **close_notify**: warning alert sent on `tls_close()` (both versions);
+  incoming alerts are decrypted and treated as EOF.
 
 **HTTPS shell command** (net.c): `wget https://host[:port]/path` — performs
 the handshake, sends `GET path HTTP/1.0`, decrypts the response, splits the
 body at `\r\n\r\n` and saves it to `/wget_https.html` (prints
 `Saved N bytes to /wget_https.html`). Plain `wget http://...` unchanged.
 
-E2E evidence (kernel + server logs):
-handshake with `DHE-RSA-AES128-SHA256`@TLS1.2, encrypted GET, server saw a
-43-byte request, kernel decrypted a 24-byte body,
-`cat /wget_https.html` → `hello-from-opencube-tls`.
+Real-site verification (mainstreaming batch): HTTPS GET against
+`https://cubestudio-dev.github.io/OpenCubeOS/update.json` → 10148 bytes
+downloaded and saved; google.com and cloudflare.com handshake + GET also
+verified. The bundled `tools/https_test_server.py` (TLS 1.2 DHE-CBC)
+continues to cover the legacy fallback path.
 
 ## 5. New/changed shell commands
 
@@ -121,7 +131,7 @@ handshake with `DHE-RSA-AES128-SHA256`@TLS1.2, encrypted GET, server saw a
 |---|---|---|
 | `ssh <ip> [port] [user] [password]` | WP-09 | SSH client + exec round trip |
 | `sshd <port> <user> <password>` | WP-09 | Single-session SSH server |
-| `wget https://host[:port]/path` | WP-09 | HTTPS GET via TLS 1.2 (extended `wget`) |
+| `wget https://host[:port]/path` | WP-09 | HTTPS GET via TLS 1.3/1.2 (extended `wget`) |
 | `route`, `arp`, `firewall`, `tcpstats`, `dns` | WP-09 | Network ops/visibility |
 
 ## 6. ABI stability

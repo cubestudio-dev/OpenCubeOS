@@ -112,24 +112,40 @@ WP-08 统一了此前分开的 WP-08a / WP-08b / WP-08cd 子包：
 - **审计修复**：修复 47 个 bug（P0=2、P1=8、P2=29、P3=8）。
 - 新增 7 个 L1 扩展接口（第 51-57 项）：shell_run、shell_register_builtin、tool_register、tool_list、job_create、job_list、job_control。
 
-## WP-09（完成）- 安全传输：SSH（客户端 + 服务端）、TLS 1.2 / HTTPS、crypto 核心
+## WP-09（完成）- 安全传输：SSH（客户端 + 服务端）、TLS 1.3 / TLS 1.2 / HTTPS、crypto 核心
 
-- **Crypto 核心**（`kernel/crypto.{c,h}`）：AES-128（加/解密）、SHA-256、HMAC-SHA256、
-  任意长度 DH modexp（以 python3 pow() 真值向量在 8/16/32/64/128/256 字节尺度验证）、crypto_random。
-- **SSH 客户端**（`kernel/ssh.{c,h}`）：KEX group14-sha256（2048 位）、aes128-cbc、
-  hmac-sha2-256、rsa-sha2-256 主机密钥签名、密码认证、session channel exec。
+- **Crypto 核心**（`kernel/crypto.{c,h}` + bn/ec/rsa/aead/x509 模块）：
+  AES-128（CTR/CBC）+ AES-128/256-GCM + ChaCha20-Poly1305、SHA-256、流式 SHA-256/HMAC、
+  SHA-512/384、HMAC-SHA-512、HKDF、大整数 modexp（Montgomery 核心，可跑 RSA-4096，
+  以 python3 pow() 真值向量在 8/16/32/64/128/256 字节尺度验证）、NIST P-256/P-384 ECDH+ECDSA、
+  X25519（RFC 7748 向量）、RSA PKCS#1 v1.5 + PSS 验证、RFC 8439/NIST KAT 验证的 AEAD、crypto_random。
+- **SSH 客户端**（`kernel/ssh.{c,h}`）：KEX curve25519-sha256（+@libssh.org）与
+  diffie-hellman-group14-sha256、aes128-ctr（aes128-cbc 回退）、hmac-sha2-256、
+  rsa-sha2-256/512 主机密钥、密码**与公钥**认证、session channel exec、
+  服务器主机密钥签名在 H 上验证并显示 TOFU SHA-256 指纹。
   K 与 paramiko 服务端抓包字节级一致。
-- **SSH 服务端**（`kernel/sshd.c`）：同一算法套件，密码认证（oc/oc），
-  exec 请求经内核 shell 捕获 API 执行；与 paramiko 客户端互操作验证 4/4。
-- **TLS 1.2 客户端**（`kernel/tls.{c,h}`）：cipher DHE_RSA_WITH_AES_128_CBC_SHA256
-  （0x0067），RFC 3526 1024-bit MODP 密钥交换，完整记录层（出站加密、入站解密 + MAC 校验），
-  服务器 Finished 按设计接受。
+- **SSH 服务端**（`kernel/sshd.c`）：同一主流套件（curve25519 KEX、aes128-ctr），
+  密码**与公钥**认证（内核身份密钥兼作主机密钥），
+  exec 请求经内核 shell 捕获 API 执行；与 paramiko 客户端互操作验证。
+- **TLS 1.3 客户端**（RFC 8446，优先）：X25519、AES-128/256-GCM 与
+  ChaCha20-Poly1305，完整 HKDF 密钥日程（RFC 8448 向量），加密握手，服务器 CertificateVerify 校验。
+- **TLS 1.2 客户端**（RFC 5246，回退）：ECDHE_RSA + AES-GCM 与
+  ChaCha20-Poly1305；旧式 DHE-CBC（0x0067）保留给旧服务器。
+- **证书验证**（`kernel/x509.{c,h}`）：X.509 链验证（内嵌公共 CA 根：ISRG、Google GTS、
+  DigiCert、GlobalSign、Baltimore、Amazon、Microsoft）+ SAN dNSName 主机名匹配，
+  RTC 校验有效期。验证失败即握手失败。
 - **HTTPS**：`wget https://host:port/path` 经 TLS 下载，直接落入 VFS。
-- **网络运维命令**：route、arp、firewall、tcpstats、dns。
-- **Shell**：68 条命令（boot 自检计数）。
+  真实站点验证：cubestudio-dev.github.io（10148 字节 update.json）、
+  google.com、cloudflare.com。
+- **网络运维命令**：route、arp、firewall（状态规则、conntrack、三链默认策略 +
+  REJECT + 逐规则命中计数器）、tcpstats（CUBIC cwnd/RTO/SACK/快速重传可见性）、
+  dns（A/AAAA/CNAME/MX/TXT/NS/SRV）。
+- **Shell**：截至 WP-09-fix5 为 83 条（boot 自检实测计数）；六批主流化新增
+  nf_test、tcpstats、tcpcc_test、dnstest、tcptest。
 - **新用户测试程序**：mprotect_test、p3_test。
-- **验证**：18/18 QEMU 回归 + dhtest 5/5 + HTTPS E2E + SSH 双向互操作
-  （外部证据：paramiko 5.0）。见 docs/EXTENSIONS_WP09.md、docs/INTERFACES.md。
+- **验证**：18/18 QEMU 回归 + dhtest 5/5 + cryptotest 3/3 + nf_test 8/8 +
+  tcpcc_test + dnstest 6/6（live）+ tcptest + HTTPS E2E（上述真实站点）+
+  SSH 双向互操作（外部证据：paramiko 5.0）。见 docs/EXTENSIONS_WP09.md、docs/INTERFACES.md。
 
 ## 仓库结构
 
@@ -164,8 +180,12 @@ oc-os/
 |   +-- ext_wp8a.{c,h}, ext_wp8b.{c,h}, ext_wp8cd.{c,h}  # WP-08 L1 扩展
 |   +-- userprogs_data.h, solib_data.h             # WP-08 内嵌 ELF + .so 数据
 |   +-- crypto.{c,h}, dh_scale_vectors.h           # WP-09：AES/SHA/HMAC/DH
+|   +-- bn.{c,h}, ec_nist.{c,h}, curve25519.{c,h}  # WP-09 主流化：大整数 + P-256/384 + X25519
+|   +-- rsa.{c,h}, aead.{c,h}, sha512.{c,h}        # WP-09 主流化：RSA 验证 + AEAD + SHA-512
+|   +-- x509.{c,h}                                 # WP-09 主流化：X.509 链 + 主机名验证
+|   +-- tcp_cc.{c,h}                               # WP-09 主流化：CUBIC 拥塞控制
 |   +-- ssh.{c,h}, sshd.c, sshd_rsa_key.h          # WP-09：SSH 客户端 + 服务端
-|   +-- tls.{c,h}                                   # WP-09：TLS 1.2 客户端
+|   +-- tls.{c,h}                                   # WP-09：TLS 1.3/1.2 客户端
 |   +-- kmain.c                                     # 内核主入口
 +-- userprogs/                  # 用户态程序（21 个文件：.c + .asm + .ld）
 |   +-- hello.asm, badapp.asm, loop.asm            # 基础测试
@@ -225,11 +245,15 @@ p3_test、heaptest、l1test、crashlog），经 `tools/qemu_runner.py` 在单次
 
 - `dhtest` — 5/5 DH modexp 正确性（Oakley Group 1 + group14 真值向量
   + 8..256 字节尺度扫描 + 确定性验证）。
-- HTTPS E2E — 内核 TLS 1.2 客户端对 `tools/https_test_server.py`
-  （仅 TLS1.2，DHE-RSA-AES128-SHA256）：握手 + 加密 GET + 解密响应 + MAC 校验，
+- HTTPS E2E — 真实站点 TLS（内核客户端）：
+  `https://cubestudio-dev.github.io/OpenCubeOS/update.json` → 10148 字节；
+  google.com、cloudflare.com；另有本地 `tools/https_test_server.py`
+  （仅 TLS1.2，DHE-RSA-AES128-SHA256）覆盖旧式回退路径：
+  握手 + 加密 GET + 解密响应 + MAC 校验，
   双侧留日志。
 - SSH 与 paramiko 5.0 双向互操作（`tools/sshd_test.py` 与
-  `tools/paramiko_sshd.py`）：4/4 检查 + K 字节级一致。
+  `tools/paramiko_sshd.py`）：密码 + 公钥认证、curve25519/group14 KEX、
+  aes128-ctr/cbc — 4/4 检查 + K 字节级一致 + 服务器主机密钥签名验证（TOFU 指纹）。
 
 ## 下载
 

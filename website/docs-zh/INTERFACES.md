@@ -70,8 +70,9 @@ WP-02/03/05/06/07 的"扩展点"以直接内核 API 形式暴露（见 §3），
 ## 2. WP-09 传输 API（kernel/ssh.h、kernel/tls.h）
 
 ```c
-/* SSH 客户端（group14-sha256、aes128-cbc、hmac-sha2-256、rsa-sha2-256、
- * 密码认证、session exec） */
+/* SSH 客户端（curve25519-sha256 / group14-sha256 KEX、aes128-ctr/cbc、
+ * hmac-sha2-256、rsa-sha2-256/512 主机密钥在 H 上验证并显示 TOFU 指纹、
+ * 密码 + 公钥认证、session exec） */
 int  ssh_connect(u32 ip, u16 port, const char *username, const char *password);
 int  ssh_exec(const char *command, void *output, int output_len);
 void ssh_close(void);
@@ -80,8 +81,9 @@ void ssh_close(void);
  * 服务一个会话后返回。exec 请求经内核 shell 捕获 API
  * （shell_execute_captured）执行。 */
 
-/* TLS 1.2 客户端（DHE_RSA_WITH_AES_128_CBC_SHA256 = 0x0067，
- * RFC 3526 1024-bit MODP，不校验服务器证书） */
+/* TLS 1.3/1.2 客户端（TLS 1.3：X25519 + AES-GCM/ChaCha20-Poly1305；
+ * TLS 1.2 回退：ECDHE_RSA + AES-GCM/ChaCha20-Poly1305，旧式 DHE-CBC 保留。
+ * X.509 链 + 主机名验证（内嵌公共 CA 根）——验证失败即握手失败） */
 int  tls_connect(u32 ip, u16 port, const char *hostname);
 int  tls_send(tls_ctx_t *ctx, const void *data, int len);
 int  tls_recv(tls_ctx_t *ctx, void *buf, int len);
@@ -90,8 +92,11 @@ int  tls_https_get(u32 ip, u16 port, const char *hostname, const char *path,
                    void *out_buf, int out_len);
 ```
 
-Crypto 原语（kernel/crypto.h）：aes128_cbc_encrypt / aes128_cbc_decrypt、
-sha256、hmac_sha256、dh_modexp（任意字节长度）、crypto_random。
+Crypto 原语：`kernel/crypto.h`（aes128 CTR/CBC、sha256、hmac_sha256、
+hkdf、dh_modexp、crypto_random）、`kernel/bn.h`（大整数 modexp，Montgomery 核心）、
+`kernel/ec_nist.h`（P-256/P-384 ECDH+ECDSA）、`kernel/curve25519.h`（X25519）、
+`kernel/rsa.h`（PKCS#1 v1.5 + PSS 验证）、`kernel/aead.h`（AES-GCM、ChaCha20-Poly1305）、
+`kernel/sha512.h`（SHA-512/384 + HMAC）、`kernel/x509.h`（证书解析 + 链/主机名验证）。
 DH 自测真值向量：kernel/dh_scale_vectors.h。
 
 ## 3. 内核子系统 API（自各自 WP 起稳定）

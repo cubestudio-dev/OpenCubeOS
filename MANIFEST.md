@@ -14,7 +14,7 @@ oc-os/                        ← repository root
 ├── kernel/                   ← kernel source (105 files: .c + .h + .S, incl. WP-09 crypto/ssh/sshd/tls)
 ├── userprogs/                ← user programs (.c/.asm/.ld — 23 files)
 ├── tools/                    ← build/test scripts (9 files, public)
-├── docs/                     ← documentation (18 files, incl. verification/ logs)
+├── docs/                     ← documentation (16 files)
 ├── build/                    ← build artifacts (opencube.elf + .o files) — gitignored
 ├── archive/                  ← archived old versions (see archive/README.md)
 │   └── old-ldso/             ← Batch 2 assembly ld.so (only tracked subdir)
@@ -72,11 +72,11 @@ python3.13 tools/https_test_server.py cert key dh 8443 & # then in kernel: wget 
 
 All 18 regression items + dhtest 5/5 must PASS.
 
-## Line Count (WP-09)
+## Line Count (WP-09 mainstream)
 
-- Source code (kernel + boot + userprogs, no docs): **46,058 lines**
-- Verify with:
+- Source code (kernel + boot + userprogs, no docs): **54,600 lines**
+  (includes the embedded-data headers; verify with:
   ```bash
-  git ls-files | grep -E '\.(c|h|S|asm|ld)$|^Makefile$|^grub\.cfg$|^linker\.ld$|^\.gitignore$' \
-    | grep -v 'userprogs_data.h\|solib_data.h\|font_data.c' | xargs wc -l
-  ```
+  find kernel boot userprogs -name '*.c' -o -name '*.h' -o -name '*.S' \
+    -o -name '*.asm' -o -name '*.ld' | xargs wc -l | tail -1
+  ```)
