@@ -38,8 +38,8 @@ SEABIOS_DIR  ?= $(OC_TOOLS)/share/seabios
 # Compiler / linker flags — freestanding, no redzone, no PIE, no stack protector.
 # OC_RELEASE_VERSION is baked into the kernel banner + uname + update
 # check (WP-10u).  Override for the end-to-end update test:
-#   make OC_RELEASE_VERSION=WP-10u-test1
-OC_RELEASE_VERSION ?= WP-10u
+#   make OC_RELEASE_VERSION=WP-10c-test1
+OC_RELEASE_VERSION ?= WP-10c
 CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
 	     -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel \
 	     -fno-asynchronous-unwind-tables -Wall -Wextra -Werror \

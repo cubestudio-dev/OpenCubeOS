@@ -65,6 +65,7 @@ void ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "nic.h"            /* WP-10b: NIC drivers + test/status commands */
 #include "ab_update.h"       /* WP-10u: A/B slots + in-system update */
 #include "update_test_cmds.h" /* WP-10u: update test suite */
+#include "snd.h"             /* WP-10c: sound card drivers */
 #include "exfat.h"
 #include "ext4.h"
 #include "disk_cmds.h"
@@ -2537,6 +2538,21 @@ void kmain(u64 magic, u64 mbi_phys) {
     net_register_shell_commands();
     net_start_timer();
     OC_LOG_OK2("network stack (e1000 + TCP/IP + socket API)");
+
+    /* ---- WP-10c: sound card drivers (HDA/AC'97/SB16/ES1370/virtio/USB) ----
+     * Probes all six families; those without hardware simply stay
+     * unregistered.  Then the status/test commands. */
+    snd_init();
+    if (snd_probe_all() == 0) {
+        char line[80]; char num[8];
+        oc_strcpy(line, "sound: ");
+        oc_u64_to_str((u64)snd_num_devices(), num); oc_strcat(line, num);
+        oc_strcat(line, " card(s) registered");
+        OC_LOG_OK2(line);
+    } else {
+        OC_LOG_OK2("sound: no sound card present (probe OK)");
+    }
+    snd_test_cmds_register();
 
     /* docs-sync FIX: report the LIVE registered command count once ALL
      * registrations are done (kmain + file + disk + net commands). The old

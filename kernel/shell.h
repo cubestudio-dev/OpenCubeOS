@@ -28,7 +28,7 @@
 typedef int (*shell_hook_fn_t)(void *ctx, u8 ch);
 
 /* ---- Limits ---- */
-#define SHELL_MAX_COMMANDS    160   /* WP-10u: +13 update commands, was 128 */
+#define SHELL_MAX_COMMANDS    192   /* WP-10c: +19 sound commands, was 160 */
 #define SHELL_MAX_ENV         32
 #define SHELL_ENV_NAME_LEN    32
 #define SHELL_ENV_VALUE_LEN   256

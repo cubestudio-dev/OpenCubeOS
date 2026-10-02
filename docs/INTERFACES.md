@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS — Interface Index (as of WP-10b)
+# Open Cube OS — Interface Index (as of WP-10c)
 
 Single-page index of every interface Open Cube OS exposes to upper layers
 (L1) and to the shell. Signatures are copied verbatim from the headers —
@@ -117,14 +117,16 @@ DH truth vectors for self-test: kernel/dh_scale_vectors.h.
 | Block + FS | kernel/blk.h, part.h, fat32.h, exfat.h, ext4.h | blk_*, vfs mount (FAT32 R/W, exFAT R/W, ext4 RO) |
 | Storage drivers (WP-10a) | kernel/ahci.h, nvme.h, ata_dma.h, virtio_blk.h | ahci_init(pci_dev), nvme_init(pci_dev), ata_dma_init(pci_dev), virtio_blk_init, pci_find_class_exact/mask (pci.h) |
 | NIC drivers (WP-10b) | kernel/nic.h | nic_register(dev, ops), nic_send/recv(dev, ...), nic_link_status(dev), nic_get_mac(dev, mac), e1000e_init/igb_init/ixgbe_init/rtl8139_init/rtl8168_init/rtl8125_init/rtl810x_init/bcm57xx_init(pci_dev), other_nics_init, nic_probe_all, nic_active |
+| Sound cards (WP-10c) | kernel/snd.h, usb.h | snd_register(dev, ops), snd_play/stop/set_rate/set_volume/get_caps(dev, ...), hda_init/ac97_init/es1370_init/virtio_snd_init(pci_dev), sb16_init(isa_dev), usb_audio_init(usb_dev), snd_probe_all; USB: usb_init, usb_enumerate, usb_control, usb_set_interface, usb_iso_out_submit (kernel/usb.h) |
 | TCP socket state (WP-10a-fix) | kernel/net.h | net_tcp_established(fd) |
 
 ## 4. Shell command surface
 
-116 commands registered at boot (live count; `help` lists 116 unique).
+146 commands registered at boot (live count; `help` lists 146 unique).
 `shell_register_command` call sites: kmain.c 45, net.c 17, file_cmds.c 18,
 disk_cmds.c 7, disk_test_cmds.c 8 (WP-10a storage test suite),
 nic_test_cmds.c 18 (WP-10b: 10 NIC tests + 8 NIC status commands),
+snd_test_cmds.c 18 (WP-10c: 9 sound status commands + 9 sound tests),
 shell.c 6, ext_wp8cd.c 1 — some register the same name at different
 stages. Full list: type `help` at the `oc>` prompt.
 

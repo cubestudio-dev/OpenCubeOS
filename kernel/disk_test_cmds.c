@@ -26,6 +26,7 @@
 #include "ata_dma.h"
 #include "ata.h"
 #include "nic.h"       /* WP-10b: real_hw_test NIC section */
+#include "snd.h"       /* WP-10c: real_hw_test sound section */
 #include "disk_cmds.h"
 #include "fat32.h"
 #include "vfs.h"
@@ -562,6 +563,13 @@ static int cmd_real_hw_test(const char *args) {
     rtl810x_print_state();
     bcm57xx_print_state();
     other_nics_print_state();
+    oc_console_puts("[real_hw_test] --- WP-10c sound cards ---\n");
+    hda_print_state();
+    ac97_print_state();
+    sb16_print_state();
+    es1370_print_state();
+    virtio_snd_print_state();
+    usb_audio_print_state();
     oc_console_puts("[real_hw_test] => see driver reports above\n");
     return 0;
 }
