@@ -4,32 +4,32 @@
 // Central site data. Every number is a real WP-09 value taken from the
 // repository docs (README.md, docs/INTERFACES.md, docs/EXTENSIONS_WP09.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub Release WP-09-docs-comments + this site /downloads/
+// 3-way identical: local build + GitHub Release WP-09-mainstream-final + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_WP09 =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-09-docs-comments";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-09-mainstream-final";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release WP-09-docs-comments + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp09-docs-comments.iso";
+// Real assets (build/ + GitHub Release WP-09-mainstream-final + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp09-mainstream-final.iso";
 export const ISO_SIZE_B = 10872832;
 export const ISO_SIZE_MB = "10.37";
 export const ISO_SHA256 =
-  "7c1399601549672f497995607f16c175acd9ea9b85648c926a31fab0f60bdfb9";
+  "828df7ecc6e3779ca8548e08fc2e05663e2d59ae5ea3ac2aec41c4c72b2a2b0c";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp09-docs-comments-src.zip";
-export const SRC_SIZE_B = 7385488;
-export const SRC_SIZE_MB = "7.04";
+export const SRC_FILE = "opencube-wp09-mainstream-final-src.zip";
+export const SRC_SIZE_B = 12962828;
+export const SRC_SIZE_MB = "12.36";
 export const SRC_SHA256 =
-  "bd5523bb2c48ee82ca0995551cf6731eec649d160537d7a902dca3da614b0481";
+  "75adbf66464a39ea7e6acd7cf177d1a25d0bd165fb4cae1893f9656e2a2b0256";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-09 mainstream stats. Source lines: find kernel boot userprogs -name '*.c' -o -name '*.h' -o -name '*.S' -o -name '*.asm' -o -name '*.ld' | xargs wc -l (54,621 at commit 5fa087e).
+// WP-09 mainstream stats. Source lines: find kernel boot userprogs -name '*.c' -o -name '*.h' -o -name '*.S' -o -name '*.asm' -o -name '*.ld' | xargs wc -l (54,621 at commit 0da7cd3).
 // Shell commands: live boot self-test + help count = 87 (includes nf_test, tcpstats, tcpcc_test, dnstest, tcptest).
 // L1 extension interfaces: 57 numbered items (docs/EXTENSIONS_WP08cd.md: WP-01..07 32 + WP-08 25); WP-09 adds transport APIs, not numbered L1 interfaces.
 export const STATS = [

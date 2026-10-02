@@ -7,6 +7,11 @@ echo "ORIGIN_URL=$ORIGIN_URL"
 cd "$OUT"
 echo "PWD=$(pwd)"
 git init -q -b gh-pages .
+# build-local.sh deletes out/ (including any previous .git), so this fresh
+# init has no identity — set it explicitly or the commit is authored as
+# the sandbox default (Z User <z@container>), which fails repo author checks.
+git config user.name "cubestudio-dev"
+git config user.email "cubestudio@qq.com"
 git add -A
 git commit -q -m "WP-09 website build (full rewrite): static export, /docs + /about, trailingSlash"
 git log --oneline -1
