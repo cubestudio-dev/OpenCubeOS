@@ -41,8 +41,13 @@
 extern "C" {
 #endif
 
-/* Current kernel version - must stay in sync with cmd_uname (kmain.c). */
-#define OC_UPDATE_CURRENT_VERSION "WP-10b"
+/* Current kernel version - must stay in sync with cmd_uname (kmain.c).
+ * Overridable at build time: make CFLAGS+=-DOC_RELEASE_VERSION=\"...\"
+ * (used by the WP-10u end-to-end test to build a "newer" kernel). */
+#ifndef OC_RELEASE_VERSION
+#define OC_RELEASE_VERSION "WP-10u"
+#endif
+#define OC_UPDATE_CURRENT_VERSION OC_RELEASE_VERSION
 
 /* Manifest fields as parsed from the JSON body.  version/time are
  * structural: if the server sends more than 31 bytes the check fails
@@ -68,6 +73,14 @@ typedef struct {
 #define OC_UPDATE_E_HTTP     (-6)
 #define OC_UPDATE_E_JSON     (-7)
 #define OC_UPDATE_E_BUFSIZE  (-8)
+/* WP-10u additions (system update on A/B partitions). */
+#define OC_UPDATE_E_DISABLED (-9)   /* online_update=no in the config    */
+#define OC_UPDATE_E_NOAB    (-10)   /* no A/B disk present               */
+#define OC_UPDATE_E_SHA     (-11)   /* SHA256 verification failed        */
+#define OC_UPDATE_E_TARGZ   (-12)   /* package is not valid gzip/tar     */
+#define OC_UPDATE_E_IO      (-13)   /* filesystem I/O error              */
+#define OC_UPDATE_E_SLOT    (-14)   /* invalid slot name (use A/B)       */
+#define OC_UPDATE_E_ARGS    (-15)   /* NULL / malformed arguments        */
 
 /* Synchronous check: fetch the manifest and compare versions.  Fills
  * *out with the server-reported fields on success (rc 0 or 1) and leaves
@@ -86,6 +99,56 @@ const char *oc_check_update_strerror(int rc);
 /* Shell command handlers (registered in kmain.c). */
 int cmd_checkupdate(const char *args);      /* checkupdate       */
 int cmd_checkupdate_test(const char *args); /* checkupdate_test  */
+
+/* ------------------------------------------------------------------ *
+ * WP-10u: package manifest check + kernel-internal helpers
+ *
+ * update.json gains three package fields:
+ *
+ *     "package_url"     direct URL of the *.tar.gz update package
+ *     "package_sha256"  SHA256 of that package (64 hex chars)
+ *     "package_size"    package size in bytes (JSON number)
+ *
+ * All three are OPTIONAL for the plain checkupdate flow (older
+ * manifests stay fully compatible) but REQUIRED for `update`.
+ * ------------------------------------------------------------------ */
+
+typedef struct {
+    oc_update_info_t info;      /* version / time / changes             */
+    char package_url[192];      /* "" when the manifest has no URL      */
+    char package_sha256[72];    /* 64 hex chars + NUL + headroom        */
+    u64  package_size;
+    int  have_package;          /* 1 when all three package fields were
+                                 * present in the manifest              */
+} oc_update_pkg_info_t;
+
+/* Fetch update.json and parse version/time/changes plus the package
+ * fields.  Returns OC_UPDATE_OK / OC_UPDATE_NEW like oc_check_update()
+ * (and caches the result for update --status via oc_update_cache_check),
+ * or a negative OC_UPDATE_E_*. */
+int oc_update_check_pkg(oc_update_pkg_info_t *out);
+
+/* URL container + parser (scheme/host/port/path), shared with the
+ * WP-10u downloader in kernel/ab_update.c. */
+typedef struct {
+    int   use_tls;
+    char  host[128];
+    int   port;
+    char  path[128];
+} oc_update_url_t;
+
+int oc_update_url_parse(const char *url, oc_update_url_t *out);
+
+/* Flat-JSON field helpers (top-level "key": value).  oc_update_json_string
+ * returns 0 ok / -1 not found / -8 value too large for out.
+ * oc_update_json_uint parses a non-negative decimal number. */
+int oc_update_json_string(const char *json, const char *key,
+                          char *out, int outlen);
+int oc_update_json_uint(const char *json, const char *key, u64 *out);
+
+/* Cache a finished check for update --status (called by
+ * oc_update_check_pkg; rc is OC_UPDATE_OK / OC_UPDATE_NEW). */
+void oc_update_cache_check(int rc, const char *version);
 
 #ifdef __cplusplus
 }

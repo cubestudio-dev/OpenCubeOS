@@ -61,7 +61,7 @@ cp "$GRUB_DIR/x86_64-efi/"*.mod "$ISO_STAGE/boot/grub/x86_64-efi/" 2>/dev/null |
 cp "$GRUB_DIR/x86_64-efi/"*.lst "$ISO_STAGE/boot/grub/x86_64-efi/" 2>/dev/null || true
 
 # --- 5. Build BIOS El Torito boot image (i386-pc-eltorito) ---
-GRUB_MODULES_BIOS="biosdisk iso9660 fat ext2 normal echo ls cat help configfile \
+GRUB_MODULES_BIOS="biosdisk iso9660 fat ext2 normal echo ls cat help configfile search search_fs_file \
               test linux multiboot2 multiboot boot serial terminal gfxterm \
               all_video vbe vga video video_fb video_bochs video_cirrus \
               video_colors font bufio part_msdos part_gpt reboot halt"
@@ -73,7 +73,7 @@ grub-mkimage -O i386-pc-eltorito \
   $GRUB_MODULES_BIOS
 
 # --- 6. Build EFI bootloader (BOOTX64.EFI) ---
-GRUB_MODULES_EFI="iso9660 fat ext2 normal echo ls cat help configfile \
+GRUB_MODULES_EFI="iso9660 fat ext2 normal echo ls cat help configfile search search_fs_file \
               test linux multiboot2 multiboot boot serial terminal gfxterm \
               all_video efi_gop efi_uga fixvideo video video_fb video_bochs \
               video_cirrus video_colors font bufio part_msdos part_gpt \

@@ -63,6 +63,8 @@ void ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "ata_dma.h"   /* WP-10a: Bus-Master IDE */
 #include "disk_test_cmds.h" /* WP-10a: storage test suite */
 #include "nic.h"            /* WP-10b: NIC drivers + test/status commands */
+#include "ab_update.h"       /* WP-10u: A/B slots + in-system update */
+#include "update_test_cmds.h" /* WP-10u: update test suite */
 #include "exfat.h"
 #include "ext4.h"
 #include "disk_cmds.h"
@@ -160,7 +162,7 @@ static void draw_banner(void) {
     u32 saved_bg = oc_console_get()->bg_pixel;
     oc_console_get()->fg_pixel = oc_fb_rgb(0xFF, 0xFF, 0xFF);
     oc_console_get()->bg_pixel = band_color;
-    oc_console_puts("Open Cube OS  [WP-10b]");
+    oc_console_puts("Open Cube OS  [" OC_RELEASE_VERSION "]");
     oc_console_get()->fg_pixel = saved_fg;
     oc_console_get()->bg_pixel = saved_bg;
     oc_console_move_cursor(0, 4);
@@ -881,11 +883,11 @@ static int cmd_uname(const char *args) {
         show_s = 1;  /* default */
     }
     if (show_all) {
-        oc_console_puts("Open Cube OS WP-10b x86_64\n");
+        oc_console_puts("Open Cube OS " OC_RELEASE_VERSION " x86_64\n");
         return 0;
     }
     if (show_s) oc_console_puts("Open Cube OS\n");
-    if (show_r) oc_console_puts("WP-10b\n");
+    if (show_r) oc_console_puts(OC_RELEASE_VERSION "\n");
     if (show_m) oc_console_puts("x86_64\n");
     return 0;
 }
@@ -2259,7 +2261,7 @@ static void interactive_loop(void) {
     (void)tm_id;
 
     oc_console_putc('\n');
-    oc_console_puts("Open Cube OS WP-10b ready. Type 'help' for commands.\n");
+    oc_console_puts("Open Cube OS " OC_RELEASE_VERSION " ready. Type 'help' for commands.\n");
     oc_console_puts("(Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)\n\n");
 
     char line[256];
@@ -2283,7 +2285,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     /* ---- 0. Serial console ---- */
     serial_init();
     serial_putc('\r'); serial_putc('\n');
-    serial_puts("[oc] Open Cube OS WP-10b kmain entered\r\n");
+    serial_puts("[oc] Open Cube OS " OC_RELEASE_VERSION " kmain entered\r\n");
 
     /* ---- 1. Validate multiboot2 ---- */
     if (magic != OC_MB2_MAGIC) {
@@ -2313,7 +2315,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     draw_banner();
 
     /* ---- 5. Boot log (WP-01 stages) ---- */
-    oc_log_info("Open Cube OS - L0 kernel (WP-10b)");
+    oc_log_info("Open Cube OS - L0 kernel (" OC_RELEASE_VERSION ")");
     oc_log_info("Apache 2.0 licensed. See LICENSE.");
     oc_console_putc('\n');
 
@@ -2482,6 +2484,15 @@ void kmain(u64 magic, u64 mbi_phys) {
      * makes sure the config file exists. */
     oc_config_init();
 
+    /* ---- WP-10u: A/B slot framework + in-system update ----
+     * Reads oc.slot= from the multiboot2 command line, scans the disks
+     * for the A/B layout, registers the partition block devices and
+     * mounts /ab/boot + /ab/a + /ab/b + /data.  For slot-B boots a
+     * pessimistic bootfail marker is written here (removed again by
+     * oc_update_confirm_boot() once the system is fully up). */
+    oc_ab_set_boot_slot_arg(mbi.cmdline);
+    oc_ab_init();
+
     /* WP-05 shell commands: file operations (in file_cmds.c) +
      * WP-07 disk commands (in disk_cmds.c). */
     file_cmds_register();
@@ -2511,6 +2522,14 @@ void kmain(u64 magic, u64 mbi_phys) {
                            "config subsystem self-test (write/read/get_all/delete/restore)");
     shell_register_command("checkupdate_test", cmd_checkupdate_test,
                            "update check self-test (URL/JSON units + live probe)");
+    /* ---- WP-10u: in-system update commands + test suite ---- */
+    shell_register_command("update", cmd_update,
+                           "check + install system update (update [local <pkg> | --local <pkg> | --status])");
+    shell_register_command("rollback", cmd_rollback,
+                           "roll back to slot A (rollback)");
+    shell_register_command("reboot", cmd_reboot,
+                           "reboot the machine (reboot)");
+    update_test_cmds_register();
     OC_LOG_OK2("shell file/disk commands");
 
     /* ---- 12e. WP-06: Network stack ---- */
@@ -2591,6 +2610,11 @@ void kmain(u64 magic, u64 mbi_phys) {
     if (oc_config_autocheck_enabled()) {
         oc_check_update_async();
     }
+
+    /* ---- 16c. WP-10u: confirm a slot-B boot ----
+     * The system is fully up: clear the pessimistic bootfail marker
+     * and promote slot B to the confirmed default (ok_B). */
+    oc_update_confirm_boot();
 
     /* ---- 17. Interactive loop ---- */
     interactive_loop();

@@ -539,6 +539,12 @@ static int cmd_real_hw_test(const char *args) {
         oc_console_puts("[real_hw_test] => NOT RUN (no physical storage or NIC in a VM;\n");
         oc_console_puts("    real-machine SATA/NVMe/ATA and WP-10b NIC validation\n");
         oc_console_puts("    needs bare metal)\n");
+        oc_console_puts("[real_hw_test] --- WP-10u in-system update ---\n");
+        oc_console_puts("[real_hw_test] A/B update flows are validated in QEMU\n");
+        oc_console_puts("    (update_pkg_test, ab_partition_test, update_*_test,\n");
+        oc_console_puts("    real_update_test with a real reboot); real-machine A/B\n");
+        oc_console_puts("    validation (GRUB installed to a physical disk) NOT RUN\n");
+        oc_console_puts("    in this sandbox\n");
         return 0;
     }
     /* Bare metal: report what the drivers detected (real validation). */

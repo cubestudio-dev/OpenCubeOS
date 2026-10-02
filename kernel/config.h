@@ -11,12 +11,19 @@
  * when no disk is present the kernel falls back to a ramfs /etc and seeds
  * it with the compiled-in defaults (non-persistent, still fully functional).
  *
- * Well-known keys (WP-09-fix5):
+ * Well-known keys (WP-09-fix5 + WP-10u):
  *
- *   update_url  - HTTP or HTTPS URL of the update manifest (JSON).
+ *   update_url    - HTTP or HTTPS URL of the update manifest (JSON).
  *                 default: https://cubestudio-dev.github.io/OpenCubeOS/update.json
- *   auto_check  - "yes" / "no": run the update check automatically after
+ *   auto_check    - "yes" / "no": run the update check automatically after
  *                 boot completes.  default: "no".
+ *   package_url   - HTTP or HTTPS base for update packages (WP-10u).
+ *                 Recorded in update.json (package_url) and kept here as
+ *                 documentation/fallback.  default: "" (no offline base).
+ *   online_update - "yes" / "no": allow the in-system online update
+ *                 (oc> update).  "no" restricts the system to offline
+ *                 packages (update --local from a USB drive).
+ *                 default: "yes".
  *
  * Defined behaviour for missing / empty / invalid values:
  *
@@ -54,9 +61,13 @@ extern "C" {
 #define OC_CONFIG_PATH_DIR    "/etc"
 #define OC_CONFIG_KEY_URL     "update_url"
 #define OC_CONFIG_KEY_AUTOCHECK "auto_check"
+#define OC_CONFIG_KEY_PACKAGE_URL "package_url"
+#define OC_CONFIG_KEY_ONLINE_UPDATE "online_update"
 
 #define OC_CONFIG_DEFAULT_URL       "https://cubestudio-dev.github.io/OpenCubeOS/update.json"
 #define OC_CONFIG_DEFAULT_AUTOCHECK "no"
+#define OC_CONFIG_DEFAULT_PACKAGE_URL "https://github.com/cubestudio-dev/OpenCubeOS/releases/latest"
+#define OC_CONFIG_DEFAULT_ONLINE_UPDATE "yes"
 
 /* Limits (ASCII only; values are trimmed of surrounding spaces). */
 #define OC_CONFIG_KEY_MAX     64
@@ -113,6 +124,11 @@ const char *oc_config_default_autocheck(void);
 /* Boot-time policy helper: 1 when auto_check=yes, else 0 (invalid values
  * fall back to "no" with a logged warning - documented defaults policy). */
 int oc_config_autocheck_enabled(void);
+
+/* WP-10u policy helper: 1 when online_update=yes (default), else 0.
+ * Missing key -> enabled (default); invalid values fall back to the
+ * default with a logged warning. */
+int oc_config_online_update_enabled(void);
 
 /* Shell command handlers (registered in kmain.c). */
 int cmd_config(const char *args);       /* config list|get|set|restore|path */

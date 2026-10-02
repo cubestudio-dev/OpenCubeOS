@@ -2478,13 +2478,8 @@ void tcp_handle_packet(u32 src_ip, const void *data, int len) {
                  * - future (out-of-order) segments are cached and drained in
                  *   order when the gap fills (real TCP reliability) */
                 if (seq + payload_len <= c->our_ack) {
-                    {
-                        char b[96]; oc_strcpy(b, "[tcp] dup: seg seq=");
-                        char n2[12]; oc_u64_to_str((u64)seq, n2); oc_strcat(b, n2);
-                        oc_strcat(b, " len="); oc_u64_to_str((u64)payload_len, n2); oc_strcat(b, n2);
-                        oc_strcat(b, " ack="); oc_u64_to_str((u64)c->our_ack, n2); oc_strcat(b, n2);
-                        oc_console_puts(b); oc_console_puts("\n");
-                    }
+                    /* WP-10u: per-duplicate console print removed (same
+                     * serial-throughput problem as the in-order print). */
                     tcp_send_raw(c, TCP_ACK, NULL, 0);
                     break;
                 }
@@ -2513,12 +2508,12 @@ void tcp_handle_packet(u32 src_ip, const void *data, int len) {
                     tcp_send_raw(c, TCP_ACK, NULL, 0);
                     break;
                 }
-                {
-                    char b[96]; oc_strcpy(b, "[tcp] in-order: seq=");
-                    char n2[12]; oc_u64_to_str((u64)seq, n2); oc_strcat(b, n2);
-                    oc_strcat(b, " len="); oc_u64_to_str((u64)payload_len, n2); oc_strcat(b, n2);
-                    oc_console_puts(b); oc_console_puts("\n");
-                }
+                /* WP-10u: the per-segment "[tcp] in-order" console print
+                 * used to live here.  A bulk transfer (update package
+                 * download) produces thousands of segments and each serial
+                 * print costs ~4 ms at 115200 baud, throttling transfers to
+                 * ~35 KB/s and starving the poll loop.  Removed; the dup /
+                 * ooo paths below still report anomalies. */
                 if (c->rx_len + payload_len < (int)sizeof(c->rx_buf)) {
                     oc_memcpy(c->rx_buf + c->rx_len, payload, payload_len);
                     c->rx_len += payload_len;

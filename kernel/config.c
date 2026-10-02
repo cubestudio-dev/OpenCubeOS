@@ -36,8 +36,14 @@ static const char g_default_config[] =
     "# Update check URL (HTTP or HTTPS)\n"
     "update_url=" OC_CONFIG_DEFAULT_URL "\n"
     "\n"
+    "# Update package base URL (WP-10u, HTTP or HTTPS)\n"
+    "package_url=" OC_CONFIG_DEFAULT_PACKAGE_URL "\n"
+    "\n"
     "# Auto check on boot (yes / no)\n"
-    "auto_check=" OC_CONFIG_DEFAULT_AUTOCHECK "\n";
+    "auto_check=" OC_CONFIG_DEFAULT_AUTOCHECK "\n"
+    "\n"
+    "# Enable online system update (yes / no)\n"
+    "online_update=" OC_CONFIG_DEFAULT_ONLINE_UPDATE "\n";
 
 static int g_config_initialized = 0;
 
@@ -260,6 +266,11 @@ int oc_config_write(const char *key, const char *value) {
         else if (oc_strcasecmp(canon, "no") == 0)  { canon[0]='n'; canon[1]='o'; canon[2]=0; }
         else return OC_CONFIG_E_ARGS;   /* invalid auto_check -> rejected */
     }
+    if (oc_strcmp(key, OC_CONFIG_KEY_ONLINE_UPDATE) == 0) {
+        if (oc_strcasecmp(canon, "yes") == 0)      { canon[0]='y'; canon[1]='e'; canon[2]='s'; canon[3]=0; }
+        else if (oc_strcasecmp(canon, "no") == 0)  { canon[0]='n'; canon[1]='o'; canon[2]=0; }
+        else return OC_CONFIG_E_ARGS;   /* invalid online_update -> rejected */
+    }
 
     /* read current file, rebuild with the new value, write back */
     int flen = 0;
@@ -359,6 +370,20 @@ int oc_config_autocheck_enabled(void) {
     if (oc_strcasecmp(v, "no") == 0) return 0;
     oc_log_info("config: invalid auto_check value - using no (safe default)");
     return 0;
+}
+
+/* Documented policy: online_update=yes -> 1, no -> 0, anything else
+ * -> the default (yes) with a warning logged.  Missing file/key ->
+ * default (yes) without a warning. */
+int oc_config_online_update_enabled(void) {
+    char v[16];
+    int rc = oc_config_read_default(OC_CONFIG_KEY_ONLINE_UPDATE, v, sizeof(v),
+                                    OC_CONFIG_DEFAULT_ONLINE_UPDATE);
+    if (rc != 0) return 1;
+    if (oc_strcasecmp(v, "yes") == 0) return 1;
+    if (oc_strcasecmp(v, "no") == 0) return 0;
+    oc_log_info("config: invalid online_update value - using yes (default)");
+    return 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -520,15 +545,50 @@ int cmd_config_test(const char *args) {
         { ok = "PASS"; pass++; }
     oc_console_puts("[config_test] delete file -> read reports missing: "); oc_console_puts(ok); oc_console_puts("\n");
 
-    /* 7. restore defaults -> default URL readable again */
+    /* 7. WP-10u: all four well-known keys exist after restore */
     total++;
     ok = "FAIL";
     if (oc_config_restore_defaults() == 0 &&
         oc_config_read(OC_CONFIG_KEY_URL, val, sizeof(val)) == 0 &&
         oc_strcmp(val, oc_config_default_url()) == 0 &&
         oc_config_read(OC_CONFIG_KEY_AUTOCHECK, val, sizeof(val)) == 0 &&
-        oc_strcmp(val, "no") == 0) { ok = "PASS"; pass++; }
-    oc_console_puts("[config_test] restore defaults: "); oc_console_puts(ok); oc_console_puts("\n");
+        oc_strcmp(val, "no") == 0 &&
+        oc_config_read(OC_CONFIG_KEY_PACKAGE_URL, val, sizeof(val)) == 0 &&
+        oc_strcmp(val, OC_CONFIG_DEFAULT_PACKAGE_URL) == 0 &&
+        oc_config_read(OC_CONFIG_KEY_ONLINE_UPDATE, val, sizeof(val)) == 0 &&
+        oc_strcmp(val, "yes") == 0) { ok = "PASS"; pass++; }
+    oc_console_puts("[config_test] restore defaults (4 keys): "); oc_console_puts(ok); oc_console_puts("\n");
+
+    /* 8. WP-10u: package_url write/read roundtrip */
+    total++;
+    ok = "FAIL";
+    if (oc_config_write(OC_CONFIG_KEY_PACKAGE_URL,
+                        "http://10.0.2.2:8008/packages") == 0 &&
+        oc_config_read(OC_CONFIG_KEY_PACKAGE_URL, val, sizeof(val)) == 0 &&
+        oc_strcmp(val, "http://10.0.2.2:8008/packages") == 0)
+        { ok = "PASS"; pass++; }
+    oc_console_puts("[config_test] package_url write/read: "); oc_console_puts(ok); oc_console_puts("\n");
+
+    /* 9. WP-10u: online_update yes/no roundtrip + invalid rejected */
+    total++;
+    ok = "FAIL";
+    if (oc_config_write(OC_CONFIG_KEY_ONLINE_UPDATE, "no") == 0 &&
+        oc_config_read(OC_CONFIG_KEY_ONLINE_UPDATE, val, sizeof(val)) == 0 &&
+        oc_strcmp(val, "no") == 0 &&
+        oc_config_online_update_enabled() == 0 &&
+        oc_config_write(OC_CONFIG_KEY_ONLINE_UPDATE, "YES") == 0 &&
+        oc_config_online_update_enabled() == 1 &&
+        oc_config_write(OC_CONFIG_KEY_ONLINE_UPDATE, "maybe") == OC_CONFIG_E_ARGS)
+        { ok = "PASS"; pass++; }
+    oc_console_puts("[config_test] online_update yes/no/invalid: "); oc_console_puts(ok); oc_console_puts("\n");
+
+    /* 10. restore defaults again (leave the system in a clean state) */
+    total++;
+    ok = "FAIL";
+    if (oc_config_restore_defaults() == 0 &&
+        oc_config_read(OC_CONFIG_KEY_ONLINE_UPDATE, val, sizeof(val)) == 0 &&
+        oc_strcmp(val, "yes") == 0) { ok = "PASS"; pass++; }
+    oc_console_puts("[config_test] final restore: "); oc_console_puts(ok); oc_console_puts("\n");
 
     char line[64]; char num[12];
     oc_strcpy(line, "[config_test] ");

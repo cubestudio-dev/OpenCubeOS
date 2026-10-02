@@ -33,7 +33,6 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
         "-m", "512M",
         "-cdrom", iso_path,
         "-boot", "d",
-        "-no-reboot",
         "-L", QEMU_DATADIR,
         "-L", SEABIOS_DIR,
         "-vga", "std", "-display", "none",
@@ -43,6 +42,12 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
         "-object", "filter-dump,id=f0,netdev=n1,file=/tmp/guest_net.pcap",
         "-device", "e1000,netdev=n1",
     ]
+    # WP-10u: allow the guest to reboot (end-to-end update test drops
+    # -no-reboot so the 8042 reset actually restarts the machine).
+    if os.environ.get("OC_ALLOW_REBOOT", "").strip():
+        print("[runner] OC_ALLOW_REBOOT set: -no-reboot dropped")
+    else:
+        cmd.insert(cmd.index("-boot"), "-no-reboot")
     # WP-10b: replace the default NIC model to exercise the WP-10b
     # drivers one at a time (QEMU models only e1000/e1000e/igb/rtl8139
     # from the WP-10b list):

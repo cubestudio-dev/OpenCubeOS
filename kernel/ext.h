@@ -25,6 +25,7 @@
 #include "fb.h"
 #include "font.h"
 #include "console.h"
+#include "ab_update.h"   /* WP-10u: oc_update_status_t + pkg info */
 
 #ifdef __cplusplus
 extern "C" {
@@ -163,6 +164,36 @@ typedef struct {
 
 int  oc_ext_check_update(oc_ext_update_info_t *out);
 int  oc_ext_check_update_async(void);
+
+/* ------------------------------------------------------------------ *
+ * 7. IN-SYSTEM UPDATE + A/B SLOTS (WP-10u)
+ *
+ * L1 can drive the Windows-Update-style system update: check the
+ * manifest (with package fields), download/verify/install the package
+ * into an A/B slot, switch the boot slot and roll back.  The A/B disk
+ * layout, the boot-flag protocol and the package format are documented
+ * in kernel/ab_update.h and docs/EXTENSIONS_WP10u.md.
+ *
+ * oc_update_status_t and oc_update_pkg_info_t are defined in
+ * kernel/ab_update.h / kernel/update.h (included above via ab_update.h).
+ *
+ * Example (L1 code):
+ *     oc_ext_update_pkg_info_t pkg;
+ *     if (oc_ext_update_check_pkg(&pkg) == 1) {          // new version
+ *         oc_ext_update_download(pkg.package_url, "/data/p.tar.gz");
+ *         oc_ext_update_verify("/data/p.tar.gz", pkg.package_sha256);
+ *         oc_ext_update_install("/data/p.tar.gz", "B");
+ *         oc_ext_update_set_boot("B");                   // reboot next
+ *     }
+ *     oc_ext_update_rollback();                          // back to A
+ * ------------------------------------------------------------------ */
+int  oc_ext_update_check_pkg(oc_ext_update_pkg_info_t *out);
+int  oc_ext_update_download(const char *url, const char *path);
+int  oc_ext_update_verify(const char *path, const char *sha256_hex);
+int  oc_ext_update_install(const char *pkg_path, const char *slot);
+int  oc_ext_update_rollback(void);
+int  oc_ext_update_set_boot(const char *slot);
+int  oc_ext_update_get_status(oc_update_status_t *out);
 
 /* ------------------------------------------------------------------ *
  * Self-test: invokes every extension point from inside L0 (the kernel

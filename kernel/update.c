@@ -15,6 +15,7 @@
  * hold response buffers (WP-09-FIX BUG-002 lesson).
  */
 #include "update.h"
+#include "ab_update.h"
 #include "ext.h"
 #include "config.h"
 #include "net.h"
@@ -33,16 +34,9 @@
 /* URL parsing                                                         */
 /* ------------------------------------------------------------------ */
 
-typedef struct {
-    int   use_tls;
-    char  host[128];
-    int   port;
-    char  path[128];
-} oc_url_t;
-
 /* Parse scheme://host[:port][/path].  Returns 0 on success,
  * OC_UPDATE_E_PREFIX when the scheme is neither http:// nor https://. */
-static int url_parse(const char *url, oc_url_t *out) {
+int oc_update_url_parse(const char *url, oc_update_url_t *out) {
     if (!url || !out) return OC_UPDATE_E_PREFIX;
     out->use_tls = 0;
     out->port = 0;
@@ -97,10 +91,10 @@ static int url_parse(const char *url, oc_url_t *out) {
  * simple backslash escapes by taking the next character literally).
  * Returns 0 on success, -1 when key/value not found, -8 when value does
  * not fit out.  This is a deliberately scoped parser: the update manifest
- * is a flat object with three string fields (documented in docs/CONFIG.md);
- * it is not a general JSON parser. */
-static int json_get_string(const char *json, const char *key,
-                           char *out, int outlen) {
+ * is a flat object (documented in docs/CONFIG.md); it is not a general
+ * JSON parser. */
+int oc_update_json_string(const char *json, const char *key,
+                          char *out, int outlen) {
     if (!json || !key || !out || outlen <= 0) return -8;
     int klen = 0;
     while (key[klen]) klen++;
@@ -145,8 +139,8 @@ static int json_get_string(const char *json, const char *key,
 /* Fetch url, copy the response body into body (NUL-terminated).
  * Returns body length >= 0, or OC_UPDATE_E_* negative code. */
 static int http_get_body(const char *url, char *body, int body_cap) {
-    oc_url_t u;
-    int rc = url_parse(url, &u);
+    oc_update_url_t u;
+    int rc = oc_update_url_parse(url, &u);
     if (rc != 0) return rc;
 
     /* Resolve host: dotted-quad first, then DNS. */
@@ -313,11 +307,11 @@ int oc_check_update(oc_update_info_t *out) {
 
     /* 3. parse JSON fields */
     if (!out) return OC_UPDATE_OK;
-    int r1 = json_get_string(body, "version", out->version,
+    int r1 = oc_update_json_string(body, "version", out->version,
                              (int)sizeof(out->version));
-    int r2 = json_get_string(body, "time", out->time,
+    int r2 = oc_update_json_string(body, "time", out->time,
                              (int)sizeof(out->time));
-    int r3 = json_get_string(body, "changes", out->changes,
+    int r3 = oc_update_json_string(body, "changes", out->changes,
                              (int)sizeof(out->changes));
     if (r3 == -8) {
         /* changes is display-only: a longer server-side changelog must
@@ -325,7 +319,7 @@ int oc_check_update(oc_update_info_t *out) {
          * truncate (heap, never the 4 KiB kernel thread stack). */
         char *tmp = kmalloc(1024);
         if (tmp) {
-            if (json_get_string(body, "changes", tmp, 1024) == 0) {
+            if (oc_update_json_string(body, "changes", tmp, 1024) == 0) {
                 oc_memcpy(out->changes, tmp, sizeof(out->changes) - 1);
                 out->changes[sizeof(out->changes) - 1] = 0;
                 r3 = 0;
@@ -340,8 +334,112 @@ int oc_check_update(oc_update_info_t *out) {
     if (r2 != 0 || r3 != 0) return OC_UPDATE_E_JSON;
 
     /* 4. compare versions (exact string match, ASCII) */
-    if (oc_strcmp(out->version, OC_UPDATE_CURRENT_VERSION) == 0)
+    if (oc_strcmp(out->version, OC_UPDATE_CURRENT_VERSION) == 0) {
+        oc_update_cache_check(OC_UPDATE_OK, out->version);
         return OC_UPDATE_OK;
+    }
+    oc_update_cache_check(OC_UPDATE_NEW, out->version);
+    return OC_UPDATE_NEW;
+}
+
+/* Parse a non-negative decimal JSON number ("key": 12345).  Returns 0
+ * on success, -1 when not found, -2 when the field is not a number. */
+int oc_update_json_uint(const char *json, const char *key, u64 *out) {
+    if (!json || !key || !out) return -1;
+    int klen = 0;
+    while (key[klen]) klen++;
+
+    const char *p = json;
+    while ((p = oc_strchr(p, '"')) != NULL) {
+        p++;
+        if (oc_strncmp(p, key, klen) == 0 && p[klen] == '"') {
+            const char *q = p + klen + 1;
+            while (*q == ' ' || *q == ':' || *q == '\t' || *q == '\r' ||
+                   *q == '\n') q++;
+            if (*q < '0' || *q > '9') return -2;
+            u64 v = 0;
+            while (*q >= '0' && *q <= '9') {
+                v = v * 10u + (u64)(*q - '0');
+                q++;
+            }
+            *out = v;
+            return 0;
+        }
+        while (*p && *p != '"') {
+            if (*p == '\\' && p[1]) p++;
+            p++;
+        }
+    }
+    return -1;
+}
+
+/* ------------------------------------------------------------------ */
+/* WP-10u: package manifest check                                      */
+/* ------------------------------------------------------------------ */
+
+int oc_update_check_pkg(oc_update_pkg_info_t *out) {
+    if (out) {
+        out->info.version[0] = 0;
+        out->info.time[0] = 0;
+        out->info.changes[0] = 0;
+        out->package_url[0] = 0;
+        out->package_sha256[0] = 0;
+        out->package_size = 0;
+        out->have_package = 0;
+    }
+
+    char url[OC_CONFIG_VAL_MAX];
+    int crc = oc_config_read(OC_CONFIG_KEY_URL, url, sizeof(url));
+    if (crc == OC_CONFIG_E_NOFILE) return OC_UPDATE_E_CONFIG;
+    if (crc == OC_CONFIG_E_NOKEY || crc == OC_CONFIG_E_TOOLONG) {
+        oc_config_read_default(OC_CONFIG_KEY_URL, url, sizeof(url),
+                               oc_config_default_url());
+    } else if (crc != 0) {
+        return OC_UPDATE_E_CONFIG;
+    }
+
+    char body[2048];
+    int blen = http_get_body(url, body, (int)sizeof(body));
+    if (blen < 0) return blen;
+    if (!out) return OC_UPDATE_OK;
+
+    int r1 = oc_update_json_string(body, "version", out->info.version,
+                                   (int)sizeof(out->info.version));
+    int r2 = oc_update_json_string(body, "time", out->info.time,
+                                   (int)sizeof(out->info.time));
+    int r3 = oc_update_json_string(body, "changes", out->info.changes,
+                                   (int)sizeof(out->info.changes));
+    if (r3 == -8) {
+        /* display-only field: truncate via a heap buffer, never fail */
+        char *tmp = kmalloc(1024);
+        if (tmp) {
+            if (oc_update_json_string(body, "changes", tmp, 1024) == 0) {
+                oc_memcpy(out->info.changes, tmp, sizeof(out->info.changes) - 1);
+                out->info.changes[sizeof(out->info.changes) - 1] = 0;
+                r3 = 0;
+            }
+            kfree(tmp);
+        }
+    }
+    if (r1 != 0 || out->info.version[0] == 0) return OC_UPDATE_E_JSON;
+    if (r2 != 0 || r3 != 0) return OC_UPDATE_E_JSON;
+
+    /* package fields (optional; required by the `update` command) */
+    int rp = oc_update_json_string(body, "package_url", out->package_url,
+                                   (int)sizeof(out->package_url));
+    int rs = oc_update_json_string(body, "package_sha256",
+                                   out->package_sha256,
+                                   (int)sizeof(out->package_sha256));
+    int rz = oc_update_json_uint(body, "package_size", &out->package_size);
+    out->have_package = (rp == 0 && rs == 0 && rz == 0 &&
+                         out->package_url[0] != 0);
+
+    /* cache for update --status */
+    if (oc_strcmp(out->info.version, OC_UPDATE_CURRENT_VERSION) == 0) {
+        oc_update_cache_check(OC_UPDATE_OK, out->info.version);
+        return OC_UPDATE_OK;
+    }
+    oc_update_cache_check(OC_UPDATE_NEW, out->info.version);
     return OC_UPDATE_NEW;
 }
 
@@ -472,8 +570,8 @@ int cmd_checkupdate_test(const char *args) {
     total++;
     ok = "FAIL";
     {
-        oc_url_t u;
-        if (url_parse("https://10.0.2.2:8443/update.json", &u) == 0 &&
+        oc_update_url_t u;
+        if (oc_update_url_parse("https://10.0.2.2:8443/update.json", &u) == 0 &&
             u.use_tls == 1 && u.port == 8443 &&
             oc_strcmp(u.host, "10.0.2.2") == 0 &&
             oc_strcmp(u.path, "/update.json") == 0) { ok = "PASS"; pass++; }
@@ -484,8 +582,8 @@ int cmd_checkupdate_test(const char *args) {
     total++;
     ok = "FAIL";
     {
-        oc_url_t u;
-        if (url_parse("http://10.0.2.2:8008/update.json", &u) == 0 &&
+        oc_update_url_t u;
+        if (oc_update_url_parse("http://10.0.2.2:8008/update.json", &u) == 0 &&
             u.use_tls == 0 && u.port == 8008) { ok = "PASS"; pass++; }
     }
     oc_console_puts("[checkupdate_test] http:// prefix -> HTTP: "); oc_console_puts(ok); oc_console_puts("\n");
@@ -494,8 +592,8 @@ int cmd_checkupdate_test(const char *args) {
     total++;
     ok = "FAIL";
     {
-        oc_url_t u;
-        if (url_parse("ftp://10.0.2.2/update.json", &u) == OC_UPDATE_E_PREFIX)
+        oc_update_url_t u;
+        if (oc_update_url_parse("ftp://10.0.2.2/update.json", &u) == OC_UPDATE_E_PREFIX)
             { ok = "PASS"; pass++; }
     }
     oc_console_puts("[checkupdate_test] ftp:// prefix rejected: "); oc_console_puts(ok); oc_console_puts("\n");
@@ -508,11 +606,11 @@ int cmd_checkupdate_test(const char *args) {
             "{\n  \"version\": \"WP-10\",\n  \"time\": \"2026-10-15\","
             "\n  \"changes\": \"driver optimization + config file\"\n}\n";
         char v[32], t[32], c[128];
-        if (json_get_string(doc, "version", v, sizeof(v)) == 0 &&
+        if (oc_update_json_string(doc, "version", v, sizeof(v)) == 0 &&
             oc_strcmp(v, "WP-10") == 0 &&
-            json_get_string(doc, "time", t, sizeof(t)) == 0 &&
+            oc_update_json_string(doc, "time", t, sizeof(t)) == 0 &&
             oc_strcmp(t, "2026-10-15") == 0 &&
-            json_get_string(doc, "changes", c, sizeof(c)) == 0 &&
+            oc_update_json_string(doc, "changes", c, sizeof(c)) == 0 &&
             oc_strcmp(c, "driver optimization + config file") == 0)
             { ok = "PASS"; pass++; }
     }
@@ -524,7 +622,7 @@ int cmd_checkupdate_test(const char *args) {
     {
         static const char *bad = "this is not json at all";
         char v[32];
-        if (json_get_string(bad, "version", v, sizeof(v)) != 0)
+        if (oc_update_json_string(bad, "version", v, sizeof(v)) != 0)
             { ok = "PASS"; pass++; }
     }
     oc_console_puts("[checkupdate_test] broken JSON rejected: "); oc_console_puts(ok); oc_console_puts("\n");
@@ -542,7 +640,7 @@ int cmd_checkupdate_test(const char *args) {
         oc_strcat(doc, big);
         oc_strcat(doc, "\"}");
         char c[1024];
-        if (json_get_string(doc, "changes", c, sizeof(c)) == 0 &&
+        if (oc_update_json_string(doc, "changes", c, sizeof(c)) == 0 &&
             (int)oc_strlen(c) == 300) { ok = "PASS"; pass++; }
     }
     oc_console_puts("[checkupdate_test] 300-byte changes parses into 1 KiB buffer: "); oc_console_puts(ok); oc_console_puts("\n");
@@ -561,7 +659,7 @@ int cmd_checkupdate_test(const char *args) {
         oc_strcat(doc, big);
         oc_strcat(doc, "\"}");
         char c[128];
-        if (json_get_string(doc, "changes", c, sizeof(c)) == -8)
+        if (oc_update_json_string(doc, "changes", c, sizeof(c)) == -8)
             { ok = "PASS"; pass++; }
     }
     oc_console_puts("[checkupdate_test] 300-byte changes rejected by 128-byte buffer (-8): "); oc_console_puts(ok); oc_console_puts("\n");
