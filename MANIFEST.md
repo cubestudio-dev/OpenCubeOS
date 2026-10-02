@@ -4,17 +4,17 @@
 # Open Cube OS — Repository Manifest
 
 ## Version
-WP-09 (Final)
+WP-10a (Storage Drivers)
 
 ## Directory Structure
 
 ```
 oc-os/                        ← repository root
 ├── boot/                     ← boot assembly (3 .S files)
-├── kernel/                   ← kernel source (105 files: .c + .h + .S, incl. WP-09 crypto/ssh/sshd/tls)
+├── kernel/                   ← kernel source (132 files: .c + .h + .S, incl. WP-09 crypto/ssh/sshd/tls + WP-10a storage drivers)
 ├── userprogs/                ← user programs (.c/.asm/.ld — 23 files)
 ├── tools/                    ← build/test scripts (9 files, public)
-├── docs/                     ← documentation (16 files)
+├── docs/                     ← documentation (17 files)
 ├── build/                    ← build artifacts (opencube.elf + .o files) — gitignored
 ├── archive/                  ← archived old versions (see archive/README.md)
 │   └── old-ldso/             ← Batch 2 assembly ld.so (only tracked subdir)
@@ -55,11 +55,18 @@ Shell prompt `oc>` appears after boot. Type `help` for commands.
 ## How to Test
 
 ```bash
-# WP-09 canonical regression (one QEMU session, 18/18):
+# WP-09 canonical regression (one QEMU session, 18/18) — now run WITH the
+# four WP-10a disks attached (see EXTENSIONS_WP10a.md for the QEMU args):
 #   uname -a, run hello/fork_test/exec_test/pipe_test/signal_test/
 #   select_test/mmap_test/dyn_hello/so_test/dlsym_test/pie_test/
 #   reloc_test/p3_test, heaptest, l1test, crashlog
 python3.13 tools/qemu_runner.py build/opencube.iso uname -a run hello ...
+
+# WP-10a storage suite (each prints input/expect/actual/PASS|FAIL):
+#   ahci_test, nvme_test, ata_dma_test, virtio_blk_test,
+#   disk_rw_test <dev>, partition_test [dev], fs_mount_test <dev>,
+#   real_hw_test        (NOT RUN under QEMU by design; full report on bare metal)
+python3.13 tools/qemu_runner.py build/opencube.iso ahci_test nvme_test ...
 
 # DH modexp self-test (5/5)
 #   dhtest
@@ -70,13 +77,14 @@ python3.13 tools/paramiko_sshd.py 2222 &                # then in kernel: ssh 10
 python3.13 tools/https_test_server.py cert key dh 8443 & # then in kernel: wget https://10.0.2.2:8443/
 ```
 
-All 18 regression items + dhtest 5/5 must PASS.
+All 18 regression items + the eight WP-10a storage tests + dhtest 5/5
+must PASS.
 
-## Line Count (WP-09 mainstream)
+## Line Count (WP-10a)
 
-- Source code (kernel + boot + userprogs, no docs): **54,621 lines**
+- Source code (kernel + boot + userprogs, no docs): **56,019 lines**
   (includes the embedded-data headers; verify with:
   ```bash
-  find kernel boot userprogs -name '*.c' -o -name '*.h' -o -name '*.S' \
-    -o -name '*.asm' -o -name '*.ld' | xargs wc -l | tail -1
+  find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) \
+    | xargs wc -l | tail -1
   ```)

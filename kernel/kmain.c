@@ -59,6 +59,9 @@ void ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "part.h"
 #include "virtio_blk.h"
 #include "nvme.h"
+#include "ahci.h"      /* WP-10a: SATA */
+#include "ata_dma.h"   /* WP-10a: Bus-Master IDE */
+#include "disk_test_cmds.h" /* WP-10a: storage test suite */
 #include "exfat.h"
 #include "ext4.h"
 #include "disk_cmds.h"
@@ -2132,6 +2135,26 @@ static int cmd_fstest(const char *args) {
     return 0;
 }
 
+/* ---- WP-10a: driver status commands ---- */
+
+static int cmd_ahci(const char *args) {
+    (void)args;
+    ahci_print_state();
+    return 0;
+}
+
+static int cmd_nvme(const char *args) {
+    (void)args;
+    nvme_print_state();
+    return 0;
+}
+
+static int cmd_ata(const char *args) {
+    (void)args;
+    ata_dma_print_state();
+    return 0;
+}
+
 static int cmd_dskstat(const char *args) {
     (void)args;
     /* Show ATA drive detection (original WP-05 interface). */
@@ -2153,6 +2176,20 @@ static int cmd_dskstat(const char *args) {
     }
     /* Also show blk-layer devices. */
     blk_list_devices();
+    /* WP-10a: one-line DMA/AHCI/NVMe presence summary. */
+    {
+        int dma = 0;
+        for (int i = 0; i < 4; i++) if (ata_dma_available(i)) dma++;
+        char line[96]; char n[24];
+        oc_strcpy(line, "drivers: ATA-DMA drives=");
+        oc_u64_to_str((u64)dma, n); oc_strcat(line, n);
+        oc_strcat(line, "  AHCI drives=");
+        oc_u64_to_str((u64)ahci_num_drives(), n); oc_strcat(line, n);
+        oc_strcat(line, "  NVMe queues=");
+        oc_u64_to_str((u64)nvme_num_io_queues(), n); oc_strcat(line, n);
+        oc_strcat(line, "\n");
+        oc_console_puts(line);
+    }
     return 0;
 }
 
@@ -2424,12 +2461,14 @@ void kmain(u64 magic, u64 mbi_phys) {
     blk_init();
     blk_cache_init();
     ata_init();
+    ata_dma_init(NULL);  /* WP-10a: BMDMA drives first (see ahci/ata_dma) */
     ata_register_blk();  /* P2 fix: register ATA drives with blk layer */
     OC_LOG_OK2("ATA/IDE PIO driver (LBA28)");
 
     virtio_blk_init();
-    nvme_init();
-    OC_LOG_OK2("virtio-blk + NVMe drivers");
+    ahci_init(NULL);     /* WP-10a: SATA AHCI */
+    nvme_init(NULL);
+    OC_LOG_OK2("virtio-blk + AHCI + NVMe drivers");
 
     fat32_init();
     exfat_init();
@@ -2453,6 +2492,12 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command("fatstat", cmd_fatstat,  "show FAT32 stats");
     /* P1-6: kernel shell command to test L1 job interfaces with live process */
     shell_register_command("l1test",  cmd_l1test,   "test L1 job_create/job_list/job_control with running process");
+
+    /* ---- WP-10a: driver status commands + storage test suite ---- */
+    shell_register_command("ahci", cmd_ahci, "AHCI controller/port status");
+    shell_register_command("nvme", cmd_nvme, "NVMe controller/queue status");
+    shell_register_command("ata",  cmd_ata,  "ATA (PIO + Bus-Master DMA) status");
+    disk_test_cmds_register();
 
     /* ---- WP-09-fix5: config + update check commands ---- */
     shell_register_command("checkupdate",      cmd_checkupdate,

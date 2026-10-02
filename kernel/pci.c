@@ -68,6 +68,39 @@ int pci_find_class(u32 class_code, u8 *bus_out, u8 *dev_out, u8 *func_out) {
     return -1;
 }
 
+/* WP-10a: exact 24-bit class match (base + subclass + prog-if), with an
+ * occurrence index so callers can enumerate all matching controllers. */
+int pci_find_class_exact(u32 class_code, int nth,
+                         u8 *bus_out, u8 *dev_out, u8 *func_out) {
+    return pci_find_class_mask(class_code, 0xFFFFFFu, nth,
+                               bus_out, dev_out, func_out);
+}
+
+/* WP-10a: masked class match - only the bits set in `mask` (24-bit class
+ * triple) are compared. */
+int pci_find_class_mask(u32 class_code, u32 mask, int nth,
+                        u8 *bus_out, u8 *dev_out, u8 *func_out) {
+    int seen = 0;
+    for (u32 bus = 0; bus < 256; bus++) {
+        for (u8 dev = 0; dev < 32; dev++) {
+            for (u8 func = 0; func < 8; func++) {
+                u32 id = pci_read_config((u8)bus, dev, func, 0);
+                if (id == 0xFFFFFFFF) continue;
+                u32 cls = pci_read_config((u8)bus, dev, func, 0x08);
+                if (((cls >> 8) & mask) != (class_code & mask)) continue;
+                if (seen == nth) {
+                    if (bus_out) *bus_out = (u8)bus;
+                    if (dev_out) *dev_out = dev;
+                    if (func_out) *func_out = func;
+                    return 0;
+                }
+                seen++;
+            }
+        }
+    }
+    return -1;
+}
+
 u32 pci_read_bar(u8 bus, u8 dev, u8 func, int bar_index) {
     u8 offset = 0x10 + (u8)(bar_index * 4);
     u32 bar = pci_read_config(bus, dev, func, offset);

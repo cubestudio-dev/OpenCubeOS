@@ -1,14 +1,15 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS — Interface Index (as of WP-09)
+# Open Cube OS — Interface Index (as of WP-10a)
 
 Single-page index of every interface Open Cube OS exposes to upper layers
 (L1) and to the shell. Signatures are copied verbatim from the headers —
 see each header for full docs and examples.
 
 Work-package overview: docs/EXTENSIONS.md (WP-01) through
-docs/EXTENSIONS_WP09.md (WP-09).
+docs/EXTENSIONS_WP09.md (WP-09) and docs/EXTENSIONS_WP10a.md (WP-10a,
+storage drivers: AHCI / NVMe / ATA DMA / virtio-blk).
 
 ## 1. L0 → L1 extension API (kernel/ext*.h)
 
@@ -112,12 +113,14 @@ DH truth vectors for self-test: kernel/dh_scale_vectors.h.
 | VFS + ramfs | kernel/vfs.h, ramfs.h | vfs_open/read/write/stat/... |
 | Network (TCP/IP) | kernel/net.h | net_socket/connect/send/recv/accept/close, dns_resolve, cmd-level: dhcp/ping/wget/dns/route/arp/firewall/tcpstats |
 | Block + FS | kernel/blk.h, part.h, fat32.h, exfat.h, ext4.h | blk_*, vfs mount (FAT32 R/W, exFAT R/W, ext4 RO) |
+| Storage drivers (WP-10a) | kernel/ahci.h, nvme.h, ata_dma.h, virtio_blk.h | ahci_init(pci_dev), nvme_init(pci_dev), ata_dma_init(pci_dev), virtio_blk_init, pci_find_class_exact/mask (pci.h) |
 
 ## 4. Shell command surface
 
-87 commands registered at boot (live self-test count; `help` lists 87
-unique). `shell_register_command` call sites: kmain.c 42, net.c 17,
-file_cmds.c 18, disk_cmds.c 7, shell.c 5 — some register the same name at
+98 commands registered at boot (live self-test count; `help` lists 98
+unique). `shell_register_command` call sites: kmain.c 45, net.c 17,
+file_cmds.c 18, disk_cmds.c 7, disk_test_cmds.c 8 (WP-10a storage test
+suite), shell.c 6, ext_wp8cd.c 1 — some register the same name at
 different stages. Full list: type `help` at the `oc>` prompt.
 
 ## 5. Verification of these interfaces

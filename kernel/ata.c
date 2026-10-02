@@ -226,12 +226,17 @@ static int ata_blk_write(blk_device_t *dev, u64 lba, u32 count, const void *buf)
 static const blk_ops_t ata_blk_ops = { .read = ata_blk_read, .write = ata_blk_write };
 
 /* Register all detected ATA drives with the block layer. Called after blk_init.
- * Uses ata_detect() to check presence and IDENTIFY to read capacity. */
+ * Uses ata_detect() to check presence and IDENTIFY to read capacity.
+ * WP-10a: ata_dma_init() runs BEFORE this function and may already have
+ * registered a drive with DMA ops — in that case do not register a second
+ * (PIO) entry for the same device name. */
 void ata_register_blk(void) {
     for (int drive = 0; drive < 4; drive++) {
         if (ata_detect(drive)) {
             char name[8] = "hd?";
             name[2] = 'a' + (char)drive;
+            /* WP-10a: skip drives already registered by the BMDMA driver. */
+            if (blk_find_device(name) >= 0) continue;
             /* Read capacity from IDENTIFY data (word 60-61). */
             u16 base = g_chan_base[drive];
             ata_drive_select(drive);
@@ -249,4 +254,29 @@ void ata_register_blk(void) {
             blk_register_device(name, BLK_TYPE_ATA, sectors, 512, &ata_blk_ops, (void*)(uintptr_t)drive);
         }
     }
+}
+
+/* ---- WP-10a: capacity query for the Bus-Master DMA driver ----
+ * Same PIO IDENTIFY sequence as ata_register_blk() above, wrapped as a
+ * single-drive query.  Returns 0 on success, negative if the drive is
+ * absent or the IDENTIFY data is unusable. */
+int ata_identify_capacity(int drive, u32 *sectors_out) {
+    if (drive < 0 || drive > 3 || !sectors_out) return -1;
+    if (!ata_detect(drive)) return -1;
+    u16 base = g_chan_base[drive];
+    ata_drive_select(drive);
+    io_wait();
+    outb(base + 2, 0); outb(base + 3, 0); outb(base + 4, 0); outb(base + 5, 0);
+    outb(base + 7, 0xEC);  /* IDENTIFY DEVICE */
+    io_wait();
+    u8 st = inb(base + 7);
+    if (st == 0) return -1;
+    if (ata_wait_bsy(base) < 0) return -1;
+    if (!(inb(base + 7) & 0x08)) return -1;  /* DRQ */
+    u16 id[256];
+    for (int i = 0; i < 256; i++) id[i] = inw(base);
+    u32 sectors = (u32)id[60] | ((u32)id[61] << 16);
+    if (sectors == 0) return -1;
+    *sectors_out = sectors;
+    return 0;
 }

@@ -20,12 +20,15 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-09 mainstream)
+## Stats (WP-10a)
 
-- **Source code**: 54,621 lines (kernel + boot + userprogs, incl. headers + linker scripts, no docs;
-  verify: `find kernel boot userprogs -name '*.c' -o -name '*.h' -o -name '*.S' -o -name '*.asm' -o -name '*.ld' | xargs wc -l`)
-- **Work packages**: 9 (WP-01 ~ WP-09)
-- **L1 extension interfaces**: 57 (WP-09 adds transport-level features instead of L1 interfaces)
+- **Source code**: 56,019 lines (kernel + boot + userprogs, incl. headers + linker scripts, no docs;
+  verify: `find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
+- **Work packages**: 10 (WP-01 ~ WP-09, WP-10a)
+- **L1 extension interfaces**: 65 (57 through WP-09 + 8 WP-10a items:
+  blk_register / blk_read / blk_write / blk_flush (+ blk_set_ops),
+  ahci_init(pci_dev), nvme_init(pci_dev), ata_dma_init(pci_dev),
+  pci_find_class_exact/mask, ata_identify_capacity)
 - **System calls**: 37
 - **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
   + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
@@ -146,9 +149,16 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
 - **Network ops commands**: route, arp, firewall (stateful rules, conntrack,
   three chains with policies + REJECT + per-rule hit counters), tcpstats
   (CUBIC cwnd/RTO/SACK/fast-retransmit visibility), dns (A/AAAA/CNAME/MX/TXT/NS/SRV).
-- **Shell**: 87 commands (live boot self-test count; `help` lists 87 unique);
-  includes the five commands added by the mainstreaming batches: nf_test,
-  tcpstats, tcpcc_test, dnstest and tcptest.
+- **Shell**: 98 commands (live boot self-test count; `help` lists 98 unique);
+  includes the WP-10a storage surface: `ahci`, `nvme`, `ata` (driver status)
+  and the eight-test suite `ahci_test`, `nvme_test`, `ata_dma_test`,
+  `virtio_blk_test`, `disk_rw_test`, `partition_test`, `fs_mount_test`,
+  `real_hw_test`.
+- **Storage (WP-10a)**: AHCI SATA (DMA, multi-port, FLUSH), NVMe (admin +
+  2 I/O queue pairs, Identify, Read/Write/Flush), ATA Bus-Master DMA
+  (PRDT + PIO fallback preserved), virtio-blk (capacity fixed);
+  MBR + GPT partition parsing on every device; FAT32 mounts on all four
+  driver types through the unified blk layer.
 - **New user test programs**: mprotect_test, p3_test.
 - **Verification**: 18/18 QEMU regression + dhtest 5/5 + cryptotest 3/3 +
   nf_test 8/8 + tcpcc_test + dnstest 6/6 (live) + tcptest + HTTPS E2E

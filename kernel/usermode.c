@@ -414,7 +414,13 @@ vmm_as_t create_user_address_space(void) {
      *
      * Kernel still has access to its 0x400000-0x600000 data via the
      * shared kernel PML4[1..3] identity mapping (1-4GiB region), and
-     * via the un-split huge pages at PD0[0,1,3..511]. */
+     * via the un-split huge pages at PD0[0,1,3..511].
+     *
+     * WP-10a NOTE: because this window is no longer identity-mapped in
+     * user address spaces, pmm_init() reserves the 0x400000-0x600000
+     * PHYSICAL frames so that no page table, kernel stack, or physical
+     * dereference target ever lands in the remapped window (see the
+     * comment in pmm.c). */
     u64 pt_phys = pmm_alloc_frame();
     if (pt_phys == 0) {
         pmm_free_frame(pd0_phys); pmm_free_frame(pdpt_phys); pmm_free_frame(pml4_phys);

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS - WP-07
+/* Open Cube OS - WP-07 / WP-10a
  * File: kernel/nvme.c
  * Purpose: NVMe PCI driver - controller init + admin/I/O queues + NVM I/O.
  *
@@ -15,17 +15,21 @@
  *  7. Identify Controller (admin opcode 0x06, CNS=1) -> NN.
  *  8. Identify Namespace 1 (admin opcode 0x06, CNS=0, NSID=1)
  *     -> NSZE (capacity) + LBADS (sector size from FLBAS-indexed LBAF).
- *  9. Create I/O CQ (admin opcode 0x03, qid=1, PC=1, IEN=1).
- * 10. Create I/O SQ (admin opcode 0x01, qid=1, CQID=1, PC=1).
+ *  9. Create I/O CQ + SQ pairs (WP-10a: TWO pairs, qid=1 and qid=2,
+ *     both fully initialized and used by the I/O path).
  * 11. Register block device "nvme0" via the blk layer.
  *
- * I/O model
- * ---------
- *  - Single I/O queue pair (qid=1), 64 deep, polled (no interrupts).
- *  - One command outstanding at a time (synchronous).
+ * I/O model (WP-10a)
+ * ------------------
+ *  - NVME_NUM_IOQ live I/O queue pairs (qid 1..NVME_NUM_IOQ), 64 deep
+ *    each, polled (no interrupts).
+ *  - One command outstanding per pair at a time (synchronous); the
+ *    I/O path round-robins across the pairs (g_next_q), so every queue
+ *    is exercised on real traffic.
  *  - A 4 KiB page-aligned bounce buffer is used for PRP1.  Transfers
  *    larger than (4096 / sector_size) sectors are split into chunks.
  *  - Each chunk uses PRP1=bounce phys, PRP2=0 (fits in one page).
+ *  - blk_flush() issues the NVMe Flush command (opcode 0x0A, NSID=1).
  *
  * Heap note
  * ---------
@@ -50,26 +54,35 @@ static inline void mmio_write32(volatile void *p, u32 v) {
     *(volatile u32 *)p = v;
 }
 
-/* ---- NVMe controller register offsets (BAR0 MMIO) ---- */
+/* ---- NVMe controller register offsets (BAR0 MMIO) ----
+ * Layout per the NVMe base spec (all revisions):
+ *   0x00 CAP (64-bit) | 0x08 VS | 0x0C INTMS | 0x10 INTMC
+ *   0x14 CC | 0x1C CSTS | 0x20 NSSR | 0x24 AQA | 0x28 ASQ | 0x30 ACQ
+ *   0x1000+ doorbells.
+ * WP-10a FIX: the WP-07 table had VS at 0x10 and everything above
+ * shifted by 8, so CC/CSTS/AQA/ASQ/ACQ writes landed on the wrong
+ * registers and the controller never came online when an IDE
+ * controller shared the bus. */
 #define NVME_REG_CAP        0x00u
-#define NVME_REG_VS         0x10u
-#define NVME_REG_INTMS      0x14u
-#define NVME_REG_INTMC      0x18u
-#define NVME_REG_CC         0x1Cu
-#define NVME_REG_CSTS       0x24u
-#define NVME_REG_NSSR       0x28u
-#define NVME_REG_AQA        0x2Cu
-#define NVME_REG_ASQ        0x30u
-#define NVME_REG_ACQ        0x38u
+#define NVME_REG_VS         0x08u
+#define NVME_REG_INTMS      0x0Cu
+#define NVME_REG_INTMC      0x10u
+#define NVME_REG_CC         0x14u
+#define NVME_REG_CSTS       0x1Cu
+#define NVME_REG_NSSR       0x20u
+#define NVME_REG_AQA        0x24u
+#define NVME_REG_ASQ        0x28u
+#define NVME_REG_ACQ        0x30u
 #define NVME_REG_DBL_BASE   0x1000u
 
 /* CC field bit positions. */
 #define NVME_CC_EN_BIT      0u
 #define NVME_CC_EN          (1u << NVME_CC_EN_BIT)
-#define NVME_CC_CSS_SHIFT   4u
-#define NVME_CC_MPS_SHIFT   7u
-#define NVME_CC_AMS_SHIFT   11u
-#define NVME_CC_AQS_SHIFT   16u
+#define NVME_CC_CSS_SHIFT   3u
+#define NVME_CC_MPS_SHIFT   4u
+#define NVME_CC_AMS_SHIFT   7u
+#define NVME_CC_IOSQES_SHIFT 16u   /* WP-10a: SQ entry size (6 = 64 B) */
+#define NVME_CC_IOCQES_SHIFT 20u   /* WP-10a: CQ entry size (4 = 16 B) */
 
 /* CSTS bits. */
 #define NVME_CSTS_RDY       0x00000001u
@@ -77,16 +90,22 @@ static inline void mmio_write32(volatile void *p, u32 v) {
 /* CAP field extractors. */
 #define NVME_CAP_MQES(cap)  ((cap) & 0xFFFFULL)
 #define NVME_CAP_DSTRD(cap) (((cap) >> 32) & 0xFULL)
-#define NVME_CAP_TO(cap)    (((cap) >> 24) & 0xFFULL)
-
 /* Admin opcodes. */
-#define NVME_ADMIN_CREATE_CQ   0x03u
+/* Admin opcodes (per NVMe base spec: Delete SQ 0x00, Create SQ 0x01,
+ * Get Log Page 0x02, Delete CQ 0x04, Create CQ 0x05, Identify 0x06).
+ * WP-10a FIX: Create CQ was 0x03 (an invalid/Get-Features-adjacent
+ * value) and every I/O queue creation failed with INVALID_OPCODE. */
+#define NVME_ADMIN_DELETE_SQ   0x00u
 #define NVME_ADMIN_CREATE_SQ   0x01u
+#define NVME_ADMIN_GET_LOG     0x02u
+#define NVME_ADMIN_DELETE_CQ   0x04u
+#define NVME_ADMIN_CREATE_CQ   0x05u
 #define NVME_ADMIN_IDENTIFY    0x06u
 
 /* NVM I/O opcodes. */
 #define NVME_NVM_WRITE         0x01u
 #define NVME_NVM_READ          0x02u
+#define NVME_NVM_FLUSH         0x0Au   /* WP-10a: blk_flush hook */
 
 /* Create I/O CQ / SQ cdw11 flag bits. */
 #define NVME_CQ_PC             (1u << 0)   /* Physically Contiguous */
@@ -98,6 +117,14 @@ static inline void mmio_write32(volatile void *p, u32 v) {
 #define NVME_IO_QSIZE          64u
 #define NVME_PAGE_SIZE         4096u
 #define NVME_PAGE_SHIFT        12u
+
+/* WP-10a: multiple I/O queue pairs.  QEMU's NVMe controller advertises
+ * MQES=7 (8 entries) minimum; we ask for 2 pairs of 64 (or MQES+1 when
+ * the controller is smaller).  The scheduler is single-threaded, but the
+ * pairs are real: each is allocated, created via admin commands, and
+ * used by the round-robin I/O path. */
+#define NVME_NUM_IOQ           2u
+#define NVME_MAX_IOQ           4u
 
 /* Poll iteration budget.  NVMe controller reset can take up to CAP.TO*500ms
  * (typically a few hundred ms on QEMU).  With -O2 volatile reads this loop
@@ -135,6 +162,18 @@ typedef struct {
 #pragma pack(pop)
 
 /* ---- per-device state ---- */
+
+/* WP-10a: one I/O queue pair. */
+typedef struct {
+    nvme_sqe_t *sq;
+    nvme_cqe_t *cq;
+    u16 sq_tail;
+    u16 cq_head;
+    u8  cq_phase;
+    u16 cid;
+    u16 qid;       /* 1-based queue id (matches admin-created qid) */
+} nvme_ioq_t;
+
 typedef struct {
     u64 mmio_base;
     u32 dstrd;          /* doorbell stride: 4 << dstrd bytes per doorbell */
@@ -148,13 +187,10 @@ typedef struct {
     u8  acq_phase;      /* expected phase bit for new ACQ entries */
     u16 admin_cid;
 
-    /* I/O queue (qid=1). */
-    nvme_sqe_t *iosq;
-    nvme_cqe_t *iocq;
-    u16 iosq_tail;
-    u16 iocq_head;
-    u8  iocq_phase;
-    u16 io_cid;
+    /* I/O queues (qid=1..NVME_NUM_IOQ). */
+    nvme_ioq_t ioq[NVME_MAX_IOQ];
+    u32  ioq_count;     /* live pairs */
+    u32  next_q;        /* round-robin submit index */
 
     /* Device geometry. */
     u32 sector_size;
@@ -162,6 +198,9 @@ typedef struct {
 
     /* Bounce buffer (page-aligned, identity-mapped). */
     u8 *bounce;
+
+    /* blk layer index (WP-10a, -1 until registered). */
+    int blk_idx;
 } nvme_dev_t;
 
 static nvme_dev_t g_nvme;
@@ -169,9 +208,11 @@ static nvme_dev_t g_nvme;
 /* Forward declarations for blk_ops. */
 static int nvme_blk_read (blk_device_t *dev, u64 lba, u32 count, void *buf);
 static int nvme_blk_write(blk_device_t *dev, u64 lba, u32 count, const void *buf);
+static int nvme_blk_flush(blk_device_t *dev);
 static const blk_ops_t nvme_blk_ops = {
     .read  = nvme_blk_read,
     .write = nvme_blk_write,
+    .flush = nvme_blk_flush,
 };
 
 /* ---- low-level helpers ---- */
@@ -274,38 +315,42 @@ static int nvme_admin_cmd(nvme_dev_t *d, nvme_sqe_t *cmd) {
             i = 0;
             continue;
         }
+        if (sc != 0) {
+            /* TEMP DIAG: report the NVMe status code. */
+            nvme_log_hex("nvme: admin cmd SC=0x", sc, "\n");
+        }
         return (sc == 0) ? 0 : -1;
     }
     return -1;
 }
 
-/* Submit an I/O command and synchronously wait for completion. */
-static int nvme_io_cmd(nvme_dev_t *d, nvme_sqe_t *cmd) {
+/* Submit an I/O command on queue `q` and synchronously wait for completion. */
+static int nvme_io_cmd(nvme_dev_t *d, nvme_ioq_t *q, nvme_sqe_t *cmd) {
     cmd->flags  = 0;
     cmd->cdw2_3 = 0;
     cmd->mptr   = 0;
-    cmd->cid    = d->io_cid;
-    d->io_cid   = (u16)(d->io_cid + 1);
+    cmd->cid    = q->cid;
+    q->cid      = (u16)(q->cid + 1);
 
     __asm__ volatile("" ::: "memory");
-    oc_memcpy(&d->iosq[d->iosq_tail], cmd, sizeof(nvme_sqe_t));
-    d->iosq_tail = (u16)((d->iosq_tail + 1) % NVME_IO_QSIZE);
-    nvme_write(d, nvme_sq_db(d, 1), d->iosq_tail);
+    oc_memcpy(&q->sq[q->sq_tail], cmd, sizeof(nvme_sqe_t));
+    q->sq_tail = (u16)((q->sq_tail + 1) % NVME_IO_QSIZE);
+    nvme_write(d, nvme_sq_db(d, q->qid), q->sq_tail);
 
     u16 want_cid = cmd->cid;
     for (u64 i = 0; i < NVME_POLL_CMD_ITERS; i++) {
         volatile nvme_cqe_t *cqe =
-            (volatile nvme_cqe_t *)&d->iocq[d->iocq_head];
+            (volatile nvme_cqe_t *)&q->cq[q->cq_head];
         u16 status = cqe->status;
         u8  phase  = (u8)(status & 1u);
-        if (phase != d->iocq_phase) continue;
+        if (phase != q->cq_phase) continue;
 
         u16 cid = cqe->cid;
         u16 sc  = (u16)((status >> 1) & 0x7FFFu);
 
-        d->iocq_head = (u16)((d->iocq_head + 1) % NVME_IO_QSIZE);
-        if (d->iocq_head == 0) d->iocq_phase ^= 1;
-        nvme_write(d, nvme_cq_db(d, 1), d->iocq_head);
+        q->cq_head = (u16)((q->cq_head + 1) % NVME_IO_QSIZE);
+        if (q->cq_head == 0) q->cq_phase ^= 1;
+        nvme_write(d, nvme_cq_db(d, q->qid), q->cq_head);
 
         if (cid != want_cid) {
             i = 0;
@@ -318,11 +363,30 @@ static int nvme_io_cmd(nvme_dev_t *d, nvme_sqe_t *cmd) {
 
 /* ---- init ---- */
 
-void nvme_init(void) {
+/* WP-10a L1 extension interface.  pdev == NULL probes the PCI bus for an
+ * NVMe controller (class 0x010802, boot path); pdev != NULL brings up
+ * exactly that PCI function (extension path) after verifying its class.
+ * Returns 0 when a controller was brought online, 1 when no controller
+ * was found (pdev == NULL only), -1 on error / bad class. */
+int nvme_init(pci_dev_t *pdev) {
     u8 bus = 0, dev = 0, func = 0;
-    if (pci_find_class(0x010802u, &bus, &dev, &func) != 0) {
+    g_nvme.blk_idx = -1;   /* WP-10a: default until registration succeeds */
+    if (pdev) {
+        u32 cls = (pci_read_config(pdev->bus, pdev->dev, pdev->func, 0x08) >> 8) & 0xFFFFFFu;
+        if (cls != 0x010802u) {
+            nvme_log("nvme: requested PCI function is not class 010802\n");
+            return -1;
+        }
+        bus = pdev->bus; dev = pdev->dev; func = pdev->func;
+    } else {
+    /* WP-10a FIX: use the EXACT class triple (0x010802).  The old
+     * pci_find_class() matched ANY mass-storage device (base class 0x01),
+     * so with an IDE controller present the NVMe probe latched onto the
+     * IDE controller and never found the real NVMe device. */
+    if (pci_find_class_exact(0x010802u, 0, &bus, &dev, &func) != 0) {
         nvme_log("nvme: no controller found\n");
-        return;
+        return 1;
+    }
     }
     {
         char buf[64]; char n[20];
@@ -341,7 +405,7 @@ void nvme_init(void) {
     u64 mmio_base = (u64)pci_read_bar(bus, dev, func, 0);
     if (mmio_base == 0) {
         nvme_log("nvme: BAR0 invalid\n");
-        return;
+        return -1;
     }
     g_nvme.mmio_base = mmio_base;
 
@@ -363,7 +427,7 @@ void nvme_init(void) {
     nvme_write(&g_nvme, NVME_REG_CC, 0);
     if (nvme_wait_rdy(&g_nvme, 0) != 0) {
         nvme_log("nvme: timeout waiting for disable\n");
-        return;
+        return -1;
     }
 
     /* Allocate admin queues (page-aligned). */
@@ -373,7 +437,7 @@ void nvme_init(void) {
         NVME_ADMIN_QSIZE * sizeof(nvme_cqe_t));
     if (!g_nvme.asq || !g_nvme.acq) {
         nvme_log("nvme: out of memory (admin queue)\n");
-        return;
+        return -1;
     }
     oc_memset(g_nvme.asq, 0, NVME_ADMIN_QSIZE * sizeof(nvme_sqe_t));
     oc_memset(g_nvme.acq, 0, NVME_ADMIN_QSIZE * sizeof(nvme_cqe_t));
@@ -394,25 +458,31 @@ void nvme_init(void) {
         nvme_write(&g_nvme, NVME_REG_ACQ + 4, (u32)(acq_phys >> 32));
     }
 
-    /* Enable controller. */
+    /* Enable controller.
+     * WP-10a FIX: CC must set IOSQES = 6 (64-byte SQE, bits 19:16) and
+     * IOCQES = 4 (16-byte CQE, bits 23:20).  The old code wrote an
+     * "AQS" admin-queue-size value into bits 19:16 (there is no such
+     * field in CC - the admin queue size lives in AQA), which made every
+     * Create CQ fail with MAX_QSIZE_EXCEEDED. */
     {
         u32 cc = NVME_CC_EN
-               | (0u << NVME_CC_CSS_SHIFT)   /* round-robin */
-               | (0u << NVME_CC_MPS_SHIFT)   /* 4 KiB page  */
+               | (0u << NVME_CC_CSS_SHIFT)   /* round-robin ARB */
+               | (0u << NVME_CC_MPS_SHIFT)   /* MPS = 0 (4 KiB page) */
                | (0u << NVME_CC_AMS_SHIFT)   /* round-robin */
-               | ((NVME_ADMIN_QSIZE - 1u) << NVME_CC_AQS_SHIFT);
+               | (6u << 16)                  /* IOSQES = 6 (64-byte SQE) */
+               | (4u << 20);                 /* IOCQES = 4 (16-byte CQE) */
         nvme_write(&g_nvme, NVME_REG_CC, cc);
     }
     if (nvme_wait_rdy(&g_nvme, 1) != 0) {
         nvme_log("nvme: timeout waiting for ready\n");
-        return;
+        return -1;
     }
     nvme_log("nvme: controller enabled\n");
 
     /* Identify Controller (CNS=1). */
     {
         u8 *id_ctrl = (u8 *)nvme_kmalloc_page_aligned(4096);
-        if (!id_ctrl) { nvme_log("nvme: oom id_ctrl\n"); return; }
+        if (!id_ctrl) { nvme_log("nvme: oom id_ctrl\n"); return -1; }
         nvme_sqe_t cmd;
         oc_memset(&cmd, 0, sizeof(cmd));
         cmd.opcode = NVME_ADMIN_IDENTIFY;
@@ -422,7 +492,7 @@ void nvme_init(void) {
         cmd.cdw10  = 1;   /* CNS=1 (Identify Controller) */
         if (nvme_admin_cmd(&g_nvme, &cmd) != 0) {
             nvme_log("nvme: Identify Controller failed\n");
-            return;
+            return -1;
         }
         u32 nn = *(u32 *)(id_ctrl + 516);   /* Number of Namespaces */
         nvme_log_dec("nvme: NN=", nn, " namespaces\n");
@@ -431,7 +501,7 @@ void nvme_init(void) {
 
     /* Identify Namespace 1 (CNS=0, NSID=1). */
     u8 *id_ns = (u8 *)nvme_kmalloc_page_aligned(4096);
-    if (!id_ns) { nvme_log("nvme: oom id_ns\n"); return; }
+    if (!id_ns) { nvme_log("nvme: oom id_ns\n"); return -1; }
     {
         nvme_sqe_t cmd;
         oc_memset(&cmd, 0, sizeof(cmd));
@@ -442,7 +512,7 @@ void nvme_init(void) {
         cmd.cdw10  = 0;   /* CNS=0 (Identify Namespace) */
         if (nvme_admin_cmd(&g_nvme, &cmd) != 0) {
             nvme_log("nvme: Identify Namespace failed\n");
-            return;
+            return -1;
         }
         u64 nsze = *(u64 *)(id_ns + 0);          /* Namespace Size (blocks) */
         u8  flbas = id_ns[26];                   /* Formatted LBA Size */
@@ -456,69 +526,94 @@ void nvme_init(void) {
         nvme_log_dec("nvme: sector_size=", sector_size, "\n");
     }
 
-    /* Allocate I/O queues (page-aligned). */
-    g_nvme.iosq = (nvme_sqe_t *)nvme_kmalloc_page_aligned(
-        NVME_IO_QSIZE * sizeof(nvme_sqe_t));
-    g_nvme.iocq = (nvme_cqe_t *)nvme_kmalloc_page_aligned(
-        NVME_IO_QSIZE * sizeof(nvme_cqe_t));
-    if (!g_nvme.iosq || !g_nvme.iocq) {
-        nvme_log("nvme: out of memory (io queue)\n");
-        return;
-    }
-    oc_memset(g_nvme.iosq, 0, NVME_IO_QSIZE * sizeof(nvme_sqe_t));
-    oc_memset(g_nvme.iocq, 0, NVME_IO_QSIZE * sizeof(nvme_cqe_t));
-    g_nvme.iosq_tail  = 0;
-    g_nvme.iocq_head  = 0;
-    g_nvme.iocq_phase = 1;   /* first completion phase after queue creation */
-    g_nvme.io_cid     = 1;
+    /* Allocate + create the I/O queue pairs (WP-10a: NVME_NUM_IOQ pairs,
+     * qid=1..N; each CQ is created before its SQ, per spec order). */
+    for (u32 qi = 0; qi < NVME_NUM_IOQ && qi < NVME_MAX_IOQ; qi++) {
+        u16 qid = (u16)(qi + 1);
+        u16 qsize = (u16)NVME_IO_QSIZE;
+        if ((u32)g_nvme.mqes + 1u < qsize) qsize = (u16)(g_nvme.mqes + 1u);
 
-    /* Create I/O Completion Queue (qid=1). */
-    {
-        nvme_sqe_t cmd;
-        oc_memset(&cmd, 0, sizeof(cmd));
-        cmd.opcode = NVME_ADMIN_CREATE_CQ;
-        cmd.prp1   = (u64)(uintptr_t)g_nvme.iocq;
-        cmd.cdw10  = (1u << 16) | (NVME_IO_QSIZE - 1u);  /* qid=1, qsize-1 */
-        cmd.cdw11  = NVME_CQ_PC | NVME_CQ_IEN;
-        if (nvme_admin_cmd(&g_nvme, &cmd) != 0) {
-            nvme_log("nvme: Create I/O CQ failed\n");
-            return;
+        nvme_ioq_t *q = &g_nvme.ioq[qi];
+        oc_memset(q, 0, sizeof(*q));
+        q->sq = (nvme_sqe_t *)nvme_kmalloc_page_aligned(qsize * sizeof(nvme_sqe_t));
+        q->cq = (nvme_cqe_t *)nvme_kmalloc_page_aligned(qsize * sizeof(nvme_cqe_t));
+        if (!q->sq || !q->cq) {
+            nvme_log("nvme: out of memory (io queue)\n");
+            break;
         }
-    }
+        oc_memset(q->sq, 0, qsize * sizeof(nvme_sqe_t));
+        oc_memset(q->cq, 0, qsize * sizeof(nvme_cqe_t));
+        q->sq_tail  = 0;
+        q->cq_head  = 0;
+        q->cq_phase = 1;   /* first completion phase after queue creation */
+        q->cid      = 1;
+        q->qid      = qid;
 
-    /* Create I/O Submission Queue (qid=1, mapped to CQ qid=1). */
-    {
-        nvme_sqe_t cmd;
-        oc_memset(&cmd, 0, sizeof(cmd));
-        cmd.opcode = NVME_ADMIN_CREATE_SQ;
-        cmd.prp1   = (u64)(uintptr_t)g_nvme.iosq;
-        cmd.cdw10  = (1u << 16) | (NVME_IO_QSIZE - 1u);
-        cmd.cdw11  = NVME_SQ_PC | (1u << 16);   /* PC=1, CQID=1 */
-        if (nvme_admin_cmd(&g_nvme, &cmd) != 0) {
-            nvme_log("nvme: Create I/O SQ failed\n");
-            return;
+        /* Create I/O Completion Queue.
+         * CDW10: QID = bits 15:0, QSIZE = bits 31:16 (per NVMe spec). */
+        {
+            nvme_sqe_t cmd;
+            oc_memset(&cmd, 0, sizeof(cmd));
+            cmd.opcode = NVME_ADMIN_CREATE_CQ;
+            cmd.prp1   = (u64)(uintptr_t)q->cq;
+            cmd.cdw10  = (u32)qid | ((u32)(qsize - 1u) << 16);
+            cmd.cdw11  = NVME_CQ_PC | NVME_CQ_IEN;
+            if (nvme_admin_cmd(&g_nvme, &cmd) != 0) {
+                nvme_log("nvme: Create I/O CQ failed\n");
+                break;
+            }
         }
+
+        /* Create I/O Submission Queue (mapped to CQ qid).
+         * CDW10: QID = bits 15:0, QSIZE = bits 31:16.
+         * CDW11: CQID = bits 31:16, PC = bit 0. */
+        {
+            nvme_sqe_t cmd;
+            oc_memset(&cmd, 0, sizeof(cmd));
+            cmd.opcode = NVME_ADMIN_CREATE_SQ;
+            cmd.prp1   = (u64)(uintptr_t)q->sq;
+            cmd.cdw10  = (u32)qid | ((u32)(qsize - 1u) << 16);
+            cmd.cdw11  = NVME_SQ_PC | ((u32)qid << 16);   /* PC=1, CQID=qid */
+            if (nvme_admin_cmd(&g_nvme, &cmd) != 0) {
+                nvme_log("nvme: Create I/O SQ failed\n");
+                break;
+            }
+        }
+        g_nvme.ioq_count = qi + 1;
+    }
+    if (g_nvme.ioq_count == 0) {
+        nvme_log("nvme: no I/O queues created\n");
+        return -1;
     }
 
     /* Allocate page-aligned bounce buffer for I/O. */
     g_nvme.bounce = (u8 *)nvme_kmalloc_page_aligned(NVME_PAGE_SIZE);
     if (!g_nvme.bounce) {
         nvme_log("nvme: out of memory (bounce)\n");
-        return;
+        return -1;
     }
     oc_memset(g_nvme.bounce, 0, NVME_PAGE_SIZE);
 
-    nvme_log("nvme: I/O queues ready\n");
-    blk_register_device("nvme0", BLK_TYPE_NVME, g_nvme.sectors,
-                        g_nvme.sector_size, &nvme_blk_ops, &g_nvme);
+    nvme_log("nvme: I/O queues ready");
+    nvme_log_dec(" (", g_nvme.ioq_count, " pairs)\n");
+    g_nvme.next_q  = 0;
+    g_nvme.blk_idx = blk_register_device("nvme0", BLK_TYPE_NVME, g_nvme.sectors,
+                                         g_nvme.sector_size, &nvme_blk_ops,
+                                         &g_nvme);
+    return 0;
 }
 
 /* ---- I/O implementation ---- */
 
-/* Submit a single NVMe I/O command using the bounce buffer (already
- * populated for writes).  nblocks must fit within one page (<=>
- * nblocks * sector_size <= NVME_PAGE_SIZE).  Returns 0 on success. */
+/* Submit a single NVMe I/O command on the round-robin queue using the
+ * bounce buffer (already populated for writes).  nblocks must fit within
+ * one page (=> nblocks * sector_size <= NVME_PAGE_SIZE).  Returns 0 on
+ * success. */
 static int nvme_submit_io(nvme_dev_t *d, u32 opcode, u64 lba, u32 nblocks) {
+    if (d->ioq_count == 0) return -1;
+    nvme_ioq_t *q = &d->ioq[d->next_q % d->ioq_count];
+    d->next_q = (d->next_q + 1u) % d->ioq_count;
+
     nvme_sqe_t cmd;
     oc_memset(&cmd, 0, sizeof(cmd));
     cmd.opcode = (u8)opcode;
@@ -528,7 +623,7 @@ static int nvme_submit_io(nvme_dev_t *d, u32 opcode, u64 lba, u32 nblocks) {
     cmd.cdw10  = (u32)(lba & 0xFFFFFFFFu);
     cmd.cdw11  = (u32)(lba >> 32);
     cmd.cdw12  = (nblocks - 1u) & 0xFFFFu;   /* NLB-1, control bits = 0 */
-    return nvme_io_cmd(d, &cmd);
+    return nvme_io_cmd(d, q, &cmd);
 }
 
 static int nvme_blk_read(blk_device_t *dev, u64 lba, u32 count, void *buf) {
@@ -571,4 +666,57 @@ static int nvme_blk_write(blk_device_t *dev, u64 lba, u32 count, const void *buf
         remaining -= n;
     }
     return 0;
+}
+
+/* WP-10a: flush hook - NVMe Flush command (opcode 0x0A, NSID=1). */
+static int nvme_blk_flush(blk_device_t *dev) {
+    nvme_dev_t *d = (nvme_dev_t *)dev->priv;
+    if (!d || !d->bounce || d->ioq_count == 0) return -1;
+    nvme_ioq_t *q = &d->ioq[d->next_q % d->ioq_count];
+    d->next_q = (d->next_q + 1u) % d->ioq_count;
+    nvme_sqe_t cmd;
+    oc_memset(&cmd, 0, sizeof(cmd));
+    cmd.opcode = NVME_NVM_FLUSH;
+    cmd.nsid   = 1;
+    return nvme_io_cmd(d, q, &cmd);
+}
+
+/* ---- WP-10a public state API ---- */
+
+void nvme_print_state(void) {
+    if (!g_nvme.mmio_base || g_nvme.ioq_count == 0) {
+        nvme_log("nvme: no controller online\n");
+        return;
+    }
+    char buf[96]; char n[24];
+    nvme_log("nvme: controller online, MMIO=0x");
+    oc_u64_to_hex(g_nvme.mmio_base, n, 0);
+    nvme_log(n);
+    nvme_log("\n");
+    nvme_log_dec("  sector_size=", g_nvme.sector_size, "\n");
+    nvme_log_dec("  namespaces capacity: ", g_nvme.sectors, " blocks\n");
+    nvme_log_dec("  I/O queue pairs: ", g_nvme.ioq_count, " (round-robin)\n");
+    for (u32 i = 0; i < g_nvme.ioq_count; i++) {
+        nvme_ioq_t *q = &g_nvme.ioq[i];
+        oc_strcpy(buf, "  qid=");
+        oc_u64_to_str(q->qid, n); oc_strcpy(buf + oc_strlen(buf), n);
+        oc_strcpy(buf + oc_strlen(buf), " size=");
+        oc_u64_to_str((u64)NVME_IO_QSIZE, n);
+        oc_strcpy(buf + oc_strlen(buf), n);
+        oc_strcpy(buf + oc_strlen(buf), " sq_tail=");
+        oc_u64_to_str(q->sq_tail, n); oc_strcpy(buf + oc_strlen(buf), n);
+        oc_strcpy(buf + oc_strlen(buf), " cq_head=");
+        oc_u64_to_str(q->cq_head, n); oc_strcpy(buf + oc_strlen(buf), n);
+        oc_strcpy(buf + oc_strlen(buf), "\n");
+        nvme_log(buf);
+    }
+    nvme_log_dec("  blk device: nvme0 (index ", (u64)(g_nvme.blk_idx < 0 ? -1 : g_nvme.blk_idx), ")\n");
+}
+
+int nvme_num_io_queues(void) {
+    return (int)g_nvme.ioq_count;
+}
+
+int nvme_blk_index(void) {
+    return g_nvme.blk_idx;
 }

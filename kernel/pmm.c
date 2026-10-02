@@ -118,6 +118,33 @@ void pmm_init(const oc_mb2_info_t *mbi) {
 
     /* Reserve the bitmap itself. */
     pmm_reserve_region((u64)(uintptr_t)g_bitmap, sizeof(g_bitmap));
+
+    /* WP-10a FIX: reserve the 0x400000-0x600000 physical window.
+     *
+     * create_user_address_space() splits the 2 MiB entry at PD0[2]
+     * (virtual 0x400000-0x600000) of every USER address space into a
+     * separate page table that is initially empty (P3-1 security fix:
+     * the old pre-populated PT exposed kernel physical pages to future
+     * USER-bit bugs).  In a user address space this virtual window does
+     * NOT identity-map its own physical frames.
+     *
+     * The kernel, however, dereferences raw physical addresses through
+     * the identity map everywhere: page-table frames returned by
+     * pmm_alloc_frame() are used both as CR3 values and as pointers,
+     * fork's copy_user_address_space() memcpy's to/from physical frames,
+     * walk_pt() memsets page tables, map_user_pages() copies program
+     * images.  If pmm ever handed out a frame inside 0x400000-0x600000
+     * while running on a user address space, those accesses resolved
+     * through the REMAPPED user window instead of the identity map —
+     * reading garbage or faulting.  WP-10a's extra early allocations
+     * (AHCI/NVMe/ATA-DMA buffers) shifted the allocation layout far
+     * enough that page-table frames started landing at 0x400000, which
+     * turned this latent assumption violation into a deterministic fork
+     * crash (WP-09 regression 18/18 broke: fork_test #PF err=0x2).
+     *
+     * Reserving these 512 frames restores the identity assumption
+     * globally at the cost of 2 MiB of RAM. */
+    pmm_reserve_region(0x400000, 0x200000);
 }
 
 u64 pmm_alloc_frame(void) {

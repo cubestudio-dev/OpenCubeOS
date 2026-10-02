@@ -30,4 +30,10 @@ int ata_write_sectors(int drive, u64 lba, int count, const void *buf);
  * signature), 0 otherwise. */
 int ata_detect(int drive);
 
+/* WP-10a: read the drive capacity via the PIO IDENTIFY command (LBA28
+ * capacity in words 60/61).  Returns 0 on success and stores the total
+ * sector count in *sectors_out; negative on absence/error.  Used by the
+ * Bus-Master DMA driver to size a drive before registering it. */
+int ata_identify_capacity(int drive, u32 *sectors_out);
+
 #endif /* OC_ATA_H */

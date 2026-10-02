@@ -62,22 +62,14 @@ static int cmd_parted(const char *args) {
 }
 
 /* ---- mkfs.fat32: format a device as FAT32 ---- */
-static int cmd_mkfs_fat32(const char *args) {
-    if (!args[0]) {
-        oc_console_puts("usage: mkfs.fat32 <device>\n");
-        return 1;
-    }
-    int dev_idx = blk_find_device(args);
-    if (dev_idx < 0) {
-        oc_console_puts("mkfs.fat32: device not found\n");
-        return 1;
-    }
-    /* Minimal FAT32 format: write a BPB + empty FAT + root dir cluster. */
+
+/* WP-10a: the formatting logic lives in mkfs_fat32_device() (declared in
+ * disk_cmds.h) so the fs_mount_test command exercises the exact same
+ * code path as the mkfs.fat32 shell command.  Returns 0 on success,
+ * -1 if the device is invalid or too small. */
+int mkfs_fat32_device(int dev_idx) {
     blk_device_t *dev0 = blk_get_device(dev_idx);
-    if (!dev0 || dev0->sectors < 40) {
-        oc_console_puts("mkfs.fat32: device too small\n");
-        return 1;
-    }
+    if (!dev0 || dev0->sectors < 40) return -1;
     /* WP-09-FIX BUG-016: compute the FAT size from the actual disk size.
      * The old code hardcoded 128 FAT sectors (= 16384 clusters), which
      * only covers ~25% of a 32 MB disk (65248 clusters) — fsck showed
@@ -155,7 +147,23 @@ static int cmd_mkfs_fat32(const char *args) {
     u8 dir[512];
     oc_memset(dir, 0, 512);
     blk_write_sectors_raw(dev_idx, 32 + 2 * fat_secs, 1, dir);
+    return 0;
+}
 
+static int cmd_mkfs_fat32(const char *args) {
+    if (!args[0]) {
+        oc_console_puts("usage: mkfs.fat32 <device>\n");
+        return 1;
+    }
+    int dev_idx = blk_find_device(args);
+    if (dev_idx < 0) {
+        oc_console_puts("mkfs.fat32: device not found\n");
+        return 1;
+    }
+    if (mkfs_fat32_device(dev_idx) != 0) {
+        oc_console_puts("mkfs.fat32: device too small\n");
+        return 1;
+    }
     oc_console_puts("FAT32 formatted on ");
     oc_console_puts(args);
     oc_console_puts("\n");

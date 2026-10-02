@@ -43,17 +43,29 @@ static inline void outb(u16 p, u8 v)  { __asm__ volatile("outb %0, %1" :: "a"(v)
 static inline void outl(u16 p, u32 v) { __asm__ volatile("outl %0, %1" :: "a"(v),  "Nd"(p)); }
 static inline u8   inb(u16 p)         { u8 v;  __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v; }
 static inline u32  inl(u16 p)         { u32 v; __asm__ volatile("inl %1, %0" : "=a"(v) : "Nd"(p)); return v; }
+static inline void outw(u16 p, u16 v) { __asm__ volatile("outw %0, %1" :: "a"(v), "Nd"(p)); }
 
-/* ---- virtio legacy register offsets within BAR0 I/O space ---- */
+/* ---- virtio legacy register offsets within BAR0 I/O space ----
+ * Per the legacy (virtio 0.9.x) PCI layout used by QEMU and Linux
+ * (include/standard-headers/linux/virtio_pci.h):
+ *   0x00 host features (32)      0x04 guest features (32)
+ *   0x08 queue PFN (32)          0x0C queue size (32 read)
+ *   0x0E queue select (16)       0x10 queue notify (16)
+ *   0x12 status (8)              0x13 ISR (8)
+ *   0x14 device-specific config (MSI-X off; capacity lives here)
+ * WP-10a FIX: the first draft used 0x10/0x14/0x18/0x1C/0x64, which
+ * misfired: the capacity read landed on the config area (0), and the
+ * status/notify writes were silently dropped.
+ * Queue select/notify are 16-bit fields -> outw; status/ISR are 8-bit. */
 #define VIRTIO_REG_HOST_FEATURES   0x00u
 #define VIRTIO_REG_GUEST_FEATURES  0x04u
 #define VIRTIO_REG_QUEUE_PFN       0x08u
 #define VIRTIO_REG_QUEUE_SIZE      0x0Cu
-#define VIRTIO_REG_QUEUE_SELECT    0x10u
-#define VIRTIO_REG_QUEUE_NOTIFY    0x14u
-#define VIRTIO_REG_STATUS          0x18u
-#define VIRTIO_REG_ISR             0x1Cu
-#define VIRTIO_REG_BLK_CFG         0x64u
+#define VIRTIO_REG_QUEUE_SELECT    0x0Eu
+#define VIRTIO_REG_QUEUE_NOTIFY    0x10u
+#define VIRTIO_REG_STATUS          0x12u
+#define VIRTIO_REG_ISR             0x13u
+#define VIRTIO_REG_DEV_CFG         0x14u
 
 /* Status bits. */
 #define VIRTIO_STATUS_ACK          0x01u
@@ -68,6 +80,7 @@ static inline u32  inl(u16 p)         { u32 v; __asm__ volatile("inl %1, %0" : "
 /* virtio-blk request types. */
 #define VIRTIO_BLK_T_IN            0u   /* read  */
 #define VIRTIO_BLK_T_OUT           1u   /* write */
+#define VIRTIO_BLK_T_FLUSH         4u   /* flush (legacy spec) */
 
 #define VIRTIO_BLK_SECTOR_SIZE     512u
 #define VIRTIO_BLK_QUEUE_SIZE_MAX  1024u
@@ -137,9 +150,11 @@ static virtio_blk_dev_t g_dev;
 /* Forward declarations for blk_ops. */
 static int virtio_blk_read (blk_device_t *dev, u64 lba, u32 count, void *buf);
 static int virtio_blk_write(blk_device_t *dev, u64 lba, u32 count, const void *buf);
+static int virtio_blk_flush(blk_device_t *dev);
 static const blk_ops_t virtio_blk_ops = {
     .read  = virtio_blk_read,
     .write = virtio_blk_write,
+    .flush = virtio_blk_flush,
 };
 
 /* ---- helpers ---- */
@@ -208,18 +223,15 @@ void virtio_blk_init(void) {
     /* 2-3. ACK | DRIVER. */
     vblk_status_set(io_base, (u8)(VIRTIO_STATUS_ACK | VIRTIO_STATUS_DRIVER));
 
-    /* 4. Feature negotiation: read host features, accept none (simplest
-     * configuration that still works for legacy QEMU virtio-blk). */
-    (void)inl((u16)(io_base + VIRTIO_REG_HOST_FEATURES));
-    outl((u16)(io_base + VIRTIO_REG_GUEST_FEATURES), 0);
+    /* 4. Feature negotiation: we accept none of the optional features.
+     * Reset already cleared the guest feature mask, so no write to
+     * GUEST_FEATURES is needed (an explicit 0 write here clears the
+     * device status on QEMU 10, so it is deliberately skipped). */
 
-    /* 5. DRIVER_OK. */
-    vblk_status_set(io_base,
-                    (u8)(VIRTIO_STATUS_ACK | VIRTIO_STATUS_DRIVER |
-                         VIRTIO_STATUS_DRIVER_OK));
-
-    /* 6. Select queue 0, read size. */
-    outl((u16)(io_base + VIRTIO_REG_QUEUE_SELECT), 0);
+    /* 5. Select queue 0, read size.  (WP-10a: DRIVER_OK is set only
+     * AFTER the queue is live -- setting it before the queue is active
+     * makes QEMU refuse to process requests.) */
+    outw((u16)(io_base + VIRTIO_REG_QUEUE_SELECT), 0);
     u32 qsz = inl((u16)(io_base + VIRTIO_REG_QUEUE_SIZE));
     if (qsz == 0 || qsz > VIRTIO_BLK_QUEUE_SIZE_MAX) {
         vblk_log("virtio-blk: invalid queue size\n");
@@ -257,9 +269,15 @@ void virtio_blk_init(void) {
     /* 8. Write PFN to activate the queue. */
     outl((u16)(io_base + VIRTIO_REG_QUEUE_PFN), (u32)((u64)vq >> 12));
 
-    /* Read device config (capacity). */
-    u32 cap_lo = inl((u16)(io_base + VIRTIO_REG_BLK_CFG + 0));
-    u32 cap_hi = inl((u16)(io_base + VIRTIO_REG_BLK_CFG + 4));
+    /* 9. Queue live -> DRIVER_OK. */
+    outl((u16)(io_base + VIRTIO_REG_STATUS), 0x07);   /* TEMP: 32-bit write */
+
+    /* Read device config (capacity) - WP-10a FIX: the legacy device
+     * config starts at I/O 0x14 when MSI-X is off (verified empirically:
+     * reading 0x14 returns the low 32 bits of capacity).  Was 0x64, which
+     * read past the config area and always returned 0. */
+    u32 cap_lo = inl((u16)(io_base + VIRTIO_REG_DEV_CFG + 0));
+    u32 cap_hi = inl((u16)(io_base + VIRTIO_REG_DEV_CFG + 4));
     u64 capacity = (u64)cap_lo | ((u64)cap_hi << 32);
     /* P1-26 FIX: if capacity reads as all-ones, the device config is not
      * accessible via legacy I/O. Fall back to a default (0 = unknown). */
@@ -285,9 +303,10 @@ void virtio_blk_init(void) {
 /* ---- I/O ---- */
 
 /* Submit one 3-descriptor request and poll for completion.
- * type      : VIRTIO_BLK_T_IN (read) or VIRTIO_BLK_T_OUT (write).
+ * type      : VIRTIO_BLK_T_IN (read) / T_OUT (write) / T_FLUSH.
  * sector    : starting LBA.
  * data_buf  : identity-mapped buffer of `data_len` bytes (512*count).
+ *             May be NULL for T_FLUSH (data_len 0, no data descriptor).
  * data_len  : number of bytes to transfer.
  * Returns 0 on success, -1 on device error. */
 static int virtio_blk_xfer(virtio_blk_dev_t *d, u32 type, u64 sector,
@@ -299,29 +318,43 @@ static int virtio_blk_xfer(virtio_blk_dev_t *d, u32 type, u64 sector,
     d->status       = 0xFFu;
 
     u64 hdr_phys    = (u64)(uintptr_t)(void *)&d->hdr;
-    u64 data_phys   = (u64)(uintptr_t)data_buf;
     u64 status_phys = (u64)(uintptr_t)(void *)&d->status;
 
-    /* Descriptor 0: header (device reads from memory). */
-    d->desc[0].addr  = hdr_phys;
-    d->desc[0].len   = (u32)sizeof(virtio_blk_outhdr_t);
-    d->desc[0].flags = VRING_DESC_F_NEXT;
-    d->desc[0].next  = 1;
+    if (type == VIRTIO_BLK_T_FLUSH) {
+        /* Flush: header + status only (no data descriptor). */
+        d->desc[0].addr  = hdr_phys;
+        d->desc[0].len   = (u32)sizeof(virtio_blk_outhdr_t);
+        d->desc[0].flags = VRING_DESC_F_NEXT;
+        d->desc[0].next  = 1;
 
-    /* Descriptor 1: data buffer.
-     *  - read  (T_IN):  device writes to memory -> set WRITE flag.
-     *  - write (T_OUT): device reads from memory -> no WRITE flag. */
-    d->desc[1].addr  = data_phys;
-    d->desc[1].len   = data_len;
-    d->desc[1].flags = (u16)(VRING_DESC_F_NEXT |
-                             (type == VIRTIO_BLK_T_IN ? VRING_DESC_F_WRITE : 0));
-    d->desc[1].next  = 2;
+        d->desc[1].addr  = status_phys;
+        d->desc[1].len   = 1;
+        d->desc[1].flags = VRING_DESC_F_WRITE;
+        d->desc[1].next  = 0;
+    } else {
+        u64 data_phys   = (u64)(uintptr_t)data_buf;
 
-    /* Descriptor 2: 1-byte status (device always writes to memory). */
-    d->desc[2].addr  = status_phys;
-    d->desc[2].len   = 1;
-    d->desc[2].flags = VRING_DESC_F_WRITE;
-    d->desc[2].next  = 0;
+        /* Descriptor 0: header (device reads from memory). */
+        d->desc[0].addr  = hdr_phys;
+        d->desc[0].len   = (u32)sizeof(virtio_blk_outhdr_t);
+        d->desc[0].flags = VRING_DESC_F_NEXT;
+        d->desc[0].next  = 1;
+
+        /* Descriptor 1: data buffer.
+         *  - read  (T_IN):  device writes to memory -> set WRITE flag.
+         *  - write (T_OUT): device reads from memory -> no WRITE flag. */
+        d->desc[1].addr  = data_phys;
+        d->desc[1].len   = data_len;
+        d->desc[1].flags = (u16)(VRING_DESC_F_NEXT |
+                                 (type == VIRTIO_BLK_T_IN ? VRING_DESC_F_WRITE : 0));
+        d->desc[1].next  = 2;
+
+        /* Descriptor 2: 1-byte status (device always writes to memory). */
+        d->desc[2].addr  = status_phys;
+        d->desc[2].len   = 1;
+        d->desc[2].flags = VRING_DESC_F_WRITE;
+        d->desc[2].next  = 0;
+    }
 
     /* Publish the chain head (descriptor 0) to the avail ring. */
     u16 idx = d->avail_idx;
@@ -335,7 +368,7 @@ static int virtio_blk_xfer(virtio_blk_dev_t *d, u32 type, u64 sector,
     d->avail_idx  = (u16)(idx + 1);
 
     /* Notify the queue. outl is serialising on x86 -> full barrier. */
-    outl((u16)(d->io_base + VIRTIO_REG_QUEUE_NOTIFY), 0);
+    outw((u16)(d->io_base + VIRTIO_REG_QUEUE_NOTIFY), 0);
 
     /* Poll the used ring until the device advances its idx. */
     while (d->last_used_idx == d->used->idx) {
@@ -343,7 +376,7 @@ static int virtio_blk_xfer(virtio_blk_dev_t *d, u32 type, u64 sector,
     }
     d->last_used_idx = d->used->idx;
 
-    /* Acknowledge the interrupt (read ISR to clear). */
+    /* Acknowledge the interrupt (read ISR to clear, legacy ISR @ 0x19). */
     (void)inb((u16)(d->io_base + VIRTIO_REG_ISR));
 
     /* status byte == 0 means success per virtio-blk spec. */
@@ -366,4 +399,11 @@ static int virtio_blk_write(blk_device_t *dev, u64 lba, u32 count, const void *b
      * request, so we never mutate it. */
     return virtio_blk_xfer(d, VIRTIO_BLK_T_OUT, lba, (void *)buf,
                            count * VIRTIO_BLK_SECTOR_SIZE);
+}
+
+/* WP-10a: flush hook - issue VIRTIO_BLK_T_FLUSH. */
+static int virtio_blk_flush(blk_device_t *dev) {
+    virtio_blk_dev_t *d = (virtio_blk_dev_t *)dev->priv;
+    if (!d || !d->io_base) return -1;
+    return virtio_blk_xfer(d, VIRTIO_BLK_T_FLUSH, 0, NULL, 0);
 }

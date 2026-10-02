@@ -19,6 +19,7 @@
  */
 #include "fat32.h"
 #include "vfs.h"
+#include "blk.h"
 #include "ata.h"
 #include "console.h"
 #include "heap.h"
@@ -99,7 +100,8 @@ typedef struct __attribute__((packed)) {
 
 /* ---- FS context ---- */
 typedef struct {
-    int   drive;
+    int   dev_idx;               /* WP-10a: blk-layer device index (any driver:
+                                    IDE, AHCI, virtio-blk, NVMe, ...) */
     u32   bytes_per_sector;
     u32   sectors_per_cluster;
     u32   bytes_per_cluster;
@@ -154,24 +156,31 @@ static void fat32_format_short_name(const u8 *raw, char *out) {
     out[p] = 0;
 }
 
-/* Parse a device string into a drive number 0..3.
- * Accepts "ata0".."ata3", "ata" (=0), or "0".."3". Returns -1 on bad input. */
+/* Parse a device string into a blk-layer device index.
+ * WP-10a: the primary form is any registered block-device name ("hda",
+ * "sda", "vda", "nvme0", ...) looked up through blk_find_device(), so
+ * FAT32 volumes can live on ANY storage driver.  Legacy forms are kept
+ * for compatibility: "ata0".."ata3" / "ata" / "0".."3" / "hda".."hdd"
+ * map to the corresponding ATA block device. Returns -1 on bad input. */
 static int fat32_parse_device(const char *device) {
-    if (!device) return 0;
-    if (oc_strcmp(device, "ata") == 0) return 0;
+    if (!device || !device[0]) return -1;
+    /* Any registered block-device name (sda, nvme0, vda, hda, ...). */
+    int idx = blk_find_device(device);
+    if (idx >= 0) return idx;
+    /* Legacy: "ataN" / "ata" / "N" -> hdX name. */
+    char hd[6] = "hd?";
+    if (oc_strcmp(device, "ata") == 0) { hd[2] = 'a'; return blk_find_device(hd); }
     if (oc_strncmp(device, "ata", 3) == 0) {
         char c = device[3];
-        if (c >= '0' && c <= '3' && device[4] == 0) return c - '0';
-        return -1;
-    }
-    /* Accept "hda".."hdd" (standard block device names). */
-    if (oc_strncmp(device, "hd", 2) == 0) {
-        char c = device[2];
-        if (c >= 'a' && c <= 'd' && device[3] == 0) return c - 'a';
+        if (c >= '0' && c <= '3' && device[4] == 0) {
+            hd[2] = (char)('a' + (c - '0'));
+            return blk_find_device(hd);
+        }
         return -1;
     }
     if (device[0] >= '0' && device[0] <= '3' && device[1] == 0) {
-        return device[0] - '0';
+        hd[2] = (char)('a' + (device[0] - '0'));
+        return blk_find_device(hd);
     }
     return -1;
 }
@@ -180,8 +189,8 @@ static int fat32_parse_device(const char *device) {
 static int fat32_read_cluster(fat32_ctx_t *ctx, u32 cluster, u8 *buf) {
     if (cluster < 2) return -1;
     u64 lba = (u64)ctx->data_start_lba + (u64)(cluster - 2) * (u64)ctx->sectors_per_cluster;
-    int rc = ata_read_sectors(ctx->drive, lba, (int)ctx->sectors_per_cluster, buf);
-    return rc == (int)ctx->sectors_per_cluster ? 0 : -1;
+    return blk_read_sectors_raw(ctx->dev_idx, lba,
+                                (u32)ctx->sectors_per_cluster, buf);
 }
 
 /* Return the next cluster in the chain, or 0 (== EOC) on end. */
@@ -208,10 +217,10 @@ static int fat32_set_fat_entry(fat32_ctx_t *ctx, u32 cluster, u32 value) {
     u32 newv = (oldv & 0xF0000000u) | (value & 0x0FFFFFFFu);
     oc_memcpy(ctx->fat_cache + off, &newv, 4);
     u64 sector_offset = off / ctx->bytes_per_sector;
-    int rc = ata_write_sectors(ctx->drive,
+    int rc = blk_write_sectors_raw(ctx->dev_idx,
                                (u64)ctx->fat_start_lba + sector_offset, 1,
                                ctx->fat_cache + sector_offset * ctx->bytes_per_sector);
-    return rc == 1 ? 0 : -3;
+    return rc == 0 ? 0 : -3;
 }
 
 /* Allocate a free cluster from the FAT. Marks it as EOC (0x0FFFFFFF) and
@@ -253,9 +262,8 @@ static int fat32_free_cluster_chain(fat32_ctx_t *ctx, u32 start_cluster) {
 static int fat32_write_cluster(fat32_ctx_t *ctx, u32 cluster, const u8 *buf) {
     if (cluster < 2) return -1;
     u64 lba = (u64)ctx->data_start_lba + (u64)(cluster - 2) * (u64)ctx->sectors_per_cluster;
-    int rc = ata_write_sectors(ctx->drive, (u64)lba,
-                               (int)ctx->sectors_per_cluster, buf);
-    return rc == (int)ctx->sectors_per_cluster ? 0 : -1;
+    return blk_write_sectors_raw(ctx->dev_idx, (u64)lba,
+                                 (u32)ctx->sectors_per_cluster, buf);
 }
 
 /* ---- Directory entry helpers (write support) ---- */
@@ -1235,19 +1243,22 @@ static vfs_node_t *fat32_lookup(vfs_node_t *parent, const char *name) {
 /* ---- Mount / unmount ---- */
 
 static vfs_node_t *fat32_fs_mount(const char *device) {
-    int drive = fat32_parse_device(device);
-    if (drive < 0) {
+    /* WP-10a: mount ANY registered block device (IDE, AHCI SATA,
+     * virtio-blk, NVMe) through the blk layer. */
+    int dev_idx = fat32_parse_device(device);
+    if (dev_idx < 0) {
         oc_console_puts("fat32: invalid device string\n");
         return NULL;
     }
-    if (!ata_detect(drive)) {
+    blk_device_t *bdev = blk_get_device(dev_idx);
+    if (!bdev) {
         oc_console_puts("fat32: drive not present\n");
         return NULL;
     }
 
     /* Read the boot sector. */
     u8 boot[512];
-    if (ata_read_sectors(drive, 0, 1, boot) != 1) {
+    if (blk_read_sectors_raw(dev_idx, 0, 1, boot) != 0) {
         oc_console_puts("fat32: read boot sector failed\n");
         return NULL;
     }
@@ -1273,7 +1284,7 @@ static vfs_node_t *fat32_fs_mount(const char *device) {
     fat32_ctx_t *ctx = (fat32_ctx_t *)kmalloc(sizeof(fat32_ctx_t));
     if (!ctx) return NULL;
     oc_memset(ctx, 0, sizeof(*ctx));
-    ctx->drive = (int)drive;
+    ctx->dev_idx = dev_idx;
     ctx->bytes_per_sector = bpb->bytes_per_sector;
     ctx->sectors_per_cluster = bpb->sectors_per_cluster;
     ctx->bytes_per_cluster = (u32)bpb->bytes_per_sector * bpb->sectors_per_cluster;
@@ -1298,9 +1309,9 @@ static vfs_node_t *fat32_fs_mount(const char *device) {
         kfree(ctx);
         return NULL;
     }
-    int rc = ata_read_sectors(drive, (u64)ctx->fat_start_lba,
-                              (int)ctx->fat_size_sectors, ctx->fat_cache);
-    if (rc != (int)ctx->fat_size_sectors) {
+    int rc = blk_read_sectors_raw(dev_idx, (u64)ctx->fat_start_lba,
+                              (u32)ctx->fat_size_sectors, ctx->fat_cache);
+    if (rc != 0) {
         oc_console_puts("fat32: FAT read failed\n");
         kfree(ctx->fat_cache);
         kfree(ctx);

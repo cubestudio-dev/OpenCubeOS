@@ -1,12 +1,14 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS - WP-07
+/* Open Cube OS - WP-07 / WP-10a
  * File: kernel/blk.c
  * Purpose: Block device registry + cached read/write dispatch.
  *
- * Every block device (ATA, virtio-blk, NVMe) registers here.  All reads
- * and writes go through the disk cache (blk_cache.c) so file systems do
- * not need to know about caching.
+ * Every block device (ATA, virtio-blk, NVMe, AHCI SATA) registers here.
+ * All reads and writes go through the disk cache (blk_cache.c) so file
+ * systems do not need to know about caching.  WP-10a adds the
+ * pointer-based driver API (blk_register/blk_read/blk_write/blk_flush)
+ * with an optional per-driver flush hook.
  */
 #include "blk.h"
 #include "blk_cache.h"
@@ -43,6 +45,7 @@ int blk_register_device(const char *name, blk_type_t type,
     d->present = 1;
     d->ops = ops;
     d->priv = priv;
+    d->index = idx;
     if (idx >= g_blk_count) g_blk_count = idx + 1;
     return idx;
 }
@@ -111,6 +114,63 @@ int blk_write_sectors(int dev_idx, u64 lba, u32 count, const void *buf) {
     for (u32 i = 0; i < count; i++) {
         blk_cache_write(dev_idx, lba + i, src + (u64)i * BLK_SECTOR_SIZE);
     }
+    return 0;
+}
+
+/* ---- WP-10a: pointer-based driver API ---- */
+
+int blk_register(blk_device_t *dev, const blk_ops_t *ops) {
+    if (!dev || !ops || !ops->read || !ops->write) return -1;
+    if (!dev->name[0]) return -1;
+    if (g_blk_count >= BLK_MAX_DEVICES) return -1;
+    int idx = -1;
+    for (int i = 0; i < BLK_MAX_DEVICES; i++) {
+        if (!g_blk_devs[i].present) { idx = i; break; }
+    }
+    if (idx < 0) return -1;
+    blk_device_t *d = &g_blk_devs[idx];
+    oc_memset(d, 0, sizeof(*d));
+    oc_strncpy(d->name, dev->name, BLK_DEV_NAME_LEN - 1);
+    d->name[BLK_DEV_NAME_LEN - 1] = 0;
+    d->type = dev->type;
+    d->sectors = dev->sectors;
+    d->sector_size = dev->sector_size ? dev->sector_size : BLK_SECTOR_SIZE;
+    d->present = 1;
+    d->ops = ops;
+    d->priv = dev->priv;
+    d->bus = dev->bus; d->dev = dev->dev; d->func = dev->func;
+    d->index = idx;
+    if (dev) dev->index = idx;   /* report slot back to the caller */
+    if (idx >= g_blk_count) g_blk_count = idx + 1;
+    return idx;
+}
+
+int blk_read(blk_device_t *dev, u64 lba, u32 count, void *buf) {
+    if (!dev || dev->index < 0 || dev->index >= BLK_MAX_DEVICES) return -1;
+    return blk_read_sectors(dev->index, lba, count, buf);
+}
+
+int blk_write(blk_device_t *dev, u64 lba, u32 count, const void *buf) {
+    if (!dev || dev->index < 0 || dev->index >= BLK_MAX_DEVICES) return -1;
+    return blk_write_sectors(dev->index, lba, count, buf);
+}
+
+/* WP-10a: replace the driver ops of an already-registered device. */
+int blk_set_ops(int dev_idx, const blk_ops_t *ops) {
+    blk_device_t *d = blk_get_device(dev_idx);
+    if (!d || !ops || !ops->read || !ops->write) return -1;
+    d->ops = ops;
+    return 0;
+}
+
+/* Flush the OS write-back cache for this device, then ask the driver to
+ * flush its own on-media cache.  A driver without a flush hook only
+ * gets the OS-level flush (still correct, just weaker durability). */
+int blk_flush(blk_device_t *dev) {
+    if (!dev || dev->index < 0 || dev->index >= BLK_MAX_DEVICES) return -1;
+    int idx = dev->index;
+    if (blk_cache_flush_dev(idx) != 0) return -1;
+    if (dev->ops && dev->ops->flush) return dev->ops->flush(dev);
     return 0;
 }
 
