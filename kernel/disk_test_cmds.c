@@ -25,6 +25,7 @@
 #include "nvme.h"
 #include "ata_dma.h"
 #include "ata.h"
+#include "nic.h"       /* WP-10b: real_hw_test NIC section */
 #include "disk_cmds.h"
 #include "fat32.h"
 #include "vfs.h"
@@ -535,8 +536,9 @@ static int cmd_real_hw_test(const char *args) {
     oc_console_puts("[real_hw_test] input: check execution environment\n");
     if (under_hypervisor()) {
         oc_console_puts("[real_hw_test] actual: hypervisor bit set (QEMU/sandbox)\n");
-        oc_console_puts("[real_hw_test] => NOT RUN (no physical storage in a VM;\n");
-        oc_console_puts("    real-machine SATA/NVMe/ATA validation needs bare metal)\n");
+        oc_console_puts("[real_hw_test] => NOT RUN (no physical storage or NIC in a VM;\n");
+        oc_console_puts("    real-machine SATA/NVMe/ATA and WP-10b NIC validation\n");
+        oc_console_puts("    needs bare metal)\n");
         return 0;
     }
     /* Bare metal: report what the drivers detected (real validation). */
@@ -544,6 +546,16 @@ static int cmd_real_hw_test(const char *args) {
     ahci_print_state();
     ata_dma_print_state();
     nvme_print_state();
+    oc_console_puts("[real_hw_test] --- WP-10b NIC drivers ---\n");
+    e1000e_print_state();
+    igb_print_state();
+    ixgbe_print_state();
+    rtl8139_print_state();
+    rtl8168_print_state();
+    rtl8125_print_state();
+    rtl810x_print_state();
+    bcm57xx_print_state();
+    other_nics_print_state();
     oc_console_puts("[real_hw_test] => see driver reports above\n");
     return 0;
 }

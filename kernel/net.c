@@ -12,6 +12,7 @@
  */
 #include "net.h"
 #include "pci.h"
+#include "nic.h"   /* WP-10b: NIC driver framework (e1000e/igb/rtl8139/...) */
 #include "heap.h"
 #include "pmm.h"
 #include "string.h"
@@ -872,6 +873,12 @@ static int eth_send(const u8 *dst, u16 ethertype, const void *payload, int len) 
     if (total < 60) total = 60;  /* minimum frame size */
     oc_memcpy(frame + 14, payload, len);
     for (int i = 14 + len; i < total; i++) frame[i] = 0;
+    /* WP-10b: route through the nic framework when one of the WP-10b
+     * drivers owns the hardware. */
+    {
+        nic_device_t *nd = nic_active();
+        if (nd) return nic_send(nd, frame, total);
+    }
     if (g_use_virtio) {
         return virtio_net_send(frame, total);
     }
@@ -3472,6 +3479,14 @@ void net_get_mac(u8 mac[6]) {
 
 int net_get_link_status(void) {
     if (!g_nic_ok) return 0;
+    /* WP-10b: a framework driver owns the NIC - ask it. */
+    {
+        nic_device_t *nd = nic_active();
+        if (nd) {
+            int ls = nic_link_status(nd);
+            return (ls == 1) ? 1 : 0;
+        }
+    }
     if (g_use_virtio) return 1;  /* virtio-net link is always up after init */
     u32 status = mmio_read32((volatile void *)((u8 *)g_e1000_mmio + E1000_STATUS));
     return (status & 0x02) ? 1 : 0;  /* LU bit */
@@ -3491,6 +3506,24 @@ void net_init(void) {
     udp_init();
     tcp_init();
     oc_memset(g_sockets, 0, sizeof(g_sockets));
+
+    /* WP-10b: probe the nic-framework families first (e1000e, igb,
+     * rtl8168/8125/810x, rtl8139, bcm57xx, ixgbe, legacy others).  The
+     * legacy built-in e1000/virtio-net paths below remain as fallbacks
+     * so WP-06..WP-09 behaviour is unchanged when no WP-10b driver
+     * claims the hardware. */
+    if (nic_probe_all() == 0) {
+        g_nic_ok = 1;
+        /* Publish the WP-10b NIC's station address to the stack (the
+         * Ethernet layer uses g_mac as the frame source address). */
+        nic_device_t *nd = nic_active();
+        if (nd) nic_get_mac(nd, g_mac);
+        g_ip = IP4(10,0,2,15);
+        g_mask = IP4(255,255,255,0);
+        g_gateway = IP4(10,0,2,2);
+        g_dns = IP4(10,0,2,3);
+        return;
+    }
 
     /* Try virtio-net first (it works better in QEMU), then fall back to e1000. */
     if (virtio_net_init() == 0) {
@@ -3525,7 +3558,11 @@ void net_poll(void) {
     u8 buf[ETH_FRAME_MAX];
     for (int i = 0; i < 8; i++) {
         int len;
-        if (g_use_virtio) {
+        /* WP-10b: poll the nic-framework driver first. */
+        nic_device_t *nd = nic_active();
+        if (nd) {
+            len = nic_recv(nd, buf, sizeof(buf));
+        } else if (g_use_virtio) {
             len = virtio_net_recv(buf, sizeof(buf));
         } else {
             len = e1000_recv(buf, sizeof(buf));
@@ -3605,7 +3642,16 @@ int cmd_ifconfig(const char *args) {
      * Old code printed rx_descs/tx_descs/RDBAL/TDBAL/CTRL — internal
      * debug info not useful to users. */
 
-    oc_console_puts(g_use_virtio ? "virtio-net:\n" : "e1000:\n");
+    /* WP-10b: report the actual driver in use. */
+    {
+        nic_device_t *nd = nic_active();
+        if (nd) {
+            oc_console_puts(nd->name);
+            oc_console_puts(":\n");
+        } else {
+            oc_console_puts(g_use_virtio ? "virtio-net:\n" : "e1000:\n");
+        }
+    }
 
     /* MAC address. */
     macstr[0] = 0;

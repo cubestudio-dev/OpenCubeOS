@@ -43,6 +43,14 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
         "-object", "filter-dump,id=f0,netdev=n1,file=/tmp/guest_net.pcap",
         "-device", "e1000,netdev=n1",
     ]
+    # WP-10b: replace the default NIC model to exercise the WP-10b
+    # drivers one at a time (QEMU models only e1000/e1000e/igb/rtl8139
+    # from the WP-10b list):
+    #   OC_NETDEV=e1000e|igb|rtl8139 python3.13 tools/qemu_runner.py ...
+    netdev_model = os.environ.get("OC_NETDEV", "").strip()
+    if netdev_model:
+        cmd[cmd.index("e1000,netdev=n1")] = f"{netdev_model},netdev=n1"
+        print(f"[runner] netdev model: {netdev_model}")
     # WP-09-fix5: optional extra QEMU args (e.g. attach the /etc disk):
     #   OC_EXTRA_QEMU_ARGS="-drive if=ide,format=raw,file=build/etc.img"
     extra = os.environ.get("OC_EXTRA_QEMU_ARGS", "").split()

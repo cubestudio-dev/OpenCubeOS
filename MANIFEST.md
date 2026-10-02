@@ -4,14 +4,14 @@
 # Open Cube OS — Repository Manifest
 
 ## Version
-WP-10a (Storage Drivers)
+WP-10b (NIC Drivers)
 
 ## Directory Structure
 
 ```
 oc-os/                        ← repository root
 ├── boot/                     ← boot assembly (3 .S files)
-├── kernel/                   ← kernel source (132 files: .c + .h + .S, incl. WP-09 crypto/ssh/sshd/tls + WP-10a storage drivers)
+├── kernel/                   ← kernel source (142 files: .c + .h + .S, incl. WP-09 crypto/ssh/sshd/tls + WP-10a storage + WP-10b NIC drivers)
 ├── userprogs/                ← user programs (.c/.asm/.ld — 23 files)
 ├── tools/                    ← build/test scripts (9 files, public)
 ├── docs/                     ← documentation (17 files)

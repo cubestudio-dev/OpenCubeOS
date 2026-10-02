@@ -20,14 +20,18 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-10a)
+## Stats (WP-10b)
 
-- **Source code**: 56,019 lines (kernel + boot + userprogs, incl. headers + linker scripts, no docs;
+- **Source code**: 59,662 lines (kernel + boot + userprogs, incl. headers + linker scripts, no docs;
   verify: `find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
-- **Work packages**: 10 (WP-01 ~ WP-09, WP-10a)
-- **L1 extension interfaces**: 65 (57 through WP-09 + 8 WP-10a items:
+- **Work packages**: 11 (WP-01 ~ WP-09, WP-10a, WP-10b)
+- **L1 extension interfaces**: 78 (57 through WP-09 + 8 WP-10a items:
   blk_register / blk_read / blk_write / blk_flush (+ blk_set_ops),
   ahci_init(pci_dev), nvme_init(pci_dev), ata_dma_init(pci_dev),
+  + 13 WP-10b items:
+  nic_register / nic_send / nic_recv / nic_link_status / nic_get_mac,
+  e1000e_init / igb_init / ixgbe_init / rtl8139_init / rtl8168_init /
+  rtl8125_init / rtl810x_init / bcm57xx_init(pci_dev),
   pci_find_class_exact/mask, ata_identify_capacity)
 - **System calls**: 37
 - **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
@@ -149,11 +153,15 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
 - **Network ops commands**: route, arp, firewall (stateful rules, conntrack,
   three chains with policies + REJECT + per-rule hit counters), tcpstats
   (CUBIC cwnd/RTO/SACK/fast-retransmit visibility), dns (A/AAAA/CNAME/MX/TXT/NS/SRV).
-- **Shell**: 98 commands (live boot self-test count; `help` lists 98 unique);
+- **Shell**: 116 commands (live boot count; `help` lists 116 unique);
   includes the WP-10a storage surface: `ahci`, `nvme`, `ata` (driver status)
   and the eight-test suite `ahci_test`, `nvme_test`, `ata_dma_test`,
   `virtio_blk_test`, `disk_rw_test`, `partition_test`, `fs_mount_test`,
-  `real_hw_test`.
+  `real_hw_test`, plus the WP-10b NIC surface: `e1000e`, `igb`, `ixgbe`,
+  `rtl8139`, `rtl8168`, `rtl8125`, `rtl810x`, `bcm57xx` (driver status)
+  and `e1000e_test`, `igb_test`, `ixgbe_test`, `rtl8139_test`,
+  `rtl8168_test`, `rtl8125_test`, `rtl810x_test`, `bcm57xx_test`,
+  `other_nic_test`, `nic_rw_test`.
 - **Storage (WP-10a)**: AHCI SATA (DMA, multi-port, FLUSH), NVMe (admin +
   2 I/O queue pairs, Identify, Read/Write/Flush), ATA Bus-Master DMA
   (PRDT + PIO fallback preserved), virtio-blk (capacity fixed);

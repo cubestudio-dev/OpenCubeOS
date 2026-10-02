@@ -42,7 +42,7 @@ extern "C" {
 #endif
 
 /* Current kernel version - must stay in sync with cmd_uname (kmain.c). */
-#define OC_UPDATE_CURRENT_VERSION "WP-10a"
+#define OC_UPDATE_CURRENT_VERSION "WP-10b"
 
 /* Manifest fields as parsed from the JSON body.  version/time are
  * structural: if the server sends more than 31 bytes the check fails
