@@ -1,0 +1,1123 @@
+1:"$Sreact.fragment"
+c:I[97367,["/OpenCubeOS/_next/static/chunks/42879de7b8087bc9.js"],"OutletBoundary"]
+d:"$Sreact.suspense"
+2:T5f47,<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+<!-- Chinese translation of README.md (website-provided, for reading
+     convenience). The English original in the repository is authoritative.
+     Commands, paths, links and identifiers are kept verbatim. -->
+
+# Open Cube OS - WP-10c
+
+**官网**：https://cubestudio-dev.github.io/OpenCubeOS
+**GitHub**：https://github.com/cubestudio-dev/OpenCubeOS
+**Releases**：https://github.com/cubestudio-dev/OpenCubeOS/releases
+
+Copyright 2026 cubestudio-dev <cubestudio@qq.com>
+基于 Apache License 2.0 许可。
+
+**Open Cube OS** 是一个开源操作系统内核。它的定位：
+
+- **它不是"一个能日常使用的系统"。** 它是"一个能被扩展成任何东西的内核"。
+- 它的价值不在自带什么，而在向上层暴露的接口。
+- 架构分两层：
+  - **L0** = Open Cube OS = 完整内核。
+  - **L1** = 上层扩展，构建在 L0 的扩展接口之上。L0 不内置任何 L1。
+- L0 采用 Apache 2.0 许可。
+- 设计原则："一切皆可扩展"。
+
+## 统计（WP-10c）
+
+- **源码**：69,910 行（kernel + boot + userprogs，含头文件 + 链接脚本，不含文档；
+  验证：`find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`）
+- **工作包**：13 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c）
+- **L1 扩展接口**：111 个（WP-09 及以前 57 个 + WP-10a 新增 8 项：
+  blk_register / blk_read / blk_write / blk_flush（+ blk_set_ops）、
+  ahci_init(pci_dev)、nvme_init(pci_dev)、ata_dma_init(pci_dev)，
+  + WP-10b 新增 13 项：
+  nic_register / nic_send / nic_recv / nic_link_status / nic_get_mac、
+  e1000e_init / igb_init / ixgbe_init / rtl8139_init / rtl8168_init /
+  rtl8125_init / rtl810x_init / bcm57xx_init(pci_dev)、
+  pci_find_class_exact/mask、ata_identify_capacity，
+  + WP-10u 新增 7 项：ab_update.h（A/B 槽位、标志、校验、安装），
+  + WP-10c 新增 26 项：snd_register / snd_play / snd_stop / snd_set_rate /
+  snd_set_volume / snd_get_caps（+ snd_probe_all、snd_make_tone 与 snd.h
+  查找/列举辅助函数）、
+  hda_init / ac97_init / sb16_init / es1370_init / virtio_snd_init /
+  usb_audio_init(pci_dev / isa_dev / usb_dev)、
+  usb_init / usb_enumerate / usb_control / usb_set_interface /
+  usb_iso_out_submit（kernel/usb.h））
+- **系统调用**：37 个
+- **审计 bug 修复**：原始 WP-08 审计修复 47 个（P0=2、P1=8、P2=29、P3=8）
+  + 后续独立审计与 P2 批量收尾（P2-BATCH-1 + P2-BATCH-2）追加修复
+  4 个 P0 + 8 个 P1 + 20 个 P2，累计达 79。
+  + 15 个 GitHub-AI P3 bug（WP-08-p3：安全 + 内存 + 系统调用 + 信号 + ELF + 管道）
+  + 26 个 P4 bug（WP-08-p4：文档修复 + Makefile + ld.so 输出 + shell 管道 +
+  idle 对齐 + kill/nice 溢出 + pmm/pftest + execve argv/envp +
+  kthread_destroy 同步钩子 + 崩溃日志 + VFS 杂项）
+  总计：修复 120 个 bug（截至 WP-08；WP-09 又完成 SSH/TLS 专项修复）。
+- **测试通过**：18/18 QEMU 全量回归（WP-09 基准套件——boot 横幅 + uname +
+  12 个用户程序 + p3_test + heaptest + l1test + crashlog），另有 dhtest 5/5、
+  HTTPS E2E 与 SSH 和 paramiko 双向互操作。
+
+## WP-01（完成）- 引导 + framebuffer + 文本渲染
+
+- 经 GRUB multiboot2 实现 BIOS + UEFI 双引导。
+- 64-bit long mode，4 GiB 恒等映射。
+- 800x600x32 RGB 帧缓冲。
+- 8x16 位图字体、字符网格控制台，带光标 + 滚动。
+- 首批 4 个 L0→L1 扩展接口（fb 访问、渲染器替换、字体引擎、控制台钩子）。
+
+## WP-02（完成）- 中断 + 定时器 + 键盘
+
+- IDT + GDT + TSS：256 项 IDT，#DF/#MC 使用 IST 栈。
+- 8259 PIC remap：IRQ0-15 → 向量 32-47。
+- CPU 异常处理：#DE/#UD/#PF/#GP/#DF，带诊断转储 + L1 处理链。
+- PIT @ 100 Hz：真实系统滴答计数、真实毫秒时间戳。
+- PS/2 键盘 + COM1 串口输入 → 统一键盘队列。
+- 控制台输入行编辑器 + 交互式 `oc>` 提示符。
+- 新增 4 个 L0→L1 扩展接口（IRQ、定时器、键盘、异常）。
+
+## WP-03（完成）- 物理内存 + 虚拟内存 + 内核堆
+
+- **PMM**：4KB 页帧位图分配器，解析 multiboot2 mmap，保留内核/帧缓冲/mbi 区域，支持紧急回调。
+- **VMM**：4 级页表，创建/销毁地址空间，映射/解除映射/保护页，真实页错误处理（栈增长、堆增长、非法访问检测）。
+- **堆**：free-list 分配器，first-fit + 合并 + 双重释放检测，kmalloc/kzalloc/kfree/krealloc。
+- **Shell**：shell 命令注册 API。
+- 新增 4 个 L0→L1 扩展接口：PMM、VMM、堆、shell 命令注册。
+
+## WP-04（完成）- 调度器 + 同步原语 + 用户态
+
+- 抢占式调度器：优先级 + 轮转，32 个优先级，每任务时间片。
+- 同步原语：spinlock（含 CLI/STI）、semaphore、mutex（无优先级继承）、condvar。
+- Ring 3 用户态：TSS RSP0 切换、用户态页错误处理、ELF 装载器（静态、PIE）。
+- 新增 3 个 L0→L1 扩展接口：调度器、同步、用户态启动器。
+
+## WP-05（完成）- Shell 增强 + 文件系统
+
+- Shell：环境变量、别名、cwd、引号处理（无命令历史）。
+- VFS：虚拟文件系统，mount/unmount、open/close/read/write/stat/readdir/mkdir/rmdir/unlink。
+- RamFS：内存文件系统，挂载为根。
+- Shell 文件命令：ls、cd、pwd、cat、mkdir、rm、mv、cp、touch、stat。
+- 新增 4 个 L0→L1 扩展接口：环境变量、别名、VFS 挂载、文件操作。
+
+## WP-06（完成）- 网络协议栈
+
+- e1000 网卡驱动（PCI bus master、RX/TX 描述符）。
+- ARP + IPv4 + ICMP + TCP + UDP。
+- Socket API：socket、bind、listen、accept、connect、send、recv、close。
+- Shell 命令：ifconfig、dhcp、ping、wget、dns、netstat。
+- 新增 5 个 L0→L1 扩展接口：网卡、ARP、IP、TCP、socket。
+
+## WP-07（完成）- 磁盘子系统
+
+- ATA/IDE PIO 驱动（LBA28）。
+- virtio-blk 驱动（modern PCI）。
+- NVMe 驱动（admin 队列 + IO 队列）。
+- 块缓存：64 槽 LRU 回写。
+- 分区解析：MBR。
+- FAT32（读写）、exFAT（读写）、ext4（只读）驱动。
+- Shell 磁盘命令：lsblk、mount、umount、mkfs、fsck、fatmount。
+- 新增 6 个 L0→L1 扩展接口：块设备、分区、文件系统、挂载、缓存、文件系统驱动。
+
+## WP-08（完成）- 完整 syscall + 动态链接 + 用户 shell + 工具 + 审计修复
+
+WP-08 统一了此前分开的 WP-08a / WP-08b / WP-08cd 子包：
+
+- **完整系统调用集**（37 个）：fork、exec、wait、kill、signal、mmap、munmap、mprotect、brk、pipe、dup、dup2、sigaction、sigreturn、select、poll、chdir、getcwd、ioctl、getpid、getppid、exit、write、write_and_exit、open、close、stat、readdir、mkdir、rmdir、unlink、exit2、map_solib、read、write2、readline、getc。
+- **动态链接**：ld.so（用户态），5 种重定位类型（R_X86_64_64、R_X86_64_RELATIVE、R_X86_64_GLOB_DAT、R_X86_64_JUMP_SLOT、R_X86_64_COPY），dlopen/dlsym/dlclose、ldd。
+- **用户态 Shell（ush）**：20 个内建工具、Tab 补全、作业控制（`&`）、信号（Ctrl+C → SIGINT）、重定向（`>`）、管道（`|`）。
+- **15 个用户态测试程序**：hello、badapp、loop、fork_test、exec_test、pipe_test、mmap_test、signal_test、select_test、dyn_hello、so_test、dyn_test（别名）、dlsym_test、pie_test、reloc_test、mmap_multi。
+- **审计修复**：修复 47 个 bug（P0=2、P1=8、P2=29、P3=8）。
+- 新增 7 个 L1 扩展接口（第 51-57 项）：shell_run、shell_register_builtin、tool_register、tool_list、job_create、job_list、job_control。
+
+## WP-09（完成）- 安全传输：SSH（客户端 + 服务端）、TLS 1.3 / TLS 1.2 / HTTPS、crypto 核心
+
+- **Crypto 核心**（`kernel/crypto.{c,h}` + bn/ec/rsa/aead/x509 模块）：
+  AES-128（CTR/CBC）+ AES-128/256-GCM + ChaCha20-Poly1305、SHA-256、流式 SHA-256/HMAC、
+  SHA-512/384、HMAC-SHA-512、HKDF、大整数 modexp（Montgomery 核心，可跑 RSA-4096，
+  以 python3 pow() 真值向量在 8/16/32/64/128/256 字节尺度验证）、NIST P-256/P-384 ECDH+ECDSA、
+  X25519（RFC 7748 向量）、RSA PKCS#1 v1.5 + PSS 验证、RFC 8439/NIST KAT 验证的 AEAD、crypto_random。
+- **SSH 客户端**（`kernel/ssh.{c,h}`）：KEX curve25519-sha256（+@libssh.org）与
+  diffie-hellman-group14-sha256、aes128-ctr（aes128-cbc 回退）、hmac-sha2-256、
+  rsa-sha2-256/512 主机密钥、密码**与公钥**认证、session channel exec、
+  服务器主机密钥签名在 H 上验证并显示 TOFU SHA-256 指纹。
+  K 与 paramiko 服务端抓包字节级一致。
+- **SSH 服务端**（`kernel/sshd.c`）：同一主流套件（curve25519 KEX、aes128-ctr），
+  密码**与公钥**认证（内核身份密钥兼作主机密钥），
+  exec 请求经内核 shell 捕获 API 执行；与 paramiko 客户端互操作验证。
+- **TLS 1.3 客户端**（RFC 8446，优先）：X25519、AES-128/256-GCM 与
+  ChaCha20-Poly1305，完整 HKDF 密钥日程（RFC 8448 向量），加密握手，服务器 CertificateVerify 校验。
+- **TLS 1.2 客户端**（RFC 5246，回退）：ECDHE_RSA + AES-GCM 与
+  ChaCha20-Poly1305；旧式 DHE-CBC（0x0067）保留给旧服务器。
+- **证书验证**（`kernel/x509.{c,h}`）：X.509 链验证（内嵌公共 CA 根：ISRG、Google GTS、
+  DigiCert、GlobalSign、Baltimore、Amazon、Microsoft）+ SAN dNSName 主机名匹配，
+  RTC 校验有效期。验证失败即握手失败。
+- **HTTPS**：`wget https://host:port/path` 经 TLS 下载，直接落入 VFS。
+  真实站点验证：cubestudio-dev.github.io（10148 字节 update.json）、
+  google.com、cloudflare.com。
+- **网络运维命令**：route、arp、firewall（状态规则、conntrack、三链默认策略 +
+  REJECT + 逐规则命中计数器）、tcpstats（CUBIC cwnd/RTO/SACK/快速重传可见性）、
+  dns（A/AAAA/CNAME/MX/TXT/NS/SRV）。
+- **Shell**：116 条（boot 实测计数；`help` 列出 116 个不重复名）；含 WP-10a 存储命令面：
+  `ahci`、`nvme`、`ata`（驱动状态）与八项测试套件 `ahci_test`、`nvme_test`、
+  `ata_dma_test`、`virtio_blk_test`、`disk_rw_test`、`partition_test`、`fs_mount_test`、
+  `real_hw_test`，以及 WP-10b 网卡命令面：`e1000e`、`igb`、`ixgbe`、
+  `rtl8139`、`rtl8168`、`rtl8125`、`rtl810x`、`bcm57xx`（驱动状态）
+  与 `e1000e_test`、`igb_test`、`ixgbe_test`、`rtl8139_test`、
+  `rtl8168_test`、`rtl8125_test`、`rtl810x_test`、`bcm57xx_test`、
+  `other_nic_test`、`nic_rw_test`。
+- **存储（WP-10a）**：AHCI SATA（DMA、多端口、FLUSH）、NVMe（admin +
+  2 个 I/O 队列对、Identify、Read/Write/Flush）、ATA Bus-Master DMA
+  （PRDT + 保留 PIO 回退）、virtio-blk（容量修复）；
+  每类设备均支持 MBR + GPT 分区解析；FAT32 经统一 blk 层挂载到全部四类驱动。
+- **新用户测试程序**：mprotect_test、p3_test。
+- **验证**：18/18 QEMU 回归 + dhtest 5/5 + cryptotest 3/3 + nf_test 8/8 +
+  tcpcc_test + dnstest 6/6（live）+ tcptest + HTTPS E2E（上述真实站点）+
+  SSH 双向互操作（外部证据：paramiko 5.0）。见 docs/EXTENSIONS_WP09.md、docs/INTERFACES.md。
+- **WP-09-fix5 —— 系统配置 + 检查更新**：
+  `/etc/opencube.conf`（首个用户可编辑配置，FAT32 /etc 卷、
+  ramfs 回退）、`checkupdate` 经 HTTP/HTTPS 拉取 JSON manifest、
+  非阻塞 `auto_check` 开机检查、`config`/`edit` 命令与
+  `oc_ext_config_*` / `oc_ext_check_update*` L1 接口。见 docs/CONFIG.md。
+
+## WP-10u（完成）- 系统内自动更新：A/B 分区 + tar.gz 更新包 + 回滚 + 离线更新
+
+- **A/B 分区布局**（boot/flags + slot A + slot B + data），分区注册为独立块设备（hdapN）并挂载 /ab/boot、/ab/a、/ab/b、/data。
+- **内核自带 gzip 解码器**（RFC 1952/1951：stored/fixed/dynamic 三种块、可跨 feed 恢复、CRC32+ISIZE 校验）与**流式 ustar 解析**（头部校验和、GNU 长名）。
+- **两阶段流式 HTTP/HTTPS 下载器**（状态码 + Content-Length 校验）与 **SHA256 双层校验**（update.json 包哈希 + 包内 manifest 载荷哈希）。
+- **boot 标志协议**（next_B/ok_B/bootfail_B）实现 GRUB 侧自动回滚；slot B 启动失败保留 bootfail_B，下次启动回 slot A。
+- **命令**：update、update --local、update --status、rollback、reboot。
+- **验证**：update_pkg_test 12/12、ab_partition_test 7/7、update_check/download/verify/install/rollback/local/status 全 PASS、real_update_test 7/7 端到端（下载-校验-安装 slot B-真实重启-确认 ok_B-回滚）。见 docs/EXTENSIONS_WP10u.md。
+
+## WP-10c（完成）- 声卡驱动：Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB 音频
+
+- **snd 框架**（kernel/snd.{c,h}）：8 槽注册表，snd_register / snd_play / snd_stop / snd_set_rate / snd_set_volume / snd_get_caps；每个驱动都是真 DMA + 真设备中断（每设备 IRQ 计数在 `sound` 与测试中可见）。
+- **Intel HDA**（kernel/hda.c）：MMIO BAR、控制器复位、CORB/RIRB 命令环、codec 地址发现、widget 树枚举（音频功能组、DAC/ADC、引脚）、流格式编程与 BDL DMA + IOC 中断、LPIB 流控。
+- **AC'97 82801AA**（kernel/ac97.c）：mixer（master/PCM 音量 + 采样率）与总线主控 BDL DMA + IOC 中断。
+- **Sound Blaster 16**（kernel/sb16.c）：ISA DSP 4.05（io 0x220、IRQ 5），8/16 位单周期 DMA + 自动初始化块中断。
+- **ES1370/1371**（kernel/es1370.c）：DAC2 帧 DMA + PCLKDIV 时钟，内存映射环 + 每缓冲中断。
+- **virtio-snd**（kernel/virtio_snd.c）：modern virtio-pci（1AF4:1059），控制队列 + TX 队列，PCM prepare/start/set_volume 请求；每次开机探测（QEMU 10 无设备模型，CI 中无实体卡）。
+- **USB Audio Class 1.0**（kernel/usb_audio.c）+ **新 UHCI 主机栈**（kernel/usb.{c,h}）：UHCI 控制器驱动（piix3/4）、阻塞控制传输、设备枚举（SET_ADDRESS/CONFIGURATION/INTERFACE）、同步 OUT 按 1ms 帧调度。
+- **44.1/48 kHz** 采样率配置（能力感知；sb16 按设计拒绝 48kHz，测试验证该拒绝）。
+- **命令**：sound、hda、ac97、sb16、es1370、virtiosnd、usbaudio、play [device] [rate]、volume [device] [0-100]；lspci 显示声卡控制器（class 0x04）。boot 实测 150 条命令。
+- **验证**：hda_test / ac97_test / sb16_test / es1370_test / usb_audio_test 在 QEMU 实测（初始化 + 能力 + DMA 字节数 + IRQ 计数），audio_rw_test 对每张卡播放，sample_rate_test 配置 44.1/48kHz，virtio_snd_test 如实 SKIPPED（无 QEMU 设备模型），real_hw_test 在 VM 中如实 NOT RUN。见 docs/EXTENSIONS_WP10c.md。
+
+## 仓库结构
+
+```
+oc-os/
++-- boot/                       # 汇编引导桩（3 个 .S 文件，WP-01）
+|   +-- multiboot2_header.S
+|   +-- boot.S
+|   +-- long_mode_init.S
++-- kernel/                     # C 内核（142 个文件：.c + .h + .S）
+|   +-- types.h, string.{c,h}, multiboot2.{c,h}    # WP-01 基础
+|   +-- fb.{c,h}, font.{c,h}, font_data.c          # WP-01 framebuffer + 字体
+|   +-- console.{c,h}, ext.{c,h}, ext_selftest.c   # WP-01 控制台 + 扩展
+|   +-- log.{c,h}                                   # WP-02：真实时间戳
+|   +-- idt.{c,h}, idt_stub.S, idt_load.S          # WP-02：IDT/GDT/TSS
+|   +-- pic.h, exceptions.{c,h}, irq.{c,h}         # WP-02：PIC + 异常
+|   +-- timer.{c,h}, keyboard.{c,h}                # WP-02：PIT + 键盘
+|   +-- serial_in.{c,h}, console_in.{c,h}          # WP-02：COM1 RX + 行编辑器
+|   +-- pmm.{c,h}, vmm.{c,h}, heap.{c,h}           # WP-03：内存管理
+|   +-- shell.{c,h}                                 # WP-03：shell + 命令注册
+|   +-- sched.{c,h}, sync.{c,h}                     # WP-04：调度器 + 同步
+|   +-- usermode.{c,h}, enter_ring3_fork.S         # WP-04：用户态 + fork
+|   +-- context_switch.S                            # WP-04：上下文切换
+|   +-- vfs.{c,h}, ramfs.{c,h}                     # WP-05：VFS + ramfs
+|   +-- file_cmds.{c,h}, shell_cmds               # WP-05：文件命令
+|   +-- net.{c,h}                                   # WP-06：TCP/IP 协议栈
+|   +-- ata.{c,h}, virtio_blk.{c,h}, nvme.{c,h}    # WP-07：磁盘驱动
+|   +-- blk.{c,h}, blk_cache.{c,h}, part.{c,h}     # WP-07：块层 + 分区
+|   +-- fat32.{c,h}, exfat.{c,h}, ext4.{c,h}       # WP-07：文件系统
+|   +-- disk_cmds.{c,h}                             # WP-07：磁盘命令
+|   +-- syscall.{c,h}                               # WP-08：syscall 分发
+|   +-- ext_wp8a.{c,h}, ext_wp8b.{c,h}, ext_wp8cd.{c,h}  # WP-08 L1 扩展
+|   +-- userprogs_data.h, solib_data.h             # WP-08 内嵌 ELF + .so 数据
+|   +-- crypto.{c,h}, dh_scale_vectors.h           # WP-09：AES/SHA/HMAC/DH
+|   +-- bn.{c,h}, ec_nist.{c,h}, curve25519.{c,h}  # WP-09 主流化：大整数 + P-256/384 + X25519
+|   +-- rsa.{c,h}, aead.{c,h}, sha512.{c,h}        # WP-09 主流化：RSA 验证 + AEAD + SHA-512
+|   +-- x509.{c,h}                                 # WP-09 主流化：X.509 链 + 主机名验证
+|   +-- tcp_cc.{c,h}                               # WP-09 主流化：CUBIC 拥塞控制
+|   +-- ssh.{c,h}, sshd.c, sshd_rsa_key.h          # WP-09：SSH 客户端 + 服务端
+|   +-- tls.{c,h}                                   # WP-09：TLS 1.3/1.2 客户端
+|   +-- config.{c,h}, update.{c,h}, ab_update.{c,h}  # WP-09-fix5/WP-10u：配置 + 检查更新 + A/B 更新
+|   +-- ahci.{c,h}, ata_dma.{c,h}                   # WP-10a：AHCI SATA + ATA Bus-Master DMA
+|   +-- nic.{c,h}, nic_e1000e.c, nic_igb.c,        # WP-10b：网卡框架 + 九族
+|   |   nic_ixgbe.c, nic_rtl8139.c, nic_rtl8169.c, #   驱动 + 测试
+|   |   nic_bcm57xx.c, nic_other.c, nic_test_cmds.c
+|   +-- snd.{c,h}, snd_test_cmds.c                   # WP-10c：声卡框架 + 测试
+|   +-- hda.{c,h}, ac97.{c,h}, sb16.{c,h},          # WP-10c：六族声卡驱动
+|   |   es1370.{c,h}, virtio_snd.{c,h},             #   + USB 音频
+|   |   usb.{c,h}, usb_audio.{c,h}
+|   +-- kmain.c                                     # 内核主入口
++-- userprogs/                  # 用户态程序（23 个文件：.c + .asm + .ld）
+|   +-- hello.asm, badapp.asm, loop.asm            # 基础测试
+|   +-- fork_test.asm, exec_test.asm               # 进程测试
+|   +-- pipe_test.asm, signal_test.asm, select_test.asm  # IPC 测试
+|   +-- mmap_test.asm, mmap_multi.asm, mprotect_test.asm  # 内存测试
+|   +-- p3_test.asm                                 # WP-09：P3 回归
+|   +-- main_dyn.c, dyn_hello.c, so_test.c, dlsym_test.c  # 动态链接测试
+|   +-- pie_test.c, reloc_test.c                   # PIE + 重定位测试
+|   +-- ld_so.c                                    # 动态链接器（ld.so）
+|   +-- libfoo.c                                   # 共享库
+|   +-- ush.c                                      # 用户态 shell
+|   +-- user.ld, ld_so.ld                          # 链接脚本
++-- docs/                       # 文档（18 个文件）
+|   +-- BUILD.md, CONFIG.md, COPYRIGHT.md, INTERFACES.md, MANIFEST.txt
+|   +-- EXTENSIONS.md（总览）
+|   +-- EXTENSIONS_WP02..WP10c.md（按 WP 接口文档）
++-- tools/                      # 构建 + 测试脚本
+|   +-- build_iso.sh, gen_font.py, embed_userprog.py
+|   +-- qemu_shot.py, qemu_shot_vnc.py, qemu_runner.py
+|   +-- github_release_wp08.sh  # GitHub Release 辅助脚本
+|   +-- sshd_test.py, paramiko_sshd.py, https_test_server.py  # WP-09 E2E
+|   +-- make_ab_disk.sh, make_update_pkg.sh, update_server.py # WP-10u OTA
++-- archive/                    # 旧归档源码（3 个文件，.gitignore 子目录）
++-- .gitignore                  # 排除 build/、*.o、*.elf、*.iso、*.zip、releases/ 等
++-- LICENSE                     # Apache 2.0 全文（201 行）
++-- NOTICE                      # 版权 + 第三方组件
++-- Makefile                    # 顶层构建（kernel + iso）
++-- linker.ld                   # 内核链接脚本
++-- grub.cfg                    # GRUB 引导配置
++-- MANIFEST.md                 # 项目清单
++-- README.md                   # 本文件
+```
+
+**注**：二进制发布物（ISO + 源码 zip）托管在 GitHub Releases——
+不存放在本仓库。请通过官网（https://cubestudio-dev.github.io/OpenCubeOS）
+或 GitHub Releases 页面下载。
+
+## 快速开始
+
+```sh
+# 构建（需要 PATH 中有 gcc/nasm/xorriso/grub-mkimage）
+make iso            # -> build/opencube.iso（BIOS + UEFI 双引导）
+
+# 用 QEMU 运行
+make run-bios       # SeaBIOS -> GRUB -> 内核
+# 或
+make run-uefi       # OVMF -> GRUB EFI -> 内核
+```
+
+出现 `oc>` 提示符后，输入 `help` 查看完整命令列表。
+试试 `run ush` 启动用户态 shell。
+
+## 测试
+
+WP-09 基准回归是 **18/18 QEMU 全量套件**（boot 横幅、uname、12 个用户程序、
+p3_test、heaptest、l1test、crashlog），经 `tools/qemu_runner.py` 在单次 QEMU
+会话中执行。另有：
+
+- `dhtest` — 5/5 DH modexp 正确性（Oakley Group 1 + group14 真值向量
+  + 8..256 字节尺度扫描 + 确定性验证）。
+- HTTPS E2E — 真实站点 TLS（内核客户端）：
+  `https://cubestudio-dev.github.io/OpenCubeOS/update.json` → 10148 字节；
+  google.com、cloudflare.com；另有本地 `tools/https_test_server.py`
+  （仅 TLS1.2，DHE-RSA-AES128-SHA256）覆盖旧式回退路径：
+  握手 + 加密 GET + 解密响应 + MAC 校验，
+  双侧留日志。
+- SSH 与 paramiko 5.0 双向互操作（`tools/sshd_test.py` 与
+  `tools/paramiko_sshd.py`）：密码 + 公钥认证、curve25519/group14 KEX、
+  aes128-ctr/cbc — 4/4 检查 + K 字节级一致 + 服务器主机密钥签名验证（TOFU 指纹）。
+- WP-10u 更新测试 — update_pkg_test 12/12、ab_partition_test 7/7、
+  update_check/download/verify/install/rollback/local/status 全 PASS、
+  real_update_test 7/7 真实重启进入 slot B（`tools/make_ab_disk.sh`、
+  `tools/make_update_pkg.sh`、`tools/update_server.py`）。
+- WP-10c 声卡测试 — hda_test / ac97_test / sb16_test / es1370_test /
+  usb_audio_test 在 QEMU 实测（真 DMA + 真 IRQ 计数）、audio_rw_test 对每张卡、
+  sample_rate_test 44.1/48kHz；virtio_snd_test SKIPPED（无 QEMU 设备模型）、
+  real_hw_test 在 VM 中 NOT RUN（如实申报）。
+
+## 下载
+
+- **最新（WP-10c）**：[GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip + 系统内更新包
+- **WP-10u 更新**：系统内自动更新——A/B 双分区（boot/flags + slot A + slot B + data，分区注册为 hdapN 块设备并挂载 /ab/boot、/ab/a、/ab/b、/data）；内核自带 gzip 解压（RFC 1952/1951：stored/fixed/dynamic 块、可跨 feed 恢复、CRC32+ISIZE 校验）与流式 ustar 解析（头部校验和、GNU 长名、自动剥离顶层包裹目录）；两阶段流式 HTTP/HTTPS 下载（状态码 + Content-Length 校验）；SHA256 双层校验（update.json 包哈希 + 包内 manifest 载荷哈希）；boot 标志协议（next_B/ok_B/bootfail_B）实现 GRUB 侧自动回滚；配置扩至 4 项（package_url、online_update）；命令新增 update / update --local / update --status / rollback / reboot；L1 扩展接口新增 oc_ext_update_check_pkg / download / verify / install / rollback / set_boot / get_status 七项（共 85）；测试新增 update_pkg_test（12/12：gzip 三种块型、头选项、坏 CRC、截断、单字节流式恢复、ustar 解析与坏校验和）、ab_partition_test（7/7）、update_check/download/verify/install/rollback/local/status、real_update_test（7/7 端到端：下载-校验-安装至 slot B-真实重启进入 test1 内核-确认-回滚回 A）
+- **归档（WP-08 系列）**：[GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
+- 或访问 https://cubestudio-dev.github.io/OpenCubeOS 直接下载
+
+## 许可证
+
+Apache 2.0。见 `LICENSE`。
+
+## AI 披露
+
+本项目由 cubestudio-dev 在 AI 工具协助下开发。全部设计决策、架构、
+规格、项目管理、代码评审、质量保证与验收测试由 cubestudio-dev 完成。
+AI 工具仅作为实现辅助。
+
+## 版权
+
+Copyright 2026 cubestudio-dev <cubestudio@qq.com>.0:{"buildId":"GgP1j6Yqttk4ABoCaANCJ","rsc":["$","$1","c",{"children":[["$","div",null,{"className":"container","children":[["$","div",null,{"className":"page-head","children":[["$","h1",null,{"children":"文档"}],["$","p",null,{"children":["以下内容在构建时直接读取自仓库真实文档文件，原样展示、一字未改。如需查看最新版本，请访问 ",["$","a",null,{"href":"https://github.com/cubestudio-dev/OpenCubeOS","target":"_blank","rel":"noopener noreferrer","children":"GitHub 仓库"}],"。"]}],["$","p",null,{"className":"docs-lang-note","children":"本页为中文翻译版（由本站提供，便于阅读）。事实与数字以英文原文为准；英文原文见 English 版文档页。"}]]}],["$","nav",null,{"className":"docs-nav","aria-label":"文档目录","children":[[["$","a","readme",{"href":"#readme","children":"README"}],["$","a","build",{"href":"#build","children":"BUILD"}],["$","a","interfaces",{"href":"#interfaces","children":"INTERFACES"}],["$","a","tryit",{"href":"#tryit","children":"TRY-IT"}],["$","a","update-howto",{"href":"#update-howto","children":"UPDATE-HOWTO"}]],["$","a",null,{"href":"/OpenCubeOS/zh/","children":"← 返回首页"}]]}],[["$","section","readme",{"className":"doc-block","id":"readme","children":[["$","h2",null,{"children":"README"}],["$","div",null,{"className":"doc-src","children":["来源：","README.md 中文翻译（原文件：仓库根 README.md）"]}],["$","pre",null,{"className":"doc-pre","children":"$2"}]]}],"$L3","$L4","$L5","$L6"]]}],null,"$L7"]}],"loading":null,"isPartial":false}
+8:Tdbd,<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+<!-- Chinese translation of docs/BUILD.md (website-provided, for reading
+     convenience). The English original in the repository is authoritative.
+     Commands, paths and identifiers are kept verbatim. -->
+
+# Open Cube OS - WP-03 构建指南
+
+## 前置条件
+
+WP-03 需要一个 freestanding x86_64 工具链：C 编译器、汇编器、链接器、ISO 构建器、QEMU 与 OVMF（UEFI 固件）。在标准 Debian/Ubuntu 系统上，这些来自 `gcc`、`nasm`、`xorriso`、`grub-pc-bin`、`grub-efi-amd64-bin`、`grub-common`、`qemu-system-x86`、`ovmf`、`mtools` 与 `python3-pil`。
+
+安装后，以下命令都必须能报告版本：
+
+```sh
+gcc --version          # 任意较新的 gcc
+nasm --version         # 2.16+
+xorriso --version      # 1.5+
+grub-mkrescue --version # 2.12+
+grub-mkimage --version  # 2.12+
+qemu-system-x86_64 --version # 10.0+
+# OVMF 固件文件（位置随发行版不同）：
+#   Debian/Ubuntu: /usr/share/OVMF/OVMF_CODE_4M.fd 与 OVMF_VARS_4M.fd
+#                  或 /usr/share/ovmf/OVMF.fd
+```
+
+如果工具不在默认系统路径（例如你把它们解压到了自定义位置），设置以下环境变量：
+
+```sh
+export OC_TOOLS=/path/to/your/toolchain/extract
+export OVMF_CODE=/path/to/OVMF_CODE.fd
+export OVMF_VARS=/path/to/OVMF_VARS.fd
+```
+
+构建脚本（`tools/build_iso.sh`、`tools/qemu_shot_vnc.py`）读取 `OC_TOOLS`
+来定位 GRUB 模块、SeaBIOS 与 QEMU 数据文件。
+
+## 构建
+
+```sh
+cd /path/to/oc-os
+make            # 构建 build/opencube.elf
+make iso        # 构建 build/opencube.iso（BIOS+UEFI 混合）
+```
+
+`iso` 目标调用 `tools/build_iso.sh`，它会：
+
+1. 把内核 ELF、`grub.cfg`、unicode 字体以及 GRUB 的 `i386-pc` 与 `x86_64-efi` 模块暂存到 `build/iso-stage/`。
+2. 调用 `grub-mkimage -O i386-pc-eltorito` 构建 BIOS El Torito 引导镜像。
+3. 调用 `grub-mkimage -O x86_64-efi` 构建 `EFI/BOOT/BOOTX64.EFI`。
+4. 构建一个包含 `EFI/BOOT/BOOTX64.EFI` 的 1 MiB FAT 镜像——即 EFI 系统分区（ESP）。
+5. 调用 `xorriso -as mkisofs`，同时带 `-b`（BIOS El Torito）与 `-e`（UEFI ESP）选项，生成最终的混合 ISO。
+
+得到的 ISO 有 **两个** El Torito 启动项：
+
+```
+El Torito boot img :   1  BIOS  y   none  0x0000  0x00      4         579
+El Torito boot img :   2  UEFI  y   none  0x0000  0x00   2048          67
+```
+
+BIOS 固件选第 1 项，UEFI 固件选第 2 项。
+
+## 运行
+
+```sh
+make run-bios    # SeaBIOS，经 -cdrom
+make run-uefi    # OVMF，经 -cdrom（带 -boot d）
+```
+
+两个目标都把内核的串口输出转储到 stdout。内核的 COM1（端口 0x3F8）接到了控制台输出钩子上，所以画到 framebuffer 的每一行也同时 tee 到串口。
+
+## 截图
+
+```sh
+make shot-bios   # -> build/shot-bios.png  (800x600)
+make shot-uefi   # -> build/shot-uefi.png  (800x600)
+```
+
+这些使用 `tools/qemu_shot_vnc.py`：以 VNC 显示启动 QEMU，等待内核完成引导，然后向 QEMU 的 monitor socket 发送 `screendump`。PPM 经 PIL 转为 PNG。
+
+## 分发
+
+```sh
+make dist
+```
+
+产出：
+
+- `dist/OpenCubeOS-src-WP<NN>-<timestamp>.zip` - 源码树（排除 `build/`、`dist/`、`.git/`）
+- `dist/OpenCubeOS-WP<NN>-<timestamp>.iso` - `build/opencube.iso` 的副本
+- `dist/OpenCubeOS-WP<NN>-<timestamp>.iso.sha256` - SHA256 校验和
+
+## 清理
+
+```sh
+make clean
+```
+
+删除 `build/`、`dist/` 与 `iso/` 下暂存的内核 ELF。3:["$","section","build",{"className":"doc-block","id":"build","children":[["$","h2",null,{"children":"BUILD"}],["$","div",null,{"className":"doc-src","children":["来源：","BUILD.md 中文翻译（原文件：docs/BUILD.md）"]}],["$","pre",null,{"className":"doc-pre","children":"$8"}]]}]
+9:T1e5c,<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+<!-- Chinese translation of docs/INTERFACES.md (website-provided, for
+     reading convenience). The English original in the repository is
+     authoritative. Signatures and code blocks are kept verbatim. -->
+
+# Open Cube OS — 接口索引（截至 WP-10c）（截至 WP-10u）
+
+Open Cube OS 向上层（L1）与 shell 暴露的每一个接口的单页索引。
+签名逐字复制自头文件——完整文档与示例见各头文件。
+
+工作包总览：docs/EXTENSIONS.md（WP-01）至
+docs/EXTENSIONS_WP09.md（WP-09）、docs/EXTENSIONS_WP10a.md（WP-10a，
+存储驱动：AHCI / NVMe / ATA DMA / virtio-blk）与
+docs/EXTENSIONS_WP10u.md（WP-10u，系统内自动更新：update_check_pkg / update_download /
+ *   update_verify / update_install / update_rollback / update_set_boot /
+ *   update_get_status 七项接口）、docs/EXTENSIONS_WP10b.md（WP-10b，网卡驱动：e1000e / igb / ixgbe /
+RTL8139 / RTL8168 / RTL8125 / RTL810x / BCM57xx / legacy 其他）。
+
+## 1. L0 → L1 扩展 API（kernel/ext*.h）
+
+### kernel/ext.h — WP-01（framebuffer / 渲染器 / 字体 / 控制台）
+
+```c
+const oc_fb_info_t* oc_ext_fb_get_info(void);
+oc_renderer_t*      oc_ext_set_renderer(oc_renderer_t* new_renderer);
+int   oc_ext_register_font_engine(oc_font_engine_t* engine);
+oc_font_engine_t* oc_ext_font_engine_by_name(const char* name);
+oc_font_engine_t* oc_ext_default_font_engine(void);
+void  oc_ext_set_console_hook(oc_console_hook_fn hook, void* ctx);
+void  oc_ext_console_hook(u8 ch);   /* 由 L0 控制台调用 */
+int   oc_ext_self_test(void);
+```
+
+### kernel/ext_wp8a.h — WP-08a（进程 / 信号 / 系统调用 / fd）
+
+```c
+proc_fork / proc_exec / proc_exit / proc_wait
+proc_getpid / proc_getppid
+signal_register / signal_return / signal_send
+sys_brk / sys_mmap / sys_mprotect / sys_munmap
+sys_select / sys_poll
+sys_chdir / sys_getcwd / sys_ioctl
+pipe_create / fd_dup / fd_dup2
+```
+（21 个函数；精确签名见头文件。）
+
+### kernel/ext_wp8b.h — WP-08b（动态链接）
+
+```c
+ldso_run
+dlopen_impl / dlsym_impl / dlclose_impl
+so_load / so_unload
+symbol_resolve / reloc_apply
+elf_load_dynamic / elf_get_needed
+ext_wp8b_selftest
+```
+（11 个函数。）
+
+### kernel/ext_wp8cd.h — WP-08cd（用户 shell / 工具 / 作业）
+
+```c
+shell_run / shell_register_builtin
+tool_register / tool_list
+job_create / job_list / job_control
+```
+（7 个函数。）
+
+### kernel/ext_wp2.h、ext_wp3.h、ext_wp7.h
+
+WP-02/WP-03/WP-07 子系统结构的类型/宏头文件（无可调用函数）。
+WP-02/03/05/06/07 的"扩展点"以直接内核 API 形式暴露（见 §3），
+而非 oc_ext_* 函数。
+
+## 2. WP-09 传输 API（kernel/ssh.h、kernel/tls.h）
+
+```c
+/* SSH 客户端（curve25519-sha256 / group14-sha256 KEX、aes128-ctr/cbc、
+ * hmac-sha2-256、rsa-sha2-256/512 主机密钥在 H 上验证并显示 TOFU 指纹、
+ * 密码 + 公钥认证、session exec） */
+int  ssh_connect(u32 ip, u16 port, const char *username, const char *password);
+int  ssh_exec(const char *command, void *output, int output_len);
+void ssh_close(void);
+
+/* SSH 服务端（kernel/sshd.c）：`sshd <port> <user> <password>` shell 命令；
+ * 服务一个会话后返回。exec 请求经内核 shell 捕获 API
+ * （shell_execute_captured）执行。 */
+
+/* TLS 1.3/1.2 客户端（TLS 1.3：X25519 + AES-GCM/ChaCha20-Poly1305；
+ * TLS 1.2 回退：ECDHE_RSA + AES-GCM/ChaCha20-Poly1305，旧式 DHE-CBC 保留。
+ * X.509 链 + 主机名验证（内嵌公共 CA 根）——验证失败即握手失败） */
+int  tls_connect(u32 ip, u16 port, const char *hostname);
+int  tls_send(tls_ctx_t *ctx, const void *data, int len);
+int  tls_recv(tls_ctx_t *ctx, void *buf, int len);
+void tls_close(tls_ctx_t *ctx);
+int  tls_https_get(u32 ip, u16 port, const char *hostname, const char *path,
+                   void *out_buf, int out_len);
+```
+
+Crypto 原语：`kernel/crypto.h`（aes128 CTR/CBC、sha256、hmac_sha256、
+hkdf、dh_modexp、crypto_random）、`kernel/bn.h`（大整数 modexp，Montgomery 核心）、
+`kernel/ec_nist.h`（P-256/P-384 ECDH+ECDSA）、`kernel/curve25519.h`（X25519）、
+`kernel/rsa.h`（PKCS#1 v1.5 + PSS 验证）、`kernel/aead.h`（AES-GCM、ChaCha20-Poly1305）、
+`kernel/sha512.h`（SHA-512/384 + HMAC）、`kernel/x509.h`（证书解析 + 链/主机名验证）。
+DH 自测真值向量：kernel/dh_scale_vectors.h。
+
+## 3. 内核子系统 API（自各自 WP 起稳定）
+
+| 子系统 | 头文件 | 关键函数 |
+|---|---|---|
+| Framebuffer | kernel/fb.h | oc_fb_* |
+| 控制台 | kernel/console.h | oc_console_* |
+| Shell + 命令注册 | kernel/shell.h | shell_register_command、shell_execute_captured（WP-09） |
+| PMM / VMM / 堆 | kernel/pmm.h、vmm.h、heap.h | pmm_alloc_frame、vmm_*、kmalloc/kfree/krealloc |
+| 调度器 + 同步 | kernel/sched.h、sync.h | sched_*、spinlock/mutex/sem/cond |
+| 用户态 + 系统调用 | kernel/usermode.h、syscall.h | user_process_create、syscall 分发（37 个系统调用） |
+| VFS + ramfs | kernel/vfs.h、ramfs.h | vfs_open/read/write/stat/... |
+| 网络（TCP/IP） | kernel/net.h | net_socket/connect/send/recv/accept/close、dns_resolve；命令级：dhcp/ping/wget/dns/route/arp/firewall/tcpstats |
+| 块 + 文件系统 | kernel/blk.h、part.h、fat32.h、exfat.h、ext4.h | blk_*、vfs 挂载（FAT32 R/W、exFAT R/W、ext4 RO） |
+| 存储驱动（WP-10a） | kernel/ahci.h、nvme.h、ata_dma.h、virtio_blk.h | ahci_init(pci_dev)、nvme_init(pci_dev)、ata_dma_init(pci_dev)、virtio_blk_init、pci_find_class_exact/mask（pci.h） |
+| 系统内更新（WP-10u） | kernel/ab_update.h | oc_ext_update_check_pkg(out)、oc_ext_update_download(url, path)、oc_ext_update_verify(path, sha256)、oc_ext_update_install(pkg, slot)、oc_ext_update_rollback()、oc_ext_update_set_boot(slot)、oc_ext_update_get_status(out) |
+| 网卡驱动（WP-10b） | kernel/nic.h | nic_register(dev, ops)、nic_send/recv(dev, ...)、nic_link_status(dev)、nic_get_mac(dev, mac)、e1000e_init/igb_init/ixgbe_init/rtl8139_init/rtl8168_init/rtl8125_init/rtl810x_init/bcm57xx_init(pci_dev)、other_nics_init、nic_probe_all、nic_active |
+| 声卡驱动（WP-10c） | kernel/snd.h、usb.h | snd_register(dev, ops)、snd_play/stop/set_rate/set_volume/get_caps(dev, ...)、hda_init/ac97_init/es1370_init/virtio_snd_init(pci_dev)、sb16_init(isa_dev)、usb_audio_init(usb_dev)、snd_probe_all；USB：usb_init、usb_enumerate、usb_control、usb_set_interface、usb_iso_out_submit（kernel/usb.h） |
+| TCP socket 状态（WP-10a-fix） | kernel/net.h | net_tcp_established(fd) |
+
+## 4. Shell 命令面
+
+150 条命令在 boot 时注册（实测计数；`help` 列出 150 个不重复名）。
+`shell_register_command` 调用点（静态计数）：kmain.c 48（含 update/rollback/reboot）、
+net.c 17、file_cmds.c 18、disk_cmds.c 7、
+disk_setup.c 4（第 ⑨ 条自宿主：abdisk/install/grub-install/abcfg）、
+disk_test_cmds.c 8（WP-10a 存储测试套件）、
+nic_test_cmds.c 18（WP-10b：10 个 NIC 测试 + 8 个 NIC 状态命令）、
+snd_test_cmds.c 17（WP-10c：声卡状态命令 + 声卡测试）、
+update_test_cmds.c 10（WP-10u：update_pkg/ab_partition/update_check/update_download/update_verify/update_install/update_rollback/update_local/update_status/real_update）、
+shell.c 5、ext_wp8cd.c 1——部分在不同阶段注册同名命令，以 boot 实测计数为准。
+完整列表：在 `oc>` 提示符输入 `help`。
+
+## 5. 这些接口的验证
+
+- L1 自测：`ext_selftest`（WP-01）、l1test（WP-08cd）、ext_wp8cd
+  boot 自测——在 18/18 回归中全部 PASS。
+- WP-09 传输 E2E：HTTPS 双侧、SSH 双向、K 字节级一致。4:["$","section","interfaces",{"className":"doc-block","id":"interfaces","children":[["$","h2",null,{"children":"INTERFACES"}],["$","div",null,{"className":"doc-src","children":["来源：","INTERFACES.md 中文翻译（原文件：docs/INTERFACES.md）"]}],["$","pre",null,{"className":"doc-pre","children":"$9"}]]}]
+a:T26ea,<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
+# Open Cube OS - 上手试用指南（TRY-IT 中文版）
+
+内核的每一项硬件功能，附挂载该设备的确切 QEMU 命令、在客户机内
+练习该功能的确切命令，以及你应当看到的输出。如果你的输出不一致，
+最后一节列出了常见原因。
+
+本指南覆盖**存储、网络、声卡**。系统内更新（OTA）流程有专门的
+分步指南：**docs/UPDATE-HOWTO.md**（中文翻译见本页 UPDATE-HOWTO 节）。
+
+适用于全文的说明：
+
+- 下文使用的 `tools/qemu_runner.py` 脚本会引导 ISO 并替你输入客户机
+  命令（单次会话，串口控制台）。你也可以 `make run-bios` 引导后自己
+  输入命令。
+- `mkdir`、`touch`、`rm`、`cp`、`mv` 成功时不输出（Unix 惯例）；
+  失败时总会打印原因。
+- `run <program>` 启动用户程序；其输出可能出现在 `oc>` 提示符之后，
+  因为程序与 shell 并发运行。输出一定会在你输入的下一条命令结束前
+  到达。
+
+## 0. 你需要什么
+
+| 项目                    | 来源                                    |
+|-------------------------|-----------------------------------------|
+| Open Cube OS ISO        | GitHub Releases / 本站                  |
+| QEMU（6.0+）            | 发行版软件包                            |
+| 一块空白 raw 磁盘镜像   | `dd if=/dev/zero of=disk.img bs=1M count=64` |
+
+## 1. 存储（WP-10a）
+
+在 IDE 总线上挂一块空白磁盘：
+
+```sh
+dd if=/dev/zero of=disk.img bs=1M count=64
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -drive if=ide,format=raw,file=disk.img
+```
+
+客户机内——格式化、挂载、写入、读取、检查、卸载：
+
+```
+oc> lsblk
+Block devices:
+  hda [ATA] 131072 sectors (65536 KiB) sector_size=512
+oc> mkfs.fat32 hda
+FAT32 formatted on hda
+oc> fatmount hda /mnt
+vfs: mounted fat32 at /mnt
+fat32 mounted. Try: ls /mnt
+oc> write /mnt/note.txt audit test file
+wrote 15 bytes
+oc> cat /mnt/note.txt
+audit test file
+oc> df
+Filesystem     Mount     Device    Use
+ramfs         /        -        7 nodes, 485 bytes
+fat32         /mnt     hda      129020 free clusters, 512 bytes/cluster
+oc> umount /mnt
+umounted /mnt
+oc> fsck hda
+fsck: FAT32 filesystem on hda
+  ...
+  fsck: PASS (basic checks OK)
+```
+
+`mkfs.exfat` 与 `mkfs.ext4` 同样可用；`fsck` 会如实报告卷类型
+（"ext2/3/4 volume detected ... fsck supports FAT32 only"），而不会
+误解析。
+
+其他控制器——用下面任意一条替代（或追加）上面的 IDE 盘：
+
+```sh
+# AHCI（SATA）
+-device ich9-ahci,id=ahci -drive if=none,id=da,file=disk.img,format=raw \
+-device ide-hd,drive=da,bus=ahci.0
+# NVMe
+-device nvme,id=nv0,serial=oc -drive if=none,id=dn,file=disk.img,format=raw \
+-device nvme-ns,drive=dn
+# virtio-blk
+-drive if=none,id=dv,file=disk.img,format=raw -device virtio-blk-pci,drive=dv
+```
+
+磁盘会以 `sda`（AHCI）、`nvme0`（NVMe）或 `vda`（virtio）出现在
+`lsblk` 中；每类都有自测命令（`ahci_test`、`nvme_test`、
+`virtio_blk_test`、`ata_dma_test`、`disk_rw_test <dev>`、
+`fs_mount_test <dev>`、`partition_test`），打印输入 / 预期 / 实际与
+判定。
+
+## 2. 网络（WP-10b）
+
+默认的 `qemu_runner.py` 会话已经带一块 e1000 网卡。普通 QEMU 运行
+请追加：
+
+```sh
+-netdev user,id=n1 -device e1000,netdev=n1
+```
+
+客户机内——DHCP、接口、ping、DNS、路由：
+
+```
+oc> dhcp
+DHCP success: IP=10.0.2.15
+  mask=255.255.255.0
+  gateway=10.0.2.2
+  DNS=10.0.2.3
+oc> ifconfig
+e1000:
+  HWaddr 52:54:00:12:34:56
+  inet 10.0.2.15
+  ...
+  link: UP
+oc> ping 10.0.2.2
+PING 10.0.2.2 ...
+  reply received
+  reply received
+  reply received
+  reply received
+oc> dns example.com
+A: 104.20.23.154
+oc> route
+Routing table:
+  0.0.0.0 mask=0.0.0.0 gw=10.0.2.2 (default)
+```
+
+其他驱动族（每族都有对应的 `*_test` 自测）：
+
+```sh
+-device e1000e,netdev=n1    # 然后运行：e1000e_test
+-device igb,netdev=n1       # 然后运行：igb_test
+-device rtl8139,netdev=n1   # 然后运行：rtl8139_test
+```
+
+（每条前面都要加 `-netdev user,id=n1`。）没有 QEMU 设备模型的族
+（ixgbe、bcm57xx 等）会带原因如实报告 `SKIPPED`——设备不存在时
+绝不伪造输出。
+
+## 3. 声卡（WP-10c）
+
+挂一张 Intel HDA 声卡（现实中最常见的控制器）。QEMU 10 需要显式
+`audiodev`；`wav` 后端会把内核播放的内容写入 WAV 文件，方便你在
+宿主机上核对 PCM 通路：
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -audiodev wav,id=snd0,path=/tmp/out.wav \
+  -device intel-hda -device hda-output,audiodev=snd0
+```
+
+客户机内——列出声卡、状态、音量、播放：
+
+```
+oc> sound
+sound devices:
+  0: hda (hda) rate=48000 ch=2 vol=74 played=0B
+oc> hda
+Intel HDA: vid=0x8086 did=0x2668 at 00:04.0 codec=00 dac_nid=02 ...
+oc> volume 60
+volume: hda = 60
+oc> volume
+volume: hda = 60
+oc> play
+play: hda 440Hz 48000 frames @ 48000Hz
+```
+
+如果设备名写错，命令会告诉你可用的名字：
+
+```
+oc> play usbaudio
+play: unknown device 'usbaudio' (available: hda)
+usage: play [device] [rate 4000-96000]
+```
+
+一台机器挂更多声卡（全部五族）：
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -audiodev wav,id=snd0,path=/tmp/out.wav \
+  -device intel-hda -device hda-output,audiodev=snd0 \
+  -device AC97,audiodev=snd0 -device sb16,audiodev=snd0 \
+  -device ES1370,audiodev=snd0 \
+  -device piix3-usb-uhci -device usb-audio,audiodev=snd0
+```
+
+此时 `sound` 列出五张卡；`play <name>` 与
+`volume <name> 0-100` 按卡生效（`hda`、`ac97`、`es1370`、
+`usb-audio`、`sb16`——与 `sound` 显示的名字完全一致）。自测：
+`hda_test`、`ac97_test`、`sb16_test`、`es1370_test`、
+`usb_audio_test`，另有 `audio_rw_test`（每张卡播放/停止往返）与
+`sample_rate_test`（44.1/48 kHz）。
+
+说明：
+- QEMU 10 **没有** `virtio-snd-pci` 模型，所以 `virtio_snd_test`
+  在 QEMU 10 下如实报告 SKIPPED；在真实 virtio 硬件上会运行。
+- QEMU 10 的 `intel-hda` 模型在重编程到 44.1 kHz 时会死循环；
+  `sample_rate_test` 因此改为验证能力位（见
+  docs/EXTENSIONS_WP10c.md）。
+
+## 4. 更新 / 回滚（WP-10u）
+
+带预期输出的完整分步指南：**docs/UPDATE-HOWTO.md**。简版——A/B 磁盘
+**在系统内创建**（第 ⑨ 条自宿主，无需宿主机脚本）：
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -drive if=ide,format=raw,file=abdisk.img \
+  -netdev user,id=n1 -device e1000,netdev=n1
+```
+
+```
+oc> abdisk hda               # 创建 A/B 布局 + GRUB + slot A 内核
+oc> update --status          # A/B 磁盘：在位（无需重启）
+oc> ab_partition_test        # 7/7 PASS
+oc> dhcp && config set update_url http://10.0.2.2:8008/update.json
+oc> update                   # 下载、校验、安装到 slot B
+oc> reboot                   # 自动引导 slot B
+oc> rollback                 # 下次引导回到 slot A
+```
+
+reboot 后 GRUB 按 p1 的标志文件选择槽位（`BOOT_SLOT=B`），系统起来后
+确认更新（`slot B boot confirmed`）。**拔掉 ISO 重启**磁盘也能独立引导
+——`abdisk` 会把 GRUB BIOS 引导器写进 MBR gap（boot.img -> LBA0，
+core.img -> LBA1..）。
+
+## 4b. 安装系统到磁盘（单系统）
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -drive if=ide,format=raw,file=disk.img
+```
+
+```
+oc> install hda              # 分区 + FAT32 + 内核 + GRUB
+oc> sync                     # 刷盘缓存
+```
+
+去掉 ISO 重启（`-boot c`）即从磁盘直接引导 Open Cube OS。
+`grub-install <盘>` 只向已分区的磁盘写引导器（MBR gap，或 GPT 的
+BIOS boot 分区）。`abcfg` 打印 abdisk/install 写入的 grub.cfg 内容。
+注意：这些命令安装的是 **BIOS** 引导路径；UEFI 机器请从 ISO 启动安装
+（ISO 本身 BIOS+UEFI 双引导）。
+
+## 5. 无需任何硬件
+
+以下命令在裸 QEMU 会话（不挂任何额外设备）即可使用：
+
+| 试试这个                          | 你应当看到                              |
+|-----------------------------------|-----------------------------------------|
+| `help`                            | 150 条命令的列表                        |
+| `uname -a`                        | `Open Cube OS WP-10c x86_64`            |
+| `mkdir /d` + `write /d/f hi` + `cat /d/f` | `hi`                            |
+| `mem`、`heap`、`ps`、`sched`      | 内存/任务/调度器统计                    |
+| `heaptest`、`memtest`、`vmtest`   | PASS                                    |
+| `run hello`                       | `hello from userspace`                  |
+| `run fork_test` / `run pipe_test` / `run signal_test` | ... PASS           |
+| `cryptotest`                      | SHA-256 / AES / HMAC 3/3 PASS           |
+| `crashlog`                        | 最近的内核异常（如有）                  |
+
+## 故障排查
+
+| 症状                                      | 原因 / 处理                                 |
+|-------------------------------------------|---------------------------------------------|
+| `mkfs.fat32: device not found`            | 设备名不对；先运行 `lsblk`                  |
+| `fsck: cannot read boot sector`           | 磁盘从未格式化                              |
+| `checkupdate` 后 `connect failed`         | 无网络：先运行 `dhcp`                       |
+| `dhcp` 只打印 discover 没有租约           | 缺网卡：加 `-netdev user,id=n1 -device e1000,netdev=n1` |
+| `play: no sound card registered`          | 无音频设备：见第 3 节                       |
+| QEMU 10 拒绝音频参数                      | 每个音频设备都需要 `audiodev=snd0`          |
+| `SKIPPED` / `FAIL (no ... registered)`    | 对缺席硬件的如实报告，不是 bug              |5:["$","section","tryit",{"className":"doc-block","id":"tryit","children":[["$","h2",null,{"children":"TRY-IT"}],["$","div",null,{"className":"doc-src","children":["来源：","TRY-IT.md 中文翻译（原文件：docs/TRY-IT.md）"]}],["$","pre",null,{"className":"doc-pre","children":"$a"}]]}]
+b:T258c,<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
+# Open Cube OS - 系统内更新（OTA）操作指南（UPDATE-HOWTO 中文版）
+
+WP-10u 更新系统的分步用户指南。下面每一步都给出确切命令与你应当
+看到的输出。如果你的输出不一致，见文末"故障排查"。
+
+完成本指南后你将得到：一个能检查服务器新版本、下载、校验、安装到
+slot B、引导进入新版本、并能回滚到 slot A 的 Open Cube OS 系统——
+全部在运行中的系统内完成。
+
+## 0. 你需要什么
+
+| 项目                          | 来源                         |
+|-------------------------------|------------------------------|
+| Open Cube OS ISO（WP-10u+）   | GitHub Releases / 本站       |
+| QEMU（6.0+）或真实硬件        | 发行版软件包                 |
+| 本仓库 tools 目录             | 本仓库，`tools/`             |
+| mtools（mformat/mcopy/mdir）  | make_ab_disk.sh 需要         |
+
+除标注"客户机内"的步骤外，所有命令都在宿主机运行。
+
+## 1. 创建 A/B 磁盘
+
+一条命令。可选传入一个内核 ELF 预置 slot A，使磁盘可独立引导：
+
+```sh
+bash tools/make_ab_disk.sh build/opencube.elf
+```
+
+预期输出（节选）：
+
+```
+[make_ab_disk] image: build/abdisk.img (920576 sectors)
+[make_ab_disk] MBR written: starts=[2048, 133120, 395264, 657408]
+[make_ab_disk] formatted p1 (OCS_BOOT, 131072 sectors)
+[make_ab_disk] formatted p2 (OCS_A, 262144 sectors)
+[make_ab_disk] formatted p3 (OCS_B, 262144 sectors)
+[make_ab_disk] formatted p4 (OCS_DATA, 262144 sectors)
+[make_ab_disk] p1: /boot/grub/grub.cfg installed
+[make_ab_disk] p2 (slot A): /boot/opencube.elf seeded from build/opencube.elf
+[make_ab_disk] done: /home/.../build/abdisk.img
+```
+
+布局（与 kernel/ab_update.h 一致）：p1 = boot/flags（64 MiB）、
+p2 = slot A、p3 = slot B、p4 = data（各 128 MiB，全部 FAT32）。
+
+## 2. 挂上 A/B 磁盘引导 ISO
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom build/opencube.iso -boot d \
+  -drive if=ide,format=raw,file=build/abdisk.img \
+  -netdev user,id=n1 -device e1000,netdev=n1
+```
+
+（或在你已有的任何启动配置上追加
+`-drive if=ide,format=raw,file=build/abdisk.img`；内核会自动发现
+A/B 布局。）
+
+客户机内，确认磁盘已被识别：
+
+```
+oc> update --status
+update: current version: WP-10c
+update: current boot: A
+update: next boot: A
+update: available: unknown (run update or checkupdate)
+update: online update: enabled
+update: A/B disk: present
+```
+
+`A/B disk: absent` 表示未找到该布局——检查镜像是否由
+make_ab_disk.sh 生成，并且是作为硬盘（而非光盘）挂载的。
+
+A/B 层的完整自测：
+
+```
+oc> ab_partition_test
+[ab_partition_test] A/B disk + slots
+[partition devices hdap1..p4] PASS
+[slot mounts /ab/boot /ab/a /ab/b /data] PASS
+[abp2 boot sector (FAT32 BPB)] PASS
+[boot slot known (A/B/ISO)] slot=A PASS
+[boot flags readable] next_B=no ok_B=no bootfail_B=no PASS
+[set_boot(B) -> flags -> rollback clears] PASS
+[set_boot(X) rejected] PASS
+[ab_partition_test] 7/7 PASS
+```
+
+## 3. 制作更新包
+
+```sh
+bash tools/make_update_pkg.sh WP-10d build/opencube.elf build/pkg.tar.gz
+```
+
+预期输出：
+
+```
+[make_update_pkg] package: build/pkg.tar.gz
+[make_update_pkg] payload sha256 (manifest): 494c16ea...
+[make_update_pkg] package sha256 (.tar.gz): d1ce3772...
+[make_update_pkg] package size: 314813
+```
+
+.tar.gz 内含 manifest.json + kernel/opencube.elf + boot/grub.cfg
++ etc/opencube.conf + docs/。涉及两个 SHA256 值：
+- `package sha256 (.tar.gz)`：填入 update.json（`package_sha256`）；
+- `payload sha256 (manifest)`：在包内，安装流式传输时逐字节校验。
+
+## 4. 发布 manifest 与更新包
+
+一条命令发布全部内容（manifest、可选 v2 manifest、更新包）：
+
+```sh
+python3 tools/update_server.py --mode http --port 8008 \
+  --json '{ "version": "WP-10d", "time": "2026-10-20",
+            "changes": "new release",
+            "changes_v2_url": "http://10.0.2.2:8008/update-v2.json",
+            "package_url": "http://10.0.2.2:8008/pkg.tar.gz",
+            "package_sha256": "<第 3 步输出的 64 位十六进制>",
+            "package_size": 314813 }' \
+  --json2 '{ "version": "WP-10d", "time": "2026-10-20",
+             "changes": "完整长度的变更日志写在这里",
+             "package_url": "http://10.0.2.2:8008/pkg.tar.gz",
+             "package_sha256": "<同上>",
+             "package_size": 314813 }' \
+  --pkg build/pkg.tar.gz
+```
+
+`10.0.2.2` 是 QEMU 用户态网络看到的宿主机地址。
+`package_sha256` 与 `package_size` 必须与第 3 步输出一致——否则
+内核拒绝该包。
+
+`changes` 保持短（<= 127 字节），老内核（WP-09）也能读取；理解
+`changes_v2_url` 的内核会从 /update-v2.json 拉取长变更日志（见
+docs/CONFIG.md 6.1）。
+
+## 5. 执行更新（客户机内）
+
+```sh
+oc> update
+update: checking https://.../update.json
+update: reading /etc/opencube.conf
+New version available.
+Version: WP-10d
+Changes: new release
+update: downloading http://10.0.2.2:8008/pkg.tar.gz
+update: downloaded 314813 bytes
+update: SHA256 OK
+update: installing into slot B
+update: manifest payload digest OK
+update: installed 4 file(s)
+update: boot flags set: next boot = B
+update: done. Reboot to start the new version.
+```
+
+然后重启——GRUB 读取 `next_B` 标志并引导 slot B：
+
+```sh
+oc> reboot
+```
+
+slot B 启动成功后会写入 `ok_B`（引导确认）。检查：
+
+```sh
+oc> update --status
+update: current boot: B
+update: next boot: B
+```
+
+## 6. 回滚
+
+任何时候都可以（从 slot A 或 B）：
+
+```sh
+oc> rollback
+update: next boot set to slot A
+oc> reboot
+```
+
+如果 slot B 始终没能走到正常启动横幅，它在引导时悲观写入的
+`bootfail_B` 标志会保留下来，GRUB 在下次上电时自动回退到
+slot A——无需任何命令。
+
+## 7. 离线更新（无网络）
+
+把更新包放到 data 分区（或任何已挂载的 FAT32 卷），运行：
+
+```sh
+oc> update --local /data/pkg.tar.gz
+```
+
+其余步骤（校验、安装、引导标志）完全相同。
+
+## 8. 只检查不安装
+
+```sh
+oc> checkupdate          # 拉取并显示，不下载
+oc> update --status      # 当前/下次引导槽位、A/B 在位状态、可用性
+```
+
+## 命令参考
+
+| 命令                | 用途                                      |
+|---------------------|-------------------------------------------|
+| update              | 检查 + 下载 + 校验 + 安装到 B             |
+| update --local PATH | 从包文件离线安装                          |
+| update --status     | 当前版本、引导槽位、可用性                |
+| checkupdate         | 只检查并显示（不下载）                    |
+| rollback            | 下次引导回到 slot A                       |
+| reboot              | 刷写设备并重启                            |
+
+## 自测套件
+
+| 测试                 | 覆盖范围                            |
+|----------------------|-------------------------------------|
+| update_pkg_test      | gzip/DEFLATE + tar（12 项）         |
+| ab_partition_test    | A/B 发现、挂载、标志（7 项）        |
+| update_check_test    | manifest 解析含 v2（4 项）          |
+| update_download_test | 流式下载（3 项）                    |
+| update_verify_test   | SHA256 + 反例（4 项）               |
+| update_install_test  | 安装到 slot B（6 项）               |
+| update_rollback_test | 标志切换 + 回滚（4 项）             |
+| update_local_test    | 离线流程（4 项）                    |
+| update_status_test   | 状态报告（5 项）                    |
+| real_update_test     | 完整端到端第一阶段（7 项）          |
+
+## 故障排查
+
+| 消息                                        | 含义 / 处理                            |
+|---------------------------------------------|----------------------------------------|
+| `update: A/B disk: absent`                  | 磁盘未挂载或不是 make_ab_disk.sh 生成的 |
+| `config file missing or unreadable`         | /etc/opencube.conf 缺失；运行 `config restore` |
+| `invalid URL prefix`                        | update_url 必须是 http:// 或 https://  |
+| `DNS resolution failed` / `connect failed`  | 网络不通；先 `dhcp` 再重试             |
+| `JSON parse failed`                         | 服务器未返回 manifest                  |
+| `response too large`                        | manifest 超过接收缓冲区                |
+| `SHA256 mismatch`                           | update.json 的 package_sha256 不对     |
+| `package is not valid gzip/tar`             | 上传损坏；用 make_update_pkg.sh 重做   |
+| `invalid slot name`                         | 只能用 A 或 B                          |
+| `online update disabled`                    | 在 /etc/opencube.conf 设置 online_update=yes |
+
+错误码（kernel/update.h）：-1..-8 传输层（WP-09-fix5 契约）、
+-9 已禁用、-10 无 A/B 磁盘、-11 SHA 不匹配、-12 gzip/tar 损坏、
+-13 I/O、-14 槽位、-15 参数。
+
+## 相关文件
+
+- kernel/ab_update.h/.c - A/B 框架 + 更新器
+- kernel/update.h/.c - manifest 检查（方案 D v2 变更日志）
+- tools/make_ab_disk.sh - A/B 磁盘镜像制作（宿主机）
+- tools/make_update_pkg.sh - 更新包制作（宿主机）
+- tools/update_server.py - manifest + v2 + 更新包测试服务器（宿主机）
+
+接口细节：docs/EXTENSIONS_WP10u.md。配置键：docs/CONFIG.md。6:["$","section","update-howto",{"className":"doc-block","id":"update-howto","children":[["$","h2",null,{"children":"UPDATE-HOWTO"}],["$","div",null,{"className":"doc-src","children":["来源：","UPDATE-HOWTO.md 中文翻译（原文件：docs/UPDATE-HOWTO.md）"]}],["$","pre",null,{"className":"doc-pre","children":"$b"}]]}]
+7:["$","$Lc",null,{"children":["$","$d",null,{"name":"Next.MetadataOutlet","children":"$@e"}]}]
+e:null

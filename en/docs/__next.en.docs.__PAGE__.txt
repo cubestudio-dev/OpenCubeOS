@@ -1,0 +1,1191 @@
+1:"$Sreact.fragment"
+c:I[97367,["/OpenCubeOS/_next/static/chunks/42879de7b8087bc9.js"],"OutletBoundary"]
+d:"$Sreact.suspense"
+2:T5cab,<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
+# Open Cube OS - WP-10c
+
+**官网**: https://cubestudio-dev.github.io/OpenCubeOS
+**GitHub**: https://github.com/cubestudio-dev/OpenCubeOS
+**Releases**: https://github.com/cubestudio-dev/OpenCubeOS/releases
+
+Copyright 2026 cubestudio-dev <cubestudio@qq.com>
+Licensed under the Apache License, Version 2.0.
+
+**Open Cube OS** is an open-source operating-system kernel. Its positioning:
+
+- **It is not "a system you can use daily".** It is "a kernel that can be extended into anything".
+- Its value is not what it ships with, but the interfaces it exposes to upper layers.
+- Architecture is two-tier:
+  - **L0** = Open Cube OS = the complete kernel.
+  - **L1** = upper-layer extensions, built on L0's extension interfaces. L0 ships without any L1.
+- L0 is licensed Apache 2.0.
+- Design principle: "everything is extensible".
+
+## Stats (WP-10c-selfhost)
+
+- **Source code**: 69,910 lines (kernel + boot + userprogs, incl. headers, no docs;
+  verify: `find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
+- **Work packages**: 13 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c)
+  + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
+  `install` and `grub-install` - create A/B update disks, install the OS
+  to a disk and write the GRUB BIOS boot loader entirely from the oc>
+  shell (no host tools; the kernel payload travels with the boot media as
+  a multiboot2 module).
+- **L1 extension interfaces**: 111 (57 through WP-09 + 8 WP-10a items:
+  blk_register / blk_read / blk_write / blk_flush (+ blk_set_ops),
+  ahci_init(pci_dev), nvme_init(pci_dev), ata_dma_init(pci_dev),
+  + 13 WP-10b items:
+  nic_register / nic_send / nic_recv / nic_link_status / nic_get_mac,
+  e1000e_init / igb_init / ixgbe_init / rtl8139_init / rtl8168_init /
+  rtl8125_init / rtl810x_init / bcm57xx_init(pci_dev),
+  pci_find_class_exact/mask, ata_identify_capacity,
+  + 7 WP-10u items: ab_update.h (A/B slots, flags, verify, install),
+  + 26 WP-10c items: snd_register / snd_play / snd_stop / snd_set_rate /
+  snd_set_volume / snd_get_caps (+ snd_probe_all, snd_make_tone and the
+  snd.h lookup/ listing helpers),
+  hda_init / ac97_init / sb16_init / es1370_init / virtio_snd_init /
+  usb_audio_init(pci_dev / isa_dev / usb_dev),
+  usb_init / usb_enumerate / usb_control / usb_set_interface /
+  usb_iso_out_submit (kernel/usb.h))
+- **System calls**: 37
+- **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
+  + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
+  the P2-batch fix-ups (P2-BATCH-1 + P2-BATCH-2), bringing the running
+  total to 79.
+  + 15 GitHub-AI P3 bugs (WP-08-p3: security + memory + syscall + signal + ELF + pipe)
+  + 26 P4 bugs (WP-08-p4: doc fixes + Makefile + ld.so output + shell pipe +
+  idle alignment + kill/nice overflow + pmm/pftest + execve argv/envp +
+  kthread_destroy sync hook + crash log + VFS misc)
+  Grand total: 120 bugs fixed (as of WP-08; WP-09 added further SSH/TLS fixes).
+- **Tests passing**: 18/18 full QEMU regression (WP-09 canonical suite —
+  boot banner + uname + 12 user programs + p3_test + heaptest + l1test +
+  crashlog) plus dhtest 5/5, HTTPS E2E and SSH both-direction interop with
+  paramiko.
+
+## WP-01 (done) - Boot + framebuffer + text rendering
+
+- BIOS + UEFI dual boot via GRUB multiboot2.
+- 64-bit long mode, 4 GiB identity mapping.
+- 800x600x32 RGB framebuffer.
+- 8x16 bitmap font, char-grid console with cursor + scroll.
+- Four L0->L1 extension interfaces (fb access, renderer swap, font engine, console hook).
+
+## WP-02 (done) - Interrupts + timer + keyboard
+
+- IDT + GDT + TSS: 256-entry IDT, IST stacks for #DF/#MC.
+- 8259 PIC remap: IRQ0-15 -> vectors 32-47.
+- CPU exception handlers: #DE/#UD/#PF/#GP/#DF with diagnostic dump + L1 handler chain.
+- PIT @ 100 Hz: real system tick counter, real millisecond timestamps.
+- PS/2 keyboard + COM1 serial input -> unified keyboard queue.
+- Console input line editor + interactive `oc>` prompt.
+- Four new L0->L1 extension interfaces (IRQ, timer, keyboard, exception).
+
+## WP-03 (done) - Physical memory + virtual memory + kernel heap
+
+- **PMM**: bitmap allocator for 4KB page frames, parses multiboot2 mmap, reserves kernel/framebuffer/mbi regions, emergency callback support.
+- **VMM**: 4-level page tables, create/destroy address spaces, map/unmap/protect pages, real page fault handler (stack growth, heap growth, illegal detection).
+- **Heap**: free-list allocator with first-fit + coalescing + double-free detection, kmalloc/kzalloc/kfree/krealloc.
+- **Shell**: shell command registration API.
+- Four new L0->L1 extension interfaces: PMM, VMM, heap, shell command registration.
+
+## WP-04 (done) - Scheduler + sync primitives + user mode
+
+- Preemptive scheduler: priority + round-robin, 32 priority levels, per-task time slice.
+- Sync primitives: spinlock (with CLI/STI), semaphore, mutex (no priority inheritance), condvar.
+- Ring 3 user mode: TSS RSP0 switch, user-mode page-fault handling, ELF loader (static, PIE).
+- Three new L0->L1 extension interfaces: scheduler, sync, user-mode launcher.
+
+## WP-05 (done) - Shell enhancements + file system
+
+- Shell: env vars, aliases, cwd, quoting (no command history).
+- VFS: virtual file system with mount/unmount, open/close/read/write/stat/readdir/mkdir/rmdir/unlink.
+- RamFS: in-memory file system mounted at root.
+- Shell file commands: ls, cd, pwd, cat, mkdir, rm, mv, cp, touch, stat.
+- Four new L0->L1 extension interfaces: env var, alias, VFS mount, file ops.
+
+## WP-06 (done) - Network protocol stack
+
+- e1000 NIC driver (PCI bus master, RX/TX descriptors).
+- ARP + IPv4 + ICMP + TCP + UDP.
+- Socket API: socket, bind, listen, accept, connect, send, recv, close.
+- Shell commands: ifconfig, dhcp, ping, wget, dns, netstat.
+- Five new L0->L1 extension interfaces: NIC, ARP, IP, TCP, socket.
+
+## WP-07 (done) - Disk subsystem
+
+- ATA/IDE PIO driver (LBA28).
+- virtio-blk driver (modern PCI).
+- NVMe driver (admin queue + IO queues).
+- Block cache: 64-slot LRU write-back.
+- Partition parser: MBR.
+- FAT32 (R/W), exFAT (R/W), ext4 (RO) drivers.
+- Shell disk commands: lsblk, mount, umount, mkfs, fsck, fatmount.
+- Six new L0->L1 extension interfaces: block dev, partition, FS, mount, cache, FS driver.
+
+## WP-08 (done) - Complete syscall + dynamic linking + user shell + tools + audit fixes
+
+WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
+
+- **Complete syscall set** (37 syscalls): fork, exec, wait, kill, signal, mmap, munmap, mprotect, brk, pipe, dup, dup2, sigaction, sigreturn, select, poll, chdir, getcwd, ioctl, getpid, getppid, exit, write, write_and_exit, open, close, stat, readdir, mkdir, rmdir, unlink, exit2, map_solib, read, write2, readline, getc.
+- **Dynamic linking**: ld.so (user-space), 5 relocation types (R_X86_64_64, R_X86_64_RELATIVE, R_X86_64_GLOB_DAT, R_X86_64_JUMP_SLOT, R_X86_64_COPY), dlopen/dlsym/dlclose, ldd.
+- **User-space Shell (ush)**: 20 built-in tools, Tab completion, job control (`&`), signals (Ctrl+C → SIGINT), redirect (`>`), pipe (`|`).
+- **15 user-mode test programs**: hello, badapp, loop, fork_test, exec_test, pipe_test, mmap_test, signal_test, select_test, dyn_hello, so_test, dyn_test (alias), dlsym_test, pie_test, reloc_test, mmap_multi.
+- **Audit fixes**: 47 bugs fixed (P0=2, P1=8, P2=29, P3=8).
+- Seven new L1 extension interfaces (items 51-57): shell_run, shell_register_builtin, tool_register, tool_list, job_create, job_list, job_control.
+
+## WP-09 (done) - Security transport: SSH (client + server), TLS 1.3 / TLS 1.2 / HTTPS, crypto core
+
+- **Crypto core** (`kernel/crypto.{c,h}` + bn/ec/rsa/aead/x509 modules):
+  AES-128 (CTR/CBC) + AES-128/256-GCM + ChaCha20-Poly1305, SHA-256, streaming
+  SHA-256/HMAC, SHA-512/384, HMAC-SHA-512, HKDF, big-integer modexp
+  (Montgomery core, RSA-4096 viable, verified against python3 pow() truth
+  vectors at 8/16/32/64/128/256 bytes), NIST P-256/P-384 ECDH+ECDSA, X25519
+  (RFC 7748 vectors), RSA PKCS#1 v1.5 + PSS verify, RFC 8439/NIST KAT-validated
+  AEAD, crypto_random.
+- **SSH client** (`kernel/ssh.{c,h}`): KEX curve25519-sha256 (+@libssh.org)
+  and diffie-hellman-group14-sha256, aes128-ctr (aes128-cbc fallback),
+  hmac-sha2-256, rsa-sha2-256/512 host key, password **and publickey** auth,
+  session channel exec, server host-key signature verified over H with TOFU
+  SHA-256 fingerprint display. Byte-level K verified against paramiko
+  server-side capture.
+- **SSH server** (`kernel/sshd.c`): same mainstream suite (curve25519 KEX,
+  aes128-ctr), password **and publickey** auth (kernel identity key doubles
+  as host key), exec requests executed via kernel shell capture API; verified
+  against the paramiko client.
+- **TLS 1.3 client** (RFC 8446, preferred): X25519, AES-128/256-GCM and
+  ChaCha20-Poly1305, full HKDF key schedule (RFC 8448 vectors), encrypted
+  handshake, server CertificateVerify checked.
+- **TLS 1.2 client** (RFC 5246, fallback): ECDHE_RSA with AES-GCM and
+  ChaCha20-Poly1305; legacy DHE-CBC (0x0067) retained for old servers.
+- **Certificate verification** (`kernel/x509.{c,h}`): X.509 chain verified
+  against embedded public CA roots (ISRG, Google GTS, DigiCert, GlobalSign,
+  Baltimore, Amazon, Microsoft) + SAN dNSName hostname match, validity via
+  RTC. Fails closed on verification errors.
+- **HTTPS**: `wget https://host:port/path` downloads through TLS into VFS.
+  Real-site verified: cubestudio-dev.github.io (10148-byte update.json),
+  google.com, cloudflare.com.
+- **Network ops commands**: route, arp, firewall (stateful rules, conntrack,
+  three chains with policies + REJECT + per-rule hit counters), tcpstats
+  (CUBIC cwnd/RTO/SACK/fast-retransmit visibility), dns (A/AAAA/CNAME/MX/TXT/NS/SRV).
+- **Shell**: 116 commands (live boot count; `help` lists 116 unique);
+  includes the WP-10a storage surface: `ahci`, `nvme`, `ata` (driver status)
+  and the eight-test suite `ahci_test`, `nvme_test`, `ata_dma_test`,
+  `virtio_blk_test`, `disk_rw_test`, `partition_test`, `fs_mount_test`,
+  `real_hw_test`, plus the WP-10b NIC surface: `e1000e`, `igb`, `ixgbe`,
+  `rtl8139`, `rtl8168`, `rtl8125`, `rtl810x`, `bcm57xx` (driver status)
+  and `e1000e_test`, `igb_test`, `ixgbe_test`, `rtl8139_test`,
+  `rtl8168_test`, `rtl8125_test`, `rtl810x_test`, `bcm57xx_test`,
+  `other_nic_test`, `nic_rw_test`.
+- **Storage (WP-10a)**: AHCI SATA (DMA, multi-port, FLUSH), NVMe (admin +
+  2 I/O queue pairs, Identify, Read/Write/Flush), ATA Bus-Master DMA
+  (PRDT + PIO fallback preserved), virtio-blk (capacity fixed);
+  MBR + GPT partition parsing on every device; FAT32 mounts on all four
+  driver types through the unified blk layer.
+- **New user test programs**: mprotect_test, p3_test.
+- **Verification**: 18/18 QEMU regression + dhtest 5/5 + cryptotest 3/3 +
+  nf_test 8/8 + tcpcc_test + dnstest 6/6 (live) + tcptest + HTTPS E2E
+  (real sites above) + SSH both-direction interop (external evidence:
+  paramiko 5.0). See docs/EXTENSIONS_WP09.md, docs/INTERFACES.md.
+- **WP-09-fix5 — system configuration + update check**:
+  `/etc/opencube.conf` (first user-editable config, FAT32 /etc volume,
+  ramfs fallback), `checkupdate` over HTTP/HTTPS with JSON manifest,
+  non-blocking `auto_check` boot check, `config`/`edit` commands and the
+  `oc_ext_config_*` / `oc_ext_check_update*` L1 interfaces. See
+  docs/CONFIG.md.
+
+## WP-10u (done) - In-system update: A/B partitions + tar.gz packages + rollback + offline update
+
+- **A/B partition layout** (boot/flags + slot A + slot B + data), partitions
+  registered as their own block devices (hdapN) and mounted at /ab/boot,
+  /ab/a, /ab/b and /data.
+- **Kernel-side gzip decoder** (RFC 1952/1951: stored/fixed/dynamic blocks,
+  resumable across feed boundaries, CRC32+ISIZE verification) and a
+  **streaming ustar parser** (header checksums, GNU long names).
+- **Two-phase streaming HTTP/HTTPS downloader** (status code + Content-Length
+  enforced) with **two SHA256 layers** (the package digest in update.json
+  plus the payload digest inside the package manifest).
+- **Boot-flag protocol** (next_B/ok_B/bootfail_B) gives GRUB-side automatic
+  rollback; a failed slot-B boot keeps bootfail_B so the next boot goes back
+  to slot A.
+- **Commands**: update, update --local, update --status, rollback, reboot.
+- **User guide**: docs/UPDATE-HOWTO.md - step-by-step A/B disk creation,
+  package building, test server, update/rollback with expected outputs.
+- **Verification**: update_pkg_test 12/12, ab_partition_test 7/7,
+  update_check/download/verify/install/rollback/local/status all PASS,
+  real_update_test 7/7 end-to-end (download, verify, install into slot B,
+  a real reboot into slot B, confirm ok_B, rollback). See
+  docs/EXTENSIONS_WP10u.md.
+
+## WP-10c (done) - Sound card drivers: Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB audio
+
+- **snd framework** (kernel/snd.{c,h}): 8-slot registry,
+  snd_register / snd_play / snd_stop / snd_set_rate / snd_set_volume /
+  snd_get_caps; every driver does real DMA and raises real device
+  interrupts (per-device IRQ counters visible in `sound` and the tests).
+- **Intel HDA** (kernel/hda.c): MMIO BARs, controller reset, CORB/RIRB
+  command rings, codec address discovery, widget-tree enumeration
+  (audio function group, DAC/ADC, pins), stream format programming and
+  BDL DMA with IOC interrupts, LPIB flow control.
+- **AC'97 82801AA** (kernel/ac97.c): mixer (master/PCM volume + rate) and
+  bus-master BDL DMA with IOC interrupts.
+- **Sound Blaster 16** (kernel/sb16.c): ISA DSP 4.05 (io 0x220, IRQ 5),
+  8/16-bit single-cycle DMA with auto-init block interrupts.
+- **ES1370/1371** (kernel/es1370.c): DAC2 frame DMA + PCLKDIV clocking,
+  memory-mapped ring with IRQ on every buffer.
+- **virtio-snd** (kernel/virtio_snd.c): modern virtio-pci (1AF4:1059),
+  control + TX queues, PCM prepare/start/set_volume requests; probed on
+  every boot (QEMU 10 has no device model, so no live card in CI).
+- **USB Audio Class 1.0** (kernel/usb_audio.c) over the **new UHCI host
+  stack** (kernel/usb.{c,h}): UHCI controller driver (piix3/4), blocking
+  control transfers, device enumeration (SET_ADDRESS/CONFIGURATION/
+  INTERFACE), isochronous OUT scheduled per 1 ms frame.
+- **44.1/48 kHz** sample-rate configuration (caps-aware; sb16 rejects
+  48 kHz by design and the test verifies the rejection).
+- **Commands**: sound, hda, ac97, sb16, es1370, virtiosnd, usbaudio,
+  play [device] [rate], volume [device] [0-100]; lspci shows sound
+  controllers (class 0x04). 150 commands registered at boot
+  (including the rule-9 self-hosting set: abdisk, install,
+  grub-install, abcfg).
+- **Verification**: hda_test / ac97_test / sb16_test / es1370_test /
+  usb_audio_test live in QEMU (init + caps + DMA bytes + IRQ counters),
+  audio_rw_test plays every registered card, sample_rate_test programs
+  44.1/48 kHz on every card that supports them, virtio_snd_test reports
+  SKIPPED honestly (no QEMU device model), real_hw_test reports NOT RUN
+  in a VM. See docs/EXTENSIONS_WP10c.md.
+
+## Repository layout
+
+```
+oc-os/
++-- boot/                       # Assembly boot stubs (3 .S files, WP-01)
+|   +-- multiboot2_header.S
+|   +-- boot.S
+|   +-- long_mode_init.S
++-- kernel/                     # C kernel (142 files: .c + .h + .S)
+|   +-- types.h, string.{c,h}, multiboot2.{c,h}    # WP-01 base
+|   +-- fb.{c,h}, font.{c,h}, font_data.c          # WP-01 framebuffer + font
+|   +-- console.{c,h}, ext.{c,h}, ext_selftest.c   # WP-01 console + extensions
+|   +-- log.{c,h}                                   # WP-02: real timestamps
+|   +-- idt.{c,h}, idt_stub.S, idt_load.S          # WP-02: IDT/GDT/TSS
+|   +-- pic.h, exceptions.{c,h}, irq.{c,h}         # WP-02: PIC + exceptions
+|   +-- timer.{c,h}, keyboard.{c,h}                # WP-02: PIT + keyboard
+|   +-- serial_in.{c,h}, console_in.{c,h}          # WP-02: COM1 RX + line editor
+|   +-- pmm.{c,h}, vmm.{c,h}, heap.{c,h}           # WP-03: memory managers
+|   +-- shell.{c,h}                                 # WP-03: shell + cmd registration
+|   +-- sched.{c,h}, sync.{c,h}                     # WP-04: scheduler + sync
+|   +-- usermode.{c,h}, enter_ring3_fork.S         # WP-04: user mode + fork
+|   +-- context_switch.S                            # WP-04: context switch
+|   +-- vfs.{c,h}, ramfs.{c,h}                     # WP-05: VFS + ramfs
+|   +-- file_cmds.{c,h}, shell_cmds               # WP-05: file commands
+|   +-- net.{c,h}                                   # WP-06: TCP/IP stack
+|   +-- ata.{c,h}, virtio_blk.{c,h}, nvme.{c,h}    # WP-07: disk drivers
+|   +-- blk.{c,h}, blk_cache.{c,h}, part.{c,h}     # WP-07: block + partition
+|   +-- fat32.{c,h}, exfat.{c,h}, ext4.{c,h}       # WP-07: filesystems
+|   +-- disk_cmds.{c,h}                             # WP-07: disk commands
+|   +-- syscall.{c,h}                               # WP-08: syscall dispatch
+|   +-- ext_wp8a.{c,h}, ext_wp8b.{c,h}, ext_wp8cd.{c,h}  # WP-08 L1 extensions
+|   +-- userprogs_data.h, solib_data.h             # WP-08 embedded ELF + .so data
+|   +-- crypto.{c,h}, dh_scale_vectors.h           # WP-09: AES/SHA/HMAC/DH
+|   +-- bn.{c,h}, ec_nist.{c,h}, curve25519.{c,h}  # WP-09 mainstream: bignum + P-256/384 + X25519
+|   +-- rsa.{c,h}, aead.{c,h}, sha512.{c,h}        # WP-09 mainstream: RSA verify + AEAD + SHA-512
+|   +-- x509.{c,h}                                 # WP-09 mainstream: X.509 chain + hostname verify
+|   +-- tcp_cc.{c,h}                               # WP-09 mainstream: CUBIC congestion control
+|   +-- ssh.{c,h}, sshd.c, sshd_rsa_key.h          # WP-09: SSH client + server
+|   +-- tls.{c,h}                                   # WP-09: TLS 1.3/1.2 client
+|   +-- config.{c,h}, update.{c,h}, ab_update.{c,h}  # WP-09-fix5/WP-10u: config + checkupdate + A/B update
+|   +-- ahci.{c,h}, ata_dma.{c,h}                   # WP-10a: AHCI SATA + ATA Bus-Master DMA
+|   +-- nic.{c,h}, nic_e1000e.c, nic_igb.c,        # WP-10b: NIC framework + nine
+|   |   nic_ixgbe.c, nic_rtl8139.c, nic_rtl8169.c, #   driver families + tests
+|   |   nic_bcm57xx.c, nic_other.c, nic_test_cmds.c
+|   +-- snd.{c,h}, snd_test_cmds.c                   # WP-10c: sound framework + tests
+|   +-- hda.{c,h}, ac97.{c,h}, sb16.{c,h},          # WP-10c: six sound driver
+|   |   es1370.{c,h}, virtio_snd.{c,h},             #   families + USB audio
+|   |   usb.{c,h}, usb_audio.{c,h}
+|   +-- kmain.c                                     # Kernel main
++-- userprogs/                  # User-mode programs (23 files: .c + .asm + .ld)
+|   +-- hello.asm, badapp.asm, loop.asm            # basic tests
+|   +-- fork_test.asm, exec_test.asm               # process tests
+|   +-- pipe_test.asm, signal_test.asm, select_test.asm  # IPC tests
+|   +-- mmap_test.asm, mmap_multi.asm, mprotect_test.asm  # memory tests
+|   +-- p3_test.asm                                 # WP-09: P3 regression
+|   +-- main_dyn.c, dyn_hello.c, so_test.c, dlsym_test.c  # dynamic linking tests
+|   +-- pie_test.c, reloc_test.c                   # PIE + relocation tests
+|   +-- ld_so.c                                    # dynamic linker (ld.so)
+|   +-- libfoo.c                                   # shared library
+|   +-- ush.c                                      # user-space shell
+|   +-- user.ld, ld_so.ld                          # link scripts
++-- docs/                       # Documentation (18 files)
+|   +-- BUILD.md, CONFIG.md, COPYRIGHT.md, INTERFACES.md, MANIFEST.txt
+|   +-- EXTENSIONS.md (overview)
+|   +-- EXTENSIONS_WP02..WP10c.md (per-WP interface docs)
++-- tools/                      # Build + test scripts
+|   +-- build_iso.sh, gen_font.py, embed_userprog.py
+|   +-- qemu_shot.py, qemu_shot_vnc.py, qemu_runner.py
+|   +-- github_release_wp08.sh  # GitHub Release helper
+|   +-- sshd_test.py, paramiko_sshd.py, https_test_server.py  # WP-09 E2E
+|   +-- make_ab_disk.sh, make_update_pkg.sh, update_server.py # WP-10u OTA
++-- archive/                    # Old archived source (3 files, .gitignored subdirs)
++-- .gitignore                  # Excludes build/, *.o, *.elf, *.iso, *.zip, releases/, etc.
++-- LICENSE                     # Apache 2.0 full text (201 lines)
++-- NOTICE                      # Copyright + third-party components
++-- Makefile                    # Top-level build (kernel + iso)
++-- linker.ld                   # Kernel link script
++-- grub.cfg                    # GRUB boot config
++-- MANIFEST.md                 # Project manifest
++-- README.md                   # This file
+```
+
+**Note:** Binary releases (ISO + src zip) are hosted on GitHub Releases —
+not stored in this repo. Use the website (https://cubestudio-dev.github.io/OpenCubeOS)
+or GitHub Releases page to download.
+
+## Quick start
+
+```sh
+# Build (requires gcc/nasm/xorriso/grub-mkimage in PATH)
+make iso            # -> build/opencube.iso (BIOS + UEFI dual boot)
+
+# Run with QEMU
+make run-bios       # SeaBIOS -> GRUB -> kernel
+# or
+make run-uefi       # OVMF -> GRUB EFI -> kernel
+```
+
+Once the `oc>` prompt appears, type `help` for the full command list.
+Try `run ush` to launch the user-space shell.
+
+**Trying the hardware features in QEMU** (blank disk to format, NIC for
+DHCP/ping, sound cards to play a tone, A/B disk for in-system updates):
+step-by-step commands with expected outputs are in
+**docs/TRY-IT.md**; the update flow has its own guide in
+**docs/UPDATE-HOWTO.md**.
+
+## Tests
+
+The canonical WP-09 regression is the **18/18 full QEMU suite** (boot banner,
+uname, 12 user programs, p3_test, heaptest, l1test, crashlog), executed in one
+QEMU session via `tools/qemu_runner.py`. In addition:
+
+- `dhtest` — 5/5 DH modexp correctness (Oakley Group 1 + group14 truth vectors
+  + scale sweep 8..256 bytes + determinism).
+- HTTPS E2E — real-site TLS through the kernel client
+  (`https://cubestudio-dev.github.io/OpenCubeOS/update.json` → 10148 bytes;
+  google.com, cloudflare.com), plus the local `tools/https_test_server.py`
+  (TLS1.2-only, DHE-RSA-AES128-SHA256) covering the legacy fallback:
+  handshake + encrypted GET + decrypted response + MAC verification.
+- SSH interop both directions with paramiko 5.0 (`tools/sshd_test.py` and
+  `tools/paramiko_sshd.py`): password + publickey auth, curve25519/group14
+  KEX, aes128-ctr/cbc — 4/4 checks + byte-level K agreement + server
+  host-key signature verification (TOFU fingerprint).
+- WP-10u update tests — update_pkg_test 12/12, ab_partition_test 7/7,
+  update_check/download/verify/install/rollback/local/status all PASS and
+  real_update_test 7/7 with a real reboot into slot B (`tools/make_ab_disk.sh`,
+  `tools/make_update_pkg.sh`, `tools/update_server.py`).  Step-by-step
+  user guide: **docs/UPDATE-HOWTO.md**.
+- WP-10c sound tests — hda_test / ac97_test / sb16_test / es1370_test /
+  usb_audio_test live in QEMU (real DMA + real IRQ counters), audio_rw_test
+  on every card, sample_rate_test for 44.1/48 kHz; virtio_snd_test SKIPPED
+  (no QEMU device model), real_hw_test NOT RUN in a VM (honest report).
+
+## Download
+
+- **Latest (WP-10c)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip + in-system update package
+- **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
+- Or visit https://cubestudio-dev.github.io/OpenCubeOS for direct downloads
+
+## License
+
+Apache 2.0. See `LICENSE`.
+
+## AI Disclosure
+
+This project was developed by cubestudio-dev with the assistance
+of AI tools. All design decisions, architecture, specifications,
+project management, code review, quality assurance, and acceptance
+testing were performed by cubestudio-dev. AI tools were used as
+implementation assistants.
+
+## Copyright
+
+Copyright 2026 cubestudio-dev <cubestudio@qq.com>.0:{"buildId":"GgP1j6Yqttk4ABoCaANCJ","rsc":["$","$1","c",{"children":[["$","div",null,{"className":"container","children":[["$","div",null,{"className":"page-head","children":[["$","h1",null,{"children":"Docs"}],["$","p",null,{"children":["The content below is read verbatim from the real repository documents at build time. For the latest version, visit the ",["$","a",null,{"href":"https://github.com/cubestudio-dev/OpenCubeOS","target":"_blank","rel":"noopener noreferrer","children":"GitHub repository"}],"."]}],["$","p",null,{"className":"docs-lang-note","children":"This page shows the original English documents, read verbatim from the repository at build time. A Chinese translation is available on the 中文 docs page."}]]}],["$","nav",null,{"className":"docs-nav","aria-label":"Docs table of contents","children":[[["$","a","readme",{"href":"#readme","children":"README"}],["$","a","build",{"href":"#build","children":"BUILD"}],["$","a","interfaces",{"href":"#interfaces","children":"INTERFACES"}],["$","a","tryit",{"href":"#tryit","children":"TRY-IT"}],["$","a","update-howto",{"href":"#update-howto","children":"UPDATE-HOWTO"}]],["$","a",null,{"href":"/OpenCubeOS/en/","children":"← Back to home"}]]}],[["$","section","readme",{"className":"doc-block","id":"readme","children":[["$","h2",null,{"children":"README"}],["$","div",null,{"className":"doc-src","children":["Source: ","README.md（仓库根）"]}],["$","pre",null,{"className":"doc-pre","children":"$2"}]]}],"$L3","$L4","$L5","$L6"]]}],null,"$L7"]}],"loading":null,"isPartial":false}
+8:Tcfe,<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
+# Open Cube OS - WP-03 Build Guide
+
+## Prerequisites
+
+WP-03 needs a freestanding x86_64 toolchain: a C compiler, an assembler, a linker, an ISO builder, QEMU, and OVMF (UEFI firmware). On a stock Debian/Ubuntu system these come from `gcc`, `nasm`, `xorriso`, `grub-pc-bin`, `grub-efi-amd64-bin`, `grub-common`, `qemu-system-x86`, `ovmf`, `mtools`, and `python3-pil`.
+
+After installing, the following must all report versions:
+
+```sh
+gcc --version          # any recent gcc
+nasm --version         # 2.16+
+xorriso --version      # 1.5+
+grub-mkrescue --version # 2.12+
+grub-mkimage --version  # 2.12+
+qemu-system-x86_64 --version # 10.0+
+# OVMF firmware files (location varies by distro):
+#   Debian/Ubuntu: /usr/share/OVMF/OVMF_CODE_4M.fd and OVMF_VARS_4M.fd
+#                  or /usr/share/ovmf/OVMF.fd
+```
+
+Set the following environment variables if your tools are not in the default
+system paths (e.g. you extracted them to a custom location):
+
+```sh
+export OC_TOOLS=/path/to/your/toolchain/extract
+export OVMF_CODE=/path/to/OVMF_CODE.fd
+export OVMF_VARS=/path/to/OVMF_VARS.fd
+```
+
+The build scripts (`tools/build_iso.sh`, `tools/qemu_shot_vnc.py`) read
+`OC_TOOLS` to locate GRUB modules, SeaBIOS, and QEMU data files.
+
+## Build
+
+```sh
+cd /path/to/oc-os
+make            # builds build/opencube.elf
+make iso        # builds build/opencube.iso (hybrid BIOS+UEFI)
+```
+
+The `iso` target calls `tools/build_iso.sh`, which:
+
+1. Stages the kernel ELF, `grub.cfg`, the unicode font, and GRUB's `i386-pc` and `x86_64-efi` modules into `build/iso-stage/`.
+2. Calls `grub-mkimage -O i386-pc-eltorito` to build the BIOS El Torito boot image.
+3. Calls `grub-mkimage -O x86_64-efi` to build `EFI/BOOT/BOOTX64.EFI`.
+4. Builds a 1 MiB FAT image containing `EFI/BOOT/BOOTX64.EFI` - the EFI System Partition (ESP).
+5. Calls `xorriso -as mkisofs` with both `-b` (BIOS El Torito) and `-e` (UEFI ESP) options to produce the final hybrid ISO.
+
+The resulting ISO has **two** El Torito boot entries:
+
+```
+El Torito boot img :   1  BIOS  y   none  0x0000  0x00      4         579
+El Torito boot img :   2  UEFI  y   none  0x0000  0x00   2048          67
+```
+
+BIOS firmware picks entry 1, UEFI firmware picks entry 2.
+
+## Run
+
+```sh
+make run-bios    # SeaBIOS via -cdrom
+make run-uefi    # OVMF via -cdrom (with -boot d)
+```
+
+Both targets dump the kernel's serial output to stdout. The kernel's COM1 (port 0x3F8) is wired to the console output hook, so every line that's drawn on the framebuffer is also tee'd to serial.
+
+## Screenshots
+
+```sh
+make shot-bios   # -> build/shot-bios.png  (800x600)
+make shot-uefi   # -> build/shot-uefi.png  (800x600)
+```
+
+These use `tools/qemu_shot_vnc.py`, which boots QEMU with a VNC display, waits for the kernel to finish booting, then sends `screendump` to QEMU's monitor socket. The PPM is converted to PNG via PIL.
+
+## Distribution
+
+```sh
+make dist
+```
+
+Produces:
+
+- `dist/OpenCubeOS-src-WP<NN>-<timestamp>.zip` - source tree (excludes `build/`, `dist/`, `.git/`)
+- `dist/OpenCubeOS-WP<NN>-<timestamp>.iso` - copy of `build/opencube.iso`
+- `dist/OpenCubeOS-WP<NN>-<timestamp>.iso.sha256` - SHA256 checksum
+
+## Clean
+
+```sh
+make clean
+```
+
+Removes `build/`, `dist/`, and the staged kernel ELF under `iso/`.3:["$","section","build",{"className":"doc-block","id":"build","children":[["$","h2",null,{"children":"BUILD"}],["$","div",null,{"className":"doc-src","children":["Source: ","docs/BUILD.md"]}],["$","pre",null,{"className":"doc-pre","children":"$8"}]]}]
+9:T1a8a,<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
+# Open Cube OS — Interface Index (as of WP-10c)
+
+Single-page index of every interface Open Cube OS exposes to upper layers
+(L1) and to the shell. Signatures are copied verbatim from the headers —
+see each header for full docs and examples.
+
+Work-package overview: docs/EXTENSIONS.md (WP-01) through
+docs/EXTENSIONS_WP09.md (WP-09), docs/EXTENSIONS_WP10a.md (WP-10a,
+storage drivers: AHCI / NVMe / ATA DMA / virtio-blk) and
+docs/EXTENSIONS_WP10b.md (WP-10b, NIC drivers: e1000e / igb / ixgbe /
+RTL8139 / RTL8168 / RTL8125 / RTL810x / BCM57xx / legacy others).
+
+## 1. L0 → L1 extension API (kernel/ext*.h)
+
+### kernel/ext.h — WP-01 (framebuffer / renderer / font / console)
+
+```c
+const oc_fb_info_t* oc_ext_fb_get_info(void);
+oc_renderer_t*      oc_ext_set_renderer(oc_renderer_t* new_renderer);
+int   oc_ext_register_font_engine(oc_font_engine_t* engine);
+oc_font_engine_t* oc_ext_font_engine_by_name(const char* name);
+oc_font_engine_t* oc_ext_default_font_engine(void);
+void  oc_ext_set_console_hook(oc_console_hook_fn hook, void* ctx);
+void  oc_ext_console_hook(u8 ch);   /* called by L0 console */
+int   oc_ext_self_test(void);
+```
+
+### kernel/ext_wp8a.h — WP-08a (processes / signals / syscalls / fd)
+
+```c
+proc_fork / proc_exec / proc_exit / proc_wait
+proc_getpid / proc_getppid
+signal_register / signal_return / signal_send
+sys_brk / sys_mmap / sys_mprotect / sys_munmap
+sys_select / sys_poll
+sys_chdir / sys_getcwd / sys_ioctl
+pipe_create / fd_dup / fd_dup2
+```
+(21 functions; exact signatures in the header.)
+
+### kernel/ext_wp8b.h — WP-08b (dynamic linking)
+
+```c
+ldso_run
+dlopen_impl / dlsym_impl / dlclose_impl
+so_load / so_unload
+symbol_resolve / reloc_apply
+elf_load_dynamic / elf_get_needed
+ext_wp8b_selftest
+```
+(11 functions.)
+
+### kernel/ext_wp8cd.h — WP-08cd (user shell / tools / jobs)
+
+```c
+shell_run / shell_register_builtin
+tool_register / tool_list
+job_create / job_list / job_control
+```
+(7 functions.)
+
+### kernel/ext_wp2.h, ext_wp3.h, ext_wp7.h
+
+Type/macro-only headers (no callable functions) for WP-02/WP-03/WP-07
+subsystem structures. The WP-02/03/05/06/07 "extension points" are exposed
+as direct kernel APIs (see §3) rather than oc_ext_* functions.
+
+## 2. WP-09 transport APIs (kernel/ssh.h, kernel/tls.h)
+
+```c
+/* SSH client (curve25519-sha256 / group14-sha256 KEX, aes128-ctr/cbc,
+ * hmac-sha2-256, rsa-sha2-256/512 host key verified over H with TOFU
+ * fingerprint, password + publickey auth, session exec) */
+int  ssh_connect(u32 ip, u16 port, const char *username, const char *password);
+int  ssh_exec(const char *command, void *output, int output_len);
+void ssh_close(void);
+
+/* SSH server (kernel/sshd.c): `sshd <port> <user> <password>` shell command;
+ * serves one session then returns. exec requests are executed through the
+ * kernel shell capture API (shell_execute_captured). */
+
+/* TLS 1.3/1.2 client (TLS 1.3: X25519 + AES-GCM/ChaCha20-Poly1305;
+ * TLS 1.2 fallback: ECDHE_RSA + AES-GCM/ChaCha20-Poly1305, legacy DHE-CBC
+ * retained. X.509 chain + hostname verification against embedded public
+ * CA roots — handshake fails closed on verification errors) */
+int  tls_connect(u32 ip, u16 port, const char *hostname);
+int  tls_send(tls_ctx_t *ctx, const void *data, int len);
+int  tls_recv(tls_ctx_t *ctx, void *buf, int len);
+void tls_close(tls_ctx_t *ctx);
+int  tls_https_get(u32 ip, u16 port, const char *hostname, const char *path,
+                   void *out_buf, int out_len);
+```
+
+Crypto primitives: `kernel/crypto.h` (aes128 CTR/CBC, sha256, hmac_sha256,
+hkdf, dh_modexp, crypto_random), `kernel/bn.h` (bignum modexp, Montgomery
+core), `kernel/ec_nist.h` (P-256/P-384 ECDH+ECDSA), `kernel/curve25519.h`
+(X25519), `kernel/rsa.h` (PKCS#1 v1.5 + PSS verify), `kernel/aead.h`
+(AES-GCM, ChaCha20-Poly1305), `kernel/sha512.h` (SHA-512/384 + HMAC),
+`kernel/x509.h` (certificate parse + chain/hostname verification).
+DH truth vectors for self-test: kernel/dh_scale_vectors.h.
+
+## 3. Kernel subsystem APIs (stable since their WP)
+
+| Subsystem | Header | Key functions |
+|---|---|---|
+| Framebuffer | kernel/fb.h | oc_fb_* |
+| Console | kernel/console.h | oc_console_* |
+| Shell + command registration | kernel/shell.h | shell_register_command, shell_execute_captured (WP-09) |
+| PMM / VMM / heap | kernel/pmm.h, vmm.h, heap.h | pmm_alloc_frame, vmm_*, kmalloc/kfree/krealloc |
+| Scheduler + sync | kernel/sched.h, sync.h | sched_*, spinlock/mutex/sem/cond |
+| User mode + syscalls | kernel/usermode.h, syscall.h | user_process_create, syscall dispatch (37 syscalls) |
+| VFS + ramfs | kernel/vfs.h, ramfs.h | vfs_open/read/write/stat/... |
+| Network (TCP/IP) | kernel/net.h | net_socket/connect/send/recv/accept/close, dns_resolve, cmd-level: dhcp/ping/wget/dns/route/arp/firewall/tcpstats |
+| Block + FS | kernel/blk.h, part.h, fat32.h, exfat.h, ext4.h | blk_*, vfs mount (FAT32 R/W, exFAT R/W, ext4 RO) |
+| Storage drivers (WP-10a) | kernel/ahci.h, nvme.h, ata_dma.h, virtio_blk.h | ahci_init(pci_dev), nvme_init(pci_dev), ata_dma_init(pci_dev), virtio_blk_init, pci_find_class_exact/mask (pci.h) |
+| NIC drivers (WP-10b) | kernel/nic.h | nic_register(dev, ops), nic_send/recv(dev, ...), nic_link_status(dev), nic_get_mac(dev, mac), e1000e_init/igb_init/ixgbe_init/rtl8139_init/rtl8168_init/rtl8125_init/rtl810x_init/bcm57xx_init(pci_dev), other_nics_init, nic_probe_all, nic_active |
+| Sound cards (WP-10c) | kernel/snd.h, usb.h | snd_register(dev, ops), snd_play/stop/set_rate/set_volume/get_caps(dev, ...), hda_init/ac97_init/es1370_init/virtio_snd_init(pci_dev), sb16_init(isa_dev), usb_audio_init(usb_dev), snd_probe_all; USB: usb_init, usb_enumerate, usb_control, usb_set_interface, usb_iso_out_submit (kernel/usb.h) |
+| TCP socket state (WP-10a-fix) | kernel/net.h | net_tcp_established(fd) |
+
+## 4. Shell command surface
+
+150 commands registered at boot (live count; `help` lists 150 unique).
+`shell_register_command` call sites (static count): kmain.c 48 (incl.
+update/rollback/reboot), net.c 17, file_cmds.c 18, disk_cmds.c 7,
+disk_setup.c 4 (rule-9 self-hosting: abdisk/install/grub-install/abcfg),
+disk_test_cmds.c 8 (WP-10a storage test suite), nic_test_cmds.c 18
+(WP-10b: 10 NIC tests + 8 NIC status commands), snd_test_cmds.c 17
+(WP-10c sound status commands + tests), update_test_cmds.c 10 (WP-10u),
+shell.c 5, ext_wp8cd.c 1 — some register the same name at different
+stages, so the live boot count is authoritative. Full list: type `help`
+at the `oc>` prompt.
+
+## 5. Verification of these interfaces
+
+- L1 self-tests: `ext_selftest` (WP-01), l1test (WP-08cd), ext_wp8cd
+  boot self-test — all PASS in the 18/18 regression.
+- WP-09 transport E2E: HTTPS both sides, SSH both directions,
+  K byte-level match.4:["$","section","interfaces",{"className":"doc-block","id":"interfaces","children":[["$","h2",null,{"children":"INTERFACES"}],["$","div",null,{"className":"doc-src","children":["Source: ","docs/INTERFACES.md"]}],["$","pre",null,{"className":"doc-pre","children":"$9"}]]}]
+a:T2633,<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
+# Open Cube OS - Try It Guide
+
+Every hardware feature of the kernel, with the exact QEMU command to
+attach the device and the exact in-guest commands to exercise it -
+including the output you should see.  If your output differs, the last
+section lists the likely causes.
+
+This guide covers **storage, network, and sound**.  For the in-system
+update (OTA) flow there is a dedicated step-by-step guide:
+**docs/UPDATE-HOWTO.md**.
+
+Notes that apply everywhere:
+
+- The `tools/qemu_runner.py` script used below boots the ISO and types
+  the guest commands for you (one session, serial console).  You can
+  also boot `make run-bios` and type the commands yourself.
+- Success for `mkdir`, `touch`, `rm`, `cp`, `mv` is silent (Unix
+  convention).  Failures always print a reason.
+- `run <program>` starts a user program; its output can appear after
+  the `oc>` prompt because the program runs concurrently with the
+  shell.  The output always arrives before the next command you type
+  finishes.
+
+## 0. What you need
+
+| item                    | where                                   |
+|-------------------------|-----------------------------------------|
+| Open Cube OS ISO        | GitHub Releases / website               |
+| QEMU (6.0+)             | distro package                          |
+| a blank raw disk image  | `dd if=/dev/zero of=disk.img bs=1M count=64` |
+
+## 1. Storage (WP-10a)
+
+Attach a blank disk on the IDE bus:
+
+```sh
+dd if=/dev/zero of=disk.img bs=1M count=64
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -drive if=ide,format=raw,file=disk.img
+```
+
+In the guest - format, mount, write, read, check, unmount:
+
+```
+oc> lsblk
+Block devices:
+  hda [ATA] 131072 sectors (65536 KiB) sector_size=512
+oc> mkfs.fat32 hda
+FAT32 formatted on hda
+oc> fatmount hda /mnt
+vfs: mounted fat32 at /mnt
+fat32 mounted. Try: ls /mnt
+oc> write /mnt/note.txt audit test file
+wrote 15 bytes
+oc> cat /mnt/note.txt
+audit test file
+oc> df
+Filesystem     Mount     Device    Use
+ramfs         /        -        7 nodes, 485 bytes
+fat32         /mnt     hda      129020 free clusters, 512 bytes/cluster
+oc> umount /mnt
+umounted /mnt
+oc> fsck hda
+fsck: FAT32 filesystem on hda
+  ...
+  fsck: PASS (basic checks OK)
+```
+
+`mkfs.exfat` and `mkfs.ext4` also work; `fsck` reports those volume
+types honestly ("ext2/3/4 volume detected ... fsck supports FAT32
+only") instead of misparsing them.
+
+Other controllers - attach one of these instead of (or besides) the
+IDE drive:
+
+```sh
+# AHCI (SATA)
+-device ich9-ahci,id=ahci -drive if=none,id=da,file=disk.img,format=raw \
+-device ide-hd,drive=da,bus=ahci.0
+# NVMe
+-device nvme,id=nv0,serial=oc -drive if=none,id=dn,file=disk.img,format=raw \
+-device nvme-ns,drive=dn
+# virtio-blk
+-drive if=none,id=dv,file=disk.img,format=raw -device virtio-blk-pci,drive=dv
+```
+
+The disk shows up as `sda` (AHCI), `nvme0` (NVMe) or `vda` (virtio) in
+`lsblk`; each has a self-test (`ahci_test`, `nvme_test`,
+`virtio_blk_test`, `ata_dma_test`, `disk_rw_test <dev>`,
+`fs_mount_test <dev>`, `partition_test`) that prints input / expected /
+actual and a verdict.
+
+## 2. Network (WP-10b)
+
+The default `qemu_runner.py` session already has an e1000 NIC.  For a
+plain QEMU run add:
+
+```sh
+-netdev user,id=n1 -device e1000,netdev=n1
+```
+
+In the guest - DHCP, interface, ping, DNS, routes:
+
+```
+oc> dhcp
+DHCP success: IP=10.0.2.15
+  mask=255.255.255.0
+  gateway=10.0.2.2
+  DNS=10.0.2.3
+oc> ifconfig
+e1000:
+  HWaddr 52:54:00:12:34:56
+  inet 10.0.2.15
+  ...
+  link: UP
+oc> ping 10.0.2.2
+PING 10.0.2.2 ...
+  reply received
+  reply received
+  reply received
+  reply received
+oc> dns example.com
+A: 104.20.23.154
+oc> route
+Routing table:
+  0.0.0.0 mask=0.0.0.0 gw=10.0.2.2 (default)
+```
+
+Other driver families (each has a matching `*_test` self-test):
+
+```sh
+-device e1000e,netdev=n1    # then run: e1000e_test
+-device igb,netdev=n1       # then run: igb_test
+-device rtl8139,netdev=n1   # then run: rtl8139_test
+```
+
+(with `-netdev user,id=n1` in front of each).  Families without a QEMU
+model (ixgbe, bcm57xx, ...) report `SKIPPED` with the reason - no fake
+output is produced for absent devices.
+
+## 3. Sound (WP-10c)
+
+Attach an Intel HDA card (the most common real-world controller).  QEMU
+10 needs an explicit `audiodev`; the `wav` backend writes what the
+kernel plays into a WAV file so you can verify the PCM path on the
+host:
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -audiodev wav,id=snd0,path=/tmp/out.wav \
+  -device intel-hda -device hda-output,audiodev=snd0
+```
+
+In the guest - list cards, status, volume, play:
+
+```
+oc> sound
+sound devices:
+  0: hda (hda) rate=48000 ch=2 vol=74 played=0B
+oc> hda
+Intel HDA: vid=0x8086 did=0x2668 at 00:04.0 codec=00 dac_nid=02 ...
+oc> volume 60
+volume: hda = 60
+oc> volume
+volume: hda = 60
+oc> play
+play: hda 440Hz 48000 frames @ 48000Hz
+```
+
+If you name a device wrong, the command tells you the available names:
+
+```
+oc> play usbaudio
+play: unknown device 'usbaudio' (available: hda)
+usage: play [device] [rate 4000-96000]
+```
+
+More cards in one machine (all five families):
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -audiodev wav,id=snd0,path=/tmp/out.wav \
+  -device intel-hda -device hda-output,audiodev=snd0 \
+  -device AC97,audiodev=snd0 -device sb16,audiodev=snd0 \
+  -device ES1370,audiodev=snd0 \
+  -device piix3-usb-uhci -device usb-audio,audiodev=snd0
+```
+
+`sound` then lists five cards; `play <name>` and
+`volume <name> 0-100` work per card (`hda`, `ac97`, `es1370`,
+`usb-audio`, `sb16` - exactly the names `sound` shows).  Self-tests:
+`hda_test`, `ac97_test`, `sb16_test`, `es1370_test`,
+`usb_audio_test`, plus `audio_rw_test` (play/stop round-trip on every
+card) and `sample_rate_test` (44.1/48 kHz).
+
+Notes:
+- QEMU 10 has **no** `virtio-snd-pci` model, so `virtio_snd_test`
+  reports SKIPPED there; on real virtio hardware it runs.
+- The QEMU-10 `intel-hda` model dead-loops when re-programmed to
+  44.1 kHz; `sample_rate_test` verifies the capability bit instead
+  (see docs/EXTENSIONS_WP10c.md).
+
+## 4. Update / rollback (WP-10u)
+
+Full step-by-step guide with expected output:
+**docs/UPDATE-HOWTO.md**.  Short version — create the A/B disk **from
+inside the OS** (rule-9 self-hosting; no host script needed):
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -drive if=ide,format=raw,file=abdisk.img \
+  -netdev user,id=n1 -device e1000,netdev=n1
+```
+
+```
+oc> abdisk hda               # creates A/B layout + GRUB + slot A kernel
+oc> update --status          # A/B disk: present (no reboot needed)
+oc> ab_partition_test        # 7/7 PASS
+oc> dhcp && config set update_url http://10.0.2.2:8008/update.json
+oc> update                   # download, verify, install to slot B
+oc> reboot                   # boots slot B automatically
+oc> rollback                 # next boot back to slot A
+```
+
+After `reboot`, GRUB picks the slot from the flag files on p1
+(`BOOT_SLOT=B`) and the update is confirmed once the system is fully up
+(`slot B boot confirmed`).  Reboot **without the ISO** and the disk
+boots on its own - `abdisk` installs the GRUB BIOS boot loader into the
+MBR gap (boot.img -> LBA0, core.img -> LBA1..).
+
+## 4b. Install the OS to a disk (single system)
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -drive if=ide,format=raw,file=disk.img
+```
+
+```
+oc> install hda              # partition + FAT32 + kernel + GRUB
+oc> sync                     # flush the disk cache
+```
+
+Reboot with the ISO removed (`-boot c`) and the machine boots Open Cube
+OS straight from the disk.  `grub-install <dev>` writes only the boot
+loader onto an already-partitioned disk (MBR gap, or a GPT BIOS boot
+partition).  `abcfg` prints the grub.cfg files that abdisk/install
+write.  Note: these commands install the **BIOS** boot path; boot the
+installer from the ISO for UEFI machines (the ISO is BIOS+UEFI).
+
+## 5. No hardware needed
+
+These work in a bare QEMU session with no extra devices:
+
+| try this                          | what you should see                     |
+|-----------------------------------|-----------------------------------------|
+| `help`                            | the 150-command list                    |
+| `uname -a`                        | `Open Cube OS WP-10c x86_64`            |
+| `mkdir /d` + `write /d/f hi` + `cat /d/f` | `hi`                            |
+| `mem`, `heap`, `ps`, `sched`      | memory/task/scheduler stats             |
+| `heaptest`, `memtest`, `vmtest`   | PASS                                    |
+| `run hello`                       | `hello from userspace`                  |
+| `run fork_test` / `run pipe_test` / `run signal_test` | ... PASS           |
+| `cryptotest`                      | SHA-256 / AES / HMAC 3/3 PASS           |
+| `crashlog`                        | last kernel exceptions (if any)         |
+
+## Troubleshooting
+
+| symptom                                   | cause / fix                                |
+|-------------------------------------------|--------------------------------------------|
+| `mkfs.fat32: device not found`            | wrong device name; run `lsblk` first       |
+| `fsck: cannot read boot sector`           | the disk was never formatted               |
+| `connect failed` after `checkupdate`      | no network: run `dhcp` first               |
+| `dhcp` prints discover but no lease       | NIC missing: add `-netdev user,id=n1 -device e1000,netdev=n1` |
+| `play: no sound card registered`          | no audio device: see section 3             |
+| QEMU 10 rejects audio args                | every audio device needs `audiodev=snd0`   |
+| `SKIPPED` / `FAIL (no ... registered)`    | honest report for absent hardware, not a bug |5:["$","section","tryit",{"className":"doc-block","id":"tryit","children":[["$","h2",null,{"children":"TRY-IT"}],["$","div",null,{"className":"doc-src","children":["Source: ","docs/TRY-IT.md"]}],["$","pre",null,{"className":"doc-pre","children":"$a"}]]}]
+b:T245d,<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
+# Open Cube OS - In-System Update (OTA) How-To
+
+A step-by-step user guide for the WP-10u update system.  Every step
+below shows the exact command and the output you should see.  If your
+output differs, see "Troubleshooting" at the end.
+
+What you get at the end: an Open Cube OS system that checks a server for
+a new version, downloads it, verifies it, installs it into slot B, boots
+into it, and can roll back to slot A - all from the running system.
+
+## 0. What you need
+
+| item                          | where                        |
+|-------------------------------|------------------------------|
+| Open Cube OS ISO (WP-10u+)    | GitHub Releases / website    |
+| QEMU (6.0+) or real hardware  | distro package               |
+| The repo tools directory      | this repo, `tools/`          |
+| mtools (mformat/mcopy/mdir)   | needed by make_ab_disk.sh    |
+
+All commands run on the host unless the step says "in the guest".
+
+## 1. Create the A/B disk
+
+One command.  Optionally pass a kernel ELF to pre-seed slot A so the
+disk can boot on its own:
+
+```sh
+bash tools/make_ab_disk.sh build/opencube.elf
+```
+
+Expected (abridged):
+
+```
+[make_ab_disk] image: build/abdisk.img (920576 sectors)
+[make_ab_disk] MBR written: starts=[2048, 133120, 395264, 657408]
+[make_ab_disk] formatted p1 (OCS_BOOT, 131072 sectors)
+[make_ab_disk] formatted p2 (OCS_A, 262144 sectors)
+[make_ab_disk] formatted p3 (OCS_B, 262144 sectors)
+[make_ab_disk] formatted p4 (OCS_DATA, 262144 sectors)
+[make_ab_disk] p1: /boot/grub/grub.cfg installed
+[make_ab_disk] p2 (slot A): /boot/opencube.elf seeded from build/opencube.elf
+[make_ab_disk] done: /home/.../build/abdisk.img
+```
+
+Layout (matches kernel/ab_update.h): p1 = boot/flags (64 MiB),
+p2 = slot A, p3 = slot B, p4 = data (128 MiB each, all FAT32).
+
+## 2. Boot the ISO with the A/B disk attached
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom build/opencube.iso -boot d \
+  -drive if=ide,format=raw,file=build/abdisk.img \
+  -netdev user,id=n1 -device e1000,netdev=n1
+```
+
+(Or add `-drive if=ide,format=raw,file=build/abdisk.img` to any setup
+you already have; the kernel discovers the A/B layout automatically.)
+
+In the guest, verify the disk was detected:
+
+```
+oc> update --status
+update: current version: WP-10c
+update: current boot: A
+update: next boot: A
+update: available: unknown (run update or checkupdate)
+update: online update: enabled
+update: A/B disk: present
+```
+
+`A/B disk: absent` means the layout was not found - check that the image
+was built by make_ab_disk.sh and is attached as a hard drive (not a CD).
+
+The full self-test for the A/B layer:
+
+```
+oc> ab_partition_test
+[ab_partition_test] A/B disk + slots
+[partition devices hdap1..p4] PASS
+[slot mounts /ab/boot /ab/a /ab/b /data] PASS
+[abp2 boot sector (FAT32 BPB)] PASS
+[boot slot known (A/B/ISO)] slot=A PASS
+[boot flags readable] next_B=no ok_B=no bootfail_B=no PASS
+[set_boot(B) -> flags -> rollback clears] PASS
+[set_boot(X) rejected] PASS
+[ab_partition_test] 7/7 PASS
+```
+
+## 3. Build an update package
+
+```sh
+bash tools/make_update_pkg.sh WP-10d build/opencube.elf build/pkg.tar.gz
+```
+
+Expected:
+
+```
+[make_update_pkg] package: build/pkg.tar.gz
+[make_update_pkg] payload sha256 (manifest): 494c16ea...
+[make_update_pkg] package sha256 (.tar.gz): d1ce3772...
+[make_update_pkg] package size: 314813
+```
+
+The .tar.gz contains manifest.json + kernel/opencube.elf + boot/grub.cfg
++ etc/opencube.conf + docs/.  Two SHA256 values are involved:
+- `package sha256 (.tar.gz)`: goes into update.json (`package_sha256`);
+- `payload sha256 (manifest)`: inside the package, verified while
+  streaming the install.
+
+## 4. Serve the manifest and the package
+
+One command serves everything (manifest, optional v2 manifest, package):
+
+```sh
+python3 tools/update_server.py --mode http --port 8008 \
+  --json '{ "version": "WP-10d", "time": "2026-10-20",
+            "changes": "new release",
+            "changes_v2_url": "http://10.0.2.2:8008/update-v2.json",
+            "package_url": "http://10.0.2.2:8008/pkg.tar.gz",
+            "package_sha256": "<64 hex chars from step 3>",
+            "package_size": 314813 }' \
+  --json2 '{ "version": "WP-10d", "time": "2026-10-20",
+             "changes": "the full-length changelog goes here",
+             "package_url": "http://10.0.2.2:8008/pkg.tar.gz",
+             "package_sha256": "<same>",
+             "package_size": 314813 }' \
+  --pkg build/pkg.tar.gz
+```
+
+`10.0.2.2` is the host as seen from the QEMU user-mode network.
+`package_sha256` and `package_size` must match the values printed by
+step 3 - the kernel refuses the package otherwise.
+
+`changes` stays short (<= 127 bytes) so old kernels (WP-09) can still
+read it; kernels that understand `changes_v2_url` fetch the long
+changelog from /update-v2.json (see docs/CONFIG.md 6.1).
+
+## 5. Run the update (in the guest)
+
+```sh
+oc> update
+update: checking https://.../update.json
+update: reading /etc/opencube.conf
+New version available.
+Version: WP-10d
+Changes: new release
+update: downloading http://10.0.2.2:8008/pkg.tar.gz
+update: downloaded 314813 bytes
+update: SHA256 OK
+update: installing into slot B
+update: manifest payload digest OK
+update: installed 4 file(s)
+update: boot flags set: next boot = B
+update: done. Reboot to start the new version.
+```
+
+Then reboot - GRUB reads the `next_B` flag and boots slot B:
+
+```sh
+oc> reboot
+```
+
+When slot B comes up it writes `ok_B` (boot confirmed).  Check:
+
+```sh
+oc> update --status
+update: current boot: B
+update: next boot: B
+```
+
+## 6. Roll back
+
+Any time (from slot A or B):
+
+```sh
+oc> rollback
+update: next boot set to slot A
+oc> reboot
+```
+
+If slot B ever fails to reach the desktop banner, the `bootfail_B` flag
+it wrote pessimistically at boot stays behind, and GRUB automatically
+falls back to slot A on the next power cycle - no command needed.
+
+## 7. Offline update (no network)
+
+Put the package on the data partition (or any mounted FAT32 volume)
+and run:
+
+```sh
+oc> update --local /data/pkg.tar.gz
+```
+
+Everything else (verify, install, boot flags) is identical.
+
+## 8. Check without installing
+
+```sh
+oc> checkupdate          # fetch + display only
+oc> update --status      # current/next boot, A/B presence, availability
+```
+
+## Command reference
+
+| command             | purpose                                   |
+|---------------------|-------------------------------------------|
+| update              | check + download + verify + install to B  |
+| update --local PATH | offline install from a package file       |
+| update --status     | current version, boot slots, availability |
+| checkupdate         | check + display only (no download)        |
+| rollback            | next boot back to slot A                  |
+| reboot              | flush devices and restart                 |
+
+## Self-test suite
+
+| test                 | covers                              |
+|----------------------|-------------------------------------|
+| update_pkg_test      | gzip/DEFLATE + tar (12 checks)      |
+| ab_partition_test    | A/B discovery, mounts, flags (7)    |
+| update_check_test    | manifest parsing incl. v2 (4)       |
+| update_download_test | streaming download (3)              |
+| update_verify_test   | SHA256 + negative case (4)          |
+| update_install_test  | install into slot B (6)             |
+| update_rollback_test | flag switching + rollback (4)       |
+| update_local_test    | offline flow (4)                    |
+| update_status_test   | status reporting (5)                |
+| real_update_test     | full end-to-end phase 1 (7)         |
+
+## Troubleshooting
+
+| message                                     | meaning / fix                          |
+|---------------------------------------------|----------------------------------------|
+| `update: A/B disk: absent`                  | disk not attached or not built by make_ab_disk.sh |
+| `config file missing or unreadable`         | /etc/opencube.conf missing; run `config restore` |
+| `invalid URL prefix`                        | update_url must be http:// or https:// |
+| `DNS resolution failed` / `connect failed`  | network down; run `dhcp`, then retry   |
+| `JSON parse failed`                         | server did not return the manifest     |
+| `response too large`                        | manifest bigger than the receive buffer |
+| `SHA256 mismatch`                           | package_sha256 in update.json is wrong |
+| `package is not valid gzip/tar`             | broken upload; rebuild with make_update_pkg.sh |
+| `invalid slot name`                         | use A or B                             |
+| `online update disabled`                    | set online_update=yes in /etc/opencube.conf |
+
+Error codes (kernel/update.h): -1..-8 transport (WP-09-fix5 contract),
+-9 disabled, -10 no A/B disk, -11 SHA mismatch, -12 bad gzip/tar,
+-13 I/O, -14 slot, -15 args.
+
+## Files
+
+- kernel/ab_update.h/.c - A/B framework + updater
+- kernel/update.h/.c - manifest check (Plan D v2 changelog)
+- tools/make_ab_disk.sh - A/B disk image builder (host)
+- tools/make_update_pkg.sh - update package builder (host)
+- tools/update_server.py - manifest + v2 + package test server (host)
+
+Interface details: docs/EXTENSIONS_WP10u.md.  Config keys:
+docs/CONFIG.md.6:["$","section","update-howto",{"className":"doc-block","id":"update-howto","children":[["$","h2",null,{"children":"UPDATE-HOWTO"}],["$","div",null,{"className":"doc-src","children":["Source: ","docs/UPDATE-HOWTO.md"]}],["$","pre",null,{"className":"doc-pre","children":"$b"}]]}]
+7:["$","$Lc",null,{"children":["$","$d",null,{"name":"Next.MetadataOutlet","children":"$@e"}]}]
+e:null
