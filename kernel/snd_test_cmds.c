@@ -415,6 +415,28 @@ static snd_device_t *snd_find_by_name_tok(const char *name) {
     return NULL;
 }
 
+/* Rule-9 feedback: when a command argument names a device that is not
+ * registered, tell the user exactly which names ARE registered (the
+ * same names shown by `sound`), instead of only printing the usage. */
+static void snd_print_unknown_device(const char *cmd, const char *tok) {
+    char line[160];
+    oc_strcpy(line, cmd);
+    oc_strcat(line, ": unknown device '");
+    oc_strcat(line, tok);
+    oc_strcat(line, "' (available:");
+    int any = 0;
+    for (int i = 0; i < SND_MAX_DEVICES; i++) {
+        snd_device_t *d = snd_get_device(i);
+        if (d && d->present) {
+            oc_strcat(line, " ");
+            oc_strcat(line, d->name);
+            any = 1;
+        }
+    }
+    oc_strcat(line, any ? ")\n" : " none)\n");
+    oc_console_puts(line);
+}
+
 static int cmd_play(const char *args) {
     int idx = snd_find_first_present();
     if (idx < 0) {
@@ -431,6 +453,7 @@ static int cmd_play(const char *args) {
         if (!snd_tok_is_number(tok)) {
             snd_device_t *by_name = snd_find_by_name_tok(tok);
             if (!by_name) {
+                snd_print_unknown_device("play", tok);
                 oc_console_puts("usage: play [device] [rate 4000-96000]\n");
                 return -1;
             }
@@ -486,6 +509,7 @@ static int cmd_volume(const char *args) {
         if (!snd_tok_is_number(tok)) {
             snd_device_t *by_name = snd_find_by_name_tok(tok);
             if (!by_name) {
+                snd_print_unknown_device("volume", tok);
                 oc_console_puts("usage: volume [device] [0-100]\n");
                 return -1;
             }

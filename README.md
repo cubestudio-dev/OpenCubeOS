@@ -22,7 +22,7 @@ Licensed under the Apache License, Version 2.0.
 
 ## Stats (WP-10c)
 
-- **Source code**: 68,305 lines (kernel + boot + userprogs, incl. headers + linker scripts, no docs;
+- **Source code**: 68,975 lines (kernel + boot + userprogs, incl. headers + linker scripts, no docs;
   verify: `find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
 - **Work packages**: 13 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c)
 - **L1 extension interfaces**: 111 (57 through WP-09 + 8 WP-10a items:
@@ -202,6 +202,8 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   rollback; a failed slot-B boot keeps bootfail_B so the next boot goes back
   to slot A.
 - **Commands**: update, update --local, update --status, rollback, reboot.
+- **User guide**: docs/UPDATE-HOWTO.md - step-by-step A/B disk creation,
+  package building, test server, update/rollback with expected outputs.
 - **Verification**: update_pkg_test 12/12, ab_partition_test 7/7,
   update_check/download/verify/install/rollback/local/status all PASS,
   real_update_test 7/7 end-to-end (download, verify, install into slot B,
@@ -344,6 +346,12 @@ make run-uefi       # OVMF -> GRUB EFI -> kernel
 Once the `oc>` prompt appears, type `help` for the full command list.
 Try `run ush` to launch the user-space shell.
 
+**Trying the hardware features in QEMU** (blank disk to format, NIC for
+DHCP/ping, sound cards to play a tone, A/B disk for in-system updates):
+step-by-step commands with expected outputs are in
+**docs/TRY-IT.md**; the update flow has its own guide in
+**docs/UPDATE-HOWTO.md**.
+
 ## Tests
 
 The canonical WP-09 regression is the **18/18 full QEMU suite** (boot banner,
@@ -364,7 +372,8 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 - WP-10u update tests — update_pkg_test 12/12, ab_partition_test 7/7,
   update_check/download/verify/install/rollback/local/status all PASS and
   real_update_test 7/7 with a real reboot into slot B (`tools/make_ab_disk.sh`,
-  `tools/make_update_pkg.sh`, `tools/update_server.py`).
+  `tools/make_update_pkg.sh`, `tools/update_server.py`).  Step-by-step
+  user guide: **docs/UPDATE-HOWTO.md**.
 - WP-10c sound tests — hda_test / ac97_test / sb16_test / es1370_test /
   usb_audio_test live in QEMU (real DMA + real IRQ counters), audio_rw_test
   on every card, sample_rate_test for 44.1/48 kHz; virtio_snd_test SKIPPED
