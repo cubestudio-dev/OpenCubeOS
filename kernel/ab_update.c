@@ -375,12 +375,19 @@ void oc_update_cache_check(int rc, const char *version) {
 int oc_update_download(const char *url, const char *path) {
     if (!url || !path) return OC_UPDATE_E_ARGS;
 
-    oc_update_url_t u;
-    int rc = oc_update_url_parse(url, &u);
-    if (rc != 0) return rc;
-
-    u32 ip = net_parse_ip(u.host);
-    if (ip == 0 && dns_resolve(u.host, &ip) != 0) return OC_UPDATE_E_DNS;
+    /* Follow up to 3 HTTP redirects (301/302/303/307/308 with an absolute
+     * Location URL).  github.com release downloads respond 302 to a CDN
+     * host (release-assets.githubusercontent.com), so without this every
+     * online `update` download failed with "malformed HTTP response". */
+    static char cur_url[2048];   /* static: CDN redirect URLs reach ~1.4 KB; single-threaded shell */
+    {
+        int n = 0;
+        while (url[n] && n < (int)sizeof(cur_url) - 1) {
+            cur_url[n] = url[n];
+            n++;
+        }
+        cur_url[n] = 0;
+    }
 
     int fd = vfs_open(path, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
     if (fd < 0) return OC_UPDATE_E_IO;
@@ -391,13 +398,26 @@ int oc_update_download(const char *url, const char *path) {
     int total = 0;
     int err = 0;
 
+    for (int hop = 0; hop < 4 && !err; hop++) {
+    oc_update_url_t u;
+    if (oc_update_url_parse(cur_url, &u) != 0) {
+        err = OC_UPDATE_E_PREFIX;
+        break;
+    }
+
+    u32 ip = net_parse_ip(u.host);
+    if (ip == 0 && dns_resolve(u.host, &ip) != 0) {
+        err = OC_UPDATE_E_DNS;
+        break;
+    }
+
     if (u.use_tls) {
         if (tls_connect(ip, (u16)u.port, u.host) != 0) {
             kfree(chunk); vfs_close(fd);
             return OC_UPDATE_E_CONNECT;
         }
         tls_ctx_t *c = tls_get_ctx();
-        char req[512];
+        static char req[2048];   /* static: long CDN query strings; single-threaded shell */
         oc_strcpy(req, "GET ");
         oc_strcat(req, u.path);
         oc_strcat(req, " HTTP/1.0\r\nHost: ");
@@ -408,8 +428,11 @@ int oc_update_download(const char *url, const char *path) {
             return OC_UPDATE_E_CONNECT;
         }
 
-        /* header phase (small, heap) */
-        char *hdr = (char *)kmalloc(4096);
+        /* header phase (large: github.com's 302 Location header alone is
+         * ~5.3 KB, so the buffer must hold a full TLS record plus the
+         * header block; a record that does not fit would be truncated
+         * by tls_recv and the \r\n\r\n terminator lost forever) */
+        char *hdr = (char *)kmalloc(16640);
         if (!hdr) {
             tls_close(c); kfree(chunk); vfs_close(fd);
             return OC_UPDATE_E_BUFSIZE;
@@ -418,7 +441,7 @@ int oc_update_download(const char *url, const char *path) {
         u64 t0 = oc_timer_ticks();
         while (header_end < 0) {
             if (oc_timer_ticks() - t0 > DL_NO_DATA_TICKS) { err = OC_UPDATE_E_TIMEOUT; break; }
-            int n = tls_recv(c, hdr + hlen, 4095 - hlen);
+            int n = tls_recv(c, hdr + hlen, 16639 - hlen);
             if (n < 0) { err = OC_UPDATE_E_TIMEOUT; break; }
             if (n == 0) { err = OC_UPDATE_E_HTTP; break; }
             hlen += n;
@@ -431,12 +454,55 @@ int oc_update_download(const char *url, const char *path) {
                 }
             }
         }
+        int code = 0;
         if (!err) {
-            int code = 0;
             const char *sp = hdr;
             while (*sp && *sp != ' ') sp++;
             while (*sp == ' ') sp++;
             while (*sp >= '0' && *sp <= '9') code = code * 10 + (*sp++ - '0');
+            if (code == 301 || code == 302 || code == 303 ||
+                code == 307 || code == 308) {
+                /* redirect: locate the absolute Location URL and hop */
+                char loc[2048];
+                int found = -1;
+                for (int k = 0; k + 9 < header_end; k++) {
+                    if (k != 0 && hdr[k - 1] != '\n') continue;
+                    int mm = 0;
+                    const char *pat = "location:";
+                    while (mm < 9) {
+                        char a = hdr[k + mm], b = pat[mm];
+                        if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
+                        if (a != b) break;
+                        mm++;
+                    }
+                    if (mm != 9) continue;
+                    int v = k + 9;
+                    while (v < header_end && (hdr[v] == ' ' || hdr[v] == '\t')) v++;
+                    int e = v;
+                    while (e < header_end && hdr[e] != '\r' && hdr[e] != '\n') e++;
+                    int len = e - v;
+                    if (len > (int)sizeof(loc) - 1) len = (int)sizeof(loc) - 1;
+                    for (int i = 0; i < len; i++) loc[i] = hdr[v + i];
+                    loc[len] = 0;
+                    found = 0;
+                    break;
+                }
+                if (found != 0 || (oc_strncmp(loc, "http://", 7) != 0 &&
+                                   oc_strncmp(loc, "https://", 8) != 0)) {
+                    err = OC_UPDATE_E_HTTP;   /* no absolute Location */
+                } else {
+                    int m = 0;
+                    while (loc[m] && m < (int)sizeof(cur_url) - 1) {
+                        cur_url[m] = loc[m];
+                        m++;
+                    }
+                    cur_url[m] = 0;
+                }
+                kfree(hdr);
+                tls_close(c);
+                if (hop >= 3) { err = OC_UPDATE_E_HTTP; break; }   /* too many hops */
+                continue;                     /* follow redirect */
+            }
             if (code < 200 || code > 299) err = OC_UPDATE_E_HTTP;
         }
         if (!err && header_end >= 0) {
@@ -472,6 +538,7 @@ int oc_update_download(const char *url, const char *path) {
             }
         }
         tls_close(c);
+        break;                                /* downloaded */
     } else {
         int sock = net_socket(SOCK_TCP);
         if (sock < 0) { kfree(chunk); vfs_close(fd); return OC_UPDATE_E_CONNECT; }
@@ -479,7 +546,7 @@ int oc_update_download(const char *url, const char *path) {
             net_close(sock); kfree(chunk); vfs_close(fd);
             return OC_UPDATE_E_CONNECT;
         }
-        char req[512];
+        static char req[2048];   /* static: long CDN query strings; single-threaded shell */
         oc_strcpy(req, "GET ");
         oc_strcat(req, u.path);
         oc_strcat(req, " HTTP/1.0\r\nHost: ");
@@ -492,8 +559,9 @@ int oc_update_download(const char *url, const char *path) {
          * small heap buffer, phase 2 streams the body to the VFS file.
          * The earlier single-phase version wrote the HTTP headers into
          * the package file and carried per-iteration wall-clock checks;
-         * both broke the transfer. */
-        char *hdr = (char *)kmalloc(4096);
+         * both broke the transfer.  Buffer sized for github.com's ~5.3 KB
+         * redirect headers (same reason as the TLS branch above). */
+        char *hdr = (char *)kmalloc(16640);
         if (!hdr) {
             net_close(sock);
             kfree(chunk);
@@ -504,7 +572,7 @@ int oc_update_download(const char *url, const char *path) {
         int total_header = 0, header_end = -1, body_start = 0;
         int content_length = -1, body_received = 0;
         while (header_end < 0) {
-            int n = net_recv(sock, hdr + total_header, 4095 - total_header);
+            int n = net_recv(sock, hdr + total_header, 16639 - total_header);
             if (n <= 0) { err = OC_UPDATE_E_TIMEOUT; break; }
             total_header += n;
             hdr[total_header] = 0;
@@ -517,17 +585,60 @@ int oc_update_download(const char *url, const char *path) {
                     break;
                 }
             }
-            if (header_end < 0 && total_header >= 4095) {
+            if (header_end < 0 && total_header >= 16639) {
                 err = OC_UPDATE_E_HTTP;
                 break;
             }
         }
+        int code = 0;
         if (!err) {
-            int code = 0;
             const char *sp = hdr;
             while (*sp && *sp != ' ') sp++;
             while (*sp == ' ') sp++;
             while (*sp >= '0' && *sp <= '9') code = code * 10 + (*sp++ - '0');
+            if (code == 301 || code == 302 || code == 303 ||
+                code == 307 || code == 308) {
+                /* redirect: locate the absolute Location URL and hop */
+                char loc[2048];
+                int found = -1;
+                for (int k = 0; k + 9 < header_end; k++) {
+                    if (k != 0 && hdr[k - 1] != '\n') continue;
+                    int mm = 0;
+                    const char *pat = "location:";
+                    while (mm < 9) {
+                        char a = hdr[k + mm], b = pat[mm];
+                        if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
+                        if (a != b) break;
+                        mm++;
+                    }
+                    if (mm != 9) continue;
+                    int v = k + 9;
+                    while (v < header_end && (hdr[v] == ' ' || hdr[v] == '\t')) v++;
+                    int e = v;
+                    while (e < header_end && hdr[e] != '\r' && hdr[e] != '\n') e++;
+                    int len = e - v;
+                    if (len > (int)sizeof(loc) - 1) len = (int)sizeof(loc) - 1;
+                    for (int i = 0; i < len; i++) loc[i] = hdr[v + i];
+                    loc[len] = 0;
+                    found = 0;
+                    break;
+                }
+                if (found != 0 || (oc_strncmp(loc, "http://", 7) != 0 &&
+                                   oc_strncmp(loc, "https://", 8) != 0)) {
+                    err = OC_UPDATE_E_HTTP;   /* no absolute Location */
+                } else {
+                    int m = 0;
+                    while (loc[m] && m < (int)sizeof(cur_url) - 1) {
+                        cur_url[m] = loc[m];
+                        m++;
+                    }
+                    cur_url[m] = 0;
+                }
+                kfree(hdr);
+                net_close(sock);
+                if (hop >= 3) { err = OC_UPDATE_E_HTTP; break; }   /* too many hops */
+                continue;                     /* follow redirect */
+            }
             if (code < 200 || code > 299) err = OC_UPDATE_E_HTTP;
         }
         if (!err) {
@@ -564,6 +675,8 @@ int oc_update_download(const char *url, const char *path) {
         }
         kfree(hdr);
         net_close(sock);
+        break;                                /* downloaded */
+    }
     }
 
     kfree(chunk);

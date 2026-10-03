@@ -6,7 +6,10 @@
 The set covers the roots needed to verify github.io / google.com /
 cloudflare.com and the most common other chains (Let's Encrypt ISRG X1,
 Google Trust Services GTS R1/R4, GlobalSign, DigiCert, Baltimore,
-Amazon, Microsoft)."""
+Amazon, Microsoft, Sectigo).  The Sectigo roots were added after
+github.com moved its release-CDN certificates to the "Sectigo Public
+Server Authentication" hierarchy (E46 ECC / R46 RSA), which broke the
+WP-10u end-to-end update download with "issuer certificate missing"."""
 import os
 import sys
 
@@ -21,6 +24,8 @@ ROOTS = [
     ("Baltimore CyberTrust Root", "Baltimore_CyberTrust_Root.pem"),
     ("Amazon Root CA 1", "Amazon_Root_CA_1.pem"),
     ("Microsoft RSA Root CA 2017", "Microsoft_RSA_Root_Certificate_Authority_2017.pem"),
+    ("Sectigo Public Server Authentication Root E46", "Sectigo_Public_Server_Authentication_Root_E46.pem"),
+    ("Sectigo Public Server Authentication Root R46", "Sectigo_Public_Server_Authentication_Root_R46.pem"),
 ]
 
 STORE = sys.argv[1] if len(sys.argv) > 1 else "/etc/ssl/certs"

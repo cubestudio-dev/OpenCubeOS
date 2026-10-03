@@ -10,8 +10,16 @@
  *     {
  *       "version": "WP-10",
  *       "time": "2026-10-15",
- *       "changes": "driver optimization + config file"
+ *       "changes": "driver optimization + config file",
+ *       "changes_v2_url": "https://host/OpenCubeOS/update-v2.json"
  *     }
+ *
+ * "changes_v2_url" is OPTIONAL (dual-manifest protocol, "Plan D"): the
+ * base manifest carries a SHORT "changes" (<= 127 bytes) so old kernels
+ * (WP-09: 128-byte buffer + hard error on overflow) keep parsing it,
+ * while new kernels fetch the long-changelog manifest to upgrade the
+ * display-only value.  Old kernels ignore the extra field; new kernels
+ * degrade silently to the short value when the v2 fetch fails.
  *
  * The URL comes from /etc/opencube.conf key "update_url".  The scheme
  * decides the transport: "https://" -> TLS 1.2 client, "http://" -> plain
@@ -134,7 +142,7 @@ typedef struct {
     int   use_tls;
     char  host[128];
     int   port;
-    char  path[128];
+    char  path[1664];   /* long CDN redirect paths (~1.3 KB) */
 } oc_update_url_t;
 
 int oc_update_url_parse(const char *url, oc_update_url_t *out);
@@ -145,6 +153,21 @@ int oc_update_url_parse(const char *url, oc_update_url_t *out);
 int oc_update_json_string(const char *json, const char *key,
                           char *out, int outlen);
 int oc_update_json_uint(const char *json, const char *key, u64 *out);
+
+/* Dual-manifest protocol ("Plan D") - long changelog support:
+ *
+ * oc_update_changes_v2_url extracts the optional "changes_v2_url" field
+ * from a parsed base manifest.  Returns 0 and fills url (truncated to
+ * cap) when present and non-empty, -1 when missing/empty.
+ *
+ * oc_update_fetch_changes_v2 fetches the v2 manifest at v2url (absolute
+ * http:// or https:// only) and copies its long "changes" into out
+ * (truncated to fit outcap).  Returns 0 when out was upgraded, -1 when
+ * the URL was rejected, or an OC_UPDATE_E_* transport code.  Both are
+ * display-only helpers: callers treat every failure as "keep the short
+ * value", never as a check failure. */
+int oc_update_changes_v2_url(const char *body, char *url, int cap);
+int oc_update_fetch_changes_v2(const char *v2url, char *out, int outcap);
 
 /* Cache a finished check for update --status (called by
  * oc_update_check_pkg; rc is OC_UPDATE_OK / OC_UPDATE_NEW). */

@@ -1211,6 +1211,7 @@ static int tls12_resume_from_sh(tls_ctx_t *c) {
 }
 
 int tls_connect(u32 ip, u16 port, const char *hostname) {
+    tls_recv_reset();   /* drop leftovers from any previous session */
     tls_ctx_t *c = &g_tls;
     oc_memset(c, 0, sizeof(*c));
     c->hostname[0] = 0;
@@ -1244,9 +1245,37 @@ int tls_send(tls_ctx_t *c, const void *data, int len) {
     return tls12_send_record(c, CT_APPDATA, (const u8 *)data, len);
 }
 
+/* Leftover storage for records larger than the caller's buffer: a TLS
+ * record is an atomic unit, so bytes beyond len must be kept for the
+ * next tls_recv call instead of being dropped (a 16 KiB record read
+ * through a 4 KiB download chunk used to lose three quarters of every
+ * record, corrupting every large transfer). */
+static u8 g_tls_leftover[16640];
+static int g_tls_leftover_have;
+static int g_tls_leftover_off;
+
+void tls_recv_reset(void) {
+    g_tls_leftover_have = 0;
+    g_tls_leftover_off = 0;
+}
+
 int tls_recv(tls_ctx_t *c, void *buf, int len) {
     int ctype;
     static u8 tmp[16640];
+
+    if (len <= 0) return 0;
+
+    /* 1. serve bytes left over from a previous oversized record */
+    if (g_tls_leftover_have > 0) {
+        int give = (g_tls_leftover_have > len) ? len : g_tls_leftover_have;
+        oc_memcpy(buf, g_tls_leftover + g_tls_leftover_off, give);
+        g_tls_leftover_off += give;
+        g_tls_leftover_have -= give;
+        if (g_tls_leftover_have == 0) g_tls_leftover_off = 0;
+        return give;
+    }
+
+    /* 2. read the next complete record */
     int n = (c->version == TLS13 || c->hs_keys_active)
                 ? tls13_recv_record(c, &ctype, tmp, (int)sizeof(tmp))
                 : tls12_recv_record(c, &ctype, tmp, (int)sizeof(tmp));
@@ -1261,12 +1290,20 @@ int tls_recv(tls_ctx_t *c, void *buf, int len) {
         /* post-handshake messages we do not act on; keep reading data */
         return tls_recv(c, buf, len);
     }
-    if (n > len) n = len;
+    /* 3. hand out what fits, keep the rest for the next call */
+    if (n > len) {
+        oc_memcpy(buf, tmp, len);
+        oc_memcpy(g_tls_leftover, tmp + len, n - len);
+        g_tls_leftover_have = n - len;
+        g_tls_leftover_off = 0;
+        return len;
+    }
     oc_memcpy(buf, tmp, n);
     return n;
 }
 
 void tls_close(tls_ctx_t *c) {
+    tls_recv_reset();
     if (!c->tcp_sock) return;
     /* Only send the closing alert while the TCP connection is still
      * ESTABLISHED.  Servers that answer with "Connection: close" send

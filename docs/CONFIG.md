@@ -140,7 +140,8 @@ The server returns a flat JSON object (ASCII strings):
 {
   "version": "WP-10",
   "time": "2026-10-30",
-  "changes": "driver optimization + config file"
+  "changes": "driver optimization + config file",
+  "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json"
 }
 ```
 
@@ -150,6 +151,45 @@ top-level string fields; escape sequences are handled by taking the next
 character literally. This is a deliberately scoped parser for the
 documented manifest shape — not a general JSON library (no nesting, no
 numbers/arrays/booleans needed by the contract).
+
+### 6.1 Dual manifest ("Plan D") — old-version compatibility
+
+The published manifests keep every kernel generation working:
+
+| file | served content | who reads it |
+|---|---|---|
+| `/update.json` | short `changes` (<= 127 bytes) + optional `changes_v2_url` | every kernel; WP-09 stops here |
+| `/update-v2.json` | the same manifest with the full-length `changes` | kernels that understand `changes_v2_url` |
+
+Rationale: WP-09 holds `changes` in a 128-byte buffer and fails the whole
+check with `JSON parse failed` on overflow, while WP-10a+ truncate a long
+value.  A server that only published the long changelog would break
+WP-09; one that only published short changelogs would degrade the new
+kernels' display.  The dual manifest gives old kernels a readable
+manifest and new kernels the full changelog (rule 8).
+
+Kernel side (all display-only, best-effort — a failed v2 fetch never
+fails the check):
+
+- `oc_update_changes_v2_url(body, url, cap)` — extract the optional
+  `changes_v2_url` field (`0` ok / `-1` missing or empty);
+- `oc_update_fetch_changes_v2(v2url, out, outcap)` — fetch the v2
+  manifest (absolute `http://`/`https://` only) and copy its long
+  `changes` into `out` (`0` upgraded / `-1` rejected URL / `<0` transport
+  error);
+- `oc_check_update()` and `oc_update_check_pkg()` apply both after the
+  base manifest parses.
+
+### 6.2 Redirect following
+
+Both HTTP transports (manifest fetch and package download) follow up to
+3 HTTP redirects (301/302/303/307/308) when the server replies with an
+absolute `Location` URL.  This is required for the GitHub release
+download URL used by `package_url`: `https://github.com/...` answers
+`302` and points at `https://release-assets.githubusercontent.com/...`,
+whose redirect headers alone are ~5.3 KB (the receive buffers are sized
+for that).  Redirect chains longer than 3 hops, relative `Location`
+values and non-absolute URLs fail the request instead of looping.
 
 ## 7. Boot auto check
 

@@ -81,6 +81,7 @@ int tls_connect(u32 ip, u16 port, const char *hostname);
 
 /* Send / receive application data. */
 int tls_send(tls_ctx_t *ctx, const void *data, int len);
+void tls_recv_reset(void);
 int tls_recv(tls_ctx_t *ctx, void *buf, int len);
 
 /* Close. */

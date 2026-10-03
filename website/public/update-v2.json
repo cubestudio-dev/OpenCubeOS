@@ -1,8 +1,7 @@
 {
     "version": "WP-10c",
     "time": "2026-10-02",
-    "changes": "Intel HDA, AC'97, SB16, ES1370, virtio-snd, USB audio; snd_* framework; play/volume",
-    "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
+    "changes": "Sound card drivers: Intel HDA (CORB/RIRB, codec/widget enum, BDL DMA), AC'97, SB16, ES1370, virtio-snd, USB audio over a new UHCI host stack; snd_* framework; play/volume commands",
     "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/WP-10c/opencube-wp10c-update.tar.gz",
     "package_sha256": "79412bde3038a27912d02e927ad6fd18ce91c58d10bd1347cd4e9903c12d15ff",
     "package_size": 309653

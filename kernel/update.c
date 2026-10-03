@@ -136,143 +136,315 @@ int oc_update_json_string(const char *json, const char *key,
 /* HTTP / HTTPS GET (body only)                                        */
 /* ------------------------------------------------------------------ */
 
+/* Extract a response header value (case-insensitive name match) from an
+ * HTTP response header block.  Returns 0 and copies the value (leading
+ * whitespace trimmed, NUL-terminated, truncated to cap) when found,
+ * -1 when the header is absent. */
+static int http_header_get(const char *hdr, int hdr_len, const char *name,
+                           char *out, int cap) {
+    if (!hdr || !name || !out || cap <= 0) return -1;
+    int nlen = (int)oc_strlen(name);
+    for (int k = 0; k + nlen + 1 < hdr_len; k++) {
+        if (k != 0 && hdr[k - 1] != '\n') continue;   /* line start only */
+        int m = 0;
+        while (m < nlen) {
+            char a = hdr[k + m], b = name[m];
+            if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
+            if (b >= 'A' && b <= 'Z') b = (char)(b - 'A' + 'a');
+            if (a != b) break;
+            m++;
+        }
+        if (m != nlen || hdr[k + nlen] != ':') continue;
+        int v = k + nlen + 1;
+        while (v < hdr_len && (hdr[v] == ' ' || hdr[v] == '\t')) v++;
+        int e = v;
+        while (e < hdr_len && hdr[e] != '\r' && hdr[e] != '\n') e++;
+        int len = e - v;
+        if (len > cap - 1) len = cap - 1;
+        for (int i = 0; i < len; i++) out[i] = hdr[v + i];
+        out[len] = 0;
+        return 0;
+    }
+    return -1;
+}
+
+/* Parse the status code from a "HTTP/1.x NNN ..." status line. */
+static int http_status_code(const char *hdr) {
+    const char *sp = hdr;
+    while (*sp && *sp != ' ') sp++;
+    while (*sp == ' ') sp++;
+    int code = 0;
+    while (*sp >= '0' && *sp <= '9') code = code * 10 + (*sp++ - '0');
+    return code;
+}
+
 /* Fetch url, copy the response body into body (NUL-terminated).
+ * Follows up to 3 HTTP redirects (301/302/303/307/308 with an absolute
+ * Location URL - github.com release downloads respond 302 to a CDN
+ * host, so without this every `update` download failed).
  * Returns body length >= 0, or OC_UPDATE_E_* negative code. */
 static int http_get_body(const char *url, char *body, int body_cap) {
-    oc_update_url_t u;
-    int rc = oc_update_url_parse(url, &u);
-    if (rc != 0) return rc;
-
-    /* Resolve host: dotted-quad first, then DNS. */
-    u32 ip = net_parse_ip(u.host);
-    if (ip == 0) {
-        if (dns_resolve(u.host, &ip) != 0) return OC_UPDATE_E_DNS;
+    static char cur_url[2048];   /* static: CDN redirect URLs reach ~1.4 KB; single-threaded shell */
+    {
+        int n = 0;
+        while (url[n] && n < (int)sizeof(cur_url) - 1) {
+            cur_url[n] = url[n];
+            n++;
+        }
+        cur_url[n] = 0;
     }
 
-    if (u.use_tls) {
-        /* HTTPS via the TLS 1.2 client (16 KiB contiguous pages, as wget). */
-        enum { TLS_BUFSZ = 16384 };
-        u8 *resp = (u8 *)(uintptr_t)pmm_alloc_contig(TLS_BUFSZ / PMM_PAGE_SIZE);
-        if (!resp) return OC_UPDATE_E_BUFSIZE;
-        int n = tls_https_get(ip, (u16)u.port, u.host, u.path, resp, TLS_BUFSZ);
-        if (n <= 0) {
+    for (int hop = 0; hop < 4; hop++) {
+        oc_update_url_t u;
+        int rc = oc_update_url_parse(cur_url, &u);
+        if (rc != 0) return rc;
+
+        /* Resolve host: dotted-quad first, then DNS. */
+        u32 ip = net_parse_ip(u.host);
+        if (ip == 0) {
+            if (dns_resolve(u.host, &ip) != 0) return OC_UPDATE_E_DNS;
+        }
+
+        if (u.use_tls) {
+            /* HTTPS via the TLS 1.2 client (16 KiB contiguous pages, as wget). */
+            enum { TLS_BUFSZ = 16384 };
+            u8 *resp = (u8 *)(uintptr_t)pmm_alloc_contig(TLS_BUFSZ / PMM_PAGE_SIZE);
+            if (!resp) return OC_UPDATE_E_BUFSIZE;
+            int n = tls_https_get(ip, (u16)u.port, u.host, u.path, resp, TLS_BUFSZ);
+            if (n <= 0) {
+                for (int pg = 0; pg < TLS_BUFSZ / PMM_PAGE_SIZE; pg++)
+                    pmm_free_frame((u64)(uintptr_t)resp + (u64)pg * PMM_PAGE_SIZE);
+                return OC_UPDATE_E_CONNECT;
+            }
+            /* strip headers */
+            int body_start = 0;
+            for (int k = 0; k < n - 3; k++) {
+                if (resp[k] == '\r' && resp[k + 1] == '\n' &&
+                    resp[k + 2] == '\r' && resp[k + 3] == '\n') {
+                    body_start = k + 4;
+                    break;
+                }
+            }
+            if (body_start == 0) {
+                for (int pg = 0; pg < TLS_BUFSZ / PMM_PAGE_SIZE; pg++)
+                    pmm_free_frame((u64)(uintptr_t)resp + (u64)pg * PMM_PAGE_SIZE);
+                return OC_UPDATE_E_HTTP;
+            }
+            int code = http_status_code((const char *)resp);
+            if (code == 301 || code == 302 || code == 303 ||
+                code == 307 || code == 308) {
+                char loc[2048];
+                int hr = http_header_get((const char *)resp, body_start,
+                                         "location", loc, (int)sizeof(loc));
+                for (int pg = 0; pg < TLS_BUFSZ / PMM_PAGE_SIZE; pg++)
+                    pmm_free_frame((u64)(uintptr_t)resp + (u64)pg * PMM_PAGE_SIZE);
+                if (hr != 0) return OC_UPDATE_E_HTTP;   /* no Location */
+                int m = 0;
+                while (loc[m] && m < (int)sizeof(cur_url) - 1) {
+                    cur_url[m] = loc[m];
+                    m++;
+                }
+                cur_url[m] = 0;
+                continue;                               /* follow redirect */
+            }
+            if (code < 200 || code > 299) {
+                for (int pg = 0; pg < TLS_BUFSZ / PMM_PAGE_SIZE; pg++)
+                    pmm_free_frame((u64)(uintptr_t)resp + (u64)pg * PMM_PAGE_SIZE);
+                return OC_UPDATE_E_HTTP;
+            }
+            int blen = n - body_start;
+            if (blen > body_cap - 1) blen = body_cap - 1;
+            for (int i = 0; i < blen; i++) body[i] = (char)resp[body_start + i];
+            body[blen] = 0;
             for (int pg = 0; pg < TLS_BUFSZ / PMM_PAGE_SIZE; pg++)
                 pmm_free_frame((u64)(uintptr_t)resp + (u64)pg * PMM_PAGE_SIZE);
+            return blen;
+        }
+
+        /* Plain HTTP over a TCP socket. */
+        int sock = net_socket(SOCK_TCP);
+        if (sock < 0) return OC_UPDATE_E_CONNECT;
+        if (net_connect(sock, ip, (u16)u.port) < 0) {
+            net_close(sock);
             return OC_UPDATE_E_CONNECT;
         }
-        /* strip headers */
-        int body_start = 0;
-        for (int k = 0; k < n - 3; k++) {
-            if (resp[k] == '\r' && resp[k + 1] == '\n' &&
-                resp[k + 2] == '\r' && resp[k + 3] == '\n') {
-                body_start = k + 4;
-                break;
+
+        char request[256];
+        oc_strcpy(request, "GET ");
+        oc_strcat(request, u.path);
+        oc_strcat(request, " HTTP/1.0\r\nHost: ");
+        oc_strcat(request, u.host);
+        oc_strcat(request, "\r\nUser-Agent: opencube-checkupdate\r\n\r\n");
+        net_send(sock, request, oc_strlen(request));
+
+        /* Buffer must hold a full TLS record / long header block:
+         * github.com's 302 redirect headers alone are ~5.3 KB, and a
+         * record that does not fit the buffer is truncated by tls_recv
+         * (its tail is dropped), losing the \r\n\r\n terminator. */
+        enum { RBUF_CAP = 20480 };
+        char *rbuf = (char *)kmalloc(RBUF_CAP);
+        if (!rbuf) { net_close(sock); return OC_UPDATE_E_BUFSIZE; }
+
+        int total = 0, header_end = -1, content_length = -1;
+        u64 start = oc_timer_ticks();
+        /* Phase 1: headers. */
+        while (header_end < 0) {
+            if (oc_timer_ticks() - start > 500) {   /* ~5 s, same budget as DNS */
+                kfree(rbuf); net_close(sock);
+                return OC_UPDATE_E_TIMEOUT;
+            }
+            int n = net_recv(sock, rbuf + total, RBUF_CAP - 1 - total);
+            if (n <= 0) {
+                kfree(rbuf); net_close(sock);
+                return OC_UPDATE_E_TIMEOUT;
+            }
+            total += n;
+            rbuf[total] = 0;
+            for (int k = 0; k <= total - 4; k++) {
+                if (rbuf[k] == '\r' && rbuf[k + 1] == '\n' &&
+                    rbuf[k + 2] == '\r' && rbuf[k + 3] == '\n') {
+                    header_end = k;
+                    break;
+                }
             }
         }
-        if (body_start == 0) {
-            for (int pg = 0; pg < TLS_BUFSZ / PMM_PAGE_SIZE; pg++)
-                pmm_free_frame((u64)(uintptr_t)resp + (u64)pg * PMM_PAGE_SIZE);
-            return OC_UPDATE_E_HTTP;
-        }
-        int blen = n - body_start;
-        if (blen > body_cap - 1) blen = body_cap - 1;
-        for (int i = 0; i < blen; i++) body[i] = (char)resp[body_start + i];
-        body[blen] = 0;
-        for (int pg = 0; pg < TLS_BUFSZ / PMM_PAGE_SIZE; pg++)
-            pmm_free_frame((u64)(uintptr_t)resp + (u64)pg * PMM_PAGE_SIZE);
-        return blen;
-    }
 
-    /* Plain HTTP over a TCP socket. */
-    int sock = net_socket(SOCK_TCP);
-    if (sock < 0) return OC_UPDATE_E_CONNECT;
-    if (net_connect(sock, ip, (u16)u.port) < 0) {
-        net_close(sock);
-        return OC_UPDATE_E_CONNECT;
-    }
-
-    char request[256];
-    oc_strcpy(request, "GET ");
-    oc_strcat(request, u.path);
-    oc_strcat(request, " HTTP/1.0\r\nHost: ");
-    oc_strcat(request, u.host);
-    oc_strcat(request, "\r\nUser-Agent: opencube-checkupdate\r\n\r\n");
-    net_send(sock, request, oc_strlen(request));
-
-    enum { RBUF_CAP = 4096 };
-    char *rbuf = (char *)kmalloc(RBUF_CAP);
-    if (!rbuf) { net_close(sock); return OC_UPDATE_E_BUFSIZE; }
-
-    int total = 0, header_end = -1, content_length = -1;
-    u64 start = oc_timer_ticks();
-    /* Phase 1: headers. */
-    while (header_end < 0) {
-        if (oc_timer_ticks() - start > 500) {   /* ~5 s, same budget as DNS */
-            kfree(rbuf); net_close(sock);
-            return OC_UPDATE_E_TIMEOUT;
-        }
-        int n = net_recv(sock, rbuf + total, RBUF_CAP - 1 - total);
-        if (n <= 0) {
-            kfree(rbuf); net_close(sock);
-            return OC_UPDATE_E_TIMEOUT;
-        }
-        total += n;
-        rbuf[total] = 0;
-        for (int k = 0; k <= total - 4; k++) {
-            if (rbuf[k] == '\r' && rbuf[k + 1] == '\n' &&
-                rbuf[k + 2] == '\r' && rbuf[k + 3] == '\n') {
-                header_end = k;
-                break;
+        /* Status code from the first line: HTTP/1.x NNN */
+        int code = http_status_code(rbuf);
+        if (code == 301 || code == 302 || code == 303 ||
+            code == 307 || code == 308) {
+            char loc[2048];
+            int hr = http_header_get(rbuf, header_end,
+                                     "location", loc, (int)sizeof(loc));
+            kfree(rbuf);
+            net_close(sock);
+            if (hr != 0) return OC_UPDATE_E_HTTP;   /* no Location */
+            int m = 0;
+            while (loc[m] && m < (int)sizeof(cur_url) - 1) {
+                cur_url[m] = loc[m];
+                m++;
             }
+            cur_url[m] = 0;
+            continue;                               /* follow redirect */
         }
-    }
-
-    /* Status code from the first line: HTTP/1.x NNN */
-    {
-        int code = 0;
-        const char *sp = rbuf;
-        while (*sp && *sp != ' ') sp++;
-        while (*sp == ' ') sp++;
-        while (*sp >= '0' && *sp <= '9') code = code * 10 + (*sp++ - '0');
         if (code < 200 || code > 299) {
             kfree(rbuf); net_close(sock);
             return OC_UPDATE_E_HTTP;
         }
+
+        /* Content-Length (optional). */
+        for (int k = 0; k <= header_end - 16; k++) {
+            if (oc_strncmp(rbuf + k, "Content-Length:", 15) == 0) {
+                content_length = 0;
+                const char *cp = rbuf + k + 15;
+                while (*cp == ' ') cp++;
+                while (*cp >= '0' && *cp <= '9')
+                    content_length = content_length * 10 + (*cp++ - '0');
+                break;
+            }
+        }
+
+        /* Phase 2: receive the rest of the body (into rbuf at
+         * body_start + blen, i.e. where the next body byte belongs). */
+        int body_start = header_end + 4;
+        int blen = total - body_start;
+        u64 t1 = oc_timer_ticks();
+        while (blen < body_cap - 1 &&
+               (content_length < 0 || blen < content_length)) {
+            if (oc_timer_ticks() - t1 > 500) break;   /* no more data coming */
+            int room = RBUF_CAP - 1 - (body_start + blen);
+            if (room <= 0) break;
+            int n = net_recv(sock, rbuf + body_start + blen, room);
+            if (n <= 0) break;
+            blen += n;
+        }
+        net_close(sock);
+
+        int copy = blen;
+        if (copy > body_cap - 1) copy = body_cap - 1;
+        for (int i = 0; i < copy; i++) body[i] = rbuf[body_start + i];
+        body[copy] = 0;
+        kfree(rbuf);
+        return copy;
     }
-    /* Content-Length (optional). */
-    for (int k = 0; k <= header_end - 16; k++) {
-        if (oc_strncmp(rbuf + k, "Content-Length:", 15) == 0) {
-            content_length = 0;
-            const char *cp = rbuf + k + 15;
-            while (*cp == ' ') cp++;
-            while (*cp >= '0' && *cp <= '9')
-                content_length = content_length * 10 + (*cp++ - '0');
-            break;
+    return OC_UPDATE_E_HTTP;   /* too many redirects */
+}
+
+/* ------------------------------------------------------------------ */
+/* changes v2 (long changelog, dual-manifest protocol)                 */
+/* ------------------------------------------------------------------ */
+
+/* Server-side compatibility protocol ("Plan D", rule 8: stay compatible
+ * with old versions without losing the new-version experience):
+ *
+ *   /update.json      SHORT "changes" (<= 127 bytes) so OLD kernels
+ *                     (WP-09: 128-byte buffer + hard error on overflow)
+ *                     keep parsing the manifest, plus an OPTIONAL
+ *                     "changes_v2_url" string field pointing at the
+ *                     long-changelog manifest.
+ *   /update-v2.json   the same manifest with the FULL-LENGTH "changes".
+ *
+ * New kernels (WP-10a+/WP-10c with this protocol) fetch changes_v2_url
+ * after the base manifest parses and upgrade out->changes in place.
+ * Every failure on this path (missing field, non-absolute URL, network
+ * error, parse error) silently keeps the short value: "changes" is
+ * display-only and must never fail the check itself. */
+
+/* Extract the changes_v2_url field from a manifest body.  Returns 0 and
+ * fills url (NUL-terminated, truncated to cap) when the field is present,
+ * -1 when the field is missing or empty. */
+int oc_update_changes_v2_url(const char *body, char *url, int cap) {
+    if (!body || !url || cap <= 0) return -1;
+    if (oc_update_json_string(body, "changes_v2_url", url, cap) != 0)
+        return -1;
+    if (url[0] == 0) return -1;
+    return 0;
+}
+
+/* Fetch the changes-v2 manifest at v2url and copy its long "changes"
+ * value into out (outcap bytes, truncated to fit).  Only absolute
+ * http:// or https:// URLs are accepted - anything else is ignored.
+ * Returns 0 when out was upgraded, -1 when the URL was rejected,
+ * or the OC_UPDATE_E_* transport code of a failed fetch.  Never
+ * modifies out unless the long value was parsed successfully. */
+int oc_update_fetch_changes_v2(const char *v2url, char *out, int outcap) {
+    if (!v2url || !out || outcap <= 0) return -1;
+    if (oc_strncmp(v2url, "http://", 7) != 0 &&
+        oc_strncmp(v2url, "https://", 8) != 0)
+        return -1;                             /* not an absolute URL */
+
+    char *v2body = (char *)kmalloc(2048);
+    if (!v2body) return OC_UPDATE_E_BUFSIZE;
+    int blen = http_get_body(v2url, v2body, 2048);
+    int rc = (blen >= 0) ? -1 : blen;          /* blen<0: transport error */
+    if (blen >= 0) {
+        char *tmp = (char *)kmalloc(1024);
+        if (tmp) {
+            if (oc_update_json_string(v2body, "changes", tmp, 1024) == 0 &&
+                tmp[0] != 0) {
+                int n = 0;
+                while (tmp[n] && n < outcap - 1) { out[n] = tmp[n]; n++; }
+                out[n] = 0;
+                rc = 0;
+            }
+            kfree(tmp);
+        } else {
+            rc = OC_UPDATE_E_BUFSIZE;
         }
     }
+    kfree(v2body);
+    return rc;
+}
 
-    /* Phase 2: receive the rest of the body (into rbuf at
-     * body_start + blen, i.e. where the next body byte belongs). */
-    int body_start = header_end + 4;
-    int blen = total - body_start;
-    u64 t1 = oc_timer_ticks();
-    while (blen < body_cap - 1 &&
-           (content_length < 0 || blen < content_length)) {
-        if (oc_timer_ticks() - t1 > 500) break;   /* no more data coming */
-        int room = RBUF_CAP - 1 - (body_start + blen);
-        if (room <= 0) break;
-        int n = net_recv(sock, rbuf + body_start + blen, room);
-        if (n <= 0) break;
-        blen += n;
-    }
-    net_close(sock);
-
-    int copy = blen;
-    if (copy > body_cap - 1) copy = body_cap - 1;
-    for (int i = 0; i < copy; i++) body[i] = rbuf[body_start + i];
-    body[copy] = 0;
-    kfree(rbuf);
-    return copy;
+/* Plan D step for a parsed base manifest: when body offers a usable
+ * changes_v2_url, fetch the long changelog and upgrade changes in place.
+ * Silent best-effort: any failure keeps the short value. */
+static void update_apply_changes_v2(const char *body, char *changes,
+                                    int changescap) {
+    char v2url[192];
+    if (oc_update_changes_v2_url(body, v2url, (int)sizeof(v2url)) != 0)
+        return;
+    (void)oc_update_fetch_changes_v2(v2url, changes, changescap);
 }
 
 /* ------------------------------------------------------------------ */
@@ -332,6 +504,11 @@ int oc_check_update(oc_update_info_t *out) {
     }
     if (r1 != 0 || out->version[0] == 0) return OC_UPDATE_E_JSON;
     if (r2 != 0 || r3 != 0) return OC_UPDATE_E_JSON;
+
+    /* Plan D: the base manifest parsed.  When it offers a long-changelog
+     * URL, upgrade the display-only changes value in place (best-effort,
+     * never fails the check). */
+    update_apply_changes_v2(body, out->changes, (int)sizeof(out->changes));
 
     /* 4. compare versions (exact string match, ASCII) */
     if (oc_strcmp(out->version, OC_UPDATE_CURRENT_VERSION) == 0) {
@@ -423,6 +600,11 @@ int oc_update_check_pkg(oc_update_pkg_info_t *out) {
     }
     if (r1 != 0 || out->info.version[0] == 0) return OC_UPDATE_E_JSON;
     if (r2 != 0 || r3 != 0) return OC_UPDATE_E_JSON;
+
+    /* Plan D: upgrade to the long changelog when the server offers one
+     * (display-only, best-effort, never fails the check). */
+    update_apply_changes_v2(body, out->info.changes,
+                            (int)sizeof(out->info.changes));
 
     /* package fields (optional; required by the `update` command) */
     int rp = oc_update_json_string(body, "package_url", out->package_url,
@@ -664,7 +846,45 @@ int cmd_checkupdate_test(const char *args) {
     }
     oc_console_puts("[checkupdate_test] 300-byte changes rejected by 128-byte buffer (-8): "); oc_console_puts(ok); oc_console_puts("\n");
 
-    /* 8. live probe with the configured update_url (HTTP or HTTPS) */
+    /* 8. Plan D: changes_v2_url extracts from a manifest that carries it
+     * (the field the server adds so new kernels can upgrade to the long
+     * changelog while old kernels keep reading the short one) */
+    total++;
+    ok = "FAIL";
+    {
+        static const char *doc =
+            "{\"version\":\"V\",\"time\":\"T\","
+            "\"changes\":\"short\","
+            "\"changes_v2_url\":\"https://host.example/OpenCubeOS/update-v2.json\"}";
+        char u[192];
+        if (oc_update_changes_v2_url(doc, u, (int)sizeof(u)) == 0 &&
+            oc_strcmp(u, "https://host.example/OpenCubeOS/update-v2.json") == 0)
+            { ok = "PASS"; pass++; }
+    }
+    oc_console_puts("[checkupdate_test] changes_v2_url extracts from manifest: "); oc_console_puts(ok); oc_console_puts("\n");
+
+    /* 9. Plan D failure paths: a manifest without changes_v2_url yields
+     * -1, and oc_update_fetch_changes_v2 rejects non-absolute URLs
+     * without touching the output buffer (no network access needed) */
+    total++;
+    ok = "FAIL";
+    {
+        static const char *doc =
+            "{\"version\":\"V\",\"time\":\"T\",\"changes\":\"short\"}";
+        char u[192];
+        char out[64];
+        oc_strcpy(out, "keep");
+        if (oc_update_changes_v2_url(doc, u, (int)sizeof(u)) == -1 &&
+            oc_update_fetch_changes_v2("ftp://host.example/v2.json",
+                                       out, (int)sizeof(out)) == -1 &&
+            oc_strcmp(out, "keep") == 0 &&
+            oc_update_fetch_changes_v2("notaurl", out, (int)sizeof(out)) == -1 &&
+            oc_strcmp(out, "keep") == 0)
+            { ok = "PASS"; pass++; }
+    }
+    oc_console_puts("[checkupdate_test] changes_v2 missing/rejected URLs keep short changes: "); oc_console_puts(ok); oc_console_puts("\n");
+
+    /* 10. live probe with the configured update_url (HTTP or HTTPS) */
     total++;
     {
         oc_update_info_t info;

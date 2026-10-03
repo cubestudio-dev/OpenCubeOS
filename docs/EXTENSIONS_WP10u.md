@@ -73,6 +73,7 @@ online_update=yes
   "version": "WP-10u",
   "time": "2026-10-05",
   "changes": "In-system update: A/B partitions, rollback, offline update",
+  "changes_v2_url": "https://.../update-v2.json",
   "package_url": "https://.../opencube-wp10u-update.tar.gz",
   "package_sha256": "<64 hex chars, SHA256 of the .tar.gz>",
   "package_size": 290109
@@ -81,6 +82,13 @@ online_update=yes
 
 The three `package_*` fields are optional for `checkupdate` (older
 manifests stay compatible) and required for `update`.
+
+`changes_v2_url` is the dual-manifest ("Plan D") pointer described in
+docs/CONFIG.md §6.1: the base manifest keeps `changes` short enough for
+WP-09's 128-byte buffer, and kernels that understand the field fetch the
+long-changelog `/update-v2.json` (same `version`/`package_*` values, full
+`changes`).  `update` itself always downloads `package_url` from the
+base manifest; the v2 document only upgrades the display-only changelog.
 
 ## Package format (tar.gz)
 

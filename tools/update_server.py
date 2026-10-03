@@ -14,6 +14,10 @@ Usage:
 
 Options:
   --json '<text>'   exact JSON body to serve (default: the WP-10 manifest)
+  --json2 '<text>'  optional body for /update-v2.json (dual-manifest
+                    "Plan D" tests: short changes on /update.json, long
+                    changes on /update-v2.json).  Without --json2 every
+                    path is served the same --json body (legacy behavior).
   --bad             serve a broken (non-JSON) body
   --status N        serve HTTP status N with a plain body
 """
@@ -45,7 +49,7 @@ def build_response(body: bytes, status: int = 200) -> bytes:
     ).encode() + body
 
 
-def serve_once(conn, body: bytes, status: int) -> None:
+def serve_once(conn, body: bytes, status: int, body2: bytes | None = None) -> None:
     req = b""
     while b"\r\n\r\n" not in req and len(req) < 8192:
         try:
@@ -55,10 +59,13 @@ def serve_once(conn, body: bytes, status: int) -> None:
         if not chunk:
             break
         req += chunk
-    print(f"[srv] request: {req.split(chr(13).encode())[0].decode(errors='replace')}",
-          flush=True)
-    conn.sendall(build_response(body, status))
-    print(f"[srv] response sent ({status}, {len(body)} bytes)", flush=True)
+    first = req.split(chr(13).encode())[0].decode(errors="replace")
+    print(f"[srv] request: {first}", flush=True)
+    out = body
+    if body2 is not None and "update-v2.json" in first:
+        out = body2
+    conn.sendall(build_response(out, status))
+    print(f"[srv] response sent ({status}, {len(out)} bytes)", flush=True)
     if hasattr(conn, "unwrap"):            # TLS: send close_notify
         try:
             conn.unwrap()
@@ -71,6 +78,8 @@ def main() -> int:
     ap.add_argument("--mode", choices=["http", "https"], required=True)
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--json", default=DEFAULT_MANIFEST)
+    ap.add_argument("--json2", default=None,
+                    help="body served for /update-v2.json (Plan D tests)")
     ap.add_argument("--bad", action="store_true")
     ap.add_argument("--status", type=int, default=200)
     ap.add_argument("--cert", default="/tmp/hcert.pem")
@@ -81,6 +90,7 @@ def main() -> int:
     args = ap.parse_args()
 
     body = BAD_BODY.encode() if args.bad else args.json.encode()
+    body2 = None if args.json2 is None else args.json2.encode()
 
     lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -111,7 +121,7 @@ def main() -> int:
                 else:
                     conn = raw
                 conn.settimeout(60)
-                serve_once(conn, body, args.status)
+                serve_once(conn, body, args.status, body2)
             except Exception as e:              # noqa: BLE001
                 print(f"[srv] connection error: {e}", flush=True)
             finally:
