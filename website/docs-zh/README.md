@@ -25,7 +25,7 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 
 ## 统计（WP-10c）
 
-- **源码**：68,305 行（kernel + boot + userprogs，含头文件 + 链接脚本，不含文档；
+- **源码**：68,975 行（kernel + boot + userprogs，含头文件 + 链接脚本，不含文档；
   验证：`find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`）
 - **工作包**：13 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c）
 - **L1 扩展接口**：111 个（WP-09 及以前 57 个 + WP-10a 新增 8 项：

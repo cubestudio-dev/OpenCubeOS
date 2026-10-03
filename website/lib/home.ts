@@ -21,7 +21,7 @@ export { fmtBytes };
 // WP-10c stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "68,305", label: "行源码" },
+    { value: "68,975", label: "行源码" },
     { value: "111", label: "L1 扩展接口" },
     { value: "37", label: "系统调用" },
     { value: "146", label: "shell 命令" },
@@ -29,7 +29,7 @@ export const STATS: Bi<{ value: string; label: string }[]> = {
     { value: "18/18", label: "QEMU 回归" },
   ],
   en: [
-    { value: "68,305", label: "lines of source" },
+    { value: "68,975", label: "lines of source" },
     { value: "111", label: "L1 extension interfaces" },
     { value: "37", label: "system calls" },
     { value: "146", label: "shell commands" },

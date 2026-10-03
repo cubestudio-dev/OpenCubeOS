@@ -29,11 +29,11 @@ export const SRC_SHA256 =
   "8af0734e2465bf7817be414d6e6430f13cac79afb179cfb465064e1f2f4aac8c";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-10c stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (68,305 at commit 9f93b69).
+// WP-10c stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (68,975 at commit 8ae9e8c).
 // Shell commands: live boot count = 146 (adds the 9 WP-10c sound status/test commands + play/volume).
 // L1 extension interfaces: 111 items (85 through WP-10u + 21 WP-10c snd.h public functions + 6 per-driver init entry points + 5 usb.h host-stack functions; docs/EXTENSIONS_WP10c.md).
 export const STATS = [
-  { value: "68,305", label: "行源码" },
+  { value: "68,975", label: "行源码" },
   { value: "111", label: "L1 扩展接口" },
   { value: "37", label: "系统调用" },
   { value: "146", label: "shell 命令" },
