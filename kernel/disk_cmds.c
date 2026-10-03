@@ -76,11 +76,25 @@ int mkfs_fat32_device(int dev_idx) {
      * free=16381 on a 65248-cluster volume. Two iterations converge on
      * a self-consistent FAT size. */
     u32 total_sect = (u32)dev0->sectors;
-    u32 fat_secs = 128;
+    /* WP-10d-pre (rule-9): pick the cluster size from Microsoft's
+     * standard FAT32 table.  The old code hardcoded 1 sector/cluster,
+     * which makes the FAT grow 1 KiB per MiB of volume - a 512 MiB disk
+     * ends up with a 4 MiB FAT that the mount-time cache kmalloc
+     * rejects ("FAT cache alloc failed").  Standard formatting (as
+     * Windows/mkfs.vfat do) uses larger clusters on larger volumes so
+     * the FAT stays small (a 512 MiB volume -> 4 KiB clusters -> 512 KiB
+     * FAT) and every volume we can format is also one we can mount. */
+    u32 spc = 1;                       /* <= 260 MiB: 512 B clusters */
+    if (total_sect > 532480u) spc = 8;         /* 260 MiB..8 GiB: 4 KiB */
+    if (total_sect > 16384u * 1024u) spc = 16; /* 8 GiB..16 GiB: 8 KiB */
+    if (total_sect > 32768u * 1024u) spc = 32; /* 16 GiB..32 GiB: 16 KiB */
+    if (total_sect > 65536u * 1024u) spc = 64; /* > 32 GiB: 32 KiB */
+    u32 fat_secs = 1;
     for (int it = 0; it < 2; it++) {
         u32 data_secs = (total_sect > 32 + 2 * fat_secs)
                             ? total_sect - 32 - 2 * fat_secs : 1;
-        u32 fat_bytes = (data_secs + 2 + 1) * 4;   /* clusters + 2 reserved entries, round up */
+        u32 clusters = data_secs / spc;
+        u32 fat_bytes = (clusters + 2 + 1) * 4;   /* clusters + 2 reserved entries, round up */
         u32 need = (fat_bytes + 511) / 512;
         if (need > fat_secs) fat_secs = need;
         else if (it > 0) fat_secs = need;          /* allow shrink on 2nd pass */
@@ -92,7 +106,7 @@ int mkfs_fat32_device(int dev_idx) {
     buf[0] = 0xEB; buf[1] = 0x58; buf[2] = 0x90;   /* jmp */
     oc_memcpy(buf + 3, "MSWIN4.1", 8);              /* OEM */
     *(u16*)(buf + 11) = 512;                         /* bytes per sector */
-    buf[13] = 1;                                     /* sectors per cluster */
+    buf[13] = (u8)spc;                               /* sectors per cluster (WP-10d-pre: MS table) */
     *(u16*)(buf + 14) = 32;                          /* reserved sectors */
     buf[16] = 2;                                     /* num FATs */
     *(u16*)(buf + 17) = 0;                           /* root entries (0 for FAT32) */

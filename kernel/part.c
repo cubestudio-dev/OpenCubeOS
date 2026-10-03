@@ -9,6 +9,7 @@
 #include "heap.h"
 #include "string.h"
 #include "console.h"
+#include "log.h"
 
 #pragma pack(push, 1)
 typedef struct {
@@ -143,6 +144,7 @@ int part_parse_gpt(int dev_idx, part_table_t *out) {
         p->type = e->type_guid[0];   /* first byte is a rough type indicator */
         p->start_lba = e->first_lba;
         p->sectors = e->last_lba - e->first_lba + 1;
+        oc_memcpy(p->gpt_type_guid, e->type_guid, 16);
         /* Extract ASCII name from UTF-16LE (take low bytes, stop at null). */
         int ni = 0;
         for (int j = 0; j < 72 && ni < PART_NAME_LEN - 1; j += 2) {
@@ -169,6 +171,135 @@ int part_parse(int dev_idx, part_table_t *out) {
 partition_t *part_get_partition(part_table_t *tbl, int index) {
     if (!tbl || index < 0 || index >= tbl->count) return NULL;
     return &tbl->parts[index];
+}
+
+/* ---- WP-10d-pre: partition block-device registration -------------
+ *
+ * Extracted from ab_update.c (WP-10u) so the in-system abdisk /
+ * install commands can register freshly written partition tables
+ * without rebooting.  Behavior is identical to the original
+ * ab_register_partition(): child device named "<parent>pN" that
+ * forwards sector I/O to the parent with a start-LBA offset.
+ */
+typedef struct {
+    int parent_idx;
+    u64 start_lba;
+} part_child_priv_t;
+
+static int part_child_read(blk_device_t *dev, u64 lba, u32 count, void *buf) {
+    part_child_priv_t *p = (part_child_priv_t *)dev->priv;
+    if (!p) return -1;
+    return blk_read_sectors_raw(p->parent_idx, p->start_lba + lba, count, buf);
+}
+
+static int part_child_write(blk_device_t *dev, u64 lba, u32 count, const void *buf) {
+    part_child_priv_t *p = (part_child_priv_t *)dev->priv;
+    if (!p) return -1;
+    return blk_write_sectors_raw(p->parent_idx, p->start_lba + lba, count, buf);
+}
+
+static const blk_ops_t g_part_child_ops = {
+    .read  = part_child_read,
+    .write = part_child_write,
+    .flush = NULL,               /* parent driver flush runs separately */
+};
+
+int part_register_child(const char *parent_name, int parent_idx,
+                        int part_no, u64 start_lba, u64 sectors) {
+    if (!parent_name || parent_idx < 0 || part_no < 1 || part_no > 99)
+        return -1;
+    blk_device_t *parent = blk_get_device(parent_idx);
+    if (!parent || !parent->present) return -1;
+
+    char name[BLK_DEV_NAME_LEN];
+    oc_strncpy(name, parent_name, sizeof(name) - 8);
+    name[sizeof(name) - 8] = 0;
+    int len = (int)oc_strlen(name);
+    name[len++] = 'p';
+    char num[4];
+    oc_u64_to_str((u64)part_no, num);
+    oc_strcpy(name + len, num);
+
+    int existing = blk_find_device(name);
+    if (existing >= 0) return existing;
+
+    part_child_priv_t *priv =
+        (part_child_priv_t *)kmalloc(sizeof(part_child_priv_t));
+    if (!priv) return -1;
+    priv->parent_idx = parent_idx;
+    priv->start_lba = start_lba;
+
+    blk_device_t dev;
+    oc_memset(&dev, 0, sizeof(dev));
+    oc_strncpy(dev.name, name, BLK_DEV_NAME_LEN - 1);
+    dev.type = parent->type;          /* partition inherits the disk class */
+    dev.sectors = sectors;
+    dev.sector_size = 512;
+    dev.present = 1;
+    dev.priv = priv;
+    int idx = blk_register(&dev, &g_part_child_ops);
+    if (idx < 0) kfree(priv);
+    return idx;
+}
+
+/* ---- WP-10d-pre: MBR partition table writer ------------------------
+ * Used by abdisk / install to lay out a disk from inside the OS.
+ * Sector 0 = 446 bytes code area (left zero here; grub-install fills
+ * it with the GRUB boot image), 4 x 16-byte entries, 0xAA55 signature.
+ */
+int part_write_mbr_table(int dev_idx,
+                         const u8 types[4], const u32 starts[4],
+                         const u32 sectors4[4]) {
+    if (dev_idx < 0 || !types || !starts || !sectors4) return -1;
+    u8 buf[512];
+    oc_memset(buf, 0, sizeof(buf));
+    for (int i = 0; i < 4; i++) {
+        if (types[i] == 0) continue;
+        u8 *e = buf + 446 + i * 16;
+        e[0] = 0x00;                       /* not bootable (GRUB manages) */
+        e[1] = 0xFE; e[2] = 0xFF; e[3] = 0xFF;
+        e[4] = types[i];
+        e[5] = 0xFE; e[6] = 0xFF; e[7] = 0xFF;
+        u32 start = starts[i], size = sectors4[i];
+        oc_memcpy(e + 8, &start, 4);       /* little-endian host */
+        oc_memcpy(e + 12, &size, 4);
+    }
+    buf[510] = 0x55;
+    buf[511] = 0xAA;
+    return blk_write_sectors_raw(dev_idx, 0, 1, buf);
+}
+
+/* ---- WP-10d-pre: boot-time partition scan --------------------------
+ * Register "<parent>pN" child devices for every partition of every
+ * block device (MBR or GPT).  Without this, a single-system install
+ * disk (1 partition) has no child devices after a reboot and its
+ * system partition cannot be mounted; the A/B scan in ab_update.c only
+ * covers the A/B layout.  Idempotent via part_register_child().
+ */
+void part_scan_register_all(void) {
+    int n = blk_num_devices();      /* snapshot: children registered
+                                       below are not re-scanned */
+    int registered = 0;
+    for (int i = 0; i < n; i++) {
+        blk_device_t *dev = blk_get_device(i);
+        if (!dev || !dev->present) continue;
+        part_table_t tbl;
+        if (part_parse(i, &tbl) != 0) continue;
+        for (int p = 0; p < tbl.count && p < PART_MAX_PARTITIONS; p++) {
+            if (!tbl.parts[p].present) continue;
+            if (part_register_child(dev->name, i, p + 1,
+                                    tbl.parts[p].start_lba,
+                                    tbl.parts[p].sectors) >= 0)
+                registered++;
+        }
+    }
+    if (registered > 0) {
+        char line[80]; char num[8];
+        oc_strcpy(line, "partscan: ");
+        oc_u64_to_str((u64)registered, num); oc_strcat(line, num);
+        oc_strcat(line, " partition device(s) registered");
+        oc_log_info(line);
+    }
 }
 
 void part_print(const part_table_t *tbl) {

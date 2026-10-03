@@ -57,3 +57,4 @@ dist/
 # Website (not part of OS kernel)
 web/
 .github/
+kernel/generated/

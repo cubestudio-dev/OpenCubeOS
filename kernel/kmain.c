@@ -69,6 +69,7 @@ void ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "exfat.h"
 #include "ext4.h"
 #include "disk_cmds.h"
+#include "disk_setup.h"   /* WP-10d-pre: abdisk/install/grub-install */
 #include "config.h"   /* WP-09-fix5: /etc/opencube.conf */
 #include "update.h"   /* WP-09-fix5: checkupdate */
 
@@ -2492,12 +2493,16 @@ void kmain(u64 magic, u64 mbi_phys) {
      * pessimistic bootfail marker is written here (removed again by
      * oc_update_confirm_boot() once the system is fully up). */
     oc_ab_set_boot_slot_arg(mbi.cmdline);
+    part_scan_register_all();   /* WP-10d-pre: expose <disk>pN for every
+                                   partition before the A/B scan so
+                                   install disks are mountable too */
     oc_ab_init();
 
     /* WP-05 shell commands: file operations (in file_cmds.c) +
      * WP-07 disk commands (in disk_cmds.c). */
     file_cmds_register();
     disk_cmds_register();
+    disk_setup_cmds_register();   /* WP-10d-pre: abdisk/install/grub-install */
     shell_register_command("mounts",  cmd_mounts_wrapper, "list VFS mount table (alias for mount)");
     shell_register_command("fstest",  cmd_fstest,   "run VFS self-test (mkdir/write/read/ls)");
     shell_register_command("dskstat", cmd_dskstat,  "show block devices");

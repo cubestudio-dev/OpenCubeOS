@@ -50,7 +50,8 @@ ASFLAGS   := -f elf64 -F dwarf -g
 LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/linker.ld -z max-page-size=0x1000 -z noexecstack
 
 # Sources
-KERNEL_C    := $(wildcard $(OC_ROOT)/kernel/*.c)
+# grub_boot_stub.c is compiled separately (stage-1 link only).
+KERNEL_C    := $(filter-out $(OC_ROOT)/kernel/grub_boot_stub.c,$(wildcard $(OC_ROOT)/kernel/*.c))
 KERNEL_ASM_B := $(wildcard $(OC_ROOT)/boot/*.S)
 KERNEL_ASM_K := $(wildcard $(OC_ROOT)/kernel/*.S)
 KERNEL_OBJ  := $(patsubst $(OC_ROOT)/kernel/%.c,$(BUILD)/%.o,$(KERNEL_C)) \
@@ -59,6 +60,18 @@ KERNEL_OBJ  := $(patsubst $(OC_ROOT)/kernel/%.c,$(BUILD)/%.o,$(KERNEL_C)) \
 
 KERNEL     := $(BUILD)/opencube.elf
 KERNEL_ISO := $(BUILD)/opencube.iso
+
+# WP-10d-pre (rule-9 self-sufficiency): two-stage link.  Stage 1 links
+# the kernel without the embedded boot data; tools/embed_grub.py then
+# generates kernel/generated/grub_boot_data.c from the GRUB i386-pc
+# boot/core images (grub-mkimage) + the stage-1 ELF; stage 2 links the
+# final kernel with that data.  The in-system abdisk / install /
+# grub-install commands use it to make a disk bootable from the shell.
+GEN_DIR     := $(OC_ROOT)/kernel/generated
+GRUB_DATA_C := $(GEN_DIR)/grub_boot_data.c
+GRUB_DATA_OBJ := $(BUILD)/grub_boot_data.o
+STUB_OBJ    := $(BUILD)/grub_boot_stub.o
+BASE_ELF    := $(BUILD)/opencube_base.elf
 
 # Default goal
 .DEFAULT_GOAL := all
@@ -83,9 +96,24 @@ $(BUILD)/boot_%.o: $(OC_ROOT)/boot/%.S | $(BUILD)
 $(BUILD)/%.o: $(OC_ROOT)/kernel/%.S | $(BUILD)
 	$(NASM) $(ASFLAGS) $< -o $@
 
-# Link the kernel ELF, then strip debug info (removes build-machine paths)
-$(KERNEL): $(KERNEL_OBJ) $(OC_ROOT)/linker.ld | $(BUILD)
-	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ)
+# Link the kernel ELF in two stages (see WP-10d-pre note above), then
+# strip debug info (removes build-machine paths)
+$(STUB_OBJ): $(OC_ROOT)/kernel/grub_boot_stub.c $(OC_ROOT)/kernel/grub_boot_data.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BASE_ELF): $(KERNEL_OBJ) $(STUB_OBJ) $(OC_ROOT)/linker.ld | $(BUILD)
+	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ) $(STUB_OBJ)
+	strip --strip-debug $@
+
+$(GRUB_DATA_C): $(OC_ROOT)/tools/embed_grub.py $(BASE_ELF) \
+	        $(OC_ROOT)/kernel/grub_boot_data.h | $(BUILD)
+	python3 $(OC_ROOT)/tools/embed_grub.py "$(OC_TOOLS)" $(BASE_ELF) $@
+
+$(GRUB_DATA_OBJ): $(GRUB_DATA_C) $(OC_ROOT)/kernel/grub_boot_data.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(OC_ROOT)/linker.ld | $(BUILD)
+	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ) $(GRUB_DATA_OBJ)
 	strip --strip-debug $@
 
 # BUG-025 FIX: Header dependency tracking (-MMD -MP generates .d files)
@@ -175,7 +203,7 @@ run-uefi-persist: $(KERNEL_ISO) $(ETC_IMG)
 	  -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
 
 clean:
-	rm -rf $(BUILD) $(DIST) $(ISO_DIR)/boot/opencube.elf
+	rm -rf $(BUILD) $(DIST) $(ISO_DIR)/boot/opencube.elf $(GEN_DIR)
 
 # ---- Distribution: source zip + ISO ----
 dist: $(KERNEL_ISO)
@@ -183,7 +211,7 @@ dist: $(KERNEL_ISO)
 	TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
 	SRCZIP=$(DIST)/OpenCubeOS-src-WP08-p4-$$TIMESTAMP.zip; \
 	ISOCOPY=$(DIST)/OpenCubeOS-WP08-p4-$$TIMESTAMP.iso; \
-	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*" "website/rw*.sh" "website/build-local.sh" "website/public/downloads/*" "website/out/*" "website/.next/*" "website/node_modules/*"); \
+	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*" "website/rw*.sh" "website/build-local.sh" "website/public/downloads/*" "website/out/*" "website/.next/*" "website/node_modules/*" "kernel/generated/*"); \
 	cp $(KERNEL_ISO) $$ISOCOPY; \
 	echo "SRC: $$SRCZIP"; \
 	echo "ISO: $$ISOCOPY"; \

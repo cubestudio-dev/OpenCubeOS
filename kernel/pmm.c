@@ -116,6 +116,27 @@ void pmm_init(const oc_mb2_info_t *mbi) {
         pmm_reserve_region((u64)(uintptr_t)mbi->header, mbi_size);
     }
 
+    /* WP-10d-pre: reserve the bootloader modules (the "self" kernel
+     * image lives there until install/abdisk copy it to a disk). */
+    {
+        uintptr_t p = (uintptr_t)mbi->header + 8;
+        uintptr_t end = (uintptr_t)mbi->header + mbi->header->total_size;
+        while (p + 8 <= end) {
+            const oc_mb2_tag_t* tag = (const oc_mb2_tag_t*)p;
+            if (tag->type == 0 /* END */) break;
+            u32 sz = tag->size;
+            if (sz < 8) break;
+            if (tag->type == 3 /* MODULE */) {
+                const oc_mb2_module_tag_t* m = (const oc_mb2_module_tag_t*)tag;
+                if (m->mod_end > m->mod_start)
+                    pmm_reserve_region(m->mod_start,
+                                       m->mod_end - m->mod_start);
+            }
+            uintptr_t next = (p + sz + 7) & ~(uintptr_t)7;
+            p = next;
+        }
+    }
+
     /* Reserve the bitmap itself. */
     pmm_reserve_region((u64)(uintptr_t)g_bitmap, sizeof(g_bitmap));
 

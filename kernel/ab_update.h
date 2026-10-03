@@ -94,6 +94,11 @@ typedef struct {
  * negative on a hard failure. */
 int oc_ab_init(void);
 
+/* WP-10d-pre: re-run the A/B disk discovery at runtime (after the
+ * in-system abdisk command created the layout).  Best-effort umount of
+ * the ab mounts, then a fresh discovery + mount. */
+int oc_ab_rescan(void);
+
 /* Parse the boot slot out of the multiboot2 command line ("oc.slot=A").
  * Call before oc_ab_init(); unknown/absent -> OC_AB_SLOT_ISO. */
 void oc_ab_set_boot_slot_arg(const char *cmdline);

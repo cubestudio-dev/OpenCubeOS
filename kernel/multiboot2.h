@@ -88,6 +88,19 @@ typedef struct oc_mb2_str_tag {
     char str[];
 } __attribute__((packed)) oc_mb2_str_tag_t;
 
+/* Module tag (type 3). GRUB's `module2 <file> <cmdline>` creates one.
+ * The ISO / disk grub.cfg files attach the kernel ELF itself as a
+ * module with cmdline "self", so the in-system `install` / `abdisk`
+ * commands can copy the exact booting kernel onto a target disk
+ * (mainstream installer pattern: take the payload from the boot media). */
+typedef struct oc_mb2_module_tag {
+    u32 type;          /* 3 */
+    u32 size;
+    u32 mod_start;     /* physical start of the module image */
+    u32 mod_end;       /* physical end (exclusive) */
+    char cmdline[];    /* NUL-terminated, then padding */
+} __attribute__((packed)) oc_mb2_module_tag_t;
+
 typedef struct oc_mb2_info {
     const oc_mb2_header_t*   header;
     const oc_mb2_fb_tag_t*  fb;
@@ -96,9 +109,15 @@ typedef struct oc_mb2_info {
     const char* loader_name;
     u64 mem_lower_kb;
     u64 mem_upper_kb;
+    const oc_mb2_module_tag_t* kernel_self;   /* module with cmdline "self" */
 } oc_mb2_info_t;
 
 /* Parse the multiboot2 info at `mbi_phys` and fill `out`. Returns 0 on success. */
 int oc_mb2_parse(oc_mb2_info_t* out, uintptr_t mbi_phys);
+
+/* WP-10d-pre: the kernel ELF attached by GRUB as a module (cmdline
+ * "self").  Returns 0 and fills data/size when present, -1 when the
+ * bootloader did not attach it (then install/abdisk refuse to run). */
+int oc_mb2_get_kernel_self(const u8** data, u64* size);
 
 #endif /* OC_MULTIBOOT2_H */

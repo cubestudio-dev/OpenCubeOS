@@ -28,6 +28,10 @@ typedef struct {
     u64 start_lba;
     u64 sectors;
     char name[PART_NAME_LEN]; /* GPT name or "MBR-N" */
+    /* WP-10d-pre: full 16-byte GPT partition type GUID (0 when MBR).
+     * grub-install needs it to find the BIOS boot partition on GPT
+     * disks (GUID 21686148-6449-6E6F-744E-656564454649). */
+    u8  gpt_type_guid[16];
 } partition_t;
 
 typedef struct {
@@ -51,5 +55,32 @@ partition_t *part_get_partition(part_table_t *tbl, int index);
 
 /* Print the partition table (for `parted` command). */
 void part_print(const part_table_t *tbl);
+
+/* WP-10d-pre: register one partition of a disk as its own block device
+ * named "<parent>pN" (e.g. "hda" + 2 -> "hdap2").  The child device
+ * forwards reads/writes to the parent with a start-LBA offset.
+ * Returns the new block-device index (>= 0) or the existing index when
+ * the name is already registered, -1 on error.  Used by the A/B update
+ * framework (ab_update.c) and by the in-system abdisk / install
+ * commands (disk_setup.c). */
+int part_register_child(const char *parent_name, int parent_idx,
+                        int part_no, u64 start_lba, u64 sectors);
+
+/* WP-10d-pre: write an MBR partition table to a disk (sector 0).
+ * `entries` holds up to 4 rows: {type, start_lba, sectors}; type 0 =
+ * empty slot.  Boot flags are 0 (GRUB manages booting); CHS fields use
+ * the standard 0xFEFFFF filler.  Returns 0 on success. */
+int part_write_mbr_table(int dev_idx,
+                         const u8 types[4], const u32 starts[4],
+                         const u32 sectors4[4]);
+
+/* WP-10d-pre: scan every block device's partition table (MBR or GPT)
+ * and register each partition as a "<parent>pN" child block device.
+ * Runs once at boot, BEFORE the A/B disk scan, so partitions of any
+ * layout (single-system install disks included) are addressable and
+ * mountable right after a reboot - matching the mainstream behaviour
+ * of operating systems that expose sda1/sda2/... automatically.
+ * Idempotent: already-registered names are left untouched. */
+void part_scan_register_all(void);
 
 #endif /* OC_PART_H */

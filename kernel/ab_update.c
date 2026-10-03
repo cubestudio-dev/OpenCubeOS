@@ -67,61 +67,13 @@ static char g_last_check_version[32];
 /* 1. partition block devices                                          */
 /* ------------------------------------------------------------------ */
 
-typedef struct {
-    int parent_idx;
-    u64 start_lba;
-} ab_part_priv_t;
-
-static int ab_part_read(blk_device_t *dev, u64 lba, u32 count, void *buf) {
-    ab_part_priv_t *p = (ab_part_priv_t *)dev->priv;
-    if (!p) return -1;
-    return blk_read_sectors_raw(p->parent_idx, p->start_lba + lba, count, buf);
-}
-
-static int ab_part_write(blk_device_t *dev, u64 lba, u32 count, const void *buf) {
-    ab_part_priv_t *p = (ab_part_priv_t *)dev->priv;
-    if (!p) return -1;
-    return blk_write_sectors_raw(p->parent_idx, p->start_lba + lba, count, buf);
-}
-
-static const blk_ops_t g_ab_part_ops = {
-    .read  = ab_part_read,
-    .write = ab_part_write,
-    .flush = NULL,               /* parent driver flush runs separately */
-};
-
-/* Register one partition as its own block device named "<parent>pN". */
-static int ab_register_partition(const char *parent_name, blk_type_t type,
-                                 int parent_idx, int part_no,
-                                 u64 start_lba, u64 sectors) {
-    char name[BLK_DEV_NAME_LEN];
-    oc_strncpy(name, parent_name, sizeof(name) - 8);
-    name[sizeof(name) - 8] = 0;
-    int len = (int)oc_strlen(name);
-    name[len++] = 'p';
-    char num[4];
-    oc_u64_to_str((u64)part_no, num);
-    oc_strcpy(name + len, num);
-
-    if (blk_find_device(name) >= 0) return blk_find_device(name);
-
-    ab_part_priv_t *priv = (ab_part_priv_t *)kmalloc(sizeof(ab_part_priv_t));
-    if (!priv) return -1;
-    priv->parent_idx = parent_idx;
-    priv->start_lba = start_lba;
-
-    blk_device_t dev;
-    oc_memset(&dev, 0, sizeof(dev));
-    oc_strncpy(dev.name, name, BLK_DEV_NAME_LEN - 1);
-    dev.type = type;                 /* partition inherits the disk class */
-    dev.sectors = sectors;
-    dev.sector_size = 512;
-    dev.present = 1;
-    dev.priv = priv;
-    int idx = blk_register(&dev, &g_ab_part_ops);
-    if (idx < 0) kfree(priv);
-    return idx;
-}
+/* WP-10d-pre: partition registration moved to kernel/part.c
+ * (part_register_child) so the in-system abdisk / install commands can
+ * share the exact same code path.  The call sites below are unchanged. */
+#define ab_register_partition(parent_name, type, parent_idx, part_no, \
+                              start_lba, sectors) \
+    part_register_child((parent_name), (parent_idx), (part_no), \
+                        (start_lba), (sectors))
 
 /* ------------------------------------------------------------------ */
 /* 2. A/B disk discovery + mounts                                      */
@@ -304,6 +256,20 @@ int oc_ab_init(void) {
         oc_log_info(line);
     }
     return g_ab_present ? 0 : 1;
+}
+
+/* WP-10d-pre (rule-9): re-run the A/B disk discovery after the in-system
+ * `abdisk` command created the layout at runtime (the boot-time scan ran
+ * while the disk was still empty, so the one-shot guard in oc_ab_init
+ * blocks a second call).  Best-effort umount of any partial mounts, then
+ * a full re-discovery. */
+int oc_ab_rescan(void) {
+    vfs_umount(OC_AB_MOUNT_BOOT);
+    vfs_umount(OC_AB_MOUNT_A);
+    vfs_umount(OC_AB_MOUNT_B);
+    vfs_umount(OC_AB_MOUNT_DATA);
+    g_ab_ready = 0;
+    return oc_ab_init();
 }
 
 void oc_ab_boot_early(void) {

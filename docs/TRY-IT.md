@@ -206,22 +206,49 @@ Notes:
 ## 4. Update / rollback (WP-10u)
 
 Full step-by-step guide with expected output:
-**docs/UPDATE-HOWTO.md**.  Short version:
+**docs/UPDATE-HOWTO.md**.  Short version — create the A/B disk **from
+inside the OS** (rule-9 self-hosting; no host script needed):
 
 ```sh
-bash tools/make_ab_disk.sh build/opencube.elf   # build/abdisk.img
 qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
-  -drive if=ide,format=raw,file=build/abdisk.img \
+  -drive if=ide,format=raw,file=abdisk.img \
   -netdev user,id=n1 -device e1000,netdev=n1
 ```
 
 ```
-oc> update --status          # A/B disk: present
+oc> abdisk hda               # creates A/B layout + GRUB + slot A kernel
+oc> update --status          # A/B disk: present (no reboot needed)
 oc> ab_partition_test        # 7/7 PASS
+oc> dhcp && config set update_url http://10.0.2.2:8008/update.json
 oc> update                   # download, verify, install to slot B
 oc> reboot                   # boots slot B automatically
 oc> rollback                 # next boot back to slot A
 ```
+
+After `reboot`, GRUB picks the slot from the flag files on p1
+(`BOOT_SLOT=B`) and the update is confirmed once the system is fully up
+(`slot B boot confirmed`).  Reboot **without the ISO** and the disk
+boots on its own - `abdisk` installs the GRUB BIOS boot loader into the
+MBR gap (boot.img -> LBA0, core.img -> LBA1..).
+
+## 4b. Install the OS to a disk (single system)
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -drive if=ide,format=raw,file=disk.img
+```
+
+```
+oc> install hda              # partition + FAT32 + kernel + GRUB
+oc> sync                     # flush the disk cache
+```
+
+Reboot with the ISO removed (`-boot c`) and the machine boots Open Cube
+OS straight from the disk.  `grub-install <dev>` writes only the boot
+loader onto an already-partitioned disk (MBR gap, or a GPT BIOS boot
+partition).  `abcfg` prints the grub.cfg files that abdisk/install
+write.  Note: these commands install the **BIOS** boot path; boot the
+installer from the ISO for UEFI machines (the ISO is BIOS+UEFI).
 
 ## 5. No hardware needed
 
@@ -229,7 +256,7 @@ These work in a bare QEMU session with no extra devices:
 
 | try this                          | what you should see                     |
 |-----------------------------------|-----------------------------------------|
-| `help`                            | the 146-command list                    |
+| `help`                            | the 150-command list                    |
 | `uname -a`                        | `Open Cube OS WP-10c x86_64`            |
 | `mkdir /d` + `write /d/f hi` + `cat /d/f` | `hi`                            |
 | `mem`, `heap`, `ps`, `sched`      | memory/task/scheduler stats             |

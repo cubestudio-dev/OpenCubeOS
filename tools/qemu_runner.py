@@ -42,6 +42,15 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
         "-object", "filter-dump,id=f0,netdev=n1,file=/tmp/guest_net.pcap",
         "-device", "e1000,netdev=n1",
     ]
+    # WP-10d-pre: OC_BOOT_DISK=1 boots the first hard disk (-boot c) with
+    # NO cdrom attached - used to prove a disk made with the in-system
+    # abdisk / install commands boots on its own (rule-9 self-sufficiency).
+    if os.environ.get("OC_BOOT_DISK", "").strip():
+        cmd = [c for i, c in enumerate(cmd) if not (
+            c == "-cdrom" or (c.startswith("-") is False and cmd[i-1] == "-cdrom"))]
+        bi = cmd.index("-boot")
+        cmd[bi + 1] = "c"
+        print("[runner] OC_BOOT_DISK set: cdrom dropped, -boot c")
     # WP-10u: allow the guest to reboot (end-to-end update test drops
     # -no-reboot so the 8042 reset actually restarts the machine).
     if os.environ.get("OC_ALLOW_REBOOT", "").strip():
