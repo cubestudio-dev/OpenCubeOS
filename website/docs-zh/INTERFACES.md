@@ -125,13 +125,15 @@ DH 自测真值向量：kernel/dh_scale_vectors.h。
 
 ## 4. Shell 命令面
 
-146 条命令在 boot 时注册（实测计数；`help` 列出 146 个不重复名）。
-`shell_register_command` 调用点：kmain.c 45、net.c 17、file_cmds.c 18、
-disk_cmds.c 7、disk_test_cmds.c 8（WP-10a 存储测试套件）、
+150 条命令在 boot 时注册（实测计数；`help` 列出 150 个不重复名）。
+`shell_register_command` 调用点（静态计数）：kmain.c 48（含 update/rollback/reboot）、
+net.c 17、file_cmds.c 18、disk_cmds.c 7、
+disk_setup.c 4（第 ⑨ 条自宿主：abdisk/install/grub-install/abcfg）、
+disk_test_cmds.c 8（WP-10a 存储测试套件）、
 nic_test_cmds.c 18（WP-10b：10 个 NIC 测试 + 8 个 NIC 状态命令）、
-snd_test_cmds.c 18（WP-10c：9 个声卡状态命令 + 9 个声卡测试）、
-update_test_cmds.c 10（WP-10u：update_pkg/ab_partition/update_check/update_download/update_verify/update_install/update_rollback/update_local/update_status/real_update）、update.c/.h 3（WP-10u：update/rollback/reboot）、
-shell.c 6、ext_wp8cd.c 1——部分在不同阶段注册同名命令。
+snd_test_cmds.c 17（WP-10c：声卡状态命令 + 声卡测试）、
+update_test_cmds.c 10（WP-10u：update_pkg/ab_partition/update_check/update_download/update_verify/update_install/update_rollback/update_local/update_status/real_update）、
+shell.c 5、ext_wp8cd.c 1——部分在不同阶段注册同名命令，以 boot 实测计数为准。
 完整列表：在 `oc>` 提示符输入 `help`。
 
 ## 5. 这些接口的验证

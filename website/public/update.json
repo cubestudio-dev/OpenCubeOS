@@ -1,9 +1,9 @@
 {
-    "version": "WP-10c-usability-audit",
-    "time": "2026-10-03",
-    "changes": "Rule-9 usability audit: A/B disk tool, mkfs/fsck fixes, TRY-IT + UPDATE-HOWTO guides, play/volume feedback",
-    "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-    "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/WP-10c-usability-audit/opencube-wp10c-usability-audit-update.tar.gz",
-    "package_sha256": "d65896fc8d60064ce5479c7975772e3c2cbe05c39673cd1694ec6103dd4bf9b3",
-    "package_size": 315356
+  "version": "WP-10c-selfhost",
+  "time": "2026-10-03",
+  "changes": "Rule-9 self-hosting: abdisk / install / grub-install / abcfg in-system, boot-time partition scan, FAT32 MS cluster table",
+  "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
+  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/WP-10c-selfhost/opencube-wp10c-selfhost-update.tar.gz",
+  "package_sha256": "a7cbf44c9be60d75e53d95a49f00247542cf2c0614e0e7e792c4e6b8662c2c74",
+  "package_size": 483953
 }

@@ -1,8 +1,9 @@
 {
-    "version": "WP-10c-usability-audit",
-    "time": "2026-10-03",
-    "changes": "Rule-9 user-angle usability audit: every feature now has command+tool+docs+examples+feedback; A/B disk on any block device, mkfs volume wipe, fsck volume detection, play/volume available-device feedback; TRY-IT and UPDATE-HOWTO guides.",
-    "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/WP-10c-usability-audit/opencube-wp10c-usability-audit-update.tar.gz",
-    "package_sha256": "d65896fc8d60064ce5479c7975772e3c2cbe05c39673cd1694ec6103dd4bf9b3",
-    "package_size": 315356
+  "version": "WP-10c-selfhost",
+  "time": "2026-10-03",
+  "changes": "Rule-9 self-hosting batch (WP-10c-selfhost): A/B disk creation (abdisk), OS install to disk (install), GRUB BIOS boot loader install (grub-install) all from the oc> shell - no host tools; the kernel payload travels with the boot media as a multiboot2 module (grub.cfg: module2 ... self); boot-time partition scan registers <disk>pN for every partition; mkfs.fat32 uses the Microsoft cluster-size table so 512 MiB volumes mount; oc_ab_rescan makes update --status work right after abdisk. Docs: docs/EXTENSIONS_SELFHOST.md. QEMU-verified: no-ISO boot, OTA slot B e2e, self-install chain.",
+  "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
+  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/WP-10c-selfhost/opencube-wp10c-selfhost-update.tar.gz",
+  "package_sha256": "a7cbf44c9be60d75e53d95a49f00247542cf2c0614e0e7e792c4e6b8662c2c74",
+  "package_size": 483953
 }

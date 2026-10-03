@@ -20,8 +20,8 @@ export function localePath(locale: Locale, sub: "" | "docs" | "about" = ""): str
 
 const zh = {
   htmlLang: "zh-CN",
-  badge: "WP-10c-usability-audit · Apache 2.0",
-  brandSub: "WP-10c-usability-audit · Apache 2.0",
+  badge: "WP-10c-selfhost · Apache 2.0",
+  brandSub: "WP-10c-selfhost · Apache 2.0",
   navAria: "站点导航",
   navHome: "首页",
   navDownloads: "下载",
@@ -42,7 +42,7 @@ const zh = {
   downloadIso: (mb: string) => `下载 ISO（${mb} MB）`,
   readDocs: "阅读文档",
   githubRepo: "GitHub 仓库",
-  dlSectionTitle: "下载 WP-10c-usability-audit",
+  dlSectionTitle: "下载 WP-10c-selfhost",
   dlSectionDesc:
     "BIOS + UEFI 双引导 ISO 与完整源码包。文件在本站、GitHub Release 与本地构建三处 SHA256 字节级一致（核对方法见下方命令）。",
   isoMeta: (bytes: string, mb: string) =>
@@ -60,7 +60,7 @@ const zh = {
   baseSectionTitle: "内核基础（WP-01 ~ WP-08）",
   baseSectionDesc: "从裸机引导到用户态动态链接，每一层都可扩展。",
   wpSectionTitle: "工作包",
-  wpSectionDesc: "13 个工作包，WP-01 到 WP-10c，全部完成（done）；另已完成第 ⑨ 条用户角度可用性审计（WP-10c-usability-audit）。",
+  wpSectionDesc: "13 个工作包，WP-01 到 WP-10c，全部完成（done）；另已完成第 ⑨ 条用户角度可用性审计（WP-10c-selfhost）。",
   wpThNo: "编号",
   wpThContent: "内容",
   wpThStatus: "状态",
@@ -95,7 +95,7 @@ const zh = {
   aboutHistory: "项目历史（13 个工作包）",
   aboutMethod: "工程方法",
   aboutMethodBody:
-    "每个工作包以真实可复现的证据收尾：截至 WP-08 累计修复 120 个审计 bug；WP-09 完成 SSH/TLS 主流化；WP-10a 落地四类存储驱动并根治 fork #PF 潜伏缺陷；WP-10b 落地九族网卡驱动与 nic_* 框架；WP-10u 落地 A/B 分区系统内自动更新（内核 gzip/DEFLATE + ustar + SHA256 + 自动回滚）；WP-10c 落地六族声卡驱动与 snd_* 框架（Intel HDA CORB/RIRB + codec/widget 枚举、AC'97、SB16 ISA DMA、ES1370、virtio-snd、USB Audio Class 1.0 + 新 UHCI 主机栈，真 DMA 真中断）；WP-10c-usability-audit 按第 ⑨ 条（测试通过 ≠ 用户能用）完成全系统用户角度审计（五要素：命令/工具/文档/示例/反馈；五能力：创建/使用/回滚/查看/理解）。最终验证为 18/18 QEMU 全量回归（挂四类盘）+ WP-10a 八项存储测试 + WP-10b 网卡测试 + WP-10u 十一项更新测试（含真实重启进入 slot B 的端到端）+ WP-10c 九项声卡测试（QEMU 五卡实测播放、44.1/48kHz）+ dhtest 5/5 + HTTPS 真实站点 E2E。完整验证记录：",
+    "每个工作包以真实可复现的证据收尾：截至 WP-08 累计修复 120 个审计 bug；WP-09 完成 SSH/TLS 主流化；WP-10a 落地四类存储驱动并根治 fork #PF 潜伏缺陷；WP-10b 落地九族网卡驱动与 nic_* 框架；WP-10u 落地 A/B 分区系统内自动更新（内核 gzip/DEFLATE + ustar + SHA256 + 自动回滚）；WP-10c 落地六族声卡驱动与 snd_* 框架（Intel HDA CORB/RIRB + codec/widget 枚举、AC'97、SB16 ISA DMA、ES1370、virtio-snd、USB Audio Class 1.0 + 新 UHCI 主机栈，真 DMA 真中断）；WP-10c-selfhost 按第 ⑨ 条（测试通过 ≠ 用户能用）完成全系统用户角度审计（五要素：命令/工具/文档/示例/反馈；五能力：创建/使用/回滚/查看/理解）。最终验证为 18/18 QEMU 全量回归（挂四类盘）+ WP-10a 八项存储测试 + WP-10b 网卡测试 + WP-10u 十一项更新测试（含真实重启进入 slot B 的端到端）+ WP-10c 九项声卡测试（QEMU 五卡实测播放、44.1/48kHz）+ dhtest 5/5 + HTTPS 真实站点 E2E。完整验证记录：",
   aboutMethodMid: "。各工作包逐项记录：",
   aboutMethodEnd: "。",
   aboutAi: "AI 披露",
@@ -120,8 +120,8 @@ const zh = {
 
 const en: typeof zh = {
   htmlLang: "en",
-  badge: "WP-10c-usability-audit · Apache 2.0",
-  brandSub: "WP-10c-usability-audit · Apache 2.0",
+  badge: "WP-10c-selfhost · Apache 2.0",
+  brandSub: "WP-10c-selfhost · Apache 2.0",
   navAria: "Site navigation",
   navHome: "Home",
   navDownloads: "Downloads",
@@ -142,7 +142,7 @@ const en: typeof zh = {
   downloadIso: (mb: string) => `Download ISO (${mb} MB)`,
   readDocs: "Read the docs",
   githubRepo: "GitHub repository",
-  dlSectionTitle: "Download WP-10c-usability-audit",
+  dlSectionTitle: "Download WP-10c-selfhost",
   dlSectionDesc:
     "BIOS + UEFI dual-boot ISO and the full source archive. The files are byte-identical (SHA256) across this site, the GitHub Release and the local build (see the command below).",
   isoMeta: (bytes: string, mb: string) =>
@@ -162,7 +162,7 @@ const en: typeof zh = {
   baseSectionDesc:
     "From bare-metal boot to user-space dynamic linking — every layer is extensible.",
   wpSectionTitle: "Work packages",
-  wpSectionDesc: "13 work packages, WP-01 through WP-10c, all done; the rule-9 user-angle usability audit (WP-10c-usability-audit) is complete as well.",
+  wpSectionDesc: "13 work packages, WP-01 through WP-10c, all done; the rule-9 user-angle usability audit (WP-10c-selfhost) is complete as well.",
   wpThNo: "No.",
   wpThContent: "Content",
   wpThStatus: "Status",
@@ -197,7 +197,7 @@ const en: typeof zh = {
   aboutHistory: "Project history (13 work packages)",
   aboutMethod: "Engineering method",
   aboutMethodBody:
-    "Every work package closes with real, reproducible evidence: 120 audit bugs fixed cumulatively as of WP-08; WP-09 added the SSH/TLS mainstreaming; WP-10a landed the four storage drivers and root-fixed a latent fork #PF; WP-10b landed the nine NIC driver families and the nic_* framework; WP-10u landed A/B-partition in-system updates (kernel-side gzip/DEFLATE + ustar + SHA256 + automatic rollback); WP-10c landed the six sound-driver families and the snd_* framework (Intel HDA CORB/RIRB + codec/widget enumeration, AC'97, SB16 ISA DMA, ES1370, virtio-snd, USB Audio Class 1.0 + a new UHCI host stack, real DMA + real interrupts); WP-10c-usability-audit audited the whole system from the user angle per rule 9 (passing tests ≠ usable by users; five elements: command/tool/docs/examples/feedback; five abilities: create/use/roll back/inspect/understand). Final verification: 18/18 full QEMU regression (all four disk types attached) + the eight WP-10a storage tests + the WP-10b NIC tests + the eleven WP-10u update tests (including an end-to-end with a real reboot into slot B) + the nine WP-10c sound tests (five cards playing live in QEMU, 44.1/48 kHz) + dhtest 5/5 + HTTPS E2E against real sites. Full verification record: ",
+    "Every work package closes with real, reproducible evidence: 120 audit bugs fixed cumulatively as of WP-08; WP-09 added the SSH/TLS mainstreaming; WP-10a landed the four storage drivers and root-fixed a latent fork #PF; WP-10b landed the nine NIC driver families and the nic_* framework; WP-10u landed A/B-partition in-system updates (kernel-side gzip/DEFLATE + ustar + SHA256 + automatic rollback); WP-10c landed the six sound-driver families and the snd_* framework (Intel HDA CORB/RIRB + codec/widget enumeration, AC'97, SB16 ISA DMA, ES1370, virtio-snd, USB Audio Class 1.0 + a new UHCI host stack, real DMA + real interrupts); WP-10c-selfhost audited the whole system from the user angle per rule 9 (passing tests ≠ usable by users; five elements: command/tool/docs/examples/feedback; five abilities: create/use/roll back/inspect/understand). Final verification: 18/18 full QEMU regression (all four disk types attached) + the eight WP-10a storage tests + the WP-10b NIC tests + the eleven WP-10u update tests (including an end-to-end with a real reboot into slot B) + the nine WP-10c sound tests (five cards playing live in QEMU, 44.1/48 kHz) + dhtest 5/5 + HTTPS E2E against real sites. Full verification record: ",
   aboutMethodMid: ". Per-work-package records: ",
   aboutMethodEnd: ".",
   aboutAi: "AI disclosure",

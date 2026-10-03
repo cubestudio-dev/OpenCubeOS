@@ -1,43 +1,45 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10c-usability-audit value
+// Central site data. Every number is a real WP-10c-selfhost value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
 // docs/EXTENSIONS_WP10c.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub Release WP-10c-usability-audit + this site /downloads/
+// 3-way identical: local build + GitHub Release WP-10c-selfhost + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10c-usability-audit";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10c-selfhost";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release WP-10c-usability-audit + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp10c-usability-audit.iso";
-export const ISO_SIZE_B = 11046912;
-export const ISO_SIZE_MB = "10.54";
+// Real assets (build/ + GitHub Release WP-10c-selfhost + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp10c-selfhost.iso";
+export const ISO_SIZE_B = 11223040;
+export const ISO_SIZE_MB = "10.70";
 export const ISO_SHA256 =
-  "ec6b940ec30d8e670226360ec182a067dcaa4f2e1d8570a60b20463b4c933b16";
+  "831aef99e003c21f91bd22d1fbcb3b536886af70a9a833ccb69d3a28933a91c8";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp10c-usability-audit-src.zip";
-export const SRC_SIZE_B = 1986169;
-export const SRC_SIZE_MB = "1.89";
+export const SRC_FILE = "opencube-wp10c-selfhost-src.zip";
+export const SRC_SIZE_B = 1868434;
+export const SRC_SIZE_MB = "1.78";
 export const SRC_SHA256 =
-  "22a01d37efbcf7825a42d77a03060cc14adf97cc87a9cd31333de566f91a4f96";
+  "9a466665f388b5ac8c99c156f1dba58dc85c2c16093d99f5a363c724aad9af35";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-10c-usability-audit stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (68,975, unchanged by the rule-9 audit commits 935b20c/8ae9e8c/e4d05ff).
-// Shell commands: live boot count = 146 (adds the 9 WP-10c sound status/test commands + play/volume).
-// L1 extension interfaces: 111 items (85 through WP-10u + 21 WP-10c snd.h public functions + 6 per-driver init entry points + 5 usb.h host-stack functions; docs/EXTENSIONS_WP10c.md).
+// WP-10c-selfhost stats. Source lines: find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 69,910.
+// Shell commands: live boot count = 150 (adds abdisk/install/grub-install/abcfg to 146).
+// L1 extension interfaces: 111 items (docs/EXTENSIONS_SELFHOST.md adds the in-system
+// installer surface: part_register_child / part_write_mbr_table / part_scan_register_all,
+// oc_ab_rescan, oc_mb2_get_kernel_self, grub_boot_data.h, grub_install_device).
 export const STATS = [
-  { value: "68,975", label: "行源码" },
+  { value: "69,910", label: "行源码" },
   { value: "111", label: "L1 扩展接口" },
   { value: "37", label: "系统调用" },
-  { value: "146", label: "shell 命令" },
+  { value: "150", label: "shell 命令" },
   { value: "13", label: "工作包" },
   { value: "18/18", label: "QEMU 回归" },
 ];
@@ -45,9 +47,9 @@ export const STATS = [
 // WP-10c sound + WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport + rule-9 usability audit (user-facing list)
 export const FEATURES = [
   {
-    name: "用户角度可用性（第 ⑨ 条审计）",
-    tag: "rule-9 audit",
-    desc: "按“测试通过 ≠ 用户能用”对全部功能逐项审计：每功能五要素（有命令/有工具/有文档/有示例/有反馈）与五能力（能创建/能使用/能回滚/能查看/能理解）。落地：TRY-IT.md 用户指南（开机即试）、UPDATE-HOWTO.md OTA 分步指南、make_ab_disk.sh 一键 A/B 磁盘、mkfs/fsck 修复、play/volume 未知设备报可用名单；修复后 18/18 回归 + 存储/网卡/声卡/OTA 复测全 PASS。",
+    name: "系统内自足（第 ⑨ 条自宿主）",
+    tag: "rule-9 self-host",
+    desc: "A/B 磁盘创建、系统安装到硬盘、GRUB 引导器安装全部在 oc> 内完成（abdisk / install / grub-install / abcfg），不需要宿主机脚本：内核经 multiboot2 module 随启动介质自带副本，GRUB 引导数据构建期内嵌；启动时自动注册所有分区（<盘>pN）；FAT32 按微软簇表选簇。QEMU 实测：abdisk 后拔掉 ISO 独立引导、OTA 升级重启进 slot B、install 后独立引导并可再次 install（自举）。",
   },
   {
     name: "声卡驱动（六族）",

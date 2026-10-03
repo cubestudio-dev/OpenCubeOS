@@ -200,22 +200,47 @@ qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
 
 ## 4. 更新 / 回滚（WP-10u）
 
-带预期输出的完整分步指南：**docs/UPDATE-HOWTO.md**。简版：
+带预期输出的完整分步指南：**docs/UPDATE-HOWTO.md**。简版——A/B 磁盘
+**在系统内创建**（第 ⑨ 条自宿主，无需宿主机脚本）：
 
 ```sh
-bash tools/make_ab_disk.sh build/opencube.elf   # 生成 build/abdisk.img
 qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
-  -drive if=ide,format=raw,file=build/abdisk.img \
+  -drive if=ide,format=raw,file=abdisk.img \
   -netdev user,id=n1 -device e1000,netdev=n1
 ```
 
 ```
-oc> update --status          # A/B 磁盘：在位
+oc> abdisk hda               # 创建 A/B 布局 + GRUB + slot A 内核
+oc> update --status          # A/B 磁盘：在位（无需重启）
 oc> ab_partition_test        # 7/7 PASS
+oc> dhcp && config set update_url http://10.0.2.2:8008/update.json
 oc> update                   # 下载、校验、安装到 slot B
 oc> reboot                   # 自动引导 slot B
 oc> rollback                 # 下次引导回到 slot A
 ```
+
+reboot 后 GRUB 按 p1 的标志文件选择槽位（`BOOT_SLOT=B`），系统起来后
+确认更新（`slot B boot confirmed`）。**拔掉 ISO 重启**磁盘也能独立引导
+——`abdisk` 会把 GRUB BIOS 引导器写进 MBR gap（boot.img -> LBA0，
+core.img -> LBA1..）。
+
+## 4b. 安装系统到磁盘（单系统）
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -drive if=ide,format=raw,file=disk.img
+```
+
+```
+oc> install hda              # 分区 + FAT32 + 内核 + GRUB
+oc> sync                     # 刷盘缓存
+```
+
+去掉 ISO 重启（`-boot c`）即从磁盘直接引导 Open Cube OS。
+`grub-install <盘>` 只向已分区的磁盘写引导器（MBR gap，或 GPT 的
+BIOS boot 分区）。`abcfg` 打印 abdisk/install 写入的 grub.cfg 内容。
+注意：这些命令安装的是 **BIOS** 引导路径；UEFI 机器请从 ISO 启动安装
+（ISO 本身 BIOS+UEFI 双引导）。
 
 ## 5. 无需任何硬件
 
@@ -223,7 +248,7 @@ oc> rollback                 # 下次引导回到 slot A
 
 | 试试这个                          | 你应当看到                              |
 |-----------------------------------|-----------------------------------------|
-| `help`                            | 146 条命令的列表                        |
+| `help`                            | 150 条命令的列表                        |
 | `uname -a`                        | `Open Cube OS WP-10c x86_64`            |
 | `mkdir /d` + `write /d/f hi` + `cat /d/f` | `hi`                            |
 | `mem`、`heap`、`ps`、`sched`      | 内存/任务/调度器统计                    |

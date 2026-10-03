@@ -25,7 +25,7 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 
 ## 统计（WP-10c）
 
-- **源码**：68,975 行（kernel + boot + userprogs，含头文件 + 链接脚本，不含文档；
+- **源码**：69,910 行（kernel + boot + userprogs，含头文件 + 链接脚本，不含文档；
   验证：`find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`）
 - **工作包**：13 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c）
 - **L1 扩展接口**：111 个（WP-09 及以前 57 个 + WP-10a 新增 8 项：
@@ -197,7 +197,7 @@ WP-08 统一了此前分开的 WP-08a / WP-08b / WP-08cd 子包：
 - **virtio-snd**（kernel/virtio_snd.c）：modern virtio-pci（1AF4:1059），控制队列 + TX 队列，PCM prepare/start/set_volume 请求；每次开机探测（QEMU 10 无设备模型，CI 中无实体卡）。
 - **USB Audio Class 1.0**（kernel/usb_audio.c）+ **新 UHCI 主机栈**（kernel/usb.{c,h}）：UHCI 控制器驱动（piix3/4）、阻塞控制传输、设备枚举（SET_ADDRESS/CONFIGURATION/INTERFACE）、同步 OUT 按 1ms 帧调度。
 - **44.1/48 kHz** 采样率配置（能力感知；sb16 按设计拒绝 48kHz，测试验证该拒绝）。
-- **命令**：sound、hda、ac97、sb16、es1370、virtiosnd、usbaudio、play [device] [rate]、volume [device] [0-100]；lspci 显示声卡控制器（class 0x04）。boot 实测 146 条命令。
+- **命令**：sound、hda、ac97、sb16、es1370、virtiosnd、usbaudio、play [device] [rate]、volume [device] [0-100]；lspci 显示声卡控制器（class 0x04）。boot 实测 150 条命令。
 - **验证**：hda_test / ac97_test / sb16_test / es1370_test / usb_audio_test 在 QEMU 实测（初始化 + 能力 + DMA 字节数 + IRQ 计数），audio_rw_test 对每张卡播放，sample_rate_test 配置 44.1/48kHz，virtio_snd_test 如实 SKIPPED（无 QEMU 设备模型），real_hw_test 在 VM 中如实 NOT RUN。见 docs/EXTENSIONS_WP10c.md。
 
 ## 仓库结构

@@ -122,13 +122,16 @@ DH truth vectors for self-test: kernel/dh_scale_vectors.h.
 
 ## 4. Shell command surface
 
-146 commands registered at boot (live count; `help` lists 146 unique).
-`shell_register_command` call sites: kmain.c 45, net.c 17, file_cmds.c 18,
-disk_cmds.c 7, disk_test_cmds.c 8 (WP-10a storage test suite),
-nic_test_cmds.c 18 (WP-10b: 10 NIC tests + 8 NIC status commands),
-snd_test_cmds.c 18 (WP-10c: 9 sound status commands + 9 sound tests),
-shell.c 6, ext_wp8cd.c 1 — some register the same name at different
-stages. Full list: type `help` at the `oc>` prompt.
+150 commands registered at boot (live count; `help` lists 150 unique).
+`shell_register_command` call sites (static count): kmain.c 48 (incl.
+update/rollback/reboot), net.c 17, file_cmds.c 18, disk_cmds.c 7,
+disk_setup.c 4 (rule-9 self-hosting: abdisk/install/grub-install/abcfg),
+disk_test_cmds.c 8 (WP-10a storage test suite), nic_test_cmds.c 18
+(WP-10b: 10 NIC tests + 8 NIC status commands), snd_test_cmds.c 17
+(WP-10c sound status commands + tests), update_test_cmds.c 10 (WP-10u),
+shell.c 5, ext_wp8cd.c 1 — some register the same name at different
+stages, so the live boot count is authoritative. Full list: type `help`
+at the `oc>` prompt.
 
 ## 5. Verification of these interfaces
 
