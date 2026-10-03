@@ -53,6 +53,7 @@
 #define EHCI_CMD_IAAD       (1u << 6)
 #define EHCI_USBSTS         0x04
 #define EHCI_STS_HALT       (1u << 12)
+#define EHCI_STS_IAA        (1u << 5)   /* interrupt on async advance */
 #define EHCI_USBINTR        0x08
 #define EHCI_FRINDEX        0x0c
 #define EHCI_PERIODICBASE   0x14
@@ -69,11 +70,15 @@
 #define PORTSC_POWNER       (1u << 13)
 #define PORTSC_LINESTAT_SH  10
 
-/* link type bits (bits 3:2 of a link pointer: 0=ITD 1=QH 2=SITD 3=FSTN) */
+/* link type bits - the type tag lives in BITS 2:1 of the link word
+ * (bit 0 = Terminate): 0=ITD 1=QH 2=siTD 3=FSTN.  Verified against
+ * Linux (Q_TYPE_QH = 1 << 1) and QEMU (NLPTR_TYPE_GET = (x >> 1) & 3);
+ * encoding it in bits 3:2 made QEMU classify our QH as a siTD and
+ * hard-reset the controller ("processing error"). */
 #define EHCI_LTYPE_ITD      0u
-#define EHCI_LTYPE_QH       (1u << 2)
-#define EHCI_LTYPE_SITD     (2u << 2)
-#define EHCI_LTYPE_FSTN     (3u << 2)
+#define EHCI_LTYPE_QH       (1u << 1)
+#define EHCI_LTYPE_SITD     (2u << 1)
+#define EHCI_LTYPE_FSTN     (3u << 1)
 #define EHCI_LINK_T         1u
 #define EHCI_LINK_TYPE(v)   (((v) >> 1) & 3u)
 #define EHCI_LINK_ADDR(v)   ((v) & ~0x1fu)
@@ -186,7 +191,12 @@ static void ehci_irq_handler(void *ctx, oc_irq_frame_t *f) {
     }
 }
 
-/* qTD buffer pointers: 5 page pointers at 4 KiB stride */
+/* qTD buffer pointers: 5 page pointers at 4 KiB stride.
+ * Per the EHCI spec (4.10.2) bufptr[0] carries the CURRENT OFFSET
+ * within the first page in its low 12 bits; the higher pointers are
+ * whole pages.  Dropping the offset made every non page-aligned
+ * buffer (the SETUP stage reads the caller's usb_setup_t) fetch the
+ * wrong bytes. */
 static void ehci_qtd_fill(ehci_qtd_t *td, u8 pid, const void *buf,
                           u16 len, int last, u8 toggle_hc) {
     u32 token = ((u32)pid << QTD_TOKEN_PID_SH) |
@@ -199,7 +209,10 @@ static void ehci_qtd_fill(ehci_qtd_t *td, u8 pid, const void *buf,
     u64 p = (u64)(uintptr_t)buf;
     for (int i = 0; i < 5; i++) {
         u64 a = p ? (p + (u64)i * 4096) : 0;
-        td->bufptr[i] = (u32)(a & 0xfffff000u);
+        u32 v = (u32)(a & 0xffffffffu);
+        if (i > 0) v &= 0xfffff000u;   /* only bufptr[0] keeps the
+                                          in-page offset */
+        td->bufptr[i] = v;
     }
     td->next = EHCI_LINK_T;
     td->altnext = EHCI_LINK_T;
@@ -235,6 +248,7 @@ static int ehci_wait_qtd(ehci_state_t *e, ehci_qtd_t *tds, int n,
 static int ehci_control(usb_host_t *h, usb_dev_t *d,
                         const usb_setup_t *setup, void *buf, u16 len,
                         u32 timeout_ms) {
+    (void)timeout_ms;   /* the doorbell retry loop owns the timing */
     ehci_state_t *e = (ehci_state_t *)h->priv;
     if (!e || !e->up || !d) return -1;
     if (e->busy_ctrl) return -1;
@@ -243,7 +257,10 @@ static int ehci_control(usb_host_t *h, usb_dev_t *d,
     e->busy_ctrl = 1;
     ehci_qh_t *qh = e->qh_ctrl;
     ehci_qtd_t *tds = e->ctrl_qtds;
-    u8 *datab = e->ctrl_buf;
+    /* one 4 KiB page: SETUP stage at +0, DATA stage at +64 (keeps the
+     * two stages in separate 64-byte blocks so a short SETUP can never
+     * be confused with the data) */
+    u8 *datab = e->ctrl_buf + 64;
 
     u32 epchar = ((u32)d->addr & 0x7f) |
                  (((u32)0 & 0xf) << QH_EPCHAR_EP_SH) |
@@ -252,12 +269,17 @@ static int ehci_control(usb_host_t *h, usb_dev_t *d,
                   << QH_EPCHAR_EPS_SH) |
                  QH_EPCHAR_DTC |
                  (((u32)(d->mps0 ? d->mps0 : 64) & 0x7ff)
-                  << QH_EPCHAR_MPLEN_SH);
+                  << QH_EPCHAR_MPLEN_SH) |
+                 QH_EPCHAR_H;   /* ctrl QH is the async head of the
+                                   reclamation list (spec 4.9.1.1) */
     qh->epchar = epchar;
     qh->epcap = (1u << 30);
 
-    /* qTD chain: SETUP + DATA + STATUS */
-    ehci_qtd_fill(&tds[0], QTD_PID_SETUP, setup, 8, 0, 1);
+    /* qTD chain: SETUP (DATA0 per the spec - the toggle bit must be
+     * 0) + DATA (DATA1) + STATUS (DATA1).  The SETUP 8 bytes are
+     * copied into the page-aligned bounce buffer. */
+    oc_memcpy(e->ctrl_buf, setup, 8);
+    ehci_qtd_fill(&tds[0], QTD_PID_SETUP, e->ctrl_buf, 8, 0, 0);
     int n = 1;
     if (len > 0) {
         u8 pid = (setup->bmRequestType & 0x80) ? QTD_PID_IN
@@ -279,7 +301,28 @@ static int ehci_control(usb_host_t *h, usb_dev_t *d,
     }
 
     qh->next_qtd = (u32)e->ctrl_qtd_phys;   /* link first qTD */
-    int rc = ehci_wait_qtd(e, tds, n, timeout_ms);
+    /* ring the async advance doorbell (spec 4.8.2) and retry: the
+     * controller may scan the async ring at moments when the freshly
+     * linked qTD is not yet visible; re-ringing IAAD forces a re-read
+     * of the schedule and is what Linux does around its doorbell too */
+    int rc = 0;
+    for (int attempt = 0; attempt < 3; attempt++) {
+        /* clear a latched IAA first: the controller refuses to walk
+         * the async schedule while USBSTS.IAA is set (spec 4.8.2),
+         * and the previous doorbell may have left it raised */
+        ehci_wr(e, EHCI_USBSTS, EHCI_STS_IAA);
+        ehci_wr(e, EHCI_USBCMD, ehci_rd(e, EHCI_USBCMD) | EHCI_CMD_IAAD);
+        rc = ehci_wait_qtd(e, tds, n, 300);
+        if (rc == 0) break;
+        /* let the controller see the unlinked qTD before re-arming */
+        qh->next_qtd = EHCI_LINK_T;
+        for (volatile int d = 0; d < 2000; d++) { }
+        /* re-fill the qTD tokens for the next attempt */
+        for (int q = 0; q < n; q++) {
+            tds[q].token |= QTD_TOKEN_ACTIVE;
+        }
+        qh->next_qtd = (u32)e->ctrl_qtd_phys;
+    }
     qh->next_qtd = EHCI_LINK_T;
     if (rc == 0 && len > 0 && (setup->bmRequestType & 0x80))
         oc_memcpy(buf, datab, len);
@@ -317,6 +360,9 @@ static int ehci_bulk(usb_host_t *h, usb_dev_t *d, u8 ep_addr,
                   << QH_EPCHAR_EPS_SH) |
                  QH_EPCHAR_DTC |
                  (((u32)mps & 0x7ff) << QH_EPCHAR_MPLEN_SH);
+    /* NOTE: no H bit here - the ctrl QH is the one and only head of
+     * the reclamation list; a second H-bit QH would stop the async
+     * walk when the reclamation status is already cleared. */
     qh->epchar = epchar;
     qh->epcap = (1u << 30);
 
@@ -328,6 +374,15 @@ static int ehci_bulk(usb_host_t *h, usb_dev_t *d, u8 ep_addr,
     n = 1;
 
     qh->next_qtd = (u32)e->bulk_qtd_phys;
+    /* clear the controller's leftover execution pointer: QEMU writes
+     * the last executed qTD into the QH overlay (current_qtd) and its
+     * verify pass then treats our fresh next_qtd as "guest updated
+     * active QH" and cancels the packet mid-flight */
+    qh->current_qtd = 0;
+    /* async advance doorbell (spec 4.8.2), see ehci_control: clear a
+     * latched IAA first so the walk is not refused */
+    ehci_wr(e, EHCI_USBSTS, EHCI_STS_IAA);
+    ehci_wr(e, EHCI_USBCMD, ehci_rd(e, EHCI_USBCMD) | EHCI_CMD_IAAD);
     int rc = ehci_wait_qtd(e, tds, n, timeout_ms);
     qh->next_qtd = EHCI_LINK_T;
     int moved = (int)len;
@@ -368,6 +423,9 @@ static int ehci_interrupt(usb_host_t *h, usb_dev_t *d, u8 ep_addr,
     if (pid == QTD_PID_OUT) oc_memcpy(e->ctrl_buf, buf, len);
     ehci_qtd_fill(td, pid, e->ctrl_buf, len, 1, 1);
     qh->next_qtd = (u32)e->ctrl_qtd_phys;
+    /* doorbell not needed for the periodic schedule, but the USBSTS
+     * IAA bit must never stay latched or the async walk stalls (the
+     * poll below keeps clearing it) */
 
     u64 deadline = oc_timer_now_ms() + timeout_ms;
     int rc = 0;
@@ -441,7 +499,11 @@ static int ehci_port_status(usb_host_t *h, int port,
         out->speed = USB_SPEED_HS;   /* EHCI ports are high-speed */
     out->changed = (v & PORTSC_CSC) ? 1 : 0;
     if (v & PORTSC_CSC)
-        ehci_wr(e, EHCI_PORTSC + (u32)port * 4, PORTSC_CSC);
+        /* W1C the change bit but KEEP port power and port enable: PP
+         * and PED are plain RW bits - writing 0 to them powers the
+         * port off / disables it and the device disappears. */
+        ehci_wr(e, EHCI_PORTSC + (u32)port * 4,
+                PORTSC_CSC | (v & PORTSC_PPOWER) | PORTSC_PED);
     return 0;
 }
 
@@ -449,18 +511,47 @@ static int ehci_port_reset(usb_host_t *h, int port, u8 *speed_out) {
     ehci_state_t *e = (ehci_state_t *)h->priv;
     if (!e || !e->up || port < 0 || port >= e->n_ports) return -1;
     u32 off = EHCI_PORTSC + (u32)port * 4;
+    /* NOTE: every PORTSC write keeps PED set in the written value.
+     * QEMU treats a written 0 on PED as "guest disabled the port"
+     * and clears it, which makes ehci_find_device() skip the port
+     * ("no device attached to queue") for full-speed devices where
+     * the controller does not re-enable the port by itself. */
     u32 v = ehci_rd(e, off);
-    ehci_wr(e, off, v | PORTSC_PPOWER);
-    for (volatile int t = 0; t < 20000; t++) { }
-    ehci_wr(e, off, ehci_rd(e, off) | PORTSC_PRESET);
-    for (int i = 0; i < 300; i++) {
-        u32 w = ehci_rd(e, off);
-        if (!(w & PORTSC_PRESET)) break;
-        for (volatile int t = 0; t < 5000; t++) { }
+    ehci_wr(e, off, (v & 0xffffffffu) | PORTSC_PPOWER | PORTSC_PED);
+    /* power-on settle: real time, not a spin loop (the port needs a
+     * few ms before CCS reflects the attached device) */
+    {
+        u64 t0 = oc_timer_now_ms();
+        while (oc_timer_now_ms() - t0 < 20) sched_yield();
     }
-    for (volatile int t = 0; t < 200000; t++) { }   /* recovery */
+    ehci_wr(e, off, ehci_rd(e, off) | PORTSC_PRESET | PORTSC_PED);
+    /* hold reset for the spec'd 10 ms (FS) minimum */
+    {
+        u64 t0 = oc_timer_now_ms();
+        while (oc_timer_now_ms() - t0 < 12) sched_yield();
+    }
+    /* drive PRESET low to signal reset completion.  Real hardware
+     * self-clears PRESET (the loop below tolerates both); QEMU's EHCI
+     * only completes the reset (detach/attach cycle + device reset to
+     * address 0) on this write.  PED stays set in the value so the
+     * enable bit is never dropped. */
+    ehci_wr(e, off, (ehci_rd(e, off) & ~PORTSC_PRESET) | PORTSC_PED);
+    u64 deadline = oc_timer_now_ms() + 200;
+    while ((ehci_rd(e, off) & PORTSC_PRESET) &&
+           oc_timer_now_ms() < deadline)
+        sched_yield();
+    /* reset recovery ~20 ms (spec 7.1.7.5) */
+    deadline = oc_timer_now_ms() + 25;
+    while (oc_timer_now_ms() < deadline) sched_yield();
     u32 w = ehci_rd(e, off);
-    if (!(w & PORTSC_CONNECT)) return -1;
+    if (!(w & PORTSC_CONNECT)) {
+        char l[64]; char n[12];
+        oc_strcpy(l, "ehci: port reset fail ccs=0 w=0x");
+        oc_u64_to_hex(w, n, 8); oc_strcat(l, n);
+        oc_strcat(l, "\n");
+        oc_console_puts(l);
+        return -1;
+    }
     if (speed_out) {
         if ((w >> PORTSC_LINESTAT_SH & 3) == 1)
             *speed_out = USB_SPEED_LS;
@@ -476,6 +567,23 @@ static int ehci_poll(usb_host_t *h) {
     u32 sts = ehci_rd(e, EHCI_USBSTS);
     if (sts) ehci_wr(e, EHCI_USBSTS, sts);
     return 0;
+}
+
+/* clear a latched HALT in the QH overlay tokens.  When the device
+ * STALLs, the controller writes the halt condition into the QH
+ * overlay and refuses to walk that QH until the guest clears it (the
+ * CLEAR_FEATURE(ENDPOINT_HALT) request only resets the device side).
+ * Called from the core's usb_tog_reset() after the class driver sent
+ * CLEAR_FEATURE; harmless when no halt is latched. */
+void ehci_clear_halt_overlay(usb_dev_t *d, u8 ep_addr) {
+    (void)d; (void)ep_addr;
+    for (int i = 0; i < g_n_ehci; i++) {
+        ehci_state_t *e = &g_ehci[i];
+        if (!e->up) continue;
+        e->qh_ctrl->token &= ~QTD_TOKEN_HALT;
+        e->qh_bulk->token &= ~QTD_TOKEN_HALT;
+        e->qh_int->token &= ~QTD_TOKEN_HALT;
+    }
 }
 
 static const usb_hc_ops_t ehci_ops_tmpl = {
@@ -560,11 +668,19 @@ static int ehci_probe_one(u8 bus, u8 dev, u8 func) {
     e->frame_list = (volatile u32 *)(uintptr_t)fl;
     e->frame_list_phys = fl;
 
-    /* async ring: ctrl QH <-> bulk QH */
+    /* async ring: ctrl QH <-> bulk QH.  The ctrl QH carries the H bit
+     * (head of the reclamation list) - the EHCI spec 4.9.1.1 and QEMU
+     * both refuse to walk the async schedule without it. */
     e->qh_ctrl->next = (u32)e->qh_bulk_phys | EHCI_LTYPE_QH;
     e->qh_bulk->next = (u32)e->qh_ctrl_phys | EHCI_LTYPE_QH;
     e->qh_ctrl->next_qtd = EHCI_LINK_T;
+    e->qh_ctrl->altnext_qtd = EHCI_LINK_T;
+    e->qh_ctrl->epchar = QH_EPCHAR_H;          /* head marker */
+    e->qh_ctrl->epcap = (1u << 30);
     e->qh_bulk->next_qtd = EHCI_LINK_T;
+    e->qh_bulk->altnext_qtd = EHCI_LINK_T;
+    e->qh_bulk->epchar = 0;
+    e->qh_bulk->epcap = (1u << 30);
 
     /* periodic frame list: every entry -> int QH (1 ms) */
     for (int i = 0; i < 1024; i++)

@@ -227,6 +227,15 @@ static inline void xwr(xhci_state_t *x, volatile u32 *base, u32 off,
 }
 static void xhci_log(const char *s) { oc_console_puts(s); }
 
+/* ring a doorbell: DB[slot] = target.  The doorbell registers are
+ * 4 bytes apart; DB[0] is the command ring.  (The generic xwr() takes
+ * a BYTE offset - passing a slot id there made hw_slot 1..3 all ring
+ * the command doorbell instead of the endpoint's, which left every
+ * EP0 transfer waiting forever.) */
+static inline void xhci_doorbell(xhci_state_t *x, u32 slot, u32 target) {
+    x->db[slot] = target;
+}
+
 static void xhci_irq_handler(void *ctx, oc_irq_frame_t *f) {
     (void)f;
     xhci_state_t *x = (xhci_state_t *)ctx;
@@ -330,7 +339,7 @@ static int xhci_do_cmd(xhci_state_t *x, u64 param, u32 status,
 
     x->cmd_rc = -1;
     x->cmd_slot = 0;
-    xwr(x, x->db, 0, 0);   /* ring doorbell 0 (command ring) */
+    xhci_doorbell(x, 0, 0);   /* ring doorbell 0 (command ring) */
 
     u64 deadline = oc_timer_now_ms() + timeout_ms;
     for (;;) {
@@ -391,7 +400,11 @@ static u8 xhci_core_speed_to_xhci(u8 speed) {
     }
 }
 
-/* build the input context for Address Device / Evaluate Context */
+/* build the input context for Address Device / Evaluate Context.
+ * Slot context layout per the xHCI spec (6.2.2.1): DW0 carries the
+ * port speed (23:20) and context entries (31:27), DW1 the root hub
+ * port number (23:16), DW3 the device address (31:24, zero while the
+ * device is still on address 0 / BSR=1). */
 static void xhci_build_addr_ctx(xhci_state_t *x, xhci_slot_t *s,
                                 u8 xhci_speed, u8 port, u32 mps0) {
     u32 st = x->ctx_stride;
@@ -400,14 +413,20 @@ static void xhci_build_addr_ctx(xhci_state_t *x, xhci_slot_t *s,
     ic[0] = 0;                                   /* drop flags */
     ic[1] = (1u << 0) | (1u << 1);               /* add slot + EP0 */
     u32 *sc = (u32 *)(void *)(s->in_ctx + st);
-    sc[1] = ((u32)xhci_speed << 20) | (1u << 27);/* speed, 1 ctx entry */
-    sc[2] = ((u32)port << 16);                   /* root hub port */
-    sc[3] = ((u32)(s->hw_slot & 0xff)) << 24;    /* device address */
+    sc[0] = ((u32)xhci_speed << 20) | (1u << 27);/* speed, 1 ctx entry */
+    sc[1] = ((u32)port << 16);                   /* root hub port number */
+    sc[3] = 0;                                   /* address 0 until the
+                                                    device is addressed */
     u32 *ep0 = (u32 *)(void *)(s->in_ctx + 2 * st);
-    ep0[1] = (4u << 3);                          /* EP type = control */
-    ep0[2] = (3u << 8) | ((u32)mps0 << 16);      /* CErr=3, MPS */
-    ep0[3] = (u32)((s->ep[0].phys & 0xffffffffu) | 1u); /* ring | DCS */
-    ep0[4] = (u32)(s->ep[0].phys >> 32);
+    /* Endpoint context layout per the xHCI spec 6.4.1.2 (and matching
+     * QEMU/Linux): DW1 = EP type (5:3) + Max Packet Size (31:16),
+     * DW2 = TR Dequeue Pointer low (31:4) + DCS (0), DW3 = dequeue
+     * high. */
+    ep0[1] = (4u << 3) | ((u32)mps0 << 16);       /* EP type = control,
+                                                     Max Packet Size */
+    ep0[2] = (u32)((s->ep[0].phys & 0xffffffffu) | 1u); /* dequeue low |
+                                                            DCS = 1 */
+    ep0[3] = (u32)(s->ep[0].phys >> 32);          /* dequeue high */
 }
 
 /* run Address Device (BSR per flag) */
@@ -440,13 +459,24 @@ static int xhci_config_ep(xhci_state_t *x, xhci_slot_t *s, u8 ep_addr) {
             attr = e->attr;
         }
     }
-    if (attr == USB_EP_ATTR_BULK && mps > 512) mps = 512;
+    /* SuperSpeed devices carry 1024-byte bulk endpoints (the 512 cap
+     * is only valid for high-speed); keep the descriptor value when
+     * it already fits one transfer */
+    if (attr == USB_EP_ATTR_BULK && mps > 1024) mps = 1024;
     if (attr == USB_EP_ATTR_INTERRUPT && mps > 64) mps = 64;
     if (attr == USB_EP_ATTR_ISO && mps > 1023) mps = 1023;
-    u8 eptype = (attr == USB_EP_ATTR_BULK) ? 3 :
-                (attr == USB_EP_ATTR_INTERRUPT) ? 5 :
-                (attr == USB_EP_ATTR_ISO) ?
-                    ((ep_addr & 0x80) ? 2u : 1u) : 4u;
+    /* xHCI EP type codes (spec Table 6-31): 1=Isoch Out, 2=Isoch In,
+     * 3=Bulk Out, 4=Bulk In, 5=Control Bidir, 6=Interrupt Out,
+     * 7=Interrupt In - the direction must match the endpoint */
+    u8 eptype;
+    if (attr == USB_EP_ATTR_BULK)
+        eptype = (ep_addr & 0x80) ? 4u : 3u;
+    else if (attr == USB_EP_ATTR_INTERRUPT)
+        eptype = (ep_addr & 0x80) ? 7u : 6u;
+    else if (attr == USB_EP_ATTR_ISO)
+        eptype = (ep_addr & 0x80) ? 2u : 1u;
+    else
+        eptype = 5u;
 
     oc_memset(s->in_ctx, 0, 1024);
     u32 *ic = (u32 *)(void *)s->in_ctx;
@@ -454,14 +484,16 @@ static int xhci_config_ep(xhci_state_t *x, xhci_slot_t *s, u8 ep_addr) {
     ic[1] = (1u << 0) | (1u << epid);            /* add slot + this EP */
     u32 *sc = (u32 *)(void *)(s->in_ctx + st);
     oc_memcpy(sc, s->out_ctx + st, 32);          /* keep speed/port */
-    u32 entries = (sc[1] >> 27) & 0x1fu;
+    u32 entries = (sc[0] >> 27) & 0x1fu;         /* context entries live
+                                                    in slot DW0 31:27 */
     if ((u32)epid > entries)
-        sc[1] = (sc[1] & ~(0x1fu << 27)) | ((u32)epid << 27);
+        sc[0] = (sc[0] & ~(0x1fu << 27)) | ((u32)epid << 27);
     u32 *ec = (u32 *)(void *)(s->in_ctx + (u32)(1 + epid) * st);
-    ec[1] = (eptype << 3);                       /* EP state 0 in input */
-    ec[2] = (3u << 8) | ((u32)mps << 16);
-    ec[3] = (u32)((r->phys & 0xffffffffu) | 1u); /* DCS = 1 */
-    ec[4] = (u32)(r->phys >> 32);
+    /* EP context layout: see xhci_build_addr_ctx - DW1 carries the
+     * EP type and Max Packet Size, DW2 the dequeue pointer + DCS */
+    ec[1] = (eptype << 3) | ((u32)mps << 16);    /* EP state 0 in input */
+    ec[2] = (u32)((r->phys & 0xffffffffu) | 1u); /* dequeue low | DCS = 1 */
+    ec[3] = (u32)(r->phys >> 32);                /* dequeue high */
 
     u32 ctrl = (TRB_CONFIG_EP << TRB_TYPE_SH) |
                ((u32)s->hw_slot << TRB_SLOT_SH);
@@ -561,6 +593,7 @@ static xhci_slot_t *xhci_ensure_slot(xhci_state_t *x, usb_dev_t *d,
     /* enable a slot */
     int rc = xhci_do_cmd(x, 0, 0, TRB_ENABLE_SLOT << TRB_TYPE_SH, 1000);
     if (rc != 0 || x->cmd_slot == 0) {
+        oc_console_puts("xhci: ENABLE_SLOT failed\n");
         s->used = 0;
         *err = -1;
         return NULL;
@@ -606,11 +639,15 @@ static xhci_slot_t *xhci_ensure_slot(xhci_state_t *x, usb_dev_t *d,
     dc[s->hw_slot] = s->out_ctx_phys;
 
     /* Address Device with BSR=1: the device stays at address 0 and
-     * the core reads desc8 through EP0 next */
+     * the core reads desc8 through EP0 next.  MPS for the default
+     * endpoint is fixed by the port speed (spec 6.2.3.1). */
     u8 xsp = xhci_core_speed_to_xhci(d->speed);
     u8 port = (u8)(d->hub_port + 1);
-    rc = xhci_address_slot(x, s, xsp, port, 512, 1);
+    u32 bsr_mps = (d->speed == USB_SPEED_SS) ? 512u :
+                  (d->speed == USB_SPEED_LS) ? 8u : 64u;
+    rc = xhci_address_slot(x, s, xsp, port, bsr_mps, 1);
     if (rc != 0) {
+        oc_console_puts("xhci: ADDRESS_DEVICE(BSR) failed\n");
         s->used = 0;
         *err = -1;
         return NULL;
@@ -672,17 +709,11 @@ static int xhci_control(usb_host_t *h, usb_dev_t *d,
                                 (TRB_STATUS_STAGE << TRB_TYPE_SH) |
                                 (dir_in ? 0u : TRB_DIR_IN) | TRB_IOC);
     }
-    xwr(x, x->db, (u32)s->hw_slot, 1);   /* doorbell: slot, target EP0 */
+    xhci_doorbell(x, (u32)s->hw_slot, 1);   /* slot doorbell, EP0 */
 
     u32 cc = 0, rem = 0;
     int got = xhci_wait_trb(x, tr_last, &cc, &rem, timeout_ms);
     if (!got) {
-        char l[64]; char n[12];
-        oc_strcpy(l, "xhci dbg: ctl timeout ev_deq=");
-        oc_u64_to_str(x->ev_deq, n); oc_strcat(l, n);
-        oc_strcat(l, " ev0c="); oc_u64_to_hex(x->ev[0][3], n, 8);
-        oc_strcat(l, n);
-        oc_strcat(l, "\n"); oc_console_puts(l);
         return OC_USB_ETIMEDOUT;
     }
     if (cc == CC_STALL) {
@@ -721,7 +752,7 @@ static int xhci_bulk(usb_host_t *h, usb_dev_t *d, u8 ep_addr,
     oc_memcpy(s->bulk_buf, buf, len);
     u64 tr = xhci_ring_put(r, (u64)(uintptr_t)s->bulk_buf, len,
                            (TRB_NORMAL << TRB_TYPE_SH) | TRB_IOC);
-    xwr(x, x->db, (u32)s->hw_slot, (u32)epid);
+    xhci_doorbell(x, (u32)s->hw_slot, (u32)epid);
 
     u32 cc = 0, rem = 0;
     int got = xhci_wait_trb(x, tr, &cc, &rem, timeout_ms);
@@ -791,7 +822,7 @@ static int xhci_interrupt(usb_host_t *h, usb_dev_t *d, u8 ep_addr,
                            len, (TRB_NORMAL << TRB_TYPE_SH) | TRB_IOC);
     s->int_trb_phys[latch] = tr;
     s->int_pending[latch] = 1;
-    xwr(x, x->db, (u32)s->hw_slot, (u32)epid);
+    xhci_doorbell(x, (u32)s->hw_slot, (u32)epid);
 
     u32 cc = 0, rem = 0;
     int got = xhci_wait_trb(x, tr, &cc, &rem, timeout_ms);
@@ -825,7 +856,7 @@ static int xhci_iso_out(usb_host_t *h, usb_dev_t *d, u8 ep_addr,
     if (data && len) oc_memcpy(s->bulk_buf, data, len);
     u64 tr = xhci_ring_put(r, (u64)(uintptr_t)s->bulk_buf, len,
                            (TRB_ISOCH << TRB_TYPE_SH) | TRB_IOC);
-    xwr(x, x->db, (u32)s->hw_slot, (u32)epid);
+    xhci_doorbell(x, (u32)s->hw_slot, (u32)epid);
     /* wait a few ms so the event ring stays clean; audio re-arms at
      * the 1 ms frame cadence anyway */
     u32 cc = 0, rem = 0;
@@ -855,7 +886,9 @@ static int xhci_port_status(usb_host_t *h, int port,
                             usb_port_status_t *out) {
     xhci_state_t *x = (xhci_state_t *)h->priv;
     if (!x || !x->up || port < 0 || port >= x->n_ports) return -1;
-    u32 off = XHCI_PORTSC_BASE + (u32)port * 4;   /* port = 0-based */
+    u32 off = XHCI_PORTSC_BASE + (u32)port * 0x10;   /* port = 0-based,
+                                                   * PORTSC register set stride
+                                                   * is 16 bytes per port */
     u32 v = x->op[off / 4];
     out->connected = (v & P_CCS) ? 1 : 0;
     out->enabled = (v & P_PED) ? 1 : 0;
@@ -876,7 +909,7 @@ static int xhci_port_status(usb_host_t *h, int port,
 static int xhci_port_reset(usb_host_t *h, int port, u8 *speed_out) {
     xhci_state_t *x = (xhci_state_t *)h->priv;
     if (!x || !x->up || port < 0 || port >= x->n_ports) return -1;
-    u32 off = XHCI_PORTSC_BASE + (u32)port * 4;
+    u32 off = XHCI_PORTSC_BASE + (u32)port * 0x10;
     xwr(x, x->op, off, xrd(x, x->op, off) | P_PP);   /* power on */
     xwr(x, x->op, off, (xrd(x, x->op, off) & ~P_CHANGES) | P_PR);
     for (int i = 0; i < 400; i++) {
@@ -888,7 +921,14 @@ static int xhci_port_reset(usb_host_t *h, int port, u8 *speed_out) {
     xwr(x, x->op, off, (xrd(x, x->op, off) & P_CHANGES) |
                        (xrd(x, x->op, off) & P_PP));
     u32 w = xrd(x, x->op, off);
-    if (!(w & P_CCS)) return -1;
+    if (!(w & P_CCS)) {
+        char l[64]; char n[12];
+        oc_strcpy(l, "xhci: port reset fail ccs=0 w=0x");
+        oc_u64_to_hex(w, n, 8); oc_strcat(l, n);
+        oc_strcat(l, "\n");
+        oc_console_puts(l);
+        return -1;
+    }
     if (speed_out) {
         switch ((w & P_SPEED_MSK) >> P_SPEED_SH) {
             case 2:  *speed_out = USB_SPEED_LS; break;
@@ -1057,7 +1097,7 @@ static int xhci_probe_one(u8 bus, u8 dev, u8 func) {
     xwr(x, x->op, XHCI_DCBAAP + 4, (u32)(dc >> 32));
     xwr(x, x->op, XHCI_CONFIG, (x->max_slots & 0xffffu) << 16);
     for (u32 p = 0; p < x->n_ports; p++) {   /* power all ports */
-        u32 off = XHCI_PORTSC_BASE + p * 4;
+        u32 off = XHCI_PORTSC_BASE + p * 0x10;
         xwr(x, x->op, off, xrd(x, x->op, off) | P_PP);
     }
     xwr(x, x->run, XHCI_ERSTSZ(0), 1);

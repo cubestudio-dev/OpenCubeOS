@@ -246,7 +246,7 @@ int usb_control_transfer(usb_dev_t *d, const usb_setup_t *setup,
         return -1;
     if (!setup) return -1;
     usb_lock();
-    int rc = d->host->ops->control(d->host, d, setup, buf, len, 1000);
+    int rc = d->host->ops->control(d->host, d, setup, buf, len, 5000);
     usb_unlock();
     return rc;
 }
@@ -308,13 +308,14 @@ int usb_control(usb_dev_t *dev, u8 req_type, u8 request,
 extern void usb_uhci_tog_reset(usb_dev_t *d, u8 ep_addr);
 extern void usb_ohci_tog_reset(usb_dev_t *d, u8 ep_addr);
 extern int  xhci_reset_ep(usb_dev_t *d, u8 ep_addr);
+extern void ehci_clear_halt_overlay(usb_dev_t *d, u8 ep_addr);
 void usb_tog_reset(usb_dev_t *d, u8 ep_addr) {
     if (!d || !d->host || !d->host->ops) return;
     const char *n = d->host->ops->name;
     if (n && n[0] == 'U') usb_uhci_tog_reset(d, ep_addr);
     else if (n && n[0] == 'O') usb_ohci_tog_reset(d, ep_addr);
     else if (n && n[0] == 'X') xhci_reset_ep(d, ep_addr);
-    /* EHCI: hardware-managed toggle, nothing to do */
+    else if (n && n[0] == 'E') ehci_clear_halt_overlay(d, ep_addr);
 }
 
 int usb_set_interface(usb_dev_t *dev, u16 interface, u16 alt) {
@@ -465,6 +466,9 @@ static int usb_enum_one(usb_host_t *h, int parent, u8 hub_port,
         return 0;
     }
     if (buf[7] >= 8 && buf[7] <= 64) d->mps0 = buf[7];
+    else if (buf[7] == 9 && speed == USB_SPEED_SS)
+        d->mps0 = 512;   /* SuperSpeed encodes the fixed 512-byte EP0
+                            as "9" in bMaxPacketSize0 */
 
     /* SET_ADDRESS */
     u8 new_addr = usb_free_address();
@@ -475,11 +479,13 @@ static int usb_enum_one(usb_host_t *h, int parent, u8 hub_port,
         return 0;
     }
     d->addr = new_addr;
+    usb_log("usb: SET_ADDRESS ok\n");
 
     /* full device descriptor */
     oc_memset(buf, 0, sizeof(buf));
     if (usb_control(d, 0x80, USB_REQ_GET_DESC,
                     (USB_DT_DEVICE << 8) | 0, 0, buf, 18) != 0) {
+        usb_log("usb: GET_DESCRIPTOR(18) failed\n");
         d->present = 0;
         return 0;
     }
@@ -496,6 +502,7 @@ static int usb_enum_one(usb_host_t *h, int parent, u8 hub_port,
     oc_memset(cfg9, 0, sizeof(cfg9));
     if (usb_control(d, 0x80, USB_REQ_GET_DESC,
                     (USB_DT_CONFIG << 8) | 0, 0, cfg9, 9) != 0) {
+        usb_log("usb: GET_DESCRIPTOR(config9) failed\n");
         d->present = 0;
         return 0;
     }
@@ -505,6 +512,7 @@ static int usb_enum_one(usb_host_t *h, int parent, u8 hub_port,
     if (usb_control(d, 0x80, USB_REQ_GET_DESC,
                     (USB_DT_CONFIG << 8) | 0, 0, d->cfg_raw, total)
             != 0) {
+        usb_log("usb: GET_DESCRIPTOR(config) failed\n");
         d->present = 0;
         return 0;
     }
@@ -524,12 +532,6 @@ static int usb_enum_one(usb_host_t *h, int parent, u8 hub_port,
 
     /* class-driver probe (the hub driver is built into the core) */
     usb_match_probe(d);
-    { char l[80]; char n[12];
-      oc_strcpy(l, "usb dbg: enum done slot=");
-      oc_u64_to_str(slot, n); oc_strcat(l, n);
-      oc_strcat(l, " present="); oc_u64_to_str(d->present, n);
-      oc_strcat(l, n);
-      oc_console_puts(l); oc_console_puts("\n"); }
     return 1;
 }
 

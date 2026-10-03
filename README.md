@@ -20,17 +20,17 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-10c-selfhost)
+## Stats (WP-10d)
 
-- **Source code**: 69,910 lines (kernel + boot + userprogs, incl. headers, no docs;
+- **Source code**: 75,806 lines (kernel + boot + userprogs, incl. headers, no docs;
   verify: `find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
-- **Work packages**: 13 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c)
+- **Work packages**: 14 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c, WP-10d)
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
   `install` and `grub-install` - create A/B update disks, install the OS
   to a disk and write the GRUB BIOS boot loader entirely from the oc>
   shell (no host tools; the kernel payload travels with the boot media as
   a multiboot2 module).
-- **L1 extension interfaces**: 111 (57 through WP-09 + 8 WP-10a items:
+- **L1 extension interfaces**: 122 (57 through WP-09 + 8 WP-10a items:
   blk_register / blk_read / blk_write / blk_flush (+ blk_set_ops),
   ahci_init(pci_dev), nvme_init(pci_dev), ata_dma_init(pci_dev),
   + 13 WP-10b items:
@@ -45,7 +45,13 @@ Licensed under the Apache License, Version 2.0.
   hda_init / ac97_init / sb16_init / es1370_init / virtio_snd_init /
   usb_audio_init(pci_dev / isa_dev / usb_dev),
   usb_init / usb_enumerate / usb_control / usb_set_interface /
-  usb_iso_out_submit (kernel/usb.h))
+  usb_iso_out_submit (kernel/usb.h),
+  + 11 WP-10d items: usb_register_host / usb_enumerate_host /
+  usb_control_transfer / usb_bulk_transfer / usb_interrupt_transfer /
+  usb_isochronous_transfer / usb_register_driver (class-driver registry:
+  HID keyboard + mouse, MSC storage, CDC-ACM/FTDI serial, UAC audio),
+  uhci_init / ohci_init / ehci_init / xhci_init(pci_dev) — four host
+  controller backends (kernel/usb.h)
 - **System calls**: 37
 - **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
   + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
@@ -242,7 +248,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   48 kHz by design and the test verifies the rejection).
 - **Commands**: sound, hda, ac97, sb16, es1370, virtiosnd, usbaudio,
   play [device] [rate], volume [device] [0-100]; lspci shows sound
-  controllers (class 0x04). 150 commands registered at boot
+  controllers (class 0x04). 159 commands registered at boot
   (including the rule-9 self-hosting set: abdisk, install,
   grub-install, abcfg).
 - **Verification**: hda_test / ac97_test / sb16_test / es1370_test /

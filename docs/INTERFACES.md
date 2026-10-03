@@ -118,11 +118,12 @@ DH truth vectors for self-test: kernel/dh_scale_vectors.h.
 | Storage drivers (WP-10a) | kernel/ahci.h, nvme.h, ata_dma.h, virtio_blk.h | ahci_init(pci_dev), nvme_init(pci_dev), ata_dma_init(pci_dev), virtio_blk_init, pci_find_class_exact/mask (pci.h) |
 | NIC drivers (WP-10b) | kernel/nic.h | nic_register(dev, ops), nic_send/recv(dev, ...), nic_link_status(dev), nic_get_mac(dev, mac), e1000e_init/igb_init/ixgbe_init/rtl8139_init/rtl8168_init/rtl8125_init/rtl810x_init/bcm57xx_init(pci_dev), other_nics_init, nic_probe_all, nic_active |
 | Sound cards (WP-10c) | kernel/snd.h, usb.h | snd_register(dev, ops), snd_play/stop/set_rate/set_volume/get_caps(dev, ...), hda_init/ac97_init/es1370_init/virtio_snd_init(pci_dev), sb16_init(isa_dev), usb_audio_init(usb_dev), snd_probe_all; USB: usb_init, usb_enumerate, usb_control, usb_set_interface, usb_iso_out_submit (kernel/usb.h) |
+| USB host stack (WP-10d) | kernel/usb.h | usb_register_host(host, ops), usb_enumerate_host(host), usb_control_transfer(d, setup, buf, len), usb_bulk_transfer(d, ep, buf, len) (+ _timeout), usb_interrupt_transfer(d, ep, buf, len), usb_isochronous_transfer(d, ep, buf, len), usb_register_driver(name, class, probe, disconnect), uhci_init / ohci_init / ehci_init / xhci_init(pci_dev); class drivers hid-kbd/hid-mouse/usb-msc/usb-serial/usb-audio; shell: usb, usbdev |
 | TCP socket state (WP-10a-fix) | kernel/net.h | net_tcp_established(fd) |
 
 ## 4. Shell command surface
 
-150 commands registered at boot (live count; `help` lists 150 unique).
+159 commands registered at boot (live count; `help` lists 159 unique).
 `shell_register_command` call sites (static count): kmain.c 48 (incl.
 update/rollback/reboot), net.c 17, file_cmds.c 18, disk_cmds.c 7,
 disk_setup.c 4 (rule-9 self-hosting: abdisk/install/grub-install/abcfg),

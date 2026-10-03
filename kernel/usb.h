@@ -292,7 +292,7 @@ struct usb_dev {
 
     u16   vid, pid;
     u8    class, subclass, protocol;
-    u8    mps0;
+    u16   mps0;
     char  product[USB_NAME_MAX];
 
     usb_endpoint_t  eps[USB_MAX_EPS];

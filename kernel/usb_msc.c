@@ -116,6 +116,7 @@ static int msc_bot_to(usb_msc_dev_t *m, const u8 *cb, u8 cb_len,
     int rc = usb_bulk_transfer_timeout(m->dev, m->ep_out->addr, cbw,
                                        31, timeout_ms);
     if (rc != 31) {
+        oc_console_puts("msc: CBW bulk out failed\n");
         if (rc == OC_USB_ESTALL) {
             msc_clear_halt(m, m->ep_out->addr);
             m->stalls_recovered++;
@@ -142,9 +143,15 @@ static int msc_bot_to(usb_msc_dev_t *m, const u8 *cb, u8 cb_len,
         msc_clear_halt(m, dir_in ? m->ep_in->addr : m->ep_out->addr);
         m->stalls_recovered++;
     }
-    if (data_err && data_len) { m->busy = 0; return -1; }
+    if (data_err && data_len) {
+        oc_console_puts("msc: data phase failed\n");
+        m->busy = 0;
+        return -1;
+    }
 
-    /* CSW (retry once after a stall) */
+    /* CSW (retry: once after a stall, once more after a timeout -
+     * some devices complete the SCSI command asynchronously and are
+     * not ready to hand out the CSW on the first attempt) */
     rc = usb_bulk_transfer_timeout(m->dev, m->ep_in->addr, csw, 13,
                                    timeout_ms);
     if (rc != 13) {
@@ -153,8 +160,20 @@ static int msc_bot_to(usb_msc_dev_t *m, const u8 *cb, u8 cb_len,
             m->stalls_recovered++;
             rc = usb_bulk_transfer_timeout(m->dev, m->ep_in->addr,
                                            csw, 13, timeout_ms);
+        } else {
+            for (volatile int d = 0; d < 40000; d++) { }
+            rc = usb_bulk_transfer_timeout(m->dev, m->ep_in->addr,
+                                           csw, 13, 500);
         }
-        if (rc != 13) { m->busy = 0; return -1; }
+        if (rc != 13) {
+            char l[64]; char n[12];
+            oc_strcpy(l, "msc: CSW bulk in failed rc=");
+            oc_u64_to_str((u64)(rc < 0 ? -rc : rc), n); oc_strcat(l, n);
+            oc_strcat(l, "\n");
+            oc_console_puts(l);
+            m->busy = 0;
+            return -1;
+        }
     }
     u32 sig = (u32)csw[0] | ((u32)csw[1] << 8) | ((u32)csw[2] << 16) |
               ((u32)csw[3] << 24);
@@ -162,7 +181,10 @@ static int msc_bot_to(usb_msc_dev_t *m, const u8 *cb, u8 cb_len,
                ((u32)csw[7] << 24);
     u8 status = csw[12];
     m->busy = 0;
-    if (sig != MSC_CSW_SIG || rtag != tag) return -1;
+    if (sig != MSC_CSW_SIG || rtag != tag) {
+        oc_console_puts("msc: CSW bad signature or tag\n");
+        return -1;
+    }
     if (status != 0) {
         /* command failed: fetch sense to clear the condition.  busy
          * is already cleared here; the sense BOT manages its own busy

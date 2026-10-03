@@ -80,6 +80,8 @@
 #define TD_CC_NORESP     (0x5u << 28)
 #define TD_CC_IOERR      (0xcu << 28)
 #define TD_EC_MSK        (3u << 26)
+/* OHCI DataToggle field (word0 bits 25:24): 01 = DATA0, 10 = DATA1
+ * (per the OHCI spec Table 4-3 and QEMU hcd-ohci.c) */
 #define TD_T0            (1u << 24)
 #define TD_T1            (1u << 25)
 #define TD_DI_MSK        (7u << 21)
@@ -97,7 +99,7 @@
 #define ED_K             (1u << 14)
 #define ED_F             (1u << 15)
 #define ED_MPS_MSK       (0x7ffu << 16)
-#define ED_HEAD_RSV      ((1u << 2) | (1u << 3))
+#define ED_HEAD_C        (1u << 1)   /* toggle carry, lives in headP bit 1 */
 
 /* RH port bits */
 #define RHPORT_CCS       (1u << 0)
@@ -214,7 +216,7 @@ static void ohci_ed_init(ohci_state_t *o, ohci_ed_t *ed,
     (void)o;
     ed->word0 = ED_K | fmt;      /* skip until armed */
     ed->tail = 0;
-    ed->head = ED_HEAD_RSV;
+    ed->head = 0;
     ed->next = 0;
     /* keep it self-consistent so the HC never chokes on it */
     (void)ed_phys;
@@ -294,7 +296,7 @@ static int ohci_control(usb_host_t *h, usb_dev_t *d,
             oc_memcpy(datab + 8, buf, len);
         u16 remaining = len;
         u64 bp = o->ctrl_buf_phys + 8;
-        u8 tog = 0;   /* 0 -> T0 first (control DATA starts DATA1) */
+        u8 tog = 1;   /* control DATA phase starts with DATA1 */
         while (remaining > 0 && td < OHCI_N_CTRL_TD - 1) {
             u16 chunk = remaining > mps ? mps : remaining;
             tds[td].word0 = TD_CC_NOTACC | dp |
@@ -332,7 +334,7 @@ static int ohci_control(usb_host_t *h, usb_dev_t *d,
     if (d->speed == USB_SPEED_LS) w0 |= ED_S;
     ed->word0 = w0;
     ed->tail = 0;
-    ed->head = (u32)o->ctrl_td_phys | ED_HEAD_RSV;
+    ed->head = (u32)o->ctrl_td_phys;
     ed->next = 0;
 
     int rc = ohci_run(o, ed, o->ctrl_ed_phys, tds, o->ctrl_td_phys,
@@ -410,7 +412,7 @@ static int ohci_bulk(usb_host_t *h, usb_dev_t *d, u8 ep_addr,
     if (d->speed == USB_SPEED_LS) w0 |= ED_S;
     ed->word0 = w0;
     ed->tail = 0;
-    ed->head = (u32)o->bulk_td_phys | ED_HEAD_RSV;
+    ed->head = (u32)o->bulk_td_phys;
     ed->next = 0;
 
     int rc = ohci_run(o, ed, o->bulk_ed_phys, tds, o->bulk_td_phys,
@@ -463,7 +465,7 @@ static int ohci_interrupt(usb_host_t *h, usb_dev_t *d, u8 ep_addr,
                 (((u32)len & 0x7ff) << 16);
     if (d->speed == USB_SPEED_LS) ed->word0 |= ED_S;
     ed->tail = 0;
-    ed->head = (u32)o->int_td_phys | ED_HEAD_RSV;
+    ed->head = (u32)o->int_td_phys;
     ed->next = 0;
 
     u64 deadline = oc_timer_now_ms() + timeout_ms;
@@ -520,7 +522,7 @@ static int ohci_iso_out(usb_host_t *h, usb_dev_t *d, u8 ep_addr,
                 (((u32)USB_EP_NUM(ep_addr) & 0xf) << 7) |
                 ED_F | (((u32)len & 0x7ff) << 16);
     ed->tail = 0;
-    ed->head = (u32)o->int_td_phys | ED_HEAD_RSV;
+    ed->head = (u32)o->int_td_phys;
     ed->next = 0;
     /* ISO EDs live in the periodic list; QEMU also services them from
      * the control/bulk scan when F=1 is set, and the audio class
