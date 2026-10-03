@@ -186,6 +186,7 @@ void blk_list_devices(void) {
             case BLK_TYPE_VIRTIO: tn = "virtio"; break;
             case BLK_TYPE_NVME:   tn = "NVMe";   break;
             case BLK_TYPE_AHCI:   tn = "AHCI";   break;
+            case BLK_TYPE_USB:    tn = "usb";    break;
         }
         oc_strcpy(line, "  "); oc_strcat(line, d->name);
         oc_strcat(line, " ["); oc_strcat(line, tn); oc_strcat(line, "] ");

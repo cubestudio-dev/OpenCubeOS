@@ -4,8 +4,20 @@
 """Run QEMU ISO boot and execute shell commands, capturing output.
 
 Usage: python3 qemu_runner.py <iso_path> <command1> [command2 ...]
+
+Commands prefixed with "@" are executed in the QEMU human monitor
+(HMP) instead of the guest shell - the serial console is multiplexed
+with the monitor via -serial mon:stdio, so Ctrl-A c switches to it.
+This drives WP-10d tests: device_add/device_del (USB hot-plug),
+sendkey (USB keyboard input), mouse_move (USB mouse input).
+
+Env:
+  OC_USB_SERIAL_ECHO=1  start a TCP echo server and attach QEMU as a
+                        socket chardev client, so the guest's
+                        usb-serial port loops back (TX -> RX)
+  OC_CMD_TIMEOUT=300    per-command timeout
 """
-import sys, os, re, time, signal
+import sys, os, re, time, signal, socket, threading
 import pexpect
 
 # Setup LD_LIBRARY_PATH + QEMU paths
@@ -25,6 +37,40 @@ def strip_ansi(s):
     s = re.sub(r'\x1b\[\?\d+[a-zA-Z]', '', s)
     s = re.sub(r'c\x1b', '', s)
     return s
+
+# ------------------------------------------------------------------
+# OC_USB_SERIAL_ECHO: loopback server for the guest usb-serial port
+# ------------------------------------------------------------------
+
+class EchoServer(threading.Thread):
+    """Accepts one TCP connection and echoes every byte back."""
+    def __init__(self, port):
+        super().__init__(daemon=True)
+        self.port = port
+        self.sock = socket.socket(socket.AF_INET,
+                                  socket.SOCK_STREAM)
+        self.sock.setsockopt(socket.SOL_SOCKET,
+                             socket.SO_REUSEADDR, 1)
+        self.sock.bind(("127.0.0.1", port))
+        self.sock.listen(1)
+
+    def run(self):
+        try:
+            conn, _ = self.sock.accept()
+            conn.settimeout(0.2)
+            while True:
+                try:
+                    data = conn.recv(256)
+                    if not data:
+                        break
+                    conn.sendall(data)
+                except socket.timeout:
+                    continue
+                except OSError:
+                    break
+        except OSError:
+            pass
+
 
 def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
     """Boot ISO, run commands, return all output."""
@@ -71,6 +117,21 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
     if extra:
         cmd.extend(extra)
         print(f"[runner] extra args: {extra}")
+    # WP-10d debug: optional QEMU tracing (OC_TRACE=/path/events.txt)
+    trace_ev = os.environ.get("OC_TRACE", "").strip()
+    if trace_ev:
+        cmd.extend(["-trace", f"events={trace_ev}",
+                    "-trace", "file=/tmp/oc-trace.log"])
+        print("[runner] QEMU trace enabled")
+    # WP-10d: USB serial loopback (guest TX -> echo server -> guest RX)
+    echo = None
+    if os.environ.get("OC_USB_SERIAL_ECHO", "").strip():
+        echo = EchoServer(4450)
+        echo.start()
+        cmd.extend(["-chardev",
+                    "socket,id=ser0,host=127.0.0.1,port=4450",
+                    "-device", "usb-serial,chardev=ser0"])
+        print("[runner] usb-serial loopback: echo server on :4450")
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = ENV_LD
 
@@ -84,14 +145,40 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
     child.logfile_read = sys.stdout
     
     all_output = []
+    def hmp_cmd(child, hcmd):
+        """Switch to the QEMU monitor, run one HMP command, switch back.
+        After switching back to serial the guest shell does NOT reprint
+        its prompt (it never left it), so just let the switch settle."""
+        child.send("\x01c")                     # Ctrl-A c -> monitor
+        child.expect(r"\(qemu\)", timeout=10)
+        child.sendline(hcmd)
+        child.expect(r"\(qemu\)", timeout=20)
+        out = strip_ansi(child.before)
+        child.send("\x01c")                     # Ctrl-A c -> serial
+        time.sleep(0.5)
+        return out
+
     try:
         # Wait for boot prompt
         child.expect(r"oc>\s*", timeout=30)
         boot_output = child.before
         all_output.append(("BOOT", strip_ansi(boot_output)))
         print(f"[runner] boot complete ({len(strip_ansi(boot_output))} chars)")
-        
+
         for c in commands:
+            if c.startswith("@"):
+                hcmd = c[1:]
+                print(f"[runner] HMP: {hcmd}")
+                try:
+                    out = hmp_cmd(child, hcmd)
+                    all_output.append((c, out))
+                except pexpect.TIMEOUT:
+                    print(f"[runner] HMP TIMEOUT for '{hcmd}'")
+                    all_output.append((c, "<<HMP TIMEOUT>>"))
+                except pexpect.EOF:
+                    print(f"[runner] HMP EOF for '{hcmd}'")
+                    all_output.append((c, "<<HMP EOF>>"))
+                continue
             print(f"[runner] sending: {c}")
             child.sendline(c)
             try:

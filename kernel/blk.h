@@ -37,6 +37,7 @@ typedef enum {
     BLK_TYPE_VIRTIO = 2,
     BLK_TYPE_NVME   = 3,
     BLK_TYPE_AHCI   = 4,
+    BLK_TYPE_USB    = 5,   /* WP-10d: USB Mass Storage (BOT + SCSI) */
 } blk_type_t;
 
 /* Forward declaration. */

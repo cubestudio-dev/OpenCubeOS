@@ -21,7 +21,11 @@
 #ifndef OC_USB_AUDIO_H
 #define OC_USB_AUDIO_H
 
-int  usb_audio_init(void *usb_dev);
+int usb_audio_init(void *usb_dev);
 void usb_audio_print_state(void);
+
+/* WP-10d: register the UAC driver as a USB class driver so hot-plugged
+ * audio devices attach automatically (probe = usb_audio_init(dev)). */
+int  usb_audio_class_register(void);
 
 #endif /* OC_USB_AUDIO_H */

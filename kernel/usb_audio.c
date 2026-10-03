@@ -44,10 +44,15 @@
 #define UAC_PACKET_BYTES      192    /* 96 stereo frames * 4 bytes */
 
 typedef struct usb_audio_dev {
-    usb_device_t *dev;
+    usb_dev_t *dev;
     u16 packet_bytes;
     u32 rate;
     u8  channels;
+    u8  audio_if_num;      /* streaming interface number */
+    u8  audio_if_alt;      /* streaming alternate setting */
+    u8  iso_out_ep;        /* ISO OUT endpoint number */
+    u16 iso_out_maxpack;
+    int has_audio_stream;
     int stream_active;
     u64 packets_sent;
     int up;
@@ -73,9 +78,9 @@ static void usbaudio_log(const char *s) { oc_console_puts(s); }
 
 /* Walk the raw configuration descriptor: find the audio-streaming
  * interface and its isochronous OUT endpoint. */
-static int usbaudio_parse_config(usb_device_t *dev, usb_audio_dev_t *ad) {
-    const u8 *p = dev->raw_cfg;
-    int len = dev->raw_cfg_len;
+static int usbaudio_parse_config(usb_dev_t *dev, usb_audio_dev_t *ad) {
+    const u8 *p = dev->cfg_raw;
+    int len = dev->cfg_len;
     int in_audio_iface = 0;
 
     while (len >= 2) {
@@ -90,8 +95,8 @@ static int usbaudio_parse_config(usb_device_t *dev, usb_audio_dev_t *ad) {
             u8 n_ep = p[4];
             in_audio_iface = (cls == 0x01 && sub == USB_SUBCLASS_AUDIOSTREAMING);
             if (in_audio_iface && n_ep > 0) {
-                dev->audio_if_num = p[2];
-                dev->audio_if_alt = alt;
+                ad->audio_if_num = p[2];
+                ad->audio_if_alt = alt;
             }
         } else if (dtype == 0x05 && dlen >= 7 && in_audio_iface) {
             /* endpoint descriptor */
@@ -100,18 +105,18 @@ static int usbaudio_parse_config(usb_device_t *dev, usb_audio_dev_t *ad) {
             u16 maxpack = (u16)(p[4] | (p[5] << 8));
             if ((ep_addr & 0x80) == 0 &&            /* OUT */
                 (attrs & 3) == 1) {                 /* isochronous */
-                dev->iso_out_ep = (u8)(ep_addr & 0x0f);
-                dev->iso_out_maxpack = maxpack;
-                dev->has_audio_stream = 1;
+                ad->iso_out_ep = (u8)(ep_addr & 0x0f);
+                ad->iso_out_maxpack = maxpack;
+                ad->has_audio_stream = 1;
             }
         }
         p += dlen;
         len -= dlen;
     }
-    ad->packet_bytes = dev->iso_out_maxpack;
+    ad->packet_bytes = ad->iso_out_maxpack;
     if (ad->packet_bytes == 0 || ad->packet_bytes > UAC_PACKET_BYTES)
         ad->packet_bytes = UAC_PACKET_BYTES;
-    return dev->has_audio_stream ? 0 : -1;
+    return ad->has_audio_stream ? 0 : -1;
 }
 
 /* ---- playback ---- */
@@ -133,8 +138,8 @@ static int usbaudio_ops_play(snd_device_t *sdev, const void *buf, int len) {
 
     /* first play: activate the streaming alternate setting */
     if (!ad->stream_active) {
-        if (usb_set_interface(ad->dev, ad->dev->audio_if_num,
-                              ad->dev->audio_if_alt) != 0) {
+        if (usb_set_interface(ad->dev, ad->audio_if_num,
+                              ad->audio_if_alt) != 0) {
             usbaudio_log("usbaudio: SET_INTERFACE failed\n");
             return -1;
         }
@@ -157,7 +162,8 @@ static int usbaudio_ops_play(snd_device_t *sdev, const void *buf, int len) {
 
         u8 zero[4] = { 0, 0, 0, 0 };
         (void)zero;
-        if (usb_iso_out_submit(ad->dev, src + sent, chunk) != 0)
+        if (usb_isochronous_transfer(ad->dev, ad->iso_out_ep,
+                                     (void *)(src + sent), chunk) != 0)
             return sent ? sent : -1;
         ad->packets_sent++;
         sent += chunk;
@@ -170,7 +176,7 @@ static int usbaudio_ops_stop(snd_device_t *sdev) {
     if (!ad || !ad->up) return -1;
     ad->stream_active = 0;
     /* deactivate the streaming alternate setting (alt 0 = no endpoint) */
-    usb_set_interface(ad->dev, ad->dev->audio_if_num, 0);
+    usb_set_interface(ad->dev, ad->audio_if_num, 0);
     return 0;
 }
 
@@ -217,10 +223,10 @@ int usb_audio_init(void *usb_dev) {
         if (!usb_dev && usb_num_devices() == 0) return -1;
     }
 
-    usb_device_t *dev = (usb_device_t *)usb_dev;
+    usb_dev_t *dev = (usb_dev_t *)usb_dev;
     if (!dev) {
         for (int i = 0; i < USB_MAX_DEVICES; i++) {
-            usb_device_t *d = usb_get_device(i);
+            usb_dev_t *d = usb_get_device(i);
             if (d && (d->class == 0 || d->class == 0xEF || d->vid == 0x46f4)) {
                 dev = d;   /* composite / QEMU audio candidate */
                 break;
@@ -247,9 +253,9 @@ int usb_audio_init(void *usb_dev) {
     oc_strcat(line, " pid=0x");
     oc_u64_to_hex(dev->pid, n, 4); oc_strcat(line, n);
     oc_strcat(line, " ep=0x");
-    oc_u64_to_hex(dev->iso_out_ep, n, 2); oc_strcat(line, n);
+    oc_u64_to_hex(ad->iso_out_ep, n, 2); oc_strcat(line, n);
     oc_strcat(line, " maxpack=");
-    oc_u64_to_str(dev->iso_out_maxpack, n); oc_strcat(line, n);
+    oc_u64_to_str(ad->iso_out_maxpack, n); oc_strcat(line, n);
     oc_console_puts(line);
     oc_console_puts("\n");
 
@@ -278,7 +284,7 @@ void usb_audio_print_state(void) {
     oc_strcat(line, " pid=0x");
     oc_u64_to_hex(ad->dev->pid, n, 4); oc_strcat(line, n);
     oc_strcat(line, " ep=0x");
-    oc_u64_to_hex(ad->dev->iso_out_ep, n, 2); oc_strcat(line, n);
+    oc_u64_to_hex(ad->iso_out_ep, n, 2); oc_strcat(line, n);
     oc_strcat(line, " packet=");
     oc_u64_to_str(ad->packet_bytes, n); oc_strcat(line, n);
     oc_strcat(line, "B rate=");
@@ -287,4 +293,28 @@ void usb_audio_print_state(void) {
     oc_u64_to_str(ad->packets_sent, n); oc_strcat(line, n);
     oc_console_puts(line);
     oc_console_puts("\n");
+}
+
+/* ---- WP-10d class-driver registration ---- */
+
+#include "usb.h"
+
+static int usbaudio_class_probe(usb_dev_t *dev) {
+    return usb_audio_init((void *)dev);
+}
+
+static void usbaudio_class_disconnect(usb_dev_t *dev) {
+    usb_audio_dev_t *ad = &g_usbaudio;
+    if (ad->up && ad->dev == dev) {
+        if (ad->stream_active)
+            usb_set_interface(ad->dev, ad->audio_if_num, 0);
+        oc_memset(ad, 0, sizeof(*ad));
+        oc_console_puts("usb-audio: device removed\n");
+    }
+}
+
+int usb_audio_class_register(void) {
+    return usb_register_driver("usb-audio", USB_CLASS_AUDIO,
+                               usbaudio_class_probe,
+                               usbaudio_class_disconnect);
 }

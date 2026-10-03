@@ -66,6 +66,12 @@ void ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "ab_update.h"       /* WP-10u: A/B slots + in-system update */
 #include "update_test_cmds.h" /* WP-10u: update test suite */
 #include "snd.h"             /* WP-10c: sound card drivers */
+#include "usb.h"              /* WP-10d: USB stack */
+#include "usb_hid.h"
+#include "usb_msc.h"
+#include "usb_serial.h"
+#include "usb_audio.h"
+#include "usb_test_cmds.h"
 #include "exfat.h"
 #include "ext4.h"
 #include "disk_cmds.h"
@@ -2475,6 +2481,29 @@ void kmain(u64 magic, u64 mbi_phys) {
     nvme_init(NULL);
     OC_LOG_OK2("virtio-blk + AHCI + NVMe drivers");
 
+    /* ---- WP-10d: full USB stack ----
+     * Class drivers register FIRST so the enumeration probes them:
+     * HID keyboards/mice (boot protocol), MSC storage (BOT + SCSI,
+     * lands in the blk table as usda/usdb before the partition scan
+     * below), CDC-ACM + FTDI serial, UAC audio.  Then all four host
+     * controller backends probe PCI (UHCI + OHCI + EHCI + XHCI) and
+     * enumerate their root hubs.  A poll kernel thread keeps hot-plug,
+     * input and serial RX alive for the whole session. */
+    usb_hid_init();
+    usb_msc_init();
+    usb_serial_init();
+    usb_audio_class_register();
+    {
+        int uh = usb_probe_all();
+        char line[80]; char num[12];
+        oc_strcpy(line, "USB hosts up: ");
+        oc_u64_to_str((u64)(uh > 0 ? uh : 0), num);
+        oc_strcat(line, num);
+        OC_LOG_OK2(line);
+    }
+
+    OC_LOG_OK2("USB stack (4 HC backends, HID/MSC/serial/audio)");
+
     fat32_init();
     exfat_init();
     ext4_init();
@@ -2558,6 +2587,9 @@ void kmain(u64 magic, u64 mbi_phys) {
         OC_LOG_OK2("sound: no sound card present (probe OK)");
     }
     snd_test_cmds_register();
+
+    /* ---- WP-10d: USB status + test commands ---- */
+    usb_test_cmds_register();
 
     /* docs-sync FIX: report the LIVE registered command count once ALL
      * registrations are done (kmain + file + disk + net commands). The old

@@ -27,6 +27,11 @@
 #include "ata.h"
 #include "nic.h"       /* WP-10b: real_hw_test NIC section */
 #include "snd.h"       /* WP-10c: real_hw_test sound section */
+#include "usb.h"        /* WP-10d: real_hw_test USB section */
+#include "usb_hid.h"
+#include "usb_msc.h"
+#include "usb_serial.h"
+#include "usb_audio.h"
 #include "disk_cmds.h"
 #include "fat32.h"
 #include "vfs.h"
@@ -546,6 +551,12 @@ static int cmd_real_hw_test(const char *args) {
         oc_console_puts("    real_update_test with a real reboot); real-machine A/B\n");
         oc_console_puts("    validation (GRUB installed to a physical disk) NOT RUN\n");
         oc_console_puts("    in this sandbox\n");
+        oc_console_puts("[real_hw_test] --- WP-10d USB (real emulated HC + devices) ---\n");
+        usb_print_state();
+        usb_msc_print_state();
+        usb_serial_print_state();
+        usb_mouse_print_state();
+        usb_audio_print_state();
         return 0;
     }
     /* Bare metal: report what the drivers detected (real validation). */
@@ -570,6 +581,11 @@ static int cmd_real_hw_test(const char *args) {
     es1370_print_state();
     virtio_snd_print_state();
     usb_audio_print_state();
+    oc_console_puts("[real_hw_test] --- WP-10d USB ---\n");
+    usb_print_state();
+    usb_msc_print_state();
+    usb_serial_print_state();
+    usb_mouse_print_state();
     oc_console_puts("[real_hw_test] => see driver reports above\n");
     return 0;
 }
