@@ -8,7 +8,7 @@ import {
   ISO_SIZE_B,
   ISO_SIZE_MB,
   ISO_URL,
-  RELEASE_WP09,
+  RELEASE_LATEST,
   SRC_FILE,
   SRC_SHA256,
   SRC_SIZE_B,
@@ -101,7 +101,7 @@ export default function HomeView({ locale }: { locale: Locale }) {
                 {t.siteDlIso}
               </a>
               <a
-                href={RELEASE_WP09}
+                href={RELEASE_LATEST}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn"
@@ -123,7 +123,7 @@ export default function HomeView({ locale }: { locale: Locale }) {
                 {t.siteDlSrc}
               </a>
               <a
-                href={RELEASE_WP09}
+                href={RELEASE_LATEST}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn"
@@ -213,6 +213,25 @@ export default function HomeView({ locale }: { locale: Locale }) {
               docs/EXTENSIONS_WP09.md
             </a>
             {t.verifySectionPost}
+          </p>
+          <p>
+            {t.guidesPre}
+            <a
+              href={`${GITHUB_REPO}/blob/main/docs/TRY-IT.md`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              TRY-IT
+            </a>
+            {t.guidesMid}
+            <a
+              href={`${GITHUB_REPO}/blob/main/docs/UPDATE-HOWTO.md`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              UPDATE-HOWTO
+            </a>
+            {t.guidesPost}
           </p>
         </div>
         <div className="verify-list">

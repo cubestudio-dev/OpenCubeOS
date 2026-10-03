@@ -18,7 +18,7 @@ function fmtBytes(n: number): string {
 }
 export { fmtBytes };
 
-// WP-10c stats (same caliber as lib/site.ts; see there for verify commands)
+// WP-10c-usability-audit stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
     { value: "68,975", label: "行源码" },
@@ -38,11 +38,16 @@ export const STATS: Bi<{ value: string; label: string }[]> = {
   ],
 };
 
-// WP-10c sound + WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport features (user-facing list)
+// WP-10c sound + WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport + rule-9 usability audit (user-facing list)
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "用户角度可用性（第 ⑨ 条审计）",
+      tag: "rule-9 audit",
+      desc: "按“测试通过 ≠ 用户能用”对全部功能逐项审计：每功能五要素（有命令/有工具/有文档/有示例/有反馈）与五能力（能创建/能使用/能回滚/能查看/能理解）。落地：TRY-IT.md 用户指南（开机即试）、UPDATE-HOWTO.md OTA 分步指南、make_ab_disk.sh 一键 A/B 磁盘、mkfs/fsck 修复、play/volume 未知设备报可用名单；修复后 18/18 回归 + 存储/网卡/声卡/OTA 复测全 PASS。",
+    },
     {
       name: "声卡驱动（六族）",
       tag: "WP-10c",
@@ -100,6 +105,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "User-angle usability (rule-9 audit)",
+      tag: "rule-9 audit",
+      desc: "Every feature audited item by item against \"passing tests ≠ usable by users\": five elements per feature (a command, a tool, docs, examples, feedback) and five abilities (create, use, roll back, inspect, understand). Delivered: the TRY-IT.md user guide, the UPDATE-HOWTO.md step-by-step OTA guide, one-command A/B disks via make_ab_disk.sh, mkfs/fsck fixes and play/volume unknown-device feedback that lists the available names; after the fixes, 18/18 regression plus the storage/NIC/sound/OTA re-runs all PASS.",
+    },
     {
       name: "Sound card drivers (six families)",
       tag: "WP-10c",

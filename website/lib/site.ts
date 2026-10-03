@@ -1,35 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10c value taken from the
-// repository docs (README.md, docs/INTERFACES.md, docs/EXTENSIONS_WP10c.md)
+// Central site data. Every number is a real WP-10c-usability-audit value
+// taken from the repository docs (README.md, docs/INTERFACES.md,
+// docs/EXTENSIONS_WP10c.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub Release WP-10c + this site /downloads/
+// 3-way identical: local build + GitHub Release WP-10c-usability-audit + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
-export const RELEASE_WP09 =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10c";
+export const RELEASE_LATEST =
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10c-usability-audit";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release WP-10c + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp10c.iso";
-export const ISO_SIZE_B = 11038720;
-export const ISO_SIZE_MB = "10.53";
+// Real assets (build/ + GitHub Release WP-10c-usability-audit + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp10c-usability-audit.iso";
+export const ISO_SIZE_B = 11046912;
+export const ISO_SIZE_MB = "10.54";
 export const ISO_SHA256 =
-  "1f8edf001dff4eae71c61cc67e984d9bb2f9238d6e88793b32da81bdafd8e4f4";
+  "ec6b940ec30d8e670226360ec182a067dcaa4f2e1d8570a60b20463b4c933b16";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp10c-src.zip";
-export const SRC_SIZE_B = 1965794;
-export const SRC_SIZE_MB = "1.87";
+export const SRC_FILE = "opencube-wp10c-usability-audit-src.zip";
+export const SRC_SIZE_B = 1986169;
+export const SRC_SIZE_MB = "1.89";
 export const SRC_SHA256 =
-  "8af0734e2465bf7817be414d6e6430f13cac79afb179cfb465064e1f2f4aac8c";
+  "22a01d37efbcf7825a42d77a03060cc14adf97cc87a9cd31333de566f91a4f96";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-10c stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (68,975 at commit 8ae9e8c).
+// WP-10c-usability-audit stats. Source lines: find kernel boot userprogs \\( -name '*.c' -o -name '*.h' -o -name '*.S' \\) | xargs wc -l (68,975, unchanged by the rule-9 audit commits 935b20c/8ae9e8c/e4d05ff).
 // Shell commands: live boot count = 146 (adds the 9 WP-10c sound status/test commands + play/volume).
 // L1 extension interfaces: 111 items (85 through WP-10u + 21 WP-10c snd.h public functions + 6 per-driver init entry points + 5 usb.h host-stack functions; docs/EXTENSIONS_WP10c.md).
 export const STATS = [
@@ -41,8 +42,13 @@ export const STATS = [
   { value: "18/18", label: "QEMU 回归" },
 ];
 
-// WP-10c sound + WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport features (user-facing list)
+// WP-10c sound + WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport + rule-9 usability audit (user-facing list)
 export const FEATURES = [
+  {
+    name: "用户角度可用性（第 ⑨ 条审计）",
+    tag: "rule-9 audit",
+    desc: "按“测试通过 ≠ 用户能用”对全部功能逐项审计：每功能五要素（有命令/有工具/有文档/有示例/有反馈）与五能力（能创建/能使用/能回滚/能查看/能理解）。落地：TRY-IT.md 用户指南（开机即试）、UPDATE-HOWTO.md OTA 分步指南、make_ab_disk.sh 一键 A/B 磁盘、mkfs/fsck 修复、play/volume 未知设备报可用名单；修复后 18/18 回归 + 存储/网卡/声卡/OTA 复测全 PASS。",
+  },
   {
     name: "声卡驱动（六族）",
     tag: "WP-10c",

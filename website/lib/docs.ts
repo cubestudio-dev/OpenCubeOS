@@ -89,5 +89,35 @@ export function getDocSections(locale: Locale): DocSection[] {
           : `Failed to read the document. See the repository: ${ghRepo}/blob/main/docs/INTERFACES.md`,
       ),
     },
+    {
+      id: "tryit",
+      title: "TRY-IT",
+      source: zh
+        ? "TRY-IT.md 中文翻译（原文件：docs/TRY-IT.md）"
+        : "docs/TRY-IT.md",
+      body: readDoc(
+        locale,
+        "docs/TRY-IT.md",
+        "docs-zh/TRY-IT.md",
+        zh
+          ? `文档读取失败。请到仓库查看英文原文：${ghRepo}/blob/main/docs/TRY-IT.md`
+          : `Failed to read the document. See the repository: ${ghRepo}/blob/main/docs/TRY-IT.md`,
+      ),
+    },
+    {
+      id: "update-howto",
+      title: "UPDATE-HOWTO",
+      source: zh
+        ? "UPDATE-HOWTO.md 中文翻译（原文件：docs/UPDATE-HOWTO.md）"
+        : "docs/UPDATE-HOWTO.md",
+      body: readDoc(
+        locale,
+        "docs/UPDATE-HOWTO.md",
+        "docs-zh/UPDATE-HOWTO.md",
+        zh
+          ? `文档读取失败。请到仓库查看英文原文：${ghRepo}/blob/main/docs/UPDATE-HOWTO.md`
+          : `Failed to read the document. See the repository: ${ghRepo}/blob/main/docs/UPDATE-HOWTO.md`,
+      ),
+    },
   ];
 }

@@ -1,9 +1,9 @@
 {
-    "version": "WP-10c",
-    "time": "2026-10-02",
-    "changes": "Intel HDA, AC'97, SB16, ES1370, virtio-snd, USB audio; snd_* framework; play/volume",
+    "version": "WP-10c-usability-audit",
+    "time": "2026-10-03",
+    "changes": "Rule-9 usability audit: A/B disk tool, mkfs/fsck fixes, TRY-IT + UPDATE-HOWTO guides, play/volume feedback",
     "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-    "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/WP-10c/opencube-wp10c-update.tar.gz",
-    "package_sha256": "79412bde3038a27912d02e927ad6fd18ce91c58d10bd1347cd4e9903c12d15ff",
-    "package_size": 309653
+    "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/WP-10c-usability-audit/opencube-wp10c-usability-audit-update.tar.gz",
+    "package_sha256": "d65896fc8d60064ce5479c7975772e3c2cbe05c39673cd1694ec6103dd4bf9b3",
+    "package_size": 315356
 }
