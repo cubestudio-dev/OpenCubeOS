@@ -350,12 +350,23 @@ int cmd_ab_partition_test(const char *args) {
     t_pass = 0; t_total = 0;
     oc_console_puts("[ab_partition_test] A/B disk + slots\n");
 
-    /* 1. partition devices registered */
-    case_begin("partition devices hdap1..p4");
+    /* 1. partition devices registered (WP-10c rule-9 fix: the A/B disk
+     * may be any block device, not only "hda" - ask the framework). */
+    const char *abname = oc_ab_disk_name();
+    char abpfx[16];
+    if (!abname[0]) abname = "hda";   /* no disk found: report hda-like names */
+    oc_strncpy(abpfx, abname, sizeof(abpfx) - 3);
+    abpfx[sizeof(abpfx) - 3] = 0;
+    oc_strcat(abpfx, "p");
+    char abline[96];
+    oc_strcpy(abline, "partition devices ");
+    oc_strcat(abline, abpfx);
+    oc_strcat(abline, "1..p4");
+    case_begin(abline);
     int all_devs = 1;
     for (int i = 1; i <= 4; i++) {
-        char name[12];
-        oc_strcpy(name, "hdap");
+        char name[20];
+        oc_strcpy(name, abpfx);
         char num[4];
         oc_u64_to_str((u64)i, num);
         oc_strcat(name, num);
@@ -373,10 +384,18 @@ int cmd_ab_partition_test(const char *args) {
     case_result(mounts_ok);
 
     /* 3. partition device reads the slot-A FAT32 boot sector */
-    case_begin("hdap2 boot sector (FAT32 BPB)");
+    {
+        char bpline[80];
+        oc_strcpy(bpline, abpfx);
+        oc_strcat(bpline, "2 boot sector (FAT32 BPB)");
+        case_begin(bpline);
+    }
     int bpb_ok = 0;
     {
-        int idx = blk_find_device("hdap2");
+        char pname[20];
+        oc_strcpy(pname, abpfx);
+        oc_strcat(pname, "2");
+        int idx = blk_find_device(pname);
         if (idx >= 0) {
             u8 sec[512];
             if (blk_read_sectors(idx, 0, 1, sec) == 0) {

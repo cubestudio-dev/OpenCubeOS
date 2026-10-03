@@ -145,6 +145,24 @@ void pmm_init(const oc_mb2_info_t *mbi) {
      * Reserving these 512 frames restores the identity assumption
      * globally at the cost of 2 MiB of RAM. */
     pmm_reserve_region(0x400000, 0x200000);
+
+    /* WP-10c rule-9 fix: also keep page tables, kernel stacks and DMA
+     * buffers out of the sliver between the kernel image end and the
+     * reserved window (0x3BC000-0x400000).  Frames from that area sat
+     * right below the window and next to the boot stack; when they were
+     * handed out as CR3/page-table pages (child address spaces at
+     * 0x3FC000...) the scheduler's CR3 switch raced with a corrupted
+     * load and the machine triple-faulted in sched_switch_to
+     * (mmap_multi/fork_first-use crash).  Reserving the whole span up
+     * to 0x600000 gives page tables a clean, high-identity-map region
+     * and costs at most 272 KiB. */
+    {
+        extern u8 __end_of_kernel[];
+        u64 tail = ((u64)(uintptr_t)__end_of_kernel + 0xFFF) & ~0xFFFULL;
+        if (tail < 0x400000ULL) {
+            pmm_reserve_region(tail, 0x400000ULL - tail);
+        }
+    }
 }
 
 u64 pmm_alloc_frame(void) {

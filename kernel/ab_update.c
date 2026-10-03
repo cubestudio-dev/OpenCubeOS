@@ -134,14 +134,29 @@ static void ab_mount_slots(void) {
     vfs_mkdir(OC_AB_MOUNT_B);
     vfs_mkdir(OC_AB_MOUNT_DATA);
 
+    /* WP-10c rule-9 fix: partitions are registered as "<parent>pN" and
+     * the A/B disk may be any block device (hdb when the /etc disk is
+     * attached first, ...) - never assume "hda". */
+    const char *part_names[4];
+    char pn[4][20];
+    for (int i = 0; i < 4; i++) {
+        oc_strncpy(pn[i], g_ab_disk_name, sizeof(pn[i]) - 4);
+        pn[i][sizeof(pn[i]) - 4] = 0;
+        char num[4];
+        oc_u64_to_str((u64)(i + 1), num);
+        oc_strcat(pn[i], "p");
+        oc_strcat(pn[i], num);
+        part_names[i] = pn[i];
+    }
+
     /* the flags partition decides whether this really is an A/B disk */
-    int boot_ok = (vfs_mount("fat32", OC_AB_MOUNT_BOOT, "hdap1") == 0);
+    int boot_ok = (vfs_mount("fat32", OC_AB_MOUNT_BOOT, part_names[0]) == 0);
     vfs_stat_t st;
     int slots_ok = 0;
     if (boot_ok && vfs_stat(OC_AB_MOUNT_BOOT, &st) == 0) {
-        int a = vfs_mount("fat32", OC_AB_MOUNT_A, "hdap2");
-        int b = vfs_mount("fat32", OC_AB_MOUNT_B, "hdap3");
-        vfs_mount("fat32", OC_AB_MOUNT_DATA, "hdap4");   /* best effort */
+        int a = vfs_mount("fat32", OC_AB_MOUNT_A, part_names[1]);
+        int b = vfs_mount("fat32", OC_AB_MOUNT_B, part_names[2]);
+        vfs_mount("fat32", OC_AB_MOUNT_DATA, part_names[3]);   /* best effort */
         if (a == 0 || b == 0) slots_ok = 1;
     }
     if (boot_ok && slots_ok) {
@@ -211,6 +226,10 @@ void oc_ab_set_boot_slot_arg(const char *cmdline) {
 }
 
 int oc_ab_current_slot(void) { return g_ab_slot; }
+
+const char *oc_ab_disk_name(void) {
+    return g_ab_present ? g_ab_disk_name : "";
+}
 
 const char *oc_ab_slot_name(int slot) {
     switch (slot) {

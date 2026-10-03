@@ -18,6 +18,7 @@ comments, a working implementation, and a documented error contract.
 | kernel/update_test_cmds.c | WP-10u shell test suite                            |
 | tools/make_ab_disk.sh   | builds the A/B disk image (build/abdisk.img)         |
 | tools/make_update_pkg.sh| builds an update package (tar.gz + manifest.json)    |
+| docs/UPDATE-HOWTO.md    | step-by-step user guide (A/B disk, server, update)   |
 
 ## A/B disk layout (MBR, first hard disk)
 

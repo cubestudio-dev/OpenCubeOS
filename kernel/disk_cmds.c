@@ -122,6 +122,18 @@ int mkfs_fat32_device(int dev_idx) {
     buf[510] = 0x55; buf[511] = 0xAA;
     blk_write_sectors_raw(dev_idx, 0, 1, buf);
 
+    /* WP-10c rule-9 fix: wipe the rest of the reserved area (LBA 1..31).
+     * A previously formatted volume (exFAT boot area, ext4 superblock at
+     * byte 1024, ...) left bytes there that made fsck's non-FAT32
+     * pre-detection misclassify the fresh volume. */
+    {
+        u8 zero_res[512];
+        oc_memset(zero_res, 0, 512);
+        for (u32 s = 1; s < 32; s++) {
+            blk_write_sectors_raw(dev_idx, s, 1, zero_res);
+        }
+    }
+
     /* Write FAT entries: cluster 2 (root) = EOC, clusters 3+ = free. */
     u8 fat[512];
     oc_memset(fat, 0, 512);
@@ -198,6 +210,16 @@ static int cmd_mkfs_exfat(const char *args) {
     buf[110] = 1;                              /* number_of_fats */
     buf[510] = 0x55; buf[511] = 0xAA;
     blk_write_sectors_raw(dev_idx, 0, 1, buf);
+    /* WP-10c rule-9 fix: wipe LBA 1..31 so leftover bytes from a previous
+     * format (e.g. an ext4 superblock at byte 1024) cannot survive and
+     * confuse later fsck/identification passes. */
+    {
+        u8 zero_vbr[512];
+        oc_memset(zero_vbr, 0, 512);
+        for (u32 s = 1; s < 32; s++) {
+            blk_write_sectors_raw(dev_idx, s, 1, zero_vbr);
+        }
+    }
     /* FAT: cluster 2 = root dir, EOC */
     u8 fat[512];
     oc_memset(fat, 0, 512);
@@ -227,6 +249,13 @@ static int cmd_mkfs_ext4(const char *args) {
     /* P2-75: Minimal ext4 format — write superblock at byte offset 1024. */
     u8 buf[512];
     oc_memset(buf, 0, 512);
+    /* WP-10c rule-9 fix: clear LBA 0 (an older FAT32/exFAT boot sector
+     * would still be parsed by FAT tools and fsck after the format). */
+    {
+        u8 zero_bps[512];
+        oc_memset(zero_bps, 0, 512);
+        blk_write_sectors_raw(dev_idx, 0, 1, zero_bps);
+    }
     /* Superblock at sector 2 (byte 1024) */
     *(u16*)(buf + 56) = 0xEF53;               /* magic */
     *(u32*)(buf + 0) = 0;                     /* s_inodes_count (placeholder) */
@@ -279,6 +308,36 @@ static int cmd_fsck(const char *args) {
     if (n != 1) {
         oc_console_puts("fsck: cannot read boot sector\n");
         return 1;
+    }
+
+    /* WP-10c rule-9 fix: identify non-FAT32 volumes BEFORE any FAT
+     * sanity check (ext4 does not even carry the 0x55AA signature, so
+     * the signature check would otherwise mask the volume type).
+     * mkfs.ext4 writes an ext superblock into sectors 1-2 without
+     * touching the FAT32-ish BPB fields at offsets 11/13, so a plain
+     * BPB parse used to report "FAT32 ... PASS" on a freshly formatted
+     * ext4 volume - misleading feedback. */
+    if (boot[3] == 'E' && boot[4] == 'X' && boot[5] == 'F' &&
+        boot[6] == 'A' && boot[7] == 'T') {
+        oc_console_puts("fsck: exFAT volume detected (fsck supports FAT32 only)\n");
+        return 1;
+    }
+    {
+        /* ext2/3/4: superblock starts at byte 1024 (LBA 2), magic 0xEF53
+         * lives at superblock offset 0x38 = absolute byte 1080.  Require
+         * two more sane fields so stray bytes in a wiped-but-not-zeroed
+         * region cannot false-positive: log block size <= 6 and a
+         * non-zero block count. */
+        u8 sb[512];
+        if (ata_read_sectors(drive, 2, 1, sb) == 1) {
+            u16 ext_magic = (u16)(sb[56] | (sb[57] << 8));      /* 1080-1024=56 */
+            u32 log_bs    = *(u32*)(sb + 24);
+            u32 blocks    = *(u32*)(sb + 4);
+            if (ext_magic == 0xEF53 && log_bs <= 6 && blocks > 0) {
+                oc_console_puts("fsck: ext2/3/4 volume detected (driver is read-only; fsck supports FAT32 only)\n");
+                return 1;
+            }
+        }
     }
 
     /* Check FAT signature (0x55AA at offset 510) */

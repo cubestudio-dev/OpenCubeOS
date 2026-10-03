@@ -20,6 +20,10 @@ Options:
                     path is served the same --json body (legacy behavior).
   --bad             serve a broken (non-JSON) body
   --status N        serve HTTP status N with a plain body
+  --pkg <file>      serve this file for every other path (the update
+                    package, e.g. build/opencube-wp10c-update.tar.gz).
+                    Content-Length is sent exactly; the kernel downloader
+                    enforces it against update.json's package_size.
 """
 import argparse
 import socket
@@ -49,7 +53,8 @@ def build_response(body: bytes, status: int = 200) -> bytes:
     ).encode() + body
 
 
-def serve_once(conn, body: bytes, status: int, body2: bytes | None = None) -> None:
+def serve_once(conn, body: bytes, status: int, body2: bytes | None = None,
+               pkg_path: str | None = None) -> None:
     req = b""
     while b"\r\n\r\n" not in req and len(req) < 8192:
         try:
@@ -64,6 +69,15 @@ def serve_once(conn, body: bytes, status: int, body2: bytes | None = None) -> No
     out = body
     if body2 is not None and "update-v2.json" in first:
         out = body2
+    if pkg_path is not None and ".json" not in first:
+        # manifest paths: GET /update.json and GET /update-v2.json
+        # (anything ending in .json) get the JSON bodies above; every
+        # other path (the package, e.g. GET /pkg.tar.gz) gets the file.
+        try:
+            with open(pkg_path, "rb") as f:
+                out = f.read()
+        except OSError as e:
+            print(f"[srv] pkg read error: {e}", flush=True)
     conn.sendall(build_response(out, status))
     print(f"[srv] response sent ({status}, {len(out)} bytes)", flush=True)
     if hasattr(conn, "unwrap"):            # TLS: send close_notify
@@ -82,6 +96,8 @@ def main() -> int:
                     help="body served for /update-v2.json (Plan D tests)")
     ap.add_argument("--bad", action="store_true")
     ap.add_argument("--status", type=int, default=200)
+    ap.add_argument("--pkg", default=None,
+                    help="file served for non-manifest paths (the .tar.gz)")
     ap.add_argument("--cert", default="/tmp/hcert.pem")
     ap.add_argument("--key", default="/tmp/hkey.pem")
     ap.add_argument("--dh", default="/tmp/dhparam.pem")
@@ -91,6 +107,9 @@ def main() -> int:
 
     body = BAD_BODY.encode() if args.bad else args.json.encode()
     body2 = None if args.json2 is None else args.json2.encode()
+    if args.pkg is not None and not __import__("os").path.isfile(args.pkg):
+        print(f"[srv] error: --pkg file not found: {args.pkg}", flush=True)
+        return 1
 
     lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -121,7 +140,7 @@ def main() -> int:
                 else:
                     conn = raw
                 conn.settimeout(60)
-                serve_once(conn, body, args.status, body2)
+                serve_once(conn, body, args.status, body2, args.pkg)
             except Exception as e:              # noqa: BLE001
                 print(f"[srv] connection error: {e}", flush=True)
             finally:

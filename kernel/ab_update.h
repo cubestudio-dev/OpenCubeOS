@@ -119,6 +119,10 @@ const char *oc_ab_slot_name(int slot);
 /* Slot filesystem mount point ("/ab/a", "/ab/b") or "" for ISO. */
 const char *oc_ab_slot_path(int slot);
 
+/* Parent block device name of the A/B disk ("hda", "hdb", ...) or ""
+ * when no A/B disk was found.  Partition devices are "<name>p1..p4". */
+const char *oc_ab_disk_name(void);
+
 /* 1 when the A/B disk was found and its flags partition is mounted. */
 int oc_ab_flags_ready(void);
 
