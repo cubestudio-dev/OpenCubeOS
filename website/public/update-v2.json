@@ -1,7 +1,7 @@
 {
   "version": "WP-10-wp08_shell_and_tools_completion-fix1",
   "time": "2026-10-04",
-  "changes": "WP-08 completion: oc> and ush gain full line editing (Up/Down history paging with draft, Left/Right/Home/End, Ctrl+A/E/U/K/W, Delete, Ctrl+C, Tab completion over the command table and VFS paths). ush toolset completed with real kernel backends via syscalls 96-102: ln (hard links share the ramfs inode, real nlink), ln -s (resolve follows, 8-hop ELOOP), chmod/chown, sed, awk, ping/wget/netstat/ifconfig (SYS_NETCMD reuses the oc> command path), ps/top/kill (live task table), du. stat and env - promised by help since WP-08 - now exist. nano editor on both shells (nano/vi, ^O save ^X exit). Nine new extension interfaces 130-138 (shell_lineedit_* + editor_*). Fixes: user bss zeroing via the frame physical address, kernel image kept below the 0x400000 identity window (linker ASSERT), serial bridge passes Ctrl+letter codes. 24/24 keystroke tests; SeaBIOS+OVMF boot; regressions green (WP-09, 10a, 10b, 10c, 10u, 10d). 172 oc> commands (170 names unchanged).",
+  "changes": "WP-08 shell completion: full line editing on oc>+ush (history/cursor/Tab/Ctrl keys), 15 ush tools (ln,chmod,chown,sed,awk,ping,wget,netstat,ifconfig,ps,kill,top,du,stat,env), nano/vi editor both shells, 9 new L1 interfaces 130-138, 172 cmds, 24/24 tests",
   "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10-wp08-shell-and-tools-completion-fix1/opencube-wp10-wp08-shell-and-tools-completion-fix1-update.tar.gz",
   "package_sha256": "3a1758e658ed77ce9972e29c4c8113c08ea56aa73f4a634cd8f912d060a567ca",
   "package_size": 532833

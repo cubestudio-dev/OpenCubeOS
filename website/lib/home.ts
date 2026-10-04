@@ -18,31 +18,36 @@ function fmtBytes(n: number): string {
 }
 export { fmtBytes };
 
-// WP-10d stats (same caliber as lib/site.ts; see there for verify commands)
+// WP-10-wp08fix1 stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "75,806", label: "行源码" },
-    { value: "122", label: "L1 扩展接口" },
-    { value: "37", label: "系统调用" },
-    { value: "159", label: "shell 命令" },
-    { value: "14", label: "工作包" },
-    { value: "18/18", label: "QEMU 回归" },
+    { value: "90,659", label: "行源码" },
+    { value: "138", label: "L1 扩展接口" },
+    { value: "44", label: "系统调用" },
+    { value: "172", label: "shell 命令" },
+    { value: "15", label: "工作包" },
+    { value: "24/24", label: "端到端测试" },
   ],
   en: [
-    { value: "75,806", label: "lines of source" },
-    { value: "122", label: "L1 extension interfaces" },
-    { value: "37", label: "system calls" },
-    { value: "159", label: "shell commands" },
-    { value: "14", label: "work packages" },
-    { value: "18/18", label: "QEMU regression" },
+    { value: "90,659", label: "lines of source" },
+    { value: "138", label: "L1 extension interfaces" },
+    { value: "44", label: "system calls" },
+    { value: "172", label: "shell commands" },
+    { value: "15", label: "work packages" },
+    { value: "24/24", label: "end-to-end tests" },
   ],
 };
 
-// WP-10c sound + WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport + rule-9 usability audit (user-facing list)
+// WP-10-wp08fix1 shell completion leads the user-facing list, then rule-9 audit + WP-10d/c/u/b/a + security transport
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "Shell 完全体（行编辑 + 工具 + 编辑器）",
+      tag: "WP-10-wp08fix1",
+      desc: "oc> 与 ush 双端全键位行编辑：上下键历史翻页（32 条，草稿保留）、左右/Home/End 光标、Ctrl+A/E/U/K/W、Delete、Ctrl+C、Tab 补全（命令表 + VFS 路径）。ush 补齐 15 个工具：ln（真实硬链接共享 inode + nlink）、ln -s（路径解析跟随，8 跳防环）、chmod/chown/sed/awk/ping/wget/netstat/ifconfig/ps/kill/top/du + 补实 help 承诺过的 stat/env。双端 nano 风格编辑器（nano/vi），^O 保存 ^X 退出；9 个新扩展接口（130-138）。",
+    },
     {
       name: "用户角度可用性（第 ⑨ 条审计）",
       tag: "rule-9 audit",
@@ -110,6 +115,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "The complete shell (line editing + tools + editor)",
+      tag: "WP-10-wp08fix1",
+      desc: "Full-featured line editing on both oc> and ush: Up/Down history paging (32 entries, draft line preserved), Left/Right/Home/End cursor, Ctrl+A/E/U/K/W, Delete, Ctrl+C, Tab completion (command table + VFS paths). 15 missing ush tools: ln (real hard links sharing the inode + nlink), ln -s (path resolution follows symlinks, 8-hop loop guard), chmod/chown/sed/awk/ping/wget/netstat/ifconfig/ps/kill/top/du plus the stat/env commands that help had always promised. A nano-style editor on both shells (nano/vi), ^O save ^X exit; 9 new extension interfaces (items 130-138).",
+    },
     {
       name: "User-angle usability (rule-9 audit)",
       tag: "rule-9 audit",
@@ -288,6 +298,10 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
       no: "WP-10d",
       title: "USB 主机栈：UHCI/OHCI/EHCI/XHCI 四控制器设备级枚举 + HID/MSC/串口/音频类驱动 + Hub/热插拔",
     },
+    {
+      no: "WP-10-wp08fix1",
+      title: "Shell 补全：oc>/ush 全键位行编辑 + ush 15 个工具 + nano 风格编辑器 + 9 个 L1 接口",
+    },
   ],
   en: [
     { no: "WP-01", title: "Boot + framebuffer + text rendering" },
@@ -325,12 +339,20 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
       no: "WP-10d",
       title: "USB host stack: device-level bring-up on UHCI/OHCI/EHCI/XHCI + HID/MSC/serial/audio class drivers + hub and hot-plug",
     },
+    {
+      no: "WP-10-wp08fix1",
+      title: "Shell completion: full line editing on oc>/ush + 15 ush tools + the nano-style editor + 9 L1 interfaces",
+    },
   ],
 };
 
 // Verification (README.md "Tests" + docs/EXTENSIONS_WP10a/b/u/c.md)
 export const VERIFY: Bi<{ name: string; desc: string }[]> = {
   zh: [
+    {
+      name: "WP-08 补全端到端 24/24",
+      desc: "tools/wp10_wp08fix1_test.py 用真实按键（串口直注 + sendkey 方向键）驱动：oc> 历史/光标/Tab/Ctrl+C/导航键、ush 同套键位、ln 硬链接+软链接、chmod/chown+stat、sed、awk、ps/top/du、ifconfig/netstat/ping、双端 nano 编辑器写文件回读，24/24 全 PASS。",
+    },
     {
       name: "18/18 QEMU 全量回归",
       desc: "boot 横幅 + uname + 12 个用户程序 + p3_test + heaptest + l1test + crashlog，单次 QEMU 会话完成（挂全部四类盘）。",
@@ -365,6 +387,10 @@ export const VERIFY: Bi<{ name: string; desc: string }[]> = {
     },
   ],
   en: [
+    {
+      name: "WP-08 completion end-to-end 24/24",
+      desc: "tools/wp10_wp08fix1_test.py drives real keystrokes (direct serial injection + sendkey for arrow keys): oc> history/cursor/Tab/Ctrl+C/navigation keys, the same key set on ush, ln hard+symlinks, chmod/chown+stat, sed, awk, ps/top/du, ifconfig/netstat/ping, and the nano editor writing files on both shells with read-back — 24/24 PASS.",
+    },
     {
       name: "18/18 full QEMU regression",
       desc: "boot banner + uname + 12 user programs + p3_test + heaptest + l1test + crashlog, executed in a single QEMU session with all four disk types attached.",

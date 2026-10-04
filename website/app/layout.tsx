@@ -8,12 +8,12 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Open Cube OS - 开源 x86_64 L0 内核",
   description:
-    "Open Cube OS：开源 x86_64 内核（L0），可被扩展成任何东西。WP-10d USB 主机栈已落地：UHCI/OHCI/EHCI/XHCI 四控制器设备级枚举，HID 键盘/鼠标、MSC 存储（BOT+SCSI 对接 blk + FAT32 读写往返）、CDC-ACM/FTDI 串口、UAC 1.0/2.0 音频类驱动，外部 Hub 级联与真热插拔，usb/usbdev + 7 项 USB 测试命令；声卡（六族）、系统内 A/B 更新、网卡/存储驱动保持；SSH + TLS 1.3/1.2 + HTTPS 保持主流化。BIOS + UEFI 双引导，75,806 行源码，122 个 L1 扩展接口，159 条 shell 命令，18/18 QEMU 回归。Apache 2.0。",
+    "Open Cube OS：开源 x86_64 内核（L0），可被扩展成任何东西。WP-10-wp08fix1 Shell 补全已落地：oc> 与 ush 双端全键位行编辑（上下键历史翻页、左右/Home/End 光标、Tab 补全、Ctrl+A/E/U/K/W、Delete、Ctrl+C）、ush 补齐 15 个工具（ln/chmod/chown/sed/awk/ping/wget/netstat/ifconfig/ps/kill/top/du + stat/env）、nano 风格编辑器双端可用（nano/vi，^O 保存 ^X 退出）；USB 主机栈（四控制器）、声卡（六族）、系统内 A/B 更新、网卡/存储驱动保持；SSH + TLS 1.3/1.2 + HTTPS 保持主流化。BIOS + UEFI 双引导，90,659 行源码，138 个 L1 扩展接口，172 条 shell 命令，24/24 端到端测试。Apache 2.0。",
   metadataBase: new URL("https://cubestudio-dev.github.io"),
   openGraph: {
     title: "Open Cube OS - 开源 x86_64 L0 内核",
     description:
-      "开源 x86_64 内核（L0），可被扩展成任何东西。WP-10c 声卡驱动：Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB 音频 + snd_* 扩展接口，真 DMA 真中断；第 ⑨ 条用户角度可用性审计（TRY-IT / UPDATE-HOWTO 指南、一键 A/B 磁盘、mkfs/fsck 修复）；系统内更新（A/B 分区 + tar.gz 包 + 自动回滚）；网卡九族驱动 + nic_*；存储四驱动 + blk_*；SSH + TLS 1.3 / TLS 1.2 + HTTPS + crypto 核心 + TCP 可靠性 + netfilter。Apache 2.0。",
+      "开源 x86_64 内核（L0），可被扩展成任何东西。WP-10-wp08fix1：Shell 完全体——oc>/ush 双端全键位行编辑、ush 15 个工具（对接内核协议栈与 sys_proc_*）、nano/vi 编辑器、9 个新 L1 接口（130-138，总数 138）、172 条命令、24/24 端到端；USB 主机栈四控制器、声卡六族 + snd_*、系统内 A/B 更新、网卡九族 + nic_*、存储四驱动 + blk_*；SSH + TLS 1.3 / TLS 1.2 + HTTPS + crypto 核心 + TCP 可靠性 + netfilter。Apache 2.0。",
     url: SITE_URL,
     siteName: "Open Cube OS",
     type: "website",

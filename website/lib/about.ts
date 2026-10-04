@@ -83,6 +83,16 @@ export const TIMELINE: Bi<
       title: "USB 主机栈：UHCI/OHCI/EHCI/XHCI 设备级枚举 + HID/MSC/串口/音频类驱动 + Hub/热插拔",
       desc: "四个主机控制器后端全部设备级跑通：UHCI（PIIX3，帧表+QH/TD 调度、全链路含 Hub 级联与热插拔）、OHCI（HCCA+ED/TD 池，独立验证会话全 PASS：kbd/mouse 枚举含产品字符串、usb_core_test 5/5、MSC 容量/MBR/写读回、FAT32 mkfs+挂载+文件往返、真热插拔；修复 3 bug：控制 DATA TD 补 TD_R 缓冲取整、状态 TD 方向位 u8 截断导致每个状态阶段被 STALL、中断 IN 补 TD_R）、EHCI（异步环+qTD 引擎，kbd/mouse/存储枚举、MSC 读写、FAT32 往返、STALL 恢复）、XHCI（命令/事件环+DCBAA、两段式 AddressDevice、端点上下文按 spec 布局；修复 Reset Endpoint/Set TR Dequeue 的 EPID 编码至 bits 20:16——旧布局使控制器以 TRB Error 结束命令、STALL 端点永久无法恢复；枚举/HID/核心测试 PASS，qemu-xhci 的 usb-storage CSW 缺口如实标注）；类驱动：HID 键盘/鼠标（报告描述符解析）、MSC（BOT+SCSI 对接 blk 层）、CDC-ACM/FTDI 串口、UAC 1.0/2.0；外部 Hub 级联枚举与真热插拔；usb/usbdev 状态命令 + 7 项测试命令（boot 实测 159 条命令，L1 接口总数增至 122）。SeaBIOS 与 OVMF 双引导验证。",
     },
+    {
+      no: "RESTRUCT",
+      title: "项目结构重构：新文件体系 + 接口命名规范",
+      desc: "全仓目录重组为 kernel/（main.c、arch/x86_64/、core/、mem/、lib/、crypto/、ota/）、drivers/（block/nic/snd/usb/input/display/pci）、fs/（vfs/ramfs/fat32/exfat/ext4）、net/（含 icmp/udp/tcp/dhcp/dns/tls/ssh）、shell/、l1/、libs/、boot/、userprogs/、tools/、tests/、docs/、website/；接口命名统一为 [大类]_[具体]_[更小一级]（kmalloc 保留原名）；纯结构与命名变更，行为不变，全部回归复测 PASS。",
+    },
+    {
+      no: "WP-10-wp08fix1",
+      title: "Shell 补全：oc>/ush 全键位行编辑 + ush 15 个工具 + nano 风格编辑器 + 9 个 L1 接口",
+      desc: "按 WP-08 规格补全 Shell（不是修 WP-08，是补做没做的）：oc> 与 ush 双端全键位行编辑（上下键历史翻页 32 条草稿保留、左右/Home/End 光标、Tab 命令+VFS 路径补全、Ctrl+A/E/U/K/W、Delete、Ctrl+C）；ush 补齐 15 个工具：ln（真实硬链接共享 inode + nlink）、ln -s（路径解析跟随，8 跳防环）、chmod/chown、sed、awk、ping/wget/netstat/ifconfig 对接内核协议栈（sys_netcmd）、ps/kill/top/du 对接 sys_proc_*、stat/env 补实 help 一直承诺但从未实现的两个命令；nano 风格编辑器双端可用（nano/vi，^O 保存 ^X 退出，真 VFS 落盘）；新增 9 个 L1 扩展接口（item 130-138：shell_lineedit_init/history_add/history_get/cursor_move/tab_complete/ctrlc + editor_open/save/close，L1 总数增至 138）；7 个新 syscall（96-102：symlink/readlink/link/chmod/chown/netcmd/ps）；boot 实测 172 条命令；tools/wp10_wp08fix1_test.py 真实按键端到端 24/24 全 PASS。SeaBIOS 与 OVMF 双引导验证。",
+    },
   ],
   en: [
     {
@@ -154,6 +164,16 @@ export const TIMELINE: Bi<
       no: "WP-10d",
       title: "USB host stack: device-level bring-up on UHCI/OHCI/EHCI/XHCI + HID/MSC/serial/audio class drivers + hub and hot-plug",
       desc: "All four host-controller backends verified at device level. UHCI (PIIX3, frame list + QH/TD schedule): full chain incl. hub cascade and hot-plug. OHCI (HCCA + ED/TD pools): independent verification session ALL PASS - kbd/mouse enumeration with product strings, usb_core_test 5/5, MSC capacity/MBR/write-read-back, FAT32 mkfs + mount + file round-trip, real hot-plug; 3 bugs fixed: control DATA TDs now set TD_R (buffer rounding), the status-TD direction was an u8 that truncated the bit-19/20 direction field to SETUP (STALLing every status stage), and interrupt IN TDs set TD_R. EHCI (async ring + qTD engine): kbd/mouse/storage enumeration, MSC read/write, FAT32 round-trip, STALL recovery. XHCI (command/event rings + DCBAA, two-stage AddressDevice, spec-layout endpoint contexts): fixed Reset Endpoint / Set TR Dequeue endpoint-ID encoding to control bits 20:16 - the old layout made the controller retire the commands with TRB Error, leaving STALLed endpoints unrecoverable; enumeration/HID/core tests PASS with the qemu-xhci usb-storage CSW gap documented honestly. Class drivers: HID keyboard/mouse (report-descriptor parsing), MSC (BOT+SCSI wired into blk), CDC-ACM/FTDI serial, UAC 1.0/2.0; external hub cascade and real hot-plug; usb/usbdev status commands + 7 test commands (159 registered at boot, 122 L1 interfaces). Boot verified with SeaBIOS and OVMF.",
+    },
+    {
+      no: "RESTRUCT",
+      title: "Project restructure: new file tree + interface naming convention",
+      desc: "The whole repository reorganized into kernel/ (main.c, arch/x86_64/, core/, mem/, lib/, crypto/, ota/), drivers/ (block/nic/snd/usb/input/display/pci), fs/ (vfs/ramfs/fat32/exfat/ext4), net/ (incl. icmp/udp/tcp/dhcp/dns/tls/ssh), shell/, l1/, libs/, boot/, userprogs/, tools/, tests/, docs/ and website/; interface names unified to [category]_[specific]_[smaller] (kmalloc keeps its name); a pure structure/naming change with unchanged behaviour — every regression re-run PASS.",
+    },
+    {
+      no: "WP-10-wp08fix1",
+      title: "Shell completion: full line editing on oc>/ush + 15 ush tools + the nano-style editor + 9 L1 interfaces",
+      desc: "Completed the WP-08 shell specification (not fixing WP-08 — delivering what was never done): full-featured line editing on both oc> and ush (Up/Down history paging over a 32-entry ring with draft preserved, Left/Right/Home/End cursor, Tab command+VFS-path completion, Ctrl+A/E/U/K/W, Delete, Ctrl+C); 15 missing ush tools: ln (real hard links sharing the inode + nlink), ln -s (symlink-following resolution with an 8-hop loop guard), chmod/chown, sed, awk, ping/wget/netstat/ifconfig wired into the kernel network stack (sys_netcmd), ps/kill/top/du wired into sys_proc_*, plus stat/env — the two commands help had always promised but no dispatcher ever implemented; a nano-style editor on both shells (nano/vi, ^O save ^X exit, real VFS persistence); 9 new L1 extension interfaces (items 130-138: shell_lineedit_init/history_add/history_get/cursor_move/tab_complete/ctrlc + editor_open/save/close, 138 in total); 7 new syscalls (96-102: symlink/readlink/link/chmod/chown/netcmd/ps); 172 commands registered at boot; tools/wp10_wp08fix1_test.py end-to-end 24/24 with real keystrokes. Boot verified with SeaBIOS and OVMF.",
     },
   ],
 };
