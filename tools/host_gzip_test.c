@@ -11,21 +11,21 @@ static void *kmalloc(u64 n) { return malloc(n); }
 static void kfree(void *p) { free(p); }
 
 /* oc_* string shims (kernel/string.h declares them) */
-void *oc_memset(void *d, int c, usize n) { return memset(d, c, n); }
-void *oc_memcpy(void *d, const void *s, usize n) { return memcpy(d, s, n); }
-int   oc_memcmp(const void *a, const void *b, usize n) { return memcmp(a, b, n); }
-usize oc_strlen(const char *s) { return strlen(s); }
-int   oc_strcmp(const char *a, const char *b) { return strcmp(a, b); }
-int   oc_strncmp(const char *a, const char *b, usize n) { return strncmp(a, b, n); }
-char *oc_strcpy(char *d, const char *s) { return strcpy(d, s); }
-char *oc_strncpy(char *d, const char *s, usize n) {
+void *memset(void *d, int c, usize n) { return memset(d, c, n); }
+void *memcpy(void *d, const void *s, usize n) { return memcpy(d, s, n); }
+int   memcmp(const void *a, const void *b, usize n) { return memcmp(a, b, n); }
+usize strlen(const char *s) { return strlen(s); }
+int   strcmp(const char *a, const char *b) { return strcmp(a, b); }
+int   strncmp(const char *a, const char *b, usize n) { return strncmp(a, b, n); }
+char *strcpy(char *d, const char *s) { return strcpy(d, s); }
+char *strncpy(char *d, const char *s, usize n) {
     strncpy(d, s, n);
     if (n > 0) d[n - 1] = 0;
     return d;
 }
-usize oc_u64_to_str(u64 v, char *out) { sprintf(out, "%llu", (unsigned long long)v); return strlen(out); }
+usize u64_to_str(u64 v, char *out) { sprintf(out, "%llu", (unsigned long long)v); return strlen(out); }
 static int run_one(const char *name, const u8 *gz, int len, const char *expect, int explen);
-static void tar_selftest(void);
+static void lib_tar_selftest(void);
 
 #include "update_test_vectors.h"
 
@@ -36,7 +36,7 @@ static void tar_selftest(void);
 static int run_one(const char *name, const u8 *gz, int len,
                    const char *expect, int explen) {
     static u8 out[70000];
-    int n = oc_gunzip(gz, len, out, (int)sizeof(out));
+    int n = gunzip(gz, len, out, (int)sizeof(out));
     int ok = (n == explen) && (memcmp(out, expect, explen) == 0);
     printf("%-28s n=%d (exp %d) %s", name, n, explen, ok ? "OK" : "FAIL");
     if (!ok && n >= 0) {
@@ -51,7 +51,7 @@ static int run_one(const char *name, const u8 *gz, int len,
     return ok;
 }
 
-static int tar_acc_cb(void *ctx, const char *path, int type, u64 size,
+static int lib_tar_acc_cb(void *ctx, const char *path, int type, u64 size,
                       const u8 *data, int len) {
     (void)ctx;
     if (type == OC_TAR_DIR) { printf("  [tar] dir %s\n", path); return 0; }
@@ -62,7 +62,7 @@ static int tar_acc_cb(void *ctx, const char *path, int type, u64 size,
     return 0;
 }
 
-static void tar_selftest(void) {
+static void lib_tar_selftest(void) {
     static u8 blk[512 * 5];
     memset(blk, 0, sizeof(blk));
     /* build a header by hand (checksum done manually) */
@@ -81,17 +81,17 @@ static void tar_selftest(void) {
     memcpy(blk + 148, cs, 8);
     memcpy(blk + 512, "HELLO-TAR!\0", 11);
 
-    oc_tar_t *t = oc_tar_open(tar_acc_cb, NULL);
+    lib_tar_t *t = lib_tar_open(lib_tar_acc_cb, NULL);
     int rc = 0, pos = 0, total = (int)sizeof(blk);
     while (pos < total) {
         int take = 100; if (pos + take > total) take = total - pos;
-        rc = oc_tar_feed(t, blk + pos, take);
+        rc = lib_tar_feed(t, blk + pos, take);
         if (rc != 0) break;
         pos += take;
     }
-    if (rc == 0) rc = oc_tar_finish(t);
+    if (rc == 0) rc = lib_tar_finish(t);
     printf("tar parse rc=%d\n", rc);
-    oc_tar_close(t);
+    lib_tar_close(t);
 }
 
 int main(void) {
@@ -115,20 +115,20 @@ int main(void) {
         memcpy(bcrc, GZV_dynamic_GZ, sizeof(GZV_dynamic_GZ));
         bcrc[sizeof(bcrc) - 5] ^= 0xFF;
         static u8 out[8192];
-        int n = oc_gunzip(bcrc, (int)sizeof(bcrc), out, (int)sizeof(out));
+        int n = gunzip(bcrc, (int)sizeof(bcrc), out, (int)sizeof(out));
         printf("%-28s n=%d (exp %d) %s\n", "corrupt-crc", n, OC_GZIP_ERR_CRC,
                n == OC_GZIP_ERR_CRC ? "OK" : "FAIL");
         if (n != OC_GZIP_ERR_CRC) fails++;
     }
     {
         static u8 out[64];
-        int n = oc_gunzip(GZV_TRUNC_GZ, (int)sizeof(GZV_TRUNC_GZ), out,
+        int n = gunzip(GZV_TRUNC_GZ, (int)sizeof(GZV_TRUNC_GZ), out,
                           (int)sizeof(out));
         printf("%-28s n=%d (exp <0) %s\n", "truncated", n,
                n < 0 ? "OK" : "FAIL");
         if (n >= 0) fails++;
     }
-    tar_selftest();
+    lib_tar_selftest();
     printf("fails=%d\n", fails);
     return fails != 0;
 }

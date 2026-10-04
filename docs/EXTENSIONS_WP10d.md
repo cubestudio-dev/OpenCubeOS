@@ -13,40 +13,40 @@ Every interface below follows the L0 contract: **declared in a kernel
 header, documented in the header, implemented with a working default,
 and usable from `oc>` without any host-side tool**.
 
-New kernel header: `kernel/usb.h` (rewritten for WP-10d).
+New kernel header: `drivers/usb/driver_usb.h` (rewritten for WP-10d).
 
 ---
 
-## 1. `int usb_register_host(usb_host_t *host, const usb_hc_ops_t *ops)`
+## 1. `int driver_usb_register_host(driver_usb_host_t *host, const driver_usb_hc_ops_t *ops)`
 
-* **Header**: `kernel/usb.h`
+* **Header**: `drivers/usb/driver_usb.h`
 * **Doc**: "Register a host controller with the USB core.  The caller
   fills host->name and keeps host->priv for itself.  Returns 0 on
   success (host->index assigned), -1 on error."
-* **Implementation**: `kernel/usb.c` — appends to the core host table,
+* **Implementation**: `drivers/usb/driver_usb.c` — appends to the core host table,
   sets `up = 1`, logs `usb: registered host <type>`.
-* **Default behaviour**: every backend (`uhci_probe_one`,
-  `ohci_probe_one`, `ehci_probe_one`, `xhci_probe_one`) calls it after
+* **Default behaviour**: every backend (`driver_usb_uhci_probe_one`,
+  `driver_usb_ohci_probe_one`, `driver_usb_ehci_probe_one`, `driver_usb_xhci_probe_one`) calls it after
   its hardware bring-up; L1 code can plug additional host controllers
   the same way.
 * **From `oc>`**: `usb` lists every registered host.
 
-## 2. `int usb_enumerate_host(usb_host_t *host)`
+## 2. `int driver_usb_enumerate_host(driver_usb_host_t *host)`
 
-* **Header**: `kernel/usb.h`
+* **Header**: `drivers/usb/driver_usb.h`
 * **Doc**: "Enumerate the devices hanging off `host` (root-hub ports
   and any hubs).  Returns the number of devices found (>= 0)."
-* **Implementation**: `kernel/usb.c` — walks root-hub ports via
-  `ops->port_count/port_status`, calls `usb_enum_one()` per empty
+* **Implementation**: `drivers/usb/driver_usb.c` — walks root-hub ports via
+  `ops->port_count/port_status`, calls `driver_usb_enum_one()` per empty
   connected port, then recursively walks newly-found external hubs.
-* **Default behaviour**: `usb_enumerate()` (WP-10c signature kept)
-  iterates every registered host; `usb_probe_all()` calls it once all
-  controllers are up; `usb_poll()` re-runs it on hot-plug.
+* **Default behaviour**: `driver_usb_enumerate()` (WP-10c signature kept)
+  iterates every registered host; `driver_usb_probe_all()` calls it once all
+  controllers are up; `driver_usb_poll()` re-runs it on hot-plug.
 
-## 3. `int usb_control_transfer(usb_dev_t *d, const usb_setup_t *setup,
+## 3. `int driver_usb_control_transfer(driver_usb_dev_t *d, const driver_usb_setup_t *setup,
                                 void *buf, u16 len)`
 
-* **Header**: `kernel/usb.h`
+* **Header**: `drivers/usb/driver_usb.h`
 * **Doc**: "Blocking control transfer (HOST->dev SETUP, then optional
   DATA stage, then STATUS).  Returns 0 on success, negative on
   error / timeout."
@@ -55,20 +55,20 @@ New kernel header: `kernel/usb.h` (rewritten for WP-10d).
   sequence natively (UHCI/ OHCI/ EHCI: qTD/TD chains; XHCI: SETUP /
   DATA / STATUS TRBs on EP0).
 
-## 4. `int usb_bulk_transfer(usb_dev_t *d, u8 ep_addr, void *buf, u16 len)`
+## 4. `int driver_usb_bulk_transfer(driver_usb_dev_t *d, u8 ep_addr, void *buf, u16 len)`
 
-* **Header**: `kernel/usb.h`
+* **Header**: `drivers/usb/driver_usb.h`
 * **Doc**: "Blocking bulk transfer on endpoint `ep_addr` (bit7 = IN).
   Returns bytes transferred (>= 0) or a negative error."
-  A `_timeout` variant (`usb_bulk_transfer_timeout`) exposes the
+  A `_timeout` variant (`driver_usb_bulk_transfer_timeout`) exposes the
   deadline; the plain call uses 3 s.
 * **Implementation**: `ops->bulk` per backend.  The MSC class driver
   chunks BOT data phases with `ops->bulk_max` so every backend gets a
   working split (UHCI/OHCI 512, EHCI 4096, XHCI 1024/4096).
 
-## 5. `int usb_interrupt_transfer(usb_dev_t *d, u8 ep_addr, void *buf, u16 len)`
+## 5. `int driver_usb_interrupt_transfer(driver_usb_dev_t *d, u8 ep_addr, void *buf, u16 len)`
 
-* **Header**: `kernel/usb.h`
+* **Header**: `drivers/usb/driver_usb.h`
 * **Doc**: "One blocking interrupt-IN/OUT transaction on `ep_addr`.
   Returns bytes transferred (>= 0), -OC_USB_ETIMEDOUT when the
   endpoint NAKs for the whole timeout window (a normal "no event"
@@ -78,46 +78,46 @@ New kernel header: `kernel/usb.h` (rewritten for WP-10d).
   ring and latches late completions so the next poll picks the data
   up.  The HID class driver polls keyboards and mice through it.
 
-## 6. `int usb_isochronous_transfer(usb_dev_t *d, u8 ep_addr, void *buf, u16 len)`
+## 6. `int driver_usb_isochronous_transfer(driver_usb_dev_t *d, u8 ep_addr, void *buf, u16 len)`
 
-* **Header**: `kernel/usb.h`
+* **Header**: `drivers/usb/driver_usb.h`
 * **Doc**: "Schedule one isochronous packet (audio: one per 1 ms
   frame)."
-* **Implementation**: dispatches to `ops->iso_out` / `ops->iso_in`.
+* **Implementation**: dispatches to `ops->driver_usb_iso_out` / `ops->driver_usb_iso_in`.
   UHCI keeps the WP-10c per-frame ISO TD path (used by the USB audio
   class driver); XHCI arms an ISOCH TRB; EHCI/OHCI return
   `-OC_USB_EINVAL` (no current class driver consumes ISO there).
 
-## 7. `int usb_register_driver(const char *name, u8 class_code,
-                               usb_probe_fn probe,
-                               usb_disconnect_fn disconnect)`
+## 7. `int driver_usb_register_driver(const char *name, u8 class_code,
+                               driver_usb_probe_fn probe,
+                               driver_usb_disconnect_fn disconnect)`
 
-* **Header**: `kernel/usb.h`
+* **Header**: `drivers/usb/driver_usb.h`
 * **Doc**: "Register a class driver.  The core calls probe() for every
   device whose interface/device class matches class_code
   (0xff = match everything).  disconnect() runs on hot-unplug."
-* **Implementation**: `kernel/usb.c` registry (8 slots) +
-  `usb_match_probe()` at the end of every enumeration and
-  `disconnect` from `usb_kill_slot()` on unplug.
+* **Implementation**: `drivers/usb/driver_usb.c` registry (8 slots) +
+  `driver_usb_match_probe()` at the end of every enumeration and
+  `disconnect` from `driver_usb_kill_slot()` on unplug.
 * **Built-in class drivers** (registered from `kmain` before
-  `usb_probe_all`): `hid-kbd`, `hid-mouse`, `usb-msc`, `usb-serial`
+  `driver_usb_probe_all`): `hid-kbd`, `hid-mouse`, `usb-msc`, `usb-serial`
   (CDC-ACM + FTDI SIO), `usb-audio`, plus the built-in hub walker.
 
-## 8. `int uhci_init(const pci_dev_t *dev)` — `kernel/usb.c`
+## 8. `int driver_usb_uhci_init(const driver_pci_dev_t *dev)` — `drivers/usb/driver_usb.c`
 
-* **Header**: `kernel/usb.h`
+* **Header**: `drivers/usb/driver_usb.h`
 * **Doc**: "Probe/claim one PCI function as the given controller
   type, reset it, start the schedule and register it with the core.
   Returns 0 on success, -1 when the controller is absent or init
-  fails.  usb_probe_all() calls all four in turn."
+  fails.  driver_usb_probe_all() calls all four in turn."
 * **Implementation**: Intel PIIX3/PIIX4 UHCI (8086:7020 / 8086:7112),
   PIO BAR, frame list + QH/TD schedule, per-address/endpoint/direction
   software data toggles.
 
-## 9. `int ohci_init(const pci_dev_t *dev)` — `kernel/usb_ohci.c`
+## 9. `int driver_usb_ohci_init(const driver_pci_dev_t *dev)` — `drivers/usb/driver_usb_ohci.c`
 
-* **Header**: `kernel/usb.h`
-* **Doc**: same contract as `uhci_init`.
+* **Header**: `drivers/usb/driver_usb.h`
+* **Doc**: same contract as `driver_usb_uhci_init`.
 * **Implementation**: PCI class 0x0c0310, HCCA + control/bulk/int
   ED/TD pools, HcControl HCFS=USBOPERATIONAL with CLE/BLE/PLE.
   Live-verified in QEMU (pci-ohci): keyboard + mouse enumeration with
@@ -128,10 +128,10 @@ New kernel header: `kernel/usb.h` (rewritten for WP-10d).
   direction is a full 32-bit field - both were STALL/underrun bugs
   fixed in the device-level bring-up.
 
-## 10. `int ehci_init(const pci_dev_t *dev)` — `kernel/usb_ehci.c`
+## 10. `int driver_usb_ehci_init(const driver_pci_dev_t *dev)` — `drivers/usb/driver_usb_ehci.c`
 
-* **Header**: `kernel/usb.h`
-* **Doc**: same contract as `uhci_init`.
+* **Header**: `drivers/usb/driver_usb.h`
+* **Doc**: same contract as `driver_usb_uhci_init`.
 * **Implementation**: PCI class 0x0c0320, async ring (ctrl QH is the
   head of the reclamation list — H bit, spec 4.9.1.1) + periodic
   frame list, qTD engine with spec-correct buffer pointers (bufptr[0]
@@ -140,10 +140,10 @@ New kernel header: `kernel/usb.h` (rewritten for WP-10d).
   Live-verified in QEMU: keyboard + mouse + storage enumeration,
   MSC read/write round-trips, FAT32 mount and file round-trip.
 
-## 11. `int xhci_init(const pci_dev_t *dev)` — `kernel/usb_xhci.c`
+## 11. `int driver_usb_xhci_init(const driver_pci_dev_t *dev)` — `drivers/usb/driver_usb_xhci.c`
 
-* **Header**: `kernel/usb.h`
-* **Doc**: same contract as `uhci_init`.
+* **Header**: `drivers/usb/driver_usb.h`
+* **Doc**: same contract as `driver_usb_uhci_init`.
 * **Implementation**: PCI class 0x0c0330 (qemu-xhci, NEC, real HW),
   command/event rings with LINK-TRB cycle handling, DCBAA +
   scratchpad, AddressDevice two-stage (BSR=1 keeps the device at

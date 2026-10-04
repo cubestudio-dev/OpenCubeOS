@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-"""Embed the major public CA roots into kernel/roots.h as DER byte arrays.
+"""Embed the major public CA roots into kernel/crypto/crypto_roots.h as DER byte arrays.
 
 The set covers the roots needed to verify github.io / google.com /
 cloudflare.com and the most common other chains (Let's Encrypt ISRG X1,
@@ -29,7 +29,7 @@ ROOTS = [
 ]
 
 STORE = sys.argv[1] if len(sys.argv) > 1 else "/etc/ssl/certs"
-OUT = sys.argv[2] if len(sys.argv) > 2 else "kernel/roots.h"
+OUT = sys.argv[2] if len(sys.argv) > 2 else "kernel/crypto/crypto_roots.h"
 
 def pem_to_der(path):
     b64 = []
@@ -55,7 +55,7 @@ lines = [
     "    const char *name;",
     "    const u8 *der;",
     "    int len;",
-    "} oc_root_t;",
+    "} crypto_root_t;",
     "",
 ]
 total = 0
@@ -76,7 +76,7 @@ for name, fname in ROOTS:
     lines.append("")
 lines.append("#define OC_ROOT_COUNT %d" % sum(1 for l in lines if l.startswith("static const u8 root_")))
 lines.append("")
-lines.append("static const oc_root_t oc_roots[] = {")
+lines.append("static const crypto_root_t crypto_roots[] = {")
 for name, fname in ROOTS:
     path = os.path.join(STORE, fname)
     if not os.path.exists(path):

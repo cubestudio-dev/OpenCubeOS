@@ -4,22 +4,22 @@
 # Open Cube OS — WP-09 Extensions: Secure Transport (SSH / TLS-HTTPS / Crypto)
 
 WP-09 adds a security-transport layer on top of the WP-06 TCP/IP stack.
-Unlike WP-02..WP-08 it does **not** add new `oc_ext_*` L1 interfaces — the
+Unlike WP-02..WP-08 it does **not** add new `l1_ext_*` L1 interfaces — the
 features are exposed through (a) kernel C APIs (ssh.h / tls.h / crypto.h)
 and (b) shell commands. All algorithm choices follow the minimal-dependency
-philosophy: everything implemented in-tree against kernel/crypto.c.
+philosophy: everything implemented in-tree against kernel/crypto/crypto_core.c.
 
 Verification: real QEMU outputs on both sides.
 
-## 1. Crypto core (kernel/crypto.h)
+## 1. Crypto core (kernel/crypto/crypto_core.h)
 
 | Function | Purpose |
 |---|---|
-| `aes128_cbc_encrypt(iv, in, len, out)` | AES-128-CBC encryption (PKCS-free, TLS-style padding done by caller) |
-| `aes128_cbc_decrypt(iv, in, len, out)` | AES-128-CBC decryption |
+| `crypto_aes128_cbc_encrypt(iv, in, len, out)` | AES-128-CBC encryption (PKCS-free, TLS-style padding done by caller) |
+| `crypto_aes128_cbc_decrypt(iv, in, len, out)` | AES-128-CBC decryption |
 | `sha256(data, len, out32)` | SHA-256 digest |
-| `hmac_sha256(key, key_len, data, data_len, out32)` | HMAC-SHA256 (RFC 2104) |
-| `dh_modexp(base, exp, mod, out)` | Arbitrary-length big-integer modular exponentiation (byte arrays, big-endian) |
+| `crypto_hmac_sha256(key, key_len, data, data_len, out32)` | HMAC-SHA256 (RFC 2104) |
+| `crypto_dh_modexp(base, exp, mod, out)` | Arbitrary-length big-integer modular exponentiation (byte arrays, big-endian) |
 | `crypto_random(buf, len)` | Entropy from timer jitter + RDTSC mixing |
 
 Correctness evidence (real `dhtest` kernel self-test output):
@@ -38,20 +38,20 @@ DH modexp scale sweep (truth vectors, python3 pow()):
   5/5 correctness tests passed
 ```
 
-Truth vectors: kernel/dh_scale_vectors.h (verified against python3 pow()).
+Truth vectors: kernel/crypto/crypto_dh_scale_vectors.h (verified against python3 pow()).
 
-## 2. SSH client (kernel/ssh.h)
+## 2. SSH client (net/net_ssh.h)
 
 ```c
-int  ssh_connect(u32 ip, u16 port, const char *username, const char *password);
-int  ssh_exec(const char *command, void *output, int output_len);
-void ssh_close(void);
+int  net_ssh_connect(u32 ip, u16 port, const char *username, const char *password);
+int  net_ssh_exec(const char *command, void *output, int output_len);
+void net_ssh_close(void);
 ```
 
 - **KEX**: diffie-hellman-group14-sha256 (2048-bit MODP, RFC 3526 §3),
   host key `rsa-sha2-256`, ciphers `aes128-cbc`, MAC `hmac-sha2-256`.
 - **Auth**: password only.
-- **Channel**: one session; `ssh_exec` sends
+- **Channel**: one session; `net_ssh_exec` sends
   `SSH_MSG_CHANNEL_REQUEST("exec")` and reads `SSH_MSG_CHANNEL_DATA` until
   EOF/CLOSE into `output`.
 - **Shell command**: `ssh <ip> [port] [user] [password]`
@@ -67,13 +67,13 @@ server:  [paramiko-sshd] EXEC request: b'echo hello-from-OpenCubeOS-kernel-ssh'
 
 Timing under QEMU TCG: 26.5 s + 30.5 s per modexp pair.
 
-## 3. SSH server — sshd (kernel/sshd.c)
+## 3. SSH server — sshd (net/net_sshd.c)
 
 Shell command: `sshd <port> <user> <password>` — serves **one** connection
 then returns to the shell (single-session design for the test bench).
 
 - Same algorithm suite as the client (group14-sha256 / aes128-cbc /
-  hmac-sha2-256); host key embedded in kernel/sshd_rsa_key.h.
+  hmac-sha2-256); host key embedded in net/net_sshd_rsa_key.h.
 - Password authentication against the credentials given on the command line.
 - `exec` requests are run through `shell_execute_captured()` (kernel shell
   capture API, WP-09 addition in shell.c), output returned as
@@ -83,14 +83,14 @@ Evidence (paramiko 5.0 client → kernel sshd E2E run):
 4/4 checks PASS (listening / connection accepted / session finished
 cleanly / auth + exec succeeded), 32-byte exec output captured.
 
-## 4. TLS 1.3 / TLS 1.2 client + HTTPS (kernel/tls.h)
+## 4. TLS 1.3 / TLS 1.2 client + HTTPS (net/net_tls.h)
 
 ```c
-int  tls_connect(u32 ip, u16 port, const char *hostname);
-int  tls_send(tls_ctx_t *ctx, const void *data, int len);
-int  tls_recv(tls_ctx_t *ctx, void *buf, int len);
-void tls_close(tls_ctx_t *ctx);
-int  tls_https_get(u32 ip, u16 port, const char *hostname, const char *path,
+int  net_tls_connect(u32 ip, u16 port, const char *hostname);
+int  net_tls_send(net_tls_ctx_t *ctx, const void *data, int len);
+int  net_tls_recv(net_tls_ctx_t *ctx, void *buf, int len);
+void net_tls_close(net_tls_ctx_t *ctx);
+int  net_tls_https_get(u32 ip, u16 port, const char *hostname, const char *path,
                    void *out_buf, int out_len);
 ```
 
@@ -105,13 +105,13 @@ int  tls_https_get(u32 ip, u16 port, const char *hostname, const char *path,
   server's p/g from ServerKeyExchange) retained for old servers.
 - **Server certificate**: X.509 chain verified against embedded public CA
   roots (ISRG Root X1/X2, Google GTS, DigiCert, GlobalSign, Baltimore,
-  Amazon, Microsoft) + hostname match via SAN dNSName (kernel/x509.c);
+  Amazon, Microsoft) + hostname match via SAN dNSName (kernel/crypto/crypto_x509.c);
   validity checked against the RTC clock. Handshake fails closed on
   verification errors.
 - **Record layer**: AEAD (AES-GCM / ChaCha20-Poly1305) per negotiated
   suite; TLS 1.3 handshake traffic and application traffic use separate
   keys per the RFC 8446 key schedule.
-- **close_notify**: warning alert sent on `tls_close()` (both versions);
+- **close_notify**: warning alert sent on `net_tls_close()` (both versions);
   incoming alerts are decrypted and treated as EOF.
 
 **HTTPS shell command** (net.c): `wget https://host[:port]/path` — performs
@@ -138,7 +138,7 @@ continues to cover the legacy fallback path.
 
 All WP-01..WP-08 interfaces unchanged in WP-09 (verified: 18/18 regression
 includes the WP-01 self-test, l1test and the WP-08cd boot self-test).
-WP-09 adds new symbols only (`ssh_*`, `tls_*`, `shell_execute_captured`,
+WP-09 adds new symbols only (`net_ssh_*`, `net_tls_*`, `shell_execute_captured`,
 crypto primitives) and one extended command (`wget` gained the `https://`
 prefix form).
 
@@ -151,14 +151,14 @@ online update check on top of the WP-06/09 transport stack.
 
 | Interface | Header | Purpose |
 |---|---|---|
-| `oc_ext_config_read(key, val_out, outlen)` | kernel/ext.h | strict config read (see docs/CONFIG.md §3 for missing/empty/invalid semantics) |
-| `oc_ext_config_write(key, value)` | kernel/ext.h | validated write preserving comments and other keys |
-| `oc_ext_config_get_all(buf, buflen)` | kernel/ext.h | whole config file |
-| `oc_ext_check_update(out)` | kernel/ext.h | synchronous update check over HTTP/HTTPS (`0` up-to-date, `1` new, `<0` error) |
-| `oc_ext_check_update_async()` | kernel/ext.h | spawn the non-blocking boot-check thread |
+| `l1_ext_config_read(key, val_out, outlen)` | l1/l1_ext.h | strict config read (see docs/CONFIG.md §3 for missing/empty/invalid semantics) |
+| `l1_ext_config_write(key, value)` | l1/l1_ext.h | validated write preserving comments and other keys |
+| `l1_ext_config_get_all(buf, buflen)` | l1/l1_ext.h | whole config file |
+| `l1_ext_check_update(out)` | l1/l1_ext.h | synchronous update check over HTTP/HTTPS (`0` up-to-date, `1` new, `<0` error) |
+| `l1_ext_check_update_async()` | l1/l1_ext.h | spawn the non-blocking boot-check thread |
 
-Implementations live in kernel/config.c (config subsystem +
-`oc_config_autocheck_enabled`) and kernel/update.c (URL parsing, HTTP and
+Implementations live in kernel/lib/lib_config.c (config subsystem +
+`lib_config_autocheck_enabled`) and kernel/ota/ota_update.c (URL parsing, HTTP and
 HTTPS fetches, scoped JSON field parser, async kernel thread). Each has a
 contract comment at the declaration site and a default (non-stub)
 implementation in-tree.

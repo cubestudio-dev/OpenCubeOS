@@ -81,7 +81,7 @@ u64 so_load(const char *name, u64 flags);
 
 ### Purpose
 Maps a .so by name into the current process's address space. The .so must
-be in the kernel's embedded solib table (kernel/solib_data.h). Maps PT_LOAD
+be in the kernel's embedded solib table (kernel/generated/solib_data.h). Maps PT_LOAD
 segments at the per-process bump allocator (0x50000000+).
 
 ### Parameters
@@ -276,7 +276,7 @@ interfaces being stable.
 ## Loading model
 
 L1 extensions load shared libraries through the kernel's embedded solib
-table (kernel/solib_data.h). The kernel maps .so files from this table
+table (kernel/generated/solib_data.h). The kernel maps .so files from this table
 at fixed addresses (0x30000000 for pre-mapped, 0x50000000+ for dlopen'd).
 Future work packages may add filesystem-backed .so loading (where the .so
 is read from a mounted filesystem rather than embedded in the kernel).

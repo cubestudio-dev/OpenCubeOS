@@ -3,7 +3,7 @@
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 """
 build_c_userprog.py: Compile a C user program and refresh its byte array
-in kernel/userprogs_data.h.
+in kernel/generated/userprogs_data.h.
 
 Usage: python3 tools/build_c_userprog.py <name> <c_file>
 Example: python3 tools/build_c_userprog.py ush userprogs/ush.c
@@ -62,7 +62,7 @@ def main():
     lines.append(f"const u64 userprog_{name}_size = {len(data)};")
     new_block = "\n".join(lines) + "\n"
 
-    header_path = os.path.join(_ROOT, 'kernel', 'userprogs_data.h')
+    header_path = os.path.join(_ROOT, 'kernel', 'generated', 'userprogs_data.h')
     with open(header_path, 'r') as f:
         content = f.read()
     pattern = re.compile(

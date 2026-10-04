@@ -10,8 +10,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "types.h"
-#include "string.h"
-#include "crypto.h"
+#include "lib_string.h"
+#include "crypto_core.h"
 
 static void hex2bin(const char *h, u8 *out, int n) {
     for (int i = 0; i < n; i++) {
@@ -56,24 +56,24 @@ int main(void) {
     hex2bin(
         "860c06edc07858ee8e78f0e7428c58edd6b43f2ca3e6e95f02ed063cf0e1cad8",
         th1, 32);
-    oc_memset(zeros, 0, 32);
+    memset(zeros, 0, 32);
 
-    hmac_sha256(zeros, 32, zeros, 32, early);           /* early secret */
+    crypto_hmac_sha256(zeros, 32, zeros, 32, early);           /* early secret */
     fails += check("early secret", early,
         "33ad0a1c607ec03b09e6cd9893680ce210adf300aa1f2660e1b22e10f170f92a", 32);
 
-    tls13_ks_derive_secret(early, "derived", eh, 32, derived);
+    net_tls13_ks_derive_secret(early, "derived", eh, 32, derived);
     fails += check("derived secret", derived,
         "6f2615a108c702c5678f54fc9dbab69716c076189c48250cebeac3576c3611ba", 32);
 
-    hmac_sha256(derived, 32, shared, 32, hs_secret);    /* handshake secret */
+    crypto_hmac_sha256(derived, 32, shared, 32, hs_secret);    /* handshake secret */
     fails += check("handshake secret", hs_secret,
         "1dc826e93606aa6fdc0aadc12f741b01046aa6b99f691ed221a9f0ca043fbeac", 32);
 
-    tls13_ks_derive_secret(hs_secret, "c hs traffic", th1, 32, c_hs);
+    net_tls13_ks_derive_secret(hs_secret, "c hs traffic", th1, 32, c_hs);
     fails += check("client handshake traffic secret", c_hs,
         "b3eddb126e067f35a780b3abf45e2d8f3b1a950738f52e9600746a0e27a55a21", 32);
-    tls13_ks_derive_secret(hs_secret, "s hs traffic", th1, 32, s_hs);
+    net_tls13_ks_derive_secret(hs_secret, "s hs traffic", th1, 32, s_hs);
     fails += check("server handshake traffic secret", s_hs,
         "b67b7d690cc16c4e75e54213cb2d37b4e9c912bcded9105d42befd59d391ad38", 32);
 
@@ -83,20 +83,20 @@ int main(void) {
     hex2bin(
         "9608102a0f1ccc6db6250b7b7e417b1a000eaada3daae4777a7686c9ff83df13",
         th_ap, 32);
-    tls13_ks_derive_secret(hs_secret, "derived", eh, 32, derived);
-    hmac_sha256(derived, 32, zeros, 32, master);
+    net_tls13_ks_derive_secret(hs_secret, "derived", eh, 32, derived);
+    crypto_hmac_sha256(derived, 32, zeros, 32, master);
     fails += check("master secret", master,
         "18df06843d13a08bf2a449844c5f8a478001bc4d4c627984d5a41da8d0402919", 32);
-    tls13_ks_derive_secret(master, "c ap traffic", th_ap, 32, c_ap);
+    net_tls13_ks_derive_secret(master, "c ap traffic", th_ap, 32, c_ap);
     fails += check("client application traffic secret", c_ap,
         "9e40646ce79a7f9dc05af8889bce6552875afa0b06df0087f792ebb7c17504a5", 32);
-    tls13_ks_derive_secret(master, "s ap traffic", th_ap, 32, s_ap);
+    net_tls13_ks_derive_secret(master, "s ap traffic", th_ap, 32, s_ap);
     fails += check("server application traffic secret", s_ap,
         "a11af9f05531f856ad47116b45a950328204b4f44bfb6b3a4b4f1f3fcb631643", 32);
 
     /* finished keys (RFC 8448 3: client finished key, empty context) */
     u8 c_fk[32];
-    tls13_ks_expand_label(c_hs, 32, "finished", NULL, 0, c_fk, 32);
+    net_tls13_ks_expand_label(c_hs, 32, "finished", NULL, 0, c_fk, 32);
     fails += check("client finished key", c_fk,
         "b80ad01015fb2f0bd65ff7d4da5d6bf83f84821d1f87fdc7d3c75b5a7b42d9c4", 32);
 

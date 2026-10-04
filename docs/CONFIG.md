@@ -35,7 +35,7 @@ same defaults — every boot has a working config file either way.
 ```
 # Open Cube OS configuration
 # Update check URL (HTTP or HTTPS)
-update_url=https://cubestudio-dev.github.io/OpenCubeOS/update.json
+ota_update_url=https://cubestudio-dev.github.io/OpenCubeOS/update.json
 
 # Auto check on boot (yes / no)
 auto_check=no
@@ -45,7 +45,7 @@ Rules:
 
 - `key=value` per line; `#` at the start of a line (or after leading
   blanks) begins a comment; blank lines are ignored.
-- Keys are matched exactly (`oc_strcmp`); values are trimmed of
+- Keys are matched exactly (`strcmp`); values are trimmed of
   surrounding blanks.
 - Lines containing bytes outside printable ASCII are **ignored** when
   reading and **rejected** when writing.
@@ -56,18 +56,18 @@ Rules:
 
 | Key | Meaning | Default (file missing / key missing / empty value) |
 |---|---|---|
-| `update_url` | Manifest URL for `checkupdate`; scheme decides transport (`https://` → TLS 1.3/1.2 client, `http://` → plain TCP, anything else → error) | `https://cubestudio-dev.github.io/OpenCubeOS/update.json` |
+| `ota_update_url` | Manifest URL for `checkupdate`; scheme decides transport (`https://` → TLS 1.3/1.2 client, `http://` → plain TCP, anything else → error) | `https://cubestudio-dev.github.io/OpenCubeOS/update.json` |
 | `auto_check` | `yes` / `no` — run the update check automatically after boot completes | `no` |
 
-Defined behaviour (documented policy, implemented in `kernel/config.c`):
+Defined behaviour (documented policy, implemented in `kernel/lib/lib_config.c`):
 
 | Situation | Behaviour |
 |---|---|
 | File missing at boot | recreated from compiled-in defaults |
-| File missing while reading (`oc_config_read`) | error `OC_CONFIG_E_NOFILE` (checkupdate prints `config file missing or unreadable`) |
-| Key missing / empty value | built-in default is used (`oc_config_read_default`) |
+| File missing while reading (`lib_config_read`) | error `OC_CONFIG_E_NOFILE` (checkupdate prints `config file missing or unreadable`) |
+| Key missing / empty value | built-in default is used (`lib_config_read_default`) |
 | `auto_check` invalid value (not yes/no) | treated as `no` (safe default), warning logged; `config set` **rejects** the value outright |
-| `update_url` invalid prefix | accepted by `config set`, rejected at check time (`invalid URL prefix (must be http:// or https://)`) |
+| `ota_update_url` invalid prefix | accepted by `config set`, rejected at check time (`invalid URL prefix (must be http:// or https://)`) |
 | Non-ASCII value in `config set` | rejected |
 
 ## 4. Editing from inside the system
@@ -80,7 +80,7 @@ edit /etc/opencube.conf      # kernel-shell line editor (:i :d :p :w :wq :q :q!)
 vi /etc/opencube.conf        # same editor inside ush (user shell)
 nano /etc/opencube.conf      # alias of vi
 config set auto_check yes    # validated key/value writes via shell
-config get update_url        # read one key
+config get ota_update_url        # read one key
 config list                  # print the whole file
 config restore               # delete + recreate from defaults
 ```
@@ -92,7 +92,7 @@ to the next check without restarting anything.
 
 | Command | Purpose |
 |---|---|
-| `checkupdate` | fetch the manifest (HTTP or HTTPS per `update_url`), compare versions, print version/time/changes |
+| `checkupdate` | fetch the manifest (HTTP or HTTPS per `ota_update_url`), compare versions, print version/time/changes |
 | `config` | `list` / `get <key>` / `set <key> <value>` / `restore` / `path` |
 | `edit <file>` | line editor (works on any file, pattern use-case is the config) |
 | `config_test` | config subsystem self-test (7 checks) |
@@ -146,7 +146,7 @@ The server returns a flat JSON object (ASCII strings):
 ```
 
 `version` is compared to the running version with an exact string match.
-The kernel parser (`json_get_string` in `kernel/update.c`) extracts
+The kernel parser (`json_get_string` in `kernel/ota/ota_update.c`) extracts
 top-level string fields; escape sequences are handled by taking the next
 character literally. This is a deliberately scoped parser for the
 documented manifest shape — not a general JSON library (no nesting, no
@@ -176,13 +176,13 @@ manifest and new kernels the full changelog (rule 8).
 Kernel side (all display-only, best-effort — a failed v2 fetch never
 fails the check):
 
-- `oc_update_changes_v2_url(body, url, cap)` — extract the optional
+- `ota_update_changes_v2_url(body, url, cap)` — extract the optional
   `changes_v2_url` field (`0` ok / `-1` missing or empty);
-- `oc_update_fetch_changes_v2(v2url, out, outcap)` — fetch the v2
+- `ota_update_fetch_changes_v2(v2url, out, outcap)` — fetch the v2
   manifest (absolute `http://`/`https://` only) and copy its long
   `changes` (or `changes_full`) into `out` (`0` upgraded / `-1` rejected
   URL / `<0` transport error);
-- `oc_check_update()` and `oc_update_check_pkg()` apply both after the
+- `ota_update_check()` and `ota_update_check_pkg()` apply both after the
   base manifest parses.
 
 ### 6.2 Redirect following
@@ -211,27 +211,27 @@ When `auto_check=yes`:
 When `auto_check=no` (default) nothing runs automatically; users run
 `checkupdate` manually.
 
-## 8. L1 extension interfaces (kernel/ext.h)
+## 8. L1 extension interfaces (l1/l1_ext.h)
 
 | Interface | Purpose |
 |---|---|
-| `oc_ext_config_read(key, val_out, outlen)` | strict read (see §3 semantics) |
-| `oc_ext_config_write(key, value)` | validated write (preserves comments/other keys) |
-| `oc_ext_config_get_all(buf, buflen)` | whole file |
-| `oc_ext_check_update(out)` | synchronous check (`0` up to date, `1` new, `<0` error) |
-| `oc_ext_check_update_async()` | spawn the non-blocking check thread |
+| `l1_ext_config_read(key, val_out, outlen)` | strict read (see §3 semantics) |
+| `l1_ext_config_write(key, value)` | validated write (preserves comments/other keys) |
+| `l1_ext_config_get_all(buf, buflen)` | whole file |
+| `l1_ext_check_update(out)` | synchronous check (`0` up to date, `1` new, `<0` error) |
+| `l1_ext_check_update_async()` | spawn the non-blocking check thread |
 
-Each interface has its declaration + contract comment in `kernel/ext.h`,
-its implementation in `kernel/config.c` / `kernel/update.c`, and is
+Each interface has its declaration + contract comment in `l1/l1_ext.h`,
+its implementation in `kernel/lib/lib_config.c` / `kernel/ota/ota_update.c`, and is
 covered by `config_test` / `checkupdate_test` / the WP-09-fix5 test batch.
 
 ## 9. Test server
 
-`tools/update_server.py` serves the manifest for end-to-end tests:
+`tools/ota_update_server.py` serves the manifest for end-to-end tests:
 
 ```
-python3.13 tools/update_server.py --mode http  --port 8008 --json '<json>'
-python3.13 tools/update_server.py --mode https --port 8443 --json '<json>' \
+python3.13 tools/ota_update_server.py --mode http  --port 8008 --json '<json>'
+python3.13 tools/ota_update_server.py --mode https --port 8443 --json '<json>' \
         --cert /tmp/hcert.pem --key /tmp/hkey.pem --dh /tmp/dhparam.pem
 ```
 

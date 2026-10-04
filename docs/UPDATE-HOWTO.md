@@ -45,7 +45,7 @@ Expected (abridged):
 [make_ab_disk] done: /home/.../build/abdisk.img
 ```
 
-Layout (matches kernel/ab_update.h): p1 = boot/flags (64 MiB),
+Layout (matches kernel/ota/ota_ab.h): p1 = boot/flags (64 MiB),
 p2 = slot A, p3 = slot B, p4 = data (128 MiB each, all FAT32).
 
 ## 2. Boot the ISO with the A/B disk attached
@@ -115,7 +115,7 @@ The .tar.gz contains manifest.json + kernel/opencube.elf + boot/grub.cfg
 One command serves everything (manifest, optional v2 manifest, package):
 
 ```sh
-python3 tools/update_server.py --mode http --port 8008 \
+python3 tools/ota_update_server.py --mode http --port 8008 \
   --json '{ "version": "WP-10d", "time": "2026-10-20",
             "changes": "new release",
             "changes_v2_url": "http://10.0.2.2:8008/update-v2.json",
@@ -235,7 +235,7 @@ oc> update --status      # current/next boot, A/B presence, availability
 |---------------------------------------------|----------------------------------------|
 | `update: A/B disk: absent`                  | disk not attached or not built by make_ab_disk.sh |
 | `config file missing or unreadable`         | /etc/opencube.conf missing; run `config restore` |
-| `invalid URL prefix`                        | update_url must be http:// or https:// |
+| `invalid URL prefix`                        | ota_update_url must be http:// or https:// |
 | `DNS resolution failed` / `connect failed`  | network down; run `dhcp`, then retry   |
 | `JSON parse failed`                         | server did not return the manifest     |
 | `response too large`                        | manifest bigger than the receive buffer |
@@ -244,17 +244,17 @@ oc> update --status      # current/next boot, A/B presence, availability
 | `invalid slot name`                         | use A or B                             |
 | `online update disabled`                    | set online_update=yes in /etc/opencube.conf |
 
-Error codes (kernel/update.h): -1..-8 transport (WP-09-fix5 contract),
+Error codes (kernel/ota/ota_update.h): -1..-8 transport (WP-09-fix5 contract),
 -9 disabled, -10 no A/B disk, -11 SHA mismatch, -12 bad gzip/tar,
 -13 I/O, -14 slot, -15 args.
 
 ## Files
 
-- kernel/ab_update.h/.c - A/B framework + updater
-- kernel/update.h/.c - manifest check (Plan D v2 changelog)
+- kernel/ota/ota_ab.h/.c - A/B framework + updater
+- kernel/ota/ota_update.h/.c - manifest check (Plan D v2 changelog)
 - tools/make_ab_disk.sh - A/B disk image builder (host)
 - tools/make_update_pkg.sh - update package builder (host)
-- tools/update_server.py - manifest + v2 + package test server (host)
+- tools/ota_update_server.py - manifest + v2 + package test server (host)
 
 Interface details: docs/EXTENSIONS_WP10u.md.  Config keys:
 docs/CONFIG.md.

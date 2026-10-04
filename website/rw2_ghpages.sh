@@ -13,7 +13,7 @@ git init -q -b gh-pages .
 git config user.name "cubestudio-dev"
 git config user.email "cubestudio@qq.com"
 git add -A
-git commit -q -m "website build: WP-10d (USB host stack UHCI-OHCI-EHCI-XHCI, device-level), docs zh-en sync, wp10d ISO-SRC assets (3-way sha256), update.json -> WP-10d OTA package"
+git commit -q -m "website build: WP-10d-fix2 (power management commands + structured help), docs sync, wp10d-fix2 ISO-SRC assets (3-way sha256), update.json -> WP-10d-fix2 OTA package"
 git log --oneline -1
 echo "--- push gh-pages (force) ---"
 git push -f "$ORIGIN_URL" gh-pages 2>&1

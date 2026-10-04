@@ -18,10 +18,10 @@ All interfaces are stable. Signatures will not change in future versions.
 
 ---
 
-## Interface 33: proc_fork
+## Interface 33: sys_proc_fork
 
 ```c
-pid_t proc_fork(void);
+pid_t sys_proc_fork(void);
 ```
 
 **Purpose**: Create a child process by duplicating the calling process's address space (POSIX fork).
@@ -30,40 +30,40 @@ pid_t proc_fork(void);
 
 **Example**:
 ```c
-pid_t pid = proc_fork();
+pid_t pid = sys_proc_fork();
 if (pid == 0) {
     // child code
-    proc_exit(0);
+    sys_proc_exit(0);
 }
 // parent continues
 ```
 
 ---
 
-## Interface 34: proc_exec / proc_wait / proc_exit
+## Interface 34: sys_proc_exec / sys_proc_wait / sys_proc_exit
 
 ```c
-int proc_exec(const char *path, const char *argv[], const char *envp[]);
-pid_t proc_wait(pid_t pid, int *status);
-void proc_exit(int code);
+int sys_proc_exec(const char *path, const char *argv[], const char *envp[]);
+pid_t sys_proc_wait(pid_t pid, int *status);
+void sys_proc_exit(int code);
 ```
 
 **Purpose**: Replace current process image (exec), wait for child (wait), terminate (exit).
 
 **Parameters**:
-- `proc_exec`: `path` = program path, `argv` = argument array, `envp` = environment (currently unused)
-- `proc_wait`: `pid` = child PID to wait for, `status` = exit status output
-- `proc_exit`: `code` = exit code
+- `sys_proc_exec`: `path` = program path, `argv` = argument array, `envp` = environment (currently unused)
+- `sys_proc_wait`: `pid` = child PID to wait for, `status` = exit status output
+- `sys_proc_exit`: `code` = exit code
 
-**Note**: `proc_exec` currently only recognizes hardcoded program names (hello, fork_test, etc.). Full VFS-based path loading is planned for a future WP.
+**Note**: `sys_proc_exec` currently only recognizes hardcoded program names (hello, fork_test, etc.). Full VFS-based path loading is planned for a future WP.
 
 ---
 
-## Interface 35: proc_getpid / proc_getppid
+## Interface 35: sys_proc_getpid / sys_proc_getppid
 
 ```c
-pid_t proc_getpid(void);
-pid_t proc_getppid(void);
+pid_t sys_proc_getpid(void);
+pid_t sys_proc_getppid(void);
 ```
 
 **Purpose**: Get current process PID or parent PID.
@@ -101,20 +101,20 @@ int signal_return(void);
 
 ---
 
-## Interface 38: sys_mmap / sys_munmap / sys_mprotect / sys_brk
+## Interface 38: sys_mem_mmap / sys_mem_munmap / sys_mem_mprotect / sys_mem_brk
 
 ```c
-void *sys_mmap(void *addr, u64 length, int prot);
-int sys_munmap(void *addr, u64 length);
-int sys_mprotect(void *addr, u64 length, int prot);
-void *sys_brk(void *addr);
+void *sys_mem_mmap(void *addr, u64 length, int prot);
+int sys_mem_munmap(void *addr, u64 length);
+int sys_mem_mprotect(void *addr, u64 length, int prot);
+void *sys_mem_brk(void *addr);
 ```
 
 **Purpose**: Memory mapping, unmapping, protection, and heap break.
 
 **Protection flags**: PROT_READ=1, PROT_WRITE=2, PROT_EXEC=4.
 
-**Note**: `sys_mmap` uses per-process mmap_base (BUG-010 fix). `sys_brk` manages the process heap.
+**Note**: `sys_mem_mmap` uses per-process mmap_base (BUG-010 fix). `sys_mem_brk` manages the process heap.
 
 ---
 
@@ -146,7 +146,7 @@ int sys_poll(pollfd_t *fds, u64 nfds, i64 timeout_ms);
 
 ## Context Requirements (BUG-023)
 
-These interfaces are designed for **user process context** only. When called from L1 kernel threads (not in a user process), they return 0 or -1 because `user_process_current()` is NULL. For L1 kernel extensions that need process management, use the underlying kernel APIs directly (`kthread_create`, `kthread_destroy`, etc.).
+These interfaces are designed for **user process context** only. When called from L1 kernel threads (not in a user process), they return 0 or -1 because `user_process_current()` is NULL. For L1 kernel extensions that need process management, use the underlying kernel APIs directly (`core_kthread_create`, `core_kthread_destroy`, etc.).
 
 ## Loading Model
 

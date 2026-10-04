@@ -31,27 +31,27 @@ Licensed under the Apache License, Version 2.0.
   shell (no host tools; the kernel payload travels with the boot media as
   a multiboot2 module).
 - **L1 extension interfaces**: 129 (57 through WP-09 + 8 WP-10a items:
-  blk_register / blk_read / blk_write / blk_flush (+ blk_set_ops),
-  ahci_init(pci_dev), nvme_init(pci_dev), ata_dma_init(pci_dev),
+  driver_block_register / driver_block_read / driver_block_write / driver_block_flush (+ driver_block_set_ops),
+  driver_block_ahci_init(driver_pci_dev), driver_block_nvme_init(driver_pci_dev), driver_block_ata_dma_init(driver_pci_dev),
   + 13 WP-10b items:
-  nic_register / nic_send / nic_recv / nic_link_status / nic_get_mac,
-  e1000e_init / igb_init / ixgbe_init / rtl8139_init / rtl8168_init /
-  rtl8125_init / rtl810x_init / bcm57xx_init(pci_dev),
-  pci_find_class_exact/mask, ata_identify_capacity,
-  + 7 WP-10u items: ab_update.h (A/B slots, flags, verify, install),
-  + 26 WP-10c items: snd_register / snd_play / snd_stop / snd_set_rate /
-  snd_set_volume / snd_get_caps (+ snd_probe_all, snd_make_tone and the
+  driver_nic_register / driver_nic_send / driver_nic_recv / driver_nic_link_status / driver_nic_get_mac,
+  driver_nic_e1000e_init / driver_nic_igb_init / driver_nic_ixgbe_init / driver_nic_rtl8139_init / rtl8168_init /
+  rtl8125_init / rtl810x_init / bcm57xx_init(driver_pci_dev),
+  driver_pci_find_class_exact/mask, driver_block_ata_identify_capacity,
+  + 7 WP-10u items: ota_ab_update.h (A/B slots, flags, verify, install),
+  + 26 WP-10c items: driver_snd_register / driver_snd_play / driver_snd_stop / driver_snd_set_rate /
+  driver_snd_set_volume / driver_snd_get_caps (+ driver_snd_probe_all, driver_snd_make_tone and the
   snd.h lookup/ listing helpers),
-  hda_init / ac97_init / sb16_init / es1370_init / virtio_snd_init /
-  usb_audio_init(pci_dev / isa_dev / usb_dev),
-  usb_init / usb_enumerate / usb_control / usb_set_interface /
-  usb_iso_out_submit (kernel/usb.h),
-  + 11 WP-10d items: usb_register_host / usb_enumerate_host /
-  usb_control_transfer / usb_bulk_transfer / usb_interrupt_transfer /
-  usb_isochronous_transfer / usb_register_driver (class-driver registry:
+  driver_snd_hda_init / driver_snd_ac97_init / driver_snd_sb16_init / driver_snd_es1370_init / driver_snd_virtio_init /
+  driver_usb_audio_init(driver_pci_dev / isa_dev / driver_usb_dev),
+  driver_usb_init / driver_usb_enumerate / driver_usb_control / driver_usb_set_interface /
+  driver_usb_iso_out_submit (drivers/usb/driver_usb.h),
+  + 11 WP-10d items: driver_usb_register_host / driver_usb_enumerate_host /
+  driver_usb_control_transfer / driver_usb_bulk_transfer / driver_usb_interrupt_transfer /
+  driver_usb_isochronous_transfer / driver_usb_register_driver (class-driver registry:
   HID keyboard + mouse, MSC storage, CDC-ACM/FTDI serial, UAC audio),
-  uhci_init / ohci_init / ehci_init / xhci_init(pci_dev) — four host
-  controller backends (kernel/usb.h)
+  driver_usb_uhci_init / driver_usb_ohci_init / driver_usb_ehci_init / driver_usb_xhci_init(driver_pci_dev) — four host
+  controller backends (drivers/usb/driver_usb.h)
 - **System calls**: 37
 - **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
   + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
@@ -60,7 +60,7 @@ Licensed under the Apache License, Version 2.0.
   + 15 GitHub-AI P3 bugs (WP-08-p3: security + memory + syscall + signal + ELF + pipe)
   + 26 P4 bugs (WP-08-p4: doc fixes + Makefile + ld.so output + shell pipe +
   idle alignment + kill/nice overflow + pmm/pftest + execve argv/envp +
-  kthread_destroy sync hook + crash log + VFS misc)
+  core_kthread_destroy sync hook + crash log + VFS misc)
   Grand total: 120 bugs fixed (as of WP-08; WP-09 added further SSH/TLS fixes).
 - **Tests passing**: 18/18 full QEMU regression (WP-09 canonical suite —
   boot banner + uname + 12 user programs + p3_test + heaptest + l1test +
@@ -153,7 +153,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   session channel exec, server host-key signature verified over H with TOFU
   SHA-256 fingerprint display. Byte-level K verified against paramiko
   server-side capture.
-- **SSH server** (`kernel/sshd.c`): same mainstream suite (curve25519 KEX,
+- **SSH server** (`net/net_sshd.c`): same mainstream suite (curve25519 KEX,
   aes128-ctr), password **and publickey** auth (kernel identity key doubles
   as host key), exec requests executed via kernel shell capture API; verified
   against the paramiko client.
@@ -195,7 +195,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   `/etc/opencube.conf` (first user-editable config, FAT32 /etc volume,
   ramfs fallback), `checkupdate` over HTTP/HTTPS with JSON manifest,
   non-blocking `auto_check` boot check, `config`/`edit` commands and the
-  `oc_ext_config_*` / `oc_ext_check_update*` L1 interfaces. See
+  `l1_ext_config_*` / `l1_ext_check_update*` L1 interfaces. See
   docs/CONFIG.md.
 
 ## WP-10u (done) - In-system update: A/B partitions + tar.gz packages + rollback + offline update
@@ -216,7 +216,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
 - **User guide**: docs/UPDATE-HOWTO.md - step-by-step A/B disk creation,
   package building, test server, update/rollback with expected outputs.
 - **Verification**: update_pkg_test 12/12, ab_partition_test 7/7,
-  update_check/download/verify/install/rollback/local/status all PASS,
+  ota_update_check/download/verify/install/rollback/local/status all PASS,
   real_update_test 7/7 end-to-end (download, verify, install into slot B,
   a real reboot into slot B, confirm ok_B, rollback). See
   docs/EXTENSIONS_WP10u.md.
@@ -224,23 +224,23 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
 ## WP-10c (done) - Sound card drivers: Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB audio
 
 - **snd framework** (kernel/snd.{c,h}): 8-slot registry,
-  snd_register / snd_play / snd_stop / snd_set_rate / snd_set_volume /
-  snd_get_caps; every driver does real DMA and raises real device
+  driver_snd_register / driver_snd_play / driver_snd_stop / driver_snd_set_rate / driver_snd_set_volume /
+  driver_snd_get_caps; every driver does real DMA and raises real device
   interrupts (per-device IRQ counters visible in `sound` and the tests).
-- **Intel HDA** (kernel/hda.c): MMIO BARs, controller reset, CORB/RIRB
+- **Intel HDA** (drivers/snd/driver_snd_hda.c): MMIO BARs, controller reset, CORB/RIRB
   command rings, codec address discovery, widget-tree enumeration
   (audio function group, DAC/ADC, pins), stream format programming and
   BDL DMA with IOC interrupts, LPIB flow control.
-- **AC'97 82801AA** (kernel/ac97.c): mixer (master/PCM volume + rate) and
+- **AC'97 82801AA** (drivers/snd/driver_snd_ac97.c): mixer (master/PCM volume + rate) and
   bus-master BDL DMA with IOC interrupts.
-- **Sound Blaster 16** (kernel/sb16.c): ISA DSP 4.05 (io 0x220, IRQ 5),
+- **Sound Blaster 16** (drivers/snd/driver_snd_sb16.c): ISA DSP 4.05 (io 0x220, IRQ 5),
   8/16-bit single-cycle DMA with auto-init block interrupts.
-- **ES1370/1371** (kernel/es1370.c): DAC2 frame DMA + PCLKDIV clocking,
+- **ES1370/1371** (drivers/snd/driver_snd_es1370.c): DAC2 frame DMA + PCLKDIV clocking,
   memory-mapped ring with IRQ on every buffer.
-- **virtio-snd** (kernel/virtio_snd.c): modern virtio-pci (1AF4:1059),
+- **virtio-snd** (drivers/snd/driver_snd_virtio.c): modern virtio-pci (1AF4:1059),
   control + TX queues, PCM prepare/start/set_volume requests; probed on
   every boot (QEMU 10 has no device model, so no live card in CI).
-- **USB Audio Class 1.0** (kernel/usb_audio.c) over the **new UHCI host
+- **USB Audio Class 1.0** (drivers/usb/driver_usb_audio.c) over the **new UHCI host
   stack** (kernel/usb.{c,h}): UHCI controller driver (piix3/4), blocking
   control transfers, device enumeration (SET_ADDRESS/CONFIGURATION/
   INTERFACE), isochronous OUT scheduled per 1 ms frame.
@@ -264,20 +264,20 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   management, the four transfer types (control / interrupt / bulk /
   isochronous), a class-driver registry (probe + disconnect) and the
   enumeration walker (root ports + external hub cascade + hot-plug).
-- **UHCI** (kernel/usb.c, PIIX3): full chain - kbd/mouse/hub cascade
+- **UHCI** (drivers/usb/driver_usb.c, PIIX3): full chain - kbd/mouse/hub cascade
   enumeration, MSC, FAT32 round-trip, hot-plug.
-- **OHCI** (kernel/usb_ohci.c): independent verification session ALL
+- **OHCI** (drivers/usb/driver_usb_ohci.c): independent verification session ALL
   PASS - enumeration with product strings, usb_core_test 5/5, MSC
   capacity/MBR/write-read-back, FAT32 mkfs + mount + file round-trip,
   real hot-plug; fixes: TD_R buffer rounding on control DATA TDs, the
   status-TD direction kept in u32 (an u8 truncated the bit-19/20
   direction field to SETUP and STALLed every status stage), TD_R on
   interrupt IN TDs.
-- **EHCI** (kernel/usb_ehci.c): async ring + qTD engine with
+- **EHCI** (drivers/usb/driver_usb_ehci.c): async ring + qTD engine with
   spec-correct buffer pointers and the IAAD doorbell; kbd/mouse/storage
   enumeration, MSC read/write, FAT32 mount and file round-trip, STALL
   recovery.
-- **XHCI** (kernel/usb_xhci.c): command/event rings, DCBAA + scratchpad,
+- **XHCI** (drivers/usb/driver_usb_xhci.c): command/event rings, DCBAA + scratchpad,
   two-stage AddressDevice, lazy ConfigureEndpoint, spec-layout endpoint
   contexts; Reset Endpoint / Set TR Dequeue endpoint ID now lives in
   control bits 20:16 (spec Table 6-42/6-44) - the old low-bit layout
@@ -289,7 +289,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
 - **Commands**: usb, usbdev + usb_core_test / usb_kbd_test /
   usb_mouse_test / usb_storage_test / usb_serial_test / usb_hotplug_test
   / usb_hub_test (170 commands at boot; 129 L1 interfaces;
-  WP-10d-fix2 added 7: power_shutdown/power_suspend/power_halt/power_reboot
+  WP-10d-fix2 added 7: core_power_shutdown/core_power_suspend/core_power_halt/core_power_reboot
   + shell_register_command_ex/shell_list_commands_a_z/shell_list_commands_by_wp).
 - **Verification**: UHCI/OHCI/EHCI/XHCI exercised in QEMU with explicit
   controllers (piix3-usb-uhci, pci-ohci, usb-ehci, qemu-xhci); BIOS +
@@ -310,10 +310,10 @@ oc-os/
 |   +-- fb.{c,h}, font.{c,h}, font_data.c          # WP-01 framebuffer + font
 |   +-- console.{c,h}, ext.{c,h}, ext_selftest.c   # WP-01 console + extensions
 |   +-- log.{c,h}                                   # WP-02: real timestamps
-|   +-- idt.{c,h}, idt_stub.S, idt_load.S          # WP-02: IDT/GDT/TSS
+|   +-- idt.{c,h}, arch_idt_stub.S, arch_idt_load.S          # WP-02: IDT/GDT/TSS
 |   +-- pic.h, exceptions.{c,h}, irq.{c,h}         # WP-02: PIC + exceptions
 |   +-- timer.{c,h}, keyboard.{c,h}                # WP-02: PIT + keyboard
-|   +-- serial_in.{c,h}, console_in.{c,h}          # WP-02: COM1 RX + line editor
+|   +-- screen_serial_in.{c,h}, console_in.{c,h}          # WP-02: COM1 RX + line editor
 |   +-- pmm.{c,h}, vmm.{c,h}, heap.{c,h}           # WP-03: memory managers
 |   +-- shell.{c,h}                                 # WP-03: shell + cmd registration
 |   +-- sched.{c,h}, sync.{c,h}                     # WP-04: scheduler + sync
@@ -323,28 +323,28 @@ oc-os/
 |   +-- file_cmds.{c,h}, shell_cmds               # WP-05: file commands
 |   +-- net.{c,h}                                   # WP-06: TCP/IP stack
 |   +-- ata.{c,h}, virtio_blk.{c,h}, nvme.{c,h}    # WP-07: disk drivers
-|   +-- blk.{c,h}, blk_cache.{c,h}, part.{c,h}     # WP-07: block + partition
+|   +-- blk.{c,h}, driver_block_cache.{c,h}, part.{c,h}     # WP-07: block + partition
 |   +-- fat32.{c,h}, exfat.{c,h}, ext4.{c,h}       # WP-07: filesystems
 |   +-- disk_cmds.{c,h}                             # WP-07: disk commands
 |   +-- syscall.{c,h}                               # WP-08: syscall dispatch
 |   +-- ext_wp8a.{c,h}, ext_wp8b.{c,h}, ext_wp8cd.{c,h}  # WP-08 L1 extensions
 |   +-- userprogs_data.h, solib_data.h             # WP-08 embedded ELF + .so data
-|   +-- crypto.{c,h}, dh_scale_vectors.h           # WP-09: AES/SHA/HMAC/DH
-|   +-- bn.{c,h}, ec_nist.{c,h}, curve25519.{c,h}  # WP-09 mainstream: bignum + P-256/384 + X25519
+|   +-- crypto.{c,h}, crypto_dh_scale_vectors.h           # WP-09: AES/SHA/HMAC/DH
+|   +-- bn.{c,h}, crypto_ec_nist.{c,h}, curve25519.{c,h}  # WP-09 mainstream: bignum + P-256/384 + X25519
 |   +-- rsa.{c,h}, aead.{c,h}, sha512.{c,h}        # WP-09 mainstream: RSA verify + AEAD + SHA-512
 |   +-- x509.{c,h}                                 # WP-09 mainstream: X.509 chain + hostname verify
-|   +-- tcp_cc.{c,h}                               # WP-09 mainstream: CUBIC congestion control
-|   +-- ssh.{c,h}, sshd.c, sshd_rsa_key.h          # WP-09: SSH client + server
+|   +-- net_tcp_cc.{c,h}                               # WP-09 mainstream: CUBIC congestion control
+|   +-- ssh.{c,h}, sshd.c, net_sshd_rsa_key.h          # WP-09: SSH client + server
 |   +-- tls.{c,h}                                   # WP-09: TLS 1.3/1.2 client
-|   +-- config.{c,h}, update.{c,h}, ab_update.{c,h}  # WP-09-fix5/WP-10u: config + checkupdate + A/B update
-|   +-- ahci.{c,h}, ata_dma.{c,h}                   # WP-10a: AHCI SATA + ATA Bus-Master DMA
-|   +-- nic.{c,h}, nic_e1000e.c, nic_igb.c,        # WP-10b: NIC framework + nine
-|   |   nic_ixgbe.c, nic_rtl8139.c, nic_rtl8169.c, #   driver families + tests
-|   |   nic_bcm57xx.c, nic_other.c, nic_test_cmds.c
-|   +-- snd.{c,h}, snd_test_cmds.c                   # WP-10c: sound framework + tests
+|   +-- config.{c,h}, update.{c,h}, ota_ab_update.{c,h}  # WP-09-fix5/WP-10u: config + checkupdate + A/B update
+|   +-- ahci.{c,h}, driver_block_ata_dma.{c,h}                   # WP-10a: AHCI SATA + ATA Bus-Master DMA
+|   +-- nic.{c,h}, driver_nic_e1000e.c, driver_nic_igb.c,        # WP-10b: NIC framework + nine
+|   |   driver_nic_ixgbe.c, driver_nic_rtl8139.c, driver_nic_rtl8169.c, #   driver families + tests
+|   |   driver_nic_bcm57xx.c, driver_nic_other.c, driver_nic_test_cmds.c
+|   +-- snd.{c,h}, driver_snd_test_cmds.c                   # WP-10c: sound framework + tests
 |   +-- hda.{c,h}, ac97.{c,h}, sb16.{c,h},          # WP-10c: six sound driver
 |   |   es1370.{c,h}, virtio_snd.{c,h},             #   families + USB audio
-|   |   usb.{c,h}, usb_audio.{c,h}
+|   |   usb.{c,h}, driver_usb_audio.{c,h}
 |   +-- kmain.c                                     # Kernel main
 +-- userprogs/                  # User-mode programs (23 files: .c + .asm + .ld)
 |   +-- hello.asm, badapp.asm, loop.asm            # basic tests
@@ -366,8 +366,8 @@ oc-os/
 |   +-- build_iso.sh, gen_font.py, embed_userprog.py
 |   +-- qemu_shot.py, qemu_shot_vnc.py, qemu_runner.py
 |   +-- github_release_wp08.sh  # GitHub Release helper
-|   +-- sshd_test.py, paramiko_sshd.py, https_test_server.py  # WP-09 E2E
-|   +-- make_ab_disk.sh, make_update_pkg.sh, update_server.py # WP-10u OTA
+|   +-- net_sshd_test.py, paramiko_sshd.py, https_test_server.py  # WP-09 E2E
+|   +-- make_ab_disk.sh, make_update_pkg.sh, ota_update_server.py # WP-10u OTA
 +-- archive/                    # Old archived source (3 files, .gitignored subdirs)
 +-- .gitignore                  # Excludes build/, *.o, *.elf, *.iso, *.zip, releases/, etc.
 +-- LICENSE                     # Apache 2.0 full text (201 lines)
@@ -417,14 +417,14 @@ QEMU session via `tools/qemu_runner.py`. In addition:
   google.com, cloudflare.com), plus the local `tools/https_test_server.py`
   (TLS1.2-only, DHE-RSA-AES128-SHA256) covering the legacy fallback:
   handshake + encrypted GET + decrypted response + MAC verification.
-- SSH interop both directions with paramiko 5.0 (`tools/sshd_test.py` and
+- SSH interop both directions with paramiko 5.0 (`tools/net_sshd_test.py` and
   `tools/paramiko_sshd.py`): password + publickey auth, curve25519/group14
   KEX, aes128-ctr/cbc — 4/4 checks + byte-level K agreement + server
   host-key signature verification (TOFU fingerprint).
 - WP-10u update tests — update_pkg_test 12/12, ab_partition_test 7/7,
-  update_check/download/verify/install/rollback/local/status all PASS and
+  ota_update_check/download/verify/install/rollback/local/status all PASS and
   real_update_test 7/7 with a real reboot into slot B (`tools/make_ab_disk.sh`,
-  `tools/make_update_pkg.sh`, `tools/update_server.py`).  Step-by-step
+  `tools/make_update_pkg.sh`, `tools/ota_update_server.py`).  Step-by-step
   user guide: **docs/UPDATE-HOWTO.md**.
 - WP-10c sound tests — hda_test / ac97_test / sb16_test / es1370_test /
   usb_audio_test live in QEMU (real DMA + real IRQ counters), audio_rw_test

@@ -11,11 +11,11 @@ comments, a working implementation, and a documented error contract.
 
 | file                    | purpose                                              |
 |-------------------------|------------------------------------------------------|
-| kernel/ab_update.h/.c   | A/B slot framework + update core + shell commands    |
-| kernel/update.h/.c      | manifest check (extended with package fields)        |
-| kernel/gzip.h/.c        | gzip (RFC 1952) + DEFLATE (RFC 1951) inflate         |
-| kernel/tar.h/.c         | streaming ustar reader                               |
-| kernel/update_test_cmds.c | WP-10u shell test suite                            |
+| kernel/ota/ota_ab.h/.c   | A/B slot framework + update core + shell commands    |
+| kernel/ota/ota_update.h/.c      | manifest check (extended with package fields)        |
+| kernel/lib/lib_gzip.h/.c        | gzip (RFC 1952) + DEFLATE (RFC 1951) inflate         |
+| kernel/lib/lib_tar.h/.c         | streaming ustar reader                               |
+| shell/shell_cmds_update_test.c | WP-10u shell test suite                            |
 | tools/make_ab_disk.sh   | builds the A/B disk image (build/abdisk.img)         |
 | tools/make_update_pkg.sh| builds an update package (tar.gz + manifest.json)    |
 | docs/UPDATE-HOWTO.md    | step-by-step user guide (A/B disk, server, update)   |
@@ -49,7 +49,7 @@ The kernel registers each partition as its own block device
 
 The kernel writes `bootfail_B` pessimistically when booting slot B and
 removes it (plus writes `ok_B`) once the system is fully up.  A slot-B
-kernel that never reaches `oc_update_confirm_boot()` therefore triggers
+kernel that never reaches `ota_update_confirm_boot()` therefore triggers
 an automatic rollback on the next boot.
 
 The current slot travels through the multiboot2 command line
@@ -58,7 +58,7 @@ The current slot travels through the multiboot2 command line
 ## Configuration (4 keys)
 
 ```
-update_url=https://cubestudio-dev.github.io/OpenCubeOS/update.json
+ota_update_url=https://cubestudio-dev.github.io/OpenCubeOS/update.json
 package_url=https://github.com/cubestudio-dev/OpenCubeOS/releases/latest
 auto_check=no
 online_update=yes
@@ -102,7 +102,7 @@ opencube-wp10u-update/
   docs/...               installed to /docs/...
 ```
 
-Path mapping (`map_package_path` in ab_update.c):
+Path mapping (`map_package_path` in ota_ab_update.c):
 `kernel/opencube.elf` -> `/boot/opencube.elf`, everything else -> `/<path>`
 relative to the package root; a top-level wrapper directory (as shown
 above) is stripped automatically.
@@ -111,38 +111,38 @@ above) is stripped automatically.
 concatenation of every payload file body, in archive order, excluding
 manifest.json itself - verified by the installer while streaming).
 
-## L1 extension interfaces (kernel/ext.h, section 7)
+## L1 extension interfaces (l1/l1_ext.h, section 7)
 
 ```c
-int  oc_ext_update_check_pkg(oc_ext_update_pkg_info_t *out);
-int  oc_ext_update_download(const char *url, const char *path);
-int  oc_ext_update_verify(const char *path, const char *sha256_hex);
-int  oc_ext_update_install(const char *pkg_path, const char *slot);
-int  oc_ext_update_rollback(void);
-int  oc_ext_update_set_boot(const char *slot);
-int  oc_ext_update_get_status(oc_update_status_t *out);
+int  l1_ext_update_check_pkg(l1_ext_update_pkg_info_t *out);
+int  l1_ext_update_download(const char *url, const char *path);
+int  l1_ext_update_verify(const char *path, const char *crypto_sha256_hex);
+int  l1_ext_update_install(const char *pkg_path, const char *slot);
+int  l1_ext_update_rollback(void);
+int  l1_ext_update_set_boot(const char *slot);
+int  l1_ext_update_get_status(ota_update_status_t *out);
 ```
 
-- `oc_ext_update_check_pkg` - fetch update.json; fills version/time/
+- `l1_ext_update_check_pkg` - fetch update.json; fills version/time/
   changes plus package_url/package_sha256/package_size; returns
   OC_UPDATE_OK (0, up to date) / OC_UPDATE_NEW (1) / negative error;
   caches the result for `update --status`.
-- `oc_ext_update_download(url, path)` - streaming HTTP or HTTPS download
+- `l1_ext_update_download(url, path)` - streaming HTTP or HTTPS download
   to a VFS path; returns the byte count or a negative error; the
   HTTP response status is checked and Content-Length is enforced.
-- `oc_ext_update_verify(path, sha256_hex)` - streaming SHA256 over the
+- `l1_ext_update_verify(path, crypto_sha256_hex)` - streaming SHA256 over the
   file, case-insensitive hex compare; OC_UPDATE_E_SHA on mismatch.
-- `oc_ext_update_install(pkg_path, slot)` - gunzip -> untar -> write to
+- `l1_ext_update_install(pkg_path, slot)` - gunzip -> untar -> write to
   the slot; verifies the manifest payload digest; refreshes the flags
   partition copy of grub.cfg; returns 0 on success.
-- `oc_ext_update_set_boot("A"|"B")` - B: create next_B, clear ok_B and
+- `l1_ext_update_set_boot("A"|"B")` - B: create next_B, clear ok_B and
   bootfail_B; A: clear all three.
-- `oc_ext_update_rollback()` - clear the flags so the next boot uses A.
-- `oc_ext_update_get_status(out)` - fill oc_update_status_t
+- `l1_ext_update_rollback()` - clear the flags so the next boot uses A.
+- `l1_ext_update_get_status(out)` - fill ota_update_status_t
   (current_version, available_version, current_boot, next_boot,
-  online_update, update_available, ab_present).
+  online_update, ota_update_available, ota_ab_present).
 
-### Error codes (kernel/update.h)
+### Error codes (kernel/ota/ota_update.h)
 
 ```
 OC_UPDATE_E_DISABLED (-9)  online_update=no
@@ -179,7 +179,7 @@ update_verify_test    SHA256 verify + negative case (4)
 update_install_test   install into slot B (6)
 update_rollback_test  boot-flag switching + rollback (4)
 update_local_test     offline flow through update --local (4)
-update_status_test    oc_update_get_status coverage (5)
+update_status_test    ota_update_get_status coverage (5)
 real_update_test      end-to-end phase 1 (7); phase 2 is the reboot
                       sequence documented in the delivery report
 ```

@@ -36,13 +36,13 @@ typedef u8 bool;
 
 #define OC_ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
 
-#define oc_container_of(ptr, type, member) \
+#define container_of(ptr, type, member) \
     ((type*)((char*)(ptr) - offsetof_container(ptr, type, member)))
 
-static inline uintptr_t oc_align_up(uintptr_t v, uintptr_t a) {
+static inline uintptr_t align_up(uintptr_t v, uintptr_t a) {
     return (v + (a - 1)) & ~(a - 1);
 }
-static inline uintptr_t oc_align_down(uintptr_t v, uintptr_t a) {
+static inline uintptr_t align_down(uintptr_t v, uintptr_t a) {
     return v & ~(a - 1);
 }
 

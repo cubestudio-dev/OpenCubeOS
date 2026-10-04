@@ -7,7 +7,7 @@ WP-10b adds a NIC driver framework plus nine driver families so the
 kernel can detect and drive mainstream wired Ethernet adapters on real
 machines, while keeping every earlier work package intact.
 
-## 1. Framework (kernel/nic.h, kernel/nic.c)
+## 1. Framework (drivers/nic/driver_nic.h, drivers/nic/driver_nic.c)
 
 A static registry (8 slots) in the same shape as the WP-10a block
 layer.  The protocol stack (net.c) routes frames through the framework
@@ -19,37 +19,37 @@ L1 extension surface:
 
 | Interface | Semantics |
 |---|---|
-| `nic_register(dev, ops)` | register a NIC; returns index or -1; `ops->send/recv` mandatory |
-| `nic_send(dev, buf, len)` | hand one Ethernet frame to the driver; returns bytes queued or -1 |
-| `nic_recv(dev, buf, maxlen)` | poll one received frame; >0 length, 0 none, -1 error |
-| `nic_link_status(dev)` | 1 up / 0 down / -1 unknown |
-| `nic_get_mac(dev, mac[6])` | station address; 0 / -1 |
-| `nic_probe_all()` | probe every family in priority order; 0 = one NIC live |
-| `nic_active()` | the device net.c routes through, or NULL |
+| `driver_nic_register(dev, ops)` | register a NIC; returns index or -1; `ops->send/recv` mandatory |
+| `driver_nic_send(dev, buf, len)` | hand one Ethernet frame to the driver; returns bytes queued or -1 |
+| `driver_nic_recv(dev, buf, maxlen)` | poll one received frame; >0 length, 0 none, -1 error |
+| `driver_nic_link_status(dev)` | 1 up / 0 down / -1 unknown |
+| `driver_nic_get_mac(dev, mac[6])` | station address; 0 / -1 |
+| `driver_nic_probe_all()` | probe every family in priority order; 0 = one NIC live |
+| `driver_nic_active()` | the device net.c routes through, or NULL |
 
 ## 2. Driver families
 
 | Driver | File | PCI IDs | Bus | Descriptors | Verified in |
 |---|---|---|---|---|---|
-| e1000e | kernel/nic_e1000e.c | 8086:10D3, 10EA, 15B8 | MMIO | legacy 16 B | QEMU (`-device e1000e`) — TX/RX/DHCP/ping/HTTPS live |
-| igb | kernel/nic_igb.c | 8086:10C9, 1521 | MMIO | advanced 16 B (2 RX + 2 TX queues) | QEMU (`-device igb`) — TX/RX/DHCP/ping/HTTPS live |
-| ixgbe | kernel/nic_ixgbe.c | 8086:10FB, 1563 | MMIO | advanced 16 B | datasheet-derived; no QEMU model |
-| rtl8139 | kernel/nic_rtl8139.c | 10EC:8139, 8138; 1113:1211 | PIO | 4 fixed TX slots + 64 KiB RX ring | QEMU (`-device rtl8139`) — TX/RX/DHCP/ping/HTTPS live |
-| rtl8168 | kernel/nic_rtl8169.c | 10EC:8168, 8161 | PIO | ring, 16 B | datasheet-derived; no QEMU model |
-| rtl8125 | kernel/nic_rtl8169.c | 10EC:8125, 3000 | PIO | ring, 16 B | datasheet-derived; no QEMU model |
-| rtl810x | kernel/nic_rtl8169.c | 10EC:8136, 8137 | PIO | ring, 16 B | datasheet-derived; no QEMU model |
-| bcm57xx | kernel/nic_bcm57xx.c | 14E4:1644/1653/1673/1677/4401/170C | MMIO | host rings + mailboxes | datasheet-derived; no QEMU model |
-| other | kernel/nic_other.c | 10B7:3c59x, 10DE:nForce, 1969:AR81xx, 11AB:Yukon | PIO/MMIO | per-family | detect + core only; datasheet-derived |
+| e1000e | drivers/nic/driver_nic_e1000e.c | 8086:10D3, 10EA, 15B8 | MMIO | legacy 16 B | QEMU (`-device e1000e`) — TX/RX/DHCP/ping/HTTPS live |
+| igb | drivers/nic/driver_nic_igb.c | 8086:10C9, 1521 | MMIO | advanced 16 B (2 RX + 2 TX queues) | QEMU (`-device igb`) — TX/RX/DHCP/ping/HTTPS live |
+| ixgbe | drivers/nic/driver_nic_ixgbe.c | 8086:10FB, 1563 | MMIO | advanced 16 B | datasheet-derived; no QEMU model |
+| rtl8139 | drivers/nic/driver_nic_rtl8139.c | 10EC:8139, 8138; 1113:1211 | PIO | 4 fixed TX slots + 64 KiB RX ring | QEMU (`-device rtl8139`) — TX/RX/DHCP/ping/HTTPS live |
+| rtl8168 | drivers/nic/driver_nic_rtl8169.c | 10EC:8168, 8161 | PIO | ring, 16 B | datasheet-derived; no QEMU model |
+| rtl8125 | drivers/nic/driver_nic_rtl8169.c | 10EC:8125, 3000 | PIO | ring, 16 B | datasheet-derived; no QEMU model |
+| rtl810x | drivers/nic/driver_nic_rtl8169.c | 10EC:8136, 8137 | PIO | ring, 16 B | datasheet-derived; no QEMU model |
+| bcm57xx | drivers/nic/driver_nic_bcm57xx.c | 14E4:1644/1653/1673/1677/4401/170C | MMIO | host rings + mailboxes | datasheet-derived; no QEMU model |
+| other | drivers/nic/driver_nic_other.c | 10B7:3c59x, 10DE:nForce, 1969:AR81xx, 11AB:Yukon | PIO/MMIO | per-family | detect + core only; datasheet-derived |
 
-Per-driver init entry points (all take `pci_dev_t *pdev`; NULL = scan
-the PCI bus): `e1000e_init`, `igb_init`, `ixgbe_init`, `rtl8139_init`,
+Per-driver init entry points (all take `driver_pci_dev_t *pdev`; NULL = scan
+the PCI bus): `driver_nic_e1000e_init`, `driver_nic_igb_init`, `driver_nic_ixgbe_init`, `driver_nic_rtl8139_init`,
 `rtl8168_init`, `rtl8125_init`, `rtl810x_init`, `bcm57xx_init`,
 `other_nics_init`.
 
 All DMA buffers/descriptor rings come from the identity-mapped PMM
 region (a static `.bss` buffer truncates to a wrong 32-bit DMA address
 under `-mcmodel=kernel` — this bit us once during bring-up and is
-documented in nic_rtl8139.c).
+documented in driver_nic_rtl8139.c).
 
 ## 3. Shell commands
 

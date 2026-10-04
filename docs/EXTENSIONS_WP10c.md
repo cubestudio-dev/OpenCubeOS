@@ -4,7 +4,7 @@
 # WP-10c: Sound Card Drivers
 
 WP-10c adds mainstream sound card support to the L0 kernel: an audio
-driver framework (kernel/snd.c) plus six driver families, the shell
+driver framework (drivers/snd/driver_snd.c) plus six driver families, the shell
 surface to drive them, and a test suite.  Every driver does real DMA
 and real interrupts; nothing is stubbed.
 
@@ -12,16 +12,16 @@ and real interrupts; nothing is stubbed.
 
 | Family    | File              | Hardware / enumeration                                    |
 |-----------|-------------------|-----------------------------------------------------------|
-| hda       | kernel/hda.c      | Intel HD Audio 8086:2668/293E/293F/3A3E + class 0x040300  |
-| ac97      | kernel/ac97.c     | Intel AC'97 8086:2415/2445/2485/24C5/24D5                 |
-| es1370    | kernel/es1370.c   | Ensoniq 1274:5000 / 1274:1371                             |
-| sb16      | kernel/sb16.c     | ISA Sound Blaster 16, io 0x220, IRQ 5, 16-bit DMA ch 5    |
-| virtio    | kernel/virtio_snd.c | virtio-snd-pci 1AF4:1059 (modern virtio-pci transport)  |
-| usb-audio | kernel/usb_audio.c| USB Audio Class 1.0 over the WP-10c UHCI stack            |
+| hda       | drivers/snd/driver_snd_hda.c      | Intel HD Audio 8086:2668/293E/293F/3A3E + class 0x040300  |
+| ac97      | drivers/snd/driver_snd_ac97.c     | Intel AC'97 8086:2415/2445/2485/24C5/24D5                 |
+| es1370    | drivers/snd/driver_snd_es1370.c   | Ensoniq 1274:5000 / 1274:1371                             |
+| sb16      | drivers/snd/driver_snd_sb16.c     | ISA Sound Blaster 16, io 0x220, IRQ 5, 16-bit DMA ch 5    |
+| virtio    | drivers/snd/driver_snd_virtio.c | virtio-snd-pci 1AF4:1059 (modern virtio-pci transport)  |
+| usb-audio | drivers/usb/driver_usb_audio.c| USB Audio Class 1.0 over the WP-10c UHCI stack            |
 
 ## USB host stack (new)
 
-`kernel/usb.c` implements the USB 1.1 host side needed by the audio
+`drivers/usb/driver_usb.c` implements the USB 1.1 host side needed by the audio
 class driver: UHCI controller driver (8086:7020 piix3 / 8086:7112
 piix4), blocking control transfers (SETUP + DATA + STATUS TD chains on
 one queue head), device enumeration (descriptors, SET_ADDRESS,
@@ -30,55 +30,55 @@ ISO TD per 1 ms frame, re-armed by the audio driver at frame cadence).
 
 ## Playback model
 
-`snd_play()` feeds PCM (little-endian signed 16-bit, interleaved
+`driver_snd_play()` feeds PCM (little-endian signed 16-bit, interleaved
 stereo) into the driver's DMA ring and blocks until the driver has
 accepted every byte; flow control polls the hardware DMA position
 (HDA LPIB, AC'97 CIV+PICB, virtio used ring, USB frame number).  Each
 driver raises real device interrupts and exposes the count through
-`snd_device_t.irqs`.
+`driver_snd_device_t.irqs`.
 
-## L1 extension surface (kernel/snd.h)
+## L1 extension surface (drivers/snd/driver_snd.h)
 
 ```c
-void snd_init(void);
-int  snd_register(snd_device_t *dev, const snd_ops_t *ops);
-int  snd_play(snd_device_t *dev, const void *buf, int len);
-int  snd_stop(snd_device_t *dev);
-int  snd_set_rate(snd_device_t *dev, u32 rate);
-int  snd_set_volume(snd_device_t *dev, u32 vol);
-int  snd_get_caps(snd_device_t *dev, snd_caps_t *caps);
-int  snd_num_devices(void);
-snd_device_t *snd_get_device(int idx);
-int  snd_find_by_type(snd_type_t type);
-int  snd_find_first_present(void);
-void snd_list_devices(void);
-const char *snd_type_name(snd_type_t type);
-int  snd_probe_all(void);
-int  snd_make_tone(void *buf, int cap_bytes, u32 rate, u32 freq,
+void driver_snd_init(void);
+int  driver_snd_register(driver_snd_device_t *dev, const driver_snd_ops_t *ops);
+int  driver_snd_play(driver_snd_device_t *dev, const void *buf, int len);
+int  driver_snd_stop(driver_snd_device_t *dev);
+int  driver_snd_set_rate(driver_snd_device_t *dev, u32 rate);
+int  driver_snd_set_volume(driver_snd_device_t *dev, u32 vol);
+int  driver_snd_get_caps(driver_snd_device_t *dev, driver_snd_caps_t *caps);
+int  driver_snd_num_devices(void);
+driver_snd_device_t *driver_snd_get_device(int idx);
+int  driver_snd_find_by_type(driver_snd_type_t type);
+int  driver_snd_find_first_present(void);
+void driver_snd_list_devices(void);
+const char *driver_snd_type_name(driver_snd_type_t type);
+int  driver_snd_probe_all(void);
+int  driver_snd_make_tone(void *buf, int cap_bytes, u32 rate, u32 freq,
                    int channels, int ms);
 ```
 
 Per-driver init entry points (each registers its device on success):
 
 ```c
-int  hda_init(pci_dev_t *pdev);          /* NULL = scan the PCI bus   */
-int  ac97_init(pci_dev_t *pdev);
-int  sb16_init(void *isa_dev);           /* arg unused (ISA)          */
-int  es1370_init(pci_dev_t *pdev);
-int  virtio_snd_init(pci_dev_t *pdev);
-int  usb_audio_init(void *usb_dev);      /* NULL = enumerate the bus  */
+int  driver_snd_hda_init(driver_pci_dev_t *pdev);          /* NULL = scan the PCI bus   */
+int  driver_snd_ac97_init(driver_pci_dev_t *pdev);
+int  driver_snd_sb16_init(void *isa_dev);           /* arg unused (ISA)          */
+int  driver_snd_es1370_init(driver_pci_dev_t *pdev);
+int  driver_snd_virtio_init(driver_pci_dev_t *pdev);
+int  driver_usb_audio_init(void *driver_usb_dev);      /* NULL = enumerate the bus  */
 ```
 
 Per-family status printers (used by the shell commands and by the
 `real_hw_test` WP-10c section in disk_test_cmds.c):
 
 ```c
-void hda_print_state(void);
-void ac97_print_state(void);
-void sb16_print_state(void);
-void es1370_print_state(void);
-void virtio_snd_print_state(void);
-void usb_audio_print_state(void);
+void driver_snd_hda_print_state(void);
+void driver_snd_ac97_print_state(void);
+void driver_snd_sb16_print_state(void);
+void driver_snd_es1370_print_state(void);
+void driver_snd_virtio_print_state(void);
+void driver_usb_audio_print_state(void);
 ```
 
 ## Shell commands
@@ -128,6 +128,6 @@ hardware in the current environment report SKIPPED (no fake output).
   real hardware; sample_rate_test verifies the HDA 44.1 kHz capability
   bit instead of re-programming it under QEMU.
 * A USB audio device left in alt setting 1 while idle disturbs the
-  shared audiodev in QEMU; usb_audio therefore activates the streaming
+  shared audiodev in QEMU; driver_usb_audio therefore activates the streaming
   alternate setting lazily on the first play and drops back to alt 0
   on stop (also the correct USB bandwidth behaviour).

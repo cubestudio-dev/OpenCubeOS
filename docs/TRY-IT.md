@@ -219,7 +219,7 @@ qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
 oc> abdisk hda               # creates A/B layout + GRUB + slot A kernel
 oc> update --status          # A/B disk: present (no reboot needed)
 oc> ab_partition_test        # 7/7 PASS
-oc> dhcp && config set update_url http://10.0.2.2:8008/update.json
+oc> dhcp && config set ota_update_url http://10.0.2.2:8008/update.json
 oc> update                   # download, verify, install to slot B
 oc> reboot                   # boots slot B automatically
 oc> rollback                 # next boot back to slot A

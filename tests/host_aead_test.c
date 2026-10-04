@@ -7,12 +7,12 @@
  */
 #include <stdio.h>
 #include "types.h"
-#include "aead.h"
-#include "sha512.h"
+#include "crypto_aead.h"
+#include "crypto_sha512.h"
 
-void *oc_memset(void *d, int c, unsigned long n);
-void *oc_memcpy(void *d, const void *s, unsigned long n);
-int   oc_memcmp(const void *a, const void *b, unsigned long n);
+void *memset(void *d, int c, unsigned long n);
+void *memcpy(void *d, const void *s, unsigned long n);
+int   memcmp(const void *a, const void *b, unsigned long n);
 
 static int hex2bin(const char *h, u8 *out, int n) {
     for (int i = 0; i < n; i++) {
@@ -88,8 +88,8 @@ int main(void) {
         hex2bin(PL_KEY, k, 32);
         hex2bin(PL_TAG, want, 16);
         const char *msg = "Cryptographic Forum Research Group";
-        poly1305_mac(k, (const u8 *)msg, 34, tag);
-        check("poly1305_mac RFC8439 2.5.2", oc_memcmp(tag, want, 16) == 0);
+        crypto_poly1305_mac(k, (const u8 *)msg, 34, tag);
+        check("poly1305_mac RFC8439 2.5.2", memcmp(tag, want, 16) == 0);
     }
 
     /* --- ChaCha20 stream via AEAD vector plaintext XOR --- */
@@ -100,8 +100,8 @@ int main(void) {
         int pl = hexlen(AE_PT);
         hex2bin(AE_PT, pt, pl);
         hex2bin(AE_CT, want, pl);
-        chacha20_xor(k, n, 1, pt, pl, ct);
-        check("chacha20_xor stream RFC8439 2.8.2", oc_memcmp(ct, want, pl) == 0);
+        crypto_chacha20_xor(k, n, 1, pt, pl, ct);
+        check("chacha20_xor stream RFC8439 2.8.2", memcmp(ct, want, pl) == 0);
     }
 
     /* --- ChaCha20-Poly1305 AEAD seal/open --- */
@@ -115,10 +115,10 @@ int main(void) {
         hex2bin(AE_CT, want_ct, pl);
         hex2bin(AE_TAG, want_tag, 16);
         chacha20poly1305_seal(k, n, a, 12, pt, pl, ct, tag);
-        check("chacha20poly1305 ct RFC8439 2.8.2", oc_memcmp(ct, want_ct, pl) == 0);
-        check("chacha20poly1305 tag RFC8439 2.8.2", oc_memcmp(tag, want_tag, 16) == 0);
+        check("chacha20poly1305 ct RFC8439 2.8.2", memcmp(ct, want_ct, pl) == 0);
+        check("chacha20poly1305 tag RFC8439 2.8.2", memcmp(tag, want_tag, 16) == 0);
         int rc = chacha20poly1305_open(k, n, a, 12, ct, pl, buf, tag);
-        check("chacha20poly1305 open roundtrip", rc == 0 && oc_memcmp(buf, pt, pl) == 0);
+        check("chacha20poly1305 open roundtrip", rc == 0 && memcmp(buf, pt, pl) == 0);
         tag[0] ^= 1;
         rc = chacha20poly1305_open(k, n, a, 12, ct, pl, buf, tag);
         check("chacha20poly1305 bad tag rejected", rc == -1);
@@ -133,11 +133,11 @@ int main(void) {
         hex2bin(G3_PT, pt, pl);
         hex2bin(G3_CT, want_ct, pl);
         hex2bin(G3_TAG, want_tag, 16);
-        aes128_gcm_seal(k, n, NULL, 0, pt, pl, ct, tag);
-        check("aes128-gcm ct NIST TC3", oc_memcmp(ct, want_ct, pl) == 0);
-        check("aes128-gcm tag NIST TC3", oc_memcmp(tag, want_tag, 16) == 0);
-        int rc = aes128_gcm_open(k, n, NULL, 0, ct, pl, buf, tag);
-        check("aes128-gcm open roundtrip", rc == 0 && oc_memcmp(buf, pt, pl) == 0);
+        crypto_aes128_gcm_seal(k, n, NULL, 0, pt, pl, ct, tag);
+        check("aes128-gcm ct NIST TC3", memcmp(ct, want_ct, pl) == 0);
+        check("aes128-gcm tag NIST TC3", memcmp(tag, want_tag, 16) == 0);
+        int rc = crypto_aes128_gcm_open(k, n, NULL, 0, ct, pl, buf, tag);
+        check("aes128-gcm open roundtrip", rc == 0 && memcmp(buf, pt, pl) == 0);
 
         int al = hexlen(G4_AAD);
         hex2bin(G4_AAD, a, al);
@@ -145,28 +145,28 @@ int main(void) {
         hex2bin(G4_CT, want_ct, cl);
         hex2bin(G4_TAG, want_tag, 16);
         /* TC4 plaintext = first 60 bytes of TC3's plaintext */
-        aes128_gcm_seal(k, n, a, al, pt, cl, ct, tag);
-        check("aes128-gcm ct NIST TC4", oc_memcmp(ct, want_ct, cl) == 0);
-        check("aes128-gcm tag NIST TC4", oc_memcmp(tag, want_tag, 16) == 0);
-        rc = aes128_gcm_open(k, n, a, al, ct, cl, buf, tag);
-        check("aes128-gcm TC4 open", rc == 0 && oc_memcmp(buf, pt, cl) == 0);
+        crypto_aes128_gcm_seal(k, n, a, al, pt, cl, ct, tag);
+        check("aes128-gcm ct NIST TC4", memcmp(ct, want_ct, cl) == 0);
+        check("aes128-gcm tag NIST TC4", memcmp(tag, want_tag, 16) == 0);
+        rc = crypto_aes128_gcm_open(k, n, a, al, ct, cl, buf, tag);
+        check("aes128-gcm TC4 open", rc == 0 && memcmp(buf, pt, cl) == 0);
     }
 
     /* --- AES-256-GCM with AAD roundtrip --- */
     {
         u8 k[32], n[12], a2[20], pt[MAXD], ct[MAXD];
-        oc_memset(k, 0, 32);
+        memset(k, 0, 32);
         hex2bin(G3_KEY, k, 16);
         hex2bin(G3_IV, n, 12);
         int al = hexlen(G4_AAD);
         hex2bin(G4_AAD, a2, al);
-        oc_memcpy(a2 + al, "\x01\x02\x03\x04\x05\x06\x07\x08", 8);
+        memcpy(a2 + al, "\x01\x02\x03\x04\x05\x06\x07\x08", 8);
         al += 8;
         int pl = hexlen(G3_PT);
         hex2bin(G3_PT, pt, pl);
-        aes256_gcm_seal(k, n, a2, al, pt, pl, ct, tag);
-        int rc = aes256_gcm_open(k, n, a2, al, ct, pl, buf, tag);
-        check("aes256-gcm aad roundtrip", rc == 0 && oc_memcmp(buf, pt, pl) == 0);
+        crypto_aes256_gcm_seal(k, n, a2, al, pt, pl, ct, tag);
+        int rc = crypto_aes256_gcm_open(k, n, a2, al, ct, pl, buf, tag);
+        check("aes256-gcm aad roundtrip", rc == 0 && memcmp(buf, pt, pl) == 0);
     }
 
     /* --- SHA-512/384 --- */
@@ -174,25 +174,25 @@ int main(void) {
         u8 want[64], got[64];
         hex2bin(S512_ABC, want, 64);
         sha512((const u8 *)"abc", 3, got);
-        check("sha512(abc) FIPS180-4", oc_memcmp(got, want, 64) == 0);
+        check("sha512(abc) FIPS180-4", memcmp(got, want, 64) == 0);
         hex2bin(S384_ABC, want, 48);
         sha384((const u8 *)"abc", 3, got);
-        check("sha384(abc) FIPS180-4", oc_memcmp(got, want, 48) == 0);
-        sha512_ctx_t c;
-        sha512_init(&c);
-        sha512_update(&c, (const u8 *)"a", 1);
-        sha512_update(&c, (const u8 *)"bc", 2);
-        sha512_final(&c, got);
+        check("sha384(abc) FIPS180-4", memcmp(got, want, 48) == 0);
+        crypto_sha512_ctx_t c;
+        crypto_sha512_init(&c);
+        crypto_sha512_update(&c, (const u8 *)"a", 1);
+        crypto_sha512_update(&c, (const u8 *)"bc", 2);
+        crypto_sha512_final(&c, got);
         sha512((const u8 *)"abc", 3, buf);
-        check("sha512 incremental", oc_memcmp(got, buf, 64) == 0);
+        check("sha512 incremental", memcmp(got, buf, 64) == 0);
         u8 big[300];
         for (int i = 0; i < 300; i++) big[i] = (u8)(i * 7 + 3);
-        sha512_ctx_t c2;
-        sha512_init(&c2);
-        sha512_update(&c2, big, 300);
-        sha512_final(&c2, got);
+        crypto_sha512_ctx_t c2;
+        crypto_sha512_init(&c2);
+        crypto_sha512_update(&c2, big, 300);
+        crypto_sha512_final(&c2, got);
         sha512(big, 300, buf);
-        check("sha512 300B incremental", oc_memcmp(got, buf, 64) == 0);
+        check("sha512 300B incremental", memcmp(got, buf, 64) == 0);
     }
 
     printf(fails ? "== %d FAILURES ==\n" : "== ALL PASS ==\n", fails);

@@ -12,35 +12,35 @@ WP-04 also re-uses the WP-03 `shell_register_command()` API to register six new 
 ## 15. Task Management (Preemptive Scheduler)
 
 ```c
-#include "sched.h"
+#include "core_sched.h"
 
-tid_t kthread_create(void (*fn)(void *arg), void *arg, const char *name, int prio);
-int   kthread_destroy(tid_t tid);
-int   kthread_block(void);
-int   kthread_wake(tid_t tid);
-void  kthread_list(void);
+tid_t core_kthread_create(void (*fn)(void *arg), void *arg, const char *name, int prio);
+int   core_kthread_destroy(tid_t tid);
+int   core_kthread_block(void);
+int   core_kthread_wake(tid_t tid);
+void  core_kthread_list(void);
 ```
 
-The scheduler is a priority-based, round-robin, preemptive scheduler driven by the PIT at 100 Hz (one tick = 10 ms). Each task gets a time slice of 2 ticks (20 ms). When the slice expires, the timer IRQ calls `sched_tick()` which selects the next READY task of the highest priority and performs a context switch via `oc_context_switch()` (in `context_switch.S`).
+The scheduler is a priority-based, round-robin, preemptive scheduler driven by the PIT at 100 Hz (one tick = 10 ms). Each task gets a time slice of 2 ticks (20 ms). When the slice expires, the timer IRQ calls `core_sched_tick()` which selects the next READY task of the highest priority and performs a context switch via `arch_context_switch()` (in `context_switch.S`).
 
-`tid_t` is a small non-negative integer. `0` is reserved for the kernel / idle task. Valid tids returned by `kthread_create()` are in the range `1..MAX_TASKS-1` (currently `MAX_TASKS = 32`).
+`tid_t` is a small non-negative integer. `0` is reserved for the kernel / idle task. Valid tids returned by `core_kthread_create()` are in the range `1..MAX_TASKS-1` (currently `MAX_TASKS = 32`).
 
 ### Parameters
 
 | Function | Description |
 |---|---|
-| `kthread_create(fn, arg, name, prio)` | Spawn a kernel thread. `fn` is the entry function (returns `void`), `arg` is passed unchanged, `name` is a short label (max 31 chars, copied), `prio` is `0..31` where `0` is highest. Use `TASK_PRIO_DEFAULT` (15) if unsure. Returns `tid >= 1` on success, `-1` on failure (table full / bad prio). |
-| `kthread_destroy(tid)` | Mark a task as exited and free its TCB + stack. The current task may destroy itself (the scheduler will switch away on the next tick). Returns `0` on success, `-1` on bad tid. |
-| `kthread_block(void)` | Block the **current** task (state -> `TASK_BLOCKED`). The scheduler immediately switches to another task. Returns when the task is later woken. Returns `0` on success, `-1` if called from the idle task. |
-| `kthread_wake(tid)` | Wake a blocked task (state -> `TASK_READY`). If the woken task has a higher priority than the current task, a preemption is triggered on the next tick. Returns `0` on success, `-1` on bad tid / not blocked. |
-| `kthread_list(void)` | Prints a table of all tasks (tid, name, state, priority, cpu_time_ticks, switch_count) to the console. Also exposed to the user as the `ps` Shell command. |
+| `core_kthread_create(fn, arg, name, prio)` | Spawn a kernel thread. `fn` is the entry function (returns `void`), `arg` is passed unchanged, `name` is a short label (max 31 chars, copied), `prio` is `0..31` where `0` is highest. Use `TASK_PRIO_DEFAULT` (15) if unsure. Returns `tid >= 1` on success, `-1` on failure (table full / bad prio). |
+| `core_kthread_destroy(tid)` | Mark a task as exited and free its TCB + stack. The current task may destroy itself (the scheduler will switch away on the next tick). Returns `0` on success, `-1` on bad tid. |
+| `core_kthread_block(void)` | Block the **current** task (state -> `TASK_BLOCKED`). The scheduler immediately switches to another task. Returns when the task is later woken. Returns `0` on success, `-1` if called from the idle task. |
+| `core_kthread_wake(tid)` | Wake a blocked task (state -> `TASK_READY`). If the woken task has a higher priority than the current task, a preemption is triggered on the next tick. Returns `0` on success, `-1` on bad tid / not blocked. |
+| `core_kthread_list(void)` | Prints a table of all tasks (tid, name, state, priority, cpu_time_ticks, switch_count) to the console. Also exposed to the user as the `ps` Shell command. |
 
 ### Task states
 
 ```
 TASK_READY    0   /* runnable, waiting for its slice */
 TASK_RUNNING  1   /* currently on the CPU (only one at a time) */
-TASK_BLOCKED  2   /* sleeping, waiting for kthread_wake() */
+TASK_BLOCKED  2   /* sleeping, waiting for core_kthread_wake() */
 TASK_EXITED   3   /* finished, slot is being reclaimed */
 ```
 
@@ -51,21 +51,21 @@ static void worker(void *arg) {
     int n = (int)(u64)arg;
     for (int i = 0; i < n; i++) {
         /* do useful work */
-        sched_yield();          /* give up the CPU voluntarily */
+        core_sched_yield();          /* give up the CPU voluntarily */
     }
     /* fall off the end -> task auto-exits */
 }
 
 void spawn_workers(void) {
-    tid_t t1 = kthread_create(worker, (void*)10, "worker-A", 15);
-    tid_t t2 = kthread_create(worker, (void*)20, "worker-B", 10);  /* higher prio */
+    tid_t t1 = core_kthread_create(worker, (void*)10, "worker-A", 15);
+    tid_t t2 = core_kthread_create(worker, (void*)20, "worker-B", 10);  /* higher prio */
     if (t1 < 0 || t2 < 0) {
-        oc_console_puts("spawn failed\n");
+        screen_console_puts("spawn failed\n");
         return;
     }
     /* ... later, inspect or terminate ... */
-    kthread_list();
-    kthread_destroy(t1);
+    core_kthread_list();
+    core_kthread_destroy(t1);
 }
 ```
 
@@ -75,41 +75,41 @@ void spawn_workers(void) {
 static tid_t g_waiter;
 
 static void waiter_task(void *arg) {
-    oc_console_puts("waiter: blocking\n");
-    kthread_block();
-    oc_console_puts("waiter: woken up\n");
+    screen_console_puts("waiter: blocking\n");
+    core_kthread_block();
+    screen_console_puts("waiter: woken up\n");
 }
 
 void wake_the_waiter(void) {
-    g_waiter = kthread_create(waiter_task, NULL, "waiter", 15);
+    g_waiter = core_kthread_create(waiter_task, NULL, "waiter", 15);
     /* ... some time later ... */
-    kthread_wake(g_waiter);
+    core_kthread_wake(g_waiter);
 }
 ```
 
 ### Auxiliary helpers
 
 ```c
-task_t *kthread_current(void);      /* NULL if scheduler not yet initialized */
-tid_t   kthread_current_tid(void);  /* 0 for the idle/kernel task */
-void    sched_yield(void);          /* voluntary preemption */
-void    sched_get_stats(sched_stats_t *out);
+task_t *core_kthread_current(void);      /* NULL if scheduler not yet initialized */
+tid_t   core_kthread_current_tid(void);  /* 0 for the idle/kernel task */
+void    core_sched_yield(void);          /* voluntary preemption */
+void    core_sched_get_stats(core_sched_stats_t *out);
 ```
 
-`sched_stats_t` contains: `total_switches`, `total_preemptions`, `current_tid`, `active_tasks`.
+`core_sched_stats_t` contains: `total_switches`, `total_preemptions`, `current_tid`, `active_tasks`.
 
 ### Caveats
 
 - **No FPU/SSE save**: the context switch saves/restores GP registers, RIP, RFLAGS, RSP, CR3. It does NOT save XMM/YMM. Kernel threads that use floating-point must save/restore it themselves. This will be fixed in WP-05.
 - **Stack size**: each new kernel thread gets a fixed `TASK_STACK_SIZE` (8 KiB) stack allocated from the kernel heap. Stack overflow is not detected.
-- **No per-task address spaces by default**: `task_t.cr3` is initialized to `0` (= kernel identity mapping). To give a task its own address space, set `tcb->cr3 = vmm_create_address_space()` before the first context switch.
+- **No per-task address spaces by default**: `task_t.cr3` is initialized to `0` (= kernel identity mapping). To give a task its own address space, set `tcb->cr3 = mem_vmm_create_address_space()` before the first context switch.
 
 ---
 
 ## 16. Synchronization Primitives
 
 ```c
-#include "sync.h"
+#include "core_sync.h"
 
 /* Spinlock */
 void spin_init(spinlock_t *lock);
@@ -271,10 +271,10 @@ void sync_get_stats(sync_stats_t *out);
 int  user_process_create(const char *path, const char *args);
 int  user_process_kill(int pid);
 void user_process_list(void);
-int  syscall_register(int num, void (*handler)(u64 a0, u64 a1, u64 a2, u64 a3, u64 a5));
+int  core_syscall_register(int num, void (*handler)(u64 a0, u64 a1, u64 a2, u64 a3, u64 a5));
 ```
 
-WP-04 introduces ring-3 user processes. Each user process runs in its own address space (CR3) created via `vmm_create_address_space()` (see `EXTENSIONS_WP03.md` section 12). The kernel sets up a user-mode stack, an IRET frame with `RPL=3` / `CS=0x1B` / `SS=0x23`, and jumps to the ELF entry point.
+WP-04 introduces ring-3 user processes. Each user process runs in its own address space (CR3) created via `mem_vmm_create_address_space()` (see `EXTENSIONS_WP03.md` section 12). The kernel sets up a user-mode stack, an IRET frame with `RPL=3` / `CS=0x1B` / `SS=0x23`, and jumps to the ELF entry point.
 
 ### Parameters
 
@@ -283,7 +283,7 @@ WP-04 introduces ring-3 user processes. Each user process runs in its own addres
 | `user_process_create(elf_data, size, name)` | Load an ELF executable from `path`, create a new user address space, spawn a task with priority 15, and switch to user mode via IRET. `path` is currently resolved against a small in-memory file table (a real filesystem comes in WP-05). `args` is a single string passed in `rdi` to the entry point. Returns `pid >= 1` on success, `-1` on failure (file not found / bad ELF / OOM). |
 | `user_process_kill(pid)` | Terminate a user process. Frees its address space, closes any kernel handles, and marks the task as exited. Returns `0` on success, `-1` on bad pid. |
 | `user_process_list(void)` | Prints a table of all user processes (pid, path, state, cpu_time, address space root) to the console. Exposed to the user as part of the `ps` Shell command. |
-| `syscall_register(num, handler)` | Register a kernel-side handler for syscall number `num` (0..255). The handler is called with the user's `rdi/rsi/rdx/rcx/r8/r9` (six-argument ABI). Return value in `rax`. Returns `0` on success, `-1` on bad num, `-2` if slot already taken. |
+| `core_syscall_register(num, handler)` | Register a kernel-side handler for syscall number `num` (0..255). The handler is called with the user's `rdi/rsi/rdx/rcx/r8/r9` (six-argument ABI). Return value in `rax`. Returns `0` on success, `-1` on bad num, `-2` if slot already taken. |
 
 ### Syscall ABI
 
@@ -315,15 +315,15 @@ static void sys_write(u64 a0, u64 a1, u64 a2, u64 a3, u64 a5) {
     u64         len = a1;
     /* Copy from user space and print safely. The kernel validates
      * that [buf, buf+len) is mapped in the current address space
-     * via vmm_is_mapped() before dereferencing. */
+     * via mem_vmm_is_mapped() before dereferencing. */
     for (u64 i = 0; i < len; i++) {
-        oc_console_putc(buf[i]);
+        screen_console_putc(buf[i]);
     }
 }
 
 void register_syscalls(void) {
-    syscall_register(42, sys_write);
-    syscall_register(43, sys_exit);   /* user-mode exit */
+    core_syscall_register(42, sys_write);
+    core_syscall_register(43, sys_exit);   /* user-mode exit */
     /* ... */
 }
 ```
@@ -334,7 +334,7 @@ void register_syscalls(void) {
 void spawn_init(void) {
     int pid = user_process_create("/bin/init", "--hello");
     if (pid < 0) {
-        oc_console_puts("init: spawn failed\n");
+        screen_console_puts("init: spawn failed\n");
         return;
     }
     /* The new process is now runnable. The scheduler will switch to
@@ -347,7 +347,7 @@ void spawn_init(void) {
 - Supports **static ELF64** executables (ET_EXEC) for x86-64.
 - Does NOT support dynamic linking / shared libraries yet (`PT_INTERP` is rejected).
 - Does NOT support PIE / `ET_DYN` yet.
-- Loads `PT_LOAD` segments at their virtual addresses, applies the segment protection bits via `vmm_protect_page()` (R / R+X / R+W).
+- Loads `PT_LOAD` segments at their virtual addresses, applies the segment protection bits via `mem_vmm_protect_page()` (R / R+X / R+W).
 - Entry point is `e_entry` from the ELF header.
 - The first 4 MiB of the user address space are reserved (NULL-pointer guard).
 - Kernel region (above `0xffff800000000000`) is shared across all address spaces - user code cannot write to it because the pages lack the USER flag.
@@ -379,11 +379,11 @@ These are registered via the existing `shell_register_command(name, handler, hel
 
 All WP-04 functions, structs, and their typedefs are frozen:
 
-- `kthread_create`, `kthread_destroy`, `kthread_block`, `kthread_wake`, `kthread_list` (and the auxiliary `kthread_current`, `kthread_current_tid`, `sched_yield`, `sched_get_stats`)
+- `core_kthread_create`, `core_kthread_destroy`, `core_kthread_block`, `core_kthread_wake`, `core_kthread_list` (and the auxiliary `core_kthread_current`, `core_kthread_current_tid`, `core_sched_yield`, `core_sched_get_stats`)
 - `spin_init/lock/unlock/trylock`, `sem_init/wait/post`, `mutex_init/lock/unlock`, `cond_init/wait/signal/broadcast`, `sync_get_stats`
-- `user_process_create`, `user_process_kill`, `user_process_list`, `syscall_register`
+- `user_process_create`, `user_process_kill`, `user_process_list`, `core_syscall_register`
 
-The `task_t`, `spinlock_t`, `sem_t`, `mutex_t`, `cond_t`, `sched_stats_t`, and `sync_stats_t` struct layouts are frozen with respect to the fields documented above. New fields may be appended at the end in future WPs (callers must zero-initialize the struct before passing it in to allow this).
+The `task_t`, `spinlock_t`, `sem_t`, `mutex_t`, `cond_t`, `core_sched_stats_t`, and `sync_stats_t` struct layouts are frozen with respect to the fields documented above. New fields may be appended at the end in future WPs (callers must zero-initialize the struct before passing it in to allow this).
 
 The `tid_t` and `pid_t` types remain `int`. The syscall ABI (six-arg int 0x80 interrupt gate, return in `rax`) is frozen.
 

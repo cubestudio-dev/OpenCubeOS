@@ -66,7 +66,7 @@ C_HEADER = """\
  *     /boot/grub/grub.cfg)
  *   - the just-built kernel ELF (opencube_base.elf)
  *
- * Consumed by kernel/disk_setup.c: grub-install / abdisk / install
+ * Consumed by drivers/block/driver_block_disk_setup.c: grub-install / abdisk / install
  * write these bytes onto the target disk so the OS can partition, format
  * and make bootable a disk entirely from the oc> shell.
  *
@@ -126,11 +126,11 @@ def main() -> int:
     os.makedirs(os.path.dirname(out_c), exist_ok=True)
     with open(out_c, "w") as f:
         f.write(C_HEADER)
-        f.write(c_array("oc_grub_boot_img", boot_img) + "\n\n")
-        f.write(c_array("oc_grub_core_img", core_img) + "\n")
+        f.write(c_array("grub_boot_img", boot_img) + "\n\n")
+        f.write(c_array("grub_core_img", core_img) + "\n")
         f.write(
-            f"\nconst unsigned int oc_grub_boot_img_len = {len(boot_img)};\n"
-            f"const unsigned int oc_grub_core_img_len = {len(core_img)};\n")
+            f"\nconst unsigned int grub_boot_img_len = {len(boot_img)};\n"
+            f"const unsigned int grub_core_img_len = {len(core_img)};\n")
 
     print(f"embed_grub: boot={len(boot_img)}B core={len(core_img)}B -> {out_c}")
     return 0

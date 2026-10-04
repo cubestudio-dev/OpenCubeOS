@@ -55,7 +55,7 @@ typedef char i8;
 typedef unsigned char u8;
 
 /* VFS on-wire structures - must match kernel layout (vfs.h, VFS_NAME_LEN=64).
- * The kernel's sys_readdir/sys_stat oc_memcpy sizeof(vfs_dirent_t / vfs_stat_t)
+ * The kernel's sys_readdir/sys_stat memcpy sizeof(vfs_dirent_t / vfs_stat_t)
  * bytes into our buffer, so our struct size must equal the kernel's. */
 struct ush_dirent {
     char name[64];

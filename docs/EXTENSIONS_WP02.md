@@ -3,7 +3,7 @@
 
 # Open Cube OS — WP-02 Extension API
 
-WP-02 adds **four** new L0→L1 extension points (on top of WP-01's four). All WP-01 interfaces (`kernel/ext.h`) remain unchanged. WP-02 interfaces are additive.
+WP-02 adds **four** new L0→L1 extension points (on top of WP-01's four). All WP-01 interfaces (`l1/l1_ext.h`) remain unchanged. WP-02 interfaces are additive.
 
 All function signatures are stable for the WP-02 release.
 
@@ -12,12 +12,12 @@ All function signatures are stable for the WP-02 release.
 ## 5. IRQ handler registration
 
 ```c
-#include "irq.h"
+#include "arch_irq.h"
 
-typedef void (*oc_irq_handler_fn)(void *ctx, oc_irq_frame_t *f);
+typedef void (*arch_irq_handler_fn)(void *ctx, arch_irq_frame_t *f);
 
-int oc_irq_register_handler(int irq, oc_irq_handler_fn handler, void *ctx);
-int oc_irq_unregister_handler(int irq, oc_irq_handler_fn handler, void *ctx);
+int arch_irq_register_handler(int irq, arch_irq_handler_fn handler, void *ctx);
+int arch_irq_unregister_handler(int irq, arch_irq_handler_fn handler, void *ctx);
 ```
 
 `irq` is 0..15 (the PIC IRQ number, NOT the IDT vector). The handler is called in IRQ context (interrupts may be off). Handlers must be fast and non-blocking.
@@ -27,12 +27,12 @@ Multiple handlers can share the same IRQ (up to 4). All registered handlers run 
 ### Usage
 
 ```c
-static void my_irq7_handler(void *ctx, oc_irq_frame_t *f) {
+static void my_irq7_handler(void *ctx, arch_irq_frame_t *f) {
     /* handle IRQ7 (parallel port) */
 }
 
 void init_my_driver(void) {
-    oc_irq_register_handler(7, my_irq7_handler, NULL);
+    arch_irq_register_handler(7, my_irq7_handler, NULL);
 }
 ```
 
@@ -40,28 +40,28 @@ void init_my_driver(void) {
 
 | Function | Returns |
 |---|---|
-| `oc_irq_register_handler(irq, handler, ctx)` | 0 on success, -1 on bad arg, -2 if chain full |
-| `oc_irq_unregister_handler(irq, handler, ctx)` | 0 on success, -1 on bad arg, -2 if not found |
+| `arch_irq_register_handler(irq, handler, ctx)` | 0 on success, -1 on bad arg, -2 if chain full |
+| `arch_irq_unregister_handler(irq, handler, ctx)` | 0 on success, -1 on bad arg, -2 if not found |
 
 ---
 
 ## 6. Timer callback registration
 
 ```c
-#include "timer.h"
+#include "core_timer.h"
 
-typedef void (*oc_timer_cb_fn)(void *ctx);
+typedef void (*core_timer_cb_fn)(void *ctx);
 
-int oc_timer_register_periodic(oc_timer_cb_fn fn, void *ctx, u64 interval_ms);
-int oc_timer_register_oneshot(oc_timer_cb_fn fn, void *ctx, u64 delay_ms);
-int oc_timer_cancel(int id);
+int core_timer_register_periodic(core_timer_cb_fn fn, void *ctx, u64 interval_ms);
+int core_timer_register_oneshot(core_timer_cb_fn fn, void *ctx, u64 delay_ms);
+int core_timer_cancel(int id);
 ```
 
 Soft timers run off the PIT (IRQ0, 100 Hz). The callback fires in IRQ context. Minimum resolution is 10 ms (one tick).
 
-`oc_timer_register_periodic` returns a timer id ≥ 0. The callback fires every `interval_ms` milliseconds until `oc_timer_cancel(id)` is called.
+`core_timer_register_periodic` returns a timer id ≥ 0. The callback fires every `interval_ms` milliseconds until `core_timer_cancel(id)` is called.
 
-`oc_timer_register_oneshot` fires once after `delay_ms` milliseconds, then auto-cancels.
+`core_timer_register_oneshot` fires once after `delay_ms` milliseconds, then auto-cancels.
 
 ### Usage
 
@@ -71,7 +71,7 @@ static void heartbeat(void *ctx) {
 }
 
 void start_heartbeat(void) {
-    int id = oc_timer_register_periodic(heartbeat, NULL, 1000);
+    int id = core_timer_register_periodic(heartbeat, NULL, 1000);
     /* save id somewhere if you want to cancel later */
 }
 ```
@@ -80,16 +80,16 @@ void start_heartbeat(void) {
 
 | Function | Returns |
 |---|---|
-| `oc_timer_register_periodic(fn, ctx, interval_ms)` | timer id ≥ 0 on success, -1 on bad arg, -2 if table full |
-| `oc_timer_register_oneshot(fn, ctx, delay_ms)` | timer id ≥ 0 on success, -1 on bad arg, -2 if table full |
-| `oc_timer_cancel(id)` | 0 on success, -1 on bad id, -2 if not in use |
+| `core_timer_register_periodic(fn, ctx, interval_ms)` | timer id ≥ 0 on success, -1 on bad arg, -2 if table full |
+| `core_timer_register_oneshot(fn, ctx, delay_ms)` | timer id ≥ 0 on success, -1 on bad arg, -2 if table full |
+| `core_timer_cancel(id)` | 0 on success, -1 on bad id, -2 if not in use |
 
 ### Time queries
 
 ```c
-u64 oc_timer_now_ms(void);       /* ms since timer init */
-u64 oc_timer_ticks(void);        /* raw tick count (100 Hz) */
-void oc_timer_format_hms(u64 ms, char out[16]);  /* "HH:MM:SS.mmm" */
+u64 core_timer_now_ms(void);       /* ms since timer init */
+u64 core_timer_ticks(void);        /* raw tick count (100 Hz) */
+void core_timer_format_hms(u64 ms, char out[16]);  /* "HH:MM:SS.mmm" */
 ```
 
 ---
@@ -97,12 +97,12 @@ void oc_timer_format_hms(u64 ms, char out[16]);  /* "HH:MM:SS.mmm" */
 ## 7. Keyboard input handler
 
 ```c
-#include "keyboard.h"
+#include "driver_input_keyboard.h"
 
-typedef int (*oc_kbd_handler_fn)(u16 keycode, u8 mods);
+typedef int (*driver_input_kbd_handler_fn)(u16 keycode, u8 mods);
 
-int oc_keyboard_register_handler(oc_kbd_handler_fn handler);
-int oc_keyboard_unregister_handler(oc_kbd_handler_fn handler);
+int driver_input_keyboard_register_handler(driver_input_kbd_handler_fn handler);
+int driver_input_keyboard_unregister_handler(driver_input_kbd_handler_fn handler);
 ```
 
 L1 can register a handler that receives every key BEFORE it goes into the input buffer. Return 0 = let L0 enqueue normally; non-zero = L1 consumed it (L0 skips enqueue).
@@ -125,16 +125,16 @@ static int my_hotkeys(u16 key, u8 mods) {
 }
 
 void install_hotkeys(void) {
-    oc_keyboard_register_handler(my_hotkeys);
+    driver_input_keyboard_register_handler(my_hotkeys);
 }
 ```
 
 ### Reading keys directly
 
 ```c
-int oc_keyboard_getch(void);       /* -1 if empty */
-int oc_keyboard_has_key(void);
-u8   oc_keyboard_get_mods(void);
+int driver_input_keyboard_getch(void);       /* -1 if empty */
+int driver_input_keyboard_has_key(void);
+u8   driver_input_keyboard_get_mods(void);
 ```
 
 ---
@@ -142,12 +142,12 @@ u8   oc_keyboard_get_mods(void);
 ## 8. Exception handler registration
 
 ```c
-#include "exceptions.h"
+#include "arch_exceptions.h"
 
-typedef int (*oc_exc_handler_fn)(oc_irq_frame_t *f);
+typedef int (*arch_exc_handler_fn)(arch_irq_frame_t *f);
 
-int oc_exc_register_handler(int vector, oc_exc_handler_fn handler);
-int oc_exc_unregister_handler(int vector, oc_exc_handler_fn handler);
+int arch_exc_register_handler(int vector, arch_exc_handler_fn handler);
+int arch_exc_unregister_handler(int vector, arch_exc_handler_fn handler);
 ```
 
 L1 can register a handler for any exception vector (0..31). The handler receives the full interrupt frame (including error code, faulting RIP, register dump).
@@ -159,7 +159,7 @@ This is the JIT / debugger / fault-recovery hook.
 ### Usage
 
 ```c
-static int my_pf_handler(oc_irq_frame_t *f) {
+static int my_pf_handler(arch_irq_frame_t *f) {
     u64 cr2;
     __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
     /* check if cr2 is in our demand-paged region; if so, map a page
@@ -172,7 +172,7 @@ static int my_pf_handler(oc_irq_frame_t *f) {
 }
 
 void init_pager(void) {
-    oc_exc_register_handler(OC_EXC_PF, my_pf_handler);
+    arch_exc_register_handler(OC_EXC_PF, my_pf_handler);
 }
 ```
 
@@ -180,17 +180,17 @@ void init_pager(void) {
 
 | Function | Returns |
 |---|---|
-| `oc_exc_register_handler(vector, handler)` | 0 on success, -1 on bad arg, -2 if chain full |
-| `oc_exc_unregister_handler(vector, handler)` | 0 on success, -1 on bad arg, -2 if not found |
+| `arch_exc_register_handler(vector, handler)` | 0 on success, -1 on bad arg, -2 if chain full |
+| `arch_exc_unregister_handler(vector, handler)` | 0 on success, -1 on bad arg, -2 if not found |
 
 ---
 
 ## 9. Console input injection
 
 ```c
-#include "console_in.h"
+#include "screen_console_in.h"
 
-void oc_console_in_inject(const char *text);
+void screen_console_in_inject(const char *text);
 ```
 
 L1 can inject a string as if it were typed. Useful for scripts, test harnesses, macros.
@@ -200,15 +200,15 @@ L1 can inject a string as if it were typed. Useful for scripts, test harnesses, 
 ## 10. Console input hook
 
 ```c
-#include "console_in.h"
+#include "screen_console_in.h"
 
-typedef int (*oc_console_in_hook_fn)(const char *line, int len);
+typedef int (*screen_console_in_hook_fn)(const char *line, int len);
 
-int oc_console_in_register_hook(oc_console_in_hook_fn fn);
-int oc_console_in_unregister_hook(oc_console_in_hook_fn fn);
+int screen_console_in_register_hook(screen_console_in_hook_fn fn);
+int screen_console_in_unregister_hook(screen_console_in_hook_fn fn);
 ```
 
-L1 can register a hook that receives every complete line (after Enter) BEFORE it's returned to `oc_console_in_readline()`. Return 0 = let L0 process normally; non-zero = L1 consumed it (L0 drops it).
+L1 can register a hook that receives every complete line (after Enter) BEFORE it's returned to `screen_console_in_readline()`. Return 0 = let L0 process normally; non-zero = L1 consumed it (L0 drops it).
 
 This is the command-interpreter / shell-extension hook.
 

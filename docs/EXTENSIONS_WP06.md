@@ -18,7 +18,7 @@ WP-06 also uses the WP-03 `shell_register_command()` API to register nine networ
 ### Signature
 
 ```c
-#include "net.h"
+#include "net_core.h"
 
 void net_init(void);
 void net_poll(void);
@@ -40,12 +40,12 @@ void net_get_stats(net_stats_t *out);
 
 `net_init()` is the single entry point that brings up the whole WP-06 network stack. It:
 
-1. Initialises the PCI bus driver (`pci_init()`).
+1. Initialises the PCI bus driver (`driver_pci_init()`).
 2. Initialises ARP, UDP, and TCP state tables.
 3. Probes for a NIC, trying virtio-net first (best in QEMU) and falling back to e1000.
 4. If a NIC is found, sets default IP `10.0.2.15`, mask `255.255.255.0`, gateway `10.0.2.2`, DNS `10.0.2.3` (QEMU's user-mode networking defaults).
 
-After `net_init()` returns, the NIC is up but the stack is idle — nothing is processed until `net_poll()` is called. `net_poll()` reads up to 8 pending RX frames from the NIC and dispatches each through the Ethernet → ARP / IP → ICMP / UDP / TCP pipeline. `net_start_timer()` registers a periodic timer (via the WP-02 `oc_timer_register_periodic()` API) that calls `net_poll()` every 10 ms, so application code does not need to poll manually.
+After `net_init()` returns, the NIC is up but the stack is idle — nothing is processed until `net_poll()` is called. `net_poll()` reads up to 8 pending RX frames from the NIC and dispatches each through the Ethernet → ARP / IP → ICMP / UDP / TCP pipeline. `net_start_timer()` registers a periodic timer (via the WP-02 `core_timer_register_periodic()` API) that calls `net_poll()` every 10 ms, so application code does not need to poll manually.
 
 The configuration getters/setters expose the current IPv4 configuration. All IPv4 addresses are 32-bit host-order values; use the `IP4(a,b,c,d)` macro to build them and the byte-order helpers (`htonl`, `ntohl`, `htons`, `ntohs`) when laying them into packet headers.
 
@@ -55,7 +55,7 @@ The configuration getters/setters expose the current IPv4 configuration. All IPv
 |---|---|
 | `net_init()` | Bring up the network stack. Probes for a NIC and configures defaults. No return value. Called once at boot. |
 | `net_poll()` | Process up to 8 pending RX frames. Call periodically (every 10 ms). No return value. Safe to call from a timer IRQ callback. |
-| `net_start_timer()` | Register a periodic timer that calls `net_poll()` every 10 ms. Uses `oc_timer_register_periodic()` from `EXTENSIONS_WP02.md` section 6. |
+| `net_start_timer()` | Register a periodic timer that calls `net_poll()` every 10 ms. Uses `core_timer_register_periodic()` from `EXTENSIONS_WP02.md` section 6. |
 | `net_get_ip()` / `net_get_mask()` / `net_get_gateway()` / `net_get_dns()` | Return the current IPv4 address / netmask / default gateway / DNS server as a host-order `u32`. Returns 0 if no NIC or no configuration. |
 | `net_set_ip(ip, mask, gateway)` | Set the IPv4 address, netmask, and default gateway (host-order `u32`s). No return value. |
 | `net_set_dns(dns)` | Set the DNS resolver address. |
@@ -71,11 +71,11 @@ typedef struct {
     u64 rx_packets;
     u64 tx_bytes;
     u64 rx_bytes;
-    u64 arp_requests;
-    u64 arp_replies;
-    u64 icmp_echo_sent;
-    u64 icmp_echo_recv;
-    u64 tcp_connections;
+    u64 net_arp_requests;
+    u64 net_arp_replies;
+    u64 net_icmp_echo_sent;
+    u64 net_icmp_echo_recv;
+    u64 net_tcp_connections;
 } net_stats_t;
 ```
 
@@ -88,7 +88,7 @@ typedef struct {
 ### Example
 
 ```c
-#include "net.h"
+#include "net_core.h"
 
 void net_demo(void) {
     net_init();           /* probe NIC, configure defaults */
@@ -118,7 +118,7 @@ void net_demo(void) {
 - **Polling, no IRQ (yet)**: the NIC RX path is polled. If `net_poll()` is not called for more than a few hundred milliseconds, frames can be dropped because the NIC ring overflows. Always call `net_start_timer()` (or roll your own periodic loop).
 - **Single NIC**: only one NIC is initialised. The virtio-net probe runs first; if it succeeds, e1000 is never tried. To force e1000, disable virtio-net in the build.
 - **No routing table**: only the default gateway is honoured. There is no per-destination routing table (the `route` shell command always shows just the default route).
-- **DHCP overrides manual config**: if `dhcp_discover()` succeeds, it overwrites `ip` / `mask` / `gateway` / `dns` with the values the DHCP server handed out.
+- **DHCP overrides manual config**: if `net_dhcp_discover()` succeeds, it overwrites `ip` / `mask` / `gateway` / `dns` with the values the DHCP server handed out.
 
 ---
 
@@ -127,7 +127,7 @@ void net_demo(void) {
 ### Signature
 
 ```c
-#include "net.h"
+#include "net_core.h"
 
 #define SOCK_TCP 1
 #define SOCK_UDP 2
@@ -140,12 +140,12 @@ int net_recv   (int fd, void *buf, int len);
 int net_close  (int fd);
 
 /* Auxiliary lower-level helpers (documented for completeness). */
-int tcp_connect(u32 dst_ip, u16 dst_port);
-int tcp_send   (int sock, const void *data, int len);
-int tcp_close  (int sock);
-int tcp_listen (u16 port, tcp_handler_fn handler);
-int udp_bind   (u16 port, udp_handler_fn handler);
-int udp_send   (u32 dst_ip, u16 dst_port, u16 src_port, const void *data, int len);
+int net_tcp_connect(u32 dst_ip, u16 dst_port);
+int net_tcp_send   (int sock, const void *data, int len);
+int net_tcp_close  (int sock);
+int net_tcp_listen (u16 port, net_tcp_handler_fn handler);
+int net_udp_bind   (u16 port, net_udp_handler_fn handler);
+int net_udp_send   (u32 dst_ip, u16 dst_port, u16 src_port, const void *data, int len);
 ```
 
 ### Purpose
@@ -155,7 +155,7 @@ The socket API is the recommended L1 way to do networking. It mirrors the BSD so
 - `SOCK_TCP` — reliable, connection-oriented. `net_connect()` performs the TCP 3-way handshake; `net_send()` / `net_recv()` transfer data; `net_close()` performs the 4-way teardown (FIN/ACK).
 - `SOCK_UDP` — datagram, connectionless. `net_bind()` sets the local source port; `net_send()` transmits one datagram; `net_recv()` blocks (polling) until a datagram arrives or a 5-second timeout fires.
 
-The lower-level `tcp_*` and `udp_*` helpers are exposed for code that needs finer control (raw TCP sockets, custom demuxing), but most L1 code should use the `net_*` socket API.
+The lower-level `net_tcp_*` and `net_udp_*` helpers are exposed for code that needs finer control (raw TCP sockets, custom demuxing), but most L1 code should use the `net_*` socket API.
 
 Sockets are integer file-descriptor-like handles indexing a fixed-size socket table (`MAX_SOCKETS`). `net_recv()` is **blocking** — it busy-polls `net_poll()` for up to 5 seconds (500 ticks at 100 Hz). Do not call it from an IRQ handler.
 
@@ -180,9 +180,9 @@ Sockets are integer file-descriptor-like handles indexing a fixed-size socket ta
 ### Example — TCP client
 
 ```c
-#include "net.h"
+#include "net_core.h"
 
-void tcp_fetch(void) {
+void net_tcp_fetch(void) {
     int fd = net_socket(SOCK_TCP);
     if (fd < 0) return;
 
@@ -205,9 +205,9 @@ void tcp_fetch(void) {
 ### Example — UDP echo client
 
 ```c
-#include "net.h"
+#include "net_core.h"
 
-void udp_echo(void) {
+void net_udp_echo(void) {
     int fd = net_socket(SOCK_UDP);
     if (fd < 0) return;
 
@@ -222,7 +222,7 @@ void udp_echo(void) {
 }
 ```
 
-### Example — TCP server (low-level `tcp_listen`)
+### Example — TCP server (low-level `net_tcp_listen`)
 
 ```c
 static void on_connect(u32 ip, u16 port) {
@@ -230,13 +230,13 @@ static void on_connect(u32 ip, u16 port) {
 }
 
 void start_server(void) {
-    tcp_listen(8080, on_connect);
+    net_tcp_listen(8080, on_connect);
 }
 ```
 
 ### Caveats
 
-- **No `listen`/`accept` at the socket API level**: TCP server sockets use the lower-level `tcp_listen(port, handler)` API. A proper `net_listen` / `net_accept` pair is on the roadmap.
+- **No `listen`/`accept` at the socket API level**: TCP server sockets use the lower-level `net_tcp_listen(port, handler)` API. A proper `net_listen` / `net_accept` pair is on the roadmap.
 - **Blocking `net_recv`**: 5-second busy-poll. Never call from an IRQ context.
 - **Single in-flight `recv` per socket**: the per-socket RX buffer is 1 KiB. A datagram or segment larger than `len` is truncated.
 - **No non-blocking mode, no `select`/`poll`**: a future WP will add `O_NONBLOCK` and a readiness notification API.
@@ -249,16 +249,16 @@ void start_server(void) {
 ### Signature
 
 ```c
-#include "net.h"
+#include "net_core.h"
 
-int dns_resolve(const char *name, u32 *ip_out);
+int net_dns_resolve(const char *name, u32 *net_ip_out);
 ```
 
 ### Purpose
 
 Resolve a domain name (e.g. `"example.com"`) to an IPv4 address by sending a UDP DNS query to the configured DNS server (`net_get_dns()`). The query is a standard recursive A-record lookup (RD bit set). The first A record in the response is returned.
 
-If no DNS server is configured (`net_get_dns() == 0`) or no NIC is up, `dns_resolve()` returns -1 immediately without sending anything.
+If no DNS server is configured (`net_get_dns() == 0`) or no NIC is up, `net_dns_resolve()` returns -1 immediately without sending anything.
 
 This is a thin, synchronous client — no caching, no IPv6, no DNSSEC. If you need to look up the same name more than once, cache the result in L1.
 
@@ -266,25 +266,25 @@ This is a thin, synchronous client — no caching, no IPv6, no DNSSEC. If you ne
 
 | Function | Description |
 |---|---|
-| `dns_resolve(name, ip_out)` | Send a DNS A-record query for `name` to the configured DNS server, wait up to 5 seconds (500 ticks) for a response, and on success write the resolved IPv4 address (host-order `u32`) into `*ip_out`. Returns 0 on success, -1 on timeout, no NIC, no DNS server, or malformed response. |
+| `net_dns_resolve(name, net_ip_out)` | Send a DNS A-record query for `name` to the configured DNS server, wait up to 5 seconds (500 ticks) for a response, and on success write the resolved IPv4 address (host-order `u32`) into `*net_ip_out`. Returns 0 on success, -1 on timeout, no NIC, no DNS server, or malformed response. |
 
 ### Return value
 
-- 0 on success (the resolved address is in `*ip_out`).
+- 0 on success (the resolved address is in `*net_ip_out`).
 - -1 on any failure.
 
 ### Example
 
 ```c
-#include "net.h"
+#include "net_core.h"
 
-void dns_demo(void) {
+void net_dns_demo(void) {
     if (net_get_dns() == 0) {
-        net_set_dns(IP4(8, 8, 8, 8));   /* or call dhcp_discover() */
+        net_set_dns(IP4(8, 8, 8, 8));   /* or call net_dhcp_discover() */
     }
 
     u32 ip;
-    if (dns_resolve("example.com", &ip) == 0) {
+    if (net_dns_resolve("example.com", &ip) == 0) {
         /* ip == IP4(93, 184, 215, 14) (or whatever the resolver returned) */
         int fd = net_socket(SOCK_TCP);
         net_connect(fd, ip, 80);
@@ -299,8 +299,8 @@ void dns_demo(void) {
 - **Synchronous**: blocks for up to 5 seconds polling the NIC.
 - **No caching**: every call sends a fresh query. L1 should cache the result.
 - **A records only**: AAAA (IPv6), CNAME chains, MX, TXT, etc. are not supported.
-- **No DNS-over-TCP, no truncation retry**: if the response is truncated (TC bit set), `dns_resolve` returns -1.
-- **Uses UDP source port 1077**: a fixed source port (`1024 + DNS_PORT`) is bound to receive the response. This means only one `dns_resolve()` call can be in flight at a time.
+- **No DNS-over-TCP, no truncation retry**: if the response is truncated (TC bit set), `net_dns_resolve` returns -1.
+- **Uses UDP source port 1077**: a fixed source port (`1024 + DNS_PORT`) is bound to receive the response. This means only one `net_dns_resolve()` call can be in flight at a time.
 
 ---
 
@@ -309,9 +309,9 @@ void dns_demo(void) {
 ### Signature
 
 ```c
-#include "net.h"
+#include "net_core.h"
 
-int dhcp_discover(void);
+int net_dhcp_discover(void);
 ```
 
 ### Purpose
@@ -320,13 +320,13 @@ Bring up IPv4 configuration automatically by sending a DHCP DISCOVER, waiting fo
 
 The DHCP transaction uses transaction ID `0x12345678`, source UDP port 68, destination UDP port 67, broadcast flag set. The implementation registers a temporary UDP handler on port 68 to receive the OFFER and ACK.
 
-`dhcp_discover()` is synchronous — it busy-polls `net_poll()` while waiting. Total worst-case runtime is a few seconds.
+`net_dhcp_discover()` is synchronous — it busy-polls `net_poll()` while waiting. Total worst-case runtime is a few seconds.
 
 ### Parameters
 
 | Function | Description |
 |---|---|
-| `dhcp_discover()` | Send DISCOVER, receive OFFER, send REQUEST, receive ACK. Apply the offered IP, mask, gateway (option 3), and DNS (option 6) to the kernel's network configuration. Returns 0 on success, -1 on timeout, no NIC, or malformed response. |
+| `net_dhcp_discover()` | Send DISCOVER, receive OFFER, send REQUEST, receive ACK. Apply the offered IP, mask, gateway (option 3), and DNS (option 6) to the kernel's network configuration. Returns 0 on success, -1 on timeout, no NIC, or malformed response. |
 
 ### Return value
 
@@ -336,13 +336,13 @@ The DHCP transaction uses transaction ID `0x12345678`, source UDP port 68, desti
 ### Example
 
 ```c
-#include "net.h"
+#include "net_core.h"
 
-void dhcp_demo(void) {
+void net_dhcp_demo(void) {
     net_init();
     net_start_timer();
 
-    if (dhcp_discover() == 0) {
+    if (net_dhcp_discover() == 0) {
         /* net_get_ip() now returns the DHCP-assigned address.
          * Same for mask, gateway, DNS. */
     } else {
@@ -358,7 +358,7 @@ void dhcp_demo(void) {
 ### Caveats
 
 - **No lease renewal**: the client does not track lease time or send DHCP RENEW / DHCP RELEASE. The lease expires silently; the kernel keeps using the address.
-- **No DHCPREQUEST retry**: a single DISCOVER → OFFER → REQUEST → ACK exchange. If any step is lost, `dhcp_discover()` returns -1; the caller must retry.
+- **No DHCPREQUEST retry**: a single DISCOVER → OFFER → REQUEST → ACK exchange. If any step is lost, `net_dhcp_discover()` returns -1; the caller must retry.
 - **Fixed transaction ID**: `0x12345678` for every call. This is fine for a single-host kernel but would clash if two Open Cube OS instances ran on the same network segment.
 - **Uses UDP port 68**: a temporary handler is registered on port 68 during the exchange. If application code also binds to port 68, the DHCP handler will clobber it.
 
@@ -369,12 +369,12 @@ void dhcp_demo(void) {
 ### Signature
 
 ```c
-#include "net.h"
+#include "net_core.h"
 
 void net_register_shell_commands(void);
 ```
 
-The commands themselves are registered via the WP-03 `shell_register_command(name, handler, help)` API (see `EXTENSIONS_WP03.md` section 14). The handlers live in `kernel/net.c` and are not exposed individually — they are accessed through the shell at the `oc>` prompt.
+The commands themselves are registered via the WP-03 `shell_register_command(name, handler, help)` API (see `EXTENSIONS_WP03.md` section 14). The handlers live in `net/net_core.c` and are not exposed individually — they are accessed through the shell at the `oc>` prompt.
 
 ### Purpose
 
@@ -389,9 +389,9 @@ The commands themselves are registered via the WP-03 `shell_register_command(nam
 | `route` | Print the routing table (currently just the default gateway). |
 | `ping <host>` | Send ICMP echo requests to `<host>` (an IPv4 dotted-quad, or a hostname resolved via DNS). Prints RTT for each reply. Stops after 4 echoes or Ctrl-C. |
 | `netstat` | Print cumulative TX/RX packet and byte counters, ARP cache, and a list of all open sockets. |
-| `dhcp` | Run `dhcp_discover()`. On success prints the assigned IP, mask, gateway, and DNS. |
-| `dns <name>` | Run `dns_resolve(name)` and print the resolved IPv4 address. |
-| `lspci` | List all PCI devices discovered by `pci_init()`: bus/dev/func, vendor:device ID, class code, base addresses. |
+| `dhcp` | Run `net_dhcp_discover()`. On success prints the assigned IP, mask, gateway, and DNS. |
+| `dns <name>` | Run `net_dns_resolve(name)` and print the resolved IPv4 address. |
+| `lspci` | List all PCI devices discovered by `driver_pci_init()`: bus/dev/func, vendor:device ID, class code, base addresses. |
 | `wget <host> [port] [path]` | Open a TCP connection to `host:port` (default 80), send `GET path HTTP/1.0`, and dump the response body to the console. `host` may be a dotted-quad or a DNS name. |
 
 ### Parameters
@@ -406,7 +406,7 @@ The commands themselves are registered via the WP-03 `shell_register_command(nam
 ### Example
 
 ```c
-#include "net.h"
+#include "net_core.h"
 
 void net_boot(void) {
     net_init();
@@ -470,9 +470,9 @@ bus 0  dev 4  func 0  vendor=1AF4 device=1001 class=010000 (storage)
 All WP-06 functions, structs, and their typedefs are frozen:
 
 - **Network init / poll / config (item 22)**: `net_init`, `net_poll`, `net_start_timer`, `net_get_ip`, `net_get_mask`, `net_get_gateway`, `net_get_dns`, `net_set_ip`, `net_set_dns`, `net_get_mac`, `net_get_link_status`, `net_get_stats` — signatures frozen. The `net_stats_t` struct layout is frozen.
-- **Socket API (item 23)**: `net_socket`, `net_bind`, `net_connect`, `net_send`, `net_recv`, `net_close` — signatures frozen. The `SOCK_TCP` / `SOCK_UDP` constants are frozen. The lower-level `tcp_connect`, `tcp_send`, `tcp_close`, `tcp_listen`, `udp_bind`, `udp_send` helpers and the `tcp_handler_fn` / `udp_handler_fn` typedefs are also frozen.
-- **DNS (item 24)**: `dns_resolve` — signature frozen.
-- **DHCP (item 25)**: `dhcp_discover` — signature frozen.
+- **Socket API (item 23)**: `net_socket`, `net_bind`, `net_connect`, `net_send`, `net_recv`, `net_close` — signatures frozen. The `SOCK_TCP` / `SOCK_UDP` constants are frozen. The lower-level `net_tcp_connect`, `net_tcp_send`, `net_tcp_close`, `net_tcp_listen`, `net_udp_bind`, `net_udp_send` helpers and the `net_tcp_handler_fn` / `net_udp_handler_fn` typedefs are also frozen.
+- **DNS (item 24)**: `net_dns_resolve` — signature frozen.
+- **DHCP (item 25)**: `net_dhcp_discover` — signature frozen.
 - **Shell commands (item 26)**: `net_register_shell_commands` — signature frozen. The set of registered command names (`ifconfig`, `ip`, `route`, `ping`, `netstat`, `dhcp`, `dns`, `lspci`, `wget`) is frozen; their argument syntax is frozen.
 
 Constants frozen: `ETH_ADDR_LEN`, `ETH_FRAME_MAX`, `ETH_TYPE_ARP`, `ETH_TYPE_IP`, `IP_PROTO_ICMP`, `IP_PROTO_TCP`, `IP_PROTO_UDP`, `TCP_SYN/ACK/FIN/RST/PSH`, `DHCP_CLIENT_PORT`, `DHCP_SERVER_PORT`, `DNS_PORT`, the `IP4(a,b,c,d)` macro, and the `htons/ntohs/htonl/ntohl` byte-order helpers.
@@ -483,4 +483,4 @@ Future WPs may add new functions (e.g. `net_listen`, `net_accept`, `net_set_nonb
 
 ## Loading model
 
-WP-06 still does not have a dynamic module loader — L1 is linked into the same binary as L0. The extension API is designed to survive the transition to loadable modules unchanged: a loadable protocol driver would just call `udp_bind()` / `tcp_listen()` from its module-init function, and a loadable NIC driver would hook into the existing NIC-probe path.
+WP-06 still does not have a dynamic module loader — L1 is linked into the same binary as L0. The extension API is designed to survive the transition to loadable modules unchanged: a loadable protocol driver would just call `net_udp_bind()` / `net_tcp_listen()` from its module-init function, and a loadable NIC driver would hook into the existing NIC-probe path.

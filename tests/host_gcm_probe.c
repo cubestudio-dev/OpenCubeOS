@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include "types.h"
-#include "aead.h"
-void *oc_memset(void*,int,unsigned long);
-void *oc_memcpy(void*,const void*,unsigned long);
-int   oc_memcmp(const void*,const void*,unsigned long);
+#include "crypto_aead.h"
+void *memset(void*,int,unsigned long);
+void *memcpy(void*,const void*,unsigned long);
+int   memcmp(const void*,const void*,unsigned long);
 int main(void) {
     u8 key[16], nonce[12], tag[16];
     const char *kh = "feffe9928665731c6d6a8f9467308308";
@@ -14,7 +14,7 @@ int main(void) {
     const char *ph = "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a72"
                      "1c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b391aafd255";
     for (int i = 0; i < 64; i++) { unsigned v; sscanf(ph+2*i, "%2x", &v); pt[i] = v; }
-    aes128_gcm_seal(key, nonce, NULL, 0, pt, 64, ct, tag);
+    crypto_aes128_gcm_seal(key, nonce, NULL, 0, pt, 64, ct, tag);
     printf("tag: ");
     for (int i = 0; i < 16; i++) printf("%02x", tag[i]);
     printf("\nwant 4d5c2af327cd64a62cf35abd2ba6fab4\n");
@@ -27,7 +27,7 @@ int main(void) {
     const char *cnh = "000000090000004a00000000";
     for (int i = 0; i < 32; i++) { unsigned v; sscanf(ckh+2*i, "%2x", &v); ck[i] = v; }
     for (int i = 0; i < 12; i++) { unsigned v; sscanf(cnh+2*i, "%2x", &v); cn[i] = v; }
-    chacha20_xor(ck, cn, 1, stream, 64, stream);
+    crypto_chacha20_xor(ck, cn, 1, stream, 64, stream);
     printf("cc20 keystream[0..15]: ");
     for (int i = 0; i < 16; i++) printf("%02x", stream[i]);
     printf("\nwant                 : 10f1e7e4d13b5915500fdd1fa32071c4\n");

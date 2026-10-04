@@ -1,15 +1,15 @@
-/* Host-side unit test for bn.c + ec_nist.c (NOT part of the kernel build).
+/* Host-side unit test for bn.c + crypto_ec_nist.c (NOT part of the kernel build).
  * Verifies against NIST P-256 ECDSA known-answer vector and ECDH
  * self-consistency + known public key. Built only for development testing:
  *   gcc -O2 -Ikernel tests/host_bn_ec_test.c kernel/bn.c \
- *       kernel/ec_nist.c -o /tmp/bn_ec_test
+ *       kernel/crypto_ec_nist.c -o /tmp/crypto_bn_ec_test
  */
 #include <stdio.h>
-#include "string.h"  /* kernel string.h — use oc_* fns in host tests too */
+#include "lib_string.h"  /* kernel string.h — use oc_* fns in host tests too */
 /* libc string.h is included first on purpose; kernel headers only add oc_*
  * functions and must not shadow libc declarations in this host test. */
-#include "bn.h"
-#include "ec_nist.h"
+#include "crypto_bn.h"
+#include "crypto_ec_nist.h"
 
 /* crypto_random stub for host test (deterministic) */
 void crypto_random(u8 *buf, int len) {
@@ -56,22 +56,22 @@ int main(void) {
     hex2bin(NIST_S, s, 32);
     hex2bin(NIST_H, h, 32);
 
-    /* --- Test 1: bn_mod_exp basic --- */
+    /* --- Test 1: crypto_bn_mod_exp basic --- */
     u8 out[32];
     /* 3^5 mod 7 = 5 */
     u8 b3 = 3, e5 = 5, m7 = 7;
-    bn_mod_exp(out, 1, &b3, 1, &e5, 1, &m7, 1);
+    crypto_bn_mod_exp(out, 1, &b3, 1, &e5, 1, &m7, 1);
     printf("bn_mod_exp 3^5 mod 7 = %d (expect 5): %s\n", out[0],
            out[0] == 5 ? "PASS" : "FAIL");
     if (out[0] != 5) fails++;
 
     /* --- Test 2: pub from priv matches NIST Q --- */
     u8 pub[65];
-    if (ec_pub_from_priv(EC_P256, d, 32, pub, 65) != 0) {
+    if (crypto_ec_pub_from_priv(EC_P256, d, 32, pub, 65) != 0) {
         printf("ec_pub_from_priv: FAIL (error)\n");
         fails++;
     } else {
-        int ok = oc_memcmp(pub + 1, qx, 32) == 0 && oc_memcmp(pub + 33, qy, 32) == 0;
+        int ok = memcmp(pub + 1, qx, 32) == 0 && memcmp(pub + 33, qy, 32) == 0;
         printf("ec_pub_from_priv == NIST Q: %s\n", ok ? "PASS" : "FAIL");
         if (!ok) { dump("got x", pub + 1, 32); dump("got y", pub + 33, 32); fails++; }
     }
@@ -83,7 +83,7 @@ int main(void) {
 
     /* --- Test 4: ECDSA verify (corrupted s -> reject) --- */
     u8 s2[32];
-    oc_memcpy(s2, s, 32);
+    memcpy(s2, s, 32);
     s2[31] ^= 1;
     v = ecdsa_verify(EC_P256, pub, 65, h, 32, r, 32, s2, 32);
     printf("ecdsa_verify corrupted: %s (v=%d)\n", v == 0 ? "PASS" : "FAIL", v);
@@ -91,25 +91,25 @@ int main(void) {
 
     /* --- Test 5: ECDH self-consistency P-256 --- */
     u8 da[32], db[32], pa[65], pb[65], sa[32], sb[32];
-    if (ec_keygen(EC_P256, da, 32, pa, 65) != 0 ||
-        ec_keygen(EC_P256, db, 32, pb, 65) != 0) {
+    if (crypto_ec_keygen(EC_P256, da, 32, pa, 65) != 0 ||
+        crypto_ec_keygen(EC_P256, db, 32, pb, 65) != 0) {
         printf("ec_keygen: FAIL\n");
         fails++;
-    } else if (ec_ecdh(EC_P256, da, 32, pb, 65, sa, 32) != 0 ||
-               ec_ecdh(EC_P256, db, 32, pa, 65, sb, 32) != 0) {
+    } else if (crypto_ec_ecdh(EC_P256, da, 32, pb, 65, sa, 32) != 0 ||
+               crypto_ec_ecdh(EC_P256, db, 32, pa, 65, sb, 32) != 0) {
         printf("ec_ecdh: FAIL (error)\n");
         fails++;
     } else {
-        int ok = oc_memcmp(sa, sb, 32) == 0;
+        int ok = memcmp(sa, sb, 32) == 0;
         printf("ec_ecdh self-consistency: %s\n", ok ? "PASS" : "FAIL");
         if (!ok) { dump("sa", sa, 32); dump("sb", sb, 32); fails++; }
     }
 
     /* --- Test 6: ECDH with invalid point must fail --- */
     u8 bad[65];
-    oc_memcpy(bad, pb, 65);
+    memcpy(bad, pb, 65);
     bad[64] ^= 0x01;
-    v = ec_ecdh(EC_P256, da, 32, bad, 65, sa, 32);
+    v = crypto_ec_ecdh(EC_P256, da, 32, bad, 65, sa, 32);
     printf("ec_ecdh invalid point: %s (v=%d)\n", v == -1 ? "PASS" : "FAIL", v);
     if (v != -1) fails++;
 
@@ -117,8 +117,8 @@ int main(void) {
     u8 d384[48], p384[97];
     crypto_random(d384, 48);
     d384[0] &= 0x3f;
-    if (ec_pub_from_priv(EC_P384, d384, 48, p384, 97) != 0 ||
-        ec_pub_valid(EC_P384, p384, 97) != 1) {
+    if (crypto_ec_pub_from_priv(EC_P384, d384, 48, p384, 97) != 0 ||
+        crypto_ec_pub_valid(EC_P384, p384, 97) != 1) {
         printf("ec_p384 scalar mult + on-curve: FAIL\n");
         fails++;
     } else {

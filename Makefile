@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS (current release: WP-10d)
+# Open Cube OS (current release: WP-10-project_restructure-fix1)
 # File: Makefile
 #
 # Targets:
@@ -39,24 +39,39 @@ SEABIOS_DIR  ?= $(OC_TOOLS)/share/seabios
 # OC_RELEASE_VERSION is baked into the kernel banner + uname + update
 # check (WP-10u).  Override for the end-to-end update test:
 #   make OC_RELEASE_VERSION=WP-10c-test1
-OC_RELEASE_VERSION ?= WP-10d-fix2
+OC_RELEASE_VERSION ?= WP-10-project_restructure-fix1
+
+# ---- Source tree (WP-10-project_restructure-fix1 layout) ----
+# One folder per module.  All include paths are exported to the compiler so
+# every #include stays a plain basename include (multi -I strategy).
+# NOTE: must be defined BEFORE CFLAGS because CFLAGS uses := (immediate).
+KERNEL_DIRS := kernel kernel/arch/x86_64 kernel/core kernel/mem kernel/lib \
+               kernel/crypto kernel/ota \
+               drivers/block drivers/nic drivers/snd drivers/usb \
+               drivers/input drivers/display drivers/pci \
+               fs net shell l1
+# NOTE: kernel/generated is deliberately NOT in KERNEL_DIRS: it only holds
+# the stage-2 generated grub_boot_data.c, which is compiled separately
+# (GRUB_DATA_OBJ) and linked in the second link stage only.
+KERNEL_INC := $(foreach d,$(KERNEL_DIRS) boot tools,-I$(OC_ROOT)/$(d))
+
 CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
-	     -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel \
-	     -fno-asynchronous-unwind-tables -Wall -Wextra -Werror \
-	     -O2 -g -std=gnu11 -I$(OC_ROOT)/kernel \
-	     -DOC_RELEASE_VERSION=\"$(OC_RELEASE_VERSION)\" \
-	     -MMD -MP
+             -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel \
+             -fno-asynchronous-unwind-tables -Wall -Wextra -Werror \
+             -O2 -g -std=gnu11 $(KERNEL_INC) \
+             -DOC_RELEASE_VERSION=\"$(OC_RELEASE_VERSION)\" \
+             -MMD -MP
 ASFLAGS   := -f elf64 -F dwarf -g
 LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/linker.ld -z max-page-size=0x1000 -z noexecstack
 
-# Sources
-# grub_boot_stub.c is compiled separately (stage-1 link only).
-KERNEL_C    := $(filter-out $(OC_ROOT)/kernel/grub_boot_stub.c,$(wildcard $(OC_ROOT)/kernel/*.c))
+# Sources (recursive over KERNEL_DIRS)
+# boot/grub_boot_stub.c is compiled separately (stage-1 link only).
+KERNEL_C    := $(foreach d,$(KERNEL_DIRS),$(wildcard $(OC_ROOT)/$(d)/*.c))
 KERNEL_ASM_B := $(wildcard $(OC_ROOT)/boot/*.S)
-KERNEL_ASM_K := $(wildcard $(OC_ROOT)/kernel/*.S)
-KERNEL_OBJ  := $(patsubst $(OC_ROOT)/kernel/%.c,$(BUILD)/%.o,$(KERNEL_C)) \
-	       $(patsubst $(OC_ROOT)/boot/%.S,$(BUILD)/boot_%.o,$(KERNEL_ASM_B)) \
-	       $(patsubst $(OC_ROOT)/kernel/%.S,$(BUILD)/%.o,$(KERNEL_ASM_K))
+KERNEL_ASM_K := $(wildcard $(OC_ROOT)/kernel/arch/x86_64/*.S)
+KERNEL_OBJ  := $(patsubst $(OC_ROOT)/%.c,$(BUILD)/%.o,$(KERNEL_C)) \
+               $(patsubst $(OC_ROOT)/boot/%.S,$(BUILD)/boot_%.o,$(KERNEL_ASM_B)) \
+               $(patsubst $(OC_ROOT)/kernel/%.S,$(BUILD)/%.o,$(KERNEL_ASM_K))
 
 KERNEL     := $(BUILD)/opencube.elf
 KERNEL_ISO := $(BUILD)/opencube.iso
@@ -85,20 +100,23 @@ $(BUILD):
 	mkdir -p $(BUILD)
 
 # C source → object file (with header dependency tracking, BUG-025 FIX)
-$(BUILD)/%.o: $(OC_ROOT)/kernel/%.c | $(BUILD)
+$(BUILD)/%.o: $(OC_ROOT)/%.c | $(BUILD)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Assembly source (boot/) → object file
 $(BUILD)/boot_%.o: $(OC_ROOT)/boot/%.S | $(BUILD)
 	$(NASM) $(ASFLAGS) $< -o $@
 
-# Assembly source (kernel/) → object file
+# Assembly source (kernel/arch/x86_64/) → object file
 $(BUILD)/%.o: $(OC_ROOT)/kernel/%.S | $(BUILD)
+	@mkdir -p $(dir $@)
 	$(NASM) $(ASFLAGS) $< -o $@
 
 # Link the kernel ELF in two stages (see WP-10d-pre note above), then
 # strip debug info (removes build-machine paths)
-$(STUB_OBJ): $(OC_ROOT)/kernel/grub_boot_stub.c $(OC_ROOT)/kernel/grub_boot_data.h | $(BUILD)
+$(STUB_OBJ): $(OC_ROOT)/boot/grub_boot_stub.c $(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BASE_ELF): $(KERNEL_OBJ) $(STUB_OBJ) $(OC_ROOT)/linker.ld | $(BUILD)
@@ -106,10 +124,11 @@ $(BASE_ELF): $(KERNEL_OBJ) $(STUB_OBJ) $(OC_ROOT)/linker.ld | $(BUILD)
 	strip --strip-debug $@
 
 $(GRUB_DATA_C): $(OC_ROOT)/tools/embed_grub.py $(BASE_ELF) \
-	        $(OC_ROOT)/kernel/grub_boot_data.h | $(BUILD)
+                $(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
 	python3 $(OC_ROOT)/tools/embed_grub.py "$(OC_TOOLS)" $(BASE_ELF) $@
 
-$(GRUB_DATA_OBJ): $(GRUB_DATA_C) $(OC_ROOT)/kernel/grub_boot_data.h | $(BUILD)
+$(GRUB_DATA_OBJ): $(GRUB_DATA_C) $(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(OC_ROOT)/linker.ld | $(BUILD)
@@ -144,18 +163,18 @@ $(ETC_IMG): $(OC_ROOT)/etc/opencube.conf | $(BUILD)
 # BIOS boot: SeaBIOS loads GRUB from El Torito, GRUB loads kernel.
 run-bios: $(KERNEL_ISO) $(ETC_IMG)
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
-	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
-	  -drive if=ide,format=raw,file=$(ETC_IMG) \
-	  -no-reboot -display none -serial stdio -monitor none -vga std -snapshot
+          -m 256M -cdrom $(KERNEL_ISO) -boot d \
+          -drive if=ide,format=raw,file=$(ETC_IMG) \
+          -no-reboot -display none -serial stdio -monitor none -vga std -snapshot
 
 # UEFI boot: OVMF loads GRUB EFI from El Torito, GRUB loads kernel.
 run-uefi: $(KERNEL_ISO) $(ETC_IMG)
 	cp $(OVMF_FD) $(BUILD)/OVMF_WORK.fd
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
-	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
-	  -drive if=ide,format=raw,file=$(ETC_IMG) \
-	  -no-reboot -display none -serial stdio -monitor none -vga std -snapshot \
-	  -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
+          -m 256M -cdrom $(KERNEL_ISO) -boot d \
+          -drive if=ide,format=raw,file=$(ETC_IMG) \
+          -no-reboot -display none -serial stdio -monitor none -vga std -snapshot \
+          -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
 
 # ---- GUI runs (keyboard input via the QEMU window) ----
 # The -display none targets above are headless: there is no graphical window,
@@ -166,17 +185,17 @@ run-uefi: $(KERNEL_ISO) $(ETC_IMG)
 # output and type there too; both feeds share the same input queue.
 run-bios-gui: $(KERNEL_ISO) $(ETC_IMG)
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
-	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
-	  -drive if=ide,format=raw,file=$(ETC_IMG) \
-	  -no-reboot -display gtk -serial stdio -monitor none -vga std -snapshot
+          -m 256M -cdrom $(KERNEL_ISO) -boot d \
+          -drive if=ide,format=raw,file=$(ETC_IMG) \
+          -no-reboot -display gtk -serial stdio -monitor none -vga std -snapshot
 
 run-uefi-gui: $(KERNEL_ISO) $(ETC_IMG)
 	cp $(OVMF_FD) $(BUILD)/OVMF_WORK.fd
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
-	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
-	  -drive if=ide,format=raw,file=$(ETC_IMG) \
-	  -no-reboot -display gtk -serial stdio -monitor none -vga std -snapshot \
-	  -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
+          -m 256M -cdrom $(KERNEL_ISO) -boot d \
+          -drive if=ide,format=raw,file=$(ETC_IMG) \
+          -no-reboot -display gtk -serial stdio -monitor none -vga std -snapshot \
+          -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
 
 # Screenshots: use VNC + monitor screendump, convert PPM→PNG via PIL.
 shot-bios: $(KERNEL_ISO)
@@ -190,27 +209,27 @@ shot-uefi: $(KERNEL_ISO)
 # are written back to build/etc.img and survive a reboot.
 run-bios-persist: $(KERNEL_ISO) $(ETC_IMG)
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
-	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
-	  -drive if=ide,format=raw,file=$(ETC_IMG) \
-	  -no-reboot -display none -serial stdio -monitor none -vga std
+          -m 256M -cdrom $(KERNEL_ISO) -boot d \
+          -drive if=ide,format=raw,file=$(ETC_IMG) \
+          -no-reboot -display none -serial stdio -monitor none -vga std
 
 run-uefi-persist: $(KERNEL_ISO) $(ETC_IMG)
 	cp $(OVMF_FD) $(BUILD)/OVMF_WORK.fd
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
-	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
-	  -drive if=ide,format=raw,file=$(ETC_IMG) \
-	  -no-reboot -display none -serial stdio -monitor none -vga std \
-	  -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
+          -m 256M -cdrom $(KERNEL_ISO) -boot d \
+          -drive if=ide,format=raw,file=$(ETC_IMG) \
+          -no-reboot -display none -serial stdio -monitor none -vga std \
+          -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
 
 clean:
-	rm -rf $(BUILD) $(DIST) $(ISO_DIR)/boot/opencube.elf $(GEN_DIR)
+	rm -rf $(BUILD) $(DIST) $(ISO_DIR)/boot/opencube.elf $(GEN_DIR)/grub_boot_data.c
 
 # ---- Distribution: source zip + ISO ----
 dist: $(KERNEL_ISO)
 	mkdir -p $(DIST)
 	TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
-	SRCZIP=$(DIST)/OpenCubeOS-src-WP-10d-$$TIMESTAMP.zip; \
-	ISOCOPY=$(DIST)/OpenCubeOS-WP-10d-$$TIMESTAMP.iso; \
+	SRCZIP=$(DIST)/OpenCubeOS-src-$(OC_RELEASE_VERSION)-$$TIMESTAMP.zip; \
+	ISOCOPY=$(DIST)/OpenCubeOS-$(OC_RELEASE_VERSION)-$$TIMESTAMP.iso; \
 	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*" "website/rw*.sh" "website/build-local.sh" "website/public/downloads/*" "website/out/*" "website/.next/*" "website/node_modules/*" "kernel/generated/*"); \
 	cp $(KERNEL_ISO) $$ISOCOPY; \
 	echo "SRC: $$SRCZIP"; \

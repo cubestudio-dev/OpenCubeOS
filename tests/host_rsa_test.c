@@ -5,10 +5,10 @@
  */
 #include <stdio.h>
 #include "types.h"
-#include "rsa.h"
-void *oc_memset(void*,int,unsigned long);
-void *oc_memcpy(void*,const void*,unsigned long);
-int   oc_memcmp(const void*,const void*,unsigned long);
+#include "crypto_rsa.h"
+void *memset(void*,int,unsigned long);
+void *memcpy(void*,const void*,unsigned long);
+int   memcmp(const void*,const void*,unsigned long);
 
 static unsigned char N[576], E[8], SIG[576], HASH[32], HASH_PSS[32], SIG_PSS[576];
 static int N_LEN, E_LEN, SIG_LEN, SIG_PSS_LEN;
@@ -36,19 +36,19 @@ int main(int argc, char **argv) {
         return 2;
     }
     int fails = 0;
-    int v = rsa_verify_pkcs1(N, N_LEN, E, E_LEN, RSA_SHA256, HASH, 32, SIG, SIG_LEN);
+    int v = crypto_rsa_verify_pkcs1(N, N_LEN, E, E_LEN, RSA_SHA256, HASH, 32, SIG, SIG_LEN);
     printf("%-42s %s (v=%d)\n", "pkcs1 verify openssl sig", v == 1 ? "PASS" : "FAIL", v);
     if (v != 1) fails++;
     SIG[100] ^= 0x40;
-    v = rsa_verify_pkcs1(N, N_LEN, E, E_LEN, RSA_SHA256, HASH, 32, SIG, SIG_LEN);
+    v = crypto_rsa_verify_pkcs1(N, N_LEN, E, E_LEN, RSA_SHA256, HASH, 32, SIG, SIG_LEN);
     printf("%-42s %s (v=%d)\n", "pkcs1 corrupted rejected", v == 0 ? "PASS" : "FAIL", v);
     if (v != 0) fails++;
     SIG[100] ^= 0x40;
-    v = rsa_verify_pss(N, N_LEN, E, E_LEN, RSA_SHA256, HASH_PSS, 32, SIG_PSS, SIG_PSS_LEN);
+    v = crypto_rsa_verify_pss(N, N_LEN, E, E_LEN, RSA_SHA256, HASH_PSS, 32, SIG_PSS, SIG_PSS_LEN);
     printf("%-42s %s (v=%d)\n", "pss verify openssl sig (salt=32)", v == 1 ? "PASS" : "FAIL", v);
     if (v != 1) fails++;
     HASH_PSS[0] ^= 1;
-    v = rsa_verify_pss(N, N_LEN, E, E_LEN, RSA_SHA256, HASH_PSS, 32, SIG_PSS, SIG_PSS_LEN);
+    v = crypto_rsa_verify_pss(N, N_LEN, E, E_LEN, RSA_SHA256, HASH_PSS, 32, SIG_PSS, SIG_PSS_LEN);
     printf("%-42s %s (v=%d)\n", "pss wrong hash rejected", v == 0 ? "PASS" : "FAIL", v);
     if (v != 0) fails++;
     printf(fails ? "== %d FAILURES ==\n" : "== ALL PASS ==\n", fails);

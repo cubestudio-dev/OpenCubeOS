@@ -9,15 +9,15 @@ surface is now 129.**
 WP-10d-fix2 brings real power management to the oc> shell (the system had
 `reboot` but no way to power off) and replaces the registration-order
 `help` listing with two structured views. All previous interfaces remain
-unchanged. The header `kernel/power.h` is self-contained; the shell
-extensions live in `kernel/shell.h`.
+unchanged. The header `kernel/core/core_power.h` is self-contained; the shell
+extensions live in `shell/shell.h`.
 
-## 1. Power management (kernel/power.h)
+## 1. Power management (kernel/core/core_power.h)
 
-Every path flushes all block devices first (`power_flush_blk()`), so an
+Every path flushes all block devices first (`core_power_flush_blk()`), so an
 A/B update and user data survive the power transition.
 
-### item 123 — `int power_shutdown(void)`
+### item 123 — `int core_power_shutdown(void)`
 
 Power off the machine. Tries, in order:
 
@@ -26,14 +26,14 @@ Power off the machine. Tries, in order:
 3. legacy APM shutdown word — `outw(0xF000, 0x0000)`.
 
 Returns `OC_POWER_E_UNSUPPORTED` (-1) when the machine is still running
-after all three attempts (the caller should then `power_halt()`).
+after all three attempts (the caller should then `core_power_halt()`).
 **On success the function never returns.**
 
 Shell: `shutdown` / `poweroff` (alias) — print `Shutting down...`, then
 `Powering off...` on QEMU, or the honest fallback
 `Power off not supported. System halted.`
 
-### item 124 — `int power_suspend(void)`
+### item 124 — `int core_power_suspend(void)`
 
 Suspend to RAM (ACPI S3). Open Cube OS does not implement the ACPI S3
 wake path yet (FADT parsing / wake vector / resume belong to WP-10e), so
@@ -43,7 +43,7 @@ suspend, no silent downgrade.
 
 Shell: `suspend` / `sleep` (alias).
 
-### item 125 — `void power_halt(void)`
+### item 125 — `void core_power_halt(void)`
 
 Stop the CPU forever: print `System halted.`, hide the cursor, `cli`,
 then an `hlt` loop (interrupts stay disabled so nothing wakes the CPU).
@@ -51,16 +51,16 @@ Never returns.
 
 Shell: `halt`.
 
-### item 126 — `void power_reboot(void)`
+### item 126 — `void core_power_reboot(void)`
 
 Flush every block device, print `Rebooting...`, then reset via the 8042
 keyboard controller (`outb(0x64, 0xFE)`) with the ACPI RESET_REG
 (`0xCF9`, sequence 0x02 then 0x06) as fallback. Never returns.
 
-Shell: `reboot` (implementation moved from `ab_update.c`; the WP-10u
+Shell: `reboot` (implementation moved from `ota_ab_update.c`; the WP-10u
 path is preserved bit-for-bit).
 
-## 2. Structured help (kernel/shell.h)
+## 2. Structured help (shell/shell.h)
 
 ### item 127 — `int shell_register_command_ex(name, handler, help, wp)`
 
@@ -85,12 +85,12 @@ by L1 code that are not in the table appended A-Z at the end.
 
 Shell: `help` (default = A-Z), `help -a` (same), `help -w` (grouped).
 
-## 3. Shell test suite (kernel/power_test_cmds.c)
+## 3. Shell test suite (shell/shell_cmds_power_test.c)
 
 | command | what it really does |
 |---|---|
-| `poweroff_test` | really calls `power_shutdown()` — on QEMU the process exits (verified: exit code 0 after `Powering off...`) |
-| `suspend_test` | really calls `power_suspend()` and requires the honest unsupported contract |
+| `poweroff_test` | really calls `core_power_shutdown()` — on QEMU the process exits (verified: exit code 0 after `Powering off...`) |
+| `suspend_test` | really calls `core_power_suspend()` and requires the honest unsupported contract |
 | `halt_test` | verifies the halt path; a true `cli;hlt` cannot return, the live halt is verified by running `halt` (serial goes silent) |
 | `reboot_test` | really flushes every block device; the live reset is verified by running `reboot` (boot banner reappears) |
 | `help_default_test` | verifies the A-Z ordering of the full table |
