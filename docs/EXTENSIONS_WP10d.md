@@ -120,9 +120,13 @@ New kernel header: `kernel/usb.h` (rewritten for WP-10d).
 * **Doc**: same contract as `uhci_init`.
 * **Implementation**: PCI class 0x0c0310, HCCA + control/bulk/int
   ED/TD pools, HcControl HCFS=USBOPERATIONAL with CLE/BLE/PLE.
-  Verified limits: host registration, port reset, device-level
-  bring-up still being debugged (honest status — see the WP-10d
-  delivery report).
+  Live-verified in QEMU (pci-ohci): keyboard + mouse enumeration with
+  product strings, HID attach, usb_core_test 5/5, MSC capacity/MBR/
+  write-read-back, FAT32 mkfs + mount + file round-trip, real
+  hot-plug (device_add during a wait window).  Control transfers
+  set TD_R (buffer rounding) on the DATA TD and the status TD
+  direction is a full 32-bit field - both were STALL/underrun bugs
+  fixed in the device-level bring-up.
 
 ## 10. `int ehci_init(const pci_dev_t *dev)` — `kernel/usb_ehci.c`
 
@@ -147,8 +151,15 @@ New kernel header: `kernel/usb.h` (rewritten for WP-10d).
   intercepted and mapped onto the native AddressDevice), lazy
   ConfigureEndpoint on first non-default endpoint use, endpoint
   contexts with spec layout (DW1 type+MPS, DW2 dequeue|DCS), PORTSC
-  with the 16-byte register stride.  Live-verified in QEMU:
-  keyboard + mouse enumeration and HID event flow.
+  with the 16-byte register stride.  Reset Endpoint / Set TR
+  Dequeue carry the endpoint ID in control bits 20:16 (spec Table
+  6-42/6-44) - an EPID of 0 made the controller retire the command
+  with TRB Error and left a halted endpoint unrecoverable.  Live-
+  verified in QEMU: keyboard + mouse enumeration and HID event
+  flow, usb_core_test 5/5, MSC attach + INQUIRY/READ CAPACITY and
+  full BOT sequences on the bus (honest gap: qemu-xhci's
+  usb-storage still STALLs the BOT CSW handback after the first
+  STALL recovery; UHCI/OHCI/EHCI MSC fully verified).
 
 ---
 

@@ -130,6 +130,7 @@ disk_setup.c 4 (rule-9 self-hosting: abdisk/install/grub-install/abcfg),
 disk_test_cmds.c 8 (WP-10a storage test suite), nic_test_cmds.c 18
 (WP-10b: 10 NIC tests + 8 NIC status commands), snd_test_cmds.c 17
 (WP-10c sound status commands + tests), update_test_cmds.c 10 (WP-10u),
+usb_test_cmds.c 9 (WP-10d: usb/usbdev status + 7 test commands),
 shell.c 5, ext_wp8cd.c 1 — some register the same name at different
 stages, so the live boot count is authoritative. Full list: type `help`
 at the `oc>` prompt.

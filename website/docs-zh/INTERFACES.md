@@ -4,7 +4,7 @@
      reading convenience). The English original in the repository is
      authoritative. Signatures and code blocks are kept verbatim. -->
 
-# Open Cube OS — 接口索引（截至 WP-10c）（截至 WP-10u）
+# Open Cube OS — 接口索引（截至 WP-10d）
 
 Open Cube OS 向上层（L1）与 shell 暴露的每一个接口的单页索引。
 签名逐字复制自头文件——完整文档与示例见各头文件。
@@ -121,11 +121,12 @@ DH 自测真值向量：kernel/dh_scale_vectors.h。
 | 系统内更新（WP-10u） | kernel/ab_update.h | oc_ext_update_check_pkg(out)、oc_ext_update_download(url, path)、oc_ext_update_verify(path, sha256)、oc_ext_update_install(pkg, slot)、oc_ext_update_rollback()、oc_ext_update_set_boot(slot)、oc_ext_update_get_status(out) |
 | 网卡驱动（WP-10b） | kernel/nic.h | nic_register(dev, ops)、nic_send/recv(dev, ...)、nic_link_status(dev)、nic_get_mac(dev, mac)、e1000e_init/igb_init/ixgbe_init/rtl8139_init/rtl8168_init/rtl8125_init/rtl810x_init/bcm57xx_init(pci_dev)、other_nics_init、nic_probe_all、nic_active |
 | 声卡驱动（WP-10c） | kernel/snd.h、usb.h | snd_register(dev, ops)、snd_play/stop/set_rate/set_volume/get_caps(dev, ...)、hda_init/ac97_init/es1370_init/virtio_snd_init(pci_dev)、sb16_init(isa_dev)、usb_audio_init(usb_dev)、snd_probe_all；USB：usb_init、usb_enumerate、usb_control、usb_set_interface、usb_iso_out_submit（kernel/usb.h） |
+| USB 主机栈（WP-10d） | kernel/usb.h | usb_register_host(host, ops)、usb_enumerate_host(host)、usb_control_transfer(d, setup, buf, len)、usb_bulk_transfer(d, ep, buf, len)（含 _timeout）、usb_interrupt_transfer(d, ep, buf, len)、usb_isochronous_transfer(d, ep, buf, len)、usb_register_driver(name, class, probe, disconnect)、uhci_init / ohci_init / ehci_init / xhci_init(pci_dev)；类驱动 hid-kbd/hid-mouse/usb-msc/usb-serial/usb-audio；命令：usb、usbdev |
 | TCP socket 状态（WP-10a-fix） | kernel/net.h | net_tcp_established(fd) |
 
 ## 4. Shell 命令面
 
-150 条命令在 boot 时注册（实测计数；`help` 列出 150 个不重复名）。
+159 条命令在 boot 时注册（实测计数；`help` 列出 159 个不重复名）。
 `shell_register_command` 调用点（静态计数）：kmain.c 48（含 update/rollback/reboot）、
 net.c 17、file_cmds.c 18、disk_cmds.c 7、
 disk_setup.c 4（第 ⑨ 条自宿主：abdisk/install/grub-install/abcfg）、
@@ -133,6 +134,7 @@ disk_test_cmds.c 8（WP-10a 存储测试套件）、
 nic_test_cmds.c 18（WP-10b：10 个 NIC 测试 + 8 个 NIC 状态命令）、
 snd_test_cmds.c 17（WP-10c：声卡状态命令 + 声卡测试）、
 update_test_cmds.c 10（WP-10u：update_pkg/ab_partition/update_check/update_download/update_verify/update_install/update_rollback/update_local/update_status/real_update）、
+usb_test_cmds.c 9（WP-10d：usb/usbdev 状态命令 + 7 个测试命令）、
 shell.c 5、ext_wp8cd.c 1——部分在不同阶段注册同名命令，以 boot 实测计数为准。
 完整列表：在 `oc>` 提示符输入 `help`。
 

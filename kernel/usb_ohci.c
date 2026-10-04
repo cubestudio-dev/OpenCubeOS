@@ -299,7 +299,11 @@ static int ohci_control(usb_host_t *h, usb_dev_t *d,
         u8 tog = 1;   /* control DATA phase starts with DATA1 */
         while (remaining > 0 && td < OHCI_N_CTRL_TD - 1) {
             u16 chunk = remaining > mps ? mps : remaining;
-            tds[td].word0 = TD_CC_NOTACC | dp |
+            /* TD_R: tolerate short packets - GET_DESCRIPTOR(STRING) and
+             * friends ask for more bytes than the device returns, and
+             * without buffer rounding the HC retires the TD with
+             * DataUnderrun instead of NOERROR. */
+            tds[td].word0 = TD_CC_NOTACC | TD_R | dp |
                             (tog ? TD_T1 : TD_T0) | (chunk - 1);
             tds[td].cur = (u32)bp;
             tds[td].next = (u32)(o->ctrl_td_phys +
@@ -317,8 +321,11 @@ static int ohci_control(usb_host_t *h, usb_dev_t *d,
         ntd = td + 1;
     }
 
-    /* STATUS TD: zero length, DATA1, opposite direction */
-    u8 dp_stat = (setup->bmRequestType & 0x80) ? TD_DP_OUT : TD_DP_IN;
+    /* STATUS TD: zero length, DATA1, opposite direction.
+     * NOTE: must be u32 - TD_DP_* are bit-19/20 fields and an u8 would
+     * truncate them to 0 (= SETUP), which makes the device STALL the
+     * status stage of every control transfer. */
+    u32 dp_stat = (setup->bmRequestType & 0x80) ? TD_DP_OUT : TD_DP_IN;
     tds[ntd - 1].word0 = TD_CC_NOTACC | dp_stat | TD_T1 | 0;
     tds[ntd - 1].cur = 0;
     tds[ntd - 1].next = 0;
@@ -457,7 +464,9 @@ static int ohci_interrupt(usb_host_t *h, usb_dev_t *d, u8 ep_addr,
     u8 tog = ohci_tog_get(o, d, ep_addr);
     ohci_ed_t *ed = o->int_ed;
     ohci_td_t *td = o->int_td;
-    td->word0 = TD_CC_NOTACC | dp | (tog ? TD_T1 : TD_T0) | (len - 1);
+    /* TD_R: interrupt IN endpoints may deliver less than asked for */
+    td->word0 = TD_CC_NOTACC | dp | (dp == TD_DP_IN ? TD_R : 0) |
+                (tog ? TD_T1 : TD_T0) | (len - 1);
     td->cur = (u32)o->int_buf_phys;
     td->next = 0;
     td->be = (u32)(o->int_buf_phys + len - 1);

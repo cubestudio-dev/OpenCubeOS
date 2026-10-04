@@ -514,7 +514,13 @@ int xhci_reset_ep(usb_dev_t *d, u8 ep_addr) {
         if (ridx < 0) return OC_USB_EINVAL;
         xhci_ring_t *r = &s->ep[ridx];
         if (!s->halted[ridx]) return 0;
-        u32 slotf = ((u32)s->hw_slot << TRB_SLOT_SH) | (u32)epid;
+        /* Reset Endpoint / Set TR Dequeue: Endpoint ID lives in
+         * control bits 20:16 (xHCI 1.2 Table 6-42/6-44) and the slot
+         * in bits 31:24.  An EPID of 0 is invalid - the controller
+         * retires such a command with TRB Error and the endpoint
+         * stays halted forever. */
+        u32 slotf = ((u32)s->hw_slot << TRB_SLOT_SH) |
+                    ((u32)epid << 16);
         /* 1. Reset Endpoint (clears the halt in the controller) */
         xhci_do_cmd(x, 0, 0, (TRB_RESET_EP << TRB_TYPE_SH) | slotf,
                     1000);
@@ -1093,6 +1099,17 @@ static int xhci_probe_one(u8 bus, u8 dev, u8 func) {
     /* publish everything, then run */
     xwr(x, x->op, XHCI_CRCR, (u32)(cr | 1u));          /* CRCR + cycle */
     xwr(x, x->op, XHCI_CRCR + 4, (u32)(cr >> 32));
+    {
+        char dl[96], dn[16];
+        u32 rb0 = xrd(x, x->op, XHCI_CRCR);
+        u32 rb1 = xrd(x, x->op, XHCI_CRCR + 4);
+        oc_strcpy(dl, "xhci: CRCR readback 0x");
+        oc_u64_to_hex(((u64)rb1 << 32) | rb0, dn, 8);
+        oc_strcat(dl, dn); oc_strcat(dl, " op=0x");
+        oc_u64_to_hex((u64)(uintptr_t)x->op, dn, 8);
+        oc_strcat(dl, dn); oc_strcat(dl, "\n");
+        oc_console_puts(dl);
+    }
     xwr(x, x->op, XHCI_DCBAAP, (u32)(dc & 0xffffffffu));
     xwr(x, x->op, XHCI_DCBAAP + 4, (u32)(dc >> 32));
     xwr(x, x->op, XHCI_CONFIG, (x->max_slots & 0xffffu) << 16);
