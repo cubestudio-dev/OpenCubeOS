@@ -18,22 +18,22 @@ function fmtBytes(n: number): string {
 }
 export { fmtBytes };
 
-// WP-10c-selfhost stats (same caliber as lib/site.ts; see there for verify commands)
+// WP-10d stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "69,910", label: "行源码" },
-    { value: "111", label: "L1 扩展接口" },
+    { value: "75,806", label: "行源码" },
+    { value: "122", label: "L1 扩展接口" },
     { value: "37", label: "系统调用" },
-    { value: "150", label: "shell 命令" },
-    { value: "13", label: "工作包" },
+    { value: "159", label: "shell 命令" },
+    { value: "14", label: "工作包" },
     { value: "18/18", label: "QEMU 回归" },
   ],
   en: [
-    { value: "69,910", label: "lines of source" },
-    { value: "111", label: "L1 extension interfaces" },
+    { value: "75,806", label: "lines of source" },
+    { value: "122", label: "L1 extension interfaces" },
     { value: "37", label: "system calls" },
-    { value: "150", label: "shell commands" },
-    { value: "13", label: "work packages" },
+    { value: "159", label: "shell commands" },
+    { value: "14", label: "work packages" },
     { value: "18/18", label: "QEMU regression" },
   ],
 };
@@ -47,6 +47,11 @@ export const FEATURES: Bi<
       name: "用户角度可用性（第 ⑨ 条审计）",
       tag: "rule-9 audit",
       desc: "按“测试通过 ≠ 用户能用”对全部功能逐项审计：每功能五要素（有命令/有工具/有文档/有示例/有反馈）与五能力（能创建/能使用/能回滚/能查看/能理解）。落地：TRY-IT.md 用户指南（开机即试）、UPDATE-HOWTO.md OTA 分步指南、make_ab_disk.sh 一键 A/B 磁盘、mkfs/fsck 修复、play/volume 未知设备报可用名单；修复后 18/18 回归 + 存储/网卡/声卡/OTA 复测全 PASS。",
+    },
+    {
+      name: "USB 主机栈（四控制器）",
+      tag: "WP-10d",
+      desc: "UHCI / OHCI / EHCI / XHCI 四个主机控制器后端全部设备级枚举跑通：HID 键盘/鼠标（中断 IN）、MSC 存储（BOT+SCSI，对接 blk + FAT32 读写往返）、CDC-ACM/FTDI 串口、UAC 1.0/2.0 音频；外部 Hub 级联枚举与真热插拔（等待窗口内 device_add 实测）；usb/usbdev 状态命令 + 7 个测试命令全部系统内可用。",
     },
     {
       name: "声卡驱动（六族）",
@@ -109,6 +114,11 @@ export const FEATURES: Bi<
       name: "User-angle usability (rule-9 audit)",
       tag: "rule-9 audit",
       desc: "Every feature audited item by item against \"passing tests ≠ usable by users\": five elements per feature (a command, a tool, docs, examples, feedback) and five abilities (create, use, roll back, inspect, understand). Delivered: the TRY-IT.md user guide, the UPDATE-HOWTO.md step-by-step OTA guide, one-command A/B disks via make_ab_disk.sh, mkfs/fsck fixes and play/volume unknown-device feedback that lists the available names; after the fixes, 18/18 regression plus the storage/NIC/sound/OTA re-runs all PASS.",
+    },
+    {
+      name: "USB host stack (four controllers)",
+      tag: "WP-10d",
+      desc: "All four host controller backends (UHCI / OHCI / EHCI / XHCI) verified at device level: HID keyboard/mouse (interrupt IN), MSC storage (BOT+SCSI wired into blk with FAT32 round-trips), CDC-ACM/FTDI serial, UAC 1.0/2.0 audio; external hub cascade enumeration and real hot-plug (device_add inside a wait window); usb/usbdev status commands + 7 test commands, all usable from the oc> shell.",
     },
     {
       name: "Sound card drivers (six families)",
@@ -274,6 +284,10 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
       no: "WP-10c",
       title: "声卡驱动：Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB 音频 + snd_* 扩展接口",
     },
+    {
+      no: "WP-10d",
+      title: "USB 主机栈：UHCI/OHCI/EHCI/XHCI 四控制器设备级枚举 + HID/MSC/串口/音频类驱动 + Hub/热插拔",
+    },
   ],
   en: [
     { no: "WP-01", title: "Boot + framebuffer + text rendering" },
@@ -307,6 +321,10 @@ export const WORK_PACKAGES: Bi<{ no: string; title: string }[]> = {
       no: "WP-10c",
       title: "Sound card drivers: Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB audio + the snd_* extension API",
     },
+    {
+      no: "WP-10d",
+      title: "USB host stack: device-level bring-up on UHCI/OHCI/EHCI/XHCI + HID/MSC/serial/audio class drivers + hub and hot-plug",
+    },
   ],
 };
 
@@ -316,6 +334,10 @@ export const VERIFY: Bi<{ name: string; desc: string }[]> = {
     {
       name: "18/18 QEMU 全量回归",
       desc: "boot 横幅 + uname + 12 个用户程序 + p3_test + heaptest + l1test + crashlog，单次 QEMU 会话完成（挂全部四类盘）。",
+    },
+    {
+      name: "WP-10d USB 测试 9 项",
+      desc: "usb_core_test（主机注册/设备表一致/每设备 GET_STATUS/类驱动注册/重枚举幂等 5/5）、usb_kbd_test / usb_mouse_test（HID attach + 中断轮询）、usb_storage_test（容量/MBR/写读回校验/恢复）、usb_serial_test（CDC-ACM 环回）、usb_hotplug_test（等待窗口真插拔）、usb_hub_test 在 QEMU 四控制器实测；UHCI/OHCI/EHCI 全 PASS，XHCI 枚举/HID/核心测试 PASS（MSC CSW 缺口如实标注）。",
     },
     {
       name: "WP-10c 声卡测试 9 项",
@@ -346,6 +368,10 @@ export const VERIFY: Bi<{ name: string; desc: string }[]> = {
     {
       name: "18/18 full QEMU regression",
       desc: "boot banner + uname + 12 user programs + p3_test + heaptest + l1test + crashlog, executed in a single QEMU session with all four disk types attached.",
+    },
+    {
+      name: "9 WP-10d USB tests",
+      desc: "usb_core_test (host registration / device-table consistency / live GET_STATUS per device / class-driver registry / idempotent re-enumeration, 5/5), usb_kbd_test / usb_mouse_test (HID attach + interrupt polling), usb_storage_test (capacity/MBR/write-read-back/restore), usb_serial_test (CDC-ACM loopback), usb_hotplug_test (real plug during a wait window), usb_hub_test — all exercised on four controllers in QEMU; UHCI/OHCI/EHCI fully PASS, XHCI enum/HID/core PASS (MSC CSW gap documented honestly).",
     },
     {
       name: "9 WP-10c sound tests",

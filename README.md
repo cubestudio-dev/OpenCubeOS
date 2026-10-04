@@ -258,6 +258,43 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   SKIPPED honestly (no QEMU device model), real_hw_test reports NOT RUN
   in a VM. See docs/EXTENSIONS_WP10c.md.
 
+## WP-10d (done) - USB host stack: UHCI / OHCI / EHCI / XHCI + HID/MSC/serial/audio + hub/hot-plug
+
+- **USB core** (kernel/usb.{c,h}): host registry, device table, endpoint
+  management, the four transfer types (control / interrupt / bulk /
+  isochronous), a class-driver registry (probe + disconnect) and the
+  enumeration walker (root ports + external hub cascade + hot-plug).
+- **UHCI** (kernel/usb.c, PIIX3): full chain - kbd/mouse/hub cascade
+  enumeration, MSC, FAT32 round-trip, hot-plug.
+- **OHCI** (kernel/usb_ohci.c): independent verification session ALL
+  PASS - enumeration with product strings, usb_core_test 5/5, MSC
+  capacity/MBR/write-read-back, FAT32 mkfs + mount + file round-trip,
+  real hot-plug; fixes: TD_R buffer rounding on control DATA TDs, the
+  status-TD direction kept in u32 (an u8 truncated the bit-19/20
+  direction field to SETUP and STALLed every status stage), TD_R on
+  interrupt IN TDs.
+- **EHCI** (kernel/usb_ehci.c): async ring + qTD engine with
+  spec-correct buffer pointers and the IAAD doorbell; kbd/mouse/storage
+  enumeration, MSC read/write, FAT32 mount and file round-trip, STALL
+  recovery.
+- **XHCI** (kernel/usb_xhci.c): command/event rings, DCBAA + scratchpad,
+  two-stage AddressDevice, lazy ConfigureEndpoint, spec-layout endpoint
+  contexts; Reset Endpoint / Set TR Dequeue endpoint ID now lives in
+  control bits 20:16 (spec Table 6-42/6-44) - the old low-bit layout
+  made the controller retire the commands with TRB Error and left every
+  STALLed endpoint unrecoverable. Enumeration/HID/core tests PASS;
+  the qemu-xhci usb-storage CSW handback gap is documented honestly.
+- **Class drivers**: HID keyboard/mouse (report descriptors), MSC
+  (BOT + SCSI wired into blk), CDC-ACM/FTDI serial, UAC 1.0/2.0.
+- **Commands**: usb, usbdev + usb_core_test / usb_kbd_test /
+  usb_mouse_test / usb_storage_test / usb_serial_test / usb_hotplug_test
+  / usb_hub_test (159 commands at boot; 122 L1 interfaces).
+- **Verification**: UHCI/OHCI/EHCI/XHCI exercised in QEMU with explicit
+  controllers (piix3-usb-uhci, pci-ohci, usb-ehci, qemu-xhci); BIOS +
+  UEFI boot matrix; usb_core_test 5/5 on all four; the OHCI session and
+  the XHCI EPID fix close out the WP-10d controller work. See
+  docs/EXTENSIONS_WP10d.md.
+
 ## Repository layout
 
 ```

@@ -1,9 +1,8 @@
 {
-  "version": "WP-10c-selfhost",
-  "time": "2026-10-03",
-  "changes": "Rule-9 self-hosting batch (WP-10c-selfhost): A/B disk creation (abdisk), OS install to disk (install), GRUB BIOS boot loader install (grub-install) all from the oc> shell - no host tools; the kernel payload travels with the boot media as a multiboot2 module (grub.cfg: module2 ... self); boot-time partition scan registers <disk>pN for every partition; mkfs.fat32 uses the Microsoft cluster-size table so 512 MiB volumes mount; oc_ab_rescan makes update --status work right after abdisk. Docs: docs/EXTENSIONS_SELFHOST.md. QEMU-verified: no-ISO boot, OTA slot B e2e, self-install chain.",
-  "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/WP-10c-selfhost/opencube-wp10c-selfhost-update.tar.gz",
-  "package_sha256": "a7cbf44c9be60d75e53d95a49f00247542cf2c0614e0e7e792c4e6b8662c2c74",
-  "package_size": 483953
+  "version": "WP-10d",
+  "time": "2026-10-04",
+  "changes_full": "WP-10d USB host stack. Four host controller backends verified at device level: UHCI (full chain incl. hub cascade and hot-plug), OHCI (independent session ALL PASS: enumeration with product strings, core 5/5, MSC capacity/MBR/write-read-back, FAT32 round-trip, real hot-plug; fixes: TD_R buffer rounding on control DATA TDs, status-TD direction kept in u32 - the u8 truncation STALLed every status stage, TD_R on interrupt IN), EHCI (kbd/mouse/storage enumeration, MSC rw, FAT32, STALL recovery), XHCI (kbd/mouse enumeration, HID attach, core 5/5; fix: Reset Endpoint / Set TR Dequeue endpoint ID moved to spec bits 20:16 - the old layout made STALL recovery impossible; honest gap: qemu-xhci usb-storage CSW handback). Class drivers: HID keyboard/mouse, MSC storage wired into blk with FAT32 round-trips, CDC-ACM/FTDI serial, UAC 1.0/2.0 audio. usb/usbdev status commands + 7 USB test commands. 159 shell commands, 122 L1 interfaces, 75,806 source lines. BIOS+UEFI boot matrix verified; full regression green.",
+  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10d/opencube-wp10d-update.tar.gz",
+  "package_sha256": "ccc17c9a68cfe7b66b78bd9302d32d52d17a73e58dd971adf9483296d3915db6",
+  "package_size": 515027
 }

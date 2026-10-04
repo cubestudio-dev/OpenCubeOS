@@ -4,7 +4,7 @@
      convenience). The English original in the repository is authoritative.
      Commands, paths, links and identifiers are kept verbatim. -->
 
-# Open Cube OS - WP-10c
+# Open Cube OS - WP-10d
 
 **官网**：https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**：https://github.com/cubestudio-dev/OpenCubeOS
@@ -23,12 +23,12 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 - L0 采用 Apache 2.0 许可。
 - 设计原则："一切皆可扩展"。
 
-## 统计（WP-10c）
+## 统计（WP-10d）
 
-- **源码**：69,910 行（kernel + boot + userprogs，含头文件 + 链接脚本，不含文档；
+- **源码**：75,806 行（kernel + boot + userprogs，含头文件 + 链接脚本，不含文档；
   验证：`find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`）
-- **工作包**：13 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c）
-- **L1 扩展接口**：111 个（WP-09 及以前 57 个 + WP-10a 新增 8 项：
+- **工作包**：14 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c、WP-10d）
+- **L1 扩展接口**：122 个（WP-09 及以前 57 个 + WP-10a 新增 8 项：
   blk_register / blk_read / blk_write / blk_flush（+ blk_set_ops）、
   ahci_init(pci_dev)、nvme_init(pci_dev)、ata_dma_init(pci_dev)，
   + WP-10b 新增 13 项：
@@ -197,8 +197,19 @@ WP-08 统一了此前分开的 WP-08a / WP-08b / WP-08cd 子包：
 - **virtio-snd**（kernel/virtio_snd.c）：modern virtio-pci（1AF4:1059），控制队列 + TX 队列，PCM prepare/start/set_volume 请求；每次开机探测（QEMU 10 无设备模型，CI 中无实体卡）。
 - **USB Audio Class 1.0**（kernel/usb_audio.c）+ **新 UHCI 主机栈**（kernel/usb.{c,h}）：UHCI 控制器驱动（piix3/4）、阻塞控制传输、设备枚举（SET_ADDRESS/CONFIGURATION/INTERFACE）、同步 OUT 按 1ms 帧调度。
 - **44.1/48 kHz** 采样率配置（能力感知；sb16 按设计拒绝 48kHz，测试验证该拒绝）。
-- **命令**：sound、hda、ac97、sb16、es1370、virtiosnd、usbaudio、play [device] [rate]、volume [device] [0-100]；lspci 显示声卡控制器（class 0x04）。boot 实测 150 条命令。
+- **命令**：sound、hda、ac97、sb16、es1370、virtiosnd、usbaudio、play [device] [rate]、volume [device] [0-100]；lspci 显示声卡控制器（class 0x04）。boot 实测 159 条命令。
 - **验证**：hda_test / ac97_test / sb16_test / es1370_test / usb_audio_test 在 QEMU 实测（初始化 + 能力 + DMA 字节数 + IRQ 计数），audio_rw_test 对每张卡播放，sample_rate_test 配置 44.1/48kHz，virtio_snd_test 如实 SKIPPED（无 QEMU 设备模型），real_hw_test 在 VM 中如实 NOT RUN。见 docs/EXTENSIONS_WP10c.md。
+
+## WP-10d（完成）- USB 主机栈：UHCI / OHCI / EHCI / XHCI + HID/MSC/串口/音频 + Hub/热插拔
+
+- **USB 核心**（kernel/usb.{c,h}）：主机注册表、设备表、端点管理、四种传输（控制/中断/批量/等时）、类驱动注册表（probe + disconnect）与枚举器（根端口 + 外部 Hub 级联 + 热插拔）。
+- **UHCI**（kernel/usb.c，PIIX3）：全链路——kbd/mouse/Hub 级联枚举、MSC、FAT32 往返、热插拔。
+- **OHCI**（kernel/usb_ohci.c）：独立验证会话全 PASS——含产品字符串的枚举、usb_core_test 5/5、MSC 容量/MBR/写读回、FAT32 mkfs + 挂载 + 文件往返、真热插拔；修复：控制 DATA TD 补 TD_R（缓冲取整）、状态 TD 方向位改用 u32（u8 截断把 bit-19/20 方向位变成 SETUP，导致每个状态阶段被 STALL）、中断 IN TD 补 TD_R。
+- **EHCI**（kernel/usb_ehci.c）：异步环 + qTD 引擎（缓冲指针按 spec、IAAD 门铃）；kbd/mouse/存储枚举、MSC 读写、FAT32 挂载与文件往返、STALL 恢复。
+- **XHCI**（kernel/usb_xhci.c）：命令/事件环、DCBAA + scratchpad、两段式 AddressDevice、惰性 ConfigureEndpoint、按 spec 布局的端点上下文；Reset Endpoint / Set TR Dequeue 的端点 ID 移至 control bits 20:16（spec Table 6-42/6-44）——旧低位布局使控制器以 TRB Error 结束命令、STALL 端点永久无法恢复。枚举/HID/核心测试 PASS；qemu-xhci 的 usb-storage CSW 缺口如实标注。
+- **类驱动**：HID 键盘/鼠标（报告描述符）、MSC（BOT + SCSI 对接 blk）、CDC-ACM/FTDI 串口、UAC 1.0/2.0。
+- **命令**：usb、usbdev + usb_core_test / usb_kbd_test / usb_mouse_test / usb_storage_test / usb_serial_test / usb_hotplug_test / usb_hub_test（boot 实测 159 条命令；122 个 L1 接口）。
+- **验证**：UHCI/OHCI/EHCI/XHCI 在 QEMU 显式控制器下实测（piix3-usb-uhci、pci-ohci、usb-ehci、qemu-xhci）；BIOS + UEFI 启动矩阵；四控制器 usb_core_test 全 5/5；OHCI 独立会话与 XHCI EPID 修复收官。见 docs/EXTENSIONS_WP10d.md。
 
 ## 仓库结构
 

@@ -78,6 +78,11 @@ export const TIMELINE: Bi<
       title: "声卡驱动：Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB 音频 + snd_* 扩展接口",
       desc: "声卡框架（snd.c，8 槽注册表）与六族驱动：Intel HDA（MMIO BAR、控制器复位/CORB/RIRB 命令环、codec 地址发现、widget 树枚举、流水线/转换器/引脚配置、BDL DMA + IOC 中断、LPIB 流控）、AC'97 82801AA（mixer + 总线主控 BDL DMA）、Sound Blaster 16（ISA DSP 4.05、8/16 位 DMA、块中断）、ES1370/1371（DAC2 帧 DMA + PCLKDIV）、virtio-snd（modern virtio-pci 控制队列 + TX 队列）、USB Audio Class 1.0（新 UHCI 主机栈：控制传输、设备枚举、同步 OUT 按 1ms 帧调度）；snd_register/play/stop/set_rate/set_volume/get_caps + 六个 per-driver init 入口与 usb.h 主机栈接口（L1 接口总数增至 111）；新增 sound/hda/ac97/sb16/es1370/virtiosnd/usbaudio/play/volume 命令（boot 实测 150 条命令，含 abdisk/install/grub-install/abcfg）、9 项测试命令；44.1/48kHz 采样率配置。QEMU 五卡实测播放（真 DMA 真中断）；virtio-snd 无 QEMU 设备模型如实 SKIPPED。SeaBIOS 与 OVMF 双引导验证。",
     },
+    {
+      no: "WP-10d",
+      title: "USB 主机栈：UHCI/OHCI/EHCI/XHCI 设备级枚举 + HID/MSC/串口/音频类驱动 + Hub/热插拔",
+      desc: "四个主机控制器后端全部设备级跑通：UHCI（PIIX3，帧表+QH/TD 调度、全链路含 Hub 级联与热插拔）、OHCI（HCCA+ED/TD 池，独立验证会话全 PASS：kbd/mouse 枚举含产品字符串、usb_core_test 5/5、MSC 容量/MBR/写读回、FAT32 mkfs+挂载+文件往返、真热插拔；修复 3 bug：控制 DATA TD 补 TD_R 缓冲取整、状态 TD 方向位 u8 截断导致每个状态阶段被 STALL、中断 IN 补 TD_R）、EHCI（异步环+qTD 引擎，kbd/mouse/存储枚举、MSC 读写、FAT32 往返、STALL 恢复）、XHCI（命令/事件环+DCBAA、两段式 AddressDevice、端点上下文按 spec 布局；修复 Reset Endpoint/Set TR Dequeue 的 EPID 编码至 bits 20:16——旧布局使控制器以 TRB Error 结束命令、STALL 端点永久无法恢复；枚举/HID/核心测试 PASS，qemu-xhci 的 usb-storage CSW 缺口如实标注）；类驱动：HID 键盘/鼠标（报告描述符解析）、MSC（BOT+SCSI 对接 blk 层）、CDC-ACM/FTDI 串口、UAC 1.0/2.0；外部 Hub 级联枚举与真热插拔；usb/usbdev 状态命令 + 7 项测试命令（boot 实测 159 条命令，L1 接口总数增至 122）。SeaBIOS 与 OVMF 双引导验证。",
+    },
   ],
   en: [
     {
@@ -144,6 +149,11 @@ export const TIMELINE: Bi<
       no: "WP-10c",
       title: "Sound card drivers: Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB audio + the snd_* extension API",
       desc: "A sound-card framework (snd.c, 8-slot registry) plus six driver families: Intel HDA (MMIO BARs, controller reset, CORB/RIRB command rings, codec address discovery, widget-tree enumeration, pin/converter/nid wiring, BDL DMA + IOC interrupts, LPIB flow control), AC'97 82801AA (mixer + bus-master BDL DMA), Sound Blaster 16 (ISA DSP 4.05, 8/16-bit DMA, block interrupts), ES1370/1371 (DAC2 frame DMA + PCLKDIV), virtio-snd (modern virtio-pci control + TX queues) and USB Audio Class 1.0 over a new UHCI host stack (control transfers, device enumeration, isochronous OUT scheduled per 1 ms frame); snd_register/play/stop/set_rate/set_volume/get_caps plus six per-driver init entry points and the usb.h host-stack interface (111 L1 interfaces in total); new sound/hda/ac97/sb16/es1370/virtiosnd/usbaudio/play/volume commands (150 registered at boot, incl. abdisk/install/grub-install/abcfg) and 9 test commands; 44.1/48 kHz sample-rate configuration. Five cards verified playing live in QEMU (real DMA + real interrupts); virtio-snd reports SKIPPED honestly without a QEMU device model. Boot verified with SeaBIOS and OVMF.",
+    },
+    {
+      no: "WP-10d",
+      title: "USB host stack: device-level bring-up on UHCI/OHCI/EHCI/XHCI + HID/MSC/serial/audio class drivers + hub and hot-plug",
+      desc: "All four host-controller backends verified at device level. UHCI (PIIX3, frame list + QH/TD schedule): full chain incl. hub cascade and hot-plug. OHCI (HCCA + ED/TD pools): independent verification session ALL PASS - kbd/mouse enumeration with product strings, usb_core_test 5/5, MSC capacity/MBR/write-read-back, FAT32 mkfs + mount + file round-trip, real hot-plug; 3 bugs fixed: control DATA TDs now set TD_R (buffer rounding), the status-TD direction was an u8 that truncated the bit-19/20 direction field to SETUP (STALLing every status stage), and interrupt IN TDs set TD_R. EHCI (async ring + qTD engine): kbd/mouse/storage enumeration, MSC read/write, FAT32 round-trip, STALL recovery. XHCI (command/event rings + DCBAA, two-stage AddressDevice, spec-layout endpoint contexts): fixed Reset Endpoint / Set TR Dequeue endpoint-ID encoding to control bits 20:16 - the old layout made the controller retire the commands with TRB Error, leaving STALLed endpoints unrecoverable; enumeration/HID/core tests PASS with the qemu-xhci usb-storage CSW gap documented honestly. Class drivers: HID keyboard/mouse (report-descriptor parsing), MSC (BOT+SCSI wired into blk), CDC-ACM/FTDI serial, UAC 1.0/2.0; external hub cascade and real hot-plug; usb/usbdev status commands + 7 test commands (159 registered at boot, 122 L1 interfaces). Boot verified with SeaBIOS and OVMF.",
     },
   ],
 };
