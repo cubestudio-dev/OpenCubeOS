@@ -1,51 +1,56 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10-project_restructure-fix1 value
+// Central site data. Every number is a real WP-10-wp08_shell_and_tools_completion-fix1 value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
-// docs/EXTENSIONS_WP10d.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
+// docs/EXTENSIONS_WP10-wp08fix1.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub Release wp10-project-restructure-fix1 + this site /downloads/
+// 3-way identical: local build + GitHub Release wp10-wp08-shell-and-tools-completion-fix1 + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp10-project-restructure-fix1";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp10-wp08-shell-and-tools-completion-fix1";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release wp10-project-restructure-fix1 + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp10-project-restructure-fix1.iso";
-export const ISO_SIZE_B = 11300864;
-export const ISO_SIZE_MB = "10.78";
+// Real assets (build/ + GitHub Release wp10-wp08-shell-and-tools-completion-fix1 + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp10-wp08-shell-and-tools-completion-fix1.iso";
+export const ISO_SIZE_B = 11335680;
+export const ISO_SIZE_MB = "10.81";
 export const ISO_SHA256 =
-  "649a5e0e6eb439354987148107351234634b7c6e930d87d8ffee0972926cbe6d";
+  "39f67877d54b1cbd2d3491f0bc6ad1cb9450a7f2a99581be534c524cbc1dc5a6";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp10-project-restructure-fix1-src.zip";
-export const SRC_SIZE_B = 2208967;
-export const SRC_SIZE_MB = "2.11";
+export const SRC_FILE = "opencube-wp10-wp08-shell-and-tools-completion-fix1-src.zip";
+export const SRC_SIZE_B = 2257531;
+export const SRC_SIZE_MB = "2.15";
 export const SRC_SHA256 =
-  "8629e1ce2d54ad4af805e28409978eac879d507f8786c1cdaf8f63c92a46fd0b";
+  "67671ee1520bc46819a49ff4fdeecbada2c9cfe06334af761299dd6c862f994b";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-10-project_restructure-fix1 stats. Source lines: find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 86,865.
-// Shell commands: live boot count = 170 (help lists 170 unique).
-// L1 extension interfaces: 129 items (122 through WP-10d + 7 WP-10-project_restructure-fix1:
-// power_shutdown/suspend/halt/reboot + shell_register_command_ex/
-// shell_list_commands_a_z/shell_list_commands_by_wp).
+// WP-10-wp08_shell_and_tools_completion-fix1 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 90,659.
+// Shell commands: live boot count = 172 (170 unchanged + nano/vi).
+// L1 extension interfaces: 138 items (129 through the restructure + 9 WP-10-wp08fix1:
+// shell_lineedit_init/history_add/history_get/cursor_move/tab_complete/ctrlc
+// + editor_open/editor_save/editor_close).
 export const STATS = [
-  { value: "86,865", label: "行源码" },
-  { value: "129", label: "L1 扩展接口" },
-  { value: "37", label: "系统调用" },
-  { value: "170", label: "shell 命令" },
-  { value: "14", label: "工作包" },
-  { value: "18/18", label: "QEMU 回归" },
+  { value: "90,659", label: "行源码" },
+  { value: "138", label: "L1 扩展接口" },
+  { value: "44", label: "系统调用" },
+  { value: "172", label: "shell 命令" },
+  { value: "15", label: "工作包" },
+  { value: "24/24", label: "端到端测试" },
 ];
 
-// WP-10c sound + WP-10u update + WP-10b NIC + WP-10a storage + WP-09 security transport + rule-9 usability audit (user-facing list)
+// WP-08 completion (line editing + tools + editors) leads the user-facing list
 export const FEATURES = [
+  {
+    name: "Shell 完全体（行编辑 + 工具 + 编辑器）",
+    tag: "WP-10-wp08fix1",
+    desc: "oc> 与 ush 双端全键位行编辑：上下键历史翻页（32 条，草稿保留）、左右/Home/End 光标、Ctrl+A/E/U/K/W、Delete、Ctrl+C、Tab 补全（命令表 + VFS 路径）。ush 补齐 15 个工具：ln（真实硬链接共享 inode + nlink）、ln -s（路径解析跟随，8 跳防环）、chmod/chown/sed/awk/ping/wget/netstat/ifconfig/ps/kill/top/du + 补实 help 承诺过的 stat/env。双端 nano 风格编辑器（nano/vi），^O 保存 ^X 退出；9 个新扩展接口（130-138）。",
+  },
   {
     name: "系统内自足（第 ⑨ 条自宿主）",
     tag: "rule-9 self-host",
@@ -179,8 +184,12 @@ export const WORK_PACKAGES = [
   },
 ];
 
-// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a/b/u/c.md)
+// Verification (README.md "Tests" + docs/EXTENSIONS_WP10a/b/u/c.md + docs/EXTENSIONS_WP10-wp08fix1.md)
 export const VERIFY = [
+  {
+    name: "WP-08 补全端到端 24/24",
+    desc: "tools/wp10_wp08fix1_test.py 用真实按键（串口直注 + sendkey 方向键）驱动：oc> 历史/光标/Tab/Ctrl+C/导航键、ush 同套键位、ln 硬链接+软链接、chmod/chown+stat、sed、awk、ps/top/du、ifconfig/netstat/ping、双端 nano 编辑器写文件回读，24/24 全 PASS。",
+  },
   {
     name: "18/18 QEMU 全量回归",
     desc: "boot 横幅 + uname + 12 个用户程序 + p3_test + heaptest + l1test + crashlog，单次 QEMU 会话完成（挂全部四类盘）。",

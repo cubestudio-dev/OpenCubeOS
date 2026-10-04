@@ -13,7 +13,7 @@ git init -q -b gh-pages .
 git config user.name "cubestudio-dev"
 git config user.email "cubestudio@qq.com"
 git add -A
-git commit -q -m "website build: WP-10-project_restructure-fix1 (full restructure, [category]_[specific] naming), docs sync, wp10-project-restructure-fix1 ISO-SRC assets (3-way sha256), update.json -> restructure OTA package"
+git commit -q -m "website build: WP-10-wp08_shell_and_tools_completion-fix1 (full WP-08 shell completion: line editing + ush tools + nano editors), docs sync, wp10-wp08-shell-and-tools-completion-fix1 ISO-SRC assets (3-way sha256), update.json -> wp08fix1 OTA package"
 git log --oneline -1
 echo "--- push gh-pages (force) ---"
 git push -f "$ORIGIN_URL" gh-pages 2>&1

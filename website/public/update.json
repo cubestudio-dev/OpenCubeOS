@@ -1,9 +1,9 @@
 {
-  "version": "WP-10-project_restructure-fix1",
+  "version": "WP-10-wp08_shell_and_tools_completion-fix1",
   "time": "2026-10-04",
-  "changes": "restructure: one folder per module + [category]_[specific] naming; 10113 ifaces renamed; 170 cmds unchanged; regression green",
+  "changes": "wp08fix1: oc>+ush full line editing, 15 ush tools, nano editor both shells, syscalls 96-102, 172 cmds",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10-project-restructure-fix1/opencube-wp10-project-restructure-fix1-update.tar.gz",
-  "package_sha256": "f68dbd80dd623fbcc42746836d02deb58d330ab8fc2a299233205f37695032fd",
-  "package_size": 517288
+  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10-wp08-shell-and-tools-completion-fix1/opencube-wp10-wp08-shell-and-tools-completion-fix1-update.tar.gz",
+  "package_sha256": "c59de900d7c8e2cabc9260514e52cf62051e64ed4da23ccb7c05352db5d86caa",
+  "package_size": 532819
 }
