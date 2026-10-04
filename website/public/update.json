@@ -3,7 +3,7 @@
   "time": "2026-10-04",
   "changes": "wp08fix1: oc>+ush full line editing, 15 ush tools, nano editor both shells, syscalls 96-102, 172 cmds",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10-wp08-shell-and-tools-completion-fix1/opencube-wp10-wp08-shell-and-tools-completion-fix1-update.tar.gz",
+  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10-wp08-shell-and-tools-completion-fix1-r2/opencube-wp10-wp08-shell-and-tools-completion-fix1-update.tar.gz",
   "package_sha256": "8e4a0f2780cf96376cf36f0c7407e24cdc0103a8001031cc61a616053f85bb2a",
   "package_size": 532854
 }

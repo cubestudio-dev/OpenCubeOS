@@ -2,7 +2,7 @@
   "version": "WP-10-wp08_shell_and_tools_completion-fix1",
   "time": "2026-10-04",
   "changes": "WP-08 shell completion: full line editing on oc>+ush (history/cursor/Tab/Ctrl keys), 15 ush tools (ln,chmod,chown,sed,awk,ping,wget,netstat,ifconfig,ps,kill,top,du,stat,env), nano/vi editor both shells, 9 new L1 interfaces 130-138, 172 cmds, 24/24 tests",
-  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10-wp08-shell-and-tools-completion-fix1/opencube-wp10-wp08-shell-and-tools-completion-fix1-update.tar.gz",
+  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10-wp08-shell-and-tools-completion-fix1-r2/opencube-wp10-wp08-shell-and-tools-completion-fix1-update.tar.gz",
   "package_sha256": "8e4a0f2780cf96376cf36f0c7407e24cdc0103a8001031cc61a616053f85bb2a",
   "package_size": 532854
 }
