@@ -161,6 +161,11 @@ The published manifests keep every kernel generation working:
 | `/update.json` | short `changes` (<= 127 bytes) + optional `changes_v2_url` | every kernel; WP-09 stops here |
 | `/update-v2.json` | the same manifest with the full-length `changes` | kernels that understand `changes_v2_url` |
 
+The v2 manifest's long-changelog field is named `changes` (canonical,
+matching every published manifest).  WP-10d briefly shipped it as
+`changes_full`; current kernels accept BOTH names (`changes` wins when
+both are present), so no manifest generation stops parsing.
+
 Rationale: WP-09 holds `changes` in a 128-byte buffer and fails the whole
 check with `JSON parse failed` on overflow, while WP-10a+ truncate a long
 value.  A server that only published the long changelog would break
@@ -175,8 +180,8 @@ fails the check):
   `changes_v2_url` field (`0` ok / `-1` missing or empty);
 - `oc_update_fetch_changes_v2(v2url, out, outcap)` — fetch the v2
   manifest (absolute `http://`/`https://` only) and copy its long
-  `changes` into `out` (`0` upgraded / `-1` rejected URL / `<0` transport
-  error);
+  `changes` (or `changes_full`) into `out` (`0` upgraded / `-1` rejected
+  URL / `<0` transport error);
 - `oc_check_update()` and `oc_update_check_pkg()` apply both after the
   base manifest parses.
 

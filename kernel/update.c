@@ -401,12 +401,35 @@ int oc_update_changes_v2_url(const char *body, char *url, int cap) {
     return 0;
 }
 
-/* Fetch the changes-v2 manifest at v2url and copy its long "changes"
- * value into out (outcap bytes, truncated to fit).  Only absolute
- * http:// or https:// URLs are accepted - anything else is ignored.
- * Returns 0 when out was upgraded, -1 when the URL was rejected,
- * or the OC_UPDATE_E_* transport code of a failed fetch.  Never
- * modifies out unless the long value was parsed successfully. */
+/* Pick the long changelog out of a fetched v2 manifest body.  The
+ * canonical field name is "changes" (docs/CONFIG.md, WP-10a..WP-10c
+ * manifests); WP-10d briefly shipped it as "changes_full", so BOTH are
+ * accepted - "changes" wins when both are present.  Returns 0 and
+ * fills out (NUL-terminated, truncated to cap), -8 when a present value
+ * is too large for cap, -1 when neither field yields a non-empty value.
+ * Pure parser: no network, unit-testable. */
+static int v2_pick_changes(const char *v2body, char *out, int cap) {
+    if (!v2body || !out || cap <= 0) return -1;
+    static const char *const keys[] = { "changes", "changes_full" };
+    for (int k = 0; k < 2; k++) {
+        int r = oc_update_json_string(v2body, keys[k], out, cap);
+        if (r == 0) {
+            if (out[0] != 0) return 0;   /* long value under this name */
+            continue;                    /* empty value: try next name */
+        }
+        if (r == -8) return -8;          /* value too large: propagate */
+        /* r == -1: field absent under this name, try the next */
+    }
+    return -1;
+}
+
+/* Fetch the changes-v2 manifest at v2url and copy its long changelog
+ * ("changes" or "changes_full" field) into out (outcap bytes,
+ * truncated to fit).  Only absolute http:// or https:// URLs are
+ * accepted - anything else is ignored.  Returns 0 when out was
+ * upgraded, -1 when the URL was rejected, or the OC_UPDATE_E_*
+ * transport code of a failed fetch.  Never modifies out unless the
+ * long value was parsed successfully. */
 int oc_update_fetch_changes_v2(const char *v2url, char *out, int outcap) {
     if (!v2url || !out || outcap <= 0) return -1;
     if (oc_strncmp(v2url, "http://", 7) != 0 &&
@@ -420,8 +443,7 @@ int oc_update_fetch_changes_v2(const char *v2url, char *out, int outcap) {
     if (blen >= 0) {
         char *tmp = (char *)kmalloc(1024);
         if (tmp) {
-            if (oc_update_json_string(v2body, "changes", tmp, 1024) == 0 &&
-                tmp[0] != 0) {
+            if (v2_pick_changes(v2body, tmp, 1024) == 0) {
                 int n = 0;
                 while (tmp[n] && n < outcap - 1) { out[n] = tmp[n]; n++; }
                 out[n] = 0;
@@ -884,7 +906,52 @@ int cmd_checkupdate_test(const char *args) {
     }
     oc_console_puts("[checkupdate_test] changes_v2 missing/rejected URLs keep short changes: "); oc_console_puts(ok); oc_console_puts("\n");
 
-    /* 10. live probe with the configured update_url (HTTP or HTTPS) */
+    /* 10. v2 field names: the canonical "changes" is picked from a v2
+     * body, and the WP-10d spelling "changes_full" is accepted too
+     * (both names stay parseable; "changes" wins when both appear) */
+    total++;
+    ok = "FAIL";
+    {
+        static const char *doc_c =
+            "{\"version\":\"V\",\"changes\":\"long-canonical\"}";
+        static const char *doc_cf =
+            "{\"version\":\"V\",\"changes_full\":\"long-full-name\"}";
+        static const char *doc_both =
+            "{\"changes\":\"short-wins\",\"changes_full\":\"ignored\"}";
+        static const char *doc_none =
+            "{\"version\":\"V\",\"time\":\"T\"}";
+        char v[64];
+        if (v2_pick_changes(doc_c, v, (int)sizeof(v)) == 0 &&
+            oc_strcmp(v, "long-canonical") == 0 &&
+            v2_pick_changes(doc_cf, v, (int)sizeof(v)) == 0 &&
+            oc_strcmp(v, "long-full-name") == 0 &&
+            v2_pick_changes(doc_both, v, (int)sizeof(v)) == 0 &&
+            oc_strcmp(v, "short-wins") == 0 &&
+            v2_pick_changes(doc_none, v, (int)sizeof(v)) == -1)
+            { ok = "PASS"; pass++; }
+    }
+    oc_console_puts("[checkupdate_test] v2 long-changelog accepts changes and changes_full: "); oc_console_puts(ok); oc_console_puts("\n");
+
+    /* 11. a v2 body whose long changelog exceeds the 1024-byte parse
+     * buffer reports -8 (value too large) instead of silently picking
+     * the other name or returning garbage */
+    total++;
+    ok = "FAIL";
+    {
+        char *doc = (char *)kmalloc(2048);
+        if (doc) {
+            oc_strcpy(doc, "{\"changes_full\":\"");
+            for (int i = 0; i < 1100; i++) oc_strcat(doc, "x");
+            oc_strcat(doc, "\"}");
+            char v[64];
+            if (v2_pick_changes(doc, v, (int)sizeof(v)) == -8)
+                { ok = "PASS"; pass++; }
+            kfree(doc);
+        }
+    }
+    oc_console_puts("[checkupdate_test] oversized v2 changelog reports -8: "); oc_console_puts(ok); oc_console_puts("\n");
+
+    /* 12. live probe with the configured update_url (HTTP or HTTPS) */
     total++;
     {
         oc_update_info_t info;

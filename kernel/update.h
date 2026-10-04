@@ -161,8 +161,10 @@ int oc_update_json_uint(const char *json, const char *key, u64 *out);
  * cap) when present and non-empty, -1 when missing/empty.
  *
  * oc_update_fetch_changes_v2 fetches the v2 manifest at v2url (absolute
- * http:// or https:// only) and copies its long "changes" into out
- * (truncated to fit outcap).  Returns 0 when out was upgraded, -1 when
+ * http:// or https:// only) and copies its long changelog into out
+ * (truncated to fit outcap).  The canonical v2 field name is "changes";
+ * "changes_full" (WP-10d spelling) is accepted as well, "changes" wins
+ * when both are present.  Returns 0 when out was upgraded, -1 when
  * the URL was rejected, or an OC_UPDATE_E_* transport code.  Both are
  * display-only helpers: callers treat every failure as "keep the short
  * value", never as a check failure. */

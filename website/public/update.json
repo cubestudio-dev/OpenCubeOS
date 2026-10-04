@@ -1,9 +1,9 @@
 {
-  "version": "WP-10d",
+  "version": "WP-10d-fix1",
   "time": "2026-10-04",
-  "changes": "USB host stack: UHCI/OHCI/EHCI/XHCI device-level, HID/MSC/serial/audio, hub + hot-plug; 159 cmds, 122 L1 ifaces",
+  "changes": "checkupdate fix: v2 long changelog accepts changes and changes_full names; 12/12 self-test, BIOS+UEFI matrix, regression green",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10d/opencube-wp10d-update.tar.gz",
-  "package_sha256": "ccc17c9a68cfe7b66b78bd9302d32d52d17a73e58dd971adf9483296d3915db6",
-  "package_size": 515027
+  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10d-fix1/opencube-wp10d-fix1-update.tar.gz",
+  "package_sha256": "4ade905c79cfb20aef80ed85d9ed66039666d44706775cd87f8773b2906e0a00",
+  "package_size": 515515
 }

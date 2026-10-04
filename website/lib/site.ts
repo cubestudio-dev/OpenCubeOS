@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10d value
+// Central site data. Every number is a real WP-10d-fix1 value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
 // docs/EXTENSIONS_WP10d.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub Release wp10d + this site /downloads/
+// 3-way identical: local build + GitHub Release wp10d-fix1 + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp10d";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp10d-fix1";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release wp10d + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp10d.iso";
+// Real assets (build/ + GitHub Release wp10d-fix1 + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp10d-fix1.iso";
 export const ISO_SIZE_B = 11282432;
 export const ISO_SIZE_MB = "10.76";
 export const ISO_SHA256 =
-  "8e257255b63f15f6d04f0b67621d1095749247e5398cf0cd84b6538fffd78fc2";
+  "075adb95e878a64fcd1afa2874edc37e3296d2e9765b24f5ce837821fb6e239d";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp10d-src.zip";
-export const SRC_SIZE_B = 2163811;
-export const SRC_SIZE_MB = "2.06";
+export const SRC_FILE = "opencube-wp10d-fix1-src.zip";
+export const SRC_SIZE_B = 2169571;
+export const SRC_SIZE_MB = "2.07";
 export const SRC_SHA256 =
-  "70a8bc6e2022ac4747979b84be08b32346ac23a15d648553d467e048f5de8b9f";
+  "affdf6fadee36f4cf2e403f815f2a6b47aac93b18cebab0d766ae6c369c3b4c5";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // WP-10d stats. Source lines: find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 75,806.
