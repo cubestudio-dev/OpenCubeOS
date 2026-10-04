@@ -20,14 +20,14 @@ export const ISO_FILE = "opencube-wp10-wp08-shell-and-tools-completion-fix1.iso"
 export const ISO_SIZE_B = 11335680;
 export const ISO_SIZE_MB = "10.81";
 export const ISO_SHA256 =
-  "39f67877d54b1cbd2d3491f0bc6ad1cb9450a7f2a99581be534c524cbc1dc5a6";
+  "6e5a9d40891f6f744583004f628a4a10358e8b3fb676f19515421c92c3df6203";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
 export const SRC_FILE = "opencube-wp10-wp08-shell-and-tools-completion-fix1-src.zip";
-export const SRC_SIZE_B = 2257531;
+export const SRC_SIZE_B = 2258137;
 export const SRC_SIZE_MB = "2.15";
 export const SRC_SHA256 =
-  "67671ee1520bc46819a49ff4fdeecbada2c9cfe06334af761299dd6c862f994b";
+  "66e3b98e1431cd3e759ce2d741ca07f215f49a9fc03d7bec8b26337d4f691cea";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // WP-10-wp08_shell_and_tools_completion-fix1 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 90,659.
