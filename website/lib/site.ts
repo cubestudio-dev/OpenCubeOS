@@ -1,38 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10d-fix2 value
+// Central site data. Every number is a real WP-10-project_restructure-fix1 value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
 // docs/EXTENSIONS_WP10d.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub Release wp10d-fix2 + this site /downloads/
+// 3-way identical: local build + GitHub Release wp10-project-restructure-fix1 + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp10d-fix2";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp10-project-restructure-fix1";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release wp10d-fix2 + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp10d-fix2.iso";
-export const ISO_SIZE_B = 11292672;
-export const ISO_SIZE_MB = "10.77";
+// Real assets (build/ + GitHub Release wp10-project-restructure-fix1 + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp10-project-restructure-fix1.iso";
+export const ISO_SIZE_B = 11300864;
+export const ISO_SIZE_MB = "10.78";
 export const ISO_SHA256 =
-  "bc72fa5aacb8c3bada08b29cc49f9811c5c9e567f27b002a670d83c5be44b779";
+  "649a5e0e6eb439354987148107351234634b7c6e930d87d8ffee0972926cbe6d";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp10d-fix2-src.zip";
-export const SRC_SIZE_B = 2181429;
-export const SRC_SIZE_MB = "2.08";
+export const SRC_FILE = "opencube-wp10-project-restructure-fix1-src.zip";
+export const SRC_SIZE_B = 2208967;
+export const SRC_SIZE_MB = "2.11";
 export const SRC_SHA256 =
-  "686cfde5c6df527ebdd415d168b3b5c9a3264fdc02edde99723f1ee9c27bfbe8";
+  "8629e1ce2d54ad4af805e28409978eac879d507f8786c1cdaf8f63c92a46fd0b";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-10d-fix2 stats. Source lines: find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 86,865.
+// WP-10-project_restructure-fix1 stats. Source lines: find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 86,865.
 // Shell commands: live boot count = 170 (help lists 170 unique).
-// L1 extension interfaces: 129 items (122 through WP-10d + 7 WP-10d-fix2:
+// L1 extension interfaces: 129 items (122 through WP-10d + 7 WP-10-project_restructure-fix1:
 // power_shutdown/suspend/halt/reboot + shell_register_command_ex/
 // shell_list_commands_a_z/shell_list_commands_by_wp).
 export const STATS = [

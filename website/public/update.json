@@ -1,9 +1,9 @@
 {
-  "version": "WP-10d-fix2",
+  "version": "WP-10-project_restructure-fix1",
   "time": "2026-10-04",
-  "changes": "power + help: shutdown/poweroff/suspend/sleep cmds, structured help -w; 170 cmds, 129 ifaces; regression green",
+  "changes": "restructure: one folder per module + [category]_[specific] naming; 10113 ifaces renamed; 170 cmds unchanged; regression green",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10d-fix2/opencube-wp10d-fix2-update.tar.gz",
-  "package_sha256": "9387c884c508480b148ce59483f53dc83b6f568c1ddf9457d5ee88e71235dc75",
-  "package_size": 519175
+  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10-project-restructure-fix1/opencube-wp10-project-restructure-fix1-update.tar.gz",
+  "package_sha256": "f68dbd80dd623fbcc42746836d02deb58d330ab8fc2a299233205f37695032fd",
+  "package_size": 517288
 }

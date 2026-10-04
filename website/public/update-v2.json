@@ -1,8 +1,8 @@
 {
-  "version": "WP-10d-fix2",
+  "version": "WP-10-project_restructure-fix1",
   "time": "2026-10-04",
-  "changes": "WP-10d-fix2 power management + structured help. Power: shutdown/poweroff really power the machine off (block flush first, then QEMU/PIIX4 ACPI PM1a_CNT 0x604, Bochs 0xB004, legacy APM 0xF000; QEMU verified exit 0), reboot moved to kernel/power.c with the 8042 + 0xCF9 reset path (live restart verified), halt = cli;hlt with the System halted banner (live silence verified), suspend/sleep answer honestly that ACPI S3 is not implemented yet. Help: rewritten from registration order to two structured views - default/help -a lists all commands A-Z and help -w groups them by work-package tag (19 groups, WP-01..WP-10d-fix2) via the new shell_register_command_ex registration. 7 new L1 interfaces (power_shutdown/suspend/halt/reboot + shell_register_command_ex/shell_list_commands_a_z/shell_list_commands_by_wp), 170 shell commands, 129 L1 interfaces. Regression green: WP-09 18/18, storage tests on four real disks, NIC e1000e TX/RX, HDA play, USB 4 devices, A/B update 7/7, BIOS+UEFI boot matrix.",
-  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10d-fix2/opencube-wp10d-fix2-update.tar.gz",
-  "package_sha256": "9387c884c508480b148ce59483f53dc83b6f568c1ddf9457d5ee88e71235dc75",
-  "package_size": 519175
+  "changes": "Full project restructure per the new layout spec. Structure: one folder per module - kernel/{arch/x86_64,core,mem,lib,crypto,ota,generated}, drivers/{block,nic,snd,usb,input,display,pci}, fs/, net/, shell/, l1/, libs/ (ld.so), boot/. File names follow [category]_[specific] (driver_block_ahci.c, fs_vfs.c, net_core.c). 10113 interface renames to the same convention (usb_->driver_usb_, vfs_->fs_vfs_, cmd_->shell_cmd_, bn_->crypto_bn_, update_->ota_update_); standard names restored (memcpy/strlen), kmalloc kept. Shell command surface unchanged: 170 commands, help 3 modes. Build 0 errors/0 warnings; BIOS+UEFI dual boot verified. Regression green: WP-09 core suites, WP-10a storage on four real disks (ata_dma 3/3, ahci 2/2, nvme 3/3, virtio 2/2, partition 2/2, fs_mount 4/4), WP-10b e1000e TX/RX, WP-10c HDA play, WP-10u update_pkg 12/12 + ab_partition 7/7, WP-10d USB 4 devices.",
+  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10-project-restructure-fix1/opencube-wp10-project-restructure-fix1-update.tar.gz",
+  "package_sha256": "f68dbd80dd623fbcc42746836d02deb58d330ab8fc2a299233205f37695032fd",
+  "package_size": 517288
 }
