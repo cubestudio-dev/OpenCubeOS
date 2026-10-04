@@ -19,8 +19,13 @@
 #define HEAP_MAGIC      0xDEADBEEFCAFEBABEULL
 #define HEAP_MAGIC_FREE 0xFEEDFACE12345678ULL
 #define HEAP_MIN_POOL_PAGES 16   /* 64 KiB initial pool (shell needs ~40KB for tokens) */
-#define HEAP_MAX_POOL_PAGES 256  /* BUG-041 FIX: was 64 (256 KiB), now 256 (1 MiB).
-                                  * Old limit caused >256KB allocations to fail. */
+#define HEAP_MAX_POOL_PAGES 1024 /* BUG-041 FIX: was 64 (256 KiB), then 256 (1 MiB).
+                                  * Now 1024 (4 MiB): a 256 MiB FAT32 volume formatted
+                                  * with 512-byte clusters carries a ~2 MiB FAT, and
+                                  * fs_fat32.c caches the whole table with a single
+                                  * kmalloc at mount time. The old 1 MiB cap made
+                                  * every such kmalloc fail ("FAT cache alloc failed").
+                                  * Single allocations beyond 4 MiB still fail fast. */
 #define HEAP_ALIGN 16
 
 typedef struct mem_heap_block {

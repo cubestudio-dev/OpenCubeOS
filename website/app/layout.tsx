@@ -8,7 +8,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Open Cube OS - 开源 x86_64 L0 内核",
   description:
-    "Open Cube OS：开源 x86_64 内核（L0），可被扩展成任何东西。WP-10-wp08fix1 Shell 补全已落地：oc> 与 ush 双端全键位行编辑（上下键历史翻页、左右/Home/End 光标、Tab 补全、Ctrl+A/E/U/K/W、Delete、Ctrl+C）、ush 补齐 15 个工具（ln/chmod/chown/sed/awk/ping/wget/netstat/ifconfig/ps/kill/top/du + stat/env）、nano 风格编辑器双端可用（nano/vi，^O 保存 ^X 退出）；USB 主机栈（四控制器）、声卡（六族）、系统内 A/B 更新、网卡/存储驱动保持；SSH + TLS 1.3/1.2 + HTTPS 保持主流化。BIOS + UEFI 双引导，90,659 行源码，138 个 L1 扩展接口，172 条 shell 命令，24/24 端到端测试。Apache 2.0。",
+    "Open Cube OS：开源 x86_64 内核（L0），可被扩展成任何东西。WP-10-wp08fix1 Shell 补全已落地：oc> 与 ush 双端全键位行编辑（上下键历史翻页、左右/Home/End 光标、Tab 补全、Ctrl+A/E/U/K/W、Delete、Ctrl+C）、ush 补齐 15 个工具（ln/chmod/chown/sed/awk/ping/wget/netstat/ifconfig/ps/kill/top/du + stat/env）、nano 风格编辑器双端可用（nano/vi，^O 保存 ^X 退出）；USB 主机栈（四控制器）、声卡（六族）、系统内 A/B 更新、网卡/存储驱动保持；SSH + TLS 1.3/1.2 + HTTPS 保持主流化。BIOS + UEFI 双引导，90,705 行源码，138 个 L1 扩展接口，172 条 shell 命令，24/24 端到端测试。Apache 2.0。",
   metadataBase: new URL("https://cubestudio-dev.github.io"),
   openGraph: {
     title: "Open Cube OS - 开源 x86_64 L0 内核",

@@ -728,6 +728,14 @@ void driver_usb_poll(void) {
             if (!connected && slot >= 0) {
                 driver_usb_log("usb: device disconnected (hub port)\n");
                 driver_usb_kill_slot(&g_core.devs[slot]);
+            } else if (connected && slot < 0) {
+                /* hot-plug on a hub port: enumerate the new device
+                 * through the parent hub (BUGFIX: previously only
+                 * root-port hot-plug was handled, so devices attached
+                 * to an external hub after its own enumeration were
+                 * never discovered). */
+                driver_usb_enum_one(hub->host, hub->slot, p,
+                                    USB_ENUM_DEPTH);
             }
         }
     }

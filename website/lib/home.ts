@@ -21,7 +21,7 @@ export { fmtBytes };
 // WP-10-wp08fix1 stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "90,659", label: "行源码" },
+    { value: "90,705", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "44", label: "系统调用" },
     { value: "172", label: "shell 命令" },
@@ -29,7 +29,7 @@ export const STATS: Bi<{ value: string; label: string }[]> = {
     { value: "24/24", label: "端到端测试" },
   ],
   en: [
-    { value: "90,659", label: "lines of source" },
+    { value: "90,705", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "44", label: "system calls" },
     { value: "172", label: "shell commands" },

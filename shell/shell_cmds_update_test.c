@@ -947,6 +947,6 @@ void shell_cmds_update_test_register(void) {
     shell_register_command_ex("update_install_test", shell_cmd_update_install_test, "install the package into slot B (WP-10u)", "WP-10u");
     shell_register_command_ex("update_rollback_test", shell_cmd_update_rollback_test, "boot flags + rollback (WP-10u)", "WP-10u");
     shell_register_command_ex("update_local_test", shell_cmd_update_local_test, "offline update flow via cmd_update --local (WP-10u)", "WP-10u");
-    shell_register_command_ex("update_status_test", shell_cmd_update_status_test, "oc_update_get_status coverage (WP-10u)", "WP-10u");
+    shell_register_command_ex("update_status_test", shell_cmd_update_status_test, "ota_update_get_status coverage (WP-10u)", "WP-10u");
     shell_register_command_ex("real_update_test", shell_cmd_real_update_test, "end-to-end update phase 1 (WP-10u)", "WP-10u");
 }

@@ -20,23 +20,23 @@ export const ISO_FILE = "opencube-wp10-wp08-shell-and-tools-completion-fix1.iso"
 export const ISO_SIZE_B = 11335680;
 export const ISO_SIZE_MB = "10.81";
 export const ISO_SHA256 =
-  "6e5a9d40891f6f744583004f628a4a10358e8b3fb676f19515421c92c3df6203";
+  "770f1c571ebe510a75736e4ae5574a49366317610227a671f48652a2c8447c58";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
 export const SRC_FILE = "opencube-wp10-wp08-shell-and-tools-completion-fix1-src.zip";
-export const SRC_SIZE_B = 2258137;
-export const SRC_SIZE_MB = "2.15";
+export const SRC_SIZE_B = 2262002;
+export const SRC_SIZE_MB = "2.16";
 export const SRC_SHA256 =
-  "66e3b98e1431cd3e759ce2d741ca07f215f49a9fc03d7bec8b26337d4f691cea";
+  "c2df3fda9bc89e66736832df2ce5a6daa18da8659fe858dfece2d79075f2cd56";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-10-wp08_shell_and_tools_completion-fix1 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 90,659.
+// WP-10-wp08_shell_and_tools_completion-fix1 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 90,705.
 // Shell commands: live boot count = 172 (170 unchanged + nano/vi).
 // L1 extension interfaces: 138 items (129 through the restructure + 9 WP-10-wp08fix1:
 // shell_lineedit_init/history_add/history_get/cursor_move/tab_complete/ctrlc
 // + editor_open/editor_save/editor_close).
 export const STATS = [
-  { value: "90,659", label: "行源码" },
+  { value: "90,705", label: "行源码" },
   { value: "138", label: "L1 扩展接口" },
   { value: "44", label: "系统调用" },
   { value: "172", label: "shell 命令" },

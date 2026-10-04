@@ -400,21 +400,55 @@ static u8 driver_usb_xhci_core_speed_to_xhci(u8 speed) {
     }
 }
 
+/* Route String + root hub port for a device (xHCI spec 6.2.5):
+ * the root hub port number lives in slot-context DW1 only; the Route
+ * String carries NO root-port bits (it is 0 for devices attached
+ * directly to a root port) and each hub tier below the root
+ * contributes one 4-bit field whose value IS the hub port number
+ * (1-based): bits 7:4 = port on the root-attached hub, bits 11:8 =
+ * port on the next hub down the path, and so on.  Without the route
+ * string the controller cannot address devices behind an external
+ * hub (the old code passed the DOWNSTREAM hub port as the root hub
+ * port number, which broke enumeration on external hubs). */
+static void driver_usb_xhci_topology_of(const driver_usb_dev_t *d,
+                                        u8 *rootport, u32 *route) {
+    *rootport = (u8)(d->driver_usb_hub_port + 1);
+    *route = 0;
+    if (d->parent < 0) return;                   /* root-attached */
+    u32 r = 0;
+    const driver_usb_dev_t *cur = d;
+    while (cur->parent >= 0) {
+        const driver_usb_dev_t *ph = driver_usb_get_device(cur->parent);
+        if (!ph) break;
+        if (ph->parent < 0) {                    /* root-attached hub */
+            *rootport = (u8)(ph->driver_usb_hub_port + 1);
+        }
+        /* collect deepest port first; QEMU/xHCI consume fields from
+         * bits 3:0 upward (tier2 first) */
+        r = (r << 4) | ((u32)cur->driver_usb_hub_port + 1);
+        cur = ph;
+    }
+    *route = r;
+}
+
 /* build the input context for Address Device / Evaluate Context.
  * Slot context layout per the xHCI spec (6.2.2.1): DW0 carries the
- * port speed (23:20) and context entries (31:27), DW1 the root hub
- * port number (23:16), DW3 the device address (31:24, zero while the
- * device is still on address 0 / BSR=1). */
+ * route string (19:0), port speed (23:20) and context entries (31:27),
+ * DW1 the root hub port number (23:16), DW3 the device address (31:24,
+ * zero while the device is still on address 0 / BSR=1). */
 static void driver_usb_xhci_build_addr_ctx(driver_usb_xhci_state_t *x, driver_usb_xhci_slot_t *s,
-                                u8 driver_usb_xhci_speed, u8 port, u32 mps0) {
+                                u8 driver_usb_xhci_speed, u32 mps0) {
+    u8 rootport; u32 route;
+    driver_usb_xhci_topology_of(s->dev, &rootport, &route);
     u32 st = x->ctx_stride;
     memset(s->in_ctx, 0, 1024);
     u32 *ic = (u32 *)(void *)s->in_ctx;
     ic[0] = 0;                                   /* drop flags */
     ic[1] = (1u << 0) | (1u << 1);               /* add slot + EP0 */
     u32 *sc = (u32 *)(void *)(s->in_ctx + st);
-    sc[0] = ((u32)driver_usb_xhci_speed << 20) | (1u << 27);/* speed, 1 ctx entry */
-    sc[1] = ((u32)port << 16);                   /* root hub port number */
+    sc[0] = ((u32)driver_usb_xhci_speed << 20) | (1u << 27)
+          | (route & 0xfffffu);                  /* speed, 1 ctx entry, route */
+    sc[1] = ((u32)rootport << 16);               /* root hub port number */
     sc[3] = 0;                                   /* address 0 until the
                                                     device is addressed */
     u32 *ep0 = (u32 *)(void *)(s->in_ctx + 2 * st);
@@ -431,8 +465,8 @@ static void driver_usb_xhci_build_addr_ctx(driver_usb_xhci_state_t *x, driver_us
 
 /* run Address Device (BSR per flag) */
 static int driver_usb_xhci_address_slot(driver_usb_xhci_state_t *x, driver_usb_xhci_slot_t *s,
-                             u8 driver_usb_xhci_speed, u8 port, u32 mps0, int bsr) {
-    driver_usb_xhci_build_addr_ctx(x, s, driver_usb_xhci_speed, port, mps0);
+                             u8 driver_usb_xhci_speed, u32 mps0, int bsr) {
+    driver_usb_xhci_build_addr_ctx(x, s, driver_usb_xhci_speed, mps0);
     xwr(x, x->op, XHCI_DCBAAP, (u32)(x->dcbaa_phys & 0xffffffffu));
     xwr(x, x->op, XHCI_DCBAAP + 4, (u32)(x->dcbaa_phys >> 32));
     u32 ctrl = (TRB_ADDRESS_DEV << TRB_TYPE_SH) |
@@ -648,10 +682,9 @@ static driver_usb_xhci_slot_t *driver_usb_xhci_ensure_slot(driver_usb_xhci_state
      * the core reads desc8 through EP0 next.  MPS for the default
      * endpoint is fixed by the port speed (spec 6.2.3.1). */
     u8 xsp = driver_usb_xhci_core_speed_to_xhci(d->speed);
-    u8 port = (u8)(d->driver_usb_hub_port + 1);
     u32 bsr_mps = (d->speed == USB_SPEED_SS) ? 512u :
                   (d->speed == USB_SPEED_LS) ? 8u : 64u;
-    rc = driver_usb_xhci_address_slot(x, s, xsp, port, bsr_mps, 1);
+    rc = driver_usb_xhci_address_slot(x, s, xsp, bsr_mps, 1);
     if (rc != 0) {
         screen_console_puts("xhci: ADDRESS_DEVICE(BSR) failed\n");
         s->used = 0;
@@ -679,14 +712,14 @@ static int driver_usb_xhci_control(driver_usb_host_t *h, driver_usb_dev_t *d,
         s->mps0_prog = mps;
         int rc = driver_usb_xhci_address_slot(x, s,
                                    driver_usb_xhci_core_speed_to_xhci(d->speed),
-                                   (u8)(d->driver_usb_hub_port + 1), mps, 0);
+                                   mps, 0);
         if (rc == 0) s->addressed = 1;
         return rc;
     }
     /* MPS0 discovery corrected the value: re-evaluate the context */
     if (s->addressed && d->mps0 && d->mps0 != s->mps0_prog) {
         driver_usb_xhci_build_addr_ctx(x, s, driver_usb_xhci_core_speed_to_xhci(d->speed),
-                            (u8)(d->driver_usb_hub_port + 1), d->mps0);
+                            d->mps0);
         u32 ctrl = (TRB_EVALUATE_CTX << TRB_TYPE_SH) |
                    ((u32)s->hw_slot << TRB_SLOT_SH);
         driver_usb_xhci_do_cmd(x, s->in_ctx_phys, 0, ctrl, 1000);
