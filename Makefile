@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS (current release: WP-08-p4)
+# Open Cube OS (current release: WP-10d)
 # File: Makefile
 #
 # Targets:
@@ -39,7 +39,7 @@ SEABIOS_DIR  ?= $(OC_TOOLS)/share/seabios
 # OC_RELEASE_VERSION is baked into the kernel banner + uname + update
 # check (WP-10u).  Override for the end-to-end update test:
 #   make OC_RELEASE_VERSION=WP-10c-test1
-OC_RELEASE_VERSION ?= WP-10c
+OC_RELEASE_VERSION ?= WP-10d
 CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
 	     -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel \
 	     -fno-asynchronous-unwind-tables -Wall -Wextra -Werror \
@@ -209,8 +209,8 @@ clean:
 dist: $(KERNEL_ISO)
 	mkdir -p $(DIST)
 	TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
-	SRCZIP=$(DIST)/OpenCubeOS-src-WP08-p4-$$TIMESTAMP.zip; \
-	ISOCOPY=$(DIST)/OpenCubeOS-WP08-p4-$$TIMESTAMP.iso; \
+	SRCZIP=$(DIST)/OpenCubeOS-src-WP-10d-$$TIMESTAMP.zip; \
+	ISOCOPY=$(DIST)/OpenCubeOS-WP-10d-$$TIMESTAMP.iso; \
 	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*" "website/rw*.sh" "website/build-local.sh" "website/public/downloads/*" "website/out/*" "website/.next/*" "website/node_modules/*" "kernel/generated/*"); \
 	cp $(KERNEL_ISO) $$ISOCOPY; \
 	echo "SRC: $$SRCZIP"; \
