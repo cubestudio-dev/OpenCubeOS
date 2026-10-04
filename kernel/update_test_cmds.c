@@ -939,24 +939,14 @@ int cmd_real_update_test(const char *args) {
 /* ---- registration ---------------------------------------------------- */
 
 void update_test_cmds_register(void) {
-    shell_register_command("update_pkg_test", cmd_update_pkg_test,
-                           "gzip/DEFLATE + tar unit tests (WP-10u)");
-    shell_register_command("ab_partition_test", cmd_ab_partition_test,
-                           "A/B disk discovery + slots + flags (WP-10u)");
-    shell_register_command("update_check_test", cmd_update_check_test,
-                           "update manifest check with package fields (WP-10u)");
-    shell_register_command("update_download_test", cmd_update_download_test,
-                           "download the update package (WP-10u)");
-    shell_register_command("update_verify_test", cmd_update_verify_test,
-                           "SHA256 verification of the package (WP-10u)");
-    shell_register_command("update_install_test", cmd_update_install_test,
-                           "install the package into slot B (WP-10u)");
-    shell_register_command("update_rollback_test", cmd_update_rollback_test,
-                           "boot flags + rollback (WP-10u)");
-    shell_register_command("update_local_test", cmd_update_local_test,
-                           "offline update flow via cmd_update --local (WP-10u)");
-    shell_register_command("update_status_test", cmd_update_status_test,
-                           "oc_update_get_status coverage (WP-10u)");
-    shell_register_command("real_update_test", cmd_real_update_test,
-                           "end-to-end update phase 1 (WP-10u)");
+    shell_register_command_ex("update_pkg_test", cmd_update_pkg_test, "gzip/DEFLATE + tar unit tests (WP-10u)", "WP-10u");
+    shell_register_command_ex("ab_partition_test", cmd_ab_partition_test, "A/B disk discovery + slots + flags (WP-10u)", "WP-10u");
+    shell_register_command_ex("update_check_test", cmd_update_check_test, "update manifest check with package fields (WP-10u)", "WP-10u");
+    shell_register_command_ex("update_download_test", cmd_update_download_test, "download the update package (WP-10u)", "WP-10u");
+    shell_register_command_ex("update_verify_test", cmd_update_verify_test, "SHA256 verification of the package (WP-10u)", "WP-10u");
+    shell_register_command_ex("update_install_test", cmd_update_install_test, "install the package into slot B (WP-10u)", "WP-10u");
+    shell_register_command_ex("update_rollback_test", cmd_update_rollback_test, "boot flags + rollback (WP-10u)", "WP-10u");
+    shell_register_command_ex("update_local_test", cmd_update_local_test, "offline update flow via cmd_update --local (WP-10u)", "WP-10u");
+    shell_register_command_ex("update_status_test", cmd_update_status_test, "oc_update_get_status coverage (WP-10u)", "WP-10u");
+    shell_register_command_ex("real_update_test", cmd_real_update_test, "end-to-end update phase 1 (WP-10u)", "WP-10u");
 }

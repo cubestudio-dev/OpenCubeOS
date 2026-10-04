@@ -534,21 +534,21 @@ static int cmd_volume(const char *args) {
 }
 
 void snd_test_cmds_register(void) {
-    shell_register_command("sound",     cmd_sound,     "list registered sound cards");
-    shell_register_command("hda",       cmd_hda,       "Intel HDA status");
-    shell_register_command("ac97",      cmd_ac97,      "AC'97 status");
-    shell_register_command("sb16",      cmd_sb16,      "Sound Blaster 16 status");
-    shell_register_command("es1370",    cmd_es1370,    "ES1370/1371 status");
-    shell_register_command("virtiosnd", cmd_virtiosnd, "virtio-snd status");
-    shell_register_command("usbaudio",  cmd_usbaudio,  "USB audio status");
-    shell_register_command("play",      cmd_play,      "play a test tone (play [rate])");
-    shell_register_command("volume",    cmd_volume,    "get/set volume (volume [0-100])");
-    shell_register_command("hda_test",        cmd_hda_test,        "Intel HDA init/codec/play test");
-    shell_register_command("ac97_test",       cmd_ac97_test,       "AC'97 init/play test");
-    shell_register_command("sb16_test",       cmd_sb16_test,       "SB16 init/play test");
-    shell_register_command("es1370_test",     cmd_es1370_test,     "ES1370 init/play test");
-    shell_register_command("virtio_snd_test", cmd_virtio_snd_test, "virtio-snd init/play test");
-    shell_register_command("usb_audio_test",  cmd_usb_audio_test,  "USB audio init/play test");
-    shell_register_command("audio_rw_test",   cmd_audio_rw_test,   "play/stop round-trip on every card");
-    shell_register_command("sample_rate_test", cmd_sample_rate_test, "44100/48000 rate configuration test");
+    shell_register_command_ex("sound", cmd_sound, "list registered sound cards", "WP-10c");
+    shell_register_command_ex("hda", cmd_hda, "Intel HDA status", "WP-10c");
+    shell_register_command_ex("ac97", cmd_ac97, "AC'97 status", "WP-10c");
+    shell_register_command_ex("sb16", cmd_sb16, "Sound Blaster 16 status", "WP-10c");
+    shell_register_command_ex("es1370", cmd_es1370, "ES1370/1371 status", "WP-10c");
+    shell_register_command_ex("virtiosnd", cmd_virtiosnd, "virtio-snd status", "WP-10c");
+    shell_register_command_ex("usbaudio", cmd_usbaudio, "USB audio status", "WP-10c");
+    shell_register_command_ex("play", cmd_play, "play a test tone (play [rate])", "WP-10c");
+    shell_register_command_ex("volume", cmd_volume, "get/set volume (volume [0-100])", "WP-10c");
+    shell_register_command_ex("hda_test", cmd_hda_test, "Intel HDA init/codec/play test", "WP-10c");
+    shell_register_command_ex("ac97_test", cmd_ac97_test, "AC'97 init/play test", "WP-10c");
+    shell_register_command_ex("sb16_test", cmd_sb16_test, "SB16 init/play test", "WP-10c");
+    shell_register_command_ex("es1370_test", cmd_es1370_test, "ES1370 init/play test", "WP-10c");
+    shell_register_command_ex("virtio_snd_test", cmd_virtio_snd_test, "virtio-snd init/play test", "WP-10c");
+    shell_register_command_ex("usb_audio_test", cmd_usb_audio_test, "USB audio init/play test", "WP-10c");
+    shell_register_command_ex("audio_rw_test", cmd_audio_rw_test, "play/stop round-trip on every card", "WP-10c");
+    shell_register_command_ex("sample_rate_test", cmd_sample_rate_test, "44100/48000 rate configuration test", "WP-10c");
 }

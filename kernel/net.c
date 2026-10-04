@@ -11,6 +11,7 @@
  * Uses polling mode (no IRQ). net_poll() must be called periodically.
  */
 #include "net.h"
+#include "shell.h"  /* WP-10d-fix2: shell_register_command_ex */
 #include "pci.h"
 #include "nic.h"   /* WP-10b: NIC driver framework (e1000e/igb/rtl8139/...) */
 #include "heap.h"
@@ -5057,25 +5058,25 @@ static int cmd_tcptest(const char *args) {
     return fails == 0 ? 0 : 1;
 }
 
-/* Network shell command registration. */
+/* Network shell command registration (WP-10d-fix2: shell.h include,
+ * the local extern declaration predates it and did not know _ex). */
 void net_register_shell_commands(void) {
-    extern int shell_register_command(const char *name, int (*fn)(const char *), const char *help);
-    shell_register_command("ifconfig", cmd_ifconfig, "show network interface info");
-    shell_register_command("ip", cmd_ip, "show/set IP address");
-    shell_register_command("route", cmd_route, "show/add/del routing table (route add <dst> <mask> <gw>)");
-    shell_register_command("arp", cmd_arp, "show ARP cache");
-    shell_register_command("firewall", cmd_firewall, "show/add/del firewall rules (chains, states, policies, conntrack)");
-    shell_register_command("nf_test", cmd_nf_test, "netfilter self-test (rules, conntrack, policies, real-path)");
-    shell_register_command("tcpstats", cmd_tcpstats, "show TCP reliability stats (cwnd, rto, etc.)");
-    shell_register_command("tcpcc_test", cmd_tcpcc_test, "CUBIC congestion control self-test vectors");
-    shell_register_command("ping", cmd_ping, "send ICMP echo (ping <host>)");
-    shell_register_command("netstat", cmd_netstat, "show network statistics and sockets");
-    shell_register_command("dhcp", cmd_dhcp, "get IP via DHCP");
-    shell_register_command("dns", cmd_dns, "resolve domain name (dns <name> [aaaa|cname|mx|txt|ns|srv])");
-    shell_register_command("dnstest", cmd_dnstest, "DNS record-type self-test (A/AAAA/MX/TXT/NS/SRV live)");
-    shell_register_command("tcptest", cmd_tcptest, "TCP option negotiation self-test (MSS/WScale/SACK/TS live)");
-    shell_register_command("lspci", cmd_lspci, "list PCI devices");
-    shell_register_command("wget", cmd_wget, "download file via HTTP (wget <host> [port] [path])");
+    shell_register_command_ex("ifconfig", cmd_ifconfig, "show network interface info", "WP-06");
+    shell_register_command_ex("ip", cmd_ip, "show/set IP address", "WP-06");
+    shell_register_command_ex("route", cmd_route, "show/add/del routing table (route add <dst> <mask> <gw>)", "WP-06");
+    shell_register_command_ex("arp", cmd_arp, "show ARP cache", "WP-06");
+    shell_register_command_ex("firewall", cmd_firewall, "show/add/del firewall rules (chains, states, policies, conntrack)", "WP-06");
+    shell_register_command_ex("nf_test", cmd_nf_test, "netfilter self-test (rules, conntrack, policies, real-path)", "WP-06");
+    shell_register_command_ex("tcpstats", cmd_tcpstats, "show TCP reliability stats (cwnd, rto, etc.)", "WP-06");
+    shell_register_command_ex("tcpcc_test", cmd_tcpcc_test, "CUBIC congestion control self-test vectors", "WP-06");
+    shell_register_command_ex("ping", cmd_ping, "send ICMP echo (ping <host>)", "WP-06");
+    shell_register_command_ex("netstat", cmd_netstat, "show network statistics and sockets", "WP-06");
+    shell_register_command_ex("dhcp", cmd_dhcp, "get IP via DHCP", "WP-06");
+    shell_register_command_ex("dns", cmd_dns, "resolve domain name (dns <name> [aaaa|cname|mx|txt|ns|srv])", "WP-06");
+    shell_register_command_ex("dnstest", cmd_dnstest, "DNS record-type self-test (A/AAAA/MX/TXT/NS/SRV live)", "WP-06");
+    shell_register_command_ex("tcptest", cmd_tcptest, "TCP option negotiation self-test (MSS/WScale/SACK/TS live)", "WP-06");
+    shell_register_command_ex("lspci", cmd_lspci, "list PCI devices", "WP-06");
+    shell_register_command_ex("wget", cmd_wget, "download file via HTTP (wget <host> [port] [path])", "WP-06");
 }
 
 /* Periodic timer callback for network polling. */

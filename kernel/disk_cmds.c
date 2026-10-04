@@ -451,11 +451,11 @@ static int cmd_sync(const char *args) {
 void disk_cmds_register(void) {
     /* P1-18 FIX: df/du/mount/umount are registered in file_cmds.c (WP-05).
      * Only register WP-07-specific commands here to avoid duplicates. */
-    shell_register_command("lsblk",       cmd_lsblk,       "list block devices");
-    shell_register_command("parted",      cmd_parted,      "show partition table (parted [dev])");
-    shell_register_command("mkfs.fat32",  cmd_mkfs_fat32,  "format FAT32 (mkfs.fat32 <dev>)");
-    shell_register_command("mkfs.exfat",  cmd_mkfs_exfat,  "format exFAT");
-    shell_register_command("mkfs.ext4",   cmd_mkfs_ext4,   "format ext4");
-    shell_register_command("fsck",        cmd_fsck,        "filesystem check");
-    shell_register_command("sync",        cmd_sync,        "flush disk cache");
+    shell_register_command_ex("lsblk", cmd_lsblk, "list block devices", "WP-10a");
+    shell_register_command_ex("parted", cmd_parted, "show partition table (parted [dev])", "WP-10a");
+    shell_register_command_ex("mkfs.fat32", cmd_mkfs_fat32, "format FAT32 (mkfs.fat32 <dev>)", "WP-10a");
+    shell_register_command_ex("mkfs.exfat", cmd_mkfs_exfat, "format exFAT", "WP-10a");
+    shell_register_command_ex("mkfs.ext4", cmd_mkfs_ext4, "format ext4", "WP-10a");
+    shell_register_command_ex("fsck", cmd_fsck, "filesystem check", "WP-10a");
+    shell_register_command_ex("sync", cmd_sync, "flush disk cache", "WP-10a");
 }

@@ -1,8 +1,8 @@
 {
-  "version": "WP-10d-fix1",
+  "version": "WP-10d-fix2",
   "time": "2026-10-04",
-  "changes": "WP-10d-fix1 update-stack fix: the v2 long-changelog parser now accepts BOTH field names (canonical changes and the WP-10d spelling changes_full) so every published manifest generation keeps parsing; oversized values report -8 instead of being silently dropped; checkupdate_test extended to 12 items (all PASS in BIOS and UEFI boots). WP-10d base: full USB host stack verified at device level (UHCI incl. hub cascade and hot-plug; OHCI independent session ALL PASS; EHCI kbd/mouse/storage with STALL recovery; XHCI kbd/mouse with the Reset-Endpoint EPID fix), HID/MSC/CDC-ACM/FTDI/UAC class drivers, usb/usbdev status commands, 159 shell commands, 122 L1 interfaces, 75,806 source lines, BIOS+UEFI boot matrix, full regression green.",
-  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10d-fix1/opencube-wp10d-fix1-update.tar.gz",
-  "package_sha256": "4ade905c79cfb20aef80ed85d9ed66039666d44706775cd87f8773b2906e0a00",
-  "package_size": 515515
+  "changes": "WP-10d-fix2 power management + structured help. Power: shutdown/poweroff really power the machine off (block flush first, then QEMU/PIIX4 ACPI PM1a_CNT 0x604, Bochs 0xB004, legacy APM 0xF000; QEMU verified exit 0), reboot moved to kernel/power.c with the 8042 + 0xCF9 reset path (live restart verified), halt = cli;hlt with the System halted banner (live silence verified), suspend/sleep answer honestly that ACPI S3 is not implemented yet. Help: rewritten from registration order to two structured views - default/help -a lists all commands A-Z and help -w groups them by work-package tag (19 groups, WP-01..WP-10d-fix2) via the new shell_register_command_ex registration. 7 new L1 interfaces (power_shutdown/suspend/halt/reboot + shell_register_command_ex/shell_list_commands_a_z/shell_list_commands_by_wp), 170 shell commands, 129 L1 interfaces. Regression green: WP-09 18/18, storage tests on four real disks, NIC e1000e TX/RX, HDA play, USB 4 devices, A/B update 7/7, BIOS+UEFI boot matrix.",
+  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10d-fix2/opencube-wp10d-fix2-update.tar.gz",
+  "package_sha256": "9387c884c508480b148ce59483f53dc83b6f568c1ddf9457d5ee88e71235dc75",
+  "package_size": 519175
 }

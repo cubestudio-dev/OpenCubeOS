@@ -1,9 +1,9 @@
 {
-  "version": "WP-10d-fix1",
+  "version": "WP-10d-fix2",
   "time": "2026-10-04",
-  "changes": "checkupdate fix: v2 long changelog accepts changes and changes_full names; 12/12 self-test, BIOS+UEFI matrix, regression green",
+  "changes": "power + help: shutdown/poweroff/suspend/sleep cmds, structured help -w; 170 cmds, 129 ifaces; regression green",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10d-fix1/opencube-wp10d-fix1-update.tar.gz",
-  "package_sha256": "4ade905c79cfb20aef80ed85d9ed66039666d44706775cd87f8773b2906e0a00",
-  "package_size": 515515
+  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10d-fix2/opencube-wp10d-fix2-update.tar.gz",
+  "package_sha256": "9387c884c508480b148ce59483f53dc83b6f568c1ddf9457d5ee88e71235dc75",
+  "package_size": 519175
 }

@@ -42,6 +42,7 @@ typedef struct {
     char name[32];
     shell_cmd_fn handler;
     char help[80];
+    char wp[24];        /* WP-10d-fix2: work-package tag for `help -w` */
     int in_use;
 } shell_cmd_t;
 
@@ -52,13 +53,15 @@ int shell_command_count(void) {
     return g_command_count;
 }
 
-int shell_register_command(const char *name, shell_cmd_fn handler, const char *help) {
+int shell_register_command_ex(const char *name, shell_cmd_fn handler,
+                              const char *help, const char *wp) {
     if (!name || !handler) return -1;
     /* Check if already registered (replace). */
     for (int i = 0; i < SHELL_MAX_COMMANDS; i++) {
         if (g_commands[i].in_use && oc_strcmp(g_commands[i].name, name) == 0) {
             g_commands[i].handler = handler;
             if (help) oc_strncpy(g_commands[i].help, help, sizeof(g_commands[i].help) - 1);
+            if (wp) oc_strncpy(g_commands[i].wp, wp, sizeof(g_commands[i].wp) - 1);
             return 0;
         }
     }
@@ -74,6 +77,12 @@ int shell_register_command(const char *name, shell_cmd_fn handler, const char *h
             } else {
                 g_commands[i].help[0] = 0;
             }
+            if (wp) {
+                oc_strncpy(g_commands[i].wp, wp, sizeof(g_commands[i].wp) - 1);
+                g_commands[i].wp[sizeof(g_commands[i].wp) - 1] = 0;
+            } else {
+                oc_strcpy(g_commands[i].wp, "WP-03");
+            }
             g_commands[i].in_use = 1;
             g_command_count++; /* docs-sync FIX: live count for boot banner */
             return 0;
@@ -85,6 +94,10 @@ int shell_register_command(const char *name, shell_cmd_fn handler, const char *h
     oc_console_puts(name);
     oc_console_puts("'\n");
     return -2;  /* table full */
+}
+
+int shell_register_command(const char *name, shell_cmd_fn handler, const char *help) {
+    return shell_register_command_ex(name, handler, help, "WP-03");
 }
 
 int shell_unregister_command(const char *name) {
@@ -134,16 +147,161 @@ int shell_execute(const char *line) {
     return shell_run_simple(cmd, args);
 }
 
-void shell_print_help(void) {
-    for (int i = 0; i < SHELL_MAX_COMMANDS; i++) {
-        if (g_commands[i].in_use) {
-            oc_console_puts("  ");
-            oc_console_puts(g_commands[i].name);
-            oc_console_puts(" - ");
-            oc_console_puts(g_commands[i].help);
-            oc_console_putc('\n');
-        }
+/* ------------------------------------------------------------------ *
+ * WP-10d-fix2: structured help listings
+ * ================================================================== */
+
+/* Canonical work-package display order + descriptions.  Tags not in
+ * this table (if an L1 driver registers its own) are appended after the
+ * known ones, sorted A-Z, with no description. */
+static const struct { const char *tag; const char *desc; } g_wp_order[] = {
+    { "WP-01",           "boot, framebuffer, text" },
+    { "WP-02",           "interrupts, timer, keyboard" },
+    { "WP-03",           "shell core" },
+    { "WP-04",           "memory, scheduler" },
+    { "WP-05",           "VFS, FAT32, ATA" },
+    { "WP-06",           "network stack" },
+    { "WP-07",           "block layer" },
+    { "WP-08a",          "ring-3 user mode" },
+    { "WP-08b",          "ELF, dynamic linking" },
+    { "WP-08cd",         "user-space shell + toolset" },
+    { "WP-09",           "secure transport" },
+    { "WP-09-fix5",      "config, update check" },
+    { "WP-10a",          "storage drivers" },
+    { "WP-10b",          "NIC drivers" },
+    { "WP-10c",          "sound drivers" },
+    { "WP-10d",          "USB host stack" },
+    { "WP-10u",          "in-system update" },
+    { "WP-10c-selfhost", "rule-9 self-hosting" },
+    { "WP-10d-fix2",     "power management, help" },
+};
+
+/* Case-insensitive name compare (A-Z means alphabetical to a user). */
+static int wp_name_cmp(const char *a, const char *b) {
+    while (*a && *b) {
+        char ca = *a, cb = *b;
+        if (ca >= 'A' && ca <= 'Z') ca = (char)(ca - 'A' + 'a');
+        if (cb >= 'A' && cb <= 'Z') cb = (char)(cb - 'A' + 'a');
+        if (ca != cb) return (int)(u8)ca - (int)(u8)cb;
+        a++; b++;
     }
+    return (int)(u8)*a - (int)(u8)*b;
+}
+
+/* Build an index of in-use commands sorted by name.  Returns the count. */
+static int wp_sorted_indices(int *idx, int cap) {
+    int n = 0;
+    for (int i = 0; i < SHELL_MAX_COMMANDS && n < cap; i++)
+        if (g_commands[i].in_use) idx[n++] = i;
+    /* insertion sort (n <= 192; keeps this simple and allocation-free) */
+    for (int i = 1; i < n; i++) {
+        int cur = idx[i];
+        int j = i - 1;
+        while (j >= 0 && wp_name_cmp(g_commands[idx[j]].name,
+                                     g_commands[cur].name) > 0) {
+            idx[j + 1] = idx[j];
+            j--;
+        }
+        idx[j + 1] = cur;
+    }
+    return n;
+}
+
+/* Longest in-use command name (for column alignment). */
+static int wp_max_name_len(const int *idx, int n) {
+    int w = 12; /* spec sample width */
+    for (int i = 0; i < n; i++) {
+        int l = 0;
+        while (g_commands[idx[i]].name[l]) l++;
+        if (l > w) w = l;
+    }
+    return w;
+}
+
+static void wp_print_entry(const shell_cmd_t *c, int width) {
+    oc_console_puts("  ");
+    oc_console_puts(c->name);
+    int l = 0;
+    while (c->name[l]) l++;
+    for (int p = l; p < width + 1; p++) oc_console_putc(' ');
+    oc_console_puts("- ");
+    oc_console_puts(c->help[0] ? c->help : "(no description)");
+    oc_console_putc('\n');
+}
+
+void shell_list_commands_a_z(void) {
+    int idx[SHELL_MAX_COMMANDS];
+    int n = wp_sorted_indices(idx, (int)SHELL_MAX_COMMANDS);
+    int w = wp_max_name_len(idx, n);
+    oc_console_puts("Available commands (A-Z):\n");
+    for (int i = 0; i < n; i++)
+        wp_print_entry(&g_commands[idx[i]], w);
+    oc_console_puts("Total: ");
+    char num[12];
+    oc_u64_to_str((u64)n, num);
+    oc_console_puts(num);
+    oc_console_puts(" commands. Use 'help -w' for the work-package view.\n");
+}
+
+void shell_list_commands_by_wp(void) {
+    int idx[SHELL_MAX_COMMANDS];
+    int n = wp_sorted_indices(idx, (int)SHELL_MAX_COMMANDS);
+    int w = wp_max_name_len(idx, n);
+    oc_console_puts("Commands by work package:\n");
+    int shown = 0;
+    /* known tags in canonical order */
+    for (int k = 0; k < (int)(sizeof(g_wp_order) / sizeof(g_wp_order[0])); k++) {
+        int count = 0;
+        for (int i = 0; i < n; i++)
+            if (oc_strcmp(g_commands[idx[i]].wp, g_wp_order[k].tag) == 0) count++;
+        if (count == 0) continue;
+        oc_console_puts("\n=== ");
+        oc_console_puts(g_wp_order[k].tag);
+        oc_console_puts(" (");
+        oc_console_puts(g_wp_order[k].desc);
+        oc_console_puts(") ===\n");
+        for (int i = 0; i < n; i++)
+            if (oc_strcmp(g_commands[idx[i]].wp, g_wp_order[k].tag) == 0)
+                wp_print_entry(&g_commands[idx[i]], w);
+        shown += count;
+    }
+    /* unknown tags (L1 drivers may register their own): append A-Z */
+    for (int i = 0; i < n; i++) {
+        int known = 0;
+        for (int k = 0; k < (int)(sizeof(g_wp_order) / sizeof(g_wp_order[0])); k++)
+            if (oc_strcmp(g_commands[idx[i]].wp, g_wp_order[k].tag) == 0) { known = 1; break; }
+        if (known) continue;
+        if (shown == 0 || g_commands[idx[i - 1]].wp[0] == 0 ||
+            oc_strcmp(g_commands[idx[i - 1]].wp, g_commands[idx[i]].wp) != 0) {
+            /* first command of an unknown tag: header once per tag */
+            int first = 1;
+            for (int j = 0; j < i; j++) {
+                int kknown = 0;
+                for (int k = 0; k < (int)(sizeof(g_wp_order) / sizeof(g_wp_order[0])); k++)
+                    if (oc_strcmp(g_commands[idx[j]].wp, g_wp_order[k].tag) == 0) { kknown = 1; break; }
+                if (!kknown && oc_strcmp(g_commands[idx[j]].wp,
+                                         g_commands[idx[i]].wp) == 0) { first = 0; break; }
+            }
+            if (first) {
+                oc_console_puts("\n=== ");
+                oc_console_puts(g_commands[idx[i]].wp);
+                oc_console_puts(" ===\n");
+            }
+        }
+        wp_print_entry(&g_commands[idx[i]], w);
+        shown++;
+    }
+    oc_console_puts("\nTotal: ");
+    char num[12];
+    oc_u64_to_str((u64)shown, num);
+    oc_console_puts(num);
+    oc_console_puts(" commands.");
+    oc_console_putc('\n');
+}
+
+/* Retired WP-03 listing: now the A-Z view (WP-10d-fix2 rewrite). */
+void shell_print_help(void) {
+    shell_list_commands_a_z();
 }
 
 /* ================================================================== *
@@ -1362,13 +1520,61 @@ void shell_init(void) {
     oc_strcpy(g_cwd, "/");
 
     /* Register builtins. */
-    shell_register_command("export", cmd_export, "set env var (export NAME=value)");
-    shell_register_command("set",    cmd_set,    "list env vars");
-    shell_register_command("alias",  cmd_alias,  "set/show aliases");
-    shell_register_command("unalias",cmd_unalias,"remove an alias");
+    shell_register_command_ex("export", cmd_export, "set env var (export NAME=value)", "WP-05");
+    shell_register_command_ex("set", cmd_set, "list env vars", "WP-05");
+    shell_register_command_ex("alias", cmd_alias, "set/show aliases", "WP-07");
+    shell_register_command_ex("unalias", cmd_unalias, "remove an alias", "WP-07");
 
     /* Set some default env vars. */
     shell_setenv("SHELL", "/bin/ocsh");
     shell_setenv("PS1", "oc> ");
     shell_setenv("PATH", "/bin:/sbin");
+}
+
+/* ------------------------------------------------------------------ *
+ * WP-10d-fix2: self-test helpers + L1 extension surface (kernel/ext.h)
+ * ------------------------------------------------------------------ */
+
+/* 1 when the A-Z view is strictly non-decreasing by name
+ * (case-insensitive) and at least one command is registered. */
+int shell_verify_sorted_a_z(void) {
+    int idx[SHELL_MAX_COMMANDS];
+    int n = wp_sorted_indices(idx, (int)SHELL_MAX_COMMANDS);
+    for (int i = 1; i < n; i++)
+        if (wp_name_cmp(g_commands[idx[i - 1]].name,
+                        g_commands[idx[i]].name) > 0)
+            return 0;
+    return n > 0;
+}
+
+/* 1 when every known work-package group is itself sorted A-Z. */
+int shell_verify_wp_groups(void) {
+    int idx[SHELL_MAX_COMMANDS];
+    int n = wp_sorted_indices(idx, (int)SHELL_MAX_COMMANDS);
+    for (int k = 0; k < (int)(sizeof(g_wp_order) / sizeof(g_wp_order[0])); k++) {
+        int prev = -1;
+        for (int i = 0; i < n; i++) {
+            if (oc_strcmp(g_commands[idx[i]].wp, g_wp_order[k].tag) != 0)
+                continue;
+            if (prev >= 0 &&
+                wp_name_cmp(g_commands[idx[prev]].name,
+                            g_commands[idx[i]].name) > 0)
+                return 0;
+            prev = i;
+        }
+    }
+    return 1;
+}
+
+int oc_ext_shell_register_command_ex(const char *name, int (*fn)(const char *),
+                                     const char *help, const char *wp) {
+    return shell_register_command_ex(name, fn, help, wp);
+}
+
+void oc_ext_shell_list_commands_a_z(void) {
+    shell_list_commands_a_z();
+}
+
+void oc_ext_shell_list_commands_by_wp(void) {
+    shell_list_commands_by_wp();
 }

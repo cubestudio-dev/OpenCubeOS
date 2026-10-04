@@ -196,6 +196,25 @@ int  oc_ext_update_set_boot(const char *slot);
 int  oc_ext_update_get_status(oc_update_status_t *out);
 
 /* ------------------------------------------------------------------ *
+ * WP-10d-fix2: power management + structured help (7 new interfaces)
+ *
+ * Example (L1 code):
+ *     oc_ext_power_shutdown();                     // power off the box
+ *     oc_ext_shell_register_command_ex("mycmd", my_fn,
+ *                                      "my command", "WP-L1demo");
+ *     oc_ext_shell_list_commands_a_z();            // A-Z view
+ *     oc_ext_shell_list_commands_by_wp();          // per-WP view
+ * ------------------------------------------------------------------ */
+int  oc_ext_power_shutdown(void);   /* -1 unsupported (then halt yourself) */
+int  oc_ext_power_suspend(void);    /* -1 unsupported (ACPI S3 pending)    */
+void oc_ext_power_halt(void);       /* never returns                       */
+void oc_ext_power_reboot(void);     /* never returns                       */
+int  oc_ext_shell_register_command_ex(const char *name, int (*fn)(const char *),
+                                      const char *help, const char *wp);
+void oc_ext_shell_list_commands_a_z(void);
+void oc_ext_shell_list_commands_by_wp(void);
+
+/* ------------------------------------------------------------------ *
  * Self-test: invokes every extension point from inside L0 (the kernel
  * calls this at the end of kmain as part of the WP-01 acceptance test).
  * Returns the number of points that passed (0..4).

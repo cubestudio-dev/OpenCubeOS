@@ -1202,33 +1202,9 @@ int cmd_rollback(const char *args) {
     return 0;
 }
 
-int cmd_reboot(const char *args) {
-    (void)args;
-    /* flush every block device so the update survives the reset */
-    int n = blk_num_devices();
-    for (int i = 0; i < n; i++) {
-        blk_device_t *dev = blk_get_device(i);
-        if (dev && dev->present) blk_flush(dev);
-    }
-    oc_console_puts("rebooting...\n");
-    /* 8042 keyboard controller reset (mainstream PC method) */
-    for (int i = 0; i < 100000; i++) {
-        u8 st = ab_inb(0x64);
-        if (!(st & 2)) break;
-    }
-    ab_outb(0x64, 0xFE);
-    /* fallback: ACPI RESET_REG port 0xCF9 (works on QEMU/edk2) */
-    for (int i = 0; i < 100000; i++) {
-        u8 st = ab_inb(0x64);
-        if (!(st & 2)) break;
-    }
-    ab_outb(0xCF9, 0x02);
-    ab_outb(0xCF9, 0x06);
-    for (;;) {
-        __asm__ volatile("hlt");
-    }
-    return 0;
-}
+/* cmd_reboot moved to kernel/power.c (WP-10d-fix2): the reset path
+ * is shared with shutdown/halt and the block flush lives in
+ * power_flush_blk().  ab_update.c keeps the A/B update logic. */
 
 /* ------------------------------------------------------------------ */
 /* 9. error strings                                                    */

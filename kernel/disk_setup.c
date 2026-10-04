@@ -593,15 +593,11 @@ static int cmd_abcfg_show(const char *args) {
 }
 
 void disk_setup_cmds_register(void) {
-    shell_register_command("abdisk", cmd_abdisk,
-                           "create a bootable A/B update disk "
-                           "(abdisk <dev>; destroys data)");
-    shell_register_command("install", cmd_install,
-                           "install the running system to a disk "
-                           "(install <dev>; destroys data)");
-    shell_register_command("grub-install", cmd_grubinstall,
-                           "write the GRUB BIOS boot loader "
-                           "(grub-install <dev>)");
-    shell_register_command("abcfg", cmd_abcfg_show,
-                           "show the grub.cfg files abdisk/install write");
+    shell_register_command_ex("abdisk", cmd_abdisk, "create a bootable A/B update disk "
+                           "(abdisk <dev>; destroys data)", "WP-10c-selfhost");
+    shell_register_command_ex("install", cmd_install, "install the running system to a disk "
+                           "(install <dev>; destroys data)", "WP-10c-selfhost");
+    shell_register_command_ex("grub-install", cmd_grubinstall, "write the GRUB BIOS boot loader "
+                           "(grub-install <dev>)", "WP-10c-selfhost");
+    shell_register_command_ex("abcfg", cmd_abcfg_show, "show the grub.cfg files abdisk/install write", "WP-10c-selfhost");
 }

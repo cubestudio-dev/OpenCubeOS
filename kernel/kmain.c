@@ -64,6 +64,7 @@ void ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "disk_test_cmds.h" /* WP-10a: storage test suite */
 #include "nic.h"            /* WP-10b: NIC drivers + test/status commands */
 #include "ab_update.h"       /* WP-10u: A/B slots + in-system update */
+#include "power.h"           /* WP-10d-fix2: shutdown/suspend/halt/reboot */
 #include "update_test_cmds.h" /* WP-10u: update test suite */
 #include "snd.h"             /* WP-10c: sound card drivers */
 #include "usb.h"              /* WP-10d: USB stack */
@@ -72,6 +73,7 @@ void ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "usb_serial.h"
 #include "usb_audio.h"
 #include "usb_test_cmds.h"
+#include "power_test_cmds.h"  /* WP-10d-fix2: power + help test suite */
 #include "exfat.h"
 #include "ext4.h"
 #include "disk_cmds.h"
@@ -263,10 +265,26 @@ static void oneshot_test_cb(void *ctx) {
 
 /* ---- Shell commands ---- */
 
+/* WP-10d-fix2: help rewritten - default/-a = A-Z, -w = by work package;
+ * the old registration-order listing is retired. */
 static int cmd_help(const char *args) {
-    (void)args;
-    oc_console_puts("Available commands:\n");
-    shell_print_help();
+    const char *p = args;
+    while (p && *p == ' ') p++;
+    if (p && p[0] == '-' && p[1]) {
+        if (oc_strcmp(p, "-w") == 0 || oc_strcmp(p, "--wp") == 0) {
+            shell_list_commands_by_wp();
+            return 0;
+        }
+        if (oc_strcmp(p, "-a") == 0 || oc_strcmp(p, "--all") == 0) {
+            shell_list_commands_a_z();
+            return 0;
+        }
+        oc_console_puts("help: unknown option '");
+        oc_console_puts(p);
+        oc_console_puts("' (use: help, help -a, help -w)\n");
+        return 1;
+    }
+    shell_list_commands_a_z();
     return 0;
 }
 
@@ -346,11 +364,10 @@ static int cmd_clear(const char *args) {
 
 static int cmd_halt(const char *args) {
     (void)args;
-    oc_console_puts("Halting.\n");
-    oc_console_show_cursor(0);
-    __asm__ volatile("cli");
-    for (;;) __asm__ volatile("hlt");
-    return 0;
+    /* WP-10d-fix2: halt moved into kernel/power.c (cli + hlt loop with
+     * the "System halted." banner). */
+    power_halt();
+    return 0; /* unreachable */
 }
 
 /* WP-09: cryptotest — verify AES + SHA-256 with NIST test vectors */
@@ -2424,39 +2441,39 @@ void kmain(u64 magic, u64 mbi_phys) {
     OC_LOG_OK2("shell state (env vars, aliases, cwd)");
 
     /* ---- 13. WP-03: Shell commands ---- */
-    shell_register_command("help", cmd_help, "show this message");
-    shell_register_command("stats", cmd_stats, "show interrupt/timer stats");
-    shell_register_command("exc", cmd_exc, "run exception self-test (#DE/#UD/#PF)");
-    shell_register_command("timer", cmd_timer, "register a 500ms one-shot timer");
-    shell_register_command("echo", cmd_echo, "echo the text back");
-    shell_register_command("uname", cmd_uname, "print OS name (uname [-a|-s|-r|-m])");
-    shell_register_command("cryptotest", cmd_cryptotest, "test AES/SHA-256/HMAC with NIST vectors");
-    shell_register_command("dhtest", cmd_dhtest, "DH modexp 1024-bit (Oakley Group 1) timing + correctness");
-    shell_register_command("ssh", cmd_ssh, "SSH client connect (ssh <ip> [port] [user] [password])");
-    shell_register_command("sshd", cmd_sshd, "SSH server (sshd [port=22] [user=oc] [password=oc])");
-    shell_register_command("clear", cmd_clear, "clear screen");
-    shell_register_command("halt", cmd_halt, "halt the kernel");
-    shell_register_command("mem", cmd_mem, "show physical memory stats");
-    shell_register_command("heap", cmd_heap, "show kernel heap stats");
-    shell_register_command("vmmap", cmd_vmmap, "show address space mappings");
-    shell_register_command("vmtest", cmd_vmtest, "run virtual memory test");
-    shell_register_command("memtest", cmd_memtest, "run memory test (PMM + heap)");
-    shell_register_command("frag", cmd_frag, "show memory fragmentation");
+    shell_register_command_ex("help", cmd_help, "show this message", "WP-03");
+    shell_register_command_ex("stats", cmd_stats, "show interrupt/timer stats", "WP-01");
+    shell_register_command_ex("exc", cmd_exc, "run exception self-test (#DE/#UD/#PF)", "WP-02");
+    shell_register_command_ex("timer", cmd_timer, "register a 500ms one-shot timer", "WP-02");
+    shell_register_command_ex("echo", cmd_echo, "echo the text back", "WP-03");
+    shell_register_command_ex("uname", cmd_uname, "print OS name (uname [-a|-s|-r|-m])", "WP-01");
+    shell_register_command_ex("cryptotest", cmd_cryptotest, "test AES/SHA-256/HMAC with NIST vectors", "WP-09");
+    shell_register_command_ex("dhtest", cmd_dhtest, "DH modexp 1024-bit (Oakley Group 1) timing + correctness", "WP-09");
+    shell_register_command_ex("ssh", cmd_ssh, "SSH client connect (ssh <ip> [port] [user] [password])", "WP-09");
+    shell_register_command_ex("sshd", cmd_sshd, "SSH server (sshd [port=22] [user=oc] [password=oc])", "WP-09");
+    shell_register_command_ex("clear", cmd_clear, "clear screen", "WP-01");
+    shell_register_command_ex("halt", cmd_halt, "halt the kernel", "WP-10d-fix2");
+    shell_register_command_ex("mem", cmd_mem, "show physical memory stats", "WP-04");
+    shell_register_command_ex("heap", cmd_heap, "show kernel heap stats", "WP-04");
+    shell_register_command_ex("vmmap", cmd_vmmap, "show address space mappings", "WP-04");
+    shell_register_command_ex("vmtest", cmd_vmtest, "run virtual memory test", "WP-04");
+    shell_register_command_ex("memtest", cmd_memtest, "run memory test (PMM + heap)", "WP-04");
+    shell_register_command_ex("frag", cmd_frag, "show memory fragmentation", "WP-04");
     /* WP-04 commands */
-    shell_register_command("ps", cmd_ps, "list all tasks");
-    shell_register_command("kill", cmd_kill, "kill a task (kill <tid>)");
-    shell_register_command("nice", cmd_nice, "change priority (nice <tid> <prio>)");
-    shell_register_command("sched", cmd_sched, "show scheduler stats");
-    shell_register_command("syncstat", cmd_syncstat, "show sync primitive stats");
-    shell_register_command("pftest", cmd_pftest, "test page fault handling");
-    shell_register_command("cr3test", cmd_cr3test, "test CR3 switching");
-    shell_register_command("crashlog", cmd_crashlog, "show last exception crashes");
-    shell_register_command("heaptest", cmd_heaptest, "test heap overhead with 100 allocs");
-    shell_register_command("spawn", cmd_spawn, "spawn a test kernel thread");
-    shell_register_command("multi", cmd_multi, "spawn 3 tasks with interleaved output");
-    shell_register_command("synctest", cmd_synctest, "test sync primitives (spinlock/mutex/sem)");
-    shell_register_command("run", cmd_run, "run a user program (hello/badapp/loop/fork_test/.../dyn_test/so_test/dyn_hello/dlsym_test/pie_test/reloc_test)");
-    shell_register_command("ldd", cmd_ldd, "list dynamic dependencies (ldd <program>)");
+    shell_register_command_ex("ps", cmd_ps, "list all tasks", "WP-04");
+    shell_register_command_ex("kill", cmd_kill, "kill a task (kill <tid>)", "WP-04");
+    shell_register_command_ex("nice", cmd_nice, "change priority (nice <tid> <prio>)", "WP-04");
+    shell_register_command_ex("sched", cmd_sched, "show scheduler stats", "WP-04");
+    shell_register_command_ex("syncstat", cmd_syncstat, "show sync primitive stats", "WP-04");
+    shell_register_command_ex("pftest", cmd_pftest, "test page fault handling", "WP-04");
+    shell_register_command_ex("cr3test", cmd_cr3test, "test CR3 switching", "WP-04");
+    shell_register_command_ex("crashlog", cmd_crashlog, "show last exception crashes", "WP-04");
+    shell_register_command_ex("heaptest", cmd_heaptest, "test heap overhead with 100 allocs", "WP-04");
+    shell_register_command_ex("spawn", cmd_spawn, "spawn a test kernel thread", "WP-04");
+    shell_register_command_ex("multi", cmd_multi, "spawn 3 tasks with interleaved output", "WP-04");
+    shell_register_command_ex("synctest", cmd_synctest, "test sync primitives (spinlock/mutex/sem)", "WP-04");
+    shell_register_command_ex("run", cmd_run, "run a user program (hello/badapp/loop/fork_test/.../dyn_test/so_test/dyn_hello/dlsym_test/pie_test/reloc_test)", "WP-04");
+    shell_register_command_ex("ldd", cmd_ldd, "list dynamic dependencies (ldd <program>)", "WP-08b");
 
     /* ---- 12c. WP-04: Userspace ---- */
     usermode_init();
@@ -2532,38 +2549,38 @@ void kmain(u64 magic, u64 mbi_phys) {
     file_cmds_register();
     disk_cmds_register();
     disk_setup_cmds_register();   /* WP-10d-pre: abdisk/install/grub-install */
-    shell_register_command("mounts",  cmd_mounts_wrapper, "list VFS mount table (alias for mount)");
-    shell_register_command("fstest",  cmd_fstest,   "run VFS self-test (mkdir/write/read/ls)");
-    shell_register_command("dskstat", cmd_dskstat,  "show block devices");
-    shell_register_command("fatmount",cmd_fatmount, "mount FAT32 (fatmount <dev> <path>)");
-    shell_register_command("fatstat", cmd_fatstat,  "show FAT32 stats");
+    shell_register_command_ex("mounts", cmd_mounts_wrapper, "list VFS mount table (alias for mount)", "WP-05");
+    shell_register_command_ex("fstest", cmd_fstest, "run VFS self-test (mkdir/write/read/ls)", "WP-05");
+    shell_register_command_ex("dskstat", cmd_dskstat, "show block devices", "WP-10a");
+    shell_register_command_ex("fatmount", cmd_fatmount, "mount FAT32 (fatmount <dev> <path>)", "WP-05");
+    shell_register_command_ex("fatstat", cmd_fatstat, "show FAT32 stats", "WP-05");
     /* P1-6: kernel shell command to test L1 job interfaces with live process */
-    shell_register_command("l1test",  cmd_l1test,   "test L1 job_create/job_list/job_control with running process");
+    shell_register_command_ex("l1test", cmd_l1test, "test L1 job_create/job_list/job_control with running process", "WP-08a");
 
     /* ---- WP-10a: driver status commands + storage test suite ---- */
-    shell_register_command("ahci", cmd_ahci, "AHCI controller/port status");
-    shell_register_command("nvme", cmd_nvme, "NVMe controller/queue status");
-    shell_register_command("ata",  cmd_ata,  "ATA (PIO + Bus-Master DMA) status");
+    shell_register_command_ex("ahci", cmd_ahci, "AHCI controller/port status", "WP-10a");
+    shell_register_command_ex("nvme", cmd_nvme, "NVMe controller/queue status", "WP-10a");
+    shell_register_command_ex("ata", cmd_ata, "ATA (PIO + Bus-Master DMA) status", "WP-10a");
     disk_test_cmds_register();
     /* ---- WP-10b: NIC driver tests + status commands ---- */
     nic_test_cmds_register();
 
     /* ---- WP-09-fix5: config + update check commands ---- */
-    shell_register_command("checkupdate",      cmd_checkupdate,
-                           "check for updates via /etc/opencube.conf (http/https)");
-    shell_register_command("config",           cmd_config,
-                           "read/write system config (config list|get|set|restore|path)");
-    shell_register_command("config_test",      cmd_config_test,
-                           "config subsystem self-test (write/read/get_all/delete/restore)");
-    shell_register_command("checkupdate_test", cmd_checkupdate_test,
-                           "update check self-test (URL/JSON units + live probe)");
+    shell_register_command_ex("checkupdate", cmd_checkupdate, "check for updates via /etc/opencube.conf (http/https)", "WP-09-fix5");
+    shell_register_command_ex("config", cmd_config, "read/write system config (config list|get|set|restore|path)", "WP-09-fix5");
+    shell_register_command_ex("config_test", cmd_config_test, "config subsystem self-test (write/read/get_all/delete/restore)", "WP-09-fix5");
+    shell_register_command_ex("checkupdate_test", cmd_checkupdate_test, "update check self-test (URL/JSON units + live probe)", "WP-09-fix5");
     /* ---- WP-10u: in-system update commands + test suite ---- */
-    shell_register_command("update", cmd_update,
-                           "check + install system update (update [local <pkg> | --local <pkg> | --status])");
-    shell_register_command("rollback", cmd_rollback,
-                           "roll back to slot A (rollback)");
-    shell_register_command("reboot", cmd_reboot,
-                           "reboot the machine (reboot)");
+    shell_register_command_ex("update", cmd_update, "check + install system update (update [local <pkg> | --local <pkg> | --status])", "WP-10u");
+    shell_register_command_ex("rollback", cmd_rollback, "roll back to slot A (rollback)", "WP-10u");
+    shell_register_command_ex("reboot", cmd_reboot, "reboot the machine (reboot)", "WP-10u");
+
+    /* ---- WP-10d-fix2: power management commands + help test suite ---- */
+    shell_register_command_ex("shutdown", cmd_shutdown, "power off (flush + ACPI/Bochs/APM ports)", "WP-10d-fix2");
+    shell_register_command_ex("poweroff", cmd_shutdown, "alias of shutdown", "WP-10d-fix2");
+    shell_register_command_ex("suspend", cmd_suspend, "suspend to RAM (needs ACPI S3)", "WP-10d-fix2");
+    shell_register_command_ex("sleep", cmd_suspend, "alias of suspend", "WP-10d-fix2");
+    power_test_cmds_register();
     update_test_cmds_register();
     OC_LOG_OK2("shell file/disk commands");
 

@@ -593,20 +593,12 @@ static int cmd_real_hw_test(const char *args) {
 /* ---- registration ---- */
 
 void disk_test_cmds_register(void) {
-    shell_register_command("ahci_test",       cmd_ahci_test,
-                           "WP-10a: AHCI init/ports/read-write test");
-    shell_register_command("nvme_test",       cmd_nvme_test,
-                           "WP-10a: NVMe init/queues/read-write test");
-    shell_register_command("ata_dma_test",    cmd_ata_dma_test,
-                           "WP-10a: ATA Bus-Master DMA test + PIO timing");
-    shell_register_command("virtio_blk_test", cmd_virtio_blk_test,
-                           "WP-10a: virtio-blk capacity + read/write test");
-    shell_register_command("disk_rw_test",    cmd_disk_rw_test,
-                           "WP-10a: rw round-trip on one device (disk_rw_test <dev>)");
-    shell_register_command("partition_test",  cmd_partition_test,
-                           "WP-10a: MBR+GPT parse test (partition_test [dev])");
-    shell_register_command("fs_mount_test",   cmd_fs_mount_test,
-                           "WP-10a: mkfs+mount FAT32 file round-trip (fs_mount_test <dev>)");
-    shell_register_command("real_hw_test",    cmd_real_hw_test,
-                           "WP-10a: real-hardware detection report");
+    shell_register_command_ex("ahci_test", cmd_ahci_test, "WP-10a: AHCI init/ports/read-write test", "WP-10a");
+    shell_register_command_ex("nvme_test", cmd_nvme_test, "WP-10a: NVMe init/queues/read-write test", "WP-10a");
+    shell_register_command_ex("ata_dma_test", cmd_ata_dma_test, "WP-10a: ATA Bus-Master DMA test + PIO timing", "WP-10a");
+    shell_register_command_ex("virtio_blk_test", cmd_virtio_blk_test, "WP-10a: virtio-blk capacity + read/write test", "WP-10a");
+    shell_register_command_ex("disk_rw_test", cmd_disk_rw_test, "WP-10a: rw round-trip on one device (disk_rw_test <dev>)", "WP-10a");
+    shell_register_command_ex("partition_test", cmd_partition_test, "WP-10a: MBR+GPT parse test (partition_test [dev])", "WP-10a");
+    shell_register_command_ex("fs_mount_test", cmd_fs_mount_test, "WP-10a: mkfs+mount FAT32 file round-trip (fs_mount_test <dev>)", "WP-10a");
+    shell_register_command_ex("real_hw_test", cmd_real_hw_test, "WP-10a: real-hardware detection report", "WP-10a");
 }

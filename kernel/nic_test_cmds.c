@@ -308,34 +308,24 @@ static int cmd_nic_bcm57xx(const char *args) {
 /* ---- registration ---- */
 
 void nic_test_cmds_register(void) {
-    shell_register_command("e1000e_test", cmd_e1000e_test,
-                           "WP-10b: e1000e init/link/send-recv test");
-    shell_register_command("igb_test", cmd_igb_test,
-                           "WP-10b: igb init/link/send-recv test");
-    shell_register_command("ixgbe_test", cmd_ixgbe_test,
-                           "WP-10b: ixgbe presence/link/send-recv test");
-    shell_register_command("rtl8139_test", cmd_rtl8139_test,
-                           "WP-10b: RTL8139 init/link/send-recv test");
-    shell_register_command("rtl8168_test", cmd_rtl8168_test,
-                           "WP-10b: RTL8168 presence/link/send-recv test");
-    shell_register_command("rtl8125_test", cmd_rtl8125_test,
-                           "WP-10b: RTL8125 presence/link/send-recv test");
-    shell_register_command("rtl810x_test", cmd_rtl810x_test,
-                           "WP-10b: RTL810x presence/link/send-recv test");
-    shell_register_command("bcm57xx_test", cmd_bcm57xx_test,
-                           "WP-10b: BCM57xx presence/link/send-recv test");
-    shell_register_command("other_nic_test", cmd_other_nic_test,
-                           "WP-10b: legacy NICs (3c59x/nForce/AR81xx/Yukon)");
-    shell_register_command("nic_rw_test", cmd_nic_rw_test,
-                           "WP-10b: send/recv correctness on all NICs");
+    shell_register_command_ex("e1000e_test", cmd_e1000e_test, "WP-10b: e1000e init/link/send-recv test", "WP-10b");
+    shell_register_command_ex("igb_test", cmd_igb_test, "WP-10b: igb init/link/send-recv test", "WP-10b");
+    shell_register_command_ex("ixgbe_test", cmd_ixgbe_test, "WP-10b: ixgbe presence/link/send-recv test", "WP-10b");
+    shell_register_command_ex("rtl8139_test", cmd_rtl8139_test, "WP-10b: RTL8139 init/link/send-recv test", "WP-10b");
+    shell_register_command_ex("rtl8168_test", cmd_rtl8168_test, "WP-10b: RTL8168 presence/link/send-recv test", "WP-10b");
+    shell_register_command_ex("rtl8125_test", cmd_rtl8125_test, "WP-10b: RTL8125 presence/link/send-recv test", "WP-10b");
+    shell_register_command_ex("rtl810x_test", cmd_rtl810x_test, "WP-10b: RTL810x presence/link/send-recv test", "WP-10b");
+    shell_register_command_ex("bcm57xx_test", cmd_bcm57xx_test, "WP-10b: BCM57xx presence/link/send-recv test", "WP-10b");
+    shell_register_command_ex("other_nic_test", cmd_other_nic_test, "WP-10b: legacy NICs (3c59x/nForce/AR81xx/Yukon)", "WP-10b");
+    shell_register_command_ex("nic_rw_test", cmd_nic_rw_test, "WP-10b: send/recv correctness on all NICs", "WP-10b");
 
     /* status commands */
-    shell_register_command("e1000e", cmd_nic_e1000e, "e1000e NIC status");
-    shell_register_command("igb", cmd_nic_igb, "igb NIC status");
-    shell_register_command("ixgbe", cmd_nic_ixgbe, "ixgbe NIC status");
-    shell_register_command("rtl8139", cmd_nic_rtl8139, "RTL8139 NIC status");
-    shell_register_command("rtl8168", cmd_nic_rtl8168, "RTL8168 NIC status");
-    shell_register_command("rtl8125", cmd_nic_rtl8125, "RTL8125 NIC status");
-    shell_register_command("rtl810x", cmd_nic_rtl810x, "RTL810x NIC status");
-    shell_register_command("bcm57xx", cmd_nic_bcm57xx, "BCM57xx NIC status");
+    shell_register_command_ex("e1000e", cmd_nic_e1000e, "e1000e NIC status", "WP-10b");
+    shell_register_command_ex("igb", cmd_nic_igb, "igb NIC status", "WP-10b");
+    shell_register_command_ex("ixgbe", cmd_nic_ixgbe, "ixgbe NIC status", "WP-10b");
+    shell_register_command_ex("rtl8139", cmd_nic_rtl8139, "RTL8139 NIC status", "WP-10b");
+    shell_register_command_ex("rtl8168", cmd_nic_rtl8168, "RTL8168 NIC status", "WP-10b");
+    shell_register_command_ex("rtl8125", cmd_nic_rtl8125, "RTL8125 NIC status", "WP-10b");
+    shell_register_command_ex("rtl810x", cmd_nic_rtl810x, "RTL810x NIC status", "WP-10b");
+    shell_register_command_ex("bcm57xx", cmd_nic_bcm57xx, "BCM57xx NIC status", "WP-10b");
 }

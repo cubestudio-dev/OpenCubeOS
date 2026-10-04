@@ -972,22 +972,22 @@ static int cmd_edit(const char *args) {
 }
 
 void file_cmds_register(void) {
-    shell_register_command("ls",     cmd_ls,     "list directory (ls [path])");
-    shell_register_command("cd",     cmd_cd,     "change directory (cd [path])");
-    shell_register_command("pwd",    cmd_pwd,    "print working directory");
-    shell_register_command("cat",    cmd_cat,    "print file contents (cat <file>)");
-    shell_register_command("mkdir",  cmd_mkdir,  "make directory (mkdir <path>)");
-    shell_register_command("rmdir",  cmd_rmdir,  "remove directory (rmdir <path>)");
-    shell_register_command("touch",  cmd_touch,  "create empty file (touch <path>)");
-    shell_register_command("rm",     cmd_rm,     "delete file (rm <file>)");
-    shell_register_command("mv",     cmd_mv,     "move/rename file (mv <src> <dst>)");
-    shell_register_command("cp",     cmd_cp,     "copy file (cp <src> <dst>)");
-    shell_register_command("tree",   cmd_tree,   "tree view of directory (tree [path])");
-    shell_register_command("df",     cmd_df,     "show disk/mount usage");
-    shell_register_command("du",     cmd_du,     "directory usage (du [path])");
-    shell_register_command("mount",  cmd_mount,  "list mounts, or mount a fs: mount <type> <device> <path>");  /* WP-09-FIX BUG-031 */
-    shell_register_command("umount", cmd_umount, "unmount (umount <path>)");
-    shell_register_command("write",  cmd_write,  "write text to file (write <path> <text>)");
-    shell_register_command("grep",   cmd_grep,   "filter lines matching pattern (grep <pattern> [file])");
-    shell_register_command("edit",   cmd_edit,   "line editor (edit <file>; :i :d :p :w :q :wq)");
+    shell_register_command_ex("ls", cmd_ls, "list directory (ls [path])", "WP-05");
+    shell_register_command_ex("cd", cmd_cd, "change directory (cd [path])", "WP-05");
+    shell_register_command_ex("pwd", cmd_pwd, "print working directory", "WP-05");
+    shell_register_command_ex("cat", cmd_cat, "print file contents (cat <file>)", "WP-05");
+    shell_register_command_ex("mkdir", cmd_mkdir, "make directory (mkdir <path>)", "WP-05");
+    shell_register_command_ex("rmdir", cmd_rmdir, "remove directory (rmdir <path>)", "WP-05");
+    shell_register_command_ex("touch", cmd_touch, "create empty file (touch <path>)", "WP-05");
+    shell_register_command_ex("rm", cmd_rm, "delete file (rm <file>)", "WP-05");
+    shell_register_command_ex("mv", cmd_mv, "move/rename file (mv <src> <dst>)", "WP-05");
+    shell_register_command_ex("cp", cmd_cp, "copy file (cp <src> <dst>)", "WP-05");
+    shell_register_command_ex("tree", cmd_tree, "tree view of directory (tree [path])", "WP-05");
+    shell_register_command_ex("df", cmd_df, "show disk/mount usage", "WP-05");
+    shell_register_command_ex("du", cmd_du, "directory usage (du [path])", "WP-05");
+    shell_register_command_ex("mount", cmd_mount, "list mounts, or mount a fs: mount <type> <device> <path>", "WP-05");  /* WP-09-FIX BUG-031 */
+    shell_register_command_ex("umount", cmd_umount, "unmount (umount <path>)", "WP-05");
+    shell_register_command_ex("write", cmd_write, "write text to file (write <path> <text>)", "WP-07");
+    shell_register_command_ex("grep", cmd_grep, "filter lines matching pattern (grep <pattern> [file])", "WP-05");
+    shell_register_command_ex("edit", cmd_edit, "line editor (edit <file>; :i :d :p :w :q :wq)", "WP-05");
 }

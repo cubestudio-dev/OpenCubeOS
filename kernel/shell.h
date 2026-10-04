@@ -52,6 +52,36 @@ typedef int (*shell_cmd_fn)(const char *args);
  * Returns 0 on success, -1 on bad args, -2 if table full. */
 int shell_register_command(const char *name, shell_cmd_fn handler, const char *help);
 
+/* ------------------------------------------------------------------ *
+ * WP-10d-fix2 API (extended registration + structured help)
+ * ------------------------------------------------------------------ */
+
+/* Register a command with a work-package tag shown by `help -w`.
+ * Same table and semantics as shell_register_command(); the tag is a
+ * short ASCII string such as "WP-10d" or "WP-10c-selfhost" (copied into
+ * a 24-byte buffer, truncated to fit; an empty tag reads as "WP-03",
+ * the shell-core generation this table came from).
+ * Returns 0 on success, -1 on bad args, -2 if table full. */
+int shell_register_command_ex(const char *name, shell_cmd_fn handler,
+                              const char *help, const char *wp);
+
+/* Print all registered commands sorted A-Z (case-insensitive), one per
+ * line, formatted "  <name><pad> - <help>".  Used by `help` (default)
+ * and `help -a`. */
+void shell_list_commands_a_z(void);
+
+/* Print all registered commands grouped by work-package tag in canonical
+ * WP order (WP-01 .. WP-10d-fix2), each group sorted A-Z, one header line
+ * per group: "=== <tag> (<description>) ===".  Groups with no commands
+ * are skipped.  Used by `help -w`. */
+void shell_list_commands_by_wp(void);
+
+/* WP-10d-fix2 self-test helpers: 1 when the A-Z view is sorted
+ * (case-insensitive, non-decreasing) / when every known work-package
+ * group is itself sorted; 0 otherwise. */
+int shell_verify_sorted_a_z(void);
+int shell_verify_wp_groups(void);
+
 /* Live count of registered shell commands (for the boot self-test banner). */
 int shell_command_count(void);
 
@@ -65,7 +95,9 @@ int shell_unregister_command(const char *name);
  * instead. This function is kept for backward compatibility / simple use. */
 int shell_execute(const char *line);
 
-/* Print all registered commands (for the `help` command). */
+/* Print all registered commands sorted A-Z (WP-10d-fix2 rewrite:
+ * the old registration-order listing is retired).  Equivalent to
+ * shell_list_commands_a_z(); kept because it was part of the WP-03 API. */
 void shell_print_help(void);
 
 /* ------------------------------------------------------------------ *

@@ -535,22 +535,13 @@ void usb_poll_start(void) {
 }
 
 void usb_test_cmds_register(void) {
-    shell_register_command("usb",  cmd_usb,
-                           "USB hosts/devices + class driver status");
-    shell_register_command("usbdev", cmd_usbdev,
-                           "USB device detail (usbdev [slot])");
-    shell_register_command("usb_core_test", cmd_usb_core_test,
-                           "USB core invariants + live transfers");
-    shell_register_command("usb_kbd_test", cmd_usb_kbd_test,
-                           "USB HID keyboard presence + injection");
-    shell_register_command("usb_mouse_test", cmd_usb_mouse_test,
-                           "USB HID mouse presence + event drain");
-    shell_register_command("usb_storage_test", cmd_usb_storage_test,
-                           "USB MSC drive capacity/rw/partitions");
-    shell_register_command("usb_serial_test", cmd_usb_serial_test,
-                           "USB serial TX/RX round");
-    shell_register_command("usb_hotplug_test", cmd_usb_hotplug_test,
-                           "USB hot-plug (usb_hotplug_test [wait-new N|wait-leave N])");
-    shell_register_command("usb_hub_test", cmd_usb_hub_test,
-                           "USB external hub + children");
+    shell_register_command_ex("usb", cmd_usb, "USB hosts/devices + class driver status", "WP-10d");
+    shell_register_command_ex("usbdev", cmd_usbdev, "USB device detail (usbdev [slot])", "WP-10d");
+    shell_register_command_ex("usb_core_test", cmd_usb_core_test, "USB core invariants + live transfers", "WP-10d");
+    shell_register_command_ex("usb_kbd_test", cmd_usb_kbd_test, "USB HID keyboard presence + injection", "WP-10d");
+    shell_register_command_ex("usb_mouse_test", cmd_usb_mouse_test, "USB HID mouse presence + event drain", "WP-10d");
+    shell_register_command_ex("usb_storage_test", cmd_usb_storage_test, "USB MSC drive capacity/rw/partitions", "WP-10d");
+    shell_register_command_ex("usb_serial_test", cmd_usb_serial_test, "USB serial TX/RX round", "WP-10d");
+    shell_register_command_ex("usb_hotplug_test", cmd_usb_hotplug_test, "USB hot-plug (usb_hotplug_test [wait-new N|wait-leave N])", "WP-10d");
+    shell_register_command_ex("usb_hub_test", cmd_usb_hub_test, "USB external hub + children", "WP-10d");
 }

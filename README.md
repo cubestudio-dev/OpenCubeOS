@@ -30,7 +30,7 @@ Licensed under the Apache License, Version 2.0.
   to a disk and write the GRUB BIOS boot loader entirely from the oc>
   shell (no host tools; the kernel payload travels with the boot media as
   a multiboot2 module).
-- **L1 extension interfaces**: 122 (57 through WP-09 + 8 WP-10a items:
+- **L1 extension interfaces**: 129 (57 through WP-09 + 8 WP-10a items:
   blk_register / blk_read / blk_write / blk_flush (+ blk_set_ops),
   ahci_init(pci_dev), nvme_init(pci_dev), ata_dma_init(pci_dev),
   + 13 WP-10b items:
@@ -248,7 +248,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   48 kHz by design and the test verifies the rejection).
 - **Commands**: sound, hda, ac97, sb16, es1370, virtiosnd, usbaudio,
   play [device] [rate], volume [device] [0-100]; lspci shows sound
-  controllers (class 0x04). 159 commands registered at boot
+  controllers (class 0x04). 170 commands registered at boot
   (including the rule-9 self-hosting set: abdisk, install,
   grub-install, abcfg).
 - **Verification**: hda_test / ac97_test / sb16_test / es1370_test /
@@ -288,7 +288,9 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   (BOT + SCSI wired into blk), CDC-ACM/FTDI serial, UAC 1.0/2.0.
 - **Commands**: usb, usbdev + usb_core_test / usb_kbd_test /
   usb_mouse_test / usb_storage_test / usb_serial_test / usb_hotplug_test
-  / usb_hub_test (159 commands at boot; 122 L1 interfaces).
+  / usb_hub_test (170 commands at boot; 129 L1 interfaces;
+  WP-10d-fix2 added 7: power_shutdown/power_suspend/power_halt/power_reboot
+  + shell_register_command_ex/shell_list_commands_a_z/shell_list_commands_by_wp).
 - **Verification**: UHCI/OHCI/EHCI/XHCI exercised in QEMU with explicit
   controllers (piix3-usb-uhci, pci-ohci, usb-ehci, qemu-xhci); BIOS +
   UEFI boot matrix; usb_core_test 5/5 on all four; the OHCI session and
