@@ -149,6 +149,10 @@ void usermode_init(void) {
 
     extern void core_syscall_wp08a_init(void);
     core_syscall_wp08a_init();
+
+    /* WP-10-wp08fix1: links / permissions / net bridge / process table. */
+    extern void core_syscall_wp08fix1_init(void);
+    core_syscall_wp08fix1_init();
 }
 
 int core_syscall_register(int num, core_syscall_handler_fn handler) {
@@ -970,13 +974,23 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
                     mem_vmm_protect_page(proc->as, page,
                         VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
                     /* Zero the bss portion within this page.
-                     * The page is identity-mapped (phys == page for
-                     * the split PT range), so we can zero directly. */
+                     * WP-10-wp08fix1 FIX: since the P3-1 security fix the
+                     * user window is NOT identity-mapped in the user AS,
+                     * and we are still running on the KERNEL CR3 here.
+                     * The old memset(vaddr) therefore cleared kernel
+                     * image memory through the kernel identity window
+                     * whenever bss_start landed inside the filesz page
+                     * (the new bigger ush triggered exactly that: the
+                     * boot #UD'ed right after `run ush` because the
+                     * kernel's own code had been zeroed). Zero through
+                     * the frame's PHYSICAL address instead, exactly the
+                     * way map_user_pages() copies file data. */
                     u64 zero_start = (page < bss_start) ? bss_start : page;
                     u64 zero_end = (page + PMM_PAGE_SIZE < bss_end)
                                    ? page + PMM_PAGE_SIZE : bss_end;
                     if (zero_end > zero_start) {
-                        memset((void*)(uintptr_t)zero_start, 0,
+                        u64 off = zero_start - page;   /* offset in frame */
+                        memset((void*)(uintptr_t)(phys + off), 0,
                                   (int)(zero_end - zero_start));
                     }
                 } else {

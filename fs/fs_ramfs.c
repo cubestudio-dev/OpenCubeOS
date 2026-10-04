@@ -18,12 +18,17 @@
 #include "mem_heap.h"
 #include "lib_string.h"
 
-/* Private per-node data. For directories, data/capacity are 0. */
+/* Private per-node data. For directories, data/capacity are 0.
+ * WP-10-wp08fix1: `nlink` counts hard links sharing this inode (created
+ * via dir_ops->link); `link_target` holds the target of a symlink node
+ * (type VFS_TYPE_SYMLINK). */
 typedef struct {
     u8  *data;
     u64  size;
     u64  capacity;
     u64  inode;       /* unique inode number for stat/readdir */
+    int  nlink;                        /* WP-10-wp08fix1: hard link count */
+    char link_target[VFS_PATH_LEN];    /* WP-10-wp08fix1: symlink target */
 } fs_ramfs_inode_t;
 
 static u64 g_next_inode = 1;
@@ -47,6 +52,7 @@ static fs_ramfs_inode_t *fs_ramfs_new_inode(void) {
     if (!ri) return NULL;
     memset(ri, 0, sizeof(*ri));
     ri->inode = g_next_inode++;
+    ri->nlink = 1;
     return ri;
 }
 
@@ -212,7 +218,9 @@ static fs_vfs_node_t *fs_ramfs_lookup(fs_vfs_node_t *parent, const char *name) {
     return NULL;
 }
 
-/* WP-05 shell: unlink a regular file. Refuses directories (use rmdir). */
+/* WP-05 shell: unlink a regular file. Refuses directories (use rmdir).
+ * WP-10-wp08fix1: with hard links the inode may be shared by several
+ * directory entries - only free it when the last link disappears. */
 static int fs_ramfs_unlink(fs_vfs_node_t *parent, const char *name) {
     if (!parent || !name) return -1;
     fs_vfs_node_t *child = fs_ramfs_lookup(parent, name);
@@ -221,12 +229,80 @@ static int fs_ramfs_unlink(fs_vfs_node_t *parent, const char *name) {
     fs_vfs_detach_child(child);
     fs_ramfs_inode_t *ri = (fs_ramfs_inode_t *)child->private;
     if (ri) {
-        if (ri->data) kfree(ri->data);
-        kfree(ri);
+        if (ri->nlink > 1) {
+            /* Other directory entries still reference this inode. */
+            ri->nlink--;
+        } else {
+            if (ri->data) kfree(ri->data);
+            kfree(ri);
+        }
     }
     g_total_nodes--;
     kfree(child);
     return 0;
+}
+
+/* ---- WP-10-wp08fix1: hard links + symbolic links ---- */
+
+/* Hard link: create a new directory entry `name` under `parent` that
+ * shares the SAME private inode as `old_node` (real link semantics: data
+ * written through one name is visible through the other). */
+static int fs_ramfs_link(fs_vfs_node_t *parent, const char *name,
+                         fs_vfs_node_t *old_node) {
+    if (!parent || !name || !old_node) return -1;
+    if (parent->type != VFS_TYPE_DIR) return -2;
+    if (old_node->type == VFS_TYPE_DIR) return -5;  /* no hard links to dirs */
+    if (fs_ramfs_lookup(parent, name)) return -4;   /* name collision */
+    fs_ramfs_inode_t *ri = (fs_ramfs_inode_t *)old_node->private;
+    if (!ri) return -3;
+    fs_vfs_node_t *n = fs_ramfs_new_node(name, VFS_TYPE_FILE);
+    if (!n) return -3;
+    /* Free the just-allocated private inode and share the old one. */
+    if (n->private) kfree(n->private);
+    n->private = ri;
+    n->size = old_node->size;
+    /* Keep the ownership/permission bits of the original. */
+    n->mode = old_node->mode;
+    n->uid  = old_node->uid;
+    n->gid  = old_node->gid;
+    ri->nlink++;
+    n->nlink = ri->nlink;
+    old_node->nlink = ri->nlink;
+    fs_vfs_attach_child(parent, n);
+    return 0;
+}
+
+/* Symbolic link: a VFS_TYPE_SYMLINK node whose inode stores the target
+ * string. fs_vfs_resolve() follows the target during path walks. */
+static int fs_ramfs_symlink(fs_vfs_node_t *parent, const char *name,
+                            const char *target) {
+    if (!parent || !name || !target) return -1;
+    if (parent->type != VFS_TYPE_DIR) return -2;
+    if (fs_ramfs_lookup(parent, name)) return -4;
+    int tl = (int)strlen(target);
+    if (tl <= 0 || tl >= VFS_PATH_LEN) return -6;   /* absolute targets only,
+                                                       enforced by resolve */
+    fs_vfs_node_t *n = fs_ramfs_new_node(name, VFS_TYPE_SYMLINK);
+    if (!n) return -3;
+    fs_ramfs_inode_t *ri = (fs_ramfs_inode_t *)n->private;
+    if (!ri) { kfree(n); return -3; }
+    memcpy(ri->link_target, target, (usize)(tl + 1));
+    n->size = (u64)tl;   /* stat size = target length (POSIX-like) */
+    fs_vfs_attach_child(parent, n);
+    return 0;
+}
+
+/* Read the target of a VFS_TYPE_SYMLINK node. */
+static int fs_ramfs_readlink(fs_vfs_node_t *node, char *buf, int cap) {
+    if (!node || !buf || cap <= 0) return -1;
+    if (node->type != VFS_TYPE_SYMLINK) return -4;
+    fs_ramfs_inode_t *ri = (fs_ramfs_inode_t *)node->private;
+    if (!ri) return -3;
+    int tl = (int)strlen(ri->link_target);
+    if (tl >= cap) tl = cap - 1;
+    memcpy(buf, ri->link_target, (usize)tl);
+    buf[tl] = 0;
+    return tl;
 }
 
 /* WP-05 shell: rename a child within the same parent. */
@@ -315,6 +391,10 @@ void fs_ramfs_init(void) {
     g_ramfs_dir_ops.lookup  = fs_ramfs_lookup;
     g_ramfs_dir_ops.unlink  = fs_ramfs_unlink;
     g_ramfs_dir_ops.rename  = fs_ramfs_rename;
+    /* WP-10-wp08fix1 */
+    g_ramfs_dir_ops.link     = fs_ramfs_link;
+    g_ramfs_dir_ops.symlink  = fs_ramfs_symlink;
+    g_ramfs_dir_ops.readlink = fs_ramfs_readlink;
     g_ramfs_fs_type.fs_ops   = &g_ramfs_fs_ops;
     g_ramfs_fs_type.file_ops = &g_ramfs_file_ops;
     g_ramfs_fs_type.dir_ops  = &g_ramfs_dir_ops;

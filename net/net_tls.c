@@ -15,6 +15,7 @@
 #include "crypto_ec_nist.h"
 #include "crypto_rsa.h"
 #include "net_core.h"
+#include "mem_heap.h"   /* WP-10-wp08fix1: lazy handshake buffers */
 #include "screen_console.h"
 #include "lib_string.h"
 #include "core_timer.h"
@@ -349,19 +350,44 @@ static int net_tls13_recv_hs(net_tls_ctx_t *c, int expect, u8 *body, int cap,
 /* Handshake reassembly: TLS 1.3 allows one handshake message to span
  * several records and several messages to share one record (RFC 8446
  * §5.1).  Feed record payloads into a byte stream and parse complete
- * messages out of it. */
-static u8 g_hsbuf[20000];
+ * messages out of it.
+ *
+ * WP-10-wp08fix1: g_hsbuf (20000 B) + the hs_feed record buffer
+ * (16640 B) were 36 KiB of kernel .bss. The kernel image must stay
+ * below the 0x400000 identity-window boundary (user address spaces
+ * split 0x400000-0x600000 into an empty page table, so kernel .bss
+ * above 0x400000 is unreachable from syscall context). Both buffers
+ * are allocated once, lazily, from the kernel heap - same lifetime as
+ * the old statics (never freed). */
+static u8 *g_hsbuf;
+static u8 *g_hsrec;
 static int g_hslen;
 
+#define TLS_HSBUF_SIZE   20000
+#define TLS_HSREC_SIZE   16640
+
+static int tls_hs_ensure(void) {
+    if (!g_hsbuf) {
+        g_hsbuf = (u8 *)kmalloc(TLS_HSBUF_SIZE);
+        g_hsrec = (u8 *)kmalloc(TLS_HSREC_SIZE);
+        if (!g_hsbuf || !g_hsrec) {
+            if (g_hsbuf) { kfree(g_hsbuf); g_hsbuf = NULL; }
+            if (g_hsrec) { kfree(g_hsrec); g_hsrec = NULL; }
+            return -1;
+        }
+    }
+    return 0;
+}
+
 static int net_tls13_hs_feed(net_tls_ctx_t *c, int *ctype_out) {
-    static u8 rec[16640];
-    int payload = net_tls13_recv_record(c, ctype_out, rec, (int)sizeof(rec));
+    if (tls_hs_ensure() < 0) return -1;
+    int payload = net_tls13_recv_record(c, ctype_out, g_hsrec, TLS_HSREC_SIZE);
     if (payload < 0) return -1;
     if (*ctype_out == CT_CCS) return 0;          /* legacy CCS: skip */
     if (*ctype_out != CT_HANDSHAKE && *ctype_out != CT_APPDATA) return -2;
     if (payload <= 0) return 0;
-    if (g_hslen + payload > (int)sizeof(g_hsbuf)) return -3;
-    memcpy(g_hsbuf + g_hslen, rec, payload);
+    if (g_hslen + payload > TLS_HSBUF_SIZE) return -3;
+    memcpy(g_hsbuf + g_hslen, g_hsrec, payload);
     g_hslen += payload;
     return payload;
 }

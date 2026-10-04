@@ -1650,3 +1650,164 @@ static u64 sys_meminfo(u64 buf, u64 a2, u64 a3, u64 a4) {
     if (copy_to_user(buf, out, sizeof(out)) < 0) return (u64)-1;
     return 0;
 }
+
+/* ============================================================
+ * WP-10-wp08fix1: links / permissions / net bridge / process table
+ * Syscalls 96-102 backing the new ush toolset. All of them route to
+ * the REAL kernel implementations (fs_vfs_*, the WP-06 network shell
+ * commands, the scheduler task table) - no stubs.
+ * ============================================================ */
+
+/* SYS_SYMLINK(96): create a symbolic link. (target, linkpath) -> 0/-1. */
+static u64 sys_symlink(u64 target, u64 linkpath, u64 a3, u64 a4) {
+    (void)a3; (void)a4;
+    char t[256], l[256];
+    if (resolve_user_path(target, t, sizeof(t)) < 0) return (u64)-1;
+    if (resolve_user_path(linkpath, l, sizeof(l)) < 0) return (u64)-1;
+    /* WP-10-wp08fix1: pass the real fs_vfs error code through (the ush
+     * tools print it for diagnostics). */
+    return (u64)(long)fs_vfs_symlink(t, l);
+}
+
+/* SYS_READLINK(97): read a symlink target. (path, buf, cap) -> len/-1. */
+static u64 sys_readlink(u64 path, u64 buf, u64 cap, u64 a4) {
+    (void)a4;
+    char p[256];
+    if (!valid_user_ptr(buf) || cap == 0 || cap > 1024) return (u64)-1;
+    if (resolve_user_path(path, p, sizeof(p)) < 0) return (u64)-1;
+    char target[256];
+    int n = fs_vfs_readlink(p, target, sizeof(target));
+    if (n < 0) return (u64)-1;
+    if (n > (int)cap - 1) n = (int)cap - 1;
+    if (copy_to_user(buf, target, (u64)n) < 0) return (u64)-1;
+    /* NUL-terminate for the user (the byte after the copied target). */
+    {
+        char z = 0;
+        copy_to_user(buf + n, &z, 1);
+    }
+    return (u64)n;
+}
+
+/* SYS_LINK(98): create a hard link. (oldpath, newpath) -> 0/-1. */
+static u64 sys_link(u64 oldpath, u64 newpath, u64 a3, u64 a4) {
+    (void)a3; (void)a4;
+    char o[256], nn[256];
+    if (resolve_user_path(oldpath, o, sizeof(o)) < 0) return (u64)-1;
+    if (resolve_user_path(newpath, nn, sizeof(nn)) < 0) return (u64)-1;
+    return (u64)(long)fs_vfs_link(o, nn);
+}
+
+/* SYS_CHMOD(99): change permission bits. (path, mode) -> 0/-1. */
+static u64 sys_chmod(u64 path, u64 mode, u64 a3, u64 a4) {
+    (void)a3; (void)a4;
+    char p[256];
+    if (resolve_user_path(path, p, sizeof(p)) < 0) return (u64)-1;
+    return (u64)(long)fs_vfs_chmod(p, (u32)(mode & 07777));
+}
+
+/* SYS_CHOWN(100): change owner. (path, uid, gid) -> 0/-1. */
+static u64 sys_chown(u64 path, u64 uid, u64 gid, u64 a4) {
+    (void)a4;
+    char p[256];
+    if (resolve_user_path(path, p, sizeof(p)) < 0) return (u64)-1;
+    return (u64)(long)fs_vfs_chown(p, (u32)uid, (u32)gid);
+}
+
+/* Copy a NUL-terminated string from user memory. Returns 0 on success,
+ * -1 if unmapped/too long. */
+static int copy_user_str(u64 src, char *dst, int cap) {
+    if (!access_ok_str(src)) return -1;
+    const char *p = (const char*)(uintptr_t)src;
+    u64 n = 0;
+    while (n < (u64)cap - 1 && p[n] != '\0') n++;
+    if (p[n] != '\0') return -1;             /* ran past cap */
+    if (copy_from_user(dst, src, n + 1) != 0) return -1;
+    dst[n] = 0;
+    return 0;
+}
+
+/* SYS_NETCMD(101): run a WP-06 network shell command in the kernel and
+ * capture its REAL output for the user-space tools (ifconfig/ping/
+ * netstat/wget). This reuses shell_execute_captured - the exact same
+ * code path the oc> commands use - instead of duplicating the protocol
+ * logic. (op, arg, out, cap) -> 0/-1. */
+static u64 sys_netcmd(u64 op, u64 arg, u64 out, u64 cap) {
+    char cmdline[300];
+    if (!valid_user_ptr(out) || cap == 0 || cap > 8192) return (u64)-1;
+    switch (op) {
+        case NETCMD_IFCONFIG:
+            strcpy(cmdline, "ifconfig");
+            break;
+        case NETCMD_NETSTAT:
+            strcpy(cmdline, "netstat");
+            break;
+        case NETCMD_PING: {
+            char host[200];
+            if (copy_user_str(arg, host, sizeof(host)) < 0) return (u64)-1;
+            strcpy(cmdline, "ping ");
+            strncpy(cmdline + 5, host, sizeof(cmdline) - 6);
+            cmdline[sizeof(cmdline) - 1] = 0;
+            break;
+        }
+        case NETCMD_WGET: {
+            char args[250];
+            if (copy_user_str(arg, args, sizeof(args)) < 0) return (u64)-1;
+            strcpy(cmdline, "wget ");
+            strncpy(cmdline + 5, args, sizeof(cmdline) - 6);
+            cmdline[sizeof(cmdline) - 1] = 0;
+            break;
+        }
+        default:
+            return (u64)-1;
+    }
+    {
+        /* WP-10-wp08fix1: kmalloc'd per call (was an 8 KiB static - the
+         * kernel .bss must stay below the 0x400000 identity-window
+         * boundary, see editor.c). */
+        char *kout = (char *)kmalloc(8192);
+        if (!kout) return (u64)-1;
+        shell_execute_captured(cmdline, kout, 8192);
+        int n = (int)strlen(kout);
+        if (n > (int)cap - 1) n = (int)cap - 1;
+        int rc = copy_to_user(out, kout, (u64)n);
+        if (rc == 0) {
+            char z = 0;
+            copy_to_user(out + n, &z, 1);
+        }
+        kfree(kout);
+        if (rc < 0) return (u64)-1;
+    }
+    return 0;
+}
+
+/* SYS_PS(102): copy the live task table to user space.
+ * (buf, cap) -> entry count / -1. The kernel-side entry layout is
+ * core_sched_task_info_t (tid/state/priority/name[32]/cpu ticks); the
+ * user-side mirror lives in userprogs/ush.c. */
+static u64 sys_ps(u64 buf, u64 cap, u64 a3, u64 a4) {
+    (void)a3; (void)a4;
+    if (!valid_user_ptr(buf)) return (u64)-1;
+    if (cap < sizeof(core_sched_task_info_t) ||
+        cap > sizeof(core_sched_task_info_t) * 64) return (u64)-1;
+    int max = (int)(cap / sizeof(core_sched_task_info_t));
+    {
+        core_sched_task_info_t ktab[64];
+        int n = core_sched_task_info_get(ktab, max);
+        if (n < 0) return (u64)-1;
+        if (copy_to_user(buf, ktab, (u64)n * sizeof(core_sched_task_info_t)) < 0) {
+            return (u64)-1;
+        }
+        return (u64)n;
+    }
+}
+
+/* Register the WP-10-wp08fix1 syscalls. Called from usermode_init(). */
+void core_syscall_wp08fix1_init(void) {
+    core_syscall_register(SYS_SYMLINK, sys_symlink);
+    core_syscall_register(SYS_READLINK, sys_readlink);
+    core_syscall_register(SYS_LINK, sys_link);
+    core_syscall_register(SYS_CHMOD, sys_chmod);
+    core_syscall_register(SYS_CHOWN, sys_chown);
+    core_syscall_register(SYS_NETCMD, sys_netcmd);
+    core_syscall_register(SYS_PS, sys_ps);
+}

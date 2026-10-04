@@ -421,6 +421,26 @@ void core_kthread_list(void) {
     }
 }
 
+/* WP-10-wp08fix1: export the live task table for SYS_PS (ush ps/top).
+ * Writes at most `max` entries; returns the number written. Includes
+ * every in-use task (kernel threads AND user processes - user processes
+ * are tasks launched via user_task_launcher, so they appear here too). */
+int core_sched_task_info_get(core_sched_task_info_t *out, int max) {
+    if (!out || max <= 0) return -1;
+    int n = 0;
+    for (int i = 0; i < MAX_TASKS && n < max; i++) {
+        if (!g_tasks[i].in_use) continue;
+        out[n].tid            = i;
+        out[n].state          = g_tasks[i].state;
+        out[n].priority       = g_tasks[i].priority;
+        out[n].cpu_time_ticks = g_tasks[i].cpu_time_ticks;
+        strncpy(out[n].name, g_tasks[i].name, sizeof(out[n].name) - 1);
+        out[n].name[sizeof(out[n].name) - 1] = 0;
+        n++;
+    }
+    return n;
+}
+
 static void core_sched_switch_to(task_t *next) {
     task_t *old = g_current;
     if (old == next) return;

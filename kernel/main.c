@@ -36,6 +36,7 @@
 #include "mem_vmm.h"
 #include "mem_heap.h"
 #include "shell.h"
+#include "shell_lineedit.h"   /* WP-10-wp08fix1: full oc> line editing */
 
 /* WP-04 headers. */
 #include "core_sched.h"
@@ -2289,12 +2290,19 @@ static void interactive_loop(void) {
     screen_console_puts("Open Cube OS " OC_RELEASE_VERSION " ready. Type 'help' for commands.\n");
     screen_console_puts("(Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)\n\n");
 
+    /* WP-10-wp08fix1: one-time init of the full-featured line editor
+     * (history ring + Tab completer). */
+    shell_lineedit_init();
+
     char line[256];
     for (;;) {
         /* Show prompt (use $PS1 env var if set, else "oc> "). */
         const char *ps1 = shell_getenv("PS1");
         screen_console_puts(ps1 ? ps1 : "oc> ");
-        int len = screen_console_in_readline(line, sizeof(line));
+        /* WP-10-wp08fix1: full editing - Up/Down history, Left/Right/
+         * Home/End cursor, Tab completion, Ctrl+C/A/E/U/K/W, Delete.
+         * (Was screen_console_in_readline: backspace-only.) */
+        int len = shell_lineedit_readline(line, sizeof(line));
         if (len == 0) continue;
 
         /* Full parser: env expansion, aliases, chains, pipes, redirects,

@@ -108,6 +108,19 @@ tid_t core_kthread_current_tid(void);
 /* List all tasks (for the `ps` command). Prints to console. */
 void core_kthread_list(void);
 
+/* WP-10-wp08fix1: export the live task table in a fixed ABI layout for
+ * SYS_PS (the user-space `ps`/`top`). Field order and the 32-byte name
+ * mirror the user-side struct in userprogs/ush.c. Returns the number of
+ * entries written (0..max). */
+typedef struct {
+    int  tid;
+    int  state;
+    int  priority;
+    char name[32];
+    u64  cpu_time_ticks;
+} core_sched_task_info_t;
+int core_sched_task_info_get(core_sched_task_info_t *out, int max);
+
 /* Called from the timer IRQ to drive the scheduler. */
 void core_sched_tick(void);
 

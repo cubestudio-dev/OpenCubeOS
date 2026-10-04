@@ -98,4 +98,25 @@ void core_syscall_wp08a_init(void);
 /* WP-08b Batch 5: dynamic library loading via dlopen() */
 #define SYS_MAP_SOLIB    90
 
+/* ---- WP-10-wp08fix1: links / permissions / net bridge / process table ----
+ * Numbers 96-102 are reserved for the user-space shell support added by
+ * the WP-08 completion work package. */
+#define SYS_SYMLINK      96   /* (target, linkpath) -> 0/-1               */
+#define SYS_READLINK     97   /* (path, buf, cap) -> len / -1             */
+#define SYS_LINK         98   /* (oldpath, newpath) -> 0/-1 (hard link)   */
+#define SYS_CHMOD        99   /* (path, mode) -> 0/-1                     */
+#define SYS_CHOWN       100   /* (path, uid, gid) -> 0/-1                 */
+#define SYS_NETCMD      101   /* (op, arg, out, cap) -> 0/-1              */
+#define SYS_PS          102   /* (buf, cap) -> entry count / -1           */
+
+/* SYS_NETCMD operation codes (must match userprogs/ush.c). */
+#define NETCMD_IFCONFIG  1
+#define NETCMD_PING      2
+#define NETCMD_NETSTAT   3
+#define NETCMD_WGET      4
+
+/* Register the WP-10-wp08fix1 syscalls (called from usermode_init after
+ * core_syscall_wp08a_init). */
+void core_syscall_wp08fix1_init(void);
+
 #endif /* OC_SYSCALL_H */

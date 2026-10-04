@@ -30,6 +30,16 @@
 #define VFS_TYPE_FILE    1
 #define VFS_TYPE_DIR     2
 #define VFS_TYPE_DEVICE  3
+/* WP-10-wp08fix1: symbolic links. The link target is stored fs-specific
+ * (ramfs keeps it in the inode); fs_vfs_resolve() follows links when a
+ * path component resolves to a node of this type. */
+#define VFS_TYPE_SYMLINK 4
+
+/* Default permission bits applied by fs_vfs_alloc_node(). chmod/chown
+ * change them per node (RAM-persistent; on-disk filesystems keep their
+ * own on-disk attributes when they have any). */
+#define VFS_DEFAULT_FILE_MODE 0644
+#define VFS_DEFAULT_DIR_MODE  0755
 
 /* ---- Open flags (bitmask) ---- */
 #define VFS_O_RDONLY  0x0001
@@ -60,10 +70,17 @@ typedef struct fs_vfs_node      fs_vfs_node_t;
 typedef struct fs_vfs_file      fs_vfs_file_t;
 typedef struct fs_vfs_fs_type   fs_vfs_fs_type_t;
 
-/* Result of stat() and readdir(). */
+/* Result of stat() and readdir().
+ * WP-10-wp08fix1: grew mode/uid/gid/nlink. NOTE: this struct is copied
+ * verbatim to user space by SYS_STAT - when changing it, mirror the new
+ * layout in userprogs/ush.c (struct ush_stat). */
 typedef struct {
     int  type;                          /* VFS_TYPE_* */
     u64  size;
+    u32  mode;                          /* permission bits (0644 style) */
+    u32  uid;
+    u32  gid;
+    u32  nlink;                         /* hard link count (ramfs) */
     char name[VFS_NAME_LEN];
 } fs_vfs_stat_t;
 
@@ -107,6 +124,19 @@ typedef struct {
      * with O_CREAT so the on-disk entry has file attributes (not dir).
      * May be NULL — VFS falls back to mkdir + type patch (ramfs style). */
     int         (*create )(fs_vfs_node_t *parent, const char *name);
+    /* WP-10-wp08fix1: hard link `old_node` as `name` under `parent`.
+     * ramfs shares the private inode and bumps the nlink count.
+     * May be NULL (fs does not support hard links, e.g. FAT32). */
+    int         (*link   )(fs_vfs_node_t *parent, const char *name,
+                           fs_vfs_node_t *old_node);
+    /* WP-10-wp08fix1: create a symbolic link `name` under `parent`
+     * pointing at `target` (copied verbatim; absolute-path targets are
+     * resolved by fs_vfs_resolve). May be NULL. */
+    int         (*symlink)(fs_vfs_node_t *parent, const char *name,
+                           const char *target);
+    /* WP-10-wp08fix1: read the target of a VFS_TYPE_SYMLINK node into
+     * buf (NUL-terminated, at most cap-1 bytes). May be NULL. */
+    int         (*readlink)(fs_vfs_node_t *node, char *buf, int cap);
 } fs_vfs_dir_ops_t;
 
 /* Registered file system type. */
@@ -122,6 +152,13 @@ struct fs_vfs_node {
     char             name[VFS_NAME_LEN];
     int              type;             /* VFS_TYPE_* */
     u64              size;             /* file size in bytes (0 for dirs) */
+    /* WP-10-wp08fix1: ownership + permission bits (see VFS_DEFAULT_*).
+     * Kept on the VFS node so chmod/chown work for every mounted fs
+     * while the node exists; ramfs also reports them via stat(). */
+    u32              mode;
+    u32              uid;
+    u32              gid;
+    u32              nlink;            /* hard link count (ramfs maintains) */
     fs_vfs_fs_type_t   *fs_type;          /* owning fs type */
     void            *private;          /* fs-specific data */
     fs_vfs_node_t      *parent;
@@ -168,6 +205,16 @@ int  fs_vfs_rmdir  (const char *path);
 int  fs_vfs_readdir(const char *path, int index, fs_vfs_dirent_t *entry);
 int  fs_vfs_unlink (const char *path);   /* WP-05 shell: delete a regular file */
 int  fs_vfs_rename (const char *oldpath, const char *newpath);  /* within same fs */
+
+/* ---- WP-10-wp08fix1: links + permissions ([category]_[specific]) ----
+ * All operate on the resolved path; ramfs implements the backing ops.
+ * Returns 0 on success, negative on error (-1 bad args / -2 unsupported
+ * by the backing fs / -3 target missing / -4 name collision). */
+int  fs_vfs_link   (const char *oldpath, const char *newpath);          /* hard link */
+int  fs_vfs_symlink(const char *target,  const char *linkpath);         /* soft link */
+int  fs_vfs_readlink(const char *path, char *buf, int cap);             /* read target */
+int  fs_vfs_chmod  (const char *path, u32 mode);                        /* chmod */
+int  fs_vfs_chown  (const char *path, u32 uid, u32 gid);                 /* chown */
 
 fs_vfs_node_t *fs_vfs_resolve(const char *path);
 

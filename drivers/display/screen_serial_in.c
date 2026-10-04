@@ -53,8 +53,18 @@ void screen_serial_in_irq_handler(void *ctx, arch_irq_frame_t *f) {
                 key = OC_KEY_TAB;
                 break;
             default:
-                if (b >= 0x20 && b < 0x7F) key = (u16)b;
-                else continue;
+                if (b >= 0x20 && b < 0x7F) {
+                    key = (u16)b;
+                } else if (b >= 0x01 && b < 0x20) {
+                    /* WP-10-wp08fix1: pass the remaining Ctrl+letter codes
+                     * (0x01=A ... 0x1A=Z) straight through - the kernel
+                     * line editor and the editors bind them (Ctrl+A/E/U/
+                     * K/W, Ctrl+O save, Ctrl+X exit, Ctrl+K del line...).
+                     * A real terminal sends exactly these bytes. */
+                    key = (u16)b;
+                } else {
+                    continue;
+                }
         }
         /* Push directly into the keyboard queue via the internal API.
          * We mark the modifiers as 0 since serial doesn't carry mods. */

@@ -33,6 +33,7 @@
 #include "mem_heap.h"
 #include "lib_string.h"
 #include "fs_vfs.h"
+#include "editor.h"
 
 /* ================================================================== *
  * WP-03 command table (unchanged)
@@ -1509,6 +1510,84 @@ int shell_execute_captured(const char *line, char *out, int out_cap) {
 }
 
 /* ================================================================== *
+ * WP-10-wp08fix1: Tab completion + nano/vi editor command
+ * ================================================================== */
+
+/* Longest-common-prefix completion over the registered command table.
+ * `prefix` is the word being completed (NUL-terminated). On match,
+ * `out` receives the longest common prefix of every candidate whose
+ * name starts with `prefix` (NUL-terminated, at most out_cap-1 bytes).
+ * Returns the number of candidates (0 = no match, 1 = unique match,
+ * >1 = several share the returned prefix). */
+int shell_complete_command_prefix(const char *prefix, char *out, int out_cap) {
+    if (!prefix || !out || out_cap <= 0) return 0;
+    out[0] = 0;
+    int plen = (int)strlen(prefix);
+    if (plen == 0) return 0;
+
+    int found = 0;
+    int common = 0;   /* length of the common prefix so far */
+    char cpl[32];
+    cpl[0] = 0;
+
+    for (int i = 0; i < SHELL_MAX_COMMANDS; i++) {
+        if (!g_commands[i].in_use) continue;
+        const char *name = g_commands[i].name;
+        /* Candidate must start with the typed prefix. */
+        int matches = 1;
+        for (int j = 0; j < plen; j++) {
+            if (name[j] != prefix[j]) { matches = 0; break; }
+        }
+        if (!matches) continue;
+        if (found == 0) {
+            strncpy(cpl, name, sizeof(cpl) - 1);
+            cpl[sizeof(cpl) - 1] = 0;
+            common = (int)strlen(cpl);
+        } else {
+            int j = 0;
+            while (j < common && cpl[j] && name[j] && cpl[j] == name[j]) j++;
+            common = j;
+            cpl[common] = 0;
+        }
+        found++;
+    }
+    if (found == 0) return 0;
+    if (common > out_cap - 1) common = out_cap - 1;
+    memcpy(out, cpl, (usize)common);
+    out[common] = 0;
+    return found;
+}
+
+/* nano/vi <file>: the kernel-side editor (same engine for both names,
+ * like the ush pairing). The `edit` line editor from WP-05 stays
+ * available unchanged. */
+static int shell_cmd_nano(const char *args) {
+    if (!args || !args[0]) {
+        screen_console_puts("usage: nano <file>   (^O save, ^X exit)\n");
+        return 1;
+    }
+    /* First token = file name. */
+    char file[128];
+    int i = 0;
+    while (args[i] && args[i] != ' ' && i < (int)sizeof(file) - 1) {
+        file[i] = args[i];
+        i++;
+    }
+    file[i] = 0;
+    /* Resolve against the shell cwd (nano resolves like every other
+     * file command). */
+    const char *resolved = shell_resolve_path_static(file);
+    if (editor_open(resolved ? resolved : file) != 0) {
+        screen_console_puts("nano: cannot open ");
+        screen_console_puts(file);
+        screen_console_putc('\n');
+        return 1;
+    }
+    int rc = editor_run();   /* editor_close() is done inside editor_run */
+    return rc;
+}
+
+/* ================================================================== *
  * WP-05: shell_init
  * ================================================================== */
 
@@ -1524,6 +1603,9 @@ void shell_init(void) {
     shell_register_command_ex("set", shell_cmd_set, "list env vars", "WP-05");
     shell_register_command_ex("alias", shell_cmd_alias, "set/show aliases", "WP-07");
     shell_register_command_ex("unalias", shell_cmd_unalias, "remove an alias", "WP-07");
+    /* WP-10-wp08fix1: nano/vi full-screen-ish editor (same engine). */
+    shell_register_command_ex("nano", shell_cmd_nano, "nano-style editor (nano <file>; ^O save ^X exit)", "WP-10-wp08fix1");
+    shell_register_command_ex("vi", shell_cmd_nano, "editor alias (same engine as nano)", "WP-10-wp08fix1");
 
     /* Set some default env vars. */
     shell_setenv("SHELL", "/bin/ocsh");

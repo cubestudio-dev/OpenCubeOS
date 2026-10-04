@@ -59,7 +59,7 @@ def main():
 
     # 4. Append to userprogs_data.h before the closing line (if any)
     # The header is just a list of arrays — append at the end.
-    header_path = os.path.join(_ROOT, 'kernel', 'generated', 'userprogs_data.h')
+    header_path = os.path.join(_ROOT, 'kernel', 'core', 'userprogs_data.h')
     with open(header_path, 'r') as f:
         content = f.read()
     if f"const u8 userprog_{name}[]" in content:

@@ -55,6 +55,15 @@ SECTIONS
      * the kernel's physical pages. */
     __end_of_kernel = .;
 
+    /* WP-10-wp08fix1 guard rail: user address spaces split the
+     * 0x400000-0x600000 window into an empty page table (P3-1 security
+     * fix), so kernel .bss/data above 0x400000 is unreachable from
+     * syscall/IRQ context (kernel code running on a user CR3). The
+     * kernel image must therefore end below 0x400000 - enforce it at
+     * link time so a future build fails loudly instead of #PF'ing at
+     * boot. */
+    ASSERT(__end_of_kernel <= 0x400000, "kernel image grew past the 0x400000 identity-window boundary - move large buffers to kmalloc")
+
     /DISCARD/ : {
         *(.eh_frame)
         *(.comment)

@@ -42,6 +42,19 @@
 #define SYS_KILL    13
 #define SYS_GETPID  14
 
+/* WP-10-wp08fix1: links, permissions, network bridge, process table */
+#define SYS_SYMLINK  96
+#define SYS_READLINK 97
+#define SYS_LINK     98
+#define SYS_CHMOD    99
+#define SYS_CHOWN   100
+#define SYS_NETCMD  101
+#define SYS_PS      102
+#define NETCMD_IFCONFIG  1
+#define NETCMD_PING      2
+#define NETCMD_NETSTAT   3
+#define NETCMD_WGET      4
+
 /* VFS node types (match kernel vfs.h: VFS_TYPE_FILE=1, DIR=2, DEVICE=3) */
 #define USH_TYPE_FILE 1
 #define USH_TYPE_DIR  2
@@ -56,7 +69,8 @@ typedef unsigned char u8;
 
 /* VFS on-wire structures - must match kernel layout (vfs.h, VFS_NAME_LEN=64).
  * The kernel's sys_readdir/sys_stat memcpy sizeof(vfs_dirent_t / vfs_stat_t)
- * bytes into our buffer, so our struct size must equal the kernel's. */
+ * bytes into our buffer, so our struct size must equal the kernel's.
+ * WP-10-wp08fix1: fs_vfs_stat_t grew mode/uid/gid/nlink - mirrored here. */
 struct ush_dirent {
     char name[64];
     int  type;
@@ -65,7 +79,21 @@ struct ush_dirent {
 struct ush_stat {
     int  type;
     u64  size;
+    u32  mode;
+    u32  uid;
+    u32  gid;
+    u32  nlink;
     char name[64];
+};
+
+/* WP-10-wp08fix1: kernel process table entry - MUST match the layout the
+ * kernel writes in sys_ps (tid, state, priority, name[32], cpu ticks). */
+struct ush_ps_entry {
+    i32 tid;
+    i32 state;
+    i32 priority;
+    char name[32];
+    u64 cpu_time_ticks;
 };
 
 /* Inline syscall wrappers */
@@ -113,6 +141,21 @@ static inline long syscall3(long n, long a, long b, long c) {
 #define sys_stat(path, st)          syscall2(SYS_STAT, (long)(path), (long)(st))
 #define sys_uptime()                syscall0(SYS_UPTIME)
 #define sys_meminfo(buf)            syscall1(SYS_MEMINFO, (long)(buf))
+#define sys_symlink(target, linkp)  syscall2(SYS_SYMLINK, (long)(target), (long)(linkp))
+#define sys_readlink(path, buf, cap) syscall3(SYS_READLINK, (long)(path), (long)(buf), (long)(cap))
+#define sys_link(oldp, newp)        syscall2(SYS_LINK, (long)(oldp), (long)(newp))
+#define sys_chmod(path, mode)       syscall2(SYS_CHMOD, (long)(path), (long)(mode))
+#define sys_chown(path, uid, gid)   syscall3(SYS_CHOWN, (long)(path), (long)(uid), (long)(gid))
+#define sys_netcmd(op, arg, out, cap) syscall4_(SYS_NETCMD, (long)(op), (long)(arg), (long)(out), (long)(cap))
+#define sys_ps(buf, cap)            syscall2(SYS_PS, (long)(buf), (long)(cap))
+
+/* 4-argument syscall (WP-10-wp08fix1: SYS_NETCMD needs it). */
+static inline long syscall4_(long n, long a, long b, long c, long d) {
+    long r;
+    register long r10 __asm__("r10") = d;
+    __asm__ volatile("int $0x80" : "=a"(r) : "a"(n), "D"(a), "S"(b), "d"(c), "r"(r10) : "rcx", "r11", "memory");
+    return r;
+}
 
 /* String helpers (no libc) */
 static int strlen_(const char *s) {
@@ -267,6 +310,14 @@ static char g_history[MAX_HISTORY][256];
 static int g_history_count = 0;
 
 static void history_add(const char *line) {
+    /* WP-10-wp08fix1: skip a consecutive duplicate (bash-like). Without
+     * this, recalling a command and running it again pushed the same
+     * line twice, which shifted the Up/Down paging position and broke
+     * history navigation. */
+    if (g_history_count > 0 &&
+        strncmp_(g_history[g_history_count - 1], line, 256) == 0) {
+        return;
+    }
     if (g_history_count < MAX_HISTORY) {
         strncpy_(g_history[g_history_count], line, 256);
         g_history_count++;
@@ -319,6 +370,16 @@ static int parse_args(char *line, char *argv[], int max_argv) {
         /* Skip leading spaces */
         while (line[i] && isspace_(line[i])) i++;
         if (!line[i]) break;
+        /* WP-10-wp08fix1: single-quoted tokens keep their spaces and are
+         * stripped, so `awk '{print $2}' f` arrives as ONE argument
+         * ({print $2}) like a real shell. */
+        if (line[i] == '\'') {
+            i++;
+            argv[argc++] = &line[i];
+            while (line[i] && line[i] != '\'') i++;
+            if (line[i]) { line[i] = 0; i++; }
+            continue;
+        }
         argv[argc++] = &line[i];
         /* Find end of this token */
         while (line[i] && !isspace_(line[i])) i++;
@@ -326,6 +387,285 @@ static int parse_args(char *line, char *argv[], int max_argv) {
     }
     argv[argc] = 0;
     return argc;
+}
+
+/* ==================================================================
+ * WP-10-wp08fix1: nano-style editor for ush (real interactive editing)
+ * ==================================================================
+ * Keys: arrows select/move, typing inserts, BKSP/DEL delete,
+ * ENTER splits the line, ^K deletes the line, ^C reports the position,
+ * ^O saves, ^X exits (asks before discarding), ^G shows the key guide.
+ * Rendering: print the file once, then redraw only the CURRENT line
+ * in place with \r (the console has no ANSI escapes). */
+
+#define UNANO_MAX_LINES 256
+#define UNANO_LINE_CAP  128
+
+static char unano_lines[UNANO_MAX_LINES][UNANO_LINE_CAP];
+static int  unano_nlines;
+static int  unano_dirty;
+static int  unano_cl;    /* current line */
+static int  unano_cc;    /* cursor col */
+
+static void unano_prefix(int lineno) {
+    char num[12];
+    putu_((u64)lineno);
+    /* pad to width 3 + ": " */
+    int n = 0;
+    int v = lineno;
+    while (v > 0) { v /= 10; n++; }
+    while (n < 3) { putc_(' '); n++; }
+    (void)num;
+    putc_(':');
+    putc_(' ');
+}
+
+static void unano_redraw_line(void) {
+    char cr = '\r';
+    char sp = ' ';
+    sys_write(1, &cr, 1);
+    unano_prefix(unano_cl + 1);
+    sys_write(1, unano_lines[unano_cl], strlen_(unano_lines[unano_cl]));
+    sys_write(1, &sp, 1);
+    sys_write(1, &cr, 1);
+    unano_prefix(unano_cl + 1);
+    if (unano_cc > 0) sys_write(1, unano_lines[unano_cl], unano_cc);
+}
+
+static void unano_state(const char *file) {
+    puts_("[nano ");
+    puts_(file);
+    puts_(" line ");
+    putu_((u64)(unano_cl + 1));
+    putc_('/');
+    putu_((u64)unano_nlines);
+    puts_(unano_dirty ? "  modified] ^O save  ^X exit  ^K del-line  ^C pos  ^G help\n"
+                       : "  saved   ] ^O save  ^X exit  ^K del-line  ^C pos  ^G help\n");
+}
+
+static void unano_print_all(const char *file) {
+    puts_("-- nano: ");
+    puts_(file);
+    puts_(" -- ^O save ^X exit ^K del line ^G help --\n");
+    for (int i = 0; i < unano_nlines; i++) {
+        unano_prefix(i + 1);
+        puts_(unano_lines[i]);
+        putc_('\n');
+    }
+}
+
+static int unano_getch_blocking(void) {
+    for (;;) {
+        long k = sys_getch();
+        if (k >= 0) return (int)k;
+        for (volatile int s = 0; s < 100; s++);
+    }
+}
+
+static int unano_save(const char *file) {
+    int fd = sys_open(file, 6);   /* WRONLY|CREAT */
+    if (fd < 0) return -1;
+    for (int i = 0; i < unano_nlines; i++) {
+        sys_write(fd, unano_lines[i], strlen_(unano_lines[i]));
+        sys_write(fd, "\n", 1);
+    }
+    sys_close(fd);
+    unano_dirty = 0;
+    return 0;
+}
+
+static void ush_nano_run(const char *file) {
+    /* load */
+    unano_nlines = 0;
+    unano_dirty = 0;
+    unano_cl = 0;
+    unano_cc = 0;
+    int fd = sys_open(file, 1);
+    if (fd >= 0) {
+        static char rbuf[4096];
+        long n;
+        char cur[UNANO_LINE_CAP];
+        int cl = 0;
+        cur[0] = 0;
+        while ((n = sys_read(fd, rbuf, 4096)) > 0) {
+            for (int i = 0; i < (int)n; i++) {
+                if (rbuf[i] == '\n') {
+                    if (unano_nlines < UNANO_MAX_LINES) {
+                        strncpy_(unano_lines[unano_nlines++], cur, UNANO_LINE_CAP);
+                    }
+                    cl = 0;
+                    cur[0] = 0;
+                } else if (cl + 1 < UNANO_LINE_CAP) {
+                    cur[cl++] = rbuf[i];
+                    cur[cl] = 0;
+                }
+            }
+        }
+        sys_close(fd);
+        if (cl > 0 || unano_nlines == 0) {
+            if (unano_nlines < UNANO_MAX_LINES) {
+                strncpy_(unano_lines[unano_nlines++], cur, UNANO_LINE_CAP);
+            }
+        }
+    } else {
+        unano_lines[0][0] = 0;
+        unano_nlines = 1;
+    }
+
+    unano_print_all(file);
+    unano_state(file);
+    unano_redraw_line();
+
+    for (;;) {
+        int k = unano_getch_blocking();
+        if (k == 0x80) {          /* Up */
+            if (unano_cl > 0) {
+                unano_cl--;
+                int ll = strlen_(unano_lines[unano_cl]);
+                if (unano_cc > ll) unano_cc = ll;
+                unano_redraw_line();
+            }
+        } else if (k == 0x81) {   /* Down */
+            if (unano_cl + 1 < unano_nlines) {
+                unano_cl++;
+                int ll = strlen_(unano_lines[unano_cl]);
+                if (unano_cc > ll) unano_cc = ll;
+                unano_redraw_line();
+            }
+        } else if (k == 0x82) {   /* Left */
+            if (unano_cc > 0) { unano_cc--; unano_redraw_line(); }
+        } else if (k == 0x83) {   /* Right */
+            if (unano_cc < strlen_(unano_lines[unano_cl])) {
+                unano_cc++; unano_redraw_line();
+            }
+        } else if (k == 0x84 || k == 0x01) {   /* Home / ^A */
+            unano_cc = 0; unano_redraw_line();
+        } else if (k == 0x85 || k == 0x05) {   /* End / ^E */
+            unano_cc = strlen_(unano_lines[unano_cl]); unano_redraw_line();
+        } else if (k == 0x89) {   /* Delete */
+            char *l = unano_lines[unano_cl];
+            int ll = strlen_(l);
+            if (unano_cc < ll) {
+                for (int i = unano_cc; i < ll; i++) l[i] = l[i + 1];
+                unano_dirty = 1;
+                unano_redraw_line();
+            }
+        } else if (k == 0x08 || k == 0x7F) {   /* Backspace */
+            char *l = unano_lines[unano_cl];
+            if (unano_cc > 0) {
+                int ll = strlen_(l);
+                for (int i = unano_cc - 1; i < ll; i++) l[i] = l[i + 1];
+                unano_cc--;
+                unano_dirty = 1;
+                unano_redraw_line();
+            } else if (unano_cl > 0) {
+                /* merge with previous line */
+                char *prev = unano_lines[unano_cl - 1];
+                int plen = strlen_(prev);
+                int ll = strlen_(l);
+                if (plen + ll < UNANO_LINE_CAP - 1) {
+                    strcat_(prev, l);
+                    unano_cc = plen;
+                    unano_cl--;
+                    for (int i = unano_cl + 1; i + 1 < unano_nlines; i++) {
+                        strncpy_(unano_lines[i], unano_lines[i + 1], UNANO_LINE_CAP);
+                    }
+                    unano_nlines--;
+                    unano_dirty = 1;
+                    unano_print_all(file);
+                    unano_state(file);
+                    unano_redraw_line();
+                }
+            }
+        } else if (k == '\n' || k == '\r') {   /* ENTER: split line */
+            if (unano_nlines < UNANO_MAX_LINES) {
+                char *l = unano_lines[unano_cl];
+                char tail[UNANO_LINE_CAP];
+                strncpy_(tail, l + unano_cc, UNANO_LINE_CAP);
+                l[unano_cc] = 0;
+                /* shift lines down */
+                for (int i = unano_nlines; i > unano_cl + 1; i--) {
+                    strncpy_(unano_lines[i], unano_lines[i - 1], UNANO_LINE_CAP);
+                }
+                strncpy_(unano_lines[unano_cl + 1], tail, UNANO_LINE_CAP);
+                unano_nlines++;
+                unano_cl++;
+                unano_cc = 0;
+                unano_dirty = 1;
+                unano_print_all(file);
+                unano_state(file);
+                unano_redraw_line();
+            }
+        } else if (k == 0x0B) {   /* ^K: delete line */
+            for (int i = unano_cl; i + 1 < unano_nlines; i++) {
+                strncpy_(unano_lines[i], unano_lines[i + 1], UNANO_LINE_CAP);
+            }
+            unano_nlines--;
+            if (unano_nlines == 0) {
+                unano_lines[0][0] = 0;
+                unano_nlines = 1;
+            }
+            if (unano_cl >= unano_nlines) unano_cl = unano_nlines - 1;
+            int ll = strlen_(unano_lines[unano_cl]);
+            if (unano_cc > ll) unano_cc = ll;
+            unano_dirty = 1;
+            unano_print_all(file);
+            unano_state(file);
+            unano_redraw_line();
+        } else if (k == 0x03) {   /* ^C: report position (nano binding) */
+            puts_("\n[line ");
+            putu_((u64)(unano_cl + 1));
+            puts_(", col ");
+            putu_((u64)(unano_cc + 1));
+            puts_("]\n");
+            unano_state(file);
+            unano_redraw_line();
+        } else if (k == 0x07) {   /* ^G: help */
+            puts_("\narrows move | type to insert | BKSP/DEL delete\n");
+            puts_("ENTER split line | ^K del line | ^O save | ^X exit | ^C pos\n");
+            unano_state(file);
+            unano_redraw_line();
+        } else if (k == 0x0F) {   /* ^O: save */
+            if (unano_save(file) == 0) {
+                puts_("\n[wrote ");
+                putu_((u64)unano_nlines);
+                puts_(" lines]\n");
+            } else {
+                puts_("\n[save failed]\n");
+            }
+            unano_state(file);
+            unano_redraw_line();
+        } else if (k == 0x18) {   /* ^X: exit */
+            if (unano_dirty) {
+                puts_("\nSave modified buffer? (y/n): ");
+                int c = unano_getch_blocking();
+                putc_((char)c);
+                putc_('\n');
+                if (c == 'y' || c == 'Y') {
+                    if (unano_save(file) != 0) {
+                        puts_("[save failed - stay in editor]\n");
+                        unano_state(file);
+                        unano_redraw_line();
+                        continue;
+                    }
+                    return;
+                }
+                return;   /* quit without saving */
+            }
+            return;
+        } else if (k >= 0x20 && k < 0x7F) {   /* insert */
+            char *l = unano_lines[unano_cl];
+            int ll = strlen_(l);
+            if (ll + 1 < UNANO_LINE_CAP) {
+                for (int i = ll; i > unano_cc; i--) l[i] = l[i - 1];
+                l[unano_cc] = (char)k;
+                unano_cc++;
+                unano_dirty = 1;
+                unano_redraw_line();
+            }
+        }
+        /* other keys ignored */
+    }
 }
 
 /* Built-in commands. Return 1 if handled, 0 if not. */
@@ -352,6 +692,7 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  env             Show environment variables\n");
         puts_("  pwd             Print working directory\n");
         puts_("  echo [text]     Print text to stdout\n");
+        puts_("  history         Show command history\n");
         puts_("  cat <file>      Print file contents\n");
         puts_("  grep <pat> [f]  Filter lines matching pattern\n");
         puts_("  wc <file>       Count lines/words/chars\n");
@@ -359,10 +700,15 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  tail <file>     Print last 10 lines\n");
         puts_("  sort <file>     Sort lines alphabetically\n");
         puts_("  uniq <file>     Remove duplicate consecutive lines\n");
+        puts_("  sed <script>    Stream editor (s/old/new/g, -n Np, Nd)\n");
+        puts_("  awk '{print $N}' Print a field / NF / NR per line\n");
         puts_("  ls [dir]        List directory contents\n");
         puts_("  cp <src> <dst>  Copy file\n");
         puts_("  mv <src> <dst>  Move/rename file\n");
         puts_("  rm <file>       Remove file\n");
+        puts_("  ln [-s] <a> <b> Hard link, or -s symlink (abs target)\n");
+        puts_("  chmod <m> <f>   Change permission bits (octal)\n");
+        puts_("  chown <u>:<g> <f> Change owner (numeric)\n");
         puts_("  mkdir <dir>     Create directory\n");
         puts_("  rmdir <dir>     Remove directory\n");
         puts_("  touch <file>    Create empty file / update timestamp\n");
@@ -371,8 +717,20 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  free            Show memory info\n");
         puts_("  date            Show date/time\n");
         puts_("  df              Show disk usage\n");
+        puts_("  du [dir]        Directory usage (recursive)\n");
+        puts_("  ps              List all kernel tasks (TID/state/prio)\n");
+        puts_("  kill <pid>      Kill a task\n");
+        puts_("  top [-n N]      Snapshot + refresh process/memory stats\n");
+        puts_("  ping <host>     ICMP echo via the kernel stack\n");
+        puts_("  wget <h> [p] <path> Download via the kernel HTTP client\n");
+        puts_("  netstat         Network statistics / sockets\n");
+        puts_("  ifconfig        Network interface info\n");
+        puts_("  nano <file>     nano-style editor (^O save ^X exit)\n");
+        puts_("  vi <file>       Same editor, vi-compatible name\n");
         puts_("  jobs            List background jobs\n");
         puts_("  fg [job]        Bring job to foreground\n");
+        puts_("\n  Editing: Up/Down history, Left/Right/Home/End cursor, Del,\n");
+        puts_("  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion\n");
         puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
         puts_("\n");
         return 1;
@@ -473,6 +831,18 @@ static int builtin_cmd(int argc, char *argv[]) {
             puts_(argv[1]);
             puts_("=");
             puts_(env_get(argv[1]));
+            putc_('\n');
+        }
+        return 1;
+    }
+    /* WP-10-wp08fix1: `env` was listed in `help` since WP-08 but was never
+     * actually implemented - the dispatch table jumped from `set` straight
+     * to the file tools. Print the REAL environment table. */
+    if (streq(argv[0], "env")) {
+        for (int i = 0; i < g_env_count; i++) {
+            puts_(g_env[i].name);
+            putc_('=');
+            puts_(g_env[i].val);
             putc_('\n');
         }
         return 1;
@@ -942,14 +1312,88 @@ static int builtin_cmd(int argc, char *argv[]) {
         return 1;
     }
 
-    /* ---------- ps ---------- */
+    /* ---------- ps (WP-10-wp08fix1: real kernel process table) ---------- */
     if (streq(argv[0], "ps")) {
-        long pid = sys_getpid();
-        puts_("PID  TID  NAME\n");
-        putu_((u64)pid);
-        puts_("    ");
-        putu_((u64)pid);
-        puts_("    ush\n");
+        static struct ush_ps_entry ptab[32];
+        long n = sys_ps((long)ptab, (long)sizeof(ptab));
+        if (n < 0) {
+            puts_("ps: SYS_PS unavailable (kernel too old)\n");
+            return 1;
+        }
+        puts_("TID  STATE  PRI  CPU(ticks)  NAME\n");
+        for (long i = 0; i < n; i++) {
+            putu_((u64)ptab[i].tid);
+            puts_("    ");
+            switch (ptab[i].state) {
+                case 0: puts_("READY "); break;
+                case 1: puts_("RUN   "); break;
+                case 2: puts_("BLOCK "); break;
+                case 3: puts_("EXIT  "); break;
+                default: puts_("?     "); break;
+            }
+            putu_((u64)ptab[i].priority);
+            puts_("    ");
+            putu_(ptab[i].cpu_time_ticks);
+            puts_("          ");
+            puts_(ptab[i].name);
+            putc_('\n');
+        }
+        return 1;
+ }
+
+    /* ---------- top (WP-10-wp08fix1: snapshot + optional refresh) ----------
+     * Rolling-screen TUI is impossible on a scrolling framebuffer console,
+     * so top prints a REAL snapshot (scheduler stats + memory + process
+     * table).  -n N refreshes N times, one second apart (uptime spin). */
+    if (streq(argv[0], "top")) {
+        int rounds = 1;
+        if (argc > 2 && streq(argv[1], "-n")) rounds = atoi_(argv[2]);
+        if (rounds < 1) rounds = 1;
+        if (rounds > 10) rounds = 10;
+        for (int r = 0; r < rounds; r++) {
+            if (r > 0) {
+                /* spin ~1 second between refreshes */
+                u64 start = (u64)sys_uptime();
+                while ((u64)sys_uptime() - start < 1000) { }
+            }
+            u64 now = (u64)sys_uptime();
+            puts_("top - up ");
+            putu_(now);
+            puts_(" ms\n");
+            unsigned long long mi[3];
+            if (sys_meminfo((long)mi) == 0) {
+                puts_("Mem: ");
+                putu_(mi[1]);
+                puts_(" used / ");
+                putu_(mi[0]);
+                puts_(" total / ");
+                putu_(mi[2]);
+                puts_(" free\n");
+            }
+            static struct ush_ps_entry ptab[32];
+            long n = sys_ps((long)ptab, (long)sizeof(ptab));
+            if (n >= 0) {
+                puts_("TID  STATE  PRI  CPU(ticks)  NAME\n");
+                for (long i = 0; i < n; i++) {
+                    putu_((u64)ptab[i].tid);
+                    puts_("    ");
+                    switch (ptab[i].state) {
+                        case 0: puts_("READY "); break;
+                        case 1: puts_("RUN   "); break;
+                        case 2: puts_("BLOCK "); break;
+                        case 3: puts_("EXIT  "); break;
+                        default: puts_("?     "); break;
+                    }
+                    putu_((u64)ptab[i].priority);
+                    puts_("    ");
+                    putu_(ptab[i].cpu_time_ticks);
+                    puts_("          ");
+                    puts_(ptab[i].name);
+                    putc_('\n');
+                }
+            }
+            if (r + 1 < rounds) puts_("\n");
+        }
         return 1;
     }
 
@@ -1041,7 +1485,57 @@ static int builtin_cmd(int argc, char *argv[]) {
         return 1;
     }
 
-    /* ---------- du [path] ---------- */
+    /* ---------- stat <path> (WP-10-wp08fix1) ----------
+     * `help` has listed `stat` since WP-08 but no dispatcher entry ever
+     * existed. Print the REAL fs_vfs_stat_t data (type/size/mode/uid/gid/
+     * nlink/name) returned by SYS_STAT. */
+    if (streq(argv[0], "stat")) {
+        if (argc < 2) {
+            puts_("usage: stat <path>\n");
+            return 1;
+        }
+        struct ush_stat st;
+        memset_(&st, 0, (int)sizeof(st));
+        if (sys_stat(argv[1], &st) < 0) {
+            puts_("stat: cannot stat '");
+            puts_(argv[1]);
+            puts_("'\n");
+            return 1;
+        }
+        puts_("  File: ");
+        puts_(st.name[0] ? st.name : argv[1]);
+        putc_('\n');
+        puts_("  Type: ");
+        if (st.type == USH_TYPE_DIR) puts_("directory");
+        else if (st.type == USH_TYPE_DEV) puts_("device");
+        else puts_("regular file");
+        putc_('\n');
+        puts_("  Size: ");
+        putu_(st.size);
+        puts_(" bytes\n");
+        /* mode in octal (e.g. 0600) */
+        puts_("  Mode: ");
+        {
+            char mb[8];
+            int mv = (int)(st.mode & 07777);
+            mb[5] = 0;
+            for (int d = 4; d >= 1; d--) { mb[d] = (char)('0' + (mv & 7)); mv >>= 3; }
+            mb[0] = '0';   /* leading 0 for octal display */
+            puts_(mb);
+        }
+        putc_('\n');
+        puts_("  Uid:  ");
+        putu_((u64)st.uid);
+        puts_("  Gid: ");
+        putu_((u64)st.gid);
+        putc_('\n');
+        puts_("  Links: ");
+        putu_((u64)st.nlink);
+        putc_('\n');
+        return 1;
+    }
+
+    /* ---------- du [path] (WP-10-wp08fix1: recursive) ---------- */
     if (streq(argv[0], "du")) {
         char path[256];
         if (argc > 1) {
@@ -1049,38 +1543,406 @@ static int builtin_cmd(int argc, char *argv[]) {
         } else {
             sys_getcwd(path, 256);
         }
-        int idx = 0;
-        long entries = 0;
-        u64 total = 0;
-        for (;;) {
-            struct ush_dirent e;
-            memset_(&e, 0, (int)sizeof(e));
-            if (sys_readdir(path, idx, &e) < 0) break;
-            if (e.name[0] == 0) break;
-            entries++;
-            /* Try to stat each entry for size. */
-            char full[512];
-            strncpy_(full, path, 512);
-            strcat_(full, "/");
-            strcat_(full, e.name);
-            struct ush_stat st;
-            memset_(&st, 0, (int)sizeof(st));
-            if (sys_stat(full, &st) == 0) {
-                total += st.size;
+        /* Recursive walker: sums file sizes under path. */
+        static u64 du_total;
+        static long du_files;
+        du_total = 0;
+        du_files = 0;
+        /* Iterative stack of (path) strings - depth-first walk. */
+        static char stack[16][256];
+        int sp = 0;
+        strncpy_(stack[sp++], path, 256);
+        while (sp > 0) {
+            char cur[256];
+            strncpy_(cur, stack[--sp], 256);
+            int idx = 0;
+            for (;;) {
+                struct ush_dirent e;
+                memset_(&e, 0, (int)sizeof(e));
+                if (sys_readdir(cur, idx, &e) < 0) break;
+                if (e.name[0] == 0) break;
+                char full[512];
+                strncpy_(full, cur, 500);
+                int fl = strlen_(full);
+                if (fl > 0 && full[fl - 1] != '/' && fl < 500) full[fl++] = '/';
+                full[fl] = 0;
+                strcat_(full, e.name);
+                struct ush_stat st;
+                memset_(&st, 0, (int)sizeof(st));
+                if (sys_stat(full, &st) == 0) {
+                    if (st.type == USH_TYPE_DIR) {
+                        if (sp < 16) {
+                            strncpy_(stack[sp++], full, 256);
+                        }
+                    } else {
+                        du_total += st.size;
+                        du_files++;
+                    }
+                }
+                idx++;
+                if (idx > 1024) break;
             }
-            idx++;
-            if (idx > 1024) break;
         }
-        putu_(total);
-        putc_(' ');
-        putu_((u64)entries);
-        puts_(" entries ");
+        putu_(du_total);
+        puts_(" bytes  ");
+        putu_((u64)du_files);
+        puts_(" files  ");
         puts_(path);
         putc_('\n');
         return 1;
     }
 
-    /* ---------- vi / nano <file> ---------- */
+    /* ================= WP-10-wp08fix1: new tools ================= */
+
+    /* ---------- ln [-s] <target/old> <linkpath> ---------- */
+    if (streq(argv[0], "ln")) {
+        if (argc >= 4 && streq(argv[1], "-s")) {
+            if (sys_symlink((long)argv[2], (long)argv[3]) < 0) {
+                puts_("ln: cannot create symlink (target must be an absolute path)\n");
+            }
+            return 1;
+        }
+        if (argc < 3) {
+            puts_("usage: ln <old> <new> | ln -s <abs-target> <linkpath>\n");
+            return 1;
+        }
+        long lrc = sys_link((long)argv[1], (long)argv[2]);
+        if (lrc < 0) {
+            puts_("ln: hard link failed (rc=");
+            /* small decimal print of the errno-ish value */
+            long v = -lrc;
+            char nb[12];
+            int ni = 0;
+            if (v == 0) nb[ni++] = '0';
+            while (v > 0 && ni < 11) { nb[ni++] = (char)('0' + (v % 10)); v /= 10; }
+            nb[ni] = 0;
+            /* reverse */
+            for (int a = 0, b = ni - 1; a < b; a++, b--) {
+                char tc = nb[a]; nb[a] = nb[b]; nb[b] = tc;
+            }
+            puts_(nb);
+            puts_(")\n");
+        }
+        return 1;
+    }
+
+    /* ---------- chmod <octal-mode> <path> ---------- */
+    if (streq(argv[0], "chmod")) {
+        if (argc < 3) {
+            puts_("usage: chmod <mode> <path>   (mode in octal, e.g. 644)\n");
+            return 1;
+        }
+        /* parse octal */
+        u32 mode = 0;
+        const char *m = argv[1];
+        while (*m >= '0' && *m <= '7') { mode = mode * 8 + (u32)(*m - '0'); m++; }
+        if (sys_chmod((long)argv[2], (long)mode) < 0) {
+            puts_("chmod: cannot change mode\n");
+        }
+        return 1;
+    }
+
+    /* ---------- chown <uid>[:<gid>] <path> ---------- */
+    if (streq(argv[0], "chown")) {
+        if (argc < 3) {
+            puts_("usage: chown <uid>[:<gid>] <path>\n");
+            return 1;
+        }
+        u32 uid = 0, gid = 0;
+        const char *s = argv[1];
+        int got_uid = 0;
+        while (*s >= '0' && *s <= '9') { uid = uid * 10 + (u32)(*s - '0'); s++; got_uid = 1; }
+        if (*s == ':') {
+            s++;
+            while (*s >= '0' && *s <= '9') { gid = gid * 10 + (u32)(*s - '0'); s++; }
+        }
+        if (!got_uid || *s != 0) {
+            puts_("usage: chown <uid>[:<gid>] <path>\n");
+            return 1;
+        }
+        if (sys_chown((long)argv[2], (long)uid, (long)gid) < 0) {
+            puts_("chown: cannot change owner\n");
+        }
+        return 1;
+    }
+
+    /* ---------- sed s/old/new/[g] | -n Np | Nd [file] ---------- */
+    if (streq(argv[0], "sed")) {
+        if (argc < 2) {
+            puts_("usage: sed s/old/new/[g] [file] | sed -n Np [file] | sed Nd [file]\n");
+            return 1;
+        }
+        int src_fd = 0;
+        int opened = 0;
+        int script_idx = 1;
+        if (argc >= 3) {
+            /* last arg may be a file (when it is not part of the script) */
+            if (streq(argv[1], "-n") && argc >= 4) {
+                script_idx = 2;
+            }
+            /* try the last argument as a file name */
+            int fd = sys_open(argv[argc - 1], 1);
+            if (fd >= 0) {
+                src_fd = fd;
+                opened = 1;
+            }
+        }
+        static char sbuf[16384];
+        long total = 0;
+        long n;
+        while ((n = sys_read(src_fd, sbuf + total, 4096)) > 0 &&
+               total < (long)sizeof(sbuf) - 4096) {
+            total += n;
+        }
+        if (opened) sys_close(src_fd);
+        sbuf[total] = 0;
+
+        const char *script = argv[script_idx];
+        int lineno = 0;
+        int i = 0;
+        while (i <= total) {
+            /* find one line */
+            int ls = i;
+            while (i < total && sbuf[i] != '\n') i++;
+            int le = i;
+            if (i < total) i++;      /* skip \n */
+            int len = le - ls;
+            if (ls == le && i > total) break;
+            lineno++;
+            (void)len;
+
+            if (script[0] == '-' && script[1] == 'n') {
+                script++;
+            }
+            if (script[0] == '-' && script[1] == 'n') {
+                /* -n inside argv[1] handled above; skip */
+            }
+            const char *sc = argv[script_idx];
+            if (sc[0] == '-' && sc[1] == 'n') sc += 2;
+            if (sc[0] == 's' && sc[1] == '/') {
+                /* s/old/new/[g] */
+                char pat[128], rep[128];
+                int pi = 0;
+                const char *p = sc + 2;
+                while (*p && *p != '/' && pi < 127) pat[pi++] = *p++;
+                pat[pi] = 0;
+                if (*p == '/') p++;
+                int ri = 0;
+                while (*p && *p != '/' && ri < 127) rep[ri++] = *p++;
+                rep[ri] = 0;
+                int global = 0;
+                if (*p == '/') p++;
+                if (*p == 'g') global = 1;
+                /* emit line with replacements */
+                int j = ls;
+                while (j < le) {
+                    int m = 0;
+                    while (m < pi && j + m < le && sbuf[j + m] == pat[m]) m++;
+                    if (pi > 0 && m == pi) {
+                        sys_write(1, rep, ri);
+                        if (!global) {
+                            /* rest of the line verbatim */
+                            sys_write(1, sbuf + j + pi, le - (j + pi));
+                            break;
+                        }
+                        j += pi;
+                    } else {
+                        putc_(sbuf[j]);
+                        j++;
+                    }
+                }
+                putc_('\n');
+            } else if (sc[0] == 'd') {
+                int num = atoi_(sc + 1);
+                if (num == lineno) {
+                    /* delete: print nothing */
+                } else {
+                    sys_write(1, sbuf + ls, le - ls);
+                    putc_('\n');
+                }
+            } else if (sc[0] == 'p' || (sc[0] >= '0' && sc[0] <= '9')) {
+                /* [N]p - print only line N */
+                int num = 0;
+                int k2 = 0;
+                while (sc[k2] >= '0' && sc[k2] <= '9') { num = num * 10 + (sc[k2] - '0'); k2++; }
+                if (sc[k2] == 'p') {
+                    if (num == lineno) {
+                        sys_write(1, sbuf + ls, le - ls);
+                        putc_('\n');
+                    }
+                }
+            } else {
+                puts_("sed: unknown script\n");
+                return 1;
+            }
+            if (i > total) break;
+            if (ls == le && i >= total) break;
+        }
+        return 1;
+    }
+
+    /* ---------- awk '{print $N | NF | NR}' [/pat/] [file] ---------- */
+    if (streq(argv[0], "awk")) {
+        if (argc < 2) {
+            puts_("usage: awk '{print $N|NF|NR}' [/pat/] [file]\n");
+            return 1;
+        }
+        const char *prog = argv[1];
+        /* accept both quoted '{print $1}' and bare {print $1} */
+        while (*prog && *prog != '{') prog++;
+        if (*prog != '{') {
+            puts_("awk: missing {print ...}\n");
+            return 1;
+        }
+        prog++;
+        while (*prog == ' ') prog++;
+        if (strncmp_(prog, "print", 5) != 0) {
+            puts_("awk: only {print ...} is supported\n");
+            return 1;
+        }
+        prog += 5;
+        while (*prog == ' ') prog++;
+        char field_spec[8];
+        int fs = 0;
+        while (*prog && *prog != '}' && *prog != ' ' && fs < 7) {
+            field_spec[fs++] = *prog++;
+        }
+        field_spec[fs] = 0;
+        const char *pattern = 0;
+        if (argc >= 3 && argv[2][0] == '/') {
+            pattern = argv[2] + 1;
+            int pl = strlen_(pattern);
+            if (pl > 0 && pattern[pl - 1] == '/') pattern = 0;   /* bare / */
+        }
+        int file_arg = (pattern ? 3 : 2);
+        int src_fd = 0;
+        int opened = 0;
+        if (argc > file_arg) {
+            int fd = sys_open(argv[file_arg], 1);
+            if (fd < 0) {
+                puts_("awk: cannot open ");
+                puts_(argv[file_arg]);
+                putc_('\n');
+                return 1;
+            }
+            src_fd = fd;
+            opened = 1;
+        }
+        static char abuf[8192];
+        static char aline[1024];
+        int lpos = 0;
+        int nr = 0;
+        long n;
+        /* helper macro-ish code: print requested field of aline */
+        while ((n = sys_read(src_fd, abuf, 8192)) > 0) {
+            for (int i2 = 0; i2 < (int)n; i2++) {
+                char c = abuf[i2];
+                if (c == '\n') {
+                    aline[lpos] = 0;
+                    nr++;
+                    /* pattern filter */
+                    int show = 1;
+                    if (pattern && !strstr_(aline, pattern)) show = 0;
+                    if (show) {
+                        if (streq(field_spec, "NR")) {
+                            putu_((u64)nr);
+                            putc_('\n');
+                        } else if (streq(field_spec, "NF")) {
+                            int nf = 0;
+                            int in_w = 0;
+                            for (int q = 0; aline[q]; q++) {
+                                if (aline[q] == ' ' || aline[q] == '\t') in_w = 0;
+                                else if (!in_w) { in_w = 1; nf++; }
+                            }
+                            putu_((u64)nf);
+                            putc_('\n');
+                        } else if (field_spec[0] == '$') {
+                            int want = atoi_(field_spec + 1);
+                            int fno = 0;
+                            int q = 0;
+                            while (aline[q] == ' ' || aline[q] == '\t') q++;
+                            while (aline[q] && fno <= want) {
+                                int ws = q;
+                                while (aline[q] && aline[q] != ' ' && aline[q] != '\t') q++;
+                                fno++;
+                                if (fno == want) {
+                                    sys_write(1, aline + ws, q - ws);
+                                    break;
+                                }
+                                while (aline[q] == ' ' || aline[q] == '\t') q++;
+                            }
+                            putc_('\n');
+                        } else {
+                            puts_(aline);
+                            putc_('\n');
+                        }
+                    }
+                    lpos = 0;
+                } else {
+                    if (lpos < 1023) aline[lpos++] = c;
+                }
+            }
+        }
+        if (opened) sys_close(src_fd);
+        return 1;
+    }
+
+    /* ---------- ping <host> (kernel ICMP via NETCMD bridge) ---------- */
+    if (streq(argv[0], "ping")) {
+        if (argc < 2) {
+            puts_("usage: ping <host>\n");
+            return 1;
+        }
+        static char nout[4096];
+        long rc = sys_netcmd(NETCMD_PING, (long)argv[1], (long)nout, (long)sizeof(nout));
+        if (rc < 0) {
+            puts_("ping: kernel bridge unavailable\n");
+            return 1;
+        }
+        puts_(nout);
+        return 1;
+    }
+
+    /* ---------- wget <host> [port] [path] ---------- */
+    if (streq(argv[0], "wget")) {
+        if (argc < 2) {
+            puts_("usage: wget <host> [port] [path]\n");
+            return 1;
+        }
+        static char arg[256];
+        arg[0] = 0;
+        int used = 0;
+        for (int i = 1; i < argc && i <= 3; i++) {
+            if (i > 1) arg[used++] = ' ';
+            int al = strlen_(argv[i]);
+            for (int q = 0; q < al && used < 250; q++) arg[used++] = argv[i][q];
+        }
+        arg[used] = 0;
+        static char nout[4096];
+        long rc = sys_netcmd(NETCMD_WGET, (long)arg, (long)nout, (long)sizeof(nout));
+        if (rc < 0) {
+            puts_("wget: kernel bridge unavailable\n");
+            return 1;
+        }
+        puts_(nout);
+        return 1;
+    }
+
+    /* ---------- netstat / ifconfig (kernel stats via bridge) ---------- */
+    if (streq(argv[0], "netstat") || streq(argv[0], "ifconfig")) {
+        int op = streq(argv[0], "netstat") ? NETCMD_NETSTAT : NETCMD_IFCONFIG;
+        static char nout[4096];
+        long rc = sys_netcmd(op, 0, (long)nout, (long)sizeof(nout));
+        if (rc < 0) {
+            puts_(argv[0]);
+            puts_(": kernel bridge unavailable\n");
+            return 1;
+        }
+        puts_(nout);
+        return 1;
+    }
+
+    /* ---------- nano / vi <file> (WP-10-wp08fix1: real nano-style) ---- */
     if (streq(argv[0], "vi") || streq(argv[0], "nano")) {
         if (argc < 2) {
             puts_("usage: ");
@@ -1088,132 +1950,7 @@ static int builtin_cmd(int argc, char *argv[]) {
             puts_(" <file>\n");
             return 1;
         }
-        static char vbuf[16384];
-        int vlen = 0;
-        int rfd = sys_open(argv[1], 1);
-        if (rfd >= 0) {
-            long n;
-            while ((n = sys_read(rfd, vbuf + vlen, 4096)) > 0 && vlen < 16384 - 4096) {
-                vlen += (int)n;
-            }
-            sys_close(rfd);
-        }
-        vbuf[vlen] = 0;
-        puts_("-- ");
-        puts_(argv[1]);
-        puts_(" -- ");
-        putu_((u64)vlen);
-        puts_(" bytes\n");
-        puts_("Commands: :p print | :i<text> append line | :d<num> delete line | :w save | :q quit | :wq | :q!\n");
-        /* Print initial content with line numbers. */
-        int lno = 1;
-        int i = 0;
-        while (i < vlen) {
-            putu_((u64)lno);
-            puts_(": ");
-            while (i < vlen && vbuf[i] != '\n') {
-                putc_(vbuf[i]);
-                i++;
-            }
-            putc_('\n');
-            lno++;
-            if (i < vlen && vbuf[i] == '\n') i++;
-        }
-        /* Command loop. */
-        int dirty = 0;
-        for (;;) {
-            puts_(":");
-            char cmd[256];
-            long clen = sys_readline(cmd, 255);
-            if (clen <= 0) continue;
-            if (clen > 0 && cmd[clen - 1] == '\n') cmd[clen - 1] = 0;
-            if (clen > 0 && cmd[clen - 1] == '\r') cmd[clen - 1] = 0;
-            if (cmd[0] == 0) continue;
-            if (streq(cmd, ":q")) {
-                if (dirty) {
-                    puts_("unsaved changes - use :wq or :q!\n");
-                } else {
-                    break;
-                }
-            } else if (streq(cmd, ":q!")) {
-                break;
-            } else if (streq(cmd, ":w")) {
-                int wfd = sys_open(argv[1], 6);
-                if (wfd < 0) {
-                    puts_("vi: cannot save\n");
-                } else {
-                    sys_write(wfd, vbuf, vlen);
-                    sys_close(wfd);
-                    dirty = 0;
-                    puts_("saved\n");
-                }
-            } else if (streq(cmd, ":wq")) {
-                int wfd = sys_open(argv[1], 6);
-                if (wfd >= 0) {
-                    sys_write(wfd, vbuf, vlen);
-                    sys_close(wfd);
-                }
-                break;
-            } else if (streq(cmd, ":p")) {
-                int l = 1;
-                int j = 0;
-                while (j < vlen) {
-                    putu_((u64)l);
-                    puts_(": ");
-                    while (j < vlen && vbuf[j] != '\n') {
-                        putc_(vbuf[j]);
-                        j++;
-                    }
-                    putc_('\n');
-                    l++;
-                    if (j < vlen && vbuf[j] == '\n') j++;
-                }
-            } else if (strncmp_(cmd, ":i", 2) == 0) {
-                /* Append a line. */
-                char *text = cmd + 2;
-                int tlen = strlen_(text);
-                for (int k = 0; k < tlen && vlen < 16384 - 2; k++) {
-                    vbuf[vlen++] = text[k];
-                }
-                if (vlen < 16384 - 1) {
-                    vbuf[vlen++] = '\n';
-                    vbuf[vlen] = 0;
-                    dirty = 1;
-                }
-            } else if (cmd[0] == ':' && cmd[1] == 'd') {
-                /* Delete line number N. */
-                int num = atoi_(cmd + 2);
-                if (num > 0) {
-                    int l = 1;
-                    int j = 0;
-                    int line_start = -1;
-                    int line_end = -1;
-                    while (j <= vlen) {
-                        if (l == num) {
-                            line_start = j;
-                            while (j < vlen && vbuf[j] != '\n') j++;
-                            line_end = (j < vlen) ? j + 1 : j;
-                            break;
-                        }
-                        if (j < vlen && vbuf[j] == '\n') l++;
-                        j++;
-                    }
-                    if (line_start >= 0 && line_end > line_start) {
-                        int shift = line_end - line_start;
-                        for (int k = line_end; k <= vlen; k++) {
-                            vbuf[line_start + (k - line_end)] = vbuf[k];
-                        }
-                        vlen -= shift;
-                        vbuf[vlen] = 0;
-                        dirty = 1;
-                    }
-                }
-            } else {
-                puts_("unknown command: ");
-                puts_(cmd);
-                putc_('\n');
-            }
-        }
+        ush_nano_run(argv[1]);
         return 1;
     }
 
@@ -1470,6 +2207,60 @@ static void exec_pipeline(char *line) {
     }
 }
 
+/* ==================================================================
+ * WP-10-wp08fix1: full line editing for the ush prompt
+ * ==================================================================
+ * Keys: Up/Down history, Left/Right/Home/End cursor, Delete,
+ * Ctrl+A/E (line start/end), Ctrl+U/K (kill to start/end),
+ * Ctrl+W (kill word), Ctrl+C (cancel line), Tab (completion).
+ * Rendering uses only \r and re-printing (console has no ANSI). */
+
+/* Redraw the input line with the cursor at `cur`. */
+static void le_redraw(const char *line, int llen, int cur) {
+    char cr = '\r';
+    char sp = ' ';
+    sys_write(1, &cr, 1);
+    if (llen > 0) sys_write(1, line, llen);
+    sys_write(1, &sp, 1);          /* clear one trailing cell */
+    sys_write(1, &cr, 1);
+    if (cur > 0) sys_write(1, line, cur);
+}
+
+/* Insert a char at the cursor position. Returns the new cursor. */
+static int le_insert(char *line, int llen, int cur, char c, int cap) {
+    if (llen + 1 >= cap) return cur;
+    if (cur == llen) {
+        line[llen] = c;
+        putc_(c);
+    } else {
+        for (int i = llen; i > cur; i--) line[i] = line[i - 1];
+        line[cur] = c;
+        le_redraw(line, llen + 1, cur + 1);
+    }
+    line[llen + 1] = 0;
+    return cur + 1;
+}
+
+/* Delete the char before the cursor. */
+static int le_backspace(char *line, int llen, int cur) {
+    if (cur <= 0) return cur;
+    for (int i = cur - 1; i < llen; i++) line[i] = line[i + 1];
+    if (cur == llen) {
+        puts_("\b \b");
+    } else {
+        le_redraw(line, llen - 1, cur - 1);
+    }
+    return cur - 1;
+}
+
+/* Delete the char AT the cursor. */
+static int le_delete(char *line, int llen, int cur) {
+    if (cur >= llen) return cur;
+    for (int i = cur; i < llen; i++) line[i] = line[i + 1];
+    le_redraw(line, llen - 1, cur);
+    return cur;
+}
+
 /* Main shell loop */
 void _start(void) {
     /* Initialize environment */
@@ -1482,6 +2273,9 @@ void _start(void) {
 
     char line[512];
     char expanded[512];
+    /* WP-10-wp08fix1: history navigation state */
+    int  hist_nav = -1;             /* -1 = typing a draft */
+    char hist_draft[256];
 
     for (;;) {
         /* Print prompt */
@@ -1489,9 +2283,12 @@ void _start(void) {
         if (!ps1[0]) ps1 = "ush> ";
         puts_(ps1);
 
-        /* Read a line with Tab completion + job control (&) + Ctrl+C */
+        /* Read a line: full editing (history/cursor/Tab/Ctrl+C) */
         int llen = 0;
+        int cur = 0;
         int bg = 0;  /* background flag */
+        hist_nav = -1;
+        line[0] = 0;
         for (;;) {
             long k = sys_getch();
             if (k < 0) { /* No key, spin-wait briefly */
@@ -1502,20 +2299,109 @@ void _start(void) {
                 putc_('\n');
                 break;
             }
-            if (k == 0x03) { /* Ctrl+C */
+            if (k == 0x03) { /* Ctrl+C: cancel the line */
                 puts_("^C\n");
                 llen = 0;
+                cur = 0;
                 line[0] = 0;
                 goto next_prompt;
             }
-            if (k == 0x08 || k == 0x7F) { /* Backspace */
-                if (llen > 0) {
-                    llen--;
-                    puts_("\b \b");
+            if (k == 0x80) { /* Up: older history entry */
+                if (g_history_count > 0) {
+                    if (hist_nav == -1) {
+                        strncpy_(hist_draft, line, (int)sizeof(hist_draft));
+                        hist_nav = g_history_count - 1;
+                    } else if (hist_nav > 0) {
+                        hist_nav--;
+                    } else {
+                        continue;   /* oldest entry */
+                    }
+                    strncpy_(line, g_history[hist_nav], (int)sizeof(hist_draft));
+                    llen = strlen_(line);
+                    cur = llen;
+                    le_redraw(line, llen, cur);
                 }
                 continue;
             }
-            if (k == '\t') { /* Tab completion */
+            if (k == 0x81) { /* Down: newer history entry (or draft) */
+                if (hist_nav != -1) {
+                    if (hist_nav < g_history_count - 1) {
+                        hist_nav++;
+                        strncpy_(line, g_history[hist_nav], (int)sizeof(hist_draft));
+                    } else {
+                        hist_nav = -1;
+                        strncpy_(line, hist_draft, (int)sizeof(hist_draft));
+                    }
+                    llen = strlen_(line);
+                    cur = llen;
+                    le_redraw(line, llen, cur);
+                }
+                continue;
+            }
+            if (k == 0x82) { /* Left */
+                if (cur > 0) { cur--; le_redraw(line, llen, cur); }
+                continue;
+            }
+            if (k == 0x83) { /* Right */
+                if (cur < llen) { cur++; le_redraw(line, llen, cur); }
+                continue;
+            }
+            if (k == 0x84 || k == 0x01) { /* Home / Ctrl+A */
+                cur = 0;
+                le_redraw(line, llen, cur);
+                continue;
+            }
+            if (k == 0x85 || k == 0x05) { /* End / Ctrl+E */
+                cur = llen;
+                le_redraw(line, llen, cur);
+                continue;
+            }
+            if (k == 0x89) { /* Delete: remove char at cursor */
+                cur = le_delete(line, llen, cur);
+                llen = strlen_(line);
+                continue;
+            }
+            if (k == 0x15) { /* Ctrl+U: kill to line start */
+                if (cur > 0) {
+                    int rest = llen - cur;
+                    for (int i = 0; i < rest; i++) line[i] = line[cur + i];
+                    llen = rest;
+                    line[llen] = 0;
+                    cur = 0;
+                    le_redraw(line, llen, cur);
+                }
+                continue;
+            }
+            if (k == 0x0B) { /* Ctrl+K: kill to line end */
+                if (cur < llen) {
+                    llen = cur;
+                    line[llen] = 0;
+                    le_redraw(line, llen, cur);
+                }
+                continue;
+            }
+            if (k == 0x17) { /* Ctrl+W: kill the previous word */
+                if (cur > 0) {
+                    int p = cur;
+                    while (p > 0 && line[p - 1] == ' ') p--;
+                    while (p > 0 && line[p - 1] != ' ') p--;
+                    int removed = cur - p;
+                    int rest = llen - cur;
+                    for (int i = 0; i < rest; i++) line[p + i] = line[cur + i];
+                    llen -= removed;
+                    line[llen] = 0;
+                    cur = p;
+                    le_redraw(line, llen, cur);
+                }
+                continue;
+            }
+            if (k == 0x08 || k == 0x7F) { /* Backspace */
+                cur = le_backspace(line, llen, cur);
+                llen = strlen_(line);
+                continue;
+            }
+            if (k == '\t') { /* Tab completion (cursor at end of line) */
+                if (cur != llen) continue;   /* simple: complete at EOL only */
                 line[llen] = 0;
                 /* Try to complete command name or file name */
                 /* Find last word */
@@ -1530,7 +2416,10 @@ void _start(void) {
                     "touch","rm","rmdir","cp","mv","sort","uniq","ps","kill",
                     "date","uname","free","df","du","vi","nano","pwd",
                     "cd","exit","export","alias","unalias","history",
-                    "jobs","fg","bg",0
+                    "jobs","fg","bg",
+                    /* WP-10-wp08fix1 */
+                    "ln","chmod","chown","sed","awk","ping","wget",
+                    "netstat","ifconfig","top",0
                 };
                 int found = 0;
                 int blen = 0;
@@ -1605,8 +2494,14 @@ void _start(void) {
                     int ffound = 0;
                     fmatch[0] = 0;
                     for (int idx = 0; idx < 64; idx++) {
-                        /* vfs_dirent_t layout: char name[32]; int type; u64 size; */
-                        struct { char name[32]; int type; unsigned long size; } e;
+                        /* WP-10-wp08fix1 FIX: the kernel copies
+                         * sizeof(fs_vfs_dirent_t) bytes (char name[64]; int
+                         * type; u64 inode) - the old 32-byte-name local
+                         * struct here was smaller than that and the kernel
+                         * copy overflowed this stack frame. Use the same
+                         * layout as ush_dirent (64-byte name). */
+                        struct ush_dirent e;
+                        memset_(&e, 0, (int)sizeof(e));
                         if (sys_readdir((long)dir, idx, (long)&e) < 0) break;
                         if (e.name[0] == 0) break;
                         /* Check if the entry starts with file_prefix. */
@@ -1644,14 +2539,19 @@ void _start(void) {
                         }
                     }
                 }
+                /* WP-10-wp08fix1: redraw the whole line after completion
+                 * (same rendering rule as the kernel oc> line editor) so
+                 * the completed word is always visible in place. */
+                cur = llen;
+                le_redraw(line, llen, cur);
                 continue;
             }
             if (k == '&' && llen == 0) { /* Background */
                 /* Actually, & at end of line means background */
             }
             if (k >= 0x20 && k < 0x7F && llen < 510) {
-                line[llen++] = (char)k;
-                putc_((char)k);
+                cur = le_insert(line, llen, cur, (char)k, 511);
+                llen = strlen_(line);
             }
         }
         line[llen] = 0;

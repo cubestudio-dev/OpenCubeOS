@@ -19,6 +19,7 @@
 
 /* ---- Forward declarations ---- */
 static fs_vfs_node_t *fs_vfs_resolve_parent_of(const char *path);
+static fs_vfs_node_t *fs_vfs_resolve_follow(const char *path, int depth);
 
 /* ---- Internal state ---- */
 
@@ -93,6 +94,13 @@ fs_vfs_node_t *fs_vfs_alloc_node(const char *name, int type, fs_vfs_fs_type_t *f
         n->name[VFS_NAME_LEN - 1] = 0;
     }
     n->type = type;
+    /* WP-10-wp08fix1: default ownership/permissions (chmod/chown change
+     * these; stat reports them). */
+    n->mode  = (type == VFS_TYPE_DIR) ? VFS_DEFAULT_DIR_MODE
+                                      : VFS_DEFAULT_FILE_MODE;
+    n->uid   = 0;
+    n->gid   = 0;
+    n->nlink = 1;
     n->fs_type = fs_type;
     return n;
 }
@@ -384,7 +392,17 @@ int fs_vfs_umount(const char *mount_point) {
  *   4. Walk the remaining components via dir_ops->lookup.
  */
 fs_vfs_node_t *fs_vfs_resolve(const char *path) {
+    return fs_vfs_resolve_follow(path, 0);
+}
+
+/* WP-10-wp08fix1: resolve with symlink following. When any path component
+ * resolves to a VFS_TYPE_SYMLINK node, the link target is spliced in front
+ * of the not-yet-walked components and resolution restarts (up to 8 hops,
+ * mirroring the classic ELOOP limit). Only absolute targets are supported
+ * (the ush `ln -s` documents this). */
+static fs_vfs_node_t *fs_vfs_resolve_follow(const char *path, int depth) {
     if (!path) return NULL;
+    if (depth > 8) return NULL;              /* symlink loop */
     char norm[VFS_PATH_LEN];
     if (fs_vfs_normalize(path, norm, sizeof(norm)) < 0) return NULL;
 
@@ -458,6 +476,34 @@ fs_vfs_node_t *fs_vfs_resolve(const char *path) {
              * resolves find it in the cache (prevents node leak). */
             cur->parent = parent;
             fs_vfs_attach_child(parent, cur);
+        }
+        /* WP-10-wp08fix1: follow a symlink component. Splice the target
+         * in front of the remaining components and restart the walk. */
+        if (cur->type == VFS_TYPE_SYMLINK) {
+            if (!cur->fs_type || !cur->fs_type->dir_ops ||
+                !cur->fs_type->dir_ops->readlink) {
+                return NULL;
+            }
+            char target[VFS_PATH_LEN];
+            if (cur->fs_type->dir_ops->readlink(cur, target,
+                                                sizeof(target)) < 0) {
+                return NULL;
+            }
+            if (target[0] != '/') return NULL;   /* absolute targets only */
+            char joined[VFS_PATH_LEN];
+            int tl = (int)strlen(target);
+            if (tl <= 0 || tl >= VFS_PATH_LEN - 2) return NULL;
+            memcpy(joined, target, (usize)(tl + 1));
+            if (*rest) {
+                int jl = tl;
+                if (jl > 0 && joined[jl - 1] != '/' ) {
+                    joined[jl++] = '/';
+                }
+                int rl = (int)strlen(rest);
+                if (jl + rl >= VFS_PATH_LEN) return NULL;
+                memcpy(joined + jl, rest, (usize)(rl + 1));
+            }
+            return fs_vfs_resolve_follow(joined, depth + 1);
         }
     }
     return cur;
@@ -657,11 +703,82 @@ int fs_vfs_stat(const char *path, fs_vfs_stat_t *st) {
     memset(st, 0, sizeof(*st));
     st->type = n->type;
     st->size = n->size;
+    /* WP-10-wp08fix1: report ownership/permissions/link count from the
+     * VFS node (fs-specific stat callbacks may refine them below). */
+    st->mode  = n->mode;
+    st->uid   = n->uid;
+    st->gid   = n->gid;
+    st->nlink = n->nlink;
     strncpy(st->name, n->name, VFS_NAME_LEN - 1);
     st->name[VFS_NAME_LEN - 1] = 0;
     if (n->fs_type && n->fs_type->file_ops && n->fs_type->file_ops->stat) {
         return n->fs_type->file_ops->stat(n, st);
     }
+    return 0;
+}
+
+/* ---- WP-10-wp08fix1: links + permissions ---- */
+
+int fs_vfs_link(const char *oldpath, const char *newpath) {
+    if (!oldpath || !newpath) return -1;
+    fs_vfs_node_t *old = fs_vfs_resolve(oldpath);
+    if (!old) return -3;
+    char base[VFS_NAME_LEN];
+    if (fs_vfs_basename(newpath, base, sizeof(base)) < 0) return -1;
+    fs_vfs_node_t *parent = fs_vfs_resolve_parent_of(newpath);
+    if (!parent || !parent->fs_type || !parent->fs_type->dir_ops ||
+        !parent->fs_type->dir_ops->link) {
+        return -2;   /* backing fs has no hard-link support */
+    }
+    /* Refuse cross-fs hard links (a real hard link must share the inode).
+     * WP-10-wp08fix1 FIX: compare the fs NAME, not the fs_type struct
+     * pointer - fs_vfs_mount() sets the mount root's fs_type to the
+     * REGISTRY entry while child nodes carry the fs's own struct, so the
+     * two pointers differ for the SAME filesystem. */
+    if (!old->fs_type || !parent->fs_type ||
+        strcmp(old->fs_type->name, parent->fs_type->name) != 0) {
+        return -2;
+    }
+    return parent->fs_type->dir_ops->link(parent, base, old);
+}
+
+int fs_vfs_symlink(const char *target, const char *linkpath) {
+    if (!target || !linkpath) return -1;
+    char base[VFS_NAME_LEN];
+    if (fs_vfs_basename(linkpath, base, sizeof(base)) < 0) return -1;
+    fs_vfs_node_t *parent = fs_vfs_resolve_parent_of(linkpath);
+    if (!parent || !parent->fs_type || !parent->fs_type->dir_ops ||
+        !parent->fs_type->dir_ops->symlink) {
+        return -2;
+    }
+    return parent->fs_type->dir_ops->symlink(parent, base, target);
+}
+
+int fs_vfs_readlink(const char *path, char *buf, int cap) {
+    if (!path || !buf || cap <= 0) return -1;
+    fs_vfs_node_t *n = fs_vfs_resolve(path);
+    if (!n) return -3;
+    if (n->type != VFS_TYPE_SYMLINK) return -4;
+    if (!n->fs_type || !n->fs_type->dir_ops || !n->fs_type->dir_ops->readlink) {
+        return -2;
+    }
+    return n->fs_type->dir_ops->readlink(n, buf, cap);
+}
+
+int fs_vfs_chmod(const char *path, u32 mode) {
+    if (!path) return -1;
+    fs_vfs_node_t *n = fs_vfs_resolve(path);
+    if (!n) return -3;
+    n->mode = mode & 07777;   /* only the permission bits are stored */
+    return 0;
+}
+
+int fs_vfs_chown(const char *path, u32 uid, u32 gid) {
+    if (!path) return -1;
+    fs_vfs_node_t *n = fs_vfs_resolve(path);
+    if (!n) return -3;
+    n->uid = uid;
+    n->gid = gid;
     return 0;
 }
 

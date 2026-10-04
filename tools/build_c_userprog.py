@@ -62,7 +62,7 @@ def main():
     lines.append(f"const u64 userprog_{name}_size = {len(data)};")
     new_block = "\n".join(lines) + "\n"
 
-    header_path = os.path.join(_ROOT, 'kernel', 'generated', 'userprogs_data.h')
+    header_path = os.path.join(_ROOT, 'kernel', 'core', 'userprogs_data.h')
     with open(header_path, 'r') as f:
         content = f.read()
     pattern = re.compile(

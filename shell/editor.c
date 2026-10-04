@@ -1,0 +1,406 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
+/* Open Cube OS - WP-10-wp08fix1
+ * File: shell/editor.c
+ * Purpose: nano-style full-screen-ish text editor for the kernel shell.
+ *
+ * The whole file is held as an array of lines. On entry the file is
+ * printed once with line numbers; afterwards only the CURRENT line is
+ * redrawn in place (\r + reprint) because the framebuffer text console
+ * has no ANSI escapes.
+ *
+ * Key bindings (ASCII only):
+ *   Up/Down            select the current line
+ *   Left/Right         move inside the line
+ *   Home / End         line start / end
+ *   Ctrl+A / Ctrl+E    line start / end
+ *   Delete             remove the char at the cursor
+ *   Backspace          remove the char before the cursor (merges lines)
+ *   Enter              split the current line at the cursor (nano)
+ *   Ctrl+K             delete the current line
+ *   Ctrl+C             report cursor position (nano binding)
+ *   Ctrl+G             key guide
+ *   Ctrl+O             save (write the buffer back to the file)
+ *   Ctrl+X             exit (asks before discarding unsaved changes)
+ *
+ * File I/O goes through fs_vfs_open/read/write - the editor works on
+ * REAL files on any mounted filesystem.
+ */
+
+#include "editor.h"
+#include "fs_vfs.h"
+#include "screen_console.h"
+#include "driver_input_keyboard.h"
+#include "lib_string.h"
+#include "mem_heap.h"
+
+/* ---- Session state ----
+ * WP-10-wp08fix1 FIX: the line array used to be a 128 KiB static (and the
+ * boot loader buffer 4 KiB more). The kernel image must stay below the
+ * 0x400000 identity-window boundary (the user address space splits the
+ * 0x400000-0x600000 window into an empty page table, so kernel .bss above
+ * 0x400000 would #PF the first time a syscall touched it). The buffers
+ * are kmalloc'd per editor_open() / kfree'd per editor_close() now. */
+static char (*ed_lines)[EDITOR_LINE_CAP];
+static int   ed_nlines = 0;
+static int   ed_cl     = 0;      /* current line  */
+static int   ed_cc     = 0;      /* cursor column */
+static int   ed_dirty  = 0;
+static int   ed_active = 0;
+static char  ed_file[EDITOR_PATH_LEN];
+
+/* ---- Internal helpers ---- */
+
+static void ed_prefix(int lineno) {
+    /* Fixed width 3 + ": " (e.g. "  7: "). */
+    if (lineno < 10) screen_console_puts("  ");
+    else if (lineno < 100) screen_console_putc(' ');
+    {
+        char num[8];
+        u64_to_str((u64)lineno, num);
+        screen_console_puts(num);
+    }
+    screen_console_putc(':');
+    screen_console_putc(' ');
+}
+
+/* Redraw the current line in place. */
+static void ed_redraw_line(void) {
+    screen_console_putc('\r');
+    ed_prefix(ed_cl + 1);
+    screen_console_puts(ed_lines[ed_cl]);
+    screen_console_putc(' ');          /* clear one trailing cell */
+    screen_console_putc('\r');
+    ed_prefix(ed_cl + 1);
+    if (ed_cc > 0) {
+        char saved = ed_lines[ed_cl][ed_cc];
+        ed_lines[ed_cl][ed_cc] = 0;
+        screen_console_puts(ed_lines[ed_cl]);
+        ed_lines[ed_cl][ed_cc] = saved;
+    }
+}
+
+static void ed_state(void) {
+    char num[8];
+    screen_console_puts("[nano ");
+    screen_console_puts(ed_file);
+    screen_console_puts(" line ");
+    u64_to_str((u64)(ed_cl + 1), num);
+    screen_console_puts(num);
+    screen_console_putc('/');
+    u64_to_str((u64)ed_nlines, num);
+    screen_console_puts(num);
+    screen_console_puts(ed_dirty ? "  modified] ^O save  ^X exit  ^K del-line  ^C pos  ^G help\n"
+                                 : "  saved   ] ^O save  ^X exit  ^K del-line  ^C pos  ^G help\n");
+}
+
+static void ed_print_all(void) {
+    screen_console_puts("-- nano: ");
+    screen_console_puts(ed_file);
+    screen_console_puts(" -- ^O save ^X exit ^K del line ^G help --\n");
+    for (int i = 0; i < ed_nlines; i++) {
+        ed_prefix(i + 1);
+        screen_console_puts(ed_lines[i]);
+        screen_console_putc('\n');
+    }
+}
+
+static int ed_getch_blocking(void) {
+    for (;;) {
+        int k = driver_input_keyboard_getch();
+        if (k >= 0) return k;
+        __asm__ volatile("sti");
+        __asm__ volatile("hlt");
+    }
+}
+
+/* ---- Spec interfaces ---- */
+
+int editor_open(const char *file) {
+    if (!file || !file[0]) return -1;
+    if (ed_active) return -2;
+
+    ed_lines = (char (*)[EDITOR_LINE_CAP])kmalloc(
+        (usize)EDITOR_MAX_LINES * EDITOR_LINE_CAP);
+    if (!ed_lines) return -3;
+    memset(ed_lines, 0, (usize)EDITOR_MAX_LINES * EDITOR_LINE_CAP);
+
+    ed_nlines = 0;
+    ed_dirty  = 0;
+    ed_cl     = 0;
+    ed_cc     = 0;
+    strncpy(ed_file, file, EDITOR_PATH_LEN - 1);
+    ed_file[EDITOR_PATH_LEN - 1] = 0;
+
+    int fd = fs_vfs_open(ed_file, VFS_O_RDONLY);
+    if (fd >= 0) {
+        char *rbuf = (char *)kmalloc(4096);
+        if (!rbuf) {
+            fs_vfs_close(fd);
+            kfree(ed_lines);
+            ed_lines = NULL;
+            ed_active = 0;
+            return -3;
+        }
+        char cur[EDITOR_LINE_CAP];
+        int  cl = 0;
+        cur[0] = 0;
+        for (;;) {
+            int n = fs_vfs_read(fd, rbuf, 4096);
+            if (n <= 0) break;
+            for (int i = 0; i < n; i++) {
+                if (rbuf[i] == '\n') {
+                    if (ed_nlines < EDITOR_MAX_LINES) {
+                        strncpy(ed_lines[ed_nlines++], cur, EDITOR_LINE_CAP - 1);
+                        ed_lines[ed_nlines - 1][EDITOR_LINE_CAP - 1] = 0;
+                    }
+                    cl = 0;
+                    cur[0] = 0;
+                } else if (cl + 1 < EDITOR_LINE_CAP) {
+                    cur[cl++] = rbuf[i];
+                    cur[cl] = 0;
+                }
+            }
+        }
+        kfree(rbuf);
+        fs_vfs_close(fd);
+        if (cl > 0 || ed_nlines == 0) {
+            if (ed_nlines < EDITOR_MAX_LINES) {
+                strncpy(ed_lines[ed_nlines++], cur, EDITOR_LINE_CAP - 1);
+                ed_lines[ed_nlines - 1][EDITOR_LINE_CAP - 1] = 0;
+            }
+        }
+    } else {
+        /* New file: start with one empty line. */
+        ed_lines[0][0] = 0;
+        ed_nlines = 1;
+    }
+    ed_active = 1;
+    return 0;
+}
+
+int editor_save(void) {
+    if (!ed_active) return -1;
+    /* O_TRUNC clears the existing content on open (P2-15 semantics). */
+    int fd = fs_vfs_open(ed_file, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+    if (fd < 0) return -2;
+    for (int i = 0; i < ed_nlines; i++) {
+        int len = (int)strlen(ed_lines[i]);
+        if (len > 0) {
+            if (fs_vfs_write(fd, ed_lines[i], len) < 0) {
+                fs_vfs_close(fd);
+                return -3;
+            }
+        }
+        if (fs_vfs_write(fd, "\n", 1) < 0) {
+            fs_vfs_close(fd);
+            return -3;
+        }
+    }
+    fs_vfs_close(fd);
+    ed_dirty = 0;
+    return 0;
+}
+
+int editor_close(void) {
+    if (!ed_active) return -1;
+    if (ed_lines) {
+        kfree(ed_lines);
+        ed_lines = NULL;
+    }
+    ed_active = 0;
+    ed_nlines = 0;
+    ed_file[0] = 0;
+    return 0;
+}
+
+int editor_is_active(void) {
+    return ed_active ? 1 : 0;
+}
+
+const char *editor_file(void) {
+    return ed_active ? ed_file : "";
+}
+
+/* ---- Interactive loop ---- */
+
+int editor_run(void) {
+    if (!ed_active) return 1;
+
+    ed_print_all();
+    ed_state();
+    ed_redraw_line();
+
+    for (;;) {
+        int k = ed_getch_blocking();
+
+        if (k == OC_KEY_UP) {
+            if (ed_cl > 0) {
+                ed_cl--;
+                int ll = (int)strlen(ed_lines[ed_cl]);
+                if (ed_cc > ll) ed_cc = ll;
+                ed_redraw_line();
+            }
+        } else if (k == OC_KEY_DOWN) {
+            if (ed_cl + 1 < ed_nlines) {
+                ed_cl++;
+                int ll = (int)strlen(ed_lines[ed_cl]);
+                if (ed_cc > ll) ed_cc = ll;
+                ed_redraw_line();
+            }
+        } else if (k == OC_KEY_LEFT) {
+            if (ed_cc > 0) { ed_cc--; ed_redraw_line(); }
+        } else if (k == OC_KEY_RIGHT) {
+            if (ed_cc < (int)strlen(ed_lines[ed_cl])) {
+                ed_cc++; ed_redraw_line();
+            }
+        } else if (k == OC_KEY_HOME || k == 0x01) {   /* Home / ^A */
+            ed_cc = 0;
+            ed_redraw_line();
+        } else if (k == OC_KEY_END || k == 0x05) {    /* End / ^E */
+            ed_cc = (int)strlen(ed_lines[ed_cl]);
+            ed_redraw_line();
+        } else if (k == OC_KEY_DEL) {
+            char *l = ed_lines[ed_cl];
+            int ll = (int)strlen(l);
+            if (ed_cc < ll) {
+                for (int i = ed_cc; i < ll; i++) l[i] = l[i + 1];
+                ed_dirty = 1;
+                ed_redraw_line();
+            }
+        } else if (k == OC_KEY_BACKSPACE || k == 0x7F) {
+            char *l = ed_lines[ed_cl];
+            if (ed_cc > 0) {
+                int ll = (int)strlen(l);
+                for (int i = ed_cc - 1; i < ll; i++) l[i] = l[i + 1];
+                ed_cc--;
+                ed_dirty = 1;
+                ed_redraw_line();
+            } else if (ed_cl > 0) {
+                /* Merge with the previous line. */
+                char *prev = ed_lines[ed_cl - 1];
+                int plen = (int)strlen(prev);
+                int ll = (int)strlen(l);
+                if (plen + ll < EDITOR_LINE_CAP - 1) {
+                    strcat(prev, l);
+                    ed_cc = plen;
+                    ed_cl--;
+                    for (int i = ed_cl + 1; i + 1 < ed_nlines; i++) {
+                        strncpy(ed_lines[i], ed_lines[i + 1], EDITOR_LINE_CAP);
+                    }
+                    ed_nlines--;
+                    ed_dirty = 1;
+                    ed_print_all();
+                    ed_state();
+                    ed_redraw_line();
+                }
+            }
+        } else if (k == OC_KEY_ENTER || k == '\n' || k == '\r') {
+            /* ENTER: split the current line at the cursor (nano). */
+            if (ed_nlines < EDITOR_MAX_LINES) {
+                char *l = ed_lines[ed_cl];
+                char tail[EDITOR_LINE_CAP];
+                strncpy(tail, l + ed_cc, EDITOR_LINE_CAP - 1);
+                tail[EDITOR_LINE_CAP - 1] = 0;
+                l[ed_cc] = 0;
+                for (int i = ed_nlines; i > ed_cl + 1; i--) {
+                    strncpy(ed_lines[i], ed_lines[i - 1], EDITOR_LINE_CAP);
+                }
+                strncpy(ed_lines[ed_cl + 1], tail, EDITOR_LINE_CAP - 1);
+                ed_lines[ed_cl + 1][EDITOR_LINE_CAP - 1] = 0;
+                ed_nlines++;
+                ed_cl++;
+                ed_cc = 0;
+                ed_dirty = 1;
+                ed_print_all();
+                ed_state();
+                ed_redraw_line();
+            }
+        } else if (k == 0x0B) {   /* ^K: delete the current line */
+            for (int i = ed_cl; i + 1 < ed_nlines; i++) {
+                strncpy(ed_lines[i], ed_lines[i + 1], EDITOR_LINE_CAP);
+            }
+            ed_nlines--;
+            if (ed_nlines == 0) {
+                ed_lines[0][0] = 0;
+                ed_nlines = 1;
+            }
+            if (ed_cl >= ed_nlines) ed_cl = ed_nlines - 1;
+            int ll = (int)strlen(ed_lines[ed_cl]);
+            if (ed_cc > ll) ed_cc = ll;
+            ed_dirty = 1;
+            ed_print_all();
+            ed_state();
+            ed_redraw_line();
+        } else if (k == 0x03) {   /* ^C: report position (nano binding) */
+            char num[8];
+            screen_console_puts("\n[line ");
+            u64_to_str((u64)(ed_cl + 1), num);
+            screen_console_puts(num);
+            screen_console_puts(", col ");
+            u64_to_str((u64)(ed_cc + 1), num);
+            screen_console_puts(num);
+            screen_console_puts("]\n");
+            ed_state();
+            ed_redraw_line();
+        } else if (k == 0x07) {   /* ^G: help */
+            screen_console_puts("\narrows move | type to insert | BKSP/DEL delete\n");
+            screen_console_puts("ENTER split line | ^K del line | ^O save | ^X exit | ^C pos\n");
+            ed_state();
+            ed_redraw_line();
+        } else if (k == 0x0F) {   /* ^O: save */
+            if (editor_save() == 0) {
+                char num[8];
+                screen_console_puts("\n[wrote ");
+                u64_to_str((u64)ed_nlines, num);
+                screen_console_puts(num);
+                screen_console_puts(" lines]\n");
+            } else {
+                screen_console_puts("\n[save failed]\n");
+            }
+            ed_state();
+            ed_redraw_line();
+        } else if (k == 0x18) {   /* ^X: exit */
+            if (ed_dirty) {
+                screen_console_puts("\nSave modified buffer? (y/n): ");
+                int c = ed_getch_blocking();
+                screen_console_putc((char)c);
+                screen_console_putc('\n');
+                if (c == 'y' || c == 'Y') {
+                    if (editor_save() != 0) {
+                        screen_console_puts("[save failed - stay in editor]\n");
+                        ed_state();
+                        ed_redraw_line();
+                        continue;
+                    }
+                    editor_close();
+                    return 0;    /* saved before exit */
+                }
+                editor_close();
+                return 1;        /* quit without saving */
+            }
+            editor_close();
+            return 0;
+        } else if (k >= 0x20 && k < 0x7F) {   /* insert a character */
+            char *l = ed_lines[ed_cl];
+            int ll = (int)strlen(l);
+            if (ll + 1 < EDITOR_LINE_CAP) {
+                ed_dirty = 1;
+                if (ed_cc == ll) {
+                    l[ll] = (char)k;
+                    l[ll + 1] = 0;
+                    screen_console_putc((char)k);
+                } else {
+                    for (int i = ll; i > ed_cc; i--) l[i] = l[i - 1];
+                    l[ed_cc] = (char)k;
+                    l[ll + 1] = 0;
+                    ed_cc++;
+                    ed_redraw_line();
+                    continue;   /* redraw already positioned the cursor */
+                }
+                ed_cc++;
+            }
+        }
+        /* Everything else: ignore. */
+    }
+}
