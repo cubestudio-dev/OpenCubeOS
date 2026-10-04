@@ -76,8 +76,8 @@ extern "C" {
 
 /* A/B state snapshot (status command + L1 extension). */
 typedef struct {
-    char current_version[32];   /* OC_UPDATE_CURRENT_VERSION            */
-    char available_version[32]; /* last check: server version, else ""  */
+    char current_version[64];   /* OC_UPDATE_CURRENT_VERSION            */
+    char available_version[64]; /* last check: server version, else ""  */
     char current_boot[8];       /* "A" / "B" / "ISO"                    */
     char next_boot[8];          /* "A" / "B" / "" (boot flags)          */
     int  online_update;         /* config online_update: 1 yes / 0 no   */

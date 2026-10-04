@@ -65,7 +65,7 @@ extern "C" {
  * to fail the whole check with "JSON parse failed" because of the old
  * 128-byte buffer). */
 typedef struct {
-    char version[32];
+    char version[64];
     char time[32];
     char changes[256];
 } ota_update_info_t;
