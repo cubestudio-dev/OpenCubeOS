@@ -1,51 +1,54 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10-wp08_shell_and_tools_completion-fix1 value
+// Central site data. Every number is a real WP-AUDIT-01-p0fix2 value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
 // docs/EXTENSIONS_WP10-wp08fix1.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub Release wp10-wp08-shell-and-tools-completion-fix1 + this site /downloads/
+// 3-way identical: local build + GitHub wp-audit-01-p0fix2 tag + site /downloads/ + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp10-wp08-shell-and-tools-completion-fix1";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p0fix2";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub Release wp10-wp08-shell-and-tools-completion-fix1 + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp10-wp08-shell-and-tools-completion-fix1.iso";
-export const ISO_SIZE_B = 11335680;
+// Real assets (build/ + GitHub wp-audit-01-p0fix2 tag + site /downloads/ + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp-audit-01-p0fix2.iso";
+export const ISO_SIZE_B = 11339776;
 export const ISO_SIZE_MB = "10.81";
 export const ISO_SHA256 =
-  "770f1c571ebe510a75736e4ae5574a49366317610227a671f48652a2c8447c58";
+  "b40c1b405b309ab3ab854c37a47ac60706ba2f14afc5a49b4fe56e369e381dce";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp10-wp08-shell-and-tools-completion-fix1-src.zip";
-export const SRC_SIZE_B = 2262002;
-export const SRC_SIZE_MB = "2.16";
+export const SRC_FILE = "opencube-wp-audit-01-p0fix2-src.zip";
+export const SRC_SIZE_B = 2566826;
+export const SRC_SIZE_MB = "2.45";
 export const SRC_SHA256 =
-  "c2df3fda9bc89e66736832df2ce5a6daa18da8659fe858dfece2d79075f2cd56";
+  "f0abcff6e1723662d2a3eedeae318a4fd5a8d27d6f9365da7736693846bf5f16";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-10-wp08_shell_and_tools_completion-fix1 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 90,705.
-// Shell commands: live boot count = 172 (170 unchanged + nano/vi).
-// L1 extension interfaces: 138 items (129 through the restructure + 9 WP-10-wp08fix1:
-// shell_lineedit_init/history_add/history_get/cursor_move/tab_complete/ctrlc
-// + editor_open/editor_save/editor_close).
+// WP-AUDIT-01-p0fix2 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 90,916.
+// Shell commands: live boot count = 172 (unchanged).
+// L1 extension interfaces: 138 items (unchanged).
 export const STATS = [
-  { value: "90,705", label: "行源码" },
+  { value: "90,916", label: "行源码" },
   { value: "138", label: "L1 扩展接口" },
   { value: "44", label: "系统调用" },
   { value: "172", label: "shell 命令" },
-  { value: "15", label: "工作包" },
-  { value: "24/24", label: "端到端测试" },
+  { value: "16", label: "工作包" },
+  { value: "20/20", label: "P0 修复测试" },
 ];
 
-// WP-08 completion (line editing + tools + editors) leads the user-facing list
+// WP-AUDIT-01 (607-finding audit + first 20 P0 fixes) leads the user-facing list
 export const FEATURES = [
+  {
+    name: "完整安全审查 + 前 20 个 P0 修复",
+    tag: "WP-AUDIT-01-p0fix2",
+    desc: "18 路逐行审查 607 条发现（P0 41 / P1 94 / P2 214 / P3 258）；本批修复按报告顺序的前 20 个 P0：VFS 挂载消息栈溢出、rmdir/umount 挂载点保护（挂载点偶发消失 BUG-019 根因）、ext4 恶意卷除零、FAT32 BPB/簇号越界写盘、tcptest 33KB 引导栈溢出、内核线程栈 1 页改 4 页、SSH 客户端与 sshd 共 14 处预认证溢出（收包页上限、负长度拒绝、name-list 溢出界、交换哈希边界、加密收包预检查、fail 缓冲 sizing）。每个修复均有 QEMU 复现（修复前 FAIL / 修复后 PASS）与回归。",
+  },
   {
     name: "Shell 完全体（行编辑 + 工具 + 编辑器）",
     tag: "WP-10-wp08fix1",
@@ -181,6 +184,14 @@ export const WORK_PACKAGES = [
   {
     no: "WP-10c",
     title: "声卡驱动：Intel HDA / AC'97 / SB16 / ES1370 / virtio-snd / USB 音频 + snd_* 扩展接口",
+  },
+  {
+    no: "WP-10-project_restructure",
+    title: "项目结构重构：一模块一目录 + [大类]_[具体] 命名规范 + libs/",
+  },
+  {
+    no: "WP-AUDIT-01",
+    title: "完整审查（18 路，607 条）+ WP-AUDIT-01-p0fix2：P0 前 20 修复",
   },
 ];
 

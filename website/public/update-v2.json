@@ -1,8 +1,9 @@
 {
-  "version": "WP-10-wp08_shell_and_tools_completion-fix1",
-  "time": "2026-10-04",
-  "changes": "WP-08 shell completion: full line editing on oc>+ush (history/cursor/Tab/Ctrl keys), 15 ush tools (ln,chmod,chown,sed,awk,ping,wget,netstat,ifconfig,ps,kill,top,du,stat,env), nano/vi editor both shells, 9 new L1 interfaces 130-138, 172 cmds, 24/24 tests",
-  "package_url": "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/wp10-wp08-shell-and-tools-completion-fix1-r2/opencube-wp10-wp08-shell-and-tools-completion-fix1-update.tar.gz",
-  "package_sha256": "8e4a0f2780cf96376cf36f0c7407e24cdc0103a8001031cc61a616053f85bb2a",
-  "package_size": 532854
+  "version": "WP-AUDIT-01-p0fix2",
+  "time": "2026-10-05",
+  "changes": "audit: 607 findings (P0 41). p0fix2 fixes BUG-0021..0041: TLS record/message/CertVerify bounds, shell glob/fsck/mv data-loss, sys_poll wrap panic, SYS_EXIT overflow, execve CR3 ordering, sys_ps ktab, X509 DER overflow, config write bounds, OTA changes/request/path-traversal, NVMe 4Kn refusal, nested-#PF guard. 21/21 verified, regression green, 172 cmds",
+  "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-wp-audit-01-p0fix2-update.tar.gz",
+  "package_sha256": "a2e5656e5e830996b55c07bc1be67501c3933c2c399113f924c211aec19569f3",
+  "package_size": 534727
 }
