@@ -5017,12 +5017,20 @@ static int shell_cmd_tcptest(const char *args) {
      * Live-path option negotiation is additionally covered by the HTTPS E2E
      * run (wget https://... over TLS needs the same SYN option set). */
     /* 1) OUR SYN option block: MSS + WScale + SACK-Permitted + Timestamps */
-    net_tcp_conn_t tmp;
-    memset(&tmp, 0, sizeof(tmp));
-    tmp.mss = 1460;
-    tmp.win_scale_sent = 7;
+    /* P0fix1 BUG-0005 (A13-1): net_tcp_conn_t is ~16.6KB (rx_buf[8192] +
+     * rtx_buf[4096] + ooo_data...). Two of them on the stack (~33KB)
+     * overflowed the 16KB boot stack the shell runs on -> deterministic
+     * page-table/heap corruption (#PF after the command, audit RUN-01,
+     * 100% reproducible). They are only used as option-block scratch, so
+     * allocate them from the heap (static placement would also push the
+     * kernel image past the 0x400000 identity window). */
+    net_tcp_conn_t *tmp = (net_tcp_conn_t *)kmalloc(sizeof(net_tcp_conn_t));
+    if (!tmp) { screen_console_puts("tcptest: alloc failed\n"); return 1; }
+    memset(tmp, 0, sizeof(*tmp));
+    tmp->mss = 1460;
+    tmp->win_scale_sent = 7;
     u8 opts[32];
-    int n = net_tcp_build_syn_options(&tmp, opts);
+    int n = net_tcp_build_syn_options(tmp, opts);
     int ok_syn = (n == 24 &&
                   opts[0] == TCP_OPT_MSS && opts[1] == 4 &&
                   opts[5] == TCP_OPT_WSCALE && opts[6] == 3 &&
@@ -5031,19 +5039,22 @@ static int shell_cmd_tcptest(const char *args) {
     if (!ok_syn) fails++;
 
     /* 2) PARSER unit check: a synthetic peer SYN option block */
-    net_tcp_conn_t t2;
-    memset(&t2, 0, sizeof(t2));
-    t2.mss = 1460;
+    net_tcp_conn_t *t2 = (net_tcp_conn_t *)kmalloc(sizeof(net_tcp_conn_t));
+    if (!t2) { kfree(tmp); screen_console_puts("tcptest: alloc failed\n"); return 1; }
+    memset(t2, 0, sizeof(*t2));
+    t2->mss = 1460;
     u8 synack_opts[24] = {
         0x02, 0x04, 0x05, 0xb4,
         0x01, 0x03, 0x03, 0x07,
         0x01, 0x01, 0x04, 0x02,
         0x01, 0x01, 0x08, 0x0a, 0x11,0x22,0x33,0x44, 0x55,0x66,0x77,0x88
     };
-    net_tcp_parse_options(&t2, synack_opts, 24, 1);
-    int ok_parse = (t2.mss == 1460 && t2.win_scale_recv == 7 &&
-                    t2.sack_permitted == 1 && t2.ts_enabled == 1 &&
-                    t2.ts_recent == 0x11223344);
+    net_tcp_parse_options(t2, synack_opts, 24, 1);
+    int ok_parse = (t2->mss == 1460 && t2->win_scale_recv == 7 &&
+                    t2->sack_permitted == 1 && t2->ts_enabled == 1 &&
+                    t2->ts_recent == 0x11223344);
+    kfree(t2);
+    kfree(tmp);
     if (!ok_parse) fails++;
 
     char b[200];

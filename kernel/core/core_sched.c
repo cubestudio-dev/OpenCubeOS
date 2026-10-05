@@ -14,6 +14,10 @@
 #include "arch_irq.h"
 #include "arch_idt.h"
 
+/* P0fix1 BUG-0006 (A13-2): kthread stacks are 4 pages (16 KiB), see
+ * core_kthread_create below. */
+#define OC_KTHREAD_STACK_PAGES 4
+
 /* Task table. */
 static task_t g_tasks[MAX_TASKS];
 static tid_t  g_next_tid = 1;
@@ -254,14 +258,23 @@ tid_t core_kthread_create(void (*fn)(void *arg), void *arg, const char *name, in
     t->cr3 = 0;  /* kernel address space (identity-mapped) */
     t->ticks_remaining = TIME_SLICE_TICKS;
 
-    /* Allocate a stack (1 page = 4 KiB, enough for simple kernel threads). */
-    u64 stack_phys = mem_pmm_alloc_frame();
+    /* Allocate a stack. */
+    /* P0fix1 BUG-0006 (A13-2): the TX path nests three ~1.5KB frame
+     * buffers (net_tcp_send_raw -> net_ip_send -> eth_send) plus a DNS
+     * resolve adds ~5KB of live stack, and an IRQ-context net_poll RX->ACK
+     * response on top of a kthread needs ~6KB. With a 1-page (4 KiB)
+     * stack, any kernel thread doing network I/O (e.g. the checkupdate
+     * autoupdate thread) overflowed its stack into the neighbouring
+     * physical page. Give every kthread a physically-contiguous 4-page
+     * (16 KiB) stack so the worst observed chain (~11KB: kthread frames
+     * + IRQ frames on the same stack) fits with headroom. */
+    u64 stack_phys = mem_pmm_alloc_contig(OC_KTHREAD_STACK_PAGES);
     if (stack_phys == 0) {
         t->in_use = 0;
         return -1;
     }
     t->stack_base = (u64*)stack_phys;
-    t->stack_size = PMM_PAGE_SIZE;
+    t->stack_size = (u64)OC_KTHREAD_STACK_PAGES * PMM_PAGE_SIZE;
 
     /* Set up saved register state. */
     u64 *sp = (u64*)((u8*)t->stack_base + t->stack_size);
@@ -328,7 +341,8 @@ int core_kthread_destroy(tid_t tid) {
     if (tid != (g_current ? g_current->tid : 0)) {
         g_tasks[tid].in_use = 0;
         if (g_tasks[tid].stack_base) {
-            mem_pmm_free_frame((u64)(uintptr_t)g_tasks[tid].stack_base);
+            for (u64 f = 0; f < OC_KTHREAD_STACK_PAGES; f++)
+                mem_pmm_free_frame((u64)(uintptr_t)g_tasks[tid].stack_base + f * PMM_PAGE_SIZE);
             g_tasks[tid].stack_base = NULL;
         }
     } else {
@@ -612,7 +626,8 @@ static void core_sched_reap_exited(void) {
             if (&g_tasks[t] == g_current) continue;
             /* Free the stack. */
             if (g_tasks[t].stack_base) {
-                mem_pmm_free_frame((u64)(uintptr_t)g_tasks[t].stack_base);
+                for (u64 f = 0; f < OC_KTHREAD_STACK_PAGES; f++)
+                    mem_pmm_free_frame((u64)(uintptr_t)g_tasks[t].stack_base + f * PMM_PAGE_SIZE);
                 g_tasks[t].stack_base = NULL;
             }
             g_tasks[t].in_use = 0;

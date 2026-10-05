@@ -130,7 +130,11 @@ static int net_ssh_recv_packet_unencrypted(net_ssh_ctx_t *ctx, u8 *msg_type, u8 
     }
     int pkt_len = ((int)len_buf[0] << 24) | ((int)len_buf[1] << 16) |
                   ((int)len_buf[2] << 8) | len_buf[3];
-    if (pkt_len < 1 || pkt_len > 35000) return -1;
+    /* P0fix1 BUG-0007 (A14-01): the body is ONE 4096B page frame; the old
+     * limit of 35000 let a hostile peer write ~31KB past it (pre-auth).
+     * Everything the client legitimately receives (KEXINIT, keys,
+     * interactive channel data) fits well below this bound. */
+    if (pkt_len < 1 || pkt_len > 3500) return -1;
 
     u8 *body = (u8 *)(uintptr_t)mem_pmm_alloc_frame();
     if (!body) return -1;
@@ -177,7 +181,10 @@ static int net_ssh_send_version(net_ssh_ctx_t *ctx) {
 static int net_ssh_recv_version(net_ssh_ctx_t *ctx) {
     int n = 0;
     u64 start = core_timer_ticks();
-    while (n < 256) {
+    /* P0fix1 BUG-0008 (A14-02): the loop used to allow 256 bytes into
+     * server_banner[64] -> 192 bytes of struct overwrite with no CRLF
+     * needed (pre-auth). Stop at the buffer size and reject. */
+    while (n < (int)sizeof(ctx->server_banner) - 1) {
         int r = net_recv(ctx->net_tcp_sock, ctx->server_banner + n, 1);
         if (r > 0) {
             n++;
@@ -187,6 +194,11 @@ static int net_ssh_recv_version(net_ssh_ctx_t *ctx) {
             net_poll();
             if (core_timer_ticks() - start > 800) return -1;
         }
+    }
+    if (n < 2 || n >= (int)sizeof(ctx->server_banner) - 1 ||
+        ctx->server_banner[n-2] != '\r' || ctx->server_banner[n-1] != '\n') {
+        net_ssh_debug("[ssh] server banner too long or unterminated");
+        return -1;
     }
     ctx->server_banner[n-2] = 0;  /* strip \r\n */
     return 0;
@@ -285,7 +297,10 @@ static int net_ssh_recv_kexinit(net_ssh_ctx_t *ctx) {
             int L = ((int)payload[q] << 24) | ((int)payload[q+1] << 16) |
                     ((int)payload[q+2] << 8) | payload[q+3];
             q += 4;
-            if (L < 0 || q + L > payload_len) { lens[li] = 0; lists[li] = ""; continue; }
+            /* P0fix1 BUG-0009 (A14-03): `q + L` overflows for L near 2^31,
+             * so the bound check passed and name_has() walked gigabytes of
+             * address space. Subtract instead of add (no overflow). */
+            if (L < 0 || L > payload_len - q) { lens[li] = 0; lists[li] = ""; continue; }
             lists[li] = (const char *)(payload + q);
             lens[li] = L;
             q += L;
@@ -338,7 +353,9 @@ static int net_ssh_recv_kex_reply(net_ssh_ctx_t *ctx) {
     int ks_len = (payload[off] << 24) | (payload[off+1] << 16) |
                  (payload[off+2] << 8) | payload[off+3];
     off += 4;
-    if (off + ks_len > payload_len) return -3;
+    /* P0fix1 BUG-0010 (A14-04): a negative ks_len passed both checks and
+     * reached memcpy with a huge size_t length. */
+    if (ks_len < 0 || off + ks_len > payload_len) return -3;
     if (ks_len <= (int)sizeof(ctx->server_host_key)) {
         memcpy(ctx->server_host_key, payload + off, ks_len);
         ctx->server_host_key_len = ks_len;
@@ -348,7 +365,7 @@ static int net_ssh_recv_kex_reply(net_ssh_ctx_t *ctx) {
     int f_len = (payload[off] << 24) | (payload[off+1] << 16) |
                 (payload[off+2] << 8) | payload[off+3];
     off += 4;
-    if (off + f_len > payload_len || f_len < 32) return -5;
+    if (f_len < 0 || off + f_len > payload_len || f_len < 32) return -5;
     /* server x25519 public key: last 32 bytes of the mpint */
     memcpy(ctx->server_pub + SSH_DH_BYTES - 32, payload + off + (f_len - 32), 32);
     off += f_len;
@@ -427,7 +444,9 @@ static int net_ssh_recv_kexdh_reply(net_ssh_ctx_t *ctx) {
     if (off + 4 > payload_len) return -3;
     int ks_len = (payload[off] << 24) | (payload[off+1] << 16) | (payload[off+2] << 8) | payload[off+3];
     off += 4;
-    if (off + ks_len > payload_len) return -3;
+    /* P0fix1 BUG-0011 (A14-05): reject negative lengths before they are
+     * used as (negated) memcpy sizes / buffer offsets. */
+    if (ks_len < 0 || off + ks_len > payload_len) return -3;
     /* WP-09 fix: save K_S (server host key blob) for exchange hash H.
      * Without K_S in the hash, all derived keys are wrong. */
     if (ks_len <= (int)sizeof(ctx->server_host_key)) {
@@ -438,7 +457,7 @@ static int net_ssh_recv_kexdh_reply(net_ssh_ctx_t *ctx) {
     if (off + 4 > payload_len) return -4;
     int f_len = (payload[off] << 24) | (payload[off+1] << 16) | (payload[off+2] << 8) | payload[off+3];
     off += 4;
-    if (off + f_len > payload_len) return -5;
+    if (f_len < 0 || off + f_len > payload_len) return -5;
     /* Copy server's f into server_pub (right-aligned, SSH_DH_BYTES=256 bytes).
      * mpint encoding may have a leading 0x00 for sign extension when MSB
      * is set (which it always is for 2048-bit DH values — top byte 0x80+).
@@ -572,41 +591,53 @@ static int net_ssh_verify_host_signature(net_ssh_ctx_t *ctx, const u8 hash[32]) 
 
 /* Compute exchange hash H = SHA-256(V_C || V_S || I_C || I_S || K_S || e || f || K).
  * V_C/V_S/I_C/I_S/K_S are length-prefixed strings, e/f/K are mpints
- * (e/f as 32-byte strings for curve25519 per RFC 8731). */
-static void net_ssh_compute_hash(net_ssh_ctx_t *ctx, u8 hash[32]) {
+ * (e/f as 32-byte strings for curve25519 per RFC 8731).
+ * P0fix1 BUG-0012 (A14-06): every append is now bounds-checked against the
+ * 4096B page; the old code blindly concatenated (V_C+V_S+I_C+I_S alone can
+ * reach ~5.2KB) and wrote past the page. Returns 0 or -1 on overflow. */
+static int net_ssh_compute_hash(net_ssh_ctx_t *ctx, u8 hash[32]) {
     /* Build hash input: strings (length-prefixed) + mpints */
     /* Use a page frame (4KB) since this can be large */
     u8 *buf = (u8 *)(uintptr_t)mem_pmm_alloc_frame();
-    if (!buf) return;
+    if (!buf) return -1;
+    const int cap = 4096;
     int p = 0;
+    /* helper: room for `need` more bytes? */
+#define OC_HASH_ROOM(need) ((cap - p) >= (need))
     /* V_C: client version banner (without \r\n) */
     int vlen = (int)strlen(ctx->client_banner);
+    if (!OC_HASH_ROOM(4 + vlen)) goto overflow;
     buf[p++] = (u8)(vlen >> 24); buf[p++] = (u8)(vlen >> 16);
     buf[p++] = (u8)(vlen >> 8); buf[p++] = (u8)(vlen & 0xFF);
     for (int i = 0; ctx->client_banner[i]; i++) buf[p++] = ctx->client_banner[i];
     /* V_S: server version banner */
     vlen = (int)strlen(ctx->server_banner);
+    if (!OC_HASH_ROOM(4 + vlen)) goto overflow;
     buf[p++] = (u8)(vlen >> 24); buf[p++] = (u8)(vlen >> 16);
     buf[p++] = (u8)(vlen >> 8); buf[p++] = (u8)(vlen & 0xFF);
     for (int i = 0; ctx->server_banner[i]; i++) buf[p++] = ctx->server_banner[i];
     /* I_C: client KEXINIT payload (msg_type + payload, excluding padding_length + padding) */
     int ic_len = ctx->client_kexinit_len;
+    if (ic_len < 0 || !OC_HASH_ROOM(4 + ic_len)) goto overflow;
     buf[p++] = (u8)(ic_len >> 24); buf[p++] = (u8)(ic_len >> 16);
     buf[p++] = (u8)(ic_len >> 8); buf[p++] = (u8)(ic_len & 0xFF);
     memcpy(buf + p, ctx->client_kexinit, ic_len); p += ic_len;
     /* I_S: server KEXINIT payload */
     int is_len = ctx->server_kexinit_len;
+    if (is_len < 0 || !OC_HASH_ROOM(4 + is_len)) goto overflow;
     buf[p++] = (u8)(is_len >> 24); buf[p++] = (u8)(is_len >> 16);
     buf[p++] = (u8)(is_len >> 8); buf[p++] = (u8)(is_len & 0xFF);
     memcpy(buf + p, ctx->server_kexinit, is_len); p += is_len;
     /* K_S: server host key blob — saved from KEXDH_REPLY */
     int ks_total = ctx->server_host_key_len;
+    if (ks_total < 0 || !OC_HASH_ROOM(4 + ks_total)) goto overflow;
     buf[p++] = (u8)(ks_total >> 24); buf[p++] = (u8)(ks_total >> 16);
     buf[p++] = (u8)(ks_total >> 8); buf[p++] = (u8)(ks_total & 0xFF);
-    if (ks_total > 0 && p + ks_total < 3500) {
+    if (ks_total > 0) {
         memcpy(buf + p, ctx->server_host_key, ks_total);
         p += ks_total;
     }
+    if (!OC_HASH_ROOM(2 * (4 + SSH_DH_BYTES) + 4 + SSH_DH_BYTES + 4)) goto overflow;
     if (ctx->kex_curve25519) {
         /* RFC 8731: e and f are 32-byte STRINGS in the exchange hash
          * (no mpint sign-extension), K is a standard mpint. */
@@ -623,6 +654,7 @@ static void net_ssh_compute_hash(net_ssh_ctx_t *ctx, u8 hash[32]) {
         /* K: shared secret */
         net_ssh_write_mpint(buf, &p, ctx->shared_secret, SSH_DH_BYTES);
     }
+#undef OC_HASH_ROOM
 
     sha256(buf, p, hash);
     mem_pmm_free_frame((u64)(uintptr_t)buf);
@@ -652,6 +684,12 @@ static void net_ssh_compute_hash(net_ssh_ctx_t *ctx, u8 hash[32]) {
     /* WP-09 debug: print K and H for comparison with server.
      * (Derived keys are printed after net_ssh_derive_keys(), see below.) */
     net_ssh_debug_hex("[ssh] K (first 8): ", ctx->shared_secret, 8);
+    return 0;
+
+overflow:
+    mem_pmm_free_frame((u64)(uintptr_t)buf);
+    screen_console_puts("[ssh] exchange hash input exceeds 4096B page\n");
+    return -1;
 }
 
 /* Derive encryption keys via plain SHA-256 (paramiko's _compute_key algorithm,
@@ -815,7 +853,10 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
 
     /* Compute exchange hash H */
     u8 hash[32];
-    net_ssh_compute_hash(ctx, hash);
+    if (net_ssh_compute_hash(ctx, hash) < 0) {
+        /* BUG-0012: input did not fit the page -- abort the exchange. */
+        return -14;
+    }
     /* RFC 4253 §8: verify the server signature over H with the host key
      * from K_S BEFORE deriving/using any keys. */
     if (net_ssh_verify_host_signature(ctx, hash) < 0) {
@@ -1178,7 +1219,11 @@ int net_ssh_recv_packet_encrypted(net_ssh_ctx_t *ctx, u8 *msg_type, u8 *payload,
     }
     int packet_length = ((int)dec_first[0] << 24) | ((int)dec_first[1] << 16) |
                         ((int)dec_first[2] << 8) | dec_first[3];
-    if (packet_length < 1 || packet_length > 35000) {
+    /* P0fix1 BUG-0013 (A14-07): the old limit of 35000 exceeds every buffer
+     * used below (rest_buf/dec_rest/body/mac_input are all 16384B). Cap the
+     * packet at what the receive page can hold (matching the plaintext
+     * path) and validate before any byte is received. */
+    if (packet_length < 1 || packet_length > 3500) {
         net_ssh_debug("[ssh] invalid packet_length in encrypted packet");
         return -1;
     }
@@ -1192,6 +1237,8 @@ int net_ssh_recv_packet_encrypted(net_ssh_ctx_t *ctx, u8 *msg_type, u8 *payload,
     }
 
     static u8 rest_buf[16384];
+    /* P0fix1 BUG-0013 (A14-07): bounds-check BEFORE receiving. */
+    if (remaining + mac_size > (int)sizeof(rest_buf)) return -1;
     n = 0;
     while (n < remaining + mac_size) {
         int r = net_recv(ctx->net_tcp_sock, rest_buf + n, (remaining + mac_size) - n);

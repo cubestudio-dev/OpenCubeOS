@@ -180,6 +180,14 @@ static int fs_ramfs_rmdir(fs_vfs_node_t *parent, const char *name) {
     if (!child) return -2;
     if (child->type != VFS_TYPE_DIR) return -3;
     if (child->first_child) return -4;  /* not empty */
+    /* P0fix1 BUG-0002 (A12-002): a mount point hanging under a ramfs
+     * directory is NOT a ramfs node -- its ->private belongs to the
+     * mounted filesystem (e.g. a fs_fat32_inode_t whose first member is
+     * a live context pointer). Treating it as fs_ramfs_inode_t here
+     * kfree()s a live context and detaches the mounted root while the
+     * mount table entry stays in use -> KNOWN_ISSUES BUG-019 "mount
+     * point occasionally disappears" + later UAF. */
+    if (child->fs_type != &g_ramfs_fs_type) return -5;  /* not ours */
     fs_vfs_detach_child(child);
     fs_ramfs_inode_t *ri = (fs_ramfs_inode_t *)child->private;
     if (ri) {

@@ -169,7 +169,9 @@ static int net_sshd_recv_packet_unencrypted(net_sshd_ctx_t *ctx, u8 *msg_type, u
     }
     int pkt_len = ((int)len_buf[0] << 24) | ((int)len_buf[1] << 16) |
                   ((int)len_buf[2] << 8) | len_buf[3];
-    if (pkt_len < 1 || pkt_len > 35000) {
+    /* P0fix1 BUG-0014 (A14-08): the body is ONE 4096B page frame; the old
+     * limit of 35000 let ANY pre-auth network client write ~31KB past it. */
+    if (pkt_len < 1 || pkt_len > 3500) {
         char b[64]; strcpy(b, "recv_unenc: bad pkt_len=");
         char n2[10]; u64_to_str((u64)pkt_len, n2); strcat(b, n2);
         net_sshd_log(b);
@@ -314,7 +316,7 @@ static int net_sshd_recv_packet_encrypted(net_sshd_ctx_t *ctx, u8 *msg_type, u8 
         char n2[12]; u64_to_str((u64)packet_length, n2); strcat(b, n2);
         net_sshd_log(b);
     }
-    if (packet_length < 1 || packet_length > 35000) {
+    if (packet_length < 1 || packet_length > 3500) {
         char b[64]; strcpy(b, "recv: bad packet_length=");
         char n[10]; u64_to_str((u64)packet_length, n); strcat(b, n);
         net_sshd_log(b);
@@ -330,6 +332,11 @@ static int net_sshd_recv_packet_encrypted(net_sshd_ctx_t *ctx, u8 *msg_type, u8 
     }
 
     static u8 rest_buf[16384];
+    /* P0fix1 BUG-0018 (A14-12): validate every buffer BEFORE receiving or
+     * decrypting. The old code had NO body_len check at all (the client
+     * side checks too late), so a 35000-byte packet overflowed rest_buf,
+     * dec_rest, body AND mac_input. */
+    if (remaining + mac_size > (int)sizeof(rest_buf)) return -1;
     n = 0;
     while (n < remaining + mac_size) {
         int r = net_recv(ctx->sock, rest_buf + n, (remaining + mac_size) - n);
@@ -357,6 +364,9 @@ static int net_sshd_recv_packet_encrypted(net_sshd_ctx_t *ctx, u8 *msg_type, u8 
 
     static u8 body[16384];
     int body_len = leftover + remaining;
+    /* P0fix1 BUG-0018 (A14-12): bounds-check before copying. mac_input
+     * (declared below) is also 16384B and receives 8 + body_len bytes. */
+    if (body_len > (int)sizeof(body) || 8 + body_len > 16384) return -1;
     memcpy(body, dec_first + 4, leftover);
     if (remaining > 0) memcpy(body + leftover, dec_rest, remaining);
 
@@ -481,9 +491,27 @@ static void net_sshd_derive_keys(net_sshd_ctx_t *ctx) {
 
 /* ---------- exchange hash ---------- */
 
-static void net_sshd_compute_hash(net_sshd_ctx_t *ctx, u8 hash[32]) {
+/* P0fix1 BUG-0017 (A14-11): compute the exact worst-case input size BEFORE
+ * writing. client_kexinit_len can be ~4096 on its own (pre-auth), and the
+ * old code concatenated everything into one 4096B page with no checks
+ * (banner + kexinits + K_S + mpints ~5.5KB -> ~1.4KB past the page).
+ * Returns 0, or -1 when the input does not fit (caller aborts the session). */
+static int net_sshd_compute_hash(net_sshd_ctx_t *ctx, u8 hash[32]) {
+    const int cap = 4096;
+    int need = 0;
+    need += 4 + (int)strlen(ctx->client_banner);
+    need += 4 + (int)strlen(ctx->server_banner);
+    need += 4 + ctx->client_kexinit_len;
+    need += 4 + ctx->server_kexinit_len;
+    need += 4 + 276;                       /* K_S block (<= 400B, max 276 used) */
+    if (ctx->kex_curve25519)
+        need += (4 + 32) + (4 + 32) + (4 + 1 + SSHD_DH_BYTES);
+    else
+        need += 3 * (4 + 1 + SSHD_DH_BYTES);
+    if (need > cap) return -1;
+
     u8 *buf = (u8 *)(uintptr_t)mem_pmm_alloc_frame();
-    if (!buf) return;
+    if (!buf) return -1;
     int p = 0;
     /* client = V_C (cookie in I_C etc); we are V_S */
     net_sshd_write_cstr(buf, &p, ctx->client_banner);
@@ -516,6 +544,7 @@ static void net_sshd_compute_hash(net_sshd_ctx_t *ctx, u8 hash[32]) {
     }
     sha256(buf, p, hash);
     mem_pmm_free_frame((u64)(uintptr_t)buf);
+    return 0;
 }
 
 /* ---------- exec engine ---------- */
@@ -647,7 +676,10 @@ static int net_sshd_recv_kexinit(net_sshd_ctx_t *ctx) {
             if (q + 4 > plen) break;
             int L = (int)net_sshd_read_u32(payload + q);
             q += 4;
-            if (L < 0 || q + L > plen) break;
+            /* P0fix1 BUG-0016 (A14-10): `q + L` overflowed for L near 2^31
+             * and left a negative q -> wild-address reads on the next
+             * iteration and in name_has(). Subtract instead of add. */
+            if (L < 0 || L > plen - q) break;
             ptrs[li] = payload + q;
             lens[li] = L;
             q += L;
@@ -693,7 +725,11 @@ static int net_sshd_send_kexdh_reply_curve25519(net_sshd_ctx_t *ctx) {
     net_sshd_log("curve25519 KEX: shared secret computed");
 
     /* exchange hash H = SHA256(V_C||V_S||I_C||I_S||K_S||string e||string f||mpint K) */
-    net_sshd_compute_hash(ctx, ctx->exchange_hash);
+    if (net_sshd_compute_hash(ctx, ctx->exchange_hash) < 0) {
+        /* BUG-0017: exchange-hash input exceeded the page -> abort. */
+        net_sshd_log("exchange hash input too large");
+        return -9;
+    }
     memcpy(ctx->session_id, ctx->exchange_hash, 32);
     ctx->session_id_set = 1;
     net_sshd_log_hex("H (first 16): ", ctx->exchange_hash, 16);
@@ -762,7 +798,11 @@ static int net_sshd_send_kexdh_reply(net_sshd_ctx_t *ctx) {
     net_sshd_log(b);
 
     /* exchange hash H */
-    net_sshd_compute_hash(ctx, ctx->exchange_hash);
+    if (net_sshd_compute_hash(ctx, ctx->exchange_hash) < 0) {
+        /* BUG-0017: exchange-hash input exceeded the page -> abort. */
+        net_sshd_log("exchange hash input too large");
+        return -9;
+    }
     memcpy(ctx->session_id, ctx->exchange_hash, 32);
     ctx->session_id_set = 1;
     net_sshd_log_hex("H (first 16): ", ctx->exchange_hash, 16);
@@ -836,7 +876,10 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
     int off = 0;
     if (off + 4 > plen) return -1;
     int ulen = (int)net_sshd_read_u32(payload + off); off += 4;
-    if (off + ulen > plen) return -1;
+    /* P0fix1 BUG-0019 (A14-13): a negative ulen passed `off + ulen > plen`
+     * and reached memcpy with a huge size_t length -- pre-password, so any
+     * unauthenticated client could crash the sshd. */
+    if (ulen < 0 || off + ulen > plen) return -1;
     memcpy(ctx->auth_user, payload + off, ulen < 31 ? ulen : 31);
     ctx->auth_user[ulen < 31 ? ulen : 31] = 0;
     off += ulen;
@@ -963,7 +1006,9 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
     off += 1;
     if (off + 4 > plen) return -1;
     int pwlen = (int)net_sshd_read_u32(payload + off); off += 4;
-    if (off + pwlen > plen) return -1;
+    /* P0fix1 BUG-0019 (A14-13): same negative-length fix for the password
+     * string. */
+    if (pwlen < 0 || off + pwlen > plen) return -1;
     char pw[32];
     memcpy(pw, payload + off, pwlen < 31 ? pwlen : 31);
     pw[pwlen < 31 ? pwlen : 31] = 0;
@@ -1103,8 +1148,13 @@ static int net_sshd_serve_connection(net_sshd_ctx_t *ctx) {
         if (e_len != 32) return -7;
         memcpy(ctx->client_pub + SSHD_DH_BYTES - 32, payload + 4, 32);
     } else {
+        /* P0fix1 BUG-0015 (A14-09): a negative e_len skipped both clamps
+         * and made `SSHD_DH_BYTES - el` a wild offset with a huge memcpy
+         * length. Also bound `el` by the actual payload size. */
         const u8 *ed = payload + 4;
         int el = e_len;
+        if (el < 0) return -7;
+        if (4 + el > plen) return -7;   /* declared e extends past payload */
         if (el > 0 && ed[0] == 0) { ed++; el--; }
         if (el > SSHD_DH_BYTES) { ed += (el - SSHD_DH_BYTES); el = SSHD_DH_BYTES; }
         memcpy(ctx->client_pub + (SSHD_DH_BYTES - el), ed, el);
@@ -1175,7 +1225,12 @@ static int net_sshd_serve_connection(net_sshd_ctx_t *ctx) {
                 ctx->channel_open = 1;
                 net_sshd_log("session channel open (CONFIRMATION sent)");
             } else {
-                u8 fail[16];
+                /* P0fix1 BUG-0020 (A14-14): the failure reply is 4 (reason)
+                 * + 4+31 (message string) + 4 (lang tag) = 43 bytes, but the
+                 * buffer was u8 fail[16] -> 27-byte stack overflow that
+                 * clobbered the serve_connection frame. Size it for the
+                 * actual reply. */
+                u8 fail[64];
                 int fp = 0;
                 u32 rc4 = 3;  /* ADMIN_PROHIBITED */
                 fail[fp++] = (u8)(rc4 >> 24); fail[fp++] = (u8)(rc4 >> 16);

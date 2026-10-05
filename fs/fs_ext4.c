@@ -692,6 +692,20 @@ static fs_vfs_node_t *fs_ext4_fs_mount(const char *device) {
         kfree(ctx);
         return NULL;
     }
+    /* P0fix1 BUG-0003 (A12-003): blocks_per_group / inodes_per_group come
+     * straight off the disk and are used as divisors below (and at the
+     * inode lookup). A crafted/corrupted volume with a zero value caused
+     * a #DE divide error that halted the kernel during `mount`. */
+    if (sb.s_blocks_per_group == 0 || sb.s_inodes_per_group == 0) {
+        screen_console_puts("ext4: invalid superblock (zero group size)\n");
+        kfree(ctx);
+        return NULL;
+    }
+    if (sb.s_log_block_size > 6) {
+        screen_console_puts("ext4: invalid block size\n");
+        kfree(ctx);
+        return NULL;
+    }
     ctx->block_size = (u32)1024 << sb.s_log_block_size;
     ctx->inodes_count = sb.s_inodes_count;
     ctx->blocks_count = sb.s_blocks_count_lo;

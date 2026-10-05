@@ -326,12 +326,25 @@ int fs_vfs_mount(const char *fs_type, const char *mount_point, const char *devic
     fs_vfs_invoke_hook(VFS_HOOK_MOUNT, norm);
 
     {
+        /* P0fix1 BUG-0001 (A12-001): the mount message used to be built
+         * with unbounded strcpy() into msg[80] while "vfs: mounted " +
+         * fs_type(<=15) + " at " + norm(<=255) + "\n" can reach ~289
+         * bytes -> stack overflow. Build the message with explicit
+         * bounds and truncate the (display-only) path instead. */
         char msg[80];
-        strcpy(msg, "vfs: mounted ");
-        strcpy(msg + strlen(msg), fs_type);
-        strcpy(msg + strlen(msg), " at ");
-        strcpy(msg + strlen(msg), norm);
-        strcpy(msg + strlen(msg), "\n");
+        int flen = (int)strlen(fs_type);
+        int nlen = (int)strlen(norm);
+        if (flen > 15) flen = 15;
+        int max_norm = (int)sizeof(msg) - 1 - 13 - flen - 4 - 1;
+        if (max_norm < 0) max_norm = 0;
+        if (nlen > max_norm) nlen = max_norm;
+        int mp = 0;
+        memcpy(msg + mp, "vfs: mounted ", 13); mp += 13;
+        memcpy(msg + mp, fs_type, flen); mp += flen;
+        memcpy(msg + mp, " at ", 4); mp += 4;
+        memcpy(msg + mp, norm, nlen); mp += nlen;
+        msg[mp++] = '\n';
+        msg[mp] = 0;
         screen_console_puts(msg);
     }
     return 0;
@@ -355,6 +368,21 @@ int fs_vfs_umount(const char *mount_point) {
     if (!mount_point) return -1;
     char norm[VFS_PATH_LEN];
     if (fs_vfs_normalize(mount_point, norm, sizeof(norm)) < 0) return -1;
+    /* P0fix1 BUG-0002 (A12-002, trigger surface 2): umounting "/" (the
+     * root ramfs) used to release the whole tree INCLUDING nested mount
+     * roots (their ->private is another fs's inode/context), leaving
+     * those mount table entries dangling -> UAF. Nested mounts must be
+     * removed first; refuse while children are still mounted. */
+    for (int i = 0; i < VFS_MAX_MOUNTS; i++) {
+        if (!g_mounts[i].in_use) continue;
+        int mpl = (int)strlen(g_mounts[i].mount_point);
+        int nml = (int)strlen(norm);
+        if (mpl > nml && strncmp(g_mounts[i].mount_point, norm, nml) == 0 &&
+            g_mounts[i].mount_point[nml] == '/') {
+            screen_console_puts("vfs: umount nested mounts first\n");
+            return -3;
+        }
+    }
     fs_vfs_mount_t *m = fs_vfs_find_mount(norm);
     if (!m) return -2;
 
@@ -798,6 +826,14 @@ int fs_vfs_mkdir(const char *path) {
 
 int fs_vfs_rmdir(const char *path) {
     if (!path) return -1;
+    char norm[VFS_PATH_LEN];
+    if (fs_vfs_normalize(path, norm, sizeof(norm)) < 0) return -2;
+    /* P0fix1 BUG-0002 (A12-002): refuse to remove a mount point.
+     * Removing the cached root node of a mounted filesystem detaches it
+     * from the tree while the mount table entry stays in use -> the
+     * mount "disappears" (KNOWN_ISSUES BUG-019) and later resolution
+     * through the mount table hits freed memory (UAF). */
+    if (fs_vfs_find_mount(norm)) return -5;   /* is a mount point */
     char base[VFS_NAME_LEN];
     if (fs_vfs_basename(path, base, sizeof(base)) < 0) return -2;
     fs_vfs_node_t *parent = fs_vfs_resolve_parent_of(path);
@@ -831,6 +867,11 @@ int fs_vfs_readdir(const char *path, int index, fs_vfs_dirent_t *entry) {
 
 int fs_vfs_unlink(const char *path) {
     if (!path) return -1;
+    char norm[VFS_PATH_LEN];
+    if (fs_vfs_normalize(path, norm, sizeof(norm)) < 0) return -2;
+    /* P0fix1 BUG-0002 (A12-002): refuse to unlink a mount point
+     * (same mount-table lifetime hazard as in fs_vfs_rmdir). */
+    if (fs_vfs_find_mount(norm)) return -5;   /* is a mount point */
     char base[VFS_NAME_LEN];
     if (fs_vfs_basename(path, base, sizeof(base)) < 0) return -2;
     fs_vfs_node_t *parent = fs_vfs_resolve_parent_of(path);

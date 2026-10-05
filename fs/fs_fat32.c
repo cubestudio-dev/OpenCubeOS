@@ -186,8 +186,17 @@ static int fs_fat32_parse_device(const char *device) {
 }
 
 /* Read a whole cluster into buf (must be bytes_per_cluster bytes). */
+/* P0fix1 BUG-0004 (A12-004): cluster numbers come off disk (FAT chains,
+ * directory entries). Anything >= total_clusters + 2 maps to an LBA outside
+ * the volume and read/write would corrupt the neighbouring area. */
+static int fs_fat32_cluster_valid(const fs_fat32_ctx_t *ctx, u32 cluster) {
+    if (cluster < 2) return 0;
+    if (cluster >= (u64)ctx->total_clusters + 2) return 0;   /* outside the volume */
+    return 1;
+}
+
 static int fs_fat32_read_cluster(fs_fat32_ctx_t *ctx, u32 cluster, u8 *buf) {
-    if (cluster < 2) return -1;
+    if (!fs_fat32_cluster_valid(ctx, cluster)) return -1;
     u64 lba = (u64)ctx->data_start_lba + (u64)(cluster - 2) * (u64)ctx->sectors_per_cluster;
     return driver_block_read_sectors_raw(ctx->dev_idx, lba,
                                 (u32)ctx->sectors_per_cluster, buf);
@@ -260,7 +269,7 @@ static int fs_fat32_free_cluster_chain(fs_fat32_ctx_t *ctx, u32 start_cluster) {
 
 /* Write a full cluster (bytes_per_cluster bytes) from `buf` to disk. */
 static int fs_fat32_write_cluster(fs_fat32_ctx_t *ctx, u32 cluster, const u8 *buf) {
-    if (cluster < 2) return -1;
+    if (!fs_fat32_cluster_valid(ctx, cluster)) return -1;
     u64 lba = (u64)ctx->data_start_lba + (u64)(cluster - 2) * (u64)ctx->sectors_per_cluster;
     return driver_block_write_sectors_raw(ctx->dev_idx, (u64)lba,
                                  (u32)ctx->sectors_per_cluster, buf);
@@ -1265,9 +1274,15 @@ static fs_vfs_node_t *fs_fat32_fs_mount(const char *device) {
     fs_fat32_bpb_t *bpb = (fs_fat32_bpb_t *)boot;
 
     /* Sanity check. */
-    if (bpb->bytes_per_sector == 0 ||
+    /* P0fix1 BUG-0004 (A12-004): tighten BPB validation. The block layer
+     * is fixed at 512-byte sectors, so anything else would read/write only
+     * a fraction of every buffer; reserved_sectors must be >= 1 or
+     * fat_start_lba becomes 0 and a later FAT write would overwrite the
+     * boot sector / partition table. */
+    if (bpb->bytes_per_sector != 512 ||
         bpb->sectors_per_cluster == 0 ||
-        bpb->bytes_per_sector > 4096) {
+        bpb->reserved_sectors < 1 ||
+        bpb->num_fats == 0) {
         screen_console_puts("fat32: invalid BPB\n");
         return NULL;
     }
@@ -1299,6 +1314,11 @@ static fs_vfs_node_t *fs_fat32_fs_mount(const char *device) {
     u32 total_sectors = bpb->total_sectors32 ? bpb->total_sectors32 : (u32)bpb->total_sectors16;
     if (total_sectors > ctx->data_start_lba) {
         ctx->total_clusters = (total_sectors - ctx->data_start_lba) / ctx->sectors_per_cluster;
+    }
+    if (ctx->total_clusters == 0) {
+        screen_console_puts("fat32: volume has no data clusters\n");
+        kfree(ctx);
+        return NULL;
     }
 
     /* Cache the FAT. */
