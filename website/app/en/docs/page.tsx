@@ -7,7 +7,7 @@ import DocsView from "@/app/_components/DocsView";
 export const metadata: Metadata = {
   title: "Docs - Open Cube OS",
   description:
-    "Open Cube OS WP-09 docs: README (positioning and stats), BUILD (build guide), INTERFACES (57 L1 interfaces + WP-09 transport API index). Original English text from the repository.",
+    "Open Cube OS docs: README (positioning and stats, WP-AUDIT-01-p0fix2), BUILD (build guide), INTERFACES (the L1 interface index + the shell command surface, 172 commands). Original English text from the repository.",
 };
 
 export default function EnDocsPage() {

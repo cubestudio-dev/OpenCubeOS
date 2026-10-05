@@ -7,7 +7,7 @@ import AboutView from "@/app/_components/AboutView";
 export const metadata: Metadata = {
   title: "About - Open Cube OS",
   description:
-    "Open Cube OS project history: 12 work packages WP-01 through WP-10u, 120 audit bugs fixed, 18/18 regression verification, AI disclosure and license.",
+    "Open Cube OS project history: 16 work packages WP-01 through WP-AUDIT-01, a 607-finding full audit with all 41 P0 fixes landed (p0fix1 first 20 + p0fix2 remaining 21) each individually verified, AI disclosure and license.",
 };
 
 export default function EnAboutPage() {

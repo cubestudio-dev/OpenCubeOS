@@ -31,7 +31,7 @@ export const SRC_SHA256 =
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // WP-AUDIT-01-p0fix2 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 90,916.
-// Shell commands: live boot count = 172 (unchanged).
+// Shell commands: live boot count = 172 (QEMU help -a prints "Total: 172 commands"; static registry = 172 unique, both directions empty diff).
 // L1 extension interfaces: 138 items (unchanged).
 export const STATS = [
   { value: "90,916", label: "行源码" },
@@ -39,15 +39,15 @@ export const STATS = [
   { value: "44", label: "系统调用" },
   { value: "172", label: "shell 命令" },
   { value: "16", label: "工作包" },
-  { value: "20/20", label: "P0 修复测试" },
+  { value: "41/41", label: "P0 修复测试" },
 ];
 
-// WP-AUDIT-01 (607-finding audit + first 20 P0 fixes) leads the user-facing list
+// WP-AUDIT-01 (607-finding audit + all 41 P0 fixes: p0fix1 first 20 + p0fix2 remaining 21) leads the user-facing list
 export const FEATURES = [
   {
-    name: "完整安全审查 + 前 20 个 P0 修复",
+    name: "完整安全审查 + 全部 41 个 P0 修复",
     tag: "WP-AUDIT-01-p0fix2",
-    desc: "18 路逐行审查 607 条发现（P0 41 / P1 94 / P2 214 / P3 258）；本批修复按报告顺序的前 20 个 P0：VFS 挂载消息栈溢出、rmdir/umount 挂载点保护（挂载点偶发消失 BUG-019 根因）、ext4 恶意卷除零、FAT32 BPB/簇号越界写盘、tcptest 33KB 引导栈溢出、内核线程栈 1 页改 4 页、SSH 客户端与 sshd 共 14 处预认证溢出（收包页上限、负长度拒绝、name-list 溢出界、交换哈希边界、加密收包预检查、fail 缓冲 sizing）。每个修复均有 QEMU 复现（修复前 FAIL / 修复后 PASS）与回归。",
+    desc: "18 路逐行审查 607 条发现（P0 41 / P1 94 / P2 214 / P3 258）；p0fix1 修复前 20 个 P0：VFS 挂载消息栈溢出、rmdir/umount 挂载点保护（挂载点偶发消失 BUG-019 根因）、ext4 恶意卷除零、FAT32 BPB/簇号越界写盘、tcptest 33KB 引导栈溢出、内核线程栈 1 页改 4 页、SSH 客户端与 sshd 共 14 处预认证溢出（收包页上限、负长度拒绝、name-list 溢出界、交换哈希边界、加密收包预检查、fail 缓冲 sizing）；p0fix2 修复其余 21 个 P0（BUG-0021..0041）：TLS 请求/记录/消息边界与 TLS 1.3 CertVerify DER、shell glob/fsck/mv、sys_poll nfds 回绕、SYS_EXIT 缓冲、execve CR3 切换次序、sys_ps ktab 堆化、X509 DER 长度溢出、config 写边界、OTA changes/request/路径遍历拒绝、NVMe 非 512B LBA 拒绝、嵌套 #PF 防护。41 条全部有修复验证（QEMU 复现修复前 FAIL / 修复后 PASS、宿主 ASAN 或构造级路径证据）。",
   },
   {
     name: "Shell 完全体（行编辑 + 工具 + 编辑器）",
@@ -191,7 +191,7 @@ export const WORK_PACKAGES = [
   },
   {
     no: "WP-AUDIT-01",
-    title: "完整审查（18 路，607 条）+ WP-AUDIT-01-p0fix2：P0 前 20 修复",
+    title: "完整审查（18 路，607 条）+ P0 全部 41 个修复（p0fix1 前 20 + p0fix2 后 21）",
   },
 ];
 

@@ -20,8 +20,8 @@ export function localePath(locale: Locale, sub: "" | "docs" | "about" = ""): str
 
 const zh = {
   htmlLang: "zh-CN",
-  badge: "WP-10-wp08fix1 · Apache 2.0",
-  brandSub: "WP-10-wp08fix1 · Apache 2.0",
+  badge: "WP-AUDIT-01-p0fix2 · Apache 2.0",
+  brandSub: "WP-AUDIT-01-p0fix2 · Apache 2.0",
   navAria: "站点导航",
   navHome: "首页",
   navDownloads: "下载",
@@ -36,13 +36,13 @@ const zh = {
   heroSubMid: "，而是",
   heroSubBold: "\u201c一个能被扩展成任何东西的内核\u201d",
   heroSubPost:
-    "。价值不在自带什么，而在向上层暴露的接口：L0 = 完整内核，L1 = 上层扩展，L0 不内置任何 L1。WP-10-wp08fix1 补全 WP-08 Shell 规格：oc> 与 ush 双端全键位行编辑（上下键历史翻页、左右/Home/End 光标、Tab 补全、Ctrl+A/E/U/K/W、Delete、Ctrl+C）、ush 补齐 15 个工具（ln/ln -s、chmod/chown、sed、awk、ping/wget/netstat/ifconfig、ps/kill/top/du、stat/env）、nano 风格编辑器双端可用（nano/vi，^O 保存 ^X 退出）；USB 主机栈（四控制器）、声卡（六族）、系统内 A/B 更新、网卡/存储驱动与安全传输保持主流化：",
+    "。价值不在自带什么，而在向上层暴露的接口：L0 = 完整内核，L1 = 上层扩展，L0 不内置任何 L1。WP-AUDIT-01 完成 18 路逐行完整审查（607 条发现），WP-AUDIT-01-p0fix1 修复其中前 20 个 P0（文件系统、网络栈与 SSH/sshd 的预认证内存破坏），WP-AUDIT-01-p0fix2 修复其余 21 个 P0（TLS 记录/消息边界与 TLS 1.3 CertVerify DER、shell glob/fsck/mv、sys_poll 回绕与 SYS_EXIT 缓冲、execve CR3 次序、sys_ps ktab、X509 DER 溢出、config 写边界、OTA changes/request/路径遍历、NVMe 非 512 LBA 拒绝、嵌套 #PF 防护），41 个 P0 全部修复且逐条有验证证据（QEMU 复现修复前 FAIL / 修复后 PASS、宿主 ASAN 或构造级路径证据）。WP-10-wp08fix1 补全 WP-08 Shell 规格：oc> 与 ush 双端全键位行编辑（上下键历史翻页、左右/Home/End 光标、Tab 补全、Ctrl+A/E/U/K/W、Delete、Ctrl+C）、ush 补齐 15 个工具（ln/ln -s、chmod/chown、sed、awk、ping/wget/netstat/ifconfig、ps/kill/top/du、stat/env）、nano 风格编辑器双端可用（nano/vi，^O 保存 ^X 退出）；USB 主机栈（四控制器）、声卡（六族）、系统内 A/B 更新、网卡/存储驱动与安全传输保持主流化：",
   heroSubBold2: "SSH（curve25519、主机密钥验证、公钥认证）、TLS 1.3 / TLS 1.2（CA 链验证）、crypto 核心",
   heroSubEnd: "。",
   downloadIso: (mb: string) => `下载 ISO（${mb} MB）`,
   readDocs: "阅读文档",
   githubRepo: "GitHub 仓库",
-  dlSectionTitle: "下载 WP-10-wp08fix1",
+  dlSectionTitle: "下载 WP-AUDIT-01-p0fix2",
   dlSectionDesc:
     "BIOS + UEFI 双引导 ISO 与完整源码包。文件在本站、GitHub Release 与本地构建三处 SHA256 字节级一致（核对方法见下方命令）。",
   isoMeta: (bytes: string, mb: string) =>
@@ -60,7 +60,7 @@ const zh = {
   baseSectionTitle: "内核基础（WP-01 ~ WP-08）",
   baseSectionDesc: "从裸机引导到用户态动态链接，每一层都可扩展。",
   wpSectionTitle: "工作包",
-  wpSectionDesc: "15 个工作包，WP-01 到 WP-10d 再加 WP-10-wp08fix1，全部完成（done）；另已完成项目结构重构与第 ⑨ 条用户角度可用性审计（WP-10c-selfhost）。",
+  wpSectionDesc: "16 个工作包，WP-01 到 WP-10d、项目结构重构与 WP-10-wp08fix1，全部完成（done）；WP-AUDIT-01 完成 18 路完整审查（607 条）并落地全部 41 个 P0 修复（WP-AUDIT-01-p0fix1 前 20 个 + WP-AUDIT-01-p0fix2 后 21 个）。",
   wpThNo: "编号",
   wpThContent: "内容",
   wpThStatus: "状态",
@@ -120,8 +120,8 @@ const zh = {
 
 const en: typeof zh = {
   htmlLang: "en",
-  badge: "WP-10-wp08fix1 · Apache 2.0",
-  brandSub: "WP-10-wp08fix1 · Apache 2.0",
+  badge: "WP-AUDIT-01-p0fix2 · Apache 2.0",
+  brandSub: "WP-AUDIT-01-p0fix2 · Apache 2.0",
   navAria: "Site navigation",
   navHome: "Home",
   navDownloads: "Downloads",
@@ -136,13 +136,13 @@ const en: typeof zh = {
   heroSubMid: ". It is ",
   heroSubBold: "\u201ca kernel that can be extended into anything\u201d",
   heroSubPost:
-    ". Its value is not what it ships with, but the interfaces it exposes to upper layers: L0 = the complete kernel, L1 = upper-layer extensions, L0 ships without any L1. WP-10-wp08fix1 completes the WP-08 shell specification: full-featured line editing on both oc> and ush (Up/Down history paging, Left/Right/Home/End cursor, Tab completion, Ctrl+A/E/U/K/W, Delete, Ctrl+C), 15 missing ush tools (ln/ln -s, chmod/chown, sed, awk, ping/wget/netstat/ifconfig, ps/kill/top/du, stat/env) and a nano-style editor on both shells (nano/vi, ^O save ^X exit); the USB host stack (four controllers), sound cards (six families), in-system A/B updates and NIC/storage drivers stay mainstreamed, as does the secure-transport layer: ",
+    ". Its value is not what it ships with, but the interfaces it exposes to upper layers: L0 = the complete kernel, L1 = upper-layer extensions, L0 ships without any L1. WP-AUDIT-01 completed an 18-route line-by-line audit (607 findings); WP-AUDIT-01-p0fix1 fixed its first 20 P0s (pre-auth memory corruption across the filesystem, network stack, SSH client and sshd) and WP-AUDIT-01-p0fix2 fixed the remaining 21 P0s (TLS record/message bounds and the TLS 1.3 CertVerify DER, shell glob/fsck/mv, sys_poll wrap and SYS_EXIT buffer, execve CR3 ordering, sys_ps ktab, X509 DER overflow, config write bounds, OTA changes/request/path traversal, NVMe non-512-byte LBA refusal, nested-#PF guard); all 41 P0s are fixed and each fix has verification evidence (QEMU FAIL-before/PASS-after, host ASAN, or construction-level path evidence). WP-10-wp08fix1 completes the WP-08 shell specification: full-featured line editing on both oc> and ush (Up/Down history paging, Left/Right/Home/End cursor, Tab completion, Ctrl+A/E/U/K/W, Delete, Ctrl+C), 15 missing ush tools (ln/ln -s, chmod/chown, sed, awk, ping/wget/netstat/ifconfig, ps/kill/top/du, stat/env) and a nano-style editor on both shells (nano/vi, ^O save ^X exit); the USB host stack (four controllers), sound cards (six families), in-system A/B updates and NIC/storage drivers stay mainstreamed, as does the secure-transport layer: ",
   heroSubBold2: "SSH (curve25519, host-key verification, publickey auth), TLS 1.3 / TLS 1.2 (CA chain verification), crypto core",
   heroSubEnd: ".",
   downloadIso: (mb: string) => `Download ISO (${mb} MB)`,
   readDocs: "Read the docs",
   githubRepo: "GitHub repository",
-  dlSectionTitle: "Download WP-10-wp08fix1",
+  dlSectionTitle: "Download WP-AUDIT-01-p0fix2",
   dlSectionDesc:
     "BIOS + UEFI dual-boot ISO and the full source archive. The files are byte-identical (SHA256) across this site, the GitHub Release and the local build (see the command below).",
   isoMeta: (bytes: string, mb: string) =>
@@ -162,7 +162,7 @@ const en: typeof zh = {
   baseSectionDesc:
     "From bare-metal boot to user-space dynamic linking — every layer is extensible.",
   wpSectionTitle: "Work packages",
-  wpSectionDesc: "15 work packages, WP-01 through WP-10d plus WP-10-wp08fix1, all done; the project restructure and the rule-9 user-angle usability audit (WP-10c-selfhost) are complete as well.",
+  wpSectionDesc: "16 work packages, WP-01 through WP-10d, the project restructure and WP-10-wp08fix1, all done; WP-AUDIT-01 completed the 18-route full audit (607 findings) and landed all 41 P0 fixes (WP-AUDIT-01-p0fix1 first 20 + WP-AUDIT-01-p0fix2 remaining 21).",
   wpThNo: "No.",
   wpThContent: "Content",
   wpThStatus: "Status",

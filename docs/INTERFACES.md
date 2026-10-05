@@ -124,19 +124,25 @@ DH truth vectors for self-test: kernel/crypto/crypto_dh_scale_vectors.h.
 
 ## 4. Shell command surface
 
-170 commands registered at boot (live count; `help` lists 170 unique,
-`help -w` groups them by work-package tag).
-`shell_register_command` call sites (static count): kmain.c 48 (incl.
-update/rollback/reboot), net.c 17, file_cmds.c 18, disk_cmds.c 7,
-disk_setup.c 4 (rule-9 self-hosting: abdisk/install/grub-install/abcfg),
-disk_test_cmds.c 8 (WP-10a storage test suite), driver_nic_test_cmds.c 18
-(WP-10b: 10 NIC tests + 8 NIC status commands), driver_snd_test_cmds.c 17
-(WP-10c sound status commands + tests), ota_update_test_cmds.c 10 (WP-10u),
-driver_usb_test_cmds.c 9 (WP-10d: usb/usbdev status + 7 test commands),
-shell.c 4, core_power_test_cmds.c 7 (WP-10d-fix2 power + help test suite),
-ext_wp8cd.c 1 — some register the same name at different
-stages, so the live boot count is authoritative. Full list: type `help`
-at the `oc>` prompt.
+172 commands registered at boot (live count; `help` lists 172 unique and
+prints `Total: 172 commands`, `help -w` groups them by work-package tag).
+Section updated at WP-AUDIT-01-p0fix2: the earlier table (168 total, 170
+live) used pre-restructure file names and predates WP-10-wp08fix1.
+`shell_register_command` call sites (static count, verified 2026-10-05 by
+per-file grep = 172 unique names, no duplicates; cross-checked against a
+live `help -a` extraction in QEMU — both directions empty diff):
+kernel/main.c 52 (incl. update/rollback/reboot), net/net_core.c 16,
+shell/shell_cmds_file.c 18, shell/shell_cmds_disk.c 7,
+drivers/block/driver_block_disk_setup.c 4 (rule-9 self-hosting:
+abdisk/install/grub-install/abcfg), shell/shell_cmds_disk_test.c 8
+(WP-10a storage test suite), shell/shell_cmds_nic_test.c 18 (WP-10b:
+10 NIC tests + 8 NIC status commands), shell/shell_cmds_snd_test.c 17
+(WP-10c sound status commands + tests), shell/shell_cmds_update_test.c 10
+(WP-10u), shell/shell_cmds_usb_test.c 9 (WP-10d: usb/usbdev status +
+7 test commands), shell/shell.c 6 (incl. WP-10-wp08fix1 nano/vi),
+shell/shell_cmds_power_test.c 7 (WP-10d-fix2 power + help test suite).
+52+16+18+7+4+8+18+17+10+9+6+7 = 172. Full list: type `help` at the `oc>`
+prompt.
 
 ## 5. Verification of these interfaces
 

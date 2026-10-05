@@ -18,31 +18,36 @@ function fmtBytes(n: number): string {
 }
 export { fmtBytes };
 
-// WP-10-wp08fix1 stats (same caliber as lib/site.ts; see there for verify commands)
+// WP-AUDIT-01-p0fix2 stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "90,705", label: "行源码" },
+    { value: "90,916", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "44", label: "系统调用" },
     { value: "172", label: "shell 命令" },
-    { value: "15", label: "工作包" },
-    { value: "24/24", label: "端到端测试" },
+    { value: "16", label: "工作包" },
+    { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "90,705", label: "lines of source" },
+    { value: "90,916", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "44", label: "system calls" },
     { value: "172", label: "shell commands" },
-    { value: "15", label: "work packages" },
-    { value: "24/24", label: "end-to-end tests" },
+    { value: "16", label: "work packages" },
+    { value: "41/41", label: "P0 fix tests" },
   ],
 };
 
-// WP-10-wp08fix1 shell completion leads the user-facing list, then rule-9 audit + WP-10d/c/u/b/a + security transport
+// WP-AUDIT-01-p0fix2 (audit + all 41 P0 fixes: p0fix1 first 20 + p0fix2 remaining 21) leads the user-facing list, then WP-10-wp08fix1 shell completion + WP-10d/c/u/b/a + security transport
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "完整安全审查 + 全部 41 个 P0 修复",
+      tag: "WP-AUDIT-01-p0fix2",
+      desc: "18 路逐行审查 607 条发现（P0 41 / P1 94 / P2 214 / P3 258）；p0fix1 修复前 20 个 P0：VFS 挂载消息栈溢出、rmdir/umount 挂载点保护（挂载点偶发消失根因）、ext4 恶意卷除零、FAT32 BPB/簇号越界写盘、tcptest 33KB 引导栈溢出、内核线程栈 1 页改 4 页、SSH 客户端与 sshd 共 14 处预认证溢出；p0fix2 修复其余 21 个 P0（BUG-0021..0041）：TLS 请求/记录/消息边界与 TLS 1.3 CertVerify DER、shell glob/fsck/mv、sys_poll nfds 回绕、SYS_EXIT 缓冲、execve CR3 切换次序、sys_ps ktab 堆化、X509 DER 长度溢出、config 写边界、OTA changes/request/路径遍历拒绝、NVMe 非 512B LBA 拒绝、嵌套 #PF 防护。41 条全部有修复验证（QEMU 复现修复前 FAIL / 修复后 PASS、宿主 ASAN 或构造级路径证据）。",
+    },
     {
       name: "Shell 完全体（行编辑 + 工具 + 编辑器）",
       tag: "WP-10-wp08fix1",
@@ -115,6 +120,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "Full security audit + all 41 P0 fixes",
+      tag: "WP-AUDIT-01-p0fix2",
+      desc: "An 18-route line-by-line audit produced 607 findings (P0 41 / P1 94 / P2 214 / P3 258); p0fix1 fixed the first 20 P0s: the VFS mount-message stack overflow, rmdir/umount mount-point protection (root cause of the vanishing mount point), the ext4 malicious-volume divide fault, FAT32 BPB/cluster bounds, the tcptest 33KB boot-stack overflow, kthread stacks grown from 1 page to 4, and 14 pre-auth overflows across the SSH client and sshd; p0fix2 fixed the remaining 21 P0s (BUG-0021..0041): TLS request/record/message bounds and the TLS 1.3 CertVerify DER, shell glob/fsck/mv, sys_poll nfds wrap, SYS_EXIT buffer, execve CR3-switch ordering, sys_ps ktab heap allocation, X509 DER length overflow, config write bounds, OTA changes/request/path-traversal rejection, NVMe non-512-byte LBA refusal, and the nested-#PF guard. All 41 have fix verification (QEMU FAIL-before/PASS-after, host ASAN, or construction-level path evidence).",
+    },
     {
       name: "The complete shell (line editing + tools + editor)",
       tag: "WP-10-wp08fix1",

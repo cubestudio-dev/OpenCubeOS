@@ -93,6 +93,11 @@ export const TIMELINE: Bi<
       title: "Shell 补全：oc>/ush 全键位行编辑 + ush 15 个工具 + nano 风格编辑器 + 9 个 L1 接口",
       desc: "按 WP-08 规格补全 Shell（不是修 WP-08，是补做没做的）：oc> 与 ush 双端全键位行编辑（上下键历史翻页 32 条草稿保留、左右/Home/End 光标、Tab 命令+VFS 路径补全、Ctrl+A/E/U/K/W、Delete、Ctrl+C）；ush 补齐 15 个工具：ln（真实硬链接共享 inode + nlink）、ln -s（路径解析跟随，8 跳防环）、chmod/chown、sed、awk、ping/wget/netstat/ifconfig 对接内核协议栈（sys_netcmd）、ps/kill/top/du 对接 sys_proc_*、stat/env 补实 help 一直承诺但从未实现的两个命令；nano 风格编辑器双端可用（nano/vi，^O 保存 ^X 退出，真 VFS 落盘）；新增 9 个 L1 扩展接口（item 130-138：shell_lineedit_init/history_add/history_get/cursor_move/tab_complete/ctrlc + editor_open/save/close，L1 总数增至 138）；7 个新 syscall（96-102：symlink/readlink/link/chmod/chown/netcmd/ps）；boot 实测 172 条命令；tools/wp10_wp08fix1_test.py 真实按键端到端 24/24 全 PASS。SeaBIOS 与 OVMF 双引导验证。",
     },
+    {
+      no: "WP-AUDIT-01",
+      title: "完整审查（18 路，607 条）+ 全部 41 个 P0 修复（p0fix1 前 20 + p0fix2 后 21）",
+      desc: "18 路逐行完整审查产出 607 条发现（P0 41 / P1 94 / P2 214 / P3 258）。WP-AUDIT-01-p0fix1 修复前 20 个 P0（BUG-0001..0020）：VFS 挂载消息栈溢出、rmdir/umount 挂载点保护、ext4 恶意卷除零、FAT32 BPB/簇号越界写盘、tcptest 引导栈溢出、内核线程栈 1 页改 4 页、SSH 客户端与 sshd 共 14 处预认证溢出。WP-AUDIT-01-p0fix2 修复其余 21 个 P0（BUG-0021..0041）：TLS 请求/记录/消息边界与 TLS 1.3 CertVerify DER、shell glob/fsck/mv、sys_poll nfds 回绕、SYS_EXIT 缓冲、execve CR3 切换次序、sys_ps ktab 堆化、X509 DER 长度溢出、config 写边界、OTA changes/request/路径遍历拒绝（恶意包 a/../..//data 越界写入实测被拒）、NVMe 非 512B LBA 拒绝、嵌套 #PF 防护。每个修复均有验证证据（QEMU 复现修复前 FAIL / 修复后 PASS、宿主 ASAN 16/16 或构造级路径证据）；回归全绿（18/18 + dhtest 5/5 + cryptotest 3/3 + SSH 双向 + 真网 checkupdate）。",
+    },
   ],
   en: [
     {
@@ -174,6 +179,11 @@ export const TIMELINE: Bi<
       no: "WP-10-wp08fix1",
       title: "Shell completion: full line editing on oc>/ush + 15 ush tools + the nano-style editor + 9 L1 interfaces",
       desc: "Completed the WP-08 shell specification (not fixing WP-08 — delivering what was never done): full-featured line editing on both oc> and ush (Up/Down history paging over a 32-entry ring with draft preserved, Left/Right/Home/End cursor, Tab command+VFS-path completion, Ctrl+A/E/U/K/W, Delete, Ctrl+C); 15 missing ush tools: ln (real hard links sharing the inode + nlink), ln -s (symlink-following resolution with an 8-hop loop guard), chmod/chown, sed, awk, ping/wget/netstat/ifconfig wired into the kernel network stack (sys_netcmd), ps/kill/top/du wired into sys_proc_*, plus stat/env — the two commands help had always promised but no dispatcher ever implemented; a nano-style editor on both shells (nano/vi, ^O save ^X exit, real VFS persistence); 9 new L1 extension interfaces (items 130-138: shell_lineedit_init/history_add/history_get/cursor_move/tab_complete/ctrlc + editor_open/save/close, 138 in total); 7 new syscalls (96-102: symlink/readlink/link/chmod/chown/netcmd/ps); 172 commands registered at boot; tools/wp10_wp08fix1_test.py end-to-end 24/24 with real keystrokes. Boot verified with SeaBIOS and OVMF.",
+    },
+    {
+      no: "WP-AUDIT-01",
+      title: "Full audit (18 routes, 607 findings) + all 41 P0 fixes (p0fix1 first 20 + p0fix2 remaining 21)",
+      desc: "An 18-route line-by-line audit produced 607 findings (P0 41 / P1 94 / P2 214 / P3 258). WP-AUDIT-01-p0fix1 fixed the first 20 P0s (BUG-0001..0020): the VFS mount-message stack overflow, rmdir/umount mount-point protection, the ext4 malicious-volume divide fault, FAT32 BPB/cluster bounds, the tcptest boot-stack overflow, kthread stacks grown from 1 page to 4, and 14 pre-auth overflows across the SSH client and sshd. WP-AUDIT-01-p0fix2 fixed the remaining 21 P0s (BUG-0021..0041): TLS request/record/message bounds and the TLS 1.3 CertVerify DER, shell glob/fsck/mv, sys_poll nfds wrap, SYS_EXIT buffer, execve CR3-switch ordering, sys_ps ktab heap allocation, X509 DER length overflow, config write bounds, OTA changes/request/path-traversal rejection (a hostile a/../..//data package write verified rejected on the real A/B boot path), NVMe non-512-byte LBA refusal, and the nested-#PF guard. Every fix has verification evidence (QEMU FAIL-before/PASS-after, host ASAN 16/16, or construction-level path evidence); the full regression stayed green (18/18 + dhtest 5/5 + cryptotest 3/3 + SSH both directions + live checkupdate).",
     },
   ],
 };
