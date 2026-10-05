@@ -130,6 +130,26 @@ static void ser_dec(u64 v) {
 }
 
 void arch_exc_dispatch(arch_irq_frame_t *f) {
+    /* P0fix2 BUG-0041 (RUN-01): guard against recursive fault handling.
+     * The fault-printing path itself can #PF (the KNOWN_ISSUES 6.1
+     * framebuffer rolling-edge page), and the old handler re-entered
+     * itself with no bound: each entry pushed ~0x230 bytes until the
+     * stack ran out and the CPU raised a triple fault (tcptest 100%
+     * crash chain in the audit).  An in-handler counter stops the
+     * recursion: on a NESTED #PF (a fault while already handling one)
+     * we report once via SERIAL ONLY (no framebuffer, no crash-log
+     * write) and halt immediately.  Faults that the VMM legitimately
+     * handles (stack/heap growth) decrement the counter on resume. */
+    static int exc_in_pf = 0;
+    int is_pf = (f->int_no == 14);
+    if (is_pf && exc_in_pf) {
+        ser_puts("\r\n*** NESTED #PF INSIDE EXCEPTION HANDLER - HALTING ***\r\n");
+        for (;;) {
+            __asm__ volatile("cli; hlt");
+        }
+    }
+    if (is_pf) exc_in_pf++;
+
     /* P4 fix: crash log/dump. Old code only printed the exception to the
      * serial console and framebuffer, then halted. If you missed the
      * message (e.g. console scrolled), the diagnostic was lost.
@@ -174,6 +194,7 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
     for (int i = OC_EXC_CHAIN_LEN - 1; i >= 0; i--) {
         if (g_exc_handlers[f->int_no][i]) {
             if (g_exc_handlers[f->int_no][i](f)) {
+                if (is_pf) exc_in_pf--;   /* P0fix2 BUG-0041: resumed */
                 return;  /* L1 handled it, resume */
             }
         }
@@ -190,6 +211,7 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
             /* P4: pop this entry from the crash log — it was handled
              * by the L1/L0 fault handler, so it's not a crash. */
             if (g_crash_log_count > 0) g_crash_log_count--;
+            if (is_pf) exc_in_pf--;   /* P0fix2 BUG-0041: resumed */
             return;  /* fault handled, resume */
         }
     }
@@ -258,6 +280,7 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
             user_process_reap_resources(proc, 128 + (int)v);
             task_t *t = core_kthread_current();
             if (t) t->state = TASK_EXITED;
+            if (is_pf) exc_in_pf--;   /* P0fix2 BUG-0041: this stack leaves */
             core_sched_yield();
 
             /* Should not return here (core_sched_yield switches away).

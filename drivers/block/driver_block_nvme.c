@@ -517,9 +517,29 @@ int driver_block_nvme_init(driver_pci_dev_t *pdev) {
         u64 nsze = *(u64 *)(id_ns + 0);          /* Namespace Size (blocks) */
         u8  flbas = id_ns[26];                   /* Formatted LBA Size */
         u8  lbads = id_ns[128 + 4 * (flbas & 0x0F) + 2];   /* LBAF[flbas].LBADS */
-        /* P2-23: bound lbads to prevent insane sector sizes. */
-        if (lbads > 16) lbads = 9;  /* fallback to 512 if corrupt */
-        u32 sector_size = (lbads > 0) ? (1u << lbads) : 512u;
+        /* P0fix2 BUG-0040 (A6-1): the block and cache layers are hardwired
+         * to 512-byte sectors (BLK_SECTOR_SIZE / cache slot data[512]).
+         * Registering a device whose formatted LBA size is not 512B made
+         * every driver_block_read_sectors() copy sector_size bytes into
+         * 512-byte caller buffers — 3584 bytes of heap overflow per read
+         * on a 4Kn drive.  Until the block layer is made sector-size-aware,
+         * refuse the namespace with a clear error instead of corrupting
+         * memory.  (Old code fell back to 512 only for lbads > 16.) */
+        if (lbads != 9) {
+            u32 reported = (lbads > 0 && lbads <= 16) ? (1u << lbads) : 0;
+            driver_block_nvme_log("nvme: unsupported formatted LBA size (only 512B supported; got ");
+            if (reported) {
+                char nb[16];
+                u64_to_str(reported, nb);
+                driver_block_nvme_log(nb);
+                driver_block_nvme_log("B");
+            } else {
+                driver_block_nvme_log("invalid LBADS");
+            }
+            driver_block_nvme_log(") - device disabled\n");
+            return -1;
+        }
+        u32 sector_size = 512u;
         g_nvme.sector_size = sector_size;
         g_nvme.sectors     = nsze;
         driver_block_nvme_log_dec("nvme: NSZE=", nsze, " blocks\n");

@@ -269,7 +269,17 @@ static int ota_update_http_get_body(const char *url, char *body, int body_cap) {
             return OC_UPDATE_E_CONNECT;
         }
 
-        char request[256];
+        char request[2048];   /* P0fix2 BUG-0038 (A5-03): was 256, while
+                               * u.path alone can legally carry a 1663-byte
+                               * CDN redirect path (see ota_update.h); the
+                               * old strcat chain overflowed by up to ~1.4KB */
+        {
+            int need = 4 + (int)strlen(u.path) + 17 + (int)strlen(u.host) + 38 + 1;
+            if (need > (int)sizeof(request)) {
+                net_close(sock);
+                return OC_UPDATE_E_BUFSIZE;
+            }
+        }
         strcpy(request, "GET ");
         strcat(request, u.path);
         strcat(request, " HTTP/1.0\r\nHost: ");
@@ -689,7 +699,11 @@ static void ota_update_check_thread(void *arg) {
 
     /* Give DHCP/ARP a moment to settle, then run the real check. */
     ota_update_info_t info;
-    char line2[160];
+    /* P0fix2 BUG-0037 (A5-02): line2 was 160 bytes while "Changes: "(9) +
+     * info.changes (up to 255) + NUL = 265 — the server-supplied changes
+     * text smashed 105 bytes of this kernel-thread stack (auto_check runs
+     * on boot).  272 covers the largest field with margin. */
+    char line2[272];
     int rc = ota_update_check(&info);
     if (rc == OC_UPDATE_OK) {
         au_print("Current version is up to date.");

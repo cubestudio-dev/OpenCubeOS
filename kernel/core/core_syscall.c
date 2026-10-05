@@ -956,6 +956,14 @@ typedef struct { int fd; short events; short revents; } pollfd_t;
 
 static u64 sys_poll(u64 fds_ptr, u64 nfds, u64 timeout_ms, u64 a4) {
     (void)a4;
+    /* P0fix2 BUG-0031 (A2-1): nfds is user-controlled and the old
+     * `nfds * sizeof(pollfd_t)` silently wrapped mod 2^64 (nfds = 2^61
+     * multiplies to 0), so the access_ok check passed with len 0 and the
+     * loop then wrote pfds[i].revents far beyond the validated range —
+     * the first unmapped page made it a ring-0 #PF and a kernel HALT.
+     * Cap nfds: fd indices are checked against PROC_MAX_FDS below, so any
+     * larger poll can never be meaningful. */
+    if (nfds > 4096) return (u64)-1;
     /* P3-9 FIX: verify pollfd array is mapped (was only range-check). */
     if (!access_ok_read(fds_ptr, nfds * sizeof(pollfd_t))) return (u64)-1;
     user_proc_t *proc = user_process_current();
@@ -987,6 +995,27 @@ static u64 sys_poll(u64 fds_ptr, u64 nfds, u64 timeout_ms, u64 a4) {
             if (elapsed * 10 >= timeout_ms) return 0;
         }
         core_sched_yield();
+    }
+}
+
+/* P0fix2 BUG-0033 (A2-3): write to a user VA through the TARGET address
+ * space's page tables (software walk -> physical address), safe while CR3
+ * still points at the kernel address space.  The old code dereferenced user
+ * VAs directly under the kernel CR3, so the writes fell into the 0-4GiB
+ * identity window (silently lost on a 512MiB box, live physical frames on
+ * bigger machines). */
+static void sys_execve_write_user(mem_vmm_as_t as, u64 va, const void *data, u64 len) {
+    const u8 *src = (const u8 *)data;
+    while (len > 0) {
+        u64 phys = 0;
+        if (!mem_vmm_is_mapped(as, va, &phys) || phys == 0) return;
+        u64 off = va & 0xFFFULL;
+        u64 chunk = PMM_PAGE_SIZE - off;
+        if (chunk > len) chunk = len;
+        memcpy((void *)(uintptr_t)(phys + off), src, (usize)chunk);
+        src += chunk;
+        va += chunk;
+        len -= chunk;
     }
 }
 
@@ -1085,12 +1114,64 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
 
+    /* P0fix2 BUG-0033 (A2-3) step 1: read argv/envp NOW, before the CR3
+     * switch and before the old address space is destroyed.  Here CR3 is
+     * still the caller's user address space and proc->as is the same one
+     * access_ok_* validates, so both the checks and the dereferences see
+     * the same, correct memory. */
+    typedef struct { u8 data[32][256]; int len[32]; int count; } exec_args_buf_t;
+    exec_args_buf_t *ab = (exec_args_buf_t *)kmalloc(sizeof(exec_args_buf_t));
+    exec_args_buf_t *eb = (exec_args_buf_t *)kmalloc(sizeof(exec_args_buf_t));
+    if (!ab || !eb) {
+        if (ab) kfree(ab);
+        if (eb) kfree(eb);
+        return (u64)-1;
+    }
+    memset(ab, 0, sizeof(*ab));
+    memset(eb, 0, sizeof(*eb));
+    if (argv != 0) {
+        for (int a = 0; a < 32; a++) {
+            u64 entry_ptr = argv + (u64)a * sizeof(u64);
+            if (!access_ok_read(entry_ptr, sizeof(u64))) break;
+            u64 str_ptr = *(u64 *)(uintptr_t)entry_ptr;
+            if (str_ptr == 0) break;
+            if (!access_ok_str(str_ptr)) break;
+            const char *sp = (const char *)(uintptr_t)str_ptr;
+            int slen = 0;
+            while (slen < 255 && sp[slen] != 0) slen++;
+            memcpy(ab->data[a], sp, (usize)slen);
+            ab->data[a][slen] = 0;
+            ab->len[a] = slen;
+            ab->count++;
+        }
+    }
+    if (envp != 0) {
+        for (int e = 0; e < 32; e++) {
+            u64 entry_ptr = envp + (u64)e * sizeof(u64);
+            if (!access_ok_read(entry_ptr, sizeof(u64))) break;
+            u64 str_ptr = *(u64 *)(uintptr_t)entry_ptr;
+            if (str_ptr == 0) break;
+            if (!access_ok_str(str_ptr)) break;
+            const char *sp = (const char *)(uintptr_t)str_ptr;
+            int slen = 0;
+            while (slen < 255 && sp[slen] != 0) slen++;
+            memcpy(eb->data[e], sp, (usize)slen);
+            eb->data[e][slen] = 0;
+            eb->len[e] = slen;
+            eb->count++;
+        }
+    }
+
     extern mem_vmm_as_t mem_vmm_kernel_as(void);
     mem_vmm_as_t old_as = proc->as;
     __asm__ volatile("mov %0, %%cr3" :: "r"(mem_vmm_kernel_as()) : "memory");
     if (old_as) mem_vmm_destroy_address_space(old_as);
     proc->as = create_user_address_space();
-    if (proc->as == 0) return (u64)-1;
+    if (proc->as == 0) {
+        kfree(ab);
+        kfree(eb);
+        return (u64)-1;
+    }
 
     typedef struct __attribute__((packed)) {
         u8 ident[16]; u16 type; u16 machine; u32 version; u64 entry; u64 phoff;
@@ -1133,7 +1214,13 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     u64 stack_base = USER_STACK_TOP - USER_STACK_SIZE;
     for (u64 vaddr = stack_base; vaddr < USER_STACK_TOP; vaddr += 0x1000) {
         u64 phys = mem_pmm_alloc_frame();
-        if (phys) mem_vmm_map_page(proc->as, vaddr, phys, VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
+        if (phys) {
+            mem_vmm_map_page(proc->as, vaddr, phys, VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
+            /* P0fix2 BUG-0033 (A2-3): zero the new stack pages (same as
+             * user_process_create) so argc/argv reads never see old PMM
+             * frame garbage. */
+            memset((void *)(uintptr_t)phys, 0, PMM_PAGE_SIZE);
+        }
     }
     proc->entry_point = hdr->entry;
     proc->brk = USER_BRK_BASE;
@@ -1146,84 +1233,73 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
      *   [argv ptrs]        <- NULL-terminated array of u64 pointers
      *   argc (u64)         <- RSP points here on entry
      *
-     * We compute the total size needed, allocate from the top of the
-     * stack downward, and set proc->user_rsp to point at argc. */
+     * P0fix2 BUG-0033 (A2-3) step 2: every write below goes through the NEW
+     * address space's page tables via sys_execve_write_user(); the strings
+     * come from the kernel buffers captured before the CR3 switch.  The old
+     * code wrote the user stack VAs directly under the kernel CR3 identity
+     * window, so the bytes landed outside the freshly mapped stack frames. */
     u64 rsp = USER_STACK_TOP;
-    /* Count argv entries and copy strings. */
-    int argc = 0;
     u64 argv_str_addrs[32];  /* max 32 argv entries */
-    u64 envp_str_addrs[32]; /* max 32 envp entries */
-    int envc = 0;
-    /* Copy argv strings to top of stack (growing down). */
-    if (argv != 0) {
-        for (int a = 0; a < 32; a++) {
-            u64 entry_ptr = argv + (u64)a * sizeof(u64);
-            if (!access_ok_read(entry_ptr, sizeof(u64))) break;
-            u64 str_ptr = *(u64*)(uintptr_t)entry_ptr;
-            if (str_ptr == 0) break;  /* NULL terminator */
-            if (!access_ok_str(str_ptr)) break;
-            /* Find string length. */
-            const char *sp = (const char*)(uintptr_t)str_ptr;
-            int slen = 0;
-            while (slen < 256 && sp[slen] != 0) slen++;
-            /* Copy to stack: rsp -= slen+1, then write. */
+    u64 envp_str_addrs[32];  /* max 32 envp entries */
+    int argc = 0;
+    /* Copy argv strings to top of stack (growing down), argv[0] highest. */
+    for (int a = 0; a <= ab->count && a < 32; a++) {
+        int slen = (a < ab->count) ? ab->len[a] : -1;
+        if (a == ab->count) {
+            /* Fallback when no argv[0] came through: use path (program name). */
+            if (ab->count != 0) break;
+            slen = 0;
+            while (slen < 255 && path_buf[slen] != 0) slen++;
             rsp -= (u64)slen + 1;
-            /* The stack page is mapped + writable + user-accessible. */
-            char *dst = (char*)(uintptr_t)rsp;
-            for (int j = 0; j < slen; j++) dst[j] = sp[j];
-            dst[slen] = 0;
+            sys_execve_write_user(proc->as, rsp, path_buf, (u64)slen + 1);
             argv_str_addrs[argc++] = rsp;
+            break;
         }
-    }
-    if (argc == 0) {
-        /* Fallback: use path as argv[0]. */
-        int slen = 0;
-        while (slen < 255 && path_buf[slen] != 0) slen++;
         rsp -= (u64)slen + 1;
-        char *dst = (char*)(uintptr_t)rsp;
-        for (int j = 0; j < slen; j++) dst[j] = path_buf[j];
-        dst[slen] = 0;
+        sys_execve_write_user(proc->as, rsp, ab->data[a], (u64)slen + 1);
         argv_str_addrs[argc++] = rsp;
     }
     /* Copy envp strings to stack. */
-    if (envp != 0) {
-        for (int e = 0; e < 32; e++) {
-            u64 entry_ptr = envp + (u64)e * sizeof(u64);
-            if (!access_ok_read(entry_ptr, sizeof(u64))) break;
-            u64 str_ptr = *(u64*)(uintptr_t)entry_ptr;
-            if (str_ptr == 0) break;
-            if (!access_ok_str(str_ptr)) break;
-            const char *sp = (const char*)(uintptr_t)str_ptr;
-            int slen = 0;
-            while (slen < 256 && sp[slen] != 0) slen++;
-            rsp -= (u64)slen + 1;
-            char *dst = (char*)(uintptr_t)rsp;
-            for (int j = 0; j < slen; j++) dst[j] = sp[j];
-            dst[slen] = 0;
-            envp_str_addrs[envc++] = rsp;
-        }
+    int envc = 0;
+    for (int e = 0; e <= eb->count && e < 32; e++) {
+        if (e == eb->count) break;
+        rsp -= (u64)eb->len[e] + 1;
+        sys_execve_write_user(proc->as, rsp, eb->data[e], (u64)eb->len[e] + 1);
+        envp_str_addrs[envc++] = rsp;
     }
+    /* The buffers are fully consumed; free them before entering ring 3. */
+    kfree(ab);
+    kfree(eb);
     /* Align RSP to 16 bytes (ABI requirement). */
     rsp &= ~0xFFULL;
     /* Push envp[] pointer array (NULL-terminated). */
-    rsp -= sizeof(u64);  /* NULL terminator */
-    *(u64*)(uintptr_t)rsp = 0;
-    for (int i = envc - 1; i >= 0; i--) {
+    {
+        u64 zero = 0;
         rsp -= sizeof(u64);
-        *(u64*)(uintptr_t)rsp = envp_str_addrs[i];
+        sys_execve_write_user(proc->as, rsp, &zero, sizeof(u64));
+        for (int i = envc - 1; i >= 0; i--) {
+            rsp -= sizeof(u64);
+            sys_execve_write_user(proc->as, rsp, &envp_str_addrs[i], sizeof(u64));
+        }
     }
     u64 envp_array_addr = rsp;
     /* Push argv[] pointer array (NULL-terminated). */
-    rsp -= sizeof(u64);  /* NULL terminator */
-    *(u64*)(uintptr_t)rsp = 0;
-    for (int i = argc - 1; i >= 0; i--) {
+    {
+        u64 zero = 0;
         rsp -= sizeof(u64);
-        *(u64*)(uintptr_t)rsp = argv_str_addrs[i];
+        sys_execve_write_user(proc->as, rsp, &zero, sizeof(u64));
+        for (int i = argc - 1; i >= 0; i--) {
+            rsp -= sizeof(u64);
+            sys_execve_write_user(proc->as, rsp, &argv_str_addrs[i], sizeof(u64));
+        }
     }
     u64 argv_array_addr = rsp;
     /* Push argc. */
-    rsp -= sizeof(u64);
-    *(u64*)(uintptr_t)rsp = (u64)argc;
+    {
+        u64 argc_val = (u64)argc;
+        rsp -= sizeof(u64);
+        sys_execve_write_user(proc->as, rsp, &argc_val, sizeof(u64));
+    }
     /* RSP now points at argc. argv_array_addr is at RSP+8, envp at the
      * appropriate offset. The user's _start can read argc from (RSP),
      * argv from (RSP+8), envp from (RSP+8 + (argc+1)*8). */
@@ -1791,12 +1867,20 @@ static u64 sys_ps(u64 buf, u64 cap, u64 a3, u64 a4) {
         cap > sizeof(core_sched_task_info_t) * 64) return (u64)-1;
     int max = (int)(cap / sizeof(core_sched_task_info_t));
     {
-        core_sched_task_info_t ktab[64];
+        /* P0fix2 BUG-0034 (A2-4): ktab was a fixed 3584-byte stack array on
+         * a small kernel thread stack (entry frame plus a nested timer IRQ
+         * on top left almost no headroom on a 1-page stack).  Size it for
+         * the caller's cap and take it from the heap instead. */
+        core_sched_task_info_t *ktab =
+            (core_sched_task_info_t *)kmalloc(sizeof(core_sched_task_info_t) * (u64)max);
+        if (!ktab) return (u64)-1;
         int n = core_sched_task_info_get(ktab, max);
-        if (n < 0) return (u64)-1;
+        if (n < 0) { kfree(ktab); return (u64)-1; }
         if (copy_to_user(buf, ktab, (u64)n * sizeof(core_sched_task_info_t)) < 0) {
+            kfree(ktab);
             return (u64)-1;
         }
+        kfree(ktab);
         return (u64)n;
     }
 }

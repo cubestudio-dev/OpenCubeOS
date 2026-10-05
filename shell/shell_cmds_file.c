@@ -339,41 +339,54 @@ static int shell_cmd_mv(const char *args) {
         screen_console_puts("mv: cannot open source\n");
         return 1;
     }
-    /* Get source size. */
+    /* Get source size (used only for the post-copy completeness check). */
     fs_vfs_stat_t ss;
-    if (fs_vfs_stat(rsrc, &ss) < 0) ss.size = 65536;
-    u64 total = ss.size;
-    if (total > 1024 * 1024) total = 1024 * 1024;  /* 1 MiB cap */
+    int had_size = (fs_vfs_stat(rsrc, &ss) == 0);
 
-    char *buf = (char *)kmalloc(total > 0 ? total : 1);
+    /* P0fix2 BUG-0030 (A15-3): the old fallback capped the copy at 1 MiB
+     * and then unlinked the source unconditionally — any file larger than
+     * the cap was silently truncated and its data lost.  Copy in a fixed
+     * window until EOF instead, verify the byte count against the source
+     * size, and remove the source only after a complete copy. */
+    char *buf = (char *)kmalloc(32768);
     if (!buf) {
         screen_console_puts("mv: out of memory\n");
         fs_vfs_close(fd);
         return 1;
     }
-    int total_read = 0;
-    int n;
-    while (total_read < (int)total &&
-           (n = fs_vfs_read(fd, buf + total_read, (int)total - total_read)) > 0) {
-        total_read += n;
-    }
-    fs_vfs_close(fd);
-
-    /* Write to dst. */
     int wfd = fs_vfs_open(rdst, VFS_O_WRONLY | VFS_O_CREAT);
     if (wfd < 0) {
         screen_console_puts("mv: cannot create destination\n");
         kfree(buf);
+        fs_vfs_close(fd);
         return 1;
     }
-    int written = 0;
-    while (written < total_read) {
-        int w = fs_vfs_write(wfd, buf + written, total_read - written);
-        if (w <= 0) break;
-        written += w;
+    u64 total_read = 0;
+    int copy_ok = 1;
+    for (;;) {
+        int n = fs_vfs_read(fd, buf, 32768);
+        if (n < 0) { copy_ok = 0; break; }
+        if (n == 0) break;   /* EOF */
+        int off = 0;
+        while (off < n) {
+            int w = fs_vfs_write(wfd, buf + off, n - off);
+            if (w <= 0) { copy_ok = 0; break; }
+            off += w;
+        }
+        if (!copy_ok) break;
+        total_read += (u64)n;
     }
+    fs_vfs_close(fd);
     fs_vfs_close(wfd);
     kfree(buf);
+    if (!copy_ok) {
+        screen_console_puts("mv: copy failed; source kept\n");
+        return 1;
+    }
+    if (had_size && total_read != (u64)ss.size) {
+        screen_console_puts("mv: incomplete copy; source kept\n");
+        return 1;
+    }
 
     /* Unlink source. */
     if (fs_vfs_unlink(rsrc) < 0) {

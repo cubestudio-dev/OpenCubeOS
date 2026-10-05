@@ -42,11 +42,18 @@ static int crypto_der_read_tag_len(crypto_der_t *d, u8 *tag, const u8 **body, in
     if (l & 0x80) {
         int n = l & 0x7F;
         if (n == 0 || n > 4 || d->len < 2 + n) return -1;
-        l = 0;
-        for (int i = 0; i < n; i++) l = (l << 8) | d->p[2 + i];
+        u32 ul = 0;
+        for (int i = 0; i < n; i++) ul = (ul << 8) | d->p[2 + i];
+        /* P0fix2 BUG-0035 (A4-01): the old signed-int accumulation wrapped
+         * on lengths like 0x84 FF FF FF FF (l became -1), so the range
+         * check below read `d->len < hdr - 1` and let a negative body
+         * length through to a (size_t)(-1) memcpy inside verify_cert_sig.
+         * Accumulate unsigned and reject anything beyond int range. */
+        if (ul > 0x7FFFFFFFu) return -1;
+        l = (int)ul;
         hdr = 2 + n;
     }
-    if (d->len < hdr + l) return -1;
+    if (l < 0 || d->len < hdr + l) return -1;
     *body = d->p + hdr;
     *body_len = l;
     d->p += hdr + l;
@@ -456,14 +463,18 @@ static int verify_cert_sig(const crypto_x509_cert_t *crt, const crypto_x509_cert
         u8 r[EC_MAX_SCALAR];
         int rlen = blen;
         while (rlen > 1 && body[0] == 0) { body++; rlen--; }
-        if (rlen > hlen) return X509_E_BADSIG;
+        /* P0fix2 BUG-0035 (A4-01): rlen could arrive negative (from the
+         * wrapped DER length); the `> hlen` check let negatives pass and
+         * the memcpy below ran with a (size_t)(-1) length.  Reject
+         * non-positive lengths explicitly. */
+        if (rlen <= 0 || rlen > hlen) return X509_E_BADSIG;
         memcpy(r + (hlen - rlen), body, rlen);
         if (crypto_der_read_tag_len(&inner, &tag, &body, &blen) != 0 || tag != 0x02)
             return X509_E_BADSIG;
         u8 s[EC_MAX_SCALAR];
         int slen = blen;
         while (slen > 1 && body[0] == 0) { body++; slen--; }
-        if (slen > hlen) return X509_E_BADSIG;
+        if (slen <= 0 || slen > hlen) return X509_E_BADSIG;
         memcpy(s + (hlen - slen), body, slen);
         int curve = (crt->sig_alg == X509_SIG_ECDSA_SHA256) ? EC_P256 : EC_P384;
         if (issuer->ec_curve != curve) return X509_E_BADSIG;

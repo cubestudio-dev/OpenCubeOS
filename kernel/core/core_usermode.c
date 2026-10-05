@@ -218,7 +218,11 @@ u64 core_syscall_exit(u64 code, u64 arg2, u64 arg3, u64 arg4) {
     for (int i = 0; i < MAX_USER_PROCS; i++) {
         if (g_procs[i].alive && g_procs[i].tid == tid) {
             g_procs[i].alive = 0;
-            char n[8]; u64_to_str((u64)g_procs[i].pid, n);
+            /* P0fix2 BUG-0032 (A2-2): n was char[8] while u64_to_str can
+             * emit up to 20 digits + NUL for a user-controlled exit code —
+             * an up-to-13-byte overflow of this kernel stack frame.  24
+             * covers any u64. */
+            char n[24]; u64_to_str((u64)g_procs[i].pid, n);
             screen_console_puts("[user] process ");
             screen_console_puts(n);
             screen_console_puts(" exited (code=");

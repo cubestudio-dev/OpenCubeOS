@@ -377,7 +377,12 @@ static int shell_cmd_fsck(const char *args) {
         return 1;
     }
 
-    char buf[80]; char num[20];
+    /* P0fix2 BUG-0029 (A15-2): the fsck FAT32 report accumulates 8 fixed
+     * strings plus numbers (154+ bytes on a typical volume) into what used
+     * to be an 80-byte buffer — an unconditional 74-byte stack overflow on
+     * every run; the second use below needs up to 98 bytes.  256 covers
+     * both with margin. */
+    char buf[256]; char num[20];
     /* WP-09-FIX BUG-021: report the device the user actually asked
      * about, not a hardcoded "hda". */
     screen_console_puts("fsck: FAT32 filesystem on ");

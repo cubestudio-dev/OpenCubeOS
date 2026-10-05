@@ -135,6 +135,34 @@ static void net_tls13_traffic_keys(const u8 *secret, u8 *key, u8 *iv) {
     net_tls13_expand_label(secret, 32, "iv", NULL, 0, iv, 12);
 }
 
+/* P0fix2 BUG-0027 (A14-21): decode a DER ECDSA signature into two 32-byte
+ * big-endian integers r/s.  Returns 0 on success, -5 on any malformed or
+ * out-of-bounds input.  (Extracted from the CertificateVerify handler so
+ * tests/host_tls_p0_test.c can exercise the exact kernel code on the host.)
+ * Every length and offset is bounds-checked against sig_len: the old inline
+ * code took the DER INTEGER lengths (one byte, 0..255) straight into
+ * memcpy(r + (32 - rl), ...), so rl=255 wrote r-223 .. r+31 — a stack smash
+ * below the array. */
+static int tls13_decode_ecdsa_sig(const u8 *sig, int sig_len, u8 r[32], u8 s[32]) {
+    if (!sig || sig_len < 8) return -5;
+    if (sig[0] != 0x30) return -5;
+    int tot = sig[1];
+    if (tot < 0 || 2 + tot > sig_len) return -5;
+    int p2 = 2;
+    if (p2 >= sig_len || sig[p2++] != 0x02) return -5;
+    if (p2 >= sig_len) return -5;
+    int rl = sig[p2++];
+    if (rl < 1 || rl > 32 || p2 + rl > sig_len) return -5;
+    memcpy(r + (32 - rl), sig + p2, rl);
+    p2 += rl;
+    if (p2 >= sig_len || sig[p2++] != 0x02) return -5;
+    if (p2 >= sig_len) return -5;
+    int sl = sig[p2++];
+    if (sl < 1 || sl > 32 || p2 + sl > sig_len) return -5;
+    memcpy(s + (32 - sl), sig + p2, sl);
+    return 0;
+}
+
 static int transcript_hash(net_tls_ctx_t *c, u8 *out) {
     sha256(c->transcript, c->transcript_len, out);
     return 32;
@@ -154,7 +182,10 @@ static int net_tls13_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int buf_
     if (net_tcp_read_exact(c->net_tcp_sock, hdr, 5) < 0) return -1;
     int type = hdr[0];
     int len = ((int)hdr[3] << 8) | hdr[4];
-    if (len < 0 || len > buf_cap + 256) return -1;
+    /* P0fix2 BUG-0022 (A14-16): the old check allowed buf_cap+256, reading
+     * up to 256 bytes past the caller's buffer (g_hsrec is a 16640-byte
+     * heap block).  RFC 8446 max record = 2^14+256 = 16640 = buf_cap. */
+    if (len < 0 || len > buf_cap) return -1;
     if (net_tcp_read_exact(c->net_tcp_sock, buf, len) < 0) return -1;
 
     if ((!c->hs_keys_active && !c->app_keys_active) || type != CT_APPDATA) {
@@ -365,6 +396,12 @@ static int g_hslen;
 
 #define TLS_HSBUF_SIZE   20000
 #define TLS_HSREC_SIZE   16640
+/* P0fix2 BUG-0023 (A14-17): RFC 5246 caps a TLS 1.2 CBC ciphertext record
+ * at 2^14 + 2048 = 18432 bytes.  The old receive path allowed cap+2080 into
+ * 16640-byte buffers, so both a hostile 18720-byte record and a legitimately
+ * full CBC record overflowed.  All TLS 1.2 record buffers are now sized to
+ * this maximum and the length check is exactly the buffer capacity. */
+#define TLS12_REC_MAX    18432
 
 static int tls_hs_ensure(void) {
     if (!g_hsbuf) {
@@ -556,8 +593,10 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         net_tls_dbg_hex("DBG s_hs: ", c->s_hs, 32);
     }
 
-    /* EncryptedExtensions (static: kernel stack is small) */
-    static u8 ebody[12288];
+    /* EncryptedExtensions (static: kernel stack is small)
+     * P0fix2: sized to the max handshake record payload (16636) instead of
+     * 12288 so a legal large Certificate is not rejected mid-handshake. */
+    static u8 ebody[16640];
     int elen;
     if (net_tls13_recv_hs(c, HT_ENCRYPTED_EXTENSIONS, ebody, (int)sizeof(ebody), &elen, &ctype) < 0) {
         TLS_DBG_P("EncryptedExtensions failed");
@@ -608,6 +647,10 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
     {
         int alg = ((int)ebody[0] << 8) | ebody[1];
         int sig_len = ((int)ebody[2] << 8) | ebody[3];
+        /* P0fix2 BUG-0027 (A14-21) part 1: sig_len was never checked against
+         * the message bounds, so sig+sig_len could read far past ebody
+         * (both the ECDSA and the RSA verify paths). */
+        if (elen < 4 || sig_len < 0 || 4 + sig_len > elen) return -1;
         const u8 *sig = ebody + 4;
         /* signed content: 64 x 0x20 || "TLS 1.3, server CertificateVerify"
          * (33 chars) || 0x00 || transcript hash */
@@ -653,19 +696,12 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         } else if (alg == 0x0403) {   /* ecdsa_secp256r1_sha256 */
             const crypto_x509_cert_t *leaf = &c->certs[0];
             u8 r[32], s[32];
-            /* decode DER ECDSA sig */
-            const u8 *q = sig;
-            if (q[0] != 0x30) return -5;
-            int tot = q[1];
-            (void)tot;
-            int p2 = 2;
-            if (q[p2++] != 0x02) return -5;
-            int rl = q[p2++];
-            memcpy(r + (32 - rl), q + p2, rl);
-            p2 += rl;
-            if (q[p2++] != 0x02) return -5;
-            int sl = q[p2++];
-            memcpy(s + (32 - sl), q + p2, sl);
+            /* P0fix2 BUG-0027 (A14-21): the DER decode (with all the length
+             * bounds checks it was missing) now lives in the extracted
+             * tls13_decode_ecdsa_sig() so the host test suite exercises
+             * the identical kernel code. */
+            if (tls13_decode_ecdsa_sig(sig, sig_len, r, s) != 0)
+                return -5;
             if (ecdsa_verify(EC_P256, leaf->ec_pub, leaf->ec_pub_len,
                              mhash, 32, r, 32, s, 32) != 1)
                 return -5;
@@ -785,7 +821,12 @@ static int net_tls12_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int cap)
     if (net_tcp_read_exact(c->net_tcp_sock, hdr, 5) < 0) return -1;
     int type = hdr[0];
     int len = ((int)hdr[3] << 8) | hdr[4];
-    if (len < 0 || len > cap + 2080) return -1;
+    /* P0fix2 BUG-0023 (A14-17): the old check allowed cap+2080 while every
+     * buffer on this path (rec/plain/mbuf) was 16640/17000 bytes; a hostile
+     * 18720-byte record — and even a legitimately full 18432-byte CBC
+     * record — overflowed them.  All callers now pass TLS12_REC_MAX-sized
+     * buffers and this check is exactly the buffer capacity. */
+    if (len < 0 || len > cap) return -1;
     if (net_tcp_read_exact(c->net_tcp_sock, buf, len) < 0) return -1;
     /* ChangeCipherSpec is ALWAYS a plaintext record, including the
      * server's one that arrives after we already switched to encrypted
@@ -797,13 +838,13 @@ static int net_tls12_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int cap)
     if (c->cipher == CS_TLS12_DHE_RSA_AES128_CBC_SHA256) {
         /* CBC: IV(16) || blocks || MAC(32) || pad; keep simple: decrypt then
          * strip by last byte (CBC pad includes MAC inside) */
-        static u8 plain[16640];
+        static u8 plain[TLS12_REC_MAX];   /* P0fix2 BUG-0023: was 16640 */
         int blocks = len - 16;
         if (blocks < 48 || (blocks & 15)) return -1;
         crypto_aes128_cbc_decrypt(c->enc_key_r, buf, buf + 16, blocks, plain);
         /* verify MAC over seq||type||ver||len||content */
         u8 mac[32];
-        static u8 mbuf[17000];
+        static u8 mbuf[TLS12_REC_MAX + 64];   /* P0fix2 BUG-0023: was 17000 */
         u64 seq = c->seq12_r;
         for (int i = 0; i < 8; i++) mbuf[i] = (u8)(seq >> (56 - 8 * i));
         mbuf[8] = (u8)type; mbuf[9] = 3; mbuf[10] = 3;
@@ -834,7 +875,7 @@ static int net_tls12_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int cap)
     aad[8] = hdr[0]; aad[9] = hdr[1]; aad[10] = hdr[2];
     /* AAD length = plaintext fragment length (excl. explicit nonce+tag) */
     aad[11] = (u8)(dlen >> 8); aad[12] = (u8)dlen;
-    static u8 plain[16640];
+    static u8 plain[TLS12_REC_MAX];   /* P0fix2 BUG-0023: was 16640 */
     int rc;
     if (c->cipher == CS_TLS12_ECDHE_RSA_CHACHA20)
         rc = chacha20poly1305_open(c->enc_key_r, nonce, aad, 13, buf + 8,
@@ -927,17 +968,28 @@ static int net_tls12_send_record(net_tls_ctx_t *c, int ctype, const u8 *payload,
 
 /* TLS 1.2 continuation: ServerHello already parsed by the caller. */
 static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
-    static u8 body[12288];       /* static: kernel stack is small */
+    /* P0fix2 BUG-0024/0025 (A14-18/19): sized to TLS12_REC_MAX so any
+     * in-cap handshake message fits; the old 12288-byte buffer was both
+     * the target of the mlen overflow and, when intact, a needless
+     * rejection of big-but-legal certificate messages. */
+    static u8 body[TLS12_REC_MAX];   /* static: kernel stack is small */
+    /* One shared record buffer for the four handshake record reads below
+     * (P0fix2 BUG-0023: each was 16640; merging four into one TLS12_REC_MAX
+     * buffer also keeps the size-asserted kernel image small). */
+    static u8 rec[TLS12_REC_MAX];
     int blen, ctype;
 
     /* Certificate (plaintext) */
     {
-        static u8 rec[16640];
         int payload = net_tls12_recv_record(c, &ctype, rec, (int)sizeof(rec));
         if (payload < 4 || ctype != CT_HANDSHAKE || rec[0] != HT_CERTIFICATE)
             return -1;
         int mlen = ((int)rec[1] << 16) | ((int)rec[2] << 8) | rec[3];
-        if (mlen + 4 > payload) return -1;
+        /* P0fix2 BUG-0024 (A14-18): mlen was only checked against the
+         * record payload (≤16636) while body held 12288 bytes — a hostile
+         * Certificate message overflowed body by ~4.3 KB BEFORE any chain
+         * verification ran.  mlen is now checked against both. */
+        if (mlen < 0 || mlen + 4 > payload || mlen > (int)sizeof(body)) return -1;
         memcpy(body, rec + 4, mlen);
         blen = mlen;
         hs_log_push(c, rec, mlen + 4);
@@ -966,10 +1018,14 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
 
     /* ServerKeyExchange (may be absent for fixed-DH; we require ECDHE) */
     {
-        static u8 rec[16640];
         int payload = net_tls12_recv_record(c, &ctype, rec, (int)sizeof(rec));
         if (payload < 4 || ctype != CT_HANDSHAKE) return -1;
         int mlen = ((int)rec[1] << 16) | ((int)rec[2] << 8) | rec[3];
+        /* P0fix2 BUG-0025 (A14-19): the ServerKeyExchange message length
+         * was NEVER checked against either the record payload or body —
+         * mlen up to 16 MB meant a massive OOB read from rec and an OOB
+         * write into body. */
+        if (mlen < 0 || mlen + 4 > payload || mlen > (int)sizeof(body)) return -1;
         memcpy(body, rec + 4, mlen);
         blen = mlen;
         hs_log_push(c, rec, mlen + 4);
@@ -978,7 +1034,11 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
             return -1;
         }
         int p = 0;
-        static u8 sbuf[64 + 320];   /* static: kernel stacks are small */
+        /* P0fix2 BUG-0026 (A14-20): ServerDHParams carries three 2-byte-
+         * length integers, each up to 256 bytes on the wire = 774 bytes
+         * total; the old 320-byte tail overflowed by 454 bytes.  776
+         * covers the legal maximum and the copy below is bounds-checked. */
+        static u8 sbuf[64 + 776];   /* static: kernel stacks are small */
         memcpy(sbuf, c->client_random, 32);
         memcpy(sbuf + 32, c->server_random, 32);
         if (c->cipher == CS_TLS12_DHE_RSA_AES128_CBC_SHA256) {
@@ -1003,6 +1063,7 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
             if (sig_len < 0 || p + sig_len > blen) return -2;
             /* signed content: client_random || server_random || ServerDHParams
              * (p now sits past the alg-pair and sig_len: back off 4) */
+            if (p - 4 > (int)sizeof(sbuf) - 64) return -2;   /* P0fix2 BUG-0026 */
             memcpy(sbuf + 64, body, p - 4);
             u8 h[32];
             sha256(sbuf, 64 + (p - 4), h);
@@ -1134,7 +1195,6 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
 
     /* ServerHelloDone */
     {
-        static u8 rec[16640];
         int payload = net_tls12_recv_record(c, &ctype, rec, (int)sizeof(rec));
         if (payload < 4 || ctype != CT_HANDSHAKE || rec[0] != HT_SERVER_HELLO_DONE)
             return -1;
@@ -1195,7 +1255,6 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
     }
     /* server CCS + Finished */
     {
-        static u8 rec[16640];
         int payload = net_tls12_recv_record(c, &ctype, rec, (int)sizeof(rec));
         if (payload < 1 || ctype != CT_CCS) return -1;
         payload = net_tls12_recv_record(c, &ctype, rec, (int)sizeof(rec));
@@ -1276,7 +1335,7 @@ int net_tls_send(net_tls_ctx_t *c, const void *data, int len) {
  * next net_tls_recv call instead of being dropped (a 16 KiB record read
  * through a 4 KiB download chunk used to lose three quarters of every
  * record, corrupting every large transfer). */
-static u8 g_tls_leftover[16640];
+static u8 g_tls_leftover[TLS12_REC_MAX];   /* P0fix2 BUG-0023: was 16640 */
 static int g_tls_leftover_have;
 static int g_tls_leftover_off;
 
@@ -1287,7 +1346,7 @@ void net_tls_recv_reset(void) {
 
 int net_tls_recv(net_tls_ctx_t *c, void *buf, int len) {
     int ctype;
-    static u8 tmp[16640];
+    static u8 tmp[TLS12_REC_MAX];   /* P0fix2 BUG-0023: was 16640 */
 
     if (len <= 0) return 0;
 
@@ -1353,12 +1412,23 @@ int net_tls_https_get(u32 ip, u16 port, const char *hostname, const char *path,
                   void *out_buf, int out_len) {
     if (net_tls_connect(ip, port, hostname) != 0) return -1;
     net_tls_ctx_t *c = net_tls_get_ctx();
-    char req[1024];
+    /* P0fix2 BUG-0021 (A14-15): the request was built by unchecked
+     * concatenation into req[1024] while the OTA layer legally passes a
+     * 1663-byte CDN redirect path — path(1300)+host(100) alone overflowed
+     * by ~420 bytes.  Sized for the legal maximum (4+1663+17+127+25+1 =
+     * 1837) and the total length is now checked before any write. */
+    char req[2048];
+    int plen = (int)strlen(path);
+    int hlen = (int)strlen(hostname);
+    if (4 + plen + 17 + hlen + 25 + 1 > (int)sizeof(req)) {
+        net_tls_close(c);
+        return -1;
+    }
     int rl = 0;
     memcpy(req + rl, "GET ", 4); rl += 4;
-    memcpy(req + rl, path, strlen(path)); rl += (int)strlen(path);
+    memcpy(req + rl, path, plen); rl += plen;
     memcpy(req + rl, " HTTP/1.1\r\nHost: ", 17); rl += 17;
-    memcpy(req + rl, hostname, strlen(hostname)); rl += (int)strlen(hostname);
+    memcpy(req + rl, hostname, hlen); rl += hlen;
     memcpy(req + rl, "\r\nConnection: close\r\n\r\n", 25); rl += 25;
     if (net_tls_send(c, req, rl) < 0) {
         net_tls_close(c);

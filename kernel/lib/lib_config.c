@@ -299,12 +299,27 @@ int lib_config_write(const char *key, const char *value) {
         char k[OC_CONFIG_KEY_MAX], v[OC_CONFIG_VAL_MAX];
         if (parse_line(line, k, sizeof(k), v, sizeof(v)) &&
             strcmp(k, key) == 0) {
-            /* replace this line with key=value */
-            for (int c = 0; c < kl; c++) out[olen++] = key[c];
-            out[olen++] = '=';
-            for (int c = 0; c < vl; c++) out[olen++] = canon[c];
-            out[olen++] = '\n';
-            replaced = 1;
+            /* replace this line with key=value.
+             * P0fix2 BUG-0036 (A5-01): the replace and append paths wrote
+             * key/canon with NO bounds check on out[kmalloc(4096)] — a file
+             * with hundreds of duplicate keys (or one nearly full with
+             * comments) overflowed the heap block by hundreds of bytes.
+             * Only the first matching line is rewritten (duplicate keys are
+             * dropped, which also bounds the output by the input size),
+             * and every write is bounds-checked. */
+            if (!replaced) {
+                if (olen + kl + vl + 2 > OC_CONFIG_FILE_MAX - 1) {
+                    kfree(out);
+                    kfree(buf);
+                    return OC_CONFIG_E_TOOLONG;
+                }
+                for (int c = 0; c < kl; c++) out[olen++] = key[c];
+                out[olen++] = '=';
+                for (int c = 0; c < vl; c++) out[olen++] = canon[c];
+                out[olen++] = '\n';
+                replaced = 1;
+            }
+            /* duplicate matching lines are simply dropped */
         } else {
             for (int c = 0; line[c]; c++)
                 if (olen < OC_CONFIG_FILE_MAX - 2) out[olen++] = line[c];
@@ -312,6 +327,12 @@ int lib_config_write(const char *key, const char *value) {
         }
     }
     if (!replaced) {
+        /* P0fix2 BUG-0036 (A5-01): append path was unchecked as well. */
+        if (olen + kl + vl + 2 > OC_CONFIG_FILE_MAX - 1) {
+            kfree(out);
+            kfree(buf);
+            return OC_CONFIG_E_TOOLONG;
+        }
         for (int c = 0; c < kl; c++) out[olen++] = key[c];
         out[olen++] = '=';
         for (int c = 0; c < vl; c++) out[olen++] = canon[c];

@@ -788,6 +788,18 @@ static int map_package_path(const char *path, char *out, int outcap) {
         return 0;
     }
     if (path[0] == '/') return 1;                 /* absolute: skip */
+    /* P0fix2 BUG-0039 (A5-04): ".." components passed through untouched and
+     * fs_vfs_normalize pops them at string level, so a tar entry named
+     * a/../../../etc/opencube.conf escaped the slot mount point and wrote
+     * anywhere in the VFS (update --local needs no external validation).
+     * Reject any path containing a ".." component outright. */
+    for (const char *p = path; *p; p++) {
+        if (p[0] == '.' && p[1] == '.' &&
+            (p[2] == '/' || p[2] == '\0') &&
+            (p == path || p[-1] == '/')) {
+            return OC_UPDATE_E_BUFSIZE;
+        }
+    }
     if (strlen(path) + 2 > (u64)outcap) return OC_UPDATE_E_BUFSIZE;
     strcpy(out, "/");
     strcat(out, path);

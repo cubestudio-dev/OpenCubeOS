@@ -882,6 +882,10 @@ static int shell_expand_wildcards(const token_t *tok, token_t *out, int max_out)
     if (last_slash < 0) {
         /* No directory - use cwd. */
         strcpy(dirpath, shell_get_cwd());
+        /* P0fix2 BUG-0028 (A15-1): env/alias expansion can grow a single
+         * token to 287 bytes while pat holds VFS_PATH_LEN (256) — the old
+         * unchecked strcpy smashed up to 31 stack bytes here. */
+        if (tlen >= (int)sizeof(pat)) return -1;
         strcpy(pat, tok->text);
     } else {
         if (last_slash >= VFS_PATH_LEN - 1) return -1;
@@ -890,6 +894,9 @@ static int shell_expand_wildcards(const token_t *tok, token_t *out, int max_out)
         /* If the path was like "/foo/x.c" with a wildcard, dirpath is the
          * parent dir (with trailing slash). Normalize it. */
         if (shell_resolve_path(dirpath, dirpath, VFS_PATH_LEN) < 0) return -1;
+        /* P0fix2 BUG-0028 (A15-1): the same bound applies to the pattern
+         * after the last slash. */
+        if (tlen - last_slash - 1 >= (int)sizeof(pat)) return -1;
         strcpy(pat, tok->text + last_slash + 1);
     }
 

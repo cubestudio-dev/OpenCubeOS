@@ -223,9 +223,75 @@ cryptotest 3/3, SSH both directions, checkupdate live OTA).
 | BUG-0007..0013 | net/net_ssh.c client | packet length capped to the 4096B receive page; banner loop bounded; name-list overflow-safe bounds; negative ks_len/f_len rejected; exchange-hash input bounds-checked; encrypted receive checked before reading |
 | BUG-0014..0020 | net/net_sshd.c server | same receive-page cap; negative e_len rejected; name-list bounds; hash-input size pre-check; four-buffer overflow guarded; USERAUTH negative lengths rejected; CHANNEL_OPEN_FAILURE buffer sized to the actual reply (43B) |
 
-Known audit P0s NOT in this batch (BUG-0021..BUG-0041: TLS, syscall,
-crypto/PRNG, OTA, block 4Kn, tcptest-infra) remain OPEN and are tracked
-in docs/audit/bugs_final.json.
+Known audit P0s NOT in batch 1 (BUG-0021..BUG-0041) were fixed in
+WP-AUDIT-01-p0fix2 (see section 5B below).
+
+## 5B. WP-AUDIT-01-p0fix2 — P0 batch 2 (BUG-0021..BUG-0041) — ALL FIXED
+
+All 21 remaining audit P0s (report.md order) were fixed, compiled
+0 errors / 0 warnings (-Wall -Wextra -Werror), and verified: hostile-peer
+reproductions (FAIL on the p0fix1 baseline / PASS on the fixed kernel) and
+a full regression pass.  Evidence for each fix:
+
+| BUG | Location | Fix |
+|---|---|---|
+| BUG-0021 | net/net_tls.c https_get | request sized 2048 + total-length check before any write (was req[1024] with unchecked concatenation of a legally 1663-byte OTA redirect path; baseline repro: kernel #GP with rip=0x6161616161616161 after a 302 to a 1300-byte https path) |
+| BUG-0022 | net/net_tls.c TLS1.3 record | length check is exactly buf_cap (was buf_cap+256; ASAN heap-buffer-overflow WRITE 16896 into 16640 on baseline) |
+| BUG-0023 | net/net_tls.c TLS1.2 record | RFC 5246 max (2^14+2048=18432) as the record buffer bound; all TLS1.2 record buffers sized TLS12_REC_MAX; check is exactly cap (was cap+2080; ASAN WRITE 18720 into 16640) |
+| BUG-0024 | net/net_tls.c Certificate | mlen checked against record payload AND body (was payload-only; ASAN global-buffer-overflow past body[12288]) |
+| BUG-0025 | net/net_tls.c ServerKeyExchange | mlen was NEVER checked (up to 16MB OOB read + OOB write); now checked against payload and body |
+| BUG-0026 | net/net_tls.c DHE SKE | sbuf tail 320 -> 776 (ServerDHParams legally 774B) + copy bounds check (ASAN global-buffer-overflow WRITE 774 into 384 on baseline) |
+| BUG-0027 | net/net_tls.c CertVerify | sig_len bounds-checked against the message; DER decode extracted to tls13_decode_ecdsa_sig() with every length/offset checked (rl=255 wrote r-223.. on baseline); host boundary matrix 9/9 |
+| BUG-0028 | shell/shell.c glob | no-slash and after-slash pattern copies bounds-checked (token can reach 287B after env/alias expansion vs pat[256]) |
+| BUG-0029 | shell/shell_cmds_disk.c fsck | report buffer 80 -> 256 (8 fixed strings + numbers = 154B overflowed unconditionally on every fsck run) |
+| BUG-0030 | shell/shell_cmds_file.c mv | 1MiB cap removed; copy is streamed (32KiB window); byte count verified against source size; source unlinked ONLY after a complete copy (baseline repro: 2MiB file arrived as 524288B on FAT32 and the source was gone) |
+| BUG-0031 | kernel/core/core_syscall.c sys_poll | nfds > 4096 rejected (nfds*sizeof() wrapped mod 2^64 and passed access_ok, then wrote user VAs unchecked -> ring-0 #PF -> HALT) |
+| BUG-0032 | kernel/core/core_usermode.c exit | number buffer 8 -> 24 (u64_to_str emits up to 21 for a user-controlled exit code) |
+| BUG-0033 | kernel/core/core_syscall.c sys_execve | argv/envp are captured BEFORE the CR3 switch (old code read user VAs through the kernel CR3 identity window while access_ok validated the NEW as — argv silently lost); the new user stack is written through the new AS page tables (software walk); stack pages zeroed |
+| BUG-0034 | kernel/core/core_syscall.c sys_ps | ktab[64] (3584B stack array) -> kmalloc sized to the caller's cap (kthread stacks are small; p0fix1 already grew them to 4 pages, this removes the large-array stack cost itself) |
+| BUG-0035 | kernel/crypto/crypto_x509.c | DER length accumulated unsigned with an int-range guard (was signed int, 0x84 FFFFFFFF wrapped to -1 and defeated the range check); ECDSA r/s lengths also reject <= 0 (rlen<=0 bypassed the > hlen check and memcpy'd (size_t)(-1)) |
+| BUG-0036 | kernel/lib/lib_config.c write | replace/append paths bounds-checked (were unchecked; a file with hundreds of duplicate keys overflowed the 4096B heap block); duplicate matching keys are collapsed (first one rewritten) |
+| BUG-0037 | kernel/ota/ota_update.c autoupdate thread | line2 160 -> 272 ("Changes: " + 255B server-supplied changes + NUL = 265 overflowed by 105B on every auto-check with a long changes field) |
+| BUG-0038 | kernel/ota/ota_update.c checkupdate plain | request 256 -> 2048 with a pre-computed length check (path alone can legally be 1663B) |
+| BUG-0039 | kernel/ota/ota_ab.c map_package_path | any ".." path component is rejected outright (was passed through and popped by fs_vfs_normalize -> arbitrary VFS write from a hostile update package) |
+| BUG-0040 | drivers/block/driver_block_nvme.c | namespaces formatted with a non-512B LBA size are refused with a clear error (block/cache layers are hardwired to 512B; every read was a 3584B heap overflow on 4Kn).  Full 4Kn support is future work |
+| BUG-0041 | kernel/arch/x86_64/arch_exceptions.c | nested-#PF guard: a fault while already handling one halts immediately via serial only (was unbounded re-entry, ~0x230B per level, until a triple fault).  tcptest itself verified alive on both the p0fix1 baseline (root cause fixed there) and this build |
+
+Reproduction/verification summary for this batch:
+- QEMU end-to-end (hostile peers, p0fix1 baseline FAIL -> fixed PASS):
+  BUG-0021 (#GP 0x6161616161616161 kernel HALT -> clean error, kernel alive),
+  BUG-0022/0023/0024 (evil TLS server cases: silent overflow accepted ->
+  record rejected, kernel alive), BUG-0030 (2MiB mv lost 3/4 of the file and
+  deleted the source -> complete 2097152B copy, fsck used=4097 clusters),
+  BUG-0038 (long-path checkupdate: same clean behaviour, overflow removed by
+  construction), BUG-0041 (tcptest ALL PASS, kernel alive, both builds).
+- Host ASAN suite (tests/host_tls_p0_test.c, kernel net_tls.c included
+  directly): baseline aborts (heap/global-buffer-overflow per BUG-0022..0026
+  + the BUG-0027 demo) vs fixed 16/16 PASS, ASAN silent.
+- Code-level proofs: BUG-0028/0029/0031/0032/0033/0034/0035/0036/0037/0039/0040
+  (bounds/overflow math is deterministic in the diffs above; for BUG-0031/0032
+  no shipped user program issues those exact hostile syscalls, and BUG-0039's
+  end-to-end needs an A/B boot chain that could not be completed inside the
+  sandbox session).
+- Regression on the final WP-AUDIT-01-p0fix2 ISO: boot self-tests all OK;
+  user programs hello/exec_test/fork_test/pipe_test/mmap_test/mprotect_test/
+  select_test/signal_test/p3_test/badapp(intercepted)/reloc_test PASS;
+  heaptest, l1test, crashlog, ps OK; dhtest 5/5; cryptotest 3/3;
+  help 3 modes (default A-Z / -w / -a), Total: 172 command registrations
+  (unchanged vs the p0fix1 delivery; zero registration changes in this diff);
+  DHCP + ping + DNS + real-network checkupdate (TLS 1.3 to GitHub, full JSON
+  fetched); NVMe 512B mkfs/mount/write/read OK (BUG-0040 must not regress
+  512B); FAT32 mkfs/mount/fsck/write/read/mv OK; SSH evil-client a08
+  rejected cleanly; SeaBIOS + OVMF boot verified.
+
+New findings recorded during this batch (NOT part of the 21, tracked for a
+future round):
+- fsck reports "invalid device" for NVMe device names (works for hda);
+  cosmetic, P2-grade.
+- BUG-0038's config-set reproduction path is not reachable as documented:
+  `config set` values are capped at 255 bytes, so a >255-char URL is
+  truncated at the config layer before ota_update_url_parse ever sees it;
+  the redirect-based trigger (used above) is the real attack surface.
 
 ### 4.2 umount keeps the (empty) mount-point directory — BY DESIGN (BUG-032)
 - POSIX `umount` does not remove the mount-point directory either. The
