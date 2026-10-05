@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS - WP-10c
+# Open Cube OS - WP-AUDIT-01-p0fix1
 
 **官网**: https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**: https://github.com/cubestudio-dev/OpenCubeOS
@@ -20,11 +20,11 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-10d)
+## Stats (WP-AUDIT-01-p0fix1)
 
-- **Source code**: 75,806 lines (kernel + boot + userprogs, incl. headers, no docs;
-  verify: `find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
-- **Work packages**: 14 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c, WP-10d)
+- **Source code**: 90,916 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
+  verify: `find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
+- **Work packages**: 16 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c, WP-10d, project restructure, WP-10-wp08fix1, WP-AUDIT-01 + p0fix1)
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
   `install` and `grub-install` - create A/B update disks, install the OS
   to a disk and write the GRUB BIOS boot loader entirely from the oc>
@@ -52,7 +52,7 @@ Licensed under the Apache License, Version 2.0.
   HID keyboard + mouse, MSC storage, CDC-ACM/FTDI serial, UAC audio),
   driver_usb_uhci_init / driver_usb_ohci_init / driver_usb_ehci_init / driver_usb_xhci_init(driver_pci_dev) — four host
   controller backends (drivers/usb/driver_usb.h)
-- **System calls**: 37
+- **System calls**: 44
 - **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
   + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
   the P2-batch fix-ups (P2-BATCH-1 + P2-BATCH-2), bringing the running
@@ -248,9 +248,9 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   48 kHz by design and the test verifies the rejection).
 - **Commands**: sound, hda, ac97, sb16, es1370, virtiosnd, usbaudio,
   play [device] [rate], volume [device] [0-100]; lspci shows sound
-  controllers (class 0x04). 170 commands registered at boot
+  controllers (class 0x04). 172 commands registered at boot
   (including the rule-9 self-hosting set: abdisk, install,
-  grub-install, abcfg).
+  grub-install, abcfg, and the WP-10-wp08fix1 nano/vi editors).
 - **Verification**: hda_test / ac97_test / sb16_test / es1370_test /
   usb_audio_test live in QEMU (init + caps + DMA bytes + IRQ counters),
   audio_rw_test plays every registered card, sample_rate_test programs
@@ -288,7 +288,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   (BOT + SCSI wired into blk), CDC-ACM/FTDI serial, UAC 1.0/2.0.
 - **Commands**: usb, usbdev + usb_core_test / usb_kbd_test /
   usb_mouse_test / usb_storage_test / usb_serial_test / usb_hotplug_test
-  / usb_hub_test (170 commands at boot; 129 L1 interfaces;
+  / usb_hub_test (172 commands at boot; 138 L1 interfaces;
   WP-10d-fix2 added 7: core_power_shutdown/core_power_suspend/core_power_halt/core_power_reboot
   + shell_register_command_ex/shell_list_commands_a_z/shell_list_commands_by_wp).
 - **Verification**: UHCI/OHCI/EHCI/XHCI exercised in QEMU with explicit
@@ -433,7 +433,8 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-10c)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases) — ISO + SRC zip + in-system update package
+- **Latest (WP-AUDIT-01-p0fix1)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p0fix1) — ISO + SRC zip + in-system update package
+  (sha256 `7427ccda1e2c0ee0197030be461efdfa317ef43238cef5d0550ea1b7317076cb`)
 - **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - Or visit https://cubestudio-dev.github.io/OpenCubeOS for direct downloads
 
