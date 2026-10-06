@@ -102,6 +102,10 @@ int driver_pci_find_class_mask(u32 class_code, u32 mask, int nth,
 }
 
 u32 driver_pci_read_bar(u8 bus, u8 dev, u8 func, int bar_index) {
+    /* BUG-0121 FIX: bar_index used to be trusted. A negative index (or
+     * anything above BAR5) wrapped the u8 offset arithmetic and read an
+     * unrelated config register, handing callers a bogus "BAR". */
+    if (bar_index < 0 || bar_index > 5) return 0;
     u8 offset = 0x10 + (u8)(bar_index * 4);
     u32 bar = driver_pci_read_config(bus, dev, func, offset);
     if (bar & 1) {
@@ -114,9 +118,16 @@ u32 driver_pci_read_bar(u8 bus, u8 dev, u8 func, int bar_index) {
         if (type == 2 && bar_index < 5) {
             /* 64-bit memory BAR: combine low and high 32 bits. */
             u32 bar_hi = driver_pci_read_config(bus, dev, func, offset + 4);
-            u64 full = ((u64)bar_hi << 32) | (bar & 0xFFFFFFF0ULL);
-            /* Return the low 32 bits (sufficient for < 4GiB addresses). */
-            return (u32)(full & 0xFFFFFFFF);
+            if (bar_hi != 0) {
+                /* BUG-0121 FIX: a BAR mapped above 4 GiB used to be
+                 * silently TRUNCATED to its low 32 bits; drivers then
+                 * MMIO'd into some other device's physical range. The
+                 * block layer cannot reach >4 GiB BARs, so report the
+                 * BAR as absent (0) instead of handing out a wrong
+                 * address - the device fails its probe cleanly. */
+                return 0;
+            }
+            return bar & 0xFFFFFFF0u;
         }
         /* 32-bit memory BAR: base = bits 31-4. */
         return bar & 0xFFFFFFF0;

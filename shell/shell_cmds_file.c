@@ -745,7 +745,22 @@ static int shell_cmd_mount(const char *args) {
 static int shell_cmd_umount(const char *args) {
     if (!args || !args[0]) { screen_console_puts("usage: umount <path>\n"); return 1; }
     const char *resolved = shell_resolve_path_static(args);
-    if (fs_vfs_umount(resolved) < 0) {
+    /* BUG-0133 FIX: report the refusal reason (root / busy / nested) so the
+     * operator knows the mount table was left untouched. */
+    int rc = fs_vfs_umount(resolved);
+    if (rc == -4) {
+        screen_console_puts("umount: cannot unmount the root filesystem\n");
+        return 1;
+    }
+    if (rc == -5) {
+        screen_console_puts("umount: target is busy - close open files first\n");
+        return 1;
+    }
+    if (rc == -3) {
+        screen_console_puts("umount: unmount nested mounts first\n");
+        return 1;
+    }
+    if (rc < 0) {
         screen_console_puts("umount: failed (not mounted?)\n");
         return 1;
     }

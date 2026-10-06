@@ -58,10 +58,14 @@ void screen_fb_put_pixel(u32 x, u32 y, u32 pixel) {
 }
 
 void screen_fb_fill_rect(u32 x, u32 y, u32 w, u32 h, u32 pixel) {
-    /* Clip to framebuffer. */
+    /* Clip to framebuffer.
+     * BUG-0120 FIX: the old clipping compared x + w > width in u32, so a
+     * huge w (x + w wrapping past 2^32) bypassed the clip and the fill
+     * loop wrote far outside the framebuffer. x < width is already
+     * established here, so compare against width - x (no overflow). */
     if (x >= g_fb.width || y >= g_fb.height) return;
-    if (x + w > g_fb.width)  w = g_fb.width  - x;
-    if (y + h > g_fb.height) h = g_fb.height - y;
+    if (w > g_fb.width  - x) w = g_fb.width  - x;
+    if (h > g_fb.height - y) h = g_fb.height - y;
 
     for (u32 j = 0; j < h; ++j) {
         u8*  row = g_fb.addr + (u64)(y + j) * g_fb.pitch;
@@ -71,9 +75,10 @@ void screen_fb_fill_rect(u32 x, u32 y, u32 w, u32 h, u32 pixel) {
 }
 
 void screen_fb_blit(u32 x, u32 y, u32 w, u32 h, const u32* src, u32 src_pitch_bytes) {
+    /* BUG-0120 FIX: same u32-wraparound clip bypass as fill_rect. */
     if (x >= g_fb.width || y >= g_fb.height) return;
-    if (x + w > g_fb.width)  w = g_fb.width  - x;
-    if (y + h > g_fb.height) h = g_fb.height - y;
+    if (w > g_fb.width  - x) w = g_fb.width  - x;
+    if (h > g_fb.height - y) h = g_fb.height - y;
 
     for (u32 j = 0; j < h; ++j) {
         u8*        dst_row = g_fb.addr + (u64)(y + j) * g_fb.pitch;

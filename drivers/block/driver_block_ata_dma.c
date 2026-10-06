@@ -359,6 +359,17 @@ static const driver_block_ops_t driver_block_ata_dma_blk_ops = {
 /* WP-10a: bring up one IDE controller's BMDMA registers and its drives.
  * Returns 0 on success, -1 when the controller has no BMDMA BAR. */
 static int driver_block_ata_dma_init_ctrl(u8 bus, u8 dev, u8 func) {
+    /* BUG-0115 FIX: g_ctrls[BMDMA_MAX_CTRLS] was indexed with
+     * g_ctrl_count++ and no bound check. A second init pass (dev
+     * re-enumeration or an L1 extension calling the init hook again)
+     * pushed g_ctrl_count past 2 and wrote out of the controller table.
+     * Same guard the AHCI driver has had since its BUG-free rewrite
+     * (ahci.c:567). */
+    if (g_ctrl_count >= (int)(sizeof(g_ctrls) / sizeof(g_ctrls[0]))) {
+        dlog_bdf("ata_dma: controller table full, ignoring IDE ctrl at ",
+                 bus, dev, func, "\n");
+        return -1;
+    }
     driver_pci_enable_device(bus, dev, func);
     u32 bar4 = driver_pci_read_bar(bus, dev, func, 4);
     if (bar4 == 0) {

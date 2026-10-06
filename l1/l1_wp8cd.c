@@ -298,7 +298,7 @@ void ext_wp8cd_selftest(void) {
         if (found && test_builtin_called > 0) {
             screen_console_puts("PASS (registered + callable)\n");
             /* BUG-0092 FIX completion: clean the probe out of the live
-             * table again so help -a keeps counting 172 commands. */
+             * table again so help -a keeps counting 173 commands. */
             shell_unregister_builtin("test_builtin");
         } else if (found) {
             screen_console_puts("PASS (registered, fn stored)\n");

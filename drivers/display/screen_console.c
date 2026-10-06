@@ -30,14 +30,24 @@ static void scroll_up_one(void) {
     u32 cw  = screen_active_renderer->cell_w;
     u32 chh = screen_active_renderer->cell_h;
     const screen_fb_info_t* fb = screen_fb_get_info();
+    /* BUG-0119 FIX: the scroll used the stale g_console.rows even when
+     * the active renderer's cell size or the framebuffer geometry made
+     * rows*chh run past the real fb surface - the last memcpy row (and
+     * the clear of the "last row") then wrote outside the framebuffer.
+     * Clamp the working rows/clear-height to the actual surface. */
+    if (cw == 0 || chh == 0) return;   /* degenerate renderer: nothing sane to scroll */
+    u32 rows = g_console.rows;
+    if (fb == NULL || fb->addr == NULL) return;
+    if ((u64)rows * chh > (u64)fb->height) rows = (u32)((u64)fb->height / chh);
+    if (rows == 0) return;
 
-    for (u32 cy = 0; cy + 1 < g_console.rows; ++cy) {
+    for (u32 cy = 0; cy + 1 < rows; ++cy) {
         u8* dst = fb->addr + (u64)(cy * chh) * fb->pitch;
         u8* src = fb->addr + (u64)((cy + 1) * chh) * fb->pitch;
         memcpy(dst, src, (usize)fb->pitch * chh);
     }
     /* Clear the last cell-row to bg. */
-    screen_fb_fill_rect(0, (g_console.rows - 1) * chh,
+    screen_fb_fill_rect(0, (rows - 1) * chh,
                     g_console.cols * cw, chh, g_console.bg_pixel);
 }
 
@@ -47,6 +57,11 @@ int screen_console_init(void) {
     if (!screen_active_renderer) return -2;
     u32 cw  = screen_active_renderer->cell_w;
     u32 chh = screen_active_renderer->cell_h;
+    /* BUG-0118 FIX: a renderer with a zero cell size made cols/rows
+     * divide by zero -> #DE panic during init. The renderer registry
+     * now rejects zero cell sizes (see screen_renderer_set_active) and
+     * init guards as well. */
+    if (cw == 0 || chh == 0) return -3;
     g_console.cols = fb->width  / cw;
     g_console.rows = fb->height / chh;
     g_console.cur_x = 0;

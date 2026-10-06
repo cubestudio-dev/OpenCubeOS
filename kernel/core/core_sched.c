@@ -14,9 +14,15 @@
 #include "arch_irq.h"
 #include "arch_idt.h"
 
-/* P0fix1 BUG-0006 (A13-2): kthread stacks are 4 pages (16 KiB), see
- * core_kthread_create below. */
-#define OC_KTHREAD_STACK_PAGES 4
+/* P0fix1 BUG-0006 (A13-2): kthread stacks were 1 page (4 KiB), raised to
+ * 4 pages (16 KiB) so network I/O chains fit.
+ * p1fix3 BUG-0111 (A5-07): the OTA check chain measured via objdump is
+ * up to ~14 KB live stack (ota_update_http_get_body frame alone is 5944
+ * bytes, ota_update_download 3912, plus TLS frames) - only ~2 KB of
+ * headroom on 16 KiB. 6 pages (24 KiB) doubles that margin so the full
+ * update/check/download/install call chain (plus an IRQ-frame nesting
+ * on top) can never overflow. */
+#define OC_KTHREAD_STACK_PAGES 6
 
 /* Task table. */
 static task_t g_tasks[MAX_TASKS];
@@ -604,7 +610,8 @@ void core_sched_tick(void) {
          * CPU-bound user tasks (prio 15) bounce between themselves via
          * the time-slice-expiry path — the shell (idle, prio 31) never
          * wins ready_pop_highest() and starves forever. After
-         * SCHED_STARVE_LIMIT ticks (1s @ 100 Hz) without an idle turn,
+         * SCHED_STARVE_LIMIT ticks (100ms @ 100 Hz; BUG-0134 FIX lowered
+         * it from 1s) without an idle turn,
          * force-switch to the lowest-priority ready task, or to idle
          * itself when no lower-priority task is queued (idle is never
          * queued — it must be forced directly). */

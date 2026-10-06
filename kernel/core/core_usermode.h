@@ -134,6 +134,11 @@ void usermode_init(void);
 /* Create a user process from an ELF binary. */
 pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name);
 
+/* BUG-0134 FIX: look up the kernel task id (tid) behind an alive user
+ * process, so the shell can print a `kill`-ready tid next to the pid.
+ * Returns the tid, or -1 when no alive process owns the pid. */
+int user_process_get_tid(pid_t pid);
+
 /* Kill a user process. */
 int user_process_kill(pid_t pid);
 

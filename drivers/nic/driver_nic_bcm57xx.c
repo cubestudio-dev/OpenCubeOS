@@ -47,6 +47,7 @@ static inline void mmio_write32(volatile void *p, u32 v) { *(volatile u32 *)p = 
 #define BCM_MAC_ADDR_HI   0x0410
 #define BCM_MAC_ADDR_LO   0x0414
 #define BCM_TX_MBOX0      0x3200   /* TX producer ring 0 mailbox (tail index) */
+#define BCM_TX_CONIDX0    0x3208   /* TX consumer index (chip's send progress) */
 #define BCM_RX_STD_PROD   0x2620   /* standard RX ring producer index */
 #define BCM_RCV_RING_CFG  0x4540   /* std RX ring control block: host addr */
 #define BCM_GRC_MODE      0x6800
@@ -67,10 +68,14 @@ typedef struct {
     u32 len_flags;    /* bits 0-15 length; bit 31 end-of-frame */
 } __attribute__((packed)) driver_nic_bcm57xx_tx_desc_t;
 
-/* RX return descriptor (8 bytes). */
+/* BUG-0128 FIX (A8-7): the STANDARD RX ring is a producer ring of 8-byte
+ * buffer descriptors {host_addr, flags_len} - the chip DMA-reads this
+ * table to know where to place incoming frames. The old struct was a
+ * return-ring shape and its entries were never populated, so the
+ * hardware never received any buffer address. */
 typedef struct {
-    u32 status;       /* bits 0-15 length; bit 12? error; bit 31? */
-    u32 idx_flags;
+    u32 host_addr;    /* buffer address handed to the chip */
+    u32 flags_len;    /* bits 0-15 buffer size */
 } __attribute__((packed)) driver_nic_bcm57xx_rx_desc_t;
 
 typedef struct {
@@ -83,6 +88,7 @@ typedef struct {
     u8  *tx_bufs[BCM_TX_DESCS];
     u8  *rx_bufs[BCM_RX_DESCS];
     int  tx_tail;
+    int  tx_clean;    /* BUG-0128 FIX: chip-consumed TX index (in-flight tracking) */
     int  rx_head;
     u64  tx_packets, rx_packets;
 } driver_nic_bcm57xx_dev_t;
@@ -174,11 +180,22 @@ static int driver_nic_bcm57xx_setup(driver_nic_bcm57xx_dev_t *d, u8 bus, u8 dev,
         if (!d->rx_bufs[i]) return -1;
     }
     d->tx_tail = 0;
+    d->tx_clean = 0;   /* BUG-0128 FIX: in-flight tracking */
     d->rx_head = 0;
+
+    /* BUG-0128 FIX (A8-7b): hand every RX buffer to the hardware by
+     * writing its address into the standard producer ring and advancing
+     * the producer index across the whole ring. Previously the buffers
+     * were allocated but never submitted, so RX could never work. */
+    for (int i = 0; i < BCM_RX_DESCS; i++) {
+        d->rx_descs[i].host_addr = (u32)(uintptr_t)d->rx_bufs[i];
+        d->rx_descs[i].flags_len = (u32)BCM_BUF_SIZE;
+    }
+    __asm__ volatile("sfence" ::: "memory");
 
     /* Point the standard RX ring control block at the host ring. */
     driver_nic_bcm57xx_wreg(d, BCM_RCV_RING_CFG, (u32)(uintptr_t)d->rx_descs);
-    driver_nic_bcm57xx_wreg(d, BCM_RX_STD_PROD, 0);
+    driver_nic_bcm57xx_wreg(d, BCM_RX_STD_PROD, (u32)(BCM_RX_DESCS - 1));
     driver_nic_bcm57xx_wreg(d, BCM_TX_MBOX0, 0);
 
     /* Enable the MAC datapath. */
@@ -257,6 +274,17 @@ static int driver_nic_bcm57xx_ops_send(driver_nic_device_t *ndev, const void *bu
     if (!d->up || len <= 0 || len > BCM_BUF_SIZE) return -1;
 
     int slot = d->tx_tail;
+    /* BUG-0128 FIX (A8-7a): refuse to overwrite a descriptor the chip
+     * may still own. Track the consumer index (chip's send progress);
+     * when the ring is nearly full, poll the TX consumer index mailbox
+     * (0x3208, tg3 MAILBOX_SND_CONIDX_0) for progress and fail the send
+     * with -1 if the outstanding descriptors do not drain in time. */
+    for (int t = 0; t < 1000000; t++) {
+        int inflight = (d->tx_tail - d->tx_clean + BCM_TX_DESCS) % BCM_TX_DESCS;
+        if (inflight < BCM_TX_DESCS - 1) break;
+        d->tx_clean = (int)driver_nic_bcm57xx_reg(d, BCM_TX_CONIDX0) % BCM_TX_DESCS;
+        if (t == 999999) return -1;   /* ring still full: honest failure */
+    }
     memcpy(d->tx_bufs[slot], buf, len);
     d->tx_descs[slot].addr = (u32)(uintptr_t)d->tx_bufs[slot];
     d->tx_descs[slot].len_flags = (u32)len | 0x80000000u;   /* EOF */
@@ -274,16 +302,25 @@ static int driver_nic_bcm57xx_ops_recv(driver_nic_device_t *ndev, void *buf, int
     driver_nic_bcm57xx_dev_t *d = &g_bcm;
     if (!d->up) return -1;
 
-    u32 status = d->rx_descs[d->rx_head].status;
-    int len = (int)(status & 0xFFFF);
-    if (len == 0) return 0;   /* not filled */
+    /* BUG-0128 FIX (A8-7c): the buffers are now actually submitted (see
+     * init), and this polls the SAME descriptor table the chip owns: a
+     * consumed entry carries the received length in flags_len[15:0].
+     * len == 0 means the chip has not placed a frame there yet (honest
+     * "no frame"), and unlike before the descriptor is refilled with a
+     * fresh buffer address before re-advancing the producer index. */
+    u32 fl = d->rx_descs[d->rx_head].flags_len;
+    int len = (int)(fl & 0xFFFFu);
+    if (len == 0) return 0;   /* no frame landed here yet */
 
     if (len > maxlen) len = maxlen;
     memcpy(buf, d->rx_bufs[d->rx_head], len);
-    d->rx_descs[d->rx_head].status = 0;
+    /* Requeue this slot: clear the entry, hand the buffer back through
+     * the standard producer index (single-entry re-submission). */
+    d->rx_descs[d->rx_head].flags_len = (u32)BCM_BUF_SIZE;
+    d->rx_descs[d->rx_head].host_addr = (u32)(uintptr_t)d->rx_bufs[d->rx_head];
+    __asm__ volatile("sfence" ::: "memory");
     d->rx_head = (d->rx_head + 1) % BCM_RX_DESCS;
-    /* Re-arming the RX return ring producer is a mailbox write too. */
-    driver_nic_bcm57xx_wreg(d, BCM_RX_STD_PROD, (u32)d->rx_head);
+    driver_nic_bcm57xx_wreg(d, BCM_RX_STD_PROD, (u32)((d->rx_head + BCM_RX_DESCS - 1) % BCM_RX_DESCS));
     d->rx_packets++;
     return len;
 }

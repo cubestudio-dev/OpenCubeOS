@@ -1069,7 +1069,12 @@ static int download_and_verify(const ota_update_pkg_info_t *pkg,
     *pkg_path = path;
 
     char msg[80];
-    char num[12];
+    /* BUG-0109 FIX: the display buffer was char num[12]. package_size is
+     * parsed from the (network-supplied) manifest as a full u64, so a
+     * huge value printed up to 20 decimal digits into 12 bytes -> stack
+     * overflow inside the update path. u64 needs at most 20 digits + NUL
+     * = 21 bytes; 24 gives headroom. */
+    char num[24];
     strcpy(msg, "update: downloading... (");
     u64_to_str(pkg->package_size / 1024, num);
     strcat(msg, num);
@@ -1095,6 +1100,18 @@ static int download_and_verify(const ota_update_pkg_info_t *pkg,
     return rc;
 }
 
+/* BUG-0110 FIX: the update target slot used to be hardcoded "B" at every
+ * call site. Booted from slot B, an update still wrote into B - the
+ * RUNNING system - while slot A sat idle. The target is now always the
+ * slot that is NOT booted (A<->B); callers guarantee an A/B disk is
+ * present before reaching here, so a missing slot is a hard error. */
+static const char *update_target_slot(void) {
+    int cur = ota_ab_current_slot();
+    if (cur == OC_AB_SLOT_A) return "B";
+    if (cur == OC_AB_SLOT_B) return "A";
+    return NULL;   /* ISO boot / no A/B disk: no safe target */
+}
+
 int shell_cmd_update(const char *args) {
     const char *a = args ? args : "";
 
@@ -1117,7 +1134,12 @@ int shell_cmd_update(const char *args) {
         screen_console_puts("update: reading local package...\n");
         /* the manifest inside the package carries the package checksum;
          * ota_update_install() verifies it and fails on a mismatch */
-        int rc = ota_update_install(p, "B");
+        const char *tgt = update_target_slot();   /* BUG-0110 FIX */
+        if (!tgt) {
+            screen_console_puts("update: cannot determine target slot (not booted from A/B?)\n");
+            return 1;
+        }
+        int rc = ota_update_install(p, tgt);
         if (rc != 0) {
             screen_console_puts("update: install failed: ");
             screen_console_puts(ota_update_strerror(rc));
@@ -1125,12 +1147,16 @@ int shell_cmd_update(const char *args) {
             return 1;
         }
         screen_console_puts("update: verifying SHA256... OK\n");
-        screen_console_puts("update: extracting to B partition... OK\n");
-        if (ota_update_set_boot("B") != 0) {
+        screen_console_puts("update: extracting to ");
+        screen_console_puts(tgt);
+        screen_console_puts(" partition... OK\n");
+        if (ota_update_set_boot(tgt) != 0) {
             screen_console_puts("update: setting boot failed\n");
             return 1;
         }
-        screen_console_puts("update: setting boot to B... OK\n");
+        screen_console_puts("update: setting boot to ");
+        screen_console_puts(tgt);
+        screen_console_puts("... OK\n");
         screen_console_puts("update: reboot required\n");
         return 0;
     }
@@ -1174,20 +1200,29 @@ int shell_cmd_update(const char *args) {
     rc = download_and_verify(&pkg, &pkg_path);
     if (rc != 0) return 1;
 
-    rc = ota_update_install(pkg_path, "B");
+    const char *tgt = update_target_slot();   /* BUG-0110 FIX */
+    if (!tgt) {
+        screen_console_puts("update: cannot determine target slot (not booted from A/B?)\n");
+        return 1;
+    }
+    rc = ota_update_install(pkg_path, tgt);
     if (rc != 0) {
         screen_console_puts("update: install failed: ");
         screen_console_puts(ota_update_strerror(rc));
         screen_console_puts("\n");
         return 1;
     }
-    screen_console_puts("update: extracting to B partition... OK\n");
+    screen_console_puts("update: extracting to ");
+    screen_console_puts(tgt);
+    screen_console_puts(" partition... OK\n");
 
-    if (ota_update_set_boot("B") != 0) {
+    if (ota_update_set_boot(tgt) != 0) {
         screen_console_puts("update: setting boot failed\n");
         return 1;
     }
-    screen_console_puts("update: setting boot to B... OK\n");
+    screen_console_puts("update: setting boot to ");
+    screen_console_puts(tgt);
+    screen_console_puts("... OK\n");
     screen_console_puts("update: reboot required\n");
     return 0;
 }

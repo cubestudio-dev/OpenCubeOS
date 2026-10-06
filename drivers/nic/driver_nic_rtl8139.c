@@ -266,22 +266,36 @@ static int driver_nic_rtl8139_ops_send(driver_nic_device_t *ndev, const void *bu
     if (!d->up || len <= 0 || len > 1790) return -1;   /* datasheet max TX frame */
 
     int slot = d->tx_cur;
-    /* Wait for an idle slot: after completion the chip sets TOK|OWN;
-     * a slot whose TSD has neither bit is free.  Clear any stale state
-     * before handing the buffer to the chip. */
+    /* BUG-0125 FIX (A8-4): the old wait was dead logic - the condition
+     * `!((TOK&&OWN)) && !(TOK)` simplifies to `!(TOK)` and BOTH branches
+     * broke on the first iteration, and it also wrote TSD=0 (a zero-size
+     * send trigger) on the way out. That extra write fired the chip with
+     * size 0 against the stale buffer, and the unconditional slot bump
+     * let the next sends overwrite buffers the chip still owned.
+     *
+     * Correct hand-over: a slot is reusable when the chip set TOK (last
+     * frame completed) or when it has never been armed (TOK and SIZE are
+     * both 0). Poll for that; on timeout FAIL without arming anything
+     * and without advancing the ring. */
+    int ready = 0;
     for (int t = 0; t < 1000000; t++) {
         u32 tsd = inl_p(d->io + R8139_TSD0 + slot * 4);
-        if (!((tsd & R8139_TSD_TOK) && (tsd & R8139_TSD_OWN)) &&
-            !(tsd & R8139_TSD_TOK)) break;
-        outl_p(d->io + R8139_TSD0 + slot * 4, 0);
-        break;
+        if (tsd & R8139_TSD_TOK) { ready = 1; break; }
+        if (!(tsd & R8139_TSD_SIZE) && !(tsd & R8139_TSD_TOK)) { ready = 1; break; }
+    }
+    if (!ready) {
+        /* chip still owns this slot: do NOT overwrite the buffer, do NOT
+         * bump tx_cur (the slot keeps its armed descriptor and will be
+         * reclaimed once TOK arrives) */
+        return -1;
     }
     memcpy(d->tx_bufs[slot], buf, len);
 
     outl_p(d->io + R8139_TSAD0 + slot * 4,
            (u32)(uintptr_t)d->tx_bufs[slot]);
     /* Writing the size (with bit13 CLEAR) triggers the send; the chip
-     * sets TOK when the frame is out. */
+     * sets TOK when the frame is out. This is the ONLY TSD write for
+     * this slot (Linux 8139too semantics). */
     outl_p(d->io + R8139_TSD0 + slot * 4,
            ((u32)len & R8139_TSD_SIZE));
     /* TP_POLL kick: harmless on hardware, required by some models. */
@@ -296,6 +310,9 @@ static int driver_nic_rtl8139_ops_send(driver_nic_device_t *ndev, const void *bu
     }
     /* Acknowledge TX in ISR. */
     outw_p(d->io + R8139_ISR, R8139_ISR_TOK);
+    /* The frame WAS armed (the send trigger was issued), so the slot is
+     * in flight and its TOK will arrive: advance the ring. A late TOK is
+     * handled by the reusable-slot wait at the top of this function. */
     d->tx_cur = (d->tx_cur + 1) % R8139_TX_SLOTS;
     if (ok) d->tx_packets++;
     return ok ? len : -1;

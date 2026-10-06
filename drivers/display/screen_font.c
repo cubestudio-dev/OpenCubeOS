@@ -33,6 +33,10 @@ screen_renderer_t* screen_active_renderer = &screen_default_renderer;
 
 screen_renderer_t* screen_renderer_set_active(screen_renderer_t* r) {
     if (!r) return NULL;
+    /* BUG-0118 FIX: reject renderers with a zero cell size. The console
+     * divides fb dimensions by cell_w/cell_h, so a zero value (from a
+     * mis-initialised L1 renderer) panicked with #DE. Fail closed. */
+    if (r->cell_w == 0 || r->cell_h == 0) return NULL;
     screen_renderer_t* prev = screen_active_renderer;
     screen_active_renderer = r;
     return prev;

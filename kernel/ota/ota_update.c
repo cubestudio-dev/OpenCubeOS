@@ -568,7 +568,13 @@ int ota_update_json_uint(const char *json, const char *key, u64 *out) {
             if (*q < '0' || *q > '9') return -2;
             u64 v = 0;
             while (*q >= '0' && *q <= '9') {
-                v = v * 10u + (u64)(*q - '0');
+                /* BUG-0109 FIX: detect the u64 wrap instead of silently
+                 * accepting a malicious manifest number that overflows
+                 * (e.g. a huge package_size would wrap to a tiny value
+                 * and defeat the download-size sanity check). */
+                u64 digit = (u64)(*q - '0');
+                if (v > ((u64)-1 - digit) / 10u) return -2;
+                v = v * 10u + digit;
                 q++;
             }
             *out = v;

@@ -908,7 +908,7 @@ static int shell_cmd_sshd(const char *args) {
     char n[10];
     u64_to_str((u64)port, n);
     strcat(b, n);
-    strcat(b, " (one session, then exit)");
+    strcat(b, " (one session, then exit; Ctrl+C cancels wait)");
     screen_console_puts(b);
     screen_console_puts("\n");
     return net_sshd_main((u16)port, user, pass);
@@ -1994,8 +1994,22 @@ static int shell_cmd_run(const char *args) {
     int background = (shell_cmd_len > 0 && args[shell_cmd_len-1] == '&');
     pid_t pid = user_process_create(elf, size, args);
     if (pid >= 0) {
-        char buf[40]; char n[20];
+        char buf[96]; char n[20];
         strcpy(buf, "started pid="); u64_to_str((u64)pid, n); strcpy(buf+strlen(buf), n);
+        /* BUG-0134 FIX: print the kill-ready tid next to the pid. `run`
+         * used to print only the pid while `kill` consumes a tid — the
+         * audit noted the two numbers were not obviously related. */
+        extern int user_process_get_tid(pid_t pid);
+        int tid = user_process_get_tid(pid);
+        if (tid >= 0) {
+            strcpy(buf+strlen(buf), " tid=");
+            u64_to_str((u64)tid, n);
+            strcpy(buf+strlen(buf), n);
+            strcpy(buf+strlen(buf), " (kill ");
+            u64_to_str((u64)tid, n);
+            strcpy(buf+strlen(buf), n);
+            strcpy(buf+strlen(buf), " stops it)");
+        }
         strcpy(buf+strlen(buf), "\n"); screen_console_puts(buf);
         /* WP-08cd: For user-space shell (ush), set a flag so the kernel
          * shell's main loop skips readline while ush is running.

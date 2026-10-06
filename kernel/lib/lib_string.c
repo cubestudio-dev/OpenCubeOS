@@ -71,9 +71,17 @@ char* strcpy(char* dst, const char* src) {
     return dst;
 }
 
+/* BUG-0112 FIX: the old loop `while (n && (*d++ = *src++)) --n;`
+ * consumed one extra byte of the budget when the source ran out: the
+ * terminating NUL was stored by the copy loop itself and the padding
+ * loop then ran with an un-decremented count, writing n+1 bytes total
+ * (one past the contract). Callers that sized their buffer as exactly
+ * `n` saw a one-byte stack/heap overwrite. This version stores the
+ * terminator via the padding loop only and writes EXACTLY n bytes,
+ * matching ISO C strncpy semantics. */
 char* strncpy(char* dst, const char* src, usize n) {
     char* d = dst;
-    while (n && (*d++ = *src++)) --n;
+    while (n && *src) { *d++ = *src++; n--; }
     while (n--) *d++ = 0;
     return dst;
 }

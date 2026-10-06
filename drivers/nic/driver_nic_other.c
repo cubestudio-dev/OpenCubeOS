@@ -94,7 +94,10 @@ int c3_init_core(c3_dev_t *d, u8 bus, u8 dev, u8 func) {
     memset(d, 0, sizeof(*d));
     d->bus = bus; d->dev = dev; d->func = func;
 
-    u32 bar0 = driver_pci_read_bar(bus, dev, func, 0);
+    /* BUG-0123 FIX (A8-2): read the RAW config dword to detect the I/O
+     * BAR - driver_pci_read_bar() masks the result so bit 0 is always
+     * clear and the old test never fired (dead init on all hardware). */
+    u32 bar0 = driver_pci_read_config(bus, dev, func, 0x10);
     if (!bar0 || !(bar0 & 0x1)) return -1;   /* needs the PIO window */
     d->io = (u16)(bar0 & 0xFFFC);
     other_pci_enable(bus, dev, func);
@@ -118,15 +121,13 @@ static int c3_ops_send(driver_nic_device_t *ndev, const void *buf, int len) {
     (void)ndev; (void)buf;
     c3_dev_t *d = &g_c3;
     if (!d->up || len <= 0) return -1;
-    /* Boomerang datapath (DOWN ring + DownUnStall) is datasheet-only:
-     * no QEMU model exists.  The command sequence is recorded but the
-     * DMA transfer needs real hardware to complete. */
-    c3_select_window(d, 7);
-    pio_w16(d->io + (u16)C3_WIN7_DOWNLIST, 0);
-    pio_w16(d->io + C3_CMD, (u16)C3_CMD_START_DN);
-    c3_select_window(d, 0);
-    d->tx_packets++;
-    return len;
+    /* BUG-0124 FIX (A8-3): the old code wrote DownListPtr=0 + un-stalled
+     * the transmitter and returned len - a FAKE success (and an outright
+     * dangerous DMA-from-address-0 poke on real silicon). The Boomerang
+     * DOWN-ring datapath needs real hardware to implement; until then
+     * this driver reports failure honestly so the stack can detect it. */
+    (void)d;
+    return -1;
 }
 
 static int c3_ops_recv(driver_nic_device_t *ndev, void *buf, int maxlen) {
@@ -195,10 +196,12 @@ int net_netfilter_init_core(net_netfilter_dev_t *d, u8 bus, u8 dev, u8 func) {
     memset(d, 0, sizeof(*d));
     d->bus = bus; d->dev = dev; d->func = func;
 
+    /* BUG-0123 FIX (A8-2): raw config read for the PIO indicator bit,
+     * same fix as c3_init_core above (see also BUG-0122 in rtl8169). */
     u16 io = 0;
     for (int b = 0; b < 3 && !io; b++) {
-        u32 bar = driver_pci_read_bar(bus, dev, func, b);
-        if ((bar & 0x1) && (bar & 0xFFFC)) io = (u16)(bar & 0xFFFC);
+        u32 raw = driver_pci_read_config(bus, dev, func, 0x10 + (u8)(b * 4));
+        if ((raw & 0x1) && (raw & 0xFFFC)) io = (u16)(raw & 0xFFFC);
     }
     if (!io) return -1;
     d->io = io;
@@ -214,8 +217,10 @@ static int net_netfilter_ops_send(driver_nic_device_t *ndev, const void *buf, in
     (void)ndev; (void)buf;
     net_netfilter_dev_t *d = &g_nf;
     if (!d->up || len <= 0) return -1;
-    d->tx_packets++;
-    return len;
+    /* BUG-0124 FIX (A8-3): this used to count a packet and return len
+     * without touching any hardware - a fake success that black-holed
+     * the whole TX path. Report failure honestly. */
+    return -1;
 }
 
 static int net_netfilter_ops_recv(driver_nic_device_t *ndev, void *buf, int maxlen) {
@@ -293,8 +298,11 @@ static int mmio_ops_send(driver_nic_device_t *ndev, const void *buf, int len) {
     (void)ndev; (void)buf;
     mmio_legacy_dev_t *d = (mmio_legacy_dev_t *)ndev->priv;
     if (!d || !d->up || len <= 0) return -1;
-    d->tx_packets++;
-    return len;
+    /* BUG-0124 FIX (A8-3): the old stub counted the packet and returned
+     * len while never sending a byte - net.c believed every send
+     * succeeded and DHCP/TCP silently starved. Report failure honestly
+     * until the AR81xx/Yukon DMA datapath is really implemented. */
+    return -1;
 }
 
 static int mmio_ops_recv(driver_nic_device_t *ndev, void *buf, int maxlen) {
@@ -395,6 +403,12 @@ int other_nics_init(driver_pci_dev_t *pdev) {
         }
         if (found && mmio_legacy_setup(&g_ar81xx, bus, dev, func) == 0) {
             g_ar81xx.family = 0;
+            /* BUG-0124 FIX (A8-3): MAC reading is not implemented for
+             * this family, so the registration used to carry an all-zero
+             * MAC. Refuse to register a device we cannot identify. */
+            int mac_zero = 1;
+            for (int i = 0; i < 6; i++) if (g_ar81xx.mac[i]) { mac_zero = 0; break; }
+            if (mac_zero) return -1;
             driver_nic_device_t nd;
             memset(&nd, 0, sizeof(nd));
             strcpy(nd.name, "ar81xx");
@@ -417,6 +431,11 @@ int other_nics_init(driver_pci_dev_t *pdev) {
         }
         if (found && mmio_legacy_setup(&g_yukon, bus, dev, func) == 0) {
             g_yukon.family = 1;
+            /* BUG-0124 FIX (A8-3): all-zero MAC - refuse registration
+             * (see the ar81xx branch above). */
+            int mac_zero = 1;
+            for (int i = 0; i < 6; i++) if (g_yukon.mac[i]) { mac_zero = 0; break; }
+            if (mac_zero) return -1;
             driver_nic_device_t nd;
             memset(&nd, 0, sizeof(nd));
             strcpy(nd.name, "yukon");

@@ -240,7 +240,15 @@ static u32 driver_snd_hda_corb_xmit(driver_snd_hda_dev_t *d, u32 verb) {
             /* ack the response IRQ so the controller keeps going */
             driver_snd_hda_w8(d, HDA_RIRBSTS, HDA_RBSTS_IRQ);
             int unsolicited = (ex & (1u << 4)) ? 1 : 0;
-            if (!unsolicited && (u8)(ex & 0xf) == d->codec_cad)
+            /* BUG-0131 FIX (A9-05): the filter compared the response's
+             * cad against d->codec_cad, which stays 0 during codec
+             * ENUMERATION (it is only assigned after scan_codec
+             * succeeds). A codec that lives at cad != 0 had every
+             * solicited response dropped as "foreign" -> every verb
+             * timed out -> "codec enumeration failed". The target cad
+             * is encoded in the verb itself (bits 31:28), so compare
+             * against that - no state needed, correct at any cad. */
+            if (!unsolicited && (u8)(ex & 0xf) == (u8)((verb >> 28) & 0xf))
                 return resp;
             continue;   /* ignore unsolicited / foreign responses */
         }
@@ -348,9 +356,16 @@ static int driver_snd_hda_scan_codec(driver_snd_hda_dev_t *d, u8 cad) {
     }
     if (!found) return -1;   /* pin cannot route to the DAC */
 
-    /* select the connection + enable the pin output */
-    driver_snd_hda_codec_set(d, (u8)pin_nid, HDA_VERB_SET_CONN_SEL, (u8)conn_sel);
-    driver_snd_hda_codec_set(d, (u8)pin_nid, HDA_VERB_SET_PIN_CTRL, 0x40 /* OUT_EN */);
+    /* select the connection + enable the pin output.
+     * BUG-0131 FIX: codec_set() encodes the verb with d->codec_cad,
+     * which is NOT yet assigned during enumeration - these two writes
+     * went to cad 0 instead of the codec being scanned. Build the
+     * verbs explicitly with the scan target cad (same shape as the
+     * GET_CONN_LIST verbs above). */
+    driver_snd_hda_corb_xmit(d, ((u32)cad << 28) | ((u32)pin_nid << 20) |
+                             (HDA_VERB_SET_CONN_SEL << 8) | (u8)conn_sel);
+    driver_snd_hda_corb_xmit(d, ((u32)cad << 28) | ((u32)pin_nid << 20) |
+                             (HDA_VERB_SET_PIN_CTRL << 8) | 0x40 /* OUT_EN */);
 
     u32 amp = driver_snd_hda_get_param(d, cad, (u8)dac_nid, HDA_PAR_AMP_OUT_CAP);
     d->amp_max = (amp == 0xFFFFFFFFu) ? 0x4a : ((amp >> 8) & 0x7f);
@@ -695,8 +710,12 @@ static int driver_snd_hda_ops_set_volume(driver_snd_device_t *sdev, u32 vol) {
     u32 mute = (vol == 0) ? (1u << 7) : 0;
     u32 payload_l = HDA_AMP_SET_OUT | HDA_AMP_SET_LEFT | mute | gain;
     u32 payload_r = HDA_AMP_SET_OUT | HDA_AMP_SET_RIGHT | mute | gain;
-    driver_snd_hda_codec_set(d, (u8)d->dac_nid, HDA_VERB_SET_AMP, payload_l);
-    driver_snd_hda_codec_set(d, (u8)d->dac_nid, HDA_VERB_SET_AMP, payload_r);
+    /* BUG-0130 FIX (A9-04): AC_VERB_SET_AMP_GAIN_MUTE is a 16-bit-payload
+     * verb (OUT/LEFT/RIGHT in bits 15/13/12). codec_set() takes a u8
+     * payload, so every direction bit was truncated away and the whole
+     * command was a no-op. codec_set16() exists exactly for this. */
+    driver_snd_hda_codec_set16(d, (u8)d->dac_nid, HDA_VERB_SET_AMP, payload_l);
+    driver_snd_hda_codec_set16(d, (u8)d->dac_nid, HDA_VERB_SET_AMP, payload_r);
     return 0;
 }
 

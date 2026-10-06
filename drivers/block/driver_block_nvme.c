@@ -169,6 +169,12 @@ typedef struct {
     driver_block_nvme_cqe_t *cq;
     u16 sq_tail;
     u16 cq_head;
+    /* BUG-0114 FIX: the queue is created with min(NVME_IO_QSIZE, mqes+1)
+     * entries, but the tails used to wrap with a fixed % NVME_IO_QSIZE.
+     * On a device whose MQES < 63 the tails escaped the allocated rings
+     * (out-of-bounds SQE write) and illegal doorbell values were rung.
+     * Every queue now stores its real size and wraps against it. */
+    u16 qsize;     /* actual entries in this queue (<= NVME_IO_QSIZE) */
     u8  cq_phase;
     u16 cid;
     u16 qid;       /* 1-based queue id (matches admin-created qid) */
@@ -334,7 +340,9 @@ static int driver_block_nvme_io_cmd(driver_block_nvme_dev_t *d, driver_block_nvm
 
     __asm__ volatile("" ::: "memory");
     memcpy(&q->sq[q->sq_tail], cmd, sizeof(driver_block_nvme_sqe_t));
-    q->sq_tail = (u16)((q->sq_tail + 1) % NVME_IO_QSIZE);
+    /* BUG-0114 FIX: wrap against the queue's real size, not the compile-time
+     * maximum (see struct comment). */
+    q->sq_tail = (u16)((q->sq_tail + 1) % q->qsize);
     driver_block_nvme_write(d, driver_block_nvme_sq_db(d, q->qid), q->sq_tail);
 
     u16 want_cid = cmd->cid;
@@ -348,7 +356,7 @@ static int driver_block_nvme_io_cmd(driver_block_nvme_dev_t *d, driver_block_nvm
         u16 cid = cqe->cid;
         u16 sc  = (u16)((status >> 1) & 0x7FFFu);
 
-        q->cq_head = (u16)((q->cq_head + 1) % NVME_IO_QSIZE);
+        q->cq_head = (u16)((q->cq_head + 1) % q->qsize);   /* BUG-0114 FIX */
         if (q->cq_head == 0) q->cq_phase ^= 1;
         driver_block_nvme_write(d, driver_block_nvme_cq_db(d, q->qid), q->cq_head);
 
@@ -563,6 +571,7 @@ int driver_block_nvme_init(driver_pci_dev_t *pdev) {
         }
         memset(q->sq, 0, qsize * sizeof(driver_block_nvme_sqe_t));
         memset(q->cq, 0, qsize * sizeof(driver_block_nvme_cqe_t));
+        q->qsize    = qsize;   /* BUG-0114 FIX: remember the real size */
         q->sq_tail  = 0;
         q->cq_head  = 0;
         q->cq_phase = 1;   /* first completion phase after queue creation */

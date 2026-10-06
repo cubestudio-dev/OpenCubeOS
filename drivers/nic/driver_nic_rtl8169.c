@@ -163,11 +163,17 @@ static int driver_nic_rtl8169_setup(driver_nic_rtl8169_dev_t *d, u8 bus, u8 dev,
     d->bus = bus; d->dev = dev; d->func = func;
 
     /* Find the PIO BAR (BAR0 is MMIO on most boards, the PIO window is
-     * usually BAR2; walk the first three). */
+     * usually BAR2; walk the first three).
+     * BUG-0122 FIX (A8-1): driver_pci_read_bar() MASKS the result (I/O
+     * BARs return bar & ~3, MMIO bar & ~0xF), so bit 0 is ALWAYS clear
+     * in the returned value and the old `(bar & 0x1)` test never fired:
+     * all three RTL8169-family inits failed on every machine. Read the
+     * RAW config dword (like driver_nic_rtl8139.c does) to test the
+     * I/O-space indicator bit. */
     u16 io = 0;
     for (int b = 0; b < 3 && !io; b++) {
-        u32 bar = driver_pci_read_bar(bus, dev, func, b);
-        if ((bar & 0x1) && (bar & 0xFFFC)) io = (u16)(bar & 0xFFFC);
+        u32 raw = driver_pci_read_config(bus, dev, func, 0x10 + (u8)(b * 4));
+        if ((raw & 0x1) && (raw & 0xFFFC)) io = (u16)(raw & 0xFFFC);
     }
     if (!io) return -1;
     d->io = io;
@@ -328,7 +334,13 @@ static int driver_nic_rtl8169_ops_send(driver_nic_device_t *ndev, const void *bu
     d->tx_descs[slot].buf_lo = (u32)(uintptr_t)d->tx_bufs[slot];
     d->tx_descs[slot].buf_hi = 0;
     __asm__ volatile("sfence" ::: "memory");
+    /* BUG-0127 FIX (A8-6): the C+ mode TX ring has NO TDLEN-style length
+     * register - wrap-around is signalled ONLY by the EOR bit on the
+     * last descriptor (the RX ring already does this, see line ~146).
+     * Without it the transmitter walked past desc 31 into the zero page
+     * and parked there forever after the 32nd frame. */
     d->tx_descs[slot].opts1 = R8169_D_OWN | R8169_D_FS | R8169_D_LS |
+                              ((slot == R8169_TX_DESCS - 1) ? R8169_D_EOR : 0u) |
                               (u32)len;
 
     /* Kick the engine (TP_POLL bit 6 = send normal-priority queue). */

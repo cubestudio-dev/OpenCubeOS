@@ -404,3 +404,409 @@ int editor_run(void) {
         /* Everything else: ignore. */
     }
 }
+
+/* ================================================================== *
+ * BUG-0135 FIX: a real two-mode vi.
+ *
+ * The audit run showed `vi` was registered as a plain alias of the nano
+ * engine ("same engine as nano"), so "ithree-fox" and ":wq" were both
+ * taken as literal text — the claimed vi editor did not exist. Below is
+ * a real modal vi built on the same line-buffer session state:
+ *
+ *   NORMAL (entry mode)
+ *     h j k l / arrows   move (j/k clamp the column like vi)
+ *     0 / $              line start / end
+ *     G / g g            last line / first line
+ *     x                  delete the char under the cursor
+ *     d d                delete the current line
+ *     i a A I o O        enter INSERT (before/at/after, line ops)
+ *     :                  ex command line (w, q, wq, q!)
+ *
+ *   INSERT
+ *     printable chars    insert at the cursor
+ *     BKSP / DEL         delete before / at the cursor (BKSP merges lines)
+ *     Enter              split the line at the cursor
+ *     arrows / Home/End  move
+ *     ESC                back to NORMAL
+ *
+ * The console has no ANSI escapes, so any structural change redraws the
+ * whole buffer (same policy the nano engine already uses).
+ * ================================================================== */
+
+static void ed_vi_print_all(void) {
+    screen_console_puts("-- vi: ");
+    screen_console_puts(ed_file);
+    screen_console_puts(" -- ESC leaves insert, :w saves, :q quits --\n");
+    for (int i = 0; i < ed_nlines; i++) {
+        ed_prefix(i + 1);
+        screen_console_puts(ed_lines[i]);
+        screen_console_putc('\n');
+    }
+}
+
+/* vi status line (redrawn after every normal-mode command). */
+static void ed_vi_state(const char *mode) {
+    char num[8];
+    screen_console_puts("-- ");
+    screen_console_puts(mode);
+    screen_console_puts(" -- ");
+    screen_console_puts(ed_file);
+    screen_console_puts(" line ");
+    u64_to_str((u64)(ed_cl + 1), num);
+    screen_console_puts(num);
+    screen_console_putc('/');
+    u64_to_str((u64)ed_nlines, num);
+    screen_console_puts(num);
+    screen_console_puts(" col ");
+    u64_to_str((u64)(ed_cc + 1), num);
+    screen_console_puts(num);
+    screen_console_puts(ed_dirty ? "  [+] :w :q :wq :q!\n" : "  :w :q :wq :q!\n");
+}
+
+/* INSERT-mode editing (shares nano's exact buffer semantics). */
+
+static void ed_vi_insert_printable(int k) {
+    char *l = ed_lines[ed_cl];
+    int ll = (int)strlen(l);
+    if (ll + 1 < EDITOR_LINE_CAP) {
+        ed_dirty = 1;
+        for (int i = ll; i > ed_cc; i--) l[i] = l[i - 1];
+        l[ed_cc] = (char)k;
+        l[ll + 1] = 0;
+        ed_cc++;
+        ed_redraw_line();
+    }
+}
+
+static void ed_vi_split_line(void) {
+    if (ed_nlines >= EDITOR_MAX_LINES) return;
+    char *l = ed_lines[ed_cl];
+    char tail[EDITOR_LINE_CAP];
+    strncpy(tail, l + ed_cc, EDITOR_LINE_CAP - 1);
+    tail[EDITOR_LINE_CAP - 1] = 0;
+    l[ed_cc] = 0;
+    for (int i = ed_nlines; i > ed_cl + 1; i--) {
+        strncpy(ed_lines[i], ed_lines[i - 1], EDITOR_LINE_CAP);
+    }
+    strncpy(ed_lines[ed_cl + 1], tail, EDITOR_LINE_CAP - 1);
+    ed_lines[ed_cl + 1][EDITOR_LINE_CAP - 1] = 0;
+    ed_nlines++;
+    ed_cl++;
+    ed_cc = 0;
+    ed_dirty = 1;
+    ed_print_all();
+    ed_vi_state("-- INSERT --");
+    ed_redraw_line();
+}
+
+static void ed_vi_backspace(void) {
+    char *l = ed_lines[ed_cl];
+    if (ed_cc > 0) {
+        int ll = (int)strlen(l);
+        for (int i = ed_cc - 1; i < ll; i++) l[i] = l[i + 1];
+        ed_cc--;
+        ed_dirty = 1;
+        ed_redraw_line();
+    } else if (ed_cl > 0) {
+        /* merge with the previous line */
+        char *prev = ed_lines[ed_cl - 1];
+        int plen = (int)strlen(prev);
+        int ll = (int)strlen(l);
+        if (plen + ll < EDITOR_LINE_CAP - 1) {
+            strcat(prev, l);
+            ed_cc = plen;
+            ed_cl--;
+            for (int i = ed_cl + 1; i + 1 < ed_nlines; i++) {
+                strncpy(ed_lines[i], ed_lines[i + 1], EDITOR_LINE_CAP);
+            }
+            ed_nlines--;
+            ed_dirty = 1;
+            ed_print_all();
+            ed_vi_state("-- INSERT --");
+            ed_redraw_line();
+        }
+    }
+}
+
+static void ed_vi_delete_at(void) {
+    char *l = ed_lines[ed_cl];
+    int ll = (int)strlen(l);
+    if (ed_cc < ll) {
+        for (int i = ed_cc; i < ll; i++) l[i] = l[i + 1];
+        ed_dirty = 1;
+        ed_redraw_line();
+    }
+}
+
+/* NORMAL-mode `x`: delete the char under the cursor. */
+static void ed_vi_x(void) {
+    ed_vi_delete_at();
+}
+
+/* NORMAL-mode `dd`: remove the current line. */
+static void ed_vi_dd(void) {
+    for (int i = ed_cl; i + 1 < ed_nlines; i++) {
+        strncpy(ed_lines[i], ed_lines[i + 1], EDITOR_LINE_CAP);
+    }
+    ed_nlines--;
+    if (ed_nlines == 0) {
+        ed_lines[0][0] = 0;
+        ed_nlines = 1;
+    }
+    if (ed_cl >= ed_nlines) ed_cl = ed_nlines - 1;
+    int ll = (int)strlen(ed_lines[ed_cl]);
+    if (ed_cc > ll) ed_cc = ll;
+    ed_dirty = 1;
+    ed_print_all();
+    ed_vi_state("NORMAL");
+    ed_redraw_line();
+}
+
+/* Read a `:` ex command line. The ':' was already echoed. Returns the
+ * command length (>=0), or -1 when the operator pressed ESC. */
+static int ed_vi_readcmd(char *out, int cap) {
+    int n = 0;
+    out[0] = 0;
+    for (;;) {
+        int k = ed_getch_blocking();
+        if (k == OC_KEY_ESC) {
+            screen_console_puts("\n");
+            return -1;
+        }
+        if (k == OC_KEY_ENTER || k == '\n' || k == '\r') {
+            screen_console_putc('\n');
+            out[n] = 0;
+            return n;
+        }
+        if ((k == OC_KEY_BACKSPACE || k == 0x7F) && n > 0) {
+            n--;
+            out[n] = 0;
+            screen_console_puts("\b \b");
+            continue;
+        }
+        if (k >= 0x20 && k < 0x7F && n + 1 < cap) {
+            out[n++] = (char)k;
+            out[n] = 0;
+            screen_console_putc((char)k);
+        }
+    }
+}
+
+/* Execute one ex command. Returns 1 when the editor must exit, 0 to
+ * stay inside the vi loop. */
+static int ed_vi_excmd(const char *cmd) {
+    if (strcmp(cmd, "w") == 0 || strcmp(cmd, "w!") == 0) {
+        if (editor_save() == 0) {
+            char num[8];
+            screen_console_puts("\"");
+            screen_console_puts(ed_file);
+            screen_console_puts("\" ");
+            u64_to_str((u64)ed_nlines, num);
+            screen_console_puts(num);
+            screen_console_puts("L written\n");
+        } else {
+            screen_console_puts("vi: write failed\n");
+        }
+        return 0;
+    }
+    if (strcmp(cmd, "q") == 0) {
+        if (ed_dirty) {
+            screen_console_puts("vi: no write since last change (:q! to force)\n");
+            return 0;
+        }
+        editor_close();
+        return 1;
+    }
+    if (strcmp(cmd, "q!") == 0) {
+        editor_close();
+        return 1;
+    }
+    if (strcmp(cmd, "wq") == 0 || strcmp(cmd, "x") == 0) {
+        if (editor_save() != 0) {
+            screen_console_puts("vi: write failed\n");
+            return 0;
+        }
+        editor_close();
+        return 1;
+    }
+    screen_console_puts("vi: not an editor command: ");
+    screen_console_puts(cmd[0] ? cmd : "(empty)");
+    screen_console_putc('\n');
+    return 0;
+}
+
+int editor_run_vi(void) {
+    if (!ed_active) return 1;
+
+    ed_vi_print_all();       /* BUG-0135: vi header, not the nano one */
+    ed_vi_state("NORMAL");
+    ed_redraw_line();
+
+    int insert = 0;          /* 0 = NORMAL, 1 = INSERT */
+    int pending = 0;         /* first key of a `dd` / `gg` sequence */
+
+    for (;;) {
+        int k = ed_getch_blocking();
+
+        /* ---------- INSERT mode ---------- */
+        if (insert) {
+            if (k == OC_KEY_ESC) {
+                insert = 0;
+                if (ed_cc > 0) ed_cc--;      /* cursor onto last char (vi) */
+                ed_vi_state("NORMAL");
+                ed_redraw_line();
+            } else if (k == OC_KEY_UP) {
+                if (ed_cl > 0) {
+                    ed_cl--;
+                    int ll = (int)strlen(ed_lines[ed_cl]);
+                    if (ed_cc > ll) ed_cc = ll;
+                    ed_redraw_line();
+                }
+            } else if (k == OC_KEY_DOWN) {
+                if (ed_cl + 1 < ed_nlines) {
+                    ed_cl++;
+                    int ll = (int)strlen(ed_lines[ed_cl]);
+                    if (ed_cc > ll) ed_cc = ll;
+                    ed_redraw_line();
+                }
+            } else if (k == OC_KEY_LEFT) {
+                if (ed_cc > 0) { ed_cc--; ed_redraw_line(); }
+            } else if (k == OC_KEY_RIGHT) {
+                if (ed_cc < (int)strlen(ed_lines[ed_cl])) {
+                    ed_cc++; ed_redraw_line();
+                }
+            } else if (k == OC_KEY_HOME) {
+                ed_cc = 0; ed_redraw_line();
+            } else if (k == OC_KEY_END) {
+                ed_cc = (int)strlen(ed_lines[ed_cl]); ed_redraw_line();
+            } else if (k == OC_KEY_BACKSPACE || k == 0x7F) {
+                ed_vi_backspace();
+            } else if (k == OC_KEY_DEL) {
+                ed_vi_delete_at();
+            } else if (k == OC_KEY_ENTER || k == '\n' || k == '\r') {
+                ed_vi_split_line();
+            } else if (k >= 0x20 && k < 0x7F) {
+                ed_vi_insert_printable(k);
+            }
+            /* everything else ignored while inserting */
+            continue;
+        }
+
+        /* ---------- NORMAL mode ---------- */
+        if (pending != 0) {
+            /* completing dd / gg */
+            int first = pending;
+            pending = 0;
+            if (first == 'd' && k == 'd') { ed_vi_dd(); continue; }
+            if (first == 'g' && k == 'g') {
+                ed_cl = 0;
+                int ll = (int)strlen(ed_lines[ed_cl]);
+                if (ed_cc > ll) ed_cc = ll;
+                ed_vi_state("NORMAL");
+                ed_redraw_line();
+                continue;
+            }
+            /* the pending key was a plain 'g' (unsupported alone): fall
+             * through and handle the new key normally */
+            if (first == 'g') { ed_vi_state("NORMAL"); ed_redraw_line(); continue; }
+            if (first == 'd') { ed_vi_state("NORMAL"); ed_redraw_line(); continue; }
+        }
+
+        if (k == 'h' || k == OC_KEY_LEFT) {
+            if (ed_cc > 0) { ed_cc--; ed_redraw_line(); }
+        } else if (k == 'l' || k == OC_KEY_RIGHT) {
+            if (ed_cc < (int)strlen(ed_lines[ed_cl])) { ed_cc++; ed_redraw_line(); }
+        } else if (k == 'j' || k == OC_KEY_DOWN) {
+            if (ed_cl + 1 < ed_nlines) {
+                ed_cl++;
+                int ll = (int)strlen(ed_lines[ed_cl]);
+                if (ed_cc > ll) ed_cc = ll;
+                ed_vi_state("NORMAL");
+                ed_redraw_line();
+            }
+        } else if (k == 'k' || k == OC_KEY_UP) {
+            if (ed_cl > 0) {
+                ed_cl--;
+                int ll = (int)strlen(ed_lines[ed_cl]);
+                if (ed_cc > ll) ed_cc = ll;
+                ed_vi_state("NORMAL");
+                ed_redraw_line();
+            }
+        } else if (k == '0') {
+            ed_cc = 0; ed_redraw_line();
+        } else if (k == '$') {
+            ed_cc = (int)strlen(ed_lines[ed_cl]); ed_redraw_line();
+        } else if (k == 'G') {
+            ed_cl = ed_nlines - 1;
+            int ll = (int)strlen(ed_lines[ed_cl]);
+            if (ed_cc > ll) ed_cc = ll;
+            ed_vi_state("NORMAL");
+            ed_redraw_line();
+        } else if (k == 'g') {
+            pending = 'g';
+        } else if (k == 'd') {
+            pending = 'd';
+        } else if (k == 'x') {
+            ed_vi_x();
+        } else if (k == 'i') {
+            insert = 1; ed_vi_state("-- INSERT --");
+        } else if (k == 'a') {
+            if (ed_cc < (int)strlen(ed_lines[ed_cl])) ed_cc++;
+            insert = 1; ed_vi_state("-- INSERT --");
+        } else if (k == 'A') {
+            ed_cc = (int)strlen(ed_lines[ed_cl]);
+            insert = 1; ed_vi_state("-- INSERT --");
+        } else if (k == 'I') {
+            ed_cc = 0;
+            insert = 1; ed_vi_state("-- INSERT --");
+        } else if (k == 'o') {
+            /* open a line BELOW the cursor and insert there */
+            if (ed_nlines < EDITOR_MAX_LINES) {
+                for (int i = ed_nlines; i > ed_cl + 1; i--) {
+                    strncpy(ed_lines[i], ed_lines[i - 1], EDITOR_LINE_CAP);
+                }
+                ed_lines[ed_cl + 1][0] = 0;
+                ed_nlines++;
+                ed_cl++;
+                ed_cc = 0;
+                ed_dirty = 1;
+                ed_print_all();
+                insert = 1; ed_vi_state("-- INSERT --");
+                ed_redraw_line();
+            }
+        } else if (k == 'O') {
+            /* open a line ABOVE the cursor and insert there */
+            if (ed_nlines < EDITOR_MAX_LINES) {
+                for (int i = ed_nlines; i > ed_cl; i--) {
+                    strncpy(ed_lines[i], ed_lines[i - 1], EDITOR_LINE_CAP);
+                }
+                ed_lines[ed_cl][0] = 0;
+                ed_nlines++;
+                ed_cc = 0;
+                ed_dirty = 1;
+                ed_print_all();
+                insert = 1; ed_vi_state("-- INSERT --");
+                ed_redraw_line();
+            }
+        } else if (k == ':') {
+            screen_console_puts("\n:");
+            char cmd[32];
+            int n = ed_vi_readcmd(cmd, (int)sizeof(cmd));
+            if (n >= 0) {
+                if (ed_vi_excmd(cmd)) return 0;   /* saved/quit cleanly */
+                /* not exited: redraw buffer + status */
+                ed_vi_print_all();
+                ed_vi_state(ed_dirty ? "NORMAL*" : "NORMAL");
+                ed_redraw_line();
+            } else {
+                ed_vi_state("NORMAL");
+                ed_redraw_line();
+            }
+        } else if (k == OC_KEY_ESC) {
+            /* already normal: just refresh the status line */
+            ed_vi_state("NORMAL");
+            ed_redraw_line();
+        }
+        /* everything else: ignore */
+    }
+}

@@ -107,6 +107,20 @@ int net_socket(int type);
 int net_bind(int fd, u32 ip, u16 port);
 int net_connect(int fd, u32 ip, u16 port);
 int net_accept(int listen_fd, u32 *client_ip, u16 *client_port);
+
+/* BUG-0132 FIX: cooperative cancellation for net_accept(). A blocking
+ * server command (e.g. sshd) used to freeze the whole console for the
+ * full accept timeout: the accept poll loop never drained the keyboard
+ * queue, so Ctrl+C was never consumed and the shell was unresponsive.
+ *
+ * The caller registers a cancel-check callback; net_accept() invokes it
+ * on every poll iteration. The callback may drain the keyboard queue and
+ * returns non-zero to request cancellation. When cancelled, net_accept()
+ * returns -2 and the caller must close the listen socket and clean up.
+ * Register NULL to remove a previously registered callback. */
+typedef int (*net_accept_cancel_fn)(void);
+void net_accept_set_cancel_fn(net_accept_cancel_fn fn);
+
 int net_send(int fd, const void *data, int len);
 int net_recv(int fd, void *buf, int len);
 int net_close(int fd);

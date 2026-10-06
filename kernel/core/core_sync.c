@@ -88,7 +88,12 @@ void sem_wait(sem_t *sem) {
              * Instead, release the lock, spin briefly, and retry. */
             spin_unlock(&sem->lock);
             for (volatile int spin = 0; spin < 1000; spin++);
-            spin_lock(&sem->lock);
+            /* BUG-0104 FIX: the fallback used to re-take the spinlock
+             * HERE and then `continue` into the loop head which takes
+             * the same spinlock again. A non-recursive spinlock does
+             * not permit that: the second spin_lock spun forever on a
+             * lock WE hold — a self-deadlock on the table-full path.
+             * Leave the lock free; the loop head re-locks it. */
             continue;  /* re-check count */
         }
         /* Mark ourselves BLOCKED before releasing the lock so sem_post
@@ -200,16 +205,35 @@ void cond_init(cond_t *c) {
 }
 
 void cond_wait(cond_t *c, mutex_t *m) {
-    spin_lock(&c->lock);
-    c->waiters++;
-    /* P0-5 FIX: register our TID AND set BLOCKED state while holding the
-     * lock, so cond_signal can wake us without a lost-wakeup race. */
     tid_t my_tid = core_kthread_current_tid();
-    for (int i = 0; i < COND_MAX_WAITERS; i++) {
-        if (c->waiter_tids[i] == 0 || c->waiter_tids[i] == (tid_t)-1) {
-            c->waiter_tids[i] = my_tid;
-            break;
+    spin_lock(&c->lock);
+    int registered = 0;
+    for (;;) {
+        c->waiters++;
+        /* P0-5 FIX: register our TID AND set BLOCKED state while holding the
+         * lock, so cond_signal can wake us without a lost-wakeup race. */
+        for (int i = 0; i < COND_MAX_WAITERS; i++) {
+            if (c->waiter_tids[i] == 0 || c->waiter_tids[i] == (tid_t)-1) {
+                c->waiter_tids[i] = my_tid;
+                registered = 1;
+                break;
+            }
         }
+        if (registered) break;
+        /* BUG-0105 FIX: the waiter table is FULL. The old code just fell
+         * through: it marked us TASK_BLOCKED WITHOUT being registered,
+         * so cond_signal could never find our tid — permanent sleep.
+         * Retract the waiter count, drop c->lock AND the caller's mutex
+         * (so a signaler can make progress), spin briefly and retry the
+         * registration — the same fail-open pattern sem_wait uses since
+         * its BUG-046 fix (with the BUG-0104 self-deadlock avoided by
+         * letting the loop head re-take the lock). */
+        c->waiters--;
+        spin_unlock(&c->lock);
+        mutex_unlock(m);
+        for (volatile int spin = 0; spin < 1000; spin++);
+        mutex_lock(m);
+        spin_lock(&c->lock);
     }
     task_t *me = core_kthread_current();
     if (me) me->state = TASK_BLOCKED;

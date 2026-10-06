@@ -227,16 +227,32 @@ static int driver_snd_virtio_find_caps(driver_snd_virtio_dev_t *d, u8 bus, u8 de
         u8 cap_vndr = (u8)(hdr & 0xff);
         u8 cap_next = (u8)((hdr >> 8) & 0xff);
         u8 cap_len  = (u8)((hdr >> 16) & 0xff);
-        if (cap_vndr == VPCI_CAP_VENDOR && cap_len >= 20) {
-            /* cfg_type is at cap_ptr+3, bar at +4, offset +8, length +16 */
+        if (cap_vndr == VPCI_CAP_VENDOR && cap_len >= 16) {
+            /* BUG-0129 FIX (A9-03): two independent parsing bugs made
+             * virtio-snd probe IMPOSSIBLE (QEMU has no such device, so
+             * it survived every test run):
+             *   1) Virtio PCI capability layout: +0 vndr, +1 next,
+             *      +2 len, +3 cfg_type, +4 bar, +5 id, +8 offset_lo,
+             *      +12 offset_hi, +16 notify_off_multiplier.
+             *      driver_pci_read_config reads an ALIGNED dword, and
+             *      caps are 4-byte aligned: dword@cap+0 carries
+             *      cfg_type in bits 31:24, dword@cap+4 carries bar in
+             *      bits 7:0. The old code took cfg_type from dword@+4
+             *      byte 0 (= the BAR field) and bar from its bits 15:8
+             *      (= the id field) - every capability type was
+             *      misidentified.
+             *   2) The length filter was >= 20, but common/isr/device
+             *      caps are 16 bytes (only notify is 20), so those
+             *      caps were skipped and `found` could never reach the
+             *      required bits. */
+            u8 cfg_type = (u8)((hdr >> 24) & 0xff);          /* +3: dword@cap bits 31:24 */
             u32 type_off = driver_pci_read_config(bus, dev, func,
                                            (u8)((cap_ptr + 4) & 0xfc));
             u32 lo = driver_pci_read_config(bus, dev, func,
                                      (u8)((cap_ptr + 8) & 0xfc));
             u32 len_lo = driver_pci_read_config(bus, dev, func,
                                          (u8)((cap_ptr + 16) & 0xfc));
-            u8 cfg_type = (u8)((type_off >> 0) & 0xff);
-            u8 bar = (u8)((type_off >> 8) & 0xff);
+            u8 bar = (u8)((type_off >> 0) & 0xff);           /* +4: dword@cap+4 bits 7:0 */
             u32 bar_val = driver_pci_read_bar(bus, dev, func, bar & 7);
             u64 base = (u64)(bar_val & ~0xfu) + lo;
             (void)len_lo;

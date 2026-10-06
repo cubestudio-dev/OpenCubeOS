@@ -2824,11 +2824,26 @@ int net_connect(int fd, u32 ip, u16 port) {
  * net_tcp_listen() registered the port; the SYN path creates a conn with
  * sock_fd == -1. When its handshake completes (ESTABLISHED) we claim it
  * here, allocate a fresh socket for it, and return the new fd. */
+
+/* BUG-0132 FIX: cooperative cancellation hook, see net_core.h. */
+static net_accept_cancel_fn g_accept_cancel_fn = 0;
+
+void net_accept_set_cancel_fn(net_accept_cancel_fn fn) {
+    g_accept_cancel_fn = fn;
+}
+
 int net_accept(int listen_fd, u32 *client_ip, u16 *client_port) {
     if (listen_fd < 0 || listen_fd >= MAX_SOCKETS || !g_sockets[listen_fd].in_use) return -1;
     u16 lport = g_sockets[listen_fd].local_port;
     u64 start = core_timer_ticks();
     for (int loop = 0; ; loop++) {                       /* bounded by tick timeout */
+        /* BUG-0132 FIX: give the registered cancel-check callback a chance
+         * to run on every poll iteration. sshd's callback drains the
+         * keyboard queue and returns non-zero on Ctrl+C, so the console
+         * stays responsive and the blocking wait can be interrupted. */
+        if (g_accept_cancel_fn && g_accept_cancel_fn() != 0) {
+            return -2;  /* cancelled by caller; caller closes the socket */
+        }
         for (int i = 0; i < TCP_MAX_CONNS; i++) {
             net_tcp_conn_t *c = &g_tcp_conns[i];
             if (c->in_use && c->local_port == lport && c->sock_fd < 0 &&

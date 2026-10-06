@@ -29,8 +29,14 @@
 
 /* WP-09-FIX BUG-008: starvation guard. After this many consecutive ticks
  * a running task is force-switched out in favour of the lowest-priority
- * ready task (100 ticks = 1s at the 100 Hz timer). */
-#define SCHED_STARVE_LIMIT 100
+ * ready task (10 ticks = 100ms at the 100 Hz timer).
+ *
+ * BUG-0134 FIX: the limit was 100 ticks (1s). With several CPU-bound
+ * user tasks the shell only got one 20ms slice per second, so `ps` and
+ * other interactive commands took 30s+ to finish. 100ms is the classic
+ * interactive-latency ceiling; the shell now gets a full slice at least
+ * every 100ms even under heavy CPU load. */
+#define SCHED_STARVE_LIMIT 10
 
 /* Task ID. 0 = kernel/idle task. */
 typedef int tid_t;

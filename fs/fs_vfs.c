@@ -369,6 +369,15 @@ int fs_vfs_umount(const char *mount_point) {
     if (!mount_point) return -1;
     char norm[VFS_PATH_LEN];
     if (fs_vfs_normalize(mount_point, norm, sizeof(norm)) < 0) return -1;
+    /* BUG-0133 FIX: the root of the VFS namespace (the root ramfs) is the
+     * backbone every other path resolves through. Unmounting it used to
+     * succeed, blank the mount table, drop every ramfs file (including
+     * /etc) and leave the system with no recovery path but a reboot.
+     * Refuse explicitly. */
+    if (strcmp(norm, "/") == 0) {
+        screen_console_puts("vfs: cannot unmount the root filesystem\n");
+        return -4;
+    }
     /* P0fix1 BUG-0002 (A12-002, trigger surface 2): umounting "/" (the
      * root ramfs) used to release the whole tree INCLUDING nested mount
      * roots (their ->private is another fs's inode/context), leaving
@@ -387,13 +396,25 @@ int fs_vfs_umount(const char *mount_point) {
     fs_vfs_mount_t *m = fs_vfs_find_mount(norm);
     if (!m) return -2;
 
-    /* Close any fds pointing at nodes inside THIS mount only. */
+    /* BUG-0133 FIX: refuse when the mount is busy instead of silently
+     * stealing open file descriptors. The old code zeroed any fd whose
+     * node lived inside this mount and detached it from its owner, so a
+     * writer kept a fd number pointing at nothing. Standard behavior is
+     * EBUSY: the caller closes its files and retries. */
+    int busy = 0;
     for (int i = 0; i < VFS_MAX_FDS; i++) {
         if (g_fds[i].in_use && g_fds[i].node &&
             fs_vfs_node_in_subtree(m->root_node, g_fds[i].node)) {
-            g_fds[i].in_use = 0;
-            g_fds[i].node = NULL;
+            busy++;
         }
+    }
+    if (busy > 0) {
+        screen_console_puts("vfs: umount target is busy (");
+        char nb[12];
+        u64_to_str((u64)busy, nb);
+        screen_console_puts(nb);
+        screen_console_puts(" open file(s))\n");
+        return -5;
     }
 
     /* Detach root from parent (if any). */

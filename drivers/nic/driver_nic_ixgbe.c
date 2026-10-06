@@ -61,20 +61,29 @@ static inline void mmio_write32(volatile void *p, u32 v) { *(volatile u32 *)p = 
 #define IXGBE_NUM_DESC  32
 #define IXGBE_BUF_SIZE  4096     /* jumbo-friendly 10G buffers */
 
-/* TX advanced descriptor command bits (shell_cmd_len word). */
+/* TX advanced descriptor command bits (cmd_type_len word, offset 8).
+ * BUG-0126 FIX (A8-5): per the 82598/82599 datasheet (and Linux's
+ * union ixgbe_adv_tx_desc), EOP/IFCS/RS/DEXT live in the
+ * cmd_type_len dword at offset 8, NOT in the olinfo_status dword at
+ * offset 12 (whose bits 31:14 are PAYLEN). */
 #define IXGBE_TXD_EOP    (1u << 24)
 #define IXGBE_TXD_IFCS   (1u << 25)
 #define IXGBE_TXD_RS     (1u << 27)
 #define IXGBE_TXD_DEXT   (1u << 29)
+#define IXGBE_TXD_STAT_DD 0x01u   /* TX write-back DD, bit 0 of offset 8 */
 
-/* RX write-back: status byte at offset 15 of the descriptor (DD bit). */
+/* RX write-back DD lives in bit 0 of status_error (offset 8). */
 #define IXGBE_RX_DD      0x01
 
+/* BUG-0126 FIX (A8-5): descriptor layout per 82598/82599 datasheet /
+ * Linux ixgbe_type.h. One 16-byte layout serves both rings:
+ *   TX read : addr(8) | cmd_type_len(4)@8 | olinfo_status(4)@12
+ *   TX wb   : addr(8) | status/DD(4)@8    | rsv(4)@12
+ *   RX wb   : addr(8) | status_error(4)@8 | len(2)@12 | vlan(2)@14 */
 typedef struct {
-    u64 addr;            /* read: buffer address */
-    u16 len;             /* TX: length; RX WB: packet length */
-    u16 vlan;
-    u32 cmd_status;      /* TX: EOP/IFCS/RS/DEXT; RX WB: status/errors */
+    u64 addr;            /* buffer address */
+    u32 cmd_type_len;    /* TX: flags|len  | TX wb: DD status | RX wb: status_error (DD=bit0) */
+    u32 olinfo_status;   /* TX: PAYLEN<<14 | RX wb: length (low 16) | vlan (high 16) */
 } __attribute__((packed)) driver_nic_ixgbe_desc_t;
 
 typedef struct {
@@ -281,16 +290,21 @@ static int driver_nic_ixgbe_ops_send(driver_nic_device_t *ndev, const void *buf,
     int slot = d->tx_tail;
     memcpy(d->tx_bufs[slot], buf, len);
     d->tx_descs[slot].addr = (u64)(uintptr_t)d->tx_bufs[slot];
-    d->tx_descs[slot].len = (u16)len;
-    d->tx_descs[slot].vlan = 0;
-    d->tx_descs[slot].cmd_status =
-        IXGBE_TXD_EOP | IXGBE_TXD_IFCS | IXGBE_TXD_RS | IXGBE_TXD_DEXT;
+    /* BUG-0126 FIX (A8-5): flags + length belong in cmd_type_len (offset
+     * 8); olinfo_status carries PAYLEN (bits 31:14) = the frame length
+     * for a non-LSO frame. The old code wrote the flag bits into
+     * PAYLEN's field, telling the chip to DMA ~232 KB from a 4 KB
+     * buffer (out-of-bounds read + garbage frames). */
+    d->tx_descs[slot].cmd_type_len = (u32)len | IXGBE_TXD_EOP | IXGBE_TXD_IFCS |
+                                     IXGBE_TXD_RS | IXGBE_TXD_DEXT;
+    d->tx_descs[slot].olinfo_status = ((u32)len << 14);
     __asm__ volatile("sfence" ::: "memory");
     d->tx_tail = (d->tx_tail + 1) % IXGBE_NUM_DESC;
     ix_wreg(d, IXGBE_TXQ_BASE(0) + IXGBE_Q_DT, (u32)d->tx_tail);
 
     for (int t = 0; t < 1000000; t++) {
-        if (d->tx_descs[slot].cmd_status & IXGBE_TXD_RS) break;
+        /* TX write-back: DD lands in bit 0 of the offset-8 dword. */
+        if (d->tx_descs[slot].cmd_type_len & IXGBE_TXD_STAT_DD) break;
     }
     d->tx_packets++;
     return len;
@@ -301,18 +315,18 @@ static int driver_nic_ixgbe_ops_recv(driver_nic_device_t *ndev, void *buf, int m
     driver_nic_ixgbe_dev_t *d = &g_ixgbe;
     if (!d->up) return -1;
 
-    /* DD bit lives in the status byte of the write-back. */
-    volatile u8 *wb_status =
-        (volatile u8 *)&d->rx_descs[d->rx_tail].cmd_status;
-    wb_status += 3;   /* cmd_status bits 24-31 = status byte */
-    if (!(*wb_status & IXGBE_RX_DD)) return 0;
+    /* BUG-0126 FIX (A8-5): RX write-back layout is
+     * status_error(u32)@8 with DD in bit 0 and length(u16)@12. The old
+     * code probed byte 15 (vlan high byte - always 0, so recv NEVER
+     * returned data) and read the length from offset 8. */
+    if (!(d->rx_descs[d->rx_tail].cmd_type_len & IXGBE_RX_DD)) return 0;
 
-    int len = d->rx_descs[d->rx_tail].len;
+    int len = (int)(d->rx_descs[d->rx_tail].olinfo_status & 0xFFFFu);
     if (len > maxlen) len = maxlen;
     if (len > 0) memcpy(buf, d->rx_bufs[d->rx_tail], len);
 
-    d->rx_descs[d->rx_tail].len = 0;
-    d->rx_descs[d->rx_tail].cmd_status = 0;
+    d->rx_descs[d->rx_tail].cmd_type_len = 0;   /* clear DD */
+    d->rx_descs[d->rx_tail].olinfo_status = 0;
     d->rx_descs[d->rx_tail].addr = (u64)(uintptr_t)d->rx_bufs[d->rx_tail];
     __asm__ volatile("sfence" ::: "memory");
     d->rx_tail = (d->rx_tail + 1) % IXGBE_NUM_DESC;

@@ -1645,6 +1645,34 @@ static int shell_cmd_nano(const char *args) {
     return rc;
 }
 
+/* BUG-0135 FIX: `vi` used to be a plain alias of shell_cmd_nano, so the
+ * "vi editor" the docs promised did not exist — every key, including
+ * "ithree-fox" and ":wq", was literal text in the same nano buffer.
+ * vi now runs the real modal engine (editor_run_vi): NORMAL/INSERT,
+ * hjkl/0/$/G/gg/x/dd/i a A I o O and a `:` ex command line. */
+static int shell_cmd_vi(const char *args) {
+    if (!args || !args[0]) {
+        screen_console_puts("usage: vi <file>   (hjkl move, i insert, :w :q :wq :q!)\n");
+        return 1;
+    }
+    char file[128];
+    int i = 0;
+    while (args[i] && args[i] != ' ' && i < (int)sizeof(file) - 1) {
+        file[i] = args[i];
+        i++;
+    }
+    file[i] = 0;
+    const char *resolved = shell_resolve_path_static(file);
+    if (editor_open(resolved ? resolved : file) != 0) {
+        screen_console_puts("vi: cannot open ");
+        screen_console_puts(file);
+        screen_console_putc('\n');
+        return 1;
+    }
+    int rc = editor_run_vi();   /* editor_close() is done inside editor_run_vi */
+    return rc;
+}
+
 /* ================================================================== *
  * WP-05: shell_init
  * ================================================================== */
@@ -1661,9 +1689,10 @@ void shell_init(void) {
     shell_register_command_ex("set", shell_cmd_set, "list env vars", "WP-05");
     shell_register_command_ex("alias", shell_cmd_alias, "set/show aliases", "WP-07");
     shell_register_command_ex("unalias", shell_cmd_unalias, "remove an alias", "WP-07");
-    /* WP-10-wp08fix1: nano/vi full-screen-ish editor (same engine). */
+    /* WP-10-wp08fix1: nano editor; BUG-0135 FIX: vi is now a real
+     * two-mode engine of its own (was a nano alias). */
     shell_register_command_ex("nano", shell_cmd_nano, "nano-style editor (nano <file>; ^O save ^X exit)", "WP-10-wp08fix1");
-    shell_register_command_ex("vi", shell_cmd_nano, "editor alias (same engine as nano)", "WP-10-wp08fix1");
+    shell_register_command_ex("vi", shell_cmd_vi, "vi editor, two-mode (hjkl move, i/a/o insert, ESC, :w :q :wq :q!)", "WP-AUDIT-01-p1fix3");
 
     /* Set some default env vars. */
     shell_setenv("SHELL", "/bin/ocsh");

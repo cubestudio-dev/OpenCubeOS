@@ -264,47 +264,47 @@ static void crypto_pt_add(const crypto_ec_curve_t *c,
     fe_mul(c, Z3, Z3, H);
 }
 
-/* Scalar multiplication with 4-bit windows (public-data path).
- * Windows are aligned from the first set bit: each window covers up to 4
- * bits starting at the current position. */
+/* Scalar multiplication - CONSTANT TIME (BUG-0108 FIX, A4-04).
+ *
+ * The old implementation used a 4-bit window with three secret-dependent
+ * control-flow paths:
+ *   - a loop that skipped the leading zero bits of the scalar (leaked the
+ *     position of the top set bit of the private key / ECDSA nonce),
+ *   - `if (w) add` (leaked which windows were zero),
+ *   - data-dependent table indexing tx[w-1] (branch/cache side channel).
+ *
+ * The replacement is a fixed bit-wise double-and-add-ALWAYS ladder over
+ * exactly k_len*8 iterations: every iteration performs one doubling and
+ * one addition unconditionally, and the addition result is merged with a
+ * masked constant-time select (all limbs, no branches). The instruction
+ * and memory-access sequence is identical for every scalar value.
+ *
+ * Known residual: crypto_pt_add() keeps an early-out branch when one of
+ * its inputs is the point at infinity. During the first iterations R is
+ * the identity, so the number of leading zero bits of the scalar (at
+ * most 7 per leading zero byte, bounded by the fixed length) still
+ * influences which branch is taken there. Removing that requires a
+ * fully unified addition formula; the window/zero/skip leaks above are
+ * gone entirely. */
 static void crypto_pt_scalar_mult(const crypto_ec_curve_t *c,
                            u64 *RX, u64 *RY, u64 *RZ,
                            const u8 *k_be, int k_len,
                            const u64 *PX, const u64 *PY, const u64 *PZ) {
-    u64 tx[15][EC_LIMBS], ty[15][EC_LIMBS], tz[15][EC_LIMBS];
-    crypto_pt_copy(c, tx[0], ty[0], tz[0], PX, PY, PZ);
-    for (int i = 1; i < 15; i++) {
-        /* tx[i] = (i+1)*P: odd index (i+1 even) via doubling of ((i+1)/2)P,
-         * even index (i+1 odd) via addition of P to (i)P. */
-        if (i & 1)
-            crypto_pt_double(c, tx[i], ty[i], tz[i],
-                      tx[(i + 1) / 2 - 1], ty[(i + 1) / 2 - 1], tz[(i + 1) / 2 - 1]);
-        else
-            crypto_pt_add(c, tx[i], ty[i], tz[i],
-                   tx[i - 1], ty[i - 1], tz[i - 1], PX, PY, PZ);
-    }
-
     int total = k_len * 8;
+
+    u64 BX[EC_LIMBS], BY[EC_LIMBS], BZ[EC_LIMBS];
     crypto_pt_set_inf(c, RX, RY, RZ);
-    int i = 0;
-    while (i < total && !((k_be[i / 8] >> (7 - (i % 8))) & 1)) i++;
-    int first = 1;
-    while (i < total) {
-        int wbits = (total - i) < 4 ? (total - i) : 4;
-        int w = 0;
-        for (int b = 0; b < wbits; b++)
-            w = (w << 1) | ((k_be[(i + b) / 8] >> (7 - ((i + b) % 8))) & 1);
-        if (first) {
-            crypto_pt_copy(c, RX, RY, RZ, tx[w - 1], ty[w - 1], tz[w - 1]);
-            first = 0;
-        } else {
-            for (int b = 0; b < wbits; b++)
-                crypto_pt_double(c, RX, RY, RZ, RX, RY, RZ);
-            if (w)
-                crypto_pt_add(c, RX, RY, RZ, RX, RY, RZ,
-                       tx[w - 1], ty[w - 1], tz[w - 1]);
+
+    for (int i = 0; i < total; i++) {
+        crypto_pt_double(c, RX, RY, RZ, RX, RY, RZ);
+        crypto_pt_add(c, BX, BY, BZ, RX, RY, RZ, PX, PY, PZ);
+        u64 bit = (u64)((k_be[i / 8] >> (7 - (i % 8))) & 1);
+        u64 m = 0u - bit;              /* 0x00..00 or 0xFF..FF */
+        for (int limb = 0; limb < EC_LIMBS; limb++) {
+            RX[limb] = (RX[limb] & ~m) | (BX[limb] & m);
+            RY[limb] = (RY[limb] & ~m) | (BY[limb] & m);
+            RZ[limb] = (RZ[limb] & ~m) | (BZ[limb] & m);
         }
-        i += wbits;
     }
 }
 

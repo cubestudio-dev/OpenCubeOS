@@ -461,6 +461,13 @@ static int verify_cert_sig(const crypto_x509_cert_t *crt, const crypto_x509_cert
         if (crypto_der_read_tag_len(&inner, &tag, &body, &blen) != 0 || tag != 0x02)
             return X509_E_BADSIG;
         u8 r[EC_MAX_SCALAR];
+        /* BUG-0107 FIX (A4-03): r was left UNINITIALISED. Only the right
+         * hlen-rlen bytes were filled by the memcpy below; ecdsa_verify()
+         * consumes the full hlen-byte big-endian scalar, so the leading
+         * bytes were stack garbage whenever the DER INTEGER was shorter
+         * than the hash size (common: leading zero stripped). Verify
+         * used random data -> non-deterministic results. Zero first. */
+        memset(r, 0, sizeof(r));
         int rlen = blen;
         while (rlen > 1 && body[0] == 0) { body++; rlen--; }
         /* P0fix2 BUG-0035 (A4-01): rlen could arrive negative (from the
@@ -472,6 +479,7 @@ static int verify_cert_sig(const crypto_x509_cert_t *crt, const crypto_x509_cert
         if (crypto_der_read_tag_len(&inner, &tag, &body, &blen) != 0 || tag != 0x02)
             return X509_E_BADSIG;
         u8 s[EC_MAX_SCALAR];
+        memset(s, 0, sizeof(s));   /* BUG-0107 FIX (A4-03): see the r[] comment */
         int slen = blen;
         while (slen > 1 && body[0] == 0) { body++; slen--; }
         if (slen <= 0 || slen > hlen) return X509_E_BADSIG;

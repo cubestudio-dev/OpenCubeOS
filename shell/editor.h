@@ -56,4 +56,11 @@ const char *editor_file(void);
  * the user quit without saving. */
 int editor_run(void);
 
+/* BUG-0135 FIX: interactive edit loop in real modal vi style (NORMAL +
+ * INSERT + ':' ex commands).  Runs on the same session state opened by
+ * editor_open().  Returns 0 when the buffer was saved before exiting
+ * (:w / :wq), 1 when the user quit without saving (:q! or :q on a clean
+ * buffer). */
+int editor_run_vi(void);
+
 #endif /* OC_EDITOR_H */

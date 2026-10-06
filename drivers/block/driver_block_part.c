@@ -122,11 +122,26 @@ int driver_block_part_parse_gpt(int dev_idx, driver_block_part_table_t *out) {
     u64 entry_start = gh->driver_block_part_entry_start;
     if (num_entries > PART_MAX_PARTITIONS) num_entries = PART_MAX_PARTITIONS;
     if (entry_size < sizeof(gpt_entry_t)) entry_size = sizeof(gpt_entry_t);
+    /* BUG-0113 FIX: entry_size came straight from the (on-disk) GPT
+     * header with only a lower bound. A huge value (or one that
+     * overflows the u32 sectors_to_read multiply) made the per-entry
+     * pointer entry_buf + i*entry_size run past the 4 KiB stack buffer
+     * -> out-of-bounds stack read / #PF panic. Real GPTs use 128-byte
+     * entries (UEFI spec minimum); refuse absurd sizes and clamp the
+     * entry count so num_entries*entry_size always fits the buffer. */
+    if (entry_size > 1024) return -1;
 
     /* Read partition entries. They usually start at LBA 2 and may span
      * multiple sectors. Read up to 8 sectors (enough for 128 entries). */
     u8 entry_buf[512 * 8];
-    u32 sectors_to_read = (num_entries * entry_size + 511) / 512;
+    u64 need = (u64)num_entries * (u64)entry_size;
+    if (need > sizeof(entry_buf)) {
+        u32 max_fit = (u32)((u64)sizeof(entry_buf) / (u64)entry_size);
+        if (max_fit == 0) return -1;
+        num_entries = max_fit;
+        need = (u64)num_entries * (u64)entry_size;
+    }
+    u32 sectors_to_read = (u32)((need + 511) / 512);
     if (sectors_to_read > 8) sectors_to_read = 8;
     if (driver_block_read_sectors_raw(dev_idx, entry_start, sectors_to_read, entry_buf) != 0) return -1;
 
@@ -221,7 +236,24 @@ int driver_block_part_register_child(const char *parent_name, int parent_idx,
     strcpy(name + len, num);
 
     int existing = driver_block_find_device(name);
-    if (existing >= 0) return existing;
+    if (existing >= 0) {
+        /* BUG-0117 FIX: the old code returned the EXISTING child
+         * untouched, so after abdisk / install laid out a NEW partition
+         * table the "<parent>pN" device still reported the OLD
+         * start_lba/sectors - mkfs then formatted with stale geometry
+         * and overran into the neighbouring partition. Refresh the
+         * geometry in place instead (same-name calls with identical
+         * geometry stay idempotent). */
+        driver_block_device_t *ed = driver_block_get_device(existing);
+        if (!ed || !ed->present) return -1;
+        driver_block_part_child_priv_t *ep =
+            (driver_block_part_child_priv_t *)ed->priv;
+        if (!ep) return -1;
+        ep->parent_idx = parent_idx;
+        ep->start_lba  = start_lba;
+        ed->sectors    = sectors;
+        return existing;
+    }
 
     driver_block_part_child_priv_t *priv =
         (driver_block_part_child_priv_t *)kmalloc(sizeof(driver_block_part_child_priv_t));

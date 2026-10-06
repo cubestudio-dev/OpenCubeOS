@@ -33,7 +33,11 @@
 #include "net_core.h"
 #include "net_ssh.h"
 #include "shell.h"
-#include "net_sshd_rsa_key.h"
+#include "driver_input_keyboard.h"   /* BUG-0132 FIX: ^C cancels blocking accept */
+/* BUG-0075 FIX (A14-24): the embedded universal host key header
+ * (net_sshd_rsa_key.h) was DELETED - see the comment at the
+ * net_sshd_hostkey_ensure() call in net_sshd_main(). The private
+ * exponent must never ship inside a downloadable image again. */
 #include "crypto_curve25519.h"
 #include "crypto_rsa.h"
 #include "crypto_sha512.h"
@@ -77,7 +81,7 @@ static void net_sshd_log(const char *msg);
 static u8 g_hk_n[256];
 static u8 g_hk_d[256];
 static int g_hk_ready = 0;       /* host key loaded/generated */
-static int g_hk_custom = 0;      /* 1 = per-installation key, 0 = embedded fallback */
+static int g_hk_custom = 0;      /* 1 = per-installation key (the embedded fallback was removed with BUG-0075) */
 
 /* authorized public keys (moduli only; e is fixed 65537) */
 static u8 g_auth_n[8][256];
@@ -1643,27 +1647,44 @@ static void net_sshd_write_u32(u8 *buf, int *p, u32 v) {
 
 int g_tcp_data_trace = 1;
 
+/* BUG-0132 FIX: cancel-check callback polled by net_accept() while sshd
+ * blocks waiting for a connection. It drains the keyboard queue on every
+ * poll iteration so the console stays responsive; Ctrl+C stops the wait
+ * and returns control to the shell instead of freezing it for the full
+ * accept timeout ("^C byte never consumed" from the audit run). */
+static int sshd_accept_cancel_check(void) {
+    int cancel = 0;
+    while (driver_input_keyboard_has_key()) {
+        int k = driver_input_keyboard_getch();
+        if (k == OC_KEY_CTRL_C) cancel = 1;
+        /* other keys are drained and dropped: no shell line editor is
+         * active while sshd owns the console */
+    }
+    return cancel;
+}
+
 int net_sshd_main(u16 port, const char *user, const char *pass) {
     net_sshd_ctx_t *ctx = &g_ssd;
     memset(ctx, 0, sizeof(*ctx));
     strcpy(ctx->auth_user, user);
     strcpy(ctx->auth_pass, pass);
 
-    /* BUG-0075: per-installation host key (load or generate) + authorized
-     * user keys. Falls back to the embedded key ONLY if /etc is
-     * unavailable, and says so in the log. */
+    /* BUG-0075: per-installation host key (load or generate). The old
+     * embedded universal key is GONE from the image (net_sshd_rsa_key.h
+     * deleted): a key baked into a downloadable ISO let anyone with the
+     * image authenticate to EVERY OpenCubeOS sshd, and doubled as the
+     * sshd's own host key. If the per-installation key cannot be
+     * produced, sshd now refuses to start (fail closed) instead of
+     * silently reusing a publicly-known private key. */
     if (net_sshd_hostkey_ensure() != 0) {
-        memcpy(g_hk_n, net_sshd_rsa_n, 256);
-        memcpy(g_hk_d, net_sshd_rsa_d, 256);
-        g_hk_ready = 1;
-        g_hk_custom = 0;
-        net_sshd_log("WARNING: using the EMBEDDED host key (no /etc) - "
-                     "every copy of this image has the same key");
+        net_sshd_log("ERROR: cannot obtain a per-installation host key - "
+                     "refusing to start sshd (embedded universal key removed)");
+        return -1;
     }
     net_sshd_authkeys_reload();
     {
         char kb[96];
-        strcpy(kb, g_hk_custom ? "host key: per-installation (" : "host key: EMBEDDED fallback (");
+        strcpy(kb, "host key: per-installation (");
         char kn[10];
         u64_to_str((u64)g_auth_count, kn);
         strcat(kb, kn);
@@ -1688,7 +1709,15 @@ int net_sshd_main(u16 port, const char *user, const char *pass) {
 
     u32 cip = 0;
     u16 cport = 0;
+    /* BUG-0132 FIX: register the ^C cancel check for the blocking wait. */
+    net_accept_set_cancel_fn(sshd_accept_cancel_check);
     int fd = net_accept(ls, &cip, &cport);
+    net_accept_set_cancel_fn((net_accept_cancel_fn)0);
+    if (fd == -2) {
+        net_sshd_log("accept cancelled (Ctrl+C), returning to shell");
+        net_close(ls);
+        return 1;
+    }
     if (fd < 0) { net_sshd_log("accept timeout"); return 1; }
     ctx->sock = fd;
     strcpy(b, "connection from ");

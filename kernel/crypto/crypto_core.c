@@ -727,12 +727,28 @@ void crypto_dh_modexp_n(const u8 *base, const u8 *exp, const u8 *mod, u8 *result
         crypto_bn_sub(b, mod, len);
     }
 
-    /* Square-and-multiply: scan exp from MSB */
+    u8 *mul_r = (u8 *)(uintptr_t)mem_pmm_alloc_frame();  /* len bytes (BUG-0108) */
+    if (!mul_r) {
+        mem_pmm_free_frame((u64)(uintptr_t)r);
+        mem_pmm_free_frame((u64)(uintptr_t)b);
+        mem_pmm_free_frame((u64)(uintptr_t)product);
+        mem_pmm_free_frame((u64)(uintptr_t)prod2);
+        return;
+    }
+
+    /* Square-and-MULTIPLY-ALWAYS (BUG-0108 FIX, A4-04): the old loop
+     * multiplied only when the exponent bit was set, so the per-bit
+     * timing of a 1024/2048-bit modexp directly leaked the (private)
+     * exponent. Now the multiply runs on EVERY bit and its result is
+     * merged through a constant-time masked select, so the executed
+     * instruction sequence is identical for every key. */
     for (int i = 0; i < len; i++) {
         for (int bit = 7; bit >= 0; bit--) {
-            /* r = r^2 mod mod */
+            u8 m = (u8)(0u - ((exp[i] >> bit) & 1));   /* 0x00 / 0xFF */
+
+            /* r = r^2 mod mod (always) */
             memset(product, 0, 2 * len);
-            /* Schoolbook multiply: r * r → 2*len-byte product */
+            /* Schoolbook multiply: r * r -> 2*len-byte product */
             for (int j = len - 1; j >= 0; j--) {
                 for (int k = len - 1; k >= 0; k--) {
                     int prod_idx = j + k + 1;
@@ -747,29 +763,32 @@ void crypto_dh_modexp_n(const u8 *base, const u8 *exp, const u8 *mod, u8 *result
             }
             crypto_bn_mod(r, product, mod, len);
 
-            /* If exp bit is set: r = r * b mod mod */
-            if ((exp[i] >> bit) & 1) {
-                memset(prod2, 0, 2 * len);
-                for (int j = len - 1; j >= 0; j--) {
-                    for (int k = len - 1; k >= 0; k--) {
-                        int prod_idx = j + k + 1;
-                        u16 prod = (u16)r[j] * (u16)b[k];
-                        int carry = prod;
-                        for (int l = prod_idx; l >= 0 && carry; l--) {
-                            int sum = prod2[l] + (carry & 0xFF);
-                            prod2[l] = (u8)sum;
-                            carry = (carry >> 8) + (sum >> 8);
-                        }
+            /* tmp = r * b mod mod (always computed, then ct-selected) */
+            memset(prod2, 0, 2 * len);
+            for (int j = len - 1; j >= 0; j--) {
+                for (int k = len - 1; k >= 0; k--) {
+                    int prod_idx = j + k + 1;
+                    u16 prod = (u16)r[j] * (u16)b[k];
+                    int carry = prod;
+                    for (int l = prod_idx; l >= 0 && carry; l--) {
+                        int sum = prod2[l] + (carry & 0xFF);
+                        prod2[l] = (u8)sum;
+                        carry = (carry >> 8) + (sum >> 8);
                     }
                 }
-                crypto_bn_mod(r, prod2, mod, len);
             }
+            crypto_bn_mod(mul_r, prod2, mod, len);
+
+            /* r = m ? mul_r : r  (no branch) */
+            for (int t = 0; t < len; t++)
+                r[t] = (u8)((r[t] & (u8)~m) | (mul_r[t] & m));
         }
     }
 
     memcpy(result, r, len);
     mem_pmm_free_frame((u64)(uintptr_t)r);
     mem_pmm_free_frame((u64)(uintptr_t)b);
+    mem_pmm_free_frame((u64)(uintptr_t)mul_r);
     mem_pmm_free_frame((u64)(uintptr_t)product);
     mem_pmm_free_frame((u64)(uintptr_t)prod2);
 }

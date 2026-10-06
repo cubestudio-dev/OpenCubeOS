@@ -724,7 +724,17 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
     for (int i = 0; i < MAX_USER_PROCS; i++) {
         if (!g_procs[i].alive) { slot = i; break; }
     }
-    if (slot < 0) return -1;
+    if (slot < 0) {
+        /* BUG-0134 FIX: say WHY the creation failed instead of a bare -1
+         * ("failed to create process" gave the operator no clue that the
+         * concurrency cap had been hit, or that 16 is the limit). */
+        screen_console_puts("user: process table full (max ");
+        char nb[12];
+        u64_to_str((u64)MAX_USER_PROCS, nb);
+        screen_console_puts(nb);
+        screen_console_puts(" processes)\n");
+        return -1;
+    }
 
     user_proc_t *proc = &g_procs[slot];
     memset(proc, 0, sizeof(*proc));
@@ -1031,6 +1041,19 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         if (t) t->rsp0 = (u64)(uintptr_t)t->stack_base + t->stack_size;
     }
     return proc->pid;
+}
+
+/* BUG-0134 FIX: expose the kernel task id (tid) behind a user process.
+ * The `run` command used to print only the process id (pid), while `kill`
+ * consumes a tid — two different numbering spaces, so the audit noted
+ * "run 输出 pid 与 kill 需要的 tid 对应关系不明确". The shell now prints
+ * both, looked up through this helper. Returns the tid, or -1 if no
+ * alive process owns that pid. */
+int user_process_get_tid(pid_t pid) {
+    for (int i = 0; i < MAX_USER_PROCS; i++) {
+        if (g_procs[i].alive && g_procs[i].pid == pid) return g_procs[i].tid;
+    }
+    return -1;
 }
 
 int user_process_kill(pid_t pid) {

@@ -108,11 +108,16 @@ int driver_block_read_sectors(int dev_idx, u64 lba, u32 count, void *buf) {
     return 0;
 }
 
-/* Cached write: update cache, mark dirty (write-back). */
+/* Cached write: update cache, mark dirty (write-back).
+ * BUG-0116 FIX: this path used to return 0 unconditionally, so a device
+ * that failed its (eviction or flush) write-back silently dropped data
+ * while every caller believed the write succeeded. Errors from the
+ * cache layer (including the write-through fallback) now propagate. */
 int driver_block_write_sectors(int dev_idx, u64 lba, u32 count, const void *buf) {
     const u8 *src = (const u8 *)buf;
     for (u32 i = 0; i < count; i++) {
-        driver_block_cache_write(dev_idx, lba + i, src + (u64)i * BLK_SECTOR_SIZE);
+        if (driver_block_cache_write(dev_idx, lba + i, src + (u64)i * BLK_SECTOR_SIZE) != 0)
+            return -1;
     }
     return 0;
 }
