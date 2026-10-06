@@ -404,8 +404,16 @@ static int driver_usb_ohci_bulk(driver_usb_host_t *h, driver_usb_dev_t *d, u8 ep
             memcpy(o->bulk_buf + done_bytes,
                       (const void *)((uintptr_t)buf + done_bytes),
                       chunk);
+        /* BUG-0051 FIX: TD_R (buffer rounding) marks a TD whose transfer
+         * may legally complete with less data than buffered - that is a
+         * property of IN endpoints receiving a short packet, most
+         * importantly on the FINAL TD. The old condition attached TD_R
+         * to every TD EXCEPT the last one, so a bulk-IN short packet
+         * ended the queue with DataUnderrun (treated as EIO) and the
+         * partially-received data was discarded. Follow the control
+         * path above: round on all IN TDs. */
         tds[i].word0 = TD_CC_NOTACC | dp | (tog ? TD_T1 : TD_T0) |
-                       (chunk - 1) | (i + 1 < ntd ? TD_R : 0);
+                       (chunk - 1) | (dp == TD_DP_IN ? TD_R : 0);
         tds[i].cur = (u32)(o->bulk_buf_phys + done_bytes);
         tds[i].next = (i + 1 < ntd)
             ? (u32)(o->bulk_td_phys + (u64)(i + 1) * sizeof(driver_usb_ohci_td_t))
@@ -703,6 +711,15 @@ static int driver_usb_ohci_probe_one(u8 bus, u8 dev, u8 func) {
     driver_usb_ohci_ed_init(o, o->bulk_ed, bulk_ed_p, 0);
     driver_usb_ohci_ed_init(o, o->int_ed, int_ed_p, 0);
 
+    /* BUG-0050 FIX: the interrupt ED was initialised but never linked
+     * into the HCCA periodic schedule (int_table stayed all zero), so
+     * the HC never fetched it and OHCI HID input had no data path at
+     * all. Publish the interrupt ED in every frame slot (1 ms polling,
+     * matching how control/bulk are scheduled) so the periodic list
+     * actually reaches it. */
+    for (int i = 0; i < 32; i++)
+        o->hcca->int_table[i] = (u32)o->int_ed_phys;
+
     /* ports */
     u32 a = driver_usb_ohci_rd(o, OHCI_RHDESC_A);
     o->n_ports = (u8)(a & 0xff);
@@ -726,7 +743,14 @@ static int driver_usb_ohci_probe_one(u8 bus, u8 dev, u8 func) {
                             OHCI_INT_MASTER);
     /* power the ports + start operational */
     u32 rh = driver_usb_ohci_rd(o, OHCI_RHDESC_A);
-    if (rh & (1u << 12)) {         /* NPS (no power switching) off */
+    /* BUG-0052 FIX: RHDESC_A bit 12 is NPS (No Power Switching). NPS=1
+     * means the ports are ALWAYS powered (nothing to do); NPS=0 means
+     * power switching is implemented and the root ports start OFF
+     * until the software sets global/per-port power. The old code read
+     * the bit inverted, so on real hardware that needed the power-on
+     * (NPS=0) the SetGlobalPower write never happened and every root
+     * port stayed dead forever. */
+    if (!(rh & (1u << 12))) {      /* NPS=0: power switching present */
         driver_usb_ohci_wr(o, OHCI_RHSTATUS, (1u << 16));   /* set global power */
     }
     for (volatile int t = 0; t < 50000; t++) { }

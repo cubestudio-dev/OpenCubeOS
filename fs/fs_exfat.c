@@ -121,6 +121,11 @@ typedef struct {
     u32  fat_size_sectors;
     u32  mem_heap_start_lba;
     u32  cluster_count;
+    /* BUG-0059: allocation bitmap (0x81 entry) state, kept in cache and
+     * synced to the volume on alloc/free/unmount. */
+    u32  bitmap_cluster;         /* first cluster of the allocation bitmap */
+    u64  bitmap_bytes;           /* bitmap size in bytes */
+    u8   *bitmap_cache;          /* NULL = no bitmap found on the volume */
     u32  root_cluster;
     u32  last_alloc;
 } fs_exfat_ctx_t;
@@ -210,6 +215,96 @@ static int fs_exfat_fat_set(fs_exfat_ctx_t *ctx, u32 cluster, u32 value) {
     return rc;
 }
 
+static u64 fs_exfat_cluster_sector(fs_exfat_ctx_t *ctx, u32 cluster);
+
+/* BUG-0059: allocation bitmap maintenance. The exFAT spec keeps the
+ * free/used state of every cluster in the allocation bitmap (the FAT
+ * only records chains); skipping it means the on-disk bitmap drifts
+ * out of sync with what the driver actually allocated, so any other
+ * implementation (or fsck) reads the volume wrong. */
+static inline int fs_exfat_bitmap_get(const fs_exfat_ctx_t *ctx, u32 cluster) {
+    if (!ctx->bitmap_cache || cluster < 2 || cluster >= ctx->cluster_count + 2)
+        return -1;
+    u64 bit = (u64)(cluster - 2);
+    return (ctx->bitmap_cache[bit >> 3] >> (bit & 7)) & 1;
+}
+static void fs_exfat_bitmap_set(fs_exfat_ctx_t *ctx, u32 cluster, int val) {
+    if (!ctx->bitmap_cache || cluster < 2 || cluster >= ctx->cluster_count + 2)
+        return;
+    u64 bit = (u64)(cluster - 2);
+    u8 mask = (u8)(1u << (bit & 7));
+    if (val) ctx->bitmap_cache[bit >> 3] |= mask;
+    else     ctx->bitmap_cache[bit >> 3] &= (u8)~mask;
+}
+static int fs_exfat_bitmap_writeback(fs_exfat_ctx_t *ctx) {
+    if (!ctx->bitmap_cache) return 0;
+    u32 spc = ctx->sectors_per_cluster;
+    u64 sectors = (ctx->bitmap_bytes + ctx->sector_size - 1) / ctx->sector_size;
+    for (u64 done = 0; done < sectors; ) {
+        u32 chunk = (sectors - done > spc) ? spc : (u32)(sectors - done);
+        if (fs_exfat_write_sectors(ctx,
+                fs_exfat_cluster_sector(ctx, ctx->bitmap_cluster) + done,
+                chunk, ctx->bitmap_cache + done * ctx->sector_size) != 0)
+            return -1;
+        done += chunk;
+    }
+    return 0;
+}
+static void fs_exfat_bitmap_load(fs_exfat_ctx_t *ctx) {
+    /* walk the root directory looking for the first allocation-bitmap
+     * entry (type 0x81) */
+    ctx->bitmap_cluster = 0;
+    ctx->bitmap_bytes = 0;
+    u32 oc_hops = 0;
+    u32 cluster = ctx->root_cluster;
+    while (cluster >= 2 && cluster != EXFAT_EOC &&
+           oc_hops++ < ctx->cluster_count + 2u) {
+        u64 sector = fs_exfat_cluster_sector(ctx, cluster);
+        for (u32 s = 0; s < ctx->sectors_per_cluster; s++) {
+            u8 sec[4096];
+            if (ctx->sector_size > sizeof(sec) ||
+                fs_exfat_read_sectors(ctx, sector + s, 1, sec) != 0) return;
+            for (u32 off = 0; off + 32 <= ctx->sector_size; off += 32) {
+                if (sec[off] == 0x00) return;          /* end of directory */
+                if (sec[off] == EXFAT_TYPE_BITMAP) {
+                    u32 fc = (u32)sec[off+20] | ((u32)sec[off+21] << 8) |
+                             ((u32)sec[off+22] << 16) | ((u32)sec[off+23] << 24);
+                    u64 len = (u64)sec[off+24] | ((u64)sec[off+25] << 8) |
+                              ((u64)sec[off+26] << 16) | ((u64)sec[off+27] << 24);
+                    if (fc < 2 || len == 0 ||
+                        len < (u64)((ctx->cluster_count + 7) / 8))
+                        return;                        /* bogus entry */
+                    ctx->bitmap_cluster = fc;
+                    ctx->bitmap_bytes = len;
+                    goto found;
+                }
+            }
+        }
+        cluster = fs_exfat_fat_get(ctx, cluster);
+    }
+    return;
+found:
+    ctx->bitmap_cache = (u8 *)kmalloc((u32)ctx->bitmap_bytes);
+    if (!ctx->bitmap_cache) { ctx->bitmap_cluster = 0; return; }
+    u64 sectors = (ctx->bitmap_bytes + ctx->sector_size - 1) / ctx->sector_size;
+    for (u64 done = 0; done < sectors; ) {
+        u32 chunk = (sectors - done > ctx->sectors_per_cluster)
+                        ? ctx->sectors_per_cluster : (u32)(sectors - done);
+        if (fs_exfat_read_sectors(ctx,
+                fs_exfat_cluster_sector(ctx, ctx->bitmap_cluster) + done,
+                chunk, ctx->bitmap_cache + done * ctx->sector_size) != 0) {
+            kfree(ctx->bitmap_cache);
+            ctx->bitmap_cache = NULL;
+            ctx->bitmap_cluster = 0;
+            return;
+        }
+        done += chunk;
+    }
+    screen_console_puts("exfat: allocation bitmap loaded (");
+    { char n[16]; u64_to_str((u64)ctx->cluster_count, n);
+      screen_console_puts(n); screen_console_puts(" clusters)\n"); }
+}
+
 static u32 fs_exfat_alloc_cluster(fs_exfat_ctx_t *ctx) {
     u32 start = ctx->last_alloc ? ctx->last_alloc + 1 : 2;
     if (start < 2 || start >= ctx->cluster_count + 2) start = 2;
@@ -217,8 +312,12 @@ static u32 fs_exfat_alloc_cluster(fs_exfat_ctx_t *ctx) {
         u32 c = start + i;
         if (c >= ctx->cluster_count + 2) c -= ctx->cluster_count;
         if (c < 2) c = 2;
-        if (fs_exfat_fat_get(ctx, c) == EXFAT_FREE_CLUSTER) {
+        if (fs_exfat_fat_get(ctx, c) == EXFAT_FREE_CLUSTER &&
+            !fs_exfat_bitmap_get(ctx, c)) {
             fs_exfat_fat_set(ctx, c, EXFAT_EOC);
+            /* BUG-0059: keep the on-disk bitmap in sync with the FAT. */
+            fs_exfat_bitmap_set(ctx, c, 1);
+            fs_exfat_bitmap_writeback(ctx);
             ctx->last_alloc = c;
             return c;
         }
@@ -231,8 +330,12 @@ static void fs_exfat_free_chain(fs_exfat_ctx_t *ctx, u32 first) {
     while (cur >= 2 && cur != EXFAT_EOC && cur < EXFAT_BAD_CLUSTER) {
         u32 next = fs_exfat_fat_get(ctx, cur);
         fs_exfat_fat_set(ctx, cur, EXFAT_FREE_CLUSTER);
+        /* BUG-0059: free the matching bitmap bit as well. */
+        fs_exfat_bitmap_set(ctx, cur, 0);
         cur = next;
     }
+    /* one writeback for the whole freed chain */
+    fs_exfat_bitmap_writeback(ctx);
 }
 
 static u64 fs_exfat_cluster_sector(fs_exfat_ctx_t *ctx, u32 cluster) {
@@ -316,7 +419,8 @@ static int fs_exfat_find_in_dir(fs_exfat_ctx_t *ctx, u32 dir_cluster,
     if (!cbuf) return -1;
     u32 cluster = dir_cluster;
     int result = 0;
-    while (cluster >= 2 && cluster != EXFAT_EOC) {
+    u32 oc_hops = 0;   /* BUG-0058: bound the walk (corrupt chain = cycle) */
+    while (cluster >= 2 && cluster != EXFAT_EOC && oc_hops++ < ctx->cluster_count + 2u) {
         u64 sector = fs_exfat_cluster_sector(ctx, cluster);
         if (fs_exfat_read_sectors(ctx, sector, ctx->sectors_per_cluster, cbuf) != 0) {
             kfree(cbuf);
@@ -403,7 +507,8 @@ static int fs_exfat_add_entry(fs_exfat_ctx_t *ctx, u32 dir_cluster,
     if (!cbuf) return -1;
     u32 cluster = dir_cluster;
     u32 prev_cluster = 0;
-    while (cluster >= 2 && cluster != EXFAT_EOC) {
+    u32 oc_hops = 0;   /* BUG-0058: bound the walk (corrupt chain = cycle) */
+    while (cluster >= 2 && cluster != EXFAT_EOC && oc_hops++ < ctx->cluster_count + 2u) {
         u64 sector = fs_exfat_cluster_sector(ctx, cluster);
         if (fs_exfat_read_sectors(ctx, sector, ctx->sectors_per_cluster, cbuf) != 0) {
             kfree(cbuf);
@@ -761,7 +866,8 @@ static int fs_exfat_rmdir(fs_vfs_node_t *parent, const char *name) {
     if (!cbuf) return -5;
     u32 cluster = dir_cluster;
     int is_empty = 1;
-    while (cluster >= 2 && cluster != EXFAT_EOC) {
+    u32 oc_hops = 0;   /* BUG-0058: bound the walk (corrupt chain = cycle) */
+    while (cluster >= 2 && cluster != EXFAT_EOC && oc_hops++ < ctx->cluster_count + 2u) {
         u64 sector = fs_exfat_cluster_sector(ctx, cluster);
         if (fs_exfat_read_sectors(ctx, sector, ctx->sectors_per_cluster, cbuf) != 0) {
             kfree(cbuf);
@@ -798,7 +904,8 @@ static int fs_exfat_readdir(fs_vfs_node_t *dir, int index, fs_vfs_dirent_t *entr
     u32 cluster = ino->first_cluster;
     int cur_idx = 0;
     int result = -6;
-    while (cluster >= 2 && cluster != EXFAT_EOC) {
+    u32 oc_hops = 0;   /* BUG-0058: bound the walk (corrupt chain = cycle) */
+    while (cluster >= 2 && cluster != EXFAT_EOC && oc_hops++ < ctx->cluster_count + 2u) {
         u64 sector = fs_exfat_cluster_sector(ctx, cluster);
         if (fs_exfat_read_sectors(ctx, sector, ctx->sectors_per_cluster, cbuf) != 0) {
             kfree(cbuf);
@@ -998,6 +1105,7 @@ static fs_vfs_node_t *fs_exfat_fs_mount(const char *device) {
     ctx->cluster_count = bpb->cluster_count;
     ctx->root_cluster = bpb->first_cluster_of_root_directory;
     ctx->last_alloc = 0;
+    fs_exfat_bitmap_load(ctx);
 
     fs_exfat_inode_t *root_ino = (fs_exfat_inode_t *)kmalloc(sizeof(fs_exfat_inode_t));
     if (!root_ino) { kfree(ctx); return NULL; }
@@ -1019,10 +1127,15 @@ static fs_vfs_node_t *fs_exfat_fs_mount(const char *device) {
 }
 
 static int fs_exfat_fs_unmount(fs_vfs_node_t *root) {
+    /* BUG-0059: flush the allocation bitmap before the context dies. */
     if (!root) return -1;
     fs_exfat_inode_t *ino = (fs_exfat_inode_t *)root->private;
     if (ino) {
-        if (ino->ctx) kfree(ino->ctx);
+        if (ino->ctx) {
+            fs_exfat_bitmap_writeback(ino->ctx);
+            if (ino->ctx->bitmap_cache) kfree(ino->ctx->bitmap_cache);
+            kfree(ino->ctx);
+        }
         kfree(ino);
     }
     kfree(root);

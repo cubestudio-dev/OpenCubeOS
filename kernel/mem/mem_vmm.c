@@ -395,15 +395,44 @@ void mem_vmm_get_fault_stats(mem_vmm_fault_stats_t *out) {
 /* Check if a virtual address is near the faulting stack pointer (stack growth).
  * P0-10 FIX: takes the faulting RSP (from the exception frame) instead of
  * reading the current RSP, which during a #PF points at the kernel exception
- * stack, not the user/kernel stack that actually faulted. */
+ * stack, not the user/kernel stack that actually faulted.
+ * BUG-0044 (b) FIX: automatic growth is also bounded - the region never
+ * extends below VMM_USER_STACK_TOP - VMM_STACK_LIMIT_BYTES, so a runaway
+ * program cannot demand unbounded physical pages by walking RSP down. */
+#define VMM_USER_STACK_TOP      0x40000000ULL   /* matches core_usermode.h */
+#define VMM_STACK_LIMIT_BYTES   (8ULL * 1024ULL * 1024ULL)  /* 8 MiB cap */
 static int in_stack_region(u64 vaddr, u64 faulting_rsp) {
     /* Allow growth within 64 KiB below the faulting RSP. */
-    return vaddr < faulting_rsp && vaddr >= (faulting_rsp - 0x10000);
+    if (vaddr >= faulting_rsp || vaddr < (faulting_rsp - 0x10000)) return 0;
+    /* BUG-0044 (b): hard floor - below this the stack never grows. */
+    if (vaddr < VMM_USER_STACK_TOP - VMM_STACK_LIMIT_BYTES) return 0;
+    return 1;
 }
 
 int mem_vmm_handle_page_fault(u64 vaddr, u64 error_code, u64 rip, u64 faulting_rsp) {
-    (void)error_code;
+    /* BUG-0044 (A1-3) FIX: respect the CPU's own fault classification
+     * (error_code was previously discarded entirely):
+     *   bit0 P    : 0 = not-present, 1 = protection violation
+     *   bit1 W/R  : 0 = read, 1 = write
+     *   bit2 U/S  : 0 = kernel mode, 1 = user mode
+     *   bit4 I/D  : 1 = instruction fetch
+     * The four sub-defects fixed here:
+     *  (a) A protection violation (P=1) must NEVER take the stack-growth
+     *      path: the page is already mapped, so re-mapping it with a fresh
+     *      zero page silently discarded the old page's data AND leaked its
+     *      physical frame (the old unmap path was bypassed). Now rejected.
+     *  (b) Stack growth is bounded (see in_stack_region floor).
+     *  (c) Ring is classified by error_code.U/S (what the CPU itself
+     *      decided), not by an address-range guess on RIP which could not
+     *      distinguish kernel RIPs (this kernel is linked below 4 GiB).
+     *  (d) A not-present fault raised in kernel mode (U/S=0) on a
+     *      user-space address means the kernel dereferenced a bogus user
+     *      pointer (e.g. a hostile buffer address). It must not be handed
+     *      a fresh zero page (that swallowed EFAULT and let a corrupted
+     *      "successful" copy return); the fault is reported instead. */
     g_fault_stats.total_faults++;
+    (void)rip;  /* kept in the signature for L1 handlers; ring is now
+                 * taken from error_code.U/S (BUG-0044 (c)) */
 
     /* Try L1 fault handlers first. */
     for (int i = 0; i < g_fault_handler_count; i++) {
@@ -421,8 +450,29 @@ int mem_vmm_handle_page_fault(u64 vaddr, u64 error_code, u64 rip, u64 faulting_r
      * physical pages (heap.c allocates via mem_pmm_alloc_frame), not the
      * [0xC0000000, 0xC0400000) virtual region. This was dead code. */
 
-    /* Stack growth: if the fault is just below the faulting RSP, grow it. */
-    if (in_stack_region(vaddr, faulting_rsp)) {
+    /* BUG-0044 (a): protection violation = page already present. There is
+     * nothing to "grow": re-mapping would destroy data and leak a frame. */
+    if (error_code & 0x1) {
+        g_fault_stats.illegal_faults++;
+        return 0;  /* let the exception dispatcher print + halt */
+    }
+
+    /* BUG-0044 (c)/(d): the CPU's own kernel/user classification. */
+    int user_fault = (int)(error_code & 0x4);
+
+    /* BUG-0044 (d): kernel-mode not-present fault on a user-space address.
+     * The kernel was running on the user CR3 and dereferenced a bad user
+     * pointer - report the fault instead of fabricating a zero page. */
+    if (!user_fault && vaddr < 0x0000800000000000ULL) {
+        g_fault_stats.illegal_faults++;
+        return 0;
+    }
+
+    /* Stack growth: if the fault is just below the faulting RSP, grow it
+     * (bounded by in_stack_region's floor, BUG-0044 (b)). Only user-mode
+     * faults reach here now, so the mapping always gets USER rights
+     * (BUG-0044 (c): no more kernel-RIP address guessing). */
+    if (user_fault && in_stack_region(vaddr, faulting_rsp)) {
         u64 page = mem_pmm_alloc_frame();
         if (page != 0) {
             /* BUG-030 FIX: Use USER flags (not KERNEL) for stack growth.
@@ -433,10 +483,7 @@ int mem_vmm_handle_page_fault(u64 vaddr, u64 error_code, u64 rip, u64 faulting_r
              * Now we check if the fault came from ring-3 (user mode)
              * and use USER flags accordingly. */
             u64 flags = VMM_FLAG_PRESENT | VMM_FLAG_WRITE;
-            /* Check if the faulting RIP is in user space (ring-3). */
-            if (rip < 0x0000800000000000ULL) {
-                flags |= VMM_FLAG_USER;  /* user-mode fault: map user-accessible */
-            }
+            flags |= VMM_FLAG_USER;  /* user-mode fault: map user-accessible */
             if (mem_vmm_map_page(mem_vmm_current_as(), vaddr & ~0xFFF, page,
                              flags) == 0) {
                 g_fault_stats.legal_faults++;

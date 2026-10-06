@@ -179,11 +179,36 @@ static int driver_usb_msc_bot_to(driver_usb_msc_dev_t *m, const u8 *cb, u8 cb_le
               ((u32)csw[3] << 24);
     u32 rtag = (u32)csw[4] | ((u32)csw[5] << 8) | ((u32)csw[6] << 16) |
                ((u32)csw[7] << 24);
+    u32 res = (u32)csw[8] | ((u32)csw[9] << 8) | ((u32)csw[10] << 16) |
+              ((u32)csw[11] << 24);
     u8 status = csw[12];
     m->busy = 0;
     if (sig != MSC_CSW_SIG || rtag != tag) {
         screen_console_puts("msc: CSW bad signature or tag\n");
         return -1;
+    }
+    /* BUG-0053 FIX: validate dCBWDataResidue. The data phase used to
+     * treat a short IN packet as a clean early exit, and the CSW
+     * residue field was never read - so a device (or an attacker) that
+     * delivered less data than the command asked for still reported
+     * CSW status PASS and the caller happily used a partially-filled
+     * buffer (silent data corruption on reads). Now: on a short IN
+     * transfer the missing bytes must equal the CSW residue, and any
+     * shortfall on a read is an error, never a success. */
+    if (data_len) {
+        u32 expected = data_len - done;   /* OUT: done == data_len -> 0 */
+        if (res != expected || done < data_len) {
+            char l[96]; char n[12]; char n2[12];
+            strcpy(l, "msc: short data phase (got ");
+            u64_to_str(done, n); strcat(l, n);
+            strcat(l, " of ");
+            u64_to_str(data_len, n2); strcat(l, n2);
+            strcat(l, ", residue ");
+            u64_to_str(res, n); strcat(l, n);
+            strcat(l, ")\n");
+            screen_console_puts(l);
+            return -1;
+        }
     }
     if (status != 0) {
         /* command failed: fetch sense to clear the condition.  busy
@@ -377,7 +402,13 @@ static void driver_usb_msc_register_blk(driver_usb_msc_dev_t *m) {
     bd.name[4] = 0;
     bd.type = BLK_TYPE_USB;
     bd.sectors = m->sectors;
-    bd.sector_size = 512;
+    /* BUG-0054 FIX: report the device's real block size from
+     * READ_CAPACITY instead of a hardcoded 512. The old line decoupled
+     * the block layer from the BOT/SCSI layer (which already uses
+     * m->block_size everywhere), so a device with 2048/4096-byte
+     * blocks got its LBAs and capacity interpreted at the wrong
+     * granularity - reads/writes landed on the wrong offsets. */
+    bd.sector_size = m->block_size;
     bd.present = 1;
     bd.priv = m;
     int idx = driver_block_register(&bd, &driver_usb_msc_blk_ops);

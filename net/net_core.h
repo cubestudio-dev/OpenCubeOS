@@ -89,6 +89,7 @@ int net_icmp_ping(u32 dst_ip, int timeout_ms);
 /* ---- UDP ---- */
 typedef void (*net_udp_handler_fn)(u32 src_ip, u16 src_port, const void *data, int len);
 int net_udp_bind(u16 port, net_udp_handler_fn handler);
+int net_udp_unbind(u16 port);   /* BUG-0070 */
 int net_udp_send(u32 dst_ip, u16 dst_port, u16 src_port, const void *data, int len);
 
 /* ---- TCP ---- */
@@ -214,6 +215,8 @@ typedef struct {
     u64 net_netfilter_drop;        /* WP-09 mainstream: netfilter drop counter */
     u64 net_netfilter_reject;      /* netfilter reject counter */
     u64 net_netfilter_forward;     /* packets seen on the FORWARD chain */
+    u64 net_rx_bad_checksum;       /* BUG-0072: RX datagrams dropped on a
+                                      failing checksum */
 } net_stats_t;
 
 void net_get_stats(net_stats_t *out);

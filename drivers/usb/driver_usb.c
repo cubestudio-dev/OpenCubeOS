@@ -465,10 +465,16 @@ static int driver_usb_enum_one(driver_usb_host_t *h, int parent, u8 driver_usb_h
         d->present = 0;
         return 0;
     }
-    if (buf[7] >= 8 && buf[7] <= 64) d->mps0 = buf[7];
-    else if (buf[7] == 9 && speed == USB_SPEED_SS)
+    /* BUG-0048 FIX: check the SuperSpeed encoding FIRST. bMaxPacketSize0
+     * == 9 is legal ONLY for SuperSpeed devices and means 512 bytes
+     * (xHCI spec / USB 3.1 9.6.6); the old order matched "9" inside the
+     * 8..64 branch, set mps0=9 (an illegal Max Packet Size for EP0) and
+     * left the SS branch unreachable forever, so SS enumeration failed
+     * in the XHCI backend when it programmed EP0 with MPS 9. */
+    if (speed == USB_SPEED_SS && buf[7] == 9)
         d->mps0 = 512;   /* SuperSpeed encodes the fixed 512-byte EP0
                             as "9" in bMaxPacketSize0 */
+    else if (buf[7] >= 8 && buf[7] <= 64) d->mps0 = buf[7];
 
     /* SET_ADDRESS */
     u8 new_addr = driver_usb_free_address();

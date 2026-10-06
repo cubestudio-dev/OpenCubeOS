@@ -129,6 +129,12 @@ extern const u64 userprog_mprotect_test_size;
 extern const u8 userprog_p3_test[];
 extern const u64 userprog_p3_test_size;
 
+/* BUG-0042 repro: per-task FPU/SSE state check. */
+extern const u8 userprog_sse_test[];
+extern const u64 userprog_sse_test_size;
+extern const u8 userprog_pf_test[];
+extern const u64 userprog_pf_test_size;
+
 /* Direct serial output via I/O port 0x3F8 (COM1). */
 static inline void outb(u16 port, u8 v) {
     __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(port));
@@ -1467,6 +1473,168 @@ static int shell_cmd_heaptest(const char *args) {
     return 0;
 }
 
+/* BUG-0043 repro: PMM bitmap test-then-set race between thread context
+ * and timer-IRQ context. A periodic soft-timer callback (the same
+ * context the mem_heap grow path runs in: kmalloc -> add_pool ->
+ * mem_pmm_alloc_contig) allocates contiguous runs and HOLDS them across
+ * ticks, while this command allocates+frees runs of its own from the
+ * shell thread. Every range returned to the shell thread is checked
+ * against a shadow map of the frames the IRQ context currently holds;
+ * an overlap proves the same physical frame was handed out twice -
+ * exactly the "one frame used as page table and heap pool at the same
+ * time" corruption described for BUG-0043. */
+#define PMMRACE_PAGES (131072)                     /* 512 MiB / 4 KiB */
+#define PMMRACE_SHADOW_BYTES (PMMRACE_PAGES / 8)   /* 16 KiB */
+/* BUG: the 16 KiB shadow map used to be a static BSS array; that pushed
+ * the kernel image past the 0x400000 identity-window linker ASSERT, so
+ * it is allocated from the heap for the duration of the command. */
+static u8  *g_pmmrace_shadow = NULL;
+static u64 g_pmmrace_hold[4];                      /* runs held by the callback */
+static int g_pmmrace_active = 0;
+static u64 g_pmmrace_cb_count = 0;
+static volatile int g_pmmrace_in_alloc = 0;
+static u64 g_pmmrace_overlaps = 0;
+static u64 g_pmmrace_hold_fail = 0;
+static u64 g_pmmrace_torn = 0;
+
+static void pmmrace_shadow_set(u64 paddr, u64 count) {
+    for (u64 k = 0; k < count; k++) {
+        u64 idx = paddr >> 12;
+        if (idx >= PMMRACE_PAGES) continue;
+        g_pmmrace_shadow[idx >> 3] |= (u8)(1u << (idx & 7));
+    }
+}
+static void pmmrace_shadow_clear(u64 paddr, u64 count) {
+    for (u64 k = 0; k < count; k++) {
+        u64 idx = paddr >> 12;
+        if (idx >= PMMRACE_PAGES) continue;
+        g_pmmrace_shadow[idx >> 3] &= (u8)~(1u << (idx & 7));
+    }
+}
+static int pmmrace_shadow_test(u64 paddr, u64 count) {
+    for (u64 k = 0; k < count; k++) {
+        u64 idx = paddr >> 12;
+        if (idx >= PMMRACE_PAGES) continue;
+        if (g_pmmrace_shadow[idx >> 3] & (1u << (idx & 7))) return 1;
+    }
+    return 0;
+}
+
+/* Program the PIT channel 0 directly: divisor 11932 = 100 Hz (normal),
+ * divisor 150 = ~7.9 kHz during the race window, so the IRQ-context
+ * allocator fires every ~126 us and actually intersects the thread's
+ * test-then-set window. Restored before the command returns. */
+static void pmmrace_pit_set(u16 divisor) {
+    __asm__ volatile("outb %0, %1" :: "a"((u8)0x36), "Nd"(0x43));
+    __asm__ volatile("outb %0, %1" :: "a"((u8)(divisor & 0xFF)), "Nd"(0x40));
+    __asm__ volatile("outb %0, %1" :: "a"((u8)(divisor >> 8)), "Nd"(0x40));
+}
+
+static void pmmrace_timer_cb(void *ctx) {
+    (void)ctx;
+    g_pmmrace_cb_count++;
+    if (!g_pmmrace_active) return;
+    if (g_pmmrace_in_alloc) g_pmmrace_overlaps++;
+    /* Release the runs held from the previous tick, then allocate new
+     * ones and hold them (so they stay marked in the shadow map while
+     * the shell-thread allocator is being torn by the next tick). */
+    for (int k = 0; k < 4; k++) {
+        if (g_pmmrace_hold[k]) {
+            pmmrace_shadow_clear(g_pmmrace_hold[k], 400);
+            for (u64 j = 0; j < 400; j++)
+                mem_pmm_free_frame(g_pmmrace_hold[k] + (j << 12));
+            g_pmmrace_hold[k] = 0;
+        }
+    }
+    /* Allocate a large run from IRQ context: the first-fit scan then
+     * targets the same low free region the interrupted thread just
+     * verified, which is exactly where a torn test-then-set hands the
+     * same frames to both contexts. */
+    for (int k = 0; k < 4; k++) {
+        u64 p = mem_pmm_alloc_contig(400);
+        if (p) {
+            g_pmmrace_hold[k] = p;
+            pmmrace_shadow_set(p, 400);
+        } else {
+            g_pmmrace_hold_fail++;
+        }
+    }
+}
+
+static int shell_cmd_pmmrace(const char *args) {
+    (void)args;
+    static int registered = 0;
+    if (!registered) {
+        core_timer_register_periodic(pmmrace_timer_cb, NULL, 1);
+        registered = 1;
+    }
+    if (!g_pmmrace_shadow) g_pmmrace_shadow = (u8 *)kmalloc(PMMRACE_SHADOW_BYTES);
+    if (!g_pmmrace_shadow) { screen_console_puts("pmmrace: no memory\n"); return 1; }
+    memset(g_pmmrace_shadow, 0, PMMRACE_SHADOW_BYTES);
+    g_pmmrace_active = 1;
+    pmmrace_pit_set(150);      /* ~7.9 kHz during the test */
+    screen_console_puts("pmmrace: 20000 rounds of alloc_contig(512)+free "
+                        "vs IRQ-context allocator\n");
+    int race = 0;
+    int rounds = 0;
+    for (int round = 0; round < 20000 && !race; round++) {
+        rounds = round + 1;
+        g_pmmrace_in_alloc = 1;
+        u64 p = mem_pmm_alloc_contig(512);
+        g_pmmrace_in_alloc = 0;
+        /* Direct double-hold check: did the IRQ callback end up holding
+         * any frame inside the range just returned to this thread? */
+        for (int k = 0; k < 4; k++) {
+            u64 h = g_pmmrace_hold[k];
+            if (h && h >= p && h < p + (512u << 12)) {
+                g_pmmrace_torn++;
+            }
+        }
+        if (!p) { screen_console_puts("pmmrace: alloc failed\n"); break; }
+        if (pmmrace_shadow_test(p, 512)) {
+            char buf[80]; char n[24];
+            strcpy(buf, "pmmrace: RACE DETECTED at frame ");
+            u64_to_str(p >> 12, n); strcpy(buf+strlen(buf), n);
+            strcpy(buf+strlen(buf), " round "); u64_to_str((u64)rounds, n);
+            strcpy(buf+strlen(buf), n);
+            strcpy(buf+strlen(buf), "\n"); screen_console_puts(buf);
+            race = 1;
+        } else {
+            pmmrace_shadow_set(p, 512);
+        }
+        pmmrace_shadow_clear(p, 512);
+        for (u64 j = 0; j < 512; j++) mem_pmm_free_frame(p + (j << 12));
+    }
+    /* Stop holding frames. */
+    for (int k = 0; k < 4; k++) {
+        if (g_pmmrace_hold[k]) {
+            pmmrace_shadow_clear(g_pmmrace_hold[k], 8);
+            for (u64 j = 0; j < 8; j++)
+                mem_pmm_free_frame(g_pmmrace_hold[k] + (j << 12));
+            g_pmmrace_hold[k] = 0;
+        }
+    }
+    g_pmmrace_active = 0;
+    pmmrace_pit_set(11932);    /* restore 100 Hz */
+    kfree(g_pmmrace_shadow);
+    g_pmmrace_shadow = NULL;
+    char buf[64]; char n[24];
+    strcpy(buf, "pmmrace: rounds="); u64_to_str((u64)rounds, n);
+    strcpy(buf+strlen(buf), n);
+    strcpy(buf+strlen(buf), " cb_count="); u64_to_str(g_pmmrace_cb_count, n);
+    strcpy(buf+strlen(buf), n);
+    strcpy(buf+strlen(buf), " window_overlaps="); u64_to_str(g_pmmrace_overlaps, n);
+    strcpy(buf+strlen(buf), n);
+    strcpy(buf+strlen(buf), " hold_fail="); u64_to_str(g_pmmrace_hold_fail, n);
+    strcpy(buf+strlen(buf), n);
+    strcpy(buf+strlen(buf), " torn="); u64_to_str(g_pmmrace_torn, n);
+    strcpy(buf+strlen(buf), n);
+    strcpy(buf+strlen(buf), " result=");
+    strcpy(buf+strlen(buf), race ? "FAIL (race)" : "PASS (atomic)");
+    strcpy(buf+strlen(buf), "\n"); screen_console_puts(buf);
+    return race;
+}
+
 /* WP-04: ps - list all tasks. */
 static int shell_cmd_ps(const char *args) {
     (void)args;
@@ -1727,7 +1895,7 @@ static int shell_cmd_l1test(const char *args) {
 /* WP-04: run - run a user program. */
 static int shell_cmd_run(const char *args) {
     if (!args[0]) {
-        screen_console_puts("usage: run <hello|badapp|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test>\n");
+        screen_console_puts("usage: run <hello|badapp|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test|sse_test|pf_test>\n");
         return 1;
     }
     const u8 *elf = NULL;
@@ -1778,6 +1946,12 @@ static int shell_cmd_run(const char *args) {
     } else if (strcmp(args, "p3_test") == 0) {
         /* P3 batch test: kernel-mem isolation + munmap return + write_and_exit. */
         elf = userprog_p3_test; size = userprog_p3_test_size;
+    } else if (strcmp(args, "sse_test") == 0) {
+        /* BUG-0042 repro: fork two SSE streams, per-task FPU state check. */
+        elf = userprog_sse_test; size = userprog_sse_test_size;
+    } else if (strcmp(args, "pf_test") == 0) {
+        /* BUG-0044 repro: page-fault semantics (P=1 vs growth, floor). */
+        elf = userprog_pf_test; size = userprog_pf_test_size;
     } else if (strcmp(args, "ush") == 0 || strcmp(args, "usershell") == 0) {
         /* WP-08cd: User-space shell. */
         elf = userprog_ush; size = userprog_ush_size;
@@ -2477,6 +2651,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command_ex("cr3test", shell_cmd_cr3test, "test CR3 switching", "WP-04");
     shell_register_command_ex("crashlog", shell_cmd_crashlog, "show last exception crashes", "WP-04");
     shell_register_command_ex("heaptest", shell_cmd_heaptest, "test heap overhead with 100 allocs", "WP-04");
+    shell_register_command_ex("pmmrace", shell_cmd_pmmrace, "BUG-0043 repro: PMM bitmap race thread-vs-IRQ", "WP-04");
     shell_register_command_ex("spawn", shell_cmd_spawn, "spawn a test kernel thread", "WP-04");
     shell_register_command_ex("multi", shell_cmd_multi, "spawn 3 tasks with interleaved output", "WP-04");
     shell_register_command_ex("synctest", shell_cmd_synctest, "test sync primitives (spinlock/mutex/sem)", "WP-04");

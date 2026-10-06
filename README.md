@@ -433,7 +433,7 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-AUDIT-01-p0fix2)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p0fix2) — ISO + SRC zip + in-system update package
+- **Latest (WP-AUDIT-01-p0fix2)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p0fix1) — ISO + SRC zip + in-system update package
   (sha256 `7427ccda1e2c0ee0197030be461efdfa317ef43238cef5d0550ea1b7317076cb`)
 - **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - Or visit https://cubestudio-dev.github.io/OpenCubeOS for direct downloads

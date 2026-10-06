@@ -66,6 +66,13 @@ global arch_context_switch
 %define OFF_SS    224
 %define OFF_CR3   248
 
+; BUG-0042 FIX: per-task FPU/SSE state.
+; OFF_FPU       = offsetof(task_t, fpu_state)   (fxsave area, 512B, 16-aligned)
+; OFF_FPU_SAVED = offsetof(task_t, fpu_saved)   (int flag: image valid?)
+; These two offsets are pinned by _Static_assert in core_sched.c.
+%define OFF_FPU        288
+%define OFF_FPU_SAVED  800
+
 section .text
 align 16
 arch_context_switch:
@@ -114,6 +121,12 @@ arch_context_switch:
     lea rax, [rsp + 16]
     mov [rdi + OFF_RSP], rax
 
+    ; BUG-0042 FIX: save FPU/SSE state (fxsave covers x87 + MMX + XMM0-15
+    ; + MXCSR in 512 bytes). Every switch-out refreshes the image, so the
+    ; per-task copy is always current by the time another task runs.
+    fxsave [rdi + OFF_FPU]
+    mov dword [rdi + OFF_FPU_SAVED], 1
+
     ; --- Switch CR3 if different (skip if new cr3=0, meaning kernel space) ---
     mov rdx, [rsi + OFF_CR3]
     test rdx, rdx            ; is cr3 == 0?
@@ -126,6 +139,19 @@ arch_context_switch:
 
     ; --- Load new task's state ---
     pop rsi               ; restore new_task pointer into rsi
+
+    ; BUG-0042 FIX: restore the incoming task's FPU/SSE state.
+    ; If the task was switched out before, fxrstor its saved image;
+    ; otherwise (first switch-in) start from a clean FPU state.
+    cmp dword [rsi + OFF_FPU_SAVED], 0
+    jne .fpu_restore
+    fninit
+    ldmxcsr [mxcsr_init]
+    jmp .fpu_done
+.fpu_restore:
+    fxrstor [rsi + OFF_FPU]
+.fpu_done:
+
     mov rdi, [rsi + OFF_RDI]   ; load new rdi (we need rsi first)
 
     ; Load new RSP
@@ -154,3 +180,8 @@ arch_context_switch:
 
     ; Return to the new task's saved RIP
     ret
+
+section .rodata
+align 4
+; Default MXCSR: all exceptions masked (bits 0..5), round-to-nearest.
+mxcsr_init: dd 0x1F80

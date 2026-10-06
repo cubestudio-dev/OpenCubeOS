@@ -368,7 +368,11 @@ static void *ldso_dlopen(const char *name, int flags) {
         unsigned long so_rela = 0, so_relasz = 0;
         unsigned long so_jmprel = 0, so_pltrelsz = 0;
         int i;
-        for (i = 0; ; i++) {
+        /* BUG-0065 FIX: the walk used to rely solely on hitting DT_NULL.
+         * A crafted .dynamic without a terminator makes i run away
+         * reading kernel memory. Bound every walk to 64 entries
+         * (far more than any real shared object needs). */
+        for (i = 0; i < 64; i++) {
             if (dyn[i].tag == DT_NULL) break;
             if (dyn[i].tag == DT_SYMTAB) so_symtab = base + dyn[i].val;
             else if (dyn[i].tag == DT_STRTAB) so_strtab = base + dyn[i].val;
@@ -416,7 +420,7 @@ static void *ldso_dlsym(void *handle, const char *name) {
     unsigned long symtab_addr = 0;
     unsigned long strtab_addr = 0;
     int i;
-    for (i = 0; ; i++) {
+    for (i = 0; i < 64; i++) {
         if (dyn[i].tag == DT_NULL) break;
         if (dyn[i].tag == DT_SYMTAB) {
             symtab_addr = base + dyn[i].val;
@@ -490,7 +494,7 @@ void _start(void) {
     unsigned long main_strtab_addr = 0;
     unsigned long main_symtab_addr = 0;
     int i;
-    for (i = 0; ; i++) {
+    for (i = 0; i < 64; i++) {
         if (main_dyn[i].tag == DT_NULL) break;
         if (main_dyn[i].tag == DT_STRTAB) {
             main_strtab_addr = MAIN_ELF_BASE + main_dyn[i].val;
@@ -505,7 +509,7 @@ void _start(void) {
 
     /* Print DT_NEEDED entries. */
     int needed_count = 0;
-    for (i = 0; ; i++) {
+    for (i = 0; i < 64; i++) {
         if (main_dyn[i].tag == DT_NULL) break;
         if (main_dyn[i].tag == DT_NEEDED) {
             /* P4 fix: silenced — was puts_str("ld.so: DT_NEEDED: <name>"); */
@@ -546,7 +550,7 @@ void _start(void) {
     unsigned long libfoo_strtab_addr = 0;
     unsigned long libfoo_rela_addr_vaddr = 0;   /* DT_RELA d_ptr (vaddr) */
     unsigned long libfoo_relasz = 0;            /* DT_RELASZ in bytes */
-    for (i = 0; ; i++) {
+    for (i = 0; i < 64; i++) {
         if (libfoo_dyn[i].tag == DT_NULL) break;
         if (libfoo_dyn[i].tag == DT_SYMTAB) {
             libfoo_symtab_addr = LIBFOO_BASE + libfoo_dyn[i].val;
@@ -587,7 +591,7 @@ void _start(void) {
     {
         unsigned long main_rela_vaddr = 0;
         unsigned long main_relasz = 0;
-        for (i = 0; ; i++) {
+        for (i = 0; i < 64; i++) {
             if (main_dyn[i].tag == DT_NULL) break;
             if (main_dyn[i].tag == DT_RELA) {
                 main_rela_vaddr = main_dyn[i].val;
@@ -613,7 +617,7 @@ void _start(void) {
     {
         unsigned long main_jmprel_vaddr = 0;
         unsigned long main_pltrelsz = 0;
-        for (i = 0; ; i++) {
+        for (i = 0; i < 64; i++) {
             if (main_dyn[i].tag == DT_NULL) break;
             if (main_dyn[i].tag == DT_JMPREL) {
                 main_jmprel_vaddr = main_dyn[i].val;

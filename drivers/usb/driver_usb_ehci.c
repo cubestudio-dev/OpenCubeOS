@@ -634,9 +634,16 @@ static int driver_usb_ehci_probe_one(u8 bus, u8 dev, u8 func) {
         if (!(driver_usb_ehci_rd(e, EHCI_USBCMD) & EHCI_CMD_HCRESET)) break;
         for (volatile int t = 0; t < 1000; t++) { }
     }
-    /* clear CONFIGFLAG so ports route to this controller (no
-     * companion controllers exist in this stack) */
-    driver_usb_ehci_wr(e, EHCI_CONFIGFLAG, 0);
+    /* BUG-0049 FIX: CONFIGFLAG(CF) semantics per the EHCI spec (2.3.9):
+     * CF=1 means "ports routed to THIS EHCI controller"; CF=0 hands the
+     * ports to the companion UHCI/OHCI controllers. The old code wrote
+     * 0 with a comment that had the meaning inverted — on any chipset
+     * with companions (or a spec-compliant real chip) that unhooks the
+     * EHCI from its own ports and leaves PSE/ASE scheduling undefined.
+     * Set CF=1 to take ownership of the ports. */
+
+    /* Set CF=1 (see BUG-0049 above). */
+    driver_usb_ehci_wr(e, EHCI_CONFIGFLAG, 1);
 
     /* allocate descriptors */
     u64 qpage = mem_pmm_alloc_frame();

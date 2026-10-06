@@ -188,6 +188,10 @@ static int fs_ramfs_rmdir(fs_vfs_node_t *parent, const char *name) {
      * mount table entry stays in use -> KNOWN_ISSUES BUG-019 "mount
      * point occasionally disappears" + later UAF. */
     if (child->fs_type != &g_ramfs_fs_type) return -5;  /* not ours */
+    /* BUG-0061 FIX: refuse to free the inode while an fd still points at
+     * this node - a writer through the still-open fd would hit freed
+     * memory (UAF) after we kfree() here. */
+    if (child->open_count > 0) return -4;   /* EBUSY: fd still open */
     fs_vfs_detach_child(child);
     fs_ramfs_inode_t *ri = (fs_ramfs_inode_t *)child->private;
     if (ri) {

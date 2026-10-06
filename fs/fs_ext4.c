@@ -266,6 +266,11 @@ static int fs_ext4_load_group_desc(fs_ext4_ctx_t *ctx, u32 group,
     }
     u64 desc_sector = desc_byte_offset / 512;
     u32 off_in_sec = (u32)(desc_byte_offset % 512);
+    /* BUG-0062 FIX: a crafted sector/cluster geometry can push the
+     * descriptor across the sector boundary; the unbounded memcpy then
+     * read past the 512-byte stack buffer. Also reject groups that are
+     * obviously out of range before doing any I/O. */
+    if (off_in_sec + desc_size > 512) return -1;
     int rc = driver_block_ata_read_sectors(ctx->drive, desc_sector, 1, buf);
     if (rc != 1) return -1;
     memcpy(gd, buf + off_in_sec, desc_size);
@@ -276,8 +281,16 @@ static int fs_ext4_load_group_desc(fs_ext4_ctx_t *ctx, u32 group,
 static int fs_ext4_read_inode(fs_ext4_ctx_t *ctx, u32 inode_num,
                            fs_ext4_raw_inode_t *inode) {
     if (inode_num == 0) return -1;
+    if (ctx->inodes_per_group == 0) return -1;
+    /* BUG-0062 FIX: bound the inode number so a crafted superblock
+     * (huge inodes_count with tiny inodes_per_group) cannot push the
+     * descriptor read arbitrarily far out of the table. */
+    u32 max_groups = (ctx->inodes_count + ctx->inodes_per_group - 1) /
+                     ctx->inodes_per_group;
+    if (max_groups == 0) return -1;
     u32 group = (inode_num - 1) / ctx->inodes_per_group;
     u32 index = (inode_num - 1) % ctx->inodes_per_group;
+    if (group >= max_groups) return -1;
     fs_ext4_group_desc_t gd;
     if (fs_ext4_load_group_desc(ctx, group, &gd) != 0) return -1;
     u64 inode_table_block = gd.bg_inode_table_lo;
@@ -288,6 +301,14 @@ static int fs_ext4_read_inode(fs_ext4_ctx_t *ctx, u32 inode_num,
                       (u64)index * ctx->inode_size;
     u64 block = byte_offset / ctx->block_size;
     u32 off_in_block = (u32)(byte_offset % ctx->block_size);
+    /* BUG-0062 FIX: the raw inode must fit inside the block we read;
+     * a crafted inode_size could otherwise push the memcpy past the
+     * end of the block buffer. */
+    if (ctx->inode_size == 0 ||
+        off_in_block + (u32)sizeof(*inode) > ctx->block_size ||
+        (u32)sizeof(*inode) > ctx->inode_size) {
+        return -1;
+    }
     u8 *buf = (u8 *)kmalloc(ctx->block_size);
     if (!buf) return -1;
     if (fs_ext4_read_block(ctx, block, buf) != 0) { kfree(buf); return -1; }
@@ -314,7 +335,13 @@ static u64 fs_ext4_extent_lookup(fs_ext4_ctx_t *ctx, const u32 *i_block,
     u16 n_entries = hdr->eh_entries;
     if (n_entries > max_entries) n_entries = max_entries;
     if (hdr->eh_depth == 0) {
-        const fs_ext4_extent_t *ext = (const fs_ext4_extent_t *)(i_block + 4);
+        /* BUG-0060 FIX: extent entries start at i_block + 12 bytes (the
+         * extent header is 12 bytes: magic/entries/max/depth/generation).
+         * The old pointer arithmetic used i_block + 4 where i_block is a
+         * u32 pointer, i.e. +16 bytes - every extent lookup on the root
+         * node read the wrong entry. */
+        const fs_ext4_extent_t *ext =
+            (const fs_ext4_extent_t *)((const u8 *)i_block + 12);
         for (u16 i = 0; i < n_entries; i++) {
             if (logical >= ext[i].ee_block &&
                 logical < ext[i].ee_block + ext[i].ee_len) {
@@ -345,8 +372,10 @@ static u64 fs_ext4_extent_lookup(fs_ext4_ctx_t *ctx, const u32 *i_block,
                 kfree(child_buf);
                 return 0;
             }
+            /* BUG-0060 FIX: same header-size rule at the child level -
+             * entries start at child_buf + 12, not +8. */
             const fs_ext4_extent_t *ext =
-                (const fs_ext4_extent_t *)(child_buf + 8);
+                (const fs_ext4_extent_t *)(child_buf + 12);
             u64 result = 0;
             /* P1-8 FIX: bound child entries to block_size / 12. */
             u16 max_child = (u16)(ctx->block_size / 12);
@@ -453,10 +482,18 @@ static int fs_ext4_find_in_dir(fs_ext4_ctx_t *ctx, fs_ext4_inode_t *dir_ino,
         if (phys == 0) continue;
         if (fs_ext4_read_block(ctx, phys, buf) != 0) { kfree(buf); return -1; }
         u32 off = 0;
-        while (off < ctx->block_size) {
+        /* BUG-0062 FIX: every field read here is bounded by the block:
+         * the fixed 8-byte dirent header must fit, rec_len must be
+         * positive and stay inside the block, and the name must fit
+         * inside the record. Crafted volumes previously caused the
+         * strncmp to walk past the end of the block buffer. */
+        while (off + 8 <= ctx->block_size) {
             fs_ext4_dirent_t *de = (fs_ext4_dirent_t *)(buf + off);
-            if (de->rec_len == 0) break;
-            if (de->inode != 0 && de->name_len == (u8)name_len) {
+            if (de->rec_len < 8 || (u32)de->rec_len > ctx->block_size - off)
+                break;
+            if (de->inode != 0 &&
+                de->name_len <= (u8)(de->rec_len - 8) &&
+                de->name_len == (u8)name_len) {
                 if (strncmp((const char *)de->name, name,
                                (usize)name_len) == 0) {
                     *out_inode = de->inode;

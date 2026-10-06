@@ -359,6 +359,23 @@ static u64 sys_fork(u64 a1, u64 a2, u64 a3, u64 a4) {
     if (child->tid < 0) { child->alive = 0; return (u64)-1; }
     core_kthread_set_cr3(child->tid, child->as);
 
+    /* BUG-0042 FIX: inherit the parent's FPU/SSE state. The parent may
+     * hold newer FPU data in the live registers than its task_t image
+     * (which is only refreshed on switch-out), so fxsave the live state
+     * first, then copy it into the child's task_t. The child therefore
+     * observes the same FPU/SSE values the parent had at fork(), as a
+     * real address-space clone must. */
+    {
+        task_t *pt = core_kthread_current();
+        task_t *ct = core_kthread_get_task(child->tid);
+        if (pt && ct) {
+            __asm__ volatile("fxsave %0" : "=m"(pt->fpu_state) :: "memory");
+            pt->fpu_saved = 1;
+            memcpy(ct->fpu_state, pt->fpu_state, sizeof(ct->fpu_state));
+            ct->fpu_saved = 1;
+        }
+    }
+
     return (u64)child->pid;
 }
 

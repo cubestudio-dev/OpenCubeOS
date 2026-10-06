@@ -71,6 +71,17 @@ typedef struct task {
     void *arg;
 
     int in_use;
+
+    /* BUG-0042 FIX: per-task FPU/SSE state.
+     * fpu_state is a 512-byte fxsave/fxrstor area (x87 + MMX + XMM0-15 +
+     * MXCSR), 16-byte aligned as required by FXSAVE/FXRSTOR.
+     * fpu_saved == 0 means the task has never been switched out with a
+     * valid FPU image: on its first switch-in the FPU is initialised
+     * (FNINIT + default MXCSR) instead of restoring garbage.
+     * Offsets are hardcoded in arch_context_switch.S as OFF_FPU (288)
+     * and OFF_FPU_SAVED (800); static asserts in core_sched.c pin them. */
+    u64 fpu_state[64] __attribute__((aligned(16)));
+    int fpu_saved;
 } task_t;
 
 /* Initialize the scheduler. Called from kmain. */

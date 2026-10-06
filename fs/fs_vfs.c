@@ -645,6 +645,9 @@ int fs_vfs_open(const char *path, int flags) {
             return rc;
         }
     }
+    /* BUG-0061: track the open count so unlink/rmdir can refuse to free
+     * backing storage that is still in use. */
+    n->open_count++;
     fs_vfs_invoke_hook(VFS_HOOK_OPEN, path);
     return fd;
 }
@@ -716,6 +719,8 @@ int fs_vfs_close(int fd) {
         f->node->fs_type->file_ops->close) {
         f->node->fs_type->file_ops->close(f->node);
     }
+    /* BUG-0061: matching decrement for the open_count in fs_vfs_open. */
+    if (f->node && f->node->open_count > 0) f->node->open_count--;
     f->in_use = 0;
     f->node = NULL;
     f->flags = 0;

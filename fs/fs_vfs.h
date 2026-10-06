@@ -159,6 +159,12 @@ struct fs_vfs_node {
     u32              uid;
     u32              gid;
     u32              nlink;            /* hard link count (ramfs maintains) */
+    /* BUG-0061: number of open fds referencing this node. unlink/rmdir
+     * on a node with a non-zero count must not free its backing storage
+     * (ramfs would leave a UAF window for the still-open fd; FAT32
+     * would free the cluster chain and the open fd would resurrect it
+     * over an unrelated file). */
+    int              open_count;          /* fds currently open on node */
     fs_vfs_fs_type_t   *fs_type;          /* owning fs type */
     void            *private;          /* fs-specific data */
     fs_vfs_node_t      *parent;

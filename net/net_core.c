@@ -563,8 +563,13 @@ static int e1000_init(void) {
 
     /* Debug: print PCI info. */
     {
+        /* BUG-0064 FIX: buf was an uninitialised 80-byte stack array and
+         * the debug block started with strcat() - the string length came
+         * from whatever garbage was on the stack, so the write could run
+         * past the end of the buffer. Start with buf[0]=0. */
         char buf[80]; char n[20];
         u32 shell_cmd_reg = driver_pci_read_config(bus, dev, func, 0x04);
+        buf[0] = 0;
         strcat(buf, " dev="); u64_to_str(dev, n); strcat(buf, n);
         strcat(buf, " func="); u64_to_str(func, n); strcat(buf, n);
         strcat(buf, " cmd=0x"); u64_to_hex(shell_cmd_reg, n, 4); strcat(buf, n);
@@ -648,6 +653,7 @@ static int e1000_init(void) {
         driver_pci_write_config(bus, dev, func, 0x04, shell_cmd_new);
         u32 shell_cmd_after = driver_pci_read_config(bus, dev, func, 0x04);
         char dbuf[100]; char dn[20];
+        dbuf[0] = 0;   /* BUG-0064 FIX: same uninitialised-strcat issue */
             strcat(dbuf, " wrote=0x"); u64_to_hex(shell_cmd_new, dn, 4); strcat(dbuf, dn);
         strcat(dbuf, " after=0x"); u64_to_hex(shell_cmd_after, dn, 4); strcat(dbuf, dn);
         strcat(dbuf, " bus="); u64_to_str(bus, dn); strcat(dbuf, dn);
@@ -1516,6 +1522,21 @@ static void net_ip_handle_packet(const void *data, int len) {
     int hdr_len = (iph->ver_ihl & 0x0F) * 4;
     if (hdr_len < 20 || len < hdr_len) return;
 
+    /* BUG-0066 FIX: cross-check the IP header length field against the
+     * actual frame length before trusting payload_len. A crafted
+     * total_len larger than the frame made every transport parser read
+     * past the end of the receive buffer (remote OOB read). */
+    {
+        u16 claimed = ntohs(iph->total_len);
+        if (claimed < (u16)hdr_len || claimed > len) return;
+    }
+    /* BUG-0072 FIX: verify the IP header checksum and drop corrupt
+     * datagrams. The RX path previously accepted everything unchecked. */
+    if (internet_checksum(iph, hdr_len, 0) != 0) {
+        g_stats.net_rx_bad_checksum++;
+        return;
+    }
+
     const void *payload = (const u8 *)data + hdr_len;
     int payload_len = ntohs(iph->total_len) - hdr_len;
     u32 src_ip = ntohl(iph->src_ip);
@@ -1548,12 +1569,57 @@ static void net_ip_handle_packet(const void *data, int len) {
         case IP_PROTO_ICMP:
             net_icmp_handle_packet(src_ip, payload, payload_len);
             break;
-        case IP_PROTO_UDP:
+        case IP_PROTO_UDP: {
+            /* BUG-0072 FIX: UDP checksum is optional (0 = none) but must
+             * verify when present. The RX path used to skip it entirely. */
+            if (payload_len >= 8) {
+                /* checksum field = bytes 6..7, network byte order
+                   (net_udp_hdr_t is defined further down in this file) */
+                const u8 *up = (const u8 *)payload;
+                u16 rx_sum = (u16)((up[6] << 8) | up[7]);
+                if (rx_sum != 0) {
+                    /* UDP checksum covers the pseudo-header (RFC 768):
+                     * src IP, dst IP, zero, protocol, UDP length. */
+                    u8 ph[12];
+                    ph[0]=(u8)(src_ip>>24); ph[1]=(u8)(src_ip>>16);
+                    ph[2]=(u8)(src_ip>>8);  ph[3]=(u8)src_ip;
+                    ph[4]=(u8)(dst>>24);    ph[5]=(u8)(dst>>16);
+                    ph[6]=(u8)(dst>>8);     ph[7]=(u8)dst;
+                    ph[8]=0; ph[9]=IP_PROTO_UDP;
+                    ph[10]=(u8)(payload_len>>8); ph[11]=(u8)payload_len;
+                    u32 t = internet_checksum(ph, 12, 0);
+                    t = internet_checksum(payload, payload_len, t);
+                    if ((t & 0xFFFFu) != 0xFFFFu) {   /* ~(sum)==0 */
+                        g_stats.net_rx_bad_checksum++;
+                        return;
+                    }
+                }
+            }
             net_udp_handle_packet(src_ip, payload, payload_len);
             break;
-        case IP_PROTO_TCP:
+        }
+        case IP_PROTO_TCP: {
+            /* BUG-0072 FIX: verify the TCP checksum (pseudo-header +
+             * segment). The RX path never checked it. */
+            if (payload_len >= 20) {
+                u32 t = 0;
+                u8 ph[12];
+                ph[0]=(u8)(src_ip>>24); ph[1]=(u8)(src_ip>>16);
+                ph[2]=(u8)(src_ip>>8);  ph[3]=(u8)src_ip;
+                ph[4]=(u8)(dst>>24);    ph[5]=(u8)(dst>>16);
+                ph[6]=(u8)(dst>>8);     ph[7]=(u8)dst;
+                ph[8]=0; ph[9]=IP_PROTO_TCP;
+                ph[10]=(u8)(payload_len>>8); ph[11]=(u8)payload_len;
+                t = internet_checksum(ph, 12, 0);
+                t = internet_checksum(payload, payload_len, t);
+                if ((t & 0xFFFFu) != 0xFFFFu) {
+                    g_stats.net_rx_bad_checksum++;
+                    return;
+                }
+            }
             net_tcp_handle_packet(src_ip, payload, payload_len);
             break;
+        }
     }
 }
 
@@ -1667,10 +1733,31 @@ void net_udp_init(void) {
 }
 
 int net_udp_bind(u16 port, net_udp_handler_fn handler) {
+    /* BUG-0070 FIX: reject a duplicate bind first (the DNS client used
+     * to silently pile up one binding per lookup until the table was
+     * exhausted); the caller has no way to know a second handler for
+     * the same port can never be delivered. */
+    for (int i = 0; i < UDP_MAX_HANDLERS; i++) {
+        if (g_udp_handlers[i].handler != NULL && g_udp_handlers[i].port == port)
+            return -1;
+    }
     for (int i = 0; i < UDP_MAX_HANDLERS; i++) {
         if (g_udp_handlers[i].handler == NULL) {
             g_udp_handlers[i].port = port;
             g_udp_handlers[i].handler = handler;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+int net_udp_unbind(u16 port) {
+    /* BUG-0070 FIX: provide the missing unbind so repeated clients can
+     * release their port binding. */
+    for (int i = 0; i < UDP_MAX_HANDLERS; i++) {
+        if (g_udp_handlers[i].handler != NULL && g_udp_handlers[i].port == port) {
+            g_udp_handlers[i].handler = NULL;
+            g_udp_handlers[i].port = 0;
             return 0;
         }
     }
@@ -2081,7 +2168,7 @@ int net_tcp_connect(u32 dst_ip, u16 dst_port) {
     c->rto_deadline = 0;
     c->dup_ack_count = 0;
     c->mss = 1460;         /* default MSS (Ethernet MTU - 40) */
-    c->win_scale_sent = 7; /* window scale: 2^7 = 128 → 8192*128 = 1MB */
+    c->win_scale_sent = 0;   /* BUG-0071: do not advertise a scale we never apply */ /* window scale: 2^7 = 128 → 8192*128 = 1MB */
     c->win_scale_recv = 0;
     c->ts_recent = 0;
     c->ts_echo = 0;
@@ -2139,12 +2226,36 @@ static void net_tcp_update_rtt(net_tcp_conn_t *c, u32 rtt_ticks) {
     c->rto = rto;
 }
 
+/* BUG-0067 FIX: sequence/ack comparison helpers with wrap-around
+ * protection (RFC 793 3.3). The bare comparisons below (ack > una,
+ * seq < our_ack) silently misbehave once 32-bit sequence numbers wrap. */
+#define SEQ_LT(a, b) ((i32)((a) - (b)) <  0)
+#define SEQ_LE(a, b) ((i32)((a) - (b)) <= 0)
+#define SEQ_GT(a, b) ((i32)((a) - (b)) >  0)
+#define SEQ_GE(a, b) ((i32)((a) - (b)) >= 0)
+
 /* WP-09: Check and handle RTO timer for all connections */
 static void net_tcp_check_rto(void) {
+    /* BUG-0063 FIX: this sweep runs from the timer IRQ while thread
+     * context mutates the very same rtx state (ACK sliding the window,
+     * senders appending to rtx_buf). A torn read of rtx_len/rtx_seq
+     * retransmitted garbage. Disable interrupts for the (short) state
+     * manipulation; net_tcp_send_raw itself re-enables as needed. */
+    u64 irq_flags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(irq_flags) :: "memory");
     u64 now = core_timer_ticks();
     for (int i = 0; i < TCP_MAX_CONNS; i++) {
         net_tcp_conn_t *c = &g_tcp_conns[i];
         if (!c->in_use || c->state != TCP_ESTABLISHED) continue;
+        /* BUG-0069 FIX: connections stuck in SYN_RCVD used to live
+         * forever, so 32 forged SYNs permanently filled the 32-slot
+         * connection table (remote DoS). The handshake deadline is
+         * parked in rto_deadline at SYN time (30 s). */
+        if (c->state == TCP_SYN_RCVD && now >= c->rto_deadline) {
+            c->state = TCP_CLOSED;
+            c->in_use = 0;
+            continue;
+        }
         if (c->rtx_len == 0 || c->rto_deadline == 0) continue;
         if (now < c->rto_deadline) continue;
         /* RTO expired! Retransmit oldest unacked data. */
@@ -2173,7 +2284,11 @@ static void net_tcp_check_rto(void) {
         if (c->rto > 600) c->rto = 600;
         c->rto_deadline = now + c->rto;
     }
+
+    /* BUG-0063: restore the interrupt state saved on entry. */
+    if (irq_flags & 0x200) __asm__ volatile("sti" ::: "memory");
 }
+
 
 int net_tcp_send(int sock, const void *data, int len) {
     if (sock < 0 || sock >= TCP_MAX_CONNS) return -1;
@@ -2314,9 +2429,23 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
                     c->ssthresh = 65535;
                     c->rto = 30;
                     c->mss = 1460;
-                    c->win_scale_sent = 7;
+                    c->win_scale_sent = 0;   /* BUG-0071: do not advertise a scale we never apply */
                     c->rtx_len = 0;
+                    /* BUG-0069 FIX (timeout side): 30 s handshake deadline
+                     * stored in rto_deadline; net_tcp_check_rto() reaps
+                     * half-open connections when it fires. */
+                    c->rto_deadline = core_timer_ticks() + 3000;
                     c->rtt_measured = 0;
+                    /* BUG-0069 FIX: the SYN's options were parsed only for
+                     * connections that already existed, so a new server-side
+                     * connection never learned the peer's MSS or window
+                     * scale. Re-run option parsing now that the connection
+                     * object exists. */
+                    {
+                        u8 off5 = opts && opt_len ? opt_len : 0;
+                        (void)off5;
+                        net_tcp_parse_options(c, opts, opt_len, 1);
+                    }
                     /* Send SYN-ACK. */
                     net_tcp_send_raw(c, TCP_SYN | TCP_ACK, NULL, 0);
                     c->our_seq += 1;
@@ -2332,8 +2461,21 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
     }
 
     if (flags & TCP_RST) {
-        c->state = TCP_CLOSED;
-        c->in_use = 0;
+        /* BUG-0068 FIX: a RST used to be accepted from anyone regardless
+         * of its sequence number (blind-reset injection). RFC 793 3.4:
+         * in SYN-RECEIVED only a RST with SEG.SEQ == SND.UNA is legal;
+         * in established states the RST sequence must fall inside the
+         * receive window. We check the same window inequality before
+         * tearing the connection down. */
+        u32 rcv_next = c->our_ack;
+        u32 rcv_wnd  = 8192;   /* receive window as advertised */
+        int in_window = SEQ_LE(rcv_next, seq) && SEQ_LT(seq, rcv_next + rcv_wnd);
+        if (c->state == TCP_SYN_RCVD)
+            in_window = (seq == rcv_next);
+        if (in_window) {
+            c->state = TCP_CLOSED;
+            c->in_use = 0;
+        }
         return;
     }
 
@@ -2356,7 +2498,7 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
             /* WP-09: Handle ACK for sent data */
             if (flags & TCP_ACK) {
                 /* Update driver_snd_una (slide window) */
-                if (ack > c->driver_snd_una) {
+                if (SEQ_GT(ack, c->driver_snd_una)) {   /* BUG-0067 */
                     /* WP-09: New data ACKed — slide retransmission buffer */
                     u32 acked_bytes = ack - c->driver_snd_una;
                     if (c->rtx_len > 0 && acked_bytes <= (u32)c->rtx_len) {
@@ -2478,13 +2620,13 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
                  * - in-order segments are appended to rx_buf
                  * - future (out-of-order) segments are cached and drained in
                  *   order when the gap fills (real TCP reliability) */
-                if (seq + payload_len <= c->our_ack) {
+                if (SEQ_LE(seq + payload_len, c->our_ack)) {   /* BUG-0067 */
                     /* WP-10u: per-duplicate console print removed (same
                      * serial-throughput problem as the in-order print). */
                     net_tcp_send_raw(c, TCP_ACK, NULL, 0);
                     break;
                 }
-                if (seq < c->our_ack) {
+                if (SEQ_LT(seq, c->our_ack)) {   /* BUG-0067 */
                     /* partially-duplicate segment: trim overlapped head */
                     int skip = (int)(c->our_ack - seq);
                     payload += skip;

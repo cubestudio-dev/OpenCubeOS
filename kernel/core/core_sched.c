@@ -145,7 +145,43 @@ void core_sched_task_exited(tid_t tid) {
     if (flags & 0x200) __asm__ volatile("sti");
 }
 
+/* BUG-0042 FIX: pin the task_t FPU-state offsets that arch_context_switch.S
+ * hardcodes as OFF_FPU / OFF_FPU_SAVED. A mismatch here would silently
+ * corrupt every context switch. */
+_Static_assert(__builtin_offsetof(task_t, fpu_state) == 288,
+               "task_t.fpu_state offset must match OFF_FPU in arch_context_switch.S");
+_Static_assert(__builtin_offsetof(task_t, fpu_saved) == 800,
+               "task_t.fpu_saved offset must match OFF_FPU_SAVED in arch_context_switch.S");
+
 void core_sched_init(void) {
+    /* BUG-0042 FIX: enable the FPU/SSE environment and make it
+     * un-trapped for fxsave/fxrstor in the context switch path.
+     *
+     * CR4.OSFXSR=1 is REQUIRED for any SSE instruction to be legal at
+     * all (and for fxsave/fxrstor to save XMM state); with it clear the
+     * CPU raises #UD on the first SSE instruction - the pre-fix
+     * reproduction crashed exactly this way.
+     * CR4.OSXMMEXCPT=1 routes unmasked SIMD floating-point exceptions
+     * to #XF instead of the legacy #UD.
+     * CR0: EM=0 (no x87 emulation), TS=0 (no #NM on FP/SSE), MP=1
+     * (FWAIT honours TS if it is ever set again).
+     * Without EM=0/TS=0 the fxsave/fxrstor in arch_context_switch
+     * would fault. */
+    {
+        u64 cr4;
+        __asm__ volatile("mov %%cr4, %0" : "=r"(cr4) :: "memory");
+        cr4 |=  (1ULL << 9);   /* CR4.OSFXSR = 1 */
+        cr4 |=  (1ULL << 10);  /* CR4.OSXMMEXCPT = 1 */
+        __asm__ volatile("mov %0, %%cr4" :: "r"(cr4) : "memory");
+
+        u64 cr0;
+        __asm__ volatile("mov %%cr0, %0" : "=r"(cr0) :: "memory");
+        cr0 &= ~(1ULL << 2);  /* CR0.EM = 0 */
+        cr0 &= ~(1ULL << 3);  /* CR0.TS = 0 */
+        cr0 |=  (1ULL << 1);  /* CR0.MP = 1 */
+        __asm__ volatile("mov %0, %%cr0" :: "r"(cr0) : "memory");
+    }
+
     memset(g_tasks, 0, sizeof(g_tasks));
     memset(g_ready_queue, 0, sizeof(g_ready_queue));
     memset(g_ready_count, 0, sizeof(g_ready_count));

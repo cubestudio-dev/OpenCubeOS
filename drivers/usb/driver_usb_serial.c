@@ -54,6 +54,8 @@ typedef struct driver_usb_serial_port {
 
 static driver_usb_serial_port_t g_port[SER_MAX_PORTS];
 
+static driver_usb_interface_t *driver_usb_serial_find_cdc_ctrl(
+        driver_usb_dev_t *dev);
 static void ser_log(const char *s) { screen_console_puts(s); }
 
 static void ser_rx_push(driver_usb_serial_port_t *p, const u8 *b, int n) {
@@ -132,8 +134,10 @@ static int ser_claim(driver_usb_dev_t *dev, ser_type_t type) {
     if (!ep_in || !ep_out) return -1;
     u8 ctrl_iface = 0;
     if (type == SER_T_CDC) {
-        driver_usb_interface_t *ifp =
-            driver_usb_find_if(dev, USB_CLASS_CDC, 0x02, 0x02, 0);
+        /* BUG-0055 FIX (connect side): same protocol restriction as the
+         * probe had - the port was claimed with bInterfaceProtocol=0x00
+         * but the open path only accepted 0x02 and failed right after. */
+        driver_usb_interface_t *ifp = driver_usb_serial_find_cdc_ctrl(dev);
         if (!ifp) return -1;
         ctrl_iface = ifp->number;
     }
@@ -161,12 +165,28 @@ static int ser_claim(driver_usb_dev_t *dev, ser_type_t type) {
     return -1;
 }
 
+/* BUG-0055 FIX: locate the CDC-ACM control interface without pinning
+ * bInterfaceProtocol. driver_usb_find_if matches exactly, and the old
+ * probe asked for protocol 0xff first (a value real devices essentially
+ * never report) and 0x02 second - so the overwhelmingly common
+ * bInterfaceProtocol=0x00 devices were never claimed at all. Try the
+ * documented values in order: 0x02 (AT commands, v.25ter), 0x01
+ * (AT commands), 0x00 (no specific protocol). */
+static driver_usb_interface_t *driver_usb_serial_find_cdc_ctrl(
+        driver_usb_dev_t *dev) {
+    static const u8 protos[] = { 0x02, 0x01, 0x00 };
+    for (int i = 0; i < 3; i++) {
+        driver_usb_interface_t *ifp =
+            driver_usb_find_if(dev, USB_CLASS_CDC, 0x02, protos[i], 0);
+        if (ifp) return ifp;
+    }
+    return NULL;
+}
+
 static int driver_usb_serial_cdc_probe(driver_usb_dev_t *dev) {
-    /* CDC-ACM: control iface class 2 subclass 2 (protocol usually 1
-     * for AT commands; accept any) + data iface class 0x0a */
-    driver_usb_interface_t *ctrl =
-        driver_usb_find_if(dev, USB_CLASS_CDC, 0x02, 0xff, 0);
-    if (!ctrl) ctrl = driver_usb_find_if(dev, USB_CLASS_CDC, 0x02, 0x02, 0);
+    /* CDC-ACM: control iface class 2 subclass 2 (any protocol) +
+     * data iface class 0x0a */
+    driver_usb_interface_t *ctrl = driver_usb_serial_find_cdc_ctrl(dev);
     if (!ctrl) return -1;
     if (!driver_usb_find_if(dev, USB_CLASS_CDC_DATA, 0, 0, 0)) return -1;
     return ser_claim(dev, SER_T_CDC);

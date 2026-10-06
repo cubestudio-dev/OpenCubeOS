@@ -298,17 +298,36 @@ static u64 driver_usb_xhci_ring_put(driver_usb_xhci_ring_t *r, u64 param, u32 st
  * ================================================================== */
 
 static int driver_usb_xhci_next_event(driver_usb_xhci_state_t *x, xtrb_t *out) {
-    xtrb_t *t = &x->ev[x->ev_deq];
-    u32 ctrl = t[0][3];
-    if (!(ctrl & x->ev_cycle)) return 0;   /* no (new) event */
-    out[0][0] = t[0][0]; out[0][1] = t[0][1];
-    out[0][2] = t[0][2]; out[0][3] = ctrl;
-    x->ev_deq++;
-    if (x->ev_deq == XHCI_RING_N - 1) {    /* step over the LINK TRB */
-        x->ev_deq = 0;
-        x->ev_cycle ^= 1;
+    for (;;) {
+        xtrb_t *t = &x->ev[x->ev_deq];
+        u32 ctrl = t[0][3];
+
+        /* BUG-0045 FIX: the last slot of the event ring holds a LINK TRB
+         * (now actually written at init — see the event ring setup),
+         * matching the command/transfer rings. Real controllers never
+         * park an event on it; QEMU, which wraps the ring without
+         * honouring the LINK, can. Handle both: a LINK is stepped over
+         * (wrap to slot 0, flip the cycle); anything else is consumed
+         * when its cycle bit matches. The old code never wrote the LINK
+         * and skipped slot 63 unconditionally, losing one event out of
+         * every 64 and desyncing from QEMU's wrap point. */
+        if (((ctrl >> TRB_TYPE_SH) & 0x3fu) == TRB_LINK) {
+            x->ev_deq = 0;
+            x->ev_cycle ^= 1;
+            continue;
+        }
+        if (!(ctrl & x->ev_cycle)) return 0;   /* no (new) event */
+
+        out[0][0] = t[0][0]; out[0][1] = t[0][1];
+        out[0][2] = t[0][2]; out[0][3] = ctrl;
+        x->ev_deq++;
+        if (x->ev_deq == XHCI_RING_N) {
+            /* consumed slot 63 (QEMU had parked an event there): wrap */
+            x->ev_deq = 0;
+            x->ev_cycle ^= 1;
+        }
+        return 1;
     }
-    return 1;
 }
 
 /* publish the dequeue pointer so the controller frees consumed events */
@@ -1001,8 +1020,31 @@ static int driver_usb_xhci_poll(driver_usb_host_t *h) {
     xtrb_t ev;
     while (driver_usb_xhci_next_event(x, &ev)) {
         driver_usb_xhci_erdp_update(x);
-        /* PORT STATUS CHANGE events are handled through PORTSC
-         * polling in the core's hot-plug scan */
+        u32 type = (ev[3] >> TRB_TYPE_SH) & 0x3fu;
+        if (type != TRB_EV_TRANSFER) continue;
+        u32 cc = (ev[2] >> 24) & 0xffu;
+        u64 ptr = ((u64)ev[0] | ((u64)ev[1] << 32)) & ~0xfull;
+        u32 slotid = (ev[3] >> 24) & 0xffu;
+        /* BUG-0046 FIX: poll() used to discard every event it consumed
+         * (only the comment mentioned latching). Transfer events for
+         * in-flight interrupt TRBs must be latched here exactly like
+         * wait_trb does, otherwise an idle system (usb-poll thread
+         * runs every 2 ms) drops the completion, int_pending stays 1,
+         * and the next interrupt() waits 50 ms for an event that no
+         * longer exists - the endpoint effectively dies and the data
+         * is lost (first keystroke after any idle gap on XHCI HID). */
+        for (int i = 0; i < XHCI_MAX_SLOTS; i++) {
+            driver_usb_xhci_slot_t *s = &x->slots[i];
+            if (!s->used || (u32)s->hw_slot != slotid) continue;
+            for (int l = 0; l < 4; l++) {
+                if (s->int_pending[l] &&
+                    s->int_trb_phys[l] == ptr) {
+                    if (cc == CC_SUCCESS || cc == CC_SHORT_PACKET)
+                        s->latch_valid[l] = 1;
+                    s->int_pending[l] = 0;
+                }
+            }
+        }
     }
     driver_usb_xhci_reap_slots(x);
     return 0;
@@ -1126,6 +1168,15 @@ static int driver_usb_xhci_probe_one(u8 bus, u8 dev, u8 func) {
     x->erst[1] = (u32)(x->ev_phys >> 32);
     x->erst[2] = XHCI_RING_N;
     x->erst[3] = 0;
+    /* BUG-0045 FIX: write the LINK TRB at the end of the event ring so
+     * hardware and software agree on the ring layout, exactly like the
+     * command ring above. The old init left slot 63 zeroed while the
+     * consumer still stepped over it as if a LINK were there — on real
+     * hardware the segment simply ends after 63 events (every command
+     * and transfer then times out); under QEMU one event out of every
+     * 64 was lost. Cycle = 1 to match the ring's initial cycle state. */
+    driver_usb_xhci_trb_set(&x->ev[XHCI_RING_N - 1], x->ev_phys, 0,
+                 (TRB_LINK << TRB_TYPE_SH) | TRB_TC | TRB_C);
     x->ev_deq = 0;
     x->ev_cycle = 1;
 

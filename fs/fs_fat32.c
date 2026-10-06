@@ -259,7 +259,8 @@ static int fs_fat32_append_cluster(fs_fat32_ctx_t *ctx, u32 last_cluster, u32 ne
 /* Free every cluster in the chain starting at `start_cluster`. */
 static int fs_fat32_free_cluster_chain(fs_fat32_ctx_t *ctx, u32 start_cluster) {
     u32 cluster = start_cluster;
-    while (cluster >= 2 && cluster < FAT_EOC) {
+    u32 oc_hops = 0;   /* BUG-0058: bound the walk (corrupt chain = cycle) */
+    while (cluster >= 2 && cluster < FAT_EOC && oc_hops++ < ctx->total_clusters + 2u) {
         u32 next = fs_fat32_next_cluster(ctx, cluster);
         if (fs_fat32_set_fat_entry(ctx, cluster, 0x00000000u) < 0) return -1;
         cluster = next;
@@ -395,7 +396,8 @@ static int fs_fat32_find_entry(fs_fat32_ctx_t *ctx, u32 dir_first_cluster, const
     /* P2-19: LFN collection buffer. */
     u8 lfn_buf[20 * 32];
     int lfn_count = 0;
-    while (cluster >= 2 && cluster < FAT_EOC) {
+    u32 oc_hops = 0;   /* BUG-0058: bound the walk (corrupt chain = cycle) */
+    while (cluster >= 2 && cluster < FAT_EOC && oc_hops++ < ctx->total_clusters + 2u) {
         if (fs_fat32_read_cluster(ctx, cluster, cbuf) < 0) { rc = -2; break; }
         for (int i = 0; i < entries_per_cluster; i++) {
             fs_fat32_dirent_t *e = (fs_fat32_dirent_t *)(cbuf + i * 32);
@@ -449,7 +451,8 @@ static int fs_fat32_find_free_slots(fs_fat32_ctx_t *ctx, u32 dir_first_cluster,
     int entries_per_cluster = (int)(ctx->bytes_per_cluster / 32);
     u32 cluster = dir_first_cluster;
     int rc = -1;
-    while (cluster >= 2 && cluster < FAT_EOC) {
+    u32 oc_hops = 0;   /* BUG-0058: bound the walk (corrupt chain = cycle) */
+    while (cluster >= 2 && cluster < FAT_EOC && oc_hops++ < ctx->total_clusters + 2u) {
         if (fs_fat32_read_cluster(ctx, cluster, cbuf) < 0) { rc = -2; break; }
         for (int i = 0; i <= entries_per_cluster - num_slots; i++) {
             int all_free = 1;
@@ -702,7 +705,8 @@ static int fs_fat32_dir_is_empty(fs_fat32_ctx_t *ctx, u32 dir_first_cluster) {
     int entries_per_cluster = (int)(ctx->bytes_per_cluster / 32);
     u32 cluster = dir_first_cluster;
     int result = 1;
-    while (cluster >= 2 && cluster < FAT_EOC) {
+    u32 oc_hops = 0;   /* BUG-0058: bound the walk (corrupt chain = cycle) */
+    while (cluster >= 2 && cluster < FAT_EOC && oc_hops++ < ctx->total_clusters + 2u) {
         if (fs_fat32_read_cluster(ctx, cluster, cbuf) < 0) { result = -1; break; }
         for (int i = 0; i < entries_per_cluster; i++) {
             fs_fat32_dirent_t *e = (fs_fat32_dirent_t *)(cbuf + i * 32);
@@ -710,6 +714,21 @@ static int fs_fat32_dir_is_empty(fs_fat32_ctx_t *ctx, u32 dir_first_cluster) {
             if (e->name[0] == 0xE5) continue;
             if ((e->attr & FAT_ATTR_LFN) == FAT_ATTR_LFN) continue;
             if (e->attr & FAT_ATTR_VOLUME_ID) continue;
+            /* BUG-0056 FIX: every standard FAT directory starts with the
+             * '.' and '..' entries. The emptiness scan never skipped
+             * them, so fs_fat32_dir_is_empty() answered "not empty" for
+             * EVERY freshly-created empty directory and rmdir() failed
+             * on all of them. Compare the 8.3 body of the dot entries
+             * ('.' followed by spaces, attr=directory) and skip them. */
+            if ((e->attr & FAT_ATTR_DIRECTORY) &&
+                    e->name[0] == '.' &&
+                    (e->name[1] == '.' || e->name[1] == ' ') &&
+                    e->name[2] == ' ' && e->name[3] == ' ' &&
+                    e->name[4] == ' ' && e->name[5] == ' ' &&
+                    e->name[6] == ' ' && e->name[7] == ' ' &&
+                    e->name[8] == ' ' && e->name[9] == ' ' &&
+                    e->name[10] == ' ')
+                continue;   /* '.' or '..' */
             result = 0;
             goto done;
         }
@@ -1017,8 +1036,18 @@ static int fs_fat32_rmdir(fs_vfs_node_t *parent, const char *name) {
     return 0;
 }
 
+static fs_vfs_node_t *fs_fat32_lookup(fs_vfs_node_t *parent, const char *name);
+
 static int fs_fat32_unlink(fs_vfs_node_t *parent, const char *name) {
     if (!parent || !name) return -1;
+    /* BUG-0061 FIX: unlinking while the file is open frees the cluster
+     * chain; the still-open fd would then keep writing through a chain
+     * that can be handed out again to another file (data resurrection /
+     * cross-file corruption). Refuse until every fd is closed. */
+    {
+        fs_vfs_node_t *victim = fs_fat32_lookup(parent, name);
+        if (victim && victim->open_count > 0) return -4;
+    }
     fs_fat32_inode_t *pino = (fs_fat32_inode_t *)parent->private;
     if (!pino || !pino->ctx || pino->start_cluster < 2) return -2;
     fs_fat32_ctx_t *ctx = pino->ctx;
@@ -1066,7 +1095,8 @@ static int fs_fat32_read_dir_entries(fs_fat32_inode_t *dir, fs_fat32_dirent_t **
     if (!cbuf) { kfree(buf); return -3; }
 
     int entries_per_cluster = (int)(ctx->bytes_per_cluster / 32);
-    while (cluster >= 2 && cluster < FAT_EOC && n < max_entries) {
+    u32 oc_hops = 0;   /* BUG-0058: bound the walk (corrupt chain = cycle) */
+    while (cluster >= 2 && cluster < FAT_EOC && oc_hops++ < ctx->total_clusters + 2u && n < max_entries) {
         if (fs_fat32_read_cluster(ctx, cluster, cbuf) < 0) break;
         for (int i = 0; i < entries_per_cluster && n < max_entries; i++) {
             fs_fat32_dirent_t *e = (fs_fat32_dirent_t *)(cbuf + i * 32);
@@ -1391,6 +1421,12 @@ static int fs_fat32_fs_unmount(fs_vfs_node_t *root) {
     if (ino) {
         fs_fat32_ctx_t *ctx = ino->ctx;
         if (ctx) {
+            /* BUG-0057 FIX: g_last_ctx is published by fs_fat32_fs_mount()
+             * (fs_fat32_get_stats / `df` reads it). It was never cleared
+             * on unmount, so any `df` after `umount` dereferenced the
+             * freed context (use-after-free). Clear it before freeing,
+             * under the same guard the mount path uses. */
+            if (g_last_ctx == ctx) g_last_ctx = NULL;
             if (ctx->fat_cache) kfree(ctx->fat_cache);
             kfree(ctx);
         }

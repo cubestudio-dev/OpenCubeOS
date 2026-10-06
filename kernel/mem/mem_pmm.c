@@ -186,53 +186,88 @@ void mem_pmm_init(const arch_multiboot2_info_t *mbi) {
     }
 }
 
-u64 mem_pmm_alloc_frame(void) {
-    /* P1-1 FIX: guard against g_total_pages == 0 (div by zero). */
-    if (g_total_pages == 0) return 0;
-    /* Scan from g_last_scan for a free page. */
-    for (u64 i = 0; i < g_total_pages; i++) {
-        u64 idx = (g_last_scan + i) % g_total_pages;
-        if (!bitmap_test(idx)) {
-            bitmap_set(idx);
-            g_used_pages++;
-            g_free_pages--;
-            g_last_scan = idx + 1;
-            g_total_allocs++;  /* P4: counter */
-            return idx << PMM_PAGE_SHIFT;
-        }
-    }
+/* BUG-0043 FIX: single-CPU atomicity helpers for the PMM bitmap.
+ * pmm_irq_save() returns the previous RFLAGS with IF cleared;
+ * pmm_irq_restore() re-enables interrupts only if they were enabled
+ * before, so calls nested inside IRQ context are safe. */
+static inline u64 pmm_irq_save(void) {
+    u64 flags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(flags) :: "memory");
+    return flags;
+}
+static inline void pmm_irq_restore(u64 flags) {
+    if (flags & 0x200) __asm__ volatile("sti" ::: "memory");
+}
 
-    /* Out of memory. Call emergency callbacks. */
-    for (int i = 0; i < PMM_MAX_EMERGENCY_CBS; i++) {
-        if (g_emergency_cbs[i]) {
-            g_emergency_cbs[i]();
-            /* Retry after emergency free. */
-            for (u64 j = 0; j < g_total_pages; j++) {
-                if (!bitmap_test(j)) {
-                    bitmap_set(j);
-                    g_used_pages++;
-                    g_free_pages--;
-                    g_last_scan = j + 1;
-                    g_total_allocs++;  /* P4: counter */
-                    return j << PMM_PAGE_SHIFT;
+u64 mem_pmm_alloc_frame(void) {
+    /* BUG-0043 FIX: the bitmap test-then-set below must be atomic with
+     * respect to IRQ-context allocators (the mem_heap soft-timer
+     * callback grows pools via kmalloc -> mem_pmm_alloc_contig from the
+     * timer IRQ). A torn window could hand the same physical frame to
+     * both the preempted thread and the IRQ. Save IF, disable
+     * interrupts for the whole critical section, restore the previous
+     * state on exit (nested IRQ-context callers see IF already clear,
+     * so the restore is a no-op for them). */
+    u64 flags = pmm_irq_save();
+    u64 result = 0;
+
+    do {
+        /* P1-1 FIX: guard against g_total_pages == 0 (div by zero). */
+        if (g_total_pages == 0) break;
+
+        /* Scan from g_last_scan for a free page. */
+        for (u64 i = 0; i < g_total_pages; i++) {
+            u64 idx = (g_last_scan + i) % g_total_pages;
+            if (!bitmap_test(idx)) {
+                bitmap_set(idx);
+                g_used_pages++;
+                g_free_pages--;
+                g_last_scan = idx + 1;
+                g_total_allocs++;  /* P4: counter */
+                result = idx << PMM_PAGE_SHIFT;
+                break;
+            }
+        }
+        if (result) break;
+
+        /* Out of memory. Call emergency callbacks. */
+        for (int i = 0; i < PMM_MAX_EMERGENCY_CBS && !result; i++) {
+            if (g_emergency_cbs[i]) {
+                g_emergency_cbs[i]();
+                /* Retry after emergency free. */
+                for (u64 j = 0; j < g_total_pages; j++) {
+                    if (!bitmap_test(j)) {
+                        bitmap_set(j);
+                        g_used_pages++;
+                        g_free_pages--;
+                        g_last_scan = j + 1;
+                        g_total_allocs++;  /* P4: counter */
+                        result = j << PMM_PAGE_SHIFT;
+                        break;
+                    }
                 }
             }
         }
-    }
 
-    g_alloc_failures++;  /* P4: counter */
-    return 0;  /* truly out of memory */
+        if (!result) g_alloc_failures++;  /* P4: counter */
+    } while (0);
+
+    pmm_irq_restore(flags);
+    return result;
 }
 
 /* WP-07: Allocate `count` physically-contiguous pages. Scans the bitmap for
  * a run of `count` free pages. Returns physical address or 0 on failure. */
 u64 mem_pmm_alloc_contig(u64 count) {
     if (count == 0) return 0;
-    for (u64 i = 0; i < g_total_pages; i++) {
+    /* BUG-0043 FIX: atomic scan-and-mark (see mem_pmm_alloc_frame). */
+    u64 flags = pmm_irq_save();
+    u64 result = 0;
+    for (u64 i = 0; i + count <= g_total_pages; i++) {
         /* Check if pages i..i+count-1 are all free. */
         int ok = 1;
         for (u64 j = 0; j < count; j++) {
-            if (i + j >= g_total_pages || bitmap_test(i + j)) { ok = 0; break; }
+            if (bitmap_test(i + j)) { ok = 0; break; }
         }
         if (ok) {
             for (u64 j = 0; j < count; j++) {
@@ -242,17 +277,23 @@ u64 mem_pmm_alloc_contig(u64 count) {
             g_free_pages -= count;
             g_last_scan = i + count;
             g_total_allocs += count;  /* P4: counter (one per page) */
-            return i << PMM_PAGE_SHIFT;
+            result = i << PMM_PAGE_SHIFT;
+            break;
         }
     }
-    g_alloc_failures++;  /* P4: counter */
-    return 0;
+    if (!result) g_alloc_failures++;  /* P4: counter */
+    pmm_irq_restore(flags);
+    return result;
 }
 
 void mem_pmm_free_frame(u64 paddr) {
     if (paddr == 0) return;
     u64 idx = paddr >> PMM_PAGE_SHIFT;
     if (idx >= g_total_pages) return;
+    /* BUG-0043 FIX: bitmap update must not interleave with an IRQ-context
+     * allocator either (free could re-mark a frame the IRQ just handed
+     * out from its own scan of the same bit). */
+    u64 flags = pmm_irq_save();
     if (bitmap_test(idx)) {
         bitmap_clear(idx);
         g_used_pages--;
@@ -260,6 +301,7 @@ void mem_pmm_free_frame(u64 paddr) {
         if (idx < g_last_scan) g_last_scan = idx;
         g_total_frees++;  /* P4: counter */
     }
+    pmm_irq_restore(flags);
 }
 
 void mem_pmm_get_stats(mem_pmm_stats_t *out) {
