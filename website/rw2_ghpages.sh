@@ -3,7 +3,7 @@
 set -e
 OUT=/home/z/my-project/archive-repo/oc-os/website/out
 ORIGIN_URL=$(git -C /home/z/my-project/oc-os config --get remote.origin.url)
-echo "ORIGIN_URL=$ORIGIN_URL"
+echo "ORIGIN_URL=$(echo "$ORIGIN_URL" | sed 's|x-access-token:[^@]*|x-access-token:REDACTED|')"
 cd "$OUT"
 echo "PWD=$(pwd)"
 git init -q -b gh-pages .
@@ -13,7 +13,7 @@ git init -q -b gh-pages .
 git config user.name "cubestudio-dev"
 git config user.email "cubestudio@qq.com"
 git add -A
-git commit -q -m "website build: WP-AUDIT-01-p0fix1 (audit 607 findings + first 20 P0 fixes), wp-audit-01-p0fix1 ISO-SRC assets (3-way sha256), update.json/update-v2.json -> p0fix1 OTA package"
+git commit -q -m "website build: WP-AUDIT-01-p1fix2 (P1 items 32..62 fixed, BUG-0073..0103), wp-audit-01-p1fix2 ISO-SRC assets (3-way sha256: iso 960af554, src 3bb6ce64), stats 93,923 lines / 173 commands"
 git log --oneline -1
 echo "--- push gh-pages (force) ---"
 git push -f "$ORIGIN_URL" gh-pages 2>&1
