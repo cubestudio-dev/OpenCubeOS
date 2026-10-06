@@ -58,12 +58,23 @@ typedef struct {
     u64 seq12_w, seq12_r;
     int net_tls12_encrypted;
 
-    /* transcript (TLS 1.3: all handshake messages) */
-    u8 transcript[9216];
+    /* transcript (TLS 1.3: all handshake messages)
+     * BUG-0078 FIX (A14-27): was 9216 bytes with SILENT truncation - a
+     * real-world certificate chain (4+ certs, SCT extensions, RSA-4096
+     * leaf) pushed the ClientHello..Certificate range past the buffer,
+     * the tail was dropped without any error, and the Finished MAC was
+     * computed over a transcript that differed from the server's -> the
+     * handshake failed with no diagnosable cause. Now sized for the
+     * largest legal handshake sequence, and overflow is flagged so the
+     * handshake fails with an explicit error instead of silently
+     * computing a wrong Finished. */
+    u8 transcript[32768];
     int transcript_len;
+    int transcript_overflow;
     /* TLS 1.2 handshake log (for Finished verify_data) */
-    u8 hs_log[9216];
+    u8 hs_log[32768];
     int hs_log_len;
+    int hs_log_overflow;
 
     /* certificate chain workspace */
     u8 chain_buf[14336];

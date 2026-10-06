@@ -352,6 +352,13 @@ static u64 sys_fork(u64 a1, u64 a2, u64 a3, u64 a4) {
         } else if (child->fds[i].kind == 3) {
             sys_pipe_t *p = pipe_get(child->fds[i].pipe_id);
             if (p) p->writer_count++;
+        } else if (child->fds[i].kind == 1) {
+            /* BUG-0098 FIX (A2-5): the child shares the parent's VFS
+             * open-file slot. Add a reference so a later close by EITHER
+             * side only drops its own reference instead of destroying
+             * the slot (which left the survivor with a dangling fd whose
+             * reads failed and writes were silently lost). */
+            fs_vfs_fd_addref(child->fds[i].fs_vfs_fd);
         }
     }
 
@@ -402,7 +409,18 @@ static u64 sys_wait4(u64 pid_arg, u64 status_ptr, u64 options, u64 a4) {
                 g_procs[i].waited = 1;
                 if (status_ptr)
                     *(int*)(uintptr_t)status_ptr = g_procs[i].exit_code;
-                core_kthread_destroy(g_procs[i].tid);
+                /* BUG-0099 FIX (A2-6): stale-tid guard. The child EXITED,
+                 * the scheduler may already have reaped its task slot
+                 * (core_sched_reap_exited) and a NEW task may have been
+                 * created with the same tid. Blindly calling
+                 * core_kthread_destroy(g_procs[i].tid) then killed the
+                 * innocent new tenant of that slot (its stack freed under
+                 * it mid-run). Only destroy when the slot still holds an
+                 * EXITED task; if it was already reaped or reused, there
+                 * is nothing left to destroy. */
+                task_t *t = core_kthread_get_task(g_procs[i].tid);
+                if (t && t->state == TASK_EXITED)
+                    core_kthread_destroy(g_procs[i].tid);
                 return (u64)g_procs[i].pid;
             }
             if (g_procs[i].alive) found_alive = 1;
@@ -476,18 +494,69 @@ static u64 sys_read(u64 fd, u64 buf, u64 count, u64 a4) {
     if (!proc) return (u64)-1;
     if (fd >= PROC_MAX_FDS) return (u64)-1;
     sys_proc_fd_t *pfd = &proc->fds[fd];
-    if (pfd->kind == 0) return (u64)-1;
+    /* BUG-0090 FIX completion (A16-3): stdin (fd 0) is the console
+     * keyboard. POSIX stdio semantics: read(0,...) blocks until at
+     * least one byte is available from the keyboard queue, then drains
+     * the queue (up to count). Before this, kind-0 reads returned -1,
+     * so a stdin-reading builtin (bare `cat`) exited immediately after
+     * a `cat < file` redirect instead of waiting on the keyboard. */
+    if (pfd->kind == 0) {
+        u8 *ub = (u8*)(uintptr_t)buf;
+        u64 got = 0;
+        for (;;) {
+            /* sti;hlt pair (same pattern as sys_readline): the syscall
+             * entry cleared IF, and without re-enabling interrupts the
+             * keyboard IRQ can never fill the queue — the read would
+             * spin forever on an empty buffer. hlt sleeps until the
+             * IRQ arrives instead of burning the CPU. */
+            __asm__ volatile("sti");
+            __asm__ volatile("hlt");
+            int k = driver_input_keyboard_getch();
+            if (k < 0) continue;
+            if (k == 0x04) {           /* Ctrl-D = EOF, POSIX tty rule */
+                if (got == 0) return 0;
+                break;
+            }
+            if (k == '\r') k = '\n';   /* Enter arrives as CR from the PS/2 layer */
+            ub[got++] = (u8)k;
+            if (k == '\n' || got >= count) break;
+        }
+        return got;
+    }
     if (pfd->kind == 1) return (u64)fs_vfs_read(pfd->fs_vfs_fd, (void*)(uintptr_t)buf, (int)count);
     if (pfd->kind == 2) {
         sys_pipe_t *p = pipe_get(pfd->pipe_id);
         if (!p) return (u64)-1;
-        while (pipe_data_avail(p) == 0) {
-            if (p->writer_count == 0) return 0;
+        /* BUG-0100 FIX (A2-7): lost-wakeup race. The old code checked
+         * pipe_data_avail() OUTSIDE any critical section, then added
+         * itself to the wait queue and blocked. A timer preemption (or
+         * simply the writer running on the next slice) between the
+         * check and the enqueue let the writer fill the pipe and call
+         * pipe_wake_one() while reader_waiters was still empty: the
+         * wake was lost, we then enqueued and blocked forever with
+         * data already sitting in the buffer. Check + enqueue + block
+         * are now one cli-atomic window; the writer can only run
+         * before (its wake is then harmless, the recheck sees data)
+         * or after (its wake finds us queued). core_kthread_block()
+         * saves our (IF=0) rflags at the switch-out, so after wake we
+         * re-enable IF explicitly before touching shared state again. */
+        u64 irq_flags;
+        for (;;) {
+            __asm__ volatile("pushfq; popq %0; cli" : "=r"(irq_flags));
+            if (pipe_data_avail(p) > 0) {
+                if (irq_flags & 0x200) __asm__ volatile("sti");
+                break;
+            }
+            if (p->writer_count == 0) {
+                if (irq_flags & 0x200) __asm__ volatile("sti");
+                return 0;  /* EOF: all writers gone */
+            }
             /* P3-15: add to wait queue (FIFO), not single slot. */
             int my_tid = core_kthread_current_tid();
             pipe_wait_add(p->reader_waiters, my_tid);
             core_kthread_block();
             pipe_wait_remove(p->reader_waiters, my_tid);
+            if (irq_flags & 0x200) __asm__ volatile("sti");
         }
         u32 avail = pipe_data_avail(p);
         if (avail > count) avail = (u32)count;
@@ -532,7 +601,16 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
             u32 remaining = (u32)len;
             u64 total_written = 0;
             const u8 *src = (const u8*)(uintptr_t)buf;
+            u64 irq_flags;
             while (remaining > 0) {
+                /* BUG-0100 FIX (A2-7): writer-side lost-wakeup race,
+                 * mirror of the sys_read fix below/above: the old code
+                 * checked pipe_space_avail() un-protected, then
+                 * enqueued and blocked - a reader draining and waking
+                 * in that window lost the wake and the writer slept
+                 * with room already available. Check + enqueue + block
+                 * are now one cli-atomic window. */
+                __asm__ volatile("pushfq; popq %0; cli" : "=r"(irq_flags));
                 while (pipe_space_avail(p) == 0) {
                     /* P6 fix: old code returned -1 when reader_count == 0,
                      * losing data. This caused the ush pipe race: the
@@ -550,6 +628,7 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
                         /* Buffer is full and no readers. In POSIX this
                          * would be SIGPIPE/EPIPE. We return what we've
                          * written so far (or -1 if nothing). */
+                        if (irq_flags & 0x200) __asm__ volatile("sti");
                         return total_written > 0 ? total_written : (u64)-1;
                     }
                     /* P3-15: wait queue (FIFO), not single slot. */
@@ -557,7 +636,16 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
                     pipe_wait_add(p->writer_waiters, my_tid);
                     core_kthread_block();
                     pipe_wait_remove(p->writer_waiters, my_tid);
+                    /* BUG-0100 FIX: woken inside the cli window - the
+                     * block saved IF=0 (BUG-0103 restores it exactly),
+                     * re-enable before the space recheck loops. */
+                    if (irq_flags & 0x200) __asm__ volatile("sti");
                 }
+                /* Space is available (or the first pass fell straight
+                 * through the loop): leave the atomic check window
+                 * before the data copy so we never keep interrupts off
+                 * across the copy / wake path or return with IF=0. */
+                if (irq_flags & 0x200) __asm__ volatile("sti");
                 u32 space = pipe_space_avail(p);
                 u32 to_write = remaining < space ? remaining : space;
                 for (u32 i = 0; i < to_write; i++)
@@ -600,12 +688,29 @@ static u64 sys_dup(u64 fd, u64 a2, u64 a3, u64 a4) {
     if (!proc) return (u64)-1;
     if (fd >= PROC_MAX_FDS) return (u64)-1;
     sys_proc_fd_t *pfd = &proc->fds[fd];
-    if (pfd->kind == 0) return (u64)-1;
     int new_fd = sys_proc_fd_alloc(proc);
     if (new_fd < 0) return (u64)-1;
+    /* BUG-0090 FIX completion (A16-3): fd 0/1/2 start as kind-0 console
+     * placeholders, but POSIX shells MUST be able to dup/dup2 them to
+     * save and restore stdio across a redirect (ush does exactly that).
+     * A kind-0 dup just clones the placeholder: no pipe refcount, no VFS
+     * refcount, nothing to release on close. Returning -1 here made every
+     * ush redirect PERMANENTLY re-bind fd 1 to the redirect file (the
+     * save failed, so the restore was skipped) — console output of the
+     * whole session then went into that file. */
+    if (pfd->kind == 0) {
+        memset(&proc->fds[new_fd], 0, sizeof(proc->fds[new_fd]));
+        proc->fds[new_fd].kind = 0;
+        return (u64)new_fd;
+    }
     proc->fds[new_fd] = *pfd;
     if (pfd->kind == 2) { sys_pipe_t *p = pipe_get(pfd->pipe_id); if (p) p->reader_count++; }
     else if (pfd->kind == 3) { sys_pipe_t *p = pipe_get(pfd->pipe_id); if (p) p->writer_count++; }
+    else if (pfd->kind == 1) {
+        /* BUG-0098 FIX (A2-5): dup shares the open file - add a
+         * reference so the two fds close independently. */
+        fs_vfs_fd_addref(pfd->fs_vfs_fd);
+    }
     return (u64)new_fd;
 }
 
@@ -615,16 +720,44 @@ static u64 sys_dup2(u64 oldfd, u64 newfd, u64 a3, u64 a4) {
     if (!proc) return (u64)-1;
     if (oldfd >= PROC_MAX_FDS || newfd >= PROC_MAX_FDS) return (u64)-1;
     sys_proc_fd_t *pfd = &proc->fds[oldfd];
-    if (pfd->kind == 0) return (u64)-1;
+    /* BUG-0090 FIX completion (A16-3): kind-0 (console) sources are
+     * valid dup2 sources — restoring stdio after a redirect dup2's a
+     * saved kind-0 console placeholder back over the redirected slot. */
+    if (pfd->kind == 0) {
+        if (oldfd == newfd) return (u64)newfd;
+        if (proc->fds[newfd].kind != 0) {
+            if (proc->fds[newfd].kind == 2) { sys_pipe_t *p = pipe_get(proc->fds[newfd].pipe_id); if (p) p->reader_count--; }
+            else if (proc->fds[newfd].kind == 3) { sys_pipe_t *p = pipe_get(proc->fds[newfd].pipe_id); if (p) p->writer_count--; }
+            else if (proc->fds[newfd].kind == 1) {
+                fs_vfs_close(proc->fds[newfd].fs_vfs_fd);
+            }
+        }
+        memset(&proc->fds[newfd], 0, sizeof(proc->fds[newfd]));
+        proc->fds[newfd].kind = 0;
+        return (u64)newfd;
+    }
     if (oldfd == newfd) return (u64)newfd;
     if (proc->fds[newfd].kind != 0) {
         if (proc->fds[newfd].kind == 2) { sys_pipe_t *p = pipe_get(proc->fds[newfd].pipe_id); if (p) p->reader_count--; }
         else if (proc->fds[newfd].kind == 3) { sys_pipe_t *p = pipe_get(proc->fds[newfd].pipe_id); if (p) p->writer_count--; }
+        else if (proc->fds[newfd].kind == 1) {
+            /* BUG-0098 FIX (A2-5): the overwritten target's reference to
+             * its open file goes away with the overwrite - release it via
+             * fs_vfs_close, which now only drops the reference (the slot
+             * itself survives while any other holder keeps one). The old
+             * code leaked the slot outright here. */
+            fs_vfs_close(proc->fds[newfd].fs_vfs_fd);
+        }
         proc->fds[newfd].kind = 0;
     }
     proc->fds[newfd] = *pfd;
     if (pfd->kind == 2) { sys_pipe_t *p = pipe_get(pfd->pipe_id); if (p) p->reader_count++; }
     else if (pfd->kind == 3) { sys_pipe_t *p = pipe_get(pfd->pipe_id); if (p) p->writer_count++; }
+    else if (pfd->kind == 1) {
+        /* BUG-0098 FIX (A2-5): dup2 shares the open file - add a
+         * reference so oldfd and newfd close independently. */
+        fs_vfs_fd_addref(pfd->fs_vfs_fd);
+    }
     return (u64)newfd;
 }
 
@@ -926,12 +1059,35 @@ static u64 sys_select(u64 nfds, u64 readfds_ptr, u64 timeout_ms, u64 a4) {
 
     for (;;) {
         int ready_count = 0;
+        int bad_fd = 0;
         u8 result[FD_SET_BYTES];
         memset(result, 0, FD_SET_BYTES);
+        /* BUG-0100 FIX (A2-7) + BUG-0101 FIX (A2-8): the whole
+         * scan -> timeout-check -> enqueue -> block sequence runs
+         * inside ONE cli-atomic window. The old code re-opened the
+         * lost-wakeup hole the pipe read/write fixes close: data
+         * could arrive (and wake an empty wait queue) between the
+         * ready scan and the pipe_wait_add, leaving the thread
+         * asleep with a readable pipe. Single-CPU cli makes scan +
+         * enqueue atomic against the writer; core_kthread_block()
+         * saves our IF=0 rflags at switch-out (BUG-0103), so we
+         * re-enable IF right after the wake. */
+        u64 irq_flags;
+        __asm__ volatile("pushfq; popq %0; cli" : "=r"(irq_flags));
         for (u64 fd = 0; fd < nfds && fd < PROC_MAX_FDS; fd++) {
             if (!(readfds[fd / 8] & (1 << (fd % 8)))) continue;
             sys_proc_fd_t *pfd = &proc->fds[fd];
-            if (pfd->kind == 0) continue;
+            if (pfd->kind == 0) {
+                /* BUG-0101 FIX (A2-8): POSIX semantics. An fd that is
+                 * not open is EBADF, not "never ready": the old code
+                 * silently skipped it, so a select set containing only
+                 * such fds (e.g. stdin 0, which this kernel does not
+                 * auto-open) was neither ready nor waitable - with
+                 * timeout_ms == 0 it blocked FOREVER instead of
+                 * returning immediately. */
+                bad_fd = 1;
+                break;
+            }
             int is_ready = 0;
             if (pfd->kind == 2) {
                 sys_pipe_t *p = pipe_get(pfd->pipe_id);
@@ -939,13 +1095,31 @@ static u64 sys_select(u64 nfds, u64 readfds_ptr, u64 timeout_ms, u64 a4) {
             } else if (pfd->kind == 1) is_ready = 1;
             if (is_ready) { result[fd / 8] |= (1 << (fd % 8)); ready_count++; }
         }
+        if (bad_fd) {
+            if (irq_flags & 0x200) __asm__ volatile("sti");
+            return (u64)-1;  /* EBADF */
+        }
         if (ready_count > 0) {
+            if (irq_flags & 0x200) __asm__ volatile("sti");
             memcpy(readfds, result, FD_SET_BYTES);
             return (u64)ready_count;
         }
-        if (timeout_ms > 0) {
+        if (timeout_ms == 0) {
+            /* BUG-0101 FIX (A2-8): timeout_ms == 0 means "poll once and
+             * return immediately" (POSIX). The old code treated 0 as
+             * "no timeout" and fell through to an unbounded block -
+             * the exact opposite. */
+            if (irq_flags & 0x200) __asm__ volatile("sti");
+            memcpy(readfds, result, FD_SET_BYTES);
+            return 0;
+        }
+        if (timeout_ms != (u64)-1) {
             u64 elapsed = core_timer_ticks() - start_ticks;
-            if (elapsed >= timeout_ticks) return 0;
+            if (elapsed >= timeout_ticks) {
+                if (irq_flags & 0x200) __asm__ volatile("sti");
+                memcpy(readfds, result, FD_SET_BYTES);
+                return 0;
+            }
         }
         for (u64 fd = 0; fd < nfds && fd < PROC_MAX_FDS; fd++) {
             if (!(readfds[fd / 8] & (1 << (fd % 8)))) continue;
@@ -966,6 +1140,7 @@ static u64 sys_select(u64 nfds, u64 readfds_ptr, u64 timeout_ms, u64 a4) {
                 if (p) pipe_wait_remove(p->reader_waiters, my_tid);
             }
         }
+        if (irq_flags & 0x200) __asm__ volatile("sti");
     }
 }
 
@@ -1110,6 +1285,8 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     extern const u8 userprog_reloc_test[];
     extern const u8 userprog_mmap_multi[];
     extern const u8 userprog_ush[];
+    extern const u8 userprog_fdref_test[];
+    extern const u8 userprog_select_zero_test[];
     const u8 *elf = NULL;
     if (strcmp(name, "hello") == 0) elf = userprog_hello;
     else if (strcmp(name, "fork_test") == 0) elf = userprog_fork_test;
@@ -1124,8 +1301,26 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     else if (strcmp(name, "pie_test") == 0) elf = userprog_pie_test;
     else if (strcmp(name, "reloc_test") == 0) elf = userprog_reloc_test;
     else if (strcmp(name, "mmap_multi") == 0) elf = userprog_mmap_multi;
+    else if (strcmp(name, "fdref_test") == 0) elf = userprog_fdref_test;
+    else if (strcmp(name, "select_zero_test") == 0) elf = userprog_select_zero_test;
     else if (strcmp(name, "ush") == 0 || strcmp(name, "usershell") == 0)
         elf = userprog_ush;
+    if (!elf) {
+        /* BUG-0092 FIX (A16-5): fall back to the WP-08cd L1 tool table —
+         * a tool registered via tool_register() is now genuinely
+         * executable by name (before, the table was write-only). */
+        extern int l1_wp8cd_tool_find(const char *name, const u8 **elf, u64 *size);
+        u64 tool_size = 0;
+        const u8 *tool_elf = NULL;
+        if (l1_wp8cd_tool_find(name, &tool_elf, &tool_size) && tool_elf) {
+            static const u8 *s_tool_elf;
+            static u64 s_tool_size;
+            s_tool_elf = tool_elf;
+            s_tool_size = tool_size;
+            elf = s_tool_elf;
+            (void)s_tool_size;
+        }
+    }
     if (!elf) return (u64)-1;
 
     user_proc_t *proc = user_process_current();

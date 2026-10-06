@@ -58,7 +58,7 @@ The current slot travels through the multiboot2 command line
 ## Configuration (4 keys)
 
 ```
-ota_update_url=https://cubestudio-dev.github.io/OpenCubeOS/update.json
+update_url=https://cubestudio-dev.github.io/OpenCubeOS/update.json
 package_url=https://github.com/cubestudio-dev/OpenCubeOS/releases/latest
 auto_check=no
 online_update=yes

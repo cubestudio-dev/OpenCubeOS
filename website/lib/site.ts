@@ -1,53 +1,53 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-AUDIT-01-p0fix2 value
+// Central site data. Every number is a real WP-AUDIT-01-p1fix1 value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
 // docs/EXTENSIONS_WP10-wp08fix1.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub wp-audit-01-p0fix2 tag + site /downloads/ + this site /downloads/
+// 3-way identical: local build + GitHub wp-audit-01-p1fix1 tag + site /downloads/ + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p0fix2";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p1fix1";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub wp-audit-01-p0fix2 tag + site /downloads/ + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp-audit-01-p0fix2.iso";
-export const ISO_SIZE_B = 11339776;
-export const ISO_SIZE_MB = "10.81";
+// Real assets (build/ + GitHub wp-audit-01-p1fix1 tag + site /downloads/ + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp-audit-01-p1fix1.iso";
+export const ISO_SIZE_B = 11350016;
+export const ISO_SIZE_MB = "10.82";
 export const ISO_SHA256 =
-  "b40c1b405b309ab3ab854c37a47ac60706ba2f14afc5a49b4fe56e369e381dce";
+  "0d966a0de64632ecbde236436f331173da2044636b9fbe5ceb38cffe43d16c92";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp-audit-01-p0fix2-src.zip";
-export const SRC_SIZE_B = 2566826;
-export const SRC_SIZE_MB = "2.45";
+export const SRC_FILE = "opencube-wp-audit-01-p1fix1-src.zip";
+export const SRC_SIZE_B = 2647642;
+export const SRC_SIZE_MB = "2.52";
 export const SRC_SHA256 =
-  "f0abcff6e1723662d2a3eedeae318a4fd5a8d27d6f9365da7736693846bf5f16";
+  "f284305f1e4772d3d22fdf6beb8215c50c967d68bb177571d34a3268741a51c0";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-AUDIT-01-p0fix2 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 90,916.
-// Shell commands: live boot count = 172 (QEMU help -a prints "Total: 172 commands"; static registry = 172 unique, both directions empty diff).
-// L1 extension interfaces: 138 items (unchanged).
+// WP-AUDIT-01-p1fix1 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 92,279.
+// Shell commands: live boot count = 173 (help -a prints "Total: 173 commands"; p1fix1 added the pmmrace command).
+// L1 extension interfaces: 138 items (unchanged; p1fix1 added no l1/ headers).
 export const STATS = [
-  { value: "90,916", label: "行源码" },
+  { value: "92,279", label: "行源码" },
   { value: "138", label: "L1 扩展接口" },
   { value: "44", label: "系统调用" },
-  { value: "172", label: "shell 命令" },
+  { value: "173", label: "shell 命令" },
   { value: "16", label: "工作包" },
   { value: "41/41", label: "P0 修复测试" },
 ];
 
-// WP-AUDIT-01 (607-finding audit + all 41 P0 fixes: p0fix1 first 20 + p0fix2 remaining 21) leads the user-facing list
+// WP-AUDIT-01 (607-finding audit + all 41 P0 fixes + P1 fixes in progress: p1fix1 first 31) leads the user-facing list
 export const FEATURES = [
   {
-    name: "完整安全审查 + 全部 41 个 P0 修复",
-    tag: "WP-AUDIT-01-p0fix2",
-    desc: "18 路逐行审查 607 条发现（P0 41 / P1 94 / P2 214 / P3 258）；p0fix1 修复前 20 个 P0：VFS 挂载消息栈溢出、rmdir/umount 挂载点保护（挂载点偶发消失 BUG-019 根因）、ext4 恶意卷除零、FAT32 BPB/簇号越界写盘、tcptest 33KB 引导栈溢出、内核线程栈 1 页改 4 页、SSH 客户端与 sshd 共 14 处预认证溢出（收包页上限、负长度拒绝、name-list 溢出界、交换哈希边界、加密收包预检查、fail 缓冲 sizing）；p0fix2 修复其余 21 个 P0（BUG-0021..0041）：TLS 请求/记录/消息边界与 TLS 1.3 CertVerify DER、shell glob/fsck/mv、sys_poll nfds 回绕、SYS_EXIT 缓冲、execve CR3 切换次序、sys_ps ktab 堆化、X509 DER 长度溢出、config 写边界、OTA changes/request/路径遍历拒绝、NVMe 非 512B LBA 拒绝、嵌套 #PF 防护。41 条全部有修复验证（QEMU 复现修复前 FAIL / 修复后 PASS、宿主 ASAN 或构造级路径证据）。",
+    name: "完整安全审查 + P0 全部修复 + P1 修复推进",
+    tag: "WP-AUDIT-01-p1fix1",
+    desc: "18 路逐行审查 607 条发现（P0 41 / P1 94 / P2 214 / P3 258）；41 个 P0 全部修复（p0fix1 前 20 + p0fix2 后 21，逐条有 QEMU FAIL-before/PASS-after、宿主 ASAN 或构造级路径证据）；WP-AUDIT-01-p1fix1 修复前 31 个 P1（BUG-0042..0072）：每任务 FPU/SSE fxsave 上下文 + CR4.OSFXSR + fork 继承、PMM 位图 cli 原子性、页错误语义（P=1 拒绝、8MiB 栈下限、U/S 特权环、内核在用户地址空间拒绝）、XHCI 事件环 LINK 与轮询闸锁、EHCI CONFIGFLAG、OHCI 中断表/TD_R/NPS、MSC residue 与 sector_size、CDC-ACM 协议、SS EP0 mps9、FAT32 rmdir 点项 + UAF + 簇环越界 + unlink 保护、exFAT 位图生命周期、ext4 extent 偏移与恶意卷越界、e1000 strcat、ld_so 边界、网络 IP 帧校验 + RX 校验和 + 序号回绕 + RST 校验 + SYN_RCVD 回收 + SYN 选项 + udp_bind 去重 + 窗口缩放 + RTO 临界区；新增 sse_test/pf_test 用户测试，回归 tcptest/fork_test/ping/pmmrace 全绿。",
   },
   {
     name: "Shell 完全体（行编辑 + 工具 + 编辑器）",
@@ -191,7 +191,7 @@ export const WORK_PACKAGES = [
   },
   {
     no: "WP-AUDIT-01",
-    title: "完整审查（18 路，607 条）+ P0 全部 41 个修复（p0fix1 前 20 + p0fix2 后 21）",
+    title: "完整审查（18 路，607 条）+ P0 全部 41 个修复 + P1 修复推进（p1fix1 前 31 条）",
   },
 ];
 

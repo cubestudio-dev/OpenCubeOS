@@ -115,7 +115,7 @@ The .tar.gz contains manifest.json + kernel/opencube.elf + boot/grub.cfg
 One command serves everything (manifest, optional v2 manifest, package):
 
 ```sh
-python3 tools/ota_update_server.py --mode http --port 8008 \
+python3 tools/update_server.py --mode http --port 8008 \
   --json '{ "version": "WP-10d", "time": "2026-10-20",
             "changes": "new release",
             "changes_v2_url": "http://10.0.2.2:8008/update-v2.json",
@@ -235,7 +235,7 @@ oc> update --status      # current/next boot, A/B presence, availability
 |---------------------------------------------|----------------------------------------|
 | `update: A/B disk: absent`                  | disk not attached or not built by make_ab_disk.sh |
 | `config file missing or unreadable`         | /etc/opencube.conf missing; run `config restore` |
-| `invalid URL prefix`                        | ota_update_url must be http:// or https:// |
+| `invalid URL prefix`                        | update_url must be http:// or https:// |
 | `DNS resolution failed` / `connect failed`  | network down; run `dhcp`, then retry   |
 | `JSON parse failed`                         | server did not return the manifest     |
 | `response too large`                        | manifest bigger than the receive buffer |
@@ -254,7 +254,7 @@ Error codes (kernel/ota/ota_update.h): -1..-8 transport (WP-09-fix5 contract),
 - kernel/ota/ota_update.h/.c - manifest check (Plan D v2 changelog)
 - tools/make_ab_disk.sh - A/B disk image builder (host)
 - tools/make_update_pkg.sh - update package builder (host)
-- tools/ota_update_server.py - manifest + v2 + package test server (host)
+- tools/update_server.py - manifest + v2 + package test server (host)
 
 Interface details: docs/EXTENSIONS_WP10u.md.  Config keys:
 docs/CONFIG.md.

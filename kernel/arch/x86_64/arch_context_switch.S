@@ -172,6 +172,27 @@ arch_context_switch:
     mov rbp, [rsi + OFF_RBP]
     mov rdx, [rsi + OFF_RDX]
     mov rcx, [rsi + OFF_RCX]
+
+    ; BUG-0103 FIX (A3-02): restore the incoming task's RFLAGS.
+    ; The switch-out path above saves RFLAGS, but the switch-in path
+    ; never restored it, so the incoming task ran with whatever IF state
+    ; the switch point happened to have:
+    ;   - a task switched out inside a cli critical section and later
+    ;     resumed from an IF=1 yield could come back with IF=1 while it
+    ;     still believes it holds the lock (interrupts enabled under a
+    ;     spinlock/critical section), and
+    ;   - a task switched out inside an IRQ handler (IF=0) resumed from
+    ;     a task that yielded with IF=1 would run its IRQ epilogue with
+    ;     interrupts ENABLED (nested IRQ on a handler stack).
+    ; Load the saved RFLAGS here via a push/popfq pair. rax is scratch
+    ; at this point; the task's real rax is loaded right after. The
+    ; popfq sits after the new RSP/RIP-push setup, so the interrupt
+    ; window it opens is the normal pre-ret window on the new task's
+    ; own stack.
+    mov rax, [rsi + OFF_RFLAGS]
+    push rax
+    popfq
+
     mov rbx, [rsi + OFF_RBX]
     mov rax, [rsi + OFF_RAX]
 

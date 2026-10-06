@@ -31,6 +31,10 @@ int shell_run(void);
  * Returns 0 on success, -1 if table is full. */
 typedef int (*shell_builtin_fn)(int argc, char **argv);
 int shell_register_builtin(const char *name, shell_builtin_fn fn, const char *help);
+/* BUG-0092 FIX completion: symmetric removal of a previously registered
+ * builtin (used by the boot self-test to clean up its probe entry so
+ * the live oc> command count stays stable). Returns 0 = removed. */
+int shell_unregister_builtin(const char *name);
 
 /* ---- Interface 53: tool_register ----
  * Register a user-space tool that can be exec'd by the shell.

@@ -124,8 +124,11 @@ screen_font_engine_t* l1_ext_default_font_engine(void);
 typedef int (*screen_console_hook_fn)(void* ctx, u8 ch);
 void l1_ext_set_console_hook(screen_console_hook_fn hook, void* ctx);
 
-/* Called by the L0 console for every character (do not call from L1). */
-void l1_ext_console_hook(u8 ch);
+/* Called by the L0 console for every character (do not call from L1).
+ * BUG-0091 FIX (A16-4): returns the hook's verdict (0 = nothing
+ * handled, L0 draws; non-zero = hook handled/suppressed the char),
+ * matching the documented contract above. */
+int l1_ext_console_hook(u8 ch);
 
 /* ------------------------------------------------------------------ *
  * 5. SYSTEM CONFIGURATION (WP-09-fix5)

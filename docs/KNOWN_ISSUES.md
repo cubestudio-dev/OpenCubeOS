@@ -290,7 +290,7 @@ future round):
   cosmetic, P2-grade.
 - BUG-0038's config-set reproduction path is not reachable as documented:
   `config set` values are capped at 255 bytes, so a >255-char URL is
-  truncated at the config layer before ota_update_url_parse ever sees it;
+  truncated at the config layer before update_url_parse ever sees it;
   the redirect-based trigger (used above) is the real attack surface.
 
 ### 4.2 umount keeps the (empty) mount-point directory — BY DESIGN (BUG-032)

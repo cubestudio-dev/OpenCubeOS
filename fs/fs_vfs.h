@@ -178,6 +178,14 @@ struct fs_vfs_file {
     int           flags;
     u64           offset;
     int           in_use;
+    /* BUG-0098 FIX (A2-5): reference count on the VFS-open-file slot.
+     * One reference per kernel fd-table entry that points here
+     * (sys_open = 1; sys_dup / sys_dup2 / fork inheritance each add
+     * one via fs_vfs_fd_addref). fs_vfs_close only really closes the
+     * underlying node when the LAST reference goes away; a dup'd or
+     * fork-inherited fd therefore survives a sibling close instead of
+     * silently dangling (writes to it failed or landed elsewhere). */
+    int           refcnt;
 };
 
 /* Hook op codes (passed to hook callbacks). */
@@ -205,6 +213,11 @@ int  fs_vfs_read   (int fd, void *buf, int size);
 int  fs_vfs_write  (int fd, const void *buf, int size);
 int  fs_vfs_seek   (int fd, int offset, int whence);
 int  fs_vfs_close  (int fd);
+/* BUG-0098 FIX (A2-5): add one reference to an already-open VFS fd.
+ * Called by sys_dup / sys_dup2 / fork for every inherited kind-1 fd so
+ * that a later close by ONE holder only drops that holder's reference
+ * instead of destroying the shared open file. Returns 0 or -1. */
+int  fs_vfs_fd_addref (int fd);
 int  fs_vfs_stat   (const char *path, fs_vfs_stat_t *st);
 int  fs_vfs_mkdir  (const char *path);
 int  fs_vfs_rmdir  (const char *path);

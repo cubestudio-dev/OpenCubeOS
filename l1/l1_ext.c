@@ -77,10 +77,20 @@ void l1_ext_set_console_hook(screen_console_hook_fn hook, void* ctx) {
     g_hook_ctx = ctx;
 }
 
-void l1_ext_console_hook(u8 ch) {
+/* BUG-0091 FIX (A16-4): the documented contract in l1_ext.h says the
+ * hook may SUPPRESS the character by returning non-zero ("0 = let L0
+ * draw the char normally; non-zero = L1 handled it"), but this
+ * function returned VOID and threw the return value away, so the
+ * suppression promise was unimplementable: L0 always drew the char
+ * even when the hook had already handled it (the shell's capture hook
+ * worked around this with a private double-hook, but a plain L1
+ * consumer following the documentation could not suppress anything).
+ * Return the hook's verdict to the caller. */
+int l1_ext_console_hook(u8 ch) {
     if (g_hook_fn) {
-        g_hook_fn(g_hook_ctx, ch);
+        return g_hook_fn(g_hook_ctx, ch);
     }
+    return 0;
 }
 
 /* ---- Self-test: invokes every extension point ---- */

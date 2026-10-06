@@ -152,6 +152,11 @@ _Static_assert(__builtin_offsetof(task_t, fpu_state) == 288,
                "task_t.fpu_state offset must match OFF_FPU in arch_context_switch.S");
 _Static_assert(__builtin_offsetof(task_t, fpu_saved) == 800,
                "task_t.fpu_saved offset must match OFF_FPU_SAVED in arch_context_switch.S");
+/* BUG-0103 FIX (A3-02): the switch-in path now RESTORES RFLAGS from
+ * task_t.rflags; pin its offset the same way so a future struct change
+ * cannot silently desync the assembly. */
+_Static_assert(__builtin_offsetof(task_t, rflags) == 208,
+               "task_t.rflags offset must match OFF_RFLAGS in arch_context_switch.S");
 
 void core_sched_init(void) {
     /* BUG-0042 FIX: enable the FPU/SSE environment and make it
@@ -421,13 +426,25 @@ int core_kthread_block(void) {
 int core_kthread_wake(tid_t tid) {
     if (tid <= 0 || tid >= MAX_TASKS) return -1;
     if (!g_tasks[tid].in_use) return -1;
-    if (g_tasks[tid].state != TASK_BLOCKED) return -1;
+    /* BUG-0100 FIX (A2-7): the BLOCKED check + READY transition +
+     * ready_push must be atomic. Wakers run with interrupts enabled
+     * (pipe wake paths in core_syscall.c); a timer tick between the
+     * state check and ready_push would call ready_push without the
+     * P2-23-required cli protection and could corrupt the ready
+     * queue / double-enqueue the woken tid. */
+    u64 flags;
+    __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags));
+    if (!g_tasks[tid].in_use || g_tasks[tid].state != TASK_BLOCKED) {
+        if (flags & 0x200) __asm__ volatile("sti");
+        return -1;
+    }
     /* Set state to READY before pushing to the ready queue. This prevents
      * a duplicate wake: without this, a second core_kthread_wake would still
      * see TASK_BLOCKED and push the tid again, causing a double-entry
      * in the ready queue and a lost-wakeup race. */
     g_tasks[tid].state = TASK_READY;
     ready_push(tid);
+    if (flags & 0x200) __asm__ volatile("sti");
     return 0;
 }
 
@@ -681,11 +698,33 @@ void core_sched_yield(void) {
         ready_push(g_current->tid);
     }
     tid_t next_tid = ready_pop_highest();
+    /* BUG-0102 FIX (A3-01): if the pop returned OUR OWN tid (we were the
+     * only/highest ready task), the old code called
+     * core_sched_switch_to(&g_tasks[g_current->tid]), which returns
+     * immediately (old == next) WITHOUT touching task state. We kept
+     * running with state == TASK_READY and NOT in any ready queue, so
+     * the next core_sched_tick saw state != TASK_RUNNING, refused to
+     * re-queue us (core_sched_tick only pushes TASK_RUNNING currents),
+     * and switched away - after that we were on no queue and in no
+     * RUNNING state: an orphan, never scheduled again. Restore
+     * TASK_RUNNING and keep the CPU instead (a yield with nobody else
+     * ready is a no-op). */
+    if (next_tid == g_current->tid) {
+        g_current->state = TASK_RUNNING;
+        return;
+    }
     if (next_tid > 0) {
         core_sched_switch_to(&g_tasks[next_tid]);
     } else if (g_current->state != TASK_RUNNING) {
         /* Current task is blocked/exited, switch to idle. */
         core_sched_switch_to(g_idle_task);
+    } else {
+        /* BUG-0102 FIX (A3-01) second half: queue empty but we pushed
+         * ourselves a moment ago and something already consumed the
+         * entry (e.g. the tick interleaved inside this window). Our
+         * state is TASK_READY but we are not queued - re-arm us as
+         * RUNNING or we orphan the same way. */
+        g_current->state = TASK_RUNNING;
     }
 }
 

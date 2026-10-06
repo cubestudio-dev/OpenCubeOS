@@ -124,14 +124,17 @@ DH truth vectors for self-test: kernel/crypto/crypto_dh_scale_vectors.h.
 
 ## 4. Shell command surface
 
-172 commands registered at boot (live count; `help` lists 172 unique and
-prints `Total: 172 commands`, `help -w` groups them by work-package tag).
-Section updated at WP-AUDIT-01-p0fix2: the earlier table (168 total, 170
-live) used pre-restructure file names and predates WP-10-wp08fix1.
-`shell_register_command` call sites (static count, verified 2026-10-05 by
-per-file grep = 172 unique names, no duplicates; cross-checked against a
+173 commands registered at boot (live count; `help` lists 173 unique and
+prints `Total: 173 commands`, `help -w` groups them by work-package tag).
+Section updated at WP-AUDIT-01-p1fix2: p1fix1 added the `pmmrace` command
+(kernel/main.c, BUG-0043 repro) so the boot count moved 172 -> 173; the
+earlier table (168 total, 170 live) used pre-restructure file names and
+predates WP-10-wp08fix1.
+`shell_register_command` call sites (static count, verified 2026-10-06 by
+per-file grep = 173 unique names, no duplicates; cross-checked against a
 live `help -a` extraction in QEMU — both directions empty diff):
-kernel/main.c 52 (incl. update/rollback/reboot), net/net_core.c 16,
+kernel/main.c 53 (incl. update/rollback/reboot and pmmrace),
+net/net_core.c 16,
 shell/shell_cmds_file.c 18, shell/shell_cmds_disk.c 7,
 drivers/block/driver_block_disk_setup.c 4 (rule-9 self-hosting:
 abdisk/install/grub-install/abcfg), shell/shell_cmds_disk_test.c 8
@@ -141,7 +144,7 @@ abdisk/install/grub-install/abcfg), shell/shell_cmds_disk_test.c 8
 (WP-10u), shell/shell_cmds_usb_test.c 9 (WP-10d: usb/usbdev status +
 7 test commands), shell/shell.c 6 (incl. WP-10-wp08fix1 nano/vi),
 shell/shell_cmds_power_test.c 7 (WP-10d-fix2 power + help test suite).
-52+16+18+7+4+8+18+17+10+9+6+7 = 172. Full list: type `help` at the `oc>`
+53+16+18+7+4+8+18+17+10+9+6+7 = 173. Full list: type `help` at the `oc>`
 prompt.
 
 ## 5. Verification of these interfaces

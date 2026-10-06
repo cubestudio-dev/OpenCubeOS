@@ -126,7 +126,15 @@ static shell_cmd_fn shell_lookup(const char *name) {
 /* Execute a single command word + args string. Returns 1 if found, 0 if not. */
 static int shell_run_simple(const char *cmd, const char *args) {
     shell_cmd_fn fn = shell_lookup(cmd);
-    if (!fn) return 0;
+    if (!fn) {
+        /* BUG-0092 FIX (A16-5): give L1-registered builtins (see
+         * l1_wp8cd.c shell_register_builtin) a real dispatch path:
+         * without this, names registered through the documented L1 API
+         * were stored in an orphaned table and "not found" at oc>. */
+        extern int l1_wp8cd_builtin_exec(const char *cmd, const char *args);
+        if (l1_wp8cd_builtin_exec(cmd, args)) return 1;
+        return 0;
+    }
     fn(args);
     return 1;
 }
@@ -892,8 +900,20 @@ static int shell_expand_wildcards(const token_t *tok, token_t *out, int max_out)
         memcpy(dirpath, tok->text, (usize)last_slash + 1);
         dirpath[last_slash + 1] = 0;
         /* If the path was like "/foo/x.c" with a wildcard, dirpath is the
-         * parent dir (with trailing slash). Normalize it. */
-        if (shell_resolve_path(dirpath, dirpath, VFS_PATH_LEN) < 0) return -1;
+         * parent dir (with trailing slash). Normalize it.
+         * BUG-0084 FIX (A15-5): the old code called
+         *   shell_resolve_path(dirpath, dirpath, ...)
+         * with the SAME buffer as input and output. For RELATIVE
+         * patterns such as "src" SLASH "*dot-c" the resolver first does
+         * strcpy(out, g_cwd) - destroying the very input it is about
+         * to read on the next line - so every relative wildcard
+         * expanded to garbage (ls/mv/cp/cd with a "dir STAR" pattern
+         * all broke). Resolve through a scratch copy instead. */
+        {
+            char dir_in[VFS_PATH_LEN];
+            strcpy(dir_in, dirpath);
+            if (shell_resolve_path(dir_in, dirpath, VFS_PATH_LEN) < 0) return -1;
+        }
         /* P0fix2 BUG-0028 (A15-1): the same bound applies to the pattern
          * after the last slash. */
         if (tlen - last_slash - 1 >= (int)sizeof(pat)) return -1;
@@ -947,7 +967,22 @@ typedef struct {
     int   overflowed;  /* WP-09-FIX BUG-025: set when output was dropped */
 } shell_capture_t;
 
-static shell_capture_t g_capture = {0};
+/* BUG-0083 FIX (A15-4): capture used to be a SINGLE global buffer with
+ * a "one capture at a time" rule enforced by returning -1 from
+ * shell_capture_begin. A nested exec (e.g. an SSH remote command that
+ * itself contains a pipe, or any capture inside a capture) then broke
+ * in two ways: the inner begin failed and the inner stage never ran
+ * (remote command fails), or an inner end/free UNINSTALLED the hook
+ * and restored the user hook, so the OUTER capture silently stopped
+ * collecting and its output leaked to the console (data pollution).
+ * Captures are now a STACK (up to 4 levels). All existing readers use
+ * `g_capture`, which aliases the innermost ACTIVE slot, so the exec
+ * pipeline code keeps working unchanged; the hook only restores the
+ * user hook when the LAST capture goes away. */
+#define OC_CAPTURE_MAX 4
+static shell_capture_t g_capture_stk[OC_CAPTURE_MAX];
+static int g_capture_depth = 0;
+#define g_capture (g_capture_stk[g_capture_depth > 0 ? g_capture_depth - 1 : 0])
 
 /* Track the "user" hook (the one the rest of the kernel installs, e.g.
  * serial output). When we capture, we install our own hook on top and
@@ -959,13 +994,13 @@ static int g_capture_installed = 0;
 /* Our capturing hook. Forwards to the previously-installed hook (so serial
  * output keeps working), then appends the char to the capture buffer, then
  * returns 1 to suppress the framebuffer draw. */
-static int shell_capture_hook(void *ctx, u8 ch) {
+static int shell_capture_hook_body(void *ctx, u8 ch) {
     (void)ctx;
     /* BUG-016 FIX: During capture (pipe/redirect), do NOT forward to
      * g_user_hook (which sends to serial). The old code forwarded every
      * char to the serial port, causing intermediate output to leak
      * during pipe/redirect operations. Only capture into the buffer. */
-    if (g_capture.active && g_capture.buf) {
+    if (g_capture_depth > 0 && g_capture.buf) {
         if (g_capture.size + 1 < g_capture.cap) {
             g_capture.buf[g_capture.size++] = (char)ch;
             g_capture.buf[g_capture.size] = 0;
@@ -979,6 +1014,10 @@ static int shell_capture_hook(void *ctx, u8 ch) {
     /* Not capturing: forward to user hook (serial etc.) */
     if (g_user_hook) g_user_hook(g_user_hook_ctx, ch);
     return 0;  /* let framebuffer draw normally */
+}
+
+static int shell_capture_hook(void *ctx, u8 ch) {
+    return shell_capture_hook_body(ctx, ch);
 }
 
 void shell_install_console_hook(shell_hook_fn_t hook, void *ctx) {
@@ -1007,10 +1046,14 @@ static void shell_capture_uninstall(void) {
 }
 
 static int shell_capture_begin(int cap) {
-    if (g_capture.active) return -1;
+    /* BUG-0083 FIX (A15-4): push a new capture instead of refusing when
+     * one is already active (see the comment above g_capture_stk). */
+    if (g_capture_depth >= OC_CAPTURE_MAX) return -1;
     if (cap <= 0) cap = 8192;
-    g_capture.buf = (char *)kmalloc((u64)cap);
-    if (!g_capture.buf) return -1;
+    char *buf = (char *)kmalloc((u64)cap);
+    if (!buf) return -1;
+    g_capture_depth++;   /* push: g_capture now aliases the new slot */
+    g_capture.buf = buf;
     g_capture.size = 0;
     g_capture.cap = cap;
     g_capture.overflowed = 0;  /* WP-09-FIX BUG-025 */
@@ -1021,18 +1064,26 @@ static int shell_capture_begin(int cap) {
 }
 
 static void shell_capture_end(void) {
-    if (!g_capture.active) return;
+    /* BUG-0083 FIX (A15-4): mark only the TOP capture finished. The
+     * buffer stays readable (shell_execute_captured copies it after
+     * end) until shell_capture_free pops it; the hook is only torn
+     * down when the LAST capture goes away. */
+    if (g_capture_depth <= 0 || !g_capture.active) return;
     g_capture.active = 0;
-    shell_capture_uninstall();
 }
 
 static void shell_capture_free(void) {
+    /* BUG-0083 FIX (A15-4): pop the top capture. */
+    if (g_capture_depth <= 0) return;
     if (g_capture.buf) {
         kfree(g_capture.buf);
         g_capture.buf = NULL;
     }
     g_capture.size = 0;
     g_capture.cap = 0;
+    g_capture.active = 0;
+    g_capture_depth--;
+    if (g_capture_depth == 0) shell_capture_uninstall();
 }
 
 /* ================================================================== *

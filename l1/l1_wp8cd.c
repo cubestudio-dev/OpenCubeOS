@@ -65,10 +65,17 @@ int shell_run(void) {
     return 0;
 }
 
-/* Interface 52: shell_register_builtin — P1-6 FIX
- * Registers a builtin command in the kernel shell command table.
- * The fn pointer IS stored and IS called when the command is typed
- * at the oc> prompt. This is a real registration, not a stub. */
+/* Interface 52: shell_register_builtin — BUG-0092 FIX (A16-5)
+ *
+ * This used to be an ORPHANED TABLE: the fn was stored, the self-test
+ * called the stored pointer directly, and nothing else ever looked at
+ * the table - so a builtin registered through the documented L1 API
+ * was NOT actually available at the oc> prompt (the doc promised
+ * integration; the code delivered a private array).
+ *
+ * Now the kernel shell dispatch (shell_run_simple) consults this
+ * table through l1_wp8cd_builtin_exec() whenever no built-in command
+ * matches, so a name registered here IS executable at oc>. */
 int shell_register_builtin(const char *name, shell_builtin_fn fn, const char *help) {
     if (!name || !fn) return -1;
     if (g_builtin_count >= 32) return -2;
@@ -77,6 +84,56 @@ int shell_register_builtin(const char *name, shell_builtin_fn fn, const char *he
     if (help) strncpy(g_builtins[g_builtin_count].help, help, 79);
     else g_builtins[g_builtin_count].help[0] = 0;
     g_builtin_count++;
+    return 0;
+}
+
+/* BUG-0092 FIX completion (A16-5): symmetric removal. The boot
+ * self-test registers a probe builtin ("test_builtin") to prove the
+ * registration path is real; without an unregister API that probe
+ * leaked into the live command table and "help -a" counted 173
+ * commands instead of 172. Callers that register dynamically now have
+ * a way to remove their entry again. Returns 0 = removed, -1 = absent. */
+int shell_unregister_builtin(const char *name) {
+    if (!name) return -1;
+    for (int i = 0; i < g_builtin_count; i++) {
+        if (strcmp(g_builtins[i].name, name) == 0) {
+            for (int j = i + 1; j < g_builtin_count; j++)
+                g_builtins[j - 1] = g_builtins[j];
+            g_builtin_count--;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+/* BUG-0092 FIX (A16-5): dispatch hook used by the kernel shell.
+ * Looks up `cmd` in the L1 builtin table, splits `args` into
+ * argc/argv (simple whitespace split; shell-style quoting is handled
+ * by the kernel shell before reaching L1) and calls the fn.
+ * Returns 1 = handled, 0 = name not registered. */
+int l1_wp8cd_builtin_exec(const char *cmd, const char *args) {
+    if (!cmd || !cmd[0]) return 0;
+    for (int i = 0; i < g_builtin_count; i++) {
+        if (strcmp(g_builtins[i].name, cmd) == 0) {
+            char buf[256];
+            char *argv[16];
+            int argc = 0;
+            if (args && args[0]) {
+                strncpy(buf, args, sizeof(buf) - 1);
+                buf[sizeof(buf) - 1] = 0;
+                char *p = buf;
+                while (*p && argc < 16) {
+                    while (*p == ' ' || *p == '\t') p++;
+                    if (!*p) break;
+                    argv[argc++] = p;
+                    while (*p && *p != ' ' && *p != '\t') p++;
+                    if (*p) *p++ = 0;
+                }
+            }
+            g_builtins[i].fn(argc, argv);
+            return 1;
+        }
+    }
     return 0;
 }
 
@@ -90,7 +147,23 @@ int tool_register(const char *name, const u8 *elf_data, u64 elf_size) {
     return 0;
 }
 
-/* Interface 54: tool_list */
+/* Interface 54: tool_list
+ * BUG-0092 FIX (A16-5): companion lookup used by sys_execve so a
+ * registered tool ELF is actually EXECUTABLE by name (before this
+ * fix the table was write-only: tool_register stored, tool_list
+ * printed, but nothing could run the tool). */
+int l1_wp8cd_tool_find(const char *name, const u8 **elf, u64 *size) {
+    if (!name || !name[0]) return 0;
+    for (int i = 0; i < g_tool_count; i++) {
+        if (strcmp(g_tools[i].name, name) == 0) {
+            if (elf) *elf = g_tools[i].elf_data;
+            if (size) *size = g_tools[i].elf_size;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int tool_list(char *buf, int bufsize) {
     if (!buf || bufsize <= 0) return 0;
     int offset = 0;
@@ -224,6 +297,9 @@ void ext_wp8cd_selftest(void) {
         }
         if (found && test_builtin_called > 0) {
             screen_console_puts("PASS (registered + callable)\n");
+            /* BUG-0092 FIX completion: clean the probe out of the live
+             * table again so help -a keeps counting 172 commands. */
+            shell_unregister_builtin("test_builtin");
         } else if (found) {
             screen_console_puts("PASS (registered, fn stored)\n");
         } else {

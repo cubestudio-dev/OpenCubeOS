@@ -89,8 +89,13 @@ void screen_console_putc_at(u32 x, u32 y, char ch, u32 fg_pixel, u32 bg_pixel) {
 }
 
 void screen_console_putc(char ch) {
-    /* First, forward to L1 hook (best-effort). */
-    l1_ext_console_hook((u8)ch);
+    /* First, forward to the L1 hook.
+     * BUG-0091 FIX (A16-4): honor the documented suppression contract -
+     * a non-zero hook return means the hook already handled the
+     * character (teeed it, captured it, ...) and L0 must NOT draw it. */
+    if (l1_ext_console_hook((u8)ch)) {
+        return;
+    }
 
     /* Helper: erase the cursor at the current cell. */
     #define ERASE_CURSOR() do {                                  \

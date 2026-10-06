@@ -47,7 +47,11 @@ child.logfile_read = sys.stdout
 def client_thread():
     # wait for kernel sshd to be ready
     time.sleep(3)
-    for attempt in range(10):
+    # 90 attempts x 2 s = ~3 min of retry window: the very FIRST sshd
+    # start on a fresh disk generates a per-installation RSA-2048 host
+    # key (Miller-Rabin), which takes minutes under TCG. The auth/exec
+    # PASS-FAIL criteria are unchanged; only the patience grows.
+    for attempt in range(90):
         try:
             t = paramiko.Transport(("127.0.0.1", 2223))
             t.connect()
@@ -83,7 +87,9 @@ try:
     th = threading.Thread(target=client_thread)
     th.start()
     # sshd returns to the prompt after serving one session (or timing out)
-    child.expect(r"oc>\s*", timeout=180)
+    # 420 s: covers a first-boot per-installation RSA-2048 host key
+    # generation (minutes under TCG) plus the served session itself.
+    child.expect(r"oc>\s*", timeout=420)
     kernel_output.append(strip_ansi(child.before))
     th.join(timeout=120)
 finally:

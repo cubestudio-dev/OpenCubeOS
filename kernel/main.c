@@ -135,6 +135,12 @@ extern const u64 userprog_sse_test_size;
 extern const u8 userprog_pf_test[];
 extern const u64 userprog_pf_test_size;
 
+/* p1fix2 repro programs. */
+extern const u8 userprog_fdref_test[];
+extern const u64 userprog_fdref_test_size;
+extern const u8 userprog_select_zero_test[];
+extern const u64 userprog_select_zero_test_size;
+
 /* Direct serial output via I/O port 0x3F8 (COM1). */
 static inline void outb(u16 port, u8 v) {
     __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(port));
@@ -779,11 +785,13 @@ static int shell_cmd_ssh(const char *args) {
     }
     if (!host[0]) {
         screen_console_puts("usage: ssh <ip> [port=2222] [user=oc] [password=oc|-]\n");
-        screen_console_puts("  password \"-\" = publickey auth with the kernel identity key\n");
+        screen_console_puts("  password \"-\" = publickey auth (needs /etc/ssh_client_key; falls back to password if absent)\n");
         return 1;
     }
-    /* password "-" = use publickey authentication with the kernel's
-     * identity key instead of a password */
+    /* password "-" = use publickey authentication with the client key
+     * from /etc/ssh_client_key. BUG-0075: the kernel no longer embeds a
+     * universal identity key, so "-" without an installed key falls
+     * back to the default password instead of failing. */
     int use_pubkey = (pass[0] == '-' && pass[1] == 0);
     if (use_pubkey) pass[0] = 0;
     /* Resolve host (IP first) */
@@ -838,6 +846,12 @@ static int shell_cmd_ssh(const char *args) {
     strcat(buf, "\n");
     screen_console_puts(buf);
     int rc = net_ssh_connect(ip, (u16)port, user, use_pubkey ? 0 : pass);
+    if (rc < 0 && use_pubkey) {
+        /* BUG-0075: publickey needs /etc/ssh_client_key; when it is not
+         * installed, retry once with the password instead of dying. */
+        screen_console_puts("[ssh] publickey unavailable (no /etc/ssh_client_key), retrying with password\n");
+        rc = net_ssh_connect(ip, (u16)port, user, pass[0] ? pass : "oc");
+    }
     if (rc == 0) {
         screen_console_puts("[ssh] authenticated (USERAUTH_SUCCESS)\n");
         /* WP-09: full channel open + exec round trip over the encrypted channel.
@@ -1895,7 +1909,7 @@ static int shell_cmd_l1test(const char *args) {
 /* WP-04: run - run a user program. */
 static int shell_cmd_run(const char *args) {
     if (!args[0]) {
-        screen_console_puts("usage: run <hello|badapp|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test|sse_test|pf_test>\n");
+        screen_console_puts("usage: run <hello|badapp|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test|sse_test|pf_test|fdref_test|select_zero_test>\n");
         return 1;
     }
     const u8 *elf = NULL;
@@ -1952,6 +1966,12 @@ static int shell_cmd_run(const char *args) {
     } else if (strcmp(args, "pf_test") == 0) {
         /* BUG-0044 repro: page-fault semantics (P=1 vs growth, floor). */
         elf = userprog_pf_test; size = userprog_pf_test_size;
+    } else if (strcmp(args, "fdref_test") == 0) {
+        /* BUG-0098 repro: dup2+close fd refcounting. */
+        elf = userprog_fdref_test; size = userprog_fdref_test_size;
+    } else if (strcmp(args, "select_zero_test") == 0) {
+        /* BUG-0101 repro: select timeout_ms==0 + unopened-fd semantics. */
+        elf = userprog_select_zero_test; size = userprog_select_zero_test_size;
     } else if (strcmp(args, "ush") == 0 || strcmp(args, "usershell") == 0) {
         /* WP-08cd: User-space shell. */
         elf = userprog_ush; size = userprog_ush_size;

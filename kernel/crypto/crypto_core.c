@@ -428,16 +428,128 @@ void net_tls13_ks_derive_secret(const u8 *secret, const char *label,
 }
 
 /* ============================================================
- * PRNG (not cryptographic, but sufficient for QEMU)
+ * PRNG — BUG-0074 FIX (A14-23).
+ *
+ * The old generator was a 32-bit xorshift32 seeded once from the
+ * timer tick ("not cryptographic, but sufficient for QEMU"). That
+ * was not sufficient anywhere: the whole protocol stack draws its
+ * secrets from this single stream — SSH/TLS ECDHE and DH private
+ * keys (net_sshd.c x25519/DH, net_tls.c x25519/P-256), TLS
+ * client_random / session_id, SSH KEXINIT cookies and every packet's
+ * padding. xorshift32 state is fully recoverable from ~4-8 observed
+ * output bytes (a handful of SSH padding lengths), after which every
+ * past and future key the kernel ever generated is computable by a
+ * passive observer. Both the SSH server and the TLS client were
+ * effectively transparent.
+ *
+ * Replacement: HMAC_DRBG (NIST SP 800-90A) over the existing
+ * HMAC-SHA-256 primitive, seeded from RDRAND (CPU entropy, checked
+ * via CPUID) plus RDTSC, with RDTSC re-mixed after every generate
+ * call so a partial state compromise cannot persist.
  * ============================================================ */
-static u32 g_prng_state = 0;
+static u8 drbg_k[32];
+static u8 drbg_v[32];
+static int drbg_ready = 0;
+
+static int cpu_has_rdrand(void) {
+    static int cached = -1;
+    if (cached < 0) {
+        u32 a, b, c, d;
+        __asm__ volatile("cpuid" : "=a"(a), "=b"(b), "=c"(c), "=d"(d) : "a"(1));
+        cached = (int)((c >> 30) & 1u);
+    }
+    return cached;
+}
+
+static int rdrand_u64(u64 *out) {
+    u32 ok;
+    u64 v;
+    __asm__ volatile("rdrand %0 ; setc %1" : "=r"(v), "=q"(ok) :: "cc");
+    if (!ok) return 0;
+    *out = v;
+    return 1;
+}
+
+static inline u64 rdtsc_now(void) {
+    u32 lo, hi;
+    __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((u64)hi << 32) | lo;
+}
+
+/* HMAC_DRBG update (NIST SP 800-90A §10.1.2):
+ *   K = HMAC(K, V || 0x00 || data)
+ *   V = HMAC(K, V)
+ *   if data: K = HMAC(K, V || 0x01 || data); V = HMAC(K, V) */
+static void drbg_update(const u8 *data, int dlen) {
+    u8 buf[1 + 32 + 64];
+    int bl = 0;
+    crypto_hmac_sha256(drbg_k, 32, drbg_v, 32, drbg_k);
+    memset(buf, 0, sizeof(buf));
+    if (data && dlen > 0) {
+        if (dlen > 64) dlen = 64;
+        buf[0] = 0x00;
+        memcpy(buf + 1, drbg_v, 32);
+        memcpy(buf + 1 + 32, data, dlen);
+        bl = 1 + 32 + dlen;
+        crypto_hmac_sha256(drbg_k, 32, buf, bl, drbg_k);
+        crypto_hmac_sha256(drbg_k, 32, drbg_v, 32, drbg_v);
+        buf[0] = 0x01;
+        crypto_hmac_sha256(drbg_k, 32, buf, bl, drbg_k);
+        crypto_hmac_sha256(drbg_k, 32, drbg_v, 32, drbg_v);
+    }
+    memset(buf, 0, sizeof(buf));
+}
+
+/* Gather 32 bytes of startup entropy: RDRAND when the CPU offers it,
+ * RDTSC / tick / address-space jitter as fallback and diversification. */
+static void drbg_entropy32(u8 out[32]) {
+    int off = 0;
+    while (off < 32) {
+        u64 r;
+        if (cpu_has_rdrand() && rdrand_u64(&r)) {
+            memcpy(out + off, &r, 8);
+        } else {
+            /* mix several weak sources; better than tick-only */
+            r = rdtsc_now();
+            r ^= r << 13; r ^= r >> 7; r ^= r << 17;
+            r ^= (u64)(uintptr_t)out;
+            memcpy(out + off, &r, 8);
+        }
+        off += 8;
+    }
+    u64 t = rdtsc_now() ^ ((u64)core_timer_ticks() << 1);
+    for (int i = 0; i < 8; i++) out[24 + i] ^= (u8)(t >> (8 * i));
+}
+
+static void drbg_instantiate(void) {
+    u8 seed[32];
+    memset(drbg_k, 0x00, 32);
+    memset(drbg_v, 0x01, 32);
+    drbg_entropy32(seed);
+    drbg_update(seed, 32);
+    memset(seed, 0, sizeof(seed));
+    drbg_ready = 1;
+}
+
 void crypto_random(u8 *buf, int len) {
-    if (g_prng_state == 0) g_prng_state = (u32)core_timer_ticks() ^ 0xDEADBEEF;
-    for (int i = 0; i < len; i++) {
-        g_prng_state ^= g_prng_state << 13;
-        g_prng_state ^= g_prng_state >> 17;
-        g_prng_state ^= g_prng_state << 5;
-        buf[i] = (u8)(g_prng_state >> 24);
+    int off = 0;
+    if (!drbg_ready) drbg_instantiate();
+    while (off < len) {
+        crypto_hmac_sha256(drbg_k, 32, drbg_v, 32, drbg_v);
+        int n = len - off;
+        if (n > 32) n = 32;
+        memcpy(buf + off, drbg_v, n);
+        off += n;
+    }
+    /* Backtrack resistance + continuous re-mixing: standard DRBG
+     * generate-then-update, with RDTSC noise folded into the update
+     * so a partially observed state cannot carry across calls. */
+    {
+        u8 extra[8];
+        u64 t = rdtsc_now();
+        memcpy(extra, &t, 8);
+        drbg_update(extra, 8);
+        memset(extra, 0, sizeof(extra));
     }
 }
 

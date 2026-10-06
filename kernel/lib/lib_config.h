@@ -13,7 +13,7 @@
  *
  * Well-known keys (WP-09-fix5 + WP-10u):
  *
- *   ota_update_url    - HTTP or HTTPS URL of the update manifest (JSON).
+ *   update_url    - HTTP or HTTPS URL of the update manifest (JSON).
  *                 default: https://cubestudio-dev.github.io/OpenCubeOS/update.json
  *   auto_check    - "yes" / "no": run the update check automatically after
  *                 boot completes.  default: "no".
@@ -38,7 +38,7 @@
  *   - empty value ("key=")    -> same as key missing;
  *   - auto_check invalid      -> treated as "no" (safe default), a warning
  *                                is logged;
- *   - ota_update_url invalid      -> accepted by lib_config_write (prefix is only
+ *   - update_url invalid      -> accepted by lib_config_write (prefix is only
  *                                validated at check time so the user can
  *                                pre-stage http or https URLs);
  *   - non-ASCII bytes         -> rejected on write, ignored on read

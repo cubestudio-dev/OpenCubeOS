@@ -18,35 +18,35 @@ function fmtBytes(n: number): string {
 }
 export { fmtBytes };
 
-// WP-AUDIT-01-p0fix2 stats (same caliber as lib/site.ts; see there for verify commands)
+// WP-AUDIT-01-p1fix1 stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "90,916", label: "行源码" },
+    { value: "92,279", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "44", label: "系统调用" },
-    { value: "172", label: "shell 命令" },
+    { value: "173", label: "shell 命令" },
     { value: "16", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "90,916", label: "lines of source" },
+    { value: "92,279", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "44", label: "system calls" },
-    { value: "172", label: "shell commands" },
+    { value: "173", label: "shell commands" },
     { value: "16", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
 };
 
-// WP-AUDIT-01-p0fix2 (audit + all 41 P0 fixes: p0fix1 first 20 + p0fix2 remaining 21) leads the user-facing list, then WP-10-wp08fix1 shell completion + WP-10d/c/u/b/a + security transport
+// WP-AUDIT-01-p1fix1 (audit + all 41 P0 fixes + P1 fixes in progress: p1fix1 first 31) leads the user-facing list, then WP-10-wp08fix1 shell completion + WP-10d/c/u/b/a + security transport
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
     {
-      name: "完整安全审查 + 全部 41 个 P0 修复",
-      tag: "WP-AUDIT-01-p0fix2",
-      desc: "18 路逐行审查 607 条发现（P0 41 / P1 94 / P2 214 / P3 258）；p0fix1 修复前 20 个 P0：VFS 挂载消息栈溢出、rmdir/umount 挂载点保护（挂载点偶发消失根因）、ext4 恶意卷除零、FAT32 BPB/簇号越界写盘、tcptest 33KB 引导栈溢出、内核线程栈 1 页改 4 页、SSH 客户端与 sshd 共 14 处预认证溢出；p0fix2 修复其余 21 个 P0（BUG-0021..0041）：TLS 请求/记录/消息边界与 TLS 1.3 CertVerify DER、shell glob/fsck/mv、sys_poll nfds 回绕、SYS_EXIT 缓冲、execve CR3 切换次序、sys_ps ktab 堆化、X509 DER 长度溢出、config 写边界、OTA changes/request/路径遍历拒绝、NVMe 非 512B LBA 拒绝、嵌套 #PF 防护。41 条全部有修复验证（QEMU 复现修复前 FAIL / 修复后 PASS、宿主 ASAN 或构造级路径证据）。",
+      name: "完整安全审查 + P0 全部修复 + P1 修复推进",
+      tag: "WP-AUDIT-01-p1fix1",
+      desc: "18 路逐行审查 607 条发现（P0 41 / P1 94 / P2 214 / P3 258）；41 个 P0 全部修复（p0fix1 前 20 + p0fix2 后 21，逐条有 QEMU FAIL-before/PASS-after、宿主 ASAN 或构造级路径证据）；p1fix1 修复前 31 个 P1（BUG-0042..0072）：每任务 FPU/SSE fxsave 上下文 + CR4.OSFXSR + fork 继承、PMM 位图 cli 原子性、页错误语义（P=1 拒绝、8MiB 栈下限、U/S 特权环、内核在用户地址空间拒绝）、XHCI 事件环 LINK 与轮询闸锁、EHCI CONFIGFLAG、OHCI 中断表/TD_R/NPS、MSC residue 与 sector_size、CDC-ACM 协议、SS EP0 mps9、FAT32 rmdir 点项 + UAF + 簇环越界 + unlink 保护、exFAT 位图生命周期、ext4 extent 偏移与恶意卷越界、e1000 strcat、ld_so 边界、网络 IP 帧校验 + RX 校验和 + 序号回绕 + RST 校验 + SYN_RCVD 回收 + SYN 选项 + udp_bind 去重 + 窗口缩放 + RTO 临界区；新增 sse_test/pf_test 用户测试，回归 tcptest/fork_test/ping/pmmrace 全绿。",
     },
     {
       name: "Shell 完全体（行编辑 + 工具 + 编辑器）",
@@ -121,9 +121,9 @@ export const FEATURES: Bi<
   ],
   en: [
     {
-      name: "Full security audit + all 41 P0 fixes",
-      tag: "WP-AUDIT-01-p0fix2",
-      desc: "An 18-route line-by-line audit produced 607 findings (P0 41 / P1 94 / P2 214 / P3 258); p0fix1 fixed the first 20 P0s: the VFS mount-message stack overflow, rmdir/umount mount-point protection (root cause of the vanishing mount point), the ext4 malicious-volume divide fault, FAT32 BPB/cluster bounds, the tcptest 33KB boot-stack overflow, kthread stacks grown from 1 page to 4, and 14 pre-auth overflows across the SSH client and sshd; p0fix2 fixed the remaining 21 P0s (BUG-0021..0041): TLS request/record/message bounds and the TLS 1.3 CertVerify DER, shell glob/fsck/mv, sys_poll nfds wrap, SYS_EXIT buffer, execve CR3-switch ordering, sys_ps ktab heap allocation, X509 DER length overflow, config write bounds, OTA changes/request/path-traversal rejection, NVMe non-512-byte LBA refusal, and the nested-#PF guard. All 41 have fix verification (QEMU FAIL-before/PASS-after, host ASAN, or construction-level path evidence).",
+      name: "Full security audit + all 41 P0 fixes + P1 fixes in progress",
+      tag: "WP-AUDIT-01-p1fix1",
+      desc: "An 18-route line-by-line audit produced 607 findings (P0 41 / P1 94 / P2 214 / P3 258); all 41 P0s are fixed (p0fix1 first 20 + p0fix2 remaining 21, each with QEMU FAIL-before/PASS-after, host ASAN, or construction-level path evidence); p1fix1 fixed the first 31 P1s (BUG-0042..0072): per-task FPU/SSE fxsave context + CR4.OSFXSR + fork inheritance, PMM bitmap cli atomicity, page-fault semantics (P=1 refusal, 8MiB stack floor, U/S ring, kernel-on-user-address-space refusal), the XHCI event-ring LINK wrap and poll latch, EHCI CONFIGFLAG, the OHCI interrupt table / TD_R / NPS, MSC residue and sector_size, the CDC-ACM protocol, SS EP0 mps9, FAT32 rmdir dot entries + UAF + cluster-cycle bounds + the unlink guard, the exFAT bitmap lifecycle, ext4 extent offsets and crafted-volume bounds, the e1000 strcat, ld_so bounds, and the network stack (IP frame checks + RX checksums + sequence wrap + RST validation + SYN_RCVD reaping + SYN options + udp_bind dedup + window scaling + RTO critical sections); new sse_test/pf_test user tests added, with the tcptest/fork_test/ping/pmmrace regressions all green.",
     },
     {
       name: "The complete shell (line editing + tools + editor)",

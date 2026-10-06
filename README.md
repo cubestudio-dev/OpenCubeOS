@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS - WP-AUDIT-01-p1fix1
+# Open Cube OS - WP-AUDIT-01-p1fix2
 
 **官网**: https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**: https://github.com/cubestudio-dev/OpenCubeOS
@@ -20,9 +20,9 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-AUDIT-01-p1fix1)
+## Stats (WP-AUDIT-01-p1fix2)
 
-- **Source code**: 92,279 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
+- **Source code**: 93,923 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
   verify: `find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
 - **Work packages**: 16 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c, WP-10d, project restructure, WP-10-wp08fix1, WP-AUDIT-01 + p0fix1)
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
@@ -248,7 +248,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   48 kHz by design and the test verifies the rejection).
 - **Commands**: sound, hda, ac97, sb16, es1370, virtiosnd, usbaudio,
   play [device] [rate], volume [device] [0-100]; lspci shows sound
-  controllers (class 0x04). 172 commands registered at boot
+  controllers (class 0x04). 173 commands registered at boot
   (including the rule-9 self-hosting set: abdisk, install,
   grub-install, abcfg, and the WP-10-wp08fix1 nano/vi editors).
 - **Verification**: hda_test / ac97_test / sb16_test / es1370_test /
@@ -288,7 +288,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   (BOT + SCSI wired into blk), CDC-ACM/FTDI serial, UAC 1.0/2.0.
 - **Commands**: usb, usbdev + usb_core_test / usb_kbd_test /
   usb_mouse_test / usb_storage_test / usb_serial_test / usb_hotplug_test
-  / usb_hub_test (172 commands at boot; 138 L1 interfaces;
+  / usb_hub_test (173 commands at boot; 138 L1 interfaces;
   WP-10d-fix2 added 7: core_power_shutdown/core_power_suspend/core_power_halt/core_power_reboot
   + shell_register_command_ex/shell_list_commands_a_z/shell_list_commands_by_wp).
 - **Verification**: UHCI/OHCI/EHCI/XHCI exercised in QEMU with explicit
@@ -433,8 +433,8 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-AUDIT-01-p1fix1)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p1fix1) — ISO + SRC zip
-  (ISO sha256 `0d966a0de64632ecbde236436f331173da2044636b9fbe5ceb38cffe43d16c92`)
+- **Latest (WP-AUDIT-01-p1fix2)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p1fix2) — ISO + SRC zip
+  (ISO sha256 `960af5549d7ae7408ccd0f5240d878435c96c14d60c68faec68120fe14ef1ff6`)
 - **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - Or visit https://cubestudio-dev.github.io/OpenCubeOS for direct downloads
 

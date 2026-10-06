@@ -128,11 +128,22 @@ static int shell_cmd_ls(const char *args) {
                 /* Stat each entry to get size for files. */
                 fs_vfs_stat_t es;
                 u64 sz = 0;
-                /* Build child path. */
+                /* Build child path.
+                 * BUG-0087 FIX (A15-8): resolved + '/' + e.name was
+                 * strcpy'd into a fixed buffer with NO bound check - a
+                 * long cwd (or a deep listing path) plus a long entry
+                 * name overflowed the stack frame. Bound the join and
+                 * skip entries that cannot fit. */
                 char child[VFS_PATH_LEN];
                 int pl = (int)strlen(resolved);
+                int need_slash = (pl > 0 && resolved[pl - 1] != '/');
+                int el = (int)strlen(e.name);
+                if (pl + need_slash + el + 1 > (int)sizeof(child)) {
+                    print_dirent(e.name, e.type, 0);
+                    continue;
+                }
                 strcpy(child, resolved);
-                if (pl > 0 && child[pl - 1] != '/') {
+                if (need_slash) {
                     child[pl++] = '/';
                     child[pl] = 0;
                 }
@@ -434,38 +445,58 @@ static int shell_cmd_cp(const char *args) {
         screen_console_puts("cp: cannot open source\n");
         return 1;
     }
-    fs_vfs_stat_t ss;
-    if (fs_vfs_stat(rsrc, &ss) < 0) ss.size = 65536;
-    u64 total = ss.size;
-    if (total > 1024 * 1024) total = 1024 * 1024;
-    char *buf = (char *)kmalloc(total > 0 ? total : 1);
-    if (!buf) {
-        screen_console_puts("cp: out of memory\n");
+    /* BUG-0086 FIX (A15-7): the old cp pre-computed ONE buffer from the
+     * source stat size (capped at 1 MiB, defaulting to 64 KiB when stat
+     * failed), read that many bytes, and reported success regardless of
+     * short writes. Consequences:
+     *   - every file over 1 MiB was silently truncated to its first MiB,
+     *   - a stale/failed stat copied a partial file,
+     *   - a full disk silently ended the copy mid-file and cp still
+     *     returned 0 ("success").
+     * Copy STREAMING through a fixed 4 KiB window instead: no size cap,
+     * no stat dependency, and short writes/reads are hard errors. */
+    {
+        static char cpbuf[4096];
+        int wfd = -1;
+        u64 total_read = 0, total_written = 0;
+        int n;
+        while ((n = fs_vfs_read(fd, cpbuf, (int)sizeof(cpbuf))) > 0) {
+            if (wfd < 0) {
+                /* Open the destination lazily on first data (and TRUNCATE
+                 * it: without O_TRUNC an existing LONGER destination kept
+                 * its stale tail bytes after the shorter copy). */
+                wfd = fs_vfs_open(rdst, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+                if (wfd < 0) {
+                    screen_console_puts("cp: cannot create destination\n");
+                    fs_vfs_close(fd);
+                    return 1;
+                }
+            }
+            total_read += (u64)n;
+            int off = 0;
+            while (off < n) {
+                int w = fs_vfs_write(wfd, cpbuf + off, n - off);
+                if (w <= 0) {
+                    screen_console_puts("cp: WRITE FAILED (disk full?) - copy aborted\n");
+                    fs_vfs_close(wfd);
+                    fs_vfs_close(fd);
+                    return 1;
+                }
+                off += w;
+                total_written += (u64)w;
+            }
+        }
+        if (wfd >= 0) fs_vfs_close(wfd);
         fs_vfs_close(fd);
-        return 1;
+        if (n < 0) {
+            screen_console_puts("cp: read error - copy aborted\n");
+            return 1;
+        }
+        if (total_read != total_written) {
+            screen_console_puts("cp: byte count mismatch - copy aborted\n");
+            return 1;
+        }
     }
-    int total_read = 0;
-    int n;
-    while (total_read < (int)total &&
-           (n = fs_vfs_read(fd, buf + total_read, (int)total - total_read)) > 0) {
-        total_read += n;
-    }
-    fs_vfs_close(fd);
-
-    int wfd = fs_vfs_open(rdst, VFS_O_WRONLY | VFS_O_CREAT);
-    if (wfd < 0) {
-        screen_console_puts("cp: cannot create destination\n");
-        kfree(buf);
-        return 1;
-    }
-    int written = 0;
-    while (written < total_read) {
-        int w = fs_vfs_write(wfd, buf + written, total_read - written);
-        if (w <= 0) break;
-        written += w;
-    }
-    fs_vfs_close(wfd);
-    kfree(buf);
     return 0;
 }
 
@@ -491,11 +522,28 @@ static void tree_walk(const char *path, int depth, int *files, int *dirs) {
             strcpy(line + strlen(line), "/\n");
             screen_console_puts(line);
             (*dirs)++;
-            /* Recurse. */
+            /* Recurse.
+             * BUG-0087 FIX (A15-8): same unbounded join as ls (fixed
+             * here), plus a depth cap: the indent loop wrote 2 bytes
+             * per level into a fixed line buffer and each recursion
+             * consumed stack, so a deep tree overflowed the stack.
+             * Both are now bounded. */
+            if (depth >= 12) {
+                strcpy(line + p, "...\n");
+                screen_console_puts(line);
+                return;
+            }
             char child[VFS_PATH_LEN];
             int pl = (int)strlen(path);
+            int need_slash = (pl > 0 && path[pl - 1] != '/');
+            int el = (int)strlen(e.name);
+            if (pl + need_slash + el + 1 > (int)sizeof(child)) {
+                strcpy(line + p, "(path too long, skipped)\n");
+                screen_console_puts(line);
+                continue;
+            }
             strcpy(child, path);
-            if (pl > 0 && child[pl - 1] != '/') {
+            if (need_slash) {
                 child[pl++] = '/';
                 child[pl] = 0;
             }
@@ -614,8 +662,14 @@ static u64 du_walk(const char *path, int depth) {
         if (fs_vfs_readdir(path, i, &e) < 0) break;
         char child[VFS_PATH_LEN];
         int pl = (int)strlen(path);
+        /* BUG-0087 FIX (A15-8): same unbounded path join as ls/tree -
+         * bound it here too (the depth limit above does NOT protect
+         * the child buffer against a long cwd + long entry name). */
+        int need_slash = (pl > 0 && path[pl - 1] != '/');
+        int el = (int)strlen(e.name);
+        if (pl + need_slash + el + 1 > (int)sizeof(child)) continue;
         strcpy(child, path);
-        if (pl > 0 && child[pl - 1] != '/') {
+        if (need_slash) {
             child[pl++] = '/';
             child[pl] = 0;
         }
@@ -865,23 +919,46 @@ static int shell_cmd_edit(const char *args) {
                         ":d<num> delete line, :w save, :q quit, :wq, :q!)\n");
         return 1;
     }
+    /* BUG-0085 FIX (A15-6) part 1: fs_vfs_open needs ABSOLUTE paths, but
+     * edit used the raw argument for BOTH the load and the save, so a
+     * relative path failed to load (empty buffer) and then - because the
+     * O_CREAT|O_TRUNC save went through the same raw path - either saved
+     * an empty file over the WRONG location or silently worked on a
+     * different file than the user was looking at. Resolve once and use
+     * the resolved path everywhere. */
+    const char *rpath = shell_resolve_path_static(args);
+    if (!rpath) {
+        screen_console_puts("edit: bad path\n");
+        return 1;
+    }
     enum { CAP = 8192 };
     char *vbuf = (char *)kmalloc(CAP);
     if (!vbuf) { screen_console_puts("edit: out of memory\n"); return 1; }
     int vlen = 0;
+    int truncated_load = 0;   /* BUG-0085 part 2 */
 
-    int rfd = fs_vfs_open(args, VFS_O_RDONLY);
+    int rfd = fs_vfs_open(rpath, VFS_O_RDONLY);
     if (rfd >= 0) {
         int n;
         while (vlen < CAP - 1 &&
                (n = fs_vfs_read(rfd, vbuf + vlen, CAP - 1 - vlen)) > 0)
             vlen += n;
+        /* BUG-0085 FIX (A15-6) part 2: the old loop silently STOPPED at
+         * the 8 KiB buffer cap; a subsequent :w then O_TRUNCated the file
+         * and wrote back only the first 8 KiB - silently destroying the
+         * rest of the file (permanent data loss on any file over the
+         * cap). Detect the leftover and refuse to save. */
+        if (vlen >= CAP - 1) {
+            u8 probe;
+            if (fs_vfs_read(rfd, &probe, 1) > 0)
+                truncated_load = 1;
+        }
         fs_vfs_close(rfd);
     }
     vbuf[vlen] = 0;
 
     screen_console_puts("-- ");
-    screen_console_puts(args);
+    screen_console_puts(rpath);
     screen_console_puts(" -- ");
     {
         char nb[16];
@@ -889,6 +966,10 @@ static int shell_cmd_edit(const char *args) {
         screen_console_puts(nb);
     }
     screen_console_puts(" bytes\n");
+    if (truncated_load) {
+        screen_console_puts("edit: WARNING file is larger than the 8 KiB editor buffer;\n");
+        screen_console_puts("      saving is DISABLED to protect the file (:q! to exit)\n");
+    }
     screen_console_puts("Commands: :p print | :i<text> append line | :d<num> delete line "
                     "| :w save | :q quit | :wq | :q!\n");
 
@@ -928,14 +1009,28 @@ static int shell_cmd_edit(const char *args) {
         } else if (strcmp(cmd, ":p") == 0) {
             print_lines = 1;
         } else if (strcmp(cmd, ":w") == 0 || strcmp(cmd, ":wq") == 0) {
-            int wfd = fs_vfs_open(args, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+            if (truncated_load) {
+                /* BUG-0085 FIX (A15-6) part 2: never overwrite a file we
+                 * could not fully load. */
+                screen_console_puts("edit: save refused (file larger than editor buffer)\n");
+                if (cmd[1] == 'w' && cmd[2] == 'q') break;
+                continue;
+            }
+            int wfd = fs_vfs_open(rpath, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
             if (wfd < 0) {
                 screen_console_puts("edit: cannot save\n");
             } else {
-                fs_vfs_write(wfd, vbuf, vlen);
+                /* BUG-0085 FIX (A15-6) part 3: a short write left the
+                 * file TRUNCATED with partial content and edit still
+                 * printed "saved" - report short writes instead. */
+                int w = fs_vfs_write(wfd, vbuf, vlen);
                 fs_vfs_close(wfd);
-                dirty = 0;
-                screen_console_puts("saved\n");
+                if (w != vlen) {
+                    screen_console_puts("edit: WRITE FAILED (partial content saved!) - disk full?\n");
+                } else {
+                    dirty = 0;
+                    screen_console_puts("saved\n");
+                }
             }
             if (cmd[1] == 'w' && cmd[2] == 'q') break;
         } else if (cmd[0] == ':' && cmd[1] == 'i') {

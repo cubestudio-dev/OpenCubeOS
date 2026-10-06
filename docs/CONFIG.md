@@ -35,7 +35,7 @@ same defaults — every boot has a working config file either way.
 ```
 # Open Cube OS configuration
 # Update check URL (HTTP or HTTPS)
-ota_update_url=https://cubestudio-dev.github.io/OpenCubeOS/update.json
+update_url=https://cubestudio-dev.github.io/OpenCubeOS/update.json
 
 # Auto check on boot (yes / no)
 auto_check=no
@@ -56,7 +56,7 @@ Rules:
 
 | Key | Meaning | Default (file missing / key missing / empty value) |
 |---|---|---|
-| `ota_update_url` | Manifest URL for `checkupdate`; scheme decides transport (`https://` → TLS 1.3/1.2 client, `http://` → plain TCP, anything else → error) | `https://cubestudio-dev.github.io/OpenCubeOS/update.json` |
+| `update_url` | Manifest URL for `checkupdate`; scheme decides transport (`https://` → TLS 1.3/1.2 client, `http://` → plain TCP, anything else → error) | `https://cubestudio-dev.github.io/OpenCubeOS/update.json` |
 | `auto_check` | `yes` / `no` — run the update check automatically after boot completes | `no` |
 
 Defined behaviour (documented policy, implemented in `kernel/lib/lib_config.c`):
@@ -67,7 +67,7 @@ Defined behaviour (documented policy, implemented in `kernel/lib/lib_config.c`):
 | File missing while reading (`lib_config_read`) | error `OC_CONFIG_E_NOFILE` (checkupdate prints `config file missing or unreadable`) |
 | Key missing / empty value | built-in default is used (`lib_config_read_default`) |
 | `auto_check` invalid value (not yes/no) | treated as `no` (safe default), warning logged; `config set` **rejects** the value outright |
-| `ota_update_url` invalid prefix | accepted by `config set`, rejected at check time (`invalid URL prefix (must be http:// or https://)`) |
+| `update_url` invalid prefix | accepted by `config set`, rejected at check time (`invalid URL prefix (must be http:// or https://)`) |
 | Non-ASCII value in `config set` | rejected |
 
 ## 4. Editing from inside the system
@@ -80,7 +80,7 @@ edit /etc/opencube.conf      # kernel-shell line editor (:i :d :p :w :wq :q :q!)
 vi /etc/opencube.conf        # same editor inside ush (user shell)
 nano /etc/opencube.conf      # alias of vi
 config set auto_check yes    # validated key/value writes via shell
-config get ota_update_url        # read one key
+config get update_url        # read one key
 config list                  # print the whole file
 config restore               # delete + recreate from defaults
 ```
@@ -92,7 +92,7 @@ to the next check without restarting anything.
 
 | Command | Purpose |
 |---|---|
-| `checkupdate` | fetch the manifest (HTTP or HTTPS per `ota_update_url`), compare versions, print version/time/changes |
+| `checkupdate` | fetch the manifest (HTTP or HTTPS per `update_url`), compare versions, print version/time/changes |
 | `config` | `list` / `get <key>` / `set <key> <value>` / `restore` / `path` |
 | `edit <file>` | line editor (works on any file, pattern use-case is the config) |
 | `config_test` | config subsystem self-test (7 checks) |
@@ -227,11 +227,11 @@ covered by `config_test` / `checkupdate_test` / the WP-09-fix5 test batch.
 
 ## 9. Test server
 
-`tools/ota_update_server.py` serves the manifest for end-to-end tests:
+`tools/update_server.py` serves the manifest for end-to-end tests:
 
 ```
-python3.13 tools/ota_update_server.py --mode http  --port 8008 --json '<json>'
-python3.13 tools/ota_update_server.py --mode https --port 8443 --json '<json>' \
+python3.13 tools/update_server.py --mode http  --port 8008 --json '<json>'
+python3.13 tools/update_server.py --mode https --port 8443 --json '<json>' \
         --cert /tmp/hcert.pem --key /tmp/hkey.pem --dh /tmp/dhparam.pem
 ```
 

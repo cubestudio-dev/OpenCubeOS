@@ -35,6 +35,7 @@
 #include "lib_string.h"
 #include "mem_pmm.h"
 #include "core_timer.h"
+#include "fs_vfs.h"
 
 /* SSH message types (RFC 4254 §4) */
 #define SSH_MSG_KEXINIT         20
@@ -495,6 +496,114 @@ static int net_ssh_recv_kexdh_reply(net_ssh_ctx_t *ctx) {
     return 0;
 }
 
+/* BUG-0073 FIX (A14-22): TOFU trust anchor — known_hosts.
+ *
+ * Before this fix the client verified the host-key SIGNATURE but had
+ * no anchor: any attacker running a MITM with their own RSA-2048 host
+ * key passed verification (they sign H with their own key), so the
+ * "verified" handshake gave zero protection. The fingerprint was
+ * printed (Trust On First Use display) but never recorded or checked.
+ *
+ * Now the SHA-256 fingerprint of the host key is persisted per
+ * "<ip>:<port>" in /etc/ssh_known_hosts (FAT32, survives reboots on a
+ * persistent disk):
+ *   - first connection: record the key ("TOFU" — the user is the
+ *     anchor, exactly like OpenSSH's known_hosts first use), and
+ *   - later connections: a DIFFERENT key is a hard failure — the
+ *     connection is refused with both fingerprints displayed, so a
+ *     MITM key swap is detected instead of silently accepted. */
+#define SSH_KNOWN_HOSTS_PATH "/etc/ssh_known_hosts"
+
+/* BUG-0073: the <ip>:<port> anchor key for the CURRENT connection; set
+ * by net_ssh_connect before the handshake, read by the TOFU check. */
+static u32 g_ssh_kh_ip;
+static u16 g_ssh_kh_port;
+
+static void ssh_kh_fp_hex(const u8 fp[32], char out[65]) {
+    static const char hexd[] = "0123456789abcdef";
+    for (int i = 0; i < 32; i++) {
+        out[i * 2] = hexd[fp[i] >> 4];
+        out[i * 2 + 1] = hexd[fp[i] & 0xF];
+    }
+    out[64] = 0;
+}
+
+static void ssh_kh_hostport(u32 ip, u16 port, char *out, int cap) {
+    /* dotted-quad:port — the kernel shell passes a numeric or
+     * DNS-resolved address, but the anchor must be stable, so we pin
+     * the numeric form */
+    char n[6];
+    int o = 0;
+    u64_to_str((ip >> 24) & 0xFF, n); for (int i = 0; n[i] && o < cap - 8; i++) out[o++] = n[i];
+    out[o++] = '.';
+    u64_to_str((ip >> 16) & 0xFF, n); for (int i = 0; n[i] && o < cap - 8; i++) out[o++] = n[i];
+    out[o++] = '.';
+    u64_to_str((ip >> 8) & 0xFF, n); for (int i = 0; n[i] && o < cap - 8; i++) out[o++] = n[i];
+    out[o++] = '.';
+    u64_to_str(ip & 0xFF, n); for (int i = 0; n[i] && o < cap - 8; i++) out[o++] = n[i];
+    out[o++] = ':';
+    u64_to_str(port, n);
+    for (int i = 0; n[i] && o < cap - 1; i++) out[o++] = n[i];
+    out[o] = 0;
+}
+
+/* Look up <ip>:<port> in /etc/ssh_known_hosts.
+ * Returns 0 = entry found, *out_fp holds the recorded fingerprint.
+ *         1 = no entry for this host (first use)
+ *        -1 = read error (treated as first use, with a notice) */
+static int ssh_kh_lookup(const char *hostport, u8 out_fp[32]) {
+    int fd = fs_vfs_open(SSH_KNOWN_HOSTS_PATH, VFS_O_RDONLY);
+    if (fd < 0) return 1;   /* no file yet = first use */
+    static u8 khbuf[4096];
+    int n = fs_vfs_read(fd, khbuf, (int)sizeof(khbuf) - 1);
+    fs_vfs_close(fd);
+    if (n <= 0) return 1;
+    khbuf[n] = 0;
+    int hl = (int)strlen(hostport);
+    int p = 0;
+    while (p < n) {
+        int e = p;
+        while (e < n && khbuf[e] != '\n') e++;
+        /* line = "<hostport> <64 hex fp>" */
+        int lp = p;
+        int llen = e - p;
+        khbuf[e] = 0;
+        if (llen > hl + 1 + 64 &&
+            memcmp(khbuf + lp, hostport, hl) == 0 && khbuf[lp + hl] == ' ') {
+            const char *hex = (const char *)khbuf + lp + hl + 1;
+            for (int i = 0; i < 32; i++) {
+                int hi = hex[i * 2], lo = hex[i * 2 + 1];
+                if (hi < '0' || lo < '0') goto nextline;
+                int hv = (hi <= '9') ? hi - '0' : ((hi | 0x20) - 'a' + 10);
+                int lv = (lo <= '9') ? lo - '0' : ((lo | 0x20) - 'a' + 10);
+                if (hv > 15 || lv > 15) goto nextline;
+                out_fp[i] = (u8)((hv << 4) | lv);
+            }
+            return 0;   /* found */
+        }
+nextline:
+        p = e + 1;
+    }
+    return 1;
+}
+
+static void ssh_kh_record(const char *hostport, const u8 fp[32]) {
+    int fd = fs_vfs_open(SSH_KNOWN_HOSTS_PATH, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_APPEND);
+    if (fd < 0) {
+        net_ssh_debug("[ssh] TOFU: cannot write /etc/ssh_known_hosts (read-only fs?)");
+        return;
+    }
+    char line[128];
+    int hl = (int)strlen(hostport);
+    if (hl > 96) { fs_vfs_close(fd); return; }
+    memcpy(line, hostport, hl);
+    line[hl] = ' ';
+    ssh_kh_fp_hex(fp, line + hl + 1);
+    line[hl + 1 + 64] = '\n';
+    fs_vfs_write(fd, line, hl + 1 + 64 + 1);
+    fs_vfs_close(fd);
+}
+
 /* Verify the server host key signature over the exchange hash H (RFC 4253
  * S8). Host key blob K_S = string "ssh-rsa" + mpint e + mpint n; signature
  * blob = string "rsa-sha2-256" + string sig. Returns 0 = valid. On success
@@ -585,6 +694,40 @@ static int net_ssh_verify_host_signature(net_ssh_ctx_t *ctx, const u8 hash[32]) 
     }
     strcat(line, "\n");
     screen_console_puts(line);
+
+    /* BUG-0073 FIX (A14-22): the signature alone proves nothing without
+     * an anchor. Compare the fingerprint against /etc/ssh_known_hosts:
+     *   first use  -> record it (TOFU),
+     *   match      -> continue,
+     *   MISMATCH   -> refuse the connection (MITM detected). */
+    {
+        char hostport[64];
+        u8 recorded[32];
+        char recorded_hex[65], presented_hex[65];
+        ssh_kh_hostport(g_ssh_kh_ip, g_ssh_kh_port, hostport, (int)sizeof(hostport));
+        int kr = ssh_kh_lookup(hostport, recorded);
+        if (kr == 0) {
+            if (memcmp(recorded, fp, 32) != 0) {
+                ssh_kh_fp_hex(recorded, recorded_hex);
+                ssh_kh_fp_hex(fp, presented_hex);
+                screen_console_puts("[ssh] WARNING: HOST KEY CHANGED! (possible MITM)\n");
+                strcpy(line, "[ssh] known_hosts: ");
+                strcat(line, recorded_hex); strcat(line, "\n");
+                screen_console_puts(line);
+                strcpy(line, "[ssh] presented : ");
+                strcat(line, presented_hex); strcat(line, "\n");
+                screen_console_puts(line);
+                screen_console_puts("[ssh] connection refused (delete the entry in /etc/ssh_known_hosts to re-trust)\n");
+                return -1;
+            }
+            net_ssh_debug("[ssh] known_hosts fingerprint match");
+        } else {
+            ssh_kh_record(hostport, fp);
+            strcpy(line, "[ssh] TOFU: first connection, key recorded for ");
+            strcat(line, hostport); strcat(line, "\n");
+            screen_console_puts(line);
+        }
+    }
     net_ssh_debug("[ssh] host signature verified");
     return 0;
 }
@@ -769,6 +912,9 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
     ctx->kex_curve25519 = 0;
     ctx->cipher_ctr = 0;
     ctx->auth_publickey = (password == 0 || password[0] == 0);
+    /* BUG-0073: remember the endpoint for the known_hosts anchor check */
+    g_ssh_kh_ip = ip;
+    g_ssh_kh_port = port;
 
     net_ssh_debug("[ssh] connecting...");
     ctx->net_tcp_sock = net_socket(SOCK_TCP);
@@ -906,8 +1052,9 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
      * sig = RSASSA-PKCS1-v1_5-SHA256 over
      *   string session_id || byte 50 || string user || string "ssh-connection" ||
      *   string "publickey" || boolean TRUE || string algo || string blob
-     * The kernel signs with its own identity key (same RSA-2048 pair the
-     * sshd uses as host key); the server must trust its public part. */
+     * BUG-0075: the kernel signs with the per-installation client key
+     * from /etc/ssh_client_key; the sshd trusts only moduli listed in
+     * ITS /etc/ssh_authorized_keys. */
     if (ctx->auth_publickey) {
         u8 payload[1024];
         int p = 0;
@@ -918,12 +1065,35 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
         int klen2 = 7;
         blob[bp++] = 0; blob[bp++] = 0; blob[bp++] = 0; blob[bp++] = klen2;
         for (int i = 0; i < klen2; i++) blob[bp++] = kname[i];
-        extern const u8 net_sshd_rsa_n[256];
-        extern const u8 net_sshd_rsa_d[256];
+        /* BUG-0075 FIX (A14-24): the client identity key comes from
+         * /etc/ssh_client_key (n[256] || d[256], e fixed 65537). The old
+         * code signed with the EMBEDDED "universal" private key that
+         * ships in the public source tree — with it, publickey auth was
+         * world-access on any sshd that trusted it. No key file => the
+         * client cannot do publickey auth and falls back to password. */
+        u8 client_n[256], client_d[256];
+        int have_client_key = 0;
+        {
+            int kfd = fs_vfs_open("/etc/ssh_client_key", VFS_O_RDONLY);
+            if (kfd >= 0) {
+                u8 kb[512];
+                int kn = fs_vfs_read(kfd, kb, 512);
+                fs_vfs_close(kfd);
+                if (kn == 512) {
+                    memcpy(client_n, kb, 256);
+                    memcpy(client_d, kb + 256, 256);
+                    have_client_key = 1;
+                }
+            }
+        }
+        if (!have_client_key) {
+            net_ssh_debug("[ssh] no /etc/ssh_client_key - publickey auth unavailable, use password");
+            return -14;
+        }
         u8 e_m[4];
         e_m[0] = 0; e_m[1] = 0x01; e_m[2] = 0x00; e_m[3] = 0x01;
         net_ssh_write_mpint(blob, &bp, e_m, 4);   /* leading zero stripped -> 0x010001 */
-        net_ssh_write_mpint(blob, &bp, net_sshd_rsa_n, 256);
+        net_ssh_write_mpint(blob, &bp, client_n, 256);
         /* signed data: string session_id || byte 50 || user ||
          * service || "publickey" || TRUE || algo || blob */
         u8 sdata[2048];
@@ -962,7 +1132,7 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
         memcpy(em + (256 - 32), sdigest, 32);
         em[256 - 52] = 0x00;
         u8 sig[256];
-        crypto_dh_modexp_n(em, net_sshd_rsa_d, net_sshd_rsa_n, sig, 256);
+        crypto_dh_modexp_n(em, client_d, client_n, sig, 256);
         /* assemble USERAUTH_REQUEST payload */
         ulen = (int)strlen(ctx->username);
         payload[p++] = (u8)(ulen >> 24); payload[p++] = (u8)(ulen >> 16);

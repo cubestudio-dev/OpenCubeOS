@@ -21,7 +21,7 @@
 #include "core_timer.h"
 
 /* bring-up debugging (0 = quiet, production; 1 = verbose during bring-up) */
-#define TLS_DBG 0
+#define TLS_DBG 1
 #if TLS_DBG
 #include "screen_console.h"
 #define TLS_DBG_P(msg) screen_console_puts("[tls-dbg] " msg "\n")
@@ -62,7 +62,19 @@ __attribute__((unused)) static void net_tls_dbg_hex(const char *t, const u8 *b, 
 #define HT_FINISHED 20
 #define HT_KEY_UPDATE 24
 
-static net_tls_ctx_t g_tls;
+/* BUG-0078 note: the ctx now holds 32 KiB transcript + 32 KiB hs_log
+ * (was 9 KiB each), which no longer fits in the kernel image's
+ * identity-window budget, so the ctx is LAZILY ALLOCATED from the
+ * kernel heap instead of living in .bss. */
+static net_tls_ctx_t *g_tls = NULL;
+
+static net_tls_ctx_t *tls_ctx_ensure(void) {
+    if (!g_tls) {
+        g_tls = (net_tls_ctx_t *)kmalloc(sizeof(net_tls_ctx_t));
+        if (g_tls) memset(g_tls, 0, sizeof(*g_tls));
+    }
+    return g_tls;
+}
 static u8 g_th_srv[32];     /* transcript hash CH...server Finished */
 static u8 g_x25519_priv[32];
 static u8 g_x25519_pub[32];
@@ -104,13 +116,21 @@ static int net_tcp_read_exact(int sock, void *buf, int len) {
 }
 
 static void transcript_push(net_tls_ctx_t *c, const void *data, int len) {
-    if (c->transcript_len + len > (int)sizeof(c->transcript)) return;
+    /* BUG-0078 FIX (A14-27): overflow is no longer silent. Flag it and
+     * report it; the handshake checks the flag before Finished. */
+    if (len < 0 || c->transcript_len + len > (int)sizeof(c->transcript)) {
+        c->transcript_overflow = 1;
+        return;
+    }
     memcpy(c->transcript + c->transcript_len, data, len);
     c->transcript_len += len;
 }
 
 static void hs_log_push(net_tls_ctx_t *c, const void *data, int len) {
-    if (c->hs_log_len + len > (int)sizeof(c->hs_log)) return;
+    if (len < 0 || c->hs_log_len + len > (int)sizeof(c->hs_log)) {
+        c->hs_log_overflow = 1;
+        return;
+    }
     memcpy(c->hs_log + c->hs_log_len, data, len);
     c->hs_log_len += len;
 }
@@ -130,8 +150,23 @@ static void net_tls13_derive_secret(const u8 *secret, const char *label,
     net_tls13_ks_derive_secret(secret, label, thash, thash_len, out);
 }
 
-static void net_tls13_traffic_keys(const u8 *secret, u8 *key, u8 *iv) {
-    net_tls13_expand_label(secret, 32, "key", NULL, 0, key, 16);
+/* BUG-0076 FIX (A14-25): the key length must follow the negotiated
+ * cipher suite, not a hardcoded 16. TLS_AES_128_GCM_SHA256 uses a
+ * 16-byte key, but TLS_AES_256_GCM_SHA384 and
+ * TLS_CHACHA20_POLY1305_SHA256 both use 32-byte keys (RFC 8446
+ * appendix B.4). The old code always expanded 16 bytes, so the
+ * moment either 32-byte suite was selected the AEAD was keyed with a
+ * truncated key and every handshake after EncryptedExtensions
+ * failed the decrypt ("selecting the suite = guaranteed failure").
+ * The wkey/rkey buffers are already 32 bytes (net_tls.h). */
+static int net_tls13_key_len(int cipher) {
+    if (cipher == CS_TLS13_AES256GCM_SHA384 ||
+        cipher == CS_TLS13_CHACHA20POLY1305_SHA256) return 32;
+    return 16;
+}
+
+static void net_tls13_traffic_keys(const u8 *secret, u8 *key, u8 *iv, int key_len) {
+    net_tls13_expand_label(secret, 32, "key", NULL, 0, key, key_len);
     net_tls13_expand_label(secret, 32, "iv", NULL, 0, iv, 12);
 }
 
@@ -432,15 +467,37 @@ static int net_tls13_hs_feed(net_tls_ctx_t *c, int *ctype_out) {
 static int net_tls13_recv_hs_p(net_tls_ctx_t *c, int expect, u8 *body, int cap,
                            int *len_out, int *ctype_out, int push) {
     int rc;
+    /* BUG-0080 FIX (A14-29): net_tls13_hs_feed returns 0 for a received
+     * record that contributes no bytes (zero-length payload, legacy
+     * CCS). The reassembly loops below only exit on rc < 0 or enough
+     * bytes, so a peer that keeps streaming zero-length records kept a
+     * loop running forever with no progress — a remote DoS. Count
+     * consecutive no-progress feeds and abort once they can no longer
+     * be legitimate (64 in a row). */
+    int stalls = 0;
     while (g_hslen < 4) {
         rc = net_tls13_hs_feed(c, ctype_out);
         if (rc < 0) return -1;
+        if (rc == 0) {
+            if (++stalls > 64) { TLS_DBG_P("handshake stalled on empty records"); return -2; }
+        } else stalls = 0;
     }
     int mtype = g_hsbuf[0];
     int mlen = ((int)g_hsbuf[1] << 16) | ((int)g_hsbuf[2] << 8) | g_hsbuf[3];
+    if (mlen == 0) {
+        /* BUG-0080 FIX: a zero-length handshake message is malformed
+         * (RFC 8446 §5.1 every handshake message has a non-empty body
+         * or at least a defined structure; accepting mlen==0 also let
+         * the caller "succeed" with garbage). */
+        TLS_DBG_P("zero-length handshake message");
+        return -1;
+    }
     while (g_hslen < 4 + mlen) {
         rc = net_tls13_hs_feed(c, ctype_out);
         if (rc < 0) return -1;
+        if (rc == 0) {
+            if (++stalls > 64) { TLS_DBG_P("handshake stalled on empty records"); return -2; }
+        } else stalls = 0;
     }
     if (expect >= 0 && mtype != expect) {
 #if TLS_DBG
@@ -502,26 +559,40 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
     u8 crypto_ec_share[65];
     int have_ec = 0;
     {
+        /* BUG-0079 FIX (A14-28): the ServerHello body comes from the wire
+         * and every field offset must be bounds-checked against blen.
+         * The old code read server_random / cipher / compression /
+         * ext_total without any check and let ext_total drive `end`
+         * arbitrarily far past the message (and the 8192-byte buffer):
+         * a crafted ServerHello made the extension walk read out of
+         * bounds all the way to a #PF. All reads are now range-checked. */
         int p = 0;
-        if (body[0] != 3 || body[1] != 3) {
+        if (blen < 39 || body[0] != 3 || body[1] != 3) {
             TLS_DBG_P("ServerHello legacy version mismatch");
             return -1;
         }
         net_tls_dbg_hex("SH sid_len byte: ", body + 34, 1);
-        net_tls_dbg_hex("SH cipher: ", body + 67, 2);
-        net_tls_dbg_hex("SH ext_total: ", body + 70, 2);
+        if (blen >= 72) {   /* debug reads must stay in-bounds too (BUG-0079) */
+            net_tls_dbg_hex("SH cipher: ", body + 67, 2);
+            net_tls_dbg_hex("SH ext_total: ", body + 70, 2);
+        }
         p += 2;
         memcpy(c->server_random, body + p, 32); p += 32;
+        if (p >= blen) return -1;
         int sid_len = body[p++];
+        if (p + sid_len + 4 > blen) return -1;   /* sid + cipher(2) + compression(1) */
         p += sid_len;
         c->cipher = ((int)body[p] << 8) | body[p + 1]; p += 2;
         p += 1;
+        if (p + 2 > blen) return -1;
         int ext_total = ((int)body[p] << 8) | body[p + 1]; p += 2;
+        if (p + ext_total > blen) return -1;   /* ext block must fit in the message */
         int end = p + ext_total;
         while (p + 4 <= end) {
             int etype = ((int)body[p] << 8) | body[p + 1];
             int elen = ((int)body[p + 2] << 8) | body[p + 3];
             p += 4;
+            if (p + elen > end) break;   /* extension data must fit */
             if (etype == 43 && elen == 2) {
                 /* ServerHello supported_versions: server_version directly
                  * (2 bytes, no list-length prefix) */
@@ -532,10 +603,10 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
                 int sp = p;
                 int group = ((int)body[sp] << 8) | body[sp + 1];
                 int klen = ((int)body[sp + 2] << 8) | body[sp + 3];
-                if (group == 0x1d && klen == 32) {
+                if (sp + 4 + 65 <= end && group == 0x1d && klen == 32) {
                     memcpy(share, body + sp + 4, 32);
                     have_share = 1;
-                } else if (group == 0x17 && klen == 65) {
+                } else if (sp + 4 + 65 <= end && group == 0x17 && klen == 65) {
                     memcpy(crypto_ec_share, body + sp + 4, 65);
                     have_ec = 1;
                 }
@@ -582,8 +653,8 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         int thl = transcript_hash(c, th);
         net_tls13_derive_secret(c->hs_secret, "c hs traffic", th, thl, c->c_hs);
         net_tls13_derive_secret(c->hs_secret, "s hs traffic", th, thl, c->s_hs);
-        net_tls13_traffic_keys(c->c_hs, c->wkey, c->wiv);
-        net_tls13_traffic_keys(c->s_hs, c->rkey, c->riv);
+        net_tls13_traffic_keys(c->c_hs, c->wkey, c->wiv, net_tls13_key_len(c->cipher));
+        net_tls13_traffic_keys(c->s_hs, c->rkey, c->riv, net_tls13_key_len(c->cipher));
         c->wseq = c->rseq = 0;
         c->hs_keys_active = 1;
         TLS_DBG_P("handshake keys derived");
@@ -624,7 +695,21 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
             used += dlen;
             p += dlen;
             if (p + 2 > elen) break;
-            p += 2;   /* per-cert extensions length */
+            /* BUG-0077 FIX (A14-26): CertificateEntry carries
+             * opaque extensions<0..2^16-1> — a 2-byte total length
+             * FOLLOWED BY that many bytes of extension data. The old
+             * code skipped only the length field, so any server
+             * certificate with per-cert extensions (SCT list from
+             * Certificate Transparency, AIA, status_request, ... —
+             * the common case for real CAs) left p pointing into the
+             * extension payload; the next entry's 3-byte cert length
+             * was parsed from extension bytes and the chain came out
+             * garbled (parse failure or a wrong-key verify failure).
+             * Skip length + data. */
+            int ext_len = ((int)ebody[p] << 8) | ebody[p + 1];
+            p += 2;
+            if (p + ext_len > elen) break;
+            p += ext_len;
         }
     }
     {
@@ -728,6 +813,13 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         return -1;
     }
     {
+        /* BUG-0078 FIX (A14-27): an overflowing transcript means the
+         * Finished HMAC would be computed over silently-truncated data
+         * and could never match the server. Fail explicitly. */
+        if (c->transcript_overflow) {
+            TLS_DBG_P("transcript overflow (certificate chain too large)");
+            return -7;
+        }
         u8 fk[32];
         net_tls13_expand_label(c->s_hs, 32, "finished", NULL, 0, fk, 32);
         u8 th[32];
@@ -778,8 +870,8 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         crypto_hmac_sha256(derived, 32, zeros, 32, master);
         net_tls13_derive_secret(master, "c ap traffic", g_th_srv, 32, c->c_ap);
         net_tls13_derive_secret(master, "s ap traffic", g_th_srv, 32, c->s_ap);
-        net_tls13_traffic_keys(c->c_ap, c->wkey, c->wiv);
-        net_tls13_traffic_keys(c->s_ap, c->rkey, c->riv);
+        net_tls13_traffic_keys(c->c_ap, c->wkey, c->wiv, net_tls13_key_len(c->cipher));
+        net_tls13_traffic_keys(c->s_ap, c->rkey, c->riv, net_tls13_key_len(c->cipher));
         c->wseq = c->rseq = 0;
         c->hs_keys_active = 0;   /* stop sealing with handshake keys */
         c->app_keys_active = 1;
@@ -1180,9 +1272,14 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
         static u8 keyblock[72];   /* static: kernel stacks are small */
         net_tls12_prf(c->master_secret, 48, "key expansion", kseed, 64,
                   keyblock, sizeof(keyblock));
-        /* GCM/CCM suite: 16 or 32 key each side + 4-byte fixed IV, no MAC */
+        /* GCM/CCM suite: 16 or 32 key each side + 4-byte fixed IV, no MAC.
+         * BUG-0076 FIX (A14-25): TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+         * (0xCCA8) also takes a 32-byte key (RFC 7905 / RFC 8439); the
+         * old code keyed it with 16 bytes -> handshake failed the
+         * first AEAD record. */
         int ki = 0;
-        int key_len = (c->cipher == CS_TLS12_ECDHE_RSA_AES256GCM) ? 32 : 16;
+        int key_len = (c->cipher == CS_TLS12_ECDHE_RSA_AES256GCM ||
+                       c->cipher == CS_TLS12_ECDHE_RSA_CHACHA20) ? 32 : 16;
         memcpy(c->mac_key_w, keyblock + ki, 0); ki += 0;
         memcpy(c->mac_key_r, keyblock + ki, 0); ki += 0;
         memcpy(c->enc_key_w, keyblock + ki, key_len); ki += key_len;
@@ -1243,6 +1340,12 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
      * "client finished", Hash(handshake_messages))[0..11] — the seed is
      * the 32-byte HASH of the handshake log, never the raw log. */
     {
+        /* BUG-0078 FIX (A14-27): fail explicitly on hs_log overflow
+         * instead of hashing a silently-truncated log. */
+        if (c->hs_log_overflow) {
+            TLS_DBG_P("tls12 hs_log overflow (chain too large)");
+            return -7;
+        }
         u8 hlog[32];
         sha256(c->hs_log, c->hs_log_len, hlog);
         u8 vd[12];
@@ -1297,7 +1400,8 @@ static int net_tls12_resume_from_sh(net_tls_ctx_t *c) {
 
 int net_tls_connect(u32 ip, u16 port, const char *hostname) {
     net_tls_recv_reset();   /* drop leftovers from any previous session */
-    net_tls_ctx_t *c = &g_tls;
+    net_tls_ctx_t *c = tls_ctx_ensure();
+    if (!c) return -1;
     memset(c, 0, sizeof(*c));
     c->hostname[0] = 0;
     if (hostname) {
@@ -1361,30 +1465,39 @@ int net_tls_recv(net_tls_ctx_t *c, void *buf, int len) {
     }
 
     /* 2. read the next complete record */
-    int n = (c->version == TLS13 || c->hs_keys_active)
-                ? net_tls13_recv_record(c, &ctype, tmp, (int)sizeof(tmp))
-                : net_tls12_recv_record(c, &ctype, tmp, (int)sizeof(tmp));
-    if (n < 0) return n;
-    if (ctype == CT_ALERT) {
-        TLS_DBG_P("[tls-dbg] alert from server");
-        net_tls_dbg_hex("[tls-dbg] alert level/desc: ", tmp, n > 2 ? 2 : n);
-        return 0;
+    /* BUG-0081 FIX (A14-30): post-handshake KEY_UPDATE /
+     * NEW_SESSION_TICKET records used to re-enter net_tls_recv
+     * RECURSIVELY. Each ignored record added a stack frame on the
+     * (16 KiB) kthread stack, so a peer streaming a few hundred of
+     * them overflowed the stack and crashed the kernel — a remote
+     * DoS. Loop instead of recursing; the frame count is now O(1). */
+    for (;;) {
+        int n = (c->version == TLS13 || c->hs_keys_active)
+                    ? net_tls13_recv_record(c, &ctype, tmp, (int)sizeof(tmp))
+                    : net_tls12_recv_record(c, &ctype, tmp, (int)sizeof(tmp));
+        if (n < 0) return n;
+        if (ctype == CT_ALERT) {
+            TLS_DBG_P("[tls-dbg] alert from server");
+            net_tls_dbg_hex("[tls-dbg] alert level/desc: ", tmp, n > 2 ? 2 : n);
+            return 0;
+        }
+        if (ctype == CT_HANDSHAKE && n >= 4 &&
+            (tmp[0] == HT_KEY_UPDATE || tmp[0] == HT_NEW_SESSION_TICKET)) {
+            /* post-handshake messages we do not act on; read the next
+             * record (loop, NOT recursion) */
+            continue;
+        }
+        /* 3. hand out what fits, keep the rest for the next call */
+        if (n > len) {
+            memcpy(buf, tmp, len);
+            memcpy(g_tls_leftover, tmp + len, n - len);
+            g_tls_leftover_have = n - len;
+            g_tls_leftover_off = 0;
+            return len;
+        }
+        memcpy(buf, tmp, n);
+        return n;
     }
-    if (ctype == CT_HANDSHAKE && n >= 4 &&
-        (tmp[0] == HT_KEY_UPDATE || tmp[0] == HT_NEW_SESSION_TICKET)) {
-        /* post-handshake messages we do not act on; keep reading data */
-        return net_tls_recv(c, buf, len);
-    }
-    /* 3. hand out what fits, keep the rest for the next call */
-    if (n > len) {
-        memcpy(buf, tmp, len);
-        memcpy(g_tls_leftover, tmp + len, n - len);
-        g_tls_leftover_have = n - len;
-        g_tls_leftover_off = 0;
-        return len;
-    }
-    memcpy(buf, tmp, n);
-    return n;
 }
 
 void net_tls_close(net_tls_ctx_t *c) {
@@ -1406,7 +1519,7 @@ void net_tls_close(net_tls_ctx_t *c) {
     net_close(c->net_tcp_sock);
 }
 
-net_tls_ctx_t *net_tls_get_ctx(void) { return &g_tls; }
+net_tls_ctx_t *net_tls_get_ctx(void) { return tls_ctx_ensure(); }
 
 int net_tls_https_get(u32 ip, u16 port, const char *hostname, const char *path,
                   void *out_buf, int out_len) {

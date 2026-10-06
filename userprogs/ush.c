@@ -127,6 +127,7 @@ static inline long syscall3(long n, long a, long b, long c) {
 #define sys_wait4(pid)           syscall1(SYS_WAIT4, (pid))
 #define sys_exit2(code)          syscall1(SYS_EXIT2, (code))
 #define sys_pipe(fds)            syscall1(SYS_PIPE, (long)(fds))
+#define sys_dup(old)             syscall2(SYS_DUP, (old), 0)
 #define sys_dup2(old, new)       syscall2(SYS_DUP2, (old), (new))
 #define sys_chdir(path)          syscall1(SYS_CHDIR, (long)(path))
 #define sys_getcwd(buf, size)    syscall2(SYS_GETCWD, (long)(buf), (size))
@@ -463,7 +464,10 @@ static int unano_getch_blocking(void) {
 }
 
 static int unano_save(const char *file) {
-    int fd = sys_open(file, 6);   /* WRONLY|CREAT */
+    /* BUG-0089 FIX (A16-2): save with O_TRUNC - without it, saving a
+     * SHORTER document over a longer existing file left the old tail
+     * bytes behind (corrupted file). */
+    int fd = sys_open(file, 22);   /* WRONLY|CREAT|TRUNC */
     if (fd < 0) return -1;
     for (int i = 0; i < unano_nlines; i++) {
         sys_write(fd, unano_lines[i], strlen_(unano_lines[i]));
@@ -801,6 +805,12 @@ static int builtin_cmd(int argc, char *argv[]) {
         return 1;
     }
     if (streq(argv[0], "unalias")) {
+        /* BUG-0088 FIX (A16-1): with no argument argv[1] is NULL and
+         * streq dereferenced it, crashing ush. Require a name. */
+        if (!argv[1]) {
+            puts_("usage: unalias name\n");
+            return 1;
+        }
         /* Simple: just overwrite with empty */
         for (int i = 0; i < g_alias_count; i++) {
             if (streq(g_alias[i].name, argv[1])) {
@@ -1155,7 +1165,9 @@ static int builtin_cmd(int argc, char *argv[]) {
             puts_("'\n");
             return 1;
         }
-        int dfd = sys_open(argv[2], 6);
+        /* BUG-0089 FIX (A16-2): O_TRUNC on the copy target - an existing
+         * longer destination kept its stale tail after a shorter copy. */
+        int dfd = sys_open(argv[2], 22);
         if (dfd < 0) {
             puts_("cp: cannot open '");
             puts_(argv[2]);
@@ -1186,7 +1198,9 @@ static int builtin_cmd(int argc, char *argv[]) {
             puts_("'\n");
             return 1;
         }
-        int dfd = sys_open(argv[2], 6);
+        /* BUG-0089 FIX (A16-2): O_TRUNC on the move target - an existing
+         * longer destination kept its stale tail after a shorter move. */
+        int dfd = sys_open(argv[2], 22);
         if (dfd < 0) {
             puts_("mv: cannot open '");
             puts_(argv[2]);
@@ -2010,9 +2024,25 @@ static int exec_single(char *cmd) {
     /* WP-08cd: Redirect — save/restore fd 0/1 instead of fork.
      * This avoids fork-related issues (child can't make syscalls
      * properly in some cases). We dup the original fd, redirect,
-     * run the builtin, then restore. */
+     * run the builtin, then restore.
+     *
+     * BUG-0090 FIX (A16-3): this path had three fd-lifecycle bugs:
+     *   1. the redirect fd was never closed after dup2 (fd leak),
+     *   2. after a builtin, fd 1 was closed to "restore" the console —
+     *      but fd 1 was merely OVERWRITTEN by dup2, and closing it left
+     *      the slot empty forever (the next dup2 of the next command
+     *      then reused slot 1 for the FILE), and stdin was NEVER
+     *      restored: after `cmd < file` every later command read from
+     *      the already-closed file (stdin permanently re-bound),
+     *   3. the exec-child path closed fd 1 in the PARENT after wait()
+     *      — a double close in disguise.
+     * With the kernel-side fd refcounting (BUG-0098) the correct
+     * sequence is: dup() the originals, dup2 the redirect fd over
+     * 0/1, close the redirect fd (refcount now makes this safe), run,
+     * then dup2 the saved originals back and close them. */
     if (redir_out || redir_in) {
-        int saved_out __attribute__((unused)) = -1;
+        int saved_out = sys_dup(1);   /* keep the real console slot */
+        int saved_in  = sys_dup(0);
         if (redir_out) {
             /* P2-15 FIX: pass O_TRUNC (0x10) when not appending so that
              * `echo new > existing` truncates the existing content instead
@@ -2023,27 +2053,24 @@ static int exec_single(char *cmd) {
             int fd = sys_open(redir_out, redir_append ? 14 : 22);
             if (fd >= 0) {
                 sys_dup2(fd, 1);  /* stdout → file */
-                /* DON'T close fd — VFS has no refcount, closing would
-                 * invalidate the VFS fd that fd 1 now points to. */
+                sys_close(fd);    /* safe now: fd 1 holds its own ref */
             }
         }
         if (redir_in) {
             int fd = sys_open(redir_in, 1);  /* RDONLY */
             if (fd >= 0) {
                 sys_dup2(fd, 0);  /* stdin → file */
+                sys_close(fd);
             }
         }
         /* Run built-in (writes to redirected fd 1) */
         if (builtin_cmd(argc, argv)) {
-            /* Restore: reopen console for fd 1 by writing to fd 2 (stderr)
-             * which is also console. We can't truly restore fd 1, but
-             * the next prompt write uses sys_write(1,...) which checks
-             * if fd 1 is open; if not, it writes to console. */
-            /* Close the file fd 1 so sys_write falls back to console */
-            sys_close(1);
+            /* Restore the saved console fds. */
+            if (saved_out >= 0) { sys_dup2(saved_out, 1); sys_close(saved_out); }
+            if (saved_in  >= 0) { sys_dup2(saved_in,  0); sys_close(saved_in);  }
             return 0;
         }
-        /* Not a builtin: try exec in child */
+        /* Not a builtin: try exec in child (child inherits the redirect) */
         long pid = sys_fork();
         if (pid == 0) {
             long ret = sys_execve((long)argv[0], (long)argv, 0);
@@ -2054,7 +2081,9 @@ static int exec_single(char *cmd) {
             sys_exit2(1);
         }
         sys_wait4(pid);
-        sys_close(1);  /* restore: close file fd so console fallback works */
+        /* Parent: restore the console fds (single close per save). */
+        if (saved_out >= 0) { sys_dup2(saved_out, 1); sys_close(saved_out); }
+        if (saved_in  >= 0) { sys_dup2(saved_in,  0); sys_close(saved_in);  }
         return 0;
     }
 

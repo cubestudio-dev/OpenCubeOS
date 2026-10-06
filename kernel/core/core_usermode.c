@@ -1049,7 +1049,17 @@ int user_process_kill(pid_t pid) {
                 mem_vmm_destroy_address_space(g_procs[i].as);
                 g_procs[i].as = 0;
             }
-            core_kthread_destroy(g_procs[i].tid);
+            /* BUG-0099 FIX (A2-6): stale-tid guard, same pattern as
+             * sys_wait4/sys_kill in core_syscall.c. g_procs[i].tid can
+             * point at a task slot the scheduler already reaped and
+             * handed to a NEW task; a blind core_kthread_destroy() then
+             * kills the innocent new tenant (stack freed under it
+             * mid-run). Only destroy a task that still exists and has
+             * not already been reaped (state != TASK_EXITED); a recycled
+             * or already-dead slot has nothing left to destroy. */
+            task_t *t = core_kthread_get_task(g_procs[i].tid);
+            if (t && t->state != TASK_EXITED)
+                core_kthread_destroy(g_procs[i].tid);
             return 0;
         }
     }

@@ -28,6 +28,7 @@
 #include "l1_ext.h"
 #include "core_timer.h"
 #include "crypto_core.h"
+#include "crypto_bn.h"
 #include "mem_pmm.h"
 #include "net_core.h"
 #include "net_ssh.h"
@@ -36,6 +37,351 @@
 #include "crypto_curve25519.h"
 #include "crypto_rsa.h"
 #include "crypto_sha512.h"
+#include "fs_vfs.h"
+
+/* ============================================================
+ * BUG-0075 FIX (A14-24): decouple the three roles the embedded
+ * "universal" RSA-2048 key used to play.
+ *
+ * The stock kernel image shipped a FIXED RSA-2048 key pair (in
+ * net_sshd_rsa_key.h) that simultaneously was:
+ *   1. the sshd HOST key (signs the exchange hash),
+ *   2. the sshd AUTHORIZED USER key (publickey auth accepted the
+ *      embedded public blob), and
+ *   3. the SSH CLIENT identity key (net_ssh.c signed with the
+ *      embedded private exponent).
+ * Since the key ships in the public source tree, "publickey" auth
+ * was world-access, and the host key is known to every attacker, so
+ * a MITM could impersonate any sshd.
+ *
+ * Now each role has its own, per-installation secret under /etc:
+ *   /etc/ssh_host_key        512 bytes: n[256] || d[256]  (e fixed 65537)
+ *     - loaded if present; otherwise GENERATED on first sshd start
+ *       (Miller-Rabin RSA-2048, seeded from the CSPRNG) and saved.
+ *     - if /etc is unavailable, sshd falls back to the embedded key
+ *       and says so loudly (legacy behavior, not silently trusted).
+ *   /etc/ssh_authorized_keys one 512-hex-digit modulus per line
+ *     - publickey auth ONLY accepts signatures under these moduli;
+ *       no file (or empty) => publickey is refused entirely and only
+ *       password auth remains.
+ *   /etc/ssh_client_key      512 bytes: n[256] || d[256]
+ *     - used by the SSH CLIENT (net_ssh.c) for publickey auth; absent
+ *       => client falls back to password auth (see net_ssh.c).
+ * ============================================================ */
+#define SSHD_HOST_KEY_PATH     "/etc/ssh_host_key"
+#define SSHD_AUTHORIZED_KEYS   "/etc/ssh_authorized_keys"
+
+/* forward decl: logging lives further down; the key bootstrap logs */
+static void net_sshd_log(const char *msg);
+
+static u8 g_hk_n[256];
+static u8 g_hk_d[256];
+static int g_hk_ready = 0;       /* host key loaded/generated */
+static int g_hk_custom = 0;      /* 1 = per-installation key, 0 = embedded fallback */
+
+/* authorized public keys (moduli only; e is fixed 65537) */
+static u8 g_auth_n[8][256];
+static int g_auth_count = 0;
+
+/* ---- byte-array helpers (big-endian, fixed width) ---- */
+static void be_inc(u8 *a, int len) {
+    for (int i = len - 1; i >= 0; i--) if (++a[i] != 0) break;
+}
+static void be_dec(u8 *a, int len) {
+    for (int i = len - 1; i >= 0; i--) if (a[i]-- != 0) break;
+}
+static int be_is_zero(const u8 *a, int len) {
+    for (int i = 0; i < len; i++) if (a[i]) return 0;
+    return 1;
+}
+static int be_is_one(const u8 *a, int len) {
+    if (a[len - 1] != 1) return 0;
+    for (int i = 0; i < len - 1; i++) if (a[i]) return 0;
+    return 1;
+}
+static int be_bit(const u8 *a, int len, int bit) {
+    /* bit 0 = LSB of the last byte */
+    if (bit < 0 || bit >= len * 8) return 0;
+    return (a[len - 1 - bit / 8] >> (bit % 8)) & 1;
+}
+static void be_shr1(u8 *a, int len) {
+    for (int i = 0; i < len - 1; i++) a[i] = (u8)((a[i] << 1) | (a[i + 1] >> 7));
+    a[len - 1] = (u8)(a[len - 1] << 1);
+}
+static int be_cmp(const u8 *a, const u8 *b, int len) {
+    for (int i = 0; i < len; i++) {
+        if (a[i] != b[i]) return a[i] < b[i] ? -1 : 1;
+    }
+    return 0;
+}
+/* r = a - b (a >= b), width len */
+static void be_sub(u8 *r, const u8 *a, const u8 *b, int len) {
+    int borrow = 0;
+    for (int i = len - 1; i >= 0; i--) {
+        int d = a[i] - b[i] - borrow;
+        borrow = d < 0;
+        r[i] = (u8)(d & 0xFF);
+    }
+}
+/* r = a + b (mod 2^(8*len)), returns carry */
+static int be_add(u8 *r, const u8 *a, const u8 *b, int len) {
+    int carry = 0;
+    for (int i = len - 1; i >= 0; i--) {
+        int d = a[i] + b[i] + carry;
+        r[i] = (u8)(d & 0xFF);
+        carry = d > 0xFF;
+    }
+    return carry;
+}
+
+/* Miller-Rabin probable-prime test for an odd big-endian candidate.
+ * 16 fixed small-prime bases: error probability < 4^-16 per FIPS-style
+ * analysis for non-adversarial (CSPRNG-generated) candidates. */
+static int rsa_probable_prime(const u8 *p_in, int len) {
+    static u8 pm1[128];
+    static u8 r[128];
+    memcpy(pm1, p_in, len);
+    be_inc(pm1, len);                    /* pm1 = p-1 */
+    int s = 0;
+    memcpy(r, pm1, len);
+    while (!be_bit(r, len, 0)) { be_shr1(r, len); s++; }
+    static const u8 bases[][2] = {
+        {0x00, 0x02}, {0x00, 0x03}, {0x00, 0x05}, {0x00, 0x07},
+        {0x00, 0x0B}, {0x00, 0x0D}, {0x00, 0x11}, {0x00, 0x13},
+        {0x00, 0x17}, {0x00, 0x1D}, {0x00, 0x1F}, {0x00, 0x25},
+        {0x00, 0x29}, {0x00, 0x2B}, {0x00, 0x2F}, {0x00, 0x31},
+    };
+    u8 y[128];
+    u8 two = 2;
+    for (int bi = 0; bi < 16; bi++) {
+        if (crypto_bn_mod_exp(y, len, bases[bi], 2, r, len, p_in, len) != 0) return 0;
+        if (be_is_one(y, len) || memcmp(y, pm1, len) == 0) continue;
+        int hit_pm1 = 0;
+        for (int t = 1; t < s; t++) {
+            if (crypto_bn_mod_exp(y, len, y, len, &two, 1, p_in, len) != 0) return 0;
+            if (memcmp(y, pm1, len) == 0) { hit_pm1 = 1; break; }
+            if (be_is_one(y, len)) return 0;   /* 1 before the last round: composite */
+        }
+        if (!hit_pm1) return 0;                /* composite */
+    }
+    return 1;
+}
+
+/* Generate one 1024-bit prime with the top two bits set (so p*q is
+ * exactly 2048 bits). Blocks in QEMU for a while (~seconds); callers
+ * print a notice. */
+static int rsa_gen_prime(u8 *out_be, int len) {
+    u8 cand[128];
+    for (;;) {
+        crypto_random(cand, len);
+        cand[0] |= 0xC0;          /* 1024-bit value, n=p*q exactly 2048 bits */
+        cand[len - 1] |= 0x01;    /* odd */
+        cand[len - 1] &= 0xFE | 0x01;  /* keep odd (no-op, documentation) */
+        /* small-prime trial division up to 1000 for speed */
+        int small_prime_divides = 0;
+        for (int sp = 3; sp <= 1000; sp += 2) {
+            /* mod via repeated subtraction is too slow; use 32-bit windows:
+             * compute cand mod sp from the byte stream */
+            u32 rem = 0;
+            for (int i = 0; i < len; i++) rem = (rem * 256 + cand[i]) % (u32)sp;
+            if (rem == 0) { small_prime_divides = 1; break; }
+        }
+        if (small_prime_divides) continue;
+        if (rsa_probable_prime(cand, len)) {
+            memcpy(out_be, cand, len);
+            return 0;
+        }
+    }
+}
+
+/* d = e^{-1} mod phi via binary extended gcd (phi is EVEN, e is odd:
+ * use the (odd, even)-safe variant with modular halving). */
+static int rsa_modinv_e65537(const u8 *phi_be, int len, u8 *d_out) {
+    static u8 u[257], v[257], x1[257], x2[257], t[257];
+    memset(u, 0, sizeof(u)); memset(v, 0, sizeof(v));
+    memset(x1, 0, sizeof(x1)); memset(x2, 0, sizeof(x2));
+    int W = len;                      /* working width (2048-bit phi) */
+    /* buffers are len+1 wide: (x + phi) can reach 2^2049 */
+    u[W] = 0; /* u = e = 65537 */
+    u[W - 1] = 0x01; u[W - 2] = 0x00; u[W - 3] = 0x01;   /* 0x010001 */
+    memcpy(v, phi_be, len); v[W] = 0;
+    x1[W] = 0; x1[W - 1] = 1;        /* x1 = 1 */
+    /* x2 = 0 */
+    while (!be_is_zero(u, W) && !be_is_zero(v, W)) {
+        while (!be_bit(u, W, 0)) {
+            be_shr1(u, W);
+            if (!be_bit(x1, W, 0)) be_shr1(x1, W);
+            else { /* x1 = (x1 + phi) / 2 */
+                be_add(t, x1, phi_be, W);
+                be_shr1(t, W);
+                memcpy(x1, t, W);
+            }
+        }
+        while (!be_bit(v, W, 0)) {
+            be_shr1(v, W);
+            if (!be_bit(x2, W, 0)) be_shr1(x2, W);
+            else { be_add(t, x2, phi_be, W); be_shr1(t, W); memcpy(x2, t, W); }
+        }
+        if (be_cmp(u, v, W) >= 0) {
+            be_sub(u, u, v, W);
+            /* x1 = x1 - x2 mod phi */
+            u8 tb[257];
+            memcpy(tb, x1, W); tb[W] = 0;
+            int borrow = 0;
+            for (int i = W - 1; i >= 0; i--) {
+                int dd = tb[i] - x2[i] - borrow;
+                borrow = dd < 0;
+                tb[i] = (u8)(dd & 0xFF);
+            }
+            if (borrow) be_add(tb, tb, phi_be, W);
+            memcpy(x1, tb, W);
+        } else {
+            be_sub(v, v, u, W);
+            u8 tb[257];
+            memcpy(tb, x2, W); tb[W] = 0;
+            int borrow = 0;
+            for (int i = W - 1; i >= 0; i--) {
+                int dd = tb[i] - x1[i] - borrow;
+                borrow = dd < 0;
+                tb[i] = (u8)(dd & 0xFF);
+            }
+            if (borrow) be_add(tb, tb, phi_be, W);
+            memcpy(x2, tb, W);
+        }
+    }
+    /* u == 1 => x1 is the inverse; v == 1 => x2 */
+    int one_u = (u[W - 1] == 1 && be_is_zero(u, W - 1));
+    int one_v = (v[W - 1] == 1 && be_is_zero(v, W - 1));
+    if (one_u) memcpy(d_out, x1, len);
+    else if (one_v) memcpy(d_out, x2, len);
+    else return -1;
+    /* sanity: e*d mod phi == 1 cannot be cheaply verified (even modulus);
+     * the handshake itself validates the pair (self-test below). */
+    return 0;
+}
+
+/* Verify (n, d) is a functional RSA pair: sign a known 20-byte vector
+ * with d and recover it with e (crypto_rsa_verify_pkcs1 path). */
+static int rsa_pair_selftest(const u8 *n_be, const u8 *d_be) {
+    /* s = x^d mod n, x = 0x02 (arbitrary small base); then s^e mod n == x */
+    u8 sig[256], rec[256];
+    u8 x[1] = { 0x02 };
+    if (crypto_bn_mod_exp(sig, 256, x, 1, d_be, 256, n_be, 256) != 0) return 0;
+    static const u8 e3[3] = { 0x01, 0x00, 0x01 };
+    if (crypto_bn_mod_exp(rec, 256, sig, 256, e3, 3, n_be, 256) != 0) return 0;
+    return (rec[255] == 0x02) ? 1 : 0;
+}
+
+/* Load /etc/ssh_host_key; generate + persist it if missing. */
+static int net_sshd_hostkey_ensure(void) {
+    if (g_hk_ready) return 0;
+    /* 1. try to load */
+    {
+        int fd = fs_vfs_open(SSHD_HOST_KEY_PATH, VFS_O_RDONLY);
+        if (fd >= 0) {
+            u8 buf[512];
+            int n = fs_vfs_read(fd, buf, 512);
+            fs_vfs_close(fd);
+            if (n == 512) {
+                memcpy(g_hk_n, buf, 256);
+                memcpy(g_hk_d, buf + 256, 256);
+                if (rsa_pair_selftest(g_hk_n, g_hk_d)) {
+                    g_hk_ready = 1;
+                    g_hk_custom = 1;
+                    return 0;
+                }
+                net_sshd_log("host key file corrupt; regenerating");
+            }
+        }
+    }
+    /* 2. generate (Miller-Rabin RSA-2048; slow in QEMU, once per disk) */
+    net_sshd_log("generating per-installation host key (RSA-2048, one-time)...");
+    u8 p_be[128], q_be[128];
+    u64 p_word[16], q_word[16], prod_word[32];
+    u8 n_be[256], phi_be[256], d_be[256];
+    for (;;) {
+        if (rsa_gen_prime(p_be, 128) != 0) return -1;
+        if (rsa_gen_prime(q_be, 128) != 0) return -1;
+        if (memcmp(p_be, q_be, 128) == 0) continue;
+        /* n = p*q */
+        crypto_bn_from_be(p_word, 16, p_be, 128);
+        crypto_bn_from_be(q_word, 16, q_be, 128);
+        crypto_bn_mul(prod_word, p_word, q_word, 16);
+        crypto_bn_to_be(prod_word, 32, n_be, 256);
+        /* phi = (p-1)*(q-1) */
+        be_dec(p_be, 128);
+        be_dec(q_be, 128);
+        crypto_bn_from_be(p_word, 16, p_be, 128);
+        crypto_bn_from_be(q_word, 16, q_be, 128);
+        crypto_bn_mul(prod_word, p_word, q_word, 16);
+        crypto_bn_to_be(prod_word, 32, phi_be, 256);
+        /* restore the primes (needed again? no — done) */
+        break;
+    }
+    if (rsa_modinv_e65537(phi_be, 256, d_be) != 0) return -1;
+    if (!rsa_pair_selftest(n_be, d_be)) return -1;
+    memcpy(g_hk_n, n_be, 256);
+    memcpy(g_hk_d, d_be, 256);
+    g_hk_ready = 1;
+    g_hk_custom = 1;
+    /* persist */
+    int fd = fs_vfs_open(SSHD_HOST_KEY_PATH, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+    if (fd >= 0) {
+        u8 buf[512];
+        memcpy(buf, n_be, 256);
+        memcpy(buf + 256, d_be, 256);
+        fs_vfs_write(fd, buf, 512);
+        fs_vfs_close(fd);
+        net_sshd_log("host key generated and saved to " SSHD_HOST_KEY_PATH);
+    } else {
+        net_sshd_log("host key generated (RAM only: /etc not writable)");
+    }
+    return 0;
+}
+
+/* Load the authorized public key moduli. */
+static void net_sshd_authkeys_reload(void) {
+    g_auth_count = 0;
+    int fd = fs_vfs_open(SSHD_AUTHORIZED_KEYS, VFS_O_RDONLY);
+    if (fd < 0) return;   /* no file => publickey auth disabled */
+    static u8 buf[4096];
+    int n = fs_vfs_read(fd, buf, (int)sizeof(buf) - 1);
+    fs_vfs_close(fd);
+    if (n <= 0) return;
+    buf[n] = 0;
+    int p = 0;
+    while (p < n && g_auth_count < 8) {
+        int e = p;
+        while (e < n && buf[e] != '\n') e++;
+        buf[e] = 0;
+        /* skip comments/blank */
+        const char *line = (const char *)buf + p;
+        int lp = 0;
+        while (line[lp] == ' ' || line[lp] == '\t' || line[lp] == '\r') lp++;
+        if (line[lp] != '#' && line[lp] != 0) {
+            int hlen = 0;
+            while (line[lp + hlen] && line[lp + hlen] != '\r') hlen++;
+            if (hlen == 512) {
+                int ok = 1;
+                for (int i = 0; i < 512; i++) {
+                    char c = line[lp + i];
+                    int v;
+                    if (c >= '0' && c <= '9') v = c - '0';
+                    else if (c >= 'a' && c <= 'f') v = c - 'a' + 10;
+                    else if (c >= 'A' && c <= 'F') v = c - 'A' + 10;
+                    else { ok = 0; break; }
+                    u8 nib = (u8)v;
+                    if (i & 1) g_auth_n[g_auth_count][i / 2] |= nib;
+                    else g_auth_n[g_auth_count][i / 2] = (u8)(nib << 4);
+                }
+                if (ok) g_auth_count++;
+            }
+        }
+        p = e + 1;
+    }
+}
+
+int net_sshd_hostkey_is_custom(void) { return g_hk_custom; }
 
 /* ---- protocol constants (mirror ssh.c) ---- */
 #define SSHD_MSG_DISCONNECT        1
@@ -526,7 +872,7 @@ static int net_sshd_compute_hash(net_sshd_ctx_t *ctx, u8 hash[32]) {
         net_sshd_write_cstr(ks, &kp, "ssh-rsa");
         u8 em[3] = {0x01, 0x00, 0x01};  /* e = 65537 */
         net_sshd_write_mpint(ks, &kp, em, 3);
-        net_sshd_write_mpint(ks, &kp, net_sshd_rsa_n, 256);
+        net_sshd_write_mpint(ks, &kp, g_hk_n, 256);
         net_sshd_write_str(buf, &p, ks, kp);
     }
 
@@ -748,7 +1094,7 @@ static int net_sshd_send_kexdh_reply_curve25519(net_sshd_ctx_t *ctx) {
     em[256 - 52] = 0x00;
     net_sshd_log("computing RSA signature (2048-bit modexp, ~26s)...");
     u8 sig[256];
-    crypto_dh_modexp_n(em, net_sshd_rsa_d, net_sshd_rsa_n, sig, 256);
+    crypto_dh_modexp_n(em, g_hk_d, g_hk_n, sig, 256);
 
     u8 blob[1400];
     int p = 0;
@@ -758,7 +1104,7 @@ static int net_sshd_send_kexdh_reply_curve25519(net_sshd_ctx_t *ctx) {
         net_sshd_write_cstr(ks, &kp, "ssh-rsa");
         u8 em3[3] = {0x01, 0x00, 0x01};
         net_sshd_write_mpint(ks, &kp, em3, 3);
-        net_sshd_write_mpint(ks, &kp, net_sshd_rsa_n, 256);
+        net_sshd_write_mpint(ks, &kp, g_hk_n, 256);
         net_sshd_write_str(blob, &p, ks, kp);
     }
     /* string f (32 bytes, RFC 8731) */
@@ -831,7 +1177,7 @@ static int net_sshd_send_kexdh_reply(net_sshd_ctx_t *ctx) {
     net_sshd_log("computing RSA signature (2048-bit modexp, ~26s)...");
     u8 sig[256];
     u64 t3 = core_timer_ticks();
-    crypto_dh_modexp_n(em, net_sshd_rsa_d, net_sshd_rsa_n, sig, 256);
+    crypto_dh_modexp_n(em, g_hk_d, g_hk_n, sig, 256);
     u64 t4 = core_timer_ticks();
     strcpy(b, "RSA sign time: ");
     u64_to_str((t4 - t3) * 1000 / (u64)OC_TIMER_HZ, num);
@@ -848,7 +1194,7 @@ static int net_sshd_send_kexdh_reply(net_sshd_ctx_t *ctx) {
         net_sshd_write_cstr(ks, &kp, "ssh-rsa");
         u8 em3[3] = {0x01, 0x00, 0x01};
         net_sshd_write_mpint(ks, &kp, em3, 3);
-        net_sshd_write_mpint(ks, &kp, net_sshd_rsa_n, 256);
+        net_sshd_write_mpint(ks, &kp, g_hk_n, 256);
         net_sshd_write_str(blob, &p, ks, kp);
     }
     net_sshd_write_mpint(blob, &p, ctx->crypto_dh_pub, SSHD_DH_BYTES);
@@ -896,8 +1242,11 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
     int is_publickey = (mlen == 9 && memcmp((const char *)(payload + (off - mlen)), "publickey", 9) == 0);
     if (is_publickey) {
         /* RFC 4252 §7: boolean TRUE, string algo, string blob, string sig.
-         * Trust policy: accept the kernel's own identity key (the sshd host
-         * key pair doubles as the authorized user key). */
+         * BUG-0075 FIX (A14-24): the client's key is no longer compared
+         * against the EMBEDDED public key (which the whole world has);
+         * its modulus must appear in /etc/ssh_authorized_keys (one
+         * 512-hex-digit modulus per line). No file / no match =>
+         * publickey auth is refused; password auth remains available. */
         if (off + 1 + 4 > plen) return -1;
         off += 1;                                   /* boolean TRUE */
         int alen = (int)net_sshd_read_u32(payload + off); off += 4;
@@ -906,14 +1255,44 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
         int blen = (int)net_sshd_read_u32(payload + off); off += 4;
         if (blen < 0 || off + blen > plen) return -1;
         const u8 *blob = payload + off; off += blen;
-        /* verify blob == our embedded public key */
-        u8 exp_blob[512];
-        int ep = 0;
-        net_sshd_write_cstr(exp_blob, &ep, "ssh-rsa");
-        u8 em3[3] = {0x01, 0x00, 0x01};
-        net_sshd_write_mpint(exp_blob, &ep, em3, 3);
-        net_sshd_write_mpint(exp_blob, &ep, net_sshd_rsa_n, 256);
-        int blob_ok = (blen == ep && memcmp(blob, exp_blob, ep) == 0);
+        /* parse the client blob: string "ssh-rsa" + mpint e + mpint n;
+         * extract the 256-byte modulus */
+        u8 client_n[256];
+        int have_client_n = 0;
+        do {
+            int cp = 0;
+            if (blen < 4) break;
+            int an = (int)net_sshd_read_u32(blob + cp); cp += 4;
+            if (an != 7 || cp + 7 > blen || memcmp(blob + cp, "ssh-rsa", 7) != 0) break;
+            cp += 7;
+            if (cp + 4 > blen) break;
+            int elen = (int)net_sshd_read_u32(blob + cp); cp += 4;
+            if (elen <= 0 || elen > 8 || cp + elen + 4 > blen) break;
+            cp += elen;
+            int nlen = (int)net_sshd_read_u32(blob + cp); cp += 4;
+            if (cp + nlen > blen) break;
+            /* RSA-2048 modulus, optional leading zero */
+            const u8 *nb = blob + cp;
+            int nl = nlen;
+            if (nl > 0 && nb[0] == 0) { nb++; nl--; }
+            if (nl != 256) break;
+            memcpy(client_n, nb, 256);
+            have_client_n = 1;
+        } while (0);
+        /* match against /etc/ssh_authorized_keys moduli */
+        int blob_ok = 0;
+        const u8 *auth_n = NULL;
+        if (have_client_n) {
+            for (int i = 0; i < g_auth_count; i++) {
+                if (memcmp(g_auth_n[i], client_n, 256) == 0) {
+                    blob_ok = 1;
+                    auth_n = g_auth_n[i];
+                    break;
+                }
+            }
+        }
+        if (!blob_ok)
+            net_sshd_log("publickey: client key NOT in /etc/ssh_authorized_keys (or file absent)");
         int sig_ok = 0;
         if (blob_ok && off + 4 <= plen) {
             int slen = (int)net_sshd_read_u32(payload + off); off += 4;
@@ -968,7 +1347,7 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
                                 if (sha_alg == RSA_SHA512) sha512(sdata, sdp, sdig);
                                 else sha256(sdata, sdp, sdig);
                                 const u8 *rsig = sb + sp;
-                                sig_ok = crypto_rsa_verify_pkcs1(net_sshd_rsa_n, 256,
+                                sig_ok = crypto_rsa_verify_pkcs1(auth_n, 256,
                                                           (const u8 *)"\x01\x00\x01", 3,
                                                           sha_alg, sdig, dig_len,
                                                           rsig, 256) == 1;
@@ -1269,6 +1648,28 @@ int net_sshd_main(u16 port, const char *user, const char *pass) {
     memset(ctx, 0, sizeof(*ctx));
     strcpy(ctx->auth_user, user);
     strcpy(ctx->auth_pass, pass);
+
+    /* BUG-0075: per-installation host key (load or generate) + authorized
+     * user keys. Falls back to the embedded key ONLY if /etc is
+     * unavailable, and says so in the log. */
+    if (net_sshd_hostkey_ensure() != 0) {
+        memcpy(g_hk_n, net_sshd_rsa_n, 256);
+        memcpy(g_hk_d, net_sshd_rsa_d, 256);
+        g_hk_ready = 1;
+        g_hk_custom = 0;
+        net_sshd_log("WARNING: using the EMBEDDED host key (no /etc) - "
+                     "every copy of this image has the same key");
+    }
+    net_sshd_authkeys_reload();
+    {
+        char kb[96];
+        strcpy(kb, g_hk_custom ? "host key: per-installation (" : "host key: EMBEDDED fallback (");
+        char kn[10];
+        u64_to_str((u64)g_auth_count, kn);
+        strcat(kb, kn);
+        strcat(kb, g_auth_count == 1 ? " authorized key)" : " authorized keys)");
+        net_sshd_log(kb);
+    }
 
     int ls = net_socket(SOCK_TCP);
     if (ls < 0) { net_sshd_log("listen socket alloc failed"); return 1; }

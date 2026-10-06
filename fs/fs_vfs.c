@@ -77,6 +77,7 @@ static int fs_vfs_alloc_fd(void) {
             g_fds[i].node = NULL;
             g_fds[i].flags = 0;
             g_fds[i].offset = 0;
+            g_fds[i].refcnt = 0;
             return i;
         }
     }
@@ -638,10 +639,14 @@ int fs_vfs_open(const char *path, int flags) {
         n->size = 0;
     }
     g_fds[fd].offset = (flags & VFS_O_APPEND) ? n->size : 0;
+    /* BUG-0098 FIX (A2-5): a fresh open holds exactly one reference. */
+    g_fds[fd].refcnt = 1;
     if (n->fs_type && n->fs_type->file_ops && n->fs_type->file_ops->open) {
         int rc = n->fs_type->file_ops->open(n, flags);
         if (rc < 0) {
             g_fds[fd].in_use = 0;
+            g_fds[fd].refcnt = 0;
+            g_fds[fd].node = NULL;
             return rc;
         }
     }
@@ -715,6 +720,17 @@ int fs_vfs_seek(int fd, int offset, int whence) {
 int fs_vfs_close(int fd) {
     if (fd < 0 || fd >= VFS_MAX_FDS || !g_fds[fd].in_use) return -1;
     fs_vfs_file_t *f = &g_fds[fd];
+    /* BUG-0098 FIX (A2-5): shared open-file slots (dup / dup2 / fork
+     * inheritance) are reference-counted. A close from ONE holder only
+     * drops that holder's reference; the underlying node close (and the
+     * fs-specific close callback + node open_count decrement) runs when
+     * the LAST reference goes away. Without this, closing one dup'd fd
+     * destroyed the slot for every other holder: their later reads
+     * returned -1 and writes silently failed or were lost. */
+    if (f->refcnt > 1) {
+        f->refcnt--;
+        return 0;
+    }
     if (f->node && f->node->fs_type && f->node->fs_type->file_ops &&
         f->node->fs_type->file_ops->close) {
         f->node->fs_type->file_ops->close(f->node);
@@ -725,7 +741,16 @@ int fs_vfs_close(int fd) {
     f->node = NULL;
     f->flags = 0;
     f->offset = 0;
+    f->refcnt = 0;
     fs_vfs_invoke_hook(VFS_HOOK_CLOSE, "");
+    return 0;
+}
+
+int fs_vfs_fd_addref(int fd) {
+    if (fd < 0 || fd >= VFS_MAX_FDS || !g_fds[fd].in_use) return -1;
+    /* BUG-0098 FIX (A2-5): see fs_vfs_close. */
+    if (g_fds[fd].refcnt < 1) return -1;
+    g_fds[fd].refcnt++;
     return 0;
 }
 
