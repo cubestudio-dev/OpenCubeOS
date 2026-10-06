@@ -1,7 +1,7 @@
 #!/bin/bash
 # WP-09 website build script — cd is IN the file, cannot be forgotten
 set -e
-cd /home/z/my-project/archive-repo/oc-os/website
+cd /home/z/my-project/oc-work/oc-os/website
 echo "PWD=$(pwd)"
 # WP-09-fix5 FIX: start from a clean out/ — a stale out/ kept the OLD
 # downloads/ directory alive and gh-pages shipped stale assets while the

@@ -1,40 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-AUDIT-01-p1fix2 value
+// Central site data. Every number is a real WP-AUDIT-01-p1fix3 value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
 // docs/EXTENSIONS_WP10-wp08fix1.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub wp-audit-01-p1fix2 tag + site /downloads/ + this site /downloads/
+// 3-way identical: local build + GitHub wp-audit-01-p1fix3 tag + site /downloads/ + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p1fix2";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p1fix3";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub wp-audit-01-p1fix2 tag + site /downloads/ + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-wp-audit-01-p1fix2.iso";
-export const ISO_SIZE_B = 11370496;
-export const ISO_SIZE_MB = "10.84";
+// Real assets (build/ + GitHub wp-audit-01-p1fix3 tag + site /downloads/ + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-wp-audit-01-p1fix3.iso";
+export const ISO_SIZE_B = 11378688;
+export const ISO_SIZE_MB = "10.85";
 export const ISO_SHA256 =
-  "b1445300efb4d7db7ebc437449b3003f868801758667ab4440e6ad63f81705d2";
+  "8fe3d49612365ad9f3c6705a99591001a5cacd9018d4532b167ed9ba93e70940";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-wp-audit-01-p1fix2-src.zip";
-export const SRC_SIZE_B = 2681491;
-export const SRC_SIZE_MB = "2.56";
+export const SRC_FILE = "opencube-wp-audit-01-p1fix3-src.zip";
+export const SRC_SIZE_B = 2701208;
+export const SRC_SIZE_MB = "2.58";
 export const SRC_SHA256 =
-  "7dc6f58a992571366b6520884651f2ddbe5997ddb12bfe0646ba1d14f41555e3";
+  "fe2b45b44e2b44660ab982d44b45281eabbcc8e2396d93d3020dd52a4b31394f";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-AUDIT-01-p1fix2 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 93,884 (incl. the build-generated kernel/generated/grub_boot_data.c, 10,335 lines, GRUB 2.12-9+deb13u2).
+// WP-AUDIT-01-p1fix3 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 94,821 (incl. the build-generated kernel/generated/grub_boot_data.c, 10,335 lines, GRUB 2.12-9+deb13u2).
 // Shell commands: live boot count = 173 (help -a prints "Total: 173 commands"; p1fix1 added the pmmrace command).
-// L1 extension interfaces: 138 items (unchanged; p1fix2 added no l1/ headers).
+// L1 extension interfaces: 138 items (unchanged; p1fix3 added no l1/ headers).
 export const STATS = [
-  { value: "93,884", label: "行源码" },
+  { value: "94,821", label: "行源码" },
   { value: "138", label: "L1 扩展接口" },
   { value: "44", label: "系统调用" },
   { value: "173", label: "shell 命令" },
@@ -42,12 +42,12 @@ export const STATS = [
   { value: "41/41", label: "P0 修复测试" },
 ];
 
-// WP-AUDIT-01 (607-finding audit + all 41 P0 fixes + P1 fixes in progress: p1fix1 first 31 + p1fix2 items 32..62) leads the user-facing list
+// WP-AUDIT-01 (607-finding audit + all 41 P0 fixes + all 94 P1 fixes: p1fix1 items 1..31 + p1fix2 items 32..62 + p1fix3 items 63..94) leads the user-facing list
 export const FEATURES = [
   {
-    name: "完整安全审查 + P0 全部修复 + P1 修复推进",
-    tag: "WP-AUDIT-01-p1fix2",
-    desc: "18 路逐行审查 607 条发现（P0 41 / P1 94 / P2 214 / P3 258）；41 个 P0 全部修复（p0fix1 前 20 + p0fix2 后 21，逐条有 QEMU FAIL-before/PASS-after、宿主 ASAN 或构造级路径证据）；WP-AUDIT-01-p1fix1 修复前 31 个 P1（BUG-0042..0072）：每任务 FPU/SSE fxsave 上下文 + CR4.OSFXSR + fork 继承、PMM 位图 cli 原子性、页错误语义（P=1 拒绝、8MiB 栈下限、U/S 特权环、内核在用户地址空间拒绝）、XHCI 事件环 LINK 与轮询闸锁、EHCI CONFIGFLAG、OHCI 中断表/TD_R/NPS、MSC residue 与 sector_size、CDC-ACM 协议、SS EP0 mps9、FAT32 rmdir 点项 + UAF + 簇环越界 + unlink 保护、exFAT 位图生命周期、ext4 extent 偏移与恶意卷越界、e1000 strcat、ld_so 边界、网络 IP 帧校验 + RX 校验和 + 序号回绕 + RST 校验 + SYN_RCVD 回收 + SYN 选项 + udp_bind 去重 + 窗口缩放 + RTO 临界区；新增 sse_test/pf_test 用户测试，回归 tcptest/fork_test/ping/pmmrace 全绿。p1fix2 修复 P1 第 32~62 条（BUG-0073..0103）：SSH 主机密钥 TOFU 锚点（/etc/ssh_known_hosts 持久化，换钥硬失败拒连，MITM 检测）与按机生成 RSA-2048 主机密钥（移除镜像内嵌万能私钥，客户端身份改 /etc/ssh_client_key，全协议调用点核验消费 rdrand CSPRNG）；TLS 按套件密钥长度（ChaCha20/AES-256-GCM 32B，修复选中即失败）、CertificateEntry 扩展数据跳过、32KiB transcript 懒分配+溢出硬失败、ServerHello 全边界校验、零长记录卡死上限、KeyUpdate/NST 递归改循环、X509 负长度四入口 host_a401_entry_test（ASAN 全拒）；shell capture 栈化（4 层嵌套不串数据）、相对路径通配符自覆盖修复、edit 相对路径解析+超容量警告+拒绝缩短保存、cp 全量复制不再静默截断、ls/tree/du 有界路径拼接；ush unalias 空参崩溃修复、nano 保存/cp/mv 补 O_TRUNC（短内容覆盖长文件不再残留旧尾字节）、重定向 fd 生命周期三缺陷（泄漏/双重 close/stdin 永久改绑）连同内核 console fd dup/dup2 支持与 sys_read(0) 键盘行模式（^D EOF）一并修复；L1 console hook 抑制契约落地、WP-08cd 注册真实接入 oc> 派发与 sys_execve 并补对称注销接口；文档 ota_update_url→update_url 与 tools/update_server.py 名称修正；新增 fdref_test/select_zero_test 用户测试，回归全绿。",
+    name: "完整安全审查 + P0 全部修复 + P1 全部 94 条修复完成",
+    tag: "WP-AUDIT-01-p1fix3",
+    desc: "18 路逐行审查 607 条发现（P0 41 / P1 94 / P2 214 / P3 258）；41 个 P0 全部修复（p0fix1 前 20 + p0fix2 后 21，逐条有 QEMU FAIL-before/PASS-after、宿主 ASAN 或构造级路径证据）；WP-AUDIT-01-p1fix1 修复前 31 个 P1（BUG-0042..0072）：每任务 FPU/SSE fxsave 上下文 + CR4.OSFXSR + fork 继承、PMM 位图 cli 原子性、页错误语义（P=1 拒绝、8MiB 栈下限、U/S 特权环、内核在用户地址空间拒绝）、XHCI 事件环 LINK 与轮询闸锁、EHCI CONFIGFLAG、OHCI 中断表/TD_R/NPS、MSC residue 与 sector_size、CDC-ACM 协议、SS EP0 mps9、FAT32 rmdir 点项 + UAF + 簇环越界 + unlink 保护、exFAT 位图生命周期、ext4 extent 偏移与恶意卷越界、e1000 strcat、ld_so 边界、网络 IP 帧校验 + RX 校验和 + 序号回绕 + RST 校验 + SYN_RCVD 回收 + SYN 选项 + udp_bind 去重 + 窗口缩放 + RTO 临界区；新增 sse_test/pf_test 用户测试，回归 tcptest/fork_test/ping/pmmrace 全绿。p1fix2 修复 P1 第 32~62 条（BUG-0073..0103）：SSH 主机密钥 TOFU 锚点（/etc/ssh_known_hosts 持久化，换钥硬失败拒连，MITM 检测）与按机生成 RSA-2048 主机密钥（移除镜像内嵌万能私钥，客户端身份改 /etc/ssh_client_key，全协议调用点核验消费 rdrand CSPRNG）；TLS 按套件密钥长度（ChaCha20/AES-256-GCM 32B，修复选中即失败）、CertificateEntry 扩展数据跳过、32KiB transcript 懒分配+溢出硬失败、ServerHello 全边界校验、零长记录卡死上限、KeyUpdate/NST 递归改循环、X509 负长度四入口 host_a401_entry_test（ASAN 全拒）；shell capture 栈化（4 层嵌套不串数据）、相对路径通配符自覆盖修复、edit 相对路径解析+超容量警告+拒绝缩短保存、cp 全量复制不再静默截断、ls/tree/du 有界路径拼接；ush unalias 空参崩溃修复、nano 保存/cp/mv 补 O_TRUNC（短内容覆盖长文件不再残留旧尾字节）、重定向 fd 生命周期三缺陷（泄漏/双重 close/stdin 永久改绑）连同内核 console fd dup/dup2 支持与 sys_read(0) 键盘行模式（^D EOF）一并修复；L1 console hook 抑制契约落地、WP-08cd 注册真实接入 oc> 派发与 sys_execve 并补对称注销接口；文档 ota_update_url→update_url 与 tools/update_server.py 名称修正；新增 fdref_test/select_zero_test 用户测试，回归全绿。p1fix3 修复剩余 31 条（第 63~94 条，BUG-0104..0135）：A/B 更新目标槽不再硬编码 B（按非当前启动槽写入）；OTA 整数/栈加固（package_size u64 溢出、json_uint 回绕检测、线程栈 16→24 KiB）；strncpy n+1 越界改 ISO 语义；GPT entry_size 上界与 NVMe 按实际队列尺寸回绕、ATA 控制器表上界；回写缓存淘汰失败不再静默丢数据且错误真实传播；分区子设备再注册刷新几何（mkfs 不再跨分区）；控制台除零/滚动越界/裁剪回绕绕过与 PCI BAR 校验（>4GiB 拒绝）；网卡：rtl8169 族与 3c59x/nForce 探测死代码修复、假发送改诚实失败、全零 MAC 拒注册、rtl8139 发送三缺陷、ixgbe 描述符按 82598/82599 数据手册重排、rtl8169 TX EOR、bcm57xx TX 回收门与 RX 缓冲真实提交（代码级，对照数据手册）；声卡：virtio-snd 能力解析修复、HDA SET_AMP 16 位 payload（音量真实生效）、corb_xmit 按 verb cad 过滤（任意 cad 可枚举）；恒定时间：EC 标量乘 double-and-add-always + 掩码选择、modexp square-and-multiply-always（侧信道时序泄漏关闭，NIST/真值向量回归全绿）；RUNTIME 实测修复：sshd 阻塞 accept 可 Ctrl+C 取消（0.1s）、umount / 拒绝 + busy 检测、调度器交互上隀 100ms + run 输出 kill 就绪 tid、真正的双模式 vi（NORMAL/INSERT/:w/:q/:wq/:q!）。",
   },
   {
     name: "Shell 完全体（行编辑 + 工具 + 编辑器）",
@@ -191,12 +191,16 @@ export const WORK_PACKAGES = [
   },
   {
     no: "WP-AUDIT-01",
-    title: "完整审查（18 路，607 条）+ P0 全部 41 个修复 + P1 修复推进（p1fix1 前 31 条 + p1fix2 第 32~62 条）",
+    title: "完整审查（18 路，607 条）+ P0 全部 41 个修复 + P1 全部 94 条修复（p1fix1 前 31 条 + p1fix2 第 32~62 条 + p1fix3 剩余 31 条）",
   },
 ];
 
 // Verification (README.md "Tests" + docs/EXTENSIONS_WP10a/b/u/c.md + docs/EXTENSIONS_WP10-wp08fix1.md)
 export const VERIFY = [
+  {
+    name: "P1fix3 运行时与密码学验证",
+    desc: "RUNTIME 套件 3/3（umount / 拒绝且 /etc 存活；run loop 并发下 ps 2.6s 响应 + tid 打印 + kill 成功；vi 插入/ESC/:wq 回读一致）+ BUG-0132 套件（sshd listen 后 ^C 0.1s 取消返回 shell）；cryptotest NIST 向量 PASS；dhtest g^0/1^x/TLS KEX/2048-bit 真值向量 5/5（恒定时间 modexp 后仍全对）；host_bn_ec_test ALL PASS（NIST 公钥点、ECDSA 验签、ECDH 自洽、P-384 在曲线上，恒定时间 ladder）。",
+  },
   {
     name: "WP-08 补全端到端 24/24",
     desc: "tools/wp10_wp08fix1_test.py 用真实按键（串口直注 + sendkey 方向键）驱动：oc> 历史/光标/Tab/Ctrl+C/导航键、ush 同套键位、ln 硬链接+软链接、chmod/chown+stat、sed、awk、ps/top/du、ifconfig/netstat/ping、双端 nano 编辑器写文件回读，24/24 全 PASS。",

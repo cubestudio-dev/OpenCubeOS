@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS - WP-AUDIT-01-p1fix2
+# Open Cube OS - WP-AUDIT-01-p1fix3
 
 **官网**: https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**: https://github.com/cubestudio-dev/OpenCubeOS
@@ -20,9 +20,9 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-AUDIT-01-p1fix2)
+## Stats (WP-AUDIT-01-p1fix3)
 
-- **Source code**: 93,884 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
+- **Source code**: 94,821 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
   verify: `find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
 - **Work packages**: 16 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c, WP-10d, project restructure, WP-10-wp08fix1, WP-AUDIT-01 + p0fix1)
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
@@ -433,8 +433,9 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-AUDIT-01-p1fix2)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p1fix2) — ISO + SRC zip
-  (ISO sha256 `b1445300efb4d7db7ebc437449b3003f868801758667ab4440e6ad63f81705d2`)
+- **Latest (WP-AUDIT-01-p1fix3)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p1fix3) — ISO + SRC zip
+  (ISO sha256 `8fe3d49612365ad9f3c6705a99591001a5cacd9018d4532b167ed9ba93e70940`,
+  SRC sha256 `fe2b45b44e2b44660ab982d44b45281eabbcc8e2396d93d3020dd52a4b31394f`)
 - **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - Or visit https://cubestudio-dev.github.io/OpenCubeOS for direct downloads
 

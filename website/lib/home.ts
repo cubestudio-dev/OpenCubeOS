@@ -21,7 +21,7 @@ export { fmtBytes };
 // WP-AUDIT-01-p1fix2 stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "93,884", label: "行源码" },
+    { value: "94,821", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "44", label: "系统调用" },
     { value: "173", label: "shell 命令" },
@@ -29,7 +29,7 @@ export const STATS: Bi<{ value: string; label: string }[]> = {
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "93,884", label: "lines of source" },
+    { value: "94,821", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "44", label: "system calls" },
     { value: "173", label: "shell commands" },
@@ -38,14 +38,14 @@ export const STATS: Bi<{ value: string; label: string }[]> = {
   ],
 };
 
-// WP-AUDIT-01-p1fix2 (audit + all 41 P0 fixes + P1 fixes in progress: p1fix1 first 31 + p1fix2 items 32..62) leads the user-facing list, then WP-10-wp08fix1 shell completion + WP-10d/c/u/b/a + security transport
+// WP-AUDIT-01-p1fix3 (audit + all 41 P0 fixes + all 94 P1 fixes: p1fix1 1..31 + p1fix2 32..62 + p1fix3 63..94) leads the user-facing list, then WP-10-wp08fix1 shell completion + WP-10d/c/u/b/a + security transport
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
     {
       name: "完整安全审查 + P0 全部修复 + P1 修复推进",
-      tag: "WP-AUDIT-01-p1fix2",
+      tag: "WP-AUDIT-01-p1fix3",
       desc: "18 路逐行审查 607 条发现（P0 41 / P1 94 / P2 214 / P3 258）；41 个 P0 全部修复（p0fix1 前 20 + p0fix2 后 21，逐条有 QEMU FAIL-before/PASS-after、宿主 ASAN 或构造级路径证据）；p1fix1 修复前 31 个 P1（BUG-0042..0072）：每任务 FPU/SSE fxsave 上下文 + CR4.OSFXSR + fork 继承、PMM 位图 cli 原子性、页错误语义（P=1 拒绝、8MiB 栈下限、U/S 特权环、内核在用户地址空间拒绝）、XHCI 事件环 LINK 与轮询闸锁、EHCI CONFIGFLAG、OHCI 中断表/TD_R/NPS、MSC residue 与 sector_size、CDC-ACM 协议、SS EP0 mps9、FAT32 rmdir 点项 + UAF + 簇环越界 + unlink 保护、exFAT 位图生命周期、ext4 extent 偏移与恶意卷越界、e1000 strcat、ld_so 边界、网络 IP 帧校验 + RX 校验和 + 序号回绕 + RST 校验 + SYN_RCVD 回收 + SYN 选项 + udp_bind 去重 + 窗口缩放 + RTO 临界区；新增 sse_test/pf_test 用户测试，回归 tcptest/fork_test/ping/pmmrace 全绿。p1fix2 修复 P1 第 32~62 条（BUG-0073..0103）：SSH 主机密钥 TOFU 锚点（/etc/ssh_known_hosts 持久化，换钥硬失败拒连）与按机生成 RSA-2048 主机密钥（移除镜像内嵌万能私钥，客户端身份改 /etc/ssh_client_key，全协议调用点核验消费 rdrand CSPRNG）；TLS 按套件密钥长度（ChaCha20/AES-256-GCM 32B）、CertificateEntry 扩展跳过、32KiB transcript 懒分配+溢出硬失败、ServerHello 全边界、零长记录卡死上限、KeyUpdate/NST 递归改循环、X509 负长度四入口测试（ASAN 全拒）；shell capture 栈化、相对通配符、edit/cp 完整性、ls/tree/du 有界拼接；ush unalias 空参、nano/cp/mv 补 O_TRUNC、重定向 fd 生命周期（内核 console fd dup/dup2 + sys_read(0) 键盘行模式 ^D EOF）；L1 console hook 抑制契约、WP-08cd 注册真实接入 oc> 与 sys_execve 并补注销；文档 update_url/update_server.py 修正；新增 fdref_test/select_zero_test。",
     },
     {
@@ -122,7 +122,7 @@ export const FEATURES: Bi<
   en: [
     {
       name: "Full security audit + all 41 P0 fixes + P1 fixes in progress",
-      tag: "WP-AUDIT-01-p1fix2",
+      tag: "WP-AUDIT-01-p1fix3",
       desc: "An 18-route line-by-line audit produced 607 findings (P0 41 / P1 94 / P2 214 / P3 258); all 41 P0s are fixed (p0fix1 first 20 + p0fix2 remaining 21, each with QEMU FAIL-before/PASS-after, host ASAN, or construction-level path evidence); p1fix1 fixed the first 31 P1s (BUG-0042..0072): per-task FPU/SSE fxsave context + CR4.OSFXSR + fork inheritance, PMM bitmap cli atomicity, page-fault semantics (P=1 refusal, 8MiB stack floor, U/S ring, kernel-on-user-address-space refusal), the XHCI event-ring LINK wrap and poll latch, EHCI CONFIGFLAG, the OHCI interrupt table / TD_R / NPS, MSC residue and sector_size, the CDC-ACM protocol, SS EP0 mps9, FAT32 rmdir dot entries + UAF + cluster-cycle bounds + the unlink guard, the exFAT bitmap lifecycle, ext4 extent offsets and crafted-volume bounds, the e1000 strcat, ld_so bounds, and the network stack (IP frame checks + RX checksums + sequence wrap + RST validation + SYN_RCVD reaping + SYN options + udp_bind dedup + window scaling + RTO critical sections); new sse_test/pf_test user tests added, with the tcptest/fork_test/ping/pmmrace regressions all green. p1fix2 fixed P1 items 32..62 (BUG-0073..0103): SSH TOFU known_hosts anchor plus per-installation host key (embedded universal RSA key removed, client identity via /etc/ssh_client_key, CSPRNG consumption verified at all call sites); TLS per-cipher key lengths, CertificateEntry ext skip, 32KiB transcript with hard overflow failure, ServerHello bounds, zero-length stall cap, KeyUpdate loop, X509 negative-length entry tests (ASAN-clean); shell capture stack, relative wildcards, edit/cp integrity, bounded ls/tree/du joins; ush unalias guard, O_TRUNC for nano/cp/mv, redirect fd lifecycle (kernel console fd dup/dup2 + sys_read(0) line mode with ^D EOF); L1 hook suppression + real registration + unregister; docs update_url / update_server.py; new fdref_test/select_zero_test.",
     },
     {
