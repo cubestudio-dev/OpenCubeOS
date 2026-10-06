@@ -30,11 +30,11 @@ export const SRC_SHA256 =
   "fe2b45b44e2b44660ab982d44b45281eabbcc8e2396d93d3020dd52a4b31394f";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-AUDIT-01-p1fix3 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 94,821 (incl. the build-generated kernel/generated/grub_boot_data.c, 10,335 lines, GRUB 2.12-9+deb13u2).
+// WP-AUDIT-01-p1fix3 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 94,883 (incl. the build-generated kernel/generated/grub_boot_data.c, 10,335 lines, GRUB 2.12-9+deb13u2).
 // Shell commands: live boot count = 173 (help -a prints "Total: 173 commands"; p1fix1 added the pmmrace command).
 // L1 extension interfaces: 138 items (unchanged; p1fix3 added no l1/ headers).
 export const STATS = [
-  { value: "94,821", label: "行源码" },
+  { value: "94,883", label: "行源码" },
   { value: "138", label: "L1 扩展接口" },
   { value: "44", label: "系统调用" },
   { value: "173", label: "shell 命令" },

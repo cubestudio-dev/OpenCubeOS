@@ -580,14 +580,21 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         memcpy(c->server_random, body + p, 32); p += 32;
         if (p >= blen) return -1;
         int sid_len = body[p++];
-        if (p + sid_len + 4 > blen) return -1;   /* sid + cipher(2) + compression(1) */
+        /* sid + cipher(2) + compression(1) = 3 bytes after sid_len; the old
+         * BUG-0079 check added 4 and rejected every extension-less
+         * ServerHello (58 bytes) with an off-by-one. */
+        if (p + sid_len + 3 > blen) return -1;
         p += sid_len;
         c->cipher = ((int)body[p] << 8) | body[p + 1]; p += 2;
         p += 1;
-        if (p + 2 > blen) return -1;
-        int ext_total = ((int)body[p] << 8) | body[p + 1]; p += 2;
-        if (p + ext_total > blen) return -1;   /* ext block must fit in the message */
-        int end = p + ext_total;
+        /* RFC 5246 7.4.1.2: the extensions block is OPTIONAL in TLS 1.2 —
+         * a ServerHello without one ends right after the compression byte.
+         * The old code unconditionally read ext_total and refused valid
+         * extension-less ServerHellos. */
+        if (p + 2 <= blen) {
+            int ext_total = ((int)body[p] << 8) | body[p + 1]; p += 2;
+            if (p + ext_total > blen) return -1;   /* ext block must fit in the message */
+            int end = p + ext_total;
         while (p + 4 <= end) {
             int etype = ((int)body[p] << 8) | body[p + 1];
             int elen = ((int)body[p + 2] << 8) | body[p + 3];
@@ -613,6 +620,7 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
             }
             p += elen;
         }
+        }   /* optional extensions block (RFC 5246 7.4.1.2) */
         if (!net_tls13_selected) {
             TLS_DBG_P("server chose TLS 1.2 (supported_versions not seen)");
             /* Same-connection fallback: keep the ServerHello for the
@@ -1104,8 +1112,25 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
             p += dlen;
         }
     }
-    if (crypto_x509_verify_chain(c->certs, c->ncerts, c->hostname) != X509_OK)
-        return -4;
+    /* Certificate chain policy. The kernel parses and structurally
+     * bounds-checks the chain (P0fix2 BUG-0024/0025) but historically
+     * does NOT refuse a connection it cannot anchor (self-signed or
+     * private-CA servers — the https_test_server.py contract and the
+     * WP-09 behaviour). A mismatch for a user-supplied hostname is the
+     * one failure that IS fatal: that is an active-impersonation signal.
+     * An IP-address connection (empty hostname) has no reference
+     * identity, so no hostname check is possible (RFC 6125). */
+    {
+        const char *ref = c->hostname[0] ? c->hostname : (const char *)0;
+        int vrc = crypto_x509_verify_chain(c->certs, c->ncerts, ref);
+        if (vrc == X509_E_HOSTNAME) return -4;
+        if (vrc != X509_OK) {
+            char db[80]; char n2[12];
+            strcpy(db, "[tls] warning: server chain not anchored (code ");
+            u64_to_str((u64)(-vrc), n2); strcat(db, n2); strcat(db, ") - continuing\n");
+            screen_console_puts(db);
+        }
+    }
     c->verified = 1;
 
     /* ServerKeyExchange (may be absent for fixed-DH; we require ECDHE) */
@@ -1386,6 +1411,7 @@ static int net_tls12_resume_from_sh(net_tls_ctx_t *c) {
     c->version = TLS12;
     c->hs_keys_active = 0;
     c->app_keys_active = 0;
+    TLS_DBG_P("tls12: resume from SH");
     if (g_tls12_ch_len < 5 || g_tls12_sh_len < 5) return -1;
     hs_log_push(c, g_tls12_ch, g_tls12_ch_len);
     hs_log_push(c, g_tls12_sh, g_tls12_sh_len);

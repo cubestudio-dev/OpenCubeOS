@@ -21,7 +21,7 @@ export { fmtBytes };
 // WP-AUDIT-01-p1fix2 stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "94,821", label: "行源码" },
+    { value: "94,883", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "44", label: "系统调用" },
     { value: "173", label: "shell 命令" },
@@ -29,7 +29,7 @@ export const STATS: Bi<{ value: string; label: string }[]> = {
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "94,821", label: "lines of source" },
+    { value: "94,883", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "44", label: "system calls" },
     { value: "173", label: "shell commands" },

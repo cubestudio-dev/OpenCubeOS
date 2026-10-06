@@ -94,6 +94,33 @@ static u16 internet_checksum(const void *data, int len, u32 sum) {
     return (u16)(~sum);
 }
 
+/* RFC 1071-style raw accumulator WITHOUT the final complement. Use this
+ * (checksum_fold included) when a checksum must span several buffers
+ * (pseudo-header + segment), because internet_checksum() complements on
+ * every call and two chained calls complement twice - the verification
+ * then fails for EVERY valid packet. That was the BUG-0072 regression
+ * found while re-running the SSH/HTTPS end-to-end suites on p1fix3:
+ * every inbound TCP segment was dropped as "bad checksum", so sshd,
+ * the kernel ssh client and the TLS server all starved. */
+static u32 checksum_raw_add(const void *data, int len, u32 sum) {
+    const u16 *p = (const u16 *)data;
+    while (len > 1) {
+        sum += *p++;
+        len -= 2;
+    }
+    if (len == 1) {
+        sum += *(const u8 *)p;
+    }
+    return sum;   /* caller folds with checksum_fold() */
+}
+
+static u16 checksum_fold(u32 sum) {
+    while (sum >> 16) {
+        sum = (sum & 0xFFFF) + (sum >> 16);
+    }
+    return (u16)sum;
+}
+
 /* ============================================================
  * Network configuration state
  * ============================================================ */
@@ -1587,9 +1614,13 @@ static void net_ip_handle_packet(const void *data, int len) {
                     ph[6]=(u8)(dst>>8);     ph[7]=(u8)dst;
                     ph[8]=0; ph[9]=IP_PROTO_UDP;
                     ph[10]=(u8)(payload_len>>8); ph[11]=(u8)payload_len;
-                    u32 t = internet_checksum(ph, 12, 0);
-                    t = internet_checksum(payload, payload_len, t);
-                    if ((t & 0xFFFFu) != 0xFFFFu) {   /* ~(sum)==0 */
+                    /* BUG-0072 FIX (checksum chain): accumulate pseudo-header
+                     * and segment into ONE raw sum and fold once; the old
+                     * chained internet_checksum() calls complemented twice
+                     * and rejected every valid datagram. */
+                    u32 raw = checksum_raw_add(ph, 12, 0);
+                    raw = checksum_raw_add(payload, payload_len, raw);
+                    if (checksum_fold(raw) != 0xFFFFu) {
                         g_stats.net_rx_bad_checksum++;
                         return;
                     }
@@ -1602,7 +1633,6 @@ static void net_ip_handle_packet(const void *data, int len) {
             /* BUG-0072 FIX: verify the TCP checksum (pseudo-header +
              * segment). The RX path never checked it. */
             if (payload_len >= 20) {
-                u32 t = 0;
                 u8 ph[12];
                 ph[0]=(u8)(src_ip>>24); ph[1]=(u8)(src_ip>>16);
                 ph[2]=(u8)(src_ip>>8);  ph[3]=(u8)src_ip;
@@ -1610,9 +1640,14 @@ static void net_ip_handle_packet(const void *data, int len) {
                 ph[6]=(u8)(dst>>8);     ph[7]=(u8)dst;
                 ph[8]=0; ph[9]=IP_PROTO_TCP;
                 ph[10]=(u8)(payload_len>>8); ph[11]=(u8)payload_len;
-                t = internet_checksum(ph, 12, 0);
-                t = internet_checksum(payload, payload_len, t);
-                if ((t & 0xFFFFu) != 0xFFFFu) {
+                /* BUG-0072 FIX (checksum chain): one raw sum across the
+                 * pseudo-header and the segment, folded ONCE. The old
+                 * chained internet_checksum() calls complemented twice,
+                 * so every valid segment was rejected: inbound TCP was
+                 * completely dead (sshd never answered a SYN). */
+                u32 raw = checksum_raw_add(ph, 12, 0);
+                raw = checksum_raw_add(payload, payload_len, raw);
+                if (checksum_fold(raw) != 0xFFFFu) {
                     g_stats.net_rx_bad_checksum++;
                     return;
                 }
@@ -2397,6 +2432,7 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
     const void *payload = (const u8 *)data + hdr_len;
     const u8 *opts = (const u8 *)data + 20;
     int opt_len = hdr_len - 20;
+
 
     net_tcp_conn_t *c = net_tcp_find_conn(src_ip, dst_port, src_port);
 

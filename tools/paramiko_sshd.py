@@ -65,19 +65,18 @@ class ServerInterface(paramiko.ServerInterface):
         return "password,publickey"
 
     def check_auth_publickey(self, username, key):
-        # Accept the kernel's identity key: parse its public half (sshd_rsa_n)
-        # straight out of kernel/sshd_rsa_key.h so the test server trusts the
-        # exact key the kernel signs with.
+        # Accept the kernel's client identity key: read its public half
+        # from build/ssh_client_key.bin (the per-installation identity the
+        # kernel signs with, injected into the /etc volume by
+        # tools/host_keygen_etc.py; BUG-0075 removed the embedded key that
+        # used to live in kernel/sshd_rsa_key.h).
         ok = False
         try:
-            import re as _re
-            hexdata = ""
+            blob = b""
             with open(os.path.join(os.path.dirname(__file__), "..",
-                                   "kernel", "sshd_rsa_key.h")) as f:
-                hdr = f.read()
-            m = _re.search(r"sshd_rsa_n\[256\] = \{(.*?)\};", hdr, _re.S)
-            hexdata = _re.sub(r"0x|[^0-9a-fA-F]", "", m.group(1))
-            n = int.from_bytes(bytes.fromhex(hexdata)[:256], "big")
+                                   "build", "ssh_client_key.bin"), "rb") as f:
+                blob = f.read()
+            n = int.from_bytes(blob[:256], "big")
             pn = key.public_numbers
             ok = (key.get_name() == "ssh-rsa" and pn.n == n and pn.e == 65537)
         except Exception as exc:
@@ -87,14 +86,6 @@ class ServerInterface(paramiko.ServerInterface):
         if ok and username == "oc":
             return paramiko.AUTH_SUCCESSFUL
         return paramiko.AUTH_FAILED
-
-    def hostkey_n_bytes(self):
-        import re as _re, os as _os
-        hdr = open(_os.path.join(_os.path.dirname(__file__), "..",
-                                 "kernel", "sshd_rsa_key.h")).read()
-        mm = _re.search(r"sshd_rsa_n\[256\] = \{(.*?)\};", hdr, _re.S)
-        hd = _re.sub(r"0x|[^0-9a-fA-F]", "", mm.group(1))
-        return bytes.fromhex(hd)[:256]
 
     def check_auth_password(self, username, password):
         self.log(f"AUTH password user={username!r} pass={'ok' if password == 'oc' else 'WRONG'}")

@@ -40,13 +40,17 @@ ENV_LD = ":".join(LIB_PATHS)
 
 # ---------------------------------------------------------------- kernel key
 def read_kernel_rsa():
-    """Read the kernel identity key (n, d) from kernel/sshd_rsa_key.h."""
-    hdr = open(os.path.join(ROOT, "kernel", "sshd_rsa_key.h")).read()
-    def grab(name):
-        m = re.search(name + r"\[256\] = \{(.*?)\};", hdr, re.S)
-        hexdata = re.sub(r"0x|[^0-9a-fA-F]", "", m.group(1))
-        return int.from_bytes(bytes.fromhex(hexdata)[:256], "big")
-    return grab("sshd_rsa_n"), grab("sshd_rsa_d")
+    """Read the kernel's per-installation client identity key (n, d) from
+    build/ssh_client_key.bin, the same 512-byte n||d blob that
+    tools/host_keygen_etc.py injects into the /etc volume as
+    /etc/ssh_client_key. (BUG-0075 removed the embedded universal key
+    from kernel/sshd_rsa_key.h; the identity is per-installation now.)"""
+    blob = open(os.path.join(ROOT, "build", "ssh_client_key.bin"), "rb").read()
+    if len(blob) != 512:
+        raise RuntimeError(f"build/ssh_client_key.bin: expected 512 bytes, got {len(blob)}")
+    n = int.from_bytes(blob[:256], "big")
+    d = int.from_bytes(blob[256:], "big")
+    return n, d
 
 
 class LogSink:
@@ -124,20 +128,28 @@ class KernelIdentityKey(paramiko.PKey):
 
 
 def qemu_boot_shell(log_read, extra_args=None):
-    """Boot the ISO and wait for the shell prompt. Returns the pexpect child."""
+    """Boot the ISO and wait for the shell prompt. Returns the pexpect child.
+
+    BUG-0075 note: the per-installation sshd host key lives on the /etc
+    volume (FAT32, attached via -drive). Without it the kernel would run
+    the minutes-long Miller-Rabin keygen on every boot and the 90s
+    pexpect budget would time out."""
+    etc_img = os.path.join(ROOT, "build", "etc.img")
+    drive = ["-drive", f"if=ide,format=raw,file={etc_img}"] \
+        if os.path.exists(etc_img) else []
     cmd = [QEMU, "-m", "512", "-cdrom", ISO, "-boot", "d", "-no-reboot",
            "-L", _OC_TOOLS + "/usr/share/qemu",
            "-L", _OC_TOOLS + "/usr/share/seabios",
            "-vga", "std", "-display", "none", "-serial", "mon:stdio",
            "-netdev", "user,id=n1,hostfwd=tcp::2223-:22",
-           "-device", "e1000,netdev=n1"]
+           "-device", "e1000,netdev=n1"] + drive
     if extra_args:
         cmd = [QEMU, "-m", "512", "-cdrom", ISO, "-boot", "d", "-no-reboot",
                "-L", _OC_TOOLS + "/usr/share/qemu",
                "-L", _OC_TOOLS + "/usr/share/seabios",
                "-vga", "std", "-display", "none", "-serial", "mon:stdio",
                "-netdev", "user,id=n1",
-               "-device", "e1000,netdev=n1"]
+               "-device", "e1000,netdev=n1"] + drive
     child = pexpect.spawn(cmd[0], cmd[1:],
                           env={**os.environ, "LD_LIBRARY_PATH": ENV_LD},
                           timeout=90, encoding="utf-8", codec_errors="replace")
