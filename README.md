@@ -434,7 +434,7 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 ## Download
 
 - **Latest (WP-AUDIT-01-p1fix2)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p1fix2) — ISO + SRC zip
-  (ISO sha256 `960af5549d7ae7408ccd0f5240d878435c96c14d60c68faec68120fe14ef1ff6`)
+  (ISO sha256 `b1445300efb4d7db7ebc437449b3003f868801758667ab4440e6ad63f81705d2`)
 - **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - Or visit https://cubestudio-dev.github.io/OpenCubeOS for direct downloads
 

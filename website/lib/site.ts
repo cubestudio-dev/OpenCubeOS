@@ -17,17 +17,17 @@ export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
 // Real assets (build/ + GitHub wp-audit-01-p1fix2 tag + site /downloads/ + this site /downloads/, 3-way identical)
 export const ISO_FILE = "opencube-wp-audit-01-p1fix2.iso";
-export const ISO_SIZE_B = 11372544;
+export const ISO_SIZE_B = 11370496;
 export const ISO_SIZE_MB = "10.84";
 export const ISO_SHA256 =
-  "960af5549d7ae7408ccd0f5240d878435c96c14d60c68faec68120fe14ef1ff6";
+  "b1445300efb4d7db7ebc437449b3003f868801758667ab4440e6ad63f81705d2";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
 export const SRC_FILE = "opencube-wp-audit-01-p1fix2-src.zip";
-export const SRC_SIZE_B = 2679430;
-export const SRC_SIZE_MB = "2.55";
+export const SRC_SIZE_B = 2681491;
+export const SRC_SIZE_MB = "2.56";
 export const SRC_SHA256 =
-  "3bb6ce648d17e2d91b63296ef0d8baf26dbe322f3893b0e9683e0bec1a18746b";
+  "7dc6f58a992571366b6520884651f2ddbe5997ddb12bfe0646ba1d14f41555e3";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // WP-AUDIT-01-p1fix2 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 93,923.
