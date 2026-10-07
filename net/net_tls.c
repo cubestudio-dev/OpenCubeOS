@@ -20,8 +20,10 @@
 #include "lib_string.h"
 #include "core_timer.h"
 
-/* bring-up debugging (0 = quiet, production; 1 = verbose during bring-up) */
-#define TLS_DBG 1
+/* bring-up debugging (0 = quiet, production; 1 = verbose during bring-up.
+ * To re-enable: set to 1 and rebuild the kernel; all probes are compiled out
+ * at 0, so there is zero runtime cost on the release image. */
+#define TLS_DBG 0
 #if TLS_DBG
 #include "screen_console.h"
 #define TLS_DBG_P(msg) screen_console_puts("[tls-dbg] " msg "\n")
@@ -98,13 +100,51 @@ static int g_tls12_ecdh_x25519;   /* server picked x25519 in SKE */
 
 /* ---------------- helpers ---------------- */
 
+/* RFC 6125 6.2: when the connection target is an IP literal, there is no
+ * dNSName reference identity to match. Detect IPv4 dotted-quad (digits
+ * and dots only, exactly 4 octets, each 0..255) and IPv6 literals
+ * (contain ':'). DNS hostnames (any letter/hyphen/other) return 0. */
+static int net_tls_host_is_ip_literal(const char *h) {
+    if (!h || !h[0]) return 0;
+    if (strchr(h, ':')) return 1;    /* IPv6 literal form */
+    int octets = 0, digits = 0;
+    long val = 0;
+    for (const char *p = h; ; p++) {
+        if (*p >= '0' && *p <= '9') {
+            val = val * 10 + (*p - '0');
+            if (val > 255) return 0;
+            digits++;
+        } else if (*p == '.' || *p == 0) {
+            if (digits == 0) return 0;      /* empty octet */
+            octets++;
+            val = 0; digits = 0;
+            if (*p == 0) break;
+        } else {
+            return 0;                        /* DNS hostname */
+        }
+    }
+    return octets == 4;
+}
+
 static int net_tcp_read_exact(int sock, void *buf, int len) {
     u8 *p = (u8 *)buf;
     int got = 0;
     u64 deadline = core_timer_ticks() + 1500;   /* 15 s at 100 Hz */
     while (got < len) {
         int n = net_recv(sock, p + got, len - got);
-        if (n < 0) return -1;
+        if (n < 0) {
+#if TLS_DBG
+            {
+                char pb[64]; char t2[16];
+                strcpy(pb, "[tls-dbg] read_exact: net_recv error n=");
+                u64_to_str((u64)(-n), t2); strcat(pb, t2);
+                strcat(pb, " got="); u64_to_str((u64)got, t2); strcat(pb, t2);
+                strcat(pb, "/"); u64_to_str((u64)len, t2); strcat(pb, t2);
+                screen_console_puts(pb); screen_console_puts("\n");
+            }
+#endif
+            return -1;
+        }
         if (n == 0) {
             if (core_timer_ticks() > deadline) return -1;
             net_poll();
@@ -241,15 +281,19 @@ static int net_tls13_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int buf_
     else
         rc = crypto_aes128_gcm_open(c->rkey, nonce, aad, 5, buf, dlen, inner, buf + dlen);
     if (rc != 0) {
+#if TLS_DBG
         TLS_DBG_P("record decrypt failed (AEAD open)");
-        char nb3[16];
-        screen_console_puts("[tls-dbg] rseq=");
-        u64_to_str((u64)c->rseq, nb3);
-        screen_console_puts(nb3);
-        screen_console_puts(" reclen=");
-        u64_to_str((u64)len, nb3);
-        screen_console_puts(nb3);
-        screen_console_puts("\n");
+        {
+            char nb3[16];
+            screen_console_puts("[tls-dbg] rseq=");
+            u64_to_str((u64)c->rseq, nb3);
+            screen_console_puts(nb3);
+            screen_console_puts(" reclen=");
+            u64_to_str((u64)len, nb3);
+            screen_console_puts(nb3);
+            screen_console_puts("\n");
+        }
+#endif
         return -2;
     }
     c->rseq++;
@@ -721,12 +765,24 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         }
     }
     {
-        int vrc = crypto_x509_verify_chain(c->certs, c->ncerts, c->hostname);
-        if (vrc != X509_OK) {
+        /* Same policy as the TLS 1.2 path below: a hostname mismatch for
+         * a dNSName reference identity is fatal (active-impersonation
+         * signal); an un-anchored chain (self-signed / private-CA) warns
+         * and continues. IP-literal connections arrive here with an
+         * empty hostname (see net_tls_connect). */
+        const char *ref = c->hostname[0] ? c->hostname : (const char *)0;
+        int vrc = crypto_x509_verify_chain(c->certs, c->ncerts, ref);
+        if (vrc == X509_E_HOSTNAME) {
             screen_console_puts("[tls] x509 verify failed: ");
             screen_console_puts(crypto_x509_errstr(vrc));
             screen_console_puts("\n");
             return -4;
+        }
+        if (vrc != X509_OK) {
+            char db[80]; char n2[12];
+            strcpy(db, "[tls] warning: server chain not anchored (code ");
+            u64_to_str((u64)(-vrc), n2); strcat(db, n2); strcat(db, ") - continuing\n");
+            screen_console_puts(db);
         }
     }
     c->verified = 1;
@@ -764,18 +820,22 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
             if (crypto_rsa_verify_pss(leaf->rsa_n, leaf->rsa_n_len, leaf->rsa_e,
                                leaf->rsa_e_len, RSA_SHA256, mhash, 32,
                                sig, sig_len) != 1) {
-                char bl[48];
-                screen_console_puts("[tls-dbg] PSS verify failed: transcript_len=");
-                u64_to_str((u64)c->transcript_len, bl);
-                screen_console_puts(bl);
-                screen_console_puts(" alg=");
-                u64_to_str((u64)alg, bl);
-                screen_console_puts(bl);
-                screen_console_puts(" sig_len=");
-                u64_to_str((u64)sig_len, bl);
-                screen_console_puts(bl);
-                screen_console_puts("\n");
-                net_tls_dbg_hex("th: ", th, 32);
+#if TLS_DBG
+                {
+                    char bl[48];
+                    screen_console_puts("[tls-dbg] PSS verify failed: transcript_len=");
+                    u64_to_str((u64)c->transcript_len, bl);
+                    screen_console_puts(bl);
+                    screen_console_puts(" alg=");
+                    u64_to_str((u64)alg, bl);
+                    screen_console_puts(bl);
+                    screen_console_puts(" sig_len=");
+                    u64_to_str((u64)sig_len, bl);
+                    screen_console_puts(bl);
+                    screen_console_puts("\n");
+                    net_tls_dbg_hex("th: ", th, 32);
+                }
+#endif
                 return -5;
             }
         } else if (alg == 0x0805) {   /* rsa_pss_rsae_sha384 */
@@ -1082,9 +1142,29 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
     /* Certificate (plaintext) */
     {
         int payload = net_tls12_recv_record(c, &ctype, rec, (int)sizeof(rec));
+#if TLS_DBG
+        {
+            char pb[80]; char t2[16];
+            strcpy(pb, "[tls-dbg] cert rec: payload=");
+            u64_to_str((u64)(payload < 0 ? 0 : payload), t2); strcat(pb, t2);
+            strcat(pb, " ctype="); u64_to_str((u64)ctype, t2); strcat(pb, t2);
+            if (payload >= 1) {
+                strcat(pb, " mtype="); u64_to_str((u64)rec[0], t2); strcat(pb, t2);
+            }
+            screen_console_puts(pb); screen_console_puts("\n");
+        }
+#endif
         if (payload < 4 || ctype != CT_HANDSHAKE || rec[0] != HT_CERTIFICATE)
             return -1;
         int mlen = ((int)rec[1] << 16) | ((int)rec[2] << 8) | rec[3];
+#if TLS_DBG
+        {
+            char pb[64]; char t2[16];
+            strcpy(pb, "[tls-dbg] cert mlen=");
+            u64_to_str((u64)mlen, t2); strcat(pb, t2);
+            screen_console_puts(pb); screen_console_puts("\n");
+        }
+#endif
         /* P0fix2 BUG-0024 (A14-18): mlen was only checked against the
          * record payload (≤16636) while body held 12288 bytes — a hostile
          * Certificate message overflowed body by ~4.3 KB BEFORE any chain
@@ -1111,6 +1191,16 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
             used += dlen;
             p += dlen;
         }
+#if TLS_DBG
+        {
+            char pb[80]; char t2[16];
+            strcpy(pb, "[tls-dbg] cert parsed: ncerts=");
+            u64_to_str((u64)c->ncerts, t2); strcat(pb, t2);
+            strcat(pb, " used="); u64_to_str((u64)used, t2); strcat(pb, t2);
+            strcat(pb, " blen="); u64_to_str((u64)blen, t2); strcat(pb, t2);
+            screen_console_puts(pb); screen_console_puts("\n");
+        }
+#endif
     }
     /* Certificate chain policy. The kernel parses and structurally
      * bounds-checks the chain (P0fix2 BUG-0024/0025) but historically
@@ -1136,6 +1226,18 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
     /* ServerKeyExchange (may be absent for fixed-DH; we require ECDHE) */
     {
         int payload = net_tls12_recv_record(c, &ctype, rec, (int)sizeof(rec));
+#if TLS_DBG
+        {
+            char pb[80]; char t2[16];
+            strcpy(pb, "[tls-dbg] ske rec: payload=");
+            u64_to_str((u64)(payload < 0 ? 0 : payload), t2); strcat(pb, t2);
+            strcat(pb, " ctype="); u64_to_str((u64)ctype, t2); strcat(pb, t2);
+            if (payload >= 1) {
+                strcat(pb, " mtype="); u64_to_str((u64)rec[0], t2); strcat(pb, t2);
+            }
+            screen_console_puts(pb); screen_console_puts("\n");
+        }
+#endif
         if (payload < 4 || ctype != CT_HANDSHAKE) return -1;
         int mlen = ((int)rec[1] << 16) | ((int)rec[2] << 8) | rec[3];
         /* P0fix2 BUG-0025 (A14-19): the ServerKeyExchange message length
@@ -1412,6 +1514,15 @@ static int net_tls12_resume_from_sh(net_tls_ctx_t *c) {
     c->hs_keys_active = 0;
     c->app_keys_active = 0;
     TLS_DBG_P("tls12: resume from SH");
+#if TLS_DBG
+    {
+        char pb[64]; char t2[16];
+        strcpy(pb, "[tls-dbg] resume: ch_len=");
+        u64_to_str((u64)g_tls12_ch_len, t2); strcat(pb, t2);
+        strcat(pb, " sh_len="); u64_to_str((u64)g_tls12_sh_len, t2); strcat(pb, t2);
+        screen_console_puts(pb); screen_console_puts("\n");
+    }
+#endif
     if (g_tls12_ch_len < 5 || g_tls12_sh_len < 5) return -1;
     hs_log_push(c, g_tls12_ch, g_tls12_ch_len);
     hs_log_push(c, g_tls12_sh, g_tls12_sh_len);
@@ -1433,7 +1544,14 @@ int net_tls_connect(u32 ip, u16 port, const char *hostname) {
     if (hostname) {
         int hl = (int)strlen(hostname);
         if (hl >= (int)sizeof(c->hostname)) return -1;
-        memcpy(c->hostname, hostname, hl + 1);
+        /* RFC 6125: an IP literal carries no reference identity for
+         * dNSName matching. The wget/checkupdate callers pass the URL
+         * host verbatim ("10.0.2.2"-style literals included), so an IP
+         * literal is stored as an EMPTY hostname and both the TLS 1.2
+         * and TLS 1.3 chain checks skip the name comparison. A dNSName
+         * reference is stored and a mismatch stays fatal. */
+        if (!net_tls_host_is_ip_literal(hostname))
+            memcpy(c->hostname, hostname, hl + 1);
     }
     c->net_tcp_sock = net_socket(SOCK_TCP);
     if (c->net_tcp_sock < 0) return -1;

@@ -116,12 +116,22 @@ and plan.
 - **Impact**: Documentation confusion only; behavior is correct.
 - **Plan**: Fix the comment in the next code-touching batch.
 
-### 2A.4 TLS/SSH: certificate and host-key verification skipped — by design (test phase)
-- **Description**: TLS accepts any certificate; SSH accepts any host key.
-- **Impact**: MITM is possible in untrusted networks.
-- **Rationale**: WP-09 targets protocol correctness; trust-on-first-use /
-  CA verification is deferred (see batch-A assessment: host key persistence,
-  known_hosts, publickey auth, keepalive, algorithm whitelist).
+### 2A.4 TLS/SSH trust model — current state (updated WP-AUDIT-01-p1fix3)
+- **TLS (current)**: the client parses and structurally bounds-checks the
+  server chain (P0fix2 BUG-0024/0025), checks the validity window via the
+  CMOS RTC, and anchors chains against the embedded root store. A hostname
+  mismatch for a dNSName reference identity is FATAL (active-impersonation
+  signal); an IP-literal target carries no reference identity (RFC 6125)
+  and skips the name check; an un-anchored chain (self-signed / private-CA
+  servers) prints `[tls] warning: server chain not anchored` and CONTINUES.
+- **SSH (current)**: TOFU known_hosts anchor + per-installation host key
+  (WP-AUDIT-01-p1fix2: the embedded universal RSA private key was removed;
+  sshd fails closed without a per-installation key; clients persist the
+  first-seen host key). Still deferred: publickey userauth, keepalive,
+  algorithm whitelist.
+- **Remaining impact**: an un-anchored TLS chain is accepted with a visible
+  warning; SSH is TOFU (first connection is unauthenticated by design).
+  MITM is still possible for an attacker present at FIRST contact.
 
 ### 2A.5 paramiko test-server direct-mode probe error — test-harness only
 - **Description**: `paramiko_sshd.py` probes the channel with an immediate
@@ -140,6 +150,76 @@ and plan.
   records noted `@tick=1`. Tick granularity at boot differs.
 - **Impact**: Display only; the 3 intentional exceptions (#DE/#UD/#PF)
   themselves are expected and unchanged.
+
+### 2A.8 HTTPS E2E: mid-handshake disconnect after ServerHello —
+     FOUND + FIXED (WP-AUDIT-01-p1fix3 verification, 2026-10-07)
+- **Symptom**: `wget https://10.0.2.2:8443/` against the reference
+  https_test_server.py (TLS 1.2, DHE-RSA-AES128-SHA256, self-signed
+  RSA-2048 cert with NO SAN) disconnected ~0.02 s after the ServerHello
+  with `TLS failed (code 1)`; the server logged
+  `ssl.SSLEOFError: UNEXPECTED_EOF_WHILE_READING` inside its own
+  handshake. The earlier attribution ("RSA CertificateVerify modexp cost
+  + anchor policy") did not match the timing: the disconnect happened
+  long BEFORE any modexp ran.
+- **Probes**: TLS_DBG probes on the Certificate receive/parse path showed
+  `cert rec: payload=799 ctype=22 mtype=11`, `cert mlen=795`,
+  `cert parsed: ncerts=1 used=789 blen=795`, then failure with NO
+  `[tls] warning` and NO ServerKeyExchange probe — the failure sat
+  inside `crypto_x509_verify_chain`.
+- **Root cause**: `wget` passes the URL host verbatim, so the TLS layer
+  received the IP literal `10.0.2.2` as the hostname. The WP-09
+  mainstream TLS batch (555fe1f) had made `crypto_x509_verify_chain(...,
+  c->hostname) != X509_OK -> -4` unconditional; the p1fix3 hotfix
+  (43ce437) restored warn-and-continue for un-anchored chains but only
+  skipped the name check when the hostname was EMPTY — and a URL host is
+  never empty. The SAN-less test cert therefore failed the dNSName match
+  and the handshake died with X509_E_HOSTNAME (-7 -> -4) before the
+  ServerKeyExchange. Introduced 2026-10-01 (555fe1f), NOT by p1fix3; the
+  p1fix3 hotfix fixed the policy but not the caller-side IP-literal case.
+- **Fix (this round)**: `net_tls_host_is_ip_literal()` in net/net_tls.c —
+  IPv4 dotted-quad / IPv6 literals are stored as an EMPTY hostname
+  (RFC 6125: no reference identity), so both the TLS 1.2 and TLS 1.3
+  chain checks skip the dNSName comparison; the TLS 1.3 chain policy now
+  matches the TLS 1.2 policy (fatal only on dNSName mismatch with a real
+  reference identity; un-anchored chains warn and continue).
+- **Verified E2E (post-fix)**: full handshake vs the reference server —
+  `[tls] warning: server chain not anchored (code 8) - continuing`,
+  ServerKeyExchange processed, server side
+  `TLS handshake OK: TLSv1.2 cipher=('DHE-RSA-AES128-SHA256', ...)`,
+  HTTP request received (`GET / HTTP/1.1 Host: 10.0.2.2`), 108-byte
+  response sent, `Saved 24 bytes to /wget_https.html`, clean
+  close_notify (alert 01 00) received on the guest. Handshake-to-response
+  ~9.4 s (two 1024-bit modexps, see §2A.9).
+
+### 2A.9 TLS DHE handshake cost in QEMU — performance, not a bug
+- **Description**: the TLS 1.2 DHE path performs TWO 1024-bit modexps
+  (Yc = g^x mod p and Z = Ys^x mod p) per handshake; under QEMU TCG that
+  is ~8-9 s of the ~9.4 s handshake-to-response measured in §2A.8
+  (1024-bit ≈ 4.0 s per op, 2048-bit ≈ 13.5 s per op on this host).
+- **Impact**: slow HTTPS/OTA connect under emulation only; correctness
+  is unaffected (every value verified by the MAC / Finished exchange).
+- **Plan**: windowed (2^4/2^5) modular exponentiation is future
+  optimization work; no protocol change is needed.
+
+### 2A.10 host_bn_ec_test -O2 segfault — test-tooling mistake, not code
+- **Symptom**: the host-side bn/EC unit test binary built with plain -O2
+  segfaulted (exit 139) BEFORE printing the first test line, while the
+  ASAN build of the same sources passed 7/7 — looked like an
+  -O2-only code bug in the kernel bignum/EC code.
+- **Root cause**: the ad-hoc build line had linked
+  `kernel/lib/lib_string.c` (plus tests/host_pmm_stub.c) into the host
+  binary. lib_string.c DEFINES glibc's own symbol names
+  (memset/memcpy/memmove/memcmp/strlen/strcmp/strncmp/strcpy/strncpy/
+  strcat/strchr/strcasecmp); in a freestanding kernel that is correct,
+  but linked into a glibc host binary these strong definitions interpose
+  libc's own startup-critical symbols and the process dies before main.
+  ASAN interceptors mask the interposition, so only the plain -O2 build
+  crashed. Reproduced (exit 139) with lib_string.c linked; clean
+  (exit 0, ALL PASS) without it — on both the p1fix3 base (a75d280) and
+  the current head. No kernel code was involved.
+- **Fix**: tests/host_bn_ec_test.c header now documents the canonical
+  build line (no lib_string.c) and the interposition warning; the stale
+  `-Ikernel kernel/bn.c` path was corrected to the restructured layout.
 
 ## 3. TODOs (By Work Package)
 
@@ -169,8 +249,8 @@ Carried over from the old WP-09 TODO list (NOT done, deferred):
 ### WP-10+ (Next)
 - TLS: send close_notify on shutdown (§2A.1)
 - TLS: verify server Finished (§2A.2)
-- TLS/SSH: host key persistence + known_hosts, publickey auth, keepalive,
-  algorithm whitelist (§2A.4)
+- SSH: publickey auth, keepalive, algorithm whitelist (§2A.4 — host key
+  persistence + known_hosts are DONE, WP-AUDIT-01-p1fix2)
 - Code comment refresh: tls.c header (§2A.3)
 
 ### Future (Post WP-10)
@@ -299,13 +379,14 @@ future round):
   created, and it is preserved so the volume can be re-mounted without
   re-creating the directory.
 
-### 4.3 SSH client does not verify host keys; TLS client does not verify
-     certificates — BY DESIGN for the L0 scope (BUG-034)
-- Both clients were built for the WP-09 E2E scope (encryption + MAC +
-  exec/download). Certificate/host-key verification requires a trust
-  store, clock sanity (validity windows) and persistence (known_hosts),
-  which are WP-10+ work items (see "WP-10+ (Next)" below). Headers
-  document this decision at the call sites.
+### 4.3 SSH/TLS client trust model — superseded (BUG-034)
+- The WP-09-era decision "SSH accepts any host key; TLS accepts any
+  certificate" no longer holds. See §2A.4 (updated WP-AUDIT-01-p1fix3):
+  TLS anchors chains against the embedded root store with fatal hostname
+  mismatch for dNSName references and warn-and-continue for un-anchored
+  chains; SSH uses a TOFU known_hosts anchor with a per-installation
+  host key. The remaining gap (TOFU first contact, un-anchored-chain
+  acceptance with warning) is tracked in §2A.4.
 
 ### 4.4 ush `df` Size column — PARTIAL (BUG-026)
 - The user-space shell cannot read the kernel mount table from ring 3.

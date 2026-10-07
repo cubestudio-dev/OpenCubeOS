@@ -13,7 +13,7 @@ git init -q -b gh-pages .
 git config user.name "cubestudio-dev"
 git config user.email "cubestudio@qq.com"
 git add -A
-git commit -q -m "website build: WP-AUDIT-01-p1fix3 (P1 items 63..94 fixed, BUG-0104..0135; all 94 P1 done), wp-audit-01-p1fix3 ISO-SRC assets (3-way sha256: iso 2b7298ac, src dc3c8955), stats 94,883 lines / 173 commands"
+git commit -q -m "website build: WP-AUDIT-01-p1fix4 (HTTPS E2E disconnect fixed: IP-literal reference identity per RFC 6125; TLS probes silenced TLS_DBG=0), wp-audit-01-p1fix4 ISO-SRC assets (3-way sha256: iso ddb61e99, src 17531c26), stats 95,001 lines / 173 commands"
 git log --oneline -1
 echo "--- push gh-pages (force) ---"
 git push -f "$ORIGIN_URL" gh-pages 2>&1

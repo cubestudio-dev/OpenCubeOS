@@ -20,8 +20,8 @@ export function localePath(locale: Locale, sub: "" | "docs" | "about" = ""): str
 
 const zh = {
   htmlLang: "zh-CN",
-  badge: "WP-AUDIT-01-p1fix2 · Apache 2.0",
-  brandSub: "WP-AUDIT-01-p1fix2 · Apache 2.0",
+  badge: "WP-AUDIT-01-p1fix4 · Apache 2.0",
+  brandSub: "WP-AUDIT-01-p1fix4 · Apache 2.0",
   navAria: "站点导航",
   navHome: "首页",
   navDownloads: "下载",
@@ -42,7 +42,7 @@ const zh = {
   downloadIso: (mb: string) => `下载 ISO（${mb} MB）`,
   readDocs: "阅读文档",
   githubRepo: "GitHub 仓库",
-  dlSectionTitle: "下载 WP-AUDIT-01-p1fix2",
+  dlSectionTitle: "下载 WP-AUDIT-01-p1fix4",
   dlSectionDesc:
     "BIOS + UEFI 双引导 ISO 与完整源码包。文件在本站、GitHub Release 与本地构建三处 SHA256 字节级一致（核对方法见下方命令）。",
   isoMeta: (bytes: string, mb: string) =>
@@ -60,7 +60,7 @@ const zh = {
   baseSectionTitle: "内核基础（WP-01 ~ WP-08）",
   baseSectionDesc: "从裸机引导到用户态动态链接，每一层都可扩展。",
   wpSectionTitle: "工作包",
-  wpSectionDesc: "16 个工作包，WP-01 到 WP-10d、项目结构重构与 WP-10-wp08fix1，全部完成（done）；WP-AUDIT-01 完成 18 路完整审查（607 条），落地全部 41 个 P0 修复（p0fix1 前 20 个 + p0fix2 后 21 个），P1 修复推进中（p1fix1 前 31 条 BUG-0042..0072 + p1fix2 第 32~62 条 BUG-0073..0103）。",
+  wpSectionDesc: "16 个工作包，WP-01 到 WP-10d、项目结构重构与 WP-10-wp08fix1，全部完成（done）；WP-AUDIT-01 完成 18 路完整审查（607 条），落地全部 41 个 P0 修复（p0fix1 前 20 个 + p0fix2 后 21 个），P1 全部 94 条修复完成（p1fix1 前 31 条 BUG-0042..0072 + p1fix2 第 32~62 条 BUG-0073..0103 + p1fix3 剩余 31 条 BUG-0104..0135），p1fix4 修复 HTTPS E2E 中途断连（IP 字面量参考身份，RFC 6125）。",
   wpThNo: "编号",
   wpThContent: "内容",
   wpThStatus: "状态",
@@ -120,8 +120,8 @@ const zh = {
 
 const en: typeof zh = {
   htmlLang: "en",
-  badge: "WP-AUDIT-01-p1fix2 · Apache 2.0",
-  brandSub: "WP-AUDIT-01-p1fix2 · Apache 2.0",
+  badge: "WP-AUDIT-01-p1fix4 · Apache 2.0",
+  brandSub: "WP-AUDIT-01-p1fix4 · Apache 2.0",
   navAria: "Site navigation",
   navHome: "Home",
   navDownloads: "Downloads",
@@ -142,7 +142,7 @@ const en: typeof zh = {
   downloadIso: (mb: string) => `Download ISO (${mb} MB)`,
   readDocs: "Read the docs",
   githubRepo: "GitHub repository",
-  dlSectionTitle: "Download WP-AUDIT-01-p1fix2",
+  dlSectionTitle: "Download WP-AUDIT-01-p1fix4",
   dlSectionDesc:
     "BIOS + UEFI dual-boot ISO and the full source archive. The files are byte-identical (SHA256) across this site, the GitHub Release and the local build (see the command below).",
   isoMeta: (bytes: string, mb: string) =>
@@ -162,7 +162,7 @@ const en: typeof zh = {
   baseSectionDesc:
     "From bare-metal boot to user-space dynamic linking — every layer is extensible.",
   wpSectionTitle: "Work packages",
-  wpSectionDesc: "16 work packages, WP-01 through WP-10d, the project restructure and WP-10-wp08fix1, all done; WP-AUDIT-01 completed the 18-route full audit (607 findings), landed all 41 P0 fixes (p0fix1 first 20 + p0fix2 remaining 21), and P1 fixes are in progress (p1fix1 the first 31, BUG-0042..0072 + p1fix2 items 32..62, BUG-0073..0103).",
+  wpSectionDesc: "16 work packages, WP-01 through WP-10d, the project restructure and WP-10-wp08fix1, all done; WP-AUDIT-01 completed the 18-route full audit (607 findings), landed all 41 P0 fixes (p0fix1 first 20 + p0fix2 remaining 21), and all 94 P1 fixes are done (p1fix1 the first 31, BUG-0042..0072 + p1fix2 items 32..62, BUG-0073..0103 + p1fix3 items 63..94, BUG-0104..0135), with the p1fix4 HTTPS E2E mid-handshake disconnect fix (IP-literal reference identity, RFC 6125).",
   wpThNo: "No.",
   wpThContent: "Content",
   wpThStatus: "Status",

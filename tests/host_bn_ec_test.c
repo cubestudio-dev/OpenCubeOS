@@ -1,8 +1,14 @@
-/* Host-side unit test for bn.c + crypto_ec_nist.c (NOT part of the kernel build).
+/* Host-side unit test for crypto_bn.c + crypto_ec_nist.c (NOT part of the kernel build).
  * Verifies against NIST P-256 ECDSA known-answer vector and ECDH
  * self-consistency + known public key. Built only for development testing:
- *   gcc -O2 -Ikernel tests/host_bn_ec_test.c kernel/bn.c \
- *       kernel/crypto_ec_nist.c -o /tmp/crypto_bn_ec_test
+ *   gcc -O2 -Ikernel -Ikernel/lib -Ikernel/crypto tests/host_bn_ec_test.c \
+ *       kernel/crypto/crypto_bn.c kernel/crypto/crypto_ec_nist.c \
+ *       -o /tmp/bn_ec_test
+ * WARNING: do NOT link kernel/lib/lib_string.c (or kernel sources that
+ * define libc-named string functions) into host tests. The kernel's
+ * memset/memcpy/strlen/... definitions interpose glibc's own symbols and
+ * the binary segfaults before main under -O2 (no sanitizers). ASAN builds
+ * mask it, which makes the crash look like an -O2-only code bug.
  */
 #include <stdio.h>
 #include "lib_string.h"  /* kernel string.h — use oc_* fns in host tests too */
