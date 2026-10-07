@@ -118,7 +118,25 @@ int driver_usb_register_driver(const char *name, u8 class_code,
     if (g_core.n_drivers >= USB_MAX_DRIVERS) return -1;
     driver_usb_driver_t *dr = &g_core.drivers[g_core.n_drivers];
     memset(dr, 0, sizeof(*dr));
-    strcpy(dr->name, name);
+    /* BUG-0143 FIX (A10-10): name[] is a fixed 24-byte field inside the
+     * exported driver registry and the old strcpy() copied the caller's
+     * string unbounded - any name of 24+ characters overwrote class_code/
+     * probe/disconnect/used and then the next driver slot.  Copy with an
+     * explicit bound and always terminate (strncpy-style with a forced
+     * NUL); names that do not fit are truncated and reported.  The 6
+     * built-in names ("hid-kbd"/"hid-mouse"/"usb-msc"/"cdc-acm"/
+     * "ftdi-serial"/"usb-audio", 8-11 chars) are unaffected. */
+    int i = 0;
+    while (i < (int)sizeof(dr->name) - 1 && name[i]) {
+        dr->name[i] = name[i];
+        i++;
+    }
+    dr->name[i] = '\0';
+    if (name[i] != '\0') {
+        driver_usb_log("usb: driver name truncated to 23 chars: ");
+        driver_usb_log(dr->name);
+        driver_usb_log("\n");
+    }
     dr->class_code = class_code;
     dr->probe = probe;
     dr->disconnect = disconnect;
@@ -227,16 +245,32 @@ int driver_usb_dev_by_class(driver_usb_dev_t *d, u8 class) {
  * dispatch and every backend poll() takes this lock. */
 static mutex_t g_usb_lock;
 static int     g_usb_lock_ready;
+/* BUG-0156 FIX (A10-7): re-entrancy bookkeeping. The hot-plug scan in
+ * driver_usb_poll() must hold the same lock that nested control transfers
+ * (enum_one -> control_transfer) will re-acquire; a plain non-recursive
+ * mutex would self-deadlock there. Ownership is tracked per-thread. */
+static tid_t   g_usb_lock_owner;
+static int     g_usb_lock_depth;
 
 static void driver_usb_lock(void) {
     if (!g_usb_lock_ready) {
         mutex_init(&g_usb_lock);
         g_usb_lock_ready = 1;
     }
+    tid_t self = core_kthread_current_tid();
+    if (g_usb_lock_depth > 0 && g_usb_lock_owner == self) {
+        g_usb_lock_depth++;
+        return;
+    }
     mutex_lock(&g_usb_lock);
+    g_usb_lock_owner = self;
+    g_usb_lock_depth = 1;
 }
 
 static void driver_usb_unlock(void) {
+    if (g_usb_lock_depth > 1) { g_usb_lock_depth--; return; }
+    g_usb_lock_depth = 0;
+    g_usb_lock_owner = (tid_t)0;
     mutex_unlock(&g_usb_lock);
 }
 
@@ -556,7 +590,17 @@ int driver_usb_hub_port_reset(driver_usb_dev_t *hub, u8 port) {
     if (driver_usb_hub_port_req(hub, 0x00, USB_REQ_SET_FEAT, 0x04, port,
                          NULL, 0) != 0)
         return -1;
-    /* reset recovery ~10-20 ms; poll the reset-change bit */
+    /* reset recovery ~10-20 ms; poll the reset-change bit.
+     * BUG-0157 FIX (A10-8): wait for C_PORT_RESET before returning success.
+     * During the whole recovery window the port already reads "connected"
+     * with no reset-change yet, so the old "connected already" early return
+     * sent the caller into enumeration while the device was still resetting
+     * (GET_DESCRIPTOR(8) then fails on a real hub; QEMU's instantaneous
+     * reset masked it).  Bit masks per USB 2.0 spec Table 11-24:
+     * C_PORT_RESET is wPortChange bit 4 (0x0010) - the previous 0x0020 was
+     * bit 5, which no hub ever sets, so the wait must look at 0x0010.
+     * Up to 40 GET_STATUS probes, each a full control transfer (several ms
+     * on FS), comfortably cover the 10-20 ms recovery window. */
     for (int i = 0; i < 40; i++) {
         u8 st[4];
         memset(st, 0, sizeof(st));
@@ -564,13 +608,15 @@ int driver_usb_hub_port_reset(driver_usb_dev_t *hub, u8 port) {
                              st, 4) == 0) {
             u16 wPortStatus = (u16)(st[0] | (st[1] << 8));
             u16 wPortChange = (u16)(st[2] | (st[3] << 8));
-            if (wPortChange & 0x0020) {   /* C_PORT_RESET */
-                /* clear the change */
-                driver_usb_hub_port_req(hub, 0x01, USB_REQ_CLEAR_FEAT, 0x20,
+            if (wPortChange & 0x0010) {   /* C_PORT_RESET (Table 11-24) */
+                /* clear the change; feature selector C_PORT_RESET = 20
+                 * (0x14) per USB 2.0 spec Table 11-25 */
+                driver_usb_hub_port_req(hub, 0x01, USB_REQ_CLEAR_FEAT, 0x14,
                                  port, NULL, 0);
                 return (wPortStatus & 0x0001) ? 0 : -1;
             }
-            if (wPortStatus & 0x0001) return 0;   /* connected already */
+            /* C_PORT_RESET not yet set: keep polling until the change bit
+             * arrives or the timeout expires. */
         }
         for (volatile int t = 0; t < 20000; t++) { }
     }
@@ -584,8 +630,14 @@ u8 driver_usb_hub_port_speed(driver_usb_dev_t *hub, u8 port) {
                          st, 4) != 0)
         return USB_SPEED_FS;
     u16 wPortStatus = (u16)(st[0] | (st[1] << 8));
-    if (wPortStatus & 0x0200) return USB_SPEED_LS;   /* low-speed */
-    if (wPortStatus & 0x0400) return USB_SPEED_HS;   /* high-speed */
+    /* BUG-0157 FIX (A10-8, companion decode): wPortStatus bit layout per
+     * USB 2.0 spec Table 11-23 - PORT_LOW_SPEED is bit 6 (0x0040) and
+     * PORT_HIGH_SPEED is bit 7 (0x0080).  The previous masks 0x0200/0x0400
+     * (copied from the UHCI root-port register layout) match no hub bit,
+     * so low/high-speed devices behind an external hub were always read
+     * as full-speed. */
+    if (wPortStatus & 0x0040) return USB_SPEED_LS;   /* low-speed */
+    if (wPortStatus & 0x0080) return USB_SPEED_HS;   /* high-speed */
     return USB_SPEED_FS;
 }
 
@@ -633,6 +685,14 @@ static int driver_usb_hub_enumerate(driver_usb_dev_t *hub) {
 int driver_usb_enumerate_host(driver_usb_host_t *h) {
     if (!h || !h->up || !h->ops->port_count || !h->ops->port_status)
         return -1;
+    /* BUG-0156 FIX (A10-7, completion): enumerate_host mutates the device
+     * table and is reachable from OUTSIDE driver_usb_poll() too (the shell
+     * "usb" command, driver_usb_probe_all(), the audio class driver), where
+     * it ran unlocked against the ~2 ms usb-poll thread and its own second
+     * phase.  Hold the core lock here as well; it is re-entrant, so the
+     * nested call from poll() and the control transfers issued inside
+     * enum_one/hub_enumerate take the recursion fast-path. */
+    driver_usb_lock();
     int found = 0;
     int nports = h->ops->port_count(h);
     for (int p = 0; p < nports; p++) {
@@ -651,8 +711,16 @@ int driver_usb_enumerate_host(driver_usb_host_t *h) {
         if (known) continue;
         found += driver_usb_enum_one(h, -1, (u8)p, 0);
     }
-    /* after the root level, walk any hubs that just appeared */
-    for (int pass = 0; pass < 2; pass++) {
+    /* after the root level, walk any hubs that just appeared.
+     * BUG-0158 FIX (A10-9): the old 2-pass loop only ever reached tier-2
+     * hubs, silently contradicting the documented USB_ENUM_DEPTH=4; each
+     * pass discovers the next tier, so iterate exactly USB_ENUM_DEPTH
+     * times (tier-3 and below now enumerate instead of never appearing).
+     * Cycle protection: a hub is walked exactly once - class_priv is set
+     * to the sentinel below before hub_enumerate() overwrites it with the
+     * port count, so an already-walked (or already walking) hub never
+     * re-enters this loop. */
+    for (int pass = 0; pass < USB_ENUM_DEPTH; pass++) {
         for (int i = 0; i < USB_MAX_DEVICES; i++) {
             driver_usb_dev_t *d = &g_core.devs[i];
             if (d->present && d->host == h &&
@@ -662,6 +730,7 @@ int driver_usb_enumerate_host(driver_usb_host_t *h) {
             }
         }
     }
+    driver_usb_unlock();
     return found;
 }
 
@@ -680,6 +749,15 @@ void driver_usb_poll(void) {
         if (h->ops->poll) h->ops->poll(h);
     }
     driver_usb_unlock();
+    /* BUG-0156 FIX (A10-7): the root-port scan, enumeration and kill_slot
+     * below MUTATE the device table and tear down devices - they used to
+     * run with NO lock at all, so a concurrently-transferring thread could
+     * pass its !d->host check and then race a memset from kill_slot
+     * (classic TOCTOU), plus free_address double-fires and torn hub scans.
+     * The lock is now re-entrant, so nested control transfers issued from
+     * inside the enumeration take the recursion fast-path instead of
+     * self-deadlocking. */
+    driver_usb_lock();
     for (int i = 0; i < g_core.n_hosts; i++) {
         driver_usb_host_t *h = &g_core.hosts[i];
         if (!h->ops->port_count || !h->ops->port_status) continue;
@@ -740,11 +818,20 @@ void driver_usb_poll(void) {
                  * root-port hot-plug was handled, so devices attached
                  * to an external hub after its own enumeration were
                  * never discovered). */
-                driver_usb_enum_one(hub->host, hub->slot, p,
-                                    USB_ENUM_DEPTH);
+                if (driver_usb_enum_one(hub->host, hub->slot, p,
+                                        USB_ENUM_DEPTH) > 0) {
+                    /* BUG-0158 FIX (A10-9, completion): the new device may
+                     * itself be a hub.  The tier walk in enumerate_host()
+                     * is what pushes enumeration beyond tier-1, so run it
+                     * after the port device settled; it is idempotent
+                     * (occupied root ports and already-walked hubs are
+                     * skipped), so only genuinely new tiers are touched. */
+                    driver_usb_enumerate_host(hub->host);
+                }
             }
         }
     }
+    driver_usb_unlock();
 }
 
 /* ==================================================================
@@ -815,29 +902,51 @@ typedef struct driver_usb_uhci_qh {
     volatile u32 el_link;
 } driver_usb_uhci_qh_t;
 
-#define USB_CTRL_TD_COUNT  16
+#define USB_CTRL_TD_COUNT  70   /* BUG-0155 FIX (A10-6): was 16 (14 data TDs
+                                 * assuming 64-byte mps0 = 896 B max).
+                                 * A Full-Speed device with mps0=8 and a
+                                 * 512-byte config descriptor needs 64 data
+                                 * TDs; 70 = SETUP + 68 data + STATUS. */
 #define UHCI_BULK_TD_COUNT  8
 #define UHCI_INT_TD_COUNT   2
 #define UHCI_N_PORTS        2
 
-/* schedule page layout (one PMM page):
- *   0x000 ISO TD          (32 B)
- *   0x040 int QH          (16 B)
- *   0x060 ctrl QH         (16 B)
- *   0x080 ctrl TDs[16]    (512 B)
- *   0x280 bulk QH         (16 B)
- *   0x2a0 bulk TDs[8]     (256 B)
- *   0x3a0 int TDs[2]      ( 64 B)
- *   0x3e0 setup scratch   (  8 B)
+/* schedule page layout (one PMM page) - re-laid out with the BUG-0155
+ * TD-pool growth so the 70 ctrl TDs can never overlap the other
+ * structures (the inherited 70-TD change kept the old offsets, where
+ * ctrl_tds[16] landed exactly on the bulk QH and the pool ran through
+ * the bulk/interrupt TDs and the SETUP scratch):
+ *   0x000 ISO TD          ( 32 B)
+ *   0x020 int QH          ( 16 B)
+ *   0x030 ctrl QH         ( 16 B)
+ *   0x040 ctrl TDs[70]    (2240 B = 0x8c0, ends 0x900)
+ *   0x900 bulk QH         ( 16 B)
+ *   0x910 bulk TDs[8]     (256 B)
+ *   0xa10 int TDs[2]      ( 64 B)
+ *   0xa50 setup scratch   (  8 B)
  * separate data pages: bulk bufs[8] (1023 B each -> 8 pages),
  *                      int bufs[2]                  (2 pages) */
-#define UHCI_OFF_INT_QH   0x040u
-#define UHCI_OFF_CTRL_QH  0x060u
-#define UHCI_OFF_CTRL_TDS 0x080u
-#define UHCI_OFF_BULK_QH  0x280u
-#define UHCI_OFF_BULK_TDS 0x2a0u
-#define UHCI_OFF_INT_TDS  0x3a0u
-#define UHCI_OFF_SCR      0x3e0u
+#define UHCI_OFF_INT_QH   0x020u
+#define UHCI_OFF_CTRL_QH  0x030u
+#define UHCI_OFF_CTRL_TDS 0x040u
+#define UHCI_OFF_BULK_QH  0x900u
+#define UHCI_OFF_BULK_TDS 0x910u
+#define UHCI_OFF_INT_TDS  0xa10u
+#define UHCI_OFF_SCR      0xa50u
+
+/* layout guards: any overlap here means the HC and the CPU write the
+ * same bytes through different views of the schedule page */
+_Static_assert(UHCI_OFF_INT_QH >= 0x20u, "ISO TD overlaps int QH");
+_Static_assert(UHCI_OFF_CTRL_QH >= UHCI_OFF_INT_QH + 0x10u, "int QH overlaps ctrl QH");
+_Static_assert(UHCI_OFF_CTRL_TDS >= UHCI_OFF_CTRL_QH + 0x10u, "ctrl QH overlaps ctrl TDs");
+_Static_assert(UHCI_OFF_CTRL_TDS + USB_CTRL_TD_COUNT * 32 <= UHCI_OFF_BULK_QH,
+               "ctrl TD pool overlaps bulk QH");
+_Static_assert(UHCI_OFF_BULK_QH + 0x10 <= UHCI_OFF_BULK_TDS, "bulk QH overlaps bulk TDs");
+_Static_assert(UHCI_OFF_BULK_TDS + UHCI_BULK_TD_COUNT * 32 <= UHCI_OFF_INT_TDS,
+               "bulk TD pool overlaps int TDs");
+_Static_assert(UHCI_OFF_INT_TDS + UHCI_INT_TD_COUNT * 32 <= UHCI_OFF_SCR,
+               "int TD pool overlaps scratch");
+_Static_assert(UHCI_OFF_SCR + 8 <= PMM_PAGE_SIZE, "scratch overflows schedule page");
 
 typedef struct driver_usb_state {
     u16  io;
@@ -916,6 +1025,30 @@ static void driver_usb_td_fill(driver_usb_uhci_td_t *td, u32 next_link, u8 pid, 
     td->buffer = (u32)buf;
 }
 
+/* BUG-0145 FIX (A10-12): one shared TD-retirement procedure for BOTH
+ * timeout paths (control/bulk tds_wait below and the interrupt wait).
+ * Intel UHCI Design Guide Rev 1.1 (1996), USBCMD/USBSTS register
+ * descriptions: the host controller prefetches schedule structures and
+ * may be mid-transaction on a TD, so software that retires a TD clears
+ * RS (USBCMD bit 0) and must wait for USBSTS.HCHalted (bit 5) before
+ * rewriting any TD status word.  Procedure: stop RS, poll HCHalted with
+ * a 10 ms cap (then proceed - degraded but bounded, never hung), clear
+ * the ACTIVE bits, restart the schedule exactly as it was.  Keeping the
+ * two call sites identical was the audit's "consistent style" demand. */
+static void driver_usb_uhci_retire(driver_usb_uhci_td_t *tds, int first, int n) {
+    u16 cmd = driver_usb_uhci_inw(g_uhci.io + UHCI_USBCMD);
+    driver_usb_uhci_outw(g_uhci.io + UHCI_USBCMD, (u16)(cmd & ~UHCI_CMD_RS));
+    u64 halt_deadline = core_timer_now_ms() + 10;
+    while (core_timer_now_ms() < halt_deadline) {
+        if (driver_usb_uhci_inw(g_uhci.io + UHCI_USBSTS) &
+            UHCI_STS_HCHALTED) break;
+        core_sched_yield();
+    }
+    for (int i = first; i < first + n; i++)
+        tds[i].ctrl &= ~TD_CTRL_ACTIVE;
+    driver_usb_uhci_outw(g_uhci.io + UHCI_USBCMD, cmd);
+}
+
 /* wait for a run of TDs to go inactive or error out */
 static int driver_usb_uhci_tds_wait(driver_usb_uhci_td_t *tds, int first, int n,
                          u32 timeout_ms) {
@@ -933,12 +1066,12 @@ static int driver_usb_uhci_tds_wait(driver_usb_uhci_td_t *tds, int first, int n,
         }
         if (!busy) return 0;
         if (core_timer_now_ms() > deadline) {
-            /* retire the TDs by briefly stopping the schedule */
-            u16 cmd = driver_usb_uhci_inw(g_uhci.io + UHCI_USBCMD);
-            driver_usb_uhci_outw(g_uhci.io + UHCI_USBCMD, cmd & ~UHCI_CMD_RS);
-            for (int i = first; i < first + n; i++)
-                tds[i].ctrl &= ~TD_CTRL_ACTIVE;
-            driver_usb_uhci_outw(g_uhci.io + UHCI_USBCMD, cmd);
+            /* BUG-0145 FIX (A10-12): retire through the shared procedure
+             * (stop RS, poll HCHalted, clear ACTIVE, restart RS); the old
+             * inline path cleared ACTIVE with the schedule still running -
+             * a HC/CPU race on the same volatile word with undefined
+             * real-hardware behaviour. */
+            driver_usb_uhci_retire(tds, first, n);
             return OC_USB_ETIMEDOUT;
         }
         core_sched_yield();
@@ -953,7 +1086,22 @@ static int driver_usb_uhci_control(driver_usb_host_t *h, driver_usb_dev_t *d,
     (void)h;
     driver_usb_state_t *u = &g_uhci;
     if (!u->up || !d) return -1;
-    if (len > 14 * 64) return -1;
+    /* BUG-0144 FIX (A10-11): the DATA-stage buffer is the one DMA target
+     * this driver does NOT own (control transfers DMA the caller's buffer
+     * directly; bulk/interrupt/ISO go through the probe-time bounce pages,
+     * which are checked at probe).  A caller buffer above the 32-bit line
+     * would be silently truncated inside td->buffer, so refuse it cleanly.
+     * In-tree callers pass kernel BSS/stack/heap addresses (always well
+     * below 4 GiB), so the valid path is unchanged. */
+    if (len && (((u64)(uintptr_t)buf >> 32) != 0)) return OC_USB_EINVAL;
+    /* BUG-0155 FIX (A10-6): the capacity guard must use the DEVICE's mps0,
+     * not a hard-coded 64: a FS device with mps0=8 was rejected for a
+     * 150-byte config descriptor even though 68 data TDs * 8 B = 544 B
+     * fit comfortably in the (now larger) TD pool. */
+    {
+        u16 mps0_guard = d->mps0 ? d->mps0 : 8;
+        if (len > (USB_CTRL_TD_COUNT - 2) * (u32)mps0_guard) return -1;
+    }
 
     u8 addr = d->addr;
     u8 data_pid = (setup->bmRequestType & 0x80) ? USB_PID_IN
@@ -964,6 +1112,18 @@ static int driver_usb_uhci_control(driver_usb_host_t *h, driver_usb_dev_t *d,
     driver_usb_uhci_td_t *tds = u->ctrl_tds;
 
     memcpy(u->setup_scr, setup, 8);
+
+    /* BUG-0154 FIX (A10-5): scrub every TD control word BEFORE filling, so
+     * error bits (STALL/TIMEOUT) of a PREVIOUS, longer transfer can never
+     * leak into this one, and then chain the transfer CONTIGUOUSLY: the
+     * STATUS TD is placed directly after the last DATA TD instead of being
+     * pinned to the last slot of the pool.  The old layout left holes
+     * (slots k+1..68) that tds_wait scanned because ntds was hardcoded
+     * to USB_CTRL_TD_COUNT; with the contiguous chain the wait below scans
+     * exactly the TDs linked for THIS transfer (0..ntds-1) - stale ACTIVE
+     * bits in unused slots can no longer hang the wait, and stale
+     * STALL/TIMEOUT bits can no longer produce a phantom error. */
+    for (int i = 0; i < USB_CTRL_TD_COUNT; i++) tds[i].ctrl = 0;
 
     /* SETUP: DATA0, 8 bytes */
     int next = 1;
@@ -976,18 +1136,15 @@ static int driver_usb_uhci_control(driver_usb_host_t *h, driver_usb_dev_t *d,
     if (len == 0) {
         driver_usb_td_fill(&tds[next], LINK_TERMINATE, status_pid, addr, 0,
                     mps, 0, 1);
-        ntds = 2;
+        ntds = next + 1;
     } else {
         u16 remaining = len;
         u64 bufp = (u64)(uintptr_t)buf;
         u8 toggle = 1;
         while (remaining > 0 && next < USB_CTRL_TD_COUNT - 1) {
             u16 chunk = remaining > mps ? mps : remaining;
-            int is_last_data = (remaining <= mps);
-            int nnext = is_last_data ? (USB_CTRL_TD_COUNT - 1)
-                                     : (next + 1);
             driver_usb_td_fill(&tds[next],
-                        (u32)(uintptr_t)&tds[nnext] | LINK_DEPTH,
+                        (u32)(uintptr_t)&tds[next + 1] | LINK_DEPTH,
                         data_pid, addr, 0, chunk, bufp, toggle);
             bufp += chunk;
             remaining -= chunk;
@@ -995,9 +1152,15 @@ static int driver_usb_uhci_control(driver_usb_host_t *h, driver_usb_dev_t *d,
             next++;
         }
         if (remaining > 0) return -1;
-        driver_usb_td_fill(&tds[USB_CTRL_TD_COUNT - 1], LINK_TERMINATE,
+        /* STATUS stage: DATA1 (USB 2.0 spec 8.5.3), immediately after the
+         * last DATA TD, terminating the chain.  The loop fills DATA slots
+         * 1..USB_CTRL_TD_COUNT-2 at most, so next <= USB_CTRL_TD_COUNT-1
+         * here and the STATUS slot always exists (the BUG-0155 guard caps
+         * len at (USB_CTRL_TD_COUNT-2) * mps0 data bytes, which is exactly
+         * the DATA capacity of those slots). */
+        driver_usb_td_fill(&tds[next], LINK_TERMINATE,
                     status_pid, addr, 0, mps, 0, 1);
-        ntds = USB_CTRL_TD_COUNT;
+        ntds = next + 1;
     }
 
     u->ctrl_qh->el_link = (u32)(uintptr_t)&tds[0];
@@ -1136,9 +1299,16 @@ static int driver_usb_uhci_interrupt(driver_usb_host_t *h, driver_usb_dev_t *d, 
             break;
         }
         if (core_timer_now_ms() > deadline) {
-            /* retire */
+            /* BUG-0145 FIX (A10-12, interrupt variant): unlink the TD from
+             * the running schedule first so the restored schedule cannot
+             * re-fetch it, then retire it through the SAME procedure as the
+             * control/bulk timeout path (stop RS, poll USBSTS.HCHalted,
+             * clear ACTIVE, restart RS).  The old code wrote el_link=
+             * TERMINATE and cleared ACTIVE in one step while the controller
+             * was still fetching/executing the TD - undefined behaviour on
+             * real hardware; QEMU tolerated it. */
             u->int_qh->el_link = LINK_TERMINATE;
-            u->int_tds[0].ctrl &= ~TD_CTRL_ACTIVE;
+            driver_usb_uhci_retire(&u->int_tds[0], 0, 1);
             rc = OC_USB_ENAK;
             break;
         }
@@ -1263,6 +1433,14 @@ static void driver_usb_build_schedule(driver_usb_state_t *u) {
     }
 }
 
+/* BUG-0144 FIX (A10-11) helper: is this PMM page usable as a UHCI DMA
+ * target?  mem_pmm_alloc_frame() scans the whole physical map, so a page
+ * can come back either missing (0) or above the 4 GiB line; both must be
+ * refused before the address is written into a 32-bit hardware field. */
+static int driver_usb_uhci_dma32_ok(u64 p) {
+    return p != 0 && (p >> 32) == 0;
+}
+
 static int driver_usb_uhci_probe_one(u8 bus, u8 dev, u8 func) {
     driver_usb_state_t *u = &g_uhci;
     if (u->up) return 0;
@@ -1288,33 +1466,86 @@ static int driver_usb_uhci_probe_one(u8 bus, u8 dev, u8 func) {
     u->bus = bus; u->dev = dev; u->func = func;
     driver_pci_enable_device(bus, dev, func);
 
+    /* BUG-0144 FIX (A10-11): UHCI is a 32-bit-DMA controller (Intel UHCI
+     * spec Rev 1.1: the FLBASEADD frame-list base register and every
+     * TD/QH link-pointer and buffer-pointer field are 32 bit).  Every
+     * address this driver hands to the controller is therefore truncated
+     * to u32; on a >4 GB machine whose low memory is exhausted that would
+     * silently point the schedule and the DMA into random physical pages.
+     * Refuse the probe LOUDLY instead (freeing whatever was already
+     * taken) when the driver state itself or ANY DMA page (frame list,
+     * schedule page, ISO/bulk/interrupt bounce buffers) lands above the
+     * 4 GiB line.  QEMU's small-memory layout always passes. */
+    if (((u64)(uintptr_t)u >> 32) != 0) {
+        driver_usb_log("usb: UHCI probe failed - driver state above 4GiB, 32-bit DMA\n");
+        return -1;
+    }
+
     u64 fl = mem_pmm_alloc_frame();
-    if (!fl) return -1;
-    u->frame_list_phys = fl;
-    u->frame_list = (volatile u32 *)(uintptr_t)fl;
+    if (!driver_usb_uhci_dma32_ok(fl)) {
+        driver_usb_log("usb: UHCI probe failed - no 32-bit-reachable frame-list page\n");
+        return -1;
+    }
 
     u64 sched = mem_pmm_alloc_frame();
     u64 iso = mem_pmm_alloc_frame();
-    if (!sched || !iso) return -1;
+    if (!driver_usb_uhci_dma32_ok(sched) ||
+        !driver_usb_uhci_dma32_ok(iso)) {
+        driver_usb_log("usb: UHCI probe failed - no 32-bit-reachable schedule/ISO page\n");
+        if (sched) mem_pmm_free_frame(sched);
+        if (iso) mem_pmm_free_frame(iso);
+        mem_pmm_free_frame(fl);
+        return -1;
+    }
+    u->frame_list_phys = fl;
+    u->frame_list = (volatile u32 *)(uintptr_t)fl;
     u->core_sched_phys = sched;
     u->driver_usb_iso_buf_phys = iso;
     u->driver_usb_iso_buf = (u8 *)(uintptr_t)iso;
     memset(u->driver_usb_iso_buf, 0, PMM_PAGE_SIZE);
 
-    /* bulk/interrupt bounce buffers (one page each) */
-    for (int i = 0; i < UHCI_BULK_TD_COUNT; i++) {
+    /* bulk/interrupt bounce buffers (one page each) - these pages are what
+     * td->buffer points at, so the same 32-bit rule applies */
+    int dma_fail = 0;
+    for (int i = 0; i < UHCI_BULK_TD_COUNT && !dma_fail; i++) {
         u64 p = mem_pmm_alloc_frame();
-        if (!p) return -1;
+        if (!driver_usb_uhci_dma32_ok(p)) { dma_fail = 1; break; }
         u->bulk_buf_phys[i] = p;
         u->bulk_buf[i] = (u8 *)(uintptr_t)p;
         memset(u->bulk_buf[i], 0, PMM_PAGE_SIZE);
     }
-    for (int i = 0; i < UHCI_INT_TD_COUNT; i++) {
+    for (int i = 0; i < UHCI_INT_TD_COUNT && !dma_fail; i++) {
         u64 p = mem_pmm_alloc_frame();
-        if (!p) return -1;
+        if (!driver_usb_uhci_dma32_ok(p)) { dma_fail = 1; break; }
         u->int_buf_phys[i] = p;
         u->int_buf[i] = (u8 *)(uintptr_t)p;
         memset(u->int_buf[i], 0, PMM_PAGE_SIZE);
+    }
+    if (dma_fail) {
+        driver_usb_log("usb: UHCI probe failed - no 32-bit-reachable bounce page\n");
+        for (int i = 0; i < UHCI_BULK_TD_COUNT; i++) {
+            if (u->bulk_buf[i]) {
+                mem_pmm_free_frame(u->bulk_buf_phys[i]);
+                u->bulk_buf[i] = NULL;
+                u->bulk_buf_phys[i] = 0;
+            }
+        }
+        for (int i = 0; i < UHCI_INT_TD_COUNT; i++) {
+            if (u->int_buf[i]) {
+                mem_pmm_free_frame(u->int_buf_phys[i]);
+                u->int_buf[i] = NULL;
+                u->int_buf_phys[i] = 0;
+            }
+        }
+        mem_pmm_free_frame(iso);
+        mem_pmm_free_frame(sched);
+        mem_pmm_free_frame(fl);
+        u->driver_usb_iso_buf = NULL;
+        u->driver_usb_iso_buf_phys = 0;
+        u->core_sched_phys = 0;
+        u->frame_list = NULL;
+        u->frame_list_phys = 0;
+        return -1;
     }
 
     u32 icfg = driver_pci_read_config(bus, dev, func, 0x3c);
@@ -1336,6 +1567,9 @@ static int driver_usb_uhci_probe_one(u8 bus, u8 dev, u8 func) {
     driver_usb_uhci_outw(u->io + UHCI_USBINTR, 0);          /* polling mode */
     driver_usb_uhci_outw(u->io + UHCI_USBCMD, UHCI_CMD_RS); /* run */
 
+    /* every address written to the controller above (FLBASEADD, the frame
+     * list contents, the TD/QH links) is 32-bit-safe by construction now -
+     * the BUG-0144 (A10-11) refusals ran before the allocations. */
     u->up = 1;
 
     /* register with the core */

@@ -87,6 +87,13 @@ static arch_tss_t g_tss __attribute__((aligned(16)));
 static u8 g_panic_stack[8192] __attribute__((aligned(16)));
 static u8 g_debug_stack[8192] __attribute__((aligned(16)));
 
+/* BUG-0139: expose the IST2 region bounds so the kill path can assert it
+ * no longer runs on IST2 after switching to the dedicated exit stack. */
+void arch_ist2_range(u64 *base, u64 *size) {
+    *base = (u64)(uintptr_t)g_debug_stack;
+    *size = sizeof(g_debug_stack);
+}
+
 /* The IDT itself. */
 static arch_idt_gate_t g_idt[OC_IDT_ENTRIES] __attribute__((aligned(4096)));
 static arch_idt_ptr_t  g_idt_ptr;
@@ -196,6 +203,10 @@ static void arch_idt_install_stubs(void) {
         if (i == 1 || i == 2 || i == 3) ist = 2;
         /* Syscall entry (vector 128 = 0x80) uses DPL=3 so ring 3 can call it. */
         if (i == 0x80) flags = 0xEE;  /* P|ring3|interrupt gate */
+        /* #BP (3) uses DPL=3 so ring 3 can raise breakpoints (int3) - the
+         * mainstream debugging semantics (Linux delivers SIGTRAP there).
+         * It runs on IST2, which is exactly the BUG-0139 kill-path stress. */
+        if (i == 3) flags = 0xEE;    /* P|ring3|interrupt gate */
         arch_idt_set_gate(i, (void(*)(void))arch_isr_table[i], flags, ist);
     }
 }
@@ -288,7 +299,16 @@ void arch_idt_init(void) {
  * It dispatches to either arch_exc_dispatch (vector 0..31) or
  * arch_irq_dispatch (vector 32..47), then returns. The stub does the iretq.
  */
+/* BUG-0137/BUG-0138 regression hook: armed by the shell `irqabitest` command.
+ * When non-NULL it is called as the FIRST action of arch_isr_dispatch, at the
+ * C entry of the dispatch chain, for every vector taken while armed. NULL at
+ * all other times (one predictable branch on the hot path, never taken). */
+void (*g_arch_irq_entry_probe)(void) = 0;
+u64 g_arch_irq_probe_result = 0;
+
 void arch_isr_dispatch(arch_irq_frame_t *f) {
+    if (g_arch_irq_entry_probe)
+        g_arch_irq_entry_probe();
     u64 v = f->int_no;
     if (v < 32) {
         arch_exc_counts[v]++;

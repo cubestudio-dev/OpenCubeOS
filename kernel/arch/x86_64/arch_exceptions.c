@@ -129,6 +129,36 @@ static void ser_dec(u64 v) {
     ser_puts(&buf[i+1]);
 }
 
+/* BUG-0139 FIX (A1-6): reap-and-yield continuation for kills taken on
+ * IST2-backed exceptions (#DB=1, NMI=2, #BP=3). Runs on the dedicated exit
+ * stack (arch_exc_exit.S), NEVER on IST2, so the scheduler records an
+ * address on this private stack and the global IST2 region is abandoned
+ * instead of carrying a suspended frame that the next IST2 exception would
+ * overwrite. Never returns. */
+void arch_exc_kill_and_yield(user_proc_t *proc, u64 vec) {
+    extern void arch_ist2_range(u64 *base, u64 *size);
+    u64 ist2_base = 0, ist2_size = 0, rsp = 0;
+    arch_ist2_range(&ist2_base, &ist2_size);
+    __asm__ volatile("mov %%rsp, %0" : "=r"(rsp));
+
+    ser_puts("*** IST-exit: vector=");
+    ser_dec(vec);
+    ser_puts(" exit-stack rsp=0x");
+    ser_hex(rsp);
+    if (rsp >= ist2_base && rsp < ist2_base + ist2_size) {
+        ser_puts(" [FAIL: still on IST2]\r\n");
+    } else {
+        ser_puts(" [off-IST2 OK]\r\n");
+    }
+
+    user_process_reap_resources(proc, 128 + (int)vec);
+    task_t *t = core_kthread_current();
+    if (t) t->state = TASK_EXITED;
+    core_sched_yield();
+    /* The task is EXITED; the scheduler never resumes this stack. */
+    for (;;) __asm__ volatile("hlt");
+}
+
 void arch_exc_dispatch(arch_irq_frame_t *f) {
     /* P0fix2 BUG-0041 (RUN-01): guard against recursive fault handling.
      * The fault-printing path itself can #PF (the KNOWN_ISSUES 6.1
@@ -272,6 +302,21 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
              * will pick the next ready task and context-switch to it,
              * loading the next task's CR3. We must NOT call core_kthread_destroy
              * here because we're running on this thread's stack. */
+            /* BUG-0139 FIX (A1-6): vectors 1/2/3 (#DB/NMI/#BP) are backed
+             * by IST2 (arch_idt.c) - a single global debug stack. Killing
+             * the offender used to context-switch away from the middle of
+             * IST2 (the scheduler stored that rsp in the task block), so
+             * the NEXT IST2 exception reloaded the TSS top and overwrote
+             * the suspended frame of this dying task. Switch to a dedicated
+             * exit stack first (arch_exc_exit.S) and do the reap + yield
+             * there; the scheduler saves an address on that private stack
+             * and the IST2 region is abandoned. Never returns. */
+            if (v == 1 || v == 2 || v == 3) {
+                extern void arch_exc_run_on_exit_stack(user_proc_t *proc, u64 vec)
+                    __attribute__((noreturn));
+                arch_exc_run_on_exit_stack(proc, v);
+            }
+
             /* P3-11 FIX: Use the unified reaper so the exception-kill path
              * closes all open pipe fds too (old code only destroyed the
              * AS, leaving pipe readers blocked forever waiting for a

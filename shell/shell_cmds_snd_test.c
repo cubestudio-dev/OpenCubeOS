@@ -40,6 +40,7 @@
 #include "screen_console.h"
 #include "lib_string.h"
 #include "core_timer.h"
+#include "mem_heap.h"
 
 static void t_pass(const char *test, const char *what) {
     char line[120];
@@ -126,11 +127,18 @@ static int driver_snd_family_test(driver_snd_type_t type, const char *testname,
     }
 
     /* 3. play a real tone through the DMA path */
-    static u8 pcm[96000];
+    /* Heap scratch (WP-10-AUDIT_P2-fix1 build): the DMA buffers moved off
+     * .bss so the kernel image stays inside the 0x400000 identity window. */
+    u8 *pcm = (u8 *)kmalloc(96000);
+    if (!pcm) {
+        t_fail(testname, "snd_scratch", "kmalloc(96000) failed");
+        return 1;
+    }
     u64 before_irqs = dev->irqs;
-    int bytes = driver_snd_make_tone(pcm, sizeof(pcm), rate, 440,
+    int bytes = driver_snd_make_tone(pcm, 96000, rate, 440,
                               dev->channels, ms);
     int played = driver_snd_play(dev, pcm, bytes);
+    kfree(pcm);
     if (played != bytes) {
         strcpy(line, "played=");
         u64_to_str((u64)played, n); strcat(line, n);
@@ -204,10 +212,16 @@ static int shell_cmd_audio_rw_test(const char *args) {
         if (!dev || !dev->present) continue;
         tested++;
 
-        static u8 pcm[48000];
-        int bytes = driver_snd_make_tone(pcm, sizeof(pcm), dev->rate, 523,
+        u8 *pcm = (u8 *)kmalloc(48000);
+        if (!pcm) {
+            screen_console_puts("[audio_rw_test] kmalloc(48000) failed => FAIL\n");
+            fails++;
+            continue;
+        }
+        int bytes = driver_snd_make_tone(pcm, 48000, dev->rate, 523,
                                   dev->channels, 250);
         int played = driver_snd_play(dev, pcm, bytes);
+        kfree(pcm);
         char line[160];
         char n[24];
         strcpy(line, "device ");
@@ -468,8 +482,12 @@ static int shell_cmd_play(const char *args) {
         }
     }
 
-    static u8 pcm[192000];
-    int bytes = driver_snd_make_tone(pcm, sizeof(pcm), rate, 440,
+    u8 *pcm = (u8 *)kmalloc(192000);
+    if (!pcm) {
+        screen_console_puts("play: out of memory\n");
+        return -1;
+    }
+    int bytes = driver_snd_make_tone(pcm, 192000, rate, 440,
                               dev->channels, 1000);
     char line[96];
     char n[24];
@@ -484,6 +502,7 @@ static int shell_cmd_play(const char *args) {
     screen_console_puts(line);
 
     int played = driver_snd_play(dev, pcm, bytes);
+    kfree(pcm);
     if (played < 0) {
         screen_console_puts("play: device error\n");
         return -1;

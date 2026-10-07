@@ -42,6 +42,13 @@ static inline int bitmap_test(u64 page_idx) {
     return (g_bitmap[page_idx >> 3] >> (page_idx & 7)) & 1;
 }
 
+/* Test support (BUG-0136 regression): read-only bitmap query. */
+int mem_pmm_frame_is_free(u64 paddr) {
+    u64 idx = paddr >> PMM_PAGE_SHIFT;
+    if (idx >= g_total_pages) return 0;
+    return bitmap_test(idx) ? 0 : 1;
+}
+
 void mem_pmm_reserve_region(u64 start, u64 size) {
     u64 first_page = start >> PMM_PAGE_SHIFT;
     u64 last_page  = (start + size - 1) >> PMM_PAGE_SHIFT;
@@ -67,7 +74,15 @@ void mem_pmm_init(const arch_multiboot2_info_t *mbi) {
     /* Walk the mmap entries. For each AVAILABLE region, mark pages as free. */
     const arch_multiboot2_mmap_tag_t *mmap = mbi->mmap;
     u32 entry_size = mmap->entry_size;
-    u32 entries = (mmap->size - sizeof(*mmap)) / entry_size;
+    /* BUG-0142 FIX (A1-9b): the mmap tag is bootloader-supplied. entry_size
+     * below the 24-byte multiboot2 memory-map entry minimum (spec 3.6.8 -
+     * baseaddr 8 + length 8 + type 4 + reserved 4) used to divide by zero
+     * right here (entries = (size - sizeof) / 0 -> #DE, instant boot
+     * panic on a malformed/corrupted mbi). Ignore a malformed map and stay
+     * fully-reserved: a clean, diagnosable no-memory state, not a fault. */
+    if (entry_size < sizeof(arch_multiboot2_mmap_entry_t)) return;
+    u32 tag_payload = (mmap->size >= sizeof(*mmap)) ? (mmap->size - sizeof(*mmap)) : 0;
+    u32 entries = tag_payload / entry_size;
 
     u64 max_page = 0;
 
@@ -126,7 +141,16 @@ void mem_pmm_init(const arch_multiboot2_info_t *mbi) {
             if (tag->type == 0 /* END */) break;
             u32 sz = tag->size;
             if (sz < 8) break;
+            /* BUG-0142 FIX (A1-9a): same trust domain as the parser - a
+             * tag whose declared size runs past the mbi end must stop the
+             * walk, and a module tag shorter than its 16-byte header
+             * (type+size+mod_start+mod_end) must not have its frame
+             * addresses read. arch_multiboot2_parse() already rejected a
+             * badly-formed mbi wrapper; this re-walk must not be more
+             * trusting than the parser it mirrors. */
+            if (p + sz > end) break;
             if (tag->type == 3 /* MODULE */) {
+                if (sz < sizeof(arch_multiboot2_module_tag_t)) break;
                 const arch_multiboot2_module_tag_t* m = (const arch_multiboot2_module_tag_t*)tag;
                 if (m->mod_end > m->mod_start)
                     mem_pmm_reserve_region(m->mod_start,

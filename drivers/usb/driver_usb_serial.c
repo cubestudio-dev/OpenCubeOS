@@ -18,6 +18,12 @@
  *
  * Both transports end in the same port object: bulk OUT for TX,
  * bulk IN drained into a small RX ring by driver_usb_serial_poll().
+ *
+ * Multi-port surface (BUG-0170 FIX, A11-44): the legacy handle-free
+ * driver_usb_serial_write()/read() target the FIRST up port, with
+ * read() aggregating across all ports. Explicit routing to any port
+ * is available through driver_usb_serial_write_port(port, buf, len)
+ * (prototype declared in this file; header sync note in the worklog).
  */
 #include "driver_usb_serial.h"
 #include "driver_usb.h"
@@ -57,6 +63,10 @@ static driver_usb_serial_port_t g_port[SER_MAX_PORTS];
 static driver_usb_interface_t *driver_usb_serial_find_cdc_ctrl(
         driver_usb_dev_t *dev);
 static void ser_log(const char *s) { screen_console_puts(s); }
+
+/* port-indexed write entry point (BUG-0170); prototype lives here
+ * because the class header is outside this fix's file scope */
+int driver_usb_serial_write_port(int port, const void *buf, int len);
 
 static void ser_rx_push(driver_usb_serial_port_t *p, const u8 *b, int n) {
     for (int i = 0; i < n; i++) {
@@ -231,8 +241,18 @@ void driver_usb_serial_poll(void) {
         if (!p->up || !p->dev->present) continue;
         /* bulk IN with a short timeout: OC_USB_ETIMEDOUT simply
          * means "no data waiting this round" */
+        /* BUG-0171 FIX (A11-45): the idle probe used to run a 30 ms
+         * bulk-IN wait while HOLDING the core g_usb_lock
+         * (driver_usb_bulk_transfer_timeout locks the core around the
+         * host ops->bulk call), so a single idle serial port stalled
+         * keyboard/MSC traffic by up to 30 ms per poll round - 60 ms
+         * for two ports. The final probe timeout is 3 ms: still a
+         * handful of 1 ms frame opportunities for a NAKing device to
+         * hand over queued data, but the lock is released ~10x sooner
+         * so same-round HID/MSC work is no longer perceptibly
+         * delayed. */
         int rc = driver_usb_bulk_transfer_timeout(p->dev, p->ep_in->addr,
-                                           buf, 64, 30);
+                                           buf, 64, 3);
         if (rc > 0) {
             ser_rx_push(p, buf, rc);
             p->rx_bytes += (u64)rc;
@@ -251,46 +271,76 @@ int driver_usb_serial_num_ports(void) {
     return n;
 }
 
+/* Chunked blocking bulk-OUT to ONE port with stall recovery.
+ * Returns the number of bytes sent, or a negative error when nothing
+ * could be sent. */
+static int ser_port_write(driver_usb_serial_port_t *p, const void *buf, int len) {
+    const u8 *src = (const u8 *)buf;
+    int sent = 0;
+    while (sent < len) {
+        u16 chunk = (u16)(len - sent);
+        if (chunk > 64) chunk = 64;
+        int rc = driver_usb_bulk_transfer(p->dev, p->ep_out->addr,
+                                   (void *)(src + sent), chunk);
+        if (rc < 0) {
+            if (rc == OC_USB_ESTALL) {
+                driver_usb_control(p->dev, 0x02, USB_REQ_CLEAR_FEAT, 0,
+                            p->ep_out->addr, NULL, 0);
+                driver_usb_tog_reset(p->dev, p->ep_out->addr);
+            }
+            return sent ? sent : rc;
+        }
+        if (rc == 0) break;   /* defensive (A11-47): never spin on 0 */
+        sent += rc;
+    }
+    p->tx_bytes += (u64)sent;
+    return sent;
+}
+
+/* BUG-0170 FIX (A11-44): explicit per-port routing. The legacy
+ * handle-free write() can only ever talk to the first up port; with
+ * two ports attached the second one was write-dead. Callers that
+ * know which port they target use this entry point. */
+int driver_usb_serial_write_port(int port, const void *buf, int len) {
+    if (port < 0 || port >= SER_MAX_PORTS) return -1;
+    driver_usb_serial_port_t *p = &g_port[port];
+    if (!p->up || !p->dev->present) return -1;
+    return ser_port_write(p, buf, len);
+}
+
 int driver_usb_serial_write(const void *buf, int len) {
+    /* BUG-0170 FIX (A11-44): the legacy entry point routes to the
+     * first up port (the same port read() drains first), now via the
+     * shared ser_port_write helper so both entry points behave
+     * identically; the previous comment claimed per-port routing that
+     * the code never did. */
     for (int i = 0; i < SER_MAX_PORTS; i++) {
         driver_usb_serial_port_t *p = &g_port[i];
         if (!p->up || !p->dev->present) continue;
-        const u8 *src = (const u8 *)buf;
-        int sent = 0;
-        while (sent < len) {
-            u16 chunk = (u16)(len - sent);
-            if (chunk > 64) chunk = 64;
-            int rc = driver_usb_bulk_transfer(p->dev, p->ep_out->addr,
-                                       (void *)(src + sent), chunk);
-            if (rc < 0) {
-                if (rc == OC_USB_ESTALL) {
-                    driver_usb_control(p->dev, 0x02, USB_REQ_CLEAR_FEAT, 0,
-                                p->ep_out->addr, NULL, 0);
-                    driver_usb_tog_reset(p->dev, p->ep_out->addr);
-                }
-                return sent ? sent : rc;
-            }
-            sent += rc;
-        }
-        p->tx_bytes += (u64)sent;
-        return sent;
+        return ser_port_write(p, buf, len);
     }
     return -1;
 }
 
 int driver_usb_serial_read(void *buf, int max) {
-    for (int i = 0; i < SER_MAX_PORTS; i++) {
+    if (!buf || max <= 0) return -1;
+    u8 *dst = (u8 *)buf;
+    int total = 0;
+    for (int i = 0; i < SER_MAX_PORTS && total < max; i++) {
         driver_usb_serial_port_t *p = &g_port[i];
         if (!p->up) continue;
-        int n = 0;
-        u8 *dst = (u8 *)buf;
-        while (n < max && p->rx_tail < p->rx_head) {
-            dst[n++] = p->rx[p->rx_tail % SER_RX_RING];
+        /* BUG-0170 FIX (A11-44): an empty ring must not short-circuit
+         * the scan. The old loop returned at the FIRST up port even
+         * when its ring was empty, so with two ports attached data
+         * received on the second port was unreachable. Keep scanning
+         * the remaining ports and aggregate the bytes into the
+         * caller's buffer until it is full or every ring is drained. */
+        while (total < max && p->rx_tail < p->rx_head) {
+            dst[total++] = p->rx[p->rx_tail % SER_RX_RING];
             p->rx_tail++;
         }
-        return n;
     }
-    return -1;
+    return total > 0 ? total : -1;
 }
 
 void driver_usb_serial_print_state(void) {

@@ -33,8 +33,12 @@
  * Schedule:
  *   - control ED chain on HcControlHeadED (CLE), bulk chain on
  *     HcBulkHeadED (BLE), one interrupt ED in HCCA slot 0
- *   - blocking transfers: build ED+TD chain, link at list head, wait
- *     for the last TD's CC to leave 0xF, unlink
+ *   - blocking transfers: build the TD chain while the ED carries the
+ *     Skip bit (K), clear K and ring CLF/BLF to arm, then poll the WHOLE
+ *     chain (the first failed TD decides the error code; success only
+ *     when every TD left CC=0xF) and disarm with K + a frame-boundary
+ *     settle so the HC provably released the descriptors before the CPU
+ *     rebuilds them (BUG-0162 / BUG-0165)
  */
 #include "driver_usb.h"
 #include "mem_pmm.h"
@@ -118,7 +122,15 @@
 
 #define OHCI_MAX_PORTS   6
 #define OHCI_N_CTRL_TD   10
-#define OHCI_N_BULK_TD   8
+/* BUG-0163: one TD carries at most ONE wire transaction (chunk <= MPS),
+ * so the per-call byte cap is OHCI_N_BULK_TD * MPS.  64 TDs keeps the
+ * ops->bulk_max = 512 B contract servable for EVERY legal FS bulk MPS
+ * (8/16/32/64, USB 2.0 spec 5.8.3); with the common MPS 64 one call
+ * tops at 4 KiB = the bounce-buffer page size. */
+#define OHCI_N_BULK_TD   64
+/* HCCA + 3x (ED page, TD-pool page, buffer page); keep in sync with the
+ * alloc list in driver_usb_ohci_probe_one() */
+#define OHCI_N_DMA_FRAMES 10
 
 typedef struct driver_usb_ohci_ed {
     volatile u32 word0;
@@ -177,8 +189,12 @@ typedef struct driver_usb_ohci_state {
     u64   irq_count;
     int   up;
     /* data toggle per (address, endpoint, direction); bit0 = OUT,
-     * bit1 = IN (same layout as the UHCI backend) */
-    u8    toggles[USB_MAX_DEVICES * 16];
+     * bit1 = IN.  BUG-0161 FIX (A11-20): full 7-bit address space (the
+     * old 16*16 table folded addr 16 onto the enumeration-default addr
+     * 0).  Rows are cleared on SET_CONFIGURATION / SET_INTERFACE /
+     * CLEAR_FEATURE(ENDPOINT_HALT) (USB 2.0 9.1.1.5 / 9.4.5) so a
+     * recycled device address never inherits a stale toggle. */
+    u8    toggles[128 * 16];
 } driver_usb_ohci_state_t;
 
 #define OHCI_MAX_CTRL 2
@@ -195,6 +211,9 @@ static inline void driver_usb_ohci_wr(driver_usb_ohci_state_t *o, u32 off, u32 v
 }
 
 static void driver_usb_ohci_log(const char *s) { screen_console_puts(s); }
+
+static void driver_usb_ohci_tog_set(driver_usb_ohci_state_t *o, driver_usb_dev_t *d,
+                         u8 ep_addr, u8 v);   /* defined below control() */
 
 static void driver_usb_ohci_irq_handler(void *ctx, arch_irq_frame_t *f) {
     (void)f;
@@ -228,7 +247,11 @@ static int driver_usb_ohci_run(driver_usb_ohci_state_t *o, driver_usb_ohci_ed_t 
                     driver_usb_ohci_td_t *tds, u64 td_phys, int ntd,
                     int list, u32 timeout_ms) {
     (void)td_phys;
-    /* clear the issue bits, then tell the HC to re-scan the list */
+    /* arm: publish the list head, then ring the list-filled bit.  OHCI
+     * 1.0a HcCommandStatus: CLF/BLF are SET by the HCD when work is
+     * added and CLEARED by the HC when it begins processing the list
+     * head - software cannot clear them, so they cannot stop a scan;
+     * stopping is the ED Skip bit's job (see the disarm path below). */
     if (list == 0) {          /* control */
         driver_usb_ohci_wr(o, OHCI_CTRL_HEAD, (u32)ed_phys);
         driver_usb_ohci_wr(o, OHCI_CMDSTS, OHCI_CMD_CLF);
@@ -240,27 +263,61 @@ static int driver_usb_ohci_run(driver_usb_ohci_state_t *o, driver_usb_ohci_ed_t 
     u64 deadline = core_timer_now_ms() + timeout_ms;
     int rc = 0;
     for (;;) {
-        u32 w0 = tds[ntd - 1].word0;
-        u32 cc = w0 & TD_CC_MSK;
-        if (cc != TD_CC_NOTACC) {
-            if (cc == TD_CC_NOERR) rc = 0;
-            else if (cc == TD_CC_STALL) rc = OC_USB_ESTALL;
+        /* BUG-0162 FIX (A11-21): walk the WHOLE chain on every poll.
+         * The old loop inspected only the LAST TD: on a mid-chain
+         * failure the HC halts there (the ED halts when a TD retires
+         * with an error condition), the trailing TDs stay CC=0xF
+         * forever, and the transfer burned its full timeout AND
+         * misreported ETIMEDOUT instead of the first failed TD's
+         * condition (MSC picks its recovery branch by error type).
+         * Success now requires EVERY TD retired - mirrors the EHCI
+         * wait_qtd chain walk. */
+        int failed = -1;      /* first failed TD decides the error */
+        int early_end = 0;    /* short packet: device ended the transfer */
+        int all_retired = 1;
+        for (int i = 0; i < ntd; i++) {
+            u32 cc = tds[i].word0 & TD_CC_MSK;
+            if (cc == TD_CC_NOTACC) { all_retired = 0; break; }
+            if (cc != TD_CC_NOERR) { failed = i; break; }
+            /* retired NOERROR with a non-zero CBP: the OHCI General TD
+             * leaves CurrentBufferPointer at the next untransferred byte
+             * (0 = whole buffer moved), i.e. a short packet.  With
+             * BufferRounding the TD retires NOERROR and the HC would
+             * keep executing the rest of the chain, but the device has
+             * ended the transfer - stop waiting here; the disarm path
+             * below Skip-gates the leftovers before the pool is
+             * rebuilt. */
+            if (tds[i].cur != 0) { early_end = 1; break; }
+        }
+        if (failed >= 0) {
+            u32 cc = tds[failed].word0 & TD_CC_MSK;
+            if (cc == TD_CC_STALL) rc = OC_USB_ESTALL;
             else if (cc == TD_CC_NORESP) rc = OC_USB_ETIMEDOUT;
             else rc = OC_USB_EIO;
             break;
         }
+        if (early_end) break;       /* rc stays 0 */
+        if (all_retired) break;     /* headP advanced to tailP: done */
         if (core_timer_now_ms() > deadline) {
-            /* disarm: skip the ED so the HC stops touching it */
-            ed->word0 |= ED_K;
             rc = OC_USB_ETIMEDOUT;
             break;
         }
         core_sched_yield();
     }
-    /* disarm and clear the completion flags */
+    /* BUG-0165 FIX (A11-24): disarm per the OHCI protocol - set the ED
+     * Skip bit FIRST (OHCI 1.0a ED word0 bit 14: the HC does not
+     * process a skipped ED), then give the controller two frame
+     * periods (FS frame = 1 ms; 5 ms margin) to finish the pass that
+     * may already be holding this ED and its TDs (the last CC can land
+     * in memory before the HC's final headP write-back).  Only after
+     * that settle may the CPU rebuild the TD pool / ED words for the
+     * next transfer on this list.  The old path wrote ED_K mid-scan
+     * and first "cleared" CLF/BLF, which the spec defines as a no-op:
+     * HcCommandStatus CLF/BLF can only be SET by the HCD and are
+     * cleared by the HC itself. */
     ed->word0 |= ED_K;
-    if (list == 0) driver_usb_ohci_wr(o, OHCI_CMDSTS, OHCI_CMD_CLF);
-    else driver_usb_ohci_wr(o, OHCI_CMDSTS, OHCI_CMD_BLF);
+    u64 settle_dl = core_timer_now_ms() + 5;
+    while (core_timer_now_ms() < settle_dl) core_sched_yield();
     return rc;
 }
 
@@ -278,6 +335,28 @@ static int driver_usb_ohci_control(driver_usb_host_t *h, driver_usb_dev_t *d,
     u8 *datab = o->ctrl_buf;
     u16 mps = d->mps0 ? d->mps0 : 8;
 
+    /* BUG-0161 FIX (A11-20), part 2: a recycled device address must not
+     * inherit the previous device's data toggles.  USB 2.0 9.1.1.5 /
+     * 9.4.5: endpoint toggles restart at DATA0 on SET_CONFIGURATION,
+     * SET_INTERFACE and CLEAR_FEATURE(ENDPOINT_HALT).  The core
+     * recycles addresses after a disconnect (driver_usb_free_address),
+     * so snoop the standard requests that legally reset toggles and
+     * drop the rows here - the bulk/interrupt paths seed their TD
+     * toggles from this table.  (Control transfers always start DATA0
+     * and never consult the table.) */
+    if ((setup->bmRequestType & 0x1f) == 0x00 &&       /* device recipient */
+        (setup->bRequest == USB_REQ_SET_CFG ||
+         setup->bRequest == USB_REQ_SET_IFACE)) {
+        int base = (d->addr & 0x7f) * 16;
+        for (int i = 0; i < 16; i++) o->toggles[base + i] = 0;
+    } else if (setup->bmRequestType == 0x02 &&         /* endpoint recipient */
+               setup->bRequest == USB_REQ_CLEAR_FEAT &&
+               (setup->wValue & 0xffu) == 0u) {        /* ENDPOINT_HALT */
+        u8 ep = (u8)(((setup->wIndex & 0x80u) ? 0x80u : 0u) |
+                     (setup->wIndex & 0x0fu));
+        driver_usb_ohci_tog_set(o, d, ep, 0);
+    }
+
     /* TD plan: 0=SETUP, 1..n=DATA (IN or OUT), last=STATUS */
     int ntd = 2;
     if (len == 0) ntd = 2;   /* SETUP + STATUS */
@@ -285,9 +364,13 @@ static int driver_usb_ohci_control(driver_usb_host_t *h, driver_usb_dev_t *d,
     /* SETUP TD: 8 bytes, DATA0 */
     memcpy(datab, setup, 8);
     tds[0].word0 = TD_CC_NOTACC | TD_DP_SETUP | TD_T0 | (7u);
-    tds[0].cur = (u32)(uintptr_t)datab;
+    /* BUG-0159 FIX (A11-19, consistency): the HC fetches cur/be from
+     * memory, so they carry PHYSICAL addresses like every other link
+     * word - the old virtual casts only worked through the identity
+     * map (bulk path already used o->bulk_buf_phys). */
+    tds[0].cur = (u32)o->ctrl_buf_phys;
     tds[0].next = (u32)(o->ctrl_td_phys + sizeof(driver_usb_ohci_td_t));
-    tds[0].be = (u32)(uintptr_t)(datab + 7);
+    tds[0].be = (u32)(o->ctrl_buf_phys + 7);
 
     int td = 1;
     if (len > 0) {
@@ -339,10 +422,13 @@ static int driver_usb_ohci_control(driver_usb_host_t *h, driver_usb_dev_t *d,
              (((u32)0 & 0xf) << 7) |          /* EP0 */
              (((u32)mps & 0x7ff) << 16);
     if (d->speed == USB_SPEED_LS) w0 |= ED_S;
-    ed->word0 = w0;
+    /* Skip cleared LAST (BUG-0165, arm-side): the HC may fetch the ED
+     * the moment K drops, so tail/head/next - and the TD chain built
+     * above - are all consistent before word0 lands. */
     ed->tail = 0;
     ed->head = (u32)o->ctrl_td_phys;
     ed->next = 0;
+    ed->word0 = w0;
 
     int rc = driver_usb_ohci_run(o, ed, o->ctrl_ed_phys, tds, o->ctrl_td_phys,
                       ntd, 0, timeout_ms);
@@ -357,13 +443,15 @@ static int driver_usb_ohci_control(driver_usb_host_t *h, driver_usb_dev_t *d,
 /* ---- toggles (per address / endpoint / direction) ---- */
 
 static u8 driver_usb_ohci_tog_get(driver_usb_ohci_state_t *o, driver_usb_dev_t *d, u8 ep_addr) {
-    int idx = (d->addr & 0x0f) * 16 + (USB_EP_NUM(ep_addr) & 0x0f);
+    /* BUG-0161 FIX (A11-20): full 7-bit device address (spec 9.1.1.5) */
+    int idx = (d->addr & 0x7f) * 16 + (USB_EP_NUM(ep_addr) & 0x0f);
     return (o->toggles[idx] >> ((ep_addr & 0x80) ? 1 : 0)) & 1;
 }
 
 static void driver_usb_ohci_tog_set(driver_usb_ohci_state_t *o, driver_usb_dev_t *d, u8 ep_addr,
                          u8 v) {
-    int idx = (d->addr & 0x0f) * 16 + (USB_EP_NUM(ep_addr) & 0x0f);
+    /* BUG-0161 FIX (A11-20): full 7-bit device address */
+    int idx = (d->addr & 0x7f) * 16 + (USB_EP_NUM(ep_addr) & 0x0f);
     u8 bit = (u8)(1u << ((ep_addr & 0x80) ? 1 : 0));
     if (v) o->toggles[idx] |= bit;
     else   o->toggles[idx] &= (u8)~bit;
@@ -382,7 +470,6 @@ static int driver_usb_ohci_bulk(driver_usb_host_t *h, driver_usb_dev_t *d, u8 ep
     if (o->bulk_busy) return -1;
     if (len == 0) return 0;
     if (d->speed == USB_SPEED_LS) return OC_USB_EINVAL;
-    if (len > OHCI_N_BULK_TD * 64) return OC_USB_EINVAL;
 
     o->bulk_busy = 1;
     driver_usb_ohci_ed_t *ed = o->bulk_ed;
@@ -391,8 +478,32 @@ static int driver_usb_ohci_bulk(driver_usb_host_t *h, driver_usb_dev_t *d, u8 ep
     u8 addr = d->addr;
     u8 ep = USB_EP_NUM(ep_addr);
     u32 dp = (ep_addr & 0x80) ? TD_DP_IN : TD_DP_OUT;
+    /* BUG-0163 FIX (A11-22): bulk MPS must come from the ENDPOINT
+     * DESCRIPTOR, not a hard-coded 64. When the device's real MPS < 64
+     * (legal, e.g. 32), a 64-byte TD is split by the HC into two wire
+     * transactions: the DEVICE toggle flips twice (net unchanged) while
+     * the software toggle tracked one flip - permanent toggle desync and
+     * corrupted data (EHCI bulk at 350-354 was already correct). */
     u16 mps = 64;
+    {
+        driver_usb_endpoint_t *epd = driver_usb_find_ep(d, 0xff,
+                                          USB_EP_ATTR_BULK,
+                                          (ep_addr & 0x80) ? 1 : 0);
+        if (epd && USB_EP_NUM(epd->addr) == ep && epd->maxpack)
+            mps = epd->maxpack;
+        if (mps == 0 || mps > 64) mps = 64;   /* FS bulk cap (spec 5.8.3) */
+    }
 
+    /* BUG-0163 FIX (A11-22), capacity: the TD pool holds OHCI_N_BULK_TD
+     * descriptors and one TD moves at most one transaction (chunk <=
+     * mps), so the per-call cap is OHCI_N_BULK_TD * mps - computed with
+     * the REAL endpoint MPS.  (The old gate was N_TD * 64 against a
+     * hard-coded MPS 64; with a real MPS 32 it would have admitted len
+     * 512 = 16 TDs into an 8-TD pool and overrun it.) */
+    if ((u32)len > (u32)OHCI_N_BULK_TD * (u32)mps) {
+        o->bulk_busy = 0;
+        return OC_USB_EINVAL;
+    }
     int ntd = (int)((len + mps - 1) / mps);
     u8 base_tog = driver_usb_ohci_tog_get(o, d, ep_addr);
     u16 done_bytes = 0;
@@ -425,33 +536,49 @@ static int driver_usb_ohci_bulk(driver_usb_host_t *h, driver_usb_dev_t *d, u8 ep
     u32 w0 = ((u32)addr & ED_FA_MSK) | (((u32)ep & 0xf) << 7) |
              (((u32)mps & 0x7ff) << 16);
     if (d->speed == USB_SPEED_LS) w0 |= ED_S;
-    ed->word0 = w0;
+    /* Skip cleared LAST (BUG-0165, arm-side): same ordering rule as the
+     * control path. */
     ed->tail = 0;
     ed->head = (u32)o->bulk_td_phys;
     ed->next = 0;
+    ed->word0 = w0;
 
     int rc = driver_usb_ohci_run(o, ed, o->bulk_ed_phys, tds, o->bulk_td_phys,
                       ntd, 1, timeout_ms);
 
-    /* retire: flip toggles of really-transferred TDs only; copy IN
-     * data back from the bounce buffer */
+    /* retire (BUG-0163 FIX, A11-22 completion): the HC runs exactly one
+     * wire transaction per TD here (chunk <= mps), so the software
+     * toggle advances once per TD the HC really retired with NOERROR -
+     * counted from the chain itself, not assumed.  Bytes moved come
+     * from the General TD's CurrentBufferPointer (next untransferred
+     * byte, 0 = whole buffer), so a short IN packet returns the true
+     * received length instead of stale bounce-buffer tail bytes.  After
+     * a short, remaining TDs may still execute (the HC walks on over a
+     * rounded TD): they count for the toggle but their bytes are not
+     * copied (the caller only asked for len). */
     int moved = 0;
-    int walked = 0;
+    int retired_ok = 0;
+    int copy_done = 0;
     for (int i = 0; i < ntd; i++) {
-        u32 w = tds[i].word0;
-        if ((w & TD_CC_MSK) == TD_CC_NOTACC) break;  /* not walked */
-        u32 cc = w & TD_CC_MSK;
-        if (cc != TD_CC_NOERR) break;   /* failed: no toggle advance */
-        walked++;
-        u16 chunk = (u16)(len - moved);
-        if (chunk > mps) chunk = mps;
-        if (dp == TD_DP_IN)
+        u32 cc = tds[i].word0 & TD_CC_MSK;
+        if (cc == TD_CC_NOTACC) break;   /* never executed */
+        if (cc != TD_CC_NOERR) break;    /* halted: no toggle advance */
+        retired_ok++;                    /* one wire transaction */
+        if (copy_done) continue;         /* past a short: toggles only */
+        u16 chunk = (u16)(len - (u16)moved);
+        if (chunk > mps) chunk = (u16)mps;
+        u32 cbp = tds[i].cur;
+        u32 cur0 = (u32)(o->bulk_buf_phys + (u32)moved);
+        u32 got = (cbp == 0) ? (u32)chunk
+                : ((cbp > cur0 && cbp <= cur0 + (u32)chunk)
+                   ? (cbp - cur0) : 0u);
+        if (dp == TD_DP_IN && got)
             memcpy((void *)((uintptr_t)buf + moved),
-                      o->bulk_buf + moved, chunk);
-        moved += chunk;
-        if (chunk < mps) break;
+                      o->bulk_buf + moved, got);
+        moved += (int)got;
+        if (got < (u32)chunk) copy_done = 1;   /* device ended it */
     }
-    driver_usb_ohci_tog_set(o, d, ep_addr, (u8)(base_tog ^ (walked & 1)));
+    driver_usb_ohci_tog_set(o, d, ep_addr, (u8)(base_tog ^ (retired_ok & 1)));
     o->bulk_busy = 0;
     if (rc != 0) return rc;
     return moved;
@@ -478,12 +605,16 @@ static int driver_usb_ohci_interrupt(driver_usb_host_t *h, driver_usb_dev_t *d, 
     td->cur = (u32)o->int_buf_phys;
     td->next = 0;
     td->be = (u32)(o->int_buf_phys + len - 1);
-    ed->word0 = ((u32)addr & ED_FA_MSK) | (((u32)ep & 0xf) << 7) |
-                (((u32)len & 0x7ff) << 16);
-    if (d->speed == USB_SPEED_LS) ed->word0 |= ED_S;
+    u32 w0 = ((u32)addr & ED_FA_MSK) | (((u32)ep & 0xf) << 7) |
+             (((u32)len & 0x7ff) << 16);
+    if (d->speed == USB_SPEED_LS) w0 |= ED_S;
+    /* Skip cleared LAST (BUG-0165, arm-side): same ordering rule as the
+     * control/bulk paths - the periodic list fetches this ED every
+     * frame. */
     ed->tail = 0;
     ed->head = (u32)o->int_td_phys;
     ed->next = 0;
+    ed->word0 = w0;
 
     u64 deadline = core_timer_now_ms() + timeout_ms;
     int rc = 0;
@@ -504,13 +635,21 @@ static int driver_usb_ohci_interrupt(driver_usb_host_t *h, driver_usb_dev_t *d, 
         core_sched_yield();
     }
     ed->word0 |= ED_K;
-    if (rc == 0) {
-        driver_usb_ohci_tog_set(o, d, ep_addr, (u8)(1 - driver_usb_ohci_tog_get(o, d, ep_addr)));
-        if (dp == TD_DP_IN)
-            memcpy(buf, o->int_buf, len);
-        return (int)len;
+    if (rc != 0) {
+        /* BUG-0165 (A11-24), interrupt flavor: on ENAK the TD is still
+         * IN FLIGHT (a NAKed TD is retried every frame and is never
+         * retired, so its CC stays 0xF); Skip + a frame-boundary settle
+         * precede the next call's TD rebuild - same protocol as run().
+         * On success the TD retired (CC written back, headP advanced to
+         * the empty tail), so the K write alone is safe. */
+        u64 settle_dl = core_timer_now_ms() + 5;
+        while (core_timer_now_ms() < settle_dl) core_sched_yield();
+        return rc;
     }
-    return rc;
+    driver_usb_ohci_tog_set(o, d, ep_addr, (u8)(1 - driver_usb_ohci_tog_get(o, d, ep_addr)));
+    if (dp == TD_DP_IN)
+        memcpy(buf, o->int_buf, len);
+    return (int)len;
 }
 
 /* OHCI ISO TD layout (hcd-ohci.c): SF 15:0 | DI 23:21 | FC 27:24 |
@@ -606,7 +745,7 @@ static int driver_usb_ohci_poll(driver_usb_host_t *h) {
 
 static const driver_usb_hc_ops_t driver_usb_ohci_ops_tmpl = {
     .name      = "OHCI",
-    .bulk_max  = 512,   /* 8 TDs x 64 B FS bulk cap */
+    .bulk_max  = 512,   /* servable at EVERY legal FS bulk MPS: 64 TDs x 8 B */
     .control   = driver_usb_ohci_control,
     .bulk      = driver_usb_ohci_bulk,
     .interrupt = driver_usb_ohci_interrupt,
@@ -677,10 +816,37 @@ static int driver_usb_ohci_probe_one(u8 bus, u8 dev, u8 func) {
     u64 int_ed_p = mem_pmm_alloc_frame();
     u64 int_td_p = mem_pmm_alloc_frame();
     u64 int_buf_p = mem_pmm_alloc_frame();
-    if (!hcca_p || !ctrl_ed_p || !ctrl_td_p || !ctrl_buf_p ||
-        !bulk_ed_p || !bulk_td_p || !bulk_buf_p || !int_ed_p ||
-        !int_td_p || !int_buf_p)
-        return -1;
+    /* BUG-0164 FIX (A11-23) + BUG-0159 FIX (A11-19), unified pool
+     * validation: every frame must be non-zero (a partial allocation is
+     * unwound COMPLETELY - the old code leaked up to 9 frames, and the
+     * inherited 4-GiB refusal still leaked all 10) and must land BELOW
+     * 4 GiB: every OHCI word that carries these addresses is 32 bits
+     * (HCCA pointer, ED headP/nextED, TD cur/next/be - OHCI 1.0a
+     * chapter 4 data structures).  mem_pmm.c's bitmap spans only the
+     * first 4 GiB today (PMM_MAX_PAGES), so this is defense in depth:
+     * if the allocator ever grows past 4 GiB (or gains a highmem
+     * fallback), the driver refuses loudly here instead of letting the
+     * HC DMA into a silently truncated page.  A PMM-side lowmem
+     * guarantee is out of this driver's scope.  The driver-state check
+     * keeps the CPU-side pool pointers (which double as the DMA
+     * identities under the identity map) inside the same 32-bit arena. */
+    {
+        u64 frames[OHCI_N_DMA_FRAMES] = {
+            hcca_p, ctrl_ed_p, ctrl_td_p, ctrl_buf_p,
+            bulk_ed_p, bulk_td_p, bulk_buf_p,
+            int_ed_p, int_td_p, int_buf_p
+        };
+        int bad = 0;
+        for (int i = 0; i < OHCI_N_DMA_FRAMES; i++)
+            if (frames[i] == 0 || (frames[i] >> 32) != 0) bad = 1;
+        if (((u64)(uintptr_t)o >> 32) != 0) bad = 1;
+        if (bad) {
+            driver_usb_ohci_log("usb: OHCI probe failed - pool incomplete or above 4GiB (32-bit DMA HC)\n");
+            for (int i = 0; i < OHCI_N_DMA_FRAMES; i++)
+                if (frames[i]) mem_pmm_free_frame(frames[i]);
+            return -1;
+        }
+    }
     o->hcca = (driver_usb_ohci_hcca_t *)(uintptr_t)hcca_p;
     o->hcca_phys = hcca_p;
     memset(o->hcca, 0, PMM_PAGE_SIZE);
@@ -706,7 +872,6 @@ static int driver_usb_ohci_probe_one(u8 bus, u8 dev, u8 func) {
     memset((void *)(uintptr_t)bulk_ed_p, 0, PMM_PAGE_SIZE);
     memset((void *)(uintptr_t)int_ed_p, 0, PMM_PAGE_SIZE);
 
-    for (int i = 0; i < OHCI_MAX_CTRL; i++) { }
     driver_usb_ohci_ed_init(o, o->ctrl_ed, ctrl_ed_p, 0);
     driver_usb_ohci_ed_init(o, o->bulk_ed, bulk_ed_p, 0);
     driver_usb_ohci_ed_init(o, o->int_ed, int_ed_p, 0);

@@ -206,6 +206,13 @@ static void driver_usb_ehci_qtd_fill(driver_usb_ehci_qtd_t *td, u8 pid, const vo
     if (toggle_hc) token |= QTD_TOKEN_DTOGGLE;
     if (last) token &= ~QTD_TOKEN_IOC;
     td->token = token;
+    /* BUG-0160 FIX (A11-2): the qTD buffer pointers are 32-bit DMA
+     * addresses (EHCI 1.0 spec 4.10.2/4.10.3 - five page pointers plus
+     * the in-page offset).  This truncation is safe by construction:
+     * every buffer handed here is one of the probe-validated descriptor
+     * frames (ctrl_buf/bulk_buf bounce pages; caller buffers are always
+     * memcpy'd in/out, never DMA'd directly), and probe_one() rejects a
+     * pool at/above 4 GiB, so the dropped bits are provably zero. */
     u64 p = (u64)(uintptr_t)buf;
     for (int i = 0; i < 5; i++) {
         u64 a = p ? (p + (u64)i * 4096) : 0;
@@ -220,8 +227,7 @@ static void driver_usb_ehci_qtd_fill(driver_usb_ehci_qtd_t *td, u8 pid, const vo
 
 
 static int driver_usb_ehci_wait_qtd(driver_usb_ehci_state_t *e, driver_usb_ehci_qtd_t *tds, int n,
-                         u32 timeout_ms) {
-    (void)e;
+                         u32 timeout_ms, driver_usb_ehci_qh_t *qh) {
     u64 deadline = core_timer_now_ms() + timeout_ms;
     for (;;) {
         int busy = 0;
@@ -237,6 +243,29 @@ static int driver_usb_ehci_wait_qtd(driver_usb_ehci_state_t *e, driver_usb_ehci_
         }
         if (!busy) return 0;
         if (core_timer_now_ms() > deadline) {
+            /* BUG-0173 FIX (A11-5): unlink the qTDs from the async
+             * schedule FIRST, ring the doorbell, and wait for the IAA
+             * advance so the HC provably stopped walking this chain
+             * BEFORE the CPU clears ACTIVE. Clearing ACTIVE on a qTD the
+             * controller may still be fetching is an undefined-behaviour
+             * race on real silicon. */
+            if (qh) qh->next_qtd = EHCI_LINK_T;   /* unlink first */
+            driver_usb_ehci_wr(e, EHCI_USBSTS, EHCI_STS_IAA);
+            driver_usb_ehci_wr(e, EHCI_USBCMD,
+                    driver_usb_ehci_rd(e, EHCI_USBCMD) | EHCI_CMD_IAAD);
+            u64 iaa_deadline = core_timer_now_ms() + 10;
+            while (core_timer_now_ms() < iaa_deadline) {
+                if (driver_usb_ehci_rd(e, EHCI_USBSTS) & EHCI_STS_IAA) {
+                    driver_usb_ehci_wr(e, EHCI_USBSTS, EHCI_STS_IAA);
+                    break;
+                }
+                core_sched_yield();
+            }
+            /* Fallback (BUG-0173): if the doorbell is still unanswered
+             * after 10 ms the controller is wedged or HALTed (USBSTS.HALT,
+             * EHCI 1.0 spec 2.3.2 bit 12) - a HALTed controller by
+             * definition stops fetching qTDs, so clearing ACTIVE is safe
+             * in exactly the case where the wait failed. */
             for (int i = 0; i < n; i++)
                 tds[i].token &= ~QTD_TOKEN_ACTIVE;
             return OC_USB_ETIMEDOUT;
@@ -272,12 +301,22 @@ static int driver_usb_ehci_control(driver_usb_host_t *h, driver_usb_dev_t *d,
                   << QH_EPCHAR_MPLEN_SH) |
                  QH_EPCHAR_H;   /* ctrl QH is the async head of the
                                    reclamation list (spec 4.9.1.1) */
+    /* EPS encoding per EHCI 1.0 spec 2.3.5 (QH characteristic word,
+     * bits 13:12): 0=FS, 1=LS, 2=HS.  USB_SPEED_FS falls into the 0
+     * branch, so a full-speed device detected by port_status/port_reset
+     * (BUG-0175 fix) is addressed with FS timing here and never as HS.
+     * QEMU-testable: qemu -device usb-ehci -device usb-kbd puts a
+     * full-speed HID device directly on the EHCI root port. */
     qh->epchar = epchar;
     qh->epcap = (1u << 30);
 
-    /* qTD chain: SETUP (DATA0 per the spec - the toggle bit must be
-     * 0) + DATA (DATA1) + STATUS (DATA1).  The SETUP 8 bytes are
-     * copied into the page-aligned bounce buffer. */
+    /* qTD chain: SETUP (DATA0) + DATA (DATA1) + STATUS (DATA1).
+     * A11-8 review (BUG-0177): QH.EPChar.DTC=1 means the HC takes the data
+     * toggle from EACH qTD's T bit (EHCI 1.0 spec 4.11.2), NOT from the
+     * QH overlay; SETUP's qtd_fill(..., toggle_hc=0) leaves T=0 = DATA0,
+     * which is exactly what USB 2.0 8.5.3 mandates for every SETUP.
+     * The overlay never feeds the toggle on this chain, so the old
+     * "second SETUP sends DATA1" hazard does not exist here. */
     memcpy(e->ctrl_buf, setup, 8);
     driver_usb_ehci_qtd_fill(&tds[0], QTD_PID_SETUP, e->ctrl_buf, 8, 0, 0);
     int n = 1;
@@ -301,10 +340,14 @@ static int driver_usb_ehci_control(driver_usb_host_t *h, driver_usb_dev_t *d,
     }
 
     qh->next_qtd = (u32)e->ctrl_qtd_phys;   /* link first qTD */
-    /* ring the async advance doorbell (spec 4.8.2) and retry: the
-     * controller may scan the async ring at moments when the freshly
-     * linked qTD is not yet visible; re-ringing IAAD forces a re-read
-     * of the schedule and is what Linux does around its doorbell too */
+    /* BUG-0166 FIX (A11-3): snapshot the freshly-built tokens so the
+     * doorbell retry restores a COMPLETE, pristine token (length, pid
+     * and toggle included). The old retry only re-ORed ACTIVE on the
+     * HC-rewritten token: error bits latched through (instantly "failed"
+     * again), and TBYTES had been decremented by partial transfers so
+     * the retry sent a short, toggle-skewed transaction. */
+    u32 pristine[8];
+    for (int q = 0; q < n && q < 8; q++) pristine[q] = tds[q].token;
     int rc = 0;
     for (int attempt = 0; attempt < 3; attempt++) {
         /* clear a latched IAA first: the controller refuses to walk
@@ -312,15 +355,27 @@ static int driver_usb_ehci_control(driver_usb_host_t *h, driver_usb_dev_t *d,
          * and the previous doorbell may have left it raised */
         driver_usb_ehci_wr(e, EHCI_USBSTS, EHCI_STS_IAA);
         driver_usb_ehci_wr(e, EHCI_USBCMD, driver_usb_ehci_rd(e, EHCI_USBCMD) | EHCI_CMD_IAAD);
-        rc = driver_usb_ehci_wait_qtd(e, tds, n, 300);
+        rc = driver_usb_ehci_wait_qtd(e, tds, n, 300, qh);
         if (rc == 0) break;
         /* let the controller see the unlinked qTD before re-arming */
         qh->next_qtd = EHCI_LINK_T;
         for (volatile int d = 0; d < 2000; d++) { }
-        /* re-fill the qTD tokens for the next attempt */
-        for (int q = 0; q < n; q++) {
-            tds[q].token |= QTD_TOKEN_ACTIVE;
+        /* BUG-0166 FIX (A11-3): restore the pristine tokens verbatim */
+        for (int q = 0; q < n && q < 8; q++) {
+            tds[q].token = pristine[q];
         }
+        /* BUG-0166 FIX (A11-3, completion): also reset the QH overlay
+         * working copy.  After a STALLed attempt the overlay keeps the
+         * halt condition and the last-executed qTD pointer (EHCI 1.0
+         * spec 4.13.2: a halted overlay makes the controller ignore a
+         * re-armed Next qTD until software clears it), which would turn
+         * every retry into an instant repeat failure on real silicon.
+         * With DTC=1 the overlay DT bit never feeds the toggle (see the
+         * A11-8 note above), so zeroing the overlay cannot skew the
+         * data-toggle sequence of the retried chain. */
+        qh->current_qtd = 0;
+        qh->token &= ~(QTD_TOKEN_HALT | QTD_TOKEN_BABBLE |
+                       QTD_TOKEN_XACTERR | QTD_TOKEN_DBERR);
         qh->next_qtd = (u32)e->ctrl_qtd_phys;
     }
     qh->next_qtd = EHCI_LINK_T;
@@ -383,7 +438,7 @@ static int driver_usb_ehci_bulk(driver_usb_host_t *h, driver_usb_dev_t *d, u8 ep
      * latched IAA first so the walk is not refused */
     driver_usb_ehci_wr(e, EHCI_USBSTS, EHCI_STS_IAA);
     driver_usb_ehci_wr(e, EHCI_USBCMD, driver_usb_ehci_rd(e, EHCI_USBCMD) | EHCI_CMD_IAAD);
-    int rc = driver_usb_ehci_wait_qtd(e, tds, n, timeout_ms);
+    int rc = driver_usb_ehci_wait_qtd(e, tds, n, timeout_ms, qh);
     qh->next_qtd = EHCI_LINK_T;
     int moved = (int)len;
     if (rc == 0) {
@@ -407,15 +462,31 @@ static int driver_usb_ehci_interrupt(driver_usb_host_t *h, driver_usb_dev_t *d, 
     u8 pid = (ep_addr & 0x80) ? QTD_PID_IN : QTD_PID_OUT;
 
     driver_usb_ehci_qh_t *qh = e->qh_int;
-    driver_usb_ehci_qtd_t *td = e->ctrl_qtds;   /* reuse slot 0 (ctrl is idle
-                                        during interrupt use) */
+    /* BUG-0169 FIX (A11-4): refuse the borrow while a control transfer
+     * owns the shared ctrl_qtds[0]/ctrl_buf instead of relying on the
+     * core lock's external serialization alone; also keep busy_ctrl set
+     * for the whole interrupt transaction. */
+    if (e->busy_ctrl) return -1;
+    e->busy_ctrl = 1;
+    driver_usb_ehci_qtd_t *td = e->ctrl_qtds;   /* reuse slot 0 (guarded) */
+    /* MPLEN must be the ENDPOINT's max packet size, not the request
+     * length: MPS < len violates the endpoint transaction limit and
+     * MPS > len breaks short-packet semantics (EHCI spec 3.5.3). */
+    u16 ep_mps = 64;
+    {
+        driver_usb_endpoint_t *epd = driver_usb_find_ep(d, 0xff,
+                                          USB_EP_ATTR_INTERRUPT,
+                                          (ep_addr & 0x80) ? 1 : 0);
+        if (epd && USB_EP_NUM(epd->addr) == ep && epd->maxpack)
+            ep_mps = epd->maxpack;
+    }
     u32 epchar = ((u32)d->addr & 0x7f) |
                  (((u32)ep & 0xf) << QH_EPCHAR_EP_SH) |
                  (((d->speed == USB_SPEED_LS) ? 1 :
                    (d->speed == USB_SPEED_HS) ? 2 : 0)
                   << QH_EPCHAR_EPS_SH) |
                  QH_EPCHAR_DTC |
-                 (((u32)(len & 0x7ff)) << QH_EPCHAR_MPLEN_SH);
+                 (((u32)(ep_mps & 0x7ff)) << QH_EPCHAR_MPLEN_SH);
     qh->epchar = epchar;
     /* interrupt QH: SMASK = micro-frame 0 of every frame (1 ms) */
     qh->epcap = (1u << 30) | 0x01u;
@@ -439,14 +510,19 @@ static int driver_usb_ehci_interrupt(driver_usb_host_t *h, driver_usb_dev_t *d, 
             break;
         }
         if (core_timer_now_ms() > deadline) {
-            td->token &= ~QTD_TOKEN_ACTIVE;
+            /* BUG-0173 FIX (A11-5, periodic variant): unlink before
+             * clearing ACTIVE so the HC is not mid-fetch of the qTD. */
             qh->next_qtd = EHCI_LINK_T;
+            u64 qdl = core_timer_now_ms() + 2;
+            while (core_timer_now_ms() < qdl) core_sched_yield();
+            td->token &= ~QTD_TOKEN_ACTIVE;
             rc = OC_USB_ENAK;
             break;
         }
         core_sched_yield();
     }
     qh->next_qtd = EHCI_LINK_T;
+    e->busy_ctrl = 0;   /* BUG-0169: release the shared-slot guard */
     if (rc == 0) {
         if (pid == QTD_PID_IN) memcpy(buf, e->ctrl_buf, len);
         return (int)len;
@@ -492,11 +568,17 @@ static int driver_usb_ehci_port_status(driver_usb_host_t *h, int port,
     u32 v = driver_usb_ehci_rd(e, EHCI_PORTSC + (u32)port * 4);
     out->connected = (v & PORTSC_CONNECT) ? 1 : 0;
     out->enabled = (v & PORTSC_PED) ? 1 : 0;
-    u32 lines = (v >> PORTSC_LINESTAT_SH) & 3;
-    if (out->connected && lines == 1)
-        out->speed = USB_SPEED_LS;   /* K-state = low speed */
-    else
-        out->speed = USB_SPEED_HS;   /* EHCI ports are high-speed */
+    /* BUG-0175 FIX (A11-6): read the PORTSC.PS (Port Speed, bits 13:12)
+     * field instead of LINE-STATE. LINE-STATUS only carries a reliable
+     * speed encoding at the END of reset; a steady-state read reports the
+     * current line J/K state, which misclassifies FS devices as HS. PS:
+     * 0=FS, 1=LS, 2=HS (EHCI 1.0 spec Table 2-16). */
+    {
+        u32 ps = (v >> 12) & 3;
+        if (ps == 1)      out->speed = USB_SPEED_LS;
+        else if (ps == 2) out->speed = USB_SPEED_HS;
+        else              out->speed = USB_SPEED_FS;
+    }
     out->changed = (v & PORTSC_CSC) ? 1 : 0;
     if (v & PORTSC_CSC)
         /* W1C the change bit but KEEP port power and port enable: PP
@@ -553,10 +635,13 @@ static int driver_usb_ehci_port_reset(driver_usb_host_t *h, int port, u8 *speed_
         return -1;
     }
     if (speed_out) {
-        if ((w >> PORTSC_LINESTAT_SH & 3) == 1)
-            *speed_out = USB_SPEED_LS;
-        else
-            *speed_out = USB_SPEED_HS;
+        /* BUG-0175 FIX (A11-6): PORTSC.PS (13:12) is the authoritative
+         * post-reset speed (0=FS 1=LS 2=HS); LINE-STATUS was only
+         * meaningful in the brief reset window and could not see FS. */
+        u32 ps = (w >> 12) & 3;
+        if (ps == 1)      *speed_out = USB_SPEED_LS;
+        else if (ps == 2) *speed_out = USB_SPEED_HS;
+        else              *speed_out = USB_SPEED_FS;
     }
     return 0;
 }
@@ -637,13 +722,34 @@ static int driver_usb_ehci_probe_one(u8 bus, u8 dev, u8 func) {
     /* BUG-0049 FIX: CONFIGFLAG(CF) semantics per the EHCI spec (2.3.9):
      * CF=1 means "ports routed to THIS EHCI controller"; CF=0 hands the
      * ports to the companion UHCI/OHCI controllers. The old code wrote
-     * 0 with a comment that had the meaning inverted — on any chipset
+     * 0 with a comment that had the meaning inverted - on any chipset
      * with companions (or a spec-compliant real chip) that unhooks the
      * EHCI from its own ports and leaves PSE/ASE scheduling undefined.
      * Set CF=1 to take ownership of the ports. */
 
     /* Set CF=1 (see BUG-0049 above). */
     driver_usb_ehci_wr(e, EHCI_CONFIGFLAG, 1);
+
+    /* BUG-0160 FIX (A11-2): every DMA address this driver programs is a
+     * 32-bit field - QH.next, qTD.next/altnext, qTD bufptr[0..4], the
+     * periodic frame-list entries, ASYNCLISTADDR and PERIODICLISTBASE
+     * (EHCI 1.0 spec 2.2/2.3 register set, 2.3.5 queue heads and
+     * 4.10.2/4.10.3 qTD buffer pointers).  The descriptor/buffer pool
+     * therefore has to live below 4 GiB.  mem_pmm_alloc_frame() scans
+     * the whole RAM bitmap linearly and gives no lowmem guarantee, so
+     * probe validates every frame explicitly and fails LOUDLY instead of
+     * silently truncating an address and letting the HC DMA into
+     * arbitrary physical pages (arbitrary kernel memory corruption).
+     * No realloc-retry: with a linear-scan PMM a free/realloc cycle
+     * hands back the same page, so the policy mirrors a 32-bit dma_mask
+     * failure in Linux - refuse the device, do not guess.  The driver
+     * state struct itself is never DMA'd (CPU-only access) and lives in
+     * the static kernel image, which the linker ASSERT pins below 4 GiB;
+     * the tripwire below only covers a future heap-resident state. */
+    if (((u64)(uintptr_t)e >> 32) != 0) {
+        driver_usb_ehci_log("usb: EHCI probe failed - driver state above 4GiB, 32-bit DMA\n");
+        return -1;
+    }
 
     /* allocate descriptors */
     u64 qpage = mem_pmm_alloc_frame();
@@ -652,7 +758,27 @@ static int driver_usb_ehci_probe_one(u8 bus, u8 dev, u8 func) {
     u64 btd = mem_pmm_alloc_frame();
     u64 bbuf = mem_pmm_alloc_frame();
     u64 fl = mem_pmm_alloc_frame();
-    if (!qpage || !ctd || !cbuf || !btd || !bbuf || !fl) return -1;
+    /* BUG-0176 FIX (A11-7): partial-failure path releases every frame
+     * already obtained instead of leaking up to 5 pages per failed probe.
+     * BUG-0160 FIX (A11-2): a frame at/above 4 GiB is just as fatal for
+     * this 32-bit-DMA controller as an allocation failure (every link
+     * pointer, ASYNCLISTADDR and PERIODICLISTBASE write would truncate),
+     * so both failure kinds share the same all-or-nothing gate and
+     * unwind.  (0 >> 32 == 0, so the range test never misfires on an
+     * allocation failure.) */
+    int dma_oob = (((qpage | ctd | cbuf | btd | bbuf | fl) >> 32) != 0);
+    if (!qpage || !ctd || !cbuf || !btd || !bbuf || !fl || dma_oob) {
+        driver_usb_ehci_log(dma_oob
+                ? "usb: EHCI probe failed - DMA frame at/above 4GiB\n"
+                : "usb: EHCI probe failed - out of descriptor frames\n");
+        if (qpage) mem_pmm_free_frame(qpage);
+        if (ctd)   mem_pmm_free_frame(ctd);
+        if (cbuf)  mem_pmm_free_frame(cbuf);
+        if (btd)   mem_pmm_free_frame(btd);
+        if (bbuf)  mem_pmm_free_frame(bbuf);
+        if (fl)    mem_pmm_free_frame(fl);
+        return -1;
+    }
     memset((void *)(uintptr_t)qpage, 0, PMM_PAGE_SIZE);
     memset((void *)(uintptr_t)ctd, 0, PMM_PAGE_SIZE);
     memset((void *)(uintptr_t)cbuf, 0, PMM_PAGE_SIZE);

@@ -29,6 +29,19 @@
 #define VMM_FLAG_COW      0x200  /* software flag (reserved bit) */
 #define VMM_FLAG_DIRTY    0x040
 #define VMM_FLAG_ACCESSED 0x020
+/* BUG-0136 FIX (A1-10): explicit OWNERSHIP tag on page-table frames.
+ * Set (in a PDE) by walk_pt() when it allocates a PT inside a NON-kernel
+ * address space; consumed by mem_vmm_destroy_address_space()'s
+ * private-PDPT path, which frees only tables it can prove are private to
+ * the dying AS. For the user-AS (per-process PD0) path destroy instead
+ * proves ownership by DIVERGENCE from the kernel PD0 template, which
+ * also covers the private PD0[2] split PT that create_user_address_space()
+ * builds outside walk_pt(). Both replace the old fragile convention
+ * ("every present non-huge entry in the user PD0 copy is a private PT"),
+ * which silently relied on the kernel PD0 never containing split 2 MiB
+ * pages. Bits 9-11 are PTE/PDE "available to software" per the x86-64
+ * paging spec - the CPU ignores them. */
+#define VMM_FLAG_PT_OWNER 0x400
 
 /* Default kernel page flags: present + writable. */
 #define VMM_FLAGS_KERNEL (VMM_FLAG_PRESENT | VMM_FLAG_WRITE)

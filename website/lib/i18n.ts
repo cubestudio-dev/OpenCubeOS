@@ -20,8 +20,8 @@ export function localePath(locale: Locale, sub: "" | "docs" | "about" = ""): str
 
 const zh = {
   htmlLang: "zh-CN",
-  badge: "WP-AUDIT-01-p1fix4 · Apache 2.0",
-  brandSub: "WP-AUDIT-01-p1fix4 · Apache 2.0",
+  badge: "WP-10-AUDIT_P2-fix1 · Apache 2.0",
+  brandSub: "WP-10-AUDIT_P2-fix1 · Apache 2.0",
   navAria: "站点导航",
   navHome: "首页",
   navDownloads: "下载",
@@ -42,7 +42,7 @@ const zh = {
   downloadIso: (mb: string) => `下载 ISO（${mb} MB）`,
   readDocs: "阅读文档",
   githubRepo: "GitHub 仓库",
-  dlSectionTitle: "下载 WP-AUDIT-01-p1fix4",
+  dlSectionTitle: "下载 WP-10-AUDIT_P2-fix1",
   dlSectionDesc:
     "BIOS + UEFI 双引导 ISO 与完整源码包。文件在本站、GitHub Release 与本地构建三处 SHA256 字节级一致（核对方法见下方命令）。",
   isoMeta: (bytes: string, mb: string) =>
@@ -60,7 +60,7 @@ const zh = {
   baseSectionTitle: "内核基础（WP-01 ~ WP-08）",
   baseSectionDesc: "从裸机引导到用户态动态链接，每一层都可扩展。",
   wpSectionTitle: "工作包",
-  wpSectionDesc: "16 个工作包，WP-01 到 WP-10d、项目结构重构与 WP-10-wp08fix1，全部完成（done）；WP-AUDIT-01 完成 18 路完整审查（607 条），落地全部 41 个 P0 修复（p0fix1 前 20 个 + p0fix2 后 21 个），P1 全部 94 条修复完成（p1fix1 前 31 条 BUG-0042..0072 + p1fix2 第 32~62 条 BUG-0073..0103 + p1fix3 剩余 31 条 BUG-0104..0135），p1fix4 修复 HTTPS E2E 中途断连（IP 字面量参考身份，RFC 6125）。",
+  wpSectionDesc: "16 个工作包，WP-01 到 WP-10d、项目结构重构与 WP-10-wp08fix1，全部完成（done）；WP-AUDIT-01 完成 18 路完整审查（607 条），落地全部 41 个 P0 修复（p0fix1 前 20 个 + p0fix2 后 21 个），P1 全部 94 条修复完成（p1fix1 前 31 条 BUG-0042..0072 + p1fix2 第 32~62 条 BUG-0073..0103 + p1fix3 剩余 31 条 BUG-0104..0135），p1fix4 修复 HTTPS E2E 中途断连（IP 字面量参考身份，RFC 6125）；WP-10-AUDIT_P2-fix1 修复 P2 第一批 53 条（BUG-0136..0188）：内存（VMM 页表所有权、kmalloc 回绕、碎片化/池槽、畸形 mbi）、arch（SysV 对齐、IST2 退出栈）、USB 核心/四控制器与类驱动 33 条（DMA ≥4GiB 拒绝、TD 退休竞态、mps0 容量、C_PORT_RESET、TRT/EP 上下文/scratchpad/BAR、SENSE 窗口、实例命名、多端口、FS 速度、SETUP DATA0、UAC set_rate 等）、VFS/FAT 11 条（只读按位、大小写敏感缓存、稀疏洞清零、权限生效、FAT#1 镜像、FSINFO、LFN 别名/校验/跨簇删除）；发现并修复堆块头 40 字节潜伏缺陷（负载对齐漂移致 ATA-DMA 偏移 8 字节、/etc 无法挂载）；fstest 新增 P2 双向断言块；新增 irqabitest/heapbounds/vmkernelpt/int3_user 测试。",
   wpThNo: "编号",
   wpThContent: "内容",
   wpThStatus: "状态",
@@ -120,8 +120,8 @@ const zh = {
 
 const en: typeof zh = {
   htmlLang: "en",
-  badge: "WP-AUDIT-01-p1fix4 · Apache 2.0",
-  brandSub: "WP-AUDIT-01-p1fix4 · Apache 2.0",
+  badge: "WP-10-AUDIT_P2-fix1 · Apache 2.0",
+  brandSub: "WP-10-AUDIT_P2-fix1 · Apache 2.0",
   navAria: "Site navigation",
   navHome: "Home",
   navDownloads: "Downloads",
@@ -142,7 +142,7 @@ const en: typeof zh = {
   downloadIso: (mb: string) => `Download ISO (${mb} MB)`,
   readDocs: "Read the docs",
   githubRepo: "GitHub repository",
-  dlSectionTitle: "Download WP-AUDIT-01-p1fix4",
+  dlSectionTitle: "Download WP-10-AUDIT_P2-fix1",
   dlSectionDesc:
     "BIOS + UEFI dual-boot ISO and the full source archive. The files are byte-identical (SHA256) across this site, the GitHub Release and the local build (see the command below).",
   isoMeta: (bytes: string, mb: string) =>
@@ -162,7 +162,7 @@ const en: typeof zh = {
   baseSectionDesc:
     "From bare-metal boot to user-space dynamic linking — every layer is extensible.",
   wpSectionTitle: "Work packages",
-  wpSectionDesc: "16 work packages, WP-01 through WP-10d, the project restructure and WP-10-wp08fix1, all done; WP-AUDIT-01 completed the 18-route full audit (607 findings), landed all 41 P0 fixes (p0fix1 first 20 + p0fix2 remaining 21), and all 94 P1 fixes are done (p1fix1 the first 31, BUG-0042..0072 + p1fix2 items 32..62, BUG-0073..0103 + p1fix3 items 63..94, BUG-0104..0135), with the p1fix4 HTTPS E2E mid-handshake disconnect fix (IP-literal reference identity, RFC 6125).",
+  wpSectionDesc: "16 work packages, WP-01 through WP-10d, the project restructure and WP-10-wp08fix1, all done; WP-AUDIT-01 completed the 18-route full audit (607 findings), landed all 41 P0 fixes (p0fix1 first 20 + p0fix2 remaining 21), and all 94 P1 fixes are done (p1fix1 the first 31, BUG-0042..0072 + p1fix2 items 32..62, BUG-0073..0103 + p1fix3 items 63..94, BUG-0104..0135), with the p1fix4 HTTPS E2E mid-handshake disconnect fix (IP-literal reference identity, RFC 6125); WP-10-AUDIT_P2-fix1 fixed the first 53 P2 items (BUG-0136..0188): memory (VMM PT ownership, kmalloc wrap, fragmentation/pool slots, malformed-mbi hardening), arch (SysV stack alignment, the IST2 exit-stack kill path), 33 USB core/controller/class fixes (>=4GiB DMA refusal, TD-retirement races, mps0 capacity, C_PORT_RESET, TRT/EP-context/scratchpad/BAR-64, the SENSE window, instance naming, multi-port, FS speed, SETUP DATA0, real UAC set_rate), and 11 VFS/FAT fixes (bitwise read-only checks, per-fs cache case rules, sparse-hole zeroing, enforced permission bits, the FAT#1 mirror, FSINFO, LFN alias/checksum/cross-cluster deletion); the batch also found and fixed a latent 40-byte heap block header defect (payload alignment drifted with allocation parity, shifting ATA-DMA transfers by 8 bytes and breaking the /etc mount); fstest gained a P2 dual-sided assertion block; new irqabitest/heapbounds/vmkernelpt/int3_user tests.",
   wpThNo: "No.",
   wpThContent: "Content",
   wpThStatus: "Status",

@@ -52,6 +52,7 @@ typedef struct driver_usb_msc_dev {
     driver_usb_endpoint_t *ep_in, *ep_out;
     u32 tag;
     u8  lun;
+    u8  instance;   /* BUG-0168: global MSC device ordinal for naming */
     int up;
     int driver_block_idx;              /* blk layer index, -1 = not registered */
     u64 sectors;
@@ -67,6 +68,7 @@ typedef struct driver_usb_msc_dev {
 } driver_usb_msc_dev_t;
 
 static driver_usb_msc_dev_t g_msc[MSC_MAX_DEV];
+static u8 g_msc_instances;   /* BUG-0168: global instance counter */
 
 static void driver_usb_msc_log(const char *s) { screen_console_puts(s); }
 
@@ -84,6 +86,16 @@ static int driver_usb_msc_clear_halt(driver_usb_msc_dev_t *m, u8 ep_addr) {
  * CSW-PASS, -1 on error (stall handled inside) */
 #define MSC_BOT_TIMEOUT_MS  5000   /* data-carrying commands */
 
+/* BUG-0167 FIX (A11-37): the busy window is split from the wire
+ * sequence. driver_usb_msc_bot_to owns the atomic check-and-set on
+ * m->busy; driver_usb_msc_bot_locked runs the actual CBW/data/CSW -
+ * and, on a failed command, its REQUEST_SENSE - with busy already
+ * held, so no other thread can start a BOT between a failed command
+ * and its sense. */
+static int driver_usb_msc_bot_locked(driver_usb_msc_dev_t *m, const u8 *cb,
+                      u8 cb_len, u8 dir_in, void *data, u32 data_len,
+                      u32 timeout_ms);
+
 static int driver_usb_msc_bot_to(driver_usb_msc_dev_t *m, const u8 *cb, u8 cb_len,
                       u8 dir_in, void *data, u32 data_len,
                       u32 timeout_ms) {
@@ -94,6 +106,16 @@ static int driver_usb_msc_bot_to(driver_usb_msc_dev_t *m, const u8 *cb, u8 cb_le
      * transfer mutex only spans individual bulk calls, not the whole
      * BOT sequence */
     if (__sync_lock_test_and_set(&m->busy, 1)) return -1;
+    int rc = driver_usb_msc_bot_locked(m, cb, cb_len, dir_in, data,
+                            data_len, timeout_ms);
+    m->busy = 0;
+    return rc;
+}
+
+/* BOT wire sequence only; the caller MUST already hold m->busy */
+static int driver_usb_msc_bot_locked(driver_usb_msc_dev_t *m, const u8 *cb, u8 cb_len,
+                      u8 dir_in, void *data, u32 data_len,
+                      u32 timeout_ms) {
     u8 cbw[31];
     u8 csw[13];
     memset(cbw, 0, sizeof(cbw));
@@ -121,7 +143,6 @@ static int driver_usb_msc_bot_to(driver_usb_msc_dev_t *m, const u8 *cb, u8 cb_le
             driver_usb_msc_clear_halt(m, m->ep_out->addr);
             m->stalls_recovered++;
         }
-        m->busy = 0;
         return -1;
     }
 
@@ -145,7 +166,6 @@ static int driver_usb_msc_bot_to(driver_usb_msc_dev_t *m, const u8 *cb, u8 cb_le
     }
     if (data_err && data_len) {
         screen_console_puts("msc: data phase failed\n");
-        m->busy = 0;
         return -1;
     }
 
@@ -171,7 +191,6 @@ static int driver_usb_msc_bot_to(driver_usb_msc_dev_t *m, const u8 *cb, u8 cb_le
             u64_to_str((u64)(rc < 0 ? -rc : rc), n); strcat(l, n);
             strcat(l, "\n");
             screen_console_puts(l);
-            m->busy = 0;
             return -1;
         }
     }
@@ -182,7 +201,6 @@ static int driver_usb_msc_bot_to(driver_usb_msc_dev_t *m, const u8 *cb, u8 cb_le
     u32 res = (u32)csw[8] | ((u32)csw[9] << 8) | ((u32)csw[10] << 16) |
               ((u32)csw[11] << 24);
     u8 status = csw[12];
-    m->busy = 0;
     if (sig != MSC_CSW_SIG || rtag != tag) {
         screen_console_puts("msc: CSW bad signature or tag\n");
         return -1;
@@ -211,14 +229,26 @@ static int driver_usb_msc_bot_to(driver_usb_msc_dev_t *m, const u8 *cb, u8 cb_le
         }
     }
     if (status != 0) {
-        /* command failed: fetch sense to clear the condition.  busy
-         * is already cleared here; the sense BOT manages its own busy
-         * window (a nested call with busy=1 would bail instantly and
-         * leave the flag stuck forever). */
+        /* command failed: fetch sense to clear the condition.
+         * BUG-0167 FIX (A11-37): a BOT device processes exactly ONE bulk
+         * command at a time. The old code cleared busy BEFORE issuing
+         * REQUEST_SENSE, so a concurrent block-layer I/O could slip a
+         * new CBW in between the failed command's CSW and the sense and
+         * interleave the two on the device's state machine. The sense
+         * now runs INSIDE the same busy window: this wire function
+         * re-enters itself directly, bypassing the busy check-and-set
+         * of driver_usb_msc_bot_to (which would instantly bail - and
+         * which is exactly what competing threads see: a transient -1
+         * and a block-layer retry, never wire interleaving). Nothing
+         * waits on busy while holding it, so the window cannot
+         * deadlock. Sense-of-sense is skipped: a REQUEST_SENSE that
+         * itself reports an error would otherwise recurse unboundedly. */
         u8 sense_cb[6] = { SCSI_REQUEST_SENSE, 0, 0, 0, 18, 0 };
         u8 sense[18];
         memset(sense, 0, sizeof(sense));
-        driver_usb_msc_bot_to(m, sense_cb, 6, 1, sense, 18, MSC_BOT_TIMEOUT_MS);
+        if (cb[0] != SCSI_REQUEST_SENSE)
+            (void)driver_usb_msc_bot_locked(m, sense_cb, 6, 1, sense, 18,
+                                MSC_BOT_TIMEOUT_MS);
         return -1;
     }
     if (data_err && data_len) return -1;
@@ -342,8 +372,17 @@ static int driver_usb_msc_rw10(driver_usb_msc_dev_t *m, int write, u64 lba, u32 
         }
         if (!ok) {
             /* last resort: full BOT reset + toggles re-synced, then
-             * one final attempt of this sub-transfer */
+             * one final attempt of this sub-transfer. BUG-0167
+             * corollary: a Mass Storage Reset aborts whatever BOT
+             * command the device is executing, so it must not fire
+             * under another thread's in-flight command (e.g. an
+             * error-recovery REQUEST_SENSE). Take the same busy window
+             * the BOT path uses; if it is held, give up on this
+             * transfer (the block layer retries) instead of stomping
+             * the other command. */
+            if (__sync_lock_test_and_set(&m->busy, 1)) return -1;
             driver_usb_msc_reset_recovery(m);
+            m->busy = 0;
             if (driver_usb_msc_bot(m, cb, 10, write ? 0 : 1,
                         (u8 *)buf + (u64)done * m->block_size,
                         bytes) == 0) {
@@ -398,7 +437,14 @@ static void driver_usb_msc_register_blk(driver_usb_msc_dev_t *m) {
     memset(&bd, 0, sizeof(bd));
     /* "usda", "usdb", ... - USB SCSI disk */
     bd.name[0] = 'u'; bd.name[1] = 's'; bd.name[2] = 'd';
-    bd.name[3] = (char)('a' + m->lun);   /* per-device letter */
+    /* BUG-0168 FIX (A11-38): name by global instance count, not LUN.
+     * m->lun is always 0 (multi-LUN devices are not yet driven), so
+     * every stick registered as "usda" and a second device collided
+     * (driver_block_register does not reject duplicate names). The
+     * letter is kept inside 'a'..'z' even after the monotonic counter
+     * wraps the alphabet; the probe rejects letters still owned by a
+     * live device, so registered names stay unique. */
+    bd.name[3] = (char)('a' + (m->instance % 26));
     bd.name[4] = 0;
     bd.type = BLK_TYPE_USB;
     bd.sectors = m->sectors;
@@ -450,6 +496,25 @@ static int driver_usb_msc_probe(driver_usb_dev_t *dev) {
         m->ep_in = ep_in;
         m->ep_out = ep_out;
         m->driver_block_idx = -1;
+        /* BUG-0168 FIX (A11-38): per-instance block device letter from
+         * the global instance counter (first device = "usda"). The
+         * counter is monotonic across hotplug events; skip letters
+         * still owned by a live device so two concurrent drives can
+         * never register the same name even after the counter wraps. */
+        m->instance = g_msc_instances++;
+        for (;;) {
+            char letter = (char)('a' + (m->instance % 26));
+            int clash = 0;
+            for (int j = 0; j < MSC_MAX_DEV; j++) {
+                if (&g_msc[j] != m && g_msc[j].up &&
+                    (char)('a' + (g_msc[j].instance % 26)) == letter) {
+                    clash = 1;
+                    break;
+                }
+            }
+            if (!clash) break;
+            m->instance = g_msc_instances++;
+        }
         m->up = 1;   /* driver_usb_msc_bot refuses transfers while !up */
         /* wait for the device to become ready (spinning media) */
         int ready = 0;

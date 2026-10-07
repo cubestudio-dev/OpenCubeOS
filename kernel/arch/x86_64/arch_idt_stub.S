@@ -55,6 +55,11 @@ arch_isr_stub_%+%1:
 ; Common entry: save all GPRs, call dispatcher, restore, iretq.
 align 16
 arch_isr_common:
+    ; BUG-0138 FIX (A1-5): interrupt/trap gates do not clear DF. A ring3
+    ; `std` followed by any interrupt or syscall would otherwise run the
+    ; whole kernel dispatch chain with DF=1, and GCC can emit `rep movsb`
+    ; for aggregate copies even under -mno-sse -> silent memory corruption.
+    cld
     ; Save general-purpose registers (SysV order doesn't matter here, we
     ; pass the frame pointer in rdi).
     push rax
@@ -78,17 +83,31 @@ arch_isr_common:
     ; The arch_irq_frame_t struct starts with r15 at its lowest address, so
     ; rdi = rsp is exactly the frame pointer we want.
     mov rdi, rsp
-    ; Align stack to 16 bytes for the call (SysV ABI requirement).
-    ; Entry to arch_isr_common: rsp = original - 56 (40 CPU + 8 error + 8 vector).
-    ; After 15 GPR pushes: rsp = original - 176 (176 % 16 = 0, aligned).
-    ; But call itself pushes 8, making it 184 % 16 = 8 (misaligned).
-    ; So sub rsp, 8 before the call to keep alignment.
-    sub rsp, 8
+    ; BUG-0137 FIX (A1-4): SysV ABI requires rsp = 0 (mod 16) AT the call
+    ; instruction, so that the callee sees rsp = 8 (mod 16) on entry. In
+    ; 64-bit mode the CPU pushes 5 quadwords (SS, RSP, RFLAGS, CS, RIP =
+    ; 40 bytes) for EVERY interrupt/exception - ring3 and ring0 sources
+    ; alike; IRETQ always pops those 5, and a same-privilege frame is also
+    ; 5 quadwords (the 3-quadword frame is a 32-bit-mode concept). So the
+    ; frame below the stub base is a constant 40 + 16 (err+vector) + 120
+    ; (15 GPRs) = 176 = 11*16 bytes. What varies is the BASE alignment:
+    ; TSS rsp0 / IST tops are 16-aligned in this kernel (kmalloc payloads
+    ; are 16-aligned, static stacks are aligned(16)), but the interrupted
+    ; ring0 rsp can be 0 or 8 (mod 16) depending on the interrupt point.
+    ; The previous fixed `sub rsp, 8` was therefore inverted: on every
+    ; 16-aligned-base path the call site was ALREADY aligned and the sub
+    ; misaligned it (call at 8 mod 16 -> dispatch entry rsp = 0 mod 16,
+    ; an ABI violation masked only by -mno-sse). Align dynamically instead.
+    ; r15 already carries its saved copy on the stack (it was pushed as the
+    ; last GPR, exactly where rdi points), so we can borrow it to bridge
+    ; the aligned region and let its own `pop r15` restore the real value.
+    mov r15, rsp            ; remember the saved-register block top...
+    and rsp, -16            ; ...align for the call...
     call arch_isr_dispatch
-    add rsp, 8
+    mov rsp, r15            ; ...return to the block top...
+    pop r15                 ; ...and restore the real r15 from its slot
 
-    ; Restore GPRs.
-    pop r15
+    ; Restore GPRs (r15 was already restored above).
     pop r14
     pop r13
     pop r12

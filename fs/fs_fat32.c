@@ -7,8 +7,13 @@
  * Layout (LBA28 sectors, 512 bytes each):
  *   [reserved region: boot sector + (reserved_sectors-1) more]
  *   [FAT #0: fat_size_sectors sectors]
- *   [FAT #1: fat_size_sectors sectors]   (we only use FAT #0)
+ *   [FAT #1: fat_size_sectors sectors]
  *   [data region: starts at data_start_lba, cluster 2 is the first one]
+ *
+ * BUG-0185 (A12-020): the FAT copy that gets cached and updated is the
+ * ACTIVE one (BPB_ExtFlags, fs.doc 2.1.4 "FAT32 Extended BPB"); while
+ * mirroring is enabled (ext_flags bit 7 = 0) every FAT-sector write is
+ * replayed to every other copy, so FAT #1 is no longer left stale.
  *
  * FAT32 entries are 32 bits wide; the low 28 bits are the next-cluster
  * pointer. End-of-chain markers are 0x0FFFFFF8..0x0FFFFFFF. Free clusters
@@ -114,6 +119,12 @@ typedef struct {
     u32   total_clusters;
     u8   *fat_cache;             /* entire FAT #0 cached in RAM */
     u64   fat_cache_size;
+    u32   next_free_hint;        /* BUG-0186: FSINFO next-free hint */
+    u32   free_count_hint;       /* BUG-0186: FSINFO free-cluster count */
+    u32   fsinfo_lba;            /* 0 = no FSINFO (pre-0.4 volumes) */
+    u8   *fsinfo_sector;         /*512B scratch for FSINFO updates*/
+    u32   active_fat;            /* BUG-0185: FAT index from BPB_ExtFlags */
+    u8    fat_mirror;            /* BUG-0185: 1 = keep mirror FATs in sync */
 } fs_fat32_ctx_t;
 
 /* Per-node private data. */
@@ -229,8 +240,29 @@ static int fs_fat32_set_fat_entry(fs_fat32_ctx_t *ctx, u32 cluster, u32 value) {
     int rc = driver_block_write_sectors_raw(ctx->dev_idx,
                                (u64)ctx->fat_start_lba + sector_offset, 1,
                                ctx->fat_cache + sector_offset * ctx->bytes_per_sector);
-    return rc == 0 ? 0 : -3;
+    if (rc != 0) return -3;
+    /* BUG-0185 FIX (A12-020): keep the mirror FATs in sync. The old
+     * comment said "we only use FAT #0" and never touched the mirror,
+     * so a second OS honouring the dual-FAT layout read a stale table
+     * (fsck-style tools flag it; some drivers repair from FAT #1). Per
+     * fs.doc 2.1.4 (BPB_ExtFlags), when mirroring is ENABLED all FAT
+     * copies must be updated on every change; when it is DISABLED only
+     * the active FAT is maintained (the loop below then writes nothing).
+     * num_fats is validated <= 4 at mount, so the loop is bounded. */
+    if (ctx->fat_mirror && ctx->num_fats >= 2) {
+        for (u32 f = 0; f < ctx->num_fats; f++) {
+            if (f == ctx->active_fat) continue;
+            u64 fat_base = (u64)ctx->reserved_sectors +
+                           (u64)f * ctx->fat_size_sectors;
+            (void)driver_block_write_sectors_raw(ctx->dev_idx,
+                fat_base + sector_offset, 1,
+                ctx->fat_cache + sector_offset * ctx->bytes_per_sector);
+        }
+    }
+    return 0;
 }
+
+static void fs_fat32_fsinfo_write(fs_fat32_ctx_t *ctx);   /* BUG-0186 fwd */
 
 /* Allocate a free cluster from the FAT. Marks it as EOC (0x0FFFFFFF) and
  * returns the cluster number. Returns 0 on failure (no free cluster or I/O
@@ -240,15 +272,42 @@ static u32 fs_fat32_alloc_cluster(fs_fat32_ctx_t *ctx) {
     u64 entries = ctx->fat_cache_size / 4;
     u64 limit = (u64)ctx->total_clusters + 2;
     if (limit > entries) limit = entries;
-    for (u64 i = 2; i < limit; i++) {
-        u32 v;
-        memcpy(&v, ctx->fat_cache + i * 4, 4);
-        if ((v & 0x0FFFFFFFu) == 0) {
-            if (fs_fat32_set_fat_entry(ctx, (u32)i, FAT_EOC_END) < 0) return 0;
-            return (u32)i;
+    /* BUG-0186 FIX (A12-021): start the scan at the FSINFO next-free
+     * hint instead of always restarting at cluster 2 (O(volume) scan on
+     * every allocation for fragmented volumes), wrapping to 2 when the
+     * tail is exhausted. */
+    u32 start = ctx->next_free_hint;
+    if (start < 2 || start >= limit) start = 2;
+    for (u64 pass = 0; pass < 2; pass++) {
+        u64 from = (pass == 0) ? start : 2;
+        u64 to   = (pass == 0) ? limit : start;
+        for (u64 i = from; i < to; i++) {
+            u32 v;
+            memcpy(&v, ctx->fat_cache + i * 4, 4);
+            if ((v & 0x0FFFFFFFu) == 0) {
+                if (fs_fat32_set_fat_entry(ctx, (u32)i, FAT_EOC_END) < 0) return 0;
+                ctx->next_free_hint = (u32)i + 1;
+                /* 0xFFFFFFFF = "unknown" per the FSInfo spec - leave it. */
+                if (ctx->free_count_hint != 0xFFFFFFFFu && ctx->free_count_hint > 0)
+                    ctx->free_count_hint--;
+                fs_fat32_fsinfo_write(ctx);
+                return (u32)i;
+            }
         }
     }
     return 0;
+}
+
+/* BUG-0186 FIX (A12-021): persist the FSINFO free-count / next-free
+ * hints. FSINFO fields are advisory per the spec (7.1), so a stale value
+ * is harmless - but keeping them current means other OSes' free-space
+ * reporting and our own scan both stay fast and consistent. */
+static void fs_fat32_fsinfo_write(fs_fat32_ctx_t *ctx) {
+    if (!ctx->fsinfo_lba || !ctx->fsinfo_sector) return;
+    memcpy(ctx->fsinfo_sector + 488, &ctx->free_count_hint, 4);
+    memcpy(ctx->fsinfo_sector + 492, &ctx->next_free_hint, 4);
+    (void)driver_block_write_sectors_raw(ctx->dev_idx, ctx->fsinfo_lba, 1,
+                               ctx->fsinfo_sector);
 }
 
 /* Link `new_cluster` after `last_cluster` in the FAT chain. */
@@ -260,10 +319,25 @@ static int fs_fat32_append_cluster(fs_fat32_ctx_t *ctx, u32 last_cluster, u32 ne
 static int fs_fat32_free_cluster_chain(fs_fat32_ctx_t *ctx, u32 start_cluster) {
     u32 cluster = start_cluster;
     u32 oc_hops = 0;   /* BUG-0058: bound the walk (corrupt chain = cycle) */
+    u32 freed = 0;
     while (cluster >= 2 && cluster < FAT_EOC && oc_hops++ < ctx->total_clusters + 2u) {
         u32 next = fs_fat32_next_cluster(ctx, cluster);
         if (fs_fat32_set_fat_entry(ctx, cluster, 0x00000000u) < 0) return -1;
+        freed++;
         cluster = next;
+    }
+    /* BUG-0186 FIX (A12-021): the FSINFO hints must be maintained on the
+     * free path too (fs.doc "FSInfo Sector": free count at offset 488,
+     * next-free at 492, both advisory). The released run becomes the
+     * best next-free candidate and the free count grows accordingly. */
+    if (freed > 0) {
+        if (ctx->free_count_hint != 0xFFFFFFFFu)
+            ctx->free_count_hint += freed;
+        if (start_cluster >= 2 &&
+            (ctx->next_free_hint < 2 || start_cluster < ctx->next_free_hint)) {
+            ctx->next_free_hint = start_cluster;
+        }
+        fs_fat32_fsinfo_write(ctx);
     }
     return 0;
 }
@@ -323,10 +397,36 @@ static int fs_fat32_update_dir_entry(fs_fat32_ctx_t *ctx, u32 dir_cluster, u32 e
     return fs_fat32_write_dirent(ctx, dir_cluster, entry_offset, &e);
 }
 
+/* BUG-0188 support: find the cluster whose FAT chain points at `cluster`.
+ * O(chains) but deletion is rare. Returns 0 when none (start of chain). */
+static u32 fs_fat32_prev_cluster_of(const fs_fat32_ctx_t *ctx, u32 cluster) {
+    if (!ctx->fat_cache) return 0;
+    u64 entries = ctx->fat_cache_size / 4;
+    u64 limit = (u64)ctx->total_clusters + 2;
+    if (limit > entries) limit = entries;
+    for (u64 i = 2; i < limit; i++) {
+        u32 v;
+        memcpy(&v, ctx->fat_cache + i * 4, 4);
+        if ((v & 0x0FFFFFFFu) == cluster) return (u32)i;
+    }
+    return 0;
+}
+
+/* BUG-0188: forward declaration - mark_entry_deleted (below) validates
+ * the LFN run against the 8.3 checksum computed by this helper. */
+static u8 fs_fat32_lfn_checksum(const u8 *short_name);
+/* BUG-0187: forward declaration - find_entry (below) only trusts a
+ * collected LFN run after this validator passed it. */
+static int fs_fat32_lfn_run_valid(const u8 *lfn_buf, int lfn_count,
+                                  const u8 sfn[11]);
+
 /* Mark a directory entry as deleted (first byte = 0xE5). */
 static int fs_fat32_mark_entry_deleted(fs_fat32_ctx_t *ctx, u32 dir_cluster, u32 entry_offset) {
     fs_fat32_dirent_t e;
     if (fs_fat32_read_dirent(ctx, dir_cluster, entry_offset, &e) < 0) return -1;
+    /* Compute the LFN checksum over the ORIGINAL 11 name bytes BEFORE
+     * name[0] is overwritten with the 0xE5 tombstone below. */
+    u8 cksum = fs_fat32_lfn_checksum(e.name);
     e.name[0] = 0xE5;
     if (fs_fat32_write_dirent(ctx, dir_cluster, entry_offset, &e) < 0) return -1;
 
@@ -334,18 +434,38 @@ static int fs_fat32_mark_entry_deleted(fs_fat32_ctx_t *ctx, u32 dir_cluster, u32
      * entry as deleted. Previously only the 8.3 entry got 0xE5, leaving
      * orphan LFN slots that were later glued onto the NEXT entry created
      * in this directory (e.g. after `rm file1`, a later `mkdir d1`
-     * showed up as "d1file1" in tree/ls). LFN slots always sit
-     * immediately before the 8.3 entry (attr == 0x0F) and this driver
-     * only ever allocates them in the same cluster as the 8.3 entry
-     * (fs_fat32_create_entry). */
+     * showed up as "d1file1" in tree/ls). LFN slots sit immediately
+     * before the 8.3 entry (attr == 0x0F). */
     u32 off = entry_offset;
-    while (off >= 32) {
+    u32 cur_cluster = dir_cluster;
+    int guard = 0;
+    for (;;) {
+        /* BUG-0188 FIX (A12-023): the LFN walk used to stop at the
+         * cluster boundary, so LFN slots for a file whose 8.3 entry
+         * started a new cluster were never cleared (foreign-created long
+         * names resurrected as "d1file1"-style glued entries). Walk the
+         * cluster CHAIN backwards: when the walk reaches slot 0 of the
+         * current cluster, continue at the PREVIOUS chain cluster and
+         * set `off` one-past-its-end so the `off -= 32` below lands on
+         * its last slot. fs_fat32_prev_cluster_of returns 0 at the start
+         * of the chain; the guard bounds pathological FAT cycles. */
+        if (off < 32) {
+            u32 prev = fs_fat32_prev_cluster_of(ctx, cur_cluster);
+            if (prev < 2) break;            /* start of the chain */
+            cur_cluster = prev;
+            off = (u32)ctx->sectors_per_cluster * ctx->bytes_per_sector;
+        }
         off -= 32;
+        if (++guard > 2048) break;
         fs_fat32_dirent_t l;
-        if (fs_fat32_read_dirent(ctx, dir_cluster, off, &l) < 0) break;
+        if (fs_fat32_read_dirent(ctx, cur_cluster, off, &l) < 0) break;
         if (l.attr != FAT_ATTR_LFN) break;  /* reached a real 8.3 / end */
+        /* The LFN slot's checksum (offset 13) must match the 8.3 name
+         * being deleted - a mismatch means the run belongs to a
+         * different entry and must be left alone. */
+        if (((const u8 *)&l)[13] != cksum) break;
         l.name[0] = 0xE5;
-        if (fs_fat32_write_dirent(ctx, dir_cluster, off, &l) < 0) break;
+        if (fs_fat32_write_dirent(ctx, cur_cluster, off, &l) < 0) break;
     }
     return 0;
 }
@@ -416,8 +536,10 @@ static int fs_fat32_find_entry(fs_fat32_ctx_t *ctx, u32 dir_first_cluster, const
             char display[VFS_NAME_LEN];
             fs_fat32_format_short_name(e->name, display);
             int matched = (strcasecmp(display, name) == 0);
-            /* P2-19: if no 8.3 match, try LFN name. */
-            if (!matched && lfn_count > 0) {
+            /* P2-19: if no 8.3 match, try LFN name (validated per
+             * BUG-0187: checksum + sequence). */
+            if (!matched && lfn_count > 0 &&
+                fs_fat32_lfn_run_valid(lfn_buf, lfn_count, e->name)) {
                 char lfn_name[VFS_NAME_LEN];
                 if (fs_fat32_extract_lfn_name(lfn_buf, lfn_count, lfn_name, sizeof(lfn_name)) == 0) {
                     if (strcasecmp(lfn_name, name) == 0) matched = 1;
@@ -594,6 +716,75 @@ static u8 fs_fat32_lfn_checksum(const u8 *short_name) {
     return sum;
 }
 
+/* BUG-0187 FIX (A12-022), read side: validate a collected LFN run before
+ * it is glued onto an 8.3 entry (fs.doc 7.4 "Name the Create Process
+ * Gives to a Short Name" and the Microsoft LFN directory-entry format):
+ * every slot must carry attr 0x0F, type 0, first-cluster word 0 and the
+ * checksum of the 8.3 name; the sequence numbers must run N..1 with the
+ * 0x40 terminal flag on the FIRST slot (LFN slots are stored in reverse
+ * order). A damaged or glued run is ignored and the 8.3 name is used,
+ * instead of silently reassembling garbage. Returns 1 when consistent. */
+static int fs_fat32_lfn_run_valid(const u8 *lfn_buf, int lfn_count,
+                                  const u8 sfn[11]) {
+    if (lfn_count <= 0 || lfn_count > 20) return 0;
+    u8 cksum = fs_fat32_lfn_checksum(sfn);
+    for (int i = 0; i < lfn_count; i++) {
+        const u8 *slot = lfn_buf + i * 32;
+        u8 want = (u8)(lfn_count - i);
+        if (i == 0) want |= 0x40;                     /* terminal flag */
+        if (slot[0] != want) return 0;                /* sequence N..1 */
+        if (slot[11] != FAT_ATTR_LFN) return 0;       /* attr */
+        if (slot[12] != 0) return 0;                  /* type */
+        if (slot[13] != cksum) return 0;              /* 8.3 checksum */
+        if (slot[26] != 0 || slot[27] != 0) return 0; /* first cluster 0 */
+    }
+    return 1;
+}
+
+/* BUG-0187 support: map one long-name character to its 8.3 alias form
+ * (fs.doc 7.4): ASCII letters are uppercased; characters outside the
+ * legal short-name set become '_' (Windows drops spaces instead - a
+ * cosmetic divergence that keeps the alias deterministic and, more
+ * importantly, collision-checked below). */
+static u8 fs_fat32_alias_char(char c) {
+    if (c >= 'a' && c <= 'z') return (u8)(c - 32);
+    if (c >= 'A' && c <= 'Z') return (u8)c;
+    if (c >= '0' && c <= '9') return (u8)c;
+    switch (c) {
+        case '$': case '%': case '\'': case '-': case '_':
+        case '@': case '~': case '`': case '!': case '(': case ')':
+        case '{': case '}': case '^': case '#': case '&':
+            return (u8)c;
+        default:
+            return (u8)'_';
+    }
+}
+
+/* BUG-0187 support: 0 when an 11-byte short name is NOT in use in the dir. */
+static int fs_fat32_shortname_free(fs_fat32_ctx_t *ctx, u32 dir_first_cluster,
+                         const u8 cand[11]) {
+    u32 c = dir_first_cluster;
+    int guard = 0;
+    while (c >= 2 && guard++ < 1024) {
+        u8 *cbuf = (u8 *)kmalloc(ctx->bytes_per_cluster);
+        if (!cbuf) return -1;
+        if (fs_fat32_read_cluster(ctx, c, cbuf) < 0) { kfree(cbuf); return -1; }
+        u32 ents = ctx->bytes_per_cluster / 32;
+        for (u32 k = 0; k < ents; k++) {
+            const u8 *e = cbuf + k * 32;
+            if (e[0] == 0x00) { kfree(cbuf); return 0; }   /* end of dir */
+            if (e[0] == 0xE5) continue;                     /* deleted */
+            if (e[11] == FAT_ATTR_LFN) continue;            /* LFN slot */
+            if (memcmp(e, cand, 11) == 0) { kfree(cbuf); return 1; }
+        }
+        u32 nxt = fs_fat32_next_cluster(ctx, c);
+        kfree(cbuf);
+        if (nxt < 2 || nxt >= FAT_EOC) break;
+        c = nxt;
+    }
+    return 0;
+}
+
 /* Create a new directory entry in `dir_first_cluster`. The entry has the given
  * name, attribute, first_cluster, and size. P2-19: now supports LFN.
  * Returns 0 on success. */
@@ -616,17 +807,47 @@ static int fs_fat32_create_entry(fs_fat32_ctx_t *ctx, u32 dir_first_cluster,
     int needs_lfn = fs_fat32_needs_lfn(name);
     int num_lfn = 0;
     if (needs_lfn) {
-        /* Build the 8.3 alias directly: first 6 chars (uppercased) +
-         * "~1", extension blank. */
-        memset(rawname, ' ', 11);
-        int ni = 0;
-        while (ni < 6 && name[ni] && name[ni] != '.') {
-            char c = name[ni];
-            if (c >= 'a' && c <= 'z') c = (char)(c - 32);
-            rawname[ni] = (u8)c;
-            ni++;
+        /* BUG-0187 FIX (A12-022): proper alias generation per the
+         * Microsoft FAT spec 7.4. The old code emitted the first 6
+         * uppercased chars + "~1" with NO extension and NO collision
+         * check: two long names sharing a 6-char prefix produced two
+         * IDENTICAL on-disk aliases (spec violation - other OSes'
+         * behaviour is undefined), and "opencube.conf" lost its
+         * extension ("OPENCU~1" instead of "OPENCU~1.CON").
+         * Now: base (up to 6 chars) + "~N" (N=1..9, first free) +
+         * the real extension (uppercased, 1-3 chars). Uniqueness is
+         * verified against the directory's existing short entries. */
+        char base[7];
+        int nb = 0;
+        const char *dot = 0;
+        for (const char *q = name; *q; q++) if (*q == '.') dot = q;
+        for (int q = 0; name[q] && name[q] != '.' && nb < 6; q++) {
+            base[nb++] = (char)fs_fat32_alias_char(name[q]);
         }
-        rawname[6] = '~'; rawname[7] = '1';
+        base[nb] = 0;
+        char ext[4]; int ne = 0;
+        if (dot && dot[1]) {
+            for (const char *q = dot + 1; *q && ne < 3; q++) {
+                ext[ne++] = (char)fs_fat32_alias_char(*q);
+            }
+        }
+        ext[ne] = 0;
+        int unique = 0;
+        for (int tail = 1; tail <= 9 && !unique; tail++) {
+            u8 cand[11];
+            memset(cand, ' ', 11);
+            int pos = 0;
+            for (int q = 0; q < nb; q++) cand[pos++] = (u8)base[q];
+            if (pos > 6) pos = 6;
+            cand[pos++] = '~';
+            cand[pos++] = (u8)('0' + tail);
+            for (int q = 0; q < ne; q++) cand[8 + q] = (u8)ext[q];
+            if (fs_fat32_shortname_free(ctx, dir_first_cluster, cand) == 0) {
+                memcpy(rawname, cand, 11);
+                unique = 1;
+            }
+        }
+        if (!unique) return -1;   /* 9 tails all taken: caller creates a new name */
         if (name[0] == '.') { rawname[0] = '_'; }
         /* Calculate number of LFN entries needed. */
         int name_len = strlen(name);
@@ -983,13 +1204,15 @@ static int fs_fat32_mkdir(fs_vfs_node_t *parent, const char *name) {
     if (newc < 2) return -4;
     u8 *zbuf = (u8 *)kmalloc(ctx->bytes_per_cluster);
     if (!zbuf) {
-        fs_fat32_set_fat_entry(ctx, newc, 0);  /* free the cluster */
+        /* BUG-0186: free via the chain helper so the FSINFO free-count /
+         * next-free hints stay current (was a raw set_fat_entry(0)). */
+        fs_fat32_free_cluster_chain(ctx, newc);
         return -5;
     }
     memset(zbuf, 0, (usize)ctx->bytes_per_cluster);
     if (fs_fat32_write_cluster(ctx, newc, zbuf) < 0) {
         kfree(zbuf);
-        fs_fat32_set_fat_entry(ctx, newc, 0);
+        fs_fat32_free_cluster_chain(ctx, newc);
         return -6;
     }
     kfree(zbuf);
@@ -997,7 +1220,7 @@ static int fs_fat32_mkdir(fs_vfs_node_t *parent, const char *name) {
     /* Create the directory entry in the parent. */
     if (fs_fat32_create_entry(ctx, pino->start_cluster, name, FAT_ATTR_DIRECTORY,
                            newc, 0, NULL, NULL) < 0) {
-        fs_fat32_set_fat_entry(ctx, newc, 0);  /* free the cluster */
+        fs_fat32_free_cluster_chain(ctx, newc);
         return -7;
     }
     return 0;
@@ -1157,9 +1380,12 @@ static int fs_fat32_readdir(fs_vfs_node_t *dir, int index, fs_vfs_dirent_t *entr
         if (e->attr & FAT_ATTR_VOLUME_ID) { lfn_count = 0; continue; }
         if (shown == index) {
             memset(entry, 0, sizeof(*entry));
-            /* P2-12: prefer the long name if we collected any LFN slots. */
+            /* P2-12: prefer the long name if we collected a VALID LFN run
+             * (BUG-0187: checksum + sequence validated; a damaged or
+             * glued run falls back to the 8.3 name). */
             int have_lfn = 0;
-            if (lfn_count > 0) {
+            if (lfn_count > 0 &&
+                fs_fat32_lfn_run_valid(lfn_buf, lfn_count, e->name)) {
                 char lfn_name[VFS_NAME_LEN];
                 if (fs_fat32_extract_lfn_name(lfn_buf, lfn_count,
                                            lfn_name, sizeof(lfn_name)) == 0
@@ -1232,9 +1458,11 @@ static fs_vfs_node_t *fs_fat32_lookup(fs_vfs_node_t *parent, const char *name) {
         char display[VFS_NAME_LEN];
         fs_fat32_format_short_name(e->name, display);
 
-        /* P2-19: try 8.3 match first, then LFN match. */
+        /* P2-19: try 8.3 match first, then LFN match (validated per
+         * BUG-0187: checksum + sequence). */
         int matched = (strcasecmp(display, name) == 0);
-        if (!matched && lfn_count > 0) {
+        if (!matched && lfn_count > 0 &&
+            fs_fat32_lfn_run_valid(lfn_buf, lfn_count, e->name)) {
             char lfn_name[VFS_NAME_LEN];
             if (fs_fat32_extract_lfn_name(lfn_buf, lfn_count, lfn_name, sizeof(lfn_name)) == 0) {
                 if (strcasecmp(lfn_name, name) == 0) {
@@ -1312,7 +1540,10 @@ static fs_vfs_node_t *fs_fat32_fs_mount(const char *device) {
     if (bpb->bytes_per_sector != 512 ||
         bpb->sectors_per_cluster == 0 ||
         bpb->reserved_sectors < 1 ||
-        bpb->num_fats == 0) {
+        bpb->num_fats == 0 || bpb->num_fats > 4) {
+        /* BUG-0185: num_fats is also bounded (the FAT32 spec's own
+         * formatter uses 2) so the mirror-write loop below stays
+         * bounded on crafted volumes. */
         screen_console_puts("fat32: invalid BPB\n");
         return NULL;
     }
@@ -1351,6 +1582,29 @@ static fs_vfs_node_t *fs_fat32_fs_mount(const char *device) {
         return NULL;
     }
 
+    /* BUG-0185 FIX (A12-020), FAT32 side: BPB_ExtFlags (fs.doc 2.1.4,
+     * "FAT32 Extended BPB"): bit 7 = FAT mirroring DISABLED; bits 0-3 =
+     * the active FAT index, valid only when mirroring is disabled. The
+     * driver used to ignore the field entirely - it always cached FAT #0
+     * (wrong table on mirroring-disabled volumes that point at another
+     * active FAT) and never updated the mirrors. Cache the ACTIVE FAT
+     * below; fs_fat32_set_fat_entry replays writes to the other copies
+     * while mirroring is enabled. */
+    ctx->active_fat = 0;
+    ctx->fat_mirror = 1;
+    if (bpb->ext_flags & 0x0080u) {
+        ctx->fat_mirror = 0;
+        ctx->active_fat = (u32)(bpb->ext_flags & 0x000Fu);
+        if (ctx->active_fat >= ctx->num_fats) {
+            screen_console_puts("fat32: ext_flags active FAT out of range\n");
+            kfree(ctx);
+            return NULL;
+        }
+    }
+    /* Point the FAT cache at the ACTIVE copy (FAT #0 on normal volumes). */
+    ctx->fat_start_lba = ctx->reserved_sectors +
+                         ctx->active_fat * ctx->fat_size_sectors;
+
     /* Cache the FAT. */
     ctx->fat_cache_size = (u64)ctx->fat_size_sectors * ctx->bytes_per_sector;
     ctx->fat_cache = (u8 *)kmalloc(ctx->fat_cache_size);
@@ -1368,12 +1622,77 @@ static fs_vfs_node_t *fs_fat32_fs_mount(const char *device) {
         return NULL;
     }
 
+    /* BUG-0186 FIX (A12-021): FSINFO sector handling (fs.doc "FSInfo
+     * Sector" / BPB_FSInfo in the FAT32 Extended BPB 2.1.4). Layout:
+     * lead signature 0x41615252 @ 0, structure signature 0x61417272
+     * @ 484, free-cluster count @ 488, next-free cluster @ 492, trail
+     * signature 0xAA550000 @ 508. Both hint fields are advisory and
+     * 0xFFFFFFFF means "unknown". The driver used to ignore the
+     * structure completely. Now: maintain the next-free pointer and
+     * free count in memory on every alloc/free, persist them to the
+     * FSINFO sector, and (re)build the signature frame when the sector
+     * is blank or damaged - which is the normal state on our own
+     * mkfs.fat32 volumes (mkfs stamps BPB_FSInfo but zeroes the
+     * reserved area afterwards). Volumes formatted without an FSINFO
+     * sector at all (BPB_FSInfo = 0 or 0xFFFF) are handled honestly:
+     * the hints are still maintained in RAM, nothing is written. */
+    if (bpb->fs_info_sector != 0xFFFF && bpb->fs_info_sector != 0 &&
+        (u32)bpb->fs_info_sector < ctx->data_start_lba) {
+        u8 *sec = (u8 *)kmalloc(ctx->bytes_per_sector);
+        if (sec) {
+            int valid = 0;
+            if (driver_block_read_sectors_raw(dev_idx, bpb->fs_info_sector,
+                                              1, sec) == 0) {
+                u32 lead, strt, trail;
+                memcpy(&lead, sec, 4);
+                memcpy(&strt, sec + 484, 4);
+                memcpy(&trail, sec + 508, 4);
+                valid = (lead == 0x41615252u && strt == 0x61417272u &&
+                         trail == 0xAA550000u);
+            }
+            if (!valid) {
+                u32 lead = 0x41615252u, strt = 0x61417272u, trail = 0xAA550000u;
+                memset(sec, 0, ctx->bytes_per_sector);
+                memcpy(sec, &lead, 4);
+                memcpy(sec + 484, &strt, 4);
+                memcpy(sec + 508, &trail, 4);
+            }
+            ctx->fsinfo_lba = bpb->fs_info_sector;
+            ctx->fsinfo_sector = sec;
+            u32 disk_next_free;
+            memcpy(&disk_next_free, sec + 492, 4);
+            if (disk_next_free >= 2 && disk_next_free < ctx->total_clusters + 2)
+                ctx->next_free_hint = disk_next_free;
+        }
+    }
+    /* Recompute the free-cluster count from the freshly cached FAT
+     * (entries in [2, total_clusters + 2)); this also repairs a stale
+     * count for other OSes' free-space reporting. The next-free hint
+     * from disk (when valid) seeds the allocation scan. */
+    {
+        u32 free_count = 0;
+        u64 entries = ctx->fat_cache_size / 4;
+        u64 limit = (u64)ctx->total_clusters + 2;
+        if (limit > entries) limit = entries;
+        for (u64 i = 2; i < limit; i++) {
+            u32 v;
+            memcpy(&v, ctx->fat_cache + i * 4, 4);
+            if ((v & 0x0FFFFFFFu) == 0) free_count++;
+        }
+        ctx->free_count_hint = free_count;
+        if (ctx->next_free_hint < 2 || ctx->next_free_hint >= ctx->total_clusters + 2)
+            ctx->next_free_hint = 2;
+    }
+
     g_last_ctx = ctx;
 
     /* Create the root VFS node. */
     fs_fat32_inode_t *root_ino = (fs_fat32_inode_t *)kmalloc(sizeof(fs_fat32_inode_t));
     if (!root_ino) {
         kfree(ctx->fat_cache);
+        /* BUG-0186: match the unmount teardown - the FSINFO scratch
+         * sector is alive at this point and would leak. */
+        if (ctx->fsinfo_sector) kfree(ctx->fsinfo_sector);
         kfree(ctx);
         return NULL;
     }
@@ -1387,6 +1706,9 @@ static fs_vfs_node_t *fs_fat32_fs_mount(const char *device) {
     if (!root) {
         kfree(root_ino);
         kfree(ctx->fat_cache);
+        /* BUG-0186: match the unmount teardown - the FSINFO scratch
+         * sector is alive at this point and would leak. */
+        if (ctx->fsinfo_sector) kfree(ctx->fsinfo_sector);
         kfree(ctx);
         return NULL;
     }
@@ -1428,6 +1750,10 @@ static int fs_fat32_fs_unmount(fs_vfs_node_t *root) {
              * under the same guard the mount path uses. */
             if (g_last_ctx == ctx) g_last_ctx = NULL;
             if (ctx->fat_cache) kfree(ctx->fat_cache);
+            /* BUG-0186: the FSINFO scratch sector is allocated at mount
+             * alongside the FAT cache - release it here too or every
+             * mount/unmount cycle leaks one 512-byte block. */
+            if (ctx->fsinfo_sector) kfree(ctx->fsinfo_sector);
             kfree(ctx);
         }
     }
@@ -1461,6 +1787,11 @@ void fs_fat32_init(void) {
     g_fat32_fs_type.dir_ops  = &g_fat32_dir_ops;
 
     fs_vfs_register_fs("fat32", &g_fat32_fs_ops, &g_fat32_file_ops, &g_fat32_dir_ops);
+    /* BUG-0179 FIX (A12-014): FAT32 name matching is case-insensitive
+     * (fs_fat32_lookup/find_entry use strcasecmp) - tell the VFS node
+     * cache so cached and uncached lookups agree. */
+    g_fat32_fs_type.case_insensitive = 1;
+    fs_vfs_set_fs_case_insensitive("fat32", 1);
     screen_console_puts("fat32: registered (read/write)\n");
 }
 

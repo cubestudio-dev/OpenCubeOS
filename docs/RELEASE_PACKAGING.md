@@ -21,6 +21,7 @@ A SRC zip contains source, docs and build tooling only. Exclude:
 | `website/node_modules/` | Website dependencies |
 | `.git/` | Repository history |
 | `build/` | Kernel/ISO build products |
+| `docs/WORKFLOW.md` | Internal agent workflow notes; not part of the shipped source (excluded since WP-10-AUDIT_P2-fix1) |
 | `*.o`, `*.elf`, `*.bin`, `*.iso`, `*.img`, `*.tar.gz` outside `iso/boot/grub/fonts/` | Compiled artifacts (the GRUB `unicode.pf2` font is a legit source-tree asset and stays) |
 | `__pycache__/`, `*.pyc` | Python caches |
 
@@ -36,12 +37,13 @@ zip -r -q /tmp/<name>-src.zip . \
   -x "website/node_modules/*" \
   -x ".git/*" \
   -x "build/*" \
+  -x "docs/WORKFLOW.md" \
   -x "*.pyc" -x "*__pycache__*"
 ```
 
 Sanity gates before shipping:
 
-1. `unzip -l <name>-src.zip | grep -E "downloads/|/build/|node_modules|\.iso|\.next/"` -> zero matches
+1. `unzip -l <name>-src.zip | grep -E "downloads/|/build/|node_modules|\.iso|\.next/|WORKFLOW\.md"` -> zero matches
    (only `iso/boot/grub/fonts/unicode.pf2` may match the broad `\.(bin|pf2)$` net).
 2. Expected size: roughly 2.5-3.5 MB (p0fix2 = 2,566,826 B; p1fix1 = 2,647,642 B).
    Anything above ~5 MB means an exclusion leaked — stop and fix the pack.

@@ -29,6 +29,12 @@ typedef struct {
     fs_vfs_node_t     *root_node;                  /* root of mounted fs */
     char            device[VFS_NAME_LEN];
     int             in_use;
+    /* BUG-0184 FIX (A12-019 b): directory node that lived at the mount
+     * point before the mount shadowed it. Kept alive here and restored
+     * when the mount is removed, so mounting onto an existing directory
+     * REUSES it instead of inserting a second same-name child (readdir
+     * double-listing) and instead of leaking it. */
+    fs_vfs_node_t     *shadowed_node;
 } fs_vfs_mount_t;
 
 static fs_vfs_fs_type_t  g_fs_types[VFS_MAX_FS_TYPES];
@@ -56,6 +62,32 @@ static fs_vfs_fs_type_t *fs_vfs_find_fs_type(const char *name) {
         }
     }
     return NULL;
+}
+
+/* BUG-0179 FIX (A12-014): node-cache name match. The cache must apply
+ * the SAME name rule as the backing fs's lookup op: FAT32/exFAT compare
+ * case-insensitively, ramfs/ext4 compare exactly. The old code used
+ * strcasecmp for every fs, so on ramfs "/ETC" hit the cached "/etc"
+ * node even though fs_ramfs_lookup (strcmp) would have refused - the
+ * resolution result depended on whether the node happened to be cached. */
+static int fs_vfs_cache_name_match(const fs_vfs_node_t *parent,
+                                   const char *child_name,
+                                   const char *comp) {
+    if (parent->fs_type && parent->fs_type->case_insensitive) {
+        return strcasecmp(child_name, comp) == 0;
+    }
+    return strcmp(child_name, comp) == 0;
+}
+
+/* BUG-0179 FIX (A12-014): public setter, called by each fs's init right
+ * after registration (the registry stores its own copy of the fs_type
+ * descriptor, so the flag has to be recorded here as well as in the
+ * fs's own static struct). */
+int fs_vfs_set_fs_case_insensitive(const char *fs_name, int flag) {
+    fs_vfs_fs_type_t *ft = fs_vfs_find_fs_type(fs_name);
+    if (!ft) return -1;
+    ft->case_insensitive = flag ? 1 : 0;
+    return 0;
 }
 
 /* Find a mount table entry by normalized mount point path. */
@@ -292,8 +324,26 @@ int fs_vfs_mount(const char *fs_type, const char *mount_point, const char *devic
 
     /* If mounting at "/", set global root to be this fs's root. */
     if (strcmp(norm, "/") == 0) {
-        /* Carry over any children of the placeholder global root (none,
-         * typically) and substitute. */
+        /* BUG-0184 FIX (A12-019 a): the placeholder root allocated by
+         * fs_vfs_init() used to be silently dropped here (leaked), and
+         * any children attached to it before the first mount were lost.
+         * Carry the children over to the real root, then release the
+         * placeholder. The umount side refuses "/" (BUG-0133), so
+         * g_global_root can never dangle and this substitution happens
+         * exactly once. */
+        if (g_global_root && g_global_root != root) {
+            fs_vfs_node_t *c = g_global_root->first_child;
+            while (c) {
+                fs_vfs_node_t *next = c->next_sibling;
+                fs_vfs_attach_child(root, c);
+                c = next;
+            }
+            g_global_root->first_child = NULL;
+            /* Placeholder nodes carry no fs private data (fs_type NULL,
+             * private NULL from fs_vfs_alloc_node), so a plain kfree is
+             * complete. */
+            kfree(g_global_root);
+        }
         root->parent = NULL;
         g_global_root = root;
     } else {
@@ -319,6 +369,33 @@ int fs_vfs_mount(const char *fs_type, const char *mount_point, const char *devic
         strncpy(root->name, last, VFS_NAME_LEN - 1);
         root->name[VFS_NAME_LEN - 1] = 0;
         root->parent = parent;
+        /* BUG-0184 FIX (A12-019 b): mount-shadowing. The old code blindly
+         * linked a SECOND child with the same name, so readdir listed the
+         * mount point twice and the tree disagreed with the mount table.
+         * A second mount at the same exact path is still refused (see the
+         * fs_vfs_find_mount check above); mounting onto an existing plain
+         * directory now SHADOWS it Linux-style: the old node is detached
+         * from the sibling list, kept in the mount entry, and restored on
+         * umount. One visible entry, existing node reused, nothing freed
+         * while hidden (its fds and cached children stay valid). */
+        fs_vfs_node_t *shadowed = NULL;
+        for (fs_vfs_node_t *c = parent->first_child; c; c = c->next_sibling) {
+            if (strcmp(c->name, last) == 0 && c != root) {
+                if (c->type != VFS_TYPE_DIR) {
+                    screen_console_puts("vfs_mount: mount point exists and is not a directory\n");
+                    ft->fs_ops->unmount(root);
+                    m->in_use = 0;
+                    return -8;
+                }
+                shadowed = c;
+                break;
+            }
+        }
+        if (shadowed) {
+            fs_vfs_detach_child(shadowed);
+            m->shadowed_node = shadowed;
+            screen_console_puts("vfs: shadow mount (previous directory restored on umount)\n");
+        }
         /* Attach as child of parent. */
         root->next_sibling = parent->first_child;
         parent->first_child = root;
@@ -417,9 +494,17 @@ int fs_vfs_umount(const char *mount_point) {
         return -5;
     }
 
-    /* Detach root from parent (if any). */
+    /* Detach root from parent (if any) and restore any shadowed node. */
     if (m->root_node->parent) {
+        fs_vfs_node_t *mparent = m->root_node->parent;
         fs_vfs_detach_child(m->root_node);
+        /* BUG-0184 FIX (A12-019 b): bring back the directory the mount
+         * shadowed, so the tree looks exactly like it did before the
+         * mount (its cached children and open fds were kept alive). */
+        if (m->shadowed_node) {
+            fs_vfs_attach_child(mparent, m->shadowed_node);
+            m->shadowed_node = NULL;
+        }
     }
 
     /* Call fs unmount. */
@@ -509,9 +594,12 @@ static fs_vfs_node_t *fs_vfs_resolve_follow(const char *path, int depth) {
         /* P1-4 FIX: check if we already have a cached child with this name
          * before calling lookup. This prevents the node leak where every
          * lookup allocates a new node that is never freed. */
+        /* BUG-0179 FIX (A12-014): match with the backing fs's own rule
+         * (FAT32/exFAT insensitive, ramfs/ext4 exact) instead of a
+         * blanket strcasecmp. */
         fs_vfs_node_t *cached = NULL;
         for (fs_vfs_node_t *c = cur->first_child; c; c = c->next_sibling) {
-            if (strcasecmp(c->name, comp) == 0) {
+            if (fs_vfs_cache_name_match(cur, c->name, comp)) {
                 cached = c;
                 break;
             }
@@ -604,6 +692,25 @@ static int fs_vfs_basename(const char *path, char *out, int out_len) {
     return 0;
 }
 
+/* BUG-0182 FIX (A12-017): the permission bits were write-only.
+ * chmod/chown stored them, but no open/read/write path ever consulted
+ * them, so a mode-0000 file was readable/writable by anyone.
+ *
+ * Enforcement point (single-user kernel): the kernel has no per-task
+ * uid - every task executes as the implicit owner identity uid 0. A
+ * node owned by uid 0 is therefore checked against the OWNER class
+ * bits; a node chown'd to another uid is checked against the OTHER
+ * class bits (we are not the owner, and there are no groups). Default
+ * node modes are 0644 (file) / 0755 (dir), so every pre-existing
+ * workflow (cat/echo/cp/editor on default files) keeps working; mode
+ * 0000 refuses both directions. */
+static int fs_vfs_node_grants(const fs_vfs_node_t *n, int want_write) {
+    u32 mode = n->mode & 0777u;            /* rwxrwxrwx */
+    u32 cls = (n->uid == 0) ? ((mode >> 6) & 7u)   /* owner class  */
+                            : (mode & 7u);         /* other class  */
+    return (cls & (want_write ? 2u : 4u)) != 0;
+}
+
 /* ---- File operations ---- */
 
 int fs_vfs_open(const char *path, int flags) {
@@ -647,6 +754,20 @@ int fs_vfs_open(const char *path, int flags) {
     if (n->type != VFS_TYPE_FILE && n->type != VFS_TYPE_DEVICE) {
         return -7;  /* can't open a dir */
     }
+    /* BUG-0182 FIX (A12-017): open() is the permission gate - the mode
+     * is consulted here (see fs_vfs_node_grants) and again defensively
+     * on every read()/write() through the fd below. POSIX semantics:
+     * O_RDONLY == 0, so "not explicitly write-only" counts as a read
+     * open (the syscall layer passes user flags through verbatim and
+     * user programs open read-only with flags 0). */
+    {
+        int want_read  = (flags & VFS_O_WRONLY) == 0;
+        int want_write = (flags & VFS_O_WRONLY) != 0;   /* RDWR = RDONLY|WRONLY */
+        if ((want_read && !fs_vfs_node_grants(n, 0)) ||
+            (want_write && !fs_vfs_node_grants(n, 1))) {
+            return -9;   /* EACCES */
+        }
+    }
     int fd = fs_vfs_alloc_fd();
     if (fd < 0) return -8;
     g_fds[fd].node = n;
@@ -681,7 +802,22 @@ int fs_vfs_open(const char *path, int flags) {
 int fs_vfs_read(int fd, void *buf, int size) {
     if (fd < 0 || fd >= VFS_MAX_FDS || !g_fds[fd].in_use) return -1;
     fs_vfs_file_t *f = &g_fds[fd];
-    if (!f->node || !f->node->fs_type || !f->node->fs_type->file_ops ||
+    if (!f->node) return -2;
+    /* BUG-0178 FIX (A12-013), read side: refuse reads only on an
+     * UNAMBIGUOUS write-only open (WRONLY set while RDONLY and CREAT
+     * are clear). The syscall layer passes user flags through verbatim
+     * and shipped user programs encode read intent both as 0 (POSIX
+     * O_RDONLY: sort/uniq) and as WRONLY|CREAT (6: wc/uniq open with
+     * create, then read), so a strict "RDONLY bit required" gate
+     * regressed those existing workflows. A plain VFS_O_WRONLY fd
+     * (flags == 0x2 exactly) is still refused. The WRITE side below is
+     * the side this bug is about and stays strict. */
+    if ((f->flags & VFS_O_WRONLY) != 0 &&
+        (f->flags & (VFS_O_RDONLY | VFS_O_CREAT)) == 0) return -1;
+    /* BUG-0182 FIX (A12-017): re-check the permission bits at use time
+     * (a chmod after open revokes access on the next call). */
+    if (!fs_vfs_node_grants(f->node, 0)) return -9;
+    if (!f->node->fs_type || !f->node->fs_type->file_ops ||
         !f->node->fs_type->file_ops->read) {
         return -2;
     }
@@ -694,8 +830,18 @@ int fs_vfs_read(int fd, void *buf, int size) {
 int fs_vfs_write(int fd, const void *buf, int size) {
     if (fd < 0 || fd >= VFS_MAX_FDS || !g_fds[fd].in_use) return -1;
     fs_vfs_file_t *f = &g_fds[fd];
-    if (f->flags == VFS_O_RDONLY) return -1;  /* read-only fd */
-    if (!f->node || !f->node->fs_type || !f->node->fs_type->file_ops ||
+    /* BUG-0178 FIX (A12-013): the old equality test `f->flags ==
+     * VFS_O_RDONLY` only caught the exact value 0x1, so O_RDONLY|O_APPEND
+     * (0x9), O_RDONLY|O_CREAT (0x5) or flags==0 all slipped through and
+     * the write went ahead on a read-only fd. Bitwise rule instead: a fd
+     * has write access only when the WRONLY bit is set (which includes
+     * both halves of O_RDWR = RDONLY|WRONLY). Dual-sided: O_RDONLY and
+     * O_RDONLY|O_APPEND refuse, O_RDWR and O_WRONLY still write. */
+    if ((f->flags & VFS_O_WRONLY) == 0) return -1;   /* not opened for writing */
+    if (!f->node) return -2;
+    /* BUG-0182 FIX (A12-017): re-check the permission bits at use time. */
+    if (!fs_vfs_node_grants(f->node, 1)) return -9;
+    if (!f->node->fs_type || !f->node->fs_type->file_ops ||
         !f->node->fs_type->file_ops->write) {
         return -2;
     }
@@ -710,7 +856,7 @@ int fs_vfs_write(int fd, const void *buf, int size) {
     return n;
 }
 
-int fs_vfs_seek(int fd, int offset, int whence) {
+i64 fs_vfs_seek(int fd, i64 offset, int whence) {
     if (fd < 0 || fd >= VFS_MAX_FDS || !g_fds[fd].in_use) return -1;
     fs_vfs_file_t *f = &g_fds[fd];
     if (!f->node) return -2;
@@ -735,7 +881,12 @@ int fs_vfs_seek(int fd, int offset, int whence) {
          * SEEK_END collapse to 0. */
         f->offset = f->node->fs_type->file_ops->seek(f->node, new_off, VFS_SEEK_SET);
     }
-    return (int)f->offset;
+    /* BUG-0183 FIX (A12-018): the offset used to be narrowed with
+     * (int), so any seek landing beyond 2 GiB came back as a negative
+     * number and every caller read it as a failure. VFS offsets are
+     * u64; return them at full width (the prototype changed from int
+     * to i64; the sole caller chain is internal). */
+    return (i64)f->offset;
 }
 
 int fs_vfs_close(int fd) {
@@ -898,7 +1049,7 @@ int fs_vfs_rmdir(const char *path) {
          * so later lookups cannot hit the stale cached node. */
         fs_vfs_node_t *dead = NULL;
         for (fs_vfs_node_t *c = parent->first_child; c; c = c->next_sibling) {
-            if (strcasecmp(c->name, base) == 0) { dead = c; break; }
+            if (fs_vfs_cache_name_match(parent, c->name, base)) { dead = c; break; }
         }
         if (dead) fs_vfs_detach_child(dead);
     }
@@ -939,7 +1090,7 @@ int fs_vfs_unlink(const char *path) {
              * stale cached node (while `ls` showed the file gone). */
             fs_vfs_node_t *dead = NULL;
             for (fs_vfs_node_t *c = parent->first_child; c; c = c->next_sibling) {
-                if (strcasecmp(c->name, base) == 0) { dead = c; break; }
+                if (fs_vfs_cache_name_match(parent, c->name, base)) { dead = c; break; }
             }
             if (dead) fs_vfs_detach_child(dead);
         }
@@ -986,17 +1137,37 @@ void fs_vfs_list_mounts(void) {
     for (int i = 0; i < VFS_MAX_MOUNTS; i++) {
         if (!g_mounts[i].in_use) continue;
         any = 1;
-        char line[VFS_PATH_LEN + 64];
-        strcpy(line, "  ");
-        strcpy(line + strlen(line), g_mounts[i].mount_point);
-        strcpy(line + strlen(line), "  ");
-        strcpy(line + strlen(line), g_mounts[i].fs_type->name);
-        if (g_mounts[i].device[0]) {
-            strcpy(line + strlen(line), "  (dev=");
-            strcpy(line + strlen(line), g_mounts[i].device);
-            strcpy(line + strlen(line), ")");
+        /* BUG-0181 FIX (A12-016): the old code strcpy()'d mount_point,
+         * fs_type and device into `line[VFS_PATH_LEN + 64]` (320 B).
+         * Worst case is 2 + 255 (mount_point) + 2 + 15 (fs_type) +
+         * 7 + 63 (device) + 1 + 1 + 1 = 347 B -> up to ~27 bytes of
+         * stack overrun with long field values. The buffer is now sized
+         * for the true worst case AND every append is bounds-clamped
+         * (snprintf-style), so no field combination can write past it. */
+        char line[VFS_PATH_LEN + VFS_NAME_LEN + VFS_NAME_LEN + 32];
+        int pos = 0;
+        {
+            /* Bounded append helper: copies src into line+pos without
+             * ever exceeding the buffer, always NUL-terminates. */
+            #define VFS_LM_APPEND(s) do { \
+                const char *src_ = (s); \
+                while (*src_ && pos < (int)sizeof(line) - 1) { \
+                    line[pos++] = *src_++; \
+                } \
+                line[pos] = 0; \
+            } while (0)
+            VFS_LM_APPEND("  ");
+            VFS_LM_APPEND(g_mounts[i].mount_point);
+            VFS_LM_APPEND("  ");
+            VFS_LM_APPEND(g_mounts[i].fs_type ? g_mounts[i].fs_type->name : "?");
+            if (g_mounts[i].device[0]) {
+                VFS_LM_APPEND("  (dev=");
+                VFS_LM_APPEND(g_mounts[i].device);
+                VFS_LM_APPEND(")");
+            }
+            VFS_LM_APPEND("\n");
+            #undef VFS_LM_APPEND
         }
-        strcpy(line + strlen(line), "\n");
         screen_console_puts(line);
     }
     if (!any) screen_console_puts("  (no mounts)\n");

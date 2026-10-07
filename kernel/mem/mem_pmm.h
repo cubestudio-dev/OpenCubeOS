@@ -50,6 +50,10 @@ void mem_pmm_free_frame(u64 paddr);
 /* Reserve a physical region [start, start+size) so it won't be allocated. */
 void mem_pmm_reserve_region(u64 start, u64 size);
 
+/* Test support (BUG-0136 regression): read-only query whether the frame
+ * containing paddr is currently marked FREE in the PMM bitmap. */
+int mem_pmm_frame_is_free(u64 paddr);
+
 /* Query statistics. */
 void mem_pmm_get_stats(mem_pmm_stats_t *out);
 

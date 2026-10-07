@@ -20,9 +20,9 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-AUDIT-01-p1fix4)
+## Stats (WP-10-AUDIT_P2-fix1)
 
-- **Source code**: 95,001 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
+- **Source code**: 97,307 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
   verify: `find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
 - **Work packages**: 16 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c, WP-10d, project restructure, WP-10-wp08fix1, WP-AUDIT-01 + p0fix1)
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
@@ -248,7 +248,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   48 kHz by design and the test verifies the rejection).
 - **Commands**: sound, hda, ac97, sb16, es1370, virtiosnd, usbaudio,
   play [device] [rate], volume [device] [0-100]; lspci shows sound
-  controllers (class 0x04). 173 commands registered at boot
+  controllers (class 0x04). 176 commands registered at boot
   (including the rule-9 self-hosting set: abdisk, install,
   grub-install, abcfg, and the WP-10-wp08fix1 nano/vi editors).
 - **Verification**: hda_test / ac97_test / sb16_test / es1370_test /
@@ -288,7 +288,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   (BOT + SCSI wired into blk), CDC-ACM/FTDI serial, UAC 1.0/2.0.
 - **Commands**: usb, usbdev + usb_core_test / usb_kbd_test /
   usb_mouse_test / usb_storage_test / usb_serial_test / usb_hotplug_test
-  / usb_hub_test (173 commands at boot; 138 L1 interfaces;
+  / usb_hub_test (176 commands at boot; 138 L1 interfaces;
   WP-10d-fix2 added 7: core_power_shutdown/core_power_suspend/core_power_halt/core_power_reboot
   + shell_register_command_ex/shell_list_commands_a_z/shell_list_commands_by_wp).
 - **Verification**: UHCI/OHCI/EHCI/XHCI exercised in QEMU with explicit
@@ -433,9 +433,9 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-AUDIT-01-p1fix4)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/wp-audit-01-p1fix4) — ISO + SRC zip
-  (ISO sha256 `ddb61e9955caa56e8f0123b8cba2c41ac80c95cf8c626f9f173218a99e02a90d`,
-  SRC sha256 `17531c2694c048fb1c5a376132802914e19f3969469978ce21820a186bff8de6`)
+- **Latest (WP-10-AUDIT_P2-fix1)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix1) — ISO + SRC zip
+  (ISO sha256 `737c8cfa4838dd950258b2ba18a6d36c3a672c8583e9c4bb3d17e8a504875b8e`,
+  SRC sha256 `89087bc1e9e61cdb1d979a19872b3a8f0b282179803e0f8432e37ee2d7be644c`)
 - **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - Or visit https://cubestudio-dev.github.io/OpenCubeOS for direct downloads
 

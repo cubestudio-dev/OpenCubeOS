@@ -128,6 +128,11 @@ typedef struct {
     u8   *bitmap_cache;          /* NULL = no bitmap found on the volume */
     u32  root_cluster;
     u32  last_alloc;
+    /* BUG-0185 FIX (A12-020): exFAT may carry two FATs (TexFAT) and the
+     * VolumeFlags.ActiveFat bit selects the one in use. The driver used
+     * to hard-code FAT #0 and ignore both fields. */
+    u8   number_of_fats;
+    u8   active_fat;
 } fs_exfat_ctx_t;
 
 /* Per-node state (file or directory). Lives in fs_vfs_node_t->private. */
@@ -185,7 +190,11 @@ static int fs_exfat_write_sectors(fs_exfat_ctx_t *ctx, u64 lba, u32 count,
 }
 
 /* ---- FAT entry get/set ---- */
-/* exFAT FAT entries are 32-bit; 0 = free, 0xFFFFFFFF = EOC. */
+/* exFAT FAT entries are 32-bit; 0 = free, 0xFFFFFFFF = EOC.
+ * BUG-0185: fat_start_lba points at the ACTIVE FAT (selected from
+ * VolumeFlags at mount), so every get/set below automatically works on
+ * the FAT the volume declares to be in use - per the exFAT spec only
+ * the active FAT is maintained, so no mirroring is performed. */
 
 static u32 fs_exfat_fat_get(fs_exfat_ctx_t *ctx, u32 cluster) {
     u64 off = (u64)cluster * 4;
@@ -1092,6 +1101,18 @@ static fs_vfs_node_t *fs_exfat_fs_mount(const char *device) {
         screen_console_puts("exfat: impossible sector/cluster shift\n");
         return NULL;
     }
+    /* BUG-0185 FIX (A12-020): exFAT spec 3.1.16 NumberOfFats - must be
+     * 1 or 2 (2 only for TexFAT); 3.1.13 VolumeFlags - bit 0 ActiveFat
+     * selects the FAT in use, bit 1 VolumeDirty marks an uncleanly
+     * unmounted volume. The old mount ignored both fields and always
+     * worked on FAT #0. */
+    if (bpb->number_of_fats == 0 || bpb->number_of_fats > 2) {
+        screen_console_puts("exfat: invalid number_of_fats\n");
+        return NULL;
+    }
+    if (bpb->volume_flags & 0x0002u) {
+        screen_console_puts("exfat: warning - volume was not cleanly unmounted\n");
+    }
     fs_exfat_ctx_t *ctx = (fs_exfat_ctx_t *)kmalloc(sizeof(fs_exfat_ctx_t));
     if (!ctx) return NULL;
     memset(ctx, 0, sizeof(*ctx));
@@ -1099,8 +1120,15 @@ static fs_vfs_node_t *fs_exfat_fs_mount(const char *device) {
     ctx->sector_size = (u32)1 << bpb->bytes_per_sector_shift;
     ctx->sectors_per_cluster = (u32)1 << bpb->sectors_per_cluster_shift;
     ctx->cluster_size = ctx->sector_size * ctx->sectors_per_cluster;
-    ctx->fat_start_lba = bpb->fat_offset;
     ctx->fat_size_sectors = bpb->fat_length;
+    /* Active FAT: honour VolumeFlags.ActiveFat on 2-FAT volumes. On a
+     * 1-FAT volume the bit is meaningless - force FAT #0 instead of
+     * pointing past the only copy (honest handling of 1-FAT volumes). */
+    ctx->number_of_fats = bpb->number_of_fats;
+    ctx->active_fat = (bpb->number_of_fats == 2 && (bpb->volume_flags & 0x0001u))
+                          ? 1 : 0;
+    ctx->fat_start_lba = bpb->fat_offset +
+                         (u32)ctx->active_fat * bpb->fat_length;
     ctx->mem_heap_start_lba = bpb->cluster_heap_offset;
     ctx->cluster_count = bpb->cluster_count;
     ctx->root_cluster = bpb->first_cluster_of_root_directory;
@@ -1168,5 +1196,10 @@ void fs_exfat_init(void) {
 
     fs_vfs_register_fs("exfat", &g_exfat_fs_ops, &g_exfat_file_ops,
                     &g_exfat_dir_ops);
+    /* BUG-0179 FIX (A12-014): exFAT name matching is case-insensitive
+     * (fs_exfat_find_in_dir uses strcasecmp) - mirror that in the VFS
+     * node cache. */
+    g_exfat_fs_type.case_insensitive = 1;
+    fs_vfs_set_fs_case_insensitive("exfat", 1);
     screen_console_puts("exfat: registered (read/write)\n");
 }

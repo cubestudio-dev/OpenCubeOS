@@ -115,8 +115,18 @@ static int fs_ramfs_write(fs_vfs_node_t *node, u64 offset, const void *buf, int 
         while (new_cap < need_end) new_cap *= 2;
         u8 *new_data = (u8 *)krealloc(ri->data, new_cap);
         if (!new_data) return -4;
+        /* BUG-0180 FIX (A12-015): krealloc does NOT zero the grown tail,
+         * and the write below only fills [offset, offset+size). The
+         * hole [old size, offset) returned recycled heap bytes, so
+         * `cat` on a seek-past-EOF-then-write file leaked other tasks'
+         * freed kernel heap contents. Zero-fill the exposed hole. */
+        if (offset > ri->size)
+            memset(new_data + ri->size, 0, (usize)(offset - ri->size));
         ri->data = new_data;
         ri->capacity = new_cap;
+    } else if (offset > ri->size) {
+        /* capacity already covers the hole: still zero it before use */
+        memset(ri->data + ri->size, 0, (usize)(offset - ri->size));
     }
     memcpy(ri->data + offset, buf, (usize)size);
     if (need_end > ri->size) {

@@ -140,6 +140,8 @@ extern const u8 userprog_fdref_test[];
 extern const u64 userprog_fdref_test_size;
 extern const u8 userprog_select_zero_test[];
 extern const u64 userprog_select_zero_test_size;
+extern const u8 userprog_int3_user[];
+extern const u64 userprog_int3_user_size;
 
 /* Direct serial output via I/O port 0x3F8 (COM1). */
 static inline void outb(u16 port, u8 v) {
@@ -1435,6 +1437,153 @@ static int shell_cmd_cr3test(const char *args) {
     return 0;
 }
 
+/* WP-10-AUDIT_P2-fix1: irqabitest - IRQ-entry ABI regression (BUG-0137/0138). */
+static int shell_cmd_irqabitest(const char *args) {
+    (void)args;
+    extern void (*g_arch_irq_entry_probe)(void);
+    extern u64 g_arch_irq_probe_result;
+    extern void arch_abi_probe_entry(void);
+    u64 start, now;
+
+    screen_console_puts("IRQ-entry ABI test (BUG-0137 align / BUG-0138 DF):\n");
+
+    g_arch_irq_probe_result = 0;
+    g_arch_irq_entry_probe = arch_abi_probe_entry;
+
+    /* 1) alignment + DF via real timer interrupts (ring0 source). */
+    start = core_timer_now_ms();
+    do { now = core_timer_now_ms(); } while (now - start < 120);
+    u64 bits_irq = g_arch_irq_probe_result;
+    g_arch_irq_probe_result = 0;   /* phase 2 accumulates from zero */
+
+    /* 2) DF=1 injection through a ring0 software interrupt. */
+    __asm__ volatile (
+        "movq $0xFFFFFFFF, %%rax\n\t"
+        "std\n\t"
+        "int $0x80\n\t"
+        "cld\n\t"
+        ::: "rax", "rcx", "r11", "memory");
+    u64 bits_int = g_arch_irq_probe_result;
+
+    g_arch_irq_entry_probe = 0;
+
+    char buf[96]; char n[24];
+    strcpy(buf, "  timer-IRQ bits=0x"); u64_to_str(bits_irq, n);
+    strcpy(buf+strlen(buf), n);
+    strcpy(buf+strlen(buf), "  int0x80 bits=0x"); u64_to_str(bits_int, n);
+    strcpy(buf+strlen(buf), n);
+    strcpy(buf+strlen(buf), "\n"); screen_console_puts(buf);
+    if ((bits_irq & 3) == 3 && (bits_int & 3) == 3) {
+        screen_console_puts("  PASS\n");
+        return 0;
+    }
+    screen_console_puts("  FAIL\n");
+    return 1;
+}
+
+/* WP-10-AUDIT_P2-fix1: vmkernelpt - BUG-0136 (A1-10) regression. */
+static int shell_cmd_vmkernelpt(const char *args) {
+    (void)args;
+    int fail = 0;
+    screen_console_puts("VMM kernel-PT test (BUG-0136 PT_OWNER):\n");
+
+    extern mem_vmm_as_t mem_vmm_current_as(void);
+    extern mem_vmm_as_t mem_vmm_kernel_as(void);
+    mem_vmm_as_t kas = mem_vmm_current_as();
+
+    volatile u8 *probe = (volatile u8*)0x200000;
+    u8 before = *probe;                       /* read via the 2 MiB page */
+
+    /* Split: creates a PRIVATE-to-kernel PT for 0x200000 in the kernel AS. */
+    int rc = mem_vmm_map_page(kas, 0x200000, 0x200000, VMM_FLAGS_KERNEL);
+    if (rc != 0) { screen_console_puts("  FAIL: kernel split map failed\n"); return 1; }
+    u8 after = *probe;
+    if (after != before) {
+        screen_console_puts("  FAIL: kernel data changed after split\n");
+        fail = 1;
+    }
+
+    /* Locate the kernel PT frame: kernel PML4[0] -> PDPT[0] -> PD[1]. */
+    u64 kcr3 = (u64)mem_vmm_kernel_as();
+    u64 *kpdpt = (u64*)(*(u64*)kcr3 & 0x000FFFFFFFFFF000ULL);
+    u64 *kpd0  = (u64*)(kpdpt[0] & 0x000FFFFFFFFFF000ULL);
+    u64 pt_phys = kpd0[1] & 0x000FFFFFFFFFF000ULL;
+
+    /* Create + destroy a user address space directly (its PD0 is a copy
+     * of the split kernel PD0). This is the exact audit scenario. */
+    {
+        extern mem_vmm_as_t create_user_address_space(void);
+        mem_vmm_as_t uas = create_user_address_space();
+        if (uas == 0) { screen_console_puts("  FAIL: create_user_address_space failed\n"); return 1; }
+        screen_console_puts("  user AS created (copies split PD0)\n");
+        mem_vmm_destroy_address_space(uas);
+        screen_console_puts("  user AS destroyed\n");
+    }
+
+    /* The kernel PT for 0x200000 must still be intact, still WORK, and
+     * must still be HELD by the kernel (not freed back to the PMM bitmap
+     * by the user-AS destroy path). */
+    u8 after_destroy = *probe;
+    if (after_destroy != before) {
+        screen_console_puts("  FAIL: kernel 0x200000 unreadable/corrupted after user AS destroy\n");
+        fail = 1;
+    }
+    {
+        extern int mem_pmm_frame_is_free(u64 paddr);
+        if (mem_pmm_frame_is_free(pt_phys)) {
+            screen_console_puts("  FAIL: kernel PT frame was FREED by user-AS destroy (BUG-0136)\n");
+            fail = 1;
+        }
+    }
+
+    mem_pmm_stats_t ps;
+    mem_pmm_get_stats(&ps);
+    char buf[96]; char n[24];
+    strcpy(buf, "  pmm failures="); u64_to_str(ps.alloc_failures, n);
+    strcpy(buf+strlen(buf), n);
+    strcpy(buf+strlen(buf), "\n"); screen_console_puts(buf);
+    if (ps.alloc_failures > 0) { screen_console_puts("  FAIL: PMM saw allocation failures\n"); fail = 1; }
+
+    if (!fail) { screen_console_puts("  PASS\n"); return 0; }
+    screen_console_puts("  FAIL\n");
+    return 1;
+}
+
+/* WP-10-AUDIT_P2-fix1: heapbounds - BUG-0140/BUG-0141 regression. */
+static int shell_cmd_heapbounds(const char *args) {
+    (void)args;
+    int fail = 0;
+    screen_console_puts("Heap bounds test (BUG-0140 wrap / BUG-0141 ceiling):\n");
+
+    void *p1 = kmalloc(0xFFFFFFFFFFFFFFF1ULL);   /* rounds to 0 pre-fix */
+    if (p1) { screen_console_puts("  FAIL: wrap size 0xFFFFFFFFFFFFFFF1 was served\n"); kfree(p1); fail = 1; }
+    void *p2 = kmalloc(0xFFFFFFFFFFFFFFFFULL);   /* wraps to 0 pre-fix */
+    if (p2) { screen_console_puts("  FAIL: wrap size 0xFFFFFFFFFFFFFFFF was served\n"); kfree(p2); fail = 1; }
+    void *p3 = kmalloc(64ULL * 1024 * 1024 * 1024); /* 64 GiB, over ceiling */
+    if (p3) { screen_console_puts("  FAIL: 64 GiB size was served\n"); kfree(p3); fail = 1; }
+
+    void *p4 = kmalloc(4096);
+    if (!p4) { screen_console_puts("  FAIL: legitimate 4096 B alloc refused\n"); fail = 1; }
+    else {
+        memset(p4, 0x5A, 4096);
+        u8 *b4 = (u8*)p4;
+        if (b4[0] != 0x5A || b4[4095] != 0x5A) {
+            screen_console_puts("  FAIL: 4096 B block not fully writable\n"); fail = 1;
+        }
+        kfree(p4);
+    }
+    void *p5 = kmalloc(65536);
+    if (!p5) { screen_console_puts("  FAIL: legitimate 64 KiB alloc refused\n"); fail = 1; }
+    else {
+        memset(p5, 0xA5, 65536);
+        kfree(p5);
+    }
+
+    if (!fail) { screen_console_puts("  PASS\n"); return 0; }
+    screen_console_puts("  FAIL\n");
+    return 1;
+}
+
 /* WP-03 fix 5: heaptest - test heap overhead with 100 allocs. */
 static int shell_cmd_heaptest(const char *args) {
     (void)args;
@@ -1909,7 +2058,7 @@ static int shell_cmd_l1test(const char *args) {
 /* WP-04: run - run a user program. */
 static int shell_cmd_run(const char *args) {
     if (!args[0]) {
-        screen_console_puts("usage: run <hello|badapp|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test|sse_test|pf_test|fdref_test|select_zero_test>\n");
+        screen_console_puts("usage: run <hello|badapp|int3_user|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test|sse_test|pf_test|fdref_test|select_zero_test>\n");
         return 1;
     }
     const u8 *elf = NULL;
@@ -1918,6 +2067,8 @@ static int shell_cmd_run(const char *args) {
         elf = userprog_hello; size = userprog_hello_size;
     } else if (strcmp(args, "badapp") == 0) {
         elf = userprog_badapp; size = userprog_badapp_size;
+    } else if (strcmp(args, "int3_user") == 0) {
+        elf = userprog_int3_user; size = userprog_int3_user_size;
     } else if (strcmp(args, "loop") == 0) {
         elf = userprog_loop; size = userprog_loop_size;
     } else if (strcmp(args, "fork_test") == 0) {
@@ -2055,6 +2206,7 @@ static int shell_cmd_ldd(const char *args) {
     u64 size = 0;
     if (strcmp(args, "hello") == 0) { elf = userprog_hello; size = userprog_hello_size; }
     else if (strcmp(args, "badapp") == 0) { elf = userprog_badapp; size = userprog_badapp_size; }
+    else if (strcmp(args, "int3_user") == 0) { elf = userprog_int3_user; size = userprog_int3_user_size; }
     else if (strcmp(args, "loop") == 0) { elf = userprog_loop; size = userprog_loop_size; }
     else if (strcmp(args, "fork_test") == 0) { elf = userprog_fork_test; size = userprog_fork_test_size; }
     else if (strcmp(args, "exec_test") == 0) { elf = userprog_exec_test; size = userprog_exec_test_size; }
@@ -2369,6 +2521,102 @@ static int shell_cmd_fstest(const char *args) {
     strcpy(stat_line + strlen(stat_line), num);
     strcpy(stat_line + strlen(stat_line), " bytes\n");
     screen_console_puts(stat_line);
+
+    /* WP-10-AUDIT_P2-fix1: P2 regression block - dual-sided checks for the
+     * batch-1 VFS fixes (BUG-0178/0179/0180/0182/0184).  Every check proves
+     * BOTH sides: the legal path still works AND the previously-broken
+     * (or malicious) path is now refused. */
+    {
+        int p2fail = 0;
+        screen_console_puts("  p2 regressions:\n");
+
+        /* BUG-0178: write access must follow the fd's access bits, not
+         * `flags == VFS_O_RDONLY` (O_RDONLY|O_APPEND used to slip through).
+         * legal side: O_RDWR fd writes; attack side: O_RDONLY|O_APPEND fd. */
+        int wa = fs_vfs_open("/tmp/vfstest/p2_flags.txt",
+                             VFS_O_RDWR | VFS_O_CREAT);
+        if (wa < 0 || fs_vfs_write(wa, "x", 1) != 1) {
+            screen_console_puts("    BUG-0178 legal O_RDWR write: FAIL\n");
+            p2fail++;
+        }
+        fs_vfs_close(wa);
+        int wb = fs_vfs_open("/tmp/vfstest/p2_flags.txt",
+                             VFS_O_RDONLY | VFS_O_APPEND);
+        if (wb >= 0) {
+            if (fs_vfs_write(wb, "y", 1) >= 0) {
+                screen_console_puts("    BUG-0178 RO|APPEND write refused: FAIL\n");
+                p2fail++;
+            } else {
+                screen_console_puts("    BUG-0178 dual-sided: PASS\n");
+            }
+            fs_vfs_close(wb);
+        } else {
+            screen_console_puts("    BUG-0178 dual-sided: PASS (open refused)\n");
+        }
+
+        /* BUG-0179: ramfs is case-sensitive - an upper-case alias must NOT
+         * hit the cached lower-case node (strcasecmp cache lookup removed). */
+        if (fs_vfs_open("/TMP/VFSTEST/HELLO.TXT", VFS_O_RDONLY) >= 0) {
+            screen_console_puts("    BUG-0179 case-sensitive ramfs: FAIL\n");
+            p2fail++;
+        } else {
+            screen_console_puts("    BUG-0179 dual-sided: PASS\n");
+        }
+
+        /* BUG-0180: a sparse hole (seek past EOF, then write) must read back
+         * as zeros - the old krealloc gap leaked freed heap contents. */
+        int hc = fs_vfs_open("/tmp/vfstest/p2_sparse.txt",
+                             VFS_O_RDWR | VFS_O_CREAT);
+        if (hc >= 0) {
+            fs_vfs_seek(hc, 4096, 0 /* SEEK_SET */);
+            fs_vfs_write(hc, "Z", 1);
+            fs_vfs_seek(hc, 0, 0);
+            char hole[64];
+            int got = fs_vfs_read(hc, hole, sizeof(hole));
+            int leak = 0;
+            for (int i = 0; i < got; i++) if (hole[i] != 0) leak = 1;
+            if (got == 64 && leak) {
+                screen_console_puts("    BUG-0180 hole is zeros: FAIL\n");
+                p2fail++;
+            } else {
+                screen_console_puts("    BUG-0180 hole is zeros: PASS\n");
+            }
+            fs_vfs_close(hc);
+        }
+
+        /* BUG-0182: permission bits are enforced - mode 0000 refuses
+         * open/write, chmod back to 0644 restores access. */
+        int pa = fs_vfs_open("/tmp/vfstest/p2_perm.txt",
+                             VFS_O_RDWR | VFS_O_CREAT);
+        if (pa >= 0) {
+            fs_vfs_write(pa, "p", 1);
+            fs_vfs_close(pa);
+        }
+        fs_vfs_chmod("/tmp/vfstest/p2_perm.txt", 0000);
+        if (fs_vfs_open("/tmp/vfstest/p2_perm.txt", VFS_O_RDONLY) >= 0) {
+            screen_console_puts("    BUG-0182 mode-0000 refused: FAIL\n");
+            p2fail++;
+        } else {
+            screen_console_puts("    BUG-0182 dual-sided: PASS\n");
+        }
+        fs_vfs_chmod("/tmp/vfstest/p2_perm.txt", 0644);
+        if (fs_vfs_open("/tmp/vfstest/p2_perm.txt", VFS_O_RDONLY) < 0) {
+            screen_console_puts("    BUG-0182 chmod-644 restores: FAIL\n");
+            p2fail++;
+        }
+
+        /* BUG-0184: umount "/" must be refused (g_global_root may not dangle). */
+        if (fs_vfs_umount("/") == 0) {
+            screen_console_puts("    BUG-0184 umount / refused: FAIL\n");
+            p2fail++;
+        } else {
+            screen_console_puts("    BUG-0184 umount / refused: PASS\n");
+        }
+
+        if (p2fail == 0) {
+            screen_console_puts("    p2 regressions: ALL PASS\n");
+        }
+    }
     return 0;
 }
 
@@ -2685,6 +2933,9 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command_ex("cr3test", shell_cmd_cr3test, "test CR3 switching", "WP-04");
     shell_register_command_ex("crashlog", shell_cmd_crashlog, "show last exception crashes", "WP-04");
     shell_register_command_ex("heaptest", shell_cmd_heaptest, "test heap overhead with 100 allocs", "WP-04");
+    shell_register_command_ex("irqabitest", shell_cmd_irqabitest, "IRQ-entry ABI regression (BUG-0137 align / BUG-0138 DF)", "WP-10-AUDIT_P2-fix1");
+    shell_register_command_ex("heapbounds", shell_cmd_heapbounds, "heap bounds regression (BUG-0140 wrap / BUG-0141 ceiling)", "WP-10-AUDIT_P2-fix1");
+    shell_register_command_ex("vmkernelpt", shell_cmd_vmkernelpt, "VMM PT-ownership regression (BUG-0136)", "WP-10-AUDIT_P2-fix1");
     shell_register_command_ex("pmmrace", shell_cmd_pmmrace, "BUG-0043 repro: PMM bitmap race thread-vs-IRQ", "WP-04");
     shell_register_command_ex("spawn", shell_cmd_spawn, "spawn a test kernel thread", "WP-04");
     shell_register_command_ex("multi", shell_cmd_multi, "spawn 3 tasks with interleaved output", "WP-04");

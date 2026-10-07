@@ -19,22 +19,36 @@
 #define HEAP_MAGIC      0xDEADBEEFCAFEBABEULL
 #define HEAP_MAGIC_FREE 0xFEEDFACE12345678ULL
 #define HEAP_MIN_POOL_PAGES 16   /* 64 KiB initial pool (shell needs ~40KB for tokens) */
-#define HEAP_MAX_POOL_PAGES 1024 /* BUG-041 FIX: was 64 (256 KiB), then 256 (1 MiB).
-                                  * Now 1024 (4 MiB): a 256 MiB FAT32 volume formatted
-                                  * with 512-byte clusters carries a ~2 MiB FAT, and
-                                  * fs_fat32.c caches the whole table with a single
-                                  * kmalloc at mount time. The old 1 MiB cap made
-                                  * every such kmalloc fail ("FAT cache alloc failed").
-                                  * Single allocations beyond 4 MiB still fail fast. */
+#define HEAP_MAX_POOL_PAGES 4096 /* BUG-0141 FIX (A1-8b): was 1024 (4 MiB).
+                                  * Single contiguous allocations up to 16 MiB now
+                                  * succeed (a 256 MiB FAT32 volume needs a ~2 MiB FAT
+                                  * cache; keep headroom). Requests beyond the
+                                  * single-pool ceiling fail fast without burning
+                                  * a pool slot. */
 #define HEAP_ALIGN 16
+/* BUG-0140 FIX (A1-7): any size beyond the single-pool ceiling is rejected
+ * before the alignment rounding, so a wrap-around size (>= 2^64 - 15)
+ * can never round down to 0 and slip through the zero check. */
+#define HEAP_MAX_ALLOC ((u64)HEAP_MAX_POOL_PAGES * PMM_PAGE_SIZE)
 
 typedef struct mem_heap_block {
     u64 magic;           /* HEAP_MAGIC if allocated, HEAP_MAGIC_FREE if free */
     u64 size;            /* payload size in bytes (excludes header) */
     struct mem_heap_block *next;  /* next block in the free list (free blocks only) */
     struct mem_heap_block *prev;  /* prev block in the free list */
-    u64 _pad;            /* align payload to 16 bytes (header is 32 bytes) */
 } mem_heap_block_t;
+/* WP-10-AUDIT_P2-fix1: the struct is EXACTLY 32 bytes (4 x u64).  A fifth
+ * `_pad` field used to make it 40 while the comment claimed 32, so every
+ * try_split() advanced block addresses by 40 + 16k and block starts
+ * ALTERNATED between 0 and 8 (mod 16).  Payloads (= block + sizeof) were
+ * therefore 16-byte aligned only for even-parity blocks - alignment
+ * depended on the allocation history.  DMA users that mask the payload
+ * address (driver_block_ata_dma PRDT entry: addr & ~0xF) silently moved
+ * their transfer window 8 bytes backwards whenever the bounce buffer came
+ * from an odd-parity block (ATA-DMA reads shifted by 8 -> "fat32: invalid
+ * BPB" on perfectly valid volumes, /etc unmountable, sshd without its
+ * per-installation host key).  With a 32-byte header and 16-byte-rounded
+ * requests, block starts and payloads are ALWAYS 16-byte aligned. */
 
 /* P2-22 NOTE: The heap is accessed from both kernel code and IRQ
  * handlers. On this single-CPU system, IRQs can preempt kernel code
@@ -77,50 +91,56 @@ static int in_same_pool(u64 a1, u64 a2) {
     return 0;
 }
 
+static void add_pool_region(u64 base, u64 pages) {
+    /* One big contiguous free block spanning all pages (BUG-0141 FIX:
+     * shared by the contig path and the adjacent-run fallback path). */
+    mem_heap_block_t *blk = (mem_heap_block_t*)base;
+    blk->magic = HEAP_MAGIC_FREE;
+    blk->size = pages * PMM_PAGE_SIZE - sizeof(mem_heap_block_t);
+    blk->prev = NULL;
+    blk->next = g_free_list;
+    if (g_free_list) g_free_list->prev = blk;
+    g_free_list = blk;
+    g_heap_size += pages * PMM_PAGE_SIZE;
+    g_overhead += sizeof(mem_heap_block_t);
+    g_free_count++;
+    if (g_pool_count < 16) {
+        g_pool_pages[g_pool_count] = pages;
+        g_pool_bases[g_pool_count] = base;
+        g_pool_count++;
+    }
+}
+
 static void add_pool(u64 page_count) {
-    if (g_pool_count >= 16) return;
-    /* WP-07: allocate a contiguous run of pages so the heap can satisfy
-     * large allocations (shell token arrays need ~40KB contiguous).
-     * Previously each page was a separate 4KB block, which couldn't
-     * satisfy any allocation > 4KB. */
     u64 phys = mem_pmm_alloc_contig(page_count);
     if (phys == 0) {
-        /* Fallback: allocate single pages (old behavior). */
+        /* Fallback: allocate single pages, but chain PHYSICALLY ADJACENT
+         * pages into one contiguous block (BUG-0141 FIX, A1-8a). The old
+         * fallback registered every page as base=0 "single-page pools"
+         * that in_same_pool() could never merge - so under fragmentation
+         * the heap could never satisfy the > 4 KB request that triggered
+         * the growth, even when PMM still had free pages (allocated
+         * sequentially, hence physically adjacent in practice). */
+        u64 run_base = 0, run_pages = 0;
         for (u64 i = 0; i < page_count; i++) {
             u64 p = mem_pmm_alloc_frame();
             if (p == 0) break;
-            mem_heap_block_t *blk = (mem_heap_block_t*)p;
-            blk->magic = HEAP_MAGIC_FREE;
-            blk->size = PMM_PAGE_SIZE - sizeof(mem_heap_block_t);
-            blk->prev = NULL;
-            blk->next = g_free_list;
-            blk->_pad = 0;
-            if (g_free_list) g_free_list->prev = blk;
-            g_free_list = blk;
-            g_heap_size += PMM_PAGE_SIZE;
-            g_overhead += sizeof(mem_heap_block_t);
-            g_free_count++;
+            if (run_pages && p == run_base + run_pages * PMM_PAGE_SIZE) {
+                run_pages++;
+            } else {
+                if (run_pages) add_pool_region(run_base, run_pages);
+                run_base = p;
+                run_pages = 1;
+            }
         }
-        g_pool_pages[g_pool_count] = page_count;
-        g_pool_bases[g_pool_count] = 0; /* single-page fallback */
-        g_pool_count++;
+        if (run_pages) add_pool_region(run_base, run_pages);
+        /* BUG-0141 FIX (A1-8c): a fallback that got no page at all adds no
+         * block and consumes no pool slot - 16 empty slots used to
+         * permanently disable heap growth even after PMM freed memory
+         * again. */
         return;
     }
-    /* One big contiguous free block spanning all pages. */
-    mem_heap_block_t *blk = (mem_heap_block_t*)phys;
-    blk->magic = HEAP_MAGIC_FREE;
-    blk->size = page_count * PMM_PAGE_SIZE - sizeof(mem_heap_block_t);
-    blk->prev = NULL;
-    blk->next = g_free_list;
-    blk->_pad = 0;
-    if (g_free_list) g_free_list->prev = blk;
-    g_free_list = blk;
-    g_heap_size += page_count * PMM_PAGE_SIZE;
-    g_overhead += sizeof(mem_heap_block_t);
-    g_free_count++;
-    g_pool_pages[g_pool_count] = page_count;
-    g_pool_bases[g_pool_count] = phys; /* P7: record contiguous pool base */
-    g_pool_count++;
+    add_pool_region(phys, page_count);
 }
 
 void mem_heap_init(void) {
@@ -177,7 +197,6 @@ static void try_split(mem_heap_block_t *b, u64 needed) {
     new_blk->size = b->size - needed - sizeof(mem_heap_block_t);
     new_blk->next = NULL;
     new_blk->prev = NULL;
-    new_blk->_pad = 0;
 
     b->size = needed;
     add_free(new_blk);
@@ -205,8 +224,16 @@ static inline void mem_heap_lock_release(u64 flags) {
 void *kmalloc(u64 size) {
     if (size == 0) return NULL;
 
+    /* BUG-0140 FIX (A1-7): reject sizes that would wrap through the
+     * alignment rounding. size >= 2^64 - 15 used to round to 0, pass the
+     * zero check, make find_free(0) match the first free block (b->size
+     * >= 0 is always true) and hand out a 0-size block whose caller would
+     * then write the full unaligned length - heap overflow + stats drift. */
+    if (size > HEAP_MAX_ALLOC) return NULL;
+
     /* Round up to alignment. */
     size = (size + HEAP_ALIGN - 1) & ~(HEAP_ALIGN - 1);
+    if (size == 0) return NULL;  /* paranoia: re-check after rounding */
 
     u64 irq_flags;
     mem_heap_lock_acquire(&irq_flags);
@@ -216,7 +243,11 @@ void *kmalloc(u64 size) {
         /* Expand the heap. */
         u64 pages_needed = (size + sizeof(mem_heap_block_t) + PMM_PAGE_SIZE - 1) / PMM_PAGE_SIZE;
         if (pages_needed < 4) pages_needed = 4;
-        if (pages_needed > HEAP_MAX_POOL_PAGES) pages_needed = HEAP_MAX_POOL_PAGES;
+        /* BUG-0141 FIX (A1-8b): beyond the single-pool ceiling, fail fast
+         * instead of clamping to the ceiling and allocating a pool that
+         * can never satisfy this request (the clamp also burned a pool
+         * slot and left the heap fragmented for nothing). */
+        if (pages_needed > HEAP_MAX_POOL_PAGES) { mem_heap_lock_release(irq_flags); return NULL; }
         add_pool(pages_needed);
         b = find_free(size);
         if (!b) { mem_heap_lock_release(irq_flags); return NULL; }
@@ -358,6 +389,14 @@ void kfree(void *ptr) {
 void *krealloc(void *ptr, u64 new_size) {
     if (!ptr) return kmalloc(new_size);
     if (new_size == 0) { kfree(ptr); return NULL; }
+
+    /* BUG-0140 FIX (A1-7): same integer-overflow class as kmalloc - the
+     * alignment rounding below wraps sizes >= 2^64 - 15 to 0, which then
+     * took the "fits in the current block" path and returned the OLD
+     * pointer while the caller believes it holds new_size bytes (silent
+     * buffer overflow on the caller's side). Reject over-ceiling sizes
+     * exactly like kmalloc does. */
+    if (new_size > HEAP_MAX_ALLOC) return NULL;
 
     mem_heap_block_t *b = (mem_heap_block_t*)((u8*)ptr - sizeof(mem_heap_block_t));
     if (b->magic != HEAP_MAGIC) return NULL;

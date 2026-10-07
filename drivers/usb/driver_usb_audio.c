@@ -55,6 +55,7 @@ typedef struct driver_usb_audio_dev {
     int has_audio_stream;
     int stream_active;
     u64 packets_sent;
+    u32 accepted_rates;   /* SND_RATE_* bits the device accepted via SET_CUR */
     int up;
 } driver_usb_audio_dev_t;
 
@@ -147,10 +148,9 @@ static int driver_usb_audio_ops_play(driver_snd_device_t *sdev, const void *buf,
     ad->stream_active = 1;
 
     while (sent < len) {
+        u32 remain = (u32)(len - sent);
         u16 chunk = pkt;
-        if ((u32)chunk > (u32)(len - sent)) chunk = (u16)(len - sent);
-        chunk &= ~3u;
-        if (chunk < 4) chunk = 4;
+        if ((u32)chunk > remain) chunk = (u16)remain;
 
         /* wait for the next frame boundary */
         u16 f0 = driver_usb_audio_frnum();
@@ -160,13 +160,33 @@ static int driver_usb_audio_ops_play(driver_snd_device_t *sdev, const void *buf,
             core_sched_yield();
         }
 
-        u8 zero[4] = { 0, 0, 0, 0 };
-        (void)zero;
+        const void *out = src + sent;
+        u16 take = chunk;      /* source bytes consumed this packet */
+        u8 pad[4];
+        if (take < 4 && pkt >= 4) {
+            /* BUG-0172 FIX (A11-49): the tail chunk used to be rounded
+             * UP to the 4-byte stereo-frame size and read straight out
+             * of src, so a buffer whose length was not a multiple of 4
+             * had up to 3 bytes read PAST its end (and emitted as
+             * audio). Copy the 1..3 remaining bytes into a zero-padded
+             * stack bounce buffer instead: the packet keeps the
+             * 4-byte frame alignment the endpoint voice expects and no
+             * byte beyond src+sent is ever touched (the core memcpy's
+             * the payload into the ISO DMA buffer inside the call, so
+             * a stack buffer is valid for the copy). Short packets
+             * <= wMaxPacketSize are legal per USB 2.0 5.6.3; when the
+             * endpoint's packet budget itself is under 4 bytes the
+             * raw short tail is sent unaligned. */
+            memset(pad, 0, sizeof(pad));
+            memcpy(pad, out, take);
+            out = pad;
+            chunk = 4;
+        }
         if (driver_usb_isochronous_transfer(ad->dev, ad->driver_usb_iso_out_ep,
-                                     (void *)(src + sent), chunk) != 0)
+                                     (void *)out, chunk) != 0)
             return sent ? sent : -1;
         ad->packets_sent++;
-        sent += chunk;
+        sent += take;
     }
     return sent;
 }
@@ -180,14 +200,63 @@ static int driver_usb_audio_ops_stop(driver_snd_device_t *sdev) {
     return 0;
 }
 
+/* map a standard PCM rate to its SND_RATE_* capability bit (0 when
+ * the rate is not one of the framework's standard rates) */
+static u32 driver_usb_audio_rate_bit(u32 rate) {
+    switch (rate) {
+    case 8000:  return SND_RATE_8000;
+    case 11025: return SND_RATE_11025;
+    case 16000: return SND_RATE_16000;
+    case 22050: return SND_RATE_22050;
+    case 32000: return SND_RATE_32000;
+    case 44100: return SND_RATE_44100;
+    case 48000: return SND_RATE_48000;
+    case 64000: return SND_RATE_64000;
+    case 88200: return SND_RATE_88200;
+    case 96000: return SND_RATE_96000;
+    default:    return 0;
+    }
+}
+
 static int driver_usb_audio_ops_set_rate(driver_snd_device_t *sdev, u32 rate) {
     driver_usb_audio_dev_t *ad = (driver_usb_audio_dev_t *)sdev->priv;
     if (!ad || !ad->up) return -1;
-    /* UAC1 devices advertise fixed rates per alternate setting; the
-     * QEMU device runs 48 kHz.  Other rates are accepted as the
-     * logical request and honoured when the device supports them. */
     if (rate == 0) return -1;
     ad->rate = rate;
+    /* BUG-0174 FIX (A11-50): actually tell the DEVICE. The old code
+     * only updated the in-memory ad->rate and left the endpoint
+     * sampling at whatever the stream alt-setting had configured - a
+     * non-48k device kept playing at its original speed (the comment
+     * claimed the rate was "honoured"; it never was).
+     *
+     * UAC1 SET_CUR(SAM_FREQ_CONTROL, CS 0x01): bRequest 0x01 (CUR),
+     * wValue = CS 0x01 << 8 | channel 0 (master), payload = 3-byte
+     * little-endian rate. Two wire shapes exist: the interface
+     * recipient (bmRequestType 0x21, wIndex = streaming interface),
+     * which is what QEMU's usb-audio model implements, and the
+     * endpoint-recipient form of UAC1 4.6.2.2 (bmRequestType 0x22,
+     * wIndex = ISO OUT endpoint) that spec-conformant hardware uses
+     * for an endpoint sampling-frequency control. Try both. A device
+     * that supports neither (single-rate endpoint) STALLs both: the
+     * in-memory rate still stands and playback continues at the
+     * device's fixed rate - graceful fallback, rejection logged, and
+     * the capability bitmap only grows when a SET_CUR is ACCEPTED. */
+    {
+        u8 le3[3];
+        le3[0] = (u8)(rate & 0xff);
+        le3[1] = (u8)((rate >> 8) & 0xff);
+        le3[2] = (u8)((rate >> 16) & 0xff);
+        int rc = driver_usb_control(ad->dev, 0x21, 0x01, 0x0100,
+                        (u16)ad->audio_if_num, le3, 3);
+        if (rc != 0)
+            rc = driver_usb_control(ad->dev, 0x22, 0x01, 0x0100,
+                            (u16)ad->driver_usb_iso_out_ep, le3, 3);
+        if (rc == 0) {
+            ad->accepted_rates |= driver_usb_audio_rate_bit(rate);
+        } else {
+            driver_usb_audio_log("usbaudio: device rejected SET_CUR(SAM_FREQ)\n");
+        }
+    }
     return 0;
 }
 
@@ -199,7 +268,10 @@ static int driver_usb_audio_ops_set_volume(driver_snd_device_t *sdev, u32 vol) {
 static int driver_usb_audio_ops_get_caps(driver_snd_device_t *sdev, driver_snd_caps_t *caps) {
     driver_usb_audio_dev_t *ad = (driver_usb_audio_dev_t *)sdev->priv;
     if (!ad || !ad->up) return -1;
-    caps->rates = SND_RATE_48000;
+    /* BUG-0174: 48 kHz is the stream alt-setting's native rate; rates
+     * the device actually ACCEPTED via SET_CUR are advertised as well
+     * and cur_rate reports what the caller last programmed. */
+    caps->rates = SND_RATE_48000 | ad->accepted_rates;
     caps->min_channels = 1;
     caps->max_channels = 2;
     caps->bits8 = 0;

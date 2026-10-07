@@ -103,6 +103,11 @@ static volatile u64 *pml4_entry_ptr(mem_vmm_as_t as, u64 vaddr) {
  * the page tables already allocated are linked into the address space hierarchy
  * and will be freed by mem_vmm_destroy_address_space. This is not a true leak. */
 static volatile u64 *walk_pt(mem_vmm_as_t as, u64 vaddr, int create) {
+    /* BUG-0136 FIX (A1-10): any PT allocated below is PRIVATE to this AS
+     * when the AS is not the kernel AS; tag the linking PDE so destroy can
+     * free tables by ownership instead of by position/shape convention. */
+    const u64 owner = (as != g_kernel_pml4) ? VMM_FLAG_PT_OWNER : 0;
+
     volatile u64 *pml4e = pml4_entry_ptr(as, vaddr);
     if (!(*pml4e & VMM_FLAG_PRESENT)) {
         if (!create) return NULL;
@@ -137,7 +142,7 @@ static volatile u64 *walk_pt(mem_vmm_as_t as, u64 vaddr, int create) {
         u64 pt_phys = mem_pmm_alloc_frame();
         if (pt_phys == 0) return NULL;
         memset((void*)pt_phys, 0, PMM_PAGE_SIZE);
-        *pde = pt_phys | VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER;
+        *pde = pt_phys | VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER | owner;
     } else if (*pde & 0x80) {
         /* Huge page (2 MiB) — need to split it into 4K pages. */
         if (!create) return NULL;
@@ -154,7 +159,7 @@ static volatile u64 *walk_pt(mem_vmm_as_t as, u64 vaddr, int create) {
         for (int i = 0; i < 512; i++) {
             new_pt[i] = (huge_phys + (u64)i * PMM_PAGE_SIZE) | (huge_flags & ~0x80);
         }
-        *pde = pt_phys | (huge_flags & ~0x80) | VMM_FLAG_USER;
+        *pde = pt_phys | (huge_flags & ~0x80) | VMM_FLAG_USER | owner;
         /* Flush TLB for this address range. */
         if (as == mem_vmm_current_as()) {
             __asm__ volatile(
@@ -310,6 +315,8 @@ void mem_vmm_destroy_address_space(mem_vmm_as_t as) {
                 for (int l = 0; l < 512; l++) {
                     if (!(pd[l] & VMM_FLAG_PRESENT)) continue;
                     if (pd[l] & 0x80) continue;         /* huge page: kernel-owned */
+                    /* BUG-0136 FIX (A1-10): free only tables we own. */
+                    if (!(pd[l] & VMM_FLAG_PT_OWNER)) continue;
                     u64 pt_phys = pd[l] & PTE_ADDR_MASK;
                     u64 *pt = (u64*)pt_phys;
                     for (int m = 0; m < 512; m++) {
@@ -328,8 +335,33 @@ void mem_vmm_destroy_address_space(mem_vmm_as_t as) {
             u64 pd0_phys = pdpt[0] & PTE_ADDR_MASK;
             u64 *pd0 = (u64*)pd0_phys;
 
+            /* BUG-0136 FIX (A1-10): ownership criterion for the user PD0.
+             * create_user_address_space() built PD0 as a VERBATIM copy of
+             * the kernel PD0; afterwards only THIS address space ever
+             * writes it (the private split PT at PD0[2], and walk_pt()
+             * allocating owner-tagged PTs). So an entry still EQUAL to the
+             * kernel's current value is shared kernel state that must
+             * never be freed here, and a DIVERGED entry is provably
+             * private to this AS. This replaces two earlier conventions,
+             * both fragile:
+             *  - "every present non-huge entry is a private PT" (HEAD):
+             *    mis-freed kernel page tables once the kernel PD0 could
+             *    contain split pages (the audit's triple-fault scenario).
+             *  - "only VMM_FLAG_PT_OWNER entries are private": leaked the
+             *    private PD0[2] PT and every user program page on each
+             *    process exit, because that PT is created by
+             *    create_user_address_space() outside walk_pt() and so
+             *    carries no owner tag.
+             * Alias-mapped frames (same physical page at two VAs) may be
+             * handed to mem_pmm_free_frame twice; PMM's bitmap guard
+             * absorbs the second free, so this stays memory-safe. */
+            u64 *kern_pd0 = (mem_vmm_kern_pdpt &&
+                             (mem_vmm_kern_pdpt[0] & VMM_FLAG_PRESENT))
+                          ? (u64*)(mem_vmm_kern_pdpt[0] & PTE_ADDR_MASK) : 0;
+
             for (int k = 0; k < 512; k++) {
                 if (!(pd0[k] & VMM_FLAG_PRESENT)) continue;
+                if (kern_pd0 && pd0[k] == kern_pd0[k]) continue;  /* kernel-owned */
 
                 if (pd0[k] & 0x80) {
                     /* Huge page (2 MiB = 512 × 4K pages).

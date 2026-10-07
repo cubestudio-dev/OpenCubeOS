@@ -145,6 +145,14 @@ struct fs_vfs_fs_type {
     fs_vfs_fs_ops_t    *fs_ops;
     fs_vfs_file_ops_t  *file_ops;
     fs_vfs_dir_ops_t   *dir_ops;
+    /* BUG-0179 FIX (A12-014): per-fs name-matching rule. 1 = the fs's
+     * lookup is case-insensitive (FAT32/exFAT); 0 = case-sensitive
+     * (ramfs/ext4, the default for every registered fs). The VFS node
+     * cache must match names the same way the backing fs does, or
+     * resolution behaviour drifts with cache state ("/ETC" hitting the
+     * cached "/etc" node on ramfs). Set via fs_vfs_set_fs_case_insensitive
+     * after fs_vfs_register_fs. */
+    int              case_insensitive;
 };
 
 /* A node in the global VFS tree. */
@@ -205,13 +213,20 @@ int fs_vfs_register_fs(const char *name,
                     fs_vfs_file_ops_t *file_ops,
                     fs_vfs_dir_ops_t *dir_ops);
 
+/* BUG-0179 FIX (A12-014): declare a registered fs's name-matching rule.
+ * flag 1 = case-insensitive lookups (FAT32/exFAT), 0 = case-sensitive
+ * (ramfs/ext4). Applies to the registry entry (mount roots) and is read
+ * by the VFS node-cache match. Returns 0 on success, -1 if `fs_name`
+ * is not registered. */
+int fs_vfs_set_fs_case_insensitive(const char *fs_name, int flag);
+
 int fs_vfs_mount   (const char *fs_type, const char *mount_point, const char *device);
 int fs_vfs_umount  (const char *mount_point);
 
 int  fs_vfs_open   (const char *path, int flags);   /* returns fd >= 0 or negative err */
 int  fs_vfs_read   (int fd, void *buf, int size);
 int  fs_vfs_write  (int fd, const void *buf, int size);
-int  fs_vfs_seek   (int fd, int offset, int whence);
+i64  fs_vfs_seek   (int fd, i64 offset, int whence);   /* BUG-0183: full-width offsets */
 int  fs_vfs_close  (int fd);
 /* BUG-0098 FIX (A2-5): add one reference to an already-open VFS fd.
  * Called by sys_dup / sys_dup2 / fork for every inherited kind-1 fd so
