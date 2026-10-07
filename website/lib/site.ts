@@ -20,14 +20,14 @@ export const ISO_FILE = "opencube-wp-audit-01-p1fix3.iso";
 export const ISO_SIZE_B = 11378688;
 export const ISO_SIZE_MB = "10.85";
 export const ISO_SHA256 =
-  "8fe3d49612365ad9f3c6705a99591001a5cacd9018d4532b167ed9ba93e70940";
+  "2b7298ac80f6ad044c50e05e62e618d0dd2e1e45c1ffa09a577116ae3b46b45b";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
 export const SRC_FILE = "opencube-wp-audit-01-p1fix3-src.zip";
-export const SRC_SIZE_B = 2701208;
+export const SRC_SIZE_B = 2704013;
 export const SRC_SIZE_MB = "2.58";
 export const SRC_SHA256 =
-  "fe2b45b44e2b44660ab982d44b45281eabbcc8e2396d93d3020dd52a4b31394f";
+  "dc3c89550c281c3950bca12c271daee664e7548b30ae655a424603438d4e22fb";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // WP-AUDIT-01-p1fix3 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 94,883 (incl. the build-generated kernel/generated/grub_boot_data.c, 10,335 lines, GRUB 2.12-9+deb13u2).
