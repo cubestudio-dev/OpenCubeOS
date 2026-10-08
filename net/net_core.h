@@ -95,6 +95,11 @@ int net_udp_send(u32 dst_ip, u16 dst_port, u16 src_port, const void *data, int l
 /* ---- TCP ---- */
 typedef void (*net_tcp_handler_fn)(u32 ip, u16 port);
 int net_tcp_connect(u32 dst_ip, u16 dst_port);
+/* BUG-0205: accepts the payload into the TCP send/retransmission buffer
+ * (all-or-nothing) and transmits as much as Nagle, the peer's window and
+ * the CUBIC congestion window allow. Returns the number of bytes accepted,
+ * 0 for len==0, and -1 when the buffer cannot take the whole payload
+ * (would-block: caller retries after more data has been ACKed). */
 int net_tcp_send(int sock, const void *data, int len);
 int net_tcp_close(int sock);
 int net_tcp_listen(u16 port, net_tcp_handler_fn handler);
@@ -131,6 +136,10 @@ int net_close(int fd);
  * best-effort close (e.g. net_tls_close) use this to skip writes that are
  * guaranteed to fail after the peer has sent FIN (CLOSE_WAIT). */
 int net_tcp_established(int fd);
+
+/* Returns 1 if the TCP connection for fd is in ESTABLISHED or CLOSE_WAIT
+ * state (i.e. sending a close_notify alert is still legal), 0 otherwise. */
+int net_tcp_established_or_close_wait(int fd);
 
 /* ---- DHCP ---- */
 int net_dhcp_discover(void);
@@ -231,6 +240,8 @@ typedef struct {
     u64 net_netfilter_forward;     /* packets seen on the FORWARD chain */
     u64 net_rx_bad_checksum;       /* BUG-0072: RX datagrams dropped on a
                                       failing checksum */
+    u64 net_udp_rx_dropped;        /* BUG-0217: UDP datagrams dropped because
+                                      the bound socket's rx buffer was full */
 } net_stats_t;
 
 void net_get_stats(net_stats_t *out);

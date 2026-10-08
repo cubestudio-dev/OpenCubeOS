@@ -31,31 +31,44 @@ static u8 *g_dma_page = NULL;
 static int g_dma_page_offset = 0;
 
 static void *dma_alloc(int size) {
+    if (size <= 0) return NULL;
     if (size > PMM_PAGE_SIZE) {
-        /* Need a full page. */
-        return (void *)mem_pmm_alloc_frame();
+        /* BUG-0201: a single frame cannot back a request larger than the
+         * frame itself. Use a physically-contiguous multi-frame run (the
+         * low identity-mapped region covers all PMM frames, so the DMA
+         * address stays valid); fail when PMM cannot provide one. */
+        int npages = (int)(((u64)size + PMM_PAGE_SIZE - 1) / PMM_PAGE_SIZE);
+        u64 pa = mem_pmm_alloc_contig((u64)npages);
+        if (pa == 0) return NULL;
+        return (void *)(uintptr_t)pa;
     }
-    /* Sub-allocate from the current page. */
-    if (g_dma_page == NULL || g_dma_page_offset + size > PMM_PAGE_SIZE) {
-        /* Allocate a new page. */
+    /* BUG-0201: sub-allocate from the current page. The alignment must be
+     * applied BEFORE the bounds check: the old order checked
+     * "offset + size <= 4096" on the unaligned offset and only then
+     * aligned, so up to 15+size bytes could be handed out past the end
+     * of the frame. */
+    int aligned = (g_dma_page_offset + 15) & ~15;
+    if (g_dma_page == NULL || aligned + size > PMM_PAGE_SIZE) {
+        /* Need a fresh page. */
         g_dma_page = (u8 *)mem_pmm_alloc_frame();
         if (g_dma_page == NULL) return NULL;
-        g_dma_page_offset = 0;
+        aligned = 0;
     }
-    /* Align to 16 bytes. */
-    g_dma_page_offset = (g_dma_page_offset + 15) & ~15;
-    void *p = g_dma_page + g_dma_page_offset;
-    g_dma_page_offset += size;
+    void *p = g_dma_page + aligned;
+    g_dma_page_offset = aligned + size;
     return p;
 }
 
 static char n_tmp[20];  /* shared buffer for number formatting */
 
 /* Forward declarations. */
-void net_udp_socket_handler(u32 src_ip, u16 src_port, u16 dst_port,
-                            const void *data, int len);
+int net_udp_socket_handler(u32 src_ip, u16 src_port, u16 dst_port,
+                           const void *data, int len);
 void net_icmp_handle_packet(u32 src_ip, const void *data, int len);
-void net_udp_handle_packet(u32 src_ip, const void *data, int len);
+/* Returns 1 when the datagram was consumed (handler table or socket),
+ * 0 when no listener owns the destination port (caller answers with an
+ * ICMP port-unreachable, BUG-0217). */
+int net_udp_handle_packet(u32 src_ip, const void *data, int len);
 void net_tcp_handle_packet(u32 src_ip, const void *data, int len);
 
 /* ============================================================
@@ -206,6 +219,13 @@ typedef struct __attribute__((packed)) {
 static u32 g_virtio_io_base = 0;
 static int g_virtio_ok = 0;
 static int g_use_virtio = 0;  /* 1 = use virtio-net, 0 = use e1000 */
+/* BUG-0202: negotiated queue sizes. Every ring index must be taken modulo
+ * the size the DEVICE actually negotiated (VIRTIO_PCI_QUEUE_SIZE), which
+ * may legally be smaller than our VIRTIO_NUM_DESC cap — indexing the
+ * descriptor table or the avail/used rings with a hardcoded 256 wraps
+ * past the real ring when qsz < 256. */
+static u16 g_virtio_rx_size = 0;
+static u16 g_virtio_tx_size = 0;
 
 /* RX virtqueue */
 static net_virtq_desc_t *g_vrx_descs = NULL;
@@ -329,6 +349,7 @@ static int net_virtio_init(void) {
     if (rx_size == 0) return -1;
     /* Use the actual device queue size. Cap at 256 to limit memory usage. */
     if (rx_size > 256) rx_size = 256;
+    g_virtio_rx_size = rx_size;   /* BUG-0202: remember the negotiated size */
 
     if (net_virtio_alloc_virtq(&g_vrx_descs, &g_vrx_avail, &g_vrx_used,
                            &g_vrx_pages, rx_size) != 0) return -1;
@@ -368,6 +389,7 @@ static int net_virtio_init(void) {
     u16 tx_size = inw(g_virtio_io_base + VIRTIO_PCI_QUEUE_SIZE);
     if (tx_size == 0) return -1;
     if (tx_size > VIRTIO_NUM_DESC) tx_size = VIRTIO_NUM_DESC;
+    g_virtio_tx_size = tx_size;   /* BUG-0202: remember the negotiated size */
 
     if (net_virtio_alloc_virtq(&g_vtx_descs, &g_vtx_avail, &g_vtx_used,
                            &g_vtx_pages, tx_size) != 0) return -1;
@@ -413,8 +435,9 @@ static int net_virtio_send(const void *data, int len) {
     if ((u32)len > VIRTIO_BUF_SIZE - sizeof(net_virtio_hdr_t))
         return -1;
 
-    /* Use the next free TX descriptor (round-robin). */
-    u16 desc_idx = g_vtx_avail_idx % VIRTIO_NUM_DESC;
+    if (g_virtio_tx_size == 0) return -1;   /* queue not initialised */
+    /* BUG-0202: modulo the NEGOTIATED tx queue size, not VIRTIO_NUM_DESC. */
+    u16 desc_idx = g_vtx_avail_idx % g_virtio_tx_size;
 
     u8 *buf = g_vtx_bufs[desc_idx];
     net_virtio_hdr_t *hdr = (net_virtio_hdr_t *)buf;
@@ -427,7 +450,7 @@ static int net_virtio_send(const void *data, int len) {
     g_vtx_descs[desc_idx].next = 0;
 
     /* Add to avail ring. Memory barriers are critical for virtio. */
-    u16 avail_slot = g_vtx_avail_idx % VIRTIO_NUM_DESC;
+    u16 avail_slot = g_vtx_avail_idx % g_virtio_tx_size;   /* BUG-0202 */
     g_vtx_avail->ring[avail_slot] = desc_idx;
     __asm__ volatile("sfence" ::: "memory");  /* wmb: ensure desc + ring write */
     g_vtx_avail->idx = g_vtx_avail_idx + 1;
@@ -471,30 +494,39 @@ static int net_virtio_recv(void *buf, int maxlen) {
     if (!g_virtio_ok) return -1;
     if (g_vrx_used->idx == g_vrx_used_idx) return 0;
 
-    u16 used_idx = g_vrx_used_idx % VIRTIO_NUM_DESC;
+    if (g_virtio_rx_size == 0) return -1;   /* queue not initialised */
+    /* BUG-0202: modulo the NEGOTIATED rx queue size, not VIRTIO_NUM_DESC. */
+    u16 used_idx = g_vrx_used_idx % g_virtio_rx_size;
     u32 desc_id = g_vrx_used->ring[used_idx].id;
     u32 used_len = g_vrx_used->ring[used_idx].len;
     g_vrx_used_idx++;
 
-    int data_len = (int)used_len - (int)sizeof(net_virtio_hdr_t);
-    if (data_len < 0) data_len = 0;
-    if (data_len > maxlen) data_len = maxlen;
+    /* BUG-0202: the used-ring id is device-controlled — bounds-check it
+     * against the negotiated queue size before indexing our arrays. */
+    if (desc_id < (u32)g_virtio_rx_size && g_vrx_bufs[desc_id] != NULL) {
+        int data_len = (int)used_len - (int)sizeof(net_virtio_hdr_t);
+        if (data_len < 0) data_len = 0;
+        if (data_len > maxlen) data_len = maxlen;
 
-    u8 *src = g_vrx_bufs[desc_id] + sizeof(net_virtio_hdr_t);
-    memcpy(buf, src, data_len);
+        u8 *src = g_vrx_bufs[desc_id] + sizeof(net_virtio_hdr_t);
+        memcpy(buf, src, data_len);
 
-    /* Recycle the descriptor. */
-    g_vrx_descs[desc_id].addr = (u64)(uintptr_t)g_vrx_bufs[desc_id];
-    g_vrx_descs[desc_id].len = VIRTIO_BUF_SIZE;
-    g_vrx_descs[desc_id].flags = VIRTQ_DESC_F_WRITE;
-    g_vrx_avail->ring[g_vrx_avail_idx % VIRTIO_NUM_DESC] = desc_id;
-    g_vrx_avail_idx++;
-    g_vrx_avail->idx = g_vrx_avail_idx;
-    outw(g_virtio_io_base + VIRTIO_PCI_QUEUE_NOTIFY, VIRTIO_NET_Q_RX);
+        /* Recycle the descriptor. */
+        g_vrx_descs[desc_id].addr = (u64)(uintptr_t)g_vrx_bufs[desc_id];
+        g_vrx_descs[desc_id].len = VIRTIO_BUF_SIZE;
+        g_vrx_descs[desc_id].flags = VIRTQ_DESC_F_WRITE;
+        g_vrx_avail->ring[g_vrx_avail_idx % g_virtio_rx_size] = desc_id;
+        g_vrx_avail_idx++;
+        g_vrx_avail->idx = g_vrx_avail_idx;
+        outw(g_virtio_io_base + VIRTIO_PCI_QUEUE_NOTIFY, VIRTIO_NET_Q_RX);
 
-    g_stats.rx_packets++;
-    g_stats.rx_bytes += data_len;
-    return data_len;
+        g_stats.rx_packets++;
+        g_stats.rx_bytes += data_len;
+        return data_len;
+    }
+    /* Invalid descriptor id from the device: drop the frame (fail closed)
+     * without touching the descriptor table or the recycle path. */
+    return 0;
 }
 
 /* ============================================================
@@ -935,6 +967,10 @@ typedef struct __attribute__((packed)) {
 } net_arp_pkt_t;
 
 #define ARP_CACHE_SIZE 16
+/* BUG-0204: ARP cache entry lifetime. Entries older than 5 minutes are
+ * aged out (lazy expiry on lookup + list); a stale MAC must never be
+ * used to deliver frames forever (hosts move / IPs get reassigned). */
+#define ARP_CACHE_TTL_TICKS (300u * OC_TIMER_HZ)   /* 300 s @ 100 Hz */
 /* net_arp_entry_t is defined in net.h */
 
 static net_arp_entry_t g_arp_cache[ARP_CACHE_SIZE];
@@ -1045,8 +1081,14 @@ static void net_arp_init(void) {
 }
 
 static int net_arp_cache_lookup(u32 ip, u8 *mac) {
+    u64 now = core_timer_ticks();
     for (int i = 0; i < ARP_CACHE_SIZE; i++) {
         if (g_arp_cache[i].valid && g_arp_cache[i].ip == ip) {
+            /* BUG-0204(a): age out entries past the TTL. */
+            if (now - g_arp_cache[i].timestamp >= ARP_CACHE_TTL_TICKS) {
+                g_arp_cache[i].valid = 0;
+                continue;
+            }
             memcpy(mac, g_arp_cache[i].mac, 6);
             return 0;
         }
@@ -1055,10 +1097,12 @@ static int net_arp_cache_lookup(u32 ip, u8 *mac) {
 }
 
 static void net_arp_cache_add(u32 ip, const u8 *mac) {
-    /* Find existing or free slot. */
+    u64 now = core_timer_ticks();
+    /* Refresh an existing entry (BUG-0204(a): timestamp always updated). */
     for (int i = 0; i < ARP_CACHE_SIZE; i++) {
         if (g_arp_cache[i].valid && g_arp_cache[i].ip == ip) {
             memcpy(g_arp_cache[i].mac, mac, 6);
+            g_arp_cache[i].timestamp = now;
             return;
         }
     }
@@ -1067,17 +1111,27 @@ static void net_arp_cache_add(u32 ip, const u8 *mac) {
             g_arp_cache[i].ip = ip;
             memcpy(g_arp_cache[i].mac, mac, 6);
             g_arp_cache[i].valid = 1;
+            g_arp_cache[i].timestamp = now;
             return;
         }
     }
-    /* Cache full: overwrite entry 0. */
-    g_arp_cache[0].ip = ip;
-    memcpy(g_arp_cache[0].mac, mac, 6);
-    g_arp_cache[0].valid = 1;
+    /* BUG-0204(b): cache full — evict the OLDEST entry (smallest
+     * timestamp), not slot 0, so hot recent mappings survive. */
+    int oldest = 0;
+    for (int i = 1; i < ARP_CACHE_SIZE; i++) {
+        if (g_arp_cache[i].timestamp < g_arp_cache[oldest].timestamp) oldest = i;
+    }
+    g_arp_cache[oldest].ip = ip;
+    memcpy(g_arp_cache[oldest].mac, mac, 6);
+    g_arp_cache[oldest].valid = 1;
+    g_arp_cache[oldest].timestamp = now;
 }
 
 static void net_arp_handle_packet(const net_arp_pkt_t *pkt, int len) {
-    (void)len;
+    /* BUG-0204(d): the frame length was previously discarded with
+     * (void)len; a truncated Ethernet frame could be parsed past its end
+     * (the ARP packet struct is 28 bytes). Bounds-check before parse. */
+    if (len < (int)sizeof(net_arp_pkt_t)) return;
     if (ntohs(pkt->htype) != 1 || ntohs(pkt->ptype) != ETH_TYPE_IP) return;
     if (pkt->hlen != 6 || pkt->plen != 4) return;
 
@@ -1131,12 +1185,21 @@ int net_arp_resolve(u32 ip, u8 *mac_out) {
     memset(req->tha, 0, 6);
     req->tpa = htonl(ip);
 
+    /* Send the first ARP request; up to two retries are sent while the
+     * resolve is still pending (BUG-0204(c): a single request that gets
+     * lost used to burn the whole 3-second timeout). */
     g_arp_reply_received = 0;
-    eth_send(broadcast, ETH_TYPE_ARP, req_buf, sizeof(net_arp_pkt_t));
 
     /* Wait for reply with timeout (3 seconds at 100Hz = 300 ticks). */
     u64 start = core_timer_ticks();
+    int requests = 0;
     while ((core_timer_ticks() - start) < 300) {
+        u64 now = core_timer_ticks();
+        /* Bounded re-request: one request every 100 ticks, max 3 total. */
+        if (requests < 3 && (u32)(now - start) >= (u32)requests * 100) {
+            eth_send(broadcast, ETH_TYPE_ARP, req_buf, sizeof(net_arp_pkt_t));
+            requests++;
+        }
         net_poll();
         if (g_arp_reply_received) {
             memcpy(mac_out, g_arp_reply_mac, 6);
@@ -1184,6 +1247,8 @@ static u16 g_ip_id = 1;
 static u8 net_netfilter_check(u8 chain, u32 src_ip, u32 dst_ip, u8 protocol,
                           u16 sport, u16 dport, u8 state);
 static void net_netfilter_send_icmp_unreachable(u32 src_ip, const void *orig_pkt, int orig_len);
+/* BUG-0217: rate-limited ICMP port-unreachable, defined near the ICMP layer. */
+static void net_icmp_send_port_unreachable(u32 dst_ip, const void *orig_pkt, int orig_len);
 
 static int net_ip_send(u32 dst_ip, u8 protocol, const void *payload, int len) {
     /* P2-08 FIX: use a consistent IP payload MTU. The Ethernet frame
@@ -1517,37 +1582,68 @@ static void net_ip_handle_packet(const void *data, int len) {
     /* BUG-035 FIX: Remove per-packet debug output that floods the console. */
     /* DEBUG removed: RX IP/RX ICMP/RX UDP prints */
 
-    /* Check if packet is for us. */
-    u32 dst = ntohl(iph->dst_ip);
-    if (dst != g_ip && dst != 0xFFFFFFFF && g_ip != 0) {
-        /* Check broadcast. */
-        if ((dst & 0xFF) != 0xFF) {
-            /* WP-09 mainstream: FORWARD chain — transit traffic. The L0
-             * image has one NIC and no forwarding path (g_ip_forward = 0),
-             * so packets are counted and dropped either way; the chain is
-             * wired so a forwarding datapath can be added without touching
-             * the filter logic again. */
-            if (g_ip_forward) {
-                u16 fsport, fdport;
-                net_netfilter_parse_ports((const u8 *)data + (iph->ver_ihl & 0x0F) * 4,
-                               ntohs(iph->total_len) - (iph->ver_ihl & 0x0F) * 4,
-                               iph->protocol, &fsport, &fdport);
-                g_stats.net_netfilter_forward++;
-                u8 state = net_netfilter_ct_classify(iph->protocol,
-                                                 ntohl(iph->src_ip), fsport,
-                                                 dst, fdport, 0, 0);
-                u8 verdict = net_netfilter_check(NF_CHAIN_FORWARD,
-                                             ntohl(iph->src_ip), dst,
-                                             iph->protocol, fsport, fdport,
-                                             state);
-                if (verdict != NF_ACTION_ACCEPT) g_stats.net_netfilter_drop++;
-            }
-            return;
-        }
+    /* BUG-0210: validate the IP version before anything else. A non-IPv4
+     * header (garbage or IPv6 mis-delivered here) must not be parsed. */
+    if ((iph->ver_ihl >> 4) != 4) return;
+
+    /* BUG-0210: fragments fail closed. There is no fragment reassembly in
+     * this stack, so a partial IP datagram must never be handed to L4 as
+     * if it were a complete PDU. Drop BOTH non-first fragments
+     * (frag_offset != 0) and a first fragment that announces more to come
+     * (MF set): reassembling them here is impossible, and parsing them as
+     * whole datagrams would deliver truncated payloads to TCP/UDP/ICMP. */
+    {
+        u16 frag = ntohs(iph->flags_frag);
+        u16 frag_off = (u16)((frag & 0x1FFF) * 8);
+        int more_frags = (frag & 0x2000) != 0;   /* MF bit */
+        if (frag_off != 0 || more_frags) return;
     }
 
+    /* BUG-0210: honour IHL — the header is 20..60 bytes including options;
+     * the L4 payload starts only after the FULL header. */
     int hdr_len = (iph->ver_ihl & 0x0F) * 4;
-    if (hdr_len < 20 || len < hdr_len) return;
+    if (hdr_len < 20 || hdr_len > 60 || len < hdr_len) return;
+
+    /* BUG-0210: strict destination acceptance. Accept only: our own
+     * address, the limited broadcast 255.255.255.255, or the subnet
+     * broadcast when a netmask is known. The old "low byte == 0xFF"
+     * heuristic accepted 29/256 of the address space as "broadcast". */
+    u32 dst = ntohl(iph->dst_ip);
+    int for_us;
+    if (g_ip == 0) {
+        /* Pre-configuration (DHCP): the stack has no address yet, so the
+         * destination cannot be classified — accept (a DHCP OFFER may be
+         * unicast to the address being offered). */
+        for_us = 1;
+    } else {
+        for_us = (dst == g_ip) ||
+                 (dst == 0xFFFFFFFF) ||
+                 (g_mask != 0 && (dst & g_mask) == (g_ip & g_mask) &&
+                  (dst & ~g_mask) == ~g_mask);
+    }
+    if (!for_us) {
+        /* WP-09 mainstream: FORWARD chain — transit traffic. The L0
+         * image has one NIC and no forwarding path (g_ip_forward = 0),
+         * so packets are counted and dropped either way; the chain is
+         * wired so a forwarding datapath can be added without touching
+         * the filter logic again. */
+        if (g_ip_forward) {
+            u16 fsport, fdport;
+            net_netfilter_parse_ports((const u8 *)data + hdr_len,
+                           ntohs(iph->total_len) - hdr_len,
+                           iph->protocol, &fsport, &fdport);
+            g_stats.net_netfilter_forward++;
+            u8 state = net_netfilter_ct_classify(iph->protocol,
+                                             ntohl(iph->src_ip), fsport,
+                                             dst, fdport, 0, 0);
+            u8 verdict = net_netfilter_check(NF_CHAIN_FORWARD,
+                                         ntohl(iph->src_ip), dst,
+                                         iph->protocol, fsport, fdport,
+                                         state);
+            if (verdict != NF_ACTION_ACCEPT) g_stats.net_netfilter_drop++;
+        }
+        return;
+    }
 
     /* BUG-0066 FIX: cross-check the IP header length field against the
      * actual frame length before trusting payload_len. A crafted
@@ -1626,7 +1722,15 @@ static void net_ip_handle_packet(const void *data, int len) {
                     }
                 }
             }
-            net_udp_handle_packet(src_ip, payload, payload_len);
+            /* BUG-0217(a): nobody owns this UDP port → answer with an
+             * ICMP destination-unreachable / port-unreachable (RFC 792
+             * "Destination Unreachable", code 3), rate-limited. Only for
+             * unicast datagrams addressed to us — never for broadcast or
+             * the pre-configuration window (RFC 1122 3.2.2). */
+            if (net_udp_handle_packet(src_ip, payload, payload_len) == 0 &&
+                dst == g_ip) {
+                net_icmp_send_port_unreachable(src_ip, data, len);
+            }
             break;
         }
         case IP_PROTO_TCP: {
@@ -1715,6 +1819,50 @@ static void net_netfilter_send_icmp_unreachable(u32 src_ip, const void *orig_pkt
     r->checksum = 0;
     r->checksum = internet_checksum(r, 8 + 28, 0);
     net_ip_send(src_ip, IP_PROTO_ICMP, buf, 8 + 28);
+}
+
+/* BUG-0217(a): ICMP port-unreachable (type 3, code 3) with token-bucket
+ * rate limiting (RFC 1812 4.3.2.7: ICMP errors must be rate-limited).
+ * Bucket: burst of 8, refilled at 1 token per second (OC_TIMER_HZ ticks). */
+#define ICMP_UNREACH_BURST 8
+#define ICMP_UNREACH_REFILL_TICKS OC_TIMER_HZ
+static u32 g_icmp_unreach_tokens = ICMP_UNREACH_BURST;
+static u64 g_icmp_unreach_last = 0;
+
+static int net_icmp_unreach_allow(void) {
+    u64 now = core_timer_ticks();
+    if (g_icmp_unreach_last == 0) g_icmp_unreach_last = now;
+    u64 elapsed = now - g_icmp_unreach_last;
+    if (elapsed >= ICMP_UNREACH_REFILL_TICKS) {
+        u64 add = elapsed / ICMP_UNREACH_REFILL_TICKS;
+        g_icmp_unreach_tokens += (u32)add;
+        if (g_icmp_unreach_tokens > ICMP_UNREACH_BURST)
+            g_icmp_unreach_tokens = ICMP_UNREACH_BURST;
+        g_icmp_unreach_last = now;
+    }
+    if (g_icmp_unreach_tokens == 0) return 0;
+    g_icmp_unreach_tokens--;
+    return 1;
+}
+
+static void net_icmp_send_port_unreachable(u32 dst_ip, const void *orig_pkt, int orig_len) {
+    if (!g_nic_ok || dst_ip == 0) return;
+    if (!net_icmp_unreach_allow()) return;
+    u8 buf[8 + 28];
+    net_icmp_hdr_t *r = (net_icmp_hdr_t *)buf;
+    r->type = 3;   /* destination unreachable */
+    r->code = 3;   /* port unreachable */
+    r->id = 0;
+    r->seq = 0;
+    /* ICMP error body: original IP header + first 8 bytes of the
+     * datagram (RFC 792), so the sender can match the error to its
+     * socket (the UDP source port is inside the quoted bytes). */
+    int copy = orig_len > 28 ? 28 : orig_len;
+    memset(buf + 8, 0, 28);
+    memcpy(buf + 8, orig_pkt, copy);
+    r->checksum = 0;
+    r->checksum = internet_checksum(r, 8 + 28, 0);
+    net_ip_send(dst_ip, IP_PROTO_ICMP, buf, 8 + 28);
 }
 
 
@@ -1814,23 +1962,25 @@ int net_udp_send(u32 dst_ip, u16 dst_port, u16 src_port, const void *data, int l
     return net_ip_send(dst_ip, IP_PROTO_UDP, buf, 8 + len);
 }
 
-void net_udp_handle_packet(u32 src_ip, const void *data, int len) {
-    if (len < 8) return;
+int net_udp_handle_packet(u32 src_ip, const void *data, int len) {
+    if (len < 8) return 0;
     const net_udp_hdr_t *h = (const net_udp_hdr_t *)data;
     u16 dst_port = ntohs(h->dst_port);
     u16 src_port = ntohs(h->src_port);
     int payload_len = ntohs(h->length) - 8;
-    if (payload_len < 0) return;
+    if (payload_len < 0) return 0;
     const void *payload = (const u8 *)data + 8;
 
     for (int i = 0; i < UDP_MAX_HANDLERS; i++) {
         if (g_udp_handlers[i].handler && g_udp_handlers[i].port == dst_port) {
             g_udp_handlers[i].handler(src_ip, src_port, payload, payload_len);
-            return;
+            return 1;
         }
     }
-    /* Also check socket layer. */
-    net_udp_socket_handler(src_ip, src_port, dst_port, payload, payload_len);
+    /* Also check socket layer. Returns 1 when a bound socket took (or
+     * dropped-by-overflow) the datagram, 0 when no socket owns the port
+     * (BUG-0217: caller then emits a rate-limited ICMP port-unreach). */
+    return net_udp_socket_handler(src_ip, src_port, dst_port, payload, payload_len);
 }
 
 /* ============================================================
@@ -1858,7 +2008,14 @@ typedef enum {
     TCP_CLOSE_WAIT,
     TCP_LAST_ACK,
     TCP_CLOSING,
+    TCP_TIME_WAIT,   /* BUG-0208: active-close terminal state, 2*MSL-bounded */
 } net_tcp_state_t;
+
+/* BUG-0208: TIME_WAIT duration. The full Linux 60 s does not fit this
+ * hobby stack's 32-conn table well; 10 s (~2*MSL for a LAN, RFC 793
+ * suggestion scaled down) keeps old duplicate segments from leaking into
+ * a reused 4-tuple while still recycling quickly. */
+#define TCP_TIME_WAIT_TICKS (10u * OC_TIMER_HZ)   /* 10 s @ 100 Hz */
 
 /* WP-09: TCP reliability fields. */
 #define TCP_RTX_BUF_SIZE 4096
@@ -1894,6 +2051,12 @@ typedef struct {
     /* WP-09: retransmission buffer */
     u8  rtx_buf[TCP_RTX_BUF_SIZE];
     int rtx_len;         /* bytes in rtx_buf awaiting ACK */
+    /* BUG-0205: split of the send/retransmission buffer. Bytes
+     * [0, rtx_sent) have been TRANSMITTED (and are unacked -> in flight);
+     * bytes [rtx_sent, rtx_len) are ACCEPTED but not yet sent (queued by
+     * Nagle / peer zero window / cwnd). rtx_sent therefore equals the
+     * in-flight byte count at all times. */
+    int rtx_sent;
     u32 rtx_seq;         /* seq of first byte in rtx_buf */
     int rtt_measured;    /* have we measured RTT yet */
     u32 srtt;            /* smoothed RTT in ticks */
@@ -1948,6 +2111,26 @@ static net_tcp_conn_t *net_tcp_alloc_conn(void) {
             g_tcp_conns[i].sock_fd = -1;
             return &g_tcp_conns[i];
         }
+    }
+    /* BUG-0208: bounded table — if TIME_WAIT connections are starving the
+     * table, retire the OLDEST one (earliest TIME_WAIT start, parked in
+     * rto_deadline) and reuse its slot. A lingering passive waiter must
+     * never permanently block new connections. */
+    net_tcp_conn_t *victim = NULL;
+    u64 oldest = 0;
+    for (int i = 0; i < TCP_MAX_CONNS; i++) {
+        if (g_tcp_conns[i].in_use && g_tcp_conns[i].state == TCP_TIME_WAIT) {
+            if (!victim || g_tcp_conns[i].rto_deadline < oldest) {
+                victim = &g_tcp_conns[i];
+                oldest = g_tcp_conns[i].rto_deadline;
+            }
+        }
+    }
+    if (victim) {
+        memset(victim, 0, sizeof(net_tcp_conn_t));
+        victim->in_use = 1;
+        victim->sock_fd = -1;
+        return victim;
     }
     return NULL;
 }
@@ -2184,12 +2367,36 @@ static int net_tcp_send_raw(net_tcp_conn_t *c, u8 flags, const void *data, int l
     return net_ip_send(c->remote_ip, IP_PROTO_TCP, h, hdr_len + len);
 }
 
+/* BUG-0207: is a local TCP port already taken? Defined after the listener
+ * table (which lives further down, next to net_tcp_listen). */
+static int net_tcp_port_in_use(u16 port);
+
 int net_tcp_connect(u32 dst_ip, u16 dst_port) {
     net_tcp_conn_t *c = net_tcp_alloc_conn();
     if (!c) return -1;
     c->state = TCP_SYN_SENT;
     c->remote_ip = dst_ip;
-    c->local_port = 40000 + (g_stats.net_tcp_connections % 10000);
+    /* BUG-0207: pick a local port that is NOT in use by any live
+     * connection or listener. The old "counter modulo 10000" scheme
+     * silently collided with surviving connections (same 4-tuple), and
+     * find_conn then routed the new SYN into the OLD connection's state
+     * machine. Scan the ephemeral range starting from the counter value,
+     * bounded at 10000 tries. */
+    {
+        u16 lport = (u16)(40000 + (g_stats.net_tcp_connections % 10000));
+        int tries = 0;
+        while (net_tcp_port_in_use(lport) && tries < 10000) {
+            lport = (u16)(40000 + ((lport - 40000 + 1) % 10000));
+            tries++;
+        }
+        if (net_tcp_port_in_use(lport)) {
+            /* Entire ephemeral range busy — fail honestly instead of
+             * creating a shadowed connection. */
+            c->in_use = 0;
+            return -1;
+        }
+        c->local_port = lport;
+    }
     c->remote_port = dst_port;
     c->our_seq = 0x1000;
     c->our_ack = 0;
@@ -2209,6 +2416,7 @@ int net_tcp_connect(u32 dst_ip, u16 dst_port) {
     c->ts_echo = 0;
     c->ts_enabled = 0;
     c->rtx_len = 0;
+    c->rtx_sent = 0;   /* BUG-0205: nothing queued or in flight */
     c->rtx_seq = 0;
     c->rtt_measured = 0;
     c->srtt = 0;
@@ -2281,7 +2489,17 @@ static void net_tcp_check_rto(void) {
     u64 now = core_timer_ticks();
     for (int i = 0; i < TCP_MAX_CONNS; i++) {
         net_tcp_conn_t *c = &g_tcp_conns[i];
-        if (!c->in_use || c->state != TCP_ESTABLISHED) continue;
+        if (!c->in_use) continue;
+        /* BUG-0208: retire TIME_WAIT connections once the 10 s dwell
+         * (rto_deadline holds the TIME_WAIT start tick) expires. */
+        if (c->state == TCP_TIME_WAIT) {
+            if (now >= c->rto_deadline) {
+                c->state = TCP_CLOSED;
+                c->in_use = 0;
+            }
+            continue;
+        }
+        if (c->state != TCP_ESTABLISHED) continue;
         /* BUG-0069 FIX: connections stuck in SYN_RCVD used to live
          * forever, so 32 forged SYNs permanently filled the 32-slot
          * connection table (remote DoS). The handshake deadline is
@@ -2291,22 +2509,26 @@ static void net_tcp_check_rto(void) {
             c->in_use = 0;
             continue;
         }
-        if (c->rtx_len == 0 || c->rto_deadline == 0) continue;
+        /* BUG-0205: only data that was actually transmitted can time out.
+         * rtx_sent == the in-flight byte count; rtx_len may additionally
+         * hold queued-unsent bytes (Nagle / zero window) — those have no
+         * RTO. */
+        if (c->rtx_sent == 0 || c->rto_deadline == 0) continue;
         if (now < c->rto_deadline) continue;
-        /* RTO expired! Retransmit oldest unacked data. */
-        if (c->rtx_len > 0) {
-            int rtx = c->rtx_len;
+        /* RTO expired! Retransmit oldest unacked (already-sent) data. */
+        {
+            int rtx = c->rtx_sent;
             if (rtx > c->mss) rtx = c->mss;
             /* Retransmit from rtx_buf */
             c->our_seq = c->rtx_seq;  /* go back to oldest unacked */
             net_tcp_send_raw(c, TCP_ACK | TCP_PSH, c->rtx_buf, rtx);
-            c->our_seq += rtx;
+            c->our_seq = c->rtx_seq + (u32)rtx;
             c->rtx_retransmitted = 1;
         }
         /* CUBIC RTO response (RFC 8312 4.6): ssthresh = 0.7*cwnd,
          * cwnd = 1 MSS, back to slow start. */
         {
-            u32 in_flight = (u32)c->rtx_len;
+            u32 in_flight = (u32)c->rtx_sent;
             c->ssthresh = net_tcp_cc_on_rto(&c->cc, in_flight ? in_flight
                                                       : c->cwnd * c->mss);
             c->cwnd = 1;
@@ -2325,16 +2547,60 @@ static void net_tcp_check_rto(void) {
 }
 
 
+/* BUG-0205/BUG-0212: transmit as much queued data as Nagle, the peer's
+ * advertised window and the CUBIC congestion window allow. Called after
+ * data is accepted into the send buffer and from the ACK path (every ACK
+ * may open window/cwnd). Nagle rule (conservative, RFC 1122 4.2.3.4 /
+ * RFC 9293 3.7.2): with unacked data in flight only FULL segments are
+ * sent; when nothing is in flight even a small tail goes out immediately. */
+static void net_tcp_flush_queued(net_tcp_conn_t *c) {
+    if (!c->in_use) return;
+    if (c->state != TCP_ESTABLISHED && c->state != TCP_CLOSE_WAIT) return;
+    u32 mss = (c->mss > 0) ? (u32)c->mss : 1460u;
+    while (c->rtx_len > c->rtx_sent && c->driver_snd_wnd > 0) {
+        u32 queued = (u32)(c->rtx_len - c->rtx_sent);
+        /* Nagle: coalesce when in-flight > 0 and the tail < MSS. */
+        if (c->rtx_sent > 0 && queued < mss) break;
+        /* Congestion window (bytes) minus the in-flight amount:
+         * sendable = min(peer_window, cwnd - in_flight, queued). */
+        u64 cwnd_bytes = (u64)c->cwnd * mss;
+        u64 in_flight = (u64)c->rtx_sent;   /* bytes sent, unacked */
+        u64 cwnd_avail = (cwnd_bytes > in_flight) ? (cwnd_bytes - in_flight) : 0;
+        u64 budget = queued;
+        if (budget > c->driver_snd_wnd) budget = c->driver_snd_wnd;
+        if (budget > cwnd_avail) budget = cwnd_avail;
+        if (budget == 0) break;   /* zero window or cwnd full: stay queued */
+        int seg = (budget > mss) ? (int)mss : (int)budget;
+        int was_first = (c->rtx_sent == 0);
+        c->our_seq = c->rtx_seq + (u32)c->rtx_sent;
+        net_tcp_send_raw(c, TCP_ACK | TCP_PSH, c->rtx_buf + c->rtx_sent, seg);
+        c->rtx_sent += seg;
+        c->our_seq = c->rtx_seq + (u32)c->rtx_sent;
+        if (was_first) {
+            /* Arm the RTO for the newly started unacked run. */
+            u64 nowt = core_timer_ticks();
+            c->rto_deadline = nowt + c->rto;
+            c->send_tick = nowt;
+            c->rtx_retransmitted = 0;
+        }
+        /* A partial segment means window/cwnd-limited; wait for the next
+         * ACK (which flushes again) instead of pushing tiny segments. */
+        if (seg < (int)mss) break;
+    }
+}
+
 int net_tcp_send(int sock, const void *data, int len) {
     if (sock < 0 || sock >= TCP_MAX_CONNS) return -1;
     net_tcp_conn_t *c = &g_tcp_conns[sock];
-    if (!c->in_use || c->state != TCP_ESTABLISHED) {
+    if (!c->in_use ||
+        (c->state != TCP_ESTABLISHED && c->state != TCP_CLOSE_WAIT)) {
         /* WP-09 SSH debug: log why net_tcp_send failed */
         static const char *state_names[] = {
             "CLOSED", "SYN_SENT", "SYN_RCVD", "ESTABLISHED",
-            "FIN_WAIT_1", "FIN_WAIT_2", "CLOSE_WAIT", "LAST_ACK", "CLOSING"
+            "FIN_WAIT_1", "FIN_WAIT_2", "CLOSE_WAIT", "LAST_ACK", "CLOSING",
+            "TIME_WAIT"
         };
-        const char *sn = c->state < 9 ? state_names[c->state] : "?";
+        const char *sn = c->state < 10 ? state_names[c->state] : "?";
         char dbg[100];
         strcpy(dbg, "[tcp] send fail: sock=");
         char num[10];
@@ -2346,33 +2612,29 @@ int net_tcp_send(int sock, const void *data, int len) {
         screen_console_puts(dbg);
         return -1;
     }
+    if (len < 0) return -1;
+    if (len == 0) return 0;
 
-    /* WP-09: Clamp send size to min(cwnd, driver_snd_wnd, mss) */
-    int sendable = len;
-    u32 win = c->cwnd * c->mss;
-    if (win < c->driver_snd_wnd) {
-        if ((u32)sendable > win) sendable = (int)win;
-    } else {
-        if ((u32)sendable > c->driver_snd_wnd) sendable = (int)c->driver_snd_wnd;
-    }
-    if (sendable > c->mss) sendable = c->mss;
-    if (sendable > 1480) sendable = 1480;
-
-    /* WP-09: Copy to retransmission buffer */
-    if (c->rtx_len + sendable <= TCP_RTX_BUF_SIZE) {
-        memcpy(c->rtx_buf + c->rtx_len, data, sendable);
-        if (c->rtx_len == 0) {
-            c->rtx_seq = c->our_seq;
-            c->rto_deadline = core_timer_ticks() + c->rto;
-            c->send_tick = core_timer_ticks();
-            c->rtx_retransmitted = 0;
-        }
-        c->rtx_len += sendable;
-    }
-
-    net_tcp_send_raw(c, TCP_ACK | TCP_PSH, data, sendable);
-    c->our_seq += sendable;
-    return sendable;
+    /* BUG-0205: data is FIRST accepted into the retransmission/send
+     * buffer and only then transmitted (as far as Nagle, the peer window
+     * and the congestion window allow). The old code transmitted
+     * unconditionally and silently dropped the copy when rtx_buf was
+     * full — sent-but-unrecorded data could never be retransmitted
+     * (silent reliability loss). Now:
+     *   - accept what fits; return -1 only when the buffer cannot take
+     *     the whole payload (would-block, EAGAIN-like);
+     *   - a peer zero-window keeps the data queued; it is retried
+     *     automatically when the window re-opens (ACK path flush);
+     *   - Nagle coalesces small writes while a previous segment is
+     *     unacked; the ACK path flushes the tail (also covers SSH). */
+    if (c->rtx_len < 0 || c->rtx_len > TCP_RTX_BUF_SIZE) c->rtx_len = 0;
+    int space = TCP_RTX_BUF_SIZE - c->rtx_len;
+    if (len > space) return -1;   /* would not fit: let the caller retry */
+    memcpy(c->rtx_buf + c->rtx_len, data, len);
+    if (c->rtx_len == 0) c->rtx_seq = c->our_seq;
+    c->rtx_len += len;
+    net_tcp_flush_queued(c);
+    return len;
 }
 
 int net_tcp_close(int sock) {
@@ -2380,19 +2642,67 @@ int net_tcp_close(int sock) {
     net_tcp_conn_t *c = &g_tcp_conns[sock];
     if (!c->in_use) return -1;
 
-    if (c->state == TCP_ESTABLISHED) {
-        /* Send FIN-ACK. */
-        net_tcp_send_raw(c, TCP_FIN | TCP_ACK, NULL, 0);
-        c->our_seq += 1;
-        c->state = TCP_FIN_WAIT_1;
-        /* Wait briefly for ACK. */
-        u64 start = core_timer_ticks();
-        while ((core_timer_ticks() - start) < 100) {
-            net_poll();
-            if (c->state == TCP_CLOSED) break;
-        }
+    /* BUG-0208: real close semantics (RFC 9293 3.5).
+     * Active close:  ESTABLISHED -> FIN_WAIT_1 -> FIN_WAIT_2 ->
+     *                TIME_WAIT (10 s, bounded) -> CLOSED.
+     * Simultaneous:  FIN_WAIT_1 -> CLOSING -> TIME_WAIT.
+     * Passive close: CLOSE_WAIT -> LAST_ACK -> CLOSED.
+     * The connection slot stays allocated through the FIN_WAIT, CLOSING,
+     * LAST_ACK and TIME_WAIT linger states so late segments are answered
+     * instead of hitting a freed conn (the old code zeroed in_use after
+     * ~1 s unconditionally, so a FIN whose ACK had not arrived left the
+     * peer's FIN answerless and LAST_ACK was unreachable).
+     * net_tcp_check_rto() retires TIME_WAIT after the dwell; the ACK
+     * state machine retires the CLOSED states. */
+    switch (c->state) {
+        case TCP_ESTABLISHED:
+        case TCP_SYN_RCVD:
+            /* Flush whatever is still queued so the FIN follows ALL data
+             * (bounded effort — the close wait loop below also polls). */
+            net_tcp_flush_queued(c);
+            net_tcp_send_raw(c, TCP_FIN | TCP_ACK, NULL, 0);
+            c->our_seq += 1;
+            c->state = TCP_FIN_WAIT_1;
+            break;
+        case TCP_CLOSE_WAIT:
+            /* Passive close: we already ACKed the peer's FIN. Flush any
+             * data the app queued in CLOSE_WAIT (e.g. a TLS close_notify),
+             * then send our FIN and go to LAST_ACK (previously never
+             * entered). */
+            net_tcp_flush_queued(c);
+            net_tcp_send_raw(c, TCP_FIN | TCP_ACK, NULL, 0);
+            c->our_seq += 1;
+            c->state = TCP_LAST_ACK;
+            break;
+        case TCP_SYN_SENT:
+            /* Connect never completed: just release the slot. */
+            c->state = TCP_CLOSED;
+            c->in_use = 0;
+            return 0;
+        case TCP_FIN_WAIT_1:
+        case TCP_FIN_WAIT_2:
+        case TCP_CLOSING:
+        case TCP_LAST_ACK:
+        case TCP_TIME_WAIT:
+            /* Already closing — keep waiting for the peer. */
+            return 0;
+        case TCP_CLOSED:
+        default:
+            c->in_use = 0;
+            return 0;
     }
-    c->in_use = 0;
+
+    /* Wait briefly for the teardown to progress. On success the state
+     * machine has moved us at least to FIN_WAIT_2 / TIME_WAIT (active)
+     * or CLOSED (passive). The slot is intentionally NOT released here;
+     * the linger states keep replying to peer traffic until retired. */
+    u64 start = core_timer_ticks();
+    while ((core_timer_ticks() - start) < 100) {   /* 1 s @ 100 Hz */
+        net_poll();
+        if (!c->in_use) break;                        /* retired */
+        if (c->state == TCP_CLOSED) break;
+        if (c->state == TCP_TIME_WAIT) break;         /* full teardown seen */
+    }
     return 0;
 }
 
@@ -2418,6 +2728,18 @@ int net_tcp_listen(u16 port, net_tcp_handler_fn handler) {
     return -1;  /* table full */
 }
 
+/* BUG-0207: is a local TCP port already taken by a live connection
+ * (any state, including TIME_WAIT) or a listener? */
+static int net_tcp_port_in_use(u16 port) {
+    for (int i = 0; i < TCP_MAX_CONNS; i++) {
+        if (g_tcp_conns[i].in_use && g_tcp_conns[i].local_port == port) return 1;
+    }
+    for (int i = 0; i < TCP_MAX_LISTENERS; i++) {
+        if (g_tcp_listeners[i].in_use && g_tcp_listeners[i].port == port) return 1;
+    }
+    return 0;
+}
+
 void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
     if (len < 20) return;
     const net_tcp_hdr_t *h = (const net_tcp_hdr_t *)data;
@@ -2428,6 +2750,12 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
     u16 flags = ntohs(h->data_offset_flags) & 0x1FF;
     u16 win = ntohs(h->window);
     int hdr_len = (ntohs(h->data_offset_flags) >> 12) * 4;
+    /* BUG-0203: validate data offset. doff < 5 means the header is
+     * shorter than the mandatory 20 bytes (payload would point into the
+     * header itself); doff*4 > len means the header claims more bytes
+     * than the segment carries. Either way the segment is malformed —
+     * drop it before options/payload parsing. */
+    if (hdr_len < 20 || hdr_len > len) return;
     int payload_len = len - hdr_len;
     const void *payload = (const u8 *)data + hdr_len;
     const u8 *opts = (const u8 *)data + 20;
@@ -2518,6 +2846,12 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
     switch (c->state) {
         case TCP_SYN_SENT:
             if ((flags & TCP_SYN) && (flags & TCP_ACK)) {
+                /* BUG-0209: a SYN-ACK must acknowledge OUR SYN
+                 * (SEG.ACK == SND.NXT, RFC 9293 3.10.7.2 SEGMENT ARRIVES).
+                 * No data can have been sent in SYN_SENT, so SND.NXT is
+                 * exactly our_seq (ISN + 1). Without this check any
+                 * spoofed SYN-ACK completed the "handshake". */
+                if (ack != c->our_seq) break;
                 c->our_ack = seq + 1;
                 /* Send ACK. */
                 net_tcp_send_raw(c, TCP_ACK, NULL, 0);
@@ -2544,6 +2878,11 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
                             memmove(c->rtx_buf, c->rtx_buf + acked_bytes, remaining);
                         }
                         c->rtx_len = remaining;
+                        /* BUG-0205: the sent/unsent split slides too — the
+                         * ACKed bytes were by definition sent, so in-flight
+                         * shrinks by acked_bytes. */
+                        c->rtx_sent = (c->rtx_sent > (int)acked_bytes)
+                                    ? (c->rtx_sent - (int)acked_bytes) : 0;
                         c->rtx_seq = ack;
                         if (c->rtx_len == 0) {
                             c->rto_deadline = 0;  /* disarm RTO */
@@ -2569,6 +2908,7 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
                     } else if (c->rtx_len > 0) {
                         /* All data ACKed */
                         c->rtx_len = 0;
+                        c->rtx_sent = 0;   /* BUG-0205 */
                         c->rto_deadline = 0;
                     }
                     c->driver_snd_una = ack;
@@ -2610,24 +2950,26 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
                         c->ssthresh = ss;
                         c->fr_active = 1;
                         c->cwnd = ss / c->mss + 3;  /* inflate: 3 dup ACKs */
-                        /* Fast retransmit the FIRST not-yet-sacked segment */
-                        if (c->rtx_len > 0) {
+                        /* Fast retransmit the FIRST not-yet-sacked segment
+                         * (BUG-0205: only already-SENT data is a
+                         * retransmission candidate — bound by rtx_sent). */
+                        if (c->rtx_sent > 0) {
                             int off = 0;
                             if (c->sack_count > 0) {
                                 int total = TCP_RTX_BUF_SIZE / 256;
-                                while (off < c->rtx_len) {
+                                while (off < c->rtx_sent) {
                                     int blk = off / 256;
                                     int overrun = blk >= total;
                                     if (!overrun && c->rtx_sacked[blk]) {
                                         off = (blk + 1) * 256;
-                                        if (off > c->rtx_len) off = c->rtx_len;
+                                        if (off > c->rtx_sent) off = c->rtx_sent;
                                         continue;
                                     }
                                     break;
                                 }
                             }
-                            if (off < c->rtx_len) {
-                                int rtx = c->rtx_len - off;
+                            if (off < c->rtx_sent) {
+                                int rtx = c->rtx_sent - off;
                                 if (rtx > c->mss) rtx = c->mss;
                                 u32 saved_seq = c->our_seq;
                                 c->our_seq = c->rtx_seq + (u32)off;
@@ -2738,6 +3080,11 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
                 net_tcp_send_raw(c, TCP_ACK, NULL, 0);
                 c->state = TCP_CLOSE_WAIT;
             }
+            /* BUG-0205/BUG-0212: the ACK may have freed in-flight bytes
+             * (cwnd grows) or re-opened the peer's window — push any
+             * queued-unsent data now. This is the "flush on ACK" that
+             * makes Nagle and the effective congestion window work. */
+            net_tcp_flush_queued(c);
             break;
         case TCP_CLOSE_WAIT:
             /* P1-12 FIX: handle CLOSE_WAIT — remote already closed.
@@ -2761,15 +3108,29 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
             if (flags & TCP_FIN) {
                 c->our_ack = seq + 1;
                 net_tcp_send_raw(c, TCP_ACK, NULL, 0);
-                c->state = TCP_CLOSED;
-                c->in_use = 0;
+                /* BUG-0208: both FINs done — enter TIME_WAIT (bounded) so
+                 * old duplicate segments cannot poison a reused 4-tuple.
+                 * rto_deadline parks the TIME_WAIT start tick. */
+                c->state = TCP_TIME_WAIT;
+                c->rto_deadline = core_timer_ticks() + TCP_TIME_WAIT_TICKS;
             }
             break;
         case TCP_CLOSING:
             /* P1-12 FIX: handle CLOSING — waiting for ACK of our FIN. */
             if (flags & TCP_ACK) {
-                c->state = TCP_CLOSED;
-                c->in_use = 0;
+                /* BUG-0208: simultaneous close completes → TIME_WAIT. */
+                c->state = TCP_TIME_WAIT;
+                c->rto_deadline = core_timer_ticks() + TCP_TIME_WAIT_TICKS;
+            }
+            break;
+        case TCP_TIME_WAIT:
+            /* BUG-0208: the peer's FIN retransmission arrived — re-ACK it
+             * and restart the dwell (RFC 9293 3.5: TIME_WAIT restarts on
+             * a duplicated FIN so the peer never hangs in LAST_ACK). */
+            if (flags & TCP_FIN) {
+                c->our_ack = seq + 1;
+                net_tcp_send_raw(c, TCP_ACK, NULL, 0);
+                c->rto_deadline = core_timer_ticks() + TCP_TIME_WAIT_TICKS;
             }
             break;
         case TCP_LAST_ACK:
@@ -2803,9 +3164,13 @@ typedef struct {
 
 static net_socket_t g_sockets[MAX_SOCKETS];
 
-/* Called from UDP handler to deliver data to bound sockets. */
-void net_udp_socket_handler(u32 src_ip, u16 src_port, u16 dst_port,
-                            const void *data, int len) {
+/* Called from UDP handler to deliver data to bound sockets.
+ * Returns 1 when a socket with a matching port exists (BUG-0217(b): an
+ * overflowing socket buffer drops the NEW datagram and counts it in
+ * stats — the previously-buffered datagram is kept), 0 when no socket
+ * owns the port. */
+int net_udp_socket_handler(u32 src_ip, u16 src_port, u16 dst_port,
+                           const void *data, int len) {
     for (int i = 0; i < MAX_SOCKETS; i++) {
         if (g_sockets[i].in_use && g_sockets[i].type == SOCK_UDP &&
             g_sockets[i].local_port == dst_port) {
@@ -2816,10 +3181,15 @@ void net_udp_socket_handler(u32 src_ip, u16 src_port, u16 dst_port,
                 g_sockets[i].rx_len = n;
                 g_sockets[i].rx_from_ip = src_ip;
                 g_sockets[i].rx_from_port = src_port;
+            } else {
+                /* BUG-0217(b): rx buffer still full — drop the NEW datagram
+                 * and count it (the app keeps its buffered datagram). */
+                g_stats.net_udp_rx_dropped++;
             }
-            return;
+            return 1;
         }
     }
+    return 0;
 }
 
 int net_socket(int type) {
@@ -2898,7 +3268,10 @@ int net_accept(int listen_fd, u32 *client_ip, u16 *client_port) {
         }
         net_poll();
         for (volatile int d = 0; d < 30000; d++) { /* brief yield */ }
-        if (core_timer_ticks() - start > 120 * 1000) {     /* 120 s @1000 Hz */
+        /* BUG-0206: the timeout is in TICKS, and the kernel timer runs at
+         * OC_TIMER_HZ (=100, core_timer.h) — not 1000. "120 * 1000" was
+         * 1200 s (20 minutes); the intended 120 s is 120 * OC_TIMER_HZ. */
+        if (core_timer_ticks() - start > 120 * (u64)OC_TIMER_HZ) {   /* 120 s @ OC_TIMER_HZ */
             return -1;  /* timed out */
         }
     }
@@ -2946,6 +3319,9 @@ int net_recv(int fd, void *buf, int len) {
                  * consuming data so a peer that throttled itself on our
                  * shrunken advertised window resumes sending. */
                 net_tcp_send_raw(&g_tcp_conns[conn], TCP_ACK, NULL, 0);
+                /* BUG-0205: the drained buffer re-opened our advertised
+                 * window — give the send queue a chance to flush too. */
+                net_tcp_flush_queued(&g_tcp_conns[conn]);
                 return n;
             }
         }
@@ -2981,6 +3357,15 @@ int net_tcp_established(int fd) {
     if (g_sockets[fd].type != SOCK_TCP || g_sockets[fd].net_tcp_conn < 0) return 0;
     return (g_tcp_conns[g_sockets[fd].net_tcp_conn].state == TCP_ESTABLISHED)
                ? 1 : 0;
+}
+
+/* Returns 1 if the TCP connection for fd is in ESTABLISHED or CLOSE_WAIT
+ * state (i.e. sending a close_notify alert is still legal), 0 otherwise. */
+int net_tcp_established_or_close_wait(int fd) {
+    if (fd < 0 || fd >= MAX_SOCKETS || !g_sockets[fd].in_use) return 0;
+    if (g_sockets[fd].type != SOCK_TCP || g_sockets[fd].net_tcp_conn < 0) return 0;
+    net_tcp_state_t st = g_tcp_conns[g_sockets[fd].net_tcp_conn].state;
+    return (st == TCP_ESTABLISHED || st == TCP_CLOSE_WAIT) ? 1 : 0;
 }
 
 /* ============================================================
@@ -3413,11 +3798,15 @@ int net_dns_resolve(const char *name, u32 *net_ip_out) {
         while (*dot && *dot != '.') dot++;
         int labellen = dot - p;
         if (labellen > 63) return -1;
+        /* BUG-0211: bounds-check every write (length byte + label + the
+         * trailing NUL and the 4-byte QTYPE/QCLASS that must still fit). */
+        if (q + 1 + labellen + 5 > buf + sizeof(buf)) return -1;
         *q++ = (u8)labellen;
         for (int i = 0; i < labellen; i++) *q++ = p[i];
         if (*dot == '.') p = dot + 1;
         else { p = dot; break; }
     }
+    if (q + 5 > buf + sizeof(buf)) return -1;  /* BUG-0211: NUL + qtype + qclass */
     *q++ = 0;  /* end of name */
     *(u16 *)q = htons(1);  /* QTYPE = A */
     q += 2;
@@ -3495,11 +3884,14 @@ int net_dns_resolve_aaaa(const char *name, u8 *ipv6_out) {
         while (*dot && *dot != '.') dot++;
         int labellen = dot - p;
         if (labellen > 63) return -1;
+        /* BUG-0211: bounds-check every write against the real buffer. */
+        if (q + 1 + labellen + 5 > buf + sizeof(buf)) return -1;
         *q++ = (u8)labellen;
         for (int i = 0; i < labellen; i++) *q++ = p[i];
         if (*dot == '.') p = dot + 1;
         else { p = dot; break; }
     }
+    if (q + 5 > buf + sizeof(buf)) return -1;  /* BUG-0211: NUL + qtype + qclass */
     *q++ = 0;
     *(u16 *)q = htons(28);  /* QTYPE = AAAA */
     q += 2;
@@ -3523,26 +3915,34 @@ int net_dns_resolve_aaaa(const char *name, u8 *ipv6_out) {
     return -1;
 }
 
-/* WP-09 mainstream: generic DNS query builder (name labels + QTYPE + IN). */
+/* WP-09 mainstream: generic DNS query builder (name labels + QTYPE + IN).
+ * BUG-0211: buf_len is the REAL output size — the old builder discarded it
+ * with (void)buf_len and trusted the caller's "bounded" hostname, so any
+ * future caller with a long name silently overran the buffer. The header
+ * plus qname plus the 4-byte QTYPE/QCLASS trailer must all fit. */
 static int net_dns_build_query(const char *name, u16 qtype, u16 id, u8 *buf, int buf_len) {
-    (void)buf_len;   /* callers pass a 512-byte buffer; name length is bounded */
+    if (buf == NULL || buf_len < (int)sizeof(net_dns_hdr_t) + 5) return -1;
     net_dns_hdr_t *h = (net_dns_hdr_t *)buf;
     h->id = htons(id);
     h->flags = htons(0x0100);  /* standard query, recursion desired */
     h->qdcount = htons(1);
     h->ancount = 0; h->nscount = 0; h->arcount = 0;
     u8 *q = buf + sizeof(net_dns_hdr_t);
+    u8 *end = buf + buf_len;
     const char *p = name;
     while (*p) {
         const char *dot = p;
         while (*dot && *dot != '.') dot++;
         int labellen = dot - p;
         if (labellen > 63) return -1;
+        /* length byte + label + room for the NUL and the 4-byte trailer */
+        if (q + 1 + labellen + 5 > end) return -1;
         *q++ = (u8)labellen;
         for (int i = 0; i < labellen; i++) *q++ = p[i];
         if (*dot == '.') p = dot + 1;
         else { p = dot; break; }
     }
+    if (q + 5 > end) return -1;  /* BUG-0211: NUL + qtype + qclass must fit */
     *q++ = 0;
     *(u16 *)q = htons(qtype); q += 2;
     *(u16 *)q = htons(1);     /* QCLASS = IN */ q += 2;
@@ -4323,6 +4723,9 @@ int shell_cmd_netstat(const char *args) {
     strcpy(buf, "  TCP connections: "); u64_to_str(st.net_tcp_connections, n_tmp); strcat(buf, n_tmp);
     strcat(buf, "\n");
     screen_console_puts(buf);
+    strcpy(buf, "  UDP rx dropped (buffer full): "); u64_to_str(st.net_udp_rx_dropped, n_tmp); strcat(buf, n_tmp);
+    strcat(buf, "\n");
+    screen_console_puts(buf);
 
     /* Show active sockets. */
     screen_console_puts("Sockets:\n");
@@ -4953,6 +5356,9 @@ static int net_tcp_cc_sim_test(void) {
         memcpy(c->rtx_buf + sgi * 536, data, 536);
     }
     c->rtx_len = 3 * 536;
+    /* BUG-0205: rtx_sent tracks the transmitted prefix; the simulation
+     * emulates three segments that net_tcp_send has already sent. */
+    c->rtx_sent = 3 * 536;
     c->rtx_seq = 1000;
     c->rto = 300;                        /* no RTO interference */
     c->rto_deadline = core_timer_ticks() + 300;

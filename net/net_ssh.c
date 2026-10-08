@@ -2,28 +2,46 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09
  * File: kernel/ssh.c
- * Purpose: SSH-2.0 client — minimal implementation.
+ * Purpose: SSH-2.0 client.
  *
  * Implements (subset of RFC 4251-4254):
  *   - SSH-2.0 version banner exchange
- *   - SSH_MSG_KEXINIT (algorithm negotiation)
- *   - SSH_MSG_KEXDH_INIT / KEXDH_REPLY (DH group 14, 2048-bit + SHA-256)
- *   - SSH_MSG_NEWKEYS (transition to encrypted mode)
- *   - SSH_MSG_USERAUTH_REQUEST (password)
- *   - SSH_MSG_CHANNEL_OPEN + CHANNEL_REQUEST (exec)
- *   - SSH_MSG_CHANNEL_DATA (receive output)
+ *   - SSH_MSG_KEXINIT (algorithm negotiation), incl. the strict-kex
+ *     extension tokens (RFC 9144, Terrapin hardening)
+ *   - SSH_MSG_KEXDH_INIT / KEXDH_REPLY: curve25519-sha256 (preferred,
+ *     RFC 8731) or diffie-hellman-group14-sha256 (RFC 8268)
+ *   - SSH_MSG_NEWKEYS transition to encrypted mode; with strict-kex both
+ *     sequence numbers restart at 0 after every NEWKEYS (RFC 9144)
+ *   - byte-threshold rekey: at 64 MiB per direction the client starts a
+ *     new KEXINIT at a packet boundary, reusing the KEX machinery (the
+ *     rekey exchange itself runs under the still-active keys)
+ *   - SSH_MSG_SERVICE_REQUEST / SERVICE_ACCEPT service dance before
+ *     userauth (RFC 4252 S5)
+ *   - SSH_MSG_USERAUTH_REQUEST: password, or publickey when the password
+ *     is empty
+ *   - SSH_MSG_CHANNEL_OPEN + CHANNEL_REQUEST (exec) + CHANNEL_DATA
  *
- * Ciphers chosen:
- *   - KEX:    diffie-hellman-group14-sha256 (paramiko default)
- *   - Cipher: aes128-cbc
- *   - MAC:    hmac-sha1 (20-byte tag)
- *   - Host key verification: skipped (accept any)
- *   - Compression: none
+ * Algorithms / trust model:
+ *   - Cipher: aes128-ctr (preferred), aes128-cbc fallback (RFC 4253 S6.3
+ *     rolling IV)
+ *   - MAC: hmac-sha2-256 (RFC 6668) - NOT hmac-sha1
+ *   - Host key: rsa-sha2-256 / rsa-sha2-512 (RFC 8332), ssh-rsa blobs.
+ *     The signature over the exchange hash H is verified against the
+ *     host key K_S BEFORE any key is used (RFC 4253 S8); RSA-2048 only.
+ *   - Trust anchor: TOFU against /etc/ssh_known_hosts ("<ip:port> <fp>"
+ *     per line); a changed host key refuses the connection (possible
+ *     MITM) instead of being silently accepted.
+ *   - Key derivation: SHA-256 (RFC 4253 S7.2), not HMAC-SHA1
+ *   - Interop tested against paramiko in both directions (kernel client
+ *     to paramiko server; kernel sshd with paramiko client)
  *
- * WP-09 design note: 2048-bit DH modexp takes ~60s in QEMU. This is a
- * one-time cost per session. The handshake then proceeds with AES-128-CBC
- * encrypted packets. Server-side encrypted packets are decrypted using
- * crypto_aes128_cbc_decrypt + hmac-sha1 verify.
+ * Limitations:
+ *   - No compression
+ *   - No PTY (exec only, no shell)
+ *   - Rekey is client-initiated at a packet boundary in the exec loop;
+ *     no data packets are mixed into an in-progress exchange - a peer
+ *     that sends data mid-exchange fails the rekey and the session is
+ *     dropped (documented drop-with-disconnect policy)
  */
 #include "net_ssh.h"
 #include "crypto_core.h"
@@ -45,6 +63,9 @@
 #define SSH_MSG_USERAUTH_REQ    50
 #define SSH_MSG_USERAUTH_SUCCESS 52
 #define SSH_MSG_USERAUTH_FAILURE 53
+#define SSH_MSG_DISCONNECT     1
+#define SSH_MSG_SERVICE_REQUEST 5
+#define SSH_MSG_SERVICE_ACCEPT  6
 #define SSH_MSG_GLOBAL_REQUEST 80
 #define SSH_MSG_CHANNEL_OPEN    90
 #define SSH_MSG_CHANNEL_OPEN_CONFIRMATION 91
@@ -55,6 +76,22 @@
 
 /* DH group 14 prime now lives in crypto.c (crypto_dh_group14_prime, declared in crypto.h). */
 #define SSH_DH_BYTES 256
+
+/* BUG-0220 (A14-34): strict-kex extension tokens (RFC 9144). The client
+ * advertises ..._c_..., the server ..._s_...; each side looks for the
+ * PEER's token in the received KEXINIT list. */
+#define SSH_KEX_STRICT_CLIENT "kex-strict-c-v00@openssh.com"
+#define SSH_KEX_STRICT_SERVER "kex-strict-s-v00@openssh.com"
+
+/* BUG-0219 (A14-33): client-side rekey threshold (bytes per direction,
+ * counted after every completed NEWKEYS; 64 MiB). */
+#define SSH_REKEY_THRESHOLD (64ULL * 1024ULL * 1024ULL)
+
+/* Encrypted packet framing lives further down the file; the strict-kex
+ * reset, the SERVICE_REQUEST dance (BUG-0235) and the rekey path (BUG-0219)
+ * use it right after NEWKEYS. */
+int net_ssh_send_packet_encrypted(net_ssh_ctx_t *ctx, u8 msg_type, const u8 *payload, int payload_len);
+int net_ssh_recv_packet_encrypted(net_ssh_ctx_t *ctx, u8 *msg_type, u8 *payload, int *payload_len);
 
 static net_ssh_ctx_t g_ssh_ctx;
 
@@ -83,6 +120,39 @@ static void net_ssh_debug_hex(const char *prefix, const u8 *buf, int n) {
 }
 
 net_ssh_ctx_t *net_ssh_get_ctx(void) { return &g_ssh_ctx; }
+
+/* BUG-0218 (A14-32): single cleanup path for every handshake failure.
+ * The old code had 12+ direct `return -N` exits after net_connect()
+ * succeeded; none of them closed the TCP socket, so a retry loop (e.g. a
+ * script hammering a wrong password) exhausted the socket table. Every
+ * failure exit in net_ssh_connect funnels through here. */
+static int net_ssh_connect_fail(net_ssh_ctx_t *ctx, int code) {
+    if (ctx->net_tcp_sock >= 0) {
+        net_close(ctx->net_tcp_sock);
+        ctx->net_tcp_sock = -1;
+    }
+    ctx->encrypted = 0;
+    return code;
+}
+
+/* BUG-0221 (A14-35): constant-time all-zero test (RFC 7748 S6.1) - OR all
+ * bytes into one accumulator and branch only on the final value, so the
+ * result does not depend on how many bytes were zero. */
+static int net_ssh_secret_is_zero(const u8 *buf, int len) {
+    u8 acc = 0;
+    for (int i = 0; i < len; i++) acc |= buf[i];
+    return acc == 0;
+}
+
+/* BUG-0220 (A14-34): strict-kex (RFC 9144) - when the extension was
+ * negotiated, both directions' sequence numbers restart at 0 immediately
+ * after the final NEWKEYS of the initial AND every rekey exchange. */
+static void net_ssh_reset_seq(net_ssh_ctx_t *ctx) {
+    if (!ctx->kex_strict) return;
+    ctx->write_seq = 0;
+    ctx->read_seq = 0;
+    net_ssh_debug("[ssh] strict-kex: sequence numbers reset to 0");
+}
 
 /* Send raw (unencrypted) SSH packet.
  * Layout: packet_length(4 BE) || padding_length(1) || payload(N) || random_pad(4-255)
@@ -224,7 +294,7 @@ static int net_ssh_name_has(const char *list, int list_len, const char *name) {
     return 0;
 }
 
-static int net_ssh_send_kexinit(net_ssh_ctx_t *ctx) {
+static int net_ssh_send_kexinit(net_ssh_ctx_t *ctx, int encrypted) {
     u8 buf[400];
     int p = 0;
     /* cookie */
@@ -239,8 +309,9 @@ static int net_ssh_send_kexinit(net_ssh_ctx_t *ctx) {
     } while (0)
     /* Both RFC 8731 spellings: OpenSSH prefers the bare name, paramiko 5
      * only offers the @libssh.org variant. Listing both guarantees the
-     * negotiated kex agrees whichever name-list order the server uses. */
-    WRITE_STR("curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group14-sha256");
+     * negotiated kex agrees whichever name-list order the server uses.
+     * The trailing token advertises strict-kex (RFC 9144, BUG-0220). */
+    WRITE_STR("curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group14-sha256,kex-strict-c-v00@openssh.com");
     WRITE_STR("rsa-sha2-256,rsa-sha2-512,ssh-rsa");
     WRITE_STR("aes128-ctr,aes128-cbc");
     WRITE_STR("aes128-ctr,aes128-cbc");
@@ -261,15 +332,21 @@ static int net_ssh_send_kexinit(net_ssh_ctx_t *ctx) {
     ctx->client_kexinit[0] = SSH_MSG_KEXINIT;
     memcpy(ctx->client_kexinit + 1, buf, ctx->client_kexinit_len - 1);
 
+    /* BUG-0219: during a rekey the exchange runs under the currently
+     * active keys, so the framing depends on the session phase. */
+    if (encrypted)
+        return net_ssh_send_packet_encrypted(ctx, SSH_MSG_KEXINIT, buf, p);
     return net_ssh_send_packet_unencrypted(ctx, SSH_MSG_KEXINIT, buf, p);
 }
 
 /* Parse server's KEXINIT to extract server's cookie + save bytes for hash. */
-static int net_ssh_recv_kexinit(net_ssh_ctx_t *ctx) {
+static int net_ssh_recv_kexinit(net_ssh_ctx_t *ctx, int encrypted) {
     static u8 payload[4096];  /* paramiko KEXINIT can be 800+ bytes */
     int payload_len = sizeof(payload);
     u8 msg_type;
-    if (net_ssh_recv_packet_unencrypted(ctx, &msg_type, payload, &payload_len) < 0) return -1;
+    int rc = encrypted ? net_ssh_recv_packet_encrypted(ctx, &msg_type, payload, &payload_len)
+                       : net_ssh_recv_packet_unencrypted(ctx, &msg_type, payload, &payload_len);
+    if (rc < 0) return -1;
     if (msg_type != SSH_MSG_KEXINIT) return -2;
     /* WP-09 fix: paramiko's remote_kex_init = cMSG_KEXINIT + m.get_so_far()
      * which INCLUDES the msg_type byte. Both local_kex_init and remote_kex_init
@@ -318,6 +395,10 @@ static int net_ssh_recv_kexinit(net_ssh_ctx_t *ctx) {
         int c2s_ctr = net_ssh_name_has(lists[2], lens[2], "aes128-ctr");
         int s2c_ctr = net_ssh_name_has(lists[3], lens[3], "aes128-ctr");
         ctx->cipher_ctr = (c2s_ctr && s2c_ctr) ? 1 : 0;
+        /* BUG-0220 (A14-34): strict-kex (RFC 9144). The SERVER advertises
+         * kex-strict-s-v00@openssh.com; when present, both sides reset
+         * both sequence numbers right after every NEWKEYS. */
+        ctx->kex_strict = net_ssh_name_has(lists[0], lens[0], SSH_KEX_STRICT_SERVER);
         net_ssh_debug(ctx->kex_curve25519 ?
                   "[ssh] negotiated KEX: curve25519-sha256" :
                   "[ssh] negotiated KEX: diffie-hellman-group14-sha256");
@@ -332,7 +413,7 @@ static int net_ssh_recv_kexinit(net_ssh_ctx_t *ctx) {
  * KEX_ECDH_INIT (30): string e = X25519 public key (32 bytes)
  * KEX_ECDH_REPLY (31): string K_S || string f || string signature
  * K = raw 32-byte X25519 shared secret. */
-static int net_ssh_send_kex_ecdh_init(net_ssh_ctx_t *ctx) {
+static int net_ssh_send_kex_ecdh_init(net_ssh_ctx_t *ctx, int encrypted) {
     crypto_random(ctx->client_priv, 32);
     crypto_x25519_public(ctx->client_priv, ctx->client_pub);  /* low 32 bytes used */
 
@@ -340,14 +421,18 @@ static int net_ssh_send_kex_ecdh_init(net_ssh_ctx_t *ctx) {
     int p = 0;
     payload[p++] = 0; payload[p++] = 0; payload[p++] = 0; payload[p++] = 32;
     memcpy(payload + p, ctx->client_pub, 32); p += 32;
+    if (encrypted)
+        return net_ssh_send_packet_encrypted(ctx, SSH_MSG_KEXDH_INIT, payload, p);
     return net_ssh_send_packet_unencrypted(ctx, SSH_MSG_KEXDH_INIT, payload, p);
 }
 
-static int net_ssh_recv_kex_reply(net_ssh_ctx_t *ctx) {
+static int net_ssh_recv_kex_reply(net_ssh_ctx_t *ctx, int encrypted) {
     u8 payload[4096];
     int payload_len = sizeof(payload);
     u8 msg_type;
-    if (net_ssh_recv_packet_unencrypted(ctx, &msg_type, payload, &payload_len) < 0) return -1;
+    int rc = encrypted ? net_ssh_recv_packet_encrypted(ctx, &msg_type, payload, &payload_len)
+                       : net_ssh_recv_packet_unencrypted(ctx, &msg_type, payload, &payload_len);
+    if (rc < 0) return -1;
     if (msg_type != SSH_MSG_KEXDH_REPLY) return -2;
     int off = 0;
     if (off + 4 > payload_len) return -3;
@@ -402,7 +487,7 @@ static void net_ssh_write_mpint(u8 *buf, int *p, const u8 *val, int val_len) {
 }
 
 /* Send KEXDH_INIT (msg 30): mpint e */
-static int net_ssh_send_kexdh_init(net_ssh_ctx_t *ctx) {
+static int net_ssh_send_kexdh_init(net_ssh_ctx_t *ctx, int encrypted) {
     /* Generate client DH private key (256-byte random, masked) */
     crypto_random(ctx->client_priv, SSH_DH_BYTES);
     ctx->client_priv[0] &= 0x7F;  /* ensure < p */
@@ -430,15 +515,19 @@ static int net_ssh_send_kexdh_init(net_ssh_ctx_t *ctx) {
     u8 payload[300];
     int p = 0;
     net_ssh_write_mpint(payload, &p, ctx->client_pub, SSH_DH_BYTES);
+    if (encrypted)
+        return net_ssh_send_packet_encrypted(ctx, SSH_MSG_KEXDH_INIT, payload, p);
     return net_ssh_send_packet_unencrypted(ctx, SSH_MSG_KEXDH_INIT, payload, p);
 }
 
 /* Receive KEXDH_REPLY (msg 31): string K_S || mpint f || string sig */
-static int net_ssh_recv_kexdh_reply(net_ssh_ctx_t *ctx) {
+static int net_ssh_recv_kexdh_reply(net_ssh_ctx_t *ctx, int encrypted) {
     u8 payload[4096];
     int payload_len = sizeof(payload);
     u8 msg_type;
-    if (net_ssh_recv_packet_unencrypted(ctx, &msg_type, payload, &payload_len) < 0) return -1;
+    int rc = encrypted ? net_ssh_recv_packet_encrypted(ctx, &msg_type, payload, &payload_len)
+                       : net_ssh_recv_packet_unencrypted(ctx, &msg_type, payload, &payload_len);
+    if (rc < 0) return -1;
     if (msg_type != SSH_MSG_KEXDH_REPLY) return -2;
     /* Parse: string K_S (host key blob) + mpint f + string signature */
     int off = 0;
@@ -872,7 +961,10 @@ static void net_ssh_derive_keys(net_ssh_ctx_t *ctx) {
     #define COMPUTE_KEY(X_char, out_buf, out_len) do { \
         int mp = 0; \
         memcpy(msg + mp, k_mpint, k_mpint_len); mp += k_mpint_len; \
-        memcpy(msg + mp, ctx->session_id, 32); mp += 32;  /* H */ \
+        /* BUG-0219: H is the exchange hash of the CURRENT exchange (equal
+         * to session_id for the initial exchange, a NEW hash after rekey).
+         * session_id itself stays the first H forever (RFC 4253 S8). */ \
+        memcpy(msg + mp, ctx->exchange_hash, 32); mp += 32;  /* H */ \
         msg[mp++] = X_char;  /* X */ \
         memcpy(msg + mp, ctx->session_id, 32); mp += 32;  /* session_id */ \
         sha256(msg, mp, digest); \
@@ -889,16 +981,20 @@ static void net_ssh_derive_keys(net_ssh_ctx_t *ctx) {
 }
 
 /* Send NEWKEYS (msg 21) */
-static int net_ssh_send_newkeys(net_ssh_ctx_t *ctx) {
+static int net_ssh_send_newkeys(net_ssh_ctx_t *ctx, int encrypted) {
+    if (encrypted)
+        return net_ssh_send_packet_encrypted(ctx, SSH_MSG_NEWKEYS, NULL, 0);
     return net_ssh_send_packet_unencrypted(ctx, SSH_MSG_NEWKEYS, NULL, 0);
 }
 
 /* Receive NEWKEYS */
-static int net_ssh_recv_newkeys(net_ssh_ctx_t *ctx) {
+static int net_ssh_recv_newkeys(net_ssh_ctx_t *ctx, int encrypted) {
     u8 payload[16];
     int payload_len = sizeof(payload);
     u8 msg_type;
-    if (net_ssh_recv_packet_unencrypted(ctx, &msg_type, payload, &payload_len) < 0) return -1;
+    int rc = encrypted ? net_ssh_recv_packet_encrypted(ctx, &msg_type, payload, &payload_len)
+                       : net_ssh_recv_packet_unencrypted(ctx, &msg_type, payload, &payload_len);
+    if (rc < 0) return -1;
     if (msg_type != SSH_MSG_NEWKEYS) return -2;
     return 0;
 }
@@ -920,13 +1016,11 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
     ctx->net_tcp_sock = net_socket(SOCK_TCP);
     if (ctx->net_tcp_sock < 0) {
         net_ssh_debug("[ssh] net_socket failed");
-        return -1;
+        return net_ssh_connect_fail(ctx, -1);
     }
     if (net_connect(ctx->net_tcp_sock, ip, port) < 0) {
         net_ssh_debug("[ssh] net_connect failed");
-        net_close(ctx->net_tcp_sock);
-        ctx->net_tcp_sock = -1;
-        return -1;
+        return net_ssh_connect_fail(ctx, -1);
     }
     net_ssh_debug("[ssh] TCP connected");
 
@@ -934,35 +1028,35 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
     strcpy(ctx->client_banner, "SSH-2.0-OpenCubeOS_WP-09");
     if (net_ssh_send_version(ctx) < 0) {
         net_ssh_debug("[ssh] failed to send version banner");
-        return -2;
+        return net_ssh_connect_fail(ctx, -2);
     }
     if (net_ssh_recv_version(ctx) < 0) {
         net_ssh_debug("[ssh] failed to receive server banner");
-        return -3;
+        return net_ssh_connect_fail(ctx, -3);
     }
     net_ssh_debug("[ssh] version banner exchange OK");
     net_ssh_debug(ctx->server_banner);
 
     /* KEXINIT exchange */
-    if (net_ssh_send_kexinit(ctx) < 0) {
+    if (net_ssh_send_kexinit(ctx, 0) < 0) {
         net_ssh_debug("[ssh] failed to send KEXINIT");
-        return -4;
+        return net_ssh_connect_fail(ctx, -4);
     }
-    if (net_ssh_recv_kexinit(ctx) < 0) {
+    if (net_ssh_recv_kexinit(ctx, 0) < 0) {
         net_ssh_debug("[ssh] failed to receive KEXINIT");
-        return -5;
+        return net_ssh_connect_fail(ctx, -5);
     }
     net_ssh_debug("[ssh] KEXINIT exchange OK");
 
     /* Key exchange: curve25519-sha256 (modern default) or group14 */
     if (ctx->kex_curve25519) {
-        if (net_ssh_send_kex_ecdh_init(ctx) < 0) {
+        if (net_ssh_send_kex_ecdh_init(ctx, 0) < 0) {
             net_ssh_debug("[ssh] failed to send KEX_ECDH_INIT");
-            return -6;
+            return net_ssh_connect_fail(ctx, -6);
         }
-        if (net_ssh_recv_kex_reply(ctx) < 0) {
+        if (net_ssh_recv_kex_reply(ctx, 0) < 0) {
             net_ssh_debug("[ssh] failed to receive KEX_ECDH_REPLY");
-            return -7;
+            return net_ssh_connect_fail(ctx, -7);
         }
         /* K = X25519(x, f): 32-byte shared secret, right-aligned into
          * shared_secret so the mpint encoder sees a plain big number. */
@@ -970,17 +1064,24 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
         if (crypto_x25519_shared(ctx->client_priv, ctx->server_pub + SSH_DH_BYTES - 32,
                           ctx->shared_secret + SSH_DH_BYTES - 32) != 0) {
             net_ssh_debug("[ssh] x25519 shared secret computation failed");
-            return -7;
+            return net_ssh_connect_fail(ctx, -7);
+        }
+        if (net_ssh_secret_is_zero(ctx->shared_secret + SSH_DH_BYTES - 32, 32)) {
+            /* BUG-0221 (A14-35): RFC 7748 S6.1 - an all-zero output means
+             * the peer's public key was invalid (small-order point); the
+             * derived session keys would be attacker-derivable. */
+            net_ssh_debug("[ssh] x25519 shared secret is all-zero (invalid server key)");
+            return net_ssh_connect_fail(ctx, -7);
         }
         net_ssh_debug("[ssh] curve25519 KEX complete (no modexp needed)");
     } else {
-        if (net_ssh_send_kexdh_init(ctx) < 0) {
+        if (net_ssh_send_kexdh_init(ctx, 0) < 0) {
             net_ssh_debug("[ssh] failed to send KEXDH_INIT");
-            return -6;
+            return net_ssh_connect_fail(ctx, -6);
         }
-        if (net_ssh_recv_kexdh_reply(ctx) < 0) {
+        if (net_ssh_recv_kexdh_reply(ctx, 0) < 0) {
             net_ssh_debug("[ssh] failed to receive KEXDH_REPLY");
-            return -7;
+            return net_ssh_connect_fail(ctx, -7);
         }
         /* Compute shared secret K = f^x mod p */
         net_ssh_debug("[ssh] computing K = f^x mod p (DH modexp, ~60s)...");
@@ -1001,15 +1102,16 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
     u8 hash[32];
     if (net_ssh_compute_hash(ctx, hash) < 0) {
         /* BUG-0012: input did not fit the page -- abort the exchange. */
-        return -14;
+        return net_ssh_connect_fail(ctx, -14);
     }
     /* RFC 4253 §8: verify the server signature over H with the host key
      * from K_S BEFORE deriving/using any keys. */
     if (net_ssh_verify_host_signature(ctx, hash) < 0) {
         net_ssh_debug("[ssh] host key verification failed");
-        return -14;
+        return net_ssh_connect_fail(ctx, -14);
     }
-    memcpy(ctx->session_id, hash, 32);  /* session_id = first H */
+    memcpy(ctx->exchange_hash, hash, 32);  /* H of the current exchange */
+    memcpy(ctx->session_id, hash, 32);     /* session_id = FIRST H, set once */
     ctx->session_id_set = 1;
     net_ssh_debug_hex("[ssh]   session_id (first 8): ", ctx->session_id, 8);
 
@@ -1029,17 +1131,60 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
     memcpy(ctx->ctr_s2c, ctx->initial_iv_s2c, 16);
 
     /* NEWKEYS exchange */
-    if (net_ssh_send_newkeys(ctx) < 0) {
+    if (net_ssh_send_newkeys(ctx, 0) < 0) {
         net_ssh_debug("[ssh] failed to send NEWKEYS");
-        return -8;
+        return net_ssh_connect_fail(ctx, -8);
     }
-    if (net_ssh_recv_newkeys(ctx) < 0) {
+    if (net_ssh_recv_newkeys(ctx, 0) < 0) {
         net_ssh_debug("[ssh] failed to receive NEWKEYS");
-        return -9;
+        return net_ssh_connect_fail(ctx, -9);
     }
     ctx->encrypted = 1;
+    /* BUG-0220 (A14-34): strict-kex - both directions restart at 0 after
+     * the final NEWKEYS of the initial exchange (and every rekey). */
+    net_ssh_reset_seq(ctx);
     net_ssh_debug("[ssh] NEWKEYS exchange OK — encrypted mode active");
     net_ssh_debug("[ssh] SSH transport layer established (KEX + NEWKEYS complete)");
+
+    /* BUG-0235 (A14-49): RFC 4252 S5 - the client MUST request the
+     * "ssh-userauth" service (SSH_MSG_SERVICE_REQUEST) and receive
+     * SSH_MSG_SERVICE_ACCEPT before its first USERAUTH_REQUEST. The old
+     * code jumped straight to USERAUTH_REQUEST; lenient peers (paramiko)
+     * accepted it, RFC-strict servers (OpenSSH) reject it. */
+    {
+        u8 spay[16];
+        int sp = 0;
+        const char *svcname = "ssh-userauth";
+        int sname_len = 12;
+        spay[sp++] = (u8)(sname_len >> 24); spay[sp++] = (u8)(sname_len >> 16);
+        spay[sp++] = (u8)(sname_len >> 8); spay[sp++] = (u8)(sname_len & 0xFF);
+        for (int i = 0; i < sname_len; i++) spay[sp++] = svcname[i];
+        if (net_ssh_send_packet_encrypted(ctx, SSH_MSG_SERVICE_REQUEST, spay, sp) < 0) {
+            net_ssh_debug("[ssh] failed to send SERVICE_REQUEST");
+            return net_ssh_connect_fail(ctx, -15);
+        }
+        net_ssh_debug("[ssh] sent SERVICE_REQUEST (ssh-userauth)");
+        /* Wait for SERVICE_ACCEPT within the existing receive timeouts:
+         * a slow or silent server falls through to USERAUTH, which still
+         * reports a clear error if the service exchange was mandatory.
+         * Anything else that arrives first (e.g. USERAUTH_BANNER) is
+         * tolerated and skipped. */
+        u64 svc_start = core_timer_ticks();
+        for (;;) {
+            u8 rtype;
+            u8 rbuf[64];
+            int rlen = (int)sizeof(rbuf);
+            if (net_ssh_recv_packet_encrypted(ctx, &rtype, rbuf, &rlen) < 0) {
+                net_ssh_debug("[ssh] no SERVICE_ACCEPT received (proceeding)");
+                break;
+            }
+            if (rtype == SSH_MSG_SERVICE_ACCEPT) {
+                net_ssh_debug("[ssh] SERVICE_ACCEPT received");
+                break;
+            }
+            if (core_timer_ticks() - svc_start > 2 * 800) break;
+        }
+    }
 
     /* WP-09 batch 13: Send USERAUTH_REQUEST (password or publickey) */
     /* password format:
@@ -1088,7 +1233,7 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
         }
         if (!have_client_key) {
             net_ssh_debug("[ssh] no /etc/ssh_client_key - publickey auth unavailable, use password");
-            return -14;
+            return net_ssh_connect_fail(ctx, -14);
         }
         u8 e_m[4];
         e_m[0] = 0; e_m[1] = 0x01; e_m[2] = 0x00; e_m[3] = 0x01;
@@ -1164,7 +1309,7 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
         extern int net_ssh_send_packet_encrypted(net_ssh_ctx_t *ctx, u8 msg_type, const u8 *payload, int payload_len);
         if (net_ssh_send_packet_encrypted(ctx, SSH_MSG_USERAUTH_REQ, payload, p) < 0) {
             net_ssh_debug("[ssh] failed to send USERAUTH_REQUEST");
-            return -10;
+            return net_ssh_connect_fail(ctx, -10);
         }
         net_ssh_debug("[ssh] sent USERAUTH_REQUEST (publickey rsa-sha2-256)");
         {
@@ -1174,19 +1319,19 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
             extern int net_ssh_recv_packet_encrypted(net_ssh_ctx_t *ctx, u8 *msg_type, u8 *payload, int *payload_len);
             if (net_ssh_recv_packet_encrypted(ctx, &rtype, rbuf, &rlen) < 0) {
                 net_ssh_debug("[ssh] failed to receive USERAUTH response");
-                return -11;
+                return net_ssh_connect_fail(ctx, -11);
             }
             if (rtype == SSH_MSG_USERAUTH_SUCCESS) {
                 net_ssh_debug("[ssh] USERAUTH_SUCCESS — authenticated (publickey)");
             } else if (rtype == SSH_MSG_USERAUTH_FAILURE) {
                 net_ssh_debug("[ssh] USERAUTH_FAILURE — public key rejected");
-                return -12;
+                return net_ssh_connect_fail(ctx, -12);
             } else {
                 char b[60]; strcpy(b, "[ssh] unexpected msg type ");
                 char num2[10]; u64_to_str((u64)rtype, num2);
                 strcat(b, num2); strcat(b, "\n");
                 screen_console_puts(b);
-                return -13;
+                return net_ssh_connect_fail(ctx, -13);
             }
         }
     } else {
@@ -1221,7 +1366,7 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
         extern int net_ssh_send_packet_encrypted(net_ssh_ctx_t *ctx, u8 msg_type, const u8 *payload, int payload_len);
         if (net_ssh_send_packet_encrypted(ctx, SSH_MSG_USERAUTH_REQ, payload, p) < 0) {
             net_ssh_debug("[ssh] failed to send USERAUTH_REQUEST");
-            return -10;
+            return net_ssh_connect_fail(ctx, -10);
         }
         net_ssh_debug("[ssh] sent USERAUTH_REQUEST (password)");
 
@@ -1232,19 +1377,19 @@ int net_ssh_connect(u32 ip, u16 port, const char *username, const char *password
         extern int net_ssh_recv_packet_encrypted(net_ssh_ctx_t *ctx, u8 *msg_type, u8 *payload, int *payload_len);
         if (net_ssh_recv_packet_encrypted(ctx, &rtype, rbuf, &rlen) < 0) {
             net_ssh_debug("[ssh] failed to receive USERAUTH response");
-            return -11;
+            return net_ssh_connect_fail(ctx, -11);
         }
         if (rtype == SSH_MSG_USERAUTH_SUCCESS) {
             net_ssh_debug("[ssh] USERAUTH_SUCCESS — authenticated");
         } else if (rtype == SSH_MSG_USERAUTH_FAILURE) {
             net_ssh_debug("[ssh] USERAUTH_FAILURE — wrong password");
-            return -12;
+            return net_ssh_connect_fail(ctx, -12);
         } else {
             char b[60]; strcpy(b, "[ssh] unexpected msg type ");
             char num2[10]; u64_to_str((u64)rtype, num2);
             strcat(b, num2); strcat(b, "\n");
             screen_console_puts(b);
-            return -13;
+            return net_ssh_connect_fail(ctx, -13);
         }
     }
 
@@ -1345,6 +1490,7 @@ int net_ssh_send_packet_encrypted(net_ssh_ctx_t *ctx, u8 msg_type, const u8 *pay
     if (rc < 0) {
         net_ssh_debug("[ssh] net_send failed in ssh_send_packet_encrypted");
     }
+    ctx->bytes_sent += (u64)total_send;   /* BUG-0219: rekey accounting */
     ctx->write_seq++;
     return rc;
 }
@@ -1495,7 +1641,70 @@ int net_ssh_recv_packet_encrypted(net_ssh_ctx_t *ctx, u8 *msg_type, u8 *payload,
     *payload_len = plen;
 
     ctx->read_seq++;
+    ctx->bytes_received += (u64)(4 + packet_length + mac_size);  /* BUG-0219 */
     return 0;
+}
+
+/* BUG-0219 (A14-33): client-side byte-threshold rekey. The full KEX
+ * machinery runs again (KEXINIT -> KEX -> NEWKEYS), this time under the
+ * CURRENTLY ACTIVE keys; the new keys apply after NEWKEYS (RFC 4253 S9).
+ * The host key is re-verified (its signature covers the new H) and
+ * session_id stays the FIRST exchange hash. While the exchange is in
+ * progress no other packets are accepted: a data packet mixed into the
+ * key exchange desynchronizes both cipher streams, so the documented
+ * policy is drop-with-disconnect (the caller tears the session down when
+ * this returns non-zero). */
+static int net_ssh_client_rekey(net_ssh_ctx_t *ctx) {
+    net_ssh_debug("[ssh] rekey threshold reached - starting key re-exchange");
+    ctx->rekey_in_progress = 1;
+    if (net_ssh_send_kexinit(ctx, 1) < 0) goto fail;
+    if (net_ssh_recv_kexinit(ctx, 1) < 0) goto fail;
+    if (ctx->kex_curve25519) {
+        if (net_ssh_send_kex_ecdh_init(ctx, 1) < 0) goto fail;
+        if (net_ssh_recv_kex_reply(ctx, 1) < 0) goto fail;
+        memset(ctx->shared_secret, 0, SSH_DH_BYTES);
+        if (crypto_x25519_shared(ctx->client_priv, ctx->server_pub + SSH_DH_BYTES - 32,
+                                 ctx->shared_secret + SSH_DH_BYTES - 32) != 0) goto fail;
+        if (net_ssh_secret_is_zero(ctx->shared_secret + SSH_DH_BYTES - 32, 32)) goto fail;
+    } else {
+        if (net_ssh_send_kexdh_init(ctx, 1) < 0) goto fail;
+        if (net_ssh_recv_kexdh_reply(ctx, 1) < 0) goto fail;
+        crypto_dh_modexp_n(ctx->server_pub, ctx->client_priv, crypto_dh_group14_prime,
+                           ctx->shared_secret, SSH_DH_BYTES);
+    }
+    u8 hash[32];
+    if (net_ssh_compute_hash(ctx, hash) < 0) goto fail;
+    if (net_ssh_verify_host_signature(ctx, hash) < 0) goto fail;
+    memcpy(ctx->exchange_hash, hash, 32);   /* new H; session_id unchanged */
+    /* NEWKEYS under the OLD keys: derive only AFTER both NEWKEYS so the
+     * NEWKEYS packets themselves are still framed with the old keys. */
+    if (net_ssh_send_newkeys(ctx, 1) < 0) goto fail;
+    if (net_ssh_recv_newkeys(ctx, 1) < 0) goto fail;
+    net_ssh_derive_keys(ctx);
+    memcpy(ctx->iv_c2s_next, ctx->initial_iv_c2s, 16);
+    memcpy(ctx->iv_s2c_next, ctx->initial_iv_s2c, 16);
+    memcpy(ctx->ctr_c2s, ctx->initial_iv_c2s, 16);
+    memcpy(ctx->ctr_s2c, ctx->initial_iv_s2c, 16);
+    ctx->encrypted = 1;
+    net_ssh_reset_seq(ctx);                 /* BUG-0220: strict-kex per exchange */
+    ctx->bytes_sent = 0;
+    ctx->bytes_received = 0;
+    ctx->rekey_in_progress = 0;
+    net_ssh_debug("[ssh] rekey complete - new keys active");
+    return 0;
+fail:
+    ctx->rekey_in_progress = 0;
+    return -1;
+}
+
+/* BUG-0219: threshold check, called ONLY at packet boundaries (exec loop
+ * between packets). Either direction reaching the threshold triggers a
+ * full rekey. */
+static int net_ssh_maybe_rekey(net_ssh_ctx_t *ctx) {
+    if (!ctx->encrypted || ctx->rekey_in_progress) return 0;
+    if (ctx->bytes_sent < SSH_REKEY_THRESHOLD &&
+        ctx->bytes_received < SSH_REKEY_THRESHOLD) return 0;
+    return net_ssh_client_rekey(ctx);
 }
 
 /* net_ssh_exec: open session channel, send exec request, read output. */
@@ -1589,6 +1798,11 @@ int net_ssh_exec(const char *command, void *output, int output_len) {
     int total = 0;
     u8 *out = (u8 *)output;
     while (total < output_len) {
+        /* BUG-0219 (A14-33): packet-boundary rekey trigger. */
+        if (net_ssh_maybe_rekey(ctx) != 0) {
+            net_ssh_debug("[ssh] rekey failed - dropping session");
+            break;
+        }
         u8 rtype;
         u8 rbuf[4096];
         int rlen = sizeof(rbuf);

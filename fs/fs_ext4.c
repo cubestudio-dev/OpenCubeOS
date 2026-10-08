@@ -20,11 +20,16 @@
  *
  * On-disk structures use #pragma pack(push, 1). All functions are static
  * except fs_ext4_init. Memory comes from kmalloc/kfree; sector I/O goes
- * through driver_block_ata_read_sectors (drive 0..3, LBA 0-based).
+ * through the generic blk layer (driver_block_read_sectors_raw) so ext4
+ * can live on ANY registered block device - whole disks ("hda", "sda",
+ * "vda", "nvme0", ...) as well as partition sub-devices created by
+ * driver_block_part.c ("hdap1", "sdap2", ...).
  *
- * The `device` string passed to mount is parsed into a drive number 0..3
- * (e.g. "ata0" -> 0). ext4 is mounted on the whole disk starting at LBA 0
- * (no partition offset). The superblock is read from byte 1024 (sector 2).
+ * BUG-0197 FIX (A12-032): the `device` string passed to mount is
+ * resolved through driver_block_find_device() (legacy "ata0".."ata3"
+ * aliases map onto the corresponding "hd?" block device). All LBAs are
+ * volume-relative - the partition mapping is the blk layer's job, so
+ * the legacy whole-disk-at-LBA0 restriction is gone.
  */
 #include "fs_ext4.h"
 #include "types.h"
@@ -32,7 +37,7 @@
 #include "lib_string.h"
 #include "screen_console.h"
 #include "fs_vfs.h"
-#include "driver_block_ata.h"
+#include "driver_block_blk.h"
 
 #pragma pack(push, 1)
 typedef struct {
@@ -178,15 +183,16 @@ typedef struct {
 
 /* FS-wide state. Lives in the root node's inode->ctx. */
 typedef struct {
-    int  drive;
+    int  dev_idx;                /* BUG-0197: blk-layer device index (any
+                                    driver, any partition sub-device) */
     u32  block_size;
     u32  inodes_count;
-    u32  blocks_count;
+    u64  blocks_count;           /* 64BIT volumes: lo | hi<<32 */
     u32  inodes_per_group;
     u32  blocks_per_group;
     u32  inode_size;
     u32  desc_size;
-    u32  groups_count;
+    u64  groups_count;
 } fs_ext4_ctx_t;
 
 /* Per-node state (file or directory). Lives in fs_vfs_node_t->private. */
@@ -205,36 +211,45 @@ static fs_vfs_dir_ops_t  g_ext4_dir_ops;
 
 /* ---- Device string parsing ---- */
 
+/* BUG-0197 FIX (A12-032): resolve the device through the generic blk
+ * layer so ext4 can mount ANY registered block device - whole disks
+ * ("hda", "sda", "vda", "nvme0", ...) and partition sub-devices created
+ * by driver_block_part.c ("hdap1", "sdap2", ...) alike. The primary
+ * form is the exact registry name. Legacy aliases kept for
+ * compatibility: "ata0".."ata3" / "ata" / "0".."3" map to the
+ * corresponding "hd?" ATA block device (mirrors fs_fat32_parse_device).
+ * Returns a blk device index or -1 on bad input. */
 static int fs_ext4_parse_device(const char *device) {
-    if (!device) return 0;
-    if (strcmp(device, "ata") == 0) return 0;
+    if (!device || !device[0]) return -1;
+    /* Any registered block-device name (incl. partition children). */
+    int idx = driver_block_find_device(device);
+    if (idx >= 0) return idx;
+    /* Legacy: "ataN" / "ata" / "N" -> hdX name. */
+    char hd[6] = "hd?";
+    if (strcmp(device, "ata") == 0) { hd[2] = 'a'; return driver_block_find_device(hd); }
     if (strncmp(device, "ata", 3) == 0) {
         char c = device[3];
-        if (c >= '0' && c <= '3' && device[4] == 0) return c - '0';
-        return -1;
-    }
-    /* P2-05 FIX: accept "hda".."hdd" (standard block device names) in
-     * addition to "ata0".."ata3" and "0".."3". This mirrors the fix
-     * already applied to fs_exfat_parse_device (P1-2). Without this,
-     * `mount ext4 hda /x` fails. */
-    if (strncmp(device, "hd", 2) == 0) {
-        char c = device[2];
-        if (c >= 'a' && c <= 'd' && device[3] == 0) return c - 'a';
+        if (c >= '0' && c <= '3' && device[4] == 0) {
+            hd[2] = (char)('a' + (c - '0'));
+            return driver_block_find_device(hd);
+        }
         return -1;
     }
     if (device[0] >= '0' && device[0] <= '3' && device[1] == 0) {
-        return device[0] - '0';
+        hd[2] = (char)('a' + (device[0] - '0'));
+        return driver_block_find_device(hd);
     }
     return -1;
 }
 
 /* ---- Sector / block I/O ---- */
 
+/* BUG-0197 FIX (A12-032): all I/O goes through the generic blk layer
+ * (driver_block_read_sectors_raw), not the legacy ATA drive path. */
 static int fs_ext4_read_block(fs_ext4_ctx_t *ctx, u64 block, void *buf) {
     u32 sectors_per_block = ctx->block_size / 512;
     u64 lba = block * sectors_per_block;
-    int rc = driver_block_ata_read_sectors(ctx->drive, lba, (int)sectors_per_block, buf);
-    return rc == (int)sectors_per_block ? 0 : -1;
+    return driver_block_read_sectors_raw(ctx->dev_idx, lba, sectors_per_block, buf);
 }
 
 /* ---- Superblock + group descriptors ---- */
@@ -244,8 +259,8 @@ static int fs_ext4_load_sb(fs_ext4_ctx_t *ctx, fs_ext4_sb_t *sb) {
      * wide on disk; our struct is ~364 bytes so reading 1 sector (512
      * bytes) covers it. We read 2 sectors to be safe. */
     u8 buf[1024];
-    int rc = driver_block_ata_read_sectors(ctx->drive, 2, 2, buf);
-    if (rc != 2) return -1;
+    int rc = driver_block_read_sectors_raw(ctx->dev_idx, 2, 2, buf);
+    if (rc != 0) return -1;
     memcpy(sb, buf, sizeof(*sb));
     return 0;
 }
@@ -271,8 +286,8 @@ static int fs_ext4_load_group_desc(fs_ext4_ctx_t *ctx, u32 group,
      * read past the 512-byte stack buffer. Also reject groups that are
      * obviously out of range before doing any I/O. */
     if (off_in_sec + desc_size > 512) return -1;
-    int rc = driver_block_ata_read_sectors(ctx->drive, desc_sector, 1, buf);
-    if (rc != 1) return -1;
+    int rc = driver_block_read_sectors_raw(ctx->dev_idx, desc_sector, 1, buf);
+    if (rc != 0) return -1;
     memcpy(gd, buf + off_in_sec, desc_size);
     return 0;
 }
@@ -322,79 +337,86 @@ static int fs_ext4_read_inode(fs_ext4_ctx_t *ctx, u32 inode_num,
 /* Map a logical block index to a physical block number via the extent
  * tree starting at the inode's i_block[0..] (root header). Returns
  * physical block, or 0 if unmapped. */
+/* BUG-0200 FIX (A12-035): the old lookup supported exactly ONE index
+ * level and silently mis-parsed deeper trees - a depth-2 node's index
+ * entries were read as leaf extents, returning garbage physical blocks.
+ * Now the tree is walked level by level: take the LAST index entry
+ * whose ei_block is <= the logical block, read the block it points to,
+ * repeat until a depth-0 (leaf) node is reached. ext4 bounds the extent
+ * depth at 5 (linux fs/ext4/extents.h, EXT4_MAX_EXTENT_DEPTH); a
+ * deeper tree is corruption and yields a clean "unmapped" result
+ * instead of silent wrong data. */
 static u64 fs_ext4_extent_lookup(fs_ext4_ctx_t *ctx, const u32 *i_block,
                               u32 logical) {
-    const fs_ext4_extent_header_t *hdr = (const fs_ext4_extent_header_t *)i_block;
+    const fs_ext4_extent_header_t *hdr =
+        (const fs_ext4_extent_header_t *)i_block;
     if (hdr->eh_magic != EXT4_EXT_MAGIC) return 0;
-    /* P1-8 FIX: bound eh_entries to prevent OOB reads on corrupt disks.
-     * The inode i_block array is 60 bytes = 15 u32s. The header is 12 bytes
-     * (3 u32s), leaving 48 bytes = 12 u32s for entries. Each extent entry
-     * is 12 bytes (3 u32s), so max 4 entries in the root. Each index entry
-     * is also 12 bytes, so max 4 indices. */
-    u16 max_entries = 4;  /* (60 - 12) / 12 */
-    u16 n_entries = hdr->eh_entries;
-    if (n_entries > max_entries) n_entries = max_entries;
-    if (hdr->eh_depth == 0) {
-        /* BUG-0060 FIX: extent entries start at i_block + 12 bytes (the
-         * extent header is 12 bytes: magic/entries/max/depth/generation).
-         * The old pointer arithmetic used i_block + 4 where i_block is a
-         * u32 pointer, i.e. +16 bytes - every extent lookup on the root
-         * node read the wrong entry. */
-        const fs_ext4_extent_t *ext =
-            (const fs_ext4_extent_t *)((const u8 *)i_block + 12);
-        for (u16 i = 0; i < n_entries; i++) {
-            if (logical >= ext[i].ee_block &&
-                logical < ext[i].ee_block + ext[i].ee_len) {
-                u64 phys = (u64)ext[i].ee_start_lo |
-                           ((u64)ext[i].ee_start_hi << 32);
-                return phys + (logical - ext[i].ee_block);
-            }
-        }
-        return 0;
-    }
-    /* Index level: walk down. We support one level of indirection. */
-    const fs_ext4_extent_idx_t *idx = (const fs_ext4_extent_idx_t *)(i_block + 4);
-    for (u16 i = 0; i < n_entries; i++) {
-        if (logical >= idx[i].ei_block) {
-            if (i + 1 < hdr->eh_entries && logical >= idx[i + 1].ei_block)
-                continue;
-            u64 child = (u64)idx[i].ei_leaf_lo |
-                        ((u64)idx[i].ei_leaf_hi << 32);
-            u8 *child_buf = (u8 *)kmalloc(ctx->block_size);
-            if (!child_buf) return 0;
-            if (fs_ext4_read_block(ctx, child, child_buf) != 0) {
-                kfree(child_buf);
-                return 0;
-            }
-            const fs_ext4_extent_header_t *ch =
-                (const fs_ext4_extent_header_t *)child_buf;
-            if (ch->eh_magic != EXT4_EXT_MAGIC) {
-                kfree(child_buf);
-                return 0;
-            }
-            /* BUG-0060 FIX: same header-size rule at the child level -
-             * entries start at child_buf + 12, not +8. */
+    if (hdr->eh_depth > 5) return 0;     /* impossible depth = corruption */
+
+    u8 *heap_buf = NULL;   /* current block-backed node (NULL: the root
+                              header lives inside the inode's i_block) */
+    u64 result = 0;
+    int levels = 0;
+    for (;;) {
+        /* Bound eh_entries per node to stay inside the node buffer
+         * (P1-8 rule): the inode root holds 60 bytes = 4 entries; a
+         * block-backed node holds (block_size - 12) / 12 entries after
+         * the 12-byte header. */
+        u16 max_entries = heap_buf ? (u16)((ctx->block_size - 12) / 12) : 4;
+        u16 n_entries = hdr->eh_entries;
+        if (n_entries > max_entries) n_entries = max_entries;
+
+        if (hdr->eh_depth == 0) {
+            /* Leaf node: extents start right after the header (the
+             * header is magic/entries/max/depth/generation = 12 bytes;
+             * BUG-0060 fixed the same +12 rule at the root). */
             const fs_ext4_extent_t *ext =
-                (const fs_ext4_extent_t *)(child_buf + 12);
-            u64 result = 0;
-            /* P1-8 FIX: bound child entries to block_size / 12. */
-            u16 max_child = (u16)(ctx->block_size / 12);
-            u16 n_child = ch->eh_entries;
-            if (n_child > max_child) n_child = max_child;
-            for (u16 j = 0; j < n_child; j++) {
-                if (logical >= ext[j].ee_block &&
-                    logical < ext[j].ee_block + ext[j].ee_len) {
-                    u64 phys = (u64)ext[j].ee_start_lo |
-                               ((u64)ext[j].ee_start_hi << 32);
-                    result = phys + (logical - ext[j].ee_block);
+                (const fs_ext4_extent_t *)((const u8 *)hdr + 12);
+            for (u16 i = 0; i < n_entries; i++) {
+                if (logical >= ext[i].ee_block &&
+                    (u64)logical < (u64)ext[i].ee_block + ext[i].ee_len) {
+                    result = (u64)ext[i].ee_start_lo |
+                             ((u64)ext[i].ee_start_hi << 32);
+                    result += logical - ext[i].ee_block;
                     break;
                 }
             }
-            kfree(child_buf);
+            kfree(heap_buf);
             return result;
         }
+
+        /* Index level: find the LAST entry with ei_block <= logical
+         * (entries are sorted ascending; the match belongs to the
+         * subtree of the greatest such key). */
+        const fs_ext4_extent_idx_t *idx =
+            (const fs_ext4_extent_idx_t *)((const u8 *)hdr + 12);
+        int chosen = -1;
+        for (u16 i = 0; i < n_entries; i++) {
+            if (logical >= idx[i].ei_block) chosen = (int)i;
+        }
+        if (chosen < 0) { kfree(heap_buf); return 0; }
+
+        /* ei_leaf is a 48-bit physical block number (lo + 16-bit hi). */
+        u64 child = (u64)idx[chosen].ei_leaf_lo |
+                    ((u64)idx[chosen].ei_leaf_hi << 32);
+        u8 *nb = (u8 *)kmalloc(ctx->block_size);
+        if (!nb) { kfree(heap_buf); return 0; }
+        if (fs_ext4_read_block(ctx, child, nb) != 0) {
+            kfree(nb);
+            kfree(heap_buf);
+            return 0;
+        }
+        kfree(heap_buf);
+        heap_buf = nb;
+        hdr = (const fs_ext4_extent_header_t *)heap_buf;
+        if (hdr->eh_magic != EXT4_EXT_MAGIC || hdr->eh_depth > 5) {
+            kfree(heap_buf);
+            return 0;
+        }
+        /* Guard the descent itself against corrupt self-referencing
+         * index blocks (spec max depth is 5 levels below the root). */
+        if (++levels > 5) { kfree(heap_buf); return 0; }
     }
-    return 0;
 }
 
 /* Legacy (ext2/3) block mapping: direct, indirect, double, triple. */
@@ -547,10 +569,18 @@ static int fs_ext4_read(fs_vfs_node_t *node, u64 offset, void *buf, int size) {
     fs_ext4_inode_t *ino = (fs_ext4_inode_t *)node->private;
     if (!ino || !ino->ctx) return -2;
     fs_ext4_ctx_t *ctx = ino->ctx;
-    u64 file_size = node->size;
+    /* BUG-0199 FIX (A12-034): use the full 64-bit inode size. The on-disk
+     * layout stores i_size_lo at offset 4 and i_dir_acl / i_size_hi at
+     * offset 108 - for regular files that slot is the HIGH 32 bits of
+     * the size (ext4 inode layout), and fs_ext4_node_from_inode composes
+     * file_size = i_size_lo | i_size_hi << 32. The read used to narrow
+     * (file_size - offset) through `int`, so any file larger than 2 GiB
+     * produced a negative "avail", the loop never ran and read() ALWAYS
+     * returned 0 for the whole file. Keep the arithmetic in u64. */
+    u64 file_size = ino->file_size;
     if (offset >= file_size) return 0;
-    int avail = (int)(file_size - offset);
-    if (size > avail) size = avail;
+    u64 avail = file_size - offset;
+    if ((u64)size > avail) size = (int)avail;
     int total = 0;
     u8 *dst = (u8 *)buf;
     u8 *bbuf = (u8 *)kmalloc(ctx->block_size);
@@ -704,19 +734,23 @@ static int fs_ext4_rename(fs_vfs_node_t *parent, const char *oldname,
 /* ---- Mount / unmount ---- */
 
 static fs_vfs_node_t *fs_ext4_fs_mount(const char *device) {
-    int drive = fs_ext4_parse_device(device);
-    if (drive < 0) {
+    /* BUG-0197 FIX (A12-032): mount through the generic blk layer - any
+     * registered block device works, including partition sub-devices
+     * ("hdap1" etc.). The legacy whole-disk aliases still resolve. */
+    int dev_idx = fs_ext4_parse_device(device);
+    if (dev_idx < 0) {
         screen_console_puts("ext4: invalid device string\n");
         return NULL;
     }
-    if (!driver_block_ata_detect(drive)) {
+    driver_block_device_t *bdev = driver_block_get_device(dev_idx);
+    if (!bdev || !bdev->present) {
         screen_console_puts("ext4: drive not present\n");
         return NULL;
     }
     fs_ext4_ctx_t *ctx = (fs_ext4_ctx_t *)kmalloc(sizeof(fs_ext4_ctx_t));
     if (!ctx) return NULL;
     memset(ctx, 0, sizeof(*ctx));
-    ctx->drive = drive;
+    ctx->dev_idx = dev_idx;
 
     fs_ext4_sb_t sb;
     if (fs_ext4_load_sb(ctx, &sb) != 0) {
@@ -729,28 +763,120 @@ static fs_vfs_node_t *fs_ext4_fs_mount(const char *device) {
         kfree(ctx);
         return NULL;
     }
-    /* P0fix1 BUG-0003 (A12-003): blocks_per_group / inodes_per_group come
-     * straight off the disk and are used as divisors below (and at the
-     * inode lookup). A crafted/corrupted volume with a zero value caused
-     * a #DE divide error that halted the kernel during `mount`. */
+
+    /* ---- BUG-0198 FIX (A12-033): validate the superblock at mount ----
+     * Every field below comes straight off the disk and is used as a
+     * divisor, shift, or buffer size later; a crafted/corrupt value must
+     * fail the mount cleanly instead of misreading the volume. */
+
+    /* Zero group size (divisors below - P0fix1 BUG-0003 check kept). */
     if (sb.s_blocks_per_group == 0 || sb.s_inodes_per_group == 0) {
         screen_console_puts("ext4: invalid superblock (zero group size)\n");
         kfree(ctx);
         return NULL;
     }
+    /* Block size: 1024 << s_log_block_size. Bound the shift to <= 6 so
+     * it can neither be UB (>= 32) nor exceed the 65536-byte spec max. */
     if (sb.s_log_block_size > 6) {
-        screen_console_puts("ext4: invalid block size\n");
+        screen_console_puts("ext4: unsupported block size (log_block_size > 6)\n");
         kfree(ctx);
         return NULL;
     }
-    ctx->block_size = (u32)1024 << sb.s_log_block_size;
+    u32 block_size = 1024u << sb.s_log_block_size;   /* <= 65536 */
+
+    /* Incompatible feature flags (e2fsprogs ext4 spec, "Filesystem
+     * feature flags"; linux fs/ext4/ext4.h). This driver can honour:
+     *   0x0002 FILETYPE (dirent file_type byte - inert for reads)
+     *   0x0040 EXTENTS  (extent trees, any depth <= 5 - see extent_lookup)
+     *   0x0080 64BIT    (64-bit group descriptors / block counts)
+     *   0x0200 FLEX_BG  (metadata placement - locations come from the
+     *                     group descriptors, so placement is irrelevant)
+     * Anything else changes the on-disk layout or needs journal replay /
+     * decryption this read-only driver cannot do (COMPRESSION 0x0001,
+     * RECOVER 0x0004 = dirty journal, JOURNAL_DEV 0x0008, META_BG 0x0010
+     * (relocated group descriptors), MMP 0x0100, BIGALLOC 0x0400,
+     * EA_INODE, DIRDATA, CSUM_SEED, LARGEDIR, INLINE_DATA 0x8000,
+     * ENCRYPT 0x10000, ...): refuse the mount with the offending bits. */
+    u32 supported_incompat = 0x0002u | 0x0040u | 0x0080u | 0x0200u;
+    if (sb.s_feature_incompat & ~supported_incompat) {
+        char nb[24];
+        u64_to_hex((u64)(sb.s_feature_incompat & ~supported_incompat),
+                   nb, 0);
+        screen_console_puts("ext4: unsupported INCOMPAT feature bits 0x");
+        screen_console_puts(nb);
+        screen_console_puts(" - mount refused\n");
+        kfree(ctx);
+        return NULL;
+    }
+    /* 64BIT volumes must use 64-byte group descriptors (the _hi fields
+     * only exist when s_desc_size >= 64). */
+    if ((sb.s_feature_incompat & 0x0080u) && sb.s_desc_size < 64) {
+        screen_console_puts("ext4: 64BIT feature without 64-byte group descriptors\n");
+        kfree(ctx);
+        return NULL;
+    }
+    /* Group descriptor size: 0 means the legacy 32; otherwise a power
+     * of two in [32, 1024] (e2fsprogs s_desc_size rule). */
+    u32 desc_size = sb.s_desc_size ? sb.s_desc_size : 32;
+    if (desc_size < 32 || desc_size > 1024 ||
+        (desc_size & (desc_size - 1)) != 0) {
+        screen_console_puts("ext4: invalid group descriptor size\n");
+        kfree(ctx);
+        return NULL;
+    }
+    /* Inode size: power of two in [128, 1024] (0 = rev-0 default 128)
+     * and never larger than a block (a bigger value would span blocks
+     * in the inode table and break the read in fs_ext4_read_inode). */
+    u32 inode_size = sb.s_inode_size ? sb.s_inode_size : 128;
+    if (inode_size < 128 || inode_size > 1024 || inode_size > block_size ||
+        (inode_size & (inode_size - 1)) != 0) {
+        screen_console_puts("ext4: invalid inode size (must be 128..1024, power of two)\n");
+        kfree(ctx);
+        return NULL;
+    }
+    /* inodes_per_group / blocks_per_group: one bitmap block each, so
+     * the spec caps both at 8 entries per byte of block size. Bounding
+     * them first also keeps the sanity division below overflow-free. */
+    if (sb.s_inodes_per_group > 8u * block_size ||
+        sb.s_blocks_per_group > 8u * block_size) {
+        screen_console_puts("ext4: group size too large (max 8 entries per block)\n");
+        kfree(ctx);
+        return NULL;
+    }
+    if (sb.s_inodes_count == 0 ||
+        ((u64)sb.s_inodes_count + sb.s_inodes_per_group - 1) /
+            sb.s_inodes_per_group == 0) {
+        screen_console_puts("ext4: invalid inode count (zero or smaller than one group)\n");
+        kfree(ctx);
+        return NULL;
+    }
+    /* Total block count must be non-zero (compose the 64BIT high word),
+     * and s_first_data_block must match the block size (1 for 1 KiB
+     * blocks, 0 otherwise) - the group-descriptor placement below
+     * depends on it. */
+    u64 blocks_count = sb.s_blocks_count_lo;
+    if (sb.s_feature_incompat & 0x0080u) {
+        blocks_count |= (u64)sb.s_blocks_count_hi << 32;
+    }
+    if (blocks_count == 0) {
+        screen_console_puts("ext4: superblock reports zero blocks\n");
+        kfree(ctx);
+        return NULL;
+    }
+    if ((block_size == 1024 && sb.s_first_data_block != 1) ||
+        (block_size > 1024 && sb.s_first_data_block != 0)) {
+        screen_console_puts("ext4: invalid first_data_block for this block size\n");
+        kfree(ctx);
+        return NULL;
+    }
+
+    ctx->block_size = block_size;
     ctx->inodes_count = sb.s_inodes_count;
-    ctx->blocks_count = sb.s_blocks_count_lo;
+    ctx->blocks_count = blocks_count;
     ctx->inodes_per_group = sb.s_inodes_per_group;
     ctx->blocks_per_group = sb.s_blocks_per_group;
-    ctx->inode_size = sb.s_inode_size;
-    ctx->desc_size = sb.s_desc_size;
-    if (ctx->inode_size == 0) ctx->inode_size = 128;
+    ctx->inode_size = inode_size;
+    ctx->desc_size = desc_size;
     ctx->groups_count = (ctx->blocks_count + ctx->blocks_per_group - 1) /
                         ctx->blocks_per_group;
 
@@ -767,14 +893,34 @@ static fs_vfs_node_t *fs_ext4_fs_mount(const char *device) {
     return root;
 }
 
+/* BUG-0196 FIX (A12-031): recursively free the whole cached VFS subtree.
+ * Every node a lookup resolved through this mount was attached under
+ * the root by fs_vfs_resolve; the old unmount released only the root,
+ * leaking all cached child nodes + inodes. fs_vfs_umount guarantees the
+ * subtree is quiescent (open fds -> EBUSY; nested mounts deeper than
+ * this mount point must be unmounted first), so every child below
+ * `root` belongs to this fs. The shared fs-wide ctx is freed separately,
+ * exactly once. */
+static void fs_ext4_free_subtree(fs_vfs_node_t *node) {
+    if (!node) return;
+    fs_vfs_node_t *child = node->first_child;
+    while (child) {
+        fs_vfs_node_t *next = child->next_sibling;
+        fs_ext4_free_subtree(child);
+        child = next;
+    }
+    fs_ext4_inode_t *ino = (fs_ext4_inode_t *)node->private;
+    if (ino) kfree(ino);
+    kfree(node);
+}
+
 static int fs_ext4_fs_unmount(fs_vfs_node_t *root) {
     if (!root) return -1;
     fs_ext4_inode_t *ino = (fs_ext4_inode_t *)root->private;
-    if (ino) {
-        if (ino->ctx) kfree(ino->ctx);
-        kfree(ino);
-    }
-    kfree(root);
+    if (ino && ino->ctx) kfree(ino->ctx);
+    /* BUG-0196 FIX (A12-031): free the entire cached subtree, not just
+     * the root node. */
+    fs_ext4_free_subtree(root);
     return 0;
 }
 

@@ -34,7 +34,11 @@ typedef int (*shell_hook_fn_t)(void *ctx, u8 ch);
 #define SHELL_ENV_VALUE_LEN   256
 #define SHELL_MAX_ALIASES     32
 #define SHELL_ALIAS_NAME_LEN  32
-#define SHELL_ALIAS_TARGET_LEN 256
+/* BUG-0238 FIX (A15-12): 512 is the documented hard maximum for an alias
+ * value. Values are stored in FULL (operators included) or refused with a
+ * clear error - never silently truncated. 512 covers a whole 256-char
+ * input line plus its quotes/operator characters. */
+#define SHELL_ALIAS_TARGET_LEN 512
 #define SHELL_CWD_LEN         256
 #define SHELL_MAX_TOKENS      64
 #define SHELL_MAX_ARGS        32
@@ -131,6 +135,10 @@ int shell_setenv(const char *name, const char *value);
 const char *shell_getenv(const char *name);
 
 /* ---- Aliases ---- */
+/* BUG-0238 FIX (A15-12): the value is stored in full or refused.
+ * Returns 0 on success, -1 on bad args, -2 if the alias table is full,
+ * -3 if the alias name or value exceeds the documented maximum
+ * (SHELL_ALIAS_NAME_LEN / SHELL_ALIAS_TARGET_LEN) - never truncated. */
 int shell_register_alias(const char *alias, const char *target);
 int shell_unregister_alias(const char *alias);
 

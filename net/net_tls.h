@@ -85,6 +85,22 @@ typedef struct {
 
     char hostname[128];
     int err;
+
+    /* BUG-0228 (A14-42): last alert seen, captured by the record layer
+     * (both the pre-encryption handshake path and the decrypted alert
+     * path). level 1 = warning, 2 = fatal; desc 0 = close_notify.
+     * last_alert_desc 0 with last_alert_level != 0 means the peer sent
+     * close_notify - the ONLY clean-close marker; EOF without it is a
+     * truncation (see net_tls_recv truncation return). */
+    u8 last_alert_level;
+    u8 last_alert_desc;
+    /* BUG-0228: set when the record stream hit EOF while application
+     * data was expected and no close_notify had been received. */
+    int truncated;
+    /* BUG-0233 (A14-47)/RFC 7507: set when the second attempt runs after
+     * a version-intolerant server; the hello then carries the fallback
+     * SCSV and any answer ABOVE TLS 1.2 aborts the handshake. */
+    int tls12_only;
 } net_tls_ctx_t;
 
 /* Connect + handshake. Returns 0 on success (certificate chain verified). */

@@ -15,11 +15,19 @@
  *
  * On-disk structures use #pragma pack(push, 1). All functions are static
  * except fs_exfat_init. Memory comes from kmalloc/kfree; sector I/O goes
- * through driver_block_ata_read_sectors/driver_block_ata_write_sectors (drive 0..3, LBA 0-based).
+ * through the generic blk layer (driver_block_read_sectors_raw /
+ * driver_block_write_sectors_raw) so exFAT can live on ANY registered
+ * block device - whole disks ("hda", "sda", "vda", "nvme0", ...) as well
+ * as partition sub-devices created by driver_block_part.c ("hdap1",
+ * "sdap2", ...).
  *
- * The `device` string passed to mount is parsed into a drive number 0..3
- * (e.g. "ata0" -> 0, "ata3" -> 3, "0".."3" also accepted). exFAT is
- * mounted on the whole disk starting at LBA 0 (no partition offset).
+ * BUG-0197 FIX (A12-032): the `device` string passed to mount is resolved
+ * through driver_block_find_device() (with legacy "ata0".."ata3" aliases
+ * mapped onto the corresponding "hd?" block device). All LBAs used below
+ * are VOLUME-relative, exactly as the exFAT spec defines fat_offset /
+ * cluster_heap_offset; the partition mapping is the blk layer's job, so
+ * the BPB PartitionOffset field is deliberately not added to I/O
+ * addresses (it is boot-chain information, not a mapping input).
  */
 #include "fs_exfat.h"
 #include "types.h"
@@ -27,7 +35,7 @@
 #include "lib_string.h"
 #include "screen_console.h"
 #include "fs_vfs.h"
-#include "driver_block_ata.h"
+#include "driver_block_blk.h"
 
 #pragma pack(push, 1)
 typedef struct {
@@ -113,7 +121,8 @@ typedef struct {
 
 /* FS-wide state. Lives in the root node's inode->ctx. */
 typedef struct {
-    int  drive;
+    int  dev_idx;                /* BUG-0197: blk-layer device index (any
+                                    driver, any partition sub-device) */
     u32  sector_size;
     u32  sectors_per_cluster;
     u32  cluster_size;
@@ -151,42 +160,50 @@ static fs_vfs_dir_ops_t  g_exfat_dir_ops;
 
 /* ---- Device string parsing ---- */
 
-/* Parse "ata0".."ata3", "ata", or "0".."3" into a drive number 0..3.
- * Returns -1 on bad input. Mirrors fs_fat32_parse_device. */
-/* P1-2 FIX: Accept "hda".."hdd" (standard block device names shown by lsblk)
- * in addition to "ata0".."ata3" and "0".."3". Without this, `mount exfat hda /x`
- * fails and the write silently falls through to ramfs. */
+/* BUG-0197 FIX (A12-032): resolve the device through the generic blk
+ * layer so exFAT can mount ANY registered block device - whole disks
+ * ("hda", "sda", "vda", "nvme0", ...) and partition sub-devices created
+ * by driver_block_part.c ("hdap1", "sdap2", ...) alike. The primary form
+ * is the exact registry name. Legacy aliases kept for compatibility:
+ * "ata0".."ata3" / "ata" / "0".."3" map to the corresponding "hd?" ATA
+ * block device, so existing whole-disk mount commands keep working.
+ * Returns a blk device index or -1 on bad input (mirrors
+ * fs_fat32_parse_device). */
 static int fs_exfat_parse_device(const char *device) {
-    if (!device) return 0;
-    if (strcmp(device, "ata") == 0) return 0;
+    if (!device || !device[0]) return -1;
+    /* Any registered block-device name (incl. partition children). */
+    int idx = driver_block_find_device(device);
+    if (idx >= 0) return idx;
+    /* Legacy: "ataN" / "ata" / "N" -> hdX name. */
+    char hd[6] = "hd?";
+    if (strcmp(device, "ata") == 0) { hd[2] = 'a'; return driver_block_find_device(hd); }
     if (strncmp(device, "ata", 3) == 0) {
         char c = device[3];
-        if (c >= '0' && c <= '3' && device[4] == 0) return c - '0';
-        return -1;
-    }
-    /* Accept "hda".."hdd" (standard block device names). */
-    if (strncmp(device, "hd", 2) == 0) {
-        char c = device[2];
-        if (c >= 'a' && c <= 'd' && device[3] == 0) return c - 'a';
+        if (c >= '0' && c <= '3' && device[4] == 0) {
+            hd[2] = (char)('a' + (c - '0'));
+            return driver_block_find_device(hd);
+        }
         return -1;
     }
     if (device[0] >= '0' && device[0] <= '3' && device[1] == 0) {
-        return device[0] - '0';
+        hd[2] = (char)('a' + (device[0] - '0'));
+        return driver_block_find_device(hd);
     }
     return -1;
 }
 
 /* ---- Sector I/O wrappers ---- */
 
+/* BUG-0197 FIX (A12-032): go through the generic blk layer (any driver,
+ * any partition sub-device) instead of the legacy ATA drive 0..3 path.
+ * Both wrappers return 0 on success, negative on error. */
 static int fs_exfat_read_sectors(fs_exfat_ctx_t *ctx, u64 lba, u32 count, void *buf) {
-    int rc = driver_block_ata_read_sectors(ctx->drive, lba, (int)count, buf);
-    return rc == (int)count ? 0 : -1;
+    return driver_block_read_sectors_raw(ctx->dev_idx, lba, count, buf);
 }
 
 static int fs_exfat_write_sectors(fs_exfat_ctx_t *ctx, u64 lba, u32 count,
                                const void *buf) {
-    int rc = driver_block_ata_write_sectors(ctx->drive, lba, (int)count, buf);
-    return rc == (int)count ? 0 : -1;
+    return driver_block_write_sectors_raw(ctx->dev_idx, lba, count, buf);
 }
 
 /* ---- FAT entry get/set ---- */
@@ -321,8 +338,18 @@ static u32 fs_exfat_alloc_cluster(fs_exfat_ctx_t *ctx) {
         u32 c = start + i;
         if (c >= ctx->cluster_count + 2) c -= ctx->cluster_count;
         if (c < 2) c = 2;
+        /* BUG-0197 FIX (A12-032) follow-up, mkfs.exfat compatibility:
+         * the shell's mkfs.exfat stamps only a boot sector, a FAT and a
+         * root directory - there is NO allocation-bitmap entry (0x81) on
+         * such volumes, so bitmap_get() answers -1 ("no bitmap"). The
+         * old condition required the bitmap bit to be CLEAR, which made
+         * every allocation (and therefore every write) fail on freshly
+         * formatted volumes. With no bitmap on the volume the FAT is
+         * the sole allocation authority (bitmap_set / writeback are
+         * no-ops without a cache): accept -1 as "free". */
+        int bitmap_used = fs_exfat_bitmap_get(ctx, c);
         if (fs_exfat_fat_get(ctx, c) == EXFAT_FREE_CLUSTER &&
-            !fs_exfat_bitmap_get(ctx, c)) {
+            bitmap_used <= 0) {
             fs_exfat_fat_set(ctx, c, EXFAT_EOC);
             /* BUG-0059: keep the on-disk bitmap in sync with the FAT. */
             fs_exfat_bitmap_set(ctx, c, 1);
@@ -617,7 +644,33 @@ static int fs_exfat_delete_entry(fs_exfat_ctx_t *ctx, u32 entry_cluster,
 static int fs_exfat_open(fs_vfs_node_t *node, int flags) {
     if (!node) return -1;
     if (node->type == VFS_TYPE_DIR) return -2;
-    (void)flags;
+    /* BUG-0192 FIX (A12-027): O_TRUNC used to be ignored - the VFS layer
+     * only cleared the in-memory node->size, so the on-disk stream
+     * entry kept the old data_length and the cluster chain stayed
+     * allocated: open(O_TRUNC) + close (+ remount) resurrected the old
+     * file size and the file kept occupying its clusters. Truncate for
+     * real (same semantics as fs_fat32_open): free the cluster chain,
+     * zero the stream entry's first cluster / data length / valid data
+     * length on disk, and clear the cached inode state. */
+    if (flags & VFS_O_TRUNC) {
+        fs_exfat_inode_t *ino = (fs_exfat_inode_t *)node->private;
+        if (!ino || !ino->ctx) return -2;
+        fs_exfat_ctx_t *ctx = ino->ctx;
+        if (ino->first_cluster >= 2) {
+            fs_exfat_free_chain(ctx, ino->first_cluster);
+            ino->first_cluster = 0;
+        }
+        node->size = 0;
+        if (ino->entry_cluster != 0) {
+            /* exFAT spec 7.4 "Stream Extension Directory Entry": a
+             * zero-length file has FirstCluster = 0 and both
+             * DataLength and ValidDataLength = 0. */
+            if (fs_exfat_update_stream(ctx, ino->entry_cluster,
+                                    ino->entry_offset, 0, 0, 0) != 0) {
+                return -3;
+            }
+        }
+    }
     return 0;
 }
 
@@ -675,35 +728,73 @@ static int fs_exfat_write(fs_vfs_node_t *node, u64 offset, const void *buf, int 
     if (ino->entry_cluster == 0) return -4;  /* root or no parent entry */
     fs_exfat_ctx_t *ctx = ino->ctx;
 
+    /* The scratch cluster buffer doubles as the zero-fill buffer for
+     * every newly-allocated cluster below. */
+    u8 *cbuf = (u8 *)kmalloc(ctx->cluster_size);
+    if (!cbuf) return -6;
+
     /* Allocate the first cluster if the file is empty. */
     if (ino->first_cluster < 2) {
         u32 fc = fs_exfat_alloc_cluster(ctx);
-        if (fc == 0) return -5;
+        if (fc == 0) { kfree(cbuf); return -5; }
         ino->first_cluster = fc;
+        /* BUG-0194 FIX (A12-029): the first cluster of a formerly-empty
+         * file is fresh disk space - zero it so unwritten bytes (and
+         * later holes) read as 0, matching FAT32/ramfs hole semantics. */
+        memset(cbuf, 0, ctx->cluster_size);
+        if (fs_exfat_write_sectors(ctx, fs_exfat_cluster_sector(ctx, fc),
+                                ctx->sectors_per_cluster, cbuf) != 0) {
+            kfree(cbuf);
+            return -6;
+        }
     }
 
     u64 new_end = offset + (u64)size;
     u64 cur_size = node->size;
+    u64 chain_bytes = 0;   /* chain capacity after the extend below */
     if (new_end > cur_size) {
-        /* Extend the cluster chain to cover new_end. */
+        /* BUG-0193 FIX (A12-028): the extend loop used to start its byte
+         * accounting at ONE full cluster (`current_bytes =
+         * ctx->cluster_size`) regardless of how many clusters the file
+         * already owned, so a file with k clusters grew by k extra
+         * clusters on every append - the chain became longer than
+         * ceil(data_length / cluster_size) (spec violation; chkdsk
+         * complains; space leak accumulates per append). Count the
+         * EXISTING chain first (bounded by the volume's cluster count
+         * so a corrupt FAT loop terminates), then append only the
+         * missing clusters. */
+        u64 n_clusters = 1;             /* first_cluster ensured above */
         u32 last = ino->first_cluster;
-        while (1) {
+        u32 hops = 0;
+        while (hops++ < ctx->cluster_count + 2u) {
             u32 next = fs_exfat_fat_get(ctx, last);
-            if (next == EXFAT_EOC || next < 2) break;
+            if (next < 2 || next == EXFAT_EOC || next >= EXFAT_BAD_CLUSTER)
+                break;
             last = next;
+            n_clusters++;
         }
-        u64 current_bytes = ctx->cluster_size;
-        while (current_bytes < new_end) {
+        chain_bytes = n_clusters * (u64)ctx->cluster_size;
+        while (chain_bytes < new_end) {
             u32 nc = fs_exfat_alloc_cluster(ctx);
-            if (nc == 0) break;
-            fs_exfat_fat_set(ctx, last, nc);
+            if (nc == 0) break;                    /* volume full */
+            if (fs_exfat_fat_set(ctx, last, nc) != 0) {
+                /* Un-link the orphan so FAT/bitmap stay consistent. */
+                fs_exfat_free_chain(ctx, nc);
+                break;
+            }
             last = nc;
-            current_bytes += ctx->cluster_size;
+            /* BUG-0194 FIX (A12-029): every newly-allocated cluster is
+             * zeroed on disk. The old code only chained the FAT and
+             * left stale disk contents in every hole (reads of the
+             * unwritten gap returned old file data - info leak). */
+            memset(cbuf, 0, ctx->cluster_size);
+            if (fs_exfat_write_sectors(ctx, fs_exfat_cluster_sector(ctx, nc),
+                                    ctx->sectors_per_cluster, cbuf) != 0) {
+                break;
+            }
+            chain_bytes += ctx->cluster_size;
         }
     }
-
-    u8 *cbuf = (u8 *)kmalloc(ctx->cluster_size);
-    if (!cbuf) return -6;
 
     /* Walk the chain to the cluster containing `offset`. */
     u32 cluster = ino->first_cluster;
@@ -746,9 +837,17 @@ static int fs_exfat_write(fs_vfs_node_t *node, u64 offset, const void *buf, int 
 
     /* Update on-disk stream entry if the file grew. */
     if (new_end > cur_size) {
-        fs_exfat_update_stream(ctx, ino->entry_cluster, ino->entry_offset,
-                            ino->first_cluster, new_end, new_end);
-        node->size = new_end;
+        /* Never publish a data_length the cluster chain cannot back
+         * (partial extension, e.g. disk full): clamp the new end to the
+         * extended capacity. Extended clusters are zeroed, so the
+         * clamped range still reads as defined data. */
+        u64 end = offset + (u64)total;
+        if (end > chain_bytes) end = chain_bytes;
+        if (end > cur_size) {
+            fs_exfat_update_stream(ctx, ino->entry_cluster, ino->entry_offset,
+                                ino->first_cluster, end, end);
+            node->size = end;
+        }
     }
     return total;
 }
@@ -805,19 +904,17 @@ static int fs_exfat_create(fs_vfs_node_t *parent, const char *name) {
                         0 /*first_cluster*/, 0 /*data_length*/, &ec, &eo) != 0) {
         return -5;
     }
-    /* Create an in-memory inode for the new file. */
-    fs_exfat_inode_t *child_ino = (fs_exfat_inode_t *)kmalloc(sizeof(fs_exfat_inode_t));
-    if (!child_ino) return -6;
-    memset(child_ino, 0, sizeof(*child_ino));
-    child_ino->ctx = ctx;
-    child_ino->first_cluster = 0;
-    child_ino->is_dir = 0;
-    child_ino->entry_cluster = ec;
-    child_ino->entry_offset = eo;
-    fs_vfs_node_t *cn = fs_vfs_alloc_node(name, VFS_TYPE_FILE, &g_exfat_fs_type);
-    if (!cn) { kfree(child_ino); return -7; }
-    cn->private = child_ino;
-    cn->parent = parent;
+    /* BUG-0195 FIX (A12-030): the old tail of this function built a VFS
+     * node + inode for the new file but never attached it to the tree
+     * (no fs_vfs_attach_child) and never freed it either. The VFS
+     * O_CREAT path re-looks the name up right after create() returns
+     * (fs_exfat_lookup builds its own node there), so the node built
+     * here leaked on EVERY O_CREAT (~200 B). Match fs_fat32_create:
+     * create the on-disk entry only - node lifecycle belongs to the
+     * lookup/resolve paths, which attach and track their nodes. Repeat
+     * create on the same name fails above (-4), so no duplicates. */
+    (void)ec;
+    (void)eo;
     return 0;
 }
 
@@ -1076,17 +1173,21 @@ static int fs_exfat_rename(fs_vfs_node_t *parent, const char *oldname,
 /* ---- Mount / unmount ---- */
 
 static fs_vfs_node_t *fs_exfat_fs_mount(const char *device) {
-    int drive = fs_exfat_parse_device(device);
-    if (drive < 0) {
+    /* BUG-0197 FIX (A12-032): mount through the generic blk layer - any
+     * registered block device works, including partition sub-devices.
+     * The legacy whole-disk aliases ("ata0".."ata3") still resolve. */
+    int dev_idx = fs_exfat_parse_device(device);
+    if (dev_idx < 0) {
         screen_console_puts("exfat: invalid device string\n");
         return NULL;
     }
-    if (!driver_block_ata_detect(drive)) {
+    driver_block_device_t *bdev = driver_block_get_device(dev_idx);
+    if (!bdev || !bdev->present) {
         screen_console_puts("exfat: drive not present\n");
         return NULL;
     }
     u8 boot[512];
-    if (driver_block_ata_read_sectors(drive, 0, 1, boot) != 1) {
+    if (driver_block_read_sectors_raw(dev_idx, 0, 1, boot) != 0) {
         screen_console_puts("exfat: read boot sector failed\n");
         return NULL;
     }
@@ -1099,6 +1200,16 @@ static fs_vfs_node_t *fs_exfat_fs_mount(const char *device) {
         bpb->sectors_per_cluster_shift > 25 -
         bpb->bytes_per_sector_shift) {
         screen_console_puts("exfat: impossible sector/cluster shift\n");
+        return NULL;
+    }
+    /* BUG-0197 FIX (A12-032): the blk layer transfers fixed 512-byte
+     * sectors (BLK_SECTOR_SIZE, same as the ATA driver this fs used to
+     * talk to directly). A volume with a different sector size would
+     * silently read only a fraction of every sector buffer, so refuse
+     * it cleanly instead of corrupting data (mirrors the FAT32 mount
+     * check bytes_per_sector != 512). */
+    if (bpb->bytes_per_sector_shift != 9) {
+        screen_console_puts("exfat: sector size must be 512 bytes\n");
         return NULL;
     }
     /* BUG-0185 FIX (A12-020): exFAT spec 3.1.16 NumberOfFats - must be
@@ -1116,7 +1227,7 @@ static fs_vfs_node_t *fs_exfat_fs_mount(const char *device) {
     fs_exfat_ctx_t *ctx = (fs_exfat_ctx_t *)kmalloc(sizeof(fs_exfat_ctx_t));
     if (!ctx) return NULL;
     memset(ctx, 0, sizeof(*ctx));
-    ctx->drive = drive;
+    ctx->dev_idx = dev_idx;
     ctx->sector_size = (u32)1 << bpb->bytes_per_sector_shift;
     ctx->sectors_per_cluster = (u32)1 << bpb->sectors_per_cluster_shift;
     ctx->cluster_size = ctx->sector_size * ctx->sectors_per_cluster;
@@ -1154,19 +1265,41 @@ static fs_vfs_node_t *fs_exfat_fs_mount(const char *device) {
     return root;
 }
 
+/* BUG-0196 FIX (A12-031): recursively free the whole cached VFS subtree
+ * (every node lookup resolved through this mount was attached under the
+ * root by fs_vfs_resolve). The old unmount released only the root node,
+ * leaking every cached child node + inode. fs_vfs_umount guarantees the
+ * subtree is quiescent before calling here: open fds are refused (EBUSY)
+ * and nested mounts deeper than this mount point must be unmounted
+ * first, so every child below `root` belongs to this fs. The fs-wide
+ * context (ctx) is shared by all inodes and is freed separately below,
+ * exactly once. */
+static void fs_exfat_free_subtree(fs_vfs_node_t *node) {
+    if (!node) return;
+    fs_vfs_node_t *child = node->first_child;
+    while (child) {
+        fs_vfs_node_t *next = child->next_sibling;
+        fs_exfat_free_subtree(child);
+        child = next;
+    }
+    fs_exfat_inode_t *ino = (fs_exfat_inode_t *)node->private;
+    if (ino) kfree(ino);
+    kfree(node);
+}
+
 static int fs_exfat_fs_unmount(fs_vfs_node_t *root) {
     /* BUG-0059: flush the allocation bitmap before the context dies. */
     if (!root) return -1;
     fs_exfat_inode_t *ino = (fs_exfat_inode_t *)root->private;
-    if (ino) {
-        if (ino->ctx) {
-            fs_exfat_bitmap_writeback(ino->ctx);
-            if (ino->ctx->bitmap_cache) kfree(ino->ctx->bitmap_cache);
-            kfree(ino->ctx);
-        }
-        kfree(ino);
+    if (ino && ino->ctx) {
+        fs_exfat_bitmap_writeback(ino->ctx);
+        if (ino->ctx->bitmap_cache) kfree(ino->ctx->bitmap_cache);
+        kfree(ino->ctx);
     }
-    kfree(root);
+    /* BUG-0196 FIX (A12-031): free the entire cached subtree, not just
+     * the root node (ctx is already released, and freeing it here does
+     * not touch the per-node inodes). */
+    fs_exfat_free_subtree(root);
     return 0;
 }
 

@@ -788,13 +788,36 @@ static int shell_cmd_write(const char *args) {
     if (fd < 0) { screen_console_puts("write: open failed\n"); return 1; }
     int len = (int)strlen(rest);
     int n = fs_vfs_write(fd, rest, len);
+    fs_vfs_close(fd);
+    /* BUG-0241 FIX (A15-15): fs_vfs_write's return was ignored - a failed
+     * write still printed "wrote 0 bytes" and returned 0, so
+     * `write /full/disk text && echo ok` wrongly printed ok, and with
+     * O_TRUNC a short write silently destroyed data. Report failures (and
+     * short writes) and fail the command; print the byte count only on a
+     * complete write. */
+    if (n < 0) {
+        screen_console_puts("write: WRITE FAILED (");
+        screen_console_puts(resolved);
+        screen_console_puts(") - nothing written\n");
+        return 1;
+    }
+    if (n < len) {
+        char num[20];
+        fmt_u64((u64)n, num);
+        screen_console_puts("write: SHORT WRITE (");
+        screen_console_puts(num);
+        screen_console_puts(" of ");
+        fmt_u64((u64)len, num);
+        screen_console_puts(num);
+        screen_console_puts(" bytes) - file now holds partial content! disk full?\n");
+        return 1;
+    }
     char msg[60]; char num[20];
     strcpy(msg, "wrote ");
-    fmt_u64((u64)(n > 0 ? n : 0), num);
+    fmt_u64((u64)n, num);
     strcpy(msg + strlen(msg), num);
     strcpy(msg + strlen(msg), " bytes\n");
     screen_console_puts(msg);
-    fs_vfs_close(fd);
     return 0;
 }
 

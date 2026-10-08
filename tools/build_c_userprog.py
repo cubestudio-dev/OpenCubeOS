@@ -11,8 +11,14 @@ Example: python3 tools/build_c_userprog.py ush userprogs/ush.c
 import sys, os, subprocess, re
 
 def main():
-    if len(sys.argv) != 3:
-        print("usage: build_c_userprog.py <name> <c_file>", file=sys.stderr)
+    if len(sys.argv) != 3 and len(sys.argv) != 4:
+        print("usage: build_c_userprog.py <name> <c_file> [linker_script]",
+              file=sys.stderr)
+        print("  linker_script defaults to userprogs/user.ld; libs/ld_so.c",
+              file=sys.stderr)
+        print("  MUST be linked with libs/ld_so.ld (base 0x10000000) -",
+              file=sys.stderr)
+        print("  the kernel maps ld.so at that fixed address.", file=sys.stderr)
         sys.exit(1)
     name = sys.argv[1]
     c_path = sys.argv[2]
@@ -29,6 +35,10 @@ def main():
     cc = os.environ.get('CC', '/usr/bin/gcc')
     ld = os.environ.get('LD', '/usr/bin/ld')
     user_ld = os.path.join(_ROOT, 'userprogs', 'user.ld')
+    # Optional 3rd argument: linker script override. libs/ld_so.c MUST be
+    # linked with libs/ld_so.ld (base 0x10000000) - the kernel maps ld.so
+    # at that fixed address; userprogs/user.ld (0x400000) would be wrong.
+    link_script = sys.argv[3] if len(sys.argv) == 4 else user_ld
 
     r = subprocess.run([cc, '-ffreestanding', '-fno-stack-protector', '-fno-pie',
                         '-fno-pic', '-mno-red-zone', '-mno-sse', '-mno-mmx',
@@ -39,7 +49,7 @@ def main():
     if r.returncode != 0:
         print(f"CC error:\n{r.stderr}", file=sys.stderr); sys.exit(1)
 
-    r = subprocess.run([ld, '-n', '-nostdlib', '-T', user_ld,
+    r = subprocess.run([ld, '-n', '-nostdlib', '-T', link_script,
                         '-z', 'max-page-size=0x1000', '-z', 'noexecstack',
                         '-o', elf_path, obj_path],
                        capture_output=True, text=True)

@@ -299,13 +299,36 @@ static int shell_cmd_disk_rw_test(const char *args) {
      * then verify through the raw API. */
     u64 lba = safe_test_lba(d) + 8;
     u8 orig[512], back[512], pat[512];
-    driver_block_read_sectors_raw(idx, lba, 1, orig);
+    /* BUG-0240 FIX (A15-14): the original sector must actually be READ
+     * into the save buffer before the test touches the device. The old
+     * code ignored the read's return value, so on an I/O error `orig`
+     * held uninitialized stack bytes and the "restore" below wrote stack
+     * garbage onto the disk (violating this file's "No silent damage"
+     * rule). Fail fast BEFORE any write instead - if we never wrote,
+     * there is nothing to restore. */
+    if (driver_block_read_sectors_raw(idx, lba, 1, orig) != 0) {
+        t_fail("disk_rw_test", "save original sector", "io error");
+        return 1;
+    }
     for (int i = 0; i < 512; i++) pat[i] = (u8)(0x5Au ^ i);
-    driver_block_write_sectors(idx, lba, 1, pat);
-    driver_block_flush(driver_block_get_device(idx));
-    driver_block_read_sectors_raw(idx, lba, 1, back);
+    int wrc = driver_block_write_sectors(idx, lba, 1, pat);
+    if (wrc == 0) {
+        driver_block_flush(driver_block_get_device(idx));
+    }
+    int brc = (wrc == 0) ? driver_block_read_sectors_raw(idx, lba, 1, back) : -1;
+    /* Restore the TRUE original bytes read above (BUG-0240). */
     driver_block_write_sectors_raw(idx, lba, 1, orig);
-    if (memcmp(back, pat, 512) == 0) {
+    driver_block_flush(driver_block_get_device(idx));
+    if (wrc != 0) {
+        char diag[120]; char n[24];
+        strcpy(diag, "cached write rc=");
+        u64_to_str((u64)(wrc < 0 ? -wrc : wrc), n); strcat(diag, n);
+        t_fail("disk_rw_test", "cached write + blk_flush", diag);
+        fails++;
+    } else if (brc != 0) {
+        t_fail("disk_rw_test", "raw read-back after flush", "io error");
+        fails++;
+    } else if (memcmp(back, pat, 512) == 0) {
         t_pass("disk_rw_test", "cached write + blk_flush + raw verify");
     } else {
         t_fail("disk_rw_test", "cached write + blk_flush", "mismatch");

@@ -22,6 +22,7 @@ A SRC zip contains source, docs and build tooling only. Exclude:
 | `.git/` | Repository history |
 | `build/` | Kernel/ISO build products |
 | `docs/WORKFLOW.md` | Internal agent workflow notes; not part of the shipped source (excluded since WP-10-AUDIT_P2-fix1) |
+| `docs/verification/` | SINCE WP-10-AUDIT_P2-fix2 this directory is NO LONGER excluded (finding #4, HANDOVER 1.3: decision "make public"). It MUST be present in every SRC zip AND in the public git tree, so the two stay identical. Older releases that shipped without it are not retroactively patched. |
 | `*.o`, `*.elf`, `*.bin`, `*.iso`, `*.img`, `*.tar.gz` outside `iso/boot/grub/fonts/` | Compiled artifacts (the GRUB `unicode.pf2` font is a legit source-tree asset and stays) |
 | `__pycache__/`, `*.pyc` | Python caches |
 
@@ -39,6 +40,17 @@ zip -r -q /tmp/<name>-src.zip . \
   -x "build/*" \
   -x "docs/WORKFLOW.md" \
   -x "*.pyc" -x "*__pycache__*"
+```
+
+NOTE (finding #4, WP-10-AUDIT_P2-fix2): `docs/verification/` is NOT in the
+exclusion list anymore - the verification logs are public artifacts now.
+The same directory must be committed to the public repo (it already is on
+the private archive), so `git -C <public clone> ls-files docs/verification`
+lists the same files the zip carries. Verification rule after packaging:
+
+```sh
+unzip -l <name>-src.zip | grep -c "docs/verification/"   # must be >= 7
+git -C <public clone> ls-files docs/verification | wc -l  # must match
 ```
 
 Sanity gates before shipping:

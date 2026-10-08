@@ -176,12 +176,69 @@ int driver_block_mkfs_fat32_device(int dev_idx) {
     return 0;
 }
 
-static int shell_cmd_mkfs_fat32(const char *args) {
-    if (!args[0]) {
-        screen_console_puts("usage: mkfs.fat32 <device>\n");
+/* ---- BUG-0239 FIX (A15-13): mkfs.* confirmation gate ----
+ * Formatting DESTROYS ALL DATA on the target device, and a typo'd device
+ * name (hda vs hdb) used to wipe it on Enter with no way back. All three
+ * mkfs.* commands now require the literal token `confirm` as the LAST
+ * argument:
+ *   mkfs.fat32 hda confirm
+ * Without it NOTHING is written to the device - the command only prints
+ * the data-loss warning and the usage line. Returns 0 when the caller may
+ * proceed (device token copied into devbuf), 1 when refused (device
+ * untouched). */
+static int shell_mkfs_gate(const char *cmd, const char *args,
+                           char *devbuf, int devbuf_len) {
+    /* Extract the device token (first word). */
+    int i = 0;
+    while (args[i] && args[i] != ' ' && args[i] != '\t' && i < devbuf_len - 1) {
+        devbuf[i] = args[i];
+        i++;
+    }
+    if (args[i] && args[i] != ' ' && args[i] != '\t') {
+        /* Device token did not fit - refuse, never guess. */
+        screen_console_puts(cmd);
+        screen_console_puts(": device name too long\n");
         return 1;
     }
-    int dev_idx = driver_block_find_device(args);
+    devbuf[i] = 0;
+    if (!devbuf[0]) {
+        screen_console_puts(cmd);
+        screen_console_puts(": WARNING: formatting DESTROYS ALL DATA on the target device!\n");
+        screen_console_puts("  usage: ");
+        screen_console_puts(cmd);
+        screen_console_puts(" <device> confirm\n");
+        return 1;
+    }
+    /* Skip whitespace, then require the remainder to be exactly the
+     * literal token `confirm` (trailing whitespace tolerated). Anything
+     * else refuses and changes nothing. */
+    while (args[i] == ' ' || args[i] == '\t') i++;
+    char tail[16];
+    int ti = 0;
+    while (args[i] && ti < (int)sizeof(tail) - 1) tail[ti++] = args[i++];
+    tail[ti] = 0;
+    while (ti > 0 && (tail[ti - 1] == ' ' || tail[ti - 1] == '\t')) tail[--ti] = 0;
+    if (args[i] || strcmp(tail, "confirm") != 0) {
+        screen_console_puts(cmd);
+        screen_console_puts(": WARNING: formatting DESTROYS ALL DATA on '");
+        screen_console_puts(devbuf);
+        screen_console_puts("'! Nothing was written.\n");
+        screen_console_puts("  To really format, append the literal token 'confirm' as the last argument:\n");
+        screen_console_puts("  usage: ");
+        screen_console_puts(cmd);
+        screen_console_puts(" <device> confirm\n");
+        return 1;
+    }
+    return 0;
+}
+
+static int shell_cmd_mkfs_fat32(const char *args) {
+    /* BUG-0239 FIX (A15-13): require the explicit `confirm` token. */
+    char dev[BLK_DEV_NAME_LEN];
+    if (shell_mkfs_gate("mkfs.fat32", args, dev, (int)sizeof(dev)) != 0) {
+        return 1;
+    }
+    int dev_idx = driver_block_find_device(dev);
     if (dev_idx < 0) {
         screen_console_puts("mkfs.fat32: device not found\n");
         return 1;
@@ -191,17 +248,21 @@ static int shell_cmd_mkfs_fat32(const char *args) {
         return 1;
     }
     screen_console_puts("FAT32 formatted on ");
-    screen_console_puts(args);
+    screen_console_puts(dev);
     screen_console_puts("\n");
     return 0;
 }
 
 static int shell_cmd_mkfs_exfat(const char *args) {
-    if (!args[0]) { screen_console_puts("usage: mkfs.exfat <device>\n"); return 1; }
-    int dev_idx = driver_block_find_device(args);
+    /* BUG-0239 FIX (A15-13): require the explicit `confirm` token. */
+    char dev[BLK_DEV_NAME_LEN];
+    if (shell_mkfs_gate("mkfs.exfat", args, dev, (int)sizeof(dev)) != 0) {
+        return 1;
+    }
+    int dev_idx = driver_block_find_device(dev);
     if (dev_idx < 0) { screen_console_puts("mkfs.exfat: device not found\n"); return 1; }
-    driver_block_device_t *dev = driver_block_get_device(dev_idx);
-    if (!dev) return 1;
+    driver_block_device_t *devp = driver_block_get_device(dev_idx);
+    if (!devp) return 1;
     /* P2-74: Minimal exFAT format. */
     u8 buf[512];
     memset(buf, 0, 512);
@@ -209,7 +270,7 @@ static int shell_cmd_mkfs_exfat(const char *args) {
     buf[0] = 0xEB; buf[1] = 0x76; buf[2] = 0x90;
     memcpy(buf + 3, "EXFAT   ", 8);
     /* Use fixed layout: FAT at sector 32, heap at 64, root dir at cluster 2 */
-    u64 total_sectors = dev->sectors;
+    u64 total_sectors = devp->sectors;
     *(u64*)(buf + 64) = 0;                    /* partition_offset */
     *(u64*)(buf + 72) = total_sectors;        /* volume_length */
     *(u32*)(buf + 80) = 32;                   /* fat_offset */
@@ -249,17 +310,21 @@ static int shell_cmd_mkfs_exfat(const char *args) {
     memcpy(rootdir + 1, "OCOS       ", 11);
     driver_block_write_sectors_raw(dev_idx, 64, 1, rootdir);
     screen_console_puts("exFAT formatted on ");
-    screen_console_puts(args);
+    screen_console_puts(dev);
     screen_console_puts("\n");
     return 0;
 }
 
 static int shell_cmd_mkfs_ext4(const char *args) {
-    if (!args[0]) { screen_console_puts("usage: mkfs.ext4 <device>\n"); return 1; }
-    int dev_idx = driver_block_find_device(args);
+    /* BUG-0239 FIX (A15-13): require the explicit `confirm` token. */
+    char dev[BLK_DEV_NAME_LEN];
+    if (shell_mkfs_gate("mkfs.ext4", args, dev, (int)sizeof(dev)) != 0) {
+        return 1;
+    }
+    int dev_idx = driver_block_find_device(dev);
     if (dev_idx < 0) { screen_console_puts("mkfs.ext4: device not found\n"); return 1; }
-    driver_block_device_t *dev = driver_block_get_device(dev_idx);
-    if (!dev) return 1;
+    driver_block_device_t *devp = driver_block_get_device(dev_idx);
+    if (!devp) return 1;
     /* P2-75: Minimal ext4 format — write superblock at byte offset 1024. */
     u8 buf[512];
     memset(buf, 0, 512);
@@ -273,14 +338,14 @@ static int shell_cmd_mkfs_ext4(const char *args) {
     /* Superblock at sector 2 (byte 1024) */
     *(u16*)(buf + 56) = 0xEF53;               /* magic */
     *(u32*)(buf + 0) = 0;                     /* s_inodes_count (placeholder) */
-    *(u32*)(buf + 4) = (u32)dev->sectors;     /* s_blocks_count_lo */
+    *(u32*)(buf + 4) = (u32)devp->sectors;    /* s_blocks_count_lo */
     *(u32*)(buf + 24) = 0;                    /* s_log_block_size (1024 bytes) */
     *(u32*)(buf + 32) = 8192;                 /* s_blocks_per_group */
     *(u32*)(buf + 40) = 16384;               /* s_inodes_per_group */
     *(u16*)(buf + 88) = 256;                 /* s_inode_size */
     driver_block_write_sectors_raw(dev_idx, 2, 1, buf);
     screen_console_puts("ext4 formatted on ");
-    screen_console_puts(args);
+    screen_console_puts(dev);
     screen_console_puts(" (minimal — superblock only, no directory entries: ls will show an empty volume; use mkfs.ext4 on the host for a full format)\n");  /* WP-09-FIX BUG-033 */
     return 0;
 }
@@ -458,9 +523,9 @@ void shell_cmds_disk_register(void) {
      * Only register WP-07-specific commands here to avoid duplicates. */
     shell_register_command_ex("lsblk", shell_cmd_lsblk, "list block devices", "WP-10a");
     shell_register_command_ex("parted", shell_cmd_parted, "show partition table (parted [dev])", "WP-10a");
-    shell_register_command_ex("mkfs.fat32", shell_cmd_mkfs_fat32, "format FAT32 (mkfs.fat32 <dev>)", "WP-10a");
-    shell_register_command_ex("mkfs.exfat", shell_cmd_mkfs_exfat, "format exFAT", "WP-10a");
-    shell_register_command_ex("mkfs.ext4", shell_cmd_mkfs_ext4, "format ext4", "WP-10a");
+    shell_register_command_ex("mkfs.fat32", shell_cmd_mkfs_fat32, "format FAT32 (mkfs.fat32 <dev> confirm)", "WP-10a");
+    shell_register_command_ex("mkfs.exfat", shell_cmd_mkfs_exfat, "format exFAT (mkfs.exfat <dev> confirm)", "WP-10a");
+    shell_register_command_ex("mkfs.ext4", shell_cmd_mkfs_ext4, "format ext4 (mkfs.ext4 <dev> confirm)", "WP-10a");
     shell_register_command_ex("fsck", shell_cmd_fsck, "filesystem check", "WP-10a");
     shell_register_command_ex("sync", shell_cmd_sync, "flush disk cache", "WP-10a");
 }

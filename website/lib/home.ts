@@ -38,7 +38,7 @@ export const STATS: Bi<{ value: string; label: string }[]> = {
   ],
 };
 
-// WP-10-AUDIT_P2-fix1 (audit + all 41 P0 fixes + all 94 P1 fixes + the first 53 P2 items) leads the user-facing list, then WP-10-wp08fix1 shell completion + WP-10d/c/u/b/a + security transport
+// WP-10-AUDIT_P2-fix2 (audit + all 41 P0 fixes + all 94 P1 fixes + all 106 P2 items across fix1+fix2) leads the user-facing list, then WP-10-AUDIT_P2-fix1 + WP-10-wp08fix1 shell completion + WP-10d/c/u/b/a + security transport
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {

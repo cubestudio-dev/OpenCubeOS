@@ -37,9 +37,16 @@ SEABIOS_DIR  ?= $(OC_TOOLS)/share/seabios
 
 # Compiler / linker flags — freestanding, no redzone, no PIE, no stack protector.
 # OC_RELEASE_VERSION is baked into the kernel banner + uname + update
-# check (WP-10u).  Override for the end-to-end update test:
+# check (WP-10u). Override for the end-to-end update test:
 #   make OC_RELEASE_VERSION=WP-10c-test1
-OC_RELEASE_VERSION ?= WP-10-project_restructure-fix1
+# FINDING #1 (HANDOVER 1.3, WP-10-AUDIT_P2-fix2): the version string is
+# derived from git at build time so the banner/uname/update version
+# always matches the actual tree: `git describe --tags` when HEAD is on
+# (or after) a tag, literal "dev" fallback when git is unavailable or
+# the tree has no tags. The ?= override still wins for the E2E update
+# test. Release builds: tag BEFORE the final build (git tag
+# WP-10-AUDIT_P2-fix2) so the baked string equals the Release tag.
+OC_RELEASE_VERSION ?= $(shell git -C $(OC_ROOT) describe --tags 2>/dev/null || echo dev)
 
 # ---- Source tree (WP-10-project_restructure-fix1 layout) ----
 # One folder per module.  All include paths are exported to the compiler so
@@ -54,6 +61,24 @@ KERNEL_DIRS := kernel kernel/arch/x86_64 kernel/core kernel/mem kernel/lib \
 # the stage-2 generated grub_boot_data.c, which is compiled separately
 # (GRUB_DATA_OBJ) and linked in the second link stage only.
 KERNEL_INC := $(foreach d,$(KERNEL_DIRS) boot tools,-I$(OC_ROOT)/$(d))
+
+# ---- Embedded user programs (embed chain, HANDOVER 2.3 gap) ----
+# kernel/core/userprogs_data.h is included by kernel/main.c (the `run`
+# command executes these programs) but was maintained by MANUAL tool runs:
+# the Makefile had ZERO rules touching it, so a clean rebuild silently
+# shipped stale embedded programs (the fix1 int3_user incident class).
+# Two guards now exist:
+#   make userprogs        - regenerate the header from userprogs/ sources
+#                           (asm via tools/embed_userprog.py, C via
+#                           tools/build_c_userprog.py; needs nasm+gcc)
+#   make userprogs-check  - fail when any source is >2 s newer than the
+#                           header (2 s slack absorbs fresh-clone mtime
+#                           jitter); wired into `make dist` so the
+#                           release path can never ship stale programs
+EMBED_PY        := tools/embed_userprog.py
+BUILD_C_PY      := tools/build_c_userprog.py
+USERPROG_SRCS   := $(wildcard $(OC_ROOT)/userprogs/*.asm) $(wildcard $(OC_ROOT)/userprogs/*.c)
+USERPROGS_HDR   := kernel/core/userprogs_data.h
 
 CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
              -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel \
@@ -90,7 +115,7 @@ BASE_ELF    := $(BUILD)/opencube_base.elf
 
 # Default goal
 .DEFAULT_GOAL := all
-.PHONY: all iso run-bios run-uefi run-bios-gui run-uefi-gui run-bios-persist run-uefi-persist shot-bios shot-uefi clean dist
+.PHONY: all iso run-bios run-uefi run-bios-gui run-uefi-gui run-bios-persist run-uefi-persist shot-bios shot-uefi clean dist userprogs userprogs-check
 
 all: $(KERNEL)
 
@@ -124,7 +149,7 @@ $(BASE_ELF): $(KERNEL_OBJ) $(STUB_OBJ) $(OC_ROOT)/linker.ld | $(BUILD)
 	strip --strip-debug $@
 
 $(GRUB_DATA_C): $(OC_ROOT)/tools/embed_grub.py $(BASE_ELF) \
-                $(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
+		$(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
 	python3 $(OC_ROOT)/tools/embed_grub.py "$(OC_TOOLS)" $(BASE_ELF) $@
 
 $(GRUB_DATA_OBJ): $(GRUB_DATA_C) $(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
@@ -224,8 +249,39 @@ run-uefi-persist: $(KERNEL_ISO) $(ETC_IMG)
 clean:
 	rm -rf $(BUILD) $(DIST) $(ISO_DIR)/boot/opencube.elf $(GEN_DIR)/grub_boot_data.c
 
+# ---- Embedded-user-program targets (embed chain) ----
+# Regenerate the embedded program header from sources. asm programs go
+# through tools/embed_userprog.py <name> <path>; C programs through
+# tools/build_c_userprog.py <name> <path>. nasm/gcc must be on PATH.
+userprogs:
+	@set -e; for src in $(USERPROG_SRCS); do \
+           base=$$(basename "$$src"); name=$${base%.*}; \
+           case "$$src" in \
+             *.asm) echo "userprogs: embed $$name (asm)"; python3 $(OC_ROOT)/$(EMBED_PY) "$$name" "$$src";; \
+             */ld_so.c) echo "userprogs: embed $$name (c, ld_so.ld)"; \
+		python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" $(OC_ROOT)/libs/ld_so.ld;; \
+             *.c)   echo "userprogs: embed $$name (c)";   python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src";; \
+           esac || exit 1; \
+         done; echo "userprogs: regenerated $(USERPROGS_HDR)"
+
+# Staleness gate: fail when any userprog source is more than 2 seconds
+# newer than the embedded header (2 s slack absorbs fresh-clone mtime
+# jitter, where all checkout files share one timestamp). Wired into
+# `make dist` so the RELEASE path can never ship stale programs.
+userprogs-check:
+	@newest_src=$$(ls -t $(USERPROG_SRCS) 2>/dev/null | head -1); \
+         if [ -n "$$newest_src" ] && [ -f "$(OC_ROOT)/$(USERPROGS_HDR)" ]; then \
+           s=$$(stat -c %Y "$$newest_src"); h=$$(stat -c %Y "$(OC_ROOT)/$(USERPROGS_HDR)"); \
+           if [ "$$s" -gt $$((h + 2)) ]; then \
+             echo "ERROR: $$newest_src is newer than $(USERPROGS_HDR)."; \
+             echo "The embedded user programs are STALE (fix1 int3_user incident class)."; \
+             echo "Fix: make userprogs   (needs nasm + gcc on PATH)"; \
+             exit 1; \
+           fi; \
+         fi; echo "userprogs-check: OK"
+
 # ---- Distribution: source zip + ISO ----
-dist: $(KERNEL_ISO)
+dist: userprogs-check $(KERNEL_ISO)
 	mkdir -p $(DIST)
 	TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
 	SRCZIP=$(DIST)/OpenCubeOS-src-$(OC_RELEASE_VERSION)-$$TIMESTAMP.zip; \

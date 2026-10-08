@@ -1,40 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10-AUDIT_P2-fix1 value
+// Central site data. Every number is a real WP-10-AUDIT_P2-fix2 value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
 // docs/EXTENSIONS_WP10-wp08fix1.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub WP-10-AUDIT_P2-fix1 tag + site /downloads/ + this site /downloads/
+// 3-way identical: local build + GitHub WP-10-AUDIT_P2-fix2 tag + site /downloads/ + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix1";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix2";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub WP-10-AUDIT_P2-fix1 tag + site /downloads/ + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-10-AUDIT_P2-fix1.iso";
-export const ISO_SIZE_B = 11395072;
-export const ISO_SIZE_MB = "10.87";
+// Real assets (build/ + GitHub WP-10-AUDIT_P2-fix2 tag + site /downloads/ + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-WP-10-AUDIT_P2-fix2.iso";
+export const ISO_SIZE_B = 11419648;
+export const ISO_SIZE_MB = "10.89";
 export const ISO_SHA256 =
-  "737c8cfa4838dd950258b2ba18a6d36c3a672c8583e9c4bb3d17e8a504875b8e";
+  "83d97ec3a610b708b2e25732b0867b54111df79179b028213ee43ade0f4ce998";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-10-AUDIT_P2-fix1-src.zip";
-export const SRC_SIZE_B = 2750840;
-export const SRC_SIZE_MB = "2.62";
+export const SRC_FILE = "opencube-WP-10-AUDIT_P2-fix2-src.zip";
+export const SRC_SIZE_B = 2799341;
+export const SRC_SIZE_MB = "2.67";
 export const SRC_SHA256 =
-  "89087bc1e9e61cdb1d979a19872b3a8f0b282179803e0f8432e37ee2d7be644c";
+  "c76e5d9cf476980e4bf59c215ca9aebbf77149512d6fecf14828b1c994d4d6c5";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-10-AUDIT_P2-fix1 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 97,307 (incl. the build-generated kernel/generated/grub_boot_data.c, 10,335 lines, GRUB 2.12-9+deb13u2).
+// WP-10-AUDIT_P2-fix2 stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 100,230 (incl. the build-generated kernel/generated/grub_boot_data.c, 10,335 lines, GRUB 2.12-9+deb13u2).
 // Shell commands: live boot count = 176 (boot banner prints "shell command system (176 commands)"; the batch added irqabitest/heapbounds/vmkernelpt).
 // L1 extension interfaces: 138 items (unchanged; the batch added no l1/ headers).
 export const STATS = [
-  { value: "97,307", label: "行源码" },
+  { value: "100,230", label: "行源码" },
   { value: "138", label: "L1 扩展接口" },
   { value: "44", label: "系统调用" },
   { value: "176", label: "shell 命令" },
@@ -44,6 +44,11 @@ export const STATS = [
 
 // WP-AUDIT-01 (607-finding audit + all 41 P0 fixes + all 94 P1 fixes: p1fix1 items 1..31 + p1fix2 items 32..62 + p1fix3 items 63..94 + the p1fix4 HTTPS E2E fix + the WP-10-AUDIT_P2-fix1 batch-1 P2 fixes, items 1..53) leads the user-facing list
 export const FEATURES = [
+  {
+    name: "P2 第二批 53 条修复 + 发布链四项加固完成",
+    tag: "WP-10-AUDIT_P2-fix2",
+    desc: "P2 第 54..106 条（BUG-0189..0241）全数落地：文件系统 12 条（FAT32 目录项硬上限改链长推导、append_cluster 返回值检查、>4GiB 写失败而非静默回绕；exFAT O_TRUNC 实现、扩链计数修正、新簇清零、create 泄漏修复、unmount 整树释放、迁移到通用 blk 层可挂分区、非 512 扇区拒绝；ext4 挂载门（INCOMPAT 特征拒绝、块/组/inode 尺寸校验）、>2GiB 读取、extent 树深度≤5 全走）；网络 13 条（dma_alloc 先对齐后查界、virtio 按协商队列尺寸、TCP doff 校验、rtx 满不静默发送 + Nagle + 零窗口排队、accept 超时单位、临时端口冲突检查、TIME_WAIT/LAST_ACK 全状态机、SYN-ACK 盲收拒绝、IP 版本/IHL/分片 fail-closed/广播精确判定、DNS 构造全程有界、CUBIC 拥塞窗口真实生效、UDP 端口不可达/队列满计数/重复绑定拒绝）；ld_so 4 条（DT_NEEDED 依赖加载 + 模块表 + 强未定义失败、SysV 初始栈 + 返回蹦床、ELF 边界一致校验、内核侧基址随机化 + W^X）；ssh/sshd 10 条（握手失败不漏 socket、64MiB rekey、strict-kex（RFC 9144）、X25519 全零拒绝、认证 6 次上限 + 恒定 1s 延迟、用户名/口令恒定时间比较、exec 负长拒绝、深栈帧堆化、并发第二连接立即 DISCONNECT（单会话契约保留）、SERVICE_REQUEST 舞步）；tls 8 条（X25519 全零、套件成员校验、告警/close_notify 分离 + 截断标记、CBC 填充预言封闭（Lucky13）、sig_len 边界、发送记录硬限、RFC 5746 no_renegotiation、RFC 7507 降级 SCSV）；shell 6 条（8KiB 栈数组堆化、help -w 越界与未知 tag、alias 不再截断、mkfs.* 需 confirm、disk_rw_test 真实恢复、write 失败如实报告）。发布链四项加固：版本串 git describe 自动取 tag（横幅实测 WP-10-AUDIT_P2-fix2）、HTTPS E2E 补双向断言（原始字节记录器观测到内核 close_notify 69B + 过早 EOF 不挂死）、INTERFACES.md 173→176、docs/verification/ 转公开；嵌入链缺口补齐（make userprogs / userprogs-check 进 Makefile，ld.so 二进制重嵌入，reloc_test COPY 交互缺陷当场修复 foo_global=42）。回归：0E0W + dhtest 5/5 + cryptotest 3/3 + fstest 全 PASS + 12+8 用户程序 + SSH 5/5 + HTTPS E2E + help 自报 176 命令；统计 100,230 行。",
+  },
   {
     name: "完整安全审查 + P0 全部修复 + P1 全部 94 条 + P2 第一批 53 条修复完成",
     tag: "WP-10-AUDIT_P2-fix1",

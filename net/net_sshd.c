@@ -410,6 +410,23 @@ int net_sshd_hostkey_is_custom(void) { return g_hk_custom; }
 #define SSHD_MSG_CHANNEL_SUCCESS  99
 #define SSHD_MSG_CHANNEL_FAILURE 100
 
+/* RFC 4253 §11.1 disconnect reason codes used by this server */
+#define SSHD_DISCONNECT_SERVICE_NOT_AVAILABLE   7
+#define SSHD_DISCONNECT_TOO_MANY_CONNECTIONS   12
+#define SSHD_DISCONNECT_NO_MORE_AUTH_METHODS   14
+
+/* BUG-0222 (A14-36): authentication attempt budget per connection */
+#define SSHD_AUTH_MAX_ATTEMPTS 6
+
+/* BUG-0224 (A14-39): payload capacity of one page frame (all packet
+ * payload buffers are heap frames, never stack arrays) */
+#define SSHD_PKT_CAP 4096
+
+/* BUG-0220 (A14-34): strict-kex tokens (RFC 9144). The server advertises
+ * ..._s_..., the client ..._c_...; each side looks for the PEER's token. */
+#define SSHD_KEX_STRICT_CLIENT "kex-strict-c-v00@openssh.com"
+#define SSHD_KEX_STRICT_SERVER "kex-strict-s-v00@openssh.com"
+
 #define SSHD_DH_BYTES 256
 static const char *SSHD_BANNER = "SSH-2.0-OpenCubeOS_sshd_WP-09\r\n";
 
@@ -425,6 +442,7 @@ typedef struct {
     /* negotiated algorithms */
     int kex_curve25519;             /* 1 = curve25519-sha256 */
     int cipher_ctr;                 /* 1 = aes128-ctr */
+    int kex_strict;                 /* 1 = strict-kex agreed (RFC 9144, BUG-0220) */
     /* DH */
     u8  crypto_x25519_priv[32];
     u8  crypto_dh_priv[SSHD_DH_BYTES];
@@ -459,6 +477,21 @@ typedef struct {
 
 static net_sshd_ctx_t g_ssd;
 
+/* BUG-0223 (A14-37): the CONFIGURED credentials get their own store.
+ * ctx IS the singleton g_ssd and ctx->auth_user is overwritten by every
+ * client attempt, so the old self-compare was vacuously true AND clobbered
+ * the configured username on the first attempt. Bounded copy: the fixed
+ * 32-byte constant-time compare below is then always in-bounds. */
+static char g_sshd_cfg_user[32];
+static char g_sshd_cfg_pass[32];
+
+/* BUG-0226 (A14-40): listener fd while sshd owns it; the session loops
+ * use it to probe for (and refuse) extra queued connections. */
+static int g_sshd_listen_fd = -1;
+
+static void net_sshd_probe_extra_connection(void);                 /* BUG-0226 */
+static void net_sshd_send_disconnect(net_sshd_ctx_t *ctx, u32 reason, const char *desc); /* BUG-0222/0226 */
+
 static void net_sshd_write_u32(u8 *buf, int *p, u32 v);
 
 static void net_sshd_log(const char *msg) {
@@ -478,6 +511,34 @@ static void net_sshd_log_hex(const char *prefix, const u8 *buf, int n) {
     }
     screen_console_puts(buf2);
     screen_console_puts("\n");
+}
+
+/* BUG-0221 (A14-35): constant-time all-zero test (RFC 7748 S6.1) - OR all
+ * bytes into one accumulator and branch only on the final value. */
+static int net_sshd_secret_is_zero(const u8 *buf, int len) {
+    u8 acc = 0;
+    for (int i = 0; i < len; i++) acc |= buf[i];
+    return acc == 0;
+}
+
+/* BUG-0223 (A14-37): constant-time string equality over a FIXED window.
+ * Both buffers are NUL-padded char[32] stores, so comparing all 32 bytes
+ * (XOR-accumulate, no early exit, no length leak) decides equality of the
+ * strings. Timing is independent of where (or whether) they differ. */
+static int net_sshd_ct_eq(const char *a, const char *b, int cap) {
+    u8 diff = 0;
+    for (int i = 0; i < cap; i++) diff |= (u8)a[i] ^ (u8)b[i];
+    return diff == 0;
+}
+
+/* BUG-0220 (A14-34): strict-kex (RFC 9144) - when the extension was
+ * negotiated, both directions' sequence numbers restart at 0 immediately
+ * after the final NEWKEYS of the initial AND every rekey exchange. */
+static void net_sshd_reset_seq(net_sshd_ctx_t *ctx) {
+    if (!ctx->kex_strict) return;
+    ctx->write_seq = 0;
+    ctx->read_seq = 0;
+    net_sshd_log("strict-kex: sequence numbers reset to 0");
 }
 
 /* ---------- raw (unencrypted) packet framing ---------- */
@@ -956,13 +1017,13 @@ static int net_sshd_recv_version(net_sshd_ctx_t *ctx) {
     return 0;
 }
 
-static const char *SSHD_KEX_KEXALGOS = "curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group14-sha256";
+static const char *SSHD_KEX_KEXALGOS = "curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group14-sha256,kex-strict-s-v00@openssh.com";
 static const char *SSHD_KEX_HOSTKEYS = "rsa-sha2-256";
 static const char *SSHD_KEX_CIPHERS  = "aes128-ctr,aes128-cbc";
 static const char *SSHD_KEX_MACS     = "hmac-sha2-256";
 static const char *SSHD_KEX_COMP     = "none";
 
-static int net_sshd_send_kexinit(net_sshd_ctx_t *ctx) {
+static int net_sshd_send_kexinit(net_sshd_ctx_t *ctx, int encrypted) {
     u8 cookie[16];
     crypto_random(cookie, 16);
     u8 payload[1024];
@@ -986,6 +1047,10 @@ static int net_sshd_send_kexinit(net_sshd_ctx_t *ctx) {
     memcpy(wire + 1, payload, p);
     memcpy(ctx->server_kexinit, wire, p + 1);
     ctx->server_kexinit_len = p + 1;
+    /* BUG-0219: during a rekey this exchange runs under the currently
+     * active keys, so the framing depends on the session phase. */
+    if (encrypted)
+        return net_sshd_send_packet_encrypted(ctx, SSHD_MSG_KEXINIT, payload, p);
     return net_sshd_send_packet_unencrypted(ctx, SSHD_MSG_KEXINIT, payload, p);
 }
 
@@ -1003,16 +1068,16 @@ static int net_sshd_name_has(const u8 *list, int list_len, const char *name) {
     return 0;
 }
 
-static int net_sshd_recv_kexinit(net_sshd_ctx_t *ctx) {
-    u8 rtype;
-    u8 payload[4096];
-    int plen = sizeof(payload);
-    if (net_sshd_recv_packet_unencrypted(ctx, &rtype, payload, &plen) < 0) return -1;
-    if (rtype != SSHD_MSG_KEXINIT) return -2;
-    u8 wire[4096];
-    wire[0] = rtype;
-    memcpy(wire + 1, payload, plen);
-    memcpy(ctx->client_kexinit, wire, plen + 1);
+/* Save the client KEXINIT (msg_type included, matching paramiko's I_C)
+ * and negotiate algorithms. BUG-0224 (A14-39): split from recv_kexinit so
+ * the rekey responder (BUG-0219) can reuse it on a payload already
+ * received; the old recv path also staged the payload through a second
+ * 4 KiB stack array (wire[]), which is gone - the frame is copied
+ * straight into ctx->client_kexinit. */
+static int net_sshd_parse_kexinit(net_sshd_ctx_t *ctx, const u8 *payload, int plen) {
+    if (plen < 0 || 1 + plen > (int)sizeof(ctx->client_kexinit)) return -2;
+    ctx->client_kexinit[0] = SSHD_MSG_KEXINIT;
+    memcpy(ctx->client_kexinit + 1, payload, plen);
     ctx->client_kexinit_len = plen + 1;
     /* Negotiate: pick our first-listed algorithm that the client offers.
      * Client KEXINIT payload (after msg_type): cookie(16) + 10 name-lists. */
@@ -1039,6 +1104,10 @@ static int net_sshd_recv_kexinit(net_sshd_ctx_t *ctx) {
             net_sshd_name_has(ptrs[0], lens[0], "curve25519-sha256@libssh.org")) {
             ctx->kex_curve25519 = 1;
         }
+        /* BUG-0220 (A14-34): strict-kex (RFC 9144). The CLIENT advertises
+         * kex-strict-c-v00@openssh.com; when present in the client's list,
+         * both sides reset both sequence numbers after every NEWKEYS. */
+        ctx->kex_strict = net_sshd_name_has(ptrs[0], lens[0], SSHD_KEX_STRICT_CLIENT);
         /* cipher: aes128-ctr in both directions */
         int c2s = net_sshd_name_has(ptrs[2], lens[2], "aes128-ctr");
         int s2c = net_sshd_name_has(ptrs[3], lens[3], "aes128-ctr");
@@ -1062,7 +1131,21 @@ static int net_sshd_recv_kexinit(net_sshd_ctx_t *ctx) {
     return 0;
 }
 
-static int net_sshd_send_kexdh_reply_curve25519(net_sshd_ctx_t *ctx) {
+static int net_sshd_recv_kexinit(net_sshd_ctx_t *ctx) {
+    /* BUG-0224 (A14-39): the 4 KiB payload moved from the stack to a page
+     * frame (freed on every exit; leak-free error paths). */
+    u8 *payload = (u8 *)(uintptr_t)mem_pmm_alloc_frame();
+    if (!payload) { net_sshd_log("recv_kexinit: no frame for payload"); return -1; }
+    u8 rtype;
+    int plen = SSHD_PKT_CAP;
+    int rc = net_sshd_recv_packet_unencrypted(ctx, &rtype, payload, &plen);
+    if (rc == 0 && rtype != SSHD_MSG_KEXINIT) rc = -2;
+    if (rc == 0) rc = net_sshd_parse_kexinit(ctx, payload, plen);
+    mem_pmm_free_frame((u64)(uintptr_t)payload);
+    return rc;
+}
+
+static int net_sshd_send_kexdh_reply_curve25519(net_sshd_ctx_t *ctx, int encrypted) {
     /* server x25519: keypair, K = X25519(y, e), reply K_S || string f || sig */
     crypto_random(ctx->crypto_x25519_priv, 32);
     u8 f_pub[32];
@@ -1070,6 +1153,13 @@ static int net_sshd_send_kexdh_reply_curve25519(net_sshd_ctx_t *ctx) {
     u8 shared32[32];
     if (crypto_x25519_shared(ctx->crypto_x25519_priv, ctx->client_pub + SSHD_DH_BYTES - 32, shared32) != 0)
         return -1;
+    if (net_sshd_secret_is_zero(shared32, 32)) {
+        /* BUG-0221 (A14-35): RFC 7748 §6.1 - an all-zero X25519 output means
+         * the client's public key was invalid (small-order point); the
+         * resulting session keys would be attacker-derivable. Abort KEX. */
+        net_sshd_log("curve25519 shared secret is all-zero (invalid client key)");
+        return -1;
+    }
     memset(ctx->shared_secret, 0, SSHD_DH_BYTES);
     memcpy(ctx->shared_secret + SSHD_DH_BYTES - 32, shared32, 32);
     net_sshd_log("curve25519 KEX: shared secret computed");
@@ -1080,8 +1170,12 @@ static int net_sshd_send_kexdh_reply_curve25519(net_sshd_ctx_t *ctx) {
         net_sshd_log("exchange hash input too large");
         return -9;
     }
-    memcpy(ctx->session_id, ctx->exchange_hash, 32);
-    ctx->session_id_set = 1;
+    /* RFC 4253 §8: session_id is the FIRST exchange hash and never changes;
+     * rekey derivations must keep using it (BUG-0219). */
+    if (!ctx->session_id_set) {
+        memcpy(ctx->session_id, ctx->exchange_hash, 32);
+        ctx->session_id_set = 1;
+    }
     net_sshd_log_hex("H (first 16): ", ctx->exchange_hash, 16);
 
     /* RSA signature: EM carries SHA256(H) per OpenSSH/paramiko semantics */
@@ -1120,11 +1214,13 @@ static int net_sshd_send_kexdh_reply_curve25519(net_sshd_ctx_t *ctx) {
         net_sshd_write_str(sbuf, &sp, sig, 256);
         net_sshd_write_str(blob, &p, sbuf, sp);
     }
+    if (encrypted)
+        return net_sshd_send_packet_encrypted(ctx, SSHD_MSG_KEXDH_REPLY, blob, p);
     return net_sshd_send_packet_unencrypted(ctx, SSHD_MSG_KEXDH_REPLY, blob, p);
 }
 
-static int net_sshd_send_kexdh_reply(net_sshd_ctx_t *ctx) {
-    if (ctx->kex_curve25519) return net_sshd_send_kexdh_reply_curve25519(ctx);
+static int net_sshd_send_kexdh_reply(net_sshd_ctx_t *ctx, int encrypted) {
+    if (ctx->kex_curve25519) return net_sshd_send_kexdh_reply_curve25519(ctx, encrypted);
     /* server DH: y, f = g^y mod p, K = e^y mod p */
     crypto_random(ctx->crypto_dh_priv, SSHD_DH_BYTES);
     ctx->crypto_dh_priv[0] &= 0x7F;
@@ -1153,8 +1249,12 @@ static int net_sshd_send_kexdh_reply(net_sshd_ctx_t *ctx) {
         net_sshd_log("exchange hash input too large");
         return -9;
     }
-    memcpy(ctx->session_id, ctx->exchange_hash, 32);
-    ctx->session_id_set = 1;
+    /* RFC 4253 §8: session_id is the FIRST exchange hash and never changes;
+     * rekey derivations must keep using it (BUG-0219). */
+    if (!ctx->session_id_set) {
+        memcpy(ctx->session_id, ctx->exchange_hash, 32);
+        ctx->session_id_set = 1;
+    }
     net_sshd_log_hex("H (first 16): ", ctx->exchange_hash, 16);
 
     /* RSA signature over H: sig = RSASSA-PKCS1-v1_5-SIGN(d, H)
@@ -1211,7 +1311,11 @@ static int net_sshd_send_kexdh_reply(net_sshd_ctx_t *ctx) {
         net_sshd_write_str(blob, &p, sbuf, sp);
     }
     {
-        int rc = net_sshd_send_packet_unencrypted(ctx, SSHD_MSG_KEXDH_REPLY, blob, p);
+        int rc;
+        if (encrypted)
+            rc = net_sshd_send_packet_encrypted(ctx, SSHD_MSG_KEXDH_REPLY, blob, p);
+        else
+            rc = net_sshd_send_packet_unencrypted(ctx, SSHD_MSG_KEXDH_REPLY, blob, p);
         char b[64]; strcpy(b, "KEXDH_REPLY send rc=");
         char n[10]; u64_to_str((u64)(rc < 0 ? -rc : rc), n); strcat(b, n);
         strcat(b, " (p=");
@@ -1219,6 +1323,87 @@ static int net_sshd_send_kexdh_reply(net_sshd_ctx_t *ctx) {
         net_sshd_log(b);
         return rc;
     }
+}
+
+/* Parse the KEXDH_INIT payload (mpint e for group14 / 32-byte string for
+ * curve25519) into ctx->client_pub. Shared by the initial exchange and the
+ * rekey responder (BUG-0219). Returns 0 or -7 (bad e). */
+static int net_sshd_parse_kexdh_init(net_sshd_ctx_t *ctx, const u8 *payload, int plen) {
+    if (plen < 4) return -7;
+    int e_len = (int)net_sshd_read_u32(payload);
+    /* right-align into 256 bytes */
+    memset(ctx->client_pub, 0, SSHD_DH_BYTES);
+    if (ctx->kex_curve25519) {
+        if (e_len != 32) return -7;
+        memcpy(ctx->client_pub + SSHD_DH_BYTES - 32, payload + 4, 32);
+    } else {
+        /* P0fix1 BUG-0015 (A14-09): a negative e_len skipped both clamps
+         * and made `SSHD_DH_BYTES - el` a wild offset with a huge memcpy
+         * length. Also bound `el` by the actual payload size. */
+        const u8 *ed = payload + 4;
+        int el = e_len;
+        if (el < 0) return -7;
+        if (4 + el > plen) return -7;   /* declared e extends past payload */
+        if (el > 0 && ed[0] == 0) { ed++; el--; }
+        if (el > SSHD_DH_BYTES) { ed += (el - SSHD_DH_BYTES); el = SSHD_DH_BYTES; }
+        memcpy(ctx->client_pub + (SSHD_DH_BYTES - el), ed, el);
+    }
+    return 0;
+}
+
+/* BUG-0219 (A14-33): client-initiated rekey responder (RFC 4253 §9).
+ * Called from the session loops when SSH_MSG_KEXINIT arrives mid-session;
+ * kexinit_payload/plen describe the already-received client KEXINIT.
+ * The whole exchange runs under the CURRENTLY ACTIVE keys; the new keys
+ * apply after NEWKEYS. While the exchange runs no other packets are
+ * accepted: a data packet mixed into the key exchange desynchronizes the
+ * cipher streams, so the documented policy is drop-with-disconnect (the
+ * session is torn down when this returns non-zero). */
+static int net_sshd_handle_client_rekey(net_sshd_ctx_t *ctx,
+                                        const u8 *kexinit_payload, int kexinit_plen) {
+    net_sshd_log("client initiated rekey (KEXINIT mid-session)");
+    u8 *payload = (u8 *)(uintptr_t)mem_pmm_alloc_frame();
+    if (!payload) { net_sshd_log("rekey: no frame for packet buffer"); return -1; }
+    int rc = -1;
+    /* 1. the client's KEXINIT already arrived - parse/negotiate it */
+    if (net_sshd_parse_kexinit(ctx, kexinit_payload, kexinit_plen) != 0) goto out;
+    /* 2. our own KEXINIT (encrypted with the currently active keys) */
+    if (net_sshd_send_kexinit(ctx, 1) != 0) goto out;
+    /* 3. KEXDH_INIT under the old keys */
+    for (;;) {
+        u8 mtype;
+        int plen = SSHD_PKT_CAP;
+        if (net_sshd_recv_packet_encrypted(ctx, &mtype, payload, &plen) != 0) goto out;
+        if (mtype != SSHD_MSG_KEXDH_INIT) {
+            net_sshd_log("rekey: non-KEX packet inside exchange - dropping");
+            goto out;
+        }
+        if (net_sshd_parse_kexdh_init(ctx, payload, plen) != 0) goto out;
+        break;
+    }
+    /* 4. KEXDH_REPLY + our NEWKEYS (old keys; derive happens after step 5) */
+    if (net_sshd_send_kexdh_reply(ctx, 1) != 0) goto out;
+    if (net_sshd_send_packet_encrypted(ctx, SSHD_MSG_NEWKEYS, (const u8 *)0, 0) != 0) goto out;
+    /* 5. the client's NEWKEYS (old keys) */
+    {
+        u8 mtype;
+        int plen = SSHD_PKT_CAP;
+        if (net_sshd_recv_packet_encrypted(ctx, &mtype, payload, &plen) != 0) goto out;
+        if (mtype != SSHD_MSG_NEWKEYS) {
+            net_sshd_log("rekey: expected NEWKEYS - dropping");
+            goto out;
+        }
+    }
+    /* 6. new keys take effect in both directions; session_id stays the
+     * FIRST exchange hash (RFC 4253 §8), the derivation uses the new H. */
+    net_sshd_derive_keys(ctx);
+    ctx->encrypted = 1;
+    net_sshd_reset_seq(ctx);   /* BUG-0220: strict-kex reset after every NEWKEYS */
+    net_sshd_log("rekey complete - new keys active");
+    rc = 0;
+out:
+    mem_pmm_free_frame((u64)(uintptr_t)payload);
+    return rc;
 }
 
 static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
@@ -1230,6 +1415,9 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
      * and reached memcpy with a huge size_t length -- pre-password, so any
      * unauthenticated client could crash the sshd. */
     if (ulen < 0 || off + ulen > plen) return -1;
+    /* BUG-0223: zero the scratch first - the fixed 32-byte constant-time
+     * compare below must not see stale bytes from a previous attempt. */
+    memset(ctx->auth_user, 0, sizeof(ctx->auth_user));
     memcpy(ctx->auth_user, payload + off, ulen < 31 ? ulen : 31);
     ctx->auth_user[ulen < 31 ? ulen : 31] = 0;
     off += ulen;
@@ -1393,15 +1581,24 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
      * string. */
     if (pwlen < 0 || off + pwlen > plen) return -1;
     char pw[32];
+    memset(pw, 0, sizeof(pw));
     memcpy(pw, payload + off, pwlen < 31 ? pwlen : 31);
-    pw[pwlen < 31 ? pwlen : 31] = 0;
 
     char b[96];
     strcpy(b, "auth attempt user=");
     strcat(b, ctx->auth_user);
     net_sshd_log(b);
-    if (strcmp(ctx->auth_user, g_ssd.auth_user) == 0 &&
-        strcmp(pw, g_ssd.auth_pass) == 0) {
+    /* BUG-0223 (A14-37): constant-time credential check. The old code
+     * strcmp'd ctx->auth_user against g_ssd.auth_user - but ctx IS the
+     * singleton g_ssd and auth_user had already been overwritten with the
+     * client's attempt, so the username check was vacuously true AND the
+     * configured username was clobbered on the first attempt. Now BOTH
+     * credentials are compared against the config store over a fixed
+     * 32-byte window (XOR-accumulate, both results computed, no early
+     * exit, no length or prefix information leaked by timing). */
+    int user_ok = net_sshd_ct_eq(ctx->auth_user, g_sshd_cfg_user, 32);
+    int pass_ok = net_sshd_ct_eq(pw, g_sshd_cfg_pass, 32);
+    if (user_ok && pass_ok) {
         net_sshd_send_packet_encrypted(ctx, SSHD_MSG_USERAUTH_SUCCESS, (const u8 *)0, 0);
         net_sshd_log("USERAUTH_SUCCESS sent");
         return 0;
@@ -1428,7 +1625,11 @@ static void net_sshd_handle_exec(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
     int off = 4;
     if (off + 4 > plen) return;
     int reqlen = (int)net_sshd_read_u32(payload + off); off += 4;
-    if (off + reqlen > plen) return;
+    /* BUG-0225 (A14-38): reqlen comes straight from the wire as a signed
+     * int; 0xFFFFFFF8 became -8, passed `off + reqlen > plen` and drove
+     * `off` negative (out-of-bounds read below the packet buffer).
+     * Validate the full 0 <= reqlen <= remaining-bytes window first. */
+    if (reqlen < 0 || off + reqlen > plen) return;
     /* WP-09 fix: "exec" is NOT NUL-terminated in the payload — the next byte
      * is want_reply (0x01). strcmp would read past the name into the
      * following field and never match, so every exec request was answered
@@ -1447,7 +1648,7 @@ static void net_sshd_handle_exec(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
      * real exec commands (a 405-byte command got CHANNEL_FAILURE) even
      * though the exec output buffer is 4096. Raise the limit to 1024
      * bytes (keeps the on-stack buffer modest). */
-    if (off + clen > plen || clen < 0 || clen >= 1024) {
+    if (clen < 0 || off + clen > plen || clen >= 1024) {
         if (want_reply) net_sshd_send_packet_encrypted(ctx, SSHD_MSG_CHANNEL_FAILURE, payload, 4);
         return;
     }
@@ -1463,17 +1664,32 @@ static void net_sshd_handle_exec(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
 
     if (want_reply) net_sshd_send_packet_encrypted(ctx, SSHD_MSG_CHANNEL_SUCCESS, payload, 4);
     net_sshd_run_exec(ctx, cmd);
-    /* CHANNEL_DATA: u32 recipient + string data */
+    /* CHANNEL_DATA: u32 recipient + string data.
+     * BUG-0224 (A14-39): the 4160-byte dp buffer used to live on the
+     * stack; it is a page frame now (leak-free on the alloc-failure path).
+     * Output larger than one frame's payload capacity (4096 - 8 header
+     * bytes) is sent as multiple CHANNEL_DATA packets - legal stream
+     * fragmentation, so the worst handle_exec stack use is cmd[1024]. */
     {
-        u8 dp[64 + 4096];
-        int dp_len = 0;
-        dp_len = 4;
-        net_sshd_write_str(dp, &dp_len, ctx->exec_out, ctx->exec_len);
-        dp[0] = (u8)(ctx->peer_channel >> 24);
-        dp[1] = (u8)(ctx->peer_channel >> 16);
-        dp[2] = (u8)(ctx->peer_channel >> 8);
-        dp[3] = (u8)(ctx->peer_channel & 0xFF);
-        net_sshd_send_packet_encrypted(ctx, SSHD_MSG_CHANNEL_DATA, dp, dp_len);
+        u8 *dp = (u8 *)(uintptr_t)mem_pmm_alloc_frame();
+        if (!dp) {
+            net_sshd_log("exec: no frame for CHANNEL_DATA");
+        } else {
+            int sent = 0;
+            while (sent < ctx->exec_len) {
+                int chunk = ctx->exec_len - sent;
+                if (chunk > SSHD_PKT_CAP - 8) chunk = SSHD_PKT_CAP - 8;
+                int dp_len = 4;
+                dp[0] = (u8)(ctx->peer_channel >> 24);
+                dp[1] = (u8)(ctx->peer_channel >> 16);
+                dp[2] = (u8)(ctx->peer_channel >> 8);
+                dp[3] = (u8)(ctx->peer_channel & 0xFF);
+                net_sshd_write_str(dp, &dp_len, ctx->exec_out + sent, chunk);
+                net_sshd_send_packet_encrypted(ctx, SSHD_MSG_CHANNEL_DATA, dp, dp_len);
+                sent += chunk;
+            }
+            mem_pmm_free_frame((u64)(uintptr_t)dp);
+        }
     }
     /* exit status 0 as CHANNEL_REQUEST "exit-status".
      * WP-09 fix: the buffer must hold 4 (chan) + 15 (string "exit-status")
@@ -1505,9 +1721,8 @@ static void net_sshd_handle_exec(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
     net_sshd_log("exec session complete");
 }
 
-static int net_sshd_serve_connection(net_sshd_ctx_t *ctx) {
+static int net_sshd_serve_connection_body(net_sshd_ctx_t *ctx, u8 *payload) {
     u8 msg_type;
-    u8 payload[4096];
     int plen;
 
     if (net_sshd_send_version(ctx) < 0) return -1;
@@ -1515,55 +1730,52 @@ static int net_sshd_serve_connection(net_sshd_ctx_t *ctx) {
     net_sshd_log("banner exchange OK");
 
     if (net_sshd_recv_kexinit(ctx) < 0) return -3;
-    if (net_sshd_send_kexinit(ctx) < 0) return -4;
+    if (net_sshd_send_kexinit(ctx, 0) < 0) return -4;
     net_sshd_log("KEXINIT exchange OK");
 
     /* KEXDH_INIT */
-    plen = sizeof(payload);
+    plen = SSHD_PKT_CAP;
     if (net_sshd_recv_packet_unencrypted(ctx, &msg_type, payload, &plen) < 0) return -5;
     if (msg_type != SSHD_MSG_KEXDH_INIT) return -6;
     /* payload: mpint e (group14) or string e (curve25519, 32 bytes) */
-    if (plen < 4) return -7;
-    int e_len = (int)net_sshd_read_u32(payload);
-    /* right-align into 256 bytes */
-    memset(ctx->client_pub, 0, SSHD_DH_BYTES);
-    if (ctx->kex_curve25519) {
-        if (e_len != 32) return -7;
-        memcpy(ctx->client_pub + SSHD_DH_BYTES - 32, payload + 4, 32);
-    } else {
-        /* P0fix1 BUG-0015 (A14-09): a negative e_len skipped both clamps
-         * and made `SSHD_DH_BYTES - el` a wild offset with a huge memcpy
-         * length. Also bound `el` by the actual payload size. */
-        const u8 *ed = payload + 4;
-        int el = e_len;
-        if (el < 0) return -7;
-        if (4 + el > plen) return -7;   /* declared e extends past payload */
-        if (el > 0 && ed[0] == 0) { ed++; el--; }
-        if (el > SSHD_DH_BYTES) { ed += (el - SSHD_DH_BYTES); el = SSHD_DH_BYTES; }
-        memcpy(ctx->client_pub + (SSHD_DH_BYTES - el), ed, el);
-    }
+    if (net_sshd_parse_kexdh_init(ctx, payload, plen) != 0) return -7;
     net_sshd_log_hex("client e (first 8): ", ctx->client_pub, 8);
 
-    if (net_sshd_send_kexdh_reply(ctx) < 0) return -8;
+    if (net_sshd_send_kexdh_reply(ctx, 0) < 0) return -8;
     /* our NEWKEYS */
     if (net_sshd_send_packet_unencrypted(ctx, SSHD_MSG_NEWKEYS, (const u8 *)0, 0) < 0) return -9;
     /* client NEWKEYS */
-    plen = sizeof(payload);
+    plen = SSHD_PKT_CAP;
     if (net_sshd_recv_packet_unencrypted(ctx, &msg_type, payload, &plen) < 0) return -10;
     { char b[48]; strcpy(b, "got type after REPLY: ");
               char n[10]; u64_to_str((u64)msg_type, n); strcat(b, n); net_sshd_log(b); }
             if (msg_type != SSHD_MSG_NEWKEYS) return -11;
     net_sshd_derive_keys(ctx);
     ctx->encrypted = 1;
+    /* BUG-0220 (A14-34): strict-kex (RFC 9144) - both directions' sequence
+     * numbers restart at 0 right after the final NEWKEYS (initial and
+     * every rekey exchange). */
+    net_sshd_reset_seq(ctx);
     net_sshd_log("NEWKEYS exchange OK — encrypted mode active");
 
-    /* USERAUTH loop. RFC 4251: the client first requests the ssh-userauth
+    /* USERAUTH loop. RFC 4252 S5: the client first requests the ssh-userauth
      * service (SERVICE_REQUEST) and must receive SERVICE_ACCEPT before it
      * sends USERAUTH_REQUEST — ignoring the request deadlocks both sides. */
+    /* BUG-0222 (A14-36): brute-force budget - at most 6 failed attempts per
+     * connection, a constant ~1 s delay after every failure (core_timer
+     * ticks, so the penalty is wall-clock and does not reward fast hosts),
+     * then SSH_MSG_DISCONNECT(NO_MORE_AUTH_METHODS_AVAILABLE). */
+    int auth_failures = 0;
     for (;;) {
-        plen = sizeof(payload);
+        plen = SSHD_PKT_CAP;
         if (net_sshd_recv_packet_encrypted(ctx, &msg_type, payload, &plen) < 0) return -12;
         if (msg_type == SSHD_MSG_DISCONNECT) return -13;
+        net_sshd_probe_extra_connection();   /* BUG-0226: refuse queued extras */
+        if (msg_type == SSHD_MSG_KEXINIT) {
+            /* BUG-0219: a client may rekey at any point after NEWKEYS. */
+            if (net_sshd_handle_client_rekey(ctx, payload, plen) != 0) return -17;
+            continue;
+        }
         if (msg_type == SSHD_MSG_SERVICE_REQUEST) {
             u8 acc[48];
             int ap = 0;
@@ -1581,6 +1793,18 @@ static int net_sshd_serve_connection(net_sshd_ctx_t *ctx) {
         }
         if (msg_type == SSHD_MSG_USERAUTH_REQUEST) {
             if (net_sshd_do_userauth(ctx, payload, plen) == 0) break;
+            auth_failures++;
+            if (auth_failures >= SSHD_AUTH_MAX_ATTEMPTS) {
+                net_sshd_send_disconnect(ctx, SSHD_DISCONNECT_NO_MORE_AUTH_METHODS,
+                                         "too many authentication failures");
+                net_sshd_log("auth failure cap reached - disconnecting");
+                return -15;
+            }
+            {
+                /* constant ~1 s penalty per failure (OC_TIMER_HZ ticks) */
+                u64 t0 = core_timer_ticks();
+                while (core_timer_ticks() - t0 < (u64)OC_TIMER_HZ) net_poll();
+            }
         }
         /* ignore others */
     }
@@ -1588,8 +1812,14 @@ static int net_sshd_serve_connection(net_sshd_ctx_t *ctx) {
 
     /* channel loop */
     for (;;) {
-        plen = sizeof(payload);
+        plen = SSHD_PKT_CAP;
         if (net_sshd_recv_packet_encrypted(ctx, &msg_type, payload, &plen) < 0) return -14;
+        net_sshd_probe_extra_connection();   /* BUG-0226: refuse queued extras */
+        if (msg_type == SSHD_MSG_KEXINIT) {
+            /* BUG-0219: client-initiated rekey mid-session. */
+            if (net_sshd_handle_client_rekey(ctx, payload, plen) != 0) return -17;
+            continue;
+        }
         if (msg_type == SSHD_MSG_CHANNEL_OPEN) {
             /* expect string "session" + sender chan + window + max packet.
              * WP-09 fix: fixed-length compare (channel type is not
@@ -1634,6 +1864,22 @@ static int net_sshd_serve_connection(net_sshd_ctx_t *ctx) {
         }
         /* ignore everything else */
     }
+    return 0;
+}
+
+/* BUG-0224 (A14-39): 16 KiB boot-stack budget. The old call chain nested
+ * ~12 KiB of stack locals under main(): payload[4096] here + payload[4096]
+ * + wire[4096] in recv_kexinit + dp[4160] in handle_exec. Every buffer
+ * larger than 1 KiB is now a page frame (mem_pmm_alloc_frame), so the
+ * worst sshd-internal chain is ~4.3 KiB (handle_exec's cmd[1024] plus
+ * small locals over the recv helpers) - leaving > 12 KiB headroom for the
+ * shell, driver and RSA/modexp frames below us on the 16 KiB boot stack. */
+static int net_sshd_serve_connection(net_sshd_ctx_t *ctx) {
+    u8 *payload = (u8 *)(uintptr_t)mem_pmm_alloc_frame();
+    if (!payload) { net_sshd_log("serve: no frame for packet buffer"); return -16; }
+    int rc = net_sshd_serve_connection_body(ctx, payload);
+    mem_pmm_free_frame((u64)(uintptr_t)payload);
+    return rc;
 }
 
 /* ---------- command entry ---------- */
@@ -1663,11 +1909,100 @@ static int sshd_accept_cancel_check(void) {
     return cancel;
 }
 
+/* ---------- BUG-0226 (A14-40): concurrent-connection policy ----------
+ * The shell-capture mechanism (console hook used by shell_execute_captured)
+ * and the whole g_ssd context are global singletons, so sessions must stay
+ * SEQUENTIAL: one accepted connection is served to completion, then the
+ * loop accepts the next one. A connection that queues while a session is
+ * active is detected by a throttled (max 1/s) mid-session probe of the
+ * listening socket: it is accepted only to receive an immediate
+ * SSH_MSG_DISCONNECT (reason 12 TOO_MANY_CONNECTIONS, RFC 4253 §11.1) and
+ * is closed - it never hangs waiting for a banner. net_accept() blocks up
+ * to 120 s, so the probe registers a cancel callback that ends the wait
+ * after ~2 timer ticks (~20 ms), turning it into a quick backlog poll. */
+static u64 g_sshd_probe_start;
+static int sshd_probe_cancel_check(void) {
+    return (core_timer_ticks() - g_sshd_probe_start) >= 2;
+}
+
+/* Plaintext SSH_MSG_DISCONNECT for a connection that has no session
+ * context yet (only the version banner has been exchanged). */
+static void net_sshd_send_disconnect_raw(int sock, u32 reason, const char *desc) {
+    u8 pay[96];
+    int pp = 0;
+    net_sshd_write_u32(pay, &pp, reason);
+    net_sshd_write_cstr(pay, &pp, desc);
+    net_sshd_write_cstr(pay, &pp, "");       /* language tag */
+    int pad = 8 - ((6 + pp) % 8);
+    if (pad < 4) pad += 8;
+    u8 pkt[128];
+    int pkt_len = 2 + pp + pad;
+    pkt[0] = (u8)(pkt_len >> 24);
+    pkt[1] = (u8)(pkt_len >> 16);
+    pkt[2] = (u8)(pkt_len >> 8);
+    pkt[3] = (u8)(pkt_len & 0xFF);
+    pkt[4] = (u8)pad;
+    pkt[5] = SSHD_MSG_DISCONNECT;
+    memcpy(pkt + 6, pay, pp);
+    crypto_random(pkt + 6 + pp, pad);
+    net_send(sock, pkt, 4 + pkt_len);
+}
+
+/* Encrypted (in-session) or plaintext DISCONNECT, RFC 4253 §11.1. */
+static void net_sshd_send_disconnect(net_sshd_ctx_t *ctx, u32 reason, const char *desc) {
+    if (ctx->encrypted) {
+        u8 pay[96];
+        int pp = 0;
+        net_sshd_write_u32(pay, &pp, reason);
+        net_sshd_write_cstr(pay, &pp, desc);
+        net_sshd_write_cstr(pay, &pp, "");
+        net_sshd_send_packet_encrypted(ctx, SSHD_MSG_DISCONNECT, pay, pp);
+    } else {
+        net_sshd_send_disconnect_raw(ctx->sock, reason, desc);
+    }
+}
+
+static u64 g_sshd_last_probe;
+static void net_sshd_probe_extra_connection(void) {
+    int ls = g_sshd_listen_fd;
+    if (ls < 0) return;
+    u64 now = core_timer_ticks();
+    if (now - g_sshd_last_probe < (u64)OC_TIMER_HZ) return;   /* probe at most 1/s */
+    g_sshd_last_probe = now;
+    g_sshd_probe_start = now;
+    net_accept_set_cancel_fn(sshd_probe_cancel_check);
+    u32 eip = 0;
+    u16 eport = 0;
+    int extra = net_accept(ls, &eip, &eport);
+    net_accept_set_cancel_fn((net_accept_cancel_fn)0);
+    if (extra < 0) return;      /* nothing pending (or probe window elapsed) */
+    net_sshd_log("second connection during active session - refusing it");
+    /* banner first (the peer cannot parse SSH binary packets without it),
+     * then an immediate DISCONNECT, then close - never a hang */
+    if (net_send(extra, SSHD_BANNER, (int)strlen(SSHD_BANNER)) > 0) {
+        net_sshd_send_disconnect_raw(extra, SSHD_DISCONNECT_TOO_MANY_CONNECTIONS,
+                                     "too many connections (one session at a time)");
+    }
+    net_close(extra);
+}
+
 int net_sshd_main(u16 port, const char *user, const char *pass) {
     net_sshd_ctx_t *ctx = &g_ssd;
     memset(ctx, 0, sizeof(*ctx));
-    strcpy(ctx->auth_user, user);
-    strcpy(ctx->auth_pass, pass);
+    /* BUG-0223 (A14-37): the configured credentials live in their own
+     * bounded store (ctx->auth_user is per-attempt scratch space). */
+    memset(g_sshd_cfg_user, 0, sizeof(g_sshd_cfg_user));
+    memset(g_sshd_cfg_pass, 0, sizeof(g_sshd_cfg_pass));
+    if (user) {
+        int L = (int)strlen(user);
+        if (L > 31) L = 31;
+        memcpy(g_sshd_cfg_user, user, L);
+    }
+    if (pass) {
+        int L = (int)strlen(pass);
+        if (L > 31) L = 31;
+        memcpy(g_sshd_cfg_pass, pass, L);
+    }
 
     /* BUG-0075: per-installation host key (load or generate). The old
      * embedded universal key is GONE from the image (net_sshd_rsa_key.h
@@ -1697,6 +2032,7 @@ int net_sshd_main(u16 port, const char *user, const char *pass) {
     net_bind(ls, 0, port);
     if (net_tcp_listen(port, (net_tcp_handler_fn)0) != 0) {
         net_sshd_log("tcp_listen failed");
+        net_close(ls);       /* BUG-0226: do not leak the listener */
         return 1;
     }
     char b[64];
@@ -1704,39 +2040,56 @@ int net_sshd_main(u16 port, const char *user, const char *pass) {
     char n[10];
     u64_to_str((u64)port, n);
     strcat(b, n);
-    strcat(b, " (waiting for one connection)");
+    strcat(b, " (serves one session then returns; Ctrl+C cancels the wait)");
     net_sshd_log(b);
+    g_sshd_listen_fd = ls;
 
-    u32 cip = 0;
-    u16 cport = 0;
-    /* BUG-0132 FIX: register the ^C cancel check for the blocking wait. */
-    net_accept_set_cancel_fn(sshd_accept_cancel_check);
-    int fd = net_accept(ls, &cip, &cport);
-    net_accept_set_cancel_fn((net_accept_cancel_fn)0);
-    if (fd == -2) {
-        net_sshd_log("accept cancelled (Ctrl+C), returning to shell");
-        net_close(ls);
-        return 1;
-    }
-    if (fd < 0) { net_sshd_log("accept timeout"); return 1; }
-    ctx->sock = fd;
-    strcpy(b, "connection from ");
-    u64_to_str((u64)((cip >> 24) & 0xFF), n); strcat(b, n); strcat(b, ".");
-    u64_to_str((u64)((cip >> 16) & 0xFF), n); strcat(b, n); strcat(b, ".");
-    u64_to_str((u64)((cip >> 8) & 0xFF), n); strcat(b, n); strcat(b, ".");
-    u64_to_str((u64)(cip & 0xFF), n); strcat(b, n);
-    net_sshd_log(b);
+    /* BUG-0226 (A14-40): the sshd shell command serves ONE session and
+     * then returns to the shell - the documented WP-09 contract
+     * (docs/INTERFACES.md S2 "serves one session then returns") and the
+     * E2E gate both depend on that. The A14-40 fix is the HANDLING of a
+     * connection queued DURING the active session: the mid-session probe
+     * refuses it immediately with SSH_MSG_DISCONNECT (never a hang), and
+     * the listener is closed leak-free on every exit path. Ctrl+C still
+     * cancels the blocking wait. */
+    for (;;) {
+        u32 cip = 0;
+        u16 cport = 0;
+        /* BUG-0132 FIX: register the ^C cancel check for the blocking wait. */
+        net_accept_set_cancel_fn(sshd_accept_cancel_check);
+        int fd = net_accept(ls, &cip, &cport);
+        net_accept_set_cancel_fn((net_accept_cancel_fn)0);
+        if (fd == -2) {
+            net_sshd_log("accept cancelled (Ctrl+C), returning to shell");
+            break;
+        }
+        if (fd < 0) continue;    /* accept timeout: keep waiting (no ls leak) */
 
-    int rc = net_sshd_serve_connection(ctx);
-    if (rc == 0) net_sshd_log("session finished cleanly");
-    else {
-        char b2[48];
-        strcpy(b2, "session failed (code ");
-        u64_to_str((u64)(-rc), n);
-        strcat(b2, n); strcat(b2, ")");
-        net_sshd_log(b2);
+        memset(ctx, 0, sizeof(*ctx));   /* fresh per-session state */
+        ctx->sock = fd;
+        strcpy(b, "connection from ");
+        u64_to_str((u64)((cip >> 24) & 0xFF), n); strcat(b, n); strcat(b, ".");
+        u64_to_str((u64)((cip >> 16) & 0xFF), n); strcat(b, n); strcat(b, ".");
+        u64_to_str((u64)((cip >> 8) & 0xFF), n); strcat(b, n); strcat(b, ".");
+        u64_to_str((u64)(cip & 0xFF), n); strcat(b, n);
+        net_sshd_log(b);
+
+        int rc = net_sshd_serve_connection(ctx);
+        if (rc == 0) net_sshd_log("session finished cleanly");
+        else {
+            char b2[48];
+            strcpy(b2, "session failed (code ");
+            u64_to_str((u64)(-rc), n);
+            strcat(b2, n); strcat(b2, ")");
+            net_sshd_log(b2);
+        }
+        net_close(fd);
+        /* One session per `sshd` invocation (contract above); the shell
+         * capture hook is a global singleton, so concurrent sessions are
+         * not supportable. Re-run `sshd` for the next session. */
+        break;
     }
-    net_close(fd);
+    g_sshd_listen_fd = -1;
     net_close(ls);
-    return (rc == 0) ? 0 : 1;
+    return 0;
 }

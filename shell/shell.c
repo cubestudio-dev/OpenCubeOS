@@ -274,28 +274,23 @@ void shell_list_commands_by_wp(void) {
                 shell_wp_print_entry(&g_commands[idx[i]], w);
         shown += count;
     }
-    /* unknown tags (L1 drivers may register their own): append A-Z */
+    /* BUG-0237 FIX (A15-11): unknown tags now go to ONE bounded "other"
+     * fallback bucket. The old loop evaluated g_commands[idx[i - 1]] at
+     * i == 0 whenever at least one known group had already been shown
+     * (shown > 0), i.e. it read idx[-1] - an out-of-bounds read of the
+     * sort index that could make the g_commands access run far past the
+     * table on garbage data. Every access here is bounds-checked and no
+     * tag is silently dropped: commands with an unregistered tag are
+     * always printed under "other". */
+    int other_shown = 0;
     for (int i = 0; i < n; i++) {
         int known = 0;
         for (int k = 0; k < (int)(sizeof(g_wp_order) / sizeof(g_wp_order[0])); k++)
             if (strcmp(g_commands[idx[i]].wp, g_wp_order[k].tag) == 0) { known = 1; break; }
         if (known) continue;
-        if (shown == 0 || g_commands[idx[i - 1]].wp[0] == 0 ||
-            strcmp(g_commands[idx[i - 1]].wp, g_commands[idx[i]].wp) != 0) {
-            /* first command of an unknown tag: header once per tag */
-            int first = 1;
-            for (int j = 0; j < i; j++) {
-                int kknown = 0;
-                for (int k = 0; k < (int)(sizeof(g_wp_order) / sizeof(g_wp_order[0])); k++)
-                    if (strcmp(g_commands[idx[j]].wp, g_wp_order[k].tag) == 0) { kknown = 1; break; }
-                if (!kknown && strcmp(g_commands[idx[j]].wp,
-                                         g_commands[idx[i]].wp) == 0) { first = 0; break; }
-            }
-            if (first) {
-                screen_console_puts("\n=== ");
-                screen_console_puts(g_commands[idx[i]].wp);
-                screen_console_puts(" ===\n");
-            }
+        if (other_shown == 0) {
+            screen_console_puts("\n=== other (commands with unregistered work-package tags) ===\n");
+            other_shown = 1;
         }
         shell_wp_print_entry(&g_commands[idx[i]], w);
         shown++;
@@ -419,20 +414,23 @@ static shell_alias_t g_aliases[SHELL_MAX_ALIASES];
 
 int shell_register_alias(const char *alias, const char *target) {
     if (!alias || !alias[0] || !target) return -1;
+    /* BUG-0238 FIX (A15-12): refuse over-long names/values instead of
+     * silently truncating them (the old strncpy calls chopped values at
+     * 255 bytes with no message, so an alias could silently change
+     * meaning). -3 = too long, see shell.h. */
+    if (strlen(alias) >= SHELL_ALIAS_NAME_LEN) return -3;
+    if (strlen(target) >= SHELL_ALIAS_TARGET_LEN) return -3;
     /* Replace if exists. */
     for (int i = 0; i < SHELL_MAX_ALIASES; i++) {
         if (g_aliases[i].in_use && strcmp(g_aliases[i].name, alias) == 0) {
-            strncpy(g_aliases[i].target, target, SHELL_ALIAS_TARGET_LEN - 1);
-            g_aliases[i].target[SHELL_ALIAS_TARGET_LEN - 1] = 0;
+            strcpy(g_aliases[i].target, target);
             return 0;
         }
     }
     for (int i = 0; i < SHELL_MAX_ALIASES; i++) {
         if (!g_aliases[i].in_use) {
-            strncpy(g_aliases[i].name, alias, SHELL_ALIAS_NAME_LEN - 1);
-            g_aliases[i].name[SHELL_ALIAS_NAME_LEN - 1] = 0;
-            strncpy(g_aliases[i].target, target, SHELL_ALIAS_TARGET_LEN - 1);
-            g_aliases[i].target[SHELL_ALIAS_TARGET_LEN - 1] = 0;
+            strcpy(g_aliases[i].name, alias);
+            strcpy(g_aliases[i].target, target);
             g_aliases[i].in_use = 1;
             return 0;
         }
@@ -459,6 +457,25 @@ static const char *shell_lookup_alias(const char *name) {
         }
     }
     return NULL;
+}
+
+/* BUG-0238 FIX (A15-12): single registration path for the `alias` builtin
+ * that reports refusals instead of failing silently. */
+static int shell_alias_set(const char *name, const char *value) {
+    int rc = shell_register_alias(name, value);
+    if (rc == -3) {
+        screen_console_puts("alias: value too long (max ");
+        char num[12];
+        u64_to_str((u64)SHELL_ALIAS_TARGET_LEN - 1, num);
+        screen_console_puts(num);
+        screen_console_puts(" characters) - not registered\n");
+        return 1;
+    }
+    if (rc == -2) {
+        screen_console_puts("alias: table full\n");
+        return 1;
+    }
+    return rc < 0 ? 1 : 0;
 }
 
 /* `alias` builtin.
@@ -488,6 +505,17 @@ static int shell_cmd_alias(const char *args) {
         ni++;
     }
     name[ni] = 0;
+    /* BUG-0238 FIX (A15-12): the loop above stops at the buffer cap - if a
+     * name character is still pending, the name would have been silently
+     * truncated. Refuse instead. */
+    if (args[ni] && args[ni] != '=' && args[ni] != ' ') {
+        screen_console_puts("alias: name too long (max ");
+        char num[12];
+        u64_to_str((u64)SHELL_ALIAS_NAME_LEN - 1, num);
+        screen_console_puts(num);
+        screen_console_puts(" characters) - not registered\n");
+        return 1;
+    }
     const char *p = args + ni;
     if (*p == '=') {
         p++;
@@ -498,13 +526,21 @@ static int shell_cmd_alias(const char *args) {
             const char *end = p;
             while (*end && *end != '\'') end++;
             int tlen = (int)(end - p);
+            if (tlen >= SHELL_ALIAS_TARGET_LEN) {
+                /* BUG-0238 FIX (A15-12): refuse, never truncate. */
+                screen_console_puts("alias: value too long (max ");
+                char num[12];
+                u64_to_str((u64)SHELL_ALIAS_TARGET_LEN - 1, num);
+                screen_console_puts(num);
+                screen_console_puts(" characters) - not registered\n");
+                return 1;
+            }
             char tmp[SHELL_ALIAS_TARGET_LEN];
-            if (tlen >= SHELL_ALIAS_TARGET_LEN) tlen = SHELL_ALIAS_TARGET_LEN - 1;
             memcpy(tmp, p, (usize)tlen);
             tmp[tlen] = 0;
-            return shell_register_alias(name, tmp) < 0 ? 1 : 0;
+            return shell_alias_set(name, tmp);
         } else {
-            return shell_register_alias(name, p) < 0 ? 1 : 0;
+            return shell_alias_set(name, p);
         }
     } else if (*p == ' ') {
         while (*p == ' ') p++;
@@ -523,7 +559,7 @@ static int shell_cmd_alias(const char *args) {
             screen_console_putc('\n');
             return 1;
         }
-        return shell_register_alias(name, p) < 0 ? 1 : 0;
+        return shell_alias_set(name, p);
     } else {
         /* `alias name` - print. */
         const char *t = shell_lookup_alias(name);
@@ -570,8 +606,18 @@ static int shell_normalize_path(char *path, int maxlen) {
     if (!path || maxlen < 2) return -1;
     if (path[0] != '/') return -1;
 
-    /* In-place normalization using a write pointer. */
-    char comps[SHELL_CWD_LEN / 2][VFS_NAME_LEN];
+    /* BUG-0236 FIX (A15-10): comps used to be a stack array
+     *   char comps[SHELL_CWD_LEN / 2][VFS_NAME_LEN]  = 128*64 = 8192 B.
+     * On the 16 KiB kernel stack the deepest path is
+     * shell_normalize_path <- shell_resolve_path <- shell_exec_stage
+     * (~3 KiB with its scratch) <- shell_exec_segment (~1.6 KiB) <- a
+     * command frame (~0.8 KiB), plus a full IRQ frame (~0.5 KiB) that
+     * lands on the SAME stack: 8 KiB of comps left well under 2 KiB of
+     * headroom. comps lives on the heap now and is freed on EVERY exit
+     * path below. */
+    char (*comps)[VFS_NAME_LEN] = (char (*)[VFS_NAME_LEN])kmalloc(
+        (u64)sizeof(char[VFS_NAME_LEN]) * (u64)(SHELL_CWD_LEN / 2));
+    if (!comps) return -1;
     int ncomp = 0;
     int i = 0;
     while (path[i]) {
@@ -588,7 +634,7 @@ static int shell_normalize_path(char *path, int maxlen) {
         } else if (strcmp(comp, "..") == 0) {
             if (ncomp > 0) ncomp--;
         } else {
-            if (ncomp >= (int)(sizeof(comps) / sizeof(comps[0]))) return -1;
+            if (ncomp >= SHELL_CWD_LEN / 2) { kfree(comps); return -1; }
             strncpy(comps[ncomp], comp, VFS_NAME_LEN - 1);
             comps[ncomp][VFS_NAME_LEN - 1] = 0;
             ncomp++;
@@ -599,12 +645,13 @@ static int shell_normalize_path(char *path, int maxlen) {
     path[p++] = '/';
     for (int c = 0; c < ncomp; c++) {
         int len = (int)strlen(comps[c]);
-        if (p + len + 1 >= maxlen) return -1;
+        if (p + len + 1 >= maxlen) { kfree(comps); return -1; }
         memcpy(path + p, comps[c], (usize)len);
         p += len;
         if (c < ncomp - 1) path[p++] = '/';
     }
     path[p] = 0;
+    kfree(comps);
     return 0;
 }
 
@@ -1159,14 +1206,94 @@ static int shell_join_args(const token_t *toks, int ntoks, int skip_first,
     return p;
 }
 
+/* BUG-0238 FIX (A15-12): shared alias splice. The alias named by
+ * toks[at].text is re-tokenized IN FULL - operators included (bash-like:
+ * the stored value is literal text that gets parsed again, so
+ * `alias p='echo hi | wc'` really pipes into wc; the old executor-side
+ * expansion silently DROPPED everything after the first operator, and
+ * silently gave up on values of more than 8 tokens). The original
+ * arguments after `at` are shifted right and the value's tokens are
+ * spliced in; $VARs inside the value are expanded now (the shell does
+ * not rescan produced tokens, so expansion depth stays 1).
+ *
+ * allow_chain_ops: a value holding ';' / '&&' / '||' can only be honored
+ * when the splice happens before the chain splitter (shell_execute_line).
+ * Spliced into a single pipe stage it would be silently ignored, so it is
+ * refused with a clear message instead (rc -2).
+ *
+ * toks must have SHELL_MAX_TOKENS slots; the splice is refused (rc -1)
+ * unless ntoks + an - 1 < SHELL_MAX_TOKENS, so every write stays in
+ * bounds. Returns 0 and sets *an_out to the value's token count when a
+ * splice happened, 1 when there was nothing to expand, negative on
+ * refusal. The scratch buffer is heap-resident: a stack token_t[64]
+ * would eat ~19 KiB of the 16 KiB kernel stack. */
+static int shell_alias_splice(token_t *toks, int *ntoks, int at,
+                              int allow_chain_ops, int *an_out) {
+    *an_out = 0;
+    if (toks[at].kind != TOK_WORD || !toks[at].text[0]) return 1;
+    const char *al = shell_lookup_alias(toks[at].text);
+    if (!al) return 1;
+    token_t *altoks = (token_t *)kmalloc(
+        sizeof(token_t) * (u64)SHELL_MAX_TOKENS);
+    if (!altoks) {
+        screen_console_puts("shell: out of memory for alias expansion\n");
+        return 1;
+    }
+    int an = shell_tokenize(al, altoks, SHELL_MAX_TOKENS);
+    int rc = 1;
+    if (an < 0) {
+        screen_console_puts("shell: alias '");
+        screen_console_puts(toks[at].text);
+        screen_console_puts("' expands to too many tokens - running unexpanded\n");
+        rc = -1;
+    } else if (an == 0) {
+        /* Empty value: nothing to splice. */
+    } else {
+        int chain = 0;
+        for (int i = 0; i < an; i++) {
+            if (altoks[i].kind == TOK_SEMI || altoks[i].kind == TOK_AND ||
+                altoks[i].kind == TOK_OR) { chain = 1; break; }
+        }
+        if (chain && !allow_chain_ops) {
+            screen_console_puts("shell: alias '");
+            screen_console_puts(toks[at].text);
+            screen_console_puts("' contains ';'/'&&'/'||' - use it as a whole command\n");
+            rc = -2;
+        } else if (*ntoks + an - 1 >= SHELL_MAX_TOKENS) {
+            screen_console_puts("shell: alias '");
+            screen_console_puts(toks[at].text);
+            screen_console_puts("' expands to too many tokens - running unexpanded\n");
+            rc = -1;
+        } else {
+            /* Shift the tail right by an-1 slots (backwards, in place);
+             * all writes land at indices > their sources. */
+            for (int i = *ntoks - 1; i > at; i--) {
+                toks[i + an - 1] = toks[i];
+            }
+            for (int i = 0; i < an; i++) {
+                shell_expand_env_token(&altoks[i]);
+                toks[at + i] = altoks[i];
+            }
+            *ntoks += an - 1;
+            *an_out = an;
+            rc = 0;
+        }
+    }
+    kfree(altoks);
+    return rc;
+}
+
 /* Execute a single piped stage. toks[0..ntoks-1] is the command + args (no
  * operators). stdin_data/stdin_size is the input from the previous stage
  * (or from a `<` redirect). capture_output is 1 if we should capture (for
  * pipe-to-next or > redirect). Returns the command's exit code (0 = success,
  * non-zero = failure or not-found).
  *
- * NOTE: toks[] must have at least SHELL_MAX_TOKENS slots because alias
- * expansion may grow the token list. */
+ * NOTE: toks[] must have at least SHELL_MAX_TOKENS slots (the wildcard
+ * scratch the caller fills it from is that big). Alias expansion used to
+ * happen here; since BUG-0238 (A15-12) it runs in shell_execute_line
+ * BEFORE the chain/pipe structure is built, so operator tokens in an
+ * alias value are honored instead of silently dropped. */
 static int shell_exec_stage(token_t *toks, int ntoks,
                             const char *stdin_data, int stdin_size,
                             int capture_output, int capture_cap) {
@@ -1194,38 +1321,11 @@ static int shell_exec_stage(token_t *toks, int ntoks,
         g_capture.active = 0;  /* paranoid */
     }
 
-    /* Apply alias to the first word. We tokenize the alias target on the
-     * stack (small, max 8 tokens), and if it expands we need a heap buffer
-     * to build the new token list. */
-    if (toks[0].kind == TOK_WORD) {
-        const char *al = shell_lookup_alias(toks[0].text);
-        if (al) {
-            token_t altoks[8];
-            int an = shell_tokenize(al, altoks, 8);
-            if (an > 0 && ntoks + an - 1 < SHELL_MAX_TOKENS) {
-                /* Build new token list in a heap buffer (each token_t is
-                 * ~300 bytes, so 32 of them is ~9 KiB - too big for the
-                 * 16 KiB kernel stack). */
-                token_t *newtoks = (token_t *)kmalloc(
-                    sizeof(token_t) * (u64)SHELL_MAX_TOKENS);
-                if (newtoks) {
-                    int nn = 0;
-                    for (int i = 0; i < an; i++) {
-                        if (altoks[i].kind != TOK_WORD) break;
-                        shell_expand_env_token(&altoks[i]);
-                        newtoks[nn++] = altoks[i];
-                    }
-                    for (int i = 1; i < ntoks; i++) {
-                        newtoks[nn++] = toks[i];
-                    }
-                    /* Copy back into toks[]. */
-                    for (int i = 0; i < nn; i++) toks[i] = newtoks[i];
-                    ntoks = nn;
-                    kfree(newtoks);
-                }
-            }
-        }
-    }
+    /* Alias expansion for this stage's first word used to happen here
+     * (see shell_alias_splice). BUG-0238 FIX (A15-12): it now runs in
+     * shell_execute_line before the ;/&&/|| and | structure is built, so
+     * the FULL value - operators included - is honored instead of being
+     * silently truncated at the first operator. */
 
     /* Get command word and args. */
     char cmd[64];
@@ -1494,6 +1594,37 @@ int shell_execute_line(const char *line) {
     /* Expand env vars in each word token. */
     for (int i = 0; i < ntoks; i++) {
         shell_expand_env_token(&toks[i]);
+    }
+
+    /* BUG-0238 FIX (A15-12): apply aliases BEFORE the ;/&&/|| and |
+     * structure is built, at every command position (chain-segment head
+     * or pipe-stage head). The FULL value is spliced - operators
+     * included - so `alias p='echo hi | wc'` followed by `p` really
+     * pipes into wc, and `alias t='echo a; echo b'` runs both. The old
+     * code expanded aliases inside the single-stage executor and
+     * silently dropped everything from the first operator on. Values
+     * holding ';'/'&&'/'||' are only accepted at chain-segment heads
+     * (the only place they can be honored); pipe-stage-head splices
+     * refuse them with a clear message. Depth stays 1: tokens produced
+     * by a splice are skipped, not re-scanned. */
+    {
+        int i = 0;
+        int an = 0;
+        while (i < ntoks) {
+            int at_chain_head = (i == 0) ||
+                toks[i - 1].kind == TOK_SEMI ||
+                toks[i - 1].kind == TOK_AND ||
+                toks[i - 1].kind == TOK_OR;
+            int at_stage_head = (i > 0) && toks[i - 1].kind == TOK_PIPE;
+            if ((at_chain_head || at_stage_head) && toks[i].kind == TOK_WORD) {
+                if (shell_alias_splice(toks, &ntoks, i,
+                                       at_chain_head, &an) == 0) {
+                    i += an;   /* skip the expansion (depth 1) */
+                    continue;
+                }
+            }
+            i++;
+        }
     }
 
     /* Walk tokens, splitting on ;, &&, ||. Pass &toks[seg_start] directly

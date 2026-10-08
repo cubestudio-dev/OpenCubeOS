@@ -88,6 +88,25 @@ typedef struct {
 
     int encrypted;          /* 1 after NEWKEYS */
 
+    /* BUG-0219 (A14-33): rekey state. bytes_sent/bytes_received count
+     * encrypted traffic since the last completed key exchange; when either
+     * reaches the 64 MiB threshold the client starts a new KEXINIT at a
+     * packet boundary (exec loop) reusing the existing KEX machinery. */
+    u64 bytes_sent;
+    u64 bytes_received;
+    int rekey_in_progress;
+
+    /* BUG-0220 (A14-34): strict-kex (RFC 9144). kex_strict = 1 after both
+     * KEXINIT lists contained the kex-strict-*-v00@openssh.com tokens;
+     * both directions' sequence numbers are then reset to 0 right after
+     * the final NEWKEYS of the initial and every rekey exchange. */
+    int kex_strict;
+
+    /* BUG-0219: exchange hash H of the MOST RECENT completed exchange.
+     * session_id stays the FIRST H forever (RFC 4253 S8) - key derivation
+     * needs the current H on rekey, so the two are kept apart. */
+    u8 exchange_hash[32];
+
     /* Username + password (set before net_ssh_connect) */
     char username[32];
     char password[32];

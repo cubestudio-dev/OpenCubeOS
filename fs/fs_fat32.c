@@ -389,6 +389,13 @@ static int fs_fat32_write_dirent(fs_fat32_ctx_t *ctx, u32 dir_cluster, u32 entry
 /* Update a directory entry's first_cluster and size on disk. */
 static int fs_fat32_update_dir_entry(fs_fat32_ctx_t *ctx, u32 dir_cluster, u32 entry_offset,
                                   u32 new_first_cluster, u64 new_size) {
+    /* BUG-0191 FIX (A12-026): the on-disk file_size field is a u32
+     * (fs.doc 5.1, maximum 4 GiB-1). The old code cast the u64 result
+     * straight down, silently wrapping sizes >= 4 GiB while the
+     * in-memory ino->size kept the full value - disk and memory then
+     * disagreed about the file. Refuse sizes the field cannot represent
+     * (callers fail the write instead of truncating silently). */
+    if (new_size > 0xFFFFFFFFull) return -2;
     fs_fat32_dirent_t e;
     if (fs_fat32_read_dirent(ctx, dir_cluster, entry_offset, &e) < 0) return -1;
     e.first_cluster_hi = (u16)(new_first_cluster >> 16);
@@ -1065,6 +1072,14 @@ static int fs_fat32_write(fs_vfs_node_t *node, u64 offset, const void *buf, int 
     if (ino->is_dir) return -3;
     fs_fat32_ctx_t *ctx = ino->ctx;
     if (size == 0) return 0;
+    /* BUG-0191 FIX (A12-026): fail up front when the resulting size
+     * cannot be stored in the directory entry's u32 file_size field
+     * (FAT32 maximum 4 GiB-1). Writing first and truncating later would
+     * leave the on-disk entry wrapping around while ino->size (u64)
+     * kept the real value. Sizes <= 4 GiB-1 keep working unchanged. */
+    if (offset + (u64)size > 0xFFFFFFFFull) {
+        return -1;
+    }
     u64 bpc = ctx->bytes_per_cluster;
     u8 *cluster_buf = (u8 *)kmalloc(bpc);
     if (!cluster_buf) return -4;
@@ -1092,7 +1107,17 @@ static int fs_fat32_write(fs_vfs_node_t *node, u64 offset, const void *buf, int 
         if (next < 2 || next >= FAT_EOC) {
             u32 newc = fs_fat32_alloc_cluster(ctx);
             if (newc < 2) { kfree(cluster_buf); return -7; }
-            fs_fat32_append_cluster(ctx, cluster, newc);
+            /* BUG-0190 FIX (A12-025): append_cluster links `newc` into
+             * the chain with a FAT-sector write; its status used to be
+             * ignored, so a failed link left `newc` allocated but
+             * UNLINKED while the write continued - data landed outside
+             * the chain and the on-disk size claimed it was there.
+             * Free the orphan and fail the write. */
+            if (fs_fat32_append_cluster(ctx, cluster, newc) < 0) {
+                fs_fat32_free_cluster_chain(ctx, newc);
+                kfree(cluster_buf);
+                return -7;
+            }
             memset(cluster_buf, 0, (usize)bpc);
             if (fs_fat32_write_cluster(ctx, newc, cluster_buf) < 0) {
                 kfree(cluster_buf);
@@ -1125,7 +1150,14 @@ static int fs_fat32_write(fs_vfs_node_t *node, u64 offset, const void *buf, int 
             if (next < 2 || next >= FAT_EOC) {
                 u32 newc = fs_fat32_alloc_cluster(ctx);
                 if (newc < 2) break;
-                fs_fat32_append_cluster(ctx, cluster, newc);
+                /* BUG-0190 FIX (A12-025): propagate the link failure -
+                 * free the orphan cluster and stop the loop. `written`
+                 * already holds only the bytes that really made it into
+                 * the chain, so the size update below stays truthful. */
+                if (fs_fat32_append_cluster(ctx, cluster, newc) < 0) {
+                    fs_fat32_free_cluster_chain(ctx, newc);
+                    break;
+                }
                 memset(cluster_buf, 0, (usize)bpc);
                 if (fs_fat32_write_cluster(ctx, newc, cluster_buf) < 0) break;
                 cluster = newc;
@@ -1299,38 +1331,77 @@ static int fs_fat32_unlink(fs_vfs_node_t *parent, const char *name) {
 
 /* Read the entire directory into a kmalloc'd buffer of directory entries.
  * Returns the number of valid entries (excluding deleted & LFN), or a
- * negative value on error. `*out_buf` is kmalloc'd and must be kfree'd. */
+ * negative value on error. `*out_buf` is kmalloc'd and must be kfree'd.
+ *
+ * BUG-0189 FIX (A12-024): the buffer used to be a hard 4096-entry
+ * (128 KiB) cap and the chain walk stopped silently at it - larger
+ * directories made lookup miss files in the second half and readdir
+ * terminate early with no error. The buffer is now sized from the
+ * directory's ACTUAL cluster chain: pass 1 counts the chain, pass 2
+ * copies it. The only remaining bound is the volume's cluster count
+ * (total_clusters + 2), which is chain-derived and exists purely to
+ * terminate a corrupt FAT loop; hitting it is reported as an error
+ * (-3) instead of silently returning a truncated directory. */
 static int fs_fat32_read_dir_entries(fs_fat32_inode_t *dir, fs_fat32_dirent_t **out_buf) {
-    if (!dir || !dir->is_dir || !dir->ctx) return -1;
+    if (!dir || !dir->is_dir || !dir->ctx || !out_buf) return -1;
     fs_fat32_ctx_t *ctx = dir->ctx;
+    *out_buf = NULL;
 
-    /* Gather the directory's cluster chain into one buffer. FAT32 root
-     * directories can grow; subdirectories can too. We bound the read at
-     * 4096 entries = 128 KiB to keep memory in check. */
-    int max_entries = 4096;
-    fs_fat32_dirent_t *buf = (fs_fat32_dirent_t *)kmalloc((u64)max_entries * 32);
-    if (!buf) return -2;
-    int n = 0;
     u32 cluster = dir->start_cluster;
-    if (cluster < 2) { *out_buf = buf; return 0; }
+    if (cluster < 2) {
+        /* Empty directory (no cluster yet): zero entries, but hand back
+         * a valid free-able buffer (callers kfree it unconditionally). */
+        fs_fat32_dirent_t *buf = (fs_fat32_dirent_t *)kmalloc(32);
+        if (!buf) return -2;
+        *out_buf = buf;
+        return 0;
+    }
+
+    /* Pass 1: count the clusters in the directory's chain. Any walk
+     * longer than total_clusters + 2 must be looping (corrupt FAT). */
+    u64 n_clusters = 0;
+    {
+        u32 c = cluster;
+        u32 hops = 0;
+        while (c >= 2 && c < FAT_EOC) {
+            if (++hops > ctx->total_clusters + 2u) return -3;
+            n_clusters++;
+            c = fs_fat32_next_cluster(ctx, c);
+        }
+        if (n_clusters == 0) return -3;
+    }
+
+    /* Pass 2: one 32-byte slot per directory entry in every cluster. */
+    u32 entries_per_cluster = ctx->bytes_per_cluster / 32;
+    u64 max_entries = n_clusters * (u64)entries_per_cluster;
+    /* The count is returned through an int - a directory whose entry
+     * count cannot be represented there cannot be read in one buffer
+     * anyway (it would need a >2 GiB allocation, which kmalloc refuses). */
+    if (max_entries > 0x7FFFFFFFull) return -2;
+    fs_fat32_dirent_t *buf = (fs_fat32_dirent_t *)kmalloc(max_entries * 32);
+    if (!buf) return -2;
 
     u8 *cbuf = (u8 *)kmalloc(ctx->bytes_per_cluster);
     if (!cbuf) { kfree(buf); return -3; }
 
-    int entries_per_cluster = (int)(ctx->bytes_per_cluster / 32);
-    u32 oc_hops = 0;   /* BUG-0058: bound the walk (corrupt chain = cycle) */
-    while (cluster >= 2 && cluster < FAT_EOC && oc_hops++ < ctx->total_clusters + 2u && n < max_entries) {
-        if (fs_fat32_read_cluster(ctx, cluster, cbuf) < 0) break;
-        for (int i = 0; i < entries_per_cluster && n < max_entries; i++) {
-            fs_fat32_dirent_t *e = (fs_fat32_dirent_t *)(cbuf + i * 32);
-            memcpy(&buf[n], e, 32);
+    u64 n = 0;
+    u32 c = cluster;
+    u32 hops = 0;
+    while (c >= 2 && c < FAT_EOC && hops++ < ctx->total_clusters + 2u) {
+        if (fs_fat32_read_cluster(ctx, c, cbuf) < 0) {
+            kfree(cbuf);
+            kfree(buf);
+            return -4;
+        }
+        for (u32 i = 0; i < entries_per_cluster; i++) {
+            memcpy(&buf[n], cbuf + i * 32, 32);
             n++;
         }
-        cluster = fs_fat32_next_cluster(ctx, cluster);
+        c = fs_fat32_next_cluster(ctx, c);
     }
     kfree(cbuf);
     *out_buf = buf;
-    return n;
+    return (int)n;
 }
 
 /* Count free clusters in the FAT. */

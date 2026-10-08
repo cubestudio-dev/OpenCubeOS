@@ -120,20 +120,22 @@ DH truth vectors for self-test: kernel/crypto/crypto_dh_scale_vectors.h.
 | Sound cards (WP-10c) | drivers/snd/driver_snd.h, usb.h | driver_snd_register(dev, ops), driver_snd_play/stop/set_rate/set_volume/get_caps(dev, ...), driver_snd_hda_init/driver_snd_ac97_init/driver_snd_es1370_init/driver_snd_virtio_init(driver_pci_dev), driver_snd_sb16_init(isa_dev), driver_usb_audio_init(driver_usb_dev), driver_snd_probe_all; USB: driver_usb_init, driver_usb_enumerate, driver_usb_control, driver_usb_set_interface, driver_usb_iso_out_submit (drivers/usb/driver_usb.h) |
 | USB host stack (WP-10d) | drivers/usb/driver_usb.h | driver_usb_register_host(host, ops), driver_usb_enumerate_host(host), driver_usb_control_transfer(d, setup, buf, len), driver_usb_bulk_transfer(d, ep, buf, len) (+ _timeout), driver_usb_interrupt_transfer(d, ep, buf, len), driver_usb_isochronous_transfer(d, ep, buf, len), driver_usb_register_driver(name, class, probe, disconnect), driver_usb_uhci_init / driver_usb_ohci_init / driver_usb_ehci_init / driver_usb_xhci_init(driver_pci_dev); class drivers hid-kbd/hid-mouse/usb-msc/usb-serial/usb-audio; shell: usb, usbdev |
 | Power mgmt + structured help (WP-10d-fix2) | kernel/core/core_power.h, shell/shell.h | core_power_shutdown(void), core_power_suspend(void), core_power_halt(void), core_power_reboot(void) (kernel/core/core_power.h); shell_register_command_ex(name, fn, help, wp), shell_list_commands_a_z(void), shell_list_commands_by_wp(void) (shell/shell.h); L1 wrappers l1_ext_power_* / l1_ext_shell_* (l1/l1_ext.h) |
-| TCP socket state (WP-10a-fix) | net/net_core.h | net_tcp_established(fd) |
+| TCP socket state (WP-10a-fix) | net/net_core.h | net_tcp_established(fd), net_tcp_established_or_close_wait(fd) (WP-10-AUDIT_P2-fix2: 1 when the connection is ESTABLISHED or CLOSE_WAIT, i.e. sending a close_notify alert is still legal) |
 
 ## 4. Shell command surface
 
-173 commands registered at boot (live count; `help` lists 173 unique and
-prints `Total: 173 commands`, `help -w` groups them by work-package tag).
-Section updated at WP-AUDIT-01-p1fix2: p1fix1 added the `pmmrace` command
-(kernel/main.c, BUG-0043 repro) so the boot count moved 172 -> 173; the
-earlier table (168 total, 170 live) used pre-restructure file names and
-predates WP-10-wp08fix1.
-`shell_register_command` call sites (static count, verified 2026-10-06 by
-per-file grep = 173 unique names, no duplicates; cross-checked against a
-live `help -a` extraction in QEMU — both directions empty diff):
-kernel/main.c 53 (incl. update/rollback/reboot and pmmrace),
+176 commands registered at boot (live count; `help` lists 176 unique and
+prints `Total: 176 commands`, `help -w` groups them by work-package tag).
+Section updated at WP-10-AUDIT_P2-fix2: fix1 added three regression
+commands (`irqabitest`, `heapbounds`, `vmkernelpt`, registered at
+kernel/main.c 2936-2938, BUG-0136/0140/0141 attribution) so the boot count
+moved 173 -> 176; the earlier 173 table predated those three and is
+superseded (the fix1-round finding #3).
+`shell_register_command` call sites (static count, re-verified
+2026-10-08 by per-file grep = 176 unique names, no duplicates; to be
+cross-checked against a live `help -a` extraction in QEMU each release):
+kernel/main.c 56 (incl. update/rollback/reboot, pmmrace and the three
+fix1 regression commands),
 net/net_core.c 16,
 shell/shell_cmds_file.c 18, shell/shell_cmds_disk.c 7,
 drivers/block/driver_block_disk_setup.c 4 (rule-9 self-hosting:
@@ -144,7 +146,7 @@ abdisk/install/grub-install/abcfg), shell/shell_cmds_disk_test.c 8
 (WP-10u), shell/shell_cmds_usb_test.c 9 (WP-10d: usb/usbdev status +
 7 test commands), shell/shell.c 6 (incl. WP-10-wp08fix1 nano/vi),
 shell/shell_cmds_power_test.c 7 (WP-10d-fix2 power + help test suite).
-53+16+18+7+4+8+18+17+10+9+6+7 = 173. Full list: type `help` at the `oc>`
+56+16+18+7+4+8+18+17+10+9+6+7 = 176. Full list: type `help` at the `oc>`
 prompt.
 
 ## 5. Verification of these interfaces

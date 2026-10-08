@@ -63,6 +63,58 @@ __attribute__((unused)) static void net_tls_dbg_hex(const char *t, const u8 *b, 
 #define HT_CLIENT_KEY_EXCHANGE 16
 #define HT_FINISHED 20
 #define HT_KEY_UPDATE 24
+#define HT_HELLO_REQUEST 0
+
+/* ---------------- WP-10-AUDIT_P2-fix2 (G5) ----------------
+ * Alert handling, CBC hardening, downgrade protection, send bounds. */
+
+/* Alert levels and descriptions (RFC 5246 7.2 / RFC 8446 6 / RFC 7507). */
+#define TLS_ALERT_LEVEL_WARNING          1
+#define TLS_ALERT_LEVEL_FATAL            2
+#define TLS_ALERT_CLOSE_NOTIFY           0
+#define TLS_ALERT_HANDSHAKE_FAILURE      40
+#define TLS_ALERT_ILLEGAL_PARAMETER      47
+#define TLS_ALERT_PROTOCOL_VERSION       70
+#define TLS_ALERT_INAPPROPRIATE_FALLBACK 86   /* RFC 7507 */
+#define TLS_ALERT_NO_RENEGOTIATION       100  /* RFC 5246 7.2 / RFC 5746 */
+
+/* Internal record-layer / reader codes (mapped onto the public
+ * NET_TLS_ERR_* codes declared in net_tls.h by net_tls_recv). */
+#define TLS_RC_IO         (-1)
+#define TLS_RC_DECRYPT    (-2)
+#define TLS_RC_TRUNCATED  (-4)
+
+/* BUG-0228 (A14-42): net_tcp_read_exact results.  TLS_READ_EOF means the
+ * TCP peer is gone (peer FIN observed and the receive buffer drained, or
+ * the connection was reset) - no further bytes can ever arrive, which is
+ * exactly the truncation signal.  TLS_READ_TIMEOUT means the connection is
+ * still ESTABLISHED but no data arrived within the wait window. */
+#define TLS_READ_TIMEOUT  (-1)
+#define TLS_READ_EOF      (-2)
+
+/* BUG-0233 (A14-47): TLS_FALLBACK_SCSV (RFC 7507). */
+#define TLS_FALLBACK_SCSV 0x5600
+
+/* Handshake-level error codes (distinct from the pre-existing -1..-7). */
+#define TLS_ERR_FALLBACK_NEEDED         (-8)   /* probe refused -> RFC 7507 retry */
+#define TLS_ERR_ILLEGAL_PARAMETER       (-9)   /* BUG-0227/0230/0233 */
+#define TLS_ERR_INAPPROPRIATE_FALLBACK  (-10)  /* BUG-0233 (RFC 7507) */
+#define TLS_ERR_ALERT_RECEIVED          (-11)  /* BUG-0228: non-close_notify alert */
+
+/* BUG-0231 (A14-45): the TLS 1.2 send record buffer is 16640 bytes.
+ * Worst-case overhead on the encrypted path: explicit IV/nonce (16 for
+ * CBC) + MAC (32) + the largest legal padding run (255 + length byte)
+ * => 16336 bytes of plaintext is the hard send cap; anything larger
+ * returns an error instead of overflowing rec[]. (AEAD needs only 24
+ * bytes of overhead, but the smaller CBC bound is what rec[] actually
+ * guarantees for every suite.) */
+#define TLS12_SEND_MAX  16336
+
+/* BUG-0232 (A14-46): bounded logging - an unbounded console line per peer
+ * record would itself be a remote DoS, so peer-triggered prints stop after
+ * a small fixed budget per boot. */
+static int g_tls_alert_logs = 8;
+static int g_tls_hello_logs = 4;
 
 /* BUG-0078 note: the ctx now holds 32 KiB transcript + 32 KiB hs_log
  * (was 9 KiB each), which no longer fits in the kernel image's
@@ -143,10 +195,18 @@ static int net_tcp_read_exact(int sock, void *buf, int len) {
                 screen_console_puts(pb); screen_console_puts("\n");
             }
 #endif
-            return -1;
+            /* BUG-0228 (A14-42): classify the wait failure.  net_recv waits
+             * up to 15 s and returns -1 both for "no data yet" and for "the
+             * peer is gone".  Ask the TCP state: still ESTABLISHED = plain
+             * timeout; anything else (peer FIN observed and the receive
+             * buffer drained, RST, fully closed) is EOF - after a FIN no
+             * further bytes can arrive, which is exactly the truncation
+             * signal the record layer must report (TLS_READ_EOF). */
+            if (!net_tcp_established(sock)) return TLS_READ_EOF;
+            return TLS_READ_TIMEOUT;
         }
         if (n == 0) {
-            if (core_timer_ticks() > deadline) return -1;
+            if (core_timer_ticks() > deadline) return TLS_READ_TIMEOUT;
             net_poll();
             continue;
         }
@@ -254,17 +314,26 @@ static void net_tls13_nonce(const u8 iv[12], u64 seq, u8 nonce[12]) {
 
 static int net_tls13_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int buf_cap) {
     u8 hdr[5];
-    if (net_tcp_read_exact(c->net_tcp_sock, hdr, 5) < 0) return -1;
+    int rr = net_tcp_read_exact(c->net_tcp_sock, hdr, 5);
+    if (rr < 0) return (rr == TLS_READ_EOF) ? TLS_RC_TRUNCATED : TLS_RC_IO;
     int type = hdr[0];
     int len = ((int)hdr[3] << 8) | hdr[4];
     /* P0fix2 BUG-0022 (A14-16): the old check allowed buf_cap+256, reading
      * up to 256 bytes past the caller's buffer (g_hsrec is a 16640-byte
      * heap block).  RFC 8446 max record = 2^14+256 = 16640 = buf_cap. */
     if (len < 0 || len > buf_cap) return -1;
-    if (net_tcp_read_exact(c->net_tcp_sock, buf, len) < 0) return -1;
+    rr = net_tcp_read_exact(c->net_tcp_sock, buf, len);
+    if (rr < 0) return (rr == TLS_READ_EOF) ? TLS_RC_TRUNCATED : TLS_RC_IO;
 
     if ((!c->hs_keys_active && !c->app_keys_active) || type != CT_APPDATA) {
         *ctype = type;
+        /* BUG-0228 (A14-42): capture plaintext alerts (the only form alerts
+         * take before keys are active: during the handshake and on the
+         * unencrypted TLS 1.2 path). */
+        if (type == CT_ALERT && len >= 2) {
+            c->last_alert_level = buf[0];
+            c->last_alert_desc = buf[1];
+        }
         return len;
     }
     if (len < 17) return -1;
@@ -304,6 +373,10 @@ static int net_tls13_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int buf_
     int payload = end - 1;
     if (payload > buf_cap) return -1;
     memcpy(buf, inner, payload);
+    if (*ctype == CT_ALERT && payload >= 2) {   /* BUG-0228: decrypted alert */
+        c->last_alert_level = buf[0];
+        c->last_alert_desc = buf[1];
+    }
     return payload;
 }
 
@@ -352,7 +425,14 @@ static int net_tls13_send_hs(net_tls_ctx_t *c, int mtype, const u8 *body, int le
 
 /* ---------------- ClientHello ---------------- */
 
-static int build_client_hello(net_tls_ctx_t *c, u8 *ch, int cap) {
+/* BUG-0233 (A14-47): CH_F_TLS12_ONLY builds the RFC 7507 fallback
+ * ClientHello (TLS 1.2 suites + TLS_FALLBACK_SCSV, no supported_versions /
+ * key_share extensions).  The INITIAL dual-version ClientHello MUST NOT
+ * carry the SCSV - RFC 7507 4 reserves it for genuine fallback
+ * ClientHellos, and this one offers our maximum version (TLS 1.3). */
+#define CH_F_TLS12_ONLY 1
+
+static int build_client_hello(net_tls_ctx_t *c, u8 *ch, int cap, int flags) {
     int n = 0;
     crypto_random(c->client_random, 32);
     crypto_random(c->session_id, 32);
@@ -366,13 +446,27 @@ static int build_client_hello(net_tls_ctx_t *c, u8 *ch, int cap) {
     memcpy(ch + n, c->client_random, 32); n += 32;
     ch[n++] = 32;
     memcpy(ch + n, c->session_id, 32); n += 32;
-    u16 suites[] = {
-        CS_TLS13_AES128GCM_SHA256, CS_TLS13_AES256GCM_SHA384,
-        CS_TLS13_CHACHA20POLY1305_SHA256,
-        CS_TLS12_ECDHE_RSA_AES128GCM, CS_TLS12_ECDHE_RSA_AES256GCM,
-        CS_TLS12_ECDHE_RSA_CHACHA20, CS_TLS12_DHE_RSA_AES128_CBC_SHA256
-    };
-    int nsuites = (int)(sizeof(suites) / sizeof(suites[0]));
+    u16 suites[8];
+    int nsuites = 0;
+    if (!(flags & CH_F_TLS12_ONLY)) {
+        suites[nsuites++] = CS_TLS13_AES128GCM_SHA256;
+        suites[nsuites++] = CS_TLS13_AES256GCM_SHA384;
+        suites[nsuites++] = CS_TLS13_CHACHA20POLY1305_SHA256;
+    }
+    suites[nsuites++] = CS_TLS12_ECDHE_RSA_AES128GCM;
+    suites[nsuites++] = CS_TLS12_ECDHE_RSA_AES256GCM;
+    suites[nsuites++] = CS_TLS12_ECDHE_RSA_CHACHA20;
+    suites[nsuites++] = CS_TLS12_DHE_RSA_AES128_CBC_SHA256;
+    if (flags & CH_F_TLS12_ONLY) {
+        /* BUG-0233 (A14-47) / RFC 7507: this IS a genuine fallback
+         * ClientHello - the initial maximum-version handshake was refused,
+         * and this hello's client_version is the fallback target TLS 1.2 -
+         * so it carries TLS_FALLBACK_SCSV.  A compliant server whose
+         * maximum supported version is higher than the fallback target
+         * answers fatal inappropriate_fallback instead of negotiating
+         * TLS 1.2 (RFC 7507 3). */
+        suites[nsuites++] = TLS_FALLBACK_SCSV;
+    }
     ch[n++] = 0; ch[n++] = (u8)(nsuites * 2);
     for (int i = 0; i < nsuites; i++) {
         ch[n++] = (u8)(suites[i] >> 8);
@@ -406,8 +500,10 @@ static int build_client_hello(net_tls_ctx_t *c, u8 *ch, int cap) {
         ch[n++] = 0; ch[n++] = 0x18;
         ext_len += 12;
     }
-    /* key_share: x25519 + secp256r1 */
-    {
+    /* key_share: x25519 + secp256r1 (TLS 1.3 only - the RFC 7507 fallback
+     * ClientHello is a pure TLS 1.2 hello; the P-256 / x25519 key pairs are
+     * still generated above because the TLS 1.2 CKE needs them) */
+    if (!(flags & CH_F_TLS12_ONLY)) {
         int body_len = 2 + (2 + 2 + 32) + (2 + 2 + 65);
         ch[n++] = 0; ch[n++] = 51;
         ch[n++] = (u8)(body_len >> 8); ch[n++] = (u8)body_len;
@@ -433,14 +529,27 @@ static int build_client_hello(net_tls_ctx_t *c, u8 *ch, int cap) {
         }
         ext_len += 4 + na * 2 + 2;
     }
-    /* supported_versions */
-    {
+    /* supported_versions (TLS 1.3 only; its absence is what makes the
+     * fallback ClientHello a plain TLS 1.2 hello for version negotiation) */
+    if (!(flags & CH_F_TLS12_ONLY)) {
         ch[n++] = 0; ch[n++] = 43;
         ch[n++] = 0; ch[n++] = 5;
         ch[n++] = 4;                    /* list length: 2 versions */
         ch[n++] = 3; ch[n++] = 4;
         ch[n++] = 3; ch[n++] = 3;
         ext_len += 9;
+    }
+    /* RFC 5746 renegotiation_info (0xff01), BUG-0232 (A14-46): the empty
+     * renegotiated_connection vector in the initial ClientHello signals
+     * initial-connection secure-renegotiation support.  We never
+     * renegotiate (HelloRequest is answered with no_renegotiation and the
+     * connection continues), so a ServerHello with or without the echo is
+     * accepted: either way no insecure renegotiation can take place. */
+    {
+        ch[n++] = 0xff; ch[n++] = 0x01;
+        ch[n++] = 0; ch[n++] = 1;      /* ext_data length: 1 byte */
+        ch[n++] = 0;                   /* renegotiated_connection len = 0 */
+        ext_len += 5;
     }
     ch[ext_len_pos] = (u8)(ext_len >> 8);
     ch[ext_len_pos + 1] = (u8)ext_len;
@@ -455,6 +564,44 @@ static int net_tls13_recv_hs_p(net_tls_ctx_t *c, int expect, u8 *body, int cap,
 static int net_tls13_recv_hs(net_tls_ctx_t *c, int expect, u8 *body, int cap,
                          int *len_out, int *ctype_out) {
     return net_tls13_recv_hs_p(c, expect, body, cap, len_out, ctype_out, 1);
+}
+
+/* BUG-0221-tls (A14-35): constant-time all-zero test (RFC 7748 6.1) - OR
+ * all bytes into one accumulator and branch only on the final value, so
+ * timing does not depend on how many bytes were zero. */
+static int net_tls_secret_is_zero(const u8 *buf, int len) {
+    u8 acc = 0;
+    for (int i = 0; i < len; i++) acc |= buf[i];
+    return acc == 0;
+}
+
+/* BUG-0227 (A14-41): the ServerHello-selected cipher suite must be a member
+ * of the suite list we actually offered (RFC 8446 4.1.2 / RFC 5246
+ * 7.4.1.2 - anything else is illegal_parameter). */
+static int net_tls13_suite_offered(int cs) {
+    return cs == CS_TLS13_AES128GCM_SHA256 ||
+           cs == CS_TLS13_AES256GCM_SHA384 ||
+           cs == CS_TLS13_CHACHA20POLY1305_SHA256;
+}
+
+static int net_tls12_suite_offered(int cs) {
+    return cs == CS_TLS12_ECDHE_RSA_AES128GCM ||
+           cs == CS_TLS12_ECDHE_RSA_AES256GCM ||
+           cs == CS_TLS12_ECDHE_RSA_CHACHA20 ||
+           cs == CS_TLS12_DHE_RSA_AES128_CBC_SHA256;
+}
+
+/* Best-effort fatal alert before aborting a handshake (BUG-0227/0230/0233):
+ * a protocol violation is signalled to the peer, not just a silent close. */
+static int net_tls12_send_record(net_tls_ctx_t *c, int ctype, const u8 *payload, int len);
+static int net_tls13_send_record(net_tls_ctx_t *c, int ctype, const u8 *payload, int len);
+
+static void net_tls_send_fatal_alert(net_tls_ctx_t *c, int desc) {
+    u8 a[2] = { TLS_ALERT_LEVEL_FATAL, (u8)desc };
+    if (c->version == TLS13 || c->hs_keys_active)
+        net_tls13_send_record(c, CT_ALERT, a, 2);
+    else
+        net_tls12_send_record(c, CT_ALERT, a, 2);
 }
 
 /* Handshake reassembly: TLS 1.3 allows one handshake message to span
@@ -498,6 +645,7 @@ static int tls_hs_ensure(void) {
 static int net_tls13_hs_feed(net_tls_ctx_t *c, int *ctype_out) {
     if (tls_hs_ensure() < 0) return -1;
     int payload = net_tls13_recv_record(c, ctype_out, g_hsrec, TLS_HSREC_SIZE);
+    if (payload == TLS_RC_TRUNCATED) return TLS_RC_TRUNCATED;   /* BUG-0228 */
     if (payload < 0) return -1;
     if (*ctype_out == CT_CCS) return 0;          /* legacy CCS: skip */
     if (*ctype_out != CT_HANDSHAKE && *ctype_out != CT_APPDATA) return -2;
@@ -521,6 +669,7 @@ static int net_tls13_recv_hs_p(net_tls_ctx_t *c, int expect, u8 *body, int cap,
     int stalls = 0;
     while (g_hslen < 4) {
         rc = net_tls13_hs_feed(c, ctype_out);
+        if (rc == TLS_RC_TRUNCATED) return TLS_RC_TRUNCATED;   /* BUG-0228 */
         if (rc < 0) return -1;
         if (rc == 0) {
             if (++stalls > 64) { TLS_DBG_P("handshake stalled on empty records"); return -2; }
@@ -538,6 +687,7 @@ static int net_tls13_recv_hs_p(net_tls_ctx_t *c, int expect, u8 *body, int cap,
     }
     while (g_hslen < 4 + mlen) {
         rc = net_tls13_hs_feed(c, ctype_out);
+        if (rc == TLS_RC_TRUNCATED) return TLS_RC_TRUNCATED;   /* BUG-0228 */
         if (rc < 0) return -1;
         if (rc == 0) {
             if (++stalls > 64) { TLS_DBG_P("handshake stalled on empty records"); return -2; }
@@ -572,7 +722,10 @@ static int net_tls13_recv_hs_p(net_tls_ctx_t *c, int expect, u8 *body, int cap,
 static int net_tls13_do_handshake(net_tls_ctx_t *c) {
     g_hslen = 0;                 /* reset handshake reassembly stream */
     static u8 ch[2048];          /* static: kernel stack is small */
-    int ch_len = build_client_hello(c, ch, (int)sizeof(ch));
+    /* BUG-0233 (A14-47): a retry pass after a version-intolerant server
+     * carries CH_F_TLS12_ONLY, which appends TLS_FALLBACK_SCSV (RFC 7507). */
+    int ch_len = build_client_hello(c, ch, (int)sizeof(ch),
+                                    c->tls12_only ? CH_F_TLS12_ONLY : 0);
     if (ch_len < 0) return -1;
     {
         static u8 msg[2048];
@@ -591,7 +744,14 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
     /* ServerHello (static: kernel stack is small) */
     static u8 body[8192];
     int blen, ctype;
-    if (net_tls13_recv_hs(c, HT_SERVER_HELLO, body, (int)sizeof(body), &blen, &ctype) < 0) {
+    int shrc = net_tls13_recv_hs(c, HT_SERVER_HELLO, body, (int)sizeof(body), &blen, &ctype);
+    if (shrc < 0) {
+        /* BUG-0233 (A14-47): an EOF before any ServerHello is the classic
+         * version-intolerant server. RFC 7507: retry at TLS 1.2 only and
+         * carry the fallback SCSV, so a compliant higher-version server
+         * aborts with inappropriate_fallback instead of negotiating
+         * ambiguously. */
+        if (shrc == TLS_RC_TRUNCATED) return TLS_ERR_FALLBACK_NEEDED;
         TLS_DBG_P("ServerHello recv/parse failed");
         return -1;
     }
@@ -631,6 +791,14 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         p += sid_len;
         c->cipher = ((int)body[p] << 8) | body[p + 1]; p += 2;
         p += 1;
+        /* BUG-0227 (A14-41): the selected suite must be a member of the
+         * list we offered in THIS ClientHello (RFC 8446 4.1.2 / RFC 5246
+         * 7.4.1.2). Anything else is a tampered or hostile peer. */
+        if (!net_tls13_suite_offered(c->cipher) &&
+            !net_tls12_suite_offered(c->cipher)) {
+            net_tls_send_fatal_alert(c, TLS_ALERT_ILLEGAL_PARAMETER);
+            return TLS_ERR_ILLEGAL_PARAMETER;
+        }
         /* RFC 5246 7.4.1.2: the extensions block is OPTIONAL in TLS 1.2 —
          * a ServerHello without one ends right after the compression byte.
          * The old code unconditionally read ext_total and refused valid
@@ -648,7 +816,16 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
                 /* ServerHello supported_versions: server_version directly
                  * (2 bytes, no list-length prefix) */
                 int v = ((int)body[p] << 8) | body[p + 1];
-                if (v == TLS13) net_tls13_selected = 1;
+                if (v == TLS13) {
+                    /* BUG-0233 (A14-47)/RFC 7507: a fallback (SCSV) hello
+                     * answered with a version ABOVE the fallback target is
+                     * inappropriate_fallback - abort, never negotiate. */
+                    if (c->tls12_only) {
+                        net_tls_send_fatal_alert(c, TLS_ALERT_INAPPROPRIATE_FALLBACK);
+                        return TLS_ERR_INAPPROPRIATE_FALLBACK;
+                    }
+                    net_tls13_selected = 1;
+                }
             } else if (etype == 51 && elen >= 4) {
                 net_tls_dbg_hex("sh ext 51 body: ", body + p, elen > 8 ? 8 : elen);
                 int sp = p;
@@ -687,7 +864,13 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         }
         /* key schedule */
         u8 shared[32];
-        if (have_share) crypto_x25519_shared(g_x25519_priv, share, shared);
+        if (have_share) {
+            crypto_x25519_shared(g_x25519_priv, share, shared);
+            /* BUG-0221-tls (A14-35)/RFC 7748 6.1: an all-zero X25519 output
+             * means the peer contributed a low-order point - abort. */
+            if (net_tls_secret_is_zero(shared, 32))
+                return TLS_ERR_ILLEGAL_PARAMETER;
+        }
         else {
             /* server picked P-256 */
             u8 s[32];
@@ -1008,15 +1191,27 @@ static int net_tls12_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int cap)
         u64 seq = c->seq12_r;
         for (int i = 0; i < 8; i++) mbuf[i] = (u8)(seq >> (56 - 8 * i));
         mbuf[8] = (u8)type; mbuf[9] = 3; mbuf[10] = 3;
-        /* subtract padding: last byte of plaintext = pad length (excl. itself) */
+        /* BUG-0229 (A14-43): Lucky13-class padding oracle. The old code
+         * returned -1 early for a bad pad length and -2 for a MAC mismatch
+         * - two distinguishable failure modes with different work. The pad
+         * length is now validated branch-free into a mask, the content
+         * length is clamped into [0, blocks-33], the HMAC is ALWAYS
+         * computed and compared, and BOTH failure shapes return the single
+         * -2. (RFC 5246 6.2.3.2; Lucky13 mitigation: uniform processing,
+         * no early exit. Residual per-record timing is dominated by the
+         * constant-work AES-CBC decrypt over the same block count.) */
         int pad = plain[blocks - 1];
-        int real_content = blocks - 1 - pad - 32;
-        if (real_content < 0) return -1;
-        mbuf[11] = (u8)(real_content >> 8); mbuf[12] = (u8)real_content;
-        memcpy(mbuf + 13, plain, real_content);
-        crypto_hmac_sha256(c->mac_key_r, 32, mbuf, 13 + real_content, mac);
-        u8 *rx_mac = plain + real_content;
-        if (memcmp(mac, rx_mac, 32) != 0) return -2;
+        int max_content = blocks - 33;               /* MAC(32) + pad byte */
+        int real_content = max_content - pad;
+        unsigned pad_ok = ((unsigned)real_content >> 31) ^ 1u;   /* 1 iff >= 0 */
+        int content = pad_ok ? real_content : 0;
+        mbuf[11] = (u8)(content >> 8); mbuf[12] = (u8)content;
+        memcpy(mbuf + 13, plain, content);
+        crypto_hmac_sha256(c->mac_key_r, 32, mbuf, 13 + content, mac);
+        u8 *rx_mac = plain + content;
+        unsigned mdiff = 0;
+        for (int i = 0; i < 32; i++) mdiff |= (unsigned)(mac[i] ^ rx_mac[i]);
+        if (!pad_ok || mdiff != 0) return -2;
         c->seq12_r++;
         if (real_content > cap) return -1;
         memcpy(buf, plain, real_content);
@@ -1056,6 +1251,10 @@ static int net_tls12_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int cap)
 
 static int net_tls12_send_record(net_tls_ctx_t *c, int ctype, const u8 *payload, int len) {
     static u8 rec[16640];
+    /* BUG-0231 (A14-45): hard length gate before any write into rec[].
+     * The old code memcpy'd an arbitrary len straight into rec[16640] on
+     * both the plaintext and the encrypted paths. */
+    if (len < 0 || len > TLS12_SEND_MAX) return -1;
     if (!c->net_tls12_encrypted) {
         rec[0] = (u8)ctype; rec[1] = 3; rec[2] = 3;
         rec[3] = (u8)(len >> 8); rec[4] = (u8)len;
@@ -1276,6 +1475,9 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
                                                signed content = CR || SR || ServerDHParams,
                                                which is body[0..p) here */
             (void)params_len;
+            /* BUG-0230 (A14-44): the alg-pair and sig_len reads themselves
+             * must fit inside the message before they are dereferenced. */
+            if (p + 4 > blen) return -2;
             int algpair = ((int)body[p] << 8) | body[p + 1];
             p += 2;   /* SignatureAndHashAlgorithm */
             int sig_len = ((int)body[p] << 8) | body[p + 1]; p += 2;
@@ -1350,8 +1552,12 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
         memcpy(server_pub, body + p, plen); p += plen;
         /* signature over client_random + server_random + params:
          * TLS 1.2 prefixes it with SignatureAndHashAlgorithm (2 bytes) */
+        /* BUG-0230 (A14-44): bounds-check the alg-pair + sig_len reads and
+         * the signature span against the message before any dereference. */
+        if (p + 4 > blen) return -2;
         p += 2;
         int sig_len = ((int)body[p] << 8) | body[p + 1]; p += 2;
+        if (sig_len < 0 || p + sig_len > blen) return -2;
         /* signed content: client_random || server_random || ServerECDHParams
          * (p now sits past the alg-pair and sig_len: back off 4) */
         int params_len = p - 4;   /* curve_type + curve + plen + point */
@@ -1382,6 +1588,9 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
         if (use_x25519) {
             if (crypto_x25519_shared(g_x25519_priv, server_pub, c->master_secret) != 0)
                 return -1;
+            /* BUG-0221-tls (A14-35)/RFC 7748 6.1: reject the all-zero
+             * shared secret (low-order peer point) on the TLS 1.2 path. */
+            if (net_tls_secret_is_zero(c->master_secret, 32)) return -5;
         } else if (crypto_ec_ecdh(EC_P256, g_ec_priv, 32, server_pub, 65,
                            c->master_secret, 32) != 0)
             return -1;
@@ -1528,10 +1737,20 @@ static int net_tls12_resume_from_sh(net_tls_ctx_t *c) {
     hs_log_push(c, g_tls12_sh, g_tls12_sh_len);
     u8 *b = g_tls12_sh + 4;
     int p = 2;
+    /* BUG-0233 (A14-47)/RFC 7507: a fallback (SCSV) hello answered with a
+     * version ABOVE the fallback target is inappropriate_fallback. */
+    if (c->tls12_only && (b[0] != 3 || b[1] != 3)) {
+        net_tls_send_fatal_alert(c, TLS_ALERT_INAPPROPRIATE_FALLBACK);
+        return TLS_ERR_INAPPROPRIATE_FALLBACK;
+    }
     memcpy(c->server_random, b + p, 32); p += 32;
     p += 1 + b[p];          /* session id */
     c->cipher = ((int)b[p] << 8) | b[p + 1]; p += 2;
     p += 1;                 /* compression */
+    /* BUG-0227 (A14-41): same suite-membership check as the TLS 1.3 SH. */
+    if (!net_tls13_suite_offered(c->cipher) &&
+        !net_tls12_suite_offered(c->cipher))
+        return TLS_ERR_ILLEGAL_PARAMETER;
     return net_tls12_finish_after_hello(c);
 }
 
@@ -1560,7 +1779,22 @@ int net_tls_connect(u32 ip, u16 port, const char *hostname) {
         return -1;
     }
     int rc = net_tls13_do_handshake(c);
-    if (rc == -3) {
+    if (rc == TLS_ERR_FALLBACK_NEEDED) {
+        /* BUG-0233 (A14-47): legacy/version-intolerant server closed the
+         * connection before any ServerHello. RFC 7507 fallback: reconnect
+         * and offer TLS 1.2 only, WITH the fallback SCSV in the hello. */
+        net_close(c->net_tcp_sock);
+        net_tls_recv_reset();
+        c->tls12_only = 1;
+        c->net_tcp_sock = net_socket(SOCK_TCP);
+        if (c->net_tcp_sock < 0) return -1;
+        if (net_connect(c->net_tcp_sock, ip, port) < 0) {
+            net_close(c->net_tcp_sock);
+            return -1;
+        }
+        rc = net_tls13_do_handshake(c);
+        if (rc == -3) rc = net_tls12_resume_from_sh(c);
+    } else if (rc == -3) {
         /* server negotiated TLS 1.2 on this same connection
          * (RFC 8446 4.1.2) — continue with the TLS 1.2 handshake */
         rc = net_tls12_resume_from_sh(c);
@@ -1619,16 +1853,49 @@ int net_tls_recv(net_tls_ctx_t *c, void *buf, int len) {
         int n = (c->version == TLS13 || c->hs_keys_active)
                     ? net_tls13_recv_record(c, &ctype, tmp, (int)sizeof(tmp))
                     : net_tls12_recv_record(c, &ctype, tmp, (int)sizeof(tmp));
-        if (n < 0) return n;
+        if (n < 0) {
+            /* BUG-0228 (A14-42): EOF without close_notify while data was
+             * expected = truncation. Flag it on the context so callers can
+             * distinguish the failure shape; the negative return propagates. */
+            if (n == TLS_RC_TRUNCATED) c->truncated = 1;
+            return n;
+        }
         if (ctype == CT_ALERT) {
-            TLS_DBG_P("[tls-dbg] alert from server");
-            net_tls_dbg_hex("[tls-dbg] alert level/desc: ", tmp, n > 2 ? 2 : n);
-            return 0;
+            /* BUG-0228 (A14-42): close_notify (desc 0) is the ONLY clean
+             * close marker (RFC 5246 7.2.1 / RFC 8446 6.1); the record
+             * layer captured level/desc into the context. Any other alert
+             * is a protocol failure, not an EOF - surface it as an error. */
+            if (c->last_alert_level != 0 && c->last_alert_desc == 0)
+                return 0;
+            if (g_tls_alert_logs > 0) {
+                g_tls_alert_logs--;
+                TLS_DBG_P("[tls-dbg] alert from server");
+                net_tls_dbg_hex("[tls-dbg] alert level/desc: ", tmp, n > 2 ? 2 : n);
+            }
+            return TLS_ERR_ALERT_RECEIVED;
         }
         if (ctype == CT_HANDSHAKE && n >= 4 &&
             (tmp[0] == HT_KEY_UPDATE || tmp[0] == HT_NEW_SESSION_TICKET)) {
             /* post-handshake messages we do not act on; read the next
              * record (loop, NOT recursion) */
+            continue;
+        }
+        if (ctype == CT_HANDSHAKE && n >= 4 && tmp[0] == HT_HELLO_REQUEST) {
+            /* BUG-0232 (A14-46)/RFC 5746: we never renegotiate. Answer a
+             * mid-connection HelloRequest with warning no_renegotiation
+             * and CONTINUE the current connection (no re-handshake, no
+             * teardown). TLS 1.3 has no renegotiation; the alert is
+             * meaningless-but-harmless there and the message cannot
+             * legally appear. */
+            if (g_tls_hello_logs > 0) {
+                g_tls_hello_logs--;
+                TLS_DBG_P("[tls-dbg] HelloRequest -> no_renegotiation");
+            }
+            u8 a[2] = { 1, TLS_ALERT_NO_RENEGOTIATION };
+            if (c->version == TLS13 || c->hs_keys_active)
+                net_tls13_send_record(c, CT_ALERT, a, 2);
+            else
+                net_tls12_send_record(c, CT_ALERT, a, 2);
             continue;
         }
         /* 3. hand out what fits, keep the rest for the next call */
@@ -1646,14 +1913,19 @@ int net_tls_recv(net_tls_ctx_t *c, void *buf, int len) {
 
 void net_tls_close(net_tls_ctx_t *c) {
     net_tls_recv_reset();
-    if (!c->net_tcp_sock) return;
-    /* Only send the closing alert while the TCP connection is still
-     * ESTABLISHED.  Servers that answer with "Connection: close" send
-     * their close_notify/FIN right after the response, putting our side
-     * into CLOSE_WAIT; writing then is guaranteed to fail and only
-     * produced the noisy "[tcp] send fail ... (CLOSE_WAIT)" line.
-     * net_close below always completes the local teardown. */
-    if (net_tcp_established(c->net_tcp_sock)) {
+    /* BUG-0234 (A14-48): fd 0 is a VALID socket descriptor. The old
+     * `if (!c->net_tcp_sock)` treated it as "no socket" and silently
+     * skipped the alert AND the teardown; only a negative fd means none. */
+    if (c->net_tcp_sock < 0) return;
+    /* FINDING #2 (HANDOVER 1.3, user-approved): send the closing alert in
+     * ESTABLISHED **or** CLOSE_WAIT. Servers that answer with
+     * "Connection: close" send their close_notify/FIN right after the
+     * response, putting our side into CLOSE_WAIT; RFC 5246 7.2.1 / RFC
+     * 8446 6.1 allow sending close_notify after receiving the peer's.
+     * The send path accepts half-closed sockets (net_core), so the alert
+     * is actually transmittable there; net_close below always completes
+     * the local teardown. */
+    if (net_tcp_established_or_close_wait(c->net_tcp_sock)) {
         u8 alert[2] = { 1, 0 };
         if (c->version == TLS13)
             net_tls13_send_record(c, CT_ALERT, alert, 2);

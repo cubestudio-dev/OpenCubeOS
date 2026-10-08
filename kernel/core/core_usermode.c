@@ -54,7 +54,13 @@ extern const u64 userprog_ld_so_size;
  *   - heap region around 0x500000 (5 MB, USER_BRK_BASE)
  *   - user stack at 0x40000000 (1 GB, USER_STACK_TOP)
  *   - the main program's own PT_LOAD would have been at low vaddrs
- *     (0, 0x1000, etc.) but we OFFSET them by MAIN_PROG_BASE. */
+ *     (0, 0x1000, etc.) but we OFFSET them by the (randomized) base.
+ *
+ * BUG-0216 FIX (A13-28): MAIN_PROG_BASE / SOLIB_LIBFOO_BASE are the
+ * START of each region, not the load address. Each dynamic load picks a
+ * page-aligned base inside the region (rdtsc-driven, see
+ * user_aslr_page_slice below); ld.so receives the actual bases through
+ * two reserved slots in the (fixed) API page. */
 #define MAIN_PROG_BASE 0x20000000ULL
 
 /* WP-08b Batch 4a: the kernel maps the embedded libfoo.so (from
@@ -69,6 +75,47 @@ extern const u64 userprog_ld_so_size;
  * Later batches will let ld.so decide which .so to load (via DT_NEEDED
  * parsing → name → kernel syscall → map). */
 #define SOLIB_LIBFOO_BASE 0x30000000ULL
+
+/* BUG-0216 FIX (A13-28): load-base randomization. The kernel owns the
+ * main/libfoo/dlopen mappings, so the randomization happens HERE (the
+ * loader side cannot randomize what it does not map). Each dynamic
+ * process gets a page-aligned base inside the region its layout already
+ * reserved:
+ *   main   : 0x20000000..0x2FF00000 (256 MB region, 1 MiB top guard)
+ *   libfoo : 0x30000000..0x37F00000 (stays below the dlopen bump region)
+ *   dlopen : 0x38000000 + randomized start (below mmap at 0x3C000000)
+ * Entropy comes from rdtsc (two independent samples, mixed). The two
+ * pre-mapped bases are then published to ld.so via reserved slots in
+ * the API page (LDSO_API_TABLE_ADDR itself stays FIXED; the dlopen/
+ * dlsym/dlclose pointer layout at offsets 0/8/16 is unchanged).
+ * W^X is enforced on the loader side: after ld.so applies a module's
+ * relocations it calls sys_mem_mprotect (32) to strip +W from text and
+ * +X from data segments. */
+#define LDSO_API_MAIN_BASE_SLOT   24  /* byte offset in the API page */
+#define LDSO_API_LIBFOO_BASE_SLOT 32  /* byte offset in the API page */
+
+static inline u64 rdtsc_u64(void) {
+    u32 lo, hi;
+    __asm__ volatile ("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((u64)hi << 32) | (u64)lo;
+}
+
+/* Page-aligned random offset in [0, region_span - 1 MiB). Two rdtsc
+ * samples are taken and each is mixed with the splitmix64 finalizer, so
+ * back-to-back calls (main base + libfoo base in the same load)
+ * decorrelate even when the TSC barely advances between them. */
+static u64 user_aslr_page_slice(u64 region_span) {
+    u64 a = rdtsc_u64();
+    u64 b = rdtsc_u64();
+    u64 keep;
+    a ^= a >> 33; a *= 0xff51afd7ed558ccdULL; a ^= a >> 33;
+    a *= 0xc4ceb9fe1a85ec53ULL; a ^= a >> 33;
+    b ^= b >> 33; b *= 0xff51afd7ed558ccdULL; b ^= b >> 33;
+    b *= 0xc4ceb9fe1a85ec53ULL; b ^= b >> 33;
+    keep = (region_span >> 12) - 256;  /* keep 1 MiB clear below region top */
+    if (keep == 0) keep = 1;
+    return ((a ^ b) % keep) << 12;
+}
 
 struct interp_entry {
     const char *path;
@@ -740,7 +787,10 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
     memset(proc, 0, sizeof(*proc));
     proc->pid = g_next_pid++;
     proc->alive = 1;
-    proc->next_solib_addr = USER_SOLIB_BASE;  /* WP-08b Batch 5: dlopen bump allocator */
+    /* WP-08b Batch 5: dlopen bump allocator. BUG-0216 FIX: start the
+     * bump at a randomized page inside the 0x38000000 region (8 MB span)
+     * instead of the fixed 0x38000000. */
+    proc->next_solib_addr = USER_SOLIB_BASE + user_aslr_page_slice(0x00800000ULL);
     if (name) strncpy(proc->name, name, 31);
 
     proc->as = create_user_address_space();
@@ -759,13 +809,18 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
      * We also handle bss (memsz > filesz) by allocating fresh zero
      * pages, same as the existing PT_LOAD loop below. */
     if (main_elf_data_orig) {
+        /* BUG-0216 FIX: randomized load bases for THIS process's dynamic
+         * image. Computed once per dynamic load; the loops below offset
+         * every PT_LOAD by these instead of the fixed region starts. */
+        u64 dyn_main_base = MAIN_PROG_BASE + user_aslr_page_slice(0x10000000ULL);
+        u64 dyn_lib_base  = SOLIB_LIBFOO_BASE + user_aslr_page_slice(0x08000000ULL);
         elf64_hdr_t *main_hdr = (elf64_hdr_t*)main_elf_data_orig;
         if (main_elf_size_orig >= sizeof(elf64_hdr_t)) {
             elf64_phdr_t *main_phdr =
                 (elf64_phdr_t*)(main_elf_data_orig + main_hdr->phoff);
             for (int i = 0; i < main_hdr->phnum; i++) {
                 if (main_phdr[i].type != 1 /* PT_LOAD */) continue;
-                u64 load_vaddr = MAIN_PROG_BASE + main_phdr[i].vaddr;
+                u64 load_vaddr = dyn_main_base + main_phdr[i].vaddr;
                 if (map_user_pages(proc->as, load_vaddr,
                                    main_elf_data_orig + main_phdr[i].offset,
                                    main_phdr[i].filesz) != 0) {
@@ -816,7 +871,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
                     (elf64_phdr_t*)(solib_libfoo + lib_hdr->phoff);
                 for (int i = 0; i < lib_hdr->phnum; i++) {
                     if (lib_phdr[i].type != 1 /* PT_LOAD */) continue;
-                    u64 load_vaddr = SOLIB_LIBFOO_BASE + lib_phdr[i].vaddr;
+                    u64 load_vaddr = dyn_lib_base + lib_phdr[i].vaddr;
                     if (map_user_pages(proc->as, load_vaddr,
                                        solib_libfoo + lib_phdr[i].offset,
                                        lib_phdr[i].filesz) != 0) {
@@ -858,6 +913,14 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
                 mem_vmm_map_page(proc->as, LDSO_API_TABLE_ADDR, api_phys,
                              VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
                 memset((void*)api_phys, 0, PMM_PAGE_SIZE);
+                /* BUG-0216 FIX: publish the randomized dynamic bases to
+                 * ld.so. The API page keeps dlopen/dlsym/dlclose at
+                 * offsets 0/8/16 (user programs read those); slots 24/32
+                 * hold the main-program and libfoo.so load bases
+                 * (page-aligned, randomized above). ld.so reads them at
+                 * startup instead of hardcoding 0x20000000/0x30000000. */
+                *(u64 *)(api_phys + LDSO_API_MAIN_BASE_SLOT) = dyn_main_base;
+                *(u64 *)(api_phys + LDSO_API_LIBFOO_BASE_SLOT) = dyn_lib_base;
             }
         }
     }
