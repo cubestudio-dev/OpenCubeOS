@@ -487,3 +487,26 @@ future round):
   close_notify in ESTABLISHED **or** CLOSE_WAIT (finding #2), verified by
   the raw-byte recorder in the HTTPS E2E gate (tools/https_test_server.py
   observe mode).
+
+## 8. WP-10-AUDIT_P2-fix2b additions (2026-10-09)
+
+- Honest correction of the fix2 embed-chain claim: `make userprogs` on the
+  fix2 tree reproduced the reported ERROR verbatim (userprog_libfoo block
+  not found, Makefile:257 Error 1) — the fix2 commit's embed-chain Makefile
+  rules did not hold; corrected in the fix2b worklog.
+- Embed chain repaired: libfoo.c routed through a dedicated solib leg
+  (tools/build_solib.py, -Wl,-soname,libfoo.so + DT_SONAME verification,
+  regenerates l1/solib_data.h); the six dynamic-link programs (dyn_hello,
+  so_test, dlsym_test, pie_test, reloc_test, main_dyn) build as ET_DYN/PIE
+  via the pie/pie-foo modes in build_c_userprog.py with hard e_type /
+  PT_INTERP gates against silent downgrade; libs/ld_so.c wired into
+  USERPROG_SRCS (the ld_so case was dead code); main_dyn embedded and
+  mapped in both exec tables (kernel/main.c + core_syscall.c).
+- Verified: make userprogs end-to-end EXIT=0; QEMU six dyn progs PASS
+  (main_dyn prints "main: foo_add(2,3)=5"); stats 101,150 lines; 176
+  commands unchanged.
+- History rewrite note: the 22 legacy `Z User <z@container>` commits
+  (2026-10-03..10-07) were rewritten to cubestudio-dev via filter-branch;
+  the WP-10-AUDIT_P2-fix2 tag now points at the rewritten chain
+  (539bbb8c...), the handover tag at 45bcca98..., both on the same history
+  as main (fix2b chain head e6e8da0e...).
