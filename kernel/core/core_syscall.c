@@ -1283,6 +1283,7 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     extern const u8 userprog_dlsym_test[];
     extern const u8 userprog_pie_test[];
     extern const u8 userprog_reloc_test[];
+    extern const u8 userprog_main_dyn[];
     extern const u8 userprog_mmap_multi[];
     extern const u8 userprog_ush[];
     extern const u8 userprog_fdref_test[];
@@ -1300,6 +1301,7 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     else if (strcmp(name, "dlsym_test") == 0) elf = userprog_dlsym_test;
     else if (strcmp(name, "pie_test") == 0) elf = userprog_pie_test;
     else if (strcmp(name, "reloc_test") == 0) elf = userprog_reloc_test;
+    else if (strcmp(name, "main_dyn") == 0) elf = userprog_main_dyn;
     else if (strcmp(name, "mmap_multi") == 0) elf = userprog_mmap_multi;
     else if (strcmp(name, "fdref_test") == 0) elf = userprog_fdref_test;
     else if (strcmp(name, "select_zero_test") == 0) elf = userprog_select_zero_test;

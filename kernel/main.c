@@ -115,6 +115,8 @@ extern const u8 userprog_pie_test[];
 extern const u64 userprog_pie_test_size;
 extern const u8 userprog_reloc_test[];
 extern const u64 userprog_reloc_test_size;
+extern const u8 userprog_main_dyn[];
+extern const u64 userprog_main_dyn_size;
 extern const u8 userprog_mmap_multi[];
 extern const u64 userprog_mmap_multi_size;
 extern const u8 userprog_ush[];
@@ -2102,6 +2104,9 @@ static int shell_cmd_run(const char *args) {
     } else if (strcmp(args, "reloc_test") == 0) {
         /* WP-08b Batch 5: exercises RELATIVE + R_X86_64_64 + COPY + JUMP_SLOT. */
         elf = userprog_reloc_test; size = userprog_reloc_test_size;
+    } else if (strcmp(args, "main_dyn") == 0) {
+        /* WP-08b Batch 4d end-to-end dynamic linking (DT_NEEDED libfoo.so). */
+        elf = userprog_main_dyn; size = userprog_main_dyn_size;
     } else if (strcmp(args, "mmap_multi") == 0) {
         /* BUG-010 test: multi-process mmap independence (fork + mmap). */
         elf = userprog_mmap_multi; size = userprog_mmap_multi_size;

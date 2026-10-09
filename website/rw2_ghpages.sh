@@ -13,7 +13,7 @@ git init -q -b gh-pages .
 git config user.name "cubestudio-dev"
 git config user.email "cubestudio@qq.com"
 git add -A
-git commit -q -m "website build: WP-10-AUDIT_P2-fix1 (P2 batch 1: all 53 fixes BUG-0136..0188 across memory/arch/USB/VFS-FAT + the heap-block-header alignment root-cause fix found by the regression pass), WP-10-AUDIT_P2-fix1 ISO-SRC assets (3-way sha256: iso 737c8cfa, src 89087bc1), stats 97,307 lines / 176 commands"
+git commit -q -m "website build: WP-10-AUDIT_P2-fix2b (fix2 payload re-verified in tree: 53/53 P2 items + 4/4 findings; embed-chain repair: libfoo solib leg via build_solib.py -Wl,-soname,libfoo.so, six dyn programs ET_DYN/PIE with hard e_type/PT_INTERP gates, libs/ld_so.c wired into USERPROG_SRCS, make userprogs green end-to-end, six dyn progs PASS in QEMU), WP-10-AUDIT_P2-fix2b ISO-SRC assets (3-way sha256: iso 6f5d7c2c, src bc2f0070), stats 101,150 lines / 176 commands"
 git log --oneline -1
 echo "--- push gh-pages (force) ---"
 git push -f "$ORIGIN_URL" gh-pages 2>&1

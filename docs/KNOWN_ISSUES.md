@@ -473,3 +473,17 @@ future round):
   (`-device ich9-ahci -device ide-hd`) behaves as expected.
 - **Status**: OPEN (test-environment quirk, not a kernel bug); ab_partition_test 7/7
   verified under UEFI with AHCI attachment.
+
+## 7. WP-10-AUDIT_P2-fix2 additions (2026-10-08)
+
+- P2 batch 2 (BUG-0189..BUG-0241, items 54..106 of docs/audit/bugs_final.json) — ALL FIXED;
+  evidence chains per fix in the release notes + worklog (`WP-10-AUDIT_P2-fix2` entry).
+- The remaining OPEN findings are tracked in `docs/audit/bugs_final.json`:
+  P2 items 107..214 (BUG-0242..BUG-0349, fix3+ scope) and the P3 items (258).
+  Per WORKFLOW §5 item 12, the JSON file is the authoritative per-finding
+  tracker (id / sev / loc / desc / src) for everything not yet fixed.
+- Accepted behaviors in §2/§2A above are unchanged by fix2; the TLS
+  close_notify behavior (§2A.1) is superseded: the client now sends its
+  close_notify in ESTABLISHED **or** CLOSE_WAIT (finding #2), verified by
+  the raw-byte recorder in the HTTPS E2E gate (tools/https_test_server.py
+  observe mode).

@@ -77,7 +77,11 @@ KERNEL_INC := $(foreach d,$(KERNEL_DIRS) boot tools,-I$(OC_ROOT)/$(d))
 #                           release path can never ship stale programs
 EMBED_PY        := tools/embed_userprog.py
 BUILD_C_PY      := tools/build_c_userprog.py
-USERPROG_SRCS   := $(wildcard $(OC_ROOT)/userprogs/*.asm) $(wildcard $(OC_ROOT)/userprogs/*.c)
+BUILD_SOLIB_PY  := tools/build_solib.py
+# The embed chain covers every embedded image: asm progs, C progs, the six
+# dynamic-link programs (pie / pie-foo recipes), libfoo.c (solib leg) and
+# libs/ld_so.c (ld.so itself, ld_so.ld @ 0x10000000).
+USERPROG_SRCS   := $(wildcard $(OC_ROOT)/userprogs/*.asm) $(wildcard $(OC_ROOT)/userprogs/*.c) $(OC_ROOT)/libs/ld_so.c
 USERPROGS_HDR   := kernel/core/userprogs_data.h
 
 CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
@@ -258,8 +262,13 @@ userprogs:
            base=$$(basename "$$src"); name=$${base%.*}; \
            case "$$src" in \
              *.asm) echo "userprogs: embed $$name (asm)"; python3 $(OC_ROOT)/$(EMBED_PY) "$$name" "$$src";; \
+             */libfoo.c) echo "userprogs: embed $$name (solib)"; python3 $(OC_ROOT)/$(BUILD_SOLIB_PY) "$$src";; \
              */ld_so.c) echo "userprogs: embed $$name (c, ld_so.ld)"; \
 		python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" $(OC_ROOT)/libs/ld_so.ld;; \
+             */dyn_hello.c|*/pie_test.c) echo "userprogs: embed $$name (c, pie)"; \
+		python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" pie;; \
+             */so_test.c|*/dlsym_test.c|*/reloc_test.c|*/main_dyn.c) echo "userprogs: embed $$name (c, pie-foo)"; \
+		python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" pie-foo;; \
              *.c)   echo "userprogs: embed $$name (c)";   python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src";; \
            esac || exit 1; \
          done; echo "userprogs: regenerated $(USERPROGS_HDR)"

@@ -21,7 +21,7 @@ export { fmtBytes };
 // WP-AUDIT-01-p1fix2 stats (same caliber as lib/site.ts; see there for verify commands)
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "97,307", label: "行源码" },
+    { value: "101,150", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "44", label: "系统调用" },
     { value: "176", label: "shell 命令" },
@@ -29,7 +29,7 @@ export const STATS: Bi<{ value: string; label: string }[]> = {
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "97,307", label: "lines of source" },
+    { value: "101,150", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "44", label: "system calls" },
     { value: "176", label: "shell commands" },
@@ -38,11 +38,16 @@ export const STATS: Bi<{ value: string; label: string }[]> = {
   ],
 };
 
-// WP-10-AUDIT_P2-fix2 (audit + all 41 P0 fixes + all 94 P1 fixes + all 106 P2 items across fix1+fix2) leads the user-facing list, then WP-10-AUDIT_P2-fix1 + WP-10-wp08fix1 shell completion + WP-10d/c/u/b/a + security transport
+// WP-10-AUDIT_P2-fix2b (fix2 payload re-verified in tree + the embed-chain repair) leads the user-facing list, then WP-10-AUDIT_P2-fix2 + WP-10-AUDIT_P2-fix1 + WP-10-wp08fix1 shell completion + WP-10d/c/u/b/a + security transport
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "P2 第二批 53 条复核属实 + 嵌入链三缺陷修复完成",
+      tag: "WP-10-AUDIT_P2-fix2b",
+      desc: "实测复核 fix2 全量载荷：53/53 条 P2 修复在树（8 条深度抽查属实）+ 4/4 findings（git describe 版本串实测生效、HTTPS 双向 close_notify 断言 PASS、INTERFACES.md 176、docs/verification/ 转公开）；修复嵌入链三缺陷（make userprogs 在 fix2 树上复现 ERROR: userprog_libfoo block not found）：libfoo.c 共享库改走独立 solib 链（新 tools/build_solib.py，-Wl,-soname,libfoo.so + DT_SONAME 校验，重建 l1/solib_data.h）；六个动态链接程序（dyn_hello/so_test/dlsym_test/pie_test/reloc_test/main_dyn）ET_DYN/PIE 配方落地（build_c_userprog.py 新增 pie/pie-foo 模式 + e_type/PT_INTERP 硬校验防静默降级 + 缺块自动追加）；libs/ld_so.c 纳入 USERPROG_SRCS（原 ld_so 分支为死代码）；main_dyn 补嵌入并在 main.c/core_syscall.c 双 exec 表注册。验证：make userprogs 端到端 EXIT=0；QEMU 六 dyn 程序全 PASS（main_dyn 输出 main: foo_add(2,3)=5）；21 条回归全绿（dhtest 10/10 + cryptotest + fstest p2 ALL PASS）；SSH E2E 5/5；HTTPS E2E + CLOSE_NOTIFY_ASSERT PASS + eof 不挂死；mkfs confirm 门双侧实测；help 自报 176 命令；统计 101,150 行。",
+    },
     {
       name: "完整安全审查 + P0 全部修复 + P1 全部 94 条 + P2 第一批 53 条修复完成",
       tag: "WP-10-AUDIT_P2-fix1",
@@ -121,6 +126,11 @@ export const FEATURES: Bi<
   ],
   en: [
     {
+    {
+      name: "All 53 P2 batch-2 fixes verified in tree + three embed-chain defects fixed",
+      tag: "WP-10-AUDIT_P2-fix2b",
+      desc: "The full fix2 payload was re-verified against the actual tree: 53/53 P2 items present (8 deep spot-checks confirm real logic) + 4/4 findings (git-describe version live in the banner, HTTPS two-sided close_notify assertion PASS, INTERFACES.md 176, docs/verification/ made public); the embed chain - which fix2 claimed fixed but still failed with the userprog_libfoo block-not-found error - was repaired: (1) libfoo.c now builds through a dedicated solib leg (new tools/build_solib.py with -Wl,-soname,libfoo.so + DT_SONAME verification, regenerating l1/solib_data.h); (2) the six dynamic-link programs build as ET_DYN/PIE via the new pie/pie-foo modes in build_c_userprog.py with hard e_type/PT_INTERP gates against silent downgrade; (3) libs/ld_so.c joined USERPROG_SRCS (the Makefile ld_so case was dead code); main_dyn gained its blob and dual exec-table registration. Verified: make userprogs end-to-end EXIT=0; QEMU six dyn progs PASS; the 21-command regression green (dhtest 10/10 + cryptotest + fstest p2 ALL PASS); SSH E2E 5/5; HTTPS E2E + CLOSE_NOTIFY_ASSERT PASS + eof no-hang; mkfs confirm gate dual-sided; help self-report 176 commands; 101,150 lines.",
+    },
       name: "Full security audit + all 41 P0 + all 94 P1 + first 53 P2 fixes done",
       tag: "WP-10-AUDIT_P2-fix1",
       desc: "An 18-route line-by-line audit produced 607 findings (P0 41 / P1 94 / P2 214 / P3 258); all 41 P0s are fixed (p0fix1 first 20 + p0fix2 remaining 21, each with QEMU FAIL-before/PASS-after, host ASAN, or construction-level path evidence); p1fix1 fixed the first 31 P1s (BUG-0042..0072): per-task FPU/SSE fxsave context + CR4.OSFXSR + fork inheritance, PMM bitmap cli atomicity, page-fault semantics (P=1 refusal, 8MiB stack floor, U/S ring, kernel-on-user-address-space refusal), the XHCI event-ring LINK wrap and poll latch, EHCI CONFIGFLAG, the OHCI interrupt table / TD_R / NPS, MSC residue and sector_size, the CDC-ACM protocol, SS EP0 mps9, FAT32 rmdir dot entries + UAF + cluster-cycle bounds + the unlink guard, the exFAT bitmap lifecycle, ext4 extent offsets and crafted-volume bounds, the e1000 strcat, ld_so bounds, and the network stack (IP frame checks + RX checksums + sequence wrap + RST validation + SYN_RCVD reaping + SYN options + udp_bind dedup + window scaling + RTO critical sections); new sse_test/pf_test user tests added, with the tcptest/fork_test/ping/pmmrace regressions all green. p1fix2 fixed P1 items 32..62 (BUG-0073..0103): SSH TOFU known_hosts anchor plus per-installation host key (embedded universal RSA key removed, client identity via /etc/ssh_client_key, CSPRNG consumption verified at all call sites); TLS per-cipher key lengths, CertificateEntry ext skip, 32KiB transcript with hard overflow failure, ServerHello bounds, zero-length stall cap, KeyUpdate loop, X509 negative-length entry tests (ASAN-clean); shell capture stack, relative wildcards, edit/cp integrity, bounded ls/tree/du joins; ush unalias guard, O_TRUNC for nano/cp/mv, redirect fd lifecycle (kernel console fd dup/dup2 + sys_read(0) line mode with ^D EOF); L1 hook suppression + real registration + unregister; docs update_url / update_server.py; new fdref_test/select_zero_test. WP-10-AUDIT_P2-fix1 fixed the first 53 P2 items (BUG-0136..0188: memory / arch / 33 USB / 11 VFS-FAT fixes) and found-and-fixed a latent 40-byte heap block header defect (payload alignment drift shifted ATA-DMA transfers 8 bytes, breaking the /etc mount); fstest gained a P2 dual-sided assertion block; new irqabitest/heapbounds/vmkernelpt/int3_user tests.",
