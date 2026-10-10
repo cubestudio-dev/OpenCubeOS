@@ -1,7 +1,17 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS - WP-AUDIT-01-p1fix3
+# Open Cube OS
+
+**Version string**: generated at build time from the checked-out tree by
+`git describe --tags` (Makefile `OC_RELEASE_VERSION`); the boot banner,
+`uname -a` and `update --status` all report it verbatim. There is no
+hardcoded release name in this file on purpose. Current source batch:
+WP-10-AUDIT_P2-fix3 (all 53 third-batch P2 items BUG-0242..0294 fixed in
+nine groups G1..G9, plus the kernel-#UD root-cause fix: sys_fork never set
+the child task's rsp0, so the TSS kept the parent's kernel-stack top and
+the parent/child kernel stacks crossed; latest tagged release:
+WP-10-AUDIT_P2-fix3).
 
 **官网**: https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**: https://github.com/cubestudio-dev/OpenCubeOS
@@ -20,17 +30,21 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-10-AUDIT_P2-fix2b)
+## Stats (WP-10-AUDIT_P2-fix3)
 
-- **Source code**: 101,150 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
+- **Source code**: 102,687 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
   verify: `find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
-- **Work packages**: 16 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c, WP-10d, project restructure, WP-10-wp08fix1, WP-AUDIT-01 + p0fix1)
+- **Work packages**: 15 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
+  WP-10d, WP-10-wp08fix1) — one `## WP-*` section each below
+  + auxiliary batches (not counted as WPs): project restructure,
+  WP-10d-fix2, WP-09-fix5, and the audit batches WP-AUDIT-01
+  (+p0fix/p1fix) and WP-10-AUDIT_P2-fix1 / fix2 / fix2b / fix3.
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
   `install` and `grub-install` - create A/B update disks, install the OS
   to a disk and write the GRUB BIOS boot loader entirely from the oc>
   shell (no host tools; the kernel payload travels with the boot media as
   a multiboot2 module).
-- **L1 extension interfaces**: 129 (57 through WP-09 + 8 WP-10a items:
+- **L1 extension interfaces**: 138 (57 through WP-09 + 8 WP-10a items:
   driver_block_register / driver_block_read / driver_block_write / driver_block_flush (+ driver_block_set_ops),
   driver_block_ahci_init(driver_pci_dev), driver_block_nvme_init(driver_pci_dev), driver_block_ata_dma_init(driver_pci_dev),
   + 13 WP-10b items:
@@ -51,8 +65,18 @@ Licensed under the Apache License, Version 2.0.
   driver_usb_isochronous_transfer / driver_usb_register_driver (class-driver registry:
   HID keyboard + mouse, MSC storage, CDC-ACM/FTDI serial, UAC audio),
   driver_usb_uhci_init / driver_usb_ohci_init / driver_usb_ehci_init / driver_usb_xhci_init(driver_pci_dev) — four host
-  controller backends (drivers/usb/driver_usb.h)
-- **System calls**: 44
+  controller backends (drivers/usb/driver_usb.h),
+  + 7 WP-10d-fix2 items: core_power_shutdown / core_power_suspend /
+  core_power_halt / core_power_reboot + shell_register_command_ex /
+  shell_list_commands_a_z / shell_list_commands_by_wp,
+  + 9 WP-10-wp08fix1 items: shell_lineedit_init / shell_lineedit_history_add /
+  shell_lineedit_history_get / shell_lineedit_cursor_move /
+  shell_lineedit_tab_complete / shell_lineedit_ctrlc (shell/shell_lineedit.h)
+  + editor_open / editor_save / editor_close (shell/editor.h)
+  (57 + 8 + 13 + 7 + 26 + 11 + 7 + 9 = 138; plus 5 unnumbered WP-09-fix5
+  config/check-update interfaces and 5 rule-9 self-hosting interfaces
+  outside the 1-138 numbering)
+- **System calls**: 46 (verify: `grep -c '#define SYS_' kernel/core/core_syscall.h`)
 - **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
   + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
   the P2-batch fix-ups (P2-BATCH-1 + P2-BATCH-2), bringing the running
@@ -131,7 +155,14 @@ Licensed under the Apache License, Version 2.0.
 
 WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
 
-- **Complete syscall set** (37 syscalls): fork, exec, wait, kill, signal, mmap, munmap, mprotect, brk, pipe, dup, dup2, sigaction, sigreturn, select, poll, chdir, getcwd, ioctl, getpid, getppid, exit, write, write_and_exit, open, close, stat, readdir, mkdir, rmdir, unlink, exit2, map_solib, read, write2, readline, getc.
+- **Complete syscall set** (46 syscalls; `SYS_` numbering 0-102, verify:
+  `grep -c '#define SYS_' kernel/core/core_syscall.h`): exit, write,
+  write_and_exit, open, close, stat, readdir, mkdir, rmdir, unlink, fork,
+  execve, wait4, kill, getpid, getppid, exit2, pipe, dup, dup2, mmap,
+  munmap, mprotect, brk, signal, sigaction, sigreturn, chdir, getcwd,
+  ioctl, read, write2, readline, getch, uptime, meminfo, select, poll,
+  map_solib, symlink, readlink, link, chmod, chown, netcmd, ps
+  (symlink..ps are the WP-10-wp08fix1 additions, SYS 96-102).
 - **Dynamic linking**: ld.so (user-space), 5 relocation types (R_X86_64_64, R_X86_64_RELATIVE, R_X86_64_GLOB_DAT, R_X86_64_JUMP_SLOT, R_X86_64_COPY), dlopen/dlsym/dlclose, ldd.
 - **User-space Shell (ush)**: 20 built-in tools, Tab completion, job control (`&`), signals (Ctrl+C → SIGINT), redirect (`>`), pipe (`|`).
 - **15 user-mode test programs**: hello, badapp, loop, fork_test, exec_test, pipe_test, mmap_test, signal_test, select_test, dyn_hello, so_test, dyn_test (alias), dlsym_test, pie_test, reloc_test, mmap_multi.
@@ -197,6 +228,42 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   non-blocking `auto_check` boot check, `config`/`edit` commands and the
   `l1_ext_config_*` / `l1_ext_check_update*` L1 interfaces. See
   docs/CONFIG.md.
+
+## WP-10a (done) - Storage drivers: AHCI SATA / NVMe / ATA Bus-Master DMA / virtio-blk
+
+- **Drivers** (drivers/block/): AHCI SATA (DMA, multi-port, FLUSH),
+  NVMe (admin + 2 I/O queue pairs, Identify, Read/Write/Flush),
+  ATA Bus-Master DMA (PRDT + PIO fallback preserved), virtio-blk
+  (capacity fixed).
+- **L1 interfaces** (numbered items 58-65 of 138; declared in
+  drivers/block/driver_block_blk.h, drivers/pci/driver_pci.h,
+  driver_block_{ahci,nvme,ata_dma}.h, driver_block_ata.h):
+  driver_block_register / driver_block_read / driver_block_write /
+  driver_block_flush (+ driver_block_set_ops),
+  driver_pci_find_class_exact / driver_pci_find_class_mask,
+  driver_block_ahci_init / driver_block_nvme_init /
+  driver_block_ata_dma_init(driver_pci_dev),
+  driver_block_ata_identify_capacity.
+- MBR + GPT partition parsing on every device; FAT32 mounts on all four
+  driver types through the unified blk layer. Test suite: `ahci`, `nvme`,
+  `ata` status + `ahci_test`, `nvme_test`, `ata_dma_test`, `virtio_blk_test`,
+  `disk_rw_test`, `partition_test`, `fs_mount_test`, `real_hw_test`.
+  See docs/EXTENSIONS_WP10a.md.
+
+## WP-10b (done) - NIC drivers: e1000e / igb / ixgbe / RTL8139 / RTL8168 / RTL8125 / RTL810x / BCM57xx
+
+- **Driver framework** (drivers/nic/driver_nic.h): L1 registry
+  (register / send / recv / link_status / get_mac), driver_nic_probe_all,
+  per-model init entry points; `other_nics_init` covers the legacy tail.
+- **L1 interfaces** (numbered items 66-78 of 138 = 5 + 8; declared in
+  drivers/nic/driver_nic.h): driver_nic_register / driver_nic_send /
+  driver_nic_recv / driver_nic_link_status / driver_nic_get_mac +
+  driver_nic_e1000e_init / driver_nic_igb_init / driver_nic_ixgbe_init /
+  driver_nic_rtl8139_init / rtl8168_init / rtl8125_init / rtl810x_init /
+  bcm57xx_init(driver_pci_dev).
+- **Test surface**: one status command + one test command per model
+  (`e1000e`..`bcm57xx`, `e1000e_test`..`bcm57xx_test`) + `other_nic_test`
+  + `nic_rw_test`. See docs/EXTENSIONS_WP10b.md.
 
 ## WP-10u (done) - In-system update: A/B partitions + tar.gz packages + rollback + offline update
 
@@ -296,6 +363,24 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   UEFI boot matrix; usb_core_test 5/5 on all four; the OHCI session and
   the XHCI EPID fix close out the WP-10d controller work. See
   docs/EXTENSIONS_WP10d.md.
+
+## WP-10-wp08fix1 (done) - Shell line editor + nano/vi editors + VFS link/symlink + 7 new syscalls
+
+- **Kernel line editor** (shell/shell_lineedit.h): history
+  (shell_lineedit_init / shell_lineedit_history_add /
+  shell_lineedit_history_get), cursor movement
+  (shell_lineedit_cursor_move), TAB completion
+  (shell_lineedit_tab_complete), ^C handling (shell_lineedit_ctrlc) -
+  items 130-135.
+- **nano / vi full-screen editors** (shell/editor.h): editor_open /
+  editor_save / editor_close - items 136-138; the `nano` and `vi`
+  commands registered at boot.
+- **VFS additions** (fs/fs_vfs.h): symlink/readlink + hard links,
+  chmod/chown with permission enforcement.
+- **7 new syscalls (SYS 96-102)**: symlink, readlink, link, chmod, chown,
+  netcmd, ps; ush gained the matching user-space commands.
+- This batch closes the L1 interface numbering at **138** (items 130-138).
+  See docs/EXTENSIONS_WP10-wp08fix1.md.
 
 ## Repository layout
 
@@ -433,9 +518,9 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-10-AUDIT_P2-fix2b)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix2b) — ISO + SRC zip
-  (ISO sha256 `6f5d7c2c63394dc261d5a2125d01aaccdfbf23b1f726869ac7001dc815d8a656`,
-  SRC sha256 `bc2f00700fac9579e10b2188d3aed07d84ad30e4c969f574e9ccbe6bb54b9344`)
+- **Latest (WP-10-AUDIT_P2-fix3)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix3) — ISO + SRC zip
+  (ISO sha256 `aa900f2d92f33a8c9393f3182a2800f056563deb1973158ea7a6863c2b98062e`,
+  SRC sha256 `e5eff00a39cd41e52e664cba0b5271a9b0ae80735232ce581e88c2c93bd06e8e`)
 - **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - Or visit https://cubestudio-dev.github.io/OpenCubeOS for direct downloads
 

@@ -12,6 +12,7 @@
  * its own Montgomery context on the same bn core.
  */
 #include "crypto_ec_nist.h"
+#include "crypto_irq_window.h"
 #include "crypto_bn.h"
 #include "lib_string.h"
 #include "crypto_core.h"   /* crypto_random */
@@ -395,9 +396,22 @@ static void curve_init(int id) {
 static crypto_ec_curve_t *get_curve(int id) {
     if (id != EC_P256 && id != EC_P384) return 0;
     if (!g_curves_init) {
-        curve_init(EC_P256);
-        curve_init(EC_P384);
-        g_curves_init = 1;
+        /* BUG-0294 (A4-07) FIX: the check/fill used to run with no
+         * protection - an interrupt landing mid-curve_init re-entered the
+         * same lazy init and any crypto call it made read half-built
+         * Montgomery constants. Single-core kernel: the only reentrancy
+         * source is an interrupt handler on this CPU, so a cli window
+         * closes it honestly (this is NOT SMP protection). The init flag
+         * is stored last, inside the window. curve_init is pure
+         * constant-derived arithmetic (microseconds), no sleeps/IO. */
+        u64 flags;
+        OC_IRQ_WINDOW_ENTER(flags);
+        if (!g_curves_init) {
+            curve_init(EC_P256);
+            curve_init(EC_P384);
+            g_curves_init = 1;
+        }
+        OC_IRQ_WINDOW_LEAVE(flags);
     }
     return &g_curves[id];
 }

@@ -50,7 +50,23 @@ static int shell_cmd_parted(const char *args) {
             return 1;
         }
         dev_idx = 0;
-        while (!driver_block_get_device(dev_idx) && dev_idx < 8) dev_idx++;
+        /* BUG-0246 FIX (A15-20): the bound check used to come SECOND
+         * (`!get_device(dev_idx) && dev_idx < 8`), so dev_idx == 8 was
+         * still passed to driver_block_get_device() once before the
+         * loop noticed - the driver's own guard happens to catch it,
+         * but the shell must not hand out an out-of-range index in the
+         * first place. Test the bound FIRST, and use the driver's own
+         * BLK_MAX_DEVICES instead of a literal. */
+        while (dev_idx < BLK_MAX_DEVICES &&
+               !driver_block_get_device(dev_idx)) {
+            dev_idx++;
+        }
+        if (dev_idx >= BLK_MAX_DEVICES ||
+            !driver_block_get_device(dev_idx)) {
+            /* Slots exist (num_devices() > 0) but none is present. */
+            screen_console_puts("no block devices\n");
+            return 1;
+        }
     }
     driver_block_part_table_t tbl;
     if (driver_block_part_parse(dev_idx, &tbl) != 0) {
@@ -263,6 +279,21 @@ static int shell_cmd_mkfs_exfat(const char *args) {
     if (dev_idx < 0) { screen_console_puts("mkfs.exfat: device not found\n"); return 1; }
     driver_block_device_t *devp = driver_block_get_device(dev_idx);
     if (!devp) return 1;
+    /* BUG-0244 FIX (A15-18): the fixed layout below reserves sectors
+     * 0..63 (boot sector + reserved wipe area + FAT at 32; cluster heap
+     * and root directory start at 64). A device smaller than 65 sectors
+     * made `u32 cluster_count = total_sectors - 64` UNDERFLOW and wrote
+     * a ~4-billion cluster_count into the BPB (mkfs.fat32 refuses
+     * devices < 40 sectors; exFAT had no check at all). Refuse the same
+     * way mkfs.fat32 does - nothing is written. */
+    if (devp->sectors < 65) {
+        screen_console_puts("mkfs.exfat: device too small (need at least 65 sectors, got ");
+        char num[24];
+        u64_to_str(devp->sectors, num);
+        screen_console_puts(num);
+        screen_console_puts(")\n");
+        return 1;
+    }
     /* P2-74: Minimal exFAT format. */
     u8 buf[512];
     memset(buf, 0, 512);

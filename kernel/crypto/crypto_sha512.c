@@ -140,15 +140,24 @@ void sha384(const u8 *data, int len, u8 out[48]) {
 
 #define HMAC_BLOCK_SHA512 128
 
-static void crypto_hmac_sha512_core(const u8 *key, int key_len,
+/* BUG-0292 (A4-05) FIX: the two variants used to share one core that always
+ * seeded the SHA-512 IV and hashed oversized keys with SHA-512, so
+ * crypto_hmac_sha384 really produced truncated HMAC-SHA-512 (RFC 4231
+ * KATs diverge). The core is now keyed by variant: HMAC-SHA-384 seeds the
+ * SHA-384 IV, hashes oversized keys with SHA-384 (48-byte padded key) and
+ * feeds the 48-byte inner digest to the outer pass (RFC 2104 / RFC 4868);
+ * HMAC-SHA-512 keeps the SHA-512 behaviour. Both share the 128-byte block
+ * size, so ipad/opad construction is identical. */
+static void crypto_hmac_sha512_core(int is384, const u8 *key, int key_len,
                              const u8 *data, int data_len,
                              u8 *out, int out_len) {
     u8 k[HMAC_BLOCK_SHA512], ipad[HMAC_BLOCK_SHA512], opad[HMAC_BLOCK_SHA512];
     u8 key_hash[64];
+    int inner_len = is384 ? 48 : 64;
     if (key_len > HMAC_BLOCK_SHA512) {
-        sha512(key, key_len, key_hash);
+        if (is384) { sha384(key, key_len, key_hash); key_len = 48; }
+        else       { sha512(key, key_len, key_hash); key_len = 64; }
         key = key_hash;
-        key_len = 64;
     }
     memset(k, 0, HMAC_BLOCK_SHA512);
     if (key_len > 0) memcpy(k, key, key_len);
@@ -157,25 +166,25 @@ static void crypto_hmac_sha512_core(const u8 *key, int key_len,
         opad[i] = k[i] ^ 0x5c;
     }
     crypto_sha512_ctx_t c;
-    crypto_sha512_init(&c);
+    if (is384) crypto_sha384_init(&c); else crypto_sha512_init(&c);
     crypto_sha512_update(&c, ipad, HMAC_BLOCK_SHA512);
     crypto_sha512_update(&c, data, data_len);
     u8 inner[64];
-    crypto_sha512_final(&c, inner);
-    crypto_sha512_init(&c);
+    if (is384) crypto_sha384_final(&c, inner); else crypto_sha512_final(&c, inner);
+    if (is384) crypto_sha384_init(&c); else crypto_sha512_init(&c);
     crypto_sha512_update(&c, opad, HMAC_BLOCK_SHA512);
-    crypto_sha512_update(&c, inner, 64);
+    crypto_sha512_update(&c, inner, inner_len);
     u8 mac[64];
-    crypto_sha512_final(&c, mac);
+    if (is384) crypto_sha384_final(&c, mac); else crypto_sha512_final(&c, mac);
     for (int i = 0; i < out_len; i++) out[i] = mac[i];
 }
 
 void crypto_hmac_sha512(const u8 *key, int key_len, const u8 *data, int data_len,
                  u8 hmac[64]) {
-    crypto_hmac_sha512_core(key, key_len, data, data_len, hmac, 64);
+    crypto_hmac_sha512_core(0, key, key_len, data, data_len, hmac, 64);
 }
 
 void crypto_hmac_sha384(const u8 *key, int key_len, const u8 *data, int data_len,
                  u8 hmac[48]) {
-    crypto_hmac_sha512_core(key, key_len, data, data_len, hmac, 48);
+    crypto_hmac_sha512_core(1, key, key_len, data, data_len, hmac, 48);
 }

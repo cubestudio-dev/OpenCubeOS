@@ -24,7 +24,7 @@ static core_syscall_handler_fn g_syscalls[MAX_SYSCALLS];
 /* User process table. (non-static for syscall.c) */
 user_proc_t g_procs[MAX_USER_PROCS];
 int g_next_pid = 1;
-int g_usershell_running = 0;  // WP-08cd: set by shell_cmd_run when ush starts  /* BUG-047: non-static for fork() access */
+volatile int g_usershell_running = 0;  // WP-08cd: set by shell_cmd_run when ush starts  /* BUG-047: non-static for fork() access */  /* BUG-0290: volatile - cleared by sys_exit2 in another task, polled by the kernel shell's sti/hlt spin (main.c, l1_wp8cd.c) */
 
 /* WP-08a: saved interrupt frame pointer (for fork). */
 static u64 *g_current_frame = NULL;
@@ -264,7 +264,6 @@ u64 core_syscall_exit(u64 code, u64 arg2, u64 arg3, u64 arg4) {
     tid_t tid = core_kthread_current_tid();
     for (int i = 0; i < MAX_USER_PROCS; i++) {
         if (g_procs[i].alive && g_procs[i].tid == tid) {
-            g_procs[i].alive = 0;
             /* P0fix2 BUG-0032 (A2-2): n was char[8] while u64_to_str can
              * emit up to 20 digits + NUL for a user-controlled exit code —
              * an up-to-13-byte overflow of this kernel stack frame.  24
@@ -276,20 +275,21 @@ u64 core_syscall_exit(u64 code, u64 arg2, u64 arg3, u64 arg4) {
             u64_to_str(code, n);
             screen_console_puts(n);
             screen_console_puts(")\n");
-            /* BUG-008 FIX: Destroy the user address space before exiting.
-             * Switch to kernel CR3 first so we don't destroy the page
-             * tables we're currently running on. */
-            /* P1-9 FIX: The old code had an EMPTY if block here — the
-             * mem_vmm_destroy_address_space call was never added. This caused
-             * all asm user programs (hello, badapp, loop, fork_test, etc.)
-             * that use syscall 0 (SYS_EXIT) to leak their entire page table
-             * hierarchy (~2.4 pages per exit). After 31 runs, used pages
-             * grew from 564 to 639 (+75 pages leaked). */
-            if (g_procs[i].as) {
-                __asm__ volatile("mov %0, %%cr3" : : "r"(mem_vmm_kernel_as()) : "memory");
-                mem_vmm_destroy_address_space(g_procs[i].as);
-                g_procs[i].as = 0;
+            /* BUG-0275 FIX (A2-11): SYS_EXIT(0) now runs the SAME cleanup
+             * path as SYS_EXIT2. The old code only destroyed the address
+             * space: (a) fds were never closed, so VFS slots leaked and
+             * pipe reader/writer counts never dropped (the peer's read
+             * blocked forever instead of seeing EOF); (b) the parent was
+             * never woken, so a wait4 blocked forever; (c) exit_code was
+             * never written, so wait4 reported 0. The unified reaper
+             * handles (a)+(c), the explicit wake handles (b), and the
+             * usershell flag follows the same sys_exit2 rule. */
+            extern volatile int g_usershell_running;  /* BUG-0290: matches the volatile definition */
+            if (g_procs[i].parent_tid == 0) {
+                g_usershell_running = 0;
             }
+            user_process_reap_resources(&g_procs[i], (int)code);
+            if (g_procs[i].parent_tid > 0) core_kthread_wake(g_procs[i].parent_tid);
             break;
         }
     }
@@ -346,6 +346,45 @@ void core_syscall_dispatch(u64 *regs) {
             /* Modify the live frame so iretq jumps to the handler. */
             f->rip = (u64)(uintptr_t)handler;
             f->rdi = (u64)sig;          /* first arg = signal number */
+            /* BUG-0277 FIX (A2-13b): place an on-stack restorer so a
+             * handler that ends with a plain `ret` still reaches
+             * SYS_SIGRETURN. The old ABI only rewrote rip/rdi and left
+             * rsp alone, so `ret` popped arbitrary interrupted-frame
+             * data as a return address and jumped into the weeds.
+             *
+             * Layout (stack grows down; everything below the
+             * interrupted rsp is fair game for signal delivery):
+             *   ret_slot = aligned(osp - 16)   <- handler's fake return
+             *                                     address, popped by `ret`
+             *   trampoline at STK_BASE+0x400  <- "mov eax,42; int 0x80"
+             * The trampoline lives at the bottom of the stack window
+             * (out of the handler's downward growth), is re-written on
+             * every delivery (idempotent, per-address-space), and only
+             * depends on pages this kernel mapped itself (the full
+             * stack window). Handlers that call SYS_SIGRETURN
+             * explicitly (the old documented ABI) keep working: the
+             * restorer is simply never executed. If the interrupted
+             * rsp is outside the stack window or the pages are not
+             * mapped, we fall back to the raw rip/rdi delivery rather
+             * than risking a kernel write to an unmapped user page. */
+            {
+                u64 osp = f->rsp;
+                u64 stk_base = USER_STACK_TOP - USER_STACK_SIZE;
+                u64 tramp = stk_base + 0x400;
+                if (osp > tramp + 0x40 && osp <= USER_STACK_TOP) {
+                    u64 ret_slot = (osp - 16) & ~0xFULL;
+                    u64 phys1, phys2;
+                    if (mem_vmm_is_mapped(proc->as, ret_slot & ~0xFFFULL, &phys1) &&
+                        mem_vmm_is_mapped(proc->as, tramp & ~0xFFFULL, &phys2)) {
+                        /* mov eax,42 ; int 0x80 ; hlt (never reached) */
+                        static const u8 tramp_code[8] =
+                            { 0xB8, 0x2A, 0x00, 0x00, 0x00, 0xCD, 0x80, 0xF4 };
+                        memcpy((void *)(uintptr_t)tramp, tramp_code, sizeof(tramp_code));
+                        memcpy((void *)(uintptr_t)ret_slot, &tramp, sizeof(tramp));
+                        f->rsp = ret_slot;
+                    }
+                }
+            }
         }
     }
 
@@ -516,7 +555,16 @@ mem_vmm_as_t copy_user_address_space(mem_vmm_as_t src_as) {
             u64 *dst_pd;
             if (!(dst_pdpte2 & VMM_FLAG_PRESENT)) {
                 u64 pd_phys = mem_pmm_alloc_frame();
-                if (pd_phys == 0) return dst_as;
+                if (pd_phys == 0) {
+                    /* BUG-0279 FIX (A2-15b): OOM must not return a
+                     * half-copied address space (the old code returned
+                     * the partial dst_as and sys_fork then spawned a
+                     * child on a broken AS that died at its first
+                     * missing page). Tear the partial copy down and
+                     * report failure so the fork fails cleanly. */
+                    mem_vmm_destroy_address_space(dst_as);
+                    return 0;
+                }
                 dst_pd = (u64*)pd_phys;
                 memset(dst_pd, 0, PMM_PAGE_SIZE);
                 dst_pdpt[pdpt_idx] = pd_phys | 0x007;
@@ -535,7 +583,16 @@ mem_vmm_as_t copy_user_address_space(mem_vmm_as_t src_as) {
 
                 if (!(dst_pde & VMM_FLAG_PRESENT)) {
                     u64 pt_phys = mem_pmm_alloc_frame();
-                    if (pt_phys == 0) return dst_as;
+                    if (pt_phys == 0) {
+                        /* BUG-0279 FIX (A2-15b): OOM must not return a
+                         * half-copied address space (the old code returned
+                         * the partial dst_as and sys_fork spawned a child
+                         * on a broken AS that died at its first missing
+                         * page). Tear the partial copy down and report
+                         * failure so the fork fails cleanly. */
+                        mem_vmm_destroy_address_space(dst_as);
+                        return 0;
+                    }
                     dst_pt = (u64*)pt_phys;
                     memset(dst_pt, 0, PMM_PAGE_SIZE);
                     dst_pd[pd_idx] = pt_phys | 0x007;
@@ -544,7 +601,11 @@ mem_vmm_as_t copy_user_address_space(mem_vmm_as_t src_as) {
                     u64 huge_phys = dst_pde & 0x000FFFFFFFE00000ULL;
                     u64 huge_flags = dst_pde & 0xFFF;
                     u64 pt_phys = mem_pmm_alloc_frame();
-                    if (pt_phys == 0) return dst_as;
+                    if (pt_phys == 0) {
+                        /* BUG-0279 FIX (A2-15b): same fail-closed rollback. */
+                        mem_vmm_destroy_address_space(dst_as);
+                        return 0;
+                    }
                     dst_pt = (u64*)pt_phys;
                     memset(dst_pt, 0, PMM_PAGE_SIZE);
                     for (int i = 0; i < 512; i++)
@@ -560,7 +621,11 @@ mem_vmm_as_t copy_user_address_space(mem_vmm_as_t src_as) {
                     if (!(pte & VMM_FLAG_USER)) continue;
                     u64 src_phys = pte & 0x000FFFFFFFFFF000ULL;
                     u64 dst_phys = mem_pmm_alloc_frame();
-                    if (dst_phys == 0) return dst_as;
+                    if (dst_phys == 0) {
+                        /* BUG-0279 FIX (A2-15b): same fail-closed rollback. */
+                        mem_vmm_destroy_address_space(dst_as);
+                        return 0;
+                    }
                     memcpy((void*)dst_phys, (void*)src_phys, PMM_PAGE_SIZE);
                     u64 flags = pte & 0xFFF;
                     flags |= (pte & VMM_FLAG_NOEXEC);
@@ -602,7 +667,17 @@ void user_task_launcher(void *arg) {
     mem_vmm_as_t user_as = proc->as;
     if (user_as == 0) {
         screen_console_puts("[user] no address space\n");
-        core_kthread_block();
+        /* BUG-0279 FIX (A2-15a): the old code parked this thread in
+         * core_kthread_block() forever, leaking its MAX_TASKS slot (and
+         * leaving the process table entry marked alive). Terminate the
+         * same way sys_exit2 does: mark the task EXITED so the
+         * scheduler's reaper frees the stack + slot, mark the process
+         * dead with a failure code, and wake a waiting parent. */
+        proc->alive = 0;
+        proc->exit_code = -1;
+        if (proc->parent_tid > 0) core_kthread_wake(proc->parent_tid);
+        if (t) t->state = TASK_EXITED;
+        for (;;) core_kthread_block();
     }
     __asm__ volatile("mov %0, %%cr3\n" :: "r"(user_as) : "memory");
 
@@ -787,6 +862,21 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
     memset(proc, 0, sizeof(*proc));
     proc->pid = g_next_pid++;
     proc->alive = 1;
+    /* BUG-0278 FIX (A2-14): seed the per-process cwd with a COPY of the
+     * kernel shell's cwd at spawn time. Spawn-time inheritance keeps the
+     * old `cd /tmp` + `run ush` workflow working, while the two cwd
+     * variables stay independent afterwards (a user-process cd no longer
+     * moves the kernel shell's g_cwd or any other process's base). */
+    {
+        extern const char *shell_get_cwd(void);
+        const char *kcwd = shell_get_cwd();
+        if (kcwd && kcwd[0]) {
+            strncpy(proc->cwd, kcwd, USER_CWD_LEN - 1);
+            proc->cwd[USER_CWD_LEN - 1] = 0;
+        } else {
+            strcpy(proc->cwd, "/");
+        }
+    }
     /* WP-08b Batch 5: dlopen bump allocator. BUG-0216 FIX: start the
      * bump at a randomized page inside the 0x38000000 region (8 MB span)
      * instead of the fixed 0x38000000. */

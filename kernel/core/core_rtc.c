@@ -60,6 +60,34 @@ void core_rtc_read(core_rtc_time_t *out) {
         regb = core_rtc_reg(0x0B);
     }
 
+    /* Hand the raw register snapshot to the production decoder
+     * (BUG-0287 FIX: PM flag stripped before BCD, 12h civil fix-up).
+     * Named entry point so g8test can also drive it with injected
+     * snapshots. */
+    core_rtc_decode(second, minute, hour, day, month, year, century, regb, out);
+}
+
+/* Decode a raw CMOS register snapshot into civil time (BUG-0287 FIX,
+ * A3-10).  Split out of core_rtc_read so the regression suite can drive
+ * the real production decoder with injected raw snapshots (g8test A
+ * group) in addition to live CMOS reads.
+ *
+ * Register B conventions (MC146818 / PIIX4):
+ *   bit1 = 0 -> 12-hour mode: bit7 of the HOUR register is the PM flag
+ *              and bit[6:0] hold the hour; bit1 = 1 -> 24-hour mode.
+ *   bit2 = 0 -> BCD digits; bit2 = 1 -> binary.
+ * The PM flag must be stripped BEFORE the BCD conversion - otherwise it
+ * is folded into the tens digit (0x87 -> 87) and the PM information is
+ * destroyed (7 PM decoded as 15, 12 AM as 12). */
+void core_rtc_decode(u8 second, u8 minute, u8 hour, u8 day, u8 month,
+                     u8 year, u8 century, u8 regb, core_rtc_time_t *out) {
+    u8 pm = 0;
+    if (!(regb & 0x02)) {
+        /* 12-hour mode: bit7 of the raw hour register is the PM flag,
+         * NOT a digit.  Strip it first (BUG-0287). */
+        pm = (u8)(hour & 0x80);
+        hour = (u8)(hour & 0x7F);
+    }
     if (!(regb & 0x04)) {
         /* BCD mode */
         #define BCD(v) ((u8)(((v) & 0x0F) + ((v) >> 4) * 10))
@@ -73,9 +101,10 @@ void core_rtc_read(core_rtc_time_t *out) {
         #undef BCD
     }
     if (!(regb & 0x02)) {
-        /* 12-hour mode */
-        hour = (u8)((hour & 0x7F) + ((hour & 0x80) ? 12 : 0));
-        hour = (u8)(hour % 24);
+        /* 12-hour mode civil-hour fix-up: 12 AM -> 0, PM adds 12
+         * (12 PM stays 12).  Results stay inside 0..23. */
+        if (hour == 12) hour = 0;
+        if (pm) hour = (u8)(hour + 12);
     }
     int full_year = (century >= 19 && century <= 21)
                         ? century * 100 + year

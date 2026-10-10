@@ -681,7 +681,11 @@ static int builtin_cmd(int argc, char *argv[]) {
         return 1;
     }
     if (streq(argv[0], "exit")) {
-        sys_exit2(argc > 1 ? 0 : 0);
+        /* A16-15 FIX: both arms of the ternary were 0, so the documented
+         * `exit [code]` argument was silently dropped (status always 0).
+         * Parse the argument (atoi_: non-numeric -> 0) and pass it on so
+         * a parent's wait4 can observe the real status; no arg stays 0. */
+        sys_exit2(argc > 1 ? atoi_(argv[1]) : 0);
         return 1;
     }
     /* P1-4 FIX: add help builtin */
@@ -923,7 +927,12 @@ static int builtin_cmd(int argc, char *argv[]) {
         int fd = 0;
         int opened = 0;
         if (argc > 1) {
-            fd = sys_open(argv[1], 6);
+            /* A16-6 FIX: wc only READS the file, but flag 6 =
+             * WRONLY(2)|CREAT(4) silently CREATED an empty file when the
+             * path did not exist and reported a bogus `0 0 0`. RDONLY(1)
+             * is the correct mode: a missing path now reports an error
+             * and creates nothing (same flag cat/tail/sed use). */
+            fd = sys_open(argv[1], 1);
             if (fd < 0) {
                 puts_("wc: cannot open ");
                 puts_(argv[1]);
@@ -1075,7 +1084,14 @@ static int builtin_cmd(int argc, char *argv[]) {
         int total = 0;
         int inpos = 0;
         long n;
-        while ((n = sys_read(fd, tbuf + inpos, 4096)) > 0 && inpos < 16384 - 4096) {
+        /* A16-12 FIX: the old condition `inpos < 16384 - 4096` stopped
+         * the loop at 12288 B (the && short-circuit ate the final read),
+         * so tail only ever saw the first 12 KiB of its 16 KiB buffer.
+         * Read until the buffer is genuinely full (or EOF), requesting
+         * exactly the remaining space; the capacity is checked BEFORE
+         * the read, so the NUL below can never land 1 past the end. */
+        while (inpos < (int)sizeof(tbuf) - 1 &&
+               (n = sys_read(fd, tbuf + inpos, (int)sizeof(tbuf) - 1 - inpos)) > 0) {
             inpos += (int)n;
         }
         tbuf[inpos] = 0;
@@ -1241,7 +1257,11 @@ static int builtin_cmd(int argc, char *argv[]) {
             src_fd = fd;
             opened = 1;
         }
-        while ((n = sys_read(src_fd, sbuf + inpos, 4096)) > 0 && inpos < 16384 - 4096) {
+        /* A16-12 FIX: same 12288-B short-read as tail (see there):
+         * `inpos < 16384 - 4096` silently capped sort at the first
+         * 12 KiB of input. Read to the full buffer capacity instead. */
+        while (inpos < (int)sizeof(sbuf) - 1 &&
+               (n = sys_read(src_fd, sbuf + inpos, (int)sizeof(sbuf) - 1 - inpos)) > 0) {
             inpos += (int)n;
         }
         if (opened) sys_close(src_fd);
@@ -1704,8 +1724,13 @@ static int builtin_cmd(int argc, char *argv[]) {
         static char sbuf[16384];
         long total = 0;
         long n;
-        while ((n = sys_read(src_fd, sbuf + total, 4096)) > 0 &&
-               total < (long)sizeof(sbuf) - 4096) {
+        /* A16-12 FIX: same 12288-B short-read as tail (see there); the
+         * old condition also performed the read BEFORE the capacity
+         * check, so a full final read let `sbuf[total] = 0` touch
+         * sbuf[16384] — 1 byte past the buffer. Capacity is checked
+         * first and each read asks for exactly the remaining space. */
+        while (total < (long)sizeof(sbuf) - 1 &&
+               (n = sys_read(src_fd, sbuf + total, (long)sizeof(sbuf) - 1 - total)) > 0) {
             total += n;
         }
         if (opened) sys_close(src_fd);
@@ -1824,9 +1849,17 @@ static int builtin_cmd(int argc, char *argv[]) {
         field_spec[fs] = 0;
         const char *pattern = 0;
         if (argc >= 3 && argv[2][0] == '/') {
+            /* A16-13 FIX: a trailing '/' used to disable the whole
+             * filter (`/apple/` set pattern=0 and was then treated as
+             * the FILE argument -> "awk: cannot open /apple/"). Strip
+             * the trailing '/' and keep filtering; a bare "/" leaves
+             * an empty pattern, which strstr_ always matches (same as
+             * the old bare-/ behavior). */
             pattern = argv[2] + 1;
             int pl = strlen_(pattern);
-            if (pl > 0 && pattern[pl - 1] == '/') pattern = 0;   /* bare / */
+            if (pl > 0 && pattern[pl - 1] == '/') {
+                argv[2][pl - 1] = 0;
+            }
         }
         int file_arg = (pattern ? 3 : 2);
         int src_fd = 0;
@@ -2041,6 +2074,19 @@ static int exec_single(char *cmd) {
      * 0/1, close the redirect fd (refcount now makes this safe), run,
      * then dup2 the saved originals back and close them. */
     if (redir_out || redir_in) {
+        /* A16-14 FIX: the alias check lived only on the no-redirect
+         * path, so `alias ll='ls -l'` + `ll > f` exec'd the literal
+         * "ll" (and failed silently). Expand the command word here too,
+         * BEFORE the redirect fds are opened — an alias that expands to
+         * nothing then no longer creates an empty redirect file. */
+        const char *alr = alias_get(argv[0]);
+        if (alr) {
+            char newcmd[512];
+            strcpy_(newcmd, alr);
+            for (int i = 1; i < argc; i++) { strcat_(newcmd, " "); strcat_(newcmd, argv[i]); }
+            argc = parse_args(newcmd, argv, 32);
+            if (argc == 0) return 0;
+        }
         int saved_out = sys_dup(1);   /* keep the real console slot */
         int saved_in  = sys_dup(0);
         if (redir_out) {

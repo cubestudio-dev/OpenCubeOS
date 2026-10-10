@@ -89,6 +89,7 @@ CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
              -fno-asynchronous-unwind-tables -Wall -Wextra -Werror \
              -O2 -g -std=gnu11 $(KERNEL_INC) \
              -DOC_RELEASE_VERSION=\"$(OC_RELEASE_VERSION)\" \
+             -DOC_KERNEL_BUILD=1 \
              -MMD -MP
 ASFLAGS   := -f elf64 -F dwarf -g
 LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/linker.ld -z max-page-size=0x1000 -z noexecstack

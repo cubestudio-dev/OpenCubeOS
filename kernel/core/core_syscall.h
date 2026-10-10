@@ -119,4 +119,9 @@ void core_syscall_wp08a_init(void);
  * core_syscall_wp08a_init). */
 void core_syscall_wp08fix1_init(void);
 
+/* BUG-0249 FIX (A16-11): shared name -> embedded-ELF lookup used by
+ * sys_execve and the L1 job API (job_create). Stores the program size
+ * in *size_out when size_out != 0. Returns NULL for an unknown name. */
+const u8 *core_userprog_lookup(const char *name, u64 *size_out);
+
 #endif /* OC_SYSCALL_H */

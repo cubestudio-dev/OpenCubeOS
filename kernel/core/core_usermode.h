@@ -31,6 +31,29 @@
 #define USER_BRK_BASE   0x500000ULL
 #define USER_MMAP_BASE  0x3C000000ULL
 
+/* BUG-0281 (A2-9) FIX: ONE authoritative mmap window for mmap, munmap and
+ * mprotect. The three syscalls used to enforce different limits (mmap had
+ * none at all and could grow its bump base past the reach of its own
+ * teardown calls; munmap/mprotect accepted up to USER_MMAP_BASE+256 MiB,
+ * which includes the user stack). The window now ends exactly where the
+ * 64 KiB user stack begins, so a mapping can never overlap the stack and
+ * everything mmap produces is reachable by munmap/mprotect. */
+#define USER_MMAP_WINDOW_END (USER_STACK_TOP - USER_STACK_SIZE)  /* 0x3FFF0000 */
+#define USER_MMAP_WINDOW     (USER_MMAP_WINDOW_END - USER_MMAP_BASE)
+
+/* BUG-0281: per-process bookkeeping for the mmap window. mmap records
+ * every allocation so munmap/mprotect can verify that the caller owns the
+ * pages it tears down or re-protects (foreign/unmapped window ranges are
+ * rejected instead of silently ignored). Regions are NOT inherited across
+ * fork, matching sys_fork's documented non-inheritance of mmap_base
+ * (A2-10): the child restarts the bump at USER_MMAP_BASE with an empty
+ * table. start == 0 marks a free slot (the window starts at 0x3C000000). */
+#define PROC_MAX_MMAP_REGIONS 16
+typedef struct {
+    u64 start;   /* page-aligned VA of the region; 0 = slot free */
+    u64 pages;   /* region length in 4 KiB pages */
+} proc_mmap_region_t;
+
 /* WP-08b Batch 5: dynamic linking address space layout:
  *   0x08000000  - ld.so API table (R+W page, 1 page)
  *   0x10000000  - ld.so itself (R+E, fixed)
@@ -48,6 +71,11 @@
 
 /* Maximum FDs per process (includes VFS fds + pipe fds) */
 #define PROC_MAX_FDS 32
+
+/* BUG-0278 FIX (A2-14): per-process working directory buffer length.
+ * Matches the kernel shell's SHELL_CWD_LEN so a cwd built by either
+ * side always fits the other side's buffers. */
+#define USER_CWD_LEN 256
 
 /* PID type. */
 typedef int pid_t;
@@ -75,6 +103,12 @@ typedef struct user_proc {
     int        waited;
     int        pending_signal;
     char       name[32];
+
+    /* BUG-0278 FIX (A2-14): per-process working directory. chdir/getcwd
+     * and relative-path resolution use THIS copy, not the kernel shell's
+     * global g_cwd, so one process's cd can no longer move every other
+     * process's path base. Fork copies it, exec preserves it (POSIX). */
+    char       cwd[USER_CWD_LEN];
 
     /* WP-08a: per-process file descriptor table */
     sys_proc_fd_t  fds[PROC_MAX_FDS];
@@ -112,6 +146,10 @@ typedef struct user_proc {
      * cross-process memory corruption). Initialized to USER_MMAP_BASE
      * on first mmap call. */
     u64        mmap_base;
+
+    /* BUG-0281 (A2-9): mmap window region table (see above). Zeroed with
+     * the rest of the struct when a process slot is claimed. */
+    proc_mmap_region_t mmap_regions[PROC_MAX_MMAP_REGIONS];
 } user_proc_t;
 
 /* Syscall handler function type. */

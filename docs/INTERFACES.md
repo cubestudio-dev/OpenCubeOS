@@ -1,7 +1,10 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS — Interface Index (as of WP-10d-fix2)
+# Open Cube OS — Interface Index
+
+Interface numbering 1-138 closed as of WP-10-wp08fix1; counts re-verified
+2026-10-09 at WP-10-AUDIT_P2-fix3.
 
 Single-page index of every interface Open Cube OS exposes to upper layers
 (L1) and to the shell. Signatures are copied verbatim from the headers —
@@ -13,7 +16,7 @@ storage drivers: AHCI / NVMe / ATA DMA / virtio-blk) and
 docs/EXTENSIONS_WP10b.md (WP-10b, NIC drivers: e1000e / igb / ixgbe /
 RTL8139 / RTL8168 / RTL8125 / RTL810x / BCM57xx / legacy others).
 
-## 1. L0 → L1 extension API (kernel/ext*.h)
+## 1. L0 → L1 extension API (l1/*.h + the per-domain driver headers)
 
 ### l1/l1_ext.h — WP-01 (framebuffer / renderer / font / console)
 
@@ -62,7 +65,26 @@ job_create / job_list / job_control
 ```
 (7 functions.)
 
-### l1/l1_wp2.h, ext_wp3.h, ext_wp7.h
+### shell/shell_lineedit.h + shell/editor.h — WP-10-wp08fix1 (items 130-138)
+
+```c
+/* kernel-side oc> line editor: */
+void        shell_lineedit_init(void);                     /* item 130 */
+void        shell_lineedit_history_add(const char *cmd);   /* item 131 */
+const char *shell_lineedit_history_get(int idx);           /* item 132 */
+void        shell_lineedit_cursor_move(int dir);           /* item 133 */
+int         shell_lineedit_tab_complete(void);             /* item 134 */
+int         shell_lineedit_ctrlc(void);                    /* item 135 */
+/* nano-style full-screen editor: */
+int         editor_open(const char *file);                 /* item 136 */
+int         editor_save(void);                             /* item 137 */
+int         editor_close(void);                            /* item 138 */
+```
+(9 numbered items — the interface numbering 1-138 closes here. Signatures
+verbatim from docs/EXTENSIONS_WP10-wp08fix1.md; the same batch added the
+VFS link/symlink + chmod/chown surface and SYS 96-102.)
+
+### l1/l1_wp2.h, l1/l1_wp3.h, l1/l1_wp7.h
 
 Type/macro-only headers (no callable functions) for WP-02/WP-03/WP-07
 subsystem structures. The WP-02/03/05/06/07 "extension points" are exposed
@@ -111,7 +133,7 @@ DH truth vectors for self-test: kernel/crypto/crypto_dh_scale_vectors.h.
 | Shell + command registration | shell/shell.h | shell_register_command, shell_execute_captured (WP-09) |
 | PMM / VMM / heap | kernel/mem/mem_pmm.h, vmm.h, heap.h | mem_pmm_alloc_frame, mem_vmm_*, kmalloc/kfree/krealloc |
 | Scheduler + sync | kernel/core/core_sched.h, sync.h | core_sched_*, spinlock/mutex/sem/cond |
-| User mode + syscalls | kernel/core/core_usermode.h, syscall.h | user_process_create, syscall dispatch (37 syscalls) |
+| User mode + syscalls | kernel/core/core_usermode.h, syscall.h | user_process_create, syscall dispatch (46 syscalls, SYS 0-102) |
 | VFS + ramfs | fs/fs_vfs.h, ramfs.h | fs_vfs_open/read/write/stat/... |
 | Network (TCP/IP) | net/net_core.h | net_socket/connect/send/recv/accept/close, net_dns_resolve, cmd-level: dhcp/ping/wget/dns/route/arp/firewall/tcpstats |
 | Block + FS | drivers/block/driver_block_blk.h, part.h, fat32.h, exfat.h, ext4.h | driver_block_*, vfs mount (FAT32 R/W, exFAT R/W, ext4 RO) |
@@ -121,6 +143,8 @@ DH truth vectors for self-test: kernel/crypto/crypto_dh_scale_vectors.h.
 | USB host stack (WP-10d) | drivers/usb/driver_usb.h | driver_usb_register_host(host, ops), driver_usb_enumerate_host(host), driver_usb_control_transfer(d, setup, buf, len), driver_usb_bulk_transfer(d, ep, buf, len) (+ _timeout), driver_usb_interrupt_transfer(d, ep, buf, len), driver_usb_isochronous_transfer(d, ep, buf, len), driver_usb_register_driver(name, class, probe, disconnect), driver_usb_uhci_init / driver_usb_ohci_init / driver_usb_ehci_init / driver_usb_xhci_init(driver_pci_dev); class drivers hid-kbd/hid-mouse/usb-msc/usb-serial/usb-audio; shell: usb, usbdev |
 | Power mgmt + structured help (WP-10d-fix2) | kernel/core/core_power.h, shell/shell.h | core_power_shutdown(void), core_power_suspend(void), core_power_halt(void), core_power_reboot(void) (kernel/core/core_power.h); shell_register_command_ex(name, fn, help, wp), shell_list_commands_a_z(void), shell_list_commands_by_wp(void) (shell/shell.h); L1 wrappers l1_ext_power_* / l1_ext_shell_* (l1/l1_ext.h) |
 | TCP socket state (WP-10a-fix) | net/net_core.h | net_tcp_established(fd), net_tcp_established_or_close_wait(fd) (WP-10-AUDIT_P2-fix2: 1 when the connection is ESTABLISHED or CLOSE_WAIT, i.e. sending a close_notify alert is still legal) |
+| Config + update check (WP-09-fix5, unnumbered) | l1/l1_ext.h, kernel/config.h | l1_ext_config_read(key, val_out, outlen), l1_ext_config_write(key, value), l1_ext_config_get_all(buf, buflen) (/etc/opencube.conf), l1_ext_check_update(&info), l1_ext_check_update_async(void); see docs/CONFIG.md |
+| Rule-9 self-hosting (WP-10c-selfhost, unnumbered) | drivers/block/driver_block_part.h, kernel/ota/ota_ab.h, kernel/arch/x86_64/arch_multiboot2.h | driver_block_part_register_child(...), driver_block_part_write_mbr_table(...), driver_block_part_scan_register_all(void), ota_ab_rescan(void), arch_multiboot2_get_kernel_self(&data, &size); shell: abdisk / install / grub-install / abcfg — docs/EXTENSIONS_SELFHOST.md |
 
 ## 4. Shell command surface
 

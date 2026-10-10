@@ -125,19 +125,56 @@ int core_timer_register_periodic(core_timer_cb_fn fn, void *ctx, u64 interval_ms
     return -2;
 }
 
+/* BUG-0289 FIX (A3-12): the whole find+fill sequence runs inside an
+ * irqsave window.  The old code published in_use FIRST and filled
+ * next_fire_ms/fn afterwards with interrupts enabled, so an IRQ0 scan
+ * hitting that window saw a timer that was "in use, due now, with a
+ * NULL fn" and released the slot (in_use = 0) - the registration then
+ * completed into a cancelled slot and returned a valid id for a timer
+ * that would never fire (or, on slot reuse, fire a stale callback).
+ * Two defences, both cheap: interrupts stay disabled for the few
+ * instructions of the fill (so the IRQ0 scan cannot interleave at
+ * all), and in_use is published LAST so even a hypothetical observer
+ * never sees a half-filled slot.  Flags are restored with popfq (not
+ * sti) so a caller that is already inside a cli section keeps IF=0,
+ * same convention as the spinlocks. */
 int core_timer_register_oneshot(core_timer_cb_fn fn, void *ctx, u64 delay_ms) {
     if (!fn || delay_ms == 0) return -1;
+    u64 flags;
+    __asm__ volatile(
+        "pushfq\n"
+        "popq %0\n"
+        "cli\n"
+        : "=r"(flags)
+        :
+        : "memory");
     for (int i = 0; i < OC_MAX_TIMERS; i++) {
         if (!g_timers[i].in_use) {
-            g_timers[i].in_use        = 1;
             g_timers[i].periodic      = 0;
             g_timers[i].interval_ms   = delay_ms;
+            /* core_timer_now_ms is itself irqsave (pushf/cli/popf), safe
+             * to nest inside this window; g_boot_ms cannot advance while
+             * IF=0 so the deadline is exact. */
             g_timers[i].next_fire_ms  = core_timer_now_ms() + delay_ms;
             g_timers[i].fn            = fn;
             g_timers[i].ctx           = ctx;
+            __asm__ volatile("mfence" ::: "memory");
+            g_timers[i].in_use        = 1;   /* publish LAST */
+            __asm__ volatile(
+                "pushq %0\n"
+                "popfq\n"
+                :
+                : "r"(flags)
+                : "memory");
             return i;
         }
     }
+    __asm__ volatile(
+        "pushq %0\n"
+        "popfq\n"
+        :
+        : "r"(flags)
+        : "memory");
     return -2;
 }
 

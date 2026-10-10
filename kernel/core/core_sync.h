@@ -10,11 +10,22 @@
 #include "types.h"
 #include "core_sched.h"   /* for tid_t */
 
-/* ---- Spinlock ---- */
+/* ---- Spinlock ----
+ * BUG-0285 (A3-08): irqsave/irqrestore semantics. spin_lock records the
+ * caller's RFLAGS.IF in _saved_flags (the slot P2-46 reserved for
+ * exactly this) and runs the critical section with IF=0; spin_unlock
+ * releases the lock FIRST and only then restores IF, so on this single
+ * CPU a lock is never observed held by a context that can be preempted
+ * while holding it: an IRQ handler can only run when no irqsave holder
+ * is inside its critical section, so it can never spin on a holder
+ * that cannot make progress. The remaining contract is unchanged and
+ * is enforced by review, not hardware: holders must not sleep, yield
+ * or block inside a spinlock critical section (every in-tree caller -
+ * core_sync.c sem/cond windows and main.c synctest - satisfies this). */
 typedef struct {
     volatile int locked;
     u64          lock_count;  /* total acquisitions */
-    u64          _saved_flags; /* P2-46: saved RFLAGS for cli/sti */
+    u64          _saved_flags; /* irqsave: caller's RFLAGS at acquire */
 } spinlock_t;
 
 void spin_init(spinlock_t *lock);
@@ -37,11 +48,31 @@ void sem_init(sem_t *sem, int initial);
 void sem_wait(sem_t *sem);
 void sem_post(sem_t *sem);
 
-/* ---- Mutex (with priority inheritance) ---- */
+/* ---- Mutex ----
+ * BUG-0286 (A3-09): FIFO waiter management, NO priority inheritance.
+ * The header used to claim "with priority inheritance" while owner_prio
+ * was written and never read - no PI logic ever existed. That claim is
+ * gone. The real semantics on this single-CPU, fixed-priority kernel:
+ * contended lockers register in m->waiters[] in arrival order and BLOCK
+ * (register + BLOCKED inside one cli window, the same lost-wakeup shape
+ * as sem_wait's P0-5 fix; acquire + owner-registration is likewise one
+ * cli window, and mutex_unlock clears the owner + releases inside one).
+ * mutex_unlock wakes the FIFO head, sweeping waiters whose tid died
+ * while queued. A holder killed while HOLDING the mutex is force-
+ * released by the next contended mutex_lock (dead-owner check) - the
+ * lock object cannot wedge forever, although the dead holder's critical
+ * section is not rolled back, exactly like a POSIX mutex held by a
+ * cancelled thread. A woken waiter re-contends through the normal
+ * acquire path; a higher-priority locker may still barge ahead of it
+ * between release and re-acquire - that is documented unfairness, not
+ * priority inheritance. There is deliberately no PI: single CPU,
+ * fixed priorities, no RT workload (see findings A3-09). */
+#define MUTEX_MAX_WAITERS 16
 typedef struct {
     volatile int locked;
     tid_t        owner;       /* tid of the task holding the lock */
-    int          owner_prio;  /* original priority of the owner (for PI) */
+    tid_t        waiters[MUTEX_MAX_WAITERS];  /* FIFO queue of blocked tids */
+    int          num_waiters;
     u64          lock_count;
 } mutex_t;
 

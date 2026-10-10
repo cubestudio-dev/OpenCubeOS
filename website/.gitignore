@@ -4,7 +4,10 @@ out/
 next-env.d.ts
 *.tsbuildinfo
 .DS_Store
-# Downloadable WP-09 assets are part of the site (self-hosted downloads);
-# un-ignore them against the repo-root "*.iso" / "*.zip" rules.
+# Downloadable release assets are part of the site (self-hosted
+# /downloads/ AND published on GitHub Releases); these un-ignore rules
+# carve them out of the repo-root "*.iso" / "*.zip" rules on purpose.
+# The site treats them as content: website/build-local.sh re-verifies
+# their sha256 against lib/site.ts on every build (fix3 G5, BUG-0266/0272).
 !public/downloads/*.iso
 !public/downloads/*.zip

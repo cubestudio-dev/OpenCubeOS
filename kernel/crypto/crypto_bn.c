@@ -18,9 +18,12 @@
  * Uses unsigned __int128 for 64x64->128 multiplies (gcc builtin for
  * x86_64, works in freestanding mode, no libc involved).
  *
- * Threading note: crypto_bn_mod_exp uses a static workspace; the kernel runs one
- * TLS/SSH session at a time (shell command or boot auto-check), so this is
- * acceptable and documented in the WP report.
+ * Threading note (BUG-0294 / A4-07): crypto_bn_mod_exp used to run on three
+ * file-static 576 B arrays, which made the whole bignum layer non-reentrant;
+ * it now uses per-call stack workspace (see the note above the function), so
+ * there is no shared state left in this file. Reentrancy is bounded by the
+ * single-CPU kernel (an interrupt path may nest a crypto call safely); this
+ * is NOT an SMP-safe claim - there is still no locking, by design.
  */
 #include "crypto_bn.h"
 #include "lib_string.h"
@@ -195,10 +198,16 @@ void crypto_bn_mont_mul(u64 *out, const u64 *a, const u64 *b,
     crypto_bn_mont_redc(out, t, m, n, n0inv);
 }
 
-/* ---- Shared workspace for modexp ---- */
-static u64 ws_a[BN_MAX_LIMBS];   /* accumulator */
-static u64 ws_b[BN_MAX_LIMBS];   /* base in Montgomery domain */
-static u64 ws_m[BN_MAX_LIMBS];   /* modulus */
+/* ---- modexp workspace ----
+ * BUG-0294 (A4-07) FIX: these were three file-static 576 B arrays shared by
+ * every crypto_bn_mod_exp call, making the whole bignum layer (RSA verify
+ * in tls/ssh/x509, ECDSA scalar math) non-reentrant: an interleaved call
+ * trampled the accumulator/base/modulus mid-exponentiation and could flip
+ * verification results either way. They are now per-call locals (3 x 576 B
+ * on the caller's stack, kthread stacks are 24 KiB); no cli window is
+ * needed because there is no shared state left at all, and modexp runs
+ * with interrupts enabled as before (a seconds-long cli window would stall
+ * IRQ0 timekeeping). */
 
 int crypto_bn_mod_exp(u8 *out, int out_len,
                const u8 *base, int base_len,
@@ -208,6 +217,8 @@ int crypto_bn_mod_exp(u8 *out, int out_len,
     if ((mod[mod_len - 1] & 1) == 0) return -1;   /* modulus must be odd */
     int n = (mod_len + 7) / 8;
     if (n > BN_MAX_LIMBS) return -1;
+
+    u64 ws_a[BN_MAX_LIMBS], ws_b[BN_MAX_LIMBS], ws_m[BN_MAX_LIMBS];
 
     crypto_bn_from_be(ws_m, n, mod, mod_len);
     u64 n0 = crypto_bn_mont_n0inv(ws_m, n);

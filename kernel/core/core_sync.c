@@ -23,34 +23,58 @@ void sync_get_stats(sync_stats_t *out) {
 void spin_init(spinlock_t *lock) {
     lock->locked = 0;
     lock->lock_count = 0;
+    lock->_saved_flags = 0;
 }
 
-/* P2-46: spinlock does NOT cli/sti. On this single-CPU kernel, IRQ
- * handlers (timer, keyboard, network poll) do not acquire spinlocks
- * except in carefully controlled paths (timer IRQ calls net_poll which
- * uses e1000 registers directly, not spinlocks). Disabling interrupts
- * in spin_lock would prevent the timer from firing, causing tasks that
- * spin on a lock to monopolize the CPU (verified: synctest dropped to
- * 515/3000). So we keep the simple non-IRQ-safe spinlock. */
+/* BUG-0285 (A3-08) FIX: spinlocks are now IRQ-safe (irqsave/irqrestore
+ * semantics). The old P2-46 decision left the lock non-IRQ-safe with
+ * only a comment as protection: on this single-CPU kernel, if an IRQ
+ * handler ever acquired a spinlock held by the interrupted context, the
+ * handler would spin forever on a holder that can no longer run - an
+ * unpreemptible deadlock with no assertion to catch it (verified: the
+ * timer -> net_poll path does not take these locks today, but nothing
+ * enforced that invariant). Now spin_lock saves RFLAGS and clears IF
+ * before the test-and-set, and spin_unlock releases the lock FIRST and
+ * only then restores the IF state recorded at acquisition time (the
+ * _saved_flags slot reserved by P2-46). Release-before-restore is what
+ * makes the scheme correct on one CPU: at the instant IF comes back the
+ * lock is already free, so a preemption can never observe a held lock
+ * whose holder is no longer running. A holder can no longer be
+ * interrupted, so an IRQ can never contend with its own holder; timer
+ * delivery resumes at spin_unlock. Holders must still not sleep/yield
+ * inside a spinlock critical section (unchanged contract; verified for
+ * every in-tree caller: core_sync.c sem/cond windows and main.c
+ * synctest never yield while holding). Recursive spin_lock on a lock
+ * the caller already holds remains a programming error (self-deadlock),
+ * as before. */
 void spin_lock(spinlock_t *lock) {
+    u64 flags;
+    __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags) :: "memory");
     while (__sync_lock_test_and_set(&lock->locked, 1)) {
         __asm__ volatile("pause");
     }
+    lock->_saved_flags = flags;
     lock->lock_count++;
     g_stats.spin_locks++;
 }
 
 void spin_unlock(spinlock_t *lock) {
+    u64 flags = lock->_saved_flags;
     __sync_lock_release(&lock->locked);
+    if (flags & 0x200) __asm__ volatile("sti" ::: "memory");
     g_stats.spin_unlocks++;
 }
 
 int spin_trylock(spinlock_t *lock) {
+    u64 flags;
+    __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags) :: "memory");
     if (__sync_lock_test_and_set(&lock->locked, 1) == 0) {
+        lock->_saved_flags = flags;
         lock->lock_count++;
         g_stats.spin_locks++;
         return 1;
     }
+    if (flags & 0x200) __asm__ volatile("sti" ::: "memory");
     return 0;
 }
 
@@ -77,7 +101,9 @@ void sem_wait(sem_t *sem) {
          * BLOCKED while still holding the spinlock. This closes the
          * lost-wakeup race: if sem_post runs between our unlock and
          * core_sched_yield, it will see us in the waiter list AND see our
-         * state as BLOCKED, so core_kthread_wake will succeed. */
+         * state as BLOCKED, so core_kthread_wake will succeed. Under the
+         * BUG-0285 irqsave spinlock the whole critical section is also
+         * non-interruptible, which only strengthens that guarantee. */
         tid_t my_tid = core_kthread_current_tid();
         if (sem->num_waiters < SEM_MAX_WAITERS) {
             sem->waiters[sem->num_waiters++] = my_tid;
@@ -166,34 +192,146 @@ void sem_post(sem_t *sem) {
     }
 }
 
-/* ---- Mutex ---- */
+/* ---- Mutex ----
+ * BUG-0286 (A3-09) FIX: real FIFO waiter management. The old lock was a
+ * bare test-and-set + yield-retry loop with an owner_prio field that no
+ * PI logic ever read (the header claimed priority inheritance; none
+ * existed). Three cli windows make the object internally consistent on
+ * this single CPU:
+ *   (1) mutex_lock: test-and-set + owner registration are ONE window,
+ *       so locked==1 always implies a registered, resolvable owner;
+ *   (2) mutex_lock (contended): waiter registration + BLOCKED is ONE
+ *       window (same lost-wakeup shape as sem_wait's P0-5 fix);
+ *   (3) mutex_unlock: owner clear + release + FIFO sweep is ONE window.
+ * mutex_unlock wakes the FIFO head, sweeping waiters whose tid died
+ * while queued. The dead-owner case is also handled: a contended
+ * mutex_lock that finds its owner destroyed/EXITED force-releases the
+ * lock so the object cannot wedge forever (the dead holder's critical
+ * section is not rolled back - documented exposure, like a POSIX mutex
+ * held by a cancelled thread). There is deliberately NO priority
+ * inheritance - see core_sync.h. */
 void mutex_init(mutex_t *m) {
     m->locked = 0;
     m->owner = -1;
-    m->owner_prio = 0;
+    m->num_waiters = 0;
+    for (int i = 0; i < MUTEX_MAX_WAITERS; i++) m->waiters[i] = (tid_t)-1;
     m->lock_count = 0;
+}
+
+/* Pop the FIFO head that is still a live BLOCKED task. Caller must hold
+ * the cli window; dead/no-longer-blocked tids are swept off the queue. */
+static tid_t mutex_pop_live_waiter(mutex_t *m) {
+    while (m->num_waiters > 0) {
+        tid_t cand = m->waiters[0];
+        for (int i = 1; i < m->num_waiters; i++)
+            m->waiters[i - 1] = m->waiters[i];
+        m->waiters[m->num_waiters - 1] = (tid_t)-1;
+        m->num_waiters--;
+        extern task_t *core_kthread_get_task(tid_t);  /* sched.h */
+        task_t *t = core_kthread_get_task(cand);
+        if (t && t->state == TASK_BLOCKED) return cand;
+        /* Dead (EXITED/destroyed) or no longer blocked: drop it and
+         * keep scanning (same policy as sem_post's P4 fix). */
+    }
+    return -1;
 }
 
 void mutex_lock(mutex_t *m) {
     tid_t my_tid = core_kthread_current_tid();
-    while (__sync_lock_test_and_set(&m->locked, 1)) {
-        /* Contended: yield and retry. */
-        core_sched_yield();
+    for (;;) {
+        u64 flags;
+        __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags) :: "memory");
+        if (__sync_lock_test_and_set(&m->locked, 1) == 0) {
+            /* Window (1): the CAS and the owner registration are atomic
+             * against every other mutex_lock/unlock on this single CPU,
+             * so "locked && owner unregistered" can never be observed. */
+            m->owner = my_tid;
+            m->lock_count++;
+            g_stats.mutex_locks++;
+            if (flags & 0x200) __asm__ volatile("sti" ::: "memory");
+            return;
+        }
+        /* Contended. locked==1 now implies a valid owner (window (1)/(3)
+         * invariants), so the dead-owner probe below is reliable. Note
+         * owner may legitimately be tid 0 (the idle task hosts the shell
+         * and its synctest/g7test threads), so the probe goes through
+         * core_kthread_get_task for ANY owner value: -1 has no task
+         * (-> force-release), 0 is the live idle task (-> normal
+         * contention path). */
+        task_t *ow = core_kthread_get_task(m->owner);
+        if (ow == 0 || ow->state == TASK_EXITED) {
+            /* A3-09: the holder was killed/destroyed while holding the
+             * mutex. Force-release so the lock cannot stay locked
+             * forever, sweep dead waiters and wake the first live one.
+             * The dead holder's critical section is not rolled back
+             * (documented exposure); the goal is that the lock object
+             * itself recovers. */
+            m->owner = -1;
+            __sync_lock_release(&m->locked);
+            tid_t to_wake = mutex_pop_live_waiter(m);
+            if (flags & 0x200) __asm__ volatile("sti" ::: "memory");
+            if (to_wake >= 0) core_kthread_wake(to_wake);
+            continue;  /* race the acquire again */
+        }
+        if (m->num_waiters < MUTEX_MAX_WAITERS) {
+            /* Window (2): register as FIFO waiter AND go BLOCKED before
+             * dropping the cli, so an unlock in between can always wake
+             * us (it will find us registered and BLOCKED). */
+            m->waiters[m->num_waiters++] = my_tid;
+            task_t *me = core_kthread_current();
+            if (me) me->state = TASK_BLOCKED;
+            if (flags & 0x200) __asm__ volatile("sti" ::: "memory");
+            core_sched_yield();  /* BLOCKED; mutex_unlock will wake us */
+            /* Woken: mutex_unlock/force-release popped us off the queue
+             * before waking (the pop is what selects the wake target), so
+             * the self-sweep below is an idempotent safety net, not the
+             * primary removal path. Then loop back and re-contend through
+             * the normal acquire path - unlock does not hand the lock
+             * over, it wakes the FIFO head to re-contend. */
+            __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags) :: "memory");
+            for (int i = 0; i < m->num_waiters; i++) {
+                if (m->waiters[i] == my_tid) {
+                    for (int j = i; j < m->num_waiters - 1; j++)
+                        m->waiters[j] = m->waiters[j + 1];
+                    m->waiters[m->num_waiters - 1] = (tid_t)-1;
+                    m->num_waiters--;
+                    break;
+                }
+            }
+            if (flags & 0x200) __asm__ volatile("sti" ::: "memory");
+        } else {
+            /* Waiter table full: fail-open retry (same policy as
+             * sem_wait's BUG-046 fix - never BLOCK without being
+             * registered, or nobody can ever wake us). Stay RUNNING so
+             * the scheduler just gives the CPU back later. */
+            if (flags & 0x200) __asm__ volatile("sti" ::: "memory");
+            core_sched_yield();
+        }
     }
-    m->owner = my_tid;
-    m->owner_prio = core_kthread_current()->priority;
-    m->lock_count++;
-    g_stats.mutex_locks++;
 }
 
 void mutex_unlock(mutex_t *m) {
-    /* P1-11 FIX: check that the caller actually owns the mutex. */
+    /* P1-11 FIX: check that the caller actually owns the mutex. Done
+     * inside window (3): on this single CPU the owner of a locked mutex
+     * can only be the caller itself (it registered under cli in window
+     * (1)), so a mismatch is a genuine user error and is ignored, as
+     * before. */
+    u64 flags;
+    __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags) :: "memory");
     tid_t my_tid = core_kthread_current_tid();
-    if (m->owner != my_tid) return;  /* not the owner — ignore */
+    if (m->owner != my_tid) {
+        if (flags & 0x200) __asm__ volatile("sti" ::: "memory");
+        return;  /* not the owner: ignore */
+    }
     m->owner = -1;
-    __sync_lock_release(&m->locked);
     g_stats.mutex_unlocks++;
-    core_sched_yield();
+    __sync_lock_release(&m->locked);
+    tid_t to_wake = mutex_pop_live_waiter(m);
+    if (flags & 0x200) __asm__ volatile("sti" ::: "memory");
+    if (to_wake >= 0) core_kthread_wake(to_wake);
+    /* A3-09: the old unconditional core_sched_yield() on every unlock
+     * cost an extra context switch even when nobody was waiting; waking
+     * the FIFO head is sufficient. */
 }
 
 /* ---- Condition variable ---- */
@@ -281,7 +419,10 @@ void cond_broadcast(cond_t *c) {
     if (c->waiters > 0) {
         c->signal_count += c->waiters;
         g_stats.cond_signals += c->waiters;
-        /* P0-5 FIX: wake all waiters. */
+        /* P0-5 FIX: wake all waiters. core_kthread_wake only touches the
+         * task table + ready queue under its own cli window (it never
+         * sleeps or yields), so it is safe to call while holding this
+         * irqsave spinlock. */
         for (int i = 0; i < COND_MAX_WAITERS; i++) {
             if (c->waiter_tids[i] != 0 && c->waiter_tids[i] != (tid_t)-1) {
                 core_kthread_wake(c->waiter_tids[i]);

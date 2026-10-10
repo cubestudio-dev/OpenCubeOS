@@ -494,7 +494,18 @@ static int shell_cmd_play(const char *args) {
     strcpy(line, "play: ");
     strcat(line, dev->name);
     strcat(line, " 440Hz ");
-    u64_to_str((u64)(bytes / (u32)(dev->channels * 2)), n);
+    /* BUG-0243 FIX (A15-17): a card that reports channels == 0 (broken
+     * descriptor / HID quirk) made this line a kernel divide-by-zero:
+     * driver_snd_make_tone() returns 0 bytes for channels < 1, and
+     * 0 / (0 * 2) is still a #DE fault. Compute the frame count only
+     * for a usable channel count and report 0 frames otherwise (the
+     * play below then reports the device error honestly, since a
+     * zero-byte PCM is rejected by driver_snd_play). */
+    if (dev->channels >= 1) {
+        u64_to_str((u64)(bytes / (u32)(dev->channels * 2)), n);
+    } else {
+        u64_to_str(0, n);
+    }
     strcat(line, n);
     strcat(line, " frames @ ");
     u64_to_str(rate, n); strcat(line, n);

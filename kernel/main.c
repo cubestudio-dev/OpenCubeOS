@@ -14,9 +14,13 @@
 #include "arch_multiboot2.h"
 #include "screen_fb.h"
 #include "crypto_core.h"
+#include "crypto_sha512.h"   /* BUG-0292 FIX: RFC 4231 HMAC-SHA-384 KAT in cryptotest */
 #include "screen_font.h"
 #include "screen_console.h"
 #include "l1_ext.h"
+#include "l1_wp8a.h"   /* BUG-0254 FIX: the 21 int 0x80 wrappers get kernel-side callers (l1test step 8) */
+#include "g7test.h"   /* WP-10-AUDIT_P2-fix3 G7: sched/sync regression suite (BUG-0282..0286), l1test step 9 */
+#include "g8test.h"   /* WP-10-AUDIT_P2-fix3 G8: clock/power/timer regression suite (BUG-0287..0289,0291), l1test step 10 */
 #include "lib_log.h"
 #include "lib_string.h"
 #include "crypto_dh_scale_vectors.h"  /* WP-09 debug: modexp scale-sweep truth vectors */
@@ -119,6 +123,8 @@ extern const u8 userprog_main_dyn[];
 extern const u64 userprog_main_dyn_size;
 extern const u8 userprog_mmap_multi[];
 extern const u64 userprog_mmap_multi_size;
+extern const u8 userprog_g7mmap[];      /* WP-10-AUDIT_P2-fix3 G7: BUG-0281 regression */
+extern const u64 userprog_g7mmap_size;
 extern const u8 userprog_ush[];
 extern const u8 userprog_test_min[];
 extern const u64 userprog_test_min_size;
@@ -144,6 +150,14 @@ extern const u8 userprog_select_zero_test[];
 extern const u64 userprog_select_zero_test_size;
 extern const u8 userprog_int3_user[];
 extern const u64 userprog_int3_user_size;
+extern const u8 userprog_g6_test[];
+extern const u64 userprog_g6_test_size;
+extern const u8 userprog_g6_exec_a[];
+extern const u64 userprog_g6_exec_a_size;
+extern const u8 userprog_g6_exec_b[];
+extern const u64 userprog_g6_exec_b_size;
+extern const u8 userprog_g6_oom[];
+extern const u64 userprog_g6_oom_size;
 
 /* Direct serial output via I/O port 0x3F8 (COM1). */
 static inline void outb(u16 port, u8 v) {
@@ -465,12 +479,36 @@ static int shell_cmd_cryptotest(const char *args) {
         screen_console_puts("    HMAC-SHA256: FAIL\n");
     }
 
+    /* Test 4: HMAC-SHA-384 test vector (RFC 4231 Test Case 1) - BUG-0292 FIX.
+     * crypto_hmac_sha384 used to be truncated HMAC-SHA-512 (dormant bug);
+     * the KAT pins the real SHA-384-IV HMAC. Full 48-byte compare. */
+    static const u8 hmac384_tc1[48] = {
+        0xaf,0xd0,0x39,0x44,0xd8,0x48,0x95,0x62,0x6b,0x08,0x25,0xf4,0xab,0x46,0x90,0x7f,
+        0x15,0xf9,0xda,0xdb,0xe4,0x10,0x1e,0xc6,0x82,0xaa,0x03,0x4c,0x7c,0xeb,0xc5,0x9c,
+        0xfa,0xea,0x9e,0xa9,0x07,0x6e,0xde,0x7f,0x4a,0xf1,0x52,0xe8,0xb2,0xfa,0x9c,0xb6
+    };
+    u8 h384[48];
+    crypto_hmac_sha384(crypto_hmac_key, 20, (const u8*)"Hi There", 8, h384);
+    strcpy(buf, "  HMAC-SHA384 = ");
+    for (int i = 0; i < 16; i++) {
+        u64_to_hex(h384[i], hex, 2);
+        strcat(buf, hex);
+    }
+    strcat(buf, "...\n");
+    screen_console_puts(buf);
+    if (memcmp(h384, hmac384_tc1, 48) == 0) {
+        screen_console_puts("    HMAC-SHA384: PASS\n");
+        pass++;
+    } else {
+        screen_console_puts("    HMAC-SHA384: FAIL\n");
+    }
+
     strcpy(buf, "  ");
     u64_to_str((u64)pass, hex);
     strcat(buf, hex);
-    strcat(buf, "/3 tests passed\n");
+    strcat(buf, "/4 tests passed\n");
     screen_console_puts(buf);
-    return (pass == 3) ? 0 : 1;
+    return (pass == 4) ? 0 : 1;
 }
 
 /* WP-09: dhtest — verify DH modexp correctness + measure performance.
@@ -1386,8 +1424,10 @@ static int shell_cmd_crashlog(const char *args) {
     return 0;
 }
 
-/* WP-03 fix 4: cr3test - test CR3 switching. */
-static int shell_cmd_cr3test(const char *args) {
+/* WP-03 fix 4: cr3test - test CR3 switching.
+ * Non-static (G8 batch): the regression suite's E-group drives this
+ * real handler with a drained PMM (BUG-0291 probe). */
+int shell_cmd_cr3test(const char *args) {
     (void)args;
     screen_console_puts("CR3 switch test:\n");
     char buf[80]; char hex[20];
@@ -1404,6 +1444,17 @@ static int shell_cmd_cr3test(const char *args) {
 
     /* Map a page at 4 GiB in the new space. */
     u64 phys = mem_pmm_alloc_frame();
+    /* BUG-0291 FIX (A3-14): the old code ignored the allocation result:
+     * with the PMM exhausted phys==0 got mapped (frame 0!), the test ran
+     * to completion and freed frame 0 back - while still reporting
+     * "PASS".  vmtest's call of the same allocator checks and cleans up
+     * (main.c vmtest); cr3test now does the same: reject, release the
+     * freshly created address space so no frame leaks, return failure. */
+    if (phys == 0) {
+        screen_console_puts("  FAIL: alloc_frame (PMM exhausted)\n");
+        mem_vmm_destroy_address_space(new_as);
+        return 1;
+    }
     mem_vmm_map_page(new_as, 0x100000000ULL, phys, VMM_FLAGS_USER);
     u64 mapped;
     int ok = mem_vmm_is_mapped(new_as, 0x100000000ULL, &mapped);
@@ -1983,84 +2034,228 @@ static int shell_cmd_spawn(const char *args) {
     return 0;
 }
 
-/* P1-6: l1test — kernel shell command that calls L1 job interfaces
- * with a live process. Steps:
- * 1. Run loop (long-running) to create an alive process
- * 2. Call job_create() — should find the loop process, return job_id
- * 3. Call job_list() — should show the job as active
- * 4. Call job_control(bg) — should succeed
- * 5. Call job_control(kill) — should destroy the job + mark inactive */
+/* P1-6: l1test — kernel shell command that exercises the L1 extension
+ * surfaces with live processes. Steps:
+ * 1. job_create("loop") - spawns a REAL background loop and binds the
+ *    job to the pid the spawn returned (BUG-0249 FIX: real accounting,
+ *    the old "highest alive pid" scan is gone)
+ * 2. Verify the binding: job pid == the alive "loop" process pid
+ * 3. job_list() - shows the job as active
+ * 4. job_control(bg) - succeeds
+ * 5. job_create("hello") + job_control(fg) - fg WAITS until the hello
+ *    process exits, then the job retires (BUG-0249 FIX: fg used to
+ *    return immediately)
+ * 6. job_control(kill) - kills the loop job's process through the
+ *    unified reaper (same accounting as sys_kill(SIGKILL)) and retires
+ *    the job entry
+ * 7. ext_wp8b_selftest() - WP-08b 14-assertion suite, now with a real
+ *    caller (BUG-0248 FIX)
+ * 8. WP-08a wrappers through the REAL int 0x80 gate from CPL0
+ *    (BUG-0254 FIX: 20 of the 21 wrappers are called with no current
+ *    user process and must return their documented no-process errors;
+ *    the DPL=3 gate admits CPL0 since INT n requires CPL <= DPL) */
 static int shell_cmd_l1test(const char *args) {
     (void)args;
-    char buf[128]; char num[20];
+    char buf[160]; char num[20];
+    int fails = 0;
 
     screen_console_puts("L1 job interface test:\n");
 
-    /* Step 1: Run loop to create an alive process */
-    screen_console_puts("  step 1: run loop (create alive process)\n");
-    extern const u8 userprog_loop[];
-    extern const u64 userprog_loop_size;
-    pid_t pid = user_process_create(userprog_loop, userprog_loop_size, "loop");
-    if (pid < 0) { screen_console_puts("  FAIL: cannot create loop process\n"); return 1; }
-    strcpy(buf, "  started loop pid="); u64_to_str((u64)pid, num); strcat(buf, num); strcat(buf, "\n");
-    screen_console_puts(buf);
-
-    /* Step 2: Call job_create */
-    screen_console_puts("  step 2: job_create(\"loop\")\n");
+    /* Steps 1+2: job_create spawns the background process itself and
+     * binds the job to the pid the spawn actually returned. The spawn
+     * is verified by finding the new alive "loop" process; the
+     * binding itself is proven behaviorally in step 6 (kill must
+     * destroy THAT process - the old highest-pid heuristic bound and
+     * killed the wrong task, BUG-0249). */
+    screen_console_puts("  step 1: job_create(\"loop\") (real background spawn)\n");
     extern int job_create(const char *cmd);
     int job_id = job_create("loop");
     if (job_id < 0) {
-        strcpy(buf, "  job_create returned "); u64_to_str((u64)(i64)job_id, num); strcat(buf, num);
-        strcat(buf, " — FAIL (no process found)\n");
+        strcpy(buf, "  job_create returned "); u64_to_str((u64)(i64)job_id, num);
+        strcat(buf, num); strcat(buf, " - FAIL\n");
         screen_console_puts(buf);
         return 1;
     }
-    strcpy(buf, "  job_create returned job_id="); u64_to_str((u64)job_id, num); strcat(buf, num);
-    strcat(buf, " — PASS\n");
+    int loop_pid = -1;
+    for (int i = 0; i < MAX_USER_PROCS; i++) {
+        if (g_procs[i].alive && strcmp(g_procs[i].name, "loop") == 0) {
+            loop_pid = g_procs[i].pid; break;
+        }
+    }
+    if (loop_pid <= 0) {
+        screen_console_puts("  no alive loop process after job_create - FAIL (spawn)\n");
+        return 1;
+    }
+    strcpy(buf, "  job_create -> job_id="); u64_to_str((u64)job_id, num);
+    strcat(buf, num); strcat(buf, " spawned loop pid="); u64_to_str((u64)loop_pid, num);
+    strcat(buf, num); strcat(buf, " - PASS\n");
     screen_console_puts(buf);
 
-    /* Step 3: Call job_list */
+    /* Step 3: job_list shows the job as active. */
     screen_console_puts("  step 3: job_list()\n");
     extern int job_list(char *buf, int bufsize);
     char jbuf[256];
     int jc = job_list(jbuf, sizeof(jbuf));
-    strcpy(buf, "  job_list returned "); u64_to_str((u64)jc, num); strcat(buf, num);
-    strcat(buf, " active jobs:\n");
-    screen_console_puts(buf);
-    if (jc > 0) screen_console_puts(jbuf);
+    if (jc != 1) {
+        strcpy(buf, "  job_list returned "); u64_to_str((u64)(i64)jc, num);
+        strcat(buf, num); strcat(buf, " active jobs - FAIL (want 1)\n");
+        screen_console_puts(buf);
+        fails++;
+    } else {
+        screen_console_puts("  job_list: 1 active job:\n");
+        screen_console_puts(jbuf);
+    }
 
-    /* Step 4: Call job_control(bg) */
-    screen_console_puts("  step 4: job_control(");
-    u64_to_str((u64)job_id, num); screen_console_puts(num);
-    screen_console_puts(", bg=1)\n");
+    /* Step 4: bg on the loop job. */
+    screen_console_puts("  step 4: job_control(job, bg=1)\n");
     extern int job_control(int job_id, int action);
     int rc = job_control(job_id, 1);
-    if (rc == 0) screen_console_puts("  job_control(bg) = 0 — PASS\n");
-    else { strcpy(buf, "  job_control(bg) = "); u64_to_str((u64)(i64)rc, num); strcat(buf, num); strcat(buf, " — FAIL\n"); screen_console_puts(buf); }
+    if (rc == 0) screen_console_puts("  job_control(bg) = 0 - PASS\n");
+    else {
+        strcpy(buf, "  job_control(bg) = "); u64_to_str((u64)(i64)rc, num);
+        strcat(buf, num); strcat(buf, " - FAIL\n"); screen_console_puts(buf);
+        fails++;
+    }
 
-    /* Step 5: Call job_control(kill) */
-    screen_console_puts("  step 5: job_control(");
-    u64_to_str((u64)job_id, num); screen_console_puts(num);
-    screen_console_puts(", kill=2)\n");
+    /* Step 5 (BUG-0249 FIX): fg must WAIT for the target to exit.
+     * hello terminates on its own; job_control(fg) may only return
+     * once the hello process is reaped. */
+    screen_console_puts("  step 5: job_create(\"hello\") + job_control(fg) waits for exit\n");
+    int job2 = job_create("hello");
+    if (job2 < 0) {
+        strcpy(buf, "  job_create(hello) = "); u64_to_str((u64)(i64)job2, num);
+        strcat(buf, num); strcat(buf, " - FAIL\n"); screen_console_puts(buf);
+        fails++;
+    } else {
+        /* Target pid: the alive "hello" process job_create just spawned. */
+        int hp = -1;
+        for (int i = 0; i < MAX_USER_PROCS; i++) {
+            if (g_procs[i].alive && strcmp(g_procs[i].name, "hello") == 0) {
+                hp = g_procs[i].pid; break;
+            }
+        }
+        rc = job_control(job2, 0);
+        int hello_alive = 0;
+        for (int i = 0; i < MAX_USER_PROCS; i++) {
+            if (g_procs[i].alive && g_procs[i].pid == hp) { hello_alive = 1; break; }
+        }
+        if (rc == 0 && !hello_alive) {
+            strcpy(buf, "  fg returned after target exit (pid="); u64_to_str((u64)(i64)hp, num);
+            strcat(buf, num); strcat(buf, " alive=0, job retired) - PASS\n");
+            screen_console_puts(buf);
+        } else {
+            strcpy(buf, "  fg rc="); u64_to_str((u64)(i64)rc, num); strcat(buf, num);
+            strcat(buf, " target alive="); u64_to_str((u64)hello_alive, num);
+            strcat(buf, num); strcat(buf, " - FAIL\n"); screen_console_puts(buf);
+            fails++;
+        }
+        /* The retired hello job must no longer be listed. */
+        jc = job_list(jbuf, sizeof(jbuf));
+        if (jc == 1) screen_console_puts("  job_list after fg: 1 active (loop) - PASS\n");
+        else {
+            strcpy(buf, "  job_list after fg: "); u64_to_str((u64)(i64)jc, num);
+            strcat(buf, num); strcat(buf, " active - FAIL\n"); screen_console_puts(buf);
+            fails++;
+        }
+    }
+
+    /* Step 6: kill the loop job. The kill must take down the BOUND
+     * process through the unified reaper (same accounting as
+     * sys_kill(SIGKILL)) - afterwards no "loop" process may be alive
+     * and the job must be gone from the list. */
+    screen_console_puts("  step 6: job_control(job, kill=2)\n");
     rc = job_control(job_id, 2);
-    if (rc == 0) screen_console_puts("  job_control(kill) = 0 — PASS\n");
-    else { strcpy(buf, "  job_control(kill) = "); u64_to_str((u64)(i64)rc, num); strcat(buf, num); strcat(buf, " — FAIL\n"); screen_console_puts(buf); }
-
-    /* Verify job is now inactive */
-    extern int job_list(char *buf, int bufsize);
+    int loop_gone = 1;
+    for (int i = 0; i < MAX_USER_PROCS; i++) {
+        if (g_procs[i].alive && strcmp(g_procs[i].name, "loop") == 0) {
+            loop_gone = 0; break;
+        }
+    }
     jc = job_list(jbuf, sizeof(jbuf));
-    strcpy(buf, "  job_list after kill: "); u64_to_str((u64)jc, num); strcat(buf, num);
-    strcat(buf, " active jobs\n");
-    screen_console_puts(buf);
+    if (rc == 0 && jc == 0 && loop_gone)
+        screen_console_puts("  kill (process reaped) + job_list=0 active - PASS\n");
+    else {
+        strcpy(buf, "  kill rc="); u64_to_str((u64)(i64)rc, num); strcat(buf, num);
+        strcat(buf, " job_list="); u64_to_str((u64)(i64)jc, num);
+        strcat(buf, num); strcat(buf, " loop_gone="); u64_to_str((u64)loop_gone, num);
+        strcat(buf, num); strcat(buf, " - FAIL\n"); screen_console_puts(buf);
+        fails++;
+    }
 
-    screen_console_puts("  L1 job interface test: PASS\n");
-    return 0;
+    /* Step 7 (BUG-0248 FIX): WP-08b extension self-test - the suite has
+     * a caller now and covers the 0256/0257/0258 double-sided checks. */
+    screen_console_puts("  step 7: ext_wp8b_selftest()\n");
+    extern int ext_wp8b_selftest(void);
+    int st = ext_wp8b_selftest();
+    if (st == 14) screen_console_puts("  ext_wp8b selftest 14/14 - PASS\n");
+    else {
+        strcpy(buf, "  ext_wp8b selftest = "); u64_to_str((u64)(i64)st, num);
+        strcat(buf, num); strcat(buf, "/14 - FAIL\n"); screen_console_puts(buf);
+        fails++;
+    }
+
+    /* Step 8 (BUG-0254 FIX): the WP-08a int 0x80 wrappers execute for
+     * real from CPL0 (kernel shell thread) through the DPL=3 gate -
+     * INT n only requires CPL <= DPL, so the audit's "CPL0 would #GP"
+     * premise is wrong and the layer was dead simply for lack of a
+     * caller. 20 of the 21 wrappers are called here with no current
+     * user process: each must return its documented no-process error
+     * and have no side effect. The 21st (sys_proc_exit) is excluded
+     * on purpose: with no current user process the exit handler would
+     * mark THIS kthread EXITED and block forever; its real path is
+     * exercised by every user program exit (hello in step 5). */
+    screen_console_puts("  step 8: WP-08a wrappers via int 0x80 from CPL0\n");
+    char cwd_buf[64];
+    int pf[2];
+    int ok = 1;
+    if (sys_proc_getpid() != 0) ok = 0;          /* no user proc -> 0 */
+    if (sys_proc_getppid() != 0) ok = 0;         /* no user proc -> 0 */
+    if (sys_proc_fork() != -1) ok = 0;           /* no user proc -> -1 */
+    if (sys_proc_exec("hello", (const char*[]) {0}, (const char*[]) {0}) != -1) ok = 0;
+    if (sys_proc_wait(9999, (int*)0) != -1) ok = 0;   /* no such child -> -1 */
+    if ((u64)(uintptr_t)signal_register(0, (signal_handler_fn)0) != (u64)-1) ok = 0;
+    if (signal_send(9999, 0) != -1) ok = 0;      /* no such pid -> -1 */
+    if (signal_return() != 0) ok = 0;            /* no handler context -> 0 */
+    if (pipe_create(pf) != -1) ok = 0;           /* access_ok fails -> -1 */
+    if (fd_dup(0) != -1) ok = 0;                 /* no user proc -> -1 */
+    if (fd_dup2(0, 1) != -1) ok = 0;             /* no user proc -> -1 */
+    if ((u64)(uintptr_t)sys_mem_mmap((void*)0, 0, 0) != (u64)-1) ok = 0; /* len 0 -> -1 */
+    if (sys_mem_munmap((void*)(uintptr_t)0x20000000, 0x1000) != -1) ok = 0;
+    if (sys_mem_mprotect((void*)(uintptr_t)0x1000, 0x1000, 3) != -1) ok = 0;
+    if ((u64)(uintptr_t)sys_mem_brk(0) != (u64)-1) ok = 0;
+    if (sys_chdir("g2_nosuch_dir") != -1) ok = 0; /* access_ok fails -> -1 */
+    if ((u64)(uintptr_t)sys_getcwd(cwd_buf, sizeof(cwd_buf)) != (u64)-1) ok = 0;
+    if (sys_ioctl(0, 0, (void*)0) != 0) ok = 0;  /* stub returns 0 */
+    if (sys_select(0, (void*)0, 0) != -1) ok = 0; /* NULL fd_set -> -1 */
+    if (sys_poll((pollfd_t*)0, 0, 0) != -1) ok = 0;
+    if (ok) screen_console_puts("  int 0x80 from CPL0: 20 wrappers returned in-kernel errors - PASS\n");
+    else { screen_console_puts("  int 0x80 from CPL0: wrapper smoke - FAIL\n"); fails++; }
+
+    /* WP-10-AUDIT_P2-fix3 G7 (BUG-0282..0286): scheduler/sync regression
+     * suite, run from the same idle/shell task context it was designed
+     * for. BUG-0281 (mmap window/prot/addr) is covered separately by the
+     * g7mmap user program (run g7mmap) because it needs real ring-3
+     * page tables; BUG-0283 (idle stack alloc fail-stop) has no safe
+     * in-kernel probe - tripping it halts the box by design. */
+    screen_console_puts("  step 9: G7 sched/sync regression (BUG-0282..0286)\n");
+    fails += g7test_run();
+
+    /* PROBE (Task 3-k before-evidence): G8 suite on the PRE-FIX baseline. */
+    screen_console_puts("  step 10: G8 clock/power/timer regression (BUG-0287..0289,0291)\n");
+    fails += g8test_run();
+
+    if (fails == 0 && st == 14 && ok) {
+        screen_console_puts("  L1 job interface test: PASS\n");
+        return 0;
+    }
+    screen_console_puts("  L1 job interface test: FAIL\n");
+    return 1;
 }
 
 /* WP-04: run - run a user program. */
 static int shell_cmd_run(const char *args) {
     if (!args[0]) {
-        screen_console_puts("usage: run <hello|badapp|int3_user|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test|sse_test|pf_test|fdref_test|select_zero_test>\n");
+        screen_console_puts("usage: run <hello|badapp|int3_user|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|g7mmap|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test|sse_test|pf_test|fdref_test|select_zero_test|g6_test|g6_exec_a|g6_exec_b|g6_oom>\n");
         return 1;
     }
     const u8 *elf = NULL;
@@ -2110,6 +2305,10 @@ static int shell_cmd_run(const char *args) {
     } else if (strcmp(args, "mmap_multi") == 0) {
         /* BUG-010 test: multi-process mmap independence (fork + mmap). */
         elf = userprog_mmap_multi; size = userprog_mmap_multi_size;
+    } else if (strcmp(args, "g7mmap") == 0) {
+        /* WP-10-AUDIT_P2-fix3 G7: mmap/munmap/mprotect window + prot/addr
+         * regression (BUG-0281). Double-sided; T11 ends in a real #PF. */
+        elf = userprog_g7mmap; size = userprog_g7mmap_size;
     } else if (strcmp(args, "mprotect_test") == 0) {
         /* P0-3 test: verify mprotect rejects kernel addresses. */
         elf = userprog_mprotect_test; size = userprog_mprotect_test_size;
@@ -2128,6 +2327,18 @@ static int shell_cmd_run(const char *args) {
     } else if (strcmp(args, "select_zero_test") == 0) {
         /* BUG-0101 repro: select timeout_ms==0 + unopened-fd semantics. */
         elf = userprog_select_zero_test; size = userprog_select_zero_test_size;
+    } else if (strcmp(args, "g6_test") == 0) {
+        /* WP-10-AUDIT_P2-fix3 G6: fork/exit/write2/signal/cwd/solib regression. */
+        elf = userprog_g6_test; size = userprog_g6_test_size;
+    } else if (strcmp(args, "g6_exec_a") == 0) {
+        /* WP-10-AUDIT_P2-fix3 G6: exec signal-state reset driver (BUG-0277). */
+        elf = userprog_g6_exec_a; size = userprog_g6_exec_a_size;
+    } else if (strcmp(args, "g6_exec_b") == 0) {
+        /* WP-10-AUDIT_P2-fix3 G6: exec'd victim (default-action SIGUSR1). */
+        elf = userprog_g6_exec_b; size = userprog_g6_exec_b_size;
+    } else if (strcmp(args, "g6_oom") == 0) {
+        /* WP-10-AUDIT_P2-fix3 G6: fork OOM half-product repro (BUG-0279). */
+        elf = userprog_g6_oom; size = userprog_g6_oom_size;
     } else if (strcmp(args, "ush") == 0 || strcmp(args, "usershell") == 0) {
         /* WP-08cd: User-space shell. */
         elf = userprog_ush; size = userprog_ush_size;
@@ -2176,7 +2387,16 @@ static int shell_cmd_run(const char *args) {
          * execution — do NOT block on ush here. */
         if (!background &&
             (strcmp(args, "ush") == 0 || strcmp(args, "usershell") == 0)) {
-            extern int g_usershell_running;
+            /* BUG-0290 FIX (A3-13): g_usershell_running is cleared by
+             * sys_exit2 in ANOTHER task context; the spin below must
+             * re-read it every iteration.  A plain int read gave no such
+             * guarantee (the -O2 product happened to re-load it, but the
+             * asm volatile has no "memory" clobber, so any compiler
+             * change could hoist the load out of the loop and hang the
+             * kernel shell).  The flag is now declared volatile at its
+             * definition (core_usermode.c) and every extern declaration
+             * spells the same qualifier. */
+            extern volatile int g_usershell_running;
             g_usershell_running = 1;
             /* Spin-wait until ush exits. The timer IRQ + scheduler
              * will keep ush running. When ush exits, sys_exit2

@@ -1,49 +1,51 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10-AUDIT_P2-fix2b value
+// Central site data. Every number is a real WP-10-AUDIT_P2-fix3 value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
 // docs/EXTENSIONS_WP10-wp08fix1.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub WP-10-AUDIT_P2-fix2b tag + site /downloads/ + this site /downloads/
+// 3-way identical: local build + GitHub WP-10-AUDIT_P2-fix3 tag + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix2b";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix3";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub WP-10-AUDIT_P2-fix2 tag + site /downloads/ + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-10-AUDIT_P2-fix2b.iso";
-export const ISO_SIZE_B = 11433984;
-export const ISO_SIZE_MB = "10.90";
+// Real assets (build/ + GitHub WP-10-AUDIT_P2-fix3 tag + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-WP-10-AUDIT_P2-fix3.iso";
+export const ISO_SIZE_B = 11446272;
+export const ISO_SIZE_MB = "10.91";
 export const ISO_SHA256 =
-  "6f5d7c2c63394dc261d5a2125d01aaccdfbf23b1f726869ac7001dc815d8a656";
+  "aa900f2d92f33a8c9393f3182a2800f056563deb1973158ea7a6863c2b98062e";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-10-AUDIT_P2-fix2b-src.zip";
-export const SRC_SIZE_B = 2537869;
-export const SRC_SIZE_MB = "2.42";
+export const SRC_FILE = "opencube-WP-10-AUDIT_P2-fix3-src.zip";
+export const SRC_SIZE_B = 2891545;
+export const SRC_SIZE_MB = "2.75";
 export const SRC_SHA256 =
-  "bc2f00700fac9579e10b2188d3aed07d84ad30e4c969f574e9ccbe6bb54b9344";
+  "e5eff00a39cd41e52e664cba0b5271a9b0ae80735232ce581e88c2c93bd06e8e";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
-// WP-10-AUDIT_P2-fix2b stats. Source lines: find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l = 101,150 (incl. the build-generated kernel/generated/grub_boot_data.c, 10,335 lines, GRUB 2.12-9+deb13u2).
-// Shell commands: live boot count = 176 (boot banner prints "shell command system (176 commands)"; the batch added irqabitest/heapbounds/vmkernelpt).
-// L1 extension interfaces: 138 items (unchanged; the batch added no l1/ headers).
-export const STATS = [
-  { value: "101,150", label: "行源码" },
-  { value: "138", label: "L1 扩展接口" },
-  { value: "44", label: "系统调用" },
-  { value: "176", label: "shell 命令" },
-  { value: "16", label: "工作包" },
-  { value: "41/41", label: "P0 修复测试" },
-];
+// NOTE: the former STATS export lived here unreferenced (A18-5): HomeView
+// renders lib/home.ts, and a second zh-only stats copy here could only
+// drift (it had already diverged from home.ts in earlier generations).
+// Removed as dead code (fix3 G5, BUG-0269) instead of re-wiring: the live
+// numbers render from lib/home.ts STATS, which is the single kept copy.
+// Verify the release assets below against the actual files before any
+// deploy: sha256sum public/downloads/$ISO_FILE must match ISO_SHA256
+// (website/build-local.sh performs that check on every run).
 
 // WP-AUDIT-01 (607-finding audit + all 41 P0 fixes + all 94 P1 fixes: p1fix1 items 1..31 + p1fix2 items 32..62 + p1fix3 items 63..94 + the p1fix4 HTTPS E2E fix + the WP-10-AUDIT_P2-fix1 batch-1 P2 fixes, items 1..53) leads the user-facing list
 export const FEATURES = [
+  {
+    name: "P2 第三批 53 条（BUG-0242..0294）全部修复 + 内核 #UD 根因修复完成",
+    tag: "WP-10-AUDIT_P2-fix3",
+    desc: "53/53 条 P2 修复分九组落地（G1..G9：A15 shell 6 / 混合 6 / 文本工具 5 / 文档 7 / 卫生 8 / syscall-usermode 7 / 调度同步 6 / RTC 电源定时 5 / crypto 3），每条附修复前后证据与 FAIL→PASS 复现测试；调查并修复 G6 证据阶段暴露的内核 #UD（孩子退出后 cs=0x18、rip 落在 g_procs[] 内）：根因是 sys_fork 从不设置子任务 task_t.rsp0（BUG-029 的 TSS 修复只覆盖 exec 路径），TSS 在切回子任务时保留父任务内核栈顶，子任务用户态每次中断都压在父任务栈上并在其中保存切换上下文，父任务恢复后从被污染栈槽 ret 弹出子任务数据当返回地址；修复 = fork 路径补设 rsp0（与 exec 路径同型），T1/T4/T6-collect 解除隔离全链 =PASS=；merge 后全量 gate：71/71 回归 + g6_test 18/18（含 fstest VFS 自检）+ SSH E2E 5/5 + HTTPS E2E 7/7，0 errors 0 warnings；源码 102,687 行。",
+  },
   {
     name: "P2 第二批 53 条复核属实 + 嵌入链三缺陷修复完成",
     tag: "WP-10-AUDIT_P2-fix2b",

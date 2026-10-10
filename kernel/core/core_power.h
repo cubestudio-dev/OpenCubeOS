@@ -8,7 +8,10 @@
  * L0->L1 extension surface (4 interfaces, also wrapped as l1_ext_power_*
  * in kernel/ext.h):
  *
- *   void core_power_halt(void);      stop the CPU forever (cli + hlt loop).
+ *   void core_power_halt(void);      flush every block device, then stop the
+ *                               CPU forever (cli + hlt loop).  Same flush
+ *                               guarantee shutdown/reboot give (BUG-0288):
+ *                               the shutdown-failure fallback halts too.
  *   void core_power_reboot(void);    flush every block device, then reset via
  *                               the 8042 keyboard controller with the
  *                               ACPI RESET_REG (port 0xCF9) fallback.
@@ -28,8 +31,8 @@
  *                               yet, so this returns OC_POWER_E_UNSUPPORTED
  *                               and the caller prints an honest message.
  *
- * All block-device caches are flushed BEFORE any reset/shutdown attempt,
- * so an A/B update or user data survives the power transition.
+ * All block-device caches are flushed BEFORE any halt/reset/shutdown
+ * attempt, so an A/B update or user data survives the power transition.
  *
  * Shell commands (registered in kmain.c):
  *   shutdown / poweroff  -> core_power_shutdown (with "System halted." fallback)

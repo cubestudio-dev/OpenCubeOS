@@ -190,6 +190,14 @@ New kernel header: `drivers/usb/driver_usb.h` (rewritten for WP-10d).
 | XHCI    | PASS     | PASS       | PASS        | PASS| n/a | qemu-xhci's storage model is
           |          |            |             |     |     | SuperSpeed; BOT on SS is an
           |          |            |             |     |     | open gap (see report) |
-| OHCI    | PASS     | PASS       | open        | open| open| TDs verified executed;
-          |          |            |             |     |     | device-level STALL under
-          |          |            |             |     |     | investigation |
+| OHCI    | PASS     | PASS       | PASS        | PASS| PASS| device-level STALL/underrun fixed in the
+          |          |            |             |     |     | bring-up and live-verified (see section 9);
+          |          |            |             |     |     | re-fixed + regression-green in
+          |          |            |             |     |     | WP-10-AUDIT_P2-fix1 (BUG-0159..0165) |
+
+(Row update 2026-10-09, WP-10-AUDIT_P2-fix3: the delivery-time "open"
+cells above predate the section-9 live-verification session; the row now
+states the final verified state. Re-confirmed live on the current tree:
+QEMU `-device pci-ohci` + usb-kbd/usb-mouse/usb-storage -
+usb_core_test 5/5 PASS, usb_kbd_test PASS, usb_mouse_test PASS,
+usb_storage_test PASS (capacity/MBR/write-read-back/restore).)

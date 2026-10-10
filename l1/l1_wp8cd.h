@@ -50,20 +50,27 @@ int tool_register(const char *name, const u8 *elf_data, u64 elf_size);
 int tool_list(char *buf, int bufsize);
 
 /* ---- Interface 55: job_create ----
- * Create a background job (fork without wait).
- * Returns the job PID, or -1 on failure. */
+ * BUG-0249 FIX (A16-11): creates a background job by spawning the
+ * named embedded program (resolved through the same shared lookup
+ * sys_execve uses) and binds the job entry to the pid/task the spawn
+ * actually returned - no "highest live pid" guessing.
+ * Returns the job id (index for job_list/job_control),
+ *   -1 on bad/unknown name or spawn failure, -2 if the table is full. */
 int job_create(const char *cmd);
 
 /* ---- Interface 56: job_list ----
- * List all background jobs. Writes job info to buf.
+ * List all background jobs whose bound process is still alive. Writes
+ * job info ("[id] pid=<pid> <name>" per line) to buf.
  * Returns the number of jobs. */
 int job_list(char *buf, int bufsize);
 
 /* ---- Interface 57: job_control ----
  * Control a job: bring to foreground (fg), background (bg), or kill.
  * job_id: job index from job_list
- * action: 0=fg, 1=bg, 2=kill
- * Returns 0 on success, -1 on failure. */
+ * action: 0=fg (waits until the job's process exits), 1=bg,
+ *         2=kill (releases the bound process through the unified
+ *         reaper, same accounting as sys_kill(SIGKILL))
+ * Returns 0 on success, -1/-2/-3 on failure. */
 int job_control(int job_id, int action);
 
 #ifdef __cplusplus

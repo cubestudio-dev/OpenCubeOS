@@ -53,7 +53,11 @@ List all registered tools.
 int job_create(const char *cmd);
 ```
 
-Create a background job (fork without wait).
+Create a background job: spawns the named embedded program (resolved
+through the same shared lookup sys_execve uses) and binds the job
+entry to the pid/task the spawn actually returned. Returns the job id
+(index for job_list/job_control), -1 on bad/unknown name or spawn
+failure, -2 if the table is full.
 
 ## Interface 56: job_list
 
@@ -61,7 +65,8 @@ Create a background job (fork without wait).
 int job_list(char *buf, int bufsize);
 ```
 
-List all background jobs.
+List all background jobs whose bound process is still alive, one
+"[id] pid=<pid> <name>" line per job. Returns the number of jobs.
 
 ## Interface 57: job_control
 
@@ -69,7 +74,9 @@ List all background jobs.
 int job_control(int job_id, int action);
 ```
 
-Control a job: 0=fg, 1=bg, 2=kill.
+Control a job: 0=fg (waits until the job's process exits, then
+retires the job), 1=bg, 2=kill (releases the bound process through
+the unified reaper, same accounting as sys_kill(SIGKILL)).
 
 ## ABI Stability
 

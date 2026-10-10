@@ -37,7 +37,12 @@
 int editor_open(const char *file);
 
 /* editor_save(): write the current session content back to the file it
- * was opened with.  Returns 0 on success, negative on error. */
+ * was opened with.  Returns 0 on success, negative on error (-1 no
+ * active session, -2 open failed, -3 write failed, -5 REFUSED: the
+ * session holds only PART of the file because the load hit the
+ * 512-line/255-char session limits (BUG-0242 / A15-16) - the on-disk
+ * file is left untouched; a read error at load time already aborts
+ * editor_open with -4 instead of opening a partial view). */
 int editor_save(void);
 
 /* editor_close(): free the session.  Unsaved changes are DISCARDED —

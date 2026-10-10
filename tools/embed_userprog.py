@@ -57,13 +57,33 @@ def main():
     lines.append(f"const u64 userprog_{name}_size = {len(data)};")
     new_block = "\n".join(lines) + "\n"
 
-    # 4. Append to userprogs_data.h before the closing line (if any)
-    # The header is just a list of arrays — append at the end.
+    # 4. Insert or REPLACE the program's block in userprogs_data.h.
+    # WP-10-AUDIT_P2-fix3 G6 fix: the old code skipped the write whenever
+    # the program already had an entry, so a rebuilt (and CHANGED) .asm
+    # program kept running as its STALE embedded blob forever - the g6_test
+    # suite executed an older T2 than the source showed and its behaviour
+    # could not be reproduced from the sources. The block is now located
+    # by its two-part marker (array + size) and replaced in place.
     header_path = os.path.join(_ROOT, 'kernel', 'core', 'userprogs_data.h')
     with open(header_path, 'r') as f:
         content = f.read()
-    if f"const u8 userprog_{name}[]" in content:
-        print(f"  {name} already in header — skipping append")
+    start_marker = f"const u8 userprog_{name}[] = {{"
+    end_marker = f"const u64 userprog_{name}_size = "
+    start = content.find(start_marker)
+    if start >= 0:
+        # Block runs to the end of its size line (one line after "};").
+        brace_end = content.find("};", start)
+        if brace_end < 0:
+            print(f"  {name}: malformed block (no closing brace), aborting",
+                  file=sys.stderr)
+            sys.exit(1)
+        size_line_end = content.find("\n", content.find(end_marker, brace_end))
+        if size_line_end < 0:
+            size_line_end = len(content)
+        content = content[:start] + new_block + content[size_line_end + 1:]
+        with open(header_path, 'w') as f:
+            f.write(content)
+        print(f"  replaced userprog_{name} block in {header_path}")
     else:
         with open(header_path, 'a') as f:
             f.write(new_block)

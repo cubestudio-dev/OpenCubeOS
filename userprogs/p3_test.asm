@@ -34,10 +34,14 @@ _start:
     ; --- Test B (P3-3): mmap 1 page, write pattern, munmap, then
     ;     mmap again. munmap should free the page (full PTE return),
     ;     so second mmap should reuse it.
+    ;     WP-10-AUDIT_P2-fix3 G7 (BUG-0281): prot is now honoured, so the
+    ;     mapping must ask for PROT_READ|PROT_WRITE (3) to stay writable;
+    ;     the old prot=0 (PROT_NONE) relied on the pre-fix bug that
+    ;     silently upgraded every mapping to RW.
     mov rax, 30          ; sys_mmap
     xor rdi, rdi
     mov rsi, 4096        ; 1 page
-    xor rdx, rdx
+    mov rdx, 3           ; PROT_READ|PROT_WRITE (was 0 = PROT_NONE)
     int 0x80
     cmp rax, 0
     je .fail_mmap1
@@ -58,7 +62,7 @@ _start:
     mov rax, 30
     xor rdi, rdi
     mov rsi, 4096
-    xor rdx, rdx
+    mov rdx, 3           ; PROT_READ|PROT_WRITE (was 0 = PROT_NONE)
     int 0x80
     cmp rax, 0
     je .fail_mmap2

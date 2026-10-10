@@ -49,6 +49,16 @@ static int   ed_dirty  = 0;
 static int   ed_active = 0;
 static char  ed_file[EDITOR_PATH_LEN];
 
+/* BUG-0242 FIX (A15-16): the load loop used to drop everything past the
+ * session limits SILENTLY (lines beyond EDITOR_MAX_LINES, characters
+ * beyond EDITOR_LINE_CAP) and treated a fs_vfs_read error like EOF, so
+ * ^O then destroyed the unread part of the file (O_TRUNC save of a
+ * partial view). These flags record what the load actually delivered;
+ * a partial session warns on open and REFUSES to save. */
+static int   ed_partial        = 0;  /* buffer holds only part of the file */
+static int   ed_dropped_lines  = 0;  /* lines lost to the 512-line limit   */
+static int   ed_dropped_chars  = 0;  /* chars lost to the 255-char width   */
+
 /* ---- Internal helpers ---- */
 
 static void ed_prefix(int lineno) {
@@ -84,6 +94,7 @@ static void ed_state(void) {
     char num[8];
     screen_console_puts("[nano ");
     screen_console_puts(ed_file);
+    if (ed_partial) screen_console_puts(" PARTIAL");   /* BUG-0242 */
     screen_console_puts(" line ");
     u64_to_str((u64)(ed_cl + 1), num);
     screen_console_puts(num);
@@ -103,6 +114,35 @@ static void ed_print_all(void) {
         screen_console_puts(ed_lines[i]);
         screen_console_putc('\n');
     }
+}
+
+/* BUG-0242 FIX (A15-16): detail lines shared by the open warning and the
+ * save refusal (all counters relate to the load of ed_file). */
+static void ed_partial_details(void) {
+    char num[16];
+    if (ed_dropped_lines > 0) {
+        screen_console_puts("  ");
+        u64_to_str((u64)ed_dropped_lines, num);
+        screen_console_puts(num);
+        screen_console_puts(" line(s) over the 512-line session limit were dropped\n");
+    }
+    if (ed_dropped_chars > 0) {
+        screen_console_puts("  ");
+        u64_to_str((u64)ed_dropped_chars, num);
+        screen_console_puts(num);
+        screen_console_puts(" character(s) over the 255-char line width were dropped\n");
+    }
+    screen_console_puts("  saving now would DESTROY the dropped content\n");
+    screen_console_puts("  quit without saving (^X n / :q!) and split the file first\n");
+}
+
+/* Printed once at the top of the interactive loops. */
+static void ed_partial_warning(void) {
+    if (!ed_partial) return;
+    screen_console_puts("editor: WARNING: ");
+    screen_console_puts(ed_file);
+    screen_console_puts(" is only PARTIALLY loaded:\n");
+    ed_partial_details();
 }
 
 static int ed_getch_blocking(void) {
@@ -129,6 +169,10 @@ int editor_open(const char *file) {
     ed_dirty  = 0;
     ed_cl     = 0;
     ed_cc     = 0;
+    /* BUG-0242 FIX (A15-16): reset the partial-load bookkeeping. */
+    ed_partial       = 0;
+    ed_dropped_lines = 0;
+    ed_dropped_chars = 0;
     strncpy(ed_file, file, EDITOR_PATH_LEN - 1);
     ed_file[EDITOR_PATH_LEN - 1] = 0;
 
@@ -146,19 +190,41 @@ int editor_open(const char *file) {
         int  cl = 0;
         cur[0] = 0;
         for (;;) {
+            /* BUG-0242 FIX (A15-16): n < 0 is a READ ERROR, not EOF. The
+             * old `if (n <= 0) break;` opened the editor on a partial
+             * view as if the file simply ended (and ^O then truncated
+             * it). A read error now aborts the open with -4 (the value
+             * editor.h has always documented) and leaves the file
+             * untouched. */
             int n = fs_vfs_read(fd, rbuf, 4096);
-            if (n <= 0) break;
+            if (n < 0) {
+                kfree(rbuf);
+                fs_vfs_close(fd);
+                kfree(ed_lines);
+                ed_lines = NULL;
+                ed_nlines = 0;
+                ed_active = 0;
+                ed_partial = 0;
+                ed_dropped_lines = 0;
+                ed_dropped_chars = 0;
+                return -4;
+            }
+            if (n == 0) break;
             for (int i = 0; i < n; i++) {
                 if (rbuf[i] == '\n') {
                     if (ed_nlines < EDITOR_MAX_LINES) {
                         strncpy(ed_lines[ed_nlines++], cur, EDITOR_LINE_CAP - 1);
                         ed_lines[ed_nlines - 1][EDITOR_LINE_CAP - 1] = 0;
+                    } else {
+                        ed_dropped_lines++;   /* BUG-0242: counted, not silent */
                     }
                     cl = 0;
                     cur[0] = 0;
                 } else if (cl + 1 < EDITOR_LINE_CAP) {
                     cur[cl++] = rbuf[i];
                     cur[cl] = 0;
+                } else {
+                    ed_dropped_chars++;       /* BUG-0242: counted, not silent */
                 }
             }
         }
@@ -168,8 +234,13 @@ int editor_open(const char *file) {
             if (ed_nlines < EDITOR_MAX_LINES) {
                 strncpy(ed_lines[ed_nlines++], cur, EDITOR_LINE_CAP - 1);
                 ed_lines[ed_nlines - 1][EDITOR_LINE_CAP - 1] = 0;
+            } else {
+                ed_dropped_lines++;           /* BUG-0242: trailing partial line */
             }
         }
+        /* BUG-0242 FIX (A15-16): a session that lost anything at load
+         * time is partial - it warns on open and refuses to save. */
+        ed_partial = (ed_dropped_lines > 0 || ed_dropped_chars > 0) ? 1 : 0;
     } else {
         /* New file: start with one empty line. */
         ed_lines[0][0] = 0;
@@ -181,6 +252,16 @@ int editor_open(const char *file) {
 
 int editor_save(void) {
     if (!ed_active) return -1;
+    /* BUG-0242 FIX (A15-16): a partially loaded buffer must never be
+     * written back over the file it came from (O_TRUNC would destroy
+     * everything the load dropped). Refuse loudly instead. */
+    if (ed_partial) {
+        screen_console_puts("editor: save REFUSED - ");
+        screen_console_puts(ed_file);
+        screen_console_puts(" is only PARTIALLY loaded:\n");
+        ed_partial_details();
+        return -5;
+    }
     /* O_TRUNC clears the existing content on open (P2-15 semantics). */
     int fd = fs_vfs_open(ed_file, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
     if (fd < 0) return -2;
@@ -211,6 +292,9 @@ int editor_close(void) {
     ed_active = 0;
     ed_nlines = 0;
     ed_file[0] = 0;
+    ed_partial = 0;
+    ed_dropped_lines = 0;
+    ed_dropped_chars = 0;
     return 0;
 }
 
@@ -229,6 +313,7 @@ int editor_run(void) {
 
     ed_print_all();
     ed_state();
+    ed_partial_warning();   /* BUG-0242 FIX (A15-16) */
     ed_redraw_line();
 
     for (;;) {
@@ -451,6 +536,7 @@ static void ed_vi_state(const char *mode) {
     screen_console_puts(mode);
     screen_console_puts(" -- ");
     screen_console_puts(ed_file);
+    if (ed_partial) screen_console_puts(" PARTIAL");   /* BUG-0242 */
     screen_console_puts(" line ");
     u64_to_str((u64)(ed_cl + 1), num);
     screen_console_puts(num);
@@ -640,6 +726,7 @@ int editor_run_vi(void) {
 
     ed_vi_print_all();       /* BUG-0135: vi header, not the nano one */
     ed_vi_state("NORMAL");
+    ed_partial_warning();    /* BUG-0242 FIX (A15-16) */
     ed_redraw_line();
 
     int insert = 0;          /* 0 = NORMAL, 1 = INSERT */

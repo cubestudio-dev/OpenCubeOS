@@ -1,27 +1,32 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+<!-- Chinese translation of docs/UPDATE-HOWTO.md (website-provided, for
+     reading convenience). The English original in the repository is
+     authoritative. Commands, outputs, paths and identifiers are kept
+     verbatim. Structurally re-aligned with the current English original
+     at WP-10-AUDIT_P2-fix3 (fix3 G5, BUG-0270). -->
 
-# Open Cube OS - 系统内更新（OTA）操作指南（UPDATE-HOWTO 中文版）
+# Open Cube OS - 系统内更新（OTA）指南
 
-WP-10u 更新系统的分步用户指南。下面每一步都给出确切命令与你应当
-看到的输出。如果你的输出不一致，见文末"故障排查"。
+WP-10u 更新系统的分步用户指南。下面每一步都给出准确命令与
+你应该看到的输出。如果你的输出不同，见文末"故障排查"。
 
-完成本指南后你将得到：一个能检查服务器新版本、下载、校验、安装到
-slot B、引导进入新版本、并能回滚到 slot A 的 Open Cube OS 系统——
-全部在运行中的系统内完成。
+完成之后你将得到：一个会检查服务器新版本、下载、校验、安装到
+slot B、引导进入并随时能回滚 slot A 的 Open Cube OS 系统
+——全部在运行中的系统内完成。
 
 ## 0. 你需要什么
 
-| 项目                          | 来源                         |
+| 项目                          | 位置                         |
 |-------------------------------|------------------------------|
-| Open Cube OS ISO（WP-10u+）   | GitHub Releases / 本站       |
+| Open Cube OS ISO（WP-10u+）   | GitHub Releases / 官网       |
 | QEMU（6.0+）或真实硬件        | 发行版软件包                 |
-| 本仓库 tools 目录             | 本仓库，`tools/`             |
+| 仓库的 tools 目录             | 本仓库 `tools/`              |
 | mtools（mformat/mcopy/mdir）  | make_ab_disk.sh 需要         |
 
-除标注"客户机内"的步骤外，所有命令都在宿主机运行。
+除注明"在客户机内"的步骤外，所有命令都在宿主机运行。
 
-## 1. 创建 A/B 磁盘
+## 1. 创建 A/B 盘
 
 一条命令。可选传入一个内核 ELF 预置 slot A，使磁盘可独立引导：
 
@@ -43,10 +48,10 @@ bash tools/make_ab_disk.sh build/opencube.elf
 [make_ab_disk] done: /home/.../build/abdisk.img
 ```
 
-布局（与 kernel/ab_update.h 一致）：p1 = boot/flags（64 MiB）、
-p2 = slot A、p3 = slot B、p4 = data（各 128 MiB，全部 FAT32）。
+布局（与 kernel/ota/ota_ab.h 一致）：p1 = boot/flags（64 MiB），
+p2 = slot A，p3 = slot B，p4 = data（各 128 MiB，全部 FAT32）。
 
-## 2. 挂上 A/B 磁盘引导 ISO
+## 2. 挂上 A/B 盘引导 ISO
 
 ```sh
 qemu-system-x86_64 -m 512M -cdrom build/opencube.iso -boot d \
@@ -54,15 +59,14 @@ qemu-system-x86_64 -m 512M -cdrom build/opencube.iso -boot d \
   -netdev user,id=n1 -device e1000,netdev=n1
 ```
 
-（或在你已有的任何启动配置上追加
-`-drive if=ide,format=raw,file=build/abdisk.img`；内核会自动发现
-A/B 布局。）
+（或把 `-drive if=ide,format=raw,file=build/abdisk.img` 加到你已有的
+任何配置；内核自动发现 A/B 布局。）
 
-客户机内，确认磁盘已被识别：
+在客户机内，确认磁盘被识别：
 
 ```
 oc> update --status
-update: current version: WP-10c
+update: current version: WP-10-AUDIT_P2-fix2b-7-g98a8dc7
 update: current boot: A
 update: next boot: A
 update: available: unknown (run update or checkupdate)
@@ -70,8 +74,12 @@ update: online update: enabled
 update: A/B disk: present
 ```
 
-`A/B disk: absent` 表示未找到该布局——检查镜像是否由
-make_ab_disk.sh 生成，并且是作为硬盘（而非光盘）挂载的。
+（`current version` 行是烘焙进内核的构建期 `git describe --tags`
+串——Makefile `OC_RELEASE_VERSION`——你的构建报告的是它自己的
+源码树，不是上面这个字面值。）
+
+`A/B disk: absent` 表示没找到布局——检查镜像是否由 make_ab_disk.sh
+构建，并且是以硬盘（而非光盘）挂载的。
 
 A/B 层的完整自测：
 
@@ -88,7 +96,7 @@ oc> ab_partition_test
 [ab_partition_test] 7/7 PASS
 ```
 
-## 3. 制作更新包
+## 3. 构建更新包
 
 ```sh
 bash tools/make_update_pkg.sh WP-10d build/opencube.elf build/pkg.tar.gz
@@ -104,13 +112,13 @@ bash tools/make_update_pkg.sh WP-10d build/opencube.elf build/pkg.tar.gz
 ```
 
 .tar.gz 内含 manifest.json + kernel/opencube.elf + boot/grub.cfg
-+ etc/opencube.conf + docs/。涉及两个 SHA256 值：
-- `package sha256 (.tar.gz)`：填入 update.json（`package_sha256`）；
-- `payload sha256 (manifest)`：在包内，安装流式传输时逐字节校验。
++ etc/opencube.conf + docs/。这里涉及两个 SHA256 值：
+- `package sha256 (.tar.gz)`：写入 update.json（`package_sha256`）；
+- `payload sha256 (manifest)`：在包内，流式安装时校验。
 
-## 4. 发布 manifest 与更新包
+## 4. 提供 manifest 与包
 
-一条命令发布全部内容（manifest、可选 v2 manifest、更新包）：
+一条命令提供全部（manifest、可选 v2 manifest、包）：
 
 ```sh
 python3 tools/update_server.py --mode http --port 8008 \
@@ -118,25 +126,24 @@ python3 tools/update_server.py --mode http --port 8008 \
             "changes": "new release",
             "changes_v2_url": "http://10.0.2.2:8008/update-v2.json",
             "package_url": "http://10.0.2.2:8008/pkg.tar.gz",
-            "package_sha256": "<第 3 步输出的 64 位十六进制>",
+            "package_sha256": "<step 3 的 64 位十六进制>",
             "package_size": 314813 }' \
   --json2 '{ "version": "WP-10d", "time": "2026-10-20",
-             "changes": "完整长度的变更日志写在这里",
+             "changes": "完整长 changelog 写在这里",
              "package_url": "http://10.0.2.2:8008/pkg.tar.gz",
              "package_sha256": "<同上>",
              "package_size": 314813 }' \
   --pkg build/pkg.tar.gz
 ```
 
-`10.0.2.2` 是 QEMU 用户态网络看到的宿主机地址。
-`package_sha256` 与 `package_size` 必须与第 3 步输出一致——否则
-内核拒绝该包。
+`10.0.2.2` 是 QEMU 用户态网络视角的宿主机。`package_sha256` 与
+`package_size` 必须与第 3 步打印的值一致——否则内核拒绝该包。
 
-`changes` 保持短（<= 127 字节），老内核（WP-09）也能读取；理解
-`changes_v2_url` 的内核会从 /update-v2.json 拉取长变更日志（见
-docs/CONFIG.md 6.1）。
+`changes` 保持短（<= 127 字节），旧内核（WP-09）也能读；理解
+`changes_v2_url` 的内核会从 /update-v2.json 拉取长 changelog
+（见 docs/CONFIG.md 6.1）。
 
-## 5. 执行更新（客户机内）
+## 5. 执行更新（在客户机内）
 
 ```sh
 oc> update
@@ -161,7 +168,7 @@ update: done. Reboot to start the new version.
 oc> reboot
 ```
 
-slot B 启动成功后会写入 `ok_B`（引导确认）。检查：
+slot B 起来后会写 `ok_B`（确认启动成功）。检查：
 
 ```sh
 oc> update --status
@@ -171,7 +178,7 @@ update: next boot: B
 
 ## 6. 回滚
 
-任何时候都可以（从 slot A 或 B）：
+任意时刻（从 slot A 或 B）：
 
 ```sh
 oc> rollback
@@ -179,41 +186,41 @@ update: next boot set to slot A
 oc> reboot
 ```
 
-如果 slot B 始终没能走到正常启动横幅，它在引导时悲观写入的
-`bootfail_B` 标志会保留下来，GRUB 在下次上电时自动回退到
-slot A——无需任何命令。
+如果 slot B 始终没能走到桌面横幅，它在启动时悲观写入的
+`bootfail_B` 标志会留着，GRUB 在下次上电时自动回退 slot A
+——无需任何命令。
 
 ## 7. 离线更新（无网络）
 
-把更新包放到 data 分区（或任何已挂载的 FAT32 卷），运行：
+把包放到 data 分区（或任何已挂载的 FAT32 卷）并运行：
 
 ```sh
 oc> update --local /data/pkg.tar.gz
 ```
 
-其余步骤（校验、安装、引导标志）完全相同。
+其余一切（校验、安装、boot 标志）完全相同。
 
 ## 8. 只检查不安装
 
 ```sh
-oc> checkupdate          # 拉取并显示，不下载
-oc> update --status      # 当前/下次引导槽位、A/B 在位状态、可用性
+oc> checkupdate          # 只拉取 + 显示
+oc> update --status      # 当前/下次启动槽位、A/B 在位、可用性
 ```
 
 ## 命令参考
 
-| 命令                | 用途                                      |
-|---------------------|-------------------------------------------|
-| update              | 检查 + 下载 + 校验 + 安装到 B             |
-| update --local PATH | 从包文件离线安装                          |
-| update --status     | 当前版本、引导槽位、可用性                |
-| checkupdate         | 只检查并显示（不下载）                    |
-| rollback            | 下次引导回到 slot A                       |
-| reboot              | 刷写设备并重启                            |
+| 命令                | 用途                                       |
+|---------------------|--------------------------------------------|
+| update              | 检查 + 下载 + 校验 + 安装到 B              |
+| update --local PATH | 从包文件离线安装                           |
+| update --status     | 当前版本、启动槽位、可用性                 |
+| checkupdate         | 只检查 + 显示（不下载）                    |
+| rollback            | 下次启动回 slot A                          |
+| reboot              | 冲刷设备并重启                             |
 
 ## 自测套件
 
-| 测试                 | 覆盖范围                            |
+| 测试                 | 覆盖                                |
 |----------------------|-------------------------------------|
 | update_pkg_test      | gzip/DEFLATE + tar（12 项）         |
 | ab_partition_test    | A/B 发现、挂载、标志（7 项）        |
@@ -228,29 +235,29 @@ oc> update --status      # 当前/下次引导槽位、A/B 在位状态、可用
 
 ## 故障排查
 
-| 消息                                        | 含义 / 处理                            |
-|---------------------------------------------|----------------------------------------|
-| `update: A/B disk: absent`                  | 磁盘未挂载或不是 make_ab_disk.sh 生成的 |
-| `config file missing or unreadable`         | /etc/opencube.conf 缺失；运行 `config restore` |
-| `invalid URL prefix`                        | update_url 必须是 http:// 或 https://  |
-| `DNS resolution failed` / `connect failed`  | 网络不通；先 `dhcp` 再重试             |
-| `JSON parse failed`                         | 服务器未返回 manifest                  |
-| `response too large`                        | manifest 超过接收缓冲区                |
-| `SHA256 mismatch`                           | update.json 的 package_sha256 不对     |
-| `package is not valid gzip/tar`             | 上传损坏；用 make_update_pkg.sh 重做   |
-| `invalid slot name`                         | 只能用 A 或 B                          |
-| `online update disabled`                    | 在 /etc/opencube.conf 设置 online_update=yes |
+| 信息                                          | 含义 / 修复                             |
+|-----------------------------------------------|-----------------------------------------|
+| `update: A/B disk: absent`                    | 盘未挂载或不是 make_ab_disk.sh 构建的   |
+| `config file missing or unreadable`           | /etc/opencube.conf 缺失；运行 `config restore` |
+| `invalid URL prefix`                          | update_url 必须是 http:// 或 https://   |
+| `DNS resolution failed` / `connect failed`    | 网络不通；先 `dhcp` 再重试              |
+| `JSON parse failed`                           | 服务器未返回 manifest                   |
+| `response too large`                          | manifest 超过接收缓冲                   |
+| `SHA256 mismatch`                             | update.json 的 package_sha256 不对      |
+| `package is not valid gzip/tar`               | 上传损坏；用 make_update_pkg.sh 重建    |
+| `invalid slot name`                           | 只能是 A 或 B                           |
+| `online update disabled`                      | 在 /etc/opencube.conf 设置 online_update=yes |
 
-错误码（kernel/update.h）：-1..-8 传输层（WP-09-fix5 契约）、
--9 已禁用、-10 无 A/B 磁盘、-11 SHA 不匹配、-12 gzip/tar 损坏、
--13 I/O、-14 槽位、-15 参数。
+错误码（kernel/ota/ota_update.h）：-1..-8 传输（WP-09-fix5 契约），
+-9 disabled，-10 无 A/B 盘，-11 SHA 不匹配，-12 坏 gzip/tar，
+-13 I/O，-14 槽位，-15 参数。
 
-## 相关文件
+## 文件
 
-- kernel/ab_update.h/.c - A/B 框架 + 更新器
-- kernel/update.h/.c - manifest 检查（方案 D v2 变更日志）
-- tools/make_ab_disk.sh - A/B 磁盘镜像制作（宿主机）
-- tools/make_update_pkg.sh - 更新包制作（宿主机）
-- tools/update_server.py - manifest + v2 + 更新包测试服务器（宿主机）
+- kernel/ota/ota_ab.h/.c - A/B 框架 + 更新器
+- kernel/ota/ota_update.h/.c - manifest 检查（Plan D v2 changelog）
+- tools/make_ab_disk.sh - A/B 磁盘镜像构建器（宿主）
+- tools/make_update_pkg.sh - 更新包构建器（宿主）
+- tools/update_server.py - manifest + v2 + 包测试服务器（宿主）
 
-接口细节：docs/EXTENSIONS_WP10u.md。配置键：docs/CONFIG.md。
+接口详情：docs/EXTENSIONS_WP10u.md。配置键：docs/CONFIG.md。

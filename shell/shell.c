@@ -61,8 +61,21 @@ int shell_register_command_ex(const char *name, shell_cmd_fn handler,
     for (int i = 0; i < SHELL_MAX_COMMANDS; i++) {
         if (g_commands[i].in_use && strcmp(g_commands[i].name, name) == 0) {
             g_commands[i].handler = handler;
-            if (help) strncpy(g_commands[i].help, help, sizeof(g_commands[i].help) - 1);
-            if (wp) strncpy(g_commands[i].wp, wp, sizeof(g_commands[i].wp) - 1);
+            /* BUG-0245 FIX (A15-19): strncpy(dst, src, sizeof-1) does NOT
+             * write a terminator when src is the longer string, so the
+             * replace path used to leave help/wp NUL-termination to luck
+             * (BSS zero or leftovers from the previous registration).
+             * Terminate explicitly, exactly like the new-slot branch
+             * below - every other strncpy in this file is paired with an
+             * explicit NUL store. */
+            if (help) {
+                strncpy(g_commands[i].help, help, sizeof(g_commands[i].help) - 1);
+                g_commands[i].help[sizeof(g_commands[i].help) - 1] = 0;
+            }
+            if (wp) {
+                strncpy(g_commands[i].wp, wp, sizeof(g_commands[i].wp) - 1);
+                g_commands[i].wp[sizeof(g_commands[i].wp) - 1] = 0;
+            }
             return 0;
         }
     }
@@ -682,22 +695,32 @@ int shell_set_cwd(const char *path) {
     return 0;
 }
 
-int shell_resolve_path(const char *path, char *out, int out_len) {
+/* BUG-0278 FIX (A2-14): resolve a path against a CALLER-SUPPLIED cwd.
+ * Identical rules to shell_resolve_path (absolute kept, relative
+ * prepended + normalized), but the base directory is a parameter, so
+ * each user process can resolve against its own per-process cwd instead
+ * of the kernel shell's single global g_cwd. */
+int shell_resolve_path_base(const char *cwd, const char *path, char *out, int out_len) {
     if (!path || !out || out_len < 2) return -1;
+    if (!cwd || !cwd[0]) cwd = "/";
     if (path[0] == '/') {
         strncpy(out, path, out_len - 1);
         out[out_len - 1] = 0;
     } else {
-        int cwdlen = (int)strlen(g_cwd);
+        int cwdlen = (int)strlen(cwd);
         if (cwdlen + 1 + (int)strlen(path) + 1 > out_len) return -1;
-        strcpy(out, g_cwd);
-        if (g_cwd[cwdlen - 1] != '/') {
+        strcpy(out, cwd);
+        if (cwd[cwdlen - 1] != '/') {
             out[cwdlen++] = '/';
             out[cwdlen] = 0;
         }
         strcpy(out + cwdlen, path);
     }
     return shell_normalize_path(out, out_len);
+}
+
+int shell_resolve_path(const char *path, char *out, int out_len) {
+    return shell_resolve_path_base(g_cwd, path, out, out_len);
 }
 
 /* Static buffer for the convenience wrapper. */
@@ -1489,6 +1512,23 @@ static int shell_exec_segment(token_t *toks, int ntoks) {
                                   stage_stdin, stage_stdin_size,
                                   capture, cap_size);
             if (rc == -127) {
+                /* BUG-0247 FIX (A15-9): this stage may have started a
+                 * capture (redirect-to-file or pipe-to-next). The old
+                 * code broke out of the pipeline on -127 and SKIPPED the
+                 * shell_capture_free() below, so the 8 KiB capture
+                 * buffer (and its capture-stack slot, and the console
+                 * hook it keeps installed) leaked on every
+                 * `nosuchcmd > file`. Free OUR capture HERE, before the
+                 * error print: the hook would otherwise still be
+                 * swallowing output (the "unknown command" text, the
+                 * prompt, and everything after it). Safe because
+                 * rc==-127 with capture==1 implies this stage's
+                 * capture_begin() succeeded - a failed begin returns 1
+                 * from shell_exec_stage before the lookup ever runs - so
+                 * the top of the capture stack is ours to pop. */
+                if (capture) {
+                    shell_capture_free();
+                }
                 /* FIX: report the command that was ACTUALLY not found (this
                  * stage's first word), not the segment's first word — the
                  * caller can only see the segment head, so `echo hi | wc`
@@ -1766,10 +1806,20 @@ static int shell_cmd_nano(const char *args) {
     /* Resolve against the shell cwd (nano resolves like every other
      * file command). */
     const char *resolved = shell_resolve_path_static(file);
-    if (editor_open(resolved ? resolved : file) != 0) {
-        screen_console_puts("nano: cannot open ");
-        screen_console_puts(file);
-        screen_console_putc('\n');
+    int r = editor_open(resolved ? resolved : file);
+    if (r != 0) {
+        if (r == -4) {
+            /* BUG-0242 FIX (A15-16): a read error is no longer swallowed
+             * as EOF - the open aborts so no partial view can be saved
+             * over the file. Say so explicitly. */
+            screen_console_puts("nano: read error on ");
+            screen_console_puts(file);
+            screen_console_puts(" - refusing to open a partial view\n");
+        } else {
+            screen_console_puts("nano: cannot open ");
+            screen_console_puts(file);
+            screen_console_putc('\n');
+        }
         return 1;
     }
     int rc = editor_run();   /* editor_close() is done inside editor_run */
@@ -1794,10 +1844,18 @@ static int shell_cmd_vi(const char *args) {
     }
     file[i] = 0;
     const char *resolved = shell_resolve_path_static(file);
-    if (editor_open(resolved ? resolved : file) != 0) {
-        screen_console_puts("vi: cannot open ");
-        screen_console_puts(file);
-        screen_console_putc('\n');
+    int r = editor_open(resolved ? resolved : file);
+    if (r != 0) {
+        if (r == -4) {
+            /* BUG-0242 FIX (A15-16): read error != EOF - see nano. */
+            screen_console_puts("vi: read error on ");
+            screen_console_puts(file);
+            screen_console_puts(" - refusing to open a partial view\n");
+        } else {
+            screen_console_puts("vi: cannot open ");
+            screen_console_puts(file);
+            screen_console_putc('\n');
+        }
         return 1;
     }
     int rc = editor_run_vi();   /* editor_close() is done inside editor_run_vi */

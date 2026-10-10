@@ -257,7 +257,7 @@ These work in a bare QEMU session with no extra devices:
 | try this                          | what you should see                     |
 |-----------------------------------|-----------------------------------------|
 | `help`                            | the 150-command list                    |
-| `uname -a`                        | `Open Cube OS WP-10c x86_64`            |
+| `uname -a`                        | `Open Cube OS <version> x86_64`, where `<version>` is the build-time `git describe --tags` string (e.g. `Open Cube OS WP-10-AUDIT_P2-fix2b-7-g98a8dc7 x86_64`; Makefile `OC_RELEASE_VERSION`) |
 | `mkdir /d` + `write /d/f hi` + `cat /d/f` | `hi`                            |
 | `mem`, `heap`, `ps`, `sched`      | memory/task/scheduler stats             |
 | `heaptest`, `memtest`, `vmtest`   | PASS                                    |

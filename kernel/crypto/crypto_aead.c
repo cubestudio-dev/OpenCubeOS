@@ -495,48 +495,88 @@ static void rfc8439_poly_key(const u8 key[32], const u8 nonce[12], u8 poly_key[3
 }
 
 /* mac_data = aad || pad16 || ct || pad16 || le64(aad_len) || le64(ct_len).
- * Built into one static buffer (single-threaded kernel; documented limit).
- * TLS records: aad <= 5+32, ct <= 16384+256+16 -> buffer 20480 is ample. */
-#define OC_MAC_BUF_SIZE 20480
-static u8 g_mac_buf[OC_MAC_BUF_SIZE];
+ * BUG-0293 (A4-06) FIX: this used to be assembled into one shared static
+ * staging buffer (g_mac_buf, 20480 B): concurrent/reentrant seal/open calls
+ * raced on it, the `int total` size check could overflow negative and pass,
+ * and an oversized input silently produced an all-0xEE tag with seal still
+ * returning 0 (worse: an oversized record replayed to open() computed the
+ * same 0xEE tag and was ACCEPTED - no authentication at all).
+ * Poly1305 is a streaming MAC, so the mac_data is now fed directly through
+ * the context with a per-call 16-byte tail register: no shared state, no
+ * staging cap, no giant memcpy. Lengths are validated fail-closed: negative
+ * or absurd lengths (> OC_AEAD_MAX_INPUT) make seal/open return -1 instead
+ * of ever producing or accepting a tag. */
+#define OC_AEAD_MAX_INPUT (1 << 30)   /* sanity cap: 1 GiB of aad or ct */
 
-static void crypto_poly1305_aead_tag(const u8 poly_key[32], const u8 *aad, int aad_len,
+static void poly_stream(crypto_poly1305_ctx_t *st, u8 tail[16], int *tail_len,
+                 const u8 *d, int len) {
+    while (len > 0) {
+        int take = 16 - *tail_len;
+        if (take > len) take = len;
+        memcpy(tail + *tail_len, d, take);
+        *tail_len += take;
+        d += take;
+        len -= take;
+        if (*tail_len == 16) {
+            crypto_poly1305_blocks(st, tail, 16, 1u << 24);
+            *tail_len = 0;
+        }
+    }
+}
+
+/* Final partial block: zero-pad, append the 0x01 terminator, hibit=0
+ * (RFC 8439 2.5.2). No-op when the stream ended on a block boundary. */
+static void poly_stream_last(crypto_poly1305_ctx_t *st, u8 tail[16], int tail_len) {
+    if (tail_len == 0) return;
+    memset(tail + tail_len, 0, 16 - tail_len);
+    tail[tail_len] = 1;
+    crypto_poly1305_blocks(st, tail, 16, 0);
+}
+
+static int crypto_poly1305_aead_tag(const u8 poly_key[32], const u8 *aad, int aad_len,
                               const u8 *ct, int ct_len, u8 tag[16]) {
-    int aad_pad = (16 - (aad_len % 16)) % 16;
-    int ct_pad = (16 - (ct_len % 16)) % 16;
-    int total = aad_len + aad_pad + ct_len + ct_pad + 16;
+    if (aad_len < 0 || ct_len < 0 ||
+        aad_len > OC_AEAD_MAX_INPUT || ct_len > OC_AEAD_MAX_INPUT)
+        return -1;   /* fail-closed: seal/open callers return -1, no tag */
 
     u8 lens[16];
     u64 al = (u64)aad_len, cl = (u64)ct_len;
     for (int i = 0; i < 8; i++) lens[i] = (u8)(al >> (8 * i));
     for (int i = 0; i < 8; i++) lens[8 + i] = (u8)(cl >> (8 * i));
 
+    int aad_pad = (16 - (aad_len % 16)) % 16;
+    int ct_pad = (16 - (ct_len % 16)) % 16;
+
     crypto_poly1305_ctx_t st;
+    u8 tail[16];
+    int tail_len = 0;
     crypto_poly1305_init_ctx(&st, poly_key);
-    if (total <= OC_MAC_BUF_SIZE) {
-        u8 *p = g_mac_buf;
-        if (aad_len) { memcpy(p, aad, aad_len); p += aad_len; }
-        if (aad_pad) { memset(p, 0, aad_pad); p += aad_pad; }
-        if (ct_len) { memcpy(p, ct, ct_len); p += ct_len; }
-        if (ct_pad) { memset(p, 0, ct_pad); p += ct_pad; }
-        memcpy(p, lens, 16);
-        crypto_poly1305_blocks(&st, g_mac_buf, total & ~15, 1u << 24);
-    } else {
-        /* too large for the shared buffer: caller must cap record size */
-        /* produce a deterministic garbage tag so open() will reject */
-        memset(tag, 0xEE, 16);
-        return;
+    if (aad_len) poly_stream(&st, tail, &tail_len, aad, aad_len);
+    if (aad_pad) {
+        u8 zeros[16] = {0};
+        poly_stream(&st, tail, &tail_len, zeros, aad_pad);
     }
+    if (ct_len) poly_stream(&st, tail, &tail_len, ct, ct_len);
+    if (ct_pad) {
+        u8 zeros[16] = {0};
+        poly_stream(&st, tail, &tail_len, zeros, ct_pad);
+    }
+    poly_stream(&st, tail, &tail_len, lens, 16);
+    poly_stream_last(&st, tail, tail_len);
     crypto_poly1305_finish_ctx(&st, tag);
+    return 0;
 }
 
 int chacha20poly1305_seal(const u8 key[32], const u8 nonce[12],
                           const u8 *aad, int aad_len,
                           const u8 *pt, int pt_len, u8 *ct, u8 tag[16]) {
     u8 poly_key[32];
+    if (pt_len < 0 || pt_len > OC_AEAD_MAX_INPUT)
+        return -1;   /* fail-closed before any buffer is touched */
     rfc8439_poly_key(key, nonce, poly_key);
     crypto_chacha20_xor(key, nonce, 1, pt, pt_len, ct);
-    crypto_poly1305_aead_tag(poly_key, aad, aad_len, ct, pt_len, tag);
+    if (crypto_poly1305_aead_tag(poly_key, aad, aad_len, ct, pt_len, tag) != 0)
+        return -1;
     return 0;
 }
 
@@ -544,9 +584,12 @@ int chacha20poly1305_open(const u8 key[32], const u8 nonce[12],
                           const u8 *aad, int aad_len,
                           const u8 *ct, int ct_len, u8 *pt, const u8 tag[16]) {
     u8 poly_key[32];
+    if (ct_len < 0 || ct_len > OC_AEAD_MAX_INPUT)
+        return -1;   /* fail-closed: reject before computing any tag */
     rfc8439_poly_key(key, nonce, poly_key);
     u8 computed[16];
-    crypto_poly1305_aead_tag(poly_key, aad, aad_len, ct, ct_len, computed);
+    if (crypto_poly1305_aead_tag(poly_key, aad, aad_len, ct, ct_len, computed) != 0)
+        return -1;
     u8 diff = 0;
     for (int i = 0; i < 16; i++) diff |= (u8)(computed[i] ^ tag[i]);
     if (diff) return -1;

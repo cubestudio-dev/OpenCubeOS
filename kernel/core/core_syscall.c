@@ -134,7 +134,21 @@ static int resolve_user_path(u64 user_path, char *out, int out_len) {
         if (copy_from_user(user_buf, user_path, n + 1) != 0) return -1;
         user_buf[n] = 0;
     }
-    /* Now resolve against cwd. */
+    /* BUG-0278 FIX (A2-14): resolve against the CALLER's per-process cwd
+     * (copied in at fork, seeded from the kernel shell at spawn time,
+     * changed only by this process's own chdir). The old code resolved
+     * every relative path against the kernel shell's single global
+     * g_cwd, so any process's chdir moved the path base of ALL
+     * processes - relative opens/stat/mkdirs could land in a directory
+     * the caller never selected. */
+    user_proc_t *proc = user_process_current();
+    if (proc) {
+        extern int shell_resolve_path_base(const char *cwd, const char *path,
+                                           char *out, int out_len);
+        if (shell_resolve_path_base(proc->cwd, user_buf, out, out_len) < 0) return -1;
+        return 0;
+    }
+    /* Defensive fallback (no current user process): kernel shell cwd. */
     extern int shell_resolve_path(const char *path, char *out, int out_len);
     if (shell_resolve_path(user_buf, out, out_len) < 0) return -1;
     return 0;
@@ -275,7 +289,12 @@ static u64 sys_exit2(u64 code, u64 a2, u64 a3, u64 a4) {
          * The ush process has no parent user process (parent_tid=0
          * because it was started from the kernel shell). Pipe children
          * have parent_tid = ush's tid (> 0), so they don't clear it. */
-        extern int g_usershell_running;
+        /* BUG-0290: the flag is now volatile at its definition (it is
+         * polled by the kernel shell's sti/hlt spin in another task);
+         * this declaration must spell the same qualifier to stay
+         * type-consistent with the definition (plain `extern int`
+         * against a `volatile int` object is undefined behaviour). */
+        extern volatile int g_usershell_running;
         if (p->parent_tid == 0) {
             g_usershell_running = 0;
         }
@@ -321,6 +340,19 @@ static u64 sys_fork(u64 a1, u64 a2, u64 a3, u64 a4) {
     child->alive = 1;
     child->parent_tid = parent->tid;
     child->brk = parent->brk;
+    /* BUG-0274 FIX (A2-10): inherit the per-process allocator cursors.
+     * The child's address space is a full deep copy of the parent's
+     * (including mmap'd pages and dlopen'd .so images), but the old code
+     * left mmap_base/next_solib_addr zeroed, so the child's first mmap
+     * restarted at USER_MMAP_BASE and its first dlopen at USER_SOLIB_BASE
+     * - on top of the inherited pages. map_user_pages overwrites PTEs
+     * without freeing, so the inherited frames leaked and the inherited
+     * data was silently replaced. POSIX fork clones the address space
+     * AND its allocation state, so copy both cursors. */
+    child->mmap_base = parent->mmap_base;
+    child->next_solib_addr = parent->next_solib_addr;
+    /* BUG-0278 FIX (A2-14): fork inherits the parent's per-process cwd. */
+    memcpy(child->cwd, parent->cwd, USER_CWD_LEN);
     strncpy(child->name, parent->name, 31);
 
     child->as = copy_user_address_space(parent->as);
@@ -365,6 +397,30 @@ static u64 sys_fork(u64 a1, u64 a2, u64 a3, u64 a4) {
     child->tid = core_kthread_create(user_task_launcher, child, child->name, TASK_PRIO_DEFAULT);
     if (child->tid < 0) { child->alive = 0; return (u64)-1; }
     core_kthread_set_cr3(child->tid, child->as);
+    /* Kernel-#UD root-cause fix (T1/T4/T6-collect crash investigation).
+     * user_process_create sets task_t.rsp0 for exec-launched processes
+     * (the BUG-029 TSS fix), but this fork path never did, so the forked
+     * child's task kept rsp0 = 0. core_sched_switch_to skips the TSS
+     * update when next->rsp0 == 0, which left the TSS pointing at the
+     * PARENT's kernel-stack top. While the child ran in ring 3, every
+     * interrupt then pushed its frame - and, if the tick's scheduler
+     * switched away, the whole core_sched_tick -> core_sched_switch_to ->
+     * arch_context_switch chain - onto the PARENT's kernel stack, saving
+     * the child's rsp/rip there (observed live: child task rsp=0x643EE0
+     * inside the parent's 0x63E000..0x644000 stack window). When the
+     * parent later resumed, its stack slots had been overwritten by the
+     * child's kernel activity, and the next `ret` popped child data
+     * (&g_procs[1].fork_rsp / &g_procs[1].pid / &g_procs[1].sig_handlers
+     * [10]+1 - the three #UD rip values captured in the crash dumps) as
+     * a return address: kernel #UD inside g_procs[] right after a child
+     * exits, in the T1 tri-generation fork, T4 post-signal exit2 and T6
+     * collect configurations. The same stack-crossing is the pre-existing
+     * baseline T2 freeze (silent corruption without the #UD). Set the
+     * child's rsp0 exactly like the exec path does. */
+    {
+        task_t *ct = core_kthread_get_task(child->tid);
+        if (ct) ct->rsp0 = (u64)(uintptr_t)ct->stack_base + ct->stack_size;
+    }
 
     /* BUG-0042 FIX: inherit the parent's FPU/SSE state. The parent may
      * hold newer FPU data in the live registers than its task_t image
@@ -435,6 +491,11 @@ static u64 sys_kill(u64 pid_arg, u64 sig, u64 a3, u64 a4) {
     if (sig >= NSIG) return (u64)-1;
     for (int i = 0; i < MAX_USER_PROCS; i++) {
         if (g_procs[i].alive && g_procs[i].pid == (pid_t)pid_arg) {
+            /* BUG-0277 FIX follow-up: resolve self-kill BEFORE the reap
+             * clears g_procs[i].alive - user_process_current() only
+             * returns LIVE entries, so a post-reap comparison always
+             * misses and the kill returns into a destroyed AS. */
+            int is_self = (user_process_current() == &g_procs[i]);
             if (sig == SIGKILL) {
                 /* P3-11 FIX: Old code just set alive=0 + TASK_EXITED,
                  * leaking the entire PML4/PDPT/PD0/PT (~3-4 pages per
@@ -447,6 +508,11 @@ static u64 sys_kill(u64 pid_arg, u64 sig, u64 a3, u64 a4) {
                 /* WP-09-FIX BUG-004: remove from ready queue too (see
                  * core_sched_task_exited). */
                 core_sched_task_exited(g_procs[i].tid);
+                if (is_self) {
+                    task_t *t = core_kthread_current();
+                    if (t) t->state = TASK_EXITED;
+                    for (;;) core_kthread_block();
+                }
                 return 0;
             }
             g_procs[i].pending_signal = (int)sig;
@@ -455,6 +521,15 @@ static u64 sys_kill(u64 pid_arg, u64 sig, u64 a3, u64 a4) {
                 user_process_reap_resources(&g_procs[i], 128 + (int)sig);
                 if (g_procs[i].parent_tid > 0) core_kthread_wake(g_procs[i].parent_tid);
                 core_sched_task_exited(g_procs[i].tid);
+                if (is_self) {
+                    /* Same self-kill rule as the SIGKILL path above:
+                     * default action on the CALLING task (raise() to
+                     * self with no handler) must never return to user
+                     * mode — see the BUG-0277 follow-up comment. */
+                    task_t *t = core_kthread_current();
+                    if (t) t->state = TASK_EXITED;
+                    for (;;) core_kthread_block();
+                }
             }
             return 0;
         }
@@ -761,34 +836,160 @@ static u64 sys_dup2(u64 oldfd, u64 newfd, u64 a3, u64 a4) {
     return (u64)newfd;
 }
 
+/* BUG-0281 (A2-9) FIX: mmap window region-table helpers. Regions are
+ * non-overlapping by construction (mmap refuses overlaps), so coverage
+ * and overlap tests reduce to interval arithmetic over the table. All
+ * of these run on the CALLER'S OWN process table - "foreign" here means
+ * a window range this process never mapped, which is exactly what the
+ * teardown calls must refuse instead of silently ignoring. */
+static int mmap_regions_overlaps(user_proc_t *p, u64 s, u64 e) {
+    for (int i = 0; i < PROC_MAX_MMAP_REGIONS; i++) {
+        if (p->mmap_regions[i].start == 0) continue;
+        u64 rs = p->mmap_regions[i].start;
+        u64 re = rs + p->mmap_regions[i].pages * 0x1000;
+        if (s < re && rs < e) return 1;
+    }
+    return 0;
+}
+
+/* 1 = every page of [s, e) lies inside some region of p. */
+static int mmap_regions_covered(user_proc_t *p, u64 s, u64 e) {
+    u64 covered = 0;
+    for (int i = 0; i < PROC_MAX_MMAP_REGIONS; i++) {
+        if (p->mmap_regions[i].start == 0) continue;
+        u64 rs = p->mmap_regions[i].start;
+        u64 re = rs + p->mmap_regions[i].pages * 0x1000;
+        u64 os = s > rs ? s : rs;
+        u64 oe = e < re ? e : re;
+        if (oe > os) covered += oe - os;
+    }
+    return covered == e - s;
+}
+
+/* Carve [s, e) out of the region table: edge overlap trims a region,
+ * an interior range splits it into two survivors. Returns -1 (without
+ * touching anything) when a split would need a free slot and the table
+ * is full, so callers can reject BEFORE unmapping any PTE. */
+static int mmap_regions_carve(user_proc_t *p, u64 s, u64 e) {
+    int splits_needed = 0;
+    for (int i = 0; i < PROC_MAX_MMAP_REGIONS; i++) {
+        if (p->mmap_regions[i].start == 0) continue;
+        u64 rs = p->mmap_regions[i].start;
+        u64 re = rs + p->mmap_regions[i].pages * 0x1000;
+        if (rs < s && e < re) splits_needed++;  /* interior: 2 survivors */
+    }
+    int free_slots = 0;
+    for (int i = 0; i < PROC_MAX_MMAP_REGIONS; i++)
+        if (p->mmap_regions[i].start == 0) free_slots++;
+    if (splits_needed > free_slots) return -1;
+
+    for (int i = 0; i < PROC_MAX_MMAP_REGIONS; i++) {
+        if (p->mmap_regions[i].start == 0) continue;
+        u64 rs = p->mmap_regions[i].start;
+        u64 re = rs + p->mmap_regions[i].pages * 0x1000;
+        if (re <= s || rs >= e) continue;         /* untouched */
+        if (rs >= s && re <= e) {                  /* fully removed */
+            p->mmap_regions[i].start = 0;
+            p->mmap_regions[i].pages = 0;
+            continue;
+        }
+        if (rs < s) {                              /* keep left survivor */
+            p->mmap_regions[i].pages = (s - rs) / 0x1000;
+            if (e < re) {                          /* + right survivor */
+                for (int j = 0; j < PROC_MAX_MMAP_REGIONS; j++) {
+                    if (p->mmap_regions[j].start != 0) continue;
+                    p->mmap_regions[j].start = e;
+                    p->mmap_regions[j].pages = (re - e) / 0x1000;
+                    break;
+                }
+            }
+        } else {                                   /* keep right survivor */
+            u64 npages = (re - e) / 0x1000;
+            p->mmap_regions[i].start = e;
+            p->mmap_regions[i].pages = npages;
+        }
+    }
+    return 0;
+}
+
 static u64 sys_mem_mmap(u64 addr, u64 length, u64 prot, u64 a4) {
-    (void)addr;(void)prot;(void)a4;
+    /* BUG-0281 (A2-9) FIX: the old implementation threw away addr and
+     * prot ((void)addr;(void)prot;) and always mapped PRESENT|WRITE|USER:
+     * MAP_FIXED, PROT_NONE and read-only were silently upgraded to RW.
+     * Now:
+     *   - prot is honoured and validated (bits outside PROT_READ|WRITE|
+     *     EXEC are rejected; PROT_NONE maps the frames PRESENT but
+     *     WITHOUT the USER bit, so ring 3 faults on any access while
+     *     the PTE stays reclaimable by munmap/mprotect);
+     *   - a non-zero addr is a real hint: page-aligned and inside the
+     *     window, or the call is rejected - never silently redirected;
+     *   - the allocation is bounded by the SAME window end that munmap
+     *     and mprotect enforce (USER_MMAP_WINDOW_END, just below the
+     *     user stack), so a mapping can no longer grow past the reach
+     *     of its own teardown syscalls;
+     *   - the region is recorded in proc->mmap_regions, which is what
+     *     munmap/mprotect use to verify ownership (a fork child keeps
+     *     the copied pages but restarts with an empty table, matching
+     *     sys_fork's documented non-inheritance of mmap_base - A2-10
+     *     domain).
+     * a4 (flags) is accepted-and-identical by design: this kernel has a
+     * single anonymous mapping type, MAP_SHARED/MAP_PRIVATE have the
+     * same semantics here (documented; no other flag bits exist). */
+    (void)a4;
     if (length == 0) return (u64)-1;
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
-    /* P3-6 FIX: Reject unaligned / overflowing length to prevent
-     * arithmetic bugs in the page-count calculation. */
+    /* P3-6 FIX: sanity cap (unchanged); the window bound below is the
+     * real limit. */
     if (length > 0x40000000ULL) return (u64)-1;  /* 1 GiB sanity cap */
+    if (prot & ~7ULL) return (u64)-1;  /* PROT_* mask is 0..7 */
     u64 pages = (length + 0xFFF) / 0x1000;
-    /* BUG-010 FIX: Use per-process mmap_base instead of a global static.
-     * The old `static u64 mmap_base` was shared across all processes,
-     * causing cross-process memory corruption when multiple processes
-     * called mmap. Now each process gets its own bump allocator. */
-    if (proc->mmap_base == 0) proc->mmap_base = USER_MMAP_BASE;
-    u64 result = proc->mmap_base;
+    u64 map_flags = VMM_FLAG_PRESENT | VMM_FLAG_USER;
+    if (prot & 2) map_flags |= VMM_FLAG_WRITE;
+    if (!(prot & 4)) map_flags |= VMM_FLAG_NOEXEC;
+    if (!(prot & 1)) map_flags &= ~VMM_FLAG_USER;  /* PROT_NONE */
+    u64 base;
+    if (addr == 0) {
+        /* BUG-010 FIX: per-process bump allocator (see original note). */
+        if (proc->mmap_base == 0) proc->mmap_base = USER_MMAP_BASE;
+        base = proc->mmap_base;
+    } else {
+        /* BUG-0281: addr is a real hint now - page-aligned and inside
+         * the mmap window, or rejected. */
+        if (addr & 0xFFF) return (u64)-1;
+        if (addr < USER_MMAP_BASE) return (u64)-1;
+        base = addr;
+    }
+    /* BUG-0281: the whole [base, base+span) range must sit inside the
+     * ONE window [USER_MMAP_BASE, USER_MMAP_WINDOW_END) that munmap and
+     * mprotect enforce - a mapping above the window end would be
+     * unreachable by its own teardown syscalls (the exact A2-9
+     * inconsistency). The base>END case must be tested explicitly:
+     * USER_MMAP_WINDOW_END - base would wrap around in unsigned
+     * arithmetic and silently pass the pages check. base == END is
+     * rejected by the pages check (any length needs >= 1 page). */
+    if (base < USER_MMAP_BASE ||
+        base > USER_MMAP_WINDOW_END ||
+        pages > (USER_MMAP_WINDOW_END - base) / 0x1000) return (u64)-1;
+    u64 span = pages * 0x1000;
+    /* Refuse to overlap a region this process already owns (a silent
+     * overwrite would leak the old frames and replace live data), and
+     * refuse when the region table is full - both checks happen BEFORE
+     * any frame is allocated. */
+    if (mmap_regions_overlaps(proc, base, base + span)) return (u64)-1;
+    int slot = -1;
+    for (int i = 0; i < PROC_MAX_MMAP_REGIONS; i++) {
+        if (proc->mmap_regions[i].start == 0) { slot = i; break; }
+    }
+    if (slot < 0) return (u64)-1;
+    u64 result = base;
     u64 mapped = 0;  /* P3-5: track how many we successfully mapped */
     for (u64 i = 0; i < pages; i++) {
         u64 phys = mem_pmm_alloc_frame();
         if (phys == 0) {
-            /* P3-5 FIX: Partial-failure cleanup. Old code just returned
-             * -1, leaving the already-mapped pages (and the unmoved
-             * mmap_base) dangling. They'd never be freed because the
-             * user got back -1 and never knew the address. Now we
-             * unmap what we mapped, free the physical pages, and
-             * leave mmap_base unchanged so the next caller gets the
-             * same range (no leak, no fragmentation). */
+            /* P3-5 FIX: Partial-failure cleanup (unchanged). */
             for (u64 j = 0; j < mapped; j++) {
-                u64 old_pte = mem_vmm_unmap_page(proc->as, proc->mmap_base + j * 0x1000);
+                u64 old_pte = mem_vmm_unmap_page(proc->as, base + j * 0x1000);
                 if (old_pte & VMM_FLAG_PRESENT) {
                     u64 p = old_pte & 0x000FFFFFFFFFF000ULL;
                     if (p != 0) mem_pmm_free_frame(p);
@@ -796,12 +997,16 @@ static u64 sys_mem_mmap(u64 addr, u64 length, u64 prot, u64 a4) {
             }
             return (u64)-1;
         }
-        mem_vmm_map_page(proc->as, proc->mmap_base + i * 0x1000, phys,
-                     VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
+        mem_vmm_map_page(proc->as, base + i * 0x1000, phys, map_flags);
         memset((void*)phys, 0, 0x1000);
         mapped++;
     }
-    proc->mmap_base += pages * 0x1000;
+    proc->mmap_regions[slot].start = base;
+    proc->mmap_regions[slot].pages = pages;
+    /* Bump only moves forward: past anonymous allocations, and past a
+     * successful hint range so a later bump can never collide with it. */
+    if (addr == 0 || base + span > proc->mmap_base)
+        proc->mmap_base = base + span;
     return result;
 }
 
@@ -827,18 +1032,34 @@ static u64 sys_mem_munmap(u64 addr, u64 length, u64 a3, u64 a4) {
      * addr + length must not wrap (overflow). */
     if (length == 0) return (u64)-1;
     if (length > 0x40000000ULL) return (u64)-1;
-    if (addr > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
     u64 end = addr + length;
     if (end < addr) return (u64)-1;  /* overflow */
     addr = addr & ~0xFFFULL;
     u64 end_aligned = (end + 0xFFF) & ~0xFFFULL;
     /* BUG-003 FIX (P0): reject addresses outside user-mapped region.
-     * User mappings live in [USER_BRK_BASE, USER_MMAP_BASE+USER_MMAP_LIMIT).
+     * User mappings live in [USER_BRK_BASE, USER_MMAP_WINDOW_END).
      * Anything outside this range is either kernel identity-mapped
-     * (0..USER_BRK_BASE) or unmapped. We refuse to munmap kernel pages. */
+     * (0..USER_BRK_BASE) or the user stack / shared kernel page-table
+     * region. We refuse to munmap kernel pages. */
     if (addr < USER_BRK_BASE) return (u64)-1;
-    if (end_aligned > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
+    /* BUG-0281: SAME window bound mmap enforces (was the unreachable
+     * USER_MMAP_BASE+0x10000000, which also covered the user stack).
+     * Anything mmap can produce is now munmap-able, and nothing above
+     * the window (e.g. the stack) is not. */
+    if (end_aligned > USER_MMAP_WINDOW_END) return (u64)-1;
     u64 pages = (end_aligned - addr) / 0x1000;
+    /* BUG-0281: the window portion of the range must belong to regions
+     * this process actually mapped (foreign/unmapped window ranges are
+     * rejected instead of silently "succeeding"). The carve also needs
+     * a slot check up front so a split can never leave a half-updated
+     * table behind a failed munmap. Below-window ranges (brk, solib)
+     * keep the historical per-page teardown behaviour. */
+    u64 ws = addr > USER_MMAP_BASE ? addr : USER_MMAP_BASE;
+    u64 we = end_aligned < USER_MMAP_WINDOW_END ? end_aligned : USER_MMAP_WINDOW_END;
+    if (ws < we) {
+        if (!mmap_regions_covered(proc, ws, we)) return (u64)-1;
+        if (mmap_regions_carve(proc, ws, we) != 0) return (u64)-1;
+    }
     /* P2-26 FIX: Free the physical pages backing the unmapped VA range.
      * mem_vmm_unmap_page returns the old PTE, from which we extract the
      * physical frame and return it to PMM. Without this, munmap leaks
@@ -864,7 +1085,6 @@ static u64 sys_mem_mprotect(u64 addr, u64 len, u64 prot, u64 a4) {
     /* P3-6 FIX: page-align and overflow-check, same as sys_mem_munmap. */
     if (len == 0) return (u64)-1;
     if (len > 0x40000000ULL) return (u64)-1;
-    if (addr > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
     u64 end = addr + len;
     if (end < addr) return (u64)-1;
     addr = addr & ~0xFFFULL;
@@ -873,11 +1093,27 @@ static u64 sys_mem_mprotect(u64 addr, u64 len, u64 prot, u64 a4) {
      * Same rationale as sys_mem_munmap — don't let user code modify
      * protection bits on kernel pages. */
     if (addr < USER_BRK_BASE) return (u64)-1;
-    if (end_aligned > USER_MMAP_BASE + 0x10000000ULL) return (u64)-1;
-    u64 flags = VMM_FLAG_PRESENT | VMM_FLAG_USER;
+    /* BUG-0281: SAME window bound mmap/munmap enforce (the old
+     * USER_MMAP_BASE+0x10000000 also covered the user stack). */
+    if (end_aligned > USER_MMAP_WINDOW_END) return (u64)-1;
+    /* BUG-0281: prot must be a valid PROT_* mask. The old code silently
+     * dropped unknown bits; PROT_NONE (0) maps the pages PRESENT but
+     * WITHOUT the USER bit (ring 3 faults on any access) so the PTEs
+     * stay reclaimable by munmap and re-protectable by mprotect. */
+    if (prot & ~7ULL) return (u64)-1;
+    u64 flags = VMM_FLAG_PRESENT;
+    if (prot & 1) flags |= VMM_FLAG_USER;
     if (prot & 2) flags |= VMM_FLAG_WRITE;
     if (!(prot & 4)) flags |= VMM_FLAG_NOEXEC;
     u64 pages = (end_aligned - addr) / 0x1000;
+    /* BUG-0281: the window portion of the range must belong to regions
+     * this process actually mapped - mprotect on someone else's (or an
+     * unmapped) window range is rejected instead of silently ignored.
+     * Below-window ranges (brk, loader/solib text+data for the W^X
+     * RELRO pass) keep the historical behaviour. */
+    u64 ws = addr > USER_MMAP_BASE ? addr : USER_MMAP_BASE;
+    u64 we = end_aligned < USER_MMAP_WINDOW_END ? end_aligned : USER_MMAP_WINDOW_END;
+    if (ws < we && !mmap_regions_covered(proc, ws, we)) return (u64)-1;
     for (u64 i = 0; i < pages; i++) mem_vmm_protect_page(proc->as, addr + i * 0x1000, flags);
     return 0;
 }
@@ -1019,9 +1255,37 @@ static u64 sys_sigreturn(u64 a1, u64 a2, u64 a3, u64 a4) {
 
 static u64 sys_chdir(u64 path, u64 a2, u64 a3, u64 a4) {
     (void)a2;(void)a3;(void)a4;
-    /* P3-9 FIX: path is a NUL-terminated string — use access_ok_str. */
+    user_proc_t *proc = user_process_current();
+    if (!proc) return (u64)-1;
+    /* BUG-0278 FIX (A2-14): chdir moves THIS process's cwd, not the
+     * kernel shell's global g_cwd. The path is copy-in'd first (the old
+     * code handed the raw user pointer to shell_set_cwd, which read it
+     * directly - style-inconsistent with the rest of the syscall layer).
+     * Validation mirrors the kernel shell's cd: the resolved path must
+     * exist and be a directory. */
     if (!access_ok_str(path)) return (u64)-1;
-    return (u64)shell_set_cwd((const char*)(uintptr_t)path);
+    char user_buf[256];
+    {
+        const char *p = (const char*)(uintptr_t)path;
+        u64 n = 0;
+        while (n < 255 && p[n] != '\0') n++;
+        if (copy_from_user(user_buf, path, n + 1) != 0) return (u64)-1;
+        user_buf[n] = 0;
+    }
+    char resolved[USER_CWD_LEN];
+    {
+        extern int shell_resolve_path_base(const char *cwd, const char *path,
+                                           char *out, int out_len);
+        if (shell_resolve_path_base(proc->cwd, user_buf, resolved,
+                                    (int)sizeof(resolved)) < 0)
+            return (u64)-1;
+    }
+    fs_vfs_stat_t st;
+    if (fs_vfs_stat(resolved, &st) < 0) return (u64)-1;
+    if (st.type != VFS_TYPE_DIR) return (u64)-1;
+    /* resolved is <= USER_CWD_LEN-1 bytes (normalize enforces maxlen). */
+    strcpy(proc->cwd, resolved);
+    return 0;
 }
 
 static u64 sys_getcwd(u64 buf, u64 size, u64 a3, u64 a4) {
@@ -1030,10 +1294,13 @@ static u64 sys_getcwd(u64 buf, u64 size, u64 a3, u64 a4) {
      * the destination range is mapped before writing. We use copy_to_user
      * for the actual write so the access-check + copy is atomic-ish. */
     if (!access_ok_read(buf, size)) return (u64)-1;
-    const char *cwd = shell_get_cwd();
-    int len = strlen(cwd);
+    user_proc_t *proc = user_process_current();
+    if (!proc) return (u64)-1;
+    /* BUG-0278 FIX (A2-14): report THIS process's cwd, not the kernel
+     * shell's global g_cwd. */
+    int len = strlen(proc->cwd);
     if (len >= (int)size) return (u64)-1;
-    if (copy_to_user(buf, cwd, (u64)len + 1) != 0) return (u64)-1;
+    if (copy_to_user(buf, proc->cwd, (u64)len + 1) != 0) return (u64)-1;
     return buf;
 }
 
@@ -1211,6 +1478,104 @@ static void sys_execve_write_user(mem_vmm_as_t as, u64 va, const void *data, u64
     }
 }
 
+/* BUG-0249 FIX (A16-11): single name -> embedded-program lookup shared
+ * by sys_execve and the L1 job API (job_create, l1/l1_wp8cd.c). One
+ * table means the two paths can never disagree about what a program
+ * name resolves to. Returns the ELF pointer and stores its size in
+ * *size_out (when size_out != 0), or NULL for an unknown name. */
+const u8 *core_userprog_lookup(const char *name, u64 *size_out) {
+    extern const u8 userprog_hello[];
+    extern const u8 userprog_fork_test[];
+    extern const u8 userprog_exec_test[];
+    extern const u8 userprog_pipe_test[];
+    extern const u8 userprog_mmap_test[];
+    extern const u8 userprog_signal_test[];
+    extern const u8 userprog_select_test[];
+    extern const u8 userprog_dyn_hello[];
+    extern const u8 userprog_so_test[];
+    extern const u8 userprog_dlsym_test[];
+    extern const u8 userprog_pie_test[];
+    extern const u8 userprog_reloc_test[];
+    extern const u8 userprog_main_dyn[];
+    extern const u8 userprog_mmap_multi[];
+    extern const u8 userprog_ush[];
+    extern const u8 userprog_fdref_test[];
+    extern const u8 userprog_select_zero_test[];
+    extern const u8 userprog_loop[];
+    /* WP-10-AUDIT_P2-fix3 G6 regression programs (BUG-0274..0280 evidence
+     * suites) - merged from fix3-laneA so sys_execve and the L1 job API
+     * resolve the same names the `run` command does (BUG-0249 one-table
+     * invariant). */
+    extern const u8 userprog_g6_test[];
+    extern const u8 userprog_g6_exec_a[];
+    extern const u8 userprog_g6_exec_b[];
+    extern const u8 userprog_g6_oom[];
+    /* Sizes are defined next to the arrays in userprogs_data.h (only
+     * included by core_usermode.c), so declare them here. */
+    extern const u64 userprog_hello_size;
+    extern const u64 userprog_fork_test_size;
+    extern const u64 userprog_exec_test_size;
+    extern const u64 userprog_pipe_test_size;
+    extern const u64 userprog_mmap_test_size;
+    extern const u64 userprog_signal_test_size;
+    extern const u64 userprog_select_test_size;
+    extern const u64 userprog_dyn_hello_size;
+    extern const u64 userprog_so_test_size;
+    extern const u64 userprog_dlsym_test_size;
+    extern const u64 userprog_pie_test_size;
+    extern const u64 userprog_reloc_test_size;
+    extern const u64 userprog_main_dyn_size;
+    extern const u64 userprog_mmap_multi_size;
+    extern const u64 userprog_ush_size;
+    extern const u64 userprog_fdref_test_size;
+    extern const u64 userprog_select_zero_test_size;
+    extern const u64 userprog_loop_size;
+    extern const u64 userprog_g6_test_size;
+    extern const u64 userprog_g6_exec_a_size;
+    extern const u64 userprog_g6_exec_b_size;
+    extern const u64 userprog_g6_oom_size;
+    const u8 *elf = NULL;
+    u64 size = 0;
+    if (strcmp(name, "hello") == 0) { elf = userprog_hello; size = userprog_hello_size; }
+    else if (strcmp(name, "fork_test") == 0) { elf = userprog_fork_test; size = userprog_fork_test_size; }
+    else if (strcmp(name, "exec_test") == 0) { elf = userprog_exec_test; size = userprog_exec_test_size; }
+    else if (strcmp(name, "pipe_test") == 0) { elf = userprog_pipe_test; size = userprog_pipe_test_size; }
+    else if (strcmp(name, "mmap_test") == 0) { elf = userprog_mmap_test; size = userprog_mmap_test_size; }
+    else if (strcmp(name, "signal_test") == 0) { elf = userprog_signal_test; size = userprog_signal_test_size; }
+    else if (strcmp(name, "select_test") == 0) { elf = userprog_select_test; size = userprog_select_test_size; }
+    else if (strcmp(name, "dyn_hello") == 0) { elf = userprog_dyn_hello; size = userprog_dyn_hello_size; }
+    else if (strcmp(name, "so_test") == 0) { elf = userprog_so_test; size = userprog_so_test_size; }
+    else if (strcmp(name, "dlsym_test") == 0) { elf = userprog_dlsym_test; size = userprog_dlsym_test_size; }
+    else if (strcmp(name, "pie_test") == 0) { elf = userprog_pie_test; size = userprog_pie_test_size; }
+    else if (strcmp(name, "reloc_test") == 0) { elf = userprog_reloc_test; size = userprog_reloc_test_size; }
+    else if (strcmp(name, "main_dyn") == 0) { elf = userprog_main_dyn; size = userprog_main_dyn_size; }
+    else if (strcmp(name, "mmap_multi") == 0) { elf = userprog_mmap_multi; size = userprog_mmap_multi_size; }
+    else if (strcmp(name, "fdref_test") == 0) { elf = userprog_fdref_test; size = userprog_fdref_test_size; }
+    else if (strcmp(name, "select_zero_test") == 0) { elf = userprog_select_zero_test; size = userprog_select_zero_test_size; }
+    else if (strcmp(name, "loop") == 0) { elf = userprog_loop; size = userprog_loop_size; }
+    else if (strcmp(name, "g6_test") == 0) { elf = userprog_g6_test; size = userprog_g6_test_size; }
+    else if (strcmp(name, "g6_exec_a") == 0) { elf = userprog_g6_exec_a; size = userprog_g6_exec_a_size; }
+    else if (strcmp(name, "g6_exec_b") == 0) { elf = userprog_g6_exec_b; size = userprog_g6_exec_b_size; }
+    else if (strcmp(name, "g6_oom") == 0) { elf = userprog_g6_oom; size = userprog_g6_oom_size; }
+    else if (strcmp(name, "ush") == 0 || strcmp(name, "usershell") == 0) {
+        elf = userprog_ush; size = userprog_ush_size;
+    }
+    if (!elf) {
+        /* BUG-0092 FIX (A16-5): fall back to the WP-08cd L1 tool table -
+         * a tool registered via tool_register() is genuinely
+         * executable by name. */
+        extern int l1_wp8cd_tool_find(const char *name, const u8 **elf, u64 *size);
+        u64 tool_size = 0;
+        const u8 *tool_elf = NULL;
+        if (l1_wp8cd_tool_find(name, &tool_elf, &tool_size) && tool_elf) {
+            elf = tool_elf;
+            size = tool_size;
+        }
+    }
+    if (elf && size_out) *size_out = size;
+    return elf;
+}
+
 static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     /* P4 fix: actually USE argv (was ignored). The kernel still uses
      * embedded ELF byte arrays (no VFS file loading yet), but argv[0]
@@ -1271,58 +1636,10 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     if (name[0] == '/' && name[1] == 'b' && name[2] == 'i' &&
         name[3] == 'n' && name[4] == '/') name += 5;
 
-    extern const u8 userprog_hello[];
-    extern const u8 userprog_fork_test[];
-    extern const u8 userprog_exec_test[];
-    extern const u8 userprog_pipe_test[];
-    extern const u8 userprog_mmap_test[];
-    extern const u8 userprog_signal_test[];
-    extern const u8 userprog_select_test[];
-    extern const u8 userprog_dyn_hello[];
-    extern const u8 userprog_so_test[];
-    extern const u8 userprog_dlsym_test[];
-    extern const u8 userprog_pie_test[];
-    extern const u8 userprog_reloc_test[];
-    extern const u8 userprog_main_dyn[];
-    extern const u8 userprog_mmap_multi[];
-    extern const u8 userprog_ush[];
-    extern const u8 userprog_fdref_test[];
-    extern const u8 userprog_select_zero_test[];
-    const u8 *elf = NULL;
-    if (strcmp(name, "hello") == 0) elf = userprog_hello;
-    else if (strcmp(name, "fork_test") == 0) elf = userprog_fork_test;
-    else if (strcmp(name, "exec_test") == 0) elf = userprog_exec_test;
-    else if (strcmp(name, "pipe_test") == 0) elf = userprog_pipe_test;
-    else if (strcmp(name, "mmap_test") == 0) elf = userprog_mmap_test;
-    else if (strcmp(name, "signal_test") == 0) elf = userprog_signal_test;
-    else if (strcmp(name, "select_test") == 0) elf = userprog_select_test;
-    else if (strcmp(name, "dyn_hello") == 0) elf = userprog_dyn_hello;
-    else if (strcmp(name, "so_test") == 0) elf = userprog_so_test;
-    else if (strcmp(name, "dlsym_test") == 0) elf = userprog_dlsym_test;
-    else if (strcmp(name, "pie_test") == 0) elf = userprog_pie_test;
-    else if (strcmp(name, "reloc_test") == 0) elf = userprog_reloc_test;
-    else if (strcmp(name, "main_dyn") == 0) elf = userprog_main_dyn;
-    else if (strcmp(name, "mmap_multi") == 0) elf = userprog_mmap_multi;
-    else if (strcmp(name, "fdref_test") == 0) elf = userprog_fdref_test;
-    else if (strcmp(name, "select_zero_test") == 0) elf = userprog_select_zero_test;
-    else if (strcmp(name, "ush") == 0 || strcmp(name, "usershell") == 0)
-        elf = userprog_ush;
-    if (!elf) {
-        /* BUG-0092 FIX (A16-5): fall back to the WP-08cd L1 tool table —
-         * a tool registered via tool_register() is now genuinely
-         * executable by name (before, the table was write-only). */
-        extern int l1_wp8cd_tool_find(const char *name, const u8 **elf, u64 *size);
-        u64 tool_size = 0;
-        const u8 *tool_elf = NULL;
-        if (l1_wp8cd_tool_find(name, &tool_elf, &tool_size) && tool_elf) {
-            static const u8 *s_tool_elf;
-            static u64 s_tool_size;
-            s_tool_elf = tool_elf;
-            s_tool_size = tool_size;
-            elf = s_tool_elf;
-            (void)s_tool_size;
-        }
-    }
+    /* BUG-0249 FIX (A16-11): the name -> embedded-ELF chain moved into
+     * core_userprog_lookup() so sys_execve and the L1 job API resolve
+     * program names from ONE table (behavior unchanged here). */
+    const u8 *elf = core_userprog_lookup(name, 0);
     if (!elf) return (u64)-1;
 
     user_proc_t *proc = user_process_current();
@@ -1439,6 +1756,15 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     proc->entry_point = hdr->entry;
     proc->brk = USER_BRK_BASE;
     proc->is_fork_child = 0;
+    /* BUG-0277 FIX (A2-13a): POSIX exec resets all caught signals to
+     * their default action and drops pending/queued signals. The old
+     * code kept the PREVIOUS program's handler table, so a stale
+     * user-space handler VA pointing into the destroyed image survived
+     * exec; the next SIGUSR1-style delivery then iretq'd into whatever
+     * bytes the NEW program happened to have at that address. */
+    for (int i = 0; i < NSIG; i++) proc->sig_handlers[i] = NULL;
+    proc->pending_signal = 0;
+    proc->sig_in_progress = 0;
 
     /* P4 fix: build a proper user stack with argc + argv[] + envp[].
      * Layout (top to bottom, RSP grows down):
@@ -1546,8 +1872,8 @@ static void solib_table_init(void) {
 /* WP-08b Batch 5: SYS_MAP_SOLIB — map a .so by name into user space.
  * Called by ld.so's dlopen() to dynamically load a shared library.
  * Args: rdi=name_ptr (user), rsi=name_len, rdx=flags (unused), r10=0
- * Returns: base address of mapped .so, or 0 on failure.
- * Maps at proc->next_solib_addr (bump allocator from 0x50000000). */
+ * Returns: base address of the mapped .so, or 0 on failure.
+ * Maps at proc->next_solib_addr (bump allocator from 0x38000000). */
 static u64 sys_map_solib(u64 name_ptr, u64 name_len, u64 flags, u64 a4) {
     (void)flags; (void)a4;
     /* P3-9 FIX: validate name_ptr mapping (was only range-check). */
@@ -1574,7 +1900,14 @@ static u64 sys_map_solib(u64 name_ptr, u64 name_len, u64 flags, u64 a4) {
         }
     }
     if (!data) return 0;
-    /* Validate ELF. */
+
+    /* BUG-0280 FIX (A2-16): the inline ELF parse used to trust every
+     * header field (e_phoff/e_phnum/p_offset/p_filesz/p_memsz/p_vaddr)
+     * on the strength of "embedded blobs are trusted". That premise
+     * dies the day the table is fed from anywhere else, and the
+     * unchecked fields gave OOB kernel reads / wild mappings. Validate
+     * the same fields user_process_create validates (P3-13/P3-14),
+     * sized for this loader. */
     if (size < 64) return 0;
     /* Use raw casts (elf64_hdr_t is defined in usermode.c, not exported). */
     const u8 *hdr = data;
@@ -1584,54 +1917,122 @@ static u64 sys_map_solib(u64 name_ptr, u64 name_len, u64 flags, u64 a4) {
     u16 e_type = *(u16*)(data + 16);
     if (e_type != 3) return 0;  /* ET_DYN */
     u64 e_phoff = *(u64*)(data + 32);
+    u16 e_phentsize = *(u16*)(data + 54);
     u16 e_phnum = *(u16*)(data + 56);
+    if (e_phentsize != 56) return 0;
+    if (e_phnum == 0 || e_phnum > 64) return 0;
+    {
+        u64 phdr_table_end = e_phoff + (u64)e_phnum * 56;
+        if (e_phoff >= size || phdr_table_end < e_phoff || phdr_table_end > size)
+            return 0;
+    }
     /* Find current process. */
     user_proc_t *proc = user_process_current();
     if (!proc) return 0;
+
+    /* The dlopen bump window is [USER_SOLIB_BASE, USER_MMAP_BASE): the
+     * documented per-process .so region below the mmap base. A bump that
+     * walked past USER_MMAP_BASE would overwrite the process's (or a
+     * future) mmap mappings, and a zero cursor would map at VA 0 — both
+     * fail closed here. */
     u64 base = proc->next_solib_addr;
-    /* Map each PT_LOAD segment at base + p_vaddr. */
+    if (base == 0) base = USER_SOLIB_BASE;
+    if (base < USER_SOLIB_BASE || base >= USER_MMAP_BASE) return 0;
+
+    /* Pass 1: validate every PT_LOAD and size the whole image. */
+    #define SOLIB_MAX_SEGS 16
+    u64 max_end = 0;
+    int nseg = 0;
     for (int k = 0; k < e_phnum; k++) {
-        u32 p_type = *(u32*)(data + e_phoff + k * 56);
+        const u8 *ph = data + e_phoff + (u64)k * 56;
+        u32 p_type = *(u32*)(ph);
         if (p_type != 1) continue;  /* PT_LOAD */
-        u64 p_offset = *(u64*)(data + e_phoff + k * 56 + 8);
-        u64 p_vaddr = *(u64*)(data + e_phoff + k * 56 + 16);
-        u64 p_filesz = *(u64*)(data + e_phoff + k * 56 + 32);
-        u64 p_memsz = *(u64*)(data + e_phoff + k * 56 + 40);
+        u64 p_offset = *(u64*)(ph + 8);
+        u64 p_vaddr  = *(u64*)(ph + 16);
+        u64 p_filesz = *(u64*)(ph + 32);
+        u64 p_memsz  = *(u64*)(ph + 40);
+        if (p_memsz < p_filesz) return 0;              /* negative BSS */
+        u64 file_end = p_offset + p_filesz;
+        if (file_end < p_offset || file_end > size) return 0;
+        u64 mem_end = p_vaddr + p_memsz;
+        if (mem_end < p_vaddr) return 0;               /* overflow */
+        if (p_vaddr >= USER_MMAP_BASE) return 0;       /* not a solib VA */
+        u64 seg_end = (mem_end + 0xFFFULL) & ~0xFFFULL;
+        if (seg_end > max_end) max_end = seg_end;
+        if (++nseg > SOLIB_MAX_SEGS) return 0;
+    }
+    if (nseg == 0) return 0;
+    /* Window cap: fail closed BEFORE touching any page table if this
+     * .so would not fit in the remaining solib window. On failure the
+     * bump cursor is not advanced, so a later dlclose-less retry of a
+     * smaller image (or the same image after the region is drained)
+     * still lands correctly. */
+    if (base + max_end > USER_MMAP_BASE) return 0;
+
+    /* Pass 2: map. Every page this call installs is recorded so a
+     * mid-way failure (map_user_pages short, frame OOM) unmaps and
+     * frees exactly what it installed - the old code returned 0 with
+     * the already-mapped segments left behind (PTE + frame leak) and
+     * an unadvanced cursor, so the NEXT dlopen re-mapped the same range
+     * over the surviving PTEs and leaked the old frames again. */
+    typedef struct { u64 start; u64 pages; } solib_seg_roll_t;
+    solib_seg_roll_t roll[SOLIB_MAX_SEGS];
+    int nroll = 0;
+    for (int k = 0; k < e_phnum; k++) {
+        const u8 *ph = data + e_phoff + (u64)k * 56;
+        u32 p_type = *(u32*)(ph);
+        if (p_type != 1) continue;
+        u64 p_offset = *(u64*)(ph + 8);
+        u64 p_vaddr  = *(u64*)(ph + 16);
+        u64 p_filesz = *(u64*)(ph + 32);
+        u64 p_memsz  = *(u64*)(ph + 40);
         u64 load_vaddr = base + p_vaddr;
+        u64 seg_start = load_vaddr & ~0xFFFULL;
+        u64 seg_pages = ((load_vaddr + p_memsz + 0xFFFULL) & ~0xFFFULL) - seg_start;
+        roll[nroll].start = seg_start;
+        roll[nroll].pages = seg_pages;
+        nroll++;
         if (map_user_pages(proc->as, load_vaddr,
                           data + p_offset, p_filesz) != 0)
-            return 0;
+            goto solib_fail;
         /* bss zero pages. */
         if (p_memsz > p_filesz) {
             u64 bs = load_vaddr + p_filesz;
-            u64 be = bs + (p_memsz - p_filesz);
+            u64 be = load_vaddr + p_memsz;
             u64 page = bs & ~0xFFFULL;
             while (page < be) {
                 u64 phys;
                 if (!mem_vmm_is_mapped(proc->as, page, &phys)) {
                     phys = mem_pmm_alloc_frame();
-                    if (phys) {
-                        mem_vmm_map_page(proc->as, page, phys,
-                            VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
-                        memset((void*)phys, 0, PMM_PAGE_SIZE);
+                    if (phys == 0) goto solib_fail;   /* OOM: roll back */
+                    if (mem_vmm_map_page(proc->as, page, phys,
+                        VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER) != 0) {
+                        mem_pmm_free_frame(phys);
+                        goto solib_fail;
                     }
+                    memset((void*)phys, 0, PMM_PAGE_SIZE);
                 }
                 page += PMM_PAGE_SIZE;
             }
         }
+        continue;
+    solib_fail:
+        for (int s = 0; s < nroll; s++) {
+            for (u64 pg = 0; pg < roll[s].pages; pg++) {
+                u64 old_pte = mem_vmm_unmap_page(proc->as,
+                                                 roll[s].start + pg * 0x1000);
+                if (old_pte & VMM_FLAG_PRESENT) {
+                    u64 fr = old_pte & 0x000FFFFFFFFFF000ULL;
+                    if (fr != 0) mem_pmm_free_frame(fr);
+                }
+            }
+        }
+        return 0;   /* next_solib_addr unchanged: no leak, no overlap */
     }
-    /* Advance bump allocator. */
-    u64 max_end = 0;
-    for (int k = 0; k < e_phnum; k++) {
-        u32 p_type = *(u32*)(data + e_phoff + k * 56);
-        if (p_type != 1) continue;
-        u64 p_vaddr = *(u64*)(data + e_phoff + k * 56 + 16);
-        u64 p_memsz = *(u64*)(data + e_phoff + k * 56 + 40);
-        u64 end = p_vaddr + p_memsz;
-        if (end > max_end) max_end = end;
-    }
-    proc->next_solib_addr = (base + max_end + 0xFFF) & ~0xFFFULL;
+    /* Advance bump allocator (guaranteed <= USER_MMAP_BASE by pass 1). */
+    proc->next_solib_addr = base + max_end;
     return base;
+    #undef SOLIB_MAX_SEGS
 }
 
 /* WP-08cd forward declarations */
@@ -1823,8 +2224,23 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
     if (pfd->kind == 0) {
         /* fd not open: check if it's stdout/stderr (1 or 2) */
         if (fd == 1 || fd == 2) {
+            /* BUG-0276 FIX (A2-12): same cli-atomic emission window as
+             * the sys_write console fallback (WP-09-FIX BUG-023). The
+             * old write2 path emitted character-by-character with
+             * interrupts on, so concurrent user processes interleaved
+             * on the serial console; the two write syscalls now behave
+             * identically. */
             const char *p = (const char*)(uintptr_t)buf;
-            for (u64 i = 0; i < len; i++) screen_console_putc(p[i]);
+            u64 done = 0;
+            while (done < len) {
+                u64 chunk = len - done;
+                if (chunk > 512) chunk = 512;
+                u64 eflags;
+                __asm__ volatile("pushfq; popq %0; cli" : "=r"(eflags));
+                for (u64 i = 0; i < chunk; i++) screen_console_putc(p[done + i]);
+                __asm__ volatile("pushq %0; popfq" : : "r"(eflags));
+                done += chunk;
+            }
             return len;
         }
         return (u64)-1;
@@ -1842,6 +2258,20 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
         while (written < len) {
             u32 space = pipe_space_avail(p);
             if (space == 0) {
+                /* BUG-0276 FIX (A2-12): mirror sys_write's P6 rule for a
+                 * FULL pipe with NO reader: fail instead of blocking
+                 * forever. The old write2 branch unconditionally joined
+                 * the writer wait queue, so a full pipe whose reader had
+                 * gone parked the writer permanently (pipe_wait_all only
+                 * fires on close of a remaining end). Same semantics as
+                 * sys_write: with buffer space left, the data is still
+                 * accepted even with 0 readers (a later forked reader
+                 * may pick it up); with a full buffer and no reader the
+                 * data can never be consumed - return what was written
+                 * (or -1 if nothing). */
+                if (p->reader_count == 0) {
+                    return written > 0 ? written : (u64)-1;
+                }
                 /* P3-15: wait queue (FIFO), not single slot. */
                 int my_tid = core_kthread_current_tid();
                 pipe_wait_add(p->writer_waiters, my_tid);

@@ -111,9 +111,9 @@ int so_unload(u64 handle);
 ```
 
 ### Purpose
-Unmaps a previously loaded .so. Currently a no-op — mappings are released
-when the process exits. This is a real implementation (returns 0 = success),
-not a stub.
+Unmaps a previously loaded .so: walks the ELF at `handle`, unmaps every
+PT_LOAD page and frees the physical frames (BUG-007 fix — this is NOT
+a no-op). Rejects a NULL handle with -1.
 
 ### Parameters
 | Parameter | Type | Description |
@@ -121,7 +121,7 @@ not a stub.
 | handle    | `u64` | Base address returned by so_load |
 
 ### Return value
-0 on success.
+0 on success, -1 on failure (NULL/invalid handle).
 
 ---
 
@@ -239,7 +239,8 @@ relocations in kernel context.
 
 ### Signature
 ```c
-int elf_get_needed(const u8 *elf_data, const char *needed_out[], int max_count);
+int elf_get_needed(const u8 *elf_data, u64 elf_size,
+                   const char *needed_out[], int max_count);
 ```
 
 ### Purpose
@@ -251,16 +252,22 @@ list. Works on raw ELF byte data (embedded or loaded). For static
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | elf_data   | `const u8*` | Pointer to the ELF byte array |
+| elf_size   | `u64` | Size of the ELF data in bytes (boundary for all parsing) |
 | needed_out | `const char**` | Output array of .so name pointers (into elf_data) |
 | max_count  | `int` | Max entries in needed_out |
 
 ### Return value
-Number of DT_NEEDED entries found (0 if none or static).
+Number of DT_NEEDED entries found (0 if none, static, or malformed).
+Every table reference (e_phoff/e_phnum, PT_DYNAMIC, DT_STRTAB) is
+validated against elf_size before use; DT_STRTAB's link-time vaddr is
+converted to a file offset through the covering PT_LOAD. Malformed or
+truncated input is rejected with 0, never partially parsed.
 
 ### Example
 ```c
 const char *needed[8];
-int n = elf_get_needed(userprog_so_test, needed, 8);
+int n = elf_get_needed(userprog_so_test, userprog_so_test_size,
+                       needed, 8);
 /* n = 1, needed[0] = "libfoo.so" */
 ```
 
@@ -272,6 +279,12 @@ All 10 interfaces (41-50) are frozen as of WP-08b Batch 6. The function
 signatures, parameter types, return values, and relocation type handling
 will not change in future work packages. L1 extensions can rely on these
 interfaces being stable.
+
+WP-10-AUDIT_P2-fix3 note (BUG-0258): interface 50 (elf_get_needed)
+gained the `elf_size` parameter - without it the parser had no caller
+supplied boundary and could read past the buffer on truncated input.
+The interface number and the return contract are unchanged; callers
+pass the size of their ELF buffer as the second argument.
 
 ## Loading model
 

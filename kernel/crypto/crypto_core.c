@@ -6,6 +6,7 @@
  * All implementations are from-scratch, freestanding (no libc).
  */
 #include "crypto_core.h"
+#include "crypto_irq_window.h"
 #include "lib_string.h"
 #include "core_timer.h"
 #include "mem_pmm.h"
@@ -40,8 +41,20 @@ static u8 inv_sbox[256];
 static int inv_sbox_init = 0;
 static void ensure_inv_sbox(void) {
     if (inv_sbox_init) return;
-    for (int i = 0; i < 256; i++) inv_sbox[sbox[i]] = (u8)i;
-    inv_sbox_init = 1;
+    /* BUG-0294 (A4-07) FIX: the check/fill used to run unprotected - an
+     * interrupt landing mid-fill re-entered the same lazy init and any AES
+     * decrypt it performed read a half-built inverse S-box. Single-core
+     * kernel: the only reentrancy source is an interrupt handler on this
+     * CPU, so a cli window closes it honestly (this is NOT SMP protection).
+     * The init flag is stored last, inside the window; the fill is a
+     * 256-entry table walk (microseconds). */
+    u64 flags;
+    OC_IRQ_WINDOW_ENTER(flags);
+    if (!inv_sbox_init) {
+        for (int i = 0; i < 256; i++) inv_sbox[sbox[i]] = (u8)i;
+        inv_sbox_init = 1;
+    }
+    OC_IRQ_WINDOW_LEAVE(flags);
 }
 
 /* Rcon for key expansion */

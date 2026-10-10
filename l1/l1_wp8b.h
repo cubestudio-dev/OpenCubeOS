@@ -56,13 +56,13 @@ u64 ldso_run(void);
 u64 so_load(const char *name, u64 flags);
 
 /* ---- Interface 44: Shared Library Unloader ----
- * Unmaps a previously loaded .so. Currently a no-op — mappings
- * are released when the process exits. This is a real
- * implementation (returns 0 = success), not a stub.
+ * Unmaps a previously loaded .so: walks the ELF at `handle`, unmaps
+ * every PT_LOAD page and frees the physical frames (BUG-007 fix —
+ * this is NOT a no-op). Rejects a NULL handle with -1.
  *
  * Parameters:
  *   handle — base address returned by so_load
- * Returns: 0 on success. */
+ * Returns: 0 on success, -1 on failure (NULL/invalid handle). */
 int so_unload(u64 handle);
 
 /* ---- Interface 45: Symbol Resolver ----
@@ -114,14 +114,26 @@ void reloc_apply(const void *rela_data, u64 count, u64 base,
  * dependency list. Works on raw ELF byte data (embedded or
  * loaded). For static (ET_EXEC) binaries, returns 0.
  *
+ * BUG-0258 FIX (A16-9): the signature now carries the buffer size so
+ * the parser can validate e_phoff/e_phnum/PT_DYNAMIC/DT_STRTAB against
+ * the real buffer end; DT_STRTAB's link-time vaddr is converted to a
+ * file offset through the covering PT_LOAD. Malformed or truncated
+ * input is rejected with 0 (never partially parsed).
+ *
  * Parameters:
  *   elf_data   — pointer to the ELF byte array
+ *   elf_size   — size of the ELF data in bytes
  *   needed_out — output array of const char* pointers (into elf_data)
  *   max_count   — max entries in needed_out
- * Returns: number of DT_NEEDED entries found. */
-int elf_get_needed(const u8 *elf_data, const char *needed_out[], int max_count);
+ * Returns: number of DT_NEEDED entries found, or 0 if none/static/
+ *          malformed. */
+int elf_get_needed(const u8 *elf_data, u64 elf_size,
+                   const char *needed_out[], int max_count);
 
-/* Self-test: exercises all 10 interfaces, returns count of successful tests. */
+/* Self-test: exercises the WP-08b interfaces, returns count of successful
+ * tests. Called by the kernel shell's `l1test` command (BUG-0248 FIX:
+ * the suite has a real caller now and carries the 0256/0257/0258
+ * double-sided assertions; current count is 14). */
 int ext_wp8b_selftest(void);
 
 #endif /* OC_EXT_WP8B_H */

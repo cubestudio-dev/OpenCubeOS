@@ -18,22 +18,28 @@ function fmtBytes(n: number): string {
 }
 export { fmtBytes };
 
-// WP-AUDIT-01-p1fix2 stats (same caliber as lib/site.ts; see there for verify commands)
+// Current stats (same caliber as the README Stats section, re-verified at
+// WP-10-AUDIT_P2-fix3: 102,687 lines via README's own find|wc -l command,
+// 46 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
+// 138 L1 interfaces / 176 commands per README + docs/INTERFACES.md,
+// 15 work packages = the 15 '## WP-*' sections). This is the RENDERED
+// source (HomeView imports from here) - lib/site.ts carries the release
+// assets and no longer keeps a competing stats copy.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "101,150", label: "行源码" },
+    { value: "102,687", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
-    { value: "44", label: "系统调用" },
+    { value: "46", label: "系统调用" },
     { value: "176", label: "shell 命令" },
-    { value: "16", label: "工作包" },
+    { value: "15", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "101,150", label: "lines of source" },
+    { value: "102,687", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
-    { value: "44", label: "system calls" },
+    { value: "46", label: "system calls" },
     { value: "176", label: "shell commands" },
-    { value: "16", label: "work packages" },
+    { value: "15", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
 };

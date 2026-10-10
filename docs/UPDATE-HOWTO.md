@@ -63,13 +63,17 @@ In the guest, verify the disk was detected:
 
 ```
 oc> update --status
-update: current version: WP-10c
+update: current version: WP-10-AUDIT_P2-fix2b-7-g98a8dc7
 update: current boot: A
 update: next boot: A
 update: available: unknown (run update or checkupdate)
 update: online update: enabled
 update: A/B disk: present
 ```
+
+(The `current version` line is the build-time `git describe --tags`
+string baked into the kernel - Makefile `OC_RELEASE_VERSION` - so your
+build reports its own tree, not the literal above.)
 
 `A/B disk: absent` means the layout was not found - check that the image
 was built by make_ab_disk.sh and is attached as a hard drive (not a CD).

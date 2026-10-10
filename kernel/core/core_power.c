@@ -14,11 +14,14 @@
  *   - Reboot: 8042 keyboard-controller pulse (port 0x64, cmd 0xFE) with
  *     the ACPI RESET_REG (port 0xCF9, "hard reset" sequence 0x02 then
  *     0x06) as fallback - the same path the WP-10u reboot used.
- *   - Halt: cli + hlt loop (interrupts stay disabled so nothing wakes us).
+ *   - Halt: flush every block device first (same guarantee shutdown/
+ *     reboot give - BUG-0288), then cli + hlt loop (interrupts stay
+ *     disabled so nothing wakes us).
  *
- * Every shutdown/reboot path first flushes every present block device:
- * the FAT32 /etc volume, the A/B flag partition and any mounted fs must
- * survive the power transition (same guarantee the WP-10u reboot gave).
+ * Every shutdown/reboot/halt path first flushes every present block
+ * device: the FAT32 /etc volume, the A/B flag partition and any mounted
+ * fs must survive the power transition (same guarantee the WP-10u
+ * reboot gave).
  */
 #include "core_power.h"
 #include "driver_block_blk.h"
@@ -68,6 +71,14 @@ void core_power_flush_blk(void) {
 /* ------------------------------------------------------------------ */
 
 void core_power_halt(void) {
+    /* BUG-0288 FIX (A3-11): halt previously stopped the CPU WITHOUT
+     * flushing the block write-back cache, while shutdown/reboot both
+     * flush first.  Dirty cache contents (driver_block_write_sectors
+     * callers) were silently lost at the next power transition, and the
+     * shutdown-failure fallback below halts too - one fix covers both.
+     * Same ordering as the other two paths: flush BEFORE any output or
+     * state change so a flush error is still visible. */
+    core_power_flush_blk();
     screen_console_puts("System halted.\n");
     screen_console_show_cursor(0);
     __asm__ volatile("cli");

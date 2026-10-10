@@ -151,6 +151,10 @@ int shell_set_cwd(const char *path);
  * -1 on overflow. */
 int shell_resolve_path(const char *path, char *out, int out_len);
 
+/* BUG-0278 (A2-14): same resolution rules, but against a caller-supplied
+ * base directory (a user process's per-process cwd). */
+int shell_resolve_path_base(const char *cwd, const char *path, char *out, int out_len);
+
 /* Convenience wrapper: returns a pointer to a static buffer with the
  * resolved path. The buffer is overwritten on each call. */
 const char *shell_resolve_path_static(const char *path);

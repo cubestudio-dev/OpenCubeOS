@@ -63,7 +63,9 @@ void crypto_bn_mont_rr(u64 *rr, const u64 *m, int n);
  * base is big-endian bytes base_len long and MUST be < m;
  * exp  is big-endian bytes exp_len long;
  * mod  is big-endian bytes mod_len long (odd, <= BN_MAX_BYTES).
- * Uses the shared static workspace (NOT reentrant). Returns 0 on success,
+ * Workspace is per-call stack memory (BUG-0294 / A4-07: the old shared
+ * static workspace is gone). Interrupt-nestable on the single CPU; this is
+ * NOT an SMP-safety claim. Returns 0 on success,
  * -1 on size/parity error. */
 int  crypto_bn_mod_exp(u8 *out, int out_len,
                 const u8 *base, int base_len,

@@ -43,7 +43,10 @@ tools/wp03_test.py
 tools/wp04_test.py
 tools/wp06_socket_test.py
 
-# Binary releases (use GitHub Releases, not git)
+# Release snapshot archives (the public repo itself carries none; binaries
+# are published on GitHub Releases). Note: site download assets under
+# website/public/downloads/ ARE intentionally tracked as site content —
+# see website/.gitignore for the un-ignore rules (fix3 G5, BUG-0266).
 releases/
 
 # Old archived trees (not needed in main repo)

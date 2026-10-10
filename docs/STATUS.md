@@ -1,7 +1,74 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 
-# Open Cube OS - WP-09 Project Status
+# Open Cube OS - Project Status
+
+Updated 2026-10-09 at WP-10-AUDIT_P2-fix3. All 15 work packages are
+COMPLETE; the auxiliary batches are shipped; the P2 audit batch fix3 is
+COMPLETE - all 53 items landed on main and released (see Audit batches
+below).
+
+## Work-package coverage (15/15 COMPLETE)
+
+| WP | Scope | Status | Details |
+|---|---|---|---|
+| WP-01 | Boot + framebuffer + text rendering | COMPLETE | docs/EXTENSIONS.md |
+| WP-02 | Interrupts + timer + keyboard | COMPLETE | docs/EXTENSIONS_WP02.md |
+| WP-03 | PMM + VMM + kernel heap | COMPLETE | docs/EXTENSIONS_WP03.md; detailed record below |
+| WP-04 | Scheduler + sync + user mode | COMPLETE | docs/EXTENSIONS_WP04.md |
+| WP-05 | Shell enhancements + file system | COMPLETE | docs/EXTENSIONS_WP05.md |
+| WP-06 | Network protocol stack | COMPLETE | docs/EXTENSIONS_WP06.md |
+| WP-07 | Disk subsystem | COMPLETE | docs/EXTENSIONS_WP07.md |
+| WP-08 | Syscalls + dynamic linking + user shell + tools | COMPLETE | docs/EXTENSIONS_WP08a/b/cd.md |
+| WP-09 | SSH (client+server) + TLS 1.3/1.2 + crypto core | COMPLETE | docs/EXTENSIONS_WP09.md; detailed record below |
+| WP-10a | Storage drivers: AHCI / NVMe / ATA DMA / virtio-blk | COMPLETE | docs/EXTENSIONS_WP10a.md |
+| WP-10b | NIC drivers: e1000e / igb / ixgbe / RTL8139 / 8168 / 8125 / 810x / BCM57xx | COMPLETE | docs/EXTENSIONS_WP10b.md |
+| WP-10u | In-system A/B update + rollback | COMPLETE | docs/EXTENSIONS_WP10u.md |
+| WP-10c | Sound cards: HDA / AC'97 / SB16 / ES1370 / virtio / USB audio | COMPLETE | docs/EXTENSIONS_WP10c.md |
+| WP-10d | USB host stack: UHCI / OHCI / EHCI / XHCI + HID/MSC/serial/audio | COMPLETE | docs/EXTENSIONS_WP10d.md |
+| WP-10-wp08fix1 | Shell line editor + nano/vi editors + VFS link/symlink + SYS 96-102 | COMPLETE | docs/EXTENSIONS_WP10-wp08fix1.md |
+
+The L1 interface numbering 1-138 closes at WP-10-wp08fix1
+(docs/INTERFACES.md is the single-page index).
+
+## Auxiliary batches (shipped, not counted as WPs)
+
+- **WP-09-fix5** (2026-10-02): `/etc/opencube.conf` + `checkupdate` -
+  detailed record below.
+- **Project restructure** (WP-10-project_restructure): the kernel/ +
+  drivers/ + net/ + fs/ + shell/ + l1/ + libs/ layout; the Makefile bakes
+  the version string from `git describe --tags` at build time.
+- **WP-10d-fix2**: power management (shutdown/suspend/halt/reboot) +
+  structured help (`help -a`, `help -w`).
+- **Rule-9 self-hosting** (WP-10c-selfhost): in-system `abdisk` /
+  `install` / `grub-install` / `abcfg` - docs/EXTENSIONS_SELFHOST.md.
+
+## Audit batches
+
+- **WP-AUDIT-01**: P0 batch 1 (BUG-0001..0020) + P0 batch 2
+  (BUG-0021..0041) + p1fix1..p1fix4 - ALL FIXED.
+- **WP-10-AUDIT_P2-fix1** - 53 P2 items (BUG-0136..0188) - shipped.
+- **WP-10-AUDIT_P2-fix2** - 53 P2 items (BUG-0189..0241) - shipped;
+  **fix2b** (embed-chain repair + doc consistency) - shipped.
+- **WP-10-AUDIT_P2-fix3** - COMPLETE: 53 P2 items (BUG-0242..0294) fixed
+  in nine groups (G1..G9) across parallel fix lanes, all merged to main
+  (G1 98a8dc7, G2 25304ec, G3 a8c48ab, G4 48b5655, G5 1353e71, G6
+  51d1edb, G7 c1f68a7, G8 65a55eb, G9 2df3cf7), plus the kernel-#UD
+  root-cause fix riding the G6 lane (6153593): sys_fork never set the
+  child task's rsp0 (the WP-04 BUG-029 TSS fix covered only the exec
+  path), so the TSS kept the parent's kernel-stack top while a forked
+  child ran in ring 3 - every child interrupt pushed onto the parent's
+  stack and the parent later popped child data as return addresses
+  (kernel #UD inside g_procs[] after a child exits). Verified: 71/71
+  regression + g6_test 18/18 (T1/T4/T6-collect no longer isolated) +
+  fstest + SSH E2E 5/5 + HTTPS E2E 7/7. `docs/audit/bugs_final.json`
+  remains the authoritative per-finding tracker.
+  Regression baseline: 18/18 + the dyn/FS/net/crypto gates (boot banner
+  self-reports 176 commands).
+
+---
+
+## Detailed records (historical, kept as written)
 
 ## WP-09: Security transport (SSH client+server, TLS 1.2/HTTPS, crypto core)
 
@@ -32,9 +99,13 @@ docs/verification/*.log, VERIFICATION_REPORT.md §10.
 
 ### Known / accepted behaviors
 
-See docs/KNOWN_ISSUES.md §2A (7 items: close_notify, server Finished,
-stale comment, no cert/host-key verification, paramiko probe, QEMU modexp
-speed, crashlog tick display).
+See docs/KNOWN_ISSUES.md §2A. Current state (2026-10-09): close_notify is
+sent in ESTABLISHED or CLOSE_WAIT (superseded by WP-10-AUDIT_P2-fix2,
+KNOWN_ISSUES §7); the server Finished IS cryptographically verified; the
+X.509 chain + SAN hostname verification is live and fails closed; SSH
+verifies the host-key signature over H with a TOFU anchor and implements
+publickey auth - see §2A.2/§2A.4 for the exact trust model and what
+remains deferred (keepalive, algorithm negotiation whitelist).
 
 ## WP-03: Physical memory + Virtual memory + Kernel heap
 
@@ -144,3 +215,5 @@ interfaces.
 Honest limitation recorded: public TLS endpoints reject the kernel TLS
 client (WP-09 cipher scope); fix5 works against any server configured
 for the documented kernel cipher (tools/update_server.py).
+(Superseded 2026-10 by the mainstreamed TLS client: public HTTPS
+endpoints verified working - docs/KNOWN_ISSUES.md §5.2.)

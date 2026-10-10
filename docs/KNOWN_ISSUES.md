@@ -99,15 +99,22 @@ and plan.
   unaffected (every record is MAC-verified).
 - **Plan**: Send close_notify in a future WP-10+ batch.
 
-### 2A.2 TLS: server Finished not cryptographically verified — by design
-- **Description**: The kernel reads the server's encrypted Finished record
-  but does not decrypt/verify its verify_data (server-to-client application
-  records ARE decrypted and MAC-verified).
-- **Impact**: No confirmation that the server holds the same master secret
-  from the Finished message itself; practical assurance comes from the
-  MAC verification on every server application record.
-- **Rationale**: Avoids implementing AES-CBC decrypt for handshake records
-  in the minimal client.
+### 2A.2 TLS: server Finished not cryptographically verified — RESOLVED (re-verified 2026-10-09, WP-10-AUDIT_P2-fix3)
+- **Current behavior**: the server's Finished message IS cryptographically
+  verified in both supported versions. TLS 1.3: the client derives the
+  finished_key from the handshake secret via HKDF-Expand-Label, recomputes
+  the HMAC over the transcript (ClientHello..ServerHello) and fails the
+  handshake on verify_data mismatch (net/net_tls.c, "server Finished
+  verify_data mismatch"). TLS 1.2 fallback: the client recomputes the
+  12-byte PRF verify_data over Hash(handshake_messages) and aborts the
+  handshake (-6) on mismatch (net/net_tls.c, server CCS + Finished block).
+- **History (WP-09 client, 2026-09-30)**: the original TLS 1.2-only client
+  read the server's encrypted Finished record without decrypt/verifying
+  its verify_data (server-to-client application records were already
+  decrypted and MAC-verified). The mainstreamed TLS 1.3/1.2 client
+  (WP-09 mainstreaming, 2026-10) removed this gap; the WP-09-era
+  rationale ("avoids AES-CBC decrypt for handshake records") no longer
+  applies.
 
 ### 2A.3 tls.c header comment stale — doc-only
 - **Description**: The file header says "Server-side encrypted records ...
@@ -116,7 +123,7 @@ and plan.
 - **Impact**: Documentation confusion only; behavior is correct.
 - **Plan**: Fix the comment in the next code-touching batch.
 
-### 2A.4 TLS/SSH trust model — current state (updated WP-AUDIT-01-p1fix3)
+### 2A.4 TLS/SSH trust model — current state (updated WP-10-AUDIT_P2-fix3, 2026-10-09)
 - **TLS (current)**: the client parses and structurally bounds-checks the
   server chain (P0fix2 BUG-0024/0025), checks the validity window via the
   CMOS RTC, and anchors chains against the embedded root store. A hostname
@@ -124,11 +131,22 @@ and plan.
   signal); an IP-literal target carries no reference identity (RFC 6125)
   and skips the name check; an un-anchored chain (self-signed / private-CA
   servers) prints `[tls] warning: server chain not anchored` and CONTINUES.
-- **SSH (current)**: TOFU known_hosts anchor + per-installation host key
-  (WP-AUDIT-01-p1fix2: the embedded universal RSA private key was removed;
-  sshd fails closed without a per-installation key; clients persist the
-  first-seen host key). Still deferred: publickey userauth, keepalive,
-  algorithm whitelist.
+  On top of the chain anchor, the TLS 1.3 CertificateVerify signature and
+  the server Finished (both versions — see §2A.2) are cryptographically
+  verified.
+- **SSH (current)**: the server host key signature over the exchange hash
+  H is verified BEFORE any key is used (RFC 4253 S8;
+  net_ssh_verify_host_signature), anchored by TOFU against
+  /etc/ssh_known_hosts ("<ip:port> <fp>" per line; a changed host key
+  refuses the connection) plus a per-installation host key (WP-AUDIT-01-p1fix2:
+  the embedded universal RSA private key was removed; sshd fails closed
+  without a per-installation key; clients persist the first-seen host key).
+  Publickey userauth is IMPLEMENTED (RFC 4252): the client signs with the
+  per-installation /etc/ssh_client_key (rsa-sha2-256; falls back to
+  password when the key is absent) and sshd accepts publickey only for
+  keys listed in its /etc/ssh_authorized_keys (publickey refused entirely
+  when the file is missing or empty). Still deferred: keepalive, algorithm
+  negotiation whitelist.
 - **Remaining impact**: an un-anchored TLS chain is accepted with a visible
   warning; SSH is TOFU (first connection is unauthenticated by design).
   MITM is still possible for an attacker present at FIRST contact.
@@ -247,10 +265,11 @@ Carried over from the old WP-09 TODO list (NOT done, deferred):
 - Permission model (uid/gid)
 
 ### WP-10+ (Next)
-- TLS: send close_notify on shutdown (§2A.1)
-- TLS: verify server Finished (§2A.2)
-- SSH: publickey auth, keepalive, algorithm whitelist (§2A.4 — host key
-  persistence + known_hosts are DONE, WP-AUDIT-01-p1fix2)
+- TLS: send close_notify on shutdown (§2A.1) — DONE (WP-10-AUDIT_P2-fix2:
+  close_notify now sent in ESTABLISHED or CLOSE_WAIT; see §7)
+- TLS: verify server Finished (§2A.2) — DONE (mainstreaming; see §2A.2)
+- SSH: keepalive, algorithm negotiation whitelist (§2A.4 — publickey
+  auth itself is DONE, see §2A.4)
 - Code comment refresh: tls.c header (§2A.3)
 
 ### Future (Post WP-10)
@@ -412,16 +431,25 @@ future round):
   (real FAT drivers add a numeric suffix, that machinery is not ported).
 
 ### 5.2 Public-internet TLS endpoints reject the kernel TLS client —
-     KNOWN LIMITATION (WP-09 scope, unchanged by fix5)
-- The kernel TLS client offers TLS 1.2 with `DHE-RSA-AES128-SHA256`
-  (1024-bit DH) only. Public servers (modern stacks) require ECDHE/AEAD
-  or TLS 1.3 and answer the ClientHello with an alert. `checkupdate`
-  therefore works against any server configured for the kernel cipher
-  (e.g. tools/update_server.py, TLS 1.2 DHE-RSA-AES128-SHA256) but not
-  against arbitrary public HTTPS URLs. DNS + TCP to the default URL
-  succeed; the alert is answered cleanly (no crash, explicit
-  `connect failed` message). Extending the TLS cipher suite is WP-10+
-  work.
+     RESOLVED (superseded by the mainstreamed TLS client; re-verified
+     2026-10-09, WP-10-AUDIT_P2-fix3)
+- **Current behavior**: the kernel TLS client offers TLS 1.3 (RFC 8446:
+  X25519 key share, AES-128/256-GCM + ChaCha20-Poly1305, full HKDF key
+  schedule) preferred, with a TLS 1.2 ECDHE_RSA fallback (AES-GCM /
+  ChaCha20-Poly1305; legacy DHE-CBC 0x0067 retained for old servers) and
+  X.509 chain + SAN dNSName hostname verification against embedded public
+  CA roots (handshake fails closed on verification errors). Public
+  HTTPS endpoints are verified working end-to-end:
+  cubestudio-dev.github.io, google.com, cloudflare.com (README WP-09
+  section).
+- **History (WP-09-fix5 scope, 2026-10-02)**: the fix5-era client offered
+  TLS 1.2 with `DHE-RSA-AES128-SHA256` (1024-bit DH) only, so modern
+  public stacks answered the ClientHello with an alert and `checkupdate`
+  worked only against servers configured for that cipher
+  (tools/update_server.py). DNS + TCP to the default URL succeeded and
+  the alert was answered cleanly (no crash, explicit `connect failed`
+  message). The mainstreaming batch replaced this client; the limitation
+  no longer applies.
 
 ## 6. WP-09 mainstreaming additions (2026-10)
 
@@ -510,3 +538,35 @@ future round):
   the WP-10-AUDIT_P2-fix2 tag now points at the rewritten chain
   (539bbb8c...), the handover tag at 45bcca98..., both on the same history
   as main (fix2b chain head e6e8da0e...).
+
+## 9. WP-10-AUDIT_P2-fix3 additions (2026-10-10)
+
+### 9.1 Kernel #UD after a child exits — ROOT-CAUSED AND FIXED
+
+- Symptom (found during the G6 evidence run, BUG-0274..0280): after a
+  child process exits, the kernel takes `#UD` at 0x22CF18 / 0x22D249 /
+  0x22D3B8 (all inside the `g_procs[]` region), `cs=0x18` (kernel
+  code64), `ss=0x0`, in the T1 tri-generation fork, T4 post-signal exit2
+  and T6 collect configurations. The pre-fix baseline showed the same
+  defect as a silent T2 freeze (the same stack crossing, corrupting data
+  without hitting an invalid opcode).
+- Root cause (proven with a QEMU monitor memory dump at the crash):
+  `sys_fork` never set the forked child's `task_t.rsp0` (the WP-04
+  BUG-029 TSS fix covered only the exec path in user_process_create), so
+  the child kept `rsp0 = 0` from the create-time memset.
+  `core_sched_switch_to` skips the TSS reload when `next->rsp0 == 0`,
+  which left the TSS pointing at the PARENT's kernel-stack top while the
+  child ran in ring 3. Every child interrupt pushed its frame onto the
+  parent's stack, and a scheduling decision inside that handler saved the
+  child's rsp/rip there (observed: child task rsp=0x643EE0 inside the
+  parent's 0x63E000..0x644000 stack window). The parent's later `ret`s
+  popped child data (pointer-shaped values like `&g_procs[1].fork_rsp`)
+  as return addresses. NOT a G6 regression - the G6 unified-exit reaper
+  (BUG-0275) made the exit -> wake -> collect chain complete for the
+  first time, which is what exposed it.
+- Fix: `sys_fork` sets the child task's `rsp0 = stack_base + stack_size`,
+  exactly like the exec path (commit 6153593 on fix3-laneA, merged to
+  main).
+- Verification: g6_test full chain T1..T7 with T1/T4/T6-collect
+  un-isolated, 18/18 checks OK (three consecutive runs), no EXCEPTION 6;
+  71/71 full regression; SSH E2E 5/5; HTTPS E2E 7/7; 0 errors 0 warnings.

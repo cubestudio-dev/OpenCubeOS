@@ -213,6 +213,20 @@ void core_sched_init(void) {
     /* P3-19 FIX: allocate a single page for the idle task stack (removed
      * duplicate allocation that leaked 4 pages). */
     g_idle_task->stack_base = (u64*)mem_pmm_alloc_frame();
+    /* BUG-0283 (A3-06) FIX: check the allocation. core_kthread_create has
+     * checked its stack allocation from the start; this path did not. On
+     * failure the old code computed sp = 0x1000, stored rsp = 0xff8 and
+     * kept booting - the first context switch into idle would then
+     * save/restore context through an invalid stack. The idle task is the
+     * system's fallback context; without its stack there is no correct
+     * way forward, so this is a fail-stop, not an error return (there is
+     * no caller to return to during early init; the audit notes boot-time
+     * PMM failure is unlikely - the defect is that it was unchecked). */
+    if (g_idle_task->stack_base == 0) {
+        screen_console_puts("PANIC: idle task stack allocation failed - halting\n");
+        __asm__ volatile("cli");
+        for (;;) __asm__ volatile("hlt");
+    }
     g_idle_task->stack_size = PMM_PAGE_SIZE;
 
     /* Set up the idle task's saved state. */
@@ -521,8 +535,22 @@ static void core_sched_switch_to(task_t *next) {
     g_total_switches++;
     next->switch_count++;
 
-    /* If the old task was running, make it ready (unless it's blocked/exited). */
-    if (old->state == TASK_RUNNING) {
+    /* If the old task was running, make it ready (unless it's blocked/exited).
+     *
+     * BUG-0284 (A3-07) FIX: the idle task is NEVER queued - the design
+     * invariant core_sched_tick states twice ("idle task is never queued;
+     * it runs implicitly when nothing else is ready"). The old code
+     * pushed tid 0 into ready level 31 whenever a switch left it RUNNING:
+     * (1) it contradicted the documented invariant, (2) the starvation
+     * guard's ready_pop_level(p) could pop tid 0 as a "lower-priority
+     * task" and only stayed correct because of the force_next > 0 check,
+     * and (3) tid 0 doubled as the empty-queue sentinel of
+     * ready_pop_highest, so a queued idle was indistinguishable from
+     * "nothing ready". Now a switch away from idle leaves its state
+     * TASK_RUNNING and does not re-queue: idle is re-entered directly by
+     * the tick's forced-tid-0 path or the empty-queue paths in
+     * core_sched_yield. */
+    if (old->state == TASK_RUNNING && old != g_idle_task) {
         old->state = TASK_READY;
         ready_push(old->tid);
     }
@@ -680,6 +708,21 @@ void core_sched_tick(void) {
  * readline loop uses hlt and never yields, so relying on core_sched_yield alone
  * let EXITED zombies pile up and occupy tid slots for a long time). */
 static void core_sched_reap_exited(void) {
+    /* BUG-0282 (A3-05) FIX: this runs from BOTH the timer IRQ (IF=0, via
+     * core_sched_tick) and task context (IF=1, via core_sched_yield) with
+     * no mutual exclusion. The read stack_base -> free_frame window was
+     * interruptible: a tick reaping the same EXITED task freed the stack
+     * and cleared stack_base first; on return the stale value freed the
+     * same frames again - and once PMM had re-handed a frame out, the
+     * stale second free marked a LIVE frame as free (double-hold, memory
+     * corruption). Wrap the whole sweep in a cli window - the same
+     * protection core_kthread_destroy has had since P1-9 - with the flags
+     * saved/restored so the IRQ-context call (IF already 0) stays IF=0.
+     * mem_pmm_free_frame takes its own IRQ save and is safe inside it.
+     * The sweep is bounded (<= MAX_TASKS slots, 6 frames each), so the
+     * IRQ-off window stays short. */
+    u64 flags;
+    __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags) :: "memory");
     for (tid_t t = 1; t < MAX_TASKS; t++) {
         if (g_tasks[t].in_use && g_tasks[t].state == TASK_EXITED) {
             /* Don't reap the current task (we're on its stack). */
@@ -693,14 +736,18 @@ static void core_sched_reap_exited(void) {
             g_tasks[t].in_use = 0;
         }
     }
+    if (flags & 0x200) __asm__ volatile("sti" ::: "memory");
 }
 
 void core_sched_yield(void) {
     if (!g_current) return;
     /* BUG-028 FIX: Reap exited tasks before scheduling. */
     core_sched_reap_exited();
-    /* Move current task to ready queue and pick the next one. */
-    if (g_current->state == TASK_RUNNING) {
+    /* Move current task to ready queue and pick the next one.
+     * BUG-0284 (A3-07): same invariant as core_sched_switch_to - the idle
+     * task is never queued. core_sched_yield re-enters idle via the
+     * empty-queue paths below, not via the ready queue. */
+    if (g_current->state == TASK_RUNNING && g_current != g_idle_task) {
         g_current->state = TASK_READY;
         ready_push(g_current->tid);
     }
