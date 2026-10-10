@@ -1,0 +1,9 @@
+{
+  "version": "WP-AUDIT-01-p0fix2",
+  "time": "2026-10-05",
+  "changes": "audit: 607 findings (P0 41). p0fix2 fixes BUG-0021..0041: TLS record/message/CertVerify bounds, shell glob/fsck/mv data-loss, sys_poll wrap panic, SYS_EXIT overflow, execve CR3 ordering, sys_ps ktab, X509 DER overflow, config write bounds, OTA changes/request/path-traversal, NVMe 4Kn refusal, nested-#PF guard. 21/21 verified, regression green, 172 cmds",
+  "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-wp-audit-01-p0fix2-update.tar.gz",
+  "package_sha256": "a2e5656e5e830996b55c07bc1be67501c3933c2c399113f924c211aec19569f3",
+  "package_size": 534727
+}

@@ -1,0 +1,9 @@
+{
+  "version": "WP-AUDIT-01-p0fix2",
+  "time": "2026-10-05",
+  "changes": "audit p0fix2: 21 P0 fixes (TLS bounds, shell mv data-loss, sys_poll panic, execve CR3, X509, OTA traversal, 4Kn), 172 cmds",
+  "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-wp-audit-01-p0fix2-update.tar.gz",
+  "package_sha256": "a2e5656e5e830996b55c07bc1be67501c3933c2c399113f924c211aec19569f3",
+  "package_size": 534727
+}
