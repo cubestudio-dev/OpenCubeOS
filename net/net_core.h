@@ -242,6 +242,15 @@ typedef struct {
                                       failing checksum */
     u64 net_udp_rx_dropped;        /* BUG-0217: UDP datagrams dropped because
                                       the bound socket's rx buffer was full */
+    u64 net_ip_frag_rx_dropped;    /* BUG-0210: IP fragments rejected (out of
+                                      reassembly bounds / overlapping /
+                                      per-datagram fragment cap) */
+    u64 net_ip_frag_evicted;       /* BUG-0210: fragment-reassembly slots
+                                      reclaimed (5 s idle timeout or
+                                      drop-oldest on table overflow) */
+    u64 net_ip_frag_reassembled;   /* BUG-0210: fragmented datagrams
+                                      reassembled and delivered to the
+                                      normal IP input path */
 } net_stats_t;
 
 void net_get_stats(net_stats_t *out);

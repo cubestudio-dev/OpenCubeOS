@@ -109,19 +109,58 @@ void core_timer_format_hms(u64 ms, char out[16]) {
     strcpy(out+9, num); out[12]=0;
 }
 
+/* BUG-0289 FIX (periodic twin, hygiene): register_periodic had the same
+ * one-shot registration race BUG-0289 fixed for register_oneshot. It
+ * published in_use FIRST and filled periodic/next_fire_ms/fn afterwards
+ * with interrupts enabled, so an IRQ0 scan hitting that window saw a
+ * timer that was "in use" with a stale (or zero, i.e. due-now)
+ * next_fire_ms and a stale/NULL fn: a fresh BSS slot was released by
+ * the scan (in_use = 0 — the registration then completed into a
+ * cancelled slot and returned a valid id for a timer that never
+ * fires), and a reused slot could fire the PREVIOUS occupant's
+ * callback. Same two cheap defences as the one-shot fix: interrupts
+ * stay disabled for the few instructions of the fill (the IRQ0 scan
+ * cannot interleave at all), and in_use is published LAST so even a
+ * hypothetical observer never sees a half-filled slot. Flags are
+ * restored with popfq (not sti) so a caller that is already inside a
+ * cli section keeps IF=0. */
 int core_timer_register_periodic(core_timer_cb_fn fn, void *ctx, u64 interval_ms) {
     if (!fn || interval_ms == 0) return -1;
+    u64 flags;
+    __asm__ volatile(
+        "pushfq\n"
+        "popq %0\n"
+        "cli\n"
+        : "=r"(flags)
+        :
+        : "memory");
     for (int i = 0; i < OC_MAX_TIMERS; i++) {
         if (!g_timers[i].in_use) {
-            g_timers[i].in_use        = 1;
             g_timers[i].periodic      = 1;
             g_timers[i].interval_ms   = interval_ms;
+            /* core_timer_now_ms is itself irqsave (pushf/cli/popf), safe
+             * to nest inside this window; g_boot_ms cannot advance while
+             * IF=0 so the first deadline is exact. */
             g_timers[i].next_fire_ms  = core_timer_now_ms() + interval_ms;
             g_timers[i].fn            = fn;
             g_timers[i].ctx           = ctx;
+            __asm__ volatile("mfence" ::: "memory");
+            g_timers[i].in_use        = 1;   /* publish LAST */
+            __asm__ volatile(
+                "pushq %0\n"
+                "popfq\n"
+                :
+                : "r"(flags)
+                : "memory");
             return i;
         }
     }
+    __asm__ volatile(
+        "pushq %0\n"
+        "popfq\n"
+        :
+        : "r"(flags)
+        : "memory");
     return -2;
 }
 

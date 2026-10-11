@@ -460,6 +460,20 @@ static int driver_block_ata_dma_init_ctrl(u8 bus, u8 dev, u8 func) {
  * controller (class 0x0101, any prog-if); pdev != NULL brings up exactly
  * that PCI function after verifying its class. */
 int driver_block_ata_dma_init(driver_pci_dev_t *pdev) {
+    /* BUG-0115 FIX (re-entry half-reset): the first thing this function
+     * does below is memset(g_drives, 0, ...) - on a SECOND call (device
+     * re-enumeration, an L1 extension invoking the init hook again after
+     * boot) that flips every live DMA drive to !active while the
+     * controllers, the g_ctrls table and the already-registered blk
+     * devices (with DMA ops) stay behind: a half-reset in which all
+     * hda..hdd I/O fails while the drives look registered.  The
+     * controller-table bound check fixed the OOB half of BUG-0115; this
+     * refuses the re-entry itself, keeping the working state intact. */
+    if (g_ctrl_count > 0) {
+        dlog("ata_dma: init re-entered with live controllers - refusing, "
+             "existing DMA drives left untouched\n");
+        return -1;
+    }
     memset(g_drives, 0, sizeof(g_drives));
     for (int i = 0; i < 4; i++) g_drives[i].driver_block_idx = -1;
 

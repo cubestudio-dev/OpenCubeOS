@@ -432,7 +432,15 @@ static const driver_block_ops_t driver_usb_msc_blk_ops = {
     .flush = driver_usb_msc_blk_flush,
 };
 
-static void driver_usb_msc_register_blk(driver_usb_msc_dev_t *m) {
+/* BUG-0040+0054 FIX (A6-15): registration failures must be reported
+ * honestly.  The blk layer now rejects non-512-byte sector devices
+ * fail-closed (see driver_block_blk.c); when driver_block_register()
+ * returns < 0 the device is NOT block-registered, and this function
+ * must say so instead of printing "registered block device" anyway
+ * while every subsequent read/write would fail (or corrupt memory on
+ * the pre-gate code).  Returns 0 on success, -1 when the blk layer
+ * refused the device. */
+static int driver_usb_msc_register_blk(driver_usb_msc_dev_t *m) {
     driver_block_device_t bd;
     memset(&bd, 0, sizeof(bd));
     /* "usda", "usdb", ... - USB SCSI disk */
@@ -459,6 +467,16 @@ static void driver_usb_msc_register_blk(driver_usb_msc_dev_t *m) {
     bd.priv = m;
     int idx = driver_block_register(&bd, &driver_usb_msc_blk_ops);
     m->driver_block_idx = idx;
+    if (idx < 0) {
+        char line[160]; char n[24];
+        strcpy(line, "usb-msc: block device ");
+        strcat(line, bd.name);
+        strcat(line, " NOT registered (blk layer rejected block size ");
+        u64_to_str(m->block_size, n); strcat(line, n);
+        strcat(line, ", only 512 supported) - device disabled\n");
+        screen_console_puts(line);
+        return -1;
+    }
     char line[96];
     char n[24];
     strcpy(line, "usb-msc: registered block device ");
@@ -471,6 +489,7 @@ static void driver_usb_msc_register_blk(driver_usb_msc_dev_t *m) {
     strcat(line, m->product);
     strcat(line, ")\n");
     screen_console_puts(line);
+    return 0;
 }
 
 /* ------------------------------------------------------------------
@@ -537,7 +556,13 @@ static int driver_usb_msc_probe(driver_usb_dev_t *dev) {
             driver_usb_msc_log("usb-msc: read capacity failed\n");
             return -1;
         }
-        driver_usb_msc_register_blk(m);
+        /* BUG-0040+0054: a rejected registration is a probe failure like
+         * any other - take the device down honestly instead of leaving a
+         * half-registered MSC dev that is not usable as a block device. */
+        if (driver_usb_msc_register_blk(m) != 0) {
+            m->up = 0;
+            return -1;
+        }
         return 0;
     }
     return -1;

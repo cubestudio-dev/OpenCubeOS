@@ -53,7 +53,15 @@ static int crypto_der_read_tag_len(crypto_der_t *d, u8 *tag, const u8 **body, in
         l = (int)ul;
         hdr = 2 + n;
     }
-    if (l < 0 || d->len < hdr + l) return -1;
+    /* P0fix3 BUG-0035 FIX: was `d->len < hdr + l` — the int addition wraps
+     * for 4-byte DER lengths l in [0x7FFFFFFA..0x7FFFFFFF] (all of which
+     * pass the u32 accumulate gate above), the wrapped negative sum made
+     * the bound check always-false, and the parse site then walked a
+     * ~2 GiB out-of-bounds body (`d->p += hdr + l` wraps the pointer).
+     * Pure comparison instead: d->len >= hdr is invariant here (the
+     * short-form path checked d->len >= 2, the long-form path checked
+     * d->len >= 2 + n == hdr), so the subtraction cannot underflow. */
+    if (l < 0 || l > d->len - hdr) return -1;
     *body = d->p + hdr;
     *body_len = l;
     d->p += hdr + l;

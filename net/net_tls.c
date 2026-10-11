@@ -100,6 +100,23 @@ __attribute__((unused)) static void net_tls_dbg_hex(const char *t, const u8 *b, 
 #define TLS_ERR_ILLEGAL_PARAMETER       (-9)   /* BUG-0227/0230/0233 */
 #define TLS_ERR_INAPPROPRIATE_FALLBACK  (-10)  /* BUG-0233 (RFC 7507) */
 #define TLS_ERR_ALERT_RECEIVED          (-11)  /* BUG-0228: non-close_notify alert */
+#define TLS_ERR_DOWNGRD_SENTINEL        (-12)  /* BUG-0233 (RFC 8446 4.1.3) */
+
+/* BUG-0233 (A14-47) residual FIX: RFC 8446 4.1.3 downgrade sentinel.  A
+ * TLS 1.3-capable server that negotiates TLS 1.2 MUST write the last 8
+ * bytes of ServerHello.random as "DOWNGRD" + 0x01 (and "DOWNGRD" + 0x00
+ * for 1.1 or below).  A TLS 1.3-capable client that ends up on TLS 1.2
+ * while seeing the 0x01 sentinel is being actively downgraded - an
+ * honest server would have answered our 1.3-capable ClientHello with
+ * TLS 1.3, and a genuine TLS 1.2-only server cannot compute the
+ * sentinel.  (The 0x00 variant only protects negotiations at 1.1 or
+ * below; this stack never negotiates below 1.2, so it does not apply.)
+ * The check is skipped in the deliberate tls12_only fallback mode: there
+ * we OFFERED only 1.2, so a 1.3-capable server legitimately negotiates
+ * 1.2 and legitimately writes the sentinel. */
+static const u8 tls_downgrd_sentinel[8] = {
+    0x44, 0x4F, 0x57, 0x4E, 0x47, 0x52, 0x44, 0x01 /* "DOWNGRD" 0x01 */
+};
 
 /* BUG-0231 (A14-45): the TLS 1.2 send record buffer is 16640 bytes.
  * Worst-case overhead on the encrypted path: explicit IV/nonce (16 for
@@ -390,12 +407,19 @@ static int net_tls13_send_record(net_tls_ctx_t *c, int ctype, const u8 *payload,
         u8 nonce[12];
         net_tls13_nonce(c->wiv, c->wseq, nonce);
         u8 hdr[5] = { CT_APPDATA, 3, 3, (u8)((plain + 16) >> 8), (u8)(plain + 16) };
+        /* P1fix4 hygiene: the AEAD seal return value was unchecked. -1 is
+         * nominally unreachable (fixed key/nonce/plaintext sizes), but an
+         * unchecked failure would have transmitted the plaintext-filled
+         * record buffer as if it were ciphertext. Check it, fail closed
+         * like net_tls12_send_record does. */
+        int rc;
         if (c->cipher == CS_TLS13_AES256GCM_SHA384)
-            crypto_aes256_gcm_seal(c->wkey, nonce, hdr, 5, rec + 5, plain, rec + 5, rec + 5 + plain);
+            rc = crypto_aes256_gcm_seal(c->wkey, nonce, hdr, 5, rec + 5, plain, rec + 5, rec + 5 + plain);
         else if (c->cipher == CS_TLS13_CHACHA20POLY1305_SHA256)
-            chacha20poly1305_seal(c->wkey, nonce, hdr, 5, rec + 5, plain, rec + 5, rec + 5 + plain);
+            rc = chacha20poly1305_seal(c->wkey, nonce, hdr, 5, rec + 5, plain, rec + 5, rec + 5 + plain);
         else
-            crypto_aes128_gcm_seal(c->wkey, nonce, hdr, 5, rec + 5, plain, rec + 5, rec + 5 + plain);
+            rc = crypto_aes128_gcm_seal(c->wkey, nonce, hdr, 5, rec + 5, plain, rec + 5, rec + 5 + plain);
+        if (rc != 0) return -1;
         c->wseq++;
         rec[0] = CT_APPDATA;
         rec[1] = 3; rec[2] = 3;
@@ -844,6 +868,20 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         }   /* optional extensions block (RFC 5246 7.4.1.2) */
         if (!net_tls13_selected) {
             TLS_DBG_P("server chose TLS 1.2 (supported_versions not seen)");
+            /* BUG-0233 (A14-47) residual FIX: RFC 8446 4.1.3 downgrade
+             * sentinel.  We offered a 1.3-capable (dual-version) hello;
+             * if the 1.2 ServerHello carries the DOWNGRD\x01 sentinel an
+             * active attacker stripped our 1.3 indication in flight -
+             * abort rather than silently continue on the downgraded
+             * protocol.  Deliberate tls12_only mode expects the sentinel
+             * and is exempt (see the definition above). */
+            if (!c->tls12_only &&
+                memcmp(c->server_random + 24, tls_downgrd_sentinel, 8) == 0) {
+                net_tls_dbg_hex("DOWNGRD sentinel in ServerHello.random: ",
+                                c->server_random + 24, 8);
+                net_tls_send_fatal_alert(c, TLS_ALERT_ILLEGAL_PARAMETER);
+                return TLS_ERR_DOWNGRD_SENTINEL;
+            }
             /* Same-connection fallback: keep the ServerHello for the
              * TLS 1.2 path (RFC 8446 4.1.2 — version negotiation happens
              * on this connection; do NOT reconnect). */
@@ -928,6 +966,18 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
             int dlen = ((int)ebody[p] << 16) | ((int)ebody[p + 1] << 8) | ebody[p + 2];
             p += 3;
             if (p + dlen > elen) break;
+            /* P0fix3 BUG-0024 FIX: the loop condition only checks `used <
+             * sizeof(chain_buf)` BEFORE the copy — a multi-entry chain whose
+             * entries total more than the 14336-byte chain_buf overflowed it
+             * with attacker-controlled, pre-verification content (a single
+             * dlen up to ~16KB lands entirely past the buffer when used is
+             * near the cap). Fail CLOSED: reject the handshake instead of
+             * truncating the chain (a truncated chain would be accepted
+             * under the no-anchor warning policy with the tail entries
+             * silently missing). used < sizeof(chain_buf) holds here (loop
+             * invariant) and dlen <= elen <= 16640, so the addition cannot
+             * wrap. */
+            if (used + dlen > (int)sizeof(c->chain_buf)) return -1;
             memcpy(c->chain_buf + used, ebody + p, dlen);
             if (crypto_x509_parse(&c->certs[c->ncerts], c->chain_buf + used, dlen) == X509_OK)
                 c->ncerts++;
@@ -1165,7 +1215,15 @@ static void net_tls12_prf(const u8 *secret, int slen, const char *label,
 
 static int net_tls12_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int cap) {
     u8 hdr[5];
-    if (net_tcp_read_exact(c->net_tcp_sock, hdr, 5) < 0) return -1;
+    /* P2fix4 BUG-0228 FIX: premature EOF on the 1.2 path used to collapse
+     * into the generic -1 with the `truncated` flag never set — only the
+     * 1.3 record layer mapped TLS_READ_EOF to TLS_RC_TRUNCATED, so a
+     * half-received record body was indistinguishable from any other
+     * error and net_tls_recv never flagged the context. Mirror the 1.3
+     * mapping exactly (see net_tls13_recv_record above): EOF while a
+     * record is pending = truncation, timeout stays an I/O error. */
+    int rr = net_tcp_read_exact(c->net_tcp_sock, hdr, 5);
+    if (rr < 0) return (rr == TLS_READ_EOF) ? TLS_RC_TRUNCATED : TLS_RC_IO;
     int type = hdr[0];
     int len = ((int)hdr[3] << 8) | hdr[4];
     /* P0fix2 BUG-0023 (A14-17): the old check allowed cap+2080 while every
@@ -1174,7 +1232,8 @@ static int net_tls12_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int cap)
      * record — overflowed them.  All callers now pass TLS12_REC_MAX-sized
      * buffers and this check is exactly the buffer capacity. */
     if (len < 0 || len > cap) return -1;
-    if (net_tcp_read_exact(c->net_tcp_sock, buf, len) < 0) return -1;
+    rr = net_tcp_read_exact(c->net_tcp_sock, buf, len);
+    if (rr < 0) return (rr == TLS_READ_EOF) ? TLS_RC_TRUNCATED : TLS_RC_IO;
     /* ChangeCipherSpec is ALWAYS a plaintext record, including the
      * server's one that arrives after we already switched to encrypted
      * sending (RFC 5246 6.2.1). */
@@ -1183,8 +1242,9 @@ static int net_tls12_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int cap)
         return len;
     }
     if (c->cipher == CS_TLS12_DHE_RSA_AES128_CBC_SHA256) {
-        /* CBC: IV(16) || blocks || MAC(32) || pad; keep simple: decrypt then
-         * strip by last byte (CBC pad includes MAC inside) */
+        /* CBC: IV(16) || content || MAC(32) || padding || pad_len; decrypt
+         * first, then authenticate the plaintext (MAC-then-encrypt, RFC
+         * 5246 6.2.3.2). */
         static u8 plain[TLS12_REC_MAX];   /* P0fix2 BUG-0023: was 16640 */
         int blocks = len - 16;
         if (blocks < 48 || (blocks & 15)) return -1;
@@ -1195,23 +1255,64 @@ static int net_tls12_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int cap)
         u64 seq = c->seq12_r;
         for (int i = 0; i < 8; i++) mbuf[i] = (u8)(seq >> (56 - 8 * i));
         mbuf[8] = (u8)type; mbuf[9] = 3; mbuf[10] = 3;
-        /* BUG-0229 (A14-43): Lucky13-class padding oracle. The old code
-         * returned -1 early for a bad pad length and -2 for a MAC mismatch
-         * - two distinguishable failure modes with different work. The pad
-         * length is now validated branch-free into a mask, the content
-         * length is clamped into [0, blocks-33], the HMAC is ALWAYS
-         * computed and compared, and BOTH failure shapes return the single
-         * -2. (RFC 5246 6.2.3.2; Lucky13 mitigation: uniform processing,
-         * no early exit. Residual per-record timing is dominated by the
-         * constant-work AES-CBC decrypt over the same block count.) */
+        /* P2fix4 BUG-0229 (A14-43) residual FIX, RFC 5246 §6.2.3.2:
+         * Lucky13-class padding oracle. A14-43 already removed the early
+         * exits and unified the failure code, but two residuals remained:
+         * (a) the HMAC input LENGTH still depended on padding validity
+         *     (0 content bytes hashed on a bad pad vs the pad-derived
+         *     length on a good pad) — a remote timing oracle on exactly
+         *     the bit a CBC decryption oracle needs;
+         * (b) only the final pad-length byte was inspected, while
+         *     RFC 5246 §6.2.3.2 requires EVERY padding byte to equal the
+         *     length byte.
+         * Now, with no data-dependent branch between the decrypt and the
+         * single failure return:
+         *  - the padding run is validated over the whole MAXIMAL window
+         *    with an OR-of-XORs accumulator, each byte masked by a
+         *    branch-free "is inside the actual run" test;
+         *  - the MAC input buffer is built at a FIXED size (always
+         *    max_content bytes copied) and the hashed length is the
+         *    pad-derived content on a valid pad, the full nominal length
+         *    otherwise, so the failure path always does maximum work;
+         *  - a second, DISCARDED HMAC covers exactly the complement of
+         *    the main one, so the TOTAL number of hashed bytes is the
+         *    constant 26 + max_content for every padding shape (black-box
+         *    HMAC-SHA256 rounds to whole 64-byte blocks, so a ±1-block
+         *    boundary residual remains — it depends on lengths only,
+         *    never on pad VALIDITY, which is what the oracle needs);
+         *  - the padding verdict and the MAC comparison both fold into
+         *    one constant-time check and the single -2 return. */
         int pad = plain[blocks - 1];
-        int max_content = blocks - 33;               /* MAC(32) + pad byte */
-        int real_content = max_content - pad;
-        unsigned pad_ok = ((unsigned)real_content >> 31) ^ 1u;   /* 1 iff >= 0 */
-        int content = pad_ok ? real_content : 0;
+        int max_content = blocks - 33;               /* MAC(32) + pad_len byte */
+        /* branch-free range check: 1 iff pad > max_content */
+        unsigned pad_range_bad = ((unsigned)max_content - (unsigned)pad) >> 31;
+        /* every byte of the actual run must equal pad (RFC 5246 6.2.3.2).
+         * The scan window is the FIXED [32, blocks-1): the earliest a run
+         * can start is real_content=0 -> position 32, so every possible
+         * run is covered while the iteration count stays constant; bytes
+         * below run_start are content/MAC and are masked out. (For an
+         * out-of-range pad the mask degenerates to all-included, which
+         * only over-flags a record the range check already rejects.) */
+        unsigned pad_bytes_bad = 0;
+        int run_start = blocks - 1 - pad;
+        for (int i = 32; i < blocks - 1; i++) {
+            unsigned before_run = ((unsigned)i - (unsigned)run_start) >> 31;
+            unsigned in_run = 1u ^ before_run;
+            pad_bytes_bad |= in_run & (unsigned)(plain[i] ^ (u8)pad);
+        }
+        unsigned any_bad = pad_bytes_bad | (0u - pad_bytes_bad); /* sign bit iff != 0 */
+        unsigned pad_ok = 1u ^ ((pad_range_bad | (any_bad >> 31)) & 1u);
+        int real_content = max_content - pad;        /* meaningful iff pad_ok */
+        int content = max_content - (int)pad_ok * pad;  /* pad-derived / nominal */
         mbuf[11] = (u8)(content >> 8); mbuf[12] = (u8)content;
-        memcpy(mbuf + 13, plain, content);
+        memcpy(mbuf + 13, plain, max_content);       /* fixed-size copy */
         crypto_hmac_sha256(c->mac_key_r, 32, mbuf, 13 + content, mac);
+        {
+            /* equalization HMAC (discarded): completes the fixed total */
+            u8 mac_fill[32];
+            crypto_hmac_sha256(c->mac_key_r, 32, mbuf + 13 + content,
+                               13 + (max_content - content), mac_fill);
+        }
         u8 *rx_mac = plain + content;
         unsigned mdiff = 0;
         for (int i = 0; i < 32; i++) mdiff |= (unsigned)(mac[i] ^ rx_mac[i]);
@@ -1388,6 +1489,12 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
             int dlen = ((int)body[p] << 16) | ((int)body[p + 1] << 8) | body[p + 2];
             p += 3;
             if (p + dlen > blen) break;
+            /* P0fix3 BUG-0024 FIX (TLS 1.2 path, same as the 1.3 loop above):
+             * `used < sizeof(chain_buf)` at the loop top does not bound
+             * used+dlen — body is TLS12_REC_MAX (18432) > 14336, so a
+             * multi-entry chain totaling more than chain_buf overflowed it
+             * pre-verification. Fail CLOSED, never truncate-accept. */
+            if (used + dlen > (int)sizeof(c->chain_buf)) return -1;
             memcpy(c->chain_buf + used, body + p, dlen);
             if (crypto_x509_parse(&c->certs[c->ncerts], c->chain_buf + used, dlen) == X509_OK)
                 c->ncerts++;
@@ -1830,6 +1937,45 @@ void net_tls_recv_reset(void) {
     g_tls_leftover_off = 0;
 }
 
+/* P1fix4 BUG-0081 (A14-30) / RFC 8446 §4.6.3 + §7.2: apply a received
+ * KeyUpdate instead of consuming and ignoring it. The old code just
+ * skipped the record, so the moment a server rolled its sending keys
+ * (server policy, or after ~2^24 records) every subsequent record
+ * failed AEAD open and the transfer died mid-stream with a decrypt
+ * error. Now:
+ *   1. read side rolls first: application_traffic_secret_N+1 =
+ *      HKDF-Expand-Label(application_traffic_secret_N, "traffic upd",
+ *      "", 32) -> new rkey/riv, rseq = 0 (records after the server's
+ *      KeyUpdate are sealed under exactly these keys);
+ *   2. if the server set request_update = 1, answer with our own
+ *      KeyUpdate(update_not_requested) BEFORE touching the write side —
+ *      the response record itself must still be sealed under the OLD
+ *      write keys — then roll c_ap -> wkey/wiv and reset wseq so every
+ *      record AFTER our KeyUpdate uses the new keys, as the RFC orders.
+ * Returns 0, or -1 on a malformed message (caller aborts with
+ * illegal_parameter per RFC 8446 §4.6.3/§9). */
+static int net_tls13_handle_key_update(net_tls_ctx_t *c, const u8 *msg, int n) {
+    if (n != 5 || msg[1] != 0 || msg[2] != 0 || msg[3] != 1) return -1;
+    u8 req = msg[4];
+    if (req > 1) return -1;
+    /* 1. read side */
+    u8 next[32];
+    net_tls13_expand_label(c->s_ap, 32, "traffic upd", NULL, 0, next, 32);
+    memcpy(c->s_ap, next, 32);
+    net_tls13_traffic_keys(c->s_ap, c->rkey, c->riv, net_tls13_key_len(c->cipher));
+    c->rseq = 0;
+    /* 2. requested update: respond (old write keys), then roll write side */
+    if (req == 1) {
+        u8 ku[5] = { HT_KEY_UPDATE, 0, 0, 1, 0 };   /* update_not_requested */
+        if (net_tls13_send_record(c, CT_HANDSHAKE, ku, 5) < 0) return -1;
+        net_tls13_expand_label(c->c_ap, 32, "traffic upd", NULL, 0, next, 32);
+        memcpy(c->c_ap, next, 32);
+        net_tls13_traffic_keys(c->c_ap, c->wkey, c->wiv, net_tls13_key_len(c->cipher));
+        c->wseq = 0;
+    }
+    return 0;
+}
+
 int net_tls_recv(net_tls_ctx_t *c, void *buf, int len) {
     int ctype;
     static u8 tmp[TLS12_REC_MAX];   /* P0fix2 BUG-0023: was 16640 */
@@ -1878,10 +2024,27 @@ int net_tls_recv(net_tls_ctx_t *c, void *buf, int len) {
             }
             return TLS_ERR_ALERT_RECEIVED;
         }
-        if (ctype == CT_HANDSHAKE && n >= 4 &&
-            (tmp[0] == HT_KEY_UPDATE || tmp[0] == HT_NEW_SESSION_TICKET)) {
+        if (ctype == CT_HANDSHAKE && n >= 4 && tmp[0] == HT_KEY_UPDATE) {
+            /* P1fix4 BUG-0081 (A14-30): actually apply the key update on
+             * the 1.3 path (see net_tls13_handle_key_update). TLS 1.2 has
+             * no KeyUpdate — handshake type 24 is undefined there — so the
+             * 1.2 path keeps the old consume-and-ignore behavior. A
+             * malformed KeyUpdate aborts with illegal_parameter. */
+            if (c->version == TLS13 || c->hs_keys_active) {
+                if (!c->app_keys_active ||
+                    net_tls13_handle_key_update(c, tmp, n) != 0) {
+                    net_tls_send_fatal_alert(c, TLS_ALERT_ILLEGAL_PARAMETER);
+                    return TLS_ERR_ILLEGAL_PARAMETER;
+                }
+                continue;
+            }
             /* post-handshake messages we do not act on; read the next
              * record (loop, NOT recursion) */
+            continue;
+        }
+        if (ctype == CT_HANDSHAKE && n >= 4 && tmp[0] == HT_NEW_SESSION_TICKET) {
+            /* post-handshake message we do not act on (no resumption);
+             * read the next record (loop, NOT recursion) */
             continue;
         }
         if (ctype == CT_HANDSHAKE && n >= 4 && tmp[0] == HT_HELLO_REQUEST) {
@@ -1974,6 +2137,17 @@ int net_tls_https_get(u32 ip, u16 port, const char *hostname, const char *path,
         total += n;
         if (total >= out_len) break;
     }
+    /* P2fix4 BUG-0228 FIX: the loop used to break on ANY error and return
+     * `total` — a body cut off mid-stream by a premature EOF (no
+     * close_notify, flag set by the record layers above) was handed to
+     * the caller as a SUCCESSFUL download of the bytes received so far.
+     * Fail closed instead: without close_notify the completeness of the
+     * body cannot be proven, so a truncated transfer returns -1 (the
+     * documented failure code) rather than a positive byte count. A clean
+     * close_notify (net_tls_recv -> 0) leaves the flag clear and the full
+     * body is returned as before. */
+    int was_truncated = c->truncated;
     net_tls_close(c);
+    if (was_truncated) return -1;
     return total;
 }

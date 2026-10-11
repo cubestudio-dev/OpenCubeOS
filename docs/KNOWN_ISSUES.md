@@ -570,3 +570,49 @@ future round):
 - Verification: g6_test full chain T1..T7 with T1/T4/T6-collect
   un-isolated, 18/18 checks OK (three consecutive runs), no EXCEPTION 6;
   71/71 full regression; SSH E2E 5/5; HTTPS E2E 7/7; 0 errors 0 warnings.
+
+## 10. Audit fix-round (P0 residues + P1 residues + WRONG repairs) additions (2026-10-11)
+
+This round (recreated after a tooling-environment loss; see the commit
+message) closes the P0/P1 residues left by the independent fix-verification
+round, repairs the four WRONG fixes, and closes the tactical P2 residuals:
+ssh/tls/x509 subtraction-form bounds (BUG-0010/0011/0015/0017/0019/0224),
+the chain_buf split-loop bound (BUG-0024), the DER `hdr+l` wrap
+(BUG-0035), the 512-byte block-layer gate (BUG-0040/0054), the sshd
+background host-key thread (NEW-01), the SYN_RCVD recycle reordering
+(BUG-0069), TLS 1.3 KeyUpdate application (BUG-0081), the VFS-level
+unlink open-fd gate (BUG-0061), the TCP TX cli window (BUG-0063), the
+UDP length clamp (BUG-0066), ICMP RX checksum (BUG-0072), CDC-ACM 0xFF
+(BUG-0055), empty-capture redirection (BUG-0083), cp-of-empty (BUG-0086),
+ata_dma re-entry (BUG-0115), the live-path L1 builtin hook (BUG-0092),
+ixgbe TX write-back DD (BUG-0126), the tg3-verified bcm57xx rewrite
+(BUG-0128), EHCI speed decode (BUG-0175), igb RX error mask (BUG-0335),
+awk off-by-one (BUG-0251), hub speed masks (BUG-0157), xHCI ISO SIA
+(BUG-0148), hda spec-encoding shift (BUG-0339), ac97 BDBAR/LVI reprogram
+(BUG-0340), SB16 DMA page/mode constants (BUG-0127/0128-snd), bounded IP
+fragment reassembly (BUG-0210), net_bind conflict check (BUG-0217),
+sys_write2 cli window (BUG-0276), DRBG irq window (BUG-0294), TLS 1.2
+truncation fail-closed (BUG-0228), Lucky13 constant-time padding
+(BUG-0229), the RFC 8446 DOWNGRD sentinel (BUG-0233), and the stale
+crypto_core.h PRNG comment. Regression: 28/28 harness checks, tcptest
+ALL PASS incl. synrcvd-recycle, fstest ALL PASS incl. the p1fix4 block,
+dhtest 5/5, host KATs (a401 12 vectors, tls13_ks 13 KATs, blk512 13/13)
+all PASS, 0 errors 0 warnings.
+
+### 10.1 sshd first-run host-key generation is slow under QEMU TCG (not a hang)
+
+- Symptom: on a fresh /etc volume (no persisted host key), the FIRST
+  `sshd` invocation needs the per-installation RSA-2048 host key. Under
+  QEMU TCG (no KVM) the Miller-Rabin generation takes a very long time —
+  a measured lower bound was >9.5 minutes in this environment; real
+  hardware completes it in well under a second.
+- What was done (NEW-01): the generation no longer blocks the shell. It
+  runs in the background `sshd-hkgen` kernel thread; the `sshd` command
+  waits pollably and Ctrl+C cancels the WAIT (return -3, benign) while
+  generation continues; a subsequent `sshd` reuses the same wait. The
+  shell stays fully usable (verified: ps shows sshd-hkgen READY while
+  other commands run).
+- Residual behavior to know: on a TCG-slow machine the first key is not
+  ready until the background thread finishes, so early `sshd` attempts
+  report "generation still running" rather than serving. Persisted keys
+  (etc.img with the key material) load instantly on every later boot.

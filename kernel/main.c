@@ -2823,6 +2823,80 @@ static int shell_cmd_fstest(const char *args) {
             screen_console_puts("    p2 regressions: ALL PASS\n");
         }
     }
+
+    /* WP-10-AUDIT_P1-fix4: BUG-0061 regression block - unlink while a fd
+     * is open must be REFUSED with the busy error (-4) and the file must
+     * stay intact and readable afterwards; only after the close may the
+     * unlink succeed. This is the audit's main scenario: ramfs unlink
+     * used to kfree() the node out from under the still-open fd, so a
+     * later write through that fd hit freed memory (UAF). The old
+     * FAT32-only guard never fired (fs_fat32_lookup mints a fresh node
+     * per call, open_count always 0), which is why the gate now lives
+     * in the VFS dispatch layer and covers every filesystem. */
+    {
+        int p1f4fail = 0;
+        screen_console_puts("  p1fix4 regressions:\n");
+
+        int uf = fs_vfs_open("/tmp/vfstest/p1fix4_open.txt",
+                             VFS_O_RDWR | VFS_O_CREAT | VFS_O_TRUNC);
+        if (uf < 0) {
+            screen_console_puts("    BUG-0061 setup open(O_CREAT): FAIL\n");
+            p1f4fail++;
+        } else {
+            const char *utext = "p1fix4-still-alive";
+            if (fs_vfs_write(uf, utext, (int)strlen(utext)) !=
+                    (int)strlen(utext)) {
+                screen_console_puts("    BUG-0061 setup write: FAIL\n");
+                p1f4fail++;
+            }
+            /* (a) unlink while the fd is open must fail with EBUSY (-4,
+             * this codebase's busy error - see the FAT32/rmdir guards). */
+            int urc = fs_vfs_unlink("/tmp/vfstest/p1fix4_open.txt");
+            if (urc != -4) {
+                screen_console_puts("    BUG-0061 unlink-while-open busy: FAIL\n");
+                p1f4fail++;
+            } else {
+                /* (a, cont) the file must still read correctly afterwards,
+                 * both through the STILL-OPEN fd and through a fresh open
+                 * (nothing was freed or detached behind our back). */
+                char ub[48];
+                fs_vfs_seek(uf, 0, 0 /* SEEK_SET */);
+                int un = fs_vfs_read(uf, ub, sizeof(ub) - 1);
+                if (un >= 0) ub[un] = 0;   /* read does not NUL-terminate */
+                int vf = fs_vfs_open("/tmp/vfstest/p1fix4_open.txt",
+                                     VFS_O_RDONLY);
+                char vb[48];
+                int vn = -1;
+                if (vf >= 0) {
+                    vn = fs_vfs_read(vf, vb, sizeof(vb) - 1);
+                    if (vn >= 0) vb[vn] = 0;
+                    fs_vfs_close(vf);
+                }
+                if (un == (int)strlen(utext) && strcmp(ub, utext) == 0 &&
+                    vn == (int)strlen(utext) && strcmp(vb, utext) == 0) {
+                    screen_console_puts("    BUG-0061 dual-sided: PASS\n");
+                } else {
+                    screen_console_puts("    BUG-0061 file intact after refuse: FAIL\n");
+                    p1f4fail++;
+                }
+            }
+            fs_vfs_close(uf);
+            /* (b) after the close, the unlink must succeed and the file
+             * must be GONE (open fails). */
+            if (fs_vfs_unlink("/tmp/vfstest/p1fix4_open.txt") != 0) {
+                screen_console_puts("    BUG-0061 unlink-after-close: FAIL\n");
+                p1f4fail++;
+            } else if (fs_vfs_open("/tmp/vfstest/p1fix4_open.txt",
+                                   VFS_O_RDONLY) >= 0) {
+                screen_console_puts("    BUG-0061 file gone after unlink: FAIL\n");
+                p1f4fail++;
+            }
+        }
+
+        if (p1f4fail == 0) {
+            screen_console_puts("    p1fix4 regressions: ALL PASS\n");
+        }
+    }
     return 0;
 }
 

@@ -542,8 +542,14 @@ static int driver_snd_hda_setup(driver_snd_hda_dev_t *d, u8 bus, u8 dev, u8 func
         b32[i * 4 + 0] = (u32)(buf_addr & 0xffffffffu);
         b32[i * 4 + 1] = (u32)(buf_addr >> 32);
         if (bdl_spec) {
-            /* Intel HDA 1.0a spec layout: length[31:1] | IOC[0], dword3 reserved */
-            b32[i * 4 + 2] = (len >> 1) | 1u;   /* IOC on every entry */
+            /* Intel HDA 1.0a spec layout: length[31:1] | IOC[0], dword3 reserved.
+             * BUG-0339 FIX (A9-09, arithmetic): encode the length LEFT-shifted
+             * into bits [31:1] with IOC[0]=1.  The previous (len >> 1) | 1
+             * divided instead of multiplied, so a spec-mode controller
+             * decoded a quarter of the programmed length (8192 instead of
+             * 32768 per entry; 2 entries = 16 KiB against CBL=64 KiB) and
+             * the last-entry IOC never survived the decode. */
+            b32[i * 4 + 2] = (len << 1) | 1u;   /* IOC on every entry */
             b32[i * 4 + 3] = 0;
         } else {
             /* QEMU layout (verified, see above): plain length + dword3 IOC */

@@ -23,9 +23,10 @@
  *   - Advanced descriptors on both directions:
  *       TX 16B: buffer_addr(8) | cmd_type_len(4) | olinfo_status(4);
  *               cmd = len | DTYP_DATA | DEXT | EOP | IFCS | RS;
- *               write-back DD (bit0) lands in olinfo_status.
+ *               write-back DD (bit0) lands in olinfo_status (offset 12,
+ *               the wb.status dword; offset 8 becomes nxtseq_seed).
  *       RX 16B: pkt_addr(8) | hdr_addr(8, unused); write-back overlays
- *               hdr area: status_error(2, DD=bit0), length(2), vlan(2).
+ *               hdr area: status_error(4, DD=bit0), length(2), vlan(2).
  *   - Polling mode: interrupts masked via IMC.
  */
 #include "driver_nic.h"
@@ -88,6 +89,52 @@ static inline void mmio_write32(volatile void *p, u32 v) { *(volatile u32 *)p = 
 #define IGB_TXD_CMD_RS        0x08000000u
 #define IGB_STAT_DD           0x00000001u
 
+/* BUG-0335 FIX (A8-17): advanced RX write-back status/error bits.
+ *
+ * The 32-bit wb.status_error word (offset 8 of the 16-byte advanced RX
+ * descriptor) is SPLIT by field, per the 82576/I210 datasheet and Linux
+ * v6.10 drivers/net/ethernet/intel/igb/e1000_defines.h /
+ * e1000_82575.h union e1000_adv_rx_desc:
+ *
+ *   bits 15:0  status half (ring bookkeeping, NOT errors):
+ *     DD   = 0x0001  descriptor done (buffer consumed by software)
+ *     EOP  = 0x0002  end of packet (last buffer of the frame)
+ *     IXSM = 0x0004  ignore checksum indication
+ *     VP   = 0x0008  VLAN packet
+ *   bits 23:16 extended status (RSS type, timestamps) - not errors
+ *   bits 31:24 packet-error byte:
+ *     CE   = 0x01000000  CRC / alignment error
+ *     SE   = 0x02000000  symbol / coding error
+ *     SEQ  = 0x04000000  sequence error (out-of-order fragments)
+ *     CXE  = 0x10000000  carrier extension error
+ *     TCPE = 0x20000000  TCP/UDP checksum error (hint, NOT fatal)
+ *     IPE  = 0x40000000  IP checksum error (hint, NOT fatal)
+ *     RXE  = 0x80000000  receive error (generic frame error)
+ *
+ * The previous "fix" transplanted the e1000e LEGACY RX descriptor's
+ * one-byte errors mask (0x17 = CE|SE|SEQ|CXE as bits 4:0 of a SEPARATE
+ * errors byte in the 20/16-byte legacy layout) onto this word.  Here
+ * bit 0 is DD and bit 1 is EOP - both set on every completed frame - so
+ * `status_error & 0x17` matched 100% of packets and every frame was
+ * dropped: RX was completely dead.
+ *
+ * Linux semantics (igb_main.c): a frame with any of CE|SE|SEQ|CXE|RXE
+ * is dropped but the ring keeps running (igb_cleanup_headers applies
+ * exactly E1000_RXDEXT_ERR_FRAME_ERR_MASK = CE|SE|SEQ|CXE|RXE);
+ * checksum errors are recorded, never dropped; a non-EOP descriptor is
+ * consumed and its buffer chained to the frame (igb_is_non_eop). */
+#define IGB_RXD_STAT_EOP              0x00000002u  /* status: end of packet */
+#define IGB_RXDEXT_STATERR_CE         0x01000000u  /* error: CRC error */
+#define IGB_RXDEXT_STATERR_SE         0x02000000u  /* error: symbol error */
+#define IGB_RXDEXT_STATERR_SEQ        0x04000000u  /* error: sequence error */
+#define IGB_RXDEXT_STATERR_CXE        0x10000000u  /* error: carrier extension */
+#define IGB_RXDEXT_STATERR_RXE        0x80000000u  /* error: receive error */
+#define IGB_RXDEXT_ERR_FRAME_ERR_MASK (IGB_RXDEXT_STATERR_CE  | \
+                                       IGB_RXDEXT_STATERR_SE  | \
+                                       IGB_RXDEXT_STATERR_SEQ | \
+                                       IGB_RXDEXT_STATERR_CXE | \
+                                       IGB_RXDEXT_STATERR_RXE)
+
 #define IGB_NUM_QUEUES  2     /* programmed queues (0 = data path) */
 #define IGB_NUM_DESC    32
 #define IGB_BUF_SIZE    2048
@@ -124,10 +171,12 @@ typedef struct {
     int rx_tail;
     int tx_tail;
     u8  tx_inflight[IGB_NUM_DESC];   /* BUG-0337: slot has an armed descriptor */
+    u8  rx_frag;                     /* BUG-0335: inside a multi-buffer frame */
     u8  bus, dev, func;
     int up;
     u8  mac[6];
     u64 tx_packets, rx_packets;
+    u64 rx_dropped;                  /* BUG-0335: error/fragment frames dropped */
 } driver_nic_igb_dev_t;
 
 static driver_nic_igb_dev_t g_igb;
@@ -407,31 +456,44 @@ static int driver_nic_igb_ops_recv(driver_nic_device_t *ndev, void *buf, int max
     driver_nic_igb_dev_t *d = &g_igb;
     if (!d->up) return -1;
 
-
     volatile driver_nic_igb_rx_desc_t *desc = &d->rx_descs[0][d->rx_tail];
     if (!(desc->wb.status_error & IGB_STAT_DD)) return 0;
-    /* BUG-0335 (A8-17): drop error-flagged frames (the same 0x17 CRC /
-     * symbol / sequence / carrier-error mask the e1000e path uses)
-     * instead of feeding corrupt frames to the stack. */
-    if (desc->wb.status_error & 0x17) {
-        desc->wb.status_error = 0;
-        desc->wb.length = 0;
-        desc->wb.vlan = 0;
-        desc->hdr_addr = 0;
-        desc->pkt_addr = (u64)(uintptr_t)d->rx_bufs[0][d->rx_tail];
-        __asm__ volatile("sfence" ::: "memory");
-        d->rx_tail = (d->rx_tail + 1) % IGB_NUM_DESC;
-        u32 rdt = (u32)((d->rx_tail + IGB_NUM_DESC - 1) % IGB_NUM_DESC);
-        driver_nic_igb_wreg(d, IGB_RXQ_BASE(0) + IGB_Q_DT, rdt);
-        return 0;
+
+    u32 staterr = desc->wb.status_error;
+    int eop = (staterr & IGB_RXD_STAT_EOP) != 0;
+    /* BUG-0335 FIX (A8-17): drop a frame on a real receive error - CRC,
+     * symbol, sequence, carrier-extension or generic receive error
+     * (IGB_RXDEXT_ERR_FRAME_ERR_MASK: the packet-error byte in bits
+     * 31:24 of the write-back word) - but keep the ring running, the
+     * same drop-the-packet-not-the-ring semantics as Linux igb's
+     * igb_cleanup_headers.  Checksum-error bits (TCPE/IPE) are hints,
+     * not fatal - the stack does not offload checksums here anyway.
+     * The old code tested `status_error & 0x17`, an e1000e
+     * legacy-descriptor errors-byte mask that on this word covers
+     * DD|EOP|IXSM|VP - i.e. bits set on every completed frame - so RX
+     * dropped 100% of traffic.
+     * Non-EOP descriptors (frame spanning multiple 2 KiB buffers)
+     * cannot be reassembled by this driver; Linux chains them into one
+     * skb (igb_is_non_eop) while we must drop the whole frame honestly:
+     * remember the fragmented state and discard buffers until the EOP
+     * descriptor arrives. */
+    int drop = d->rx_frag || !eop ||
+               ((staterr & IGB_RXDEXT_ERR_FRAME_ERR_MASK) != 0);
+    d->rx_frag = eop ? 0 : 1;
+
+    int len = 0;
+    if (!drop) {
+        len = desc->wb.length;
+        if (len > maxlen) len = maxlen;
+        if (len > 0) memcpy(buf, d->rx_bufs[0][d->rx_tail], len);
+        d->rx_packets++;
+    } else {
+        d->rx_dropped++;
     }
 
-    int len = desc->wb.length;
-    if (len > maxlen) len = maxlen;
-    if (len > 0) memcpy(buf, d->rx_bufs[0][d->rx_tail], len);
-
-
-    /* Recycle: clear the write-back and re-present the buffer. */
+    /* Recycle: clear the write-back and re-present the buffer (shared
+     * by the deliver and drop paths - a dropped frame must still give
+     * its buffer back to the ring, otherwise the RX queue stalls). */
     desc->wb.status_error = 0;
     desc->wb.length = 0;
     desc->wb.vlan = 0;
@@ -441,7 +503,6 @@ static int driver_nic_igb_ops_recv(driver_nic_device_t *ndev, void *buf, int max
     d->rx_tail = (d->rx_tail + 1) % IGB_NUM_DESC;
     u32 rdt = (u32)((d->rx_tail + IGB_NUM_DESC - 1) % IGB_NUM_DESC);
     driver_nic_igb_wreg(d, IGB_RXQ_BASE(0) + IGB_Q_DT, rdt);
-    d->rx_packets++;
     return len;
 }
 
@@ -480,6 +541,8 @@ void driver_nic_igb_print_state(void) {
     u64_to_str(d->tx_packets, n); strcat(line, n);
     strcat(line, " rx=");
     u64_to_str(d->rx_packets, n); strcat(line, n);
+    strcat(line, " rxdrop=");
+    u64_to_str(d->rx_dropped, n); strcat(line, n);
     strcat(line, "\n");
     screen_console_puts(line);
 }

@@ -390,11 +390,16 @@ static int shell_cmd_usb_serial_test(const char *args) {
         t_fail(T, "TX complete", "short write / error");
         return 1;
     }
-    /* RX drain for up to 2 s (loopback or remote echo) */
+    /* RX drain for up to 2 s (loopback or remote echo).
+     * BUG-0170 residue: the serial read contract returns -1 (not 0)
+     * on an empty RX ring, so the loop condition must treat every
+     * non-positive result as "nothing yet" - with the old `got == 0`
+     * test the first empty poll (-1) terminated the window after one
+     * iteration and the 2 s wait never actually waited. */
     char rx[64];
     int got = 0;
     u64 deadline = core_timer_now_ms() + 2000;
-    while (core_timer_now_ms() < deadline && got == 0) {
+    while (core_timer_now_ms() < deadline && got <= 0) {
         driver_usb_serial_poll();
         got = driver_usb_serial_read(rx, sizeof(rx));
         core_sched_yield();

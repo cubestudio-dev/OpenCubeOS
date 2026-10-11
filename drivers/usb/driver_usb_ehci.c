@@ -65,10 +65,16 @@
 #define PORTSC_CSC          (1u << 1)
 #define PORTSC_PED          (1u << 2)
 #define PORTSC_PEDC         (1u << 3)
+#define PORTSC_OCC          (1u << 5)   /* over-current change (W1C) */
 #define PORTSC_PRESET       (1u << 8)
 #define PORTSC_PPOWER       (1u << 12)
 #define PORTSC_POWNER       (1u << 13)
 #define PORTSC_LINESTAT_SH  10
+/* BUG-0175: PORTSC has no speed field; the write-to-clear change bits
+ * are CSC|PEDC|OCC (Linux ehci_def.h PORT_RWC_BITS) and a K line state
+ * on a connected, not-enabled port means low-speed (PORT_USB11). */
+#define PORTSC_RWC          (PORTSC_CSC | PORTSC_PEDC | PORTSC_OCC)
+#define PORTSC_LINE_K(v)    ((((v) >> PORTSC_LINESTAT_SH) & 3u) == 1u)
 
 /* link type bits - the type tag lives in BITS 2:1 of the link word
  * (bit 0 = Terminate): 0=ITD 1=QH 2=siTD 3=FSTN.  Verified against
@@ -136,6 +142,8 @@ typedef struct driver_usb_ehci_state {
     volatile u32 *op;
     u8   bus, dev, func;
     u8   n_ports;
+    u8   n_cc;                /* HCSPARAMS bits 15:12: companion
+                              * controller count (BUG-0175 handoff log) */
 
     /* one page holds: QH ctrl | QH bulk | QH int | frame list? no -
      * frame list needs its own 4 KiB page */
@@ -561,6 +569,44 @@ static int driver_usb_ehci_port_count(driver_usb_host_t *h) {
     return e ? e->n_ports : 0;
 }
 
+/* BUG-0175 REPAIR (A11-6, the previous fix was WRONG): release a port
+ * to the companion controller.  Standard EHCI silicon talks high-speed
+ * ONLY - Linux drivers/usb/host/ehci.h ehci_port_speed() returns
+ * USB_PORT_STAT_HIGH_SPEED unconditionally, and PORTSC bits 13:12 are
+ * Port Owner (13) / Port Power (12), NOT a speed field (QEMU v10.0.2
+ * include/hw/usb/ehci-regs.h: PORTSC_POWNER (1<<13) / PORTSC_PPOWER
+ * (1<<12); EHCI 1.0 spec Table 2-16).  A low-speed device is detectable
+ * PRE-reset by the K line state (LINESTAT bits 11:10 == 01; Linux
+ * include/linux/usb/ehci_def.h PORT_USB11(x) = ((x)&(3<<10)) == (1<<10))
+ * and a full-speed device fails to enable during reset (PED stays
+ * clear); both must be handed to the companion by writing PORTSC
+ * PORT_OWNER - the same move Linux ehci-hub.c makes ("port %d low speed
+ * --> companion" in SetPortFeature(RESET), "port %d full speed -->
+ * companion" in check_reset_complete()).  Write discipline mirrors
+ * Linux: clear the write-to-clear change bits (PORT_RWC_BITS =
+ * CSC|PEC|OCC) and drop PED from the image (some silicon refuses to
+ * latch OWNER while the port is enabled).  QEMU hcd-ehci.c
+ * handle_port_owner_write() forwards an attached device to the
+ * companion when one is registered; with no companion (QEMU's default
+ * usb-ehci and HCSPARAMS N_CC=0 real boards) the write is inert, so the
+ * honest outcome is logged either way and the port is never reported
+ * as enumerable on this controller. */
+static void driver_usb_ehci_handoff(driver_usb_ehci_state_t *e, u32 off, int port) {
+    u32 v = driver_usb_ehci_rd(e, off);
+    driver_usb_ehci_wr(e, off,
+            (v & ~(PORTSC_RWC | PORTSC_PED)) | PORTSC_POWNER);
+    char l[96];
+    char n[12];
+    strcpy(l, "ehci: port ");
+    u64_to_str((u64)port, n); strcat(l, n);
+    if (e->n_cc > 0)
+        strcat(l, " FS/LS device -> companion\n");
+    else
+        strcat(l, " FS/LS device, no companion (HCSPARAMS N_CC=0)"
+                  " - port unused\n");
+    driver_usb_ehci_log(l);
+}
+
 static int driver_usb_ehci_port_status(driver_usb_host_t *h, int port,
                             driver_usb_port_status_t *out) {
     driver_usb_ehci_state_t *e = (driver_usb_ehci_state_t *)h->priv;
@@ -568,16 +614,36 @@ static int driver_usb_ehci_port_status(driver_usb_host_t *h, int port,
     u32 v = driver_usb_ehci_rd(e, EHCI_PORTSC + (u32)port * 4);
     out->connected = (v & PORTSC_CONNECT) ? 1 : 0;
     out->enabled = (v & PORTSC_PED) ? 1 : 0;
-    /* BUG-0175 FIX (A11-6): read the PORTSC.PS (Port Speed, bits 13:12)
-     * field instead of LINE-STATE. LINE-STATUS only carries a reliable
-     * speed encoding at the END of reset; a steady-state read reports the
-     * current line J/K state, which misclassifies FS devices as HS. PS:
-     * 0=FS, 1=LS, 2=HS (EHCI 1.0 spec Table 2-16). */
-    {
-        u32 ps = (v >> 12) & 3;
-        if (ps == 1)      out->speed = USB_SPEED_LS;
-        else if (ps == 2) out->speed = USB_SPEED_HS;
-        else              out->speed = USB_SPEED_FS;
+    /* BUG-0175 REPAIR (A11-6): PORTSC has NO Port Speed field - bits
+     * 13:12 are Port Owner (13) and Port Power (12) (QEMU v10.0.2
+     * include/hw/usb/ehci-regs.h PORTSC_POWNER/PORTSC_PPOWER; EHCI 1.0
+     * Table 2-16), so the previous "(v >> 12) & 3" decode read
+     * OWNER|POWER and, with CONFIGFLAG=1 and port power on, reported
+     * EVERY device as low-speed.  Standard EHCI silicon is high-speed
+     * only (Linux ehci.h ehci_port_speed() returns HIGH unconditionally;
+     * the TDI integrated-TT exception is vendor silicon this driver
+     * does not claim to support).  Honest decode: a port the EHCI
+     * enabled is HS (QEMU hcd-ehci.c sets PED at reset completion only
+     * when dev->speedmask has USB_SPEED_MASK_HIGH); a K line state on a
+     * connected, not-enabled port means low-speed (it gets handed to
+     * the companion by port_reset); anything else (J state, not yet
+     * reset, or nothing attached) has no determined speed here - FS/HS
+     * is only distinguishable after reset and a full-speed device is
+     * never enumerable on an EHCI-owned port, so FS is never reported.
+     * A companion-owned port is reported as not connected: its device
+     * belongs to the companion host, which the core scans separately.
+     * (The core makes no decision on st.speed - enumeration takes its
+     * speed from port_reset's speed_out - so the value is
+     * informational.) */
+    if (v & PORTSC_POWNER) {
+        out->connected = 0;   /* port released to the companion */
+        out->enabled = 0;
+        out->speed = USB_SPEED_HS;
+    } else if (out->connected && !out->enabled && PORTSC_LINE_K(v)) {
+        out->speed = USB_SPEED_LS;   /* pre-reset K state: low-speed */
+    } else {
+        out->speed = USB_SPEED_HS;   /* enabled == HS; the only speed
+                                      * this silicon can deliver */
     }
     out->changed = (v & PORTSC_CSC) ? 1 : 0;
     if (v & PORTSC_CSC)
@@ -599,12 +665,31 @@ static int driver_usb_ehci_port_reset(driver_usb_host_t *h, int port, u8 *speed_
      * ("no device attached to queue") for full-speed devices where
      * the controller does not re-enable the port by itself. */
     u32 v = driver_usb_ehci_rd(e, off);
+    /* BUG-0175 REPAIR: a port already released to the companion is not
+     * ours to reset (Linux ehci-hub.c SetPortFeature: "if (temp &
+     * PORT_OWNER) break;"). */
+    if (v & PORTSC_POWNER) return -1;
     driver_usb_ehci_wr(e, off, (v & 0xffffffffu) | PORTSC_PPOWER | PORTSC_PED);
     /* power-on settle: real time, not a spin loop (the port needs a
      * few ms before CCS reflects the attached device) */
     {
         u64 t0 = core_timer_now_ms();
         while (core_timer_now_ms() - t0 < 20) core_sched_yield();
+    }
+    /* BUG-0175 REPAIR (pre-reset low-speed detection): after power-on,
+     * a connected port that is still not enabled and shows a K line
+     * state carries a low-speed device (EHCI 1.0 4.2.1; Linux
+     * ehci-hub.c SetPortFeature(RESET): "(temp & (PORT_PE|
+     * PORT_CONNECT)) == PORT_CONNECT && PORT_USB11(temp)" -> "port %d
+     * low speed --> companion").  Standard EHCI cannot enumerate it:
+     * release the port to the companion instead of resetting it. */
+    {
+        u32 pre = driver_usb_ehci_rd(e, off);
+        if ((pre & (PORTSC_PED | PORTSC_CONNECT)) == PORTSC_CONNECT &&
+            PORTSC_LINE_K(pre)) {
+            driver_usb_ehci_handoff(e, off, port);
+            return -1;
+        }
     }
     driver_usb_ehci_wr(e, off, driver_usb_ehci_rd(e, off) | PORTSC_PRESET | PORTSC_PED);
     /* hold reset for the spec'd 10 ms (FS) minimum */
@@ -634,15 +719,23 @@ static int driver_usb_ehci_port_reset(driver_usb_host_t *h, int port, u8 *speed_
         screen_console_puts(l);
         return -1;
     }
-    if (speed_out) {
-        /* BUG-0175 FIX (A11-6): PORTSC.PS (13:12) is the authoritative
-         * post-reset speed (0=FS 1=LS 2=HS); LINE-STATUS was only
-         * meaningful in the brief reset window and could not see FS. */
-        u32 ps = (w >> 12) & 3;
-        if (ps == 1)      *speed_out = USB_SPEED_LS;
-        else if (ps == 2) *speed_out = USB_SPEED_HS;
-        else              *speed_out = USB_SPEED_FS;
+    /* BUG-0175 REPAIR (post-reset decode): a successful EHCI port reset
+     * enables the port ONLY for a high-speed device (QEMU hcd-ehci.c
+     * ehci_port_write: "Table 2.16 Set the enable bit ... to indicate to
+     * SW that this port has a high speed device attached" - PED is set
+     * iff dev->speedmask & USB_SPEED_MASK_HIGH; Linux ehci.h
+     * ehci_port_speed() likewise returns HIGH unconditionally).  A
+     * full-speed device chirp-fails the reset, PED stays clear and PEDC
+     * latches - hand it to the companion exactly like Linux
+     * check_reset_complete() ("port %d full speed --> companion"
+     * writes PORT_OWNER).  HS is therefore the only speed this
+     * function can honestly report; FS is never valid on an EHCI-owned
+     * port. */
+    if (!(w & PORTSC_PED)) {
+        driver_usb_ehci_handoff(e, off, port);
+        return -1;
     }
+    if (speed_out) *speed_out = USB_SPEED_HS;
     return 0;
 }
 
@@ -711,6 +804,11 @@ static int driver_usb_ehci_probe_one(u8 bus, u8 dev, u8 func) {
     u32 hcs = e->cap[EHCI_HCSPARAMS / 4];
     e->n_ports = (u8)(hcs & 0xff);
     if (e->n_ports > EHCI_MAX_PORTS) e->n_ports = EHCI_MAX_PORTS;
+    /* BUG-0175: N_CC = HCSPARAMS bits 15:12, the number of companion
+     * controllers behind this EHCI (QEMU hcd-ehci.c: caps[0x05] =
+     * (companion_count << 4) | portcount when companions register,
+     * 0x00 otherwise).  Gates the honest handoff log line. */
+    e->n_cc = (u8)((hcs >> 12) & 0xf);
 
     /* HC reset */
     driver_usb_ehci_wr(e, EHCI_USBCMD, driver_usb_ehci_rd(e, EHCI_USBCMD) |

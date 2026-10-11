@@ -596,7 +596,9 @@ int driver_usb_hub_port_reset(driver_usb_dev_t *hub, u8 port) {
      * with no reset-change yet, so the old "connected already" early return
      * sent the caller into enumeration while the device was still resetting
      * (GET_DESCRIPTOR(8) then fails on a real hub; QEMU's instantaneous
-     * reset masked it).  Bit masks per USB 2.0 spec Table 11-24:
+     * reset masked it).  Bit masks per USB 2.0 spec Table 11-22
+     * (Hub Port Change Status bitmap; verified against Linux v6.10
+     * include/uapi/linux/usb/ch11.h USB_PORT_STAT_C_RESET 0x0010):
      * C_PORT_RESET is wPortChange bit 4 (0x0010) - the previous 0x0020 was
      * bit 5, which no hub ever sets, so the wait must look at 0x0010.
      * Up to 40 GET_STATUS probes, each a full control transfer (several ms
@@ -630,14 +632,22 @@ u8 driver_usb_hub_port_speed(driver_usb_dev_t *hub, u8 port) {
                          st, 4) != 0)
         return USB_SPEED_FS;
     u16 wPortStatus = (u16)(st[0] | (st[1] << 8));
-    /* BUG-0157 FIX (A10-8, companion decode): wPortStatus bit layout per
-     * USB 2.0 spec Table 11-23 - PORT_LOW_SPEED is bit 6 (0x0040) and
-     * PORT_HIGH_SPEED is bit 7 (0x0080).  The previous masks 0x0200/0x0400
-     * (copied from the UHCI root-port register layout) match no hub bit,
-     * so low/high-speed devices behind an external hub were always read
-     * as full-speed. */
-    if (wPortStatus & 0x0040) return USB_SPEED_LS;   /* low-speed */
-    if (wPortStatus & 0x0080) return USB_SPEED_HS;   /* high-speed */
+    /* BUG-0157 FIX (A10-8, repair of the C_PORT_RESET companion change):
+     * wPortStatus bit layout per USB 2.0 spec Table 11-21 -
+     * low-speed-device-attached is bit 9 (0x0200) and high-speed-device-
+     * attached is bit 10 (0x0400); bits 6 and 7 (0x0040/0x0080) are
+     * RESERVED and no hub ever sets them.  The earlier C_PORT_RESET fix
+     * regressed this decode to 0x0040/0x0080 while claiming "the
+     * previous masks 0x0200/0x0400 match no hub bit" - that claim was
+     * FALSE, the previous masks were the correct Table 11-21 values all
+     * along (verified against Linux v6.10 include/uapi/linux/usb/ch11.h:
+     * USB_PORT_STAT_LOW_SPEED 0x0200 / USB_PORT_STAT_HIGH_SPEED 0x0400,
+     * and QEMU v10.0.2 hw/usb/dev-hub.c: PORT_STAT_LOW_SPEED 0x0200 /
+     * PORT_STAT_HIGH_SPEED 0x0400), so devices behind an external hub
+     * always decoded as full-speed and LS devices then failed bulk
+     * (no bulk LS).  Restore the correct masks. */
+    if (wPortStatus & 0x0200) return USB_SPEED_LS;   /* bit 9: low-speed */
+    if (wPortStatus & 0x0400) return USB_SPEED_HS;   /* bit 10: high-speed */
     return USB_SPEED_FS;
 }
 

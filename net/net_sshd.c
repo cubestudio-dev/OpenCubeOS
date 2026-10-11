@@ -27,6 +27,7 @@
 #include "screen_console.h"
 #include "l1_ext.h"
 #include "core_timer.h"
+#include "core_sched.h"   /* NEW-01: sshd-hkgen background host-key thread */
 #include "crypto_core.h"
 #include "crypto_bn.h"
 #include "mem_pmm.h"
@@ -75,13 +76,31 @@
 #define SSHD_HOST_KEY_PATH     "/etc/ssh_host_key"
 #define SSHD_AUTHORIZED_KEYS   "/etc/ssh_authorized_keys"
 
-/* forward decl: logging lives further down; the key bootstrap logs */
+/* forward decl: logging and the ^C cancel hook live further down */
 static void net_sshd_log(const char *msg);
+static int sshd_accept_cancel_check(void);
 
 static u8 g_hk_n[256];
 static u8 g_hk_d[256];
 static int g_hk_ready = 0;       /* host key loaded/generated */
 static int g_hk_custom = 0;      /* 1 = per-installation key (the embedded fallback was removed with BUG-0075) */
+
+/* NEW-01 (P0fix3): RSA-2048 generation takes >300 s under the TCG
+ * interpreter, and BUG-0075's per-installation keygen used to run INLINE
+ * in net_sshd_main() — the `sshd` command blocked the whole shell for the
+ * duration, ^C was dead (the cancel hook is only polled inside
+ * net_accept()) and the box looked wedged. The generation now runs in a
+ * background kernel thread ("sshd-hkgen") and the `sshd` command merely
+ * WAITS for it, polling the ^C cancel hook every ~50 ms: Ctrl+C aborts
+ * the WAIT only (returns -3 — benign, distinct from failure) while
+ * generation continues; a re-run of `sshd` re-enters the SAME wait and
+ * never restarts a running keygen. Concurrent sshd invocations and the
+ * kthread agree on this one volatile flag. */
+#define HK_STATE_ABSENT     0   /* not loaded, not generating */
+#define HK_STATE_GENERATING 1   /* sshd-hkgen kthread is running */
+#define HK_STATE_READY      2   /* g_hk_n/g_hk_d are final and published */
+#define HK_STATE_FAILED     3   /* generation failed; sshd refuses (fail-closed) */
+static volatile int g_hk_state = HK_STATE_ABSENT;
 
 /* authorized public keys (moduli only; e is fixed 65537) */
 static u8 g_auth_n[8][256];
@@ -276,36 +295,44 @@ static int rsa_pair_selftest(const u8 *n_be, const u8 *d_be) {
     return (rec[255] == 0x02) ? 1 : 0;
 }
 
-/* Load /etc/ssh_host_key; generate + persist it if missing. */
-static int net_sshd_hostkey_ensure(void) {
-    if (g_hk_ready) return 0;
-    /* 1. try to load */
-    {
-        int fd = fs_vfs_open(SSHD_HOST_KEY_PATH, VFS_O_RDONLY);
-        if (fd >= 0) {
-            u8 buf[512];
-            int n = fs_vfs_read(fd, buf, 512);
-            fs_vfs_close(fd);
-            if (n == 512) {
-                memcpy(g_hk_n, buf, 256);
-                memcpy(g_hk_d, buf + 256, 256);
-                if (rsa_pair_selftest(g_hk_n, g_hk_d)) {
-                    g_hk_ready = 1;
-                    g_hk_custom = 1;
-                    return 0;
-                }
-                net_sshd_log("host key file corrupt; regenerating");
-            }
-        }
+/* Load /etc/ssh_host_key. Returns 0 when a valid key was loaded into
+ * g_hk_n/g_hk_d. NEW-01: split out of net_sshd_hostkey_ensure() so the
+ * fast path (key already on disk) stays synchronous. */
+static int net_sshd_hostkey_load(void) {
+    int fd = fs_vfs_open(SSHD_HOST_KEY_PATH, VFS_O_RDONLY);
+    if (fd < 0) return -1;
+    u8 buf[512];
+    int n = fs_vfs_read(fd, buf, 512);
+    fs_vfs_close(fd);
+    if (n != 512) return -1;
+    u8 n_be[256], d_be[256];
+    memcpy(n_be, buf, 256);
+    memcpy(d_be, buf + 256, 256);
+    if (!rsa_pair_selftest(n_be, d_be)) {
+        net_sshd_log("host key file corrupt; regenerating");
+        return -1;
     }
-    /* 2. generate (Miller-Rabin RSA-2048; slow in QEMU, once per disk) */
+    memcpy(g_hk_n, n_be, 256);
+    memcpy(g_hk_d, d_be, 256);
+    g_hk_ready = 1;
+    g_hk_custom = 1;
+    return 0;
+}
+
+/* NEW-01: generate + persist the per-installation host key. Runs as the
+ * "sshd-hkgen" kernel thread (Miller-Rabin RSA-2048; slow in QEMU, once
+ * per disk). Publishes g_hk_state LAST so a waiter that observes
+ * HK_STATE_READY also observes the finished g_hk_n/g_hk_d (x86 TSO
+ * store order + volatile flag). */
+static void net_sshd_hkgen_thread(void *arg) {
+    (void)arg;
     net_sshd_log("generating per-installation host key (RSA-2048, one-time)...");
     u8 p_be[128], q_be[128];
     u64 p_word[16], q_word[16], prod_word[32];
     u8 n_be[256], phi_be[256], d_be[256];
     for (;;) {
-        if (rsa_gen_prime(p_be, 128) != 0) return -1;
-        if (rsa_gen_prime(q_be, 128) != 0) return -1;
+        if (rsa_gen_prime(p_be, 128) != 0) { g_hk_state = HK_STATE_FAILED; return; }
+        if (rsa_gen_prime(q_be, 128) != 0) { g_hk_state = HK_STATE_FAILED; return; }
         if (memcmp(p_be, q_be, 128) == 0) continue;
         /* n = p*q */
         crypto_bn_from_be(p_word, 16, p_be, 128);
@@ -322,8 +349,8 @@ static int net_sshd_hostkey_ensure(void) {
         /* restore the primes (needed again? no — done) */
         break;
     }
-    if (rsa_modinv_e65537(phi_be, 256, d_be) != 0) return -1;
-    if (!rsa_pair_selftest(n_be, d_be)) return -1;
+    if (rsa_modinv_e65537(phi_be, 256, d_be) != 0) { g_hk_state = HK_STATE_FAILED; return; }
+    if (!rsa_pair_selftest(n_be, d_be)) { g_hk_state = HK_STATE_FAILED; return; }
     memcpy(g_hk_n, n_be, 256);
     memcpy(g_hk_d, d_be, 256);
     g_hk_ready = 1;
@@ -340,7 +367,50 @@ static int net_sshd_hostkey_ensure(void) {
     } else {
         net_sshd_log("host key generated (RAM only: /etc not writable)");
     }
-    return 0;
+    g_hk_state = HK_STATE_READY;   /* publish LAST — key material is final */
+}
+
+/* Load /etc/ssh_host_key; if missing, start background generation and
+ * WAIT pollably for it (NEW-01). Returns:
+ *    0  key ready (loaded or generated)
+ *   -1  key unobtainable (generation/spawn failed) — sshd refuses to
+ *       start (BUG-0075 fail-closed policy)
+ *   -3  Ctrl+C cancelled the WAIT — benign: generation continues in the
+ *       background, a subsequent `sshd` re-enters this same wait. */
+static int net_sshd_hostkey_ensure(void) {
+    if (g_hk_state == HK_STATE_READY) return 0;
+    if (g_hk_state == HK_STATE_ABSENT) {
+        /* 1. try to load (fast, synchronous) */
+        if (net_sshd_hostkey_load() == 0) {
+            g_hk_state = HK_STATE_READY;
+            return 0;
+        }
+        /* 2. no usable key on disk: generate in the BACKGROUND */
+        g_hk_state = HK_STATE_GENERATING;
+        if (core_kthread_create(net_sshd_hkgen_thread, (void *)0,
+                                "sshd-hkgen", TASK_PRIO_DEFAULT) < 0) {
+            g_hk_state = HK_STATE_FAILED;
+            net_sshd_log("ERROR: cannot spawn the sshd-hkgen thread");
+            return -1;
+        }
+        net_sshd_log("host key generation running in background (sshd-hkgen); "
+                     "Ctrl+C stops WAITING only");
+    }
+    /* 3. pollable wait (~50 ms per iteration = 5 ticks @ 100 Hz): the ^C
+     * cancel hook is the same one net_accept() polls (BUG-0132 FIX), so
+     * the keyboard stays drained and Ctrl+C stays responsive; net_poll()
+     * keeps the NIC serviced while we spin. No unbounded wait without a
+     * cancel path — every iteration checks the state first. */
+    for (;;) {
+        if (g_hk_state == HK_STATE_READY) return 0;
+        if (g_hk_state == HK_STATE_FAILED) return -1;
+        if (sshd_accept_cancel_check()) return -3;
+        u64 t0 = core_timer_ticks();
+        while (core_timer_ticks() - t0 < 5) {
+            net_poll();
+            core_sched_yield();
+        }
+    }
 }
 
 /* Load the authorized public key moduli. */
@@ -914,7 +984,14 @@ static int net_sshd_compute_hash(net_sshd_ctx_t *ctx, u8 hash[32]) {
     need += 4 + (int)strlen(ctx->server_banner);
     need += 4 + ctx->client_kexinit_len;
     need += 4 + ctx->server_kexinit_len;
-    need += 4 + 276;                       /* K_S block (<= 400B, max 276 used) */
+    /* P0fix3 BUG-0017 FIX: the K_S worst case is 283 bytes, not 280.
+     * Precise arithmetic: ssh-rsa cstring 11 ("ssh-rsa" 7 + u32 len 4)
+     * + mpint e 7 (u32 + 3 bytes {01 00 01}) + mpint N 261 (u32 + 256
+     * modulus bytes + 1 leading-zero/sign byte when N's MSB is set) =
+     * 279 content bytes, + 4 for the outer string length = 283. The old
+     * budget of 4+276 was 3 bytes short -> up to 3 bytes written past the
+     * checked region of the 4096B page (semi-blind overwrite). */
+    need += 4 + 279;                       /* K_S block (<= 400B, worst 283) */
     if (ctx->kex_curve25519)
         need += (4 + 32) + (4 + 32) + (4 + 1 + SSHD_DH_BYTES);
     else
@@ -1343,7 +1420,11 @@ static int net_sshd_parse_kexdh_init(net_sshd_ctx_t *ctx, const u8 *payload, int
         const u8 *ed = payload + 4;
         int el = e_len;
         if (el < 0) return -7;
-        if (4 + el > plen) return -7;   /* declared e extends past payload */
+        /* P0fix3 BUG-0015 FIX: was `4 + el > plen` — the int addition wraps
+         * for el in [0x7FFFFFFC..0x7FFFFFFF], bypassing the check with a
+         * negative sum. Subtract instead of add; plen >= 4 was checked at
+         * function entry, so plen - 4 cannot underflow. */
+        if (el > plen - 4) return -7;   /* declared e extends past payload */
         if (el > 0 && ed[0] == 0) { ed++; el--; }
         if (el > SSHD_DH_BYTES) { ed += (el - SSHD_DH_BYTES); el = SSHD_DH_BYTES; }
         memcpy(ctx->client_pub + (SSHD_DH_BYTES - el), ed, el);
@@ -1414,7 +1495,11 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
     /* P0fix1 BUG-0019 (A14-13): a negative ulen passed `off + ulen > plen`
      * and reached memcpy with a huge size_t length -- pre-password, so any
      * unauthenticated client could crash the sshd. */
-    if (ulen < 0 || off + ulen > plen) return -1;
+    if (ulen < 0 || ulen > plen - off) return -1;
+    /* P0fix3 BUG-0019 FIX: was `off + ulen > plen` — the int addition
+     * wraps for ulen in [0x7FFFFFFC..0x7FFFFFFF], bypassing the check
+     * with a negative sum. Subtraction form cannot wrap (plen >= off
+     * holds — off only advances past validated fields). */
     /* BUG-0223: zero the scratch first - the fixed 32-byte constant-time
      * compare below must not see stale bytes from a previous attempt. */
     memset(ctx->auth_user, 0, sizeof(ctx->auth_user));
@@ -1423,9 +1508,16 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
     off += ulen;
     if (off + 4 > plen) return -1;
     int slen = (int)net_sshd_read_u32(payload + off); off += 4;   /* service */
+    /* P0fix3 BUG-0019 FIX: the service string length had NO validation
+     * at all — a negative or oversized slen made `off += slen` wrap and
+     * every later field parsed from a wild offset. */
+    if (slen < 0 || slen > plen - off) return -1;
     off += slen;
     if (off + 4 > plen) return -1;
     int mlen = (int)net_sshd_read_u32(payload + off); off += 4;   /* method */
+    /* P0fix3 BUG-0019 FIX: same for the method string — unvalidated mlen
+     * wrapped `off += mlen` and let the memcmp below read past the page. */
+    if (mlen < 0 || mlen > plen - off) return -1;
     off += mlen;
     /* WP-09 fix: fixed-length compare — strcmp relied on the byte after
      * "password" being NUL (it is the FALSE boolean in practice, but that is
@@ -1442,10 +1534,19 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
         if (off + 1 + 4 > plen) return -1;
         off += 1;                                   /* boolean TRUE */
         int alen = (int)net_sshd_read_u32(payload + off); off += 4;
-        if (off + alen + 4 > plen) return -1;
+        /* P0fix3 BUG-0019 FIX: was `off + alen + 4 > plen` — the addition
+         * wraps for alen near INT_MAX. Split into a pure comparison:
+         * off + 5 <= plen was checked before the boolean, so after the two
+         * advances off <= plen and plen - off - 4 >= -4 — the small
+         * negative correctly rejects, since 4 more bytes are needed for
+         * the blob length that follows. */
+        if (alen < 0 || alen > plen - off - 4) return -1;
         off += alen;                                /* algorithm name */
         int blen = (int)net_sshd_read_u32(payload + off); off += 4;
-        if (blen < 0 || off + blen > plen) return -1;
+        /* P0fix3 BUG-0019 FIX: `off + blen` wraps for blen near INT_MAX
+         * (same attacker-sized-addend family as ulen/alen); subtraction
+         * form — plen >= off holds here (off advanced only within plen). */
+        if (blen < 0 || blen > plen - off) return -1;
         const u8 *blob = payload + off; off += blen;
         /* parse the client blob: string "ssh-rsa" + mpint e + mpint n;
          * extract the 256-byte modulus */
@@ -1462,7 +1563,7 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
             if (elen <= 0 || elen > 8 || cp + elen + 4 > blen) break;
             cp += elen;
             int nlen = (int)net_sshd_read_u32(blob + cp); cp += 4;
-            if (cp + nlen > blen) break;
+            if (nlen > blen - cp) break;   /* P0fix3 BUG-0019: attacker-sized addend — subtraction form (cp+4 <= blen holds) */
             /* RSA-2048 modulus, optional leading zero */
             const u8 *nb = blob + cp;
             int nl = nlen;
@@ -1488,7 +1589,10 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
         int sig_ok = 0;
         if (blob_ok && off + 4 <= plen) {
             int slen = (int)net_sshd_read_u32(payload + off); off += 4;
-            if (slen > 0 && off + slen <= plen) {
+            /* P0fix3 BUG-0019 FIX: was `off + slen <= plen` — the addition
+             * wraps for slen near INT_MAX, letting the sig-blob parser below
+             * read up to ~280 bytes past the payload page. */
+            if (slen > 0 && slen <= plen - off) {
                 /* sig blob = string "rsa-sha2-256"|"rsa-sha2-512" + string sig(256) */
                 const u8 *sb = payload + off;
                 int sp = 0;
@@ -1579,7 +1683,9 @@ static int net_sshd_do_userauth(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
     int pwlen = (int)net_sshd_read_u32(payload + off); off += 4;
     /* P0fix1 BUG-0019 (A14-13): same negative-length fix for the password
      * string. */
-    if (pwlen < 0 || off + pwlen > plen) return -1;
+    if (pwlen < 0 || pwlen > plen - off) return -1;
+    /* P0fix3 BUG-0019 FIX: was `off + pwlen > plen` — subtraction form
+     * (same wrap family as ulen above). */
     char pw[32];
     memset(pw, 0, sizeof(pw));
     memcpy(pw, payload + off, pwlen < 31 ? pwlen : 31);
@@ -1628,8 +1734,12 @@ static void net_sshd_handle_exec(net_sshd_ctx_t *ctx, u8 payload[], int plen) {
     /* BUG-0225 (A14-38): reqlen comes straight from the wire as a signed
      * int; 0xFFFFFFF8 became -8, passed `off + reqlen > plen` and drove
      * `off` negative (out-of-bounds read below the packet buffer).
-     * Validate the full 0 <= reqlen <= remaining-bytes window first. */
-    if (reqlen < 0 || off + reqlen > plen) return;
+     * Validate the full 0 <= reqlen <= remaining-bytes window first.
+     * P0fix3 BUG-0224 FIX: `off + reqlen` itself wrapped for reqlen in
+     * [0x7FFFFFFC..0x7FFFFFFF] (int addition overflow), bypassing the
+     * check with a negative sum — subtraction form instead; plen >= off
+     * holds (off == 8 <= plen was checked just above). */
+    if (reqlen < 0 || reqlen > plen - off) return;
     /* WP-09 fix: "exec" is NOT NUL-terminated in the payload — the next byte
      * is want_reply (0x01). strcmp would read past the name into the
      * following field and never match, so every exec request was answered
@@ -1781,7 +1891,10 @@ static int net_sshd_serve_connection_body(net_sshd_ctx_t *ctx, u8 *payload) {
             int ap = 0;
             if (plen >= 4) {
                 int slen = (int)net_sshd_read_u32(payload);
-                if (slen > 0 && slen <= 32 && 4 + slen <= plen) {
+                /* P0fix3 BUG-0019 FIX: `4 + slen <= plen` converted to the
+                 * subtraction form for family consistency (already safe via
+                 * the slen <= 32 clamp, plen >= 4 checked above). */
+                if (slen > 0 && slen <= 32 && slen <= plen - 4) {
                     net_sshd_write_str(acc, &ap, payload + 4, slen);
                 }
             }
@@ -2010,8 +2123,19 @@ int net_sshd_main(u16 port, const char *user, const char *pass) {
      * image authenticate to EVERY OpenCubeOS sshd, and doubled as the
      * sshd's own host key. If the per-installation key cannot be
      * produced, sshd now refuses to start (fail closed) instead of
-     * silently reusing a publicly-known private key. */
-    if (net_sshd_hostkey_ensure() != 0) {
+     * silently reusing a publicly-known private key.
+     * NEW-01 (P0fix3): the (slow) GENERATION runs in the sshd-hkgen
+     * background thread; ensure() only waits pollably here. -3 means
+     * Ctrl+C cancelled the WAIT — benign, generation continues; return
+     * it distinct from the fail-closed -1 so the shell can tell the two
+     * apart. */
+    int hkrc = net_sshd_hostkey_ensure();
+    if (hkrc == -3) {
+        net_sshd_log("host key still generating — wait cancelled (Ctrl+C); "
+                     "generation continues in the background, re-run sshd to use it");
+        return -3;
+    }
+    if (hkrc != 0) {
         net_sshd_log("ERROR: cannot obtain a per-installation host key - "
                      "refusing to start sshd (embedded universal key removed)");
         return -1;

@@ -1858,7 +1858,15 @@ static int builtin_cmd(int argc, char *argv[]) {
             pattern = argv[2] + 1;
             int pl = strlen_(pattern);
             if (pl > 0 && pattern[pl - 1] == '/') {
-                argv[2][pl - 1] = 0;
+                /* BUG-0251 FIX: NUL-terminate at the trailing '/'
+                 * ITSELF. `pattern` is argv[2]+1, so its last char
+                 * (the '/') sits at argv[2][pl] == pattern[pl-1]. The
+                 * old write landed at argv[2][pl-1] == pattern[pl-2] -
+                 * one byte EARLY - cutting the final character of the
+                 * pattern: host-C simulation showed "/apple/"
+                 * filtering on "appl" and "/x/" becoming an EMPTY
+                 * pattern that matched every line. */
+                argv[2][pl] = 0;
             }
         }
         int file_arg = (pattern ? 3 : 2);

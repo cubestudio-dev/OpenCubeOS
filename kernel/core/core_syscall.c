@@ -2255,9 +2255,25 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
         if (!p) return (u64)-1;
         const u8 *src = (const u8*)(uintptr_t)buf;
         u64 written = 0;
+        u64 irq_flags;
         while (written < len) {
-            u32 space = pipe_space_avail(p);
-            if (space == 0) {
+            /* BUG-0276 FIX (A2-12): mirror the cli-atomic wait window
+             * sys_write received in the BUG-0100 fix. The old write2
+             * loop checked pipe_space_avail() UNPROTECTED and only then
+             * (pages later) joined the writer wait queue — a timer
+             * preemption in that open window let a reader drain the
+             * pipe and call pipe_wake_one(writer_waiters) while the
+             * queue was still empty: the wake was lost, write2 then
+             * enqueued and blocked forever with space already
+             * available (lost-wakeup hang on the write2 path). Check +
+             * enqueue + block are now one cli-atomic window, exactly
+             * the sys_write shape; the wake ordering matches too
+             * (leave the window before the copy, wake the reader after
+             * the data is in the buffer, recheck space after the wake
+             * by looping instead of the old break-on-still-full short
+             * write). */
+            __asm__ volatile("pushfq; popq %0; cli" : "=r"(irq_flags));
+            while (pipe_space_avail(p) == 0) {
                 /* BUG-0276 FIX (A2-12): mirror sys_write's P6 rule for a
                  * FULL pipe with NO reader: fail instead of blocking
                  * forever. The old write2 branch unconditionally joined
@@ -2270,6 +2286,7 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
                  * data can never be consumed - return what was written
                  * (or -1 if nothing). */
                 if (p->reader_count == 0) {
+                    if (irq_flags & 0x200) __asm__ volatile("sti");
                     return written > 0 ? written : (u64)-1;
                 }
                 /* P3-15: wait queue (FIFO), not single slot. */
@@ -2277,9 +2294,17 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
                 pipe_wait_add(p->writer_waiters, my_tid);
                 core_kthread_block();
                 pipe_wait_remove(p->writer_waiters, my_tid);
-                space = pipe_space_avail(p);
-                if (space == 0) break;
+                /* BUG-0276 FIX: woken inside the cli window - the
+                 * block saved IF=0 (BUG-0103 restores it exactly),
+                 * re-enable before the space recheck loops. */
+                if (irq_flags & 0x200) __asm__ volatile("sti");
             }
+            /* Space is available (or the first pass fell straight
+             * through the loop): leave the atomic check window before
+             * the data copy so we never keep interrupts off across the
+             * copy / wake path or return with IF=0. */
+            if (irq_flags & 0x200) __asm__ volatile("sti");
+            u32 space = pipe_space_avail(p);
             u32 to_copy = (u32)((len - written < space) ? (len - written) : space);
             u32 wpos = p->write_pos % PIPE_BUF_SIZE;
             if (wpos + to_copy > PIPE_BUF_SIZE) to_copy = PIPE_BUF_SIZE - wpos;

@@ -88,20 +88,30 @@ static inline void mmio_write32(volatile void *p, u32 v) { *(volatile u32 *)p = 
 #define IXGBE_TXD_IFCS   (1u << 25)
 #define IXGBE_TXD_RS     (1u << 27)
 #define IXGBE_TXD_DEXT   (1u << 29)
-#define IXGBE_TXD_STAT_DD 0x01u   /* TX write-back DD, bit 0 of offset 8 */
+/* BUG-0126 FIX (A8-5): TX write-back DD is bit 0 of the wb.status
+ * dword at byte offset 12 of the 16-byte advanced TX descriptor (the
+ * olinfo_status slot below), NOT of the offset-8 cmd_type_len word.
+ * Verified against Linux v6.10 drivers/net/ethernet/intel/ixgbe/
+ * ixgbe_type.h union ixgbe_adv_tx_desc: wb = { rsvd(8)@0,
+ * nxtseq_seed(4)@8, status(4)@12 } and IXGBE_TXD_STAT_DD = 0x00000001;
+ * ixgbe_main.c clean_tx_irq polls eop_desc->wb.status & IXGBE_TXD_STAT_DD. */
+#define IXGBE_TXD_STAT_DD 0x01u   /* TX write-back DD, bit 0 of wb.status@12 */
 
 /* RX write-back DD lives in bit 0 of status_error (offset 8). */
 #define IXGBE_RX_DD      0x01
 
 /* BUG-0126 FIX (A8-5): descriptor layout per 82598/82599 datasheet /
- * Linux ixgbe_type.h. One 16-byte layout serves both rings:
+ * Linux v6.10 ixgbe_type.h. One 16-byte layout serves both rings:
  *   TX read : addr(8) | cmd_type_len(4)@8 | olinfo_status(4)@12
- *   TX wb   : addr(8) | status/DD(4)@8    | rsv(4)@12
- *   RX wb   : addr(8) | status_error(4)@8 | len(2)@12 | vlan(2)@14 */
+ *   TX wb   : rsvd(8)@0 | nxtseq_seed(4)@8 | status(4)@12  (DD=bit0)
+ *   RX wb   : addr(8) | status_error(4)@8 | len(2)@12 | vlan(2)@14
+ * The write-back overlays the read image, so the TX completion status
+ * lands in the olinfo_status slot (offset 12) - the LAST dword of the
+ * descriptor, 4 bytes before its end. */
 typedef struct {
     u64 addr;            /* buffer address */
-    u32 cmd_type_len;    /* TX: flags|len  | TX wb: DD status | RX wb: status_error (DD=bit0) */
-    u32 olinfo_status;   /* TX: PAYLEN<<14 | RX wb: length (low 16) | vlan (high 16) */
+    u32 cmd_type_len;    /* TX read: flags|len | TX wb: nxtseq_seed | RX wb: status_error (DD=bit0) */
+    u32 olinfo_status;   /* TX read: PAYLEN<<14 | TX wb: status (DD=bit0) | RX wb: length (low16) | vlan (high16) */
 } __attribute__((packed)) driver_nic_ixgbe_desc_t;
 
 typedef struct {
@@ -116,6 +126,7 @@ typedef struct {
     int up;
     u8  mac[6];
     u64 tx_packets, rx_packets;
+    u64 tx_errors;        /* BUG-0126: TX completion timeouts */
 } driver_nic_ixgbe_dev_t;
 
 static driver_nic_ixgbe_dev_t g_ixgbe;
@@ -333,9 +344,25 @@ static int driver_nic_ixgbe_ops_send(driver_nic_device_t *ndev, const void *buf,
     d->tx_tail = (d->tx_tail + 1) % IXGBE_NUM_DESC;
     ix_wreg(d, IXGBE_TXQ_BASE(0) + IXGBE_Q_DT, (u32)d->tx_tail);
 
+    /* BUG-0126 FIX (A8-5): the completion wait used to poll the TX-side
+     * cmd_type_len dword (offset 8) - the word this driver itself wrote
+     * with EOP|IFCS|RS|DEXT|len, whose bit 0 is the frame length's low
+     * bit, so the wait either spun to exhaustion (even length) or broke
+     * instantly (odd length) and the frame was counted as sent either
+     * way.  Poll the write-back status instead: the DD bit the chip sets
+     * on completion lives in bit 0 of the offset-12 dword (the
+     * olinfo_status slot = wb.status; on write-back the offset-8 dword
+     * becomes nxtseq_seed, not status).  Same check Linux performs in
+     * ixgbe_main.c clean_tx_irq: eop_desc->wb.status & IXGBE_TXD_STAT_DD.
+     * On timeout FAIL HONESTLY: count tx_errors and return -1 instead of
+     * pretending the frame went out. */
+    int ok = 0;
     for (int t = 0; t < 1000000; t++) {
-        /* TX write-back: DD lands in bit 0 of the offset-8 dword. */
-        if (d->tx_descs[slot].cmd_type_len & IXGBE_TXD_STAT_DD) break;
+        if (d->tx_descs[slot].olinfo_status & IXGBE_TXD_STAT_DD) { ok = 1; break; }
+    }
+    if (!ok) {
+        d->tx_errors++;
+        return -1;
     }
     d->tx_packets++;
     return len;
@@ -398,6 +425,8 @@ void driver_nic_ixgbe_print_state(void) {
     strcat(line, (ix_reg(d, IXGBE_LINKS) & IXGBE_LINKS_UP) ? "up" : "down");
     strcat(line, " tx=");
     u64_to_str(d->tx_packets, n); strcat(line, n);
+    strcat(line, " txerr=");
+    u64_to_str(d->tx_errors, n); strcat(line, n);
     strcat(line, " rx=");
     u64_to_str(d->rx_packets, n); strcat(line, n);
     strcat(line, "\n");

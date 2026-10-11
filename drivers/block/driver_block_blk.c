@@ -26,9 +26,38 @@ void driver_block_init(void) {
     g_blk_count = 0;
 }
 
+/* BUG-0040+0054 FIX (A6-1/A6-15): the block and cache layers are
+ * hardwired to 512-byte sectors (BLK_SECTOR_SIZE, cache slot data[512],
+ * driver_block_read_sectors steps i*BLK_SECTOR_SIZE).  A device whose
+ * formatted sector size is anything else (NVMe 4Kn LBADS, USB MSC
+ * 2048/4096-byte media, ...) made every cached read/write overrun its
+ * 512-byte caller buffers by sector_size-512 bytes per sector (3584 B
+ * on 4Kn).  The NVMe driver already refuses non-512 LBADS fail-closed
+ * (BUG-0040 precedent in driver_block_nvme.c); this gate extends the
+ * same refusal to BOTH block-layer registration entry points so no
+ * driver can register a device the cache cannot serve safely.
+ * sector_size == 0 used to silently default to 512; a device that
+ * cannot even report a sector size is now rejected too - an honest
+ * failure beats a silent guess.  Returns 0 (size OK) or -1 (rejected,
+ * honest log line printed). */
+static int driver_block_check_sector_size(const char *name, u32 sector_size) {
+    if (sector_size == BLK_SECTOR_SIZE) return 0;
+    char line[160]; char n[24];
+    strcpy(line, "blk: refusing device '");
+    if (name) strcat(line, name);
+    strcat(line, "': only 512-byte sectors supported (got ");
+    u64_to_str((u64)sector_size, n);
+    strcat(line, n);
+    strcat(line, ") - device NOT registered\n");
+    screen_console_puts(line);
+    return -1;
+}
+
 int driver_block_register_device(const char *name, driver_block_type_t type,
                         u64 sectors, u32 sector_size,
                         const driver_block_ops_t *ops, void *priv) {
+    /* BUG-0040+0054: fail-closed sector-size gate (see above). */
+    if (driver_block_check_sector_size(name, sector_size) != 0) return -1;
     if (g_blk_count >= BLK_MAX_DEVICES) return -1;
     int idx = -1;
     for (int i = 0; i < BLK_MAX_DEVICES; i++) {
@@ -41,7 +70,7 @@ int driver_block_register_device(const char *name, driver_block_type_t type,
     d->name[BLK_DEV_NAME_LEN - 1] = 0;
     d->type = type;
     d->sectors = sectors;
-    d->sector_size = sector_size ? sector_size : BLK_SECTOR_SIZE;
+    d->sector_size = sector_size;   /* gate above guarantees 512 */
     d->present = 1;
     d->ops = ops;
     d->priv = priv;
@@ -141,6 +170,10 @@ int driver_block_write_sectors(int dev_idx, u64 lba, u32 count, const void *buf)
 int driver_block_register(driver_block_device_t *dev, const driver_block_ops_t *ops) {
     if (!dev || !ops || !ops->read || !ops->write) return -1;
     if (!dev->name[0]) return -1;
+    /* BUG-0040+0054: fail-closed sector-size gate - the pointer-based
+     * API is the second registration entry point (USB MSC, partitions,
+     * L1 extensions) and must enforce the same 512-byte contract. */
+    if (driver_block_check_sector_size(dev->name, dev->sector_size) != 0) return -1;
     if (g_blk_count >= BLK_MAX_DEVICES) return -1;
     int idx = -1;
     for (int i = 0; i < BLK_MAX_DEVICES; i++) {
@@ -153,7 +186,7 @@ int driver_block_register(driver_block_device_t *dev, const driver_block_ops_t *
     d->name[BLK_DEV_NAME_LEN - 1] = 0;
     d->type = dev->type;
     d->sectors = dev->sectors;
-    d->sector_size = dev->sector_size ? dev->sector_size : BLK_SECTOR_SIZE;
+    d->sector_size = dev->sector_size;   /* gate above guarantees 512 */
     d->present = 1;
     d->ops = ops;
     d->priv = dev->priv;

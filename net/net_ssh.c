@@ -440,8 +440,13 @@ static int net_ssh_recv_kex_reply(net_ssh_ctx_t *ctx, int encrypted) {
                  (payload[off+2] << 8) | payload[off+3];
     off += 4;
     /* P0fix1 BUG-0010 (A14-04): a negative ks_len passed both checks and
-     * reached memcpy with a huge size_t length. */
-    if (ks_len < 0 || off + ks_len > payload_len) return -3;
+     * reached memcpy with a huge size_t length.
+     * P0fix3 BUG-0010 FIX: `off + ks_len` still wrapped for ks_len in
+     * [0x7FFFFFFC..0x7FFFFFFF] (signed int addition overflow), bypassing
+     * the bound check with a negative sum -> wild-pointer read pre-auth.
+     * Subtract instead of add (BUG-0016-approved idiom); payload_len >=
+     * off holds here because off only advances past validated fields. */
+    if (ks_len < 0 || ks_len > payload_len - off) return -3;
     if (ks_len <= (int)sizeof(ctx->server_host_key)) {
         memcpy(ctx->server_host_key, payload + off, ks_len);
         ctx->server_host_key_len = ks_len;
@@ -451,7 +456,10 @@ static int net_ssh_recv_kex_reply(net_ssh_ctx_t *ctx, int encrypted) {
     int f_len = (payload[off] << 24) | (payload[off+1] << 16) |
                 (payload[off+2] << 8) | payload[off+3];
     off += 4;
-    if (f_len < 0 || off + f_len > payload_len || f_len < 32) return -5;
+    if (f_len < 0 || f_len > payload_len - off || f_len < 32) return -5;
+    /* P0fix3 BUG-0010 FIX: was `off + f_len > payload_len` — the addition
+     * wrapped for f_len near INT_MAX; subtraction form cannot wrap (see
+     * the ks_len fix above). */
     /* server x25519 public key: last 32 bytes of the mpint */
     memcpy(ctx->server_pub + SSH_DH_BYTES - 32, payload + off + (f_len - 32), 32);
     off += f_len;
@@ -535,8 +543,11 @@ static int net_ssh_recv_kexdh_reply(net_ssh_ctx_t *ctx, int encrypted) {
     int ks_len = (payload[off] << 24) | (payload[off+1] << 16) | (payload[off+2] << 8) | payload[off+3];
     off += 4;
     /* P0fix1 BUG-0011 (A14-05): reject negative lengths before they are
-     * used as (negated) memcpy sizes / buffer offsets. */
-    if (ks_len < 0 || off + ks_len > payload_len) return -3;
+     * used as (negated) memcpy sizes / buffer offsets.
+     * P0fix3 BUG-0011 FIX: `off + ks_len` wrapped for ks_len in
+     * [0x7FFFFFFC..0x7FFFFFFF], bypassing the bound check -> wild-pointer
+     * read pre-auth. Subtract instead of add (BUG-0016-approved idiom). */
+    if (ks_len < 0 || ks_len > payload_len - off) return -3;
     /* WP-09 fix: save K_S (server host key blob) for exchange hash H.
      * Without K_S in the hash, all derived keys are wrong. */
     if (ks_len <= (int)sizeof(ctx->server_host_key)) {
@@ -547,7 +558,10 @@ static int net_ssh_recv_kexdh_reply(net_ssh_ctx_t *ctx, int encrypted) {
     if (off + 4 > payload_len) return -4;
     int f_len = (payload[off] << 24) | (payload[off+1] << 16) | (payload[off+2] << 8) | payload[off+3];
     off += 4;
-    if (f_len < 0 || off + f_len > payload_len) return -5;
+    if (f_len < 0 || f_len > payload_len - off) return -5;
+    /* P0fix3 BUG-0011 FIX: was `off + f_len > payload_len` — the addition
+     * wrapped for f_len near INT_MAX; subtraction form cannot wrap (see
+     * the ks_len fix above). */
     /* Copy server's f into server_pub (right-aligned, SSH_DH_BYTES=256 bytes).
      * mpint encoding may have a leading 0x00 for sign extension when MSB
      * is set (which it always is for 2048-bit DH values — top byte 0x80+).

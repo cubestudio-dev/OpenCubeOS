@@ -22,7 +22,10 @@
  *   int  driver_usb_serial_write(const void *buf, int len);
  *       Blocking bulk-OUT write; returns bytes sent or negative.
  *   int  driver_usb_serial_read(void *buf, int max);
- *       Drain up to max bytes from the RX ring; returns bytes read.
+ *       Drain up to max bytes from the RX ring; returns the number of
+ *       bytes read (>= 1), or -1 when every ring is empty (the
+ *       BUG-0170 empty-return contract; 0 is never returned - callers
+ *       must test <= 0 for "no data yet", not == 0).
  *   void driver_usb_serial_print_state(void);
  *       One status block for the `usb` command.
  */

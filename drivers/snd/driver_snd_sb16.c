@@ -20,10 +20,14 @@
  *     ack a 16-bit IRQ (0x22E acks 8-bit ones).
  *
  * ISA DMA (8237 second controller, 16-bit channel 5):
- *   page 0x8B, address 0xC4 / count 0xC6 (word units), mask 0xD4,
+ *   page 0x8B (NOT 0x89 - the page registers of the second controller
+ *   are scrambled: ch5->0x8B, ch6->0x89, ch7->0x8A; see BUG-0127),
+ *   address 0xC4 / count 0xC6 (word units), mask 0xD4,
  *   mode 0xD6, clear byte-pointer flip-flop 0xD8.  Mode byte:
- *   single-cycle read transfer = 0x48.  Addresses/counts are in
- *   words (>>1) and pages are 64 KiB (bits 23:16).
+ *   single-cycle read transfer (mem->dev) for channel 5 = 0x49
+ *   (0x48 base | (ch-4); see BUG-0128).  Addresses/counts are in
+ *   words (>>1) and pages are 64 KiB (bits 23:16, LSB unused on
+ *   16-bit channels).
  */
 #include "driver_snd_sb16.h"
 #include "mem_pmm.h"
@@ -50,7 +54,20 @@
 #define DMA2_MODE      0xd6
 #define DMA2_ADDR(ch)  (0xc0 + ((ch) - 4) * 4)   /* ch5 -> 0xc4 */
 #define DMA2_CNT(ch)   (0xc2 + ((ch) - 4) * 4)   /* ch5 -> 0xc6 */
-#define DMA2_PAGE(ch)  (0x88 + (ch) - 4)         /* ch5 page register */
+/* BUG-0127 FIX (A9-01, P1 residue): the page registers of the second
+ * 8237 are NOT linear in the channel number.  The canonical PC/AT /
+ * 82371 map (Linux v6.10 arch/x86/include/asm/dma.h: DMA_PAGE_5 0x8B,
+ * DMA_PAGE_6 0x89, DMA_PAGE_7 0x8A; QEMU v10.0.2 hw/dma/i8257.c decodes
+ * page base 0x88 through channels[] = {-1,2,3,1,...} so 0x8B = ch5,
+ * 0x89 = ch6, 0x8A = ch7) is:
+ *     ch5 -> 0x8B   ch6 -> 0x89   ch7 -> 0x8A   (ch4 = cascade, 0x8F)
+ * The previous "0x88 + (ch - 4)" formula programmed channel 5 with
+ * 0x89 - CHANNEL 6's page register - so the 16-bit DMA address was
+ * assembled from another channel's page bits and any buffer at/above
+ * 1 MiB (page != 0) streamed from the wrong physical page.
+ * (The file-header comment always said 0x8B; only the code was wrong.) */
+#define DMA2_PAGE(ch)  ((ch) == 5 ? 0x8b : (ch) == 6 ? 0x89 : \
+                        (ch) == 7 ? 0x8a : 0x8f)
 
 #define DSP_CMD_SET_RATE    0x41
 #define DSP_CMD_PLAY16      0xb0   /* single-cycle 16-bit DAC */
@@ -155,11 +172,23 @@ static int driver_snd_sb16_dma_setup(driver_snd_sb16_dev_t *d, u32 bytes) {
     if (addr & 1) return -1;   /* word aligned */
 
     u16 word_addr = (u16)((addr >> 1) & 0xffff);
-    u8  page = (u8)((addr >> 16) & 0xff);
+    /* BUG-0127: page bits [23:17] only - the LSB of the ch5-7 page
+     * registers is not wired (address bit 16 comes from the word
+     * address register); Linux set_dma_page() masks it off for the
+     * 16-bit channels ("pagenr & 0xfe"). */
+    u8  page = (u8)((addr >> 16) & 0xfeu);
 
     driver_snd_sb16_outb(DMA2_MASK, 0x05);          /* mask channel 5 */
     driver_snd_sb16_outb(DMA2_FF, 0);               /* clear flip-flop */
-    driver_snd_sb16_outb(DMA2_MODE, 0x48);          /* single-cycle read (mem->dev) */
+    /* BUG-0128 FIX (A9-02, P1 residue): the mode byte's channel-select
+     * bits [1:0] select the channel WITHIN the second controller
+     * (ch5-7 encode as 1-3).  0x48 has [1:0]=00 = channel 4, the
+     * cascade input - the transfer never armed on ch5.  Linux
+     * set_dma_mode() writes mode | (dmanr & 3)
+     * (arch/x86/include/asm/dma.h); DMA_MODE_WRITE 0x48 = "memory to
+     * I/O, no autoinit, increment, single" - the playback direction -
+     * so the correct byte for channel 5 is 0x48 | 1 = 0x49. */
+    driver_snd_sb16_outb(DMA2_MODE, 0x48u | (SB_DMA16 - 4));  /* single-cycle read (mem->dev, ch5) */
     driver_snd_sb16_outb(DMA2_ADDR(SB_DMA16), (u8)(word_addr & 0xff));
     driver_snd_sb16_outb(DMA2_ADDR(SB_DMA16), (u8)(word_addr >> 8));
     driver_snd_sb16_outb(DMA2_PAGE(SB_DMA16), page);

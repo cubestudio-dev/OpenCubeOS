@@ -175,17 +175,24 @@ static int ser_claim(driver_usb_dev_t *dev, ser_type_t type) {
     return -1;
 }
 
-/* BUG-0055 FIX: locate the CDC-ACM control interface without pinning
- * bInterfaceProtocol. driver_usb_find_if matches exactly, and the old
- * probe asked for protocol 0xff first (a value real devices essentially
- * never report) and 0x02 second - so the overwhelmingly common
- * bInterfaceProtocol=0x00 devices were never claimed at all. Try the
- * documented values in order: 0x02 (AT commands, v.25ter), 0x01
- * (AT commands), 0x00 (no specific protocol). */
+/* BUG-0055 FIX (repair of the p1fix1 protocol list): locate the
+ * CDC-ACM control interface without pinning one bInterfaceProtocol.
+ * driver_usb_find_if matches exactly, and the pre-p1fix1 probe asked
+ * for protocol 0xff first and 0x02 second - so the overwhelmingly
+ * common bInterfaceProtocol=0x00 devices were never claimed at all.
+ * p1fix1 fixed that but DROPPED 0xff, so vendor-custom CDC-ACM
+ * devices (which the old code claimed FIRST) stopped matching.
+ * Restore the full set, most common first.  Labels per the USB CDC
+ * spec Table 12 (Communication Class Protocol Codes), verified
+ * against Linux v6.10 include/uapi/linux/usb/cdc.h:
+ *   0x00 no class specific protocol    (most virtual COM ports)
+ *   0x01 AT commands: ITU-T V.250 (a.k.a. V.25ter)
+ *   0xff vendor-specific               (vendor-custom firmware)
+ *   0x02 AT commands: PCCA-101         (rare) */
 static driver_usb_interface_t *driver_usb_serial_find_cdc_ctrl(
         driver_usb_dev_t *dev) {
-    static const u8 protos[] = { 0x02, 0x01, 0x00 };
-    for (int i = 0; i < 3; i++) {
+    static const u8 protos[] = { 0x00, 0x01, 0xff, 0x02 };
+    for (int i = 0; i < 4; i++) {
         driver_usb_interface_t *ifp =
             driver_usb_find_if(dev, USB_CLASS_CDC, 0x02, protos[i], 0);
         if (ifp) return ifp;

@@ -136,6 +136,25 @@
 #define TRB_DIR_IN         (1u << 16)
 #define TRB_TYPE_SH        10
 #define TRB_SLOT_SH        24
+/* BUG-0148 FIX (A10-25 sub-item 5): Isoch TRB scheduling.  Per xHCI
+ * 4.11.2.1 the CONTROL dword (DW3) of an Isoch TRB carries the
+ * scheduling fields: TLBPC in bits 19:16, Frame ID in bits 30:20, and
+ * SIA (Start Isochronous ASAP) in bit 31 - SIA=1 tells the controller
+ * to schedule the transfer as soon as possible and ignore Frame ID.
+ * Bit positions verified against both reference implementations:
+ * QEMU v10.0.2 hw/usb/hcd-xhci.c (TRB_TR_TLBPC_SHIFT 16 /
+ * TRB_TR_FRAMEID_SHIFT 20 / TRB_TR_SIA (1<<31), consumed in
+ * xhci_calc_iso_kick()) and Linux v6.10 drivers/usb/host/xhci.h
+ * (TRB_TLBPC(p) << 16 / TRB_FRAME_ID(p) << 20 / TRB_SIA (1<<31)).
+ * NOTE: the Parameter dword (DW0/1) of an Isoch TRB is the buffer
+ * pointer, exactly like a Normal TRB - the Frame ID/SIA do NOT live
+ * there.  Linux xhci_queue_isoc_tx() defaults sia_frame_id = TRB_SIA
+ * (ASAP) and only switches to an explicit TRB_FRAME_ID() when the URB
+ * demanded absolute scheduling and the HC supports CFC; a single-packet
+ * HS TD also wants TLBPC=0 / TBC=0 (xhci_get_last_burst_packet_count
+ * returns total_packet_count-1 = 0, xhci_get_burst_count returns 0
+ * below SuperSpeed). */
+#define TRB_SIA            (1u << 31)  /* ISO: schedule ASAP (ignore Frame ID) */
 
 /* ring sizes (TRBs per ring must be a power of two) */
 #define XHCI_RING_N        64
@@ -1254,8 +1273,17 @@ static int driver_usb_xhci_iso_out(driver_usb_host_t *h, driver_usb_dev_t *d, u8
      * timeout path; audio re-arms at the 1 ms frame cadence). */
     if (r->in_flight != 0) return 0;
     if (data && len) memcpy(s->iso_buf, data, len);
+    /* BUG-0148 FIX (A10-25 sub-item 5): the ISO TRB now carries the SIA
+     * bit (control dword bit 31, see the TRB_SIA note above) so the
+     * controller schedules the packet ASAP instead of decoding the
+     * zero Frame ID as absolute frame 0 - on real hardware an ISO TRB
+     * with SIA=0 and Frame ID=0 is scheduled into a long-past frame and
+     * real-hardware ISO OUT behavior is undefined (QEMU is lenient: its
+     * xhci_calc_iso_kick() patches an in-the-past frame up by 0x4000
+     * microframes, which is why this went unnoticed there).  TLBPC/TBC
+     * stay 0: one packet per TD, no bursts below SuperSpeed. */
     u64 tr = driver_usb_xhci_ring_put(r, (u64)(uintptr_t)s->iso_buf, len,
-                           (TRB_ISOCH << TRB_TYPE_SH) | TRB_IOC);
+                           (TRB_ISOCH << TRB_TYPE_SH) | TRB_IOC | TRB_SIA);
     if (!tr) return 0;    /* ring full: drop, do not corrupt the owner */
     driver_usb_xhci_doorbell(x, (u32)s->hw_slot, (u32)epid);
     /* wait a few ms so the event ring stays clean; audio re-arms at

@@ -214,6 +214,11 @@ static int ota_update_http_get_body(const char *url, char *body, int body_cap) {
             enum { TLS_BUFSZ = 16384 };
             u8 *resp = (u8 *)(uintptr_t)mem_pmm_alloc_contig(TLS_BUFSZ / PMM_PAGE_SIZE);
             if (!resp) return OC_UPDATE_E_BUFSIZE;
+            /* P2fix4 BUG-0228: net_tls_https_get returns -1 not only for
+             * connect/handshake failures but ALSO when the response body
+             * was truncated (premature EOF, no close_notify) — the
+             * existing n <= 0 gate below therefore refuses a partial body
+             * instead of parsing it as a valid manifest. */
             int n = net_tls_https_get(ip, (u16)u.port, u.host, u.path, resp, TLS_BUFSZ);
             if (n <= 0) {
                 for (int pg = 0; pg < TLS_BUFSZ / PMM_PAGE_SIZE; pg++)

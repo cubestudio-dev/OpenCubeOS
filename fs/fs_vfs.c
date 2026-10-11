@@ -1078,6 +1078,26 @@ int fs_vfs_unlink(const char *path) {
     if (fs_vfs_basename(path, base, sizeof(base)) < 0) return -2;
     fs_vfs_node_t *parent = fs_vfs_resolve_parent_of(path);
     if (!parent || !parent->fs_type || !parent->fs_type->dir_ops) return -3;
+    /* P1fix4 BUG-0061 (A7-8): VFS-level open-fd gate, enforced BEFORE the
+     * backing fs's unlink runs. The original fix lived only in
+     * fs_fat32_unlink, where it never fired: fs_fat32_lookup mints a
+     * FRESH node on every call, so the freshly-looked-up victim always
+     * had open_count == 0 even while another fd held the cached node
+     * open. ramfs unlink had no guard at all (unlink-then-write through
+     * the still-open fd was a use-after-free on the kfree()d node) and
+     * exFAT had none either. The open count is maintained right here in
+     * the VFS layer (fs_vfs_open/close touch node->open_count), so gate
+     * it here: scan the parent's CACHED children - the same nodes
+     * resolution hands to open() - and refuse with EBUSY while any fd
+     * still references the node. This covers every filesystem (the
+     * per-fs guards below become defense in depth). */
+    {
+        fs_vfs_node_t *victim = NULL;
+        for (fs_vfs_node_t *c = parent->first_child; c; c = c->next_sibling) {
+            if (fs_vfs_cache_name_match(parent, c->name, base)) { victim = c; break; }
+        }
+        if (victim && victim->open_count > 0) return -4;   /* EBUSY: fd still open */
+    }
     /* If unlink is not implemented, fall back to rmdir (ramfs treats rmdir
      * on a file as an error, so this won't delete files - caller should
      * print "not supported"). */

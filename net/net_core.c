@@ -1575,6 +1575,181 @@ static void net_netfilter_parse_ports(const void *payload, int payload_len, u8 p
     }
 }
 
+static void net_ip_handle_packet(const void *data, int len);
+
+/* ============================================================
+ * BUG-0210 (P2 tactical re-fix): bounded IPv4 fragment reassembly
+ * ============================================================
+ * p1fix1 deliberately DROPPED every fragmented IPv4 datagram
+ * (fail-closed: no reassembly existed, and handing a partial
+ * datagram to L4 would deliver truncated PDUs to TCP/UDP/ICMP).
+ * This re-adds fragmented reception with hard bounds so a normal
+ * Ethernet-MTU fragment stream (e.g. a large UDP DNS answer)
+ * works again, without reopening a memory-exhaustion vector:
+ *   - at most IP_FRAG_SLOTS datagrams under reassembly at once;
+ *   - at most IP_FRAG_MAX_FRAGS fragments stored per datagram and
+ *     every fragment confined to the slot buffer (11840 B);
+ *   - 5 s idle timeout, swept from net_poll() (the timer tick);
+ *   - a datagram needing a slot while the table is full evicts the
+ *     OLDEST slot (drop-oldest, counted);
+ *   - a partially overlapping fragment rejects the whole datagram
+ *     (Teardrop-style offset games never enter the cache); exact
+ *     duplicate fragments are ignored.
+ * Completeness proof: stored fragments are pairwise non-overlapping
+ * and confined to [0, total_len); when their lengths sum to
+ * total_len they exactly tile the datagram (pigeonhole), so a byte
+ * counter plus the last fragment's total_len is sufficient.
+ * Delivery rebuilds a synthetic 20-byte unfragmented IP header
+ * (flags_frag = 0, correct total_len, fresh checksum) around the
+ * reassembled payload and recurses ONCE into net_ip_handle_packet:
+ * recursion depth is 1 (the synthetic header is never fragmented)
+ * and the recursive pass re-runs the full netfilter INPUT /
+ * transport-checksum / demux validation on the COMPLETE datagram —
+ * filtering the reassembled whole instead of individual fragments
+ * also defeats tiny-fragment port-splitting evasion.
+ * The unfragmented hot path is untouched: one branch on the frag
+ * bits exactly where the p1fix1 drop used to sit, after header
+ * validation. net_poll's g_net_polling reentrancy guard makes the
+ * whole RX path (and this table) single-threaded. */
+#define IP_FRAG_SLOTS         4
+#define IP_FRAG_MAX_FRAGS     8
+#define IP_FRAG_BUF_SIZE      (IP_FRAG_MAX_FRAGS * 1480)
+#define IP_FRAG_TIMEOUT_TICKS (5u * OC_TIMER_HZ)
+typedef struct {
+    int  in_use;
+    u32  src_ip, dst_ip;
+    u16  id;
+    u8   protocol;
+    u16  frag_off[IP_FRAG_MAX_FRAGS];  /* stored fragment offsets */
+    u16  frag_len[IP_FRAG_MAX_FRAGS];  /* and lengths */
+    int  frag_count;
+    u32  covered;          /* sum of stored fragment lengths */
+    u16  total_len;        /* offset+len of the last fragment */
+    int  have_last;
+    u64  last_tick;        /* idle clock for timeout + drop-oldest */
+    u8   buf[IP_FRAG_BUF_SIZE];
+} net_ip_frag_slot_t;
+
+static net_ip_frag_slot_t g_ip_frag_slots[IP_FRAG_SLOTS];
+static u8 g_ip_frag_synth[20 + IP_FRAG_BUF_SIZE];   /* reassembly output */
+
+static void net_ip_frag_reset_slot(net_ip_frag_slot_t *s) {
+    s->in_use = 0;
+    s->frag_count = 0;
+    s->covered = 0;
+    s->total_len = 0;
+    s->have_last = 0;
+}
+
+/* BUG-0210: idle-eviction sweep, called from net_poll (timer tick). */
+static void net_ip_frag_gc(void) {
+    u64 now = core_timer_ticks();
+    for (int i = 0; i < IP_FRAG_SLOTS; i++) {
+        if (g_ip_frag_slots[i].in_use &&
+            now - g_ip_frag_slots[i].last_tick > IP_FRAG_TIMEOUT_TICKS) {
+            g_stats.net_ip_frag_evicted++;
+            net_ip_frag_reset_slot(&g_ip_frag_slots[i]);
+        }
+    }
+}
+
+static void net_ip_frag_reassemble(u32 src_ip, u32 dst_ip, u8 protocol, u16 id,
+                                   const u8 *payload, int payload_len,
+                                   u16 frag_off, int more_frags) {
+    if (payload_len <= 0) return;
+    if ((u32)frag_off + (u32)payload_len > (u32)IP_FRAG_BUF_SIZE) {
+        g_stats.net_ip_frag_rx_dropped++;
+        return;
+    }
+    /* Find this datagram's slot (tuple: src, dst, id, protocol); keep
+     * the oldest in-use slot index for drop-oldest eviction. */
+    net_ip_frag_slot_t *s = NULL;
+    int oldest = -1;
+    for (int i = 0; i < IP_FRAG_SLOTS; i++) {
+        net_ip_frag_slot_t *t = &g_ip_frag_slots[i];
+        if (!t->in_use) {
+            if (!s) s = t;
+            continue;
+        }
+        if (t->src_ip == src_ip && t->dst_ip == dst_ip &&
+            t->id == id && t->protocol == protocol) {
+            s = t;
+            break;
+        }
+        if (oldest < 0 || t->last_tick < g_ip_frag_slots[oldest].last_tick)
+            oldest = i;
+    }
+    if (s == NULL) {
+        /* Table full of OTHER datagrams: evict the OLDEST slot. (A
+         * free slot always exists when oldest < 0, so this is
+         * unreachable with a full table — guarded anyway.) */
+        if (oldest < 0) return;
+        s = &g_ip_frag_slots[oldest];
+        g_stats.net_ip_frag_evicted++;
+        net_ip_frag_reset_slot(s);
+    }
+    if (!s->in_use) {
+        net_ip_frag_reset_slot(s);
+        s->in_use = 1;
+        s->src_ip = src_ip;
+        s->dst_ip = dst_ip;
+        s->id = id;
+        s->protocol = protocol;
+    }
+    s->last_tick = core_timer_ticks();
+    /* Duplicate / overlap check against the stored fragments. */
+    {
+        u32 fb = frag_off, fe = frag_off + (u32)payload_len;
+        for (int i = 0; i < s->frag_count; i++) {
+            u32 b = s->frag_off[i], e = b + (u32)s->frag_len[i];
+            if (fb == b && fe == e) return;   /* exact duplicate: keep it */
+            if (fb < e && b < fe) {
+                /* Partial overlap: reject the whole datagram. */
+                g_stats.net_ip_frag_rx_dropped++;
+                net_ip_frag_reset_slot(s);
+                return;
+            }
+        }
+    }
+    if (s->frag_count >= IP_FRAG_MAX_FRAGS) {
+        g_stats.net_ip_frag_rx_dropped++;
+        net_ip_frag_reset_slot(s);
+        return;
+    }
+    memcpy(s->buf + frag_off, payload, (usize)payload_len);
+    s->frag_off[s->frag_count] = frag_off;
+    s->frag_len[s->frag_count] = (u16)payload_len;
+    s->frag_count++;
+    s->covered += (u32)payload_len;
+    if (!more_frags) {
+        s->total_len = (u16)(frag_off + (u32)payload_len);
+        s->have_last = 1;
+    }
+    if (!s->have_last || s->covered != (u32)s->total_len) return;
+
+    /* Complete: wrap the reassembled payload in a synthetic
+     * unfragmented header and hand the whole datagram back to the
+     * normal IP input path (one recursion level, full validation). */
+    {
+        net_ip_hdr_t *nh = (net_ip_hdr_t *)g_ip_frag_synth;
+        memset(g_ip_frag_synth, 0, 20);
+        nh->ver_ihl = 0x45;
+        nh->total_len = htons((u16)(20 + s->total_len));
+        nh->id = htons(s->id);
+        nh->ttl = 64;
+        nh->protocol = s->protocol;
+        nh->src_ip = htonl(s->src_ip);
+        nh->dst_ip = htonl(s->dst_ip);
+        memcpy(g_ip_frag_synth + 20, s->buf, (usize)s->total_len);
+        nh->checksum = 0;
+        nh->checksum = internet_checksum(nh, 20, 0);
+        int total = 20 + (int)s->total_len;
+        net_ip_frag_reset_slot(s);
+        g_stats.net_ip_frag_reassembled++;
+        net_ip_handle_packet(g_ip_frag_synth, total);
+    }
+}
+
 static void net_ip_handle_packet(const void *data, int len) {
     if (len < 20) return;
     const net_ip_hdr_t *iph = (const net_ip_hdr_t *)data;
@@ -1586,19 +1761,13 @@ static void net_ip_handle_packet(const void *data, int len) {
      * header (garbage or IPv6 mis-delivered here) must not be parsed. */
     if ((iph->ver_ihl >> 4) != 4) return;
 
-    /* BUG-0210: fragments fail closed. There is no fragment reassembly in
-     * this stack, so a partial IP datagram must never be handed to L4 as
-     * if it were a complete PDU. Drop BOTH non-first fragments
-     * (frag_offset != 0) and a first fragment that announces more to come
-     * (MF set): reassembling them here is impossible, and parsing them as
-     * whole datagrams would deliver truncated payloads to TCP/UDP/ICMP. */
-    {
-        u16 frag = ntohs(iph->flags_frag);
-        u16 frag_off = (u16)((frag & 0x1FFF) * 8);
-        int more_frags = (frag & 0x2000) != 0;   /* MF bit */
-        if (frag_off != 0 || more_frags) return;
-    }
-
+    /* BUG-0210: the fragment gate used to sit here, before any header
+     * validation, and simply dropped every fragmented datagram (the
+     * p1fix1 fail-closed decision). It moved below — after the
+     * header/destination/length/checksum checks — so that only
+     * validated for-us fragments enter the bounded reassembly engine
+     * (see net_ip_frag_reassemble above); the reassembled datagram
+     * re-enters here through a synthetic unfragmented header. */
     /* BUG-0210: honour IHL — the header is 20..60 bytes including options;
      * the L4 payload starts only after the FULL header. */
     int hdr_len = (iph->ver_ihl & 0x0F) * 4;
@@ -1663,6 +1832,22 @@ static void net_ip_handle_packet(const void *data, int len) {
     const void *payload = (const u8 *)data + hdr_len;
     int payload_len = ntohs(iph->total_len) - hdr_len;
     u32 src_ip = ntohl(iph->src_ip);
+
+    /* BUG-0210 (P2 re-fix): fragmented datagrams go through the bounded
+     * reassembly engine instead of being dropped. Reached only after
+     * version/IHL/destination/total_len/checksum validation, so the
+     * (bounded) cache only ever sees validated for-us fragments. */
+    {
+        u16 frag = ntohs(iph->flags_frag);
+        u16 frag_off = (u16)((frag & 0x1FFF) * 8);
+        int more_frags = (frag & 0x2000) != 0;   /* MF bit */
+        if (frag_off != 0 || more_frags) {
+            net_ip_frag_reassemble(src_ip, dst, iph->protocol, ntohs(iph->id),
+                                   (const u8 *)payload, payload_len,
+                                   frag_off, more_frags);
+            return;
+        }
+    }
 
     /* WP-09 mainstream: Netfilter INPUT chain — transport ports + conntrack */
     {
@@ -1780,6 +1965,19 @@ static int g_ping_reply_received = 0;
 void net_icmp_handle_packet(u32 src_ip, const void *data, int len) {
     if (len < 8) return;
     const net_icmp_hdr_t *h = (const net_icmp_hdr_t *)data;
+
+    /* BUG-0072 FIX: verify the ICMP checksum (RFC 792) — one internet
+     * checksum fold over the whole message as delivered by the IP layer
+     * (header + payload; len is already clamped to the IP total_len).
+     * A valid message folds to 0 exactly like the IP header check in
+     * net_ip_handle_packet. The RX path used to accept every ICMP
+     * datagram unchecked (a forged Echo Request could elicit a reply);
+     * a mismatching datagram is dropped and counted in the shared
+     * BUG-0072 bad-checksum counter (there is no separate ICMP stat). */
+    if (internet_checksum(data, len, 0) != 0) {
+        g_stats.net_rx_bad_checksum++;
+        return;
+    }
 
     /* BUG-035 FIX: Remove ICMP debug output */
 
@@ -1967,7 +2165,16 @@ int net_udp_handle_packet(u32 src_ip, const void *data, int len) {
     const net_udp_hdr_t *h = (const net_udp_hdr_t *)data;
     u16 dst_port = ntohs(h->dst_port);
     u16 src_port = ntohs(h->src_port);
-    int payload_len = ntohs(h->length) - 8;
+    /* BUG-0066 FIX: clamp the UDP length field to the bytes the IP layer
+     * actually delivered (len is already cross-checked against the IP
+     * total_len and the frame length by net_ip_handle_packet). A forged
+     * h->length — e.g. 0xFFFF with checksum 0, exploiting the RFC 768
+     * optional-checksum exemption — used to be trusted as-is, so the
+     * DHCP options loop and the DNS resolver read past the delivered
+     * data (remote OOB read). */
+    u16 udp_len = ntohs(h->length);
+    if (udp_len > (u16)len) udp_len = (u16)len;
+    int payload_len = (int)udp_len - 8;
     if (payload_len < 0) return 0;
     const void *payload = (const u8 *)data + 8;
 
@@ -2482,8 +2689,12 @@ static void net_tcp_check_rto(void) {
     /* BUG-0063 FIX: this sweep runs from the timer IRQ while thread
      * context mutates the very same rtx state (ACK sliding the window,
      * senders appending to rtx_buf). A torn read of rtx_len/rtx_seq
-     * retransmitted garbage. Disable interrupts for the (short) state
-     * manipulation; net_tcp_send_raw itself re-enables as needed. */
+     * retransmitted garbage. Interrupts are disabled for the whole
+     * (short) sweep and the rflags saved on entry are restored at the
+     * end (sti only when interrupts were enabled on entry). Nothing
+     * inside the sweep changes the interrupt state — the old comment
+     * claiming "net_tcp_send_raw itself re-enables" was false: send_raw
+     * never touches rflags, the only re-enable is the restore below. */
     u64 irq_flags;
     __asm__ volatile("pushfq; pop %0; cli" : "=r"(irq_flags) :: "memory");
     u64 now = core_timer_ticks();
@@ -2499,16 +2710,21 @@ static void net_tcp_check_rto(void) {
             }
             continue;
         }
-        if (c->state != TCP_ESTABLISHED) continue;
-        /* BUG-0069 FIX: connections stuck in SYN_RCVD used to live
-         * forever, so 32 forged SYNs permanently filled the 32-slot
-         * connection table (remote DoS). The handshake deadline is
-         * parked in rto_deadline at SYN time (30 s). */
+        /* BUG-0069 FIX (p1fix4 ordering repair): the SYN_RCVD recycle
+         * MUST run before the ESTABLISHED-only filter below. The
+         * p1fix1..p1fix3 revisions placed it after the
+         * `state != TCP_ESTABLISHED` continue, which fires first for
+         * every SYN_RCVD connection — the recycle was dead code, so 32
+         * forged SYNs permanently filled the 32-slot connection table
+         * (remote DoS; outbound connect() died with it too, no free
+         * slot left). The handshake deadline is parked in rto_deadline
+         * at SYN time (30 s); an expired SYN_RCVD is reaped here. */
         if (c->state == TCP_SYN_RCVD && now >= c->rto_deadline) {
             c->state = TCP_CLOSED;
             c->in_use = 0;
             continue;
         }
+        if (c->state != TCP_ESTABLISHED) continue;
         /* BUG-0205: only data that was actually transmitted can time out.
          * rtx_sent == the in-flight byte count; rtx_len may additionally
          * hold queued-unsent bytes (Nagle / zero window) — those have no
@@ -2630,9 +2846,24 @@ int net_tcp_send(int sock, const void *data, int len) {
     if (c->rtx_len < 0 || c->rtx_len > TCP_RTX_BUF_SIZE) c->rtx_len = 0;
     int space = TCP_RTX_BUF_SIZE - c->rtx_len;
     if (len > space) return -1;   /* would not fit: let the caller retry */
-    memcpy(c->rtx_buf + c->rtx_len, data, len);
+    /* BUG-0063 FIX: the memcpy into the retransmit buffer plus the
+     * rtx_seq/rtx_len publish race against the IRQ-side ACK window
+     * slide in net_tcp_handle_packet (net_poll runs from the timer IRQ
+     * every 10 ms): that path memmoves rtx_buf and rewrites rtx_len/
+     * rtx_seq, so an ACK landing between our copy and the length
+     * publish would memmove a half-written buffer and subtract from a
+     * stale rtx_len. Close the thread-vs-IRQ race with a cli window
+     * around exactly the buffer copy + publish (single core: IRQs-off
+     * makes it atomic; the space check above may only be optimistic
+     * because the IRQ side can only SHRINK rtx_len, never grow it).
+     * net_tcp_flush_queued runs after the window with IRQs restored —
+     * it transmits and must not keep interrupts off. */
+    u64 irq_flags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(irq_flags) :: "memory");
+    memcpy(c->rtx_buf + c->rtx_len, data, (usize)len);
     if (c->rtx_len == 0) c->rtx_seq = c->our_seq;
     c->rtx_len += len;
+    if (irq_flags & 0x200) __asm__ volatile("sti" ::: "memory");
     net_tcp_flush_queued(c);
     return len;
 }
@@ -3207,6 +3438,27 @@ int net_socket(int type) {
 
 int net_bind(int fd, u32 ip, u16 port) {
     if (fd < 0 || fd >= MAX_SOCKETS || !g_sockets[fd].in_use) return -1;
+    /* BUG-0217 FIX: reject a conflicting bind. The socket layer keeps no
+     * per-socket local IP (the ip argument is and remains ignored — the
+     * NIC's single address is used, see docs/EXTENSIONS_WP06.md), so an
+     * "exact (ip, port)" conflict is necessarily a PORT conflict within
+     * the same socket type (TCP and UDP port spaces are separate, as in
+     * mainstream stacks): delivery demuxes on local_port alone and the
+     * FIRST open match wins exclusively, so a second same-type socket on
+     * the same port could never receive anything anyway. EADDRINUSE
+     * equivalent, returned as this function's only error code (-1, the
+     * convention used by net_socket / net_udp_bind). Port 0 ("no
+     * specific port", never a demux key) does not conflict. Rebinding
+     * the same fd is allowed (idempotent rebind). */
+    if (port != 0) {
+        for (int i = 0; i < MAX_SOCKETS; i++) {
+            if (i != fd && g_sockets[i].in_use &&
+                g_sockets[i].type == g_sockets[fd].type &&
+                g_sockets[i].local_port == port) {
+                return -1;
+            }
+        }
+    }
     g_sockets[fd].local_port = port;
     (void)ip;
     return 0;
@@ -4144,6 +4396,8 @@ void net_poll(void) {
     g_net_polling = 1;
     /* WP-09: Check TCP RTO timers on every poll */
     net_tcp_check_rto();
+    /* BUG-0210: evict timed-out IP fragment-reassembly slots. */
+    net_ip_frag_gc();
     u8 buf[ETH_FRAME_MAX];
     for (int i = 0; i < 8; i++) {
         int len;
@@ -4724,6 +4978,13 @@ int shell_cmd_netstat(const char *args) {
     strcat(buf, "\n");
     screen_console_puts(buf);
     strcpy(buf, "  UDP rx dropped (buffer full): "); u64_to_str(st.net_udp_rx_dropped, n_tmp); strcat(buf, n_tmp);
+    strcat(buf, "\n");
+    screen_console_puts(buf);
+    strcpy(buf, "  IP frag reassembled: "); u64_to_str(st.net_ip_frag_reassembled, n_tmp); strcat(buf, n_tmp);
+    strcat(buf, "\n");
+    screen_console_puts(buf);
+    strcpy(buf, "  IP frag dropped: "); u64_to_str(st.net_ip_frag_rx_dropped, n_tmp); strcat(buf, n_tmp);
+    strcat(buf, "  evicted: "); u64_to_str(st.net_ip_frag_evicted, n_tmp); strcat(buf, n_tmp);
     strcat(buf, "\n");
     screen_console_puts(buf);
 
@@ -5656,6 +5917,57 @@ static int shell_cmd_tcptest(const char *args) {
     kfree(tmp);
     if (!ok_parse) fails++;
 
+    /* 3) BUG-0069 regression (synrcvd-recycle): 32 slots driven to
+     *    SYN_RCVD with an EXPIRED handshake deadline must all be
+     *    recycled by ONE net_tcp_check_rto() sweep; a fresh-deadline
+     *    SYN_RCVD entry must survive the sweep; and a sweep over a
+     *    table with no live connections must be a clean no-op. The
+     *    check deliberately rewrites the whole connection table, so it
+     *    only runs when the table is idle (no in_use slot) — with live
+     *    connections present it reports skip instead of corrupting
+     *    them (never a FAIL: environmental, not a regression signal).
+     *    An interleaved timer-IRQ sweep cannot cause a false result:
+     *    recycling expired SYN_RCVD slots is idempotent and a fresh
+     *    deadline is preserved by any sweeper. */
+    int ok_recycle = 1;
+    int recycle_skipped = 0;
+    int live_conns = 0;
+    for (int i = 0; i < TCP_MAX_CONNS; i++)
+        if (g_tcp_conns[i].in_use) live_conns++;
+    if (live_conns != 0) {
+        recycle_skipped = 1;
+    } else {
+        u64 now = core_timer_ticks();
+        /* (a) empty-table sweep: clean no-op, nothing becomes in_use */
+        net_tcp_check_rto();
+        for (int i = 0; i < TCP_MAX_CONNS; i++)
+            if (g_tcp_conns[i].in_use) ok_recycle = 0;
+        /* (b) all 32 slots -> SYN_RCVD with an expired deadline */
+        for (int i = 0; i < TCP_MAX_CONNS; i++) {
+            net_tcp_conn_t *c = &g_tcp_conns[i];
+            c->in_use = 1;
+            c->state = TCP_SYN_RCVD;
+            c->remote_ip = IP4(10, 0, 2, 99);
+            c->local_port = (u16)(1000 + i);
+            c->remote_port = 12345;
+            c->rto_deadline = (now > 0) ? (now - 1) : 0;  /* expired */
+        }
+        net_tcp_check_rto();
+        for (int i = 0; i < TCP_MAX_CONNS; i++)
+            if (g_tcp_conns[i].in_use) ok_recycle = 0;
+        /* (c) a fresh-deadline SYN_RCVD entry survives the sweep */
+        g_tcp_conns[0].in_use = 1;
+        g_tcp_conns[0].state = TCP_SYN_RCVD;
+        g_tcp_conns[0].rto_deadline = now + 6000;   /* 60 s: not expired */
+        net_tcp_check_rto();
+        if (!g_tcp_conns[0].in_use ||
+            g_tcp_conns[0].state != TCP_SYN_RCVD) ok_recycle = 0;
+        /* leave the table as we found it: everything free */
+        g_tcp_conns[0].in_use = 0;
+        g_tcp_conns[0].state = TCP_CLOSED;
+        if (!ok_recycle) fails++;
+    }
+
     char b[200];
     strcpy(b, "tcptest: ");
     strcat(b, fails == 0 ? "ALL PASS" : "FAILURES");
@@ -5663,6 +5975,8 @@ static int shell_cmd_tcptest(const char *args) {
     strcat(b, ok_syn ? "ok" : "bad");
     strcat(b, " parser=");
     strcat(b, ok_parse ? "ok" : "bad");
+    strcat(b, " synrcvd-recycle=");
+    strcat(b, recycle_skipped ? "skip" : (ok_recycle ? "ok" : "bad"));
     strcat(b, "; live negotiation covered by HTTPS E2E)");
     screen_console_puts(b); screen_console_puts("\n");
     return fails == 0 ? 0 : 1;

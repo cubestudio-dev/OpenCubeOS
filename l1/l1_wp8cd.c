@@ -5,7 +5,9 @@
  * Purpose: L1 extension API implementations for WP-08cd (items 51-57).
  *
  * P1-6 FIX: All 7 interfaces now have real implementations (not stubs).
- *   - shell_register_builtin: registers via shell_register_command
+ *   - shell_register_builtin: stores into the L1 builtin table below;
+ *     the kernel shell dispatches those names at oc> through
+ *     l1_wp8cd_builtin_exec() (hooked into shell_exec_stage, BUG-0092)
  *   - job_create: forks a real process, tracks tid
  *   - job_list: lists active jobs
  *   - job_control: fg/bg/kill on real tracked jobs */
@@ -76,9 +78,15 @@ int shell_run(void) {
  * was NOT actually available at the oc> prompt (the doc promised
  * integration; the code delivered a private array).
  *
- * Now the kernel shell dispatch (shell_run_simple) consults this
- * table through l1_wp8cd_builtin_exec() whenever no built-in command
- * matches, so a name registered here IS executable at oc>. */
+ * The kernel shell now consults this table through
+ * l1_wp8cd_builtin_exec() whenever no built-in command matches. Since
+ * the P1fix4 round that hook lives in shell_exec_stage - the LIVE
+ * path (interactive_loop -> shell_execute_line -> shell_exec_segment
+ * -> shell_exec_stage). The original hook sat in shell_run_simple,
+ * which is only reachable from the legacy shell_execute() entry that
+ * has zero callers in the live tree, so registered names still
+ * printed "unknown command" at oc>; that copy is kept only to keep
+ * the WP-03 shell_execute() API honest. */
 int shell_register_builtin(const char *name, shell_builtin_fn fn, const char *help) {
     if (!name || !fn) return -1;
     if (g_builtin_count >= 32) return -2;
@@ -327,10 +335,17 @@ int job_control(int job_id, int action) {
 }
 
 /* Self-test — P1-6 FIX: comprehensive test of all 7 interfaces */
-static int test_builtin_called = 0;
+static int test_builtin_calls = 0;
 static int test_builtin_fn(int argc, char **argv) {
-    (void)argv;
-    test_builtin_called = argc;  /* argc > 0 means fn was called */
+    /* BUG-0092 FIX: count CALLS, not argc. The old fn stored argc into
+     * test_builtin_called and the PASS check tested it for `> 0`, so a
+     * dispatch with NO arguments (the legitimate "test_builtin" typed
+     * bare at a prompt -> argc == 0) false-reported the dispatch as
+     * not having happened even though the fn had run. Whether the
+     * builtin was CALLED is the fact under test, not how many
+     * arguments it saw. */
+    (void)argc; (void)argv;
+    test_builtin_calls++;
     return 0;
 }
 
@@ -357,21 +372,26 @@ void ext_wp8cd_selftest(void) {
         for (int i = 0; i < g_builtin_count; i++) {
             if (strncmp(g_builtins[i].name, "test_builtin", 12) == 0) {
                 found = 1;
-                /* Call the stored fn to verify it works */
-                char *argv2[1] = {"test_builtin"};
-                g_builtins[i].fn(1, argv2);
                 break;
             }
         }
-        if (found && test_builtin_called > 0) {
-            screen_console_puts("PASS (registered + callable)\n");
-            /* BUG-0092 FIX completion: clean the probe out of the live
-             * table again so help -a keeps counting 173 commands. */
-            shell_unregister_builtin("test_builtin");
+        /* Dispatch through the REAL hook the kernel shell uses on the
+         * live path (shell_exec_stage -> l1_wp8cd_builtin_exec), with
+         * NO arguments - exactly the argc==0 case the old argc-counting
+         * check false-reported as "not called". */
+        int dispatched = found ? l1_wp8cd_builtin_exec("test_builtin", "") : 0;
+        if (found && dispatched && test_builtin_calls > 0) {
+            screen_console_puts("PASS (registered + dispatches)\n");
         } else if (found) {
             screen_console_puts("PASS (registered, fn stored)\n");
         } else {
             screen_console_puts("FAIL (not found in table)\n");
+        }
+        /* BUG-0092 FIX completion: clean the probe out of the live
+         * table again (the oc> dispatch consults it now) in every
+         * found branch, so the command surface stays stable. */
+        if (found) {
+            shell_unregister_builtin("test_builtin");
         }
     } else {
         screen_console_puts("FAIL (registration failed)\n");

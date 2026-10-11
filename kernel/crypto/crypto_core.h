@@ -78,8 +78,12 @@ void crypto_dh_modexp(const u8 base[DH_BYTES], const u8 exp[DH_BYTES],
  * Used by SSH for 2048-bit (256-byte) group 14 DH. */
 void crypto_dh_modexp_n(const u8 *base, const u8 *exp, const u8 *mod, u8 *result, int len);
 
-/* Generate random bytes (using timer + xorshift PRNG — not cryptographic, but
- * sufficient for non-production TLS/SSH in QEMU). */
+/* Generate random bytes.  BUG-0106 (A4-02) replaced the old timer-seeded
+ * xorshift32 with an HMAC_DRBG (SP 800-90A): RDRAND-seeded when the CPU
+ * offers it, RDTSC + boot-jitter re-mixed otherwise, instantiated at
+ * first use and reseeded on demand.  The DRBG state is protected by the
+ * crypto IRQ window (BUG-0294, A4-07) so concurrent kthreads can never
+ * observe the same generated block.  See crypto_core.c. */
 void crypto_random(u8 *buf, int len);
 
 /* DH group 1 prime (1024-bit, RFC 2409 Oakley Group 1) */

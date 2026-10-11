@@ -294,6 +294,22 @@ static u32 driver_snd_ac97_hw_pos(driver_snd_ac97_dev_t *d) {
 }
 
 static void driver_snd_ac97_stream_start(driver_snd_ac97_dev_t *d) {
+    /* BUG-0340 FIX (A9-10, stop->play half): stop() halts the engine by
+     * writing CR.RR, and that reset clears the WHOLE bus-master register
+     * set - QEMU v10.0.2 hw/audio/ac97.c nabm_writeb routes CR_RR into
+     * reset_bm_regs(), which zeroes bdbar (line ~267) and lvi (~269),
+     * and the Intel 82801 datasheet defines the same semantics.  The old
+     * stream_start() rewrote only SR+CR, so a stop->play cycle fetched
+     * buffer descriptors from physical 0 (garbage/silence; QEMU's IVT
+     * reads as zeros so its regression did not catch it) and halted
+     * after the first BD because LVI=0.  Reprogram BDBAR+LVI with the
+     * values setup() wrote (kept in d->bdl_phys / AC97_BDL_ENTRIES)
+     * before starting the run bit - the mirror of what Linux intel8x0
+     * does at every prepare(). */
+    driver_snd_ac97_outl(d->nabm + AC97_PO_BASE + AC97_BDBAR,
+                         (u32)d->bdl_phys);
+    driver_snd_ac97_outb(d->nabm + AC97_PO_BASE + AC97_LVI,
+                         AC97_BDL_ENTRIES - 1);
     driver_snd_ac97_outw(d->nabm + AC97_PO_BASE + AC97_SR,
               AC97_SR_BCIS | AC97_SR_LVBCI | AC97_SR_FIFOE);
     driver_snd_ac97_outb(d->nabm + AC97_PO_BASE + AC97_CR, AC97_CR_IOCE | AC97_CR_RPBM);

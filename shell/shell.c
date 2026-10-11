@@ -141,9 +141,11 @@ static int shell_run_simple(const char *cmd, const char *args) {
     shell_cmd_fn fn = shell_lookup(cmd);
     if (!fn) {
         /* BUG-0092 FIX (A16-5): give L1-registered builtins (see
-         * l1_wp8cd.c shell_register_builtin) a real dispatch path:
-         * without this, names registered through the documented L1 API
-         * were stored in an orphaned table and "not found" at oc>. */
+         * l1_wp8cd.c shell_register_builtin) a dispatch path here too.
+         * NOTE: this legacy entry (shell_execute) has no callers in the
+         * live tree - the LIVE oc> dispatch of L1 builtins is the hook
+         * in shell_exec_stage, added by the same fix; this one keeps
+         * the WP-03 shell_execute() API honest. */
         extern int l1_wp8cd_builtin_exec(const char *cmd, const char *args);
         if (l1_wp8cd_builtin_exec(cmd, args)) return 1;
         return 0;
@@ -1066,18 +1068,32 @@ static int g_capture_installed = 0;
  * returns 1 to suppress the framebuffer draw. */
 static int shell_capture_hook_body(void *ctx, u8 ch) {
     (void)ctx;
-    /* BUG-016 FIX: During capture (pipe/redirect), do NOT forward to
-     * g_user_hook (which sends to serial). The old code forwarded every
-     * char to the serial port, causing intermediate output to leak
-     * during pipe/redirect operations. Only capture into the buffer. */
-    if (g_capture_depth > 0 && g_capture.buf) {
-        if (g_capture.size + 1 < g_capture.cap) {
-            g_capture.buf[g_capture.size++] = (char)ch;
-            g_capture.buf[g_capture.size] = 0;
+    /* BUG-0083 FIX (A15-4): only an ACTIVE capture accepts data. The old
+     * test (`g_capture_depth > 0 && g_capture.buf`) kept appending to the
+     * TOP slot even after shell_capture_end() had frozen it, so every
+     * character printed between end and free - the capture-overflow
+     * warning, "cannot open ... for output" - landed in the frozen
+     * buffer and was then written into the redirect TARGET FILE (and
+     * into captured output nobody asked for). Walk down the stack to
+     * the innermost ACTIVE capture instead: output produced while the
+     * top slot is frozen belongs to the next outer active capture
+     * (nested capture, e.g. sshd's shell_execute_captured, keeps
+     * collecting); with no active capture at all the char is forwarded
+     * to the user hook exactly as before. */
+    for (int d = g_capture_depth - 1; d >= 0; d--) {
+        shell_capture_t *c = &g_capture_stk[d];
+        if (!c->active || !c->buf) continue;
+        /* BUG-016 FIX: During capture (pipe/redirect), do NOT forward to
+         * g_user_hook (which sends to serial). The old code forwarded every
+         * char to the serial port, causing intermediate output to leak
+         * during pipe/redirect operations. Only capture into the buffer. */
+        if (c->size + 1 < c->cap) {
+            c->buf[c->size++] = (char)ch;
+            c->buf[c->size] = 0;
         } else {
             /* WP-09-FIX BUG-025: mark overflow so the caller can warn
              * (the old code silently dropped the excess). */
-            g_capture.overflowed = 1;
+            c->overflowed = 1;
         }
         return 1;  /* suppress framebuffer AND serial during capture */
     }
@@ -1320,7 +1336,28 @@ static int shell_alias_splice(token_t *toks, int *ntoks, int at,
 static int shell_exec_stage(token_t *toks, int ntoks,
                             const char *stdin_data, int stdin_size,
                             int capture_output, int capture_cap) {
-    if (ntoks <= 0) return 0;
+    /* BUG-0083 FIX (A15-4, bare `> file` with no command word): a stage
+     * like `> file` used to hit this early return WITHOUT pushing the
+     * capture the caller's bookkeeping expects. shell_exec_segment still
+     * saw capture==1, so its generic redirect writer operated on the
+     * OUTER capture state: at top level the target file was never
+     * created; under an active outer capture (sshd's
+     * shell_execute_captured) the OUTER buffer was dumped into the file
+     * and the OUTER capture was popped - state pollution. Standard `>`
+     * semantics instead: create/truncate the file with EMPTY output by
+     * pushing an EMPTY capture here (begin + immediate end). The
+     * caller's writer then opens the target O_CREAT|O_TRUNC, writes 0
+     * bytes, and frees OUR slot - the outer capture is untouched. */
+    if (ntoks <= 0) {
+        if (capture_output) {
+            if (shell_capture_begin(capture_cap) < 0) {
+                screen_console_puts("shell: out of memory for capture\n");
+                return 1;
+            }
+            shell_capture_end();
+        }
+        return 0;
+    }
 
     /* Set up stdin if provided. */
     if (stdin_data && stdin_size > 0) {
@@ -1364,9 +1401,22 @@ static int shell_exec_stage(token_t *toks, int ntoks,
         rc = fn(args);
         if (rc < 0) rc = -rc;  /* normalize */
     } else {
-        /* Don't print "unknown command" here - the parser might still be
-         * mid-chain. Let the caller decide. */
-        rc = -127;  /* "command not found" sentinel */
+        /* BUG-0092 FIX (A16-5): consult the L1 builtin table (registered
+         * through shell_register_builtin, l1_wp8cd.c) on the LIVE path.
+         * The hook used to sit only in shell_run_simple, which is
+         * reachable solely from the legacy shell_execute() entry - and
+         * that entry has no callers in the live tree. The real path is
+         * interactive_loop -> shell_execute_line -> shell_exec_segment
+         * -> HERE, so a builtin registered via the documented L1 API
+         * still printed "unknown command" at the oc> prompt. */
+        extern int l1_wp8cd_builtin_exec(const char *cmd, const char *args);
+        if (l1_wp8cd_builtin_exec(cmd, args)) {
+            rc = 0;
+        } else {
+            /* Don't print "unknown command" here - the parser might still be
+             * mid-chain. Let the caller decide. */
+            rc = -127;  /* "command not found" sentinel */
+        }
     }
 
     /* End capture. */

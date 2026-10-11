@@ -60,6 +60,28 @@ int main(void) {
     b[0] = 0x30; b[1] = 0x84; b[2] = 0x80; b[3] = 0x00; b[4] = 0x00; b[5] = 0x00;
     check("cert SEQUENCE len 0x84 80000000 (> INT_MAX)", b, sizeof(b));
 
+    /* 2a. P0fix3 BUG-0035: 4-byte length 0x7FFFFFFA passes the u32
+     *     accumulate gate (<= 0x7FFFFFFF) and wraps the OLD `d->len <
+     *     hdr + l` check exactly at the boundary (6 + 0x7FFFFFFA ==
+     *     INT_MIN, negative -> check bypassed -> wild-pointer walk).
+     *     Must be REJECTED with no ASAN report. */
+    b[0] = 0x30; b[1] = 0x84; b[2] = 0x7F; b[3] = 0xFF; b[4] = 0xFF; b[5] = 0xFA;
+    check("cert SEQUENCE len 0x84 7F FF FF FA (hdr+l wraps)", b, sizeof(b));
+
+    /* 2b. P0fix3 BUG-0035: 0x7FFFFFFF — the largest l that passes the
+     *     u32 gate; the old hdr+l wrapped for EVERY hdr in [2..6]. */
+    b[0] = 0x30; b[1] = 0x84; b[2] = 0x7F; b[3] = 0xFF; b[4] = 0xFF; b[5] = 0xFF;
+    check("cert SEQUENCE len 0x84 7F FF FF FF (hdr+l wraps)", b, sizeof(b));
+
+    /* 2c. P0fix3 BUG-0035 nested: outer SEQUENCE 0x84 7F FF FF FA wraps
+     *     the old check and advanced d->p by INT_MIN (wild pointer); the
+     *     TBS inside (0x84 7F FF FF F0) then re-wrapped its check against
+     *     the poisoned huge d->len. With the subtraction-form fix the
+     *     OUTER length is rejected before any inner walk happens. */
+    b[0] = 0x30; b[1] = 0x84; b[2] = 0x7F; b[3] = 0xFF; b[4] = 0xFF; b[5] = 0xFA;
+    b[6] = 0x30; b[7] = 0x84; b[8] = 0x7F; b[9] = 0xFF; b[10] = 0xFF; b[11] = 0xF0;
+    check("nested outer 0x84 7FFFFFFA + TBS 0x84 7FFFFFF0", b, sizeof(b));
+
     /* 3. 5-byte long-form length (n=5 is illegal in DER for lengths) */
     b[0] = 0x30; b[1] = 0x85; b[2] = 0xFF; b[3] = 0xFF; b[4] = 0xFF;
     b[5] = 0xFF; b[6] = 0xFF;

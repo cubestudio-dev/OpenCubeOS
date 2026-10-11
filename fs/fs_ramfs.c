@@ -248,6 +248,12 @@ static int fs_ramfs_unlink(fs_vfs_node_t *parent, const char *name) {
     fs_vfs_node_t *child = fs_ramfs_lookup(parent, name);
     if (!child) return -2;
     if (child->type == VFS_TYPE_DIR) return -3;  /* use rmdir for dirs */
+    /* P1fix4 BUG-0061: refuse to free the inode while an fd still points
+     * at this node - the VFS-level gate in fs_vfs_unlink already checks
+     * the cached children, this is the fs-side twin of the rmdir guard
+     * above: unlink-then-write through the still-open fd used to hit
+     * freed memory (UAF) after the kfree()s below. */
+    if (child->open_count > 0) return -4;   /* EBUSY: fd still open */
     fs_vfs_detach_child(child);
     fs_ramfs_inode_t *ri = (fs_ramfs_inode_t *)child->private;
     if (ri) {

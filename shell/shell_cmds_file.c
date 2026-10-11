@@ -486,6 +486,21 @@ static int shell_cmd_cp(const char *args) {
                 total_written += (u64)w;
             }
         }
+        /* BUG-0086 FIX (A15-7, empty source): the destination is opened
+         * lazily on FIRST DATA (see above), so copying an EMPTY source
+         * never ran the loop body and the target was never created -
+         * `cp emptyfile target` silently did nothing. Standard cp
+         * semantics: an empty source still produces an (empty) target.
+         * The loop ended with n == 0 (clean EOF) and no data was ever
+         * read, so create/truncate the target now and write nothing. */
+        if (wfd < 0 && n == 0) {
+            wfd = fs_vfs_open(rdst, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+            if (wfd < 0) {
+                screen_console_puts("cp: cannot create destination\n");
+                fs_vfs_close(fd);
+                return 1;
+            }
+        }
         if (wfd >= 0) fs_vfs_close(wfd);
         fs_vfs_close(fd);
         if (n < 0) {
