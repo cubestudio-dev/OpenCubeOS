@@ -25,6 +25,9 @@ OUT="${OC_ROOT}/build/abdisk.img"
 GRUB_CFG="${OC_ROOT}/grub-ab.cfg"
 TOOLBIN="${OC_TOOLS:-/home/z/opt/extract}/usr/bin"
 export PATH="$TOOLBIN:$PATH"
+# grub-mkimage links against toolchain libs (libdevmapper etc.) - make the
+# script self-sufficient even when tools/env.sh was not sourced.
+export LD_LIBRARY_PATH="${OC_TOOLS:-/home/z/opt/extract}/usr/lib/x86_64-linux-gnu:${OC_TOOLS:-/home/z/opt/extract}/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 P1_START=2048                                            # 1 MiB align
 P1_SECTORS=$((64 * 1024 * 1024 / 512))                   # 64 MiB
@@ -36,7 +39,7 @@ P3_START=$((P2_START + P2_SECTORS))
 P4_START=$((P3_START + P3_SECTORS))
 TOTAL_SECTORS=$((P4_START + P4_SECTORS))
 
-echo "[make_ab_disk] image: $OUT (${TOTAL_SECTORS} sectors)"
+echo "[m[make_ab_disk] image: $OUT (${TOTAL_SECTORS} sectors)"
 rm -f "$OUT"
 truncate -s $((TOTAL_SECTORS * 512)) "$OUT"
 
@@ -92,8 +95,70 @@ pull_part 1 "$P1_START" "$P1_SECTORS"
 mmd -i "$OUT.p1" ::/boot
 mmd -i "$OUT.p1" ::/boot/grub
 mcopy -i "$OUT.p1" "$GRUB_CFG" ::/boot/grub/grub.cfg
+
+# BUG-0305: pre-create the GRUB environment block (1024 bytes, canonical
+# "# GRUB Environment Block\n" header + ab_attempts=0 + '#' padding).
+# GRUB's save_env can only write pre-existing files, and the kernel resets
+# the counter in place by rewriting the same 1024 bytes.
+python3 -c '
+hdr = b"# GRUB Environment Block\n"
+blk = hdr + b"ab_attempts=0\n"
+blk += b"#" * (1024 - len(blk))
+assert len(blk) == 1024
+open("/tmp/ab_grubenv", "wb").write(blk)
+'
+mcopy -i "$OUT.p1" /tmp/ab_grubenv ::/boot/grub/grubenv
+rm -f /tmp/ab_grubenv
+
+# BUG-0305: the disk must boot on its own GRUB (the selection logic with
+# the attempt counter lives in /boot/grub/grub.cfg on partition 1). Embed
+# a core.img in the post-MBR gap and install the boot code, so the image
+# is self-bootable in QEMU/real hardware without an external ISO.
+GRUBDIR="${OC_TOOLS:-/home/z/opt/extract}/usr/lib/grub/i386-pc"
+if [ -d "$GRUBDIR" ]; then
+  mmd -i "$OUT.p1" ::/boot/grub/i386-pc || true
+  mcopy -s -i "$OUT.p1" "$GRUBDIR"/*.mod ::/boot/grub/i386-pc/ || true
+  mcopy -i "$OUT.p1" "$GRUBDIR/partmap.lst" ::/boot/grub/i386-pc/ || true
+  mcopy -i "$OUT.p1" "$GRUBDIR/command.lst" ::/boot/grub/i386-pc/ || true
+  mcopy -i "$OUT.p1" "$GRUBDIR/fs.lst" ::/boot/grub/i386-pc/ || true
+  mcopy -i "$OUT.p1" "$GRUBDIR/terminal.lst" ::/boot/grub/i386-pc/ || true
+  # early embedded config: bring serial up BEFORE normal.mod loads, so
+  # disk-boot diagnostics are visible on the serial console (same shape as
+  # the ISO's grub setup).
+  printf 'serial --unit=0 --speed=115200\nterminal_output serial console\nnormal\n' > "$OUT.early.cfg"
+  grub-mkimage -O i386-pc -d "$GRUBDIR" \
+    -p '(hd0,msdos1)/boot/grub' \
+    -c "$OUT.early.cfg" \
+    -o "$OUT.core.img" \
+    biosdisk part_msdos fat multiboot2 loadenv echo test ls serial terminal normal configfile
+  rm -f "$OUT.early.cfg"
+  python3 - "$OUT" "$OUT.core.img" "$GRUBDIR/boot.img" <<'PYEOF2'
+import struct, sys
+img, corep, bootimg = sys.argv[1], sys.argv[2], sys.argv[3]
+# Read the STOCK boot.img from the grub module dir - NOT the current MBR
+# (a zero-filled placeholder: reusing it would install no boot code and
+# SeaBIOS would hang right after "Booting from Hard Disk").
+boot = bytearray(open(bootimg, "rb").read(512))
+core = open(corep, "rb").read()
+if len(core) % 512:
+    core += b"\x00" * (512 - len(core) % 512)
+assert len(core) // 512 + 1 <= 2047, "core.img must fit the post-MBR gap"
+boot[92:100] = struct.pack("<Q", 1)
+with open(img, "r+b") as f:
+    f.seek(0)
+    f.write(bytes(boot[:446]))
+    f.seek(512)
+    f.write(core)
+print("[make_ab_disk] GRUB core.img embedded: %d bytes at LBA 1" % len(core))
+PYEOF2
+  rm -f "$OUT.core.img"
+  echo "[make_ab_disk] GRUB i386-pc stages installed (self-booting disk)"
+else
+  echo "[make_ab_disk] WARNING: $GRUBDIR not found - disk NOT self-bootable"
+fi
+
 push_part 1 "$P1_START" "$P1_SECTORS"
-echo "[make_ab_disk] p1: /boot/grub/grub.cfg installed"
+echo "[make_ab_disk] p1: /boot/grub/grub.cfg + grubenv + i386-pc installed"
 
 # ---- 4. Optionally seed slot A with the current kernel ----------------
 KERNEL="${1:-}"

@@ -865,7 +865,11 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         /* key schedule */
         u8 shared[32];
         if (have_share) {
-            crypto_x25519_shared(g_x25519_priv, share, shared);
+            /* BUG-0296 (A4-09): crypto_x25519_shared now fails closed on the
+             * all-zero output itself; check its status instead of trusting
+             * the buffer, and keep the explicit zero probe as belt & braces. */
+            if (crypto_x25519_shared(g_x25519_priv, share, shared) != 0)
+                return TLS_ERR_ILLEGAL_PARAMETER;
             /* BUG-0221-tls (A14-35)/RFC 7748 6.1: an all-zero X25519 output
              * means the peer contributed a low-order point - abort. */
             if (net_tls_secret_is_zero(shared, 32))

@@ -74,20 +74,28 @@ static void ed_prefix(int lineno) {
     screen_console_putc(' ');
 }
 
-/* Redraw the current line in place. */
+/* Redraw the current line in place.
+ * BUG-0344 (RUNTIME): the old version painted the line TWICE to steer
+ * the print-head cursor (full print, then a second print truncated at
+ * the cursor column) - every keystroke printed everything twice and the
+ * second pass visually cut the line at the cursor.  One repaint plus an
+ * explicit move_cursor now shows the full line exactly once, wipes any
+ * stale tail cells left by deletions, and places the cursor precisely
+ * (the 5-cell prefix " 12: " is fixed width, see ed_prefix). */
 static void ed_redraw_line(void) {
     screen_console_putc('\r');
     ed_prefix(ed_cl + 1);
     screen_console_puts(ed_lines[ed_cl]);
-    screen_console_putc(' ');          /* clear one trailing cell */
-    screen_console_putc('\r');
-    ed_prefix(ed_cl + 1);
-    if (ed_cc > 0) {
-        char saved = ed_lines[ed_cl][ed_cc];
-        ed_lines[ed_cl][ed_cc] = 0;
-        screen_console_puts(ed_lines[ed_cl]);
-        ed_lines[ed_cl][ed_cc] = saved;
-    }
+
+    screen_console_t *c = screen_console_get();
+    u32 y = c->cur_y;
+    u32 x_end = c->cur_x;   /* one cell past the last printed character */
+    for (u32 x = x_end; x < c->cols; x++)
+        screen_console_putc_at(x, y, ' ', c->fg_pixel, c->bg_pixel);
+
+    u32 cx = 5u + (u32)ed_cc;
+    if (cx >= c->cols) cx = c->cols - 1;
+    screen_console_move_cursor(cx, y);
 }
 
 static void ed_state(void) {

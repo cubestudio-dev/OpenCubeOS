@@ -19,6 +19,13 @@ int screen_fb_init(const void* arch_multiboot2_fb_tag) {
     if (f->framebuffer_bpp != 32) {
         return -3;
     }
+    /* BUG-0322 (A7-13): validate the geometry before publishing it.
+     * addr==0 previously sailed through here (only console_init checked
+     * it later), and a pitch smaller than width*4 made every row walk
+     * into the previous/next row (or off the mapped extent). */
+    if (f->framebuffer_addr == 0) return -4;
+    if (f->framebuffer_width == 0 || f->framebuffer_height == 0) return -5;
+    if (f->framebuffer_pitch < (u32)f->framebuffer_width * 4u) return -6;
     g_fb.addr   = (u8*)(uintptr_t)f->framebuffer_addr;
     g_fb.pitch  = f->framebuffer_pitch;
     g_fb.width  = f->framebuffer_width;

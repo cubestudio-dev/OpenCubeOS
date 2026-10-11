@@ -354,36 +354,17 @@ static int shell_cmd_timer(const char *args) {
 }
 
 static int shell_cmd_echo(const char *args) {
-    /* Support: echo text > file  and  echo text >> file */
-    const char *redir = (const char*)0;
-    int append = 0;
-    for (int i = 0; args[i]; i++) {
-        if (args[i] == '>') {
-            if (args[i+1] == '>') { append = 1; redir = &args[i]; }
-            else { redir = &args[i]; }
-            break;
-        }
-    }
-    if (redir) {
-        int text_len = (int)(redir - args);
-        const char *fname = redir + (append ? 2 : 1);
-        while (*fname == ' ') fname++;
-        while (text_len > 0 && args[text_len - 1] == ' ') text_len--;
-        char text[256];
-        if (text_len > 255) text_len = 255;
-        memcpy(text, args, text_len);
-        text[text_len] = 0;
-        int flags = VFS_O_WRONLY | VFS_O_CREAT;
-        if (append) flags |= VFS_O_APPEND;
-        else flags |= VFS_O_TRUNC;  /* P2-15 FIX: `>` truncates existing content */
-        int fd = fs_vfs_open(fname, flags);
-        if (fd < 0) { screen_console_puts("echo: cannot open file\n"); return 1; }
-        if (text_len > 0) fs_vfs_write(fd, text, text_len);
-        fs_vfs_write(fd, "\n", 1);
-        fs_vfs_close(fd);
-        return 0;
-    }
-    screen_console_puts(args); screen_console_putc('\n');
+    /* BUG-0345 (RUNTIME): echo is a pure text command again.  The shell
+     * layer (shell_exec_segment) parses redirections BEFORE dispatch -
+     * `echo x > f` never reaches this handler with the '>' in args, the
+     * output capture writes the file.  The old in-handler '>' scan was
+     * therefore dead code for real redirections and ONLY fired on
+     * QUOTED arguments: `echo "a > b"` lost its quotes in
+     * shell_join_args (by design - quotes are a tokenizer concept), the
+     * scan then mistook the literal '>' for a redirection and died with
+     * "echo: cannot open file" instead of printing the text. */
+    screen_console_puts(args);
+    screen_console_putc('\n');
     return 0;
 }
 
@@ -3272,7 +3253,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command_ex("shutdown", shell_cmd_shutdown, "power off (flush + ACPI/Bochs/APM ports)", "WP-10d-fix2");
     shell_register_command_ex("poweroff", shell_cmd_shutdown, "alias of shutdown", "WP-10d-fix2");
     shell_register_command_ex("suspend", shell_cmd_suspend, "suspend to RAM (needs ACPI S3)", "WP-10d-fix2");
-    shell_register_command_ex("sleep", shell_cmd_suspend, "alias of suspend", "WP-10d-fix2");
+    shell_register_command_ex("sleep", shell_cmd_sleep, "delay for N seconds (sleep <sec>)", "WP-10d-fix2");
     shell_cmds_power_test_register();
     shell_cmds_update_test_register();
     OC_LOG_OK2("shell file/disk commands");

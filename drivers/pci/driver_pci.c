@@ -6,7 +6,17 @@
  */
 #include "driver_pci.h"
 #include "screen_console.h"
+#include "core_sync.h"
 #include "lib_string.h"
+
+/* BUG-0324 (A7-22): the 0xCF8/0xCFC config mechanism is a two-step
+ * outl/inl pair - an interrupt-context config access (a driver reading
+ * its own config from an IRQ) concurrently with a task-context access
+ * overwrote the address register and returned another device's config
+ * dword. Every config access runs under one irqsave spinlock now
+ * (BUG-0285 semantics); the enable_device read-modify-write inherits
+ * the protection by going through the locked accessors. */
+static spinlock_t g_pci_config_lock;
 
 static inline void outl(u16 port, u32 val) {
     __asm__ volatile("outl %0, %1" :: "a"(val), "Nd"(port));
@@ -20,15 +30,20 @@ static inline u32 inl(u16 port) {
 u32 driver_pci_read_config(u8 bus, u8 dev, u8 func, u8 offset) {
     u32 addr = ((u32)bus << 16) | ((u32)dev << 11) | ((u32)func << 8)
                | ((u32)offset & 0xFC) | 0x80000000u;
+    spin_lock(&g_pci_config_lock);
     outl(PCI_CONFIG_ADDR, addr);
-    return inl(PCI_CONFIG_DATA);
+    u32 v = inl(PCI_CONFIG_DATA);
+    spin_unlock(&g_pci_config_lock);
+    return v;
 }
 
 void driver_pci_write_config(u8 bus, u8 dev, u8 func, u8 offset, u32 value) {
     u32 addr = ((u32)bus << 16) | ((u32)dev << 11) | ((u32)func << 8)
                | ((u32)offset & 0xFC) | 0x80000000u;
+    spin_lock(&g_pci_config_lock);
     outl(PCI_CONFIG_ADDR, addr);
     outl(PCI_CONFIG_DATA, value);
+    spin_unlock(&g_pci_config_lock);
 }
 
 int driver_pci_find_device(u16 vendor, u16 device, u8 *bus_out, u8 *dev_out, u8 *func_out) {

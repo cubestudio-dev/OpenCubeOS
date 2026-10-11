@@ -26,6 +26,8 @@
 #include "core_power.h"
 #include "driver_block_blk.h"
 #include "screen_console.h"
+#include "core_timer.h"
+#include "core_sched.h"
 
 #include <stdint.h>
 
@@ -158,6 +160,45 @@ int shell_cmd_suspend(const char *args) {
         return 1;
     }
     return 0; /* unreachable until S3 exists */
+}
+
+/* BUG-0346 (RUNTIME): 'sleep' now means DELAY - the universal meaning
+ * of the command.  It used to be a literal alias of suspend, so
+ * 'sleep 2' printed "Suspending... Suspend not supported (ACPI
+ * required)" instead of waiting 2 seconds.  Suspending to RAM keeps
+ * its own command ('suspend'); this handler parses <seconds> with up
+ * to 3 fractional digits (milliseconds) and yields until the wall
+ * clock passes the deadline. */
+int shell_cmd_sleep(const char *args) {
+    if (!args || !args[0]) {
+        screen_console_puts("usage: sleep <seconds>  (e.g. sleep 2, sleep 0.5)\n");
+        return 1;
+    }
+    u64 whole = 0;
+    u64 frac_ms = 0;
+    int i = 0;
+    while (args[i] >= '0' && args[i] <= '9') {
+        if (whole < 1000000ull) whole = whole * 10u + (u64)(args[i] - '0');
+        i++;
+    }
+    if (args[i] == '.') {
+        i++;
+        int digits = 0;
+        while (args[i] >= '0' && args[i] <= '9') {
+            if (digits < 3) frac_ms = frac_ms * 10u + (u64)(args[i] - '0');
+            i++;
+            digits++;
+        }
+        while (digits < 3) { frac_ms *= 10u; digits++; }  /* scale to ms */
+    }
+    while (args[i] == ' ') i++;
+    if (args[i] != 0) {
+        screen_console_puts("sleep: invalid time\n");
+        return 1;
+    }
+    u64 deadline = core_timer_now_ms() + whole * 1000ull + frac_ms;
+    while (core_timer_now_ms() < deadline) core_sched_yield();
+    return 0;
 }
 
 int shell_cmd_reboot(const char *args) {

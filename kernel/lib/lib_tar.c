@@ -40,6 +40,8 @@ struct lib_tar {
     u64  file_size_total;
     int  file_type;
     int  zero_blocks;      /* consecutive zero blocks seen         */
+    int  gnu_block0;       /* BUG-0300: first block of a GNU 'L' body */
+    int  gnu_pending;      /* BUG-0300: gnu_name names the NEXT entry */
     char cur_name[100];    /* current entry path (ustar field size,
                             * GNU long names extend this)         */
     char gnu_name[256];    /* GNU long-name scratch                */
@@ -94,13 +96,22 @@ static int lib_tar_block(lib_tar_t *t) {
     t->zero_blocks = 0;
 
     if (t->state == TS_GNU_NAME) {
-        /* previous header was a GNU 'L' long-name: buf holds the path */
-        int n = 0;
-        while (n < (int)sizeof(t->gnu_name) - 1 && t->buf[n]) {
-            t->gnu_name[n] = (char)t->buf[n];
-            n++;
+        /* previous header was a GNU 'L' long-name.
+         * BUG-0300 (A5-11): the body can span multiple 512-byte blocks
+         * (ceil(size/512)); only the first block carries the name prefix,
+         * the remaining blocks are tail data that must be skipped so the
+         * parser stays in sync with the archive. */
+        if (t->gnu_block0) {
+            int n = 0;
+            while (n < (int)sizeof(t->gnu_name) - 1 && t->buf[n]) {
+                t->gnu_name[n] = (char)t->buf[n];
+                n++;
+            }
+            t->gnu_name[n] = 0;
+            t->gnu_block0 = 0;
         }
-        t->gnu_name[n] = 0;
+        t->file_size -= TAR_BLOCK;
+        if (t->file_size > 0) return 0;   /* more 'L' body blocks to skip */
         t->state = TS_HEADER;
         return 0;
     }
@@ -129,15 +140,25 @@ static int lib_tar_block(lib_tar_t *t) {
     t->cur_name[n] = 0;
 
     if (type == 'L') {
-        /* GNU long name: the body holds the real path of the next hdr */
+        /* GNU long name: the body holds the real path of the next hdr.
+         * BUG-0300 (A5-11): file_size tracks the WHOLE body including the
+         * block padding so multi-block names stay in sync. */
         t->gnu_name[0] = 0;
-        t->file_size = size;
+        t->gnu_block0 = 1;
+        t->gnu_pending = 1;   /* the long name applies to the next entry */
+        t->file_size = ((size + TAR_BLOCK - 1) / TAR_BLOCK) * TAR_BLOCK;
         t->file_size_total = size;
         t->file_type = OC_TAR_FILE;
         t->state = TS_GNU_NAME;
         return 0;
     }
-    t->gnu_name[0] = 0;
+    /* A pending GNU 'L' name belongs to THIS entry - keep it. Otherwise the
+     * scratch is stale from some earlier entry and must be cleared
+     * (BUG-0300: the unconditional clear used to wipe a pending long name
+     * before it was ever used, so long-name entries installed under their
+     * short ustar name instead). */
+    if (!t->gnu_pending) t->gnu_name[0] = 0;
+    t->gnu_pending = 0;
 
     if (type == '5' || (n > 0 && t->cur_name[n - 1] == '/')) {
         /* directory entry: report it once (data == NULL), no body */
@@ -150,11 +171,18 @@ static int lib_tar_block(lib_tar_t *t) {
         return 0;
     }
     if (type != '0' && type != '\0' && type != '7') {
-        /* hard/symlink/special entries carry no body here: skip them */
+        /* hard/symlink/special/pax-metadata ('x'/'g') entries: no callback,
+         * and their body MUST be skipped by the size the header declares.
+         * BUG-0300 (A5-11): the old code zeroed file_size, so a size>0 body
+         * ('x'/'g' pax headers, GNU 'K') went straight back to TS_HEADER and
+         * the body blocks were parsed as headers - almost always a bogus
+         * ERR_CSUM that rejected the whole package. file_size now carries
+         * body + padding for the TS_PADDING skip. */
         t->file_type = OC_TAR_FILE;
-        t->file_size = 0;
-        t->file_size_total = 0;
-        t->state = (size > 0) ? TS_PADDING : TS_HEADER;
+        u64 pad = (TAR_BLOCK - (size & (TAR_BLOCK - 1))) & (TAR_BLOCK - 1);
+        t->file_size = size + pad;
+        t->file_size_total = size;
+        t->state = (t->file_size > 0) ? TS_PADDING : TS_HEADER;
         return 0;
     }
 

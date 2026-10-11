@@ -26,6 +26,10 @@
 #include "core_timer.h"
 #include "screen_console.h"
 #include "lib_log.h"
+
+/* BUG-0347: comparison helper shared by the check and --status paths
+ * (defined below, after its string helpers). */
+static int ota_update_remote_is_newer(const char *remote_ver, u64 remote_build);
 #include "lib_string.h"
 
 #include <stdint.h>
@@ -542,13 +546,19 @@ int ota_update_check(ota_update_info_t *out) {
      * never fails the check). */
     ota_update_apply_changes_v2(body, out->changes, (int)sizeof(out->changes));
 
-    /* 4. compare versions (exact string match, ASCII) */
-    if (strcmp(out->version, OC_UPDATE_CURRENT_VERSION) == 0) {
+    /* 4. compare versions (BUG-0347: numeric build id when available,
+     * git-describe descendant aware string fallback otherwise) */
+    {
+        u64 remote_build = 0;
+        if (ota_update_json_uint(body, "build", &remote_build) != 0)
+            remote_build = 0;
+        if (ota_update_remote_is_newer(out->version, remote_build)) {
+            ota_update_cache_check(OC_UPDATE_NEW, out->version);
+            return OC_UPDATE_NEW;
+        }
         ota_update_cache_check(OC_UPDATE_OK, out->version);
         return OC_UPDATE_OK;
     }
-    ota_update_cache_check(OC_UPDATE_NEW, out->version);
-    return OC_UPDATE_NEW;
 }
 
 /* Parse a non-negative decimal JSON number ("key": 12345).  Returns 0
@@ -654,13 +664,74 @@ int ota_update_check_pkg(ota_update_pkg_info_t *out) {
     out->have_package = (rp == 0 && rs == 0 && rz == 0 &&
                          out->package_url[0] != 0);
 
-    /* cache for update --status */
-    if (strcmp(out->info.version, OC_UPDATE_CURRENT_VERSION) == 0) {
+    /* cache for update --status (BUG-0347 comparison) */
+    {
+        u64 remote_build2 = 0;
+        if (ota_update_json_uint(body, "build", &remote_build2) != 0)
+            remote_build2 = 0;
+        if (ota_update_remote_is_newer(out->info.version, remote_build2)) {
+            ota_update_cache_check(OC_UPDATE_NEW, out->info.version);
+            return OC_UPDATE_NEW;
+        }
         ota_update_cache_check(OC_UPDATE_OK, out->info.version);
         return OC_UPDATE_OK;
     }
-    ota_update_cache_check(OC_UPDATE_NEW, out->info.version);
-    return OC_UPDATE_NEW;
+}
+
+/* BUG-0347 (RUNTIME): version comparison for the update check.  The old
+ * check was a plain strcmp(remote, local), which reported "new version
+ * available" even when the LOCAL tree was the newer one (e.g. a release
+ * ISO built from a fresh tag vs a server that still serves the previous
+ * release) - a permanent false alarm for the user.  The comparison now
+ * runs three stages:
+ *   1. numeric build ids: when both sides publish a non-zero "build"
+ *      counter, the server is newer only when strictly greater;
+ *   2. string equality: exact match -> current;
+ *   3. git-describe descendant: a local version shaped
+ *      "<server-tag>-<N>-g<hash>" (N >= 1) is a descendant of the server
+ *      tag -> current.
+ * Anything else is conservatively reported as "new version available"
+ * (an unknown remote ordering still nudges the user, never silently
+ * swallows a real update). */
+static int ota_update_remote_is_newer(const char *remote_ver, u64 remote_build) {
+    /* 1. numeric build ids */
+    if (remote_build > 0 && (u64)OC_KERNEL_BUILD > 0)
+        return (remote_build > (u64)OC_KERNEL_BUILD) ? 1 : 0;
+
+    if (!remote_ver || !remote_ver[0]) return 0;
+    if (strcmp(remote_ver, OC_UPDATE_CURRENT_VERSION) == 0) return 0;
+
+    /* 3. local git-describe descendant of the server tag:
+     *    CURRENT == "<remote_ver>-<digits>-g<hash>" */
+    {
+        const char *cur = OC_UPDATE_CURRENT_VERSION;
+        usize rl = 0;
+        while (remote_ver[rl]) rl++;
+        if (rl == 0) return 1;
+        usize i;
+        for (i = 0; i < rl; i++) {
+            if (cur[i] != remote_ver[i]) return 1;   /* different tag prefix */
+        }
+        if (cur[i] != '-') return 1;                 /* not a describe suffix */
+        i++;                                          /* skip '-' */
+        usize nd = 0;
+        while (cur[i] >= '0' && cur[i] <= '9') { i++; nd++; }
+        if (nd == 0 || nd > 8) return 1;             /* need "-<N>" */
+        if (cur[i] != '-') return 1;
+        i++;
+        if (cur[i] != 'g') return 1;                 /* need "-g" */
+        i++;
+        usize nh = 0;
+        while (cur[i]) {
+            char ch = cur[i];
+            int okhex = ((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'));
+            if (!okhex) return 1;
+            i++;
+            nh++;
+        }
+        if (nh < 7) return 1;                        /* g<hash> too short */
+        return 0;                                    /* descendant => current */
+    }
 }
 
 const char *ota_update_check_strerror(int rc) {

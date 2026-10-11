@@ -269,6 +269,12 @@ int crypto_bn_mod_exp(u8 *out, int out_len,
 int crypto_bn_mod_bytes(u8 *out, int out_len, const u8 *x, int x_len,
                  const u8 *m, int m_len) {
     if (m_len <= 0 || m_len > BN_MAX_BYTES || x_len > BN_MAX_BYTES) return -1;
+    /* BUG-0297 (A4-10): out_len is validated BEFORE the big-endian store so a
+     * caller passing an oversized out_len can never run crypto_bn_to_be into
+     * tmp with on > sizeof(tmp) (the old order wrote first and checked after:
+     * out_len in (BN_MAX_BYTES, (BN_MAX_BYTES+7)/8*8] overwrote up to 7 stack
+     * bytes past tmp before returning -1). */
+    if (out_len <= 0 || out_len > BN_MAX_BYTES) return -1;
     int xn = (x_len + 7) / 8;
     int mn = (m_len + 7) / 8;
     int nn = (xn > mn) ? xn : mn;
@@ -292,8 +298,8 @@ int crypto_bn_mod_bytes(u8 *out, int out_len, const u8 *x, int x_len,
     }
     int on = (out_len + 7) / 8;
     u8 tmp[BN_MAX_BYTES];
+    /* on <= BN_MAX_BYTES is now guaranteed by the out_len check above. */
     crypto_bn_to_be(xv, on, tmp, on * 8);
-    if (out_len > (int)sizeof(tmp)) return -1;
     memcpy(out, tmp + (on * 8 - out_len), out_len);
     return 0;
 }

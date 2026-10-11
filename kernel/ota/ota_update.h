@@ -23,9 +23,12 @@
  *
  * The URL comes from /etc/opencube.conf key "update_url".  The scheme
  * decides the transport: "https://" -> TLS 1.2 client, "http://" -> plain
- * TCP, anything else -> error.  Version comparison is an exact string
- * match against OC_UPDATE_CURRENT_VERSION (keep it in sync with the
- * version printed by the uname command).
+ * TCP, anything else -> error.  Version comparison (BUG-0347): when both
+ * sides publish a numeric "build" id the comparison is numeric; the
+ * string path also recognizes a local git-describe descendant of the
+ * server tag ("<server-tag>-3-g1a2b3c4") as current, so a locally newer
+ * tree no longer raises the permanent "new version available" false
+ * alarm against an older published version.
  *
  * Return codes of ota_update_check():
  *
@@ -56,6 +59,15 @@ extern "C" {
 #define OC_RELEASE_VERSION "WP-10u"
 #endif
 #define OC_UPDATE_CURRENT_VERSION OC_RELEASE_VERSION
+
+/* Monotonic build id baked in by the Makefile (git rev-list --count
+ * HEAD of the built tree; override with OC_KERNEL_BUILD=N).  The
+ * server-side version.json publishes the same counter for the release
+ * it serves, which makes the update comparison a numeric order instead
+ * of a plain string equality (BUG-0347). */
+#ifndef OC_KERNEL_BUILD
+#define OC_KERNEL_BUILD 0
+#endif
 
 /* Manifest fields as parsed from the JSON body.  version/time are
  * structural: if the server sends more than 31 bytes the check fails

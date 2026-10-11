@@ -236,5 +236,15 @@ int crypto_x25519_public(const u8 priv[32], u8 pub[32]) {
 }
 
 int crypto_x25519_shared(const u8 priv[32], const u8 peer_pub[32], u8 shared[32]) {
-    return x25519(shared, priv, peer_pub);
+    int rc = x25519(shared, priv, peer_pub);
+    if (rc != 0) return rc;
+    /* BUG-0296 (A4-09) / RFC 8446 section 7.4.3: a peer public key of small
+     * order collapses the shared secret to the all-zero value. The function
+     * now fails closed itself (constant-time check) instead of leaving the
+     * RFC-mandated check to every caller - net_tls/net_ssh/net_sshd already
+     * treat a non-zero return as a handshake failure. */
+    u8 acc = 0;
+    for (int i = 0; i < 32; i++) acc |= shared[i];
+    if (acc == 0) return -1;
+    return 0;
 }

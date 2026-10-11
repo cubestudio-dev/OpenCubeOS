@@ -43,6 +43,7 @@
 #include "mem_pmm.h"
 #include "arch_irq.h"
 #include "screen_console.h"
+#include "lib_config.h"
 #include "lib_string.h"
 #include "driver_snd.h"
 #include "core_sched.h"
@@ -515,19 +516,40 @@ static int driver_snd_hda_setup(driver_snd_hda_dev_t *d, u8 bus, u8 dev, u8 func
     memset(d->dma, 0, HDA_RING_BYTES);
 
     volatile u32 *b32 = (volatile u32 *)(uintptr_t)bdl;
+    /* BUG-0339 (A9-09): BDL entry encoding - resolved against QEMU
+     * v10.0.2 hw/audio/intel-hda.c intel_hda_parse_bdl(): it reads
+     *   st->bpl[i].len   = dword2 (PLAIN byte length)
+     *   st->bpl[i].flags = dword3 (bit0 = IOC)
+     * The Intel HDA 1.0a spec instead packs length[31:1] | IOC[0] into
+     * dword 2 and reserves dword 3, and the two encodings are mutually
+     * exclusive at the silicon level (spec-encoded entries decode as
+     * half-length plain entries on QEMU; QEMU-encoded entries decode as
+     * half-length IOC-less entries on real ICH silicon).  Default is
+     * the verified QEMU reference encoding so every reference
+     * environment keeps working; real hardware users switch to the
+     * spec layout with config "hda.bdl" = "spec" in /etc/opencube.conf
+     * (runtime switch, no rebuild needed). */
+    int bdl_spec = 0;
+    {
+        char v[16];
+        if (lib_config_read("hda.bdl", v, (int)sizeof(v)) > 0 &&
+            v[0] == 's' && v[1] == 'p' && v[2] == 'e' && v[3] == 'c')
+            bdl_spec = 1;
+    }
     for (int i = 0; i < HDA_BDL_ENTRIES; i++) {
         u64 buf_addr = d->dma_phys + (u64)i * (HDA_RING_BYTES / HDA_BDL_ENTRIES);
         u32 len = HDA_RING_BYTES / HDA_BDL_ENTRIES;
         b32[i * 4 + 0] = (u32)(buf_addr & 0xffffffffu);
         b32[i * 4 + 1] = (u32)(buf_addr >> 32);
-        /* NOTE on BDL entry encoding: the Intel HDA spec packs
-         * length[31:1] | IOC[0] into dword 2 (dword 3 reserved).
-         * QEMU's controller model instead reads dword 2 as the plain
-         * byte length and takes the IOC flag from dword 3 bit 0.
-         * We follow the QEMU encoding so the reference environment
-         * delivers IOC interrupts and wraps LPIB correctly. */
-        b32[i * 4 + 2] = len;
-        b32[i * 4 + 3] = 1;   /* IOC */
+        if (bdl_spec) {
+            /* Intel HDA 1.0a spec layout: length[31:1] | IOC[0], dword3 reserved */
+            b32[i * 4 + 2] = (len >> 1) | 1u;   /* IOC on every entry */
+            b32[i * 4 + 3] = 0;
+        } else {
+            /* QEMU layout (verified, see above): plain length + dword3 IOC */
+            b32[i * 4 + 2] = len;
+            b32[i * 4 + 3] = 1;   /* IOC */
+        }
     }
 
     /* stream registers (output stream 0) */
@@ -680,6 +702,15 @@ static int driver_snd_hda_ops_stop(driver_snd_device_t *sdev) {
     }
     u32 sbase = driver_snd_hda_sdo_base(d);
     driver_snd_hda_w8(d, sbase + HDA_SD_CTL, HDA_SD_IOCE);
+    /* BUG-0340 (A9-10, HDA half): the engine BDL position must be
+     * reset after stopping.  QEMU's controller re-parses the BDL and
+     * zeroes LPIB on every RUN 0->1 (intel_hda_set_st_ctl ->
+     * intel_hda_parse_bdl), but real silicon resumes from wherever the
+     * BDL pointer was left - and the driver already zeroed sw_pos, so
+     * a restart without the reset would replay the ring tail from the
+     * old engine position (or wedge the play loop on a bogus inflight
+     * count).  The reset leaves CBL/LVI/BDLPL/FMT intact per spec. */
+    driver_snd_hda_stream_reset(d, sbase);
     d->running = 0;
     d->sw_pos = 0;
     driver_snd_hda_w32(d, sbase + HDA_SD_LPIB, 0);

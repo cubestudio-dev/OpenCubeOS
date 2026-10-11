@@ -160,7 +160,7 @@ int  l1_ext_config_get_all(char *buf, int buflen);
  * only needs this header.
  * ------------------------------------------------------------------ */
 typedef struct {
-    char version[32];
+    char version[64];   /* BUG-0299 (A5-10): widened to mirror ota_update_info_t.version[64] - 32 truncated the official 44-char version string */
     char time[32];
     char changes[256];  /* mirrors ota_update_info_t (kernel/update.h) */
 } l1_ext_update_info_t;

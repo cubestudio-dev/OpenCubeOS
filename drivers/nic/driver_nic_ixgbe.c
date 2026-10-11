@@ -39,16 +39,34 @@ static inline void mmio_write32(volatile void *p, u32 v) { *(volatile u32 *)p = 
 /* Global registers. */
 #define IXGBE_CTRL     0x0000
 #define IXGBE_STATUS   0x0008
-#define IXGBE_IMC      0x00898  /* interrupt mask clear */
-#define IXGBE_RCTL     0x0100   /* legacy-compat RX control */
+/* BUG-0331 (A8-13): register set cross-checked against Linux
+ * ixgbe_type.h (torvalds/linux): HLREG0 is 0x04240 (the old 0x05000 is a
+ * DIFFERENT register), the link-up bit lives in LINKS (0x042A4) bit 30 -
+ * STATUS has no link field, interrupt-mask-clear is EIMC (0x00888), the
+ * per-queue register stride is 0x40 (not 0x1000 - only queue 0 was ever
+ * touched, whose bases happened to match), and SRRCTL (0x02100 + q*4)
+ * was never programmed at all, leaving the RX buffer size at reset
+ * defaults and broadcast/multicast acceptance (FCTRL) unconfigured. */
+#define IXGBE_EIMC     0x00888  /* interrupt mask clear (was IMC 0x00898) */
+#define IXGBE_LINKS    0x042A4  /* link status register */
+#define IXGBE_FCTRL    0x05080  /* filter control */
+#define IXGBE_FCTRL_MPE 0x00000100u  /* multicast promiscuous enable */
+#define IXGBE_FCTRL_BAM 0x00000400u  /* broadcast accept mode */
 #define IXGBE_RXCTRL   0x03000  /* bit0 = RXEN */
-#define IXGBE_HLREG0   0x05000  /* bit0 TXCRCEN, bit15 RXCRCSTRP */
+#define IXGBE_HLREG0   0x04240  /* bit0 TXCRCEN, bit1 RXCRCSTRP */
+#define IXGBE_SRRCTL(q)  (0x02100u + ((u32)(q) * 4u))
+#define IXGBE_SRRCTL_DESCTYPE_ADV_ONEBUF 0x02000000u
+/* SRRCTL.BSIZEPKT holds the buffer size in 1 KiB units:
+ * Linux programs it as (buf_len >> IXGBE_SRRCTL_BSIZEPKT_SHIFT) with
+ * shift 10, so a 2 KiB buffer is the plain value 2. */
+#define IXGBE_SRRCTL_BSIZEPKT_2KB  2u
+#define IXGBE_RCTL     0x0100   /* legacy-compat RX control */
 #define IXGBE_RAL0     0x0A200  /* receive address low 0 */
 #define IXGBE_RAH0     0x0A204
 
 /* Per-queue blocks. */
-#define IXGBE_RXQ_BASE(q)  (0x01000u + (u32)(q) * 0x1000u)
-#define IXGBE_TXQ_BASE(q)  (0x06000u + (u32)(q) * 0x1000u)
+#define IXGBE_RXQ_BASE(q)  (0x01000u + (u32)(q) * 0x40u)
+#define IXGBE_TXQ_BASE(q)  (0x06000u + (u32)(q) * 0x40u)
 #define IXGBE_Q_DBAL  0x00
 #define IXGBE_Q_DBAH  0x04
 #define IXGBE_Q_DLEN  0x08
@@ -56,7 +74,7 @@ static inline void mmio_write32(volatile void *p, u32 v) { *(volatile u32 *)p = 
 #define IXGBE_Q_DT    0x18
 #define IXGBE_Q_DCTL  0x28   /* RXDCTL / TXDCTL */
 
-#define IXGBE_STATUS_LNK   (1u << 8)   /* bit 8 = Link Up on 82598/82599 */
+#define IXGBE_LINKS_UP     0x40000000u /* LINKS bit 30 = link up */
 
 #define IXGBE_NUM_DESC  32
 #define IXGBE_BUF_SIZE  4096     /* jumbo-friendly 10G buffers */
@@ -138,12 +156,15 @@ static int driver_nic_ixgbe_setup(driver_nic_ixgbe_dev_t *d, u8 bus, u8 dev, u8 
     d->bus = bus; d->dev = dev; d->func = func;
 
     u32 bar0 = driver_pci_read_bar(bus, dev, func, 0);
-    if (!bar0 || (bar0 & 0x1)) return -1;
+    if (!bar0) return -1;
+    /* BUG-0332 (A8-14): the raw config dword carries the space-type bit
+     * that read_bar strips - refuse I/O-space BAR0. */
+    if (driver_pci_read_config(bus, dev, func, 0x10) & 0x1) return -1;
     driver_nic_ixgbe_pci_enable(d);
     d->mmio = (volatile u32 *)(uintptr_t)(bar0 & 0xFFFFFFF0);
 
     /* Polling mode. */
-    ix_wreg(d, IXGBE_IMC, 0xFFFFFFFFu);
+    ix_wreg(d, IXGBE_EIMC, 0xFFFFFFFFu);   /* BUG-0331: was IMC 0x00898 */
 
     /* Station address: RAL0/RAH0 (real boards load it from NVM). */
     u32 mac_low = ix_reg(d, IXGBE_RAL0);
@@ -209,10 +230,18 @@ static int driver_nic_ixgbe_setup(driver_nic_ixgbe_dev_t *d, u8 bus, u8 dev, u8 
         ix_wreg(d, base + IXGBE_Q_DCTL, (1u << 25));
     }
 
-    /* Global datapath enables. */
+    /* Global datapath enables (BUG-0331 encodings). */
     ix_wreg(d, IXGBE_HLREG0,
-            (1u << 0) |          /* TXCRCEN */
-            (1u << 15));         /* RXCRCSTRP (strip FCS) */
+            (1u << 0) |          /* TXCRCEN  (HLREG0 bit 0) */
+            (1u << 1));          /* RXCRCSTRP (HLREG0 bit 1, was bit 15) */
+    /* FCTRL was never programmed: accept multicast + broadcast (ARP/DHCP
+     * replies) instead of relying on the reset default. */
+    ix_wreg(d, IXGBE_FCTRL, IXGBE_FCTRL_MPE | IXGBE_FCTRL_BAM);
+    /* SRRCTL queue 0: advanced one-buffer descriptors, 2 KiB packet
+     * buffers (was never programmed - the RX buffer size stayed at the
+     * reset default). */
+    ix_wreg(d, IXGBE_SRRCTL(0),
+            IXGBE_SRRCTL_DESCTYPE_ADV_ONEBUF | IXGBE_SRRCTL_BSIZEPKT_2KB);
     ix_wreg(d, IXGBE_RXCTRL, 1u);   /* RXEN */
 
     driver_nic_ixgbe_pci_enable(d);
@@ -241,9 +270,11 @@ int driver_nic_ixgbe_init(driver_pci_dev_t *pdev) {
         u32 ids = driver_pci_read_config(bus, dev, func, 0x00);
         u16 vid = (u16)(ids & 0xFFFF);
         u16 did = (u16)(ids >> 16);
-        int known = (vid == 0x8086);
-        for (unsigned i = 0; known && i < sizeof(driver_nic_ixgbe_ids) / sizeof(driver_nic_ixgbe_ids[0]); i++)
-            if (did == driver_nic_ixgbe_ids[i]) known = 1;
+        /* BUG-0336 (A8-8): match vid AND did (the old loop only set
+         * known, accepting any Intel function as an ixgbe NIC). */
+        int known = 0;
+        for (unsigned i = 0; i < sizeof(driver_nic_ixgbe_ids) / sizeof(driver_nic_ixgbe_ids[0]); i++)
+            if (vid == 0x8086 && did == driver_nic_ixgbe_ids[i]) { known = 1; break; }
         if (!known) return -1;
     } else {
         int found = 0;
@@ -340,7 +371,7 @@ static int driver_nic_ixgbe_ops_link(driver_nic_device_t *ndev) {
     (void)ndev;
     driver_nic_ixgbe_dev_t *d = &g_ixgbe;
     if (!d->up || !d->mmio) return -1;
-    return (ix_reg(d, IXGBE_STATUS) & IXGBE_STATUS_LNK) ? 1 : 0;
+    return (ix_reg(d, IXGBE_LINKS) & IXGBE_LINKS_UP) ? 1 : 0;
 }
 
 static int driver_nic_ixgbe_ops_mac(driver_nic_device_t *ndev, u8 mac[6]) {
@@ -364,7 +395,7 @@ void driver_nic_ixgbe_print_state(void) {
     u64_to_hex(d->dev, n, 2); strcat(line, n); strcat(line, ".");
     u64_to_hex(d->func, n, 1); strcat(line, n);
     strcat(line, " link=");
-    strcat(line, (ix_reg(d, IXGBE_STATUS) & IXGBE_STATUS_LNK) ? "up" : "down");
+    strcat(line, (ix_reg(d, IXGBE_LINKS) & IXGBE_LINKS_UP) ? "up" : "down");
     strcat(line, " tx=");
     u64_to_str(d->tx_packets, n); strcat(line, n);
     strcat(line, " rx=");

@@ -279,9 +279,11 @@ static int driver_nic_rtl8169_init_family(driver_nic_rtl8169_dev_t *d, const cha
         u32 ids_v = driver_pci_read_config(bus, dev, func, 0x00);
         u16 vid = (u16)(ids_v & 0xFFFF);
         u16 did = (u16)(ids_v >> 16);
-        int known = (vid == 0x10EC);
-        for (unsigned i = 0; known && i < n_ids; i++)
-            if (did == ids[i]) known = 1;
+        /* BUG-0336 (A8-8): match vid AND did (the old loop only ever set
+         * known, accepting any Realtek function as an 8169). */
+        int known = 0;
+        for (unsigned i = 0; i < n_ids; i++)
+            if (vid == 0x10EC && did == ids[i]) { known = 1; break; }
         if (!known) return -1;
     } else {
         int found = 0;

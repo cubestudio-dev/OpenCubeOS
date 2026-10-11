@@ -112,6 +112,7 @@ typedef struct {
     u8  bus, dev, func;
     int up;
     u64 tx_packets, rx_packets;
+    u64 tx_errors;   /* BUG-0328: failed sends (timeout / EC / LC) */
 } driver_nic_e1000e_dev_t;
 
 static driver_nic_e1000e_dev_t g_e1000e;
@@ -198,6 +199,11 @@ static int driver_nic_e1000e_setup(driver_nic_e1000e_dev_t *d, u8 bus, u8 dev, u
 
     u32 bar0 = driver_pci_read_bar(bus, dev, func, 0);
     if (bar0 == 0) return -1;
+    /* BUG-0332 (A8-14): driver_pci_read_bar strips the space-type bits, so
+     * the old bar0==0 check alone could not tell MMIO from an I/O BAR -
+     * an I/O base would be mapped and used as MMIO. Read the raw config
+     * dword and refuse I/O-space BAR0 outright. */
+    if (driver_pci_read_config(bus, dev, func, 0x10) & 0x1) return -1;
 
     driver_nic_e1000e_pci_enable(d);
     d->mmio = (volatile u32 *)(uintptr_t)bar0;
@@ -348,9 +354,19 @@ static int driver_nic_e1000e_ops_send(driver_nic_device_t *ndev, const void *buf
     mmio_write32((volatile void *)((u8 *)d->mmio + E1000E_TDT),
                  (u32)d->tx_tail);
 
-    /* Wait for the DD status bit (bounded). */
+    /* Wait for the DD status bit (bounded).
+     * BUG-0328 (A8-10): the wait result used to be ignored - a timeout
+     * (link down / device hung) still returned len and counted the frame,
+     * and TX error bits (EC/LC) were never looked at. Both now fail the
+     * send honestly. */
+    int ok = 0;
     for (int t = 0; t < 1000000; t++) {
-        if (d->tx_descs[slot].status & E1000E_TX_DD) break;
+        if (d->tx_descs[slot].status & E1000E_TX_DD) { ok = 1; break; }
+    }
+    if (!ok || (d->tx_descs[slot].status & 0x06)) {
+        /* 0x06 = EC (excess collisions) | LC (late collision) */
+        d->tx_errors++;
+        return -1;
     }
     d->tx_packets++;
     return len;
@@ -361,7 +377,24 @@ static int driver_nic_e1000e_ops_recv(driver_nic_device_t *ndev, void *buf, int 
     driver_nic_e1000e_dev_t *d = &g_e1000e;
     if (!d->up) return -1;
 
-    if (!(d->rx_descs[d->rx_tail].status & E1000E_RX_DD)) return 0;
+    u8 st = d->rx_descs[d->rx_tail].status;
+    if (!(st & E1000E_RX_DD)) return 0;
+    /* BUG-0335 (A8-17): drop frames the device flagged as bad (CRC /
+     * symbol / sequence / carrier errors - Linux's
+     * E1000_RXD_ERR_FRAME_ERR_MASK = 0x17) instead of handing corrupt
+     * data to the protocol stack. The descriptor is recycled exactly
+     * like a good frame. */
+    if (d->rx_descs[d->rx_tail].errors & 0x17) {
+        d->rx_descs[d->rx_tail].status = 0;
+        d->rx_descs[d->rx_tail].addr =
+            (u64)(uintptr_t)d->rx_bufs[d->rx_tail];
+        d->rx_descs[d->rx_tail].length = 0;
+        d->rx_descs[d->rx_tail].errors = 0;
+        d->rx_tail = (d->rx_tail + 1) % E1000E_NUM_DESC;
+        u32 rdt = (u32)((d->rx_tail + E1000E_NUM_DESC - 1) % E1000E_NUM_DESC);
+        mmio_write32((volatile void *)((u8 *)d->mmio + E1000E_RDT), rdt);
+        return 0;
+    }
 
     int len = d->rx_descs[d->rx_tail].length;
     if (len > maxlen) len = maxlen;

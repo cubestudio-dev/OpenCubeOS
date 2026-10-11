@@ -343,6 +343,20 @@ static int driver_snd_ac97_ops_stop(driver_snd_device_t *sdev) {
     for (int t = 0; t < 100000; t++) {
         if (driver_snd_ac97_inw(d->nabm + AC97_PO_BASE + AC97_SR) & AC97_SR_DCH) break;
     }
+    /* BUG-0340 (A9-10, AC97 half): stop() left the engine position
+     * registers (CIV/LVI/PIV/PICB) untouched while clearing the
+     * software sw_pos, so the next play() computed a bogus inflight
+     * count from a stale hardware position (the play loop then either
+     * hung forever on a full ring or the ring tail was replayed first).
+     * Writing CR.RR resets the whole bus-master register set
+     * (verified against QEMU hw/audio/ac97.c nabm_writeb: CR_RR ->
+     * reset_bm_regs -> civ=lvi=piv=picb=0; the Intel 82801 spec
+     * defines the same reset semantics).  RR also clears RPBM/IOCE;
+     * stream_start() rewrites both on the next play. */
+    driver_snd_ac97_outb(d->nabm + AC97_PO_BASE + AC97_CR, AC97_CR_RR);
+    for (int t = 0; t < 100000; t++) {
+        if (!(driver_snd_ac97_inb(d->nabm + AC97_PO_BASE + AC97_CR) & AC97_CR_RR)) break;
+    }
     d->running = 0;
     d->sw_pos = 0;
     sdev->irqs = d->irq_count;

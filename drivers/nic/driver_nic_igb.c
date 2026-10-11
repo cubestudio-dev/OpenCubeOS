@@ -71,7 +71,12 @@ static inline void mmio_write32(volatile void *p, u32 v) { *(volatile u32 *)p = 
 #define IGB_Q_DCTL  0x28   /* RXDCTL / TXDCTL (queue enable, bit 25) */
 
 #define IGB_SRRCTL_DESCTYPE_ADV_ONEBUF  0x02000000u
-#define IGB_SRRCTL_BSIZEPKT_2KB         (2u << 10)
+/* BUG-0333 (A8-15): resolved against Linux e1000_82575.h -
+ * E1000_SRRCTL_BSIZEPKT_SHIFT is 10 and Linux programs the field as
+ * `buf_size >> E1000_SRRCTL_BSIZEPKT_SHIFT`, i.e. the field holds the
+ * buffer size in 1 KiB units IN PLACE (a 2 KiB buffer is the plain
+ * value 2). The old (2u << 10) landed the 2 in the BSIZEHDR field. */
+#define IGB_SRRCTL_BSIZEPKT_2KB         2u
 
 #define IGB_Q_ENABLE    0x02000000u  /* RXDCTL/TXDCTL queue-enable bit 25 */
 
@@ -118,6 +123,7 @@ typedef struct {
     u8 *rx_bufs[IGB_NUM_QUEUES][IGB_NUM_DESC];
     int rx_tail;
     int tx_tail;
+    u8  tx_inflight[IGB_NUM_DESC];   /* BUG-0337: slot has an armed descriptor */
     u8  bus, dev, func;
     int up;
     u8  mac[6];
@@ -209,7 +215,10 @@ static int driver_nic_igb_setup(driver_nic_igb_dev_t *d, u8 bus, u8 dev, u8 func
     d->bus = bus; d->dev = dev; d->func = func;
 
     u32 bar0 = driver_pci_read_bar(bus, dev, func, 0);
-    if (!bar0 || (bar0 & 0x1)) return -1;   /* needs MMIO */
+    if (!bar0) return -1;   /* needs MMIO */
+    /* BUG-0332 (A8-14): read_bar strips the space-type bits, so the old
+     * (bar0 & 0x1) test could never fire. Check the raw config dword. */
+    if (driver_pci_read_config(bus, dev, func, 0x10) & 0x1) return -1;
     driver_nic_igb_pci_enable(d);
     d->mmio = (volatile u32 *)(uintptr_t)(bar0 & 0xFFFFFFF0);
 
@@ -304,9 +313,12 @@ int driver_nic_igb_init(driver_pci_dev_t *pdev) {
         u32 ids = driver_pci_read_config(bus, dev, func, 0x00);
         u16 vid = (u16)(ids & 0xFFFF);
         u16 did = (u16)(ids >> 16);
-        int known = (vid == 0x8086);
-        for (unsigned i = 0; known && i < sizeof(driver_nic_igb_ids) / sizeof(driver_nic_igb_ids[0]); i++)
-            if (did == driver_nic_igb_ids[i]) known = 1;
+        /* BUG-0336 (A8-8): the loop only ever SET known, never cleared
+         * it - the whitelist degraded to "any Intel device" and probed
+         * AHCI/VGA BARs as NIC registers. Match vid AND did properly. */
+        int known = 0;
+        for (unsigned i = 0; i < sizeof(driver_nic_igb_ids) / sizeof(driver_nic_igb_ids[0]); i++)
+            if (vid == 0x8086 && did == driver_nic_igb_ids[i]) { known = 1; break; }
         if (!known) return -1;
     } else {
         int found = 0;
@@ -356,10 +368,15 @@ static int driver_nic_igb_ops_send(driver_nic_device_t *ndev, const void *buf, i
     if (!d->up || len <= 0 || len > IGB_BUF_SIZE) return -1;
 
     int slot = d->tx_tail;
-    /* Wait until the descriptor write-back shows DD (done). */
-    for (int t = 0; t < 1000000; t++) {
-        if (d->tx_descs[0][slot].olinfo_status & IGB_STAT_DD) break;
-    }
+    /* BUG-0337 (A8-9): the pre-wait spun a million volatile reads for
+     * EVERY slot's first use (descriptors start zeroed, DD can never be
+     * set) and again after every TX timeout. Skip the wait for slots
+     * with no descriptor in flight; the post-wait below is the real
+     * completion check. */
+    if (d->tx_inflight[slot])
+        for (int t = 0; t < 1000000; t++) {
+            if (d->tx_descs[0][slot].olinfo_status & IGB_STAT_DD) break;
+        }
     memcpy(d->tx_bufs[0][slot], buf, len);
     d->tx_descs[0][slot].addr = (u64)(uintptr_t)d->tx_bufs[0][slot];
     d->tx_descs[0][slot].olinfo_status = 0;
@@ -370,13 +387,17 @@ static int driver_nic_igb_ops_send(driver_nic_device_t *ndev, const void *buf, i
         IGB_TXD_CMD_EOP | IGB_TXD_CMD_IFCS | IGB_TXD_CMD_RS;
 
     d->tx_tail = (d->tx_tail + 1) % IGB_NUM_DESC;
+    d->tx_inflight[slot] = 1;
     driver_nic_igb_wreg(d, IGB_TXQ_BASE(0) + IGB_Q_DT, (u32)d->tx_tail);
 
-    /* Wait for the write-back DD bit (RS was set). */
+    /* Wait for the write-back DD bit (RS was set).
+     * BUG-0328-style honest failure: a timeout returns -1 instead of
+     * reporting success (the old code path counted the frame as sent). */
     int ok = 0;
     for (int t = 0; t < 1000000; t++) {
         if (d->tx_descs[0][slot].olinfo_status & IGB_STAT_DD) { ok = 1; break; }
     }
+    d->tx_inflight[slot] = 0;
     if (ok) d->tx_packets++;
     return ok ? len : -1;
 }
@@ -389,6 +410,21 @@ static int driver_nic_igb_ops_recv(driver_nic_device_t *ndev, void *buf, int max
 
     volatile driver_nic_igb_rx_desc_t *desc = &d->rx_descs[0][d->rx_tail];
     if (!(desc->wb.status_error & IGB_STAT_DD)) return 0;
+    /* BUG-0335 (A8-17): drop error-flagged frames (the same 0x17 CRC /
+     * symbol / sequence / carrier-error mask the e1000e path uses)
+     * instead of feeding corrupt frames to the stack. */
+    if (desc->wb.status_error & 0x17) {
+        desc->wb.status_error = 0;
+        desc->wb.length = 0;
+        desc->wb.vlan = 0;
+        desc->hdr_addr = 0;
+        desc->pkt_addr = (u64)(uintptr_t)d->rx_bufs[0][d->rx_tail];
+        __asm__ volatile("sfence" ::: "memory");
+        d->rx_tail = (d->rx_tail + 1) % IGB_NUM_DESC;
+        u32 rdt = (u32)((d->rx_tail + IGB_NUM_DESC - 1) % IGB_NUM_DESC);
+        driver_nic_igb_wreg(d, IGB_RXQ_BASE(0) + IGB_Q_DT, rdt);
+        return 0;
+    }
 
     int len = desc->wb.length;
     if (len > maxlen) len = maxlen;

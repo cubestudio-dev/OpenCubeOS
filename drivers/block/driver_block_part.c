@@ -105,17 +105,46 @@ int driver_block_part_parse_mbr(int dev_idx, driver_block_part_table_t *out) {
     return 0;
 }
 
+/* BUG-0309 (A6-13): IEEE CRC32 (bitwise, same polynomial as gzip) used
+ * for the GPT header and partition-entry-array checksums. */
+static u32 driver_block_part_crc32(const u8 *buf, u64 len) {
+    u32 crc = 0xFFFFFFFFu;
+    for (u64 i = 0; i < len; i++) {
+        crc ^= buf[i];
+        for (int k = 0; k < 8; k++)
+            crc = (crc >> 1) ^ (0xEDB88320u & (u32)(-(int)(crc & 1)));
+    }
+    return ~crc;
+}
+
 int driver_block_part_parse_gpt(int dev_idx, driver_block_part_table_t *out) {
     if (!out) return -1;
     memset(out, 0, sizeof(*out));
     out->dev_idx = dev_idx;
     out->table_type = PART_TYPE_GPT;
 
+    /* BUG-0309 (A6-13): the parent capacity for the per-entry range check. */
+    driver_block_device_t *pdev = driver_block_get_device(dev_idx);
+    u64 disk_sectors = pdev ? pdev->sectors : 0;
+
     u8 buf[512];
     /* Read GPT header at LBA 1. */
     if (driver_block_read_sectors_raw(dev_idx, 1, 1, buf) != 0) return -1;
     gpt_header_t *gh = (gpt_header_t *)buf;
     if (memcmp(gh->sig, "EFI PART", 8) != 0) return -1;
+
+    /* BUG-0309 (A6-13): validate the header before trusting any field in
+     * it. Header CRC covers HeaderSize bytes with the CRC field zeroed;
+     * my_lba must reference this header's own LBA (1). */
+    if (gh->header_size < 92 || gh->header_size > 512) return -1;
+    {
+        u32 stored = gh->header_crc32;
+        gh->header_crc32 = 0;
+        u32 calc = driver_block_part_crc32(buf, gh->header_size);
+        gh->header_crc32 = stored;
+        if (calc != stored) return -1;
+        if (gh->my_lba != 1) return -1;
+    }
 
     u32 num_entries = gh->num_entries;
     u32 entry_size = gh->entry_size;
@@ -142,8 +171,24 @@ int driver_block_part_parse_gpt(int dev_idx, driver_block_part_table_t *out) {
         need = (u64)num_entries * (u64)entry_size;
     }
     u32 sectors_to_read = (u32)((need + 511) / 512);
+    /* BUG-0309 (A6-13): when the FULL on-disk entry array (spec size)
+     * fits the buffer, read enough sectors to verify its CRC32 even if
+     * the clamped entry count reads fewer. */
+    u64 spec_bytes = (u64)gh->num_entries * (u64)gh->entry_size;
+    if (spec_bytes > need && spec_bytes <= sizeof(entry_buf))
+        sectors_to_read = (u32)((spec_bytes + 511) / 512);
     if (sectors_to_read > 8) sectors_to_read = 8;
     if (driver_block_read_sectors_raw(dev_idx, entry_start, sectors_to_read, entry_buf) != 0) return -1;
+    /* BUG-0309 (A6-13): the partition entry array carries its own CRC32.
+     * The spec CRC covers num_entries*entry_size bytes; the checksum is
+     * enforced whenever the whole array fits the bytes actually read.
+     * A WRONG CRC means a torn array - refuse the table instead of
+     * registering phantom partitions. Zero is tolerated (some tools
+     * leave it 0). */
+    if (gh->entries_crc32 != 0 &&
+        spec_bytes <= (u64)sectors_to_read * 512 &&
+        driver_block_part_crc32(entry_buf, spec_bytes) != gh->entries_crc32)
+        return -1;
 
     for (u32 i = 0; i < num_entries; i++) {
         gpt_entry_t *e = (gpt_entry_t *)(entry_buf + (u64)i * entry_size);
@@ -153,6 +198,12 @@ int driver_block_part_parse_gpt(int dev_idx, driver_block_part_table_t *out) {
             if (e->type_guid[j] != 0) { used = 1; break; }
         }
         if (!used) continue;
+        /* BUG-0309 (A6-13): reject inverted/empty/out-of-disk entries.
+         * last_lba < first_lba previously wrapped sectors into a ~2^64
+         * monstrosity, and nothing cross-checked the entry against the
+         * disk capacity (the MBR path already did). */
+        if (e->first_lba == 0 || e->last_lba < e->first_lba) continue;
+        if (disk_sectors != 0 && e->last_lba >= disk_sectors) continue;
         if (out->count >= PART_MAX_PARTITIONS) break;
         partition_t *p = &out->parts[out->count];
         p->present = 1;
@@ -204,12 +255,20 @@ typedef struct {
 static int driver_block_part_child_read(driver_block_device_t *dev, u64 lba, u32 count, void *buf) {
     driver_block_part_child_priv_t *p = (driver_block_part_child_priv_t *)dev->priv;
     if (!p) return -1;
+    /* BUG-0310 (A6-14): the child registered `sectors` but never enforced
+     * it - I/O past the partition end went straight to the parent disk and
+     * could read/write into other partitions. Overflow-safe range check. */
+    if (count == 0) return 0;
+    if (lba >= dev->sectors || (u64)count > dev->sectors - lba) return -1;
     return driver_block_read_sectors_raw(p->parent_idx, p->start_lba + lba, count, buf);
 }
 
 static int driver_block_part_child_write(driver_block_device_t *dev, u64 lba, u32 count, const void *buf) {
     driver_block_part_child_priv_t *p = (driver_block_part_child_priv_t *)dev->priv;
     if (!p) return -1;
+    /* BUG-0310 (A6-14): same partition-bounds enforcement as the read path. */
+    if (count == 0) return 0;
+    if (lba >= dev->sectors || (u64)count > dev->sectors - lba) return -1;
     return driver_block_write_sectors_raw(p->parent_idx, p->start_lba + lba, count, buf);
 }
 

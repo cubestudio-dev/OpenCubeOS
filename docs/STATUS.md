@@ -3,10 +3,10 @@
 
 # Open Cube OS - Project Status
 
-Updated 2026-10-09 at WP-10-AUDIT_P2-fix3. All 15 work packages are
-COMPLETE; the auxiliary batches are shipped; the P2 audit batch fix3 is
-COMPLETE - all 53 items landed on main and released (see Audit batches
-below).
+Updated 2026-10-11 at WP-10-AUDIT_P2-fix4. All 15 work packages are
+COMPLETE; the auxiliary batches are shipped; the P2 audit batches fix1
+through fix4 are COMPLETE - all 214 P2 items landed on main and released
+(see Audit batches below).
 
 ## Work-package coverage (15/15 COMPLETE)
 
@@ -65,6 +65,33 @@ The L1 interface numbering 1-138 closes at WP-10-wp08fix1
   remains the authoritative per-finding tracker.
   Regression baseline: 18/18 + the dyn/FS/net/crypto gates (boot banner
   self-reports 176 commands).
+- **WP-10-AUDIT_P2-fix4** - COMPLETE: the final 55 P2 items
+  (BUG-0295..0349) fixed in eight groups (G1 d01bf5a, G2 8a08d40, G3
+  a4ba09d, G4 c106755, G5 dd0882f, G6 239f298, G7 147adc7, G8 c11c2ee)
+  + the regression harness restored into the repo (95195ed). Highlights:
+  crypto fail-closed paths (ECDSA on-curve check, X25519 all-zero shared
+  secret per RFC 8446, BN bounds before write, zeroed key material on
+  allocation failure); HDA BDL encoding resolved against QEMU v10.0.2
+  source with a runtime spec switch (config hda.bdl=spec) for real ICH
+  silicon; AC97 stop resets the engine via CR.RR (no more ring-tail
+  replay/wedge); SB16 ISA-DMA 128 KiB-boundary + 16 MiB validation;
+  ES1370 volume rewritten for the AK4531 codec (FreeBSD es137x.c
+  reference); IRQ-registration failure no longer brings a device up;
+  nano redraw rebuilt (one repaint + explicit cursor move - the old
+  print-head trick painted every line twice and cut it at the cursor);
+  echo is a pure text command (quoted '>' args no longer treated as
+  redirection); sleep means delay (+2.1/+4.1 s measured); checkupdate
+  false alarm fixed (numeric build id + git-describe descendant
+  fallback, four-scenario QEMU E2E); help -a 176 == 176 static sites,
+  two-way diff empty; dhtest completes 5/5 in the sandbox. The fix3
+  release ISO was rebuilt AFTER its tag (the shipped one predated the
+  tag and showed fix2b-24-g6ee810b in uname); the rebuilt ISO shows
+  WP-10-AUDIT_P2-fix3 and replaced the Release asset, the site
+  /downloads/ copy and the private archive. Gate: regression 28/28
+  (tools/run_fix4_regression.py), SSH E2E 5/5, HTTPS E2E 7/7
+  (tools/run_fix4_https_e2e.py), dhtest 5/5, 0 errors 0 warnings.
+  `docs/audit/bugs_final.json` remains the authoritative per-finding
+  tracker.
 
 ---
 

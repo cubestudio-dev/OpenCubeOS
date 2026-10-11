@@ -7,6 +7,7 @@
 #include "driver_block_cache.h"
 #include "driver_block_blk.h"
 #include "core_timer.h"
+#include "core_sync.h"
 #include "mem_heap.h"
 #include "lib_string.h"
 #include "screen_console.h"
@@ -14,12 +15,23 @@
 static driver_block_cache_slot_t g_cache[BLK_CACHE_SLOTS];
 static driver_block_cache_stats_t g_cache_stats;
 static u64 g_cache_clock = 0;   /* monotonic counter for LRU */
+/* BUG-0314 (A6-18): the whole cache used to be lock-free - find_slot /
+ * pick_victim / g_cache_clock / eviction write-backs raced between tasks
+ * (double write-back, lost dirty pages). The block cache can be reached
+ * from several task contexts (shell I/O, OTA installer, L1), so every
+ * public operation now runs under one irqsave spinlock (BUG-0285
+ * semantics). Raw device I/O inside pick_victim/flush uses the RAW path,
+ * which never re-enters this lock, so the critical sections are flat. */
+static spinlock_t g_cache_lock;
 
 void driver_block_cache_init(void) {
+    spin_init(&g_cache_lock);
+    spin_lock(&g_cache_lock);
     memset(g_cache, 0, sizeof(g_cache));
     memset(&g_cache_stats, 0, sizeof(g_cache_stats));
     for (int i = 0; i < BLK_CACHE_SLOTS; i++) g_cache[i].dev_idx = -1;
     g_cache_clock = 0;
+    spin_unlock(&g_cache_lock);
 }
 
 static int find_slot(int dev_idx, u64 lba) {
@@ -68,19 +80,23 @@ static int pick_victim(void) {
 }
 
 int driver_block_cache_read(int dev_idx, u64 lba, void *buf) {
+    spin_lock(&g_cache_lock);
     int s = find_slot(dev_idx, lba);
     if (s < 0) {
         g_cache_stats.misses++;
+        spin_unlock(&g_cache_lock);
         return -1;   /* miss — caller reads from disk and calls insert */
     }
     g_cache_clock++;
     g_cache[s].last_used = g_cache_clock;
     memcpy(buf, g_cache[s].data, 512);
     g_cache_stats.hits++;
+    spin_unlock(&g_cache_lock);
     return 0;
 }
 
 int driver_block_cache_write(int dev_idx, u64 lba, const void *buf) {
+    spin_lock(&g_cache_lock);
     int s = find_slot(dev_idx, lba);
     if (s < 0) {
         s = pick_victim();
@@ -88,7 +104,9 @@ int driver_block_cache_write(int dev_idx, u64 lba, const void *buf) {
          * NOT index g_cache[-1]: fall back to write-through so the data
          * reaches the device and the error propagates to the caller. */
         if (s < 0) {
-            return driver_block_write_sectors_raw(dev_idx, lba, 1, buf);
+            int rc = driver_block_write_sectors_raw(dev_idx, lba, 1, buf);
+            spin_unlock(&g_cache_lock);
+            return rc;
         }
         g_cache[s].dev_idx = dev_idx;
         g_cache[s].lba = lba;
@@ -98,17 +116,22 @@ int driver_block_cache_write(int dev_idx, u64 lba, const void *buf) {
     g_cache[s].last_used = g_cache_clock;
     memcpy(g_cache[s].data, buf, 512);
     g_cache[s].dirty = 1;
+    spin_unlock(&g_cache_lock);
     return 0;
 }
 
 int driver_block_cache_insert(int dev_idx, u64 lba, const void *buf) {
+    spin_lock(&g_cache_lock);
     int s = find_slot(dev_idx, lba);
     if (s < 0) {
         s = pick_victim();
         /* BUG-0116 FIX: honour pick_victim failure instead of writing
          * g_cache[-1]. The caller already has the data, so a failed
          * insert only means "not cached". */
-        if (s < 0) return -1;
+        if (s < 0) {
+            spin_unlock(&g_cache_lock);
+            return -1;
+        }
         g_cache[s].dev_idx = dev_idx;
         g_cache[s].lba = lba;
     }
@@ -116,35 +139,45 @@ int driver_block_cache_insert(int dev_idx, u64 lba, const void *buf) {
     g_cache[s].last_used = g_cache_clock;
     memcpy(g_cache[s].data, buf, 512);
     g_cache[s].dirty = 0;
+    spin_unlock(&g_cache_lock);
     return 0;
 }
 
 int driver_block_cache_flush_dev(int dev_idx) {
+    spin_lock(&g_cache_lock);
     for (int i = 0; i < BLK_CACHE_SLOTS; i++) {
         if (g_cache[i].dev_idx == dev_idx && g_cache[i].dirty) {
-            if (driver_block_write_sectors_raw(dev_idx, g_cache[i].lba, 1, g_cache[i].data) != 0)
+            if (driver_block_write_sectors_raw(dev_idx, g_cache[i].lba, 1, g_cache[i].data) != 0) {
+                spin_unlock(&g_cache_lock);
                 return -1;
+            }
             g_cache[i].dirty = 0;
             g_cache_stats.writebacks++;
         }
     }
+    spin_unlock(&g_cache_lock);
     return 0;
 }
 
 int driver_block_cache_flush(void) {
+    spin_lock(&g_cache_lock);
     for (int i = 0; i < BLK_CACHE_SLOTS; i++) {
         if (g_cache[i].dev_idx != -1 && g_cache[i].dirty) {
-            if (driver_block_write_sectors_raw(g_cache[i].dev_idx, g_cache[i].lba, 1, g_cache[i].data) != 0)
+            if (driver_block_write_sectors_raw(g_cache[i].dev_idx, g_cache[i].lba, 1, g_cache[i].data) != 0) {
+                spin_unlock(&g_cache_lock);
                 return -1;
+            }
             g_cache[i].dirty = 0;
             g_cache_stats.writebacks++;
         }
     }
+    spin_unlock(&g_cache_lock);
     return 0;
 }
 
 void driver_block_cache_get_stats(driver_block_cache_stats_t *out) {
     if (out) {
+        spin_lock(&g_cache_lock);
         *out = g_cache_stats;
         /* BUG-015 FIX: Compute used count by scanning slots.
          * Old code never set this field, so lsblk always showed 0/64. */
@@ -152,5 +185,6 @@ void driver_block_cache_get_stats(driver_block_cache_stats_t *out) {
         for (int i = 0; i < BLK_CACHE_SLOTS; i++) {
             if (g_cache[i].dev_idx != -1) out->used++;
         }
+        spin_unlock(&g_cache_lock);
     }
 }

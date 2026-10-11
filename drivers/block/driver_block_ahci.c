@@ -425,11 +425,13 @@ static int driver_block_ahci_port_identify(driver_block_ahci_port_t *p) {
         driver_block_ahci_log(buf);
         return -1;
     }
-    /* Capacity: words 100/101 (48-bit LBA user-addressable sectors). */
+    /* Capacity: words 100-103 (48-bit LBA user-addressable sectors).
+     * BUG-0316 (A6-8): only words 100/101 were consumed - bits 47:32 live
+     * in words 102/103, so a >2 TiB SATA disk reported a wrapped 32-bit
+     * capacity and its tail was unreachable. */
     u16 *id = (u16 *)p->bounce;
-    u64 lo = id[100];
-    u64 hi = id[101];
-    p->sectors = lo | (hi << 16);
+    p->sectors = (u64)id[100] | ((u64)id[101] << 16) |
+                 ((u64)id[102] << 32) | ((u64)id[103] << 48);
     /* Fall back to 28-bit capacity (words 60/61) if EXT is 0. */
     if (p->sectors == 0) {
         p->sectors = (u64)id[60] | ((u64)id[61] << 16);

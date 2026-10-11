@@ -452,11 +452,17 @@ static int driver_snd_virtio_ops_play(driver_snd_device_t *sdev, const void *buf
 
     const u8 *src = (const u8 *)buf;
     int sent = 0;
+    /* BUG-0338 (A9-07): the tail used to be rounded UP to 4 bytes and
+     * copied past the caller buffer. The PCM frame here is 4 bytes
+     * (S16 stereo), so refuse odd lengths, submit whole frames only and
+     * stop before a trailing 2-byte half-frame - the return value
+     * reports exactly what was consumed. */
+    if (len < 0 || (len & 1)) return -1;
     while (sent < len) {
         u32 chunk = (u32)(len - sent);
         if (chunk > 16384) chunk = 16384;
         chunk &= ~3u;
-        if (chunk < 4) chunk = 4;
+        if (chunk < 4) break;   /* trailing half-frame: not submittable */
         memcpy(d->tx_buf, src + sent, chunk);
 
         driver_snd_virtio_pcm_xfer_t xfer;

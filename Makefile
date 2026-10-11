@@ -47,6 +47,12 @@ SEABIOS_DIR  ?= $(OC_TOOLS)/share/seabios
 # test. Release builds: tag BEFORE the final build (git tag
 # WP-10-AUDIT_P2-fix2) so the baked string equals the Release tag.
 OC_RELEASE_VERSION ?= $(shell git -C $(OC_ROOT) describe --tags 2>/dev/null || echo dev)
+# BUG-0347 (RUNTIME): monotonic build id baked into the kernel and
+# published by the server-side version.json - makes the update check a
+# numeric comparison instead of a string equality (see ota_update.h).
+# "git rev-list --count HEAD" of the built tree; override for tests:
+#   make OC_KERNEL_BUILD=42
+OC_KERNEL_BUILD ?= $(shell git -C $(OC_ROOT) rev-list --count HEAD 2>/dev/null || echo 0)
 
 # ---- Source tree (WP-10-project_restructure-fix1 layout) ----
 # One folder per module.  All include paths are exported to the compiler so
@@ -89,7 +95,7 @@ CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
              -fno-asynchronous-unwind-tables -Wall -Wextra -Werror \
              -O2 -g -std=gnu11 $(KERNEL_INC) \
              -DOC_RELEASE_VERSION=\"$(OC_RELEASE_VERSION)\" \
-             -DOC_KERNEL_BUILD=1 \
+             -DOC_KERNEL_BUILD=$(OC_KERNEL_BUILD) \
              -MMD -MP
 ASFLAGS   := -f elf64 -F dwarf -g
 LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/linker.ld -z max-page-size=0x1000 -z noexecstack

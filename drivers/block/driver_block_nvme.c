@@ -184,6 +184,7 @@ typedef struct {
     u64 mmio_base;
     u32 dstrd;          /* doorbell stride: 4 << dstrd bytes per doorbell */
     u16 mqes;           /* max queue entries (size = mqes+1) */
+    u32 admin_qsize;    /* BUG-0317: admin queue depth, clamped to MQES+1 */
 
     /* Admin queue (qid=0). */
     driver_block_nvme_sqe_t *asq;
@@ -295,7 +296,7 @@ static int driver_block_nvme_admin_cmd(driver_block_nvme_dev_t *d, driver_block_
      * already TSO, but be explicit for the compiler). */
     __asm__ volatile("" ::: "memory");
     memcpy(&d->asq[d->asq_tail], cmd, sizeof(driver_block_nvme_sqe_t));
-    d->asq_tail = (u16)((d->asq_tail + 1) % NVME_ADMIN_QSIZE);
+    d->asq_tail = (u16)((d->asq_tail + 1) % d->admin_qsize);
     /* Doorbell write is volatile -> full barrier on x86. */
     driver_block_nvme_write(d, driver_block_nvme_sq_db(d, 0), d->asq_tail);
 
@@ -311,7 +312,7 @@ static int driver_block_nvme_admin_cmd(driver_block_nvme_dev_t *d, driver_block_
         u16 sc  = (u16)((status >> 1) & 0x7FFFu);
 
         /* Consume this CQE. */
-        d->acq_head = (u16)((d->acq_head + 1) % NVME_ADMIN_QSIZE);
+        d->acq_head = (u16)((d->acq_head + 1) % d->admin_qsize);
         if (d->acq_head == 0) d->acq_phase ^= 1;
         driver_block_nvme_write(d, driver_block_nvme_cq_db(d, 0), d->acq_head);
 
@@ -422,6 +423,13 @@ int driver_block_nvme_init(driver_pci_dev_t *pdev) {
     u32 cap_hi = driver_block_nvme_read(&g_nvme, NVME_REG_CAP + 4);
     u64 cap = (u64)cap_lo | ((u64)cap_hi << 32);
     g_nvme.mqes  = (u16)NVME_CAP_MQES(cap);
+    /* BUG-0317 (A6-9): the ADMIN queue is bounded by CAP.MQES exactly like
+     * the I/O queues (BUG-0114) - the old code always programmed AQA for
+     * 64 entries, which is undefined behavior (often a never-ready CC.EN)
+     * on controllers whose MQES < 63. */
+    g_nvme.admin_qsize = NVME_ADMIN_QSIZE;
+    if ((u32)g_nvme.mqes + 1u < g_nvme.admin_qsize)
+        g_nvme.admin_qsize = (u32)g_nvme.mqes + 1u;
     g_nvme.dstrd = (u32)NVME_CAP_DSTRD(cap);
     driver_block_nvme_log_hex("nvme: CAP=0x", cap, "\n");
     driver_block_nvme_log_dec("nvme: MQES=", g_nvme.mqes, "");
@@ -440,22 +448,22 @@ int driver_block_nvme_init(driver_pci_dev_t *pdev) {
 
     /* Allocate admin queues (page-aligned). */
     g_nvme.asq = (driver_block_nvme_sqe_t *)driver_block_nvme_kmalloc_page_aligned(
-        NVME_ADMIN_QSIZE * sizeof(driver_block_nvme_sqe_t));
+        g_nvme.admin_qsize * sizeof(driver_block_nvme_sqe_t));
     g_nvme.acq = (driver_block_nvme_cqe_t *)driver_block_nvme_kmalloc_page_aligned(
-        NVME_ADMIN_QSIZE * sizeof(driver_block_nvme_cqe_t));
+        g_nvme.admin_qsize * sizeof(driver_block_nvme_cqe_t));
     if (!g_nvme.asq || !g_nvme.acq) {
         driver_block_nvme_log("nvme: out of memory (admin queue)\n");
         return -1;
     }
-    memset(g_nvme.asq, 0, NVME_ADMIN_QSIZE * sizeof(driver_block_nvme_sqe_t));
-    memset(g_nvme.acq, 0, NVME_ADMIN_QSIZE * sizeof(driver_block_nvme_cqe_t));
+    memset(g_nvme.asq, 0, g_nvme.admin_qsize * sizeof(driver_block_nvme_sqe_t));
+    memset(g_nvme.acq, 0, g_nvme.admin_qsize * sizeof(driver_block_nvme_cqe_t));
     g_nvme.asq_tail   = 0;
     g_nvme.acq_head   = 0;
     g_nvme.acq_phase  = 1;   /* first completion phase after CC.EN=1 */
     g_nvme.admin_cid  = 1;
 
     /* Program AQA, ASQ, ACQ. */
-    u32 aqa = ((NVME_ADMIN_QSIZE - 1u) << 16) | (NVME_ADMIN_QSIZE - 1u);
+    u32 aqa = ((g_nvme.admin_qsize - 1u) << 16) | (g_nvme.admin_qsize - 1u);
     driver_block_nvme_write(&g_nvme, NVME_REG_AQA, aqa);
     {
         u64 asq_phys = (u64)(uintptr_t)g_nvme.asq;

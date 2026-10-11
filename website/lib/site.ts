@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10-AUDIT_P2-fix3 value
+// Central site data. Every number is a real WP-10-AUDIT_P2-fix4 value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
 // docs/EXTENSIONS_WP10-wp08fix1.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub WP-10-AUDIT_P2-fix3 tag + this site /downloads/
+// 3-way identical: local build + GitHub WP-10-AUDIT_P2-fix4 tag + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix3";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix4";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub WP-10-AUDIT_P2-fix3 tag + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-10-AUDIT_P2-fix3.iso";
-export const ISO_SIZE_B = 11446272;
-export const ISO_SIZE_MB = "10.91";
+// Real assets (build/ + GitHub WP-10-AUDIT_P2-fix4 tag + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-WP-10-AUDIT_P2-fix4.iso";
+export const ISO_SIZE_B = 11454464;
+export const ISO_SIZE_MB = "10.92";
 export const ISO_SHA256 =
-  "aa900f2d92f33a8c9393f3182a2800f056563deb1973158ea7a6863c2b98062e";
+  "3fbb69a57e02441a62996d62ecdefa5ba21ea4ea3442f00e70e7f2c0ca4b852d";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-10-AUDIT_P2-fix3-src.zip";
-export const SRC_SIZE_B = 2891545;
-export const SRC_SIZE_MB = "2.75";
+export const SRC_FILE = "opencube-WP-10-AUDIT_P2-fix4-src.zip";
+export const SRC_SIZE_B = 2926443;
+export const SRC_SIZE_MB = "2.79";
 export const SRC_SHA256 =
-  "e5eff00a39cd41e52e664cba0b5271a9b0ae80735232ce581e88c2c93bd06e8e";
+  "f696064951e48893eacedb52f4e320b3d90d8b330815917e6d917b0b22d823f8";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // NOTE: the former STATS export lived here unreferenced (A18-5): HomeView
@@ -41,6 +41,11 @@ export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // WP-AUDIT-01 (607-finding audit + all 41 P0 fixes + all 94 P1 fixes: p1fix1 items 1..31 + p1fix2 items 32..62 + p1fix3 items 63..94 + the p1fix4 HTTPS E2E fix + the WP-10-AUDIT_P2-fix1 batch-1 P2 fixes, items 1..53) leads the user-facing list
 export const FEATURES = [
+  {
+    name: "P2 第四批 55 条（BUG-0295..0349）全部修复完成 + fix3 ISO 版本串重建",
+    tag: "WP-10-AUDIT_P2-fix4",
+    desc: "P2 第 160..214 条（55/55）分八组落地（G1..G8：crypto fail-closed 4 / tar+install+download 6 / A/B 启动预算 1 / 块层 9 / ATA-AHCI-NVMe 3 / 控制台输入 PCI 锁 10 / NIC 10 / 声卡+shell+版本 12），每条附修复前后证据与 FAIL→PASS 复现测试；crypto：ECDSA 公钥在曲线上校验、X25519 全零共享密钥按 RFC 8446 拒绝、BN 上限先于写入、分配失败密钥材料清零；HDA BDL 编码对照 QEMU v10.0.2 源码裁决（dword2=明文长度、dword3 bit0=IOC），真机按 Intel HDA 1.0a 规范编码经运行时 config 'hda.bdl'='spec' 切换；AC97 stop 用 CR.RR 复位引擎位置（stop→play 不再重放环尾/卡死）；SB16 ISA DMA 128KiB 边界/16MiB 限界校验、ES1370 音量按 AK4531 编码（对照 FreeBSD es137x.c：等 CSTAT、(index<<8)|data、vol<7 为 0x80 静音否则 31-(vol-7)/3）；IRQ 注册失败设备不上线；nano 重绘重构（每键一次完整重绘 + 显式光标定位，串口证据 before 两次重绘含截断 / after 一次完整）；echo 引号参数字面输出（处理器内 '>' 死代码扫描移除，QEMU before cannot open file / after 正确且真重定向回归不受影响）；sleep 改延时语义（实测 +2.1/+4.1s）；checkupdate 误报根治（数字 build 号 + git describe 后代识别，QEMU 四场景 before 误报 after 全对，真新版本仍正确报新）；help -a 176=176 静态注册双向 diff 空；dhtest 沙箱完整 5/5；fix3 发布 ISO 因构建早于 tag 导致 uname 显示旧版本串——按规范在 tag 之后干净重建并三处同步（Release + /downloads/ + 归档），uname 实测 WP-10-AUDIT_P2-fix3；回归 harness 入库（run_fix4_regression.py 28/28 + run_fix4_https_e2e.py 7/7），SSH E2E 5/5、dhtest 5/5，0 errors 0 warnings。",
+  },
   {
     name: "P2 第三批 53 条（BUG-0242..0294）全部修复 + 内核 #UD 根因修复完成",
     tag: "WP-10-AUDIT_P2-fix3",

@@ -12,6 +12,7 @@
 #include "arch_idt.h"
 #include "arch_pic.h"
 #include "arch_irq.h"
+#include "core_sync.h"
 #include "lib_string.h"
 
 static inline u8 inb(u16 p) { u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v; }
@@ -34,6 +35,13 @@ static u32 g_buf_tail = 0;  /* producer writes here */
 /* L1 handler chain. */
 #define OC_KBD_CHAIN_LEN 4
 static driver_input_kbd_handler_fn g_handlers[OC_KBD_CHAIN_LEN];
+
+/* BUG-0327 (A7-28): the ring has multiple producers - the PS/2 IRQ1
+ * handler, the COM1 serial bridge (IRQ4) and task-context inject - so
+ * head/tail updates run under one irqsave spinlock (BUG-0285 semantics);
+ * the L1 handler chain deliberately stays OUTSIDE the lock (handlers are
+ * arbitrary user code and never touch the ring). */
+static spinlock_t g_kbd_ring_lock;
 
 /* Scancode set 1 ? ASCII (unshifted). 0 = no mapping / special. */
 static const u8 scancode_map[128] = {
@@ -66,9 +74,12 @@ static const u8 scancode_map_shift[128] = {
 };
 
 void driver_input_keyboard_init(void) {
+    spin_init(&g_kbd_ring_lock);
+    spin_lock(&g_kbd_ring_lock);
     g_buf_head = g_buf_tail = 0;
     g_mods = 0;
     memset(g_handlers, 0, sizeof(g_handlers));
+    spin_unlock(&g_kbd_ring_lock);
     /* Register the IRQ1 handler. */
     arch_irq_register_handler(1, driver_input_keyboard_irq_handler, NULL);
 }
@@ -78,21 +89,32 @@ u8 driver_input_keyboard_get_mods(void) {
 }
 
 int driver_input_keyboard_has_key(void) {
-    return g_buf_head != g_buf_tail;
+    spin_lock(&g_kbd_ring_lock);
+    int has = g_buf_head != g_buf_tail;
+    spin_unlock(&g_kbd_ring_lock);
+    return has;
 }
 
 int driver_input_keyboard_getch(void) {
-    if (g_buf_head == g_buf_tail) return -1;
+    spin_lock(&g_kbd_ring_lock);
+    if (g_buf_head == g_buf_tail) {
+        spin_unlock(&g_kbd_ring_lock);
+        return -1;
+    }
     u16 k = g_buf[g_buf_head];
     g_buf_head = (g_buf_head + 1) % OC_KBD_BUF_LEN;
+    spin_unlock(&g_kbd_ring_lock);
     return (int)k;
 }
 
 static void push_key(u16 key) {
+    spin_lock(&g_kbd_ring_lock);
     u32 next = (g_buf_tail + 1) % OC_KBD_BUF_LEN;
-    if (next == g_buf_head) return;  /* buffer full, drop */
-    g_buf[g_buf_tail] = key;
-    g_buf_tail = next;
+    if (next != g_buf_head) {
+        g_buf[g_buf_tail] = key;
+        g_buf_tail = next;
+    }
+    spin_unlock(&g_kbd_ring_lock);
 }
 
 void driver_input_keyboard_inject(u16 keycode) {
@@ -164,6 +186,23 @@ static u16 process_scancode(u8 sc, int *extended) {
             case 0x52: ext = OC_KEY_INS;       break;
             case 0x53: ext = OC_KEY_DEL;       break;
             case 0x1C: ext = OC_KEY_ENTER;     break;  /* numpad enter */
+            /* BUG-0325 (A7-26): the E0 branch previously dropped the right
+             * modifiers entirely - right Ctrl (E0 0x1D) and right Alt /
+             * AltGr (E0 0x38) fell into default and were discarded, so
+             * right-side modifiers never set g_mods. Both now drive the
+             * same modifier state as their left counterparts (the only
+             * layout in the kernel is US; AltGr-specific character
+             * composition is a layout-table capability, not a modifier
+             * bug). The E0 0x2A/0xAA fake-shift sequences still fall to
+             * default and are discarded, as they must be. */
+            case 0x1D: /* right Ctrl */
+                if (release) g_mods &= ~OC_MOD_CTRL;
+                else         g_mods |=  OC_MOD_CTRL;
+                return 0;
+            case 0x38: /* right Alt / AltGr */
+                if (release) g_mods &= ~OC_MOD_ALT;
+                else         g_mods |=  OC_MOD_ALT;
+                return 0;
             default:   return 0;
         }
         if (!release) return ext;
@@ -197,6 +236,26 @@ static u16 process_scancode(u8 sc, int *extended) {
     }
 
     if (release) return 0;  /* ignore break codes for regular keys */
+
+    /* BUG-0326 (A7-27): NumLock turns the keypad block into digits. The
+     * static map always produced navigation codes (and gave keypad
+     * '-'/'+'/'5' no mapping at all in ANY state). Keypad '-' and '+'
+     * work regardless of NumLock like on real hardware; keypad-5 types
+     * '5' only with NumLock on and stays dead when off. */
+    if (code >= 0x47 && code <= 0x53) {
+        static const u8 keypad_num[13] = {
+            /* 0x47 */ '7', '8', '9', 0,   /* 4A = '-' below */
+            /* 0x4B */ '4', '5', '6', '+', /* 4E handled below too */
+            /* 0x4F */ '1', '2', '3', '0',
+            /* 0x53 */ '.'
+        };
+        if (g_mods & OC_MOD_NUM) {
+            u8 digit = keypad_num[code - 0x47];
+            if (digit) return digit;
+        }
+        if (code == 0x4A) return '-';
+        if (code == 0x4E) return '+';
+    }
 
     u16 key = scancode_map[code];
     if (key == 0) return 0;

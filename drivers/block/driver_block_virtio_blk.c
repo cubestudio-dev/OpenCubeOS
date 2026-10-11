@@ -37,6 +37,7 @@
 #include "screen_console.h"
 #include "driver_pci.h"
 #include "driver_block_blk.h"
+#include "core_timer.h"
 
 /* ---- I/O port accessors (static inline, file-local) ---- */
 static inline void outb(u16 p, u8 v)  { __asm__ volatile("outb %0, %1" :: "a"(v),  "Nd"(p)); }
@@ -84,6 +85,14 @@ static inline void outw(u16 p, u16 v) { __asm__ volatile("outw %0, %1" :: "a"(v)
 
 #define VIRTIO_BLK_SECTOR_SIZE     512u
 #define VIRTIO_BLK_QUEUE_SIZE_MAX  1024u
+
+/* Feature bits (virtio-blk legacy spec). */
+#define VIRTIO_BLK_F_RO            (1u << 5)
+#define VIRTIO_BLK_F_FLUSH         (1u << 9)
+
+/* BUG-0306 (A6-10): bounded used-ring poll - ~30 s at the 100 Hz PIT,
+ * same budget class as the AHCI/NVMe/ATA timeout recovery paths. */
+#define VIRTIO_BLK_TIMEOUT_TICKS   3000u
 #define VIRTIO_PAGE_SIZE           4096u
 
 /* ---- on-wire structures (packed) ---- */
@@ -143,6 +152,9 @@ typedef struct {
     /* Per-request scratch (single-threaded; addresses must persist). */
     volatile driver_block_virtio_blk_outhdr_t hdr;
     volatile u8  status;
+    /* BUG-0307 (A6-11): negotiated feature state. */
+    u8  has_flush;         /* VIRTIO_BLK_F_FLUSH negotiated */
+    u8  readonly;          /* VIRTIO_BLK_F_RO advertised by the device */
 } driver_block_virtio_blk_dev_t;
 
 static driver_block_virtio_blk_dev_t g_dev;
@@ -223,10 +235,24 @@ void driver_block_virtio_blk_init(void) {
     /* 2-3. ACK | DRIVER. */
     driver_block_virtio_blk_status_set(io_base, (u8)(VIRTIO_STATUS_ACK | VIRTIO_STATUS_DRIVER));
 
-    /* 4. Feature negotiation: we accept none of the optional features.
-     * Reset already cleared the guest feature mask, so no write to
-     * GUEST_FEATURES is needed (an explicit 0 write here clears the
-     * device status on QEMU 10, so it is deliberately skipped). */
+    /* 4. Feature negotiation.
+     * BUG-0307 (A6-11): we previously accepted NO optional features yet
+     * still issued T_FLUSH requests - a spec-conformant device answers
+     * those with VIRTIO_BLK_S_UNSUPP, so driver_block_flush() failed on
+     * every conformant device, and a read-only disk went undetected.
+     * Read HOST_FEATURES and accept exactly the two bits we act on. (An
+     * explicit 0 write to GUEST_FEATURES clears the device status on QEMU
+     * 10, so the write only happens when at least one bit is accepted.) */
+    {
+        u32 host = inl((u16)(io_base + VIRTIO_REG_HOST_FEATURES));
+        u32 want = 0;
+        if (host & VIRTIO_BLK_F_FLUSH) { want |= VIRTIO_BLK_F_FLUSH; g_dev.has_flush = 1; }
+        if (host & VIRTIO_BLK_F_RO)    { g_dev.readonly = 1; }
+        if (want)
+            outl((u16)(io_base + VIRTIO_REG_GUEST_FEATURES), want);
+        if (g_dev.readonly)
+            driver_block_virtio_blk_log("virtio-blk: device is read-only\n");
+    }
 
     /* 5. Select queue 0, read size.  (WP-10a: DRIVER_OK is set only
      * AFTER the queue is live -- setting it before the queue is active
@@ -370,9 +396,18 @@ static int driver_block_virtio_blk_xfer(driver_block_virtio_blk_dev_t *d, u32 ty
     /* Notify the queue. outl is serialising on x86 -> full barrier. */
     outw((u16)(d->io_base + VIRTIO_REG_QUEUE_NOTIFY), 0);
 
-    /* Poll the used ring until the device advances its idx. */
-    while (d->last_used_idx == d->used->idx) {
-        /* spin */
+    /* Poll the used ring until the device advances its idx.
+     * BUG-0306 (A6-10): bounded wait - the open-ended spin hung the whole
+     * machine whenever the device stopped completing requests. */
+    {
+        u64 t0 = core_timer_ticks();
+        while (d->last_used_idx == d->used->idx) {
+            if (core_timer_ticks() - t0 > VIRTIO_BLK_TIMEOUT_TICKS) {
+                driver_block_virtio_blk_log("virtio-blk: used-ring poll timeout\n");
+                (void)inb((u16)(d->io_base + VIRTIO_REG_ISR));
+                return -1;
+            }
+        }
     }
     d->last_used_idx = d->used->idx;
 
@@ -387,23 +422,40 @@ static int driver_block_virtio_blk_read(driver_block_device_t *dev, u64 lba, u32
     driver_block_virtio_blk_dev_t *d = (driver_block_virtio_blk_dev_t *)dev->priv;
     if (!d || !d->io_base) return -1;
     if (count == 0) return 0;
+    /* BUG-0308 (A6-12): count * 512 must be computed in 64 bits - a u32
+     * product wrapped for count >= 2^23 and the truncated request completed
+     * with status 0 while transferring far less data. Refuse instead of
+     * silently short-changing the caller. */
+    u64 bytes = (u64)count * VIRTIO_BLK_SECTOR_SIZE;
+    if (bytes > 0xFFFFFFFFull) return -1;
     return driver_block_virtio_blk_xfer(d, VIRTIO_BLK_T_IN, lba, buf,
-                           count * VIRTIO_BLK_SECTOR_SIZE);
+                           (u32)bytes);
 }
 
 static int driver_block_virtio_blk_write(driver_block_device_t *dev, u64 lba, u32 count, const void *buf) {
     driver_block_virtio_blk_dev_t *d = (driver_block_virtio_blk_dev_t *)dev->priv;
     if (!d || !d->io_base) return -1;
     if (count == 0) return 0;
+    if (d->readonly) {
+        driver_block_virtio_blk_log("virtio-blk: write rejected (device is read-only)\n");
+        return -1;
+    }
     /* Cast away const: the device reads from this memory during a write
      * request, so we never mutate it. */
+    u64 bytes = (u64)count * VIRTIO_BLK_SECTOR_SIZE;   /* BUG-0308 */
+    if (bytes > 0xFFFFFFFFull) return -1;
     return driver_block_virtio_blk_xfer(d, VIRTIO_BLK_T_OUT, lba, (void *)buf,
-                           count * VIRTIO_BLK_SECTOR_SIZE);
+                           (u32)bytes);
 }
 
 /* WP-10a: flush hook - issue VIRTIO_BLK_T_FLUSH. */
 static int driver_block_virtio_blk_flush(driver_block_device_t *dev) {
     driver_block_virtio_blk_dev_t *d = (driver_block_virtio_blk_dev_t *)dev->priv;
     if (!d || !d->io_base) return -1;
+    /* BUG-0307 (A6-11): FLUSH is only issued when VIRTIO_BLK_F_FLUSH was
+     * actually negotiated; without it a conformant device answers
+     * VIRTIO_BLK_S_UNSUPP and every flush failed. No negotiated flush
+     * means the device has no flush barrier to honour - a no-op. */
+    if (!d->has_flush) return 0;
     return driver_block_virtio_blk_xfer(d, VIRTIO_BLK_T_FLUSH, 0, NULL, 0);
 }

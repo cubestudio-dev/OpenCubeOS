@@ -8,8 +8,11 @@
  * Used by the WP-10u update installer to walk an (already gunzipped)
  * package: the caller feeds arbitrary-size chunks, and every file body
  * arrives at the callback as one or more data slices (never straddling
- * files).  Header checksums are verified; only regular files and
- * directories are reported (GNU long-name/link entries are skipped).
+ * files).  Header checksums are verified; regular files and directories
+ * are reported; GNU 'L' long-name entries supply the path of the next
+ * entry (multi-block bodies supported, BUG-0300); hard/symlink/special
+ * and pax metadata ('x'/'g') entries are skipped including their bodies
+ * (BUG-0300).
  *
  * Streaming model:
  *

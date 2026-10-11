@@ -61,9 +61,11 @@ static inline u32  inl_p(u16 port)         { u32 r; __asm__ volatile("inl %1,%0"
 #define R8139_TSD_SIZE 0x00001FFFu   /* bits 0-12 */
 
 /* ISR bits */
-#define R8139_ISR_ROK  0x01
-#define R8139_ISR_TOK  0x04
-#define R8139_ISR_ALL  0xFFFF
+#define R8139_ISR_ROK   0x01
+#define R8139_ISR_TOK   0x04
+#define R8139_ISR_RXOVW 0x10   /* BUG-0330: RX buffer overrun */
+#define R8139_ISR_FOVW  0x40   /* BUG-0330: RX FIFO overflow */
+#define R8139_ISR_ALL   0xFFFF
 
 /* RCR bits */
 #define R8139_RCR_AAP  0x00000001u   /* accept all physical */
@@ -181,8 +183,12 @@ static int driver_nic_rtl8139_setup(driver_nic_rtl8139_dev_t *d, u8 bus, u8 dev,
 
     /* RX buffer + config. */
     outl_p(d->io + R8139_RBSTART, d->rx_buf_phys);
+    /* BUG-0330 (A8-12): AAP (accept ALL physical = promiscuous) dropped -
+     * the NIC now accepts its own unicast (APM), multicast (AM) and
+     * broadcast (AB) frames, which cuts the RX pressure that fed the
+     * never-handled overflow flags. */
     outl_p(d->io + R8139_RCR,
-           R8139_RCR_AAP | R8139_RCR_APM | R8139_RCR_AM |
+           R8139_RCR_APM | R8139_RCR_AM |
            R8139_RCR_AB | R8139_RCR_WRAP | R8139_RCR_FTH);
 
     /* Acceptable transmit config: IFG normal + DMA burst max. */
@@ -318,20 +324,50 @@ static int driver_nic_rtl8139_ops_send(driver_nic_device_t *ndev, const void *bu
     return ok ? len : -1;
 }
 
+/* BUG-0329/0330 (A8-11/A8-12): full soft-reset recovery of the RX path.
+ * A bad header used to be "handled" by forcing CAPR=0 while the CHIP's
+ * internal write pointer stayed wherever it was - the driver then read
+ * stale bytes forever and RX wedged permanently (and each pass ate the
+ * ROK flag). After a real soft reset the chip's write pointer restarts
+ * at the buffer origin, so CAPR=0 is correct again. Same routine recovers
+ * from RXOVW/FOVW overflows, which were never even read before. */
+static void driver_nic_rtl8139_rx_reset(driver_nic_rtl8139_dev_t *d) {
+    outb_p(d->io + R8139_CR, R8139_CR_RST);
+    for (int t = 0; t < 10000; t++) {
+        if (!(inb_p(d->io + R8139_CR) & R8139_CR_RST)) break;
+    }
+    outl_p(d->io + R8139_RBSTART, d->rx_buf_phys);
+    outl_p(d->io + R8139_RCR,
+           R8139_RCR_APM | R8139_RCR_AM |
+           R8139_RCR_AB | R8139_RCR_WRAP | R8139_RCR_FTH);
+    outl_p(d->io + R8139_TCR, 0x03000800u);
+    d->capr = 0;
+    outw_p(d->io + R8139_CAPR, 0);
+    outb_p(d->io + R8139_CR, R8139_CR_TE | R8139_CR_RE);
+    outw_p(d->io + R8139_ISR, R8139_ISR_ALL);
+}
+
 static int driver_nic_rtl8139_ops_recv(driver_nic_device_t *ndev, void *buf, int maxlen) {
     (void)ndev;
     driver_nic_rtl8139_dev_t *d = &g_rtl8139;
     if (!d->up) return -1;
+
+    /* BUG-0330 (A8-12): detect + acknowledge the RX overflow flags. */
+    u16 isr = inw_p(d->io + R8139_ISR);
+    if (isr & (R8139_ISR_RXOVW | R8139_ISR_FOVW)) {
+        outw_p(d->io + R8139_ISR, isr & (R8139_ISR_RXOVW | R8139_ISR_FOVW));
+        driver_nic_rtl8139_rx_reset(d);
+        return 0;
+    }
+
     if (inb_p(d->io + R8139_CR) & R8139_CR_BUFE) return 0;   /* no data */
 
     u32 hdr = *(volatile u32 *)(d->rx_ring + d->capr);
     u16 status = (u16)(hdr & 0xFFFF);
     u16 plen = (u16)((hdr >> 16) & 0xFFFF);
     if (!(status & R8139_ISR_ROK) || plen == 0) {
-        /* Bad header: reset the read pointer and bail out. */
-        d->capr = 0;
-        outw_p(d->io + R8139_CAPR, 0);
-        outw_p(d->io + R8139_ISR, R8139_ISR_ROK);
+        /* Bad header: real soft reset (see rx_reset above). */
+        driver_nic_rtl8139_rx_reset(d);
         return 0;
     }
 

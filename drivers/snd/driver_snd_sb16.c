@@ -175,7 +175,7 @@ static int driver_snd_sb16_dma_setup(driver_snd_sb16_dev_t *d, u32 bytes) {
 
 /* Program one 16-bit single-cycle DMA block and wait for its IRQ. */
 static int driver_snd_sb16_play_block(driver_snd_sb16_dev_t *d, const u8 *src, u32 bytes) {
-    if (bytes < 2 || bytes > SB_DMA_BUF_BYTES) return -1;
+    if (bytes < 2 || bytes > SB_DMA_BUF_BYTES || (bytes & 1)) return -1;
     u32 words = bytes / 2;
 
     memcpy(d->dma, src, bytes);
@@ -204,15 +204,19 @@ static int driver_snd_sb16_play_block(driver_snd_sb16_dev_t *d, const u8 *src, u
 static int driver_snd_sb16_ops_play(driver_snd_device_t *sdev, const void *buf, int len) {
     driver_snd_sb16_dev_t *d = (driver_snd_sb16_dev_t *)sdev->priv;
     if (!d || !d->up) return -1;
+    /* BUG-0338 (A9-07): 16-bit PCM is consumed as whole 16-bit samples, so
+     * an odd length cannot be played honestly - the old tail handling
+     * rounded a 1-3 byte remainder UP to 4 bytes and memcpy'd past the
+     * caller's buffer (out-of-bounds read of up to 3 bytes). Refuse odd
+     * lengths up front and keep chunks even (the DMA word granularity).
+     * Return value reports exactly how many bytes were consumed. */
+    if (len < 0 || (len & 1)) return -1;
     const u8 *src = (const u8 *)buf;
     int sent = 0;
 
     while (sent < len) {
         u32 chunk = (u32)(len - sent);
         if (chunk > SB_DMA_BUF_BYTES) chunk = SB_DMA_BUF_BYTES;
-        /* keep 4-byte frame alignment */
-        chunk &= ~3u;
-        if (chunk < 4) chunk = 4;
         int rc = driver_snd_sb16_play_block(d, src + sent, chunk);
         if (rc < 0) return sent ? sent : -1;
         sent += rc;
@@ -268,6 +272,20 @@ static int driver_snd_sb16_ops_get_caps(driver_snd_device_t *sdev, driver_snd_ca
 
 /* ---- init ---- */
 
+/* BUG-0342 (A9-13): 16-bit ISA DMA (channel 5) counts WORD addresses in
+ * 16 bits and the page register only supplies bits [23:16] - the transfer
+ * silently wraps to the start of the same 128 KiB physical block when a
+ * block crosses a 128 KiB boundary, and any address >= 16 MiB is
+ * truncated by the 8-bit page register. Both conditions are machine
+ * checkable at allocation time: reject (and retry a few times) so a
+ * block is only ever programmed into linear memory. */
+static int driver_snd_sb16_dma_addr_ok(u64 phys, u32 bytes) {
+    if (phys + bytes > 0x1000000ull) return 0;                    /* 24-bit limit */
+    u64 blk = phys / 0x20000ull;                                  /* 128 KiB block */
+    if ((phys + bytes - 1) / 0x20000ull != blk) return 0;         /* wrap */
+    return 1;
+}
+
 int driver_snd_sb16_init(void *isa_dev) {
     (void)isa_dev;
     driver_snd_sb16_dev_t *d = &g_sb16;
@@ -289,20 +307,39 @@ int driver_snd_sb16_init(void *isa_dev) {
         return -1;
     }
 
-    /* DMA buffer */
-    d->dma_phys = mem_pmm_alloc_contig(SB_DMA_BUF_BYTES / PMM_PAGE_SIZE + 1);
-    if (!d->dma_phys) return -1;
+    /* DMA buffer - BUG-0342: retry until the buffer lies inside one
+     * 128 KiB ISA-DMA block below 16 MiB (PMM hands out arbitrary
+     * frames; ~1/16 of raw placements would wrap mid-block). */
+    int dma_ok = 0;
+    for (int tries = 0; tries < 16 && !dma_ok; tries++) {
+        d->dma_phys = mem_pmm_alloc_contig(SB_DMA_BUF_BYTES / PMM_PAGE_SIZE + 1);
+        if (!d->dma_phys) return -1;
+        if (driver_snd_sb16_dma_addr_ok(d->dma_phys, SB_DMA_BUF_BYTES)) {
+            dma_ok = 1;
+        } else {
+            /* leave the unusable allocation in place (PMM has no free),
+             * take a fresh frame range next round */
+        }
+    }
+    if (!dma_ok) {
+        driver_snd_sb16_log("sb16: no ISA-DMA-safe buffer (128KiB block / 16MiB limit)\n");
+        return -1;
+    }
     d->dma = (u8 *)(uintptr_t)d->dma_phys;
     memset(d->dma, 0, SB_DMA_BUF_BYTES);
 
     /* speaker on */
     driver_snd_sb16_dsp_write(d, 0xd1);
 
-    /* IRQ: the classic SB16 IRQ 5 */
-    if (arch_irq_register_handler(SB_IRQ, driver_snd_sb16_irq_handler, NULL) == 0)
-        d->irq = SB_IRQ;
-    else
-        d->irq = -1;
+    /* IRQ: the classic SB16 IRQ 5.  BUG-0341 (A9-11): the playback path
+     * waits for the block-completion IRQ (no polling fallback), so a
+     * failed registration must NOT bring the device up - the old code
+     * ran with d->irq=-1 and every play block died in the 2 s timeout. */
+    if (arch_irq_register_handler(SB_IRQ, driver_snd_sb16_irq_handler, NULL) != 0) {
+        driver_snd_sb16_log("sb16: IRQ 5 registration failed - device disabled\n");
+        return -1;
+    }
+    d->irq = SB_IRQ;
 
     d->channels = 2;
     d->up = 1;

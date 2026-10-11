@@ -134,7 +134,10 @@ static int driver_nic_bcm57xx_setup(driver_nic_bcm57xx_dev_t *d, u8 bus, u8 dev,
     d->bus = bus; d->dev = dev; d->func = func;
 
     u32 bar0 = driver_pci_read_bar(bus, dev, func, 0);
-    if (!bar0 || (bar0 & 0x1)) return -1;
+    if (!bar0) return -1;
+    /* BUG-0332 (A8-14): read_bar strips the space-type bits so the old
+     * (bar0 & 0x1) test never fired; check the raw config dword. */
+    if (driver_pci_read_config(bus, dev, func, 0x10) & 0x1) return -1;
     driver_nic_bcm57xx_pci_enable(d);
     d->mmio = (volatile u8 *)(uintptr_t)(bar0 & 0xFFFFFFF0);
 
@@ -226,9 +229,11 @@ int bcm57xx_init(driver_pci_dev_t *pdev) {
         u32 ids = driver_pci_read_config(bus, dev, func, 0x00);
         u16 vid = (u16)(ids & 0xFFFF);
         u16 did = (u16)(ids >> 16);
-        int known = (vid == 0x14E4);
-        for (unsigned i = 0; known && i < sizeof(driver_nic_bcm57xx_ids) / sizeof(driver_nic_bcm57xx_ids[0]); i++)
-            if (did == driver_nic_bcm57xx_ids[i].did) known = 1;
+        /* BUG-0336 (A8-8): the old loop only ever SET known - the
+         * whitelist degraded to "any Broadcom device". Match vid AND did. */
+        int known = 0;
+        for (unsigned i = 0; i < sizeof(driver_nic_bcm57xx_ids) / sizeof(driver_nic_bcm57xx_ids[0]); i++)
+            if (vid == 0x14E4 && did == driver_nic_bcm57xx_ids[i].did) { known = 1; break; }
         if (!known) return -1;
     } else {
         int found = 0;

@@ -504,6 +504,12 @@ int ecdsa_verify(int curve, const u8 *pub, int pub_len,
     int sz = c->size;
     if (r_len != sz || s_len != sz) return -1;
     if (pub_len != 1 + 2 * sz || pub[0] != 0x04) return -1;
+    /* BUG-0295 (A4-08, defense in depth): reject public keys that are not a
+     * point on the curve. The ECDH path (crypto_ec_ecdh) already validated;
+     * ecdsa_verify callers (x509 chain verification, net_tls.c certificate
+     * verify) previously trusted the caller, which left the invalid-curve /
+     * low-order-point attack surface open for any direct ecdsa_verify use. */
+    if (crypto_ec_pub_valid(curve, pub, pub_len) != 1) return 0;
 
     int nl = c->nlimbs;
     u64 Rv[EC_LIMBS], Sv[EC_LIMBS];

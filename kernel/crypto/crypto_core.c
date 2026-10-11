@@ -390,20 +390,34 @@ void crypto_hmac_sha256(const u8 *key, int key_len, const u8 *data, int data_len
  * HKDF-Expand (RFC 5869)
  * ============================================================ */
 void hkdf_expand(const u8 *prk, int prk_len, const u8 *info, int info_len, u8 *out, int out_len) {
+    /* BUG-0298 (A4-11): fail-closed rewrite.
+     *  - the T(i) message buffer is allocated ONCE before the loop (the old
+     *    code allocated a fresh frame per block, so a mid-loop PMM exhaustion
+     *    returned after having written only the first blocks of `out`, leaving
+     *    the tail as caller-controlled garbage with no error code);
+     *  - info_len is bounded so prev(32) + info + counter always fits one
+     *    4 KiB frame;
+     *  - every failure path zeroes the WHOLE out buffer: callers that ignore
+     *    the void status now see deterministic all-zero key material instead
+     *    of stack garbage (TLS sessions built on it fail their Finished MAC
+     *    and abort instead of shipping a half-random key). */
+    if (out_len < 0) return;
+    if (out_len > 0) memset(out, 0, out_len);
+    if (prk_len <= 0 || prk_len > 32 || info_len < 0 || out_len <= 0) return;
+    if (info_len > PMM_PAGE_SIZE - 33) return;   /* 32 prev + info + 1 counter */
+    u8 *msg = (u8 *)(uintptr_t)mem_pmm_alloc_frame();
+    if (!msg) return;                            /* out already zeroed */
     u8 counter = 1;
     int offset = 0;
     u8 prev[32];
     int prev_len = 0;
     while (offset < out_len) {
         /* T(i) = HMAC(prk, T(i-1) || info || counter) */
-        u8 *msg = (u8 *)(uintptr_t)mem_pmm_alloc_frame();
-        if (!msg) return;
         int mlen = 0;
         if (prev_len > 0) { memcpy(msg, prev, prev_len); mlen += prev_len; }
         if (info_len > 0) { memcpy(msg + mlen, info, info_len); mlen += info_len; }
         msg[mlen++] = counter;
         crypto_hmac_sha256(prk, prk_len, msg, mlen, prev);
-        mem_pmm_free_frame((u64)(uintptr_t)msg);
         int copy = out_len - offset;
         if (copy > 32) copy = 32;
         memcpy(out + offset, prev, copy);
@@ -411,6 +425,7 @@ void hkdf_expand(const u8 *prk, int prk_len, const u8 *info, int info_len, u8 *o
         counter++;
         prev_len = 32;
     }
+    mem_pmm_free_frame((u64)(uintptr_t)msg);
 }
 
 /* ============================================================
@@ -657,6 +672,7 @@ static void crypto_bn_mod(u8 *result, const u8 *a, const u8 *m, int len) {
     if (!temp || !rem) {
         if (temp) mem_pmm_free_frame((u64)(uintptr_t)temp);
         if (rem) mem_pmm_free_frame((u64)(uintptr_t)rem);
+        memset(result, 0, len);   /* BUG-0298: fail closed, never garbage */
         return;
     }
     memcpy(temp, a, len * 2);
@@ -719,6 +735,15 @@ void crypto_dh_modexp(const u8 base[DH_BYTES], const u8 exp[DH_BYTES],
  * Used by SSH for 2048-bit (256-byte) DH group 14.
  * Allocates work buffers via mem_pmm_alloc_frame to avoid stack overflow. */
 void crypto_dh_modexp_n(const u8 *base, const u8 *exp, const u8 *mod, u8 *result, int len) {
+    /* BUG-0298 (A4-11): the frame-based work buffers hold up to 2*len bytes,
+     * so any len beyond half a page would overflow them. Old code returned
+     * with result UNINITIALIZED on allocation failure; every exit now leaves
+     * a deterministic all-zero result (callers treat 0^x = 0 shared secrets
+     * as the handshake failure they are). */
+    if (len <= 0 || len * 2 > PMM_PAGE_SIZE) {
+        if (len > 0) memset(result, 0, len);
+        return;
+    }
     u8 *r = (u8 *)(uintptr_t)mem_pmm_alloc_frame();     /* len bytes */
     u8 *b = (u8 *)(uintptr_t)mem_pmm_alloc_frame();      /* len bytes */
     u8 *product = (u8 *)(uintptr_t)mem_pmm_alloc_frame(); /* 2*len bytes */
@@ -728,6 +753,7 @@ void crypto_dh_modexp_n(const u8 *base, const u8 *exp, const u8 *mod, u8 *result
         if (b) mem_pmm_free_frame((u64)(uintptr_t)b);
         if (product) mem_pmm_free_frame((u64)(uintptr_t)product);
         if (prod2) mem_pmm_free_frame((u64)(uintptr_t)prod2);
+        memset(result, 0, len);
         return;
     }
 
@@ -746,6 +772,7 @@ void crypto_dh_modexp_n(const u8 *base, const u8 *exp, const u8 *mod, u8 *result
         mem_pmm_free_frame((u64)(uintptr_t)b);
         mem_pmm_free_frame((u64)(uintptr_t)product);
         mem_pmm_free_frame((u64)(uintptr_t)prod2);
+        memset(result, 0, len);   /* BUG-0298: fail closed */
         return;
     }
 

@@ -1,37 +1,43 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* Host-side debug harness for kernel/gzip.c + kernel/tar.c (WP-10u). */
+/* Host-side debug harness for kernel/lib/lib_gzip.c + kernel/lib/lib_tar.c.
+ *
+ * BUG-0303 (A5-14) repair history: the WP-10 project restructure moved
+ * kernel/gzip.c to kernel/lib/lib_gzip.c and kernel/tar.c to
+ * kernel/lib/lib_tar.c, so this harness #include-ed files that no longer
+ * existed (the WP-10u gzip/tar regression was dead since then). The
+ * restructure script had also mechanically renamed the old correct
+ * oc_memset->libc forwarding shims into `memset` CALLING ITSELF - guaranteed
+ * infinite recursion even once the include paths were fixed. That class of
+ * libc-shadowing shim is gone entirely: glibc provides memset/memcpy/strcmp/
+ * ... and the kernel sources bind to it (usize == size_t on this platform).
+ * The strncpy shim that forced d[n-1] = 0 (masking real kernel strncpy
+ * semantics, see A5-08/A5-14) is gone with it.
+ *
+ * NOTE: do NOT include <string.h> in this TU - lib_string.h (pulled in by
+ * the kernel sources) declares strchr with a kernel signature that
+ * conflicts with glibc's, which hard-errors the build.
+ *
+ * Build (from oc-os/):
+ *   gcc -O2 -I. -Ikernel/lib -Ikernel/mem tools/host_gzip_test.c \
+ *       -o /tmp/host_gzip_test
+ */
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include "kernel/types.h"
 
-/* host kmalloc shim */
-static void *kmalloc(u64 n) { return malloc(n); }
-static void kfree(void *p) { free(p); }
+/* host kmalloc/kfree shims (kernel sources link against mem_heap) */
+void *kmalloc(u64 n) { return malloc(n); }
+void kfree(void *p) { free(p); }
 
-/* oc_* string shims (kernel/string.h declares them) */
-void *memset(void *d, int c, usize n) { return memset(d, c, n); }
-void *memcpy(void *d, const void *s, usize n) { return memcpy(d, s, n); }
-int   memcmp(const void *a, const void *b, usize n) { return memcmp(a, b, n); }
-usize strlen(const char *s) { return strlen(s); }
-int   strcmp(const char *a, const char *b) { return strcmp(a, b); }
-int   strncmp(const char *a, const char *b, usize n) { return strncmp(a, b, n); }
-char *strcpy(char *d, const char *s) { return strcpy(d, s); }
-char *strncpy(char *d, const char *s, usize n) {
-    strncpy(d, s, n);
-    if (n > 0) d[n - 1] = 0;
-    return d;
-}
-usize u64_to_str(u64 v, char *out) { sprintf(out, "%llu", (unsigned long long)v); return strlen(out); }
 static int run_one(const char *name, const u8 *gz, int len, const char *expect, int explen);
 static void lib_tar_selftest(void);
 
 #include "update_test_vectors.h"
 
-/* include the kernel sources directly (they only rely on oc_* shims) */
-#include "kernel/gzip.c"
-#include "kernel/tar.c"
+/* include the kernel sources directly (glibc supplies the libc calls) */
+#include "kernel/lib/lib_gzip.c"
+#include "kernel/lib/lib_tar.c"
 
 static int run_one(const char *name, const u8 *gz, int len,
                    const char *expect, int explen) {

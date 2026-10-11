@@ -6,10 +6,20 @@
 #include "screen_console.h"
 #include "screen_font.h"
 #include "screen_fb.h"
+#include "core_sync.h"
 #include "lib_string.h"
 #include "l1_ext.h"   /* for the console output hook */
 
 static screen_console_t g_console;
+/* BUG-0319 (A7-04): the console state (cur_x/cur_y/scroll memmoves) had no
+ * lock at all. The keyboard IRQ1 -> L1 handler chain can reach console
+ * output from interrupt context (an L1 hook that prints) while a task is
+ * mid-putc, tearing cursor state and interleaving scroll memmoves. Every
+ * state-mutating entry point now runs under one irqsave spinlock
+ * (BUG-0285 semantics). Contract: the L1 console hook must not call back
+ * into screen_console output from inside the hook (it runs before the
+ * lock is taken and re-entry would self-deadlock). */
+static spinlock_t g_console_lock;
 
 static void draw_cell(u32 cx, u32 cy, char ch, u32 fg_pixel, u32 bg_pixel) {
     if (!screen_active_renderer) return;
@@ -64,6 +74,15 @@ int screen_console_init(void) {
     if (cw == 0 || chh == 0) return -3;
     g_console.cols = fb->width  / cw;
     g_console.rows = fb->height / chh;
+    /* BUG-0318 (A7-03): an fb smaller than one cell made cols/rows 0 and
+     * every later cursor clamp underflowed (cur_y = rows-1 = 0xFFFFFFFF).
+     * Reject the geometry instead of leaving a wrapped console behind. */
+    if (g_console.cols == 0 || g_console.rows == 0) {
+        g_console.cols = 0;
+        g_console.rows = 0;
+        return -4;
+    }
+    spin_init(&g_console_lock);
     g_console.cur_x = 0;
     g_console.cur_y = 0;
     g_console.fg_pixel = screen_fb_rgb(0xE0, 0xE0, 0xE0);
@@ -74,28 +93,38 @@ int screen_console_init(void) {
 }
 
 void screen_console_reset(u32 fg_pixel, u32 bg_pixel) {
+    spin_lock(&g_console_lock);
     g_console.fg_pixel = fg_pixel;
     g_console.bg_pixel = bg_pixel;
     g_console.cur_x = 0;
     g_console.cur_y = 0;
-    screen_console_clear();
+    screen_fb_clear(g_console.bg_pixel);
+    g_console.cur_x = 0;
+    g_console.cur_y = 0;
+    spin_unlock(&g_console_lock);
 }
 
 void screen_console_show_cursor(int visible) {
+    spin_lock(&g_console_lock);
     g_console.cursor_visible = visible ? 1 : 0;
+    spin_unlock(&g_console_lock);
 }
 
 void screen_console_move_cursor(u32 x, u32 y) {
+    spin_lock(&g_console_lock);
     if (x >= g_console.cols) x = g_console.cols - 1;
     if (y >= g_console.rows) y = g_console.rows - 1;
     g_console.cur_x = x;
     g_console.cur_y = y;
+    spin_unlock(&g_console_lock);
 }
 
 void screen_console_clear(void) {
+    spin_lock(&g_console_lock);
     screen_fb_clear(g_console.bg_pixel);
     g_console.cur_x = 0;
     g_console.cur_y = 0;
+    spin_unlock(&g_console_lock);
 }
 
 void screen_console_putc_at(u32 x, u32 y, char ch, u32 fg_pixel, u32 bg_pixel) {
@@ -111,6 +140,10 @@ void screen_console_putc(char ch) {
     if (l1_ext_console_hook((u8)ch)) {
         return;
     }
+
+    /* BUG-0319 (A7-04): serialize the cursor/scroll state machine against
+     * console output from interrupt context (L1 keyboard/serial hooks). */
+    spin_lock(&g_console_lock);
 
     /* Helper: erase the cursor at the current cell. */
     #define ERASE_CURSOR() do {                                  \
@@ -166,6 +199,8 @@ void screen_console_putc(char ch) {
                   g_console.fg_pixel, g_console.bg_pixel);
     }
     #undef ERASE_CURSOR
+
+    spin_unlock(&g_console_lock);
 }
 
 void screen_console_puts(const char* s) {

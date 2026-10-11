@@ -72,7 +72,8 @@ void core_power_flush_blk(void);
 
 /* Shell command handlers (registered in kmain.c). */
 int shell_cmd_shutdown(const char *args);   /* shutdown + poweroff alias */
-int shell_cmd_suspend(const char *args);    /* suspend  + sleep alias    */
+int shell_cmd_suspend(const char *args);    /* suspend to RAM (ACPI S3)   */
+int shell_cmd_sleep(const char *args);      /* delay N seconds (BUG-0346) */
 int shell_cmd_reboot(const char *args);     /* reboot (moved from ota_ab_update.c) */
 
 #ifdef __cplusplus

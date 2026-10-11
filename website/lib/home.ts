@@ -19,7 +19,7 @@ function fmtBytes(n: number): string {
 export { fmtBytes };
 
 // Current stats (same caliber as the README Stats section, re-verified at
-// WP-10-AUDIT_P2-fix3: 102,687 lines via README's own find|wc -l command,
+// WP-10-AUDIT_P2-fix4: 103,640 lines via README's own find|wc -l command,
 // 46 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
 // 138 L1 interfaces / 176 commands per README + docs/INTERFACES.md,
 // 15 work packages = the 15 '## WP-*' sections). This is the RENDERED
@@ -27,7 +27,7 @@ export { fmtBytes };
 // assets and no longer keeps a competing stats copy.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "102,687", label: "行源码" },
+    { value: "103,640", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "46", label: "系统调用" },
     { value: "176", label: "shell 命令" },
@@ -35,7 +35,7 @@ export const STATS: Bi<{ value: string; label: string }[]> = {
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "102,687", label: "lines of source" },
+    { value: "103,640", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "46", label: "system calls" },
     { value: "176", label: "shell commands" },

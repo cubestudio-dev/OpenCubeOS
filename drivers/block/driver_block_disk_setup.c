@@ -331,7 +331,18 @@ static int shell_cmd_abdisk(const char *args) {
         return 1;
     }
     /* Refuse when any of this disk's partitions is currently mounted
-     * (the old FAT would stay cached in VFS while we reformat below). */
+     * (the old FAT would stay cached in VFS while we reformat below).
+     * BUG-0311 (A6-15): also refuse when the WHOLE DISK is mounted as a
+     * superfloppy (install has checked driver_block_part_is_mounted(dev->name)
+     * since its BUG-017 fix; abdisk only checked p1..p4, so it happily
+     * rewrote the MBR under an active whole-disk FAT32 mount). */
+    if (driver_block_part_is_mounted(dev->name)) {
+        driver_block_disk_setup_puts("abdisk: whole-disk mount on ");
+        driver_block_disk_setup_puts(dev->name);
+        driver_block_disk_setup_puts(" is active (reboot to release mounts, "
+                        "then retry)\n");
+        return 1;
+    }
     for (int p = 1; p <= 4; p++) {
         char pname[BLK_DEV_NAME_LEN];
         strncpy(pname, dev->name, BLK_DEV_NAME_LEN - 4);
@@ -502,7 +513,14 @@ static int shell_cmd_install(const char *args) {
     driver_block_disk_setup_puts(dev->name);
     driver_block_disk_setup_puts(" will be destroyed\n");
 
-    /* 1. MBR: one FAT32 partition from LBA 2048 to the end. */
+    /* 1. MBR: one FAT32 partition from LBA 2048 to the end.
+     * BUG-0312 (A6-16): the size used to be cast straight to u32, so a
+     * >2 TiB disk silently produced a wrapped-around small partition.
+     * MBR cannot express >2 TiB at all - refuse instead of lying. */
+    if (dev->sectors <= 2048 || (dev->sectors - 2048) > 0xFFFFFFFFull) {
+        driver_block_disk_setup_puts("install: disk too large for MBR (>2TiB) or too small\n");
+        return 1;
+    }
     u8 types[4] = { 0x0B, 0, 0, 0 };
     u32 starts[4] = { 2048, 0, 0, 0 };
     u32 sect[4] = { (u32)(dev->sectors - 2048), 0, 0, 0 };

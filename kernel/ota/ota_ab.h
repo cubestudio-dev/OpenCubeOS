@@ -70,6 +70,25 @@ extern "C" {
 #define OC_AB_FLAG_OK_B        "/boot/ok_B"
 #define OC_AB_FLAG_BOOTFAIL_B  "/boot/bootfail_B"
 
+/* BUG-0305 (A5-16): boot-attempt budget for slot B.
+ *
+ * bootfail_B is written by the B kernel ITSELF once it runs; a B image that
+ * never comes up at all (corrupt ELF, crash before ota_ab_init) would loop
+ * forever under the old protocol. The disk GRUB config therefore counts
+ * attempts in the standard GRUB environment block
+ *   /boot/grub/grubenv  (1024 bytes, "ab_attempts" variable)
+ * which tools/make_ab_disk.sh pre-creates on the flags partition:
+ *   - every B boot attempt increments ab_attempts (GRUB save_env);
+ *   - at OC_AB_MAX_ATTEMPTS (3) GRUB boots slot A instead and the pending
+ *     request is burned;
+ *   - the kernel resets ab_attempts to 0 when slot A finishes booting or
+ *     slot B confirms (ab_reset_boot_attempts), so the next update starts
+ *     from a clean slate;
+ *   - the disk grub.cfg also falls back to slot A within the same boot
+ *     when the B multiboot2 image cannot even be loaded. */
+#define OC_AB_GRUBENV_PATH     "/boot/grub/grubenv"
+#define OC_AB_MAX_ATTEMPTS     3
+
 /* Default location of a downloaded update package. */
 #define OC_UPDATE_PKG_PATH  "/data/update-pkg.tar.gz"
 #define OC_UPDATE_PKG_TMP   "/tmp/update-pkg.tar.gz"

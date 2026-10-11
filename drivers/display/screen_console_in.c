@@ -59,11 +59,11 @@ void screen_console_in_inject(const char *text) {
     if (!text) return;
     int len = 0;
     while (text[len]) len++;
-    for (int j = 0; j < OC_CONS_HOOK_LEN; j++) {
-        if (g_hooks[j]) {
-            g_hooks[j](text, len);
-        }
-    }
+    /* BUG-0320 (A7-08): the per-character hooks fired TWICE for injected
+     * lines - once here on the raw text, then again in finish_line() when
+     * the assembled line reached ENTER. A hook now sees every logical line
+     * exactly once (from finish_line, with the assembled buffer and its
+     * length, matching typed input). */
     /* Push each character into the keyboard queue. */
     for (int i = 0; i < len; i++) {
         char c = text[i];
@@ -160,7 +160,19 @@ int screen_console_in_readline(char *buf, int size) {
         while (!g_line_ready && screen_console_in_pump()) pumped = 1;
         if (g_line_ready) break;
         if (pumped) continue;   /* buffer had data; drain more next spin */
-        /* Enable interrupts so keyboard IRQs fire while we wait. */
+        /* BUG-0321 (A7-09): close most of the lost-wakeup window. A
+         * keystroke landing between the final pump() and the sti used to
+         * be consumed by its own IRQ, so the hlt then slept until the next
+         * timer tick (or, with ticks masked, until the NEXT keystroke).
+         * The decision to sleep is now cli-protected with a final pump
+         * inside the closed window, and every wake drains immediately.
+         * The residual race - an IRQ landing between sti and hlt - is
+         * bounded by the IRQ0 tick waking the hlt. */
+        __asm__ volatile("cli");
+        if (g_line_ready || screen_console_in_pump()) {
+            __asm__ volatile("sti");
+            continue;
+        }
         __asm__ volatile("sti");
         __asm__ volatile("hlt");
         screen_console_in_pump();

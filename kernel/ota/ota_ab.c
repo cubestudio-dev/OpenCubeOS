@@ -61,7 +61,7 @@ static int  g_ab_disk_idx = -1;
 
 /* last update-check result cache (for status) */
 static int  g_last_check_rc = -100;  /* -100 = never checked          */
-static char g_last_check_version[32];
+static char g_last_check_version[64];   /* BUG-0299 (A5-10): matches ota_update_info_t.version[64]; 32 truncated the official 44-char version in update --status */
 
 /* ------------------------------------------------------------------ */
 /* 1. partition block devices                                          */
@@ -240,6 +240,35 @@ int ota_ab_read_flags(int *next_boot, int *ok_b, int *bootfail_b) {
     return g_ab_present ? 0 : -1;
 }
 
+/* BUG-0305 (A5-16): GRUB counts boot attempts in the standard environment
+ * block (1024 bytes: "# GRUB Environment Block\n" + key=value lines padded
+ * with '#'). save_env/load_env keep the block list stable as long as the
+ * file keeps its exact size, so this reset rewrites the same 1024 bytes in
+ * place (O_TRUNC + a full-block write of a fresh canonical block). */
+#define OC_AB_GRUBENV      "/boot/grub/grubenv"
+#define OC_AB_GRUBENV_SIZE 1024
+static void ab_reset_boot_attempts(void) {
+    if (!g_ab_present) return;
+    static char blk[OC_AB_GRUBENV_SIZE];
+    const char *hdr = "# GRUB Environment Block\n";
+    const char *entry = "ab_attempts=0\n";
+    int used = 0;
+    while (hdr[used]) { blk[used] = hdr[used]; used++; }
+    int e = 0;
+    while (entry[e] && used + e < OC_AB_GRUBENV_SIZE) {
+        blk[used + e] = entry[e]; e++;
+    }
+    used += e;
+    memset(blk + used, '#', OC_AB_GRUBENV_SIZE - used);
+    char path[96];
+    strcpy(path, OC_AB_MOUNT_BOOT);
+    strcat(path, OC_AB_GRUBENV);
+    int fd = fs_vfs_open(path, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+    if (fd < 0) return;
+    fs_vfs_write(fd, blk, OC_AB_GRUBENV_SIZE);
+    fs_vfs_close(fd);
+}
+
 int ota_ab_init(void) {
     if (g_ab_ready) return g_ab_present ? 0 : 1;
     g_ab_ready = 1;
@@ -250,6 +279,20 @@ int ota_ab_init(void) {
         flag_create(OC_AB_FLAG_BOOTFAIL_B, "B\n");
         lib_log_info("abupdate: boot slot B (bootfail marker written)");
     } else if (g_ab_present) {
+        if (flag_exists(OC_AB_FLAG_NEXT_B)) {
+            /* BUG-0305 (A5-16): the A kernel is only reached with a pending
+             * next_B when the B boot definitively failed - either B wrote
+             * bootfail_B itself (classic rollback) or GRUB burned the boot
+             * attempt budget because B never came up at all (corrupt ELF /
+             * early crash). The pending B request is dead in both cases:
+             * retire it and reset the attempt counter so a future update
+             * starts from a clean slate. */
+            flag_remove(OC_AB_FLAG_NEXT_B);
+            ab_reset_boot_attempts();
+            lib_log_info("abupdate: boot slot A (B request retired, attempts reset)");
+        } else {
+            ab_reset_boot_attempts();
+        }
         char line[64];
         strcpy(line, "abupdate: boot slot ");
         strcat(line, ota_ab_slot_name(g_ab_slot));
@@ -283,6 +326,7 @@ void ota_update_confirm_boot(void) {
     /* the system is fully up: promote B to confirmed default */
     flag_remove(OC_AB_FLAG_BOOTFAIL_B);
     flag_remove(OC_AB_FLAG_NEXT_B);
+    ab_reset_boot_attempts();   /* BUG-0305: B confirmed - counter goes back to zero */
     flag_create(OC_AB_FLAG_OK_B, "B\n");
     lib_log_info("abupdate: slot B boot confirmed (ok_B written)");
 }
@@ -399,6 +443,7 @@ int ota_update_download(const char *url, const char *path) {
     if (u.use_tls) {
         if (net_tls_connect(ip, (u16)u.port, u.host) != 0) {
             kfree(chunk); fs_vfs_close(fd);
+            fs_vfs_unlink(path);   /* BUG-0304: do not leave a partial package */
             return OC_UPDATE_E_CONNECT;
         }
         net_tls_ctx_t *c = net_tls_get_ctx();
@@ -410,6 +455,7 @@ int ota_update_download(const char *url, const char *path) {
         strcat(req, "\r\nUser-Agent: opencube-update\r\nConnection: close\r\n\r\n");
         if (net_tls_send(c, req, (int)strlen(req)) < 0) {
             net_tls_close(c); kfree(chunk); fs_vfs_close(fd);
+            fs_vfs_unlink(path);   /* BUG-0304: do not leave a partial package */
             return OC_UPDATE_E_CONNECT;
         }
 
@@ -420,6 +466,7 @@ int ota_update_download(const char *url, const char *path) {
         char *hdr = (char *)kmalloc(16640);
         if (!hdr) {
             net_tls_close(c); kfree(chunk); fs_vfs_close(fd);
+            fs_vfs_unlink(path);   /* BUG-0304: do not leave a partial package */
             return OC_UPDATE_E_BUFSIZE;
         }
         int hlen = 0, header_end = -1;
@@ -494,8 +541,11 @@ int ota_update_download(const char *url, const char *path) {
             /* body bytes already received with the header */
             int blen = hlen - (header_end + 4);
             if (blen > 0) {
-                fs_vfs_write(fd, hdr + header_end + 4, blen);
-                total += blen;
+                /* BUG-0304 (A5-15): a failed write must abort the download -
+                 * a silently short package used to be counted as received. */
+                int w = fs_vfs_write(fd, hdr + header_end + 4, blen);
+                if (w != blen) err = OC_UPDATE_E_IO;
+                else total += blen;
             }
         }
         kfree(hdr);
@@ -507,7 +557,9 @@ int ota_update_download(const char *url, const char *path) {
                 int n = net_tls_recv(c, chunk, DL_CHUNK);
                 if (n < 0) { err = OC_UPDATE_E_TIMEOUT; break; }
                 if (n == 0) break;              /* close_notify / FIN */
-                fs_vfs_write(fd, chunk, n);
+                /* BUG-0304 (A5-15): check the write result (disk full etc.) */
+                int w = fs_vfs_write(fd, chunk, n);
+                if (w != n) { err = OC_UPDATE_E_IO; break; }
                 total += n;
                 t1 = core_timer_ticks();
                 if ((total & 0xFFFFF) < DL_CHUNK) {
@@ -526,9 +578,10 @@ int ota_update_download(const char *url, const char *path) {
         break;                                /* downloaded */
     } else {
         int sock = net_socket(SOCK_TCP);
-        if (sock < 0) { kfree(chunk); fs_vfs_close(fd); return OC_UPDATE_E_CONNECT; }
+        if (sock < 0) { kfree(chunk); fs_vfs_close(fd); fs_vfs_unlink(path); return OC_UPDATE_E_CONNECT; }
         if (net_connect(sock, ip, (u16)u.port) < 0) {
             net_close(sock); kfree(chunk); fs_vfs_close(fd);
+            fs_vfs_unlink(path);   /* BUG-0304: do not leave a partial package */
             return OC_UPDATE_E_CONNECT;
         }
         static char req[2048];   /* static: long CDN query strings; single-threaded shell */
@@ -555,7 +608,11 @@ int ota_update_download(const char *url, const char *path) {
             return OC_UPDATE_E_BUFSIZE;
         }
         int total_header = 0, header_end = -1, body_start = 0;
-        int content_length = -1, body_received = 0;
+        /* BUG-0304 (A5-15): Content-Length is accumulated in u64 with the
+         * download hard cap enforced during the parse - the old int
+         * accumulator wrapped negative on absurd values, the phase-2 loop
+         * then never ran and a truncated package reported success. */
+        u64 content_length = 0; int have_cl = 0, body_received = 0;
         while (header_end < 0) {
             int n = net_recv(sock, hdr + total_header, 16639 - total_header);
             if (n <= 0) { err = OC_UPDATE_E_TIMEOUT; break; }
@@ -628,35 +685,40 @@ int ota_update_download(const char *url, const char *path) {
         }
         if (!err) {
             /* Content-Length (case-insensitive, like shell_cmd_wget) */
-            for (int k = 0; k < header_end; k++) {
+            for (int k = 0; k < header_end && !have_cl; k++) {
                 if (hdr[k] == 'C' || hdr[k] == 'c') {
                     if (strncmp(hdr + k, "Content-Length:", 15) == 0 ||
                         strncmp(hdr + k, "content-length:", 15) == 0) {
                         int v = k + 15;
                         while (hdr[v] == ' ' || hdr[v] == '\t') v++;
-                        content_length = 0;
+                        u64 acc = 0;
                         while (hdr[v] >= '0' && hdr[v] <= '9') {
-                            content_length = content_length * 10 + (hdr[v] - '0');
+                            acc = acc * 10 + (u64)(hdr[v] - '0');
+                            if (acc > DL_MAX_TOTAL) { acc = DL_MAX_TOTAL + 1; break; }
                             v++;
                         }
+                        content_length = acc;
+                        have_cl = 1;
                         break;
                     }
                 }
             }
-            if (content_length < 0) content_length = body_received;
+            if (!have_cl) content_length = (u64)body_received;
             /* headers may already carry the first body bytes */
             if (body_received > 0) {
-                fs_vfs_write(fd, hdr + body_start, body_received);
-                total += body_received;
+                int w = fs_vfs_write(fd, hdr + body_start, body_received);
+                if (w != body_received) err = OC_UPDATE_E_IO;   /* BUG-0304 */
+                else total += body_received;
             }
             /* phase 2: stream the rest of the body */
-            while (total < content_length) {
+            while (!err && (u64)total < content_length) {
                 int n = net_recv(sock, chunk, DL_CHUNK);
                 if (n <= 0) break;
-                fs_vfs_write(fd, chunk, n);
+                int w = fs_vfs_write(fd, chunk, n);
+                if (w != n) { err = OC_UPDATE_E_IO; break; }   /* BUG-0304 */
                 total += n;
             }
-            if (total < content_length) err = OC_UPDATE_E_TIMEOUT;
+            if (!err && (u64)total < content_length) err = OC_UPDATE_E_TIMEOUT;
         }
         kfree(hdr);
         net_close(sock);
@@ -824,6 +886,39 @@ static int ensure_parent_dirs(const char *target) {
     return 0;
 }
 
+/* Map + create the install target for one package path. Returns 1 when the
+ * entry is skipped, 0 on success (fd stored in c->fd), <0 with c->error set. */
+static int install_open_target(install_ctx_t *c, const char *path) {
+    char mapped[128];
+    int mr = map_package_path(path, mapped, (int)sizeof(mapped));
+    if (mr == 1) return 1;                    /* skipped entry */
+    if (mr < 0) { c->error = mr; return -1; }
+    char target[160];
+    if ((int)(strlen(c->slot_mount) + strlen(mapped)) + 1 >=
+        (int)sizeof(target)) {
+        c->error = OC_UPDATE_E_BUFSIZE;
+        return -1;
+    }
+    strcpy(target, c->slot_mount);
+    strcat(target, mapped);
+    if (ensure_parent_dirs(target) != 0) {
+        c->error = OC_UPDATE_E_IO;
+        return -1;
+    }
+    c->fd = fs_vfs_open(target, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+    if (c->fd < 0) {
+        c->error = OC_UPDATE_E_IO;
+        return -1;
+    }
+    strcpy(c->cur_target, mapped);
+    if (strcmp(mapped, "/boot/grub.cfg") == 0 && g_ab_present) {
+        strcpy(c->grub_cfg_flags, OC_AB_MOUNT_BOOT);
+        strcat(c->grub_cfg_flags, "/boot/grub/grub.cfg");
+    }
+    c->files_installed++;
+    return 0;
+}
+
 static int install_file_cb(void *ctx, const char *path, int type,
                            u64 size, const u8 *data, int len) {
     install_ctx_t *c = (install_ctx_t *)ctx;
@@ -831,10 +926,41 @@ static int install_file_cb(void *ctx, const char *path, int type,
 
     if (type == OC_TAR_DIR) return 0;
 
+    /* learn the wrapper-dir prefix from the very first entry */
+    if (!c->have_prefix) {
+        const char *slash = strchr(path, '/');
+        if (slash && slash != path) {
+            int pl = (int)(slash - path) + 1;
+            if (pl < (int)sizeof(c->strip_prefix)) {
+                memcpy(c->strip_prefix, path, pl);
+                c->strip_prefix[pl] = 0;
+                c->have_prefix = 1;
+            }
+        } else {
+            c->have_prefix = 1;   /* no wrapper dir: entries are root-level */
+            c->strip_prefix[0] = 0;
+        }
+    }
+    path = strip_wrapper(c, path);
+
+    int is_manifest = (strcmp(path, "manifest.json") == 0);
+
     if (data == NULL && len == 0) {
-        /* final slice: close the file */
-        if (c->fd >= 0) fs_vfs_close(c->fd);
-        c->fd = -1;
+        /* BUG-0301 (A5-12): a zero-length regular file arrives as a single
+         * (NULL, 0) slice. With fd < 0 this used to fall into the plain
+         * "final slice: close" branch, so empty files were silently dropped
+         * from the installed image (never created, not counted). An
+         * unopened target now gets created here. */
+        if (c->fd < 0 && !is_manifest) {
+            int cr = install_open_target(c, path);
+            if (cr == 1) return 0;                /* skipped entry */
+            if (cr < 0) return -1;
+            fs_vfs_close(c->fd);                  /* nothing to write */
+            c->fd = -1;
+        } else if (c->fd >= 0) {
+            fs_vfs_close(c->fd);
+            c->fd = -1;
+        }
         if (c->grub_cfg_flags[0] && strcmp(c->cur_target, "/boot/grub.cfg") == 0) {
             /* mirror the new grub.cfg to the flags partition for GRUB */
             char src[192];
@@ -858,54 +984,11 @@ static int install_file_cb(void *ctx, const char *path, int type,
         return 0;
     }
 
-    /* learn the wrapper-dir prefix from the very first entry */
-    if (!c->have_prefix) {
-        const char *slash = strchr(path, '/');
-        if (slash && slash != path) {
-            int pl = (int)(slash - path) + 1;
-            if (pl < (int)sizeof(c->strip_prefix)) {
-                memcpy(c->strip_prefix, path, pl);
-                c->strip_prefix[pl] = 0;
-                c->have_prefix = 1;
-            }
-        } else {
-            c->have_prefix = 1;   /* no wrapper dir: entries are root-level */
-            c->strip_prefix[0] = 0;
-        }
-    }
-    path = strip_wrapper(c, path);
-
-    int is_manifest = (strcmp(path, "manifest.json") == 0);
-
     /* first slice of a regular file: map the path and open the target */
     if (c->fd < 0 && !is_manifest) {
-        char mapped[128];
-        int mr = map_package_path(path, mapped, (int)sizeof(mapped));
-        if (mr == 1) return 0;                    /* skipped entry */
-        if (mr < 0) { c->error = mr; return -1; }
-        char target[160];
-        if ((int)(strlen(c->slot_mount) + strlen(mapped)) + 1 >=
-            (int)sizeof(target)) {
-            c->error = OC_UPDATE_E_BUFSIZE;
-            return -1;
-        }
-        strcpy(target, c->slot_mount);
-        strcat(target, mapped);
-        if (ensure_parent_dirs(target) != 0) {
-            c->error = OC_UPDATE_E_IO;
-            return -1;
-        }
-        c->fd = fs_vfs_open(target, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
-        if (c->fd < 0) {
-            c->error = OC_UPDATE_E_IO;
-            return -1;
-        }
-        strcpy(c->cur_target, mapped);
-        if (strcmp(mapped, "/boot/grub.cfg") == 0 && g_ab_present) {
-            strcpy(c->grub_cfg_flags, OC_AB_MOUNT_BOOT);
-            strcat(c->grub_cfg_flags, "/boot/grub/grub.cfg");
-        }
-        c->files_installed++;
+        int cr = install_open_target(c, path);
+        if (cr == 1) return 0;                    /* skipped entry */
+        if (cr < 0) return -1;
     }
 
     if (is_manifest) {
@@ -1014,15 +1097,22 @@ int ota_update_install(const char *pkg_path, const char *slot) {
 
     /* manifest checks: version present + payload checksum */
     if (ictx.manifest_len == 0) return OC_UPDATE_E_TARGZ;
-    char mver[32];
+    char mver[64];   /* BUG-0299 (A5-10): 32 rejected official 44-char versions at parse time */
     char msha[80];
     if (ota_update_json_string(ictx.manifest, "version", mver,
                               (int)sizeof(mver)) != 0)
         return OC_UPDATE_E_TARGZ;
+    /* BUG-0302 (A5-13): the manifest sha256 is no longer optional. A package
+     * without the field used to skip verification entirely (and --local still
+     * printed "verifying SHA256... OK"), making --local install a purely
+     * structural check. The field is now mandatory and must match the
+     * digest computed over the installed file bodies. Honest scope note: the
+     * manifest travels inside the package, so this is an integrity check
+     * against truncation/corruption, not an authenticity signature. */
     if (ota_update_json_string(ictx.manifest, "sha256", msha,
-                              (int)sizeof(msha)) == 0) {
-        if (!sha_hex_eq(pkg_digest, msha)) return OC_UPDATE_E_SHA;
-    }
+                              (int)sizeof(msha)) != 0)
+        return OC_UPDATE_E_SHA;
+    if (!sha_hex_eq(pkg_digest, msha)) return OC_UPDATE_E_SHA;
     return 0;
 }
 
@@ -1146,7 +1236,7 @@ int shell_cmd_update(const char *args) {
             screen_console_puts("\n");
             return 1;
         }
-        screen_console_puts("update: verifying SHA256... OK\n");
+        screen_console_puts("update: manifest SHA256 verified\n");   /* BUG-0302: truthful wording - the checksum was enforced inside the install, missing/mismatched sha aborts above */
         screen_console_puts("update: extracting to ");
         screen_console_puts(tgt);
         screen_console_puts(" partition... OK\n");

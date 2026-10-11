@@ -29,8 +29,15 @@ void screen_serial_in_irq_handler(void *ctx, arch_irq_frame_t *f) {
     u8 iir = inb(COM1 + 2);
     if (iir & 0x01) return;  /* no interrupt */
 
-    /* Drain all available bytes (FIFO may have multiple). */
-    while (inb(COM1 + 5) & 0x01) {
+    /* Drain all available bytes (FIFO may have multiple).
+     * BUG-0323 (A7-18): the drain used to be open-ended - a stuck or
+     * absent UART whose LSR data-ready bit reads 1 forever (0xFF from a
+     * nonexistent port) spun this IRQ handler for eternity and hung the
+     * whole machine. Bound the burst; anything left waits for the next
+     * IRQ (the FIFO trigger re-arms). */
+    int drained = 0;
+    while (drained < 32 && (inb(COM1 + 5) & 0x01)) {
+        drained++;
         u8 b = inb(COM1);
         u16 key;
         switch (b) {

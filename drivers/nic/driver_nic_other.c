@@ -339,9 +339,17 @@ int other_nics_init(driver_pci_dev_t *pdev) {
         int found = 0;
         if (pdev) {
             u32 ids = driver_pci_read_config(pdev->bus, pdev->dev, pdev->func, 0x00);
-            if ((ids & 0xFFFF) == 0x10B7) {
-                bus = pdev->bus; dev = pdev->dev; func = pdev->func;
-                found = 1;
+            /* BUG-0336 (A8-8): the vendor-only match accepted ANY 3Com
+             * function; require a whitelisted device id too. */
+            u16 pvid = (u16)(ids & 0xFFFF), pdid = (u16)(ids >> 16);
+            if (pvid == 0x10B7) {
+                for (unsigned i = 0; i < sizeof(c3_ids) / sizeof(c3_ids[0]); i++) {
+                    if (pdid == c3_ids[i]) {
+                        bus = pdev->bus; dev = pdev->dev; func = pdev->func;
+                        found = 1;
+                        break;
+                    }
+                }
             }
         } else {
             for (unsigned i = 0; i < sizeof(c3_ids) / sizeof(c3_ids[0]) && !found; i++) {
@@ -369,9 +377,16 @@ int other_nics_init(driver_pci_dev_t *pdev) {
         int found = 0;
         if (pdev) {
             u32 ids = driver_pci_read_config(pdev->bus, pdev->dev, pdev->func, 0x00);
-            if ((ids & 0xFFFF) == 0x10DE) {
-                bus = pdev->bus; dev = pdev->dev; func = pdev->func;
-                found = 1;
+            /* BUG-0336 (A8-8): same device-id requirement for nForce. */
+            u16 pvid = (u16)(ids & 0xFFFF), pdid = (u16)(ids >> 16);
+            if (pvid == 0x10DE) {
+                for (unsigned i = 0; i < sizeof(net_netfilter_ids) / sizeof(net_netfilter_ids[0]); i++) {
+                    if (pdid == net_netfilter_ids[i]) {
+                        bus = pdev->bus; dev = pdev->dev; func = pdev->func;
+                        found = 1;
+                        break;
+                    }
+                }
             }
         } else {
             for (unsigned i = 0; i < sizeof(net_netfilter_ids) / sizeof(net_netfilter_ids[0]) && !found; i++) {

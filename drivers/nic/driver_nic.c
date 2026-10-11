@@ -12,6 +12,7 @@
  */
 #include "driver_nic.h"
 #include "screen_console.h"
+#include "core_sync.h"
 #include "lib_string.h"
 #include "mem_heap.h"
 
@@ -57,16 +58,33 @@ int driver_nic_register(driver_nic_device_t *dev, const driver_nic_ops_t *ops) {
     return -1;
 }
 
+/* BUG-0334 (A8-16): driver send/recv paths are single-instance globals
+ * with cursor state (tx_tail/rx_tail/capr/...) and NO internal locking,
+ * while both the shell (nic_rw_test) and the timer-IRQ net_poll call
+ * straight into driver_nic_send/recv. Every dispatch now runs under one
+ * irqsave spinlock (BUG-0285 semantics), so a task-context sender can no
+ * longer race the IRQ poller on the same descriptor ring. The critical
+ * section covers the whole driver op: drivers poll their own completion
+ * registers inside (bounded waits) and never re-enter this lock, and a
+ * spinning IRQ waiter only defers ticks until the holder finishes. */
+static spinlock_t g_nic_data_lock;
+
 int driver_nic_send(driver_nic_device_t *dev, const void *buf, int len) {
     if (!dev || !dev->present || !dev->ops || !dev->ops->send) return -1;
     if (!buf || len <= 0) return -1;
-    return dev->ops->send(dev, buf, len);
+    spin_lock(&g_nic_data_lock);
+    int rc = dev->ops->send(dev, buf, len);
+    spin_unlock(&g_nic_data_lock);
+    return rc;
 }
 
 int driver_nic_recv(driver_nic_device_t *dev, void *buf, int maxlen) {
     if (!dev || !dev->present || !dev->ops || !dev->ops->recv) return -1;
     if (!buf || maxlen <= 0) return -1;
-    return dev->ops->recv(dev, buf, maxlen);
+    spin_lock(&g_nic_data_lock);
+    int rc = dev->ops->recv(dev, buf, maxlen);
+    spin_unlock(&g_nic_data_lock);
+    return rc;
 }
 
 int driver_nic_link_status(driver_nic_device_t *dev) {

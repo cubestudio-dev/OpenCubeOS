@@ -52,7 +52,21 @@ int driver_block_register_device(const char *name, driver_block_type_t type,
 
 int driver_block_unregister_device(int index) {
     if (index < 0 || index >= BLK_MAX_DEVICES) return -1;
-    g_blk_devs[index].present = 0;
+    driver_block_device_t *d = &g_blk_devs[index];
+    if (!d->present) return -1;
+    d->present = 0;
+    /* BUG-0313 (A6-17): unregister used to only clear `present`, leaving
+     * name/ops/priv and the per-slot stats behind, and never shrank
+     * g_blk_count - once all 8 slots had been used, a later unregister +
+     * register failed forever with -ENOSPC even though a slot was free.
+     * Clear the stale identity, reset the per-slot stats, and shrink the
+     * high-water mark while the top slots are all free. */
+    d->name[0] = 0;
+    d->ops = NULL;
+    d->priv = NULL;
+    memset(&g_blk_stats[index], 0, sizeof(g_blk_stats[index]));
+    while (g_blk_count > 0 && !g_blk_devs[g_blk_count - 1].present)
+        g_blk_count--;
     return 0;
 }
 

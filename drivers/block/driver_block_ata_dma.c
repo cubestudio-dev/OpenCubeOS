@@ -94,12 +94,19 @@ static const u16 g_chan_base[4] = { 0x1F0, 0x1F0, 0x170, 0x170 };
 static const int g_drive_chan[4] = { 0, 0, 1, 1 };  /* BMDMA channel */
 static const u8  g_drive_slave[4] = { 0, 1, 0, 1 };
 
-/* PRDT: 8 entries x 8 bytes, 4-byte aligned. */
+/* PRDT: 8 entries x 8 bytes, 4-byte aligned.
+ * BUG-0315 (A6-7): entry layout per the PCI IDE (Bus Master IDE) spec -
+ * byte 0-3 address, byte 4-5 the EXACT byte count (0 encodes 64 KiB),
+ * byte 6 reserved, byte 7 bit 7 = EOT. The old layout packed EOT into
+ * the count field's bit 15 and stored bytes-1 (the AHCI DBC convention),
+ * which real PIIX/ICH controllers read as a never-ending table whose
+ * unused entries are heap garbage. */
 #define PRDT_MAX 8
+#define ATA_PRD_EOT 0x8000u
 typedef struct __attribute__((packed)) {
     u32 addr;
-    u16 count_eot;   /* bits 14:0 = byte count, bit 15 = EOT */
-    u16 rsvd;
+    u16 byte_count;   /* exact byte count; 0 = 64 KiB */
+    u16 eot_rsvd;     /* bit 15 (byte 7 bit 7) = EOT, rest reserved 0 */
 } driver_block_ata_dma_prdt_t;
 
 /* Command can move at most 64 KiB (PRDT 16-bit count) - we use one entry
@@ -218,11 +225,19 @@ static int driver_block_ata_dma_xfer(driver_block_ata_dma_drive_t *d, int is_wri
     /* 1-2. stop + clear status. */
     driver_block_ata_dma_stop_clear(d, chan);
 
-    /* 3. PRDT: one entry covering the whole bounce region, EOT set. */
+    /* 3. PRDT: one entry covering the whole bounce region, EOT set.
+     * BUG-0315 (A6-7): spec encoding - exact byte count (0x10000 encodes
+     * as 0) and EOT in byte 7 bit 7; unused entries are ZEROED so a
+     * controller that walks past entry 0 never DMAs from heap garbage. */
     u64 phys = (u64)(uintptr_t)d->bounce;
-    d->prdt[0].addr      = (u32)(phys & 0xFFFFFFF0u);
-    d->prdt[0].count_eot = (u16)(((bytes - 1u) & 0xFFFFu) | 0x8000u);
-    d->prdt[0].rsvd      = 0;
+    d->prdt[0].addr       = (u32)(phys & 0xFFFFFFF0u);
+    d->prdt[0].byte_count = (u16)(bytes & 0xFFFFu);
+    d->prdt[0].eot_rsvd   = (u16)(ATA_PRD_EOT);
+    for (int i = 1; i < PRDT_MAX; i++) {
+        d->prdt[i].addr = 0;
+        d->prdt[i].byte_count = 0;
+        d->prdt[i].eot_rsvd = 0;
+    }
 
     /* 4. BMIDTP (physical PRDT address, bits 1:0 = 0). */
     outl((u16)(d->ctrl->bar4 + BMIDTP_OFF(chan)),

@@ -63,6 +63,7 @@
 
 /* STATUS bits */
 #define ES_STAT_DAC2        (1u << 1)
+#define ES_STAT_CSTAT       (1u << 10)   /* codec busy / write in progress */
 
 /* SCTRL bits (DAC2) */
 #define ES_SCTRL_P2FMT_MSK  (3u << 2)   /* 11 = 16-bit stereo */
@@ -107,6 +108,7 @@ static const driver_snd_ops_t driver_snd_es1370_snd_ops = {
 
 static inline void es_outl(u16 port, u32 v) { __asm__ volatile("outl %0, %1" :: "a"(v), "Nd"(port)); }
 static inline u32   es_inl(u16 port)        { u32 v; __asm__ volatile("inl %1, %0" : "=a"(v) : "Nd"(port)); return v; }
+static inline void es_outw(u16 port, u16 v) { __asm__ volatile("outw %0, %1" :: "a"(v), "Nd"(port)); }
 
 static void driver_snd_es1370_log(const char *s) { screen_console_puts(s); }
 
@@ -178,6 +180,14 @@ static int es_play_block(driver_snd_es1370_dev_t *d, const u8 *src, u32 bytes) {
 static int driver_snd_es1370_ops_play(driver_snd_device_t *sdev, const void *buf, int len) {
     driver_snd_es1370_dev_t *d = (driver_snd_es1370_dev_t *)sdev->priv;
     if (!d || !d->up) return -1;
+    /* BUG-0338 (A9-07): odd/short tails used to be rounded UP to 4 bytes
+     * and memcpy'd past the caller buffer. The DAC2 channel consumes whole
+     * 32-bit frames (dword granularity is a hardware constraint, the
+     * block-size check refuses bytes&3), so: refuse odd lengths, play
+     * every full 4-byte frame, and stop honestly before a trailing 2-byte
+     * half-frame instead of over-reading it - the return value reports
+     * exactly what was consumed. */
+    if (len < 0 || (len & 1)) return -1;
     const u8 *src = (const u8 *)buf;
     int sent = 0;
 
@@ -185,7 +195,7 @@ static int driver_snd_es1370_ops_play(driver_snd_device_t *sdev, const void *buf
         u32 chunk = (u32)(len - sent);
         if (chunk > ES_BLOCK_BYTES) chunk = ES_BLOCK_BYTES;
         chunk &= ~3u;
-        if (chunk < 4) chunk = 4;
+        if (chunk < 4) break;   /* trailing 2-byte half-frame: not playable */
         int rc = es_play_block(d, src + sent, chunk);
         if (rc < 0) return sent ? sent : -1;
         sent += rc;
@@ -219,13 +229,36 @@ static int driver_snd_es1370_ops_set_volume(driver_snd_device_t *sdev, u32 vol) 
     driver_snd_es1370_dev_t *d = (driver_snd_es1370_dev_t *)sdev->priv;
     if (!d || !d->up) return -1;
     if (vol > 100) vol = 100;
-    /* ES1370 codec register write: [31]=write, [22:16]=addr, [15:0]=data.
-     * The AC97-style master volume register (0x02) takes 1.5 dB steps
-     * where 0 = loudest. */
-    u32 att = ((100 - vol) * 0x1f) / 100;
-    u16 data = (u16)(att | (att << 8));
-    if (vol == 0) data |= 0x8080;
-    es_outl(d->io + ES1370_REG_CODEC, (1u << 31) | (0x02 << 16) | data);
+    /* BUG-0343 (A9-15): the ES1370 CODEC port is wired to an AK4531
+     * (NOT an AC'97 codec - that is the ES1371).  AK4531 registers are
+     * 8-bit: bit7 = mute, bits[6:0] a 5-bit attenuation field (1.5 dB
+     * per step, 0 = loudest), master volume lives at regs 0x00/0x01
+     * (cross-checked against FreeBSD sys/dev/sound/pci/es137x.c:
+     * es1370_wrcodec() waits for STATUS.CSTAT to clear, then writes
+     * CODEC reg 0x10 as a 16-bit value = (index << 8) | data; the
+     * mixer table maps master L/R to 0x00/0x01 with
+     * "(l < 7) ? 0x80 : 31 - (l - 7) / 3").  The old code wrote an
+     * AC'97-style 32-bit dword (bit31 write flag, address in
+     * bits[22:16], doubled 16-bit data) which no AK4531 understands
+     * and never waited for the codec to go ready.  QEMU ignores CODEC
+     * writes either way (hw/audio/es1370.c has no CODEC case), so the
+     * busy-wait below is the real-hardware handshake and is bounded. */
+    int rl = (int)vol;
+    int rr = (int)vol;
+    u8  enc_l = (rl < 7) ? 0x80 : (u8)(31 - (rl - 7) / 3);
+    u8  enc_r = (rr < 7) ? 0x80 : (u8)(31 - (rr - 7) / 3);
+    for (int t = 0; t < 4096; t++) {
+        if ((es_inl(d->io + ES1370_REG_STATUS) & ES_STAT_CSTAT) == 0) {
+            es_outw(d->io + ES1370_REG_CODEC, (u16)((0x00u << 8) | enc_l));
+            break;
+        }
+    }
+    for (int t = 0; t < 4096; t++) {
+        if ((es_inl(d->io + ES1370_REG_STATUS) & ES_STAT_CSTAT) == 0) {
+            es_outw(d->io + ES1370_REG_CODEC, (u16)((0x01u << 8) | enc_r));
+            break;
+        }
+    }
     return 0;
 }
 
@@ -277,12 +310,20 @@ int driver_snd_es1370_init(driver_pci_dev_t *pdev) {
     d->dma = (u8 *)(uintptr_t)d->dma_phys;
     memset(d->dma, 0, ES_BLOCK_BYTES);
 
-    /* IRQ from the PCI interrupt line */
+    /* IRQ from the PCI interrupt line.  BUG-0341 (A9-11): the DAC2
+     * playback path waits for the completion IRQ (no polling fallback),
+     * so a failed registration must NOT bring the device up (PCI lines
+     * >= 16 or a full chain would leave a fake-live device that times
+     * out on every block). */
     u32 icfg = driver_pci_read_config(bus, dev, func, 0x3c);
     int irq = (int)(icfg & 0xff);
     d->irq = -1;
-    if (irq < 16 && arch_irq_register_handler(irq, driver_snd_es1370_irq_handler, NULL) == 0)
-        d->irq = irq;
+    if (irq >= 16 ||
+        arch_irq_register_handler(irq, driver_snd_es1370_irq_handler, NULL) != 0) {
+        driver_snd_es1370_log("es1370: IRQ registration failed - device disabled\n");
+        return -1;
+    }
+    d->irq = irq;
 
     /* reset-ish: codec interface on, DACs off */
     u32 ctl = es_inl(d->io + ES1370_REG_CONTROL);
