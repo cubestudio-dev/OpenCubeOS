@@ -96,6 +96,7 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "driver_wireless.h"           /* WP-10-wireless_bluetooth: 802.11 core */
 #include "driver_iwlwifi.h"            /* WP-10-wireless_bluetooth: Intel */
 #include "driver_rtlwifi.h"            /* WP-10-wireless_bluetooth: Realtek */
+#include "driver_ath.h"                /* WP-10-wireless_bluetooth: Atheros */
 #include "driver_hpet.h"               /* WP-10-timer_rtc: HPET */
 #include "driver_pmtimer.h"            /* WP-10-timer_rtc: ACPI PM timer */
 #include "shell_cmds_timer.h"          /* WP-10-timer_rtc: time commands */
@@ -3362,6 +3363,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     driver_wireless_init();
     driver_iwlwifi_register();
     driver_rtlwifi_register();
+    driver_ath_register();
     wl_device_probe_all();
 
     /* WP-05 shell commands: file operations (in file_cmds.c) +
