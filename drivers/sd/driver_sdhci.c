@@ -460,20 +460,16 @@ static void sdhci_bind_clients(sdhci_host_t *h)
 /* ------------------------------------------------------------------ */
 static int wl_check(char *out, int *o, int outlen, const char *name, int cond)
 {
-    if (!cond) {
-        const char *s = " FAIL";
-        if (*o + 48 < outlen) {
-            int i = 0;
-            while (name[i] && *o < outlen - 1) out[(*o)++] = name[i++];
-            i = 0;
-            while (s[i] && *o < outlen - 1) out[(*o)++] = s[i++];
-            out[(*o)++] = '\n';
-        }
-        out[*o] = '\0';
-        return 1;
+    const char *s = cond ? " PASS" : " FAIL";
+    if (*o + 48 < outlen) {
+        int i = 0;
+        while (name[i] && *o < outlen - 1) out[(*o)++] = name[i++];
+        i = 0;
+        while (s[i] && *o < outlen - 1) out[(*o)++] = s[i++];
+        out[(*o)++] = '\n';
     }
     out[*o] = '\0';
-    return 0;
+    return cond ? 0 : 1;
 }
 
 int driver_sdhci_selftest(char *out, int outlen)

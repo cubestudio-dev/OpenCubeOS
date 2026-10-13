@@ -788,20 +788,16 @@ int wl_tx_frame(wl_device_t *dev, const u8 *frame, u16 len)
 static int wl_check(char *out, int *o, int outlen, const char *name,
                     int cond)
 {
-    if (!cond) {
-        const char *s = " FAIL";
-        if (*o + 32 < outlen) {
-            int i = 0;
-            while (name[i] && *o < outlen - 1) out[(*o)++] = name[i++];
-            i = 0;
-            while (s[i] && *o < outlen - 1) out[(*o)++] = s[i++];
-            out[(*o)++] = '\n';
-        }
-        out[*o] = '\0';
-        return 1;
+    const char *s = cond ? " PASS" : " FAIL";
+    if (*o + 32 < outlen) {
+        int i = 0;
+        while (name[i] && *o < outlen - 1) out[(*o)++] = name[i++];
+        i = 0;
+        while (s[i] && *o < outlen - 1) out[(*o)++] = s[i++];
+        out[(*o)++] = '\n';
     }
     out[*o] = '\0';
-    return 0;
+    return cond ? 0 : 1;
 }
 
 int driver_wireless_selftest(char *out, int outlen)

@@ -100,6 +100,8 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "driver_brcm.h"               /* WP-10-wireless_bluetooth: Broadcom */
 #include "driver_sdhci.h"              /* WP-10-wireless_bluetooth: SDHCI/SDIO */
 #include "driver_bt.h"                 /* WP-10-wireless_bluetooth: Bluetooth */
+#include "shell_cmds_wireless.h"       /* WP-10-wireless_bluetooth: wifi */
+#include "shell_cmds_bt.h"             /* WP-10-wireless_bluetooth: bt */
 #include "driver_hpet.h"               /* WP-10-timer_rtc: HPET */
 #include "driver_pmtimer.h"            /* WP-10-timer_rtc: ACPI PM timer */
 #include "shell_cmds_timer.h"          /* WP-10-timer_rtc: time commands */
@@ -3419,6 +3421,8 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_cmds_chipset_register();
     /* ---- WP-10-timer_rtc: time-source commands ---- */
     shell_cmds_timer_register();
+    shell_cmds_wireless_register();       /* WP-10-wireless_bluetooth */
+    shell_cmds_bt_register();             /* WP-10-wireless_bluetooth */
     arch_lapic_init();
     OC_LOG_OK2("shell file/disk commands");
 

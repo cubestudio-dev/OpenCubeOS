@@ -60,6 +60,7 @@ static h4_rx_t g_rx;
 static volatile u8  g_ring[H4_RX_RING];
 static volatile u16 g_ring_head, g_ring_tail;
 static u8 g_uart_ok;
+static u32 g_tx_bytes;
 
 /* ------------------------------------------------------------------ */
 /* Byte plumbing                                                       */
@@ -134,7 +135,10 @@ int bt_h4_init(void)
     outb2(UART2_THR, 0x01);            /* divisor 1 = 115200             */
     outb2(UART2_IER, 0x00);
     outb2(UART2_LCR, 0x03);            /* 8N1                            */
-    outb2(UART2_FCR, 0xc7);            /* enable + clear FIFOs, 14B trig */
+    /* FIFO enable + clear both, RX trigger level 1: QEMU's 16550 has
+     * no receive-timeout interrupt, so a 14-byte trigger would never
+     * raise IRQ3 for short HCI events.  Every byte IRQs immediately.  */
+    outb2(UART2_FCR, 0x07);
     outb2(UART2_MCR, 0x0b);
 
     g_ring_head = g_ring_tail = 0;
@@ -240,15 +244,12 @@ int h4_recv(u8 *type_out, u8 *buf, u16 buflen, u16 *len_out)
         g_rx.pkt_ready = 0;
         return 1;
     }
-    /* no pending packet: drain IRQ ring into the frame machine        */
+    /* The IRQ handler is the ONLY FIFO consumer (a direct LSR/RBR
+     * drain here would race it: check-then-read can duplicate a stale
+     * byte once the IRQ took the byte in between).  With the RX
+     * trigger at level 1 every received byte reaches the ring.       */
     while (ring_pop(&b)) {
         h4_feed(b);
-        if (g_rx.pkt_ready) return h4_recv(type_out, buf, buflen, len_out);
-    }
-    /* also drain the FIFO directly in case the IRQ was late           */
-    for (int i = 0; i < 16; i++) {
-        if (!(inb2(UART2_LSR) & UART2_LSR_DR)) break;
-        h4_feed(inb2(UART2_RBR));
         if (g_rx.pkt_ready) return h4_recv(type_out, buf, buflen, len_out);
     }
     return 0;
@@ -259,6 +260,7 @@ static int h4_send(u8 type, const u8 *data, u16 len)
     if (!g_uart_ok) return -1;
     uart_write(type);
     for (u16 i = 0; i < len; i++) uart_write(data[i]);
+    g_tx_bytes += (u32)len + 1;
     return 0;
 }
 
@@ -281,6 +283,29 @@ static int h4_poll_status(char *out, int outlen)
                              H4_RX_RING), num);
             int i = 0;
             while (num[i] && o < outlen - 1) out[o++] = num[i++];
+        }
+        {
+            const char *s2 = " tx=";
+            int i = 0;
+            char n2[12];
+            while (s2[i] && o < outlen - 1) out[o++] = s2[i++];
+            u64_to_str((u64)g_tx_bytes, n2);
+            i = 0;
+            while (n2[i] && o < outlen - 1) out[o++] = n2[i++];
+        }
+        {
+            /* H4 frame-machine state (debug: caught a lost-CC case)    */
+            static const char *st[] = { "TYPE", "HDR", "BODY" };
+            const char *s3 = " st=";
+            int i = 0;
+            while (s3[i] && o < outlen - 1) out[o++] = s3[i++];
+            i = 0;
+            while (st[g_rx.state][i] && o < outlen - 1)
+                out[o++] = st[g_rx.state][i++];
+            const char *s4 = " ready=";
+            i = 0;
+            while (s4[i] && o < outlen - 1) out[o++] = s4[i++];
+            if (o < outlen - 2) out[o++] = g_rx.pkt_ready ? '1' : '0';
         }
         if (o < outlen - 2) { out[o++] = '\n'; }
         out[o] = '\0';

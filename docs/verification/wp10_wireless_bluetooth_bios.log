@@ -1,0 +1,1525 @@
+[H[J[1;1H[m[mGFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot ISO)                                                    [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS WP-10-timer_rtc-6-gb40b906 kmain entered
+  Open Cube OS  [WP-10-timer_rtc-6-gb40b906]    Open Cube OS - L0 kernel (WP-10-timer_rtc-6-gb40b906)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.010] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.010] sync primitives (spinlock/sem/mutex/cond)......... OK
+[00:00:00.010] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 1ffe236a tables 5........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.020] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.020] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[00:00:00.040] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.050] SMBus: 8 device(s) at scan........................ OK
+    AML: AML: undefined name PRQ0
+    AML: AML: undefined name PRQ1
+    AML: AML: undefined name PRQ2
+    AML: AML: undefined name PRQ3
+    AML: AML: undefined name VEND
+    AML: AML: undefined name CSEL
+    AML: AML: undefined name CPEN
+[00:00:00.130] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.150] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.160] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.170] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.200] ramfs (in-memory file system, mounted at /)....... OK
+ata: primary master present
+ata_dma: IDE controller at 00:01.1 BAR4=0xc040
+ata_dma: drive hda registered (DMA, 65536 sectors)
+[00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: no controller found
+nvme: no controller found
+[00:00:00.340] virtio-blk + AHCI + NVMe drivers.................. OK
+[00:00:00.410] USB hosts up: 0................................... OK
+[00:00:00.420] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.460] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+vfs: shadow mount (previous directory restored on umount)
+vfs: mounted fat32 at /etc
+[00:00:00.500] system config (/etc/opencube.conf, fat32)......... OK
+[00:00:00.520] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.100] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=3 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
+[00:00:01.620] network stack (e1000 + TCP/IP + socket API)....... OK
+[00:00:01.800] sound: no sound card present (probe OK)........... OK
+[00:00:01.810] shell command system (198 commands)............... OK
+    block devices: 1 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:01.850] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131040 pages, 129255 free
+[00:00:01.870] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + dispatches)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:02.050] boot complete..................................... OK
+
+Open Cube OS WP-10-timer_rtc-6-gb40b906 ready. Type 'help' for commands.
+(Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)
+
+
+=== [wifi families] $ wifi
+wifi
+wireless families: 7  devices: 7
+  iwlwifi
+  rtlwifi
+  ath9k
+  ath10k
+  ath11k
+  b43
+  brcmfmac
+  dev0 iwlwifi bus=auto vid=0000 did=0000 state=down
+  dev1 rtlwifi bus=auto vid=0000 did=0000 state=down
+  dev2 ath9k bus=auto vid=0000 did=0000 state=down
+  dev3 ath10k bus=auto vid=0000 did=0000 state=down
+  dev4 ath11k bus=auto vid=0000 did=0000 state=down
+  dev5 b43 bus=auto vid=0000 did=0000 state=down
+  dev6 brcmfmac bus=auto vid=0000 did=0000 state=down
+(QEMU has no 802.11 models; down = device not present)
+
+=== [wifi dev list] $ wifi
+wifi
+wireless families: 7  devices: 7
+  iwlwifi
+  rtlwifi
+  ath9k
+  ath10k
+  ath11k
+  b43
+  brcmfmac
+  dev0 iwlwifi bus=auto vid=0000 did=0000 state=down
+  dev1 rtlwifi bus=auto vid=0000 did=0000 state=down
+  dev2 ath9k bus=auto vid=0000 did=0000 state=down
+  dev3 ath10k bus=auto vid=0000 did=0000 state=down
+  dev4 ath11k bus=auto vid=0000 did=0000 state=down
+  dev5 b43 bus=auto vid=0000 did=0000 state=down
+  dev6 brcmfmac bus=auto vid=0000 did=0000 state=down
+(QEMU has no 802.11 models; down = device not present)
+
+=== [wifi honest] $ wifi
+wifi
+wireless families: 7  devices: 7
+  iwlwifi
+  rtlwifi
+  ath9k
+  ath10k
+  ath11k
+  b43
+  brcmfmac
+  dev0 iwlwifi bus=auto vid=0000 did=0000 state=down
+  dev1 rtlwifi bus=auto vid=0000 did=0000 state=down
+  dev2 ath9k bus=auto vid=0000 did=0000 state=down
+  dev3 ath10k bus=auto vid=0000 did=0000 state=down
+  dev4 ath11k bus=auto vid=0000 did=0000 state=down
+  dev5 b43 bus=auto vid=0000 did=0000 state=down
+  dev6 brcmfmac bus=auto vid=0000 did=0000 state=down
+(QEMU has no 802.11 models; down = device not present)
+
+=== [wifi test core] $ wifi test
+wifi test
+beacon parse PASS
+beacon ssid PASS
+beacon bssid PASS
+beacon channel PASS
+beacon cap PASS
+beacon interval PASS
+beacon rate PASS
+beacon open PASS
+fc qos parse PASS
+fc qos subtype PASS
+fc qos flag PASS
+fc seq PASS
+fc body off PASS
+assoc build PASS
+assoc reparse PASS
+assoc ssid ie PASS
+assoc cap PASS
+assoc resp parse PASS
+assoc resp fields PASS
+eth encap PASS
+llc snap PASS
+encap reparse PASS
+decap roundtrip PASS
+ch1 2412 PASS
+ch6 2437 PASS
+ch14 2484 PASS
+ch36 5180 PASS
+core checks done
+iwlwifi:iwl id 7260 PASS
+iwl id AX200 PASS
+iwl id other-vendor rejected PASS
+iwl id unknown-rev rejected PASS
+iwl ucode legacy parse PASS
+iwl ucode bad magic honest PASS
+iwl ucode TLV parse PASS
+iwl ucode TLV truncate honest PASS
+iwlwifi checks done
+rtlwifi:rtl id 8188EE PASS
+rtl id 8821AE PASS
+rtl id non-realtek rejected PASS
+rtl id unknown rejected PASS
+rtl txdesc pktlen PASS
+rtl txdesc offset PASS
+rtl txdesc own/fsl PASS
+rtl CR_ALL_EN bits PASS
+rtl efuse encode PASS
+rtlwifi checks done
+ath9k:ath9k id AR9285 PASS
+ath9k id AR9462 PASS
+ath9k non-atheros rejected PASS
+ath9k txd data PASS
+ath9k txd mgmt PASS
+ath9k rxd parse PASS
+ath9k rxd phy error honest PASS
+ath9k checks done
+ath10k:ath10k id QCA6174 PASS
+ath10k id QCA9888 PASS
+ath10k vendor rejected PASS
+ath10k CE desc PASS
+ath10k HTC pack PASS
+ath10k HTC unpack PASS
+ath10k BMI cmd PASS
+ath10k WMI TLV put PASS
+ath10k WMI TLV cap honest PASS
+ath10k checks done
+ath11k:ath11k id WCN6855 PASS
+ath11k id QCA6390 PASS
+ath11k vendor rejected PASS
+ath11k MHI elem PASS
+ath11k QMI TLV put PASS
+ath11k checks done
+b43:b43 id BCM4318 PASS
+b43 id BCM4331 PASS
+b43 non-broadcom rejected PASS
+b43 ssb window enc PASS
+b43 checks done
+brcmfmac:brcmf id BCM43602 PASS
+brcmf id BCM4356 PASS
+brcmf vendor rejected PASS
+brcmf sdio vid PASS
+brcmf sb window order PASS
+brcmfmac checks done
+wifi test: 0 failures - PASS
+
+=== [wifi test core2] $ wifi test
+ wifi test
+beacon parse PASS
+beacon ssid PASS
+beacon bssid PASS
+beacon channel PASS
+beacon cap PASS
+beacon interval PASS
+beacon rate PASS
+beacon open PASS
+fc qos parse PASS
+fc qos subtype PASS
+fc qos flag PASS
+fc seq PASS
+fc body off PASS
+assoc build PASS
+assoc reparse PASS
+assoc ssid ie PASS
+assoc cap PASS
+assoc resp parse PASS
+assoc resp fields PASS
+eth encap PASS
+llc snap PASS
+encap reparse PASS
+decap roundtrip PASS
+ch1 2412 PASS
+ch6 2437 PASS
+ch14 2484 PASS
+ch36 5180 PASS
+core checks done
+iwlwifi:iwl id 7260 PASS
+iwl id AX200 PASS
+iwl id other-vendor rejected PASS
+iwl id unknown-rev rejected PASS
+iwl ucode legacy parse PASS
+iwl ucode bad magic honest PASS
+iwl ucode TLV parse PASS
+iwl ucode TLV truncate honest PASS
+iwlwifi checks done
+rtlwifi:rtl id 8188EE PASS
+rtl id 8821AE PASS
+rtl id non-realtek rejected PASS
+rtl id unknown rejected PASS
+rtl txdesc pktlen PASS
+rtl txdesc offset PASS
+rtl txdesc own/fsl PASS
+rtl CR_ALL_EN bits PASS
+rtl efuse encode PASS
+rtlwifi checks done
+ath9k:ath9k id AR9285 PASS
+ath9k id AR9462 PASS
+ath9k non-atheros rejected PASS
+ath9k txd data PASS
+ath9k txd mgmt PASS
+ath9k rxd parse PASS
+ath9k rxd phy error honest PASS
+ath9k checks done
+ath10k:ath10k id QCA6174 PASS
+ath10k id QCA9888 PASS
+ath10k vendor rejected PASS
+ath10k CE desc PASS
+ath10k HTC pack PASS
+ath10k HTC unpack PASS
+ath10k BMI cmd PASS
+ath10k WMI TLV put PASS
+ath10k WMI TLV cap honest PASS
+ath10k checks done
+ath11k:ath11k id WCN6855 PASS
+ath11k id QCA6390 PASS
+ath11k vendor rejected PASS
+ath11k MHI elem PASS
+ath11k QMI TLV put PASS
+ath11k checks done
+b43:b43 id BCM4318 PASS
+b43 id BCM4331 PASS
+b43 non-broadcom rejected PASS
+b43 ssb window enc PASS
+b43 checks done
+brcmfmac:brcmf id BCM43602 PASS
+brcmf id BCM4356 PASS
+brcmf vendor rejected PASS
+brcmf sdio vid PASS
+brcmf sb window order PASS
+brcmfmac checks done
+wifi test: 0 failures - PASS
+
+=== [wifi test iwl] $ wifi test
+wifi test
+beacon parse PASS
+beacon ssid PASS
+beacon bssid PASS
+beacon channel PASS
+beacon cap PASS
+beacon interval PASS
+beacon rate PASS
+beacon open PASS
+fc qos parse PASS
+fc qos subtype PASS
+fc qos flag PASS
+fc seq PASS
+fc body off PASS
+assoc build PASS
+assoc reparse PASS
+assoc ssid ie PASS
+assoc cap PASS
+assoc resp parse PASS
+assoc resp fields PASS
+eth encap PASS
+llc snap PASS
+encap reparse PASS
+decap roundtrip PASS
+ch1 2412 PASS
+ch6 2437 PASS
+ch14 2484 PASS
+ch36 5180 PASS
+core checks done
+iwlwifi:iwl id 7260 PASS
+iwl id AX200 PASS
+iwl id other-vendor rejected PASS
+iwl id unknown-rev rejected PASS
+iwl ucode legacy parse PASS
+iwl ucode bad magic honest PASS
+iwl ucode TLV parse PASS
+iwl ucode TLV truncate honest PASS
+iwlwifi checks done
+rtlwifi:rtl id 8188EE PASS
+rtl id 8821AE PASS
+rtl id non-realtek rejected PASS
+rtl id unknown rejected PASS
+rtl txdesc pktlen PASS
+rtl txdesc offset PASS
+rtl txdesc own/fsl PASS
+rtl CR_ALL_EN bits PASS
+rtl efuse encode PASS
+rtlwifi checks done
+ath9k:ath9k id AR9285 PASS
+ath9k id AR9462 PASS
+ath9k non-atheros rejected PASS
+ath9k txd data PASS
+ath9k txd mgmt PASS
+ath9k rxd parse PASS
+ath9k rxd phy error honest PASS
+ath9k checks done
+ath10k:ath10k id QCA6174 PASS
+ath10k id QCA9888 PASS
+ath10k vendor rejected PASS
+ath10k CE desc PASS
+ath10k HTC pack PASS
+ath10k HTC unpack PASS
+ath10k BMI cmd PASS
+ath10k WMI TLV put PASS
+ath10k WMI TLV cap honest PASS
+ath10k checks done
+ath11k:ath11k id WCN6855 PASS
+ath11k id QCA6390 PASS
+ath11k vendor rejected PASS
+ath11k MHI elem PASS
+ath11k QMI TLV put PASS
+ath11k checks done
+b43:b43 id BCM4318 PASS
+b43 id BCM4331 PASS
+b43 non-broadcom rejected PASS
+b43 ssb window enc PASS
+b43 checks done
+brcmfmac:brcmf id BCM43602 PASS
+brcmf id BCM4356 PASS
+brcmf vendor rejected PASS
+brcmf sdio vid PASS
+brcmf sb window order PASS
+brcmfmac checks done
+wifi test: 0 failures - PASS
+
+=== [wifi test rtl] $ wifi test
+wifi test
+beacon parse PASS
+beacon ssid PASS
+beacon bssid PASS
+beacon channel PASS
+beacon cap PASS
+beacon interval PASS
+beacon rate PASS
+beacon open PASS
+fc qos parse PASS
+fc qos subtype PASS
+fc qos flag PASS
+fc seq PASS
+fc body off PASS
+assoc build PASS
+assoc reparse PASS
+assoc ssid ie PASS
+assoc cap PASS
+assoc resp parse PASS
+assoc resp fields PASS
+eth encap PASS
+llc snap PASS
+encap reparse PASS
+decap roundtrip PASS
+ch1 2412 PASS
+ch6 2437 PASS
+ch14 2484 PASS
+ch36 5180 PASS
+core checks done
+iwlwifi:iwl id 7260 PASS
+iwl id AX200 PASS
+iwl id other-vendor rejected PASS
+iwl id unknown-rev rejected PASS
+iwl ucode legacy parse PASS
+iwl ucode bad magic honest PASS
+iwl ucode TLV parse PASS
+iwl ucode TLV truncate honest PASS
+iwlwifi checks done
+rtlwifi:rtl id 8188EE PASS
+rtl id 8821AE PASS
+rtl id non-realtek rejected PASS
+rtl id unknown rejected PASS
+rtl txdesc pktlen PASS
+rtl txdesc offset PASS
+rtl txdesc own/fsl PASS
+rtl CR_ALL_EN bits PASS
+rtl efuse encode PASS
+rtlwifi checks done
+ath9k:ath9k id AR9285 PASS
+ath9k id AR9462 PASS
+ath9k non-atheros rejected PASS
+ath9k txd data PASS
+ath9k txd mgmt PASS
+ath9k rxd parse PASS
+ath9k rxd phy error honest PASS
+ath9k checks done
+ath10k:ath10k id QCA6174 PASS
+ath10k id QCA9888 PASS
+ath10k vendor rejected PASS
+ath10k CE desc PASS
+ath10k HTC pack PASS
+ath10k HTC unpack PASS
+ath10k BMI cmd PASS
+ath10k WMI TLV put PASS
+ath10k WMI TLV cap honest PASS
+ath10k checks done
+ath11k:ath11k id WCN6855 PASS
+ath11k id QCA6390 PASS
+ath11k vendor rejected PASS
+ath11k MHI elem PASS
+ath11k QMI TLV put PASS
+ath11k checks done
+b43:b43 id BCM4318 PASS
+b43 id BCM4331 PASS
+b43 non-broadcom rejected PASS
+b43 ssb window enc PASS
+b43 checks done
+brcmfmac:brcmf id BCM43602 PASS
+brcmf id BCM4356 PASS
+brcmf vendor rejected PASS
+brcmf sdio vid PASS
+brcmf sb window order PASS
+brcmfmac checks done
+wifi test: 0 failures - PASS
+
+=== [wifi test ath] $ wifi test
+wifi test
+beacon parse PASS
+beacon ssid PASS
+beacon bssid PASS
+beacon channel PASS
+beacon cap PASS
+beacon interval PASS
+beacon rate PASS
+beacon open PASS
+fc qos parse PASS
+fc qos subtype PASS
+fc qos flag PASS
+fc seq PASS
+fc body off PASS
+assoc build PASS
+assoc reparse PASS
+assoc ssid ie PASS
+assoc cap PASS
+assoc resp parse PASS
+assoc resp fields PASS
+eth encap PASS
+llc snap PASS
+encap reparse PASS
+decap roundtrip PASS
+ch1 2412 PASS
+ch6 2437 PASS
+ch14 2484 PASS
+ch36 5180 PASS
+core checks done
+iwlwifi:iwl id 7260 PASS
+iwl id AX200 PASS
+iwl id other-vendor rejected PASS
+iwl id unknown-rev rejected PASS
+iwl ucode legacy parse PASS
+iwl ucode bad magic honest PASS
+iwl ucode TLV parse PASS
+iwl ucode TLV truncate honest PASS
+iwlwifi checks done
+rtlwifi:rtl id 8188EE PASS
+rtl id 8821AE PASS
+rtl id non-realtek rejected PASS
+rtl id unknown rejected PASS
+rtl txdesc pktlen PASS
+rtl txdesc offset PASS
+rtl txdesc own/fsl PASS
+rtl CR_ALL_EN bits PASS
+rtl efuse encode PASS
+rtlwifi checks done
+ath9k:ath9k id AR9285 PASS
+ath9k id AR9462 PASS
+ath9k non-atheros rejected PASS
+ath9k txd data PASS
+ath9k txd mgmt PASS
+ath9k rxd parse PASS
+ath9k rxd phy error honest PASS
+ath9k checks done
+ath10k:ath10k id QCA6174 PASS
+ath10k id QCA9888 PASS
+ath10k vendor rejected PASS
+ath10k CE desc PASS
+ath10k HTC pack PASS
+ath10k HTC unpack PASS
+ath10k BMI cmd PASS
+ath10k WMI TLV put PASS
+ath10k WMI TLV cap honest PASS
+ath10k checks done
+ath11k:ath11k id WCN6855 PASS
+ath11k id QCA6390 PASS
+ath11k vendor rejected PASS
+ath11k MHI elem PASS
+ath11k QMI TLV put PASS
+ath11k checks done
+b43:b43 id BCM4318 PASS
+b43 id BCM4331 PASS
+b43 non-broadcom rejected PASS
+b43 ssb window enc PASS
+b43 checks done
+brcmfmac:brcmf id BCM43602 PASS
+brcmf id BCM4356 PASS
+brcmf vendor rejected PASS
+brcmf sdio vid PASS
+brcmf sb window order PASS
+brcmfmac checks done
+wifi test: 0 failures - PASS
+
+=== [wifi test brcm] $ wifi test
+wifi test
+beacon parse PASS
+beacon ssid PASS
+beacon bssid PASS
+beacon channel PASS
+beacon cap PASS
+beacon interval PASS
+beacon rate PASS
+beacon open PASS
+fc qos parse PASS
+fc qos subtype PASS
+fc qos flag PASS
+fc seq PASS
+fc body off PASS
+assoc build PASS
+assoc reparse PASS
+assoc ssid ie PASS
+assoc cap PASS
+assoc resp parse PASS
+assoc resp fields PASS
+eth encap PASS
+llc snap PASS
+encap reparse PASS
+decap roundtrip PASS
+ch1 2412 PASS
+ch6 2437 PASS
+ch14 2484 PASS
+ch36 5180 PASS
+core checks done
+iwlwifi:iwl id 7260 PASS
+iwl id AX200 PASS
+iwl id other-vendor rejected PASS
+iwl id unknown-rev rejected PASS
+iwl ucode legacy parse PASS
+iwl ucode bad magic honest PASS
+iwl ucode TLV parse PASS
+iwl ucode TLV truncate honest PASS
+iwlwifi checks done
+rtlwifi:rtl id 8188EE PASS
+rtl id 8821AE PASS
+rtl id non-realtek rejected PASS
+rtl id unknown rejected PASS
+rtl txdesc pktlen PASS
+rtl txdesc offset PASS
+rtl txdesc own/fsl PASS
+rtl CR_ALL_EN bits PASS
+rtl efuse encode PASS
+rtlwifi checks done
+ath9k:ath9k id AR9285 PASS
+ath9k id AR9462 PASS
+ath9k non-atheros rejected PASS
+ath9k txd data PASS
+ath9k txd mgmt PASS
+ath9k rxd parse PASS
+ath9k rxd phy error honest PASS
+ath9k checks done
+ath10k:ath10k id QCA6174 PASS
+ath10k id QCA9888 PASS
+ath10k vendor rejected PASS
+ath10k CE desc PASS
+ath10k HTC pack PASS
+ath10k HTC unpack PASS
+ath10k BMI cmd PASS
+ath10k WMI TLV put PASS
+ath10k WMI TLV cap honest PASS
+ath10k checks done
+ath11k:ath11k id WCN6855 PASS
+ath11k id QCA6390 PASS
+ath11k vendor rejected PASS
+ath11k MHI elem PASS
+ath11k QMI TLV put PASS
+ath11k checks done
+b43:b43 id BCM4318 PASS
+b43 id BCM4331 PASS
+b43 non-broadcom rejected PASS
+b43 ssb window enc PASS
+b43 checks done
+brcmfmac:brcmf id BCM43602 PASS
+brcmf id BCM4356 PASS
+brcmf vendor rejected PASS
+brcmf sdio vid PASS
+brcmf sb window order PASS
+brcmfmac checks done
+wifi test: 0 failures - PASS
+
+=== [wifi test verdict] $ wifi test
+ wifi test
+beacon parse PASS
+beacon ssid PASS
+beacon bssid PASS
+beacon channel PASS
+beacon cap PASS
+beacon interval PASS
+beacon rate PASS
+beacon open PASS
+fc qos parse PASS
+fc qos subtype PASS
+fc qos flag PASS
+fc seq PASS
+fc body off PASS
+assoc build PASS
+assoc reparse PASS
+assoc ssid ie PASS
+assoc cap PASS
+assoc resp parse PASS
+assoc resp fields PASS
+eth encap PASS
+llc snap PASS
+encap reparse PASS
+decap roundtrip PASS
+ch1 2412 PASS
+ch6 2437 PASS
+ch14 2484 PASS
+ch36 5180 PASS
+core checks done
+iwlwifi:iwl id 7260 PASS
+iwl id AX200 PASS
+iwl id other-vendor rejected PASS
+iwl id unknown-rev rejected PASS
+iwl ucode legacy parse PASS
+iwl ucode bad magic honest PASS
+iwl ucode TLV parse PASS
+iwl ucode TLV truncate honest PASS
+iwlwifi checks done
+rtlwifi:rtl id 8188EE PASS
+rtl id 8821AE PASS
+rtl id non-realtek rejected PASS
+rtl id unknown rejected PASS
+rtl txdesc pktlen PASS
+rtl txdesc offset PASS
+rtl txdesc own/fsl PASS
+rtl CR_ALL_EN bits PASS
+rtl efuse encode PASS
+rtlwifi checks done
+ath9k:ath9k id AR9285 PASS
+ath9k id AR9462 PASS
+ath9k non-atheros rejected PASS
+ath9k txd data PASS
+ath9k txd mgmt PASS
+ath9k rxd parse PASS
+ath9k rxd phy error honest PASS
+ath9k checks done
+ath10k:ath10k id QCA6174 PASS
+ath10k id QCA9888 PASS
+ath10k vendor rejected PASS
+ath10k CE desc PASS
+ath10k HTC pack PASS
+ath10k HTC unpack PASS
+ath10k BMI cmd PASS
+ath10k WMI TLV put PASS
+ath10k WMI TLV cap honest PASS
+ath10k checks done
+ath11k:ath11k id WCN6855 PASS
+ath11k id QCA6390 PASS
+ath11k vendor rejected PASS
+ath11k MHI elem PASS
+ath11k QMI TLV put PASS
+ath11k checks done
+b43:b43 id BCM4318 PASS
+b43 id BCM4331 PASS
+b43 non-broadcom rejected PASS
+b43 ssb window enc PASS
+b43 checks done
+brcmfmac:brcmf id BCM43602 PASS
+brcmf id BCM4356 PASS
+brcmf vendor rejected PASS
+brcmf sdio vid PASS
+brcmf sb window order PASS
+brcmfmac checks done
+wifi test: 0 failures - PASS
+
+=== [wifi scan] $ wifi scan
+wifi scan
+wifi scan: 0 networks seen (no beacons - no radio present)
+
+=== [wifi sdio] $ wifi sdio
+wifi sdio
+sdio bus: state=no-host hosts=0
+sdio cmd52 write enc PASS
+sdio vendor id PASS
+sdio cmd53 enc PASS
+sdhci cmd5 encoding PASS
+sdio driver register FAIL
+sdio state honest PASS
+sdhci checks done
+
+=== [wifi sdio test] $ wifi sdio
+wifi sdio
+sdio bus: state=no-host hosts=0
+sdio cmd52 write enc PASS
+sdio vendor id PASS
+sdio cmd53 enc PASS
+sdhci cmd5 encoding PASS
+sdio driver register FAIL
+sdio state honest PASS
+sdhci checks done
+
+=== [bt status] $ bt
+bt
+bluetooth: transport=h4-uart2 controller=66:55:44:33:22:11 conns=0 l2cap=0
+
+=== [bt uart] $ bt uart
+bt uart
+h4: uart2 ok, rx ring 0 tx=8 st=TYPE ready=0
+
+=== [bt usb honest] $ bt usb
+bt usb
+usb-bt: no dongle attached
+
+=== [bt test reset] $ bt test
+bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [bt test version] $ bt test
+bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [bt test bdaddr] $ bt test
+bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [bt test addr] $ bt test
+bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [bt test inquiry] $ bt test
+ bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [bt test conn] $ bt test
+bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [bt test l2cap] $ bt test
+bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [bt test sdp] $ bt test
+bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [bt test rfcomm] $ bt test
+ bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [bt test spp] $ bt test
+bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [bt test hid] $ bt test
+ bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [bt test verdict] $ bt test
+bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [help wp group] $ help -w
+help -w
+Commands by work package:
+
+=== WP-01 (boot, framebuffer, text) ===
+  clear                - clear screen
+  stats                - show interrupt/timer stats
+  uname                - print OS name (uname [-a|-s|-r|-m])
+
+=== WP-02 (interrupts, timer, keyboard) ===
+  exc                  - run exception self-test (#DE/#UD/#PF)
+  timer                - register a 500ms one-shot timer
+
+=== WP-03 (shell core) ===
+  echo                 - echo the text back
+  help                 - show this message
+
+=== WP-04 (memory, scheduler) ===
+  cr3test              - test CR3 switching
+  crashlog             - show last exception crashes
+  frag                 - show memory fragmentation
+  heap                 - show kernel heap stats
+  heaptest             - test heap overhead with 100 allocs
+  kill                 - kill a task (kill <tid>)
+  mem                  - show physical memory stats
+  memtest              - run memory test (PMM + heap)
+  multi                - spawn 3 tasks with interleaved output
+  nice                 - change priority (nice <tid> <prio>)
+  pftest               - test page fault handling
+  pmmrace              - BUG-0043 repro: PMM bitmap race thread-vs-IRQ
+  ps                   - list all tasks
+  run                  - run a user program (hello/badapp/loop/fork_test/.../dyn_test/so_test/dyn_hello/
+  sched                - show scheduler stats
+  spawn                - spawn a test kernel thread
+  syncstat             - show sync primitive stats
+  synctest             - test sync primitives (spinlock/mutex/sem)
+  vmmap                - show address space mappings
+  vmtest               - run virtual memory test
+
+=== WP-05 (VFS, FAT32, ATA) ===
+  cat                  - print file contents (cat <file>)
+  cd                   - change directory (cd [path])
+  cp                   - copy file (cp <src> <dst>)
+  df                   - show disk/mount usage
+  du                   - directory usage (du [path])
+  edit                 - line editor (edit <file>; :i :d :p :w :q :wq)
+  export               - set env var (export NAME=value)
+  fatmount             - mount FAT32 (fatmount <dev> <path>)
+  fatstat              - show FAT32 stats
+  fstest               - run VFS self-test (mkdir/write/read/ls)
+  grep                 - filter lines matching pattern (grep <pattern> [file])
+  ls                   - list directory (ls [path])
+  mkdir                - make directory (mkdir <path>)
+  mount                - list mounts, or mount a fs: mount <type> <device> <path>
+  mounts               - list VFS mount table (alias for mount)
+  mv                   - move/rename file (mv <src> <dst>)
+  pwd                  - print working directory
+  rm                   - delete file (rm <file>)
+  rmdir                - remove directory (rmdir <path>)
+  set                  - list env vars
+  touch                - create empty file (touch <path>)
+  tree                 - tree view of directory (tree [path])
+  umount               - unmount (umount <path>)
+
+=== WP-06 (network stack) ===
+  arp                  - show ARP cache
+  dhcp                 - get IP via DHCP
+  dns                  - resolve domain name (dns <name> [aaaa|cname|mx|txt|ns|srv])
+  dnstest              - DNS record-type self-test (A/AAAA/MX/TXT/NS/SRV live)
+  firewall             - show/add/del firewall rules (chains, states, policies, conntrack)
+  ifconfig             - show network interface info
+  ip                   - show/set IP address
+  lspci                - list PCI devices
+  netstat              - show network statistics and sockets
+  nf_test              - netfilter self-test (rules, conntrack, policies, real-path)
+  ping                 - send ICMP echo (ping <host>)
+  route                - show/add/del routing table (route add <dst> <mask> <gw>)
+  tcpcc_test           - CUBIC congestion control self-test vectors
+  tcpstats             - show TCP reliability stats (cwnd, rto, etc.)
+  tcptest              - TCP option negotiation self-test (MSS/WScale/SACK/TS live)
+  wget                 - download file via HTTP (wget <host> [port] [path])
+
+=== WP-07 (block layer) ===
+  alias                - set/show aliases
+  unalias              - remove an alias
+  write                - write text to file (write <path> <text>)
+
+=== WP-08a (ring-3 user mode) ===
+  l1test               - test L1 job_create/job_list/job_control with running process
+
+=== WP-08b (ELF, dynamic linking) ===
+  ldd                  - list dynamic dependencies (ldd <program>)
+
+=== WP-09 (secure transport) ===
+  cryptotest           - test AES/SHA-256/HMAC with NIST vectors
+  dhtest               - DH modexp 1024-bit (Oakley Group 1) timing + correctness
+  ssh                  - SSH client connect (ssh <ip> [port] [user] [password])
+  sshd                 - SSH server (sshd [port=22] [user=oc] [password=oc])
+
+=== WP-09-fix5 (config, update check) ===
+  checkupdate          - check for updates via /etc/opencube.conf (http/https)
+  checkupdate_test     - update check self-test (URL/JSON units + live probe)
+  config               - read/write system config (config list|get|set|restore|path)
+  config_test          - config subsystem self-test (write/read/get_all/delete/restore)
+
+=== WP-10a (storage drivers) ===
+  ahci                 - AHCI controller/port status
+  ahci_test            - WP-10a: AHCI init/ports/read-write test
+  ata                  - ATA (PIO + Bus-Master DMA) status
+  ata_dma_test         - WP-10a: ATA Bus-Master DMA test + PIO timing
+  disk_rw_test         - WP-10a: rw round-trip on one device (disk_rw_test <dev>)
+  dskstat              - show block devices
+  fs_mount_test        - WP-10a: mkfs+mount FAT32 file round-trip (fs_mount_test <dev>)
+  fsck                 - filesystem check
+  lsblk                - list block devices
+  mkfs.exfat           - format exFAT (mkfs.exfat <dev> confirm)
+  mkfs.ext4            - format ext4 (mkfs.ext4 <dev> confirm)
+  mkfs.fat32           - format FAT32 (mkfs.fat32 <dev> confirm)
+  nvme                 - NVMe controller/queue status
+  nvme_test            - WP-10a: NVMe init/queues/read-write test
+  parted               - show partition table (parted [dev])
+  partition_test       - WP-10a: MBR+GPT parse test (partition_test [dev])
+  real_hw_test         - WP-10a: real-hardware detection report
+  sync                 - flush disk cache
+  virtio_blk_test      - WP-10a: virtio-blk capacity + read/write test
+
+=== WP-10b (NIC drivers) ===
+  bcm57xx              - BCM57xx NIC status
+  bcm57xx_test         - WP-10b: BCM57xx presence/link/send-recv test
+  e1000e               - e1000e NIC status
+  e1000e_test          - WP-10b: e1000e init/link/send-recv test
+  igb                  - igb NIC status
+  igb_test             - WP-10b: igb init/link/send-recv test
+  ixgbe                - ixgbe NIC status
+  ixgbe_test           - WP-10b: ixgbe presence/link/send-recv test
+  nic_rw_test          - WP-10b: send/recv correctness on all NICs
+  other_nic_test       - WP-10b: legacy NICs (3c59x/nForce/AR81xx/Yukon)
+  rtl810x              - RTL810x NIC status
+  rtl810x_test         - WP-10b: RTL810x presence/link/send-recv test
+  rtl8125              - RTL8125 NIC status
+  rtl8125_test         - WP-10b: RTL8125 presence/link/send-recv test
+  rtl8139              - RTL8139 NIC status
+  rtl8139_test         - WP-10b: RTL8139 init/link/send-recv test
+  rtl8168              - RTL8168 NIC status
+  rtl8168_test         - WP-10b: RTL8168 presence/link/send-recv test
+
+=== WP-10c (sound drivers) ===
+  ac97                 - AC'97 status
+  ac97_test            - AC'97 init/play test
+  audio_rw_test        - play/stop round-trip on every card
+  es1370               - ES1370/1371 status
+  es1370_test          - ES1370 init/play test
+  hda                  - Intel HDA status
+  hda_test             - Intel HDA init/codec/play test
+  play                 - play a test tone (play [rate])
+  sample_rate_test     - 44100/48000 rate configuration test
+  sb16                 - Sound Blaster 16 status
+  sb16_test            - SB16 init/play test
+  sound                - list registered sound cards
+  usb_audio_test       - USB audio init/play test
+  usbaudio             - USB audio status
+  virtio_snd_test      - virtio-snd init/play test
+  virtiosnd            - virtio-snd status
+  volume               - get/set volume (volume [0-100])
+
+=== WP-10d (USB host stack) ===
+  usb                  - USB hosts/devices + class driver status
+  usb_core_test        - USB core invariants + live transfers
+  usb_hotplug_test     - USB hot-plug (usb_hotplug_test [wait-new N|wait-leave N])
+  usb_hub_test         - USB external hub + children
+  usb_kbd_test         - USB HID keyboard presence + injection
+  usb_mouse_test       - USB HID mouse presence + event drain
+  usb_serial_test      - USB serial TX/RX round
+  usb_storage_test     - USB MSC drive capacity/rw/partitions
+  usbdev               - USB device detail (usbdev [slot])
+
+=== WP-10u (in-system update) ===
+  ab_partition_test    - A/B disk discovery + slots + flags (WP-10u)
+  real_update_test     - end-to-end update phase 1 (WP-10u)
+  reboot               - reboot the machine (reboot)
+  rollback             - roll back to slot A (rollback)
+  update               - check + install system update (update [local <pkg> | --local <pkg> | --status])
+  update_check_test    - update manifest check with package fields (WP-10u)
+  update_download_test - download the update package (WP-10u)
+  update_install_test  - install the package into slot B (WP-10u)
+  update_local_test    - offline update flow via cmd_update --local (WP-10u)
+  update_pkg_test      - gzip/DEFLATE + tar unit tests (WP-10u)
+  update_rollback_test - boot flags + rollback (WP-10u)
+  update_status_test   - ota_update_get_status coverage (WP-10u)
+  update_verify_test   - SHA256 verification of the package (WP-10u)
+
+=== WP-10c-selfhost (rule-9 self-hosting) ===
+  abcfg                - show the grub.cfg files abdisk/install write
+  abdisk               - create a bootable A/B update disk (abdisk <dev>; destroys data)
+  grub-install         - write the GRUB BIOS boot loader (grub-install <dev>)
+  install              - install the running system to a disk (install <dev>; destroys data)
+
+=== WP-10d-fix2 (power management, help) ===
+  halt                 - halt the kernel
+  halt_test            - verify halt path (live halt via 'halt')
+  help_a_test          - verify help -a A-Z ordering
+  help_default_test    - verify default help A-Z ordering
+  help_wp_test         - verify help -w group ordering
+  poweroff             - alias of shutdown
+  poweroff_test        - real power-off attempt (QEMU exits)
+  reboot_test          - verify reboot path (live reset via 'reboot')
+  shutdown             - power off (flush + ACPI/Bochs/APM ports)
+  sleep                - delay for N seconds (sleep <sec>)
+  suspend              - suspend to RAM (needs ACPI S3)
+  suspend_test         - verify honest suspend contract
+
+=== WP-10-input_chipset (input devices + chipset) ===
+  acpi                 - dump ACPI tables (RSDP/FADT/DSDT/MCFG)
+  acpidev              - list ACPI namespace devices (AML)
+  acpipow              - ACPI power status (S1-S5/SCI/GPE/FACS)
+  acpitest             - AML interpreter self-test + DSDT checks
+  i2cdetect            - scan I2C/SMBus buses for devices
+  i2cget               - read I2C byte (i2cget <bus> <addr> [reg])
+  i2cset               - write I2C byte (i2cset <bus> <addr> <reg> <val>)
+  i2ctest              - I2C core/controller self-test
+  msitest              - LAPIC self-IPI + MSI/MSI-X device fire test
+  pcibars              - list PCI devices with sized BARs
+  pcidump              - dump PCI config space (pcidump <b:d.f>)
+  pcie                 - PCIe MMCONFIG state + capability walk
+  smbus                - list SMBus devices from the scan
+  smbustest            - SMBus protocol test (byte/word/block)
+  touchpad             - touchpad status + pending gesture events
+  touchtest            - multitouch pipeline self-test (tap/scroll/pinch/swipe)
+
+=== WP-10-timer_rtc (time sources (RTC/HPET/PMTimer/TSC)) ===
+  hpet                 - HPET: caps + counter + one-shot/periodic IRQ8 tests
+  pmtimer              - ACPI PM timer: read + PIT calibration + wrap tests
+  rtc                  - CMOS RTC: time + status + UIE/PIE/alarm interrupt tests
+  tsc                  - TSC: reads + PIT/HPET/PMTimer calibration + delay test
+
+=== WP-10-wireless_bluetooth (wireless + bluetooth (802.11/HCI/L2CAP/RFCOMM)) ===
+  bt                   - bluetooth: status/usb/uart/test (HCI/L2CAP/RFCOMM/SDP/SPP/HID)
+  wifi                 - wireless: status/scan/test/sdio (802.11 families + SDIO bus)
+
+=== other (commands with unregistered work-package tags) ===
+  heapbounds           - heap bounds regression (BUG-0140 wrap / BUG-0141 ceiling)
+  irqabitest           - IRQ-entry ABI regression (BUG-0137 align / BUG-0138 DF)
+  nano                 - nano-style editor (nano <file>; ^O save ^X exit)
+  vi                   - vi editor, two-mode (hjkl move, i/a/o insert, ESC, :w :q :wq :q!)
+  vmkernelpt           - VMM PT-ownership regression (BUG-0136)
+
+Total: 198 commands.
+
+=== [help az wifi] $ help -a
+help -a
+Available commands (A-Z):
+  ab_partition_test    - A/B disk discovery + slots + flags (WP-10u)
+  abcfg                - show the grub.cfg files abdisk/install write
+  abdisk               - create a bootable A/B update disk (abdisk <dev>; destroys data)
+  ac97                 - AC'97 status
+  ac97_test            - AC'97 init/play test
+  acpi                 - dump ACPI tables (RSDP/FADT/DSDT/MCFG)
+  acpidev              - list ACPI namespace devices (AML)
+  acpipow              - ACPI power status (S1-S5/SCI/GPE/FACS)
+  acpitest             - AML interpreter self-test + DSDT checks
+  ahci                 - AHCI controller/port status
+  ahci_test            - WP-10a: AHCI init/ports/read-write test
+  alias                - set/show aliases
+  arp                  - show ARP cache
+  ata                  - ATA (PIO + Bus-Master DMA) status
+  ata_dma_test         - WP-10a: ATA Bus-Master DMA test + PIO timing
+  audio_rw_test        - play/stop round-trip on every card
+  bcm57xx              - BCM57xx NIC status
+  bcm57xx_test         - WP-10b: BCM57xx presence/link/send-recv test
+  bt                   - bluetooth: status/usb/uart/test (HCI/L2CAP/RFCOMM/SDP/SPP/HID)
+  cat                  - print file contents (cat <file>)
+  cd                   - change directory (cd [path])
+  checkupdate          - check for updates via /etc/opencube.conf (http/https)
+  checkupdate_test     - update check self-test (URL/JSON units + live probe)
+  clear                - clear screen
+  config               - read/write system config (config list|get|set|restore|path)
+  config_test          - config subsystem self-test (write/read/get_all/delete/restore)
+  cp                   - copy file (cp <src> <dst>)
+  cr3test              - test CR3 switching
+  crashlog             - show last exception crashes
+  cryptotest           - test AES/SHA-256/HMAC with NIST vectors
+  df                   - show disk/mount usage
+  dhcp                 - get IP via DHCP
+  dhtest               - DH modexp 1024-bit (Oakley Group 1) timing + correctness
+  disk_rw_test         - WP-10a: rw round-trip on one device (disk_rw_test <dev>)
+  dns                  - resolve domain name (dns <name> [aaaa|cname|mx|txt|ns|srv])
+  dnstest              - DNS record-type self-test (A/AAAA/MX/TXT/NS/SRV live)
+  dskstat              - show block devices
+  du                   - directory usage (du [path])
+  e1000e               - e1000e NIC status
+  e1000e_test          - WP-10b: e1000e init/link/send-recv test
+  echo                 - echo the text back
+  edit                 - line editor (edit <file>; :i :d :p :w :q :wq)
+  es1370               - ES1370/1371 status
+  es1370_test          - ES1370 init/play test
+  exc                  - run exception self-test (#DE/#UD/#PF)
+  export               - set env var (export NAME=value)
+  fatmount             - mount FAT32 (fatmount <dev> <path>)
+  fatstat              - show FAT32 stats
+  firewall             - show/add/del firewall rules (chains, states, policies, conntrack)
+  frag                 - show memory fragmentation
+  fs_mount_test        - WP-10a: mkfs+mount FAT32 file round-trip (fs_mount_test <dev>)
+  fsck                 - filesystem check
+  fstest               - run VFS self-test (mkdir/write/read/ls)
+  grep                 - filter lines matching pattern (grep <pattern> [file])
+  grub-install         - write the GRUB BIOS boot loader (grub-install <dev>)
+  halt                 - halt the kernel
+  halt_test            - verify halt path (live halt via 'halt')
+  hda                  - Intel HDA status
+  hda_test             - Intel HDA init/codec/play test
+  heap                 - show kernel heap stats
+  heapbounds           - heap bounds regression (BUG-0140 wrap / BUG-0141 ceiling)
+  heaptest             - test heap overhead with 100 allocs
+  help                 - show this message
+  help_a_test          - verify help -a A-Z ordering
+  help_default_test    - verify default help A-Z ordering
+  help_wp_test         - verify help -w group ordering
+  hpet                 - HPET: caps + counter + one-shot/periodic IRQ8 tests
+  i2cdetect            - scan I2C/SMBus buses for devices
+  i2cget               - read I2C byte (i2cget <bus> <addr> [reg])
+  i2cset               - write I2C byte (i2cset <bus> <addr> <reg> <val>)
+  i2ctest              - I2C core/controller self-test
+  ifconfig             - show network interface info
+  igb                  - igb NIC status
+  igb_test             - WP-10b: igb init/link/send-recv test
+  install              - install the running system to a disk (install <dev>; destroys data)
+  ip                   - show/set IP address
+  irqabitest           - IRQ-entry ABI regression (BUG-0137 align / BUG-0138 DF)
+  ixgbe                - ixgbe NIC status
+  ixgbe_test           - WP-10b: ixgbe presence/link/send-recv test
+  kill                 - kill a task (kill <tid>)
+  l1test               - test L1 job_create/job_list/job_control with running process
+  ldd                  - list dynamic dependencies (ldd <program>)
+  ls                   - list directory (ls [path])
+  lsblk                - list block devices
+  lspci                - list PCI devices
+  mem                  - show physical memory stats
+  memtest              - run memory test (PMM + heap)
+  mkdir                - make directory (mkdir <path>)
+  mkfs.exfat           - format exFAT (mkfs.exfat <dev> confirm)
+  mkfs.ext4            - format ext4 (mkfs.ext4 <dev> confirm)
+  mkfs.fat32           - format FAT32 (mkfs.fat32 <dev> confirm)
+  mount                - list mounts, or mount a fs: mount <type> <device> <path>
+  mounts               - list VFS mount table (alias for mount)
+  msitest              - LAPIC self-IPI + MSI/MSI-X device fire test
+  multi                - spawn 3 tasks with interleaved output
+  mv                   - move/rename file (mv <src> <dst>)
+  nano                 - nano-style editor (nano <file>; ^O save ^X exit)
+  netstat              - show network statistics and sockets
+  nf_test              - netfilter self-test (rules, conntrack, policies, real-path)
+  nic_rw_test          - WP-10b: send/recv correctness on all NICs
+  nice                 - change priority (nice <tid> <prio>)
+  nvme                 - NVMe controller/queue status
+  nvme_test            - WP-10a: NVMe init/queues/read-write test
+  other_nic_test       - WP-10b: legacy NICs (3c59x/nForce/AR81xx/Yukon)
+  parted               - show partition table (parted [dev])
+  partition_test       - WP-10a: MBR+GPT parse test (partition_test [dev])
+  pcibars              - list PCI devices with sized BARs
+  pcidump              - dump PCI config space (pcidump <b:d.f>)
+  pcie                 - PCIe MMCONFIG state + capability walk
+  pftest               - test page fault handling
+  ping                 - send ICMP echo (ping <host>)
+  play                 - play a test tone (play [rate])
+  pmmrace              - BUG-0043 repro: PMM bitmap race thread-vs-IRQ
+  pmtimer              - ACPI PM timer: read + PIT calibration + wrap tests
+  poweroff             - alias of shutdown
+  poweroff_test        - real power-off attempt (QEMU exits)
+  ps                   - list all tasks
+  pwd                  - print working directory
+  real_hw_test         - WP-10a: real-hardware detection report
+  real_update_test     - end-to-end update phase 1 (WP-10u)
+  reboot               - reboot the machine (reboot)
+  reboot_test          - verify reboot path (live reset via 'reboot')
+  rm                   - delete file (rm <file>)
+  rmdir                - remove directory (rmdir <path>)
+  rollback             - roll back to slot A (rollback)
+  route                - show/add/del routing table (route add <dst> <mask> <gw>)
+  rtc                  - CMOS RTC: time + status + UIE/PIE/alarm interrupt tests
+  rtl810x              - RTL810x NIC status
+  rtl810x_test         - WP-10b: RTL810x presence/link/send-recv test
+  rtl8125              - RTL8125 NIC status
+  rtl8125_test         - WP-10b: RTL8125 presence/link/send-recv test
+  rtl8139              - RTL8139 NIC status
+  rtl8139_test         - WP-10b: RTL8139 init/link/send-recv test
+  rtl8168              - RTL8168 NIC status
+  rtl8168_test         - WP-10b: RTL8168 presence/link/send-recv test
+  run                  - run a user program (hello/badapp/loop/fork_test/.../dyn_test/so_test/dyn_hello/
+  sample_rate_test     - 44100/48000 rate configuration test
+  sb16                 - Sound Blaster 16 status
+  sb16_test            - SB16 init/play test
+  sched                - show scheduler stats
+  set                  - list env vars
+  shutdown             - power off (flush + ACPI/Bochs/APM ports)
+  sleep                - delay for N seconds (sleep <sec>)
+  smbus                - list SMBus devices from the scan
+  smbustest            - SMBus protocol test (byte/word/block)
+  sound                - list registered sound cards
+  spawn                - spawn a test kernel thread
+  ssh                  - SSH client connect (ssh <ip> [port] [user] [password])
+  sshd                 - SSH server (sshd [port=22] [user=oc] [password=oc])
+  stats                - show interrupt/timer stats
+  suspend              - suspend to RAM (needs ACPI S3)
+  suspend_test         - verify honest suspend contract
+  sync                 - flush disk cache
+  syncstat             - show sync primitive stats
+  synctest             - test sync primitives (spinlock/mutex/sem)
+  tcpcc_test           - CUBIC congestion control self-test vectors
+  tcpstats             - show TCP reliability stats (cwnd, rto, etc.)
+  tcptest              - TCP option negotiation self-test (MSS/WScale/SACK/TS live)
+  timer                - register a 500ms one-shot timer
+  touch                - create empty file (touch <path>)
+  touchpad             - touchpad status + pending gesture events
+  touchtest            - multitouch pipeline self-test (tap/scroll/pinch/swipe)
+  tree                 - tree view of directory (tree [path])
+  tsc                  - TSC: reads + PIT/HPET/PMTimer calibration + delay test
+  umount               - unmount (umount <path>)
+  unalias              - remove an alias
+  uname                - print OS name (uname [-a|-s|-r|-m])
+  update               - check + install system update (update [local <pkg> | --local <pkg> | --status])
+  update_check_test    - update manifest check with package fields (WP-10u)
+  update_download_test - download the update package (WP-10u)
+  update_install_test  - install the package into slot B (WP-10u)
+  update_local_test    - offline update flow via cmd_update --local (WP-10u)
+  update_pkg_test      - gzip/DEFLATE + tar unit tests (WP-10u)
+  update_rollback_test - boot flags + rollback (WP-10u)
+  update_status_test   - ota_update_get_status coverage (WP-10u)
+  update_verify_test   - SHA256 verification of the package (WP-10u)
+  usb                  - USB hosts/devices + class driver status
+  usb_audio_test       - USB audio init/play test
+  usb_core_test        - USB core invariants + live transfers
+  usb_hotplug_test     - USB hot-plug (usb_hotplug_test [wait-new N|wait-leave N])
+  usb_hub_test         - USB external hub + children
+  usb_kbd_test         - USB HID keyboard presence + injection
+  usb_mouse_test       - USB HID mouse presence + event drain
+  usb_serial_test      - USB serial TX/RX round
+  usb_storage_test     - USB MSC drive capacity/rw/partitions
+  usbaudio             - USB audio status
+  usbdev               - USB device detail (usbdev [slot])
+  vi                   - vi editor, two-mode (hjkl move, i/a/o insert, ESC, :w :q :wq :q!)
+  virtio_blk_test      - WP-10a: virtio-blk capacity + read/write test
+  virtio_snd_test      - virtio-snd init/play test
+  virtiosnd            - virtio-snd status
+  vmkernelpt           - VMM PT-ownership regression (BUG-0136)
+  vmmap                - show address space mappings
+  vmtest               - run virtual memory test
+  volume               - get/set volume (volume [0-100])
+  wget                 - download file via HTTP (wget <host> [port] [path])
+  wifi                 - wireless: status/scan/test/sdio (802.11 families + SDIO bus)
+  write                - write text to file (write <path> <text>)
+Total: 198 commands. Use 'help -w' for the work-package view.
+
+=== [uname] $ uname -a
+ uname -a
+Open Cube OS WP-10-timer_rtc-6-gb40b906 x86_64

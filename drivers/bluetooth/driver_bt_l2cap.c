@@ -95,6 +95,40 @@ static l2_chan_t *chan_by_handle_psm(u16 handle, u16 psm)
     return 0;
 }
 
+/* Debug view for the `bt` command: dump every channel's cid/psm/state */
+void bt_l2cap_dump(char *out, int outlen)
+{
+    static const char *st[] = { "closed", "wait-conn", "wait-cfg", "open" };
+    int o = 0;
+    if (outlen > 0) out[0] = '\0';
+    for (int i = 0; i < L2CAP_MAX_CHANNELS; i++) {
+        if (!g_chans[i].used) continue;
+        {
+            char n[8];
+            const char *pre = "  cid ";
+            int k = 0;
+            while (pre[k] && o < outlen - 1) out[o++] = pre[k++];
+            u64_to_hex(g_chans[i].local_cid, n, 4);
+            k = 0;
+            while (n[k] && o < outlen - 1) out[o++] = n[k++];
+            const char *m = " psm ";
+            k = 0;
+            while (m[k] && o < outlen - 1) out[o++] = m[k++];
+            u64_to_hex(g_chans[i].psm, n, 4);
+            k = 0;
+            while (n[k] && o < outlen - 1) out[o++] = n[k++];
+            const char *sp = " ";
+            k = 0;
+            while (sp[k] && o < outlen - 1) out[o++] = sp[k++];
+            k = 0;
+            while (st[g_chans[i].state][k] && o < outlen - 1)
+                out[o++] = st[g_chans[i].state][k++];
+            if (o < outlen - 2) out[o++] = '\n';
+        }
+    }
+    out[o] = '\0';
+}
+
 int bt_l2cap_channel_count(void)
 {
     int n = 0;
@@ -134,11 +168,15 @@ static int sig_send(u16 handle, u8 code, u8 id, const u8 *data, u16 len)
 
 static int data_send(u16 handle, u16 cid, const u8 *data, u16 len)
 {
-    u8 hdr[4];
-    put_le16(hdr, len);
-    put_le16(hdr + 2, cid);
-    if (bt_hci_send_acl(handle, hdr, 4) != 0) return -1;
-    return bt_hci_send_acl(handle, data, len);
+    /* ONE ACL packet: L2CAP header + payload in a single framed send
+     * (two sends would emit two independent ACL packets and the peer
+     * would read the L2CAP header as the whole PDU).                  */
+    u8 buf[4 + BT_ACL_MTU];
+    if (len > BT_ACL_MTU) return -2;
+    put_le16(buf, len);
+    put_le16(buf + 2, cid);
+    for (u16 i = 0; i < len; i++) buf[4 + i] = data[i];
+    return bt_hci_send_acl(handle, buf, (u16)(4 + len));
 }
 
 /* ------------------------------------------------------------------ */
@@ -258,7 +296,14 @@ int bt_l2cap_connect(u16 handle, u16 psm, u16 *local_cid_out)
     u16 rl;
     u8 id;
 
-    if (chan_by_handle_psm(handle, psm)) return -2;   /* already open     */
+    /* Idempotent client API: an already-open channel to the same
+     * handle+PSM is reused (SDP runs two transactions on one channel). */
+    c = chan_by_handle_psm(handle, psm);
+    if (c) {
+        if (c->state != L2_OPEN) return -2;
+        if (local_cid_out) *local_cid_out = c->local_cid;
+        return 0;
+    }
     for (int i = 0; i < L2CAP_MAX_CHANNELS; i++)
         if (!g_chans[i].used) { c = &g_chans[i]; break; }
     if (!c) return -3;

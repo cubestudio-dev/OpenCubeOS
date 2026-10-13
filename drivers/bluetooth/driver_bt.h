@@ -91,6 +91,7 @@
 #define BT_ERR_HW_FAIL          0x03
 #define BT_ERR_TIMEOUT          0x08
 #define BT_ERR_ACL_CONN_EXISTS  0x0b
+#define BT_ERR_UNSPEC           0x0e   /* unspecified error              */
 
 /* Connection states */
 #define BT_CONN_IDLE            0
@@ -223,6 +224,7 @@ int  bt_l2cap_register_profile(u16 psm,
                                int (*recv)(u16 local_cid,
                                            const u8 *data, u16 len));
 int  bt_l2cap_channel_count(void);
+void bt_l2cap_dump(char *out, int outlen);   /* channel table view     */
 
 /* ------------------------------------------------------------------ */
 /* RFCOMM (TS 07.10 frames over L2CAP PSM 3)                           */
@@ -283,6 +285,9 @@ void bt_spp_register_capture(void);
 /* ------------------------------------------------------------------ */
 #define BT_HID_BOOT_KEYBOARD    1
 #define BT_HID_BOOT_MOUSE       2
+#define BT_HID_REPORT_INPUT     1
+#define BT_HID_REPORT_OUTPUT    2
+#define BT_HID_REPORT_FEATURE   3
 
 int  bt_hid_init(void);
 int  bt_hid_connect(const u8 addr[6]);        /* ctrl+interrupt chans  */

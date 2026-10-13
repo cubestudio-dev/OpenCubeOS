@@ -267,7 +267,9 @@ static int rf_l2cap_input(u16 local_cid, const u8 *data, u16 len)
     if (len < 3) return -1;
     addr = data[0];
     ctrl = data[1];
-    if (!(addr & 0x02u)) return -2;    /* response-side CR: ignore? no:  */
+    /* The C/R bit distinguishes command/response between the two
+     * stations; UIH data delivery is role-independent, so frames are
+     * processed regardless of it. */
     dlci = (u16)((addr >> 2) & 0x3fu);
     if (data[2] & 0x80u) { flen = data[2] & 0x7fu; lbytes = 1; }
     else {
@@ -293,7 +295,9 @@ static int rf_l2cap_input(u16 local_cid, const u8 *data, u16 len)
                 g_dlci[i].state = RF_IDLE;
         break;
     case BT_RFCOMM_UIH: {
-        const u8 *body = data + 3 + lbytes;
+        /* frame = addr(1) ctrl(1) len(lbytes) data(flen) fcs(1):
+         * the information field starts right after the length octets  */
+        const u8 *body = data + 2 + lbytes;
         if (dlci == 0 && (ctrl & 0x10u) && flen >= 1) {
             /* MCC subcommand on the control channel                    */
             u8 mt = body[0];

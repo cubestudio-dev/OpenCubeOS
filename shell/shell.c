@@ -43,7 +43,8 @@ typedef struct {
     char name[32];
     shell_cmd_fn handler;
     char help[80];
-    char wp[24];        /* WP-10d-fix2: work-package tag for `help -w` */
+    char wp[32];        /* work-package tag for `help -w`; 24 was not
+                         * enough for "WP-10-wireless_bluetooth"+NUL */
     int in_use;
 } shell_cmd_t;
 
@@ -200,6 +201,7 @@ static const struct { const char *tag; const char *desc; } g_wp_order[] = {
     { "WP-10d-fix2",     "power management, help" },
     { "WP-10-input_chipset", "input devices + chipset" },
     { "WP-10-timer_rtc",     "time sources (RTC/HPET/PMTimer/TSC)" },
+    { "WP-10-wireless_bluetooth", "wireless + bluetooth (802.11/HCI/L2CAP/RFCOMM)" },
 };
 
 /* Case-insensitive name compare (A-Z means alphabetical to a user). */

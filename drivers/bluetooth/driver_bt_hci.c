@@ -106,6 +106,8 @@ const char *bt_err_str(int status)
     }
 }
 
+static void handle_event(const u8 *e, u16 len);
+
 /* ------------------------------------------------------------------ */
 /* Synchronous command path                                            */
 /* ------------------------------------------------------------------ */
@@ -115,12 +117,11 @@ int bt_hci_cmd(u16 opcode, const u8 *params, u8 plen,
     u8 pkt[BT_ACL_MTU];
     u16 pkt_len;
     u64 deadline;
-    u8 rid;
 
     if (!g_tp) return -1;              /* no transport: honest           */
     if (plen > 240) return -2;      /* HCI max param size 255       */
 
-    rid = g_next_cmd_id++;
+    g_next_cmd_id++;
     if (g_next_cmd_id == 0) g_next_cmd_id = 1;
 
     pkt[0] = BT_H4_COMMAND;
@@ -133,36 +134,77 @@ int bt_hci_cmd(u16 opcode, const u8 *params, u8 plen,
     if (g_tp->send(BT_H4_COMMAND, pkt + 1, (u16)(pkt_len - 1)) != 0)
         return -3;
 
-    deadline = core_timer_now_ms() + timeout_ms;
-    for (;;) {
-        u8 type, buf[BT_ACL_MTU];
-        u16 len = 0;
-        int r = g_tp->recv(&type, buf, (u16)sizeof(buf), &len);
-        if (r < 0) return -4;
-        if (r > 0 && type == BT_H4_EVENT && len >= 3) {
-            u8 evt = buf[0];
-            if (evt == BT_EVT_CMD_COMPLETE && len >= 6 &&
-                le16(buf + 2) == opcode) {
-                /* num_pkts(1) opcode(2) status(1) params...           */
-                if (resp && resp_len) {
-                    u16 n = (u16)(len - 6);
-                    if (n > *resp_len) n = *resp_len;
-                    for (u16 i = 0; i < n; i++) resp[i] = buf[6 + i];
-                    *resp_len = n;
+    /* Async commands complete on their own event (Core 5.x vol 2):
+     * Inquiry -> Inquiry_Complete, Create_Connection -> Connection_
+     * Complete, Disconnect -> Disconnection_Complete, Remote_Name ->
+     * Remote_Name_Request_Complete. */
+    {
+        u8 completing = 0;
+        if (BT_OCF(opcode) == BT_OCF_INQUIRY &&
+            BT_OGF(opcode) == BT_OGF_LINK_CTL)
+            completing = BT_EVT_INQUIRY_COMPLETE;
+        else if (BT_OCF(opcode) == BT_OCF_CREATE_CONN)
+            completing = BT_EVT_CONN_COMPLETE;
+        else if (BT_OCF(opcode) == BT_OCF_DISCONNECT)
+            completing = BT_EVT_DISCONN_COMPLETE;
+        else if (BT_OCF(opcode) == BT_OCF_REMOTE_NAME_REQ)
+            completing = BT_EVT_REMOTE_NAME;
+
+        deadline = core_timer_now_ms() + timeout_ms;
+        for (;;) {
+            u8 type, buf[BT_ACL_MTU];
+            u16 len = 0;
+            int r = g_tp->recv(&type, buf, (u16)sizeof(buf), &len);
+            if (r < 0) return -4;
+            if (r > 0 && type == BT_H4_EVENT && len >= 2) {
+                u8 evt = buf[0];
+                /* event layout: [code][plen][params...]               */
+                if (evt == BT_EVT_CMD_COMPLETE && len >= 6 &&
+                    le16(buf + 3) == opcode) {
+                    /* params: num_pkts(1) opcode(2) status(1) resp... */
+                    if (resp && resp_len) {
+                        u16 n = (u16)(len - 6);
+                        if (n > *resp_len) n = *resp_len;
+                        for (u16 i = 0; i < n; i++) resp[i] = buf[6 + i];
+                        *resp_len = n;
+                    }
+                    return buf[5];     /* status byte                 */
                 }
-                return buf[5];         /* status byte                 */
+                if (evt == BT_EVT_CMD_STATUS && len >= 6 &&
+                    le16(buf + 4) == opcode) {
+                    /* params: status(1) num_pkts(1) opcode(2)         */
+                    if (buf[2] != BT_ERR_SUCCESS) return buf[2];
+                    deadline = core_timer_now_ms() + timeout_ms;
+                    continue;
+                }
+                if (completing && evt == completing) {
+                    /* status is params[0] (buf[2]); the remaining
+                     * params (handle for Create_Connection, name for
+                     * Remote_Name) are the "response" payload.        */
+                    u8 st = (len >= 3) ? buf[2] : BT_ERR_UNSPEC;
+                    if (resp && resp_len) {
+                        u16 n = (u16)(len - 3);
+                        const u8 *src = buf + 3;
+                        if (evt == BT_EVT_REMOTE_NAME && len >= 9) {
+                            src = buf + 9;          /* after bdaddr      */
+                            n = (u16)(len - 9);
+                            if (n > BT_NAME_MAX) n = BT_NAME_MAX;
+                        }
+                        if (n > *resp_len) n = *resp_len;
+                        for (u16 i = 0; i < n; i++) resp[i] = src[i];
+                        *resp_len = n;
+                    }
+                    handle_event(buf, len);   /* state update           */
+                    if (evt == BT_EVT_INQUIRY_COMPLETE) return 0;
+                    return st;
+                }
+                /* everything else: dispatch, never drop               */
+                if (evt != BT_EVT_CMD_COMPLETE && evt != BT_EVT_CMD_STATUS)
+                    handle_event(buf, len);
             }
-            if (evt == BT_EVT_CMD_STATUS && len >= 6 &&
-                le16(buf + 3) == opcode) {
-                /* async command: status now, completion event later   */
-                if (buf[1] != BT_ERR_SUCCESS) return buf[1];
-                (void)rid;
-                deadline = core_timer_now_ms() + timeout_ms;
-                continue;
-            }
+            if (core_timer_now_ms() >= deadline) return BT_ERR_TIMEOUT;
+            core_sched_yield();
         }
-        if (core_timer_now_ms() >= deadline) return BT_ERR_TIMEOUT;
-        core_sched_yield();
     }
 }
 
@@ -173,27 +215,30 @@ static void handle_event(const u8 *e, u16 len)
 {
     switch (e[0]) {
     case BT_EVT_INQUIRY_RESULT:
-        if (len >= 14 && g_inquiry_count < BT_INQUIRY_MAX) {
+        /* params: num(1) { bdaddr(6) psrm(1) psp(1) psm(1) cod(3)
+         * clock(2) } - one response per event here                     */
+        if (len >= 17 && g_inquiry_count < BT_INQUIRY_MAX) {
             bt_inquiry_result_t *r = &g_inquiry[g_inquiry_count];
-            for (int i = 0; i < 6; i++) r->addr[i] = e[2 + i];
-            r->page_scan_rep_mode = e[8];
-            r->class_of_device[0] = e[11];
-            r->class_of_device[1] = e[12];
-            r->class_of_device[2] = e[13];
-            r->clock_offset       = e[14] ? le16(e + 14) : 0;
+            for (int i = 0; i < 6; i++) r->addr[i] = e[3 + i];
+            r->page_scan_rep_mode = e[9];
+            r->class_of_device[0] = e[12];
+            r->class_of_device[1] = e[13];
+            r->class_of_device[2] = e[14];
+            r->clock_offset       = le16(e + 15);
             r->rssi = 0;
             g_inquiry_count++;
         }
         break;
     case BT_EVT_CONN_COMPLETE:
-        if (len >= 11 && e[1] == BT_ERR_SUCCESS) {
-            u16 handle = le16(e + 2);
+        /* params: status(1) handle(2) bdaddr(6) ...                    */
+        if (len >= 12 && e[2] == BT_ERR_SUCCESS) {
+            u16 handle = le16(e + 3);
             for (int i = 0; i < BT_MAX_CONNS; i++) {
                 if (!g_conns[i].used) {
                     g_conns[i].used   = 1;
                     g_conns[i].handle = handle & 0x0fffu;
                     for (int b = 0; b < 6; b++)
-                        g_conns[i].addr[b] = e[4 + b];
+                        g_conns[i].addr[b] = e[5 + b];
                     g_conns[i].state  = BT_CONN_OPEN;
                     break;
                 }
@@ -201,8 +246,9 @@ static void handle_event(const u8 *e, u16 len)
         }
         break;
     case BT_EVT_DISCONN_COMPLETE:
-        if (len >= 4) {
-            u16 handle = le16(e + 1);
+        /* params: status(1) handle(2) reason(1)                        */
+        if (len >= 5) {
+            u16 handle = le16(e + 3);
             bt_conn_t *c = conn_by_handle(handle);
             if (c) { memset((void *)c, 0, sizeof(*c)); }
         }
@@ -396,15 +442,17 @@ int bt_hci_read_rssi(u16 handle, i8 *rssi_out)
 
 int bt_hci_send_acl(u16 handle, const u8 *data, u16 len)
 {
-    u8 hdr[5];
+    u8 buf[4 + BT_ACL_MTU];
 
     if (!g_tp) return -1;
     if (len > BT_ACL_MTU) return -2;
-    hdr[0] = BT_H4_ACL;
-    put_le16(hdr + 1, handle);        /* flags 0 (first/auto-flush)      */
-    put_le16(hdr + 3, len);
-    if (g_tp->send(BT_H4_ACL, hdr + 1, 4) != 0) return -3;
-    return g_tp->send(BT_H4_ACL, data, len);
+    /* ONE framed send: the transport prepends the H4 type byte, so
+     * header and payload must go out in a single call (two calls would
+     * emit two type bytes and desync the H4 stream).                  */
+    put_le16(buf, handle);            /* flags 0 (first/auto-flush)      */
+    put_le16(buf + 2, len);
+    for (u16 i = 0; i < len; i++) buf[4 + i] = data[i];
+    return g_tp->send(BT_H4_ACL, buf, (u16)(4 + len));
 }
 
 /* ------------------------------------------------------------------ */

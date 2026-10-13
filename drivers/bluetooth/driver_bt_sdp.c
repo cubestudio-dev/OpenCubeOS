@@ -68,7 +68,8 @@ int bt_sdp_init(void)
 }
 
 static int sdp_transact(u16 handle, const u8 *req, u16 reqlen,
-                        u8 req_pdu, u8 **resp_body, u16 *resp_len)
+                        u8 req_pdu, u8 **resp_body, u16 *resp_len,
+                        int ebase)
 {
     static u8 out[256];
     u16 cid;
@@ -77,8 +78,11 @@ static int sdp_transact(u16 handle, const u8 *req, u16 reqlen,
     u64 dl;
     u8 want;
 
-    if (bt_l2cap_connect(handle, BT_L2CAP_PSM_SDP, &cid) != 0) return -1;
-    if (bt_l2cap_send(cid, req, reqlen) != 0) return -2;
+    {
+        int rc = bt_l2cap_connect(handle, BT_L2CAP_PSM_SDP, &cid);
+        if (rc != 0) return ebase + 1; /* connect stage                  */
+    }
+    if (bt_l2cap_send(cid, req, reqlen) != 0) return ebase + 2;
 
     want = (u8)(req_pdu + 1);
     dl = core_timer_now_ms() + 3000;
@@ -91,14 +95,14 @@ static int sdp_transact(u16 handle, const u8 *req, u16 reqlen,
             u16 n = sdp_response_len();
             if (n > (u16)sizeof(out)) n = (u16)sizeof(out);
             sdp_response_copy(out, n);
-            if (out[0] != want) { sdp_response_clear(); return -3; }
+            if (out[0] != want) { sdp_response_clear(); return ebase + 3; }
             *resp_body = out + 5;      /* id(1) tid(2) plen(2)           */
             *resp_len  = (u16)(be16(out + 3));
             if (*resp_len > (u16)(n - 5)) *resp_len = (u16)(n - 5);
             sdp_response_clear();
             return 0;
         }
-        if (core_timer_now_ms() >= dl) return -4;
+        if (core_timer_now_ms() >= dl) return ebase + 4;
         (void)r; (void)rl;
         core_sched_yield();
     }
@@ -166,7 +170,7 @@ int bt_sdp_service_search(const u8 addr[6], u16 uuid16,
         {
         u16 h;
         if (bt_hci_handle_of_addr(addr, &h) != 0) return -8;
-        r = sdp_transact(h, req, (u16)o, SDP_SSR_REQ, &body, &blen);
+        r = sdp_transact(h, req, (u16)o, SDP_SSR_REQ, &body, &blen, 30);
     }
     if (r != 0) return r;
     if (blen < 4) return -5;
@@ -182,38 +186,59 @@ int bt_sdp_service_search(const u8 addr[6], u16 uuid16,
     }
 }
 
-/* ProtocolDescriptorList walker: find the RFCOMM entry's channel.     */
+/* AttributeList walker (SDP spec 2.5.2): the list is a DES of
+ * (attribute-id element, attribute-value element) PAIRS; the value of
+ * attribute 0x0004 is the ProtocolDescriptorList DES whose entries are
+ * DES{ UUID16, params... }.  The RFCOMM entry's parameter element is
+ * the server channel. */
 static int proto_list_find_rfcomm_channel(const u8 *p, u16 len,
                                           u16 *channel_out)
 {
-    u16 i = 0;
-    if (len < 2 || p[i] != SDP_DE_DES8) return -1;
-    {
-        u16 des_len = p[i + 1];
-        i = 2;
-        while (i + 1 < len && i + 1 < (u16)(2 + des_len)) {
-            u8 t = p[i];
+    u16 i;
+    u16 des_len, end;
+
+    if (len < 2 || p[0] != SDP_DE_DES8) return -1;
+    des_len = p[1];
+    end = (u16)(2 + des_len);
+    if (end > len) end = len;
+    i = 2;
+    while (i + 1 < end) {
+        u8 t = p[i];
+        if (t == SDP_DE_U16) {
+            /* attribute-id element: 1 type/size byte + 2 data bytes   */
+            i = (u16)(i + 3);
+            continue;
+        }
+        if (t == SDP_DE_DES8) {
+            /* attribute VALUE = ProtocolDescriptorList               */
             u8 l = p[i + 1];
-            if (t != SDP_DE_DES8) return -2;
-            /* each protocol entry: DES{ UUID16, [params...] }          */
-            if (i + 2 + l > len) return -3;
-            {
-                const u8 *e = p + i + 2;
-                if (l >= 3 && e[0] == SDP_DE_UUID16 &&
-                    ((u16)((u16)e[1] << 8) | e[2]) == SDP_UUID_RFCOMM) {
-                    /* next element inside this entry is the channel   */
-                    if (l >= 5 && e[3] == SDP_DE_U8) {
-                        *channel_out = e[4];
+            const u8 *e = p + i + 2;
+            u16 j = 0;
+            if ((u16)(i + 2 + l) > len) return -3;
+            while (j + 1 < l) {
+                u8 el;
+                if (e[j] != SDP_DE_DES8) return -2;
+                el = e[j + 1];
+                if ((u16)(j + 2 + el) > l) return -3;
+                if (el >= 3 && e[j + 2] == SDP_DE_UUID16 &&
+                    (((u16)e[j + 3] << 8) | e[j + 4]) == SDP_UUID_RFCOMM) {
+                    /* channel = the parameter element after the UUID  */
+                    if (el >= 5 && e[j + 5] == SDP_DE_U8) {
+                        *channel_out = e[j + 6];
                         return 0;
                     }
-                    if (l >= 5 && e[3] == SDP_DE_U16) {
-                        *channel_out = be16(e + 4);
+                    if (el >= 6 && e[j + 5] == SDP_DE_U16) {
+                        *channel_out = (u16)(((u16)e[j + 6] << 8) |
+                                              e[j + 7]);
                         return 0;
                     }
                 }
+                j = (u16)(j + 2 + el);
             }
             i = (u16)(i + 2 + l);
+            continue;
         }
+        return -2;
     }
     return -4;
 }
@@ -252,7 +277,7 @@ int bt_sdp_get_spp_channel(const u8 addr[6], u16 *server_channel_out)
         {
         u16 h;
         if (bt_hci_handle_of_addr(addr, &h) != 0) return -8;
-        r = sdp_transact(h, req, (u16)o, SDP_SAR_REQ, &body, &blen);
+        r = sdp_transact(h, req, (u16)o, SDP_SAR_REQ, &body, &blen, 40);
     }
     if (r != 0) return r;
     if (blen < 2) return -7;

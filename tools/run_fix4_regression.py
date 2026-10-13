@@ -55,12 +55,15 @@ CHECKS = [
     # in the batch report covers that).
     # Baseline note (WP-10-timer_rtc): 192 -> 196 with the four time-source
     # commands rtc / hpet / pmtimer / tsc. Removals remain forbidden.
-    ("command count 196",        r"Total:\s*196 commands"),
+    # WP-10-wireless_bluetooth adds 2 commands (wifi/bt): the baseline
+    # moves UP again 196 -> 198 (additions only, never deletions).
+    ("command count 198",        r"Total:\s*198 commands"),
     # Baseline note (WP-10-input_chipset): accept the current tree describe
     # (fix4-2-g<sha>), the fix3-rebuild form, and the new WP-10-input_chipset
     # tag form (release builds bake the tag name verbatim).
     # WP-10-timer_rtc adds the timer_rtc tag form.
-    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc)"),
+    # WP-10-wireless_bluetooth adds the wireless_bluetooth tag form.
+    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc|wireless_bluetooth)"),
     ("heaptest pass",            r"heaptest.*PASS|heap test.*PASS"),
     ("fstest pass",              r"fstest.*(PASS|OK)|VFS self-test.*PASS"),
     ("cryptotest NIST pass",     r"[Cc]rypto self-test.*pass|cryptotest.*PASS|All \d+ NIST"),

@@ -356,20 +356,16 @@ static int iwl_tx_frame(wl_device_t *dev, const u8 *frame, u16 len)
 /* selftest helpers (same check pattern as the core)                   */
 static int wl_check(char *out, int *o, int outlen, const char *name, int cond)
 {
-    if (!cond) {
-        const char *s = " FAIL";
-        if (*o + 48 < outlen) {
-            int i = 0;
-            while (name[i] && *o < outlen - 1) out[(*o)++] = name[i++];
-            i = 0;
-            while (s[i] && *o < outlen - 1) out[(*o)++] = s[i++];
-            out[(*o)++] = '\n';
-        }
-        out[*o] = '\0';
-        return 1;
+    const char *s = cond ? " PASS" : " FAIL";
+    if (*o + 48 < outlen) {
+        int i = 0;
+        while (name[i] && *o < outlen - 1) out[(*o)++] = name[i++];
+        i = 0;
+        while (s[i] && *o < outlen - 1) out[(*o)++] = s[i++];
+        out[(*o)++] = '\n';
     }
     out[*o] = '\0';
-    return 0;
+    return cond ? 0 : 1;
 }
 
 static int iwl_selftest(wl_device_t *dev, char *out, int outlen)
@@ -390,16 +386,16 @@ static int iwl_selftest(wl_device_t *dev, char *out, int outlen)
         u8 fw[64];
         memset((void *)&tmp, 0, sizeof(tmp));
         tmp.fw = fw;
-        tmp.fw_len = 28 + 16;
+        tmp.fw_len = 28 + 20;      /* five u32-aligned sections          */
         memset((void *)fw, 0, sizeof(fw));
         fw[4] = 'U'; fw[5] = 'C'; fw[6] = 'O'; fw[7] = 'D';
-        /* sections: inst 4, data 4, init 2, initdata 2, boot 4         */
-        fw[8]  = 4;  fw[12] = 4; fw[16] = 2; fw[20] = 2; fw[24] = 4;
+        /* sections: inst 4, data 4, init 4, initdata 4, boot 4         */
+        fw[8]  = 4;  fw[12] = 4; fw[16] = 4; fw[20] = 4; fw[24] = 4;
         fails += wl_check(out, &o, outlen, "iwl ucode legacy parse",
                           iwl_ucode_parse_legacy(&tmp) == 0 &&
                           tmp.sec_off[0] == 28 && tmp.sec_len[0] == 4 &&
-                          tmp.sec_off[2] == 36 && tmp.sec_len[2] == 2 &&
-                          tmp.sec_off[4] == 40);
+                          tmp.sec_off[2] == 36 && tmp.sec_len[2] == 4 &&
+                          tmp.sec_off[4] == 44 && tmp.sec_len[4] == 4);
         tmp.fw[7] = 'X';
         fails += wl_check(out, &o, outlen, "iwl ucode bad magic honest",
                           iwl_ucode_parse_legacy(&tmp) == -2);
@@ -410,6 +406,7 @@ static int iwl_selftest(wl_device_t *dev, char *out, int outlen)
         memset((void *)&tmp, 0, sizeof(tmp));
         tmp.fw = fw;
         tmp.fw_len = sizeof(fw);
+        memset((void *)fw, 0, sizeof(fw));   /* zero stack first!       */
         fw[0] = 0x57; fw[1] = 0x46; fw[2] = 0x4c; fw[3] = 0x0a; /* magic */
         /* TLV: type 3 (INST) len 8 at off 4                            */
         fw[4] = 3; fw[8] = 8;
@@ -421,7 +418,10 @@ static int iwl_selftest(wl_device_t *dev, char *out, int outlen)
                           iwl_ucode_parse_tlv(&tmp) == 0 &&
                           tmp.sec_off[0] == 12 && tmp.sec_len[0] == 8 &&
                           tmp.sec_off[3] == 28 && tmp.sec_len[3] == 4);
-        tmp.fw_len = 10;
+        /* truncated container: the first entry declares more data than
+         * the file holds (fw_len 12 = magic + hdr only, len 100)       */
+        tmp.fw_len = 12;
+        fw[8] = 100;
         fails += wl_check(out, &o, outlen, "iwl ucode TLV truncate honest",
                           iwl_ucode_parse_tlv(&tmp) == -1);
     }
