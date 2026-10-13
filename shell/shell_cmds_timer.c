@@ -13,6 +13,7 @@
 #include "shell.h"
 #include "driver_cmos_rtc.h"
 #include "driver_hpet.h"
+#include "driver_pmtimer.h"
 #include "driver_acpi.h"
 #include "core_rtc.h"
 #include "screen_console.h"
@@ -390,6 +391,180 @@ int shell_cmd_hpet(const char *args) {
     return 0;
 }
 
+/* ------------------------------------------------------------------ */
+/* pmtimer                                                             */
+/* ------------------------------------------------------------------ */
+
+/* |hz - nominal| in basis points (100 bp = 1%). */
+static u64 hz_delta_bp(u64 hz, u64 nominal) {
+    u64 diff = hz > nominal ? hz - nominal : nominal - hz;
+    return diff * 10000ull / nominal;
+}
+
+int shell_cmd_pmtimer(const char *args) {
+    const char *p = args;
+    while (*p == ' ' || *p == '\t') p++;
+
+    if (!driver_pmtimer_available()) {
+        put("pmtimer: not available (no FADT PM_TMR_BLK)\n");
+        return 1;
+    }
+
+    if (word_is(&p, "read")) {
+        int loops = 3;
+        (void)next_int(&p, &loops);
+        if (loops < 1) loops = 3;
+        if (loops > 20) loops = 20;
+        u32 start = driver_pmtimer_read();
+        for (int i = 0; i < loops; i++) {
+            put("  raw=");
+            put_hex(driver_pmtimer_read(), 8);
+            put("\n");
+        }
+        u32 end = driver_pmtimer_read();
+        u32 dticks = driver_pmtimer_delta32(start, end);
+        put("delta: ");
+        put_u64(dticks);
+        put(" ticks");
+        if (driver_pmtimer_hz_measured()) {
+            put(" = ");
+            put_u64(driver_pmtimer_elapsed_ms(start, end));
+            put(" ms");
+        } else {
+            put(" (not calibrated - run 'pmtimer cal')");
+        }
+        put("\n");
+        return 0;
+    }
+    if (word_is(&p, "cal")) {
+        put("PM timer calibration vs PIT (~1.1 s window)\n");
+        u64 hz = 0;
+        if (driver_pmtimer_calibrate(&hz) != 0) {
+            put("calibration: FAILED (no samples)\n");
+            return 1;
+        }
+        u64 nominal = OC_PM_TIMER_NOMINAL_HZ;
+        u64 bp = hz_delta_bp(hz, nominal);
+        put("samples: c0=");
+        put_hex(driver_pmtimer_cal_c0(), 8);
+        put(" c1=");
+        put_hex(driver_pmtimer_cal_c1(), 8);
+        put(" pit_ms=");
+        put_u64(driver_pmtimer_cal_ms1() - driver_pmtimer_cal_ms0());
+        put("\nmeasured: ");
+        put_u64(hz);
+        put(" Hz (nominal ");
+        put_u64(nominal);
+        put(", delta ");
+        put_u64(bp);
+        put(" bp) ");
+        put(bp <= 500 ? "PASS" : "FAIL");
+        put("\n");
+        return bp <= 500 ? 0 : 1;
+    }
+    if (word_is(&p, "wrap")) {
+        int fails = 0;
+        u32 mask = driver_pmtimer_mask();
+        int w = driver_pmtimer_config_width();
+        put("effective width: ");
+        put_dec(w);
+        put("bit (mask=0x");
+        put_hex(mask, 8);
+        put(")\n");
+        /* wrap-safe modular delta across a counter wrap (24-bit wrap
+         * period is 2^24/3.579545MHz = 4.67 s; 32-bit is ~20 min) */
+        u32 s = (w == 32) ? 0xFFFFFFF0u : 0x00FFFFF0u;
+        u32 e = 0x0000001Fu;
+        u32 d = driver_pmtimer_delta32(s, e);
+        put("wrap-safe delta: start=0x");
+        put_hex(s, 8);
+        put(" end=0x0000001f elapsed=");
+        put_u64(d);
+        put(d == 47 ? " PASS\n" : " FAIL\n");
+        if (d != 47) fails++;
+        /* 64-bit extension across a wrap */
+        u32 ps = (w == 32) ? 0xFFFFFF00u : 0x00FFFFF0u;
+        u64 out64 = 0;
+        u64 expect_out = (w == 32) ? 0x100000080ull : 0x1000080ull;
+        u64 wraps = driver_pmtimer_extend(ps, 0x00000080u, 0, &out64);
+        put("64-bit extension: prev=0x");
+        put_hex(ps, 8);
+        put(" cur=0x00000080 wraps=");
+        put_u64(wraps);
+        put(" out=");
+        put_hex(out64, 16);
+        put((wraps == 1 && out64 == expect_out) ? " PASS\n" : " FAIL\n");
+        if (!(wraps == 1 && out64 == expect_out)) fails++;
+        /* plain no-wrap delta */
+        u32 d2 = driver_pmtimer_delta32(0x00000100u, 0x00000200u);
+        put("no-wrap delta: start=0x00000100 end=0x00000200 elapsed=");
+        put_u64(d2);
+        put(d2 == 256 ? " PASS\n" : " FAIL\n");
+        if (d2 != 256) fails++;
+        put("pmtimer wrap: ");
+        put(fails == 0 ? "PASS" : "FAIL");
+        put("\n");
+        return fails == 0 ? 0 : 1;
+    }
+    if (word_is(&p, "test")) {
+        int fails = 0;
+        u64 hz = 0;
+        if (driver_pmtimer_calibrate(&hz) == 0) {
+            u64 bp = hz_delta_bp(hz, OC_PM_TIMER_NOMINAL_HZ);
+            put("  calibrate vs PIT: ");
+            put_u64(hz);
+            put(" Hz, delta ");
+            put_u64(bp);
+            put(" bp: ");
+            put(bp <= 500 ? "PASS" : "FAIL");
+            put("\n");
+            if (bp > 500) fails++;
+        } else {
+            put("  calibrate vs PIT: FAIL\n");
+            fails++;
+        }
+        u32 r0 = driver_pmtimer_read();
+        u32 r1 = driver_pmtimer_read();
+        u32 r2 = driver_pmtimer_read();
+        int mono = driver_pmtimer_delta32(r0, r1) > 0 &&
+                   driver_pmtimer_delta32(r1, r2) > 0;
+        put("  monotonic reads: ");
+        put(mono ? "PASS" : "FAIL");
+        put("\n");
+        if (!mono) fails++;
+        put("pmtimer: ");
+        put(fails == 0 ? "PASS" : "FAIL");
+        put("\n");
+        return fails == 0 ? 0 : 1;
+    }
+
+    /* default: status dump */
+    put("PM timer: ");
+    put(driver_pmtimer_space() == 1 ? "port=" : "mem=");
+    put_hex(driver_pmtimer_base(), 8);
+    put(driver_pmtimer_space() == 1 ? " (SystemIO)" : " (SystemMemory)");
+    put(" width=");
+    put_dec(driver_pmtimer_bit_width());
+    put("bit (FADT ");
+    put(driver_pmtimer_is_extended() ? "X_PM_TMR" : "pm_tmr_blk");
+    put(")  delta mask=");
+    put_hex(driver_pmtimer_mask(), 8);
+    put(" (");
+    put_dec(driver_pmtimer_config_width());
+    put("bit)\nnominal: ");
+    put_u64(OC_PM_TIMER_NOMINAL_HZ);
+    put(" Hz  measured: ");
+    put_u64(driver_pmtimer_hz_measured());
+    put(driver_pmtimer_hz_measured() ? " Hz\n" : " Hz (not calibrated)\n");
+    put("read: ");
+    put_hex(driver_pmtimer_read(), 8);
+    put("  now64: ");
+    put_hex(driver_pmtimer_now64(), 16);
+    put("  wraps: ");
+    put_u64(driver_pmtimer_wrap_count());
+    put("\n");
+    return 0;
+}
 
 void shell_cmds_timer_register(void) {
     shell_register_command_ex("rtc", shell_cmd_rtc,
@@ -397,5 +572,8 @@ void shell_cmds_timer_register(void) {
         "WP-10-timer_rtc");
     shell_register_command_ex("hpet", shell_cmd_hpet,
         "HPET: caps + counter + one-shot/periodic IRQ8 tests",
+        "WP-10-timer_rtc");
+    shell_register_command_ex("pmtimer", shell_cmd_pmtimer,
+        "ACPI PM timer: read + PIT calibration + wrap tests",
         "WP-10-timer_rtc");
 }

@@ -94,6 +94,7 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "arch_lapic.h"                /* WP-10-input_chipset: LAPIC/MSI */
 #include "driver_cmos_rtc.h"           /* WP-10-timer_rtc: CMOS RTC IRQ/alarm */
 #include "driver_hpet.h"               /* WP-10-timer_rtc: HPET */
+#include "driver_pmtimer.h"            /* WP-10-timer_rtc: ACPI PM timer */
 #include "shell_cmds_timer.h"          /* WP-10-timer_rtc: time commands */
 #include "lib_config.h"   /* WP-09-fix5: /etc/opencube.conf */
 #include "ota_update.h"   /* WP-09-fix5: checkupdate */
@@ -3274,6 +3275,8 @@ void kmain(u64 magic, u64 mbi_phys) {
         OC_LOG_OK2("HPET (ACPI table + MMIO caps)");
     else
         OC_LOG_FAIL2("HPET: no usable ACPI HPET table");
+    /* PM timer init follows lib_config_init() below so the runtime
+     * pmtimer.width override is readable (see driver_pmtimer.c). */
 
     /* ---- 12d. WP-05: VFS + ramfs + ATA + FAT32 ---- */
     fs_vfs_init();
@@ -3327,6 +3330,14 @@ void kmain(u64 magic, u64 mbi_phys) {
      * config), falls back to a ramfs /etc seeded with defaults, and
      * makes sure the config file exists. */
     lib_config_init();
+
+    /* ---- WP-10-timer_rtc: ACPI PM timer ----
+     * Initialized after lib_config_init() so the pmtimer.width config
+     * key is readable when the counter mask is chosen. */
+    if (driver_pmtimer_init() == 0)
+        OC_LOG_OK2("ACPI PM timer (FADT PM_TMR_BLK)");
+    else
+        OC_LOG_FAIL2("ACPI PM timer: no usable PM_TMR_BLK");
 
     /* ---- WP-10u: A/B slot framework + in-system update ----
      * Reads oc.slot= from the multiboot2 command line, scans the disks
