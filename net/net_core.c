@@ -2288,10 +2288,22 @@ typedef struct {
     int ooo_count;
 } net_tcp_conn_t;
 
-static net_tcp_conn_t g_tcp_conns[TCP_MAX_CONNS];
+/* WP-10-wireless_bluetooth: this table is 32 * sizeof(net_tcp_conn_t)
+ * (~520 KiB) and the linker.ld ASSERT pins the whole kernel image below
+ * the 0x400000 identity window.  The table therefore lives on the kernel
+ * heap instead of static .bss: same layout, same indexing, allocated
+ * once before any connection exists (net_tcp_init runs from net_init,
+ * well after mem_heap_init). */
+static net_tcp_conn_t *g_tcp_conns;
 
-void net_tcp_init(void) {
-    memset(g_tcp_conns, 0, sizeof(g_tcp_conns));
+int net_tcp_init(void) {
+    if (!g_tcp_conns) {
+        g_tcp_conns = (net_tcp_conn_t *)kmalloc(
+            (u64)sizeof(net_tcp_conn_t) * TCP_MAX_CONNS);
+        if (!g_tcp_conns) return -1;   /* honest: no TCP without memory */
+    }
+    memset(g_tcp_conns, 0, (u64)sizeof(net_tcp_conn_t) * TCP_MAX_CONNS);
+    return 0;
 }
 
 static net_tcp_conn_t *net_tcp_find_conn(u32 ip, u16 local_port, u16 remote_port) {
@@ -4345,7 +4357,7 @@ void net_init(void) {
     driver_pci_init();
     net_arp_init();
     net_udp_init();
-    net_tcp_init();
+    if (net_tcp_init() != 0) return;   /* honest: net stays down */
     memset(g_sockets, 0, sizeof(g_sockets));
 
     /* WP-10b: probe the nic-framework families first (e1000e, igb,

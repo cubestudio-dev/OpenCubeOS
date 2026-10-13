@@ -35,7 +35,7 @@
 /* ------------------------------------------------------------------ */
 #define WL_MAX_FAMILIES        8
 #define WL_MAX_DEVICES         4
-#define WL_MAX_SCAN_RESULTS    32
+#define WL_MAX_SCAN_RESULTS    16
 #define WL_SSID_MAX            32
 #define WL_FRAME_MAX           2400   /* mgmt frames fit; data payload cap */
 #define WL_MAX_RATES           16

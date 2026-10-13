@@ -137,6 +137,35 @@ all: $(KERNEL)
 $(BUILD):
 	mkdir -p $(BUILD)
 
+# WP-10-wireless_bluetooth: the wireless/sd driver set compiles at -Os so
+# the kernel image stays inside the 0x400000 identity window (the linker
+# ASSERT is byte-exact; measured over-run was 8 KiB at -O2).  Same
+# per-file-override pattern as the AML -O0 rule below.
+$(BUILD)/drivers/wireless/driver_wireless.o: $(OC_ROOT)/drivers/wireless/driver_wireless.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+
+$(BUILD)/drivers/wireless/driver_iwlwifi.o: $(OC_ROOT)/drivers/wireless/driver_iwlwifi.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+
+$(BUILD)/drivers/wireless/driver_rtlwifi.o: $(OC_ROOT)/drivers/wireless/driver_rtlwifi.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+
+$(BUILD)/drivers/wireless/driver_ath.o: $(OC_ROOT)/drivers/wireless/driver_ath.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+
+$(BUILD)/drivers/wireless/driver_brcm.o: $(OC_ROOT)/drivers/wireless/driver_brcm.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+
+$(BUILD)/drivers/sd/driver_sdhci.o: $(OC_ROOT)/drivers/sd/driver_sdhci.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+
+
 # C source → object file (with header dependency tracking, BUG-025 FIX)
 # WP-10-input_chipset: the AML interpreter is compiled at -O0. It runs
 # once at boot; the -O2 codegen of this file interacted badly with the
