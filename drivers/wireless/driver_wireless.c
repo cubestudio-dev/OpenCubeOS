@@ -533,6 +533,21 @@ wl_device_t *wl_device_get(int id)
 }
 int wl_device_count(void) { return g_device_count; }
 
+/* One device slot per family; each runs its real attach + fw load. */
+int wl_device_probe_all(void)
+{
+    int added = 0;
+    for (int f = 0; f < g_family_count; f++) {
+        int id;
+        if (g_device_count >= WL_MAX_DEVICES) break;
+        id = wl_register_device(f, "auto", 0, 0);
+        if (id < 0) continue;
+        (void)wl_device_bring_up(id);   /* DOWN stays honest on failure */
+        added++;
+    }
+    return added;
+}
+
 int wl_device_bring_up(int id)
 {
     wl_device_t *d = wl_device_get(id);

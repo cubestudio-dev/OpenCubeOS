@@ -93,6 +93,9 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "shell_cmds_chipset.h"        /* WP-10-input_chipset: commands */
 #include "arch_lapic.h"                /* WP-10-input_chipset: LAPIC/MSI */
 #include "driver_cmos_rtc.h"           /* WP-10-timer_rtc: CMOS RTC IRQ/alarm */
+#include "driver_wireless.h"           /* WP-10-wireless_bluetooth: 802.11 core */
+#include "driver_iwlwifi.h"            /* WP-10-wireless_bluetooth: Intel */
+#include "driver_rtlwifi.h"            /* WP-10-wireless_bluetooth: Realtek */
 #include "driver_hpet.h"               /* WP-10-timer_rtc: HPET */
 #include "driver_pmtimer.h"            /* WP-10-timer_rtc: ACPI PM timer */
 #include "shell_cmds_timer.h"          /* WP-10-timer_rtc: time commands */
@@ -3350,6 +3353,16 @@ void kmain(u64 magic, u64 mbi_phys) {
                                    partition before the A/B scan so
                                    install disks are mountable too */
     ota_ab_init();
+
+    /* WP-10-wireless_bluetooth: 802.11 core + family probes.  Each
+     * family runs its real PCI/USB enumeration; without matching
+     * hardware the device stays DOWN (honest state surfaced by the
+     * wifi command).  Runs after FAT mounts so firmware files under
+     * /etc/firmware are loadable. */
+    driver_wireless_init();
+    driver_iwlwifi_register();
+    driver_rtlwifi_register();
+    wl_device_probe_all();
 
     /* WP-05 shell commands: file operations (in file_cmds.c) +
      * WP-07 disk commands (in disk_cmds.c). */

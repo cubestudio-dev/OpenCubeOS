@@ -219,6 +219,10 @@ int  wl_register_device(int family_id, const char *bus_name,
                         u16 vendor, u16 device);
 wl_device_t *wl_device_get(int id);
 int  wl_device_count(void);
+/* Register one device slot per registered family and run its real
+ * attach (PCI/USB enumeration) + firmware load.  Devices without
+ * hardware stay DOWN (honest state).  Returns devices registered. */
+int  wl_device_probe_all(void);
 int  wl_device_bring_up(int id);       /* attach + fw_load + READY     */
 int  wl_device_down(int id);
 
