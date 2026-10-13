@@ -99,6 +99,7 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "driver_ath.h"                /* WP-10-wireless_bluetooth: Atheros */
 #include "driver_brcm.h"               /* WP-10-wireless_bluetooth: Broadcom */
 #include "driver_sdhci.h"              /* WP-10-wireless_bluetooth: SDHCI/SDIO */
+#include "driver_bt.h"                 /* WP-10-wireless_bluetooth: Bluetooth */
 #include "driver_hpet.h"               /* WP-10-timer_rtc: HPET */
 #include "driver_pmtimer.h"            /* WP-10-timer_rtc: ACPI PM timer */
 #include "shell_cmds_timer.h"          /* WP-10-timer_rtc: time commands */
@@ -3371,6 +3372,10 @@ void kmain(u64 magic, u64 mbi_phys) {
      * before the wireless probe so brcmfmac-SDIO cards can be bound.  */
     driver_sdhci_init();
     wl_device_probe_all();
+    /* Bluetooth stack: HCI over the first available transport (USB
+     * dongle, else the COM2 H4 UART).  Without either, the bt command
+     * reports "no transport" honestly. */
+    bt_stack_init();
 
     /* WP-05 shell commands: file operations (in file_cmds.c) +
      * WP-07 disk commands (in disk_cmds.c). */
