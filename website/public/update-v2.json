@@ -1,10 +1,10 @@
 {
-  "version": "WP-10-timer_rtc",
-  "build": 167,
+  "version": "WP-10-wireless_bluetooth",
+  "build": 174,
   "time": "2026-10-13",
-  "changes": "WP-10-timer_rtc: CMOS RTC status + IRQ8 UIE/PIE/alarm, HPET one-shot/periodic (legacy IRQ8), ACPI PM timer 24-bit wrap + PIT calibration, TSC 3-ref calibration; 4 new cmds (196 total); 114,593 lines",
+  "changes": "WP-10-wireless_bluetooth: 802.11 core + iwlwifi/rtl8188/8192/8821/ath9k/ath10k/ath11k/b43/brcmfmac + SDHCI/SDIO; BT: HCI, H4 UART, HCI-USB, L2CAP, RFCOMM, SDP, SPP, HID; 2 new cmds (198 total)",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-timer_rtc-update.tar.gz",
-  "package_sha256": "976e8bf5a8ed5f9164af62803c12d0a18746082c662d3bd44c57bfd2f2121d04",
-  "package_size": 654527
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-wireless_bluetooth-update.tar.gz",
+  "package_sha256": "f28057832a20423f3ff4defda997a4ed29695f0e3debd291f1c719411022e371",
+  "package_size": 680824
 }

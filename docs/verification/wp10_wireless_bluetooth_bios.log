@@ -7,8 +7,8 @@
       before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot ISO)                                                    [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot ISO)'
 
 
-[oc] Open Cube OS WP-10-timer_rtc-6-gb40b906 kmain entered
-  Open Cube OS  [WP-10-timer_rtc-6-gb40b906]    Open Cube OS - L0 kernel (WP-10-timer_rtc-6-gb40b906)
+[oc] Open Cube OS WP-10-wireless_bluetooth kmain entered
+  Open Cube OS  [WP-10-wireless_bluetooth]    Open Cube OS - L0 kernel (WP-10-wireless_bluetooth)
     Apache 2.0 licensed. See LICENSE.
 
 [00:00:00.000] multiboot2 handshake.............................. OK
@@ -29,7 +29,7 @@
 [00:00:00.000] exception self-test............................... OK
 [00:00:00.000] PMM (physical memory manager)..................... OK
 [00:00:00.000] VMM (virtual memory manager)...................... OK
-[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.010] kernel heap (kmalloc/kfree)....................... OK
 [00:00:00.010] scheduler (preemptive, priority + round-robin).... OK
 [00:00:00.010] sync primitives (spinlock/sem/mutex/cond)......... OK
 [00:00:00.010] shell state (env vars, aliases, cwd).............. OK
@@ -49,12 +49,12 @@
     AML: AML: undefined name CSEL
     AML: AML: undefined name CPEN
 [00:00:00.130] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
-[00:00:00.150] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
-[00:00:00.160] HPET (ACPI table + MMIO caps)..................... OK
-[00:00:00.170] VFS (virtual file system)......................... OK
+[00:00:00.140] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.150] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.160] VFS (virtual file system)......................... OK
 vfs: mounted ramfs at /
 ramfs: mounted at /
-[00:00:00.200] ramfs (in-memory file system, mounted at /)....... OK
+[00:00:00.190] ramfs (in-memory file system, mounted at /)....... OK
 ata: primary master present
 ata_dma: IDE controller at 00:01.1 BAR4=0xc040
 ata_dma: drive hda registered (DMA, 65536 sectors)
@@ -62,7 +62,7 @@ ata_dma: drive hda registered (DMA, 65536 sectors)
 virtio-blk: no legacy PCI device found (modern-only devices not supported)
 ahci: no controller found
 nvme: no controller found
-[00:00:00.340] virtio-blk + AHCI + NVMe drivers.................. OK
+[00:00:00.330] virtio-blk + AHCI + NVMe drivers.................. OK
 [00:00:00.410] USB hosts up: 0................................... OK
 [00:00:00.420] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
 fat32: registered (read/write)
@@ -72,20 +72,20 @@ ext4: registered (read-only)
 vfs: shadow mount (previous directory restored on umount)
 vfs: mounted fat32 at /etc
 [00:00:00.500] system config (/etc/opencube.conf, fat32)......... OK
-[00:00:00.520] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+[00:00:00.510] ACPI PM timer (FADT PM_TMR_BLK)................... OK
     abupdate: no disk with an A/B partition layout found
 [00:00:01.100] shell file/disk commands.......................... OK
 virtio-net: no device found
  dev=3 func=0 cmd=0x0103
  wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
-[00:00:01.620] network stack (e1000 + TCP/IP + socket API)....... OK
-[00:00:01.800] sound: no sound card present (probe OK)........... OK
-[00:00:01.810] shell command system (198 commands)............... OK
+[00:00:01.640] network stack (e1000 + TCP/IP + socket API)....... OK
+[00:00:01.810] sound: no sound card present (probe OK)........... OK
+[00:00:01.830] shell command system (198 commands)............... OK
     block devices: 1 registered
     disk cache: 64 slots, LRU write-back
-[00:00:01.850] disk subsystem (block dev + cache + partition + FS). OK
+[00:00:01.860] disk subsystem (block dev + cache + partition + FS). OK
     pmm: 131040 pages, 129255 free
-[00:00:01.870] kmalloc/kfree self-test........................... OK
+[00:00:01.880] kmalloc/kfree self-test........................... OK
 ext_wp8cd: self-test start
   tool_register+tool_list: PASS
   shell_register_builtin: PASS (registered + dispatches)
@@ -102,9 +102,9 @@ ext_wp8cd: self-test done
     ASCII demo: `abcdefghijklmno
     ASCII demo: pqrstuvwxyz{|}~
 
-[00:00:02.050] boot complete..................................... OK
+[00:00:02.060] boot complete..................................... OK
 
-Open Cube OS WP-10-timer_rtc-6-gb40b906 ready. Type 'help' for commands.
+Open Cube OS WP-10-wireless_bluetooth ready. Type 'help' for commands.
 (Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)
 
 
@@ -128,7 +128,7 @@ wireless families: 7  devices: 7
 (QEMU has no 802.11 models; down = device not present)
 
 === [wifi dev list] $ wifi
-wifi
+ wifi
 wireless families: 7  devices: 7
   iwlwifi
   rtlwifi
@@ -252,7 +252,7 @@ brcmfmac checks done
 wifi test: 0 failures - PASS
 
 === [wifi test core2] $ wifi test
- wifi test
+wifi test
 beacon parse PASS
 beacon ssid PASS
 beacon bssid PASS
@@ -682,7 +682,7 @@ brcmfmac checks done
 wifi test: 0 failures - PASS
 
 === [wifi test verdict] $ wifi test
- wifi test
+wifi test
 beacon parse PASS
 beacon ssid PASS
 beacon bssid PASS
@@ -916,7 +916,7 @@ bt test: transport=h4-uart2
 bt test: 0 failures - PASS
 
 === [bt test conn] $ bt test
-bt test
+ bt test
 bt test: transport=h4-uart2
   hci reset: PASS
   read local version: PASS
@@ -982,7 +982,7 @@ bt test: transport=h4-uart2
 bt test: 0 failures - PASS
 
 === [bt test rfcomm] $ bt test
- bt test
+bt test
 bt test: transport=h4-uart2
   hci reset: PASS
   read local version: PASS
@@ -1004,28 +1004,6 @@ bt test: transport=h4-uart2
 bt test: 0 failures - PASS
 
 === [bt test spp] $ bt test
-bt test
-bt test: transport=h4-uart2
-  hci reset: PASS
-  read local version: PASS
-  controller: hci 9, mfr 0x1337
-  read bd addr: PASS
-  bd_addr: 66:55:44:33:22:11
-  set event mask: PASS
-  inquiry: 1 device(s) (expected 1 from the test peer)
-  inquiry sees test peer: PASS
-  acl connection: PASS
-  l2cap echo: PASS
-  sdp spp channel: PASS
-  spp server channel: 3 (sdp err 0)
-  rfcomm dlc: PASS
-  spp echo: PASS
-  spp echo: rc=0 out=[oc-spp-echo]
-  hid get report: PASS
-  hid report: 8 bytes
-bt test: 0 failures - PASS
-
-=== [bt test hid] $ bt test
  bt test
 bt test: transport=h4-uart2
   hci reset: PASS
@@ -1047,8 +1025,30 @@ bt test: transport=h4-uart2
   hid report: 8 bytes
 bt test: 0 failures - PASS
 
-=== [bt test verdict] $ bt test
+=== [bt test hid] $ bt test
 bt test
+bt test: transport=h4-uart2
+  hci reset: PASS
+  read local version: PASS
+  controller: hci 9, mfr 0x1337
+  read bd addr: PASS
+  bd_addr: 66:55:44:33:22:11
+  set event mask: PASS
+  inquiry: 1 device(s) (expected 1 from the test peer)
+  inquiry sees test peer: PASS
+  acl connection: PASS
+  l2cap echo: PASS
+  sdp spp channel: PASS
+  spp server channel: 3 (sdp err 0)
+  rfcomm dlc: PASS
+  spp echo: PASS
+  spp echo: rc=0 out=[oc-spp-echo]
+  hid get report: PASS
+  hid report: 8 bytes
+bt test: 0 failures - PASS
+
+=== [bt test verdict] $ bt test
+ bt test
 bt test: transport=h4-uart2
   hci reset: PASS
   read local version: PASS
@@ -1521,5 +1521,5 @@ Available commands (A-Z):
 Total: 198 commands. Use 'help -w' for the work-package view.
 
 === [uname] $ uname -a
- uname -a
-Open Cube OS WP-10-timer_rtc-6-gb40b906 x86_64
+uname -a
+Open Cube OS WP-10-wireless_bluetooth x86_64

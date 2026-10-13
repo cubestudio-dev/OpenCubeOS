@@ -526,8 +526,8 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 ## Download
 
 - **Latest (WP-10-wireless_bluetooth)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-wireless_bluetooth) — ISO + SRC zip
-  (ISO sha256 `ISO_SHA_PLACEHOLDER`,
-  SRC sha256 `SRC_SHA_PLACEHOLDER`)
+  (ISO sha256 `1e609eef7517f8e89cc6d6b824f7440548b13d76beeae86b92a2292e6bb5d1a1`,
+  SRC sha256 `888b8da80a02c3c928be6dceb875b06c6279df220a7adb4ea81af5a935c12d85`)
   Batch summary: 802.11 core + seven wireless families (Intel iwlwifi,
   Realtek rtl8188/8192/8821, Atheros ath9k/ath10k/ath11k, Broadcom
   b43/brcmfmac with a real SDHCI/SDIO bus) + a full Bluetooth stack

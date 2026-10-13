@@ -11,23 +11,23 @@ export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-timer_rtc";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-wireless_bluetooth";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub WP-10-timer_rtc tag + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-10-timer_rtc.iso";
-export const ISO_SIZE_B = 11579392;
-export const ISO_SIZE_MB = "11.04";
+// Real assets (build/ + GitHub WP-10-wireless_bluetooth tag + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-WP-10-wireless_bluetooth.iso";
+export const ISO_SIZE_B = 11634688;
+export const ISO_SIZE_MB = "11.09";
 export const ISO_SHA256 =
-  "4377112140a56e07c8e668c7e2a3d530a51aed570b40ceb8dad403c517aba32f";
+  "1e609eef7517f8e89cc6d6b824f7440548b13d76beeae86b92a2292e6bb5d1a1";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-10-timer_rtc-src.zip";
-export const SRC_SIZE_B = 2839187;
-export const SRC_SIZE_MB = "2.71";
+export const SRC_FILE = "opencube-WP-10-wireless_bluetooth-src.zip";
+export const SRC_SIZE_B = 2962653;
+export const SRC_SIZE_MB = "2.83";
 export const SRC_SHA256 =
-  "04489327a25770fad50ca974bdc7e37ddca42a8bb41c6b004d490bfa6eb21430";
+  "888b8da80a02c3c928be6dceb875b06c6279df220a7adb4ea81af5a935c12d85";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // NOTE: the former STATS export lived here unreferenced (A18-5): HomeView
