@@ -92,6 +92,8 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "driver_input_i2chid.h"       /* WP-10-input_chipset: touchpad */
 #include "shell_cmds_chipset.h"        /* WP-10-input_chipset: commands */
 #include "arch_lapic.h"                /* WP-10-input_chipset: LAPIC/MSI */
+#include "driver_cmos_rtc.h"           /* WP-10-timer_rtc: CMOS RTC IRQ/alarm */
+#include "shell_cmds_timer.h"          /* WP-10-timer_rtc: time commands */
 #include "lib_config.h"   /* WP-09-fix5: /etc/opencube.conf */
 #include "ota_update.h"   /* WP-09-fix5: checkupdate */
 
@@ -3259,6 +3261,15 @@ void kmain(u64 magic, u64 mbi_phys) {
     (void)driver_input_i2chid_init();
     OC_LOG_OK2("chipset layer (PCIe/MSI/I2C/SMBus/touchpad)");
 
+    /* ---- WP-10-timer_rtc: time sources ----
+     * ACPI tables (FADT/HPET) are parsed above; the PIT tick is already
+     * running (WP-02), so the CMOS RTC probe can resolve the FADT
+     * century register and HPET/PM-timer see their ACPI bases. */
+    if (driver_cmos_rtc_init() == 0)
+        OC_LOG_OK2("CMOS RTC (ports 0x70/0x71, VRT set)");
+    else
+        OC_LOG_FAIL2("CMOS RTC: probe inconclusive (VRT not set)");
+
     /* ---- 12d. WP-05: VFS + ramfs + ATA + FAT32 ---- */
     fs_vfs_init();
     OC_LOG_OK2("VFS (virtual file system)");
@@ -3364,6 +3375,8 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_cmds_update_test_register();
     /* ---- WP-10-input_chipset: chipset + input commands ---- */
     shell_cmds_chipset_register();
+    /* ---- WP-10-timer_rtc: time-source commands ---- */
+    shell_cmds_timer_register();
     arch_lapic_init();
     OC_LOG_OK2("shell file/disk commands");
 
