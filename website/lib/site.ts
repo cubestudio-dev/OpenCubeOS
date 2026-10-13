@@ -11,23 +11,23 @@ export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix4";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-input_chipset";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub WP-10-AUDIT_P2-fix4 tag + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-10-AUDIT_P2-fix4.iso";
-export const ISO_SIZE_B = 11454464;
-export const ISO_SIZE_MB = "10.92";
+// Real assets (build/ + GitHub WP-10-input_chipset tag + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-WP-10-input_chipset.iso";
+export const ISO_SIZE_B = 11554816;
+export const ISO_SIZE_MB = "11.02";
 export const ISO_SHA256 =
-  "3fbb69a57e02441a62996d62ecdefa5ba21ea4ea3442f00e70e7f2c0ca4b852d";
+  "844e346d855723072daab7138625fceaaf068e6eb04fd72ee7a00938f378e9af";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-10-AUDIT_P2-fix4-src.zip";
-export const SRC_SIZE_B = 2926443;
-export const SRC_SIZE_MB = "2.79";
+export const SRC_FILE = "opencube-WP-10-input_chipset-src.zip";
+export const SRC_SIZE_B = 2795097;
+export const SRC_SIZE_MB = "2.67";
 export const SRC_SHA256 =
-  "f696064951e48893eacedb52f4e320b3d90d8b330815917e6d917b0b22d823f8";
+  "83cae823acc65df935b981ad748c0917033360cd8035f2543e7e0e18db11bbbc";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // NOTE: the former STATS export lived here unreferenced (A18-5): HomeView

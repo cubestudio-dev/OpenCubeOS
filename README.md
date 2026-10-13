@@ -32,7 +32,7 @@ Licensed under the Apache License, Version 2.0.
 
 ## Stats (WP-10-AUDIT_P2-fix3)
 
-- **Source code**: 103,640 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
+- **Source code**: 112,589 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
   verify: `find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
 - **Work packages**: 15 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
   WP-10d, WP-10-wp08fix1) — one `## WP-*` section each below
@@ -518,7 +518,10 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-10-AUDIT_P2-fix4)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix4) — ISO + SRC zip
+- **Latest (WP-10-input_chipset)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-input_chipset) — ISO + SRC zip
+  (ISO sha256 `844e346d855723072daab7138625fceaaf068e6eb04fd72ee7a00938f378e9af`,
+  SRC sha256 `83cae823acc65df935b981ad748c0917033360cd8035f2543e7e0e18db11bbbc`)
+- **Previous (WP-10-AUDIT_P2-fix4)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix4) — ISO + SRC zip
   (ISO sha256 `3fbb69a57e02441a62996d62ecdefa5ba21ea4ea3442f00e70e7f2c0ca4b852d`,
   SRC sha256 `f696064951e48893eacedb52f4e320b3d90d8b330815917e6d917b0b22d823f8`)
 - **Previous (WP-10-AUDIT_P2-fix3, ISO rebuilt AFTER the tag so uname shows the

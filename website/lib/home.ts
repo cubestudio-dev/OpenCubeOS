@@ -19,7 +19,7 @@ function fmtBytes(n: number): string {
 export { fmtBytes };
 
 // Current stats (same caliber as the README Stats section, re-verified at
-// WP-10-AUDIT_P2-fix4: 103,640 lines via README's own find|wc -l command,
+// WP-10-input_chipset: 112,589 lines via README's own find|wc -l command,
 // 46 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
 // 138 L1 interfaces / 176 commands per README + docs/INTERFACES.md,
 // 15 work packages = the 15 '## WP-*' sections). This is the RENDERED
@@ -27,19 +27,19 @@ export { fmtBytes };
 // assets and no longer keeps a competing stats copy.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "103,640", label: "行源码" },
+    { value: "112,589", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "46", label: "系统调用" },
-    { value: "176", label: "shell 命令" },
-    { value: "15", label: "工作包" },
+    { value: "192", label: "shell 命令" },
+    { value: "16", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "103,640", label: "lines of source" },
+    { value: "112,589", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "46", label: "system calls" },
-    { value: "176", label: "shell commands" },
-    { value: "15", label: "work packages" },
+    { value: "192", label: "shell commands" },
+    { value: "16", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
 };
@@ -49,6 +49,11 @@ export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "输入设备 + 芯片组五域落地（触摸板/PCIe/ACPI/SMBus/I2C）",
+      tag: "WP-10-input_chipset",
+      desc: "五大功能域进入 L0 并在 QEMU BIOS+UEFI 双启动实测：触摸板 I2C HID 全协议栈（描述符解析 + type-B 多点解码 + TAP/双指滚动/双指捏合/三指滑动手势引擎）；PCI/PCIe（CF8/CFC + MMCONFIG 扩展配置空间、设备缓存扫描、能力遍历、BAR 尺寸/分配、经 xAPIC 投递路径的 MSI/MSI-X 消息编程）；ACPI（RSDP 取自 Multiboot2 tag 14/15、RSDT/XSDT/FADT/MADT/MCFG/HPET 解析、最小 AML 解释器、S5 关机 + S3 挂起经 PM1a_CNT + \_S5/\_S3 包 + FACS 唤醒向量、32 位恢复跳板、SCI(IRQ9)+GPE）；SMBus（quick/byte/word/block 读写，[count,payload] 自描述布局）；I2C（PIIX4 cfg0x90 + i801 class-0C05 cfg0x20 + DesignWare 后端，block 传输在 AUX_CTL 0x0D bit1 下自动递增）。新增 16 条 shell 命令（acpi acpidev acpitest acpipow msitest pcidump pcibars pcie i2cdetect i2cget i2cset i2ctest smbus smbustest touchpad touchtest），总数 176→192（只增不删）。实测中根因修复 11 个上电缺陷（I2C 总线注册清零 xfer、QUICK 探测被核心拒绝、字写误路由、AUX_CTL 偏移/位/时序、block 读计数丢失、LAPIC 基址掩码保留 BSP 位、LINT0 ExtINT 被掩蔽致串口失联、自 IPI shorthand 11=all-excluding-self、HID Input 旗标误读 item 头、fixture 页切换、设备路径缺 \ 根前缀）。门禁：0 errors 0 warnings；五域 E2E 28/28 BIOS + 28/28 UEFI；全量回归 28/28；dhtest 5/5；cryptotest 4/4；SSH E2E 5/5；HTTPS E2E 7/7。许可证：LICENSE 恢复为官方 Apache-2.0 逐字节文本（仅附录版权行为 cubestudio-dev）、NOTICE 单列 GRUB unicode.pf2 字体（GPL-3.0 + 字体例外）、SPDX 全覆盖（0 缺失）、112,589 行源码。",
+    },
     {
       name: "P2 第二批 53 条复核属实 + 嵌入链三缺陷修复完成",
       tag: "WP-10-AUDIT_P2-fix2b",
@@ -131,6 +136,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "Input devices + chipset: five domains landed (touchpad/PCIe/ACPI/SMBus/I2C)",
+      tag: "WP-10-input_chipset",
+      desc: "Five L0 domains live-verified in QEMU on BIOS and UEFI boots: I2C-HID touchpad full stack (descriptor parser + type-B multitouch decoder + TAP/two-finger scroll/pinch/three-finger swipe gestures); PCI/PCIe (CF8/CFC + MMCONFIG extended config space, device cache scan, capability walk, BAR sizing/assignment, MSI/MSI-X via the xAPIC delivery path); ACPI (RSDP from Multiboot2 tags 14/15, RSDT/XSDT/FADT/MADT/MCFG/HPET, minimal AML interpreter, S5 shutdown + S3 suspend-to-RAM through PM1a_CNT + the \\_S5/\\_S3 packages + the FACS waking vector, 32-bit resume trampoline, SCI(IRQ9)+GPE); SMBus (quick/byte/word/block with the [count,payload] layout); I2C (PIIX4 cfg0x90 + i801 class-0C05 cfg0x20 + DesignWare backend, block transfers auto-incrementing under AUX_CTL 0x0D bit1). 16 new shell commands (acpi acpidev acpitest acpipow msitest pcidump pcibars pcie i2cdetect i2cget i2cset i2ctest smbus smbustest touchpad touchtest), total 176 to 192 (additions only). Eleven live-boot defects root-caused and fixed (I2C bus-registry wipe, QUICK probes rejected by the core, word-write misroute, AUX_CTL offset/bit/timing, block-read count drop, LAPIC base mask keeping the BSP bit, LINT0 ExtINT masking killing the serial console, self-IPI shorthand 11 = all-excluding-self, HID Input flags read from the item header, fixture page switch, device paths missing the \\ root). Gates: 0 errors 0 warnings; chipset E2E 28/28 BIOS + 28/28 UEFI; full regression 28/28; dhtest 5/5; cryptotest 4/4; SSH E2E 5/5; HTTPS E2E 7/7. License: LICENSE restored to the verbatim official Apache-2.0 text (appendix copyright line only), NOTICE lists GRUB's unicode.pf2 font (GPL-3.0 + font exception), SPDX coverage complete, 112,589 lines of source.",
+    },
     {
       name: "All 53 P2 batch-2 fixes verified in tree + three embed-chain defects fixed",
       tag: "WP-10-AUDIT_P2-fix2b",

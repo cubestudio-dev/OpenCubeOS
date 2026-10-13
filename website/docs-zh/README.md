@@ -33,7 +33,7 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 
 ## 统计（WP-10-AUDIT_P2-fix3）
 
-- **源码**：103,640 行（kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs，
+- **源码**：112,589 行（kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs，
   含头文件，不含文档；
   验证：`find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`）
 - **工作包**：15 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c、
