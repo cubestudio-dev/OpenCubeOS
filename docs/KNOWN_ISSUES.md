@@ -662,3 +662,55 @@ docs/EXTENSIONS_WP10-input_chipset.md §4):
 - The batch added 16 shell commands (additions only; the interface
   freeze holds); the regression command-count baseline and the two-way
   `help -a` check now expect 192.
+
+## 12. WP-10-timer_rtc additions (2026-10-13)
+
+### 12.1 HPET legacy route pauses the system tick
+
+- This kernel drives the two 8259 PICs only (no IO-APIC redirections),
+  so HPET timer interrupts reach the CPU only through the LEG_RT
+  legacy route (timer 1 -> ISA IRQ8; timer 0 is never enabled because
+  it would collide with the PIT on IRQ0).  While the legacy route is
+  armed (the one-shot / periodic tests, max ~1.5 s per test), QEMU
+  disconnects the PIT from IRQ0, so the 100 Hz system tick and every
+  soft timer stall for the duration.  All HPET tests restore the boot
+  state unconditionally; the `stats` tick counter resumes right after.
+
+### 12.2 PM timer effective width is 24-bit on this platform
+
+- QEMU 10.0 masks the PM timer read to `d & 0xffffff` (24-bit, the
+  ACPI 1.0 / PIIX4 convention; Linux uses the same ACPI_PM_MASK).
+  The FADT still says 32-bit (`pm_tmr_len = 4`).  Deltas are masked to
+  24 bits by default (correct on both widths for windows < 4.67 s);
+  real TMR_VAL_EXT hardware can set `pmtimer.width=32` in
+  /etc/opencube.conf.  The wrap period is 4.67 s (24-bit), not the
+  ~20 min a naive 32-bit reading suggests.
+
+### 12.3 CMOS RTC century register is surfaced, not wired
+
+- The WP-09 reader (`kernel/core/core_rtc.c`) reads CMOS index 0x48
+  with a 2000+year fallback; the FADT century register (0x32 on QEMU)
+  is now reported by `rtc` status but is not wired into that reader.
+  Years decode as 2000+year when the 0x48 snapshot is not a plausible
+  century - correct on QEMU and most real hardware through 2099.
+
+### 12.4 TSC under TCG is a virtual clock
+
+- CPUID 0x80000007.EDX[8] (Invariant TSC) reports 0 under QEMU TCG -
+  honest, not a bug: the TSC tracks the virtual clock there and its
+  measured frequency (~3.2 GHz) is not the host TSC.  Calibration and
+  the TSC-driven delay are self-consistent (delay 100 ms measures
+  100 ms against the PIT); on real hardware the TSC is the host TSC.
+
+### 12.5 QEMU's HPET table block_id encodes a nonsense comparator count
+
+- SeaBIOS/QEMU bake block_id 0x8086a201 into the HPET table whose
+  comparator field (bits 15:8) decodes as 163 - nonsense.  The live
+  GCAP register (3 timers) is authoritative; `hpet` prints both the
+  table fields and the live caps so the discrepancy is visible.
+
+### 12.6 Regression command-count baseline moved 192 -> 196
+
+- The batch added 4 shell commands (rtc/hpet/pmtimer/tsc; additions
+  only, interface freeze holds); the regression baseline and the
+  two-way `help -a` check now expect 196.

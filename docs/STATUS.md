@@ -3,12 +3,12 @@
 
 # Open Cube OS - Project Status
 
-Updated 2026-10-11 at WP-10-AUDIT_P2-fix4. All 15 work packages are
+Updated 2026-10-13 at WP-10-timer_rtc. All 17 work packages are
 COMPLETE; the auxiliary batches are shipped; the P2 audit batches fix1
 through fix4 are COMPLETE - all 214 P2 items landed on main and released
 (see Audit batches below).
 
-## Work-package coverage (15/15 COMPLETE)
+## Work-package coverage (17/17 COMPLETE)
 
 | WP | Scope | Status | Details |
 |---|---|---|---|
@@ -27,6 +27,8 @@ through fix4 are COMPLETE - all 214 P2 items landed on main and released
 | WP-10c | Sound cards: HDA / AC'97 / SB16 / ES1370 / virtio / USB audio | COMPLETE | docs/EXTENSIONS_WP10c.md |
 | WP-10d | USB host stack: UHCI / OHCI / EHCI / XHCI + HID/MSC/serial/audio | COMPLETE | docs/EXTENSIONS_WP10d.md |
 | WP-10-wp08fix1 | Shell line editor + nano/vi editors + VFS link/symlink + SYS 96-102 | COMPLETE | docs/EXTENSIONS_WP10-wp08fix1.md |
+| WP-10-input_chipset | Input devices + chipset: I2C-HID touchpad / PCI-PCIe / ACPI / SMBus / I2C | COMPLETE | docs/EXTENSIONS_WP10-input_chipset.md; record below |
+| WP-10-timer_rtc | Time sources: CMOS RTC (IRQ+alarm) / HPET / ACPI PM timer / TSC | COMPLETE | docs/EXTENSIONS_WP10-timer_rtc.md; record below |
 
 The L1 interface numbering 1-138 closes at WP-10-wp08fix1
 (docs/INTERFACES.md is the single-page index).
@@ -280,3 +282,39 @@ skipped honestly when absent; process-call is unsupported by design
 (non-atomic decomposition would corrupt EEPROMs). Eleven live-boot
 defects found by the gate are documented with root causes in
 docs/EXTENSIONS_WP10-input_chipset.md §4.
+
+## WP-10-timer_rtc: time sources (2026-10-13)
+
+**Status: COMPLETE.** Four time-source domains wired into the L0
+kernel and exercised live in QEMU on both BIOS and UEFI boots: CMOS
+RTC (status registers + IRQ8 update-ended/periodic/alarm interrupts),
+HPET (ACPI table + MMIO driver + one-shot/periodic comparators on
+timer 1 via the LEG_RT legacy route), ACPI PM timer (FADT
+PM_TMR_BLK + 24-bit-masked wrap arithmetic + 64-bit extension + PIT
+calibration), TSC (serialized reads + invariant probe + three-reference
+calibration + TSC-driven delay). 4 new shell commands (Total
+192 -> 196, additions only).
+
+| Criterion | Status |
+|---|---|
+| Compiles 0 errors / 0 warnings (-Werror) | OK |
+| ISO builds; BIOS + UEFI boot | OK |
+| Time-source E2E (tools/wp10_timer_rtc_e2e.py) | OK (29/29 BIOS + 29/29 UEFI) |
+| Full regression (tools/run_fix4_regression.py) | OK (28/28; command-count baseline 192 -> 196 documented) |
+| dhtest | OK (5/5, TCG) |
+| cryptotest NIST | OK (via regression suite) |
+| fstest | OK (p2 ALL PASS) |
+| SSH E2E | OK (5/5) |
+| HTTPS E2E | OK (7/7) |
+| Interfaces frozen (commands added, none removed) | OK (help -a re-verified live) |
+| Extension contract (header + comments + default impl + docs) | OK (docs/EXTENSIONS_WP10-timer_rtc.md) |
+| L1 numbering stays closed at 138 | OK (driver APIs + commands, no numbered L1 additions) |
+
+Honest notes: the HPET legacy route pauses the system tick for the
+duration of each test (PIC-only kernel, no IO-APIC yet); the PM timer
+is 24-bit effective on this platform (QEMU `d & 0xffffff`, the
+PIIX4/ACPI 1.0 convention) with a `pmtimer.width=32` config override;
+the CMOS century register is surfaced by `rtc` but not wired into the
+WP-09 reader; the TSC is a virtual clock under TCG (invariant flag
+honestly 0).  Four live-boot defects found by the gate are documented
+with root causes in docs/EXTENSIONS_WP10-timer_rtc.md §4.

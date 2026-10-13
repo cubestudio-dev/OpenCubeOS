@@ -19,27 +19,27 @@ function fmtBytes(n: number): string {
 export { fmtBytes };
 
 // Current stats (same caliber as the README Stats section, re-verified at
-// WP-10-input_chipset: 112,589 lines via README's own find|wc -l command,
+// WP-10-timer_rtc: 114,593 lines via README's own find|wc -l command,
 // 46 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
-// 138 L1 interfaces / 176 commands per README + docs/INTERFACES.md,
-// 15 work packages = the 15 '## WP-*' sections). This is the RENDERED
-// source (HomeView imports from here) - lib/site.ts carries the release
-// assets and no longer keeps a competing stats copy.
+// 138 L1 interfaces / 196 commands per README + docs/INTERFACES.md,
+// 17 work packages = the latest counted total per README Stats). This is
+// the RENDERED source (HomeView imports from here) - lib/site.ts carries
+// the release assets and no longer keeps a competing stats copy.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "112,589", label: "行源码" },
+    { value: "114,593", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "46", label: "系统调用" },
-    { value: "192", label: "shell 命令" },
-    { value: "16", label: "工作包" },
+    { value: "196", label: "shell 命令" },
+    { value: "17", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "112,589", label: "lines of source" },
+    { value: "114,593", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "46", label: "system calls" },
-    { value: "192", label: "shell commands" },
-    { value: "16", label: "work packages" },
+    { value: "196", label: "shell commands" },
+    { value: "17", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
 };
@@ -49,6 +49,11 @@ export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "时间源四域落地（CMOS RTC / HPET / ACPI PM Timer / TSC）",
+      tag: "WP-10-timer_rtc",
+      desc: "四个硬件时间源进入 L0 并在 QEMU BIOS+UEFI 双启动实测：CMOS RTC（状态寄存器 A/B/C/D 解码：UIP/周期频率/PIE/AIE/UIE/BCD/24 小时制/VRT/FADT 世纪寄存器 + IRQ8 更新结束/周期/闹钟三种真实中断测试，测试后无条件恢复 Reg A/B）；HPET（消费 ACPI HPET 表 + MMIO 驱动，64 位主计数器重读高位、GCAP 能力解码（QEMU 0xfed00000、100 MHz），timer 1 经 LEG_RT legacy 路由到 IRQ8 的单次/周期比较器测试，测试期限用 HPET 计数器自身兜底）；ACPI PM Timer（FADT PM_TMR_BLK 解析，SeaBIOS 0x608 / OVMF 0xb008，24 位有效掩码回绕算术 + 64 位回绕扩展 + 与 PIT 对比校准，pmtimer.width=32 配置覆盖）；TSC（cpuid 序列化 rdtsc、不变 TSC 探测、PIT/HPET/PMTimer 三参照校准 + 最优参照自动校准 + TSC 忙等延迟）。新增 4 条 shell 命令（rtc hpet pmtimer tsc），总数 192→196（只增不删），L1 编号保持 1-138 封闭。实测中根因修复 4 个上电缺陷（acpi_hpet_t 缺表头且 block ID 拆 6 字节——该结构首个真实消费者；PM timer 24 位回绕被误读为倒退 3.6 秒；TSC-vs-HPET 校准在冻结计数器上死循环；HPET 周期测试期限未随次数缩放）。门禁：0 errors 0 warnings；时间源 E2E 29/29 BIOS + 29/29 UEFI；全量回归 28/28；dhtest 5/5；SSH E2E 5/5；HTTPS E2E 7/7。RTC UIE 3/3、PIE 32/32、闹钟触发；HPET 计数器实测 100,113,820 Hz（标称 100,000,000）、单次 1/1、周期 3/3；PMT 校准 3,576,824 Hz（偏差 7 bp）；TSC 双跑漂移 86 bp、HPET 互校 0 bp、延迟 100/100 ms。114,593 行源码。",
+    },
     {
       name: "输入设备 + 芯片组五域落地（触摸板/PCIe/ACPI/SMBus/I2C）",
       tag: "WP-10-input_chipset",
@@ -136,6 +141,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "Time sources: four domains landed (CMOS RTC / HPET / ACPI PM timer / TSC)",
+      tag: "WP-10-timer_rtc",
+      desc: "Four hardware time sources live-verified in QEMU on BIOS and UEFI boots: CMOS RTC (status registers A/B/C/D decoded: UIP, periodic rate, PIE/AIE/UIE, BCD/binary, 12/24-hour, VRT, FADT century; three REAL IRQ8 interrupt tests - update-ended, periodic, alarm - with unconditional Reg A/B restore); HPET (consumes the ACPI HPET table + MMIO driver, 64-bit main counter with re-read-high, GCAP capability decoding (QEMU 0xfed00000, 100 MHz), one-shot and periodic comparators on timer 1 via the LEG_RT legacy route to IRQ8 with HPET-counter-bounded deadlines); ACPI PM timer (FADT PM_TMR_BLK resolution - SeaBIOS 0x608 / OVMF 0xb008, 24-bit-masked wrap arithmetic + 64-bit wrap extension + PIT comparison calibration, pmtimer.width=32 config override); TSC (cpuid-serialized rdtsc, invariant-TSC probe, PIT/HPET/PMTimer three-reference calibration + best-reference autocalibration + TSC busy-wait delay). 4 new shell commands (rtc hpet pmtimer tsc), total 192 to 196 (additions only), L1 numbering stays closed at 1-138. Four live-boot defects root-caused and fixed (acpi_hpet_t lacked the SDT header and split the block ID into 6 bytes - its first real consumer ever; the PM-timer 24-bit wrap misread as a 3.6 s backward step; TSC-vs-HPET calibration spinning forever on a frozen counter; the HPET periodic deadline not scaling with the fire count). Gates: 0 errors 0 warnings; time-source E2E 29/29 BIOS + 29/29 UEFI; full regression 28/28; dhtest 5/5; SSH E2E 5/5; HTTPS E2E 7/7. RTC UIE 3/3, PIE 32/32, alarm fired; HPET counter measured 100,113,820 Hz (nominal 100,000,000), oneshot 1/1, periodic 3/3; PMT calibrated 3,576,824 Hz (delta 7 bp); TSC 2-run drift 86 bp, HPET cross-check 0 bp, delay 100/100 ms. 114,593 lines of source.",
+    },
     {
       name: "Input devices + chipset: five domains landed (touchpad/PCIe/ACPI/SMBus/I2C)",
       tag: "WP-10-input_chipset",

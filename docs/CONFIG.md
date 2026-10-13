@@ -58,6 +58,8 @@ Rules:
 |---|---|---|
 | `update_url` | Manifest URL for `checkupdate`; scheme decides transport (`https://` → TLS 1.3/1.2 client, `http://` → plain TCP, anything else → error) | `https://cubestudio-dev.github.io/OpenCubeOS/update.json` |
 | `auto_check` | `yes` / `no` — run the update check automatically after boot completes | `no` |
+| `pmtimer.width` | ACPI PM timer counter width for the delta mask: `24` (default, PIIX4/ACPI 1.0/QEMU/`ACPI_PM_MASK` convention) or `32` (hardware with TMR_VAL_EXT) | `24` |
+| `hda.bdl` | HDA BDL encoding: `spec` selects the spec word layout (BUG-0340 diagnostic switch); anything else uses the QEMU-compatible default | QEMU-compatible |
 
 Defined behaviour (documented policy, implemented in `kernel/lib/lib_config.c`):
 

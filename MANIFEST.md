@@ -4,17 +4,17 @@
 # Open Cube OS — Repository Manifest
 
 ## Version
-WP-10-input_chipset (chipset input domains: touchpad I2C HID / PCI/PCIe / ACPI / SMBus / I2C)
+WP-10-timer_rtc (time sources: CMOS RTC interrupts+alarm / HPET / ACPI PM timer / TSC)
 
 ## Directory Structure
 
 ```
 oc-os/                        ← repository root
-├── boot/                     ← boot assembly (3 .S files)
-├── kernel/                   ← kernel source (142 files: .c + .h + .S, incl. WP-09 crypto/ssh/sshd/tls + WP-10a storage + WP-10b NIC drivers)
-├── userprogs/                ← user programs (.c/.asm/.ld — 23 files)
-├── tools/                    ← build/test scripts (9 files, public)
-├── docs/                     ← documentation (17 files)
+├── boot/                     ← boot assembly (5 files: .S + headers)
+├── kernel/                   ← kernel source (79 files: .c + .h + .S, incl. WP-09 crypto/ssh/sshd/tls + WP-10a storage + WP-10b NIC drivers + WP-10-timer_rtc time sources)
+├── userprogs/                ← user programs (.c/.asm/.ld — 31 files)
+├── tools/                    ← build/test scripts (42 files, public)
+├── docs/                     ← documentation (42 files)
 ├── build/                    ← build artifacts (opencube.elf + .o files) — gitignored
 ├── archive/                  ← archived old versions (see archive/README.md)
 │   └── old-ldso/             ← Batch 2 assembly ld.so (only tracked subdir)

@@ -4,7 +4,10 @@
 # Open Cube OS — Interface Index
 
 Interface numbering 1-138 closed as of WP-10-wp08fix1; counts re-verified
-2026-10-09 at WP-10-AUDIT_P2-fix3.
+2026-10-09 at WP-10-AUDIT_P2-fix3.  WP-10-timer_rtc (like
+WP-10-input_chipset) adds kernel driver APIs + shell commands and keeps
+the numbered L1 set closed at 138; the new driver APIs are listed in
+docs/EXTENSIONS_WP10-timer_rtc.md.
 
 Single-page index of every interface Open Cube OS exposes to upper layers
 (L1) and to the shell. Signatures are copied verbatim from the headers —
@@ -148,14 +151,17 @@ DH truth vectors for self-test: kernel/crypto/crypto_dh_scale_vectors.h.
 
 ## 4. Shell command surface
 
-192 commands registered at boot (live count; `help` lists 192 unique and
-prints `Total: 192 commands`, `help -w` groups them by work-package tag).
-Section updated at WP-10-input_chipset: the batch registered 16 new
+196 commands registered at boot (live count; `help` lists 196 unique and
+prints `Total: 196 commands`, `help -w` groups them by work-package tag).
+Section updated at WP-10-timer_rtc: the batch registered 4 new
+time-source commands (rtc, hpet, pmtimer, tsc —
+shell/shell_cmds_timer.c) so the boot count moved 192 -> 196; nothing
+was removed (interface freeze = additions only).
+Previous update at WP-10-input_chipset: the batch registered 16 new
 chipset/input commands (acpi, acpidev, acpitest, acpipow, msitest,
 pcidump, pcibars, pcie, i2cdetect, i2cget, i2cset, i2ctest, smbus,
 smbustest, touchpad, touchtest — shell/shell_cmds_chipset.c) so the
-boot count moved 176 -> 192; nothing was removed (interface freeze =
-additions only). Previous update at WP-10-AUDIT_P2-fix2: fix1 added
+boot count moved 176 -> 192. Previous update at WP-10-AUDIT_P2-fix2: fix1 added
 three regression commands (`irqabitest`, `heapbounds`, `vmkernelpt`,
 BUG-0136/0140/0141 attribution) moving 173 -> 176.
 `shell_register_command` call sites (static count, re-verified for
@@ -174,8 +180,9 @@ abdisk/install/grub-install/abcfg), shell/shell_cmds_disk_test.c 8
 7 test commands), shell/shell.c 6 (incl. WP-10-wp08fix1 nano/vi),
 shell/shell_cmds_power_test.c 7 (WP-10d-fix2 power + help test suite),
 shell/shell_cmds_chipset.c 16 (WP-10-input_chipset: 4 ACPI + 4
-PCIe/MSI + 4 I2C + 2 SMBus + 2 touchpad).
-56+16+18+7+4+8+18+17+10+9+6+7+16 = 192. Full list: type `help` at the
+PCIe/MSI + 4 I2C + 2 SMBus + 2 touchpad),
+shell/shell_cmds_timer.c 4 (WP-10-timer_rtc: rtc/hpet/pmtimer/tsc).
+56+16+18+7+4+8+18+17+10+9+6+7+16+4 = 196. Full list: type `help` at the
 `oc>` prompt.
 
 ## 5. Verification of these interfaces

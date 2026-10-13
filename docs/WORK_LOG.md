@@ -115,3 +115,31 @@ public summary of the WP-09 closeout batches.
   i18n wpSectionDesc (15 -> 16), MANIFEST Version (WP-10b ->
   WP-10-input_chipset), KNOWN_ISSUES chipset section (11), TRY-IT
   chipset try-it section (6), and this file brought up to date.
+
+## Batch L (2026-10-13) — WP-10-timer_rtc
+
+- Four time-source domains in `drivers/time/` (+588 G1 / +510 G2 /
+  +442 G3 / +427 G4 / +122 G5 lines, commits e2dbd37 / cbe09eb /
+  90847c1 / a2bedeb / 0462167):
+  - CMOS RTC: status registers (A/B/C/D + FADT century) + IRQ8
+    update-ended / periodic / alarm interrupt tests (`rtc`),
+  - HPET: ACPI table + MMIO driver, 64-bit counter, one-shot and
+    periodic comparators on timer 1 via LEG_RT -> IRQ8 (`hpet`),
+  - ACPI PM timer: FADT PM_TMR_BLK, 24-bit-masked wrap arithmetic +
+    64-bit extension, PIT calibration (`pmtimer`), `pmtimer.width`
+    config key,
+  - TSC: serialized reads, invariant probe, PIT/HPET/PMTimer
+    calibration + TSC-driven delay (`tsc`).
+- Live-boot defects found and fixed: acpi_hpet_t lacked the SDT header
+  AND split the block ID into 6 bytes (first consumer ever); PM timer
+  misread the QEMU/PIIX4 24-bit wrap as a backward step; TSC-vs-HPET
+  calibration spun on a frozen (boot-disabled) HPET counter; HPET
+  periodic deadline did not scale with the fire count.
+- Gates: build 0/0 (-Werror), regression 28/28 (command-count baseline
+  192 -> 196), dhtest 5/5, SSH E2E 5/5, HTTPS E2E 7/7, batch E2E
+  29/29 BIOS + 29/29 UEFI (tools/wp10_timer_rtc_e2e.py).
+- Docs: README Stats (114,593 lines / 17 work packages / 196
+  commands), MANIFEST Version, INTERFACES section 4, CONFIG key
+  pmtimer.width, docs/EXTENSIONS_WP10-timer_rtc.md (new), KNOWN_ISSUES
+  section 12, TRY-IT section 7, STATUS record, website constants +
+  home stats + i18n (zh+en), docs-zh README stats refresh.

@@ -8,8 +8,9 @@ attach the device and the exact in-guest commands to exercise it -
 including the output you should see.  If your output differs, the last
 section lists the likely causes.
 
-This guide covers **storage, network, sound, and the chipset input
-domains (WP-10-input_chipset)**.  For the in-system
+This guide covers **storage, network, sound, the chipset input
+domains (WP-10-input_chipset), and the time sources
+(WP-10-timer_rtc)**.  For the in-system
 update (OTA) flow there is a dedicated step-by-step guide:
 **docs/UPDATE-HOWTO.md**.
 
@@ -300,6 +301,42 @@ The QEMU default machine offers neither PCIe (no MCFG) nor an I2C-HID
 touchpad, so those paths report their absence honestly instead of
 failing - see docs/KNOWN_ISSUES.md §11 and
 docs/EXTENSIONS_WP10-input_chipset.md §6.
+
+## 7. Time sources (WP-10-timer_rtc)
+
+Four time-source domains, all exercisable in the same bare QEMU
+session (no extra devices needed): CMOS RTC, HPET, ACPI PM timer and
+TSC.
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -no-reboot -display none -serial stdio -monitor none
+```
+
+| try this              | what you should see                                                                        |
+|-----------------------|--------------------------------------------------------------------------------------------|
+| `rtc`                 | `RTC: 2026-10-13 13:41:02 (UTC, CMOS ports 0x70/0x71)` + `BCD=1 24h=1 rate=1024Hz` + `VRT=1 FADT century reg=32` + register dump |
+| `rtc uie 3`           | `update-ended interrupts: 3 (expected 3) PASS` (IRQ8, one fire per second)                 |
+| `rtc pie 10 32`       | `periodic interrupts: 32 (expected 32) PASS` (rate index 10 = 64 Hz)                       |
+| `rtc alarm 3`         | `alarm interrupt: fired PASS` (AIE, time-of-day match ~3 s ahead)                          |
+| `hpet`                | `HPET: base=fed00000 (ACPI table, GAS SystemMemory)` + `Caps: rev=1 timers=3 64bit=1 legacy=1 period=10000000fs freq=100000000Hz` |
+| `hpet counter 5`      | five counter reads + `measured 100113820 Hz (nominal 100000000) PASS`                      |
+| `hpet oneshot 100`    | `oneshot: fired 1 (expected 1) PASS` (timer 1 -> legacy IRQ8)                              |
+| `hpet periodic 100 3` | `periodic: 3/3 PASS`                                                                       |
+| `hpet test`           | `hpet: PASS` (counter + oneshot + periodic)                                                |
+| `pmtimer`             | `PM timer: port=00000608 (SystemIO) width=32bit (FADT pm_tmr_blk)  delta mask=00ffffff (24bit)` + raw counter |
+| `pmtimer cal`         | `measured: 3576824 Hz (nominal 3579545, delta 7 bp) PASS` (PIT comparison, prints samples) |
+| `pmtimer wrap`        | wrap-safe delta + 64-bit extension + no-wrap delta, `pmtimer wrap: PASS`                   |
+| `pmtimer test`        | `pmtimer: PASS` (calibrate + monotonic)                                                    |
+| `tsc`                 | raw read + `invariant: 0 (CPUID 0x80000007 EDX[8])` (honest under TCG) + calibration state  |
+| `tsc cal`             | two ~1.1 s PIT runs + drift, `tsc cal: PASS (cached ... Hz via hpet)`                      |
+| `tsc cal hpet`        | `TSC calibration vs HPET (~0.1 s): 3199958020 Hz`                                          |
+| `tsc delay 100`       | `PIT-measured actual: 100 ms PASS`                                                         |
+| `tsc test`            | `tsc: PASS` (monotonic 1000 reads + 2x PIT calibration + delay)                            |
+
+The system tick pauses for the duration of the HPET legacy-route tests
+(~1.5 s max, restored afterwards) - see docs/KNOWN_ISSUES.md §12 and
+docs/EXTENSIONS_WP10-timer_rtc.md §6.
 
 ## Troubleshooting
 

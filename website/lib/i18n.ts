@@ -20,8 +20,8 @@ export function localePath(locale: Locale, sub: "" | "docs" | "about" = ""): str
 
 const zh = {
   htmlLang: "zh-CN",
-  badge: "WP-10-input_chipset · Apache 2.0",
-  brandSub: "WP-10-input_chipset · Apache 2.0",
+  badge: "WP-10-timer_rtc · Apache 2.0",
+  brandSub: "WP-10-timer_rtc · Apache 2.0",
   navAria: "站点导航",
   navHome: "首页",
   navDownloads: "下载",
@@ -42,7 +42,7 @@ const zh = {
   downloadIso: (mb: string) => `下载 ISO（${mb} MB）`,
   readDocs: "阅读文档",
   githubRepo: "GitHub 仓库",
-  dlSectionTitle: "下载 WP-10-input_chipset",
+  dlSectionTitle: "下载 WP-10-timer_rtc",
   dlSectionDesc:
     "BIOS + UEFI 双引导 ISO 与完整源码包。文件在本站、GitHub Release 与本地构建三处 SHA256 字节级一致（核对方法见下方命令）。",
   isoMeta: (bytes: string, mb: string) =>
@@ -60,7 +60,7 @@ const zh = {
   baseSectionTitle: "内核基础（WP-01 ~ WP-08）",
   baseSectionDesc: "从裸机引导到用户态动态链接，每一层都可扩展。",
   wpSectionTitle: "工作包",
-  wpSectionDesc: "16 个工作包（WP-01 到 WP-10-wp08fix1 + WP-10-input_chipset），全部完成（done）；项目结构重构与审计批次（WP-AUDIT-01 与 WP-10-AUDIT_P2-fix1/fix2/fix2b）为辅助批次，不计入工作包数；WP-AUDIT-01 完成 18 路完整审查（607 条），落地全部 41 个 P0 修复（p0fix1 前 20 个 + p0fix2 后 21 个），P1 全部 94 条修复完成（p1fix1 前 31 条 BUG-0042..0072 + p1fix2 第 32~62 条 BUG-0073..0103 + p1fix3 剩余 31 条 BUG-0104..0135），p1fix4 修复 HTTPS E2E 中途断连（IP 字面量参考身份，RFC 6125）；WP-10-AUDIT_P2-fix1 修复 P2 第一批 53 条（BUG-0136..0188）：内存（VMM 页表所有权、kmalloc 回绕、碎片化/池槽、畸形 mbi）、arch（SysV 对齐、IST2 退出栈）、USB 核心/四控制器与类驱动 33 条（DMA ≥4GiB 拒绝、TD 退休竞态、mps0 容量、C_PORT_RESET、TRT/EP 上下文/scratchpad/BAR、SENSE 窗口、实例命名、多端口、FS 速度、SETUP DATA0、UAC set_rate 等）、VFS/FAT 11 条（只读按位、大小写敏感缓存、稀疏洞清零、权限生效、FAT#1 镜像、FSINFO、LFN 别名/校验/跨簇删除）；发现并修复堆块头 40 字节潜伏缺陷（负载对齐漂移致 ATA-DMA 偏移 8 字节、/etc 无法挂载）；fstest 新增 P2 双向断言块；新增 irqabitest/heapbounds/vmkernelpt/int3_user 测试；WP-10-AUDIT_P2-fix2 修复 P2 第二批 53 条（BUG-0189..0241，覆盖 fs 12 条 / net_core 13 条 / ld_so 4 条 / ssh 10 条 / tls 8 条 / shell 6 条）并完成发布链四项加固（git describe 版本串、HTTPS E2E 双向 close_notify 断言、INTERFACES.md 176 命令、docs/verification/ 转公开）与嵌入链 Makefile 规则（make userprogs / userprogs-check）；WP-10-AUDIT_P2-fix2b 实测复核 fix2 全量载荷（53/53 条在树 + 4/4 findings）并修复嵌入链三缺陷（libfoo.c 独立 solib 链、六个 dyn 程序 ET_DYN/PIE 配方 + 防静默降级硬校验、libs/ld_so.c 纳入源清单），make userprogs 端到端跑通，六个 dyn 程序 QEMU 全 PASS。",
+  wpSectionDesc: "17 个工作包（WP-01 到 WP-10-wp08fix1 + WP-10-input_chipset + WP-10-timer_rtc），全部完成（done）；项目结构重构与审计批次（WP-AUDIT-01 与 WP-10-AUDIT_P2-fix1/fix2/fix2b）为辅助批次，不计入工作包数；WP-AUDIT-01 完成 18 路完整审查（607 条），落地全部 41 个 P0 修复（p0fix1 前 20 个 + p0fix2 后 21 个），P1 全部 94 条修复完成（p1fix1 前 31 条 BUG-0042..0072 + p1fix2 第 32~62 条 BUG-0073..0103 + p1fix3 剩余 31 条 BUG-0104..0135），p1fix4 修复 HTTPS E2E 中途断连（IP 字面量参考身份，RFC 6125）；WP-10-AUDIT_P2-fix1 修复 P2 第一批 53 条（BUG-0136..0188）：内存（VMM 页表所有权、kmalloc 回绕、碎片化/池槽、畸形 mbi）、arch（SysV 对齐、IST2 退出栈）、USB 核心/四控制器与类驱动 33 条（DMA ≥4GiB 拒绝、TD 退休竞态、mps0 容量、C_PORT_RESET、TRT/EP 上下文/scratchpad/BAR、SENSE 窗口、实例命名、多端口、FS 速度、SETUP DATA0、UAC set_rate 等）、VFS/FAT 11 条（只读按位、大小写敏感缓存、稀疏洞清零、权限生效、FAT#1 镜像、FSINFO、LFN 别名/校验/跨簇删除）；发现并修复堆块头 40 字节潜伏缺陷（负载对齐漂移致 ATA-DMA 偏移 8 字节、/etc 无法挂载）；fstest 新增 P2 双向断言块；新增 irqabitest/heapbounds/vmkernelpt/int3_user 测试；WP-10-AUDIT_P2-fix2 修复 P2 第二批 53 条（BUG-0189..0241，覆盖 fs 12 条 / net_core 13 条 / ld_so 4 条 / ssh 10 条 / tls 8 条 / shell 6 条）并完成发布链四项加固（git describe 版本串、HTTPS E2E 双向 close_notify 断言、INTERFACES.md 176 命令、docs/verification/ 转公开）与嵌入链 Makefile 规则（make userprogs / userprogs-check）；WP-10-AUDIT_P2-fix2b 实测复核 fix2 全量载荷（53/53 条在树 + 4/4 findings）并修复嵌入链三缺陷（libfoo.c 独立 solib 链、六个 dyn 程序 ET_DYN/PIE 配方 + 防静默降级硬校验、libs/ld_so.c 纳入源清单），make userprogs 端到端跑通，六个 dyn 程序 QEMU 全 PASS。",
   wpThNo: "编号",
   wpThContent: "内容",
   wpThStatus: "状态",
@@ -92,7 +92,7 @@ const zh = {
     " = 上层扩展，构建在 L0 暴露的 138 个扩展接口之上，L0 不内置任何 L1。设计原则：一切皆可扩展——每个功能都有扩展接口，每个接口都有文档、默认实现与示例。",
   aboutQuote:
     "It is not \u201ca system you can use daily\u201d. It is \u201ca kernel that can be extended into anything\u201d. — README.md",
-  aboutHistory: "项目历史（16 个工作包 + 项目结构重构）",
+  aboutHistory: "项目历史（17 个工作包 + 项目结构重构）",
   aboutMethod: "工程方法",
   aboutMethodBody:
     "每个工作包以真实可复现的证据收尾：截至 WP-08 累计修复 120 个审计 bug；WP-09 完成 SSH/TLS 主流化；WP-10a 落地四类存储驱动并根治 fork #PF 潜伏缺陷；WP-10b 落地九族网卡驱动与 nic_* 框架；WP-10u 落地 A/B 分区系统内自动更新（内核 gzip/DEFLATE + ustar + SHA256 + 自动回滚）；WP-10c 落地六族声卡驱动与 snd_* 框架（Intel HDA CORB/RIRB + codec/widget 枚举、AC'97、SB16 ISA DMA、ES1370、virtio-snd、USB Audio Class 1.0 + 新 UHCI 主机栈，真 DMA 真中断）；WP-10c-selfhost 按第 ⑨ 条（测试通过 ≠ 用户能用）完成全系统用户角度审计（五要素：命令/工具/文档/示例/反馈；五能力：创建/使用/回滚/查看/理解）；WP-10d 落地 USB 主机栈四控制器（UHCI/OHCI/EHCI/XHCI 设备级枚举 + HID/MSC/串口/音频类驱动 + Hub/热插拔；OHCI 独立验证全 PASS，XHCI EPID 编码按 spec 修正至 bits 20:16）；项目结构重构落地新文件体系（drivers/、fs/、net/、shell/、l1/ 等）与 [大类]_[具体]_[更小一级] 接口命名规范；WP-10-wp08fix1 按 WP-08 规格补全 Shell：oc> 与 ush 双端全键位行编辑（上下键历史翻页、左右/Home/End 光标、Tab 命令+路径补全、Ctrl+C/A/E/U/K/W、Delete）、ush 补齐 15 个工具（ln/ln -s、chmod/chown、sed、awk、ping/wget/netstat/ifconfig 对接内核协议栈、ps/kill/top/du 对接 sys_proc_*、stat/env 补实 help 承诺）、nano 风格编辑器双端可用（^O 保存 ^X 退出，真 VFS 落盘），新增 9 个 L1 扩展接口（130-138，L1 总数增至 138）。最终验证为 18/18 QEMU 全量回归（挂四类盘）+ WP-10-wp08fix1 端到端 24/24（真实按键驱动：行编辑/工具/编辑器）+ WP-10a 八项存储测试 + WP-10b 网卡测试 + WP-10u 十一项更新测试（含真实重启进入 slot B 的端到端）+ WP-10c 九项声卡测试（QEMU 五卡实测播放、44.1/48kHz）+ WP-10d 九项 USB 测试（四控制器实测、BIOS+UEFI 启动矩阵）+ dhtest 5/5 + HTTPS 真实站点 E2E。完整验证记录：",
@@ -120,8 +120,8 @@ const zh = {
 
 const en: typeof zh = {
   htmlLang: "en",
-  badge: "WP-10-input_chipset · Apache 2.0",
-  brandSub: "WP-10-input_chipset · Apache 2.0",
+  badge: "WP-10-timer_rtc · Apache 2.0",
+  brandSub: "WP-10-timer_rtc · Apache 2.0",
   navAria: "Site navigation",
   navHome: "Home",
   navDownloads: "Downloads",
@@ -162,7 +162,7 @@ const en: typeof zh = {
   baseSectionDesc:
     "From bare-metal boot to user-space dynamic linking — every layer is extensible.",
   wpSectionTitle: "Work packages",
-  wpSectionDesc: "16 work packages (WP-01 through WP-10-wp08fix1 + WP-10-input_chipset), all done; the project restructure and the audit batches (WP-AUDIT-01 and WP-10-AUDIT_P2-fix1/fix2/fix2b) are auxiliary batches and are not counted; WP-AUDIT-01 completed the 18-route full audit (607 findings), landed all 41 P0 fixes (p0fix1 first 20 + p0fix2 remaining 21), and all 94 P1 fixes are done (p1fix1 the first 31, BUG-0042..0072 + p1fix2 items 32..62, BUG-0073..0103 + p1fix3 items 63..94, BUG-0104..0135), with the p1fix4 HTTPS E2E mid-handshake disconnect fix (IP-literal reference identity, RFC 6125); WP-10-AUDIT_P2-fix1 fixed the first 53 P2 items (BUG-0136..0188): memory (VMM PT ownership, kmalloc wrap, fragmentation/pool slots, malformed-mbi hardening), arch (SysV stack alignment, the IST2 exit-stack kill path), 33 USB core/controller/class fixes (>=4GiB DMA refusal, TD-retirement races, mps0 capacity, C_PORT_RESET, TRT/EP-context/scratchpad/BAR-64, the SENSE window, instance naming, multi-port, FS speed, SETUP DATA0, real UAC set_rate), and 11 VFS/FAT fixes (bitwise read-only checks, per-fs cache case rules, sparse-hole zeroing, enforced permission bits, the FAT#1 mirror, FSINFO, LFN alias/checksum/cross-cluster deletion); the batch also found and fixed a latent 40-byte heap block header defect (payload alignment drifted with allocation parity, shifting ATA-DMA transfers by 8 bytes and breaking the /etc mount); fstest gained a P2 dual-sided assertion block; new irqabitest/heapbounds/vmkernelpt/int3_user tests; WP-10-AUDIT_P2-fix2b re-verified the full fix2 payload against the tree (53/53 items + 4/4 findings) and fixed the three embed-chain defects (a dedicated libfoo solib leg, ET_DYN/PIE recipes for the six dyn programs with hard anti-downgrade gates, libs/ld_so.c added to the source list), with make userprogs green end-to-end and all six dyn programs passing under QEMU.",
+  wpSectionDesc: "17 work packages (WP-01 through WP-10-wp08fix1 + WP-10-input_chipset + WP-10-timer_rtc), all done; the project restructure and the audit batches (WP-AUDIT-01 and WP-10-AUDIT_P2-fix1/fix2/fix2b) are auxiliary batches and are not counted; WP-AUDIT-01 completed the 18-route full audit (607 findings), landed all 41 P0 fixes (p0fix1 first 20 + p0fix2 remaining 21), and all 94 P1 fixes are done (p1fix1 the first 31, BUG-0042..0072 + p1fix2 items 32..62, BUG-0073..0103 + p1fix3 items 63..94, BUG-0104..0135), with the p1fix4 HTTPS E2E mid-handshake disconnect fix (IP-literal reference identity, RFC 6125); WP-10-AUDIT_P2-fix1 fixed the first 53 P2 items (BUG-0136..0188): memory (VMM PT ownership, kmalloc wrap, fragmentation/pool slots, malformed-mbi hardening), arch (SysV stack alignment, the IST2 exit-stack kill path), 33 USB core/controller/class fixes (>=4GiB DMA refusal, TD-retirement races, mps0 capacity, C_PORT_RESET, TRT/EP-context/scratchpad/BAR-64, the SENSE window, instance naming, multi-port, FS speed, SETUP DATA0, real UAC set_rate), and 11 VFS/FAT fixes (bitwise read-only checks, per-fs cache case rules, sparse-hole zeroing, enforced permission bits, the FAT#1 mirror, FSINFO, LFN alias/checksum/cross-cluster deletion); the batch also found and fixed a latent 40-byte heap block header defect (payload alignment drifted with allocation parity, shifting ATA-DMA transfers by 8 bytes and breaking the /etc mount); fstest gained a P2 dual-sided assertion block; new irqabitest/heapbounds/vmkernelpt/int3_user tests; WP-10-AUDIT_P2-fix2b re-verified the full fix2 payload against the tree (53/53 items + 4/4 findings) and fixed the three embed-chain defects (a dedicated libfoo solib leg, ET_DYN/PIE recipes for the six dyn programs with hard anti-downgrade gates, libs/ld_so.c added to the source list), with make userprogs green end-to-end and all six dyn programs passing under QEMU.",
   wpThNo: "No.",
   wpThContent: "Content",
   wpThStatus: "Status",
@@ -194,7 +194,7 @@ const en: typeof zh = {
     " = upper-layer extensions, built on the 138 extension interfaces L0 exposes — L0 ships without any L1. Design principle: everything is extensible — every feature has an extension interface, and every interface has docs, a default implementation and examples.",
   aboutQuote:
     "It is not \u201ca system you can use daily\u201d. It is \u201ca kernel that can be extended into anything\u201d. — README.md",
-  aboutHistory: "Project history (16 work packages + the project restructure)",
+  aboutHistory: "Project history (17 work packages + the project restructure)",
   aboutMethod: "Engineering method",
   aboutMethodBody:
     "Every work package closes with real, reproducible evidence: 120 audit bugs fixed cumulatively as of WP-08; WP-09 added the SSH/TLS mainstreaming; WP-10a landed the four storage drivers and root-fixed a latent fork #PF; WP-10b landed the nine NIC driver families and the nic_* framework; WP-10u landed A/B-partition in-system updates (kernel-side gzip/DEFLATE + ustar + SHA256 + automatic rollback); WP-10c landed the six sound-driver families and the snd_* framework (Intel HDA CORB/RIRB + codec/widget enumeration, AC'97, SB16 ISA DMA, ES1370, virtio-snd, USB Audio Class 1.0 + a new UHCI host stack, real DMA + real interrupts); WP-10c-selfhost audited the whole system from the user angle per rule 9 (passing tests ≠ usable by users; five elements: command/tool/docs/examples/feedback; five abilities: create/use/roll back/inspect/understand); WP-10d landed the USB host stack on four controllers (UHCI/OHCI/EHCI/XHCI device-level enumeration + HID/MSC/serial/audio class drivers + hub and hot-plug; OHCI independent session ALL PASS, XHCI endpoint-ID encoding corrected to spec bits 20:16); the project restructure landed the new file tree (drivers/, fs/, net/, shell/, l1/, ...) and the [category]_[specific]_[smaller] interface naming convention; WP-10-wp08fix1 completed the WP-08 shell specification: full-featured line editing on both oc> and ush (Up/Down history paging, Left/Right/Home/End cursor, Tab command+path completion, Ctrl+C/A/E/U/K/W, Delete), 15 missing ush tools (ln/ln -s, chmod/chown, sed, awk, ping/wget/netstat/ifconfig wired into the kernel network stack, ps/kill/top/du wired into sys_proc_*, stat/env delivering what help always promised) and a nano-style editor usable on both shells (^O save, ^X exit, real VFS persistence), plus 9 new L1 extension interfaces (items 130-138, 138 in total). Final verification: 18/18 full QEMU regression (all four disk types attached) + the WP-10-wp08fix1 end-to-end 24/24 (driven by real keystrokes: line editing/tools/editor) + the eight WP-10a storage tests + the WP-10b NIC tests + the eleven WP-10u update tests (including an end-to-end with a real reboot into slot B) + the nine WP-10c sound tests (five cards playing live in QEMU, 44.1/48 kHz) + the nine WP-10d USB tests (four controllers live, BIOS+UEFI boot matrix) + dhtest 5/5 + HTTPS E2E against real sites. Full verification record: ",
