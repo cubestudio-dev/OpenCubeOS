@@ -93,6 +93,7 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "shell_cmds_chipset.h"        /* WP-10-input_chipset: commands */
 #include "arch_lapic.h"                /* WP-10-input_chipset: LAPIC/MSI */
 #include "driver_cmos_rtc.h"           /* WP-10-timer_rtc: CMOS RTC IRQ/alarm */
+#include "driver_hpet.h"               /* WP-10-timer_rtc: HPET */
 #include "shell_cmds_timer.h"          /* WP-10-timer_rtc: time commands */
 #include "lib_config.h"   /* WP-09-fix5: /etc/opencube.conf */
 #include "ota_update.h"   /* WP-09-fix5: checkupdate */
@@ -3269,6 +3270,10 @@ void kmain(u64 magic, u64 mbi_phys) {
         OC_LOG_OK2("CMOS RTC (ports 0x70/0x71, VRT set)");
     else
         OC_LOG_FAIL2("CMOS RTC: probe inconclusive (VRT not set)");
+    if (driver_hpet_init() == 0)
+        OC_LOG_OK2("HPET (ACPI table + MMIO caps)");
+    else
+        OC_LOG_FAIL2("HPET: no usable ACPI HPET table");
 
     /* ---- 12d. WP-05: VFS + ramfs + ATA + FAT32 ---- */
     fs_vfs_init();

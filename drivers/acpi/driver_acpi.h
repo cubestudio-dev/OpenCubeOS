@@ -147,19 +147,33 @@ typedef struct acpi_mcfg_entry {
     u32      reserved;
 } __attribute__((packed)) acpi_mcfg_entry_t;
 
-/* HPET table (after header). */
+/* HPET table.  ACPI 6.x layout ("HPET Description Table"): the Event
+ * Timer Block ID packs hardware revision / comparator count / counter
+ * size / legacy replacement / PCI vendor ID into ONE dword after the
+ * 36-byte SDT header, then the GAS.  The struct INCLUDES the header
+ * (same convention as acpi_fadt_t) because the parser hands out the
+ * table base pointer.  (The WP-10-input_chipset-era struct omitted the
+ * header AND split the block ID into 6 bytes, so every field read
+ * garbage; found and fixed by WP-10-timer_rtc when the HPET MMIO
+ * driver first consumed the table.) */
 typedef struct acpi_hpet {
-    u8      hardware_rev_id;
-    u8      comparator_count;
-    u8      counter_size;
-    u8      reserved0;
-    u8      legacy_replacement;
-    u8      pci_vendor_id[2];
-    acpi_gas_t base_address;
+    acpi_sdt_hdr_t hdr;             /* 36 bytes */
+    u32     event_timer_block_id;   /* hw_rev[7:0], comparator_count
+                                     * [15:8] (= N-1), counter_size
+                                     * bit16, legacy_replacement bit17,
+                                     * pci_vendor_id[31:16] */
+    acpi_gas_t base_address;        /* offset 40 */
     u8      hpet_number;
     u16     minimum_tick;
     u8      page_protection;
 } __attribute__((packed)) acpi_hpet_t;
+
+/* Event Timer Block ID field accessors. */
+#define ACPI_HPET_HW_REV(id)        ((int)((id) & 0xFFu))
+#define ACPI_HPET_COMPARATORS(id)   ((int)(((id) >> 8) & 0xFFu) + 1)
+#define ACPI_HPET_COUNTER_64(id)    ((int)(((id) >> 16) & 1u))
+#define ACPI_HPET_LEGACY(id)        ((int)(((id) >> 17) & 1u))
+#define ACPI_HPET_PCI_VENDOR(id)    ((u32)((id) >> 16))
 
 /* ------------------------------------------------------------------ */
 /* Public API                                                          */
