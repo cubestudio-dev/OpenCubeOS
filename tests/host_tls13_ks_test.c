@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Host-side TLS 1.3 key schedule test against RFC 8448 "Implementation
  * Notes" example vectors (single-run X25519, AES-128-GCM, no session
  * resumption).  Verifies the exact HKDF chain used by net/net_tls.c:

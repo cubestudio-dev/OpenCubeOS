@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Host-side regression test for the WP-10-AUDIT_P2-fix4 crypto batch
  * (BUG-0295..0298). NOT part of the kernel build.
  *

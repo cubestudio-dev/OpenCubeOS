@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Host-side unit test for crypto_bn.c + crypto_ec_nist.c (NOT part of the kernel build).
  * Verifies against NIST P-256 ECDSA known-answer vector and ECDH
  * self-consistency + known public key. Built only for development testing:

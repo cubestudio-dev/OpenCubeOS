@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 #include <stdio.h>
 #include "types.h"
 #include "crypto_aead.h"

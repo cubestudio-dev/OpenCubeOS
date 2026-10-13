@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Host test stub: crypto.c references kernel PMM for scratch frames.
  * On host we just malloc/free instead. NOT kernel code. */
 #include "types.h"

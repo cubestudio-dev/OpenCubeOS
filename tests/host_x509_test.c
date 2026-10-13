@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Host X.509 chain validation test against REAL site certificate chains.
  * NOT kernel code. Fixtures: /tmp/chain_fix/<site>/cert{0,1,2}.der
  * (generated with openssl x509 -outform DER from openssl s_client -showcerts)

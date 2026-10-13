@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Host RSA verify test with openssl-generated fixtures. NOT kernel code.
  * Build: gcc -O2 -Ikernel tests/host_rsa_test.c kernel/rsa.c kernel/bn.c \
  *        kernel/crypto.c kernel/sha512.c kernel/string.c

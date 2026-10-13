@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Host-side regression test for the WP-10-AUDIT_P2-fix4 lib_tar batch
  * (BUG-0300). NOT part of the kernel build.
  *

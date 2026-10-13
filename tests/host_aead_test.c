@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Host-side unit test for aead.c + sha512.c (NOT part of the kernel build).
  * Uses official vectors: RFC 8439 2.5.2 (Poly1305), RFC 8439 2.8.2
  * (ChaCha20-Poly1305 AEAD, also validates the ChaCha20 stream), NIST GCM

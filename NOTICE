@@ -38,6 +38,15 @@ Third-party components:
    GRUB is GPL-3.0+; the generated boot images are separate works
    per the GRUB license exception for boot images.
 
+4. GRUB unicode font (iso/boot/grub/fonts/unicode.pf2):
+   The ISO ships GRUB's stock Unicode font, loaded by grub.cfg
+   ("loadfont /boot/grub/fonts/unicode.pf2") for the boot menu.
+   File: unicode.pf2, from GNU GRUB 2.12 (grub-mkfont of Unifont).
+   License: GPL-3.0-or-later with the GRUB font exception - as a
+   font embedded in a boot image it is a separate work from the
+   kernel and does not make the kernel a derivative of GRUB.
+   Source: https://www.gnu.org/software/grub/
+
 ========================================================================
 No GPL/LGPL/AGPL code is linked into the Open Cube OS kernel binary.
 All source files are licensed under Apache 2.0 with SPDX identifiers.

@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Host-side unit test for curve25519.c — RFC 7748 vectors. NOT kernel code.
  * Build: gcc -O2 -Ikernel tests/host_x25519_test.c kernel/curve25519.c \
  *        kernel/string.c -o /tmp/crypto_x25519_test
