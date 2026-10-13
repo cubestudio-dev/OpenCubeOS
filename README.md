@@ -40,7 +40,9 @@ Licensed under the Apache License, Version 2.0.
   section above; it has no separate `## WP-*` section)
   + auxiliary batches (not counted as WPs): project restructure,
   WP-10d-fix2, WP-09-fix5, and the audit batches WP-AUDIT-01
-  (+p0fix/p1fix) and WP-10-AUDIT_P2-fix1 / fix2 / fix2b / fix3.
+  (+p0fix/p1fix) and WP-10-AUDIT_P2-fix1 / fix2 / fix2b / fix3 / fix4
+  / fix5 (fix5 untagged).  WP-10-input_chipset is the 16th work
+  package (counted above), not an auxiliary batch.
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
   `install` and `grub-install` - create A/B update disks, install the OS
   to a disk and write the GRUB BIOS boot loader entirely from the oc>
