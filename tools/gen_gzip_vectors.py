@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 """Generate gzip/deflate test vectors for kernel/update_test_cmds.c."""
 import zlib, struct, sys
 

@@ -25,6 +25,8 @@
  */
 #include "core_power.h"
 #include "driver_block_blk.h"
+#include "driver_acpi.h"
+#include "driver_acpi_power.h"
 #include "screen_console.h"
 #include "core_timer.h"
 #include "core_sched.h"
@@ -115,6 +117,13 @@ int core_power_shutdown(void) {
     core_power_flush_blk();
     screen_console_puts("Powering off...\n");
 
+    /* WP-10-input_chipset: real ACPI S5 through the FADT + \_S5 package
+     * when the platform provides it (the mainstream path); the legacy
+     * ports below remain as fallback for ACPI-less platforms. */
+    if (driver_acpi_available() && driver_acpi_power_slp_typ(5) >= 0) {
+        if (driver_acpi_power_enter_s5() == 0) return 0;   /* unreachable */
+    }
+
     /* 1. QEMU / PIIX4 ACPI PM1a_CNT (SLP_EN, SLP_TYP = 0) */
     pwr_outw(0x604, 0x2000);
     /* 2. Bochs-compatible shutdown port */
@@ -133,8 +142,21 @@ int core_power_shutdown(void) {
 /* ------------------------------------------------------------------ */
 
 int core_power_suspend(void) {
-    /* ACPI S3 (suspend to RAM) needs FADT parsing, a wake vector and a
-     * resume path - WP-10e territory.  Be honest instead of pretending. */
+    /* WP-10-input_chipset: real ACPI S3 (suspend to RAM) through the
+     * FADT PM1a_CNT + \_S3 package + the FACS waking vector. The
+     * machine stops in the sleep-write asm stub and resumes through
+     * the 32-bit trampoline (see driver_acpi_power.c). */
+    if (driver_acpi_available() && driver_acpi_power_slp_typ(3) >= 0) {
+        screen_console_puts("Entering S3 (suspend to RAM)...\n");
+        int rc = driver_acpi_power_enter_s3();
+        if (rc == 0) {
+            screen_console_puts("Resumed from S3.\n");
+            return 0;
+        }
+        screen_console_puts("S3 resume failed.\n");
+        return rc;
+    }
+    /* ACPI-less platform: be honest instead of pretending. */
     return OC_POWER_E_UNSUPPORTED;
 }
 

@@ -198,6 +198,7 @@ static const struct { const char *tag; const char *desc; } g_wp_order[] = {
     { "WP-10u",          "in-system update" },
     { "WP-10c-selfhost", "rule-9 self-hosting" },
     { "WP-10d-fix2",     "power management, help" },
+    { "WP-10-input_chipset", "input devices + chipset" },
 };
 
 /* Case-insensitive name compare (A-Z means alphabetical to a user). */

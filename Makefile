@@ -62,6 +62,7 @@ KERNEL_DIRS := kernel kernel/arch/x86_64 kernel/core kernel/mem kernel/lib \
                kernel/crypto kernel/ota \
                drivers/block drivers/nic drivers/snd drivers/usb \
                drivers/input drivers/display drivers/pci \
+               drivers/acpi drivers/i2c \
                fs net shell l1
 # NOTE: kernel/generated is deliberately NOT in KERNEL_DIRS: it only holds
 # the stage-2 generated grub_boot_data.c, which is compiled separately
@@ -91,12 +92,12 @@ USERPROG_SRCS   := $(wildcard $(OC_ROOT)/userprogs/*.asm) $(wildcard $(OC_ROOT)/
 USERPROGS_HDR   := kernel/core/userprogs_data.h
 
 CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
-             -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel \
-             -fno-asynchronous-unwind-tables -Wall -Wextra -Werror \
-             -O2 -g -std=gnu11 $(KERNEL_INC) \
-             -DOC_RELEASE_VERSION=\"$(OC_RELEASE_VERSION)\" \
-             -DOC_KERNEL_BUILD=$(OC_KERNEL_BUILD) \
-             -MMD -MP
+	     -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel \
+	     -fno-asynchronous-unwind-tables -Wall -Wextra -Werror \
+	     -O2 -g -std=gnu11 $(KERNEL_INC) \
+	     -DOC_RELEASE_VERSION=\"$(OC_RELEASE_VERSION)\" \
+	     -DOC_KERNEL_BUILD=$(OC_KERNEL_BUILD) \
+	     -MMD -MP
 ASFLAGS   := -f elf64 -F dwarf -g
 LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/linker.ld -z max-page-size=0x1000 -z noexecstack
 
@@ -136,6 +137,15 @@ $(BUILD):
 	mkdir -p $(BUILD)
 
 # C source → object file (with header dependency tracking, BUG-025 FIX)
+# WP-10-input_chipset: the AML interpreter is compiled at -O0. It runs
+# once at boot; the -O2 codegen of this file interacted badly with the
+# interpreter's pointer-heavy value model (boot crash in kfree with a
+# wild pointer, codegen-sensitive across builds) while -O0 parses the
+# same tables cleanly (verified against the live QEMU DSDT).
+$(BUILD)/drivers/acpi/driver_acpi_aml.o: $(OC_ROOT)/drivers/acpi/driver_acpi_aml.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(CC) $(filter-out -O2,$(CFLAGS)) -O0 -c $< -o $@
+
 $(BUILD)/%.o: $(OC_ROOT)/%.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -160,7 +170,7 @@ $(BASE_ELF): $(KERNEL_OBJ) $(STUB_OBJ) $(OC_ROOT)/linker.ld | $(BUILD)
 	strip --strip-debug $@
 
 $(GRUB_DATA_C): $(OC_ROOT)/tools/embed_grub.py $(BASE_ELF) \
-		$(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
+                $(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
 	python3 $(OC_ROOT)/tools/embed_grub.py "$(OC_TOOLS)" $(BASE_ELF) $@
 
 $(GRUB_DATA_OBJ): $(GRUB_DATA_C) $(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
@@ -199,18 +209,18 @@ $(ETC_IMG): $(OC_ROOT)/etc/opencube.conf | $(BUILD)
 # BIOS boot: SeaBIOS loads GRUB from El Torito, GRUB loads kernel.
 run-bios: $(KERNEL_ISO) $(ETC_IMG)
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
-          -m 256M -cdrom $(KERNEL_ISO) -boot d \
-          -drive if=ide,format=raw,file=$(ETC_IMG) \
-          -no-reboot -display none -serial stdio -monitor none -vga std -snapshot
+	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
+	  -drive if=ide,format=raw,file=$(ETC_IMG) \
+	  -no-reboot -display none -serial stdio -monitor none -vga std -snapshot
 
 # UEFI boot: OVMF loads GRUB EFI from El Torito, GRUB loads kernel.
 run-uefi: $(KERNEL_ISO) $(ETC_IMG)
 	cp $(OVMF_FD) $(BUILD)/OVMF_WORK.fd
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
-          -m 256M -cdrom $(KERNEL_ISO) -boot d \
-          -drive if=ide,format=raw,file=$(ETC_IMG) \
-          -no-reboot -display none -serial stdio -monitor none -vga std -snapshot \
-          -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
+	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
+	  -drive if=ide,format=raw,file=$(ETC_IMG) \
+	  -no-reboot -display none -serial stdio -monitor none -vga std -snapshot \
+	  -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
 
 # ---- GUI runs (keyboard input via the QEMU window) ----
 # The -display none targets above are headless: there is no graphical window,
@@ -221,17 +231,17 @@ run-uefi: $(KERNEL_ISO) $(ETC_IMG)
 # output and type there too; both feeds share the same input queue.
 run-bios-gui: $(KERNEL_ISO) $(ETC_IMG)
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
-          -m 256M -cdrom $(KERNEL_ISO) -boot d \
-          -drive if=ide,format=raw,file=$(ETC_IMG) \
-          -no-reboot -display gtk -serial stdio -monitor none -vga std -snapshot
+	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
+	  -drive if=ide,format=raw,file=$(ETC_IMG) \
+	  -no-reboot -display gtk -serial stdio -monitor none -vga std -snapshot
 
 run-uefi-gui: $(KERNEL_ISO) $(ETC_IMG)
 	cp $(OVMF_FD) $(BUILD)/OVMF_WORK.fd
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
-          -m 256M -cdrom $(KERNEL_ISO) -boot d \
-          -drive if=ide,format=raw,file=$(ETC_IMG) \
-          -no-reboot -display gtk -serial stdio -monitor none -vga std -snapshot \
-          -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
+	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
+	  -drive if=ide,format=raw,file=$(ETC_IMG) \
+	  -no-reboot -display gtk -serial stdio -monitor none -vga std -snapshot \
+	  -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
 
 # Screenshots: use VNC + monitor screendump, convert PPM→PNG via PIL.
 shot-bios: $(KERNEL_ISO)
@@ -245,17 +255,17 @@ shot-uefi: $(KERNEL_ISO)
 # are written back to build/etc.img and survive a reboot.
 run-bios-persist: $(KERNEL_ISO) $(ETC_IMG)
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
-          -m 256M -cdrom $(KERNEL_ISO) -boot d \
-          -drive if=ide,format=raw,file=$(ETC_IMG) \
-          -no-reboot -display none -serial stdio -monitor none -vga std
+	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
+	  -drive if=ide,format=raw,file=$(ETC_IMG) \
+	  -no-reboot -display none -serial stdio -monitor none -vga std
 
 run-uefi-persist: $(KERNEL_ISO) $(ETC_IMG)
 	cp $(OVMF_FD) $(BUILD)/OVMF_WORK.fd
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
-          -m 256M -cdrom $(KERNEL_ISO) -boot d \
-          -drive if=ide,format=raw,file=$(ETC_IMG) \
-          -no-reboot -display none -serial stdio -monitor none -vga std \
-          -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
+	  -m 256M -cdrom $(KERNEL_ISO) -boot d \
+	  -drive if=ide,format=raw,file=$(ETC_IMG) \
+	  -no-reboot -display none -serial stdio -monitor none -vga std \
+	  -drive if=pflash,format=raw,file=$(BUILD)/OVMF_WORK.fd
 
 clean:
 	rm -rf $(BUILD) $(DIST) $(ISO_DIR)/boot/opencube.elf $(GEN_DIR)/grub_boot_data.c
@@ -266,19 +276,19 @@ clean:
 # tools/build_c_userprog.py <name> <path>. nasm/gcc must be on PATH.
 userprogs:
 	@set -e; for src in $(USERPROG_SRCS); do \
-           base=$$(basename "$$src"); name=$${base%.*}; \
-           case "$$src" in \
-             *.asm) echo "userprogs: embed $$name (asm)"; python3 $(OC_ROOT)/$(EMBED_PY) "$$name" "$$src";; \
-             */libfoo.c) echo "userprogs: embed $$name (solib)"; python3 $(OC_ROOT)/$(BUILD_SOLIB_PY) "$$src";; \
-             */ld_so.c) echo "userprogs: embed $$name (c, ld_so.ld)"; \
-		python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" $(OC_ROOT)/libs/ld_so.ld;; \
-             */dyn_hello.c|*/pie_test.c) echo "userprogs: embed $$name (c, pie)"; \
-		python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" pie;; \
-             */so_test.c|*/dlsym_test.c|*/reloc_test.c|*/main_dyn.c) echo "userprogs: embed $$name (c, pie-foo)"; \
-		python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" pie-foo;; \
-             *.c)   echo "userprogs: embed $$name (c)";   python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src";; \
-           esac || exit 1; \
-         done; echo "userprogs: regenerated $(USERPROGS_HDR)"
+	   base=$$(basename "$$src"); name=$${base%.*}; \
+	   case "$$src" in \
+	     *.asm) echo "userprogs: embed $$name (asm)"; python3 $(OC_ROOT)/$(EMBED_PY) "$$name" "$$src";; \
+	     */libfoo.c) echo "userprogs: embed $$name (solib)"; python3 $(OC_ROOT)/$(BUILD_SOLIB_PY) "$$src";; \
+	     */ld_so.c) echo "userprogs: embed $$name (c, ld_so.ld)"; \
+                python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" $(OC_ROOT)/libs/ld_so.ld;; \
+	     */dyn_hello.c|*/pie_test.c) echo "userprogs: embed $$name (c, pie)"; \
+                python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" pie;; \
+	     */so_test.c|*/dlsym_test.c|*/reloc_test.c|*/main_dyn.c) echo "userprogs: embed $$name (c, pie-foo)"; \
+                python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" pie-foo;; \
+	     *.c)   echo "userprogs: embed $$name (c)";   python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src";; \
+	   esac || exit 1; \
+	 done; echo "userprogs: regenerated $(USERPROGS_HDR)"
 
 # Staleness gate: fail when any userprog source is more than 2 seconds
 # newer than the embedded header (2 s slack absorbs fresh-clone mtime
@@ -286,15 +296,15 @@ userprogs:
 # `make dist` so the RELEASE path can never ship stale programs.
 userprogs-check:
 	@newest_src=$$(ls -t $(USERPROG_SRCS) 2>/dev/null | head -1); \
-         if [ -n "$$newest_src" ] && [ -f "$(OC_ROOT)/$(USERPROGS_HDR)" ]; then \
-           s=$$(stat -c %Y "$$newest_src"); h=$$(stat -c %Y "$(OC_ROOT)/$(USERPROGS_HDR)"); \
-           if [ "$$s" -gt $$((h + 2)) ]; then \
-             echo "ERROR: $$newest_src is newer than $(USERPROGS_HDR)."; \
-             echo "The embedded user programs are STALE (fix1 int3_user incident class)."; \
-             echo "Fix: make userprogs   (needs nasm + gcc on PATH)"; \
-             exit 1; \
-           fi; \
-         fi; echo "userprogs-check: OK"
+	 if [ -n "$$newest_src" ] && [ -f "$(OC_ROOT)/$(USERPROGS_HDR)" ]; then \
+	   s=$$(stat -c %Y "$$newest_src"); h=$$(stat -c %Y "$(OC_ROOT)/$(USERPROGS_HDR)"); \
+	   if [ "$$s" -gt $$((h + 2)) ]; then \
+	     echo "ERROR: $$newest_src is newer than $(USERPROGS_HDR)."; \
+	     echo "The embedded user programs are STALE (fix1 int3_user incident class)."; \
+	     echo "Fix: make userprogs   (needs nasm + gcc on PATH)"; \
+	     exit 1; \
+	   fi; \
+	 fi; echo "userprogs-check: OK"
 
 # ---- Distribution: source zip + ISO ----
 dist: userprogs-check $(KERNEL_ISO)

@@ -98,6 +98,15 @@ void arch_pic_eoi(u8 irq);
 /* WP-04: Set TSS RSP0 (kernel stack for ring 3 -> ring 0 transitions). */
 void arch_set_tss_rsp0(u64 rsp0);
 
+/* WP-10-input_chipset: expose the live GDT / IDT locations for the S3
+ * resume trampoline (which must re-issue lgdt/lidt in 32-bit flat mode
+ * after the firmware hands control back). Each fills a 10-byte ACPI
+ * style descriptor: u16 limit followed by u64 base. Both live in the
+ * kernel image (below 4 GiB, identity mapped) so the 32-bit form is
+ * valid. */
+void arch_gdt_descriptor(void *out10);
+void arch_idt_descriptor(void *out10);
+
 /* Per-IRQ and per-exception counters (for the on-screen stats line). */
 extern u64 arch_irq_counts[OC_IDT_ENTRIES];
 extern u64 arch_exc_counts[OC_IDT_ENTRIES];

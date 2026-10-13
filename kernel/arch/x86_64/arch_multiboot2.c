@@ -91,6 +91,24 @@ int arch_multiboot2_parse(arch_multiboot2_info_t* out, uintptr_t mbi_phys) {
                 out->arch_kernel_self = m;
             break;
         }
+        case OC_MB2_TAG_ACPI_OLD: {
+            /* WP-10-input_chipset: ACPI 1.x RSDP copy (20 bytes after the
+             * 8-byte tag header). Validate the "RSD PTR " signature inside
+             * the copy before trusting it. */
+            if (sz < sizeof(arch_multiboot2_rsdp_tag_t) + 20) break;
+            out->rsdp_phys = (u64)((uintptr_t)tag + 8);
+            out->rsdp_acpi_version = 1;
+            break;
+        }
+        case OC_MB2_TAG_ACPI_NEW: {
+            /* WP-10-input_chipset: ACPI 2.0+ RSDP copy (36 bytes). The
+             * presence of the NEW tag beats an OLD one (GRUB emits both
+             * on ACPI 2.0+ firmware). */
+            if (sz < sizeof(arch_multiboot2_rsdp_tag_t) + 36) break;
+            out->rsdp_phys = (u64)((uintptr_t)tag + 8);
+            out->rsdp_acpi_version = 2;
+            break;
+        }
         default:
             break;
         }

@@ -18,6 +18,7 @@
 #include "arch_pic.h"
 #include "arch_exceptions.h"
 #include "arch_irq.h"
+#include "arch_lapic.h"
 #include "lib_string.h"
 
 /* ---- I/O port helpers ---- */
@@ -264,6 +265,20 @@ void arch_load_gdt_idt_tr(const arch_gdt_ptr_t *arch_gdt_ptr,
                         const arch_idt_ptr_t *arch_idt_ptr,
                         u16 tr_selector);
 
+/* WP-10-input_chipset: 10-byte (limit+base) descriptors of the live
+ * GDT and IDT for the S3 resume trampoline. */
+void arch_gdt_descriptor(void *out10) {
+    u8 *o = (u8*)out10;
+    *(u16*)(o + 0) = g_gdt_ptr.limit;
+    *(u64*)(o + 2) = g_gdt_ptr.base;
+}
+
+void arch_idt_descriptor(void *out10) {
+    u8 *o = (u8*)out10;
+    *(u16*)(o + 0) = g_idt_ptr.limit;
+    *(u64*)(o + 2) = g_idt_ptr.base;
+}
+
 void arch_idt_load(void) {
     /* Enable NXE (no-execute) bit in EFER so VMM_FLAG_NOEXEC works. */
     __asm__ volatile(
@@ -316,6 +331,11 @@ void arch_isr_dispatch(arch_irq_frame_t *f) {
     } else if (v < 48) {
         arch_irq_counts[v]++;
         arch_irq_dispatch(f);
+    } else if (v < 0x80) {
+        /* WP-10-input_chipset: MSI / MSI-X dispatch vectors 0x30..0x6F
+         * (delivered by the LAPIC; see arch_lapic.c). */
+        arch_irq_counts[v]++;
+        arch_msi_dispatch(f);
     } else if (v == 0x80) {
         /* Syscall (int 0x80 from ring 3). */
         arch_irq_counts[v]++;
@@ -324,4 +344,6 @@ void arch_isr_dispatch(arch_irq_frame_t *f) {
          * r15 at offset 0, so f itself is the register array. */
         core_syscall_dispatch((u64*)f);
     }
+    /* vectors 0x80+ that are not the syscall (e.g. LAPIC spurious 0xFF)
+     * are counted and dropped. */
 }

@@ -83,6 +83,15 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "fs_ext4.h"
 #include "shell_cmds_disk.h"
 #include "driver_block_disk_setup.h"   /* WP-10d-pre: abdisk/install/grub-install */
+#include "driver_acpi.h"               /* WP-10-input_chipset: ACPI core */
+#include "driver_acpi_aml.h"           /* WP-10-input_chipset: AML interpreter */
+#include "driver_acpi_power.h"         /* WP-10-input_chipset: S3/S4/S5 + SCI */
+#include "driver_pcie.h"               /* WP-10-input_chipset: PCIe/MSI layer */
+#include "driver_i2c_i801.h"           /* WP-10-input_chipset: i801/PIIX4 I2C */
+#include "driver_smbus.h"              /* WP-10-input_chipset: SMBus protocol */
+#include "driver_input_i2chid.h"       /* WP-10-input_chipset: touchpad */
+#include "shell_cmds_chipset.h"        /* WP-10-input_chipset: commands */
+#include "arch_lapic.h"                /* WP-10-input_chipset: LAPIC/MSI */
 #include "lib_config.h"   /* WP-09-fix5: /etc/opencube.conf */
 #include "ota_update.h"   /* WP-09-fix5: checkupdate */
 
@@ -3227,6 +3236,29 @@ void kmain(u64 magic, u64 mbi_phys) {
     usermode_init();
     OC_LOG_OK2("userspace (ring 3, syscalls, ELF loader)");
 
+    /* ---- WP-10-input_chipset: ACPI + chipset + input ----
+     * Order matters: AML evaluation needs the kernel heap (values are
+     * kmalloc-backed); the PCI cache scan must run BEFORE the storage
+     * drivers probe devices (BAR sizing rewrites config BARs); the
+     * ACPI power module registers the SCI on the PIC (IRQ9). */
+    (void)driver_acpi_aml_selftest();   /* throwaway namespace, cached */
+    if (driver_acpi_init(mbi.rsdp_phys) == 0) {
+        if (driver_acpi_dsdt_phys())
+            driver_acpi_aml_load_table(driver_acpi_dsdt_phys());
+        for (int i = 0; i < driver_acpi_ssdt_count(); i++)
+            driver_acpi_aml_load_table(driver_acpi_ssdt_phys(i));
+        if (driver_acpi_aml_loaded()) OC_LOG_OK2("AML namespace (DSDT + SSDTs)");
+        driver_acpi_power_init();
+    } else {
+        OC_LOG_FAIL2("ACPI: RSDP not found (no ACPI power paths)");
+    }
+    (void)driver_pcie_scan();
+    (void)driver_pcie_assign_bars();
+    if (driver_i2c_i801_init() == 0) OC_LOG_OK2("i801/PIIX4 SMBus controller");
+    (void)driver_smbus_init();
+    (void)driver_input_i2chid_init();
+    OC_LOG_OK2("chipset layer (PCIe/MSI/I2C/SMBus/touchpad)");
+
     /* ---- 12d. WP-05: VFS + ramfs + ATA + FAT32 ---- */
     fs_vfs_init();
     OC_LOG_OK2("VFS (virtual file system)");
@@ -3330,6 +3362,9 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command_ex("sleep", shell_cmd_sleep, "delay for N seconds (sleep <sec>)", "WP-10d-fix2");
     shell_cmds_power_test_register();
     shell_cmds_update_test_register();
+    /* ---- WP-10-input_chipset: chipset + input commands ---- */
+    shell_cmds_chipset_register();
+    arch_lapic_init();
     OC_LOG_OK2("shell file/disk commands");
 
     /* ---- 12e. WP-06: Network stack ---- */

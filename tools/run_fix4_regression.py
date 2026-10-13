@@ -46,8 +46,18 @@ CHECKS = [
     ("boot banner ready",        r"ready\. Type 'help' for commands"),
     ("boot complete OK",         r"boot complete\.+ OK"),
     ("exception self-test 3/3",  r"exception self-test: 3/3"),
-    ("command count 176",        r"Total:\s*176 commands"),
-    ("uname current tree",       r"Open Cube OS WP-10-AUDIT_P2-fix(4\b|3-\d+-g)"),
+    # Baseline note (WP-10-input_chipset): the command count grew 176 -> 192
+    # because the batch registers 16 new chipset/input commands (acpi, acpidev,
+    # acpitest, acpipow, msitest, pcidump, pcibars, pcie, i2cdetect, i2cget,
+    # i2cset, i2ctest, smbus, smbustest, touchpad, touchtest). The interface
+    # freeze rule is "commands may be added, never removed", so the baseline
+    # moves UP; the old commands are still all present (help -a two-way diff
+    # in the batch report covers that).
+    ("command count 192",        r"Total:\s*192 commands"),
+    # Baseline note (WP-10-input_chipset): accept the current tree describe
+    # (fix4-2-g<sha>), the fix3-rebuild form, and the new WP-10-input_chipset
+    # tag form (release builds bake the tag name verbatim).
+    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset)"),
     ("heaptest pass",            r"heaptest.*PASS|heap test.*PASS"),
     ("fstest pass",              r"fstest.*(PASS|OK)|VFS self-test.*PASS"),
     ("cryptotest NIST pass",     r"[Cc]rypto self-test.*pass|cryptotest.*PASS|All \d+ NIST"),

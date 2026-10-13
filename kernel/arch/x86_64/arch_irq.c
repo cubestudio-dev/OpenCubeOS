@@ -72,3 +72,14 @@ void arch_irq_dispatch(arch_irq_frame_t *f) {
         }
     }
 }
+
+/* WP-10-input_chipset: after an S3 resume the firmware left the PIC
+ * with every line masked; re-open exactly the lines whose handler
+ * chains are non-empty (the table itself lives in RAM and survived). */
+void arch_irq_rearm(void) {
+    for (int irq = 0; irq < 16; irq++) {
+        if (g_irq_slots[irq][0].fn != NULL) {
+            arch_pic_unmask((u8)irq);
+        }
+    }
+}

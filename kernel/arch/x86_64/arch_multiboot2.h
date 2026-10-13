@@ -34,6 +34,23 @@
 #define OC_MB2_TAG_BOOTDEV             5
 #define OC_MB2_TAG_MMAP                6
 #define OC_MB2_TAG_FRAMEBUFFER         8
+/* WP-10-input_chipset: ACPI RSDP tags. GRUB emits tag 14 (RSDP v1, 20
+ * bytes) when the platform is ACPI 1.x only, tag 15 (RSDP v2+, 36 bytes)
+ * when ACPI 2.0+ tables are present. Both carry the PHYSICAL address of
+ * the RSDP; the driver_acpi parser re-validates the signature there. */
+#define OC_MB2_TAG_ACPI_OLD            14
+#define OC_MB2_TAG_ACPI_NEW            15
+
+/* WP-10-input_chipset: RSDP tags (type 14 / type 15). Per the
+ * multiboot2 spec the tag payload contains a COPY of the RSDP
+ * structure itself (not a pointer to it). We remember the physical
+ * address of that copy so the ACPI code can validate and use it in
+ * place without copying again. */
+typedef struct arch_multiboot2_rsdp_tag {
+    u32 type;          /* 14 or 15 */
+    u32 size;          /* 8 + 20 (old) or 8 + 36 (new) */
+    u8  rsdp[];        /* RSDP structure copy */
+} __attribute__((packed)) arch_multiboot2_rsdp_tag_t;
 
 typedef struct arch_multiboot2_header {
     u32 total_size;
@@ -110,6 +127,11 @@ typedef struct arch_multiboot2_info {
     u64 mem_lower_kb;
     u64 mem_upper_kb;
     const arch_multiboot2_module_tag_t* arch_kernel_self;   /* module with cmdline "self" */
+    /* WP-10-input_chipset: physical address of the RSDP copy handed to
+     * us by GRUB (tag 14/15) and the ACPI revision it implies (0 = no
+     * ACPI, 1 = ACPI 1.x, 2 = ACPI 2.0+). driver_acpi_init() consumes it. */
+    u64 rsdp_phys;
+    u32 rsdp_acpi_version;
 } arch_multiboot2_info_t;
 
 /* Parse the multiboot2 info at `mbi_phys` and fill `out`. Returns 0 on success. */

@@ -148,15 +148,18 @@ DH truth vectors for self-test: kernel/crypto/crypto_dh_scale_vectors.h.
 
 ## 4. Shell command surface
 
-176 commands registered at boot (live count; `help` lists 176 unique and
-prints `Total: 176 commands`, `help -w` groups them by work-package tag).
-Section updated at WP-10-AUDIT_P2-fix2: fix1 added three regression
-commands (`irqabitest`, `heapbounds`, `vmkernelpt`, registered at
-kernel/main.c 2936-2938, BUG-0136/0140/0141 attribution) so the boot count
-moved 173 -> 176; the earlier 173 table predated those three and is
-superseded (the fix1-round finding #3).
-`shell_register_command` call sites (static count, re-verified
-2026-10-08 by per-file grep = 176 unique names, no duplicates; to be
+192 commands registered at boot (live count; `help` lists 192 unique and
+prints `Total: 192 commands`, `help -w` groups them by work-package tag).
+Section updated at WP-10-input_chipset: the batch registered 16 new
+chipset/input commands (acpi, acpidev, acpitest, acpipow, msitest,
+pcidump, pcibars, pcie, i2cdetect, i2cget, i2cset, i2ctest, smbus,
+smbustest, touchpad, touchtest — shell/shell_cmds_chipset.c) so the
+boot count moved 176 -> 192; nothing was removed (interface freeze =
+additions only). Previous update at WP-10-AUDIT_P2-fix2: fix1 added
+three regression commands (`irqabitest`, `heapbounds`, `vmkernelpt`,
+BUG-0136/0140/0141 attribution) moving 173 -> 176.
+`shell_register_command` call sites (static count, re-verified for
+WP-10-input_chipset by per-file grep = 192 unique names, no duplicates;
 cross-checked against a live `help -a` extraction in QEMU each release):
 kernel/main.c 56 (incl. update/rollback/reboot, pmmrace and the three
 fix1 regression commands),
@@ -169,9 +172,11 @@ abdisk/install/grub-install/abcfg), shell/shell_cmds_disk_test.c 8
 (WP-10c sound status commands + tests), shell/shell_cmds_update_test.c 10
 (WP-10u), shell/shell_cmds_usb_test.c 9 (WP-10d: usb/usbdev status +
 7 test commands), shell/shell.c 6 (incl. WP-10-wp08fix1 nano/vi),
-shell/shell_cmds_power_test.c 7 (WP-10d-fix2 power + help test suite).
-56+16+18+7+4+8+18+17+10+9+6+7 = 176. Full list: type `help` at the `oc>`
-prompt.
+shell/shell_cmds_power_test.c 7 (WP-10d-fix2 power + help test suite),
+shell/shell_cmds_chipset.c 16 (WP-10-input_chipset: 4 ACPI + 4
+PCIe/MSI + 4 I2C + 2 SMBus + 2 touchpad).
+56+16+18+7+4+8+18+17+10+9+6+7+16 = 192. Full list: type `help` at the
+`oc>` prompt.
 
 ## 5. Verification of these interfaces
 

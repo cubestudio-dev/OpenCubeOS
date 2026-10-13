@@ -33,4 +33,10 @@ typedef void (*arch_irq_handler_fn)(void *ctx, arch_irq_frame_t *f);
 int arch_irq_register_handler(int irq, arch_irq_handler_fn handler, void *ctx);
 int arch_irq_unregister_handler(int irq, arch_irq_handler_fn handler, void *ctx);
 
+/* WP-10-input_chipset: re-unmask every PIC line that has at least one
+ * registered handler. Used after an S3 resume where the firmware reset
+ * the 8259 PIC (all lines masked) but the handler table (in RAM)
+ * survived. */
+void arch_irq_rearm(void);
+
 #endif /* OC_IRQ_H */
