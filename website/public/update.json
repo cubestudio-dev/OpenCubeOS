@@ -1,10 +1,10 @@
 {
-  "version": "WP-10-input_chipset",
-  "build": 156,
+  "version": "WP-10-timer_rtc",
+  "build": 167,
   "time": "2026-10-13",
-  "changes": "chipset: touchpad I2C HID / PCI-PCIe / ACPI / SMBus / I2C, 16 new cmds (192 total), 112,589 lines",
+  "changes": "time sources: CMOS RTC IRQ+alarm, HPET, ACPI PM timer, TSC; 4 new cmds (196 total); 114,593 lines",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-input_chipset-update.tar.gz",
-  "package_sha256": "d210e4daba56a7406a2a672dcdb96e5b85fb6f49e66e922c184491e71087b854",
-  "package_size": 641921
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-timer_rtc-update.tar.gz",
+  "package_sha256": "976e8bf5a8ed5f9164af62803c12d0a18746082c662d3bd44c57bfd2f2121d04",
+  "package_size": 654527
 }

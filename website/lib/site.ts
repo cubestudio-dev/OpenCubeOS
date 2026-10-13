@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10-AUDIT_P2-fix4 value
+// Central site data. Every number is a real WP-10-timer_rtc value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
-// docs/EXTENSIONS_WP10-wp08fix1.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
+// docs/EXTENSIONS_WP10-timer_rtc.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub WP-10-AUDIT_P2-fix4 tag + this site /downloads/
+// 3-way identical: local build + GitHub WP-10-timer_rtc tag + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-input_chipset";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-timer_rtc";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub WP-10-input_chipset tag + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-10-input_chipset.iso";
-export const ISO_SIZE_B = 11554816;
-export const ISO_SIZE_MB = "11.02";
+// Real assets (build/ + GitHub WP-10-timer_rtc tag + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-WP-10-timer_rtc.iso";
+export const ISO_SIZE_B = 11579392;
+export const ISO_SIZE_MB = "11.04";
 export const ISO_SHA256 =
-  "844e346d855723072daab7138625fceaaf068e6eb04fd72ee7a00938f378e9af";
+  "4377112140a56e07c8e668c7e2a3d530a51aed570b40ceb8dad403c517aba32f";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-10-input_chipset-src.zip";
-export const SRC_SIZE_B = 2795097;
-export const SRC_SIZE_MB = "2.67";
+export const SRC_FILE = "opencube-WP-10-timer_rtc-src.zip";
+export const SRC_SIZE_B = 2839187;
+export const SRC_SIZE_MB = "2.71";
 export const SRC_SHA256 =
-  "83cae823acc65df935b981ad748c0917033360cd8035f2543e7e0e18db11bbbc";
+  "04489327a25770fad50ca974bdc7e37ddca42a8bb41c6b004d490bfa6eb21430";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // NOTE: the former STATS export lived here unreferenced (A18-5): HomeView

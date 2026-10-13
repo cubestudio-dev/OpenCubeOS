@@ -523,7 +523,20 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-10-input_chipset)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-input_chipset) — ISO + SRC zip
+- **Latest (WP-10-timer_rtc)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-timer_rtc) — ISO + SRC zip
+  (ISO sha256 `4377112140a56e07c8e668c7e2a3d530a51aed570b40ceb8dad403c517aba32f`,
+  SRC sha256 `04489327a25770fad50ca974bdc7e37ddca42a8bb41c6b004d490bfa6eb21430`)
+  Batch summary: four time-source domains (CMOS RTC status + IRQ8
+  update-ended/periodic/alarm interrupts; HPET table + MMIO + one-shot/periodic
+  comparators on timer 1 via the legacy route; ACPI PM timer with 24-bit-masked
+  wrap arithmetic + PIT calibration; TSC with PIT/HPET/PMTimer three-reference
+  calibration + TSC-driven delay), 4 new commands (rtc / hpet / pmtimer / tsc,
+  192 -> 196, additions only), gates 0/0 build, regression 28/28, dhtest 5/5,
+  SSH 5/5, HTTPS 7/7, batch E2E 29/29 BIOS + 29/29 UEFI. WP-10-timer_rtc is
+  the 17th work package (counted in the Stats section above; like
+  WP-10-input_chipset it has no separate `## WP-*` section — details in
+  docs/EXTENSIONS_WP10-timer_rtc.md).
+- **Previous (WP-10-input_chipset)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-input_chipset) — ISO + SRC zip
   (ISO sha256 `844e346d855723072daab7138625fceaaf068e6eb04fd72ee7a00938f378e9af`,
   SRC sha256 `83cae823acc65df935b981ad748c0917033360cd8035f2543e7e0e18db11bbbc`)
 - **Previous (WP-10-AUDIT_P2-fix4)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-AUDIT_P2-fix4) — ISO + SRC zip
