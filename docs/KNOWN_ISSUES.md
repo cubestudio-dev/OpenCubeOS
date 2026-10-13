@@ -616,3 +616,49 @@ all PASS, 0 errors 0 warnings.
   ready until the background thread finishes, so early `sshd` attempts
   report "generation still running" rather than serving. Persisted keys
   (etc.img with the key material) load instantly on every later boot.
+
+## 11. WP-10-input_chipset additions (2026-10-13)
+
+Honest notes for the five chipset domains (the full contract and the
+eleven live-boot defects fixed by the gate are in
+docs/EXTENSIONS_WP10-input_chipset.md §4):
+
+### 11.1 SMBus process-call is unsupported by design
+
+- `driver_smbus_process_call()` returns "unsupported": the i801-class
+  backend exposes no atomic process-call path, and a decomposed
+  word-write + word-read would CORRUPT EEPROM contents (the swap leg is
+  not a store on real devices).
+
+### 11.2 No QEMU model for the I2C-HID touchpad or the DesignWare I2C controller
+
+- QEMU ships no I2C-HID device model, so `touchpad` reports the binding
+  honestly ("no i2c-hid device bound") and the gesture pipeline is
+  proven by `touchtest` + the host regression
+  (tests/host_i2chid_touch_test.c) instead of a live device.
+- The DesignWare controller has no QEMU model either; its register
+  self-test runs when hardware is present and is skipped honestly
+  otherwise (`i2ctest`: "DesignWare: not present on this platform
+  (honest skip)").
+
+### 11.3 MSI-capable devices report 0 of 6 on legacy QEMU machines
+
+- On the default i440FX machine (no PCIe), `msitest` fires the LAPIC
+  self-IPI (PASS) and reports devices without an MSI capability
+  honestly ("e1000: no MSI cap or BAR0  SKIP (reported honestly)");
+  MSI/MSI-X programming goes through the same code path on
+  hardware/machines that expose the capability.
+
+### 11.4 AML "undefined name" boot messages on QEMU's DSDT
+
+- Early boot may print a handful of `AML: undefined name` lines
+  (PRQ0/PRQ1/PRQ2/PRQ3/VEND/CSEL/CPEN): QEMU's DSDT references objects
+  the minimal AML interpreter does not define. The namespace walk
+  continues, ACPI power management works (S5 + S3 packages resolve,
+  acpitest PASS); the messages are diagnostic, not failures.
+
+### 11.5 Regression command-count baseline moved 176 -> 192
+
+- The batch added 16 shell commands (additions only; the interface
+  freeze holds); the regression command-count baseline and the two-way
+  `help -a` check now expect 192.

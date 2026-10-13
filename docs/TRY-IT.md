@@ -8,7 +8,8 @@ attach the device and the exact in-guest commands to exercise it -
 including the output you should see.  If your output differs, the last
 section lists the likely causes.
 
-This guide covers **storage, network, and sound**.  For the in-system
+This guide covers **storage, network, sound, and the chipset input
+domains (WP-10-input_chipset)**.  For the in-system
 update (OTA) flow there is a dedicated step-by-step guide:
 **docs/UPDATE-HOWTO.md**.
 
@@ -265,6 +266,40 @@ These work in a bare QEMU session with no extra devices:
 | `run fork_test` / `run pipe_test` / `run signal_test` | ... PASS           |
 | `cryptotest`                      | SHA-256 / AES / HMAC 3/3 PASS           |
 | `crashlog`                        | last kernel exceptions (if any)         |
+
+## 6. Chipset input domains (WP-10-input_chipset)
+
+Five chipset domains, all exercisable in a bare QEMU session (no extra
+devices needed): ACPI, PCI/PCIe, SMBus, I2C and the I2C-HID touchpad
+pipeline.
+
+```sh
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -no-reboot -display none -serial stdio -monitor none
+```
+
+| try this              | what you should see                                                                        |
+|-----------------------|--------------------------------------------------------------------------------------------|
+| `acpi`                | `RSDP: 0x...` + table list (RSDT/FACP/APIC/HPET/WAET), `FADT: rev 1 SCI=IRQ9 PM1a_CNT=0x0604 ...`, `MCFG: not present (legacy CF8/CFC only)` |
+| `acpidev`             | `AML namespace: nodes=342 methods=102 devices=54` + `\_SB_.PCI0 ...` device paths          |
+| `acpitest`            | `acpitest: PASS` (fixture table eval + `\_S5` resolve + 54-device namespace walk)          |
+| `acpipow`             | sleep states `0x38 (S1..S5 bit i-1)` (S3 SLP_TYP=0x01, S4 0x02, S5 0x00), `SCI: IRQ 9`     |
+| `pcibars`             | `PCI devices: 6` with per-BAR base/size (e.g. `00:02.0 BAR0: base=0xfd000000 size=0x01000000 mem prefetch`) |
+| `pcie`                | `MMCONFIG: not active (MCFG absent) - legacy CF8/CFC only` + per-device capabilities       |
+| `pcidump 0:1.3`       | config dump of the PIIX4 PM device (32 dwords, legacy CF8/CFC window)                      |
+| `msitest`             | `LAPIC: present, id=0`, `self-IPI vector 0x50: fired 1 time(s)  PASS`, `msitest: PASS`     |
+| `i2ctest`             | `controller: PIIX4 (8086:7113) base 0x0700 ...` + `i2ctest: PASS`                          |
+| `i2cdetect`           | grid for `i2c-0 (piix4)` showing `50 51 52 53 54 55 56 57`                                 |
+| `smbus`               | `SMBus devices: 8` with EEPROM first bytes at 0x50..0x57                                   |
+| `smbustest`           | `smbustest: byte/word/block round-trips  PASS`                                             |
+| `i2cget 0 0x50 0x00`  | `0x00` (EEPROM byte read-back)                                                             |
+| `touchpad`            | binding status reported honestly (QEMU ships no I2C-HID model) + `reports decoded: 36  events queued total: 9` |
+| `touchtest`           | `touchtest: descriptor parse + TAP/SCROLL/PINCH/SWIPE  PASS`                               |
+
+The QEMU default machine offers neither PCIe (no MCFG) nor an I2C-HID
+touchpad, so those paths report their absence honestly instead of
+failing - see docs/KNOWN_ISSUES.md §11 and
+docs/EXTENSIONS_WP10-input_chipset.md §6.
 
 ## Troubleshooting
 

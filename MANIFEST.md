@@ -4,7 +4,7 @@
 # Open Cube OS — Repository Manifest
 
 ## Version
-WP-10b (NIC Drivers)
+WP-10-input_chipset (chipset input domains: touchpad I2C HID / PCI/PCIe / ACPI / SMBus / I2C)
 
 ## Directory Structure
 

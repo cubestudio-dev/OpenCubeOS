@@ -30,12 +30,14 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-10-AUDIT_P2-fix3)
+## Stats (WP-10-input_chipset)
 
 - **Source code**: 112,589 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
   verify: `find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
-- **Work packages**: 15 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
-  WP-10d, WP-10-wp08fix1) — one `## WP-*` section each below
+- **Work packages**: 16 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
+  WP-10d, WP-10-wp08fix1, WP-10-input_chipset) — one `## WP-*` section
+  each below (WP-10-input_chipset itself is summarized in the Download
+  section above; it has no separate `## WP-*` section)
   + auxiliary batches (not counted as WPs): project restructure,
   WP-10d-fix2, WP-09-fix5, and the audit batches WP-AUDIT-01
   (+p0fix/p1fix) and WP-10-AUDIT_P2-fix1 / fix2 / fix2b / fix3.
@@ -315,7 +317,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   48 kHz by design and the test verifies the rejection).
 - **Commands**: sound, hda, ac97, sb16, es1370, virtiosnd, usbaudio,
   play [device] [rate], volume [device] [0-100]; lspci shows sound
-  controllers (class 0x04). 176 commands registered at boot
+  controllers (class 0x04). 192 commands registered at boot
   (including the rule-9 self-hosting set: abdisk, install,
   grub-install, abcfg, and the WP-10-wp08fix1 nano/vi editors).
 - **Verification**: hda_test / ac97_test / sb16_test / es1370_test /
@@ -355,7 +357,7 @@ WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
   (BOT + SCSI wired into blk), CDC-ACM/FTDI serial, UAC 1.0/2.0.
 - **Commands**: usb, usbdev + usb_core_test / usb_kbd_test /
   usb_mouse_test / usb_storage_test / usb_serial_test / usb_hotplug_test
-  / usb_hub_test (176 commands at boot; 138 L1 interfaces;
+  / usb_hub_test (192 commands at boot; 138 L1 interfaces;
   WP-10d-fix2 added 7: core_power_shutdown/core_power_suspend/core_power_halt/core_power_reboot
   + shell_register_command_ex/shell_list_commands_a_z/shell_list_commands_by_wp).
 - **Verification**: UHCI/OHCI/EHCI/XHCI exercised in QEMU with explicit

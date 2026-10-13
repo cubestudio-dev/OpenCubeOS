@@ -69,3 +69,49 @@ public summary of the WP-09 closeout batches.
 
 - Privacy scan, Apache-2.0 license header check, 3-way SHA256 comparison
   (local build / GitHub Release assets / website download links).
+
+## Batch G (2026-10-02 ~ 2026-10-04) — WP-10 series documentation
+
+- WP-10a (storage) / WP-10b (NIC) / WP-10u (A/B update) / WP-10c (sound)
+  / WP-10d (USB host): each got a README section, an
+  docs/EXTENSIONS_WP10*.md contract doc and TRY-IT sections.
+- wp10-wp08-shell-and-tools-completion (WP-10-wp08fix1) documented:
+  shell line editor + nano/vi editors + VFS links + 7 new syscalls.
+- wp10-project-restructure-fix1 documented: one-module-one-directory
+  layout, [category]_[specific] naming, libs/.
+- wp10d-fix1 / wp10d-fix2 documented (core_power_* shutdown/suspend/
+  halt/reboot + shell listing helpers).
+
+## Batch H (2026-10-05 ~ 2026-10-07) — WP-AUDIT-01 documentation
+
+- README Stats / Tests / Download updated for the 18-route audit
+  (607 findings) and the P0 (41) / P1 (94) fix batches
+  (p0fix1 / p0fix2 / p1fix1..p1fix4).
+- docs/KNOWN_ISSUES.md sections 4..7 record those fix rounds.
+
+## Batch I (2026-10-07 ~ 2026-10-11) — P2 fix rounds documentation
+
+- WP-10-AUDIT_P2-fix1 / fix2 / fix2b / fix3 / fix4 (plus the untagged
+  fix5 round) documented in README, STATUS and KNOWN_ISSUES
+  (sections 8..10); regression harnesses committed under tools/
+  (run_fix4_regression.py, run_fix4_https_e2e.py).
+
+## Batch J (2026-10-12) — License restoration
+
+- LICENSE restored to the verbatim official Apache-2.0 text (the only
+  difference is the appendix copyright line: cubestudio-dev); NOTICE
+  lists GRUB's unicode.pf2 font (GPL-3.0 + font exception); SPDX
+  headers verified complete (0 files missing the header).
+
+## Batch K (2026-10-13) — WP-10-input_chipset release + doc consistency
+
+- Five chipset domains (touchpad I2C HID / PCI/PCIe / ACPI / SMBus /
+  I2C): README Download section + Stats, STATUS record,
+  docs/EXTENSIONS_WP10-input_chipset.md, website constants + FEATURES
+  entry (zh+en), GitHub Release assets (ISO + SRC zip), 3-way SHA
+  verified (site /downloads/ = Release = local build).
+- Doc consistency pass on top of the release: README Stats header +
+  command counts (176 -> 192) + work-package count (15 -> 16), website
+  i18n wpSectionDesc (15 -> 16), MANIFEST Version (WP-10b ->
+  WP-10-input_chipset), KNOWN_ISSUES chipset section (11), TRY-IT
+  chipset try-it section (6), and this file brought up to date.
