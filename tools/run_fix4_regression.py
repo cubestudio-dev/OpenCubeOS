@@ -53,11 +53,14 @@ CHECKS = [
     # freeze rule is "commands may be added, never removed", so the baseline
     # moves UP; the old commands are still all present (help -a two-way diff
     # in the batch report covers that).
-    ("command count 192",        r"Total:\s*192 commands"),
+    # Baseline note (WP-10-timer_rtc): 192 -> 196 with the four time-source
+    # commands rtc / hpet / pmtimer / tsc. Removals remain forbidden.
+    ("command count 196",        r"Total:\s*196 commands"),
     # Baseline note (WP-10-input_chipset): accept the current tree describe
     # (fix4-2-g<sha>), the fix3-rebuild form, and the new WP-10-input_chipset
     # tag form (release builds bake the tag name verbatim).
-    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset)"),
+    # WP-10-timer_rtc adds the timer_rtc tag form.
+    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc)"),
     ("heaptest pass",            r"heaptest.*PASS|heap test.*PASS"),
     ("fstest pass",              r"fstest.*(PASS|OK)|VFS self-test.*PASS"),
     ("cryptotest NIST pass",     r"[Cc]rypto self-test.*pass|cryptotest.*PASS|All \d+ NIST"),
