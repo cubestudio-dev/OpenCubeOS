@@ -94,6 +94,20 @@ u64 driver_hpet_counter_read(void) {
 static u32 gen_cfg_read(void)  { return mmio_r32(g_base + HPET_GEN_CFG); }
 static void gen_cfg_write(u32 v) { mmio_w32(g_base + HPET_GEN_CFG, v); }
 
+int driver_hpet_ensure_enabled(void) {
+    if (!g_present) return 0;
+    u32 cfg = gen_cfg_read();
+    int was = (cfg & HPET_ENABLE_CNF) ? 1 : 0;
+    if (!was) gen_cfg_write(cfg | HPET_ENABLE_CNF);
+    return was;
+}
+
+void driver_hpet_restore_enabled(int was_enabled) {
+    if (!g_present || was_enabled) return;
+    u32 cfg = gen_cfg_read();
+    if (cfg & HPET_ENABLE_CNF) gen_cfg_write(cfg & ~HPET_ENABLE_CNF);
+}
+
 static u32 tim_conf_read(int n)  { return mmio_r32(g_base + HPET_TIM_CONF(n)); }
 static void tim_conf_write(int n, u32 v) { mmio_w32(g_base + HPET_TIM_CONF(n), v); }
 static void tim_cmp_write(int n, u64 v) {

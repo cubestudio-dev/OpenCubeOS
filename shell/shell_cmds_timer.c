@@ -14,6 +14,7 @@
 #include "driver_cmos_rtc.h"
 #include "driver_hpet.h"
 #include "driver_pmtimer.h"
+#include "driver_tsc.h"
 #include "driver_acpi.h"
 #include "core_rtc.h"
 #include "screen_console.h"
@@ -566,6 +567,194 @@ int shell_cmd_pmtimer(const char *args) {
     return 0;
 }
 
+/* ------------------------------------------------------------------ */
+/* tsc                                                                 */
+/* ------------------------------------------------------------------ */
+
+/* Skip to the next token start (helper for two-word subcommands). */
+static const char* skip_word(const char *p) {
+    while (*p && *p != ' ' && *p != '\t') p++;
+    while (*p == ' ' || *p == '\t') p++;
+    return p;
+}
+
+int shell_cmd_tsc(const char *args) {
+    const char *p = args;
+    while (*p == ' ' || *p == '\t') p++;
+
+    if (word_is(&p, "cal")) {
+        const char *p2 = skip_word(p);
+        if (word_is(&p2, "hpet")) {
+            u64 hz = 0;
+            if (driver_tsc_calibrate_hpet(&hz) != 0) {
+                put("tsc cal hpet: HPET not available (honest FAIL)\n");
+                return 1;
+            }
+            put("TSC calibration vs HPET (~0.1 s): ");
+            put_u64(hz);
+            put(" Hz\n");
+            u64 cached;
+            const char *src;
+            if (driver_tsc_calibrated(&cached, &src) == 0) {
+                u64 bp = hz > cached ? (hz - cached) * 10000ull / cached
+                                     : (cached - hz) * 10000ull / cached;
+                put("vs cached ");
+                put(src);
+                put(": delta ");
+                put_u64(bp);
+                put(" bp\n");
+            }
+            return 0;
+        }
+        if (word_is(&p2, "pmtimer")) {
+            u64 hz = 0;
+            if (driver_tsc_calibrate_pmtimer(&hz) != 0) {
+                put("tsc cal pmtimer: PM timer not calibrated (honest FAIL)\n");
+                return 1;
+            }
+            put("TSC calibration vs PM timer (~0.5 s): ");
+            put_u64(hz);
+            put(" Hz\n");
+            u64 cached;
+            const char *src;
+            if (driver_tsc_calibrated(&cached, &src) == 0) {
+                u64 bp = hz > cached ? (hz - cached) * 10000ull / cached
+                                     : (cached - hz) * 10000ull / cached;
+                put("vs cached ");
+                put(src);
+                put(": delta ");
+                put_u64(bp);
+                put(" bp\n");
+            }
+            return 0;
+        }
+        /* default PIT calibration, run twice for a consistency check */
+        put("TSC calibration vs PIT (~1.1 s window, two runs)\n");
+        u64 hz1 = 0, hz2 = 0;
+        if (driver_tsc_calibrate_pit(&hz1) != 0 ||
+            driver_tsc_calibrate_pit(&hz2) != 0) {
+            put("tsc cal: FAILED (no samples)\n");
+            return 1;
+        }
+        u64 hi = hz1 > hz2 ? hz1 : hz2;
+        u64 lo = hz1 > hz2 ? hz2 : hz1;
+        u64 bp = lo ? (hi - lo) * 10000ull / lo : 0;
+        put("run1: ");
+        put_u64(hz1);
+        put(" Hz  run2: ");
+        put_u64(hz2);
+        put(" Hz  drift: ");
+        put_u64(bp);
+        put(" bp\n");
+        if (bp > 1000) {
+            put("tsc cal: FAIL (drift > 10%)\n");
+            return 1;
+        }
+        /* cache the second run so delay/other users have a frequency */
+        driver_tsc_autocalibrate();
+        put("tsc cal: PASS (cached ");
+        put_u64(hz2);
+        put(" Hz via ");
+        put(driver_tsc_source());
+        put(")\n");
+        return 0;
+    }
+    if (word_is(&p, "delay")) {
+        int ms_arg = 0;
+        u64 ms = 100, actual = 0;
+        if (next_int(&p, &ms_arg) == 0 && ms_arg > 0) ms = (u64)ms_arg;
+        if (ms < 1) ms = 100;
+        if (ms > 5000) ms = 5000;
+        put("TSC busy-wait delay: target ");
+        put_u64(ms);
+        put(" ms\n");
+        if (driver_tsc_delay_ms(ms, &actual) != 0) {
+            put("tsc delay: FAILED (no calibration available)\n");
+            return 1;
+        }
+        u64 lo = ms * 75 / 100, hi = ms * 125 / 100;
+        put("PIT-measured actual: ");
+        put_u64(actual);
+        put(" ms ");
+        put(actual >= lo && actual <= hi ? "PASS" : "FAIL");
+        put("\n");
+        return (actual >= lo && actual <= hi) ? 0 : 1;
+    }
+    if (word_is(&p, "test")) {
+        int fails = 0;
+        /* monotonicity over a batch of reads */
+        int mono = 1;
+        u64 prev = driver_tsc_read();
+        for (int i = 0; i < 1000; i++) {
+            u64 cur = driver_tsc_read();
+            if (cur <= prev) { mono = 0; break; }
+            prev = cur;
+        }
+        put("  monotonic (1000 reads): ");
+        put(mono ? "PASS" : "FAIL");
+        put("\n");
+        if (!mono) fails++;
+        /* calibration consistency */
+        u64 hz1 = 0, hz2 = 0;
+        if (driver_tsc_calibrate_pit(&hz1) == 0 &&
+            driver_tsc_calibrate_pit(&hz2) == 0) {
+            u64 hi = hz1 > hz2 ? hz1 : hz2;
+            u64 lo = hz1 > hz2 ? hz2 : hz1;
+            u64 bp = lo ? (hi - lo) * 10000ull / lo : 0;
+            put("  calibrate 2x PIT: ");
+            put_u64(hz1);
+            put(" / ");
+            put_u64(hz2);
+            put(" Hz, drift ");
+            put_u64(bp);
+            put(" bp: ");
+            put(bp <= 1000 ? "PASS" : "FAIL");
+            put("\n");
+            if (bp > 1000) fails++;
+        } else {
+            put("  calibrate 2x PIT: FAIL\n");
+            fails++;
+        }
+        driver_tsc_autocalibrate();
+        u64 actual = 0;
+        if (driver_tsc_delay_ms(100, &actual) == 0) {
+            put("  TSC delay 100 ms: PIT-measured ");
+            put_u64(actual);
+            put(" ms: ");
+            put(actual >= 75 && actual <= 125 ? "PASS" : "FAIL");
+            put("\n");
+            if (actual < 75 || actual > 125) fails++;
+        } else {
+            put("  TSC delay 100 ms: FAIL (no calibration)\n");
+            fails++;
+        }
+        put("tsc: ");
+        put(fails == 0 ? "PASS" : "FAIL");
+        put("\n");
+        return fails == 0 ? 0 : 1;
+    }
+
+    /* default: raw read + invariant flag + cached calibration */
+    put("TSC: ");
+    put_hex(driver_tsc_read(), 16);
+    put(" (serialized rdtsc)\n");
+    put("invariant: ");
+    put_dec(driver_tsc_invariant());
+    put(" (CPUID 0x80000007 EDX[8])\n");
+    u64 hz;
+    const char *src;
+    if (driver_tsc_calibrated(&hz, &src) == 0) {
+        put("calibrated: ");
+        put_u64(hz);
+        put(" Hz via ");
+        put(src);
+        put("\n");
+    } else {
+        put("calibrated: not yet (run 'tsc cal')\n");
+    }
+    return 0;
+}
+
 void shell_cmds_timer_register(void) {
     shell_register_command_ex("rtc", shell_cmd_rtc,
         "CMOS RTC: time + status + UIE/PIE/alarm interrupt tests",
@@ -575,5 +764,8 @@ void shell_cmds_timer_register(void) {
         "WP-10-timer_rtc");
     shell_register_command_ex("pmtimer", shell_cmd_pmtimer,
         "ACPI PM timer: read + PIT calibration + wrap tests",
+        "WP-10-timer_rtc");
+    shell_register_command_ex("tsc", shell_cmd_tsc,
+        "TSC: reads + PIT/HPET/PMTimer calibration + delay test",
         "WP-10-timer_rtc");
 }

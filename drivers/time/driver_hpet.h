@@ -56,6 +56,12 @@ int  driver_hpet_legacy_cap(void);    /* LEG_RT_CAP */
 /* Read the 64-bit main counter (re-read-high for consistency). */
 u64  driver_hpet_counter_read(void);
 
+/* Counter enablement helpers for external measurers (driver_tsc):
+ * ensure the main counter runs (GEN ENABLE_CNF) and restore the
+ * previous state afterwards. */
+int  driver_hpet_ensure_enabled(void);
+void driver_hpet_restore_enabled(int was_enabled);
+
 /* Raw Event Timer Block ID from the ACPI table (decode with the
  * ACPI_HPET_* macros from driver_acpi.h). */
 u32  driver_hpet_table_block_id(void);
