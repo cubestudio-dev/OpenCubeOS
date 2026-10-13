@@ -698,6 +698,41 @@ int ota_update_check_pkg(ota_update_pkg_info_t *out) {
  * Anything else is conservatively reported as "new version available"
  * (an unknown remote ordering still nudges the user, never silently
  * swallows a real update). */
+
+/* Stage-3 helper, factored out so checkupdate_test can pin its behavior
+ * with fixed inputs (the old inline shape was only exercised indirectly
+ * through a live server).  Returns 1 when cur == "<remote_tag>-<N>-g<hash>"
+ * (N>=1, hash >= 7 lowercase hex) - i.e. cur is a git-describe descendant
+ * of remote_tag - and 0 otherwise. */
+int ota_update_describe_descendant(const char *cur, const char *remote_tag) {
+    usize rl = 0;
+    while (remote_tag[rl]) rl++;
+    if (rl == 0) return 0;
+    usize i;
+    for (i = 0; i < rl; i++) {
+        if (cur[i] != remote_tag[i]) return 0;   /* different tag prefix */
+    }
+    if (cur[i] != '-') return 0;                 /* not a describe suffix */
+    i++;                                          /* skip '-' */
+    usize nd = 0;
+    while (cur[i] >= '0' && cur[i] <= '9') { i++; nd++; }
+    if (nd == 0 || nd > 8) return 0;             /* need "-<N>" */
+    if (cur[i] != '-') return 0;
+    i++;
+    if (cur[i] != 'g') return 0;                 /* need "-g" */
+    i++;
+    usize nh = 0;
+    while (cur[i]) {
+        char ch = cur[i];
+        int okhex = ((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'));
+        if (!okhex) return 0;
+        i++;
+        nh++;
+    }
+    if (nh < 7) return 0;                        /* g<hash> too short */
+    return 1;                                    /* descendant */
+}
+
 static int ota_update_remote_is_newer(const char *remote_ver, u64 remote_build) {
     /* 1. numeric build ids */
     if (remote_build > 0 && (u64)OC_KERNEL_BUILD > 0)
@@ -708,35 +743,9 @@ static int ota_update_remote_is_newer(const char *remote_ver, u64 remote_build) 
 
     /* 3. local git-describe descendant of the server tag:
      *    CURRENT == "<remote_ver>-<digits>-g<hash>" */
-    {
-        const char *cur = OC_UPDATE_CURRENT_VERSION;
-        usize rl = 0;
-        while (remote_ver[rl]) rl++;
-        if (rl == 0) return 1;
-        usize i;
-        for (i = 0; i < rl; i++) {
-            if (cur[i] != remote_ver[i]) return 1;   /* different tag prefix */
-        }
-        if (cur[i] != '-') return 1;                 /* not a describe suffix */
-        i++;                                          /* skip '-' */
-        usize nd = 0;
-        while (cur[i] >= '0' && cur[i] <= '9') { i++; nd++; }
-        if (nd == 0 || nd > 8) return 1;             /* need "-<N>" */
-        if (cur[i] != '-') return 1;
-        i++;
-        if (cur[i] != 'g') return 1;                 /* need "-g" */
-        i++;
-        usize nh = 0;
-        while (cur[i]) {
-            char ch = cur[i];
-            int okhex = ((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'));
-            if (!okhex) return 1;
-            i++;
-            nh++;
-        }
-        if (nh < 7) return 1;                        /* g<hash> too short */
-        return 0;                                    /* descendant => current */
-    }
+    if (ota_update_describe_descendant(OC_UPDATE_CURRENT_VERSION, remote_ver))
+        return 0;                                /* descendant => current */
+    return 1;
 }
 
 const char *ota_update_check_strerror(int rc) {
@@ -1047,7 +1056,35 @@ int shell_cmd_checkupdate_test(const char *args) {
     }
     screen_console_puts("[checkupdate_test] oversized v2 changelog reports -8: "); screen_console_puts(ok); screen_console_puts("\n");
 
-    /* 12. live probe with the configured ota_update_url (HTTP or HTTPS) */
+    /* 12. git-describe descendant helper (BUG-0347 stage 3), fixed inputs
+     * so the shape rules are pinned regardless of the build-time version */
+    total++;
+    ok = "FAIL";
+    if (ota_update_describe_descendant("WP-X-3-gdeadbee", "WP-X") == 1 &&
+        ota_update_describe_descendant("WP-X-12-g0abc123", "WP-X") == 1 &&
+        ota_update_describe_descendant("WP-Y-3-gdeadbee", "WP-X") == 0 &&
+        ota_update_describe_descendant("WP-X", "WP-X") == 0 &&
+        ota_update_describe_descendant("WP-X-gdeadbee", "WP-X") == 0 &&
+        ota_update_describe_descendant("WP-X-3-gdeadbe", "WP-X") == 0 &&
+        ota_update_describe_descendant("WP-X-3-gDEADBEE", "WP-X") == 0 &&
+        ota_update_describe_descendant("WP-XY-3-gdeadbee", "WP-X") == 0)
+        { ok = "PASS"; pass++; }
+    screen_console_puts("[checkupdate_test] describe-descendant shapes: "); screen_console_puts(ok); screen_console_puts("\n");
+
+    /* 13. numeric build-id gate (stage 1): server build > local -> newer;
+     * server build <= local -> current.  Both sides must be non-zero for
+     * the numeric path to engage (OC_KERNEL_BUILD is baked in by the
+     * Makefile as rev-list count, so it is always > 0 in a real build). */
+    total++;
+    ok = "FAIL";
+    if ((u64)OC_KERNEL_BUILD > 0 &&
+        ota_update_remote_is_newer("whatever-tag", (u64)OC_KERNEL_BUILD) == 0 &&
+        ota_update_remote_is_newer("whatever-tag", (u64)OC_KERNEL_BUILD + 1) == 1 &&
+        ota_update_remote_is_newer("whatever-tag", 0) == 1)
+        { ok = "PASS"; pass++; }
+    screen_console_puts("[checkupdate_test] numeric build-id compare: "); screen_console_puts(ok); screen_console_puts("\n");
+
+    /* 14. live probe with the configured ota_update_url (HTTP or HTTPS) */
     total++;
     {
         ota_update_info_t info;

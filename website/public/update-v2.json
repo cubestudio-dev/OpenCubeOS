@@ -1,9 +1,10 @@
 {
-  "version": "WP-AUDIT-01-p0fix2",
-  "time": "2026-10-05",
-  "changes": "audit: 607 findings (P0 41). p0fix2 fixes BUG-0021..0041: TLS record/message/CertVerify bounds, shell glob/fsck/mv data-loss, sys_poll wrap panic, SYS_EXIT overflow, execve CR3 ordering, sys_ps ktab, X509 DER overflow, config write bounds, OTA changes/request/path-traversal, NVMe 4Kn refusal, nested-#PF guard. 21/21 verified, regression green, 172 cmds",
+  "version": "WP-10-input_chipset",
+  "build": 156,
+  "time": "2026-10-13",
+  "changes": "WP-10-input_chipset: five input+chipset domains on BIOS+UEFI (28/28 x2): I2C-HID touchpad gestures, PCI/PCIe MMCONFIG+BAR+MSI, ACPI tables+AML+S3/S4/S5, SMBus block, I2C PIIX4/i801/DesignWare; 16 new cmds (192 total); 112,589 lines; official Apache-2.0",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-wp-audit-01-p0fix2-update.tar.gz",
-  "package_sha256": "a2e5656e5e830996b55c07bc1be67501c3933c2c399113f924c211aec19569f3",
-  "package_size": 534727
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-input_chipset-update.tar.gz",
+  "package_sha256": "d210e4daba56a7406a2a672dcdb96e5b85fb6f49e66e922c184491e71087b854",
+  "package_size": 641921
 }

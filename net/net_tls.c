@@ -855,10 +855,20 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
                 int sp = p;
                 int group = ((int)body[sp] << 8) | body[sp + 1];
                 int klen = ((int)body[sp + 2] << 8) | body[sp + 3];
-                if (sp + 4 + 65 <= end && group == 0x1d && klen == 32) {
+                /* Bound check must use the ENTRY's own key length: 32 for
+                 * x25519 (group 0x1d), 65 for secp256r1 (group 0x17).  The
+                 * p1fix2 ServerHello-bounds pass wrote a literal 65 into
+                 * BOTH branches, so a server that answers with an x25519
+                 * share only (the mainstream TLS 1.3 case: Fastly/github.io
+                 * and most CDNs) failed the sp+4+65<=end test, dropped the
+                 * share, and every real-world TLS 1.3 handshake died with
+                 * "no key share from server" / TLS_RC_IO.  Nothing exposed
+                 * it: the local E2E server pins maximum_version=TLSv1_2,
+                 * so only the 1.2 path was ever exercised against a peer. */
+                if (sp + 4 + klen <= end && group == 0x1d && klen == 32) {
                     memcpy(share, body + sp + 4, 32);
                     have_share = 1;
-                } else if (sp + 4 + 65 <= end && group == 0x17 && klen == 65) {
+                } else if (sp + 4 + klen <= end && group == 0x17 && klen == 65) {
                     memcpy(crypto_ec_share, body + sp + 4, 65);
                     have_ec = 1;
                 }
@@ -898,6 +908,7 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         c->version = TLS13;
         if (!have_share && !have_ec) {
             TLS_DBG_P("no key share from server");
+            net_tls_dbg_hex("server_random: ", c->server_random, 32);
             return -1;
         }
         /* key schedule */

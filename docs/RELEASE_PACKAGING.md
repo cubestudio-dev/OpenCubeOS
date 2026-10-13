@@ -75,7 +75,35 @@ already-published historical assets. Rules:
 - The packaging step must not pull this directory into any SRC zip (see §1).
 - gh-pages ships what this directory holds; keep it lean.
 
-## 4. Token hygiene (related lesson from p1fix1)
+## 4. OTA update manifest (update.json / update-v2.json) — MANDATORY at every release
+
+The update manifest lives in `website/public/` (shipped to gh-pages by the
+website build) and MUST be refreshed at every release. Skipping it leaves
+older kernels with a permanent "new version available" false alarm (the
+manifest stayed at WP-AUDIT-01-p0fix2 from 2026-10-05 through the fix3 /
+fix4 / chipset releases and every user checkupdate reported a bogus
+update - fixed 2026-10-13).
+
+Per release:
+1. Build the release kernel from the tag (worktree checkout, clean build).
+2. `bash tools/make_update_pkg.sh <tag> build/opencube.elf \
+   build/opencube-<tag>-update.tar.gz` -> prints the package sha256 + size.
+3. Copy the .tar.gz into `website/public/downloads/`.
+4. Update `website/public/update.json` AND `update-v2.json`:
+   `version` = tag name, `build` = `git rev-list --count <tag>` (the same
+   OC_KERNEL_BUILD the tagged build baked in), `time` = tag date,
+   `changes` <= 127 bytes (v1, WP-09 compatibility) / <= 255 bytes (v2),
+   `package_url` + `package_sha256` + `package_size` from step 2.
+5. Verify in QEMU: checkupdate against the live URL reports "up to date"
+   for the tagged build (numeric build-id compare) and "new version
+   available" for kernels older than the tag.
+
+The numeric `build` field is the primary comparison (BUG-0347): when both
+sides publish it, a local tree newer than an old server tag no longer
+depends on the git-describe string fallback, which only recognizes the
+`<server-tag>-N-g<hash>` direct-descendant shape.
+
+## 5. Token hygiene (related lesson from p1fix1)
 
 - Public repo (cubestudio-dev/OpenCubeOS) push/Release/gh-pages:
   use the `opencube-os-push` token only.
