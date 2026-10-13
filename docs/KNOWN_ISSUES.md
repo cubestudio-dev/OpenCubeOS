@@ -714,3 +714,55 @@ docs/EXTENSIONS_WP10-input_chipset.md §4):
 - The batch added 4 shell commands (rtc/hpet/pmtimer/tsc; additions
   only, interface freeze holds); the regression baseline and the
   two-way `help -a` check now expect 196.
+
+## 13. WP-10-wireless_bluetooth additions (2026-10-13)
+
+### 13.1 Wireless families: datasheet-level verification, no QEMU model
+QEMU has no 802.11 device model (nothing to attach).  The seven family
+drivers are verified at code-vs-datasheet level: byte-exact fixtures
+through the production parsers/builders (in-kernel `wifi test`,
+tests/host_wifi_test.c 38/38) and live enumeration paths (PCI/USB/SDIO
+scans report honest not-present).  Vendor firmware blobs are NOT
+shipped (third-party property); without one, `fw_load` fails honestly
+and the device stays DOWN.  This is the work-package test matrix's
+"datasheet 对照" row, not a hidden stub: every parser/builder/descriptor
+format is real code with spec citations.
+
+### 13.2 Bluetooth HCI-USB transport: no QEMU model
+QEMU removed the whole bluetooth stack (incl. usb-bt-dongle and `-bt`)
+in 7.1; the toolchain's qemu 10.0.13 rejects `-bt` and lists no bt
+device.  The btusb class driver registers on the live USB stack
+(interface class 0xE0/1/1) and the HCI-USB framing shares the HCI core
+paths, but no dongle can be attached in QEMU - `bt usb` reports
+"no dongle attached" honestly.  The UART transport IS exercised
+end-to-end on real emulated 16550 hardware (COM2, IRQ3) against a
+host-side H4 peer.
+
+### 13.3 QEMU 16550 has no receive-timeout interrupt
+The 16550 spec's RX timeout (needed to drain a partially-filled FIFO
+below the trigger level) is not implemented by QEMU's serial device.
+The H4 driver therefore uses RX trigger level 1 (IRQ per byte) and a
+single-consumer ring (the IRQ handler); a poll-time direct FIFO drain
+would race the IRQ consumer (classic 16550 check-then-read stale-byte
+bug) and is deliberately absent.
+
+### 13.4 Real defects found and fixed by this batch's own E2E loop
+The Bluetooth E2E against the host-side peer caught and fixed: HCI
+async commands completing on the wrong event type + one-field-off
+event parameter offsets (opcode/status/handle/bdaddr); HCI ACL frames
+and L2CAP data frames emitted as TWO H4/ACL packets each (type/header
+split); an L2CAP CFG_REQ 4-byte payload buffer for 8 bytes of data
+(compiler-caught); the RFCOMM UIH information-field offset read one
+byte late (3+lbytes -> 2+lbytes); the C/R bit gating UIH data
+delivery; the SDP attribute-list walker using a wrong element layout
+and stride; non-zeroed selftest fixture buffers (iwlwifi ucode);
+WL_MAX_DEVICES too small for seven families (4 -> 8); and the shell
+`wp` tag field 24 bytes being one byte short for the batch name
+(help -w group silently dropped into the fallback bucket).
+
+### 13.5 SDIO bus state on QEMU
+`sdhci-pci` exists in QEMU, so the SDHCI bring-up (reset/caps/clock/
+probe) runs against real emulated hardware.  With no card attached the
+CMD5/CMD0 probes time out and the state is honestly `empty`; the
+brcmfmac-SDIO client therefore reports not-present.  Attaching an
+SD-card image exercises the SD-memory leg of the probe (CMD8/ACMD41).

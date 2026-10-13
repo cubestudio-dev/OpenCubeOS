@@ -4,7 +4,7 @@
 # Open Cube OS — Repository Manifest
 
 ## Version
-WP-10-timer_rtc (time sources: CMOS RTC interrupts+alarm / HPET / ACPI PM timer / TSC)
+WP-10-wireless_bluetooth (802.11 core + 7 wireless families + Bluetooth stack: HCI/H4/HCI-USB/L2CAP/RFCOMM/SDP/SPP/HID)
 
 ## Directory Structure
 
@@ -12,9 +12,10 @@ WP-10-timer_rtc (time sources: CMOS RTC interrupts+alarm / HPET / ACPI PM timer 
 oc-os/                        ← repository root
 ├── boot/                     ← boot assembly (5 files: .S + headers)
 ├── kernel/                   ← kernel source (79 files: .c + .h + .S, incl. WP-09 crypto/ssh/sshd/tls + WP-10a storage + WP-10b NIC drivers + WP-10-timer_rtc time sources)
+├── drivers/                  ← device drivers (11 subdirs: block, nic, snd, usb, input, display, pci, acpi, i2c, time + NEW wireless(10)/bluetooth(9)/sd(2) from WP-10-wireless_bluetooth)
 ├── userprogs/                ← user programs (.c/.asm/.ld — 31 files)
-├── tools/                    ← build/test scripts (42 files, public)
-├── docs/                     ← documentation (42 files)
+├── tools/                    ← build/test scripts (43 files, public)
+├── docs/                     ← documentation (44 files)
 ├── build/                    ← build artifacts (opencube.elf + .o files) — gitignored
 ├── archive/                  ← archived old versions (see archive/README.md)
 │   └── old-ldso/             ← Batch 2 assembly ld.so (only tracked subdir)

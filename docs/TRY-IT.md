@@ -349,3 +349,23 @@ docs/EXTENSIONS_WP10-timer_rtc.md §6.
 | `play: no sound card registered`          | no audio device: see section 3             |
 | QEMU 10 rejects audio args                | every audio device needs `audiodev=snd0`   |
 | `SKIPPED` / `FAIL (no ... registered)`    | honest report for absent hardware, not a bug |
+
+## 8. Wireless + Bluetooth (WP-10-wireless_bluetooth)
+
+Boot the ISO (BIOS or UEFI) and try:
+
+| command | what you should see |
+|---|---|
+| `wifi` | 7 families listed; 7 device slots with bus/vid/did and honest `state=down` (QEMU has no 802.11 hardware) |
+| `wifi test` | the 802.11 core selftest + every family selftest, one PASS line per check, ending `wifi test: 0 failures - PASS` |
+| `wifi scan` | `wifi scan: 0 networks seen (no beacons - no radio present)` |
+| `wifi sdio` | `sdio bus: state=... hosts=N` + bus selftest PASS lines (CMD52/CMD53 encodings) |
+| `bt` | `bluetooth: transport=h4-uart2 controller=66:55:44:33:22:11 ...` + the L2CAP channel table (with the test peer attached on COM2) |
+| `bt uart` | `h4: uart2 ok, rx ring N tx=M` |
+| `bt usb` | `usb-bt: no dongle attached` (honest; QEMU removed its BT models) |
+| `bt test` | the full HCI -> L2CAP -> SDP -> RFCOMM -> SPP -> HID flow with a real peer: every step PASS, `bt test: 0 failures - PASS` |
+
+The Bluetooth flow is genuinely end-to-end: the kernel's H4 UART driver
+exchanges real bytes with a host-side controller peer
+(tools/bt_test_peer.py; the E2E driver wires it to QEMU's second
+serial port automatically).

@@ -318,3 +318,36 @@ the CMOS century register is surfaced by `rtc` but not wired into the
 WP-09 reader; the TSC is a virtual clock under TCG (invariant flag
 honestly 0).  Four live-boot defects found by the gate are documented
 with root causes in docs/EXTENSIONS_WP10-timer_rtc.md §4.
+
+## WP-10-wireless_bluetooth: wireless + bluetooth (2026-10-13)
+
+**Status: COMPLETE.** 802.11 core (frame control/IE/beacon parsing,
+open-system auth+assoc state machine, LLC/SNAP data bridge) + seven
+wireless family drivers (Intel iwlwifi, Realtek rtl8188/8192/8821,
+Atheros ath9k/ath10k/ath11k, Broadcom b43/brcmfmac) + a real
+SDHCI/SDIO bus + a full Bluetooth stack (HCI core, H4 UART transport
+on COM2/IRQ3, HCI-USB btusb class driver, L2CAP signaling, RFCOMM
+TS 07.10 mux with real CRC-8 FCS, SDP client, SPP and HID profiles).
+2 new shell commands (wifi, bt; Total 196 -> 198, additions only).
+Wireless families verified at datasheet level (QEMU has no 802.11
+model - byte-exact fixtures + live enumeration paths); Bluetooth
+verified END-TO-END in QEMU on real emulated 16550 hardware against
+a host-side H4 peer.  The batch's own E2E loop found and fixed 8+
+real defects (HCI event offsets, double-framed ACL/L2CAP sends, the
+16550 FIFO race, L2CAP buffer overflow, RFCOMM body offset, SDP
+walker layout, fixture bugs, shell wp[24] one byte short).
+
+| Criterion | Status |
+|---|---|
+| Compiles 0 errors / 0 warnings (-Werror) | OK |
+| ISO builds; BIOS + UEFI boot | OK |
+| Wireless/bluetooth E2E (tools/wp10_wireless_bluetooth_e2e.py) | OK (32/32 BIOS + 32/32 UEFI; real H4 UART peer) |
+| Full regression (tools/run_fix4_regression.py) | OK (28/28; command-count baseline 196 -> 198 documented) |
+| dhtest | OK (5/5, TCG) |
+| cryptotest NIST | OK (via regression suite) |
+| fstest | OK (p2 ALL PASS) |
+| SSH E2E | OK (5/5) |
+| HTTPS E2E | OK (7/7) |
+| Interfaces frozen (commands added, none removed) | OK (help -a re-verified live) |
+| Extension contract (header + comments + default impl + docs) | OK (docs/EXTENSIONS_WP10-wireless_bluetooth.md) |
+| L1 numbering stays closed at 138 | OK (driver APIs + commands, no numbered L1 additions) |

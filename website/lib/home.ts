@@ -19,27 +19,32 @@ function fmtBytes(n: number): string {
 export { fmtBytes };
 
 // Current stats (same caliber as the README Stats section, re-verified at
-// WP-10-timer_rtc: 114,593 lines via README's own find|wc -l command,
+// WP-10-wireless_bluetooth: 121,697 lines via README's own find|wc -l command,
 // 46 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
-// 138 L1 interfaces / 196 commands per README + docs/INTERFACES.md,
-// 17 work packages = the latest counted total per README Stats). This is
+// 138 L1 interfaces / 198 commands per README + docs/INTERFACES.md,
+// 18 work packages = the latest counted total per README Stats). This is
 // the RENDERED source (HomeView imports from here) - lib/site.ts carries
 // the release assets and no longer keeps a competing stats copy.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "114,593", label: "行源码" },
+    { value: "121,697", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "46", label: "系统调用" },
-    { value: "196", label: "shell 命令" },
-    { value: "17", label: "工作包" },
+    { value: "198", label: "shell 命令" },
+    { value: "18", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "114,593", label: "lines of source" },
+    {
+      name: "Wireless + bluetooth (802.11 x7 / SDIO / HCI-L2CAP-RFCOMM-SDP-SPP-HID)",
+      tag: "WP-10-wireless_bluetooth",
+      desc: "The 802.11 core and seven wireless families enter L0, plus a full Bluetooth stack, verified in QEMU: 802.11 core (frame-control/IE/beacon parsing, open-system auth+assoc state machine, LLC/SNAP data bridge); Intel iwlwifi (7000/8000/9000/AX200/AX201/AX210: CSR register block, ucode container parsers (legacy 'UCOD' five-section + TLV 0x0a4c4657), FH firmware load); Realtek rtl8188/8192/8821 (PCIe + USB vendor-request register access, 8188E register map, efuse, 8051 firmware download, TXDESC); Atheros ath9k/ath10k/ath11k (AR9002/9003 MAC map + TX/RX descriptors; CE descriptors/HTC/BMI/WMI-TLV; MHI ring elements/QMI TLV); Broadcom b43 (SSB BAR0 core windowing) and brcmfmac (PCIe + an SDIO client over a real SDHCI/SDIO bus); Bluetooth: HCI core, H4 UART transport (COM2 0x2f8/IRQ3, 16550 loopback probe + IRQ RX ring with a single FIFO consumer against the classic race), HCI-USB btusb class driver, L2CAP signaling (response-box dispatcher + idempotent connect), RFCOMM TS 07.10 mux (real CRC-8 FCS, PN/MSC), SDP client (a real (attr-id,value) pair walker), SPP and HID profiles. 2 new shell commands (wifi / bt), total 196->198 (additions only), L1 numbering stays closed at 1-138, shell wp tag field widened 24->32 bytes. Per the work-package test matrix the wireless families are datasheet-verified (QEMU has no 802.11 model: byte-exact vectors through the production code + live enumeration; vendor firmware not shipped, honest DOWN without it); Bluetooth is verified end-to-end on real emulated 16550 hardware (tools/bt_test_peer.py host-side H4 controller peer), and the batch's own E2E loop found and fixed 8+ real defects (HCI async-event completion + parameter offsets, double-framed ACL/L2CAP sends, the 16550 FIFO race, an L2CAP CFG_REQ overflow, the RFCOMM body offset + C/R gating, the SDP walker layout, non-zeroed fixtures, the wp field one byte short). Gates: 0 errors 0 warnings; wireless/bluetooth E2E 32/32 BIOS + 32/32 UEFI; full regression 28/28; dhtest 5/5; SSH 5/5; HTTPS 7/7; host_wifi_test 38/38; host_bt_test 22/22. 121,697 lines of source.",
+    },
+    { value: "121,697", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "46", label: "system calls" },
-    { value: "196", label: "shell commands" },
-    { value: "17", label: "work packages" },
+    { value: "198", label: "shell commands" },
+    { value: "18", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
 };
@@ -49,6 +54,11 @@ export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "无线 + 蓝牙落地（802.11 七族 / SDIO / HCI-L2CAP-RFCOMM-SDP-SPP-HID）",
+      tag: "WP-10-wireless_bluetooth",
+      desc: "802.11 核心与七族无线驱动进入 L0，外加完整蓝牙栈，并在 QEMU 实测：802.11 核心（帧控制/信息元素/信标解析、开放系统认证+关联状态机、LLC/SNAP 数据桥接）；Intel iwlwifi（7000/8000/9000/AX200/AX201/AX210：CSR 寄存器组、ucode 容器解析（legacy 'UCOD' 五段 + TLV 0x0a4c4657）、FH 固件加载）；Realtek rtl8188/8192/8821（PCIe + USB vendor-request 寄存器访问、8188E 寄存器映射、efuse、8051 固件下载、TXDESC）；Atheros ath9k/ath10k/ath11k（AR9002/9003 MAC 寄存器与收发描述符；CE 描述符/HTC/BMI/WMI-TLV；MHI 环元素/QMI TLV）；Broadcom b43（SSB BAR0 核心窗口）与 brcmfmac（PCIe + 经真实 SDHCI/SDIO 总线的 SDIO 客户端）；蓝牙：HCI 核心、H4 UART 传输（COM2 0x2f8/IRQ3，16550 环回探测 + 中断 RX 环，唯一 FIFO 消费者避免经典竞态）、HCI-USB btusb 类驱动、L2CAP 信令（响应信箱 + 幂等 connect）、RFCOMM TS 07.10 复用器（真实 CRC-8 FCS、PN/MSC）、SDP 客户端（真实 (attr-id,value) 对遍历器）、SPP 与 HID profile。新增 2 条 shell 命令（wifi / bt），总数 196→198（只增不删），L1 编号保持 1-138 封闭，shell wp 标签字段 24→32 字节。无线各族按工作包测试矩阵做 datasheet 对照级验证（QEMU 无 802.11 模型：字节级向量走生产代码 + 枚举路径真实执行；厂商固件不随附，缺固件诚实 DOWN）；蓝牙在真实 16550 模拟硬件上端到端实测（tools/bt_test_peer.py 主机侧 H4 控制器对端），本批 E2E 自查发现并修复 8+ 个真实缺陷（HCI 异步事件完成与参数偏移、ACL/L2CAP 双帧发送、16550 FIFO 竞态、L2CAP CFG_REQ 越界、RFCOMM 体偏移与 C/R 门控、SDP 遍历器布局、夹具未清零、wp 字段差一字节）。门禁：0 errors 0 warnings；无线/蓝牙 E2E 32/32 BIOS + 32/32 UEFI；全量回归 28/28；dhtest 5/5；SSH 5/5；HTTPS 7/7；host_wifi_test 38/38；host_bt_test 22/22。121,697 行源码。",
+    },
     {
       name: "时间源四域落地（CMOS RTC / HPET / ACPI PM Timer / TSC）",
       tag: "WP-10-timer_rtc",

@@ -30,20 +30,22 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-10-timer_rtc)
+## Stats (WP-10-wireless_bluetooth)
 
-- **Source code**: 114,593 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
+- **Source code**: 121,697 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
   verify: `find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
-- **Work packages**: 17 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
-  WP-10d, WP-10-wp08fix1, WP-10-input_chipset, WP-10-timer_rtc) — one `## WP-*` section
-  each below (WP-10-input_chipset and WP-10-timer_rtc themselves are
+- **Work packages**: 18 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
+  WP-10d, WP-10-wp08fix1, WP-10-input_chipset, WP-10-timer_rtc,
+  WP-10-wireless_bluetooth) — one `## WP-*` section
+  each below (WP-10-input_chipset, WP-10-timer_rtc and
+  WP-10-wireless_bluetooth themselves are
   summarized in the Download section above; they have no separate `## WP-*` sections)
   + auxiliary batches (not counted as WPs): project restructure,
   WP-10d-fix2, WP-09-fix5, and the audit batches WP-AUDIT-01
   (+p0fix/p1fix) and WP-10-AUDIT_P2-fix1 / fix2 / fix2b / fix3 / fix4
-  / fix5 (fix5 untagged).  WP-10-input_chipset is the 16th and
-  WP-10-timer_rtc the 17th work package (counted above), not
-  auxiliary batches.
+  / fix5 (fix5 untagged).  WP-10-input_chipset is the 16th,
+  WP-10-timer_rtc the 17th and WP-10-wireless_bluetooth the 18th
+  work package (counted above), not auxiliary batches.
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
   `install` and `grub-install` - create A/B update disks, install the OS
   to a disk and write the GRUB BIOS boot loader entirely from the oc>
@@ -523,7 +525,37 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-10-timer_rtc)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-timer_rtc) — ISO + SRC zip
+- **Latest (WP-10-wireless_bluetooth)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-wireless_bluetooth) — ISO + SRC zip
+  (ISO sha256 `ISO_SHA_PLACEHOLDER`,
+  SRC sha256 `SRC_SHA_PLACEHOLDER`)
+  Batch summary: 802.11 core + seven wireless families (Intel iwlwifi,
+  Realtek rtl8188/8192/8821, Atheros ath9k/ath10k/ath11k, Broadcom
+  b43/brcmfmac with a real SDHCI/SDIO bus) + a full Bluetooth stack
+  (HCI, H4 UART on COM2, HCI-USB btusb, L2CAP, RFCOMM with real
+  CRC-8 FCS, SDP, SPP, HID), 2 new commands (wifi / bt, 196 -> 198,
+  additions only), gates 0/0 build, regression 28/28, dhtest 5/5,
+  SSH 5/5, HTTPS 7/7, batch E2E 32/32 BIOS + 32/32 UEFI (Bluetooth
+  verified end-to-end in QEMU against a real H4 UART peer;
+  datasheet-level verification for the wireless families - QEMU has
+  no 802.11 model), host_wifi_test 38/38, host_bt_test 22/22.
+  WP-10-wireless_bluetooth is the 18th work package (counted in the
+  Stats section above; like WP-10-input_chipset and WP-10-timer_rtc
+  it has no separate `## WP-*` section — details in
+  docs/EXTENSIONS_WP10-wireless_bluetooth.md).
+- **Previous (WP-10-timer_rtc)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-timer_rtc) — ISO + SRC zip
+  (ISO sha256 `4377112140a56e07c8e668c7e2a3d530a51aed570b40ceb8dad403c517aba32f`,
+  SRC sha256 `04489327a25770fad50ca974bdc7e37ddca42a8bb41c6b004d490bfa6eb21430`)
+  Batch summary: four time-source domains (CMOS RTC status + IRQ8
+  update-ended/periodic/alarm interrupts; HPET table + MMIO + one-shot/periodic
+  comparators on timer 1 via the legacy route; ACPI PM timer with 24-bit-masked
+  wrap arithmetic + PIT calibration; TSC with PIT/HPET/PMTimer three-reference
+  calibration + TSC-driven delay), 4 new commands (rtc / hpet / pmtimer / tsc,
+  192 -> 196, additions only), gates 0/0 build, regression 28/28, dhtest 5/5,
+  SSH 5/5, HTTPS 7/7, batch E2E 29/29 BIOS + 29/29 UEFI. WP-10-timer_rtc is
+  the 17th work package (counted in the Stats section above; like
+  WP-10-input_chipset it has no separate `## WP-*` section — details in
+  docs/EXTENSIONS_WP10-timer_rtc.md).
+- **Previous (WP-10-timer_rtc, 2026-10-13)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-timer_rtc) — ISO + SRC zip
   (ISO sha256 `4377112140a56e07c8e668c7e2a3d530a51aed570b40ceb8dad403c517aba32f`,
   SRC sha256 `04489327a25770fad50ca974bdc7e37ddca42a8bb41c6b004d490bfa6eb21430`)
   Batch summary: four time-source domains (CMOS RTC status + IRQ8

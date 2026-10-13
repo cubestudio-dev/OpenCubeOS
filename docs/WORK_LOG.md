@@ -143,3 +143,33 @@ public summary of the WP-09 closeout batches.
   pmtimer.width, docs/EXTENSIONS_WP10-timer_rtc.md (new), KNOWN_ISSUES
   section 12, TRY-IT section 7, STATUS record, website constants +
   home stats + i18n (zh+en), docs-zh README stats refresh.
+
+## Batch M (2026-10-13) — WP-10-wireless_bluetooth
+
+- G1: 802.11 core (drivers/wireless/driver_wireless.{c,h}) - frame
+  control/IE/beacon parsing, open-system auth+assoc, LLC/SNAP bridge,
+  family/device registry; tests/host_wifi_test.c 38/38 (found 5 real
+  defects during development).
+- G2: Intel iwlwifi + Realtek rtl8188/8192/8821 (PCIe + USB
+  vendor-request transport); wl_device_probe_all wired into main.c.
+- G3: Atheros ath9k/ath10k/ath11k (MAC map + descriptors; CE/HTC/BMI/
+  WMI-TLV; MHI/QMI encoders).
+- G4: SDHCI/SDIO bus (drivers/sd, real emulated hardware via QEMU
+  sdhci-pci) + Broadcom b43/brcmfmac; the 520 KiB static g_tcp_conns
+  table moved to the kernel heap (linker identity-window ASSERT;
+  image 3.49 MiB, 520 KiB headroom); regression 28/28 after the move.
+- G5+G6: Bluetooth stack (HCI core, H4 UART COM2/IRQ3, HCI-USB btusb,
+  L2CAP, RFCOMM with real CRC-8 FCS, SDP, SPP, HID).
+- G7: wifi/bt commands (Total 196 -> 198), bt_test_peer.py (host-side
+  H4 controller + remote device), wp10_wireless_bluetooth_e2e.py,
+  host_bt_test.c 22/22, regression baseline 196 -> 198.  The E2E loop
+  found and fixed: HCI async-event completion + parameter offsets,
+  double-framed ACL/L2CAP sends, the 16550 FIFO race (single-consumer
+  ring + trigger 1), L2CAP CFG_REQ overflow, RFCOMM body offset + C/R
+  gating, SDP walker layout/stride, non-zeroed iwlwifi fixtures,
+  WL_MAX_DEVICES 4 -> 8, shell wp[24] -> wp[32].
+- Gates: E2E 32/32 BIOS + 32/32 UEFI, regression 28/28, build 0/0.
+- Docs: README Stats (121,697 lines / 18 work packages / 198
+  commands), EXTENSIONS_WP10-wireless_bluetooth.md, INTERFACES,
+  MANIFEST, KNOWN_ISSUES section 13, TRY-IT section 8, STATUS record,
+  website numbers.

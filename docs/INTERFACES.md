@@ -151,12 +151,16 @@ DH truth vectors for self-test: kernel/crypto/crypto_dh_scale_vectors.h.
 
 ## 4. Shell command surface
 
-196 commands registered at boot (live count; `help` lists 196 unique and
-prints `Total: 196 commands`, `help -w` groups them by work-package tag).
-Section updated at WP-10-timer_rtc: the batch registered 4 new
+198 commands registered at boot (live count; `help` lists 198 unique and
+prints `Total: 198 commands`, `help -w` groups them by work-package tag).
+Section updated at WP-10-wireless_bluetooth: the batch registered 2 new
+commands (wifi, bt — shell/shell_cmds_wireless.c and shell/shell_cmds_bt.c)
+so the boot count moved 196 -> 198; nothing was removed (interface
+freeze = additions only).  shell.c's per-command `wp` tag field was
+widened 24 -> 32 bytes: "WP-10-wireless_bluetooth" plus NUL needs 25.
+Previous update at WP-10-timer_rtc: the batch registered 4 new
 time-source commands (rtc, hpet, pmtimer, tsc —
-shell/shell_cmds_timer.c) so the boot count moved 192 -> 196; nothing
-was removed (interface freeze = additions only).
+shell/shell_cmds_timer.c) so the boot count moved 192 -> 196.
 Previous update at WP-10-input_chipset: the batch registered 16 new
 chipset/input commands (acpi, acpidev, acpitest, acpipow, msitest,
 pcidump, pcibars, pcie, i2cdetect, i2cget, i2cset, i2ctest, smbus,
@@ -181,9 +185,11 @@ abdisk/install/grub-install/abcfg), shell/shell_cmds_disk_test.c 8
 shell/shell_cmds_power_test.c 7 (WP-10d-fix2 power + help test suite),
 shell/shell_cmds_chipset.c 16 (WP-10-input_chipset: 4 ACPI + 4
 PCIe/MSI + 4 I2C + 2 SMBus + 2 touchpad),
-shell/shell_cmds_timer.c 4 (WP-10-timer_rtc: rtc/hpet/pmtimer/tsc).
-56+16+18+7+4+8+18+17+10+9+6+7+16+4 = 196. Full list: type `help` at the
-`oc>` prompt.
+shell/shell_cmds_timer.c 4 (WP-10-timer_rtc: rtc/hpet/pmtimer/tsc),
+shell/shell_cmds_wireless.c 1 (WP-10-wireless_bluetooth: wifi),
+shell/shell_cmds_bt.c 1 (WP-10-wireless_bluetooth: bt).
+56+16+18+7+4+8+18+17+10+9+6+7+16+4+1+1 = 198. Full list: type `help`
+at the `oc>` prompt.
 
 ## 5. Verification of these interfaces
 
