@@ -244,3 +244,39 @@ client (WP-09 cipher scope); fix5 works against any server configured
 for the documented kernel cipher (tools/update_server.py).
 (Superseded 2026-10 by the mainstreamed TLS client: public HTTPS
 endpoints verified working - docs/KNOWN_ISSUES.md §5.2.)
+
+---
+
+## WP-10-input_chipset: input devices + chipset (2026-10-12)
+
+**Status: COMPLETE.** Five domains wired into the L0 kernel and
+exercised live in QEMU on both BIOS and UEFI boots: I2C-HID touchpad
+(gesture engine), PCI/PCIe (MMCONFIG + BAR + MSI/MSI-X over the xAPIC
+path), ACPI (RSDT/XSDT/FADT/MADT/MCFG/HPET + minimal AML interpreter +
+S3/S4/S5 + SCI/GPE), SMBus (full protocol layer incl. block), I2C
+(PIIX4 + i801 + DesignWare backends). 16 new shell commands
+(Total 176 -> 192, additions only).
+
+| Criterion | Status |
+|---|---|
+| Compiles 0 errors / 0 warnings (-Werror) | OK (clean rebuild) |
+| ISO builds; BIOS + UEFI boot | OK |
+| Five-domain E2E (tools/wp10_chipset_e2e.py) | OK (28/28 BIOS + 28/28 UEFI) |
+| Full regression (tools/run_fix4_regression.py) | OK (28/28; command-count baseline 176 -> 192 documented) |
+| dhtest | OK (5/5, TCG) |
+| cryptotest NIST | OK (4/4) |
+| fstest | OK (p2 ALL PASS + p1fix4 ALL PASS) |
+| SSH E2E | OK (5/5) |
+| HTTPS E2E | OK (7/7) |
+| Interfaces frozen (commands added, none removed) | OK (help -a re-verified live) |
+| Extension contract (header + comments + default impl + docs) | OK (docs/EXTENSIONS_WP10-input_chipset.md) |
+| License restored to the official Apache-2.0 text | OK (byte-diff vs apache.org: appendix copyright line only) |
+| SPDX coverage | OK (0 files without the header) |
+
+Honest notes: QEMU ships no I2C-HID or DesignWare models, so the
+touchpad pipeline is proven by the synthetic touchtest fixtures + the
+host regression (tests/host_i2chid_touch_test.c) and DesignWare is
+skipped honestly when absent; process-call is unsupported by design
+(non-atomic decomposition would corrupt EEPROMs). Eleven live-boot
+defects found by the gate are documented with root causes in
+docs/EXTENSIONS_WP10-input_chipset.md §4.
