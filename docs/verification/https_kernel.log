@@ -1,0 +1,294 @@
+[runner] starting QEMU: opencube.iso
+[runner] will run 2 command(s): ['wget https://10.0.2.2:8443/hello.txt', 'cat /wget_https.html']
+[H[J[1;1H[m[mGFXTERM_INIT
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS - WP-09                                                       [m[5;78H[m[m[6;3H                                                                            [m[6;78H[m[m[7;3H                                                                            [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS - WP-09'
+
+
+[oc] Open Cube OS WP-09 kmain entered
+  Open Cube OS  [WP-09]    Open Cube OS - L0 kernel (WP-09)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.010] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.010] exception self-test............................... OK
+[00:00:00.020] PMM (physical memory manager)..................... OK
+[00:00:00.020] VMM (virtual memory manager)...................... OK
+[00:00:00.020] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.020] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.020] sync primitives (spinlock/sem/mutex/cond)......... OK
+[00:00:00.020] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.020] shell command system (68 commands)................ OK
+[00:00:00.020] userspace (ring 3, syscalls, ELF loader).......... OK
+[00:00:00.030] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.030] ramfs (in-memory file system, mounted at /)....... OK
+[00:00:00.100] ATA/IDE PIO driver (LBA28)........................ OK
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+nvme: no controller found
+[00:00:00.150] virtio-blk + NVMe drivers......................... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.190] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+[00:00:00.210] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=3 func=0 cmd=0x0103
+ dev=3 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
+[00:00:00.270] network stack (e1000 + TCP/IP + socket API)....... OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:00.300] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131040 pages, 130342 free
+[00:00:00.320] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + callable)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create: PASS (no process to track — expected during boot)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:00.500] boot complete..................................... OK
+
+Open Cube OS WP-09 ready. Type 'help' for commands.
+(Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)
+
+oc> [runner] boot complete (5659 chars)
+[runner] sending: wget https://10.0.2.2:8443/hello.txt
+wget https://10.0.2.2:8443/hello.txt
+Connecting to 10.0.2.2:8443/hello.txt (TLS)
+[tls] connecting...
+[tls] TCP connected
+[tls] sent ClientHello
+[tcp] in-order: seq=832002 len=1424
+[tls] read record type=16 len=74
+[tls] got ServerHello (cipher 0x0067)
+[tls] read record type=16 len=799
+[tls] got Certificate (skipped)
+[tls] read record type=16 len=527
+[tls]   server p (first 16): ffffffffffffffffc90fdaa22168c234
+[tls]   Ys (first 8): 982d5d9c6f93d2d3
+[tls] read record type=16 len=4
+[tls] got ServerHelloDone
+[tls] computing Yc = g^x mod p (DH modexp, ~3s)...
+[tls]   Yc (first 8): b140d86f6118c0b5
+[tls] computing premaster = Ys^x mod p (DH modexp, ~3s)...
+[tls]   Ys (128): 982d5d9c6f93d2d35f5018106204181b69d01145c1162a8e5b80557677ead318c86f60c66def1129424ce2877bc709b6f79604da1910b99038975ec0f7eb4b360533aa3654a992437ac39f4cfaf2c30786bccb4ea54bbbd87105c7e5ca019449279a1fba448479d328d7
+[tls]   client_priv (32 of 128): 0c3836f2b2bbba17b834c8203cc85f0f2c5ed2bb25996c1dfa3941b17831fafa
+[tls]   Yc (128): b140d86f6118c0b5e7328eafe95b3b53cd419e3914b84e6842996165355362d3aebba9707ba678d3ce9631bafce842ba592187cdae320450c7303de40a915e9ed79cbae22ee570bf7a0b1a8c05fa5b2b173984cf11a52d976902e05058c254c0abe0a60f41bd9bcbf0d4
+[tls]   premaster (128): e4817e07aee1751dcb916798cae2d6692bb62c7756327d042e84d82f175077478292a96668dcb60aa5f1397dca0922bfc3900bdf739e8378907fe720719cc9f95f79191e21ee3b6d80464800675720f4863a888e93cf852789d6c9e7a5f1591106f9042e39b842
+[tls]   premaster (first 8): e4817e07aee1751d
+[tls] sent ClientKeyExchange
+[tls]   master_secret (first 8): eee22ddc98d45346
+[tls]   master_secret (48): eee22ddc98d45346cf8fc09d2d0d4b8fe86dc85be88798fdf825b84e257fe42a28b827b556a3477ae6602aac769feb7e
+[tls]   client_random (32): 458e4d96b6650fd7fb6c98e31d91490f344f57ed09c0b18df8b3e74ff795bf50
+[tls]   server_random (32): 80b618e97708b5212a5c41ba4b8ea50942d347955947965638e4c2ed22d38383
+[tls]   premaster (32 of 128): e4817e07aee1751dcb916798cae2d6692bb62c7756327d042e84d82f17507747
+[tls] derived keys (128 bytes key material)
+[tls] sent ChangeCipherSpec
+[tls]   handshake_log_len=1599
+[tls]   SHA256(handshake_log): 13bd9482787978343b3572e94d34e2e359a253c08ddd17b36e26f349ec700f7b
+[tls]   verify_data (12): 82dc3fb44557ae354f6e84c0
+[tls]   AES key: 6d17cd5256721159f4571375ecfc64d4
+[tls]   IV (rand): ffe0d8a95a066f12d58387afb92bd388
+[tls]   MAC key (32): 3a13343770a5acca0387637d3ed87e61476f96291cde5fe7794f2d53a43234c8
+[tls]   MAC computed (32): 778f7e33b2653d848e68125b41fa563b194f8b3b288be9ed1c639041b0267689
+[tls]   plain[0..15] (data): 1400000c82dc3fb44557ae354f6e84c0
+[tls]   plain[16..47] (MAC): 778f7e33b2653d848e68125b41fa563b194f8b3b288be9ed1c639041b0267689
+[tls]   plain[48..63] (pad): 0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+[tls]   encrypted[0..15]: 8e5c3e772e7e5215d5ea339d7ad59a8d
+[tls] sent Finished (encrypted)
+[tcp] in-order: seq=833426 len=91
+[tls] read record type=14 len=1
+[tls] got server ChangeCipherSpec
+[tls] read record type=16 len=80
+[tls] got server Finished
+[tls] handshake complete
+[tls]   AES key: 6d17cd5256721159f4571375ecfc64d4
+[tls]   IV (rand): 40426588cac1a6c04386150cda7d92f3
+[tls]   MAC key (32): 3a13343770a5acca0387637d3ed87e61476f96291cde5fe7794f2d53a43234c8
+[tls]   MAC computed (32): 9486fede53179ade3f669a7f8cfb88e7e4dc64e36308ca7935a2377fc212c0cb
+[tls]   plain[0..15] (data): 474554202f68656c6c6f2e7478742048
+[tls]   plain[16..47] (MAC): 5454502f312e300d0a486f73743a2031302e302e322e320d0a0d0a9486fede53
+[tls]   plain[48..63] (pad): 179ade3f669a7f8cfb88e7e4dc64e363
+[tls]   encrypted[0..15]: d9beea025701c6ef17f04a9977a19803
+[tcp] in-order: seq=833517 len=234
+[tls] read record type=17 len=160
+[tls] read record type=15 len=64
+Saved 24 bytes to /wget_https.html
+oc> [runner] got 3785 chars for 'wget https://10.0.2.2:8443/hello.txt'
+[runner] sending: cat /wget_https.html
+cat /wget_https.html
+hello-from-opencube-tls
+oc> [runner] got 26 chars for 'cat /wget_https.html'
+============================================================
+--- [BOOT] ---
+GFXTERM_INIT
+GNU GRUB  version 2.12-9+deb13u2
+
++----------------------------------------------------------------------------+||||||||||||||||||||||||+----------------------------------------------------------------------------+     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                            *Open Cube OS - WP-09                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               The highlighted entry will be executed automatically in 5s.                    The highlighted entry will be executed automatically in 4s.                    The highlighted entry will be executed automatically in 3s.                    The highlighted entry will be executed automatically in 2s.                    The highlighted entry will be executed automatically in 1s.                    The highlighted entry will be executed automatically in 0s.                   Booting `Open Cube OS - WP-09'
+
+
+[oc] Open Cube OS WP-09 kmain entered
+  Open Cube OS  [WP-09]    Open Cube OS - L0 kernel (WP-09)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.010] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.010] exception self-test............................... OK
+[00:00:00.020] PMM (physical memory manager)..................... OK
+[00:00:00.020] VMM (virtual memory manager)...................... OK
+[00:00:00.020] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.020] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.020] sync primitives (spinlock/sem/mutex/cond)......... OK
+[00:00:00.020] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.020] shell command system (68 commands)................ OK
+[00:00:00.020] userspace (ring 3, syscalls, ELF loader).......... OK
+[00:00:00.030] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.030] ramfs (in-memory file system, mounted at /)....... OK
+[00:00:00.100] ATA/IDE PIO driver (LBA28)........................ OK
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+nvme: no controller found
+[00:00:00.150] virtio-blk + NVMe drivers......................... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.190] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+[00:00:00.210] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=3 func=0 cmd=0x0103
+ dev=3 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
+[00:00:00.270] network stack (e1000 + TCP/IP + socket API)....... OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:00.300] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131040 pages, 130342 free
+[00:00:00.320] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + callable)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create: PASS (no process to track — expected during boot)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:00.500] boot complete..................................... OK
+
+Open Cube OS WP-09 ready. Type 'help' for commands.
+(Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)
+--- [wget https://10.0.2.2:8443/hello.txt] ---
+Connecting to 10.0.2.2:8443/hello.txt (TLS)
+[tls] connecting...
+[tls] TCP connected
+[tls] sent ClientHello
+[tcp] in-order: seq=832002 len=1424
+[tls] read record type=16 len=74
+[tls] got ServerHello (cipher 0x0067)
+[tls] read record type=16 len=799
+[tls] got Certificate (skipped)
+[tls] read record type=16 len=527
+[tls]   server p (first 16): ffffffffffffffffc90fdaa22168c234
+[tls]   Ys (first 8): 982d5d9c6f93d2d3
+[tls] read record type=16 len=4
+[tls] got ServerHelloDone
+[tls] computing Yc = g^x mod p (DH modexp, ~3s)...
+[tls]   Yc (first 8): b140d86f6118c0b5
+[tls] computing premaster = Ys^x mod p (DH modexp, ~3s)...
+[tls]   Ys (128): 982d5d9c6f93d2d35f5018106204181b69d01145c1162a8e5b80557677ead318c86f60c66def1129424ce2877bc709b6f79604da1910b99038975ec0f7eb4b360533aa3654a992437ac39f4cfaf2c30786bccb4ea54bbbd87105c7e5ca019449279a1fba448479d328d7
+[tls]   client_priv (32 of 128): 0c3836f2b2bbba17b834c8203cc85f0f2c5ed2bb25996c1dfa3941b17831fafa
+[tls]   Yc (128): b140d86f6118c0b5e7328eafe95b3b53cd419e3914b84e6842996165355362d3aebba9707ba678d3ce9631bafce842ba592187cdae320450c7303de40a915e9ed79cbae22ee570bf7a0b1a8c05fa5b2b173984cf11a52d976902e05058c254c0abe0a60f41bd9bcbf0d4
+[tls]   premaster (128): e4817e07aee1751dcb916798cae2d6692bb62c7756327d042e84d82f175077478292a96668dcb60aa5f1397dca0922bfc3900bdf739e8378907fe720719cc9f95f79191e21ee3b6d80464800675720f4863a888e93cf852789d6c9e7a5f1591106f9042e39b842
+[tls]   premaster (first 8): e4817e07aee1751d
+[tls] sent ClientKeyExchange
+[tls]   master_secret (first 8): eee22ddc98d45346
+[tls]   master_secret (48): eee22ddc98d45346cf8fc09d2d0d4b8fe86dc85be88798fdf825b84e257fe42a28b827b556a3477ae6602aac769feb7e
+[tls]   client_random (32): 458e4d96b6650fd7fb6c98e31d91490f344f57ed09c0b18df8b3e74ff795bf50
+[tls]   server_random (32): 80b618e97708b5212a5c41ba4b8ea50942d347955947965638e4c2ed22d38383
+[tls]   premaster (32 of 128): e4817e07aee1751dcb916798cae2d6692bb62c7756327d042e84d82f17507747
+[tls] derived keys (128 bytes key material)
+[tls] sent ChangeCipherSpec
+[tls]   handshake_log_len=1599
+[tls]   SHA256(handshake_log): 13bd9482787978343b3572e94d34e2e359a253c08ddd17b36e26f349ec700f7b
+[tls]   verify_data (12): 82dc3fb44557ae354f6e84c0
+[tls]   AES key: 6d17cd5256721159f4571375ecfc64d4
+[tls]   IV (rand): ffe0d8a95a066f12d58387afb92bd388
+[tls]   MAC key (32): 3a13343770a5acca0387637d3ed87e61476f96291cde5fe7794f2d53a43234c8
+[tls]   MAC computed (32): 778f7e33b2653d848e68125b41fa563b194f8b3b288be9ed1c639041b0267689
+[tls]   plain[0..15] (data): 1400000c82dc3fb44557ae354f6e84c0
+[tls]   plain[16..47] (MAC): 778f7e33b2653d848e68125b41fa563b194f8b3b288be9ed1c639041b0267689
+[tls]   plain[48..63] (pad): 0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+[tls]   encrypted[0..15]: 8e5c3e772e7e5215d5ea339d7ad59a8d
+[tls] sent Finished (encrypted)
+[tcp] in-order: seq=833426 len=91
+[tls] read record type=14 len=1
+[tls] got server ChangeCipherSpec
+[tls] read record type=16 len=80
+[tls] got server Finished
+[tls] handshake complete
+[tls]   AES key: 6d17cd5256721159f4571375ecfc64d4
+[tls]   IV (rand): 40426588cac1a6c04386150cda7d92f3
+[tls]   MAC key (32): 3a13343770a5acca0387637d3ed87e61476f96291cde5fe7794f2d53a43234c8
+[tls]   MAC computed (32): 9486fede53179ade3f669a7f8cfb88e7e4dc64e36308ca7935a2377fc212c0cb
+[tls]   plain[0..15] (data): 474554202f68656c6c6f2e7478742048
+[tls]   plain[16..47] (MAC): 5454502f312e300d0a486f73743a2031302e302e322e320d0a0d0a9486fede53
+[tls]   plain[48..63] (pad): 179ade3f669a7f8cfb88e7e4dc64e363
+[tls]   encrypted[0..15]: d9beea025701c6ef17f04a9977a19803
+[tcp] in-order: seq=833517 len=234
+[tls] read record type=17 len=160
+[tls] read record type=15 len=64
+Saved 24 bytes to /wget_https.html
+--- [cat /wget_https.html] ---
+hello-from-opencube-tls

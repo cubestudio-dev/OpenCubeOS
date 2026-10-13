@@ -1,0 +1,215 @@
+[runner] starting QEMU: opencube.iso
+[runner] will run 1 command(s): ['dhtest']
+[H[J[1;1H[m[mGFXTERM_INIT
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS - WP-09                                                       [m[5;78H[m[m[6;3H                                                                            [m[6;78H[m[m[7;3H                                                                            [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS - WP-09'
+
+
+[oc] Open Cube OS WP-09 kmain entered
+  Open Cube OS  [WP-09]    Open Cube OS - L0 kernel (WP-09)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.010] PMM (physical memory manager)..................... OK
+[00:00:00.010] VMM (virtual memory manager)...................... OK
+[00:00:00.010] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.010] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.010] sync primitives (spinlock/sem/mutex/cond)......... OK
+[00:00:00.010] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.010] shell command system (68 commands)................ OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+[00:00:00.020] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.020] ramfs (in-memory file system, mounted at /)....... OK
+[00:00:00.090] ATA/IDE PIO driver (LBA28)........................ OK
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+nvme: no controller found
+[00:00:00.140] virtio-blk + NVMe drivers......................... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.180] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+[00:00:00.200] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=3 func=0 cmd=0x0103
+ dev=3 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
+[00:00:00.260] network stack (e1000 + TCP/IP + socket API)....... OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:00.290] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131040 pages, 130342 free
+[00:00:00.310] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + callable)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create: PASS (no process to track — expected during boot)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:00.490] boot complete..................................... OK
+
+Open Cube OS WP-09 ready. Type 'help' for commands.
+(Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)
+
+oc> [runner] boot complete (5659 chars)
+[runner] sending: dhtest
+dhtest
+DH modexp self-test (Oakley Group 1, 1024-bit):
+  g^0 mod p = 00000001 (expect ...0001)  PASS
+  1^x mod p = 00000001 (expect ...0001)  PASS
+  Computing g^x mod p (timing)...
+  g^x mod p = 933b2b3a5df3bc4d3869049c9ed0684a...
+  Time: 3230 ms
+  premaster (first 16): 2854dbf26d66643bb391033f851417be
+  TLS KEX (2 modexp) time: 6930 ms (premaster non-zero)
+DH group14 (2048-bit) fixed-vector truth tests:
+  g^x mod p14 = e  -> PASS  (got 32a09a91..., expect 32A09A91...)
+  determinism (3 runs): IDENTICAL
+  f^x mod p14 = K2 -> PASS  (got 5962870f..., expect 5962870F...)
+  2048-bit modexp time: 10200 / 0 ms
+DH modexp scale sweep (truth vectors, python3 pow()):
+  len=8: PASS  got 1f8c25fe... expect 1f8c25fe...
+  len=16: PASS  got 5ab910ce... expect 5ab910ce...
+  len=32: PASS  got 4a2f13c1... expect 4a2f13c1...
+  len=64: PASS  got 10ad3f1b... expect 10ad3f1b...
+  len=128: PASS  got 3ca32c36... expect 3ca32c36...
+  len=256: PASS  got a7f3a565... expect a7f3a565...
+  5/5 correctness tests passed
+oc> [runner] got 1038 chars for 'dhtest'
+
+============================================================
+OUTPUT SUMMARY
+============================================================
+
+--- [BOOT] ---
+GFXTERM_INIT
+GNU GRUB  version 2.12-9+deb13u2
+
++----------------------------------------------------------------------------+||||||||||||||||||||||||+----------------------------------------------------------------------------+     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                            *Open Cube OS - WP-09                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               The highlighted entry will be executed automatically in 5s.                    The highlighted entry will be executed automatically in 4s.                    The highlighted entry will be executed automatically in 3s.                    The highlighted entry will be executed automatically in 2s.                    The highlighted entry will be executed automatically in 1s.                    The highlighted entry will be executed automatically in 0s.                   Booting `Open Cube OS - WP-09'
+
+
+[oc] Open Cube OS WP-09 kmain entered
+  Open Cube OS  [WP-09]    Open Cube OS - L0 kernel (WP-09)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.010] PMM (physical memory manager)..................... OK
+[00:00:00.010] VMM (virtual memory manager)...................... OK
+[00:00:00.010] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.010] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.010] sync primitives (spinlock/sem/mutex/cond)......... OK
+[00:00:00.010] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.010] shell command system (68 commands)................ OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+[00:00:00.020] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.020] ramfs (in-memory file system, mounted at /)....... OK
+[00:00:00.090] ATA/IDE PIO driver (LBA28)........................ OK
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+nvme: no controller found
+[00:00:00.140] virtio-blk + NVMe drivers......................... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.180] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+[00:00:00.200] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=3 func=0 cmd=0x0103
+ dev=3 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
+[00:00:00.260] network stack (e1000 + TCP/IP + socket API)....... OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:00.290] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131040 pages, 130342 free
+[00:00:00.310] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + callable)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create: PASS (no process to track — expected during boot)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:00.490] boot complete..................................... OK
+
+Open Cube OS WP-09 ready. Type 'help' for commands.
+(Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)
+
+--- [dhtest] ---
+DH modexp self-test (Oakley Group 1, 1024-bit):
+  g^0 mod p = 00000001 (expect ...0001)  PASS
+  1^x mod p = 00000001 (expect ...0001)  PASS
+  Computing g^x mod p (timing)...
+  g^x mod p = 933b2b3a5df3bc4d3869049c9ed0684a...
+  Time: 3230 ms
+  premaster (first 16): 2854dbf26d66643bb391033f851417be
+  TLS KEX (2 modexp) time: 6930 ms (premaster non-zero)
+DH group14 (2048-bit) fixed-vector truth tests:
+  g^x mod p14 = e  -> PASS  (got 32a09a91..., expect 32A09A91...)
+  determinism (3 runs): IDENTICAL
+  f^x mod p14 = K2 -> PASS  (got 5962870f..., expect 5962870F...)
+  2048-bit modexp time: 10200 / 0 ms
+DH modexp scale sweep (truth vectors, python3 pow()):
+  len=8: PASS  got 1f8c25fe... expect 1f8c25fe...
+  len=16: PASS  got 5ab910ce... expect 5ab910ce...
+  len=32: PASS  got 4a2f13c1... expect 4a2f13c1...
+  len=64: PASS  got 10ad3f1b... expect 10ad3f1b...
+  len=128: PASS  got 3ca32c36... expect 3ca32c36...
+  len=256: PASS  got a7f3a565... expect a7f3a565...
+  5/5 correctness tests passed

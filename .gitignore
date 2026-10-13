@@ -20,6 +20,10 @@ audit-test-*
 wp08a-test-*
 *.log
 *.pcap
+# docs/verification/ ships in every SRC zip AND in the public tree per
+# docs/RELEASE_PACKAGING.md finding #4 (WP-10-AUDIT_P2-fix2: verification
+# logs are public artifacts) - exempt it from the *.log rule above.
+!docs/verification/*.log
 
 # Screenshots
 web-*.png
