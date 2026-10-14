@@ -1,10 +1,10 @@
 {
-  "version": "WP-10-wireless_bluetooth",
-  "build": 174,
-  "time": "2026-10-13",
-  "changes": "802.11 core + 7 families (iwl/rtl/ath/brcm), BT stack HCI/L2CAP/RFCOMM/SPP/HID; 2 new cmds (198 total)",
+  "version": "WP-10-camera_misc",
+  "build": 193,
+  "time": "2026-10-14",
+  "changes": "UVC cameras (JPEG/YUY2) + parallel + game port + infrared + SCSI (LSI 53C895A); 10 new cmds (208 total)",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-wireless_bluetooth-update.tar.gz",
-  "package_sha256": "f28057832a20423f3ff4defda997a4ed29695f0e3debd291f1c719411022e371",
-  "package_size": 680824
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-camera_misc-update.tar.gz",
+  "package_sha256": "2fd0a69e49471bbb58e1856f98202d558bfeb5e02d208b7b49e18457e8ab32ef",
+  "package_size": 711844
 }

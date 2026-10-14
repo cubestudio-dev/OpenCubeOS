@@ -65,7 +65,8 @@ CHECKS = [
     # tag form (release builds bake the tag name verbatim).
     # WP-10-timer_rtc adds the timer_rtc tag form.
     # WP-10-wireless_bluetooth adds the wireless_bluetooth tag form.
-    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc|wireless_bluetooth)"),
+    # WP-10-camera_misc adds the camera_misc tag form.
+    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc|wireless_bluetooth|camera_misc)"),
     ("heaptest pass",            r"heaptest.*PASS|heap test.*PASS"),
     ("fstest pass",              r"fstest.*(PASS|OK)|VFS self-test.*PASS"),
     ("cryptotest NIST pass",     r"[Cc]rypto self-test.*pass|cryptotest.*PASS|All \d+ NIST"),

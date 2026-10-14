@@ -12,10 +12,10 @@ WP-10-camera_misc (UVC cameras + IEEE 1284 parallel + game port + infrared + SCS
 oc-os/                        ← repository root
 ├── boot/                     ← boot assembly (5 files: .S + headers)
 ├── kernel/                   ← kernel source (79 files: .c + .h + .S, incl. WP-09 crypto/ssh/sshd/tls + WP-10a storage + WP-10b NIC drivers + WP-10-timer_rtc time sources)
-├── drivers/                  ← device drivers (11 subdirs: block, nic, snd, usb, input, display, pci, acpi, i2c, time + NEW wireless(10)/bluetooth(9)/sd(2) from WP-10-wireless_bluetooth)
+├── drivers/                  ← device drivers (16 subdirs: block, nic, snd, usb, input, display, pci, acpi, i2c, time, wireless(10)/bluetooth(9)/sd(2) from WP-10-wireless_bluetooth + camera(6)/misc(6: parallel, gameport, ir)/scsi(4) from WP-10-camera_misc)
 ├── userprogs/                ← user programs (.c/.asm/.ld — 31 files)
-├── tools/                    ← build/test scripts (43 files, public)
-├── docs/                     ← documentation (44 files)
+├── tools/                    ← build/test scripts (50 files, public)
+├── docs/                     ← documentation (37 files + audit/ + verification/)
 ├── build/                    ← build artifacts (opencube.elf + .o files) — gitignored
 ├── archive/                  ← archived old versions (see archive/README.md)
 │   └── old-ldso/             ← Batch 2 assembly ld.so (only tracked subdir)
