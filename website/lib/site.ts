@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10-timer_rtc value
+// Central site data. Every number is a real WP-10-camera_misc value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
 // docs/EXTENSIONS_WP10-timer_rtc.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub WP-10-timer_rtc tag + this site /downloads/
+// 3-way identical: local build + GitHub WP-10-camera_misc tag + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-wireless_bluetooth";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-camera_misc";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub WP-10-wireless_bluetooth tag + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-10-wireless_bluetooth.iso";
-export const ISO_SIZE_B = 11634688;
-export const ISO_SIZE_MB = "11.09";
+// Real assets (build/ + GitHub WP-10-camera_misc tag + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-WP-10-camera_misc.iso";
+export const ISO_SIZE_B = 11692032;
+export const ISO_SIZE_MB = "11.15";
 export const ISO_SHA256 =
-  "1e609eef7517f8e89cc6d6b824f7440548b13d76beeae86b92a2292e6bb5d1a1";
+  "a07183ac4c635cde9484183e50e3e81cd847eba5ffcf43502c5d537ffa6f8e2e";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-10-wireless_bluetooth-src.zip";
-export const SRC_SIZE_B = 2962653;
-export const SRC_SIZE_MB = "2.83";
+export const SRC_FILE = "opencube-WP-10-camera_misc-src.zip";
+export const SRC_SIZE_B = 4354300;
+export const SRC_SIZE_MB = "4.15";
 export const SRC_SHA256 =
-  "888b8da80a02c3c928be6dceb875b06c6279df220a7adb4ea81af5a935c12d85";
+  "4a32b71a9684d411bab5580fd350e8c4d3e9b7c70cdbe6f7079a7c1cb6e0bcd6";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // NOTE: the former STATS export lived here unreferenced (A18-5): HomeView

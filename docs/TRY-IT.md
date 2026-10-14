@@ -369,3 +369,38 @@ The Bluetooth flow is genuinely end-to-end: the kernel's H4 UART driver
 exchanges real bytes with a host-side controller peer
 (tools/bt_test_peer.py; the E2E driver wires it to QEMU's second
 serial port automatically).
+
+## 9. Cameras, parallel, game port, infrared, SCSI (WP-10-camera_misc)
+
+Boot the ISO with the SCSI model and the parallel capture file:
+
+```
+qemu-system-x86_64 -m 512M -cdrom opencube.iso -boot d \
+  -device lsi,id=scsi0 \
+  -drive if=none,id=sd0,format=raw,file=disk.img \
+  -device scsi-hd,drive=sd0,bus=scsi0.0 \
+  -parallel file:parallel-out.txt
+```
+
+| command | what you should see |
+|---|---|
+| `scsi` | `scsi HBAs: 1` + `lsi0 (initiator id 7)` + `sda: target 0 lun 0 disk "QEMU QEMU HARDDISK" spc3 131072x512 blk=0` |
+| `scsitest` | CDB goldens, parser checks, then live checks ending `scsitest: 0 failures - PASS` (INQUIRY, READ CAPACITY vs blk, a WRITE/READ round trip on the last sector with the original content restored, LBA 0 through blk vs raw SCSI) |
+| `lsblk` | `sda` in the block table (64 MiB, from the scsi-hd image) |
+| `paralleltest` | 10 checks ending `paralleltest: 0 failures - PASS`; 'OPENCUBE' lands in parallel-out.txt |
+| `parallel` | LPT candidates + the probed port + current mode |
+| `uvctest` | 30/30 checks against the built-in spec fixtures (byte-exact JPEG + UVC 1.1 descriptors) |
+| `uvc` | `camera subsystem: 0 cameras` (honest: QEMU ships no camera) |
+| `gameporttest` | pure-function checks PASS; live steps honestly skipped (QEMU has no game port) |
+| `irtest` | NEC/RC-5/RC-6/SIRC round trips + known-answer vectors ending `irtest: 0 failures - PASS`; live SIR loopback on the emulated 16550 |
+| `ir` | registry status (CIR honestly absent, SIR when the 16550 probe binds) |
+
+Troubleshooting:
+
+| symptom | cause / fix |
+|---|---|
+| `scsi HBAs: 0` | no LSI device: add `-device lsi,id=scsi0` |
+| `scsi devices: 0` | no disk behind the HBA: add the `-drive if=none...` + `-device scsi-hd...` pair |
+| `scsitest` rw check fails | the test writes the LAST sector of the disk - use a scratch image, not your install disk |
+| parallel-out.txt empty | add `-parallel file:parallel-out.txt` |
+| `camera subsystem: 0 cameras` | QEMU models no UVC camera - honest state, parser verified by fixtures |

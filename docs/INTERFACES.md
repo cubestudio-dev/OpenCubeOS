@@ -4,10 +4,11 @@
 # Open Cube OS — Interface Index
 
 Interface numbering 1-138 closed as of WP-10-wp08fix1; counts re-verified
-2026-10-09 at WP-10-AUDIT_P2-fix3.  WP-10-timer_rtc (like
-WP-10-input_chipset) adds kernel driver APIs + shell commands and keeps
-the numbered L1 set closed at 138; the new driver APIs are listed in
-docs/EXTENSIONS_WP10-timer_rtc.md.
+2026-10-14 at WP-10-camera_misc.  WP-10-wireless_bluetooth, WP-10-camera_misc
+(like WP-10-timer_rtc / WP-10-input_chipset) add kernel driver APIs + shell
+commands and keep the numbered L1 set closed at 138; the new driver APIs are
+listed in docs/EXTENSIONS_WP10-wireless_bluetooth.md and
+docs/EXTENSIONS_WP10-camera_misc.md.
 
 Single-page index of every interface Open Cube OS exposes to upper layers
 (L1) and to the shell. Signatures are copied verbatim from the headers —
@@ -151,12 +152,17 @@ DH truth vectors for self-test: kernel/crypto/crypto_dh_scale_vectors.h.
 
 ## 4. Shell command surface
 
-198 commands registered at boot (live count; `help` lists 198 unique and
-prints `Total: 198 commands`, `help -w` groups them by work-package tag).
-Section updated at WP-10-wireless_bluetooth: the batch registered 2 new
+208 commands registered at boot (live count; `help` lists 208 unique and
+prints `Total: 208 commands`, `help -w` groups them by work-package tag).
+Section updated at WP-10-camera_misc: the batch registered 10 new commands
+(uvc, uvctest — shell/shell_cmds_camera.c; parallel, paralleltest,
+gameport, gameporttest — shell/shell_cmds_pargame.c; ir, irtest —
+shell/shell_cmds_ir.c; scsi, scsitest — shell/shell_cmds_scsi.c) so the
+boot count moved 198 -> 208; nothing was removed (interface freeze =
+additions only).  shell.h's SHELL_MAX_COMMANDS was widened 208 -> 224.
+Previous update at WP-10-wireless_bluetooth: the batch registered 2 new
 commands (wifi, bt — shell/shell_cmds_wireless.c and shell/shell_cmds_bt.c)
-so the boot count moved 196 -> 198; nothing was removed (interface
-freeze = additions only).  shell.c's per-command `wp` tag field was
+so the boot count moved 196 -> 198.  shell.c's per-command `wp` tag field was
 widened 24 -> 32 bytes: "WP-10-wireless_bluetooth" plus NUL needs 25.
 Previous update at WP-10-timer_rtc: the batch registered 4 new
 time-source commands (rtc, hpet, pmtimer, tsc —
@@ -187,9 +193,13 @@ shell/shell_cmds_chipset.c 16 (WP-10-input_chipset: 4 ACPI + 4
 PCIe/MSI + 4 I2C + 2 SMBus + 2 touchpad),
 shell/shell_cmds_timer.c 4 (WP-10-timer_rtc: rtc/hpet/pmtimer/tsc),
 shell/shell_cmds_wireless.c 1 (WP-10-wireless_bluetooth: wifi),
-shell/shell_cmds_bt.c 1 (WP-10-wireless_bluetooth: bt).
-56+16+18+7+4+8+18+17+10+9+6+7+16+4+1+1 = 198. Full list: type `help`
-at the `oc>` prompt.
+shell/shell_cmds_bt.c 1 (WP-10-wireless_bluetooth: bt),
+shell/shell_cmds_camera.c 2 (WP-10-camera_misc: uvc/uvctest),
+shell/shell_cmds_pargame.c 4 (WP-10-camera_misc: parallel/paralleltest/
+gameport/gameporttest), shell/shell_cmds_ir.c 2 (WP-10-camera_misc:
+ir/irtest), shell/shell_cmds_scsi.c 2 (WP-10-camera_misc: scsi/scsitest).
+56+16+18+7+4+8+18+17+10+9+6+7+16+4+1+1+2+4+2+2 = 208. Full list: type
+`help` at the `oc>` prompt.
 
 ## 5. Verification of these interfaces
 

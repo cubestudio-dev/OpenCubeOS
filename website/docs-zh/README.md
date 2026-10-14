@@ -31,14 +31,16 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 - L0 采用 Apache 2.0 许可。
 - 设计原则："一切皆可扩展"。
 
-## 统计（WP-10-wireless_bluetooth）
+## 统计（WP-10-camera_misc）
 
-- **源码**：121,697 行（kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs，
+- **源码**：128,275 行（kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs，
   含头文件，不含文档；
   验证：`find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`）
-- **工作包**：18 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c、
-  WP-10d、WP-10-wp08fix1、WP-10-input_chipset、WP-10-timer_rtc）——
-  下方每包一个 `## WP-*` 小节（WP-10-input_chipset 与 WP-10-timer_rtc
+- **工作包**：19 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c、
+  WP-10d、WP-10-wp08fix1、WP-10-input_chipset、WP-10-timer_rtc、
+  WP-10-wireless_bluetooth、WP-10-camera_misc）——
+  下方每包一个 `## WP-*` 小节（WP-10-input_chipset、WP-10-timer_rtc、
+  WP-10-wireless_bluetooth 与 WP-10-camera_misc
   汇总于上方 Download 小节，无独立 `## WP-*` 小节）
   + 辅助批次（不计入工作包）：项目结构重构、WP-10d-fix2、WP-09-fix5，
   以及审计批次 WP-AUDIT-01（+p0fix/p1fix）与

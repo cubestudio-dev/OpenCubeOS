@@ -239,6 +239,7 @@ void driver_block_list_devices(void) {
             case BLK_TYPE_NVME:   tn = "NVMe";   break;
             case BLK_TYPE_AHCI:   tn = "AHCI";   break;
             case BLK_TYPE_USB:    tn = "usb";    break;
+            case BLK_TYPE_SCSI:   tn = "scsi";   break;
         }
         strcpy(line, "  "); strcat(line, d->name);
         strcat(line, " ["); strcat(line, tn); strcat(line, "] ");

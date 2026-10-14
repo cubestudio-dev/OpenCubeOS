@@ -173,3 +173,70 @@ public summary of the WP-09 closeout batches.
   commands), EXTENSIONS_WP10-wireless_bluetooth.md, INTERFACES,
   MANIFEST, KNOWN_ISSUES section 13, TRY-IT section 8, STATUS record,
   website numbers.
+
+## WP-10-camera_misc (2026-10-14)
+
+Five hardware domains as bare-metal drivers + 10 new shell commands
+(198 -> 208):
+- UVC cameras: drivers/camera/driver_camera.c|h (20-interface core:
+  register/unregister/count/get, stream start/stop/format/frame/
+  interval, capture/release, brightness/contrast/saturation/exposure/
+  focus/zoom, get_caps/get_formats/get_frames), driver_camera_uvc.c|h
+  (UVC 1.1 VC/VS descriptor parser, Probe/Commit control, alternate
+  setting switching), lib_mjpeg.c|h (baseline JPEG decoder,
+  YCbCr->RGB), shell_cmds_camera.c|h + vectors header, tests/
+  host_camera_test.c (30/30 at -Os).
+- Parallel: drivers/misc/driver_parallel.c|h (9 interfaces: register/
+  unregister/count/get, set_mode/get_mode, write/read/get_status +
+  EPP address/data + ECP FIFO helpers; SPP forward/reverse, EPP 1.7/
+  1.9, ECP mode+FIFO; LPT1 0x378 / LPT2 0x278 / LPT3 0x3BC),
+  shell_cmds_pargame.c|h, live SPP verified through `-parallel file:`.
+- Game port: drivers/misc/driver_gameport.c|h (7 interfaces: register/
+  unregister/count/get, read_axis/read_buttons/calibrate; 0x200/0x201
+  RC timing + calibration).
+- Infrared: drivers/misc/driver_ir.c|h (8 interfaces: register/
+  unregister/count/get, recv/decode/encode/send + NEC/RC-5/RC-6/SIRC
+  codecs; CIR over ACPI, SIR over the secondary 16550 loopback-
+  verified), shell_cmds_ir.c|h, tests/host_ir_test.c (21/21).
+- SCSI: drivers/scsi/driver_scsi.c|h (7-interface SAM core: register/
+  unregister/count/get, submit/complete/get_device; CDB builders for
+  TUR/INQUIRY/REQUEST SENSE/RC10/RC16/READ10/READ16/WRITE10/WRITE16/
+  MODE SENSE6/SYNC CACHE10; INQUIRY/capacity/sense parsers; per-device
+  queues; transparent UNIT ATTENTION retry), driver_scsi_lsi.c|h (LSI
+  53C895A HBA: PCI I/O BAR programming, mini-SCRIPTS programs —
+  SELECT with ATN -> IDENTIFY -> CDB -> a phase-tested data route ->
+  STATUS -> a MSG-IN loop draining SAVE POINTER/RESTORE/DISCONNECT/
+  COMMAND COMPLETE — with the asynchronous disconnect/reselect
+  protocol driven by SIEN0.RSL + SCID.RRE soft enables and a second
+  script for the reselected data phase), BLK_TYPE_SCSI in the block
+  layer, sda.. naming, MBR/GPT through the existing partition scan,
+  shell_cmds_scsi.c|h, tests/host_scsi_test.c (49/49).
+- Debug journey (honest): the SCRIPTS bring-up iterated through real
+  defects found by the QEMU trace of the lsi model — SELECT with ATN
+  encoding (0x47000000 has bit25 set = table-indirect id; the correct
+  direct-id form is 0x44000008), the fixed-format sense discriminant
+  (0x70 & 0x7C also matches descriptor codes 0x72/0x73), probe-time
+  commands needing the submit path armed before registration, the
+  UNIT ATTENTION (ASC 0x29) every cold reset leaves queued, the
+  sense-fetch allocation length (fixed sense = 18 bytes), the chip's
+  CON bit (0x10, not 0x08) surviving an aborted transaction, the
+  MSG-IN phase carrying multi-byte messages (SDTR / SAVE / RESTORE /
+  DISCONNECT) that a single-byte move leaves queued, and QEMU's
+  asynchronous media-I/O model (SAVE DATA POINTER + DISCONNECT ->
+  reselect) that a single monolithic script cannot serve.  Final
+  architecture: a static script buffer (heap-independent), two
+  scripts per asynchronous transaction (command phase + reselected
+  data phase), a MSG-IN loop that drains the whole message phase,
+  and SIEN0.RSL/SCID.RRE soft enables so the model reselects without
+  a hardware IRQ line (polled, like AHCI/NVMe).
+- Gates: E2E 12/12 BIOS + 12/12 UEFI (lsi + scsi-hd + parallel
+  chardev verified live; scsitest 17/17 incl. the WRITE/READ round
+  trip with content restore), regression 28/28 (command baseline
+  198 -> 208 documented in the script), build 0/0, host suites 30/30
+  + 21/21 + 49/49.
+- Docs: README Stats (128,275 lines / 19 work packages / 208
+  commands), EXTENSIONS_WP10-camera_misc.md (51 interfaces), INTERFACES
+  (per-file counts 56+16+18+7+4+8+18+17+10+9+6+7+16+4+1+1+2+4+2+2 =
+  208), STATUS (19/19 COMPLETE + 12-gate table), KNOWN_ISSUES 14
+  (hardware-model honesty), TRY-IT 9, CONFIG 8 (no new keys),
+  MANIFEST version line, this log.

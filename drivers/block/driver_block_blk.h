@@ -38,6 +38,7 @@ typedef enum {
     BLK_TYPE_NVME   = 3,
     BLK_TYPE_AHCI   = 4,
     BLK_TYPE_USB    = 5,   /* WP-10d: USB Mass Storage (BOT + SCSI) */
+    BLK_TYPE_SCSI   = 6,   /* WP-10-camera_misc: LSI 53C895A HBA    */
 } driver_block_type_t;
 
 /* Forward declaration. */

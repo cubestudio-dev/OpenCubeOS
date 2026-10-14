@@ -766,3 +766,53 @@ probe) runs against real emulated hardware.  With no card attached the
 CMD5/CMD0 probes time out and the state is honestly `empty`; the
 brcmfmac-SDIO client therefore reports not-present.  Attaching an
 SD-card image exercises the SD-memory leg of the probe (CMD8/ACMD41).
+
+# Known Issues (WP-10-camera_misc, 2026-10-14)
+
+## 14. Hardware-model honesty for the five new domains
+
+### 14.1 UVC cameras: no camera model in QEMU — fixture-verified
+QEMU ships no USB video device, so `uvc` reports `camera subsystem:
+0 cameras` honestly.  The UVC 1.1 descriptor parser, the Probe/Commit
+control logic and the baseline JPEG decoder run against byte-exact
+spec fixtures in `uvctest` (30/30) and host-side (`host_camera_test`
+30/30 at -Os); a real camera attaches through the existing USB stack
+enumeration without further code.  Impact: none for correctness; the
+live-stream path awaits real hardware.  Plan: none required.
+
+### 14.2 CIR infrared: no QEMU model — ACPI-probed, honestly absent
+QEMU models neither an ACPI CIR device (PNP0510/ITE8713-style) nor an
+IR LED, so the CIR probe finds nothing and `ir` reports no CIR front
+end.  The protocol codecs (NEC/RC-5/RC-6/SIRC) are byte-exact round
+trip tested (`irtest` 14/14, `host_ir_test` 21/21).  Impact: none.
+Plan: none required.
+
+### 14.3 SIR infrared: loopback-verified on the emulated 16550
+The SIR front end binds the secondary 16550 (COM2-style) with a
+loopback-confirmed probe, so encode -> send -> recv runs against real
+emulated UART hardware.  Impact: none.  Plan: none required.
+
+### 14.4 Game port: no QEMU model — probed, honestly absent
+QEMU models no game port at 0x200/0x201, so `gameport` reports no
+adapter and `gameporttest` skips the live steps after passing the
+pure-function checks.  Impact: none.  Plan: none required.
+
+### 14.5 SCSI: LSI 53C895A verified end-to-end, QEMU async timing
+`-device lsi` + `scsi-hd` runs the full stack: INQUIRY, READ CAPACITY,
+a WRITE(10)/READ(10) round trip on the last sector (content saved and
+restored) and LBA 0 through both the blk layer and raw SCSI
+(`scsitest` 17/17, `host_scsi_test` 49/49).  Real media I/O uses the
+chip's asynchronous disconnect/reselect protocol (SAVE DATA POINTER +
+DISCONNECT -> WAIT for the reselect -> data phase), driven through
+SIEN0.RSL + SCID.RRE soft enables with a polled reselect notice.
+Two honest notes: (1) the polled execution model matches the kernel's
+AHCI/NVMe precedent — a future interrupt-driven backend can reuse the
+scsi_complete() callback; (2) QEMU's lsi model does not implement
+target-driven SDTR/WDTR sync negotiation state save/restore, so the
+driver keeps async 8-bit transfers (SXFER=0), which the model and the
+real chip both accept.
+
+### 14.6 Regression baseline note
+The regression script's command-count check moved 198 -> 208 with this
+batch (uvc/uvctest/parallel/paralleltest/gameport/gameporttest/ir/
+irtest/scsi/scsitest registered; additions only, nothing removed).

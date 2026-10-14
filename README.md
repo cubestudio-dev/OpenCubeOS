@@ -30,13 +30,13 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-10-wireless_bluetooth)
+## Stats (WP-10-camera_misc)
 
-- **Source code**: 121,697 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
+- **Source code**: 128,275 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
   verify: `find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
-- **Work packages**: 18 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
+- **Work packages**: 19 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
   WP-10d, WP-10-wp08fix1, WP-10-input_chipset, WP-10-timer_rtc,
-  WP-10-wireless_bluetooth) — one `## WP-*` section
+  WP-10-wireless_bluetooth, WP-10-camera_misc) — one `## WP-*` section
   each below (WP-10-input_chipset, WP-10-timer_rtc and
   WP-10-wireless_bluetooth themselves are
   summarized in the Download section above; they have no separate `## WP-*` sections)
@@ -44,8 +44,9 @@ Licensed under the Apache License, Version 2.0.
   WP-10d-fix2, WP-09-fix5, and the audit batches WP-AUDIT-01
   (+p0fix/p1fix) and WP-10-AUDIT_P2-fix1 / fix2 / fix2b / fix3 / fix4
   / fix5 (fix5 untagged).  WP-10-input_chipset is the 16th,
-  WP-10-timer_rtc the 17th and WP-10-wireless_bluetooth the 18th
-  work package (counted above), not auxiliary batches.
+  WP-10-timer_rtc the 17th, WP-10-wireless_bluetooth the 18th and
+  WP-10-camera_misc the 19th work package (counted above), not
+  auxiliary batches.
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
   `install` and `grub-install` - create A/B update disks, install the OS
   to a disk and write the GRUB BIOS boot loader entirely from the oc>
@@ -525,7 +526,31 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-10-wireless_bluetooth)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-wireless_bluetooth) — ISO + SRC zip
+- **Latest (WP-10-camera_misc)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-camera_misc) — ISO + SRC zip
+  (ISO sha256 `a07183ac4c635cde9484183e50e3e81cd847eba5ffcf43502c5d537ffa6f8e2e`,
+  SRC sha256 `4a32b71a9684d411bab5580fd350e8c4d3e9b7c70cdbe6f7079a7c1cb6e0bcd6`)
+  Batch summary: five hardware domains as bare-metal drivers — UVC cameras
+  (USB Video Class 1.1 descriptor parser over the WP-10d USB stack, Probe/
+  Commit control, alternate-setting switching, baseline JPEG decoder with
+  YCbCr->RGB, a 20-interface camera core), IEEE 1284 parallel (SPP forward/
+  reverse, EPP 1.7/1.9, ECP mode+FIFO, LPT1-LPT3), the game port (RC-timing
+  axes + calibration + 4 buttons), infrared (CIR over ACPI + SIR over the
+  secondary 16550 loopback-verified, NEC/RC-5/RC-6/SIRC codecs) and SCSI
+  (a SAM-style command core with CDB builders, response parsers, per-device
+  queues, UNIT ATTENTION retry, plus an LSI 53C895A HBA backend driven by
+  mini-SCRIPTS programs including the asynchronous disconnect/reselect
+  protocol; direct-access targets land in the blk layer as sda.. and go
+  through MBR/GPT like every other backend), 10 new commands (uvc/uvctest/
+  parallel/paralleltest/gameport/gameporttest/ir/irtest/scsi/scsitest,
+  198 -> 208, additions only), gates 0/0 build, batch E2E 12/12 BIOS +
+  12/12 UEFI (LSI + scsi-hd + parallel chardev verified live; scsitest
+  17/17 incl. the WRITE/READ round trip with content restore), regression
+  28/28, SSH 5/5, HTTPS 7/7, host_camera_test 30/30 (-Os), host_ir_test
+  21/21, host_scsi_test 49/49.  WP-10-camera_misc is the 19th work package
+  (counted in the Stats section above; like the earlier WP-10 batches it
+  has no separate `## WP-*` section — details in
+  docs/EXTENSIONS_WP10-camera_misc.md).
+- **Previous (WP-10-wireless_bluetooth)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-wireless_bluetooth) — ISO + SRC zip
   (ISO sha256 `1e609eef7517f8e89cc6d6b824f7440548b13d76beeae86b92a2292e6bb5d1a1`,
   SRC sha256 `888b8da80a02c3c928be6dceb875b06c6279df220a7adb4ea81af5a935c12d85`)
   Batch summary: 802.11 core + seven wireless families (Intel iwlwifi,

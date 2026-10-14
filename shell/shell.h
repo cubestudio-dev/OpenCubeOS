@@ -28,7 +28,7 @@
 typedef int (*shell_hook_fn_t)(void *ctx, u8 ch);
 
 /* ---- Limits ---- */
-#define SHELL_MAX_COMMANDS    208   /* WP-10-timer_rtc: +4 time cmds, was 192 (16 chipset before that) */
+#define SHELL_MAX_COMMANDS    224   /* WP-10-camera_misc: +10 cmds (uvc/uvctest/parallel/paralleltest/gameport/gameporttest/ir/irtest/scsi/scsitest), was 208 (timer_rtc +4 before that) */
 #define SHELL_MAX_ENV         32
 #define SHELL_ENV_NAME_LEN    32
 #define SHELL_ENV_VALUE_LEN   256

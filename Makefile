@@ -64,6 +64,7 @@ KERNEL_DIRS := kernel kernel/arch/x86_64 kernel/core kernel/mem kernel/lib \
                drivers/input drivers/display drivers/pci \
                drivers/acpi drivers/i2c drivers/time \
                drivers/wireless drivers/bluetooth drivers/sd \
+               drivers/camera drivers/misc drivers/scsi \
                fs net shell l1
 # NOTE: kernel/generated is deliberately NOT in KERNEL_DIRS: it only holds
 # the stage-2 generated grub_boot_data.c, which is compiled separately
@@ -167,6 +168,23 @@ $(BUILD)/drivers/sd/driver_sdhci.o: $(OC_ROOT)/drivers/sd/driver_sdhci.c | $(BUI
 
 
 # C source → object file (with header dependency tracking, BUG-025 FIX)
+# WP-10-camera_misc: the camera (JPEG decoder + UVC parser) set compiles
+# at -Os for the same codegen-sensitivity reason as the wireless set
+# above: -O2 miscompiles a working path (segfault pattern caught by the
+# 4:4:4 fixture on the host build), -Os is clean and the decoder is
+# not performance-critical (one frame at a time).
+$(BUILD)/drivers/camera/lib_mjpeg.o: $(OC_ROOT)/drivers/camera/lib_mjpeg.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+
+$(BUILD)/drivers/camera/driver_camera.o: $(OC_ROOT)/drivers/camera/driver_camera.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+
+$(BUILD)/drivers/camera/driver_camera_uvc.o: $(OC_ROOT)/drivers/camera/driver_camera_uvc.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+
 # WP-10-input_chipset: the AML interpreter is compiled at -O0. It runs
 # once at boot; the -O2 codegen of this file interacted badly with the
 # interpreter's pointer-heavy value model (boot crash in kfree with a

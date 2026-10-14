@@ -3,12 +3,12 @@
 
 # Open Cube OS - Project Status
 
-Updated 2026-10-13 at WP-10-timer_rtc. All 17 work packages are
+Updated 2026-10-14 at WP-10-camera_misc. All 19 work packages are
 COMPLETE; the auxiliary batches are shipped; the P2 audit batches fix1
 through fix4 are COMPLETE - all 214 P2 items landed on main and released
 (see Audit batches below).
 
-## Work-package coverage (17/17 COMPLETE)
+## Work-package coverage (19/19 COMPLETE)
 
 | WP | Scope | Status | Details |
 |---|---|---|---|
@@ -29,9 +29,57 @@ through fix4 are COMPLETE - all 214 P2 items landed on main and released
 | WP-10-wp08fix1 | Shell line editor + nano/vi editors + VFS link/symlink + SYS 96-102 | COMPLETE | docs/EXTENSIONS_WP10-wp08fix1.md |
 | WP-10-input_chipset | Input devices + chipset: I2C-HID touchpad / PCI-PCIe / ACPI / SMBus / I2C | COMPLETE | docs/EXTENSIONS_WP10-input_chipset.md; record below |
 | WP-10-timer_rtc | Time sources: CMOS RTC (IRQ+alarm) / HPET / ACPI PM timer / TSC | COMPLETE | docs/EXTENSIONS_WP10-timer_rtc.md; record below |
+| WP-10-wireless_bluetooth | 802.11 core + 7 wireless families + Bluetooth stack + SDIO | COMPLETE | docs/EXTENSIONS_WP10-wireless_bluetooth.md; record below |
+| WP-10-camera_misc | UVC cameras + IEEE 1284 parallel + game port + infrared + SCSI (LSI 53C895A) | COMPLETE | docs/EXTENSIONS_WP10-camera_misc.md; record below |
 
 The L1 interface numbering 1-138 closes at WP-10-wp08fix1
 (docs/INTERFACES.md is the single-page index).
+
+
+## WP-10-camera_misc: cameras + parallel + game port + infrared + SCSI (2026-10-14)
+
+**Status: COMPLETE.** Five hardware domains as bare-metal drivers:
+UVC cameras (USB Video Class 1.1 descriptor parser over the WP-10d USB
+stack, Probe/Commit control, alternate-setting switching, a baseline
+JPEG decoder with YCbCr->RGB and a camera core with a 20-interface
+registry), the IEEE 1284 parallel port (SPP forward/reverse, EPP 1.7/1.9
+address/data cycles, ECP mode+FIFO, LPT1-LPT3 at 0x378/0x278/0x3BC),
+the legacy game port (0x200/0x201 RC-timing axis measurement with
+calibration, 4 buttons), infrared (CIR over ACPI + SIR over the
+secondary 16550 with NEC/RC-5/RC-6/SIRC encode+decode) and SCSI (a
+SAM-style command core with CDB builders, response parsers, per-device
+queues and UNIT-ATTENTION retry, plus an LSI 53C895A HBA backend that
+programs the chip through its PCI I/O BAR and mini-SCRIPTS programs,
+including the asynchronous disconnect/reselect protocol for real media
+I/O).  Direct-access targets land in the block layer as sda.. and go
+through MBR/GPT parsing like every other backend.  10 new shell commands
+(uvc, uvctest, parallel, paralleltest, gameport, gameporttest, ir,
+irtest, scsi, scsitest; Total 198 -> 208, additions only).
+
+| Criterion | Status |
+|---|---|
+| Compiles 0 errors / 0 warnings (-Werror) | OK |
+| ISO builds; BIOS + UEFI boot | OK |
+| Batch E2E (tools/wp10_camera_misc_e2e.py) | OK (12/12 BIOS + 12/12 UEFI; LSI + scsi-hd + parallel chardev verified live) |
+| Full regression (tools/run_fix4_regression.py) | OK (28/28; command-count baseline 198 -> 208 documented) |
+| dhtest | OK (5/5, TCG; via regression suite) |
+| cryptotest NIST | OK (via regression suite) |
+| fstest | OK (p2 ALL PASS; via regression suite) |
+| Host unit tests | OK (host_camera_test 30/30 at -Os, host_ir_test 21/21, host_scsi_test 49/49) |
+| SSH E2E | OK (5/5) |
+| HTTPS E2E | OK (7/7) |
+| Interfaces frozen (commands added, none removed) | OK (help -a re-verified live; Total: 208 commands) |
+| Extension contract (header + comments + default impl + docs) | OK (docs/EXTENSIONS_WP10-camera_misc.md; 51 interfaces) |
+| L1 numbering stays closed at 138 | OK (driver APIs + commands, no numbered L1 additions) |
+
+Hardware honesty: UVC binds enumerated USB video devices (QEMU ships
+none - the uvc command reports zero cameras honestly, the parser runs
+against byte-exact fixtures); CIR/game port have no QEMU model and are
+reported absent; SIR is loopback-verified on the emulated 16550; SCSI
+runs end-to-end against the QEMU lsi53c895a model with a real
+scsi-hd disk (INQUIRY, READ CAPACITY, a WRITE/READ round trip on the
+last sector with content save/restore, and LBA 0 through both the blk
+layer and raw SCSI).
 
 ## Auxiliary batches (shipped, not counted as WPs)
 

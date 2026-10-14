@@ -102,6 +102,17 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "driver_bt.h"                 /* WP-10-wireless_bluetooth: Bluetooth */
 #include "shell_cmds_wireless.h"       /* WP-10-wireless_bluetooth: wifi */
 #include "shell_cmds_bt.h"             /* WP-10-wireless_bluetooth: bt */
+#include "driver_camera.h"             /* WP-10-camera_misc: camera core */
+#include "driver_camera_uvc.h"         /* WP-10-camera_misc: UVC class */
+#include "shell_cmds_camera.h"         /* WP-10-camera_misc: uvc commands */
+#include "driver_parallel.h"           /* WP-10-camera_misc: IEEE 1284 */
+#include "driver_gameport.h"           /* WP-10-camera_misc: game port */
+#include "driver_ir.h"                 /* WP-10-camera_misc: infrared */
+#include "shell_cmds_pargame.h"        /* WP-10-camera_misc: parallel/gameport */
+#include "shell_cmds_ir.h"             /* WP-10-camera_misc: ir commands */
+#include "driver_scsi.h"               /* WP-10-camera_misc: SCSI core */
+#include "driver_scsi_lsi.h"           /* WP-10-camera_misc: LSI HBA */
+#include "shell_cmds_scsi.h"           /* WP-10-camera_misc: scsi commands */
 #include "driver_hpet.h"               /* WP-10-timer_rtc: HPET */
 #include "driver_pmtimer.h"            /* WP-10-timer_rtc: ACPI PM timer */
 #include "shell_cmds_timer.h"          /* WP-10-timer_rtc: time commands */
@@ -3304,6 +3315,13 @@ void kmain(u64 magic, u64 mbi_phys) {
     driver_block_virtio_blk_init();
     driver_block_ahci_init(NULL);     /* WP-10a: SATA AHCI */
     driver_block_nvme_init(NULL);
+
+    /* WP-10-camera_misc: SCSI core + LSI 53C895A HBA.  Runs BEFORE the
+     * partition scan below so discovered disks (sda..) get their
+     * MBR/GPT children; without the chip (most machines) nothing
+     * attaches and the scsi command reports zero targets honestly. */
+    driver_scsi_init();
+    driver_scsi_lsi_init();
     OC_LOG_OK2("virtio-blk + AHCI + NVMe drivers");
 
     /* ---- WP-10d: full USB stack ----
@@ -3379,6 +3397,20 @@ void kmain(u64 magic, u64 mbi_phys) {
      * reports "no transport" honestly. */
     bt_stack_init();
 
+    /* WP-10-camera_misc: camera core + UVC class driver.  The UVC
+     * class driver binds every enumerated USB video device; without
+     * hardware the uvc command reports zero cameras honestly. */
+    camera_init();
+    driver_camera_uvc_register();
+    /* WP-10-camera_misc: legacy ports (IEEE 1284 parallel, game
+     * adapter) + infrared probe.  Missing hardware reports honestly. */
+    parallel_init();
+    parallel_probe_all();
+    gameport_init();
+    gameport_probe_all();
+    ir_init();
+    ir_probe_all();
+
     /* WP-05 shell commands: file operations (in file_cmds.c) +
      * WP-07 disk commands (in disk_cmds.c). */
     shell_cmds_file_register();
@@ -3417,6 +3449,11 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command_ex("sleep", shell_cmd_sleep, "delay for N seconds (sleep <sec>)", "WP-10d-fix2");
     shell_cmds_power_test_register();
     shell_cmds_update_test_register();
+    /* ---- WP-10-camera_misc: camera + misc port commands ---- */
+    shell_cmds_camera_register();
+    shell_cmds_pargame_register();
+    shell_cmds_ir_register();
+    shell_cmds_scsi_register();          /* WP-10-camera_misc: scsi */
     /* ---- WP-10-input_chipset: chipset + input commands ---- */
     shell_cmds_chipset_register();
     /* ---- WP-10-timer_rtc: time-source commands ---- */

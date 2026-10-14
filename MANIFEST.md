@@ -4,7 +4,7 @@
 # Open Cube OS — Repository Manifest
 
 ## Version
-WP-10-wireless_bluetooth (802.11 core + 7 wireless families + Bluetooth stack: HCI/H4/HCI-USB/L2CAP/RFCOMM/SDP/SPP/HID)
+WP-10-camera_misc (UVC cameras + IEEE 1284 parallel + game port + infrared + SCSI with an LSI 53C895A HBA)
 
 ## Directory Structure
 

@@ -56,8 +56,10 @@ CHECKS = [
     # Baseline note (WP-10-timer_rtc): 192 -> 196 with the four time-source
     # commands rtc / hpet / pmtimer / tsc. Removals remain forbidden.
     # WP-10-wireless_bluetooth adds 2 commands (wifi/bt): the baseline
-    # moves UP again 196 -> 198 (additions only, never deletions).
-    ("command count 198",        r"Total:\s*198 commands"),
+    # moves UP again 198 -> 208 (WP-10-camera_misc: +10 cmds
+    # uvc/uvctest/parallel/paralleltest/gameport/gameporttest/ir/irtest/
+    # scsi/scsitest; additions only, never deletions).
+    ("command count 208",        r"Total:\s*208 commands"),
     # Baseline note (WP-10-input_chipset): accept the current tree describe
     # (fix4-2-g<sha>), the fix3-rebuild form, and the new WP-10-input_chipset
     # tag form (release builds bake the tag name verbatim).

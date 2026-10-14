@@ -248,3 +248,14 @@ servers work out of the box — verified against
 cubestudio-dev.github.io, www.google.com and www.cloudflare.com. The
 bundled test server above speaks TLS 1.2 DHE-CBC on purpose: it exercises
 the legacy fallback path end-to-end.
+
+## 8. WP-10-camera_misc configuration surface (2026-10-14)
+
+The five new domains (UVC cameras, parallel, game port, infrared,
+SCSI) register no new /etc/opencube.conf keys: they are hardware
+drivers whose bring-up is driven by PCI/ACPI probing and whose shell
+commands report the honest state (`scsi`, `parallel`, `gameport`,
+`ir`, `uvc`).  All knobs live in the QEMU command line (the `-device
+lsi` / `-device scsi-hd` / `-parallel file:` switches in
+docs/TRY-IT.md section 9) — same pattern as the sound cards and NICs
+before them.
