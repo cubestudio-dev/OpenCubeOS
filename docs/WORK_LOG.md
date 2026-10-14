@@ -240,3 +240,68 @@ Five hardware domains as bare-metal drivers + 10 new shell commands
   208), STATUS (19/19 COMPLETE + 12-gate table), KNOWN_ISSUES 14
   (hardware-model honesty), TRY-IT 9, CONFIG 8 (no new keys),
   MANIFEST version line, this log.
+
+## WP-10-camera_misc release-chain completion (2026-10-14, session 2)
+
+The five domains and their tests were already on both mains (G1..G8,
+public 626f1ae mirroring private b1befff..e908cdd) with the tag and the
+public Release 412937591 live; this session closed the remaining release
+chain honestly:
+
+- OTA: `opencube-WP-10-camera_misc-update.tar.gz` built by
+  tools/make_update_pkg.sh from the kernel ELF extracted out of the
+  release ISO itself (xorriso -osirrox), so the package carries exactly
+  the released bits. The release kernel's baked build id was pinned
+  empirically with checkupdate boundary probes against a local server:
+  serving build 192/193 both report "up to date", 194 reports "new
+  version available" -> the release kernel carries OC_KERNEL_BUILD=193
+  (the private-repo count at a229bc5; the release build happened while
+  the G5-G8 changes were still uncommitted in the working tree — the
+  public mirror at 626f1ae has public count 178, which is why a
+  public-tree rebuild bakes 178; harmless: the OTA rule is
+  "remote build strictly greater than local"). update.json and
+  update-v2.json refreshed to version WP-10-camera_misc / build 193 /
+  package sha256 2fd0a69e...e8ab32ef / size 711844; short "changes"
+  stays under the 127-byte legacy limit. Manifest payload digest
+  14cbd152... re-verified independently by re-hashing the payload
+  bodies in archive order (docs/CONFIG.md, boot/grub.cfg,
+  kernel/opencube.elf, etc/opencube.conf).
+- Assets committed to the public tree (they had only lived on the
+  Release and gh-pages): ISO a07183ac..., SRC 4a32b71a..., update
+  package 2fd0a69e... — all four copies (tree, public Release server
+  digest, private Release server digest, live gh-pages) verified
+  identical.
+- Docs: MANIFEST counts recomputed (drivers 16 subdirs incl.
+  camera(6)/misc(6)/scsi(4), tools 50, docs 37+audit+verification);
+  website i18n wpSectionDesc updated 18 -> 19 work packages + the
+  camera_misc name in zh and en (home.ts/site.ts STATS+FEATURES were
+  already correct); no other stale current-release pointers found
+  (EXTENSIONS_WP10-wireless_bluetooth.md, TRY-IT section 8, INTERFACES
+  history lines and KNOWN_ISSUES section 13 legitimately keep the
+  wireless name as history).
+- Regression baseline: tools/run_fix4_regression.py's "uname current
+  tree" check enumerated the release-tag forms but lacked camera_misc —
+  the previous session missed the baseline move. Added the camera_misc
+  form; full regression now 28/28 on a clean rebuild (before the fix it
+  was 27/28 for exactly that reason, not a kernel defect).
+- Gates re-run on the clean rebuild at 7e82df5 (kernel sources
+  unchanged from the release): 0 errors 0 warnings (-Werror, 18 s);
+  SeaBIOS + OVMF boots show "Open Cube OS WP-10-camera_misc x86_64"
+  (uname -a) and 208 commands; batch E2E 12/12 BIOS + 12/12 UEFI;
+  dhtest 5/5; SSH E2E 5/5; HTTPS E2E 7/7.
+- Release flow: private repo synced per SYNC-RULES (the ISO+SRC pair
+  e908cdd had put under the top-level source-only website/ mirror moved
+  to oc-os/website/public/downloads where binaries live; root website/
+  source files re-mirrored; wp10camera_misc/ archive created) and
+  pushed e908cdd..1a0ef53; private Release 413007997 created for the
+  existing tag with ISO + SRC + update package (server digests match
+  the four-way table above); public repo pushed 626f1ae..7e82df5 (the
+  remote URL had embedded a stale third token ending rl2B, replaced
+  with the current tokenA); gh-pages redeployed c580e00..2c0528d via
+  build-local.sh (hash gate BUILD-OK) + rw2_ghpages.sh (note: the
+  script's default PUBLIC_DIR layout assumes <repo>/oc-os/website, this
+  checkout is the repo root itself, so the documented OC_PUBLIC_DIR
+  override was used); live site verified: update.json camera_misc/193,
+  /downloads/ ISO+SRC+update.tar.gz all 200 with matching SHA256, zh+en
+  home pages show 19 work packages / 128,275 lines / 208 commands /
+  camera_misc.
