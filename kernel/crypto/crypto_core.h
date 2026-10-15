@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09
- * File: kernel/crypto.h
+ * File: kernel/crypto/crypto_core.h
  * Purpose: Core cryptographic primitives for TLS 1.3 / TLS 1.2 / SSH.
  *   - AES-128 block / CTR / CBC (FIPS-197)
  *   - SHA-256 one-shot + streaming (FIPS-180-4)

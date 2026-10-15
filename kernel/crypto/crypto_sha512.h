@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/sha512.h
+ * File: kernel/crypto/crypto_sha512.h
  * Purpose: SHA-512 and SHA-384 (FIPS 180-4), incremental API.
  *   Needed by: TLS 1.3 SHA-384 cipher suites, HMAC-SHA-512, SSH
  *   rsa-sha2-512 host keys, Ed25519 (SHA-512).

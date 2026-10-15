@@ -28,6 +28,7 @@
  */
 #include "types.h"
 #include "driver_wireless.h"
+#include "driver_nic.h"
 #include "lib_string.h"
 #include "mem_heap.h"
 
@@ -947,4 +948,73 @@ int driver_wireless_selftest(char *out, int outlen)
         out[o] = '\0';
     }
     return fails;
+}
+
+/* ==================================================================
+ * NIC bridge (WP-10-tui).  Registers the first wireless device with
+ * the driver_nic framework so net_poll() consumes the 802.11 RX ring
+ * (wl_netif_recv) and the stack's TX path encapsulates Ethernet into
+ * 802.11 data frames (wl_eth_to_80211_data + wl_tx_frame).  While the
+ * STA is not ASSOCIATED the link is honestly DOWN: recv returns empty
+ * and send refuses, exactly like a wired NIC with no carrier.
+ * ================================================================== */
+static driver_nic_device_t g_wl_nic;
+static u16 g_wl_nic_seq;
+
+static int wl_nic_send(driver_nic_device_t *nd, const void *buf, int len) {
+    wl_device_t *w = (wl_device_t *)nd->priv;
+    if (!w || w->state != WL_STATE_ASSOCIATED) return -1;
+    if (!buf || len < 14) return -1;
+    u8 frame[WL_FRAME_MAX];
+    int flen = wl_eth_to_80211_data(frame, (const u8 *)buf, (u16)len,
+                                    w->bssid, g_wl_nic_seq, 0);
+    if (flen < 0) return -1;
+    g_wl_nic_seq = (u16)((g_wl_nic_seq + 1) & 0x0FFF);
+    if (wl_tx_frame(w, frame, (u16)flen) != 0) return -1;
+    return len;
+}
+
+static int wl_nic_recv(driver_nic_device_t *nd, void *buf, int maxlen) {
+    (void)nd;
+    u16 n = 0;
+    int rc = wl_netif_recv((u8 *)buf, (u16)maxlen, &n);
+    if (rc <= 0) return 0;
+    return (int)n;
+}
+
+static int wl_nic_link_status(driver_nic_device_t *nd) {
+    wl_device_t *w = (wl_device_t *)nd->priv;
+    return (w && w->state == WL_STATE_ASSOCIATED) ? 1 : 0;
+}
+
+static int wl_nic_get_mac(driver_nic_device_t *nd, u8 mac[6]) {
+    wl_device_t *w = (wl_device_t *)nd->priv;
+    if (!w) return -1;
+    for (int i = 0; i < 6; i++) mac[i] = w->mac[i];
+    return 0;
+}
+
+static const driver_nic_ops_t g_wl_nic_ops = {
+    .send        = wl_nic_send,
+    .recv        = wl_nic_recv,
+    .link_status = wl_nic_link_status,
+    .get_mac     = wl_nic_get_mac,
+};
+
+int wl_nic_bridge_register(void) {
+    if (g_wl_nic.present) return 0;               /* already bridged */
+    wl_device_t *w = wl_device_get(0);
+    if (!w) return -1;                            /* no wireless hw: nothing to bridge */
+    for (int i = 0; i < 6; i++) g_wl_nic.mac[i] = w->mac[i];
+    g_wl_nic.type       = NIC_TYPE_OTHER;         /* WLAN appears as "wl0" */
+    g_wl_nic.present    = 1;
+    g_wl_nic.bus = g_wl_nic.dev = g_wl_nic.func = 0;
+    g_wl_nic.vendor_id  = w->vendor_id;
+    g_wl_nic.device_id  = w->device_id;
+    g_wl_nic.ops        = &g_wl_nic_ops;
+    g_wl_nic.priv       = w;
+    g_wl_nic.index      = -1;
+    int rc = driver_nic_register(&g_wl_nic, &g_wl_nic_ops);
+    if (rc == 0) g_wl_nic.present = 1;            /* framework copied it in */
+    return rc;
 }

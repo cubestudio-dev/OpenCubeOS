@@ -30,13 +30,13 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-10-camera_misc)
+## Stats (WP-10-tui)
 
-- **Source code**: 128,275 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs, incl. headers, no docs;
-  verify: `find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`)
-- **Work packages**: 19 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
+- **Source code**: 121,890 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs + tui, incl. headers, no docs/tools/tests, no generated files;
+  verify: `git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui)/' | xargs wc -l`)
+- **Work packages**: 20 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
   WP-10d, WP-10-wp08fix1, WP-10-input_chipset, WP-10-timer_rtc,
-  WP-10-wireless_bluetooth, WP-10-camera_misc) — one `## WP-*` section
+  WP-10-wireless_bluetooth, WP-10-camera_misc, WP-10-tui) — one `## WP-*` section
   each below (WP-10-input_chipset, WP-10-timer_rtc and
   WP-10-wireless_bluetooth themselves are
   summarized in the Download section above; they have no separate `## WP-*` sections)
@@ -44,8 +44,9 @@ Licensed under the Apache License, Version 2.0.
   WP-10d-fix2, WP-09-fix5, and the audit batches WP-AUDIT-01
   (+p0fix/p1fix) and WP-10-AUDIT_P2-fix1 / fix2 / fix2b / fix3 / fix4
   / fix5 (fix5 untagged).  WP-10-input_chipset is the 16th,
-  WP-10-timer_rtc the 17th, WP-10-wireless_bluetooth the 18th and
-  WP-10-camera_misc the 19th work package (counted above), not
+  WP-10-timer_rtc the 17th, WP-10-wireless_bluetooth the 18th,
+  WP-10-camera_misc the 19th and WP-10-tui the 20th work package
+  (counted above), not
   auxiliary batches.
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
   `install` and `grub-install` - create A/B update disks, install the OS
@@ -84,7 +85,7 @@ Licensed under the Apache License, Version 2.0.
   (57 + 8 + 13 + 7 + 26 + 11 + 7 + 9 = 138; plus 5 unnumbered WP-09-fix5
   config/check-update interfaces and 5 rule-9 self-hosting interfaces
   outside the 1-138 numbering)
-- **System calls**: 46 (verify: `grep -c '#define SYS_' kernel/core/core_syscall.h`)
+- **System calls**: 53 (verify: `grep -c '#define SYS_' kernel/core/core_syscall.h`)
 - **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
   + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
   the P2-batch fix-ups (P2-BATCH-1 + P2-BATCH-2), bringing the running
@@ -163,7 +164,7 @@ Licensed under the Apache License, Version 2.0.
 
 WP-08 unifies the previously separate WP-08a / WP-08b / WP-08cd sub-packages:
 
-- **Complete syscall set** (46 syscalls; `SYS_` numbering 0-102, verify:
+- **Complete syscall set** (53 syscalls; `SYS_` numbering 0-109 — WP-10-tui added the ring3 socket API 103-109 — verify:
   `grep -c '#define SYS_' kernel/core/core_syscall.h`): exit, write,
   write_and_exit, open, close, stat, readdir, mkdir, rmdir, unlink, fork,
   execve, wait4, kill, getpid, getppid, exit2, pipe, dup, dup2, mmap,
@@ -526,7 +527,37 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-10-camera_misc)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-camera_misc) — ISO + SRC zip
+- **Latest (WP-10-tui)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-tui) — ISO + SRC zip
+  (ISO sha256 `163c38089a0c5e42e3ead78f97acda249f851916b57cbf8791ef5c843d1ba323`,
+  SRC sha256 `fd719775788af97108a26770408c1d744301dd453fbdfb80991a775fcc478788`)
+  Batch summary: a terminal user interface (TUI) enters L0 — tui/ (12
+  files) with two real render backends (framebuffer character console +
+  ANSI COM1 serial terminal, 16-color palette + 256-color nearest-entry
+  map), window system, text/attributes, input (OC_KEY mapping + a real
+  ANSI CSI decoder + SGR mouse + touchpad path), panels (pointer-slot
+  z-order), menus, forms; the hardware configuration TUI (11 domains
+  through the live driver query APIs, 9 config keys persisted via
+  lib_config to /etc/opencube.conf: tui.backend/tui.clock_24h/
+  tui.tz_offset/snd.volume), the wireless network TUI (WiFi scan/list/
+  connect through the real STA state machine + Bluetooth manager through
+  the real HCI stack) and the system information TUI (overview/
+  processes/log ring/monitor/power/update/time/help).  5 new commands
+  (tui/tui-test/tui-hw/tui-net/tui-sysinfo, 208 -> 213, additions only)
+  and the ring3 socket API (SYS 103-109, syscalls 46 -> 53); docs/
+  EXTENSIONS_WP10-tui.md carries the 59-interface contract.  The same
+  tree dispositions all 12 handover suspicions: the WiFi->driver_nic
+  bridge (wl0) + net_poll draining every present framework NIC, the
+  resident USB poll thread actually starting, OTA signature verification
+  tracked in KNOWN_ISSUES (key custody decision), the fs/_raw cache
+  bypass documented, access_ok_str bounded to 16 pages, fork full-copy +
+  MAX_TASKS=32 documented, real SB16 mixer/UAC1 volume (virtio honest
+  -1), the make test host-suite target, 174 stale File: header paths,
+  the WP08a 8-items/21-functions doc note and the P3 ledger.  Gates:
+  0 errors 0 warnings; TUI E2E 32/32 BIOS + 32/32 UEFI; full regression
+  28/28 (command baseline 213); dhtest 5/5; SSH E2E 5/5; HTTPS E2E 7/7;
+  host suite 17 PASS / 0 FAIL / 2 SKIP-FIXTURE.  121,890 lines of
+  source.  WP-10-tui is the 20th work package.
+- **Previous (WP-10-camera_misc)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-camera_misc) — ISO + SRC zip
   (ISO sha256 `a07183ac4c635cde9484183e50e3e81cd847eba5ffcf43502c5d537ffa6f8e2e`,
   SRC sha256 `4a32b71a9684d411bab5580fd350e8c4d3e9b7c70cdbe6f7079a7c1cb6e0bcd6`)
   Batch summary: five hardware domains as bare-metal drivers — UVC cameras

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07
- * File: kernel/part.h
+ * File: drivers/block/driver_block_part.h
  * Purpose: Partition table parser — MBR and GPT.
  *
  * L1 extension interface (item 29): driver_block_part_parse_mbr / driver_block_part_parse_gpt

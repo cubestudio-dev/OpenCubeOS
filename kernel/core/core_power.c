@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d-fix2
- * File: kernel/power.c
+ * File: kernel/core/core_power.c
  * Purpose: power management - shutdown / suspend / halt / reboot.
  *
  * Real hardware paths only - no stubs:

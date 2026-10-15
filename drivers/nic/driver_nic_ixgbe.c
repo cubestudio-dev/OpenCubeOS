@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10b
- * File: kernel/driver_nic_ixgbe.c
+ * File: drivers/nic/driver_nic_ixgbe.c
  * Purpose: Intel 82598/82599 10GbE driver (ixgbe) for the WP-10b nic
  *          framework.
  *

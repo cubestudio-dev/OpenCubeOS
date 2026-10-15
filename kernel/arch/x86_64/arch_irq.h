@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/irq.h
+ * File: kernel/arch/x86_64/arch_irq.h
  * Purpose: IRQ dispatch table + L1 IRQ-handler registration.
  *
  * IRQs 0..15 (PIC-mapped) arrive as vectors 32..47. Each IRQ can have

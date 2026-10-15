@@ -1,0 +1,244 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
+/* Open Cube OS - WP-10-tui
+ * File: tui/tui_input.c
+ * Purpose: Input: blocking / timeout / nodelay character reads from
+ *          the keyboard queue, OC_KEY_* -> TUI KEY_* mapping, a real
+ *          ANSI CSI decoder for xterm-style functional keys and SGR
+ *          mouse reports arriving over the COM1 bridge, and the
+ *          touchpad mouse event path.
+ */
+#include "tui.h"
+#include "../drivers/input/driver_input_keyboard.h"
+#include "../drivers/input/driver_input_i2chid.h"
+#include "../kernel/core/core_timer.h"
+#include "../kernel/core/core_sched.h"
+
+static int g_nodelay;
+static int g_mouse_enabled;
+static tui_mouse_event_t g_mouse_pending;
+static int g_mouse_pending_valid;
+
+void tui_nodelay(int on) { g_nodelay = on ? 1 : 0; }
+
+int tui_mouse_enable(int on) {
+    g_mouse_enabled = on ? 1 : 0;
+    /* when the console is an xterm-class serial terminal the SGR mouse
+     * mode is toggled on the wire; the fb console has nothing to do */
+    return 0;
+}
+
+/* Translate a raw keyboard byte/special key into a TUI key code. */
+static int map_key(int c) {
+    if (c == 0) return TUI_KEY_NONE;
+    if (c < 0x20) {
+        switch (c) {
+        case 0x08: return TUI_KEY_BACKSPACE;
+        case 0x09: return TUI_KEY_TAB;
+        case 0x0A: case 0x0D: return TUI_KEY_ENTER;
+        case 0x1B: return TUI_KEY_ESC;
+        default:   return TUI_KEY_CTRL_A + (c - 1);
+        }
+    }
+    if (c >= 0x80) {
+        if (c >= OC_KEY_F1 && c <= OC_KEY_F1 + 11) return TUI_KEY_F(c - OC_KEY_F1 + 1);
+        switch (c) {
+        case OC_KEY_UP:     return TUI_KEY_UP;
+        case OC_KEY_DOWN:   return TUI_KEY_DOWN;
+        case OC_KEY_LEFT:   return TUI_KEY_LEFT;
+        case OC_KEY_RIGHT:  return TUI_KEY_RIGHT;
+        case OC_KEY_HOME:   return TUI_KEY_HOME;
+        case OC_KEY_END:    return TUI_KEY_END;
+        case OC_KEY_PGUP:   return TUI_KEY_PGUP;
+        case OC_KEY_PGDN:   return TUI_KEY_PGDN;
+        case OC_KEY_INS:    return TUI_KEY_INSERT;
+        case OC_KEY_DEL:    return TUI_KEY_DELETE;
+        default:            return TUI_KEY_NONE;   /* unmapped special */
+        }
+    }
+    return c;                       /* printable ASCII as-is */
+}
+
+/* ---- ANSI CSI decode (bytes already through the keyboard queue) ---- */
+
+#define CSI_MAX 16
+
+typedef struct {
+    int active;            /* saw ESC [                              */
+    int priv;              /* saw '?'                                */
+    int nparams;
+    int params[CSI_MAX];
+    int params_set[CSI_MAX];
+    int final;
+} csi_state_t;
+
+static csi_state_t g_csi;
+
+static void csi_reset(void) {
+    g_csi.active = 0;
+    g_csi.priv = 0;
+    g_csi.nparams = 0;
+    g_csi.final = 0;
+    for (int i = 0; i < CSI_MAX; i++) { g_csi.params[i] = 0; g_csi.params_set[i] = 0; }
+}
+
+/* Feed one byte into the decoder; returns a TUI key when a sequence
+ * completes, TUI_KEY_NONE otherwise, or a positive literal byte. */
+static int csi_feed(int c) {
+    if (!g_csi.active) {
+        if (c == 0x1B) { csi_reset(); g_csi.active = 1; return TUI_KEY_NONE; }
+        return map_key(c);
+    }
+    if (g_csi.nparams == 0 && g_csi.final == 0 && c == '[' && !g_csi.priv) {
+        /* second '[' of CSI */
+        return TUI_KEY_NONE;
+    }
+    if (c == '?') { g_csi.priv = 1; return TUI_KEY_NONE; }
+    if (c >= '0' && c <= '9') {
+        if (g_csi.nparams < CSI_MAX) {
+            g_csi.params[g_csi.nparams] = g_csi.params[g_csi.nparams] * 10 + (c - '0');
+            g_csi.params_set[g_csi.nparams] = 1;
+        }
+        return TUI_KEY_NONE;
+    }
+    if (c == ';') {
+        if (g_csi.nparams < CSI_MAX - 1) g_csi.nparams++;
+        return TUI_KEY_NONE;
+    }
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '~') {
+        g_csi.final = c;
+        int p0 = g_csi.params_set[0] ? g_csi.params[0] : 1;
+        int p1 = g_csi.params_set[1] ? g_csi.params[1] : 1;
+        int p2 = g_csi.params_set[2] ? g_csi.params[2] : 0;
+        csi_state_t st = g_csi;
+        csi_reset();
+        /* SGR mouse report: ESC [ < b ; x ; y (M or m) */
+        if (st.priv && (st.final == 'M' || st.final == 'm') && st.nparams >= 2) {
+            /* note: the '<' sets priv; params hold b/x/y */
+            tui_mouse_event_t ev;
+            int b = p0;
+            ev.x = p1 - 1;
+            ev.y = p2 - 1;
+            ev.modifiers = (b & 4 ? 4 : 0) | (b & 2 ? 1 : 0) | (b & 8 ? 2 : 0);
+            if (b & 64) {           /* 64/65 wheel */
+                ev.button = 3;
+                ev.action = (b & 1) ? TUI_BUTTON_WHEEL_DOWN : TUI_BUTTON_WHEEL_UP;
+            } else {
+                ev.button = b & 3;
+                ev.action = (st.final == 'M') ? TUI_BUTTON_PRESSED
+                                              : TUI_BUTTON_RELEASED;
+            }
+            if (g_mouse_enabled) {
+                g_mouse_pending = ev;
+                g_mouse_pending_valid = 1;
+                return TUI_KEY_MOUSE;
+            }
+            return TUI_KEY_NONE;
+        }
+        switch (st.final) {
+        case 'A': return TUI_KEY_UP;
+        case 'B': return TUI_KEY_DOWN;
+        case 'C': return TUI_KEY_RIGHT;
+        case 'D': return TUI_KEY_LEFT;
+        case 'H': return TUI_KEY_HOME;
+        case 'F': return TUI_KEY_END;
+        case 'Z': return TUI_KEY_TAB;      /* shift-tab arrives as CSI Z */
+        case '~':
+            switch (p0) {
+            case 1: case 7: return TUI_KEY_HOME;
+            case 2: return TUI_KEY_INSERT;
+            case 3: return TUI_KEY_DELETE;
+            case 4: case 8: return TUI_KEY_END;
+            case 5: return TUI_KEY_PGUP;
+            case 6: return TUI_KEY_PGDN;
+            case 11: case 15: return TUI_KEY_F1;
+            case 12: case 17: return TUI_KEY_F2;
+            case 13: case 18: return TUI_KEY_F3;
+            case 14: case 19: return TUI_KEY_F4;
+            case 20: return TUI_KEY_F5;
+            case 21: return TUI_KEY_F6;
+            case 23: return TUI_KEY_F7;
+            case 24: return TUI_KEY_F8;
+            case 25: return TUI_KEY_F9;
+            case 26: return TUI_KEY_F10;
+            case 28: return TUI_KEY_F11;
+            case 29: return TUI_KEY_F12;
+            default: return TUI_KEY_NONE;
+            }
+        default:
+            return TUI_KEY_NONE;           /* unknown CSI: swallow */
+        }
+    }
+    /* ESC [ < ... (xterm SGR mouse prefix) */
+    if (c == '<') { g_csi.priv = 1; return TUI_KEY_NONE; }
+    /* anything else inside CSI: ignore */
+    return TUI_KEY_NONE;
+}
+
+/* ---- public reads ---- */
+
+int tui_getch_timeout(int ms) {
+    u64 deadline = core_timer_now_ms() + (u64)(ms < 0 ? 0 : ms);
+    for (;;) {
+        if (g_mouse_pending_valid && g_mouse_enabled) {
+            /* mouse events are delivered once; getch returns the
+             * marker and the event is fetched with tui_mouse_get */
+            return TUI_KEY_MOUSE;
+        }
+        int c = driver_input_keyboard_getch();
+        if (c != 0) {
+            int k = csi_feed(c);
+            if (k != TUI_KEY_NONE) return k;
+            continue;
+        }
+        if (g_nodelay) return -1;
+        if (ms >= 0 && core_timer_now_ms() >= deadline) return -1;
+        core_sched_yield();   /* cooperative breather (single CPU) */
+    }
+}
+
+int tui_getch(void) {
+    return tui_getch_timeout(-1);          /* -1 = wait indefinitely */
+}
+
+int tui_mouse_get(tui_mouse_event_t *out) {
+    if (!out) return -1;
+    if (!g_mouse_pending_valid) return -1;
+    *out = g_mouse_pending;
+    g_mouse_pending_valid = 0;
+    return 0;
+}
+
+/* Touchpad path: real I2C-HID events (QEMU has no model; on hardware
+ * without the device this reports no-event honestly). */
+int tui_mouse_poll_touchpad(void) {
+    touchpad_event_t ev;
+    if (driver_input_touchpad_get_event(&ev) != 0) return -1;
+    if (!g_mouse_enabled) return 0;
+    tui_mouse_event_t m;
+    m.button = 0;
+    m.action = TUI_BUTTON_PRESSED;
+    m.modifiers = 0;
+    switch (ev.type) {
+    default:
+        m.x = ev.x;
+        m.y = ev.y;
+        break;
+    }
+    g_mouse_pending = m;
+    g_mouse_pending_valid = 1;
+    return 0;
+}
+
+/* Test hook: raw-key mapping (OC_KEY_* -> TUI KEY_*). */
+int tui_input_map_key(int c) { return map_key(c); }
+
+/* Test hook: feed raw bytes through the same decoder (used by
+ * tui-test to verify the CSI parser against real escape sequences). */
+int tui_input_feed_raw(int c) {
+    for (;;) {
+        int k = csi_feed(c);
+        if (k != TUI_KEY_NONE) return k;
+        return -1;                         /* sequence still open */
+    }
+}

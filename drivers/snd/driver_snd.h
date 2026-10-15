@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/snd.h
+ * File: drivers/snd/driver_snd.h
  * Purpose: Sound card (audio) driver framework.
  *
  * WP-10c introduces a device-driver layer for sound cards, in the same

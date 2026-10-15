@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-10d-pre (rule-9 system self-sufficiency fix)
- * File: kernel/disk_setup.h
+ * File: drivers/block/driver_block_disk_setup.h
  * Purpose: in-system disk setup commands - abdisk / install / grub-install.
  *
  * Rule-9 audit finding: creating an A/B update disk, installing the OS to

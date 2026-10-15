@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-09-fix5
- * File: kernel/config.c
+ * File: kernel/lib/lib_config.c
  * Purpose: /etc/opencube.conf - first user-editable system configuration.
  *
  * Storage layout:

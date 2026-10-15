@@ -259,3 +259,20 @@ commands report the honest state (`scsi`, `parallel`, `gameport`,
 lsi` / `-device scsi-hd` / `-parallel file:` switches in
 docs/TRY-IT.md section 9) — same pattern as the sound cards and NICs
 before them.
+
+## 9. WP-10-tui configuration surface (2026-10-15)
+
+The TUI adds four keys, all read through the same lib_config service
+as every other key (`/etc/opencube.conf`, ramfs fallback, built-in
+defaults):
+
+| Key | Values | Default | Used by |
+|---|---|---|---|
+| `tui.backend` | `fb` \| `serial` | `fb` | `tui_term_detect()` picks the framebuffer console or the ANSI COM1 terminal |
+| `tui.clock_24h` | `1` \| `0` | `1` | tui-sysinfo time page |
+| `tui.tz_offset` | hours (integer string) | `0` | tui-sysinfo time page (display preference) |
+| `snd.volume` | 0..100 | unset | tui-hw sound page applies it through `driver_snd_set_volume` (real hardware path per driver) |
+
+The tui-hw "Save config" entry writes the four keys with
+`lib_config_write`; "Load config" reads them back.  All other TUI
+state is runtime-only by design (windows, panels, menus).

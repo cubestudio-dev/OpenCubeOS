@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/x509.c
+ * File: kernel/crypto/crypto_x509.c
  * Purpose: X.509 v3 chain validation. Minimal but real DER walking:
  * Certificate ::= SEQUENCE { tbsCertificate, signatureAlgorithm, signature }
  * Signature algorithms: sha256WithRSA / sha384WithRSA / sha512WithRSA /

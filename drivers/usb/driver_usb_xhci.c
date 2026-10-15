@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d
- * File: kernel/driver_usb_xhci.c
+ * File: drivers/usb/driver_usb_xhci.c
  * Purpose: XHCI (eXtensible Host Controller Interface, USB 3.x/2.0/1.1)
  *          backend for the WP-10d USB core.
  *

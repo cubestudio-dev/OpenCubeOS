@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/pic.h
+ * File: kernel/arch/x86_64/arch_pic.h
  * Purpose: 8259 PIC interface (remap/mask/unmask/EOI).
  *          Implementation lives in idt.c.
  */

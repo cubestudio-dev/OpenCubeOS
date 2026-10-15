@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-01
- * File: kernel/string.c
+ * File: kernel/lib/lib_string.c
  */
 #include "lib_string.h"
 

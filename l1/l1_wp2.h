@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-02
- * File: kernel/ext_wp2.h
+ * File: l1/l1_wp2.h
  * Purpose: WP-02 extension API summary. This file just re-exports the
  *          WP-02 extension functions from their respective headers so L1
  *          has one place to look.

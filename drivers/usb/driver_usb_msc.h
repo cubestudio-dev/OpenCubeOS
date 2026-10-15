@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d
- * File: kernel/driver_usb_msc.h
+ * File: drivers/usb/driver_usb_msc.h
  * Purpose: USB Mass Storage Class driver interface (driver_usb_msc.c) -
  *          BOT + SCSI, registered as a blk block device ("usda...").
  *

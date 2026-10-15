@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/rsa.c
+ * File: kernel/crypto/crypto_rsa.c
  * Purpose: RSASSA-PKCS1-v1_5 and RSASSA-PSS verification (RFC 8017).
  * Verification only (public exponent e, typically 65537) — practical in
  * QEMU thanks to the bn.c Montgomery core.

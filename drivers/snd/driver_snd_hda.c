@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/hda.c
+ * File: drivers/snd/driver_snd_hda.c
  * Purpose: Intel HD Audio (HDA) controller + codec driver.
  *
  * Mainstream PCI sound: Intel ICH6/ICH7/ICH9 family HD Audio

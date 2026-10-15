@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-10d-pre (rule-9 system self-sufficiency fix)
- * File: kernel/grub_boot_data.h
+ * File: boot/grub_boot_data.h
  * Purpose: interface to the build-time embedded GRUB boot loader and the
  *          running kernel's own ELF image (see tools/embed_grub.py).
  *

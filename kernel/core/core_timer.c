@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/timer.c
+ * File: kernel/core/core_timer.c
  * Purpose: PIT driver + system tick + soft timers.
  */
 #include "core_timer.h"

@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d
- * File: kernel/driver_usb_msc.c
+ * File: drivers/usb/driver_usb_msc.c
  * Purpose: USB Mass Storage Class (Bulk-Only Transport + SCSI) driver,
  *          registered with the blk layer so USB sticks/disks behave
  *          exactly like AHCI/NVMe/virtio drives: lsblk shows them,

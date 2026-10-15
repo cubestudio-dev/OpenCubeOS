@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/snd.c
+ * File: drivers/snd/driver_snd.c
  * Purpose: Sound card driver framework - registry + dispatch.
  *
  * The framework keeps a static table of registered sound cards and
@@ -112,7 +112,12 @@ int driver_snd_set_volume(driver_snd_device_t *dev, u32 vol) {
         if (rc == 0) dev->volume = vol;
         return rc;
     }
-    dev->volume = vol;   /* framework-level volume (silently scaled) */
+    /* Framework-level bookkeeping only: there is NO software sample
+     * attenuation here.  Drivers with real hardware controls must
+     * implement ops->set_volume (WP-10-tui wired SB16 mixer and
+     * the UAC1 Feature Unit); this fallback just records the level
+     * the user asked for and reports it via get_caps/volume. */
+    dev->volume = vol;
     return 0;
 }
 

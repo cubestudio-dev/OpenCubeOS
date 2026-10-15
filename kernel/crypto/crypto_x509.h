@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/x509.h
+ * File: kernel/crypto/crypto_x509.h
  * Purpose: X.509 v3 certificate chain validation for TLS.
  *   - DER parsing of Certificate / TBSCertificate
  *   - RSA (PKCS#1 v1.5) and ECDSA (P-256/P-384) signature verification

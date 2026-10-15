@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-05/WP-07
- * File: kernel/fat32.c
+ * File: fs/fs_fat32.c
  * Purpose: FAT32 file system implementation (read-focused).
  *
  * Layout (LBA28 sectors, 512 bytes each):

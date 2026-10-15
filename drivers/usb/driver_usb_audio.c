@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/driver_usb_audio.c
+ * File: drivers/usb/driver_usb_audio.c
  * Purpose: USB Audio Class 1.0 playback driver on the WP-10c UHCI stack.
  *
  * USB audio is the mainstream hot-pluggable sound path (USB dongles,
@@ -54,6 +54,9 @@ typedef struct driver_usb_audio_dev {
     u16 driver_usb_iso_out_maxpack;
     int has_audio_stream;
     int stream_active;
+    u8  ctl_if_num;        /* audio-control interface number */
+    u8  fu_id;             /* Feature Unit bUnitID (UAC1 volume control) */
+    int has_fu;
     u64 packets_sent;
     u32 accepted_rates;   /* SND_RATE_* bits the device accepted via SET_CUR */
     int up;
@@ -83,6 +86,7 @@ static int driver_usb_audio_parse_config(driver_usb_dev_t *dev, driver_usb_audio
     const u8 *p = dev->cfg_raw;
     int len = dev->cfg_len;
     int in_audio_iface = 0;
+    int in_ac_iface = 0;
 
     while (len >= 2) {
         u8 dlen = p[0];
@@ -94,10 +98,24 @@ static int driver_usb_audio_parse_config(driver_usb_dev_t *dev, driver_usb_audio
             u8 sub = p[6];
             u8 alt = p[3];
             u8 n_ep = p[4];
+            if (cls == 0x01 && sub == 0x01) {      /* AUDIOCONTROL */
+                ad->ctl_if_num = p[2];
+                in_ac_iface = 1;
+            } else if (cls != 0x01 || sub != 0x01) {
+                in_ac_iface = 0;
+            }
             in_audio_iface = (cls == 0x01 && sub == USB_SUBCLASS_AUDIOSTREAMING);
             if (in_audio_iface && n_ep > 0) {
                 ad->audio_if_num = p[2];
                 ad->audio_if_alt = alt;
+            }
+        } else if (dtype == USB_DT_CS_INTERFACE && dlen >= 5) {
+            /* class-specific interface descriptor inside the audio
+             * control interface: subtype 0x06 = FEATURE_UNIT
+             * (bLength, 0x24, 0x06, bUnitID, bSourceID, bControlSize, ...) */
+            if (p[2] == 0x06 && in_ac_iface) {
+                ad->fu_id = p[3];
+                ad->has_fu = 1;
             }
         } else if (dtype == 0x05 && dlen >= 7 && in_audio_iface) {
             /* endpoint descriptor */
@@ -261,8 +279,42 @@ static int driver_usb_audio_ops_set_rate(driver_snd_device_t *sdev, u32 rate) {
 }
 
 static int driver_usb_audio_ops_set_volume(driver_snd_device_t *sdev, u32 vol) {
-    (void)sdev; (void)vol;
-    return 0;   /* UAC1 volume unit control not wired through here */
+    /* WP-10-tui: drive the UAC1 Feature Unit volume control (previously
+     * a bookkeeping stub).  SET_CUR(CUR) through the default pipe:
+     *   wValue  = (CS << 8) | channel;  CS 1 = MUTE, CS 2 = VOLUME
+     *   wIndex  = (bUnitID << 8) | audio-control interface number
+     *   payload = MUTE 1 byte 0/1; VOLUME 2 bytes LE where 0x8000 is
+     *             the minimum (-inf dB) and 0x0000 is 0 dB
+     *             (UAC1 4.6.2.1 + table 5-15). */
+    driver_usb_audio_dev_t *ad = (driver_usb_audio_dev_t *)sdev->priv;
+    if (!ad || !ad->up || !ad->dev) return -1;
+    if (vol > 100) vol = 100;
+    if (!ad->has_fu) {
+        /* No Feature Unit in the device descriptors: there is no
+         * on-wire volume control to drive.  The framework books the
+         * requested level and reports it via get_caps / volume. */
+        sdev->volume = vol;
+        return 0;
+    }
+    u8 mute = (vol == 0) ? 1 : 0;
+    int rc = driver_usb_control(ad->dev, 0x21, 0x01, 0x0100,
+                    (u16)((ad->fu_id << 8) | ad->ctl_if_num), &mute, 1);
+    if (rc != 0) {
+        driver_usb_audio_log("usbaudio: SET_CUR(MUTE) rejected\n");
+        return -1;
+    }
+    if (vol > 0) {
+        u16 raw = (u16)(0x8000u - ((u32)vol * 0x8000u) / 100u);
+        u8 le2[2] = { (u8)(raw & 0xff), (u8)(raw >> 8) };
+        rc = driver_usb_control(ad->dev, 0x21, 0x01, 0x0200,
+                        (u16)((ad->fu_id << 8) | ad->ctl_if_num), le2, 2);
+        if (rc != 0) {
+            driver_usb_audio_log("usbaudio: SET_CUR(VOLUME) rejected\n");
+            return -1;
+        }
+    }
+    sdev->volume = vol;
+    return 0;
 }
 
 static int driver_usb_audio_ops_get_caps(driver_snd_device_t *sdev, driver_snd_caps_t *caps) {

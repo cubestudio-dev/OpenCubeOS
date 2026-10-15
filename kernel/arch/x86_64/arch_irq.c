@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/irq.c
+ * File: kernel/arch/x86_64/arch_irq.c
  * Purpose: IRQ dispatch + L1 IRQ-handler chain.
  */
 #include "arch_irq.h"

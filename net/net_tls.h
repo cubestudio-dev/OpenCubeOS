@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/tls.h
+ * File: net/net_tls.h
  * Purpose: TLS client — mainstream-grade implementation.
  *   TLS 1.3 (RFC 8446):
  *     - X25519 key share, AES-128-GCM / AES-256-GCM / ChaCha20-Poly1305

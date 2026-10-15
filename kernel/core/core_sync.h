@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-04
- * File: kernel/sync.h
+ * File: kernel/core/core_sync.h
  * Purpose: Synchronization primitives - spinlock, semaphore, mutex, condvar.
  */
 #ifndef OC_SYNC_H

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/net_tcp_cc.h
+ * File: net/net_tcp_cc.h
  * Purpose: CUBIC congestion control (RFC 8312) as pure functions, so the
  *          window logic is unit-testable on the host with fixed vectors.
  *          All windows are in BYTES; time is in kernel ticks (100 Hz).

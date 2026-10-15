@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-01
- * File: kernel/multiboot2.h
+ * File: kernel/arch/x86_64/arch_multiboot2.h
  * Purpose: Multiboot2 info structure parser.
  *
  * GRUB hands us a contiguous structure in low memory:

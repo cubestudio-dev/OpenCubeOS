@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-03
- * File: kernel/heap.c
+ * File: kernel/mem/mem_heap.c
  * Purpose: Kernel heap implementation.
  *
  * Free-list allocator with first-fit and block coalescing. The heap pool

@@ -31,16 +31,16 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 - L0 采用 Apache 2.0 许可。
 - 设计原则："一切皆可扩展"。
 
-## 统计（WP-10-camera_misc）
+## 统计（WP-10-tui）
 
-- **源码**：128,275 行（kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs，
-  含头文件，不含文档；
-  验证：`find kernel boot userprogs fs net shell l1 drivers libs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | xargs wc -l`）
-- **工作包**：19 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c、
+- **源码**：121,890 行（kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs + tui，
+  含头文件，不含文档与生成文件；
+  验证：`git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui)/' | xargs wc -l`）
+- **工作包**：20 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c、
   WP-10d、WP-10-wp08fix1、WP-10-input_chipset、WP-10-timer_rtc、
-  WP-10-wireless_bluetooth、WP-10-camera_misc）——
-  下方每包一个 `## WP-*` 小节（WP-10-input_chipset、WP-10-timer_rtc、
-  WP-10-wireless_bluetooth 与 WP-10-camera_misc
+  WP-10-wireless_bluetooth、WP-10-camera_misc、WP-10-tui）——
+  下方每包一个 `## WP-*` 小节（WP-10-input_chipset、WP-10-timer_rtc
+  与 WP-10-wireless_bluetooth
   汇总于上方 Download 小节，无独立 `## WP-*` 小节）
   + 辅助批次（不计入工作包）：项目结构重构、WP-10d-fix2、WP-09-fix5，
   以及审计批次 WP-AUDIT-01（+p0fix/p1fix）与
@@ -81,7 +81,7 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
   （57 + 8 + 13 + 7 + 26 + 11 + 7 + 9 = 138；另有 5 个不入编号的
   WP-09-fix5 config/check-update 接口与 5 个第 ⑨ 条自宿主接口，
   在 1-138 编号之外）
-- **系统调用**：46 个（验证：`grep -c '#define SYS_' kernel/core/core_syscall.h`）
+- **系统调用**：53 个（验证：`grep -c '#define SYS_' kernel/core/core_syscall.h`）
 - **审计 bug 修复**：原始 WP-08 审计修复 47 个（P0=2、P1=8、P2=29、P3=8）
   + 后续独立审计与 P2 批量收尾（P2-BATCH-1 + P2-BATCH-2）追加修复
   4 个 P0 + 8 个 P1 + 20 个 P2，累计达 79。
@@ -158,7 +158,7 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 
 WP-08 统一了此前分开的 WP-08a / WP-08b / WP-08cd 子包：
 
-- **完整系统调用集**（46 个；`SYS_` 编号 0-102，验证：
+- **完整系统调用集**（原始 46 个，SYS_ 编号 0-102；WP-10-tui 增至 53 个，编号 0-109——新增 ring3 socket API 103-109；验证：
   `grep -c '#define SYS_' kernel/core/core_syscall.h`）：exit、write、
   write_and_exit、open、close、stat、readdir、mkdir、rmdir、unlink、fork、
   execve、wait4、kill、getpid、getppid、exit2、pipe、dup、dup2、mmap、

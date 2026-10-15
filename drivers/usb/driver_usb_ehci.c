@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d
- * File: kernel/driver_usb_ehci.c
+ * File: drivers/usb/driver_usb_ehci.c
  * Purpose: EHCI (Enhanced Host Controller Interface, USB 2.0) backend
  *          for the WP-10d USB core.
  *

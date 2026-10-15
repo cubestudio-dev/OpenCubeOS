@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/timer.h
+ * File: kernel/core/core_timer.h
  * Purpose: 8253/8254 PIT @ 100 Hz + system tick counter + soft timers.
  *
  * The PIT is the only hardware timer we use in WP-02. The HPET/local APIC

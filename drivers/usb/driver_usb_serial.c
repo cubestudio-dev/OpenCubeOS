@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d
- * File: kernel/driver_usb_serial.c
+ * File: drivers/usb/driver_usb_serial.c
  * Purpose: USB serial drivers - CDC-ACM and FTDI SIO.
  *
  * CDC-ACM is the standard USB virtual-COM profile (class 0x02

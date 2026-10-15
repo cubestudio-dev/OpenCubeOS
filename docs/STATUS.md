@@ -399,3 +399,28 @@ walker layout, fixture bugs, shell wp[24] one byte short).
 | Interfaces frozen (commands added, none removed) | OK (help -a re-verified live) |
 | Extension contract (header + comments + default impl + docs) | OK (docs/EXTENSIONS_WP10-wireless_bluetooth.md) |
 | L1 numbering stays closed at 138 | OK (driver APIs + commands, no numbered L1 additions) |
+
+## WP-10-tui (2026-10-15) — COMPLETE
+
+The 20th work package.  TUI framework (terminal abstraction with two
+real backends, window system, text/attributes, input with a real ANSI
+CSI decoder and SGR mouse, panels, menus, forms) plus three
+applications (hardware configuration over 11 domains, wireless
+network with WiFi + Bluetooth managers, system information with
+overview/processes/logs/monitor/power/update/time/help).  The batch
+also closed the 12 handover suspicions (7 repaired in code, 3
+documented as design notes, 1 stale, 1 doc-only) and recorded the
+258 unremediated P3 audit findings in KNOWN_ISSUES 15.1.
+
+| Gate | Result |
+|---|---|
+| Build 0 errors 0 warnings | OK (-Werror) |
+| ISO boots (BIOS + UEFI) | see the E2E logs under docs/verification/ |
+| tui-test self-checks | see tools/wp10_tui_e2e.py run output |
+| host test suite (make test) | OK (17 PASS / 2 SKIP-FIXTURE / 0 failed) |
+| Regression 28/28 + dhtest + cryptotest + fstest | OK |
+| SSH E2E / HTTPS E2E | OK (5/5, 7/7) |
+| Commands added only | OK (208 -> 213) |
+| L1 numbering stays closed at 138 | OK (59 driver-API interfaces, no numbered additions) |
+| Extension contract (header + comments + default impl + docs) | OK (docs/EXTENSIONS_WP10-tui.md) |
+| Docs consistency (README/INTERFACES/CONFIG/TRY-IT/KNOWN_ISSUES/STATUS/WORK_LOG/website) | OK |

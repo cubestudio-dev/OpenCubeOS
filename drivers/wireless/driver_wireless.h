@@ -275,6 +275,11 @@ int  wl_channel_to_mhz(u8 channel);
 /* a frame, 0 when empty, negative on error.                           */
 int  wl_netif_recv(u8 *buf, u16 buflen, u16 *len_out);
 
+/* NIC bridge: register the first wireless device with driver_nic so
+ * net_poll() drains the WiFi RX ring and TX goes out over 802.11.
+ * Returns 0 on success, -1 when no wireless hardware exists. */
+int  wl_nic_bridge_register(void);
+
 /* MAC address to "xx:xx:xx:xx:xx:xx" (18 bytes incl. NUL).            */
 void wl_mac_to_str(const u8 *mac, char out[18]);
 

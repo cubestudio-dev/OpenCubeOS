@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-04
- * File: kernel/sync.c
+ * File: kernel/core/core_sync.c
  * Purpose: Synchronization primitives implementation.
  */
 #include "core_sync.h"

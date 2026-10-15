@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/aead.c
+ * File: kernel/crypto/crypto_aead.c
  * Purpose: AES-128/256-GCM + ChaCha20-Poly1305, from scratch, freestanding.
  *
  * - AES: FIPS-197 encrypt-only core with on-the-fly round keys (GCM and

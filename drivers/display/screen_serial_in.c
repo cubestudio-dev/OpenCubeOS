@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/screen_serial_in.c
+ * File: drivers/display/screen_serial_in.c
  * Purpose: COM1 serial RX ? keyboard queue bridge.
  */
 #include "screen_serial_in.h"

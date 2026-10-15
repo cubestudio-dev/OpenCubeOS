@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-03 / WP-05/WP-07
- * File: kernel/shell.h
+ * File: shell/shell.h
  * Purpose: Shell command registration + WP-05/WP-07 shell enhancements:
  *   - environment variables ($VAR expansion + export)
  *   - aliases (alias / unalias)

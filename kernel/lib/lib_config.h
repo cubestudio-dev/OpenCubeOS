@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-09-fix5
- * File: kernel/config.h
+ * File: kernel/lib/lib_config.h
  * Purpose: system configuration file subsystem.
  *
  * /etc/opencube.conf is the FIRST user-editable configuration file of the

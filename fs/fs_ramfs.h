@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-05/WP-07
- * File: kernel/ramfs.h
+ * File: fs/fs_ramfs.h
  * Purpose: In-memory file system (ramfs) - registers with VFS at "/".
  */
 #ifndef OC_RAMFS_H

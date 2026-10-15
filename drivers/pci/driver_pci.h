@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-06
- * File: kernel/pci.h
+ * File: drivers/pci/driver_pci.h
  * Purpose: PCI bus driver - scan bus, read/write config space.
  */
 #ifndef OC_PCI_H

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/idt.c
+ * File: kernel/arch/x86_64/arch_idt.c
  * Purpose: GDT/TSS/IDT/PIC setup + exception handlers + IRQ dispatch.
  *
  * Layout:

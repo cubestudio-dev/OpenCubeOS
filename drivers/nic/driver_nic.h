@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10b
- * File: kernel/nic.h
+ * File: drivers/nic/driver_nic.h
  * Purpose: NIC (network interface card) driver framework.
  *
  * WP-10b introduces a small device-driver layer for Ethernet NICs, in the

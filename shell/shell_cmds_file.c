@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-05/WP-07
- * File: kernel/file_cmds.c
+ * File: shell/shell_cmds_file.c
  * Purpose: Shell commands for file operations on the VFS.
  *
  * Implements the 16 WP-05/WP-07 shell file commands:

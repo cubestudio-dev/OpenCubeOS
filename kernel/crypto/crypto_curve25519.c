@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/curve25519.c
+ * File: kernel/crypto/crypto_curve25519.c
  * Purpose: X25519 (RFC 7748) over Curve25519, field = GF(2^255 - 19).
  *
  * Field elements: 5 limbs of 51 bits, little-endian (donna-c64 style).

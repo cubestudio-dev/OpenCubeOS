@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-01
- * File: kernel/ext.h
+ * File: l1/l1_ext.h
  * Purpose: L1 EXTENSION API - the contract L0 exposes to L1 extensions.
  *
  * WP-01 ships FOUR extension points:

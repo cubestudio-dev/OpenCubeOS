@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d-fix2
- * File: kernel/power.h
+ * File: kernel/core/core_power.h
  * Purpose: power management - shutdown / suspend / halt / reboot.
  *
  * L0->L1 extension surface (4 interfaces, also wrapped as l1_ext_power_*

@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/es1370.h
+ * File: drivers/snd/driver_snd_es1370.h
  * Purpose: Ensoniq AudioPCI ES1370/ES1371 driver interface (es1370.c).
  *
  * L1 extension surface:

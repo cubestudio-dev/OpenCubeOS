@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-05/WP-07
- * File: kernel/ramfs.c
+ * File: fs/fs_ramfs.c
  * Purpose: In-memory file system implementation.
  *
  * Each ramfs node owns a fs_vfs_node_t (the public VFS face) plus a private

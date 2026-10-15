@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/driver_snd_test_cmds.c
+ * File: shell/shell_cmds_snd_test.c
  * Purpose: Shell test/status commands for the WP-10c sound drivers.
  *
  * Per-family tests share one pattern (input -> expected -> actual ->

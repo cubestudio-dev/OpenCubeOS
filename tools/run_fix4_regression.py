@@ -59,7 +59,9 @@ CHECKS = [
     # moves UP again 198 -> 208 (WP-10-camera_misc: +10 cmds
     # uvc/uvctest/parallel/paralleltest/gameport/gameporttest/ir/irtest/
     # scsi/scsitest; additions only, never deletions).
-    ("command count 208",        r"Total:\s*208 commands"),
+    # WP-10-tui adds 5 commands (tui/tui-test/tui-hw/tui-net/tui-sysinfo):
+    # the baseline moves UP 208 -> 213; removals remain forbidden.
+    ("command count 213",        r"Total:\s*213 commands"),
     # Baseline note (WP-10-input_chipset): accept the current tree describe
     # (fix4-2-g<sha>), the fix3-rebuild form, and the new WP-10-input_chipset
     # tag form (release builds bake the tag name verbatim).

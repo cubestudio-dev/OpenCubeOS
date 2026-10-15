@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-01
- * File: kernel/font.c
+ * File: drivers/display/screen_font.c
  */
 #include "screen_font.h"
 #include "screen_fb.h"

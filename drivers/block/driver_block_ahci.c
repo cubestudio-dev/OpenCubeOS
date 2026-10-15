@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-10a
- * File: kernel/ahci.c
+ * File: drivers/block/driver_block_ahci.c
  * Purpose: AHCI (SATA) host controller driver - real DMA, polled.
  *
  * Probe flow

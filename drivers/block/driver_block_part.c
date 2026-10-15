@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07
- * File: kernel/part.c
+ * File: drivers/block/driver_block_part.c
  * Purpose: MBR + GPT partition table parser.
  */
 #include "driver_block_part.h"

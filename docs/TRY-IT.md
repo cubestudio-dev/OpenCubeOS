@@ -404,3 +404,47 @@ Troubleshooting:
 | `scsitest` rw check fails | the test writes the LAST sector of the disk - use a scratch image, not your install disk |
 | parallel-out.txt empty | add `-parallel file:parallel-out.txt` |
 | `camera subsystem: 0 cameras` | QEMU models no UVC camera - honest state, parser verified by fixtures |
+
+## 10. TUI (WP-10-tui)
+
+The TUI is the full-screen ncurses-style layer on top of the kernel
+console.  Two real backends: the built-in framebuffer console
+(default, `tui.backend=fb`) and an ANSI/VT100 terminal on COM1
+(`tui.backend=serial`).  All TUI commands work on BIOS and UEFI boots
+with no extra QEMU hardware.
+
+Quick start at the `oc>` prompt:
+
+```
+oc> tui                # full-screen main menu (arrows / Tab / Enter / Esc)
+oc> tui-test           # 40+ self-checks, prints input/expected/actual/verdict
+oc> tui-hw             # hardware configuration (11 domain pages, Tab cycles)
+oc> tui-hw Memory      # one page directly
+oc> tui-net            # WiFi scan/list/connect + Bluetooth manager
+oc> tui-sysinfo        # overview/processes/logs/monitor/power/update/time/help
+```
+
+What you should see (framebuffer backend, QEMU, no extra hardware):
+
+- `tui` renders a full-screen bordered menu with an aqua status line;
+  arrows move the selection, Enter opens the section, F1 opens help,
+  F10/Esc leaves and restores the shell.
+- `tui-test` ends with `tui-test: <n>/<n> checks passed, all green`
+  (exit code = failure count; every failed check prints
+  input/expected/actual).
+- `tui-hw Memory` shows the live PMM numbers (total/used/free pages
+  and the allocation counters); `tui-hw CPU` shows the CPUID vendor
+  and model string of the machine QEMU presents.
+- `tui-net` reports honestly on QEMU: the 802.11 device list is empty
+  (no QEMU WiFi model) and the WiFi link stays DOWN until real
+  hardware associates; the Bluetooth manager reports
+  "no Bluetooth transport" unless a USB dongle or the COM2 H4 peer is
+  attached (see section 8 for the H4 peer setup).
+- `tui-sysinfo overview` shows the WP-10-tui version string, the
+  monotonic build id, uptime and the live memory/task numbers.
+
+Shortcut map: F1 help, F2 save config, F3 search, F5 refresh, F10
+exit, Tab switch domain/field, arrows navigate, Enter confirm, Esc
+cancel.  The mouse works through the touchpad path when an I2C-HID
+device exists and through xterm SGR mouse reports when the backend is
+a real terminal on COM1.

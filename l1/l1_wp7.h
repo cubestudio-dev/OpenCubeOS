@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07
- * File: kernel/ext_wp7.h
+ * File: l1/l1_wp7.h
  * Purpose: WP-07 extension API summary. Re-exports the WP-07 extension
  *          functions so L1 has one place to look.
  *

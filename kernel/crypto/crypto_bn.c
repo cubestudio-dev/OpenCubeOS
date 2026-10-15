@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/bn.c
+ * File: kernel/crypto/crypto_bn.c
  * Purpose: Big-integer core: schoolbook multiply, Montgomery REDC, modexp.
  *
  * WP-09 history note: the original crypto_dh_modexp_n() used byte-wise

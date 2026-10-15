@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d
- * File: kernel/driver_usb_test_cmds.h
+ * File: shell/shell_cmds_usb_test.h
  * Purpose: WP-10d USB shell commands + tests (driver_usb_test_cmds.c).
  *
  * Registers: usb, usbdev, driver_usb_core_test, driver_usb_kbd_test,

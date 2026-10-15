@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-06
- * File: kernel/net.h
+ * File: net/net_core.h
  * Purpose: Network stack - e1000 driver + TCP/IP + socket API + shell commands.
  *
  * This file provides the full WP-06 network stack:

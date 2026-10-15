@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-09-fix5
- * File: kernel/update.c
+ * File: kernel/ota/ota_update.c
  * Purpose: online update check (checkupdate) over HTTP or HTTPS.
  *
  * Transport is chosen by the ota_update_url scheme from /etc/opencube.conf:

@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/ac97.c
+ * File: drivers/snd/driver_snd_ac97.c
  * Purpose: Intel 82801AA/AB AC'97 audio controller driver.
  *
  * The legacy mainstream PCI sound card: Intel AC'97 (8086:2415 i82801AA,

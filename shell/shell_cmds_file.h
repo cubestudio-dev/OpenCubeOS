@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-05/WP-07
- * File: kernel/file_cmds.h
+ * File: shell/shell_cmds_file.h
  * Purpose: Register all file-operation shell commands.
  */
 #ifndef OC_FILE_CMDS_H

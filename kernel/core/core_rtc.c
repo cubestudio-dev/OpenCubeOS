@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/rtc.c
+ * File: kernel/core/core_rtc.c
  * Purpose: Minimal CMOS RTC reader (ports 0x70/0x71) with BCD conversion
  *          and century handling. Used by the X.509 chain validator.
  */

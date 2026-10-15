@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-08a
- * File: kernel/syscall.c
+ * File: kernel/core/core_syscall.c
  * Purpose: Complete syscall set — process management, IPC, signals, memory,
  *          file/directory, and I/O multiplexing.
  */
@@ -18,7 +18,8 @@
 #include "driver_input_keyboard.h"
 #include "shell.h"
 #include "arch_idt.h"
-#include "core_timer.h"   /* P2-04: core_timer_now_ms() for sys_uptime */
+#include "core_timer.h"
+#include "net_core.h"   /* WP-10-tui: socket syscalls */   /* P2-04: core_timer_now_ms() for sys_uptime */
 
 /* WP-08b Batch 5: libfoo.so bytes are defined in usermode.c (which
  * #includes solib_data.h). We just reference them here so sys_map_solib
@@ -73,13 +74,18 @@ static int access_ok_read(u64 addr, u64 len) {
 
 /* access_ok for a NUL-terminated string in user memory. We can't
  * know len ahead of time, so we walk pages from addr until we either
- * find a NUL byte or hit USER_LIMIT / an unmapped page. */
+ * find a NUL byte or hit USER_LIMIT / an unmapped page.
+ * WP-10-tui: bounded to ACCESS_OK_STR_MAX_PAGES pages (64 KiB) so a
+ * hostile unterminated string cannot pin the single CPU scanning the
+ * whole user window with interrupts off (denial of service). Every
+ * in-kernel caller passes paths/commands far below that bound. */
+#define ACCESS_OK_STR_MAX_PAGES 16
 static int access_ok_str(u64 addr) {
     if (!valid_user_ptr(addr)) return 0;
     user_proc_t *proc = user_process_current();
     if (!proc || !proc->as) return 0;
     u64 a = addr & ~0xFFFULL;
-    while (a < USER_LIMIT) {
+    for (u32 page = 0; page < ACCESS_OK_STR_MAX_PAGES && a < USER_LIMIT; page++) {
         u64 phys;
         if (!mem_vmm_is_mapped(proc->as, a, &phys)) return 0;
         /* Scan the page for a NUL byte. */
@@ -90,9 +96,8 @@ static int access_ok_str(u64 addr) {
         }
         a += 0x1000;
         addr = a;  /* subsequent pages start at offset 0 */
-        if (a - (addr & ~0xFFFULL) > 4096) break;  /* sanity */
     }
-    return 0;  /* ran off the end without a NUL */
+    return 0;  /* no NUL within the bounded window */
 }
 
 /* copy_from_user: copy bytes from user VA to kernel buffer.
@@ -2036,6 +2041,13 @@ static u64 sys_map_solib(u64 name_ptr, u64 name_len, u64 flags, u64 a4) {
 }
 
 /* WP-08cd forward declarations */
+static u64 sys_socket(u64 type, u64 a2, u64 a3, u64 a4);
+static u64 sys_netbind(u64 sock, u64 ip, u64 port, u64 a4);
+static u64 sys_netconnect(u64 sock, u64 ip, u64 port, u64 a4);
+static u64 sys_netaccept(u64 lsock, u64 ip_out, u64 port_out, u64 a4);
+static u64 sys_netsend(u64 sock, u64 buf, u64 len, u64 a4);
+static u64 sys_netrecv(u64 sock, u64 buf, u64 maxlen, u64 a4);
+static u64 sys_netclose(u64 sock, u64 a2, u64 a3, u64 a4);
 static u64 sys_open(u64 path, u64 flags, u64 a3, u64 a4);
 static u64 sys_close(u64 fd, u64 a2, u64 a3, u64 a4);
 static u64 sys_stat(u64 path, u64 stat_buf, u64 a3, u64 a4);
@@ -2471,6 +2483,72 @@ static int copy_user_str(u64 src, char *dst, int cap) {
     return 0;
 }
 
+/* ================================================================
+ * WP-10-tui: kernel socket API exposed to ring3 (SYS 103-109).
+ * Socket ids come from the net stack's own table (MAX_SOCKETS), NOT
+ * from the process fd table: they do not participate in dup/select/
+ * poll/fork.  Buffers cross the ring boundary through the same
+ * copy_from_user/copy_to_user paths the fs syscalls use.
+ * ================================================================ */
+#define OC_NET_SOCK_BUF_MAX 4096
+
+static u64 sys_socket(u64 type, u64 a2, u64 a3, u64 a4) {
+    (void)a2; (void)a3; (void)a4;
+    if (type != SOCK_TCP && type != SOCK_UDP) return (u64)-1;
+    int r = net_socket((int)type);
+    return (r < 0) ? (u64)-1 : (u64)r;
+}
+
+static u64 sys_netbind(u64 sock, u64 ip, u64 port, u64 a4) {
+    (void)a4;
+    return (net_bind((int)sock, (u32)ip, (u16)port) == 0) ? 0 : (u64)-1;
+}
+
+static u64 sys_netconnect(u64 sock, u64 ip, u64 port, u64 a4) {
+    (void)a4;
+    return (net_connect((int)sock, (u32)ip, (u16)port) == 0) ? 0 : (u64)-1;
+}
+
+static u64 sys_netaccept(u64 lsock, u64 ip_out, u64 port_out, u64 a4) {
+    (void)a4;
+    u32 ip = 0; u16 port = 0;
+    int r = net_accept((int)lsock, &ip, &port);
+    if (r < 0) return (u64)-1;
+    if (valid_user_ptr(ip_out) &&
+        copy_to_user(ip_out, &ip, 4) != 0) return (u64)-1;
+    if (valid_user_ptr(port_out) &&
+        copy_to_user(port_out, &port, 2) != 0) return (u64)-1;
+    return (u64)r;
+}
+
+static u64 sys_netsend(u64 sock, u64 buf, u64 len, u64 a4) {
+    (void)a4;
+    if (len == 0) return 0;
+    if (len > OC_NET_SOCK_BUF_MAX) return (u64)-1;
+    if (!valid_user_ptr(buf)) return (u64)-1;
+    u8 kbuf[OC_NET_SOCK_BUF_MAX];
+    if (copy_from_user(kbuf, buf, len) != 0) return (u64)-1;
+    int r = net_send((int)sock, kbuf, (int)len);
+    return (r < 0) ? (u64)-1 : (u64)r;
+}
+
+static u64 sys_netrecv(u64 sock, u64 buf, u64 maxlen, u64 a4) {
+    (void)a4;
+    if (maxlen == 0) return 0;
+    if (maxlen > OC_NET_SOCK_BUF_MAX) maxlen = OC_NET_SOCK_BUF_MAX;
+    if (!valid_user_ptr(buf)) return (u64)-1;
+    u8 kbuf[OC_NET_SOCK_BUF_MAX];
+    int r = net_recv((int)sock, kbuf, (int)maxlen);
+    if (r < 0) return (u64)-1;
+    if (r > 0 && copy_to_user(buf, kbuf, (u64)r) != 0) return (u64)-1;
+    return (u64)r;
+}
+
+static u64 sys_netclose(u64 sock, u64 a2, u64 a3, u64 a4) {
+    (void)a2; (void)a3; (void)a4;
+    return (net_close((int)sock) == 0) ? 0 : (u64)-1;
+}
+
 /* SYS_NETCMD(101): run a WP-06 network shell command in the kernel and
  * capture its REAL output for the user-space tools (ifconfig/ping/
  * netstat/wget). This reuses shell_execute_captured - the exact same
@@ -2563,4 +2641,12 @@ void core_syscall_wp08fix1_init(void) {
     core_syscall_register(SYS_CHOWN, sys_chown);
     core_syscall_register(SYS_NETCMD, sys_netcmd);
     core_syscall_register(SYS_PS, sys_ps);
+    /* WP-10-tui: socket API for ring3. */
+    core_syscall_register(SYS_SOCKET, sys_socket);
+    core_syscall_register(SYS_NETBIND, sys_netbind);
+    core_syscall_register(SYS_NETCONNECT, sys_netconnect);
+    core_syscall_register(SYS_NETACCEPT, sys_netaccept);
+    core_syscall_register(SYS_NETSEND, sys_netsend);
+    core_syscall_register(SYS_NETRECV, sys_netrecv);
+    core_syscall_register(SYS_NETCLOSE, sys_netclose);
 }

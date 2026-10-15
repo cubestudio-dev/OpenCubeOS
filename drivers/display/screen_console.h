@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-01
- * File: kernel/console.h
+ * File: drivers/display/screen_console.h
  * Purpose: Text-mode console built on top of the framebuffer + renderer.
  *
  * The console owns:

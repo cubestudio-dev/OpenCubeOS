@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07
- * File: kernel/exfat.c
+ * File: fs/fs_exfat.c
  * Purpose: exFAT filesystem driver (read + write) for the VFS.
  *
  * Uses the ORIGINAL WP-05 VFS interface (3 separate ops structs:

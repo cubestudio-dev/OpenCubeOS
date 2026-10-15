@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/aead.h
+ * File: kernel/crypto/crypto_aead.h
  * Purpose: AEAD ciphers for TLS 1.3 / TLS 1.2 / SSH.
  *   - AES-128/256-GCM (RFC 5116 / NIST SP 800-38D)
  *   - ChaCha20-Poly1305 (RFC 8439)

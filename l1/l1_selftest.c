@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-01
- * File: kernel/ext_selftest.c
+ * File: l1/l1_selftest.c
  * Purpose: Self-test for the four L0?L1 extension points.
  *
  * This file is the canary for "the extension API actually works". It

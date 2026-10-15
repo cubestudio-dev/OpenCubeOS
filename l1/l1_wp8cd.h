@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS WP-08cd
- * File: kernel/ext_wp8cd.h
+ * File: l1/l1_wp8cd.h
  * Purpose: L1 EXTENSION API - WP-08cd interfaces (items 51-57).
  *
  * WP-08cd adds 7 L1 extension interfaces for user-space shell,

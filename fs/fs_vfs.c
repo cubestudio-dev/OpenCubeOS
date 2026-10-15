@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-05/WP-07
- * File: kernel/vfs.c
+ * File: fs/fs_vfs.c
  * Purpose: VFS abstraction layer implementation.
  *
  * Implements:

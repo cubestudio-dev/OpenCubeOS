@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10u
- * File: kernel/ota_ab_update.c
+ * File: kernel/ota/ota_ab.c
  * Purpose: A/B slot framework + in-system update, see ota_ab_update.h.
  *
  * Layers in this file:

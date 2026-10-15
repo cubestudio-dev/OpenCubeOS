@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-10a
- * File: kernel/driver_block_ata_dma.h
+ * File: drivers/block/driver_block_ata_dma.h
  * Purpose: PCI Bus-Master IDE (BMDMA) driver interface.
  *
  * WP-10a adds true DMA transfers for the mainstream IDE/ATA controller

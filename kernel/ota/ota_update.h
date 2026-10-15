@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-09-fix5
- * File: kernel/update.h
+ * File: kernel/ota/ota_update.h
  * Purpose: online update check (checkupdate) over HTTP or HTTPS.
  *
  * The update manifest is JSON (all fields are ASCII strings):

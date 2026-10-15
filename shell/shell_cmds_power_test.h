@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d-fix2
- * File: kernel/core_power_test_cmds.h
+ * File: shell/shell_cmds_power_test.h
  * Purpose: shell test suite for power management + structured help.
  */
 #ifndef OC_POWER_TEST_CMDS_H

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-08a
- * File: kernel/syscall.h
+ * File: kernel/core/core_syscall.h
  * Purpose: Syscall number definitions, signal constants, and WP-08a API.
  *
  * Syscall ABI: rax=core_syscall_num, rdi=arg1, rsi=arg2, rdx=arg3, r10=arg4
@@ -108,6 +108,15 @@ void core_syscall_wp08a_init(void);
 #define SYS_CHOWN       100   /* (path, uid, gid) -> 0/-1                 */
 #define SYS_NETCMD      101   /* (op, arg, out, cap) -> 0/-1              */
 #define SYS_PS          102   /* (buf, cap) -> entry count / -1           */
+/* WP-10-tui: kernel socket API (net_core.h).  The first argument is a
+ * NET SOCKET id from net_socket(), not a process file descriptor. */
+#define SYS_SOCKET      103   /* (type SOCK_TCP/SOCK_UDP) -> sock / -1    */
+#define SYS_NETBIND     104   /* (sock, ip_le, port) -> 0/-1              */
+#define SYS_NETCONNECT  105   /* (sock, ip_le, port) -> 0/-1              */
+#define SYS_NETACCEPT   106   /* (lsock, &ip, &port) -> sock / -1         */
+#define SYS_NETSEND     107   /* (sock, buf, len) -> sent / -1            */
+#define SYS_NETRECV     108   /* (sock, buf, maxlen) -> recvd / -1        */
+#define SYS_NETCLOSE    109   /* (sock) -> 0/-1                           */
 
 /* SYS_NETCMD operation codes (must match userprogs/ush.c). */
 #define NETCMD_IFCONFIG  1

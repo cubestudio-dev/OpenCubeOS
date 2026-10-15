@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/curve25519.h
+ * File: kernel/crypto/crypto_curve25519.h
  * Purpose: X25519 Diffie-Hellman (RFC 7748).
  *   Used by TLS 1.3 key_share, TLS 1.2 ECDHE, SSH curve25519-sha256 kex.
  *   Constant-time Montgomery ladder (secret scalars are involved).

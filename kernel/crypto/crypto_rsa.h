@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/rsa.h
+ * File: kernel/crypto/crypto_rsa.h
  * Purpose: RSASSA signature verification (RFC 8017).
  *   - PKCS#1 v1.5 (X.509 certificate chains, TLS 1.2 ECDHE_RSA)
  *   - PSS with salt length == hash length (TLS 1.3 CertificateVerify)

@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10b
- * File: kernel/driver_nic_e1000e.c
+ * File: drivers/nic/driver_nic_e1000e.c
  * Purpose: Intel 8254x/82574 family NIC driver (e1000e) for the WP-10b
  *          nic framework.
  *

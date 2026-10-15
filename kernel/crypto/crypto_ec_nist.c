@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/crypto_ec_nist.c
+ * File: kernel/crypto/crypto_ec_nist.c
  * Purpose: NIST P-256 / P-384: Jacobian point arithmetic over the bn.c
  *          Montgomery core, ECDH, ECDSA verify.
  *

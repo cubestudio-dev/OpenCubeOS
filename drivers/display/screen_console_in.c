@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/console_in.c
+ * File: drivers/display/screen_console_in.c
  * Purpose: Console input line editor + L1 input hooks.
  */
 #include "screen_console_in.h"

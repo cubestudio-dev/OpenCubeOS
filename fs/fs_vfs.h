@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-05/WP-07
- * File: kernel/vfs.h
+ * File: fs/fs_vfs.h
  * Purpose: Virtual File System abstraction layer.
  *
  * The VFS provides a uniform API (open/read/write/seek/close/stat/mkdir/

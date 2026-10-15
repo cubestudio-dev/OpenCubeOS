@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-03
- * File: kernel/kmain.c
+ * File: kernel/main.c
  * Purpose: Kernel main entry. WP-03 adds:
  *   - PMM (physical memory manager) init
  *   - VMM (virtual memory manager) init
@@ -56,6 +56,7 @@
 
 /* WP-06 headers. */
 #include "net_core.h"
+#include "../tui/tui.h"   /* WP-10-tui */
 
 /* WP-07 headers. */
 void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
@@ -3345,6 +3346,12 @@ void kmain(u64 magic, u64 mbi_phys) {
         OC_LOG_OK2(line);
     }
 
+    /* WP-10-tui: start the resident USB poll thread - hot-plug, HID
+     * and serial RX plus MSC test-unit-ready now run without a test
+     * command having to drive them (closes the "comment claimed a
+     * resident poller, code never started one" gap). */
+    driver_usb_poll_start();
+
     OC_LOG_OK2("USB stack (4 HC backends, HID/MSC/serial/audio)");
 
     fs_fat32_init();
@@ -3392,6 +3399,10 @@ void kmain(u64 magic, u64 mbi_phys) {
      * before the wireless probe so brcmfmac-SDIO cards can be bound.  */
     driver_sdhci_init();
     wl_device_probe_all();
+    /* WP-10-tui: bridge the wireless STA into the NIC framework so
+     * its RX ring feeds the TCP/IP stack (no carrier -> honest DOWN
+     * link; associated -> data frames flow). */
+    wl_nic_bridge_register();
     /* Bluetooth stack: HCI over the first available transport (USB
      * dongle, else the COM2 H4 UART).  Without either, the bt command
      * reports "no transport" honestly. */
@@ -3486,6 +3497,8 @@ void kmain(u64 magic, u64 mbi_phys) {
 
     /* ---- WP-10d: USB status + test commands ---- */
     shell_cmds_usb_test_register();
+
+    tui_cmd_register();   /* WP-10-tui: tui, tui-test, tui-hw, tui-net, tui-sysinfo */
 
     /* docs-sync FIX: report the LIVE registered command count once ALL
      * registrations are done (kmain + file + disk + net commands). The old

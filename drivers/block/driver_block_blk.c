@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07 / WP-10a
- * File: kernel/blk.c
+ * File: drivers/block/driver_block_blk.c
  * Purpose: Block device registry + cached read/write dispatch.
  *
  * Every block device (ATA, virtio-blk, NVMe, AHCI SATA) registers here.

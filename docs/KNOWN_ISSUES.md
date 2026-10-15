@@ -816,3 +816,70 @@ real chip both accept.
 The regression script's command-count check moved 198 -> 208 with this
 batch (uvc/uvctest/parallel/paralleltest/gameport/gameporttest/ir/
 irtest/scsi/scsitest registered; additions only, nothing removed).
+
+## 15. WP-10-tui pre-fix audit notes (2026-10-15)
+
+### 15.1 P3 findings remain unremediated (258 items)
+WP-AUDIT-01 produced 607 findings: P0=41, P1=94, P2=214 (all three
+tiers fixed and verified through BUG-0136..0349) and **P3=258
+(BUG-0350..0607) which are NOT fixed and were NOT previously tracked
+in this file**.  They stay machine-readable in
+`docs/audit/bugs_final.json` (field `sev == "P3"`); the densest files
+are net_core.c (10), userprogs/ush.c (9), core_syscall.c (9),
+driver_usb.c (7), main.c (6), driver_block_ahci.c (6).  A P3 finding
+is by definition a low-severity issue (style, robustness hardening,
+minor resource waste) — none of the 258 is known to be user-visible
+today, but that claim is honest only as an audit-time statement.  Any
+batch that touches a file carrying P3 items is expected to fix the
+touched-file P3s opportunistically and record them here.
+
+### 15.2 Block LRU write-back cache is intentionally off the fs path
+Every filesystem backend reads and writes through
+`driver_block_*_sectors_raw` (fs_fat32.c, fs_exfat.c, fs_ext4.c), so
+the blk-layer LRU write-back cache (driver_block_cache.c) is exercised
+only by tests (g8test, block test commands).  This is deliberate:
+`_raw` never touches cached copies, and the production writers that
+bypass fs entirely (part table writes, disk_setup boot code, OTA A/B
+installs) also write via `_raw`, so "everything raw" is the only
+combination with zero stale-cache windows.  Wiring fs onto the cache
+would require invalidating cached slots on every `_raw` write
+(including the writers above) — tracked as a future enhancement, not
+a bug.  The filesystems are not slower because of it in any measured
+workload: the fs layers carry their own metadata caches (full FAT
+table, VFS node cache).
+
+### 15.3 fork copies the whole address space; 32 task slots
+fork() walks the parent page tables and memcpy()s every user page
+(core_usermode.c; no COW — VMM_FLAG_COW exists as a flag but has no
+write-trap handler).  MAX_TASKS=32 (core_sched.h) bounds all tasks
+including kernel threads; the 29 embedded user programs cannot all
+run concurrently and an exhausted table fails gracefully (-1).  Both
+facts are documented API semantics (EXTENSIONS_WP03.md tid range);
+listed here because WP-AUDIT-01 P3 flagged the memory cost.  A COW
+implementation needs PMM refcounts and a #PF write branch and is
+planned as its own work package, not a drive-by fix.
+
+### 15.4 virtio-snd volume: no ctl-element support, honest failure
+The virtio-snd driver implements the PCM subset (0x0100..0x0105)
+only.  Device volume would need the optional control-element
+protocol (VIRTIO_SND_R_CTL_* 0x0200), and QEMU ships no virtio-snd
+model, so that path cannot be developed or verified against anything.
+driver_snd_virtio_ops_set_volume() now returns -1 (device absent or
+volume unsupported) instead of the previous fake success; the
+framework refuses to book the value and the `volume` command reports
+the failure.  SB16 (mixer registers, read-back verified) and UAC1
+(Feature Unit SET_CUR) drivers do drive real hardware volume.
+
+### 15.5 TLS handshake: one unreproduced intermittent failure (2026-10-15)
+During the WP-10-tui session-2 HTTPS E2E loop, one boot failed with
+`TLS failed (code 1)` right after the server's ServerKeyExchange
+record (the server then logged its own UNEXPECTED_EOF, i.e. the
+kernel hung up first).  The same boot with TLS_DBG=1 completes the
+whole handshake, and five further TLS_DBG=0 runs pass end to end
+(7/7 each).  net_tls.c is comment-only changed since the camera_misc
+release where the gate last passed, and wget over plain HTTP on the
+same build/IP works, so the receive path and e1000/slirp are fine.
+Recorded as an unreproduced, timing-sensitive observation instead of
+a regression; if it reproduces, the suspect area is the poll-loop
+handoff between net_poll() record reads and the handshake state
+machine (single-CPU TCG timing).

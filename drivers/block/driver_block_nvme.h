@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07 / WP-10a
- * File: kernel/nvme.h
+ * File: drivers/block/driver_block_nvme.h
  * Purpose: NVMe PCI driver - public init entry point + WP-10a additions.
  *
  * Probes for an NVMe controller (PCI class 0x010802).  If found, brings

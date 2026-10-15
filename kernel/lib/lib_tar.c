@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10u
- * File: kernel/tar.c
+ * File: kernel/lib/lib_tar.c
  * Purpose: streaming ustar reader, see tar.h.
  *
  * The parser buffers until it can act on whole 512-byte blocks:

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-10d-pre (rule-9 system self-sufficiency fix)
- * File: kernel/grub_boot_stub.c
+ * File: boot/grub_boot_stub.c
  * Purpose: stage-1 link stub for the embedded boot data.
  *
  * Stage 1 of the build (opencube_base.elf) is linked WITHOUT the

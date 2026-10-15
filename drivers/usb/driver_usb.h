@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c / WP-10d
- * File: kernel/usb.h
+ * File: drivers/usb/driver_usb.h
  * Purpose: USB host stack interface - implementation: usb.c (+ the
  *          per-controller backends driver_usb_ohci.c / driver_usb_ehci.c /
  *          driver_usb_xhci.c; UHCI lives in usb.c).
@@ -311,6 +311,7 @@ struct driver_usb_dev {
 /* WP-10c-compatible entry points */
 int  driver_usb_init(void);                        /* UHCI bring-up (legacy path) */
 int  driver_usb_probe_all(void);                   /* WP-10d: all four backends */
+void driver_usb_poll_start(void);                  /* WP-10-tui: resident poll thread */
 int  driver_usb_num_devices(void);
 int  driver_usb_num_hosts(void);                   /* WP-10d: registered HC count */
 driver_usb_dev_t *driver_usb_get_device(int idx);

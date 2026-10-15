@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d
- * File: kernel/driver_usb_hid.c
+ * File: drivers/usb/driver_usb_hid.c
  * Purpose: USB HID class driver (boot protocol) - keyboards and mice.
  *
  * Keyboards and mice are the mainstream USB input path; every real

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-05/WP-07
- * File: kernel/ata.h
+ * File: drivers/block/driver_block_ata.h
  * Purpose: ATA/IDE PIO driver (LBA28) for the primary and secondary channels.
  *
  * Drives are addressed by a single integer 0..3:

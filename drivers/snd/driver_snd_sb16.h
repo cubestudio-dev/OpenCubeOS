@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/sb16.h
+ * File: drivers/snd/driver_snd_sb16.h
  * Purpose: Sound Blaster 16 driver interface (sb16.c).
  *
  * L1 extension surface:

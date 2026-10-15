@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-10d-pre (rule-9 system self-sufficiency fix)
- * File: kernel/disk_setup.c
+ * File: drivers/block/driver_block_disk_setup.c
  * Purpose: abdisk / install / grub-install - partition, format, install
  *          and make bootable a disk entirely from the oc> shell.
  *

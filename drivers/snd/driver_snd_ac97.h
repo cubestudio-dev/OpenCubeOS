@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/ac97.h
+ * File: drivers/snd/driver_snd_ac97.h
  * Purpose: Intel 82801AA/AB AC'97 codec driver interface (ac97.c).
  *
  * L1 extension surface:

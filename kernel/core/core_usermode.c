@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-04/WP-08a
- * File: kernel/usermode.c
+ * File: kernel/core/core_usermode.c
  * Purpose: Userspace support - ring 3, syscalls, ELF loader, process table.
  */
 #include "core_usermode.h"

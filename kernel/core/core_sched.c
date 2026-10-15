@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-04
- * File: kernel/sched.c
+ * File: kernel/core/core_sched.c
  * Purpose: Preemptive scheduler implementation.
  */
 #include "core_sched.h"

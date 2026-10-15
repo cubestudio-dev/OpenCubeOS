@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-06
- * File: kernel/pci.c
+ * File: drivers/pci/driver_pci.c
  * Purpose: PCI bus driver implementation.
  */
 #include "driver_pci.h"

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/net_tcp_cc.c
+ * File: net/net_tcp_cc.c
  * Purpose: CUBIC congestion control (RFC 8312), pure-function core.
  *
  * Units:

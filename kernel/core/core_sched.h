@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-04
- * File: kernel/sched.h
+ * File: kernel/core/core_sched.h
  * Purpose: Preemptive scheduler - task control blocks, priority scheduling,
  *          time-slice round-robin, context switching.
  */

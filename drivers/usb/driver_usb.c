@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c / WP-10d
- * File: kernel/usb.c
+ * File: drivers/usb/driver_usb.c
  * Purpose: USB core: host-controller registry, device tree, the four
  *          transfer types, enumeration, hub support, hot-plug and the
  *          class-driver registry.  The UHCI backend lives here too.
@@ -49,6 +49,9 @@
 #include "core_sched.h"
 #include "core_timer.h"
 #include "core_sync.h"
+#include "driver_usb_hid.h"
+#include "driver_usb_msc.h"
+#include "driver_usb_serial.h"
 
 /* ==================================================================
  * small helpers
@@ -1851,4 +1854,32 @@ void driver_usb_mark_enumerated(void);
 void driver_usb_mark_enumerated(void) {
     /* the core recomputes the count on demand; kept for WP-10c
      * binary compatibility */
+}
+
+/* ==================================================================
+ * Resident poll thread (WP-10-tui).  The thread body used to live
+ * only inside the usb test command file, and the header comments
+ * claimed a resident poller that was never started; kmain now calls
+ * driver_usb_poll_start() right after the host-controller probe.
+ * ================================================================== */
+static void driver_usb_poll_thread(void *arg) {
+    (void)arg;
+    u64 round = 0;
+    for (;;) {
+        driver_usb_poll();
+        driver_usb_hid_poll();
+        driver_usb_serial_poll();
+        if ((round & 0x0f) == 0) driver_usb_msc_poll();
+        round++;
+        /* ~2 ms breather between rounds */
+        u64 deadline = core_timer_now_ms() + 2;
+        while (core_timer_now_ms() < deadline) core_sched_yield();
+    }
+}
+
+void driver_usb_poll_start(void) {
+    /* Priority = TASK_PRIO_MAX: the shell runs inside the idle task
+     * (same priority), so the poll thread round-robins with it
+     * instead of starving it on the USB transfer mutex. */
+    core_kthread_create(driver_usb_poll_thread, NULL, "usb-poll", TASK_PRIO_MAX);
 }

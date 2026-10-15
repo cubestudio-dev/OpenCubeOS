@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10u
- * File: kernel/gzip.c
+ * File: kernel/lib/lib_gzip.c
  * Purpose: gzip (RFC 1952) + DEFLATE (RFC 1951) inflate, see gzip.h.
  *
  * Implementation notes:

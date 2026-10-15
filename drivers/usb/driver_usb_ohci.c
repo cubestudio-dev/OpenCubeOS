@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d
- * File: kernel/driver_usb_ohci.c
+ * File: drivers/usb/driver_usb_ohci.c
  * Purpose: OHCI (Open Host Controller Interface, USB 1.1) backend for
  *          the WP-10d USB core.  Registers with usb.c through
  *          driver_usb_hc_ops_t.

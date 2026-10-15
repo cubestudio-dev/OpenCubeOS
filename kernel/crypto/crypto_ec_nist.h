@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/crypto_ec_nist.h
+ * File: kernel/crypto/crypto_ec_nist.h
  * Purpose: NIST prime curves P-256 and P-384 (FIPS 186-4).
  *   - ECDH (TLS 1.2 ECDHE suites, SSH ecdh-sha2-nistp256/384)
  *   - ECDSA signature verification (X.509 ECDSA certs, SSH host keys)

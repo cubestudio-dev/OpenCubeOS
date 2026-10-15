@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-01
- * File: kernel/ext.c
+ * File: l1/l1_ext.c
  * Purpose: L1 extension API implementation. Default L0 wiring:
  *   - fb accessor returns &g_fb
  *   - renderer swap delegates to screen_renderer_set_active()

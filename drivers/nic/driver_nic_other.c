@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10b
- * File: kernel/driver_nic_other.c
+ * File: drivers/nic/driver_nic_other.c
  * Purpose: Best-effort drivers for the remaining legacy NIC families
  *          (WP-10b "other old NICs" bucket):
  *

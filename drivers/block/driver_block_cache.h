@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07
- * File: kernel/driver_block_cache.h
+ * File: drivers/block/driver_block_cache.h
  * Purpose: LRU disk-block cache with write-back policy.
  *
  * L1 extension interface (item 31): driver_block_cache_stats

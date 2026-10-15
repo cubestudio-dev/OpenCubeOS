@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/es1370.c
+ * File: drivers/snd/driver_snd_es1370.c
  * Purpose: Ensoniq AudioPCI ES1370/ES1371 (Ensoniq Soundscape / AudioPCI
  *          97, Creative SB PCI 64/128 ancestors) PCI sound driver.
  *

@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/driver_usb_audio.h
+ * File: drivers/usb/driver_usb_audio.h
  * Purpose: USB Audio Class (UAC 1.0) driver interface (driver_usb_audio.c).
  *
  * L1 extension surface:

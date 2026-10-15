@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07 / WP-10a
- * File: kernel/disk_cmds.h
+ * File: shell/shell_cmds_disk.h
  * Purpose: WP-07 disk shell commands + WP-10a shared fs helpers.
  */
 #ifndef OC_DISK_CMDS_H

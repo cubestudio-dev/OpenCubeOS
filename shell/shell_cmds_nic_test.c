@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10b
- * File: kernel/driver_nic_test_cmds.c
+ * File: shell/shell_cmds_nic_test.c
  * Purpose: Shell test/status commands for the WP-10b NIC drivers.
  *
  * Per-family tests share one pattern:

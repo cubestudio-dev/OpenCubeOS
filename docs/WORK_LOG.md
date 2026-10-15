@@ -305,3 +305,137 @@ chain honestly:
   /downloads/ ISO+SRC+update.tar.gz all 200 with matching SHA256, zh+en
   home pages show 19 work packages / 128,275 lines / 208 commands /
   camera_misc.
+
+## WP-10-tui (2026-10-15)
+
+Session 1.  The 20th work package: TUI framework + hardware
+configuration + wireless network + system information, plus the
+handover-driven pre-fix batch.
+
+Pre-fix batch (all 12 handover suspicions dispositioned):
+
+- #1 WiFi RX ring bridged into the TCP/IP stack: the wireless STA
+  registers with the driver_nic framework ("wl0"), net_poll drains
+  every present framework NIC (was first-only).  Honest DOWN until
+  the STA associates.
+- #2 the resident USB poll thread actually starts now (the thread
+  body lived only inside the USB test command file; kmain called
+  driver_usb_poll_start() after the HC probe).
+- #3 OTA signature verification: integrity-only today (SHA-256 over
+  the package, manifest travels inside it).  Record: RSA-PSS verify
+  primitives exist (crypto_rsa.h); the signing scheme needs a key
+  custody decision (public key embedded, private key out of every
+  git tree) — tracked in KNOWN_ISSUES, deliberately not faked in
+  this batch.
+- #4 fs/_raw cache bypass: intentional (raw writers + no invalidation
+  path); documented in KNOWN_ISSUES 15.2, no code churn.
+- #5 ring3 socket API: SYS 103-109 + l1 wrappers (socket ids are
+  net-table ids, not process fds — documented).
+- #6 access_ok_str bounded to 16 pages; dead sanity line removed.
+- #7 fork full-copy + MAX_TASKS=32: documented (KNOWN_ISSUES 15.3);
+  COW needs PMM refcounts + a #PF write branch, its own work package.
+- #8 EXTENSIONS_WP08a.md now states 8 numbered items bundle 21
+  wrapper functions.
+- #9 stale suspicion: the Makefile already carries the embed chain
+  (userprogs/userprogs-check targets) since the fix1 round.
+- #10 real volume: SB16 mixer writes with read-back, UAC1 Feature
+  Unit SET_CUR (FU parsed at probe), virtio-snd honest -1.
+- #11 `make test`: tools/run_host_tests.py remaps the restructure
+  moves; 17 PASS / 2 SKIP-FIXTURE (openssl fixtures) / 0 failed.
+- #12 174 stale "File:" header paths rewritten (comment-only commit
+  folded into the pre-fix commit).
+
+Number audit (handover request): source lines 128,275 could not be
+reproduced at the camera_misc release commit by any caliber; the
+README-stated caliber measures 121,286 and README/website/docs-zh
+were corrected to it.  208 commands and 46 syscalls were confirmed
+exact (the 47 was a double-registration read; SYS_WRITE's legacy
+hard-coded entry is dead code by design).
+
+P3 ledger: the 258 unremediated P3 audit findings (BUG-0350..0607)
+are now tracked in KNOWN_ISSUES 15.1 (they were previously in
+bugs_final.json only).
+
+Token hygiene: public remote unified on tokenA (last4=JGAL); the
+historical token (last4=rl2B) appears in WORK_LOG only in last4
+form, which is the agreed disclosure level; no full token exists in
+any tracked file (git grep verified).
+
+TUI batch: tui/ directory (12 files): core with two real backends
+(framebuffer console + ANSI COM1 terminal, 16-color palette with
+256-color nearest-entry map), window system, text/attributes, input
+(OC_KEY mapping + a real ANSI CSI decoder + SGR mouse + touchpad
+path), panels, menus, forms; hardware configuration (11 domains
+through the live driver query APIs, lib_config persistence); wireless
+(wifi scan/list/connect through the real STA state machine +
+Bluetooth manager through the real HCI stack); system information
+(overview/processes through the live task table/log ring viewer/live
+monitor/power/update/time/help).  Five shell commands (tui, tui-test,
+tui-hw, tui-net, tui-sysinfo).  lib_log gained a 64-line boot-log
+ring.  tui-test runs 40+ non-interactive checks with
+input/expected/actual/verdict output.
+
+Gates at session 1: build 0 errors 0 warnings (-Werror); host suite
+17/0/2; ISO built; QEMU BIOS/UEFI E2E + full regression pending the
+sandbox toolchain completion (tracked; not claimed).
+
+Session 2 (same day).  The sandbox toolchain finished, so every gate
+that session 1 left open was actually run - nothing below is claimed
+without a captured output in this sandbox.
+
+- TUI E2E (tools/wp10_tui_e2e.py): 32/32 BIOS AND 32/32 UEFI.  Getting
+  there required three driver fixes, all in tools/wp10_tui_e2e.py:
+  the verdict log is now line-buffered (a killed run keeps its
+  verdicts), full-screen page commands are followed by a `q` keypress
+  so the page's event loop returns to the shell, and assertions run
+  against ANSI-stripped whitespace-normalized text (the serial backend
+  positions each cell, so raw text is not matchable).  The driver also
+  seeds `tui.backend=serial` through the real config path (echo >>
+  /etc/opencube.conf) and the UEFI boot moved to the standard OVMF 4M
+  pflash pair (CODE read-only + a fresh VARS copy per run).  The
+  previous "wifi nic bridged: nic" assertion was wrong for QEMU - the
+  legacy e1000 never joins the nic framework and wl0 cannot exist
+  without 802.11 hardware, so it now asserts the honest `wifi` output
+  instead; the bridge itself is covered by the host suite
+  (host_wifi_test + host_wifi_nic_stub.c).
+- Two real kernel-side gaps surfaced by the E2E and fixed in-tree:
+  `g_wp_order[]` (help -w) lacked both WP-10-camera_misc and
+  WP-10-tui, so those commands fell into the "other" bucket; and the
+  E2E's tui-hw/tui-net/tui-sysinfo page commands hung forever because
+  the pages stay in their event loop by design - the E2E now presses
+  `q`, the kernel behavior is unchanged (Tab pages, Esc/q quits).
+- Full regression (tools/run_fix4_regression.py): 28/28 (the
+  command-count baseline moved 208 -> 213 in the script, with the
+  usual additions-only note).  dhtest 5/5 (g^0, 1^x, group14 truth
+  e/K2, determinism IDENTICAL, scale sweep 8..256 - output captured).
+  Host suite `make test`: 17 PASS / 0 FAIL / 2 SKIP-FIXTURE.
+- SSH E2E (tools/ssh_mainstream_test.py): 5/5.  The per-installation
+  RSA-2048 host key cannot be generated inside the sandbox in one
+  sitting (the sshd-hkgen thread needs far more TCG minutes than a
+  single background process is allowed to live; two attempts were
+  killed by the sandbox with the key incomplete).  The build/etc.img
+  volume was therefore provisioned with tools/host_keygen_etc.py
+  (openssl on the host, same 512-byte n||d format, load path taken -
+  sshd logs "host key: per-installation (1 authorized key)"); these
+  are local E2E-only keys, not shipped anywhere.
+- HTTPS E2E (tools/run_fix4_https_e2e.py): 7/7.  One intermittent
+  handshake failure was observed during the loop (server answered the
+  ClientHello through ServerKeyExchange, then the kernel reported
+  TLS failed (code 1) before the first record was processed); with
+  TLS_DBG=1 the same boot completes the whole handshake, and five
+  further TLS_DBG=0 runs all pass end to end.  Nothing in net_tls.c
+  changed since the camera_misc release (comment-only), so this is
+  recorded as an unreproduced timing-sensitive observation rather
+  than a regression: see KNOWN_ISSUES 15.5.
+- Stats caliber correction: the 121,286 figure recorded in session 1
+  was taken with a non-recursive git pathspec that silently missed
+  kernel/**/*.S; the find-based verify command also swept in the
+  generated grub_boot_data.c (10,335 lines).  The corrected caliber -
+  git-tracked .c/.h/.S under kernel/boot/userprogs/fs/net/shell/l1/
+  drivers/libs/tui - measures 121,890 lines (304 files) and README,
+  website docs-zh and the site stats block were moved to it.
+- Website: STATS moved to 121,890 / 53 syscalls / 213 commands /
+  20 work packages (zh+en); FEATURES gained the missing
+  WP-10-camera_misc entry plus the WP-10-tui entry (zh+en).
+- Regression driver baseline note and the E2E driver changes above
+  are part of this session's commits.

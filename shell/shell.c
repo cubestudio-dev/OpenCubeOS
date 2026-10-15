@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-03 / WP-05/WP-07
- * File: kernel/shell.c
+ * File: shell/shell.c
  * Purpose: Shell command registration system + WP-05/WP-07 shell enhancements.
  *
  * WP-03 features (unchanged):
@@ -202,6 +202,8 @@ static const struct { const char *tag; const char *desc; } g_wp_order[] = {
     { "WP-10-input_chipset", "input devices + chipset" },
     { "WP-10-timer_rtc",     "time sources (RTC/HPET/PMTimer/TSC)" },
     { "WP-10-wireless_bluetooth", "wireless + bluetooth (802.11/HCI/L2CAP/RFCOMM)" },
+    { "WP-10-camera_misc",   "cameras, parallel port, game port" },
+    { "WP-10-tui",           "TUI framework, hw/net/sysinfo apps" },
 };
 
 /* Case-insensitive name compare (A-Z means alphabetical to a user). */

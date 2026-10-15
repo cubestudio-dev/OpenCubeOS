@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-06
- * File: kernel/net.c
+ * File: net/net_core.c
  * Purpose: Network stack implementation - e1000 driver + TCP/IP + socket API.
  *
  * Architecture:
@@ -4412,15 +4412,26 @@ void net_poll(void) {
     net_ip_frag_gc();
     u8 buf[ETH_FRAME_MAX];
     for (int i = 0; i < 8; i++) {
-        int len;
-        /* WP-10b: poll the nic-framework driver first. */
-        driver_nic_device_t *nd = driver_nic_active();
-        if (nd) {
+        int len = 0;
+        int polled_nic = 0;
+        /* WP-10b: poll the nic-framework drivers first.
+         * WP-10-tui: drain EVERY present framework NIC, not just the
+         * first - the wireless bridge registers "wl0" alongside the
+         * wired families and its RX ring would starve otherwise.  TX
+         * routing stays on driver_nic_active() (single-TX semantics). */
+        for (int k = 0; k < NIC_MAX_DEVICES; k++) {
+            driver_nic_device_t *nd = driver_nic_get_device(k);
+            if (!nd) continue;
+            polled_nic = 1;
             len = driver_nic_recv(nd, buf, sizeof(buf));
-        } else if (g_use_virtio) {
-            len = net_virtio_recv(buf, sizeof(buf));
-        } else {
-            len = e1000_recv(buf, sizeof(buf));
+            if (len > 0) break;
+        }
+        if (!polled_nic) {
+            if (g_use_virtio) {
+                len = net_virtio_recv(buf, sizeof(buf));
+            } else {
+                len = e1000_recv(buf, sizeof(buf));
+            }
         }
         if (len <= 0) break;
         if (len < 14) continue;

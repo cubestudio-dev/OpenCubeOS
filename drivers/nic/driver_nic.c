@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10b
- * File: kernel/nic.c
+ * File: drivers/nic/driver_nic.c
  * Purpose: NIC driver framework - registry + probe scheduling.
  *
  * The registry is a static array (like the WP-10a blk layer).  Drivers

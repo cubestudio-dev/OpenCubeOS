@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-01
- * File: kernel/fb.h
+ * File: drivers/display/screen_fb.h
  * Purpose: Framebuffer primitives: put_pixel, fill_rect, blit.
  *
  * The framebuffer is the single L0 graphics surface. L1 extensions can

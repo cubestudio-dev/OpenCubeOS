@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/hda.h
+ * File: drivers/snd/driver_snd_hda.h
  * Purpose: Intel HD Audio driver interface (implementation: hda.c).
  *
  * L1 extension surface:

@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d
- * File: kernel/driver_usb_serial.h
+ * File: drivers/usb/driver_usb_serial.h
  * Purpose: USB serial class driver interface (driver_usb_serial.c) -
  *          CDC-ACM (the standard USB RS-232 profile) with an FTDI
  *          SIO transport for QEMU's usb-serial device and real

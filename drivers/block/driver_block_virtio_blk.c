@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07
- * File: kernel/virtio_blk.c
+ * File: drivers/block/driver_block_virtio_blk.c
  * Purpose: virtio-blk PCI legacy transport driver.
  *
  * Probes for a virtio-blk PCI device (vendor 0x1AF4, device 0x1001 legacy

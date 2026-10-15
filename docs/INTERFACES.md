@@ -137,7 +137,7 @@ DH truth vectors for self-test: kernel/crypto/crypto_dh_scale_vectors.h.
 | Shell + command registration | shell/shell.h | shell_register_command, shell_execute_captured (WP-09) |
 | PMM / VMM / heap | kernel/mem/mem_pmm.h, vmm.h, heap.h | mem_pmm_alloc_frame, mem_vmm_*, kmalloc/kfree/krealloc |
 | Scheduler + sync | kernel/core/core_sched.h, sync.h | core_sched_*, spinlock/mutex/sem/cond |
-| User mode + syscalls | kernel/core/core_usermode.h, syscall.h | user_process_create, syscall dispatch (46 syscalls, SYS 0-102) |
+| User mode + syscalls | kernel/core/core_usermode.h, syscall.h | user_process_create, syscall dispatch (53 syscalls, SYS 0-109; WP-10-tui added 103-109 = the ring3 socket API) |
 | VFS + ramfs | fs/fs_vfs.h, ramfs.h | fs_vfs_open/read/write/stat/... |
 | Network (TCP/IP) | net/net_core.h | net_socket/connect/send/recv/accept/close, net_dns_resolve, cmd-level: dhcp/ping/wget/dns/route/arp/firewall/tcpstats |
 | Block + FS | drivers/block/driver_block_blk.h, part.h, fat32.h, exfat.h, ext4.h | driver_block_*, vfs mount (FAT32 R/W, exFAT R/W, ext4 RO) |
@@ -152,9 +152,13 @@ DH truth vectors for self-test: kernel/crypto/crypto_dh_scale_vectors.h.
 
 ## 4. Shell command surface
 
-208 commands registered at boot (live count; `help` lists 208 unique and
-prints `Total: 208 commands`, `help -w` groups them by work-package tag).
-Section updated at WP-10-camera_misc: the batch registered 10 new commands
+213 commands registered at boot (live count; `help` lists 213 unique and
+prints `Total: 213 commands`, `help -w` groups them by work-package tag).
+Section updated at WP-10-tui: the batch registered 5 new commands (tui,
+tui-test, tui-hw, tui-net, tui-sysinfo — tui/tui_cmd.c) so the boot
+count moved 208 -> 213; nothing was removed (interface freeze =
+additions only).
+Previous update at WP-10-camera_misc: the batch registered 10 new commands
 (uvc, uvctest — shell/shell_cmds_camera.c; parallel, paralleltest,
 gameport, gameporttest — shell/shell_cmds_pargame.c; ir, irtest —
 shell/shell_cmds_ir.c; scsi, scsitest — shell/shell_cmds_scsi.c) so the
@@ -198,7 +202,8 @@ shell/shell_cmds_camera.c 2 (WP-10-camera_misc: uvc/uvctest),
 shell/shell_cmds_pargame.c 4 (WP-10-camera_misc: parallel/paralleltest/
 gameport/gameporttest), shell/shell_cmds_ir.c 2 (WP-10-camera_misc:
 ir/irtest), shell/shell_cmds_scsi.c 2 (WP-10-camera_misc: scsi/scsitest).
-56+16+18+7+4+8+18+17+10+9+6+7+16+4+1+1+2+4+2+2 = 208. Full list: type
+tui/tui_cmd.c 5 (WP-10-tui: tui/tui-test/tui-hw/tui-net/tui-sysinfo).
+56+16+18+7+4+8+18+17+10+9+6+7+16+4+1+1+2+4+2+2+5 = 213. Full list: type
 `help` at the `oc>` prompt.
 
 ## 5. Verification of these interfaces

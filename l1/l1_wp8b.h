@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-08b Extension Interfaces
- * File: kernel/ext_wp8b.h
+ * File: l1/l1_wp8b.h
  * Purpose: L1 extension interfaces for dynamic linking — ELF dynamic
  *          loading, ld.so invocation, shared library management,
  *          symbol resolution, relocation processing, dependency query.

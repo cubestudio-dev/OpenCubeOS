@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10u
- * File: kernel/gzip.h
+ * File: kernel/lib/lib_gzip.h
  * Purpose: gzip (RFC 1952) container + DEFLATE (RFC 1951) inflate engine.
  *
  * WP-10u ships system updates as *.tar.gz packages, so the kernel needs a

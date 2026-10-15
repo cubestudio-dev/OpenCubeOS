@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/log.c
+ * File: kernel/lib/lib_log.c
  *
  * WP-02: lib_log_stage() now uses real timestamps from core_timer_now_ms().
  * Before the PIT is up (timer not initialized), timestamps read 0 which
@@ -12,8 +12,30 @@
 #include "lib_string.h"
 #include "core_timer.h"
 
+/* ---- WP-10-tui: boot-log ring so the TUI log viewer (and any L1
+ * consumer) can page through what lib_log printed, without changing
+ * the console output at all.  64 lines cover every kmain stage. ---- */
+#define OC_LOG_RING_LINES 64
+#define OC_LOG_RING_CAP   96
+
+static char    g_log_ring[OC_LOG_RING_LINES][OC_LOG_RING_CAP];
+static int     g_log_ring_count;
+static int     g_log_ring_head;
+
+static void lib_log_ring_push(const char *line) {
+    int slot = g_log_ring_head;
+    int n = 0;
+    for (; line[n] && n < OC_LOG_RING_CAP - 1; n++)
+        g_log_ring[slot][n] = line[n];
+    g_log_ring[slot][n] = 0;
+    g_log_ring_head = (g_log_ring_head + 1) % OC_LOG_RING_LINES;
+    if (g_log_ring_count < OC_LOG_RING_LINES) g_log_ring_count++;
+}
+
 void lib_log_init(void) {
-    /* Nothing to init in WP-02 - timestamps come from the PIT. */
+    /* timestamps come from the PIT; the ring starts empty */
+    g_log_ring_count = 0;
+    g_log_ring_head = 0;
 }
 
 void lib_log_stage(const char *stage, const char *status) {
@@ -39,10 +61,39 @@ void lib_log_stage(const char *stage, const char *status) {
     screen_console_putc(' ');
     screen_console_puts(status);
     screen_console_putc('\n');
+
+    /* mirror into the ring for the TUI log viewer */
+    {
+        char full[160];
+        usize q = 0;
+        for (usize i = 0; tmp[i] && q < 40; i++) full[q++] = tmp[i];
+        for (usize i = 0; stage[i] && q < 100; i++) full[q++] = stage[i];
+        full[q++] = ' ';
+        full[q++] = '(';
+        for (usize i = 0; status[i] && q < 150; i++) full[q++] = status[i];
+        full[q++] = ')';
+        full[q] = 0;
+        lib_log_ring_push(full);
+    }
 }
 
 void lib_log_info(const char *s) {
     screen_console_puts("    ");
     screen_console_puts(s);
     screen_console_putc('\n');
+    lib_log_ring_push(s);
+}
+
+/* WP-10-tui: ring accessors.  Index 0 is the OLDEST retained line. */
+int lib_log_ring_count(void) { return g_log_ring_count; }
+
+int lib_log_ring_get(int idx, char *out, int cap) {
+    if (!out || cap <= 0 || idx < 0 || idx >= g_log_ring_count) return -1;
+    int start = (g_log_ring_count == OC_LOG_RING_LINES)
+        ? g_log_ring_head : 0;
+    const char *src = g_log_ring[(start + idx) % OC_LOG_RING_LINES];
+    int n = 0;
+    for (; src[n] && n < cap - 1; n++) out[n] = src[n];
+    out[n] = 0;
+    return 0;
 }

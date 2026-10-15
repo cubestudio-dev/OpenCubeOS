@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-10a
- * File: kernel/disk_test_cmds.c
+ * File: shell/shell_cmds_disk_test.c
  * Purpose: WP-10a storage-driver test commands (see header for the list).
  *
  * Design rules:

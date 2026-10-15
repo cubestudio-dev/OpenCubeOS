@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10b
- * File: kernel/driver_nic_igb.c
+ * File: drivers/nic/driver_nic_igb.c
  * Purpose: Intel 82575/82576 server GbE driver (igb) for the WP-10b
  *          nic framework.
  *

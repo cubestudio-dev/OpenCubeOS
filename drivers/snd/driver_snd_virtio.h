@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/virtio_snd.h
+ * File: drivers/snd/driver_snd_virtio.h
  * Purpose: virtio-sound (virtio-snd-pci) driver interface (virtio_snd.c).
  *
  * L1 extension surface:

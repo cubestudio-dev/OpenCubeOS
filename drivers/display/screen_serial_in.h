@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/screen_serial_in.h
+ * File: drivers/display/screen_serial_in.h
  * Purpose: COM1 serial input (UART RX IRQ) feeding the keyboard input queue.
  *
  * COM1 RX fires IRQ4 (vector 36). We read the byte, translate CR?Enter,

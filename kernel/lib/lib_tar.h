@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10u
- * File: kernel/tar.h
+ * File: kernel/lib/lib_tar.h
  * Purpose: streaming ustar/tar archive reader (POSIX 1003.1-1988).
  *
  * Used by the WP-10u update installer to walk an (already gunzipped)

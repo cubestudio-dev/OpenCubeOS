@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09
- * File: kernel/crypto.c
+ * File: kernel/crypto/crypto_core.c
  * Purpose: AES-128, SHA-256, HMAC-SHA-256, HKDF, DH modexp.
  * All implementations are from-scratch, freestanding (no libc).
  */

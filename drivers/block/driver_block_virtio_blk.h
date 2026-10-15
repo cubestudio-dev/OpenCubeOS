@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07
- * File: kernel/virtio_blk.h
+ * File: drivers/block/driver_block_virtio_blk.h
  * Purpose: virtio-blk PCI driver - public init entry point.
  *
  * Registers a single virtio-blk device ("vda") with the blk layer if a

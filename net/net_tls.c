@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/tls.c
+ * File: net/net_tls.c
  * Purpose: Mainstream TLS client: TLS 1.3 (RFC 8446) primary, TLS 1.2
  *          ECDHE_RSA-GCM/ChaCha20 fallback, legacy DHE-CBC retained.
  *          Certificate chains verified against embedded public roots;

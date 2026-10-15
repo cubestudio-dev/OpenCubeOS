@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10u
- * File: kernel/ota_update_test_cmds.h
+ * File: shell/shell_cmds_update_test.h
  * Purpose: shell test suite for the in-system update (A/B partitions).
  */
 #ifndef OC_UPDATE_TEST_CMDS_H

@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10b
- * File: kernel/driver_nic_rtl8169.c
+ * File: drivers/nic/driver_nic_rtl8169.c
  * Purpose: Realtek RTL8169-family GbE/2.5G/FE drivers for the WP-10b
  *          nic framework.  One shared core covers three sub-families:
  *

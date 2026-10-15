@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10b
- * File: kernel/driver_nic_rtl8139.c
+ * File: drivers/nic/driver_nic_rtl8139.c
  * Purpose: Realtek RTL8139 10/100 NIC driver (PCI 10EC:8139) for the
  *          WP-10b nic framework.  Also matches the PCI-bridged variants
  *          10EC:8138 (TP-Link) and 1113:1211 (Accton).

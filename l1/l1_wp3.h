@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-03
- * File: kernel/ext_wp3.h
+ * File: l1/l1_wp3.h
  * Purpose: WP-03 extension API summary. Re-exports the WP-03 extension
  *          functions so L1 has one place to look.
  *

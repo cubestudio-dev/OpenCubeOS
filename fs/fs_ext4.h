@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07
- * File: kernel/ext4.h
+ * File: fs/fs_ext4.h
  * Purpose: ext4 filesystem driver — read-only support via VFS.
  */
 #ifndef OC_EXT4_H

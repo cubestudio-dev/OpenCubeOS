@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-01
- * File: kernel/fb.c
+ * File: drivers/display/screen_fb.c
  */
 #include "screen_fb.h"
 #include "arch_multiboot2.h"

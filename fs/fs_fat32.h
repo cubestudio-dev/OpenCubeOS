@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-05/WP-07
- * File: kernel/fat32.h
+ * File: fs/fs_fat32.h
  * Purpose: FAT32 file system driver (read/write) — sits on top of ATA.
  *
  * Register with VFS via fs_fat32_init(). Mount a partition via fs_fat32_mount().

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/exceptions.c
+ * File: kernel/arch/x86_64/arch_exceptions.c
  * Purpose: Default CPU exception handlers + L1 exception-handler chain.
  *
  * Default behavior: print a diagnostic to the serial console + framebuffer

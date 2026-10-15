@@ -19,27 +19,29 @@ function fmtBytes(n: number): string {
 export { fmtBytes };
 
 // Current stats (same caliber as the README Stats section, re-verified at
-// WP-10-camera_misc: 128,275 lines via README's own find|wc -l command,
-// 46 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
-// 138 L1 interfaces / 208 commands per README + docs/INTERFACES.md,
-// 19 work packages = the latest counted total per README Stats). This is
+// Recounted at WP-10-tui: 121,890 lines = README caliber (kernel + boot +
+// userprogs + fs + net + shell + l1 + libs + drivers + tui, .c/.h/.S via
+// git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui)/' | xargs wc -l).
+// 53 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
+// 138 L1 interfaces / 213 commands per README + docs/INTERFACES.md,
+// 20 work packages = the latest counted total per README Stats). This is
 // the RENDERED source (HomeView imports from here) - lib/site.ts carries
 // the release assets and no longer keeps a competing stats copy.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "128,275", label: "行源码" },
+    { value: "121,890", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
-    { value: "46", label: "系统调用" },
-    { value: "208", label: "shell 命令" },
-    { value: "19", label: "工作包" },
+    { value: "53", label: "系统调用" },
+    { value: "213", label: "shell 命令" },
+    { value: "20", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "128,275", label: "lines of source" },
+    { value: "121,890", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
-    { value: "46", label: "system calls" },
-    { value: "208", label: "shell commands" },
-    { value: "19", label: "work packages" },
+    { value: "53", label: "system calls" },
+    { value: "213", label: "shell commands" },
+    { value: "20", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
 };
@@ -50,9 +52,14 @@ export const FEATURES: Bi<
 > = {
   zh: [
     {
-      name: "五域外设落地（UVC 摄像头 / IEEE 1284 并口 / 游戏口 / 红外 / SCSI-LSI）",
+      name: "TUI 框架 + 硬件配置 / 无线网络 / 系统信息三应用",
+      tag: "WP-10-tui",
+      desc: "终端用户界面（TUI）进入 L0：tui/ 12 文件、双真渲染后端（framebuffer 字符控制台 + ANSI COM1 串口终端，16 色 CGA/VGA 调色板 + 256 色最近项映射）、窗口系统、文本/属性、输入（OC_KEY 映射 + 真 ANSI CSI 解码器 + SGR 鼠标 + 触摸板路径）、panels、menus、forms；硬件配置 TUI（11 域走实时驱动查询 API：CPU/内存/存储/网络/声卡/USB/PCI/输入/摄像头/无线/定时器，9 类配置经 lib_config 持久化到 /etc/opencube.conf：tui.backend/tui.clock_24h/tui.tz_offset/snd.volume）；无线网络 TUI（WiFi 扫描/列表/连接走真 STA 状态机 + 蓝牙管理走真 HCI 栈）；系统信息 TUI（概览/进程走活任务表/日志环查看器/实时监控/电源/更新/时间/帮助）。5 条新 shell 命令（tui/tui-test/tui-hw/tui-net/tui-sysinfo），总数 208→213（只增不删）；ring3 socket API（SYS 103-109，syscall 总数 46→53）；EXTENSIONS_WP10-tui.md 59 接口契约（头文件/注释/默认实现/文档）。附带交接修复批 12 项全部处置：WiFi→driver_nic 桥（wl0）+ net_poll 全卡遍历、USB 常驻轮询线程真启动、OTA 验签入 KNOWN_ISSUES（密钥托管决策）、fs/_raw 缓存旁路入档、access_ok_str 16 页上限、fork/MAX_TASKS=32 入档、SB16 mixer/UAC1 真音量、make test 宿主套件接入（17/0/2）、174 处 File: 头修正、P3 258 条入账 KNOWN_ISSUES §15.1。门禁：0 errors 0 warnings；TUI E2E 32/32 BIOS + 32/32 UEFI；全量回归 28/28；SSH 5/5；HTTPS 7/7。121,890 行源码。",
+    },
+    {
+      name: "摄像头 / 并口 / 游戏端口 / 红外 / SCSI 五域落地",
       tag: "WP-10-camera_misc",
-      desc: "五个硬件域以裸机驱动进入 L0，QEMU 实测：UVC 摄像头（USB Video Class 1.1：VC/VS 描述符树解析——输入/输出终端、Camera Terminal、Processing Unit、Extension Unit、VS Input Header、格式/帧描述符、Color Matching；Probe/Commit 控制 GET_CUR/MIN/MAX/RES/DEF/LEN/INFO + SET_CUR；alternate setting 切换；基线 JPEG 解码器（Huffman+反量化+IDCT+YCbCr→RGB）；camera 核心 20 接口：流启停/格式/帧尺寸/帧间隔、帧捕获（FID/EOF 边界+完整性校验）、亮度/对比度/饱和度/曝光/聚焦/变焦终端控制、caps/格式/帧枚举）；IEEE 1284 并口（SPP 正向/反向、EPP 1.7/1.9 地址/数据周期、ECP 模式+FIFO、LPT1-LPT3 0x378/0x278/0x3BC）；游戏口（0x200/0x201 RC 时序轴测量 + 校准 + 4 按钮）；红外（CIR 走 ACPI 探测、SIR 走副 16550 环回实测；NEC/RC-5/RC-6/SIRC 编解码与已知答案向量）；SCSI（SAM 风格命令核心 7 接口：CDB 构造器 TUR/INQUIRY/REQUEST SENSE/READ CAPACITY 10+16 自动升级/READ 10+16/WRITE 10+16/MODE SENSE 6/SYNCHRONIZE CACHE 10、INQUIRY/容量/sense 解析器、每设备命令队列、UNIT ATTENTION 透明重试；LSI 53C895A HBA 后端——PCI I/O BAR 寄存器编程 + mini-SCRIPTS 程序（SELECT with ATN 直接 id 形式 0x44000008 → IDENTIFY → CDB → 相位测试的数据路由 → STATUS → 排干整个消息相的 MSG-IN 循环，含 SAVE DATA POINTER/RESTORE POINTERS/DISCONNECT/COMMAND COMPLETE），异步 disconnect/reselect 协议（SIEN0.RSL + SCID.RRE 软使能 + 重选数据相的第二段脚本，轮询式 reselect 通知，与 AHCI/NVMe 同为 polled 先例）；直通块设备以 sda.. 落入 blk 层并走既有 MBR/GPT 分区扫描。新增 10 条 shell 命令（uvc/uvctest/parallel/paralleltest/gameport/gameporttest/ir/irtest/scsi/scsitest），总数 198→208（只增不删），L1 编号保持 1-138 封闭。调试journey（诚实记录）：QEMU lsi 模型 trace 发现并修复真实缺陷——SELECT 表间接位陷阱（0x47000000 带 bit25=table-indirect id，正确的直接 id 形式是 0x44000008）、fixed sense 判别式（0x70 & 0x7C 误配 descriptor 码 0x72/0x73）、探测期命令需要先武装提交路径、每次冷复位遗留的 UNIT ATTENTION (ASC 0x29)、sense 分配长度（fixed sense=18 字节）、芯片 CON 位（0x10 而非 0x08）在中止事务后残留、MSG-IN 相携带多字节消息（SDTR/SAVE/RESTORE/DISCONNECT）单字节 move 会留尾巴、QEMU 异步媒体 I/O 模型（SAVE DATA POINTER + DISCONNECT → reselect）单一整体脚本无法服务。最终架构：静态脚本缓冲（与堆无关）、每个异步事务两段脚本（命令相 + 重选数据相）、排干整个消息相的 MSG-IN 循环、SIEN0.RSL/SCID.RRE 软使能（模型无 IRQ 线即自动 reselect，轮询式，与 AHCI/NVMe 同例）。门禁：0 errors 0 warnings；E2E 12/12 BIOS + 12/12 UEFI（lsi + scsi-hd + 并口 chardev 实测；scsitest 17/17 含末扇区 WRITE/READ 往返与内容还原）；全量回归 28/28（命令基线 198→208 记入脚本）；SSH 5/5；HTTPS 7/7；host_camera_test 30/30（-Os）；host_ir_test 21/21；host_scsi_test 49/49。128,275 行源码。",
+      desc: "五个硬件域作为裸金属驱动进入 L0：UVC 摄像头（WP-10d USB 栈上的 USB Video Class 1.1 描述符解析、Probe/Commit 控制、备用设置切换、基线 JPEG 解码器 + YCbCr→RGB、20 接口 camera 注册表）；IEEE 1284 并口（SPP 正/反向、EPP 1.7/1.9 地址/数据周期、ECP 模式+FIFO、LPT1-LPT3）；传统游戏端口（0x200/0x201 RC 充放电时间轴测量 + 校准、4 按钮）；红外（CIR 走 ACPI + SIR 走第二 16550 环回实测，NEC/RC-5/RC-6/SIRC 编解码）；SCSI（SAM 风格命令核心：CDB 构建器/响应解析器/每设备队列/UNIT-ATTENTION 重试，LSI 53C895A HBA 后端经 PCI I/O BAR + mini-SCRIPTS 编程含异步断开/重选协议；直存目标以 sda.. 落入 blk 层走 MBR/GPT）。10 条新命令（uvc/uvctest/parallel/paralleltest/gameport/gameporttest/ir/irtest/scsi/scsitest），总数 198→208（只增不删）。门禁：0 errors 0 warnings；批次 E2E 12/12 BIOS + 12/12 UEFI（LSI + scsi-hd + 并口字符设备实测）；全量回归 28/28；SSH 5/5；HTTPS 7/7；host_camera_test 30/30（-Os）；host_ir_test 21/21；host_scsi_test 49/49。",
     },
     {
       name: "无线 + 蓝牙落地（802.11 七族 / SDIO / HCI-L2CAP-RFCOMM-SDP-SPP-HID）",
@@ -152,9 +159,14 @@ export const FEATURES: Bi<
   ],
   en: [
     {
-      name: "Five peripheral domains (UVC cameras / IEEE 1284 parallel / game port / infrared / SCSI-LSI)",
+      name: "TUI framework + hardware configuration / wireless / system info apps",
+      tag: "WP-10-tui",
+      desc: "A terminal user interface (TUI) enters L0: tui/ (12 files), two real render backends (framebuffer character console + ANSI COM1 serial terminal, 16-color CGA/VGA palette + 256-color nearest-entry map), window system, text/attributes, input (OC_KEY mapping + a real ANSI CSI decoder + SGR mouse + touchpad path), panels, menus, forms; the hardware configuration TUI (11 domains through the live driver query APIs: CPU/memory/storage/network/sound/USB/PCI/input/camera/wireless/timers, 9 config keys persisted via lib_config to /etc/opencube.conf: tui.backend/tui.clock_24h/tui.tz_offset/snd.volume); the wireless network TUI (WiFi scan/list/connect through the real STA state machine + Bluetooth manager through the real HCI stack); the system information TUI (overview/processes through the live task table/log ring viewer/live monitor/power/update/time/help). 5 new shell commands (tui/tui-test/tui-hw/tui-net/tui-sysinfo), total 208->213 (additions only); the ring3 socket API (SYS 103-109, syscalls 46->53); EXTENSIONS_WP10-tui.md with a 59-interface contract (header/comment/default impl/doc). The handover pre-fix batch (12 suspicions) is fully dispositioned in the same tree: the WiFi->driver_nic bridge (wl0) + net_poll draining every present NIC, the resident USB poll thread actually starting, OTA signature verification tracked in KNOWN_ISSUES (key custody decision), the fs/_raw cache bypass documented, access_ok_str bounded to 16 pages, fork/MAX_TASKS=32 documented, real SB16 mixer/UAC1 volume, the make test host-suite target (17/0/2), 174 stale File: header paths fixed, and the 258 unremediated P3 findings ledgered in KNOWN_ISSUES 15.1. Gates: 0 errors 0 warnings; TUI E2E 32/32 BIOS + 32/32 UEFI; full regression 28/28; SSH 5/5; HTTPS 7/7. 121,890 lines of source.",
+    },
+    {
+      name: "Cameras / parallel port / game port / infrared / SCSI: five domains landed",
       tag: "WP-10-camera_misc",
-      desc: "Five hardware domains enter L0 as bare-metal drivers, verified in QEMU: UVC cameras (USB Video Class 1.1: VC/VS descriptor-tree parsing - input/output terminals, Camera Terminal, Processing Unit, Extension Unit, VS Input Header, format/frame descriptors, Color Matching; Probe/Commit control GET_CUR/MIN/MAX/RES/DEF/LEN/INFO + SET_CUR; alternate-setting switching; a baseline JPEG decoder (Huffman + dequant + IDCT + YCbCr->RGB); a camera core with 20 interfaces: stream start/stop/format/frame/interval, frame capture (FID/EOF boundaries + integrity), brightness/contrast/saturation/exposure/focus/zoom terminal controls, caps/format/frame enumeration); IEEE 1284 parallel (SPP forward/reverse, EPP 1.7/1.9 address/data cycles, ECP mode+FIFO, LPT1-LPT3 at 0x378/0x278/0x3BC); the game port (0x200/0x201 RC-timing axis measurement + calibration + 4 buttons); infrared (CIR over ACPI, SIR over the secondary 16550 loopback-verified; NEC/RC-5/RC-6/SIRC codecs + known-answer vectors); SCSI (a SAM-style command core with 7 interfaces: CDB builders TUR/INQUIRY/REQUEST SENSE/READ CAPACITY 10+16 auto-escalation/READ 10+16/WRITE 10+16/MODE SENSE 6/SYNCHRONIZE CACHE 10, INQUIRY/capacity/sense parsers, per-device queues, transparent UNIT ATTENTION retry; an LSI 53C895A HBA backend - PCI I/O BAR register programming + mini-SCRIPTS programs (SELECT with ATN in the direct-id form 0x44000008 -> IDENTIFY -> CDB -> a phase-tested data route -> STATUS -> a MSG-IN loop draining the whole message phase incl. SAVE DATA POINTER/RESTORE POINTERS/DISCONNECT/COMMAND COMPLETE), the asynchronous disconnect/reselect protocol (SIEN0.RSL + SCID.RRE soft enables + a second script for the reselected data phase, polled reselect notice - the AHCI/NVMe polled precedent); direct-access targets land in the blk layer as sda.. and go through the existing MBR/GPT partition scan. 10 new shell commands (uvc/uvctest/parallel/paralleltest/gameport/gameporttest/ir/irtest/scsi/scsitest), total 198->208 (additions only), L1 numbering stays closed at 1-138. Debug journey (honest record): the QEMU lsi-model trace found and fixed real defects - the SELECT table-indirect bit trap (0x47000000 has bit25=table-indirect id; the correct direct-id form is 0x44000008), the fixed-sense discriminant (0x70 & 0x7C also matches descriptor codes 0x72/0x73), probe-time commands needing the submit path armed first, the UNIT ATTENTION (ASC 0x29) every cold reset leaves queued, the sense allocation length (fixed sense = 18 bytes), the chip's CON bit (0x10 not 0x08) surviving an aborted transaction, the MSG-IN phase carrying multi-byte messages (SDTR/SAVE/RESTORE/DISCONNECT) that a single-byte move leaves queued, and QEMU's asynchronous media-I/O model (SAVE DATA POINTER + DISCONNECT -> reselect) that a single monolithic script cannot serve. Final architecture: a static script buffer (heap-independent), two scripts per asynchronous transaction (command phase + reselected data phase), a MSG-IN loop draining the whole message phase, SIEN0.RSL/SCID.RRE soft enables so the model reselects without a hardware IRQ line (polled, the AHCI/NVMe precedent). Gates: 0 errors 0 warnings; E2E 12/12 BIOS + 12/12 UEFI (lsi + scsi-hd + parallel chardev verified live; scsitest 17/17 incl. the last-sector WRITE/READ round trip with content restore); full regression 28/28 (command baseline 198->208 recorded in the script); SSH 5/5; HTTPS 7/7; host_camera_test 30/30 (-Os); host_ir_test 21/21; host_scsi_test 49/49. 128,275 lines of source.",
+      desc: "Five hardware domains as bare-metal drivers: UVC cameras (USB Video Class 1.1 descriptor parser over the WP-10d USB stack, Probe/Commit control, alternate-setting switching, a baseline JPEG decoder with YCbCr->RGB, a 20-interface camera core); the IEEE 1284 parallel port (SPP forward/reverse, EPP 1.7/1.9 address/data cycles, ECP mode+FIFO, LPT1-LPT3); the legacy game port (0x200/0x201 RC-timing axis measurement with calibration, 4 buttons); infrared (CIR over ACPI + SIR over the secondary 16550 loopback-verified, NEC/RC-5/RC-6/SIRC codecs); and SCSI (a SAM-style command core with CDB builders, response parsers, per-device queues and UNIT-ATTENTION retry, plus an LSI 53C895A HBA backend programmed through its PCI I/O BAR and mini-SCRIPTS programs including the asynchronous disconnect/reselect protocol; direct-access targets land in the blk layer as sda.. and go through MBR/GPT like every other backend). 10 new commands (uvc/uvctest/parallel/paralleltest/gameport/gameporttest/ir/irtest/scsi/scsitest), total 198->208 (additions only). Gates: 0 errors 0 warnings; batch E2E 12/12 BIOS + 12/12 UEFI (LSI + scsi-hd + parallel chardev verified live); full regression 28/28; SSH 5/5; HTTPS 7/7; host_camera_test 30/30 (-Os); host_ir_test 21/21; host_scsi_test 49/49.",
     },
     {
       name: "Wireless + bluetooth (802.11 x7 / SDIO / HCI-L2CAP-RFCOMM-SDP-SPP-HID)",

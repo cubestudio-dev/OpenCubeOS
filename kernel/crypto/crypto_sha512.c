@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/sha512.c
+ * File: kernel/crypto/crypto_sha512.c
  * Purpose: SHA-512 / SHA-384 (FIPS 180-4) + HMAC-SHA-512/384.
  * From-scratch freestanding implementation (no libc).
  */

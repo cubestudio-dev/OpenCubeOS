@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-08b
- * File: kernel/ext_wp8b.c
+ * File: l1/l1_wp8b.c
  * Purpose: L1 extension interfaces for dynamic linking. Wraps the
  *          kernel's dynamic linking infrastructure (user_process_create's
  *          ET_DYN path, sys_map_solib, solib name table) so L1 extensions

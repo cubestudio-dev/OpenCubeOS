@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09
- * File: kernel/ssh.c
+ * File: net/net_ssh.c
  * Purpose: SSH-2.0 client.
  *
  * Implements (subset of RFC 4251-4254):

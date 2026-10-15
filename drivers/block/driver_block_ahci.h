@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-10a
- * File: kernel/ahci.h
+ * File: drivers/block/driver_block_ahci.h
  * Purpose: AHCI (SATA) host controller driver interface.
  *
  * WP-10a adds an AHCI driver so Open Cube OS can read/write mainstream

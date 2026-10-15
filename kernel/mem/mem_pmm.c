@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-03
- * File: kernel/pmm.c
+ * File: kernel/mem/mem_pmm.c
  * Purpose: Physical Memory Manager implementation.
  *
  * Bitmap allocator: 1 bit per 4KB page. The bitmap covers all of physical

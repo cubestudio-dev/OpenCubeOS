@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-09 mainstream batch
- * File: kernel/bn.h
+ * File: kernel/crypto/crypto_bn.h
  * Purpose: Generic big-integer arithmetic with Montgomery multiplication.
  *
  * This is the shared arithmetic core for:

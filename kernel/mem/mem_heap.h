@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-03
- * File: kernel/heap.h
+ * File: kernel/mem/mem_heap.h
  * Purpose: Kernel heap - kmalloc/kfree/krealloc/kzalloc.
  *
  * The heap uses a free-list allocator with first-fit and block coalescing.

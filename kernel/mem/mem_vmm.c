@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-03
- * File: kernel/vmm.c
+ * File: kernel/mem/mem_vmm.c
  * Purpose: Virtual Memory Manager implementation.
  *
  * Manages 4-level page tables (PML4 -> PDPT -> PD -> PT). The kernel

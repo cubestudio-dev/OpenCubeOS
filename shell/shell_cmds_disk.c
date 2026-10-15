@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07
- * File: kernel/disk_cmds.c
+ * File: shell/shell_cmds_disk.c
  * Purpose: WP-07 shell commands for disk management.
  *   lsblk, parted, mkfs.fat32, mkfs.exfat, mkfs.ext4, fsck, sync
  *   Plus enhanced df/du that use the real VFS.

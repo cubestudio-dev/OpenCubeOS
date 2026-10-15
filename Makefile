@@ -65,7 +65,7 @@ KERNEL_DIRS := kernel kernel/arch/x86_64 kernel/core kernel/mem kernel/lib \
                drivers/acpi drivers/i2c drivers/time \
                drivers/wireless drivers/bluetooth drivers/sd \
                drivers/camera drivers/misc drivers/scsi \
-               fs net shell l1
+               fs net shell l1 tui
 # NOTE: kernel/generated is deliberately NOT in KERNEL_DIRS: it only holds
 # the stage-2 generated grub_boot_data.c, which is compiled separately
 # (GRUB_DATA_OBJ) and linked in the second link stage only.
@@ -317,6 +317,15 @@ run-uefi-persist: $(KERNEL_ISO) $(ETC_IMG)
 
 clean:
 	rm -rf $(BUILD) $(DIST) $(ISO_DIR)/boot/opencube.elf $(GEN_DIR)/grub_boot_data.c
+
+# ---- Host test suite (WP-10-tui: closed the 15-command drift gap) ----
+# tools/run_host_tests.py extracts each tests/host_*.c build line, remaps
+# the WP-10-project_restructure source/include moves, compiles and runs
+# the harness. Exit code = number of failed tests. rsa/x509 compile but
+# skip their run step (they need openssl-generated external fixtures).
+.PHONY: test
+test:
+	python3 tools/run_host_tests.py
 
 # ---- Embedded-user-program targets (embed chain) ----
 # Regenerate the embedded program header from sources. asm programs go

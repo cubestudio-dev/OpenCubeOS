@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: keyboard.c
+ * File: drivers/input/driver_input_keyboard.c
  * Purpose: PS/2 keyboard driver.
  *
  * IRQ1 (vector 33) handler reads port 0x60, decodes scancode set 1,

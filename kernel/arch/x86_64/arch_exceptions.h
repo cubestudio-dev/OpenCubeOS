@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/exceptions.h
+ * File: kernel/arch/x86_64/arch_exceptions.h
  * Purpose: CPU exception dispatch + L1 exception-handler registration.
  */
 #ifndef OC_EXCEPTIONS_H

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-10a
- * File: kernel/driver_block_ata_dma.c
+ * File: drivers/block/driver_block_ata_dma.c
  * Purpose: PCI Bus-Master IDE (BMDMA) driver - real DMA, polled.
  *
  * The PCI IDE controller spec defines, per channel:

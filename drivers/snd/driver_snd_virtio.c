@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/virtio_snd.c
+ * File: drivers/snd/driver_snd_virtio.c
  * Purpose: virtio-sound (virtio-snd-pci) driver.
  *
  * Implements the virtio sound device class (virtio spec 1.2 section 5.9,
@@ -501,8 +501,18 @@ static int driver_snd_virtio_ops_set_rate(driver_snd_device_t *sdev, u32 rate) {
 }
 
 static int driver_snd_virtio_ops_set_volume(driver_snd_device_t *sdev, u32 vol) {
-    (void)sdev; (void)vol;
-    return 0;   /* framework-level volume; no ctl elements queried */
+    /* WP-10-tui honesty fix: the old stub returned success without
+     * touching anything.  virtio-snd exposes volume through the
+     * optional control-element interface (VIRTIO_SND_R_CTL_* 0x0200),
+     * which this driver does not implement and which cannot be
+     * developed against: QEMU ships no virtio-snd device model.  With
+     * no device present (the only state QEMU can produce) report
+     * failure instead of faking success - the framework then keeps
+     * the previous value and the volume command reports it as such. */
+    driver_snd_virtio_dev_t *d = (driver_snd_virtio_dev_t *)sdev->priv;
+    if (!d || !d->up) return -1;
+    (void)vol;
+    return -1;
 }
 
 static int driver_snd_virtio_ops_get_caps(driver_snd_device_t *sdev, driver_snd_caps_t *caps) {

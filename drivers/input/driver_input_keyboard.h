@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: keyboard.h
+ * File: drivers/input/driver_input_keyboard.h
  * Purpose: PS/2 keyboard driver (scancode set 1 ? ASCII) + input queue.
  *
  * PS/2 keyboard IRQ is 1 (vector 33). The keyboard controller's output

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-08a
- * File: kernel/ext_wp8a.h
+ * File: l1/l1_wp8a.h
  * Purpose: L1 EXTENSION API - WP-08a interfaces (items 33-40).
  */
 #ifndef OC_EXT_WP8A_H
@@ -42,3 +42,19 @@ int sys_poll(pollfd_t *fds, u64 nfds, i64 timeout_ms);
 }
 #endif
 #endif /* OC_EXT_WP8A_H */
+
+
+/* ---- WP-10-tui: ring3 wrappers for the kernel socket syscalls ----
+ * The first argument of every call below is a NET socket id returned
+ * by l1_socket(), not a process file descriptor: socket ids live in
+ * the net stack's own table and do not participate in dup/select/
+ * poll/fork.  IP addresses are host-order u32 (as in net_core.h). */
+#define L1_SOCK_TCP 1
+#define L1_SOCK_UDP 2
+int l1_socket(int type);
+int l1_net_bind(int sock, u32 ip, u16 port);
+int l1_net_connect(int sock, u32 ip, u16 port);
+int l1_net_accept(int lsock, u32 *client_ip, u16 *client_port);
+int l1_net_send(int sock, const void *buf, int len);
+int l1_net_recv(int sock, void *buf, int maxlen);
+int l1_net_close(int sock);

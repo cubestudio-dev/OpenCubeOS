@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10u
- * File: kernel/ota_ab_update.h
+ * File: kernel/ota/ota_ab.h
  * Purpose: A/B slot framework + in-system update (Windows-Update-style).
  *
  * Slot layout (MBR disk, the A/B update disk):

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-02
- * File: kernel/idt.h
+ * File: kernel/arch/x86_64/arch_idt.h
  * Purpose: IDT (Interrupt Descriptor Table) + GDT/TSS setup for x86_64.
  *
  * WP-02 introduces:

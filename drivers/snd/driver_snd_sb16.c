@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: kernel/sb16.c
+ * File: drivers/snd/driver_snd_sb16.c
  * Purpose: Sound Blaster 16 (ISA) DSP + ISA DMA driver.
  *
  * The classic ISA sound card, still emulated by every QEMU build
@@ -103,6 +103,10 @@ static const driver_snd_ops_t driver_snd_sb16_snd_ops = {
     .set_volume = driver_snd_sb16_ops_set_volume,
     .get_caps   = driver_snd_sb16_ops_get_caps,
 };
+
+/* mixer block: index/data register pair right after the DSP ports */
+#define SB16_MIXER_ADDR 0x224
+#define SB16_MIXER_DATA 0x225
 
 static inline void driver_snd_sb16_outb(u16 port, u8 v)  { __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(port)); }
 static inline u8   driver_snd_sb16_inb(u16 port)         { u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(port)); return v; }
@@ -279,9 +283,22 @@ static int driver_snd_sb16_ops_set_rate(driver_snd_device_t *sdev, u32 rate) {
 }
 
 static int driver_snd_sb16_ops_set_volume(driver_snd_device_t *sdev, u32 vol) {
-    (void)sdev;
-    (void)vol;   /* the SB16 mixer is not wired through this driver yet;
-                  * volume is tracked by the framework */
+    /* WP-10-tui: wire the real SB16 mixer block (index port 0x224 /
+     * data port 0x225, DSP base 0x220 + 4/+5).  Master Volume L/R are
+     * mixer registers 0x30/0x31 and the voice (DAC) L/R are 0x32/0x33;
+     * each holds its level in the upper nibble (0x0 = silent .. 0xF =
+     * loudest).  Every write is read back: hardware that ignores the
+     * mixer fails honestly (-1) instead of pretending. */
+    u8 lvl = (u8)((vol * 15u) / 100u);          /* 0..15 */
+    u8 val = (u8)(lvl << 4);
+    static const u8 regs[4] = { 0x30, 0x31, 0x32, 0x33 };
+    for (int i = 0; i < 4; i++) {
+        driver_snd_sb16_outb(SB16_MIXER_ADDR, regs[i]);
+        driver_snd_sb16_outb(SB16_MIXER_DATA, val);
+        driver_snd_sb16_outb(SB16_MIXER_ADDR, regs[i]);
+        if (driver_snd_sb16_inb(SB16_MIXER_DATA) != val) return -1;
+    }
+    sdev->volume = vol;
     return 0;
 }
 

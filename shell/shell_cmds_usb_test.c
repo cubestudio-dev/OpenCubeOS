@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10d
- * File: kernel/driver_usb_test_cmds.c
+ * File: shell/shell_cmds_usb_test.c
  * Purpose: Shell status + test commands for the WP-10d USB stack.
  *
  *   usb              - hosts + device tree + class-driver states
@@ -514,30 +514,9 @@ static int shell_cmd_usb_hub_test(const char *args) {
 }
 
 /* ==================================================================
- * poll thread + registration
+ * registration (the resident poll thread itself moved to
+ * drivers/usb/driver_usb.c in WP-10-tui; kmain starts it)
  * ================================================================== */
-
-static void driver_usb_poll_thread(void *arg) {
-    (void)arg;
-    u64 round = 0;
-    for (;;) {
-        driver_usb_poll();
-        driver_usb_hid_poll();
-        driver_usb_serial_poll();
-        if ((round & 0x0f) == 0) driver_usb_msc_poll();
-        round++;
-        /* ~2 ms breather between rounds */
-        u64 deadline = core_timer_now_ms() + 2;
-        while (core_timer_now_ms() < deadline) core_sched_yield();
-    }
-}
-
-void driver_usb_poll_start(void) {
-    /* Priority = TASK_PRIO_MAX: the shell runs inside the idle task
-     * (same priority), so the poll thread round-robins with it
-     * instead of starving it on the USB transfer mutex. */
-    core_kthread_create(driver_usb_poll_thread, NULL, "usb-poll", TASK_PRIO_MAX);
-}
 
 void shell_cmds_usb_test_register(void) {
     shell_register_command_ex("usb", shell_cmd_usb, "USB hosts/devices + class driver status", "WP-10d");

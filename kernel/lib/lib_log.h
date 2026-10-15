@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-01
- * File: kernel/log.h
+ * File: kernel/lib/lib_log.h
  * Purpose: Boot stage logger - writes a line per stage of the form:
  *
  *     [HH:MM:SS.mmm] stage_name ......... OK
@@ -30,3 +30,8 @@ void lib_log_stage(const char* stage, const char* status);
 void lib_log_info(const char* s);
 
 #endif /* OC_LOG_H */
+
+/* WP-10-tui: boot-log ring.  lib_log_stage/lib_log_info mirror every
+ * line they print into a 64-entry ring; the TUI log viewer pages it. */
+int lib_log_ring_count(void);
+int lib_log_ring_get(int idx, char *out, int cap);

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-08a
- * File: kernel/ext_wp8a.c
+ * File: l1/l1_wp8a.c
  * Purpose: L1 extension API — int 0x80 syscall wrappers.
  */
 #include "l1_wp8a.h"
@@ -27,3 +27,12 @@ char *sys_getcwd(char *b, u64 s) { u64 r; __asm__ volatile("mov $61,%%rax; mov %
 int sys_ioctl(int f, u64 c, void *a) { u64 r; __asm__ volatile("mov $62,%%rax; mov %1,%%rdi; mov %2,%%rsi; mov %3,%%rdx; int $0x80":"=a"(r):"r"((u64)f),"r"(c),"r"((u64)(uintptr_t)a):"rcx","r11","memory"); return (int)r; }
 int sys_select(int n, void *r, u32 t) { u64 v; __asm__ volatile("mov $80,%%rax; mov %1,%%rdi; mov %2,%%rsi; mov %3,%%rdx; int $0x80":"=a"(v):"r"((u64)n),"r"((u64)(uintptr_t)r),"r"((u64)t):"rcx","r11","memory"); return (int)v; }
 int sys_poll(pollfd_t *f, u64 n, i64 t) { u64 r; __asm__ volatile("mov $81,%%rax; mov %1,%%rdi; mov %2,%%rsi; mov %3,%%rdx; int $0x80":"=a"(r):"r"((u64)(uintptr_t)f),"r"(n),"r"((u64)t):"rcx","r11","memory"); return (int)r; }
+
+/* ---- WP-10-tui: socket syscall wrappers (SYS 103-109) ---- */
+int l1_socket(int type) { u64 r; __asm__ volatile("mov $103,%%rax; mov %1,%%rdi; int $0x80":"=a"(r):"r"((u64)(type & 0xff)):"rcx","r11","memory"); return (int)r; }
+int l1_net_bind(int sock, u32 ip, u16 port) { u64 r; __asm__ volatile("mov $104,%%rax; mov %1,%%rdi; mov %2,%%rsi; mov %3,%%rdx; int $0x80":"=a"(r):"r"((u64)sock),"r"((u64)ip),"r"((u64)port):"rcx","r11","memory"); return (int)r; }
+int l1_net_connect(int sock, u32 ip, u16 port) { u64 r; __asm__ volatile("mov $105,%%rax; mov %1,%%rdi; mov %2,%%rsi; mov %3,%%rdx; int $0x80":"=a"(r):"r"((u64)sock),"r"((u64)ip),"r"((u64)port):"rcx","r11","memory"); return (int)r; }
+int l1_net_accept(int lsock, u32 *client_ip, u16 *client_port) { u64 r; __asm__ volatile("mov $106,%%rax; mov %1,%%rdi; mov %2,%%rsi; mov %3,%%rdx; int $0x80":"=a"(r):"r"((u64)lsock),"r"((u64)(uintptr_t)client_ip),"r"((u64)(uintptr_t)client_port):"rcx","r11","memory"); return (int)r; }
+int l1_net_send(int sock, const void *buf, int len) { u64 r; __asm__ volatile("mov $107,%%rax; mov %1,%%rdi; mov %2,%%rsi; mov %3,%%rdx; int $0x80":"=a"(r):"r"((u64)sock),"r"((u64)(uintptr_t)buf),"r"((u64)len):"rcx","r11","memory"); return (int)r; }
+int l1_net_recv(int sock, void *buf, int maxlen) { u64 r; __asm__ volatile("mov $108,%%rax; mov %1,%%rdi; mov %2,%%rsi; mov %3,%%rdx; int $0x80":"=a"(r):"r"((u64)sock),"r"((u64)(uintptr_t)buf),"r"((u64)maxlen):"rcx","r11","memory"); return (int)r; }
+int l1_net_close(int sock) { u64 r; __asm__ volatile("mov $109,%%rax; mov %1,%%rdi; int $0x80":"=a"(r):"r"((u64)sock):"rcx","r11","memory"); return (int)r; }

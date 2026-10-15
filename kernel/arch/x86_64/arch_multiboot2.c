@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-01
- * File: kernel/multiboot2.c
+ * File: kernel/arch/x86_64/arch_multiboot2.c
  */
 #include "arch_multiboot2.h"
 #include "lib_string.h"

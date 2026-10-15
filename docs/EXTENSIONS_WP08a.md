@@ -4,7 +4,7 @@
 # WP-08a L1 Extension Interfaces (Items 33-40)
 
 **Work Package**: WP-08a — Complete syscall set (process & IPC)
-**Total L1 Interfaces**: 8 (items 33-40)
+**Total L1 Interfaces**: 8 (items 33-40; these 8 numbered items bundle **21 exported wrapper functions** in l1/l1_wp8a.h - one per syscall entry; see docs/INTERFACES.md section 1 for the full 21-name list)
 **Status**: Complete
 **License**: Apache 2.0
 
