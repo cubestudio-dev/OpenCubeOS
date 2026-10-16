@@ -1,10 +1,10 @@
 {
-  "version": "WP-10-camera_misc",
-  "build": 193,
-  "time": "2026-10-14",
-  "changes": "WP-10-camera_misc: five hardware domains in one work package. UVC cameras (VC/VS descriptors, probe/commit, MJPEG + YUY2 decode to RGB, 20 camera_* L1 interfaces); IEEE 1284 parallel port (SPP/EPP 1.7/1.9/ECP, 9 parallel_* interfaces); game port (0x201 timing, axes + 4 buttons + calibration, 7 gameport_* interfaces); infrared (CIR/SIR with NEC/RC5/RC6 encode + decode, 8 ir_* interfaces); SCSI (SAM/SPC over LSI 53C895A HBA, READ/WRITE/INQUIRY/READ CAPACITY, sda/sdb/sdc block devices with MBR/GPT, 7 scsi_* interfaces). 10 new shell commands (uvc, uvctest, parallel, paralleltest, gameport, gameporttest, ir, irtest, scsi, scsitest), 208 total; the numbered L1 set stays closed at 1-138 (the 51 new driver APIs are documented in docs/EXTENSIONS_WP10-camera_misc.md). OTA package carries the release kernel (build 193) + grub.cfg + opencube.conf + CONFIG.md.",
+  "version": "WP-10-chinese_support-fix1",
+  "build": 194,
+  "time": "2026-10-16",
+  "changes": "Fix batch: TUI session lifecycle (window-pool reuse+reset, getch blocks, Esc via OC_KEY_ESC_KEY, CSI needs ESC [, tui-cn shutdown); pinyin input reachable (ime -i, pad, ASCII SSID editor); WiFi ask-line + real in-TUI update; build 194 monotonic; 222 cmds.",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-camera_misc-update.tar.gz",
-  "package_sha256": "2fd0a69e49471bbb58e1856f98202d558bfeb5e02d208b7b49e18457e8ab32ef",
-  "package_size": 711844
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-chinese_support-fix1-update.tar.gz",
+  "package_sha256": "fbb04ffd78fef74c320ff46e81e016d248622c661ae43fe1fce83f5af5112e0f",
+  "package_size": 969351
 }

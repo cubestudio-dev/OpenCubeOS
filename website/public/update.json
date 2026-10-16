@@ -1,10 +1,10 @@
 {
-  "version": "WP-10-camera_misc",
-  "build": 193,
-  "time": "2026-10-14",
-  "changes": "UVC cameras (JPEG/YUY2) + parallel + game port + infrared + SCSI (LSI 53C895A); 10 new cmds (208 total)",
+  "version": "WP-10-chinese_support-fix1",
+  "build": 194,
+  "time": "2026-10-16",
+  "changes": "TUI session lifecycle + reachable pinyin input (ime -i, pad) + WiFi SSID editor + real in-TUI update",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-camera_misc-update.tar.gz",
-  "package_sha256": "2fd0a69e49471bbb58e1856f98202d558bfeb5e02d208b7b49e18457e8ab32ef",
-  "package_size": 711844
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-chinese_support-fix1-update.tar.gz",
+  "package_sha256": "fbb04ffd78fef74c320ff46e81e016d248622c661ae43fe1fce83f5af5112e0f",
+  "package_size": 969351
 }
