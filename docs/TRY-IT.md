@@ -448,3 +448,30 @@ exit, Tab switch domain/field, arrows navigate, Enter confirm, Esc
 cancel.  The mouse works through the touchpad path when an I2C-HID
 device exists and through xterm SGR mouse reports when the backend is
 a real terminal on COM1.
+
+## Try Chinese support (WP-10-chinese_support)
+
+Boot the ISO, then at the `oc>` prompt:
+
+```
+chinese            # font source, 6763+682 glyph coverage, IME stats
+chinesetest        # 91-check suite: font data/lookup/manage, GB2312,
+                   # UTF-8 (strict), conversion, detection, renderer,
+                   # console, line editing, font registry, TUI/IME, VFS
+font               # registered fonts + the active mixed-width renderer
+font-test          # draws a real 16x16 CJK sample row on the screen
+encoding           # codec status line (decode/encode/convert/detect)
+encoding-test      # GB2312 + UTF-8 round-trip spot check
+ime                # pinyin IME coverage (396 syllables / 3755 chars)
+ime-test           # ni -> ni, hao -> hao resolution check
+tui-cn             # Chinese TUI launcher: hardware config /
+                   # wireless network / system information, all with
+                   # live driver data and Chinese labels
+```
+
+Type a Chinese document over serial (paste UTF-8 - the serial bridge
+now forwards 8-bit bytes) and watch the shell line editor keep the
+characters intact with correct cursor widths; `cat` any UTF-8 file to
+see real CJK glyphs on the framebuffer console.  Inside `tui-cn` the
+hardware pages (Tab cycles 11 domains) and the pinyin IME input line
+(type `ni`, press `1` for ni, Enter to commit) are fully usable.

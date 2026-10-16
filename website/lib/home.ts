@@ -19,29 +19,29 @@ function fmtBytes(n: number): string {
 export { fmtBytes };
 
 // Current stats (same caliber as the README Stats section, re-verified at
-// Recounted at WP-10-tui: 121,890 lines = README caliber (kernel + boot +
-// userprogs + fs + net + shell + l1 + libs + drivers + tui, .c/.h/.S via
-// git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui)/' | xargs wc -l).
+// Recounted at WP-10-chinese_support: 125,776 lines = README caliber (kernel + boot +
+// userprogs + fs + net + shell + l1 + libs + drivers + tui + chinese, .c/.h/.S via
+// git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui|chinese)/' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l).
 // 53 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
-// 138 L1 interfaces / 213 commands per README + docs/INTERFACES.md,
-// 20 work packages = the latest counted total per README Stats). This is
+// 138 L1 interfaces / 222 commands per README + docs/INTERFACES.md,
+// 21 work packages = the latest counted total per README Stats). This is
 // the RENDERED source (HomeView imports from here) - lib/site.ts carries
 // the release assets and no longer keeps a competing stats copy.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "121,890", label: "行源码" },
+    { value: "125,776", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "53", label: "系统调用" },
-    { value: "213", label: "shell 命令" },
-    { value: "20", label: "工作包" },
+    { value: "222", label: "shell 命令" },
+    { value: "21", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "121,890", label: "lines of source" },
+    { value: "125,776", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "53", label: "system calls" },
-    { value: "213", label: "shell commands" },
-    { value: "20", label: "work packages" },
+    { value: "222", label: "shell commands" },
+    { value: "21", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
 };
@@ -51,6 +51,11 @@ export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "中文支持：GB2312 字库 + 编码 + CJK 渲染 + 中文 TUI + 拼音输入法",
+      tag: "WP-10-chinese_support",
+      desc: "中文支持进入 L0：chinese/ 模块内嵌 GB2312 16×16 点阵字库（6763 汉字 16-87 区 = 216,416 B 紧凑存储 + 682 符号 1-9 区 = 21,824 B，tools/gen_chinese_font.py 从 GNU Unifont 矩形轮廓精确栅格化；区/Unicode 双向索引表）；GB2312 + UTF-8 编解码（严格 RFC 3629：超长/代理对/越界/截断拒绝；经 Unicode 枢纽任意方向批量转换；启发式检测 ASCII/UTF-8/GB2312/混合）；可插拔字体注册表（font_register/font_select/font_get_bitmap/font_get_metrics）+ 混排宽度渲染器（控制台 cell 保持 8×16——汉字跨两格——cols/rows/滚动/ASCII 输出全部不变）；控制台 cn 写入路径（console_cn_putcw/puts_utf8，原生 putc 字节路径不动）；UTF-8 行编辑（字符边界光标移动/退格/删除/Ctrl+W + 显示宽度重绘；串口桥以 +0x100 偏置放行 8-bit 字节，粘贴中文直达行编辑器）；UTF-8 感知 cat；TUI 中文层（tui_cell_t 本就存 u32 码点；tui_print 解码 UTF-8，宽字格带 TUI_WIDE_CONT）+ 三个中文应用（硬件配置/无线网络/系统信息——与其英文孪生应用同源实时驱动数据，中文标签与描述）+ 拼音输入法（GB2312 一级字 3755 字/396 无调音节，数字键选候选，tools/gen_pinyin_table.py 生成）。9 条新命令（chinese/chinesetest/font/font-test/encoding/encoding-test/ime/ime-test/tui-cn，213→222 只增不删）；L1 编号保持 1-138 封闭——34 个新接口为驱动 API 风格单列于 EXTENSIONS_WP10-chinese_support.md。门禁：0 errors 0 warnings；chinesetest 内核内 91/91；中文 E2E 14/14 BIOS + 14/14 UEFI；TUI E2E 32/32 BIOS + 32/32 UEFI；全量回归 28/28（命令基线 222）；dhtest 5/5；SSH E2E 5/5；HTTPS E2E 7/7；宿主套件 17/0/2；像素级验证 CJK 渲染（截屏 4/4 字形块 + 572 标题像素）。125,776 行源码。",
+    },
     {
       name: "TUI 框架 + 硬件配置 / 无线网络 / 系统信息三应用",
       tag: "WP-10-tui",
@@ -158,6 +163,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "Chinese support: GB2312 font + encoding + CJK rendering + Chinese TUI + pinyin IME",
+      tag: "WP-10-chinese_support",
+      desc: "Chinese support enters L0: the chinese/ module carries the embedded GB2312 16x16 bitmap font (6763 hanzi zones 16-87 = 216,416 B compact + 682 symbols zones 1-9 = 21,824 B, generated exactly from the GNU Unifont rectangle outlines by tools/gen_chinese_font.py; zone/Unicode index tables both directions); the GB2312 + UTF-8 codec (strict RFC 3629: overlong/surrogate/>U+10FFFF/truncated rejected; bulk conversion any direction through the Unicode pivot; heuristic detection ASCII/UTF-8/GB2312/mixed); a pluggable font registry (font_register/font_select/font_get_bitmap/font_get_metrics) with the mixed-width renderer (the console cell stays 8x16 - a CJK glyph spans two cells - so cols/rows/scroll/ASCII output are unchanged); the console cn write path (console_cn_putcw/puts_utf8 with the stock putc byte path untouched); UTF-8 aware line editing (character-boundary cursor movement/backspace/delete/Ctrl+W + display-width redraw; the serial bridge now passes 8-bit bytes biased +0x100 so pasted CJK reaches the editor); UTF-8 aware cat; the TUI Chinese layer (tui_cell_t already stores u32 codepoints; tui_print decodes UTF-8, wide cells carry TUI_WIDE_CONT) with three Chinese applications (hardware configuration/wireless/system information - same live driver data sources as their English twins, Chinese labels and descriptions) and a pinyin IME over the GB2312 level-1 set (3755 chars, 396 tone-free syllables, digit-key candidates, generated by tools/gen_pinyin_table.py). 9 new commands (chinese/chinesetest/font/font-test/encoding/encoding-test/ime/ime-test/tui-cn, 213->222 additions only); the numbered L1 set stays closed at 1-138 - the 34 new interfaces are driver-API style, single-listed in EXTENSIONS_WP10-chinese_support.md. Gates: 0 errors 0 warnings; chinesetest 91/91 in-kernel; Chinese E2E 14/14 BIOS + 14/14 UEFI; TUI E2E 32/32 BIOS + 32/32 UEFI; full regression 28/28 (baseline 222); dhtest 5/5; SSH E2E 5/5; HTTPS E2E 7/7; host suite 17/0/2; pixel-verified CJK rendering (4/4 glyph blocks + 572 title pixels on the screendump). 125,776 lines of source.",
+    },
     {
       name: "TUI framework + hardware configuration / wireless / system info apps",
       tag: "WP-10-tui",

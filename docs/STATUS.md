@@ -424,3 +424,32 @@ documented as design notes, 1 stale, 1 doc-only) and recorded the
 | L1 numbering stays closed at 138 | OK (59 driver-API interfaces, no numbered additions) |
 | Extension contract (header + comments + default impl + docs) | OK (docs/EXTENSIONS_WP10-tui.md) |
 | Docs consistency (README/INTERFACES/CONFIG/TRY-IT/KNOWN_ISSUES/STATUS/WORK_LOG/website) | OK |
+
+## WP-10-chinese_support (2026-10-16) — COMPLETE
+
+The 21st work package (WP-10 finale).  Chinese support enters L0:
+embedded GB2312 16x16 bitmap font (6763 hanzi + 682 symbols, exact
+Unifont rasterization), GB2312 + UTF-8 codec with conversion and
+detection, pluggable font registry + mixed-width renderer (cell stays
+8x16, CJK spans two cells), console cn write path (stock putc
+untouched), UTF-8 aware line editing and cat, TUI Chinese layer with
+three Chinese applications and a pinyin IME (3755 level-1 chars /
+396 syllables).  9 new commands (213 -> 222).  The numbered L1 set
+stays closed at 1-138 (34 driver-API interfaces single-listed in
+docs/EXTENSIONS_WP10-chinese_support.md).
+
+| Gate | Result |
+|---|---|
+| Build 0 errors 0 warnings | OK (-Werror) |
+| ISO boots (BIOS + UEFI) | OK (chinese E2E 14/14 both modes) |
+| chinesetest in-kernel suite | OK (91/91) |
+| Chinese E2E | OK (14/14 BIOS + 14/14 UEFI, tools/wp10_chinese_e2e.py) |
+| Pixel-verified CJK rendering | OK (4/4 glyph blocks + 572 title pixels) |
+| host test suite (make test) | OK (17 PASS / 0 FAIL / 2 SKIP-FIXTURE) |
+| Regression 28/28 + dhtest + cryptotest + fstest | OK (baseline 222) |
+| TUI E2E (no regressions) | OK (32/32 BIOS + 32/32 UEFI) |
+| SSH E2E / HTTPS E2E | OK (5/5, 7/7) |
+| Commands added only | OK (213 -> 222) |
+| L1 numbering stays closed at 138 | OK (driver-API interfaces, no numbered additions) |
+| Extension contract (header + comments + default impl + docs) | OK (docs/EXTENSIONS_WP10-chinese_support.md) |
+| Docs consistency (README/INTERFACES/TRY-IT/STATUS/WORK_LOG/website) | OK |

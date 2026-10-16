@@ -439,3 +439,38 @@ without a captured output in this sandbox.
   WP-10-camera_misc entry plus the WP-10-tui entry (zh+en).
 - Regression driver baseline note and the E2E driver changes above
   are part of this session's commits.
+
+## WP-10-chinese_support (2026-10-16)
+
+Batch: GB2312 font + encoding + CJK rendering + Chinese TUI + pinyin
+IME (the 21st work package; WP-10 finale).
+
+- chinese/ module: chinese_font (slot registry + zone/Unicode lookup
+  both directions + status), encoding (GB2312 + strict RFC 3629
+  UTF-8 + conversion through the Unicode pivot + heuristic
+  detection), render_cn (font registry + mixed-width renderer: cell
+  stays 8x16, CJK spans two cells, ASCII output byte-identical),
+  console_cn (cn write path mirroring the putc state machine; stock
+  putc untouched; new screen_console_scroll_up), tui_chinese (UTF-8
+  windows/printing, CJK-aware menu/form drivers, pinyin IME 3755
+  chars / 396 syllables), three Chinese applications
+  (tui_cn_hw/tui_cn_net/tui_cn_sysinfo) on the live driver data
+  sources, chinese_cmd (9 commands) + chinese_test (91 checks).
+- Generators: tools/gen_chinese_font.py (Unifont rectangle-outline
+  exact rasterization -> chinese_font_data.c: 6763+682 glyphs,
+  zone/unicode index tables), tools/gen_pinyin_table.py (pypinyin ->
+  pinyin_data.c).
+- Integration: UTF-8 line editing (character boundaries +
+  display-width redraw), serial bridge +0x100 bias for 8-bit bytes,
+  cat via console_cn_puts_enc, tui_print UTF-8 decode +
+  TUI_WIDE_CONT wide cells, fb/serial backend wide handling,
+  g_wp_order tag, Makefile KERNEL_DIRS + chinese, boot-time
+  render_chinese_init + console_cn_init.
+- Gates on the final tree: 0E0W (-Werror); chinesetest 91/91;
+  chinese E2E 14/14 BIOS + 14/14 UEFI; TUI E2E 32/32 BIOS + 32/32
+  UEFI; regression 28/28 (baseline 222); dhtest 5/5; SSH E2E 5/5;
+  HTTPS E2E 7/7; host 17/0/2; pixel-verified rendering (4/4 glyph
+  blocks + 572 title pixels).  125,776 lines of source.  Public tip
+  88e0ed4 mirrors private 3cc373c; commit-author hygiene re-verified
+  (the 2026-10-15 filter-branch rewrote 3 public + 7 private commits
+  to cubestudio-dev <cubestudio@qq.com>, force-pushed both repos).

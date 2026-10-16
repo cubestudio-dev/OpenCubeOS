@@ -31,14 +31,14 @@ Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 - L0 采用 Apache 2.0 许可。
 - 设计原则："一切皆可扩展"。
 
-## 统计（WP-10-tui）
+## 统计（WP-10-chinese_support）
 
-- **源码**：121,890 行（kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs + tui，
+- **源码**：125,776 行（kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs + tui + chinese，
   含头文件，不含文档与生成文件；
-  验证：`git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui)/' | xargs wc -l`）
-- **工作包**：20 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c、
+  验证：`git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui|chinese)/' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l`）
+- **工作包**：21 个（WP-01 ~ WP-09、WP-10a、WP-10b、WP-10u、WP-10c、
   WP-10d、WP-10-wp08fix1、WP-10-input_chipset、WP-10-timer_rtc、
-  WP-10-wireless_bluetooth、WP-10-camera_misc、WP-10-tui）——
+  WP-10-wireless_bluetooth、WP-10-camera_misc、WP-10-tui、WP-10-chinese_support）——
   下方每包一个 `## WP-*` 小节（WP-10-input_chipset、WP-10-timer_rtc
   与 WP-10-wireless_bluetooth
   汇总于上方 Download 小节，无独立 `## WP-*` 小节）

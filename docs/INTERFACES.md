@@ -152,9 +152,14 @@ DH truth vectors for self-test: kernel/crypto/crypto_dh_scale_vectors.h.
 
 ## 4. Shell command surface
 
-213 commands registered at boot (live count; `help` lists 213 unique and
-prints `Total: 213 commands`, `help -w` groups them by work-package tag).
-Section updated at WP-10-tui: the batch registered 5 new commands (tui,
+222 commands registered at boot (live count; `help` lists 222 unique and
+prints `Total: 222 commands`, `help -w` groups them by work-package tag).
+Section updated at WP-10-chinese_support: the batch registered 9 new
+commands (chinese, chinesetest, font, font-test, encoding,
+encoding-test, ime, ime-test, tui-cn — chinese/chinese_cmd.c) so the boot
+count moved 213 -> 222; nothing was removed (interface freeze =
+additions only).
+Previous update at WP-10-tui: the batch registered 5 new commands (tui,
 tui-test, tui-hw, tui-net, tui-sysinfo — tui/tui_cmd.c) so the boot
 count moved 208 -> 213; nothing was removed (interface freeze =
 additions only).
@@ -203,7 +208,9 @@ shell/shell_cmds_pargame.c 4 (WP-10-camera_misc: parallel/paralleltest/
 gameport/gameporttest), shell/shell_cmds_ir.c 2 (WP-10-camera_misc:
 ir/irtest), shell/shell_cmds_scsi.c 2 (WP-10-camera_misc: scsi/scsitest).
 tui/tui_cmd.c 5 (WP-10-tui: tui/tui-test/tui-hw/tui-net/tui-sysinfo).
-56+16+18+7+4+8+18+17+10+9+6+7+16+4+1+1+2+4+2+2+5 = 213. Full list: type
+chinese/chinese_cmd.c 9 (WP-10-chinese_support: chinese/chinesetest/
+font/font-test/encoding/encoding-test/ime/ime-test/tui-cn).
+56+16+18+7+4+8+18+17+10+9+6+7+16+4+1+1+2+4+2+2+5+9 = 222. Full list: type
 `help` at the `oc>` prompt.
 
 ## 5. Verification of these interfaces

@@ -276,3 +276,12 @@ defaults):
 The tui-hw "Save config" entry writes the four keys with
 `lib_config_write`; "Load config" reads them back.  All other TUI
 state is runtime-only by design (windows, panels, menus).
+
+## 10. WP-10-chinese_support configuration surface (2026-10-16)
+
+No new configuration keys.  The Chinese support stack is self-describing
+at runtime: the chinese / font / encoding / ime commands report the
+loaded font source, glyph coverage, codec counters and IME
+syllable/char counts, and the console encoding state lives in memory
+(default utf-8).  The TUI Chinese applications reuse the existing
+tui.backend key and the tui-owned keys documented in section 9.
