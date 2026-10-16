@@ -140,9 +140,10 @@ static int cn_net_connect_page(void) {
     tui_window_refresh(win);
     tui_move(3, 9);
     tui_set_attr((tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_WHITE, TUI_COLOR_GRAY));
-    /* reuse the IME line editor in direct-ASCII mode: letters become
-     * the SSID, Enter commits */
-    rc = tui_chinese_input(win, "SSID: ", ssid, sizeof(ssid));
+    /* SSIDs are ASCII names: use the direct ASCII editor.  The pinyin
+     * editor turned every lowercase letter into a composition buffer
+     * and made simple names like "home" impossible to type. */
+    rc = tui_chinese_input_ascii(win, "SSID: ", ssid, sizeof(ssid));
     if (rc >= 0) {
         tui_status_line("连接 %s ...", ssid);
         int crc = tui_cn_wifi_connect(ssid, "");
@@ -220,7 +221,7 @@ static int cn_net_bt_page(void) {
     tui_window_focus_set(win);
     tui_set_attr((tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_YELLOW, TUI_COLOR_BLACK) |
                  TUI_ATTR_BOLD);
-    tui_print_at(0, 1, "蓝牙设备  [q 返回]");
+    tui_print_at(0, 1, "蓝牙设备  [S 扫描  P 连接  U 断开  V 服务  q 返回]");
     tui_set_attr((tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_SILVER, TUI_COLOR_BLACK));
     int present = bt_hci_present();
     tui_print_at(2, 1, present ? "蓝牙控制器: 存在" : "蓝牙控制器: 未检测到");
@@ -257,6 +258,67 @@ static int cn_net_bt_page(void) {
     for (;;) {
         int k = tui_getch();
         if (k == 'q' || k == TUI_KEY_ESC) break;
+        if (!present) continue;
+        if (k == 's' || k == 'S') {
+            found = 0;
+            if (bt_hci_inquiry_start() == 0) {
+                found = bt_hci_inquiry_results(g_cn_bt, 8);
+            }
+            tui_window_clear(win);
+            tui_window_focus_set(win);
+            tui_set_attr((tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_YELLOW, TUI_COLOR_BLACK) |
+                         TUI_ATTR_BOLD);
+            tui_print_at(0, 1, "蓝牙设备  [S 扫描  P 连接  U 断开  V 服务  q 返回]");
+            tui_set_attr((tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_SILVER, TUI_COLOR_BLACK));
+            char num2[8];
+            u64_to_str((u64)found, num2);
+            char l2[64];
+            int p2 = 0;
+            const char *pre2 = "发现设备数: ";
+            for (int c = 0; pre2[c]; c++) l2[p2++] = pre2[c];
+            for (int c = 0; num2[c]; c++) l2[p2++] = num2[c];
+            l2[p2] = 0;
+            tui_print_at(2, 1, l2);
+            for (int i = 0; i < found && i < 8; i++) {
+                char addr[20];
+                bt_addr_to_str(g_cn_bt[i].addr, addr);
+                char idx[4];
+                u64_to_str((u64)(i + 1), idx);
+                p2 = 0;
+                for (int c = 0; idx[c]; c++) l2[p2++] = idx[c];
+                l2[p2++] = ' ';
+                for (int c = 0; addr[c] && p2 < (int)sizeof(l2) - 1; c++)
+                    l2[p2++] = addr[c];
+                l2[p2] = 0;
+                tui_print_at(3 + i, 1, l2);
+            }
+            tui_window_refresh(win);
+        } else if (k == 'p' || k == 'P') {
+            u16 handle = 0;
+            int rc = (found > 0)
+                     ? bt_hci_create_connection(g_cn_bt[0].addr, &handle)
+                     : -1;
+            tui_status_line(rc == 0 ? "连接已建立（设备 1）"
+                                    : "连接失败（HCI 真实结果）");
+        } else if (k == 'u' || k == 'U') {
+            int rc = -1;
+            if (found > 0) {
+                u16 handle = 0;
+                if (bt_hci_handle_of_addr(g_cn_bt[0].addr, &handle) == 0)
+                    rc = bt_hci_disconnect(handle);
+                else
+                    rc = 0;   /* not connected: nothing to drop */
+            }
+            tui_status_line(rc == 0 ? "已断开（如曾连接）"
+                                    : "断开失败（HCI 真实结果）");
+        } else if (k == 'v' || k == 'V') {
+            char name[64];
+            name[0] = 0;
+            if (found > 0)
+                bt_hci_remote_name(g_cn_bt[0].addr, name, sizeof(name));
+            tui_status_line("设备 %s: SPP/HID 服务经 bt 命令（SDP）",
+                            name[0] ? name : "(未知)");
+        }
     }
     tui_window_free(win);
     tui_update_panels();

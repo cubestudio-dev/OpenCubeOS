@@ -308,7 +308,7 @@ static void cn_hw_render(tui_window_t *win) {
                  TUI_ATTR_BOLD);
     tui_print_at(0, 1, "硬件配置 - ");
     tui_print(CN_HW_PAGES[g_cn_hw_page].cn_name);
-    tui_print("  [Tab 下一页  q 退出]");
+    tui_print("  [Tab 下一页  S 保存  L 加载  q 退出]");
     tui_set_attr((tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_SILVER, TUI_COLOR_BLACK));
     int max = win->h - 2;
     if (pg.count < max) max = pg.count;
@@ -330,6 +330,15 @@ int tui_cn_hw_main(void) {
         int k = tui_getch();
         if (k == TUI_KEY_TAB) {
             g_cn_hw_page = (g_cn_hw_page + 1) % CN_HW_PAGE_COUNT;
+        } else if (k == 's' || k == 'S') {
+            /* fix1: the English hw app had Save/Load config; the
+             * Chinese twin lacked them - same lib_config keys, Chinese
+             * status line. */
+            tui_hw_save();
+            tui_status_line("配置已保存到 /etc/opencube.conf");
+        } else if (k == 'l' || k == 'L') {
+            tui_status_line(tui_hw_load() == 0 ?
+                            "配置已加载" : "尚无已保存的配置");
         } else if (k == TUI_KEY_ESC || k == 'q' || k == TUI_KEY_F(10)) {
             break;
         }

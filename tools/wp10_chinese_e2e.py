@@ -105,6 +105,9 @@ def main():
         "cmd ime": check("ime status (396/3755)"),
         "cmd ime-test": check("ime-test PASS"),
         "cmd tui-cn": check("tui-cn opens the hw app and returns (shell ok)"),
+        "fix1 ime -i": check("fix1: ime -i composes 你 over the console (real input)"),
+        "fix1 tui-cn input": check("fix1: tui-cn entry 4 中文输入 composes 你 in the pad"),
+        "fix1 tui-cn reenter": check("fix1: tui-cn enter/quit/re-enter still renders (pool reuse)"),
         "cat utf8": check("cat echoes real UTF-8 bytes (zhongwen shi)"),
         "help -w tag": check("help -w lists WP-10-chinese_support"),
         "cmd count 222": check("command count 222"),
@@ -181,6 +184,93 @@ def main():
         transcript.append(f"\n--- [tui-cn] ---\n{out}")
         i = i_codes["cmd tui-cn"]
         CHECKS[i][1] = "Chinese apps, shell ok" in out
+
+        # ---- fix1: ime -i interactive console composition (1a) ----
+        # letters compose pinyin, a digit commits the candidate, Enter
+        # ends the line; the console IME line redraws in place and the
+        # summary carries the committed text through the serial tee.
+        child.sendline("ime -i")
+        time.sleep(1.5)
+        for ch in "ni1":
+            child.send(ch)
+            time.sleep(0.4)
+        child.send("\r")
+        child.expect(r"oc>\s*", timeout=timeout)
+        out = norm(child.before or "")
+        transcript.append(f"\n--- [ime -i] ---\n{out}")
+        i = i_codes["fix1 ime -i"]
+        try:
+            raw = out.encode("latin-1").decode("utf-8", "replace")
+        except UnicodeDecodeError:
+            raw = out
+        CHECKS[i][1] = "composed 1 character(s)" in raw and "你" in raw
+
+        # ---- fix1: the tui-cn launcher input pad (1a, TUI surface) ----
+        child.sendline("echo tui.backend=serial >> /etc/opencube.conf")
+        child.expect(r"oc>\s*", timeout=timeout)
+        child.sendline("tui-cn")
+        time.sleep(3)
+        for _ in range(3):            # down to entry 4 (中文输入)
+            child.send("\x1b[B")
+            time.sleep(0.4)
+        child.send("\r")              # open the pinyin pad
+        time.sleep(2)
+        child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=2)
+        menu_out = norm(child.before or "")
+        for ch in "ni":
+            child.send(ch)
+            time.sleep(0.4)
+        time.sleep(1)
+        child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=2)
+        cand_out = norm(child.before or "")
+        child.send("1")               # commit the first candidate
+        time.sleep(0.6)
+        child.send("\r")              # commit the line to the pad
+        time.sleep(1.2)
+        child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=2)
+        pad_out = norm(child.before or "")
+        transcript.append(f"\n--- [tui-cn input pad] ---\n{menu_out[-300:]}\n{cand_out[-300:]}\n{pad_out[-300:]}")
+        # leave the pad (Esc) and the launcher (q); double-ESC on the
+        # serial bridge delivers one real Esc key press
+        child.send("\x1b\x1b")
+        time.sleep(1.0)
+        child.send("q")
+        child.expect(r"oc>\s*", timeout=timeout)
+        out = norm(child.before or "")
+        transcript.append(f"\n--- [tui-cn pad exit] ---\n{out[-300:]}")
+        i = i_codes["fix1 tui-cn input"]
+        try:
+            raw = (menu_out + cand_out + pad_out).encode("latin-1")\
+                .decode("utf-8", "replace")
+        except UnicodeDecodeError:
+            raw = menu_out + cand_out + pad_out
+        CHECKS[i][1] = ("中文输入" in raw and "你" in raw)
+
+        # ---- fix1: tui-cn enter/quit/re-enter (1c, pool reuse) ----
+        ok2 = True
+        for _round in range(2):
+            child.sendline("tui-cn")
+            time.sleep(3)
+            child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=2)
+            m_out = norm(child.before or "")
+            try:
+                # the serial stream is latin-1-decoded by pexpect; CJK
+                # arrives as UTF-8 bytes - re-encode before substring
+                # checks (same as the pad check above)
+                m_raw = m_out.encode("latin-1").decode("utf-8", "replace")
+            except UnicodeDecodeError:
+                m_raw = m_out
+            rendered = "硬件配置" in m_raw and "中文输入" in m_raw
+            child.send("q")            # leave the launcher menu
+            time.sleep(1.5)
+            child.send("\x1b\x1b")   # in case focus is in a page
+            child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=6)
+            e_out = norm(child.before or "")
+            transcript.append(f"\n--- [tui-cn reenter] ---\n{m_out[-200:]}\n{e_out[-200:]}")
+            if not rendered:
+                ok2 = False
+        i = i_codes["fix1 tui-cn reenter"]
+        CHECKS[i][1] = ok2
 
         # cat the UTF-8 file written by chinesetest; the serial mirror
         # carries the raw UTF-8 bytes back to us.

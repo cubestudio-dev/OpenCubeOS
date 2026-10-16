@@ -58,6 +58,18 @@ int tui_chinese_form(tui_window_t* win, tui_field_t* fields, int count);
 int tui_chinese_input(tui_window_t* win, const char* prompt,
                       char* buf, int cap);
 
+/* Direct ASCII line input: never enters pinyin composition.  Same
+ * window contract as tui_chinese_input (prompt row at the window
+ * bottom, Enter commits, Esc cancels).  Returns the byte length,
+ * or -1 on cancel, -2 on bad args. */
+int tui_chinese_input_ascii(tui_window_t* win, const char* prompt,
+                            char* buf, int cap);
+
+/* Full-screen pinyin composition pad: the launcher menu's user-facing
+ * IME entry (type letters, digits 1-9 pick, space = first candidate,
+ * Enter commits to the pad, Esc leaves).  Returns 0 or -1. */
+int tui_cn_input_app(void);
+
 /* IME state for status display. */
 u32 tui_chinese_ime_syllables(void);   /* 396 */
 u32 tui_chinese_ime_chars(void);       /* 3755 */

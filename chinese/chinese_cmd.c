@@ -9,7 +9,7 @@
  *   font-test    - render sample glyphs to the console
  *   encoding     - codec status line
  *   encoding-test- codec round-trip quick check
- *   ime          - pinyin IME status
+ *   ime          - pinyin IME status ("ime -i": interactive console line)
  *   ime-test     - IME syllable resolution quick check
  *
  * All command names, help text and output labels are English (system
@@ -23,8 +23,10 @@
 #include "tui_chinese.h"
 #include "../shell/shell.h"
 #include "../kernel/lib/lib_string.h"
+#include "../kernel/core/core_sched.h"
 #include "../drivers/display/screen_console.h"
 #include "../drivers/display/screen_font.h"
+#include "../drivers/input/driver_input_keyboard.h"
 #include "../tui/tui.h"
 
 extern int chinese_test_run(int verbose);
@@ -168,6 +170,181 @@ static int cmd_encoding_test(const char *args) {
 
 /* ---- ime -------------------------------------------------------------- */
 
+/* WP-10-chinese_support-fix1: real interactive console composition.
+ * The status block used to promise an interactive flow ("type pinyin
+ * letters, digits 1-9 pick, space = first, Enter commit") that the
+ * command did not have - it only printed the status.  This line
+ * mirrors the TUI pad contract on the scrolling console: lowercase
+ * letters compose pinyin (max 6), the strip after "[pinyin]" shows
+ * the live candidates with digit hints, digits 1-9 commit that
+ * candidate, space commits the first, Backspace drops a letter (or
+ * the last committed character when no letters are pending), plain
+ * ASCII lands verbatim while no pinyin is pending, Enter ends the
+ * line, Esc / Ctrl+C leave.  The whole line redraws through '\r' so
+ * both the framebuffer grid and the serial tee show the same stream.
+ *
+ * Returns the committed UTF-8 byte count (also NUL-terminated), or
+ * -1 when the line was cancelled with content discarded. */
+int ime_console_compose(u8 *out, int cap) {
+    if (!out || cap < 8) return -1;
+    u32 cps[12];               /* committed codepoints (display)   */
+    int ncp = 0;
+    u8 composed[128];          /* committed UTF-8 (return value)   */
+    int comp_len = 0;
+    composed[0] = 0;
+    char pinyin[8];            /* typed letters (max 6)            */
+    int py_len = 0;
+    pinyin[0] = 0;
+    int done = 0, cancelled = 0;
+
+    screen_console_t *con = screen_console_get();
+    int pad = (con && con->cols > 8) ? (int)con->cols - 8 : 72;
+    if (pad > 72) pad = 72;
+
+    while (!done) {
+        /* current candidates for the pending letters */
+        u32 cands[9];
+        int ncand = (py_len > 0)
+                    ? tui_chinese_ime_test(pinyin, cands, 9) : 0;
+        if (ncand < 0) ncand = 0;
+
+        /* redraw the single line in place */
+        screen_console_putc('\r');
+        for (int i = 0; i < pad; i++) screen_console_putc(' ');
+        screen_console_putc('\r');
+        screen_console_puts("IME> ");
+        for (int i = 0; i < ncp; i++) console_cn_putcw(cps[i]);
+        if (py_len > 0) {
+            screen_console_putc('[');
+            screen_console_puts(pinyin);
+            screen_console_putc(']');
+            if (ncand > 0) {
+                screen_console_putc(' ');
+                for (int i = 0; i < ncand && i < 4; i++) {
+                    console_cn_putcw(cands[i]);
+                    char dig[3];
+                    dig[0] = (char)('1' + i);
+                    dig[1] = ' ';
+                    dig[2] = 0;
+                    screen_console_puts(dig);
+                }
+            }
+        }
+
+        /* next key: poll with a cooperative breather (the keyboard
+         * queue returns -1 when empty, never 0) */
+        int k;
+        for (;;) {
+            k = driver_input_keyboard_getch();
+            if (k > 0) break;
+            core_sched_yield();
+        }
+
+        if (k == '\r' || k == '\n') {
+            done = 1;
+        } else if (k == 0x1B || k == OC_KEY_ESC_KEY ||
+                   k == OC_KEY_CTRL_C) {
+            cancelled = 1;
+            done = 1;
+        } else if (k == OC_KEY_BACKSPACE || k == 0x08) {
+            if (py_len > 0) {
+                pinyin[--py_len] = 0;
+            } else if (ncp > 0) {
+                ncp--;
+                /* drop the last UTF-8 character of the composition */
+                int p = comp_len - 1;
+                while (p > 0 && ((u8)composed[p] & 0xC0) == 0x80) p--;
+                comp_len = p;
+                composed[comp_len] = 0;
+            }
+        } else if (k >= 'a' && k <= 'z' && py_len < 6) {
+            pinyin[py_len++] = (char)k;
+            pinyin[py_len] = 0;
+        } else if (k >= '1' && k <= '9' && py_len > 0) {
+            int pick = k - '1';
+            if (pick < ncand) {
+                u8 u8buf[4];
+                u32 produced = 0;
+                if (encoding_utf8_encode(cands[pick], u8buf, 4,
+                                         &produced) == 0 &&
+                    comp_len + (int)produced < (int)sizeof(composed) - 1 &&
+                    ncp < (int)(sizeof(cps) / sizeof(cps[0]))) {
+                    for (u32 b = 0; b < produced; b++) {
+                        composed[comp_len++] = (char)u8buf[b];
+                    }
+                    composed[comp_len] = 0;
+                    cps[ncp++] = cands[pick];
+                }
+                py_len = 0;
+                pinyin[0] = 0;
+                if (ncp >= (int)(sizeof(cps) / sizeof(cps[0]))) done = 1;
+            }
+        } else if (k == ' ') {
+            if (py_len > 0) {
+                if (ncand > 0) {
+                    u8 u8buf[4];
+                    u32 produced = 0;
+                    if (encoding_utf8_encode(cands[0], u8buf, 4,
+                                             &produced) == 0 &&
+                        comp_len + (int)produced <
+                            (int)sizeof(composed) - 1 &&
+                        ncp < (int)(sizeof(cps) / sizeof(cps[0]))) {
+                        for (u32 b = 0; b < produced; b++) {
+                            composed[comp_len++] = (char)u8buf[b];
+                        }
+                        composed[comp_len] = 0;
+                        cps[ncp++] = cands[0];
+                    }
+                    if (ncp >= (int)(sizeof(cps) / sizeof(cps[0])))
+                        done = 1;
+                }
+                py_len = 0;
+                pinyin[0] = 0;
+            } else if (comp_len + 1 < (int)sizeof(composed) - 1 &&
+                       ncp < (int)(sizeof(cps) / sizeof(cps[0]))) {
+                composed[comp_len++] = ' ';
+                composed[comp_len] = 0;
+                cps[ncp++] = (u32)' ';
+            }
+        } else if (k >= 0x20 && k < 0x7F && py_len == 0) {
+            /* ASCII direct input when no pinyin is being composed */
+            if (comp_len + 1 < (int)sizeof(composed) - 1 &&
+                ncp < (int)(sizeof(cps) / sizeof(cps[0]))) {
+                composed[comp_len++] = (char)k;
+                composed[comp_len] = 0;
+                cps[ncp++] = (u32)k;
+            }
+        }
+    }
+
+    screen_console_putc('\r');
+    for (int i = 0; i < pad; i++) screen_console_putc(' ');
+    screen_console_putc('\r');
+    screen_console_putc('\n');
+    char num[12];
+    if (cancelled) {
+        screen_console_puts("ime: cancelled, ");
+        u64_to_str((u64)ncp, num);
+        screen_console_puts(num);
+        screen_console_puts(" character(s) discarded\n");
+        return -1;
+    }
+    screen_console_puts("ime: composed ");
+    u64_to_str((u64)ncp, num);
+    screen_console_puts(num);
+    screen_console_puts(" character(s)");
+    if (ncp > 0) {
+        screen_console_puts(": ");
+        for (int i = 0; i < ncp; i++) console_cn_putcw(cps[i]);
+    }
+    screen_console_putc('\n');
+    int n = comp_len;
+    if (n > cap - 1) n = cap - 1;
+    for (int i = 0; i < n; i++) out[i] = (u8)composed[i];
+    out[n] = 0;
+    return n;
+}
+
 static int cmd_ime(const char *args) {
     (void)args;
     char num[12], buf[160];
@@ -180,11 +357,24 @@ static int cmd_ime(const char *args) {
     u64_to_str(tui_chinese_ime_chars(), num);
     screen_console_puts(num);
     screen_console_puts(" chars (GB2312 zones 16-55)\n");
-    screen_console_puts("  usage     : type pinyin letters, digits 1-9 pick, space = first, Enter commit\n");
+    screen_console_puts("  usage     : run \"ime -i\" for the interactive line; then type pinyin\n");
+    screen_console_puts("              letters; digits 1-9 pick that candidate; space = first;\n");
+    screen_console_puts("              Backspace drops a letter; digits/symbols land verbatim\n");
+    screen_console_puts("              while no pinyin is pending; Enter ends; Esc / Ctrl+C leave\n");
     encoding_status(buf, sizeof(buf));
     screen_console_puts("  ");
     screen_console_puts(buf);
     screen_console_putc('\n');
+
+    /* fix1: the composition line is opt-in via "ime -i" so scripted
+     * serial sessions (E2E drivers, pipes) keep the plain status
+     * output; interactive users type ime -i and compose on the
+     * console.  The summary (composed characters + glyphs) is printed
+     * by ime_console_compose itself. */
+    if (args && args[0] == '-' && args[1] == 'i') {
+        u8 line[128];
+        (void)ime_console_compose(line, sizeof(line));
+    }
     return 0;
 }
 
@@ -216,7 +406,7 @@ static int cmd_tui_cn(const char *args) {
         screen_console_puts("tui-cn: TUI init failed\n");
         return 1;
     }
-    tui_menu_item_t items[3];
+    tui_menu_item_t items[4];
     items[0].name = "硬件配置";
     items[0].desc = "hardware config (Chinese labels)";
     items[0].userptr = 0;
@@ -226,21 +416,27 @@ static int cmd_tui_cn(const char *args) {
     items[2].name = "系统信息";
     items[2].desc = "overview/processes/log/monitor/power/update/time";
     items[2].userptr = 0;
+    items[3].name = "中文输入";
+    items[3].desc = "pinyin IME pad: letters, digits 1-9 pick, space first";
+    items[3].userptr = 0;
     int pages = 0;
     for (;;) {
         int cols, rows;
         tui_term_size(&cols, &rows);
-        tui_window_t *menu = tui_window_new(0, 0, 5, 36);
+        tui_window_t *menu = tui_window_new(0, 0, 6, 44);
         if (!menu) return 1;
         tui_window_title(menu, "中文界面");
-        int pick = tui_chinese_menu(menu, items, 3);
+        int pick = tui_chinese_menu(menu, items, 4);
         tui_window_free(menu);
         tui_update_panels();
         if (pick < 0) break;
         if (pick == 0) { tui_cn_hw_main(); pages++; }
         else if (pick == 1) { tui_cn_net_main(); pages++; }
         else if (pick == 2) { tui_cn_sysinfo_main(); pages++; }
+        else if (pick == 3) { tui_cn_input_app(); pages++; }
     }
+    tui_shutdown();   /* symmetric with the English commands: restore
+                         the shell screen and release every window */
     char num[12];
     u64_to_str((u64)pages, num);
     screen_console_puts("tui-cn: opened ");
@@ -271,7 +467,7 @@ void chinese_cmd_register(void) {
         "quick codec round-trip check (full: chinesetest)",
         "WP-10-chinese_support");
     shell_register_command_ex("ime", cmd_ime,
-        "pinyin IME status and usage",
+        "pinyin IME status; \"ime -i\" opens the interactive console line",
         "WP-10-chinese_support");
     shell_register_command_ex("ime-test", cmd_ime_test,
         "quick IME syllable resolution check",

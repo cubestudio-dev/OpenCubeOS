@@ -452,3 +452,90 @@ int tui_chinese_input(tui_window_t* win, const char* prompt,
     buf[n] = 0;
     return n;
 }
+
+/* Direct ASCII line input on a TUI window: every printable character
+ * goes into the buffer as-is, Enter commits, Esc cancels.  Used for
+ * fields that must never enter pinyin composition (SSID, host names,
+ * numeric fields).  The IME editor above would otherwise turn lowercase
+ * letters into pinyin buffers and make plain names impossible to type. */
+int tui_chinese_input_ascii(tui_window_t* win, const char* prompt,
+                            char* buf, int cap) {
+    if (!win || !buf || cap < 2) return -2;
+    int len = 0;
+    buf[0] = 0;
+    int row = win->h - 1;
+    for (;;) {
+        tui_attr_t a = (tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_WHITE, TUI_COLOR_NAVY);
+        tui_attr_t save = win->attr;
+        win->attr = a;
+        tui_window_focus_set(win);
+        for (int x = 0; x < win->w; x++) {
+            tui_move(row, x);
+            tui_addch(' ');
+        }
+        tui_move(row, 0);
+        tui_print(prompt ? prompt : "");
+        tui_print(buf);
+        tui_window_refresh(win);
+        win->attr = save;
+
+        int k = tui_getch();
+        if (k == TUI_KEY_ESC) return -1;
+        if (k == TUI_KEY_ENTER) {
+            int n = len;
+            if (n > cap - 1) n = cap - 1;
+            buf[n] = 0;
+            return n;
+        }
+        if (k == TUI_KEY_BACKSPACE) {
+            if (len > 0) buf[--len] = 0;
+        } else if (k >= 0x20 && k < 0x7F && len < cap - 1) {
+            buf[len++] = (char)k;
+            buf[len] = 0;
+        }
+    }
+}
+
+/* ---- Chinese text input application (the user-facing IME entry) ---- */
+
+/* Full-screen pinyin composition pad: type letters, watch the candidate
+ * strip, pick with digits 1-9 (or space for the first candidate), Enter
+ * commits the composed text and displays it on screen, Esc leaves.
+ * This is the reachable IME entry the launcher menu exposes - without
+ * it the IME engine had no user-facing surface outside the SSID field. */
+int tui_cn_input_app(void) {
+    if (tui_chinese_init() != 0) return -1;
+    int cols, rows;
+    tui_term_size(&cols, &rows);
+    tui_window_t *win = tui_window_new(0, 0, rows, cols);
+    if (!win) return -1;
+    tui_window_title(win, "中文输入（拼音）");
+    char text[256];
+    text[0] = 0;
+    for (;;) {
+        tui_window_clear(win);
+        tui_window_focus_set(win);
+        tui_set_attr((tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_YELLOW, TUI_COLOR_BLACK) |
+                     TUI_ATTR_BOLD);
+        tui_print_at(0, 1, "拼音输入  [打字即拼音  数字1-9选字  空格首选  回车上屏  Esc退出]");
+        tui_set_attr((tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_AQUA, TUI_COLOR_BLACK));
+        tui_print_at(1, 1, "输入区（回车后全文在此显示）:");
+        tui_set_attr((tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_WHITE, TUI_COLOR_BLACK));
+        tui_print_at(2, 1, text);
+        tui_set_attr((tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_SILVER, TUI_COLOR_BLACK));
+        tui_print_at(3, 1, "示例: 输入 ni 看候选，按 1 或空格得到 你");
+        tui_window_refresh(win);
+
+        char line[128];
+        int n = tui_chinese_input(win, "拼音> ", line, sizeof(line));
+        if (n < 0) break;                     /* Esc: leave the pad */
+        int cur = (int)strlen(text);
+        if (n > 0 && cur + n < (int)sizeof(text) - 1) {
+            for (int i = 0; i < n; i++) text[cur + i] = line[i];
+            text[cur + n] = 0;
+        }
+    }
+    tui_window_free(win);
+    tui_update_panels();
+    return 0;
+}

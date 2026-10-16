@@ -389,8 +389,21 @@ static void test_tui_cn(void) {
     if (!tui_started()) tui_init();
     tui_window_t *cnwin = tui_window_new(0, 0, 6, 40);
     if (cnwin) tui_window_focus_set(cnwin);
-    CHECK(tui_chinese_print("\xE4\xB8\xAD\xE6\x96\x87") == 0,
-          "tui_chinese_print utf-8 ok");
+    int prc = tui_chinese_print("\xE4\xB8\xAD\xE6\x96\x87");
+    if (prc != 0) {
+        char dbg[16];
+        screen_console_puts("    debug: cnwin=");
+        u64_to_str((u64)(long)cnwin, dbg);
+        screen_console_puts(dbg);
+        screen_console_puts(" wincount=");
+        u64_to_str((u64)tui_window_count(), dbg);
+        screen_console_puts(dbg);
+        screen_console_puts(" started=");
+        u64_to_str((u64)tui_started(), dbg);
+        screen_console_puts(dbg);
+        screen_console_putc('\n');
+    }
+    CHECK(prc == 0, "tui_chinese_print utf-8 ok");
     CHECK(tui_chinese_str_cols("\xE4\xB8\xAD\xE6\x96\x87") == 4,
           "str cols zhongwen = 4");
     u32 cands[9];
@@ -410,6 +423,84 @@ static void test_tui_cn(void) {
     CHECK(tui_chinese_menu(NULL, NULL, 0) == -1, "menu null rejected");
     CHECK(tui_chinese_form(NULL, NULL, 0) == -1, "form null rejected");
     if (cnwin) tui_window_free(cnwin);
+
+    /* ---- WP-10-chinese_support-fix1: user-facing input paths ---- */
+    screen_console_puts("[13] fix1 input paths (ASCII editor + IME keys)\n");
+    if (!tui_started()) tui_init();
+    tui_window_t *inwin = tui_window_new(0, 0, 6, 40);
+    if (inwin) tui_window_focus_set(inwin);
+    if (inwin) {
+        /* ASCII editor: plain lowercase letters must survive verbatim
+         * (the SSID field used to route them into the pinyin buffer). */
+        driver_input_keyboard_inject((u16)'h');
+        driver_input_keyboard_inject((u16)'o');
+        driver_input_keyboard_inject((u16)'m');
+        driver_input_keyboard_inject((u16)'e');
+        driver_input_keyboard_inject(OC_KEY_ENTER);
+        char ssid[32];
+        int rn = tui_chinese_input_ascii(inwin, "SSID: ", ssid, sizeof(ssid));
+        CHECK(rn == 4, "ascii input length == 4");
+        CHECK(strcmp(ssid, "home") == 0, "ascii input text == home");
+        /* IME editor: n i 1 -> the first candidate of "ni" (U+4F60)
+         * commits, Enter returns the composed UTF-8. */
+        driver_input_keyboard_inject((u16)'n');
+        driver_input_keyboard_inject((u16)'i');
+        driver_input_keyboard_inject((u16)'1');
+        driver_input_keyboard_inject(OC_KEY_ENTER);
+        char cn[32];
+        int cn_n = tui_chinese_input(inwin, "拼音> ", cn, sizeof(cn));
+        CHECK(cn_n == 3, "IME composed length == 3 (one hanzi)");
+        CHECK(cn_n == 3 && (u8)cn[0] == 0xE4 && (u8)cn[1] == 0xBD &&
+              (u8)cn[2] == 0xA0, "IME composed text == 你 (U+4F60)");
+        tui_window_free(inwin);
+    }
+
+    /* ---- fix1: the console ime command line (was status-only) ----
+     * The usage text promised interactive composition the command did
+     * not have.  ime_console_compose is that flow now: injected keys
+     * must compose and commit exactly like the TUI pad. */
+    screen_console_puts("[14] fix1 console IME line (n i 1 Enter -> 你; digits direct; Esc cancels)\n");
+    {
+        extern int ime_console_compose(u8 *out, int cap);
+        driver_input_keyboard_inject((u16)'n');
+        driver_input_keyboard_inject((u16)'i');
+        driver_input_keyboard_inject((u16)'1');
+        driver_input_keyboard_inject(OC_KEY_ENTER);
+        u8 line[64];
+        int rn2 = ime_console_compose(line, sizeof(line));
+        CHECK(rn2 == 3, "console IME composed length == 3 (one hanzi)");
+        CHECK(rn2 == 3 && line[0] == 0xE4 && line[1] == 0xBD &&
+              line[2] == 0xA0, "console IME composed text == 你 (U+4F60)");
+        /* letters always compose pinyin (same contract as the TUI
+         * pad): "home" is no syllable, so Enter ends the line with
+         * nothing committed - the pending letters are discarded. */
+        driver_input_keyboard_inject((u16)'h');
+        driver_input_keyboard_inject((u16)'o');
+        driver_input_keyboard_inject((u16)'m');
+        driver_input_keyboard_inject((u16)'e');
+        driver_input_keyboard_inject(OC_KEY_ENTER);
+        u8 line3[64];
+        int rn3 = ime_console_compose(line3, sizeof(line3));
+        CHECK(rn3 == 0, "non-syllable letters commit nothing (pinyin contract)");
+        /* digits/symbols land verbatim while no pinyin is pending */
+        driver_input_keyboard_inject((u16)'2');
+        driver_input_keyboard_inject((u16)'0');
+        driver_input_keyboard_inject((u16)'2');
+        driver_input_keyboard_inject((u16)'6');
+        driver_input_keyboard_inject(OC_KEY_ENTER);
+        u8 line5[64];
+        int rn5 = ime_console_compose(line5, sizeof(line5));
+        CHECK(rn5 == 4, "console IME digits length == 4");
+        CHECK(rn5 == 4 && strcmp((const char *)line5, "2026") == 0,
+              "console IME digits text == 2026");
+        /* Esc discards: inject n i then Esc -> -1 and empty buffer */
+        driver_input_keyboard_inject((u16)'n');
+        driver_input_keyboard_inject((u16)'i');
+        driver_input_keyboard_inject(OC_KEY_ESC_KEY);
+        u8 line4[64];
+        int rn4 = ime_console_compose(line4, sizeof(line4));
+        CHECK(rn4 == -1, "console IME Esc cancels (-1)");
+    }
 }
 
 /* ------------------------------------------------- entry point ----- */

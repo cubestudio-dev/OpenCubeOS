@@ -18,10 +18,11 @@
 extern int lib_log_ring_count(void);
 extern int lib_log_ring_get(int idx, char *out, int cap);
 
-static u64 cn_boot_ms;
-
 static void cn_fmt_uptime(char *out, int cap) {
-    u64 ms = core_timer_now_ms() - cn_boot_ms;
+    /* core_timer_now_ms() counts from boot: the uptime is the counter
+     * itself.  The previous now-minus-session-start version always
+     * reported ~0 because cn_boot_ms was re-taken on every app entry. */
+    u64 ms = core_timer_now_ms();
     u64 secs = ms / 1000;
     u64 h = secs / 3600;
     u64 m = (secs % 3600) / 60;
@@ -354,7 +355,8 @@ static void cn_page_help(tui_window_t *win) {
     tui_print_at(2, 1, "系统信息中文界面（WP-10-chinese_support）");
     tui_print_at(3, 1, "概览/进程/日志/监控/电源/更新/时间 均为实时数据");
     tui_print_at(4, 1, "q / Esc 返回上级菜单");
-    tui_print_at(5, 1, "中文输入: ime 命令（拼音 IME，GB2312 一级字）");
+    tui_print_at(5, 1, "中文输入: tui-cn 菜单第 4 项「中文输入」(拼音 IME)");
+    tui_print_at(6, 1, "  打字即拼音; 数字 1-9 选字; 空格首选; 回车上屏; Esc 退出");
     tui_window_refresh(win);
     for (;;) {
         int k = tui_getch();
@@ -364,7 +366,6 @@ static void cn_page_help(tui_window_t *win) {
 
 int tui_cn_sysinfo_main(void) {
     if (tui_chinese_init() != 0) return -1;
-    cn_boot_ms = core_timer_now_ms();
     tui_menu_item_t items[8];
     items[0].name = "系统概览"; items[0].desc = "版本 / 运行时间 / 任务数";
     items[1].name = "进程管理"; items[1].desc = "任务列表与终止";
@@ -377,8 +378,6 @@ int tui_cn_sysinfo_main(void) {
     for (int i = 0; i < 8; i++) items[i].userptr = 0;
 
     int pages_opened = 0;
-    int cols, rows;
-    tui_term_size(&cols, &rows);
     for (;;) {
         tui_window_t *menu = tui_window_new(0, 0, 10, 36);
         if (!menu) return -1;
@@ -388,9 +387,6 @@ int tui_cn_sysinfo_main(void) {
         tui_update_panels();
         if (pick < 0) break;
         pages_opened++;
-        tui_window_t *full = tui_window_new(0, 0, rows, cols);
-        if (!full) continue;
-        tui_window_free(full);
         switch (pick) {
         case 0: {
             tui_window_t *w = tui_window_new(0, 0, 8, 60);
