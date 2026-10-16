@@ -61,14 +61,18 @@ CHECKS = [
     # scsi/scsitest; additions only, never deletions).
     # WP-10-tui adds 5 commands (tui/tui-test/tui-hw/tui-net/tui-sysinfo):
     # the baseline moves UP 208 -> 213; removals remain forbidden.
-    ("command count 213",        r"Total:\s*213 commands"),
+    # WP-10-chinese_support adds 9 commands (chinese chinesetest font
+    # font-test encoding encoding-test ime ime-test tui-cn): baseline
+    # UP 213 -> 222.
+    ("command count 222",        r"Total:\s*222 commands"),
     # Baseline note (WP-10-input_chipset): accept the current tree describe
     # (fix4-2-g<sha>), the fix3-rebuild form, and the new WP-10-input_chipset
     # tag form (release builds bake the tag name verbatim).
     # WP-10-timer_rtc adds the timer_rtc tag form.
     # WP-10-wireless_bluetooth adds the wireless_bluetooth tag form.
     # WP-10-camera_misc adds the camera_misc tag form.
-    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc|wireless_bluetooth|camera_misc)"),
+    # WP-10-tui/chinese_support add their tag + describe forms.
+    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc|wireless_bluetooth|camera_misc|tui|chinese_support)"),
     ("heaptest pass",            r"heaptest.*PASS|heap test.*PASS"),
     ("fstest pass",              r"fstest.*(PASS|OK)|VFS self-test.*PASS"),
     ("cryptotest NIST pass",     r"[Cc]rypto self-test.*pass|cryptotest.*PASS|All \d+ NIST"),
