@@ -44,8 +44,11 @@ static driver_input_kbd_handler_fn g_handlers[OC_KBD_CHAIN_LEN];
 static spinlock_t g_kbd_ring_lock;
 
 /* Scancode set 1 ? ASCII (unshifted). 0 = no mapping / special. */
+/* 0x01 (Esc) maps to the dedicated OC_KEY_ESC_KEY: raw 0x1B is the ANSI
+ * CSI opener on the serial bridge, and mapping the physical key to it
+ * made the TUI CSI decoder swallow every Esc press. */
 static const u8 scancode_map[128] = {
-    /* 0x00 */ 0,    0x1B, '1',  '2',  '3',  '4',  '5',  '6',
+    /* 0x00 */ 0,    OC_KEY_ESC_KEY, '1',  '2',  '3',  '4',  '5',  '6',
     /* 0x08 */ '7',  '8',  '9',  '0',  '-',  '=',  0x08, '\t',
     /* 0x10 */ 'q',  'w',  'e',  'r',  't',  'y',  'u',  'i',
     /* 0x18 */ 'o',  'p',  '[',  ']',  '\r', 0,    'a',  's',

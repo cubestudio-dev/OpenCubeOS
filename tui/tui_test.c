@@ -254,6 +254,86 @@ int tui_test_run(int verbose) {
     verdict("power API present", "link check", "linked",
             "linked", 1);
 
+    /* ---- WP-10-chinese_support-fix1 regression block ---- */
+
+    /* fix1-A: tui_getch_timeout must BLOCK when the keyboard queue is
+     * empty (the keyboard driver returns -1 for empty, never 0; the old
+     * c != 0 check fed -1 into the CSI decoder and turned every getch
+     * into an instant -1, so pages exited on the first poll).  First
+     * the legal-input side: an injected key must come back fast. */
+    driver_input_keyboard_inject((u16)'x');
+    {
+        u64 t0 = core_timer_now_ms();
+        int k = tui_getch_timeout(200);
+        u64 dt = core_timer_now_ms() - t0;
+        verdict_num("getch delivers an injected key", "inject 'x'", 'x', k);
+        verdict_num("injected key is immediate", "dt<100ms", 1, dt < 100 ? 1 : 0);
+    }
+    /* now the blocking side: an empty queue must hold the full timeout
+     * (>=40 ms of the 50 ms budget) and return -1. */
+    {
+        u64 t0 = core_timer_now_ms();
+        int k = tui_getch_timeout(50);
+        u64 dt = core_timer_now_ms() - t0;
+        verdict_num("empty queue times out with -1", "50ms budget", -1, k);
+        verdict_num("empty queue actually blocked", "dt>=40ms", 1, dt >= 40 ? 1 : 0);
+    }
+
+    /* fix1-B: the window pool must reuse freed slots.  The old
+     * tui_window_free never released its slot, so the 16-slot pool
+     * drained after a few page visits and apps dropped back to the
+     * shell, unable to start the TUI again.  40 new/free cycles must
+     * all succeed, then the pool must fill up honestly at 16 live
+     * windows and accept a new one right after one free.  The suite
+     * itself holds windows (the lazy status line cache), so start from
+     * a known-empty pool via the same teardown the sessions use. */
+    {
+        /* fix1: the suite may run while a TUI session is still live
+         * (the user typed tui-test from inside a session, or a prior
+         * page left g_started set).  Resetting the pool under a live
+         * session leaves that session refreshing freed cells (#GP).
+         * Tear the session down first - the same state the regression
+         * targets: a fresh start. */
+        if (tui_started()) tui_shutdown();
+        tui_init();
+        tui_windows_reset();
+        int ok = 1;
+        for (int i = 0; i < 40; i++) {
+            tui_window_t *w = tui_window_new(0, 0, 4, 20);
+            if (!w) { ok = 0; break; }
+            tui_window_free(w);
+        }
+        verdict_num("window pool survives 40 new/free cycles", "40 cycles", 1, ok);
+        u64_to_str((u64)tui_window_count(), buf);
+        verdict("pool occupancy after 40 cycles", "tui_window_count", "?", buf, 1);
+        tui_window_t *live[16];
+        int n = 0;
+        for (; n < 16; n++) {
+            live[n] = tui_window_new(0, 0, 2, 10);
+            if (!live[n]) break;
+        }
+        verdict_num("pool fills to 16 live windows", "16 allocated", 16, n);
+        verdict_num("17th window refused honestly", "pool full -> NULL", 1,
+                    tui_window_new(0, 0, 2, 10) == NULL ? 1 : 0);
+        if (n > 0) tui_window_free(live[0]);
+        verdict_num("freed slot is reusable", "new after free", 1,
+                    tui_window_new(0, 0, 2, 10) != NULL ? 1 : 0);
+        tui_windows_reset();
+    }
+
+    /* fix1-C: the physical Esc key must reach the TUI.  It used to map
+     * to raw 0x1B, which the CSI decoder swallowed as a sequence
+     * opener, so Esc exits never fired from the local keyboard. */
+    verdict_num("Esc key maps through OC_KEY_ESC_KEY", "map_key(0x9C)",
+                TUI_KEY_ESC, tui_input_map_key(OC_KEY_ESC_KEY));
+    {
+        /* serial double-ESC: the first ESC opens a CSI, the second must
+         * deliver the first as a real Esc key press */
+        (void)tui_input_feed_raw(0x1B);
+        int k = tui_input_feed_raw(0x1B);
+        verdict_num("double ESC delivers Esc", "0x1B 0x1B", TUI_KEY_ESC, k);
+    }
+
     tui_shutdown();
 
     {

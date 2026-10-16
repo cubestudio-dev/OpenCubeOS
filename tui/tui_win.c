@@ -50,20 +50,38 @@ static void win_fill(tui_window_t *w) {
 
 tui_window_t *tui_window_new(int y, int x, int h, int w) {
     if (!tui_started()) return (void *)0;
-    if (g_window_count >= TUI_MAX_WINDOWS) return (void *)0;
+    if (h <= 0 || w <= 0) return (void *)0;
     int cols, rows;
     tui_term_size(&cols, &rows);
-    if (h <= 0 || w <= 0) return (void *)0;
     if (x < 0 || y < 0 || x + w > cols || y + h > rows) return (void *)0;
-    tui_window_t *win = &g_windows[g_window_count];
+    /* Reuse a freed slot first.  tui_window_free marks the slot dead
+     * (id = -1) without shrinking the table; without reuse the 16-slot
+     * pool drained after a handful of page visits and every later
+     * tui_window_new returned NULL - apps then dropped back to the
+     * shell and the TUI could not be started again.  Reuse keeps
+     * existing window objects at stable addresses (no compacting). */
+    int slot = -1;
+    for (int i = 0; i < g_window_count; i++) {
+        if (g_windows[i].id < 0) { slot = i; break; }
+    }
+    if (slot < 0) {
+        if (g_window_count >= TUI_MAX_WINDOWS) return (void *)0;
+        slot = g_window_count;
+        g_window_count++;
+    }
+    tui_window_t *win = &g_windows[slot];
     memset(win, 0, sizeof(*win));
-    win->id = g_window_count++;
+    win->id = slot;
     win->x = x; win->y = y; win->w = w; win->h = h;
     win->visible = 1;
     win->attr = tui_default_attr();
     win->bkgd = ((u32)' ' << 16) | (u32)tui_default_attr();
     win->cells = (tui_cell_t *)kmalloc((u64)w * (u64)h * sizeof(tui_cell_t));
-    if (!win->cells) { g_window_count--; return (void *)0; }
+    if (!win->cells) {
+        win->id = -1;
+        if (slot == g_window_count - 1) g_window_count--;
+        return (void *)0;
+    }
     win_fill(win);
     return win;
 }
@@ -87,6 +105,20 @@ void tui_window_compact(void) {
         }
     }
     g_window_count = out;
+}
+
+/* Release every window (shutdown / defensive init): frees the cell
+ * buffers and empties the pool so the next session starts clean. */
+void tui_windows_reset(void) {
+    for (int i = 0; i < g_window_count; i++) {
+        if (g_windows[i].cells) {
+            kfree(g_windows[i].cells);
+            g_windows[i].cells = (void *)0;
+        }
+        g_windows[i].id = -1;
+    }
+    g_window_count = 0;
+    tui_text_reset();   /* the focus/status caches point into the pool */
 }
 
 int tui_window_move(tui_window_t *win, int y, int x) {

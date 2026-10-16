@@ -54,9 +54,13 @@ extern "C" {
 
 /* Current kernel version - must stay in sync with shell_cmd_uname (kmain.c).
  * Overridable at build time: make CFLAGS+=-DOC_RELEASE_VERSION=\"...\"
- * (used by the WP-10u end-to-end test to build a "newer" kernel). */
+ * (used by the WP-10u end-to-end test to build a "newer" kernel).
+ * fix1: the fallback was left at "WP-10u" for eight work packages; the
+ * Makefile normally overrides it with `git describe --tags`, but a
+ * build from the source zip (no .git) must not report an ancient
+ * version to the update check. */
 #ifndef OC_RELEASE_VERSION
-#define OC_RELEASE_VERSION "WP-10u"
+#define OC_RELEASE_VERSION "WP-10-chinese_support"
 #endif
 #define OC_UPDATE_CURRENT_VERSION OC_RELEASE_VERSION
 

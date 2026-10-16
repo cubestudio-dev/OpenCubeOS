@@ -52,6 +52,14 @@ CMDS = [
     ("tui-test wifi",    "tui-test", r"\[PASS\] wifi connect honest", 180),
     ("tui-test tasks",   "tui-test", r"\[PASS\] task table live", 180),
     ("tui-test logring", "tui-test", r"\[PASS\] log ring readable", 180),
+    ("tui-test fix1 getch", "tui-test",
+     r"\[PASS\] getch delivers an injected key", 180),
+    ("tui-test fix1 block", "tui-test",
+     r"\[PASS\] empty queue actually blocked", 180),
+    ("tui-test fix1 pool", "tui-test",
+     r"\[PASS\] window pool survives 40 new/free cycles", 180),
+    ("tui-test fix1 esc", "tui-test",
+     r"\[PASS\] Esc key maps through OC_KEY_ESC_KEY", 180),
     ("tui-hw cpu",       "tui-hw CPU",
      r"CPU vendor : (GenuineIntel|AuthenticAMD|QEMU|other)", 120),
     ("tui-hw mem",       "tui-hw Memory", r"memory total : \d+\.\d GiB", 120),
@@ -74,6 +82,41 @@ CMDS = [
     ("ota intact",       "checkupdate --local", r".", 120),
     ("shell ok after",   "echo alive", r"alive", 120),
 ]
+
+
+def tui_reenter_round(child, log, transcript, tag):
+    """fix1 regression: enter the full TUI menu app, leave via its
+    Exit item, verify the shell prompt returns, and that a second
+    session still renders (the old build drained the 16-slot window
+    pool after a few sessions and then silently refused to start)."""
+    ok = True
+    for i in range(2):
+        child.sendline("tui")
+        time.sleep(3)
+        idx = child.expect([r"oc>", pexpect.TIMEOUT], timeout=8)
+        out = normalize(child.before or "")
+        rendered = idx == 1 and "Hardware configuration" in out \
+            and "Exit" in out
+        log.write(f"[{tag} #{i}] render: {'PASS' if rendered else 'FAIL'}\n")
+        if not rendered:
+            ok = False
+            transcript += f"\n=== {tag} #{i} NO RENDER: {out[-400:]}\n"
+        if idx == 1:
+            # main menu Exit is item 5 (index 4)
+            for _ in range(4):
+                child.send("\x1b[B")
+                time.sleep(0.25)
+            child.send("\r")
+            time.sleep(1.5)
+            idx2 = child.expect([r"oc>", pexpect.TIMEOUT], timeout=8)
+            back = idx2 == 0
+            log.write(f"[{tag} #{i}] exit back to shell: "
+                      f"{'PASS' if back else 'FAIL'}\n")
+            if not back:
+                ok = False
+        else:
+            ok = False
+    return ok
 
 
 def main():
@@ -126,7 +169,25 @@ def main():
 
     failed = 0
     transcript = ""
-    for name, cmd, regex, extra in CMDS:
+    # chunking support for time-boxed sandboxes: OC_E2E_CMDS="a:b" runs
+    # CMDS[a:b] (Python slice syntax, either side optional); the reenter
+    # regression can be skipped for a chunk with OC_E2E_REENTER=0.  Every
+    # chunk boots fresh; the union of chunks must cover the whole suite.
+    sel = os.environ.get("OC_E2E_CMDS", "")
+    cmds = CMDS
+    if sel:
+        _a, _, _b = sel.partition(":")
+        cmds = CMDS[int(_a or 0):(int(_b) if _b else None)]
+        # every chunk runs on a fresh boot: CMDS[0] is the INFO entry that
+        # selects the serial backend (echo tui.backend=serial ...); a chunk
+        # that skips it would render every page into the invisible fb.
+        # Always prepend it for chunked runs (idempotent, uncounted pass).
+        if CMDS and CMDS[0][1].startswith("echo tui.backend") \
+                and (not cmds or cmds[0] is not CMDS[0]):
+            cmds = [CMDS[0]] + cmds
+    reenter_on = os.environ.get("OC_E2E_REENTER", "1") == "1"
+    reenter_ran = False
+    for name, cmd, regex, extra in cmds:
         child.sendline(cmd)
         if cmd.startswith(("tui-hw", "tui-net", "tui-sysinfo")):
             # full-screen page: let it render (sleep, do NOT expect --
@@ -156,9 +217,24 @@ def main():
             transcript += f"\n=== {name}: EXCEPTION {e} ===\n"
             log.write(f"[FAIL] {name}: exception {e}\n")
             failed += 1
+
+    # fix1 regression: enter -> exit -> re-enter twice (1c)
+    if reenter_on:
+        reenter_ran = True
+        try:
+            log.write("[INFO] tui re-enter regression: starting\n")
+            if tui_reenter_round(child, log, transcript, "fix1-reenter"):
+                log.write("[PASS] tui re-enter regression: two full sessions\n")
+            else:
+                failed += 1
+                log.write("[FAIL] tui re-enter regression\n")
+        except Exception as e:
+            failed += 1
+            log.write(f"[FAIL] tui re-enter regression: exception {e}\n")
+    total = len(cmds) + (1 if reenter_ran else 0)
     log.write("\n=== full transcript tail ===\n")
     log.write(transcript[-8000:])
-    log.write(f"\n=== summary: {len(CMDS) - failed}/{len(CMDS)} checks passed, {failed} failed ===\n")
+    log.write(f"\n=== summary: {total - failed}/{total} checks passed, {failed} failed ===\n")
     log.close()
     child.sendline("poweroff")
     child.close(force=True)

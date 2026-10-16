@@ -357,6 +357,9 @@ int  tui_cursor_visible(void);
 tui_window_t *tui_window_get(int id);
 int  tui_window_count(void);
 void tui_window_compact(void);             /* compact after free      */
+void tui_windows_reset(void);              /* free every window (init/shutdown) */
+void tui_text_reset(void);                 /* drop cached window pointers (focus/status) */
+void tui_input_reset(void);                /* reset the CSI decoder + mouse state (init/shutdown) */
 tui_window_t *tui_window_focus(void);
 tui_window_t *tui_window_focus_set(tui_window_t *win);
 

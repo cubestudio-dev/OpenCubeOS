@@ -48,6 +48,12 @@
 #define OC_KEY_F10      0x99
 #define OC_KEY_F11      0x9A
 #define OC_KEY_F12      0x9B
+/* Physical Esc key code produced by the PS/2 scancode map.  It must be
+ * distinct from OC_KEY_ESC (0x1B): raw 0x1B bytes on the queue are also
+ * the first byte of ANSI CSI sequences injected by the COM1 bridge, and
+ * the TUI CSI decoder consumed every keyboard Esc as a sequence opener,
+ * so the key never reached any application.  0x9C is unused. */
+#define OC_KEY_ESC_KEY  0x9C
 #define OC_KEY_CTRL_C   0x03   /* Ctrl+C ? ETX */
 #define OC_KEY_CTRL_D   0x04   /* Ctrl+D ? EOT */
 

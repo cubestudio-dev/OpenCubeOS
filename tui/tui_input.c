@@ -43,6 +43,7 @@ static int map_key(int c) {
     if (c >= 0x80) {
         if (c >= OC_KEY_F1 && c <= OC_KEY_F1 + 11) return TUI_KEY_F(c - OC_KEY_F1 + 1);
         switch (c) {
+        case OC_KEY_ESC_KEY: return TUI_KEY_ESC;   /* physical Esc (PS/2) */
         case OC_KEY_UP:     return TUI_KEY_UP;
         case OC_KEY_DOWN:   return TUI_KEY_DOWN;
         case OC_KEY_LEFT:   return TUI_KEY_LEFT;
@@ -64,7 +65,8 @@ static int map_key(int c) {
 #define CSI_MAX 16
 
 typedef struct {
-    int active;            /* saw ESC [                              */
+    int active;            /* saw ESC (sequence armed)              */
+    int saw_lbrack;        /* saw the '[' that makes it a real CSI   */
     int priv;              /* saw '?'                                */
     int nparams;
     int params[CSI_MAX];
@@ -76,6 +78,7 @@ static csi_state_t g_csi;
 
 static void csi_reset(void) {
     g_csi.active = 0;
+    g_csi.saw_lbrack = 0;
     g_csi.priv = 0;
     g_csi.nparams = 0;
     g_csi.final = 0;
@@ -89,9 +92,24 @@ static int csi_feed(int c) {
         if (c == 0x1B) { csi_reset(); g_csi.active = 1; return TUI_KEY_NONE; }
         return map_key(c);
     }
-    if (g_csi.nparams == 0 && g_csi.final == 0 && c == '[' && !g_csi.priv) {
-        /* second '[' of CSI */
-        return TUI_KEY_NONE;
+    /* Two ESC bytes in a row: the first one was a real Esc key press
+     * (xterm delivers ESC ESC the same way), so hand it to the app and
+     * restart the sequence with the new opener. */
+    if (c == 0x1B && g_csi.nparams == 0 && !g_csi.priv && g_csi.final == 0) {
+        csi_reset();
+        g_csi.active = 1;
+        return TUI_KEY_ESC;
+    }
+    if (!g_csi.saw_lbrack) {
+        /* ANSI: a control sequence is ESC [ <params> <final>.  Until the
+         * '[' arrives NOTHING is a CSI - every other byte is a plain key
+         * press.  Without this, "ESC ESC q" (leave a page, then quit)
+         * fed the q to the sequence finalizer, which swallowed it as an
+         * unknown CSI and the app hung waiting for a key that was never
+         * delivered. */
+        if (c == '[' && !g_csi.priv) { g_csi.saw_lbrack = 1; return TUI_KEY_NONE; }
+        g_csi.active = 0;
+        return map_key(c);
     }
     if (c == '?') { g_csi.priv = 1; return TUI_KEY_NONE; }
     if (c >= '0' && c <= '9') {
@@ -186,7 +204,14 @@ int tui_getch_timeout(int ms) {
             return TUI_KEY_MOUSE;
         }
         int c = driver_input_keyboard_getch();
-        if (c != 0) {
+        if (c > 0) {
+            /* real keycode.  The keyboard queue returns -1 when empty
+             * (never 0 for "no key"), so the test must be c > 0: a
+             * c != 0 check would feed -1 into the CSI decoder, whose
+             * map_key maps it to CTRL_A-1 == -1 and turned every
+             * tui_getch into a non-blocking instant -1 return (pages
+             * then exited on the first poll and the menu spun without
+             * ever reaching the yield below). */
             int k = csi_feed(c);
             if (k != TUI_KEY_NONE) return k;
             continue;
@@ -228,6 +253,16 @@ int tui_mouse_poll_touchpad(void) {
     g_mouse_pending = m;
     g_mouse_pending_valid = 1;
     return 0;
+}
+
+/* Session reset: the CSI decoder and the mouse pending flag are module
+ * state that must not leak into the next TUI session - a sequence left
+ * active by the previous session swallowed the next session's plain
+ * keystrokes (the 'q' page exit was eaten as a bogus CSI final byte).
+ * Called from tui_init/tui_shutdown. */
+void tui_input_reset(void) {
+    csi_reset();
+    g_mouse_pending_valid = 0;
 }
 
 /* Test hook: raw-key mapping (OC_KEY_* -> TUI KEY_*). */

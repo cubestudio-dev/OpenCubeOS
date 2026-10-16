@@ -50,6 +50,47 @@ static const char *enc_str(const wl_scan_result_t *r) {
     return "open";
 }
 
+/* Small ASCII line editor on the bottom row: printable characters land
+ * in buf, Backspace deletes, Enter commits, Esc cancels.  Independent
+ * of the Chinese IME stack (English flow). */
+static int net_ask_line(const char *prompt, char *buf, int cap) {
+    if (!buf || cap < 2) return -2;
+    int len = 0;
+    buf[0] = 0;
+    int cols, rows;
+    tui_term_size(&cols, &rows);
+    int row = rows - 1;
+    for (;;) {
+        tui_attr_t a = (tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_WHITE, TUI_COLOR_NAVY);
+        tui_attr_t save = tui_default_attr();
+        tui_set_attr(a);
+        for (int x = 0; x < cols; x++) {
+            tui_move(row, x);
+            tui_addch(' ');
+        }
+        tui_move(row, 0);
+        tui_print(prompt ? prompt : "");
+        tui_print(buf);
+        tui_window_refresh(tui_window_focus());
+        tui_set_attr(save);
+
+        int k = tui_getch();
+        if (k == TUI_KEY_ESC) return -1;
+        if (k == TUI_KEY_ENTER) {
+            int n = len;
+            if (n > cap - 1) n = cap - 1;
+            buf[n] = 0;
+            return n;
+        }
+        if (k == TUI_KEY_BACKSPACE) {
+            if (len > 0) buf[--len] = 0;
+        } else if (k >= 0x20 && k < 0x7F && len < cap - 1) {
+            buf[len++] = (char)k;
+            buf[len] = 0;
+        }
+    }
+}
+
 int tui_wifi_list(void) {
     if (!tui_started()) return -1;
     int cols, rows;
@@ -97,14 +138,31 @@ int tui_wifi_list(void) {
         int k = tui_getch();
         if (k == TUI_KEY_ESC || k == 'q') break;
         if (k == 'c' || k == 'C') {
-            /* connect flow: pick the highlighted network by index 0
-             * (menu selection refines this in a later pass); the STA
+            /* connect flow: ask for the SSID (defaults to the first
+             * scan result when the user just presses Enter); the STA
              * state machine reports honestly when the network is not
              * reachable or requires unsupported encryption. */
-            if (g_scan_count > 0 && tui_wifi_connect(g_scan[0].ssid, "") == 0)
-                tui_status_line("associated with %s", g_scan[0].ssid);
+            char ssid[64];
+            if (g_scan_count > 0) {
+                int n = 0;
+                const char *s = g_scan[0].ssid;
+                for (; s && s[n] && n < 63; n++) ssid[n] = s[n];
+                ssid[n] = 0;
+            } else {
+                ssid[0] = 0;
+            }
+            int rc = net_ask_line("SSID (Enter=default, Esc=cancel): ",
+                                  ssid, sizeof(ssid));
+            if (rc < 0) {
+                tui_status_line("connect cancelled");
+                tui_window_refresh(win);
+                continue;
+            }
+            if (ssid[0] && tui_wifi_connect(ssid, "") == 0)
+                tui_status_line("associated with %s", ssid);
             else
                 tui_status_line("associate failed (honest state machine result)");
+            tui_window_refresh(win);
         }
     }
     tui_window_free(win);

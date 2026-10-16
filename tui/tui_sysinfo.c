@@ -395,7 +395,7 @@ int tui_sysinfo_update(void) {
     items[0].name = "Check for update";
     items[0].desc = "contact update_url (checkupdate)";
     items[1].name = "Download + install";
-    items[1].desc = "fetch the package into the inactive slot (update)";
+    items[1].desc = "fetch the package, verify SHA256, install into the inactive slot";
     items[2].name = "Rollback";
     items[2].desc = "clear the A/B boot flags (rollback)";
     items[3].name = "Cancel";
@@ -419,10 +419,55 @@ int tui_sysinfo_update(void) {
                                 "no update: already newest" :
                                 "check failed (honest error code)");
             } else if (sel == 1) {
-                tui_status_line("use the update command (full-screen download)");
-                break;
+                /* full in-TUI flow: check -> download -> verify -> install.
+                 * The download is a real blocking HTTP fetch; the status
+                 * line reports each real return code. */
+                extern int ota_update_check_pkg(ota_update_pkg_info_t *out);
+                ota_update_pkg_info_t pkg;
+                int r = ota_update_check_pkg(&pkg);
+                if (r != OC_UPDATE_NEW) {
+                    tui_status_line(r == OC_UPDATE_OK ?
+                                    "no update: already newest" :
+                                    "check failed (honest error code)");
+                    tui_menu_post(menu);
+                    continue;
+                }
+                if (!pkg.have_package || !pkg.package_url[0]) {
+                    tui_status_line("manifest has no package fields (download refused)");
+                    tui_menu_post(menu);
+                    continue;
+                }
+                tui_status_line("downloading %s ...", pkg.package_url);
+                int dr = ota_update_download(pkg.package_url, "/data/update-pkg.tar.gz");
+                if (dr != 0) {
+                    tui_status_line("download failed (rc=%d)", dr);
+                    tui_menu_post(menu);
+                    continue;
+                }
+                tui_status_line("verifying SHA256 ...");
+                int vr = ota_update_verify("/data/update-pkg.tar.gz",
+                                           pkg.package_sha256);
+                if (vr != 0) {
+                    tui_status_line("verify failed (rc=%d) - package discarded", vr);
+                    tui_menu_post(menu);
+                    continue;
+                }
+                int slot = ota_ab_current_slot();
+                const char *target = (slot == 1) ? "A" : "B";
+                int ir = ota_update_install("/data/update-pkg.tar.gz", target);
+                if (ir != 0) {
+                    tui_status_line("install failed (rc=%d)", ir);
+                    tui_menu_post(menu);
+                    continue;
+                }
+                int br = ota_update_set_boot(target);
+                if (br == 0)
+                    tui_status_line("slot %s staged: reboot to switch", target);
+                else
+                    tui_status_line("installed but set-boot failed (rc=%d)", br);
+                break;   /* A/B flags changed: leave the page honestly */
             } else if (sel == 2) {
-                                tui_status_line(ota_update_rollback() == 0 ?
+                tui_status_line(ota_update_rollback() == 0 ?
                                 "rollback flags cleared" : "rollback failed");
             } else break;
             tui_menu_post(menu);

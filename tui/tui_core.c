@@ -320,6 +320,8 @@ int tui_init(void) {
     g_default_attr = TUI_MAKE_ATTR(TUI_COLOR_SILVER, TUI_COLOR_BLACK);
     g_backend->clear(g_default_attr);
     g_backend->cursor(0);
+    tui_windows_reset();   /* defensive: start every session with an empty pool */
+    tui_input_reset();     /* no CSI/mouse state may leak in from earlier sessions */
     g_started = 1;
     return 0;
 }
@@ -328,6 +330,10 @@ int tui_shutdown(void) {
     if (!g_started) return 0;
     g_backend->cursor(1);
     g_backend->clear(TUI_MAKE_ATTR(TUI_COLOR_SILVER, TUI_COLOR_BLACK));
+    /* drop every window object: the screen is gone, stale cells would
+     * leak and a subsequent session would inherit a half-drained pool */
+    tui_windows_reset();
+    tui_input_reset();     /* CSI/mouse state dies with the session */
     g_started = 0;
     return 0;
 }

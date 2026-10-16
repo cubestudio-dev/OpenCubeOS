@@ -27,6 +27,20 @@ tui_window_t *tui_window_focus_set(tui_window_t *win) {
 
 static tui_window_t *cur(void) { return g_focus; }
 
+/* Cached one-line status window (created lazily by tui_status_line).
+ * File scope so tui_text_reset() can drop the pointer when the window
+ * pool is torn down - a stale pointer here would make the next
+ * session paint into freed cells. */
+static tui_window_t *g_status_win;
+
+/* Drop every cached window pointer (pool teardown / session restart).
+ * All tui_text print paths null-guard g_focus, so callers after a
+ * reset are no-ops until a new window takes focus. */
+void tui_text_reset(void) {
+    g_focus = (void *)0;
+    g_status_win = (void *)0;
+}
+
 int tui_move(int y, int x) {
     tui_window_t *w = cur();
     if (!w) return -1;
@@ -198,13 +212,12 @@ void tui_status_line(const char *fmt, ...) {
     int cols, rows;
     tui_term_size(&cols, &rows);
     tui_window_t *saved = cur();
-    static tui_window_t *status_win;
-    if (!status_win) {
-        status_win = tui_window_new(rows - 1, 0, 1, cols);
-        if (!status_win) return;
+    if (!g_status_win) {
+        g_status_win = tui_window_new(rows - 1, 0, 1, cols);
+        if (!g_status_win) return;
     }
-    tui_window_focus_set(status_win);
-    tui_window_clear(status_win);
+    tui_window_focus_set(g_status_win);
+    tui_window_clear(g_status_win);
     tui_set_attr((tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_BLACK, TUI_COLOR_AQUA) |
                  TUI_ATTR_BOLD);
     __builtin_va_list ap;
@@ -231,6 +244,6 @@ void tui_status_line(const char *fmt, ...) {
     __builtin_va_end(ap);
     line[n] = 0;
     tui_print(line);
-    tui_window_refresh(status_win);
+    tui_window_refresh(g_status_win);
     tui_window_focus_set(saved);
 }
