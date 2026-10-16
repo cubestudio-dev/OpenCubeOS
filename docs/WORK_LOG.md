@@ -474,3 +474,86 @@ IME (the 21st work package; WP-10 finale).
   88e0ed4 mirrors private 3cc373c; commit-author hygiene re-verified
   (the 2026-10-15 filter-branch rewrote 3 public + 7 private commits
   to cubestudio-dev <cubestudio@qq.com>, force-pushed both repos).
+
+## WP-10-chinese_support-fix1 (2026-10-16)
+
+User-reported fix batch on the chinese_support release: 8 findings
+(1a/1b/1c on the TUI, 2a on the update chain, 2b on the website),
+each root-caused, fixed, and covered by a regression check.
+
+TUI session lifecycle (1c - the serious one):
+- tui_window_new now reuses freed slots (tui_window_free only marked
+  id = -1 and the 16-slot pool never shrank - after ~8 page visits
+  every tui_window_new returned NULL, apps fell back to the shell and
+  the TUI could not be started again; the released ISO measures 8/12
+  enter/exit rounds before the session dies).  tui_windows_reset()
+  empties the pool at tui_init/tui_shutdown; tui_text_reset() drops
+  the cached focus/status-window pointers; tui_input_reset() resets
+  the CSI decoder and the mouse pending flag (tui_cn also gained the
+  symmetric tui_shutdown() the five English commands already had).
+- tui_getch_timeout tests c > 0: the keyboard queue returns -1 when
+  empty, and the old c != 0 test fed -1 into the CSI decoder (map_key
+  maps it to CTRL_A-1 == -1), which turned every getch into an
+  instant -1 - pages exited on the first poll and menus spun.
+- The physical Esc key maps through the new OC_KEY_ESC_KEY (0x9C):
+  raw 0x1B from the PS/2 scancode table was swallowed by the CSI
+  decoder as a sequence opener, so Esc never reached any application.
+- The serial CSI decoder now follows ANSI properly: a control
+  sequence is ESC [ <params> <final>; until the '[' arrives, every
+  other byte is a plain keypress.  "ESC ESC q" (leave a page, then
+  quit a launcher) used to swallow the q as an unknown-CSI final byte
+  and the launcher hung forever.
+
+Chinese input (1a):
+- The Chinese WiFi SSID field uses the new tui_chinese_input_ascii()
+  (the pinyin editor turned every lowercase letter into a composition
+  buffer - even "home" was impossible to type).
+- New full-screen pinyin composition pad tui_cn_input_app() as the
+  launcher's 4th entry 中文输入 (letters, digits 1-9, Space = first,
+  Enter commits to the pad, Esc leaves) - previously the IME had no
+  user-reachable surface.
+- `ime -i` opens a real interactive console composition line
+  (ime_console_compose): the old command printed usage text for an
+  interactive flow that did not exist.  Same key contract as the TUI
+  pad; redraws in place through \r on both fb and serial.
+- The Chinese bluetooth page gained S/P/U/V (bt_hci_inquiry /
+  create_connection / disconnect / remote_name) matching the English
+  page; the Chinese hardware page gained S/L (config save/load).
+
+English TUI gaps (1b):
+- The WiFi connect flow asks for the SSID on a bottom-line editor
+  (net_ask_line: Enter = first scan result, Esc = cancel) instead of
+  connecting to scan result 0 unconditionally.
+- The sysinfo update page runs the real check -> download ->
+  SHA256-verify -> install -> set-boot flow through the same OTA APIs
+  as the update command, with honest per-step return codes, instead
+  of printing "use the update command".
+- ota_update.h: the OC_RELEASE_VERSION fallback (source-zip builds
+  without .git) no longer reports the eight-work-package-old
+  "WP-10u" - it reports WP-10-chinese_support.
+
+Update chain (2a): the chinese_support release never generated an OTA
+package, so update.json still pointed at camera_misc (build 193) and
+chinese_support ISOs (build 187) were offered an OLDER build as an
+update.  The fix1 release ships the OTA package, refreshes
+update.json/update-v2.json, and re-monotonizes the baked build
+counter (RELEASE_PACKAGING.md §4).
+
+Website (2b): about-page timeline gains the missing batches
+(WP-10-AUDIT_P2-fix2/fix2b through WP-10-chinese_support, zh + en);
+i18n badge/brand/download strings move to the current release.
+site.ts constants + update manifests + downloads refresh at the
+fix1 release.
+
+New regression coverage: chinesetest blocks [13]/[14] (ASCII editor,
+IME pad, console IME compose/verbatim-digits/cancel), tui-test fix1
+block (injected key immediate, empty queue blocks the full budget,
+40 new/free pool cycles + honest 16-pool fill/refuse/reuse, Esc via
+OC_KEY_ESC_KEY, serial double-ESC), the E2E re-enter regression
+(two full TUI sessions), and 3 new chinese E2E checks (ime -i real
+input, the pad, tui-cn re-enter).
+
+Gates on the fix1 tree: 0E0W (-Werror); fix1_verify 7/7 (released
+ISO before-fix: 1c-B FAIL 8/12 + session death); chinesetest 91/91;
+chinese E2E 17/17 BIOS + 17/17 UEFI; TUI E2E BIOS 18/18+20/20 +
+UEFI 18/18+20/20; regression 28/28 (baseline 222).

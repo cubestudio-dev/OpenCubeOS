@@ -463,9 +463,13 @@ font-test          # draws a real 16x16 CJK sample row on the screen
 encoding           # codec status line (decode/encode/convert/detect)
 encoding-test      # GB2312 + UTF-8 round-trip spot check
 ime                # pinyin IME coverage (396 syllables / 3755 chars)
+ime -i             # interactive console composition line: type pinyin
+                   # letters, digits 1-9 pick, Space = first candidate,
+                   # Backspace drops a letter, Enter ends, Esc cancels
 ime-test           # ni -> ni, hao -> hao resolution check
 tui-cn             # Chinese TUI launcher: hardware config /
-                   # wireless network / system information, all with
+                   # wireless network / system information / and the
+                   # 中文输入 pinyin composition pad, all with
                    # live driver data and Chinese labels
 ```
 
@@ -473,5 +477,9 @@ Type a Chinese document over serial (paste UTF-8 - the serial bridge
 now forwards 8-bit bytes) and watch the shell line editor keep the
 characters intact with correct cursor widths; `cat` any UTF-8 file to
 see real CJK glyphs on the framebuffer console.  Inside `tui-cn` the
-hardware pages (Tab cycles 11 domains) and the pinyin IME input line
-(type `ni`, press `1` for ni, Enter to commit) are fully usable.
+hardware pages (Tab cycles 11 domains, S saves / L loads the config)
+are fully usable, the Chinese input pad (launcher item 4) composes
+text with the pinyin IME (type `ni`, press `1` or Space, Enter to
+commit, Esc to leave), and the Chinese WiFi page takes plain-ASCII
+SSIDs in its connect field (the editor never enters pinyin
+composition).

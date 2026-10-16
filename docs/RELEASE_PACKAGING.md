@@ -103,6 +103,27 @@ sides publish it, a local tree newer than an old server tag no longer
 depends on the git-describe string fallback, which only recognizes the
 `<server-tag>-N-g<hash>` direct-descendant shape.
 
+### 4.1 Monotonic build counter (lesson from WP-10-chinese_support-fix1)
+
+The `build` field MUST be monotonic across releases: it is the ONLY
+update gate for every ISO in the field (stage 1 of
+`ota_update_remote_is_newer`).  A regression breaks update offers for
+whole release cohorts - this actually happened: the repository history
+rewrite between the camera_misc and chinese_support releases regressed
+the baked counter 193 -> 187, the chinese_support release also skipped
+the OTA package entirely, and every chinese_support checkupdate offered
+the OLDER camera_misc build as an update (fixed by fix1).
+
+Rule per release:
+
+- `build = max(git rev-list --count <tag>, previous published build + 1)`.
+- If the max picks the second term, bake the same number into the ISO
+  itself with the documented override (`make OC_KERNEL_BUILD=<N>`) so
+  the freshly released ISO sees "up to date" against its own manifest,
+  and record the override in the release notes.
+- Never publish a manifest whose `build` is lower than any released
+  ISO's baked counter.
+
 ## 5. Token hygiene (related lesson from p1fix1)
 
 - Public repo (cubestudio-dev/OpenCubeOS) push/Release/gh-pages:

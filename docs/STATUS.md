@@ -453,3 +453,66 @@ docs/EXTENSIONS_WP10-chinese_support.md).
 | L1 numbering stays closed at 138 | OK (driver-API interfaces, no numbered additions) |
 | Extension contract (header + comments + default impl + docs) | OK (docs/EXTENSIONS_WP10-chinese_support.md) |
 | Docs consistency (README/INTERFACES/TRY-IT/STATUS/WORK_LOG/website) | OK |
+
+## WP-10-chinese_support-fix1 (2026-10-16) — COMPLETE
+
+User-reported fix batch on the chinese_support release (8 findings,
+each root-caused, fixed and regression-tested):
+
+- 1(a) Chinese input: the Chinese WiFi SSID field misused the pinyin
+  editor (every lowercase letter entered the composition buffer) -
+  ASCII fields now use a direct ASCII editor
+  (tui_chinese_input_ascii); the pinyin IME gained a reachable,
+  user-facing entry (tui-cn launcher item 4 中文输入 - a full-screen
+  composition pad) and `ime -i` opens a real interactive console
+  composition line (the old `ime` command printed usage for an
+  interactive flow it did not implement); the Chinese bluetooth page
+  gained S/P/U/V (real HCI inquiry / connect / disconnect / remote
+  name) matching the English page.
+- 1(b) English TUI gaps: the WiFi connect flow asks for the SSID on
+  a bottom-line editor (Enter = first scan result, Esc = cancel)
+  instead of silently connecting to scan result 0; the sysinfo
+  update page runs the real check -> download -> SHA256 verify ->
+  install -> set-boot flow through the same OTA APIs as the update
+  command instead of telling the user to type it.
+- 1(c) the serious one: tui_window_free never released its slot, so
+  the 16-slot window pool drained after about eight page visits and
+  every later tui_window_new returned NULL - apps dropped back to
+  the shell and the TUI could not be started again (the released
+  ISO measures 8/12 sessions rendering, then the session dies).
+  Slots are now reused, and tui_init/tui_shutdown reset the pool,
+  the text-layer caches and the CSI decoder
+  (tui_windows_reset/tui_text_reset/tui_input_reset);
+  tui_getch_timeout tests c > 0 (the keyboard queue returns -1 when
+  empty; the old c != 0 test fed -1 into the CSI decoder, so pages
+  exited on the first poll and menus spun); the physical Esc key
+  maps through OC_KEY_ESC_KEY (raw 0x1B was swallowed as a CSI
+  opener), the serial CSI decoder only treats "ESC [" as a control
+  sequence (any other byte after ESC is a plain keypress, so
+  "ESC ESC q" can no longer eat the q), and tui-cn gained the
+  symmetric tui_shutdown() the five English commands already had.
+- 2(a) the update chain: the chinese_support release never generated
+  an OTA package, so update.json still pointed at camera_misc
+  (build 193 > local 187) and every chinese_support checkupdate
+  offered an OLDER build as an update.  The fix1 release ships the
+  OTA package and refreshes update.json/update-v2.json; the baked
+  build counter is made monotonic again (RELEASE_PACKAGING.md §4).
+- 2(b) the website: the about-page timeline was missing the batches
+  from WP-10-AUDIT_P2-fix2/fix2b through WP-10-chinese_support and
+  the badge/brand/download strings still said WP-10-timer_rtc.
+  Both updated; site.ts + update manifests + downloads refresh with
+  the fix1 release.
+
+| Gate | Result |
+|---|---|
+| Build 0 errors 0 warnings | OK (-Werror) |
+| fix1 integration checks (fix1_verify.py, live QEMU boot) | OK 7/7; the released chinese_support ISO before the fix measures 1c-B FAIL (8/12 sessions, then session death) |
+| chinesetest in-kernel suite (incl. fix1 blocks [13]/[14]) | OK (91/91) |
+| Chinese E2E | OK (17/17 BIOS + 17/17 UEFI) |
+| TUI E2E (incl. 4 fix1 tui-test checks + the enter/exit/re-enter regression) | OK (BIOS 18/18+20/20, UEFI 18/18+20/20) |
+| Regression 28/28 | OK (baseline 222) |
+| OTA package + manifest refresh | done at the fix1 release (RELEASE_PACKAGING.md §4) |
+| Website rebuild + gh-pages deploy + live check | done at the fix1 release |
+| Commands added only | OK (still 222 - no new commands) |
+| L1 numbering stays closed at 138 | OK |
+| Docs consistency | OK (EXTENSIONS contract rows, TRY-IT, STATUS, WORK_LOG) |
