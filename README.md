@@ -535,8 +535,8 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 ## Download
 
 - **Latest (WP-10-chinese_support)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-chinese_support) — ISO + SRC zip
-  (ISO sha256 `SHAPLACEHOLDER`,
-  SRC sha256 `SHAPLACEHOLDER`)
+  (ISO sha256 `4bddd0bd30b38a87469f8385f26944c2e06d091208bbc3a065ea9be16f783501`,
+  SRC sha256 `7d01c38ab7f0fb74f9e7bcc5566051aaa7dce3849b63c39eac3830bc150ed42e`)
   Batch summary: Chinese support enters L0 — a new chinese/ module with
   the embedded GB2312 16x16 bitmap font (6763 hanzi zones 16-87 =
   216,416 B compact + 682 symbols zones 1-9 = 21,824 B, generated
