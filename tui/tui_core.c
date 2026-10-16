@@ -11,6 +11,9 @@
 #include "tui.h"
 #include "../drivers/display/screen_console.h"
 #include "../drivers/display/screen_serial_in.h"
+#include "../drivers/display/screen_font.h"
+#include "../chinese/render_cn.h"
+#include "../chinese/encoding.h"
 #include "../kernel/lib/lib_string.h"
 #include "../kernel/lib/lib_config.h"
 #include "../kernel/core/core_timer.h"
@@ -108,9 +111,21 @@ static int g_cursor_visible = 1;
 static tui_attr_t g_default_attr;
 
 static void fb_putc_at(int x, int y, u32 ch, tui_attr_t a) {
-    screen_console_putc_at((u32)x, (u32)y, (char)(ch & 0xFF),
-                           tui_palette_pixel(TUI_ATTR_FG(a)),
-                           tui_palette_pixel(TUI_ATTR_BG(a)));
+    u32 fg = tui_palette_pixel(TUI_ATTR_FG(a));
+    u32 bg = tui_palette_pixel(TUI_ATTR_BG(a));
+    if (ch == TUI_WIDE_CONT) {
+        /* Right half of a CJK glyph: the 16px bitmap drawn at the left
+         * cell already covers this column; paint it with the cell bg. */
+        screen_console_putc_at((u32)x, (u32)y, ' ', fg, bg);
+        return;
+    }
+    if (ch >= 0x100) {
+        /* WP-10-chinese_support: 16x16 CJK glyph spanning two cells. */
+        cn_draw_glyph_px((u32)x * OC_FONT_CELL_W, (u32)y * OC_FONT_CELL_H,
+                         ch, fg, bg);
+        return;
+    }
+    screen_console_putc_at((u32)x, (u32)y, (char)(ch & 0xFF), fg, bg);
 }
 
 static void fb_clear(tui_attr_t a) {
@@ -209,7 +224,28 @@ static void serial_puts_attr_at(int x, int y, const char *s, tui_attr_t a) {
 }
 
 static void serial_putc_at(int x, int y, u32 ch, tui_attr_t a) {
-    char one[2] = { (char)(ch & 0xFF), 0 };
+    char one[8];
+    if (ch == TUI_WIDE_CONT) {
+        /* The terminal painted the wide glyph already; emit nothing so
+         * the cursor column mapping stays aligned via absolute CSI. */
+        return;
+    }
+    if (ch >= 0x80) {
+        /* WP-10-chinese_support: emit real UTF-8 for non-ASCII cps. */
+        u32 produced = 0;
+        u8 buf[4];
+        if (encoding_utf8_encode(ch, buf, 4, &produced) == 0) {
+            for (u32 i = 0; i < produced; ++i) one[i] = (char)buf[i];
+            one[produced] = 0;
+            serial_puts_attr_at(x, y, one, a);
+            return;
+        }
+        one[0] = '?'; one[1] = 0;
+        serial_puts_attr_at(x, y, one, a);
+        return;
+    }
+    one[0] = (char)(ch & 0xFF);
+    one[1] = 0;
     serial_puts_attr_at(x, y, one, a);
 }
 

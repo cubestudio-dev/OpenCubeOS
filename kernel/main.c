@@ -57,6 +57,10 @@
 /* WP-06 headers. */
 #include "net_core.h"
 #include "../tui/tui.h"   /* WP-10-tui */
+#include "../chinese/chinese_font.h"   /* WP-10-chinese_support */
+#include "../chinese/encoding.h"
+#include "../chinese/render_cn.h"
+#include "../chinese/console_cn.h"
 
 /* WP-07 headers. */
 void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
@@ -3109,6 +3113,11 @@ void kmain(u64 magic, u64 mbi_phys) {
 
     /* ---- 3. Console + log + serial hook ---- */
     screen_console_init();
+    /* WP-10-chinese_support: activate the mixed-width renderer (ASCII
+     * output stays byte-identical; CJK codepoints render 16x16) and
+     * load the embedded GB2312 font. */
+    render_chinese_init();
+    console_cn_init();
     lib_log_init();
     screen_console_reset(screen_fb_rgb(0xE0, 0xE0, 0xE0),
                      screen_fb_rgb(0x10, 0x10, 0x14));
@@ -3499,6 +3508,8 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_cmds_usb_test_register();
 
     tui_cmd_register();   /* WP-10-tui: tui, tui-test, tui-hw, tui-net, tui-sysinfo */
+    extern void chinese_cmd_register(void);   /* WP-10-chinese_support */
+    chinese_cmd_register();   /* chinese, chinesetest, font, font-test, encoding, encoding-test, ime, ime-test */
 
     /* docs-sync FIX: report the LIVE registered command count once ALL
      * registrations are done (kmain + file + disk + net commands). The old

@@ -69,6 +69,13 @@ void screen_serial_in_irq_handler(void *ctx, arch_irq_frame_t *f) {
                      * K/W, Ctrl+O save, Ctrl+X exit, Ctrl+K del line...).
                      * A real terminal sends exactly these bytes. */
                     key = (u16)b;
+                } else if (b >= 0x80) {
+                    /* WP-10-chinese_support: 8-bit bytes are UTF-8
+                     * continuation/lead bytes (pasted CJK text). They
+                     * must not collide with the OC_KEY_* special range
+                     * (0x80..0x9B), so inject them biased by +0x100;
+                     * the line editor strips the bias before storing. */
+                    key = (u16)b + 0x100;
                 } else {
                     continue;
                 }

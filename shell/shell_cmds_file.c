@@ -19,6 +19,7 @@
 #include "fs_ramfs.h"
 #include "fs_fat32.h"
 #include "screen_console.h"
+#include "../chinese/console_cn.h"
 #include "lib_string.h"
 #include "mem_heap.h"
 #include "screen_console_in.h"   /* WP-09-fix5: edit command input */
@@ -192,7 +193,9 @@ static int shell_cmd_cat(const char *args) {
             char buf[512];
             int n;
             while ((n = shell_read_stdin(buf, sizeof(buf))) > 0) {
-                for (int i = 0; i < n; i++) screen_console_putc(buf[i]);
+                /* WP-10-chinese_support: UTF-8 aware echo - ASCII bytes
+                 * still go one-for-one through the stock putc path. */
+                console_cn_puts_enc((const u8 *)buf, (u32)n, ENC_UTF8);
             }
             return 0;
         }
@@ -218,7 +221,10 @@ static int shell_cmd_cat(const char *args) {
                 char buf[512];
                 int n;
                 while ((n = fs_vfs_read(fd, buf, sizeof(buf))) > 0) {
-                    for (int i = 0; i < n; i++) screen_console_putc(buf[i]);
+                    /* WP-10-chinese_support: UTF-8 aware cat - a UTF-8
+                     * file shows real CJK glyphs; ASCII files are
+                     * byte-identical to the old one-putc-per-byte loop. */
+                    console_cn_puts_enc((const u8 *)buf, (u32)n, ENC_UTF8);
                 }
                 fs_vfs_close(fd);
             }

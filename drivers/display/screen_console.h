@@ -45,6 +45,10 @@ void screen_console_putc (char ch);          /* handles \n, \r, \t */
 void screen_console_puts (const char* s);
 void screen_console_clear(void);
 
+/* WP-10-chinese_support: scroll up one cell-row without moving the
+ * cursor (used by the cn wide-write path). */
+void screen_console_scroll_up(void);
+
 /* Direct cell access (used by L1 extensions / debug). */
 void screen_console_putc_at(u32 x, u32 y, char ch, u32 fg_pixel, u32 bg_pixel);
 

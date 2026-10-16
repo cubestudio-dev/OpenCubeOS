@@ -204,6 +204,7 @@ static const struct { const char *tag; const char *desc; } g_wp_order[] = {
     { "WP-10-wireless_bluetooth", "wireless + bluetooth (802.11/HCI/L2CAP/RFCOMM)" },
     { "WP-10-camera_misc",   "cameras, parallel port, game port" },
     { "WP-10-tui",           "TUI framework, hw/net/sysinfo apps" },
+    { "WP-10-chinese_support", "GB2312 font, encoding, CJK render/IME" },
 };
 
 /* Case-insensitive name compare (A-Z means alphabetical to a user). */

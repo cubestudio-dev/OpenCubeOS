@@ -9,6 +9,8 @@
 #include "tui.h"
 #include "../drivers/display/screen_console.h"
 #include "../kernel/lib/lib_string.h"
+#include "../chinese/encoding.h"
+#include "../chinese/render_cn.h"
 
 /* The current window: tui_window_focus() switches it.  The single
  * focus matches the ncurses model where waddstr goes to a window; the
@@ -86,7 +88,11 @@ int tui_addch(u32 ch) {
     }
     if (ch == '\r') { w->curs_x = 0; return 0; }
     if (ch == '\t') { w->curs_x = (w->curs_x + 8) & ~7; if (w->curs_x >= w->w) w->curs_x = w->w - 1; return 0; }
-    if (w->curs_x >= w->w) {
+    /* WP-10-chinese_support: a CJK codepoint is TWO cells wide. The
+     * glyph itself lands in the left cell; the right cell gets the
+     * TUI_WIDE_CONT marker so renderers skip it. */
+    u32 wide = (ch >= 0x100 && ch != TUI_WIDE_CONT) ? 1 : 0;
+    if (w->curs_x + (wide ? 1u : 0u) >= (u32)w->w) {
         w->curs_x = 0;
         w->curs_y++;
         if (w->curs_y >= w->h) {
@@ -97,14 +103,35 @@ int tui_addch(u32 ch) {
     w->cells[w->curs_y * w->w + w->curs_x].ch = ch;
     w->cells[w->curs_y * w->w + w->curs_x].attr = w->attr;
     w->curs_x++;
+    if (wide && w->curs_x < w->w) {
+        w->cells[w->curs_y * w->w + w->curs_x].ch = TUI_WIDE_CONT;
+        w->cells[w->curs_y * w->w + w->curs_x].attr = w->attr;
+        w->curs_x++;
+    }
     return 0;
 }
 
 int tui_print(const char *s) {
     if (!s) return -1;
-    while (*s) {
-        if (tui_addch((u32)(u8)*s) != 0) return -1;
-        s++;
+    const u8 *p = (const u8 *)s;
+    while (*p) {
+        /* WP-10-chinese_support: decode UTF-8 so a CJK codepoint lands
+         * in ONE cell pair. Pure-ASCII bytes keep the exact old path
+         * (single-byte addch, one cell each). */
+        if (*p < 0x80) {
+            if (tui_addch((u32)*p) != 0) return -1;
+            p++;
+            continue;
+        }
+        u32 cp, consumed;
+        if (encoding_utf8_decode(p, 4, &cp, &consumed) == 0) {
+            if (tui_addch(cp) != 0) return -1;
+            p += consumed;
+        } else {
+            /* Invalid byte: draw a one-cell missing box (U+25A1). */
+            if (tui_addch(0x25A1) != 0) return -1;
+            p++;
+        }
     }
     return 0;
 }

@@ -65,7 +65,7 @@ KERNEL_DIRS := kernel kernel/arch/x86_64 kernel/core kernel/mem kernel/lib \
                drivers/acpi drivers/i2c drivers/time \
                drivers/wireless drivers/bluetooth drivers/sd \
                drivers/camera drivers/misc drivers/scsi \
-               fs net shell l1 tui
+               fs net shell l1 tui chinese
 # NOTE: kernel/generated is deliberately NOT in KERNEL_DIRS: it only holds
 # the stage-2 generated grub_boot_data.c, which is compiled separately
 # (GRUB_DATA_OBJ) and linked in the second link stage only.

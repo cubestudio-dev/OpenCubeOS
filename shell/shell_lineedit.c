@@ -30,6 +30,63 @@
 #include "fs_vfs.h"
 #include "lib_string.h"
 #include "mem_heap.h"
+#include "../chinese/console_cn.h"
+
+/* ---- WP-10-chinese_support: UTF-8 helpers ---------------------------
+ * The buffer stays BYTE oriented (UTF-8 storage); cursor movement,
+ * backspace/delete and width math are CHARACTER aware. For pure-ASCII
+ * lines every helper below is byte-identical to the old ±1 behavior,
+ * so the ASCII input path cannot change behavior. */
+
+/* Byte i is a UTF-8 continuation byte (10xxxxxx). */
+static int le_is_cont(u8 b) { return (b & 0xC0) == 0x80; }
+
+/* Length of the UTF-8 sequence starting at s[0] (1..4, clamped to run
+ * of non-continuation bytes). */
+static int le_char_len(const char *s, int remaining) {
+    u8 b0 = (u8)s[0];
+    int n = 1;
+    if (b0 < 0x80) return 1;
+    else if ((b0 & 0xE0) == 0xC0) n = 2;
+    else if ((b0 & 0xF0) == 0xE0) n = 3;
+    else if ((b0 & 0xF8) == 0xF0) n = 4;
+    else return 1; /* stray byte: treat as one unit */
+    if (n > remaining) n = remaining;
+    for (int i = 1; i < n; i++) {
+        if (!le_is_cont((u8)s[i])) return i;
+    }
+    return n;
+}
+
+/* Start offset of the character BEFORE byte offset p (p > 0). */
+static int le_prev_char(const char *buf, int p) {
+    if (p <= 0) return 0;
+    int q = p - 1;
+    while (q > 0 && le_is_cont((u8)buf[q])) q--;
+    return q;
+}
+
+/* Offset just after the character starting AT byte offset p. */
+static int le_next_char(const char *buf, int len, int p) {
+    if (p >= len) return len;
+    return p + le_char_len(buf + p, len - p);
+}
+
+/* Console columns the byte range [0,len) occupies (CJK = 2). */
+static int le_display_width(const char *buf, int len) {
+    int w = 0, i = 0;
+    while (i < len) {
+        u32 cp = 0x20;
+        u32 consumed = 0;
+        if (encoding_utf8_decode((const u8 *)buf + i, (u32)(len - i),
+                                 &cp, &consumed) != 0) {
+            cp = 0x20;
+        }
+        w += (int)console_cn_cp_cols(cp);
+        i += (consumed > 0) ? (int)consumed : 1;
+    }
+    return w;
+}
 
 /* ---- Forward declarations (session-level helpers used above their
  * definition sites) ---- */
@@ -142,25 +199,37 @@ void shell_lineedit_session_set_prompt(shell_lineedit_t *s, const char *prompt) 
     s->prompt_len = (int)strlen(s->prompt);
 }
 
-/* Redraw the input line: \r, prompt, whole line, one clearing space, \r,
- * prompt, chars before the cursor. The cursor then sits at `cur`. */
+/* Redraw the input line: \r, prompt, whole line, clearing spaces for the
+ * widest tail, \r, prompt, chars before the cursor, backspaces to the
+ * cursor column. WP-10-chinese_support: text goes through the cn write
+ * path (UTF-8 aware); for pure-ASCII lines the emitted byte stream is
+ * identical to the old implementation (console_cn_putcw routes ASCII to
+ * the stock putc one-for-one). */
 static void le_session_redraw(shell_lineedit_t *s) {
+    int full_w = le_display_width(s->buf, s->len);
+    int pre_w = le_display_width(s->buf, s->cursor);
+    int tail = full_w - pre_w;   /* cells still occupied right of cursor */
     screen_console_putc('\r');
     screen_console_puts(s->prompt);
-    if (s->len > 0) screen_console_puts(s->buf);
-    screen_console_putc(' ');            /* clear one trailing cell */
+    if (s->len > 0) console_cn_puts(s->buf);
+    for (int i = 0; i < tail + 1; i++) screen_console_putc(' '); /* erase */
+    for (int i = 0; i < tail + 1; i++) screen_console_putc('\b');
     screen_console_putc('\r');
     screen_console_puts(s->prompt);
     if (s->cursor > 0) {
         /* Print the prefix up to the cursor. */
         char saved = s->buf[s->cursor];
         s->buf[s->cursor] = 0;
-        screen_console_puts(s->buf);
+        console_cn_puts(s->buf);
         s->buf[s->cursor] = saved;
+        /* The console cursor sits at prompt+pre_w; no backtracking needed
+         * (the previous implementation relied on the same invariant). */
     }
 }
 
-/* Move the session cursor. dir: <0 left (steps), >0 right, HOME, END. */
+/* Move the session cursor. dir: <0 left (steps), >0 right, HOME, END.
+ * WP-10-chinese_support: steps are CHARACTERS (UTF-8 aware); for ASCII
+ * lines this is byte-identical to the old ±1 stepping. */
 void shell_lineedit_cursor_move(int dir) {
     shell_lineedit_cursor_move_session(g_le, dir);
 }
@@ -175,16 +244,22 @@ static void shell_lineedit_cursor_move_session(shell_lineedit_t *s, int dir) {
             s->cursor = s->len;
             break;
         case SHELL_LINEEDIT_LEFT:
-            if (s->cursor > 0) s->cursor--;
+            if (s->cursor > 0) s->cursor = le_prev_char(s->buf, s->cursor);
             break;
         case SHELL_LINEEDIT_RIGHT:
-            if (s->cursor < s->len) s->cursor++;
+            if (s->cursor < s->len) {
+                s->cursor = le_next_char(s->buf, s->len, s->cursor);
+            }
             break;
         default:
             if (dir < 0) {
-                for (int i = 0; i < -dir && s->cursor > 0; i++) s->cursor--;
+                for (int i = 0; i < -dir && s->cursor > 0; i++) {
+                    s->cursor = le_prev_char(s->buf, s->cursor);
+                }
             } else {
-                for (int i = 0; i < dir && s->cursor < s->len; i++) s->cursor++;
+                for (int i = 0; i < dir && s->cursor < s->len; i++) {
+                    s->cursor = le_next_char(s->buf, s->len, s->cursor);
+                }
             }
             break;
     }
@@ -215,11 +290,17 @@ int shell_lineedit_tab_complete(void) {
     return shell_lineedit_session_tab_complete(g_le);
 }
 
-/* Kill (delete) the previous word - shared by Ctrl+W. */
+/* Kill (delete) the previous word - shared by Ctrl+W.
+ * WP-10-chinese_support: word stepping is character based so a CJK
+ * run is killed as one word, not byte-fragmented. */
 static void le_kill_prev_word(shell_lineedit_t *s) {
     int p = s->cursor;
-    while (p > 0 && s->buf[p - 1] == ' ') p--;
-    while (p > 0 && s->buf[p - 1] != ' ') p--;
+    while (p > 0 && s->buf[le_prev_char(s->buf, p)] == ' ') {
+        p = le_prev_char(s->buf, p);
+    }
+    while (p > 0 && s->buf[le_prev_char(s->buf, p)] != ' ') {
+        p = le_prev_char(s->buf, p);
+    }
     if (p == s->cursor) return;
     int removed = s->cursor - p;
     for (int i = p; i <= s->len - removed; i++) s->buf[i] = s->buf[i + removed];
@@ -263,21 +344,27 @@ int shell_lineedit_session_readline(shell_lineedit_t *s, char *buf, int cap) {
             case OC_KEY_BACKSPACE:
             case 0x7F:
                 if (s->cursor > 0) {
-                    for (int i = s->cursor - 1; i < s->len; i++) {
-                        s->buf[i] = s->buf[i + 1];
+                    /* WP-10-chinese_support: remove ONE character (a full
+                     * UTF-8 sequence), not one byte. */
+                    int p = le_prev_char(s->buf, s->cursor);
+                    int removed = s->cursor - p;
+                    for (int i = p; i <= s->len - removed; i++) {
+                        s->buf[i] = s->buf[i + removed];
                     }
-                    s->cursor--;
-                    s->len--;
+                    s->cursor = p;
+                    s->len -= removed;
                     s->buf[s->len] = 0;
                     le_session_redraw(s);
                 }
                 break;
             case OC_KEY_DEL:
                 if (s->cursor < s->len) {
-                    for (int i = s->cursor; i < s->len; i++) {
-                        s->buf[i] = s->buf[i + 1];
+                    /* Remove the character AT the cursor. */
+                    int n = le_next_char(s->buf, s->len, s->cursor) - s->cursor;
+                    for (int i = s->cursor; i <= s->len - n; i++) {
+                        s->buf[i] = s->buf[i + n];
                     }
-                    s->len--;
+                    s->len -= n;
                     s->buf[s->len] = 0;
                     le_session_redraw(s);
                 }
@@ -320,13 +407,13 @@ int shell_lineedit_session_readline(shell_lineedit_t *s, char *buf, int cap) {
                 break;
             case OC_KEY_LEFT:
                 if (s->cursor > 0) {
-                    s->cursor--;
+                    s->cursor = le_prev_char(s->buf, s->cursor);
                     le_session_redraw(s);
                 }
                 break;
             case OC_KEY_RIGHT:
                 if (s->cursor < s->len) {
-                    s->cursor++;
+                    s->cursor = le_next_char(s->buf, s->len, s->cursor);
                     le_session_redraw(s);
                 }
                 break;
@@ -390,6 +477,22 @@ int shell_lineedit_session_readline(shell_lineedit_t *s, char *buf, int cap) {
                     } else {
                         le_session_redraw(s);
                     }
+                } else if (k >= 0x100 && k < 0x200 &&
+                           s->len + 1 < SHELL_LINEEDIT_BUF_MAX) {
+                    /* WP-10-chinese_support: one UTF-8 byte from the
+                     * serial bridge (stored biased by +0x100 so it never
+                     * collides with OC_KEY_* codes). Bytes accumulate in
+                     * the buffer; the display is redrawn per byte which
+                     * renders partial sequences as boxes until the
+                     * sequence completes - a full sequence repaints the
+                     * real glyph. */
+                    for (int i = s->len; i > s->cursor; i--) {
+                        s->buf[i] = s->buf[i - 1];
+                    }
+                    s->buf[s->cursor++] = (char)(k - 0x100);
+                    s->len++;
+                    s->buf[s->len] = 0;
+                    le_session_redraw(s);
                 }
                 /* Other control/special keys: ignore. */
                 break;

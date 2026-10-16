@@ -74,6 +74,12 @@ typedef struct {
 #define TUI_MAKE_ATTR(fg, bg) ((tui_attr_t)((((fg) & 0xF) << TUI_ATTR_FG_SHIFT) | \
                                             (((bg) & 0xF) << TUI_ATTR_BG_SHIFT)))
 
+/* WP-10-chinese_support: a CJK codepoint occupies two cells; the cell
+ * RIGHT of a wide glyph carries this marker so cell consumers know to
+ * skip it (the glyph bitmap spans both columns). The value is chosen
+ * outside every valid Unicode range. */
+#define TUI_WIDE_CONT 0xFFFFFFFFu
+
 /* 16-color VGA palette indexes (standard CGA order). */
 enum {
     TUI_COLOR_BLACK = 0, TUI_COLOR_MAROON, TUI_COLOR_GREEN, TUI_COLOR_OLIVE,

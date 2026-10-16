@@ -207,6 +207,16 @@ void screen_console_puts(const char* s) {
     while (*s) screen_console_putc(*s++);
 }
 
+/* WP-10-chinese_support: scroll the console up by one cell-row without
+ * touching the cursor. Pure addition - the stock putc path is unchanged;
+ * the cn wide-write path needs scrolling without a '\n' side effect
+ * (putc('\n') would erase the cell under the cursor while scrolling). */
+void screen_console_scroll_up(void) {
+    spin_lock(&g_console_lock);
+    scroll_up_one();
+    spin_unlock(&g_console_lock);
+}
+
 screen_console_t* screen_console_get(void) { return &g_console; }
 
 u32 screen_color_rgb(u8 r, u8 g, u8 b) { return screen_fb_rgb(r, g, b); }
