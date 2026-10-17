@@ -406,16 +406,16 @@ int tui_sysinfo_power(void) {
     tui_window_t *win = tui_window_new(0, 0, rows, cols);
     if (!win) return -1;
     tui_window_title(win, "Power");
-    tui_menu_item_t items[4];
+    /* fix3: Suspend (S3) entry hidden per user decision -- wake is not
+     * reliable on all platforms yet (KNOWN_ISSUES 15.6). */
+    tui_menu_item_t items[3];
     items[0].name = "Reboot";
     items[0].desc = "restart the machine";
     items[1].name = "Power off";
     items[1].desc = "halt and power down";
-    items[2].name = "Suspend (S3)";
-    items[2].desc = "suspend to RAM via core_power_suspend (S3)";
-    items[3].name = "Cancel";
-    items[3].desc = "back to the previous screen";
-    tui_menu_t *menu = tui_menu_new(win, items, 4);
+    items[2].name = "Cancel";
+    items[2].desc = "back to the previous screen";
+    tui_menu_t *menu = tui_menu_new(win, items, 3);
     tui_menu_post(menu);
     int rc = 0;
     for (;;) {
@@ -426,7 +426,6 @@ int tui_sysinfo_power(void) {
             int sel = tui_menu_current(menu);
             if (sel == 0) { core_power_reboot(); }
             else if (sel == 1) { core_power_shutdown(); }
-            else if (sel == 2) { core_power_suspend(); rc = 0; break; }
             else break;
         }
     }
@@ -620,7 +619,7 @@ int tui_sysinfo_main(void) {
     items[1].name = "Processes";      items[1].desc = "task table, kill";
     items[2].name = "Kernel log";     items[2].desc = "boot stage log viewer";
     items[3].name = "Monitor";        items[3].desc = "live memory/network sampling";
-    items[4].name = "Power";          items[4].desc = "reboot / poweroff / S3";
+    items[4].name = "Power";          items[4].desc = "reboot / poweroff";
     items[5].name = "Update";         items[5].desc = "A/B OTA check, install, rollback";
     items[6].name = "Time";           items[6].desc = "clock display preferences";
     items[7].name = "Help";           items[7].desc = "shortcut reference";

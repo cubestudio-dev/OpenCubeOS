@@ -110,7 +110,7 @@ def main():
         "fix1 tui-cn reenter": check("fix1: tui-cn enter/quit/re-enter still renders (pool reuse)"),
         "cat utf8": check("cat echoes real UTF-8 bytes (zhongwen shi)"),
         "help -w tag": check("help -w lists WP-10-chinese_support"),
-        "cmd count 222": check("command count 222"),
+        "cmd count 220": check("command count 220"),
         "uname ok": check("uname after full flow"),
 
     }
@@ -289,9 +289,11 @@ def main():
         CHECKS[i][1] = "WP-10-chinese_support" in out
 
         out = run("help")
-        i = i_codes["cmd count 222"]
+        i = i_codes["cmd count 220"]
         m = re.search(r"Total:\s*(\d+) commands", out)
-        CHECKS[i][1] = bool(m) and m.group(1) == "222"
+        CHECKS[i][1] = bool(m) and m.group(1) == "220"
+        # fix3: suspend/suspend_test hidden -- the count moved 222 -> 220
+        CHECKS[i][1] = CHECKS[i][1] and "suspend" not in out.lower()
 
         out = run("uname -a")
         i = i_codes["uname ok"]

@@ -321,19 +321,17 @@ static int cn_page_power(void) {
     tui_window_t *win = tui_window_new(0, 0, rows, cols);
     if (!win) return -1;
     tui_window_free(win);
-    tui_menu_item_t items[4];
+    /* fix3: 休眠 S3 入口隐藏（KNOWN_ISSUES 15.6：部分平台唤醒不可靠） */
+    tui_menu_item_t items[3];
     items[0].name = "重启系统";
     items[0].desc = "core_power_reboot（warm reset）";
     items[0].userptr = 0;
     items[1].name = "关机";
     items[1].desc = "halt 并断电（core_power_shutdown）";
     items[1].userptr = 0;
-    items[2].name = "休眠 S3";
-    items[2].desc = "core_power_suspend（S3 挂起到内存）";
+    items[2].name = "取消";
+    items[2].desc = "返回上一屏";
     items[2].userptr = 0;
-    items[3].name = "取消";
-    items[3].desc = "返回上一屏";
-    items[3].userptr = 0;
     for (;;) {
         int mw = 36;
         if (mw > cols) mw = cols;
@@ -342,13 +340,12 @@ static int cn_page_power(void) {
         tui_window_t *menu = tui_window_new(0, 0, mh, mw);
         if (!menu) return -1;
         tui_window_title(menu, "电源（中文）");
-        int pick = tui_chinese_menu(menu, items, 4);
+        int pick = tui_chinese_menu(menu, items, 3);
         tui_window_free(menu);
         tui_update_panels();
-        if (pick < 0 || pick == 3) return 0;
+        if (pick < 0 || pick == 2) return 0;
         if (pick == 0) { core_power_reboot(); return 1; }
         if (pick == 1) { core_power_shutdown(); return 2; }
-        if (pick == 2) { core_power_suspend(); return 3; }
     }
 }
 
@@ -566,7 +563,7 @@ int tui_cn_sysinfo_main(void) {
     items[1].name = "进程管理"; items[1].desc = "任务列表、滚动与终止";
     items[2].name = "启动日志"; items[2].desc = "内核启动日志浏览";
     items[3].name = "性能监控"; items[3].desc = "每 500ms 自动采样";
-    items[4].name = "电源操作"; items[4].desc = "重启 / 关机 / 休眠";
+    items[4].name = "电源操作"; items[4].desc = "重启 / 关机";
     items[5].name = "系统更新"; items[5].desc = "检查 / 下载 / 校验 / 安装 / 回滚";
     items[6].name = "系统时间"; items[6].desc = "RTC 与显示偏好表单";
     items[7].name = "帮助";     items[7].desc = "使用说明";

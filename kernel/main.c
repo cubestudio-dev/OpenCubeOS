@@ -3465,7 +3465,10 @@ void kmain(u64 magic, u64 mbi_phys) {
     /* ---- WP-10d-fix2: power management commands + help test suite ---- */
     shell_register_command_ex("shutdown", shell_cmd_shutdown, "power off (flush + ACPI/Bochs/APM ports)", "WP-10d-fix2");
     shell_register_command_ex("poweroff", shell_cmd_shutdown, "alias of shutdown", "WP-10d-fix2");
-    shell_register_command_ex("suspend", shell_cmd_suspend, "suspend to RAM (needs ACPI S3)", "WP-10d-fix2");
+    /* fix3: 'suspend' hidden per user decision -- S3 wake is not reliable
+     * on all platforms yet (KNOWN_ISSUES 15.6). core_power_suspend() and
+     * its L1 wrapper stay available; only the shell/TUI entry points are
+     * removed. 'sleep' remains the BUG-0346 delay command (not suspend). */
     shell_register_command_ex("sleep", shell_cmd_sleep, "delay for N seconds (sleep <sec>)", "WP-10d-fix2");
     shell_cmds_power_test_register();
     shell_cmds_update_test_register();

@@ -885,6 +885,14 @@ handoff between net_poll() record reads and the handshake state
 machine (single-CPU TCG timing).
 
 ### 15.6 S3 suspend: wake needs the platform wake source; QEMU procedure (2026-10-17)
+**fix3 status: the suspend entry points are HIDDEN per user decision**
+(`suspend` and `suspend_test` shell commands removed, the S3 entry in
+the EN/CN TUI power pages removed).  The kernel-side implementation
+stays intact: `core_power_suspend()`, its L1 wrapper and the fix2
+resume chain are still compiled in, so the feature can be re-exposed
+in a later batch without rework.  `sleep <sec>` is NOT suspend - it is
+the BUG-0346 delay command and remains available.
+
 `suspend` performs a real ACPI S3 (FACS waking vector + the fix2
 real-mode trampoline).  Like every S3 machine, the box STAYS asleep
 until a wake event arrives - on QEMU that is the monitor command

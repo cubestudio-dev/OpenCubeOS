@@ -57,7 +57,9 @@ static int shell_cmd_poweroff_test(const char *args) {
  * trampoline + waking vector). Calling core_power_suspend() here would
  * really sleep the machine mid-suite, so the test probes the same
  * decision path core_power_suspend() uses - without entering the
- * state. */
+ * state. fix3: the shell entry point is hidden (suspend itself is
+ * hidden); the probe stays compiled for the next suspend batch. */
+__attribute__((unused))
 static int shell_cmd_suspend_test(const char *args) {
     (void)args;
     u32 mask = driver_acpi_power_sleep_mask();
@@ -149,8 +151,9 @@ static int shell_cmd_help_wp_test(const char *args) {
 void shell_cmds_power_test_register(void) {
     shell_register_command_ex("poweroff_test", shell_cmd_poweroff_test,
                               "real power-off attempt (QEMU exits)", "WP-10d-fix2");
-    shell_register_command_ex("suspend_test", shell_cmd_suspend_test,
-                              "verify honest suspend contract", "WP-10d-fix2");
+    /* fix3: 'suspend_test' hidden together with the suspend command --
+     * the honest-contract probe stays compiled but has no user-visible
+     * entry point while suspend itself is hidden (KNOWN_ISSUES 15.6). */
     shell_register_command_ex("halt_test", shell_cmd_halt_test,
                               "verify halt path (live halt via 'halt')", "WP-10d-fix2");
     shell_register_command_ex("reboot_test", shell_cmd_reboot_test,
