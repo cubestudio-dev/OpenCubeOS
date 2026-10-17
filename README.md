@@ -7,11 +7,13 @@
 `git describe --tags` (Makefile `OC_RELEASE_VERSION`); the boot banner,
 `uname -a` and `update --status` all report it verbatim. There is no
 hardcoded release name in this file on purpose. Current source batch:
-WP-10-AUDIT_P2-fix3 (all 53 third-batch P2 items BUG-0242..0294 fixed in
-nine groups G1..G9, plus the kernel-#UD root-cause fix: sys_fork never set
-the child task's rsp0, so the TSS kept the parent's kernel-stack top and
-the parent/child kernel stacks crossed; latest tagged release:
-WP-10-AUDIT_P2-fix3).
+WP-10-chinese_support-fix2 (fix batch on top of WP-10-chinese_support:
+full-glyph TUI rendering, UTF-8-aware vi/nano, Chinese TUI parity with
+the English flows, a real-mode S3 resume trampoline - the firmware
+delivers the waking vector in 16-bit big real mode - fsck through the
+block-device registry, honest ping/dhcp exit codes and a $?
+contract in the shell; latest tagged release:
+WP-10-chinese_support-fix1).
 
 **官网**: https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**: https://github.com/cubestudio-dev/OpenCubeOS

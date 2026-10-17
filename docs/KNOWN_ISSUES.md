@@ -883,3 +883,24 @@ Recorded as an unreproduced, timing-sensitive observation instead of
 a regression; if it reproduces, the suspect area is the poll-loop
 handoff between net_poll() record reads and the handshake state
 machine (single-CPU TCG timing).
+
+### 15.6 S3 suspend: wake needs the platform wake source; QEMU procedure (2026-10-17)
+`suspend` performs a real ACPI S3 (FACS waking vector + the fix2
+real-mode trampoline).  Like every S3 machine, the box STAYS asleep
+until a wake event arrives - on QEMU that is the monitor command
+`system_wakeup` (sendkey/power-button also work), on real hardware the
+power button.  This is the platform contract, not a hang: the screen
+freezes at "Entering S3 (suspend to RAM)..." until the wake event.
+Verified end to end on QEMU 10.0.13 TCG and QEMU 8.1.5 TCG
+(suspend -> system_wakeup -> "Resumed from S3." -> the network answers
+ping again).  fix2 root cause for the record: the pre-fix2 trampoline
+was 32-bit flat code, but SeaBIOS delivers the waking vector through
+farcall16big in 16-bit big real mode, so every resume crashed inside
+the trampoline before the kernel ever ran again; the trampoline is
+16/32/64-bit three-stage now and re-arms PIT (without wiping the
+soft-timer table), PCI command registers, the legacy e1000 register
+file and the UART RX path after resume.  Block-device class drivers
+(AHCI/NVMe/virtio-blk) get their PCI command registers restored but no
+per-device register replay yet - a disk that was mid-transfer at
+suspend time needs a remount; recorded here instead of being silently
+unsupported.

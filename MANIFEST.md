@@ -4,7 +4,7 @@
 # Open Cube OS — Repository Manifest
 
 ## Version
-WP-10-camera_misc (UVC cameras + IEEE 1284 parallel + game port + infrared + SCSI with an LSI 53C895A HBA)
+WP-10-chinese_support-fix2 (CJK font/codec/render/IME + CN TUI parity + real-mode S3 resume + fsck/exit-code/$? shell contract)
 
 ## Directory Structure
 

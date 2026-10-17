@@ -3,7 +3,7 @@
 
 # Open Cube OS - Project Status
 
-Updated 2026-10-14 at WP-10-camera_misc. All 19 work packages are
+Updated 2026-10-17 at WP-10-chinese_support-fix2. All 19 work packages are
 COMPLETE; the auxiliary batches are shipped; the P2 audit batches fix1
 through fix4 are COMPLETE - all 214 P2 items landed on main and released
 (see Audit batches below).

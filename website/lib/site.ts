@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 //
-// Central site data. Every number is a real WP-10-timer_rtc value
+// Central site data. Every number is a real release-verified value
 // taken from the repository docs (README.md, docs/INTERFACES.md,
 // docs/EXTENSIONS_WP10-timer_rtc.md, docs/TRY-IT.md, docs/UPDATE-HOWTO.md)
 // and real sha256sum/build outputs.
-// 3-way identical: local build + GitHub WP-10-timer_rtc tag + this site /downloads/
+// 3-way identical: local build + GitHub release tag + this site /downloads/
 
 export const BASE = "/OpenCubeOS";
 

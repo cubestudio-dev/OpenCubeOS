@@ -443,11 +443,16 @@ What you should see (framebuffer backend, QEMU, no extra hardware):
 - `tui-sysinfo overview` shows the WP-10-tui version string, the
   monotonic build id, uptime and the live memory/task numbers.
 
-Shortcut map: F1 help, F2 save config, F3 search, F5 refresh, F10
-exit, Tab switch domain/field, arrows navigate, Enter confirm, Esc
-cancel.  The mouse works through the touchpad path when an I2C-HID
+Shortcut map (fix2: every listed shortcut is really wired): F1 help
+(main menu + hardware pages), F2 save config (hardware pages), F5
+refresh, F10 leave the current page, Tab switch domain/field, arrows
+navigate (hardware pages: Up/Down scroll long pages), +/- sound volume
+on the hardware Sound page, Enter confirm, Esc cancel/back.  Menus
+accept mouse clicks (click selects, clicking the selected item
+activates, wheel scrolls) through the touchpad path when an I2C-HID
 device exists and through xterm SGR mouse reports when the backend is
-a real terminal on COM1.
+a real terminal on COM1.  `$?` expands to the previous command's
+exit status (ping/dhcp/fsck report failures with exit code 1).
 
 ## Try Chinese support (WP-10-chinese_support)
 
