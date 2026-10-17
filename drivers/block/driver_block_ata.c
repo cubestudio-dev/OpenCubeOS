@@ -126,7 +126,14 @@ int driver_block_ata_detect(int drive) {
     /* Issue a soft reset, then wait. */
     outb(ctrl + ATA_REG_CONTROL, 0x04);  /* SRST */
     io_wait();
-    outb(ctrl + ATA_REG_CONTROL, 0x02);  /* clear SRST, keep nIEN */
+    /* fix3: clear SRST AND nIEN (was 0x02 = nIEN set, IRQ line masked).
+     * With nIEN=1 QEMU never raises the IDE interrupt line, and the
+     * Bus-Master status bit BMIS.INT is set from that very line - so a
+     * pure-polling DMA read saw BMIS==0 forever and ~25% of early boots
+     * lost their first READ DMA ("fat32: read boot sector failed").
+     * The kernel keeps the PIC line masked itself (no ATA IRQ handler
+     * is registered), so unmasking nIEN at the device is safe here. */
+    outb(ctrl + ATA_REG_CONTROL, 0x00);  /* clear SRST + nIEN */
     io_wait();
     /* Wait for BSY clear. */
     if (driver_block_ata_wait_bsy(base) < 0) return 0;
@@ -164,7 +171,22 @@ int driver_block_ata_read_sectors(int drive, u64 lba, int count, void *buf) {
         outb(base + ATA_REG_LBA_HI, (u8)((cur >> 16) & 0xFF));
         outb(base + ATA_REG_COMMAND, ATA_CMD_READ_PIO);
         io_wait();
-        if (driver_block_ata_wait_drq(base) < 0) return (s > 0) ? s : -3;
+        if (driver_block_ata_wait_drq(base) < 0) {
+            /* fix3 diag: intermittent early-boot mount failure was
+             * traced to this path (PIO ops active when the BMDMA
+             * registration lost the IDENTIFY race). Log the status. */
+            u8 st = inb(base + ATA_REG_STATUS);
+            u8 err = inb(base + ATA_REG_ERROR);
+            screen_console_puts("ata: PIO read DRQ timeout lba=");
+            char n[12]; u64_to_str(cur, n);
+            screen_console_puts(n);
+            screen_console_puts(" st=");
+            u64_to_hex(st, n, 2); screen_console_puts(n);
+            screen_console_puts(" err=");
+            u64_to_hex(err, n, 2); screen_console_puts(n);
+            screen_console_puts("\n");
+            return (s > 0) ? s : -3;
+        }
         /* Read 256 16-bit words = 512 bytes. */
         u16 *p = (u16 *)(out + s * 512);
         for (int i = 0; i < 256; i++) {

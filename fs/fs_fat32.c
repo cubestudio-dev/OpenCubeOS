@@ -1596,9 +1596,25 @@ static fs_vfs_node_t *fs_fat32_fs_mount(const char *device) {
 
     /* Read the boot sector. */
     u8 boot[512];
-    if (driver_block_read_sectors_raw(dev_idx, 0, 1, boot) != 0) {
-        screen_console_puts("fat32: read boot sector failed\n");
-        return NULL;
+    {
+        /* fix3 diag: an intermittent early-boot failure lands here with
+         * no driver-level diagnostic, meaning the failure is in the blk
+         * argument path, not in the ATA transfer itself. Print the rc
+         * and the resolved device so the failing stage is identifiable. */
+        int rc_raw = driver_block_read_sectors_raw(dev_idx, 0, 1, boot);
+        if (rc_raw != 0) {
+            screen_console_puts("fat32: read boot sector failed rc=");
+            char nb[16];
+            u64_to_str((u64)(rc_raw < 0 ? -rc_raw : rc_raw), nb);
+            screen_console_puts(nb);
+            screen_console_puts(" idx=");
+            u64_to_str((u64)dev_idx, nb);
+            screen_console_puts(nb);
+            screen_console_puts(" name=");
+            screen_console_puts(bdev->name);
+            screen_console_puts("\n");
+            return NULL;
+        }
     }
     fs_fat32_bpb_t *bpb = (fs_fat32_bpb_t *)boot;
 

@@ -58,6 +58,7 @@ static inline void io_wait(void)      { outb(0x80, 0); }
 
 /* ---- ATA task-file regs (same layout as ata.c) ---- */
 #define ATA_REG_FEATURES 1
+#define ATA_REG_ERROR    1
 #define ATA_REG_COUNT    2
 #define ATA_REG_LBA_LO   3
 #define ATA_REG_LBA_MID  4
@@ -211,7 +212,13 @@ static void driver_block_ata_dma_stop_clear(driver_block_ata_dma_drive_t *d, int
     outb(bmis, BMIS_DMA_INT | BMIS_DMA_ERROR | BMIS_IDE_INT); /* w1c */
 }
 
-/* Run one DMA transfer of <=8 sectors through the bounce buffer. */
+/* Run one DMA transfer of <=8 sectors through the bounce buffer.
+ * fix3: on QEMU the very first READ DMA of a boot is silently dropped
+ * roughly once in a few boots (BMIS stays 0 and the device returns to
+ * idle DRDY, i.e. the command never runs).  The whole command sequence
+ * is therefore retried a few times before the failure is reported -
+ * standard block-layer practice, and it turns the intermittent
+ * "read boot sector failed" mount loss into a deterministic boot. */
 static int driver_block_ata_dma_xfer(driver_block_ata_dma_drive_t *d, int is_write, u64 lba, u32 sectors) {
     int drive = (int)(d - g_drives);
     int chan  = g_drive_chan[drive];
@@ -222,44 +229,85 @@ static int driver_block_ata_dma_xfer(driver_block_ata_dma_drive_t *d, int is_wri
     if (bytes == 0 || bytes > 0x10000u) return -1;
     if (is_write) memcpy(d->bounce, g_xfer_src, bytes);
 
-    /* 1-2. stop + clear status. */
-    driver_block_ata_dma_stop_clear(d, chan);
-
-    /* 3. PRDT: one entry covering the whole bounce region, EOT set.
-     * BUG-0315 (A6-7): spec encoding - exact byte count (0x10000 encodes
-     * as 0) and EOT in byte 7 bit 7; unused entries are ZEROED so a
-     * controller that walks past entry 0 never DMAs from heap garbage. */
-    u64 phys = (u64)(uintptr_t)d->bounce;
-    d->prdt[0].addr       = (u32)(phys & 0xFFFFFFF0u);
-    d->prdt[0].byte_count = (u16)(bytes & 0xFFFFu);
-    d->prdt[0].eot_rsvd   = (u16)(ATA_PRD_EOT);
-    for (int i = 1; i < PRDT_MAX; i++) {
-        d->prdt[i].addr = 0;
-        d->prdt[i].byte_count = 0;
-        d->prdt[i].eot_rsvd = 0;
-    }
-
-    /* 4. BMIDTP (physical PRDT address, bits 1:0 = 0). */
-    outl((u16)(d->ctrl->bar4 + BMIDTP_OFF(chan)),
-         (u32)((u64)(uintptr_t)d->prdt & 0xFFFFFFFCu));
-
-    /* 5. task file + command. */
     u8 cmd = is_write ? ATA_CMD_WRITE_DMA : ATA_CMD_READ_DMA;
-    if (driver_block_ata_dma_setup_taskfile(drive, lba, (u8)sectors, cmd) != 0) return -1;
-
-    /* 6. start DMA: RW bit = 1 for READ DMA (device -> memory). */
-    outb(bmic, (u8)(BMIC_START | (is_write ? 0 : BMIC_RW_READ)));
-
-    /* Poll BMIS: DMA interrupt (done) or DMA error. */
     int rc = -1;
-    for (u64 i = 0; i < 50000000u; i++) {
-        u8 s = inb(bmis);
-        if (s & BMIS_DMA_ERROR) { rc = -2; break; }
-        if (s & BMIS_DMA_INT)   { rc = 0;  break; }
+    u8 s_last = 0;
+
+    for (int attempt = 0; attempt < 8; attempt++) {
+        /* 1-2. stop + clear status. */
+        driver_block_ata_dma_stop_clear(d, chan);
+
+        /* 3. PRDT: one entry covering the whole bounce region, EOT set.
+         * BUG-0315 (A6-7): spec encoding - exact byte count (0x10000 encodes
+         * as 0) and EOT in byte 7 bit 7; unused entries are ZEROED so a
+         * controller that walks past entry 0 never DMAs from heap garbage. */
+        u64 phys = (u64)(uintptr_t)d->bounce;
+        d->prdt[0].addr       = (u32)(phys & 0xFFFFFFF0u);
+        d->prdt[0].byte_count = (u16)(bytes & 0xFFFFu);
+        d->prdt[0].eot_rsvd   = (u16)(ATA_PRD_EOT);
+        for (int i = 1; i < PRDT_MAX; i++) {
+            d->prdt[i].addr = 0;
+            d->prdt[i].byte_count = 0;
+            d->prdt[i].eot_rsvd = 0;
+        }
+
+        /* 4. BMIDTP (physical PRDT address, bits 1:0 = 0). */
+        outl((u16)(d->ctrl->bar4 + BMIDTP_OFF(chan)),
+             (u32)((u64)(uintptr_t)d->prdt & 0xFFFFFFFCu));
+
+        /* 5. task file + command (wait_not_bsy is bounded inside). */
+        if (driver_block_ata_dma_setup_taskfile(drive, lba, (u8)sectors, cmd) != 0) {
+            rc = -4;                     /* controller busy -> retry */
+            for (volatile int stall = 0; stall < 20000; stall++) io_wait();
+            continue;
+        }
+
+        /* 6. start DMA: RW bit = 1 for READ DMA (device -> memory). */
+        outb(bmic, (u8)(BMIC_START | (is_write ? 0 : BMIC_RW_READ)));
+
+        /* Poll BMIS: DMA interrupt (done) or DMA error.  While polling,
+         * watch for the QEMU command-drop signature (device idle with no
+         * BSY/DRQ and BMIS still 0): bail out early instead of burning
+         * the full 50M polling budget, then run the sequence again. */
+        rc = -1;
+        s_last = 0;
+        for (u64 i = 0; i < 50000000u; i++) {
+            s_last = inb(bmis);
+            if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }
+            if (s_last & BMIS_DMA_INT)   { rc = 0;  break; }
+            if ((i & 0xFFFu) == 0xFFFu && s_last == 0) {
+                u8 stq = inb(g_chan_base[drive] + ATA_REG_STATUS);
+                if (!(stq & ATA_SR_BSY) && !(stq & ATA_SR_DRQ)) {
+                    /* re-read once: a completing DMA may race the idle check */
+                    s_last = inb(bmis);
+                    if (s_last & BMIS_DMA_INT) { rc = 0; break; }
+                    if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }
+                    rc = -5;            /* dropped: retry the sequence */
+                    break;
+                }
+            }
+        }
+
+        /* 7. stop + clear. */
+        driver_block_ata_dma_stop_clear(d, chan);
+
+        if (rc == 0) break;
+        /* command dropped / error: stall briefly, then run the whole
+         * sequence again */
+        for (volatile int stall = 0; stall < 20000; stall++) io_wait();
     }
 
-    /* 7. stop + clear. */
-    driver_block_ata_dma_stop_clear(d, chan);
+    if (rc != 0) {
+        /* fix3 diag: keep one line per exhausted transfer with the
+         * controller state (rc negative-encoded; bmis/st/err raw). */
+        u16 base = g_chan_base[drive];
+        u8 st = inb(base + ATA_REG_STATUS);
+        u8 err = inb(base + ATA_REG_ERROR);
+        dlog_hex("atadma: xfer FAIL rc=", (u64)(rc < 0 ? -rc : rc), " ");
+        dlog_hex("bmis=", s_last, " ");
+        dlog_hex("st=", st, " ");
+        dlog_hex("err=", err, "\n");
+    }
 
     if (rc == 0 && !is_write) memcpy(g_xfer_dst, d->bounce, bytes);
     return rc;
