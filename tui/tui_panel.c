@@ -43,6 +43,18 @@ static void panels_paint(void) {
     tui_backend_flush();
 }
 
+/* fix2: session reset - every panel's window was freed by
+ * tui_windows_reset(), so leaving the panel table populated left
+ * zombie panels pointing at freed windows for the next session. */
+void tui_panels_reset(void) {
+    for (int i = 0; i < TUI_MAX_PANELS; i++) {
+        g_panels[i].in_use = 0;
+        g_panels[i].visible = 0;
+        g_panels[i].win = (void *)0;
+        g_zorder[i] = (void *)0;
+    }
+}
+
 tui_panel_t *tui_panel_new(tui_window_t *win) {
     if (!win) return (void *)0;
     for (int i = 0; i < TUI_MAX_PANELS; i++) {

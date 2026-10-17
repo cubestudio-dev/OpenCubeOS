@@ -534,5 +534,10 @@ int chinese_test_run(int verbose) {
     u64_to_str((u64)g_total, num);
     screen_console_puts(num);
     screen_console_puts(g_failed == 0 ? " PASS\n" : " FAIL\n");
+    /* fix2: test_tui_cn() calls tui_init() (clears the framebuffer and
+     * hides the cursor mid-suite) - without a matching tui_shutdown()
+     * the shell kept running with an invisible cursor and a wiped
+     * screen after the suite. Mirror tui-test's defensive close. */
+    if (tui_started()) tui_shutdown();
     return g_failed;
 }

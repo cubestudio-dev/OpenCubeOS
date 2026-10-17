@@ -136,7 +136,7 @@ int tui_wifi_list(void) {
     tui_window_refresh(win);
     for (;;) {
         int k = tui_getch();
-        if (k == TUI_KEY_ESC || k == 'q') break;
+        if (k == TUI_KEY_ESC || k == TUI_KEY_F(10) || k == 'q') break;
         if (k == 'c' || k == 'C') {
             /* connect flow: ask for the SSID (defaults to the first
              * scan result when the user just presses Enter); the STA
@@ -302,7 +302,7 @@ int tui_bt_main(void) {
     tui_window_refresh(win);
     for (;;) {
         int k = tui_getch();
-        if (k == TUI_KEY_ESC || k == 'q') break;
+        if (k == TUI_KEY_ESC || k == TUI_KEY_F(10) || k == 'q') break;
         if (k == 's' || k == 'S') {
             tui_bt_scan();
             tui_window_clear(win);

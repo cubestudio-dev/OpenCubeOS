@@ -33,7 +33,7 @@
 /* helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-#define HW_PAGE_MAX_LINES 34
+#define HW_PAGE_MAX_LINES 60
 
 typedef struct {
     char lines[HW_PAGE_MAX_LINES][100];
@@ -303,8 +303,9 @@ static void page_timer(hw_page_t *pg) {
 /* keys this TUI owns; saved through lib_config like every other key */
 static const char *HW_CONFIG_KEYS[] = {
     "tui.backend",       /* fb | serial                                  */
-    "snd.volume",        /* 0..100, applied by the sound app             */
-    "tui.clock_24h",     /* 1 | 0, used by the sysinfo overview          */
+    "snd.volume",        /* 0..100, applied at play time (fix2)          */
+    "tui.clock_24h",     /* 1 | 0, consumed by the sysinfo overview      */
+    "tui.tz_offset",     /* hours, consumed by the sysinfo overview      */
 };
 
 int tui_hw_save(void) {
@@ -368,19 +369,42 @@ int tui_hw_init(void) {
 }
 
 static int hw_current_page;
+/* fix2: per-page scroll offsets that SURVIVE re-render - the old code
+ * reset pg.scroll to 0 on every render, so the DOWN key (whose handler
+ * only existed in the direct-page runner) could never actually scroll.
+ * The PCI page alone needs it: its capability dump exceeds 34 lines. */
+static int hw_scroll[HW_PAGE_COUNT];
 
 static void hw_render(tui_window_t *win) {
     hw_page_t pg;
-    pg.count = 0;
-    pg.scroll = 0;
     memset(&pg, 0, sizeof(pg));
     HW_PAGES[hw_current_page].fn(&pg);
+    int rows = win->h - 3;
+    if (pg.count > rows) {
+        int max_scroll = pg.count - rows;
+        if (hw_scroll[hw_current_page] > max_scroll)
+            hw_scroll[hw_current_page] = max_scroll;
+        if (hw_scroll[hw_current_page] < 0)
+            hw_scroll[hw_current_page] = 0;
+    } else {
+        hw_scroll[hw_current_page] = 0;
+    }
+    pg.scroll = hw_scroll[hw_current_page];
     tui_window_clear(win);
     tui_window_focus_set(win);
     tui_set_attr((tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_SILVER, TUI_COLOR_BLACK));
-    int rows = win->h - 3;
     for (int r = 0; r < rows && r + pg.scroll < pg.count; r++) {
         tui_print_at(r + 1, 2, pg.lines[r + pg.scroll]);
+    }
+    if (pg.count > rows) {
+        char sb[64]; char n[12];
+        strcpy(sb, "Up/Down: scroll  ");
+        u64_to_str((u64)(pg.scroll + 1), n); strcat(sb, n);
+        strcat(sb, "-");
+        u64_to_str((u64)(pg.scroll + rows < pg.count ? pg.scroll + rows : pg.count), n);
+        strcat(sb, n); strcat(sb, "/");
+        u64_to_str((u64)pg.count, n); strcat(sb, n);
+        tui_print_at(win->h - 2, 52, sb);
     }
     char tabline[100];
     int n = 0;
@@ -399,6 +423,68 @@ static void hw_render(tui_window_t *win) {
     tui_window_refresh(win);
 }
 
+/* fix2: shared page-view loop. The two previous copies disagreed - the
+ * direct runner had a no-op DOWN "scroll" and the menu's nested loop
+ * exited the page on ANY key except Tab, so long pages (PCI caps)
+ * could never be read past line 34. Keys: Tab next page, Up/Down
+ * scroll, +/- sound volume (Sound page), F1 help, F2 save config,
+ * F5 repaint, Esc/F10/q leave. */
+static void hw_adjust_volume(int delta) {
+    driver_snd_device_t *dev = driver_snd_get_device(0);
+    if (!dev) { tui_status_line("no sound device present"); return; }
+    int vol = (int)dev->volume + delta;
+    if (vol < 0) vol = 0;
+    if (vol > 100) vol = 100;
+    if (driver_snd_set_volume(dev, (u32)vol) == 0) {
+        char vb[16];
+        char n[12];
+        u64_to_str((u64)vol, vb);
+        lib_config_write("snd.volume", vb);
+        char sb[64];
+        strcpy(sb, "volume: ");
+        strcat(sb, dev->name);
+        strcat(sb, " = ");
+        u64_to_str((u64)vol, n);
+        strcat(sb, n);
+        strcat(sb, " (applied)");
+        tui_status_line(sb);
+    } else {
+        tui_status_line("volume: device rejected the level");
+    }
+}
+
+static void hw_view_loop(tui_window_t *win) {
+    for (;;) {
+        int k = tui_getch();
+        if (k == TUI_KEY_TAB) {
+            hw_current_page = (hw_current_page + 1) % HW_PAGE_COUNT;
+            hw_render(win);
+        } else if (k == TUI_KEY_DOWN) {
+            hw_scroll[hw_current_page]++;
+            hw_render(win);
+        } else if (k == TUI_KEY_UP) {
+            hw_scroll[hw_current_page]--;
+            if (hw_scroll[hw_current_page] < 0) hw_scroll[hw_current_page] = 0;
+            hw_render(win);
+        } else if (k == '+' || k == '=') {
+            hw_adjust_volume(+10);
+        } else if (k == '-') {
+            hw_adjust_volume(-10);
+        } else if (k == TUI_KEY_F1) {
+            tui_sysinfo_help();
+            hw_render(win);
+        } else if (k == TUI_KEY_F(2)) {
+            tui_status_line(tui_hw_save() > 0 ?
+                            "config saved to /etc/opencube.conf" :
+                            "config saved (defaults)");
+        } else if (k == TUI_KEY_F(5)) {
+            hw_render(win);
+        } else if (k == TUI_KEY_ESC || k == TUI_KEY_F(10) || k == 'q') {
+            break;
+        }
+    }
+}
+
 int tui_hw_run_page(const char *page) {
     if (!tui_started()) return -1;
     int want = -1;
@@ -412,18 +498,7 @@ int tui_hw_run_page(const char *page) {
     if (!win) return -1;
     tui_window_title(win, "Hardware configuration");
     hw_render(win);
-    for (;;) {
-        int k = tui_getch();
-        if (k == TUI_KEY_TAB) {
-            hw_current_page = (hw_current_page + 1) % HW_PAGE_COUNT;
-            hw_render(win);
-        } else if (k == TUI_KEY_ESC || k == TUI_KEY_F(10) || k == 'q') {
-            break;
-        } else if (k == TUI_KEY_DOWN && win->h - 3 < 34) {
-            /* scroll within long pages */
-            hw_render(win);
-        }
-    }
+    hw_view_loop(win);
     tui_window_free(win);
     tui_update_panels();
     return 0;
@@ -453,7 +528,7 @@ int tui_hw_main(void) {
     tui_menu_item_t items[HW_PAGE_COUNT + 2];
     for (int i = 0; i < HW_PAGE_COUNT; i++) {
         items[i].name = HW_PAGES[i].name;
-        items[i].desc = "view and adjust this hardware domain";
+        items[i].desc = "view (Tab next page, Up/Down scroll, +/- volume)";
         items[i].userptr = (void *)(long)i;
     }
     items[HW_PAGE_COUNT].name = "Save config";
@@ -474,13 +549,7 @@ int tui_hw_main(void) {
             if (sel >= 0) {
                 hw_current_page = (int)sel;
                 hw_render(win);
-                for (;;) {
-                    int k2 = tui_getch();
-                    if (k2 == TUI_KEY_TAB) {
-                        hw_current_page = (hw_current_page + 1) % HW_PAGE_COUNT;
-                        hw_render(win);
-                    } else break;
-                }
+                hw_view_loop(win);   /* fix2: shared loop (scroll etc.) */
                 tui_menu_post(menu);
             } else if (sel == -1) {
                 tui_hw_save();

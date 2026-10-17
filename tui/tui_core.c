@@ -269,6 +269,14 @@ static tui_backend_t g_backend_serial = {
     .cursor = serial_cursor, .flush = serial_flush,
 };
 
+/* fix2: SGR mouse mode toggles for the xterm-class serial backend
+ * (tui_mouse_enable flips the flag; this emits the actual sequences). */
+void tui_core_serial_mouse(int on) {
+    if (g_backend != &g_backend_serial) return;
+    if (on) serial_str("\x1b[?1000h\x1b[?1006h");
+    else    serial_str("\x1b[?1006l\x1b[?1000l");
+}
+
 /* ------------------------------------------------------------------ */
 /* Terminal detection                                                  */
 /* ------------------------------------------------------------------ */

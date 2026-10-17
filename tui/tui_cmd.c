@@ -18,7 +18,14 @@ static int tui_main_app(void) {
     int cols, rows;
     tui_term_size(&cols, &rows);
     tui_window_t *win = tui_window_new(0, 0, rows, cols);
-    if (!win) return -1;
+    if (!win) {
+        /* fix2: tui_init() already cleared the screen and hid the
+         * cursor - returning without tui_shutdown() left the session
+         * "open" (g_started=1, cursor hidden) and the shell with a
+         * wiped screen. */
+        tui_shutdown();
+        return -1;
+    }
     tui_window_title(win, "Open Cube OS - TUI (WP-10-tui)");
     tui_menu_item_t items[5];
     items[0].name = "Hardware configuration";

@@ -82,6 +82,23 @@ int driver_snd_play(driver_snd_device_t *dev, const void *buf, int len) {
     if (!dev || !dev->present || !dev->ops->play) return -1;
     if (!buf || len <= 0) return -1;
 
+    /* fix2: volume must actually be audible. Drivers WITH a hardware
+     * mixer (hda / ac97 / es1370) apply dev->volume on the device, so
+     * the samples pass through untouched. Drivers WITHOUT one (sb16 /
+     * virtio-snd / usb-audio) used to ignore the volume completely -
+     * "volume 20" printed the level but playback stayed at full scale.
+     * Those get software attenuation here (16-bit signed LE PCM, the
+     * format every caller and make_tone produce). The buffer is owned
+     * by play() from this point on, so in-place scaling is safe. */
+    if (!dev->ops->set_volume && dev->volume < 100) {
+        u32 vol = dev->volume ? dev->volume : 100;   /* default = full */
+        if (dev->volume == 0) vol = 100;             /* unset = full */
+        i16 *samples = (i16 *)buf;
+        int n = len / 2;
+        for (int i = 0; i < n; i++)
+            samples[i] = (i16)(((i32)samples[i] * (i32)vol) / 100);
+    }
+
     int rc = dev->ops->play(dev, buf, len);
     if (rc > 0) dev->played_bytes += (u64)rc;
     return rc;
@@ -112,11 +129,9 @@ int driver_snd_set_volume(driver_snd_device_t *dev, u32 vol) {
         if (rc == 0) dev->volume = vol;
         return rc;
     }
-    /* Framework-level bookkeeping only: there is NO software sample
-     * attenuation here.  Drivers with real hardware controls must
-     * implement ops->set_volume (WP-10-tui wired SB16 mixer and
-     * the UAC1 Feature Unit); this fallback just records the level
-     * the user asked for and reports it via get_caps/volume. */
+    /* Framework-level bookkeeping: drivers without ops->set_volume get
+     * the attenuation applied in software by driver_snd_play() (fix2)
+     * - the level is recorded here and takes effect on the next play. */
     dev->volume = vol;
     return 0;
 }

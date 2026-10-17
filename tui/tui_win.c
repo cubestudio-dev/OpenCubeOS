@@ -119,6 +119,8 @@ void tui_windows_reset(void) {
     }
     g_window_count = 0;
     tui_text_reset();   /* the focus/status caches point into the pool */
+    tui_panels_reset(); /* fix2: zombie panels survived sessions (their
+                         * windows were freed under them) */
 }
 
 int tui_window_move(tui_window_t *win, int y, int x) {

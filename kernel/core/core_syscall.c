@@ -190,15 +190,31 @@ typedef struct {
     int writer_waiters[PIPE_WAIT_QUEUE_MAX];
 } sys_pipe_t;
 
-static sys_pipe_t g_pipes[MAX_PIPES];
+/* fix2: the pipe table moved from a 133 KiB static to a kmalloc'd
+ * allocation (the linker's own advice): the kernel image had drifted
+ * within a few KiB of the 0x400000 identity-window guard rail and the
+ * fix2 work pushed it over. Pipes only exist after user processes run
+ * (the syscall path), so the heap is always up by the time this is
+ * needed. */
+static sys_pipe_t *g_pipes = NULL;
+
+static int pipes_ready(void) {
+    if (g_pipes) return 0;
+    g_pipes = (sys_pipe_t *)kmalloc(sizeof(sys_pipe_t) * MAX_PIPES);
+    if (!g_pipes) return -1;
+    memset(g_pipes, 0, sizeof(sys_pipe_t) * MAX_PIPES);
+    return 0;
+}
 
 static sys_pipe_t *pipe_get(int pipe_id) {
+    if (pipes_ready() != 0) return NULL;
     if (pipe_id < 1 || pipe_id > MAX_PIPES) return NULL;
     if (!g_pipes[pipe_id - 1].in_use) return NULL;
     return &g_pipes[pipe_id - 1];
 }
 
 static int pipe_alloc(void) {
+    if (pipes_ready() != 0) return 0;
     for (int i = 0; i < MAX_PIPES; i++) {
         if (!g_pipes[i].in_use) {
             memset(&g_pipes[i], 0, sizeof(g_pipes[i]));

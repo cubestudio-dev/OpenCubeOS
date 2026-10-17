@@ -245,6 +245,8 @@ int  tui_getch_timeout(int ms);            /* -1 on timeout           */
 void tui_nodelay(int on);                  /* non-blocking mode       */
 int  tui_mouse_enable(int on);
 int  tui_mouse_get(tui_mouse_event_t *out);
+/* fix2: tui_core emits the SGR enable/disable on the serial backend */
+void tui_core_serial_mouse(int on);
 
 int  tui_color_supported(void);            /* nonzero when colors ok  */
 int  tui_color_pairs_max(void);
@@ -264,6 +266,8 @@ int  tui_panel_hide(tui_panel_t *panel);
 int  tui_panel_move(tui_panel_t *panel, int y, int x);
 int  tui_panel_hidden(tui_panel_t *panel);
 tui_window_t *tui_panel_window(tui_panel_t *panel);
+/* fix2: drop every panel (their windows die with the session reset) */
+void tui_panels_reset(void);
 void tui_update_panels(void);              /* repaint whole stack     */
 
 /* Menu system (7.1, menus) */

@@ -23,8 +23,10 @@ void tui_nodelay(int on) { g_nodelay = on ? 1 : 0; }
 
 int tui_mouse_enable(int on) {
     g_mouse_enabled = on ? 1 : 0;
-    /* when the console is an xterm-class serial terminal the SGR mouse
-     * mode is toggled on the wire; the fb console has nothing to do */
+    /* fix2: actually toggle SGR mouse reporting on the wire when the
+     * console is an xterm-class serial terminal (the flag flip used to
+     * be the whole implementation - mouse support could never work). */
+    tui_core_serial_mouse(on);
     return 0;
 }
 
@@ -75,6 +77,11 @@ typedef struct {
 } csi_state_t;
 
 static csi_state_t g_csi;
+/* fix2: a lone ESC (serial terminals send exactly one 0x1B byte for
+ * the Esc key) used to arm the CSI decoder and then be SWALLOWED by
+ * the first following key - the user had to press Esc twice. The key
+ * that follows a non-CSI ESC is stashed here and delivered first. */
+static int g_csi_stash = TUI_KEY_NONE;
 
 static void csi_reset(void) {
     g_csi.active = 0;
@@ -87,7 +94,7 @@ static void csi_reset(void) {
 
 /* Feed one byte into the decoder; returns a TUI key when a sequence
  * completes, TUI_KEY_NONE otherwise, or a positive literal byte. */
-static int csi_feed(int c) {
+static int csi_feed_inner(int c) {
     if (!g_csi.active) {
         if (c == 0x1B) { csi_reset(); g_csi.active = 1; return TUI_KEY_NONE; }
         return map_key(c);
@@ -106,10 +113,15 @@ static int csi_feed(int c) {
          * press.  Without this, "ESC ESC q" (leave a page, then quit)
          * fed the q to the sequence finalizer, which swallowed it as an
          * unknown CSI and the app hung waiting for a key that was never
-         * delivered. */
+         * delivered.
+         * fix2: deliver the pending ESC first and stash the mapped key
+         * for the next call - a single Esc press (one 0x1B byte on the
+         * serial bridge) now reaches the app immediately instead of
+         * being eaten by the next keystroke. */
         if (c == '[' && !g_csi.priv) { g_csi.saw_lbrack = 1; return TUI_KEY_NONE; }
         g_csi.active = 0;
-        return map_key(c);
+        g_csi_stash = map_key(c);
+        return TUI_KEY_ESC;
     }
     if (c == '?') { g_csi.priv = 1; return TUI_KEY_NONE; }
     if (c >= '0' && c <= '9') {
@@ -193,6 +205,20 @@ static int csi_feed(int c) {
     return TUI_KEY_NONE;
 }
 
+/* fix2 wrapper: when the previous call delivered a pending ESC and
+ * stashed the following key, hand the stash out first and fold the new
+ * byte into the stash for the call after that. This keeps sequences
+ * intact across the boundary ("ESC x ESC [ A" still delivers
+ * ESC, x, UP) and makes a single Esc press reach the app. */
+static int csi_feed(int c) {
+    if (g_csi_stash != TUI_KEY_NONE) {
+        int k = g_csi_stash;
+        g_csi_stash = csi_feed_inner(c);
+        return k;
+    }
+    return csi_feed_inner(c);
+}
+
 /* ---- public reads ---- */
 
 int tui_getch_timeout(int ms) {
@@ -262,6 +288,7 @@ int tui_mouse_poll_touchpad(void) {
  * Called from tui_init/tui_shutdown. */
 void tui_input_reset(void) {
     csi_reset();
+    g_csi_stash = TUI_KEY_NONE;
     g_mouse_pending_valid = 0;
 }
 

@@ -95,6 +95,34 @@ int tui_menu_unpost(tui_menu_t *menu) {
 int tui_menu_driver(tui_menu_t *menu, int key) {
     if (!menu) return -1;
     int visible_rows = menu->win ? menu->win->h : 24;
+    /* fix2: mouse support - click an item to select it, click the
+     * already-selected item to activate it, wheel to scroll. This is
+     * the mainstream menu contract and it required no app changes:
+     * every menu loop already forwards TUI_KEY_MOUSE here. */
+    if (key == TUI_KEY_MOUSE) {
+        tui_mouse_event_t ev;
+        if (tui_mouse_get(&ev) != 0) return 0;
+        tui_window_t *w = menu->win;
+        if (!w) return 0;
+        if (ev.button == 3) {   /* wheel */
+            if (ev.action == TUI_BUTTON_WHEEL_UP && menu->current > 0)
+                menu->current--;
+            else if (ev.action == TUI_BUTTON_WHEEL_DOWN &&
+                     menu->current < menu->count - 1)
+                menu->current++;
+            return tui_menu_post(menu) < 0 ? -2 : 0;
+        }
+        if (ev.action != TUI_BUTTON_PRESSED && ev.action != TUI_BUTTON_CLICKED)
+            return 0;
+        int my = ev.y - w->y;
+        int mx = ev.x - w->x;
+        if (my < 0 || my >= w->h || mx < 0 || mx >= w->w) return 0;
+        int idx = menu->top_row + my;
+        if (idx < 0 || idx >= menu->count) return 0;
+        if (idx == menu->current) return 1;   /* click on selection = Enter */
+        menu->current = idx;
+        return tui_menu_post(menu) < 0 ? -2 : 0;
+    }
     switch (key) {
     case TUI_KEY_UP:
     case TUI_KEY_CTRL_P:

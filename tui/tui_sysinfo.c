@@ -80,6 +80,57 @@ int tui_sysinfo_overview(void) {
     line[n] = 0;
     tui_print_at(r++, 2, line);
 
+    /* fix2: the Time page wrote tui.clock_24h / tui.tz_offset but
+     * NOTHING ever consumed them (write-only settings). The overview
+     * now shows the RTC clock honoring both preferences. */
+    {
+        core_rtc_time_t rt;
+        core_rtc_read(&rt);
+        char val[16];
+        int h24 = 1, tzo = 0;
+        if (lib_config_read("tui.clock_24h", val, sizeof(val)) == 0)
+            h24 = (val[0] != '0');
+        if (lib_config_read("tui.tz_offset", val, sizeof(val)) == 0) {
+            /* tiny signed-decimal parse (lib_string has no atoi) */
+            int sign = 1, i = 0;
+            if (val[0] == '-') { sign = -1; i = 1; }
+            else if (val[0] == '+') i = 1;
+            for (; val[i] >= '0' && val[i] <= '9'; i++)
+                tzo = tzo * 10 + (val[i] - '0');
+            tzo *= sign;
+        }
+        int hr = rt.hour + tzo;
+        const char *suffix = "";
+        while (hr < 0) hr += 24;
+        hr %= 24;
+        n = 0;
+        const char *c = "clock (rtc)     : ";
+        for (int i = 0; c[i]; i++) line[n++] = c[i];
+        if (!h24) {
+            suffix = (hr >= 12) ? " PM" : " AM";
+            hr %= 12;
+            if (hr == 0) hr = 12;
+        }
+        if (hr < 10) line[n++] = '0';
+        u64_to_str((u64)hr, num);
+        for (int i = 0; num[i]; i++) line[n++] = num[i];
+        line[n++] = ':';
+        if (rt.minute < 10) line[n++] = '0';
+        u64_to_str((u64)rt.minute, num);
+        for (int i = 0; num[i]; i++) line[n++] = num[i];
+        line[n++] = ':';
+        if (rt.second < 10) line[n++] = '0';
+        u64_to_str((u64)rt.second, num);
+        for (int i = 0; num[i]; i++) line[n++] = num[i];
+        for (int i = 0; suffix[i]; i++) line[n++] = suffix[i];
+        const char *tzs = (tzo >= 0) ? " UTC+" : " UTC";
+        for (int i = 0; tzs[i]; i++) line[n++] = tzs[i];
+        u64_to_str((u64)(tzo < 0 ? -tzo : tzo), num);
+        for (int i = 0; num[i]; i++) line[n++] = num[i];
+        line[n] = 0;
+        tui_print_at(r++, 2, line);
+    }
+
     mem_pmm_stats_t st;
     mem_pmm_get_stats(&st);
     u64 used_pct = st.total_pages ? (st.used_pages * 100) / st.total_pages : 0;
@@ -177,8 +228,9 @@ int tui_sysinfo_processes(void) {
                 for (int j = 0; num[j]; j++) line[p++] = num[j];
                 while (p < 27) line[p++] = ' ';
                 const char *st =
-                    ti[idx].state == 1 ? "RUN" :
-                    (ti[idx].state == 0 ? "RDY" : "BLK");
+                    ti[idx].state == TASK_RUNNING ? "RUN" :
+                    ti[idx].state == TASK_READY   ? "RDY" :
+                    ti[idx].state == TASK_EXITED  ? "EXT" : "BLK";
                 for (int j = 0; st[j]; j++) line[p++] = st[j];
                 line[p] = 0;
                 tui_print_at(2 + i, 2, line);
@@ -189,7 +241,7 @@ int tui_sysinfo_processes(void) {
             repaint = 0;
         }
         int k = tui_getch();
-        if (k == TUI_KEY_ESC || k == 'q') break;
+        if (k == TUI_KEY_ESC || k == TUI_KEY_F(10) || k == 'q') break;
         if (k == TUI_KEY_UP && sel > 0) { sel--; repaint = 1; }
         if (k == TUI_KEY_DOWN && sel < nt - 1) { sel++; repaint = 1; }
         if ((k == 'k' || k == 'K') && nt > 0) {
@@ -248,7 +300,7 @@ int tui_sysinfo_logs(void) {
             repaint = 0;
         }
         int k = tui_getch();
-        if (k == TUI_KEY_ESC || k == 'q') break;
+        if (k == TUI_KEY_ESC || k == TUI_KEY_F(10) || k == 'q') break;
         if (k == TUI_KEY_UP || k == TUI_KEY_PGUP) { top--; if (top < 0) top = 0; repaint = 1; }
         if (k == TUI_KEY_DOWN || k == TUI_KEY_PGDN) {
             top++;
@@ -334,7 +386,7 @@ int tui_sysinfo_monitor(void) {
         u64 deadline = core_timer_now_ms() + 500;
         while (core_timer_now_ms() < deadline) {
             int k = tui_getch_timeout(50);
-            if (k == TUI_KEY_ESC || k == 'q') {
+            if (k == TUI_KEY_ESC || k == TUI_KEY_F(10) || k == 'q') {
                 tui_window_free(win);
                 tui_update_panels();
                 return 0;
@@ -530,14 +582,14 @@ int tui_sysinfo_help(void) {
     tui_window_focus_set(win);
     tui_window_clear(win);
     static const char *lines[] = {
-        "F1      help (this screen)",
-        "F2      save configuration",
-        "F3      search (in list pages: first matching item)",
+        "F1      help (main menu, hardware pages)",
+        "F2      save configuration (hardware pages)",
         "F5      refresh the current view",
-        "F10     leave the TUI",
+        "F10     leave the current page",
         "Tab     switch domain / next field",
-        "Arrows  navigate",
-        "Enter   confirm",
+        "Up/Down navigate (hardware pages: scroll)",
+        "+/-     sound volume (hardware Sound page)",
+        "Enter   confirm / open",
         "Esc     cancel / back",
     };
     for (int i = 0; i < 9 && i < rows - 3; i++)

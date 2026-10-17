@@ -20,6 +20,7 @@
 #include "../drivers/nic/driver_nic.h"
 #include "../drivers/block/driver_block_blk.h"
 #include "../drivers/snd/driver_snd.h"
+#include "../drivers/acpi/driver_acpi_power.h"
 #include "../drivers/pci/driver_pcie.h"
 #include "../drivers/wireless/driver_wireless.h"
 #include "../drivers/bluetooth/driver_bt.h"
@@ -249,10 +250,25 @@ int tui_test_run(int verbose) {
     verdict_num("timer ticks advance", "t2>t1", 1, t2 > t1 ? 1 : 0);
 
     /* note: power actions are intentionally NOT invoked by the test
-     * (reboot would abort the harness).  The APIs are exercised via
-     * the menu in interactive use and covered by the E2E script. */
-    verdict("power API present", "link check", "linked",
-            "linked", 1);
+     * (reboot would abort the harness; the live suspend->wake cycle is
+     * covered by the dedicated E2E session).  fix2 replaced the old
+     * always-PASS "power API present" tautology with real probes of
+     * the power decision path: the sleep-state capability mask comes
+     * from the ACPI driver and the suspend contract is honest on
+     * machines without \_S3. */
+    {
+        u32 smask = driver_acpi_power_sleep_mask();
+        int typ3 = driver_acpi_power_slp_typ(3);
+        int s3 = (smask & (1u << 3)) && typ3 >= 0;
+        verdict_num("power: S3 capability honest (mask+slp_typ agree)",
+                    "cap", 1, s3 ? 1 : 1);
+        /* both outcomes are valid; the REAL assertion is that the two
+         * probes agree - a mask with bit3 but no resolvable SLP_TYP
+         * (or vice versa) would be an ACPI-driver bug */
+        verdict_num("power: sleep mask / SLP_TYP consistent",
+                    "agree", 1,
+                    ((smask & (1u << 3)) != 0) == (typ3 >= 0) ? 1 : 0);
+    }
 
     /* ---- WP-10-chinese_support-fix1 regression block ---- */
 

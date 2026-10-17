@@ -43,6 +43,12 @@ int tui_cn_wifi_connect(const char *ssid, const char *password) {
     if (!ssid) return -2;
     for (int i = 0; i < g_cn_scan_count; i++) {
         if (strcmp(g_cn_scan[i].ssid, ssid) == 0) {
+            /* fix2 parity: pre-filter WEP/WPA networks with an honest
+             * refusal (the English page did this up front; the Chinese
+             * page walked into the association and failed downstream). */
+            if ((g_cn_scan[i].capability & 0x0010) ||
+                g_cn_scan[i].has_rsn || g_cn_scan[i].has_wpa)
+                return -4;   /* WEP/WPA advertised: open-system STA only */
             return wl_connect(0, g_cn_scan[i].bssid, ssid);
         }
     }
@@ -147,8 +153,24 @@ static int cn_net_connect_page(void) {
     if (rc >= 0) {
         tui_status_line("连接 %s ...", ssid);
         int crc = tui_cn_wifi_connect(ssid, "");
-        tui_status_line("连接结果: %s (rc=%d)",
-                        crc == 0 ? "成功" : "失败", crc);
+        if (crc == 0) {
+            tui_status_line("连接结果: 成功");
+        } else {
+            char extra[80];
+            char nb[12];
+            strcpy(extra, "连接结果: 失败 - ");
+            if (crc == -4) {
+                strcat(extra, "该网络有 WEP/WPA 加密，本驱动仅支持开放网络");
+            } else if (crc == -3) {
+                strcat(extra, "扫描列表中没有该 SSID");
+            } else {
+                strcat(extra, "关联被拒绝 (rc=");
+                u64_to_str((u64)crc, nb);
+                strcat(extra, nb);
+                strcat(extra, ")");
+            }
+            tui_status_line("%s", extra);
+        }
     }
     tui_window_free(win);
     tui_update_panels();

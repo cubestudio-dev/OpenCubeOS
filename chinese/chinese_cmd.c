@@ -435,8 +435,20 @@ static int cmd_tui_cn(const char *args) {
     for (;;) {
         int cols, rows;
         tui_term_size(&cols, &rows);
-        tui_window_t *menu = tui_window_new(0, 0, 6, 44);
-        if (!menu) return 1;
+        /* fix2: the fixed 6x44 launcher refused to open entirely on
+         * terminals narrower than 44 columns (tui_window_new rejects
+         * x+w > cols); clamp to the real size instead. */
+        int mw = 44; if (mw > cols) mw = cols;
+        int mh = 6;  if (mh > rows) mh = rows;
+        tui_window_t *menu = tui_window_new(0, 0, mh, mw);
+        if (!menu) {
+            /* fix2: tui_chinese_init() already cleared the screen and
+             * hid the cursor - return through tui_shutdown() or the
+             * session leaks (g_started=1, cursor hidden, shell with a
+             * wiped screen). */
+            tui_shutdown();
+            return 1;
+        }
         tui_window_title(menu, "中文界面");
         int pick = tui_chinese_menu(menu, items, 4);
         tui_window_free(menu);

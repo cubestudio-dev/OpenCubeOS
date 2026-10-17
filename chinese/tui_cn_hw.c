@@ -291,7 +291,7 @@ static void cn_page_wireless(cn_page_t *pg) {
                i, states[w->state], w->ssid, w->channel);
     }
     if (!n) cn_add(pg, "802.11 家族启动时探测；QEMU 无该模型");
-    cn_add(pg, "无线中文界面     : tui-net-cmd（扫描/连接/状态）");
+    cn_add(pg, "无线中文界面     : tui-cn 第 2 项（扫描/连接/状态）");
 }
 
 static void cn_page_timer(cn_page_t *pg) {
