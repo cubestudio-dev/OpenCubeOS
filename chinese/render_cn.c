@@ -12,6 +12,8 @@
 #include "../kernel/core/core_sync.h"
 #include "../kernel/lib/lib_string.h"
 
+u32 render_chinese_width(u32 cp);   /* fix2 forward decl: missing-box width */
+
 /* ---------------------------------------------------------------- fonts */
 
 static cn_font_t g_fonts[CN_FONT_MAX];
@@ -187,9 +189,11 @@ void cn_draw_glyph_px(u32 x, u32 y, u32 cp, u32 fg, u32 bg) {
     cn_font_t* f = font_select(cp);
     const u8* bits = f ? f->get_bitmap(f, cp) : NULL;
     if (!f || !bits) {
-        /* Missing glyph: hollow box one cell wide for ASCII-ish, two
-         * cells wide for CJK-width codepoints. */
-        u32 w = (cp < 0x100) ? OC_FONT_CELL_W : 16;
+        /* Missing glyph: the hollow box width always matches the
+         * advance render_chinese_width() reports (fix2: an 8px advance
+         * with a 16px box let the next glyph overwrite the box's right
+         * half). */
+        u32 w = render_chinese_width(cp);
         cn_draw_missing_box(x, y, w, OC_FONT_CELL_H, fg, bg);
         return;
     }
@@ -250,10 +254,30 @@ int render_chinese_string(const char* utf8, u32 px, u32 py, u32 fg, u32 bg) {
     return drawn;
 }
 
+/* fix2: codepoints with no registered font still need a self-consistent
+ * width - cn_draw_glyph_px draws a 16px-wide hollow box for missing
+ * CJK-range codepoints, so the advance must be 16px there too (before
+ * this fix the box was drawn 16px wide but the advance stayed 8px and
+ * the next glyph overwrote the box's right half). CJK ranges follow
+ * Unicode East Asian Width (Wide/Fullwidth):
+ *   0x2E80-0x9FFF  CJK radicals..Unified Ideographs + Hangul
+ *   0xAC00-0xD7A3  Hangul syllables (inside the range above already)
+ *   0xF900-0xFAFF  CJK compatibility ideographs
+ *   0xFF00-0xFF60  fullwidth forms
+ *   0x20000-0x2FFFD / 0x30000-0x3FFFD  supplementary planes */
+static int cp_is_cjk_range(u32 cp) {
+    return (cp >= 0x2E80 && cp <= 0x9FFF) ||
+           (cp >= 0xF900 && cp <= 0xFAFF) ||
+           (cp >= 0xFF00 && cp <= 0xFF60) ||
+           (cp >= 0x20000 && cp <= 0x2FFFD) ||
+           (cp >= 0x30000 && cp <= 0x3FFFD);
+}
+
 u32 render_chinese_width(u32 cp) {
     if (cp < 0x100) return OC_FONT_CELL_W;
     cn_font_t* f = font_select(cp);
     if (f && f->glyph_w >= 16) return 16;
+    if (!f && cp_is_cjk_range(cp)) return 16;   /* missing-box width */
     return OC_FONT_CELL_W;
 }
 

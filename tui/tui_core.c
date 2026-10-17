@@ -114,9 +114,11 @@ static void fb_putc_at(int x, int y, u32 ch, tui_attr_t a) {
     u32 fg = tui_palette_pixel(TUI_ATTR_FG(a));
     u32 bg = tui_palette_pixel(TUI_ATTR_BG(a));
     if (ch == TUI_WIDE_CONT) {
-        /* Right half of a CJK glyph: the 16px bitmap drawn at the left
-         * cell already covers this column; paint it with the cell bg. */
-        screen_console_putc_at((u32)x, (u32)y, ' ', fg, bg);
+        /* Right half of a CJK glyph. The 16px bitmap drawn for the
+         * left cell already covers this column completely (ink AND
+         * background), so painting a background-colored space here
+         * would erase the glyph's right half (fix2 root cause of the
+         * "Chinese only shows half" report). Skip the repaint. */
         return;
     }
     if (ch >= 0x100) {

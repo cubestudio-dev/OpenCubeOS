@@ -165,7 +165,7 @@ int tui_chinese_form(tui_window_t* win, tui_field_t* fields, int count) {
         for (int i = 0; i < count; i++) {
             cn_paint_field(win, &fields[i]);
         }
-        tui_status_line("Tab/Up/Down: field | Enter: submit | Esc: cancel");
+        tui_status_line("Tab/上下键：切换字段 | 回车：提交 | Esc：取消");
         tui_window_refresh(win);
 
         int k = tui_getch();

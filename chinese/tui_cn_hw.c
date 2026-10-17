@@ -213,8 +213,38 @@ static void cn_page_usb(cn_page_t *pg) {
         if (!d) continue;
         n++;
     }
-    driver_usb_print_state();
+    /* fix2: driver_usb_print_state() wrote its English report straight
+     * to the console, scrolling text over the Chinese page while the
+     * user was inside the TUI. The page now queries the same state and
+     * renders it as page lines. */
+    int hubs = 0, msc = 0, hid = 0, audio = 0, serial = 0, other = 0;
+    for (int i = 0; i < 16; i++) {
+        driver_usb_dev_t *d = driver_usb_get_device(i);
+        if (!d) continue;
+        switch (d->class) {
+        case 0x09: hubs++; break;
+        case 0x08: msc++; break;
+        case 0x03: hid++; break;
+        case 0x01: audio++; break;
+        case 0x02: serial++; break;
+        default: other++; break;
+        }
+    }
     cn_add(pg, "USB 设备         : 已枚举 %d 台（轮询线程常驻）", n);
+    if (n > 0) {
+        cn_add(pg, "集线器 %d  存储 %d  人机接口 %d  音频 %d  串口 %d  其他 %d",
+               hubs, msc, hid, audio, serial, other);
+        for (int i = 0; i < 16 && pg->count < CN_PAGE_MAX_LINES - 2; i++) {
+            driver_usb_dev_t *d = driver_usb_get_device(i);
+            if (!d) continue;
+            if (d->product[0])
+                cn_add(pg, "  %d: %s（供应商 0x%04x 产品 0x%04x 类 0x%02x）",
+                       i + 1, d->product, d->vid, d->pid, d->class);
+            else
+                cn_add(pg, "  %d: 供应商 0x%04x 产品 0x%04x 类 0x%02x",
+                       i + 1, d->vid, d->pid, d->class);
+        }
+    }
     cn_add(pg, "类驱动           : hid msc serial audio (uac1)");
 }
 

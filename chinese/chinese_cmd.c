@@ -125,13 +125,21 @@ static int cmd_font_test(const char *args) {
     screen_console_puts("font-test: rendering sample row (16x16 CJK):\n");
     u32 y = screen_console_get()->cur_y;
     u32 x = 0;
+    /* fix2: hide the underscore cursor while the sample row is drawn -
+     * the visible cursor cell used to overwrite the first glyph's left
+     * half (it sits exactly on the row the sample starts at). */
+    int cursor_was_visible = screen_console_get()->cursor_visible;
+    if (cursor_was_visible) screen_console_show_cursor(0);
     render_chinese_string("\xE4\xB8\xAD\xE6\x96\x87\xE6\xB5\x8B\xE8\xAF\x95"
                           " OpenCube \xE6\xB5\x8B\xE8\xAF\x95",
                           x, y * OC_FONT_CELL_H, 0xFFFFFF, 0x000000);
+    /* advance the console cursor PAST the pixel-drawn row before
+     * printing the label - the label used to start at the same row and
+     * overwrite the sample glyphs it was supposed to describe. */
+    screen_console_putc('\n');
     screen_console_puts("font-test: 16px row drawn above (zhongwen OpenCube shi)\n");
-    /* advance the console cursor past the drawn row */
     screen_console_putc('\n');
-    screen_console_putc('\n');
+    if (cursor_was_visible) screen_console_show_cursor(1);
     return 0;
 }
 
@@ -407,17 +415,21 @@ static int cmd_tui_cn(const char *args) {
         return 1;
     }
     tui_menu_item_t items[4];
+    /* fix2 localization: these descriptions render INSIDE the Chinese
+     * launcher's status bar, so they are Chinese now. Shell command
+     * names and help output stay English by design (EXTENSIONS
+     * WP-10-chinese_support §7: system strings stay ASCII). */
     items[0].name = "硬件配置";
-    items[0].desc = "hardware config (Chinese labels)";
+    items[0].desc = "处理器/内存/存储/网络/声卡/USB/PCI 等十一页";
     items[0].userptr = 0;
     items[1].name = "无线网络";
-    items[1].desc = "wireless scan/connect/status + bluetooth";
+    items[1].desc = "扫描并连接 Wi-Fi，蓝牙设备管理";
     items[1].userptr = 0;
     items[2].name = "系统信息";
-    items[2].desc = "overview/processes/log/monitor/power/update/time";
+    items[2].desc = "概览/进程/日志/监控/电源/更新/时间";
     items[2].userptr = 0;
     items[3].name = "中文输入";
-    items[3].desc = "pinyin IME pad: letters, digits 1-9 pick, space first";
+    items[3].desc = "拼音输入板：字母组句，数字 1-9 选字，空格首选";
     items[3].userptr = 0;
     int pages = 0;
     for (;;) {

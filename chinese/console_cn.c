@@ -79,6 +79,18 @@ void console_cn_putcw(u32 cp) {
     screen_console_t* con = screen_console_get();
     u32 cols = render_chinese_cols(cp);
 
+    /* fix2: a wide glyph that does not fit in the remaining columns
+     * used to be silently dropped (advance without draw). Wrap to the
+     * next line first so the glyph is always drawn. */
+    if (con->cur_x + cols > con->cols) {
+        con->cur_x = 0;
+        ++con->cur_y;
+        if (con->cur_y >= con->rows) {
+            screen_console_scroll_up();
+            con->cur_y = con->rows - 1;
+        }
+    }
+
     /* Erase cursor at the current cell. */
     if (con->cursor_visible) {
         screen_console_putc_at(con->cur_x, con->cur_y, ' ',

@@ -33,6 +33,10 @@
 #include "driver_input_keyboard.h"
 #include "lib_string.h"
 #include "mem_heap.h"
+/* WP-10-chinese_support-fix2: mixed-width console output + UTF-8 step
+ * helpers so nano/vi display and edit UTF-8 (CJK) file content. */
+#include "../chinese/console_cn.h"
+#include "../chinese/encoding.h"
 
 /* ---- Session state ----
  * WP-10-wp08fix1 FIX: the line array used to be a 128 KiB static (and the
@@ -82,10 +86,49 @@ static void ed_prefix(int lineno) {
  * explicit move_cursor now shows the full line exactly once, wipes any
  * stale tail cells left by deletions, and places the cursor precisely
  * (the 5-cell prefix " 12: " is fixed width, see ed_prefix). */
+/* fix2 UTF-8 helpers: the editor stores bytes; a CJK character is a
+ * 3-byte UTF-8 sequence that renders 2 cells wide. Cursor movement,
+ * delete and backspace must step whole sequences, and the cursor
+ * column must be computed in DISPLAY cells. */
+static int ed_utf8_seq_len(const char *l, int cc, int ll) {
+    u32 cp, consumed;
+    if (cc < ll &&
+        encoding_utf8_decode((const u8*)l + cc, (u32)(ll - cc),
+                             &cp, &consumed) == 0 && consumed > 1)
+        return (int)consumed;
+    return 1;
+}
+
+/* start offset of the sequence the byte at cc belongs to (backspace) */
+static int ed_utf8_seq_start(const char *l, int cc) {
+    int start = cc - 1;
+    while (start > 0 && ((u8)l[start] & 0xC0) == 0x80) start--;
+    return start;
+}
+
+/* display column (in cells) of byte offset cc inside line l */
+static int ed_utf8_display_col(const char *l, int cc) {
+    int col = 0, i = 0, ll = (int)strlen(l);
+    while (i < cc && i < ll) {
+        int step = ed_utf8_seq_len(l, i, ll);
+        u32 cp, consumed;
+        if (encoding_utf8_decode((const u8*)l + i, (u32)(ll - i),
+                                 &cp, &consumed) == 0)
+            col += (int)console_cn_cp_cols(cp);
+        else
+            col += 1;
+        i += step;
+    }
+    return col;
+}
+
 static void ed_redraw_line(void) {
     screen_console_putc('\r');
     ed_prefix(ed_cl + 1);
-    screen_console_puts(ed_lines[ed_cl]);
+    /* fix2: the mixed-width console path decodes UTF-8 - the raw
+     * screen_console_puts() cast every byte into an 8px CP437 glyph,
+     * so CJK file content displayed as three garbage cells per hanzi. */
+    console_cn_puts(ed_lines[ed_cl]);
 
     screen_console_t *c = screen_console_get();
     u32 y = c->cur_y;
@@ -93,7 +136,8 @@ static void ed_redraw_line(void) {
     for (u32 x = x_end; x < c->cols; x++)
         screen_console_putc_at(x, y, ' ', c->fg_pixel, c->bg_pixel);
 
-    u32 cx = 5u + (u32)ed_cc;
+    int col = 5 + ed_utf8_display_col(ed_lines[ed_cl], ed_cc);
+    u32 cx = (col < 0) ? 5u : (u32)col;
     if (cx >= c->cols) cx = c->cols - 1;
     screen_console_move_cursor(cx, y);
 }
@@ -119,7 +163,7 @@ static void ed_print_all(void) {
     screen_console_puts(" -- ^O save ^X exit ^K del line ^G help --\n");
     for (int i = 0; i < ed_nlines; i++) {
         ed_prefix(i + 1);
-        screen_console_puts(ed_lines[i]);
+        console_cn_puts(ed_lines[i]);   /* fix2: UTF-8 aware */
         screen_console_putc('\n');
     }
 }
@@ -342,10 +386,18 @@ int editor_run(void) {
                 ed_redraw_line();
             }
         } else if (k == OC_KEY_LEFT) {
-            if (ed_cc > 0) { ed_cc--; ed_redraw_line(); }
+            if (ed_cc > 0) {
+                /* fix2: step back to the START of the UTF-8 sequence the
+                 * previous byte belongs to (never park mid-character). */
+                ed_cc = ed_utf8_seq_start(ed_lines[ed_cl], ed_cc);
+                ed_redraw_line();
+            }
         } else if (k == OC_KEY_RIGHT) {
-            if (ed_cc < (int)strlen(ed_lines[ed_cl])) {
-                ed_cc++; ed_redraw_line();
+            int ll2 = (int)strlen(ed_lines[ed_cl]);
+            if (ed_cc < ll2) {
+                ed_cc += ed_utf8_seq_len(ed_lines[ed_cl], ed_cc, ll2);
+                if (ed_cc > ll2) ed_cc = ll2;
+                ed_redraw_line();
             }
         } else if (k == OC_KEY_HOME || k == 0x01) {   /* Home / ^A */
             ed_cc = 0;
@@ -357,16 +409,23 @@ int editor_run(void) {
             char *l = ed_lines[ed_cl];
             int ll = (int)strlen(l);
             if (ed_cc < ll) {
-                for (int i = ed_cc; i < ll; i++) l[i] = l[i + 1];
+                int step = ed_utf8_seq_len(l, ed_cc, ll);
+                for (int i = ed_cc; i + step <= ll; i++)
+                    l[i] = l[i + step];
                 ed_dirty = 1;
                 ed_redraw_line();
             }
         } else if (k == OC_KEY_BACKSPACE || k == 0x7F) {
             char *l = ed_lines[ed_cl];
             if (ed_cc > 0) {
+                /* fix2: remove the WHOLE UTF-8 sequence before the
+                 * cursor (one Backspace = one visible character). */
+                int start = ed_utf8_seq_start(l, ed_cc);
                 int ll = (int)strlen(l);
-                for (int i = ed_cc - 1; i < ll; i++) l[i] = l[i + 1];
-                ed_cc--;
+                int step = ed_cc - start;
+                for (int i = start; i + step <= ll; i++)
+                    l[i] = l[i + step];
+                ed_cc = start;
                 ed_dirty = 1;
                 ed_redraw_line();
             } else if (ed_cl > 0) {
@@ -532,7 +591,7 @@ static void ed_vi_print_all(void) {
     screen_console_puts(" -- ESC leaves insert, :w saves, :q quits --\n");
     for (int i = 0; i < ed_nlines; i++) {
         ed_prefix(i + 1);
-        screen_console_puts(ed_lines[i]);
+        console_cn_puts(ed_lines[i]);   /* fix2: UTF-8 aware */
         screen_console_putc('\n');
     }
 }
