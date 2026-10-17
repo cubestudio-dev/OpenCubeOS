@@ -4957,17 +4957,21 @@ int shell_cmd_ping(const char *args) {
     strcpy(buf, "PING "); strcat(buf, ipstr); strcat(buf, " ...\n");
     screen_console_puts(buf);
 
+    /* fix2: the exit code reflects the outcome - scripts (and the E2E)
+     * could not tell a failed ping from a successful one. */
+    int got = 0;
     for (int i = 0; i < 4; i++) {
         screen_console_puts("  ");
         int rc = net_icmp_ping(ip, 3000);
         if (rc == 0) {
+            got++;
             screen_console_puts("reply received\n");
         } else {
             screen_console_puts("timeout\n");
         }
         for (volatile int j = 0; j < 500000; j++);
     }
-    return 0;
+    return got > 0 ? 0 : 1;
 }
 
 int shell_cmd_netstat(const char *args) {
@@ -5073,6 +5077,7 @@ int shell_cmd_dhcp(const char *args) {
         screen_console_puts(buf);
     } else {
         screen_console_puts("DHCP failed (timeout)\n");
+        return 1;   /* fix2: scripts must be able to test the outcome */
     }
     return 0;
 }

@@ -396,26 +396,40 @@ static int shell_cmd_fsck(const char *args) {
         return 0;
     }
 
-    /* Parse device name */
-    int drive = -1;
-    if (strncmp(args, "hd", 2) == 0) {
-        char c = args[2];
-        if (c >= 'a' && c <= 'd' && args[3] == 0) drive = c - 'a';
-    } else if (strncmp(args, "ata", 3) == 0) {
-        char c = args[3];
-        if (c >= '0' && c <= '3' && args[4] == 0) drive = c - '0';
+    /* fix2: resolve the device through the block-device registry (same
+     * names mkfs.fat32 / mkfs.ext4 accept: sda / vda / nvme0 / usda /
+     * hda / ata0-3...). fsck used to hardcode hd[a-d] / ata[0-3] and
+     * bypass the blk layer with raw ATA PIO port I/O - it refused the
+     * very devices mkfs had just formatted. */
+    int drive = driver_block_find_device(args);
+    if (drive < 0) {
+        /* keep the legacy aliases working even when the registry has no
+         * such entry yet */
+        if (strncmp(args, "hd", 2) == 0) {
+            char c = args[2];
+            if (c >= 'a' && c <= 'd' && args[3] == 0) drive = c - 'a';
+        } else if (strncmp(args, "ata", 3) == 0) {
+            char c = args[3];
+            if (c >= '0' && c <= '3' && args[4] == 0) drive = c - '0';
+        }
     }
     if (drive < 0) {
-        screen_console_puts("fsck: invalid device '");
+        screen_console_puts("fsck: no such block device '");
         screen_console_puts(args);
-        screen_console_puts("'\n");
+        screen_console_puts("' (try: lsblk)\n");
         return 1;
     }
 
-    /* Read boot sector */
+    /* Read boot sector through the blk layer */
     u8 boot[512];
-    int n = driver_block_ata_read_sectors(drive, 0, 1, boot);
-    if (n != 1) {
+    /* fix2: the blk-layer read returns 0 on success (the raw ATA helper
+     * it replaced returned the sector count) - comparing against 1
+     * turned every healthy volume into "cannot read boot sector".
+     * Reads go through _RAW on purpose: a checker must look at the real
+     * on-device state, not at the write-back cache (mkfs-family writes
+     * bypass the cache, so a cached read could serve pre-format
+     * stale sectors). */
+    if (driver_block_read_sectors_raw(drive, 0, 1, boot) != 0) {
         screen_console_puts("fsck: cannot read boot sector\n");
         return 1;
     }
@@ -439,7 +453,7 @@ static int shell_cmd_fsck(const char *args) {
          * region cannot false-positive: log block size <= 6 and a
          * non-zero block count. */
         u8 sb[512];
-        if (driver_block_ata_read_sectors(drive, 2, 1, sb) == 1) {
+        if (driver_block_read_sectors_raw(drive, 2, 1, sb) == 0) {
             u16 ext_magic = (u16)(sb[56] | (sb[57] << 8));      /* 1080-1024=56 */
             u32 lib_log_bs    = *(u32*)(sb + 24);
             u32 blocks    = *(u32*)(sb + 4);
@@ -513,8 +527,9 @@ static int shell_cmd_fsck(const char *args) {
     u32 max_scan = total_clusters + 2;  /* +2 for reserved entries 0,1 */
     if (max_scan > 100000) max_scan = 100000;
 
+    int n;
     for (u32 s = 0; s < secs_per_fat32 && cluster_idx < max_scan; s++) {
-        n = driver_block_ata_read_sectors(drive, fat_start + s, 1, fat_buf);
+        n = driver_block_read_sectors_raw(drive, fat_start + s, 1, fat_buf) == 0 ? 1 : 0;
         if (n != 1) break;
         for (u32 e = 0; e < entries_per_sector && cluster_idx < max_scan; e++) {
             u32 entry = *(u32*)(fat_buf + e * 4) & 0x0FFFFFFF;

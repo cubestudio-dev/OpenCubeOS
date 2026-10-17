@@ -34,6 +34,8 @@
 #include "lib_string.h"
 #include "fs_vfs.h"
 #include "editor.h"
+static int g_shell_last_rc = 0;   /* fix2: $? */
+
 
 /* ================================================================== *
  * WP-03 command table (unchanged)
@@ -867,6 +869,17 @@ static void shell_expand_env_token(token_t *tok) {
     while (tok->text[i] && bi < blen - 1) {
         if (tok->text[i] == '$') {
             i++;
+            /* fix2: "$?" - the name collector below only accepts
+             * [A-Za-z0-9_], so the status probe must be handled before
+             * it or the '?' falls through to the lone-'$' branch. */
+            if (tok->text[i] == '?') {
+                i++;
+                char rcbuf[12];
+                u64_to_str((u64)(g_shell_last_rc < 0 ? 1 : g_shell_last_rc), rcbuf);
+                for (const char *rv = rcbuf; *rv && bi < blen - 1; rv++)
+                    buf[bi++] = *rv;
+                continue;
+            }
             int braced = 0;
             if (tok->text[i] == '{') { braced = 1; i++; }
             char name[SHELL_ENV_NAME_LEN];
@@ -1663,7 +1676,20 @@ static int shell_exec_segment(token_t *toks, int ntoks) {
  * WP-05: shell_execute_line - the full parser/executor
  * ================================================================== */
 
+/* fix2: $? - the exit status of the most recent foreground command is
+ * recorded after every shell_execute_line (see the wrapper below) and
+ * expanded by $? / ${?} like every mainstream shell. The contract
+ * fix2 gives ping/dhcp/fsck meaningful return codes; a return code the
+ * shell cannot observe is worth nothing. */
+int shell_execute_line_impl(const char *line);
+
 int shell_execute_line(const char *line) {
+    int rc = shell_execute_line_impl(line);
+    g_shell_last_rc = rc;
+    return rc;
+}
+
+int shell_execute_line_impl(const char *line) {
     if (!line || !line[0]) return 0;
 
     /* Strip leading whitespace. */
