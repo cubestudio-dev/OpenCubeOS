@@ -112,6 +112,7 @@ def main():
         "help -w tag": check("help -w lists WP-10-chinese_support"),
         "cmd count 222": check("command count 222"),
         "uname ok": check("uname after full flow"),
+
     }
 
     child = pexpect.spawn(QEMU, args, timeout=timeout, encoding="latin-1",

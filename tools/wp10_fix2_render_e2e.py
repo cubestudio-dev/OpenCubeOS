@@ -181,6 +181,57 @@ try:
     ser.sendall(b"q\n")
     expect(r"oc>", timeout=60)
 
+    # fix2: drive launcher entry 2 (无线网络) and entry 3 (系统信息)
+    # with screenshot evidence (FB backend - deterministic, unlike the
+    # serial-backend timing the interactive suites race against)
+    def nav_entry(n):
+        buf = b""
+        ser.sendall(b"tui-cn\n")
+        time.sleep(3)
+        for _ in range(n):
+            ser.sendall(b"\x1b[B")
+            time.sleep(0.6)
+        ser.sendall(b"\r")
+        time.sleep(2.5)
+
+    def leave_app():
+        ser.sendall(b"q")
+        time.sleep(1.2)
+        ser.sendall(b"q")
+        time.sleep(1.2)
+        expect(r"oc>", timeout=60)
+
+    nav_entry(1)   # 无线网络
+    mon(f"screendump {OUT}/cn_entry2_wireless.ppm", wait=1.5)
+    leave_app()
+
+    nav_entry(2)   # 系统信息 menu
+    ser.sendall(b"\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B")   # down to 系统更新
+    time.sleep(1.5)
+    ser.sendall(b"\r")
+    time.sleep(2)
+    mon(f"screendump {OUT}/cn_entry3_update.ppm", wait=1.5)
+    ser.sendall(b"\x1b\x1b")   # leave the update page
+    time.sleep(1.2)
+    ser.sendall(b"q")           # leave the sysinfo menu
+    time.sleep(1.2)
+    ser.sendall(b"q")           # leave the launcher
+    expect(r"oc>", timeout=60)
+
+    # processes page: priority column (fix2 parity)
+    nav_entry(2)
+    ser.sendall(b"\x1b[B")     # 进程管理
+    time.sleep(1.2)
+    ser.sendall(b"\r")
+    time.sleep(2.5)
+    mon(f"screendump {OUT}/cn_processes.ppm", wait=1.5)
+    ser.sendall(b"q")
+    time.sleep(1.2)
+    ser.sendall(b"q")
+    time.sleep(1.2)
+    ser.sendall(b"q")
+    expect(r"oc>", timeout=60)
+
     from PIL import Image
     fails = 0
 
@@ -193,6 +244,8 @@ try:
     ink_tests = {
         "white": lambda p: p[0] > 128 and p[1] > 128 and p[2] > 128,
         "dark": lambda p: p[0] < 90 and p[1] < 90 and p[2] < 90,
+        # aqua/colored header ink (TUI_COLOR_AQUA on black)
+        "bright": lambda p: (p[0] + p[1] + p[2]) > 250,
     }
 
     def find_glyph(name, ppm, cp):
@@ -219,6 +272,43 @@ try:
         print(("PASS" if pos else "FAIL") + f" TUI renders FULL {name} (U+{cp:04X}) glyph {pos}")
         if not pos:
             fails += 1
+
+    # fix2 navigation checks: entry 2 (无线网络) opened - the wireless
+    # menu shows 扫描网络; entry 3's update page shows the REAL OTA menu
+    # (检查更新); the processes page shows the 优先级 column header
+    def page_has(name, probes):
+        w, h, px = load(name)
+        hits = 0
+        for cp in probes:
+            rows = font_bitmap(cp)
+            if not rows:
+                continue
+            for test in ink_tests.values():   # selected rows invert ink
+                if glyph_present(w, h, px, rows, test):
+                    hits += 1
+                    break
+        return hits, len(probes)
+
+    # 扫描网络 on the wireless menu (扫 0x626B, 描 0x63CF, 网 0x7F51, 络 0x7EDC)
+    hits, tot = page_has("cn_entry2_wireless", [0x626B, 0x63CF, 0x7F51, 0x7EDC])
+    ok = hits == tot
+    print(("PASS" if ok else "FAIL") + f" CN entry 2 wireless menu opened (扫描网络 glyphs {hits}/{tot})")
+    if not ok:
+        fails += 1
+
+    # 检查更新 on the update page (检 0x68C0, 查 0x67E5, 更 0x66F4, 新 0x65B0)
+    hits, tot = page_has("cn_entry3_update", [0x68C0, 0x67E5, 0x66F4, 0x65B0])
+    ok = hits == tot
+    print(("PASS" if ok else "FAIL") + f" CN update page shows real OTA menu (检查更新 glyphs {hits}/{tot})")
+    if not ok:
+        fails += 1
+
+    # 优先级 on the processes page (优 0x4F18, 先 0x5148, 级 0x7EA7)
+    hits, tot = page_has("cn_processes", [0x4F18, 0x5148, 0x7EA7])
+    ok = hits == tot
+    print(("PASS" if ok else "FAIL") + f" CN processes page shows priority column (优先级 glyphs {hits}/{tot})")
+    if not ok:
+        fails += 1
 finally:
     if p.poll() is None:
         try:
