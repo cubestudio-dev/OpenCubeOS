@@ -408,8 +408,10 @@ static int cmd_ime_test(const char *args) {
 
 /* ---- tui-cn ----------------------------------------------------------- */
 
-static int cmd_tui_cn(const char *args) {
-    (void)args;
+/* fix3: shared launcher entry -- `tui-cn` and `tui` (when shell.lang=zh,
+ * see shell/shell_lang.h) both come here.  Idempotent init, menu loop,
+ * symmetric shutdown, and the closing status line. */
+int tui_cn_launcher(void) {
     if (tui_chinese_init() != 0) {
         screen_console_puts("tui-cn: TUI init failed\n");
         return 1;
@@ -467,6 +469,11 @@ static int cmd_tui_cn(const char *args) {
     screen_console_puts(num);
     screen_console_puts(" Chinese apps, shell ok\n");
     return 0;
+}
+
+static int cmd_tui_cn(const char *args) {
+    (void)args;
+    return tui_cn_launcher();
 }
 
 /* ---- registration ------------------------------------------------------ */

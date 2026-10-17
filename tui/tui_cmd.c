@@ -8,6 +8,8 @@
  */
 #include "tui.h"
 #include "../shell/shell.h"
+#include "../shell/shell_lang.h"   /* fix3: shell.lang drives the launcher choice */
+#include "../chinese/tui_chinese.h" /* fix3: tui_cn_launcher() */
 #include "../kernel/lib/lib_string.h"
 
 int tui_test_run(int verbose);
@@ -64,6 +66,12 @@ static int tui_main_app(void) {
 
 static int shell_cmd_tui(const char *args) {
     (void)args;
+    /* fix3: with shell.lang=zh the user asked for the Chinese system
+     * experience - open the Chinese launcher directly (same page set
+     * as `tui-cn`).  Switch back with `lang en` or
+     * `config set shell.lang en`. */
+    if (shell_lang_get() == SHELL_LANG_ZH)
+        return tui_cn_launcher();
     return tui_main_app();
 }
 

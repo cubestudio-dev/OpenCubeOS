@@ -24,6 +24,7 @@
 #include "lib_log.h"
 #include "screen_console.h"
 #include "lib_string.h"
+#include "shell_lang.h"   /* fix3: config set shell.lang syncs the live state */
 
 #include <stdint.h>
 
@@ -43,7 +44,10 @@ static const char g_default_config[] =
     "auto_check=" OC_CONFIG_DEFAULT_AUTOCHECK "\n"
     "\n"
     "# Enable online system update (yes / no)\n"
-    "online_update=" OC_CONFIG_DEFAULT_ONLINE_UPDATE "\n";
+    "online_update=" OC_CONFIG_DEFAULT_ONLINE_UPDATE "\n"
+    "\n"
+    "# Shell output language (en / zh); switch at runtime with `lang en|zh`\n"
+    "shell.lang=" OC_CONFIG_DEFAULT_SHELL_LANG "\n";
 
 static int g_config_initialized = 0;
 
@@ -271,6 +275,12 @@ int lib_config_write(const char *key, const char *value) {
         else if (strcasecmp(canon, "no") == 0)  { canon[0]='n'; canon[1]='o'; canon[2]=0; }
         else return OC_CONFIG_E_ARGS;   /* invalid online_update -> rejected */
     }
+    if (strcmp(key, OC_CONFIG_KEY_SHELL_LANG) == 0) {
+        /* fix3: only en / zh are valid; canonical lowercase is stored */
+        if (strcasecmp(canon, "en") == 0)       { canon[0]='e'; canon[1]='n'; canon[2]=0; }
+        else if (strcasecmp(canon, "zh") == 0)  { canon[0]='z'; canon[1]='h'; canon[2]=0; }
+        else return OC_CONFIG_E_ARGS;   /* invalid shell.lang -> rejected */
+    }
 
     /* read current file, rebuild with the new value, write back */
     int flen = 0;
@@ -469,6 +479,12 @@ int shell_cmd_config(const char *args) {
         }
         int rc = lib_config_write(key, rest + k);
         if (rc == 0) {
+            /* fix3: keep the live shell language in sync with the
+             * persisted value (same effect as `lang en|zh`).  The write
+             * above already validated the value, so set_str cannot fall
+             * back to en behind the user's back here. */
+            if (strcmp(key, OC_CONFIG_KEY_SHELL_LANG) == 0)
+                shell_lang_set_str(rest + k);
             screen_console_puts("config: saved\n");
             return 0;
         }

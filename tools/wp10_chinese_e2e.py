@@ -38,6 +38,15 @@ def norm(s: str) -> str:
     return s
 
 
+def utf8(s: str) -> str:
+    """The serial stream is latin-1-decoded by pexpect; CJK arrives as
+    UTF-8 bytes - re-encode before substring checks (fix3)."""
+    try:
+        return s.encode("latin-1").decode("utf-8", "replace")
+    except UnicodeDecodeError:
+        return s
+
+
 CHECKS = []
 
 
@@ -110,7 +119,11 @@ def main():
         "fix1 tui-cn reenter": check("fix1: tui-cn enter/quit/re-enter still renders (pool reuse)"),
         "cat utf8": check("cat echoes real UTF-8 bytes (zhongwen shi)"),
         "help -w tag": check("help -w lists WP-10-chinese_support"),
-        "cmd count 220": check("command count 220"),
+        "cmd count 221": check("command count 221"),
+        "fix3 lang zh": check("fix3: lang zh switches report/errors/help to Chinese"),
+        "fix3 lang persist": check("fix3: shell.lang=zh persisted to /etc/opencube.conf"),
+        "fix3 lang invalid": check("fix3: config set shell.lang fr rejected"),
+        "fix3 lang en": check("fix3: lang en restores English output + persisted en"),
         "uname ok": check("uname after full flow"),
 
     }
@@ -289,11 +302,55 @@ def main():
         CHECKS[i][1] = "WP-10-chinese_support" in out
 
         out = run("help")
-        i = i_codes["cmd count 220"]
+        i = i_codes["cmd count 221"]
         m = re.search(r"Total:\s*(\d+) commands", out)
-        CHECKS[i][1] = bool(m) and m.group(1) == "220"
-        # fix3: suspend/suspend_test hidden -- the count moved 222 -> 220
+        CHECKS[i][1] = bool(m) and m.group(1) == "221"
+        # fix3: suspend/suspend_test hidden (222 -> 220), `lang` added
+        # (220 -> 221).
         CHECKS[i][1] = CHECKS[i][1] and "suspend" not in out.lower()
+
+        # ---- fix3: user-configurable shell output language ----
+        # default is en; `lang` (no args) reports, `lang en|zh` switches
+        # AND persists via /etc/opencube.conf; the report line, the
+        # unknown-command message and the help headers follow the live
+        # language (UTF-8 over the serial mirror).
+        out = run("lang")
+        ok_lang = "shell output language: en" in out
+
+        # switching to zh takes effect immediately - the confirmation
+        # line is served in the NEW language (zh), then persisted
+        out = run("lang zh")
+        ok_lang = ok_lang and "已设为 zh" in utf8(out)
+
+        out = run("config get shell.lang")
+        i = i_codes["fix3 lang persist"]
+        CHECKS[i][1] = ok_lang and out.strip().endswith("zh")
+
+        # live Chinese output: report line, unknown command, help header
+        out = run("lang")
+        out_unknown = run("definitely_not_a_command")
+        out_help = run("help")
+        zh_raw = utf8(out) + utf8(out_unknown) + utf8(out_help)
+        i = i_codes["fix3 lang zh"]
+        CHECKS[i][1] = ("Shell 输出语言：zh" in zh_raw and
+                        "未知命令：definitely_not_a_command" in zh_raw and
+                        "可用命令（A-Z）" in zh_raw)
+
+        # invalid values are rejected by the config writer
+        out = run("config set shell.lang fr")
+        i = i_codes["fix3 lang invalid"]
+        CHECKS[i][1] = "rejected" in out
+
+        # back to English via the runtime switch; the persisted value
+        # must return to en so later boots (uname, regression) stay en
+        out = run("lang en")
+        ok_en = "shell output language set to en" in out
+        out = run("definitely_not_a_command")
+        ok_en = ok_en and "unknown command: definitely_not_a_command" in out
+        out = run("config get shell.lang")
+        ok_en = ok_en and out.strip().endswith("en")
+        i = i_codes["fix3 lang en"]
+        CHECKS[i][1] = ok_en
 
         out = run("uname -a")
         i = i_codes["uname ok"]

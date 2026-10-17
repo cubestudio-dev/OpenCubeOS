@@ -28,6 +28,7 @@
  *   - returns 1 so the framebuffer draw is skipped.
  */
 #include "shell.h"
+#include "shell_lang.h"   /* fix3: bilingual help headers / system msgs */
 #include "screen_console.h"
 #include "l1_ext.h"
 #include "mem_heap.h"
@@ -266,21 +267,24 @@ void shell_list_commands_a_z(void) {
     int idx[SHELL_MAX_COMMANDS];
     int n = shell_wp_sorted_indices(idx, (int)SHELL_MAX_COMMANDS);
     int w = shell_wp_max_name_len(idx, n);
-    screen_console_puts("Available commands (A-Z):\n");
+    screen_console_puts(shell_msg(SM_HELP_AZ));
+    screen_console_putc('\n');
     for (int i = 0; i < n; i++)
         shell_wp_print_entry(&g_commands[idx[i]], w);
-    screen_console_puts("Total: ");
+    screen_console_puts(shell_msg(SM_TOTAL));
     char num[12];
     u64_to_str((u64)n, num);
     screen_console_puts(num);
-    screen_console_puts(" commands. Use 'help -w' for the work-package view.\n");
+    screen_console_puts(shell_msg(SM_HELP_AZ_TAIL));
+    screen_console_putc('\n');
 }
 
 void shell_list_commands_by_wp(void) {
     int idx[SHELL_MAX_COMMANDS];
     int n = shell_wp_sorted_indices(idx, (int)SHELL_MAX_COMMANDS);
     int w = shell_wp_max_name_len(idx, n);
-    screen_console_puts("Commands by work package:\n");
+    screen_console_puts(shell_msg(SM_HELP_WP));
+    screen_console_putc('\n');
     int shown = 0;
     /* known tags in canonical order */
     for (int k = 0; k < (int)(sizeof(g_wp_order) / sizeof(g_wp_order[0])); k++) {
@@ -313,13 +317,15 @@ void shell_list_commands_by_wp(void) {
             if (strcmp(g_commands[idx[i]].wp, g_wp_order[k].tag) == 0) { known = 1; break; }
         if (known) continue;
         if (other_shown == 0) {
-            screen_console_puts("\n=== other (commands with unregistered work-package tags) ===\n");
+            screen_console_puts(shell_msg(SM_OTHER_BUCKET));
+            screen_console_putc('\n');
             other_shown = 1;
         }
         shell_wp_print_entry(&g_commands[idx[i]], w);
         shown++;
     }
-    screen_console_puts("\nTotal: ");
+    screen_console_puts("\n");
+    screen_console_puts(shell_msg(SM_TOTAL));
     char num[12];
     u64_to_str((u64)shown, num);
     screen_console_puts(num);
@@ -1609,9 +1615,10 @@ static int shell_exec_segment(token_t *toks, int ntoks) {
                 char bad[64];
                 strncpy(bad, clean[0].text, sizeof(bad) - 1);
                 bad[sizeof(bad) - 1] = 0;
-                screen_console_puts("unknown command: ");
+                screen_console_puts(shell_msg(SM_UNKNOWN_PRE));
                 screen_console_puts(bad);
-                screen_console_puts(" (try 'help')\n");
+                screen_console_puts(shell_msg(SM_UNKNOWN_POST));
+                screen_console_putc('\n');
                 rc = 1;
                 stage_start = i + 1;
                 break;
@@ -1781,9 +1788,10 @@ int shell_execute_line_impl(const char *line) {
                     char cmd[64];
                     strncpy(cmd, toks[seg_start].text, sizeof(cmd) - 1);
                     cmd[sizeof(cmd) - 1] = 0;
-                    screen_console_puts("unknown command: ");
+                    screen_console_puts(shell_msg(SM_UNKNOWN_PRE));
                     screen_console_puts(cmd);
-                    screen_console_puts(" (try 'help')\n");
+                    screen_console_puts(shell_msg(SM_UNKNOWN_POST));
+                    screen_console_putc('\n');
                     last_rc = 1;
                 }
             }

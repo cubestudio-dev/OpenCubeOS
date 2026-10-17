@@ -63,6 +63,9 @@ extern "C" {
 #define OC_CONFIG_KEY_AUTOCHECK "auto_check"
 #define OC_CONFIG_KEY_PACKAGE_URL "package_url"
 #define OC_CONFIG_KEY_ONLINE_UPDATE "online_update"
+/* fix3: user-configurable shell output language (en / zh) */
+#define OC_CONFIG_KEY_SHELL_LANG "shell.lang"
+#define OC_CONFIG_DEFAULT_SHELL_LANG "en"
 
 #define OC_CONFIG_DEFAULT_URL       "https://cubestudio-dev.github.io/OpenCubeOS/update.json"
 #define OC_CONFIG_DEFAULT_AUTOCHECK "no"

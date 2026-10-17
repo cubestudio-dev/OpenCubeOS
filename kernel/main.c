@@ -40,6 +40,7 @@
 #include "mem_vmm.h"
 #include "mem_heap.h"
 #include "shell.h"
+#include "shell_lang.h"        /* fix3: shell.lang + bilingual system msgs */
 #include "shell_lineedit.h"   /* WP-10-wp08fix1: full oc> line editing */
 
 /* WP-04 headers. */
@@ -3060,9 +3061,19 @@ static void interactive_loop(void) {
     int tm_id = core_timer_register_periodic(soft_timer_test_cb, NULL, 1000);
     (void)tm_id;
 
+    /* fix3: shell.lang (en|zh) -- read the persisted preference.  lib_config
+     * is initialized earlier in kmain, so this read is safe here. */
+    {
+        char lv[8];
+        lib_config_read_default("shell.lang", lv, (int)sizeof(lv), "en");
+        shell_lang_set_str(lv);
+    }
+
     screen_console_putc('\n');
-    screen_console_puts("Open Cube OS " OC_RELEASE_VERSION " ready. Type 'help' for commands.\n");
-    screen_console_puts("(Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)\n\n");
+    screen_console_puts(shell_msg(SM_READY));
+    screen_console_putc('\n');
+    screen_console_puts(shell_msg(SM_TRY));
+    screen_console_puts("\n\n");
 
     /* WP-10-wp08fix1: one-time init of the full-featured line editor
      * (history ring + Tab completer). */
@@ -3455,6 +3466,8 @@ void kmain(u64 magic, u64 mbi_phys) {
     /* ---- WP-09-fix5: config + update check commands ---- */
     shell_register_command_ex("checkupdate", shell_cmd_checkupdate, "check for updates via /etc/opencube.conf (http/https)", "WP-09-fix5");
     shell_register_command_ex("config", shell_cmd_config, "read/write system config (config list|get|set|restore|path)", "WP-09-fix5");
+    /* ---- WP-10-chinese_support-fix3: user-configurable output language ---- */
+    shell_register_command_ex("lang", shell_cmd_lang, "show or set the shell output language (lang [en|zh])", "WP-10-chinese_support");
     shell_register_command_ex("config_test", shell_cmd_config_test, "config subsystem self-test (write/read/get_all/delete/restore)", "WP-09-fix5");
     shell_register_command_ex("checkupdate_test", shell_cmd_checkupdate_test, "update check self-test (URL/JSON units + live probe)", "WP-09-fix5");
     /* ---- WP-10u: in-system update commands + test suite ---- */
