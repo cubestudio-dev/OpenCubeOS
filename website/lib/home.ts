@@ -19,29 +19,29 @@ function fmtBytes(n: number): string {
 export { fmtBytes };
 
 // Current stats (same caliber as the README Stats section, re-verified at
-// Recounted at WP-10-chinese_support: 125,776 lines = README caliber (kernel + boot +
+// Recounted at WP-10-chinese_support-fix2: 127,616 lines = README caliber (kernel + boot +
 // userprogs + fs + net + shell + l1 + libs + drivers + tui + chinese, .c/.h/.S via
 // git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui|chinese)/' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l).
 // 53 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
 // 138 L1 interfaces / 222 commands per README + docs/INTERFACES.md,
-// 21 work packages = the latest counted total per README Stats). This is
+// 22 work packages = the latest counted total per README Stats). This is
 // the RENDERED source (HomeView imports from here) - lib/site.ts carries
 // the release assets and no longer keeps a competing stats copy.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "125,776", label: "行源码" },
+    { value: "127,616", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "53", label: "系统调用" },
     { value: "222", label: "shell 命令" },
-    { value: "21", label: "工作包" },
+    { value: "22", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "125,776", label: "lines of source" },
+    { value: "127,616", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "53", label: "system calls" },
     { value: "222", label: "shell commands" },
-    { value: "21", label: "work packages" },
+    { value: "22", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
 };

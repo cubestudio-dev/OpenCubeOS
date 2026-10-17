@@ -516,3 +516,58 @@ each root-caused, fixed and regression-tested):
 | Commands added only | OK (still 222 - no new commands) |
 | L1 numbering stays closed at 138 | OK |
 | Docs consistency | OK (EXTENSIONS contract rows, TRY-IT, STATUS, WORK_LOG) |
+
+## WP-10-chinese_support-fix2 (2026-10-17) — COMPLETE
+
+User-reported fix batch on the chinese_support-fix1 release (3 findings,
+each root-caused, fixed, regression-tested and re-verified on a clean
+tag-time rebuild):
+
+- 1. TUI functionality (EN and CN): the three shutdown paths (tui main
+  app, tui-cn launcher, chinesetest) no longer leak the TUI session
+  (the oc> prompt stays visible and the console state is restored); the
+  serial CSI decoder delivers a lone ESC instead of eating it (serial
+  users press Esc once); the hardware page really scrolls; sound-page
+  volume +/- actually scales playback (software attenuation when no
+  hardware mixer claims the card); the clock_24h/tz_offset preferences
+  are consumed; menus take real mouse events; the EXITED status maps
+  honestly.  CN parity: the Chinese update page runs the real OTA flow,
+  the time page has a preferences form, the monitor auto-samples, the
+  processes page gained priority + scrolling + live kill refresh, the
+  overview gained memory/block devices, the window adapts to resize.
+- 2. Chinese rendering: every CJK glyph renders fully - the WIDE_CONT
+  cell was being repainted with the background color, clipping the
+  right half of every hanzi (pixel-verified against the font bitmaps);
+  missing-box width consistency, the console last-column wrap, the
+  font-test cursor and the UTF-8 editor line ops fixed in the same
+  pass; the CN launcher status bar/forms are localized (the shell
+  stays English by design).
+- 3. Suspend: the S3 resume trampoline is real 16-bit big-real-mode
+  code now (SeaBIOS farcall16big enters it; the old 32-bit code took a
+  #UD storm on the first instruction) and the full resume chain
+  re-arms: core_timer_resume keeps the 10ms network poll (the old
+  memset wiped it - the network was dead after wake), PCI command
+  registers are restored, the legacy e1000 replay is wired, UART RX is
+  re-initialized, the cli/ltr ordering is fixed; suspend_test probes
+  read-only (it would sleep a real S3 machine forever).
+  Same-class fixes in the batch: fsck goes through the blk registry
+  (mkfs'd sda/vda are fsck-able now), ping/dhcp return honest exit
+  codes, the shell supports $?.
+- Release chain: tag-then-clean-rebuild (OC_RELEASE_VERSION baked
+  from the tag), OTA package + update manifests refreshed (build 198,
+  monotonic per RELEASE_PACKAGING.md §4.1), SRC zip per the standard
+  exclusion list (3.5 MB), site.ts/download assets 3-way identical.
+
+| Gate | Result |
+|---|---|
+| Build 0 errors 0 warnings | OK (-Werror, clean rebuild after tag) |
+| Release smoke (banner/uname -a version string, echo, help, prompt-alive) | OK 6/6 |
+| chinesetest in-kernel suite | OK (101/101) |
+| TUI E2E | OK (37/37 BIOS + 37/37 UEFI) |
+| Render-pixel E2E (full-glyph probes) | OK (ALL PASS) |
+| Suspend E2E | OK (ALL PASS on QEMU 10.0.13 + ALL PASS on 8.1.5) |
+| System E2E (exit codes + fsck + volume) | OK (ALL PASS) |
+| Regression 28/28 | OK (baseline 222) |
+| OTA package + manifest refresh | done at the fix2 release (build 198) |
+| Commands added only | OK (still 222 - no new commands) |
+| L1 numbering stays closed at 138 | OK |

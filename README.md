@@ -13,7 +13,7 @@ the English flows, a real-mode S3 resume trampoline - the firmware
 delivers the waking vector in 16-bit big real mode - fsck through the
 block-device registry, honest ping/dhcp exit codes and a $?
 contract in the shell; latest tagged release:
-WP-10-chinese_support-fix1).
+WP-10-chinese_support-fix2).
 
 **官网**: https://cubestudio-dev.github.io/OpenCubeOS
 **GitHub**: https://github.com/cubestudio-dev/OpenCubeOS
@@ -32,24 +32,26 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-10-chinese_support)
+## Stats (WP-10-chinese_support-fix2)
 
-- **Source code**: 125,776 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs + tui + chinese, incl. headers, no docs/tools/tests, no generated files;
+- **Source code**: 127,616 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs + tui + chinese, incl. headers, no docs/tools/tests, no generated files;
   verify: `git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui|chinese)/' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l`)
-- **Work packages**: 21 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
+- **Work packages**: 22 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
   WP-10d, WP-10-wp08fix1, WP-10-input_chipset, WP-10-timer_rtc,
   WP-10-wireless_bluetooth, WP-10-camera_misc, WP-10-tui,
-  WP-10-chinese_support) — one `## WP-*` section
+  WP-10-chinese_support, WP-10-chinese_support-fix2) — one `## WP-*` section
   each below (WP-10-input_chipset, WP-10-timer_rtc,
-  WP-10-wireless_bluetooth and WP-10-chinese_support themselves are
+  WP-10-wireless_bluetooth, WP-10-chinese_support and
+  WP-10-chinese_support-fix2 themselves are
   summarized in the Download section above; they have no separate `## WP-*` sections)
   + auxiliary batches (not counted as WPs): project restructure,
   WP-10d-fix2, WP-09-fix5, and the audit batches WP-AUDIT-01
   (+p0fix/p1fix) and WP-10-AUDIT_P2-fix1 / fix2 / fix2b / fix3 / fix4
   / fix5 (fix5 untagged).  WP-10-input_chipset is the 16th,
   WP-10-timer_rtc the 17th, WP-10-wireless_bluetooth the 18th,
-  WP-10-camera_misc the 19th, WP-10-tui the 20th and
-  WP-10-chinese_support the 21st work package
+  WP-10-camera_misc the 19th, WP-10-tui the 20th,
+  WP-10-chinese_support the 21st and
+  WP-10-chinese_support-fix2 the 22nd work package
   (counted above), not
   auxiliary batches.
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
@@ -536,7 +538,29 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-10-chinese_support)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-chinese_support) — ISO + SRC zip
+- **Latest (WP-10-chinese_support-fix2)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-chinese_support-fix2) — ISO + SRC zip
+  (ISO sha256 `156b8eabfaab86a4578c3656a6b4eb968cf40bc7df03b1c45582dc6caeb9e301`,
+  SRC sha256 `c6e8e7c5cb85879f2b9f246b7fe26f61e2502cfb69654710c7e05f7b4cb7e409`)
+  Batch summary: user-reported fix batch on the chinese_support release —
+  every CJK glyph now renders fully in the TUI (the WIDE_CONT cell is no
+  longer repainted with the background color, killing the right half of
+  each hanzi), three TUI session-leak paths closed (tui / tui-cn /  
+  chinesetest leave the screen alive), the CSI decoder delivers a lone
+  ESC instead of eating it, the hardware page really scrolls, volume /
+  clock preferences are consumed, mouse events reach menus, the Chinese
+  update page runs the real OTA flow, the Chinese pages match the English
+  parity (process priority + scroll, monitor auto-sampling, window
+  resize), the S3 resume trampoline is real 16-bit big-real-mode code
+  (firmware calls it with farcall16big) and the full resume chain
+  re-arms (timer, PCI command registers, legacy e1000, UART RX), fsck
+  goes through the blk registry, ping/dhcp return honest exit codes and
+  the shell supports $?.  Gates: 0 errors 0 warnings; TUI E2E 37/37
+  BIOS + 37/37 UEFI; CN E2E 17/17 x2; render-pixel E2E ALL PASS;
+  suspend E2E ALL PASS on two QEMU generations (10.0.13 + 8.1.5);
+  system E2E 15/15; regression 28/28; chinesetest 101/101.
+  127,616 lines of source.  WP-10-chinese_support-fix2 is the 22nd
+  work package.
+- **Previous (WP-10-chinese_support)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-chinese_support) — ISO + SRC zip
   (ISO sha256 `4bddd0bd30b38a87469f8385f26944c2e06d091208bbc3a065ea9be16f783501`,
   SRC sha256 `7d01c38ab7f0fb74f9e7bcc5566051aaa7dce3849b63c39eac3830bc150ed42e`)
   Batch summary: Chinese support enters L0 — a new chinese/ module with

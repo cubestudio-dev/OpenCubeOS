@@ -1,10 +1,10 @@
 {
-  "version": "WP-10-chinese_support-fix1",
-  "build": 194,
-  "time": "2026-10-16",
-  "changes": "Fix batch: TUI session lifecycle (window-pool reuse+reset, getch blocks, Esc via OC_KEY_ESC_KEY, CSI needs ESC [, tui-cn shutdown); pinyin input reachable (ime -i, pad, ASCII SSID editor); WiFi ask-line + real in-TUI update; build 194 monotonic; 222 cmds.",
+  "version": "WP-10-chinese_support-fix2",
+  "build": 198,
+  "time": "2026-10-17",
+  "changes": "Fix batch: full CJK glyphs (WIDE_CONT repaint dropped) + TUI session hygiene (3 shutdown leaks, single-Esc CSI, HW scroll, volume, mouse) + CN TUI parity (real OTA page, prefs, monitor, processes) + 16-bit S3 resume + fsck via blk registry + honest rc.",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-chinese_support-fix1-update.tar.gz",
-  "package_sha256": "fbb04ffd78fef74c320ff46e81e016d248622c661ae43fe1fce83f5af5112e0f",
-  "package_size": 969351
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-chinese_support-fix2-update.tar.gz",
+  "package_sha256": "18077ec1cd3a14bfa65b5f29cd73e6804ae1b98bfbfc3fdb664b1175a259075b",
+  "package_size": 975118
 }
