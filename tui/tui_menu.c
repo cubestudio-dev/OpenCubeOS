@@ -78,10 +78,13 @@ int tui_menu_post(tui_menu_t *menu) {
             for (; i < w->w - 2; i++) tui_addch(' ');
         w->attr = save;
     }
+    tui_window_refresh(w);
+    /* fix3: draw the desc status line AFTER the full-window refresh --
+     * the refresh paints every row including the bottom one, which used
+     * to cover the status line immediately (invisible feedback). */
     if (menu->items[menu->current].desc) {
         tui_status_line("%s", menu->items[menu->current].desc);
     }
-    tui_window_refresh(w);
     return 0;
 }
 

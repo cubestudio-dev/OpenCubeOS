@@ -376,64 +376,65 @@ static int cn_page_update(void) {
         int k = tui_getch();
         int d = tui_menu_driver(menu, k);
         if (d == -1) break;
-        if (d == 1) {
-            int sel = tui_menu_current(menu);
-            extern int ota_update_check_pkg(ota_update_pkg_info_t *out);
-            ota_update_pkg_info_t pkg;
-            if (sel == 0) {
-                int r = ota_update_check_pkg(&pkg);
-                tui_status_line(r == OC_UPDATE_NEW ? "有可用更新（选「下载并安装」）" :
-                                r == OC_UPDATE_OK ? "已是最新版本" :
-                                "检查失败（真实错误码）");
-            } else if (sel == 1) {
-                int r = ota_update_check_pkg(&pkg);
-                if (r != OC_UPDATE_NEW) {
-                    tui_status_line(r == OC_UPDATE_OK ? "已是最新版本" :
-                                    "检查失败（真实错误码）");
-                    tui_menu_post(menu);
-                    continue;
-                }
-                if (!pkg.have_package || !pkg.package_url[0]) {
-                    tui_status_line("清单缺少包字段（拒绝下载）");
-                    tui_menu_post(menu);
-                    continue;
-                }
-                tui_status_line("下载中 ...");
-                int dr = ota_update_download(pkg.package_url,
-                                             "/data/update-pkg.tar.gz");
-                if (dr != 0) {
-                    tui_status_line("下载失败（真实错误码）");
-                    tui_menu_post(menu);
-                    continue;
-                }
-                tui_status_line("校验 SHA256 ...");
-                int vr = ota_update_verify("/data/update-pkg.tar.gz",
-                                           pkg.package_sha256);
-                if (vr != 0) {
-                    tui_status_line("校验失败 - 已丢弃该包");
-                    tui_menu_post(menu);
-                    continue;
-                }
-                int slot = ota_ab_current_slot();
-                const char *target = (slot == 1) ? "A" : "B";
-                int ir = ota_update_install("/data/update-pkg.tar.gz", target);
-                if (ir != 0) {
-                    tui_status_line("安装失败（真实错误码）");
-                    tui_menu_post(menu);
-                    continue;
-                }
-                int br = ota_update_set_boot(target);
-                if (br == 0)
-                    tui_status_line("已写入槽位：重启后切换生效");
-                else
-                    tui_status_line("已安装但 set-boot 失败");
-                break;   /* A/B flags changed: leave the page honestly */
-            } else if (sel == 2) {
-                tui_status_line(ota_update_rollback() == 0 ?
-                                "回滚标志已清除" : "回滚失败");
-            } else break;
-            tui_menu_post(menu);
+        if (d != 1) continue;
+        int sel = tui_menu_current(menu);
+        extern int ota_update_check_pkg(ota_update_pkg_info_t *out);
+        ota_update_pkg_info_t pkg;
+        if (sel == 0) {
+            int r = ota_update_check_pkg(&pkg);
+            tui_status_line(r == OC_UPDATE_NEW ? "有可用更新（选「下载并安装」）" :
+                            r == OC_UPDATE_OK ? "已是最新版本" :
+                            "检查失败（真实错误码）");
+            /* fix3: 结果保持显示 -- 原代码落入 tui_menu_post(menu)，
+             * 全窗重绘立即盖掉底部状态行。 */
+            continue;
         }
+        if (sel == 1) {
+            int r = ota_update_check_pkg(&pkg);
+            if (r != OC_UPDATE_NEW) {
+                tui_status_line(r == OC_UPDATE_OK ? "已是最新版本" :
+                                "检查失败（真实错误码）");
+                continue;   /* fix3 */
+            }
+            if (!pkg.have_package || !pkg.package_url[0]) {
+                tui_status_line("清单缺少包字段（拒绝下载）");
+                continue;   /* fix3 */
+            }
+            tui_status_line("下载中 ...");
+            int dr = ota_update_download(pkg.package_url,
+                                         "/data/update-pkg.tar.gz");
+            if (dr != 0) {
+                tui_status_line("下载失败（真实错误码）");
+                continue;   /* fix3 */
+            }
+            tui_status_line("校验 SHA256 ...");
+            int vr = ota_update_verify("/data/update-pkg.tar.gz",
+                                       pkg.package_sha256);
+            if (vr != 0) {
+                tui_status_line("校验失败 - 已丢弃该包");
+                continue;   /* fix3 */
+            }
+            int slot = ota_ab_current_slot();
+            const char *target = (slot == 1) ? "A" : "B";
+            int ir = ota_update_install("/data/update-pkg.tar.gz", target);
+            if (ir != 0) {
+                tui_status_line("安装失败（真实错误码）");
+                continue;   /* fix3 */
+            }
+            int br = ota_update_set_boot(target);
+            if (br == 0)
+                tui_status_line("已写入槽位：重启后切换生效（按任意键返回）");
+            else
+                tui_status_line("已安装但 set-boot 失败");
+            tui_getch();    /* fix3: 停留显示结果 */
+            break;   /* A/B flags changed: leave the page honestly */
+        }
+        if (sel == 2) {
+            tui_status_line(ota_update_rollback() == 0 ?
+                            "回滚标志已清除" : "回滚失败");
+            continue;       /* fix3 */
+        }
+        break;
     }
     tui_menu_free(menu);
     tui_window_free(win);
