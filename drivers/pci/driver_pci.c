@@ -199,3 +199,28 @@ void driver_pci_enable_device(u8 bus, u8 dev, u8 func) {
     cmd |= 0x07;  /* IO + MEM + BUS_MASTER */
     driver_pci_write_config(bus, dev, func, 0x04, cmd);
 }
+
+/* WP-10-chinese_support-fix2: after an ACPI S3 resume the platform
+ * reset cleared every PCI command register (IO/MEM decode + bus
+ * mastering gone), which left the resumed system half-dead: the shell
+ * ran but disk/NIC/USB were silent. Walk the config space and
+ * re-enable IO+MEM+BUS_MASTER for every device present - the same
+ * bits the kernel's own driver_pci_enable_device() sets during boot
+ * probing. Devices the kernel does not drive also get the bits; that
+ * matches what the firmware had programmed before the sleep. */
+void driver_pci_restore_commands(void) {
+    for (u32 bus = 0; bus < 256; bus++) {
+        for (u8 dev = 0; dev < 32; dev++) {
+            for (u8 func = 0; func < 8; func++) {
+                u32 id = driver_pci_read_config((u8)bus, dev, func, 0);
+                if (id == 0xFFFFFFFF) continue;
+                driver_pci_enable_device((u8)bus, dev, func);
+                /* single-function devices terminate the walk per slot */
+                if (func == 0) {
+                    u32 hdr = driver_pci_read_config((u8)bus, dev, 0, 0x0C);
+                    if ((hdr >> 16 & 0x80) == 0) func = 8; /* next dev */
+                }
+            }
+        }
+    }
+}

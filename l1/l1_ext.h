@@ -209,7 +209,8 @@ int  l1_ext_update_get_status(ota_update_status_t *out);
  *     l1_ext_shell_list_commands_by_wp();          // per-WP view
  * ------------------------------------------------------------------ */
 int  l1_ext_power_shutdown(void);   /* -1 unsupported (then halt yourself) */
-int  l1_ext_power_suspend(void);    /* -1 unsupported (ACPI S3 pending)    */
+int  l1_ext_power_suspend(void);    /* 0 after a live S3 resume,           */
+                                    /* -1 when the platform has no \_S3    */
 void l1_ext_power_halt(void);       /* never returns                       */
 void l1_ext_power_reboot(void);     /* never returns                       */
 int  l1_ext_shell_register_command_ex(const char *name, int (*fn)(const char *),

@@ -50,6 +50,18 @@ void core_timer_init(void) {
     arch_irq_register_handler(0, core_timer_irq_handler, NULL);
 }
 
+void core_timer_resume(void) {
+    /* fix2: reprogram the PIT channel 0 only. The soft-timer table and
+     * the tick counters live in RAM and survived S3; wiping them here
+     * (the old core_timer_init() call) silently killed the network
+     * poll timer on every resume. The IRQ0 handler stays registered -
+     * the dispatch table is RAM-resident too. */
+    u32 divisor = PIT_HZ / OC_TIMER_HZ;
+    outb(PIT_CMD, 0x34);
+    outb(PIT_CH0_DATA, (u8)(divisor & 0xFF));
+    outb(PIT_CH0_DATA, (u8)((divisor >> 8) & 0xFF));
+}
+
 u64 core_timer_now_ms(void) {
     u64 ms;
     u64 flags;

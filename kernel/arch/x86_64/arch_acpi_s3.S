@@ -15,9 +15,11 @@
 ;
 ; SysV ABI: rdi = u16 PM1a_CNT port
 ;           rsi = u16 value (SLP_TYP|SLP_EN)
-;           rdx = save area base (trampoline page)
-; Save area offsets used here (must match driver_acpi_power.c):
-;   0x100 saved RSP   0x104 CR3   0x108 CR4   0x10C CR0
+;           rdx = save area base (low-memory trampoline page)
+; Save area offsets used here (must match driver_acpi_power.c and
+; arch_acpi_s3_resume.S; fix2 moved the area to 0x2xx so the 16/32-bit
+; trampoline head can own 0x000-0x0FF):
+;   0x200 saved RSP (u64)   0x208 CR3   0x20C CR4   0x210 CR0
 
 global acpi_s3_fire_stub
 acpi_s3_fire_stub:
@@ -29,15 +31,15 @@ acpi_s3_fire_stub:
     push r15
 
     ; save RSP (the trampoline restores it verbatim)
-    mov [rdx + 0x100], rsp
+    mov [rdx + 0x200], rsp
 
     ; save control registers (all < 4 GiB in this kernel)
     mov rax, cr3
-    mov [rdx + 0x104], eax
+    mov [rdx + 0x208], eax
     mov rax, cr4
-    mov [rdx + 0x108], eax
+    mov [rdx + 0x20C], eax
     mov rax, cr0
-    mov [rdx + 0x10C], eax
+    mov [rdx + 0x210], eax
 
     ; the sleep-write: interrupts are already off (caller did cli)
     mov dx, di

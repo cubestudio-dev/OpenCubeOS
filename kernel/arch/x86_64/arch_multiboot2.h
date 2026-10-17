@@ -142,4 +142,9 @@ int arch_multiboot2_parse(arch_multiboot2_info_t* out, uintptr_t mbi_phys);
  * bootloader did not attach it (then install/abdisk refuse to run). */
 int arch_multiboot2_get_kernel_self(const u8** data, u64* size);
 
+/* WP-10-chinese_support-fix2: the firmware memory map as parsed at boot
+ * (points INTO the bootloader's info block, which stays valid). Used by
+ * the S3 resume path to validate the fixed low-memory trampoline page. */
+const arch_multiboot2_mmap_tag_t* arch_multiboot2_mmap(void);
+
 #endif /* OC_MULTIBOOT2_H */

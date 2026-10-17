@@ -64,3 +64,9 @@ void driver_pci_list_devices(void);
 void driver_pci_enable_device(u8 bus, u8 dev, u8 func);
 
 #endif /* OC_PCI_H */
+
+/* WP-10-chinese_support-fix2: re-enable IO+MEM+BUS_MASTER on every PCI
+ * device after an ACPI S3 resume (the platform reset cleared the
+ * command registers; without this the NIC/disk/USB stay dead while the
+ * shell looks alive). */
+void driver_pci_restore_commands(void);

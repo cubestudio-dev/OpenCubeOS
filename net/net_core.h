@@ -61,6 +61,11 @@ void net_poll(void);
 /* Start a periodic timer that calls net_poll() every 10ms. */
 void net_start_timer(void);
 
+/* WP-10-chinese_support-fix2: replay the legacy e1000 register
+ * programming after an ACPI S3 resume (platform reset wiped the
+ * device's register state; rings/buffers in RAM survived). */
+void net_e1000_resume(void);
+
 /* Register network shell commands (ifconfig, ping, etc.). */
 void net_register_shell_commands(void);
 

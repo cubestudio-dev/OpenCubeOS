@@ -130,3 +130,9 @@ int arch_multiboot2_get_kernel_self(const u8** data, u64* size) {
     if (size) *size = (u64)(m->mod_end - m->mod_start);
     return 0;
 }
+
+/* ---- WP-10-chinese_support-fix2: memory-map accessor ---------------- */
+
+const arch_multiboot2_mmap_tag_t* arch_multiboot2_mmap(void) {
+    return g_mb2_info ? g_mb2_info->mmap : NULL;
+}

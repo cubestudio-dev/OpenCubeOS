@@ -35,13 +35,21 @@ Shell: `shutdown` / `poweroff` (alias) — print `Shutting down...`, then
 
 ### item 124 — `int core_power_suspend(void)`
 
-Suspend to RAM (ACPI S3). Open Cube OS does not implement the ACPI S3
-wake path yet (FADT parsing / wake vector / resume belong to WP-10e), so
-the function returns `OC_POWER_E_UNSUPPORTED` and the shell prints the
-honest message `Suspend not supported (ACPI required).` — no fake
-suspend, no silent downgrade.
+Suspend to RAM (ACPI S3). Since WP-10-chinese_support-fix2 the full S3
+path is implemented: FACS waking vector + a 16/32/64-bit real-mode
+resume trampoline (the firmware delivers the waking vector in 16-bit
+big real mode - SeaBIOS farcall16big) + post-resume re-arm (PIT
+reprogram without wiping the soft-timer table, PCI command restore, NIC
+register replay). Returns 0 after a live resume,
+`OC_POWER_E_UNSUPPORTED` when the platform offers no \_S3. fix2 root
+cause note: the pre-fix2 trampoline was 32-bit flat code, but SeaBIOS
+delivers the waking vector through farcall16big in 16-bit big real
+mode - every resume crashed in the trampoline before the kernel ever
+ran again. The reworked trampoline resumes correctly on QEMU 8.1.5 TCG
+and QEMU 10.0.13 TCG (see KNOWN_ISSUES.md for the wake procedure).
 
-Shell: `suspend` / `sleep` (alias).
+Shell: `suspend` (real S3); `sleep <seconds>` is the BUG-0346 delay
+command, not suspend.
 
 ### item 125 — `void core_power_halt(void)`
 
@@ -90,7 +98,7 @@ Shell: `help` (default = A-Z), `help -a` (same), `help -w` (grouped).
 | command | what it really does |
 |---|---|
 | `poweroff_test` | really calls `core_power_shutdown()` — on QEMU the process exits (verified: exit code 0 after `Powering off...`) |
-| `suspend_test` | really calls `core_power_suspend()` and requires the honest unsupported contract |
+| `suspend_test` | read-only probe of the S3 decision path (sleep mask + SLP_TYP on ACPI platforms, honest unsupported report otherwise); the live suspend->wake cycle is verified in the dedicated QEMU session |
 | `halt_test` | verifies the halt path; a true `cli;hlt` cannot return, the live halt is verified by running `halt` (serial goes silent) |
 | `reboot_test` | really flushes every block device; the live reset is verified by running `reboot` (boot banner reappears) |
 | `help_default_test` | verifies the A-Z ordering of the full table |
@@ -103,6 +111,8 @@ Shell: `help` (default = A-Z), `help -a` (same), `help -w` (grouped).
 - `poweroff` → same (alias).
 - `reboot` → `Rebooting...`, GRUB runs again, `kmain entered` twice.
 - `halt` → `System halted.`, serial output silent from then on.
-- `suspend` / `sleep` → `Suspending...` / `Suspend not supported
-  (ACPI required).`
+- `suspend` → real ACPI S3 on platforms with \_S3 (`Entering S3
+  (suspend to RAM)...` then `Resumed from S3.`); `Suspend not supported
+  (ACPI required).` only on ACPI-less machines; `suspend_test` is the
+  read-only capability probe.
 - `help` / `help -a` / `help -w` → 170 commands, sorted / grouped.

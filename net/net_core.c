@@ -6035,3 +6035,76 @@ static void net_timer_cb(void *ctx) {
 void net_start_timer(void) {
     core_timer_register_periodic(net_timer_cb, NULL, 10);  /* every 10ms */
 }
+
+/* WP-10-chinese_support-fix2: S3 resume replay for the legacy e1000
+ * path (QEMU's default -device e1000, 8086:100E, lives here - NOT in
+ * the e1000e family driver). The platform reset wiped the device's
+ * register state and can clear BAR0 itself; the descriptor rings and
+ * buffers live in RAM and survived. Re-program the device against the
+ * EXISTING rings (no re-allocation, no re-probe) so the resumed system
+ * keeps the same NIC with the same MAC. Mirrors e1000_init()'s register
+ * sequence exactly. */
+void net_e1000_resume(void) {
+    if (!g_e1000_mmio) return;   /* no legacy e1000 was up before sleep */
+
+    /* rewrite BAR0 (harmless if the firmware already restored it) and
+     * re-enable the command register before any MMIO access */
+    driver_pci_write_config(g_e1000_bus, g_e1000_dev, g_e1000_func,
+                            0x10, (u32)(uintptr_t)g_e1000_mmio);
+    {
+        u32 cs = driver_pci_read_config(g_e1000_bus, g_e1000_dev, g_e1000_func, 0x04);
+        cs = (cs & 0xFFFF0000) | 0x0107;   /* IO | MEM | BM | SERR# */
+        driver_pci_write_config(g_e1000_bus, g_e1000_dev, g_e1000_func, 0x04, cs);
+    }
+
+    /* Disable interrupts (polling driver). */
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_IMC), 0xFFFFFFFF);
+
+    /* Re-assert the station address (RA[0]) - the reset cleared it. */
+    u32 ra_lo = g_mac[0] | ((u32)g_mac[1] << 8) | ((u32)g_mac[2] << 16) | ((u32)g_mac[3] << 24);
+    u32 ra_hi = g_mac[4] | ((u32)g_mac[5] << 8) | (1u << 31);  /* AV bit */
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_RA), ra_lo);
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_RA + 4), ra_hi);
+
+    /* RX ring: reset BOTH sides (device restarts at RDH=0 while the
+     * driver-side rx_tail kept its pre-sleep value; stale descriptor
+     * statuses would make net_poll silently drop packets). */
+    memset((void *)g_rx_descs, 0, PMM_PAGE_SIZE);
+    for (int i = 0; i < E1000_NUM_DESC; i++)
+        g_rx_descs[i].addr = (u64)(uintptr_t)g_rx_bufs[i];
+    g_rx_tail = 0;
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_RCTL), 0);
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_RDBAL),
+                 (u32)(uintptr_t)g_rx_descs);
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_RDBAH), 0);
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_RDLEN),
+                 (u32)(sizeof(e1000_desc_t) * E1000_NUM_DESC));
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_RDH), 0);
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_RDT),
+                 E1000_NUM_DESC - 1);
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_RCTL),
+                 E1000_RCTL_EN | E1000_RCTL_UPE | E1000_RCTL_MPE |
+                 E1000_RCTL_BAM | E1000_RCTL_SECRC);
+
+    /* TX ring: same replay shape. */
+    memset((void *)g_tx_descs, 0, PMM_PAGE_SIZE);
+    g_tx_tail = 0;
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_TCTL), 0);
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDBAL),
+                 (u32)(uintptr_t)g_tx_descs);
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDBAH), 0);
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDLEN),
+                 (u32)(sizeof(e1000_desc_t) * E1000_NUM_DESC));
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDH), 0);
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDT), 0);
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + 0x0410), 0x0060200A);
+    mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_TCTL),
+                 (1u << 1) | (1u << 3) | (0x0F << 4) | (0x3F << 12));
+
+    /* bus master LAST (QEMU caches the PCI command state). */
+    {
+        u32 cs = driver_pci_read_config(g_e1000_bus, g_e1000_dev, g_e1000_func, 0x04);
+        cs = (cs & 0xFFFF0000) | 0x0107;
+        driver_pci_write_config(g_e1000_bus, g_e1000_dev, g_e1000_func, 0x04, cs);
+    }
+}

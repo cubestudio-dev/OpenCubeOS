@@ -26,17 +26,22 @@
  *                               running after all attempts (caller should
  *                               core_power_halt()).  On success this function
  *                               never returns.
- *   int  core_power_suspend(void);   suspend to RAM (ACPI S3).  Open Cube OS
- *                               does not implement the ACPI S3 wake path
- *                               yet, so this returns OC_POWER_E_UNSUPPORTED
- *                               and the caller prints an honest message.
+ *   int  core_power_suspend(void);   suspend to RAM (ACPI S3).  Since
+ *                               WP-10-chinese_support-fix2 the full S3
+ *                               path is implemented: FACS waking vector
+ *                               + 16/32/64-bit real-mode resume
+ *                               trampoline + post-resume re-arm (PIT /
+ *                               PCI / NIC). Returns 0 after a live
+ *                               resume, OC_POWER_E_UNSUPPORTED when the
+ *                               platform has no \_S3.
  *
  * All block-device caches are flushed BEFORE any halt/reset/shutdown
  * attempt, so an A/B update or user data survives the power transition.
  *
  * Shell commands (registered in kmain.c):
  *   shutdown / poweroff  -> core_power_shutdown (with "System halted." fallback)
- *   suspend / sleep      -> core_power_suspend (honest "not supported" reply)
+ *   suspend              -> core_power_suspend (real ACPI S3)
+ *   sleep <seconds>      -> delay command (BUG-0346; NOT suspend)
  *   halt                 -> core_power_halt
  *   reboot               -> core_power_reboot (moved here from ota_ab_update.c)
  */

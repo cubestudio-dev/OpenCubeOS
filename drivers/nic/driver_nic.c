@@ -191,3 +191,13 @@ int driver_nic_probe_all(void) {
     }
     return -1;
 }
+
+/* WP-10-chinese_support-fix2: S3 resume hook. The kernel routes through
+ * a single NIC (driver_nic_probe_all picks the first family that
+ * probes); only the e1000e family has a register replay today. Other
+ * families get the generic PCI command restore from
+ * driver_pci_restore_commands() and need a same-shape replay hook if
+ * they are ever resumed on real hardware (recorded in KNOWN_ISSUES). */
+void driver_nic_resume(void) {
+    driver_nic_e1000e_resume();
+}

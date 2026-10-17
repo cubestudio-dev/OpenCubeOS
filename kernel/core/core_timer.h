@@ -25,6 +25,15 @@
 
 void core_timer_init(void);
 
+/* WP-10-chinese_support-fix2: reprogram the PIT after an ACPI S3
+ * resume WITHOUT wiping the soft-timer table. core_timer_init() memsets
+ * g_timers and zeroes the tick/boot counters, which silently killed the
+ * 10 ms network poll timer (and every other registered timer) after
+ * every suspend -> the resumed system could not receive a single
+ * packet. The table lives in RAM and survives S3, so only the PIT
+ * itself needs reprogramming. */
+void core_timer_resume(void);
+
 /* IRQ0 handler (called from arch_irq_dispatch). */
 void core_timer_irq_handler(void *ctx, arch_irq_frame_t *f);
 

@@ -1,24 +1,34 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
- * Open Cube OS - WP-10-input_chipset
+ * Open Cube OS - WP-10-input_chipset (S3 resume reworked in
+ * WP-10-chinese_support-fix2)
  * File: drivers/acpi/driver_acpi_power.c
  * Purpose: ACPI power management - sleep states S3/S4/S5, SCI + GPE
- *          dispatch, FACS waking vector + 32-bit resume trampoline.
+ *          dispatch, FACS waking vector + real-mode resume trampoline.
  *
- * S3 resume design (mainstream OSPM shape, QEMU+SeaBIOS/OVMF tested):
+ * S3 resume design (mainstream OSPM shape, QEMU+SeaBIOS tested):
  *   1. A leaf asm stub saves CR0/CR3/CR4 + callee-saved registers +
- *      RSP into a save area next to the trampoline, then writes
- *      SLP_EN|SLP_TYP into PM1a_CNT. The CPU stops there.
- *   2. Firmware (SeaBIOS/OVMF) wakes, jumps to the FACS waking vector
- *      in 32-bit flat mode with paging off.
- *   3. The trampoline re-arms long mode (CR4.PAE, EFER.LME|NXE, CR0.PG,
- *      lgdt of the LIVE kernel GDT), lidt of the LIVE kernel IDT,
- *      reloads segments, restores the saved RSP + callee registers and
- *      returns into the caller exactly as if the port write returned.
+ *      RSP into the save area inside the low-memory trampoline page,
+ *      then writes SLP_EN|SLP_TYP into PM1a_CNT. The CPU stops there.
+ *   2. Firmware (SeaBIOS src/fw/resume.c s3_resume() -> farcall16big,
+ *      and real BIOSes per the ACPI spec) wakes and jumps to the FACS
+ *      waking vector in 16-bit BIG REAL MODE.  fix2 root cause: the
+ *      previous trampoline was 32-bit flat code, which decoded as
+ *      garbage under 16-bit delivery and crashed the machine on
+ *      resume before the kernel ever ran again.
+ *   3. arch_acpi_s3_resume.S (copied to a fixed free low-RAM page,
+ *      0x8000) starts in 16-bit real mode, enters 32-bit protected
+ *      mode with paging off, then re-arms long mode (CR4.PAE,
+ *      EFER.LME|NXE, CR0.PG, lgdt of the LIVE kernel GDT), lidt of the
+ *      LIVE kernel IDT, ltr of the TSS, reloads segments, restores the
+ *      saved RSP + callee registers and returns into the caller
+ *      exactly as if the port write returned.
  *      GDT/IDT/handler tables live in RAM and survive S3, so no
- *      rebuild is needed - only PIC re-init + timer re-arm + LAPIC
- *      re-enable are performed afterwards (device-reset class work).
+ *      rebuild is needed - afterwards the resume path re-arms the PIT
+ *      (without wiping the soft-timer table), restores PCI command
+ *      registers (the platform reset cleared bus mastering everywhere)
+ *      and replays the active NIC's register programming.
  */
 #include "driver_acpi_power.h"
 #include "driver_acpi.h"
@@ -26,7 +36,12 @@
 #include "arch_idt.h"
 #include "arch_irq.h"
 #include "arch_lapic.h"
+#include "arch_multiboot2.h"
 #include "core_timer.h"
+#include "../pci/driver_pci.h"
+#include "../nic/driver_nic.h"
+#include "../../net/net_core.h"
+#include "../display/screen_serial_in.h"
 #include "lib_string.h"
 #include "lib_log.h"
 
@@ -202,76 +217,63 @@ u32 driver_acpi_power_gpe_count(void)     { return g_gpe_count; }
 u32 driver_acpi_power_pwrbtn_count(void)  { return g_pwrbtn_count; }
 
 /* ------------------------------------------------------------------ */
-/* S3 resume trampoline (hand-assembled 32-bit code + save area)       */
+/* S3 resume trampoline (real-mode head + long-mode re-entry)          */
 /* ------------------------------------------------------------------ */
 
-/* Save area / trampoline layout (offsets from the page base):
- *   0x000..0x0FF  32-bit trampoline code
- *   0x100         u32 saved ESP
- *   0x104         u32 saved CR3
- *   0x108         u32 saved CR4
- *   0x10C         u32 saved CR0
- *   0x110         GDT descriptor: u16 limit + u64 base (10 bytes)
- *   0x118         IDT descriptor: u16 limit + u64 base (10 bytes)
- *   0x124         u32 "resumed" magic (written by trampoline)
- *   0x128         u32 PM1a_CNT port / value pair for the asm stub
+/* The trampoline code itself lives in arch_acpi_s3_resume.S.  It is
+ * POSITION-FIXED: the firmware jumps to physical address 0x8000, a
+ * free low-RAM page between the BDA (0x400-0x4FF) and the EBDA
+ * (0x9FC00 on QEMU; GRUB's 0x500-0x7BFF scratch and 0x7C00 boot slot
+ * are dead after boot).  All save-area offsets below match the .S:
+ *   0x000..0x0FF  trampoline code (16 -> 32 -> 64-bit heads)
+ *   0x200         u64 saved RSP (the fire stub saves the full RSP)
+ *   0x208         u32 saved CR3
+ *   0x20C         u32 saved CR4
+ *   0x210         u32 saved CR0
+ *   0x214         GDT descriptor: u16 limit + u32 base (10 bytes)
+ *   0x21C         IDT descriptor: u16 limit + u32 base (10 bytes)
+ *   0x228         u32 "resumed" magic (written by the trampoline)
  */
-#define TRAMP_OFF_ESP      0x100
-#define TRAMP_OFF_CR3      0x104
-#define TRAMP_OFF_CR4      0x108
-#define TRAMP_OFF_CR0      0x10C
-#define TRAMP_OFF_GDT      0x110
-#define TRAMP_OFF_IDT      0x118
-#define TRAMP_OFF_RESUMED  0x124
+#define OC_S3_TRAMP_BASE   0x8000u
+#define TRAMP_OFF_ESP      0x200   /* u64 */
+#define TRAMP_OFF_CR3      0x208
+#define TRAMP_OFF_CR4      0x20C
+#define TRAMP_OFF_CR0      0x210
+#define TRAMP_OFF_GDT      0x214
+#define TRAMP_OFF_IDT      0x21C
+#define TRAMP_OFF_RESUMED  0x228
 #define TRAMP_RESUME_MAGIC 0x52334B4Fu   /* "R3KO" */
 
-static const u8 g_s3_tramp[] = {
-    /* 32-bit flat entry (paging off, CS=32-bit code) */
-    0xFA,                                   /* 0x00 cli                        */
-    0x8B, 0x25, 0x00, 0x01, 0x00, 0x00,     /* 0x01 mov esp,[0x100]            */
-    0xA1, 0x04, 0x01, 0x00, 0x00,           /* 0x07 mov eax,[0x104]  (cr3)     */
-    0x0F, 0x22, 0xD8,                       /* 0x0C mov cr3,eax                */
-    0xA1, 0x08, 0x01, 0x00, 0x00,           /* 0x0F mov eax,[0x108]  (cr4)     */
-    0x0F, 0x22, 0xE0,                       /* 0x14 mov cr4,eax                */
-    0xB9, 0x80, 0x00, 0x00, 0xC0,           /* 0x17 mov ecx,0xC0000080 (EFER)  */
-    0x0F, 0x32,                             /* 0x1C rdmsr                      */
-    0x0D, 0x00, 0x09, 0x00, 0x00,           /* 0x1E or eax,0x900 (LME|NXE)     */
-    0x0F, 0x30,                             /* 0x23 wrmsr                      */
-    0xA1, 0x0C, 0x01, 0x00, 0x00,           /* 0x25 mov eax,[0x10C] (cr0)      */
-    0x0D, 0x00, 0x00, 0x00, 0x80,           /* 0x2A or eax,0x80000000 (PG)     */
-    0x0F, 0x22, 0xC0,                       /* 0x2F mov cr0,eax  -> long mode  */
-    0x0F, 0x01, 0x15, 0x10, 0x01, 0x00, 0x00, /* 0x32 lgdt [0x110]             */
-    /* far jump into 64-bit code segment (selector 0x18) at 0x50 */
-    0xEA, 0x50, 0x00, 0x00, 0x00, 0x18, 0x00, /* 0x39 jmp 0x18:0x50            */
-    /* 0x40..0x4F padding */
-    0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90,
-    0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90,
-    /* 64-bit continuation */
-    /* 0x50 mov dword [0x124], MAGIC */
-    0xC7, 0x04, 0x25, 0x24, 0x01, 0x00, 0x00, 0x4F, 0x4B, 0x33, 0x52,
-    /* 0x5B mov ax,0x10 (data) */
-    0x66, 0xB8, 0x10, 0x00,
-    0x8E, 0xD8,                             /* 0x5F mov ds,ax */
-    0x8E, 0xC0,                             /* 0x61 mov es,ax */
-    0x8E, 0xD0,                             /* 0x63 mov ss,ax */
-    0x8E, 0xE0,                             /* 0x65 mov fs,ax */
-    0x8E, 0xE8,                             /* 0x67 mov gs,ax */
-    /* 0x69 lidt [0x118] (10-byte descriptor) */
-    0x0F, 0x01, 0x1D, 0x18, 0x01, 0x00, 0x00,
-    /* 0x70 mov rsp,[0x100] (restore saved RSP; REX.W) */
-    0x48, 0x8B, 0x25, 0x00, 0x01, 0x00, 0x00,
-    /* 0x77 pop r15 r14 r13 r12 rbp rbx (mirror of the stub's pushes) */
-    0x41, 0x5F, 0x41, 0x5E, 0x41, 0x5D, 0x41, 0x5C, 0x5D, 0x5B,
-    /* 0x81 ret -> back into enter_s3 right after the fire call */
-    0xC3,
-};
+extern const u8 acpi_s3_resume_tramp_start[];
+extern const u8 acpi_s3_resume_tramp_end[];
+
+/* Is the fixed low page actually usable RAM according to the
+ * multiboot2 memory map?  Non-QEMU machines can grow the EBDA down or
+ * reserve 0x8000 for firmware tables - refuse S3 honestly there. */
+static int s3_low_page_is_ram(void) {
+    const arch_multiboot2_mmap_tag_t* mmap = arch_multiboot2_mmap();
+    if (!mmap) return 0;
+    u32 entry_size = mmap->entry_size;
+    if (entry_size < sizeof(arch_multiboot2_mmap_entry_t)) return 0;
+    u32 tag_payload = (mmap->size >= sizeof(*mmap)) ? (mmap->size - sizeof(*mmap)) : 0;
+    u32 count = (entry_size != 0) ? (tag_payload / entry_size) : 0;
+    const u8* p = (const u8*)mmap + sizeof(*mmap);
+    for (u32 i = 0; i < count; ++i, p += entry_size) {
+        const arch_multiboot2_mmap_entry_t* e = (const arch_multiboot2_mmap_entry_t*)p;
+        /* entry type 1 = available RAM */
+        if (e->type != 1) continue;
+        u64 lo = e->addr;
+        u64 hi = e->addr + e->len;
+        if (lo <= OC_S3_TRAMP_BASE && hi >= (u64)OC_S3_TRAMP_BASE + 0x1000u)
+            return 1;
+    }
+    return 0;
+}
 
 /* asm leaf that saves state, fires the sleep write, and (if the write
  * returns because sleep failed) unwinds normally.  Resume lands in the
- * trampoline which restores exactly this frame. */
+ * low-memory trampoline which restores exactly this frame. */
 extern int acpi_s3_fire_stub(u16 port, u16 value, u8 *save_area);
-
-static u8 g_s3_page[4096] __attribute__((aligned(4096)));
 
 /* ------------------------------------------------------------------ */
 /* sleep entry                                                         */
@@ -286,10 +288,14 @@ static void acpi_prepare_sleep(int state) {
 static int acpi_write_sleep(int state) {
     int typ = driver_acpi_power_slp_typ(state);
     if (typ < 0 || !g_pm1a_cnt) return -1;
-    /* cache flush, interrupts off, then the enabling write */
+    /* interrupts off BEFORE the flush + enabling write: the asm stub
+     * documents that contract and a timer IRQ between wbinvd and the
+     * SLP write would enter the scheduler with the machine about to
+     * vanish (fix2: the cli used to be missing here). */
+    __asm__ volatile("cli" ::: "memory");
     __asm__ volatile("wbinvd" ::: "memory");
     u16 val = (u16)(((u32)typ << 10) | (1u << 13));
-    return acpi_s3_fire_stub(g_pm1a_cnt, val, g_s3_page);
+    return acpi_s3_fire_stub(g_pm1a_cnt, val, (u8*)(uintptr_t)OC_S3_TRAMP_BASE);
 }
 
 int driver_acpi_power_enter_s5(void) {
@@ -328,28 +334,33 @@ int driver_acpi_power_enter_s3(void) {
     u64 facs_phys = driver_acpi_facs_phys();
     if (!facs_phys) return -1;
     acpi_facs_t *facs = (acpi_facs_t*)(uintptr_t)facs_phys;
+    if (!s3_low_page_is_ram()) return -1;
 
-    /* stage the trampoline + save area */
-    memset(g_s3_page, 0, sizeof(g_s3_page));
-    memcpy(g_s3_page, g_s3_tramp, sizeof(g_s3_tramp));
-    u64 tramp_phys = (u64)(uintptr_t)g_s3_page;
+    u8 *tramp = (u8*)(uintptr_t)OC_S3_TRAMP_BASE;
+    const u32 code_len = (u32)(acpi_s3_resume_tramp_end - acpi_s3_resume_tramp_start);
+    if (code_len > 0x100) return -1;   /* code must never reach the save area */
+
+    /* stage the position-fixed trampoline + clear its save area */
+    memcpy(tramp, acpi_s3_resume_tramp_start, code_len);
+    memset(tramp + 0x100, 0, 0x1000u - 0x100);
 
     /* arm the waking vector (both forms; firmware picks what it knows) */
-    facs->firmware_waking_vector = (u32)tramp_phys;
-    facs->x_firmware_waking_vector = tramp_phys;
+    facs->firmware_waking_vector = OC_S3_TRAMP_BASE;
+    facs->x_firmware_waking_vector = OC_S3_TRAMP_BASE;
 
-    /* register the saved-register dump helper (fills CR0/3/4 + GDT/IDT) */
+    /* pre-fill the save area; acpi_s3_fire_stub re-saves CR0/3/4 + RSP
+     * at fire time from the exact frame that goes to sleep */
     {
         u64 cr3, cr4, cr0;
         __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
         __asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
         __asm__ volatile("mov %%cr0, %0" : "=r"(cr0));
-        *(u32*)(g_s3_page + TRAMP_OFF_CR3) = cr3;
-        *(u32*)(g_s3_page + TRAMP_OFF_CR4) = cr4;
-        *(u32*)(g_s3_page + TRAMP_OFF_CR0) = cr0;
-        arch_gdt_descriptor(g_s3_page + TRAMP_OFF_GDT);
-        arch_idt_descriptor(g_s3_page + TRAMP_OFF_IDT);
-        *(u32*)(g_s3_page + TRAMP_OFF_RESUMED) = 0;
+        *(u32*)(tramp + TRAMP_OFF_CR3) = (u32)cr3;
+        *(u32*)(tramp + TRAMP_OFF_CR4) = (u32)cr4;
+        *(u32*)(tramp + TRAMP_OFF_CR0) = (u32)cr0;
+        arch_gdt_descriptor(tramp + TRAMP_OFF_GDT);
+        arch_idt_descriptor(tramp + TRAMP_OFF_IDT);
+        *(u32*)(tramp + TRAMP_OFF_RESUMED) = 0;
     }
 
     acpi_prepare_sleep(3);
@@ -360,16 +371,31 @@ int driver_acpi_power_enter_s3(void) {
      * register state of the pre-sleep call. Re-arm what the firmware
      * reset, clear the waking vector, and report. (Checked BEFORE the
      * error code: on the resume path eax is firmware garbage.) */
-    if (*(volatile u32*)(g_s3_page + TRAMP_OFF_RESUMED) == TRAMP_RESUME_MAGIC) {
-        *(volatile u32*)(g_s3_page + TRAMP_OFF_RESUMED) = 0;
+    if (*(volatile u32*)(tramp + TRAMP_OFF_RESUMED) == TRAMP_RESUME_MAGIC) {
+        *(volatile u32*)(tramp + TRAMP_OFF_RESUMED) = 0;
         g_resumed = 1;
         /* PIC was reset by the firmware */
         arch_pic_remap();
         arch_irq_rearm();
-        /* PIT may have been reset with the platform */
-        core_timer_init();
+        /* PIT was reset with the platform. fix2: reprogram it WITHOUT
+         * core_timer_init() - that memset wiped the whole soft-timer
+         * table, silently killing the 10 ms network poll timer (and
+         * every other registered timer) after every resume. */
+        core_timer_resume();
         /* LAPIC re-enable when present */
         arch_lapic_init();
+        /* fix2: the platform reset cleared every PCI command register
+         * (bus mastering + MMIO/IO decode gone). Re-enable the devices
+         * the kernel drives, then replay the active NIC's register
+         * programming - otherwise the resumed system is half-dead:
+         * shell alive but disk/NIC/USB silent. */
+        driver_pci_restore_commands();
+        driver_nic_resume();
+        net_e1000_resume();
+        /* the platform reset cleared the UART's RX interrupt enable, so
+         * serial input died with the sleep - reprogram the COM1 RX path
+         * (the IRQ4 handler slot is RAM-resident and still live). */
+        screen_serial_in_init();
         /* clear the waking vector so a warm reboot does not resume */
         facs->firmware_waking_vector = 0;
         facs->x_firmware_waking_vector = 0;

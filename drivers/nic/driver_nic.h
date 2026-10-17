@@ -138,6 +138,7 @@ driver_nic_device_t *driver_nic_active(void);
 
 /* Per-driver init entry points (see file-header documentation). */
 int driver_nic_e1000e_init(driver_pci_dev_t *pdev);
+void driver_nic_e1000e_resume(void);
 int driver_nic_igb_init(driver_pci_dev_t *pdev);
 int driver_nic_ixgbe_init(driver_pci_dev_t *pdev);
 int driver_nic_rtl8139_init(driver_pci_dev_t *pdev);
@@ -166,3 +167,8 @@ void rtl810x_print_state(void);
 void bcm57xx_print_state(void);
 
 #endif /* OC_NIC_H */
+
+/* WP-10-chinese_support-fix2: replay the active NIC's register
+ * programming after an ACPI S3 resume (platform reset wiped the
+ * device's register state; rings/buffers in RAM survived). */
+void driver_nic_resume(void);

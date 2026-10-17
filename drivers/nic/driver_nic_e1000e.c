@@ -453,3 +453,73 @@ void driver_nic_e1000e_print_state(void) {
     strcat(line, "\n");
     screen_console_puts(line);
 }
+
+/* WP-10-chinese_support-fix2: S3 resume replay. The platform reset
+ * wiped the device's register state, but the descriptor rings and RX
+ * buffers live in RAM and survived. Re-program the device registers
+ * against the EXISTING rings (no re-allocation, no re-probe) so the
+ * resumed system keeps the same NIC with the same MAC. */
+void driver_nic_e1000e_resume(void) {
+    if (!g_e1000e.up) return;   /* no NIC was up before the sleep */
+    volatile u32 *mmio = g_e1000e.mmio;
+    if (!mmio) return;
+
+    /* The S3 platform reset can clear the device's config space
+     * including BAR0 itself - rewrite the MMIO base from the value the
+     * boot probe read (writing back the same value is harmless when
+     * the firmware already restored it), then enable the command
+     * register. */
+    driver_pci_write_config(g_e1000e.bus, g_e1000e.dev, g_e1000e.func,
+                            0x10, (u32)(uintptr_t)mmio);
+    driver_nic_e1000e_pci_enable(&g_e1000e);
+
+    /* CTRL: full duplex + auto speed + link up (no soft reset: it
+     * would clear the PCI command register, same lesson as net.c). */
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_CTRL),
+                 E1000E_CTRL_FD | E1000E_CTRL_ASDE | E1000E_CTRL_SLU);
+
+    /* Polling driver: mask all interrupts. */
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_IMC), 0xFFFFFFFFu);
+
+    /* RX ring: same descriptor array as before the sleep, but reset
+     * BOTH sides to a clean state - the device restarts at RDH=0 while
+     * the driver-side rx_tail kept its pre-sleep value, and stale
+     * descriptor status bytes would make net_poll silently drop the
+     * first packets. */
+    memset((void *)g_e1000e.rx_descs, 0, PMM_PAGE_SIZE);
+    for (int i = 0; i < E1000E_NUM_DESC; i++)
+        g_e1000e.rx_descs[i].addr = (u64)(uintptr_t)g_e1000e.rx_bufs[i];
+    g_e1000e.rx_tail = 0;
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_RCTL), 0);
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_RDBAL),
+                 (u32)(uintptr_t)g_e1000e.rx_descs);
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_RDBAH), 0);
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_RDLEN),
+                 (u32)(sizeof(driver_nic_e1000e_desc_t) * E1000E_NUM_DESC));
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_RDH), 0);
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_RDT),
+                 E1000E_NUM_DESC - 1);
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_RCTL),
+                 E1000E_RCTL_EN | E1000E_RCTL_UPE | E1000E_RCTL_MPE |
+                 E1000E_RCTL_BAM | E1000E_RCTL_SECRC);
+
+    /* TX ring: same descriptor array as before the sleep. */
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_TCTL), 0);
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_TDBAL),
+                 (u32)(uintptr_t)g_e1000e.tx_descs);
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_TDBAH), 0);
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_TDLEN),
+                 (u32)(sizeof(driver_nic_e1000e_desc_t) * E1000E_NUM_DESC));
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_TDH), 0);
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_TDT),
+                 (u32)(g_e1000e.tx_tail < 0 ? 0 : g_e1000e.tx_tail));
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_TIPG), 0x0060200Au);
+    mmio_write32((volatile void *)((u8 *)mmio + E1000E_TCTL),
+                 E1000E_TCTL_EN | E1000E_TCTL_PSP |
+                 (0x0Fu << 4) | (0x3Fu << 12));
+
+    /* Bus master last (QEMU e1000/e1000e models cache the PCI command
+     * register; same lesson as net.c). */
+    driver_nic_e1000e_pci_enable(&g_e1000e);
+
+}

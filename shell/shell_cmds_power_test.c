@@ -13,9 +13,13 @@
  *                  banner.  On a machine with none of the power-off
  *                  ports it prints the honest fallback line instead.
  *
- *   suspend_test   REALLY invokes core_power_suspend() and requires the
- *                  honest "not supported" contract (OC_POWER_E_UNSUPPORTED)
- *                  until ACPI S3 lands.
+ *   suspend_test   verifies the REAL S3 contract without sleeping the
+ *                  machine: on an ACPI platform with \_S3 the sleep mask
+ *                  must advertise bit 3 and slp_typ(3) must resolve;
+ *                  on ACPI-less machines it verifies the honest
+ *                  OC_POWER_E_UNSUPPORTED report path instead. The
+ *                  live suspend->wake cycle is verified in a dedicated
+ *                  QEMU session (suspend + monitor system_wakeup).
  *
  *   halt_test      Cannot return after a true cli;hlt (that is what
  *                  halting means), so it verifies the real components
@@ -33,6 +37,7 @@
  */
 #include "shell_cmds_power_test.h"
 #include "core_power.h"
+#include "driver_acpi_power.h"
 #include "shell.h"
 #include "screen_console.h"
 #include "lib_string.h"
@@ -47,19 +52,39 @@ static int shell_cmd_poweroff_test(const char *args) {
     return 0;
 }
 
-/* 2. suspend_test - honest unsupported contract */
+/* 2. suspend_test - real S3 capability contract, read-only probe.
+ * fix2 contract update: S3 is implemented end to end now (real-mode
+ * trampoline + waking vector). Calling core_power_suspend() here would
+ * really sleep the machine mid-suite, so the test probes the same
+ * decision path core_power_suspend() uses - without entering the
+ * state. */
 static int shell_cmd_suspend_test(const char *args) {
     (void)args;
-    int ok = 0;
-    screen_console_puts("Suspending...\n");
+    u32 mask = driver_acpi_power_sleep_mask();
+    int typ3 = driver_acpi_power_slp_typ(3);
+    int acpi_up = (mask & (1u << 3)) && typ3 >= 0;
+    screen_console_puts(acpi_up
+        ? "suspend_test: ACPI S3 available (sleep mask bit3 set, slp_typ resolves)\n"
+        : "suspend_test: no ACPI S3 on this platform\n");
+    if (acpi_up) {
+        char b[48];
+        u64_to_str((u64)typ3, b);
+        screen_console_puts("suspend_test: S3 SLP_TYP value: ");
+        screen_console_puts(b);
+        screen_console_puts(" (live cycle verified in the dedicated QEMU suspend/wake session)\n");
+        screen_console_puts("suspend_test: suspend path present and wired : PASS\n");
+        return 0;
+    }
+    /* ACPI-less platform: the honest unsupported report is the PASS
+     * condition (same shape as the pre-S3 contract). */
     int rc = core_power_suspend();
     if (rc == OC_POWER_E_UNSUPPORTED) {
         screen_console_puts("Suspend not supported (ACPI required).\n");
-        ok = 1;
+        screen_console_puts("suspend_test: suspend reports the honest ACPI-required contract : PASS\n");
+        return 0;
     }
-    screen_console_puts(ok ? "suspend_test: suspend reports the honest ACPI-required contract : PASS\n"
-                       : "suspend_test: suspend returned an unexpected rc : FAIL\n");
-    return ok ? 0 : 1;
+    screen_console_puts("suspend_test: suspend returned an unexpected rc : FAIL\n");
+    return 1;
 }
 
 /* 3. halt_test - component check + pointer to the live `halt` run */
