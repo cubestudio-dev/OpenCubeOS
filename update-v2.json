@@ -1,0 +1,10 @@
+{
+  "version": "WP-10-chinese_support-fix2",
+  "build": 198,
+  "time": "2026-10-17",
+  "changes": "Fix batch: full CJK glyphs (WIDE_CONT repaint dropped) + TUI session hygiene (3 shutdown leaks, single-Esc CSI, HW scroll, volume, mouse) + CN TUI parity (real OTA page, prefs, monitor, processes) + 16-bit S3 resume + fsck via blk registry + honest rc.",
+  "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-chinese_support-fix2-update.tar.gz",
+  "package_sha256": "18077ec1cd3a14bfa65b5f29cd73e6804ae1b98bfbfc3fdb664b1175a259075b",
+  "package_size": 975118
+}

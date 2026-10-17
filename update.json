@@ -1,0 +1,10 @@
+{
+  "version": "WP-10-chinese_support-fix2",
+  "build": 198,
+  "time": "2026-10-17",
+  "changes": "Full-glyph CN rendering + TUI session hygiene + CN parity + real-mode S3 resume + honest fsck/rc",
+  "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-chinese_support-fix2-update.tar.gz",
+  "package_sha256": "18077ec1cd3a14bfa65b5f29cd73e6804ae1b98bfbfc3fdb664b1175a259075b",
+  "package_size": 975118
+}
