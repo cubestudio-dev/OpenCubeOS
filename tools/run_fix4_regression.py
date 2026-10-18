@@ -64,7 +64,9 @@ CHECKS = [
     # WP-10-chinese_support adds 9 commands (chinese chinesetest font
     # font-test encoding encoding-test ime ime-test tui-cn): baseline
     # UP 213 -> 222.
-    ("command count 222",        r"Total:\s*222 commands"),
+    # WP-10-chinese_support-fix3: suspend/suspend_test hidden per user
+    # decision (222 -> 220) and `lang` added (220 -> 221).
+    ("command count 221",        r"Total:\s*221 commands"),
     # Baseline note (WP-10-input_chipset): accept the current tree describe
     # (fix4-2-g<sha>), the fix3-rebuild form, and the new WP-10-input_chipset
     # tag form (release builds bake the tag name verbatim).
