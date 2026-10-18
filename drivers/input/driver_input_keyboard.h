@@ -97,3 +97,8 @@ int driver_input_keyboard_register_handler(driver_input_kbd_handler_fn handler);
 int driver_input_keyboard_unregister_handler(driver_input_kbd_handler_fn handler);
 
 #endif /* OC_KEYBOARD_H */
+
+/* WP-10-chinese_support-fix4: runtime keyboard layout ("us" | "dvorak").
+ * Persisted as kbd.layout in /etc/opencube.conf. */
+void driver_input_keyboard_set_layout(const char *name);
+const char *driver_input_keyboard_get_layout(void);

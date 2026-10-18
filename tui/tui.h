@@ -346,7 +346,7 @@ int  tui_sysinfo_time(void);
 int  tui_sysinfo_help(void);
 
 /* Main entry points registered as shell commands. */
-void tui_cmd_register(void);               /* tui, tui-test, tui-hw,
+void tui_shell_cmds_register(void);        /* tui, tui-test, tui-hw,
                                               tui-net, tui-sysinfo    */
 
 /* ---- cross-module (internal) surface shared by the tui sources ---- */
@@ -375,5 +375,9 @@ int  tui_sysinfo_main(void);               /* system information app  */
 int  tui_input_map_key(int c);             /* OC_KEY_* -> TUI KEY_*   */
 int  tui_input_feed_raw(int c);            /* CSI decoder test hook   */
 int  tui_mouse_poll_touchpad(void);
+
+int  tui_core_apply_theme(int fg, int bg); /* fix4 theme hook (7.5)   */
+
+#include "tui_ext.h"                       /* fix4: L1 extension sets */
 
 #endif /* OC_TUI_H */

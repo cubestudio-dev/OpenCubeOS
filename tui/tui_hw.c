@@ -26,6 +26,7 @@
 #include "../drivers/time/driver_tsc.h"
 #include "../drivers/input/driver_input_keyboard.h"
 #include "../drivers/input/driver_input_i2chid.h"
+#include "../drivers/display/screen_fb.h"
 #include "../net/net_core.h"
 #include "../kernel/core/core_timer.h"
 
@@ -359,6 +360,28 @@ int tui_hw_apply_sound_volume(u32 vol) {
 /* interactive pages                                                   */
 /* ------------------------------------------------------------------ */
 
+/* fix4 4.2.2: display domain page (fb / cell console / fonts). The
+ * previous batch stopped at 11 domains and skipped the display stack. */
+static void page_display(hw_page_t *pg) {
+    const screen_fb_info_t *fb = screen_fb_get_info();
+    if (fb) {
+        hw_add(pg, "framebuffer    : %lux%lu, %d bpp, pitch %lu",
+               (u64)fb->width, (u64)fb->height, (int)fb->bpp, (u64)fb->pitch);
+        hw_add(pg, "channel mask   : R@%d/%d G@%d/%d B@%d/%d",
+               (int)fb->red_pos, (int)fb->red_size,
+               (int)fb->green_pos, (int)fb->green_size,
+               (int)fb->blue_pos, (int)fb->blue_size);
+    } else {
+        hw_add(pg, "framebuffer    : NOT INITIALIZED");
+    }
+    hw_add(pg, "cell console   : 8x16 cells (screen_console)");
+    hw_add(pg, "ascii font     : built-in 8x16, 256 glyphs");
+    hw_add(pg, "cjk font       : embedded unifont 16x16, 6763 hanzi + 682 symbols");
+    hw_add(pg, "cjk renderer   : console_cn (utf-8), TUI wide-cell aware");
+    hw_add(pg, "terminal       : see tui.backend config key (fb | serial)");
+    hw_add(pg, "test           : `font-test` / `chinesetest` print sample tables");
+}
+
 typedef void (*hw_page_fn)(hw_page_t *);
 
 static const struct {
@@ -376,6 +399,7 @@ static const struct {
     { "Camera",   page_camera },
     { "Wireless", page_wireless },
     { "Timers",   page_timer },
+    { "Display",  page_display },
 };
 #define HW_PAGE_COUNT (int)(sizeof(HW_PAGES) / sizeof(*HW_PAGES))
 

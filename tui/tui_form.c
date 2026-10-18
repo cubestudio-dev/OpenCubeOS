@@ -57,9 +57,14 @@ static void paint_field(tui_form_t *form, int idx) {
     w->attr = base;
     tui_window_focus_set(w);
     if (f->label) {
+        /* fix4: right-align the label so it ENDS at x-1. The old
+         * left-aligned paint (starting at x-1) let long labels run
+         * over the field cells and they fought with the value. */
         w->attr = (tui_attr_t)TUI_MAKE_ATTR(TUI_COLOR_YELLOW, TUI_COLOR_BLACK) |
                   TUI_ATTR_BOLD;
-        tui_move(f->y, f->x - 1);
+        int lx = f->x - (int)strlen(f->label);
+        if (lx < 1) lx = 1;
+        tui_move(f->y, lx);
         tui_print(f->label);
     }
     w->attr = base;

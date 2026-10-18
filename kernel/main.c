@@ -3075,6 +3075,22 @@ static void interactive_loop(void) {
         shell_lang_set_str(lv);
     }
 
+    /* fix4: apply the other persisted settings (same keys the TUI
+     * system-settings pages and `config set` write). */
+    {
+        char v[16];
+        lib_config_read_default("kbd.layout", v, (int)sizeof(v), "us");
+        {
+            extern void driver_input_keyboard_set_layout(const char *name);
+            driver_input_keyboard_set_layout(v);
+        }
+        lib_config_read_default("log.level", v, (int)sizeof(v), "0");
+        {
+            extern void lib_log_set_level(int level);
+            lib_log_set_level((v[0] == '1') ? 1 : 0);
+        }
+    }
+
     screen_console_putc('\n');
     console_cn_puts(shell_msg(SM_READY));
     console_cn_putcw('\n');
@@ -3528,7 +3544,8 @@ void kmain(u64 magic, u64 mbi_phys) {
     /* ---- WP-10d: USB status + test commands ---- */
     shell_cmds_usb_test_register();
 
-    tui_cmd_register();   /* WP-10-tui: tui, tui-test, tui-hw, tui-net, tui-sysinfo */
+    tui_shell_cmds_register();   /* WP-10-tui: tui, tui-test, tui-hw, tui-net, tui-sysinfo */
+    tui_ext_init();              /* WP-10-chinese_support-fix4: builtin themes + hotkeys */
     extern void chinese_cmd_register(void);   /* WP-10-chinese_support */
     chinese_cmd_register();   /* chinese, chinesetest, font, font-test, encoding, encoding-test, ime, ime-test */
 

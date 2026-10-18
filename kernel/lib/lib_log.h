@@ -19,6 +19,14 @@
 
 void lib_log_init(void);
 
+/* WP-10-chinese_support-fix4: log level. 0 = default (everything),
+ * 1 = quiet (stage lines whose status is NOT a failure are suppressed;
+ * FAIL/ERROR/PANIC still print). Persisted as log.level in
+ * /etc/opencube.conf; the TUI log page and `config set log.level N`
+ * share the same key. */
+void lib_log_set_level(int level);
+int  lib_log_get_level(void);
+
 /* Emit a log line for the given stage name. status is "OK" or "FAIL". */
 void lib_log_stage(const char* stage, const char* status);
 

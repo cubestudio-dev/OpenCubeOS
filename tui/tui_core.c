@@ -105,6 +105,8 @@ static tui_backend_t *g_backend;
 static tui_term_info_t g_term;
 static int g_started;
 static int g_cursor_visible = 1;
+static int g_theme_fg = TUI_COLOR_SILVER;   /* fix4 theme memory       */
+static int g_theme_bg = TUI_COLOR_BLACK;
 
 /* ---- fb backend: drives screen_console directly ---- */
 
@@ -327,7 +329,7 @@ int tui_init(void) {
     palette_init();
     term_probe();
     if (!g_backend) return -1;
-    g_default_attr = TUI_MAKE_ATTR(TUI_COLOR_SILVER, TUI_COLOR_BLACK);
+    g_default_attr = TUI_MAKE_ATTR(g_theme_fg, g_theme_bg);
     g_backend->clear(g_default_attr);
     g_backend->cursor(0);
     tui_windows_reset();   /* defensive: start every session with an empty pool */
@@ -351,6 +353,28 @@ int tui_shutdown(void) {
 int tui_started(void) { return g_started; }
 
 tui_attr_t tui_default_attr(void) { return g_default_attr; }
+
+/* WP-10-chinese_support-fix4: theme support (tui_ext 7.5). Apply a
+ * foreground/background palette pair to the live session: the next
+ * full clear/repaint (and tui_default_attr consumers) pick it up.
+ * The default session attr is also what tui_print uses when no
+ * explicit set_color happened, so this is the theme hook. */
+int tui_core_apply_theme(int fg, int bg) {
+    if (fg < 0 || fg > 15 || bg < 0 || bg > 15) return -1;
+    if (!g_started) {
+        /* store for the next session: re-init keeps these values by
+         * only being applied again here, so remember via the default */
+        g_theme_fg = fg;
+        g_theme_bg = bg;
+        return 0;
+    }
+    g_theme_fg = fg;
+    g_theme_bg = bg;
+    g_default_attr = TUI_MAKE_ATTR(fg, bg);
+    g_backend->clear(g_default_attr);
+    tui_update_panels();
+    return 0;
+}
 
 void tui_backend_putc_at(int x, int y, u32 ch, tui_attr_t a) {
     if (g_backend) g_backend->putc_at(x, y, ch, a);

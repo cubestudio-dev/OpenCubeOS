@@ -22,6 +22,10 @@ static char    g_log_ring[OC_LOG_RING_LINES][OC_LOG_RING_CAP];
 static int     g_log_ring_count;
 static int     g_log_ring_head;
 
+/* fix4: 0 = print everything, 1 = quiet (non-failure stage lines
+ * suppressed; FAIL/ERROR/PANIC still get through) */
+static int     g_log_level;
+
 static void lib_log_ring_push(const char *line) {
     int slot = g_log_ring_head;
     int n = 0;
@@ -36,11 +40,33 @@ void lib_log_init(void) {
     /* timestamps come from the PIT; the ring starts empty */
     g_log_ring_count = 0;
     g_log_ring_head = 0;
+    g_log_level = 0;
+}
+
+void lib_log_set_level(int level) { g_log_level = (level > 0) ? 1 : 0; }
+int  lib_log_get_level(void)      { return g_log_level; }
+
+static int lib_log_status_is_failure(const char *status) {
+    if (!status) return 0;
+    const char *p = status;
+    while (*p) {
+        if ((p[0] == 'F' || p[0] == 'f') &&
+            (p[1] == 'A' || p[1] == 'a') &&
+            (p[2] == 'I' || p[2] == 'i') &&
+            (p[3] == 'L' || p[3] == 'l')) return 1;
+        p++;
+    }
+    return 0;
 }
 
 void lib_log_stage(const char *stage, const char *status) {
     char tmp[128];
     char ts[16];
+
+    /* fix4: quiet level suppresses non-failure stage lines (both the
+     * console output AND the TUI ring - the viewer shows the same
+     * filter the console shows). */
+    if (g_log_level > 0 && !lib_log_status_is_failure(status)) return;
 
     /* Real timestamp from the PIT (00:00:00.000 before core_timer_init). */
     core_timer_format_hms(core_timer_now_ms(), ts);

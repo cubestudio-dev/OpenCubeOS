@@ -13,8 +13,15 @@
 #include "../kernel/lib/lib_string.h"
 
 int tui_test_run(int verbose);
+int tui_time_main(void);
+void tui_time_register_pages(void);
+int tui_sys_main(void);
+void tui_sys_register_pages(void);
 
-/* main menu app: jump into any of the three TUI applications */
+/* fix4: main menu = the 4 built-in applications + every entry from the
+ * fix4 L1 menu extension registry (sorted by priority). "System
+ * settings" registers itself through the same registry, so the menu
+ * and `tui-sys` agree. */
 static int tui_main_app(void) {
     if (tui_init() != 0) return -1;
     int cols, rows;
@@ -29,9 +36,11 @@ static int tui_main_app(void) {
         return -1;
     }
     tui_window_title(win, "Open Cube OS - TUI (WP-10-tui)");
-    tui_menu_item_t items[5];
+    tui_menuext_item_t ext[TUI_EXT_MENU_MAX];
+    int extn = tui_menu_list(ext, TUI_EXT_MENU_MAX);
+    tui_menu_item_t items[5 + TUI_EXT_MENU_MAX + 1];
     items[0].name = "Hardware configuration";
-    items[0].desc = "CPU/memory/storage/network/sound/USB/PCI/input/camera/wireless/timers";
+    items[0].desc = "CPU/memory/storage/network/sound/USB/PCI/input/camera/wireless/timers/display";
     items[1].name = "Wireless network";
     items[1].desc = "WiFi scan and connect, Bluetooth manager";
     items[2].name = "System information";
@@ -40,7 +49,12 @@ static int tui_main_app(void) {
     items[3].desc = "shortcut reference (F1 anywhere)";
     items[4].name = "Exit";
     items[4].desc = "leave the TUI";
-    tui_menu_t *menu = tui_menu_new(win, items, 5);
+    for (int i = 0; i < extn; i++) {
+        items[5 + i].name = ext[i].name;
+        items[5 + i].desc = ext[i].desc;
+    }
+    int itemn = 5 + extn;
+    tui_menu_t *menu = tui_menu_new(win, items, itemn);
     tui_menu_post(menu);
     for (;;) {
         int k = tui_getch();
@@ -55,6 +69,13 @@ static int tui_main_app(void) {
             else if (sel == 1) tui_net_main();
             else if (sel == 2) tui_sysinfo_main();
             else if (sel == 3) tui_sysinfo_help();
+            else {
+                /* extension entry: run by name */
+                tui_menuext_item_t cur[TUI_EXT_MENU_MAX];
+                int n = tui_menu_list(cur, TUI_EXT_MENU_MAX);
+                int idx = sel - 5;
+                if (idx >= 0 && idx < n && cur[idx].action) cur[idx].action();
+            }
             tui_menu_post(menu);
         }
     }
@@ -124,7 +145,48 @@ static int shell_cmd_tui_sysinfo(const char *args) {
     return rc;
 }
 
-void tui_cmd_register(void) {
+static int shell_cmd_tui_time(const char *args) {
+    (void)args;
+    tui_init();
+    int rc = tui_time_main();
+    tui_shutdown();
+    return rc;
+}
+
+static int shell_cmd_tui_drv(const char *args) {
+    if (args && args[0]) return shell_cmd_tui_hw(args);  /* alias: tui-drv PCI == tui-hw PCI */
+    tui_init();
+    int rc = tui_hw_main();
+    tui_shutdown();
+    return rc;
+}
+
+static int shell_cmd_tui_sys(const char *args) {
+    if (args && args[0]) {
+        tui_init();
+        int rc = tui_ext_page_main(args);
+        tui_shutdown();
+        return rc;
+    }
+    tui_init();
+    int rc = tui_sys_main();
+    tui_shutdown();
+    return rc;
+}
+
+/* fix4: TUI L1 extension lab - selftest + live registries listing */
+static int shell_cmd_tui_ext(const char *args) {
+    tui_init();
+    tui_ext_page_main("ext");
+    (void)args;
+    tui_shutdown();
+    return 0;
+}
+
+void tui_shell_cmds_register(void) {
+    tui_time_register_pages();   /* fix4: time.clock/set/tz pages */
+    tui_sys_register_pages();    /* fix4: sys.* pages + menu entry */
+    tui_ext_register_ext_page(); /* fix4: ext lab page */
     shell_register_command_ex("tui", shell_cmd_tui,
                               "full-screen TUI main menu (arrows/Tab/Enter/Esc)",
                               "WP-10-tui");
@@ -140,4 +202,16 @@ void tui_cmd_register(void) {
     shell_register_command_ex("tui-sysinfo", shell_cmd_tui_sysinfo,
                               "system information TUI (optional: page name)",
                               "WP-10-tui");
+    shell_register_command_ex("tui-time", shell_cmd_tui_time,
+                              "time TUI: clock/sources/set RTC/timezone",
+                              "WP-10-chinese_support-fix4");
+    shell_register_command_ex("tui-drv", shell_cmd_tui_drv,
+                              "driver setup TUI (alias of tui-hw; page name optional)",
+                              "WP-10-chinese_support-fix4");
+    shell_register_command_ex("tui-sys", shell_cmd_tui_sys,
+                              "system settings TUI (host/net/storage/user/security/update/log/tui)",
+                              "WP-10-chinese_support-fix4");
+    shell_register_command_ex("tui-ext", shell_cmd_tui_ext,
+                              "TUI L1 extension lab: selftest + registries",
+                              "WP-10-chinese_support-fix4");
 }

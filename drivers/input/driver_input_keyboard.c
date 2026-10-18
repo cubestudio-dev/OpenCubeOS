@@ -76,6 +76,52 @@ static const u8 scancode_map_shift[128] = {
     /* rest 0 */
 };
 
+/* WP-10-chinese_support-fix4: Dvorak Simplified layout. Same scan
+ * codes, different letter/symbol placement; the number row and the
+ * punctuation already shared with US stay put. Special keys (Esc,
+ * arrows, F-keys, Enter/Tab/Backspace) are identical in both layouts. */
+static const u8 scancode_map_dvorak[128] = {
+    /* 0x00 */ 0,    OC_KEY_ESC_KEY, '1',  '2',  '3',  '4',  '5',  '6',
+    /* 0x08 */ '7',  '8',  '9',  '0',  '[',  ']',  0x08, '\t',
+    /* 0x10 */ '\'', ',', '.', 'p',  'y',  'f',  'g',  'c',
+    /* 0x18 */ 'r',  'l',  '/',  '=',  '\r', 0,    'a',  'o',
+    /* 0x20 */ 'e',  'u',  'i',  'd',  'h',  't',  'n',  's',
+    /* 0x28 */ '-',  '`',  0,    '\\', ';',  'q',  'j',  'k',
+    /* 0x30 */ 'x',  'b',  'm',  'w',  'v',  'z',  0,    '*',
+    /* 0x38 */ 0,    ' ',  0,    OC_KEY_F1, OC_KEY_F2, OC_KEY_F3, OC_KEY_F4, OC_KEY_F5,
+    /* 0x40 */ OC_KEY_F6, OC_KEY_F7, OC_KEY_F8, OC_KEY_F9, OC_KEY_F10, 0, 0, OC_KEY_HOME,
+    /* 0x48 */ OC_KEY_UP, OC_KEY_PGUP, 0, OC_KEY_LEFT, 0, OC_KEY_RIGHT, 0, OC_KEY_END,
+    /* 0x50 */ OC_KEY_DOWN, OC_KEY_PGDN, OC_KEY_INS, OC_KEY_DEL, 0, 0, 0, OC_KEY_F11,
+    /* 0x58 */ OC_KEY_F12, 0, 0, 0, 0, 0, 0, 0,
+};
+
+static const u8 scancode_map_dvorak_shift[128] = {
+    /* 0x00 */ 0,    0x1B, '!',  '@',  '#',  '$',  '%',  '^',
+    /* 0x08 */ '&',  '*',  '(',  ')',  '{',  '}',  0x08, '\t',
+    /* 0x10 */ '"',  '<',  '>',  'P',  'Y',  'F',  'G',  'C',
+    /* 0x18 */ 'R',  'L',  '?',  '+',  '\r', 0,    'A',  'O',
+    /* 0x20 */ 'E',  'U',  'I',  'D',  'H',  'T',  'N',  'S',
+    /* 0x28 */ '_',  '~',  0,    '|',  ':',  'Q',  'J',  'K',
+    /* 0x30 */ 'X',  'B',  'M',  'W',  'V',  'Z',  0,    '*',
+    /* 0x38 */ 0,    ' ',  0,    0,    0,    0,    0,    0,
+    /* 0x40 */ 0,    0,    0,    0,    0,    0,    0,    0,
+    /* rest 0 */
+};
+
+/* Active layout (fix4): 0 = us, 1 = dvorak. Switched at runtime via
+ * driver_input_keyboard_set_layout() and persisted as kbd.layout in
+ * /etc/opencube.conf; the TUI keyboard page and
+ * `config set kbd.layout dvorak` share the same key. */
+static int g_layout;
+
+void driver_input_keyboard_set_layout(const char *name) {
+    g_layout = (name && name[0] == 'd' && strcmp(name, "dvorak") == 0) ? 1 : 0;
+}
+
+const char *driver_input_keyboard_get_layout(void) {
+    return g_layout ? "dvorak" : "us";
+}
+
 void driver_input_keyboard_init(void) {
     spin_init(&g_kbd_ring_lock);
     spin_lock(&g_kbd_ring_lock);
@@ -260,7 +306,7 @@ static u16 process_scancode(u8 sc, int *extended) {
         if (code == 0x4E) return '+';
     }
 
-    u16 key = scancode_map[code];
+    u16 key = (g_layout ? scancode_map_dvorak : scancode_map)[code];
     if (key == 0) return 0;
 
     /* Ctrl + letter ? control code. */
@@ -273,7 +319,7 @@ static u16 process_scancode(u8 sc, int *extended) {
 
     /* Shift selects shifted map (for letters, CapsLock also flips case). */
     if (g_mods & OC_MOD_SHIFT) {
-        u8 shifted = scancode_map_shift[code];
+        u8 shifted = (g_layout ? scancode_map_dvorak_shift : scancode_map_shift)[code];
         if (shifted) key = shifted;
         /* BUG-043 FIX: CapsLock+Shift should invert case for letters.
          * When both CapsLock and Shift are active, letters should be
