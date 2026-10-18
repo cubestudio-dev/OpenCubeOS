@@ -3070,10 +3070,10 @@ static void interactive_loop(void) {
     }
 
     screen_console_putc('\n');
-    screen_console_puts(shell_msg(SM_READY));
-    screen_console_putc('\n');
-    screen_console_puts(shell_msg(SM_TRY));
-    screen_console_puts("\n\n");
+    console_cn_puts(shell_msg(SM_READY));
+    console_cn_putcw('\n');
+    console_cn_puts(shell_msg(SM_TRY));
+    console_cn_puts("\n\n");
 
     /* WP-10-wp08fix1: one-time init of the full-featured line editor
      * (history ring + Tab completer). */

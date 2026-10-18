@@ -24,6 +24,7 @@
 #include "shell_lang.h"
 #include "../kernel/lib/lib_config.h"
 #include "../drivers/display/screen_console.h"
+#include "../chinese/console_cn.h"
 #include "../kernel/lib/lib_string.h"
 
 static int g_shell_lang = SHELL_LANG_EN;
@@ -74,6 +75,9 @@ static const shell_msg_entry_t g_msgs[SM_COUNT] = {
     /* SM_HELP_WP */
     { "Commands by work package:",
       "按工作包分组的命令：" },
+    /* SM_HELP_WP_TAIL */
+    { " commands.",
+      " 个命令。" },
     /* SM_TOTAL */
     { "Total: ",
       "总计：" },
@@ -109,9 +113,9 @@ const char *shell_msg(int id) {
 /* -------- lang command --------------------------------------------- */
 int shell_cmd_lang(const char *args) {
     if (!args || !args[0]) {
-        screen_console_puts(shell_msg(SM_LANG_CUR));
-        screen_console_puts(shell_lang_name());
-        screen_console_putc('\n');
+        console_cn_puts(shell_msg(SM_LANG_CUR));
+        console_cn_puts(shell_lang_name());
+        console_cn_putcw('\n');
         return 0;
     }
     /* trim the first token */
@@ -125,21 +129,21 @@ int shell_cmd_lang(const char *args) {
         (tok[0] == 'z' && tok[1] == 'h' && tok[2] == 0)) {
         shell_lang_set_str(tok);
         int wr = lib_config_write("shell.lang", tok);
-        screen_console_puts(shell_msg(SM_LANG_SET));
-        screen_console_puts(tok);
+        console_cn_puts(shell_msg(SM_LANG_SET));
+        console_cn_puts(tok);
         if (wr == 0) {
-            screen_console_puts(" (persisted)");
+            console_cn_puts(" (persisted)");
         } else {
-            screen_console_puts(" (in-memory only; config write rc=");
+            console_cn_puts(" (in-memory only; config write rc=");
             char num[12];
             u64_to_str((u64)(wr < 0 ? -wr : wr), num);
-            screen_console_puts(num);
-            screen_console_puts(")");
+            console_cn_puts(num);
+            console_cn_puts(")");
         }
-        screen_console_putc('\n');
+        console_cn_putcw('\n');
         return 0;
     }
-    screen_console_puts(shell_msg(SM_LANG_USAGE));
-    screen_console_putc('\n');
+    console_cn_puts(shell_msg(SM_LANG_USAGE));
+    console_cn_putcw('\n');
     return 1;
 }

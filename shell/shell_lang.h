@@ -33,6 +33,7 @@ enum shell_msg_id {
     SM_HELP_AZ,
     SM_HELP_AZ_TAIL,   /* number printed by the caller before this */
     SM_HELP_WP,
+    SM_HELP_WP_TAIL,   /* number printed by the caller before this */
     SM_TOTAL,
     SM_OTHER_BUCKET,
     SM_UNKNOWN_PRE,    /* "unknown command: "          */
