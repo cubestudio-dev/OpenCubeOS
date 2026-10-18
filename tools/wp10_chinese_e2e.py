@@ -65,9 +65,11 @@ def main():
     # fix3: explicit bootindex (CD first) - SeaBIOS in QEMU 10.0.13 boots
     # the IDE hard disk first when one is attached regardless of -boot d,
     # and a config disk without GRUB code hangs there forever.
-    drive = ["-drive", f"file={iso},media=cdrom,bootindex=0,if=ide"]
+    drive = ["-drive", f"file={iso},media=cdrom,if=none,id=cd0",
+             "-device", "ide-cd,drive=cd0,bootindex=0"]
     if os.path.exists(etc_img):
-        drive += ["-drive", f"file={etc_img},format=raw,bootindex=1,if=ide"]
+        drive += ["-drive", f"file={etc_img},format=raw,if=none,id=hd0",
+                  "-device", "ide-hd,drive=hd0,bootindex=1"]
 
     args = ["-m", "512M", "-no-reboot",
             "-L", f"{OC_TOOLS}/usr/share/qemu",
