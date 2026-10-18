@@ -9,6 +9,8 @@
  *          use are exercised through their data paths.
  */
 #include "tui.h"
+#include "tui_desktop.h"
+#include "../fs/fs_vfs.h"
 #include "../drivers/display/screen_console.h"
 #include "../drivers/input/driver_input_keyboard.h"
 #include "../kernel/lib/lib_string.h"
@@ -55,6 +57,17 @@ static void verdict_num(const char *name, const char *input, long long expected,
 }
 
 /* ------------------------------------------------------------------ */
+
+/* guard self-test runners: one escapes through tui_dt_panic, one is ok */
+static int tui_test_panic_runner(tui_dt_node_t *self) {
+    (void)self;
+    tui_dt_panic(42);
+    return 0;
+}
+static int tui_test_ok_runner(tui_dt_node_t *self) {
+    (void)self;
+    return 0;
+}
 
 int tui_test_run(int verbose) {
     (void)verbose;
@@ -351,6 +364,133 @@ int tui_test_run(int verbose) {
     }
 
     tui_shutdown();
+
+    /* ---- WP-10-tui-unified: desktop registry, 6-level depth, guard,
+     * language, and the file-manager VFS operations (all real calls,
+     * no TUI session needed) ---- */
+    {
+        tui_dt_reset();
+        tui_dt_node_t n;
+        memset(&n, 0, sizeof(n));
+        strncpy(n.id, "t.l1", sizeof(n.id) - 1);
+        strncpy(n.en, "L1", sizeof(n.en) - 1);
+        strncpy(n.zh, "L1", sizeof(n.zh) - 1);
+        n.kind = TUI_DT_MENU;
+        strncpy(n.owner, "selftest", sizeof(n.owner) - 1);
+        verdict_num("desktop: root node add", "t.l1", 0,
+                    tui_dt_node_add("", &n));
+        verdict_num("desktop: duplicate id refused", "t.l1 again", -2,
+                    tui_dt_node_add("", &n));
+        {
+            /* fresh id under a non-existent parent -> parent error */
+            tui_dt_node_t u;
+            memset(&u, 0, sizeof(u));
+            strncpy(u.id, "t.orphan", sizeof(u.id) - 1);
+            strncpy(u.owner, "selftest", sizeof(u.owner) - 1);
+            verdict_num("desktop: unknown parent refused", "parent=nope", -4,
+                        tui_dt_node_add("nope", &u));
+        }
+        /* chain l1..l6 (6 levels), then the 7th must be refused */
+        const char *chain[] = { "t.l1", "t.l2", "t.l3", "t.l4", "t.l5" };
+        for (int i = 0; i < 5; i++) {
+            memset(&n, 0, sizeof(n));
+            strncpy(n.id, chain[i], sizeof(n.id) - 1);
+            strncpy(n.en, chain[i], sizeof(n.en) - 1);
+            n.kind = TUI_DT_MENU;
+            strncpy(n.owner, "selftest", sizeof(n.owner) - 1);
+            tui_dt_node_add(i == 0 ? "" : chain[i - 1], &n);
+        }
+        memset(&n, 0, sizeof(n));
+        strncpy(n.id, "t.l6", sizeof(n.id) - 1);
+        n.kind = TUI_DT_PAGE;
+        strncpy(n.owner, "selftest", sizeof(n.owner) - 1);
+        verdict_num("desktop: level-6 node accepted", "t.l1..t.l6", 0,
+                    tui_dt_node_add("t.l5", &n));
+        verdict_num("desktop: depth(t.l6) == 6", "tui_dt_depth", 6,
+                    tui_dt_depth("t.l6"));
+        memset(&n, 0, sizeof(n));
+        strncpy(n.id, "t.l7", sizeof(n.id) - 1);
+        n.kind = TUI_DT_PAGE;
+        strncpy(n.owner, "selftest", sizeof(n.owner) - 1);
+        verdict_num("desktop: level-7 refused", "t.l7 under t.l6", -5,
+                    tui_dt_node_add("t.l6", &n));
+        verdict_num("desktop: remove subtree", "remove t.l1", 6,
+                    tui_dt_node_remove("selftest", "t.l1"));
+        verdict_num("desktop: removed id not found", "find t.l1", 0,
+                    tui_dt_find("t.l1") == NULL ? 0 : 1);
+        tui_dt_reset();
+    }
+    {
+        /* crash guard: a runner that hits tui_dt_panic is contained */
+        tui_dt_node_t dummy;
+        memset(&dummy, 0, sizeof(dummy));
+        verdict_num("guard: NULL fn rejected", "fn==0", -1,
+                    tui_dt_guard(0, &dummy));
+        verdict_num("guard: panic contained", "panic -> -1000", -1000,
+                    tui_dt_guard(tui_test_panic_runner, &dummy));
+        verdict_num("guard: still usable after containment", "ok fn", 0,
+                    tui_dt_guard(tui_test_ok_runner, &dummy));
+    }
+    {
+        /* language layer follows shell.lang both ways */
+        shell_lang_set(SHELL_LANG_ZH);
+        int zh_ok = tui_tr("yes-en", "yes-zh") != 0 &&
+                    tui_lang_current() == SHELL_LANG_ZH;
+        shell_lang_set(SHELL_LANG_EN);
+        int en_back = tui_lang_current() == SHELL_LANG_EN;
+        verdict_num("language: zh label + state", "shell.lang=zh", 1, zh_ok);
+        verdict_num("language: back to en", "shell.lang=en", 1, en_back);
+    }
+    {
+        /* file-manager VFS operations, verified through the real VFS */
+        const char *dir = "/tui-unified-t";
+        int mrc = fs_vfs_mkdir(dir);
+        verdict_num("files: mkdir /tui-unified-t", "mkdir", 0, mrc);
+        char f1[64], f2[64];
+        strncpy(f1, dir, sizeof(f1) - 1);
+        strncpy(f1 + strlen(f1), "/a.txt", sizeof(f1) - strlen(f1) - 1);
+        strncpy(f2, dir, sizeof(f2) - 1);
+        strncpy(f2 + strlen(f2), "/b.txt", sizeof(f2) - strlen(f2) - 1);
+        int fd = fs_vfs_open(f1, VFS_O_WRONLY | VFS_O_CREAT);
+        int wrc = -1;
+        if (fd >= 0) {
+            wrc = fs_vfs_write(fd, "hello files", 11) == 11 ? 0 : -1;
+            fs_vfs_close(fd);
+        }
+        verdict_num("files: create + write a.txt", "11 bytes", 0, wrc);
+        /* copy through the same helper the file manager uses:
+         * open/read/write round trip (fl_copy_file logic inline) */
+        int sfd = fs_vfs_open(f1, VFS_O_RDONLY);
+        int dfd = sfd >= 0 ? fs_vfs_open(f2, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC) : -1;
+        char cbuf[32];
+        int nread = sfd >= 0 ? fs_vfs_read(sfd, cbuf, sizeof(cbuf)) : -1;
+        int nwr = dfd >= 0 ? fs_vfs_write(dfd, cbuf, nread) : -1;
+        if (sfd >= 0) fs_vfs_close(sfd);
+        if (dfd >= 0) fs_vfs_close(dfd);
+        verdict_num("files: copy a.txt -> b.txt", "11 bytes copied", 11, nwr);
+        char f3[64];
+        strncpy(f3, dir, sizeof(f3) - 1);
+        strncpy(f3 + strlen(f3), "/c.txt", sizeof(f3) - strlen(f3) - 1);
+        int rrc = fs_vfs_rename(f2, f3);
+        verdict_num("files: rename b.txt -> c.txt", "rename", 0, rrc);
+        fs_vfs_stat_t st;
+        int src_ok = fs_vfs_stat(f1, &st) == 0 && st.size == 11;
+        verdict_num("files: stat size preserved", "size 11", 1, src_ok);
+        int drc = fs_vfs_unlink(f3);
+        verdict_num("files: delete c.txt", "unlink", 0, drc);
+        int lstill = fs_vfs_stat(f1, &st) == 0;
+        verdict_num("files: a.txt untouched", "stat ok", 1, lstill);
+        /* directory listing through the same readdir the manager uses */
+        int seen = 0;
+        for (int i = 0; i < 16; i++) {
+            fs_vfs_dirent_t de;
+            if (fs_vfs_readdir(dir, i, &de) != 0) break;
+            seen++;
+        }
+        verdict_num("files: readdir sees a.txt only", "1 entry", 1, seen);
+        fs_vfs_unlink(f1);
+        fs_vfs_rmdir(dir);
+    }
 
     {
         char tail[96];

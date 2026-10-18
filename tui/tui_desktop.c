@@ -29,6 +29,7 @@
 #include "../kernel/lib/lib_string.h"
 #include "../kernel/lib/lib_config.h"
 #include "../kernel/mem/mem_heap.h"
+#include "../kernel/mem/mem_pmm.h"
 #include "../shell/shell.h"
 #include "../drivers/block/driver_block_blk.h"
 #include "../drivers/input/driver_input_keyboard.h"
@@ -52,15 +53,14 @@ int  tui_ext_page_main(const char *name);
 /* language                                                            */
 /* ------------------------------------------------------------------ */
 
-static int g_dt_lang = SHELL_LANG_EN;
-
 int tui_lang_current(void) {
-    return g_dt_lang;
+    /* single source of truth: shell.lang (set by `lang`, /etc/opencube.conf
+     * or the F2 switch below).  No separate desktop copy to drift. */
+    return shell_lang_get();
 }
 
 int tui_lang_set(int lang) {
     int l = (lang == SHELL_LANG_ZH) ? SHELL_LANG_ZH : SHELL_LANG_EN;
-    g_dt_lang = l;
     shell_lang_set(l);
     /* persist exactly like `lang zh` does; report the config write rc
      * honestly (0 = written, negative = config backend refused) */
@@ -71,7 +71,7 @@ int tui_lang_set(int lang) {
 }
 
 const char *tui_tr(const char *en, const char *zh) {
-    return (g_dt_lang == SHELL_LANG_ZH) ? zh : en;
+    return (shell_lang_get() == SHELL_LANG_ZH) ? zh : en;
 }
 
 /* ------------------------------------------------------------------ */
@@ -105,9 +105,21 @@ int tui_dt_guard(int (*fn)(tui_dt_node_t *), tui_dt_node_t *self) {
 /* registry                                                            */
 /* ------------------------------------------------------------------ */
 
-static tui_dt_node_t g_nodes[TUI_DT_MAX];    /* slot 0 = "root" */
-static u8            g_node_used[TUI_DT_MAX];
-static int           g_node_count = 0;
+/* the registry lives on the kernel heap: 56 nodes * ~450 B is too
+ * precious for the 0x400000 identity window (.bss), and the desktop
+ * session is exactly the lifetime the heap serves best */
+static tui_dt_node_t *g_nodes = NULL;        /* slot 0 = "root" */
+static u8            *g_node_used = NULL;
+static int            g_node_count = 0;
+
+static void dt_registry_alloc(void) {
+    if (g_nodes) return;
+    g_nodes = kmalloc(sizeof(tui_dt_node_t) * TUI_DT_MAX);
+    g_node_used = kmalloc(TUI_DT_MAX);
+    if (g_nodes) memset(g_nodes, 0, sizeof(tui_dt_node_t) * TUI_DT_MAX);
+    if (g_node_used) memset(g_node_used, 0, TUI_DT_MAX);
+    g_node_count = 0;
+}
 
 static tui_dt_node_t *dt_root(void) {
     return &g_nodes[0];
@@ -118,6 +130,7 @@ static void dt_clear_node(tui_dt_node_t *n) {
 }
 
 void tui_dt_reset(void) {
+    if (!g_nodes) { dt_registry_alloc(); return; }
     for (int i = 0; i < TUI_DT_MAX; i++) {
         dt_clear_node(&g_nodes[i]);
         g_node_used[i] = 0;
@@ -126,10 +139,11 @@ void tui_dt_reset(void) {
 }
 
 int tui_dt_count(void) {
-    return g_node_count;
+    return g_nodes ? g_node_count : 0;
 }
 
 tui_dt_node_t *tui_dt_find(const char *id) {
+    if (!g_nodes) return NULL;
     if (!id || !id[0]) id = "root";
     for (int i = 0; i < TUI_DT_MAX; i++)
         if (g_node_used[i] && strcmp(g_nodes[i].id, id) == 0)
@@ -197,6 +211,8 @@ static int dt_is_root_id(const char *id) {
 }
 
 int tui_dt_node_add(const char *parent_id, const tui_dt_node_t *spec) {
+    dt_registry_alloc();
+    if (!g_nodes) return -3;
     if (!spec || !spec->id[0]) return -1;
     if (g_node_count >= TUI_DT_MAX) return -3;
     if (tui_dt_find(spec->id)) return -2;         /* duplicate id */
@@ -240,6 +256,16 @@ int tui_dt_node_remove(const char *owner, const char *id) {
     if (owner && owner[0] && strcmp(n->owner, owner) != 0)
         return -3;   /* only the owning module may remove its nodes */
     return dt_remove_recursive(n);
+}
+
+/* bounded string append (the kernel string lib has no strncat) */
+void tui_dt_str_append(char *dst, int cap, const char *src) {
+    if (!dst || cap <= 0) return;
+    int len = (int)strlen(dst);
+    if (len + 1 >= cap) return;
+    int k = 0;
+    while (src[k] && len + 1 < cap) dst[len++] = src[k++];
+    dst[len] = 0;
 }
 
 /* clear one full row to the window background (rendering helper) */
@@ -333,6 +359,11 @@ static void dt_draw_toast(void) {
     g_dt_win->attr = save;
 }
 
+const char *tui_dt_toast_text(int *ok) {
+    if (ok) *ok = g_toast_ok;
+    return g_toast;
+}
+
 void tui_dt_loading_begin(const char *msg) {
     strncpy(g_loading, msg ? msg : "", sizeof(g_loading) - 1);
     g_loading[sizeof(g_loading) - 1] = 0;
@@ -406,7 +437,7 @@ static void dt_render_menu(tui_dt_node_t *node, int sel) {
         strncpy(hdr, "Open Cube OS Desktop", sizeof(hdr) - 1);
         hdr[sizeof(hdr) - 1] = 0;
         /* right side: language marker */
-        const char *lg = (g_dt_lang == SHELL_LANG_ZH) ? "[zh]" : "[en]";
+        const char *lg = (shell_lang_get() == SHELL_LANG_ZH) ? "[zh]" : "[en]";
         int want = (int)strlen(hdr) + (int)strlen(lg) + 2;
         int pad = cols - want; if (pad < 1) pad = 1;
         g_dt_win->curs_x = pad > 0 ? pad : 0;
@@ -605,7 +636,11 @@ static void dt_push(tui_dt_node_t *node) {
 }
 
 int tui_desktop_main(void) {
-    g_dt_lang = shell_lang_get();   /* language adaptation at start */
+    dt_registry_alloc();
+    if (!g_nodes) {
+        screen_console_puts("tui: registry alloc failed\n");
+        return -1;
+    }
 
     if (!g_node_used[0]) {
         /* fresh registry: create the root */
@@ -688,8 +723,8 @@ int tui_desktop_main(void) {
             tui_dt_loading_end(1, "help closed", NULL);
             break;
         case TUI_KEY_F2:
-            tui_lang_set(g_dt_lang == SHELL_LANG_ZH ? SHELL_LANG_EN
-                                                    : SHELL_LANG_ZH);
+            tui_lang_set(shell_lang_get() == SHELL_LANG_ZH ? SHELL_LANG_EN
+                                                           : SHELL_LANG_ZH);
             break;
         case TUI_KEY_F5:
             if (g_dt_win) tui_window_refresh(g_dt_win);
@@ -717,6 +752,7 @@ done:
 /* ------------------------------------------------------------------ */
 
 /* app runners defined in tui_dt_apps.c (real pages, no stubs) */
+int tui_dt_files_run(tui_dt_node_t *self);
 int tui_dt_help_page_run(tui_dt_node_t *self);
 int tui_dt_cmdbridge_run(tui_dt_node_t *self);
 int tui_dt_lang_run(tui_dt_node_t *self);
@@ -861,6 +897,10 @@ void tui_dt_bootstrap(void) {
            "[L]", TUI_DT_PAGE, dt_log_run, NULL, NULL, 70, NULL);
 
     /* ---- top-level applications ---- */
+    dt_add("root", "files", "Files", "\xe6\x96\x87\xe4\xbb\xb6",
+           "file manager: browse/copy/move/rename/delete/mount",
+           "\xe6\x96\x87\xe4\xbb\xb6\xe7\xae\xa1\xe7\x90\x86\xef\xbc\x9a\xe6\xb5\x8f\xe8\xa7\x88/\xe5\xa4\x8d\xe5\x88\xb6/\xe7\xa7\xbb\xe5\x8a\xa8/\xe9\x87\x8d\xe5\x91\xbd\xe5\x90\x8d/\xe5\x88\xa0\xe9\x99\xa4/\xe6\x8c\x82\xe8\xbd\xbd",
+           "[F]", TUI_DT_APP, tui_dt_files_run, NULL, NULL, 5, NULL);
     dt_add("root", "sysinfo", "System Info", "\xe7\xb3\xbb\xe7\xbb\x9f\xe4\xbf\xa1\xe6\x81\xaf",
            "overview/processes/logs/monitor/power", "\xe6\xa6\x82\xe8\xa7\x88/\xe8\xbf\x9b\xe7\xa8\x8b/\xe6\x97\xa5\xe5\xbf\x97/\xe7\x9b\x91\xe6\x8e\xa7/\xe7\x94\xb5\xe6\xba\x90",
            "[i]", TUI_DT_APP, dt_sysinfo_run, NULL, NULL, 20, NULL);

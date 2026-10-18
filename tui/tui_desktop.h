@@ -115,6 +115,7 @@ void tui_dt_status_bar(void);
 /* transient result line above the status bar; stays until the next
  * key event.  ok!=0 renders in green ("OK"), 0 in red ("FAIL: ..."). */
 void tui_dt_toast(int ok, const char *fmt, ...);
+const char *tui_dt_toast_text(int *ok);   /* current toast ("" = none) */
 
 /* loading spinner: begin prints "<msg> ..." with an animated glyph;
  * tui_dt_loading_tick() animates while the caller pumps the loop. */
@@ -158,6 +159,7 @@ int  tui_dt_page_open(void);               /* 0 ok; sets focus            */
 int  tui_dt_page_rows(void);
 int  tui_dt_page_cols(void);
 void tui_dt_page_flush(void);              /* repaint the page window     */
+void tui_dt_str_append(char *dst, int cap, const char *src);  /* bounded */
 void tui_dt_page_wait_close(const char *hint);   /* hint + Esc/F10/q loop */
 
 #endif /* OC_TUI_DESKTOP_H */
