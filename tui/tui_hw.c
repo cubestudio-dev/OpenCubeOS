@@ -51,6 +51,16 @@ static void hw_add(hw_page_t *pg, const char *fmt, ...) {
     for (const char *p = fmt; *p && n < 96; p++) {
         if (*p != '%') { dst[n++] = *p; continue; }
         p++;
+        /* fix3: optional zero-padded width ("%02x" / "%04x"), so the
+         * PCI page shows real vendor:device ids instead of the
+         * literal "2x:2x" garbage the width-less formatter printed. */
+        int pad = -1;
+        if (*p == '0') {
+            pad = 0;
+            p++;
+            while (*p >= '0' && *p <= '9') { pad = pad * 10 + (*p - '0'); p++; }
+            if (pad > 16) pad = 16;
+        }
         if (*p == 's') {
             const char *s = __builtin_va_arg(ap, const char *);
             while (s && *s && n < 96) dst[n++] = *s++;
@@ -66,9 +76,15 @@ static void hw_add(hw_page_t *pg, const char *fmt, ...) {
         } else if (*p == 'x') {
             static const char hx[] = "0123456789abcdef";
             u32 v = __builtin_va_arg(ap, unsigned int);
-            int hi = 28;
-            while (hi > 0 && ((v >> hi) & 0xF) == 0) hi -= 4;
-            for (; hi >= 0; hi -= 4) dst[n++] = hx[(v >> hi) & 0xF];
+            char tmp[12];
+            int m = 0;
+            if (v == 0) {
+                tmp[m++] = '0';
+            } else {
+                while (v && m < 12) { tmp[m++] = hx[v & 0xF]; v >>= 4; }
+            }
+            for (int k = m; k < pad && n < 96; k++) dst[n++] = '0';
+            while (m > 0 && n < 96) dst[n++] = tmp[--m];
         } else if (*p == '%') {
             dst[n++] = '%';
         }
