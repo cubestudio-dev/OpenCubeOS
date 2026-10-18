@@ -125,7 +125,7 @@ def main():
         "fix1 tui-cn reenter": check("fix1: tui-cn enter/quit/re-enter still renders (pool reuse)"),
         "cat utf8": check("cat echoes real UTF-8 bytes (zhongwen shi)"),
         "help -w tag": check("help -w lists WP-10-chinese_support"),
-        "cmd count 221": check("command count 221"),
+        "cmd count 225": check("command count 225"),
         "fix3 lang zh": check("fix3: lang zh switches report/errors/help to Chinese"),
         "fix3 lang persist": check("fix3: shell.lang=zh persisted to /etc/opencube.conf"),
         "fix3 lang invalid": check("fix3: config set shell.lang fr rejected"),
@@ -308,11 +308,11 @@ def main():
         CHECKS[i][1] = "WP-10-chinese_support" in out
 
         out = run("help")
-        i = i_codes["cmd count 221"]
+        i = i_codes["cmd count 225"]
         m = re.search(r"Total:\s*(\d+) commands", out)
-        CHECKS[i][1] = bool(m) and m.group(1) == "221"
+        CHECKS[i][1] = bool(m) and m.group(1) == "225"
         # fix3: suspend/suspend_test hidden (222 -> 220), `lang` added
-        # (220 -> 221).
+        # (221 -> 225, fix4: +tui-time/tui-drv/tui-sys/tui-ext).
         CHECKS[i][1] = CHECKS[i][1] and "suspend" not in out.lower()
 
         # ---- fix3: user-configurable shell output language ----

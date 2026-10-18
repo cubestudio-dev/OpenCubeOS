@@ -65,8 +65,9 @@ CHECKS = [
     # font-test encoding encoding-test ime ime-test tui-cn): baseline
     # UP 213 -> 222.
     # WP-10-chinese_support-fix3: suspend/suspend_test hidden per user
-    # decision (222 -> 220) and `lang` added (220 -> 221).
-    ("command count 221",        r"Total:\s*221 commands"),
+    # decision (222 -> 220), `lang` added (220 -> 221), fix4 added
+    # tui-time/tui-drv/tui-sys/tui-ext (221 -> 225).
+    ("command count 225",        r"Total:\s*225 commands"),
     # Baseline note (WP-10-input_chipset): accept the current tree describe
     # (fix4-2-g<sha>), the fix3-rebuild form, and the new WP-10-input_chipset
     # tag form (release builds bake the tag name verbatim).
