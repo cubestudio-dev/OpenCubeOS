@@ -402,8 +402,14 @@ static int shell_cmd_echo(const char *args) {
      * shell_join_args (by design - quotes are a tokenizer concept), the
      * scan then mistook the literal '>' for a redirection and died with
      * "echo: cannot open file" instead of printing the text. */
-    screen_console_puts(args);
-    screen_console_putc('\n');
+    /* WP-10-chinese_support-fix4: route user content through the cn
+     * write path. For pure-ASCII args console_cn_putcw delegates to
+     * screen_console_putc byte-for-byte, so English output is
+     * unchanged; UTF-8 content (echo 你好) renders as real glyphs
+     * instead of garbage blocks from the 8x16 ASCII table's upper
+     * half. */
+    console_cn_puts(args);
+    console_cn_putcw('\n');
     return 0;
 }
 

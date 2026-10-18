@@ -78,7 +78,10 @@ static void print_dirent(const char *name, int type, u64 size) {
     }
     strcpy(line + strlen(line), name);
     strcpy(line + strlen(line), "\n");
-    screen_console_puts(line);
+    /* WP-10-chinese_support-fix4: filenames are user content and may be
+     * UTF-8 (CJK); render through the cn path (ASCII stays
+     * byte-identical via the putcw delegate). */
+    console_cn_puts(line);
 }
 
 /* ---- ls ---- */
