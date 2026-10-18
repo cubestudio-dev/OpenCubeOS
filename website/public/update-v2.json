@@ -1,10 +1,10 @@
 {
-  "version": "WP-10-chinese_support-fix3",
-  "build": 209,
+  "version": "WP-10-chinese_support-fix4",
+  "build": 220,
   "time": "2026-10-18",
-  "changes": "Screenshot-driven batch: zh system messages render 16x16 on the framebuffer (tofu fixed), TUI PCI page shows real vendor:device ids (%02x/%04x width support), config persistence actually survives reboots (hda..hdd drive-name drift + honest lang report), suspend/suspend_test hidden (221 commands), lang zh/en runtime switch + tui Chinese launcher.",
+  "changes": "Line-editor prompt/erase fixes (WP-08 era defects), echo/ls UTF-8 content rendering, systematic CJK render verification (30720 px, 0 mismatch), TUI as second frontend (tui-time/tui-sys/tui-drv/tui-ext), L1 extension registry 7 sets with selftest ALL PASS, Dvorak layout, quiet log level, command table 224 -> 232. Commands 221 -> 225.",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-chinese_support-fix3-update.tar.gz",
-  "package_sha256": "0d44362d7a4bd4369ccc1f7782751432c9fdfd35efa78df737b51d5239042a35",
-  "package_size": 977199
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-chinese_support-fix4-update.tar.gz",
+  "package_sha256": "5ce22a10af8fc406c9fae0e2b632fbccafd5c9b68491d5e85fcfba0f1ae7b8ed",
+  "package_size": 994830
 }

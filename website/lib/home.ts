@@ -19,28 +19,28 @@ function fmtBytes(n: number): string {
 export { fmtBytes };
 
 // Current stats (same caliber as the README Stats section, re-verified at
-// Recounted at WP-10-chinese_support-fix3: 128,053 lines = README caliber (kernel + boot +
+// Recounted at WP-10-chinese_support-fix4: 135,538 lines = README caliber (kernel + boot +
 // userprogs + fs + net + shell + l1 + libs + drivers + tui + chinese, .c/.h/.S via
 // git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui|chinese)/' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l).
 // 53 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
-// 138 L1 interfaces / 221 commands per README + docs/INTERFACES.md,
+// 138 L1 interfaces / 225 commands per README + docs/INTERFACES.md,
 // 23 work packages = the latest counted total per README Stats). This is
 // the RENDERED source (HomeView imports from here) - lib/site.ts carries
 // the release assets and no longer keeps a competing stats copy.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "128,053", label: "行源码" },
+    { value: "135,538", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "53", label: "系统调用" },
-    { value: "221", label: "shell 命令" },
+    { value: "225", label: "shell 命令" },
     { value: "23", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "128,053", label: "lines of source" },
+    { value: "135,538", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "53", label: "system calls" },
-    { value: "221", label: "shell commands" },
+    { value: "225", label: "shell commands" },
     { value: "23", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
@@ -51,6 +51,11 @@ export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "行编辑修复 + TUI 第二前端 + L1 扩展注册表（tui-time/tui-sys/tui-drv/tui-ext）",
+      tag: "WP-10-chinese_support-fix4",
+      desc: "双缺陷用户实锤修复 + TUI 补全为系统第二前端 + L1 扩展注册表。1）OC 提示符行编辑（WP-08 补全时代缺陷，方向键/历史一按即乱）：interactive_loop 自行打印 oc> 而 lineedit 会话持有空 prompt，每次重绘从列 0 起步覆盖提示符（截图实锤 help_/_lp）——shell_lineedit_readline 现将 $PS1 同步进会话并统一打印；第二缺陷：擦除宽度只盖当前行尾，长历史切短行留残影（hello world t.txt_）——会话记 last_drawn_w，重绘擦 max(当前尾, 上次尾)。CJK 行编辑端到端实测：输入你好世界→左×2→Delete 删整字世→缓冲=你好界（串口字节级验证）。2）渲染：echo/ls 用户内容改走 console_cn 路径（ASCII 字节不变，UTF-8 渲染真字形）；系统性验证：120 个底部墨迹密集字上屏与字库位图逐像素比对，30720 像素 0 错配——fix3 时代『下半缺 1/5』报告实为截图裁剪伪影。3）TUI：tui-time（时钟/时间源/真 CMOS RTC 写/时区）、tui-sys（8 设置页，与 shell 同 lib_config 键）、tui-drv（12 硬件页含新增 Display）、tui-ext（L1 扩展实验室）；L1 扩展注册表 7 组接口（menu/page/widget/command/theme/hotkey/event），自测 ALL PASS 上屏。Dvorak 键盘布局（kbd.layout 运行时切换，PS/2 q 回显 '）；log.level 静默档；shell 命令表容量修复（224→232）。命令 221→225，help 三模式不变。门禁：0E0W；回归 28/28（基线 225）；中文 E2E 21/21×2；TUI E2E 37/37×2；chinesetest 101/101；dhtest 5/5；SSH 5/5；HTTPS 7/7；host 17/0/2。135,538 行源码。",
+    },
     {
       name: "截图驱动修复批次：zh 消息屏幕渲染 / PCI 页 ID / 配置持久化真修复",
       tag: "WP-10-chinese_support-fix3",
@@ -178,6 +183,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "Line-editor fixes + TUI second frontend + L1 extension registry (tui-time/tui-sys/tui-drv/tui-ext)",
+      tag: "WP-10-chinese_support-fix4",
+      desc: "Two user-reproduced defects fixed + the TUI finished as the system's second frontend + the L1 extension registry. (1) OC prompt line editing (a WP-08 completion-era defect, broken the moment arrows/history were pressed): interactive_loop printed oc> itself while the editor session held an EMPTY prompt, so every redraw restarted at column 0 and overwrote the prompt (screenshots: help_ / _lp) - shell_lineedit_readline now syncs $PS1 into the session and prints it; second defect: the erase run covered only the current-line tail so long-history -> short-line left stale characters (hello world t.txt_) - the session tracks last_drawn_w. CJK line editing verified end to end: type 你好世界, Left x2, Delete removes the whole char 世, buffer = 你好界 (byte-exact on the serial mirror). (2) Rendering: echo/ls emit user content through the cn path (ASCII byte-identical, UTF-8 as real glyphs); systematic verification echoed 120 bottom-ink-dense characters and compared the screendump against the font bitmaps pixel by pixel - 30720 px, 0 mismatches; the fix3-era bottom-clip report is a screenshot-crop artifact. (3) TUI: tui-time (clock/sources/real CMOS RTC write/timezone), tui-sys (8 settings pages through the same lib_config keys the shell exposes), tui-drv (12 hardware pages incl. the new Display), tui-ext (the L1 extension lab); seven documented interface sets (menu/page/widget/command/theme/hotkey/event), selftest ALL PASS on screen. Dvorak layout (kbd.layout runtime switch; PS/2 q echoes an apostrophe), quiet log level, shell command table capacity fix (224 -> 232). Commands 221 -> 225, help three modes unchanged. Gates: 0E0W; regression 28/28 (baseline 225); chinese E2E 21/21 x2; TUI E2E 37/37 x2; chinesetest 101/101; dhtest 5/5; SSH 5/5; HTTPS 7/7; host 17/0/2. 135,538 lines of source.",
+    },
     {
       name: "Screenshot-driven batch: zh message rendering / PCI page ids / real config persistence",
       tag: "WP-10-chinese_support-fix3",
