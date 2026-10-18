@@ -19,38 +19,50 @@ function fmtBytes(n: number): string {
 export { fmtBytes };
 
 // Current stats (same caliber as the README Stats section, re-verified at
-// Recounted at WP-10-chinese_support-fix4: 135,538 lines = README caliber (kernel + boot +
-// userprogs + fs + net + shell + l1 + libs + drivers + tui + chinese, .c/.h/.S via
-// git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui|chinese)/' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l).
+// Recounted at WP-10-tui-unified: 138,458 lines = the fix4-published caliber
+// (all git-tracked .c/.h/.S minus the four generated data files):
+// git ls-files | grep -E '\.(c|h|S)$' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l
+// (the fix4 session recorded 135,538 with this same all-tracked command;
+// the directory-filter claim in the old comment did not match the
+// published numbers - fix3's 128,053 matched the directory-filtered
+// count exactly, fix4's 135,538 matches the all-tracked count of its
+// tag within session drift).
 // 53 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
-// 138 L1 interfaces / 225 commands per README + docs/INTERFACES.md,
-// 23 work packages = the latest counted total per README Stats). This is
-// the RENDERED source (HomeView imports from here) - lib/site.ts carries
-// the release assets and no longer keeps a competing stats copy.
+// 138 L1 interfaces (closed numbered set; the tui-unified batch added
+// module-level APIs shell_cmd_enum / user_process_kill_by_tid outside
+// the numbered registry) / 224 commands (tui-cn removed) per README +
+// docs/INTERFACES.md, 24 work packages = the latest counted total per
+// README Stats). This is the RENDERED source (HomeView imports from
+// here) - lib/site.ts carries the release assets.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "135,538", label: "行源码" },
+    { value: "138,458", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "53", label: "系统调用" },
-    { value: "225", label: "shell 命令" },
-    { value: "23", label: "工作包" },
+    { value: "224", label: "shell 命令" },
+    { value: "24", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "135,538", label: "lines of source" },
+    { value: "138,458", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "53", label: "system calls" },
-    { value: "225", label: "shell commands" },
-    { value: "23", label: "work packages" },
+    { value: "224", label: "shell commands" },
+    { value: "24", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
 };
 
-// WP-10-AUDIT_P2-fix2b (fix2 payload re-verified in tree + the embed-chain repair) leads the user-facing list, then WP-10-AUDIT_P2-fix2 + WP-10-AUDIT_P2-fix1 + WP-10-wp08fix1 shell completion + WP-10d/c/u/b/a + security transport
+// WP-10-tui-unified (the unified character desktop) leads the user-facing list, then the fix4/audit-fix lineage
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "统一 TUI 字符桌面 + 五大桌面应用 + Ring 3 I/O 围栏",
+      tag: "WP-10-tui-unified",
+      desc: "四部分交付：1）统一入口：tui 为唯一 TUI 入口（tui-cn 启动器移除，命令 225→224，tui-* 应用命令保留），en/zh 标签由 shell.lang 驱动、F2 运行时切换并持久化；2）全动态 6 层菜单注册表（tui_dt_node_add/remove/find/depth，重复/孤儿/深度 7 全拒绝）驱动一切条目；3）五大桌面应用走真实子系统：Files（VFS 文件管理器：readdir/stat/改名/删除/挂载表/剪贴板）、Processes（活 g_procs 表 + 真 PMM 统计 + kill-by-tid 通用 L1 API）、Editor（真 nano 走 shell 命令路径，^O 保存 ^X 退出）、Terminal（Ring 3 ush，纯 syscall）、System Info；另有控制面板/中文输入板/命令桥（shell_cmd_enum + shell_execute_captured）/扩展实验室；数字 1-9 快开 + 状态栏提示；4）异常隔离双向闭环：页面崩溃由 tui_dt_guard setjmp 拦截（菜单存活），Ring 3 端口 I/O 全面封锁——TSS I/O 许可位图偏移字段错放在 0x64（SDM 表 8-2 规定 0x66），CPU 读到 0 指向全零 TSS 头部致 WP-02 以来所有端口对用户态放行（priv_test 实测 out 0x70 不 fault 而后修复），修复后 run priv_test 实测 #GP(0) at cs=0x33、进程被杀内核继续（BIOS+UEFI）。门禁：0E0W；tui-test 90/90×2；回归 28/28；中文 E2E 21/21×2（tui-cn 检查改走桌面拼音板+数字快开）；TUI E2E 37/37×2（reenter 回归改桌面根）。138,458 行源码。",
+    },
     {
       name: "行编辑修复 + TUI 第二前端 + L1 扩展注册表（tui-time/tui-sys/tui-drv/tui-ext）",
       tag: "WP-10-chinese_support-fix4",
@@ -183,6 +195,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "Unified TUI character desktop + five desktop applications + ring-3 I/O containment",
+      tag: "WP-10-tui-unified",
+      desc: "Delivered in four parts: (1) single entry - `tui` is the only TUI entry (the tui-cn launcher removed, 225 -> 224 commands; the tui-* app commands stay); en/zh labels driven by shell.lang with runtime F2 switching and persistence. (2) a fully dynamic 6-level menu registry (tui_dt_node_add/remove/find/depth; duplicate/orphan/depth-7 all refused) drives every entry. (3) five desktop applications over the real subsystems: Files (VFS file manager: readdir/stat/rename/delete/mount table/clipboard), Processes (live g_procs table + real PMM stats + kill-by-tid as the generic L1 API), Editor (the real nano over its live shell command path, ^O save / ^X exit), Terminal (ring-3 ush, syscall-only), System Info - plus Control Panel, the Chinese Input pad, the Command Bridge (shell_cmd_enum + shell_execute_captured) and the Extensions lab; digit 1-9 quick-open advertised in the status bar. (4) exception isolation closed at both boundaries: a page crash is contained by the tui_dt_guard setjmp barrier (the menu survives), and ring-3 port I/O is now fully denied - the TSS I/O-permission-bitmap offset field sat at 0x64 while SDM table 8-2 puts it at 0x66, so the CPU read the pad (0) as the bitmap offset and the bitmap pointed at the all-zero TSS header: every port was allowed from ring 3 since WP-02 (priv_test first ran open). After the fix, run priv_test shows #GP(0) at cs=0x33, the process is killed, the kernel continues (BIOS + UEFI). Gates: 0E0W; tui-test 90/90 x2; regression 28/28; chinese E2E 21/21 x2 (former tui-cn checks now drive the desktop pad via digit quick-open); TUI E2E 37/37 x2 (the re-enter round now exercises the desktop root). 138,458 lines of source.",
+    },
     {
       name: "Line-editor fixes + TUI second frontend + L1 extension registry (tui-time/tui-sys/tui-drv/tui-ext)",
       tag: "WP-10-chinese_support-fix4",

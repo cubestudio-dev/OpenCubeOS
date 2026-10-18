@@ -11,23 +11,23 @@ export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-chinese_support-fix4";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-tui-unified";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub WP-10-chinese_support-fix4 tag + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-10-chinese_support-fix4.iso";
-export const ISO_SIZE_B = 12185600;
-export const ISO_SIZE_MB = "11.62";
+// Real assets (build/ + GitHub WP-10-tui-unified tag + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-WP-10-tui-unified.iso";
+export const ISO_SIZE_B = 12232704;
+export const ISO_SIZE_MB = "11.67";
 export const ISO_SHA256 =
-  "57df81682e8e0c3302a9f30fb0e98e6a5d40b899e9ba6ef608d309ba66dc37a5";
+  "392a5d4cdea473ab072ec3102a2289bd644cec33d0c38246caab7db6612d4976";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-10-chinese_support-fix4-src.zip";
-export const SRC_SIZE_B = 3579928;
-export const SRC_SIZE_MB = "3.41";
+export const SRC_FILE = "opencube-WP-10-tui-unified-src.zip";
+export const SRC_SIZE_B = 3661512;
+export const SRC_SIZE_MB = "3.49";
 export const SRC_SHA256 =
-  "56fca5babc26731ad012552ff3811e1f208882c8271887beb72e9441a1231adb";
+  "9d2bf1958150b5887bd0ef7eb9f471ae357b0d1e637d1d729866f2adc25e923c";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // NOTE: the former STATS export lived here unreferenced (A18-5): HomeView
@@ -39,8 +39,13 @@ export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 // deploy: sha256sum public/downloads/$ISO_FILE must match ISO_SHA256
 // (website/build-local.sh performs that check on every run).
 
-// WP-AUDIT-01 (607-finding audit + all 41 P0 fixes + all 94 P1 fixes: p1fix1 items 1..31 + p1fix2 items 32..62 + p1fix3 items 63..94 + the p1fix4 HTTPS E2E fix + the WP-10-AUDIT_P2-fix1 batch-1 P2 fixes, items 1..53) leads the user-facing list
+// WP-10-tui-unified (the unified character desktop) leads the user-facing list
 export const FEATURES = [
+  {
+    name: "统一 TUI 字符桌面 + 五大桌面应用 + Ring 3 I/O 围栏",
+    tag: "WP-10-tui-unified",
+    desc: "统一入口：tui 为唯一 TUI 入口（tui-cn 移除，命令 225→224），en/zh 标签随 shell.lang、F2 运行时切换；全动态 6 层菜单注册表；五大桌面应用走真实子系统（Files=VFS 文件管理器、Processes=g_procs+PMM+kill-by-tid、Editor=真 nano、Terminal=Ring 3 ush、System Info）+ 控制面板/中文输入板/命令桥/扩展实验室；数字 1-9 快开；异常隔离双向闭环：tui_dt_guard 页面崩溃拦截 + TSS IOPB 偏移字段纠正（0x64→0x66，SDM 表 8-2；修复前 Ring 3 所有端口放行，WP-02 以来的真实漏洞由本包新测试 priv_test 首次捕获），run priv_test 实测 #GP(0)、进程被杀内核继续（BIOS+UEFI）。门禁：0E0W；tui-test 90/90×2；回归 28/28；中文 E2E 21/21×2；TUI E2E 37/37×2。",
+  },
   {
     name: "P2 第四批 55 条（BUG-0295..0349）全部修复完成 + fix3 ISO 版本串重建",
     tag: "WP-10-AUDIT_P2-fix4",
