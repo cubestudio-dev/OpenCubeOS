@@ -1,15 +1,16 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS - WP-10-tui
+/* Open Cube OS - WP-10-tui-unified
  * File: tui/tui_cmd.c
- * Purpose: The shell entry points: tui (main menu), tui-test,
- *          tui-hw, tui-net, tui-sysinfo.  All five are registered
- *          through the standard shell registry with a WP tag.
+ * Purpose: The shell entry points.  `tui` is THE single desktop entry
+ *          (WP-10-tui-unified): it reads shell.lang, renders the dynamic
+ *          menu tree and is the only launcher (tui-cn was removed).
+ *          tui-test / tui-hw / tui-net / tui-sysinfo / tui-time /
+ *          tui-drv / tui-sys / tui-ext stay exactly as they were.
  */
 #include "tui.h"
+#include "tui_desktop.h"
 #include "../shell/shell.h"
-#include "../shell/shell_lang.h"   /* fix3: shell.lang drives the launcher choice */
-#include "../chinese/tui_chinese.h" /* fix3: tui_cn_launcher() */
 #include "../kernel/lib/lib_string.h"
 
 int tui_test_run(int verbose);
@@ -18,82 +19,12 @@ void tui_time_register_pages(void);
 int tui_sys_main(void);
 void tui_sys_register_pages(void);
 
-/* fix4: main menu = the 4 built-in applications + every entry from the
- * fix4 L1 menu extension registry (sorted by priority). "System
- * settings" registers itself through the same registry, so the menu
- * and `tui-sys` agree. */
-static int tui_main_app(void) {
-    if (tui_init() != 0) return -1;
-    int cols, rows;
-    tui_term_size(&cols, &rows);
-    tui_window_t *win = tui_window_new(0, 0, rows, cols);
-    if (!win) {
-        /* fix2: tui_init() already cleared the screen and hid the
-         * cursor - returning without tui_shutdown() left the session
-         * "open" (g_started=1, cursor hidden) and the shell with a
-         * wiped screen. */
-        tui_shutdown();
-        return -1;
-    }
-    tui_window_title(win, "Open Cube OS - TUI (WP-10-tui)");
-    tui_menuext_item_t ext[TUI_EXT_MENU_MAX];
-    int extn = tui_menu_list(ext, TUI_EXT_MENU_MAX);
-    tui_menu_item_t items[5 + TUI_EXT_MENU_MAX + 1];
-    items[0].name = "Hardware configuration";
-    items[0].desc = "CPU/memory/storage/network/sound/USB/PCI/input/camera/wireless/timers/display";
-    items[1].name = "Wireless network";
-    items[1].desc = "WiFi scan and connect, Bluetooth manager";
-    items[2].name = "System information";
-    items[2].desc = "overview, processes, logs, monitor, power, update";
-    items[3].name = "Help";
-    items[3].desc = "shortcut reference (F1 anywhere)";
-    items[4].name = "Exit";
-    items[4].desc = "leave the TUI";
-    for (int i = 0; i < extn; i++) {
-        items[5 + i].name = ext[i].name;
-        items[5 + i].desc = ext[i].desc;
-    }
-    int itemn = 5 + extn;
-    tui_menu_t *menu = tui_menu_new(win, items, itemn);
-    tui_menu_post(menu);
-    for (;;) {
-        int k = tui_getch();
-        if (k == TUI_KEY_F1) { tui_sysinfo_help(); tui_menu_post(menu); continue; }
-        if (k == TUI_KEY_F(5)) { tui_update_panels(); tui_menu_post(menu); continue; }
-        int d = tui_menu_driver(menu, k);
-        if (d == -1) break;
-        if (d == 1) {
-            int sel = tui_menu_current(menu);
-            if (sel == 4) break;
-            if (sel == 0) tui_hw_main();
-            else if (sel == 1) tui_net_main();
-            else if (sel == 2) tui_sysinfo_main();
-            else if (sel == 3) tui_sysinfo_help();
-            else {
-                /* extension entry: run by name */
-                tui_menuext_item_t cur[TUI_EXT_MENU_MAX];
-                int n = tui_menu_list(cur, TUI_EXT_MENU_MAX);
-                int idx = sel - 5;
-                if (idx >= 0 && idx < n && cur[idx].action) cur[idx].action();
-            }
-            tui_menu_post(menu);
-        }
-    }
-    tui_menu_free(menu);
-    tui_window_free(win);
-    tui_shutdown();
-    return 0;
-}
-
 static int shell_cmd_tui(const char *args) {
     (void)args;
-    /* fix3: with shell.lang=zh the user asked for the Chinese system
-     * experience - open the Chinese launcher directly (same page set
-     * as `tui-cn`).  Switch back with `lang en` or
-     * `config set shell.lang en`. */
-    if (shell_lang_get() == SHELL_LANG_ZH)
-        return tui_cn_launcher();
-    return tui_main_app();
+    /* WP-10-tui-unified: one desktop for both languages - it reads
+     * shell.lang at start, every label is per-language and F2 switches
+     * (and persists) the language at runtime. */
+    return tui_desktop_main();
 }
 
 static int shell_cmd_tui_test(const char *args) {

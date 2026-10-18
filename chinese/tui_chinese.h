@@ -70,10 +70,8 @@ int tui_chinese_input_ascii(tui_window_t* win, const char* prompt,
  * Enter commits to the pad, Esc leaves).  Returns 0 or -1. */
 int tui_cn_input_app(void);
 
-/* fix3: the Chinese TUI launcher (hardware config / wireless / system
- * info / Chinese input menu).  Shared by `tui-cn` and by `tui` when
- * shell.lang=zh (see shell/shell_lang.h).  Returns 0 or 1. */
-int tui_cn_launcher(void);
+/* WP-10-tui-unified: the Chinese launcher (tui_cn_launcher) was removed -
+ * the single `tui` desktop now serves both languages (see tui/tui_desktop.h). */
 
 /* IME state for status display. */
 u32 tui_chinese_ime_syllables(void);   /* 396 */

@@ -406,75 +406,6 @@ static int cmd_ime_test(const char *args) {
     return 1;
 }
 
-/* ---- tui-cn ----------------------------------------------------------- */
-
-/* fix3: shared launcher entry -- `tui-cn` and `tui` (when shell.lang=zh,
- * see shell/shell_lang.h) both come here.  Idempotent init, menu loop,
- * symmetric shutdown, and the closing status line. */
-int tui_cn_launcher(void) {
-    if (tui_chinese_init() != 0) {
-        screen_console_puts("tui-cn: TUI init failed\n");
-        return 1;
-    }
-    tui_menu_item_t items[4];
-    /* fix2 localization: these descriptions render INSIDE the Chinese
-     * launcher's status bar, so they are Chinese now. Shell command
-     * names and help output stay English by design (EXTENSIONS
-     * WP-10-chinese_support §7: system strings stay ASCII). */
-    items[0].name = "硬件配置";
-    items[0].desc = "处理器/内存/存储/网络/声卡/USB/PCI 等十一页";
-    items[0].userptr = 0;
-    items[1].name = "无线网络";
-    items[1].desc = "扫描并连接 Wi-Fi，蓝牙设备管理";
-    items[1].userptr = 0;
-    items[2].name = "系统信息";
-    items[2].desc = "概览/进程/日志/监控/电源/更新/时间";
-    items[2].userptr = 0;
-    items[3].name = "中文输入";
-    items[3].desc = "拼音输入板：字母组句，数字 1-9 选字，空格首选";
-    items[3].userptr = 0;
-    int pages = 0;
-    for (;;) {
-        int cols, rows;
-        tui_term_size(&cols, &rows);
-        /* fix2: the fixed 6x44 launcher refused to open entirely on
-         * terminals narrower than 44 columns (tui_window_new rejects
-         * x+w > cols); clamp to the real size instead. */
-        int mw = 44; if (mw > cols) mw = cols;
-        int mh = 6;  if (mh > rows) mh = rows;
-        tui_window_t *menu = tui_window_new(0, 0, mh, mw);
-        if (!menu) {
-            /* fix2: tui_chinese_init() already cleared the screen and
-             * hid the cursor - return through tui_shutdown() or the
-             * session leaks (g_started=1, cursor hidden, shell with a
-             * wiped screen). */
-            tui_shutdown();
-            return 1;
-        }
-        tui_window_title(menu, "中文界面");
-        int pick = tui_chinese_menu(menu, items, 4);
-        tui_window_free(menu);
-        tui_update_panels();
-        if (pick < 0) break;
-        if (pick == 0) { tui_cn_hw_main(); pages++; }
-        else if (pick == 1) { tui_cn_net_main(); pages++; }
-        else if (pick == 2) { tui_cn_sysinfo_main(); pages++; }
-        else if (pick == 3) { tui_cn_input_app(); pages++; }
-    }
-    tui_shutdown();   /* symmetric with the English commands: restore
-                         the shell screen and release every window */
-    char num[12];
-    u64_to_str((u64)pages, num);
-    screen_console_puts("tui-cn: opened ");
-    screen_console_puts(num);
-    screen_console_puts(" Chinese apps, shell ok\n");
-    return 0;
-}
-
-static int cmd_tui_cn(const char *args) {
-    (void)args;
-    return tui_cn_launcher();
-}
 
 /* ---- registration ------------------------------------------------------ */
 
@@ -502,8 +433,5 @@ void chinese_cmd_register(void) {
         "WP-10-chinese_support");
     shell_register_command_ex("ime-test", cmd_ime_test,
         "quick IME syllable resolution check",
-        "WP-10-chinese_support");
-    shell_register_command_ex("tui-cn", cmd_tui_cn,
-        "Chinese TUI launcher: hardware config / wireless / system info",
         "WP-10-chinese_support");
 }

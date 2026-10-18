@@ -69,6 +69,23 @@ int shell_register_command(const char *name, shell_cmd_fn handler, const char *h
 int shell_register_command_ex(const char *name, shell_cmd_fn handler,
                               const char *help, const char *wp);
 
+/* ------------------------------------------------------------------ *
+ * WP-10-tui-unified: command-table enumeration (generic L1 API)
+ * ------------------------------------------------------------------ */
+
+/* One row of the command table, for enumeration by L1 code (the TUI
+ * command bridge is the first user - any L1 module may enumerate). */
+typedef struct {
+    char name[32];
+    char help[96];
+    char wp[24];
+} shell_cmd_info_t;
+
+/* Copy up to `cap` registered commands into `out` (registry order,
+ * which is registration order - callers sort as they need).
+ * Returns the number of rows written. */
+int shell_cmd_enum(shell_cmd_info_t *out, int cap);
+
 /* Print all registered commands sorted A-Z (case-insensitive), one per
  * line, formatted "  <name><pad> - <help>".  Used by `help` (default)
  * and `help -a`. */

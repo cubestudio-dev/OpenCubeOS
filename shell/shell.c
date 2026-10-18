@@ -59,6 +59,25 @@ int shell_command_count(void) {
     return g_command_count;
 }
 
+/* WP-10-tui-unified: enumerate the command table for L1 code (the TUI
+ * command bridge is the first user).  Rows are copied in registry
+ * order; `cap` limits the write.  Returns the number of rows written. */
+int shell_cmd_enum(shell_cmd_info_t *out, int cap) {
+    if (!out || cap <= 0) return 0;
+    int n = 0;
+    for (int i = 0; i < SHELL_MAX_COMMANDS && n < cap; i++) {
+        if (!g_commands[i].in_use) continue;
+        strncpy(out[n].name, g_commands[i].name, sizeof(out[n].name) - 1);
+        out[n].name[sizeof(out[n].name) - 1] = 0;
+        strncpy(out[n].help, g_commands[i].help, sizeof(out[n].help) - 1);
+        out[n].help[sizeof(out[n].help) - 1] = 0;
+        strncpy(out[n].wp, g_commands[i].wp, sizeof(out[n].wp) - 1);
+        out[n].wp[sizeof(out[n].wp) - 1] = 0;
+        n++;
+    }
+    return n;
+}
+
 int shell_register_command_ex(const char *name, shell_cmd_fn handler,
                               const char *help, const char *wp) {
     if (!name || !handler) return -1;
