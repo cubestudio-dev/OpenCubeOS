@@ -19,29 +19,29 @@ function fmtBytes(n: number): string {
 export { fmtBytes };
 
 // Current stats (same caliber as the README Stats section, re-verified at
-// Recounted at WP-10-chinese_support-fix2: 127,616 lines = README caliber (kernel + boot +
+// Recounted at WP-10-chinese_support-fix3: 128,053 lines = README caliber (kernel + boot +
 // userprogs + fs + net + shell + l1 + libs + drivers + tui + chinese, .c/.h/.S via
 // git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui|chinese)/' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l).
 // 53 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
-// 138 L1 interfaces / 222 commands per README + docs/INTERFACES.md,
-// 22 work packages = the latest counted total per README Stats). This is
+// 138 L1 interfaces / 221 commands per README + docs/INTERFACES.md,
+// 23 work packages = the latest counted total per README Stats). This is
 // the RENDERED source (HomeView imports from here) - lib/site.ts carries
 // the release assets and no longer keeps a competing stats copy.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "127,616", label: "行源码" },
+    { value: "128,053", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "53", label: "系统调用" },
-    { value: "222", label: "shell 命令" },
-    { value: "22", label: "工作包" },
+    { value: "221", label: "shell 命令" },
+    { value: "23", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "127,616", label: "lines of source" },
+    { value: "128,053", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "53", label: "system calls" },
-    { value: "222", label: "shell commands" },
-    { value: "22", label: "work packages" },
+    { value: "221", label: "shell commands" },
+    { value: "23", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
 };
@@ -51,6 +51,21 @@ export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "截图驱动修复批次：zh 消息屏幕渲染 / PCI 页 ID / 配置持久化真修复",
+      tag: "WP-10-chinese_support-fix3",
+      desc: "以截图审查代替 ANSI 断言的修复批次：QEMU screendump→PNG 逐页人审，发现并修复三个串口断言看不见的真缺陷。1）zh 系统消息（横幅/help 头/未知命令）在帧缓冲上渲染为空心方框：shell_lang.c/main.c/shell.c 走 screen_console_puts（8×16 ASCII 字体）而头注释声称 console_cn——全部 shell_msg() 输出点改走 console_cn_puts/putcw（ASCII 路由不变，CJK 16×16 渲染），help -w 尾部本地化（en 列字节不变）。2）TUI PCI 页（英文 tui-hw 与中文 tui-cn 孪生）打出字面 2x:2x,0 4x:4x class 2x2x：页面本地格式化器不支持 %02x/%04x 零填充宽度（WP-10-tui 时代缺陷走查现形）——双修后打印真实 ID（00:00.0 8086:1237 … 00:03.0 8086:100e）。3）跨重启持久化声明为假：ATA DMA 驱动按控制器/单元注册 hda..hdd 而 lib_config_init 硬编码挂 ata0 别名，静默回退 ramfs 且 lib_config_write 对内存副本 rc=0——lib_config 现先试别名再枚举全部已注册块设备，lang 按后端诚实报告（FAT32=已持久化 / ramfs=仅内存重启丢失）。真实盘 snapshot-off 端到端实测：boot1 写 zh→reboot→boot2 中文横幅+Shell 输出语言：zh+宿主 mtype 从 etc.img 读回 shell.lang=zh。用户决定落实：suspend/suspend_test 隐藏（222→220）、新增 lang（→221）；shell.lang=en|zh 为校验过的配置键，shell.lang=zh 时 tui 直开中文启动器。门禁：0E0W；中文 E2E 21/21 BIOS+21/21 UEFI（挂配置盘）；TUI E2E 37/37×2；chinesetest 101/101；全量回归 28/28（基线 221）；全中文 TUI 页面+更新页截图走查。128,053 行源码。",
+    },
+    {
+      name: "用户报告修复批次：全字形渲染 + TUI 会话卫生 + 中文页对齐 + 真实模式 S3",
+      tag: "WP-10-chinese_support-fix2",
+      desc: "chinese_support 发布后的用户报告修复批次：每个 CJK 字形完整渲染（WIDE_CONT 单元不再被背景色重绘吞掉右半）；三条 TUI 会话泄漏路径关闭（tui/tui-cn/chinesetest 退出后屏幕与光标恢复）；CSI 解码器孤立 ESC 直达而非吞掉；硬件页真实滚动；音量/时钟偏好被真实消费；鼠标事件达菜单；中文更新页跑真实 OTA 流程（检查/下载/SHA256/安装/回滚结果行在操作后保持可见）；中文页与英文页对齐（进程优先级+滚动、监控自动采样、窗口 resize）；S3 恢复跳板重写为真 16 位 big-real-mode 代码（SeaBIOS farcall16big 进入，旧 32 位代码首指令 #UD 风暴）且恢复链全部重新武装（定时器/PCI 命令寄存器/legacy e1000/UART RX）；fsck 经 blk 注册表（mkfs 后的 sda/vda 可 fsck）；ping/dhcp 返回诚实退出码、shell 支持 $?。门禁：0E0W；TUI E2E 37/37×2；CN E2E 17/17×2；渲染像素 E2E ALL PASS；suspend E2E 双 QEMU 代（10.0.13+8.1.5）ALL PASS；system E2E 15/15；回归 28/28；chinesetest 101/101。127,616 行源码。",
+    },
+    {
+      name: "chinese_support 发布后实测修复：会话死亡根因 + 持久化/E2E 收尾",
+      tag: "WP-10-chinese_support-fix1",
+      desc: "发布 ISO 上 1c-B 会话死亡实测 8/12 后定位三处根因并修复：TUI 会话计数器/池复用缺陷、字体槽池回收时序、串口镜像抑制状态残留；修复后发布 ISO 实测连续会话全绿。同步补齐：site 时间线缺失批次补录、update 清单与下载资产三方一致复核。门禁：0E0W；中文 E2E 与 TUI E2E 双模式全绿；chinesetest 91/91（当时口径，fix2 扩至 101/101）；回归 28/28。",
+    },
     {
       name: "中文支持：GB2312 字库 + 编码 + CJK 渲染 + 中文 TUI + 拼音输入法",
       tag: "WP-10-chinese_support",
@@ -163,6 +178,21 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "Screenshot-driven batch: zh message rendering / PCI page ids / real config persistence",
+      tag: "WP-10-chinese_support-fix3",
+      desc: "Screenshot review replaces ANSI assertions: every Chinese TUI page captured from QEMU (screendump -> PNG) and reviewed as an image, surfacing three real defects the serial assertions could not see. (1) zh system messages (banner/help headers/unknown-command) rendered as hollow boxes on the framebuffer: shell_lang.c/main.c/shell.c printed through the 8x16 ASCII font while the header comment claimed console_cn - every shell_msg() site now goes through console_cn_puts/putcw (ASCII routes unchanged, CJK renders 16x16) and help -w gained a localized tail (en column byte-identical). (2) The TUI PCI page (EN tui-hw + CN tui-cn twins) printed literal 2x:2x,0 4x:4x class 2x2x: the page-local formatters lacked zero-padded %02x/%04x width support (a WP-10-tui era defect the walkthrough surfaced) - real ids now (00:00.0 8086:1237 ... 00:03.0 8086:100e). (3) The cross-reboot persistence claim was false: the ATA DMA driver registers drives as hda..hdd while lib_config_init mounted /etc from the hard-coded ata0 alias, silently falling back to ramfs with lib_config_write rc=0 on the in-memory copy - lib_config now tries the alias then every registered block device and lang reports honestly per backend (FAT32 persisted / ramfs in-memory only). Verified end to end on a real disk (snapshot off): boot1 writes zh -> reboot -> boot2 shows the Chinese banner + Shell 输出语言：zh and host-side mtype reads shell.lang=zh from etc.img. User decision honored: suspend/suspend_test hidden (222 -> 220), lang added (-> 221); shell.lang=en|zh is a validated config key and tui opens the Chinese launcher when zh. Gates: 0E0W; Chinese E2E 21/21 BIOS+UEFI (config disk attached); TUI E2E 37/37 x2; chinesetest 101/101; regression 28/28 (baseline 221); full-page screenshot walkthrough incl. the update page. 128,053 lines of source.",
+    },
+    {
+      name: "User-reported batch: full-glyph rendering + TUI session hygiene + CN parity + real-mode S3",
+      tag: "WP-10-chinese_support-fix2",
+      desc: "User-reported fix batch on the chinese_support release: every CJK glyph renders fully (the WIDE_CONT cell is no longer repainted with the background color, killing the right half of each hanzi); three TUI session-leak paths closed (tui/tui-cn/chinesetest leave the screen alive); the CSI decoder delivers a lone ESC instead of eating it; the hardware page really scrolls; volume/clock preferences are consumed; mouse events reach menus; the Chinese update page runs the real OTA flow (check/download/SHA256/install/rollback result lines stay visible after each operation); the Chinese pages match the English parity (process priority + scroll, monitor auto-sampling, window resize); the S3 resume trampoline is real 16-bit big-real-mode code (SeaBIOS farcall16big enters it) and the full resume chain re-arms (timer, PCI command registers, legacy e1000, UART RX); fsck goes through the blk registry (mkfs'd sda/vda are fsck-able); ping/dhcp return honest exit codes and the shell supports $?. Gates: 0E0W; TUI E2E 37/37 x2; CN E2E 17/17 x2; render-pixel E2E ALL PASS; suspend E2E ALL PASS on two QEMU generations (10.0.13 + 8.1.5); system E2E 15/15; regression 28/28; chinesetest 101/101. 127,616 lines of source.",
+    },
+    {
+      name: "Post-release measured fixes: session-death root causes + persistence/E2E hardening",
+      tag: "WP-10-chinese_support-fix1",
+      desc: "The released ISO measured 1c-B session death 8/12 before this batch; three root causes located and fixed (TUI session counter/pool reuse, font-slot recycle timing, serial-mirror suppression residue); the released ISO then passes the session loop green. Also completed: the missing website timeline batches, update manifest + download assets 3-way re-verification. Gates: 0E0W; Chinese/TUI E2E green on both modes; chinesetest 91/91 (then-baseline, extended to 101/101 at fix2); regression 28/28.",
+    },
     {
       name: "Chinese support: GB2312 font + encoding + CJK rendering + Chinese TUI + pinyin IME",
       tag: "WP-10-chinese_support",

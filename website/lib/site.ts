@@ -11,23 +11,23 @@ export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-chinese_support-fix2";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-chinese_support-fix3";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub WP-10-chinese_support-fix2 tag + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-10-chinese_support-fix2.iso";
-export const ISO_SIZE_B = 12144640;
-export const ISO_SIZE_MB = "11.58";
+// Real assets (build/ + GitHub WP-10-chinese_support-fix3 tag + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-WP-10-chinese_support-fix3.iso";
+export const ISO_SIZE_B = 12146688;
+export const ISO_SIZE_MB = "11.59";
 export const ISO_SHA256 =
-  "156b8eabfaab86a4578c3656a6b4eb968cf40bc7df03b1c45582dc6caeb9e301";
+  "4220aee197338bf95e9e7d610013c1f20dade453f418c56505995877da4a7f29";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-10-chinese_support-fix2-src.zip";
-export const SRC_SIZE_B = 3534122;
-export const SRC_SIZE_MB = "3.37";
+export const SRC_FILE = "opencube-WP-10-chinese_support-fix3-src.zip";
+export const SRC_SIZE_B = 3568117;
+export const SRC_SIZE_MB = "3.40";
 export const SRC_SHA256 =
-  "c6e8e7c5cb85879f2b9f246b7fe26f61e2502cfb69654710c7e05f7b4cb7e409";
+  "0ae92515c2da6c12ac84d5f43c1e90f0726885fd669d8bb7d8a2ae81728ec50a";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // NOTE: the former STATS export lived here unreferenced (A18-5): HomeView
