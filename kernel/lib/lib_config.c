@@ -25,6 +25,7 @@
 #include "screen_console.h"
 #include "lib_string.h"
 #include "shell_lang.h"   /* fix3: config set shell.lang syncs the live state */
+#include "driver_block_blk.h"  /* fix3: enumerate real drive names */
 
 #include <stdint.h>
 
@@ -50,6 +51,9 @@ static const char g_default_config[] =
     "shell.lang=" OC_CONFIG_DEFAULT_SHELL_LANG "\n";
 
 static int g_config_initialized = 0;
+/* fix3: 1 when /etc sits on a FAT32 volume (edits survive reboots),
+ * 0 on the ramfs fallback (in-memory only). */
+static int g_config_backend_fat = 0;
 
 /* ------------------------------------------------------------------ */
 /* small helpers                                                       */
@@ -160,11 +164,28 @@ static int parse_line(const char *line, char *key, int keycap,
 int lib_config_init(void) {
     if (g_config_initialized) return 0;
 
-    /* 1. storage: FAT32 /etc volume when present, ramfs fallback. */
+    /* 1. storage: FAT32 /etc volume when present, ramfs fallback.
+     * fix3: the /etc volume may register under any ATA drive name - the
+     * PIO driver used to call it "ata0", but the DMA driver names its
+     * drives "hda".."hdd" by controller/unit, so the hard-coded "ata0"
+     * mount silently fell back to ramfs and config edits (shell.lang,
+     * ab flags prefs, ...) never survived a reboot. Try the legacy
+     * alias first, then every registered block device in order. */
     const char *backend = "ramfs";
-    if (fs_fat32_mount("ata0", "/etc") == 0) {
+    int mounted = (fs_fat32_mount("ata0", "/etc") == 0);
+    if (!mounted) {
+        int n = driver_block_num_devices();
+        for (int i = 0; i < n && !mounted; i++) {
+            driver_block_device_t *d = driver_block_get_device(i);
+            if (d && d->name[0])
+                mounted = (fs_fat32_mount(d->name, "/etc") == 0);
+        }
+    }
+    if (mounted) {
         backend = "fat32";
+        g_config_backend_fat = 1;
     } else {
+        g_config_backend_fat = 0;
         /* create ramfs /etc so config paths resolve */
         if (fs_vfs_mkdir(OC_CONFIG_PATH_DIR) < 0) {
             /* /etc may already exist in ramfs - that is fine */
@@ -401,6 +422,11 @@ int lib_config_autocheck_enabled(void) {
     if (strcasecmp(v, "no") == 0) return 0;
     lib_log_info("config: invalid auto_check value - using no (safe default)");
     return 0;
+}
+
+/* fix3: see lib_config.h. */
+int lib_config_backend_fat(void) {
+    return g_config_backend_fat;
 }
 
 /* Documented policy: online_update=yes -> 1, no -> 0, anything else

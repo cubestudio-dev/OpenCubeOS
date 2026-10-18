@@ -102,6 +102,12 @@ static const shell_msg_entry_t g_msgs[SM_COUNT] = {
     /* SM_CFG_SAVED */
     { "config: saved",
       "配置已保存" },
+    /* SM_PERSIST_OK (fix3: write landed on the FAT32 /etc volume) */
+    { " (persisted)",
+      "（已写入配置卷，重启后保留）" },
+    /* SM_PERSIST_RAM (fix3: ramfs fallback - not persistent) */
+    { " (in-memory only; ramfs config, lost on reboot)",
+      "（仅内存；配置卷为 ramfs，重启后丢失）" },
 };
 
 const char *shell_msg(int id) {
@@ -132,7 +138,12 @@ int shell_cmd_lang(const char *args) {
         console_cn_puts(shell_msg(SM_LANG_SET));
         console_cn_puts(tok);
         if (wr == 0) {
-            console_cn_puts(" (persisted)");
+            /* fix3: honest persistence report - the /etc volume can be
+             * FAT32 (edits survive) or the ramfs fallback (lost on
+             * reboot); rc==0 alone used to claim "persisted" either way. */
+            console_cn_puts(shell_msg(lib_config_backend_fat() == 1
+                                          ? SM_PERSIST_OK
+                                          : SM_PERSIST_RAM));
         } else {
             console_cn_puts(" (in-memory only; config write rc=");
             char num[12];

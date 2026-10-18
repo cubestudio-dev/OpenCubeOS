@@ -62,10 +62,14 @@ def main():
     timeout = int(os.environ.get("OC_E2E_TIMEOUT", "240"))
 
     etc_img = os.path.join(ROOT, "build", "etc.img")
-    drive = ["-drive", f"if=ide,format=raw,file={etc_img}"] \
-        if os.path.exists(etc_img) else []
+    # fix3: explicit bootindex (CD first) - SeaBIOS in QEMU 10.0.13 boots
+    # the IDE hard disk first when one is attached regardless of -boot d,
+    # and a config disk without GRUB code hangs there forever.
+    drive = ["-drive", f"file={iso},media=cdrom,bootindex=0,if=ide"]
+    if os.path.exists(etc_img):
+        drive += ["-drive", f"file={etc_img},format=raw,bootindex=1,if=ide"]
 
-    args = ["-m", "512M", "-cdrom", iso, "-boot", "d", "-no-reboot",
+    args = ["-m", "512M", "-no-reboot",
             "-L", f"{OC_TOOLS}/usr/share/qemu",
             "-L", f"{OC_TOOLS}/usr/share/seabios",
             "-vga", "std", "-display", "none", "-serial", "mon:stdio",
@@ -87,7 +91,7 @@ def main():
             args = ["-m", "512M", "-no-reboot",
                     "-drive", f"if=pflash,format=raw,readonly=on,file={ovmf_code}",
                     "-drive", f"if=pflash,format=raw,file={varscopy}",
-                    "-cdrom", iso, "-boot", "d",
+                    
                     "-L", f"{OC_TOOLS}/usr/share/qemu",
                     "-L", f"{OC_TOOLS}/usr/share/seabios",
                     "-vga", "std", "-display", "none",
@@ -96,7 +100,7 @@ def main():
         else:
             ovmf = f"{OC_TOOLS}/usr/share/ovmf/OVMF.fd"
             args = ["-m", "512M", "-no-reboot", "-bios", ovmf,
-                    "-cdrom", iso, "-boot", "d",
+                    
                     "-L", f"{OC_TOOLS}/usr/share/qemu",
                     "-L", f"{OC_TOOLS}/usr/share/seabios",
                     "-vga", "std", "-display", "none",

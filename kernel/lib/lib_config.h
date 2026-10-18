@@ -128,6 +128,11 @@ const char *lib_config_default_autocheck(void);
  * fall back to "no" with a logged warning - documented defaults policy). */
 int lib_config_autocheck_enabled(void);
 
+/* fix3: 1 when /etc/opencube.conf lives on the FAT32 /etc volume
+ * (lib_config_write edits survive reboots), 0 on the ramfs fallback
+ * (writes are in-memory only). Set by lib_config_init(). */
+int lib_config_backend_fat(void);
+
 /* WP-10u policy helper: 1 when online_update=yes (default), else 0.
  * Missing key -> enabled (default); invalid values fall back to the
  * default with a logged warning. */

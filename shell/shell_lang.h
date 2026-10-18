@@ -42,6 +42,8 @@ enum shell_msg_id {
     SM_LANG_SET,       /* %s = en|zh                   */
     SM_LANG_USAGE,
     SM_CFG_SAVED,
+    SM_PERSIST_OK,     /* fix3: write landed on the FAT32 /etc volume */
+    SM_PERSIST_RAM,    /* fix3: ramfs fallback - lost on reboot */
     SM_COUNT
 };
 
