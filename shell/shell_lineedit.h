@@ -54,6 +54,14 @@ typedef struct shell_lineedit_session {
     int     cursor;                        /* cursor offset (0..len)      */
     char    prompt[SHELL_LINEEDIT_PROMPT_MAX];
     int     prompt_len;
+    int     last_drawn_w;                  /* WP-10-chinese_support-fix4:
+                                            * display width of the last
+                                            * redraw; lets the redraw
+                                            * erase the tail of a LONGER
+                                            * previous line when the line
+                                            * shrinks (history nav, Ctrl+U)
+                                            * instead of leaving stale
+                                            * characters on screen        */
     /* History (linear array, oldest first). */
     char    hist[SHELL_LINEEDIT_HISTORY_MAX][SHELL_LINEEDIT_BUF_MAX];
     int     hist_count;

@@ -3081,12 +3081,11 @@ static void interactive_loop(void) {
 
     char line[256];
     for (;;) {
-        /* Show prompt (use $PS1 env var if set, else "oc> "). */
-        const char *ps1 = shell_getenv("PS1");
-        screen_console_puts(ps1 ? ps1 : "oc> ");
-        /* WP-10-wp08fix1: full editing - Up/Down history, Left/Right/
-         * Home/End cursor, Tab completion, Ctrl+C/A/E/U/K/W, Delete.
-         * (Was screen_console_in_readline: backspace-only.) */
+        /* WP-10-chinese_support-fix4: the prompt is printed by the line
+         * editor (shell_lineedit_readline syncs $PS1 and prints it as
+         * part of the session), so arrow-key/history redraws keep the
+         * prompt column intact. Printing it here made every editor
+         * redraw erase "oc> " (the session prompt was empty). */
         int len = shell_lineedit_readline(line, sizeof(line));
         if (len == 0) continue;
 

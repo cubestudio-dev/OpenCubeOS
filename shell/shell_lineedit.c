@@ -179,6 +179,7 @@ int shell_lineedit_session_init(shell_lineedit_t *s, const char *prompt,
     memset(s->buf, 0, sizeof(s->buf));
     s->len = 0;
     s->cursor = 0;
+    s->last_drawn_w = 0;
     shell_lineedit_session_set_prompt(s, prompt ? prompt : "");
     memset(s->hist, 0, sizeof(s->hist));
     s->hist_count = 0;
@@ -204,11 +205,20 @@ void shell_lineedit_session_set_prompt(shell_lineedit_t *s, const char *prompt) 
  * cursor column. WP-10-chinese_support: text goes through the cn write
  * path (UTF-8 aware); for pure-ASCII lines the emitted byte stream is
  * identical to the old implementation (console_cn_putcw routes ASCII to
- * the stock putc one-for-one). */
+ * the stock putc one-for-one).
+ * WP-10-chinese_support-fix4: the erase run covers not only the cells
+ * right of the cursor in the CURRENT line but also the tail of the
+ * PREVIOUS draw (last_drawn_w) - otherwise navigating history from a
+ * long entry to a short one (or Ctrl+U/Ctrl+K) leaves stale characters
+ * floating after the new shorter content. */
 static void le_session_redraw(shell_lineedit_t *s) {
     int full_w = le_display_width(s->buf, s->len);
     int pre_w = le_display_width(s->buf, s->cursor);
     int tail = full_w - pre_w;   /* cells still occupied right of cursor */
+    int stale = s->last_drawn_w - pre_w; /* tail of the previous draw */
+    if (stale > tail) tail = stale;
+    if (tail < 0) tail = 0;
+    s->last_drawn_w = full_w;
     screen_console_putc('\r');
     screen_console_puts(s->prompt);
     if (s->len > 0) console_cn_puts(s->buf);
@@ -319,6 +329,7 @@ int shell_lineedit_session_readline(shell_lineedit_t *s, char *buf, int cap) {
     s->ctrlc_hit = 0;
     s->hist_nav = -1;
     s->hist_draft[0] = 0;
+    s->last_drawn_w = 0;  /* fix4: fresh line - nothing drawn yet   */
 
     screen_console_puts(s->prompt);
 
@@ -520,6 +531,15 @@ int shell_lineedit_session_readline(shell_lineedit_t *s, char *buf, int cap) {
 
 int shell_lineedit_readline(char *buf, int cap) {
     if (!g_le) shell_lineedit_init();
+    /* WP-10-chinese_support-fix4: the prompt belongs to the editor
+     * session, not to the caller. The interactive loop used to print
+     * "oc> " itself while the session held an EMPTY prompt, so every
+     * redraw ("\r" + prompt + line) restarted at column 0 without the
+     * prompt and overwrote it - visible as history/cursor keys
+     * replacing "oc> " on screen. Sync the prompt from $PS1 (default
+     * "oc> ") before every read; session_readline prints it once. */
+    const char *ps1 = shell_getenv("PS1");
+    shell_lineedit_session_set_prompt(g_le, (ps1 && ps1[0]) ? ps1 : "oc> ");
     return shell_lineedit_session_readline(g_le, buf, cap);
 }
 
