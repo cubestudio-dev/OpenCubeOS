@@ -755,6 +755,32 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 - **Archived (WP-08 series)**: [GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 - Or visit https://cubestudio-dev.github.io/OpenCubeOS for direct downloads
 
+- **WP-10-chinese_support-fix4 (this batch)** closes the two defects
+  the user could reproduce on screen and finishes the TUI as a second
+  frontend.  Line editor: the interactive loop used to print "oc> "
+  itself while the editor session held an EMPTY prompt, so every
+  arrow/history redraw restarted at column 0 and overwrote the
+  prompt; the session now owns the prompt (synced from $PS1) and
+  tracks last_drawn_w so shrinking lines (history nav, Ctrl+U/K)
+  erase the stale tail.  Rendering: echo/ls emit user content through
+  the cn path (ASCII byte-identical, UTF-8 as real 16x16 glyphs);
+  a systematic verification echoed 120 characters chosen for dense
+  bottom-row ink and compared the screendump against the font
+  bitmaps pixel by pixel - 30720 pixels, 0 mismatches (the fix3-era
+  "bottom 1/5 missing" report is a screenshot-crop artifact).
+  TUI: tui-time (clock & sources / timezone / real CMOS RTC write),
+  tui-sys (host/network/storage/user/security/update/log/TUI-look,
+  all through the same lib_config keys the shell exposes),
+  tui-drv (12 hardware pages including the new Display page),
+  tui-ext (the L1 extension lab).  TUI L1 extension registry with
+  the seven documented interface sets (menu/page/widget/command/
+  theme/hotkey/event), builtin themes, F5 repaint hotkey, and a
+  selftest that reports ALL PASS on screen.  Dvorak keyboard layout
+  with runtime switching (kbd.layout) and a quiet log level
+  (log.level=1 suppresses non-failure stage lines).  Command count
+  221 -> 225 (tui-time/tui-drv/tui-sys/tui-ext; nothing removed,
+  help three modes unchanged).
+
 ## License
 
 Apache 2.0. See `LICENSE`.

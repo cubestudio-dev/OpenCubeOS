@@ -185,9 +185,13 @@ static int page_clock_render(tui_window_t *win, int scroll) {
         fmt2(t, local.hour);  strcat(b, t); strcat(b, ":");
         fmt2(t, local.minute);strcat(b, t); strcat(b, ":");
         fmt2(t, local.second);strcat(b, t);
-        char tzname[24];
-        lib_config_read_default("tz.name", tzname, (int)sizeof(tzname), "UTC");
-        strcat(b, "  "); strcat(b, tzname);
+        strcat(b, "  UTC+");
+        if (off < 0) { strcpy(b + strlen(b) - 5, "  UTC-"); }
+        char hh[4];
+        fmt2(hh, (off < 0 ? -off : off) / 60);
+        strcat(b, hh); strcat(b, ":");
+        fmt2(hh, (off < 0 ? -off : off) % 60);
+        strcat(b, hh);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
@@ -396,10 +400,13 @@ static int page_tz_input(int key) {
 void tui_time_register_pages(void) {
     tui_page_register("builtin-time", "time.clock", "Time: clock & sources",
                       "time", 10, page_clock_render, 0, 0);
-    tui_page_register("builtin-time", "time.set", "Time: set the RTC clock",
-                      "time", 11, page_set_render, page_set_input, 0);
+    /* order matters: the set page's form consumes Tab (field nav), so
+     * the freely-navigable tz page must come BEFORE it - otherwise Tab
+     * can never reach the timezone page past the form. */
     tui_page_register("builtin-time", "time.tz", "Time: timezone",
-                      "time", 12, page_tz_render, page_tz_input, 0);
+                      "time", 11, page_tz_render, page_tz_input, 0);
+    tui_page_register("builtin-time", "time.set", "Time: set the RTC clock",
+                      "time", 12, page_set_render, page_set_input, 0);
 }
 
 int tui_time_main(void) {

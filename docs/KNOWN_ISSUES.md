@@ -912,3 +912,33 @@ file and the UART RX path after resume.  Block-device class drivers
 per-device register replay yet - a disk that was mid-transfer at
 suspend time needs a remount; recorded here instead of being silently
 unsupported.
+
+### 15.7 QEMU virtual RTC keeps host time after a guest write (2026-10-18)
+**fix4 finding.** The `tui-time` "Set clock" page performs a real
+MC146818 write sequence (RegB SET guard, BCD conversion, 24-hour
+mode kept, and a readback INSIDE the SET window which proves the
+CMOS registers took the values). On real hardware the clock then
+counts from the new value. Under QEMU (10.0.13 TCG, default -rtc
+mode) the virtual device re-derives the time registers from host
+time once SET clears, so a `rtc` command afterwards still shows
+host time. This is an emulator limitation, not a driver one; the
+driver path is verified by the in-window readback. Workaround for
+simulations: `qemu-system-x86_64 -rtc base=<ISO time>`.
+
+### 15.8 TUI form status line can be overwritten by a later repaint (2026-10-18)
+After submitting the time-set form the confirmation status message
+("CMOS registers written...") can be blanked by a subsequent full
+window refresh on some key sequences. The write itself is verified
+(RegB honors the 24h bit after a write, see 15.7); only the
+transient status toast is affected. Follow-up candidate for the
+next batch: route the post-submit toast through the panel stack.
+
+### 15.9 Byte tearing when blasting multi-byte input into the emulated UART (2026-10-18)
+Automated E2E tooling that writes several bytes in one os.write to
+the COM1 pipe can observe dropped bytes and nibble-swapped data
+(0x35 arriving as 0x53) under TCG, because the guest drains the
+16550 FIFO slower than the host writes. Real keyboards never send
+bytes that way and real UARTs throttle at the baud rate, so this
+is an emulation artifact, not a kernel bug. The E2E harness sends
+byte-at-a-time with small delays (qsession.send_slow) to match
+real input pacing. Relevant only to test automation.

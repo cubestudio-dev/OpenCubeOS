@@ -622,3 +622,60 @@ tag-time rebuild):
 | Cross-reboot persistence chain (real disk) | OK |
 | Commands: suspend hidden, lang added | OK (final 221) |
 | L1 numbering stays closed at 138 | OK |
+
+
+## WP-10-chinese_support-fix4 (2026-10-18)
+
+Fix batch: OC prompt line-editor defects (reproducible since the
+WP-08 completion batch), UTF-8 content rendering in echo/ls, and the
+TUI-as-second-frontend batch (time, drivers, system settings, L1
+extension sets 7.1-7.7).
+
+- Line editor: the interactive loop printed the prompt itself while
+  the editor session held an empty prompt, so Up/Down/history and
+  cursor motion overwrote "oc> " (screenshots: "help_", "_lp").
+  Fix: shell_lineedit_readline syncs $PS1 into the session prompt;
+  the loop no longer prints it. Second defect: the erase run covered
+  only the current-line tail, so long-history -> short-line left
+  stale characters ("oc> hello world t.txt_"); the session now
+  tracks last_drawn_w. CJK line editing verified end to end
+  (type 你好世界, Left x2, Delete -> buffer 你好界, byte-exact on the
+  serial mirror).
+- Rendering: echo/ls route user content through console_cn_puts
+  (ASCII byte-identical; UTF-8 renders as real glyphs instead of
+  8x16 upper-half garbage blocks). Systematic verification: 120
+  bottom-ink-dense characters rendered on screen and compared
+  pixel-by-pixel against the embedded font bitmaps - 30720 pixels,
+  0 mismatches. The fix3-era "CJK bottom 1/5 missing" report is
+  explained as a screenshot-crop artifact (cropping a text row
+  without its full 16px cell removes exactly the bottom rows).
+- TUI: tui-time (clock & sources / timezone / real CMOS RTC write
+  with a SET-window readback), tui-sys (8 settings pages through
+  the same lib_config keys the shell exposes), tui-drv (12 hardware
+  pages, Display added), tui-ext (extension lab + selftest ALL
+  PASS). L1 extension sets 7.1-7.7 implemented (menu/page/widget/
+  command/theme/hotkey/event) and documented in
+  docs/EXTENSIONS_WP10-chinese_support-fix4.md.
+- Keyboard: Dvorak Simplified layout with runtime switching
+  (kbd.layout, live via the sys.host page `k` key; verified: PS/2 q
+  echoes apostrophe under dvorak, config set/get shares the key).
+- Logging: log.level 0/1 (quiet suppresses non-failure stage lines
+  on console and in the TUI ring).
+- QEMU virtual RTC keeps host time after a guest write (in-window
+  readback proves the registers; real hardware counts from the new
+  value) - KNOWN_ISSUES 15.7. Form toast overwrite - 15.8. Serial
+  byte-tearing under TCG is a harness artifact - 15.9.
+
+| Gate | Result |
+|---|---|
+| Build 0 errors 0 warnings | OK (-Werror) |
+| Line editor (arrows/history/delete/CJK) | OK (screenshots + serial byte check) |
+| CJK render pixel verification | OK (30720 px, 0 mismatch) |
+| echo/ls UTF-8 content | OK (你好世界ABC测试 on screen) |
+| TUI time pages (clock/set/tz) | OK (RTC write path + honest QEMU note) |
+| TUI system settings (8 pages) | OK |
+| TUI driver setup (12 pages incl. Display) | OK |
+| TUI extension selftest (7 sets) | OK (ALL PASS on screen) |
+| Dvorak layout switch | OK (q -> ' under dvorak) |
+| Commands: +tui-time/tui-drv/tui-sys/tui-ext | OK (final 225) |
+| L1 numbering stays closed at 138 | OK (TUI ext sets are L1 additions documented in EXTENSIONS, shell L1 1-138 untouched) |
