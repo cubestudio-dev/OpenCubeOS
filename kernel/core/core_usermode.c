@@ -1209,6 +1209,22 @@ int user_process_get_tid(pid_t pid) {
     return -1;
 }
 
+/* WP-10-tui-unified: `kill <tid>` semantics as a reusable API (the
+ * TUI task manager is the first L1 user).  Same unified reaper the
+ * shell kill command runs for user processes. */
+int user_process_kill_by_tid(tid_t tid) {
+    for (int i = 0; i < MAX_USER_PROCS; i++) {
+        if (!g_procs[i].alive || g_procs[i].tid != tid) continue;
+        if (tid == core_kthread_current_tid()) return -2;
+        user_process_reap_resources(&g_procs[i], 128 + 9 /* SIGKILL */);
+        if (g_procs[i].parent_tid > 0)
+            core_kthread_wake(g_procs[i].parent_tid);
+        core_sched_task_exited(g_procs[i].tid);
+        return 0;
+    }
+    return -1;
+}
+
 int user_process_kill(pid_t pid) {
     for (int i = 0; i < MAX_USER_PROCS; i++) {
         if (g_procs[i].alive && g_procs[i].pid == pid) {

@@ -753,6 +753,7 @@ done:
 
 /* app runners defined in tui_dt_apps.c (real pages, no stubs) */
 int tui_dt_files_run(tui_dt_node_t *self);
+int tui_dt_proc_run(tui_dt_node_t *self);
 int tui_dt_help_page_run(tui_dt_node_t *self);
 int tui_dt_cmdbridge_run(tui_dt_node_t *self);
 int tui_dt_lang_run(tui_dt_node_t *self);
@@ -901,6 +902,10 @@ void tui_dt_bootstrap(void) {
            "file manager: browse/copy/move/rename/delete/mount",
            "\xe6\x96\x87\xe4\xbb\xb6\xe7\xae\xa1\xe7\x90\x86\xef\xbc\x9a\xe6\xb5\x8f\xe8\xa7\x88/\xe5\xa4\x8d\xe5\x88\xb6/\xe7\xa7\xbb\xe5\x8a\xa8/\xe9\x87\x8d\xe5\x91\xbd\xe5\x90\x8d/\xe5\x88\xa0\xe9\x99\xa4/\xe6\x8c\x82\xe8\xbd\xbd",
            "[F]", TUI_DT_APP, tui_dt_files_run, NULL, NULL, 5, NULL);
+    dt_add("root", "procs", "Processes", "\xe8\xbf\x9b\xe7\xa8\x8b",
+           "task manager: live process table, kill, resources",
+           "\xe4\xbb\xbb\xe5\x8a\xa1\xe7\xae\xa1\xe7\x90\x86\xef\xbc\x9a\xe8\xbf\x9b\xe7\xa8\x8b/\xe7\xbb\x93\xe6\x9d\x9f/\xe8\xb5\x84\xe6\xba\x90",
+           "[P]", TUI_DT_APP, tui_dt_proc_run, NULL, NULL, 8, NULL);
     dt_add("root", "sysinfo", "System Info", "\xe7\xb3\xbb\xe7\xbb\x9f\xe4\xbf\xa1\xe6\x81\xaf",
            "overview/processes/logs/monitor/power", "\xe6\xa6\x82\xe8\xa7\x88/\xe8\xbf\x9b\xe7\xa8\x8b/\xe6\x97\xa5\xe5\xbf\x97/\xe7\x9b\x91\xe6\x8e\xa7/\xe7\x94\xb5\xe6\xba\x90",
            "[i]", TUI_DT_APP, dt_sysinfo_run, NULL, NULL, 20, NULL);

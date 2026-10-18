@@ -150,6 +150,11 @@ static int fl_prompt(const char *title, char *buf, int cap) {
     }
     tui_form_unpost(form);
     tui_window_free(fwin);
+    /* CRITICAL: tui_form_post moved the input focus onto the form
+     * window; once it is freed every tui_print would target the
+     * released window.  Hand the focus back to the live page. */
+    tui_window_t *pg = tui_dt_page_window();
+    if (pg) tui_window_focus_set(pg);
     return rc;
 }
 
@@ -327,8 +332,14 @@ int tui_dt_files_run(tui_dt_node_t *self) {
                 fl_attr_page(g_sel);
             }
         }
-        else if (k == 'a' && g_count > 0) fl_attr_page(g_sel);
-        else if (k == 'm') fl_mount_page();
+        else if (k == 'a' && g_count > 0) {
+            fl_attr_page(g_sel);        /* sub-page frees its window */
+            tui_dt_page_open();         /* reopen the browser page   */
+        }
+        else if (k == 'm') {
+            fl_mount_page();
+            tui_dt_page_open();
+        }
         else if (k == 'n') {
             if (fl_prompt(tui_tr("new directory name", "新目录名"),
                           buf, (int)sizeof(buf)) == 0) {

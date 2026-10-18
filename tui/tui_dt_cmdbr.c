@@ -27,6 +27,10 @@ static void dt_append(char *dst, usize cap, const char *src) {
 
 static tui_window_t *g_page_win = NULL;
 
+tui_window_t *tui_dt_page_window(void) {
+    return g_page_win;
+}
+
 int tui_dt_page_open(void) {
     int c, r;
     tui_term_size(&c, &r);
@@ -258,6 +262,7 @@ int tui_dt_cmdbridge_run(tui_dt_node_t *self) {
             line[m] = 0;
             tui_form_unpost(form);
             tui_window_free(fwin);
+            if (g_page_win) tui_window_focus_set(g_page_win);
             tui_dt_page_flush();   /* back to the bridge page */
             if (cancelled) continue;
 

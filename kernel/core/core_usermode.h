@@ -180,6 +180,12 @@ int user_process_get_tid(pid_t pid);
 /* Kill a user process. */
 int user_process_kill(pid_t pid);
 
+/* WP-10-tui-unified: kill a user process by its kernel task id - the
+ * same unified-reaper path the `kill <tid>` shell command uses (fds +
+ * address space reclaimed, parent woken, task exited on the scheduler).
+ * Returns 0 ok, -1 no live user process owns this tid, -2 self-kill. */
+int user_process_kill_by_tid(tid_t tid);
+
 /* List all user processes. */
 void user_process_list(void);
 

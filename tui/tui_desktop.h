@@ -159,6 +159,7 @@ int  tui_dt_page_open(void);               /* 0 ok; sets focus            */
 int  tui_dt_page_rows(void);
 int  tui_dt_page_cols(void);
 void tui_dt_page_flush(void);              /* repaint the page window     */
+tui_window_t *tui_dt_page_window(void);    /* live page window (or NULL)  */
 void tui_dt_str_append(char *dst, int cap, const char *src);  /* bounded */
 void tui_dt_page_wait_close(const char *hint);   /* hint + Esc/F10/q loop */
 
