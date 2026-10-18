@@ -538,7 +538,53 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-10-chinese_support-fix2)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-chinese_support-fix2) — ISO + SRC zip
+- **Latest (WP-10-chinese_support-fix3)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-chinese_support-fix3) — ISO + SRC zip
+  (ISO sha256 `__ISO_SHA__`,
+  SRC sha256 `__SRC_SHA__`)
+  Batch summary: screenshot-driven fix batch on the chinese_support
+  release — every QEMU screen was reviewed as an image (screendump ->
+  PNG) and three real defects found that the ANSI/serial E2E assertions
+  could not see.  (1) The zh system messages (banner, help headers,
+  unknown-command lines) rendered as hollow boxes on the framebuffer:
+  shell_lang.c / main.c / shell.c printed through screen_console_puts
+  (8x16 ASCII font, no CJK glyphs) although the header comment claimed
+  the console_cn path; all shell_msg() output sites now go through
+  console_cn_puts/putcw (ASCII routes unchanged, CJK renders 16x16)
+  and help -w gained a localized tail (SM_HELP_WP_TAIL; the en column
+  stays byte-identical).  (2) The TUI PCI page (both the English
+  tui-hw and the Chinese tui-cn twins) printed literal "2x:2x,0
+  4x:4x class 2x2x" instead of the ids: the page-local formatters did
+  not understand the zero-padded %02x/%04x widths; both now parse
+  "%0N" and emit real ids (00:00.0 8086:1237 ... 00:03.0 8086:100e on
+  the reference VM).  (3) The cross-reboot persistence claim was
+  false: the ATA DMA driver registers drives as hda..hdd while
+  lib_config_init mounted /etc from the hard-coded "ata0" alias, the
+  mount silently fell back to ramfs and lib_config_write returned
+  rc=0 on the in-memory copy; lib_config now tries the alias then
+  every registered block device, and `lang zh` reports honestly
+  ("persisted" on the FAT32 backend, "in-memory only; ramfs config,
+  lost on reboot" on the fallback).  Verified end to end on a real
+  disk with the snapshot off: boot1 writes zh (Chinese confirmation
+  line), reboot, boot2 shows the Chinese banner ("已就绪。输入 'help'
+  查看命令。") and "Shell 输出语言：zh", and host-side mtype reads
+  shell.lang=zh back from etc.img.  User decision honored: the
+  suspend/suspend_test entry points are hidden (TUI power page 4 -> 3
+  actions, shell command count 222 -> 220) and the new `lang` command
+  brings the count to 221; shell.lang=en|zh is a known config key
+  (canonical lowercase, en/zh validated, config set syncs the live
+  state) and `tui` opens the Chinese launcher directly when
+  shell.lang=zh.  Gates: 0 errors 0 warnings; chinese E2E 21/21 BIOS +
+  21/21 UEFI (with the config disk attached); TUI E2E 37/37 BIOS +
+  37/37 UEFI; chinesetest 101/101; full regression 28/28 (command
+  baseline 221); screenshot walkthrough of every Chinese TUI page
+  (main menu, hardware 7 pages, wireless, system-info 8 sub-pages,
+  IME, time form) plus the update page (check-update feedback "已是
+  最新版本" stays visible after the operation).  133,203 lines of
+  tracked .c/.h/.S source excluding the four generated tables
+  (chinese_font_data.c, pinyin_data.c, grub_boot_data.c,
+  screen_font_data.c).  WP-10-chinese_support-fix3 is the 23rd work
+  package.
+- **Previous (WP-10-chinese_support-fix2)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-chinese_support-fix2) — ISO + SRC zip
   (ISO sha256 `156b8eabfaab86a4578c3656a6b4eb968cf40bc7df03b1c45582dc6caeb9e301`,
   SRC sha256 `c6e8e7c5cb85879f2b9f246b7fe26f61e2502cfb69654710c7e05f7b4cb7e409`)
   Batch summary: user-reported fix batch on the chinese_support release —

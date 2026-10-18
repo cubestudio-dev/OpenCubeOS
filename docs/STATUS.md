@@ -571,3 +571,54 @@ tag-time rebuild):
 | OTA package + manifest refresh | done at the fix2 release (build 198) |
 | Commands added only | OK (still 222 - no new commands) |
 | L1 numbering stays closed at 138 | OK |
+
+## WP-10-chinese_support-fix3 (2026-10-18) — COMPLETE
+
+- Screenshot-driven batch: every Chinese TUI page was captured from
+  QEMU (HMP screendump -> PNG) and reviewed as an image instead of
+  ANSI-screen assertions.  Three real defects found and fixed:
+- 1. zh system messages rendered as hollow boxes on the framebuffer
+  (shell_lang.c / main.c banner / shell.c help + unknown-command used
+  screen_console_puts, the 8x16 ASCII font, while the header comment
+  claimed console_cn).  All shell_msg() sites now go through
+  console_cn_puts/putcw; help -w gained a localized tail
+  (SM_HELP_WP_TAIL; en column byte-identical so regression wording is
+  untouched).
+- 2. TUI PCI page (EN tui-hw + CN tui-cn) printed "2x:2x,0 4x:4x
+  class 2x2x" - the page-local printf formatters lacked the
+  zero-padded %02x/%04x width support (a WP-10-tui era defect the
+  walkthrough surfaced).  Both now parse "%0N" and print real ids
+  (8086:1237 / 8086:7000 / 8086:7010 / 8086:7113 / 1234:1111 /
+  8086:100e on the reference VM).
+- 3. The fix3-4 persistence claim was false end to end: lib_config
+  mounted /etc from the hard-coded "ata0" alias while the ATA DMA
+  driver registers drives as hda..hdd, so the mount silently fell
+  back to ramfs and the "(persisted)" message lied.  lib_config now
+  tries the alias then every registered block device, exposes
+  lib_config_backend_fat(), and `lang` reports honestly per backend.
+  Cross-reboot chain verified on a real disk (snapshot off): write zh
+  -> reboot -> Chinese banner + "Shell 输出语言：zh" + host mtype
+  reads shell.lang=zh from etc.img.
+- User decision honored: suspend/suspend_test hidden (222 -> 220),
+  `lang` added (220 -> 221), tui opens the Chinese launcher when
+  shell.lang=zh; shell.lang is a validated config key (en/zh,
+  canonical lowercase).
+- fix3-1 (CJK glyph bottom-row clipping) measured NOT reproducible on
+  the release kernel: zoomed screenshot inspection plus a host-side
+  decode of the "挂" glyph bitmap (16 rows complete in the embedded
+  font data) and 16px row pitch everywhere.
+- E2E drives updated for QEMU 10.0.13 SeaBIOS: an attached IDE hard
+  disk boots first regardless of -boot d, so the chinese E2E attaches
+  etc.img with explicit bootindex (CD=0, HD=1).
+
+| Gate | Result |
+|---|---|
+| Build 0 errors 0 warnings | OK (-Werror) |
+| Chinese E2E (config disk attached) | OK (21/21 BIOS + 21/21 UEFI) |
+| TUI E2E | OK (37/37 BIOS + 37/37 UEFI) |
+| chinesetest in-kernel suite | OK (101/101) |
+| Regression | OK (28/28, baseline 221) |
+| Screenshot walkthrough (all CN TUI pages + update page) | OK |
+| Cross-reboot persistence chain (real disk) | OK |
+| Commands: suspend hidden, lang added | OK (final 221) |
+| L1 numbering stays closed at 138 | OK |
