@@ -539,8 +539,8 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 ## Download
 
 - **Latest (WP-10-chinese_support-fix3)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-chinese_support-fix3) — ISO + SRC zip
-  (ISO sha256 `__ISO_SHA__`,
-  SRC sha256 `__SRC_SHA__`)
+  (ISO sha256 `4220aee197338bf95e9e7d610013c1f20dade453f418c56505995877da4a7f29`,
+  SRC sha256 `0ae92515c2da6c12ac84d5f43c1e90f0726885fd669d8bb7d8a2ae81728ec50a`)
   Batch summary: screenshot-driven fix batch on the chinese_support
   release — every QEMU screen was reviewed as an image (screendump ->
   PNG) and three real defects found that the ANSI/serial E2E assertions
