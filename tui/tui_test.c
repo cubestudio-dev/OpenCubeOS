@@ -493,6 +493,54 @@ int tui_test_run(int verbose) {
     }
 
     {
+        /* WP-10-tui-unified part 4: the five desktop applications are
+         * registered with the right kind and runner (wiring only - the
+         * interactive editor/terminal flows are covered by the E2E
+         * session), and the ring-3 privilege-containment payload is
+         * embedded well-formed for `run priv_test`. */
+        extern int tui_dt_editor_run(tui_dt_node_t *self);
+        extern int tui_dt_terminal_run(tui_dt_node_t *self);
+        extern const u8 userprog_priv_test[];
+        extern const u64 userprog_priv_test_size;
+        tui_dt_reset();
+        tui_dt_bootstrap();
+        verdict_num("desktop: bootstrap fills registry", "count>=30", 1,
+                    tui_dt_count() >= 30 ? 1 : 0);
+        tui_dt_node_t *fe = tui_dt_find("files");
+        verdict_num("desktop: files app kind", "TUI_DT_APP", TUI_DT_APP,
+                    fe ? fe->kind : -1);
+        verdict_num("desktop: files app runner", "run!=0", 1,
+                    (fe && fe->run) ? 1 : 0);
+        tui_dt_node_t *fp = tui_dt_find("procs");
+        verdict_num("desktop: procs app kind", "TUI_DT_APP", TUI_DT_APP,
+                    fp ? fp->kind : -1);
+        tui_dt_node_t *ed = tui_dt_find("editor");
+        verdict_num("desktop: editor app kind", "TUI_DT_APP", TUI_DT_APP,
+                    ed ? ed->kind : -1);
+        verdict_num("desktop: editor runner wired", "tui_dt_editor_run", 1,
+                    (ed && ed->run == tui_dt_editor_run) ? 1 : 0);
+        verdict_num("desktop: editor at root level", "depth 1", 1,
+                    tui_dt_depth("editor"));
+        tui_dt_node_t *tm = tui_dt_find("terminal");
+        verdict_num("desktop: terminal node kind", "TUI_DT_TERMINAL",
+                    TUI_DT_TERMINAL, tm ? tm->kind : -1);
+        verdict_num("desktop: terminal runner wired", "tui_dt_terminal_run", 1,
+                    (tm && tm->run == tui_dt_terminal_run) ? 1 : 0);
+        verdict_num("desktop: terminal at root level", "depth 1", 1,
+                    tui_dt_depth("terminal"));
+        tui_dt_reset();
+        /* privilege-containment payload: embedded ELF header + size */
+        int elf_ok = userprog_priv_test_size > 64 &&
+                     userprog_priv_test[0] == 0x7F &&
+                     userprog_priv_test[1] == 'E' &&
+                     userprog_priv_test[2] == 'L' &&
+                     userprog_priv_test[3] == 'F' &&
+                     userprog_priv_test[4] == 2;   /* ELFCLASS64 */
+        verdict_num("priv: containment payload embedded", "ELF64", 1,
+                    elf_ok ? 1 : 0);
+    }
+
+    {
         char tail[96];
         char num[12];
         strcpy(tail, "tui-test: ");

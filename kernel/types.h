@@ -47,6 +47,7 @@ static inline uintptr_t align_down(uintptr_t v, uintptr_t a) {
 }
 
 /* offsetof - provided by GCC __builtin_offsetof, but we wrap for clarity */
+#define offsetof(type, member) __builtin_offsetof(type, member)
 #define offsetof_container(p, t, m) __builtin_offsetof(t, m)
 
 #endif /* OC_TYPES_H */

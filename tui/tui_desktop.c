@@ -335,8 +335,8 @@ void tui_dt_status_bar(void) {
     g_dt_win->curs_y = rows - 1;
     g_dt_win->attr = bar;
     tui_print(tui_tr(
-        " Esc:Back Up/Down:Move Enter:Open F1:Help F2:Lang F5:Refresh F10:Exit ",
-        " Esc:返回 上下:选择 Enter:打开 F1:帮助 F2:语言 F5:刷新 F10:退出 "));
+        " Esc:Back 1-9:Quick Up/Down:Move Enter:Open F1:Help F2:Lang F5:Refresh F10:Exit ",
+        " Esc:返回 1-9:快开 上下:选择 Enter:打开 F1:帮助 F2:语言 F5:刷新 F10:退出 "));
     g_dt_win->attr = save;
 }
 
@@ -517,7 +517,7 @@ static void dt_render_menu(tui_dt_node_t *node, int sel) {
 
 /* wait for one key on the plain console (used after a SHELL/TERMINAL
  * node temporarily left the TUI) - same pump as the shell line editor */
-static int dt_console_wait_key(void) {
+int tui_dt_console_wait_key(void) {
     for (;;) {
         int k = driver_input_keyboard_getch();
         if (k >= 0) return k;
@@ -531,7 +531,7 @@ static int dt_term_rows(void) { int c, r; tui_term_size(&c, &r); return r; }
 static int dt_term_cols(void) { int c, r; tui_term_size(&c, &r); return c; }
 
 /* rebuild the desktop window after tui_init() (SHELL/TERMINAL return) */
-static int dt_reenter_desktop(void) {
+int tui_dt_reenter(void) {
     if (tui_init() != 0) return -1;
     g_dt_win = tui_window_new(0, 0, dt_term_rows(), dt_term_cols());
     if (!g_dt_win) return -1;
@@ -560,9 +560,9 @@ static int dt_run_shell_cmd(const char *line, const char *what) {
     screen_console_puts(num);
     screen_console_puts(tui_tr("] press any key to return... ",
                                "] \xe6\x8c\x89\xe4\xbb\xbb\xe6\x84\x8f\xe9\x94\xae\xe8\xbf\x94\xe5\x9b\x9e..."));
-    dt_console_wait_key();
+    tui_dt_console_wait_key();
     kfree(out);
-    if (dt_reenter_desktop() != 0) return rc;
+    if (tui_dt_reenter() != 0) return rc;
     return rc;
 }
 
@@ -578,8 +578,8 @@ static int dt_run_terminal(void) {
     u64_to_str((u64)(rc < 0 ? 0 : (u32)rc), num);
     screen_console_puts(num);
     screen_console_puts(") - press any key for the desktop...");
-    dt_console_wait_key();
-    if (dt_reenter_desktop() != 0) return rc;
+    tui_dt_console_wait_key();
+    if (tui_dt_reenter() != 0) return rc;
     return rc;
 }
 
@@ -734,8 +734,34 @@ int tui_desktop_main(void) {
             goto done;
         case TUI_KEY_MOUSE:
             break;   /* mouse reports ignored by the desktop nav     */
-        default:
+        default: {
+            /* quick-open: digits 1..9 activate the Nth child of the
+             * current menu level (root quick-launch; the same semantic
+             * as selecting with arrows + Enter).  Deterministic for
+             * E2E drivers and a standard desktop accelerator. */
+            if (k >= '1' && k <= '9') {
+                int qidx = k - '1';
+                if (qidx < cur->child_count) {
+                    tui_dt_node_t *qc = cur->children[qidx];
+                    if (qc) {
+                        g_sel[g_stack_top] = qidx;
+                        dt_render_menu(cur, qidx);
+                        g_toast[0] = 0;
+                        if (qc->kind == TUI_DT_MENU) {
+                            if (qc->level > TUI_DT_DEPTH_MAX) {
+                                tui_dt_toast(0, "max menu depth %d",
+                                             TUI_DT_DEPTH_MAX);
+                            } else {
+                                dt_push(qc);
+                            }
+                        } else {
+                            dt_activate(qc);
+                        }
+                    }
+                }
+            }
             break;   /* unknown keys never crash the loop            */
+        }
         }
     }
 done:
@@ -754,6 +780,8 @@ done:
 /* app runners defined in tui_dt_apps.c (real pages, no stubs) */
 int tui_dt_files_run(tui_dt_node_t *self);
 int tui_dt_proc_run(tui_dt_node_t *self);
+int tui_dt_editor_run(tui_dt_node_t *self);
+int tui_dt_terminal_run(tui_dt_node_t *self);
 int tui_dt_help_page_run(tui_dt_node_t *self);
 int tui_dt_cmdbridge_run(tui_dt_node_t *self);
 int tui_dt_lang_run(tui_dt_node_t *self);
@@ -906,6 +934,14 @@ void tui_dt_bootstrap(void) {
            "task manager: live process table, kill, resources",
            "\xe4\xbb\xbb\xe5\x8a\xa1\xe7\xae\xa1\xe7\x90\x86\xef\xbc\x9a\xe8\xbf\x9b\xe7\xa8\x8b/\xe7\xbb\x93\xe6\x9d\x9f/\xe8\xb5\x84\xe6\xba\x90",
            "[P]", TUI_DT_APP, tui_dt_proc_run, NULL, NULL, 8, NULL);
+    dt_add("root", "editor", "Editor", "\xe7\xbc\x96\xe8\xbe\x91\xe5\x99\xa8",
+           "full-screen nano editor on any file",
+           "\xe5\x85\xa8\xe5\xb1\x8f nano \xe7\xbc\x96\xe8\xbe\x91\xe4\xbb\xbb\xe6\x84\x8f\xe6\x96\x87\xe4\xbb\xb6",
+           "[E]", TUI_DT_APP, tui_dt_editor_run, NULL, NULL, 12, NULL);
+    dt_add("root", "terminal", "Terminal", "\xe7\xbb\x88\xe7\xab\xaf",
+           "ring-3 user shell (ush), syscall-only",
+           "Ring 3 \xe7\x94\xa8\xe6\x88\xb7\xe6\x80\x81 shell\xef\xbc\x88ush\xef\xbc\x89",
+           "[_]", TUI_DT_TERMINAL, tui_dt_terminal_run, NULL, NULL, 14, NULL);
     dt_add("root", "sysinfo", "System Info", "\xe7\xb3\xbb\xe7\xbb\x9f\xe4\xbf\xa1\xe6\x81\xaf",
            "overview/processes/logs/monitor/power", "\xe6\xa6\x82\xe8\xa7\x88/\xe8\xbf\x9b\xe7\xa8\x8b/\xe6\x97\xa5\xe5\xbf\x97/\xe7\x9b\x91\xe6\x8e\xa7/\xe7\x94\xb5\xe6\xba\x90",
            "[i]", TUI_DT_APP, dt_sysinfo_run, NULL, NULL, 20, NULL);

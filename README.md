@@ -781,6 +781,29 @@ QEMU session via `tools/qemu_runner.py`. In addition:
   221 -> 225 (tui-time/tui-drv/tui-sys/tui-ext; nothing removed,
   help three modes unchanged).
 
+- **WP-10-tui-unified (this batch)** unifies the TUI into one
+  character desktop.  Single entry `tui` (the tui-cn launcher is
+  removed, 225 -> 224; the tui-* app commands stay); a fully
+  dynamic 6-level menu registry (tui_dt_node_add/remove with dup /
+  orphan / depth enforcement) drives every entry; five desktop
+  applications over the real subsystems - Files (VFS file manager
+  with clipboard), Processes (live g_procs + PMM + kill-by-tid as
+  the generic L1 API user_process_kill_by_tid), Editor (the real
+  nano over the shell command path), Terminal (ring-3 ush,
+  syscall-only), System Info - plus Control Panel, Chinese Input,
+  Command Bridge (shell_cmd_enum + shell_execute_captured) and the
+  Extensions lab.  en/zh labels driven by shell.lang with runtime
+  F2 switching, resident status bar with digit quick-open (1-9),
+  green/red toasts and loading feedback, and tui_dt_guard crash
+  containment.  Exception isolation now covers ring 3 too: a TSS
+  I/O-permission-bitmap bug (iopb_offset field sat at 0x64, the
+  SDM puts it at 0x66 - the bitmap silently pointed at the all-zero
+  TSS header and every port was allowed from ring 3 since WP-02)
+  is fixed; `run priv_test` proves `out 0x70` from ring 3 raises
+  #GP(0), the process dies, the kernel continues (BIOS + UEFI).
+  Gates: tui-test 90/90, regression 28/28, chinese E2E 21/21 x2,
+  TUI E2E 37/37 x2, 0 errors / 0 warnings.
+
 ## License
 
 Apache 2.0. See `LICENSE`.

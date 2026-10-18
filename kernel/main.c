@@ -188,6 +188,8 @@ extern const u64 userprog_fdref_test_size;
 extern const u8 userprog_select_zero_test[];
 extern const u64 userprog_select_zero_test_size;
 extern const u8 userprog_int3_user[];
+extern const u8 userprog_priv_test[];
+extern const u64 userprog_priv_test_size;
 extern const u64 userprog_int3_user_size;
 extern const u8 userprog_g6_test[];
 extern const u64 userprog_g6_test_size;
@@ -2281,7 +2283,7 @@ static int shell_cmd_l1test(const char *args) {
 /* WP-04: run - run a user program. */
 static int shell_cmd_run(const char *args) {
     if (!args[0]) {
-        screen_console_puts("usage: run <hello|badapp|int3_user|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|g7mmap|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test|sse_test|pf_test|fdref_test|select_zero_test|g6_test|g6_exec_a|g6_exec_b|g6_oom>\n");
+        screen_console_puts("usage: run <hello|badapp|priv_test|int3_user|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|g7mmap|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test|sse_test|pf_test|fdref_test|select_zero_test|g6_test|g6_exec_a|g6_exec_b|g6_oom>\n");
         return 1;
     }
     const u8 *elf = NULL;
@@ -2290,6 +2292,11 @@ static int shell_cmd_run(const char *args) {
         elf = userprog_hello; size = userprog_hello_size;
     } else if (strcmp(args, "badapp") == 0) {
         elf = userprog_badapp; size = userprog_badapp_size;
+    } else if (strcmp(args, "priv_test") == 0) {
+        /* WP-10-tui-unified: ring-3 privileged-instruction containment
+         * (#GP on `out 0x70` from ring 3; the process dies, the shell
+         * survives, the kernel never panics). */
+        elf = userprog_priv_test; size = userprog_priv_test_size;
     } else if (strcmp(args, "int3_user") == 0) {
         elf = userprog_int3_user; size = userprog_int3_user_size;
     } else if (strcmp(args, "loop") == 0) {

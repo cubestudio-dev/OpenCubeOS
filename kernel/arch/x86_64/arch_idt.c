@@ -77,8 +77,23 @@ typedef struct arch_tss {
     u32 ist7_high;
     u32 reserved3;
     u32 reserved4;
-    u16 iopb_offset;
-    u16 reserved5;
+    u16 reserved5;                        /* SDM table 8-2: 0x64-0x65 */
+    u16 iopb_offset;                      /* SDM table 8-2: at 0x66!  */
+    /* WP-10-tui-unified: the I/O permission bitmap lives INSIDE the TSS
+     * limit so its bytes are always read in-range (real hardware treats
+     * an out-of-limit bitmap entry as denied; some virtual CPU models
+     * are lenient and read whatever follows).  All bits set = every
+     * port in [0, 256) denied from ring 3 (CPL > IOPL).  Ports outside
+     * this range fall past the TSS limit and are denied on real
+     * hardware by the same rule.
+     *
+     * PRIV_TEST ROOT CAUSE (WP-10-tui-unified): iopb_offset used to sit
+     * at 0x64 and a u16 pad at 0x66 - but SDM table 8-2 puts the IOPB
+     * offset field AT 0x66, so the CPU (and every honest emulator)
+     * read the pad (0) as the bitmap offset: the bitmap started at TSS
+     * byte 0, i.e. over the all-zero header - every port was allowed
+     * from ring 3.  priv_test (out 0x70 from ring 3) caught it. */
+    u8  iopb[32];
 } __attribute__((packed)) arch_tss_t;
 
 /* GDT: 6 8-byte entries + 1 16-byte system entry = 64 bytes total.
@@ -150,7 +165,9 @@ static void tss_init(void) {
     /* rsp0 = kernel stack (the boot stack). Set by long_mode_init; we leave
      * it zero here, which means the CPU uses the current RSP on int->kernel
      * transitions. That's fine because we already run at ring 0. */
-    g_tss.iopb_offset = sizeof(g_tss);
+    g_tss.iopb_offset = offsetof(arch_tss_t, iopb);
+    /* deny every port covered by the in-limit bitmap (bit set = denied) */
+    memset(g_tss.iopb, 0xFF, sizeof(g_tss.iopb));
 }
 
 static void arch_gdt_init(void) {

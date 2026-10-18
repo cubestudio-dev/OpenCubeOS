@@ -85,28 +85,28 @@ CMDS = [
 
 
 def tui_reenter_round(child, log, transcript, tag):
-    """fix1 regression: enter the full TUI menu app, leave via its
-    Exit item, verify the shell prompt returns, and that a second
-    session still renders (the old build drained the 16-slot window
-    pool after a few sessions and then silently refused to start)."""
+    """fix1 regression, unified-desktop edition: enter the desktop (`tui`),
+    verify the root menu renders (desktop markers, not the old main-menu
+    labels - WP-10-tui-unified replaced the menu app with the dynamic
+    desktop), leave via Esc at the root, and confirm a second session
+    still renders (the old build drained the 16-slot window pool after a
+    few sessions and then silently refused to start)."""
     ok = True
     for i in range(2):
         child.sendline("tui")
         time.sleep(3)
         idx = child.expect([r"oc>", pexpect.TIMEOUT], timeout=8)
         out = normalize(child.before or "")
-        rendered = idx == 1 and "Hardware configuration" in out \
-            and "Exit" in out
+        rendered = idx == 1 and "Control Panel" in out \
+            and "Terminal" in out and "Command Bridge" in out
         log.write(f"[{tag} #{i}] render: {'PASS' if rendered else 'FAIL'}\n")
         if not rendered:
             ok = False
             transcript += f"\n=== {tag} #{i} NO RENDER: {out[-400:]}\n"
         if idx == 1:
-            # main menu Exit is item 5 (index 4)
-            for _ in range(4):
-                child.send("\x1b[B")
-                time.sleep(0.25)
-            child.send("\r")
+            # Esc at the desktop root leaves back to the shell (the
+            # serial bridge turns a double-ESC into one real Esc key)
+            child.send("\x1b\x1b")
             time.sleep(1.5)
             idx2 = child.expect([r"oc>", pexpect.TIMEOUT], timeout=8)
             back = idx2 == 0

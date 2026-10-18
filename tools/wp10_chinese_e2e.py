@@ -119,13 +119,13 @@ def main():
         "cmd encoding-test": check("encoding-test PASS"),
         "cmd ime": check("ime status (396/3755)"),
         "cmd ime-test": check("ime-test PASS"),
-        "cmd tui-cn": check("tui-cn opens the hw app and returns (shell ok)"),
+        "cmd tui-cn": check("desktop Chinese Input pad renders and returns (shell ok)"),
         "fix1 ime -i": check("fix1: ime -i composes 你 over the console (real input)"),
-        "fix1 tui-cn input": check("fix1: tui-cn entry 4 中文输入 composes 你 in the pad"),
-        "fix1 tui-cn reenter": check("fix1: tui-cn enter/quit/re-enter still renders (pool reuse)"),
+        "fix1 tui-cn input": check("fix1: desktop IME pad composes 你 in the pad"),
+        "fix1 tui-cn reenter": check("fix1: desktop IME enter/quit/re-enter still renders (pool reuse)"),
         "cat utf8": check("cat echoes real UTF-8 bytes (zhongwen shi)"),
         "help -w tag": check("help -w lists WP-10-chinese_support"),
-        "cmd count 225": check("command count 225"),
+        "cmd count 225": check("command count 224 (tui-cn removed by tui-unified)"),
         "fix3 lang zh": check("fix3: lang zh switches report/errors/help to Chinese"),
         "fix3 lang persist": check("fix3: shell.lang=zh persisted to /etc/opencube.conf"),
         "fix3 lang invalid": check("fix3: config set shell.lang fr rejected"),
@@ -187,23 +187,41 @@ def main():
         i = i_codes["cmd ime-test"]
         CHECKS[i][1] = "PASS" in out
 
-        # tui-cn: single-byte sends (sendline would append \r\n and the
-        # extra \r would re-enter the menu loop after 'q' left the page).
-        # Enter picks the first app (hardware config), 'q' leaves the
-        # page, 'q' leaves the launcher; fb pages are invisible on
-        # serial, so we assert the summary line + shell liveness.
-        child.sendline("tui-cn")
+        # WP-10-tui-unified: the tui-cn launcher is GONE (225 -> 224
+        # commands); the IME pad now lives on the unified desktop
+        # (root -> "Chinese Input", the same tui_cn_input_app surface).
+        # Single-byte sends (sendline would append \r\n and the extra
+        # \r would re-commit the pad line); the serial ESC needs the
+        # double-ESC trick, and a second Esc at the desktop root leaves
+        # the desktop back to the shell.
+        # NOTE: the serial backend must be configured or the desktop
+        # renders to the (invisible) framebuffer; and the desktop root
+        # selection persists across sessions, so clamp to the top first
+        # (up x10, no wrap at the root) before moving down.
+        child.sendline("echo tui.backend=serial >> /etc/opencube.conf")
+        child.expect(r"oc>\s*", timeout=timeout)
+        child.sendline("tui")
         time.sleep(3)
-        child.send("\r")            # select first menu entry
-        time.sleep(3)
-        child.send("q")             # leave the hw page
-        time.sleep(2)
-        child.send("q")             # leave the launcher
+        # digit quick-open: '7' = root child 6 = Chinese Input (the
+        # desktop opens the Nth entry directly - no arrow drift)
+        child.send("7")
+        time.sleep(3.5)               # pad init (font + repaint) under TCG
+        child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=2)
+        pad_open = norm(child.before or "")
+        transcript.append(f"\n--- [desktop ime] ---\n{pad_open[-300:]}")
+        try:
+            raw = pad_open.encode("latin-1").decode("utf-8", "replace")
+        except UnicodeDecodeError:
+            raw = pad_open
+        ime_rendered = "\u62fc\u97f3" in raw   # 拼音
+        child.send("\x1b\x1b")        # Esc: pad -> desktop root
+        time.sleep(1.5)
+        child.send("\x1b\x1b")        # Esc: desktop root -> shell
         child.expect(r"oc>\s*", timeout=timeout)
         out = norm(child.before or "")
-        transcript.append(f"\n--- [tui-cn] ---\n{out}")
+        transcript.append(f"\n--- [desktop ime exit] ---\n{out[-300:]}")
         i = i_codes["cmd tui-cn"]
-        CHECKS[i][1] = "Chinese apps, shell ok" in out
+        CHECKS[i][1] = ime_rendered
 
         # ---- fix1: ime -i interactive console composition (1a) ----
         # letters compose pinyin, a digit commits the candidate, Enter
@@ -225,16 +243,16 @@ def main():
             raw = out
         CHECKS[i][1] = "composed 1 character(s)" in raw and "你" in raw
 
-        # ---- fix1: the tui-cn launcher input pad (1a, TUI surface) ----
+        # ---- fix1: the desktop IME pad input surface (1a, TUI) ----
+        # same compose flow the tui-cn launcher entry 4 used to drive:
+        # desktop root -> Chinese Input -> type ni -> commit candidate 1
+        # -> Enter commits the line into the pad.
         child.sendline("echo tui.backend=serial >> /etc/opencube.conf")
         child.expect(r"oc>\s*", timeout=timeout)
-        child.sendline("tui-cn")
+        child.sendline("tui")
         time.sleep(3)
-        for _ in range(3):            # down to entry 4 (中文输入)
-            child.send("\x1b[B")
-            time.sleep(0.4)
-        child.send("\r")              # open the pinyin pad
-        time.sleep(2)
+        child.send("7")               # quick-open: Chinese Input
+        time.sleep(3.5)               # pad init (font + repaint) under TCG
         child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=2)
         menu_out = norm(child.before or "")
         for ch in "ni":
@@ -249,28 +267,30 @@ def main():
         time.sleep(1.2)
         child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=2)
         pad_out = norm(child.before or "")
-        transcript.append(f"\n--- [tui-cn input pad] ---\n{menu_out[-300:]}\n{cand_out[-300:]}\n{pad_out[-300:]}")
-        # leave the pad (Esc) and the launcher (q); double-ESC on the
-        # serial bridge delivers one real Esc key press
+        transcript.append(f"\n--- [desktop ime input pad] ---\n{menu_out[-300:]}\n{cand_out[-300:]}\n{pad_out[-300:]}")
+        # leave the pad (Esc -> desktop root) and the desktop (Esc ->
+        # shell); double-ESC on the serial bridge delivers one real Esc
         child.send("\x1b\x1b")
         time.sleep(1.0)
-        child.send("q")
+        child.send("\x1b\x1b")
         child.expect(r"oc>\s*", timeout=timeout)
         out = norm(child.before or "")
-        transcript.append(f"\n--- [tui-cn pad exit] ---\n{out[-300:]}")
+        transcript.append(f"\n--- [desktop ime pad exit] ---\n{out[-300:]}")
         i = i_codes["fix1 tui-cn input"]
         try:
             raw = (menu_out + cand_out + pad_out).encode("latin-1")\
                 .decode("utf-8", "replace")
         except UnicodeDecodeError:
             raw = menu_out + cand_out + pad_out
-        CHECKS[i][1] = ("中文输入" in raw and "你" in raw)
+        CHECKS[i][1] = ("拼音" in raw and "你" in raw)
 
-        # ---- fix1: tui-cn enter/quit/re-enter (1c, pool reuse) ----
+        # ---- fix1: desktop -> IME enter/quit/re-enter (1c, pool reuse) ----
         ok2 = True
         for _round in range(2):
-            child.sendline("tui-cn")
+            child.sendline("tui")
             time.sleep(3)
+            child.send("7")           # quick-open: Chinese Input
+            time.sleep(3.5)           # pad init (font + repaint) under TCG
             child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=2)
             m_out = norm(child.before or "")
             try:
@@ -280,13 +300,13 @@ def main():
                 m_raw = m_out.encode("latin-1").decode("utf-8", "replace")
             except UnicodeDecodeError:
                 m_raw = m_out
-            rendered = "硬件配置" in m_raw and "中文输入" in m_raw
-            child.send("q")            # leave the launcher menu
-            time.sleep(1.5)
-            child.send("\x1b\x1b")   # in case focus is in a page
+            rendered = "\u62fc\u97f3" in m_raw   # 拼音 (pad banner)
+            child.send("\x1b\x1b")   # pad -> desktop root
+            time.sleep(1.2)
+            child.send("\x1b\x1b")   # desktop root -> shell
             child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=6)
             e_out = norm(child.before or "")
-            transcript.append(f"\n--- [tui-cn reenter] ---\n{m_out[-200:]}\n{e_out[-200:]}")
+            transcript.append(f"\n--- [desktop ime reenter] ---\n{m_out[-200:]}\n{e_out[-200:]}")
             if not rendered:
                 ok2 = False
         i = i_codes["fix1 tui-cn reenter"]
@@ -310,9 +330,11 @@ def main():
         out = run("help")
         i = i_codes["cmd count 225"]
         m = re.search(r"Total:\s*(\d+) commands", out)
-        CHECKS[i][1] = bool(m) and m.group(1) == "225"
-        # fix3: suspend/suspend_test hidden (222 -> 220), `lang` added
-        # (221 -> 225, fix4: +tui-time/tui-drv/tui-sys/tui-ext).
+        # WP-10-tui-unified removed the tui-cn launcher: 225 -> 224
+        # (fix3: suspend/suspend_test hidden, 222 -> 220; `lang` added
+        # 221 -> 225; fix4: +tui-time/tui-drv/tui-sys/tui-ext; unified:
+        # -tui-cn -> 224).
+        CHECKS[i][1] = bool(m) and m.group(1) == "224"
         CHECKS[i][1] = CHECKS[i][1] and "suspend" not in out.lower()
 
         # ---- fix3: user-configurable shell output language ----
