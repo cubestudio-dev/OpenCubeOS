@@ -9,6 +9,11 @@ Interface numbering 1-138 closed as of WP-10-wp08fix1; counts re-verified
 commands and keep the numbered L1 set closed at 138; the new driver APIs are
 listed in docs/EXTENSIONS_WP10-wireless_bluetooth.md and
 docs/EXTENSIONS_WP10-camera_misc.md.
+Items 58-122 were itemized individually at the 2026-10 handover
+continuation: they had been counted in every release note
+(57 + 8 + 13 + 7 + 26 + 11 + 7 + 9 = 138) but never listed per-item
+here. The per-item tables are in section 1 below, with the evidence
+chain and one honest caveat about the WP-10a slot assignment.
 
 Single-page index of every interface Open Cube OS exposes to upper layers
 (L1) and to the shell. Signatures are copied verbatim from the headers —
@@ -68,6 +73,132 @@ tool_register / tool_list
 job_create / job_list / job_control
 ```
 (7 functions.)
+
+### Numbered items 58-122 — WP-10a / WP-10b / WP-10u / WP-10c / WP-10d
+
+Backfilled at the 2026-10 handover continuation. Numbering follows the
+README / EXTENSIONS enumeration order of each batch. Evidence chain:
+README.md L60-90 (per-batch enumerations + the 57+8+13+7+26+11+7+9=138
+tally), EXTENSIONS_WP10a.md §2, EXTENSIONS_WP10b.md §1-§11 order,
+EXTENSIONS_WP10u.md L117-123, EXTENSIONS_WP10c.md L43-70,
+EXTENSIONS_WP10d.md §1-§11, and the header declaration lines cited per
+row. No header carries an "item N" comment for 58-122 — the numbering
+was only ever a per-batch count.
+
+**Honest caveat (WP-10a, items 58-65):** the batch introduced eleven
+functions; the original WP-10a release README already listed ten+ names
+under "8 WP-10a items", and the current README lists
+`driver_pci_find_class_exact` / `driver_pci_find_class_mask` /
+`driver_block_ata_identify_capacity` outside the numbered 8 (download
+section) while its WP-10a section still shows them inside the
+"items 58-65" header list. No per-slot assignment was ever recorded, so
+the table follows the current README download-section order and treats
+the three PCI/capacity helpers as unnumbered WP-10a-batch interfaces —
+the same convention already used for the 5 unnumbered WP-09-fix5 config
+interfaces and the 5 rule-9 self-hosting interfaces.
+
+#### WP-10a — storage drivers (items 58-65)
+
+| Item | Interface | Header (decl line) | Purpose |
+|---|---|---|---|
+| 58 | `driver_block_register` | drivers/block/driver_block_blk.h:133 | pointer-based block-device registration (filled `driver_block_device_t` + ops; returns slot index) |
+| 59 | `driver_block_read` | drivers/block/driver_block_blk.h:134 | cached read through the device pointer |
+| 60 | `driver_block_write` | drivers/block/driver_block_blk.h:135 | write-back cached write |
+| 61 | `driver_block_flush` | drivers/block/driver_block_blk.h:136 | pushes the OS write-back cache, then calls the driver `.flush` hook |
+| 62 | `driver_block_set_ops` | drivers/block/driver_block_blk.h:141 | in-place ops replacement (PIO→BMDMA upgrade path) |
+| 63 | `driver_block_ahci_init` | drivers/block/driver_block_ahci.h:39 | AHCI SATA controller probe/init (`pdev=NULL` scans PCI; registers `sda`…) |
+| 64 | `driver_block_nvme_init` | drivers/block/driver_block_nvme.h:32 | NVMe init (admin + 2 I/O queue pairs; registers `nvme0`) |
+| 65 | `driver_block_ata_dma_init` | drivers/block/driver_block_ata_dma.h:35 | IDE Bus-Master DMA init (PRDT; PIO fallback preserved; `hda`..`hdd`) |
+
+Unnumbered WP-10a-batch helpers (introduced with the batch, kept
+outside the 1-138 numbering): `driver_pci_find_class_exact` /
+`driver_pci_find_class_mask` (drivers/pci/driver_pci.h:44/51) and
+`driver_block_ata_identify_capacity`
+(drivers/block/driver_block_ata.h:37).
+
+#### WP-10b — NIC drivers (items 66-78)
+
+| Item | Interface | Header (decl line) | Purpose |
+|---|---|---|---|
+| 66 | `driver_nic_register` | drivers/nic/driver_nic.h:111 | register a NIC into the 8-slot table (send/recv required in ops) |
+| 67 | `driver_nic_send` | drivers/nic/driver_nic.h:114 | hand one Ethernet frame to the driver (returns bytes accepted) |
+| 68 | `driver_nic_recv` | drivers/nic/driver_nic.h:115 | poll one frame from the driver (>0 len / 0 none / -1 error) |
+| 69 | `driver_nic_link_status` | drivers/nic/driver_nic.h:118 | link state: 1 up / 0 down / -1 unknown |
+| 70 | `driver_nic_get_mac` | drivers/nic/driver_nic.h:121 | copy out the 6-byte station address |
+| 71 | `driver_nic_e1000e_init` | drivers/nic/driver_nic.h:140 | Intel 82574/82540 family GbE init |
+| 72 | `driver_nic_igb_init` | drivers/nic/driver_nic.h:142 | Intel 82575/82576 server GbE |
+| 73 | `driver_nic_ixgbe_init` | drivers/nic/driver_nic.h:143 | Intel 82598/82599 10GbE |
+| 74 | `driver_nic_rtl8139_init` | drivers/nic/driver_nic.h:144 | Realtek RTL8139 100M |
+| 75 | `rtl8168_init` | drivers/nic/driver_nic.h:145 | Realtek RTL8168/8111 GbE |
+| 76 | `rtl8125_init` | drivers/nic/driver_nic.h:146 | Realtek RTL8125 2.5G |
+| 77 | `rtl810x_init` | drivers/nic/driver_nic.h:147 | Realtek RTL810x FE |
+| 78 | `bcm57xx_init` | drivers/nic/driver_nic.h:148 | Broadcom BCM57xx/BCM440x (tg3-style rings + mailboxes) |
+
+(`driver_nic_probe_all` / `driver_nic_active` are framework additions
+of the same batch, listed in section 3, not numbered.)
+
+#### WP-10u — in-system A/B updates (items 79-85)
+
+| Item | Interface | Header (decl line) | Purpose |
+|---|---|---|---|
+| 79 | `l1_ext_update_check_pkg` | l1/l1_ext.h:193 | fetch update.json and fill package info (0 same / 1 newer / negative error) |
+| 80 | `l1_ext_update_download` | l1/l1_ext.h:194 | two-phase streaming HTTP/HTTPS download to a VFS path |
+| 81 | `l1_ext_update_verify` | l1/l1_ext.h:195 | streaming SHA-256 check (case-insensitive hex compare) |
+| 82 | `l1_ext_update_install` | l1/l1_ext.h:196 | gunzip→untar→install into the A/B slot + manifest digest + grub.cfg mirror |
+| 83 | `l1_ext_update_rollback` | l1/l1_ext.h:197 | clear boot flags so the next boot returns to slot A |
+| 84 | `l1_ext_update_set_boot` | l1/l1_ext.h:198 | set next boot slot (B: next_B + clear ok_B/bootfail_B; A: clear all) |
+| 85 | `l1_ext_update_get_status` | l1/l1_ext.h:199 | fill `ota_update_status_t` (versions / current slot / next slot / online switch / A-B present) |
+
+(Kernel-side twins: the `ota_update_*` / `ota_ab_*` functions in
+kernel/ota/ota_ab.h:157-183 — that header self-describes as "also the
+L1 extension surface".)
+
+#### WP-10c — sound cards + WP-10c UHCI stack (items 86-111)
+
+| Item | Interface | Header (decl line) | Purpose |
+|---|---|---|---|
+| 86 | `driver_snd_init` | drivers/snd/driver_snd.h:149 | sound framework init (clears the 8-slot registry) |
+| 87 | `driver_snd_register` | drivers/snd/driver_snd.h:152 | register a sound card (play/stop required; returns device index) |
+| 88 | `driver_snd_play` | drivers/snd/driver_snd.h:155 | blocking PCM feed (S16LE stereo; DMA-position flow control) |
+| 89 | `driver_snd_stop` | drivers/snd/driver_snd.h:158 | stop the stream and drain the DMA ring |
+| 90 | `driver_snd_set_rate` | drivers/snd/driver_snd.h:161 | configure the sample rate (44100/48000…; -1 if unsupported) |
+| 91 | `driver_snd_set_volume` | drivers/snd/driver_snd.h:164 | volume 0..100 |
+| 92 | `driver_snd_get_caps` | drivers/snd/driver_snd.h:167 | copy out the capability block (rate bitmask / channels / bits / state) |
+| 93 | `driver_snd_num_devices` | drivers/snd/driver_snd.h:170 | number of registered cards |
+| 94 | `driver_snd_get_device` | drivers/snd/driver_snd.h:171 | device pointer by index |
+| 95 | `driver_snd_find_by_type` | drivers/snd/driver_snd.h:172 | device index by family type |
+| 96 | `driver_snd_find_first_present` | drivers/snd/driver_snd.h:173 | first present device index |
+| 97 | `driver_snd_list_devices` | drivers/snd/driver_snd.h:174 | list registered cards (`sound` command) |
+| 98 | `driver_snd_type_name` | drivers/snd/driver_snd.h:175 | family enum → name string |
+| 99 | `driver_snd_probe_all` | drivers/snd/driver_snd.h:181 | probe all 6 families in priority order (0 if ≥1 card came up) |
+| 100 | `driver_snd_make_tone` | drivers/snd/driver_snd.h:205 | generate a sine test tone (play / test commands) |
+| 101 | `driver_snd_hda_init` | drivers/snd/driver_snd.h:184 | Intel HDA init (CORB/RIRB, widget walk, BDL DMA) |
+| 102 | `driver_snd_ac97_init` | drivers/snd/driver_snd.h:185 | Intel 82801AA AC'97 (mixer + BDL DMA) |
+| 103 | `driver_snd_sb16_init` | drivers/snd/driver_snd.h:186 | ISA Sound Blaster 16 (DSP 4.05) |
+| 104 | `driver_snd_es1370_init` | drivers/snd/driver_snd.h:187 | Ensoniq ES1370/1371 (DAC2 frame DMA) |
+| 105 | `driver_snd_virtio_init` | drivers/snd/driver_snd.h:188 | virtio-snd (1AF4:1059, modern virtio-pci) |
+| 106 | `driver_usb_audio_init` | drivers/snd/driver_snd.h:189 | USB Audio Class 1.0 (via the WP-10c UHCI stack) |
+| 107 | `driver_usb_init` | drivers/usb/driver_usb.h:312 | WP-10c-era UHCI host stack bring-up (PIIX3/4) |
+| 108 | `driver_usb_enumerate` | drivers/usb/driver_usb.h:328 | enumerate devices per host (descriptors / SET_ADDRESS…) |
+| 109 | `driver_usb_control` | drivers/usb/driver_usb.h:318 | blocking control transfer (SETUP+DATA+STATUS) |
+| 110 | `driver_usb_set_interface` | drivers/usb/driver_usb.h:320 | SET_INTERFACE (audio lazy alt-switch) |
+| 111 | `driver_usb_iso_out_submit` | drivers/usb/driver_usb.h:321 | isochronous OUT packet (one ISO TD per 1 ms frame) |
+
+#### WP-10d — USB host stack, four backends + class-driver registry (items 112-122)
+
+| Item | Interface | Header (decl line) | Purpose |
+|---|---|---|---|
+| 112 | `driver_usb_register_host` | drivers/usb/driver_usb.h:326 | register a host controller with the USB core (returns host->index) |
+| 113 | `driver_usb_enumerate_host` | drivers/usb/driver_usb.h:327 | enumerate root ports + cascaded hubs of one host |
+| 114 | `driver_usb_control_transfer` | drivers/usb/driver_usb.h:331 | unified blocking control transfer (global USB mutex, backend dispatch) |
+| 115 | `driver_usb_bulk_transfer` | drivers/usb/driver_usb.h:333 | blocking bulk transfer (`_timeout` variant exists) |
+| 116 | `driver_usb_interrupt_transfer` | drivers/usb/driver_usb.h:336 | single blocking interrupt IN/OUT (HID polling) |
+| 117 | `driver_usb_isochronous_transfer` | drivers/usb/driver_usb.h:338 | schedule one isochronous packet (UHCI/XHCI) |
+| 118 | `driver_usb_register_driver` | drivers/usb/driver_usb.h:343 | register a class driver (probe/disconnect; 0xff = match-all) |
+| 119 | `driver_usb_uhci_init` | drivers/usb/driver_usb.h:39 (impl driver_usb.c:1609) | UHCI backend (8086:7020/7112; frame list + QH/TD) |
+| 120 | `driver_usb_ohci_init` | drivers/usb/driver_usb.h:40 (impl driver_usb_ohci.c:963) | OHCI backend (class 0x0c0310; HCCA + ED/TD pools) |
+| 121 | `driver_usb_ehci_init` | drivers/usb/driver_usb.h:41 (impl driver_usb_ehci.c:969) | EHCI backend (class 0x0c0320; async ring + qTD + IAAD) |
+| 122 | `driver_usb_xhci_init` | drivers/usb/driver_usb.h:42 (impl driver_usb_xhci.c:1685) | XHCI backend (class 0x0c0330; command/event rings + DCBAA + two-step AddressDevice) |
 
 ### shell/shell_lineedit.h + shell/editor.h — WP-10-wp08fix1 (items 130-138)
 
