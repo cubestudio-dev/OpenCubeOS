@@ -11,23 +11,23 @@ export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-tui-unified";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-tui-qa";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
 // Real assets (build/ + GitHub WP-10-tui-unified tag + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-10-tui-unified.iso";
-export const ISO_SIZE_B = 12232704;
+export const ISO_FILE = "opencube-WP-10-tui-qa.iso";
+export const ISO_SIZE_B = 12236800;
 export const ISO_SIZE_MB = "11.67";
 export const ISO_SHA256 =
-  "392a5d4cdea473ab072ec3102a2289bd644cec33d0c38246caab7db6612d4976";
+  "07288a6a3c9fe82c2ad5fe850f8a5d6065b1e78c7b4ae57f2feeb3c1efe312d3";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-10-tui-unified-src.zip";
-export const SRC_SIZE_B = 3661512;
-export const SRC_SIZE_MB = "3.49";
+export const SRC_FILE = "opencube-WP-10-tui-qa-src.zip";
+export const SRC_SIZE_B = 3640406;
+export const SRC_SIZE_MB = "3.47";
 export const SRC_SHA256 =
-  "9d2bf1958150b5887bd0ef7eb9f471ae357b0d1e637d1d729866f2adc25e923c";
+  "306db2a1893d150ebe3315be65035467d4d691fa05b9816d61e797d0dccde3a5";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // NOTE: the former STATS export lived here unreferenced (A18-5): HomeView
@@ -39,8 +39,13 @@ export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 // deploy: sha256sum public/downloads/$ISO_FILE must match ISO_SHA256
 // (website/build-local.sh performs that check on every run).
 
-// WP-10-tui-unified (the unified character desktop) leads the user-facing list
+// WP-10-tui-qa (the QA sweep over the unified desktop) leads the user-facing list
 export const FEATURES = [
+  {
+    name: "统一桌面全量质检：22 项确认修复 + 五应用深驱动 E2E + 中文渲染像素级验证",
+    tag: "WP-10-tui-qa",
+    desc: "对 WP-10-tui-unified 的全量质量轮：上轮 22 项待复核发现经三通道（源读/进程内判定/编译器+QEMU 实测）复核——20 项确认修复、1 项撤回误报、1 项入 KNOWN_ISSUES（无线 RX 无 QEMU 模型可验证）。九组落地：LSI SCRIPTS 缓冲 16→32 dword（P1：56 字节溢出入 g_exfat_dir_ops）；X509 根搜索悬垂指针（P1：stack-use-after-scope，现代真实证书链 ISRG Root YR→X1 触发 SIGSEGV，ASAN 三方证据链，修复后 github.io/cloudflare 真链验证）；入向 TCP SACK 终于映射进 rtx_sacked 位图；DHCP server-id 捕获；ACPI _PTS 真实 state + S3 补跑 _WAK；exFAT mkfs FAT 不动点定容 + 边界；fsck BPB 门禁 + 诚实三态判定；cn_add 宽度说明符 + 进位；~1400 行中文孪生页经语言感知调度复活（桌面 System Info/Wireless 节点 + tui-hw/net/sysinfo/drv 命令 + Overview 节点）；崩溃护栏 4 深栈；bt 事件掩码次序；wifi 按设备表迭代；power 测试诚实判定；ush/ld_so/l1_wp8b 健壮性；version_gen.h 重编译触发器（增量构建横幅陈旧根治）；串口 TUI 输入 P2（fix2 ESC-stash 队列干涸冲刷——Esc 后每个纯键滞后一个，受控实验坐实后修复，tui-test 90→93）。新测试资产：五应用深驱动 E2E（34 检查 × BIOS/UEFI：Files 建目录/新文件走真 VFS 由 ls 验证、Editor 真 nano 往返由 cat 验证、ring-3 ush echo/ps/exit 受控、控制面板全分支、F2 热切换 en→zh→en）+ 截图门禁（4 检查 ×2：fb 像素级 CJK 验证 + 8x/12x 放大导出 + VLM 亲读「中文测试 OpenCube 测试」底部像素完整）。门禁：0E0W；回归 28/28；tui-test 93/93×2；中文 E2E 21/21×2；TUI E2E 37/37×2；深驱动 34/34×2；截图 4/4×2；host 18/0/1（x509 google 链不可达诚实跳过）；dhtest 5/5；priv_test #GP 隔离；SSH E2E 5/5；HTTPS E2E 7/7。",
+  },
   {
     name: "统一 TUI 字符桌面 + 五大桌面应用 + Ring 3 I/O 围栏",
     tag: "WP-10-tui-unified",

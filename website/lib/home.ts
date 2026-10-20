@@ -36,7 +36,7 @@ export { fmtBytes };
 // here) - lib/site.ts carries the release assets.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "138,458", label: "行源码" },
+    { value: "138,584", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "53", label: "系统调用" },
     { value: "224", label: "shell 命令" },
@@ -44,7 +44,7 @@ export const STATS: Bi<{ value: string; label: string }[]> = {
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "138,458", label: "lines of source" },
+    { value: "138,584", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "53", label: "system calls" },
     { value: "224", label: "shell commands" },
@@ -53,11 +53,16 @@ export const STATS: Bi<{ value: string; label: string }[]> = {
   ],
 };
 
-// WP-10-tui-unified (the unified character desktop) leads the user-facing list, then the fix4/audit-fix lineage
+// WP-10-tui-qa (the QA sweep) leads the list, then the tui-unified/fix lineage
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "统一桌面全量质检：22 项确认修复 + 五应用深驱动 E2E + 中文渲染像素级验证",
+      tag: "WP-10-tui-qa",
+      desc: "对统一桌面的全量质量轮，九组修复（A–I）全部提交：P1×2（LSI SCRIPTS 缓冲溢出、X509 根搜索悬垂指针——现代真实证书链崩溃，ASAN 复现修复后真链验证）；P2×4（入向 SACK 映射、exFAT FAT 定容、版本串重编译触发器、串口 TUI 输入一字节滞后）；DHCP server-id / ACPI \_WAK / IR 与蓝牙 COM2 互斥 / fsck 诚实三态 / GPT fixture CRC / bt 掩码次序 / wifi 设备表迭代 / power 测试诚实判定 / ush / ld_so / l1_wp8b 健壮性 / cn_add 宽度 / 中文孪生页复活 / 护栏 4 深栈。新测试资产：五应用深驱动 E2E 34 检查×双启动（Files 真 VFS 操作由 ls 复核、Editor 真 nano 往返由 cat 复核、ring-3 ush 受控回收、控制面板全分支、F2 热切换）；截图门禁 4×2 + 8x/12x 放大 + VLM 亲读底部像素；tui-test 90→93。误报撤回 1 项（kill 128+SIGKULL 为全仓惯例）；无线 RX 入 KNOWN_ISSUES 15.10。门禁：0E0W；回归 28/28；TUI E2E 37/37×2；中文 E2E 21/21×2；深驱动 34/34×2；截图 4/4×2；host 18/0/1；dhtest 5/5；priv_test #GP；SSH 5/5；HTTPS 7/7。",
+    },
     {
       name: "统一 TUI 字符桌面 + 五大桌面应用 + Ring 3 I/O 围栏",
       tag: "WP-10-tui-unified",
@@ -195,6 +200,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "Full QA sweep over the unified desktop: 22 confirmed fixes + deep-drive E2E + pixel-verified Chinese rendering",
+      tag: "WP-10-tui-qa",
+      desc: "A dedicated QA round over WP-10-tui-unified: the previous session's 22 pending findings re-verified through three channels (source read / in-process python / compiler + live QEMU) - 20 confirmed and fixed, 1 false positive withdrawn, 1 documented as an architecture gap (wireless RX has no QEMU model). Nine groups landed: LSI SCRIPTS buffer 16->32 dwords (P1: a 56-byte overflow landed in g_exfat_dir_ops); X509 root-search dangling pointer (P1: stack-use-after-scope - modern real chains like ISRG Root YR->X1 crashed the TLS trust path, ASAN-reproduced, re-verified against live github.io/cloudflare chains after the fix); inbound TCP SACK finally mapped into the rtx_sacked bitmap; DHCP server-id captured; ACPI _PTS passes the real state + S3 resume replays _WAK; exFAT mkfs sizes the FAT by fixed-point iteration + bounds; fsck BPB gate + honest FAIL/SCAN-INCOMPLETE/PASS verdicts; cn_add width specifiers; the ~1400 lines of Chinese twin pages revived through language-aware dispatchers; crash guard as a 4-deep stack; bt event-mask order; wifi test iterates the device table; honest power-test verdicts; ush/ld_so/l1_wp8b robustness; version_gen.h recompile trigger (incremental builds kept a stale banner); serial TUI input P2 (the fix2 ESC-stash now flushes on a dry queue - after any Esc every subsequent plain key lagged one behind; reproduced live under QEMU, tui-test 90->93). New test assets: a 34-check deep-drive E2E of all five desktop applications x BIOS/UEFI (Files operations through the real VFS verified by ls; a real nano round-trip verified by cat; ring-3 ush echo/ps/exit contained; every control-panel branch page; F2 live en->zh->en) and a 4-check framebuffer screenshot gate x2 with 8x/12x zoomed crops read back by a vision model (the glyph row reads zhong-wen-ce-shi OpenCube ce-shi, bottom pixel rows complete). Gates: 0E0W; regression 28/28; tui-test 93/93 x2; TUI E2E 37/37 x2; chinese E2E 21/21 x2; deep-drive 34/34 x2; screenshot gate 4/4 x2; host suite 18/0/1 (x509 google-chain fixture unreachable in the build sandbox, honest skip); dhtest 5/5; priv_test #GP contained; SSH E2E 5/5; HTTPS E2E 7/7.",
+    },
     {
       name: "Unified TUI character desktop + five desktop applications + ring-3 I/O containment",
       tag: "WP-10-tui-unified",
