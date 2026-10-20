@@ -81,8 +81,24 @@ INC_MAP = {
     "-Ikernel/net": "-Inet",
     "-Ikernel/drivers": "-Idrivers",
 }
-# tests with external-fixture requirements (compile but skip run)
+# tests with external-fixture requirements (compile but skip run).
+# WP-10-tui-qa: the skip is now CONDITIONAL - when the fixture tree is
+# present the test runs for real.  RSA fixtures are openssl-generated
+# locally (/tmp/rsa_fix); the X509 chains are live-captured from
+# github.io/google/cloudflare (/tmp/chain_fix/<site>/cert{0,1,2}.der,
+# all three sites required - this sandbox cannot reach www.google.com
+# so x509 still skips here, honestly).
 SKIP_FIXTURE = {"host_rsa_test.c", "host_x509_test.c"}
+
+
+def fixtures_ready(t):
+    if t == "host_rsa_test.c":
+        return os.path.exists("/tmp/rsa_fix/n.bin")
+    if t == "host_x509_test.c":
+        return all(os.path.exists(f"/tmp/chain_fix/{s}/cert0.der")
+                   for s in ("cubestudio-dev.github.io", "www.google.com",
+                             "www.cloudflare.com"))
+    return True
 # camera harness miscompiles at -O2 (see Makefile note): force -Os
 FORCE_FLAGS = {"host_camera_test.c": (("-O2",), ("-Os",))}
 EXTRA_SRC = {"host_tls_p0_test.c": ["tests/host_tls_p0_stub.c"],
@@ -186,7 +202,7 @@ def main():
                 f.write(" ".join(toks) + "\n\n" + cp.stderr[-4000:])
             failed += 1
             continue
-        if t in SKIP_FIXTURE:
+        if t in SKIP_FIXTURE and not fixtures_ready(t):
             results.append((t, "SKIP-FIXTURE (needs openssl fixtures)"))
             continue
         rp = subprocess.run([exe], cwd=ROOT, capture_output=True, text=True, timeout=120)

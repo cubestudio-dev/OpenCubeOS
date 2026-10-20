@@ -25,6 +25,10 @@
 void *kmalloc(unsigned long long size) { return malloc(size); }
 void  kfree(void *p)                   { free(p); }
 u64   core_timer_now_ms(void)          { return 0; }
+/* WP-10-tui-qa: driver_ir.c now asks the BT H4 transport whether it
+ * owns COM2 (kernel mutual exclusion).  Host build stub: no bluetooth
+ * here, so the SIR path is always free to probe, exactly as before. */
+int   bt_h4_active(void)               { return 0; }
 
 #include "../kernel/lib/lib_string.c"
 #include "../drivers/misc/driver_ir.c"

@@ -242,6 +242,22 @@ int tui_getch_timeout(int ms) {
             if (k != TUI_KEY_NONE) return k;
             continue;
         }
+        /* WP-10-tui-qa: flush the fix2 stash once the queue is dry.
+         * The stash holds a COMPLETE keystroke (the byte that followed
+         * a lone ESC); it used to sit until the NEXT byte arrived, so
+         * after any Esc press every subsequent plain key lagged one
+         * behind: a serial user pressing Esc then '2' saw the '2' act
+         * only when '3' was pressed.  Flushing on the empty queue (and
+         * only then - a mid-CSI stash is still consumed by the next
+         * CSI byte through csi_feed) delivers the key exactly once,
+         * right after the Esc it followed.  The "ESC x ESC [ A"
+         * fix2 sequence is unaffected: while bytes remain queued the
+         * stash is still handed out by csi_feed itself. */
+        if (g_csi_stash != TUI_KEY_NONE) {
+            int k = g_csi_stash;
+            g_csi_stash = TUI_KEY_NONE;
+            return k;
+        }
         if (g_nodelay) return -1;
         if (ms >= 0 && core_timer_now_ms() >= deadline) return -1;
         core_sched_yield();   /* cooperative breather (single CPU) */

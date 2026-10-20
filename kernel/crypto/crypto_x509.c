@@ -557,12 +557,21 @@ int crypto_x509_verify_chain(const crypto_x509_cert_t *chain, int chain_len,
 
         /* find the issuer: next cert in the chain or a root */
         const crypto_x509_cert_t *issuer = 0;
+        /* WP-10-tui-qa: `root` MUST outlive the search loop below.
+         * It used to be declared inside the for-body, so
+         * `issuer = &root` stored a pointer whose target died at the
+         * `break` - verify_cert_sig() then dereferenced a dead stack
+         * slot (stack-use-after-scope, SIGSEGV; caught by ASAN on the
+         * live 2026 cubestudio-dev.github.io chain, whose cross-signed
+         * ISRG Root YR -> embedded ISRG Root X1 walks exactly this
+         * path).  Hoisted here so the pointed-to object stays alive
+         * until the signature check returns. */
+        crypto_x509_cert_t root;
         int anchored = 0;   /* verified directly against an embedded root */
         if (i + 1 < chain_len && same_name(crt->issuer, chain[i + 1].subject))
             issuer = &chain[i + 1];
         else {
             for (int r = 0; r < OC_ROOT_COUNT; r++) {
-                crypto_x509_cert_t root;
                 if (crypto_x509_parse(&root, crypto_roots[r].der, crypto_roots[r].len) != 0)
                     continue;
                 if (same_name(crt->issuer, root.subject)) {

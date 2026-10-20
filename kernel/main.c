@@ -124,6 +124,7 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "shell_cmds_timer.h"          /* WP-10-timer_rtc: time commands */
 #include "lib_config.h"   /* WP-09-fix5: /etc/opencube.conf */
 #include "ota_update.h"   /* WP-09-fix5: checkupdate */
+#include "version_gen.h"   /* WP-10-tui-qa: version recompile trigger (Makefile note) */
 
 /* User program data (defined in usermode.c). */
 extern const u8 userprog_hello[];

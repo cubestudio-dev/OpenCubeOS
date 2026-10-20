@@ -26,6 +26,7 @@
 #include "../drivers/display/screen_console.h"
 #include "../chinese/console_cn.h"
 #include "../kernel/lib/lib_string.h"
+#include "version_gen.h"   /* WP-10-tui-qa: version recompile trigger (Makefile note) */
 
 static int g_shell_lang = SHELL_LANG_EN;
 

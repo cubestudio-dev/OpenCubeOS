@@ -106,8 +106,10 @@ int driver_block_part_parse_mbr(int dev_idx, driver_block_part_table_t *out) {
 }
 
 /* BUG-0309 (A6-13): IEEE CRC32 (bitwise, same polynomial as gzip) used
- * for the GPT header and partition-entry-array checksums. */
-static u32 driver_block_part_crc32(const u8 *buf, u64 len) {
+ * for the GPT header and partition-entry-array checksums.
+ * WP-10-tui-qa: exported (see header) so test fixtures can build
+ * spec-valid GPT images. */
+u32 driver_block_part_crc32(const u8 *buf, u64 len) {
     u32 crc = 0xFFFFFFFFu;
     for (u64 i = 0; i < len; i++) {
         crc ^= buf[i];

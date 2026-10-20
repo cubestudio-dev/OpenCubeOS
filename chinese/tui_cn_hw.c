@@ -42,17 +42,40 @@ static void cn_add(cn_page_t *pg, const char *fmt, ...) {
         if (*p == 0) break;
         /* fix3: optional zero-padded width ("%02x" / "%04x"), so the
          * PCI page shows real vendor:device ids instead of the
-         * literal "2x:2x" garbage the width-less formatter printed. */
+         * literal "2x:2x" garbage the width-less formatter printed.
+         * WP-10-tui-qa: "%-Ns" (left-justified minimum width) is now
+         * supported too - the storage/network pages have used it
+         * since fix2, but the formatter silently printed a literal
+         * "8s" and skipped the va_arg, misaligning every following
+         * argument on those two pages. */
         int pad = -1;
-        if (*p == '0') {
+        int left_just = 0;
+        if (*p == '-') {
+            left_just = 1;
+            p++;
+        }
+        if (*p == '0' && !left_just) {
             pad = 0;
             p++;
             while (*p >= '0' && *p <= '9') { pad = pad * 10 + (*p - '0'); p++; }
             if (pad > 16) pad = 16;
+        } else if (*p >= '1' && *p <= '9') {
+            pad = 0;
+            while (*p >= '0' && *p <= '9') { pad = pad * 10 + (*p - '0'); p++; }
+            if (pad > 40) pad = 40;
         }
         if (*p == 's') {
             const char *s = __builtin_va_arg(ap, const char *);
-            while (s && *s && n < 96) dst[n++] = *s++;
+            int slen = 0;
+            while (s && s[slen] && slen < 96) slen++;
+            int spaces = (pad > slen) ? pad - slen : 0;
+            if (left_just) {
+                for (int i = 0; i < slen && n < 96; i++) dst[n++] = s[i];
+                for (int i = 0; i < spaces && n < 96; i++) dst[n++] = ' ';
+            } else {
+                for (int i = 0; i < spaces && n < 96; i++) dst[n++] = ' ';
+                for (int i = 0; i < slen && n < 96; i++) dst[n++] = s[i];
+            }
         } else if (*p == 'd' || *p == 'u') {
             long long v = (long long)__builtin_va_arg(ap, int);
             if (v < 0) { dst[n++] = '-'; v = -v; }
@@ -87,6 +110,10 @@ static void cn_capacity_str(u64 bytes, char out[24]) {
     u64 mib = bytes >> 20;
     u64 whole = mib >> 10;
     u64 frac = ((mib & 1023) * 10 + 512) >> 10;
+    /* WP-10-tui-qa: rounding can push frac to 10 (mib & 1023 >= 973);
+     * the old code printed only the first digit, so a 2047 MiB disk
+     * read "1.1GiB" instead of "2.0GiB".  Carry into the whole part. */
+    if (frac >= 10) { frac = 0; whole++; }
     char a[20], b[4];
     u64_to_str(whole, a);
     u64_to_str(frac, b);

@@ -942,3 +942,31 @@ bytes that way and real UARTs throttle at the baud rate, so this
 is an emulation artifact, not a kernel bug. The E2E harness sends
 byte-at-a-time with small delays (qsession.send_slow) to match
 real input pacing. Relevant only to test automation.
+
+### 15.10 Wireless: no in-kernel RX feeder (2026-10-19, WP-10-tui-qa)
+The 802.11 core's RX state machine (wl_rx_frame -> beacon cache /
+auth/assoc chain / LLC-SNAP decap ring) is complete and host-tested
+(tests/host_wifi_test.c, 38/38), but no family driver currently has
+an RX interrupt path that calls wl_rx_frame() - the ops table
+(wl_family_ops_t) never grew an rx slot, and QEMU has no 802.11
+model to exercise one against. wl_connect() therefore stays honestly
+in WL_STATE_AUTHENTICATING (it never claims ASSOCIATED without a real
+Authentication Response). Writing four families' hardware RX rings
+with no radio to validate against would be speculation, so the gap is
+recorded here instead of papered over: the kernel-side twin (L1
+wl_rx_frame consumers) and the host test suite are the real coverage
+today; family RX ISRs are L1-territory work for real hardware.
+Related (same audit): wifi scan reports "0 networks (no beacons -
+no radio present)" - honest, not a defect.
+
+### 15.11 Classic TUI pages still English under zh (2026-10-19, WP-10-tui-qa)
+shell.lang == zh now drives the desktop chrome, the five desktop apps
+and (new this batch) the three full classic apps - System Info,
+Wireless and Hardware - through the revived Chinese twins
+(tui_hw_app()/tui_net_app()/tui_sysinfo_app()). Remaining
+English-only surfaces under zh: the per-page direct entries of the
+control-panel Hardware menu (`tui-hw PCI` style access has no twin),
+and the Time (`tui-time`) / System Settings (`tui-sys`) / Extension
+lab (`tui-ext`) classic pages (~200 strings). These are honest
+coverage gaps recorded for the next language batch, not silent
+failures.

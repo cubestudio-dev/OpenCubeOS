@@ -47,9 +47,12 @@ static int shell_cmd_poweroff_test(const char *args) {
     (void)args;
     screen_console_puts("poweroff_test: invoking power_shutdown() for real - on QEMU the process exits now\n");
     (void)core_power_shutdown();
-    /* still running: no power-off port worked on this machine */
-    screen_console_puts("poweroff_test: no power-off port took effect on this machine (honest fallback path) : PASS\n");
-    return 0;
+    /* still running: no power-off port worked on this machine.
+     * WP-10-tui-qa: that is NOT a pass - the thing under test (the
+     * machine actually powering off) was not observed.  Report it as
+     * such and fail the command. */
+    screen_console_puts("poweroff_test: no power-off port took effect on this machine - power-off NOT observed : FAIL\n");
+    return 1;
 }
 
 /* 2. suspend_test - real S3 capability contract, read-only probe.
@@ -96,7 +99,10 @@ static int shell_cmd_halt_test(const char *args) {
      * verifiable from inside a live session and documents the rest. */
     screen_console_puts("halt_test: power_halt() = 'System halted.' + cli;hlt loop (kernel/power.c)\n");
     screen_console_puts("halt_test: this test must return, so it does NOT halt; the live halt is verified by running 'halt' in a dedicated QEMU session\n");
-    screen_console_puts("halt_test: halt path present and wired : PASS\n");
+    /* WP-10-tui-qa: a destructive operation this command refuses to
+     * perform is a SKIP, not a PASS - the PASS label required no
+     * evidence and the release notes cited it as coverage it was not. */
+    screen_console_puts("halt_test: live halt not observed (destructive) : SKIP - see the dedicated halt session\n");
     return 0;
 }
 
@@ -107,7 +113,11 @@ static int shell_cmd_reboot_test(const char *args) {
     screen_console_puts("reboot_test: block-device flush (reboot pre-step) executed\n");
     screen_console_puts("reboot_test: reset path = 8042 controller (0x64, 0xFE) + ACPI RESET_REG fallback (0xCF9)\n");
     screen_console_puts("reboot_test: this test must return, so it does NOT reset; the live reset is verified by 'reboot' (boot banner reappears)\n");
-    screen_console_puts("reboot_test: reboot path present and wired : PASS\n");
+    /* WP-10-tui-qa: the flush above DID run (that part is a real
+     * PASS); the reset itself is destructive and stays unobserved -
+     * report SKIP for it instead of an evidence-free PASS. */
+    screen_console_puts("reboot_test: pre-step flush executed : PASS\n");
+    screen_console_puts("reboot_test: live reset not observed (destructive) : SKIP - see the dedicated reboot session\n");
     return 0;
 }
 

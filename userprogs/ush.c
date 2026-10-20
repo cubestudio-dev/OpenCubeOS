@@ -1247,7 +1247,7 @@ static int builtin_cmd(int argc, char *argv[]) {
         int src_fd = 0;
         int opened = 0;
         if (argc >= 2) {
-            int fd = sys_open(argv[1], 0);  /* O_RDONLY */
+            int fd = sys_open(argv[1], 1);  /* VFS_O_RDONLY (kernel flag 1 = read) */
             if (fd < 0) {
                 puts_("sort: cannot open ");
                 puts_(argv[1]);
@@ -1308,7 +1308,7 @@ static int builtin_cmd(int argc, char *argv[]) {
         int src_fd = 0;
         int opened = 0;
         if (argc >= 2) {
-            int fd = sys_open(argv[1], 0);  /* O_RDONLY */
+            int fd = sys_open(argv[1], 1);  /* VFS_O_RDONLY (kernel flag 1 = read) */
             if (fd < 0) {
                 puts_("uniq: cannot open ");
                 puts_(argv[1]);
@@ -2629,9 +2629,9 @@ void _start(void) {
                 le_redraw(line, llen, cur);
                 continue;
             }
-            if (k == '&' && llen == 0) { /* Background */
-                /* Actually, & at end of line means background */
-            }
+            /* WP-10-tui-qa: the old empty '&' branch here was dead code
+             * (the real background handling is the line[llen-1]=='&'
+             * check after Enter, below); removed. */
             if (k >= 0x20 && k < 0x7F && llen < 510) {
                 cur = le_insert(line, llen, cur, (char)k, 511);
                 llen = strlen_(line);

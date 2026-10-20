@@ -71,30 +71,40 @@ int shell_cmd_wifi(const char *args)
         int fails = 0;
         fails += driver_wireless_selftest(rep, (int)sizeof(rep));
         put(rep);
+        /* WP-10-tui-qa: iterate the DEVICE registry for per-device
+         * family selftests.  The old loop indexed wl_device_get() with
+         * the FAMILY count - with no hardware (QEMU) zero selftests
+         * ran and the 'wireless test' line silently covered nothing;
+         * with hardware it mismatched family i against device i.
+         * Families without a device are now reported by name so the
+         * registry state is visible either way. */
         for (int f = 0; f < wl_family_count(); f++) {
-            char line[64];
-            const wl_family_ops_t *ops = 0;
-            /* reach the ops through a device or the name only: the
-             * core exposes the family name; selftests run through the
-             * registered device slot                                    */
-            (void)ops;
-            {
-                wl_device_t *d = wl_device_get(f);
-                if (d && d->ops && d->ops->selftest) {
-                    char frep[1024];
-                    int ff = d->ops->selftest(d, frep, (int)sizeof(frep));
-                    fails += ff;
-                    /* print the family line                          */
-                    {
-                        int i = 0, o = 0;
-                        const char *n = d->ops->name;
-                        while (n[i] && o < 40) line[o++] = n[i++];
-                        line[o++] = ':';
-                        line[o] = '\0';
-                        put(line);
-                    }
-                    put(frep);
+            int has_dev = 0;
+            for (int d = 0; d < wl_device_count(); d++) {
+                wl_device_t *dv = wl_device_get(d);
+                if (dv && dv->ops && dv->ops->name &&
+                    wl_family_name(f) && strcmp(dv->ops->name,
+                                                wl_family_name(f)) == 0) {
+                    has_dev = 1;
+                    break;
                 }
+            }
+            if (!has_dev) {
+                put("  ");
+                put(wl_family_name(f) ? wl_family_name(f) : "?");
+                put(": no device (selftest needs hardware)\n");
+            }
+        }
+        for (int d = 0; d < wl_device_count(); d++) {
+            wl_device_t *dv = wl_device_get(d);
+            if (dv && dv->ops && dv->ops->selftest) {
+                char frep[1024];
+                int ff = dv->ops->selftest(dv, frep, (int)sizeof(frep));
+                fails += ff;
+                put("  ");
+                put(dv->ops->name ? dv->ops->name : "?");
+                put(":\n");
+                put(frep);
             }
         }
         put("wifi test: ");

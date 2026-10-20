@@ -1785,6 +1785,21 @@ int driver_acpi_aml_eval_integer(const char *path, u64 *out) {
     return 0;
 }
 
+/* WP-10-tui-qa: one-integer-argument method evaluation (see header). */
+int driver_acpi_aml_eval_integer_arg1(const char *path, u64 arg0, u64 *out) {
+    acpi_node_t *n = aml_find_by_path(path);
+    if (!n || n->kind != AO_METHOD) return -1;
+    acpi_value_t a0, v;
+    memset(&a0, 0, sizeof(a0));
+    a0.kind = AO_INTEGER;
+    a0.integer = arg0;
+    if (aml_invoke_method(n, &a0, 1, &v, 0) != 0) return -1;
+    if (v.kind != AO_INTEGER) { aml_val_clear(&v); return -1; }
+    if (out) *out = v.integer;
+    aml_val_clear(&v);
+    return 0;
+}
+
 int driver_acpi_aml_package_elements(const char *path, int *count) {
     acpi_node_t *n = aml_find_by_path(path);
     if (!n) return -1;

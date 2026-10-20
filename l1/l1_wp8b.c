@@ -285,8 +285,25 @@ u64 so_load(const char *name, u64 flags) {
         if (phdr[i].type != 1) continue; /* PT_LOAD */
         u64 load_vaddr = base + phdr[i].vaddr;
         if (map_user_pages(proc->as, load_vaddr,
-                           data + phdr[i].offset, phdr[i].filesz) != 0)
+                           data + phdr[i].offset, phdr[i].filesz) != 0) {
+            /* WP-10-tui-qa: a mid-way mapping failure used to leak every
+             * already-mapped segment (a retry then mapped the same
+             * vaddr over the leaked frames).  Roll back exactly what
+             * was mapped - same unmap+free loop so_unload uses - before
+             * reporting failure. */
+            for (int k = 0; k < i; k++) {
+                u64 start, end;
+                if (phdr[k].type != 1) continue;
+                start = (base + phdr[k].vaddr) & ~0xFFFULL;
+                end = (base + phdr[k].vaddr + phdr[k].memsz
+                       + 0xFFF) & ~0xFFFULL;
+                for (u64 va = start; va < end; va += PMM_PAGE_SIZE) {
+                    u64 phys = mem_vmm_unmap_page(proc->as, va);
+                    if (phys) mem_pmm_free_frame(phys);
+                }
+            }
             return 0;
+        }
         /* bss zero pages (BUG-0256 FIX: also zeroes the mapped boundary
          * page's tail and any fully mapped bss page). */
         if (phdr[i].memsz > phdr[i].filesz) {

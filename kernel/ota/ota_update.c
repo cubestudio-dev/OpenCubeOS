@@ -33,6 +33,7 @@ static int ota_update_remote_is_newer(const char *remote_ver, u64 remote_build);
 #include "lib_string.h"
 
 #include <stdint.h>
+#include "version_gen.h"   /* WP-10-tui-qa: version recompile trigger (Makefile note) */
 
 /* ------------------------------------------------------------------ */
 /* URL parsing                                                         */

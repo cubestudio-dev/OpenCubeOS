@@ -11,6 +11,7 @@
 #include "tui.h"
 #include "tui_desktop.h"
 #include "../shell/shell.h"
+#include "../shell/shell_lang.h"
 #include "../kernel/lib/lib_string.h"
 
 int tui_test_run(int verbose);
@@ -18,6 +19,30 @@ int tui_time_main(void);
 void tui_time_register_pages(void);
 int tui_sys_main(void);
 void tui_sys_register_pages(void);
+
+/* ---- WP-10-tui-qa: language-aware classic-page launchers ----
+ * The Chinese twins (chinese/tui_cn_hw/net/sysinfo.c) walk the same
+ * real kernel data sources as the English pages; until now nothing
+ * called them (the tui-cn launcher was removed at tui-unified and
+ * the externs in chinese_cmd.c stayed dangling).  Dispatch on
+ * shell.lang so a zh user gets the Chinese pages everywhere the
+ * classic apps are launched. */
+int tui_cn_hw_main(void);
+int tui_cn_net_main(void);
+int tui_cn_sysinfo_main(void);
+
+int tui_hw_app(void) {
+    return (shell_lang_get() == SHELL_LANG_ZH)
+         ? tui_cn_hw_main() : tui_hw_main();
+}
+int tui_net_app(void) {
+    return (shell_lang_get() == SHELL_LANG_ZH)
+         ? tui_cn_net_main() : tui_net_main();
+}
+int tui_sysinfo_app(void) {
+    return (shell_lang_get() == SHELL_LANG_ZH)
+         ? tui_cn_sysinfo_main() : tui_sysinfo_main();
+}
 
 static int shell_cmd_tui(const char *args) {
     (void)args;
@@ -40,7 +65,7 @@ static int shell_cmd_tui_hw(const char *args) {
         return rc;
     }
     tui_init();
-    int rc = tui_hw_main();
+    int rc = tui_hw_app();
     tui_shutdown();
     return rc;
 }
@@ -48,7 +73,7 @@ static int shell_cmd_tui_hw(const char *args) {
 static int shell_cmd_tui_net(const char *args) {
     (void)args;
     tui_init();
-    int rc = tui_net_main();
+    int rc = tui_net_app();
     tui_shutdown();
     return rc;
 }
@@ -71,7 +96,7 @@ static int shell_cmd_tui_sysinfo(const char *args) {
         return rc;
     }
     tui_init();
-    int rc = tui_sysinfo_main();
+    int rc = tui_sysinfo_app();
     tui_shutdown();
     return rc;
 }
@@ -87,7 +112,7 @@ static int shell_cmd_tui_time(const char *args) {
 static int shell_cmd_tui_drv(const char *args) {
     if (args && args[0]) return shell_cmd_tui_hw(args);  /* alias: tui-drv PCI == tui-hw PCI */
     tui_init();
-    int rc = tui_hw_main();
+    int rc = tui_hw_app();
     tui_shutdown();
     return rc;
 }

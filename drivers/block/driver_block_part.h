@@ -50,6 +50,12 @@ int driver_block_part_parse(int dev_idx, driver_block_part_table_t *out);
 int driver_block_part_parse_mbr(int dev_idx, driver_block_part_table_t *out);
 int driver_block_part_parse_gpt(int dev_idx, driver_block_part_table_t *out);
 
+/* WP-10-tui-qa: the IEEE CRC32 (gzip polynomial) the GPT parser uses
+ * for the header / entry-array checksums.  Exported so in-kernel test
+ * fixtures (partition_test) can build SPEC-VALID GPT images instead
+ * of CRC-less ones the hardened parser must reject. */
+u32 driver_block_part_crc32(const u8 *buf, u64 len);
+
 /* Get a partition by index (0-based). Returns NULL if out of range. */
 partition_t *driver_block_part_get_partition(driver_block_part_table_t *tbl, int index);
 

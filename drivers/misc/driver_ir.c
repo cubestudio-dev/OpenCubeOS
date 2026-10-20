@@ -22,6 +22,7 @@
 #include "mem_heap.h"
 #include "core_timer.h"
 #include "driver_ir.h"
+#include "driver_bt.h"   /* WP-10-tui-qa: COM2 mutual exclusion */
 
 static inline u8 inb(u16 p)  { u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v; }
 static inline void outb(u16 p, u8 v) { __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(p)); }
@@ -548,6 +549,16 @@ static const ir_ops_t sir_ops = {
 
 void ir_probe_all(void)
 {
+    /* WP-10-tui-qa: COM2 (0x2F8) is shared hardware.  bt_stack_init()
+     * runs first in kernel/main.c and claims the port for the H4 HCI
+     * transport (IER RX-enabled, IRQ3 armed); this probe used to run
+     * anyway, reprogramming the divisor and clearing IER behind the
+     * live transport — BT RX died the moment the IR probe ran.  When
+     * the H4 transport owns COM2, SIR is refused honestly (the SIR
+     * console/status path then reports "no SIR port"). */
+    if (bt_h4_active()) {
+        return;
+    }
     if (sir_16550_probe(SIR_IO)) {
         ir_dev_t *d = (ir_dev_t *)kmalloc(sizeof(*d));
         if (!d) return;

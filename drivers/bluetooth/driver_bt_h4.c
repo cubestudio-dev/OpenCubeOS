@@ -149,6 +149,15 @@ int bt_h4_init(void)
     return 0;
 }
 
+/* WP-10-tui-qa: is the H4 UART transport (COM2 0x2F8) live?  The IR
+ * SIR driver probes the SAME port later in the boot sequence; without
+ * this gate its 16550 probe reprogrammed the divisor and cleared IER
+ * behind the live HCI transport, killing BT RX mid-session. */
+int bt_h4_active(void)
+{
+    return g_uart_ok != 0;
+}
+
 /* ------------------------------------------------------------------ */
 /* Framed TX                                                           */
 /* ------------------------------------------------------------------ */

@@ -217,6 +217,14 @@ static u32 fs_exfat_fat_get(fs_exfat_ctx_t *ctx, u32 cluster) {
     u64 off = (u64)cluster * 4;
     u64 sec = ctx->fat_start_lba + (off / ctx->sector_size);
     u32 off_in_sec = (u32)(off % ctx->sector_size);
+    /* WP-10-tui-qa: refuse clusters whose FAT entry lives beyond the
+     * FAT region the volume declares (mkfs.exfat used to ship
+     * fat_length=1 with thousands of clusters, so entries past #127
+     * landed in the cluster heap - reads returned heap bytes as chain
+     * links and writes corrupted data).  EOC signals "no chain" to
+     * the callers, the same as a read failure. */
+    if ((u64)cluster * 4 + 4 > (u64)ctx->fat_size_sectors * ctx->sector_size)
+        return EXFAT_EOC;
     /* P1-7 FIX: allocate sector_size bytes (may be > 512) to avoid stack overflow. */
     u8 *buf = (u8*)kmalloc(ctx->sector_size);
     if (!buf) return EXFAT_EOC;
@@ -231,6 +239,10 @@ static int fs_exfat_fat_set(fs_exfat_ctx_t *ctx, u32 cluster, u32 value) {
     u64 off = (u64)cluster * 4;
     u64 sec = ctx->fat_start_lba + (off / ctx->sector_size);
     u32 off_in_sec = (u32)(off % ctx->sector_size);
+    /* WP-10-tui-qa: same FAT-region bound as fat_get - refuse writes
+     * that would land in the cluster heap instead of the FAT. */
+    if ((u64)cluster * 4 + 4 > (u64)ctx->fat_size_sectors * ctx->sector_size)
+        return -1;
     /* P1-7 FIX: allocate sector_size bytes (may be > 512) to avoid stack overflow. */
     u8 *buf = (u8*)kmalloc(ctx->sector_size);
     if (!buf) return -1;

@@ -2983,6 +2983,41 @@ static int net_tcp_port_in_use(u16 port) {
     return 0;
 }
 
+/* WP-10-tui-qa: map the inbound SACK blocks (parsed from the CURRENT
+ * ACK's TCP options into c->sack_l/sack_r, host byte order) onto the
+ * 256-byte rtx_sacked bitmap so the fast-retransmit skip logic below
+ * actually sees what the peer already holds.  Before this the bitmap
+ * was only ever cleared and slid — no writer existed, so "skip the
+ * first not-yet-sacked segment" always retransmitted segment 0 and
+ * dup-ACK SACK information was silently dropped (information circuit
+ * parser -> bitmap -> consumer was broken at the middle arrow).
+ * Marking rule (conservative, matches the slide rule): only 256-byte
+ * blocks FULLY covered by one SACK range are marked; partial coverage
+ * stays unmarked so a partially held block is still retransmitted.
+ * Also exercised directly by `tcptest` (see the SACK-mapping check). */
+static void net_tcp_sack_map(net_tcp_conn_t *c) {
+    int total = TCP_RTX_BUF_SIZE / 256;
+    int b, bi;
+    if (c->sack_count <= 0 || c->rtx_len <= 0) return;
+    for (b = 0; b < c->sack_count && b < 3; b++) {
+        u32 l = c->sack_l[b];
+        u32 r = c->sack_r[b];
+        if (!SEQ_LT(l, r)) continue;               /* empty/inverted   */
+        for (bi = 0; bi < total; bi++) {
+            u32 bs, be;
+            if (c->rtx_sacked[bi]) continue;       /* already marked   */
+            bs = c->rtx_seq + (u32)(bi * 256);
+            if (SEQ_GE(bs, c->rtx_seq + (u32)c->rtx_len))
+                continue;                           /* beyond in-flight */
+            be = c->rtx_seq + (u32)((bi + 1) * 256);
+            if (be > c->rtx_seq + (u32)c->rtx_len)
+                be = c->rtx_seq + (u32)c->rtx_len;
+            if (SEQ_LE(l, bs) && SEQ_GE(r, be))
+                c->rtx_sacked[bi] = 1;
+        }
+    }
+}
+
 void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
     if (len < 20) return;
     const net_tcp_hdr_t *h = (const net_tcp_hdr_t *)data;
@@ -3110,6 +3145,12 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
         case TCP_ESTABLISHED:
             /* WP-09: Handle ACK for sent data */
             if (flags & TCP_ACK) {
+                /* WP-10-tui-qa: fold this ACK's SACK blocks into the
+                 * rtx bitmap BEFORE the window slide below (the slide
+                 * drops fully-ACKed blocks; SACKed-but-unACKed blocks
+                 * survive it) and before the dup-ACK fast retransmit
+                 * uses the skip logic. */
+                net_tcp_sack_map(c);
                 /* Update driver_snd_una (slide window) */
                 if (SEQ_GT(ack, c->driver_snd_una)) {   /* BUG-0067 */
                     /* WP-09: New data ACKed — slide retransmission buffer */
@@ -3671,6 +3712,7 @@ static void net_dhcp_handler(u32 src_ip, u16 src_port, const void *data, int len
     const u8 *opts = p->options;
     int i = 0;
     u8 msg_type = 0;
+    u32 server_id = 0;   /* WP-10-tui-qa: option 54, echoed in REQUEST */
 
     while (i < opt_len && opts[i] != 0xFF) {
         u8 opt = opts[i++];
@@ -3680,6 +3722,9 @@ static void net_dhcp_handler(u32 src_ip, u16 src_port, const void *data, int len
         if (i + olen > opt_len) break;
         if (opt == 53 && olen >= 1) {
             msg_type = opts[i];
+        } else if (opt == 54 && olen >= 4) {
+            /* RFC 2131: server identifier of the OFFERing server */
+            server_id = ntohl(*(const u32 *)(opts + i));
         }
         i += olen;
     }
@@ -3687,6 +3732,10 @@ static void net_dhcp_handler(u32 src_ip, u16 src_port, const void *data, int len
     if (msg_type == 2) {
         /* DHCP OFFER. */
         g_dhcp_offered_ip = ntohl(p->yiaddr);
+        /* WP-10-tui-qa: remember the server identifier so the REQUEST
+         * carries the real value (it was hardcoded 0 since WP-06 —
+         * servers that check option 54 ignored or NAKed our REQUEST). */
+        if (server_id) g_dhcp_server_ip = server_id;
         g_dhcp_got_offer = 1;
     } else if (msg_type == 5) {
         /* DHCP ACK. */
@@ -3756,6 +3805,7 @@ int net_dhcp_discover(void) {
     }
     g_dhcp_got_offer = 0;
     g_dhcp_got_ack = 0;
+    g_dhcp_server_ip = 0;   /* WP-10-tui-qa: fresh transaction */
 
     /* Send DHCP DISCOVER with src IP 0.0.0.0 (per DHCP spec).
      * Temporarily set g_ip=0 so net_ip_send uses 0.0.0.0 as src. */
@@ -5996,6 +6046,53 @@ static int shell_cmd_tcptest(const char *args) {
         if (!ok_recycle) fails++;
     }
 
+    /* 4) WP-10-tui-qa SACK-mapping check: two SACK blocks over a
+     *    2048-byte in-flight window (rtx_seq = 1000) must mark exactly
+     *    the fully-covered 256-byte blocks and nothing else — a partial
+     *    overlap must stay unmarked, an out-of-window block must be
+     *    ignored, and a slide by 512 bytes must drop the first two
+     *    blocks' bits (they are below the new left edge). */
+    int ok_sack = 1;
+    {
+        net_tcp_conn_t *t3 = (net_tcp_conn_t *)kmalloc(sizeof(net_tcp_conn_t));
+        if (!t3) {
+            fails++;
+            ok_sack = 0;
+        } else {
+            memset(t3, 0, sizeof(*t3));
+            t3->rtx_seq = 1000;
+            t3->rtx_len = 2048;            /* window 1000..3048 */
+            t3->sack_count = 2;
+            t3->sack_l[0] = 1256;          /* covers blocks 1..2 fully (1256..1768) */
+            t3->sack_r[0] = 1768;
+            t3->sack_l[1] = 2000;          /* partial over block 3 (2000..2255 < 2256) */
+            t3->sack_r[1] = 2255;
+            t3->sack_l[2] = 9000;          /* far out of window: ignored */
+            t3->sack_r[2] = 9500;
+            net_tcp_sack_map(t3);
+            if (!t3->rtx_sacked[1] || !t3->rtx_sacked[2]) ok_sack = 0;
+            if (t3->rtx_sacked[0] || t3->rtx_sacked[3] ||
+                t3->rtx_sacked[4] || t3->rtx_sacked[5] ||
+                t3->rtx_sacked[6] || t3->rtx_sacked[7]) ok_sack = 0;
+            if (t3->rtx_sacked[3] != 0) ok_sack = 0;   /* partial stays clear */
+            /* slide simulation: 512 new bytes ACKed drops blocks 0..1 */
+            {
+                int shift_blocks = 512 / 256;
+                int total = TCP_RTX_BUF_SIZE / 256;
+                for (int bi = 0; bi < total; bi++) {
+                    int src = bi + shift_blocks;
+                    u8 v = 0;
+                    if (src < total && bi < total - shift_blocks)
+                        v = t3->rtx_sacked[src];
+                    t3->rtx_sacked[bi] = v;
+                }
+            }
+            if (t3->rtx_sacked[0] != 1 || t3->rtx_sacked[1] != 0) ok_sack = 0;
+            kfree(t3);
+            if (!ok_sack) fails++;
+        }
+    }
+
     char b[200];
     strcpy(b, "tcptest: ");
     strcat(b, fails == 0 ? "ALL PASS" : "FAILURES");
@@ -6005,6 +6102,8 @@ static int shell_cmd_tcptest(const char *args) {
     strcat(b, ok_parse ? "ok" : "bad");
     strcat(b, " synrcvd-recycle=");
     strcat(b, recycle_skipped ? "skip" : (ok_recycle ? "ok" : "bad"));
+    strcat(b, " sack-map=");
+    strcat(b, ok_sack ? "ok" : "bad");
     strcat(b, "; live negotiation covered by HTTPS E2E)");
     screen_console_puts(b); screen_console_puts("\n");
     return fails == 0 ? 0 : 1;

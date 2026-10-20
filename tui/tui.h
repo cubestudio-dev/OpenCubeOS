@@ -372,6 +372,16 @@ int  tui_hw_run_page(const char *page);    /* direct page (tui-hw X)  */
 int  tui_hw_apply_sound_volume(u32 vol);
 int  tui_net_main(void);                   /* WiFi + Bluetooth app    */
 int  tui_sysinfo_main(void);               /* system information app  */
+/* WP-10-tui-qa: language-aware classic-page launchers - run the
+ * Chinese twin (chinese/tui_cn_*.c) when shell.lang == zh, the English
+ * page otherwise.  The ~1400 lines of Chinese twins were dead code
+ * after the tui-cn launcher removal; these dispatchers revive them
+ * for the zh user (desktop apps, control panel overview and the
+ * tui-hw/tui-net/tui-sysinfo commands).  Direct per-page args
+ * (tui-hw PCI) stay on the English pages. */
+int  tui_hw_app(void);
+int  tui_net_app(void);
+int  tui_sysinfo_app(void);
 int  tui_input_map_key(int c);             /* OC_KEY_* -> TUI KEY_*   */
 int  tui_input_feed_raw(int c);            /* CSI decoder test hook   */
 int  tui_mouse_poll_touchpad(void);

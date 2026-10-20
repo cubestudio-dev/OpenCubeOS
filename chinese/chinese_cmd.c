@@ -30,9 +30,9 @@
 #include "../tui/tui.h"
 
 extern int chinese_test_run(int verbose);
-extern int tui_cn_hw_main(void);
-extern int tui_cn_net_main(void);
-extern int tui_cn_sysinfo_main(void);
+/* WP-10-tui-qa: the three TUI entry externs below were dangling since
+ * the tui-cn launcher removal - nothing called them.  The language-aware
+ * dispatchers in tui/tui_cmd.c now own the linkage (tui_hw_app() etc.). */
 
 /* ---- status -------------------------------------------------------- */
 

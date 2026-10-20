@@ -294,21 +294,45 @@ static int shell_cmd_mkfs_exfat(const char *args) {
         screen_console_puts(")\n");
         return 1;
     }
-    /* P2-74: Minimal exFAT format. */
+    /* P2-74 -> WP-10-tui-qa: size the FAT from the REAL cluster count.
+     * The old fixed layout hardcoded fat_length=1 (128 entries) with
+     * cluster_count = total_sectors-64, so every volume above 191
+     * sectors had FAT entries for clusters >=128 aliasing into the
+     * cluster heap: the kernel's fs_exfat read heap bytes as chain
+     * links and mkfs'd volumes corrupted on the first file write past
+     * cluster 127.  New layout: FAT at 32, fat_length iterated to its
+     * fixed point (entries = cluster_count+2, 4 bytes each), cluster
+     * heap right after the FAT, root directory at cluster 2 (heap
+     * start).  512-byte sectors and 1 sector/cluster as before. */
+    u64 total_sectors = devp->sectors;
+    u32 fat_offset = 32;
+    u32 fat_length = 1;
+    u32 heap_offset = fat_offset + fat_length;
+    u64 cluster_count = 0;
+    for (int it = 0; it < 8; it++) {
+        heap_offset = fat_offset + fat_length;
+        if (total_sectors <= heap_offset) break;
+        u64 cc = total_sectors - heap_offset;
+        u32 need = (u32)(((cc + 2) * 4 + 511) / 512);
+        if (need == fat_length) { cluster_count = cc; break; }
+        fat_length = need;
+        cluster_count = cc;   /* last iteration's value if we run out */
+    }
+    if (cluster_count == 0) {
+        screen_console_puts("mkfs.exfat: device too small for FAT + heap\n");
+        return 1;
+    }
     u8 buf[512];
     memset(buf, 0, 512);
     /* Boot sector */
     buf[0] = 0xEB; buf[1] = 0x76; buf[2] = 0x90;
     memcpy(buf + 3, "EXFAT   ", 8);
-    /* Use fixed layout: FAT at sector 32, heap at 64, root dir at cluster 2 */
-    u64 total_sectors = devp->sectors;
     *(u64*)(buf + 64) = 0;                    /* partition_offset */
     *(u64*)(buf + 72) = total_sectors;        /* volume_length */
-    *(u32*)(buf + 80) = 32;                   /* fat_offset */
-    *(u32*)(buf + 84) = 1;                    /* fat_length */
-    *(u32*)(buf + 88) = 64;                   /* cluster_heap_offset */
-    u32 cluster_count = (u32)(total_sectors - 64);
-    *(u32*)(buf + 92) = cluster_count;        /* cluster_count */
+    *(u32*)(buf + 80) = fat_offset;           /* fat_offset */
+    *(u32*)(buf + 84) = fat_length;           /* fat_length */
+    *(u32*)(buf + 88) = heap_offset;          /* cluster_heap_offset */
+    *(u32*)(buf + 92) = (u32)cluster_count;   /* cluster_count */
     *(u32*)(buf + 96) = 2;                    /* first_cluster_of_root_directory */
     *(u16*)(buf + 100) = 0x0100;              /* fs_revision */
     buf[108] = 9;                              /* bytes_per_sector_shift (512) */
@@ -322,26 +346,45 @@ static int shell_cmd_mkfs_exfat(const char *args) {
     {
         u8 zero_vbr[512];
         memset(zero_vbr, 0, 512);
-        for (u32 s = 1; s < 32; s++) {
+        for (u32 s = 1; s < fat_offset; s++) {
             driver_block_write_sectors_raw(dev_idx, s, 1, zero_vbr);
         }
     }
-    /* FAT: cluster 2 = root dir, EOC */
-    u8 fat[512];
-    memset(fat, 0, 512);
-    *(u32*)(fat + 0) = 0xFFFFFFF8;
-    *(u32*)(fat + 4) = 0xFFFFFFFF;
-    *(u32*)(fat + 8) = 0xFFFFFFFF;  /* cluster 2 = EOC */
-    driver_block_write_sectors_raw(dev_idx, 32, 1, fat);
-    /* Root directory at cluster 2 = sector 64 */
+    /* FAT region: fat_length sectors.  Sector 0 of the FAT carries the
+     * reserved entries (0/1) and cluster 2 (root dir) = EOC; every
+     * other FAT sector is written zero so unallocated clusters really
+     * read as free. */
+    {
+        u8 fat[512];
+        memset(fat, 0, 512);
+        *(u32*)(fat + 0) = 0xFFFFFFF8;
+        *(u32*)(fat + 4) = 0xFFFFFFFF;
+        *(u32*)(fat + 8) = 0xFFFFFFFF;  /* cluster 2 = EOC */
+        driver_block_write_sectors_raw(dev_idx, fat_offset, 1, fat);
+        memset(fat, 0, 512);
+        for (u32 s = 1; s < fat_length; s++) {
+            driver_block_write_sectors_raw(dev_idx, fat_offset + s, 1, fat);
+        }
+    }
+    /* Root directory at cluster 2 = heap start */
     u8 rootdir[512];
     memset(rootdir, 0, 512);
     /* Volume label entry */
     rootdir[0] = 0x83;
     memcpy(rootdir + 1, "OCOS       ", 11);
-    driver_block_write_sectors_raw(dev_idx, 64, 1, rootdir);
+    driver_block_write_sectors_raw(dev_idx, heap_offset, 1, rootdir);
     screen_console_puts("exFAT formatted on ");
     screen_console_puts(dev);
+    {
+        char num[24];
+        screen_console_puts(" (FAT ");
+        u64_to_str(fat_length, num);
+        screen_console_puts(num);
+        screen_console_puts(" sectors, ");
+        u64_to_str(cluster_count, num);
+        screen_console_puts(num);
+        screen_console_puts(" clusters)");
+    }
     screen_console_puts("\n");
     return 0;
 }
@@ -486,6 +529,20 @@ static int shell_cmd_fsck(const char *args) {
         screen_console_puts("fsck: not a FAT32 volume (fsck supports FAT32 only; got invalid BPB)\n");
         return 1;
     }
+    /* WP-10-tui-qa: the scan below reads ONE raw 512-byte sector into a
+     * kmalloc(bytes_per_sec) buffer, so a crafted BPB with
+     * bytes_per_sec < 512 overflowed the heap block and one > 512 made
+     * entries_per_sector overcount past the bytes actually read
+     * (scanning uninitialized heap as FAT entries).  Only 512 is
+     * supported by this implementation - refuse anything else by name. */
+    if (bytes_per_sec != 512) {
+        screen_console_puts("fsck: unsupported bytes_per_sector (fsck reads raw 512-byte sectors; got ");
+        char bps[16];
+        u64_to_str(bytes_per_sec, bps);
+        screen_console_puts(bps);
+        screen_console_puts(")\n");
+        return 1;
+    }
 
     /* P0fix2 BUG-0029 (A15-2): the fsck FAT32 report accumulates 8 fixed
      * strings plus numbers (154+ bytes on a typical volume) into what used
@@ -551,9 +608,45 @@ static int shell_cmd_fsck(const char *args) {
     strcat(buf, " free="); u64_to_str(free_clust, num); strcat(buf, num);
     strcat(buf, " bad="); u64_to_str(bad, num); strcat(buf, num);
     strcat(buf, " total="); u64_to_str(total_clusters, num); strcat(buf, num);
-    strcat(buf, "\n  fsck: PASS (basic checks OK)\n");
+    strcat(buf, "\n");
     screen_console_puts(buf);
-    return 0;
+    /* WP-10-tui-qa: an honest verdict instead of the unconditional
+     * "PASS (basic checks OK)" the old code printed.  FAIL when bad
+     * clusters exist or the counted entries do not add up to the
+     * declared cluster total; report the truncation honestly when the
+     * 100000-entry scan cap or a short FAT stopped the scan early. */
+    {
+        u32 counted = used + free_clust + bad;
+        if (bad > 0) {
+            strcpy(buf, "  fsck: FAIL (");
+            u64_to_str(bad, num); strcat(buf, num);
+            strcat(buf, " bad clusters)\n");
+            screen_console_puts(buf);
+            return 1;
+        }
+        if (counted == total_clusters) {
+            screen_console_puts("  fsck: PASS (boot signature, BPB and FAT scan consistent)\n");
+            return 0;
+        }
+        if (cluster_idx < total_clusters + 2) {
+            /* the FAT (or the 100000-entry cap) ran out before every
+             * declared cluster was visited - no verdict either way */
+            strcpy(buf, "  fsck: SCAN INCOMPLETE (FAT truncated before the cluster total; counted ");
+            u64_to_str(counted, num); strcat(buf, num);
+            strcat(buf, " of ");
+            u64_to_str(total_clusters, num); strcat(buf, num);
+            strcat(buf, ") - no verdict\n");
+            screen_console_puts(buf);
+            return 1;
+        }
+        strcpy(buf, "  fsck: FAIL (cluster count mismatch: counted ");
+        u64_to_str(counted, num); strcat(buf, num);
+        strcat(buf, " of ");
+        u64_to_str(total_clusters, num); strcat(buf, num);
+        strcat(buf, ")\n");
+        screen_console_puts(buf);
+        return 1;
+    }
 }
 
 /* ---- sync: flush disk cache ---- */

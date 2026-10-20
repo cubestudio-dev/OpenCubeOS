@@ -308,6 +308,23 @@ int tui_test_run(int verbose) {
         verdict_num("empty queue actually blocked", "dt>=40ms", 1, dt >= 40 ? 1 : 0);
     }
 
+    /* WP-10-tui-qa: the fix2 stash must FLUSH once the queue drains.
+     * A lone ESC followed by one key delivers the ESC when the key
+     * byte arrives and stashes the key; the key is a COMPLETE
+     * keystroke, so the very next getch must return it - the old code
+     * waited for another byte, lagging every plain key one behind
+     * after any Esc press (serial users lost a keystroke per Esc). */
+    driver_input_keyboard_inject((u16)0x1B);
+    driver_input_keyboard_inject((u16)'2');
+    {
+        int k1 = tui_getch_timeout(200);
+        int k2 = tui_getch_timeout(200);
+        int k3 = tui_getch_timeout(50);
+        verdict_num("lone ESC delivers with next byte", "ESC", TUI_KEY_ESC, k1);
+        verdict_num("stash flushes when queue drains", "'2' at once", '2', k2);
+        verdict_num("no duplicate delivery after flush", "-1", -1, k3);
+    }
+
     /* fix1-B: the window pool must reuse freed slots.  The old
      * tui_window_free never released its slot, so the 16-slot pool
      * drained after a few page visits and apps dropped back to the

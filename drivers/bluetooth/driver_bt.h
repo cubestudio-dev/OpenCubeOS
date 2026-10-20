@@ -181,6 +181,9 @@ int  bt_stack_init(void);
 /* ------------------------------------------------------------------ */
 int  bt_h4_init(void);                        /* registers the transport */
 int  bt_h4_probe(void);                       /* 1 = UART responds      */
+int  bt_h4_active(void);                      /* WP-10-tui-qa: H4 owns
+                                                COM2 right now (IR SIR
+                                                must yield the port)   */
 const bt_transport_ops_t *bt_h4_ops(void);
 
 /* ------------------------------------------------------------------ */

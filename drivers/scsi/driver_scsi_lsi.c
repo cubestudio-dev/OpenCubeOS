@@ -41,9 +41,16 @@
 static inline u8  lsi_inb(u16 p)  { u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v; }
 static inline void lsi_outb(u16 p, u8 v) { __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(p)); }
 
-/* SCRIPTS program: SELECT + MSG + CMD + (DATA) + STATUS + MSG IN +
-   INT, 14 dwords worst case (SELECT needs two, INT needs two). */
-#define LSI_SCRIPT_DWORDS 16
+/* SCRIPTS program buffer.  WP-10-tui-qa: the command-phase script
+   (lsi_build_script1) emits 15 instruction/data pairs = 30 dwords in
+   the worst case (SELECT 2 + MO 2 + CMD 2 + 2 JUMPs 4 + DATA 2 +
+   STATUS 2 + 3 MSG-IN loop pairs 6 + INT 2 + disconnect branch 3
+   pairs 6); the reselected script2 peaks at exactly 16.  The old
+   16-dword buffer let script1 overrun 56 bytes into the adjacent BSS
+   (ELF layout: straight into g_exfat_dir_ops - verified by nm on the
+   release build).  32 dwords covers both with margin; an overflow
+   guard in the builders makes the bound explicit. */
+#define LSI_SCRIPT_DWORDS 32
 #define LSI_POLL_MAX      20000000   /* generous: TCG runs slow     */
 
 static u32 lsi_script_buf[LSI_SCRIPT_DWORDS];
@@ -132,7 +139,7 @@ static void lsi_load_dsp(u32 val)
  *   STATUS      -> command rejected with CHECK CONDITION: skip the
  *                  data block entirely.
  * Every route ends in the same terminating INT. */
-static void lsi_build_script1(u8 target, u8 lun, const u8 *cdb, u8 cdb_len,
+static int lsi_build_script1(u8 target, u8 lun, const u8 *cdb, u8 cdb_len,
                               u8 *data, u32 data_len, u8 dir)
 {
     u32 *s = lsi_state.script;
@@ -201,10 +208,13 @@ static void lsi_build_script1(u8 target, u8 lun, const u8 *cdb, u8 cdb_len,
     s[back_jmp + 1] = (u32)(i32)((msgin_move * 4) - (back_jmp * 4 + 8));
     s[disc_j4 + 1]  = (u32)(i32)((int_insn * 4) - (disc_j4 * 4 + 8));
     s[disc_back + 1]= (u32)(i32)((disc_move * 4) - (disc_back * 4 + 8));
+    /* WP-10-tui-qa: refuse a torn program instead of overrunning the
+     * static buffer (defense in depth on top of the 32-dword sizing). */
+    return (i > LSI_SCRIPT_DWORDS) ? -1 : 0;
 }
 
 /* build the reselected data-phase script */
-static void lsi_build_script2(u8 *data, u32 data_len, u8 dir)
+static int lsi_build_script2(u8 *data, u32 data_len, u8 dir)
 {
     u32 *s = lsi_state.script;
     int  i = 0;
@@ -242,6 +252,8 @@ static void lsi_build_script2(u8 *data, u32 data_len, u8 dir)
     s[jmp0 + 1]     = (u32)(i32)((int_insn * 4) - (jmp0 * 4 + 8));
     s[jmp4 + 1]     = (u32)(i32)((int_insn * 4) - (jmp4 * 4 + 8));
     s[back_jmp + 1] = (u32)(i32)((msgin_move * 4) - (back_jmp * 4 + 8));
+    /* WP-10-tui-qa: same torn-program guard as script 1. */
+    return (i > LSI_SCRIPT_DWORDS) ? -1 : 0;
 }
 
 /* Start the engine and wait for the terminating INT.  Returns 0 when
@@ -302,8 +314,9 @@ static int lsi_exec(scsi_hba_t *hba, u8 target, u8 lun, scsi_cmd_t *c)
         lsi_wr(LSI_SCNTL1, 0);
 
     /* ---- script 1: command phase ---- */
-    lsi_build_script1(target, lun, c->cdb, c->cdb_len,
-                      c->data, c->data_len, c->dir);
+    if (lsi_build_script1(target, lun, c->cdb, c->cdb_len,
+                          c->data, c->data_len, c->dir) != 0)
+        return -1;
     if (lsi_run_wait() != 0)
         return -1;
 
@@ -331,7 +344,8 @@ static int lsi_exec(scsi_hba_t *hba, u8 target, u8 lun, scsi_cmd_t *c)
         (void)lsi_rd(LSI_DSTAT);
 
         /* ---- script 2: reselected data phase ---- */
-        lsi_build_script2(c->data, c->data_len, c->dir);
+        if (lsi_build_script2(c->data, c->data_len, c->dir) != 0)
+            return -1;
         if (lsi_run_wait() != 0)
             return -1;
         if (lsi_state.status == 0xFF)

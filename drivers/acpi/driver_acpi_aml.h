@@ -68,6 +68,14 @@ int driver_acpi_aml_device_info(int idx, acpi_aml_dev_info_t *out);
  * elements go through the package helper below. Returns 0 on success. */
 int driver_acpi_aml_eval_integer(const char *path, u64 *out);
 
+/* WP-10-tui-qa: evaluate a METHOD taking one integer argument
+ * (\\_PTS(Arg0) / \\_WAK(Arg0) per ACPI 1.0b section 7.5 — the plain
+ * helper above invokes with zero args, so Arg0 reads as 0 and the
+ * DSDT's If (LEqual (Arg0, 0x03)) branches never fire).  Non-method
+ * nodes are rejected (there is no argument to pass them).
+ * Returns 0 on success. */
+int driver_acpi_aml_eval_integer_arg1(const char *path, u64 arg0, u64 *out);
+
 /* Evaluate a package and fetch element `idx` as an integer (_S5). */
 int driver_acpi_aml_eval_package_integer(const char *path, int idx, u64 *out);
 int driver_acpi_aml_package_elements(const char *path, int *count);

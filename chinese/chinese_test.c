@@ -290,7 +290,7 @@ static void test_console(void) {
 /* Write a UTF-8 file through the real VFS so the E2E can `cat` it and
  * assert the full UTF-8 echo path (cat -> console_cn -> serial tee). */
 static void test_vfs_utf8_file(void) {
-    screen_console_puts("[13] VFS UTF-8 file\n");
+    screen_console_puts("[10] VFS UTF-8 file\n");
     fs_vfs_mkdir("/tmp");
     int fd = fs_vfs_open("/tmp/cn.txt",
                          VFS_O_WRONLY | VFS_O_CREAT);
@@ -306,7 +306,7 @@ static void test_vfs_utf8_file(void) {
 /* --------------------------------------------- 10. lineedit tests */
 
 static void test_lineedit(void) {
-    screen_console_puts("[10] line editing (UTF-8)\n");
+    screen_console_puts("[11] line editing (UTF-8)\n");
     static shell_lineedit_t s;
     char buf[64];
     /* ASCII behavior unchanged: "abc" + BS -> "ab" */
@@ -365,7 +365,7 @@ static const u8* fake_get(cn_font_t* self, u32 cp) {
     return (cp == 0xE000) ? fake_glyph : NULL;
 }
 static void test_font_engine(void) {
-    screen_console_puts("[11] font engine registry\n");
+    screen_console_puts("[12] font engine registry\n");
     cn_font_t fake = {
         .name = "fake-private", .get_bitmap = fake_get,
         .glyph_w = 16, .glyph_h = 16, .priority = 5, .in_use = 0,
@@ -384,7 +384,7 @@ static void test_font_engine(void) {
 /* ---------------------------------------------- 12. TUI cn tests */
 
 static void test_tui_cn(void) {
-    screen_console_puts("[12] TUI chinese layer\n");
+    screen_console_puts("[13] TUI chinese layer\n");
     /* the print path needs a live TUI session with a focused window */
     if (!tui_started()) tui_init();
     tui_window_t *cnwin = tui_window_new(0, 0, 6, 40);
@@ -425,7 +425,7 @@ static void test_tui_cn(void) {
     if (cnwin) tui_window_free(cnwin);
 
     /* ---- WP-10-chinese_support-fix1: user-facing input paths ---- */
-    screen_console_puts("[13] fix1 input paths (ASCII editor + IME keys)\n");
+    screen_console_puts("[14] fix1 input paths (ASCII editor + IME keys)\n");
     if (!tui_started()) tui_init();
     tui_window_t *inwin = tui_window_new(0, 0, 6, 40);
     if (inwin) tui_window_focus_set(inwin);
@@ -459,7 +459,7 @@ static void test_tui_cn(void) {
      * The usage text promised interactive composition the command did
      * not have.  ime_console_compose is that flow now: injected keys
      * must compose and commit exactly like the TUI pad. */
-    screen_console_puts("[14] fix1 console IME line (n i 1 Enter -> 你; digits direct; Esc cancels)\n");
+    screen_console_puts("[15] fix1 console IME line (n i 1 Enter -> 你; digits direct; Esc cancels)\n");
     {
         extern int ime_console_compose(u8 *out, int cap);
         driver_input_keyboard_inject((u16)'n');

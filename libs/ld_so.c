@@ -901,12 +901,37 @@ static void *ldso_dlopen(const char *name, int flags) {
  * blind 4096. Handles are resolved through the module table when
  * registered; otherwise the ELF is validated and parsed on the fly
  * (with the same BUG-0215 bounds). */
+/* WP-10-tui-qa: the unknown-handle path now also bounds every table
+ * pointer against the image extent derived from the program headers
+ * (max p_vaddr + p_memsz) - a crafted base pointer with a valid-looking
+ * ELF header used to make DT_SYMTAB/DT_STRTAB derefs land anywhere in
+ * the address space and fault the calling process.  The kernel-side
+ * twin (l1/l1_wp8b.c) has carried these bounds since BUG-0256; ld.so
+ * now matches it. */
+static unsigned long ldso_image_end(const elf64_hdr *ehdr,
+                                     unsigned long base) {
+    const elf64_phdr *ph = (const elf64_phdr *)(base + ehdr->phoff);
+    unsigned long end = base + sizeof(elf64_hdr);
+    int i;
+    for (i = 0; i < (int)ehdr->phnum; i++) {
+        unsigned long e = base + ph[i].vaddr + ph[i].memsz;
+        if (e > end) end = e;
+    }
+    return end;
+}
+
+/* WP-10-tui-qa: string-scan bound for the dlsym loop.  Registered
+ * (trusted) modules get the unbounded sentinel; unknown handles clamp
+ * it to the image end. */
+#define LDSO_STR_END_UNBOUNDED 0xFFFFFFFFFFFFF000UL
+
 __attribute__((noinline, used))
 static void *ldso_dlsym(void *handle, const char *name) {
     unsigned long base = (unsigned long)handle;
     unsigned long symtab_addr = 0;
     unsigned long strtab_addr = 0;
     unsigned long count = 0;
+    unsigned long str_end = LDSO_STR_END_UNBOUNDED;
     const elf64_sym *sym;
     unsigned long j;
     int m;
@@ -932,6 +957,7 @@ static void *ldso_dlsym(void *handle, const char *name) {
         /* Unknown handle: parse it directly, with the same bounds. */
         const elf64_hdr *ehdr = (const elf64_hdr *)base;
         elf64_dyn *dyn;
+        unsigned long img_end;
         if (!elf64_sane(ehdr)) return 0;
         dyn = find_dynamic(ehdr, base);
         if (dyn == 0) return 0;
@@ -942,6 +968,16 @@ static void *ldso_dlsym(void *handle, const char *name) {
                      &rela, &relasz, &jmprel, &pltrelsz);
         }
         count = derive_symcount(symtab_addr, strtab_addr);
+        /* WP-10-tui-qa: image-extent bounds (see ldso_image_end).
+         * Both tables and every name string must live inside the
+         * caller's module image before anything is dereferenced. */
+        img_end = ldso_image_end(ehdr, base);
+        if (symtab_addr < base ||
+            symtab_addr + count * sizeof(elf64_sym) > img_end ||
+            strtab_addr < base || strtab_addr >= img_end) {
+            return 0;
+        }
+        str_end = img_end;   /* loop bound for the name scan */
     }
     if (symtab_addr == 0 || strtab_addr == 0 || count == 0) return 0;
 
@@ -951,6 +987,10 @@ static void *ldso_dlsym(void *handle, const char *name) {
         const char *sname;
         if (name_off == 0) continue;
         sname = (const char *)(strtab_addr + name_off);
+        /* WP-10-tui-qa: unknown handles bound the string scan by the
+         * image end (a crafted DT_STRTAB without NULs used to walk
+         * memory unchecked). */
+        if ((unsigned long)sname >= str_end) continue;
         if (streq(sname, name)) {
             if (sym[j].st_shndx == SHN_UNDEF) return 0;
             return (void *)(base + sym[j].st_value);

@@ -410,10 +410,19 @@ static int shell_cmd_partition_test(const char *args) {
         *(u32 *)(gpt + 446 + 8)  = 1;
         *(u32 *)(gpt + 446 + 12) = 33;
         gpt[510] = 0x55; gpt[511] = 0xAA;
-        /* GPT header at LBA 1 (real field offsets per UEFI spec). */
+        /* GPT header at LBA 1 (real field offsets per UEFI spec).
+         * WP-10-tui-qa: the BUG-0309-hardened parser checks my_lba == 1
+         * and the header CRC32 (computed over HeaderSize bytes with the
+         * CRC field itself zeroed) — the old fixture set neither, so
+         * "GPT parse" was a guaranteed FAIL after the hardening.  Build
+         * a spec-valid header + entry array (both CRCs) via the
+         * exported parser CRC so the fixture exercises the real path. */
         u8 *hdr = gpt + 512;
         memcpy(hdr, "EFI PART", 8);
         *(u32 *)(hdr + 12) = 92;         /* header size */
+        *(u32 *)(hdr + 16) = 0;          /* header CRC32 (computed below) */
+        *(u64 *)(hdr + 24) = 1;          /* my_lba: this header's own LBA */
+        *(u64 *)(hdr + 56) = 0;          /* disk GUID (zeros are legal) */
         *(u32 *)(hdr + 80) = 128;        /* num entries */
         *(u32 *)(hdr + 84) = 128;        /* entry size  */
         *(u64 *)(hdr + 72) = 2;          /* entries start LBA */
@@ -428,6 +437,11 @@ static int shell_cmd_partition_test(const char *args) {
         *(u64 *)(e1 + 32) = 4096;
         *(u64 *)(e1 + 40) = 8191;
         e1[56] = 'D'; e1[58] = 'A'; e1[60] = 'T'; e1[62] = 'A';  /* UTF-16LE */
+        /* entry-array CRC over the full spec size (128 * 128 bytes) */
+        *(u32 *)(hdr + 88) = driver_block_part_crc32(gpt + 2 * 512,
+                                                     (u64)128 * 128);
+        /* header CRC over HeaderSize bytes with the CRC field zeroed */
+        *(u32 *)(hdr + 16) = driver_block_part_crc32(hdr, 92);
         driver_block_write_sectors_raw(idx, 0, 34, gpt);
 
         screen_console_puts("[partition_test] input: GPT fixture (protective MBR + 2 entries)\n");

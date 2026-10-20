@@ -172,9 +172,19 @@ int shell_cmd_bt(const char *args)
             put_addr(addr);
             put("\n");
         }
-        fails += test_step("set event mask", bt_hci_set_event_mask(0x0) == 0 ||
-                                            bt_hci_set_event_mask(
-                                                0xffffffffffffffffull) == 0);
+        /* WP-10-tui-qa: try the FULL mask first.  The old
+         * mask(0) || mask(all) short-circuit accepted the all-events-
+         * OFF mask whenever the controller allowed it (every real one
+         * does), so no event ever reached the stack afterwards and the
+         * inquiry step below failed against a perfectly healthy peer.
+         * Full mask first; fall back to the zero mask only when the
+         * controller refuses the full one. */
+        {
+            int mask_rc = bt_hci_set_event_mask(0xffffffffffffffffull);
+            if (mask_rc != 0)
+                mask_rc = bt_hci_set_event_mask(0x0);
+            fails += test_step("set event mask", mask_rc == 0);
+        }
 
         /* inquiry: results come only from real controller events       */
         {

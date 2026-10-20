@@ -78,26 +78,35 @@ const char *tui_tr(const char *en, const char *zh) {
 /* crash guard (exception isolation)                                   */
 /* ------------------------------------------------------------------ */
 
-static void *g_guard_jb[5];
-static int   g_guard_active = 0;
+/* WP-10-tui-qa: the guard buffer is now a small depth STACK.  The old
+ * single g_guard_jb[5] was overwritten by any nested tui_dt_guard()
+ * call (an L1 app that guards its own sub-page), so a later panic in
+ * the OUTER frame longjmp'ed into the dead inner frame - undefined
+ * behavior waiting for the first nested L1 extension.  4 levels cover
+ * desktop -> app -> guarded sub-page -> one more; deeper nesting is
+ * refused honestly (-2) instead of corrupting the stack. */
+#define TUI_DT_GUARD_DEPTH 4
+static void *g_guard_jb[TUI_DT_GUARD_DEPTH][5];
+static int   g_guard_depth = 0;
 
 void tui_dt_panic(int code) {
     (void)code;
-    if (g_guard_active > 0)
-        __builtin_longjmp(g_guard_jb, 1);
+    if (g_guard_depth > 0)
+        __builtin_longjmp(g_guard_jb[g_guard_depth - 1], 1);
     /* no active guard: harmless - the caller returns normally */
 }
 
 int tui_dt_guard(int (*fn)(tui_dt_node_t *), tui_dt_node_t *self) {
+    int level, rc;
     if (!fn) return -1;
-    g_guard_active++;
-    int rc;
-    if (__builtin_setjmp(g_guard_jb) == 0) {
+    if (g_guard_depth >= TUI_DT_GUARD_DEPTH) return -2;   /* too deep */
+    level = g_guard_depth++;
+    if (__builtin_setjmp(g_guard_jb[level]) == 0) {
         rc = fn(self);
     } else {
         rc = -1000;   /* escaped via tui_dt_panic */
     }
-    g_guard_active--;
+    g_guard_depth--;
     return rc;
 }
 
@@ -793,8 +802,9 @@ static int dt_hw_page_run(tui_dt_node_t *self) {
     const char *page = (const char *)self->userptr;
     return tui_hw_run_page(page);
 }
-static int dt_sysinfo_run(tui_dt_node_t *self)  { (void)self; return tui_sysinfo_main(); }
-static int dt_net_run(tui_dt_node_t *self)      { (void)self; return tui_net_main(); }
+static int dt_hw_app_run(tui_dt_node_t *self) { (void)self; return tui_hw_app(); }
+static int dt_sysinfo_run(tui_dt_node_t *self)  { (void)self; return tui_sysinfo_app(); }
+static int dt_net_run(tui_dt_node_t *self)      { (void)self; return tui_net_app(); }
 static int dt_time_run(tui_dt_node_t *self)     { (void)self; return tui_time_main(); }
 static int dt_ime_run(tui_dt_node_t *self)      { (void)self; tui_chinese_init(); return tui_cn_input_app(); }
 static int dt_ext_run(tui_dt_node_t *self)      { (void)self; return tui_ext_page_main("ext"); }
@@ -835,11 +845,19 @@ void tui_dt_bootstrap(void) {
            "\xe7\xbd\x91\xe7\xbb\x9c\xe3\x80\x81\xe7\xa1\xac\xe4\xbb\xb6\xe3\x80\x81\xe5\xad\x98\xe5\x82\xa8\xe3\x80\x81\xe6\x9b\xb4\xe6\x96\xb0\xe3\x80\x81\xe6\x97\xb6\xe9\x97\xb4\xe3\x80\x81\xe5\xae\x89\xe5\x85\xa8\xe3\x80\x81\xe6\x97\xa5\xe5\xbf\x97",
            "[C]", TUI_DT_MENU, NULL, NULL, NULL, 10, NULL);
 
-    /* Hardware: the 12 real hardware pages of tui-hw */
+    /* Hardware: the 12 real hardware pages of tui-hw, plus the
+     * language-aware full app (WP-10-tui-qa: the Chinese twin runs
+     * when shell.lang == zh; the 12 per-page entries below stay on
+     * the English pages - direct page access has no twin). */
     dt_add("panel", "panel.hw", "Hardware", "\xe7\xa1\xac\xe4\xbb\xb6",
            "the 12 hardware domain pages (cpu..display)",
            "12 \xe4\xb8\xaa\xe7\xa1\xac\xe4\xbb\xb6\xe5\x9f\x9f\xe9\xa1\xb5\xe9\x9d\xa2",
            "[H]", TUI_DT_MENU, NULL, NULL, NULL, 10, NULL);
+    dt_add("panel.hw", "panel.hw.app", "Overview (all pages)",
+           "\xe6\x80\xbb\xe8\xa7\x88\xef\xbc\x88\xe5\x85\xa8\xe9\x83\xa8\xe9\xa1\xb5\xef\xbc\x89",
+           "full hardware app, follows shell.lang",
+           "\xe5\xae\x8c\xe6\x95\xb4\xe7\xa1\xac\xe4\xbb\xb6\xe5\xba\x94\xe7\x94\xa8\xef\xbc\x88\xe8\xb7\x9f\xe9\x9a\x8f shell.lang \xe8\xaf\xad\xe8\xa8\x80\xef\xbc\x89",
+           "[A]", TUI_DT_APP, dt_hw_app_run, NULL, NULL, 5, NULL);
     static const char *hw_pages[] = {
         "CPU", "Memory", "Storage", "Network", "Sound", "USB",
         "PCI", "Input", "Camera", "Wireless", "Timers", "Display"

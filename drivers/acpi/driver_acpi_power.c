@@ -280,9 +280,11 @@ extern int acpi_s3_fire_stub(u16 port, u16 value, u8 *save_area);
 /* ------------------------------------------------------------------ */
 
 static void acpi_prepare_sleep(int state) {
-    /* run \_PTS (prepare to sleep) when present */
-    driver_acpi_aml_eval_integer("\\_PTS", NULL);
-    (void)state;
+    /* WP-10-tui-qa: run \_PTS with the REAL sleep-state argument
+     * (ACPI 1.0b 7.5).  The old zero-arg invocation executed the method
+     * but Arg0 read as 0, so every If (LEqual (Arg0, 0x0x)) branch in
+     * the DSDT was skipped — \_PTS was effectively a no-op. */
+    driver_acpi_aml_eval_integer_arg1("\\_PTS", (u64)state, NULL);
 }
 
 static int acpi_write_sleep(int state) {
@@ -396,6 +398,12 @@ int driver_acpi_power_enter_s3(void) {
          * serial input died with the sleep - reprogram the COM1 RX path
          * (the IRQ4 handler slot is RAM-resident and still live). */
         screen_serial_in_init();
+        /* WP-10-tui-qa: run \_WAK(3) so the firmware's AML side knows
+         * the system is awake and can re-initialize its devices (ACPI
+         * 1.0b 7.5 — Linux runs it early in the wake path).  Mirrors
+         * the \_PTS(3) call on the sleep side; result ignored when the
+         * DSDT has no \_WAK (QEMU's has one). */
+        (void)driver_acpi_aml_eval_integer_arg1("\\_WAK", 3, NULL);
         /* clear the waking vector so a warm reboot does not resume */
         facs->firmware_waking_vector = 0;
         facs->x_firmware_waking_vector = 0;
