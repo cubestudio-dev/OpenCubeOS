@@ -226,6 +226,18 @@ $(BUILD)/drivers/acpi/driver_acpi_aml.o: $(OC_ROOT)/drivers/acpi/driver_acpi_aml
 	@mkdir -p $(dir $@)
 	$(CC) $(filter-out -O2,$(CFLAGS)) -O0 -c $< -o $@
 
+# WP-10-tui-native: the native desktop editor + file-manager upgrades
+# compile at -Os so the kernel image stays inside the 0x400000 identity
+# window (same per-file-override pattern as the wireless -Os rules; the
+# -O2 codegen over-ran the linker ASSERT with the new native editor).
+$(BUILD)/tui/tui_dt_editor.o: $(OC_ROOT)/tui/tui_dt_editor.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+
+$(BUILD)/tui/tui_dt_files.o: $(OC_ROOT)/tui/tui_dt_files.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+
 $(BUILD)/%.o: $(OC_ROOT)/%.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@

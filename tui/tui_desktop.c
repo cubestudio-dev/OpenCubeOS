@@ -65,7 +65,7 @@ int tui_lang_set(int lang) {
     /* persist exactly like `lang zh` does; report the config write rc
      * honestly (0 = written, negative = config backend refused) */
     int wr = lib_config_write("shell.lang", shell_lang_name());
-    tui_dt_toast(1, "language: %s (config write rc=%d)",
+    tui_dt_toast(1, tui_tr("language: %s (config write rc=%d)", "语言：%s（配置写入 rc=%d）"),
                  shell_lang_name(), wr);
     return 0;
 }
@@ -363,7 +363,7 @@ static void dt_draw_toast(void) {
     g_dt_win->attr = attr;
     g_dt_win->curs_x = 0;
     g_dt_win->curs_y = row;
-    tui_print(g_toast_ok ? " OK: " : " FAIL: ");
+    tui_print(g_toast_ok ? tui_tr(" OK: ", " 成功：") : tui_tr(" FAIL: ", " 失败："));
     tui_print(g_toast);
     g_dt_win->attr = save;
 }
@@ -402,8 +402,53 @@ void tui_dt_loading_tick(void) {
 
 void tui_dt_loading_end(int ok, const char *okmsg, const char *errmsg) {
     g_loading[0] = 0;
-    tui_dt_toast(ok, "%s", ok ? (okmsg ? okmsg : "done")
-                              : (errmsg ? errmsg : "failed"));
+    tui_dt_toast(ok, "%s", ok ? (okmsg ? okmsg : tui_tr("done", "完成"))
+                              : (errmsg ? errmsg : tui_tr("failed", "失败")));
+}
+
+/* ------------------------------------------------------------------ */
+/* WP-10-tui-native: modal confirmation dialog                          */
+/* ------------------------------------------------------------------ */
+
+int tui_dt_confirm(const char *en, const char *zh) {
+    int rows = tui_dt_page_rows(), cols = tui_dt_page_cols();
+    const char *msg = tui_tr(en ? en : "confirm?", zh ? zh : "确认？");
+    int w = 54, h = 5;
+    if (cols < 60) w = cols - 6;
+    if (w < 30) w = 30;
+    tui_window_t *win = tui_window_new(rows / 2 - 2, (cols - w) / 2, h, w);
+    if (!win) return -1;
+    tui_window_t *prev = tui_window_focus();
+    tui_window_focus_set(win);
+    tui_window_clear(win);
+    tui_window_border(win, &TUI_BORDER_DOUBLE);
+    tui_window_refresh(win);
+    tui_attr_t hdr = TUI_MAKE_ATTR(TUI_COLOR_WHITE, TUI_COLOR_MAROON) | TUI_ATTR_BOLD;
+    tui_set_attr(hdr);
+    tui_print_at(0, 2, tui_tr(" Confirm ", " 确认 "));
+    tui_set_attr(TUI_MAKE_ATTR(TUI_COLOR_SILVER, TUI_COLOR_BLACK));
+    tui_print_at(1, 2, msg);
+    tui_set_attr(TUI_MAKE_ATTR(TUI_COLOR_YELLOW, TUI_COLOR_BLACK));
+    tui_print_at(3, 2, tui_tr(" y:yes  n:no  Esc:cancel ",
+                              " y:是  n:否  Esc:取消 "));
+    tui_window_refresh(win);
+    int rc = -1;
+    for (;;) {
+        int k = tui_getch();
+        if (k == 'y' || k == 'Y' || k == '\r' || k == TUI_KEY_ENTER) { rc = 1; break; }
+        if (k == 'n' || k == 'N') { rc = 0; break; }
+        if (k == TUI_KEY_ESC || k == TUI_KEY_F10) { rc = -1; break; }
+    }
+    tui_window_free(win);
+    /* hand the focus back to whoever had it (the live page or menu) */
+    if (prev && prev != win) tui_window_focus_set(prev);
+    else {
+        tui_window_t *pg = tui_dt_page_window();
+        if (pg) tui_window_focus_set(pg);
+        else if (g_dt_win) tui_window_focus_set(g_dt_win);
+    }
+    tui_update_panels();
+    return rc;
 }
 
 /* ------------------------------------------------------------------ */
@@ -551,11 +596,11 @@ int tui_dt_reenter(void) {
 /* leave the TUI, run a shell command line with captured output, show
  * it on the restored console, wait for a key, come back */
 static int dt_run_shell_cmd(const char *line, const char *what) {
-    if (!line || !line[0]) { tui_dt_toast(0, "empty command"); return -1; }
+    if (!line || !line[0]) { tui_dt_toast(0, tui_tr("empty command", "空命令")); return -1; }
     /* 16KB output buffer comes from the kernel heap (linker identity
      * window is precious - large buffers never live in .bss) */
     char *out = kmalloc(16384);
-    if (!out) { tui_dt_toast(0, "out of memory"); return -1; }
+    if (!out) { tui_dt_toast(0, tui_tr("out of memory", "内存不足")); return -1; }
     tui_shutdown();
     screen_console_puts("\n[desktop] ");
     screen_console_puts(what ? what : line);
@@ -579,14 +624,20 @@ static int dt_run_shell_cmd(const char *line, const char *what) {
  * only), wait, then re-enter the desktop */
 static int dt_run_terminal(void) {
     tui_shutdown();
-    screen_console_puts("\n[terminal] ring-3 ush - syscall-only sandbox; "
-                        "type 'exit' to return to the desktop\n");
+    /* WP-10-tui-native: the banner follows shell.lang too */
+    screen_console_puts("\n");
+    screen_console_puts(tui_tr("[terminal] ring-3 ush - syscall-only sandbox; "
+                               "type 'exit' to return to the desktop\n",
+                               "[终端] Ring 3 ush - 仅 syscall 沙箱；"
+                               "输入 'exit' 返回桌面\n"));
     int rc = shell_execute("run ush");
-    screen_console_puts("\n[terminal] ended (rc=");
+    screen_console_puts("\n");
+    screen_console_puts(tui_tr("[terminal] ended (rc=", "[终端] 已结束 (rc="));
     char num[12];
     u64_to_str((u64)(rc < 0 ? 0 : (u32)rc), num);
     screen_console_puts(num);
-    screen_console_puts(") - press any key for the desktop...");
+    screen_console_puts(tui_tr(") - press any key for the desktop...",
+                               ") - 按任意键返回桌面..."));
     tui_dt_console_wait_key();
     if (tui_dt_reenter() != 0) return rc;
     return rc;
@@ -604,9 +655,10 @@ static int dt_activate(tui_dt_node_t *node) {
         if (rc < 0) {
             tui_dt_loading_end(0, NULL, tui_tr("page error",
                                                "页面错误"));
-            tui_dt_toast(0, "page '%s' failed (rc=%d)%s",
+            tui_dt_toast(0, tui_tr("page '%s' failed (rc=%d)%s",
+                                   "页面 '%s' 失败 (rc=%d)%s"),
                          node->id, rc,
-                         rc == -1000 ? " - contained" : "");
+                         rc == -1000 ? tui_tr(" - contained", " - 已隔离") : "");
         } else {
             tui_dt_loading_end(1, tui_tr("back to menu", "已返回菜单"), NULL);
         }
@@ -614,13 +666,13 @@ static int dt_activate(tui_dt_node_t *node) {
     }
     case TUI_DT_SHELL: {
         int rc = dt_run_shell_cmd(node->shell_cmd, node->shell_cmd);
-        tui_dt_toast(rc >= 0, "%s rc=%d", node->id, rc);
+        tui_dt_toast(rc >= 0, tui_tr("%s rc=%d", "%s rc=%d"), node->id, rc);
         return rc;
     }
     case TUI_DT_TERMINAL:
         return dt_run_terminal();
     default:
-        tui_dt_toast(0, "unknown node kind %d", node->kind);
+        tui_dt_toast(0, tui_tr("unknown node kind %d", "未知节点类型 %d"), node->kind);
         return -1;
     }
 }
@@ -647,7 +699,8 @@ static void dt_push(tui_dt_node_t *node) {
 int tui_desktop_main(void) {
     dt_registry_alloc();
     if (!g_nodes) {
-        screen_console_puts("tui: registry alloc failed\n");
+        screen_console_puts(tui_tr("tui: registry alloc failed\n",
+                                    "TUI：注册表分配失败\n"));
         return -1;
     }
 
@@ -663,13 +716,15 @@ int tui_desktop_main(void) {
     tui_dt_bootstrap();
 
     if (tui_init() != 0) {
-        screen_console_puts("tui: desktop init failed\n");
+        screen_console_puts(tui_tr("tui: desktop init failed\n",
+                                    "TUI：桌面初始化失败\n"));
         return -1;
     }
     g_dt_win = tui_window_new(0, 0, dt_term_rows(), dt_term_cols());
     if (!g_dt_win) {
         tui_shutdown();
-        screen_console_puts("tui: desktop window failed\n");
+        screen_console_puts(tui_tr("tui: desktop window failed\n",
+                                    "TUI：桌面窗口创建失败\n"));
         return -1;
     }
     tui_window_focus_set(g_dt_win);
@@ -703,11 +758,11 @@ int tui_desktop_main(void) {
             break;
         case TUI_KEY_ENTER: {
             tui_dt_node_t *c = cur->children[g_sel[g_stack_top]];
-            if (!c) { tui_dt_toast(0, "no entries"); break; }
+            if (!c) { tui_dt_toast(0, tui_tr("no entries", "无条目")); break; }
             g_toast[0] = 0;   /* a new action clears the old toast */
             if (c->kind == TUI_DT_MENU) {
                 if (c->level > TUI_DT_DEPTH_MAX) {
-                    tui_dt_toast(0, "max menu depth %d", TUI_DT_DEPTH_MAX);
+                    tui_dt_toast(0, tui_tr("max menu depth %d", "菜单最深 %d 层"), TUI_DT_DEPTH_MAX);
                     break;
                 }
                 dt_push(c);
@@ -727,9 +782,9 @@ int tui_desktop_main(void) {
             }
             break;
         case TUI_KEY_F1:
-            tui_dt_loading_begin("help");
+            tui_dt_loading_begin(tui_tr("help", "帮助"));
             tui_dt_guard(tui_dt_help_page_run, NULL);
-            tui_dt_loading_end(1, "help closed", NULL);
+            tui_dt_loading_end(1, tui_tr("help closed", "帮助已关闭"), NULL);
             break;
         case TUI_KEY_F2:
             tui_lang_set(shell_lang_get() == SHELL_LANG_ZH ? SHELL_LANG_EN
@@ -737,7 +792,7 @@ int tui_desktop_main(void) {
             break;
         case TUI_KEY_F5:
             if (g_dt_win) tui_window_refresh(g_dt_win);
-            tui_dt_toast(1, "refreshed");
+            tui_dt_toast(1, tui_tr("refreshed", "已刷新"));
             break;
         case TUI_KEY_F10:
             goto done;
@@ -758,7 +813,8 @@ int tui_desktop_main(void) {
                         g_toast[0] = 0;
                         if (qc->kind == TUI_DT_MENU) {
                             if (qc->level > TUI_DT_DEPTH_MAX) {
-                                tui_dt_toast(0, "max menu depth %d",
+                                tui_dt_toast(0, tui_tr("max menu depth %d",
+                                                       "菜单最深 %d 层"),
                                              TUI_DT_DEPTH_MAX);
                             } else {
                                 dt_push(qc);
@@ -788,6 +844,7 @@ done:
 
 /* app runners defined in tui_dt_apps.c (real pages, no stubs) */
 int tui_dt_files_run(tui_dt_node_t *self);
+int tui_dt_netconf_run(tui_dt_node_t *self);   /* WP-10-tui-native */
 int tui_dt_proc_run(tui_dt_node_t *self);
 int tui_dt_editor_run(tui_dt_node_t *self);
 int tui_dt_terminal_run(tui_dt_node_t *self);
@@ -798,8 +855,16 @@ int tui_dt_update_run(tui_dt_node_t *self);
 int tui_dt_disk_detail_run(tui_dt_node_t *self);
 int tui_dt_disks_populate(tui_dt_node_t *self);
 
+int tui_cn_hw_page(const char *en_name);   /* chinese/tui_cn_hw.c */
 static int dt_hw_page_run(tui_dt_node_t *self) {
     const char *page = (const char *)self->userptr;
+    /* WP-10-tui-native: direct page access follows the language too -
+     * the Chinese twin renders the same real data in zh.  Returns -3
+     * when the twin has no such page (falls back to English). */
+    if (shell_lang_get() == SHELL_LANG_ZH) {
+        int rc = tui_cn_hw_page(page);
+        if (rc != -3) return rc;
+    }
     return tui_hw_run_page(page);
 }
 static int dt_hw_app_run(tui_dt_node_t *self) { (void)self; return tui_hw_app(); }
@@ -898,6 +963,13 @@ void tui_dt_bootstrap(void) {
            "dhcp/ip/route/dns/firewall/tcpstats + wireless",
            "dhcp/ip/\xe8\xb7\xaf\xe7\x94\xb1/dns/\xe9\x98\xb2\xe7\x81\xab\xe5\xa2\x99 + \xe6\x97\xa0\xe7\xba\xbf",
            "[N]", TUI_DT_MENU, NULL, NULL, NULL, 30, NULL);
+    /* WP-10-tui-native: the NATIVE network configuration page (static
+     * IP / DHCP / DNS through the real net_* kernel API - no bridge).
+     * The read-only bridge entries below stay for parity views. */
+    dt_add("panel.net", "panel.net.conf", "Net config", "\xe7\xbd\x91\xe7\xbb\x9c\xe9\x85\x8d\xe7\xbd\xae",
+           "IP/mask/gateway/DNS + DHCP (native)",
+           "IP/\xe6\x8e\xa9\xe7\xa0\x81/\xe7\xbd\x91\xe5\x85\xb3/DNS + DHCP\xef\xbc\x88\xe5\x8e\x9f\xe7\x94\x9f\xef\xbc\x89",
+           "[N]", TUI_DT_APP, tui_dt_netconf_run, NULL, NULL, 5, NULL);
     dt_add("panel.net", "panel.net.dhcp", "dhcp", "dhcp",
            "DHCP lease (runs: dhcp)", "\xe8\x8e\xb7\xe5\x8f\x96 DHCP\xef\xbc\x88" "dhcp\xef\xbc\x89",
            "   ", TUI_DT_SHELL, NULL, NULL, "dhcp", 10, NULL);

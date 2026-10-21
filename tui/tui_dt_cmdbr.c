@@ -64,6 +64,16 @@ void tui_dt_page_flush(void) {
     if (g_page_win) tui_window_refresh(g_page_win);
 }
 
+/* WP-10-tui-native: close the live page window without the wait-for-key
+ * loop (sub-pages that own their own input loop use this).  Idempotent. */
+void tui_dt_page_close(void) {
+    if (g_page_win) {
+        tui_window_free(g_page_win);
+        g_page_win = NULL;
+    }
+    tui_update_panels();   /* black-fill + repaint panel windows       */
+}
+
 void tui_dt_page_wait_close(const char *hint) {
     tui_dt_page_flush();   /* the page body must actually hit the screen */
     tui_set_attr(TUI_MAKE_ATTR(TUI_COLOR_YELLOW, TUI_COLOR_BLACK));
@@ -176,7 +186,7 @@ static void dt_draw_output(int list_rows, int rows, int cols) {
 
 int tui_dt_cmdbridge_run(tui_dt_node_t *self) {
     (void)self;
-    if (dt_cmd_alloc() != 0) { tui_dt_toast(0, "out of memory"); return -1; }
+    if (dt_cmd_alloc() != 0) { tui_dt_toast(0, tui_tr("out of memory", "内存不足")); return -1; }
     if (tui_dt_page_open() != 0) { dt_cmd_free(); return -1; }
     dt_cmd_reload();
     int sel = 0;
@@ -270,7 +280,8 @@ int tui_dt_cmdbridge_run(tui_dt_node_t *self) {
             dt_out[0] = 0;
             int rc = shell_execute_captured(line, dt_out, DT_OUT_MAX);
             tui_dt_loading_end(rc == 0, "command finished", "command failed");
-            tui_dt_toast(rc == 0, "%s rc=%d", dt_cmds[sel].name, rc);
+            tui_dt_toast(rc == 0, tui_tr("%s rc=%d", "%s rc=%d"),
+                         dt_cmds[sel].name, rc);
         }
     }
 }
@@ -295,28 +306,28 @@ int tui_dt_disk_detail_run(tui_dt_node_t *self) {
     char line[112];
     char num[24];
 
-    strncpy(line, "  device     : ", sizeof(line) - 1);
+    strncpy(line, tui_tr("  device     : ", "  设备　　　　："), sizeof(line) - 1);
     dt_append(line, sizeof(line), d->name);
     tui_print_at(row++, 1, line);
 
     u64_to_str((u64)d->type, num);
-    strncpy(line, "  type       : ", sizeof(line) - 1);
+    strncpy(line, tui_tr("  type       : ", "  类型　　　　："), sizeof(line) - 1);
     dt_append(line, sizeof(line), num);
     tui_print_at(row++, 1, line);
 
     u64_to_str(d->sectors, num);
-    strncpy(line, "  sectors    : ", sizeof(line) - 1);
+    strncpy(line, tui_tr("  sectors    : ", "  扇区数　　　："), sizeof(line) - 1);
     dt_append(line, sizeof(line), num);
     tui_print_at(row++, 1, line);
 
     u64_to_str((u64)d->sector_size, num);
-    strncpy(line, "  sector size: ", sizeof(line) - 1);
+    strncpy(line, tui_tr("  sector size: ", "  扇区大小　　："), sizeof(line) - 1);
     dt_append(line, sizeof(line), num);
     tui_print_at(row++, 1, line);
 
     u64 mib = (d->sectors * (u64)d->sector_size) >> 20;
     u64_to_str(mib, num);
-    strncpy(line, "  capacity   : ", sizeof(line) - 1);
+    strncpy(line, tui_tr("  capacity   : ", "  容量　　　　："), sizeof(line) - 1);
     dt_append(line, sizeof(line), num);
     dt_append(line, sizeof(line), " MiB");
     tui_print_at(row++, 1, line);
@@ -338,19 +349,19 @@ int tui_dt_disk_detail_run(tui_dt_node_t *self) {
     memset(&st, 0, sizeof(st));
     driver_block_get_stats(d->index, &st);
     u64_to_str(st.reads, num);
-    strncpy(line, "  reads      : ", sizeof(line) - 1);
+    strncpy(line, tui_tr("  reads      : ", "  读次数　　　："), sizeof(line) - 1);
     dt_append(line, sizeof(line), num);
     tui_print_at(row++, 1, line);
     u64_to_str(st.writes, num);
-    strncpy(line, "  writes     : ", sizeof(line) - 1);
+    strncpy(line, tui_tr("  writes     : ", "  写次数　　　："), sizeof(line) - 1);
     dt_append(line, sizeof(line), num);
     tui_print_at(row++, 1, line);
     u64_to_str(st.read_sectors, num);
-    strncpy(line, "  rd sectors : ", sizeof(line) - 1);
+    strncpy(line, tui_tr("  rd sectors : ", "  读扇区　　　："), sizeof(line) - 1);
     dt_append(line, sizeof(line), num);
     tui_print_at(row++, 1, line);
     u64_to_str(st.write_sectors, num);
-    strncpy(line, "  wr sectors : ", sizeof(line) - 1);
+    strncpy(line, tui_tr("  wr sectors : ", "  写扇区　　　："), sizeof(line) - 1);
     dt_append(line, sizeof(line), num);
     tui_print_at(row++, 1, line);
 

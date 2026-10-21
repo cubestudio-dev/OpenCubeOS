@@ -21,6 +21,7 @@
 #include "../drivers/time/driver_tsc.h"
 #include "../drivers/input/driver_input_keyboard.h"
 #include "../kernel/core/core_timer.h"
+#include "../drivers/display/screen_fb.h"
 
 #define CN_PAGE_MAX_LINES 34
 
@@ -350,6 +351,26 @@ static void cn_page_timer(cn_page_t *pg) {
 
 typedef void (*cn_page_fn)(cn_page_t *);
 
+static void cn_page_display(cn_page_t *pg) {
+    const screen_fb_info_t *fb = screen_fb_get_info();
+    if (fb) {
+        cn_add(pg, "帧缓冲        ：%lu×%lu，%d bpp，行距 %lu",
+               (u64)fb->width, (u64)fb->height, (int)fb->bpp, (u64)fb->pitch);
+        cn_add(pg, "通道掩码      ：红@%d/%d 绿@%d/%d 蓝@%d/%d",
+               (int)fb->red_pos, (int)fb->red_size,
+               (int)fb->green_pos, (int)fb->green_size,
+               (int)fb->blue_pos, (int)fb->blue_size);
+    } else {
+        cn_add(pg, "帧缓冲        ：未初始化");
+    }
+    cn_add(pg, "单元格控制台  ：8×16（screen_console）");
+    cn_add(pg, "ASCII 字体    ：内置 8×16，256 字形");
+    cn_add(pg, "中文字体      ：内嵌 Unifont 16×16，6763 汉字 + 682 符号");
+    cn_add(pg, "中文渲染器    ：console_cn（UTF-8），TUI 宽格感知");
+    cn_add(pg, "终端后端      ：见 tui.backend 配置键（fb | serial）");
+    cn_add(pg, "自测          ：`font-test` / `chinesetest` 打印样例表");
+}
+
 static const struct {
     const char *cn_name;      /* Chinese page label */
     const char *en_name;      /* ASCII page key (E2E/log use) */
@@ -366,6 +387,7 @@ static const struct {
     { "摄像头", "Camera",   cn_page_camera },
     { "无线",   "Wireless", cn_page_wireless },
     { "定时器", "Timers",   cn_page_timer },
+    { "显示",   "Display",  cn_page_display },   /* WP-10-tui-native: was missing from the twin */
 };
 #define CN_HW_PAGE_COUNT (int)(sizeof(CN_HW_PAGES) / sizeof(CN_HW_PAGES[0]))
 
@@ -389,6 +411,36 @@ static void cn_hw_render(tui_window_t *win) {
         tui_print_at(i + 1, 1, pg.lines[i]);
     }
     tui_window_refresh(win);
+}
+
+/* WP-10-tui-native: run ONE Chinese twin page by its English page key
+ * (the desktop's direct hw-page entries dispatch here when
+ * shell.lang == zh).  Renders the single page once and waits for a key.
+ * Returns 0 ok, -1 bad args/window, -3 no such page in the twin. */
+int tui_cn_hw_page(const char *en_name) {
+    if (!en_name || !en_name[0]) return -1;
+    int idx = -1;
+    for (int i = 0; i < CN_HW_PAGE_COUNT; i++) {
+        if (strcmp(CN_HW_PAGES[i].en_name, en_name) == 0) { idx = i; break; }
+    }
+    if (idx < 0) return -3;
+    if (tui_chinese_init() != 0) return -1;
+    int cols, rows;
+    tui_term_size(&cols, &rows);
+    tui_window_t *win = tui_window_new(0, 0, rows, cols);
+    if (!win) return -1;
+    g_cn_hw_page = idx;
+    cn_hw_render(win);
+    for (;;) {
+        int k = tui_getch();
+        if (k == TUI_KEY_ESC || k == 'q' || k == TUI_KEY_F(10)) break;
+        if (k == TUI_KEY_TAB) {          /* parity with the full app */
+            g_cn_hw_page = (g_cn_hw_page + 1) % CN_HW_PAGE_COUNT;
+            cn_hw_render(win);
+        }
+    }
+    tui_window_free(win);
+    return 0;
 }
 
 int tui_cn_hw_main(void) {

@@ -159,10 +159,17 @@ int  tui_dt_page_open(void);               /* 0 ok; sets focus            */
 int  tui_dt_page_rows(void);
 int  tui_dt_page_cols(void);
 void tui_dt_page_flush(void);              /* repaint the page window     */
+void tui_dt_page_close(void);             /* free the page window (no    */
+                                          /* wait loop)                  */
 tui_window_t *tui_dt_page_window(void);    /* live page window (or NULL)  */
 int  tui_dt_console_wait_key(void);        /* blocking key on the console */
 int  tui_dt_reenter(void);                 /* re-init the desktop session */
 void tui_dt_str_append(char *dst, int cap, const char *src);  /* bounded */
 void tui_dt_page_wait_close(const char *hint);   /* hint + Esc/F10/q loop */
+
+/* WP-10-tui-native: modal confirmation dialog drawn over the live page
+ * (small centered window, y/n + Esc).  The message is picked by the
+ * current desktop language.  Returns 1 = yes, 0 = no, -1 = Esc. */
+int  tui_dt_confirm(const char *en, const char *zh);
 
 #endif /* OC_TUI_DESKTOP_H */

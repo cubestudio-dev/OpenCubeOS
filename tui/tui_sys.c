@@ -21,6 +21,7 @@
  *   tui      theme (tui_ext 7.5 registry)
  */
 #include "tui.h"
+#include "tui_desktop.h"   /* WP-10-tui-native: tui_tr */
 #include "../kernel/lib/lib_string.h"
 #include "../kernel/lib/lib_config.h"
 #include "../kernel/lib/lib_log.h"
@@ -60,26 +61,29 @@ static int page_host_render(tui_window_t *win, int scroll) {
     sys_read_cfg("sys.hostname", host, (int)sizeof(host), "opencube");
     sys_read_cfg("shell.lang", lang, (int)sizeof(lang), "en");
     sys_read_cfg("kbd.layout", layout, (int)sizeof(layout), "us");
-    if (row >= 1) tui_print_at(row++, 2, "Host identity (persisted in /etc/opencube.conf)");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Host identity (persisted in /etc/opencube.conf)",
+                                 "主机标识（持久化于 /etc/opencube.conf）"));
     if (row >= 1) {
-        strcpy(b, "  hostname : "); strcat(b, host);
-        strcat(b, "   [h: edit]");
+        strcpy(b, tui_tr("  hostname : ", "  主机名　：")); strcat(b, host);
+        strcat(b, tui_tr("   [h: edit]", "   [h: 编辑]"));
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "  shell language : "); strcat(b, lang);
-        strcat(b, "   [l: toggle en/zh, like `lang`]");
+        strcpy(b, tui_tr("  shell language : ", "  shell 语言　　：")); strcat(b, lang);
+        strcat(b, tui_tr("   [l: toggle en/zh, like `lang`]", "   [l: 切换 en/zh，同 `lang`]"));
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "  keyboard layout: "); strcat(b, layout);
-        strcat(b, "   [k: toggle us/dvorak, applies live]");
+        strcpy(b, tui_tr("  keyboard layout: ", "  键盘布局　　：")); strcat(b, layout);
+        strcat(b, tui_tr("   [k: toggle us/dvorak, applies live]", "   [k: 切换 us/dvorak，实时生效]"));
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        tui_print_at(row++, 2, "  shell parity: config get sys.hostname / config set sys.hostname X");
+        tui_print_at(row++, 2, tui_tr("  shell parity: config get sys.hostname / config set sys.hostname X",
+                                 "  shell 对等：config get sys.hostname / config set sys.hostname X"));
     }
-    if (row >= 1) tui_print_at(row++, 2, "Keys: h set hostname | l language | k layout | F2 persist all");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Keys: h set hostname | l language | k layout | F2 persist all",
+                                 "按键：h 主机名 | l 语言 | k 布局 | F2 全部持久化"));
     return row + scroll - 1;
 }
 
@@ -94,7 +98,7 @@ static int page_host_input(int key) {
             shell_lang_set_str(next);
         }
         char sb[64]; strcpy(sb, "shell.lang = "); strcat(sb, next);
-        strcat(sb, " (applied; F2 persists)");
+        strcat(sb, tui_tr(" (applied; F2 persists)", "（已生效；F2 持久化）"));
         tui_status_line(sb);
         return 1;
     }
@@ -104,7 +108,7 @@ static int page_host_input(int key) {
         driver_input_keyboard_set_layout(next);
         sys_write_cfg("kbd.layout", next);
         char sb[64]; strcpy(sb, "keyboard layout = "); strcat(sb, next);
-        strcat(sb, " (applied live; F2 persists)");
+        strcat(sb, tui_tr(" (applied live; F2 persists)", "（实时生效；F2 持久化）"));
         tui_status_line(sb);
         return 1;
     }
@@ -114,7 +118,7 @@ static int page_host_input(int key) {
         const char *next = (strcmp(host, "opencube") == 0) ? "cube-01" : "opencube";
         sys_write_cfg("sys.hostname", next);
         char sb[64]; strcpy(sb, "sys.hostname = "); strcat(sb, next);
-        strcat(sb, " (F2 persists; shell reads the same key)");
+        strcat(sb, tui_tr(" (F2 persists; shell reads the same key)", "（F2 持久化；shell 读同一键）"));
         tui_status_line(sb);
         return 1;
     }
@@ -129,7 +133,8 @@ static int page_host_input(int key) {
         sys_write_cfg("shell.lang", v);
         sys_read_cfg("kbd.layout", v, (int)sizeof(v), "us");
         sys_write_cfg("kbd.layout", v);
-        tui_status_line("host settings persisted to /etc/opencube.conf");
+        tui_status_line(tui_tr("host settings persisted to /etc/opencube.conf",
+                             "主机设置已持久化到 /etc/opencube.conf"));
         return 1;
     }
     return 0;
@@ -146,39 +151,41 @@ static int page_net_render(tui_window_t *win, int scroll) {
     sys_ip_str(net_get_gateway(), gw);
     sys_ip_str(net_get_dns(), dns);
     sys_ip_str(net_get_mask(), mk);
-    if (row >= 1) tui_print_at(row++, 2, "Network (live kernel state; configure via dhcp/ip/dns/route)");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Network (live kernel state; configure via dhcp/ip/dns/route)",
+                                 "网络（内核实时状态；经 dhcp/ip/dns/route 配置）"));
     if (row >= 1) {
-        strcpy(b, "  IP      : "); strcat(b, ip4 ? ip : "none (no link configured)");
+        strcpy(b, tui_tr("  IP      : ", "  IP      ：")); strcat(b, ip4 ? ip : tui_tr("none (no link configured)", "无（链路未配置）"));
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "  netmask : "); strcat(b, mk);
+        strcpy(b, tui_tr("  netmask : ", "  掩码   ：")); strcat(b, mk);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "  gateway : "); strcat(b, gw);
+        strcpy(b, tui_tr("  gateway : ", "  网关   ：")); strcat(b, gw);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "  DNS     : "); strcat(b, dns);
+        strcpy(b, tui_tr("  DNS     : ", "  DNS    ：")); strcat(b, dns);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
         u8 pol = net_netfilter_get_policy(0);
-        strcpy(b, "  firewall INPUT default: ");
-        strcat(b, pol == 1 ? "ACCEPT" : (pol == 0 ? "DROP" : "unset"));
-        strcat(b, "   [f: toggle]");
+        strcpy(b, tui_tr("  firewall INPUT default: ", "  防火墙 INPUT 默认　　："));
+        strcat(b, pol == 1 ? "ACCEPT" : (pol == 0 ? "DROP" : tui_tr("unset", "未设置")));
+        strcat(b, tui_tr("   [f: toggle]", "   [f: 切换]"));
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
         net_netfilter_rule_t rules[8];
         int n = net_netfilter_list_rules(rules, 8);
-        strcpy(b, "  rules   : ");
+        strcpy(b, tui_tr("  rules   : ", "  规则   ："));
         u64_to_str((u64)(n < 0 ? 0 : n), ip);
-        strcat(b, ip); strcat(b, " (see `firewall list`)");
+        strcat(b, ip); strcat(b, tui_tr(" (see `firewall list`)", "（见 `firewall list`）"));
         tui_print_at(row++, 2, b);
     }
-    if (row >= 1) tui_print_at(row++, 2, "Keys: f toggle INPUT policy ACCEPT/DROP (live)");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Keys: f toggle INPUT policy ACCEPT/DROP (live)",
+                                 "按键：f 实时切换 INPUT 策略 ACCEPT/DROP"));
     return row + scroll - 1;
 }
 
@@ -188,8 +195,8 @@ static int page_net_input(int key) {
         u8 next = (pol == 1) ? 0 : 1;
         net_netfilter_set_policy(0, next);
         tui_status_line(next == 1 ?
-            "firewall INPUT default = ACCEPT (live)" :
-            "firewall INPUT default = DROP (live)");
+            tui_tr("firewall INPUT default = ACCEPT (live)", "防火墙 INPUT 默认 = ACCEPT（实时）") :
+            tui_tr("firewall INPUT default = DROP (live)", "防火墙 INPUT 默认 = DROP（实时）"));
         return 1;
     }
     return 0;
@@ -201,19 +208,24 @@ static int page_storage_render(tui_window_t *win, int scroll) {
     (void)win;
     char b[100], n[16];
     int row = 1 - scroll;
-    if (row >= 1) tui_print_at(row++, 2, "Storage (block devices, partitions, mounts)");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Storage (block devices, partitions, mounts)",
+                                 "存储（块设备、分区、挂载）"));
     if (row >= 1) {
         int ndev = driver_block_num_devices();
-        strcpy(b, "  block devices: ");
+        strcpy(b, tui_tr("  block devices: ", "  块设备　　："));
         u64_to_str((u64)ndev, n);
         strcat(b, n);
-        strcat(b, "  (see `lsblk` for the full table)");
+        strcat(b, tui_tr("  (see `lsblk` for the full table)", " （完整表见 `lsblk`）"));
         tui_print_at(row++, 2, b);
     }
-    if (row >= 1) tui_print_at(row++, 2, "  mounts    : see `df` / `mount` (same VFS tables)");
-    if (row >= 1) tui_print_at(row++, 2, "  A/B slots : see the update page (Tab)");
-    if (row >= 1) tui_print_at(row++, 2, "Partition/fstab editing stays in the shell (fdisk/mount) -");
-    if (row >= 1) tui_print_at(row++, 2, "this page mirrors the live state so both views agree.");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("  mounts    : see `df` / `mount` (same VFS tables)",
+                                 "  挂载　　：见 `df` / `mount`（同一 VFS 表）"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("  A/B slots : see the update page (Tab)",
+                                 "  A/B 槽　：见更新页（Tab）"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Partition/fstab editing stays in the shell (fdisk/mount) -",
+                                 "分区/fstab 编辑保留在 shell（fdisk/mount）——"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("this page mirrors the live state so both views agree.",
+                                 "本页镜像实时状态，两个视图保持一致。"));
     return row + scroll - 1;
 }
 
@@ -222,12 +234,18 @@ static int page_storage_render(tui_window_t *win, int scroll) {
 static int page_user_render(tui_window_t *win, int scroll) {
     (void)win;
     int row = 1 - scroll;
-    if (row >= 1) tui_print_at(row++, 2, "Users (honest single-user kernel posture)");
-    if (row >= 1) tui_print_at(row++, 2, "  L0 runs a single privileged shell (ring 0) and ring-3 tasks");
-    if (row >= 1) tui_print_at(row++, 2, "  via SYS_fork/execute; there is no multi-user shadow table.");
-    if (row >= 1) tui_print_at(row++, 2, "  create/delete users: NOT BUILT (no /etc/passwd in L0)");
-    if (row >= 1) tui_print_at(row++, 2, "  passwords: SSH server key-based only (see `ssh-keygen`)");
-    if (row >= 1) tui_print_at(row++, 2, "  user API for L1 extensions: l1_ext_process_* (fork/exec)");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Users (honest single-user kernel posture)",
+                                 "用户（诚实的单用户内核姿态）"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("  L0 runs a single privileged shell (ring 0) and ring-3 tasks",
+                                 "  L0 运行单一特权 shell（Ring 0）与 Ring 3 任务"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("  via SYS_fork/execute; there is no multi-user shadow table.",
+                                 "  经 SYS_fork/execute；无多用户影子表。"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("  create/delete users: NOT BUILT (no /etc/passwd in L0)",
+                                 "  创建/删除用户：未构建（L0 无 /etc/passwd）"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("  passwords: SSH server key-based only (see `ssh-keygen`)",
+                                 "  密码：SSH 服务器仅密钥认证（见 `ssh-keygen`）"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("  user API for L1 extensions: l1_ext_process_* (fork/exec)",
+                                 "  L1 扩展用户 API：l1_ext_process_*（fork/exec）"));
     return row + scroll - 1;
 }
 
@@ -240,27 +258,30 @@ static int page_sec_render(tui_window_t *win, int scroll) {
     u8 pol = net_netfilter_get_policy(0);
     net_netfilter_rule_t rules[8];
     int nr = net_netfilter_list_rules(rules, 8);
-    if (row >= 1) tui_print_at(row++, 2, "Security posture");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Security posture", "安全态势"));
     if (row >= 1) {
-        strcpy(b, "  firewall INPUT default : ");
-        strcat(b, pol == 1 ? "ACCEPT" : (pol == 0 ? "DROP" : "unset"));
+        strcpy(b, tui_tr("  firewall INPUT default : ", "  防火墙 INPUT 默认　　："));
+        strcat(b, pol == 1 ? "ACCEPT" : (pol == 0 ? "DROP" : tui_tr("unset", "未设置")));
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "  netfilter rules        : ");
+        strcpy(b, tui_tr("  netfilter rules        : ", "  netfilter 规则　　　　："));
         u64_to_str((u64)(nr < 0 ? 0 : nr), m);
         strcat(b, m);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "  conntrack entries      : ");
+        strcpy(b, tui_tr("  conntrack entries      : ", "  连接跟踪条目　　　　　："));
         u64_to_str((u64)net_netfilter_ct_count(), m);
         strcat(b, m);
         tui_print_at(row++, 2, b);
     }
-    if (row >= 1) tui_print_at(row++, 2, "  SSH host auth          : TOFU + known_hosts (`ssh` client)");
-    if (row >= 1) tui_print_at(row++, 2, "  TLS certificates       : X.509 chain verify (`cryptotest`)");
-    if (row >= 1) tui_print_at(row++, 2, "Keys: f toggle INPUT policy | c flush conntrack");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("  SSH host auth          : TOFU + known_hosts (`ssh` client)",
+                                 "  SSH 主机认证　　　　　：TOFU + known_hosts（`ssh` 客户端）"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("  TLS certificates       : X.509 chain verify (`cryptotest`)",
+                                 "  TLS 证书　　　　　　　：X.509 链验证（`cryptotest`）"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Keys: f toggle INPUT policy | c flush conntrack",
+                                 "按键：f 切换 INPUT 策略 | c 清空连接跟踪"));
     return row + scroll - 1;
 }
 
@@ -269,12 +290,13 @@ static int page_sec_input(int key) {
         u8 pol = net_netfilter_get_policy(0);
         u8 next = (pol == 1) ? 0 : 1;
         net_netfilter_set_policy(0, next);
-        tui_status_line(next == 1 ? "INPUT default = ACCEPT" : "INPUT default = DROP");
+        tui_status_line(next == 1 ? tui_tr("INPUT default = ACCEPT", "INPUT 默认 = ACCEPT")
+                            : tui_tr("INPUT default = DROP", "INPUT 默认 = DROP"));
         return 1;
     }
     if (key == 'c') {
         net_netfilter_ct_flush();
-        tui_status_line("conntrack flushed");
+        tui_status_line(tui_tr("conntrack flushed", "连接跟踪已清空"));
         return 1;
     }
     return 0;
@@ -289,41 +311,44 @@ static int page_update_render(tui_window_t *win, int scroll) {
     ota_update_status_t st;
     sys_read_cfg("update_url", url, (int)sizeof(url), "(unset)");
     int rc = ota_update_get_status(&st);
-    if (row >= 1) tui_print_at(row++, 2, "Update (config keys shared with `update`/`checkupdate`)");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Update (config keys shared with `update`/`checkupdate`)",
+                                 "更新（配置键与 `update`/`checkupdate` 共享）"));
     if (row >= 1) {
-        strcpy(b, "  update_url    : "); strcat(b, url);
+        strcpy(b, tui_tr("  update_url    : ", "  update_url　　：")); strcat(b, url);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "  online_update : ");
+        strcpy(b, tui_tr("  online_update : ", "  online_update："));
         sys_read_cfg("online_update", v, (int)sizeof(v), "1");
-        strcat(b, (v[0] == '0') ? "0 (manual checks only)" : "1 (checkupdate allowed)");
-        strcat(b, "   [o: toggle]");
+        strcat(b, (v[0] == '0') ? tui_tr("0 (manual checks only)", "0（仅手动检查）")
+                                : tui_tr("1 (checkupdate allowed)", "1（允许 checkupdate）"));
+        strcat(b, tui_tr("   [o: toggle]", "   [o: 切换]"));
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "  current ver   : ");
-        strcat(b, rc == 0 ? st.current_version : "(status unavailable)");
+        strcpy(b, tui_tr("  current ver   : ", "  当前版本　　　："));
+        strcat(b, rc == 0 ? st.current_version : tui_tr("(status unavailable)", "（状态不可用）"));
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "  boot slot     : ");
+        strcpy(b, tui_tr("  boot slot     : ", "  启动槽　　　　："));
         strcat(b, rc == 0 ? st.current_boot : "?");
-        if (rc == 0 && st.next_boot[0]) { strcat(b, " -> next: "); strcat(b, st.next_boot); }
-        strcat(b, "   A/B disk: ");
-        strcat(b, (rc == 0 && st.ota_ab_present) ? "yes" : "no");
+        if (rc == 0 && st.next_boot[0]) { strcat(b, tui_tr(" -> next: ", " -> 下次：")); strcat(b, st.next_boot); }
+        strcat(b, tui_tr("   A/B disk: ", "   A/B 盘："));
+        strcat(b, (rc == 0 && st.ota_ab_present) ? tui_tr("yes", "有") : tui_tr("no", "无"));
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "  update state  : ");
+        strcpy(b, tui_tr("  update state  : ", "  更新状态　　　："));
         if (rc == 0) {
-            if (st.ota_update_available == 1) strcat(b, "new version available");
-            else if (st.ota_update_available == 0) strcat(b, "up to date");
-            else strcat(b, "unknown (not checked)");
-        } else strcat(b, "unavailable");
+            if (st.ota_update_available == 1) strcat(b, tui_tr("new version available", "有新版本"));
+            else if (st.ota_update_available == 0) strcat(b, tui_tr("up to date", "已是最新"));
+            else strcat(b, tui_tr("unknown (not checked)", "未知（未检查）"));
+        } else strcat(b, tui_tr("unavailable", "不可用"));
         tui_print_at(row++, 2, b);
     }
-    if (row >= 1) tui_print_at(row++, 2, "Keys: o toggle online_update | F2 persist");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Keys: o toggle online_update | F2 persist",
+                                 "按键：o 切换 online_update | F2 持久化"));
     return row + scroll - 1;
 }
 
@@ -341,7 +366,7 @@ static int page_update_input(int key) {
         char v[4];
         sys_read_cfg("online_update", v, (int)sizeof(v), "1");
         sys_write_cfg("online_update", v);
-        tui_status_line("update settings persisted");
+        tui_status_line(tui_tr("update settings persisted", "更新设置已持久化"));
         return 1;
     }
     return 0;
@@ -354,25 +379,31 @@ static int page_log_render(tui_window_t *win, int scroll) {
     char b[100];
     int row = 1 - scroll;
     int lvl = lib_log_get_level();
-    if (row >= 1) tui_print_at(row++, 2, "Logging (log.level, shared with `config set log.level N`)");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Logging (log.level, shared with `config set log.level N`)",
+                                 "日志（log.level，与 `config set log.level N` 共享）"));
     if (row >= 1) {
-        strcpy(b, "  level : ");
-        strcat(b, lvl ? "1 (quiet: only failures)" : "0 (default: everything)");
-        strcat(b, "   [0/1 set]");
+        strcpy(b, tui_tr("  level : ", "  级别 ："));
+        strcat(b, lvl ? tui_tr("1 (quiet: only failures)", "1（安静：仅失败）")
+                    : tui_tr("0 (default: everything)", "0（默认：全部）"));
+        strcat(b, tui_tr("   [0/1 set]", "   [0/1 设置]"));
         tui_print_at(row++, 2, b);
     }
-    if (row >= 1) tui_print_at(row++, 2, "  boot log ring : 64 lines (see `tui-sysinfo logs`)");
-    if (row >= 1) tui_print_at(row++, 2, "  rotation      : NOT BUILT (ring is fixed size, oldest dropped)");
-    if (row >= 1) tui_print_at(row++, 2, "Keys: 0 default | 1 quiet | F2 persist");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("  boot log ring : 64 lines (see `tui-sysinfo logs`)",
+                                 "  启动日志环　　：64 行（见 `tui-sysinfo logs`）"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("  rotation      : NOT BUILT (ring is fixed size, oldest dropped)",
+                                 "  轮转　　　　　：未构建（环固定大小，最旧丢弃）"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Keys: 0 default | 1 quiet | F2 persist",
+                                 "按键：0 默认 | 1 安静 | F2 持久化"));
     return row + scroll - 1;
 }
 
 static int page_log_input(int key) {
-    if (key == '0') { lib_log_set_level(0); tui_status_line("log.level = 0 (default)"); return 1; }
-    if (key == '1') { lib_log_set_level(1); tui_status_line("log.level = 1 (quiet, failures only)"); return 1; }
+    if (key == '0') { lib_log_set_level(0); tui_status_line(tui_tr("log.level = 0 (default)", "log.level = 0（默认）")); return 1; }
+    if (key == '1') { lib_log_set_level(1); tui_status_line(tui_tr("log.level = 1 (quiet, failures only)",
+                                                    "log.level = 1（安静，仅失败）")); return 1; }
     if (key == TUI_KEY_F(2)) {
         sys_write_cfg("log.level", lib_log_get_level() ? "1" : "0");
-        tui_status_line("log.level persisted");
+        tui_status_line(tui_tr("log.level persisted", "log.level 已持久化"));
         return 1;
     }
     return 0;
@@ -387,14 +418,15 @@ static int page_tui_render(tui_window_t *win, int scroll) {
     tui_themeext_t th[8];
     int n = tui_theme_list(th, 8);
     const char *cur = tui_theme_current();
-    if (row >= 1) tui_print_at(row++, 2, "TUI look & feel (theme registry, tui_ext 7.5)");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("TUI look & feel (theme registry, tui_ext 7.5)",
+                                 "TUI 外观（主题注册表，tui_ext 7.5）"));
     if (row >= 1) {
-        strcpy(b, "  current theme : ");
-        strcat(b, cur[0] ? cur : "default");
-        strcat(b, "   [t: next theme]");
+        strcpy(b, tui_tr("  current theme : ", "  当前主题　　　："));
+        strcat(b, cur[0] ? cur : tui_tr("default", "默认"));
+        strcat(b, tui_tr("   [t: next theme]", "   [t: 下一个主题]"));
         tui_print_at(row++, 2, b);
     }
-    if (row >= 1) tui_print_at(row++, 2, "  registered themes:");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("  registered themes:", "  已注册主题："));
     for (int i = 0; i < n && row >= 1; i++) {
         strcpy(b, "    - ");
         strcat(b, th[i].name);
@@ -402,15 +434,18 @@ static int page_tui_render(tui_window_t *win, int scroll) {
         {
             char m[8];
             u64_to_str((u64)th[i].fg, m); strcat(b, m);
-            strcat(b, " on ");
+            strcat(b, tui_tr(" on ", " 配 "));
             u64_to_str((u64)th[i].bg, m); strcat(b, m);
         }
         strcat(b, ") ");
         strcat(b, th[i].desc);
         tui_print_at(row++, 2, b);
     }
-    if (row >= 1) tui_print_at(row++, 2, "  backend/font   : fb 8x16 cells (fixed); serial backend via tui.backend");
-    if (row >= 1) tui_print_at(row++, 2, "Keys: t cycle themes (applies live) | F2 persist theme");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr(
+        "  backend/font   : fb 8x16 cells (fixed); serial backend via tui.backend",
+        "  后端/字体　　　：fb 8×16 单元（固定）；串口后端经 tui.backend"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Keys: t cycle themes (applies live) | F2 persist theme",
+                                 "按键：t 循环主题（实时生效）| F2 持久化主题"));
     return row + scroll - 1;
 }
 
@@ -418,21 +453,21 @@ static int page_tui_input(int key) {
     if (key == 't') {
         tui_themeext_t th[8];
         int n = tui_theme_list(th, 8);
-        if (n <= 0) { tui_status_line("no themes registered"); return 1; }
+        if (n <= 0) { tui_status_line(tui_tr("no themes registered", "无已注册主题")); return 1; }
         const char *cur = tui_theme_current();
         int pick = 0;
         for (int i = 0; i < n; i++)
             if (strcmp(th[i].name, cur) == 0) pick = (i + 1) % n;
         tui_theme_set(th[pick].name);
         char sb[80]; strcpy(sb, "theme = "); strcat(sb, th[pick].name);
-        strcat(sb, " (F2 persists)");
+        strcat(sb, tui_tr(" (F2 persists)", "（F2 持久化）"));
         tui_status_line(sb);
         return 1;
     }
     if (key == TUI_KEY_F(2)) {
         const char *cur = tui_theme_current();
         if (cur[0]) sys_write_cfg("tui.theme", cur);
-        tui_status_line("tui.theme persisted");
+        tui_status_line(tui_tr("tui.theme persisted", "tui.theme 已持久化"));
         return 1;
     }
     return 0;
@@ -442,7 +477,8 @@ static int page_tui_input(int key) {
 
 static int host_persist_action(void) {
     lib_config_write("log.level", lib_log_get_level() ? "1" : "0");
-    tui_status_line("settings persisted to /etc/opencube.conf");
+    tui_status_line(tui_tr("settings persisted to /etc/opencube.conf",
+                             "设置已持久化到 /etc/opencube.conf"));
     return 0;
 }
 

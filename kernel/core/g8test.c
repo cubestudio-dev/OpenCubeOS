@@ -203,18 +203,25 @@ static void g8_test_rtc_live(void) {
  * ================================================================ */
 
 #define G8_RAM_SECTORS 64
-static u8  g8_ramdisk[G8_RAM_SECTORS * 512];
+/* WP-10-tui-native: the 32 KiB test ramdisk moved from .bss to a lazy
+ * kmalloc (the linker identity-window ASSERT needs the headroom for the
+ * native desktop apps; the kernel image must stay below 0x400000).
+ * Allocated in g8_test_flush_blk(), freed after the device is
+ * unregistered - the ops callbacks only run inside that window. */
+static u8 *g8_ramdisk;
 static u64 g8_ram_writes;    /* raw ops->write sector count (media) */
 static u64 g8_ram_flushes;   /* ops->flush hook count */
 
 static int g8_ram_read(driver_block_device_t *d, u64 lba, u32 count, void *buf) {
     (void)d;
+    if (!g8_ramdisk) return -1;
     if (lba + count > G8_RAM_SECTORS) return -1;
     memcpy(buf, g8_ramdisk + lba * 512, (u64)count * 512);
     return 0;
 }
 static int g8_ram_write(driver_block_device_t *d, u64 lba, u32 count, const void *buf) {
     (void)d;
+    if (!g8_ramdisk) return -1;
     if (lba + count > G8_RAM_SECTORS) return -1;
     memcpy(g8_ramdisk + lba * 512, buf, (u64)count * 512);
     g8_ram_writes += count;
@@ -229,7 +236,12 @@ static void g8_test_flush_blk(void) {
     };
     g8_ram_writes = 0;
     g8_ram_flushes = 0;
-    memset(g8_ramdisk, 0, sizeof(g8_ramdisk));
+    if (!g8_ramdisk) {
+        g8_ramdisk = kmalloc((u64)G8_RAM_SECTORS * 512);
+        CHECK(g8_ramdisk != NULL, "B0 ramdisk kmalloc", "out of memory");
+        if (!g8_ramdisk) return;
+    }
+    memset(g8_ramdisk, 0, (u64)G8_RAM_SECTORS * 512);
 
     int idx = driver_block_register_device("g8ram", BLK_TYPE_VIRTIO,
                                            G8_RAM_SECTORS, 512, &ops, 0);
@@ -262,6 +274,7 @@ static void g8_test_flush_blk(void) {
           "B7 read-back through the cache returns the written data", "mismatch");
 
     driver_block_unregister_device(idx);
+    if (g8_ramdisk) { kfree(g8_ramdisk); g8_ramdisk = NULL; }
 }
 
 /* ================================================================

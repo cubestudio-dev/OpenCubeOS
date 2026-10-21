@@ -7,6 +7,7 @@
  * owner so `unregister` can never drop someone else's entry.
  */
 #include "tui_ext.h"
+#include "tui_desktop.h"   /* WP-10-tui-native: tui_tr for bilingual UI */
 #include "../kernel/lib/lib_string.h"
 #include "../kernel/mem/mem_heap.h"
 
@@ -660,7 +661,7 @@ static int  st_page_lines;
 static int  st_page_render(tui_window_t *win, int scroll) {
     (void)win;
     if (!win) return -1;
-    tui_print_at(2 + scroll, 2, "stpage body");
+    tui_print_at(2 + scroll, 2, tui_tr("stpage body", "自测页面正文"));
     st_page_lines++;
     return 1;
 }
@@ -711,12 +712,13 @@ int tui_ext_selftest(void) {
         int un = tui_menu_unregister("stmenu");
         if (dup != 0 || dup2 != -2 || !found || un != 0) {
             failed++;
-            tui_print("  menu: FAIL (");
+            tui_print(tui_tr("  menu: FAIL (", "  菜单: FAIL（"));
             u64_to_str((u64)dup, num); tui_print(num);
             u64_to_str((u64)dup2, num); tui_print(" ");
             tui_print(num); tui_print(")\n");
         } else {
-            tui_print("  menu: PASS (register/dup/list/sort/unregister)\n");
+            tui_print(tui_tr("  menu: PASS (register/dup/list/sort/unregister)\n",
+                             "  菜单: PASS（注册/重复注册/列表/排序/注销）\n"));
         }
     }
 
@@ -730,9 +732,10 @@ int tui_ext_selftest(void) {
         int un = tui_page_unregister("stpage");
         if (rc != 0 || found != 1 || !consumed || !st_page_input_seen || un != 0) {
             failed++;
-            tui_print("  page: FAIL\n");
+            tui_print(tui_tr("  page: FAIL\n", "  页面: FAIL\n"));
         } else {
-            tui_print("  page: PASS (register/render/input/unregister)\n");
+            tui_print(tui_tr("  page: PASS (register/render/input/unregister)\n",
+                             "  页面: PASS（注册/渲染/输入/注销）\n"));
         }
     }
 
@@ -746,9 +749,10 @@ int tui_ext_selftest(void) {
         int un = tui_widget_unregister("stwidget");
         if (rc != 0 || r != 1 || e != 1 || st_widget_events != 1 || un != 0) {
             failed++;
-            tui_print("  widget: FAIL\n");
+            tui_print(tui_tr("  widget: FAIL\n", "  组件: FAIL\n"));
         } else {
-            tui_print("  widget: PASS (register/render/event/unregister)\n");
+            tui_print(tui_tr("  widget: PASS (register/render/event/unregister)\n",
+                             "  组件: PASS（注册/渲染/事件/注销）\n"));
         }
     }
 
@@ -761,9 +765,10 @@ int tui_ext_selftest(void) {
         int un = tui_cmd_unregister("stcmd");
         if (rc != 0 || ex != 0 || st_cmd_ran != 1 || un != 0) {
             failed++;
-            tui_print("  cmd: FAIL\n");
+            tui_print(tui_tr("  cmd: FAIL\n", "  命令: FAIL\n"));
         } else {
-            tui_print("  cmd: PASS (register/execute/unregister)\n");
+            tui_print(tui_tr("  cmd: PASS (register/execute/unregister)\n",
+                             "  命令: PASS（注册/执行/注销）\n"));
         }
     }
 
@@ -776,9 +781,10 @@ int tui_ext_selftest(void) {
         int un = tui_theme_unregister("sttheme");
         if (rc != 0 || set != 0 || back != 0 || un != 0) {
             failed++;
-            tui_print("  theme: FAIL\n");
+            tui_print(tui_tr("  theme: FAIL\n", "  主题: FAIL\n"));
         } else {
-            tui_print("  theme: PASS (register/set/unregister + restore)\n");
+            tui_print(tui_tr("  theme: PASS (register/set/unregister + restore)\n",
+                             "  主题: PASS（注册/切换/注销 + 恢复）\n"));
         }
     }
 
@@ -792,9 +798,10 @@ int tui_ext_selftest(void) {
         int un = tui_key_unregister("stkey");
         if (rc != 0 || dup != -2 || disp != 1 || st_key_hits != 1 || un != 0) {
             failed++;
-            tui_print("  key: FAIL\n");
+            tui_print(tui_tr("  key: FAIL\n", "  热键: FAIL\n"));
         } else {
-            tui_print("  key: PASS (register/conflict/dispatch/unregister)\n");
+            tui_print(tui_tr("  key: PASS (register/conflict/dispatch/unregister)\n",
+                             "  热键: PASS（注册/冲突/分发/注销）\n"));
         }
     }
 
@@ -806,19 +813,21 @@ int tui_ext_selftest(void) {
         int un = tui_event_unregister("stevent");
         if (rc != 0 || ran != 1 || st_event_hits != 1 || un != 0) {
             failed++;
-            tui_print("  event: FAIL\n");
+            tui_print(tui_tr("  event: FAIL\n", "  事件: FAIL\n"));
         } else {
-            tui_print("  event: PASS (register/dispatch/unregister)\n");
+            tui_print(tui_tr("  event: PASS (register/dispatch/unregister)\n",
+                             "  事件: PASS（注册/分发/注销）\n"));
         }
     }
 
     if (failed == 0)
-        tui_print("  tui-ext selftest: ALL PASS\n");
+        tui_print(tui_tr("  tui-ext selftest: ALL PASS\n",
+                         "  tui-ext 自测：全部通过\n"));
     else {
-        tui_print("  tui-ext selftest: ");
+        tui_print(tui_tr("  tui-ext selftest: ", "  tui-ext 自测："));
         u64_to_str((u64)failed, num);
         tui_print(num);
-        tui_print(" group(s) FAILED\n");
+        tui_print(tui_tr(" group(s) FAILED\n", " 组失败\n"));
     }
     return failed;
 }
@@ -835,66 +844,67 @@ static int page_ext_render(tui_window_t *win, int scroll) {
     (void)win;
     char b[100], n[16];
     int row = 1 - scroll;
-    if (row >= 1) tui_print_at(row++, 2, "TUI L1 extension lab (fix4 interface sets 7.1-7.7)");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("TUI L1 extension lab (fix4 interface sets 7.1-7.7)",
+                                                "TUI L1 扩展实验室（fix4 接口集 7.1-7.7）"));
     if (row >= 1) {
         char (*pages)[TUI_EXT_NAME_MAX] = 0;
         (void)pages;
-        strcpy(b, "  registries live now:");
+        strcpy(b, tui_tr("  registries live now:", "  当前活跃注册表:"));
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "    7.1 menu    entries: ");
+        strcpy(b, tui_tr("    7.1 menu    entries: ", "    7.1 菜单    条目数: "));
         tui_menuext_item_t m[TUI_EXT_MENU_MAX];
         u64_to_str((u64)tui_menu_list(m, TUI_EXT_MENU_MAX), n);
         strcat(b, n);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "    7.2 page    entries: ");
+        strcpy(b, tui_tr("    7.2 page    entries: ", "    7.2 页面    条目数: "));
         char pn[TUI_EXT_PAGE_MAX][TUI_EXT_NAME_MAX];
         u64_to_str((u64)tui_page_list(pn, TUI_EXT_PAGE_MAX), n);
         strcat(b, n);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "    7.3 widget  entries: ");
+        strcpy(b, tui_tr("    7.3 widget  entries: ", "    7.3 组件    条目数: "));
         tui_widgetext_t w[TUI_EXT_WIDGET_MAX];
         u64_to_str((u64)tui_widget_list(w, TUI_EXT_WIDGET_MAX), n);
         strcat(b, n);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "    7.4 command entries: ");
+        strcpy(b, tui_tr("    7.4 command entries: ", "    7.4 命令    条目数: "));
         tui_cmdext_t c[TUI_EXT_CMD_MAX];
         u64_to_str((u64)tui_cmd_list(c, TUI_EXT_CMD_MAX), n);
         strcat(b, n);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "    7.5 theme   entries: ");
+        strcpy(b, tui_tr("    7.5 theme   entries: ", "    7.5 主题    条目数: "));
         tui_themeext_t t[TUI_EXT_THEME_MAX];
         u64_to_str((u64)tui_theme_list(t, TUI_EXT_THEME_MAX), n);
         strcat(b, n);
-        strcat(b, "  current: ");
+        strcat(b, tui_tr("  current: ", "  当前: "));
         strcat(b, tui_theme_current()[0] ? tui_theme_current() : "(default)");
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "    7.6 hotkey  entries: ");
+        strcpy(b, tui_tr("    7.6 hotkey  entries: ", "    7.6 热键    条目数: "));
         tui_keyext_t k[TUI_EXT_KEY_MAX];
         u64_to_str((u64)tui_key_list(k, TUI_EXT_KEY_MAX), n);
         strcat(b, n);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "    7.7 event   entries: ");
+        strcpy(b, tui_tr("    7.7 event   entries: ", "    7.7 事件    条目数: "));
         tui_eventext_t e[TUI_EXT_EVENT_MAX];
         u64_to_str((u64)tui_event_list(e, TUI_EXT_EVENT_MAX), n);
         strcat(b, n);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        strcpy(b, "  registered pages:");
+        strcpy(b, tui_tr("  registered pages:", "  已注册页面:"));
         tui_print_at(row++, 2, b);
     }
     {
@@ -907,14 +917,16 @@ static int page_ext_render(tui_window_t *win, int scroll) {
         }
     }
     if (row >= 1) {
-        strcpy(b, "  last selftest: ");
+        strcpy(b, tui_tr("  last selftest: ", "  上次自测: "));
         if (ext_st_ran) {
-            if (ext_st_failed == 0) strcat(b, "ALL PASS");
-            else { u64_to_str((u64)ext_st_failed, n); strcat(b, n); strcat(b, " group(s) FAILED"); }
-        } else strcat(b, "not run yet");
+            if (ext_st_failed == 0) strcat(b, tui_tr("ALL PASS", "全部通过"));
+            else { u64_to_str((u64)ext_st_failed, n); strcat(b, n); strcat(b, tui_tr(" group(s) FAILED", " 组失败")); }
+        } else strcat(b, tui_tr("not run yet", "尚未运行"));
         tui_print_at(row++, 2, b);
     }
-    if (row >= 1) tui_print_at(row++, 2, "Keys: r run selftest | t switch theme | F5 refresh | Esc back");
+    if (row >= 1) tui_print_at(row++, 2,
+        tui_tr("Keys: r run selftest | t switch theme | F5 refresh | Esc back",
+               "按键: r 运行自测 | t 切换主题 | F5 刷新 | Esc 返回"));
     return row + scroll - 1;
 }
 
@@ -922,7 +934,8 @@ static int page_ext_input(int key) {
     if (key == 'r') {
         ext_st_failed = tui_ext_selftest();
         ext_st_ran = 1;
-        tui_status_line(ext_st_failed ? "selftest FAILED (see log)" : "selftest ALL PASS");
+        tui_status_line(ext_st_failed ? tui_tr("selftest FAILED (see log)", "自测失败（见日志）")
+                                      : tui_tr("selftest ALL PASS", "自测全部通过"));
         return 1;
     }
     if (key == 't') {
@@ -935,7 +948,7 @@ static int page_ext_input(int key) {
         for (int i = 0; i < n; i++)
             if (strcmp(t[i].name, cur) == 0) pick = (i + 1) % n;
         tui_theme_set(t[pick].name);
-        char sb[80]; strcpy(sb, "theme = "); strcat(sb, t[pick].name);
+        char sb[80]; strcpy(sb, tui_tr("theme = ", "主题 = ")); strcat(sb, t[pick].name);
         tui_status_line(sb);
         return 1;
     }

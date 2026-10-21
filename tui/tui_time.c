@@ -14,6 +14,7 @@
  * exposes - one source of truth, two frontends.
  */
 #include "tui.h"
+#include "tui_desktop.h"   /* WP-10-tui-native: tui_tr bilingual pages */
 #include "../kernel/lib/lib_string.h"
 #include "../kernel/lib/lib_config.h"
 #include "../kernel/core/core_rtc.h"
@@ -165,7 +166,8 @@ static int page_clock_render(tui_window_t *win, int scroll) {
     time_apply_offset(&utc, off, &local);
     char b[100], n[16], t[4];
     int row = 1 - scroll;
-    if (row++ >= 1) { tui_print_at(row++, 2, "Clock (read live from the CMOS RTC)"); }
+    if (row++ >= 1) { tui_print_at(row++, 2, tui_tr("Clock (read live from the CMOS RTC)",
+                                 "时钟（实时读取 CMOS RTC）")); }
     if (row >= 1) {
         b[0] = 0;
         u64_to_str((u64)utc.year, n); strcat(b, n); strcat(b, "-");
@@ -195,64 +197,71 @@ static int page_clock_render(tui_window_t *win, int scroll) {
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        b[0] = 0; strcat(b, "Unix seconds: ");
+        b[0] = 0; strcat(b, tui_tr("Unix seconds: ", "Unix 秒数："));
         u64_to_str(core_rtc_unix_now(), n); strcat(b, n);
         tui_print_at(row++, 2, b);
     }
     if (row >= 1) {
-        b[0] = 0; strcat(b, "Timezone: ");
+        b[0] = 0; strcat(b, tui_tr("Timezone: ", "时区："));
         u64_to_str((u64)(off < 0 ? -off : off), n);
         strcat(b, off < 0 ? "UTC-" : "UTC+");
         if (off < 0) strcat(b, n);
         else { char m[4]; fmt2(m, off / 60); strcat(b, m); strcat(b, ":"); fmt2(m, off % 60); strcat(b, m); }
-        strcat(b, "  (Tab -> Timezone page to change)");
+        strcat(b, tui_tr("  (Tab -> Timezone page to change)",
+                       "  （Tab -> 时区页可修改）"));
         tui_print_at(row++, 2, b);
     }
     row++;
-    if (row >= 1) tui_print_at(row++, 2, "Time sources");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr("Time sources", "时间源"));
     if (row >= 1) {
         int hpet = driver_hpet_available();
         int pmt  = driver_pmtimer_available();
         u64 hz = 0; const char *src = 0;
         int cal = driver_tsc_calibrated(&hz, &src);
         (void)cal;
-        b[0] = 0; strcat(b, "  RTC (CMOS, ports 0x70/71): active");
+        b[0] = 0; strcat(b, tui_tr("  RTC (CMOS, ports 0x70/71): active",
+                                   "  RTC（CMOS，端口 0x70/71）：活动"));
         tui_print_at(row++, 2, b);
         if (row >= 1) {
-            b[0] = 0; strcat(b, "  HPET: ");
-            strcat(b, hpet ? "available" : "not available");
+            b[0] = 0; strcat(b, tui_tr("  HPET: ", "  HPET："));
+            strcat(b, hpet ? tui_tr("available", "可用") : tui_tr("not available", "不可用"));
             if (hpet) {
                 char p[24];
                 u64_to_str((u64)driver_hpet_period_fs(), p);
-                strcat(b, "  (period "); strcat(b, p); strcat(b, " fs)");
+                strcat(b, tui_tr("  (period ", "  （周期 ")); strcat(b, p); strcat(b, tui_tr(" fs)", " 飞秒）"));
             }
             tui_print_at(row++, 2, b);
         }
         if (row >= 1) {
-            b[0] = 0; strcat(b, "  PM timer: ");
-            strcat(b, pmt ? "available" : "not available");
+            b[0] = 0; strcat(b, tui_tr("  PM timer: ", "  PM 定时器："));
+            strcat(b, pmt ? tui_tr("available", "可用") : tui_tr("not available", "不可用"));
             tui_print_at(row++, 2, b);
         }
         if (row >= 1) {
-            b[0] = 0; strcat(b, "  TSC: ");
-            strcat(b, driver_tsc_invariant() ? "invariant" : "variant");
-            strcat(b, ", calibrated: ");
+            b[0] = 0; strcat(b, tui_tr("  TSC: ", "  TSC："));
+            strcat(b, driver_tsc_invariant() ? tui_tr("invariant", "不变") : tui_tr("variant", "可变"));
+            strcat(b, tui_tr(", calibrated: ", "，校准："));
             if (src) { strcat(b, src); }
-            else strcat(b, "no");
+            else strcat(b, tui_tr("no", "未校准"));
             if (hz) {
                 char p[24];
                 u64_to_str(hz, p);
-                strcat(b, " ("); strcat(b, p); strcat(b, " Hz)");
+                strcat(b, tui_tr(" (", "（")); strcat(b, p); strcat(b, tui_tr(" Hz)", " Hz）"));
             }
             tui_print_at(row++, 2, b);
         }
         if (row >= 1) {
-            tui_print_at(row++, 2, "  NTP: not built (no NTP client in this image)");
+            tui_print_at(row++, 2, tui_tr("  NTP: not built (no NTP client in this image)",
+                                        "  NTP：未构建（本镜像无 NTP 客户端）"));
         }
         row++;
     }
-    if (row >= 1) tui_print_at(row++, 2, "Keys: Tab pages | Up/Down scroll | F5 refresh | Esc back");
-    if (row >= 1) tui_print_at(row++, 2, "Set the clock: Tab -> 'Set clock' page");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr(
+        "Keys: Tab pages | Up/Down scroll | F5 refresh | Esc back",
+        "按键：Tab 切页 | 上/下 滚动 | F5 刷新 | Esc 返回"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr(
+        "Set the clock: Tab -> 'Set clock' page",
+        "设置时钟：Tab -> “设置时钟”页"));
     return row + scroll - 1;
 }
 
@@ -276,17 +285,17 @@ static void time_form_init(tui_window_t *win) {
         core_rtc_read(&utc);
         char v[8]; char t[4];
         g_time_fields[0].y = 2; g_time_fields[0].x = 18; g_time_fields[0].width = 4;
-        g_time_fields[0].label = "Year  ";
+        g_time_fields[0].label = tui_tr("Year  ", "年 ");
         g_time_fields[1].y = 3; g_time_fields[1].x = 18; g_time_fields[1].width = 2;
-        g_time_fields[1].label = "Month ";
+        g_time_fields[1].label = tui_tr("Month ", "月 ");
         g_time_fields[2].y = 4; g_time_fields[2].x = 18; g_time_fields[2].width = 2;
-        g_time_fields[2].label = "Day   ";
+        g_time_fields[2].label = tui_tr("Day   ", "日 ");
         g_time_fields[3].y = 5; g_time_fields[3].x = 18; g_time_fields[3].width = 2;
-        g_time_fields[3].label = "Hour  ";
+        g_time_fields[3].label = tui_tr("Hour  ", "时 ");
         g_time_fields[4].y = 6; g_time_fields[4].x = 18; g_time_fields[4].width = 2;
-        g_time_fields[4].label = "Min   ";
+        g_time_fields[4].label = tui_tr("Min   ", "分 ");
         g_time_fields[5].y = 7; g_time_fields[5].x = 18; g_time_fields[5].width = 2;
-        g_time_fields[5].label = "Sec   ";
+        g_time_fields[5].label = tui_tr("Sec   ", "秒 ");
         for (int i = 0; i < 6; i++) {
             g_time_fields[i].editable = 1;
             g_time_fields[i].buffer[0] = 0;
@@ -303,7 +312,8 @@ static void time_form_init(tui_window_t *win) {
         fmt2(t, utc.second);tui_form_set_field(g_time_form, 5, t);
     }
     tui_form_post(g_time_form);
-    tui_status_line("Y-M-D H:M:S, then Enter on Sec to write the CMOS RTC");
+    tui_status_line(tui_tr("Y-M-D H:M:S, then Enter on Sec to write the CMOS RTC",
+                          "年-月-日 时:分:秒，在“秒”上按 Enter 写入 CMOS RTC"));
 }
 
 static int page_set_render(tui_window_t *win, int scroll) {
@@ -311,7 +321,9 @@ static int page_set_render(tui_window_t *win, int scroll) {
     (void)scroll;
     tui_window_clear(win);
     tui_window_focus_set(win);
-    tui_print_at(1, 2, "Write the CMOS RTC (UTC). Enter on the last field applies.");
+    tui_print_at(1, 2, tui_tr(
+        "Write the CMOS RTC (UTC). Enter on the last field applies.",
+        "写入 CMOS RTC（UTC）。在最后一格按 Enter 生效。"));
     time_form_init(win);
     tui_window_border(win, &TUI_BORDER_SINGLE);
     tui_window_refresh(win);
@@ -338,10 +350,16 @@ static int page_set_input(int key) {
         v = tui_form_field_buffer(g_time_form, 5); t.second = ti_atoi(v);
         int rc = rtc_write_time(&t);
         if (rc == 0) {
-            tui_status_line("CMOS registers written (SET-window readback ok); "
-                            "real HW counts from the new time, QEMU keeps host time");
-        } else if (rc == -2) tui_status_line("value out of range (1980-2099, valid M/D/H/M/S)");
-        else tui_status_line("RTC write failed (SET-window readback mismatch)");
+            tui_status_line(tui_tr(
+                "CMOS registers written (SET-window readback ok); "
+                "real HW counts from the new time, QEMU keeps host time",
+                "CMOS 寄存器已写入（SET 窗口回读一致）；真机从新时间计数，"
+                "QEMU 保持宿主时间"));
+        } else if (rc == -2) tui_status_line(tui_tr(
+                "value out of range (1980-2099, valid M/D/H/M/S)",
+                "数值超范围（1980-2099，有效的月/日/时/分/秒）"));
+        else tui_status_line(tui_tr("RTC write failed (SET-window readback mismatch)",
+                              "RTC 写入失败（SET 窗口回读不一致）"));
         return 1;
     }
     /* form nav/edit keys (Tab/arrows/printables/backspace) belong to
@@ -361,35 +379,45 @@ static int page_tz_render(tui_window_t *win, int scroll) {
     int off = time_tz_offset();
     char b[100], n[16];
     int row = 1 - scroll;
-    if (row >= 1) tui_print_at(row++, 2, "Timezone (persisted as tz.offset in /etc/opencube.conf)");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr(
+        "Timezone (persisted as tz.offset in /etc/opencube.conf)",
+        "时区（以 tz.offset 持久化到 /etc/opencube.conf）"));
     if (row >= 1) {
-        b[0] = 0; strcat(b, "Current offset: ");
+        b[0] = 0; strcat(b, tui_tr("Current offset: ", "当前偏移："));
         u64_to_str((u64)(off < 0 ? -off : off), n);
         if (off < 0) strcat(b, "UTC-"); else strcat(b, "UTC+");
         if (off < 0) { strcat(b, n); }
         else { char m[4]; fmt2(m, off / 60); strcat(b, m); strcat(b, ":"); fmt2(m, off % 60); strcat(b, m); }
-        strcat(b, "   ("); u64_to_str((u64)off, n); strcat(b, n); strcat(b, " minutes)");
+        strcat(b, tui_tr("   (", "   （")); u64_to_str((u64)off, n); strcat(b, n); strcat(b, tui_tr(" minutes)", " 分钟）"));
         tui_print_at(row++, 2, b);
     }
-    if (row >= 1) tui_print_at(row++, 2, "Keys: +/- one hour, [/] 15 min, s save, r reset to UTC");
-    if (row >= 1) tui_print_at(row++, 2, "Examples: Shanghai=UTC+8, Berlin=UTC+1, New York=UTC-5");
+    if (row >= 1) tui_print_at(row++, 2, tui_tr(
+        "Keys: +/- one hour, [/] 15 min, s save, r reset to UTC",
+        "按键：+/- 一小时，[/] 15 分钟，s 保存，r 重置为 UTC"));
+    if (row >= 1) tui_print_at(row++, 2, tui_tr(
+        "Examples: Shanghai=UTC+8, Berlin=UTC+1, New York=UTC-5",
+        "示例：上海=UTC+8，柏林=UTC+1，纽约=UTC-5"));
     return row + scroll - 1;
 }
 
 static int page_tz_input(int key) {
     int off = time_tz_offset();
-    if (key == '+') { time_tz_offset_set(off + 60); tui_status_line("timezone +1h (in memory, 's' persists)"); return 1; }
-    if (key == '-') { time_tz_offset_set(off - 60); tui_status_line("timezone -1h (in memory, 's' persists)"); return 1; }
+    if (key == '+') { time_tz_offset_set(off + 60); tui_status_line(tui_tr("timezone +1h (in memory, 's' persists)",
+                                                    "时区 +1 小时（内存中，按 s 持久化）")); return 1; }
+    if (key == '-') { time_tz_offset_set(off - 60); tui_status_line(tui_tr("timezone -1h (in memory, 's' persists)",
+                                                    "时区 -1 小时（内存中，按 s 持久化）")); return 1; }
     if (key == '[') { time_tz_offset_set(off - 15); return 1; }
     if (key == ']') { time_tz_offset_set(off + 15); return 1; }
-    if (key == 'r') { time_tz_offset_set(0); tui_status_line("timezone reset to UTC (in memory)"); return 1; }
+    if (key == 'r') { time_tz_offset_set(0); tui_status_line(tui_tr("timezone reset to UTC (in memory)",
+                                                    "时区已重置为 UTC（内存中）")); return 1; }
     if (key == 's') {
         char v[12];
         int a = off < 0 ? -off : off;
         if (off < 0) { v[0] = '-'; u64_to_str((u64)a, v + 1); }
         else u64_to_str((u64)a, v);
         lib_config_write("tz.offset", v);
-        tui_status_line("timezone persisted to /etc/opencube.conf");
+        tui_status_line(tui_tr("timezone persisted to /etc/opencube.conf",
+                             "时区已持久化到 /etc/opencube.conf"));
         return 1;
     }
     return 0;
