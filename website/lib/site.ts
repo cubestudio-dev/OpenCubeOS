@@ -11,23 +11,23 @@ export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-tui-qa";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-tui-native";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub WP-10-tui-unified tag + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-10-tui-qa.iso";
-export const ISO_SIZE_B = 12236800;
-export const ISO_SIZE_MB = "11.67";
+// Real assets (build/ + GitHub WP-10-tui-native tag + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-WP-10-tui-native.iso";
+export const ISO_SIZE_B = 12271616;
+export const ISO_SIZE_MB = "11.70";
 export const ISO_SHA256 =
-  "07288a6a3c9fe82c2ad5fe850f8a5d6065b1e78c7b4ae57f2feeb3c1efe312d3";
+  "f1c1ba1296223864897ef9ceef835a446a4404abfadf74af2d13379e1ae8e3e1";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-10-tui-qa-src.zip";
-export const SRC_SIZE_B = 3640406;
-export const SRC_SIZE_MB = "3.47";
+export const SRC_FILE = "opencube-WP-10-tui-native-src.zip";
+export const SRC_SIZE_B = 3703927;
+export const SRC_SIZE_MB = "3.53";
 export const SRC_SHA256 =
-  "306db2a1893d150ebe3315be65035467d4d691fa05b9816d61e797d0dccde3a5";
+  "90aa576e3bb7d9745426dad1bf6e3c8e2a74fd3fdce6f778a2c3e069f66933f6";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // NOTE: the former STATS export lived here unreferenced (A18-5): HomeView
@@ -39,8 +39,14 @@ export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 // deploy: sha256sum public/downloads/$ISO_FILE must match ISO_SHA256
 // (website/build-local.sh performs that check on every run).
 
-// WP-10-tui-qa (the QA sweep over the unified desktop) leads the user-facing list
+// WP-10-tui-native (native TUI application completion + full zh-CN
+// localization) leads the user-facing list
 export const FEATURES = [
+  {
+    name: "TUI 应用原生补全与全面中文化：原生编辑器 + 文件管理器完成体 + 交互缺陷修复",
+    tag: "WP-10-tui-native",
+    desc: "对统一桌面五大应用的自查补全轮，组 A/B/C 全部交付：组 A 原生 TUI 编辑器（tui_dt_editor.c 1089 行：多行缓冲 + 光标/剪贴板 + UTF-8 拼音 IME F4 + ^O 保存/F12 另存/重载往返，cat 逐字节 UTF-8 回读）+ 文件管理器完成体（新建/重命名/复制/移动/删除全路径 + 确认弹窗 tui_dt_confirm + 属性页 + 内置查看器 + 挂载页）；组 B 数字 1-9 快开对齐 + 焦点/生命周期修复；组 C 全局中文化扫尾（终端横幅×3、桌面初始化错误×3、扩展实验室 20 处双话）+ 交互缺陷修复（Files 删除确认取消后 break→continue，取消不再退出整个应用，与任务管理器 k 路径对齐）。新增 E2E 资产：36 检查原生 E2E（wp10_native_e2e.py 514 行，BIOS+UEFI 双固件）+ 隔离场景验证器（wp10_native_manual.py 219 行，6 项含编辑器 ASCII+CJK 全链往返/zh 终端横幅字节级/delete-cancel/tz.persist）。门禁：0E0W；回归 28/28；tui-test 93/93；原生 E2E 31/36×2（5 项长会话 QEMU 串口丢字节隔离复跑 6/6 全 PASS，内核功能无损，已固化 KNOWN_ISSUES 15.12）；73 张截图存证。140,897 行源码。",
+  },
   {
     name: "统一桌面全量质检：22 项确认修复 + 五应用深驱动 E2E + 中文渲染像素级验证",
     tag: "WP-10-tui-qa",

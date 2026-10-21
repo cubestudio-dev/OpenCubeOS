@@ -19,45 +19,47 @@ function fmtBytes(n: number): string {
 export { fmtBytes };
 
 // Current stats (same caliber as the README Stats section, re-verified at
-// Recounted at WP-10-tui-unified: 138,458 lines = the fix4-published caliber
-// (all git-tracked .c/.h/.S minus the four generated data files):
+// WP-10-tui-native: 140,897 lines = all git-tracked .c/.h/.S minus the four
+// generated data files:
 // git ls-files | grep -E '\.(c|h|S)$' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l
-// (the fix4 session recorded 135,538 with this same all-tracked command;
-// the directory-filter claim in the old comment did not match the
-// published numbers - fix3's 128,053 matched the directory-filtered
-// count exactly, fix4's 135,538 matches the all-tracked count of its
-// tag within session drift).
 // 53 syscalls via grep -c '#define SYS_' kernel/core/core_syscall.h,
-// 138 L1 interfaces (closed numbered set; the tui-unified batch added
-// module-level APIs shell_cmd_enum / user_process_kill_by_tid outside
-// the numbered registry) / 224 commands (tui-cn removed) per README +
-// docs/INTERFACES.md, 24 work packages = the latest counted total per
-// README Stats). This is the RENDERED source (HomeView imports from
+// 138 L1 interfaces (closed numbered set; the native batch touched no
+// numbered registry — tui_dt_editor and friends are application layer) /
+// 224 commands (shell/ untouched by the native batch) per README +
+// docs/INTERFACES.md, 25 work packages = the latest counted total per
+// README Stats lineage (22 at chinese_support-fix2 + tui-unified + tui-qa
+// + tui-native). This is the RENDERED source (HomeView imports from
 // here) - lib/site.ts carries the release assets.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "138,584", label: "行源码" },
+    { value: "140,897", label: "行源码" },
     { value: "138", label: "L1 扩展接口" },
     { value: "53", label: "系统调用" },
     { value: "224", label: "shell 命令" },
-    { value: "24", label: "工作包" },
+    { value: "25", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "138,584", label: "lines of source" },
+    { value: "140,897", label: "lines of source" },
     { value: "138", label: "L1 extension interfaces" },
     { value: "53", label: "system calls" },
     { value: "224", label: "shell commands" },
-    { value: "24", label: "work packages" },
+    { value: "25", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
 };
 
-// WP-10-tui-qa (the QA sweep) leads the list, then the tui-unified/fix lineage
+// WP-10-tui-native (native TUI completion + zh localization) leads the
+// list, then the tui-qa/unified/fix lineage
 export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "TUI 应用原生补全与全面中文化：原生编辑器 + 文件管理器完成体 + 交互缺陷修复",
+      tag: "WP-10-tui-native",
+      desc: "对统一桌面五大应用的自查补全轮，组 A/B/C 全部交付。组 A：原生 TUI 编辑器（1089 行：多行缓冲 + 光标/剪贴板 + F4 拼音 IME 中文输入 + ^O 保存/F12 另存/重载往返，cat 逐字节 UTF-8 回读）+ 文件管理器完成体（新建/重命名/复制/移动/删除全路径 + 确认弹窗 + 属性页 + 内置查看器 + 挂载页）。组 B：数字 1-9 快开对齐 + 焦点/生命周期修复。组 C：全局中文化扫尾（终端横幅×3、桌面初始化错误×3、扩展实验室 20 处双话）+ 交互缺陷修复（Files 删除确认取消后不再退出整个应用）。新增 E2E 资产：36 检查原生 E2E ×2 固件 + 隔离场景验证器（编辑器 ASCII+CJK 全链往返/zh 终端横幅字节级/delete-cancel/tz.persist）。门禁：0E0W；回归 28/28；tui-test 93/93；原生 E2E 31/36×2（5 项长会话 QEMU 串口丢字节隔离复跑 6/6 全 PASS，内核功能无损，KNOWN_ISSUES 15.12）；73 张截图。140,897 行源码。",
+    },
     {
       name: "统一桌面全量质检：22 项确认修复 + 五应用深驱动 E2E + 中文渲染像素级验证",
       tag: "WP-10-tui-qa",
@@ -200,6 +202,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "Native TUI application completion + full Chinese localization: native editor + file manager final form + interaction fix",
+      tag: "WP-10-tui-native",
+      desc: "A self-audit completion round over the unified desktop's five applications, groups A/B/C all delivered. Group A: the native TUI editor (1089 lines: multi-line buffer + cursor/clipboard + F4 pinyin IME for Chinese input + ^O save / F12 save-as / reload round-trip, cat reads the file back byte-exact UTF-8) and the file manager final form (create/rename/copy/move/delete full paths + confirm dialog + attributes page + built-in viewer + mounts page). Group B: digit 1-9 quick-open alignment + focus/lifetime fixes. Group C: the global Chinese-completion sweep (terminal banners x3, desktop init errors x3, extensions lab 20 strings made bilingual) plus an interaction fix (canceling the Files delete confirmation no longer exits the whole application). New E2E assets: a 36-check native E2E x both firmwares + an isolated-scenario verifier (editor ASCII+CJK full round-trip / zh terminal banner byte-level / delete-cancel / tz.persist). Gates: 0E0W; regression 28/28; tui-test 93/93; native E2E 31/36 x2 (the 5 long-session flaps all pass in isolated fresh-QEMU re-runs 6/6 - QEMU 16550 key loss under the serial TUI TX flood, kernel function intact, KNOWN_ISSUES 15.12); 73 screenshots. 140,897 lines of source.",
+    },
     {
       name: "Full QA sweep over the unified desktop: 22 confirmed fixes + deep-drive E2E + pixel-verified Chinese rendering",
       tag: "WP-10-tui-qa",

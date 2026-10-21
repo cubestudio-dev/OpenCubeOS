@@ -1,10 +1,10 @@
 {
-  "version": "WP-10-tui-qa",
-  "build": 231,
-  "time": "2026-10-20",
-  "changes": "WP-10-tui-qa full QA sweep over the unified desktop: 22 confirmed fixes across nine groups (P1 LSI SCRIPTS buffer overflow into g_exfat_dir_ops; P1 X509 root-search dangling pointer crashing modern real chains, ASAN-reproduced and re-verified against live github.io/cloudflare; inbound TCP SACK mapped; DHCP server-id; ACPI _WAK/_PTS args; exFAT FAT sizing + bounds; fsck BPB gate + honest verdicts; cn_add width + carry; Chinese twin pages revived via language-aware dispatchers; 4-deep crash guard; bt mask order; wifi device-table iteration; honest power verdicts; ush/ld_so/l1_wp8b robustness; version recompile trigger; P2 serial TUI ESC-stash flush - after any Esc every plain key lagged one behind). New assets: 34-check deep-drive E2E of the five desktop applications x2 (Files VFS ops verified by ls, real nano round-trip verified by cat, ring-3 ush contained, every panel branch, F2 live language switch) + framebuffer screenshot gate x2 with VLM-read zoomed glyphs. Gates: 0E0W, regression 28/28, tui-test 93/93 x2, TUI E2E 37/37 x2, chinese E2E 21/21 x2, deep-drive 34/34 x2, screenshot 4/4 x2, host 18/0/1, dhtest 5/5, priv_test #GP, SSH E2E 5/5, HTTPS E2E 7/7. Build 231.",
+  "version": "WP-10-tui-native",
+  "build": 234,
+  "time": "2026-10-21",
+  "changes": "WP-10-tui-native: native TUI application completion + full zh-CN localization, groups A/B/C. Group A: native TUI editor (1089 lines: multi-line buffer, cursor/clipboard, F4 pinyin IME, ^O save / F12 save-as / reload round-trip, byte-exact UTF-8 cat readback) + file manager final form (create/rename/copy/move/delete, confirm dialog, attributes, built-in viewer, mounts). Group B: digit 1-9 quick-open alignment + focus/lifetime fixes. Group C: Chinese completion sweep (terminal banners x3, desktop init errors x3, extensions lab 20 bilingual strings) + interaction fix (canceling the Files delete confirmation no longer exits the whole app). New E2E assets: 36-check native E2E x BIOS/UEFI + isolated-scenario verifier (editor ASCII+CJK full round-trip, zh terminal banner byte-level, delete-cancel, tz.persist). Gates: 0E0W, regression 28/28, tui-test 93/93, native E2E 31/36 x2 (the 5 long-session flaps all pass in isolated fresh-QEMU re-runs 6/6 - QEMU 16550 key loss under the serial TUI TX flood, kernel intact, KNOWN_ISSUES 15.12), 73 screenshots. Build 234.",
   "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-tui-qa-update.tar.gz",
-  "package_sha256": "beab4328958beaf421aaba1a01ab82f686b86797fec5e652e0fc2ce1eccaa7a0",
-  "package_size": 1020034
+  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-10-tui-native-update.tar.gz",
+  "package_sha256": "18f6d311c0b97290034b9f135e25d09005eb4b3267072a7a24b046acf261a4ef",
+  "package_size": 1038103
 }
