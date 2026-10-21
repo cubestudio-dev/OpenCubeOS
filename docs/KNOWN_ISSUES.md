@@ -970,3 +970,24 @@ and the Time (`tui-time`) / System Settings (`tui-sys`) / Extension
 lab (`tui-ext`) classic pages (~200 strings). These are honest
 coverage gaps recorded for the next language batch, not silent
 failures.
+
+### 15.12 E2E long-session key loss in the QEMU 16550 model (2026-10-21, WP-10-tui-native)
+The full-journey E2E suites (tools/wp10_native_e2e.py) boot once and
+drive 36 checks through a single serial console session. After the
+serial TUI backend's ~590 B/s polled TX flood has been running for a
+while, the QEMU 16550 model starts dropping host->guest key bytes
+(verified by a temporary in-kernel DBG tracing keycodes and RX bytes
+- the DBG code was removed afterwards): exactly 5 of 36 checks fail
+in that window, identically on BIOS and UEFI boots (31/36 both) -
+Files delete-cancel readback, Editor ascii cat readback, Editor CJK
+cat readback, ush cat CJK, and the zh terminal banner check. All
+five pass when re-run in isolated fresh-QEMU sessions
+(tools/wp10_native_manual.py, 6/6 PASS including the full editor
+round-trip), so the kernel key path, TUI input queue and all five
+applications are functionally intact - this is a host emulation
+limit of one very long session, not a kernel defect. Key-level
+transcripts plus the isolated re-run appendix are archived as
+evidence/e2e-bios-transcript.log and evidence/e2e-uefi-transcript.log
+in the WP-10-tui-native delivery. Related to 15.9 (same 16550 model,
+opposite direction: 15.9 is guest RX losing burst host writes; this
+one is host->guest key loss under sustained guest TX flood).
