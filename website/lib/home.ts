@@ -32,19 +32,19 @@ export { fmtBytes };
 // here) - lib/site.ts carries the release assets.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "140,897", label: "行源码" },
-    { value: "138", label: "L1 扩展接口" },
+    { value: "137,495", label: "行源码" },
+    { value: "146", label: "L1 扩展接口" },
     { value: "53", label: "系统调用" },
-    { value: "224", label: "shell 命令" },
-    { value: "25", label: "工作包" },
+    { value: "226", label: "shell 命令" },
+    { value: "26", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "140,897", label: "lines of source" },
-    { value: "138", label: "L1 extension interfaces" },
+    { value: "137,495", label: "lines of source" },
+    { value: "146", label: "L1 extension interfaces" },
     { value: "53", label: "system calls" },
-    { value: "224", label: "shell commands" },
-    { value: "25", label: "work packages" },
+    { value: "226", label: "shell commands" },
+    { value: "26", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
 };
@@ -55,6 +55,11 @@ export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "崩溃恢复：统一 Panic 捕获 + 内核转储 + 崩溃日志 + 恢复策略 + 栈护栏 + SIGSEGV + TUI 隔离",
+      tag: "WP-11-crash_recovery",
+      desc: "内核崩了，系统不再彻底死透：统一 panic 路径（横幅 + 16 寄存器快照 + 调用栈回溯，串口与 VGA 红字双通道；L1 观察者链；OC_ASSERT）；内核转储持久化到 /var/crash/core.dump（无文件系统时串口十六进制输出，dumpinfo 解码）；32 项崩溃日志环 + /var/log/crash.log 持久化；HALT/REBOOT 恢复策略（QEMU 实测 panic→复位→二次启动）；软看门狗；内核栈保护页 + 调度边界检查 + KERNEL STACK OVERFLOW 归因；Ring 3 SIGSEGV 真实投递（3 次乒乓保护，run sigsegv_test/stackovf/badapp）；TUI 崩溃隔离（代码窗口内 ring-0 异常 longjmp 回存活桌面，Crash test 页一键验证）。新命令 crashtest + dumpinfo，crashlog 补全（224→226）；L1 接口 138→146。门禁（发布 ISO 实测）：WP-11 E2E 14/14；回归 28/28；dhtest；SSH 5/5；HTTPS 7/7；BIOS+UEFI；0E0W。#DF 边界如实申报（KNOWN_ISSUES 15.13）。137,495 行源码。",
+    },
     {
       name: "TUI 应用原生补全与全面中文化：原生编辑器 + 文件管理器完成体 + 交互缺陷修复",
       tag: "WP-10-tui-native",
@@ -202,6 +207,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "Crash recovery: unified panic capture + core dump + crash log + policy + stack guards + SIGSEGV + TUI containment",
+      tag: "WP-11-crash_recovery",
+      desc: "When the kernel crashes, the system no longer just dies: a unified panic path (banner + 16-GPR register snapshot + call traceback on serial AND the red VGA console; an L1 observer chain where a handler claiming recovery resumes the faulting frame; OC_ASSERT), core dumps persisted to /var/crash/core.dump (hex-dumped on serial with no filesystem; dumpinfo decodes the header), a 32-entry crash log ring flushed to /var/log/crash.log, the HALT/REBOOT policy (QEMU-verified panic -> 8042 reset -> second boot), a soft watchdog, kernel-stack guard pages + scheduler bounds checks + KERNEL STACK OVERFLOW attribution with the task name, ring-3 SIGSEGV delivery with the exact syscall-path semantics (3-delivery ping-pong guard then force-kill; run sigsegv_test / stackovf / badapp prove catch, kill and parent-wake), and TUI crash containment (a ring-0 fault inside the linker TUI code window with an active guard longjmps back to the surviving desktop - the Control Panel Crash test page triggers one on demand). New commands crashtest + dumpinfo; crashlog completed (224 -> 226); L1 interfaces 138 -> 146. Gates, measured on this exact release ISO: WP-11 E2E 14/14 (14-scenario gate, every panic variant in a fresh QEMU boot), regression 28/28, dhtest, cryptotest, SSH E2E 5/5, HTTPS E2E 7/7, BIOS + UEFI boots, 0 errors 0 warnings. The one #DF boundary is stated honestly in KNOWN_ISSUES 15.13. 137,495 lines of source.",
+    },
     {
       name: "Native TUI application completion + full Chinese localization: native editor + file manager final form + interaction fix",
       tag: "WP-10-tui-native",

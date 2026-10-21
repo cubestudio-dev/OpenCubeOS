@@ -11,23 +11,23 @@ export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-tui-native";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-11-crash_recovery";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub WP-10-tui-native tag + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-10-tui-native.iso";
-export const ISO_SIZE_B = 12271616;
-export const ISO_SIZE_MB = "11.70";
+// Real assets (build/ + GitHub WP-11-crash_recovery tag + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-WP-11-crash_recovery.iso";
+export const ISO_SIZE_B = 12294144;
+export const ISO_SIZE_MB = "11.73";
 export const ISO_SHA256 =
-  "f1c1ba1296223864897ef9ceef835a446a4404abfadf74af2d13379e1ae8e3e1";
+  "032dd175cc28b67d82bb5edf8623437d9202012e6191f86f6ce3bf4d77cf5890";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-10-tui-native-src.zip";
-export const SRC_SIZE_B = 3703927;
-export const SRC_SIZE_MB = "3.53";
+export const SRC_FILE = "opencube-WP-11-crash_recovery-src.zip";
+export const SRC_SIZE_B = 3754846;
+export const SRC_SIZE_MB = "3.58";
 export const SRC_SHA256 =
-  "90aa576e3bb7d9745426dad1bf6e3c8e2a74fd3fdce6f778a2c3e069f66933f6";
+  "40a32924e4689c7f5e8694fd6a4cc2e0c283cdc572b674191a77de515411d9a4";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // NOTE: the former STATS export lived here unreferenced (A18-5): HomeView
@@ -39,9 +39,14 @@ export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 // deploy: sha256sum public/downloads/$ISO_FILE must match ISO_SHA256
 // (website/build-local.sh performs that check on every run).
 
-// WP-10-tui-native (native TUI application completion + full zh-CN
-// localization) leads the user-facing list
+// WP-11-crash_recovery (panic capture + core dump + crash log +
+// recovery policy + stack guards + SIGSEGV + TUI containment) leads
 export const FEATURES = [
+  {
+    name: "崩溃恢复：统一 Panic 捕获 + 内核转储 + 崩溃日志 + 恢复策略 + 栈护栏 + SIGSEGV + TUI 隔离",
+    tag: "WP-11-crash_recovery",
+    desc: "内核崩了，系统不再彻底死透：统一 panic 路径（横幅 + 16 个通用寄存器快照 + 调用栈回溯，串口与 VGA 红字双通道；L1 观察者链，声称恢复即可续跑故障帧；OC_ASSERT 源）；内核转储（oc_dump_hdr_t + 寄存器块 + 内核栈窗口，启动期一次性预留，经 VFS 持久化到 /var/crash/core.dump，无文件系统时串口十六进制完整输出；dumpinfo 解码头域）；32 项崩溃日志环（向量/环/错误码/rip/rsp/cr2/任务/tid/pid + RTC 时间戳，任意故障上下文可记录，crashlog 命令 + flush 到 /var/log/crash.log）；恢复策略 HALT 安全停机 / 生产级 REBOOT（8042+0xCF9，QEMU 实测 panic→复位→二次启动）；软看门狗（1 秒 tick，启动不武装为文档化决策，crashtest wd 走真实 tick 路径）；内核栈溢出检测（每个内核线程栈底保护页 + 调度切换 rsp 边界检查 + KERNEL STACK OVERFLOW 归因含任务名）；Ring 3 SIGSEGV（投递原语与 syscall 路径完全同语义——注册处理器的故障进程先收真实信号，3 次乒乓保护后强杀，exec 重置；run sigsegv_test/stackovf/badapp 实证捕获/击杀/父唤醒）；TUI 崩溃隔离（链接期 TUI 代码窗口，窗口内 ring-0 异常 + 活跃护栏即 longjmp 回桌面而非内核 panic，控制面板→Crash test 页一键触发）。新命令 crashtest（panic/exc/pf/assert/wd/ovf/dump/policy）+ dumpinfo，crashlog 补全（224→226）；L1 接口 138→146。门禁（在本发布 ISO 上实测）：WP-11 E2E 14/14（14 场景门禁，每个 panic 变体独立全新 QEMU 启动）；回归 28/28；dhtest；cryptotest；SSH E2E 5/5；HTTPS E2E 7/7；BIOS+UEFI 启动；0 errors 0 warnings。#DF 路径边界如实申报（KNOWN_ISSUES 15.13：分派深度打印+归因+停机，不记转储/日志）。137,495 行源码。",
+  },
   {
     name: "TUI 应用原生补全与全面中文化：原生编辑器 + 文件管理器完成体 + 交互缺陷修复",
     tag: "WP-10-tui-native",
