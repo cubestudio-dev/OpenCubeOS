@@ -299,6 +299,75 @@ u64 core_syscall_exit(u64 code, u64 arg2, u64 arg3, u64 arg4) {
     return 0;
 }
 
+/* WP-11-crash_recovery 4.5: ONE signal-delivery primitive shared by
+ * the syscall-return path (P3-12, pending_signal set by sys_kill) and
+ * the ring-3 exception path (SIGSEGV on #PF/#UD/#GP/...).
+ *
+ * Preconditions (caller checked): proc is the current user process,
+ * proc->sig_handlers[sig] != NULL, proc->sig_in_progress == 0.
+ * Delivery: saves the 22-u64 frame into sig_saved_frame, marks
+ * sig_in_progress, rewrites the live frame (rip=handler, rdi=sig) and
+ * installs the BUG-0277 on-stack restorer trampoline so a plain `ret`
+ * still reaches SYS_SIGRETURN.
+ * Returns 0 on success (iretq will enter the handler), -1 when the
+ * user stack window is unusable AND the raw rip/rdi fallback could
+ * not be taken either (never happens in practice - the raw fallback
+ * has no preconditions). */
+int user_signal_deliver(user_proc_t *proc, arch_irq_frame_t *f, int sig) {
+    signal_handler_fn handler = proc->sig_handlers[sig];
+    if (!handler || sig <= 0 || sig >= NSIG) return -1;
+
+    /* Save the 22 u64 frame (r15..ss). */
+    u64 *src = (u64 *)f;
+    for (int i = 0; i < 22; i++)
+        proc->sig_saved_frame[i] = src[i];
+    proc->sig_in_progress = 1;
+    proc->pending_signal = 0;
+
+    /* Modify the live frame so iretq jumps to the handler. */
+    f->rip = (u64)(uintptr_t)handler;
+    f->rdi = (u64)sig;          /* first arg = signal number */
+    /* BUG-0277 FIX (A2-13b): place an on-stack restorer so a handler
+     * that ends with a plain `ret` still reaches SYS_SIGRETURN. The
+     * old ABI only rewrote rip/rdi and left rsp alone, so `ret` popped
+     * arbitrary interrupted-frame data as a return address and jumped
+     * into the weeds.
+     *
+     * Layout (stack grows down; everything below the interrupted rsp
+     * is fair game for signal delivery):
+     *   ret_slot = aligned(osp - 16)   <- handler's fake return
+     *                                     address, popped by `ret`
+     *   trampoline at STK_BASE+0x400  <- "mov eax,42; int 0x80"
+     * The trampoline lives at the bottom of the stack window (out of
+     * the handler's downward growth), is re-written on every delivery
+     * (idempotent, per-address-space), and only depends on pages this
+     * kernel mapped itself (the full stack window). Handlers that call
+     * SYS_SIGRETURN explicitly (the old documented ABI) keep working:
+     * the restorer is simply never executed. If the interrupted rsp is
+     * outside the stack window or the pages are not mapped, we fall
+     * back to the raw rip/rdi delivery rather than risking a kernel
+     * write to an unmapped user page. */
+    {
+        u64 osp = f->rsp;
+        u64 stk_base = USER_STACK_TOP - USER_STACK_SIZE;
+        u64 tramp = stk_base + 0x400;
+        if (osp > tramp + 0x40 && osp <= USER_STACK_TOP) {
+            u64 ret_slot = (osp - 16) & ~0xFULL;
+            u64 phys1, phys2;
+            if (mem_vmm_is_mapped(proc->as, ret_slot & ~0xFFFULL, &phys1) &&
+                mem_vmm_is_mapped(proc->as, tramp & ~0xFFFULL, &phys2)) {
+                /* mov eax,42 ; int 0x80 ; hlt (never reached) */
+                static const u8 tramp_code[8] =
+                    { 0xB8, 0x2A, 0x00, 0x00, 0x00, 0xCD, 0x80, 0xF4 };
+                memcpy((void *)(uintptr_t)tramp, tramp_code, sizeof(tramp_code));
+                memcpy((void *)(uintptr_t)ret_slot, &tramp, sizeof(tramp));
+                f->rsp = ret_slot;
+            }
+        }
+    }
+    return 0;
+}
+
 void core_syscall_dispatch(u64 *regs) {
     arch_irq_frame_t *f = (arch_irq_frame_t*)regs;
     u64 core_syscall_num = f->rax;
@@ -316,75 +385,15 @@ void core_syscall_dispatch(u64 *regs) {
         f->rax = (u64)-1;
     }
 
-    /* P3-12 FIX: Signal delivery.
-     * After the syscall returns (but before iretq), check if this
-     * process has a pending signal with a registered handler. If so:
-     *   1. Save the current IRQ frame (22 u64s) into sig_saved_frame.
-     *   2. Modify the live frame: rip = handler, rdi = signal number,
-     *      rsp = current user rsp - 128 (skip red zone) - 8 (fake
-     *      return address for the handler's `ret`). Actually we just
-     *      set rsp = current user rsp (the handler runs on the user
-     *      stack — the handler itself uses normal call/ret with its
-     *      own stack frame).
-     *   3. Clear pending_signal.
-     *   4. Set sig_in_progress = 1.
-     * When the handler calls SYS_SIGRETURN (42), sys_sigreturn
-     * restores sig_saved_frame → the original RIP/RSP/RFLAGS/
-     * registers — and iretq returns the user to where they were
-     * before the signal. */
+    /* P3-12 FIX: Signal delivery (WP-11: the body moved into
+     * user_signal_deliver() above so the ring-3 exception path can
+     * deliver SIGSEGV with the EXACT same semantics - frame save,
+     * handler entry, BUG-0277 restorer trampoline). */
     user_proc_t *proc = user_process_current();
     if (proc && proc->pending_signal > 0 && proc->pending_signal < NSIG) {
         int sig = proc->pending_signal;
-        signal_handler_fn handler = proc->sig_handlers[sig];
-        if (handler != NULL) {
-            /* Save the 22 u64 frame (r15..ss). */
-            u64 *src = regs;
-            for (int i = 0; i < 22; i++)
-                proc->sig_saved_frame[i] = src[i];
-            proc->sig_in_progress = 1;
-            proc->pending_signal = 0;
-            /* Modify the live frame so iretq jumps to the handler. */
-            f->rip = (u64)(uintptr_t)handler;
-            f->rdi = (u64)sig;          /* first arg = signal number */
-            /* BUG-0277 FIX (A2-13b): place an on-stack restorer so a
-             * handler that ends with a plain `ret` still reaches
-             * SYS_SIGRETURN. The old ABI only rewrote rip/rdi and left
-             * rsp alone, so `ret` popped arbitrary interrupted-frame
-             * data as a return address and jumped into the weeds.
-             *
-             * Layout (stack grows down; everything below the
-             * interrupted rsp is fair game for signal delivery):
-             *   ret_slot = aligned(osp - 16)   <- handler's fake return
-             *                                     address, popped by `ret`
-             *   trampoline at STK_BASE+0x400  <- "mov eax,42; int 0x80"
-             * The trampoline lives at the bottom of the stack window
-             * (out of the handler's downward growth), is re-written on
-             * every delivery (idempotent, per-address-space), and only
-             * depends on pages this kernel mapped itself (the full
-             * stack window). Handlers that call SYS_SIGRETURN
-             * explicitly (the old documented ABI) keep working: the
-             * restorer is simply never executed. If the interrupted
-             * rsp is outside the stack window or the pages are not
-             * mapped, we fall back to the raw rip/rdi delivery rather
-             * than risking a kernel write to an unmapped user page. */
-            {
-                u64 osp = f->rsp;
-                u64 stk_base = USER_STACK_TOP - USER_STACK_SIZE;
-                u64 tramp = stk_base + 0x400;
-                if (osp > tramp + 0x40 && osp <= USER_STACK_TOP) {
-                    u64 ret_slot = (osp - 16) & ~0xFULL;
-                    u64 phys1, phys2;
-                    if (mem_vmm_is_mapped(proc->as, ret_slot & ~0xFFFULL, &phys1) &&
-                        mem_vmm_is_mapped(proc->as, tramp & ~0xFFFULL, &phys2)) {
-                        /* mov eax,42 ; int 0x80 ; hlt (never reached) */
-                        static const u8 tramp_code[8] =
-                            { 0xB8, 0x2A, 0x00, 0x00, 0x00, 0xCD, 0x80, 0xF4 };
-                        memcpy((void *)(uintptr_t)tramp, tramp_code, sizeof(tramp_code));
-                        memcpy((void *)(uintptr_t)ret_slot, &tramp, sizeof(tramp));
-                        f->rsp = ret_slot;
-                    }
-                }
-            }
+        if (proc->sig_handlers[sig] != NULL && !proc->sig_in_progress) {
+            user_signal_deliver(proc, f, sig);
         }
     }
 

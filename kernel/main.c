@@ -47,6 +47,7 @@
 #include "core_sched.h"
 #include "core_sync.h"
 #include "core_usermode.h"
+#include "core_crash.h"   /* WP-11-crash_recovery */
 
 /* WP-05 headers. */
 #include "fs_vfs.h"
@@ -54,6 +55,7 @@
 #include "driver_block_ata.h"
 #include "fs_fat32.h"
 #include "shell_cmds_file.h"
+#include "shell_cmds_crash.h"   /* WP-11-crash_recovery */
 
 /* WP-06 headers. */
 #include "net_core.h"
@@ -182,6 +184,11 @@ extern const u8 userprog_sse_test[];
 extern const u64 userprog_sse_test_size;
 extern const u8 userprog_pf_test[];
 extern const u64 userprog_pf_test_size;
+/* WP-11-crash_recovery: SIGSEGV delivery + ring-3 stack overflow. */
+extern const u8 userprog_sigsegv_test[];
+extern const u64 userprog_sigsegv_test_size;
+extern const u8 userprog_stackovf[];
+extern const u64 userprog_stackovf_size;
 
 /* p1fix2 repro programs. */
 extern const u8 userprog_fdref_test[];
@@ -1413,46 +1420,6 @@ static int shell_cmd_pftest(const char *args) {
     return 0;
 }
 
-/* P4 fix: crashlog — print the last CRASH_LOG_LEN exceptions from the
- * crash log buffer (defined in exceptions.c). Lets the user review
- * exceptions even if the on-screen console has scrolled past them. */
-static int shell_cmd_crashlog(const char *args) {
-    (void)args;
-    extern char g_crash_log_count;
-    extern struct {
-        u64 vector; u64 error_code; u64 rip; u64 rsp; u64 cr2; u64 jiffies;
-    } g_crash_log[];
-    int count = (int)g_crash_log_count;
-    if (count == 0) {
-        screen_console_puts("crashlog: no exceptions recorded\n");
-        return 0;
-    }
-    char buf[160]; char n[20];
-    strcpy(buf, "crashlog: "); u64_to_str((u64)count, n);
-    strcpy(buf+strlen(buf), n);
-    strcpy(buf+strlen(buf), " entries\n"); screen_console_puts(buf);
-    for (int i = 0; i < count && i < 8; i++) {
-        strcpy(buf, "  ["); u64_to_str((u64)i, n);
-        strcpy(buf+strlen(buf), n);
-        strcpy(buf+strlen(buf), "] vec="); u64_to_str(g_crash_log[i].vector, n);
-        strcpy(buf+strlen(buf), n);
-        strcpy(buf+strlen(buf), " err=0x"); u64_to_hex(g_crash_log[i].error_code, n, 0);
-        strcpy(buf+strlen(buf), n);
-        strcpy(buf+strlen(buf), " rip=0x"); u64_to_hex(g_crash_log[i].rip, n, 0);
-        strcpy(buf+strlen(buf), n);
-        strcpy(buf+strlen(buf), " rsp=0x"); u64_to_hex(g_crash_log[i].rsp, n, 0);
-        strcpy(buf+strlen(buf), n);
-        if (g_crash_log[i].vector == 14) {
-            strcpy(buf+strlen(buf), " cr2=0x"); u64_to_hex(g_crash_log[i].cr2, n, 0);
-            strcpy(buf+strlen(buf), n);
-        }
-        strcpy(buf+strlen(buf), " @tick="); u64_to_str(g_crash_log[i].jiffies, n);
-        strcpy(buf+strlen(buf), n);
-        strcpy(buf+strlen(buf), "\n"); screen_console_puts(buf);
-    }
-    return 0;
-}
-
 /* WP-03 fix 4: cr3test - test CR3 switching.
  * Non-static (G8 batch): the regression suite's E-group drives this
  * real handler with a drained PMM (BUG-0291 probe). */
@@ -2284,7 +2251,7 @@ static int shell_cmd_l1test(const char *args) {
 /* WP-04: run - run a user program. */
 static int shell_cmd_run(const char *args) {
     if (!args[0]) {
-        screen_console_puts("usage: run <hello|badapp|priv_test|int3_user|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|g7mmap|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test|sse_test|pf_test|fdref_test|select_zero_test|g6_test|g6_exec_a|g6_exec_b|g6_oom>\n");
+        screen_console_puts("usage: run <hello|badapp|priv_test|int3_user|loop|fork_test|exec_test|pipe_test|mmap_test|mmap_multi|g7mmap|signal_test|select_test|dyn_test|dyn_hello|so_test|dlsym_test|pie_test|reloc_test|ush|mprotect_test|sse_test|pf_test|sigsegv_test|stackovf|fdref_test|select_zero_test|g6_test|g6_exec_a|g6_exec_b|g6_oom>\n");
         return 1;
     }
     const u8 *elf = NULL;
@@ -2355,6 +2322,12 @@ static int shell_cmd_run(const char *args) {
     } else if (strcmp(args, "pf_test") == 0) {
         /* BUG-0044 repro: page-fault semantics (P=1 vs growth, floor). */
         elf = userprog_pf_test; size = userprog_pf_test_size;
+    } else if (strcmp(args, "sigsegv_test") == 0) {
+        /* WP-11 4.5: ring-3 fault -> SIGSEGV delivery (handler catches). */
+        elf = userprog_sigsegv_test; size = userprog_sigsegv_test_size;
+    } else if (strcmp(args, "stackovf") == 0) {
+        /* WP-11 4.4: unbounded ring-3 recursion -> growth floor -> kill. */
+        elf = userprog_stackovf; size = userprog_stackovf_size;
     } else if (strcmp(args, "fdref_test") == 0) {
         /* BUG-0098 repro: dup2+close fd refcounting. */
         elf = userprog_fdref_test; size = userprog_fdref_test_size;
@@ -3111,6 +3084,15 @@ static void interactive_loop(void) {
 
     char line[256];
     for (;;) {
+        /* WP-11-crash_recovery: shell heartbeat. The line editor blocks
+         * in an sti/hlt key wait - a LIVE shell loops here continuously
+         * (timer ticks wake the hlt ~100 times/s), so this is the
+         * "interactive loop is responsive" signal the soft watchdog
+         * needs. (The watchdog itself starts disarmed: long synchronous
+         * commands own the shell task and cannot kick - arming it is a
+         * deliberate choice, see crashtest wd.) */
+        crash_wdt_kick();
+
         /* WP-10-chinese_support-fix4: the prompt is printed by the line
          * editor (shell_lineedit_readline syncs $PS1 and prints it as
          * part of the session), so arrow-key/history redraws keep the
@@ -3294,7 +3276,10 @@ void kmain(u64 magic, u64 mbi_phys) {
     shell_register_command_ex("syncstat", shell_cmd_syncstat, "show sync primitive stats", "WP-04");
     shell_register_command_ex("pftest", shell_cmd_pftest, "test page fault handling", "WP-04");
     shell_register_command_ex("cr3test", shell_cmd_cr3test, "test CR3 switching", "WP-04");
-    shell_register_command_ex("crashlog", shell_cmd_crashlog, "show last exception crashes", "WP-04");
+    /* WP-11-crash_recovery: crashlog completion + crashtest + dumpinfo
+     * (moved to shell/shell_cmds_crash.c - compiled for size, the
+     * 0x400000 identity window has no headroom left) */
+    shell_cmds_crash_register();
     shell_register_command_ex("heaptest", shell_cmd_heaptest, "test heap overhead with 100 allocs", "WP-04");
     shell_register_command_ex("irqabitest", shell_cmd_irqabitest, "IRQ-entry ABI regression (BUG-0137 align / BUG-0138 DF)", "WP-10-AUDIT_P2-fix1");
     shell_register_command_ex("heapbounds", shell_cmd_heapbounds, "heap bounds regression (BUG-0140 wrap / BUG-0141 ceiling)", "WP-10-AUDIT_P2-fix1");
@@ -3622,6 +3607,18 @@ void kmain(u64 magic, u64 mbi_phys) {
     /* ---- 16. Boot complete ---- */
     screen_console_putc('\n');
     OC_LOG_OK2("boot complete");
+
+    /* ---- 16a. WP-11-crash_recovery: panic infrastructure ----
+     * The core-dump buffer is allocated ONCE here - after this point
+     * kmalloc may fail or the heap may corrupt, but the panic path
+     * only ever touches the already-reserved buffer. The soft
+     * watchdog registers its 1 s tick now but starts DISARMED (long
+     * synchronous commands own the shell task and cannot kick; see
+     * crash_wdt_kick / crashtest wd). */
+    core_dump_alloc();
+    crashlog_boot_alloc();
+    crash_wdt_init();
+    OC_LOG_OK2("crash recovery armed (panic + dump + crashlog)");
 
     /* ---- 16b. WP-09-fix5: config-driven auto update check ----
      * Runs in its own kernel thread; never blocks the boot path and

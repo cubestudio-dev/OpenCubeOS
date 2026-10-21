@@ -127,6 +127,15 @@ typedef struct user_proc {
     u64 sig_saved_frame[22];
     int sig_in_progress;
 
+    /* WP-11-crash_recovery 4.5: SIGSEGV delivery guard. A handler
+     * that sigreturns back onto the SAME faulting instruction would
+     * ping-pong forever (fault -> deliver -> handler -> sigreturn ->
+     * fault ...). POSIX force-kills the second fault; we count
+     * deliveries per process and kill after 3 (plenty for a handler
+     * that fixes the mapping or exits; impossible to satisfy a
+     * genuine infinite loop). Reset to 0 on exec (new program). */
+    u32 sigsegv_delivered;
+
     /* WP-08a: fork-child state. When is_fork_child=1, the launcher
      * enters ring 3 at fork_rip/fork_rsp with fork_rax in RAX,
      * implementing true POSIX fork semantics (child continues from
@@ -216,5 +225,15 @@ u64 *user_get_current_frame(void);
 /* P3-11: Unified resource reaper — called from sys_exit2, sys_kill,
  * and exception kill. Closes all fds + destroys the user AS. */
 void user_process_reap_resources(user_proc_t *p, int exit_code);
+
+/* WP-11-crash_recovery 4.5: deliver a signal directly into a live
+ * exception frame (used by the syscall-return path for pending_signal
+ * and by arch_exc_dispatch for SIGSEGV on ring-3 faults). Caller
+ * checks: proc is current, handler registered, not already inside a
+ * handler. Returns 0 on success (iretq enters the handler).
+ * (arch_irq_frame_t is forward-declared: arch_idt.h is not included
+ * here to keep this header's include graph flat.) */
+struct arch_irq_frame;
+int user_signal_deliver(user_proc_t *proc, struct arch_irq_frame *f, int sig);
 
 #endif /* OC_USERMODE_H */

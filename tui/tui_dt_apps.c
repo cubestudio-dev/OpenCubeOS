@@ -420,3 +420,44 @@ int tui_dt_netconf_run(tui_dt_node_t *self) {
     }
     return 0;
 }
+
+/* ------------------------------------------------------------------ */
+/* WP-11-crash_recovery: crash-test page (TUI guard verification)     */
+/* ------------------------------------------------------------------ */
+
+/* Opens as a normal page, then deliberately raises a ring-0 page
+ * fault INSIDE TUI code (this function is linked into the
+ * __tui_text window - see linker.ld). The exception dispatcher sees
+ * rip within the TUI window + an active tui_dt_guard() and longjmps
+ * back to the desktop instead of a full kernel panic: the menu
+ * survives, the crash is recorded in the crashlog, and the guard
+ * toast reports the page as contained. This is the acceptance test
+ * for "a TUI sub-page crash must return to the menu, not hang". */
+int tui_dt_crashtest_run(tui_dt_node_t *self) {
+    (void)self;
+    if (tui_dt_page_open() != 0) return -1;
+    tui_print_at(1, 1, tui_tr("WP-11 crash isolation test",
+                              "WP-11 崩溃隔离测试"));
+    tui_print_at(2, 1, tui_tr("Press C to raise a ring-0 fault in this",
+                              "按 C 在本页内触发 ring-0 异常"));
+    tui_print_at(3, 1, tui_tr("page (guard must catch it). Esc quits.",
+                              "（护栏应拦截）。Esc 退出。"));
+    tui_dt_page_flush();
+    for (;;) {
+        int k = tui_getch();
+        if (k == 'c' || k == 'C') {
+            tui_print_at(5, 1, tui_tr("faulting now...",
+                                      "正在触发异常..."));
+            tui_dt_page_flush();
+            /* ring-0 NULL write: #PF with rip inside the TUI window */
+            *(volatile u64 *)0 = 0x0BADF00D0BADF00DULL;
+            /* NOT reached when the guard works */
+            tui_print_at(6, 1, tui_tr("!!! fault NOT contained (BUG)",
+                                      "!!! 异常未被隔离（BUG）"));
+            tui_dt_page_flush();
+        }
+        if (k == TUI_KEY_ESC || k == 'q') break;
+    }
+    tui_dt_page_close();
+    return 0;
+}

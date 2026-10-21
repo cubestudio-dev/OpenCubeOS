@@ -1786,6 +1786,7 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     for (int i = 0; i < NSIG; i++) proc->sig_handlers[i] = NULL;
     proc->pending_signal = 0;
     proc->sig_in_progress = 0;
+    proc->sigsegv_delivered = 0;   /* WP-11: new program, fresh guard */
 
     /* P4 fix: build a proper user stack with argc + argv[] + envp[].
      * Layout (top to bottom, RSP grows down):

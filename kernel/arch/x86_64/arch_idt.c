@@ -110,6 +110,15 @@ void arch_ist2_range(u64 *base, u64 *size) {
     *size = sizeof(g_debug_stack);
 }
 
+/* WP-11-crash_recovery: expose the IST1 panic-stack bounds so
+ * kernel_panic_frame can switch onto a FRESH stack when a #DF leaves
+ * the faulting task's own stack burned out (guard page below, return
+ * addresses overwritten by the recursion that caused it). */
+void arch_ist1_range(u64 *base, u64 *size) {
+    *base = (u64)(uintptr_t)g_panic_stack;
+    *size = sizeof(g_panic_stack);
+}
+
 /* The IDT itself. */
 static arch_idt_gate_t g_idt[OC_IDT_ENTRIES] __attribute__((aligned(4096)));
 static arch_idt_ptr_t  g_idt_ptr;

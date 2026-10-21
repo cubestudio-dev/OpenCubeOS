@@ -16,23 +16,10 @@
 #include "mem_vmm.h"
 #include "core_usermode.h"
 #include "core_sched.h"
+#include "core_crash.h"     /* WP-11: unified panic + crashlog       */
 
-/* P4 fix: crash log/dump buffer. Records the last CRASH_LOG_LEN
- * exceptions so the user can review them later (the on-screen console
- * may have scrolled past the original message). */
-#define CRASH_LOG_LEN 8
-typedef struct {
-    u64 vector;
-    u64 error_code;
-    u64 rip;
-    u64 rsp;
-    u64 cr2;       /* for #PF only; 0 otherwise */
-    u64 jiffies;   /* timer ticks at the time of the crash */
-} crash_log_entry_t;
-crash_log_entry_t g_crash_log[CRASH_LOG_LEN];
-int g_crash_log_count = 0;
-
-/* Symbol name table for vectors 0..31. */
+/* Symbol name table for vectors 0..31 (moved to core_crash.c crash_src_name
+ * for the panic banner; keep a local alias used by the ring-3 kill path) */
 static const char *arch_exc_names[32] = {
     "#DE Divide Error",
     "#DB Debug",
@@ -152,12 +139,22 @@ void arch_exc_kill_and_yield(user_proc_t *proc, u64 vec) {
     }
 
     user_process_reap_resources(proc, 128 + (int)vec);
+    /* WP-11 FIX: wake the parent (same as the main kill path above;
+     * see the comment there). */
+    if (proc->parent_tid > 0) core_kthread_wake(proc->parent_tid);
     task_t *t = core_kthread_current();
     if (t) t->state = TASK_EXITED;
     core_sched_yield();
     /* The task is EXITED; the scheduler never resumes this stack. */
     for (;;) __asm__ volatile("hlt");
 }
+
+/* WP-11: public shim onto the PROVEN serial printer (this file's
+ * ser_puts printed every exception banner since WP-02, including the
+ * #DF banner itself). The #DF panic path in core_crash.c must print
+ * through THIS printer: the -Os cr_puts variant proved unreliable in
+ * the hostile #DF context (locked up mid-word during bring-up). */
+void arch_exc_ser_puts(const char *s) { ser_puts(s); }
 
 void arch_exc_dispatch(arch_irq_frame_t *f) {
     /* P0fix2 BUG-0041 (RUN-01): guard against recursive fault handling.
@@ -169,7 +166,9 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
      * recursion: on a NESTED #PF (a fault while already handling one)
      * we report once via SERIAL ONLY (no framebuffer, no crash-log
      * write) and halt immediately.  Faults that the VMM legitimately
-     * handles (stack/heap growth) decrement the counter on resume. */
+     * handles (stack/heap growth) decrement the counter on resume.
+     * (WP-11: the nested-panic guard inside kernel_panic_frame is the
+     * second layer of the same defence.) */
     static int exc_in_pf = 0;
     int is_pf = (f->int_no == 14);
     if (is_pf && exc_in_pf) {
@@ -179,46 +178,6 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
         }
     }
     if (is_pf) exc_in_pf++;
-
-    /* P4 fix: crash log/dump. Old code only printed the exception to the
-     * serial console and framebuffer, then halted. If you missed the
-     * message (e.g. console scrolled), the diagnostic was lost.
-     *
-     * Now we keep a circular buffer of the last CRASH_LOG_LEN exceptions,
-     * recording: vector, error_code, rip, rsp, cr2 (for #PF), and the
-     * jiffies timestamp. A new `crashlog` shell command prints the buffer.
-     *
-     * The buffer is small (8 entries × 48 bytes = 384 bytes) and lives
-     * in BSS — no heap allocation, safe to use even when the heap is
-     * corrupted. */
-    extern u64 core_timer_ticks(void);  /* timer.h */
-    if (g_crash_log_count < CRASH_LOG_LEN) {
-        int i = g_crash_log_count++;
-        g_crash_log[i].vector = f->int_no;
-        g_crash_log[i].error_code = f->error_code;
-        g_crash_log[i].rip = f->rip;
-        g_crash_log[i].rsp = f->rsp;
-        g_crash_log[i].jiffies = core_timer_ticks();
-        g_crash_log[i].cr2 = 0;
-        if (f->int_no == 14 /* #PF */) {
-            __asm__ volatile("mov %%cr2, %0" : "=r"(g_crash_log[i].cr2));
-        }
-    } else {
-        /* Circular: shift everything down, append at end. */
-        for (int i = 0; i < CRASH_LOG_LEN - 1; i++) {
-            g_crash_log[i] = g_crash_log[i + 1];
-        }
-        int i = CRASH_LOG_LEN - 1;
-        g_crash_log[i].vector = f->int_no;
-        g_crash_log[i].error_code = f->error_code;
-        g_crash_log[i].rip = f->rip;
-        g_crash_log[i].rsp = f->rsp;
-        g_crash_log[i].jiffies = core_timer_ticks();
-        g_crash_log[i].cr2 = 0;
-        if (f->int_no == 14 /* #PF */) {
-            __asm__ volatile("mov %%cr2, %0" : "=r"(g_crash_log[i].cr2));
-        }
-    }
 
     /* Try L1 handlers first (most-recently-registered runs first). */
     for (int i = OC_EXC_CHAIN_LEN - 1; i >= 0; i--) {
@@ -233,14 +192,12 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
     /* Special handling for #PF (vector 14): call VMM page fault handler.
      * It may handle the fault (stack growth, heap growth, etc.) and we
      * resume. If it returns 0 (illegal), fall through to the default
-     * halt handler. */
+     * panic path. (WP-11: crashlog entries are now written only on the
+     * unhandled paths, so there is nothing to pop here.) */
     if (f->int_no == OC_EXC_PF) {
         u64 cr2;
         __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
         if (mem_vmm_handle_page_fault(cr2, f->error_code, f->rip, f->rsp)) {
-            /* P4: pop this entry from the crash log — it was handled
-             * by the L1/L0 fault handler, so it's not a crash. */
-            if (g_crash_log_count > 0) g_crash_log_count--;
             if (is_pf) exc_in_pf--;   /* P0fix2 BUG-0041: resumed */
             return;  /* fault handled, resume */
         }
@@ -250,7 +207,7 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
     u64 v = f->int_no;
     const char *name = (v < 32) ? arch_exc_names[v] : "Unknown";
 
-    ser_puts("\r\n\n*** EXCEPTION ");
+    ser_puts("\r\n*** EXCEPTION ");
     ser_dec(v);
     ser_puts(": ");
     ser_puts(name);
@@ -274,11 +231,67 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
 
     /* BUG-001 FIX: If the exception came from ring-3 (user mode), kill the
      * offending process and continue running the kernel. Only ring-0
-     * (kernel) exceptions cause a kernel halt. */
+     * (kernel) exceptions cause a kernel panic. */
     if ((f->cs & 3) == 3) {
         /* User-mode exception: kill the current user process. */
         user_proc_t *proc = user_process_current();
         if (proc) {
+            /* WP-11 4.5: SIGSEGV delivery. A user program touching
+             * illegal memory (or executing garbage) gets a REAL
+             * signal first: if it registered a SIGSEGV handler, the
+             * fault is delivered exactly like the syscall path
+             * delivers pending signals (saved frame + handler entry +
+             * restorer trampoline) and the process RESUMES in its
+             * handler. No handler (or a handler already running, or
+             * the 3-delivery ping-pong guard tripped) -> the kill
+             * path below, exactly as before. */
+            {
+                int can_deliver =
+                    (proc->sig_handlers[SIGSEGV] != NULL) &&
+                    (proc->sig_in_progress == 0) &&
+                    (proc->sigsegv_delivered < 3);
+                if (can_deliver) {
+                    proc->sigsegv_delivered++;
+                    /* record the ring-3 fault in the crash log FIRST
+                     * (same record-once rule as the kill path) */
+                    {
+                        task_t *kt = core_kthread_current();
+                        u64 cr2 = 0;
+                        if (v == 14)
+                            __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+                        crashlog_record((u32)v, f->error_code, f->rip,
+                                        f->rsp, cr2, proc->name,
+                                        kt ? kt->tid : -1, proc->pid, 3);
+                    }
+                    if (user_signal_deliver(proc, f, SIGSEGV) == 0) {
+                        ser_puts("*** SIGSEGV delivered to pid=");
+                        char num[20];
+                        u64_to_str((u64)proc->pid, num);
+                        ser_puts(num);
+                        ser_puts(" (handler will run, delivery #");
+                        u64_to_str((u64)proc->sigsegv_delivered, num);
+                        ser_puts(num);
+                        ser_puts(") - kernel continues ***\r\n");
+                        if (is_pf) exc_in_pf--;
+                        return;   /* iretq straight into the handler */
+                    }
+                    /* delivery failed (impossible in practice: the
+                     * raw rip/rdi fallback has no preconditions) -
+                     * fall through to the kill path */
+                }
+            }
+            /* WP-11: record the USER crash in the persistent crash log
+             * (ring=3) BEFORE any risky printing, same rule as the
+             * panic path. */
+            {
+                task_t *kt = core_kthread_current();
+                u64 cr2 = 0;
+                if (v == 14)
+                    __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+                crashlog_record((u32)v, f->error_code, f->rip, f->rsp,
+                                cr2, proc->name,
+                                kt ? kt->tid : -1, proc->pid, 3);
+            }
             ser_puts("*** KILLING user process (pid=");
             char num[20];
             u64_to_str((u64)proc->pid, num);
@@ -323,44 +336,113 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
              * writer that had just been killed by an exception). */
             extern void user_process_reap_resources(user_proc_t *p, int exit_code);
             user_process_reap_resources(proc, 128 + (int)v);
+            /* WP-11 FIX (found by run stackovf): the exception-kill path
+             * never woke the parent task, so a parent blocked in SYS_WAIT
+             * after a forked child CRASHED stayed asleep forever (the
+             * sys_exit2 path wakes it - sys_syscall.c:325). Same rule
+             * here, after the reap. */
+            if (proc->parent_tid > 0) core_kthread_wake(proc->parent_tid);
             task_t *t = core_kthread_current();
             if (t) t->state = TASK_EXITED;
             if (is_pf) exc_in_pf--;   /* P0fix2 BUG-0041: this stack leaves */
             core_sched_yield();
 
             /* Should not return here (core_sched_yield switches away).
-             * If it does (no other task to switch to), halt. */
+             * If it does (no other task to switch to), fall through to
+             * the ring-0 panic path below. */
         }
     }
 
-    /* Ring-0 (kernel) exception: this is a kernel panic. Halt. */
-    ser_puts("*** HALTING (kernel exception) ***\r\n");
-
-    /* Also try to print on the framebuffer in red. */
-    {
-        u32 saved_fg = screen_console_get()->fg_pixel;
-        screen_console_get()->fg_pixel = screen_fb_rgb(0xFF, 0x40, 0x40);
-        screen_console_putc('\n');
-        char line[80];
-        strcpy(line, "*** EXCEPTION ");
-        char num[20];
-        u64_to_str(v, num); strcpy(line + strlen(line), num);
-        strcpy(line + strlen(line), ": ");
-        strcpy(line + strlen(line), name);
-        strcpy(line + strlen(line), " ***");
-        screen_console_puts(line);
-        screen_console_putc('\n');
-        strcpy(line, "rip=0x");
-        u64_to_hex(f->rip, num, 16); strcpy(line + strlen(line), num);
-        strcpy(line + strlen(line), " err=0x");
-        u64_to_hex(f->error_code, num, 4); strcpy(line + strlen(line), num);
-        screen_console_puts(line);
-        screen_console_putc('\n');
-        screen_console_puts("Halting.");
-        screen_console_get()->fg_pixel = saved_fg;
+    /* ---- Ring-0 (kernel) exception = kernel panic (WP-11) ----
+     *
+     * 1. TUI CONTAINMENT: if the faulting RIP is inside the TUI code
+     *    window (linker.ld exports __tui_text_start and __tui_text_end
+     *    around the TUI objects: build/tui plus the tui_cn_* Chinese
+     *    renderers) AND a tui_dt_guard() is active on this task, the
+     *    crash is contained: record it via crash_contained(), then
+     *    tui_dt_panic() longjmps back to the guarded runner (the
+     *    desktop shows "page contained" and the menu survives).
+     *    Limited to non-IST vectors (a fault on the current task
+     *    stack is safe to abandon; vectors 1/2/3 ride IST2 and
+     *    8/18 ride IST1/IST3 - those never longjmp).
+     *
+     * 2. Otherwise: the unified panic path (core_crash.c) prints the
+     *    banner + full register snapshot + traceback, saves the core
+     *    dump, flushes the crash log and applies the policy
+     *    (HALT safe loop / REBOOT 8042+0xCF9). */
+    if ((f->cs & 3) == 0 && v != 1 && v != 2 && v != 8 && v != 18) {
+        extern char __tui_text_start[], __tui_text_end[];
+        extern int  tui_dt_guard_active(void);
+        extern void tui_dt_panic(int code) __attribute__((noreturn));
+        if (f->rip >= (u64)(uintptr_t)__tui_text_start &&
+            f->rip <  (u64)(uintptr_t)__tui_text_end &&
+            tui_dt_guard_active()) {
+            char what[48];
+            char num[8];
+            strcpy(what, "TUI page fault (");
+            u64_to_str(v, num); strcat(what, num);
+            strcat(what, ")");
+            crash_contained(what, f);
+            if (is_pf) exc_in_pf--;   /* this stack is abandoned now */
+            tui_dt_panic((int)v);     /* longjmps away - never returns */
+        }
     }
 
-    /* Disable interrupts and halt forever. */
-    __asm__ volatile("cli");
-    for (;;) __asm__ volatile("hlt");
+    {
+        char reason[112];
+        char num[12];
+        /* WP-11 4.4: name stack overflows for what they are.
+         * (a) #PF whose CR2 lands in a kthread's UNMAPPED guard page
+         *     (core_kthread_create unmaps the lowest stack page).
+         * (b) #DF with the frame RSP below the current task's stack
+         *     base: the guard-page #PF pushed its error code onto the
+         *     already-burned stack, the push itself faulted, the CPU
+         *     escalated to a Double Fault and switched to the IST1
+         *     stack - which is why the panic machinery can still run.
+         *     (Same shape as mainstream kernels: guard page ->
+         *     double fault.) */
+        const char *ovf_task = NULL;
+        const char *ovf_kind = NULL;
+        if (v == 14) {
+            u64 cr2;
+            __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+            extern task_t *core_kthread_get_task(int tid);
+            for (int ti = 1; ti < 32 && !ovf_task; ti++) {
+                task_t *tt = core_kthread_get_task(ti);
+                if (tt && tt->stack_base && tt->stack_size) {
+                    u64 base = (u64)(uintptr_t)tt->stack_base;
+                    if (cr2 >= base && cr2 < base + 4096)
+                        ovf_task = tt->name;
+                }
+            }
+            if (ovf_task) ovf_kind = "guard page hit";
+        } else if (v == 8) {
+            /* a burned stack shows either rsp BELOW the window, or an
+             * implausible garbage rsp (observed 0xFFFFFFFFFFFFF040 -
+             * the #DF frame's own slot can be nonsense) - both mean
+             * the stack was destroyed before the frame was pushed */
+            task_t *ct = core_kthread_current();
+            if (ct && ct->stack_base && ct->stack_size &&
+                (f->rsp < (u64)(uintptr_t)ct->stack_base ||
+                 f->rsp >= 0x40000000000ULL)) {
+                ovf_task = ct->name;
+                ovf_kind = "stack exhausted -> #DF";
+            }
+        }
+        if (ovf_task) {
+            strcpy(reason, "KERNEL STACK OVERFLOW (");
+            strcat(reason, ovf_kind);
+            strcat(reason, ", task=");
+            strcat(reason, ovf_task);
+            strcat(reason, ")");
+        } else {
+            strcpy(reason, "ring-0 exception ");
+            u64_to_str(v, num); strcat(reason, num);
+            strcat(reason, " (");
+            strcat(reason, name);
+            strcat(reason, ")");
+        }
+        kernel_panic_frame(reason, f);
+    }
 }
+

@@ -68,7 +68,8 @@ CHECKS = [
     # decision (222 -> 220), `lang` added (220 -> 221), fix4 added
     # tui-time/tui-drv/tui-sys/tui-ext (221 -> 225).
     # WP-10-tui-unified removed the tui-cn launcher: 225 -> 224
-    ("command count 224",        r"Total:\s*224 commands"),
+    # WP-11-crash_recovery adds crashtest + dumpinfo: 224 -> 226
+    ("command count 226",        r"Total:\s*226 commands"),
     # Baseline note (WP-10-input_chipset): accept the current tree describe
     # (fix4-2-g<sha>), the fix3-rebuild form, and the new WP-10-input_chipset
     # tag form (release builds bake the tag name verbatim).
@@ -76,11 +77,11 @@ CHECKS = [
     # WP-10-wireless_bluetooth adds the wireless_bluetooth tag form.
     # WP-10-camera_misc adds the camera_misc tag form.
     # WP-10-tui/chinese_support add their tag + describe forms.
-    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc|wireless_bluetooth|camera_misc|tui|chinese_support)"),
+    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc|wireless_bluetooth|camera_misc|tui|chinese_support)|WP-11-crash_recovery"),
     ("heaptest pass",            r"heaptest.*PASS|heap test.*PASS"),
     ("fstest pass",              r"fstest.*(PASS|OK)|VFS self-test.*PASS"),
     ("cryptotest NIST pass",     r"[Cc]rypto self-test.*pass|cryptotest.*PASS|All \d+ NIST"),
-    ("crashlog clean boot",      r"crashlog: 0 entries|crashlog: \d+ entries"),
+    ("crashlog clean boot",      r"crashlog: (no exceptions recorded|0 entries|\d+ entries)"),
     ("l1test step9 G7 suite",    r"step 9: G7 sched/sync regression"),
     ("l1test step10 G8 suite",   r"step 10: G8 clock/power/timer regression"),
     ("l1test overall PASS",      r"L1 job interface test: PASS"),

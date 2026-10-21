@@ -5,6 +5,9 @@
  * Purpose: Preemptive scheduler implementation.
  */
 #include "core_sched.h"
+#include "core_power.h"
+#include "core_crash.h"   /* WP-11: kernel_panic on stack overflow */
+#include "mem_vmm.h"      /* WP-11: guard-page unmap/remap        */
 #include "mem_pmm.h"
 #include "mem_heap.h"
 #include "lib_string.h"
@@ -337,6 +340,17 @@ tid_t core_kthread_create(void (*fn)(void *arg), void *arg, const char *name, in
     t->stack_base = (u64*)stack_phys;
     t->stack_size = (u64)OC_KTHREAD_STACK_PAGES * PMM_PAGE_SIZE;
 
+    /* WP-11-crash_recovery 4.4: KERNEL STACK GUARD PAGE. The lowest
+     * page of every kthread stack is UNMAPPED from the kernel address
+     * space at creation: a runaway recursion that burns through the
+     * 16 KiB window now hits a not-present PTE and raises #PF in
+     * ring-0 -> arch_exc_dispatch -> kernel_panic_frame with a clear
+     * reason (the dispatcher checks whether CR2 lands in a task's
+     * guard page). The frame is re-mapped in core_kthread_destroy
+     * before the PMM free so the next owner starts from a clean,
+     * fully-mapped set of pages. */
+    mem_vmm_unmap_page(mem_vmm_kernel_as(), (u64)stack_phys);
+
     /* Set up saved register state. */
     u64 *sp = (u64*)((u8*)t->stack_base + t->stack_size);
     /* Align stack: ABI requires rsp = 16n+8 at function entry.
@@ -402,6 +416,13 @@ int core_kthread_destroy(tid_t tid) {
     if (tid != (g_current ? g_current->tid : 0)) {
         g_tasks[tid].in_use = 0;
         if (g_tasks[tid].stack_base) {
+            /* WP-11: remap the guard page before freeing (see
+             * core_kthread_create) so the PMM frames handed back are
+             * fully mapped for their next owner. */
+            mem_vmm_map_page(mem_vmm_kernel_as(),
+                             (u64)(uintptr_t)g_tasks[tid].stack_base,
+                             (u64)(uintptr_t)g_tasks[tid].stack_base,
+                             VMM_FLAG_PRESENT | VMM_FLAG_WRITE);
             for (u64 f = 0; f < OC_KTHREAD_STACK_PAGES; f++)
                 mem_pmm_free_frame((u64)(uintptr_t)g_tasks[tid].stack_base + f * PMM_PAGE_SIZE);
             g_tasks[tid].stack_base = NULL;
@@ -531,6 +552,32 @@ int core_sched_task_info_get(core_sched_task_info_t *out, int max) {
 static void core_sched_switch_to(task_t *next) {
     task_t *old = g_current;
     if (old == next) return;
+
+    /* WP-11-crash_recovery 4.4: KERNEL STACK BOUNDS CHECK. The next
+     * task's saved RSP is about to be loaded by arch_context_switch;
+     * if corruption or an overflow moved it OUTSIDE the task's stack
+     * window, switching would resume execution on memory that belongs
+     * to someone else. Refuse loudly instead: panic with the task
+     * name and both bounds (this runs on the OLD task's stack, which
+     * is still valid). The idle task runs on the boot stack, not on
+     * a scheduler-allocated one - it is exempt. */
+    if (next != g_idle_task && next->stack_base && next->stack_size) {
+        u64 lo = (u64)(uintptr_t)next->stack_base;
+        u64 hi = lo + next->stack_size;
+        if (next->rsp < lo || next->rsp > hi) {
+            char reason[96]; char num[24];
+            strcpy(reason, "kernel stack bounds violated on switch (task=");
+            strcat(reason, next->name);
+            strcat(reason, ", rsp=0x");
+            u64_to_hex(next->rsp, num, 16); strcat(reason, num);
+            strcat(reason, " window=[0x");
+            u64_to_hex(lo, num, 16); strcat(reason, num);
+            strcat(reason, ",0x");
+            u64_to_hex(hi, num, 16); strcat(reason, num);
+            strcat(reason, "))");
+            kernel_panic(reason);
+        }
+    }
 
     g_total_switches++;
     next->switch_count++;
@@ -729,6 +776,12 @@ static void core_sched_reap_exited(void) {
             if (&g_tasks[t] == g_current) continue;
             /* Free the stack. */
             if (g_tasks[t].stack_base) {
+                /* WP-11: remap the guard page before freeing (see
+                 * core_kthread_create) - same as core_kthread_destroy. */
+                mem_vmm_map_page(mem_vmm_kernel_as(),
+                                 (u64)(uintptr_t)g_tasks[t].stack_base,
+                                 (u64)(uintptr_t)g_tasks[t].stack_base,
+                                 VMM_FLAG_PRESENT | VMM_FLAG_WRITE);
                 for (u64 f = 0; f < OC_KTHREAD_STACK_PAGES; f++)
                     mem_pmm_free_frame((u64)(uintptr_t)g_tasks[t].stack_base + f * PMM_PAGE_SIZE);
                 g_tasks[t].stack_base = NULL;

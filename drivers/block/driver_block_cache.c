@@ -12,7 +12,16 @@
 #include "lib_string.h"
 #include "screen_console.h"
 
-static driver_block_cache_slot_t g_cache[BLK_CACHE_SLOTS];
+/* WP-11-crash_recovery layout change (behaviour-equivalent): the slot
+ * table moved from .bss to a boot-time kmalloc block. The 0x400000
+ * identity-window had ~7 KiB of headroom left and the WP-11 crash
+ * machinery (panic path + dump + log) needed more than that, so the
+ * single largest .bss object that (a) is initialised AFTER the heap
+ * and (b) already memsets itself in driver_block_cache_init() was
+ * relocated. Every public entry keeps the EXACT semantics: NULL table
+ * = permanent miss = the callers' existing raw-I/O fallback; init
+ * still zeroes every slot and marks dev_idx = -1. */
+static driver_block_cache_slot_t *g_cache = NULL;
 static driver_block_cache_stats_t g_cache_stats;
 static u64 g_cache_clock = 0;   /* monotonic counter for LRU */
 /* BUG-0314 (A6-18): the whole cache used to be lock-free - find_slot /
@@ -27,7 +36,18 @@ static spinlock_t g_cache_lock;
 void driver_block_cache_init(void) {
     spin_init(&g_cache_lock);
     spin_lock(&g_cache_lock);
-    memset(g_cache, 0, sizeof(g_cache));
+    if (!g_cache) {
+        g_cache = kmalloc(sizeof(driver_block_cache_slot_t) * BLK_CACHE_SLOTS);
+        if (!g_cache) {
+            /* boot-time 34 KiB alloc failed: cache stays disabled.
+             * Reads/writes fall back to raw device I/O (the same path
+             * a permanent miss would take) - reported, not silent. */
+            spin_unlock(&g_cache_lock);
+            screen_console_puts("blkcache: alloc FAILED - cache disabled (raw I/O)\n");
+            return;
+        }
+    }
+    memset(g_cache, 0, sizeof(driver_block_cache_slot_t) * BLK_CACHE_SLOTS);
     memset(&g_cache_stats, 0, sizeof(g_cache_stats));
     for (int i = 0; i < BLK_CACHE_SLOTS; i++) g_cache[i].dev_idx = -1;
     g_cache_clock = 0;
@@ -80,6 +100,7 @@ static int pick_victim(void) {
 }
 
 int driver_block_cache_read(int dev_idx, u64 lba, void *buf) {
+    if (!g_cache) return -1;   /* disabled: permanent miss */
     spin_lock(&g_cache_lock);
     int s = find_slot(dev_idx, lba);
     if (s < 0) {
@@ -96,6 +117,11 @@ int driver_block_cache_read(int dev_idx, u64 lba, void *buf) {
 }
 
 int driver_block_cache_write(int dev_idx, u64 lba, const void *buf) {
+    if (!g_cache) {
+        /* disabled: write-through to the device, same as a failed
+         * victim reclaim below */
+        return driver_block_write_sectors_raw(dev_idx, lba, 1, buf);
+    }
     spin_lock(&g_cache_lock);
     int s = find_slot(dev_idx, lba);
     if (s < 0) {
@@ -121,6 +147,7 @@ int driver_block_cache_write(int dev_idx, u64 lba, const void *buf) {
 }
 
 int driver_block_cache_insert(int dev_idx, u64 lba, const void *buf) {
+    if (!g_cache) return -1;   /* disabled: not cached */
     spin_lock(&g_cache_lock);
     int s = find_slot(dev_idx, lba);
     if (s < 0) {
@@ -144,6 +171,7 @@ int driver_block_cache_insert(int dev_idx, u64 lba, const void *buf) {
 }
 
 int driver_block_cache_flush_dev(int dev_idx) {
+    if (!g_cache) return 0;    /* disabled: nothing dirty */
     spin_lock(&g_cache_lock);
     for (int i = 0; i < BLK_CACHE_SLOTS; i++) {
         if (g_cache[i].dev_idx == dev_idx && g_cache[i].dirty) {
@@ -160,6 +188,7 @@ int driver_block_cache_flush_dev(int dev_idx) {
 }
 
 int driver_block_cache_flush(void) {
+    if (!g_cache) return 0;    /* disabled: nothing dirty */
     spin_lock(&g_cache_lock);
     for (int i = 0; i < BLK_CACHE_SLOTS; i++) {
         if (g_cache[i].dev_idx != -1 && g_cache[i].dirty) {

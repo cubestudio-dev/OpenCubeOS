@@ -35,6 +35,18 @@ SECTIONS
     } :boot
 
     .text : {
+        /* WP-11-crash_recovery: the TUI code window. Every .text byte
+         * of build/tui/*.o and build/chinese/tui_cn_*.o lands between
+         * __tui_text_start and __tui_text_end so the exception
+         * dispatcher can decide "this ring-0 fault happened INSIDE a
+         * TUI page" and route it to the tui_dt_guard() longjmp fence
+         * instead of a full kernel panic. The glob matches the
+         * absolute object paths the Makefile feeds to ld. */
+        __tui_text_start = .;
+        */tui/tui_*.o(.text .text.*)
+        */tui_cn_*.o(.text .text.*)
+        __tui_text_end = .;
+
         *(.text .text.*)
     } :boot
 

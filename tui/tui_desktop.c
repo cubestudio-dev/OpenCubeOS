@@ -96,6 +96,14 @@ void tui_dt_panic(int code) {
     /* no active guard: harmless - the caller returns normally */
 }
 
+/* WP-11-crash_recovery: asked by the exception dispatcher (ring-0
+ * fault path) BEFORE deciding between the TUI fence and a real
+ * kernel panic. 1 = some tui_dt_guard() frame is live on this task,
+ * so tui_dt_panic() would longjmp somewhere useful. */
+int tui_dt_guard_active(void) {
+    return g_guard_depth > 0 ? 1 : 0;
+}
+
 int tui_dt_guard(int (*fn)(tui_dt_node_t *), tui_dt_node_t *self) {
     int level, rc;
     if (!fn) return -1;
@@ -105,6 +113,15 @@ int tui_dt_guard(int (*fn)(tui_dt_node_t *), tui_dt_node_t *self) {
         rc = fn(self);
     } else {
         rc = -1000;   /* escaped via tui_dt_panic */
+        /* WP-11-crash_recovery: we arrived from the MIDDLE of an
+         * exception handler (arch_exc_dispatch -> tui_dt_panic).
+         * The exception cleared the IF flag on entry and no iretq will
+         * ever restore it - this frame would run with interrupts
+         * disabled forever and the very next hlt-based key wait would
+         * freeze the desktop. Re-enable them HERE: the guard runs in
+         * normal (interrupts-on) desktop context, so sti restores the
+         * pre-fault state. */
+        __asm__ volatile("sti");
     }
     g_guard_depth--;
     return rc;
@@ -467,6 +484,7 @@ static void dt_print_at(int row, int col, const char *s) {
 int tui_dt_help_page_run(tui_dt_node_t *self);
 int tui_dt_cmdbridge_run(tui_dt_node_t *self);
 int tui_dt_lang_run(tui_dt_node_t *self);
+int tui_dt_crashtest_run(tui_dt_node_t *self);   /* WP-11 */
 int tui_dt_update_run(tui_dt_node_t *self);
 int tui_dt_disk_detail_run(tui_dt_node_t *self);
 int tui_dt_disks_populate(tui_dt_node_t *self);
@@ -957,6 +975,15 @@ void tui_dt_bootstrap(void) {
     dt_add("panel.st", "panel.st.fsck", "fsck", "fsck",
            "filesystem check (runs: fsck)", "\xe6\x96\x87\xe4\xbb\xb6\xe7\xb3\xbb\xe7\xbb\x9f\xe6\xa3\x80\xe6\x9f\xa5\xef\xbc\x88" "fsck\xef\xbc\x89",
            "   ", TUI_DT_SHELL, NULL, NULL, "fsck", 30, NULL);
+
+    /* WP-11-crash_recovery: the crash-isolation proof page. Opening it
+     * and pressing C raises a REAL ring-0 page fault inside TUI code;
+     * the tui_dt_guard() fence (wired to the exception dispatcher)
+     * must longjmp back to this menu instead of a kernel panic. */
+    dt_add("panel", "panel.crash", "Crash test", "\xe5\xb4\xa9\xe6\xba\x83\xe6\xb5\x8b\xe8\xaf\x95",
+           "WP-11: verify the TUI crash guard",
+           "WP-11\uff1a\u9a8c\u8bc1 TUI \u5d29\u6e83\u62a4\u680f",
+           "[X]", TUI_DT_PAGE, tui_dt_crashtest_run, NULL, NULL, 45, NULL);
 
     /* Network: real shell commands through the bridge + wireless app */
     dt_add("panel", "panel.net", "Network", "\xe7\xbd\x91\xe7\xbb\x9c",

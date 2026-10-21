@@ -32,11 +32,11 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-10-chinese_support-fix2)
+## Stats (WP-11-crash_recovery)
 
-- **Source code**: 127,616 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs + tui + chinese, incl. headers, no docs/tools/tests, no generated files;
+- **Source code**: 137,495 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs + tui + chinese, incl. headers, no docs/tools/tests, no generated files;
   verify: `git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui|chinese)/' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l`)
-- **Work packages**: 22 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
+- **Work packages**: 23 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
   WP-10d, WP-10-wp08fix1, WP-10-input_chipset, WP-10-timer_rtc,
   WP-10-wireless_bluetooth, WP-10-camera_misc, WP-10-tui,
   WP-10-chinese_support, WP-10-chinese_support-fix2) — one `## WP-*` section
@@ -50,8 +50,9 @@ Licensed under the Apache License, Version 2.0.
   / fix5 (fix5 untagged).  WP-10-input_chipset is the 16th,
   WP-10-timer_rtc the 17th, WP-10-wireless_bluetooth the 18th,
   WP-10-camera_misc the 19th, WP-10-tui the 20th,
-  WP-10-chinese_support the 21st and
-  WP-10-chinese_support-fix2 the 22nd work package
+  WP-10-chinese_support the 21st,
+  WP-10-chinese_support-fix2 the 22nd and WP-11-crash_recovery the
+  23rd work package
   (counted above), not
   auxiliary batches.
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
@@ -59,7 +60,7 @@ Licensed under the Apache License, Version 2.0.
   to a disk and write the GRUB BIOS boot loader entirely from the oc>
   shell (no host tools; the kernel payload travels with the boot media as
   a multiboot2 module).
-- **L1 extension interfaces**: 138 (57 through WP-09 + 8 WP-10a items:
+- **L1 extension interfaces**: 146 (57 through WP-09 + 8 WP-10a items:
   driver_block_register / driver_block_read / driver_block_write / driver_block_flush (+ driver_block_set_ops),
   driver_block_ahci_init(driver_pci_dev), driver_block_nvme_init(driver_pci_dev), driver_block_ata_dma_init(driver_pci_dev),
   + 13 WP-10b items:
@@ -88,9 +89,13 @@ Licensed under the Apache License, Version 2.0.
   shell_lineedit_history_get / shell_lineedit_cursor_move /
   shell_lineedit_tab_complete / shell_lineedit_ctrlc (shell/shell_lineedit.h)
   + editor_open / editor_save / editor_close (shell/editor.h)
-  (57 + 8 + 13 + 7 + 26 + 11 + 7 + 9 = 138; plus 5 unnumbered WP-09-fix5
+  + 8 WP-11-crash_recovery items: kernel_panic_register_handler /
+  kernel_panic / core_dump_save / core_dump_read /
+  crashlog_record / crashlog_flush / crash_recovery_set_policy /
+  crash_recovery_get_policy (kernel/core/core_crash.h)
+  (57 + 8 + 13 + 7 + 26 + 11 + 7 + 9 + 8 = 146; plus 5 unnumbered WP-09-fix5
   config/check-update interfaces and 5 rule-9 self-hosting interfaces
-  outside the 1-138 numbering)
+  outside the 1-146 numbering)
 - **System calls**: 53 (verify: `grep -c '#define SYS_' kernel/core/core_syscall.h`)
 - **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
   + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
@@ -511,9 +516,16 @@ step-by-step commands with expected outputs are in
 
 ## Tests
 
-The canonical WP-09 regression is the **18/18 full QEMU suite** (boot banner,
-uname, 12 user programs, p3_test, heaptest, l1test, crashlog), executed in one
-QEMU session via `tools/qemu_runner.py`. In addition:
+The canonical regression is the **28/28 full QEMU suite** (boot banner,
+uname, 12+ user programs, p3_test, heaptest, l1test, crashlog, crypto,
+FS, G6/G7/G8), executed via `tools/run_fix4_regression.py`. The
+**WP-11 acceptance gate** is `tools/wp11_crash_e2e.py` - 14 scenarios,
+each panic variant in a fresh QEMU boot: exc self-test, badapp,
+sigsegv_test (SIGSEGV delivered + caught), stackovf (kill + parent
+wake), crashlog listing + flush + read-back, crashtest dump/dumpinfo,
+panic/exc/pf/assert/wd/ovf panic variants, the reboot policy
+(panic -> reset -> second boot) and the TUI crash containment E2E
+(tools/wp11_tui_isolation_e2e.py). In addition:
 
 - `dhtest` — 5/5 DH modexp correctness (Oakley Group 1 + group14 truth vectors
   + scale sweep 8..256 bytes + determinism).
@@ -538,9 +550,23 @@ QEMU session via `tools/qemu_runner.py`. In addition:
 
 ## Download
 
-- **Latest (WP-10-chinese_support-fix3)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-10-chinese_support-fix3) — ISO + SRC zip
-  (ISO sha256 `4220aee197338bf95e9e7d610013c1f20dade453f418c56505995877da4a7f29`,
-  SRC sha256 `0ae92515c2da6c12ac84d5f43c1e90f0726885fd669d8bb7d8a2ae81728ec50a`)
+- **Latest (WP-11-crash_recovery)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-11-crash_recovery) — ISO + SRC zip
+  (ISO sha256 `032dd175cc28b67d82bb5edf8623437d9202012e6191f86f6ce3bf4d77cf5890`,
+  SRC sha256 `40a32924e4689c7f5e8694fd6a4cc2e0c283cdc572b674191a77de515411d9a4`)
+  Batch summary: the crash-recovery layer - unified panic capture
+  (banner + 16-GPR register snapshot + call traceback, serial AND the
+  red VGA console), core dumps persisted to /var/crash/core.dump (or
+  hex-dumped on serial with no filesystem), a 32-entry crashlog ring
+  flushed to /var/log/crash.log, the HALT/REBOOT policy (QEMU-verified
+  panic -> 8042 reset -> second boot), a soft watchdog, kernel-stack
+  guard pages + scheduler bounds checks + KERNEL STACK OVERFLOW
+  attribution, ring-3 SIGSEGV delivery with a ping-pong guard, and TUI
+  sub-page crash containment (a real ring-0 fault inside a guarded TUI
+  page longjmps back to the surviving desktop). New commands crashtest
+  + dumpinfo, crashlog completed (226 total). Acceptance: WP-11 E2E
+  14/14 on this exact ISO, regression 28/28, dhtest, cryptotest, SSH
+  E2E 5/5, HTTPS E2E 7/7, BIOS + UEFI boots. KNOWN_ISSUES 15.13
+  states the one boundary (#DF path records no dump/log entry).
   Batch summary: screenshot-driven fix batch on the chinese_support
   release — every QEMU screen was reviewed as an image (screendump ->
   PNG) and three real defects found that the ANSI/serial E2E assertions
@@ -803,6 +829,48 @@ QEMU session via `tools/qemu_runner.py`. In addition:
   #GP(0), the process dies, the kernel continues (BIOS + UEFI).
   Gates: tui-test 90/90, regression 28/28, chinese E2E 21/21 x2,
   TUI E2E 37/37 x2, 0 errors / 0 warnings.
+
+## WP-11-crash_recovery (done) - panic capture + core dump + crash log + recovery policy + stack guards + SIGSEGV + TUI containment
+
+  "When the kernel crashes, the system must not be stone dead": every
+  fatal path now captures, records, and either stops safely or
+  reboots.  kernel/core/core_crash.c/.h implements the layer: a
+  unified panic path (banner + 16-GPR register snapshot + call
+  traceback on serial AND the VGA console in red; rbp-chain traceback
+  with a labelled approximate stack scan for this O2 kernel), the
+  kernel_panic_register_handler observer chain (a handler claiming
+  recovery resumes the faulting frame), core dumps (oc_dump_hdr_t +
+  22-u64 register block + kernel-stack window, kmalloc'd once at
+  boot, persisted to /var/crash/core.dump via VFS or hex-dumped on
+  the serial line with no filesystem), a 32-entry crashlog ring
+  (vector/ring/err/rip/rsp/cr2/task/tid/pid + RTC timestamps,
+  crashlog_record from any fault context, crashlog_flush to
+  /var/log/crash.log), the post-panic policy (HALT safe loop or the
+  production 8042+0xCF9 REBOOT - QEMU-verified panic -> reset ->
+  second boot), a soft watchdog (1 s tick, boot-disarmed by documented
+  decision, crashtest wd exercises the real tick path) and OC_ASSERT.
+  Kernel-stack overflow detection: every kthread's lowest stack page
+  is an unmapped guard page, the scheduler bounds-checks the next
+  task's saved rsp before switching, and the dispatcher attributes
+  guard-page #PF / burned-rsp #DF as KERNEL STACK OVERFLOW with the
+  owning task name.  Ring-3 SIGSEGV: the P3-12 delivery primitive
+  was extracted into user_signal_deliver() so a faulting user process
+  with a registered handler gets a REAL signal (iretq straight into
+  it; 3-delivery ping-pong guard then force-kill, reset on exec);
+  run sigsegv_test / run stackovf / run badapp prove catch, kill and
+  parent-wake.  TUI crash containment: linker.ld exports the TUI code
+  window, and a ring-0 fault inside it with an active tui_dt_guard()
+  longjmps back to the desktop instead of panicking (Control Panel ->
+  Crash test page raises one on demand; the menu survives).  New
+  commands: crashtest (panic/exc/pf/assert/wd/ovf/dump/policy) and
+  dumpinfo; crashlog gained the flush subcommand + formatted output
+  (name unchanged).  Command count 224 -> 226.  Boundary, stated in
+  KNOWN_ISSUES 15.13: the #DF path itself prints + attributes + stops
+  at dispatcher depth but records no dump/log entry (destroyed-stack
+  context re-faulted every deeper continuation during bring-up).
+  Gates: WP-11 E2E 14/14 (tools/wp11_crash_e2e.py), regression 28/28,
+  dhtest, cryptotest, SSH E2E 5/5, HTTPS E2E 7/7, BIOS + UEFI boots,
+  0 errors / 0 warnings.
 
 ## License
 

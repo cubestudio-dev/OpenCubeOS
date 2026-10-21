@@ -991,3 +991,25 @@ evidence/e2e-bios-transcript.log and evidence/e2e-uefi-transcript.log
 in the WP-10-tui-native delivery. Related to 15.9 (same 16550 model,
 opposite direction: 15.9 is guest RX losing burst host writes; this
 one is host->guest key loss under sustained guest TX flood).
+
+### 15.13 #DF panic path: no core dump / crashlog entry (2026-10-21, WP-11-crash_recovery)
+The double-fault (#DF) panic path prints the banner, the KERNEL STACK
+OVERFLOW attribution and the task name, and applies the policy (HALT
+or REBOOT) entirely at exception-dispatcher depth - which is
+empirically 100% reliable (3/3 stable QEMU runs + E2E S12). It does
+NOT attempt core_dump_save / crashlog_record / the register dump /
+the traceback. Reason, found during three bring-up rounds: by the
+time a #DF fires, the faulting task's stack is destroyed (guard page
+below, return addresses overwritten) and the exception frame itself
+can carry garbage (observed rsp=0xFFFFFFFFFFFFF040, garbage int/err
+slots); every deeper continuation (a fresh IST1 stack window, the
+crashlog RTC chain, the dump's VFS/heap writes, even the -Os serial
+printer) re-faulted in that context and cascaded into nested-panic
+halts with half-printed banners. The accepted shape therefore uses
+only the primitives proven at that depth (ser_puts since WP-02,
+lib_string assembly). Impact: a stack-overflow crash still
+intercepts, attributes (task name), and stops the machine cleanly -
+but leaves no /var/crash/core.dump and no crashlog entry for that
+one source. Every other panic source (manual panic, #UD, #PF,
+assert, watchdog) saves + persists the dump and records + flushes
+the log (E2E S5/S6/S7/S8/S9/S10/S11).
