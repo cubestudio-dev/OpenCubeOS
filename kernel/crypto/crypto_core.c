@@ -490,7 +490,8 @@ static int cpu_has_rdrand(void) {
 }
 
 static int rdrand_u64(u64 *out) {
-    u32 ok;
+    u8 ok;   /* u8 + "=q": setcc needs a byte register; newer GAS rejects
+                the 32-bit register the old u32 constraint produced. */
     u64 v;
     __asm__ volatile("rdrand %0 ; setc %1" : "=r"(v), "=q"(ok) :: "cc");
     if (!ok) return 0;
