@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 cubestudio-dev <cubestudio@qq.com>
+# Open Cube OS - WP-13-build_system
+# File: .github/workflows/build.yml
+# Purpose: CI gate for every push / PR to main.  Runs the exact same
+#          make targets developers run locally (see docs/BUILD.md):
+#            make kernel            -Wall -Wextra -Werror (0 warnings gate)
+#            make iso               hybrid BIOS+UEFI bootable ISO
+#            make src-zip            deterministic source zip (git archive)
+#            make ota                OTA update package
+#            make test               host test suite (tools/run_host_tests.py)
+#            make reproducible-check two clean builds must be byte-identical
+#
+#          QEMU boot / E2E suites are NOT run here: they need the
+#          persisted /etc FAT32 volume fixture and are executed on the
+#          release host instead (see releases/notes/ in the private
+#          mirror).  This workflow gates compilation, packaging,
+#          host-side unit tests and reproducibility only.
+
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: kernel + ISO + packages (0-warning gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: "Checkout (full history + tags - git describe feeds the version banner)"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Install build dependencies (same list as tools/build.sh)"
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            gcc nasm xorriso mtools \
+            grub-common grub-pc-bin grub-efi-amd64-bin \
+            zip python3
+
+      - name: "Kernel ELF (-Wall -Wextra -Werror)"
+        run: make -j"$(nproc)" kernel
+
+      - name: Hybrid BIOS+UEFI ISO
+        run: make iso
+
+      - name: Deterministic source zip
+        run: make src-zip
+
+      - name: OTA update package
+        run: make ota
+
+      - name: Host test suite
+        run: make test
+
+      - name: Artifact digests
+        run: |
+          echo "== sha256 of every build artifact =="
+          sha256sum build/opencube.elf build/opencube.iso dist/OpenCubeOS-*.zip dist/OpenCubeOS-*-update.tar.gz
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencube-${{ github.sha }}
+          path: |
+            build/opencube.elf
+            build/opencube.iso
+            dist/OpenCubeOS-*-src-*.zip
+            dist/OpenCubeOS-*-update.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: "Reproducibility gate (two clean builds, byte-identical ELF)"
+        run: make reproducible-check
