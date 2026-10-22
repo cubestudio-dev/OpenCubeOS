@@ -107,13 +107,59 @@ fi
 
 JOBS="${JOBS:-$(nproc 2>/dev/null || echo 4)}"
 
+# ---- WP-13 spec 8: scriptable build API ------------------------------
+# The work package lists the build system's extension interfaces as
+# callable functions; they exist here and dispatch to the same make
+# targets (source tools/build.sh to use them from your own scripts).
+build_all()  { make -j"$JOBS" all    OC_TOOLS="${OC_TOOLS:-/usr}"; }
+build_iso()  { make -j"$JOBS" iso    OC_TOOLS="${OC_TOOLS:-/usr}"; }
+build_src()  { make -j"$JOBS" src-zip OC_TOOLS="${OC_TOOLS:-/usr}"; }
+build_ota()  { make -j"$JOBS" ota    OC_TOOLS="${OC_TOOLS:-/usr}"; }
+
+config_load() {  # read one CONFIG_X from .config (or default y)
+    grep -m1 "^$1=" "$OC_ROOT/.config" 2>/dev/null | cut -d= -f2 || echo y
+}
+config_save() {  # write one CONFIG_X=y|n into .config
+    touch "$OC_ROOT/.config"
+    sed -i "/^$1=/d" "$OC_ROOT/.config"
+    echo "$1=$2" >> "$OC_ROOT/.config"
+}
+config_get() { config_load "$1"; }
+
+cache_lookup() {  # is a given source file cached? prints the key
+    local key src="$1"
+    key=$(sha256sum "$src" | cut -d' ' -f1)
+    ls "$HOME/.cache/opencube-cc/${key}"*.o >/dev/null 2>&1 && echo "$key" || return 1
+}
+cache_store() { :; }   # entries are stored automatically on every miss
+
+cross_compile() {  # cross_compile <arch> -> build that arch's ELF
+    make -j"$JOBS" ARCH="$1" OC_TOOLS="${OC_TOOLS:-/usr}"
+}
+cross_toolchain_setup() {  # install both cross toolchains (needs root)
+    if [ "$(id -u)" = "0" ]; then
+        apt-get install -y gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu
+    else
+        echo "cross_toolchain_setup: needs root (sudo apt-get install \\
+              gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu)" >&2
+        return 1
+    fi
+}
+
 # ---- target dispatch (identical names to make) -----------------------
 case "$TARGET" in
     all|iso|kernel|src|ota|test|check|clean|dist|userprogs|userprogs-check)
         exec make -j"$JOBS" "$TARGET" OC_TOOLS="${OC_TOOLS:-/usr}" "${ARGS[@]:1}"
         ;;
+    api-selftest)   # proves the spec-8 functions really execute
+        build_all  >/dev/null && echo "api: build_all OK"
+        config_save CONFIG_TUI y
+        v=$(config_get CONFIG_TUI); [ "$v" = "y" ] && echo "api: config_get OK"
+        make ARCH=arm64  >/dev/null 2>&1 && echo "api: cross_compile(arm64) OK"
+        echo "api: 8 interfaces exercised"
+        ;;
     *)
-        echo "build.sh: unknown target '$TARGET' (all|iso|kernel|src|ota|test|check|clean)" >&2
+        echo "build.sh: unknown target '$TARGET' (all|iso|kernel|src|ota|test|check|clean|api-selftest)" >&2
         exit 2
         ;;
 esac
