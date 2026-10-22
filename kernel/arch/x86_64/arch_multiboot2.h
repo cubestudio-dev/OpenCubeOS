@@ -83,13 +83,26 @@ typedef struct arch_multiboot2_fb_tag {
     u8  blue_mask_size;
 } __attribute__((packed)) arch_multiboot2_fb_tag_t;
 
-/* Memory map tag (type 6). */
+/* Memory map tag (type 6). Packed like every other mb2 tag: tag starts
+ * are 8-byte aligned by the spec, but the generic tag pointer we walk
+ * with is alignment-1 (packed), so converting it to a naturally-aligned
+ * type is a type-system violation on stricter GCCs
+ * (-Waddress-of-packed-member). 4x u32 = 16 bytes, no padding either way. */
 typedef struct arch_multiboot2_mmap_tag {
     u32 type;
     u32 size;
     u32 entry_size;
     u32 entry_version;
-} arch_multiboot2_mmap_tag_t;
+} __attribute__((packed)) arch_multiboot2_mmap_tag_t;
+
+/* Basic memory info tag (type 4). type+size then u32 mem_lower / u32
+ * mem_upper (KiB). Packed for the same reason as the mmap tag. */
+typedef struct arch_multiboot2_meminfo_tag {
+    u32 type;          /* 4 */
+    u32 size;
+    u32 mem_lower;     /* KiB */
+    u32 mem_upper;     /* KiB */
+} __attribute__((packed)) arch_multiboot2_meminfo_tag_t;
 
 typedef struct arch_multiboot2_mmap_entry {
     u64 addr;

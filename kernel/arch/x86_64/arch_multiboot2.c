@@ -72,11 +72,13 @@ int arch_multiboot2_parse(arch_multiboot2_info_t* out, uintptr_t mbi_phys) {
             break;
         }
         case OC_MB2_TAG_BASIC_MEMINFO: {
-            /* type(4) + size(4), then u32 mem_lower, u32 mem_upper (in KiB) */
-            if (sz < 16) break;
-            const u32* p32 = (const u32*)tag;
-            out->mem_lower_kb = p32[2];
-            out->mem_upper_kb = p32[3];
+            /* type(4) + size(4), then u32 mem_lower, u32 mem_upper (in KiB).
+             * Read through the packed tag type: a bare u32* cast from the
+             * alignment-1 tag pointer trips -Waddress-of-packed-member. */
+            if (sz < sizeof(arch_multiboot2_meminfo_tag_t)) break;
+            const arch_multiboot2_meminfo_tag_t* mi = (const arch_multiboot2_meminfo_tag_t*)tag;
+            out->mem_lower_kb = mi->mem_lower;
+            out->mem_upper_kb = mi->mem_upper;
             break;
         }
         case OC_MB2_TAG_MODULE: {
