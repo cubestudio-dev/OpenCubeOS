@@ -92,9 +92,26 @@ def main() -> int:
         return 2
     oc_tools, base_elf, out_c = sys.argv[1], sys.argv[2], sys.argv[3]
 
-    moddir = os.path.join(oc_tools, "usr", "lib", "grub", "i386-pc")
-    grub_mkimage = os.path.join(oc_tools, "usr", "bin", "grub-mkimage")
-    for p in (os.path.join(moddir, "boot.img"), grub_mkimage, base_elf):
+    # OC_TOOLS layouts: a relocated self-contained toolchain tree carries
+    # <root>/usr/{bin,lib}/grub/..., while a system root (OC_TOOLS=/usr on
+    # CI or a distro install) carries <root>/{bin,lib}/grub/... - probe
+    # both so the same command line works everywhere.
+    layouts = [
+        (os.path.join(oc_tools, "usr", "lib", "grub", "i386-pc"),
+         os.path.join(oc_tools, "usr", "bin", "grub-mkimage")),
+        (os.path.join(oc_tools, "lib", "grub", "i386-pc"),
+         os.path.join(oc_tools, "bin", "grub-mkimage")),
+    ]
+    moddir = grub_mkimage = None
+    for m, g in layouts:
+        if os.path.exists(os.path.join(m, "boot.img")) and os.path.exists(g):
+            moddir, grub_mkimage = m, g
+            break
+    if moddir is None:
+        print(f"embed_grub: no GRUB i386-pc install under {oc_tools} "
+              f"(probed usr/lib/grub and lib/grub)", file=sys.stderr)
+        return 1
+    for p in (base_elf,):
         if not os.path.exists(p):
             print(f"embed_grub: missing {p}", file=sys.stderr)
             return 1
