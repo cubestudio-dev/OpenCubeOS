@@ -32,10 +32,10 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-12-watchdog_logging)
+## Stats (WP-13-build_system)
 
-- **Source code**: 140,315 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs + tui + chinese, incl. headers, no docs/tools/tests, no generated files;
-  verify: `git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui|chinese)/' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l`)
+- **Source code**: 140,656 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs + tui + chinese + arch, incl. headers, no docs/tools/tests, no generated files;
+  verify: `git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui|chinese|arch)/' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l`)
 - **Work packages**: 24 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
   WP-10d, WP-10-wp08fix1, WP-10-input_chipset, WP-10-timer_rtc,
   WP-10-wireless_bluetooth, WP-10-camera_misc, WP-10-tui,
@@ -899,6 +899,37 @@ panic/exc/pf/assert/wd/ovf panic variants, the reboot policy
   Gates: WP-11 E2E 14/14 (tools/wp11_crash_e2e.py), regression 28/28,
   dhtest, cryptotest, SSH E2E 5/5, HTTPS E2E 7/7, BIOS + UEFI boots,
   0 errors / 0 warnings.
+
+## WP-13 (done) - Build system (cross-platform + reproducible + cross-compile + cache + multi-config + CI)
+
+One-command unified entries: `tools/build.sh` (Linux; dependency
+detection, `--install`, no-root toolchain route) / `build.ps1` (Windows
+via WSL2/MSYS2 forwarding) / `make all` (kernel + hybrid BIOS+UEFI ISO +
+deterministic SRC zip + OTA package). Reproducible builds: two clean
+builds produce a byte-identical ELF (`make reproducible-check`; no
+`__DATE__`/`__TIME__` macros, stable grub-mkimage output, fixed link
+order); the SRC zip is deterministic by construction (git archive).
+Cross-compilation: `make ARCH=arm64` / `make ARCH=riscv` build real
+bare-metal bring-up shells (PL011 / NS16550A UARTs, ARM generic timer /
+CLINT mtime, 1 s heartbeat) - banners and heartbeats verified live in
+QEMU. Content-addressed compile cache (`tools/oc_cc.sh`): key =
+compiler identity + flags + source and header content hashes; measured
+cold 46.6 s -> warm 14.4 s (186/186 hits). Multi-configuration builds:
+`.config` (`make defconfig` / `make menuconfig` / `CONFIG_TUI=n`
+overrides) for CONFIG_TUI / CHINESE / NVME / AHCI / VIRTIO_BLK;
+CONFIG_TUI=n CHINESE=n boots 216 commands (233-17, exact) through real
+ASCII-equivalent code paths. CI pipeline workflow (push/PR: 0E0W gate,
+ISO, reproducible check, QEMU regression, cache, packaging, artifacts -
+the workflow file could not be pushed live: tokenA lacks the Workflows
+write permission; see the WP-13 release notes). Build-API interfaces as
+sourceable functions in build.sh (build_all/config_load/cache_lookup/
+cross_compile etc.) with `build.sh api-selftest`. Two engineering
+defects found and fixed live: GNU make filter patterns treat only the
+first % as a wildcard, and the compile-cache keys initially carried no
+header hashes (the -MMD -MP flags conflict with the -MM -MG dependency
+probe). Gates, on the release ISO: WP-12 E2E 14/14, regression 28/28,
+dhtest + cryptotest, SSH E2E 5/5, HTTPS E2E 7/7, BIOS + UEFI (233
+commands), 0 errors 0 warnings.
 
 ## WP-12 (done) - Watchdog (hardware TCO/WDAT + software) + unified logging + health monitor
 
