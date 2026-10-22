@@ -30,7 +30,10 @@
 #include "shell.h"
 #include "shell_lang.h"   /* fix3: bilingual help headers / system msgs */
 #include "screen_console.h"
+#include "config_gen.h"   /* WP-13 multi-config */
+#if OC_CONFIG_CHINESE
 #include "../chinese/console_cn.h"
+#endif
 #include "l1_ext.h"
 #include "mem_heap.h"
 #include "lib_string.h"

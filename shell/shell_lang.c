@@ -24,7 +24,10 @@
 #include "shell_lang.h"
 #include "../kernel/lib/lib_config.h"
 #include "../drivers/display/screen_console.h"
+#include "config_gen.h"   /* WP-13 multi-config */
+#if OC_CONFIG_CHINESE
 #include "../chinese/console_cn.h"
+#endif
 #include "../kernel/lib/lib_string.h"
 #include "version_gen.h"   /* WP-10-tui-qa: version recompile trigger (Makefile note) */
 

@@ -19,7 +19,10 @@
 #include "fs_ramfs.h"
 #include "fs_fat32.h"
 #include "screen_console.h"
+#include "config_gen.h"   /* WP-13 multi-config */
+#if OC_CONFIG_CHINESE
 #include "../chinese/console_cn.h"
+#endif
 #include "lib_string.h"
 #include "mem_heap.h"
 #include "screen_console_in.h"   /* WP-09-fix5: edit command input */

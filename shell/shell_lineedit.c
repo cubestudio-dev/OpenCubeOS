@@ -30,7 +30,10 @@
 #include "fs_vfs.h"
 #include "lib_string.h"
 #include "mem_heap.h"
+#include "config_gen.h"   /* WP-13 multi-config */
+#if OC_CONFIG_CHINESE
 #include "../chinese/console_cn.h"
+#endif
 
 /* ---- WP-10-chinese_support: UTF-8 helpers ---------------------------
  * The buffer stays BYTE oriented (UTF-8 storage); cursor movement,

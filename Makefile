@@ -5,7 +5,14 @@
 #
 # Targets:
 #   make            - build the kernel ELF (build/opencube.elf)
+#   make all        - WP-13 full pipeline: kernel + ISO + SRC zip + OTA
+#   make kernel     - kernel ELF only (the pre-WP-13 `make all` goal)
 #   make iso        - build bootable ISO (build/opencube.iso)  [BIOS + UEFI]
+#   make src-zip    - deterministic source zip (git archive; fixed order,
+#                     fixed mtimes, fixed permissions)
+#   make ota        - OTA update package (tools/make_update_pkg.sh)
+#   make reproducible-check
+#                   - WP-13: two clean builds, byte-compare the ELF
 #   make run-bios   - boot the ISO in QEMU (BIOS/SeaBIOS)
 #   make run-uefi   - boot the ISO in QEMU (UEFI/OVMF)
 #   make shot-bios  - run-bios and capture a screenshot
@@ -21,6 +28,41 @@ OC_ROOT   := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 BUILD     := $(OC_ROOT)/build
 ISO_DIR   := $(OC_ROOT)/iso
 DIST      := $(OC_ROOT)/dist
+
+# ---- WP-13-build_system: target architecture dispatch ----------------
+# ARCH selects the machine the build targets.  x86_64 (the default) is
+# the full Open Cube OS kernel; arm64 / riscv build the per-architecture
+# bring-up shells under arch/<name>/ (real bare-metal entry + UART +
+# heartbeat; the full per-arch kernels are later work packages).  The
+# x86_64 body of this Makefile is skipped entirely for cross builds.
+ARCH ?= x86_64
+ifeq ($(filter $(ARCH),x86_64 arm64 riscv),)
+$(error unsupported ARCH '$(ARCH)' - supported: x86_64 arm64 riscv)
+endif
+
+ifneq ($(ARCH),x86_64)
+# cross build: the per-arch build.mk replaces the whole x86_64 body below
+include $(OC_ROOT)/arch/$(ARCH)/build.mk
+else
+
+# ---- WP-13-build_system: multi-configuration (spec 5.7) ---------------
+# The .config file is a make fragment (CONFIG_X=y|n) written by
+# `make defconfig` or `make menuconfig`; command-line overrides win:
+#     make CONFIG_TUI=n iso
+# Dependency rule: CONFIG_CHINESE=n forces CONFIG_TUI=n (the TUI draws
+# CJK through the chinese renderer).  The generated header
+# kernel/generated/config_gen.h turns the values into OC_CONFIG_*
+# macros and stubs the optional-module APIs (see the header's stub
+# section); source call sites stay unconditional behind those macros.
+-include $(OC_ROOT)/.config
+CONFIG_TUI        ?= y
+CONFIG_CHINESE    ?= y
+CONFIG_NVME       ?= y
+CONFIG_AHCI       ?= y
+CONFIG_VIRTIO_BLK ?= y
+ifeq ($(CONFIG_CHINESE),n)
+CONFIG_TUI := n
+endif
 
 # Tools (resolved via PATH)
 CC        ?= gcc
@@ -104,6 +146,15 @@ CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
 	     -DOC_KERNEL_BUILD=$(OC_KERNEL_BUILD) \
 	     -MMD -MP
 ASFLAGS   := -f elf64 -F dwarf -g
+
+# ---- WP-13-build_system: content-addressed compile cache --------------
+# OC_CC wraps every C compile through tools/oc_cc.sh: cache key = compiler
+# identity + flags + source hash + header-content hashes (from -MM).  Hits
+# restore the .o AND .d; misses compile for real and store both.  Disable
+# with OC_CACHE_OFF=1; relocate with OC_CACHE_DIR=...; stats via
+# `make cache-stats`.  Hits are byte-identical to fresh compiles, so the
+# cache is safe for reproducible-check.
+OC_CC := bash $(OC_ROOT)/tools/oc_cc.sh $(CC)
 LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/linker.ld -z max-page-size=0x1000 -z noexecstack
 
 # Sources (recursive over KERNEL_DIRS)
@@ -111,6 +162,28 @@ LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/linker.ld -z max-page-size=0x1000 -z noe
 KERNEL_C    := $(foreach d,$(KERNEL_DIRS),$(wildcard $(OC_ROOT)/$(d)/*.c))
 KERNEL_ASM_B := $(wildcard $(OC_ROOT)/boot/*.S)
 KERNEL_ASM_K := $(wildcard $(OC_ROOT)/kernel/arch/x86_64/*.S)
+# WP-13 multi-config source filtering: drop whole module dirs for TUI/
+# chinese (call sites stubbed via config_gen.h macros) and individual
+# block drivers for the hardware profile options (self-registering
+# drivers; the init calls in main.c are macro-stubbed by config_gen.h).
+ifeq ($(CONFIG_TUI),n)
+KERNEL_DIRS := $(filter-out tui,$(KERNEL_DIRS))
+KERNEL_C    := $(filter-out $(OC_ROOT)/tui/%,$(KERNEL_C))
+endif
+ifeq ($(CONFIG_CHINESE),n)
+KERNEL_DIRS := $(filter-out chinese,$(KERNEL_DIRS))
+KERNEL_C    := $(filter-out $(OC_ROOT)/chinese/%,$(KERNEL_C))
+endif
+ifeq ($(CONFIG_NVME),n)
+KERNEL_C    := $(filter-out %driver_block_nvme.c,$(KERNEL_C))
+endif
+ifeq ($(CONFIG_AHCI),n)
+KERNEL_C    := $(filter-out %driver_block_ahci.c,$(KERNEL_C))
+endif
+ifeq ($(CONFIG_VIRTIO_BLK),n)
+KERNEL_C    := $(filter-out %driver_block_virtio_blk.c,$(KERNEL_C))
+endif
+
 KERNEL_OBJ  := $(patsubst $(OC_ROOT)/%.c,$(BUILD)/%.o,$(KERNEL_C)) \
                $(patsubst $(OC_ROOT)/boot/%.S,$(BUILD)/boot_%.o,$(KERNEL_ASM_B)) \
                $(patsubst $(OC_ROOT)/kernel/%.S,$(BUILD)/%.o,$(KERNEL_ASM_K))
@@ -155,15 +228,84 @@ $(VERSION_GEN): FORCE
 	 else rm -f $(VERSION_GEN).tmp; fi
 FORCE:
 .PHONY: FORCE
+
+# ---- WP-13 multi-config: generated macro header ----------------------
+# OC_CONFIG_* + optional-module stubs; cmp-guarded so unchanged values
+# do not thrash mtimes (includers' .d files trigger the recompiles).
+CONFIG_GEN := $(GEN_DIR)/config_gen.h
+$(CONFIG_GEN): FORCE
+	@mkdir -p $(GEN_DIR)
+	@{ echo '/* Generated by the Makefile - WP-13 multi-configuration.'; \
+	   echo ' * Values come from .config (make defconfig / menuconfig) or'; \
+	   echo ' * command-line CONFIG_X=n overrides. Do not edit. */'; \
+	   echo '#ifndef OC_CONFIG_GEN_H'; \
+	   echo '#define OC_CONFIG_GEN_H'; \
+	   echo '#define OC_CONFIG_TUI         $(if $(filter n,$(CONFIG_TUI)),0,1)'; \
+	   echo '#define OC_CONFIG_CHINESE     $(if $(filter n,$(CONFIG_CHINESE)),0,1)'; \
+	   echo '#define OC_CONFIG_NVME        $(if $(filter n,$(CONFIG_NVME)),0,1)'; \
+	   echo '#define OC_CONFIG_AHCI        $(if $(filter n,$(CONFIG_AHCI)),0,1)'; \
+	   echo '#define OC_CONFIG_VIRTIO_BLK  $(if $(filter n,$(CONFIG_VIRTIO_BLK)),0,1)'; \
+	   echo '#if !OC_CONFIG_CHINESE'; \
+	   echo '#include "screen_console.h"  /* -I drivers/display */'; \
+	   echo '/* ASCII-equivalent stubs for the cn write path */'; \
+	   echo '#define console_cn_init()            ((void)0)'; \
+	   echo '#define console_cn_puts(s)           screen_console_puts((s))'; \
+	   echo '#define console_cn_putcw(cp)         screen_console_putc((char)(cp))'; \
+	   echo '#define console_cn_cp_cols(cp)       1u'; \
+	   echo '#define render_chinese_init()        ((void)0)'; \
+	   echo 'static inline void oc_cn_puts_enc_stub(const unsigned char* s,'; \
+	   echo '                                          unsigned long n) {'; \
+	   echo '    for (unsigned long i = 0; i < n; i++) screen_console_putc((char)s[i]);'; \
+	   echo '}'; \
+	   echo '#define console_cn_puts_enc(s,n,e)   oc_cn_puts_enc_stub((s),(n))'; \
+	   echo 'static inline int oc_utf8_decode_stub(const unsigned char* in,'; \
+	   echo '        unsigned long n, unsigned int* cp, unsigned int* used) {'; \
+	   echo '    if (!n) { return 0; }'; \
+	   echo '    *cp = in[0]; *used = 1; return 1;'; \
+	   echo '}'; \
+	   echo '#define encoding_utf8_decode(i,n,c,u) oc_utf8_decode_stub((const unsigned char*)(i),(n),(c),(u))'; \
+	   echo '#endif /* !CHINESE */'; \
+	   echo '#if !OC_CONFIG_TUI'; \
+	   echo '#define tui_shell_cmds_register()     ((void)0)'; \
+	   echo '#define tui_ext_init()                ((void)0)'; \
+	   echo '#endif /* !TUI */'; \
+	   echo '#if !OC_CONFIG_NVME'; \
+	   echo '#define driver_block_nvme_init(a)     ((void)(a))'; \
+	   echo '#endif'; \
+	   echo '#if !OC_CONFIG_AHCI'; \
+	   echo '#define driver_block_ahci_init(a)     ((void)(a))'; \
+	   echo '#endif'; \
+	   echo '#if !OC_CONFIG_VIRTIO_BLK'; \
+	   echo '#define driver_block_virtio_blk_init() ((void)0)'; \
+	   echo '#endif'; \
+	   echo '#endif /* OC_CONFIG_GEN_H */'; \
+	 } > $(CONFIG_GEN).tmp
+	@if ! cmp -s $(CONFIG_GEN).tmp $(CONFIG_GEN); then \
+	   mv -f $(CONFIG_GEN).tmp $(CONFIG_GEN); \
+	   echo "make: regenerated $$@ (TUI=$(CONFIG_TUI) CHINESE=$(CONFIG_CHINESE) NVME=$(CONFIG_NVME) AHCI=$(CONFIG_AHCI) VIRTIO_BLK=$(CONFIG_VIRTIO_BLK))"; \
+	 else rm -f $(CONFIG_GEN).tmp; fi
 # the header must exist before ANY object compiles (order-only: it does
 # not itself trigger rebuilds - the .d files do that)
-$(KERNEL_OBJ) $(STUB_OBJ) $(GRUB_DATA_OBJ): | $(VERSION_GEN)
+$(KERNEL_OBJ) $(STUB_OBJ) $(GRUB_DATA_OBJ): | $(VERSION_GEN) $(CONFIG_GEN)
 
-# Default goal
-.DEFAULT_GOAL := all
-.PHONY: all iso run-bios run-uefi run-bios-gui run-uefi-gui run-bios-persist run-uefi-persist shot-bios shot-uefi clean dist userprogs userprogs-check
+# Default goal: bare `make` still builds the kernel ELF (pre-WP-13
+# behaviour); the WP-13 full pipeline is `make all` (identical to
+# ./build.sh all and .\\build.ps1).
+.DEFAULT_GOAL := kernel
+.PHONY: all kernel iso src-zip ota reproducible-check run-bios run-uefi run-bios-gui run-uefi-gui run-bios-persist run-uefi-persist shot-bios shot-uefi clean dist userprogs userprogs-check
 
-all: $(KERNEL)
+# ---- WP-13-build_system: unified full pipeline ----
+# kernel -> hybrid BIOS+UEFI ISO -> deterministic SRC zip -> OTA package.
+# Same entry point as tools/build.sh and build.ps1.
+all: $(KERNEL_ISO) src-zip ota
+	@echo "make all: full pipeline done"
+	@echo "  kernel : $(KERNEL)"
+	@echo "  ISO    : $(KERNEL_ISO)"
+	@echo "  SRC    : $(SRC_ZIP)"
+	@echo "  OTA    : $(OTA_PKG)"
+
+# pre-WP-13 `make all` semantics (kernel ELF only).
+kernel: $(KERNEL)
 
 # ---- Build rules ----
 
@@ -176,27 +318,27 @@ $(BUILD):
 # per-file-override pattern as the AML -O0 rule below.
 $(BUILD)/drivers/wireless/driver_wireless.o: $(OC_ROOT)/drivers/wireless/driver_wireless.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
 $(BUILD)/drivers/wireless/driver_iwlwifi.o: $(OC_ROOT)/drivers/wireless/driver_iwlwifi.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
 $(BUILD)/drivers/wireless/driver_rtlwifi.o: $(OC_ROOT)/drivers/wireless/driver_rtlwifi.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
 $(BUILD)/drivers/wireless/driver_ath.o: $(OC_ROOT)/drivers/wireless/driver_ath.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
 $(BUILD)/drivers/wireless/driver_brcm.o: $(OC_ROOT)/drivers/wireless/driver_brcm.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
 $(BUILD)/drivers/sd/driver_sdhci.o: $(OC_ROOT)/drivers/sd/driver_sdhci.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
 
 # C source → object file (with header dependency tracking, BUG-025 FIX)
@@ -207,15 +349,15 @@ $(BUILD)/drivers/sd/driver_sdhci.o: $(OC_ROOT)/drivers/sd/driver_sdhci.c | $(BUI
 # not performance-critical (one frame at a time).
 $(BUILD)/drivers/camera/lib_mjpeg.o: $(OC_ROOT)/drivers/camera/lib_mjpeg.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
 $(BUILD)/drivers/camera/driver_camera.o: $(OC_ROOT)/drivers/camera/driver_camera.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
 $(BUILD)/drivers/camera/driver_camera_uvc.o: $(OC_ROOT)/drivers/camera/driver_camera_uvc.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
 # WP-10-input_chipset: the AML interpreter is compiled at -O0. It runs
 # once at boot; the -O2 codegen of this file interacted badly with the
@@ -224,7 +366,7 @@ $(BUILD)/drivers/camera/driver_camera_uvc.o: $(OC_ROOT)/drivers/camera/driver_ca
 # same tables cleanly (verified against the live QEMU DSDT).
 $(BUILD)/drivers/acpi/driver_acpi_aml.o: $(OC_ROOT)/drivers/acpi/driver_acpi_aml.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(filter-out -O2,$(CFLAGS)) -O0 -c $< -o $@
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -O0 -c $< -o $@
 
 # WP-10-tui-native: the native desktop editor + file-manager upgrades
 # compile at -Os so the kernel image stays inside the 0x400000 identity
@@ -232,15 +374,15 @@ $(BUILD)/drivers/acpi/driver_acpi_aml.o: $(OC_ROOT)/drivers/acpi/driver_acpi_aml
 # -O2 codegen over-ran the linker ASSERT with the new native editor).
 $(BUILD)/tui/tui_dt_editor.o: $(OC_ROOT)/tui/tui_dt_editor.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
 $(BUILD)/tui/tui_dt_files.o: $(OC_ROOT)/tui/tui_dt_files.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
 $(BUILD)/%.o: $(OC_ROOT)/%.c | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(OC_CC) $(CFLAGS) -c $< -o $@
 
 # Assembly source (boot/) → object file
 $(BUILD)/boot_%.o: $(OC_ROOT)/boot/%.S | $(BUILD)
@@ -255,7 +397,7 @@ $(BUILD)/%.o: $(OC_ROOT)/kernel/%.S | $(BUILD)
 # strip debug info (removes build-machine paths)
 $(STUB_OBJ): $(OC_ROOT)/boot/grub_boot_stub.c $(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(OC_CC) $(CFLAGS) -c $< -o $@
 
 $(BASE_ELF): $(KERNEL_OBJ) $(STUB_OBJ) $(OC_ROOT)/linker.ld | $(BUILD)
 	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ) $(STUB_OBJ)
@@ -267,7 +409,7 @@ $(GRUB_DATA_C): $(OC_ROOT)/tools/embed_grub.py $(BASE_ELF) \
 
 $(GRUB_DATA_OBJ): $(GRUB_DATA_C) $(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(OC_CC) $(CFLAGS) -c $< -o $@
 
 $(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(OC_ROOT)/linker.ld | $(BUILD)
 	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ) $(GRUB_DATA_OBJ)
@@ -362,6 +504,93 @@ run-uefi-persist: $(KERNEL_ISO) $(ETC_IMG)
 clean:
 	rm -rf $(BUILD) $(DIST) $(ISO_DIR)/boot/opencube.elf $(GEN_DIR)/grub_boot_data.c
 
+# ---- WP-13-build_system: deterministic source zip ---------------------
+# git archive gives byte-stable output for a given commit: entries in
+# tree order, mtimes = commit time, permissions from the git index, no
+# uid/gid/extra fields.  Heavy non-source trees are excluded by pathspec
+# (same exclusion set the release chain uses).  Two builds of the same
+# commit produce identical zips.
+SRC_ZIP := $(DIST)/OpenCubeOS-src-$(OC_RELEASE_VERSION).zip
+space := $(empty) $(empty)
+SRC_EXCLUDE := website/public/downloads website/out website/.next website/node_modules \
+               build dist releases .zscripts public/deliverables
+src-zip:
+	@mkdir -p $(DIST)
+	@git -C $(OC_ROOT) ls-files \
+	   | grep -vE '^($(subst $(space),|,$(SRC_EXCLUDE)))(/|$$)' > $(DIST)/.srclist \
+	   || true
+	@if [ ! -s $(DIST)/.srclist ]; then echo "src-zip: not a git checkout - use 'make dist'" >&2; exit 1; fi
+	@git -C $(OC_ROOT) archive --format=zip -o $(SRC_ZIP) HEAD -- $$(cat $(DIST)/.srclist)
+	@rm -f $(DIST)/.srclist
+	@echo "src-zip: $(SRC_ZIP) ($$(stat -c%s $(SRC_ZIP)) bytes)"
+
+# ---- WP-13-build_system: OTA update package ---------------------------
+OTA_PKG := $(DIST)/OpenCubeOS-$(OC_RELEASE_VERSION)-update.tar.gz
+ota: $(KERNEL)
+	@mkdir -p $(DIST)
+	bash $(OC_ROOT)/tools/make_update_pkg.sh "$(OC_RELEASE_VERSION)" "$(KERNEL)" "$(OTA_PKG)"
+	@echo "ota: $(OTA_PKG)"
+
+# ---- WP-13-build_system: reproducibility check ------------------------
+# Two clean builds from the same tree; the kernel ELF must be
+# byte-identical.  Determinism sources verified: no __DATE__/__TIME__/
+# __TIMESTAMP__ macros in the tree, grub-mkimage output is stable for
+# identical inputs, gcc/ld are deterministic for identical inputs+flags,
+# link order is fixed by the wildcard expansion (same filesystem), and
+# strip --strip-debug removes the path-bearing sections.  SOURCE_DATE_EPOCH
+# is honoured when the caller exports it (forwarded to sub-tools that
+# embed timestamps); the ELF itself does not need it.
+reproducible-check:
+	@echo "== reproducible-check: build 1/2 =="
+	@$(MAKE) --no-print-directory clean >/dev/null
+	@$(MAKE) --no-print-directory kernel >/dev/null
+	@sha256sum $(KERNEL)
+	@cp $(KERNEL) /tmp/.oc_repro_1.elf
+	@echo "== reproducible-check: build 2/2 (clean again) =="
+	@$(MAKE) --no-print-directory clean >/dev/null
+	@$(MAKE) --no-print-directory kernel >/dev/null
+	@if cmp -s /tmp/.oc_repro_1.elf $(KERNEL); then \
+	   echo "reproducible-check: PASS - ELF byte-identical across two clean builds"; \
+	   sha256sum $(KERNEL); rm -f /tmp/.oc_repro_1.elf; \
+	 else \
+	   echo "reproducible-check: FAIL - ELF differs:"; \
+	   sha256sum /tmp/.oc_repro_1.elf $(KERNEL); \
+	   cmp /tmp/.oc_repro_1.elf $(KERNEL) | head -3; \
+	   rm -f /tmp/.oc_repro_1.elf; exit 1; \
+	 fi
+
+# ---- WP-13-build_system: config management targets --------------------
+.PHONY: defconfig menuconfig
+defconfig:
+	@{ echo '# Open Cube OS build configuration (WP-13) - defaults'; \
+	   echo '# Written by make defconfig; edit with make menuconfig'; \
+	   echo 'CONFIG_TUI=y'; \
+	   echo 'CONFIG_CHINESE=y'; \
+	   echo 'CONFIG_NVME=y'; \
+	   echo 'CONFIG_AHCI=y'; \
+	   echo 'CONFIG_VIRTIO_BLK=y'; \
+	 } > $(OC_ROOT)/.config
+	@echo "defconfig: wrote $(OC_ROOT)/.config (all options y)"
+
+menuconfig:
+	bash $(OC_ROOT)/tools/oc_menuconfig.sh
+
+# ---- WP-13-build_system: compile cache management ---------------------
+OC_CACHE_DIR ?= $(HOME)/.cache/opencube-cc
+.PHONY: cache-stats cache-clear
+cache-stats:
+	@if [ -f $(OC_CACHE_DIR)/STATS ]; then \
+	   h=$$(awk '/^HIT/{n++}END{print n+0}' $(OC_CACHE_DIR)/STATS); \
+	   m=$$(awk '/^MISS/{n++}END{print n+0}' $(OC_CACHE_DIR)/STATS); \
+	   t=$$((h+m)); \
+	   if [ $$t -gt 0 ]; then pct=$$((100*h/t)); else pct=0; fi; \
+	   echo "compile cache: $$h hits / $$m misses ($$pct% hit rate)"; \
+	   echo "entries: $$(ls $(OC_CACHE_DIR)/*.o 2>/dev/null | wc -l)"; \
+	 else echo "compile cache: no STATS yet (first build populates it)"; fi
+cache-clear:
+	rm -rf $(OC_CACHE_DIR)
+	@echo "compile cache: cleared $(OC_CACHE_DIR)"
+
 # ---- Host test suite (WP-10-tui: closed the 15-command drift gap) ----
 # tools/run_host_tests.py extracts each tests/host_*.c build line, remaps
 # the WP-10-project_restructure source/include moves, compiles and runs
@@ -418,3 +647,5 @@ dist: userprogs-check $(KERNEL_ISO)
 	echo "SRC: $$SRCZIP"; \
 	echo "ISO: $$ISOCOPY"; \
 	sha256sum $$ISOCOPY | tee $$ISOCOPY.sha256
+
+endif # ARCH dispatch

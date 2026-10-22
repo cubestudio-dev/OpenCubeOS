@@ -35,8 +35,13 @@
 #include "mem_heap.h"
 /* WP-10-chinese_support-fix2: mixed-width console output + UTF-8 step
  * helpers so nano/vi display and edit UTF-8 (CJK) file content. */
+#include "config_gen.h"   /* WP-13 multi-config */
+#if OC_CONFIG_CHINESE
 #include "../chinese/console_cn.h"
+#endif
+#if OC_CONFIG_CHINESE
 #include "../chinese/encoding.h"
+#endif
 
 /* ---- Session state ----
  * WP-10-wp08fix1 FIX: the line array used to be a 128 KiB static (and the

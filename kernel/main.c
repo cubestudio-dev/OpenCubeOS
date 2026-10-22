@@ -64,11 +64,16 @@
 
 /* WP-06 headers. */
 #include "net_core.h"
+#include "config_gen.h"   /* WP-13 multi-config: OC_CONFIG_* + stubs */
+#if OC_CONFIG_TUI
 #include "../tui/tui.h"   /* WP-10-tui */
+#endif
+#if OC_CONFIG_CHINESE
 #include "../chinese/chinese_font.h"   /* WP-10-chinese_support */
 #include "../chinese/encoding.h"
 #include "../chinese/render_cn.h"
 #include "../chinese/console_cn.h"
+#endif
 
 /* WP-07 headers. */
 void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
@@ -3558,10 +3563,14 @@ void kmain(u64 magic, u64 mbi_phys) {
     /* ---- WP-10d: USB status + test commands ---- */
     shell_cmds_usb_test_register();
 
+#if OC_CONFIG_TUI
     tui_shell_cmds_register();   /* WP-10-tui: tui, tui-test, tui-hw, tui-net, tui-sysinfo */
     tui_ext_init();              /* WP-10-chinese_support-fix4: builtin themes + hotkeys */
+#endif
+#if OC_CONFIG_CHINESE
     extern void chinese_cmd_register(void);   /* WP-10-chinese_support */
     chinese_cmd_register();   /* chinese, chinesetest, font, font-test, encoding, encoding-test, ime, ime-test */
+#endif
 
     /* docs-sync FIX: report the LIVE registered command count once ALL
      * registrations are done (kmain + file + disk + net commands). The old

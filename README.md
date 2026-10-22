@@ -504,7 +504,9 @@ or GitHub Releases page to download.
 ## Quick start
 
 ```sh
-# Build (requires gcc/nasm/xorriso/grub-mkimage in PATH)
+./build.sh          # Linux one-command full pipeline (kernel + ISO + SRC + OTA)
+# .\build.ps1       # Windows (WSL2 recommended, or MSYS2)
+# or plain make:
 make iso            # -> build/opencube.iso (BIOS + UEFI dual boot)
 
 # Run with QEMU
@@ -512,6 +514,12 @@ make run-bios       # SeaBIOS -> GRUB -> kernel
 # or
 make run-uefi       # OVMF -> GRUB EFI -> kernel
 ```
+
+The full build guide — dependencies for Linux and Windows, the compile
+cache, reproducible builds (`make reproducible-check`), ARM64/RISC-V
+cross-compilation (`make ARCH=arm64`), multi-configuration builds
+(`make CONFIG_TUI=n`, `make menuconfig`) and the CI pipeline — is
+**docs/BUILD.md** (WP-13-build_system).
 
 Once the `oc>` prompt appears, type `help` for the full command list.
 Try `run ush` to launch the user-space shell.
