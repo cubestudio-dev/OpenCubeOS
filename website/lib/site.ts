@@ -11,23 +11,23 @@ export const BASE = "/OpenCubeOS";
 
 export const GITHUB_REPO = "https://github.com/cubestudio-dev/OpenCubeOS";
 export const RELEASE_LATEST =
-  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-11-crash_recovery";
+  "https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-12-watchdog_logging";
 export const RELEASES = "https://github.com/cubestudio-dev/OpenCubeOS/releases";
 export const SITE_URL = "https://cubestudio-dev.github.io/OpenCubeOS/";
 
-// Real assets (build/ + GitHub WP-11-crash_recovery tag + this site /downloads/, 3-way identical)
-export const ISO_FILE = "opencube-WP-11-crash_recovery.iso";
-export const ISO_SIZE_B = 12294144;
-export const ISO_SIZE_MB = "11.73";
+// Real assets (build/ + GitHub WP-12-watchdog_logging tag + this site /downloads/, 3-way identical)
+export const ISO_FILE = "opencube-WP-12-watchdog_logging.iso";
+export const ISO_SIZE_B = 12326912;
+export const ISO_SIZE_MB = "11.75";
 export const ISO_SHA256 =
-  "032dd175cc28b67d82bb5edf8623437d9202012e6191f86f6ce3bf4d77cf5890";
+  "5e1d231de96c8681ff872df5dabff35454126e58252da151972af0e8ffb93314";
 export const ISO_URL = `${BASE}/downloads/${ISO_FILE}`;
 
-export const SRC_FILE = "opencube-WP-11-crash_recovery-src.zip";
-export const SRC_SIZE_B = 3754846;
-export const SRC_SIZE_MB = "3.58";
+export const SRC_FILE = "opencube-WP-12-watchdog_logging-src.zip";
+export const SRC_SIZE_B = 3797140;
+export const SRC_SIZE_MB = "3.62";
 export const SRC_SHA256 =
-  "40a32924e4689c7f5e8694fd6a4cc2e0c283cdc572b674191a77de515411d9a4";
+  "07fc65b24aa93271b89e0b6cf8241f90090b9455e8a5c6c23362d37e10e8ff9d";
 export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 
 // NOTE: the former STATS export lived here unreferenced (A18-5): HomeView
@@ -39,9 +39,14 @@ export const SRC_URL = `${BASE}/downloads/${SRC_FILE}`;
 // deploy: sha256sum public/downloads/$ISO_FILE must match ISO_SHA256
 // (website/build-local.sh performs that check on every run).
 
-// WP-11-crash_recovery (panic capture + core dump + crash log +
-// recovery policy + stack guards + SIGSEGV + TUI containment) leads
+// WP-12-watchdog_logging (hardware TCO/WDAT watchdog + soft slots +
+// unified five-level log + health monitor) leads
 export const FEATURES = [
+  {
+    name: "看门狗 + 统一日志 + 健康监控：Intel TCO/ACPI WDAT 硬件看门狗 + 16 槽软看门狗 + 五级内核日志 + 健康仪表",
+    tag: "WP-12-watchdog_logging",
+    desc: "硬件看门狗真实复位：Intel TCO 探测（LPC PMBASE、RCBA 使能、GCS NO_REBOOT 位 RCBA+0x3410 武装时清零——iTCO_wdt 的 update_no_reboot_bit 步骤，经 -trace tco_timer_expired 现场坐实）+ ACPI WDAT 表解析器（SystemIO + SystemMemory GAS，表自带 value/mask），有表优先；hw start N 到期硬复位（QEMU q35 实测真实复位→二次启动；合成 WDAT -acpitable 注入驱动同一路径）；pc 机诚实报 none。软看门狗：16 监控槽 + 1 秒 tick + PANIC/REBOOT/KILL/LOG 四策略（KILL 只杀任务内核存活；PANIC 走完整 WP-11 路径）；槽 0 包裹系统心跳，健康采样器每秒喂狗（启动默认不武装，WP-11 文档化决策）。统一五级内核日志：DEBUG/INFO/WARN/ERROR/FATAL 独立各级开关；1024 项环形缓冲 + 串口/VGA 活动通道 + /var/log/kernel.log 文件通道 + flush-first 轮转（kernel.log→.1→.2→.3 保留 3 代，阈值运行时可调）+ 级别/模块/关键字过滤器（活动+回放）。健康监控：1 秒采样（CPU busy%——调度器 idle/total 计数、PMM+堆、任务状态、磁盘+网络）+ 上升沿去重告警（内存>90%/任务>64/CPU≥90%×10 采样）+ JSON 导出。新命令 dmesg/logcat/logctl/watchdog/health/health watch/health export（226→233；SHELL_MAX_COMMANDS 232→256，232 恰好填满致末位静默拒绝，启动横幅现场发现）；L1 接口 146→162。门禁（发布 ISO 实测）：WP-12 E2E 14/14（pc/q35/q35+WDAT）；回归 28/28；dhtest 5/5；SSH 5/5；HTTPS 7/7；BIOS+UEFI；0E0W。140,315 行源码。",
+  },
   {
     name: "崩溃恢复：统一 Panic 捕获 + 内核转储 + 崩溃日志 + 恢复策略 + 栈护栏 + SIGSEGV + TUI 隔离",
     tag: "WP-11-crash_recovery",

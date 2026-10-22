@@ -32,18 +32,18 @@ export { fmtBytes };
 // here) - lib/site.ts carries the release assets.
 export const STATS: Bi<{ value: string; label: string }[]> = {
   zh: [
-    { value: "137,495", label: "行源码" },
-    { value: "146", label: "L1 扩展接口" },
+    { value: "140,315", label: "行源码" },
+    { value: "162", label: "L1 扩展接口" },
     { value: "53", label: "系统调用" },
-    { value: "226", label: "shell 命令" },
+    { value: "233", label: "shell 命令" },
     { value: "26", label: "工作包" },
     { value: "41/41", label: "P0 修复测试" },
   ],
   en: [
-    { value: "137,495", label: "lines of source" },
-    { value: "146", label: "L1 extension interfaces" },
+    { value: "140,315", label: "lines of source" },
+    { value: "162", label: "L1 extension interfaces" },
     { value: "53", label: "system calls" },
-    { value: "226", label: "shell commands" },
+    { value: "233", label: "shell commands" },
     { value: "26", label: "work packages" },
     { value: "41/41", label: "P0 fix tests" },
   ],
@@ -55,6 +55,11 @@ export const FEATURES: Bi<
   { name: string; tag: string; desc: string }[]
 > = {
   zh: [
+    {
+      name: "看门狗 + 统一日志 + 健康监控：Intel TCO/ACPI WDAT 硬件看门狗 + 16 槽软看门狗 + 五级内核日志 + 健康仪表",
+      tag: "WP-12-watchdog_logging",
+      desc: "硬件看门狗：Intel TCO 探测（LPC PMBASE +0x60 + RCBA 使能 PCI 配置 0xF0 + GCS NO_REBOOT 位 RCBA+0x3410 武装时清零——iTCO_wdt 的 update_no_reboot_bit 步骤，不清则 QEMU 永不复位，经 -trace tco_timer_expired 现场坐实；真实偏移 0x3410 而非流传的 0x3418）+ ACPI WDAT 表解析器（24 字节条目、Header Length 尊重、SystemIO + SystemMemory GAS、表自带 value/mask 驱动 SET_COUNTDOWN/RUNNING/STOP/SET_REBOOT），有表优先；hw start N 武装真实倒计时，到期硬复位（QEMU q35 实测 5 秒后真实复位→二次启动到 shell；合成 164 字节 WDAT 经 -acpitable 注入驱动同一寄存器路径）；默认 pc 机诚实报 none。软看门狗：16 个受监控槽（watchdog_register/start/feed/stop/set_timeout）+ 1 秒内核 tick + 四种超时策略（PANIC 走完整 WP-11 panic 路径 / REBOOT / KILL 只杀任务内核存活 / LOG 每集一次）；槽 0 包裹 WP-11 系统心跳，健康采样器每秒喂狗（启动默认不武装，沿用 WP-11 文档化决策）。日志：统一五级 klog（DEBUG/INFO/WARN/ERROR/FATAL，独立各级开关）+ 1024 项环形缓冲（启动前期 64 项静态环保全 identity-window 断言）+ 串口/VGA 双活动通道 + /var/log/kernel.log 文件通道（任务上下文追加、IRQ 写者置脏、非 #DF 源 panic 时强制冲刷——15.13 边界不变）+ flush-first 轮转（阈值运行时可调默认 1MiB，kernel.log→.1→.2→.3 保留 3 代）+ 级别/模块/关键字过滤器同时作用于活动输出与回放；lib_log 每行启动日志镜像入环。健康监控：1 秒采样器（调度器新增 idle/total tick 计数算 CPU busy%——实测单 spin 任务 67%、三任务 96%；PMM + 堆内存；任务状态分布；块 + 网络计数器）+ 上升沿去重告警（内存>90%、任务>64、CPU≥90% 连续 10 采样——单核抢占下 100% 不可达）+ JSON 导出（health export 写 /var/log/health.json）。新命令 dmesg/logcat（-l/-m/-k/-t/-n + -f 跟随）/logctl（status/level/enable/disable/clear/flush/rotate/threshold/export/filter/test）/watchdog（status/slots/hw 子命令族/test kill|panic|log）/health/health watch/health export（226→233；SHELL_MAX_COMMANDS 232→256——232 恰好填满致末位注册被静默拒绝，启动横幅现场发现）；L1 接口 146→162（klog 6 + watchdog 5 + health 5）。门禁（在本发布 ISO 上实测）：WP-12 E2E 14/14（pc/q35/q35+WDAT 三机型，TCO 与 WDAT 均真实硬复位）；回归 28/28；dhtest 5/5；SSH 5/5；HTTPS 7/7；BIOS+UEFI；0E0W。140,315 行源码。",
+    },
     {
       name: "崩溃恢复：统一 Panic 捕获 + 内核转储 + 崩溃日志 + 恢复策略 + 栈护栏 + SIGSEGV + TUI 隔离",
       tag: "WP-11-crash_recovery",
@@ -207,6 +212,11 @@ export const FEATURES: Bi<
     },
   ],
   en: [
+    {
+      name: "Watchdog + unified logging + health monitor: Intel TCO / ACPI WDAT hardware watchdog + 16-slot soft watchdog + five-level kernel log + health dashboard",
+      tag: "WP-12-watchdog_logging",
+      desc: "Hardware watchdog: Intel TCO discovery (LPC PMBASE +0x60, RCBA enable via PCI config 0xF0, GCS NO_REBOOT at RCBA+0x3410 cleared on arm - the iTCO_wdt update_no_reboot_bit step, without which QEMU never resets; found live via -trace tco_timer_expired, and the real 0x3410 offset versus the 0x3418 folklore) plus a full ACPI WDAT parser (24-byte entries, Header Length honoured, SystemIO + SystemMemory GAS driven by the table's own value/mask for SET_COUNTDOWN/RUNNING/STOP/SET_REBOOT), WDAT taking precedence when present; hw start N arms the real countdown and expiry hard-resets the machine (QEMU q35: REAL reset -> second boot reaches the shell; a synthetic 164-byte WDAT injected with -acpitable drives the same register path); the default pc machine reports none honestly. Software watchdog: 16 monitored slots (watchdog_register/start/feed/stop/set_timeout) on a 1 s kernel tick with four timeout policies (PANIC through the full WP-11 panic path / REBOOT / KILL task-only with the kernel alive / LOG once per episode); slot 0 wraps the WP-11 system heartbeat and the health sampler feeds it every second (boot default stays DISARMED - the WP-11 documented decision). Logging: a unified five-level klog (DEBUG/INFO/WARN/ERROR/FATAL, independent per-level switches) over a 1024-entry ring (64-entry static bootstrap ring keeps the identity-window ASSERT), serial + VGA live channels, the /var/log/kernel.log file channel (task-context appends, IRQ writers set dirty, panic flush for non-#DF sources - the 15.13 boundary unchanged), flush-first rotation at a runtime threshold (kernel.log -> .1 -> .2 -> .3, keep 3), and a level/module/keyword filter scoping live output AND replay; lib_log mirrors every boot line into the ring. Health: a 1 s sampler (CPU busy% from new scheduler idle/total counters - measured 67% with one spinner, 96% with three; PMM + heap memory; task-state split; block + network counters), rising-edge alarms (mem > 90%, tasks > 64, cpu >= 90% for 10 consecutive samples - 100% is unreachable on the preempted single core), and a JSON export (health export writes /var/log/health.json). New commands dmesg / logcat (-l/-m/-k/-t/-n + -f follow) / logctl (status/level/enable/disable/clear/flush/rotate/threshold/export/filter/test) / watchdog (status/slots/hw family/test kill|panic|log) / health / health watch / health export (226 -> 233; SHELL_MAX_COMMANDS 232 -> 256 after 232 filled exactly and silently refused the last registration - found live at the boot banner); L1 interfaces 146 -> 162 (klog 6 + watchdog 5 + health 5). Gates, measured on this exact release ISO: WP-12 E2E 14/14 across pc/q35/q35+WDAT (both TCO and WDAT really hard-reset the machine), regression 28/28, dhtest 5/5, SSH E2E 5/5, HTTPS E2E 7/7, BIOS + UEFI boots, 0 errors 0 warnings. 140,315 lines of source.",
+    },
     {
       name: "Crash recovery: unified panic capture + core dump + crash log + policy + stack guards + SIGSEGV + TUI containment",
       tag: "WP-11-crash_recovery",
