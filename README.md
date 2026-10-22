@@ -32,11 +32,11 @@ Licensed under the Apache License, Version 2.0.
 - L0 is licensed Apache 2.0.
 - Design principle: "everything is extensible".
 
-## Stats (WP-11-crash_recovery)
+## Stats (WP-12-watchdog_logging)
 
-- **Source code**: 137,495 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs + tui + chinese, incl. headers, no docs/tools/tests, no generated files;
+- **Source code**: 140,315 lines (kernel + boot + userprogs + fs + net + shell + l1 + drivers + libs + tui + chinese, incl. headers, no docs/tools/tests, no generated files;
   verify: `git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui|chinese)/' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l`)
-- **Work packages**: 23 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
+- **Work packages**: 24 (WP-01 ~ WP-09, WP-10a, WP-10b, WP-10u, WP-10c,
   WP-10d, WP-10-wp08fix1, WP-10-input_chipset, WP-10-timer_rtc,
   WP-10-wireless_bluetooth, WP-10-camera_misc, WP-10-tui,
   WP-10-chinese_support, WP-10-chinese_support-fix2) — one `## WP-*` section
@@ -54,13 +54,14 @@ Licensed under the Apache License, Version 2.0.
   WP-10-chinese_support-fix2 the 22nd and WP-11-crash_recovery the
   23rd work package
   (counted above), not
-  auxiliary batches.
+  auxiliary batches.  WP-12-watchdog_logging is the 24th work package
+  (counted above).
   + the rule-9 self-hosting batch (WP-10c-selfhost): in-system `abdisk`,
   `install` and `grub-install` - create A/B update disks, install the OS
   to a disk and write the GRUB BIOS boot loader entirely from the oc>
   shell (no host tools; the kernel payload travels with the boot media as
   a multiboot2 module).
-- **L1 extension interfaces**: 146 (57 through WP-09 + 8 WP-10a items:
+- **L1 extension interfaces**: 162 (57 through WP-09 + 8 WP-10a items:
   driver_block_register / driver_block_read / driver_block_write / driver_block_flush (+ driver_block_set_ops),
   driver_block_ahci_init(driver_pci_dev), driver_block_nvme_init(driver_pci_dev), driver_block_ata_dma_init(driver_pci_dev),
   + 13 WP-10b items:
@@ -93,9 +94,16 @@ Licensed under the Apache License, Version 2.0.
   kernel_panic / core_dump_save / core_dump_read /
   crashlog_record / crashlog_flush / crash_recovery_set_policy /
   crash_recovery_get_policy (kernel/core/core_crash.h)
-  (57 + 8 + 13 + 7 + 26 + 11 + 7 + 9 + 8 = 146; plus 5 unnumbered WP-09-fix5
+  + 16 WP-12-watchdog_logging items: klog_write / klog_set_level /
+  klog_flush / klog_rotate / klog_filter_set / klog_filter_clear
+  (kernel/lib/lib_klog.h), watchdog_register / watchdog_start /
+  watchdog_feed / watchdog_stop / watchdog_set_timeout
+  (kernel/core/core_watchdog.h), health_get_cpu / health_get_mem /
+  health_get_tasks / health_get_io / health_export
+  (kernel/core/core_health.h)
+  (57 + 8 + 13 + 7 + 26 + 11 + 7 + 9 + 8 + 16 = 162; plus 5 unnumbered WP-09-fix5
   config/check-update interfaces and 5 rule-9 self-hosting interfaces
-  outside the 1-146 numbering)
+  outside the 1-162 numbering)
 - **System calls**: 53 (verify: `grep -c '#define SYS_' kernel/core/core_syscall.h`)
 - **Audit bugs fixed**: 47 from the original WP-08 audit (P0=2, P1=8, P2=29, P3=8)
   + 4 additional P0 + 8 P1 + 20 P2 from subsequent independent audits and
@@ -550,23 +558,35 @@ panic/exc/pf/assert/wd/ovf panic variants, the reboot policy
 
 ## Download
 
-- **Latest (WP-11-crash_recovery)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-11-crash_recovery) — ISO + SRC zip
-  (ISO sha256 `032dd175cc28b67d82bb5edf8623437d9202012e6191f86f6ce3bf4d77cf5890`,
-  SRC sha256 `40a32924e4689c7f5e8694fd6a4cc2e0c283cdc572b674191a77de515411d9a4`)
-  Batch summary: the crash-recovery layer - unified panic capture
-  (banner + 16-GPR register snapshot + call traceback, serial AND the
-  red VGA console), core dumps persisted to /var/crash/core.dump (or
-  hex-dumped on serial with no filesystem), a 32-entry crashlog ring
-  flushed to /var/log/crash.log, the HALT/REBOOT policy (QEMU-verified
-  panic -> 8042 reset -> second boot), a soft watchdog, kernel-stack
-  guard pages + scheduler bounds checks + KERNEL STACK OVERFLOW
-  attribution, ring-3 SIGSEGV delivery with a ping-pong guard, and TUI
-  sub-page crash containment (a real ring-0 fault inside a guarded TUI
-  page longjmps back to the surviving desktop). New commands crashtest
-  + dumpinfo, crashlog completed (226 total). Acceptance: WP-11 E2E
-  14/14 on this exact ISO, regression 28/28, dhtest, cryptotest, SSH
-  E2E 5/5, HTTPS E2E 7/7, BIOS + UEFI boots. KNOWN_ISSUES 15.13
-  states the one boundary (#DF path records no dump/log entry).
+- **Latest (WP-12-watchdog_logging)**: [GitHub Release](https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/WP-12-watchdog_logging) — ISO + SRC zip + update package
+  (ISO sha256 `5e1d231de96c8681ff872df5dabff35454126e58252da151972af0e8ffb93314`,
+  SRC sha256 `07fc65b24aa93271b89e0b6cf8241f90090b9455e8a5c6c23362d37e10e8ff9d`,
+  update pkg sha256 `e1967c4cb5ddcaad5996fa44a1e304d255d76d688cc90d3dbc7b2233a4d31034`)
+  Batch summary: the watchdog + logging + health layer - a hardware
+  watchdog with Intel TCO discovery (LPC PMBASE, RCBA enable, GCS
+  NO_REBOOT cleared on arm) and a full ACPI WDAT parser (SystemIO +
+  SystemMemory GAS, the table's own value/mask), whose expiry
+  hard-resets the machine (QEMU q35: hw start 5 -> REAL reset ->
+  second boot; synthetic 164-byte WDAT via -acpitable drives the same
+  path); a 16-slot software watchdog with PANIC/REBOOT/KILL/LOG
+  policies on a 1 s tick, slot 0 wrapping the WP-11 system heartbeat
+  (the health sampler feeds it every second; boot default stays
+  DISARMED per the WP-11 decision); a unified five-level kernel log
+  (DEBUG/INFO/WARN/ERROR/FATAL, independent per-level switches) over
+  a 1024-entry ring with serial + VGA live channels, the
+  /var/log/kernel.log file channel, flush-first rotation at a runtime
+  threshold (kernel.log -> .1 -> .2 -> .3, keep 3) and a
+  level/module/keyword filter scoping live output AND replay; and a
+  1 s health monitor (CPU busy% from new scheduler idle counters,
+  PMM + heap memory, task states, disk + network counters) with
+  rising-edge alarms (mem > 90%, tasks > 64, cpu >= 90% for 10
+  consecutive samples) and a JSON export.  New commands dmesg /
+  logcat / logctl / watchdog / health / health watch / health export
+  (233 total; SHELL_MAX_COMMANDS 232 -> 256 after 232 filled exactly
+  and silently refused the last registration).  Acceptance: WP-12 E2E
+  14/14 across pc/q35/q35+WDAT on this exact ISO, regression 28/28,
+  dhtest 5/5, cryptotest, SSH E2E 5/5, HTTPS E2E 7/7, BIOS + UEFI
+  boots.
   Batch summary: screenshot-driven fix batch on the chinese_support
   release — every QEMU screen was reviewed as an image (screendump ->
   PNG) and three real defects found that the ANSI/serial E2E assertions
@@ -871,6 +891,50 @@ panic/exc/pf/assert/wd/ovf panic variants, the reboot policy
   Gates: WP-11 E2E 14/14 (tools/wp11_crash_e2e.py), regression 28/28,
   dhtest, cryptotest, SSH E2E 5/5, HTTPS E2E 7/7, BIOS + UEFI boots,
   0 errors / 0 warnings.
+
+## WP-12 (done) - Watchdog (hardware TCO/WDAT + software) + unified logging + health monitor
+
+Hardware watchdog: Intel TCO discovery through the LPC bridge PMBASE
+(+0x60), RCBA enable via PCI config 0xF0, GCS NO_REBOOT (RCBA+0x3410)
+cleared on arm (the iTCO_wdt update_no_reboot_bit step - without it
+QEMU never resets; found live via -trace tco_timer_expired); ACPI WDAT
+parser (24-byte entries, Header Length honoured, SystemIO +
+SystemMemory GAS with the table's own value/mask) takes precedence
+when present; hw start N arms the real countdown and expiry
+hard-resets the machine (QEMU q35: second boot reaches the shell; a
+synthetic 164-byte WDAT injected with -acpitable drives the same
+registers through the WDAT path).  Software watchdog: 16 monitored
+slots (watchdog_register/start/feed/stop/set_timeout), a 1 s kernel
+tick, four timeout policies (PANIC via the full WP-11 panic path /
+REBOOT / KILL-task-only / LOG-once-per-episode); slot 0 wraps the
+WP-11 system heartbeat and the health sampler feeds it every second
+(boot default stays DISARMED - the WP-11 documented decision).
+Logging: unified five-level klog (DEBUG/INFO/WARN/ERROR/FATAL) with
+independent per-level switches, a 1024-entry ring (64-entry static
+bootstrap ring kept to preserve the identity-window ASSERT), serial +
+VGA live channels with a verbosity gate, the /var/log/kernel.log file
+channel (task-context appends, IRQ writers set dirty, panic flush for
+non-#DF sources - 15.13 boundary unchanged), flush-first rotation at
+a runtime threshold (default 1 MiB, kernel.log -> .1 -> .2 -> .3, keep
+3), and a level/module/keyword filter that scopes live output AND
+replay; lib_log mirrors every boot line into the ring.  Health: a 1 s
+sampler over new scheduler idle/total tick counters, PMM + heap
+stats, a task-state walk, block + network counters; rising-edge
+alarms (mem > 90%, tasks > 64, cpu >= 90% for 10 consecutive samples -
+100% is unreachable on the preempted single core, three spinners
+measure 96%); JSON export.  New commands: dmesg (ring replay, N-line
+cap), logcat (-l/-m/-k/-t/-n + -f follow), logctl
+(status/level/enable/disable/clear/flush/rotate/threshold/export/
+filter/test), watchdog
+(status/slots/hw start|stop|feed|timeout|status/start|stop|feed|timeout/register/test
+kill|panic|log), health (snapshot), health watch (1 s refresh),
+health export (JSON to /var/log/health.json).  Command count
+226 -> 233 (SHELL_MAX_COMMANDS raised 232 -> 256: 232 filled exactly
+and the last registration was silently refused - the same undercount
+class as fix4, found live at the boot banner).  Gates: WP-12 E2E
+14/14 across pc/q35/q35+WDAT (tools/wp12_watchdog_logging_e2e.py),
+regression 28/28, dhtest 5/5, cryptotest, SSH E2E 5/5, HTTPS E2E 7/7,
+BIOS + UEFI boots, 0 errors / 0 warnings.
 
 ## License
 

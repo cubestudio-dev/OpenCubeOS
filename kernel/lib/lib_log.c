@@ -11,6 +11,7 @@
 #include "screen_console.h"
 #include "lib_string.h"
 #include "core_timer.h"
+#include "lib_klog.h"   /* WP-12: mirror boot lines into the klog ring */
 
 /* ---- WP-10-tui: boot-log ring so the TUI log viewer (and any L1
  * consumer) can page through what lib_log printed, without changing
@@ -46,7 +47,7 @@ void lib_log_init(void) {
 void lib_log_set_level(int level) { g_log_level = (level > 0) ? 1 : 0; }
 int  lib_log_get_level(void)      { return g_log_level; }
 
-static int lib_log_status_is_failure(const char *status) {
+int lib_log_status_is_failure(const char *status) {
     if (!status) return 0;
     const char *p = status;
     while (*p) {
@@ -100,6 +101,9 @@ void lib_log_stage(const char *stage, const char *status) {
         full[q++] = ')';
         full[q] = 0;
         lib_log_ring_push(full);
+        /* WP-12: record-only mirror - dmesg replays the boot stages */
+        klog_record(lib_log_status_is_failure(status)
+                        ? KLOG_ERROR : KLOG_INFO, "boot", full);
     }
 }
 
@@ -108,6 +112,8 @@ void lib_log_info(const char *s) {
     screen_console_puts(s);
     screen_console_putc('\n');
     lib_log_ring_push(s);
+    /* WP-12: record-only mirror */
+    klog_record(KLOG_INFO, "boot", s);
 }
 
 /* WP-10-tui: ring accessors.  Index 0 is the OLDEST retained line. */

@@ -55,7 +55,12 @@
 #include "driver_block_ata.h"
 #include "fs_fat32.h"
 #include "shell_cmds_file.h"
-#include "shell_cmds_crash.h"   /* WP-11-crash_recovery */
+#include "shell_cmds_crash.h"
+#include "shell_cmds_log.h"    /* WP-12: dmesg/logcat/logctl */
+#include "shell_cmds_wd.h"     /* WP-12: watchdog */
+#include "shell_cmds_health.h"/* WP-12: health */
+#include "core_watchdog.h"     /* WP-12: watchdog subsystem init */
+#include "core_health.h"       /* WP-12: health monitor init */
 
 /* WP-06 headers. */
 #include "net_core.h"
@@ -125,6 +130,7 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "driver_pmtimer.h"            /* WP-10-timer_rtc: ACPI PM timer */
 #include "shell_cmds_timer.h"          /* WP-10-timer_rtc: time commands */
 #include "lib_config.h"   /* WP-09-fix5: /etc/opencube.conf */
+#include "lib_klog.h"     /* WP-12: unified kernel log */
 #include "ota_update.h"   /* WP-09-fix5: checkupdate */
 #include "version_gen.h"   /* WP-10-tui-qa: version recompile trigger (Makefile note) */
 
@@ -276,6 +282,11 @@ static void lib_log_stage_ts(const char *stage, const char *status) {
     tmp[p] = 0;
     screen_console_puts(tmp);
     screen_console_putc('\n');
+    /* WP-12: mirror the boot stage into the unified klog ring (record
+     * only - this line is already on the console) so dmesg shows the
+     * full boot sequence. */
+    klog_record(lib_log_status_is_failure(status)
+                    ? KLOG_ERROR : KLOG_INFO, "boot", tmp);
 }
 #define OC_LOG_OK2(stage)    lib_log_stage_ts((stage), "OK")
 #define OC_LOG_FAIL2(stage) lib_log_stage_ts((stage), "FAIL")
@@ -3141,6 +3152,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     render_chinese_init();
     console_cn_init();
     lib_log_init();
+    klog_init();     /* WP-12: unified kernel log, before any entry */
     screen_console_reset(screen_fb_rgb(0xE0, 0xE0, 0xE0),
                      screen_fb_rgb(0x10, 0x10, 0x14));
     shell_install_console_hook(screen_serial_hook, NULL);
@@ -3238,6 +3250,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     OC_LOG_OK2("VMM (virtual memory manager)");
 
     mem_heap_init();
+    klog_grow();     /* WP-12: swap the bootstrap ring for the full 1024 */
     OC_LOG_OK2("kernel heap (kmalloc/kfree)");
 
     /* ---- 12b. WP-04: Scheduler + Sync ---- */
@@ -3280,6 +3293,9 @@ void kmain(u64 magic, u64 mbi_phys) {
      * (moved to shell/shell_cmds_crash.c - compiled for size, the
      * 0x400000 identity window has no headroom left) */
     shell_cmds_crash_register();
+    shell_cmds_log_register();   /* WP-12: dmesg / logcat / logctl */
+    shell_cmds_wd_register();    /* WP-12: watchdog */
+    shell_cmds_health_register(); /* WP-12: health */
     shell_register_command_ex("heaptest", shell_cmd_heaptest, "test heap overhead with 100 allocs", "WP-04");
     shell_register_command_ex("irqabitest", shell_cmd_irqabitest, "IRQ-entry ABI regression (BUG-0137 align / BUG-0138 DF)", "WP-10-AUDIT_P2-fix1");
     shell_register_command_ex("heapbounds", shell_cmd_heapbounds, "heap bounds regression (BUG-0140 wrap / BUG-0141 ceiling)", "WP-10-AUDIT_P2-fix1");
@@ -3313,6 +3329,8 @@ void kmain(u64 magic, u64 mbi_phys) {
     }
     (void)driver_pcie_scan();
     (void)driver_pcie_assign_bars();
+    watchdog_init();   /* WP-12: WDAT/TCO probe + soft slots + 1s tick */
+    if (watchdog_hw_present()) OC_LOG_OK2("hardware watchdog (TCO/WDAT probe)");
     if (driver_i2c_i801_init() == 0) OC_LOG_OK2("i801/PIIX4 SMBus controller");
     (void)driver_smbus_init();
     (void)driver_input_i2chid_init();
@@ -3339,6 +3357,7 @@ void kmain(u64 magic, u64 mbi_phys) {
 
     fs_ramfs_init();
     OC_LOG_OK2("ramfs (in-memory file system, mounted at /)");
+    klog_on_mount();   /* WP-12: dump the boot log to /var/log/kernel.log */
 
     driver_block_init();
     driver_block_cache_init();
@@ -3518,6 +3537,8 @@ void kmain(u64 magic, u64 mbi_phys) {
     net_register_shell_commands();
     net_start_timer();
     OC_LOG_OK2("network stack (e1000 + TCP/IP + socket API)");
+    health_init();   /* WP-12: 1 s sampler + alarms + JSON export */
+    OC_LOG_OK2("health monitor (cpu/mem/tasks/disk/net + alarms)");
 
     /* ---- WP-10c: sound card drivers (HDA/AC'97/SB16/ES1370/virtio/USB) ----
      * Probes all six families; those without hardware simply stay

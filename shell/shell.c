@@ -52,7 +52,13 @@ typedef struct {
     int in_use;
 } shell_cmd_t;
 
-static shell_cmd_t g_commands[SHELL_MAX_COMMANDS];
+/* WP-12: the three big tables moved to the heap (the 0x400000
+ * identity-window ASSERT left zero headroom; shell_init kmallocs
+ * them BEFORE the first registration - the first shell_register_*
+ * call happens right after shell_init in kmain). Pointer indexing
+ * keeps every access site unchanged. */
+static shell_cmd_t *g_commands = 0;
+static int g_commands_cap = 0;
 static int g_command_count = 0; /* docs-sync FIX: live count for boot banner */
 
 int shell_command_count(void) {
@@ -368,7 +374,7 @@ typedef struct {
     int in_use;
 } shell_env_t;
 
-static shell_env_t g_env[SHELL_MAX_ENV];
+static shell_env_t *g_env = 0;
 
 int shell_setenv(const char *name, const char *value) {
     if (!name || !name[0]) return -1;
@@ -460,7 +466,7 @@ typedef struct {
     int in_use;
 } shell_alias_t;
 
-static shell_alias_t g_aliases[SHELL_MAX_ALIASES];
+static shell_alias_t *g_aliases = 0;
 
 int shell_register_alias(const char *alias, const char *target) {
     if (!alias || !alias[0] || !target) return -1;
@@ -1978,10 +1984,24 @@ static int shell_cmd_vi(const char *args) {
  * ================================================================== */
 
 void shell_init(void) {
+    /* WP-12: allocate the three big tables on the heap (the static
+     * arrays pushed the kernel image against the 0x400000 identity
+     * ASSERT with zero headroom for new subsystems).  512 MiB RAM,
+     * 64 KiB of tables - trivially affordable; on failure we print
+     * and halt honestly (the shell cannot exist without them). */
+    g_commands = (shell_cmd_t*)kmalloc(sizeof(shell_cmd_t) * SHELL_MAX_COMMANDS);
+    g_aliases = (shell_alias_t*)kmalloc(sizeof(shell_alias_t) * SHELL_MAX_ALIASES);
+    g_env = (shell_env_t*)kmalloc(sizeof(shell_env_t) * SHELL_MAX_ENV);
+    if (!g_commands || !g_aliases || !g_env) {
+        screen_console_puts("shell: FATAL - table allocation failed\n");
+        for (;;) __asm__ volatile("hlt");
+    }
+    g_commands_cap = SHELL_MAX_COMMANDS;
+
     /* Clear tables. */
-    memset(g_env, 0, sizeof(g_env));
-    memset(g_aliases, 0, sizeof(g_aliases));
-    memset(g_commands, 0, sizeof(g_commands));
+    memset(g_env, 0, sizeof(shell_env_t) * SHELL_MAX_ENV);
+    memset(g_aliases, 0, sizeof(shell_alias_t) * SHELL_MAX_ALIASES);
+    memset(g_commands, 0, sizeof(shell_cmd_t) * SHELL_MAX_COMMANDS);
     strcpy(g_cwd, "/");
 
     /* Register builtins. */

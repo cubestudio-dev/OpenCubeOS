@@ -37,6 +37,10 @@ void lib_log_stage(const char* stage, const char* status);
 /* Plain info line (no [time] prefix, just indentation). */
 void lib_log_info(const char* s);
 
+/* WP-12: exposed so main.c's OC_LOG_OK2/FAIL2 mirror can classify the
+ * level without duplicating the FAIL matcher. */
+int lib_log_status_is_failure(const char *status);
+
 #endif /* OC_LOG_H */
 
 /* WP-10-tui: boot-log ring.  lib_log_stage/lib_log_info mirror every

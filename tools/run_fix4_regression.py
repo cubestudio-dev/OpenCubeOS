@@ -69,7 +69,11 @@ CHECKS = [
     # tui-time/tui-drv/tui-sys/tui-ext (221 -> 225).
     # WP-10-tui-unified removed the tui-cn launcher: 225 -> 224
     # WP-11-crash_recovery adds crashtest + dumpinfo: 224 -> 226
-    ("command count 226",        r"Total:\s*226 commands"),
+    # WP-12-watchdog_logging adds dmesg/logcat/logctl/watchdog/health/
+    # health watch/health export: 226 -> 233 (SHELL_MAX_COMMANDS raised
+    # 232 -> 256 in the same batch - 232 filled exactly and silently
+    # refused the last registration)
+    ("command count 233",        r"Total:\s*233 commands"),
     # Baseline note (WP-10-input_chipset): accept the current tree describe
     # (fix4-2-g<sha>), the fix3-rebuild form, and the new WP-10-input_chipset
     # tag form (release builds bake the tag name verbatim).
@@ -77,7 +81,9 @@ CHECKS = [
     # WP-10-wireless_bluetooth adds the wireless_bluetooth tag form.
     # WP-10-camera_misc adds the camera_misc tag form.
     # WP-10-tui/chinese_support add their tag + describe forms.
-    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc|wireless_bluetooth|camera_misc|tui|chinese_support)|WP-11-crash_recovery"),
+    # WP-12-watchdog_logging adds the watchdog_logging tag form
+    # (release builds bake the tag name verbatim).
+    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc|wireless_bluetooth|camera_misc|tui|chinese_support)|WP-11-crash_recovery|WP-12-watchdog_logging"),
     ("heaptest pass",            r"heaptest.*PASS|heap test.*PASS"),
     ("fstest pass",              r"fstest.*(PASS|OK)|VFS self-test.*PASS"),
     ("cryptotest NIST pass",     r"[Cc]rypto self-test.*pass|cryptotest.*PASS|All \d+ NIST"),

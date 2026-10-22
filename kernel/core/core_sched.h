@@ -161,6 +161,13 @@ typedef struct core_sched_stats {
 
 void core_sched_get_stats(core_sched_stats_t *out);
 
+/* WP-12-watchdog_logging: idle/total tick counters for the health
+ * monitor's CPU usage sample (see core_sched_tick). */
+void core_sched_idle_counters(u64 *idle_ticks, u64 *total_ticks);
+
+/* WP-12-watchdog_logging: task-state split for the health monitor. */
+int core_sched_task_states(u32 *running, u32 *ready, u32 *blocked, u32 *total);
+
 /* Context switch assembly routine (in context_switch.S).
  * Saves current regs to old->..., loads new->... regs, jumps to new->rip. */
 void arch_context_switch(task_t *old_task, task_t *new_task);

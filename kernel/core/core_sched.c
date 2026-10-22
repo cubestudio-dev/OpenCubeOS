@@ -109,6 +109,41 @@ static void core_sched_reap_exited(void);
  * got a turn. Drives the starvation guard in core_sched_tick. */
 static u64 g_ticks_since_idle_run = 0;
 
+/* WP-12-watchdog_logging: CPU accounting for health_get_cpu(). Every
+ * tick counts itself (g_health_total_ticks) and, when the CURRENT task
+ * at tick time is the idle task, the idle counter too; a 1 s window of
+ * the two deltas yields the idle percentage (and 100-idle = busy). */
+static u64 g_idle_ticks_total = 0;
+static u64 g_total_ticks_all = 0;
+
+void core_sched_idle_counters(u64 *idle_ticks, u64 *total_ticks) {
+    if (idle_ticks)  *idle_ticks  = g_idle_ticks_total;
+    if (total_ticks) *total_ticks = g_total_ticks_all;
+}
+
+/* WP-12-watchdog_logging: task-state split for the health monitor.
+ * Walks the static table under cli (IRQ-safe, no allocation). */
+int core_sched_task_states(u32 *running, u32 *ready, u32 *blocked, u32 *total) {
+    if (!running || !ready || !blocked || !total) return -1;
+    u32 run = 0, rdy = 0, blk = 0, tot = 0;
+    u64 f;
+    __asm__ volatile("pushfq; popq %0; cli" : "=r"(f) :: "memory");
+    for (int i = 0; i < MAX_TASKS; i++) {
+        if (!g_tasks[i].in_use) continue;
+        tot++;
+        switch (g_tasks[i].state) {
+        case TASK_RUNNING: run++; break;
+        case TASK_READY:   rdy++; break;
+        case TASK_BLOCKED: blk++; break;
+        default: break;              /* EXITED: about to be reaped   */
+        }
+    }
+    __asm__ volatile("pushfq; popq %0" : "=r"(f) :: "memory");
+    if (f & 0x200) __asm__ volatile("sti" ::: "memory");
+    *running = run; *ready = rdy; *blocked = blk; *total = tot;
+    return 0;
+}
+
 static tid_t ready_pop_level(int p) {
     u64 flags;
     __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags));
@@ -636,6 +671,9 @@ static void core_sched_switch_to(task_t *next) {
 
 void core_sched_tick(void) {
     if (!g_current) return;
+    /* WP-12: CPU accounting (idle % for the health monitor) */
+    g_total_ticks_all++;
+    if (g_current == g_idle_task) g_idle_ticks_total++;
     /* WP-09-FIX BUG-004: reap EXITED tasks from the timer tick as well,
      * so killed tasks release their tid/stack promptly even when the
      * shell never calls core_sched_yield (hlt-based readline). */

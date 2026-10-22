@@ -28,7 +28,7 @@
 typedef int (*shell_hook_fn_t)(void *ctx, u8 ch);
 
 /* ---- Limits ---- */
-#define SHELL_MAX_COMMANDS    232   /* fix4: was 224 and the tui-* batch (+tui-time/tui-drv/tui-sys/tui-ext) filled it exactly - the 225th registration was silently refused (boot showed 224, not 225). 232 leaves headroom; was 208 before camera_misc +10 */
+#define SHELL_MAX_COMMANDS    256   /* fix5: 232 filled exactly at WP-12 (226 + dmesg/logcat/logctl/watchdog/health/health watch = 232; the 'health export' registration was refused, boot showed 232 not 233). 256 leaves headroom. Table lives on the heap since WP-12 group B (shell_init kmalloc), so the raise costs no BSS. Was 232 (fix4, 208 before camera_misc +10). */
 #define SHELL_MAX_ENV         32
 #define SHELL_ENV_NAME_LEN    32
 #define SHELL_ENV_VALUE_LEN   256

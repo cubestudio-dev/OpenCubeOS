@@ -18,6 +18,7 @@
 #include "core_crash.h"
 
 #include "lib_string.h"        /* strcpy/strlen/memcpy/memset        */
+#include "lib_klog.h"          /* WP-12: panic -> klog FATAL + flush */
 #include "screen_console.h"    /* VGA best-effort output             */
 #include "screen_fb.h"         /* screen_fb_rgb                      */
 #include "core_power.h"        /* core_power_halt / core_power_reboot*/
@@ -841,6 +842,11 @@ void kernel_panic_frame(const char *reason, const arch_irq_frame_t *f) {
      * safe from any context. */
     mem_vmm_switch_as(mem_vmm_kernel_as());
 
+    /* WP-12: record the panic into the unified klog FIRST (ring only,
+     * lib_string primitives, no VFS at this depth - the flush happens
+     * at step 5 below). */
+    klog_record(KLOG_FATAL, "kernel", reason ? reason : "(no reason)");
+
     /* capture the live registers ONCE (only used when f == NULL) so
      * the banner, the traceback and the dump see the same snapshot */
     u64 live[22];
@@ -953,11 +959,15 @@ void kernel_panic_frame(const char *reason, const arch_irq_frame_t *f) {
     /* 5. flush the crash log to /var/log/crash.log (best effort) */
     {
         int n = crashlog_flush();
+        int kn = klog_flush_panic();
         cr_puts("  crash log: ");
         cr_dec((u64)g_log_total);
         cr_puts(" total, flushed ");
         if (n < 0) cr_puts("FAILED (no filesystem)");
         else { cr_dec((u64)n); cr_puts(" bytes to /var/log/crash.log"); }
+        cr_puts("; klog flushed ");
+        if (kn < 0) cr_puts("FAILED");
+        else { cr_dec((u64)kn); cr_puts(" bytes to /var/log/kernel.log"); }
         cr_puts("\r\n");
     }
 
