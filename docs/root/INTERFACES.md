@@ -258,6 +258,239 @@ From the runtime `help -a` capture (evidence/help_a_runtime.txt).
 | `wget` | download file via HTTP (wget &lt;host&gt; [port] [path]) |
 | `wifi` | wireless: status/scan/test/sdio (802.11 families + SDIO bus) |
 | `write` | write text to file (write &lt;path&gt; &lt;text&gt;) |
+| `ab_partition_test` | A/B disk discovery + slots + flags (WP-10u) |
+| `abcfg` | show the grub.cfg files abdisk/install write |
+| `abdisk` | create a bootable A/B update disk (abdisk &lt;dev&gt;; destroys data) |
+| `ac97` | AC'97 status |
+| `ac97_test` | AC'97 init/play test |
+| `acpi` | dump ACPI tables (RSDP/FADT/DSDT/MCFG) |
+| `acpidev` | list ACPI namespace devices (AML) |
+| `acpipow` | ACPI power status (S1-S5/SCI/GPE/FACS) |
+| `acpitest` | AML interpreter self-test + DSDT checks |
+| `ahci` | AHCI controller/port status |
+| `ahci_test` | WP-10a: AHCI init/ports/read-write test |
+| `alias` | set/show aliases |
+| `arp` | show ARP cache |
+| `ata` | ATA (PIO + Bus-Master DMA) status |
+| `ata_dma_test` | WP-10a: ATA Bus-Master DMA test + PIO timing |
+| `audio_rw_test` | play/stop round-trip on every card |
+| `bcm57xx` | BCM57xx NIC status |
+| `bcm57xx_test` | WP-10b: BCM57xx presence/link/send-recv test |
+| `bt` | bluetooth: status/usb/uart/test (HCI/L2CAP/RFCOMM/SDP/SPP/HID) |
+| `cat` | print file contents (cat &lt;file&gt;) |
+| `cd` | change directory (cd [path]) |
+| `checkupdate` | check for updates via /etc/opencube.conf (http/https) |
+| `checkupdate_test` | update check self-test (URL/JSON units + live probe) |
+| `chinese` | chinese support status (font/encoding/render/ime) |
+| `chinesetest` | run the full Chinese support regression suite |
+| `clear` | clear screen |
+| `config` | read/write system config (config list\|get\|set\|restore\|path) |
+| `config_test` | config subsystem self-test (write/read/get_all/delete/restore) |
+| `cp` | copy file (cp &lt;src&gt; &lt;dst&gt;) |
+| `cr3test` | test CR3 switching |
+| `crashlog` | show last exception crashes |
+| `crashtest` | trigger kernel crash tests (panic/exc/pf/assert/wd/dump/policy) |
+| `cryptotest` | test AES/SHA-256/HMAC with NIST vectors |
+| `df` | show disk/mount usage |
+| `dhcp` | get IP via DHCP |
+| `dhtest` | DH modexp 1024-bit (Oakley Group 1) timing + correctness |
+| `disk_rw_test` | WP-10a: rw round-trip on one device (disk_rw_test &lt;dev&gt;) |
+| `dmesg` | show the kernel log ring (dmesg [N]) |
+| `dns` | resolve domain name (dns &lt;name&gt; [aaaa\|cname\|mx\|txt\|ns\|srv]) |
+| `dnstest` | DNS record-type self-test (A/AAAA/MX/TXT/NS/SRV live) |
+| `dskstat` | show block devices |
+| `du` | directory usage (du [path]) |
+| `dumpinfo` | show core dump status (size/persisted/header) |
+| `e1000e` | e1000e NIC status |
+| `e1000e_test` | WP-10b: e1000e init/link/send-recv test |
+| `echo` | echo the text back |
+| `edit` | line editor (edit &lt;file&gt;; :i :d :p :w :q :wq) |
+| `encoding` | encoding codec status (gb2312/utf-8/ascii) |
+| `encoding-test` | quick codec round-trip check (full: chinesetest) |
+| `es1370` | ES1370/1371 status |
+| `es1370_test` | ES1370 init/play test |
+| `exc` | run exception self-test (#DE/#UD/#PF) |
+| `export` | set env var (export NAME=value) |
+| `fatmount` | mount FAT32 (fatmount &lt;dev&gt; &lt;path&gt;) |
+| `fatstat` | show FAT32 stats |
+| `firewall` | show/add/del firewall rules (chains, states, policies, conntrack) |
+| `font` | list registered fonts and the active renderer |
+| `font-test` | render a mixed CJK/ASCII sample row on the console |
+| `frag` | show memory fragmentation |
+| `fs_mount_test` | WP-10a: mkfs+mount FAT32 file round-trip (fs_mount_test &lt;dev&gt;) |
+| `fsck` | filesystem check |
+| `fstest` | run VFS self-test (mkdir/write/read/ls) |
+| `gameport` | game port status (axes, buttons, calibration) |
+| `gameporttest` | game port self test (axis reads, buttons, calibration) |
+| `grep` | filter lines matching pattern (grep &lt;pattern&gt; [file]) |
+| `grub-install` | write the GRUB BIOS boot loader (grub-install &lt;dev&gt;) |
+| `halt` | halt the kernel |
+| `halt_test` | verify halt path (live halt via 'halt') |
+| `hda` | Intel HDA status |
+| `hda_test` | Intel HDA init/codec/play test |
+| `health` | system health monitor (health [watch\|export]) |
+| `health export` | write health JSON to /var/log/health.json |
+| `health watch` | live health monitor, 1 s refresh (ENTER exits) |
+| `heap` | show kernel heap stats |
+| `heapbounds` | heap bounds regression (BUG-0140 wrap / BUG-0141 ceiling) |
+| `heaptest` | test heap overhead with 100 allocs |
+| `help` | show this message |
+| `help_a_test` | verify help -a A-Z ordering |
+| `help_default_test` | verify default help A-Z ordering |
+| `help_wp_test` | verify help -w group ordering |
+| `hpet` | HPET: caps + counter + one-shot/periodic IRQ8 tests |
+| `i2cdetect` | scan I2C/SMBus buses for devices |
+| `i2cget` | read I2C byte (i2cget &lt;bus&gt; &lt;addr&gt; [reg]) |
+| `i2cset` | write I2C byte (i2cset &lt;bus&gt; &lt;addr&gt; &lt;reg&gt; &lt;val&gt;) |
+| `i2ctest` | I2C core/controller self-test |
+| `ifconfig` | show network interface info |
+| `igb` | igb NIC status |
+| `igb_test` | WP-10b: igb init/link/send-recv test |
+| `ime` | pinyin IME status; "ime -i" opens the interactive console line |
+| `ime-test` | quick IME syllable resolution check |
+| `install` | install the running system to a disk (install &lt;dev&gt;; destroys data) |
+| `ip` | show/set IP address |
+| `ir` | infrared status (CIR/SIR devices, carrier, counters) |
+| `irqabitest` | IRQ-entry ABI regression (BUG-0137 align / BUG-0138 DF) |
+| `irtest` | infrared self test (NEC/RC5/RC6/SIRC round trips) |
+| `ixgbe` | ixgbe NIC status |
+| `ixgbe_test` | WP-10b: ixgbe presence/link/send-recv test |
+| `kill` | kill a task (kill &lt;tid&gt;) |
+| `l1test` | test L1 job_create/job_list/job_control with running process |
+| `lang` | show or set the shell output language (lang [en\|zh]) |
+| `ldd` | list dynamic dependencies (ldd &lt;program&gt;) |
+| `logcat` | filter the kernel log (logcat -l lvl -m mod -k key -t sec -n N [-f]) |
+| `logctl` | control the kernel log (logctl status\|level\|enable\|disable\|clear\|flush\|rotate\|e |
+| `ls` | list directory (ls [path]) |
+| `lsblk` | list block devices |
+| `lspci` | list PCI devices |
+| `mem` | show physical memory stats |
+| `memtest` | run memory test (PMM + heap) |
+| `mkdir` | make directory (mkdir &lt;path&gt;) |
+| `mkfs.exfat` | format exFAT (mkfs.exfat &lt;dev&gt; confirm) |
+| `mkfs.ext4` | format ext4 (mkfs.ext4 &lt;dev&gt; confirm) |
+| `mkfs.fat32` | format FAT32 (mkfs.fat32 &lt;dev&gt; confirm) |
+| `mount` | list mounts, or mount a fs: mount &lt;type&gt; &lt;device&gt; &lt;path&gt; |
+| `mounts` | list VFS mount table (alias for mount) |
+| `msitest` | LAPIC self-IPI + MSI/MSI-X device fire test |
+| `multi` | spawn 3 tasks with interleaved output |
+| `mv` | move/rename file (mv &lt;src&gt; &lt;dst&gt;) |
+| `nano` | nano-style editor (nano &lt;file&gt;; ^O save ^X exit) |
+| `netstat` | show network statistics and sockets |
+| `nf_test` | netfilter self-test (rules, conntrack, policies, real-path) |
+| `nic_rw_test` | WP-10b: send/recv correctness on all NICs |
+| `nice` | change priority (nice &lt;tid&gt; &lt;prio&gt;) |
+| `nvme` | NVMe controller/queue status |
+| `nvme_test` | WP-10a: NVMe init/queues/read-write test |
+| `other_nic_test` | WP-10b: legacy NICs (3c59x/nForce/AR81xx/Yukon) |
+| `parallel` | parallel port status (IEEE 1284 modes, counters) |
+| `paralleltest` | parallel self test (SPP write, EPP cycles, ECP probe) |
+| `parted` | show partition table (parted [dev]) |
+| `partition_test` | WP-10a: MBR+GPT parse test (partition_test [dev]) |
+| `pcibars` | list PCI devices with sized BARs |
+| `pcidump` | dump PCI config space (pcidump &lt;b:d.f&gt;) |
+| `pcie` | PCIe MMCONFIG state + capability walk |
+| `pftest` | test page fault handling |
+| `ping` | send ICMP echo (ping &lt;host&gt;) |
+| `play` | play a test tone (play [rate]) |
+| `pmmrace` | BUG-0043 repro: PMM bitmap race thread-vs-IRQ |
+| `pmtimer` | ACPI PM timer: read + PIT calibration + wrap tests |
+| `poweroff` | alias of shutdown |
+| `poweroff_test` | real power-off attempt (QEMU exits) |
+| `ps` | list all tasks |
+| `pwd` | print working directory |
+| `real_hw_test` | WP-10a: real-hardware detection report |
+| `real_update_test` | end-to-end update phase 1 (WP-10u) |
+| `reboot` | reboot the machine (reboot) |
+| `reboot_test` | verify reboot path (live reset via 'reboot') |
+| `rm` | delete file (rm &lt;file&gt;) |
+| `rmdir` | remove directory (rmdir &lt;path&gt;) |
+| `rollback` | roll back to slot A (rollback) |
+| `route` | show/add/del routing table (route add &lt;dst&gt; &lt;mask&gt; &lt;gw&gt;) |
+| `rtc` | CMOS RTC: time + status + UIE/PIE/alarm interrupt tests |
+| `rtl810x` | RTL810x NIC status |
+| `rtl810x_test` | WP-10b: RTL810x presence/link/send-recv test |
+| `rtl8125` | RTL8125 NIC status |
+| `rtl8125_test` | WP-10b: RTL8125 presence/link/send-recv test |
+| `rtl8139` | RTL8139 NIC status |
+| `rtl8139_test` | WP-10b: RTL8139 init/link/send-recv test |
+| `rtl8168` | RTL8168 NIC status |
+| `rtl8168_test` | WP-10b: RTL8168 presence/link/send-recv test |
+| `run` | run a user program (hello/badapp/loop/fork_test/.../dyn_test/so_test/dyn_hello/ |
+| `sample_rate_test` | 44100/48000 rate configuration test |
+| `sb16` | Sound Blaster 16 status |
+| `sb16_test` | SB16 init/play test |
+| `sched` | show scheduler stats |
+| `scsi` | SCSI status (HBAs, targets, capacity, blk names) |
+| `scsitest` | SCSI self test (CDB goldens, parsers, live target) |
+| `set` | list env vars |
+| `shutdown` | power off (flush + ACPI/Bochs/APM ports) |
+| `sleep` | delay for N seconds (sleep &lt;sec&gt;) |
+| `smbus` | list SMBus devices from the scan |
+| `smbustest` | SMBus protocol test (byte/word/block) |
+| `sound` | list registered sound cards |
+| `spawn` | spawn a test kernel thread |
+| `ssh` | SSH client connect (ssh &lt;ip&gt; [port] [user] [password]) |
+| `sshd` | SSH server (sshd [port=22] [user=oc] [password=oc]) |
+| `stats` | show interrupt/timer stats |
+| `sync` | flush disk cache |
+| `syncstat` | show sync primitive stats |
+| `synctest` | test sync primitives (spinlock/mutex/sem) |
+| `tcpcc_test` | CUBIC congestion control self-test vectors |
+| `tcpstats` | show TCP reliability stats (cwnd, rto, etc.) |
+| `tcptest` | TCP option negotiation self-test (MSS/WScale/SACK/TS live) |
+| `timer` | register a 500ms one-shot timer |
+| `touch` | create empty file (touch &lt;path&gt;) |
+| `touchpad` | touchpad status + pending gesture events |
+| `touchtest` | multitouch pipeline self-test (tap/scroll/pinch/swipe) |
+| `tree` | tree view of directory (tree [path]) |
+| `tsc` | TSC: reads + PIT/HPET/PMTimer calibration + delay test |
+| `tui` | full-screen TUI main menu (arrows/Tab/Enter/Esc) |
+| `tui-drv` | driver setup TUI (alias of tui-hw; page name optional) |
+| `tui-ext` | TUI L1 extension lab: selftest + registries |
+| `tui-hw` | hardware configuration TUI (optional: page name) |
+| `tui-net` | wireless network TUI (WiFi + Bluetooth) |
+| `tui-sys` | system settings TUI (host/net/storage/user/security/update/log/tui) |
+| `tui-sysinfo` | system information TUI (optional: page name) |
+| `tui-test` | run the TUI self-test suite (input/expected/actual/verdict) |
+| `tui-time` | time TUI: clock/sources/set RTC/timezone |
+| `umount` | unmount (umount &lt;path&gt;) |
+| `unalias` | remove an alias |
+| `uname` | print OS name (uname [-a\|-s\|-r\|-m]) |
+| `update` | check + install system update (update [local &lt;pkg&gt; \| --local &lt;pkg&gt; \| --status]) |
+| `update_check_test` | update manifest check with package fields (WP-10u) |
+| `update_download_test` | download the update package (WP-10u) |
+| `update_install_test` | install the package into slot B (WP-10u) |
+| `update_local_test` | offline update flow via cmd_update --local (WP-10u) |
+| `update_pkg_test` | gzip/DEFLATE + tar unit tests (WP-10u) |
+| `update_rollback_test` | boot flags + rollback (WP-10u) |
+| `update_status_test` | ota_update_get_status coverage (WP-10u) |
+| `update_verify_test` | SHA256 verification of the package (WP-10u) |
+| `usb` | USB hosts/devices + class driver status |
+| `usb_audio_test` | USB audio init/play test |
+| `usb_core_test` | USB core invariants + live transfers |
+| `usb_hotplug_test` | USB hot-plug (usb_hotplug_test [wait-new N\|wait-leave N]) |
+| `usb_hub_test` | USB external hub + children |
+| `usb_kbd_test` | USB HID keyboard presence + injection |
+| `usb_mouse_test` | USB HID mouse presence + event drain |
+| `usb_serial_test` | USB serial TX/RX round |
+| `usb_storage_test` | USB MSC drive capacity/rw/partitions |
+| `usbaudio` | USB audio status |
+| `usbdev` | USB device detail (usbdev [slot]) |
+| `uvc` | camera subsystem status (UVC devices, formats, frames) |
+| `uvctest` | camera self test (JPEG decode, UVC descriptor parse, core) |
+| `vi` | vi editor, two-mode (hjkl move, i/a/o insert, ESC, :w :q :wq :q!) |
+| `virtio_blk_test` | WP-10a: virtio-blk capacity + read/write test |
+| `virtio_snd_test` | virtio-snd init/play test |
+| `virtiosnd` | virtio-snd status |
+| `vmkernelpt` | VMM PT-ownership regression (BUG-0136) |
+| `vmmap` | show address space mappings |
+| `vmtest` | run virtual memory test |
+| `volume` | get/set volume (volume [0-100]) |
+| `watchdog` | watchdog status/control (hw TCO/WDAT + monitored slots + policy tests) |
+| `wget` | download file via HTTP (wget &lt;host&gt; [port] [path]) |
+| `wifi` | wireless: status/scan/test/sdio (802.11 families + SDIO bus) |
+| `write` | write text to file (write &lt;path&gt; &lt;text&gt;) |
 
 ## Part 2 - L1 surface header declarations
 

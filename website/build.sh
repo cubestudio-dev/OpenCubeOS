@@ -10,7 +10,8 @@
 # is the repository's docs/ tree; this script syncs it in, builds, and
 # the output lands in out/:
 #   out/            <- deploy root for gh-pages (facade + docs/)
-#   out/docs/       <- VitePress output (322 pages incl. search index)
+#   out/docs/       <- VitePress output (EN root + zh/ locale, ~642 pages
+#                      incl. per-locale search indexes)
 #
 # Usage: website/build.sh [--serve]
 

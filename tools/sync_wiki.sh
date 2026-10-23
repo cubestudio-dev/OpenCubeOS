@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS - WP-14-docs_release
+# Open Cube OS - WP-14 localization
 # File: tools/sync_wiki.sh
-# Purpose: sync the documentation tree to the GitHub Wiki.
+# Purpose: sync the documentation tree to the GitHub Wiki (bilingual).
 #
-#   docs/ (single source of truth)
-#     -> wiki pages (one mapped file per Wiki page, links rewritten
-#        to [[Wiki-Links]], relative assets stripped)
+#   docs/        (English, single source of truth)
+#   docs/zh/     (Simplified Chinese translation)
+#     -> wiki pages: Chinese is canonical under the mapped page name,
+#        English ships as <Page>-EN.md. Every page carries a language
+#        banner linking to its counterpart. Links are rewritten to
+#        [[Wiki-Links]] per language (zh -> canonical names,
+#        en -> -EN suffixed names) and relative assets are stripped.
 #     -> pushed to cubestudio-dev/OpenCubeOS.wiki.git
 #
 # The mapping table below is the contract: every docs/ page listed
-# becomes a Wiki page with the given name; every docs/ page NOT listed
-# is reachable from the mapped pages' links only through the docs
-# center (the Wiki is the curated view, the docs center is the full
-# tree - same sources, both live).
+# becomes a Wiki page pair with the given name; every docs/ page NOT
+# listed is reachable from the mapped pages' links only through the
+# docs center (the Wiki is the curated view, the docs center is the
+# full tree - same sources, both live, both languages).
 #
 # Usage: tools/sync_wiki.sh [--dry-run]
 # Env:   GH_TOKEN with repo access (push rights to the wiki).
@@ -97,6 +101,12 @@ map_page() {
         Internals-Crash-Dump)   echo "docs/internals/crash-dump.md" ;;
         Internals-Crypto)       echo "docs/internals/drbg-crypto.md" ;;
         Internals-OTA-AB)       echo "docs/internals/ota-ab.md" ;;
+        Developer-Handbook)      echo "docs/dev/index.md" ;;
+        Architecture-Guide)      echo "docs/arch/index.md" ;;
+        Drivers-Index)           echo "docs/drivers/index.md" ;;
+        Troubleshooting-Index)   echo "docs/troubleshooting/index.md" ;;
+        Internals-Index)         echo "docs/internals/index.md" ;;
+        Release-Index)           echo "docs/release/index.md" ;;
         Troubleshooting-Common) echo "docs/troubleshooting/common-errors.md" ;;
         Troubleshooting-QEMU)   echo "docs/troubleshooting/qemu-debugging.md" ;;
         Troubleshooting-Boot)   echo "docs/troubleshooting/boot-failures.md" ;;
@@ -130,73 +140,131 @@ PAGES=(
     Troubleshooting-Common Troubleshooting-QEMU Troubleshooting-Boot
     Troubleshooting-Network Troubleshooting-Storage Versioning
     Release-Process Release-Notes
+    Developer-Handbook Architecture-Guide Drivers-Index
+    Troubleshooting-Index Internals-Index Release-Index
 )
 
-# ---- reverse map for link rewriting ---------------------------------
-# docs path (relative, no docs/ prefix, .md stripped) -> wiki page name
-wiki_target() {
-    local rel="$1"
-    for p in "${PAGES[@]}"; do
-        [ "$p" = "Release-Notes" ] && continue
-        local src
-        src="$(map_page "$p")"
-        [ -z "$src" ] && continue
-        if [ "${src#docs/}" = "${rel%.md}" ] || [ "${src#docs/}" = "$rel" ]; then
-            echo "$p"
-            return
-        fi
-    done
-    echo ""
-}
-
+# ---- link rewriting -------------------------------------------------
+# Rewrite markdown links to [[Wiki-Page]] when the target maps to a wiki
+# page; drop links to non-mapped pages' files (keep the text); rewrite
+# DIRECTORY links (manual/, dev/, ... - they exist in the docs tree but
+# not on the wiki) to the section's index page. Anchors are dropped
+# (wiki headings are localized on the zh pages, so en anchors would
+# dead-end). OC_WIKI_SUFFIX appends "-EN" for the English variants.
 rewrite_links() {
-    # rewrite markdown links to [[Wiki-Page]] when the target maps to a
-    # wiki page; drop links to non-mapped pages' files (keep the text).
     python3 - "$1" <<'PYEOF'
 import os, re, sys
 path = sys.argv[1]
 text = open(path, encoding="utf-8", errors="replace").read()
 
+SUFFIX = os.environ.get("OC_WIKI_SUFFIX", "")
+
 WIKI_MAP = {}
-import subprocess
 # env-passed mapping list: "WikiName docs/rel.md" lines
 for line in os.environ.get("OC_WIKI_MAP", "").splitlines():
     parts = line.split(None, 1)
     if len(parts) == 2:
-        WIKI_MAP[parts[1].rstrip(".md").lstrip("docs/")] = parts[0]
+        WIKI_MAP[parts[1].rstrip(".md").lstrip("docs/")] = parts[0] + SUFFIX
+
+# directory links (docs/<dir>/) -> the section index's wiki page
+DIR_MAP = {
+    "manual": "User-Manual",            # docs/manual/index.md
+    "dev": "Developer-Handbook",        # docs/dev/index.md
+    "arch": "Architecture-Guide",       # docs/arch/index.md
+    "l1": "L1-Overview",                # docs/l1/overview.md
+    "drivers": "Drivers-Index",         # docs/drivers/index.md
+    "troubleshooting": "Troubleshooting-Index",
+    "internals": "Internals-Index",
+    "release": "Release-Index",
+}
+DIR_MAP = {k: v + SUFFIX for k, v in DIR_MAP.items()}
 
 def repl(m):
     target = m.group(2)
     t = target.split("#")[0]
     t = t.lstrip("./")
     if t in WIKI_MAP:
-        anchor = target.split("#", 1)[1] if "#" in target else ""
-        name = WIKI_MAP[t]
-        if anchor:
-            return "[%s](%s-%s)" % (m.group(1), name.replace("-", "-"),
-                                    anchor)
-        return "[[%s|%s]]" % (name, m.group(1))
+        # anchors dropped: wiki heading ids differ per language
+        return "[[%s|%s]]" % (WIKI_MAP[t], m.group(1))
+    return m.group(1)   # keep text, drop dead wiki link
+
+def repl_dir(m):
+    d = m.group(2).rstrip("/").lstrip("./")
+    if d in DIR_MAP:
+        return "[[%s|%s]]" % (DIR_MAP[d], m.group(1))
     return m.group(1)   # keep text, drop dead wiki link
 
 text = re.sub(r"\[([^\]]+)\]\(([^)]+\.md(?:#[^)]*)?)\)", repl, text)
-open(path, "w").write(text)
+text = re.sub(r"\[([^\]]+)\]\((\.{0,2}/?[a-z][a-z0-9]*/)\)", repl_dir, text)
+open(path, "w", encoding="utf-8").write(text)
+PYEOF
+}
+
+# insert a language banner after the leading comment block
+insert_banner() {
+    python3 - "$1" "$2" <<'PYEOF'
+import sys
+path, page = sys.argv[1], sys.argv[2]
+zh = page.endswith("-EN.md") is False
+lines = open(path, encoding="utf-8").read().split("\n")
+i = 0
+while i < len(lines) and (lines[i].startswith("<!--") or lines[i].strip() == ""):
+    # multi-line comments: skip to the closing -->
+    if lines[i].startswith("<!--") and "-->" not in lines[i]:
+        while i < len(lines) and "-->" not in lines[i]:
+            i += 1
+    i += 1
+if zh:
+    other = page[:-3] + "-EN" if page.endswith(".md") else page + "-EN"
+    banner = "> 语言：简体中文 ｜ [[%s|English]]" % other
+else:
+    other = page[:-6] if page.endswith("-EN.md") else page
+    banner = "> Language: English ｜ [[%s|简体中文]]" % other
+lines.insert(i, banner)
+lines.insert(i + 1, "")
+open(path, "w", encoding="utf-8").write("\n".join(lines))
 PYEOF
 }
 
 # ---- build the wiki tree --------------------------------------------
-echo "sync_wiki: ${#PAGES[@]} mapped pages"
+echo "sync_wiki: ${#PAGES[@]} mapped pages (zh canonical + -EN variants)"
+
+# every mapped page must exist in BOTH trees before we push anything
+MISSING=0
 for p in "${PAGES[@]}"; do
     src="$(map_page "$p")"
     [ -z "$src" ] && { echo "sync_wiki: no source for $p" >&2; exit 1; }
-    if [ "$src" = "GENERATED" ]; then continue; fi
+    [ "$src" = "GENERATED" ] && continue
     if [ ! -f "$OC_ROOT/$src" ]; then
-        echo "sync_wiki: missing source $src for $p" >&2
-        exit 1
+        echo "sync_wiki: missing EN source $src for $p" >&2
+        MISSING=1
+    fi
+    if [ ! -f "$OC_ROOT/docs/zh/${src#docs/}" ]; then
+        echo "sync_wiki: missing ZH source docs/zh/${src#docs/} for $p" >&2
+        MISSING=1
     fi
 done
+[ "$MISSING" = "1" ] && exit 1
 
 git clone -q "$WIKI_REPO" "$WORK/wiki" 2>/dev/null || {
-    # empty wiki: create the checkout manually
+    # the clone fails both for an empty wiki AND for a wiki that was
+    # never initialized (GitHub creates the .wiki.git repository only
+    # after the first page is saved from the web UI - no API or git
+    # push can create it). Distinguish the two:
+    if git ls-remote "$WIKI_REPO" HEAD >/dev/null 2>&1; then
+        : # repository exists (empty): create the checkout manually
+    else
+        echo "sync_wiki: the wiki repository does not exist yet." >&2
+        echo "  GitHub lazily creates OpenCubeOS.wiki.git only when the" >&2
+        echo "  first page is saved from the web UI; no token/API path" >&2
+        echo "  can initialize it." >&2
+        echo "  ONE-TIME manual step: open" >&2
+        echo "    https://github.com/cubestudio-dev/OpenCubeOS/wiki" >&2
+        echo "  create the Home page with any content (one line is fine)" >&2
+        echo "  and save it, then re-run this script - it will push all" >&2
+        echo "  mapped pages in both languages." >&2
+        exit 1
+    fi
     mkdir -p "$WORK/wiki"
     cd "$WORK/wiki"
     git init -q
@@ -219,21 +287,53 @@ for p in "${PAGES[@]}"; do
     src="$(map_page "$p")"
     if [ "$src" = "GENERATED" ]; then
         # Release-Notes: generated from the update manifest history
+        # (both languages, same data)
+        {
+            echo "<!-- SPDX-License-Identifier: Apache-2.0 -->"
+            echo "# 发布说明"
+            echo
+            echo "> 语言：简体中文 ｜ [[Release-Notes-EN|English]]"
+            echo
+            echo "每个版本都出自同一条可复现流水线；完整说明见"
+            echo "[发布页](https://github.com/cubestudio-dev/OpenCubeOS/releases)。"
+            echo
+            python3 - "$OC_ROOT" zh <<'PYEOF'
+import json, os, re, sys
+root, lang = sys.argv[1], sys.argv[2]
+sd = os.path.join(root, "website", "assets", "site-data.js")
+txt = open(sd).read()
+ver = re.search(r'version: "([^"]+)"', txt)
+build = re.search(r'build: (\d+)', txt)
+date = re.search(r'date: "([^"]+)"', txt)
+iso = re.search(r'name: "(opencube-[^"]+\.iso)"', txt)
+sha = re.search(r'sha256: "([0-9a-f]{64})"', txt)
+print("| 版本 | 日期 | 构建 |")
+print("|------|------|------|")
+if ver and date and build:
+    print("| %s | %s | %s |" % (ver.group(1), date.group(1), build.group(1)))
+hist = re.findall(r'\{ version: "([^"]+)", date: "([^"]+)"', txt)
+for v, d in hist:
+    print("| %s | %s | - |" % (v, d))
+print()
+print("当前 ISO：`%s`" % (iso.group(1) if iso else "-"))
+print("ISO SHA256：`%s`" % (sha.group(1) if sha else "-"))
+PYEOF
+        } > "$WORK/wiki/Release-Notes.md"
         {
             echo "<!-- SPDX-License-Identifier: Apache-2.0 -->"
             echo "# Release notes"
+            echo
+            echo "> Language: English ｜ [[Release-Notes|简体中文]]"
             echo
             echo "Every release ships from the same reproducible pipeline;"
             echo "full notes live on the"
             echo "[releases page](https://github.com/cubestudio-dev/OpenCubeOS/releases)."
             echo
-            python3 - "$OC_ROOT" <<'PYEOF'
-import json, os, sys
-root = sys.argv[1]
+            python3 - "$OC_ROOT" en <<'PYEOF'
+import json, os, re, sys
+root, lang = sys.argv[1], sys.argv[2]
 sd = os.path.join(root, "website", "assets", "site-data.js")
 txt = open(sd).read()
-# crude but honest parse of the small generated file
-import re
 ver = re.search(r'version: "([^"]+)"', txt)
 build = re.search(r'build: (\d+)', txt)
 date = re.search(r'date: "([^"]+)"', txt)
@@ -250,30 +350,75 @@ print()
 print("Current ISO: `%s`" % (iso.group(1) if iso else "-"))
 print("ISO SHA256: `%s`" % (sha.group(1) if sha else "-"))
 PYEOF
-        } > "$WORK/wiki/Release-Notes.md"
+        } > "$WORK/wiki/Release-Notes-EN.md"
         continue
     fi
-    cp "$OC_ROOT/$src" "$WORK/wiki/$p.md"
+
+    # Chinese canonical page
+    cp "$OC_ROOT/docs/zh/${src#docs/}" "$WORK/wiki/$p.md"
     # strip the generated-mirror header comment (3 lines) where present
     sed -i '1{/GENERATED mirror/{N;N;d}}' "$WORK/wiki/$p.md"
-    rewrite_links "$WORK/wiki/$p.md"
+    OC_WIKI_SUFFIX="" rewrite_links "$WORK/wiki/$p.md"
+    insert_banner "$WORK/wiki/$p.md" "$p.md"
+
+    # English variant page
+    cp "$OC_ROOT/$src" "$WORK/wiki/$p-EN.md"
+    sed -i '1{/GENERATED mirror/{N;N;d}}' "$WORK/wiki/$p-EN.md"
+    OC_WIKI_SUFFIX="-EN" rewrite_links "$WORK/wiki/$p-EN.md"
+    insert_banner "$WORK/wiki/$p-EN.md" "$p-EN.md"
 done
+
+# ---- local dead-link check ------------------------------------------
+echo "sync_wiki: checking wiki-internal links ..."
+python3 - "$WORK/wiki" <<'PYEOF'
+import os, re, sys
+wiki = sys.argv[1]
+files = [f for f in os.listdir(wiki) if f.endswith(".md")]
+names = {f[:-3] for f in files}
+dead = []
+checked = 0
+for f in files:
+    text = open(os.path.join(wiki, f), encoding="utf-8").read()
+    for m in re.finditer(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]", text):
+        target = m.group(1).strip()
+        checked += 1
+        if target not in names:
+            dead.append((f, target))
+    for m in re.finditer(r"\]\(([^)#]+\.md|[^)#]+/)\)", text):
+        t = m.group(1).strip()
+        if t.startswith("http") or t.startswith("mailto"):
+            continue
+        checked += 1
+        if t.rstrip("/") not in names:
+            dead.append((f, t))
+if dead:
+    print("DEAD LINKS: %d" % len(dead))
+    for f, t in dead[:20]:
+        print("  %s -> %s" % (f, t))
+    sys.exit(1)
+print("link check: %d links, 0 dead" % checked)
+PYEOF
 
 cd "$WORK/wiki"
 if [ "$DRY" = "1" ]; then
     echo "sync_wiki: DRY RUN - pages in $WORK/wiki:"
-    ls -1 . | head -90
+    ls -1 . | sed 's/^/    /' | head -170
+    if [ "${OC_WIKI_KEEP:-0}" = "1" ]; then
+        echo "sync_wiki: KEEP=1 - tree preserved at $WORK/wiki"
+    else
+        rm -rf "$WORK"
+    fi
     exit 0
 fi
 git add -A
 if git diff --cached --quiet; then
     echo "sync_wiki: wiki already up to date"
 else
-    git commit -q -m "docs sync: documentation tree -> wiki (tools/sync_wiki.sh)"
+    git commit -q -m "docs sync: bilingual documentation tree -> wiki (tools/sync_wiki.sh)"
     git -c http.version=HTTP/1.1 push -q origin master 2>/dev/null \
         || git -c http.version=HTTP/1.1 push -q origin main
-    echo "sync_wiki: pushed ${#PAGES[@]} pages"
+    echo "sync_wiki: pushed $(( ${#PAGES[@]} * 2 )) pages (zh canonical + en)"
 fi
 echo "sync_wiki: page list:"
-ls -1 . | sed 's/^/    /' | head -90
+ls -1 . | sed 's/^/    /' | head -170
 rm -rf "$WORK"

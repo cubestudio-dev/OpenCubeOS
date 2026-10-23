@@ -59,6 +59,12 @@
   window.OC_LANG = "en";
 
   function detectLang() {
+    /* explicit ?lang=zh|en wins (e.g. links from the zh docs center)
+       and is persisted like a manual switch */
+    try {
+      var q = new URLSearchParams(window.location.search).get("lang");
+      if (q === "en" || q === "zh") return q;
+    } catch (e) { /* old browsers */ }
     try {
       var saved = localStorage.getItem(LANG_KEY);
       if (saved === "en" || saved === "zh") return saved;
@@ -108,6 +114,27 @@
       segs[s].classList.toggle("active", on);
       segs[s].setAttribute("aria-pressed", on ? "true" : "false");
     }
+
+    /* mobile nav toggle aria label */
+    var nt = document.getElementById("nav-toggle");
+    if (nt && dict["nav.menu"] !== undefined) {
+      nt.setAttribute("aria-label", dict["nav.menu"]);
+    }
+
+    /* links into the docs center follow the language:
+       EN -> docs/..., ZH -> docs/zh/... (idempotent, reversible).
+       Runs AFTER the data-i18n-html replacement so dictionary-embedded
+       hrefs are normalized too. */
+    var docLinks = document.querySelectorAll('a[href^="docs/"]');
+    for (var d = 0; d < docLinks.length; d++) {
+      var href = docLinks[d].getAttribute("href");
+      if (lang === "zh" && href.indexOf("docs/zh/") !== 0) {
+        docLinks[d].setAttribute("href", "docs/zh/" + href.slice(5));
+      } else if (lang === "en" && href.indexOf("docs/zh/") === 0) {
+        docLinks[d].setAttribute("href", href.slice(8));
+      }
+    }
+
     updateThemeButton();
     /* dynamic parts of the download page are language-dependent */
     fillSiteData();
@@ -210,14 +237,17 @@
       (function (el) {
         if (el.dataset.copyBound) return;
         el.dataset.copyBound = "1";
-        el.title = "Click to copy";
+        var t = function () {
+          return window.I18N && window.I18N[window.OC_LANG] || {};
+        };
+        el.title = t()["sha.copy"] || "Click to copy";
         el.style.cursor = "pointer";
         el.addEventListener("click", function () {
-          var t = el.textContent.replace(/^SHA256:\s*/, "").trim();
+          var txt = el.textContent.replace(/^SHA256:\s*/, "").trim();
           if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(t).then(function () {
+            navigator.clipboard.writeText(txt).then(function () {
               var old = el.title;
-              el.title = "Copied!";
+              el.title = t()["sha.copied"] || "Copied!";
               setTimeout(function () { el.title = old; }, 1200);
             });
           }

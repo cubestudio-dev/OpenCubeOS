@@ -660,6 +660,7 @@ def write_interfaces_md(interfaces, stats, cmds):
 
 def extract_commands_from_capture_text(text):
     cmds = []
+    seen = set()
     total = None
     total_re = re.compile(r"Total:\s*(\d+)\s*commands")
     entry_re = re.compile(
@@ -671,7 +672,14 @@ def extract_commands_from_capture_text(text):
             continue
         m = entry_re.match(line)
         if m:
-            cmds.append({"name": m.group(1), "help": m.group(2).strip()})
+            name = m.group(1)
+            # a runner capture can contain the command table twice
+            # (the live serial log + the runner's OUTPUT SUMMARY
+            # replay) - dedupe by name, first occurrence wins.
+            if name in seen:
+                continue
+            seen.add(name)
+            cmds.append({"name": name, "help": m.group(2).strip()})
     return cmds, total
 
 
