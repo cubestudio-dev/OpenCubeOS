@@ -1,0 +1,54 @@
+{
+ "dirs": {
+  "kernel": {
+   "files": 87,
+   "lines": 42126
+  },
+  "boot": {
+   "files": 4,
+   "lines": 252
+  },
+  "userprogs": {
+   "files": 8,
+   "lines": 3393
+  },
+  "arch": {
+   "files": 4,
+   "lines": 310
+  },
+  "drivers": {
+   "files": 130,
+   "lines": 40965
+  },
+  "fs": {
+   "files": 10,
+   "lines": 6216
+  },
+  "net": {
+   "files": 9,
+   "lines": 13166
+  },
+  "shell": {
+   "files": 47,
+   "lines": 14505
+  },
+  "l1": {
+   "files": 13,
+   "lines": 3047
+  },
+  "tui": {
+   "files": 25,
+   "lines": 10960
+  },
+  "chinese": {
+   "files": 15,
+   "lines": 4518
+  },
+  "libs": {
+   "files": 1,
+   "lines": 1214
+  }
+ },
+ "total_lines": 140672,
+ "total_files": 353
+}

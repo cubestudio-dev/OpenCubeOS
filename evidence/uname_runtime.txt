@@ -1,0 +1,2 @@
+uname -a
+Open Cube OS WP-13-build_system-3-g8066552 x86_64

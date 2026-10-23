@@ -649,3 +649,12 @@ dist: userprogs-check $(KERNEL_ISO)
 	sha256sum $$ISOCOPY | tee $$ISOCOPY.sha256
 
 endif # ARCH dispatch
+
+# ---- WP-14-docs_release: documentation data generation ----
+# generate_api_docs(): extracts the real command table (runtime capture),
+# the L1 interface table (surface headers) and source statistics into
+# docs/data/*.json.  HELP_CAPTURE points at a `help -a` runtime capture
+# (see evidence/help_a_runtime.txt; regenerate with tools/gen_api_docs.py
+# --qemu build/opencube.iso).
+api-docs:
+	python3 $(OC_ROOT)/tools/gen_api_docs.py --help-capture $(OC_ROOT)/evidence/help_a_runtime.txt

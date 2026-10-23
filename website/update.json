@@ -1,0 +1,10 @@
+{
+    "version": "WP-14-docs_release",
+    "build": 274,
+    "time": "2026-10-23",
+    "changes": "WP-14-docs_release release. See the GitHub release note for the full change list, new interfaces and known issues.",
+    "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
+    "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-14-docs_release-update.tar.gz",
+    "package_sha256": "0873224deff05a6838aa80ea1bc26a7648f64ac3b1273a0746d4345d076c5117",
+    "package_size": 1058345
+}

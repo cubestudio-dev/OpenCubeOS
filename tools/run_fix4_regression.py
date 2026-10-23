@@ -83,8 +83,8 @@ CHECKS = [
     # WP-10-tui/chinese_support add their tag + describe forms.
     # WP-12-watchdog_logging adds the watchdog_logging tag form
     # (release builds bake the tag name verbatim); WP-13-build_system
-    # adds its tag form the same way.
-    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc|wireless_bluetooth|camera_misc|tui|chinese_support)|WP-11-crash_recovery|WP-12-watchdog_logging|WP-13-build_system"),
+    # and WP-14-docs_release add their tag forms the same way.
+    ("uname current tree",       r"Open Cube OS WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc|wireless_bluetooth|camera_misc|tui|chinese_support)|WP-11-crash_recovery|WP-12-watchdog_logging|WP-13-build_system|WP-14-docs_release"),
     ("heaptest pass",            r"heaptest.*PASS|heap test.*PASS"),
     ("fstest pass",              r"fstest.*(PASS|OK)|VFS self-test.*PASS"),
     ("cryptotest NIST pass",     r"[Cc]rypto self-test.*pass|cryptotest.*PASS|All \d+ NIST"),

@@ -1,20 +1,13 @@
 {
-  "name": "opencube-os-website",
+  "name": "opencubeos-website",
   "version": "1.0.0",
   "private": true,
+  "description": "Open Cube OS website: facade (pure HTML/CSS/JS) + docs center (VitePress over docs/)",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build"
-  },
-  "dependencies": {
-    "next": "16.0.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "docs:dev": "vitepress dev docs-src",
+    "docs:build": "vitepress build docs-src"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "typescript": "^5.9.3"
+    "vitepress": "^1.6.3"
   }
 }
