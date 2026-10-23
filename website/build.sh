@@ -42,12 +42,12 @@ npm run docs:build
 # ---- 4. assemble the deploy root ----
 echo "--- assembling out/ (facade + docs center) ---"
 mkdir -p out
-cp -f index.html download.html out/
+cp -f index.html architecture.html download.html about.html out/
 # copy CONTENTS: `cp -rf assets out/assets` on an existing out/assets
 # would nest (out/assets/assets) instead of updating the files.
 rm -rf out/assets
 cp -rf assets out/assets
 # downloads/ and update.json are managed by the release script
 # (tools/update_website.sh) - not part of the site build.
-echo "    out/index.html out/download.html out/assets/ out/docs/"
+echo "    out/index.html out/architecture.html out/download.html out/about.html out/assets/ out/docs/"
 echo "build.sh: done."

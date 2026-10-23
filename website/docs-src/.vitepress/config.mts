@@ -32,7 +32,9 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'Website', link: '../' },
+      { text: 'Architecture', link: '../architecture.html' },
       { text: 'Download', link: '../download.html' },
+      { text: 'About', link: '../about.html' },
       { text: 'GitHub', link: 'https://github.com/cubestudio-dev/OpenCubeOS' }
     ],
 

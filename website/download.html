@@ -1,101 +1,107 @@
 <!DOCTYPE html>
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
-<!-- Open Cube OS download page - current release + history, hash-gated. -->
+<!-- Open Cube OS download page - current release + history, hash-gated.
+     Bilingual (EN/ZH) + light/dark theme. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Download - Open Cube OS</title>
+<title data-i18n="title.download">Download - Open Cube OS</title>
 <meta name="description" content="Download Open Cube OS: the bootable hybrid BIOS+UEFI ISO, the deterministic source zip, and the OTA update package - with SHA256 for every asset.">
 <link rel="stylesheet" href="assets/style.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3E%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3C%3C/text%3E%3C/svg%3E">
+<script>
+(function(){try{var t=localStorage.getItem("oc-theme");
+if(t!=="dark"&&t!=="light"){t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}
+document.documentElement.setAttribute("data-theme",t);}catch(e){document.documentElement.setAttribute("data-theme","light");}})();
+</script>
 </head>
 <body>
+<a class="skip" href="#main" data-i18n="nav.skip">Skip to content</a>
 <nav class="nav">
   <div class="wrap nav-inner">
     <a class="brand" href="./"><span class="p">[</span>opencube<span class="p">]</span> OS</a>
     <div class="nav-links">
-      <a href="./#features" class="hide-xs">Features</a>
-      <a href="docs/" id="nav-docs">Documentation</a>
-      <a href="download.html">Download</a>
-      <a class="cta" href="https://github.com/cubestudio-dev/OpenCubeOS" rel="noopener">GitHub</a>
+      <a href="./" data-i18n="nav.home">Home</a>
+      <a href="architecture.html" data-i18n="nav.architecture">Architecture</a>
+      <a href="download.html" class="active" data-i18n="nav.download">Download</a>
+      <a href="docs/" data-i18n="nav.docs">Documentation</a>
+      <a href="about.html" data-i18n="nav.about">About</a>
+      <a class="cta" href="https://github.com/cubestudio-dev/OpenCubeOS" rel="noopener" data-i18n="nav.github">GitHub</a>
+    </div>
+    <div class="nav-ctrl">
+      <div class="seg" role="group" aria-label="Language / 语言">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="zh" aria-pressed="false">中文</button>
+      </div>
+      <button type="button" class="icon-btn" id="theme-btn" aria-label="Switch to dark theme">🌙</button>
+      <button type="button" id="nav-toggle" aria-label="Menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
     </div>
   </div>
 </nav>
 
-<main>
+<main id="main">
 <div class="wrap">
   <div class="dl-head">
-    <h1>Download</h1>
-    <p class="sub">Current release: <span class="v" id="dl-version">-</span>
-    &middot; build <span class="v" id="dl-build">-</span> &middot;
-    <span id="dl-date">-</span>. Every asset's SHA256 is listed - verify what
-    you download: <code>sha256sum &lt;file&gt;</code>.</p>
+    <h1 data-i18n="dl.h1">Download</h1>
+    <p class="sub" data-i18n-html="dl.sub">Current release: <span class="v" id="dl-version">-</span> &middot; build <span class="v" id="dl-build">-</span> &middot; <span id="dl-date">-</span>. Every asset's SHA256 is listed - verify what you download: <code>sha256sum &lt;file&gt;</code>.</p>
   </div>
 
   <div class="dl-grid">
     <div class="dl-card" id="card-iso">
-      <div class="type">Bootable ISO</div>
+      <div class="type" data-i18n="dl.iso.type">Bootable ISO</div>
       <h3 id="iso-name">-</h3>
-      <p class="desc">Hybrid BIOS + UEFI image (~12 MiB). Boot it in QEMU
-      (<code>-cdrom</code>) or write it to a USB stick for real hardware.</p>
-      <div class="meta">Size: <b id="iso-size">-</b></div>
+      <p class="desc" data-i18n-html="dl.iso.desc">Hybrid BIOS + UEFI image (~12 MiB). Boot it in QEMU (<code>-cdrom</code>) or write it to a USB stick for real hardware.</p>
+      <div class="meta"><span data-i18n="dl.size">Size:</span> <b id="iso-size">-</b></div>
       <div class="sha" id="iso-sha">-</div>
-      <a class="btn btn-primary" id="iso-url" href="#">&#11015;&#65039; Download ISO</a>
+      <a class="btn btn-primary" id="iso-url" href="#" data-i18n="dl.iso.btn">⬇️ Download ISO</a>
     </div>
     <div class="dl-card" id="card-src">
-      <div class="type">Source</div>
+      <div class="type" data-i18n="dl.src.type">Source</div>
       <h3 id="src-name">-</h3>
-      <p class="desc">Deterministic source zip (<code>git archive</code>):
-      tree order, commit mtimes, index permissions - the same commit always
-      rebuilds the same zip.</p>
-      <div class="meta">Size: <b id="src-size">-</b></div>
+      <p class="desc" data-i18n-html="dl.src.desc">Deterministic source zip (<code>git archive</code>): tree order, commit mtimes, index permissions - the same commit always rebuilds the same zip.</p>
+      <div class="meta"><span data-i18n="dl.size">Size:</span> <b id="src-size">-</b></div>
       <div class="sha" id="src-sha">-</div>
-      <a class="btn btn-ghost" id="src-url" href="#">&#11015;&#65039; Download source</a>
+      <a class="btn btn-ghost" id="src-url" href="#" data-i18n="dl.src.btn">⬇️ Download source</a>
     </div>
     <div class="dl-card" id="card-ota">
-      <div class="type">OTA update</div>
+      <div class="type" data-i18n="dl.ota.type">OTA update</div>
       <h3 id="ota-name">-</h3>
-      <p class="desc">Update package for a running system:
-      <code>checkupdate</code> fetches the <a href="update.json">manifest</a>,
-      verification is SHA256 + signature, install goes to the inactive A/B
-      slot.</p>
-      <div class="meta">Size: <b id="ota-size">-</b></div>
+      <p class="desc" data-i18n-html="dl.ota.desc">Update package for a running system: <code>checkupdate</code> fetches the <a href="update.json">manifest</a>, verification is SHA256 + signature, install goes to the inactive A/B slot.</p>
+      <div class="meta"><span data-i18n="dl.size">Size:</span> <b id="ota-size">-</b></div>
       <div class="sha" id="ota-sha">-</div>
-      <a class="btn btn-ghost" id="ota-url" href="#">&#11015;&#65039; Download package</a>
+      <a class="btn btn-ghost" id="ota-url" href="#" data-i18n="dl.ota.btn">⬇️ Download package</a>
     </div>
   </div>
 
   <section class="section" style="padding-top:34px">
-    <h2>Previous releases</h2>
-    <p class="sub">ISO SHA256 for the recent line; every asset of every
-    release lives on the
-    <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases" rel="noopener">GitHub releases page</a>.</p>
+    <h2 data-i18n="dl.hist.h2">Previous releases</h2>
+    <p class="sub" data-i18n-html="dl.hist.sub">ISO SHA256 for the recent line; every asset of every release lives on the <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases" rel="noopener">GitHub releases page</a>.</p>
     <div class="hist-scroll">
     <table class="hist" id="hist-table">
       <thead><tr>
-        <th>Version</th><th>Date</th><th>ISO</th><th>Size</th><th>ISO SHA256</th>
+        <th data-i18n="dl.hist.th.v">Version</th><th data-i18n="dl.hist.th.d">Date</th><th data-i18n="dl.hist.th.iso">ISO</th><th data-i18n="dl.hist.th.s">Size</th><th data-i18n="dl.hist.th.sha">ISO SHA256</th>
       </tr></thead>
       <tbody id="hist-body">
-        <tr><td class="v" id="h0-v">-</td><td id="h0-d">-</td><td>current</td><td id="h0-s">-</td><td class="sha" id="h0-sha">-</td></tr>
+        <tr><td class="v">-</td><td>-</td><td>-</td><td>-</td><td class="sha">-</td></tr>
       </tbody>
     </table>
     </div>
   </section>
 
   <section class="section" style="padding-top:10px">
-    <h2>Verify</h2>
+    <h2 data-i18n="dl.verify.h2">Verify</h2>
     <div class="steps">
       <div class="step"><div class="n">1</div><div>
-        <h3>Hash the file you downloaded</h3>
-        <div class="cmd"><span class="c">$</span> sha256sum opencube-<span class="qsver">WP-13</span>.iso</div>
+        <h3 data-i18n="dl.verify.s1.h">Hash the file you downloaded</h3>
+        <div class="cmd"><span class="c">$</span> sha256sum opencube-<span class="qsver">WP-14</span>.iso</div>
       </div></div>
       <div class="step"><div class="n">2</div><div>
-        <h3>Compare with the value above</h3>
-        <p>These are the exact bytes served from this site and attached to the
-        GitHub Release - the site, the Release and the private mirror hold
-        identical copies (three-way verified at every release).</p>
+        <h3 data-i18n="dl.verify.s2.h">Compare with the value above</h3>
+        <p data-i18n="dl.verify.s2.p">These are the exact bytes served from this site and attached to the GitHub Release - the site, the Release and the private mirror hold identical copies (three-way verified at every release).</p>
       </div></div>
     </div>
   </section>
@@ -106,25 +112,36 @@
   <div class="wrap">
     <div class="foot-grid">
       <div class="col">
-        <div class="h">Project</div>
-        <a href="https://github.com/cubestudio-dev/OpenCubeOS" rel="noopener">GitHub repository</a>
-        <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases" rel="noopener">Releases</a>
+        <div class="h" data-i18n="foot.project">Project</div>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS" rel="noopener" data-i18n="foot.repo">GitHub repository</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases" rel="noopener" data-i18n="foot.releases">Releases</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/issues" rel="noopener" data-i18n="foot.issues">Issue tracker</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/wiki" rel="noopener" data-i18n="foot.wiki">GitHub Wiki</a>
       </div>
       <div class="col">
-        <div class="h">Documentation</div>
-        <a href="docs/" id="foot-docs">Documentation center</a>
-        <a href="docs/manual/getting-started.html" id="foot-gs">Getting started</a>
+        <div class="h" data-i18n="foot.docs">Documentation</div>
+        <a href="docs/" data-i18n="foot.docs-center">Documentation center</a>
+        <a href="docs/manual/getting-started.html" data-i18n="foot.gs">Getting started</a>
+        <a href="docs/root/BUILDING.html">BUILDING.md</a>
+        <a href="docs/l1/overview.html" data-i18n="foot.l1">L1 extension guide</a>
+      </div>
+      <div class="col">
+        <div class="h" data-i18n="foot.dl">Download</div>
+        <a href="download.html" data-i18n="foot.current">Current release</a>
+        <a href="update.json" data-i18n="foot.update">Update manifest (JSON)</a>
+        <a href="about.html" data-i18n="nav.about">About</a>
       </div>
     </div>
     <div class="foot-note">
       <span>Apache License 2.0</span>
       <span>Copyright 2026 cubestudio-dev &lt;cubestudio@qq.com&gt;</span>
-      <span id="foot-build">build 259</span>
+      <span id="foot-build">build 274</span>
     </div>
   </div>
 </footer>
 
 <script src="assets/site-data.js"></script>
+<script src="assets/i18n.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
