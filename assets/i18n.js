@@ -54,6 +54,20 @@
 
       /* ---- index: features ---- */
       "feat.h2": "Features",
+      "feat.k.boot": "boot",
+      "feat.k.memory": "memory",
+      "feat.k.cpu": "cpu",
+      "feat.k.ring3": "ring-3",
+      "feat.k.net": "net",
+      "feat.k.storage": "storage",
+      "feat.k.usb": "usb",
+      "feat.k.reliability": "reliability",
+      "feat.k.shell": "shell",
+      "feat.k.tui": "tui",
+      "feat.k.ota": "ota",
+      "feat.k.l1": "l1",
+      "feat.k.l0": "l0",
+      "feat.k.goal": "roadmap",
       "feat.sub": "A real kernel, not a demo: preemptive scheduling, four-level paging, ring-3 processes, a VFS over four filesystems, a full TCP/IP stack with TLS and SSH (client <i>and</i> server), 16 driver families, crash dumps, hardware watchdogs, and OTA A/B updates.",
       "feat.boot.h": "Hybrid BIOS + UEFI",
       "feat.boot.p": "One ISO boots both firmware paths through GRUB 2.12, with an A/B slot menu and the kernel attached as its own install payload.",
@@ -290,7 +304,12 @@
       "about.thanks.6": "VitePress - the documentation center you are reading",
       "about.contact.h": "Contact",
       "about.contact.p1": "Mail: <a class=\"mail\" href=\"mailto:cubestudio@qq.com\">cubestudio@qq.com</a>",
-      "about.contact.p2": "Bugs and features: the <a href=\"https://github.com/cubestudio-dev/OpenCubeOS/issues\" rel=\"noopener\">GitHub issue tracker</a>. Security-sensitive reports: mail first, please."
+      "about.contact.p2": "Bugs and features: the <a href=\"https://github.com/cubestudio-dev/OpenCubeOS/issues\" rel=\"noopener\">GitHub issue tracker</a>. Security-sensitive reports: mail first, please.",
+      "about.links.faq": "FAQ \u2192",
+      "about.links.notes": "Release notes \u2192",
+      "foot.copyright": "Copyright 2026 cubestudio-dev <cubestudio@qq.com>",
+      "sha.copy": "Click to copy",
+      "sha.copied": "Copied!"
     },
 
     zh: {
@@ -340,6 +359,20 @@
 
       /* ---- 首页：特性 ---- */
       "feat.h2": "核心特性",
+      "feat.k.boot": "启动",
+      "feat.k.memory": "内存",
+      "feat.k.cpu": "CPU",
+      "feat.k.ring3": "用户态",
+      "feat.k.net": "网络",
+      "feat.k.storage": "存储",
+      "feat.k.usb": "USB",
+      "feat.k.reliability": "可靠性",
+      "feat.k.shell": "Shell",
+      "feat.k.tui": "TUI",
+      "feat.k.ota": "升级",
+      "feat.k.l1": "L1",
+      "feat.k.l0": "L0",
+      "feat.k.goal": "路线图",
       "feat.sub": "这是一个真内核，不是演示品：抢占式调度、四级分页、ring-3 用户进程、覆盖四种文件系统的 VFS、带 TLS 和 SSH（客户端<i>与</i>服务端）的完整 TCP/IP 协议栈、16 个驱动族、崩溃转储、硬件看门狗，以及 OTA A/B 升级。",
       "feat.boot.h": "BIOS + UEFI 双启动",
       "feat.boot.p": "同一张 ISO 经 GRUB 2.12 同时支持两条固件启动路径，自带 A/B 槽位菜单，内核 ELF 作为独立安装载荷随盘携带。",
@@ -576,7 +609,12 @@
       "about.thanks.6": "VitePress —— 你正在阅读的文档中心",
       "about.contact.h": "联系方式",
       "about.contact.p1": "邮件：<a class=\"mail\" href=\"mailto:cubestudio@qq.com\">cubestudio@qq.com</a>",
-      "about.contact.p2": "缺陷与功能：<a href=\"https://github.com/cubestudio-dev/OpenCubeOS/issues\" rel=\"noopener\">GitHub 问题跟踪</a>。安全敏感报告：请先发邮件。"
+      "about.contact.p2": "缺陷与功能：<a href=\"https://github.com/cubestudio-dev/OpenCubeOS/issues\" rel=\"noopener\">GitHub 问题跟踪</a>。安全敏感报告：请先发邮件。",
+      "about.links.faq": "常见问题 \u2192",
+      "about.links.notes": "发布说明 \u2192",
+      "foot.copyright": "版权所有 2026 cubestudio-dev <cubestudio@qq.com>",
+      "sha.copy": "点击复制",
+      "sha.copied": "已复制！"
     }
   };
 })();
