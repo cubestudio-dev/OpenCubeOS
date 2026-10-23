@@ -1,1 +1,261 @@
-<!DOCTYPE html><!--jwZkKNd5Z9fqDjtpN_352--><html lang="zh-CN"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="/OpenCubeOS/_next/static/chunks/009f7cf8a84a9779.css" data-precedence="next"/><link rel="preload" as="script" fetchPriority="low" href="/OpenCubeOS/_next/static/chunks/bd599245817485f8.js"/><script src="/OpenCubeOS/_next/static/chunks/112f346e31f991df.js" async=""></script><script src="/OpenCubeOS/_next/static/chunks/dcd7448ee7350759.js" async=""></script><script src="/OpenCubeOS/_next/static/chunks/da46ae0487a42197.js" async=""></script><script src="/OpenCubeOS/_next/static/chunks/turbopack-cb65794d0e04c62b.js" async=""></script><script src="/OpenCubeOS/_next/static/chunks/42879de7b8087bc9.js" async=""></script><script src="/OpenCubeOS/_next/static/chunks/d98664d9c7913ef1.js" async=""></script><title>Open Cube OS - 开源 x86_64 L0 内核</title><meta name="description" content="Open Cube OS：开源 x86_64 内核（L0），可被扩展成任何东西。WP-AUDIT-01 完成 18 路逐行完整审查（607 条发现）：41 个 P0 全部修复（p0fix1 前 20 + p0fix2 后 21），P1 全部 94 条修复完成（p1fix1 前 31 条 + p1fix2 第 32~62 条 + p1fix3 剩余 31 条：A/B 更新目标槽修正、OTA 整数/栈加固、恒定时间 EC 标量乘与 modexp、GPT/NVMe/ATA 边界、回写缓存不再静默丢数据、umount / 防护、PCI BAR 校验、网卡探测/假发送/描述符布局/EOR/回收门、virtio-snd 能力解析、HDA 音量真生效、sshd 阻塞 accept 可 ^C 取消、调度器 100ms 交互上限 + kill 就绪 tid、真正的双模式 vi）；p1fix4 修复 HTTPS E2E 中途断连（IP 字面量参考身份，RFC 6125，OpenSSL 真对端实测握手/GET/保存/关闭全通），每条修复均有 QEMU/宿主/构造级验证；WP-10-wp08fix1 Shell 补全（oc&gt;/ush 双端行编辑 + 15 工具 + nano/vi 编辑器）；USB 四控制器、声卡六族、系统内 A/B 更新、网卡九族/存储四驱动；SSH + TLS 1.3/1.2 + HTTPS。P2 第一批 53 条（WP-10-AUDIT_P2-fix1，BUG-0136..0188）已全部修复：内存/arch/USB 33 条/VFS-FAT 11 条，并发现修复堆块头 40 字节潜伏缺陷（负载对齐漂移致 ATA-DMA 偏移 8 字节、/etc 无法挂载）；BIOS + UEFI 双引导，P2 第二批 53 条（WP-10-AUDIT_P2-fix2，BUG-0189..0241）已全部修复：fs 12 条 / net_core 13 条 / ld_so 4 条 / ssh 10 条 / tls 8 条 / shell 6 条，并完成发布链四项加固（git describe 版本串、HTTPS E2E 双向 close_notify 断言、INTERFACES.md 176 命令、docs/verification/ 转公开）与嵌入链 Makefile 规则；P2 第三批 53 条（WP-10-AUDIT_P2-fix3，BUG-0242..0294）已全部修复：shell 6 / 混合 6 / 文本工具 5 / 文档 7 / 卫生 8 / syscall-usermode 7 / 调度同步 6 / RTC 电源定时 5 / crypto 3，并查明并修复了 G6 证据阶段暴露的内核 #UD 根因（sys_fork 从不设置子任务 rsp0，TSS 保留父任务栈顶致父子内核栈交叉污染，fork 路径补设 rsp0 修复）；P2 第四批 55 条（WP-10-AUDIT_P2-fix4，BUG-0295..0349）已全部修复：crypto fail-closed 4 条、tar/install/download 6 条、A/B 启动预算 1 条、块层 9 条、ATA/AHCI/NVMe 3 条、控制台/输入/PCI 锁 10 条、NIC 10 条、声卡/shell/版本 12 条，并重建 fix3 发布 ISO（tag 后构建，uname 实测 WP-10-AUDIT_P2-fix3）；112,589 行源码，138 个 L1 扩展接口，46 个系统调用，192 条 shell 命令，41/41 P0 修复测试。WP-10-input_chipset 落地输入+芯片组五域（I2C-HID 触摸板手势、PCI/PCIe MMCONFIG+BAR+经 xAPIC 的 MSI、ACPI 表+AML+S3/S4/S5+GPE、SMBus block 协议、I2C PIIX4/i801/DesignWare），新增 16 条 shell 命令（总数 192），芯片组 E2E 在 BIOS 与 UEFI 双启动均 28/28 实测通过，另全量回归 28/28、dhtest 5/5、SSH E2E 5/5、HTTPS E2E 7/7，许可证恢复为官方 Apache-2.0 逐字节文本。Apache 2.0。"/><meta property="og:title" content="Open Cube OS - 开源 x86_64 L0 内核"/><meta property="og:description" content="开源 x86_64 内核（L0），可被扩展成任何东西。WP-AUDIT-01：18 路完整审查（607 条）+ 41 个 P0 全部修复（p0fix1 前 20 + p0fix2 后 21）+ P1 全部 94 条修复完成（p1fix1 前 31 条 + p1fix2 第 32~62 条 + p1fix3 剩余 31 条），逐条验证；WP-10-wp08fix1：Shell 完全体——oc&gt;/ush 双端全键位行编辑、ush 15 个工具、nano/vi 编辑器、9 个新 L1 接口（130-138，总数 138）、176 条命令、24/24 端到端；USB 主机栈四控制器、声卡六族 + snd_*、系统内 A/B 更新、网卡九族 + nic_*、存储四驱动 + blk_*；SSH + TLS 1.3 / TLS 1.2 + HTTPS + crypto 核心 + TCP 可靠性 + netfilter。Apache 2.0。"/><meta property="og:url" content="https://cubestudio-dev.github.io/OpenCubeOS/"/><meta property="og:site_name" content="Open Cube OS"/><meta property="og:type" content="website"/><meta name="twitter:card" content="summary"/><meta name="twitter:title" content="Open Cube OS - 开源 x86_64 L0 内核"/><meta name="twitter:description" content="开源 x86_64 内核（L0），可被扩展成任何东西。WP-AUDIT-01：18 路完整审查（607 条）+ 41 个 P0 全部修复（p0fix1 前 20 + p0fix2 后 21）+ P1 全部 94 条修复完成（p1fix1 前 31 条 + p1fix2 第 32~62 条 + p1fix3 剩余 31 条），逐条验证；WP-10-wp08fix1：Shell 完全体——oc&gt;/ush 双端全键位行编辑、ush 15 个工具、nano/vi 编辑器、9 个新 L1 接口（130-138，总数 138）、176 条命令、24/24 端到端；USB 主机栈四控制器、声卡六族 + snd_*、系统内 A/B 更新、网卡九族 + nic_*、存储四驱动 + blk_*；SSH + TLS 1.3 / TLS 1.2 + HTTPS + crypto 核心 + TCP 可靠性 + netfilter。Apache 2.0。"/><script src="/OpenCubeOS/_next/static/chunks/a6dad97d9634a72d.js" noModule=""></script></head><body><div hidden=""><!--$--><!--/$--></div><div class="container redirect-box" role="status"><p>正在进入 Open Cube OS 网站… / Entering the Open Cube OS site…</p><noscript><p>未启用 JavaScript，请选择语言 / JavaScript is disabled — please pick a language:</p><p><a href="/OpenCubeOS/zh/">中文</a> ·<!-- --> <a href="/OpenCubeOS/en/">English</a></p></noscript></div><!--$--><!--/$--><script src="/OpenCubeOS/_next/static/chunks/bd599245817485f8.js" id="_R_" async=""></script><script>(self.__next_f=self.__next_f||[]).push([0])</script><script>self.__next_f.push([1,"1:\"$Sreact.fragment\"\n2:I[39756,[\"/OpenCubeOS/_next/static/chunks/42879de7b8087bc9.js\"],\"default\"]\n3:I[37457,[\"/OpenCubeOS/_next/static/chunks/42879de7b8087bc9.js\"],\"default\"]\n4:I[47257,[\"/OpenCubeOS/_next/static/chunks/42879de7b8087bc9.js\"],\"ClientPageRoot\"]\n5:I[31713,[\"/OpenCubeOS/_next/static/chunks/d98664d9c7913ef1.js\"],\"default\"]\n8:I[97367,[\"/OpenCubeOS/_next/static/chunks/42879de7b8087bc9.js\"],\"OutletBoundary\"]\n9:\"$Sreact.suspense\"\nb:I[97367,[\"/OpenCubeOS/_next/static/chunks/42879de7b8087bc9.js\"],\"ViewportBoundary\"]\nd:I[97367,[\"/OpenCubeOS/_next/static/chunks/42879de7b8087bc9.js\"],\"MetadataBoundary\"]\nf:I[68027,[\"/OpenCubeOS/_next/static/chunks/42879de7b8087bc9.js\"],\"default\"]\n:HL[\"/OpenCubeOS/_next/static/chunks/009f7cf8a84a9779.css\",\"style\"]\n"])</script><script>self.__next_f.push([1,"0:{\"P\":null,\"b\":\"jwZkKNd5Z9fqDjtpN-352\",\"c\":[\"\",\"\"],\"q\":\"\",\"i\":false,\"f\":[[[\"\",{\"children\":[\"__PAGE__\",{}]},\"$undefined\",\"$undefined\",true],[[\"$\",\"$1\",\"c\",{\"children\":[[[\"$\",\"link\",\"0\",{\"rel\":\"stylesheet\",\"href\":\"/OpenCubeOS/_next/static/chunks/009f7cf8a84a9779.css\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}]],[\"$\",\"html\",null,{\"lang\":\"zh-CN\",\"children\":[\"$\",\"body\",null,{\"children\":[\"$\",\"$L2\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L3\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":[[[\"$\",\"title\",null,{\"children\":\"404: This page could not be found.\"}],[\"$\",\"div\",null,{\"style\":{\"fontFamily\":\"system-ui,\\\"Segoe UI\\\",Roboto,Helvetica,Arial,sans-serif,\\\"Apple Color Emoji\\\",\\\"Segoe UI Emoji\\\"\",\"height\":\"100vh\",\"textAlign\":\"center\",\"display\":\"flex\",\"flexDirection\":\"column\",\"alignItems\":\"center\",\"justifyContent\":\"center\"},\"children\":[\"$\",\"div\",null,{\"children\":[[\"$\",\"style\",null,{\"dangerouslySetInnerHTML\":{\"__html\":\"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}\"}}],[\"$\",\"h1\",null,{\"className\":\"next-error-h1\",\"style\":{\"display\":\"inline-block\",\"margin\":\"0 20px 0 0\",\"padding\":\"0 23px 0 0\",\"fontSize\":24,\"fontWeight\":500,\"verticalAlign\":\"top\",\"lineHeight\":\"49px\"},\"children\":404}],[\"$\",\"div\",null,{\"style\":{\"display\":\"inline-block\"},\"children\":[\"$\",\"h2\",null,{\"style\":{\"fontSize\":14,\"fontWeight\":400,\"lineHeight\":\"49px\",\"margin\":0},\"children\":\"This page could not be found.\"}]}]]}]}]],[]],\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]}]}]]}],{\"children\":[[\"$\",\"$1\",\"c\",{\"children\":[[\"$\",\"$L4\",null,{\"Component\":\"$5\",\"serverProvidedParams\":{\"searchParams\":{},\"params\":{},\"promises\":[\"$@6\",\"$@7\"]}}],[[\"$\",\"script\",\"script-0\",{\"src\":\"/OpenCubeOS/_next/static/chunks/d98664d9c7913ef1.js\",\"async\":true,\"nonce\":\"$undefined\"}]],[\"$\",\"$L8\",null,{\"children\":[\"$\",\"$9\",null,{\"name\":\"Next.MetadataOutlet\",\"children\":\"$@a\"}]}]]}],{},null,false,false]},null,false,false],[\"$\",\"$1\",\"h\",{\"children\":[null,[\"$\",\"$Lb\",null,{\"children\":\"$@c\"}],[\"$\",\"div\",null,{\"hidden\":true,\"children\":[\"$\",\"$Ld\",null,{\"children\":[\"$\",\"$9\",null,{\"name\":\"Next.Metadata\",\"children\":\"$@e\"}]}]}],null]}],false]],\"m\":\"$undefined\",\"G\":[\"$f\",[]],\"s\":false,\"S\":true}\n"])</script><script>self.__next_f.push([1,"6:{}\n7:\"$0:f:0:1:1:children:0:props:children:0:props:serverProvidedParams:params\"\n"])</script><script>self.__next_f.push([1,"c:[[\"$\",\"meta\",\"0\",{\"charSet\":\"utf-8\"}],[\"$\",\"meta\",\"1\",{\"name\":\"viewport\",\"content\":\"width=device-width, initial-scale=1\"}]]\n"])</script><script>self.__next_f.push([1,"10:Tbc8,"])</script><script>self.__next_f.push([1,"Open Cube OS：开源 x86_64 内核（L0），可被扩展成任何东西。WP-AUDIT-01 完成 18 路逐行完整审查（607 条发现）：41 个 P0 全部修复（p0fix1 前 20 + p0fix2 后 21），P1 全部 94 条修复完成（p1fix1 前 31 条 + p1fix2 第 32~62 条 + p1fix3 剩余 31 条：A/B 更新目标槽修正、OTA 整数/栈加固、恒定时间 EC 标量乘与 modexp、GPT/NVMe/ATA 边界、回写缓存不再静默丢数据、umount / 防护、PCI BAR 校验、网卡探测/假发送/描述符布局/EOR/回收门、virtio-snd 能力解析、HDA 音量真生效、sshd 阻塞 accept 可 ^C 取消、调度器 100ms 交互上限 + kill 就绪 tid、真正的双模式 vi）；p1fix4 修复 HTTPS E2E 中途断连（IP 字面量参考身份，RFC 6125，OpenSSL 真对端实测握手/GET/保存/关闭全通），每条修复均有 QEMU/宿主/构造级验证；WP-10-wp08fix1 Shell 补全（oc\u003e/ush 双端行编辑 + 15 工具 + nano/vi 编辑器）；USB 四控制器、声卡六族、系统内 A/B 更新、网卡九族/存储四驱动；SSH + TLS 1.3/1.2 + HTTPS。P2 第一批 53 条（WP-10-AUDIT_P2-fix1，BUG-0136..0188）已全部修复：内存/arch/USB 33 条/VFS-FAT 11 条，并发现修复堆块头 40 字节潜伏缺陷（负载对齐漂移致 ATA-DMA 偏移 8 字节、/etc 无法挂载）；BIOS + UEFI 双引导，P2 第二批 53 条（WP-10-AUDIT_P2-fix2，BUG-0189..0241）已全部修复：fs 12 条 / net_core 13 条 / ld_so 4 条 / ssh 10 条 / tls 8 条 / shell 6 条，并完成发布链四项加固（git describe 版本串、HTTPS E2E 双向 close_notify 断言、INTERFACES.md 176 命令、docs/verification/ 转公开）与嵌入链 Makefile 规则；P2 第三批 53 条（WP-10-AUDIT_P2-fix3，BUG-0242..0294）已全部修复：shell 6 / 混合 6 / 文本工具 5 / 文档 7 / 卫生 8 / syscall-usermode 7 / 调度同步 6 / RTC 电源定时 5 / crypto 3，并查明并修复了 G6 证据阶段暴露的内核 #UD 根因（sys_fork 从不设置子任务 rsp0，TSS 保留父任务栈顶致父子内核栈交叉污染，fork 路径补设 rsp0 修复）；P2 第四批 55 条（WP-10-AUDIT_P2-fix4，BUG-0295..0349）已全部修复：crypto fail-closed 4 条、tar/install/download 6 条、A/B 启动预算 1 条、块层 9 条、ATA/AHCI/NVMe 3 条、控制台/输入/PCI 锁 10 条、NIC 10 条、声卡/shell/版本 12 条，并重建 fix3 发布 ISO（tag 后构建，uname 实测 WP-10-AUDIT_P2-fix3）；112,589 行源码，138 个 L1 扩展接口，46 个系统调用，192 条 shell 命令，41/41 P0 修复测试。WP-10-input_chipset 落地输入+芯片组五域（I2C-HID 触摸板手势、PCI/PCIe MMCONFIG+BAR+经 xAPIC 的 MSI、ACPI 表+AML+S3/S4/S5+GPE、SMBus block 协议、I2C PIIX4/i801/DesignWare），新增 16 条 shell 命令（总数 192），芯片组 E2E 在 BIOS 与 UEFI 双启动均 28/28 实测通过，另全量回归 28/28、dhtest 5/5、SSH E2E 5/5、HTTPS E2E 7/7，许可证恢复为官方 Apache-2.0 逐字节文本。Apache 2.0。"])</script><script>self.__next_f.push([1,"e:[[\"$\",\"title\",\"0\",{\"children\":\"Open Cube OS - 开源 x86_64 L0 内核\"}],[\"$\",\"meta\",\"1\",{\"name\":\"description\",\"content\":\"$10\"}],[\"$\",\"meta\",\"2\",{\"property\":\"og:title\",\"content\":\"Open Cube OS - 开源 x86_64 L0 内核\"}],[\"$\",\"meta\",\"3\",{\"property\":\"og:description\",\"content\":\"开源 x86_64 内核（L0），可被扩展成任何东西。WP-AUDIT-01：18 路完整审查（607 条）+ 41 个 P0 全部修复（p0fix1 前 20 + p0fix2 后 21）+ P1 全部 94 条修复完成（p1fix1 前 31 条 + p1fix2 第 32~62 条 + p1fix3 剩余 31 条），逐条验证；WP-10-wp08fix1：Shell 完全体——oc\u003e/ush 双端全键位行编辑、ush 15 个工具、nano/vi 编辑器、9 个新 L1 接口（130-138，总数 138）、176 条命令、24/24 端到端；USB 主机栈四控制器、声卡六族 + snd_*、系统内 A/B 更新、网卡九族 + nic_*、存储四驱动 + blk_*；SSH + TLS 1.3 / TLS 1.2 + HTTPS + crypto 核心 + TCP 可靠性 + netfilter。Apache 2.0。\"}],[\"$\",\"meta\",\"4\",{\"property\":\"og:url\",\"content\":\"https://cubestudio-dev.github.io/OpenCubeOS/\"}],[\"$\",\"meta\",\"5\",{\"property\":\"og:site_name\",\"content\":\"Open Cube OS\"}],[\"$\",\"meta\",\"6\",{\"property\":\"og:type\",\"content\":\"website\"}],[\"$\",\"meta\",\"7\",{\"name\":\"twitter:card\",\"content\":\"summary\"}],[\"$\",\"meta\",\"8\",{\"name\":\"twitter:title\",\"content\":\"Open Cube OS - 开源 x86_64 L0 内核\"}],[\"$\",\"meta\",\"9\",{\"name\":\"twitter:description\",\"content\":\"开源 x86_64 内核（L0），可被扩展成任何东西。WP-AUDIT-01：18 路完整审查（607 条）+ 41 个 P0 全部修复（p0fix1 前 20 + p0fix2 后 21）+ P1 全部 94 条修复完成（p1fix1 前 31 条 + p1fix2 第 32~62 条 + p1fix3 剩余 31 条），逐条验证；WP-10-wp08fix1：Shell 完全体——oc\u003e/ush 双端全键位行编辑、ush 15 个工具、nano/vi 编辑器、9 个新 L1 接口（130-138，总数 138）、176 条命令、24/24 端到端；USB 主机栈四控制器、声卡六族 + snd_*、系统内 A/B 更新、网卡九族 + nic_*、存储四驱动 + blk_*；SSH + TLS 1.3 / TLS 1.2 + HTTPS + crypto 核心 + TCP 可靠性 + netfilter。Apache 2.0。\"}]]\n"])</script><script>self.__next_f.push([1,"a:null\n"])</script></body></html>
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+<!-- Open Cube OS website facade - pure HTML/CSS/JS, no framework. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open Cube OS - a from-scratch x86_64 kernel with a recovery shell</title>
+<meta name="description" content="Open Cube OS (L0): a complete, self-contained x86_64 kernel with a WinRE-style recovery shell (oc>), 233 commands, 162 L1 extension interfaces, TCP/IP + TLS + SSH, 16 driver families, OTA A/B updates. Apache 2.0.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3E%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="./"><span class="p">[</span>opencube<span class="p">]</span> OS</a>
+    <div class="nav-links">
+      <a href="#features" class="hide-xs">Features</a>
+      <a href="#architecture" class="hide-xs">Architecture</a>
+      <a href="docs/" id="nav-docs">Documentation</a>
+      <a href="download.html" id="nav-download">Download</a>
+      <a class="cta" href="https://github.com/cubestudio-dev/OpenCubeOS" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>A from-scratch<br>x86_64 kernel.<br><span class="accent">Everything extensible.</span></h1>
+      <p class="tagline">
+        <b>Open Cube OS</b> is L0: a complete, self-contained 64-bit kernel
+        that boots on real hardware and in QEMU, and hands you a
+        WinRE-style recovery shell &mdash; <b><code>oc&gt;</code></b> &mdash; with
+        <b id="stat-cmds">233</b> commands. Not a Linux fork:
+        <b id="stat-lines2">140,672</b> lines of original code, Apache&nbsp;2.0.
+      </p>
+      <div class="btn-row">
+        <a class="btn btn-primary" href="download.html">&#11015;&#65039; Download the ISO</a>
+        <a class="btn btn-ghost" href="docs/" id="btn-docs">Documentation &#8594;</a>
+      </div>
+    </div>
+    <div class="terminal-card">
+      <div class="bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="t">oc&gt; &mdash; Open Cube OS</span>
+      </div>
+      <pre><span class="d">Open Cube OS WP-13-build_system ready.
+Type 'help' for commands.</span>
+
+<span class="c">oc&gt;</span> help -a
+<span class="d">  ... 233 commands, alphabetical ...</span>
+<span class="c">oc&gt;</span> dhcp
+<span class="a">nic0: 10.0.2.15/24 gw 10.0.2.2</span>
+<span class="c">oc&gt;</span> ping 10.0.2.2
+<span class="a">64 bytes from 10.0.2.2: seq=0 time=1.2 ms</span>
+<span class="c">oc&gt;</span> wget 10.0.2.2
+<span class="a">saved: index.html (45 bytes)</span>
+<span class="c">oc&gt;</span> health
+<span class="d">  cpu  3%   mem 42%   tasks 4/64</span>
+<span class="c">oc&gt;</span> <span class="d">&#9608;</span></pre>
+    </div>
+  </div>
+</section>
+
+<section class="stats-strip">
+  <div class="wrap stats-grid">
+    <div class="stat"><div class="n" id="stat-cmds2">233</div><div class="l">shell commands</div></div>
+    <div class="stat"><div class="n" id="stat-ifaces">162</div><div class="l">L1 interfaces</div></div>
+    <div class="stat"><div class="n" id="stat-syscalls">53</div><div class="l">syscalls</div></div>
+    <div class="stat"><div class="n" id="stat-lines">140,672</div><div class="l">lines of source</div></div>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <div class="wrap">
+    <h2>Features</h2>
+    <p class="sub">A real kernel, not a demo: preemptive scheduling, four-level
+    paging, ring-3 processes, a VFS over four filesystems, a full TCP/IP stack
+    with TLS and SSH (client <i>and</i> server), 16 driver families, crash
+    dumps, hardware watchdogs, and OTA A/B updates.</p>
+    <div class="feat-grid">
+      <div class="feat"><div class="k">boot</div><h3>Hybrid BIOS + UEFI</h3>
+        <p>One ISO boots both firmware paths through GRUB 2.12, with an A/B slot menu and the kernel attached as its own install payload.</p></div>
+      <div class="feat"><div class="k">memory</div><h3>PMM / VMM / heap</h3>
+        <p>Bitmap physical manager over the multiboot2 map, 4-level paging, kmalloc with coalescing and stack/heap growth by page fault.</p></div>
+      <div class="feat"><div class="k">cpu</div><h3>Preemptive scheduler</h3>
+        <p>Priority + round-robin over TCBs, 100&nbsp;Hz tick, soft-timer wheel, IST-separated exception stacks, live 3/3 trap self-test on every boot.</p></div>
+      <div class="feat"><div class="k">ring3</div><h3>User programs</h3>
+        <p>ELF loader, 53 syscalls, fork/exec/pipes/signals/select/mmap, and an in-tree shared-object loader with dlsym and PIE relocations.</p></div>
+      <div class="feat"><div class="k">net</div><h3>TCP/IP + TLS + SSH</h3>
+        <p>Seven NIC driver families, congestion-controlled TCP, sockets, firewall, an HTTPS client with X.509 verification, and a real sshd in-guest.</p></div>
+      <div class="feat"><div class="k">storage</div><h3>NVMe to FAT32</h3>
+        <p>AHCI/ATA-DMA/NVMe/virtio/USB-MSC/SD/SCSI block devices; FAT32 with LFN, exFAT, ext4, ramfs; a persistent /etc volume.</p></div>
+      <div class="feat"><div class="k">usb</div><h3>Four USB stacks</h3>
+        <p>UHCI, OHCI, EHCI and xHCI host controllers with MSC, HID, serial and audio classes - hotplug included.</p></div>
+      <div class="feat"><div class="k">reliability</div><h3>Crash + watchdogs</h3>
+        <p>Register dumps to serial and crashlogs to /etc, Intel TCO and ACPI WDAT hardware watchdogs, policy watchdog slots, health alarms and JSON export.</p></div>
+      <div class="feat"><div class="k">shell</div><h3>233 commands</h3>
+        <p>Pipes, redirection, background jobs, wildcards, env, aliases, scripting, and a full-screen editor - help in two views (-a / -w).</p></div>
+      <div class="feat"><div class="k">tui</div><h3>Terminal UI</h3>
+        <p>Desktop, taskbar, menus, forms, editor and system apps on the framebuffer - plus a Chinese console layer with a pinyin IME.</p></div>
+      <div class="feat"><div class="k">ota</div><h3>A/B updates</h3>
+        <p>Manifest-driven OTA with SHA256 + signature verification, staged install onto the inactive slot, automatic rollback.</p></div>
+      <div class="feat"><div class="k">l1</div><h3>162 extension interfaces</h3>
+        <p>L0 ships without L1 - the surface (plus driver/OTA/watchdog/health headers and a solib loader) is the contract for everything above.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section alt" id="architecture">
+  <div class="wrap">
+    <h2>Architecture</h2>
+    <p class="sub">Two layers by design: L0 is the complete kernel plus the
+    recovery shell (this repository); L1 is everything built on the extension
+    surface - L0 ships without any.</p>
+    <div class="arch"><pre>
+                     <span class="hl">GRUB 2.12 (hybrid BIOS + UEFI ISO)</span>
+                                  |  multiboot2 + kernel-as-module
+         +------------------------+------------------------+
+         |                 <span class="hb">boot/boot.S</span>                      |
+         |   32-bit entry -&gt; GDT -&gt; 2 MiB identity map -&gt; long mode  |
+         +------------------------+------------------------+
+                                  |
+                   <span class="hb">kernel/</span> main -&gt; arch -&gt; core -&gt; mem -&gt; lib -&gt; crypto
+             (IDT/IST - scheduler - syscalls 53 - PMM/VMM/heap - klog - DRBG)
+                                  |
+   +---------------+---------------+---------------+---------------+
+   |               |               |               |               |
+<span class="hb">drivers/</span>      <span class="hb">fs/</span>            <span class="hb">net/</span>          <span class="hb">shell/</span>         <span class="hb">tui/ + chinese/</span>
+ 16 families     VFS + ramfs     e1000-family   233 commands    desktop/IME
+ block usb nic   FAT32 exFAT     TCP + TLS      pipes/env      forms/editor
+ snd acpi i2c    ext4 /etc       SSH + sshd     script lang    CN console
+ time bt sd cam  A/B slots       sockets + fw   line editor    16x16 font
+                                  |
+                        <span class="hl">L1 surface: 162 numbered interfaces</span>
+                     <span class="hl">(driver / OTA / watchdog / health / klog / solib)</span>
+</pre></div>
+  </div>
+</section>
+
+<section class="section" id="quickstart">
+  <div class="wrap">
+    <h2>Quick start</h2>
+    <p class="sub">From download to an <code>oc&gt;</code> prompt in about a
+    minute. Any machine with QEMU works; real hardware boots the same ISO
+    from USB.</p>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><div>
+        <h3>Boot the ISO in QEMU</h3>
+        <p>One command - the ISO is self-contained, 512&nbsp;MiB of RAM is comfortable.</p>
+        <div class="cmd"><span class="c">$</span> qemu-system-x86_64 -m 512 -cdrom opencube-<span id="qs-ver">WP-13</span>.iso \
+      -netdev user,id=n1 -device e1000,netdev=n1</div>
+      </div></div>
+      <div class="step"><div class="n">2</div><div>
+        <h3>Watch it come up</h3>
+        <p>One <code>OK</code> line per subsystem: multiboot2 handshake, long
+        mode, framebuffer, IDT, PIT, PMM, drivers, VFS, network, shell.</p>
+        <div class="cmd"><span class="c">[00:00:00.000]</span> multiboot2 handshake ......... OK
+<span class="c">[00:00:01.710]</span> shell command system (233 commands) . OK
+Open Cube OS ready. Type 'help' for commands.</div>
+      </div></div>
+      <div class="step"><div class="n">3</div><div>
+        <h3>Drive the machine</h3>
+        <p>Bring up networking, pull a page, inspect the system - all from the
+        recovery shell.</p>
+        <div class="cmd"><span class="c">oc&gt;</span> dhcp &amp;&amp; ping 10.0.2.2
+<span class="c">oc&gt;</span> wget 10.0.2.2
+<span class="c">oc&gt;</span> dmesg
+<span class="c">oc&gt;</span> help -a</div>
+      </div></div>
+      <div class="step"><div class="n">4</div><div>
+        <h3>Go deeper</h3>
+        <p>The documentation center has the user manual, all 233 command
+        pages, the developer handbook, the L1 extension guide and the
+        architecture deep-dives.</p>
+        <div class="btn-row" style="margin-top:6px">
+          <a class="btn btn-ghost" href="docs/" id="btn-docs2">Open the docs &#8594;</a>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section alt" id="shots">
+  <div class="wrap">
+    <h2>It really runs</h2>
+    <p class="sub">Captured from the release ISO in QEMU - the BIOS and the
+    UEFI boot path, straight to the shell prompt.</p>
+    <div class="shots">
+      <div class="shot">
+        <img src="assets/shot-bios.png" width="800" height="600"
+             alt="Open Cube OS booted in QEMU via legacy BIOS, showing the kernel boot log and the oc&gt; shell prompt">
+        <div class="cap"><span>Legacy BIOS boot</span><span class="tag">800&times;600</span></div>
+      </div>
+      <div class="shot">
+        <img src="assets/shot-uefi.png" width="800" height="600"
+             alt="Open Cube OS booted in QEMU via UEFI (OVMF), showing the kernel boot log and the oc&gt; shell prompt">
+        <div class="cap"><span>UEFI boot (OVMF)</span><span class="tag">800&times;600</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="layered">
+  <div class="wrap">
+    <h2>The two-layer idea</h2>
+    <p class="sub">"Everything is extensible" is the whole design: L0 is a
+    complete kernel and nothing more; everything users actually see above the
+    shell is meant to be an L1 module riding the surface.</p>
+    <div class="feat-grid">
+      <div class="feat"><div class="k">l0</div><h3>Open Cube OS</h3>
+        <p>The kernel + the <code>oc&gt;</code> recovery shell. Boots, diagnoses,
+        repairs, installs, updates. This repository.</p></div>
+      <div class="feat"><div class="k">l1</div><h3>Upper extensions</h3>
+        <p>Anything built on the 162-interface surface - loaded as a shared
+        object at runtime or compiled against the headers. L0 ships none.</p></div>
+      <div class="feat"><div class="k">goal</div><h3>Cube OS = L0 + L1</h3>
+        <p>The roadmap: a complete, daily-usable system assembled from the
+        kernel below and the extension ecosystem above.</p></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="col">
+        <div class="h">Project</div>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS" rel="noopener">GitHub repository</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases" rel="noopener">Releases</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/issues" rel="noopener">Issue tracker</a>
+      </div>
+      <div class="col">
+        <div class="h">Documentation</div>
+        <a href="docs/" id="foot-docs">Documentation center</a>
+        <a href="docs/manual/getting-started.html" id="foot-gs">Getting started</a>
+        <a href="docs/manual/commands/index.html" id="foot-cmds">Command reference</a>
+        <a href="docs/l1/overview.html" id="foot-l1">L1 extension guide</a>
+      </div>
+      <div class="col">
+        <div class="h">Download</div>
+        <a href="download.html">Current release</a>
+        <a href="update.json" id="foot-update">Update manifest (JSON)</a>
+      </div>
+    </div>
+    <div class="foot-note">
+      <span>Apache License 2.0</span>
+      <span>Copyright 2026 cubestudio-dev &lt;cubestudio@qq.com&gt;</span>
+      <span id="foot-build">build 259</span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site-data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
