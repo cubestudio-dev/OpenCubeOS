@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+<!-- Open Cube OS architecture page - L0/L1, boot flow, subsystems,
+     TUI desktop, the 162-interface surface, the 233-command surface,
+     reliability mechanisms, cross-platform build. All numbers are read
+     from the real tree (INTERFACES.md / docs/manual/commands/). -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title data-i18n="title.architecture">Architecture - Open Cube OS</title>
+<meta name="description" content="Open Cube OS architecture: the L0/L1 layering, the hybrid BIOS+UEFI boot flow, every kernel subsystem (memory, scheduler, VFS, TCP/IP+TLS+SSH, 16 driver families), the TUI desktop, the 162 numbered L1 interfaces and the 233 shell commands.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3C%3C/text%3E%3C/svg%3E">
+<script>
+(function(){try{var t=localStorage.getItem("oc-theme");
+if(t!=="dark"&&t!=="light"){t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}
+document.documentElement.setAttribute("data-theme",t);}catch(e){document.documentElement.setAttribute("data-theme","light");}})();
+</script>
+</head>
+<body>
+<a class="skip" href="#main" data-i18n="nav.skip">Skip to content</a>
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="./"><span class="p">[</span>opencube<span class="p">]</span> OS</a>
+    <div class="nav-links">
+      <a href="./" data-i18n="nav.home">Home</a>
+      <a href="architecture.html" class="active" data-i18n="nav.architecture">Architecture</a>
+      <a href="download.html" data-i18n="nav.download">Download</a>
+      <a href="docs/" data-i18n="nav.docs">Documentation</a>
+      <a href="about.html" data-i18n="nav.about">About</a>
+      <a class="cta" href="https://github.com/cubestudio-dev/OpenCubeOS" rel="noopener" data-i18n="nav.github">GitHub</a>
+    </div>
+    <div class="nav-ctrl">
+      <div class="seg" role="group" aria-label="Language / 语言">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="zh" aria-pressed="false">中文</button>
+      </div>
+      <button type="button" class="icon-btn" id="theme-btn" aria-label="Switch to dark theme">🌙</button>
+      <button type="button" id="nav-toggle" aria-label="Menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<main id="main">
+<div class="wrap">
+  <div class="dl-head">
+    <h1 data-i18n="arch.h1">Architecture</h1>
+    <p class="sub" data-i18n="arch.sub">How the machine is put together: the L0/L1 split, the boot flow, every kernel subsystem, the TUI desktop, and the 162-interface extension surface. Everything below is read straight from the tree.</p>
+  </div>
+</div>
+
+<section class="section" style="border-top:1px solid var(--border)">
+  <div class="wrap">
+    <h2 data-i18n="arch.layers.h">Two layers by design</h2>
+    <p class="sub" data-i18n="arch.layers.sub">L0 is the complete kernel plus the recovery shell (this repository). L1 is everything built on the extension surface - L0 ships without any.</p>
+    <div class="arch" style="margin-bottom:26px"><pre>
+                     <span class="hl">GRUB 2.12 (hybrid BIOS + UEFI ISO)</span>
+                                  |  multiboot2 + kernel-as-module
+         +------------------------+------------------------+
+         |                 <span class="hb">boot/boot.S</span>                      |
+         |   32-bit entry -&gt; GDT -&gt; 2 MiB identity map -&gt; long mode  |
+         +------------------------+------------------------+
+                                  |
+                   <span class="hb">kernel/</span> main -&gt; arch -&gt; core -&gt; mem -&gt; lib -&gt; crypto
+             (IDT/IST - scheduler - syscalls 53 - PMM/VMM/heap - klog - DRBG)
+                                  |
+   +---------------+---------------+---------------+---------------+
+   |               |               |               |               |
+<span class="hb">drivers/</span>      <span class="hb">fs/</span>            <span class="hb">net/</span>          <span class="hb">shell/</span>         <span class="hb">tui/ + chinese/</span>
+ 16 families     VFS + ramfs     e1000-family   233 commands    desktop/IME
+ block usb nic   FAT32 exFAT     TCP + TLS      pipes/env      forms/editor
+ snd acpi i2c    ext4 /etc       SSH + sshd     script lang    CN console
+ time bt sd cam  A/B slots       sockets + fw   line editor    16x16 font
+                                  |
+                        <span class="hl">L1 surface: 162 numbered interfaces</span>
+                     <span class="hl">(driver / OTA / watchdog / health / klog / solib)</span>
+</pre></div>
+    <div class="feat-grid">
+      <div class="feat"><div class="k">l0</div><h3 data-i18n="arch.layers.l0.h">L0 - the kernel and the recovery shell</h3>
+        <p data-i18n-html="arch.layers.l0.p">Boot, memory, scheduling, ring-3, VFS, networking, drivers, TUI, crash recovery, OTA. <b>140,672 lines</b> across 353 source files, zero external runtime dependencies.</p></div>
+      <div class="feat"><div class="k">l1</div><h3 data-i18n="arch.layers.l1.h">L1 - the extension ecosystem</h3>
+        <p data-i18n-html="arch.layers.l1.p">Modules loaded as shared objects or compiled against the surface headers. <b>162 numbered interfaces</b> in 13 surface headers is the whole contract.</p></div>
+      <div class="feat"><div class="k">why</div><h3 data-i18n="arch.layers.why.h">Why split at all</h3>
+        <p data-i18n-html="arch.layers.why.p">A recovery-first kernel must stay minimal and trustworthy; user-facing growth happens above it. The <code>oc&gt;</code> shell always works, even when everything above fails.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <h2 data-i18n="arch.boot.h">Boot flow</h2>
+    <p class="sub" data-i18n="arch.boot.sub">From power-on to the shell prompt - both firmware paths, measured on every release.</p>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><div>
+        <h3 data-i18n="arch.boot.t1.h">GRUB 2.12 - hybrid BIOS + UEFI</h3>
+        <p data-i18n="arch.boot.t1.p">One ISO image carries both boot paths. GRUB hands over the machine via multiboot2 and attaches the kernel ELF as its own install payload.</p></div></div>
+      <div class="step"><div class="n">2</div><div>
+        <h3 data-i18n="arch.boot.t2.h">boot/boot.S - the 32-bit trampoline</h3>
+        <p data-i18n="arch.boot.t2.p">Entry at 0x100000, builds the GDT, maps the first 2&nbsp;MiB identity, switches paging on and jumps to 64-bit long mode - 16 assembly screens of exactly that.</p></div></div>
+      <div class="step"><div class="n">3</div><div>
+        <h3 data-i18n="arch.boot.t3.h">kernel/main.c - bring-up</h3>
+        <p data-i18n="arch.boot.t3.p">One OK line per subsystem: multiboot2 handshake, framebuffer, IDT + IST exception stacks, PIT at 100&nbsp;Hz, PMM over the memory map, then drivers, VFS, network, shell.</p></div></div>
+      <div class="step"><div class="n">4</div><div>
+        <h3 data-i18n="arch.boot.t4.h">oc&gt; - the recovery shell</h3>
+        <p data-i18n-html="arch.boot.t4.p">233 commands over pipes, redirection, jobs and scripting; A/B slot menu when an update is staged; <code>help -a</code> lists everything alphabetically, <code>help -w</code> by work package.</p></div></div>
+    </div>
+    <p class="sub" style="margin:14px 0 0;font-size:14px" data-i18n="arch.boot.test">Every release gates on this exact sequence booting clean in QEMU twice - legacy BIOS and UEFI (OVMF).</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2 data-i18n="arch.mods.h">Kernel subsystems</h2>
+    <p class="sub" data-i18n="arch.mods.sub">The tree is the architecture - each directory is one subsystem with a hard contract.</p>
+    <div class="tbl-scroll">
+    <table class="tbl">
+      <thead><tr>
+        <th data-i18n="arch.mods.th.dir">Subsystem</th>
+        <th data-i18n="arch.mods.th.role">What it does</th>
+      </tr></thead>
+      <tbody>
+        <tr><td><code>kernel/arch/</code></td><td data-i18n="arch.mods.arch">x86_64 entry and CPU plumbing</td></tr>
+        <tr><td><code>kernel/core/</code></td><td data-i18n="arch.mods.core">Scheduler, syscalls (53), IRQ routing</td></tr>
+        <tr><td><code>kernel/mem/</code></td><td data-i18n="arch.mods.mem">PMM bitmap, 4-level VMM, kmalloc heap</td></tr>
+        <tr><td><code>kernel/crypto/</code></td><td data-i18n="arch.mods.crypto">AES / SHA-256 / HMAC / DRBG, RDRAND-seeded</td></tr>
+        <tr><td><code>kernel/lib/</code></td><td data-i18n="arch.mods.lib">String, printf, ring buffer, klog</td></tr>
+        <tr><td><code>kernel/ota/</code></td><td data-i18n="arch.mods.ota">A/B slots, verified update install</td></tr>
+        <tr><td><code>drivers/</code></td><td data-i18n="arch.mods.drivers">16 driver families, block to wireless</td></tr>
+        <tr><td><code>fs/</code></td><td data-i18n="arch.mods.fs">VFS over FAT32 / exFAT / ext4 / ramfs</td></tr>
+        <tr><td><code>net/</code></td><td data-i18n="arch.mods.net">TCP/IP, TLS, SSH client + sshd</td></tr>
+        <tr><td><code>shell/</code></td><td data-i18n="arch.mods.shell">The oc&gt; shell, 233 commands</td></tr>
+        <tr><td><code>tui/</code></td><td data-i18n="arch.mods.tui">Desktop, taskbar, forms, editor</td></tr>
+        <tr><td><code>chinese/</code></td><td data-i18n="arch.mods.chinese">CJK console, 16x16 font, pinyin IME</td></tr>
+        <tr><td><code>l1/</code></td><td data-i18n="arch.mods.l1">The extension surface + solib loader</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <h2 data-i18n="arch.tui.h">The TUI desktop</h2>
+    <p class="sub" data-i18n="arch.tui.sub">A real desktop environment on the raw framebuffer - no GPU stack, no compositor, just the kernel renderer.</p>
+    <div class="feat-grid">
+      <div class="feat"><div class="k">desktop</div><h3 data-i18n="arch.tui.desk.h">Desktop + taskbar</h3>
+        <p data-i18n="arch.tui.desk.p">Window list, running apps, clock, system tray area - driven from the framebuffer console the kernel itself renders.</p></div>
+      <div class="feat"><div class="k">apps</div><h3 data-i18n="arch.tui.apps.h">Apps, menus, forms</h3>
+        <p data-i18n-html="arch.tui.apps.p">Menu system, form widgets, a full-screen editor and the system apps (system info, network, hardware) - 9 TUI commands in the shell.</p></div>
+      <div class="feat"><div class="k">cjk</div><h3 data-i18n="arch.tui.cn.h">Chinese console + IME</h3>
+        <p data-i18n-html="arch.tui.cn.p">A dedicated CJK layer: 16x16 bitmap font, GB2312/UTF-8 codecs and an interactive pinyin IME (<code>ime -i</code>) on both the console and the TUI.</p></div>
+      <div class="feat"><div class="k">render</div><h3 data-i18n="arch.tui.iso.h">One renderer, three outputs</h3>
+        <p data-i18n="arch.tui.iso.p">The same cell grid renders to the VGA text buffer, the linear framebuffer and the TUI - font engines are swappable through the L1 surface.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2 data-i18n="arch.surface.h">The L1 surface - 162 interfaces</h2>
+    <p class="sub" data-i18n-html="arch.surface.sub">Ten numbered groups across 13 surface headers. The README formula is 57+8+13+7+26+11+7+9+8+16 = 162; INTERFACES.md lists every declaration with file and line.</p>
+    <div class="tbl-scroll">
+    <table class="tbl">
+      <thead><tr>
+        <th data-i18n="arch.surface.th.g">Group</th>
+        <th data-i18n="arch.surface.th.n">Count</th>
+        <th data-i18n="arch.surface.th.w">Origin</th>
+        <th>Header</th>
+      </tr></thead>
+      <tbody>
+        <tr><td><span data-i18n="arch.surface.57">WP-09 foundation</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.57d">framebuffer access, font engines, console hook, config, power, shell bridge</small></td>
+            <td class="num">57</td><td>WP-09</td><td><code>l1/l1_ext.h</code></td></tr>
+        <tr><td><span data-i18n="arch.surface.8">Block drivers</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.8d">register/read/write/flush + AHCI / NVMe / ATA-DMA init</small></td>
+            <td class="num">+8</td><td>WP-10a</td><td><code>drivers/block/driver_block_blk.h</code></td></tr>
+        <tr><td><span data-i18n="arch.surface.13">NIC drivers</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.13d">register/send/recv/link/MAC + e1000-family and BCM57xx init</small></td>
+            <td class="num">+13</td><td>WP-10b</td><td><code>drivers/nic/driver_nic.h</code></td></tr>
+        <tr><td><span data-i18n="arch.surface.7">A/B update</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.7d">slots, flags, verify, staged install</small></td>
+            <td class="num">+7</td><td>WP-10u</td><td><code>kernel/ota/ota_ab.h</code></td></tr>
+        <tr><td><span data-i18n="arch.surface.26">Sound drivers</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.26d">register/play/stop/rate/volume/caps + HDA/AC97/SB16/ES1370/virtio</small></td>
+            <td class="num">+26</td><td>WP-10c</td><td><code>drivers/snd/driver_snd.h</code></td></tr>
+        <tr><td><span data-i18n="arch.surface.11">Dynamic loading</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.11d">so_load/dlsym/dlopen, relocations, ldso</small></td>
+            <td class="num">+11</td><td>WP-08b</td><td><code>l1/l1_wp8b.h</code></td></tr>
+        <tr><td><span data-i18n="arch.surface.7b">Shell built-ins &amp; jobs</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.7d">register builtins, tool registry, job create/list/control</small></td>
+            <td class="num">+7</td><td>WP-08cd</td><td><code>l1/l1_wp8cd.h</code></td></tr>
+        <tr><td><span data-i18n="arch.surface.9">Process / fd / memory</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.9d">exec/exit, pipes, fd_dup, mmap-facing API</small></td>
+            <td class="num">+9</td><td>WP-08a</td><td><code>l1/l1_wp8a.h</code></td></tr>
+        <tr><td><span data-i18n="arch.surface.8t">TUI extensions</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.8td">the first TUI extension declarations</small></td>
+            <td class="num">+8</td><td>TUI</td><td><code>tui/tui_ext.h</code></td></tr>
+        <tr><td><span data-i18n="arch.surface.16">Watchdog / klog / health</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.16d">watchdog register/start/feed, klog levels + rotate, health export</small></td>
+            <td class="num">+16</td><td>WP-12</td><td><code>lib_klog.h · core_watchdog.h · core_health.h</code></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="sub" style="margin:16px 0 0;font-size:14px"><a href="docs/root/INTERFACES.html">INTERFACES.md →</a> &middot; <a href="docs/l1/surface-map.html">L1 surface map →</a></p>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <h2 data-i18n="arch.cmds.h">The command surface - 233 commands</h2>
+    <p class="sub" data-i18n-html="arch.cmds.sub">Grouped by the source file that registers them - the tree structure is the domain structure. Live in the guest: help -a (alphabetical) or help -w (by work package).</p>
+    <div class="tbl-scroll">
+    <table class="tbl">
+      <thead><tr>
+        <th data-i18n="arch.cmds.th.g">Group</th>
+        <th data-i18n="arch.cmds.th.n">Commands</th>
+      </tr></thead>
+      <tbody>
+        <tr><td data-i18n="arch.cmds.g1">Chinese console layer</td><td class="num">8</td></tr>
+        <tr><td data-i18n="arch.cmds.g2">Kernel core commands</td><td class="num">55</td></tr>
+        <tr><td data-i18n="arch.cmds.g3">Networking</td><td class="num">16</td></tr>
+        <tr><td data-i18n="arch.cmds.g4">Bluetooth</td><td class="num">1</td></tr>
+        <tr><td data-i18n="arch.cmds.g5">Cameras (UVC)</td><td class="num">2</td></tr>
+        <tr><td data-i18n="arch.cmds.g6">Chipset (ACPI/PCI/i2c)</td><td class="num">16</td></tr>
+        <tr><td data-i18n="arch.cmds.g7">Shell core (built-ins)</td><td class="num">6</td></tr>
+        <tr><td data-i18n="arch.cmds.g8">Crash recovery and dumps</td><td class="num">3</td></tr>
+        <tr><td data-i18n="arch.cmds.g9">Disks, partitions, filesystems</td><td class="num">7</td></tr>
+        <tr><td data-i18n="arch.cmds.g10">Disk/storage tests</td><td class="num">8</td></tr>
+        <tr><td data-i18n="arch.cmds.g11">Files and the editor</td><td class="num">18</td></tr>
+        <tr><td data-i18n="arch.cmds.g12">Health monitoring</td><td class="num">3</td></tr>
+        <tr><td data-i18n="arch.cmds.g13">Infrared</td><td class="num">2</td></tr>
+        <tr><td data-i18n="arch.cmds.g14">Kernel log (klog)</td><td class="num">3</td></tr>
+        <tr><td data-i18n="arch.cmds.g15">Network interface tests</td><td class="num">18</td></tr>
+        <tr><td data-i18n="arch.cmds.g16">Parallel port</td><td class="num">4</td></tr>
+        <tr><td data-i18n="arch.cmds.g17">Power management tests</td><td class="num">6</td></tr>
+        <tr><td data-i18n="arch.cmds.g18">SCSI</td><td class="num">2</td></tr>
+        <tr><td data-i18n="arch.cmds.g19">Sound tests</td><td class="num">17</td></tr>
+        <tr><td data-i18n="arch.cmds.g20">Time sources</td><td class="num">4</td></tr>
+        <tr><td data-i18n="arch.cmds.g21">OTA update tests</td><td class="num">10</td></tr>
+        <tr><td data-i18n="arch.cmds.g22">USB tests</td><td class="num">9</td></tr>
+        <tr><td data-i18n="arch.cmds.g23">Watchdog</td><td class="num">1</td></tr>
+        <tr><td data-i18n="arch.cmds.g24">Wireless</td><td class="num">1</td></tr>
+        <tr><td data-i18n="arch.cmds.g25">Storage and block devices</td><td class="num">4</td></tr>
+        <tr><td data-i18n="arch.cmds.g26">TUI (terminal UI)</td><td class="num">9</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="sub" style="margin:16px 0 0;font-size:14px"><a href="docs/manual/commands/index.html">Full command reference (all 233 pages) →</a></p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2 data-i18n="arch.reliab.h">Reliability mechanisms</h2>
+    <p class="sub" data-i18n-html="arch.reliab.sub">A recovery shell is only credible if the kernel can survive its own failures - these are the mechanisms, all testable from <code>oc&gt;</code>.</p>
+    <div class="feat-grid">
+      <div class="feat"><div class="k">dump</div><h3 data-i18n="arch.reliab.dump.h">Crash dumps</h3>
+        <p data-i18n-html="arch.reliab.dump.p">Register dump to serial on exception; crashlog persisted to the /etc volume; <code>crashlog</code> replays the last failures after a reboot.</p></div>
+      <div class="feat"><div class="k">wdt</div><h3 data-i18n="arch.reliab.wd.h">Hardware watchdogs</h3>
+        <p data-i18n="arch.reliab.wd.p">Intel TCO and ACPI WDAT timers, armed for real - the E2E suite proves a hard reset and a clean second boot. Policy watchdogs kill starving tasks first.</p></div>
+      <div class="feat"><div class="k">klog</div><h3 data-i18n="arch.reliab.log.h">Kernel log</h3>
+        <p data-i18n-html="arch.reliab.log.p">Ring buffer with levels and filters, generation-rotated files (kernel.log, kernel.log.1), <code>dmesg</code> on the serial console.</p></div>
+      <div class="feat"><div class="k">health</div><h3 data-i18n="arch.reliab.health.h">Health monitoring</h3>
+        <p data-i18n="arch.reliab.health.p">CPU / memory / task / IO sampling with alarms (CPU-LOCKED at 90%+), JSON export through the L1 surface.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <h2 data-i18n="arch.build.h">Cross-platform build</h2>
+    <p class="sub" data-i18n="arch.build.sub">One tree, three architectures, two host OSes - and it is reproducible.</p>
+    <div class="feat-grid">
+      <div class="feat"><div class="k">make</div><h3 data-i18n="arch.build.b1.h">make all, one command</h3>
+        <p data-i18n-html="arch.build.b1.p">Kernel, ISO, deterministic source zip and OTA package from a clean tree - <code>tools/build.sh</code> detects or installs the toolchain, <code>build.ps1</code> covers Windows (WSL2 / MSYS2).</p></div>
+      <div class="feat"><div class="k">repro</div><h3 data-i18n="arch.build.b2.h">Reproducible by design</h3>
+        <p data-i18n="arch.build.b2.p">SOURCE_DATE_EPOCH-driven archives; the same commit rebuilds the same bytes - the CI pipeline gates every push on it.</p></div>
+      <div class="feat"><div class="k">cross</div><h3 data-i18n="arch.build.b3.h">ARM64 + RISC-V cross targets</h3>
+        <p data-i18n="arch.build.b3.p">Real bare-metal bring-up shells (PL011 / NS16550A serial, CNTPCT / CLINT timers) that print the banner and heartbeat in QEMU - same tree, different arch.</p></div>
+      <div class="feat"><div class="k">config</div><h3 data-i18n="arch.build.b4.h">Fast and configurable</h3>
+        <p data-i18n-html="arch.build.b4.p">Content-addressed object cache (measured 3.2x on a warm build), <code>make menuconfig</code> with defconfigs, and CONFIG_TUI=n builds a 216-command minimal system.</p></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="col">
+        <div class="h" data-i18n="foot.project">Project</div>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS" rel="noopener" data-i18n="foot.repo">GitHub repository</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases" rel="noopener" data-i18n="foot.releases">Releases</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/issues" rel="noopener" data-i18n="foot.issues">Issue tracker</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/wiki" rel="noopener" data-i18n="foot.wiki">GitHub Wiki</a>
+      </div>
+      <div class="col">
+        <div class="h" data-i18n="foot.docs">Documentation</div>
+        <a href="docs/" data-i18n="foot.docs-center">Documentation center</a>
+        <a href="docs/root/ARCHITECTURE.html" data-i18n="nav.architecture">Architecture</a>
+        <a href="docs/root/INTERFACES.html">INTERFACES.md</a>
+        <a href="docs/l1/overview.html" data-i18n="foot.l1">L1 extension guide</a>
+      </div>
+      <div class="col">
+        <div class="h" data-i18n="foot.dl">Download</div>
+        <a href="download.html" data-i18n="foot.current">Current release</a>
+        <a href="update.json" data-i18n="foot.update">Update manifest (JSON)</a>
+        <a href="about.html" data-i18n="nav.about">About</a>
+      </div>
+    </div>
+    <div class="foot-note">
+      <span>Apache License 2.0</span>
+      <span>Copyright 2026 cubestudio-dev &lt;cubestudio@qq.com&gt;</span>
+      <span id="foot-build">build 274</span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site-data.js"></script>
+<script src="assets/i18n.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

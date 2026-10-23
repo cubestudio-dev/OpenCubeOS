@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+<!-- Open Cube OS about page - license, contributors, acknowledgements,
+     contact. Bilingual (EN/ZH) + light/dark theme. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title data-i18n="title.about">About - Open Cube OS</title>
+<meta name="description" content="About Open Cube OS: the mission, the Apache 2.0 license, contributors, acknowledgements (GRUB, QEMU, OVMF, NASM, xorriso, GCC, Python, VitePress) and contact.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3C%3C/text%3E%3C/svg%3E">
+<script>
+(function(){try{var t=localStorage.getItem("oc-theme");
+if(t!=="dark"&&t!=="light"){t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}
+document.documentElement.setAttribute("data-theme",t);}catch(e){document.documentElement.setAttribute("data-theme","light");}})();
+</script>
+</head>
+<body>
+<a class="skip" href="#main" data-i18n="nav.skip">Skip to content</a>
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="./"><span class="p">[</span>opencube<span class="p">]</span> OS</a>
+    <div class="nav-links">
+      <a href="./" data-i18n="nav.home">Home</a>
+      <a href="architecture.html" data-i18n="nav.architecture">Architecture</a>
+      <a href="download.html" data-i18n="nav.download">Download</a>
+      <a href="docs/" data-i18n="nav.docs">Documentation</a>
+      <a href="about.html" class="active" data-i18n="nav.about">About</a>
+      <a class="cta" href="https://github.com/cubestudio-dev/OpenCubeOS" rel="noopener" data-i18n="nav.github">GitHub</a>
+    </div>
+    <div class="nav-ctrl">
+      <div class="seg" role="group" aria-label="Language / 语言">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="zh" aria-pressed="false">中文</button>
+      </div>
+      <button type="button" class="icon-btn" id="theme-btn" aria-label="Switch to dark theme">🌙</button>
+      <button type="button" id="nav-toggle" aria-label="Menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<main id="main">
+<div class="wrap">
+  <div class="dl-head">
+    <h1 data-i18n="about.h1">About</h1>
+    <p class="sub" data-i18n="about.sub">Who builds it, under what terms, and on whose shoulders.</p>
+  </div>
+
+  <div style="padding:26px 0 56px">
+    <div class="about-cols">
+      <div>
+        <div class="about-card">
+          <h3 data-i18n="about.mission.h">The mission</h3>
+          <p data-i18n="about.mission.p1">Open Cube OS is written from scratch - not a Linux fork, not a distro - to answer one question: how small can a complete, trustworthy, recovery-first x86_64 system be, and still boot your real machine?</p>
+          <p data-i18n="about.mission.p2">Every line is original C in this repository: 140,672 lines across 353 files, 233 shell commands, 162 extension interfaces, 53 syscalls. No external runtime is linked into the kernel.</p>
+        </div>
+        <div class="about-card">
+          <h3 data-i18n="about.license.h">License</h3>
+          <p data-i18n-html="about.license.p1">The whole tree is <b>Apache License 2.0</b> - the <a href="https://github.com/cubestudio-dev/OpenCubeOS/blob/main/LICENSE" rel="noopener">full text</a> is in the repository root, and every source file carries an SPDX-License-Identifier header.</p>
+          <p data-i18n="about.license.p2">You may use, modify and distribute it commercially; the NOTICE file and per-file headers are the only attribution requirements.</p>
+        </div>
+        <div class="about-card">
+          <h3 data-i18n="about.contrib.h">Contributors</h3>
+          <p data-i18n="about.contrib.p">The project is built and maintained by <b>cubestudio-dev</b>. Contributions are welcome - the tree is strict about honesty: no stubs, no fake data, every claim in the docs is verifiable from the code (and the CI re-verifies it on every push).</p>
+          <p data-i18n-html="about.contrib.how.p"><b data-i18n="about.contrib.how">How to contribute</b>: the <a href="docs/root/CONTRIBUTING.html">contributing guide</a> covers style, the SPDX header rule, the 28-test regression gate and the release checklist.</p>
+        </div>
+        <div class="about-card">
+          <h3 data-i18n="about.contact.h">Contact</h3>
+          <p data-i18n-html="about.contact.p1">Mail: <a class="mail" href="mailto:cubestudio@qq.com">cubestudio@qq.com</a></p>
+          <p data-i18n-html="about.contact.p2">Bugs and features: the <a href="https://github.com/cubestudio-dev/OpenCubeOS/issues" rel="noopener">GitHub issue tracker</a>. Security-sensitive reports: mail first, please.</p>
+        </div>
+      </div>
+      <div>
+        <div class="about-card">
+          <h3 data-i18n="about.thanks.h">Acknowledgements</h3>
+          <p data-i18n="about.thanks.p">The kernel is from scratch, but the boot chain and the toolbelt stand on mature open source:</p>
+          <ul>
+            <li data-i18n="about.thanks.1">GRUB 2.12 - the hybrid BIOS + UEFI boot loader</li>
+            <li data-i18n="about.thanks.2">QEMU 10.0 and OVMF (edk2) - the bring-up and CI farm</li>
+            <li data-i18n="about.thanks.3">NASM, xorriso, mtools - build toolchain</li>
+            <li data-i18n="about.thanks.4">GCC 14 freestanding - the compiler the kernel targets</li>
+            <li data-i18n="about.thanks.5">Python (paramiko, pexpect) - the E2E test suites</li>
+            <li data-i18n="about.thanks.6">VitePress - the documentation center you are reading</li>
+          </ul>
+        </div>
+        <div class="about-card" style="background:var(--accent-soft);border-color:var(--accent)">
+          <h3 data-i18n="nav.about">About</h3>
+          <p><a href="docs/root/FAQ.html">FAQ →</a></p>
+          <p><a href="docs/release/release-notes.html">Release notes →</a></p>
+          <p><a href="https://github.com/cubestudio-dev/OpenCubeOS/wiki" rel="noopener" data-i18n="foot.wiki">GitHub Wiki</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="col">
+        <div class="h" data-i18n="foot.project">Project</div>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS" rel="noopener" data-i18n="foot.repo">GitHub repository</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases" rel="noopener" data-i18n="foot.releases">Releases</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/issues" rel="noopener" data-i18n="foot.issues">Issue tracker</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/wiki" rel="noopener" data-i18n="foot.wiki">GitHub Wiki</a>
+      </div>
+      <div class="col">
+        <div class="h" data-i18n="foot.docs">Documentation</div>
+        <a href="docs/" data-i18n="foot.docs-center">Documentation center</a>
+        <a href="docs/manual/getting-started.html" data-i18n="foot.gs">Getting started</a>
+        <a href="docs/root/CONTRIBUTING.html" data-i18n="about.contrib.how">How to contribute</a>
+        <a href="docs/root/FAQ.html">FAQ</a>
+      </div>
+      <div class="col">
+        <div class="h" data-i18n="foot.dl">Download</div>
+        <a href="download.html" data-i18n="foot.current">Current release</a>
+        <a href="update.json" data-i18n="foot.update">Update manifest (JSON)</a>
+        <a href="about.html" data-i18n="nav.about">About</a>
+      </div>
+    </div>
+    <div class="foot-note">
+      <span>Apache License 2.0</span>
+      <span>Copyright 2026 cubestudio-dev &lt;cubestudio@qq.com&gt;</span>
+      <span id="foot-build">build 274</span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site-data.js"></script>
+<script src="assets/i18n.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
