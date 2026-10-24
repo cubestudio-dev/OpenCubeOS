@@ -32,6 +32,9 @@
 #define L1SVC_CAT_WATCHDOG 11   /* services/watchdog*/
 #define L1SVC_CAT_CRYPTO   12   /* services/crypto  */
 #define L1SVC_CAT_L1       13   /* services/l1      */
+/* v2.0.0 group M: display/input service categories (appended). */
+#define L1SVC_CAT_DISPLAY  14   /* services/display */
+#define L1SVC_CAT_INPUT    15   /* services/input   */
 
 /* Category number -> folder name (kernel side; used by SYS_L1SVC). */
 #define L1SVC_CAT_NAME(n) \
@@ -47,7 +50,9 @@
      (n) == L1SVC_CAT_KLOG     ? "klog"     : \
      (n) == L1SVC_CAT_WATCHDOG ? "watchdog" : \
      (n) == L1SVC_CAT_CRYPTO   ? "crypto"   : \
-     (n) == L1SVC_CAT_L1       ? "l1"       : 0)
+     (n) == L1SVC_CAT_L1       ? "l1"       : \
+     (n) == L1SVC_CAT_DISPLAY  ? "display"  : \
+     (n) == L1SVC_CAT_INPUT    ? "input"    : 0)
 
 /* ---- time operations (services/time) -------------------------------
  * Mirrors the v1 oc> commands rtc / hpet / pmtimer / tsc. */
@@ -176,5 +181,29 @@
 #define L1SVC_PWR_SUSPEND_TEST    6  /* suspend_test          */
 #define L1SVC_PWR_HALT_TEST       7  /* halt_test             */
 #define L1SVC_PWR_REBOOT_TEST     8  /* reboot_test           */
+
+/* ---- display operations (services/display) ------------------------
+ * The rendering/locale family.  Bodies: chinese/chinese_cmd.c
+ * (locale), recovery/shell_lang.c (lang), core/main.c
+ * (stats/uname/clear).  The full-screen TUI stays in L0 (it drives
+ * the kernel console directly); chipset diagnostics (acpi/pci/i2c)
+ * stay in L0 as recovery-env tooling. */
+#define L1SVC_DISP_STATS       1   /* stats                   */
+#define L1SVC_DISP_UNAME       2   /* uname [-a|-s|-r|-m]     */
+#define L1SVC_DISP_CLEAR       3   /* clear                   */
+#define L1SVC_DISP_LANG        4   /* lang [en|zh]            */
+#define L1SVC_DISP_CHINESE     5   /* chinese                 */
+#define L1SVC_DISP_CHINESETEST 6   /* chinesetest             */
+#define L1SVC_DISP_FONT        7   /* font                    */
+#define L1SVC_DISP_FONT_TEST   8   /* font-test               */
+#define L1SVC_DISP_ENCODING    9   /* encoding                */
+#define L1SVC_DISP_ENC_TEST   10   /* encoding-test           */
+#define L1SVC_DISP_IME        11   /* ime                     */
+#define L1SVC_DISP_IME_TEST   12   /* ime-test                */
+
+/* ---- input operations (services/input) -----------------------------
+ * Bodies: recovery/shell_cmds_chipset.c (touchpad/touchtest). */
+#define L1SVC_INP_TOUCHPAD     1   /* touchpad                */
+#define L1SVC_INP_TOUCHTEST    2   /* touchtest               */
 
 #endif /* OC_L1SVC_DEFS_H */

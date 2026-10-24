@@ -156,6 +156,22 @@
 #define L1SVC_PWR_SUSPEND_TEST    6  /* suspend_test */
 #define L1SVC_PWR_HALT_TEST       7  /* halt_test */
 #define L1SVC_PWR_REBOOT_TEST     8  /* reboot_test */
+#define L1SVC_CAT_DISPLAY  14
+#define L1SVC_DISP_STATS       1   /* stats */
+#define L1SVC_DISP_UNAME       2   /* uname */
+#define L1SVC_DISP_CLEAR       3   /* clear */
+#define L1SVC_DISP_LANG        4   /* lang */
+#define L1SVC_DISP_CHINESE     5   /* chinese */
+#define L1SVC_DISP_CHINESETEST 6   /* chinesetest */
+#define L1SVC_DISP_FONT        7   /* font */
+#define L1SVC_DISP_FONT_TEST   8   /* font-test */
+#define L1SVC_DISP_ENCODING    9   /* encoding */
+#define L1SVC_DISP_ENC_TEST   10   /* encoding-test */
+#define L1SVC_DISP_IME        11   /* ime */
+#define L1SVC_DISP_IME_TEST   12   /* ime-test */
+#define L1SVC_CAT_INPUT    15
+#define L1SVC_INP_TOUCHPAD     1   /* touchpad */
+#define L1SVC_INP_TOUCHTEST    2   /* touchtest */
 #define NETCMD_IFCONFIG  1
 #define NETCMD_PING      2
 #define NETCMD_NETSTAT   3
@@ -902,6 +918,22 @@ static const struct svc_cmd SVC_CMDS[] = {
     { "suspend_test",   L1SVC_CAT_POWER, L1SVC_PWR_SUSPEND_TEST },
     { "halt_test",      L1SVC_CAT_POWER, L1SVC_PWR_HALT_TEST },
     { "reboot_test",    L1SVC_CAT_POWER, L1SVC_PWR_REBOOT_TEST },
+    /* display service (services/display) */
+    { "stats",         L1SVC_CAT_DISPLAY, L1SVC_DISP_STATS },
+    { "uname",         L1SVC_CAT_DISPLAY, L1SVC_DISP_UNAME },
+    { "clear",         L1SVC_CAT_DISPLAY, L1SVC_DISP_CLEAR },
+    { "lang",          L1SVC_CAT_DISPLAY, L1SVC_DISP_LANG },
+    { "chinese",       L1SVC_CAT_DISPLAY, L1SVC_DISP_CHINESE },
+    { "chinesetest",   L1SVC_CAT_DISPLAY, L1SVC_DISP_CHINESETEST },
+    { "font",          L1SVC_CAT_DISPLAY, L1SVC_DISP_FONT },
+    { "font-test",     L1SVC_CAT_DISPLAY, L1SVC_DISP_FONT_TEST },
+    { "encoding",      L1SVC_CAT_DISPLAY, L1SVC_DISP_ENCODING },
+    { "encoding-test", L1SVC_CAT_DISPLAY, L1SVC_DISP_ENC_TEST },
+    { "ime",           L1SVC_CAT_DISPLAY, L1SVC_DISP_IME },
+    { "ime-test",      L1SVC_CAT_DISPLAY, L1SVC_DISP_IME_TEST },
+    /* input service (services/input) */
+    { "touchpad",      L1SVC_CAT_INPUT, L1SVC_INP_TOUCHPAD },
+    { "touchtest",     L1SVC_CAT_INPUT, L1SVC_INP_TOUCHTEST },
 };
 
 static int svc_cmd_run(int argc, char *argv[]) {
@@ -1031,6 +1063,10 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  halt/shutdown/reboot   Power controls (same bodies as oc>)\n");
         puts_("  sleep <sec>            Delay N seconds\n");
         puts_("  suspend_test           S3 capability contract\n");
+        puts_("  stats / uname / clear  Console + kernel counters\n");
+        puts_("  lang [en|zh]           Output language\n");
+        puts_("  chinese / font / encoding / ime [+ -test variants]\n");
+        puts_("  touchpad / touchtest   Input subsystem\n");
         puts_("\n  Editing: Up/Down history, Left/Right/Home/End cursor, Del,\n");
         puts_("  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion\n");
         puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
@@ -2840,7 +2876,11 @@ void _start(void) {
                     "update_status_test","real_update_test",
                     "shutdown","poweroff","reboot","halt","sleep",
                     "poweroff_test","suspend_test","halt_test",
-                    "reboot_test",0
+                    "reboot_test",
+                    "stats","uname","clear","lang",
+                    "chinese","chinesetest","font","font-test",
+                    "encoding","encoding-test","ime","ime-test",
+                    "touchpad","touchtest",0
                 };
                 int found = 0;
                 int blen = 0;
