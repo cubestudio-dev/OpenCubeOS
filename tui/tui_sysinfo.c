@@ -8,16 +8,16 @@
  *          sampling), power/update/time operations and help.
  */
 #include "tui.h"
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/lib/lib_config.h"
-#include "../kernel/mem/mem_pmm.h"
-#include "../kernel/core/core_sched.h"
-#include "../kernel/core/core_timer.h"
-#include "../kernel/core/core_rtc.h"
-#include "../kernel/core/core_power.h"
-#include "../net/net_core.h"
-#include "../kernel/ota/ota_ab.h"
-#include "../kernel/ota/ota_update.h"
+#include "../core/lib/lib_string.h"
+#include "../core/lib/lib_config.h"
+#include "../core/mem/mem_pmm.h"
+#include "../core/core_sched.h"
+#include "../core/core_timer.h"
+#include "../services/time/core_rtc.h"
+#include "../services/power/core_power.h"
+#include "../services/net/net_core.h"
+#include "../services/ota/ota_ab.h"
+#include "../services/ota/ota_update.h"
 #include "../drivers/block/driver_block_blk.h"
 
 /* version/build are compile-time macros baked by the Makefile

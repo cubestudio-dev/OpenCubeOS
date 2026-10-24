@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "kernel/types.h"
+#include "core/types.h"
 
 /* ---- kernel symbol stubs (the file under test needs these) ---- */
 static u64 g_fake_ms = 1000;

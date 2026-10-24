@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../kernel/types.h"
+#include "../core/types.h"
 
 void *kmalloc(unsigned long long size) { return malloc(size); }
 void  kfree(void *p)                   { free(p); }
@@ -30,7 +30,7 @@ u64   core_timer_now_ms(void)          { return 0; }
  * here, so the SIR path is always free to probe, exactly as before. */
 int   bt_h4_active(void)               { return 0; }
 
-#include "../kernel/lib/lib_string.c"
+#include "../core/lib/lib_string.c"
 #include "../drivers/misc/driver_ir.c"
 
 static int check(const char *name, int cond)

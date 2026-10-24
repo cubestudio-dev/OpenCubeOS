@@ -19,11 +19,11 @@
  *   - every toast, column header and detail label is bilingual.
  */
 #include "tui_desktop.h"
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/core/core_usermode.h"
-#include "../kernel/core/core_sched.h"
-#include "../kernel/core/core_timer.h"
-#include "../kernel/mem/mem_pmm.h"
+#include "../core/lib/lib_string.h"
+#include "../core/core_usermode.h"
+#include "../core/core_sched.h"
+#include "../core/core_timer.h"
+#include "../core/mem/mem_pmm.h"
 #include "../drivers/input/driver_input_keyboard.h"
 
 #define PR_MAX_ROWS 32

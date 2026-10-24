@@ -12,14 +12,14 @@
 #include "render_cn.h"
 #include "console_cn.h"
 #include "tui_chinese.h"
-#include "../kernel/lib/lib_string.h"
+#include "../core/lib/lib_string.h"
 #include "../drivers/display/screen_console.h"
 #include "../drivers/display/screen_font.h"
 #include "../tui/tui.h"
 #include "../drivers/input/driver_input_keyboard.h"
-#include "../shell/shell_lineedit.h"
-#include "../shell/shell.h"
-#include "../fs/fs_vfs.h"
+#include "../recovery/shell_lineedit.h"
+#include "../recovery/shell.h"
+#include "../services/fs/fs_vfs.h"
 
 static int g_total;
 static int g_failed;

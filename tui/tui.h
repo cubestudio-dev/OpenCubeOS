@@ -31,7 +31,7 @@
 #ifndef OC_TUI_H
 #define OC_TUI_H
 
-#include "../kernel/types.h"
+#include "../core/types.h"
 
 /* ------------------------------------------------------------------ */
 /* Terminal detection                                                  */

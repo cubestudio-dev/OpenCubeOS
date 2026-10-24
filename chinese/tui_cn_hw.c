@@ -7,10 +7,10 @@
  *          and view/config/save operations.
  */
 #include "tui_chinese.h"
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/lib/lib_config.h"
-#include "../kernel/mem/mem_pmm.h"
-#include "../kernel/arch/x86_64/arch_multiboot2.h"
+#include "../core/lib/lib_string.h"
+#include "../core/lib/lib_config.h"
+#include "../core/mem/mem_pmm.h"
+#include "../arch/x86_64/arch_multiboot2.h"
 #include "../drivers/block/driver_block_blk.h"
 #include "../drivers/nic/driver_nic.h"
 #include "../drivers/snd/driver_snd.h"
@@ -20,7 +20,7 @@
 #include "../drivers/wireless/driver_wireless.h"
 #include "../drivers/time/driver_tsc.h"
 #include "../drivers/input/driver_input_keyboard.h"
-#include "../kernel/core/core_timer.h"
+#include "../core/core_timer.h"
 #include "../drivers/display/screen_fb.h"
 
 #define CN_PAGE_MAX_LINES 34

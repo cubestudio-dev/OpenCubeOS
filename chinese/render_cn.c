@@ -9,8 +9,8 @@
 #include "encoding.h"
 #include "../drivers/display/screen_fb.h"
 #include "../drivers/display/screen_console.h"
-#include "../kernel/core/core_sync.h"
-#include "../kernel/lib/lib_string.h"
+#include "../core/core_sync.h"
+#include "../core/lib/lib_string.h"
 
 u32 render_chinese_width(u32 cp);   /* fix2 forward decl: missing-box width */
 

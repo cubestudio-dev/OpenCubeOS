@@ -16,7 +16,7 @@
  *   chinese_font_symbol_index[846]  (zone-1)*94+(wei-1) -> symbol idx, 0xFFFF=gap
  *   chinese_font_uto_gb[7445]       sorted {unicode, idx}; idx bit15 = symbol
  */
-#include "../kernel/types.h"
+#include "../core/types.h"
 
 
 #define CHINESE_FONT_HANZI_COUNT 6763

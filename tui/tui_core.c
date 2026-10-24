@@ -14,9 +14,9 @@
 #include "../drivers/display/screen_font.h"
 #include "../chinese/render_cn.h"
 #include "../chinese/encoding.h"
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/lib/lib_config.h"
-#include "../kernel/core/core_timer.h"
+#include "../core/lib/lib_string.h"
+#include "../core/lib/lib_config.h"
+#include "../core/core_timer.h"
 
 /* ------------------------------------------------------------------ */
 /* Palette: 16 CGA/VGA colors as RGB (the fb backend is RGB-native).   */

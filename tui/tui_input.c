@@ -11,8 +11,8 @@
 #include "tui.h"
 #include "../drivers/input/driver_input_keyboard.h"
 #include "../drivers/input/driver_input_i2chid.h"
-#include "../kernel/core/core_timer.h"
-#include "../kernel/core/core_sched.h"
+#include "../core/core_timer.h"
+#include "../core/core_sched.h"
 
 static int g_nodelay;
 static int g_mouse_enabled;

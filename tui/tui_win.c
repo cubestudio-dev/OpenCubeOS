@@ -8,8 +8,8 @@
  *          terminal and to the parent window for subwindows).
  */
 #include "tui.h"
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/mem/mem_heap.h"
+#include "../core/lib/lib_string.h"
+#include "../core/mem/mem_heap.h"
 
 #define TUI_MAX_WINDOWS 16
 

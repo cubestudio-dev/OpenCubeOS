@@ -8,7 +8,7 @@
  */
 #include "tui.h"
 #include "../drivers/display/screen_console.h"
-#include "../kernel/lib/lib_string.h"
+#include "../core/lib/lib_string.h"
 #include "../chinese/encoding.h"
 #include "../chinese/render_cn.h"
 
@@ -157,7 +157,7 @@ int tui_print_at(int y, int x, const char *s) {
 
 /* minimal printf for printw: %s %d %u %x %c %% (kernel has no vfprintf;
  * u64_to_str from lib_string does the number formatting) */
-#include "../kernel/lib/lib_string.h"
+#include "../core/lib/lib_string.h"
 
 int tui_printw(const char *fmt, ...) {
     if (!fmt) return -1;

@@ -105,7 +105,7 @@ def main():
  *   pinyin_char_map[]       {u16 unicode, u16 syllable_idx} pairs sorted
  *                           by unicode (binary-searchable), 3755 pairs
  */
-#include "../kernel/types.h"
+#include "../core/types.h"
 """
     parts = [hdr]
     parts.append("\n#define PINYIN_SYLLABLE_COUNT %d\n" % len(syllables))

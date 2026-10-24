@@ -27,7 +27,7 @@
 void *kmalloc(unsigned long long size) { return malloc(size); }
 void  kfree(void *p)                   { free(p); }
 
-#include "../kernel/lib/lib_string.c"
+#include "../core/lib/lib_string.c"
 #include "../drivers/wireless/driver_wireless.c"
 
 static int check(const char *name, int cond)

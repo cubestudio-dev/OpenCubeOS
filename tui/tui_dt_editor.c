@@ -35,9 +35,9 @@
  * round-trip through save -> cat with no mojibake.
  */
 #include "tui_desktop.h"
-#include "../fs/fs_vfs.h"
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/mem/mem_heap.h"
+#include "../services/fs/fs_vfs.h"
+#include "../core/lib/lib_string.h"
+#include "../core/mem/mem_heap.h"
 #include "../chinese/encoding.h"
 #include "../chinese/render_cn.h"
 #include "../chinese/tui_chinese.h"

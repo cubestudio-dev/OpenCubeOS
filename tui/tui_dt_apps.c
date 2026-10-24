@@ -8,13 +8,13 @@
  *          live in tui_dt_cmdbr.c.)
  */
 #include "tui_desktop.h"
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/lib/lib_config.h"
-#include "../shell/shell.h"
-#include "../kernel/core/core_power.h"
-#include "../kernel/ota/ota_update.h"
-#include "../kernel/ota/ota_ab.h"
-#include "../net/net_core.h"
+#include "../core/lib/lib_string.h"
+#include "../core/lib/lib_config.h"
+#include "../recovery/shell.h"
+#include "../services/power/core_power.h"
+#include "../services/ota/ota_update.h"
+#include "../services/ota/ota_ab.h"
+#include "../services/net/net_core.h"
 
 /* ------------------------------------------------------------------ */
 /* help page (F1)                                                      */

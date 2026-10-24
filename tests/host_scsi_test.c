@@ -31,7 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../kernel/types.h"
+#include "../core/types.h"
 #include "../drivers/block/driver_block_blk.h"
 
 /* ---- stubs the kernel .c expects on the host --------------------- */
@@ -66,7 +66,7 @@ int  driver_block_read_sectors_raw(int dev_idx, u64 lba, u32 count, void *buf)
 int  driver_block_write_sectors_raw(int dev_idx, u64 lba, u32 count, const void *buf)
 { (void)dev_idx; (void)lba; (void)count; (void)buf; return -1; }
 
-#include "../kernel/lib/lib_string.c"
+#include "../core/lib/lib_string.c"
 #include "../drivers/scsi/driver_scsi.c"
 
 static int check(const char *name, int cond)

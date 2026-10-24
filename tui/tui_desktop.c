@@ -26,16 +26,16 @@
  * shell capability is reachable without leaving the desktop.
  */
 #include "tui_desktop.h"
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/lib/lib_config.h"
-#include "../kernel/mem/mem_heap.h"
-#include "../kernel/mem/mem_pmm.h"
-#include "../shell/shell.h"
+#include "../core/lib/lib_string.h"
+#include "../core/lib/lib_config.h"
+#include "../core/mem/mem_heap.h"
+#include "../core/mem/mem_pmm.h"
+#include "../recovery/shell.h"
 #include "../drivers/block/driver_block_blk.h"
 #include "../drivers/input/driver_input_keyboard.h"
 #include "../drivers/display/screen_console.h"
-#include "../kernel/core/core_usermode.h"
-#include "../kernel/mem/mem_pmm.h"
+#include "../core/core_usermode.h"
+#include "../core/mem/mem_pmm.h"
 
 /* application entry points mounted by bootstrap (all of them assume
  * the desktop's tui session is already initialized) */

@@ -15,10 +15,10 @@
  */
 #include "tui.h"
 #include "tui_desktop.h"   /* WP-10-tui-native: tui_tr bilingual pages */
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/lib/lib_config.h"
-#include "../kernel/core/core_rtc.h"
-#include "../kernel/core/core_timer.h"
+#include "../core/lib/lib_string.h"
+#include "../core/lib/lib_config.h"
+#include "../services/time/core_rtc.h"
+#include "../core/core_timer.h"
 #include "../drivers/time/driver_cmos_rtc.h"
 #include "../drivers/time/driver_hpet.h"
 #include "../drivers/time/driver_pmtimer.h"

@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "kernel/types.h"
+#include "core/types.h"
 
 /* host kmalloc/kfree shims (kernel sources link against mem_heap) */
 void *kmalloc(u64 n) { return malloc(n); }
@@ -36,8 +36,8 @@ static void lib_tar_selftest(void);
 #include "update_test_vectors.h"
 
 /* include the kernel sources directly (glibc supplies the libc calls) */
-#include "kernel/lib/lib_gzip.c"
-#include "kernel/lib/lib_tar.c"
+#include "core/lib/lib_gzip.c"
+#include "core/lib/lib_tar.c"
 
 static int run_one(const char *name, const u8 *gz, int len,
                    const char *expect, int explen) {

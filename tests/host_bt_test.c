@@ -28,7 +28,7 @@ void  kfree(void *p)                { free(p); }
 u64   core_timer_now_ms(void)       { static u64 t; return t += 5; }
 void  core_sched_yield(void)        { }
 
-#include "../kernel/lib/lib_string.c"
+#include "../core/lib/lib_string.c"
 /* the layers each define file-local le/be helpers; rename them per TU */
 #define le16      le16_hci
 #define put_le16  put_le16_hci

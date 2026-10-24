@@ -8,10 +8,10 @@
  *          changes to /etc/opencube.conf through lib_config.
  */
 #include "tui.h"
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/lib/lib_config.h"
-#include "../kernel/mem/mem_pmm.h"
-#include "../kernel/arch/x86_64/arch_multiboot2.h"
+#include "../core/lib/lib_string.h"
+#include "../core/lib/lib_config.h"
+#include "../core/mem/mem_pmm.h"
+#include "../arch/x86_64/arch_multiboot2.h"
 #include "../drivers/block/driver_block_blk.h"
 #include "../drivers/block/driver_block_part.h"
 #include "../drivers/nic/driver_nic.h"
@@ -27,8 +27,8 @@
 #include "../drivers/input/driver_input_keyboard.h"
 #include "../drivers/input/driver_input_i2chid.h"
 #include "../drivers/display/screen_fb.h"
-#include "../net/net_core.h"
-#include "../kernel/core/core_timer.h"
+#include "../services/net/net_core.h"
+#include "../core/core_timer.h"
 
 /* ------------------------------------------------------------------ */
 /* helpers                                                             */

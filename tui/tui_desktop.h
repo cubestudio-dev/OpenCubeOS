@@ -27,7 +27,7 @@
 
 #include "tui.h"
 #include "tui_ext.h"
-#include "../shell/shell_lang.h"
+#include "../recovery/shell_lang.h"
 
 /* ------------------------------------------------------------------ */
 /* Language                                                            */

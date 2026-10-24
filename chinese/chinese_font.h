@@ -20,7 +20,7 @@
 #ifndef OC_CHINESE_FONT_H
 #define OC_CHINESE_FONT_H
 
-#include "../kernel/types.h"
+#include "../core/types.h"
 
 #define CHINESE_FONT_GLYPH_W      16
 #define CHINESE_FONT_GLYPH_H      16

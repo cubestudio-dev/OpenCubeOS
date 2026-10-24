@@ -47,9 +47,9 @@ L1_HEADERS = [
     "drivers/block/driver_block_blk.h",
     "drivers/nic/driver_nic.h",
     "drivers/snd/driver_snd.h",
-    "kernel/ota/ota_ab.h", "kernel/ota/ota_update.h",
-    "kernel/core/core_watchdog.h", "kernel/core/core_health.h",
-    "kernel/lib/lib_klog.h",
+    "services/ota/ota_ab.h", "services/ota/ota_update.h",
+    "services/watchdog/core_watchdog.h", "services/health/core_health.h",
+    "services/klog/lib_klog.h",
 ]
 
 # Directories counted for the "lines of source" statistic (matches the
