@@ -28,7 +28,7 @@ SRC_MAP = {
     "kernel/tar.c": "core/lib/lib_tar.c",
     "kernel/gzip.c": "core/lib/lib_gzip.c",
     "kernel/string.c": "core/lib/lib_string.c",
-    "kernel/net_tcp_cc.c": "net/net_tcp_cc.c",
+    "kernel/net_tcp_cc.c": "services/net/net_tcp_cc.c",
     "kernel/scsi.c": "drivers/scsi/driver_scsi.c",
     "kernel/lsi.c": "drivers/scsi/driver_scsi_lsi.c",
     "kernel/i2chid.c": "drivers/input/driver_input_i2chid.c",
@@ -52,7 +52,20 @@ SRC_MAP = {
     "kernel/keyboard.c": "drivers/input/driver_input_keyboard.c",
     "kernel/nic.c": "drivers/nic/driver_nic.c",
     "kernel/e1000.c": "drivers/nic/driver_nic_e1000e.c",
-    "kernel/snd.c": "drivers/snd/driver_snd.c",
+    "kernel/snd.c": "services/snd/snd_svc.c",
+    "drivers/block/driver_block_blk.c": "services/block/block_svc.c",
+    "net/net_tcp_cc.c": "services/net/net_tcp_cc.c",
+    "kernel/arch/x86_64/arch_multiboot2.c": "arch/x86_64/arch_multiboot2.c",
+    "kernel/core/core_rtc.c": "services/time/core_rtc.c",
+    "core/core_rtc.c": "services/time/core_rtc.c",
+    "kernel/lib/lib_string.c": "core/lib/lib_string.c",
+    "kernel/crypto/crypto_x509.c": "services/crypto/crypto_x509.c",
+    "kernel/crypto/crypto_rsa.c": "services/crypto/crypto_rsa.c",
+    "kernel/crypto/crypto_bn.c": "services/crypto/crypto_bn.c",
+    "kernel/crypto/crypto_ec_nist.c": "services/crypto/crypto_ec_nist.c",
+    "kernel/crypto/crypto_core.c": "services/crypto/crypto_core.c",
+    "kernel/crypto/crypto_sha512.c": "services/crypto/crypto_sha512.c",
+    "kernel/crypto/crypto_curve25519.c": "services/crypto/crypto_curve25519.c",
     "kernel/hda.c": "drivers/snd/driver_snd_hda.c",
     "kernel/usb.c": "drivers/usb/driver_usb.c",
     "kernel/hid.c": "drivers/usb/driver_usb_hid.c",
@@ -69,7 +82,7 @@ SRC_MAP = {
     "kernel/cmos_rtc.c": "drivers/time/driver_cmos_rtc.c",
     "kernel/ec_nist.c": "services/crypto/crypto_ec_nist.c",
     "kernel/crypto_ec_nist.c": "services/crypto/crypto_ec_nist.c",
-    "kernel/rtc.c": "core/core_rtc.c",
+    "kernel/rtc.c": "services/time/core_rtc.c",
     "kernel/sdhci.c": "drivers/sd/driver_sdhci.c",
     "kernel/sched.c": "core/core_sched.c",
     "kernel/usermode.c": "core/core_usermode.c",
@@ -78,8 +91,14 @@ SRC_MAP = {
     "kernel/ota_update.c": "services/ota/ota_update.c",
 }
 INC_MAP = {
-    "-Ikernel/net": "-Inet",
+    "-Ikernel/net": "-Iservices/net",
     "-Ikernel/drivers": "-Idrivers",
+    "-Ikernel": "-Icore",
+    "-Ikernel/lib": "-Icore/lib",
+    "-Ikernel/crypto": "-Iservices/crypto",
+    "-Ikernel/mem": "-Icore/mem",
+    "-Ikernel/core": "-Icore",
+    "-Ikernel/arch/x86_64": "-Iarch/x86_64",
 }
 # tests with external-fixture requirements (compile but skip run).
 # WP-10-tui-qa: the skip is now CONDITIONAL - when the fixture tree is
@@ -105,8 +124,11 @@ EXTRA_SRC = {"host_tls_p0_test.c": ["tests/host_tls_p0_stub.c"],
              "host_a401_entry_test.c": ["tests/host_pmm_stub.c"],
              "host_rsa_test.c": ["tests/host_pmm_stub.c"],
              "host_x509_test.c": ["tests/host_pmm_stub.c"],
-             # WP-10-tui: the wireless bridge calls driver_nic_register
-             "host_wifi_test.c": ["tests/host_wifi_nic_stub.c"]}
+             # WP-10-tui: the wireless bridge calls nic_dev_add (v2.0.0)
+             "host_wifi_test.c": ["tests/host_wifi_nic_stub.c"],
+             # v2.0.0: block_svc.c probe path walks the driver registry
+             "host_blk512_gate_test.c": ["tests/host_registry_stub.c",
+                                          "core/core_registry.c"]}
 
 
 def _clean(seg):
@@ -149,15 +171,19 @@ def normalize(toks):
     return out
 
 
-SAFE_INCS = ["-Ikernel", "-Ikernel/lib", "-Ikernel/crypto", "-Ikernel/mem",
-             "-Ikernel/core", "-Ikernel/arch/x86_64", "-Inet",
+SAFE_INCS = ["-Icore", "-Icore/lib", "-Icore/mem", "-Icore/generated",
+             "-Iarch/x86_64", "-Iservices/crypto", "-Iservices/ota",
+             "-Iservices/klog", "-Iservices/health", "-Iservices/watchdog",
+             "-Iservices/power", "-Iservices/time", "-Iservices/fs",
+             "-Iservices/net", "-Iservices/l1", "-Iservices/block",
+             "-Iservices/nic", "-Iservices/snd", "-Inet",
              "-Idrivers", "-Itests",
              "-Idrivers/block", "-Idrivers/nic", "-Idrivers/snd",
              "-Idrivers/usb", "-Idrivers/input", "-Idrivers/display",
              "-Idrivers/pci", "-Idrivers/i2c", "-Idrivers/acpi",
              "-Idrivers/time", "-Idrivers/wireless", "-Idrivers/bluetooth",
              "-Idrivers/camera", "-Idrivers/misc", "-Idrivers/scsi",
-             "-Idrivers/sd"]
+             "-Idrivers/sd", "-Irecovery", "-Iboot"]
 
 
 def remap(cmd):
