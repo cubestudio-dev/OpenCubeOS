@@ -441,7 +441,7 @@ static int shell_cmd_clear(const char *args) {
     return 0;
 }
 
-static int shell_cmd_halt(const char *args) {
+int shell_cmd_halt(const char *args) {   /* v2.0.0: exported for the power L1 surface */
     (void)args;
     /* WP-10d-fix2: halt moved into kernel/power.c (cli + hlt loop with
      * the "System halted." banner). */

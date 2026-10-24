@@ -44,18 +44,6 @@
 #include "core_registry.h"
 
 /* 1. poweroff_test - real shutdown attempt (QEMU exits here) */
-static int shell_cmd_poweroff_test(const char *args) {
-    (void)args;
-    screen_console_puts("poweroff_test: invoking power_shutdown() for real - on QEMU the process exits now\n");
-    (void)core_power_shutdown();
-    /* still running: no power-off port worked on this machine.
-     * WP-10-tui-qa: that is NOT a pass - the thing under test (the
-     * machine actually powering off) was not observed.  Report it as
-     * such and fail the command. */
-    screen_console_puts("poweroff_test: no power-off port took effect on this machine - power-off NOT observed : FAIL\n");
-    return 1;
-}
-
 /* 2. suspend_test - real S3 capability contract, read-only probe.
  * fix2 contract update: S3 is implemented end to end now (real-mode
  * trampoline + waking vector). Calling core_power_suspend() here would
@@ -64,64 +52,8 @@ static int shell_cmd_poweroff_test(const char *args) {
  * state. fix3: the shell entry point is hidden (suspend itself is
  * hidden); the probe stays compiled for the next suspend batch. */
 __attribute__((unused))
-static int shell_cmd_suspend_test(const char *args) {
-    (void)args;
-    u32 mask = driver_acpi_power_sleep_mask();
-    int typ3 = driver_acpi_power_slp_typ(3);
-    int acpi_up = (mask & (1u << 3)) && typ3 >= 0;
-    screen_console_puts(acpi_up
-        ? "suspend_test: ACPI S3 available (sleep mask bit3 set, slp_typ resolves)\n"
-        : "suspend_test: no ACPI S3 on this platform\n");
-    if (acpi_up) {
-        char b[48];
-        u64_to_str((u64)typ3, b);
-        screen_console_puts("suspend_test: S3 SLP_TYP value: ");
-        screen_console_puts(b);
-        screen_console_puts(" (live cycle verified in the dedicated QEMU suspend/wake session)\n");
-        screen_console_puts("suspend_test: suspend path present and wired : PASS\n");
-        return 0;
-    }
-    /* ACPI-less platform: the honest unsupported report is the PASS
-     * condition (same shape as the pre-S3 contract). */
-    int rc = core_power_suspend();
-    if (rc == OC_POWER_E_UNSUPPORTED) {
-        screen_console_puts("Suspend not supported (ACPI required).\n");
-        screen_console_puts("suspend_test: suspend reports the honest ACPI-required contract : PASS\n");
-        return 0;
-    }
-    screen_console_puts("suspend_test: suspend returned an unexpected rc : FAIL\n");
-    return 1;
-}
-
 /* 3. halt_test - component check + pointer to the live `halt` run */
-static int shell_cmd_halt_test(const char *args) {
-    (void)args;
-    /* A true halt cannot return, so this test verifies what is
-     * verifiable from inside a live session and documents the rest. */
-    screen_console_puts("halt_test: power_halt() = 'System halted.' + cli;hlt loop (kernel/power.c)\n");
-    screen_console_puts("halt_test: this test must return, so it does NOT halt; the live halt is verified by running 'halt' in a dedicated QEMU session\n");
-    /* WP-10-tui-qa: a destructive operation this command refuses to
-     * perform is a SKIP, not a PASS - the PASS label required no
-     * evidence and the release notes cited it as coverage it was not. */
-    screen_console_puts("halt_test: live halt not observed (destructive) : SKIP - see the dedicated halt session\n");
-    return 0;
-}
-
 /* 4. reboot_test - real block flush + reset path description */
-static int shell_cmd_reboot_test(const char *args) {
-    (void)args;
-    core_power_flush_blk();
-    screen_console_puts("reboot_test: block-device flush (reboot pre-step) executed\n");
-    screen_console_puts("reboot_test: reset path = 8042 controller (0x64, 0xFE) + ACPI RESET_REG fallback (0xCF9)\n");
-    screen_console_puts("reboot_test: this test must return, so it does NOT reset; the live reset is verified by 'reboot' (boot banner reappears)\n");
-    /* WP-10-tui-qa: the flush above DID run (that part is a real
-     * PASS); the reset itself is destructive and stays unobserved -
-     * report SKIP for it instead of an evidence-free PASS. */
-    screen_console_puts("reboot_test: pre-step flush executed : PASS\n");
-    screen_console_puts("reboot_test: live reset not observed (destructive) : SKIP - see the dedicated reboot session\n");
-    return 0;
-}
-
 /* 5/7. help_default_test and help_a_test - A-Z ordering of the table */
 static int shell_cmd_help_default_test(const char *args) {
     (void)args;
@@ -161,9 +93,6 @@ static int shell_cmd_help_wp_test(const char *args) {
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("poweroff_test", shell_cmd_poweroff_test, "real power-off attempt (QEMU exits)", "power");
-OC_SHELL_CMD("halt_test", shell_cmd_halt_test, "verify halt path (live halt via 'halt')", "power");
-OC_SHELL_CMD("reboot_test", shell_cmd_reboot_test, "verify reboot path (live reset via 'reboot')", "power");
-OC_SHELL_CMD("help_default_test", shell_cmd_help_default_test, "verify default help A-Z ordering", "power");
-OC_SHELL_CMD("help_wp_test", shell_cmd_help_wp_test, "verify help -w group ordering", "power");
-OC_SHELL_CMD("help_a_test", shell_cmd_help_a_test, "verify help -a A-Z ordering", "power");
+OC_SHELL_CMD("help_default_test", shell_cmd_help_default_test, "verify default help A-Z ordering", "recovery");
+OC_SHELL_CMD("help_wp_test", shell_cmd_help_wp_test, "verify help -w group ordering", "recovery");
+OC_SHELL_CMD("help_a_test", shell_cmd_help_a_test, "verify help -a A-Z ordering", "recovery");

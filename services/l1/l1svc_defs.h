@@ -163,4 +163,18 @@
 #define L1SVC_OTA_STATUS_TEST     15  /* update_status_test    */
 #define L1SVC_OTA_REAL_TEST       16  /* real_update_test      */
 
+/* ---- power operations (services/power) -----------------------------
+ * L0 keeps the survival controls (halt shutdown poweroff reboot) for
+ * the recovery environment; the SAME four + the full family are the
+ * L1 surface (minimal-L0 + full-L1 rule).  Bodies:
+ * services/power/core_power.c, core/main.c (halt), pwr_cmds_test.c. */
+#define L1SVC_PWR_SHUTDOWN        1  /* shutdown / poweroff   */
+#define L1SVC_PWR_REBOOT          2  /* reboot                */
+#define L1SVC_PWR_HALT            3  /* halt                  */
+#define L1SVC_PWR_SLEEP           4  /* sleep <sec>           */
+#define L1SVC_PWR_POWEROFF_TEST   5  /* poweroff_test         */
+#define L1SVC_PWR_SUSPEND_TEST    6  /* suspend_test          */
+#define L1SVC_PWR_HALT_TEST       7  /* halt_test             */
+#define L1SVC_PWR_REBOOT_TEST     8  /* reboot_test           */
+
 #endif /* OC_L1SVC_DEFS_H */
