@@ -5306,7 +5306,7 @@ int shell_cmd_dns(const char *args) {
 
 /* WP-09 mainstream: dnstest — exercise every record type against the
  * configured resolver (SLIRP forwards to the real upstream DNS). */
-static int shell_cmd_dnstest(const char *args) {
+int shell_cmd_dnstest(const char *args) {
     (void)args;
     int fails = 0;
     screen_console_puts("DNS record-type self-test (live resolver):\n");
@@ -5789,7 +5789,7 @@ static int net_tcp_cc_sim_test(void) {
  * inside the kernel. Covers integer_cbrt, the beta decrease, the cubic
  * growth curve at two sample points, RTO and fast-recovery bookkeeping,
  * plus a connection-level loss/congestion simulation. */
-static int shell_cmd_tcpcc_test(const char *args) {
+int shell_cmd_tcpcc_test(const char *args) {
     (void)args;
     int fails = 0;
     screen_console_puts("CUBIC (RFC 8312) kernel self-test:\n");
@@ -5872,7 +5872,7 @@ static int shell_cmd_tcpcc_test(const char *args) {
  * state matching, per-rule hits, default policies, REJECT classification and
  * the conntrack state machine via the public netfilter interfaces, plus one
  * REAL-path check: an OUTPUT DROP rule makes net_icmp_ping fail. */
-static int shell_cmd_nf_test(const char *args) {
+int shell_cmd_nf_test(const char *args) {
     (void)args;
     int fails = 0;
     u32 peer = IP4(203, 0, 113, 7);
@@ -5973,7 +5973,7 @@ static int shell_cmd_nf_test(const char *args) {
 /* WP-09 mainstream: tcptest — verify TCP option negotiation (MSS, Window
  * Scale, SACK-Permitted, Timestamps) on a REAL connection to a mainstream
  * server, plus option wire bytes on our own SYN. */
-static int shell_cmd_tcptest(const char *args) {
+int shell_cmd_tcptest(const char *args) {
     (void)args;
     int fails = 0;
     /* Single-line output on purpose (see KNOWN_ISSUES scroll-edge fault).
@@ -6224,18 +6224,6 @@ void net_e1000_resume(void) {
 
 /* ---- v2.0.0 file-local command declarations ---- */
 OC_SHELL_CMD("ifconfig", shell_cmd_ifconfig, "show network interface info", "net");
-OC_SHELL_CMD("ip", shell_cmd_ip, "show/set IP address", "net");
-OC_SHELL_CMD("route", shell_cmd_route, "show/add/del routing table (route add <dst> <mask> <gw>)", "net");
-OC_SHELL_CMD("arp", shell_cmd_arp, "show ARP cache", "net");
-OC_SHELL_CMD("firewall", shell_cmd_firewall, "show/add/del firewall rules (chains, states, policies, conntrack)", "net");
-OC_SHELL_CMD("nf_test", shell_cmd_nf_test, "netfilter self-test (rules, conntrack, policies, real-path)", "net");
-OC_SHELL_CMD("tcpstats", shell_cmd_tcpstats, "show TCP reliability stats (cwnd, rto, etc.)", "net");
-OC_SHELL_CMD("tcpcc_test", shell_cmd_tcpcc_test, "CUBIC congestion control self-test vectors", "net");
 OC_SHELL_CMD("ping", shell_cmd_ping, "send ICMP echo (ping <host>)", "net");
 OC_SHELL_CMD("netstat", shell_cmd_netstat, "show network statistics and sockets", "net");
-OC_SHELL_CMD("dhcp", shell_cmd_dhcp, "get IP via DHCP", "net");
-OC_SHELL_CMD("dns", shell_cmd_dns, "resolve domain name (dns <name> [aaaa|cname|mx|txt|ns|srv])", "net");
-OC_SHELL_CMD("dnstest", shell_cmd_dnstest, "DNS record-type self-test (A/AAAA/MX/TXT/NS/SRV live)", "net");
-OC_SHELL_CMD("tcptest", shell_cmd_tcptest, "TCP option negotiation self-test (MSS/WScale/SACK/TS live)", "net");
-OC_SHELL_CMD("lspci", shell_cmd_lspci, "list PCI devices", "net");
 OC_SHELL_CMD("wget", shell_cmd_wget, "download file via HTTP (wget <host> [port] [path])", "net");

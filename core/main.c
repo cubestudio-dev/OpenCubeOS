@@ -450,7 +450,7 @@ int shell_cmd_halt(const char *args) {   /* v2.0.0: exported for the power L1 su
 }
 
 /* WP-09: cryptotest — verify AES + SHA-256 with NIST test vectors */
-static int shell_cmd_cryptotest(const char *args) {
+int shell_cmd_cryptotest(const char *args) {
     (void)args;
     char buf[200]; char hex[20];
     int pass = 0;
@@ -644,7 +644,7 @@ static const u8 crypto_dh_test_K2[256] = {
     0xA4,0x33,0x93,0x75,0xEF,0x11,0x1F,0x52,0x12,0x3D,0xE8,0x0B,0x1B,0xB7,0xD5,0x8F,
 };
 
-static int shell_cmd_dhtest(const char *args) {
+int shell_cmd_dhtest(const char *args) {
     (void)args;
     char buf[160]; char n[20]; char hex[20];
     int pass = 0;
@@ -3489,8 +3489,6 @@ OC_SHELL_CMD("help", shell_cmd_help, "show this message", "recovery");
 OC_SHELL_CMD("exc", shell_cmd_exc, "run exception self-test (#DE/#UD/#PF)", "input");
 OC_SHELL_CMD("timer", shell_cmd_timer, "register a 500ms one-shot timer", "input");
 OC_SHELL_CMD("echo", shell_cmd_echo, "echo the text back", "recovery");
-OC_SHELL_CMD("cryptotest", shell_cmd_cryptotest, "test AES/SHA-256/HMAC with NIST vectors", "crypto");
-OC_SHELL_CMD("dhtest", shell_cmd_dhtest, "DH modexp 1024-bit (Oakley Group 1) timing + correctness", "crypto");
 OC_SHELL_CMD("ssh", shell_cmd_ssh, "SSH client connect (ssh <ip> [port] [user] [password])", "crypto");
 OC_SHELL_CMD("sshd", shell_cmd_sshd, "SSH server (sshd [port=22] [user=oc] [password=oc])", "crypto");
 OC_SHELL_CMD("halt", shell_cmd_halt, "halt the kernel", "power");

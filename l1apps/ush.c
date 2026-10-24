@@ -61,6 +61,8 @@
 #define L1SVC_TIME_PMTIMER  3   /* pmtimer [read|cal|wrap|test] */
 #define L1SVC_TIME_TSC      4   /* tsc [cal [hpet|pmtimer]|delay N|test] */
 #define L1SVC_CAT_FS        7
+#define L1SVC_CAT_NET       8
+#define L1SVC_CAT_CRYPTO   12
 #define L1SVC_FS_MOUNT      1   /* mount [type dev path] */
 #define L1SVC_FS_MOUNTS     2   /* mounts (alias of mount list) */
 #define L1SVC_FS_UMOUNT     3   /* umount <path> */
@@ -194,6 +196,21 @@
 #define L1SVC_USB_SERIAL_TEST   7   /* usb_serial_test */
 #define L1SVC_USB_HOTPLUG_TEST  8   /* usb_hotplug_test */
 #define L1SVC_USB_HUB_TEST      9   /* usb_hub_test */
+/* v2.0.0 group O: net/crypto (verbatim copy of services/l1/l1svc_defs.h) */
+#define L1SVC_NET_ARP           1   /* arp */
+#define L1SVC_NET_DHCP          2   /* dhcp */
+#define L1SVC_NET_DNS           3   /* dns */
+#define L1SVC_NET_DNSTEST       4   /* dnstest */
+#define L1SVC_NET_FIREWALL      5   /* firewall */
+#define L1SVC_NET_IP            6   /* ip */
+#define L1SVC_NET_LSPCI         7   /* lspci */
+#define L1SVC_NET_NF_TEST       8   /* nf_test */
+#define L1SVC_NET_ROUTE         9   /* route */
+#define L1SVC_NET_TCPCC_TEST   10   /* tcpcc_test */
+#define L1SVC_NET_TCPSTATS     11   /* tcpstats */
+#define L1SVC_NET_TCPTEST      12   /* tcptest */
+#define L1SVC_CRYPTO_CRYPTOTEST 1   /* cryptotest */
+#define L1SVC_CRYPTO_DHTEST     2   /* dhtest */
 #define NETCMD_IFCONFIG  1
 #define NETCMD_PING      2
 #define NETCMD_NETSTAT   3
@@ -977,6 +994,23 @@ static const struct svc_cmd SVC_CMDS[] = {
     { "usb_serial_test",  L1SVC_CAT_USB, L1SVC_USB_SERIAL_TEST },
     { "usb_hotplug_test", L1SVC_CAT_USB, L1SVC_USB_HOTPLUG_TEST },
     { "usb_hub_test",     L1SVC_CAT_USB, L1SVC_USB_HUB_TEST },
+    /* net service (services/net) - diagnostics; ifconfig/ping/netstat/
+       wget are ush built-ins via the SYS_NETCMD bridge */
+    { "arp",            L1SVC_CAT_NET, L1SVC_NET_ARP },
+    { "dhcp",           L1SVC_CAT_NET, L1SVC_NET_DHCP },
+    { "dns",            L1SVC_CAT_NET, L1SVC_NET_DNS },
+    { "dnstest",        L1SVC_CAT_NET, L1SVC_NET_DNSTEST },
+    { "firewall",       L1SVC_CAT_NET, L1SVC_NET_FIREWALL },
+    { "ip",             L1SVC_CAT_NET, L1SVC_NET_IP },
+    { "lspci",          L1SVC_CAT_NET, L1SVC_NET_LSPCI },
+    { "nf_test",        L1SVC_CAT_NET, L1SVC_NET_NF_TEST },
+    { "route",          L1SVC_CAT_NET, L1SVC_NET_ROUTE },
+    { "tcpcc_test",     L1SVC_CAT_NET, L1SVC_NET_TCPCC_TEST },
+    { "tcpstats",       L1SVC_CAT_NET, L1SVC_NET_TCPSTATS },
+    { "tcptest",        L1SVC_CAT_NET, L1SVC_NET_TCPTEST },
+    /* crypto service (services/crypto) */
+    { "cryptotest",     L1SVC_CAT_CRYPTO, L1SVC_CRYPTO_CRYPTOTEST },
+    { "dhtest",         L1SVC_CAT_CRYPTO, L1SVC_CRYPTO_DHTEST },
 };
 
 static int svc_cmd_run(int argc, char *argv[]) {
@@ -1115,6 +1149,12 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  gameport / parallel / ir [+ *test]  Legacy port probes\n");
         puts_("  usb / usbdev [slot]    USB hosts, devices, descriptors\n");
         puts_("  usb_*_test             USB class driver test suite\n");
+        puts_("  arp / route / ip       Neighbor, routing and address tables\n");
+        puts_("  dhcp / dns / dnstest   Resolver + lease diagnostics\n");
+        puts_("  firewall / nf_test     Ruleset + netfilter tests\n");
+        puts_("  tcpstats / tcptest / tcpcc_test  TCP diagnostics\n");
+        puts_("  lspci                  PCI device scan\n");
+        puts_("  cryptotest / dhtest    Crypto self-tests (NIST + DH)\n");
         puts_("\n  Editing: Up/Down history, Left/Right/Home/End cursor, Del,\n");
         puts_("  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion\n");
         puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
@@ -2934,7 +2974,10 @@ void _start(void) {
                     "ir","irtest",
                     "usb","usbdev","usb_core_test","usb_kbd_test",
                     "usb_mouse_test","usb_storage_test","usb_serial_test",
-                    "usb_hotplug_test","usb_hub_test",0
+                    "usb_hotplug_test","usb_hub_test",
+                    "arp","dhcp","dns","dnstest","firewall","ip",
+                    "lspci","nf_test","route","tcpcc_test","tcpstats",
+                    "tcptest","cryptotest","dhtest",0
                 };
                 int found = 0;
                 int blen = 0;
