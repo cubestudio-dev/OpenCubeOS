@@ -28,7 +28,7 @@
 #include "../services/net/net_core.h"
 #include "../services/ota/ota_ab.h"
 #include "../services/fs/fs_vfs.h"
-#include "../drivers/block/driver_block_blk.h"
+#include "../services/block/block_svc.h"
 #include "../drivers/input/driver_input_keyboard.h"
 
 int tui_sys_main(void);   /* menu action target, defined below */

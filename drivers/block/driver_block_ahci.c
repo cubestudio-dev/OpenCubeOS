@@ -40,7 +40,9 @@
 #include "lib_string.h"
 #include "screen_console.h"
 #include "driver_pci.h"
-#include "driver_block_blk.h"
+#include "../../services/block/block_svc.h"
+#include "../../services/block/drv_internal.h"
+#include "core_registry.h"
 
 /* ---- MMIO accessors ---- */
 static inline u32 mmio_read32(volatile void *p)  { return *(volatile u32 *)p; }
@@ -627,7 +629,7 @@ static int driver_block_ahci_init_ctrl(u8 bus, u8 dev, u8 func) {
         nm[2] = (char)('a' + g_drive_count);
         nm[3] = 0;
         strcpy(d->name, nm);
-        p->driver_block_idx = driver_block_register_device(d->name, BLK_TYPE_AHCI,
+        p->driver_block_idx = blk_dev_add(d->name, BLK_TYPE_AHCI,
                                          p->sectors, 512,
                                          &driver_block_ahci_blk_ops, p);
         if (p->driver_block_idx >= 0) {
@@ -716,3 +718,8 @@ void driver_block_ahci_print_state(void) {
     }
     driver_block_ahci_log_dec("sata drives registered: ", (u64)g_drive_count, "\n");
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int blk_probe_ahci(void) { return driver_block_ahci_init(NULL); }
+static const blk_drv_ops_t g_blk_probe_ahci = { blk_probe_ahci };
+OC_DRIVER_DECL("block", "ahci", &g_blk_probe_ahci, "SATA AHCI");

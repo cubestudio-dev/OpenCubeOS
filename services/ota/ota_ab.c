@@ -21,7 +21,7 @@
 #include "ota_update.h"
 #include "lib_config.h"
 #include "l1_ext.h"
-#include "driver_block_blk.h"
+#include "block_svc.h"
 #include "driver_block_part.h"
 #include "fs_vfs.h"
 #include "net_core.h"

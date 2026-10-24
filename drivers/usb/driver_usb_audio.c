@@ -31,7 +31,8 @@
 #include "driver_pci.h"
 #include "screen_console.h"
 #include "lib_string.h"
-#include "driver_snd.h"
+#include "../../services/snd/snd_svc.h"
+#include "../../services/snd/drv_internal.h"
 #include "core_sched.h"
 #include "core_timer.h"
 
@@ -389,7 +390,7 @@ int driver_usb_audio_init(void *driver_usb_dev) {
     nd.type = SND_TYPE_USB_AUDIO;
     nd.rate = ad->rate; nd.channels = ad->channels; nd.volume = 100;
     nd.priv = ad;
-    int idx = driver_snd_register(&nd, &driver_usb_audio_snd_ops);
+    int idx = snd_dev_add(&nd, &driver_usb_audio_snd_ops);
     return idx >= 0 ? 0 : -1;
 }
 
@@ -422,6 +423,7 @@ void driver_usb_audio_print_state(void) {
 /* ---- WP-10d class-driver registration ---- */
 
 #include "driver_usb.h"
+#include "core_registry.h"
 
 static int driver_usb_audio_class_probe(driver_usb_dev_t *dev) {
     return driver_usb_audio_init((void *)dev);
@@ -442,3 +444,8 @@ int driver_usb_audio_class_register(void) {
                                driver_usb_audio_class_probe,
                                driver_usb_audio_class_disconnect);
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int snd_probe_usbaudio(void) { return driver_usb_audio_init(NULL); }
+static const snd_drv_ops_t g_snd_probe_usbaudio = { snd_probe_usbaudio };
+OC_DRIVER_DECL("snd", "usbaudio", &g_snd_probe_usbaudio, "USB audio class");

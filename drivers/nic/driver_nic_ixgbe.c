@@ -26,12 +26,14 @@
  * derived.  The driver compiles, links, and PCI-probes (nothing found
  * under QEMU).
  */
-#include "driver_nic.h"
+#include "../../services/nic/nic_svc.h"
+#include "../../services/nic/drv_internal.h"
 #include "screen_console.h"
 #include "lib_string.h"
 #include "mem_pmm.h"
 
 #include <stdint.h>
+#include "core_registry.h"
 
 static inline u32 mmio_read32(volatile void *p) { return *(volatile u32 *)p; }
 static inline void mmio_write32(volatile void *p, u32 v) { *(volatile u32 *)p = v; }
@@ -311,7 +313,7 @@ int driver_nic_ixgbe_init(driver_pci_dev_t *pdev) {
     u32 ids = driver_pci_read_config(bus, dev, func, 0x00);
     nd.device_id = (u16)(ids >> 16);
     nd.priv = &g_ixgbe;
-    int idx = driver_nic_register(&nd, &driver_nic_ixgbe_nic_ops);
+    int idx = nic_dev_add(&nd, &driver_nic_ixgbe_nic_ops);
 
     char line[96];
     char n[24];
@@ -432,3 +434,8 @@ void driver_nic_ixgbe_print_state(void) {
     strcat(line, "\n");
     screen_console_puts(line);
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int nic_probe_ixgbe(void) { return driver_nic_ixgbe_init(NULL); }
+static const nic_drv_ops_t g_nic_probe_ixgbe = { nic_probe_ixgbe };
+OC_DRIVER_DECL("nic", "ixgbe", &g_nic_probe_ixgbe, "Intel 82599 (ixgbe)");

@@ -16,12 +16,14 @@
  *     (status 16b + length 16b).
  *   - Polling mode: IMR = 0.
  */
-#include "driver_nic.h"
+#include "../../services/nic/nic_svc.h"
+#include "../../services/nic/drv_internal.h"
 #include "screen_console.h"
 #include "lib_string.h"
 #include "mem_pmm.h"
 
 #include <stdint.h>
+#include "core_registry.h"
 
 /* ---- x86 I/O port access ---- */
 static inline void outb_p(u16 port, u8 v)  { __asm__ volatile("outb %0,%1" : : "a"(v), "Nd"(port)); }
@@ -246,7 +248,7 @@ int driver_nic_rtl8139_init(driver_pci_dev_t *pdev) {
     u32 ids = driver_pci_read_config(bus, dev, func, 0x00);
     nd.device_id = (u16)(ids >> 16);
     nd.priv = &g_rtl8139;
-    int idx = driver_nic_register(&nd, &driver_nic_rtl8139_nic_ops);
+    int idx = nic_dev_add(&nd, &driver_nic_rtl8139_nic_ops);
 
     char line[96];
     char n[24];
@@ -429,3 +431,8 @@ void driver_nic_rtl8139_print_state(void) {
     strcat(line, "\n");
     screen_console_puts(line);
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int nic_probe_rtl8139(void) { return driver_nic_rtl8139_init(NULL); }
+static const nic_drv_ops_t g_nic_probe_rtl8139 = { nic_probe_rtl8139 };
+OC_DRIVER_DECL("nic", "rtl8139", &g_nic_probe_rtl8139, "Realtek 8139");

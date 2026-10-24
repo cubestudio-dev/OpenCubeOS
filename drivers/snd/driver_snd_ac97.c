@@ -38,9 +38,11 @@
 #include "arch_irq.h"
 #include "screen_console.h"
 #include "lib_string.h"
-#include "driver_snd.h"
+#include "../../services/snd/snd_svc.h"
+#include "../../services/snd/drv_internal.h"
 #include "core_sched.h"
 #include "core_timer.h"
+#include "core_registry.h"
 
 /* NAM (mixer) registers */
 #define AC97_REG_RESET          0x00
@@ -278,7 +280,7 @@ int driver_snd_ac97_init(driver_pci_dev_t *pdev) {
     nd.vendor_id = d->vid; nd.device_id = d->did;
     nd.rate = d->rate; nd.channels = d->channels; nd.volume = 100;
     nd.priv = d;
-    int idx = driver_snd_register(&nd, &driver_snd_ac97_snd_ops);
+    int idx = snd_dev_add(&nd, &driver_snd_ac97_snd_ops);
     return idx >= 0 ? 0 : -1;
 }
 
@@ -453,3 +455,8 @@ void driver_snd_ac97_print_state(void) {
     screen_console_puts(line);
     screen_console_puts("\n");
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int snd_probe_ac97(void) { return driver_snd_ac97_init(NULL); }
+static const snd_drv_ops_t g_snd_probe_ac97 = { snd_probe_ac97 };
+OC_DRIVER_DECL("snd", "ac97", &g_snd_probe_ac97, "AC97 audio");

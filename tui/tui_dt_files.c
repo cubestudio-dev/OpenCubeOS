@@ -20,7 +20,7 @@
 #include "../core/lib/lib_string.h"
 #include "../core/mem/mem_heap.h"
 #include "../drivers/input/driver_input_keyboard.h"
-#include "../drivers/block/driver_block_blk.h"
+#include "../services/block/block_svc.h"
 
 #define FL_MAX      128                  /* entries per directory      */
 

@@ -24,7 +24,7 @@
  * reboot gave).
  */
 #include "core_power.h"
-#include "driver_block_blk.h"
+#include "block_svc.h"
 #include "driver_acpi.h"
 #include "driver_acpi_power.h"
 #include "screen_console.h"

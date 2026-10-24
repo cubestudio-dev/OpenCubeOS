@@ -18,15 +18,15 @@
  */
 #include "shell_cmds_disk_test.h"
 #include "shell.h"
-#include "driver_block_blk.h"
+#include "block_svc.h"
 #include "driver_block_cache.h"
 #include "driver_block_part.h"
 #include "driver_block_ahci.h"
 #include "driver_block_nvme.h"
 #include "driver_block_ata_dma.h"
 #include "driver_block_ata.h"
-#include "driver_nic.h"       /* WP-10b: real_hw_test NIC section */
-#include "driver_snd.h"       /* WP-10c: real_hw_test sound section */
+#include "../../services/nic/nic_svc.h"       /* WP-10b: real_hw_test NIC section */
+#include "../../services/snd/snd_svc.h"       /* WP-10c: real_hw_test sound section */
 #include "driver_usb.h"        /* WP-10d: real_hw_test USB section */
 #include "driver_usb_hid.h"
 #include "driver_usb_msc.h"

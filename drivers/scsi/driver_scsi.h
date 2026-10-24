@@ -18,7 +18,7 @@
  *   SYNCHRONIZE CACHE(10) flush path.
  *
  * Discovered direct-access (PDT 0x00) targets land in the block
- * layer as sda / sdb / sdc ... via driver_block_register_device(),
+ * layer as sda / sdb / sdc ... via blk_dev_add(),
  * then MBR/GPT partition parsing runs on them exactly like on the
  * other block backends.
  *
@@ -40,6 +40,7 @@
 #define OC_DRIVER_SCSI_H
 
 #include "types.h"
+#include "../../services/block/drv_internal.h"
 
 /* ---- limits ---- */
 #define SCSI_MAX_HBAS    4

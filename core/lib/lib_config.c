@@ -25,7 +25,7 @@
 #include "screen_console.h"
 #include "lib_string.h"
 #include "shell_lang.h"   /* fix3: config set shell.lang syncs the live state */
-#include "driver_block_blk.h"  /* fix3: enumerate real drive names */
+#include "block_svc.h"  /* fix3: enumerate real drive names */
 
 #include <stdint.h>
 

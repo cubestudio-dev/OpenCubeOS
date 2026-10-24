@@ -28,7 +28,8 @@
  */
 #include "types.h"
 #include "driver_wireless.h"
-#include "driver_nic.h"
+#include "../../services/nic/nic_svc.h"
+#include "../../services/nic/drv_internal.h"
 #include "lib_string.h"
 #include "mem_heap.h"
 
@@ -1014,7 +1015,7 @@ int wl_nic_bridge_register(void) {
     g_wl_nic.ops        = &g_wl_nic_ops;
     g_wl_nic.priv       = w;
     g_wl_nic.index      = -1;
-    int rc = driver_nic_register(&g_wl_nic, &g_wl_nic_ops);
+    int rc = nic_dev_add(&g_wl_nic, &g_wl_nic_ops);
     if (rc == 0) g_wl_nic.present = 1;            /* framework copied it in */
     return rc;
 }

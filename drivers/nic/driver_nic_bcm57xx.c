@@ -109,12 +109,14 @@
  * TSO/jumbo/ASF firmware download (5701-A0/TSO/57766 only); GRC_LOCAL_CTRL
  * and DMA_RW_CTRL are left at power-on values; tg3_poll_fw is shortened.
  */
-#include "driver_nic.h"
+#include "../../services/nic/nic_svc.h"
+#include "../../services/nic/drv_internal.h"
 #include "screen_console.h"
 #include "lib_string.h"
 #include "mem_pmm.h"
 
 #include <stdint.h>
+#include "core_registry.h"
 
 static inline u32 mmio_read32(volatile void *p) { return *(volatile u32 *)p; }
 static inline void mmio_write32(volatile void *p, u32 v) { *(volatile u32 *)p = v; }
@@ -989,7 +991,7 @@ int bcm57xx_init(driver_pci_dev_t *pdev) {
     u32 ids = driver_pci_read_config(bus, dev, func, 0x00);
     nd.device_id = (u16)(ids >> 16);
     nd.priv = &g_bcm;
-    int idx = driver_nic_register(&nd, &driver_nic_bcm57xx_nic_ops);
+    int idx = nic_dev_add(&nd, &driver_nic_bcm57xx_nic_ops);
 
     char line[96];
     char n[24];
@@ -1176,3 +1178,8 @@ void bcm57xx_print_state(void) {
     strcat(line, "\n");
     screen_console_puts(line);
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int nic_probe_bcm57xx(void) { return bcm57xx_init(NULL); }
+static const nic_drv_ops_t g_nic_probe_bcm57xx = { nic_probe_bcm57xx };
+OC_DRIVER_DECL("nic", "bcm57xx", &g_nic_probe_bcm57xx, "Broadcom 57xx (tg3)");

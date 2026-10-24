@@ -39,7 +39,7 @@
 #include "arch_multiboot2.h"
 #include "core_timer.h"
 #include "../pci/driver_pci.h"
-#include "../nic/driver_nic.h"
+#include "../services/nic/nic_svc.h"
 #include "../../services/net/net_core.h"
 #include "../display/screen_serial_in.h"
 #include "lib_string.h"

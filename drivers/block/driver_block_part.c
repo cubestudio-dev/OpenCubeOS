@@ -5,7 +5,8 @@
  * Purpose: MBR + GPT partition table parser.
  */
 #include "driver_block_part.h"
-#include "driver_block_blk.h"
+#include "../../services/block/block_svc.h"
+#include "../../services/block/drv_internal.h"
 #include "mem_heap.h"
 #include "lib_string.h"
 #include "screen_console.h"
@@ -330,7 +331,7 @@ int driver_block_part_register_child(const char *parent_name, int parent_idx,
     dev.sector_size = 512;
     dev.present = 1;
     dev.priv = priv;
-    int idx = driver_block_register(&dev, &g_part_child_ops);
+    int idx = blk_dev_add_ptr(&dev, &g_part_child_ops);
     if (idx < 0) kfree(priv);
     return idx;
 }

@@ -22,6 +22,10 @@
  *   - driver_block_write(dev, ...)      cached (write-back) write via pointer;
  *   - driver_block_flush(dev)           write-back dirty sectors + driver flush.
  */
+/* v2.0.0: register-class entry points (driver_block_register,
+ * driver_block_register_device, driver_block_unregister_device,
+ * driver_block_set_ops) were REMOVED from the L1 surface - see
+ * drv_internal.h for the kernel-internal replacements. */
 #ifndef OC_BLK_H
 #define OC_BLK_H
 
@@ -83,15 +87,13 @@ typedef struct {
 /* ---- L1 extension API ---- */
 
 /* Initialize the block-device subsystem. */
-void driver_block_init(void);
+void block_svc_init(void);
+int  block_svc_probe_all(void);
 
-/* Register a block device. Returns the device index (>=0) or -1 on full. */
-int driver_block_register_device(const char *name, driver_block_type_t type,
-                        u64 sectors, u32 sector_size,
-                        const driver_block_ops_t *ops, void *priv);
-
-/* Unregister a block device by index. */
-int driver_block_unregister_device(int index);
+/* v2.0.0: register-class entries REMOVED from the L1 surface.
+ * Block drivers declare identity with OC_DRIVER_DECL("block", ...) and
+ * add probed devices via blk_dev_add()/blk_dev_remove()
+ * (services/block/drv_internal.h, kernel-internal). */
 
 /* Look up a device by name (e.g. "hda"). Returns index or -1. */
 int driver_block_find_device(const char *name);
@@ -130,15 +132,10 @@ int driver_block_write_sectors_raw(int dev_idx, u64 lba, u32 count, const void *
  *   invoke the driver's .flush hook (if any).  Call before assuming
  *   data is on media (e.g. before shutdown or fsync semantics).
  */
-int driver_block_register(driver_block_device_t *dev, const driver_block_ops_t *ops);
 int driver_block_read (driver_block_device_t *dev, u64 lba, u32 count, void *buf);
 int driver_block_write(driver_block_device_t *dev, u64 lba, u32 count, const void *buf);
 int driver_block_flush(driver_block_device_t *dev);
 
-/* WP-10a: replace the driver ops of an already-registered device (used
- * by the ATA driver to upgrade a PIO-registered drive to Bus-Master DMA
- * after driver_block_ata_dma_init() validated the controller).  Returns 0 on success. */
-int driver_block_set_ops(int dev_idx, const driver_block_ops_t *ops);
 
 /* List all block devices (for `lsblk` command). */
 void driver_block_list_devices(void);

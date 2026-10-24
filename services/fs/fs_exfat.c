@@ -35,7 +35,7 @@
 #include "lib_string.h"
 #include "screen_console.h"
 #include "fs_vfs.h"
-#include "driver_block_blk.h"
+#include "block_svc.h"
 
 #pragma pack(push, 1)
 typedef struct {

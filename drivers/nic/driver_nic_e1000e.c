@@ -22,12 +22,14 @@
  *   - Polling mode: interrupts are masked, net.c polls driver_nic_recv().
  *   - DMA buffers come from the identity-mapped PMM region.
  */
-#include "driver_nic.h"
+#include "../../services/nic/nic_svc.h"
+#include "../../services/nic/drv_internal.h"
 #include "screen_console.h"
 #include "lib_string.h"
 #include "mem_pmm.h"
 
 #include <stdint.h>
+#include "core_registry.h"
 
 /* ---- MMIO accessors (file-local, same pattern as nvme.c) ---- */
 static inline u32 mmio_read32(volatile void *p) {
@@ -315,7 +317,7 @@ int driver_nic_e1000e_init(driver_pci_dev_t *pdev) {
     u32 ids = driver_pci_read_config(bus, dev, func, 0x00);
     nd.device_id = (u16)(ids >> 16);
     nd.priv = &g_e1000e;
-    int idx = driver_nic_register(&nd, &driver_nic_e1000e_nic_ops);
+    int idx = nic_dev_add(&nd, &driver_nic_e1000e_nic_ops);
 
     char line[96];
     char n[24];
@@ -523,3 +525,8 @@ void driver_nic_e1000e_resume(void) {
     driver_nic_e1000e_pci_enable(&g_e1000e);
 
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int nic_probe_e1000e(void) { return driver_nic_e1000e_init(NULL); }
+static const nic_drv_ops_t g_nic_probe_e1000e = { nic_probe_e1000e };
+OC_DRIVER_DECL("nic", "e1000e", &g_nic_probe_e1000e, "Intel 82574 E1000E");

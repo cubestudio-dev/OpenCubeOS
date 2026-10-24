@@ -26,7 +26,7 @@
 #include "driver_usb_msc.h"
 #include "driver_usb_serial.h"
 #include "driver_usb_audio.h"
-#include "driver_block_blk.h"
+#include "block_svc.h"
 #include "driver_block_part.h"
 #include "shell.h"
 #include "screen_console.h"

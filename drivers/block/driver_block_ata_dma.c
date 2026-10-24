@@ -47,7 +47,9 @@
 #include "lib_string.h"
 #include "screen_console.h"
 #include "driver_pci.h"
-#include "driver_block_blk.h"
+#include "../../services/block/block_svc.h"
+#include "../../services/block/drv_internal.h"
+#include "core_registry.h"
 
 /* ---- I/O port accessors ---- */
 static inline void outb(u16 p, u8  v) { __asm__ volatile("outb %0, %1" :: "a"(v),  "Nd"(p)); }
@@ -483,12 +485,12 @@ static int driver_block_ata_dma_init_ctrl(u8 bus, u8 dev, u8 func) {
         name[2] = (char)('a' + drive);
         int idx = driver_block_find_device(name);
         if (idx >= 0) {
-            driver_block_set_ops(idx, &driver_block_ata_dma_blk_ops);
+            blk_dev_set_ops(idx, &driver_block_ata_dma_blk_ops);
             driver_block_device_t *bd = driver_block_get_device(idx);
             if (bd) { bd->priv = (void *)(uintptr_t)(drive + 1); }
             d->driver_block_idx = idx;
         } else {
-            d->driver_block_idx = driver_block_register_device(name, BLK_TYPE_ATA,
+            d->driver_block_idx = blk_dev_add(name, BLK_TYPE_ATA,
                                              d->sectors, 512,
                                              &driver_block_ata_dma_blk_ops,
                                              (void *)(uintptr_t)(drive + 1));
@@ -578,3 +580,8 @@ void driver_block_ata_dma_print_state(void) {
         dlog(buf);
     }
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int blk_probe_ata_dma(void) { return driver_block_ata_dma_init(NULL); }
+static const blk_drv_ops_t g_blk_probe_ata_dma = { blk_probe_ata_dma };
+OC_DRIVER_DECL("block", "ata_dma", &g_blk_probe_ata_dma, "ATA Bus-Master DMA (PCI IDE)");

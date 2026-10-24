@@ -10,7 +10,9 @@
  * families in priority order and stops at the first device that
  * initialises.  net.c routes frames through driver_nic_active().
  */
-#include "driver_nic.h"
+#include "nic_svc.h"
+#include "drv_internal.h"
+#include "core_registry.h"
 #include "screen_console.h"
 #include "core_sync.h"
 #include "lib_string.h"
@@ -21,12 +23,12 @@
 static driver_nic_device_t g_nic_devs[NIC_MAX_DEVICES];
 static int g_nic_count = 0;
 
-void driver_nic_init(void) {
+void nic_svc_init(void) {
     memset(g_nic_devs, 0, sizeof(g_nic_devs));
     g_nic_count = 0;
 }
 
-int driver_nic_register(driver_nic_device_t *dev, const driver_nic_ops_t *ops) {
+int nic_dev_add(driver_nic_device_t *dev, const driver_nic_ops_t *ops) {
     if (!dev || !ops || !ops->send || !ops->recv) return -1;
     if (!dev->name[0]) return -1;
     if (dev->type < NIC_TYPE_E1000E || dev->type > NIC_TYPE_OTHER) return -1;
@@ -168,25 +170,21 @@ driver_nic_device_t *driver_nic_active(void) {
 /* Probe every family in priority order.  The first success wins (the
  * kernel currently routes through a single NIC).  Probe order puts the
  * QEMU-verifiable PCIe families first and best-effort legacy last. */
-int driver_nic_probe_all(void) {
-    static const struct {
-        const char *name;
-        int (*init)(driver_pci_dev_t *pdev);
-    } probes[] = {
-        { "e1000e",  driver_nic_e1000e_init  },
-        { "igb",     driver_nic_igb_init     },
-        { "rtl8168", rtl8168_init },
-        { "rtl8125", rtl8125_init },
-        { "rtl810x", rtl810x_init },
-        { "rtl8139", driver_nic_rtl8139_init },
-        { "bcm57xx", bcm57xx_init },
-        { "ixgbe",   driver_nic_ixgbe_init   },
-        { "other",   other_nics_init },
+int nic_svc_probe_all(void) {
+    /* v2.0.0: probe list COLLECTED from the OC_DRIVER_DECL("nic", ...)
+     * declarations (was a hardcoded function-pointer table).  Order
+     * below is the historical mainstream-first priority. */
+    static const char *const order[] = {
+        "e1000e", "igb", "rtl8168", "rtl8125", "rtl810x",
+        "rtl8139", "bcm57xx", "ixgbe", "other",
     };
-
-    for (unsigned i = 0; i < sizeof(probes) / sizeof(probes[0]); i++) {
-        if (probes[i].init(NULL) == 0) {
-            return 0;
+    for (unsigned k = 0; k < sizeof(order) / sizeof(order[0]); k++) {
+        for (int i = 0; i < core_registry_drvs_count(); i++) {
+            const oc_driver_decl_t *c = core_registry_drv_at(i);
+            if (!c || strcmp(c->family, "nic") != 0) continue;
+            if (strcmp(c->name, order[k]) != 0) continue;
+            const nic_drv_ops_t *ops = (const nic_drv_ops_t *)c->ops;
+            if (ops && ops->probe && ops->probe() == 0) return 0;
         }
     }
     return -1;
@@ -201,3 +199,6 @@ int driver_nic_probe_all(void) {
 void driver_nic_resume(void) {
     driver_nic_e1000e_resume();
 }
+
+/* ---- v2.0.0 file-local service identity ---- */
+OC_SERVICE_DECL("nic", "NIC service (card table + dispatch + probe collection)", nic_svc_init, nic_svc_probe_all);

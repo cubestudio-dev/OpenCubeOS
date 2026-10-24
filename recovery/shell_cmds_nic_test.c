@@ -20,7 +20,7 @@
  * driver_nic_rw_test exercises send + recv round-trips on every registered
  * NIC.  real_hw_test (WP-10a) is extended with the NIC section.
  */
-#include "driver_nic.h"
+#include "../../services/nic/nic_svc.h"
 #include "net_core.h"
 #include "shell.h"
 #include "screen_console.h"

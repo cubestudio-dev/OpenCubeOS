@@ -8,7 +8,7 @@
  */
 #include "shell_cmds_disk.h"
 #include "shell.h"
-#include "driver_block_blk.h"
+#include "block_svc.h"
 #include "driver_block_cache.h"
 #include "driver_block_part.h"
 #include "fs_vfs.h"

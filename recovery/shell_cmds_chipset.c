@@ -19,7 +19,7 @@
 #include "driver_i2c_dw.h"
 #include "driver_smbus.h"
 #include "driver_input_i2chid.h"
-#include "driver_nic.h"
+#include "../../services/nic/nic_svc.h"
 #include "screen_console.h"
 #include "lib_string.h"
 
