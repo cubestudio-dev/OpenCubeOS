@@ -164,7 +164,16 @@ WIKI_MAP = {}
 for line in os.environ.get("OC_WIKI_MAP", "").splitlines():
     parts = line.split(None, 1)
     if len(parts) == 2:
-        WIKI_MAP[parts[1].rstrip(".md").lstrip("docs/")] = parts[0] + SUFFIX
+        key = parts[1].strip()
+        if key.endswith(".md"):
+            key = key[:-3]
+        if key.startswith("docs/"):
+            key = key[len("docs/"):]
+        WIKI_MAP[key] = parts[0] + SUFFIX
+
+# directory the source page lives in (docs-relative, e.g. "manual");
+# relative links in the page resolve against it before the map lookup.
+SRCDIR = os.environ.get("OC_WIKI_SRCDIR", "").strip().strip("/")
 
 # directory links (docs/<dir>/) -> the section index's wiki page
 DIR_MAP = {
@@ -179,11 +188,22 @@ DIR_MAP = {
 }
 DIR_MAP = {k: v + SUFFIX for k, v in DIR_MAP.items()}
 
+def resolve(target):
+    """Resolve a page-relative link target to a docs-root-relative path
+    (no .md suffix): same-dir links stay relative to SRCDIR, ../ climbs,
+    and plain 'x.md' in a root-level page resolves to 'x'."""
+    t = target.split("#")[0].strip()
+    if not t:
+        return ""
+    joined = os.path.normpath(os.path.join(SRCDIR, t)) if SRCDIR else os.path.normpath(t)
+    joined = joined.replace("\\", "/")
+    if joined.endswith(".md"):
+        joined = joined[:-3]
+    return joined.lstrip("./")
+
 def repl(m):
-    target = m.group(2)
-    t = target.split("#")[0]
-    t = t.lstrip("./")
-    if t in WIKI_MAP:
+    t = resolve(m.group(2))
+    if t and t in WIKI_MAP:
         # anchors dropped: wiki heading ids differ per language
         return "[[%s|%s]]" % (WIKI_MAP[t], m.group(1))
     return m.group(1)   # keep text, drop dead wiki link
@@ -192,6 +212,11 @@ def repl_dir(m):
     d = m.group(2).rstrip("/").lstrip("./")
     if d in DIR_MAP:
         return "[[%s|%s]]" % (DIR_MAP[d], m.group(1))
+    # a relative directory link (e.g. 'commands/' inside manual/) maps to
+    # that directory's index page when one exists in the wiki
+    rd = resolve(m.group(2))
+    if rd and (rd + "/index") in WIKI_MAP:
+        return "[[%s|%s]]" % (WIKI_MAP[rd + "/index"], m.group(1))
     return m.group(1)   # keep text, drop dead wiki link
 
 text = re.sub(r"\[([^\]]+)\]\(([^)]+\.md(?:#[^)]*)?)\)", repl, text)
@@ -358,13 +383,13 @@ PYEOF
     cp "$OC_ROOT/docs/zh/${src#docs/}" "$WORK/wiki/$p.md"
     # strip the generated-mirror header comment (3 lines) where present
     sed -i '1{/GENERATED mirror/{N;N;d}}' "$WORK/wiki/$p.md"
-    OC_WIKI_SUFFIX="" rewrite_links "$WORK/wiki/$p.md"
+    OC_WIKI_SRCDIR="$(dirname "${src#docs/}")" OC_WIKI_SUFFIX="" rewrite_links "$WORK/wiki/$p.md"
     insert_banner "$WORK/wiki/$p.md" "$p.md"
 
     # English variant page
     cp "$OC_ROOT/$src" "$WORK/wiki/$p-EN.md"
     sed -i '1{/GENERATED mirror/{N;N;d}}' "$WORK/wiki/$p-EN.md"
-    OC_WIKI_SUFFIX="-EN" rewrite_links "$WORK/wiki/$p-EN.md"
+    OC_WIKI_SRCDIR="$(dirname "${src#docs/}")" OC_WIKI_SUFFIX="-EN" rewrite_links "$WORK/wiki/$p-EN.md"
     insert_banner "$WORK/wiki/$p-EN.md" "$p-EN.md"
 done
 
