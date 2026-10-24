@@ -16,7 +16,10 @@ as a timed key sequence and the ASSERTIONS are serial-side:
 import sys, os, time
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from qemu_runner import boot_to_recovery
+
+OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract/root")
 QEMU_BIN = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 QEMU_DATADIR = f"{OC_TOOLS}/usr/share/qemu"
 SEABIOS_DIR = f"{OC_TOOLS}/usr/share/seabios"
@@ -59,7 +62,7 @@ F10 = "\x1b[26~"
 
 ok = True
 try:
-    wait(r"Type 'help' for commands", 150, "boot banner")
+    out.append(boot_to_recovery(c, boot_timeout=150))
     c.sendline("tui")
     drain(5)                       # desktop renders (VGA-side)
     # root order: Files(5) Processes(8) ControlPanel(10)
