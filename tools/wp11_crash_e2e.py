@@ -31,9 +31,11 @@ Exit code: number of failed scenarios.
 import sys, os, re, subprocess, time
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract/root")
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from qemu_runner import boot_to_recovery
 
 def run_boot(iso, commands, timeout=120, allow_reboot=False):
     """One fresh QEMU boot + serial commands; returns the full output."""
@@ -48,10 +50,9 @@ def run_boot(iso, commands, timeout=120, allow_reboot=False):
                       encoding="latin-1", dimensions=(30, 100))
     out = []
     try:
-        i = c.expect([r"Type 'help' for commands",
-                      pexpect.TIMEOUT, pexpect.EOF], timeout=150)
-        out.append(c.match.group(0) if i == 0 else "")
-        if i != 0:
+        try:
+            out.append(boot_to_recovery(c, boot_timeout=150))
+        except (pexpect.TIMEOUT, pexpect.EOF):
             return "".join(out) + "\n[BOOT-TIMEOUT]"
         terminal = ("panic", "exc", "pf", "assert", "wd", "ovf")
         for cmd in commands:

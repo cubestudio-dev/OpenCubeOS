@@ -422,13 +422,24 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
             }
             if (ovf_task) ovf_kind = "guard page hit";
         } else if (v == 8) {
-            /* a burned stack shows either rsp BELOW the window, or an
-             * implausible garbage rsp (observed 0xFFFFFFFFFFFFF040 -
-             * the #DF frame's own slot can be nonsense) - both mean
-             * the stack was destroyed before the frame was pushed */
+            /* A burned stack: the guard-page #PF tried to push its
+             * frame onto the already-burned stack, the push itself
+             * faulted, the CPU escalated to #DF and switched to the
+             * IST1 panic stack. What the #DF frame then records as
+             * rsp depends on the implementation: real hardware often
+             * keeps a garbage slot (observed 0xFFFFFFFFFFFFF040),
+             * while QEMU rolls the failed push back and records the
+             * LAST GOOD slot at the very bottom of the task stack
+             * window (observed stack_base+0x100). Attribute the
+             * overflow whenever the recorded rsp sits at/below the
+             * bottom page of the current task's stack, or is
+             * implausible garbage - all three are signatures of a
+             * stack destroyed by recursion. A #DF whose rsp is in the
+             * middle of a healthy stack (e.g. a fault inside a page
+             * fault handler) stays a generic ring-0 exception. */
             task_t *ct = core_kthread_current();
             if (ct && ct->stack_base && ct->stack_size &&
-                (f->rsp < (u64)(uintptr_t)ct->stack_base ||
+                (f->rsp < (u64)(uintptr_t)ct->stack_base + 4096 ||
                  f->rsp >= 0x40000000000ULL)) {
                 ovf_task = ct->name;
                 ovf_kind = "stack exhausted -> #DF";

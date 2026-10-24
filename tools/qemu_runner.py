@@ -24,7 +24,7 @@ import pexpect
 # Toolchain layout (no-root sandbox install): OC_TOOLS points at the
 # extracted toolchain root (usr/bin, usr/lib, usr/share). Override with
 # the OC_TOOLS environment variable when your layout differs.
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract/root")
 LIB_PATHS = [f"{OC_TOOLS}/usr/lib/x86_64-linux-gnu", f"{OC_TOOLS}/usr/lib"]
 ENV_LD = ":".join(LIB_PATHS)
 
@@ -32,11 +32,49 @@ QEMU_BIN = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 SEABIOS_DIR = f"{OC_TOOLS}/usr/share/seabios"
 QEMU_DATADIR = f"{OC_TOOLS}/usr/share/qemu"
 
+# v2.0.0 boot flow: the kernel launcher boots straight into the ring-3
+# ush shell, so the serial prompt is 'ush>' after boot and 'oc>' only
+# after the user exits ush (or the launcher fails and falls back to the
+# recovery shell). Both prompts are valid command-completion markers.
+# OC_PROMPT overrides the pattern for special cases (e.g. waiting for a
+# sub-shell or a login banner).
+PROMPT_RE = os.environ.get("OC_PROMPT", r"(?:ush>|oc>)\s*")
+
 def strip_ansi(s):
     s = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', s)
     s = re.sub(r'\x1b\[\?\d+[a-zA-Z]', '', s)
     s = re.sub(r'c\x1b', '', s)
     return s
+
+# ------------------------------------------------------------------
+# v2.0.0 boot-flow adapter
+# ------------------------------------------------------------------
+
+def boot_to_recovery(child, boot_timeout=150, exit_timeout=60):
+    """Drive a freshly spawned QEMU child from power-on to the oc>
+    recovery-shell prompt.
+
+    v2.0.0 boots straight into the ring-3 ush shell, so legacy tests
+    that need the L0 recovery prompt must first leave ush.  On v1 ISOs
+    (already at oc>) this is a no-op.  Returns the concatenated pre-
+    prompt output, or raises pexpect.TIMEOUT/EOF.
+    """
+    import pexpect as _px
+    i = child.expect([r"ush>\s*", r"Type 'help' for commands",
+                      _px.TIMEOUT, _px.EOF], timeout=boot_timeout)
+    pre = child.before
+    if i == 0:
+        # v2 flow: leave the ring-3 shell, fall through to oc>
+        child.sendline("exit")
+        j = child.expect([r"Type 'help' for commands",
+                          _px.TIMEOUT, _px.EOF], timeout=exit_timeout)
+        pre += child.before
+        if j != 0:
+            raise _px.TIMEOUT("recovery shell did not come up after exit")
+    elif i != 1:
+        raise _px.TIMEOUT("no shell prompt (ush> or recovery banner) within "
+                          f"{boot_timeout}s")
+    return pre
 
 # ------------------------------------------------------------------
 # OC_USB_SERIAL_ECHO: loopback server for the guest usb-serial port
@@ -159,8 +197,8 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
         return out
 
     try:
-        # Wait for boot prompt
-        child.expect(r"oc>\s*", timeout=30)
+        # Wait for boot prompt (v2: ring-3 ush by default, oc> on fallback)
+        child.expect(PROMPT_RE, timeout=30)
         boot_output = child.before
         all_output.append(("BOOT", strip_ansi(boot_output)))
         print(f"[runner] boot complete ({len(strip_ansi(boot_output))} chars)")
@@ -183,7 +221,7 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
             child.sendline(c)
             try:
                 # 300s: 2048-bit DH modexp takes ~60-120s per op in QEMU (dhtest does 2)
-                child.expect(r"oc>\s*", timeout=cmd_timeout)
+                child.expect(PROMPT_RE, timeout=cmd_timeout)
                 out = child.before
                 # Strip the echoed command line at start
                 lines = strip_ansi(out).split('\n', 1)
@@ -223,7 +261,7 @@ def main():
     print("=" * 60)
     for label, content in out:
         print(f"\n--- [{label}] ---")
-        # Strip the last 'oc>' prompt line
+        # Strip the last prompt line ('ush>' in v2, 'oc>' after exit/fallback)
         print(content.rstrip())
 
 if __name__ == "__main__":
