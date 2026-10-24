@@ -636,7 +636,7 @@ userprogs:
 	     *.asm) echo "userprogs: embed $$name (asm)"; python3 $(OC_ROOT)/$(EMBED_PY) "$$name" "$$src";; \
 	     */libfoo.c) echo "userprogs: embed $$name (solib)"; python3 $(OC_ROOT)/$(BUILD_SOLIB_PY) "$$src";; \
 	     */ld_so.c) echo "userprogs: embed $$name (c, ld_so.ld)"; \
-                python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" $(OC_ROOT)/libs/ld_so.ld;; \
+                python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" $(OC_ROOT)/l1apps/ld_so.ld;; \
 	     */dyn_hello.c|*/pie_test.c) echo "userprogs: embed $$name (c, pie)"; \
                 python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" pie;; \
 	     */so_test.c|*/dlsym_test.c|*/reloc_test.c|*/main_dyn.c) echo "userprogs: embed $$name (c, pie-foo)"; \

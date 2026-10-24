@@ -3278,6 +3278,23 @@ void kmain(u64 magic, u64 mbi_phys) {
     usermode_init();
     OC_LOG_OK2("userspace (ring 3, syscalls, ELF loader)");
 
+    /* ---- 12c-2. v2.0.0: declaration registry collection ----
+     * Walk the .oc_cmds/.oc_drvs/.oc_svcs/.oc_apps linker sections
+     * once, early: every later consumer (oc> shell_init, the driver
+     * probe passes, SYS_L1SVC dispatch, the L1 launcher) reads the
+     * collected tables.  shell_init's own collect call is idempotent
+     * and stays as a safety net for shell restarts. */
+    core_registry_collect();
+    {
+        char line[96]; char n[12];
+        strcpy(line, "registry: cmds=");
+        u64_to_str((u64)core_registry_cmds_count(), n); strcat(line, n);
+        strcat(line, " drv=");  u64_to_str((u64)core_registry_drvs_count(), n); strcat(line, n);
+        strcat(line, " svc=");  u64_to_str((u64)core_registry_svcs_count(), n); strcat(line, n);
+        strcat(line, " app=");  u64_to_str((u64)core_registry_apps_count(), n); strcat(line, n);
+        lib_log_info(line);
+    }
+
     /* ---- WP-10-input_chipset: ACPI + chipset + input ----
      * Order matters: AML evaluation needs the kernel heap (values are
      * kmalloc-backed); the PCI cache scan must run BEFORE the storage
@@ -3572,7 +3589,17 @@ void kmain(u64 magic, u64 mbi_phys) {
      * and promote slot B to the confirmed default (ok_B). */
     ota_update_confirm_boot();
 
-    /* ---- 17. Interactive loop ---- */
+    /* ---- 17. v2.0.0 boot flow ----
+     * Boot completes into the DEFAULT L1 entry (ring 3, declared via
+     * OC_L1_APP_DECL - ush).  The launcher waits for the app exactly
+     * like the v1 `run ush` path; when the app exits (or fails to
+     * start) the boot task continues into the oc> recovery loop. */
+    {
+        extern void l1_launcher_boot_default(void);
+        l1_launcher_boot_default();
+    }
+
+    /* ---- 17b. Recovery shell (fallback + post-L1 prompt) ---- */
     interactive_loop();
 
     for (;;) __asm__ volatile("hlt");

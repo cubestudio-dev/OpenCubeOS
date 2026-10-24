@@ -201,6 +201,10 @@ void user_process_list(void);
 /* Register a syscall handler. */
 int core_syscall_register(int num, core_syscall_handler_fn handler);
 
+/* v2.0.0: value of the 5th syscall argument (r8) for the in-flight
+ * syscall - set by core_syscall_dispatch before the handler runs. */
+u64 core_syscall_arg5(void);
+
 /* Default syscall handlers. */
 u64 core_syscall_write(u64 buf, u64 len, u64 arg3, u64 arg4);
 u64 core_syscall_exit(u64 code, u64 arg2, u64 arg3, u64 arg4);

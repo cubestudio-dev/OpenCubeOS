@@ -50,6 +50,16 @@
 #define SYS_CHOWN   100
 #define SYS_NETCMD  101
 #define SYS_PS      102
+#define SYS_L1SVC   110
+
+/* v2.0.0 L1 service-call categories/ops - verbatim copy of
+ * services/l1/l1svc_defs.h (ring-3 programs are built standalone;
+ * renumber upstream only by appending, then mirror here). */
+#define L1SVC_CAT_TIME      1
+#define L1SVC_TIME_RTC      1   /* rtc [uie|pie|alarm N] */
+#define L1SVC_TIME_HPET     2   /* hpet [counter|oneshot|periodic|test] */
+#define L1SVC_TIME_PMTIMER  3   /* pmtimer [read|cal|wrap|test] */
+#define L1SVC_TIME_TSC      4   /* tsc [cal [hpet|pmtimer]|delay N|test] */
 #define NETCMD_IFCONFIG  1
 #define NETCMD_PING      2
 #define NETCMD_NETSTAT   3
@@ -149,12 +159,22 @@ static inline long syscall3(long n, long a, long b, long c) {
 #define sys_chown(path, uid, gid)   syscall3(SYS_CHOWN, (long)(path), (long)(uid), (long)(gid))
 #define sys_netcmd(op, arg, out, cap) syscall4_(SYS_NETCMD, (long)(op), (long)(arg), (long)(out), (long)(cap))
 #define sys_ps(buf, cap)            syscall2(SYS_PS, (long)(buf), (long)(cap))
+#define sys_l1svc(cat, op, arg, out, cap) syscall5(SYS_L1SVC, (long)(cat), (long)(op), (long)(arg), (long)(out), (long)(cap))
 
 /* 4-argument syscall (WP-10-wp08fix1: SYS_NETCMD needs it). */
 static inline long syscall4_(long n, long a, long b, long c, long d) {
     long r;
     register long r10 __asm__("r10") = d;
     __asm__ volatile("int $0x80" : "=a"(r) : "a"(n), "D"(a), "S"(b), "d"(c), "r"(r10) : "rcx", "r11", "memory");
+    return r;
+}
+
+/* 5-argument syscall (v2.0.0: SYS_L1SVC needs it). */
+static inline long syscall5(long n, long a, long b, long c, long d, long e) {
+    long r;
+    register long r10 __asm__("r10") = d;
+    register long r8  __asm__("r8")  = e;
+    __asm__ volatile("int $0x80" : "=a"(r) : "a"(n), "D"(a), "S"(b), "d"(c), "r"(r10), "r"(r8) : "rcx", "r11", "memory");
     return r;
 }
 
@@ -673,8 +693,59 @@ static void ush_nano_run(const char *file) {
 }
 
 /* Built-in commands. Return 1 if handled, 0 if not. */
+/* ------------------------------------------------------------------ */
+/* v2.0.0 L1 service-call commands (SYS_L1SVC)                        */
+/* Each entry maps a shell word to one kernel service operation; the  */
+/* service renders the text, ush only forwards argv and prints.       */
+/* ------------------------------------------------------------------ */
+struct svc_cmd {
+    const char *name;
+    int cat, op;
+};
+
+static const struct svc_cmd SVC_CMDS[] = {
+    /* time service (services/time) */
+    { "rtc",     L1SVC_CAT_TIME, L1SVC_TIME_RTC     },
+    { "hpet",    L1SVC_CAT_TIME, L1SVC_TIME_HPET    },
+    { "pmtimer", L1SVC_CAT_TIME, L1SVC_TIME_PMTIMER },
+    { "tsc",     L1SVC_CAT_TIME, L1SVC_TIME_TSC     },
+};
+
+static int svc_cmd_run(int argc, char *argv[]) {
+    if (argc == 0) return 0;
+    for (unsigned i = 0; i < sizeof(SVC_CMDS) / sizeof(SVC_CMDS[0]); i++) {
+        if (streq(argv[0], SVC_CMDS[i].name)) {
+            /* join argv[1..] back into one argument line */
+            char arg[256];
+            int len = 0;
+            arg[0] = 0;
+            for (int j = 1; j < argc && len < (int)sizeof(arg) - 1; j++) {
+                if (j > 1 && len < (int)sizeof(arg) - 2) arg[len++] = ' ';
+                for (const char *p = argv[j]; *p && len < (int)sizeof(arg) - 1; p++)
+                    arg[len++] = *p;
+                arg[len] = 0;
+            }
+            char out[4096];
+            long rc = sys_l1svc(SVC_CMDS[i].cat, SVC_CMDS[i].op,
+                                arg[0] ? (long)arg : 0,
+                                (long)out, (long)sizeof(out));
+            if (rc != 0) {
+                puts_(argv[0]);
+                puts_(": service call failed (rc=-1)\n");
+                return 1;
+            }
+            puts_(out);
+            if (out[0] && out[strlen_(out) - 1] != '\n') putc_('\n');
+            return 1;
+        }
+    }
+    return 0;   /* not a service command */
+}
+
 static int builtin_cmd(int argc, char *argv[]) {
     if (argc == 0) return 1;
+    /* v2.0.0: L1 service-call commands first (SYS_L1SVC table). */
+    if (svc_cmd_run(argc, argv)) return 1;
     if (streq(argv[0], "cd")) {
         if (argc > 1) sys_chdir(argv[1]);
         else sys_chdir("/");
@@ -737,6 +808,11 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  vi <file>       Same editor, vi-compatible name\n");
         puts_("  jobs            List background jobs\n");
         puts_("  fg [job]        Bring job to foreground\n");
+        puts_("\n  v2.0.0 service commands (SYS_L1SVC):\n");
+        puts_("  rtc [uie|pie|alarm N]  CMOS RTC status + interrupt tests\n");
+        puts_("  hpet [counter|oneshot|periodic|test]  HPET status + tests\n");
+        puts_("  pmtimer [read|cal|wrap|test]  ACPI PM timer + calibration\n");
+        puts_("  tsc [cal|delay N|test]  TSC reads + calibration + delay\n");
         puts_("\n  Editing: Up/Down history, Left/Right/Home/End cursor, Del,\n");
         puts_("  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion\n");
         puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
@@ -2502,7 +2578,9 @@ void _start(void) {
                     "jobs","fg","bg",
                     /* WP-10-wp08fix1 */
                     "ln","chmod","chown","sed","awk","ping","wget",
-                    "netstat","ifconfig","top",0
+                    "netstat","ifconfig","top",
+                    /* v2.0.0: SYS_L1SVC service commands */
+                    "rtc","hpet","pmtimer","tsc",0
                 };
                 int found = 0;
                 int blen = 0;

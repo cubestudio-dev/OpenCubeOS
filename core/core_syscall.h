@@ -117,6 +117,7 @@ void core_syscall_wp08a_init(void);
 #define SYS_NETSEND     107   /* (sock, buf, len) -> sent / -1            */
 #define SYS_NETRECV     108   /* (sock, buf, maxlen) -> recvd / -1        */
 #define SYS_NETCLOSE    109   /* (sock) -> 0/-1                           */
+#define SYS_L1SVC       110   /* (cat, op, arg, out, cap) -> 0/-1         */
 
 /* SYS_NETCMD operation codes (must match userprogs/ush.c). */
 #define NETCMD_IFCONFIG  1
@@ -127,6 +128,9 @@ void core_syscall_wp08a_init(void);
 /* Register the WP-10-wp08fix1 syscalls (called from usermode_init after
  * core_syscall_wp08a_init). */
 void core_syscall_wp08fix1_init(void);
+
+/* v2.0.0: register SYS_L1SVC (called from usermode_init). */
+void core_syscall_l1svc_init(void);
 
 /* BUG-0249 FIX (A16-11): shared name -> embedded-ELF lookup used by
  * sys_execve and the L1 job API (job_create). Stores the program size
