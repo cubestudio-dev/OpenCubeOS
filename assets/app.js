@@ -99,6 +99,12 @@
       var pk = phs[p].getAttribute("data-i18n-ph");
       if (dict[pk] !== undefined) phs[p].setAttribute("placeholder", dict[pk]);
     }
+    /* image alt texts (accessibility, follows the language) */
+    var alts = document.querySelectorAll("[data-i18n-alt]");
+    for (var al = 0; al < alts.length; al++) {
+      var ak = alts[al].getAttribute("data-i18n-alt");
+      if (dict[ak] !== undefined) alts[al].setAttribute("alt", dict[ak]);
+    }
 
     /* page title */
     var tt = document.querySelector("title");
