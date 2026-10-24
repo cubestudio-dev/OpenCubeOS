@@ -120,4 +120,25 @@
 #define L1SVC_NIC_WIFI         19   /* wifi [status|scan|...]  */
 #define L1SVC_NIC_BT           20   /* bt [status|usb|test]    */
 
+/* ---- snd operations (services/snd) ---------------------------------
+ * Mirrors the v1 oc> sound commands (17; bodies in services/snd/
+ * snd_cmds.c). */
+#define L1SVC_SND_SOUND        1   /* sound                   */
+#define L1SVC_SND_HDA          2   /* hda                     */
+#define L1SVC_SND_AC97         3   /* ac97                    */
+#define L1SVC_SND_SB16         4   /* sb16                    */
+#define L1SVC_SND_ES1370       5   /* es1370                  */
+#define L1SVC_SND_VIRTIOSND    6   /* virtiosnd               */
+#define L1SVC_SND_USBAUDIO     7   /* usbaudio                */
+#define L1SVC_SND_PLAY         8   /* play <file>             */
+#define L1SVC_SND_VOLUME       9   /* volume [0-100]          */
+#define L1SVC_SND_HDA_TEST    10   /* hda_test                */
+#define L1SVC_SND_AC97_TEST   11   /* ac97_test               */
+#define L1SVC_SND_SB16_TEST   12   /* sb16_test               */
+#define L1SVC_SND_ES1370_TEST 13   /* es1370_test             */
+#define L1SVC_SND_VIRTIO_TEST 14   /* virtio_snd_test         */
+#define L1SVC_SND_USB_TEST    15   /* usb_audio_test          */
+#define L1SVC_SND_RW_TEST     16   /* audio_rw_test           */
+#define L1SVC_SND_RATE_TEST   17   /* sample_rate_test        */
+
 #endif /* OC_L1SVC_DEFS_H */
