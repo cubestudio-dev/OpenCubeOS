@@ -2706,12 +2706,6 @@ u8 g_pftest_stack_ok = 0;
 
 /* Thin wrapper so we can keep the legacy `mounts` command name pointing at
  * the same VFS list as `mount` (which is registered in file_cmds.c). */
-static int shell_cmd_mounts_wrapper(const char *args) {
-    (void)args;
-    fs_vfs_list_mounts();
-    return 0;
-}
-
 static int shell_cmd_fstest(const char *args) {
     (void)args;
     screen_console_puts("VFS self-test:\n");
@@ -2998,61 +2992,6 @@ static int shell_cmd_dskstat(const char *args) {
         strcat(line, "\n");
         screen_console_puts(line);
     }
-    return 0;
-}
-
-static int shell_cmd_fatmount(const char *args) {
-    /* usage: fatmount <device> <mount_point>  (default: ata0 /mnt)
-     * device is an ATA drive string: "ata0".."ata3" or "ata" (=0). */
-    char dev[16] = "ata0";
-    char mnt[VFS_PATH_LEN] = "/mnt";
-    if (args && args[0]) {
-        int i = 0, j = 0;
-        while (args[i] && args[i] != ' ' && i < 15) { dev[j++] = args[i]; i++; }
-        dev[j] = 0;
-        while (args[i] == ' ') i++;
-        j = 0;
-        while (args[i] && j < VFS_PATH_LEN - 1) { mnt[j++] = args[i++]; }
-        mnt[j] = 0;
-    }
-    /* P2-18 FIX: do NOT pre-create the mount point in ramfs. fs_vfs_mount
-     * creates a placeholder dir node itself when needed. If we pre-create
-     * and the mount then fails, /mnt would remain as an EMPTY ramfs
-     * directory — so a later `ls /mnt` would silently show no files,
-     * making the failure look like "the disk is just empty" rather than
-     * "the mount never happened". Now if mount fails, /mnt is not
-     * created and `ls /mnt` reports "no such path", which is honest. */
-    int rc = fs_fat32_mount(dev, mnt);
-    if (rc < 0) {
-        screen_console_puts("fatmount: ");
-        screen_console_puts(dev);
-        screen_console_puts(" -> ");
-        screen_console_puts(mnt);
-        screen_console_puts(" FAILED — no FAT32 partition on device or drive not present\n");
-        screen_console_puts("(the mount point was NOT created — `ls ");
-        screen_console_puts(mnt);
-        screen_console_puts("` will report 'no such path' until a real mount succeeds)\n");
-        return 1;
-    }
-    screen_console_puts("fat32 mounted. Try: ls ");
-    screen_console_puts(mnt);
-    screen_console_putc('\n');
-    return 0;
-}
-
-static int shell_cmd_fatstat(const char *args) {
-    (void)args;
-    u64 ts, fc; u32 cs;
-    fs_fat32_get_stats(&ts, &fc, &cs);
-    char line[80]; char num[20];
-    strcpy(line, "fat32: sectors="); u64_to_str(ts, num);
-    strcpy(line + strlen(line), num);
-    strcpy(line + strlen(line), " free_clusters="); u64_to_str(fc, num);
-    strcpy(line + strlen(line), num);
-    strcpy(line + strlen(line), " cluster_size="); u64_to_str(cs, num);
-    strcpy(line + strlen(line), num);
-    strcpy(line + strlen(line), "\n");
-    screen_console_puts(line);
     return 0;
 }
 
@@ -3642,11 +3581,8 @@ OC_SHELL_CMD("multi", shell_cmd_multi, "spawn 3 tasks with interleaved output", 
 OC_SHELL_CMD("synctest", shell_cmd_synctest, "test sync primitives (spinlock/mutex/sem)", "core");
 OC_SHELL_CMD("run", shell_cmd_run, "run a user program (hello/badapp/loop/fork_test/.../dyn_test/so_test/dyn_hello/dlsym_test/pie_test/reloc_test)", "core");
 OC_SHELL_CMD("ldd", shell_cmd_ldd, "list dynamic dependencies (ldd <program>)", "l1");
-OC_SHELL_CMD("mounts", shell_cmd_mounts_wrapper, "list VFS mount table (alias for mount)", "fs");
 OC_SHELL_CMD("fstest", shell_cmd_fstest, "run VFS self-test (mkdir/write/read/ls)", "fs");
 OC_SHELL_CMD("dskstat", shell_cmd_dskstat, "show block devices", "block");
-OC_SHELL_CMD("fatmount", shell_cmd_fatmount, "mount FAT32 (fatmount <dev> <path>)", "fs");
-OC_SHELL_CMD("fatstat", shell_cmd_fatstat, "show FAT32 stats", "fs");
 OC_SHELL_CMD("l1test", shell_cmd_l1test, "test L1 job_create/job_list/job_control with running process", "l1");
 OC_SHELL_CMD("ahci", shell_cmd_ahci, "AHCI controller/port status", "block");
 OC_SHELL_CMD("nvme", shell_cmd_nvme, "NVMe controller/queue status", "block");

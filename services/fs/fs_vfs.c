@@ -1151,46 +1151,71 @@ int fs_vfs_register_hook(int (*hook)(int op, const char *path)) {
 
 /* ---- Diagnostics ---- */
 
-void fs_vfs_list_mounts(void) {
-    screen_console_puts("VFS mount table:\n");
+/* v2.0.0: render the mount table into a caller-supplied buffer (the
+ * ring-3 mount/mounts commands consume this through SYS_L1SVC).
+ * Returns the number of bytes written (excluding the NUL).  Same
+ * rendering as the console listing below - one implementation. */
+int fs_vfs_list_mounts_str(char *out, int cap) {
+    if (!out || cap <= 0) return 0;
+    int opos = 0;
+    #define VFS_LMS_PUT(s) do { \
+        const char *src_ = (s); \
+        while (*src_ && opos < cap - 1) out[opos++] = *src_++; \
+    } while (0)
+    VFS_LMS_PUT("VFS mount table:\n");
     int any = 0;
     for (int i = 0; i < VFS_MAX_MOUNTS; i++) {
         if (!g_mounts[i].in_use) continue;
         any = 1;
-        /* BUG-0181 FIX (A12-016): the old code strcpy()'d mount_point,
-         * fs_type and device into `line[VFS_PATH_LEN + 64]` (320 B).
-         * Worst case is 2 + 255 (mount_point) + 2 + 15 (fs_type) +
-         * 7 + 63 (device) + 1 + 1 + 1 = 347 B -> up to ~27 bytes of
-         * stack overrun with long field values. The buffer is now sized
-         * for the true worst case AND every append is bounds-clamped
-         * (snprintf-style), so no field combination can write past it. */
-        char line[VFS_PATH_LEN + VFS_NAME_LEN + VFS_NAME_LEN + 32];
-        int pos = 0;
-        {
-            /* Bounded append helper: copies src into line+pos without
-             * ever exceeding the buffer, always NUL-terminates. */
-            #define VFS_LM_APPEND(s) do { \
-                const char *src_ = (s); \
-                while (*src_ && pos < (int)sizeof(line) - 1) { \
-                    line[pos++] = *src_++; \
-                } \
-                line[pos] = 0; \
-            } while (0)
-            VFS_LM_APPEND("  ");
-            VFS_LM_APPEND(g_mounts[i].mount_point);
-            VFS_LM_APPEND("  ");
-            VFS_LM_APPEND(g_mounts[i].fs_type ? g_mounts[i].fs_type->name : "?");
-            if (g_mounts[i].device[0]) {
-                VFS_LM_APPEND("  (dev=");
-                VFS_LM_APPEND(g_mounts[i].device);
-                VFS_LM_APPEND(")");
-            }
-            VFS_LM_APPEND("\n");
-            #undef VFS_LM_APPEND
+        /* BUG-0181 FIX (A12-016) carried over: every append is
+         * bounds-clamped against the CALLER's cap, so no field
+         * combination can write past the buffer. */
+        #define VFS_LMS_APPEND(s) do { \
+            const char *src_ = (s); \
+            while (*src_ && opos < cap - 1) out[opos++] = *src_++; \
+        } while (0)
+        VFS_LMS_APPEND("  ");
+        VFS_LMS_APPEND(g_mounts[i].mount_point);
+        VFS_LMS_APPEND("  ");
+        VFS_LMS_APPEND(g_mounts[i].fs_type ? g_mounts[i].fs_type->name : "?");
+        if (g_mounts[i].device[0]) {
+            VFS_LMS_APPEND("  (dev=");
+            VFS_LMS_APPEND(g_mounts[i].device);
+            VFS_LMS_APPEND(")");
         }
-        screen_console_puts(line);
+        VFS_LMS_APPEND("\n");
+        #undef VFS_LMS_APPEND
     }
-    if (!any) screen_console_puts("  (no mounts)\n");
+    if (!any) VFS_LMS_PUT("  (no mounts)\n");
+    #undef VFS_LMS_PUT
+    out[opos] = 0;
+    return opos;
+}
+
+void fs_vfs_list_mounts(void) {
+    /* v2.0.0: thin console shell over the shared renderer above. */
+    char buf[VFS_PATH_LEN + 32];
+    int used = 0;
+    /* The full table can exceed one static buffer; render and flush
+     * in slices by re-rendering with an offset is overkill - instead
+     * the console path walks the SAME renderer in cap-sized chunks is
+     * unnecessary complexity.  The table has VFS_MAX_MOUNTS entries;
+     * render each entry directly instead: simplest honest approach is
+     * one big heap buffer (the identity window has no headroom for
+     * static buffers this large - see the linker ASSERT). */
+    char *heap = (char *)kmalloc(4096);
+    if (heap) {
+        used = fs_vfs_list_mounts_str(heap, 4096);
+        screen_console_puts(heap);
+        kfree(heap);
+        (void)used;
+        return;
+    }
+    /* Heap unavailable (pre-init / OOM): fall back to the truncating
+     * static path so the command still answers. */
+    used = fs_vfs_list_mounts_str(buf, (int)sizeof(buf));
+    (void)used;
+    screen_console_puts(buf);
 }
 
 /* P2-06 FIX: read-only access to the mount table for commands like df. */

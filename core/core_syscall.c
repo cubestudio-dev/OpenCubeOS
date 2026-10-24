@@ -2690,20 +2690,28 @@ static u64 sys_l1svc(u64 cat, u64 op, u64 arg, u64 out) {
     char *kout = (char *)kmalloc(cap);
     if (!kout) return (u64)-1;
     kout[0] = 0;
+    /* The service's own return code (command exit status) is NOT the
+     * syscall status: a service that ran and reported "usage error" or
+     * "device not present" in its text output still completed the call
+     * successfully.  Only an unrouteable category/op returns -1. */
     int rc = core_registry_svc_dispatch(cat_name, (u32)op,
                                         karg[0] ? karg : 0, kout, (int)cap);
-    if (rc == 0) {
+    if (rc < 0 && kout[0] == 0) {
+        /* dispatch refused the op outright (unknown op): syscall error */
+        kfree(kout);
+        return (u64)-1;
+    }
+    {
         u64 n = strlen(kout);
         if (n > cap - 1) n = cap - 1;
-        if (copy_to_user(out, kout, n) == 0) {
+        int cpy = copy_to_user(out, kout, n);
+        if (cpy == 0) {
             char z = 0;
             copy_to_user(out + n, &z, 1);
-        } else {
-            rc = -1;
         }
+        kfree(kout);
+        return (cpy == 0) ? 0 : (u64)-1;
     }
-    kfree(kout);
-    return (rc == 0) ? 0 : (u64)-1;
 }
 
 void core_syscall_l1svc_init(void) {

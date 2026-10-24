@@ -59,22 +59,30 @@ SECTIONS
      * OC_L1_APP_DECL macro (see kernel/core/core_registry.h).  Boot-time
      * collection walks these boundaries; adding a command/driver/
      * service/app means adding a file - never editing a global table. */
-    .oc_cmds : {
+    /* v2.0.0 note: gcc emits each declaration object's input section
+     * with a 32-byte alignment hint; the 40-byte oc_service_decl_t /
+     * oc_l1_app_decl_t entries would then get 24 bytes of inter-object
+     * padding (40 is not a multiple of 32) and the registry walk -
+     * which steps by sizeof(decl) - would read misaligned garbage.
+     * SUBALIGN(8) forces 8-byte input-section granularity: every
+     * declaration type in this tree is a multiple of 8 bytes, so the
+     * entries pack back-to-back with no padding. */
+    .oc_cmds : SUBALIGN(8) {
         __oc_cmds_start = .;
         KEEP(*(.oc_cmds))
         __oc_cmds_end = .;
     } :boot
-    .oc_drvs : {
+    .oc_drvs : SUBALIGN(8) {
         __oc_drvs_start = .;
         KEEP(*(.oc_drvs))
         __oc_drvs_end = .;
     } :boot
-    .oc_svcs : {
+    .oc_svcs : SUBALIGN(8) {
         __oc_svcs_start = .;
         KEEP(*(.oc_svcs))
         __oc_svcs_end = .;
     } :boot
-    .oc_apps : {
+    .oc_apps : SUBALIGN(8) {
         __oc_apps_start = .;
         KEEP(*(.oc_apps))
         __oc_apps_end = .;

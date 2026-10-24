@@ -530,86 +530,6 @@ static int shell_cmd_cp(const char *args) {
 
 /* ---- tree ---- */
 /* Recursive tree printer. depth is the current indentation level. */
-static void tree_walk(const char *path, int depth, int *files, int *dirs) {
-    /* P2-25 FIX: limit recursion depth to prevent stack overflow. */
-    if (depth > 16) return;
-    for (int i = 0; ; i++) {
-        fs_vfs_dirent_t e;
-        if (fs_vfs_readdir(path, i, &e) < 0) break;
-        /* Indent. */
-        char line[VFS_PATH_LEN + 64];
-        int p = 0;
-        for (int d = 0; d < depth; d++) {
-            line[p++] = ' ';
-            line[p++] = ' ';
-        }
-        if (e.type == VFS_TYPE_DIR) {
-            line[p++] = '+';
-            line[p++] = ' ';
-            strcpy(line + p, e.name);
-            strcpy(line + strlen(line), "/\n");
-            screen_console_puts(line);
-            (*dirs)++;
-            /* Recurse.
-             * BUG-0087 FIX (A15-8): same unbounded join as ls (fixed
-             * here), plus a depth cap: the indent loop wrote 2 bytes
-             * per level into a fixed line buffer and each recursion
-             * consumed stack, so a deep tree overflowed the stack.
-             * Both are now bounded. */
-            if (depth >= 12) {
-                strcpy(line + p, "...\n");
-                screen_console_puts(line);
-                return;
-            }
-            char child[VFS_PATH_LEN];
-            int pl = (int)strlen(path);
-            int need_slash = (pl > 0 && path[pl - 1] != '/');
-            int el = (int)strlen(e.name);
-            if (pl + need_slash + el + 1 > (int)sizeof(child)) {
-                strcpy(line + p, "(path too long, skipped)\n");
-                screen_console_puts(line);
-                continue;
-            }
-            strcpy(child, path);
-            if (need_slash) {
-                child[pl++] = '/';
-                child[pl] = 0;
-            }
-            strcpy(child + pl, e.name);
-            tree_walk(child, depth + 1, files, dirs);
-        } else {
-            line[p++] = '-';
-            line[p++] = ' ';
-            strcpy(line + p, e.name);
-            strcpy(line + strlen(line), "\n");
-            screen_console_puts(line);
-            (*files)++;
-        }
-    }
-}
-
-static int shell_cmd_tree(const char *args) {
-    const char *path = (args && args[0]) ?
-        shell_resolve_path_static(args) : shell_get_cwd();
-    fs_vfs_stat_t st;
-    if (fs_vfs_stat(path, &st) < 0) {
-        screen_console_puts("tree: no such path\n");
-        return 1;
-    }
-    screen_console_puts(path);
-    screen_console_putc('\n');
-    int files = 0, dirs = 0;
-    tree_walk(path, 0, &files, &dirs);
-    char summary[80]; char num[20];
-    strcpy(summary, "\n");
-    fmt_u64((u64)dirs, num);  strcpy(summary + strlen(summary), num);
-    strcpy(summary + strlen(summary), " directories, ");
-    fmt_u64((u64)files, num); strcpy(summary + strlen(summary), num);
-    strcpy(summary + strlen(summary), " files\n");
-    screen_console_puts(summary);
-    return 0;
-}
-
 /* ---- df ---- */
 static int shell_cmd_df(const char *args) {
     (void)args;
@@ -729,72 +649,6 @@ static int shell_cmd_du(const char *args) {
     strcpy(line + strlen(line), path);
     strcpy(line + strlen(line), "\n");
     screen_console_puts(line);
-    return 0;
-}
-
-/* ---- mount ---- */
-static int shell_cmd_mount(const char *args) {
-    /* P2 fix: mount <type> <device> <path> or just "mount" to list. */
-    if (!args || !args[0]) {
-        fs_vfs_list_mounts();
-        return 0;
-    }
-    char type[32], dev[32], path[64];
-    int i = 0, j = 0;
-    while (args[i] && args[i] != ' ' && j < 31) { type[j++] = args[i++]; }
-    type[j] = 0;
-    while (args[i] == ' ') i++;
-    j = 0;
-    while (args[i] && args[i] != ' ' && j < 31) { dev[j++] = args[i++]; }
-    dev[j] = 0;
-    while (args[i] == ' ') i++;
-    j = 0;
-    while (args[i] && j < 63) { path[j++] = args[i++]; }
-    path[j] = 0;
-    if (!type[0] || !dev[0] || !path[0]) {
-        screen_console_puts("usage: mount <type> <device> <path>\n");
-        return 1;
-    }
-    /* Ensure mount point exists. */
-    fs_vfs_mkdir(path);
-    if (fs_vfs_mount(type, path, dev) != 0) {
-        screen_console_puts("mount: failed\n");
-        return 1;
-    }
-    screen_console_puts("mounted ");
-    screen_console_puts(type);
-    screen_console_puts(" on ");
-    screen_console_puts(path);
-    screen_console_putc('\n');
-    return 0;
-}
-
-/* ---- umount ---- */
-static int shell_cmd_umount(const char *args) {
-    if (!args || !args[0]) { screen_console_puts("usage: umount <path>\n"); return 1; }
-    const char *resolved = shell_resolve_path_static(args);
-    /* BUG-0133 FIX: report the refusal reason (root / busy / nested) so the
-     * operator knows the mount table was left untouched. */
-    int rc = fs_vfs_umount(resolved);
-    if (rc == -4) {
-        screen_console_puts("umount: cannot unmount the root filesystem\n");
-        return 1;
-    }
-    if (rc == -5) {
-        screen_console_puts("umount: target is busy - close open files first\n");
-        return 1;
-    }
-    if (rc == -3) {
-        screen_console_puts("umount: unmount nested mounts first\n");
-        return 1;
-    }
-    if (rc < 0) {
-        screen_console_puts("umount: failed (not mounted?)\n");
-        return 1;
-    }
-    screen_console_puts("umounted ");
-    screen_console_puts(resolved);
-    screen_console_putc('\n');
     return 0;
 }
 
@@ -1157,11 +1011,8 @@ OC_SHELL_CMD("touch", shell_cmd_touch, "create empty file (touch <path>)", "fs")
 OC_SHELL_CMD("rm", shell_cmd_rm, "delete file (rm <file>)", "fs");
 OC_SHELL_CMD("mv", shell_cmd_mv, "move/rename file (mv <src> <dst>)", "fs");
 OC_SHELL_CMD("cp", shell_cmd_cp, "copy file (cp <src> <dst>)", "fs");
-OC_SHELL_CMD("tree", shell_cmd_tree, "tree view of directory (tree [path])", "fs");
 OC_SHELL_CMD("df", shell_cmd_df, "show disk/mount usage", "fs");
 OC_SHELL_CMD("du", shell_cmd_du, "directory usage (du [path])", "fs");
-OC_SHELL_CMD("mount", shell_cmd_mount, "list mounts, or mount a fs: mount <type> <device> <path>", "fs");
-OC_SHELL_CMD("umount", shell_cmd_umount, "unmount (umount <path>)", "fs");
 OC_SHELL_CMD("write", shell_cmd_write, "write text to file (write <path> <text>)", "block");
 OC_SHELL_CMD("grep", shell_cmd_grep, "filter lines matching pattern (grep <pattern> [file])", "fs");
 OC_SHELL_CMD("edit", shell_cmd_edit, "line editor (edit <file>; :i :d :p :w :q :wq)", "fs");
