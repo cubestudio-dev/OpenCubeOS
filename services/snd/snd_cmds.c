@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10c
- * File: shell/shell_cmds_snd_test.c
+ * File: services/snd/snd_cmds.c (migrated from recovery/shell_cmds_snd_test.c)
  * Purpose: Shell test/status commands for the WP-10c sound drivers.
  *
  * Per-family tests share one pattern (input -> expected -> actual ->
@@ -34,7 +34,8 @@
  * 'volume hda 50', 'play ac97 48000'); an unknown token is rejected
  * with usage text instead of silently reprogramming the hardware.
  */
-#include "../../services/snd/snd_svc.h"
+#include "snd_cmds.h"
+#include "snd_svc.h"
 #include "driver_usb.h"
 #include "shell.h"
 #include "screen_console.h"
@@ -171,39 +172,39 @@ static int driver_snd_family_test(driver_snd_type_t type, const char *testname,
 
 /* ---- per-family tests ---- */
 
-static int shell_cmd_hda_test(const char *args) {
+int snd_cmd_hda_test(const char *args) {
     (void)args;
     return driver_snd_family_test(SND_TYPE_HDA, "hda_test", 500, 48000);
 }
 
-static int shell_cmd_ac97_test(const char *args) {
+int snd_cmd_ac97_test(const char *args) {
     (void)args;
     return driver_snd_family_test(SND_TYPE_AC97, "ac97_test", 500, 48000);
 }
 
-static int shell_cmd_sb16_test(const char *args) {
+int snd_cmd_sb16_test(const char *args) {
     (void)args;
     return driver_snd_family_test(SND_TYPE_SB16, "sb16_test", 500, 44100);
 }
 
-static int shell_cmd_es1370_test(const char *args) {
+int snd_cmd_es1370_test(const char *args) {
     (void)args;
     return driver_snd_family_test(SND_TYPE_ES1370, "es1370_test", 500, 44100);
 }
 
-static int shell_cmd_virtio_snd_test(const char *args) {
+int snd_cmd_virtio_snd_test(const char *args) {
     (void)args;
     return driver_snd_family_test(SND_TYPE_VIRTIO, "virtio_snd_test", 500, 48000);
 }
 
-static int shell_cmd_usb_audio_test(const char *args) {
+int snd_cmd_usb_audio_test(const char *args) {
     (void)args;
     return driver_snd_family_test(SND_TYPE_USB_AUDIO, "usb_audio_test", 500, 48000);
 }
 
 /* ---- audio_rw_test: play on every registered card ---- */
 
-static int shell_cmd_audio_rw_test(const char *args) {
+int snd_cmd_audio_rw_test(const char *args) {
     (void)args;
     int fails = 0;
     int tested = 0;
@@ -255,7 +256,7 @@ static int shell_cmd_audio_rw_test(const char *args) {
 
 /* ---- sample_rate_test ---- */
 
-static int shell_cmd_sample_rate_test(const char *args) {
+int snd_cmd_sample_rate_test(const char *args) {
     (void)args;
     int fails = 0;
     int tested = 0;
@@ -355,43 +356,43 @@ int driver_snd_real_hw_count(void) {
 
 /* ---- shell commands ---- */
 
-static int shell_cmd_sound(const char *args) {
+int snd_cmd_sound(const char *args) {
     (void)args;
     driver_snd_list_devices();
     return 0;
 }
 
-static int shell_cmd_hda(const char *args) {
+int snd_cmd_hda(const char *args) {
     (void)args;
     driver_snd_hda_print_state();
     return 0;
 }
 
-static int shell_cmd_ac97(const char *args) {
+int snd_cmd_ac97(const char *args) {
     (void)args;
     driver_snd_ac97_print_state();
     return 0;
 }
 
-static int shell_cmd_sb16(const char *args) {
+int snd_cmd_sb16(const char *args) {
     (void)args;
     driver_snd_sb16_print_state();
     return 0;
 }
 
-static int shell_cmd_es1370(const char *args) {
+int snd_cmd_es1370(const char *args) {
     (void)args;
     driver_snd_es1370_print_state();
     return 0;
 }
 
-static int shell_cmd_virtiosnd(const char *args) {
+int snd_cmd_virtiosnd(const char *args) {
     (void)args;
     driver_snd_virtio_print_state();
     return 0;
 }
 
-static int shell_cmd_usbaudio(const char *args) {
+int snd_cmd_usbaudio(const char *args) {
     (void)args;
     driver_usb_audio_print_state();
     driver_usb_print_state();
@@ -452,7 +453,7 @@ static void driver_snd_print_unknown_device(const char *cmd, const char *tok) {
     screen_console_puts(line);
 }
 
-static int shell_cmd_play(const char *args) {
+int snd_cmd_play(const char *args) {
     int idx = driver_snd_find_first_present();
     if (idx < 0) {
         screen_console_puts("play: no sound card registered\n");
@@ -523,7 +524,7 @@ static int shell_cmd_play(const char *args) {
     return 0;
 }
 
-static int shell_cmd_volume(const char *args) {
+int snd_cmd_volume(const char *args) {
     int idx = driver_snd_find_first_present();
     if (idx < 0) {
         screen_console_puts("volume: no sound card registered\n");
@@ -566,20 +567,3 @@ static int shell_cmd_volume(const char *args) {
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("sound", shell_cmd_sound, "list registered sound cards", "snd");
-OC_SHELL_CMD("hda", shell_cmd_hda, "Intel HDA status", "snd");
-OC_SHELL_CMD("ac97", shell_cmd_ac97, "AC'97 status", "snd");
-OC_SHELL_CMD("sb16", shell_cmd_sb16, "Sound Blaster 16 status", "snd");
-OC_SHELL_CMD("es1370", shell_cmd_es1370, "ES1370/1371 status", "snd");
-OC_SHELL_CMD("virtiosnd", shell_cmd_virtiosnd, "virtio-snd status", "snd");
-OC_SHELL_CMD("usbaudio", shell_cmd_usbaudio, "USB audio status", "snd");
-OC_SHELL_CMD("play", shell_cmd_play, "play a test tone (play [rate])", "snd");
-OC_SHELL_CMD("volume", shell_cmd_volume, "get/set volume (volume [0-100])", "snd");
-OC_SHELL_CMD("hda_test", shell_cmd_hda_test, "Intel HDA init/codec/play test", "snd");
-OC_SHELL_CMD("ac97_test", shell_cmd_ac97_test, "AC'97 init/play test", "snd");
-OC_SHELL_CMD("sb16_test", shell_cmd_sb16_test, "SB16 init/play test", "snd");
-OC_SHELL_CMD("es1370_test", shell_cmd_es1370_test, "ES1370 init/play test", "snd");
-OC_SHELL_CMD("virtio_snd_test", shell_cmd_virtio_snd_test, "virtio-snd init/play test", "snd");
-OC_SHELL_CMD("usb_audio_test", shell_cmd_usb_audio_test, "USB audio init/play test", "snd");
-OC_SHELL_CMD("audio_rw_test", shell_cmd_audio_rw_test, "play/stop round-trip on every card", "snd");
-OC_SHELL_CMD("sample_rate_test", shell_cmd_sample_rate_test, "44100/48000 rate configuration test", "snd");

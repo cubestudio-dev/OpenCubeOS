@@ -112,6 +112,24 @@
 #define L1SVC_NIC_RW_TEST      18   /* nic_rw_test */
 #define L1SVC_NIC_WIFI         19   /* wifi */
 #define L1SVC_NIC_BT           20   /* bt */
+#define L1SVC_CAT_SND       4
+#define L1SVC_SND_SOUND        1   /* sound */
+#define L1SVC_SND_HDA          2   /* hda */
+#define L1SVC_SND_AC97         3   /* ac97 */
+#define L1SVC_SND_SB16         4   /* sb16 */
+#define L1SVC_SND_ES1370       5   /* es1370 */
+#define L1SVC_SND_VIRTIOSND    6   /* virtiosnd */
+#define L1SVC_SND_USBAUDIO     7   /* usbaudio */
+#define L1SVC_SND_PLAY         8   /* play <file> */
+#define L1SVC_SND_VOLUME       9   /* volume [0-100] */
+#define L1SVC_SND_HDA_TEST    10   /* hda_test */
+#define L1SVC_SND_AC97_TEST   11   /* ac97_test */
+#define L1SVC_SND_SB16_TEST   12   /* sb16_test */
+#define L1SVC_SND_ES1370_TEST 13   /* es1370_test */
+#define L1SVC_SND_VIRTIO_TEST 14   /* virtio_snd_test */
+#define L1SVC_SND_USB_TEST    15   /* usb_audio_test */
+#define L1SVC_SND_RW_TEST     16   /* audio_rw_test */
+#define L1SVC_SND_RATE_TEST   17   /* sample_rate_test */
 #define NETCMD_IFCONFIG  1
 #define NETCMD_PING      2
 #define NETCMD_NETSTAT   3
@@ -813,6 +831,24 @@ static const struct svc_cmd SVC_CMDS[] = {
     { "nic_rw_test",   L1SVC_CAT_NIC, L1SVC_NIC_RW_TEST       },
     { "wifi",          L1SVC_CAT_NIC, L1SVC_NIC_WIFI          },
     { "bt",            L1SVC_CAT_NIC, L1SVC_NIC_BT            },
+    /* snd service (services/snd) */
+    { "sound",         L1SVC_CAT_SND, L1SVC_SND_SOUND        },
+    { "hda",           L1SVC_CAT_SND, L1SVC_SND_HDA          },
+    { "ac97",          L1SVC_CAT_SND, L1SVC_SND_AC97         },
+    { "sb16",          L1SVC_CAT_SND, L1SVC_SND_SB16         },
+    { "es1370",        L1SVC_CAT_SND, L1SVC_SND_ES1370       },
+    { "virtiosnd",     L1SVC_CAT_SND, L1SVC_SND_VIRTIOSND    },
+    { "usbaudio",      L1SVC_CAT_SND, L1SVC_SND_USBAUDIO     },
+    { "play",          L1SVC_CAT_SND, L1SVC_SND_PLAY         },
+    { "volume",        L1SVC_CAT_SND, L1SVC_SND_VOLUME       },
+    { "hda_test",      L1SVC_CAT_SND, L1SVC_SND_HDA_TEST     },
+    { "ac97_test",     L1SVC_CAT_SND, L1SVC_SND_AC97_TEST    },
+    { "sb16_test",     L1SVC_CAT_SND, L1SVC_SND_SB16_TEST    },
+    { "es1370_test",   L1SVC_CAT_SND, L1SVC_SND_ES1370_TEST  },
+    { "virtio_snd_test", L1SVC_CAT_SND, L1SVC_SND_VIRTIO_TEST },
+    { "usb_audio_test",  L1SVC_CAT_SND, L1SVC_SND_USB_TEST   },
+    { "audio_rw_test",   L1SVC_CAT_SND, L1SVC_SND_RW_TEST    },
+    { "sample_rate_test", L1SVC_CAT_SND, L1SVC_SND_RATE_TEST },
 };
 
 static int svc_cmd_run(int argc, char *argv[]) {
@@ -934,6 +970,8 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  <nicname> [/_test]     NIC status + tests (e1000e igb ixgbe\n");
         puts_("                         rtl8139/8168/8125/810x bcm57xx, other)\n");
         puts_("  wifi / bt              Wireless + bluetooth families\n");
+        puts_("  sound / play / volume  Audio cards, playback, mixer\n");
+        puts_("  hda/ac97/sb16/es1370/virtiosnd/usbaudio + _test variants\n");
         puts_("\n  Editing: Up/Down history, Left/Right/Home/End cursor, Del,\n");
         puts_("  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion\n");
         puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
@@ -2729,7 +2767,12 @@ void _start(void) {
                     "wifi","bt",
                     "e1000e_test","igb_test","ixgbe_test","rtl8139_test",
                     "rtl8168_test","rtl8125_test","rtl810x_test",
-                    "bcm57xx_test",0
+                    "bcm57xx_test",
+                    "sound","hda","ac97","sb16","es1370","virtiosnd",
+                    "usbaudio","play","volume",
+                    "hda_test","ac97_test","sb16_test","es1370_test",
+                    "virtio_snd_test","usb_audio_test","audio_rw_test",
+                    "sample_rate_test",0
                 };
                 int found = 0;
                 int blen = 0;

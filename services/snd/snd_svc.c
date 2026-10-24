@@ -250,4 +250,5 @@ int driver_snd_make_tone(void *buf, int cap_bytes, u32 rate, u32 freq,
 }
 
 /* ---- v2.0.0 file-local service identity ---- */
-OC_SERVICE_DECL("snd", "audio service (card table + dispatch + probe collection)", snd_svc_init, snd_svc_probe_all);
+/* v2.0.0: the service identity (with its ring-3 surface) is declared
+ * in services/snd/snd_l1.c; the bring-up callbacks stay here. */
