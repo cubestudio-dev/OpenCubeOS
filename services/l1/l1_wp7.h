@@ -19,7 +19,7 @@
 #ifndef OC_EXT_WP7_H
 #define OC_EXT_WP7_H
 
-#include "driver_block_blk.h"
+#include "block_svc.h"
 #include "driver_block_cache.h"
 #include "driver_block_part.h"
 

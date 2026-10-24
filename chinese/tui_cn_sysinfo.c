@@ -23,7 +23,7 @@
 #include "../services/power/core_power.h"
 #include "../services/ota/ota_ab.h"
 #include "../services/ota/ota_update.h"
-#include "../drivers/block/driver_block_blk.h"
+#include "../services/block/block_svc.h"
 #include "../mem/mem_pmm.h"
 /* boot-log ring (kernel/lib/lib_log.c) */
 extern int lib_log_ring_count(void);

@@ -83,26 +83,28 @@ typedef struct {
 } oc_driver_decl_t;
 
 #define OC_DRIVER_DECL(fam, nm, opsp, dsc) \
-    static const oc_driver_decl_t __ocdv_##nm##_##__COUNTER__ \
+    static const oc_driver_decl_t OC_DECL_UID(__ocdv_) \
     __attribute__((used, section(".oc_drvs"))) = { (fam), (opsp), (nm), (dsc) }
 
 /* ---- Service identity ----------------------------------------------
  * One declaration per L0 service (services/<category>/ folder).  The
  * category string MUST equal the folder name - the services/ tree and
  * the L1 interface surface categories are one-to-one by rule.
- * init/late_init run during boot collection (NULL = no callback).
+ * init/late_init run during boot collection (NULL = no callback);
+ * both return void (failures are logged by the service itself).
  */
-typedef int (*oc_service_init_fn_t)(void);
+typedef void (*oc_service_init_fn_t)(void);
+typedef int  (*oc_service_late_fn_t)(void);   /* 0 = probed something */
 
 typedef struct {
     const char         *category;   /* == services/<category> folder */
     const char         *desc;
     oc_service_init_fn_t init;      /* early bring-up, may be NULL */
-    oc_service_init_fn_t late_init; /* after all early inits, may be NULL */
+    oc_service_late_fn_t late_init; /* probe pass, may be NULL */
 } oc_service_decl_t;
 
 #define OC_SERVICE_DECL(cat, dsc, ini, late) \
-    static const oc_service_decl_t __ocsv_##cat##_##__COUNTER__ \
+    static const oc_service_decl_t OC_DECL_UID(__ocsv_) \
     __attribute__((used, section(".oc_svcs"))) = { (cat), (dsc), (ini), (late) }
 
 /* ---- L1 application identity ----------------------------------------
@@ -120,7 +122,7 @@ typedef struct {
 } oc_l1_app_decl_t;
 
 #define OC_L1_APP_DECL(nm, elfp, szp, dflt, dsc) \
-    static const oc_l1_app_decl_t __ocap_##nm##_##__COUNTER__ \
+    static const oc_l1_app_decl_t OC_DECL_UID(__ocap_) \
     __attribute__((used, section(".oc_apps"))) = { (nm), (elfp), (szp), (dflt), (dsc) }
 
 /* ---- Boot-time collection ------------------------------------------

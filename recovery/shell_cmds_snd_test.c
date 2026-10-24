@@ -34,7 +34,7 @@
  * 'volume hda 50', 'play ac97 48000'); an unknown token is rejected
  * with usage text instead of silently reprogramming the hardware.
  */
-#include "driver_snd.h"
+#include "../../services/snd/snd_svc.h"
 #include "driver_usb.h"
 #include "shell.h"
 #include "screen_console.h"

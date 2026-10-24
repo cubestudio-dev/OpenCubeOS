@@ -28,8 +28,7 @@
  *
  * L1 extension surface (this header is the documented interface):
  *
- *   int driver_nic_register(driver_nic_device_t *dev, const driver_nic_ops_t *ops);
- *       Register a NIC with the framework.  dev->name and dev->type must
+ *    *       Register a NIC with the framework.  dev->name and dev->type must
  *       be filled in; ops->send and ops->recv are mandatory.  Returns the
  *       device index (>= 0) or -1 when the table is full / arguments are
  *       invalid.  On success dev->index is filled in.
@@ -55,6 +54,10 @@
  *       present or init fails.  Drivers that initialise successfully
  *       register themselves with driver_nic_register().
  */
+/* v2.0.0: the register-class entry point (driver_nic_register) was
+ * REMOVED from the L1 surface - drivers declare their identity with
+ * OC_DRIVER_DECL("nic", ...) and add probed cards through
+ * nic_dev_add() (services/nic/drv_internal.h, kernel-internal). */
 #ifndef OC_NIC_H
 #define OC_NIC_H
 
@@ -105,10 +108,9 @@ struct driver_nic_device {
 };
 
 /* ---- Framework API (L1 extension surface) ---- */
-void driver_nic_init(void);
+void nic_svc_init(void);
 
 /* Register a NIC (see file-header documentation). */
-int  driver_nic_register(driver_nic_device_t *dev, const driver_nic_ops_t *ops);
 
 /* Send / receive one Ethernet frame through a driver. */
 int  driver_nic_send(driver_nic_device_t *dev, const void *buf, int len);
@@ -131,7 +133,7 @@ void driver_nic_list_devices(void);
  * rtl8168/8125/810x, rtl8139, bcm57xx, ixgbe, other).  Returns 0 when at
  * least one NIC initialised and registered, -1 when none did.  Called
  * once from net_init() before the legacy fallbacks. */
-int  driver_nic_probe_all(void);
+int  nic_svc_probe_all(void);
 
 /* The device net.c routes frames to (first registered NIC), or NULL. */
 driver_nic_device_t *driver_nic_active(void);

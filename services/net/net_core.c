@@ -13,7 +13,7 @@
 #include "net_core.h"
 #include "shell.h"  /* WP-10d-fix2: shell_register_command_ex */
 #include "driver_pci.h"
-#include "driver_nic.h"   /* WP-10b: NIC driver framework (e1000e/igb/rtl8139/...) */
+#include "../../services/nic/nic_svc.h"   /* WP-10b: NIC driver framework (e1000e/igb/rtl8139/...) */
 #include "mem_heap.h"
 #include "mem_pmm.h"
 #include "lib_string.h"
@@ -4416,7 +4416,7 @@ void net_init(void) {
      * legacy built-in e1000/virtio-net paths below remain as fallbacks
      * so WP-06..WP-09 behaviour is unchanged when no WP-10b driver
      * claims the hardware. */
-    if (driver_nic_probe_all() == 0) {
+    if (nic_svc_probe_all() == 0) {
         g_nic_ok = 1;
         /* Publish the WP-10b NIC's station address to the stack (the
          * Ethernet layer uses g_mac as the frame source address). */

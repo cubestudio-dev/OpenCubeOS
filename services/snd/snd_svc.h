@@ -30,14 +30,13 @@
  *   default at the device's current sample rate (driver_snd_device_t.rate).
  *   `play` takes BYTES, not samples.
  *
- * L1 extension surface (this header is the documented interface):
- *
- *   int driver_snd_register(driver_snd_device_t *dev, const driver_snd_ops_t *ops);
- *       Register a sound card with the framework.  dev->name and
- *       dev->type must be filled in; ops->play and ops->stop are
- *       mandatory.  Returns the device index (>= 0) or -1 when the
- *       table is full / arguments are invalid.  On success dev->index
- *       is filled in.
+ * L1 extension surface (this header is the documented interface).
+ * v2.0.0: the register-class entry point was REMOVED from the surface
+ * (the interface-surface rule: operation-class stays, register-class
+ * goes).  Sound drivers now declare their identity in their own file
+ * with OC_DRIVER_DECL("snd", ...) - the audio service collects the
+ * declarations at boot and probes each family (services/snd/snd_svc.c).
+ * snd_dev_add() moved to drv_internal.h: kernel-internal only.
  *
  *   int driver_snd_play(driver_snd_device_t *dev, const void *buf, int len);
  *       Feed `len` bytes of PCM (S16LE stereo at dev->rate) to the
@@ -65,8 +64,8 @@
  *       IDs (or, for SB16/USB, the ISA IO / USB bus) and initialise the
  *       first match.  pdev != NULL: initialise exactly that PCI
  *       function.  Returns 0 on success, -1 when no device is present
- *       or init fails.  Drivers that initialise successfully register
- *       themselves with driver_snd_register().
+ *       or init fails.  Drivers that initialise successfully add their
+ *       card with snd_dev_add() (services/snd/drv_internal.h).
  */
 #ifndef OC_SND_H
 #define OC_SND_H
@@ -146,10 +145,10 @@ struct driver_snd_device {
 };
 
 /* ---- Framework API (L1 extension surface) ---- */
-void driver_snd_init(void);
+void snd_svc_init(void);
 
-/* Register a sound card (see file-header documentation). */
-int  driver_snd_register(driver_snd_device_t *dev, const driver_snd_ops_t *ops);
+/* v2.0.0: registration is file-local declarations + snd_dev_add()
+ * (drv_internal.h) - no register-class entry on this surface. */
 
 /* Feed PCM data to a device (blocking). */
 int  driver_snd_play(driver_snd_device_t *dev, const void *buf, int len);
@@ -174,11 +173,11 @@ int  driver_snd_find_first_present(void);             /* index / -1 */
 void driver_snd_list_devices(void);
 const char *driver_snd_type_name(driver_snd_type_t type);
 
-/* Probe every WP-10c driver family in priority order (hda, ac97,
- * es1370, driver_usb_audio, sb16, virtio-snd).  Returns 0 when at least one
- * card initialised and registered, -1 when none did.  Called once from
+/* Probe every declared snd driver family (collected OC_DRIVER_DECL
+ * identities, mainstream-first order).  Returns 0 when at least one
+ * card initialised and was added, -1 when none did.  Called once from
  * kmain after the network init. */
-int  driver_snd_probe_all(void);
+int  snd_svc_probe_all(void);
 
 /* ---- Per-driver init entry points (see file-header documentation) ---- */
 int  driver_snd_hda_init(driver_pci_dev_t *pdev);

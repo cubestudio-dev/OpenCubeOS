@@ -5,7 +5,7 @@
  * Purpose: LRU disk-block cache with write-back.
  */
 #include "driver_block_cache.h"
-#include "driver_block_blk.h"
+#include "block_svc.h"
 #include "core_timer.h"
 #include "core_sync.h"
 #include "mem_heap.h"

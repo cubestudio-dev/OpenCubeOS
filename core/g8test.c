@@ -27,7 +27,7 @@
 #include "core_rtc.h"
 #include "core_timer.h"
 #include "core_power.h"
-#include "driver_block_blk.h"
+#include "../../services/block/drv_internal.h"
 #include "mem_pmm.h"
 #include "mem_vmm.h"
 #include "mem_heap.h"
@@ -243,7 +243,7 @@ static void g8_test_flush_blk(void) {
     }
     memset(g8_ramdisk, 0, (u64)G8_RAM_SECTORS * 512);
 
-    int idx = driver_block_register_device("g8ram", BLK_TYPE_VIRTIO,
+    int idx = blk_dev_add("g8ram", BLK_TYPE_VIRTIO,
                                            G8_RAM_SECTORS, 512, &ops, 0);
     CHECK(idx >= 0, "B1 test block device registered", "registry full");
     if (idx < 0) return;
@@ -273,7 +273,7 @@ static void g8_test_flush_blk(void) {
           memcmp(back, pat1, 512) == 0,
           "B7 read-back through the cache returns the written data", "mismatch");
 
-    driver_block_unregister_device(idx);
+    blk_dev_remove(idx);
     if (g8_ramdisk) { kfree(g8_ramdisk); g8_ramdisk = NULL; }
 }
 

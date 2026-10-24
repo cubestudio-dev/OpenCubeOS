@@ -25,7 +25,7 @@
 #include "ota_ab.h"
 #include "ota_update.h"
 #include "lib_config.h"
-#include "driver_block_blk.h"
+#include "block_svc.h"
 #include "fs_vfs.h"
 #include "lib_gzip.h"
 #include "lib_tar.h"

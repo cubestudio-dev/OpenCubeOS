@@ -77,7 +77,7 @@
 
 /* WP-07 headers. */
 void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
-#include "driver_block_blk.h"
+#include "block_svc.h"
 #include "driver_block_cache.h"
 #include "driver_block_part.h"
 #include "driver_block_virtio_blk.h"
@@ -85,11 +85,11 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "driver_block_ahci.h"      /* WP-10a: SATA */
 #include "driver_block_ata_dma.h"   /* WP-10a: Bus-Master IDE */
 #include "shell_cmds_disk_test.h" /* WP-10a: storage test suite */
-#include "driver_nic.h"            /* WP-10b: NIC drivers + test/status commands */
+#include "../../services/nic/nic_svc.h"            /* WP-10b: NIC drivers + test/status commands */
 #include "ota_ab.h"       /* WP-10u: A/B slots + in-system update */
 #include "core_power.h"           /* WP-10d-fix2: shutdown/suspend/halt/reboot */
 #include "shell_cmds_update_test.h" /* WP-10u: update test suite */
-#include "driver_snd.h"             /* WP-10c: sound card drivers */
+#include "../../services/snd/snd_svc.h"             /* WP-10c: sound card drivers */
 #include "driver_usb.h"              /* WP-10d: USB stack */
 #include "driver_usb_hid.h"
 #include "driver_usb_msc.h"
@@ -3326,22 +3326,18 @@ void kmain(u64 magic, u64 mbi_phys) {
     OC_LOG_OK2("ramfs (in-memory file system, mounted at /)");
     klog_on_mount();   /* WP-12: dump the boot log to /var/log/kernel.log */
 
-    driver_block_init();
+    block_svc_init();
     driver_block_cache_init();
-    driver_block_ata_init();
-    driver_block_ata_dma_init(NULL);  /* WP-10a: BMDMA drives first (see ahci/driver_block_ata_dma) */
-    driver_block_ata_register_blk();  /* P2 fix: register ATA drives with blk layer */
+    /* v2.0.0: storage bring-up is COLLECTED - each block driver file
+     * declares OC_DRIVER_DECL("block", ...) and block_svc_probe_all()
+     * walks them in BMDMA-first order (see services/block). */
+    block_svc_probe_all();
     OC_LOG_OK2("ATA/IDE PIO driver (LBA28)");
-
-    driver_block_virtio_blk_init();
-    driver_block_ahci_init(NULL);     /* WP-10a: SATA AHCI */
-    driver_block_nvme_init(NULL);
 
     /* WP-10-camera_misc: SCSI core + LSI 53C895A HBA.  Runs BEFORE the
      * partition scan below so discovered disks (sda..) get their
      * MBR/GPT children; without the chip (most machines) nothing
      * attaches and the scsi command reports zero targets honestly. */
-    driver_scsi_init();
     driver_scsi_lsi_init();
     OC_LOG_OK2("virtio-blk + AHCI + NVMe drivers");
 
@@ -3470,8 +3466,8 @@ void kmain(u64 magic, u64 mbi_phys) {
     /* ---- WP-10c: sound card drivers (HDA/AC'97/SB16/ES1370/virtio/USB) ----
      * Probes all six families; those without hardware simply stay
      * unregistered.  Then the status/test commands. */
-    driver_snd_init();
-    if (driver_snd_probe_all() == 0) {
+    snd_svc_init();
+    if (snd_svc_probe_all() == 0) {
         char line[80]; char num[8];
         strcpy(line, "sound: ");
         u64_to_str((u64)driver_snd_num_devices(), num); strcat(line, num);

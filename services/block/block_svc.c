@@ -10,7 +10,9 @@
  * pointer-based driver API (driver_block_register/driver_block_read/driver_block_write/driver_block_flush)
  * with an optional per-driver flush hook.
  */
-#include "driver_block_blk.h"
+#include "block_svc.h"
+#include "drv_internal.h"
+#include "core_registry.h"
 #include "driver_block_cache.h"
 #include "mem_heap.h"
 #include "lib_string.h"
@@ -20,7 +22,7 @@ static driver_block_device_t g_blk_devs[BLK_MAX_DEVICES];
 static driver_block_stats_t  g_blk_stats[BLK_MAX_DEVICES];
 static int          g_blk_count = 0;
 
-void driver_block_init(void) {
+void block_svc_init(void) {
     memset(g_blk_devs, 0, sizeof(g_blk_devs));
     memset(g_blk_stats, 0, sizeof(g_blk_stats));
     g_blk_count = 0;
@@ -53,7 +55,7 @@ static int driver_block_check_sector_size(const char *name, u32 sector_size) {
     return -1;
 }
 
-int driver_block_register_device(const char *name, driver_block_type_t type,
+int blk_dev_add(const char *name, driver_block_type_t type,
                         u64 sectors, u32 sector_size,
                         const driver_block_ops_t *ops, void *priv) {
     /* BUG-0040+0054: fail-closed sector-size gate (see above). */
@@ -79,7 +81,7 @@ int driver_block_register_device(const char *name, driver_block_type_t type,
     return idx;
 }
 
-int driver_block_unregister_device(int index) {
+int blk_dev_remove(int index) {
     if (index < 0 || index >= BLK_MAX_DEVICES) return -1;
     driver_block_device_t *d = &g_blk_devs[index];
     if (!d->present) return -1;
@@ -167,7 +169,7 @@ int driver_block_write_sectors(int dev_idx, u64 lba, u32 count, const void *buf)
 
 /* ---- WP-10a: pointer-based driver API ---- */
 
-int driver_block_register(driver_block_device_t *dev, const driver_block_ops_t *ops) {
+int blk_dev_add_ptr(driver_block_device_t *dev, const driver_block_ops_t *ops) {
     if (!dev || !ops || !ops->read || !ops->write) return -1;
     if (!dev->name[0]) return -1;
     /* BUG-0040+0054: fail-closed sector-size gate - the pointer-based
@@ -208,7 +210,7 @@ int driver_block_write(driver_block_device_t *dev, u64 lba, u32 count, const voi
 }
 
 /* WP-10a: replace the driver ops of an already-registered device. */
-int driver_block_set_ops(int dev_idx, const driver_block_ops_t *ops) {
+int blk_dev_set_ops(int dev_idx, const driver_block_ops_t *ops) {
     driver_block_device_t *d = driver_block_get_device(dev_idx);
     if (!d || !ops || !ops->read || !ops->write) return -1;
     d->ops = ops;
@@ -263,4 +265,31 @@ int driver_block_num_devices(void) {
     for (int i = 0; i < BLK_MAX_DEVICES; i++)
         if (g_blk_devs[i].present) n++;
     return n;
+}
+
+/* ---- v2.0.0 file-local service identity ---- */
+OC_SERVICE_DECL("block", "block service (device table + RW/flush dispatch + cache gate)", block_svc_init, (oc_service_late_fn_t)0);
+
+/* v2.0.0: the block-driver probe list is COLLECTED from the
+ * OC_DRIVER_DECL("block", ...) declarations (was hardcoded kmain
+ * calls).  Order below preserves the historical bring-up: Bus-Master
+ * DMA first (it may register a drive with DMA ops), then the PIO
+ * registration pass (skips drives the DMA path already took), then
+ * the modern buses.  Families absent from this build are simply
+ * missing from the registry. */
+int block_svc_probe_all(void) {
+    static const char *const order[] = {
+        "ata_dma", "ata", "virtio_blk", "ahci", "nvme", "scsi",
+    };
+    int found = 0;
+    for (unsigned k = 0; k < sizeof(order) / sizeof(order[0]); k++) {
+        for (int i = 0; i < core_registry_drvs_count(); i++) {
+            const oc_driver_decl_t *c = core_registry_drv_at(i);
+            if (!c || strcmp(c->family, "block") != 0) continue;
+            if (strcmp(c->name, order[k]) != 0) continue;
+            const blk_drv_ops_t *ops = (const blk_drv_ops_t *)c->ops;
+            if (ops && ops->probe && ops->probe() == 0) found++;
+        }
+    }
+    return found ? 0 : -1;
 }

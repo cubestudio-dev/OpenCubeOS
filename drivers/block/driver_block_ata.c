@@ -231,7 +231,9 @@ int driver_block_ata_write_sectors(int drive, u64 lba, int count, const void *bu
 }
 
 /* ---- WP-07 blk layer integration ---- */
-#include "driver_block_blk.h"
+#include "../../services/block/block_svc.h"
+#include "../../services/block/drv_internal.h"
+#include "core_registry.h"
 
 static int driver_block_ata_blk_read(driver_block_device_t *dev, u64 lba, u32 count, void *buf) {
     int drive = (int)(uintptr_t)dev->priv;
@@ -273,7 +275,7 @@ void driver_block_ata_register_blk(void) {
             u16 id[256];
             for (int i = 0; i < 256; i++) id[i] = inw(base);
             u32 sectors = (u32)id[60] | ((u32)id[61] << 16);
-            driver_block_register_device(name, BLK_TYPE_ATA, sectors, 512, &driver_block_ata_blk_ops, (void*)(uintptr_t)drive);
+            blk_dev_add(name, BLK_TYPE_ATA, sectors, 512, &driver_block_ata_blk_ops, (void*)(uintptr_t)drive);
         }
     }
 }
@@ -302,3 +304,10 @@ int driver_block_ata_identify_capacity(int drive, u32 *sectors_out) {
     *sectors_out = sectors;
     return 0;
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int blk_probe_ata(void) { driver_block_ata_init();
+    driver_block_ata_register_blk();   /* PIO registration (BMDMA-first skip) */
+    return 0; }
+static const blk_drv_ops_t g_blk_probe_ata = { blk_probe_ata };
+OC_DRIVER_DECL("block", "ata", &g_blk_probe_ata, "ATA/ATAPI PIO (legacy ISA IDE)");

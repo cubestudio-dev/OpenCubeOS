@@ -36,8 +36,10 @@
 #include "lib_string.h"
 #include "screen_console.h"
 #include "driver_pci.h"
-#include "driver_block_blk.h"
+#include "../../services/block/block_svc.h"
+#include "../../services/block/drv_internal.h"
 #include "core_timer.h"
+#include "core_registry.h"
 
 /* ---- I/O port accessors (static inline, file-local) ---- */
 static inline void outb(u16 p, u8 v)  { __asm__ volatile("outb %0, %1" :: "a"(v),  "Nd"(p)); }
@@ -322,7 +324,7 @@ void driver_block_virtio_blk_init(void) {
         driver_block_virtio_blk_log(buf);
     }
 
-    driver_block_register_device("vda", BLK_TYPE_VIRTIO, capacity,
+    blk_dev_add("vda", BLK_TYPE_VIRTIO, capacity,
                         VIRTIO_BLK_SECTOR_SIZE, &driver_block_virtio_blk_ops, &g_dev);
 }
 
@@ -459,3 +461,8 @@ static int driver_block_virtio_blk_flush(driver_block_device_t *dev) {
     if (!d->has_flush) return 0;
     return driver_block_virtio_blk_xfer(d, VIRTIO_BLK_T_FLUSH, 0, NULL, 0);
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int blk_probe_virtio_blk(void) { driver_block_virtio_blk_init(); return 0; }
+static const blk_drv_ops_t g_blk_probe_virtio_blk = { blk_probe_virtio_blk };
+OC_DRIVER_DECL("block", "virtio_blk", &g_blk_probe_virtio_blk, "virtio-blk storage");

@@ -18,7 +18,7 @@
 #include "../services/net/net_core.h"
 #include "../services/ota/ota_ab.h"
 #include "../services/ota/ota_update.h"
-#include "../drivers/block/driver_block_blk.h"
+#include "../services/block/block_svc.h"
 
 /* version/build are compile-time macros baked by the Makefile
  * (-DOC_RELEASE_VERSION / -DOC_KERNEL_BUILD), same as main.c */

@@ -27,12 +27,14 @@
  * for an end-to-end run.  This limitation is stated honestly in the
  * WP-10b delivery report (no fake test output).
  */
-#include "driver_nic.h"
+#include "../../services/nic/nic_svc.h"
+#include "../../services/nic/drv_internal.h"
 #include "screen_console.h"
 #include "lib_string.h"
 #include "mem_pmm.h"
 
 #include <stdint.h>
+#include "core_registry.h"
 
 /* ---- Bus access (I/O ports; every RTL8169-family chip exposes a PIO
  * BAR alongside the MMIO BAR, so the driver always uses the PIO one) ---- */
@@ -250,7 +252,7 @@ static int driver_nic_rtl8169_register_family(driver_nic_rtl8169_dev_t *d, const
     nd.bus = bus; nd.dev = dev; nd.func = func;
     nd.vendor_id = vid; nd.device_id = did;
     nd.priv = d;
-    int idx = driver_nic_register(&nd, &driver_nic_rtl8169_nic_ops);
+    int idx = nic_dev_add(&nd, &driver_nic_rtl8169_nic_ops);
 
     char line[96];
     char n[24];
@@ -427,3 +429,14 @@ static void driver_nic_rtl8169_print_family(driver_nic_rtl8169_dev_t *d, const c
 void rtl8168_print_state(void) { driver_nic_rtl8169_print_family(&g_rtl8169, "rtl8168"); }
 void rtl8125_print_state(void) { driver_nic_rtl8169_print_family(&g_rtl8125, "rtl8125"); }
 void rtl810x_print_state(void) { driver_nic_rtl8169_print_family(&g_rtl810x, "rtl810x"); }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int nic_probe_rtl8168(void) { return rtl8168_init(NULL); }
+static const nic_drv_ops_t g_nic_probe_rtl8168 = { nic_probe_rtl8168 };
+OC_DRIVER_DECL("nic", "rtl8168", &g_nic_probe_rtl8168, "Realtek 8168/8111");
+static int snd_probe_rtl8125(void) { return rtl8125_init(NULL); }
+static const nic_drv_ops_t g_nic_probe_rtl8125 = { snd_probe_rtl8125 };
+OC_DRIVER_DECL("nic", "rtl8125", &g_nic_probe_rtl8125, "Realtek 8125 2.5GbE");
+static int snd_probe_rtl810x(void) { return rtl810x_init(NULL); }
+static const nic_drv_ops_t g_nic_probe_rtl810x = { snd_probe_rtl810x };
+OC_DRIVER_DECL("nic", "rtl810x", &g_nic_probe_rtl810x, "Realtek 810x Fast");

@@ -27,7 +27,8 @@
  */
 #include "driver_usb_msc.h"
 #include "driver_usb.h"
-#include "driver_block_blk.h"
+#include "../../services/block/block_svc.h"
+#include "../../services/block/drv_internal.h"
 #include "screen_console.h"
 #include "lib_string.h"
 #include "core_timer.h"
@@ -434,7 +435,7 @@ static const driver_block_ops_t driver_usb_msc_blk_ops = {
 
 /* BUG-0040+0054 FIX (A6-15): registration failures must be reported
  * honestly.  The blk layer now rejects non-512-byte sector devices
- * fail-closed (see driver_block_blk.c); when driver_block_register()
+ * fail-closed (see driver_block_blk.c); when blk_dev_add_ptr()
  * returns < 0 the device is NOT block-registered, and this function
  * must say so instead of printing "registered block device" anyway
  * while every subsequent read/write would fail (or corrupt memory on
@@ -465,7 +466,7 @@ static int driver_usb_msc_register_blk(driver_usb_msc_dev_t *m) {
     bd.sector_size = m->block_size;
     bd.present = 1;
     bd.priv = m;
-    int idx = driver_block_register(&bd, &driver_usb_msc_blk_ops);
+    int idx = blk_dev_add_ptr(&bd, &driver_usb_msc_blk_ops);
     m->driver_block_idx = idx;
     if (idx < 0) {
         char line[160]; char n[24];
@@ -572,7 +573,7 @@ static void driver_usb_msc_disconnect(driver_usb_dev_t *dev) {
     for (int i = 0; i < MSC_MAX_DEV; i++) {
         driver_usb_msc_dev_t *m = &g_msc[i];
         if (m->up && m->dev == dev) {
-            if (m->driver_block_idx >= 0) driver_block_unregister_device(m->driver_block_idx);
+            if (m->driver_block_idx >= 0) blk_dev_remove(m->driver_block_idx);
             memset(m, 0, sizeof(*m));
             driver_usb_msc_log("usb-msc: drive removed\n");
         }

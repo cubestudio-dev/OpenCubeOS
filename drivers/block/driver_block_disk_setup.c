@@ -25,7 +25,7 @@
 #include "grub_boot_data.h"
 #include "arch_multiboot2.h"  /* arch_multiboot2_get_kernel_self(): boot-attached kernel */
 #include "ota_ab.h"   /* ota_ab_rescan(): re-scan after abdisk creates the layout */
-#include "driver_block_blk.h"
+#include "block_svc.h"
 #include "driver_block_part.h"
 #include "shell_cmds_disk.h"
 #include "shell.h"

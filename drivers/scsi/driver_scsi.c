@@ -16,7 +16,7 @@
  *     pumps; scsi_complete dequeues and fires the callback)
  *   - The L1 extension surface (7 interfaces declared in the header)
  *   - The block-layer hookup: direct-access targets register as
- *     sda..sdh through driver_block_register_device() and MBR/GPT
+ *     sda..sdh through blk_dev_add() and MBR/GPT
  *     parsing then runs on them like on every other backend
  *
  * The polled execution model matches the rest of the kernel's block
@@ -27,8 +27,10 @@
 #include "lib_string.h"
 #include "mem_heap.h"
 #include "screen_console.h"
-#include "driver_block_blk.h"
+#include "../../services/block/block_svc.h"
+#include "../../services/block/drv_internal.h"
 #include "driver_scsi.h"
+#include "core_registry.h"
 
 /* ------------------------------------------------------------------ */
 /* big-endian field helpers (SCSI wire format is big-endian)           */
@@ -368,7 +370,7 @@ int scsi_unregister(scsi_dev_t *d)
     for (i = 0; i < dev_n; i++) {
         if (devs[i] == d) {
             if (d->blk_idx >= 0)
-                driver_block_unregister_device(d->blk_idx);
+                blk_dev_remove(d->blk_idx);
             for (j = i; j < dev_n - 1; j++)
                 devs[j] = devs[j + 1];
             devs[dev_n - 1] = NULL;
@@ -706,10 +708,15 @@ int scsi_attach_target(scsi_hba_t *hba, u8 target, u8 lun)
     if (d->pdt == SCSI_PDT_DIRECT_ACCESS && d->sectors) {
         if (!d->block_size)
             d->block_size = 512;
-        d->blk_idx = driver_block_register_device(
+        d->blk_idx = blk_dev_add(
             d->name, BLK_TYPE_SCSI,
             (d->sectors * d->block_size) / BLK_SECTOR_SIZE,
             BLK_SECTOR_SIZE, &scsi_blk_ops, d);
     }
     return idx;
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int blk_probe_scsi(void) { driver_scsi_init(); return 0; }
+static const blk_drv_ops_t g_blk_probe_scsi = { blk_probe_scsi };
+OC_DRIVER_DECL("block", "scsi", &g_blk_probe_scsi, "SCSI disk (virtio-scsi passthrough)");

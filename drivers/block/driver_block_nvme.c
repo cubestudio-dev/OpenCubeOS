@@ -44,7 +44,9 @@
 #include "lib_string.h"
 #include "screen_console.h"
 #include "driver_pci.h"
-#include "driver_block_blk.h"
+#include "../../services/block/block_svc.h"
+#include "../../services/block/drv_internal.h"
+#include "core_registry.h"
 
 /* ---- MMIO accessors (file-local) ---- */
 static inline u32 mmio_read32(volatile void *p) {
@@ -634,7 +636,7 @@ int driver_block_nvme_init(driver_pci_dev_t *pdev) {
     driver_block_nvme_log("nvme: I/O queues ready");
     driver_block_nvme_log_dec(" (", g_nvme.ioq_count, " pairs)\n");
     g_nvme.next_q  = 0;
-    g_nvme.driver_block_idx = driver_block_register_device("nvme0", BLK_TYPE_NVME, g_nvme.sectors,
+    g_nvme.driver_block_idx = blk_dev_add("nvme0", BLK_TYPE_NVME, g_nvme.sectors,
                                          g_nvme.sector_size, &driver_block_nvme_blk_ops,
                                          &g_nvme);
     return 0;
@@ -757,3 +759,8 @@ int driver_block_nvme_num_io_queues(void) {
 int driver_block_nvme_blk_index(void) {
     return g_nvme.driver_block_idx;
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int blk_probe_nvme(void) { return driver_block_nvme_init(NULL); }
+static const blk_drv_ops_t g_blk_probe_nvme = { blk_probe_nvme };
+OC_DRIVER_DECL("block", "nvme", &g_blk_probe_nvme, "NVMe SSD");

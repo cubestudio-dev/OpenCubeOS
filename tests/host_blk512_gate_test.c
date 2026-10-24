@@ -15,9 +15,9 @@
  * 13 two-sided assertions: every case checks the register return code
  * AND a side effect (slot really present / absent, honest log line),
  * through BOTH entry paths:
- *   - driver_block_register_device()  (index-based, used by ATA/AHCI/
+ *   - blk_dev_add()  (index-based, used by ATA/AHCI/
  *     NVMe/virtio/g8ram)
- *   - driver_block_register()         (pointer-based, used by USB MSC,
+ *   - blk_dev_add_ptr()         (pointer-based, used by USB MSC,
  *     partitions, L1 extensions)
  * Values fed to the gate: 512 (accept) vs 256/4096/2048/0/negative/
  * off-by-one/garbage (reject).
@@ -36,7 +36,7 @@
 #include "types.h"
 #include "lib_string.h"
 #include "screen_console.h"
-#include "driver_block_blk.h"
+#include "drv_internal.h"
 #include "driver_block_cache.h"
 
 /* ---- host shims for the kernel dependencies of driver_block_blk.c ---- */
@@ -102,13 +102,13 @@ static int check(const char *name, int cond) {
     return cond ? 0 : 1;
 }
 
-/* Path A: driver_block_register_device(name, type, sectors, size, ops, priv) */
+/* Path A: blk_dev_add(name, type, sectors, size, ops, priv) */
 static int reg_dev(const char *name, u32 size) {
-    return driver_block_register_device(name, BLK_TYPE_ATA, 100, size,
+    return blk_dev_add(name, BLK_TYPE_ATA, 100, size,
                                         &stub_ops, 0);
 }
 
-/* Path B: driver_block_register(dev, ops) with a filled-in device */
+/* Path B: blk_dev_add_ptr(dev, ops) with a filled-in device */
 static int reg_ptr(const char *name, u32 size, int *reported_index) {
     driver_block_device_t dev;
     memset(&dev, 0, sizeof(dev));
@@ -118,14 +118,14 @@ static int reg_ptr(const char *name, u32 size, int *reported_index) {
     dev.sector_size = size;
     dev.present = 1;
     dev.index = -1;
-    int idx = driver_block_register(&dev, &stub_ops);
+    int idx = blk_dev_add_ptr(&dev, &stub_ops);
     if (reported_index) *reported_index = dev.index;
     return idx;
 }
 
 int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
-    driver_block_init();
+    block_svc_init();
     log_reset();
 
     /* ---------- Path A: index-based registration ---------- */

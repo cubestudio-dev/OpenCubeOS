@@ -1,21 +1,26 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
- * Open Cube OS - WP-10c
- * File: drivers/snd/driver_snd.c
- * Purpose: Sound card driver framework - registry + dispatch.
+ * Open Cube OS 2.0.0 - services/snd: the audio service.
+ * File: services/snd/snd_svc.c
+ * Purpose: Sound service - card table, dispatch, boot collection of the
+ * OC_DRIVER_DECL("snd", ...) identities declared inside each driver file.
+ * (Was drivers/snd/driver_snd.c; register-class interface removed from
+ * the L1 surface, probe list driven by the collected declarations.)
  *
  * The framework keeps a static table of registered sound cards and
  * routes framework calls (driver_snd_play / driver_snd_stop / driver_snd_set_rate /
  * driver_snd_set_volume / driver_snd_get_caps) to the owning driver.  Volume and rate
  * bookkeeping lives here so drivers only touch hardware.
  *
- * driver_snd_probe_all() runs once from kmain: it probes the six WP-10c
+ * snd_svc_probe_all() runs once from kmain: it probes the six WP-10c
  * families in priority order.  Families without hardware in the current
  * environment simply fail their probe (that is normal: e.g. QEMU has
  * no virtio-snd-pci device model and SB16 is optional).
  */
-#include "driver_snd.h"
+#include "snd_svc.h"
+#include "drv_internal.h"
+#include "core_registry.h"
 #include "screen_console.h"
 #include "lib_string.h"
 #include "core_sched.h"
@@ -24,7 +29,7 @@
 static driver_snd_device_t g_snd_devices[SND_MAX_DEVICES];
 static int g_snd_count = 0;
 
-void driver_snd_init(void) {
+void snd_svc_init(void) {
     /* Nothing: registration is driven by the per-family probes. */
 }
 
@@ -40,7 +45,7 @@ const char *driver_snd_type_name(driver_snd_type_t type) {
     }
 }
 
-int driver_snd_register(driver_snd_device_t *dev, const driver_snd_ops_t *ops) {
+int snd_dev_add(driver_snd_device_t *dev, const driver_snd_ops_t *ops) {
     if (!dev || !ops || !ops->play || !ops->stop) return -1;
     if (g_snd_count >= SND_MAX_DEVICES) return -1;
 
@@ -181,18 +186,27 @@ void driver_snd_list_devices(void) {
     }
 }
 
-int driver_snd_probe_all(void) {
+/* v2.0.0: the probe list is COLLECTED, not hardcoded - each driver file
+ * declares its identity with OC_DRIVER_DECL("snd", name, &ops, desc)
+ * where ops is a (const snd_drv_ops_t*) from drv_internal.h.  The
+ * service walks the collected declarations in mainstream-first order
+ * (table below); families that are not linked into this build are
+ * simply absent from the registry. */
+static const char *const s_snd_probe_order[] = {
+    "hda", "ac97", "es1370", "usbaudio", "sb16", "virtio",
+};
+
+int snd_svc_probe_all(void) {
     int any = 0;
-
-    /* Priority order: mainstream first (HDA), then legacy PCI cards,
-     * then the hot-pluggable / virtual buses. */
-    if (driver_snd_hda_init(NULL) == 0)        any++;
-    if (driver_snd_ac97_init(NULL) == 0)       any++;
-    if (driver_snd_es1370_init(NULL) == 0)     any++;
-    if (driver_usb_audio_init(NULL) == 0)  any++;
-    if (driver_snd_sb16_init(NULL) == 0)       any++;
-    if (driver_snd_virtio_init(NULL) == 0) any++;
-
+    for (int k = 0; k < (int)(sizeof(s_snd_probe_order) / sizeof(s_snd_probe_order[0])); k++) {
+        for (int i = 0; i < core_registry_drvs_count(); i++) {
+            const oc_driver_decl_t *c = core_registry_drv_at(i);
+            if (!c || strcmp(c->family, "snd") != 0) continue;
+            if (strcmp(c->name, s_snd_probe_order[k]) != 0) continue;
+            const snd_drv_ops_t *ops = (const snd_drv_ops_t *)c->ops;
+            if (ops && ops->probe && ops->probe() == 0) any++;
+        }
+    }
     return any ? 0 : -1;
 }
 
@@ -234,3 +248,6 @@ int driver_snd_make_tone(void *buf, int cap_bytes, u32 rate, u32 freq,
     }
     return need;
 }
+
+/* ---- v2.0.0 file-local service identity ---- */
+OC_SERVICE_DECL("snd", "audio service (card table + dispatch + probe collection)", snd_svc_init, snd_svc_probe_all);

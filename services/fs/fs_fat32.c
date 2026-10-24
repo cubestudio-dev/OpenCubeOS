@@ -24,7 +24,7 @@
  */
 #include "fs_fat32.h"
 #include "fs_vfs.h"
-#include "driver_block_blk.h"
+#include "block_svc.h"
 #include "driver_block_ata.h"
 #include "screen_console.h"
 #include "mem_heap.h"

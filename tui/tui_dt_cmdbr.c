@@ -10,7 +10,7 @@
 #include "../core/lib/lib_string.h"
 #include "../core/mem/mem_heap.h"
 #include "../recovery/shell.h"
-#include "../drivers/block/driver_block_blk.h"
+#include "../services/block/block_svc.h"
 
 /* bounded append (the kernel string lib has no strncat) */
 static void dt_append(char *dst, usize cap, const char *src) {

@@ -32,7 +32,7 @@
 #include "screen_console.h"
 #include "shell.h"
 #include "driver_scsi.h"
-#include "driver_block_blk.h"
+#include "block_svc.h"
 #include "shell_cmds_scsi.h"
 #include "core_registry.h"
 

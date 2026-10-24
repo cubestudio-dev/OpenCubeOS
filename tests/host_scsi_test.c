@@ -32,7 +32,7 @@
 #include <stdlib.h>
 
 #include "../core/types.h"
-#include "../drivers/block/driver_block_blk.h"
+#include "../services/block/block_svc.h"
 
 /* ---- stubs the kernel .c expects on the host --------------------- */
 void *kmalloc(unsigned long long size) { return malloc(size); }
@@ -44,7 +44,7 @@ void  screen_console_puts(const char *s) { fputs(s, stdout); }
 static char     blk_last_name[32];
 static u64      blk_last_sectors;
 static int      blk_reg_calls, blk_unreg_calls;
-int  driver_block_register_device(const char *name, driver_block_type_t type, u64 sectors,
+int  blk_dev_add(const char *name, driver_block_type_t type, u64 sectors,
                                   u32 sector_size, const driver_block_ops_t *ops,
                                   void *priv)
 {
@@ -54,7 +54,7 @@ int  driver_block_register_device(const char *name, driver_block_type_t type, u6
     blk_reg_calls++;
     return blk_reg_calls - 1;
 }
-int  driver_block_unregister_device(int index)
+int  blk_dev_remove(int index)
 {
     (void)index;
     blk_unreg_calls++;

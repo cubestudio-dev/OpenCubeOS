@@ -31,7 +31,7 @@
 #include "../core/mem/mem_heap.h"
 #include "../core/mem/mem_pmm.h"
 #include "../recovery/shell.h"
-#include "../drivers/block/driver_block_blk.h"
+#include "../services/block/block_svc.h"
 #include "../drivers/input/driver_input_keyboard.h"
 #include "../drivers/display/screen_console.h"
 #include "../core/core_usermode.h"

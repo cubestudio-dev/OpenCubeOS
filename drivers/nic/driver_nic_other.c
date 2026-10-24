@@ -21,12 +21,14 @@
  * QEMU).  The datapath code below is datasheet-derived and has NOT been
  * exercised; real-hardware bring-up is future work.
  */
-#include "driver_nic.h"
+#include "../../services/nic/nic_svc.h"
+#include "../../services/nic/drv_internal.h"
 #include "screen_console.h"
 #include "lib_string.h"
 #include "mem_pmm.h"
 
 #include <stdint.h>
+#include "core_registry.h"
 
 /* ==================================================================
  * Shared helpers
@@ -368,7 +370,7 @@ int other_nics_init(driver_pci_dev_t *pdev) {
             u32 ids = driver_pci_read_config(bus, dev, func, 0x00);
             nd.device_id = (u16)(ids >> 16);
             nd.priv = &g_c3;
-            if (driver_nic_register(&nd, &c3_nic_ops) >= 0) return 0;
+            if (nic_dev_add(&nd, &c3_nic_ops) >= 0) return 0;
         }
     }
 
@@ -405,7 +407,7 @@ int other_nics_init(driver_pci_dev_t *pdev) {
             u32 ids = driver_pci_read_config(bus, dev, func, 0x00);
             nd.device_id = (u16)(ids >> 16);
             nd.priv = &g_nf;
-            if (driver_nic_register(&nd, &net_netfilter_nic_ops) >= 0) return 0;
+            if (nic_dev_add(&nd, &net_netfilter_nic_ops) >= 0) return 0;
         }
     }
 
@@ -433,7 +435,7 @@ int other_nics_init(driver_pci_dev_t *pdev) {
             u32 ids = driver_pci_read_config(bus, dev, func, 0x00);
             nd.device_id = (u16)(ids >> 16);
             nd.priv = &g_ar81xx;
-            if (driver_nic_register(&nd, &mmio_legacy_ops) >= 0) return 0;
+            if (nic_dev_add(&nd, &mmio_legacy_ops) >= 0) return 0;
         }
     }
 
@@ -460,7 +462,7 @@ int other_nics_init(driver_pci_dev_t *pdev) {
             u32 ids = driver_pci_read_config(bus, dev, func, 0x00);
             nd.device_id = (u16)(ids >> 16);
             nd.priv = &g_yukon;
-            if (driver_nic_register(&nd, &mmio_legacy_ops) >= 0) return 0;
+            if (nic_dev_add(&nd, &mmio_legacy_ops) >= 0) return 0;
         }
     }
 
@@ -500,3 +502,8 @@ void other_nics_print_state(void) {
         screen_console_puts("other nics: none present\n");
     }
 }
+
+/* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
+static int nic_probe_other(void) { return other_nics_init(NULL); }
+static const nic_drv_ops_t g_nic_probe_other = { nic_probe_other };
+OC_DRIVER_DECL("nic", "other", &g_nic_probe_other, "other/virtual NICs (netfilter, loopback-bridge)");

@@ -23,7 +23,7 @@
 #include "core_watchdog.h"
 #include "../mem/mem_pmm.h"
 #include "../mem/mem_heap.h"
-#include "../drivers/block/driver_block_blk.h"
+#include "../services/block/block_svc.h"
 #include "../services/net/net_core.h"
 
 /* ---- state ---------------------------------------------------------- */
