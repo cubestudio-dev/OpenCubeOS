@@ -130,6 +130,23 @@
 #define L1SVC_SND_USB_TEST    15   /* usb_audio_test */
 #define L1SVC_SND_RW_TEST     16   /* audio_rw_test */
 #define L1SVC_SND_RATE_TEST   17   /* sample_rate_test */
+#define L1SVC_CAT_OTA       6
+#define L1SVC_OTA_CHECKUPDATE      1  /* checkupdate */
+#define L1SVC_OTA_CONFIG           2  /* config */
+#define L1SVC_OTA_CONFIG_TEST      3  /* config_test */
+#define L1SVC_OTA_CHECKUPDATE_TEST 4  /* checkupdate_test */
+#define L1SVC_OTA_UPDATE           5  /* update */
+#define L1SVC_OTA_ROLLBACK         6  /* rollback */
+#define L1SVC_OTA_PKG_TEST         7  /* update_pkg_test */
+#define L1SVC_OTA_AB_TEST          8  /* ab_partition_test */
+#define L1SVC_OTA_CHECK_TEST       9  /* update_check_test */
+#define L1SVC_OTA_DOWNLOAD_TEST   10  /* update_download_test */
+#define L1SVC_OTA_VERIFY_TEST     11  /* update_verify_test */
+#define L1SVC_OTA_INSTALL_TEST    12  /* update_install_test */
+#define L1SVC_OTA_ROLLBACK_TEST   13  /* update_rollback_test */
+#define L1SVC_OTA_LOCAL_TEST      14  /* update_local_test */
+#define L1SVC_OTA_STATUS_TEST     15  /* update_status_test */
+#define L1SVC_OTA_REAL_TEST       16  /* real_update_test */
 #define NETCMD_IFCONFIG  1
 #define NETCMD_PING      2
 #define NETCMD_NETSTAT   3
@@ -849,6 +866,23 @@ static const struct svc_cmd SVC_CMDS[] = {
     { "usb_audio_test",  L1SVC_CAT_SND, L1SVC_SND_USB_TEST   },
     { "audio_rw_test",   L1SVC_CAT_SND, L1SVC_SND_RW_TEST    },
     { "sample_rate_test", L1SVC_CAT_SND, L1SVC_SND_RATE_TEST },
+    /* ota service (services/ota) */
+    { "checkupdate",        L1SVC_CAT_OTA, L1SVC_OTA_CHECKUPDATE },
+    { "config",             L1SVC_CAT_OTA, L1SVC_OTA_CONFIG },
+    { "config_test",        L1SVC_CAT_OTA, L1SVC_OTA_CONFIG_TEST },
+    { "checkupdate_test",   L1SVC_CAT_OTA, L1SVC_OTA_CHECKUPDATE_TEST },
+    { "update",             L1SVC_CAT_OTA, L1SVC_OTA_UPDATE },
+    { "rollback",           L1SVC_CAT_OTA, L1SVC_OTA_ROLLBACK },
+    { "update_pkg_test",    L1SVC_CAT_OTA, L1SVC_OTA_PKG_TEST },
+    { "ab_partition_test",  L1SVC_CAT_OTA, L1SVC_OTA_AB_TEST },
+    { "update_check_test",  L1SVC_CAT_OTA, L1SVC_OTA_CHECK_TEST },
+    { "update_download_test", L1SVC_CAT_OTA, L1SVC_OTA_DOWNLOAD_TEST },
+    { "update_verify_test", L1SVC_CAT_OTA, L1SVC_OTA_VERIFY_TEST },
+    { "update_install_test", L1SVC_CAT_OTA, L1SVC_OTA_INSTALL_TEST },
+    { "update_rollback_test", L1SVC_CAT_OTA, L1SVC_OTA_ROLLBACK_TEST },
+    { "update_local_test",  L1SVC_CAT_OTA, L1SVC_OTA_LOCAL_TEST },
+    { "update_status_test", L1SVC_CAT_OTA, L1SVC_OTA_STATUS_TEST },
+    { "real_update_test",   L1SVC_CAT_OTA, L1SVC_OTA_REAL_TEST },
 };
 
 static int svc_cmd_run(int argc, char *argv[]) {
@@ -972,6 +1006,9 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  wifi / bt              Wireless + bluetooth families\n");
         puts_("  sound / play / volume  Audio cards, playback, mixer\n");
         puts_("  hda/ac97/sb16/es1370/virtiosnd/usbaudio + _test variants\n");
+        puts_("  update / checkupdate / rollback   A/B update family\n");
+        puts_("  config list|get|set    System configuration store\n");
+        puts_("  update_*_test          OTA test suite\n");
         puts_("\n  Editing: Up/Down history, Left/Right/Home/End cursor, Del,\n");
         puts_("  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion\n");
         puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
@@ -2772,7 +2809,13 @@ void _start(void) {
                     "usbaudio","play","volume",
                     "hda_test","ac97_test","sb16_test","es1370_test",
                     "virtio_snd_test","usb_audio_test","audio_rw_test",
-                    "sample_rate_test",0
+                    "sample_rate_test",
+                    "checkupdate","config","config_test","checkupdate_test",
+                    "update","rollback","update_pkg_test","ab_partition_test",
+                    "update_check_test","update_download_test",
+                    "update_verify_test","update_install_test",
+                    "update_rollback_test","update_local_test",
+                    "update_status_test","real_update_test",0
                 };
                 int found = 0;
                 int blen = 0;

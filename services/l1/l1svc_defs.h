@@ -141,4 +141,26 @@
 #define L1SVC_SND_RW_TEST     16   /* audio_rw_test           */
 #define L1SVC_SND_RATE_TEST   17   /* sample_rate_test        */
 
+/* ---- ota operations (services/ota) ---------------------------------
+ * Mirrors the v1 oc> update-family commands (17; `reboot` belongs to
+ * the power surface).  Bodies live in services/ota/ota_ab.c,
+ * ota_update.c, core/lib/lib_config.c (config family) and
+ * services/ota/ota_cmds_test.c. */
+#define L1SVC_OTA_CHECKUPDATE      1  /* checkupdate           */
+#define L1SVC_OTA_CONFIG           2  /* config list|get|set   */
+#define L1SVC_OTA_CONFIG_TEST      3  /* config_test           */
+#define L1SVC_OTA_CHECKUPDATE_TEST 4  /* checkupdate_test      */
+#define L1SVC_OTA_UPDATE           5  /* update [...]          */
+#define L1SVC_OTA_ROLLBACK         6  /* rollback              */
+#define L1SVC_OTA_PKG_TEST         7  /* update_pkg_test       */
+#define L1SVC_OTA_AB_TEST          8  /* ab_partition_test     */
+#define L1SVC_OTA_CHECK_TEST       9  /* update_check_test     */
+#define L1SVC_OTA_DOWNLOAD_TEST   10  /* update_download_test  */
+#define L1SVC_OTA_VERIFY_TEST     11  /* update_verify_test    */
+#define L1SVC_OTA_INSTALL_TEST    12  /* update_install_test   */
+#define L1SVC_OTA_ROLLBACK_TEST   13  /* update_rollback_test  */
+#define L1SVC_OTA_LOCAL_TEST      14  /* update_local_test     */
+#define L1SVC_OTA_STATUS_TEST     15  /* update_status_test    */
+#define L1SVC_OTA_REAL_TEST       16  /* real_update_test      */
+
 #endif /* OC_L1SVC_DEFS_H */
