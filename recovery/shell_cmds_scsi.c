@@ -346,5 +346,3 @@ int shell_cmd_scsitest(const char *args)
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("scsi", shell_cmd_scsi, "SCSI status (HBAs, targets, capacity, blk names)", "camera");
-OC_SHELL_CMD("scsitest", shell_cmd_scsitest, "SCSI self test (CDB goldens, parsers, live target)", "camera");

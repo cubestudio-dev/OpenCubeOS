@@ -29,6 +29,7 @@
 #include "block_svc.h"
 #include "driver_block_part.h"
 #include "shell.h"
+#include "usb_cmds.h"    /* v2.0.0 group N: L1 surface exports */
 #include "screen_console.h"
 #include "lib_string.h"
 #include "core_timer.h"
@@ -62,7 +63,7 @@ static void t_info(const char *test, const char *what) {
  * status commands
  * ================================================================== */
 
-static int shell_cmd_usb(const char *args) {
+int shell_cmd_usb(const char *args) {
     (void)args;
     driver_usb_print_state();
     char n[12];
@@ -86,7 +87,7 @@ static int shell_cmd_usb(const char *args) {
     return 0;
 }
 
-static int shell_cmd_usbdev(const char *args) {
+int shell_cmd_usbdev(const char *args) {
     if (args && args[0]) {
         int slot = 0;
         for (const char *p = args; *p >= '0' && *p <= '9'; p++)
@@ -111,7 +112,7 @@ static int shell_cmd_usbdev(const char *args) {
 
 static int driver_usb_count_devices(void) { return driver_usb_num_devices(); }
 
-static int shell_cmd_usb_core_test(const char *args) {
+int shell_cmd_usb_core_test(const char *args) {
     (void)args;
     const char *T = "usb_core_test";
     int fails = 0;
@@ -216,7 +217,7 @@ static int shell_cmd_usb_core_test(const char *args) {
  * driver_usb_kbd_test / driver_usb_mouse_test
  * ================================================================== */
 
-static int shell_cmd_usb_kbd_test(const char *args) {
+int shell_cmd_usb_kbd_test(const char *args) {
     (void)args;
     const char *T = "usb_kbd_test";
     int kbds = driver_usb_hid_num_keyboards();
@@ -236,7 +237,7 @@ static int shell_cmd_usb_kbd_test(const char *args) {
     return 0;
 }
 
-static int shell_cmd_usb_mouse_test(const char *args) {
+int shell_cmd_usb_mouse_test(const char *args) {
     (void)args;
     const char *T = "usb_mouse_test";
     int mice = driver_usb_hid_num_mice();
@@ -287,7 +288,7 @@ static int shell_cmd_usb_mouse_test(const char *args) {
  * driver_usb_storage_test
  * ================================================================== */
 
-static int shell_cmd_usb_storage_test(const char *args) {
+int shell_cmd_usb_storage_test(const char *args) {
     (void)args;
     const char *T = "usb_storage_test";
     char n[24];
@@ -368,7 +369,7 @@ static int shell_cmd_usb_storage_test(const char *args) {
 
 static const char *SER_MSG = "OpenCubeOS WP-10d serial test\n";
 
-static int shell_cmd_usb_serial_test(const char *args) {
+int shell_cmd_usb_serial_test(const char *args) {
     (void)args;
     const char *T = "usb_serial_test";
     char n[12];
@@ -428,7 +429,7 @@ static int shell_cmd_usb_serial_test(const char *args) {
  * driver_usb_hotplug_test
  * ================================================================== */
 
-static int shell_cmd_usb_hotplug_test(const char *args) {
+int shell_cmd_usb_hotplug_test(const char *args) {
     const char *T = "usb_hotplug_test";
     char n[12];
     if (args && args[0]) {
@@ -473,7 +474,7 @@ static int shell_cmd_usb_hotplug_test(const char *args) {
  * driver_usb_hub_test
  * ================================================================== */
 
-static int shell_cmd_usb_hub_test(const char *args) {
+int shell_cmd_usb_hub_test(const char *args) {
     (void)args;
     const char *T = "usb_hub_test";
     int hubs = 0, children = 0;
@@ -521,12 +522,3 @@ static int shell_cmd_usb_hub_test(const char *args) {
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("usb", shell_cmd_usb, "USB hosts/devices + class driver status", "usb");
-OC_SHELL_CMD("usbdev", shell_cmd_usbdev, "USB device detail (usbdev [slot])", "usb");
-OC_SHELL_CMD("usb_core_test", shell_cmd_usb_core_test, "USB core invariants + live transfers", "usb");
-OC_SHELL_CMD("usb_kbd_test", shell_cmd_usb_kbd_test, "USB HID keyboard presence + injection", "usb");
-OC_SHELL_CMD("usb_mouse_test", shell_cmd_usb_mouse_test, "USB HID mouse presence + event drain", "usb");
-OC_SHELL_CMD("usb_storage_test", shell_cmd_usb_storage_test, "USB MSC drive capacity/rw/partitions", "usb");
-OC_SHELL_CMD("usb_serial_test", shell_cmd_usb_serial_test, "USB serial TX/RX round", "usb");
-OC_SHELL_CMD("usb_hotplug_test", shell_cmd_usb_hotplug_test, "USB hot-plug (usb_hotplug_test [wait-new N|wait-leave N])", "usb");
-OC_SHELL_CMD("usb_hub_test", shell_cmd_usb_hub_test, "USB external hub + children", "usb");

@@ -122,6 +122,7 @@ KERNEL_DIRS := core arch/x86_64 core/mem core/lib \
                services/fs services/net services/l1 \
                services/block services/nic services/snd \
                services/display services/input \
+               services/camera services/usb \
                drivers/block drivers/nic drivers/snd drivers/usb \
                drivers/input drivers/display drivers/pci \
                drivers/acpi drivers/i2c drivers/time \
