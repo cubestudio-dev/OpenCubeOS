@@ -54,6 +54,32 @@ SECTIONS
         *(.rodata .rodata.*)
     } :boot
 
+    /* Open Cube OS 2.0.0 - file-local identity declaration sections.
+     * One entry per OC_SHELL_CMD / OC_DRIVER_DECL / OC_SERVICE_DECL /
+     * OC_L1_APP_DECL macro (see kernel/core/core_registry.h).  Boot-time
+     * collection walks these boundaries; adding a command/driver/
+     * service/app means adding a file - never editing a global table. */
+    .oc_cmds : {
+        __oc_cmds_start = .;
+        KEEP(*(.oc_cmds))
+        __oc_cmds_end = .;
+    } :boot
+    .oc_drvs : {
+        __oc_drvs_start = .;
+        KEEP(*(.oc_drvs))
+        __oc_drvs_end = .;
+    } :boot
+    .oc_svcs : {
+        __oc_svcs_start = .;
+        KEEP(*(.oc_svcs))
+        __oc_svcs_end = .;
+    } :boot
+    .oc_apps : {
+        __oc_apps_start = .;
+        KEEP(*(.oc_apps))
+        __oc_apps_end = .;
+    } :boot
+
     .data : {
         *(.data .data.*)
     } :data

@@ -98,7 +98,7 @@ OC_RELEASE_VERSION ?= 1.0.0
 # 274 at public count 253). The OTA update check compares build ids
 # numerically (BUG-0347), so the public sequence must continue above
 # the already-published 274. The offset keeps one-build-per-commit
-# monotonicity: the v1.0.0 tag sits at public count 255 -> build 276.
+# monotonicity: the v1.0.0 tag sits at public count 257 -> build 278.
 OC_KERNEL_BUILD_OFFSET := 21
 OC_KERNEL_BUILD ?= $(shell expr $$(git -C $(OC_ROOT) rev-list --count HEAD 2>/dev/null || echo 0) + $(OC_KERNEL_BUILD_OFFSET))
 
@@ -532,7 +532,13 @@ src-zip:
 
 # ---- WP-13-build_system: OTA update package ---------------------------
 OTA_PKG := $(DIST)/OpenCubeOS-$(OC_RELEASE_VERSION)-update.tar.gz
-ota: $(KERNEL)
+# v2.0.0: REAL FIX for the 1.0.0 incremental-build trap - `make
+# src-zip ota` used to re-ship a stale ISO next to a fresh OTA
+# (mixed-kernel package set).  The OTA package now also depends
+# on the ISO image, so any kernel change forces BOTH artifacts
+# to rebuild together; a stale-ISO + fresh-OTA set is no longer
+# producible with the documented targets.
+ota: $(KERNEL) $(KERNEL_ISO)
 	@mkdir -p $(DIST)
 	bash $(OC_ROOT)/tools/make_update_pkg.sh "$(OC_RELEASE_VERSION)" "$(KERNEL)" "$(OTA_PKG)"
 	@echo "ota: $(OTA_PKG)"
