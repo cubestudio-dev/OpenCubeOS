@@ -1,938 +1,1518 @@
 {
- "count_declared": 233,
- "count_listed": 233,
+ "count_v2_surface": 251,
+ "count_l0": 99,
+ "count_l1_svc": 133,
+ "count_l1_builtin": 19,
  "commands": [
   {
    "name": "ab_partition_test",
-   "help": "A/B disk discovery + slots + flags (WP-10u)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "abcfg",
-   "help": "show the grub.cfg files abdisk/install write"
+   "help": "abcfg",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "abdisk",
-   "help": "create a bootable A/B update disk (abdisk <dev>; destroys data)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "ac97",
-   "help": "AC'97 status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "ac97_test",
-   "help": "AC'97 init/play test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "acpi",
-   "help": "dump ACPI tables (RSDP/FADT/DSDT/MCFG)"
+   "help": "dump ACPI tables (RSDP/FADT/DSDT/MCFG)",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "acpidev",
-   "help": "list ACPI namespace devices (AML)"
+   "help": "list ACPI namespace devices (AML)",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "acpipow",
-   "help": "ACPI power status (S1-S5/SCI/GPE/FACS)"
+   "help": "ACPI power status (S1-S5/SCI/GPE/FACS)",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "acpitest",
-   "help": "AML interpreter self-test + DSDT checks"
+   "help": "AML interpreter self-test + DSDT checks",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "ahci",
-   "help": "AHCI controller/port status"
+   "help": "ahci / nvme / ata",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "ahci_test",
-   "help": "WP-10a: AHCI init/ports/read-write test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "alias",
-   "help": "set/show aliases"
+   "help": "set/show aliases",
+   "where": "L0",
+   "cat": "recovery"
   },
   {
    "name": "arp",
-   "help": "show ARP cache"
+   "help": "arp / route / ip",
+   "where": "L1-SVC",
+   "cat": "net"
   },
   {
    "name": "ata",
-   "help": "ATA (PIO + Bus-Master DMA) status"
+   "help": "ahci / nvme / ata",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "ata_dma_test",
-   "help": "WP-10a: ATA Bus-Master DMA test + PIO timing"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "audio_rw_test",
-   "help": "play/stop round-trip on every card"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
+  },
+  {
+   "name": "awk",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "bcm57xx",
-   "help": "BCM57xx NIC status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "bcm57xx_test",
-   "help": "WP-10b: BCM57xx presence/link/send-recv test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "bt",
-   "help": "bluetooth: status/usb/uart/test (HCI/L2CAP/RFCOMM/SDP/SPP/HID)"
+   "help": "wifi / bt",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "cat",
-   "help": "print file contents (cat <file>)"
+   "help": "print file contents (cat <file>)",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "cd",
-   "help": "change directory (cd [path])"
+   "help": "change directory (cd [path])",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "checkupdate",
-   "help": "check for updates via /etc/opencube.conf (http/https)"
+   "help": "update / checkupdate / rollback",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "checkupdate_test",
-   "help": "update check self-test (URL/JSON units + live probe)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "chinese",
-   "help": "chinese support status (font/encoding/render/ime)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "display"
   },
   {
    "name": "chinesetest",
-   "help": "run the full Chinese support regression suite"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "display"
+  },
+  {
+   "name": "chmod",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
+  },
+  {
+   "name": "chown",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "clear",
-   "help": "clear screen"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "display"
   },
   {
    "name": "config",
-   "help": "read/write system config (config list|get|set|restore|path)"
+   "help": "config list|get|set",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "config_test",
-   "help": "config subsystem self-test (write/read/get_all/delete/restore)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "cp",
-   "help": "copy file (cp <src> <dst>)"
+   "help": "copy file (cp <src> <dst>)",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "cr3test",
-   "help": "test CR3 switching"
+   "help": "test CR3 switching",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "crashlog",
-   "help": "show last exception crashes"
+   "help": "show last exception crashes",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "crashtest",
-   "help": "trigger kernel crash tests (panic/exc/pf/assert/wd/dump/policy)"
+   "help": "trigger kernel crash tests (panic/exc/pf/assert/wd/dump/policy)",
+   "where": "L0",
+   "cat": "recovery"
   },
   {
    "name": "cryptotest",
-   "help": "test AES/SHA-256/HMAC with NIST vectors"
+   "help": "cryptotest / dhtest",
+   "where": "L1-SVC",
+   "cat": "crypto"
+  },
+  {
+   "name": "date",
+   "help": "date",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "df",
-   "help": "show disk/mount usage"
+   "help": "show disk/mount usage",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "dhcp",
-   "help": "get IP via DHCP"
+   "help": "dhcp / dns / dnstest",
+   "where": "L1-SVC",
+   "cat": "net"
   },
   {
    "name": "dhtest",
-   "help": "DH modexp 1024-bit (Oakley Group 1) timing + correctness"
+   "help": "cryptotest / dhtest",
+   "where": "L1-SVC",
+   "cat": "crypto"
   },
   {
    "name": "disk_rw_test",
-   "help": "WP-10a: rw round-trip on one device (disk_rw_test <dev>)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "dmesg",
-   "help": "show the kernel log ring (dmesg [N])"
+   "help": "show the kernel log ring (dmesg [N])",
+   "where": "L0",
+   "cat": "watchdog"
   },
   {
    "name": "dns",
-   "help": "resolve domain name (dns <name> [aaaa|cname|mx|txt|ns|srv])"
+   "help": "dhcp / dns / dnstest",
+   "where": "L1-SVC",
+   "cat": "net"
   },
   {
    "name": "dnstest",
-   "help": "DNS record-type self-test (A/AAAA/MX/TXT/NS/SRV live)"
+   "help": "dhcp / dns / dnstest",
+   "where": "L1-SVC",
+   "cat": "net"
   },
   {
    "name": "dskstat",
-   "help": "show block devices"
+   "help": "dskstat / lsblk",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "du",
-   "help": "directory usage (du [path])"
+   "help": "directory usage (du [path])",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "dumpinfo",
-   "help": "show core dump status (size/persisted/header)"
+   "help": "show core dump status (size/persisted/header)",
+   "where": "L0",
+   "cat": "recovery"
   },
   {
    "name": "e1000e",
-   "help": "e1000e NIC status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "e1000e_test",
-   "help": "WP-10b: e1000e init/link/send-recv test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "echo",
-   "help": "echo the text back"
+   "help": "echo the text back",
+   "where": "L0",
+   "cat": "recovery"
   },
   {
    "name": "edit",
-   "help": "line editor (edit <file>; :i :d :p :w :q :wq)"
+   "help": "line editor (edit <file>; :i :d :p :w :q :wq)",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "encoding",
-   "help": "encoding codec status (gb2312/utf-8/ascii)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "display"
   },
   {
    "name": "encoding-test",
-   "help": "quick codec round-trip check (full: chinesetest)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "display"
+  },
+  {
+   "name": "env",
+   "help": "env",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "es1370",
-   "help": "ES1370/1371 status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "es1370_test",
-   "help": "ES1370 init/play test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "exc",
-   "help": "run exception self-test (#DE/#UD/#PF)"
+   "help": "run exception self-test (#DE/#UD/#PF)",
+   "where": "L0",
+   "cat": "input"
+  },
+  {
+   "name": "exit",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "export",
-   "help": "set env var (export NAME=value)"
+   "help": "set env var (export NAME=value)",
+   "where": "L0",
+   "cat": "recovery"
   },
   {
    "name": "fatmount",
-   "help": "mount FAT32 (fatmount <dev> <path>)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "fs"
   },
   {
    "name": "fatstat",
-   "help": "show FAT32 stats"
+   "help": "fatstat",
+   "where": "L1-SVC",
+   "cat": "fs"
   },
   {
    "name": "firewall",
-   "help": "show/add/del firewall rules (chains, states, policies, conntrack)"
+   "help": "firewall / nf_test",
+   "where": "L1-SVC",
+   "cat": "net"
   },
   {
    "name": "font",
-   "help": "list registered fonts and the active renderer"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "display"
   },
   {
    "name": "font-test",
-   "help": "render a mixed CJK/ASCII sample row on the console"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "display"
   },
   {
    "name": "frag",
-   "help": "show memory fragmentation"
+   "help": "show memory fragmentation",
+   "where": "L0",
+   "cat": "core"
+  },
+  {
+   "name": "free",
+   "help": "free",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "fs_mount_test",
-   "help": "WP-10a: mkfs+mount FAT32 file round-trip (fs_mount_test <dev>)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "fsck",
-   "help": "filesystem check"
+   "help": "fsck / sync",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "fstest",
-   "help": "run VFS self-test (mkdir/write/read/ls)"
+   "help": "run VFS self-test (mkdir/write/read/ls)",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "gameport",
-   "help": "game port status (axes, buttons, calibration)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "camera"
   },
   {
    "name": "gameporttest",
-   "help": "game port self test (axis reads, buttons, calibration)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "camera"
   },
   {
    "name": "grep",
-   "help": "filter lines matching pattern (grep <pattern> [file])"
+   "help": "filter lines matching pattern (grep <pattern> [file])",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "grub-install",
-   "help": "write the GRUB BIOS boot loader (grub-install <dev>)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "halt",
-   "help": "halt the kernel"
+   "help": "halt the kernel",
+   "where": "L0",
+   "cat": "power"
   },
   {
    "name": "halt_test",
-   "help": "verify halt path (live halt via 'halt')"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "power"
   },
   {
    "name": "hda",
-   "help": "Intel HDA status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "hda_test",
-   "help": "Intel HDA init/codec/play test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
+  },
+  {
+   "name": "head",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "health",
-   "help": "system health monitor (health [watch|export])"
+   "help": "system health monitor (health [watch|export])",
+   "where": "L0",
+   "cat": "watchdog"
   },
   {
    "name": "health export",
-   "help": "write health JSON to /var/log/health.json"
+   "help": "write health JSON to /var/log/health.json",
+   "where": "L0",
+   "cat": "watchdog"
   },
   {
    "name": "health watch",
-   "help": "live health monitor, 1 s refresh (ENTER exits)"
+   "help": "live health monitor, 1 s refresh (ENTER exits)",
+   "where": "L0",
+   "cat": "watchdog"
   },
   {
    "name": "heap",
-   "help": "show kernel heap stats"
+   "help": "show kernel heap stats",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "heapbounds",
-   "help": "heap bounds regression (BUG-0140 wrap / BUG-0141 ceiling)"
+   "help": "heap bounds regression (BUG-0140 wrap / BUG-0141 ceiling)",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "heaptest",
-   "help": "test heap overhead with 100 allocs"
+   "help": "test heap overhead with 100 allocs",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "help",
-   "help": "show this message"
+   "help": "show this message",
+   "where": "L0",
+   "cat": "recovery"
   },
   {
    "name": "help_a_test",
-   "help": "verify help -a A-Z ordering"
+   "help": "verify help -a A-Z ordering",
+   "where": "L0",
+   "cat": "recovery"
   },
   {
    "name": "help_default_test",
-   "help": "verify default help A-Z ordering"
+   "help": "verify default help A-Z ordering",
+   "where": "L0",
+   "cat": "recovery"
   },
   {
    "name": "help_wp_test",
-   "help": "verify help -w group ordering"
+   "help": "verify help -w group ordering",
+   "where": "L0",
+   "cat": "recovery"
+  },
+  {
+   "name": "history",
+   "help": "history",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "hpet",
-   "help": "HPET: caps + counter + one-shot/periodic IRQ8 tests"
+   "help": "HPET: caps + counter + one-shot/periodic IRQ8 tests",
+   "where": "L0",
+   "cat": "time"
   },
   {
    "name": "i2cdetect",
-   "help": "scan I2C/SMBus buses for devices"
+   "help": "scan I2C/SMBus buses for devices",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "i2cget",
-   "help": "read I2C byte (i2cget <bus> <addr> [reg])"
+   "help": "read I2C byte (i2cget <bus> <addr> [reg])",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "i2cset",
-   "help": "write I2C byte (i2cset <bus> <addr> <reg> <val>)"
+   "help": "write I2C byte (i2cset <bus> <addr> <reg> <val>)",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "i2ctest",
-   "help": "I2C core/controller self-test"
+   "help": "I2C core/controller self-test",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "ifconfig",
-   "help": "show network interface info"
+   "help": "show network interface info",
+   "where": "L0",
+   "cat": "net",
+   "bridge": "L1-bridge"
   },
   {
    "name": "igb",
-   "help": "igb NIC status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "igb_test",
-   "help": "WP-10b: igb init/link/send-recv test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "ime",
-   "help": "pinyin IME status; \"ime -i\" opens the interactive console line"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "display"
   },
   {
    "name": "ime-test",
-   "help": "quick IME syllable resolution check"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "display"
   },
   {
    "name": "install",
-   "help": "install the running system to a disk (install <dev>; destroys data)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "ip",
-   "help": "show/set IP address"
+   "help": "arp / route / ip",
+   "where": "L1-SVC",
+   "cat": "net"
   },
   {
    "name": "ir",
-   "help": "infrared status (CIR/SIR devices, carrier, counters)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "camera"
   },
   {
    "name": "irqabitest",
-   "help": "IRQ-entry ABI regression (BUG-0137 align / BUG-0138 DF)"
+   "help": "IRQ-entry ABI regression (BUG-0137 align / BUG-0138 DF)",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "irtest",
-   "help": "infrared self test (NEC/RC5/RC6/SIRC round trips)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "camera"
   },
   {
    "name": "ixgbe",
-   "help": "ixgbe NIC status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "ixgbe_test",
-   "help": "WP-10b: ixgbe presence/link/send-recv test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "kill",
-   "help": "kill a task (kill <tid>)"
+   "help": "kill a task (kill <tid>)",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "l1test",
-   "help": "test L1 job_create/job_list/job_control with running process"
+   "help": "test L1 job_create/job_list/job_control with running process",
+   "where": "L0",
+   "cat": "l1"
   },
   {
    "name": "lang",
-   "help": "show or set the shell output language (lang [en|zh])"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "display"
   },
   {
    "name": "ldd",
-   "help": "list dynamic dependencies (ldd <program>)"
+   "help": "list dynamic dependencies (ldd <program>)",
+   "where": "L0",
+   "cat": "l1"
+  },
+  {
+   "name": "ln",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "logcat",
-   "help": "filter the kernel log (logcat -l lvl -m mod -k key -t sec -n N [-f])"
+   "help": "filter the kernel log (logcat -l lvl -m mod -k key -t sec -n N [-f])",
+   "where": "L0",
+   "cat": "watchdog"
   },
   {
    "name": "logctl",
-   "help": "control the kernel log (logctl status|level|enable|disable|clear|flush|rotate|e"
+   "help": "control the kernel log (logctl status|level|enable|disable|clear|flush|rotate|export|filter)",
+   "where": "L0",
+   "cat": "watchdog"
   },
   {
    "name": "ls",
-   "help": "list directory (ls [path])"
+   "help": "list directory (ls [path])",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "lsblk",
-   "help": "list block devices"
+   "help": "dskstat / lsblk",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "lspci",
-   "help": "list PCI devices"
+   "help": "lspci",
+   "where": "L1-SVC",
+   "cat": "net"
   },
   {
    "name": "mem",
-   "help": "show physical memory stats"
+   "help": "show physical memory stats",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "memtest",
-   "help": "run memory test (PMM + heap)"
+   "help": "run memory test (PMM + heap)",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "mkdir",
-   "help": "make directory (mkdir <path>)"
+   "help": "make directory (mkdir <path>)",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "mkfs.exfat",
-   "help": "format exFAT (mkfs.exfat <dev> confirm)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "mkfs.ext4",
-   "help": "format ext4 (mkfs.ext4 <dev> confirm)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "mkfs.fat32",
-   "help": "format FAT32 (mkfs.fat32 <dev> confirm)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "mount",
-   "help": "list mounts, or mount a fs: mount <type> <device> <path>"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "fs"
   },
   {
    "name": "mounts",
-   "help": "list VFS mount table (alias for mount)"
+   "help": "mounts",
+   "where": "L1-SVC",
+   "cat": "fs"
   },
   {
    "name": "msitest",
-   "help": "LAPIC self-IPI + MSI/MSI-X device fire test"
+   "help": "LAPIC self-IPI + MSI/MSI-X device fire test",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "multi",
-   "help": "spawn 3 tasks with interleaved output"
+   "help": "spawn 3 tasks with interleaved output",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "mv",
-   "help": "move/rename file (mv <src> <dst>)"
+   "help": "move/rename file (mv <src> <dst>)",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "nano",
-   "help": "nano-style editor (nano <file>; ^O save ^X exit)"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "netstat",
-   "help": "show network statistics and sockets"
+   "help": "show network statistics and sockets",
+   "where": "L0",
+   "cat": "net",
+   "bridge": "L1-bridge"
   },
   {
    "name": "nf_test",
-   "help": "netfilter self-test (rules, conntrack, policies, real-path)"
+   "help": "firewall / nf_test",
+   "where": "L1-SVC",
+   "cat": "net"
   },
   {
    "name": "nic_rw_test",
-   "help": "WP-10b: send/recv correctness on all NICs"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "nice",
-   "help": "change priority (nice <tid> <prio>)"
+   "help": "change priority (nice <tid> <prio>)",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "nvme",
-   "help": "NVMe controller/queue status"
+   "help": "ahci / nvme / ata",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "nvme_test",
-   "help": "WP-10a: NVMe init/queues/read-write test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "other_nic_test",
-   "help": "WP-10b: legacy NICs (3c59x/nForce/AR81xx/Yukon)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "parallel",
-   "help": "parallel port status (IEEE 1284 modes, counters)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "camera"
   },
   {
    "name": "paralleltest",
-   "help": "parallel self test (SPP write, EPP cycles, ECP probe)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "camera"
   },
   {
    "name": "parted",
-   "help": "show partition table (parted [dev])"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "partition_test",
-   "help": "WP-10a: MBR+GPT parse test (partition_test [dev])"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "pcibars",
-   "help": "list PCI devices with sized BARs"
+   "help": "list PCI devices with sized BARs",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "pcidump",
-   "help": "dump PCI config space (pcidump <b:d.f>)"
+   "help": "dump PCI config space (pcidump <b:d.f>)",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "pcie",
-   "help": "PCIe MMCONFIG state + capability walk"
+   "help": "PCIe MMCONFIG state + capability walk",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "pftest",
-   "help": "test page fault handling"
+   "help": "test page fault handling",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "ping",
-   "help": "send ICMP echo (ping <host>)"
+   "help": "send ICMP echo (ping <host>)",
+   "where": "L0",
+   "cat": "net",
+   "bridge": "L1-bridge"
   },
   {
    "name": "play",
-   "help": "play a test tone (play [rate])"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "pmmrace",
-   "help": "BUG-0043 repro: PMM bitmap race thread-vs-IRQ"
+   "help": "BUG-0043 repro: PMM bitmap race thread-vs-IRQ",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "pmtimer",
-   "help": "ACPI PM timer: read + PIT calibration + wrap tests"
+   "help": "ACPI PM timer: read + PIT calibration + wrap tests",
+   "where": "L0",
+   "cat": "time"
   },
   {
    "name": "poweroff",
-   "help": "alias of shutdown"
+   "help": "alias of shutdown",
+   "where": "L0",
+   "cat": "power"
   },
   {
    "name": "poweroff_test",
-   "help": "real power-off attempt (QEMU exits)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "power"
   },
   {
    "name": "ps",
-   "help": "list all tasks"
+   "help": "list all tasks",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "pwd",
-   "help": "print working directory"
+   "help": "print working directory",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "real_hw_test",
-   "help": "WP-10a: real-hardware detection report"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "real_update_test",
-   "help": "end-to-end update phase 1 (WP-10u)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "reboot",
-   "help": "reboot the machine (reboot)"
+   "help": "reboot the machine (reboot)",
+   "where": "L0",
+   "cat": "ota"
   },
   {
    "name": "reboot_test",
-   "help": "verify reboot path (live reset via 'reboot')"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "power"
   },
   {
    "name": "rm",
-   "help": "delete file (rm <file>)"
+   "help": "delete file (rm <file>)",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "rmdir",
-   "help": "remove directory (rmdir <path>)"
+   "help": "remove directory (rmdir <path>)",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "rollback",
-   "help": "roll back to slot A (rollback)"
+   "help": "update / checkupdate / rollback",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "route",
-   "help": "show/add/del routing table (route add <dst> <mask> <gw>)"
+   "help": "arp / route / ip",
+   "where": "L1-SVC",
+   "cat": "net"
   },
   {
    "name": "rtc",
-   "help": "CMOS RTC: time + status + UIE/PIE/alarm interrupt tests"
+   "help": "CMOS RTC: time + status + UIE/PIE/alarm interrupt tests",
+   "where": "L0",
+   "cat": "time"
   },
   {
    "name": "rtl810x",
-   "help": "RTL810x NIC status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "rtl810x_test",
-   "help": "WP-10b: RTL810x presence/link/send-recv test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "rtl8125",
-   "help": "RTL8125 NIC status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "rtl8125_test",
-   "help": "WP-10b: RTL8125 presence/link/send-recv test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "rtl8139",
-   "help": "RTL8139 NIC status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "rtl8139_test",
-   "help": "WP-10b: RTL8139 init/link/send-recv test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "rtl8168",
-   "help": "RTL8168 NIC status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "rtl8168_test",
-   "help": "WP-10b: RTL8168 presence/link/send-recv test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "run",
-   "help": "run a user program (hello/badapp/loop/fork_test/.../dyn_test/so_test/dyn_hello/"
+   "help": "run a user program (hello/badapp/loop/fork_test/.../dyn_test/so_test/dyn_hello/dlsym_test/pie_test/reloc_test)",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "sample_rate_test",
-   "help": "44100/48000 rate configuration test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "sb16",
-   "help": "Sound Blaster 16 status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "sb16_test",
-   "help": "SB16 init/play test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "sched",
-   "help": "show scheduler stats"
+   "help": "show scheduler stats",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "scsi",
-   "help": "SCSI status (HBAs, targets, capacity, blk names)"
+   "help": "scsi / scsitest",
+   "where": "L1-SVC",
+   "cat": "camera"
   },
   {
    "name": "scsitest",
-   "help": "SCSI self test (CDB goldens, parsers, live target)"
+   "help": "scsi / scsitest",
+   "where": "L1-SVC",
+   "cat": "camera"
+  },
+  {
+   "name": "sed",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "set",
-   "help": "list env vars"
+   "help": "list env vars",
+   "where": "L0",
+   "cat": "recovery"
   },
   {
    "name": "shutdown",
-   "help": "power off (flush + ACPI/Bochs/APM ports)"
+   "help": "power off (flush + ACPI/Bochs/APM ports)",
+   "where": "L0",
+   "cat": "power"
   },
   {
    "name": "sleep",
-   "help": "delay for N seconds (sleep <sec>)"
+   "help": "delay for N seconds (sleep <sec>)",
+   "where": "L0",
+   "cat": "power"
   },
   {
    "name": "smbus",
-   "help": "list SMBus devices from the scan"
+   "help": "list SMBus devices from the scan",
+   "where": "L0",
+   "cat": "input"
   },
   {
    "name": "smbustest",
-   "help": "SMBus protocol test (byte/word/block)"
+   "help": "SMBus protocol test (byte/word/block)",
+   "where": "L0",
+   "cat": "input"
+  },
+  {
+   "name": "sort",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "sound",
-   "help": "list registered sound cards"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "spawn",
-   "help": "spawn a test kernel thread"
+   "help": "spawn a test kernel thread",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "ssh",
-   "help": "SSH client connect (ssh <ip> [port] [user] [password])"
+   "help": "SSH client connect (ssh <ip> [port] [user] [password])",
+   "where": "L0",
+   "cat": "crypto"
   },
   {
    "name": "sshd",
-   "help": "SSH server (sshd [port=22] [user=oc] [password=oc])"
+   "help": "SSH server (sshd [port=22] [user=oc] [password=oc])",
+   "where": "L0",
+   "cat": "crypto"
+  },
+  {
+   "name": "stat",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "stats",
-   "help": "show interrupt/timer stats"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "display"
+  },
+  {
+   "name": "suspend_test",
+   "help": "suspend_test",
+   "where": "L1-SVC",
+   "cat": "power"
   },
   {
    "name": "sync",
-   "help": "flush disk cache"
+   "help": "fsck / sync",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "syncstat",
-   "help": "show sync primitive stats"
+   "help": "show sync primitive stats",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "synctest",
-   "help": "test sync primitives (spinlock/mutex/sem)"
+   "help": "test sync primitives (spinlock/mutex/sem)",
+   "where": "L0",
+   "cat": "core"
+  },
+  {
+   "name": "tail",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "tcpcc_test",
-   "help": "CUBIC congestion control self-test vectors"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "net"
   },
   {
    "name": "tcpstats",
-   "help": "show TCP reliability stats (cwnd, rto, etc.)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "net"
   },
   {
    "name": "tcptest",
-   "help": "TCP option negotiation self-test (MSS/WScale/SACK/TS live)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "net"
   },
   {
    "name": "timer",
-   "help": "register a 500ms one-shot timer"
+   "help": "register a 500ms one-shot timer",
+   "where": "L0",
+   "cat": "input"
+  },
+  {
+   "name": "top",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "touch",
-   "help": "create empty file (touch <path>)"
+   "help": "create empty file (touch <path>)",
+   "where": "L0",
+   "cat": "fs"
   },
   {
    "name": "touchpad",
-   "help": "touchpad status + pending gesture events"
+   "help": "touchpad / touchtest",
+   "where": "L1-SVC",
+   "cat": "input"
   },
   {
    "name": "touchtest",
-   "help": "multitouch pipeline self-test (tap/scroll/pinch/swipe)"
+   "help": "touchpad / touchtest",
+   "where": "L1-SVC",
+   "cat": "input"
   },
   {
    "name": "tree",
-   "help": "tree view of directory (tree [path])"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "fs"
   },
   {
    "name": "tsc",
-   "help": "TSC: reads + PIT/HPET/PMTimer calibration + delay test"
+   "help": "TSC: reads + PIT/HPET/PMTimer calibration + delay test",
+   "where": "L0",
+   "cat": "time"
   },
   {
    "name": "tui",
-   "help": "full-screen TUI main menu (arrows/Tab/Enter/Esc)"
+   "help": "full-screen TUI main menu (arrows/Tab/Enter/Esc)",
+   "where": "L0",
+   "cat": "display"
   },
   {
    "name": "tui-drv",
-   "help": "driver setup TUI (alias of tui-hw; page name optional)"
+   "help": "driver setup TUI (alias of tui-hw; page name optional)",
+   "where": "L0",
+   "cat": "display"
   },
   {
    "name": "tui-ext",
-   "help": "TUI L1 extension lab: selftest + registries"
+   "help": "TUI L1 extension lab: selftest + registries",
+   "where": "L0",
+   "cat": "display"
   },
   {
    "name": "tui-hw",
-   "help": "hardware configuration TUI (optional: page name)"
+   "help": "hardware configuration TUI (optional: page name)",
+   "where": "L0",
+   "cat": "display"
   },
   {
    "name": "tui-net",
-   "help": "wireless network TUI (WiFi + Bluetooth)"
+   "help": "wireless network TUI (WiFi + Bluetooth)",
+   "where": "L0",
+   "cat": "display"
   },
   {
    "name": "tui-sys",
-   "help": "system settings TUI (host/net/storage/user/security/update/log/tui)"
+   "help": "system settings TUI (host/net/storage/user/security/update/log/tui)",
+   "where": "L0",
+   "cat": "display"
   },
   {
    "name": "tui-sysinfo",
-   "help": "system information TUI (optional: page name)"
+   "help": "system information TUI (optional: page name)",
+   "where": "L0",
+   "cat": "display"
   },
   {
    "name": "tui-test",
-   "help": "run the TUI self-test suite (input/expected/actual/verdict)"
+   "help": "run the TUI self-test suite (input/expected/actual/verdict)",
+   "where": "L0",
+   "cat": "display"
   },
   {
    "name": "tui-time",
-   "help": "time TUI: clock/sources/set RTC/timezone"
+   "help": "time TUI: clock/sources/set RTC/timezone",
+   "where": "L0",
+   "cat": "display"
   },
   {
    "name": "umount",
-   "help": "unmount (umount <path>)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "fs"
   },
   {
    "name": "unalias",
-   "help": "remove an alias"
+   "help": "remove an alias",
+   "where": "L0",
+   "cat": "recovery"
   },
   {
    "name": "uname",
-   "help": "print OS name (uname [-a|-s|-r|-m])"
+   "help": "uname",
+   "where": "L1-SVC",
+   "cat": "display"
+  },
+  {
+   "name": "uniq",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "update",
-   "help": "check + install system update (update [local <pkg> | --local <pkg> | --status])"
+   "help": "update / checkupdate / rollback",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "update_check_test",
-   "help": "update manifest check with package fields (WP-10u)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "update_download_test",
-   "help": "download the update package (WP-10u)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "update_install_test",
-   "help": "install the package into slot B (WP-10u)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "update_local_test",
-   "help": "offline update flow via cmd_update --local (WP-10u)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "update_pkg_test",
-   "help": "gzip/DEFLATE + tar unit tests (WP-10u)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "update_rollback_test",
-   "help": "boot flags + rollback (WP-10u)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "update_status_test",
-   "help": "ota_update_get_status coverage (WP-10u)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "update_verify_test",
-   "help": "SHA256 verification of the package (WP-10u)"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "ota"
   },
   {
    "name": "usb",
-   "help": "USB hosts/devices + class driver status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "usb"
   },
   {
    "name": "usb_audio_test",
-   "help": "USB audio init/play test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "usb_core_test",
-   "help": "USB core invariants + live transfers"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "usb"
   },
   {
    "name": "usb_hotplug_test",
-   "help": "USB hot-plug (usb_hotplug_test [wait-new N|wait-leave N])"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "usb"
   },
   {
    "name": "usb_hub_test",
-   "help": "USB external hub + children"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "usb"
   },
   {
    "name": "usb_kbd_test",
-   "help": "USB HID keyboard presence + injection"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "usb"
   },
   {
    "name": "usb_mouse_test",
-   "help": "USB HID mouse presence + event drain"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "usb"
   },
   {
    "name": "usb_serial_test",
-   "help": "USB serial TX/RX round"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "usb"
   },
   {
    "name": "usb_storage_test",
-   "help": "USB MSC drive capacity/rw/partitions"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "usb"
   },
   {
    "name": "usbaudio",
-   "help": "USB audio status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "usbdev",
-   "help": "USB device detail (usbdev [slot])"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "usb"
   },
   {
    "name": "uvc",
-   "help": "camera subsystem status (UVC devices, formats, frames)"
+   "help": "uvc / uvctest",
+   "where": "L1-SVC",
+   "cat": "camera"
   },
   {
    "name": "uvctest",
-   "help": "camera self test (JPEG decode, UVC descriptor parse, core)"
+   "help": "uvc / uvctest",
+   "where": "L1-SVC",
+   "cat": "camera"
   },
   {
    "name": "vi",
-   "help": "vi editor, two-mode (hjkl move, i/a/o insert, ESC, :w :q :wq :q!)"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "virtio_blk_test",
-   "help": "WP-10a: virtio-blk capacity + read/write test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "block"
   },
   {
    "name": "virtio_snd_test",
-   "help": "virtio-snd init/play test"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "virtiosnd",
-   "help": "virtio-snd status"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "vmkernelpt",
-   "help": "VMM PT-ownership regression (BUG-0136)"
+   "help": "VMM PT-ownership regression (BUG-0136)",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "vmmap",
-   "help": "show address space mappings"
+   "help": "show address space mappings",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "vmtest",
-   "help": "run virtual memory test"
+   "help": "run virtual memory test",
+   "where": "L0",
+   "cat": "core"
   },
   {
    "name": "volume",
-   "help": "get/set volume (volume [0-100])"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "snd"
   },
   {
    "name": "watchdog",
-   "help": "watchdog status/control (hw TCO/WDAT + monitored slots + policy tests)"
+   "help": "watchdog status/control (hw TCO/WDAT + monitored slots + policy tests)",
+   "where": "L0",
+   "cat": "watchdog"
+  },
+  {
+   "name": "wc",
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "wget",
-   "help": "download file via HTTP (wget <host> [port] [path])"
+   "help": "download file via HTTP (wget <host> [port] [path])",
+   "where": "L0",
+   "cat": "net",
+   "bridge": "L1-bridge"
   },
   {
    "name": "wifi",
-   "help": "wireless: status/scan/test/sdio (802.11 families + SDIO bus)"
+   "help": "wifi / bt",
+   "where": "L1-SVC",
+   "cat": "nic"
   },
   {
    "name": "write",
-   "help": "write text to file (write <path> <text>)"
+   "help": "write text to file (write <path> <text>)",
+   "where": "L0",
+   "cat": "block"
   }
  ]
 }

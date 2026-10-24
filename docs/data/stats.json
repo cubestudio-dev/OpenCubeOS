@@ -1,54 +1,42 @@
 {
  "dirs": {
-  "kernel": {
-   "files": 87,
-   "lines": 42126
+  "core": {
+   "files": 36,
+   "lines": 16368
+  },
+  "arch": {
+   "files": 23,
+   "lines": 2715
+  },
+  "drivers": {
+   "files": 123,
+   "lines": 39249
+  },
+  "services": {
+   "files": 108,
+   "lines": 40490
+  },
+  "recovery": {
+   "files": 35,
+   "lines": 10420
+  },
+  "tui": {
+   "files": 25,
+   "lines": 10940
+  },
+  "chinese": {
+   "files": 15,
+   "lines": 4495
   },
   "boot": {
    "files": 4,
    "lines": 252
   },
-  "userprogs": {
-   "files": 8,
-   "lines": 3393
-  },
-  "arch": {
-   "files": 4,
-   "lines": 310
-  },
-  "drivers": {
-   "files": 130,
-   "lines": 40965
-  },
-  "fs": {
-   "files": 10,
-   "lines": 6216
-  },
-  "net": {
+  "l1apps": {
    "files": 9,
-   "lines": 13166
-  },
-  "shell": {
-   "files": 47,
-   "lines": 14505
-  },
-  "l1": {
-   "files": 13,
-   "lines": 3047
-  },
-  "tui": {
-   "files": 25,
-   "lines": 10960
-  },
-  "chinese": {
-   "files": 15,
-   "lines": 4518
-  },
-  "libs": {
-   "files": 1,
-   "lines": 1214
+   "lines": 5082
   }
  },
- "total_lines": 140672,
- "total_files": 353
+ "total_lines": 130011,
+ "total_files": 378
 }
