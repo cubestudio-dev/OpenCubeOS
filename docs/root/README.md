@@ -6,6 +6,9 @@
 
 **A from-scratch x86_64 kernel with a WinRE-style recovery shell.**
 
+Current release: **v1.0.0** - the first public, SemVer-numbered
+release (see [Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)).
+
 `oc>` is the prompt. Everything is extensible.
 
 [Website](https://cubestudio-dev.github.io/OpenCubeOS/) ·
@@ -97,9 +100,9 @@ and mirrored on the
 
 | Asset | What it is |
 |-------|------------|
-| `opencube-<version>.iso` | Hybrid BIOS+UEFI bootable ISO - boot it in QEMU or write to USB |
-| `opencube-<version>-src.zip` | Deterministic source zip (`git archive`) |
-| `opencube-<version>-update.tar.gz` | OTA update package (SHA256 + signature verified, A/B slots) |
+| `opencube-1.0.0.iso` | Hybrid BIOS+UEFI bootable ISO - boot it in QEMU or write to USB |
+| `opencube-1.0.0-src.zip` | Deterministic source zip (`git archive`) |
+| `opencube-1.0.0-update.tar.gz` | OTA update package (SHA256 + signature verified, A/B slots) |
 
 Each release note carries the SHA256 of all three; the website,
 the Release and the private mirror hold byte-identical copies.
@@ -129,7 +132,7 @@ command is quoted per item):
   Verify:
   `git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(kernel|boot|userprogs|fs|net|shell|l1|drivers|libs|tui|chinese|arch)/' | grep -vE 'userprobs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l`
 - **Shell commands**: 233 - verify live with `help -a` in the guest.
-- **L1 extension interfaces**: 162 numbered (57 WP-09 + 8 + 13 + 7 +
+- **L1 extension interfaces**: 162 numbered (57 + 8 + 13 + 7 +
   26 + 11 + 7 + 9 + 8 + 16), plus documented unnumbered groups -
   see [INTERFACES.md](INTERFACES.md) for the exact surface.
 - **Syscalls**: 53 - verify:
