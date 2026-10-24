@@ -172,26 +172,26 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
         <th>Header</th>
       </tr></thead>
       <tbody>
-        <tr><td><span data-i18n="arch.surface.57">WP-09 foundation</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.57d">framebuffer access, font engines, console hook, config, power, shell bridge</small></td>
-            <td class="num">57</td><td>WP-09</td><td><code>l1/l1_ext.h</code></td></tr>
+        <tr><td><span data-i18n="arch.surface.57">Core foundation</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.57d">framebuffer access, font engines, console hook, config, power, shell bridge</small></td>
+            <td class="num">57</td><td>core</td><td><code>l1/l1_ext.h</code></td></tr>
         <tr><td><span data-i18n="arch.surface.8">Block drivers</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.8d">register/read/write/flush + AHCI / NVMe / ATA-DMA init</small></td>
-            <td class="num">+8</td><td>WP-10a</td><td><code>drivers/block/driver_block_blk.h</code></td></tr>
+            <td class="num">+8</td><td>drivers</td><td><code>drivers/block/driver_block_blk.h</code></td></tr>
         <tr><td><span data-i18n="arch.surface.13">NIC drivers</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.13d">register/send/recv/link/MAC + e1000-family and BCM57xx init</small></td>
-            <td class="num">+13</td><td>WP-10b</td><td><code>drivers/nic/driver_nic.h</code></td></tr>
+            <td class="num">+13</td><td>drivers</td><td><code>drivers/nic/driver_nic.h</code></td></tr>
         <tr><td><span data-i18n="arch.surface.7">A/B update</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.7d">slots, flags, verify, staged install</small></td>
-            <td class="num">+7</td><td>WP-10u</td><td><code>kernel/ota/ota_ab.h</code></td></tr>
+            <td class="num">+7</td><td>ota</td><td><code>kernel/ota/ota_ab.h</code></td></tr>
         <tr><td><span data-i18n="arch.surface.26">Sound drivers</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.26d">register/play/stop/rate/volume/caps + HDA/AC97/SB16/ES1370/virtio</small></td>
-            <td class="num">+26</td><td>WP-10c</td><td><code>drivers/snd/driver_snd.h</code></td></tr>
+            <td class="num">+26</td><td>drivers</td><td><code>drivers/snd/driver_snd.h</code></td></tr>
         <tr><td><span data-i18n="arch.surface.11">Dynamic loading</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.11d">so_load/dlsym/dlopen, relocations, ldso</small></td>
-            <td class="num">+11</td><td>WP-08b</td><td><code>l1/l1_wp8b.h</code></td></tr>
+            <td class="num">+11</td><td>runtime</td><td><code>l1/l1_wp8b.h</code></td></tr>
         <tr><td><span data-i18n="arch.surface.7b">Shell built-ins &amp; jobs</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.7d">register builtins, tool registry, job create/list/control</small></td>
-            <td class="num">+7</td><td>WP-08cd</td><td><code>l1/l1_wp8cd.h</code></td></tr>
+            <td class="num">+7</td><td>shell</td><td><code>l1/l1_wp8cd.h</code></td></tr>
         <tr><td><span data-i18n="arch.surface.9">Process / fd / memory</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.9d">exec/exit, pipes, fd_dup, mmap-facing API</small></td>
-            <td class="num">+9</td><td>WP-08a</td><td><code>l1/l1_wp8a.h</code></td></tr>
+            <td class="num">+9</td><td>runtime</td><td><code>l1/l1_wp8a.h</code></td></tr>
         <tr><td><span data-i18n="arch.surface.8t">TUI extensions</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.8td">the first TUI extension declarations</small></td>
             <td class="num">+8</td><td>TUI</td><td><code>tui/tui_ext.h</code></td></tr>
         <tr><td><span data-i18n="arch.surface.16">Watchdog / klog / health</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.16d">watchdog register/start/feed, klog levels + rotate, health export</small></td>
-            <td class="num">+16</td><td>WP-12</td><td><code>lib_klog.h · core_watchdog.h · core_health.h</code></td></tr>
+            <td class="num">+16</td><td>core</td><td><code>lib_klog.h · core_watchdog.h · core_health.h</code></td></tr>
       </tbody>
     </table>
     </div>

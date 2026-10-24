@@ -56,9 +56,9 @@ make -j"$(nproc)" kernel
 make iso
 ```
 
-The version banner comes from `git describe --tags` (override with
-`make OC_RELEASE_VERSION=WP-14-test1`). The build number is the commit
-count.
+The version banner comes from the `1.0.0` literal in the Makefile
+(override with `make OC_RELEASE_VERSION=1.0.1-test1`). The build
+number is the commit count.
 
 ### Boot and test
 

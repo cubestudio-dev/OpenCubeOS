@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS - WP-14-docs_release
+# Open Cube OS - v1.0.0 release tooling
 # File: tools/build_release.sh
 # Purpose: the one-command release builder - the SOP's steps 1-5
 #          (docs/release/process.md) executed and gated:
@@ -17,7 +17,7 @@
 #          manually or with your own tooling - deliberate asymmetry.
 #
 # Usage: tools/build_release.sh <version> [--deep]
-#        (version example: WP-14-docs_release)
+#        (version example: 1.0.0)
 
 set -euo pipefail
 

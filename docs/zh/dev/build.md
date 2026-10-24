@@ -29,8 +29,9 @@ make reproducible-check    # two clean builds -> byte-identical ELF
 
 ## 版本号与构建号
 
-- `OC_RELEASE_VERSION` 默认取 `git describe --tags`；在命令行
-  覆盖（`make OC_RELEASE_VERSION=WP-14-test1 iso`），否则它会
+- `OC_RELEASE_VERSION` 默认取 Makefile 中的 `1.0.0` 字面量（见
+  [版本号规则](../release/versioning.md)）；在命令行
+  覆盖（`make OC_RELEASE_VERSION=1.0.1-test1 iso`），否则它会
   进入横幅、`uname -a`、OTA 清单与 ISO 卷标。
 - 构建号是提交计数（`git rev-list count`）——它供给 `uname`
   以及发布时 update.json 的 "build" 字段。
