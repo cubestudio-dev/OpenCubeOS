@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS - WP-14 localization
+# Open Cube OS - v1.0.0 release tooling
 # File: tools/sync_wiki.sh
 # Purpose: sync the documentation tree to the GitHub Wiki (bilingual).
 #

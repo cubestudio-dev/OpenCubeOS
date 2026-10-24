@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS - WP-14-docs_release
+# Open Cube OS - v1.0.0 release tooling
 # File: tools/gen_api_docs.py
 # Purpose: generate_api_docs() - the documentation data generator.
 #

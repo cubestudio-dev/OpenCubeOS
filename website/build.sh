@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS - WP-14-docs_release
+# Open Cube OS - v1.0.0 release tooling
 # File: website/build.sh
 # Purpose: build the whole website - facade is static (nothing to do),
 #          docs center is VitePress over a build-time copy of docs/.

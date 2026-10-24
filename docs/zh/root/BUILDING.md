@@ -48,7 +48,7 @@ make -j"$(nproc)" kernel
 make iso
 ```
 
-版本横幅来自 `git describe --tags`（可通过 `make OC_RELEASE_VERSION=WP-14-test1` 覆盖）。构建号是提交计数。
+版本横幅来自 Makefile 中的 `1.0.0` 字面量（可通过 `make OC_RELEASE_VERSION=1.0.1-test1` 覆盖）。构建号是提交计数。
 
 ### 启动与测试
 

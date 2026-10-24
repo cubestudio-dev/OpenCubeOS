@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS - WP-10u
+# Open Cube OS - v1.0.0 release tooling
 # File: tools/make_update_pkg.sh
 # Purpose: build a WP-10u update package (tar.gz + manifest.json).
 #

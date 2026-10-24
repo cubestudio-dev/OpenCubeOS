@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS - WP-13-build_system
+# Open Cube OS - v1.0.0 release tooling
 # File: tools/oc_menuconfig.sh
 # Purpose: dependency-free interactive configuration editor for the
 #          WP-13 multi-config options (spec 5.7).  Reads .config if
@@ -47,7 +47,7 @@ done <<< "$OPTIONS"
 
 draw() {
     clear 2>/dev/null || true
-    echo "Open Cube OS configuration (WP-13)  ->  $CFG"
+    echo "Open Cube OS configuration (v1.0.0)  ->  $CFG"
     echo "========================================================="
     n=1
     while IFS='|' read -r id desc def; do

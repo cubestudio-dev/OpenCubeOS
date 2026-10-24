@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS - WP-13-build_system
+# Open Cube OS - v1.0.0 release tooling
 # File: tools/oc_cc.sh
 # Purpose: content-addressed compile cache wrapper (WP-13 spec 5.6).
 #

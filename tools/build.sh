@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS - WP-13-build_system
+# Open Cube OS - v1.0.0 release tooling
 # File: tools/build.sh
 # Purpose: One-command build entry for Linux hosts.  Behaviour is exactly
 #          `make` with the same target names - this script only adds:

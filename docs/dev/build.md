@@ -31,8 +31,9 @@ never fight).
 
 ## Version and build number
 
-- `OC_RELEASE_VERSION` defaults to `git describe --tags`; override on
-  the command line (`make OC_RELEASE_VERSION=WP-14-test1 iso`) or it
+- `OC_RELEASE_VERSION` defaults to the `1.0.0` literal in the
+  Makefile (see [versioning](../release/versioning.md)); override on
+  the command line (`make OC_RELEASE_VERSION=1.0.1-test1 iso`) or it
   ends up in the banner, `uname -a`, the OTA manifest and the ISO
   volume id.
 - The build number is the commit count (`git rev-list count`) - it
