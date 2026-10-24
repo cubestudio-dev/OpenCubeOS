@@ -96,4 +96,28 @@
 #define L1SVC_BLK_GRUB_INSTALL 22   /* grub-install <dev>      */
 #define L1SVC_BLK_ABCFG        23   /* abcfg                   */
 
+/* ---- nic operations (services/nic) ---------------------------------
+ * Mirrors the v1 oc> NIC commands (18; bodies in services/nic/
+ * nic_cmds.c). */
+#define L1SVC_NIC_E1000E        1   /* e1000e                  */
+#define L1SVC_NIC_IGB           2   /* igb                     */
+#define L1SVC_NIC_IXGBE         3   /* ixgbe                   */
+#define L1SVC_NIC_RTL8139       4   /* rtl8139                 */
+#define L1SVC_NIC_RTL8168       5   /* rtl8168                 */
+#define L1SVC_NIC_RTL8125       6   /* rtl8125                 */
+#define L1SVC_NIC_RTL810X       7   /* rtl810x                 */
+#define L1SVC_NIC_BCM57XX       8   /* bcm57xx                 */
+#define L1SVC_NIC_E1000E_TEST   9   /* e1000e_test             */
+#define L1SVC_NIC_IGB_TEST     10   /* igb_test                */
+#define L1SVC_NIC_IXGBE_TEST   11   /* ixgbe_test              */
+#define L1SVC_NIC_RTL8139_TEST 12   /* rtl8139_test            */
+#define L1SVC_NIC_RTL8168_TEST 13   /* rtl8168_test            */
+#define L1SVC_NIC_RTL8125_TEST 14   /* rtl8125_test            */
+#define L1SVC_NIC_RTL810X_TEST 15   /* rtl810x_test            */
+#define L1SVC_NIC_BCM57XX_TEST 16   /* bcm57xx_test            */
+#define L1SVC_NIC_OTHER_TEST   17   /* other_nic_test          */
+#define L1SVC_NIC_RW_TEST      18   /* nic_rw_test             */
+#define L1SVC_NIC_WIFI         19   /* wifi [status|scan|...]  */
+#define L1SVC_NIC_BT           20   /* bt [status|usb|test]    */
+
 #endif /* OC_L1SVC_DEFS_H */

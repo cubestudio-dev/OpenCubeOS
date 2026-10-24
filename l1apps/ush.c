@@ -91,6 +91,27 @@
 #define L1SVC_BLK_INSTALL      21   /* install <dev> */
 #define L1SVC_BLK_GRUB_INSTALL 22   /* grub-install <dev> */
 #define L1SVC_BLK_ABCFG        23   /* abcfg */
+#define L1SVC_CAT_NIC       3
+#define L1SVC_NIC_E1000E        1   /* e1000e */
+#define L1SVC_NIC_IGB           2   /* igb */
+#define L1SVC_NIC_IXGBE         3   /* ixgbe */
+#define L1SVC_NIC_RTL8139       4   /* rtl8139 */
+#define L1SVC_NIC_RTL8168       5   /* rtl8168 */
+#define L1SVC_NIC_RTL8125       6   /* rtl8125 */
+#define L1SVC_NIC_RTL810X       7   /* rtl810x */
+#define L1SVC_NIC_BCM57XX       8   /* bcm57xx */
+#define L1SVC_NIC_E1000E_TEST   9   /* e1000e_test */
+#define L1SVC_NIC_IGB_TEST     10   /* igb_test */
+#define L1SVC_NIC_IXGBE_TEST   11   /* ixgbe_test */
+#define L1SVC_NIC_RTL8139_TEST 12   /* rtl8139_test */
+#define L1SVC_NIC_RTL8168_TEST 13   /* rtl8168_test */
+#define L1SVC_NIC_RTL8125_TEST 14   /* rtl8125_test */
+#define L1SVC_NIC_RTL810X_TEST 15   /* rtl810x_test */
+#define L1SVC_NIC_BCM57XX_TEST 16   /* bcm57xx_test */
+#define L1SVC_NIC_OTHER_TEST   17   /* other_nic_test */
+#define L1SVC_NIC_RW_TEST      18   /* nic_rw_test */
+#define L1SVC_NIC_WIFI         19   /* wifi */
+#define L1SVC_NIC_BT           20   /* bt */
 #define NETCMD_IFCONFIG  1
 #define NETCMD_PING      2
 #define NETCMD_NETSTAT   3
@@ -771,6 +792,27 @@ static const struct svc_cmd SVC_CMDS[] = {
     { "install",       L1SVC_CAT_BLOCK, L1SVC_BLK_INSTALL       },
     { "grub-install",  L1SVC_CAT_BLOCK, L1SVC_BLK_GRUB_INSTALL  },
     { "abcfg",         L1SVC_CAT_BLOCK, L1SVC_BLK_ABCFG         },
+    /* nic service (services/nic, wireless family included) */
+    { "e1000e",        L1SVC_CAT_NIC, L1SVC_NIC_E1000E        },
+    { "igb",           L1SVC_CAT_NIC, L1SVC_NIC_IGB           },
+    { "ixgbe",         L1SVC_CAT_NIC, L1SVC_NIC_IXGBE         },
+    { "rtl8139",       L1SVC_CAT_NIC, L1SVC_NIC_RTL8139       },
+    { "rtl8168",       L1SVC_CAT_NIC, L1SVC_NIC_RTL8168       },
+    { "rtl8125",       L1SVC_CAT_NIC, L1SVC_NIC_RTL8125       },
+    { "rtl810x",       L1SVC_CAT_NIC, L1SVC_NIC_RTL810X       },
+    { "bcm57xx",       L1SVC_CAT_NIC, L1SVC_NIC_BCM57XX       },
+    { "e1000e_test",   L1SVC_CAT_NIC, L1SVC_NIC_E1000E_TEST   },
+    { "igb_test",      L1SVC_CAT_NIC, L1SVC_NIC_IGB_TEST      },
+    { "ixgbe_test",    L1SVC_CAT_NIC, L1SVC_NIC_IXGBE_TEST    },
+    { "rtl8139_test",  L1SVC_CAT_NIC, L1SVC_NIC_RTL8139_TEST  },
+    { "rtl8168_test",  L1SVC_CAT_NIC, L1SVC_NIC_RTL8168_TEST  },
+    { "rtl8125_test",  L1SVC_CAT_NIC, L1SVC_NIC_RTL8125_TEST  },
+    { "rtl810x_test",  L1SVC_CAT_NIC, L1SVC_NIC_RTL810X_TEST  },
+    { "bcm57xx_test",  L1SVC_CAT_NIC, L1SVC_NIC_BCM57XX_TEST  },
+    { "other_nic_test", L1SVC_CAT_NIC, L1SVC_NIC_OTHER_TEST   },
+    { "nic_rw_test",   L1SVC_CAT_NIC, L1SVC_NIC_RW_TEST       },
+    { "wifi",          L1SVC_CAT_NIC, L1SVC_NIC_WIFI          },
+    { "bt",            L1SVC_CAT_NIC, L1SVC_NIC_BT            },
 };
 
 static int svc_cmd_run(int argc, char *argv[]) {
@@ -889,6 +931,9 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  abdisk / install / grub-install <dev>  Disk setup\n");
         puts_("  abcfg                  A/B grub.cfg preview\n");
         puts_("  *_test                 Block driver test suite\n");
+        puts_("  <nicname> [/_test]     NIC status + tests (e1000e igb ixgbe\n");
+        puts_("                         rtl8139/8168/8125/810x bcm57xx, other)\n");
+        puts_("  wifi / bt              Wireless + bluetooth families\n");
         puts_("\n  Editing: Up/Down history, Left/Right/Home/End cursor, Del,\n");
         puts_("  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion\n");
         puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
@@ -2678,7 +2723,13 @@ void _start(void) {
                     "abdisk","install","grub-install","abcfg",
                     "ahci_test","nvme_test","ata_dma_test",
                     "virtio_blk_test","disk_rw_test","partition_test",
-                    "fs_mount_test","real_hw_test",0
+                    "fs_mount_test","real_hw_test",
+                    "e1000e","igb","ixgbe","rtl8139","rtl8168","rtl8125",
+                    "rtl810x","bcm57xx","other_nic_test","nic_rw_test",
+                    "wifi","bt",
+                    "e1000e_test","igb_test","ixgbe_test","rtl8139_test",
+                    "rtl8168_test","rtl8125_test","rtl810x_test",
+                    "bcm57xx_test",0
                 };
                 int found = 0;
                 int blen = 0;

@@ -1937,78 +1937,11 @@ int shell_complete_command_prefix(const char *prefix, char *out, int out_cap) {
 /* nano/vi <file>: the kernel-side editor (same engine for both names,
  * like the ush pairing). The `edit` line editor from WP-05 stays
  * available unchanged. */
-static int shell_cmd_nano(const char *args) {
-    if (!args || !args[0]) {
-        screen_console_puts("usage: nano <file>   (^O save, ^X exit)\n");
-        return 1;
-    }
-    /* First token = file name. */
-    char file[128];
-    int i = 0;
-    while (args[i] && args[i] != ' ' && i < (int)sizeof(file) - 1) {
-        file[i] = args[i];
-        i++;
-    }
-    file[i] = 0;
-    /* Resolve against the shell cwd (nano resolves like every other
-     * file command). */
-    const char *resolved = shell_resolve_path_static(file);
-    int r = editor_open(resolved ? resolved : file);
-    if (r != 0) {
-        if (r == -4) {
-            /* BUG-0242 FIX (A15-16): a read error is no longer swallowed
-             * as EOF - the open aborts so no partial view can be saved
-             * over the file. Say so explicitly. */
-            screen_console_puts("nano: read error on ");
-            screen_console_puts(file);
-            screen_console_puts(" - refusing to open a partial view\n");
-        } else {
-            screen_console_puts("nano: cannot open ");
-            screen_console_puts(file);
-            screen_console_putc('\n');
-        }
-        return 1;
-    }
-    int rc = editor_run();   /* editor_close() is done inside editor_run */
-    return rc;
-}
-
 /* BUG-0135 FIX: `vi` used to be a plain alias of shell_cmd_nano, so the
  * "vi editor" the docs promised did not exist — every key, including
  * "ithree-fox" and ":wq", was literal text in the same nano buffer.
  * vi now runs the real modal engine (editor_run_vi): NORMAL/INSERT,
  * hjkl/0/$/G/gg/x/dd/i a A I o O and a `:` ex command line. */
-static int shell_cmd_vi(const char *args) {
-    if (!args || !args[0]) {
-        screen_console_puts("usage: vi <file>   (hjkl move, i insert, :w :q :wq :q!)\n");
-        return 1;
-    }
-    char file[128];
-    int i = 0;
-    while (args[i] && args[i] != ' ' && i < (int)sizeof(file) - 1) {
-        file[i] = args[i];
-        i++;
-    }
-    file[i] = 0;
-    const char *resolved = shell_resolve_path_static(file);
-    int r = editor_open(resolved ? resolved : file);
-    if (r != 0) {
-        if (r == -4) {
-            /* BUG-0242 FIX (A15-16): read error != EOF - see nano. */
-            screen_console_puts("vi: read error on ");
-            screen_console_puts(file);
-            screen_console_puts(" - refusing to open a partial view\n");
-        } else {
-            screen_console_puts("vi: cannot open ");
-            screen_console_puts(file);
-            screen_console_putc('\n');
-        }
-        return 1;
-    }
-    int rc = editor_run_vi();   /* editor_close() is done inside editor_run_vi */
-    return rc;
-}
-
 /* ================================================================== *
  * WP-05: shell_init
  * ================================================================== */
@@ -2108,5 +2041,3 @@ OC_SHELL_CMD("export", shell_cmd_export, "set env var (export NAME=value)", "rec
 OC_SHELL_CMD("set", shell_cmd_set, "list env vars", "recovery");
 OC_SHELL_CMD("alias", shell_cmd_alias, "set/show aliases", "recovery");
 OC_SHELL_CMD("unalias", shell_cmd_unalias, "remove an alias", "recovery");
-OC_SHELL_CMD("nano", shell_cmd_nano, "nano-style editor (nano <file>; ^O save ^X exit)", "fs");
-OC_SHELL_CMD("vi", shell_cmd_vi, "vi editor, two-mode (hjkl move, i/a/o insert, ESC, :w :q :wq :q!)", "fs");

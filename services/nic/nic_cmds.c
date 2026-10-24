@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10b
- * File: shell/shell_cmds_nic_test.c
+ * File: services/nic/nic_cmds.c (migrated from recovery/shell_cmds_nic_test.c)
  * Purpose: Shell test/status commands for the WP-10b NIC drivers.
  *
  * Per-family tests share one pattern:
@@ -20,7 +20,8 @@
  * driver_nic_rw_test exercises send + recv round-trips on every registered
  * NIC.  real_hw_test (WP-10a) is extended with the NIC section.
  */
-#include "../../services/nic/nic_svc.h"
+#include "nic_svc.h"
+#include "wl_cmds.h"
 #include "net_core.h"
 #include "shell.h"
 #include "screen_console.h"
@@ -171,41 +172,41 @@ static int driver_nic_family_test(driver_nic_type_t type, const char *testname) 
 
 /* ---- per-family test commands ---- */
 
-static int shell_cmd_e1000e_test(const char *args) {
+int nic_cmd_e1000e_test(const char *args) {
     (void)args;
     return driver_nic_family_test(NIC_TYPE_E1000E, "e1000e_test");
 }
-static int shell_cmd_igb_test(const char *args) {
+int nic_cmd_igb_test(const char *args) {
     (void)args;
     return driver_nic_family_test(NIC_TYPE_IGB, "igb_test");
 }
-static int shell_cmd_ixgbe_test(const char *args) {
+int nic_cmd_ixgbe_test(const char *args) {
     (void)args;
     return driver_nic_family_test(NIC_TYPE_IXGBE, "ixgbe_test");
 }
-static int shell_cmd_rtl8139_test(const char *args) {
+int nic_cmd_rtl8139_test(const char *args) {
     (void)args;
     return driver_nic_family_test(NIC_TYPE_RTL8139, "rtl8139_test");
 }
-static int shell_cmd_rtl8168_test(const char *args) {
+int nic_cmd_rtl8168_test(const char *args) {
     (void)args;
     return driver_nic_family_test(NIC_TYPE_RTL8168, "rtl8168_test");
 }
-static int shell_cmd_rtl8125_test(const char *args) {
+int nic_cmd_rtl8125_test(const char *args) {
     (void)args;
     return driver_nic_family_test(NIC_TYPE_RTL8125, "rtl8125_test");
 }
-static int shell_cmd_rtl810x_test(const char *args) {
+int nic_cmd_rtl810x_test(const char *args) {
     (void)args;
     return driver_nic_family_test(NIC_TYPE_RTL810X, "rtl810x_test");
 }
-static int shell_cmd_bcm57xx_test(const char *args) {
+int nic_cmd_bcm57xx_test(const char *args) {
     (void)args;
     return driver_nic_family_test(NIC_TYPE_BCM57XX, "bcm57xx_test");
 }
 
 /* other_nic_test: legacy families (3c59x / nForce / AR81xx / Yukon). */
-static int shell_cmd_other_nic_test(const char *args) {
+int nic_cmd_other_nic_test(const char *args) {
     (void)args;
     int idx = driver_nic_find_by_type(NIC_TYPE_OTHER);
     if (idx < 0) {
@@ -224,7 +225,7 @@ static int shell_cmd_other_nic_test(const char *args) {
 }
 
 /* driver_nic_rw_test: send/recv correctness on EVERY registered NIC. */
-static int shell_cmd_nic_rw_test(const char *args) {
+int nic_cmd_nic_rw_test(const char *args) {
     (void)args;
     char line[120];
     char n[16];
@@ -281,28 +282,28 @@ static int shell_cmd_nic_rw_test(const char *args) {
 
 /* ---- per-family status commands (thin shells) ---- */
 
-static int shell_cmd_nic_e1000e(const char *args) {
+int nic_cmd_nic_e1000e(const char *args) {
     (void)args; driver_nic_e1000e_print_state(); return 0;
 }
-static int shell_cmd_nic_igb(const char *args) {
+int nic_cmd_nic_igb(const char *args) {
     (void)args; driver_nic_igb_print_state(); return 0;
 }
-static int shell_cmd_nic_ixgbe(const char *args) {
+int nic_cmd_nic_ixgbe(const char *args) {
     (void)args; driver_nic_ixgbe_print_state(); return 0;
 }
-static int shell_cmd_nic_rtl8139(const char *args) {
+int nic_cmd_nic_rtl8139(const char *args) {
     (void)args; driver_nic_rtl8139_print_state(); return 0;
 }
-static int shell_cmd_nic_rtl8168(const char *args) {
+int nic_cmd_nic_rtl8168(const char *args) {
     (void)args; rtl8168_print_state(); return 0;
 }
-static int shell_cmd_nic_rtl8125(const char *args) {
+int nic_cmd_nic_rtl8125(const char *args) {
     (void)args; rtl8125_print_state(); return 0;
 }
-static int shell_cmd_nic_rtl810x(const char *args) {
+int nic_cmd_nic_rtl810x(const char *args) {
     (void)args; rtl810x_print_state(); return 0;
 }
-static int shell_cmd_nic_bcm57xx(const char *args) {
+int nic_cmd_nic_bcm57xx(const char *args) {
     (void)args; bcm57xx_print_state(); return 0;
 }
 
@@ -310,21 +311,3 @@ static int shell_cmd_nic_bcm57xx(const char *args) {
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("e1000e_test", shell_cmd_e1000e_test, "WP-10b: e1000e init/link/send-recv test", "nic");
-OC_SHELL_CMD("igb_test", shell_cmd_igb_test, "WP-10b: igb init/link/send-recv test", "nic");
-OC_SHELL_CMD("ixgbe_test", shell_cmd_ixgbe_test, "WP-10b: ixgbe presence/link/send-recv test", "nic");
-OC_SHELL_CMD("rtl8139_test", shell_cmd_rtl8139_test, "WP-10b: RTL8139 init/link/send-recv test", "nic");
-OC_SHELL_CMD("rtl8168_test", shell_cmd_rtl8168_test, "WP-10b: RTL8168 presence/link/send-recv test", "nic");
-OC_SHELL_CMD("rtl8125_test", shell_cmd_rtl8125_test, "WP-10b: RTL8125 presence/link/send-recv test", "nic");
-OC_SHELL_CMD("rtl810x_test", shell_cmd_rtl810x_test, "WP-10b: RTL810x presence/link/send-recv test", "nic");
-OC_SHELL_CMD("bcm57xx_test", shell_cmd_bcm57xx_test, "WP-10b: BCM57xx presence/link/send-recv test", "nic");
-OC_SHELL_CMD("other_nic_test", shell_cmd_other_nic_test, "WP-10b: legacy NICs (3c59x/nForce/AR81xx/Yukon)", "nic");
-OC_SHELL_CMD("nic_rw_test", shell_cmd_nic_rw_test, "WP-10b: send/recv correctness on all NICs", "nic");
-OC_SHELL_CMD("e1000e", shell_cmd_nic_e1000e, "e1000e NIC status", "nic");
-OC_SHELL_CMD("igb", shell_cmd_nic_igb, "igb NIC status", "nic");
-OC_SHELL_CMD("ixgbe", shell_cmd_nic_ixgbe, "ixgbe NIC status", "nic");
-OC_SHELL_CMD("rtl8139", shell_cmd_nic_rtl8139, "RTL8139 NIC status", "nic");
-OC_SHELL_CMD("rtl8168", shell_cmd_nic_rtl8168, "RTL8168 NIC status", "nic");
-OC_SHELL_CMD("rtl8125", shell_cmd_nic_rtl8125, "RTL8125 NIC status", "nic");
-OC_SHELL_CMD("rtl810x", shell_cmd_nic_rtl810x, "RTL810x NIC status", "nic");
-OC_SHELL_CMD("bcm57xx", shell_cmd_nic_bcm57xx, "BCM57xx NIC status", "nic");

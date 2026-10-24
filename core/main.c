@@ -116,8 +116,6 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "driver_brcm.h"               /* WP-10-wireless_bluetooth: Broadcom */
 #include "driver_sdhci.h"              /* WP-10-wireless_bluetooth: SDHCI/SDIO */
 #include "driver_bt.h"                 /* WP-10-wireless_bluetooth: Bluetooth */
-#include "shell_cmds_wireless.h"       /* WP-10-wireless_bluetooth: wifi */
-#include "shell_cmds_bt.h"             /* WP-10-wireless_bluetooth: bt */
 #include "driver_camera.h"             /* WP-10-camera_misc: camera core */
 #include "driver_camera_uvc.h"         /* WP-10-camera_misc: UVC class */
 #include "shell_cmds_camera.h"         /* WP-10-camera_misc: uvc commands */
