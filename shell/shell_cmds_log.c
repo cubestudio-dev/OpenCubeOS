@@ -40,6 +40,7 @@
 #include "lib_klog.h"
 #include "fs_vfs.h"
 #include "core_timer.h"
+#include "core_registry.h"
 
 #pragma GCC optimize("Os")
 
@@ -492,11 +493,8 @@ int shell_cmd_log_logctl(const char *args) {
     return 1;
 }
 
-void shell_cmds_log_register(void) {
-    shell_register_command_ex("dmesg", shell_cmd_log_dmesg,
-                              "show the kernel log ring (dmesg [N])", "WP-12");
-    shell_register_command_ex("logcat", shell_cmd_log_logcat,
-                              "filter the kernel log (logcat -l lvl -m mod -k key -t sec -n N [-f])", "WP-12");
-    shell_register_command_ex("logctl", shell_cmd_log_logctl,
-                              "control the kernel log (logctl status|level|enable|disable|clear|flush|rotate|export|filter)", "WP-12");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("dmesg", shell_cmd_log_dmesg, "show the kernel log ring (dmesg [N])", "watchdog");
+OC_SHELL_CMD("logcat", shell_cmd_log_logcat, "filter the kernel log (logcat -l lvl -m mod -k key -t sec -n N [-f])", "watchdog");
+OC_SHELL_CMD("logctl", shell_cmd_log_logctl, "control the kernel log (logctl status|level|enable|disable|clear|flush|rotate|export|filter)", "watchdog");

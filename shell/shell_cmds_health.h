@@ -10,6 +10,5 @@
 int shell_cmd_health(const char *args);
 int shell_cmd_health_watch(const char *args);
 int shell_cmd_health_export(const char *args);
-void shell_cmds_health_register(void);
 
 #endif /* OC_SHELL_CMDS_HEALTH_H */

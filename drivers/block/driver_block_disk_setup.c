@@ -32,6 +32,7 @@
 #include "fs_vfs.h"
 #include "screen_console.h"
 #include "lib_string.h"
+#include "core_registry.h"
 
 /* GRUB boot.img offsets (grub 2.x include/grub/offsets.h, i386-pc). */
 #define GRUB_BOOT_MACHINE_KERNEL_SECTOR 0x5C
@@ -610,12 +611,9 @@ static int shell_cmd_abcfg_show(const char *args) {
     return 0;
 }
 
-void driver_block_disk_setup_register(void) {
-    shell_register_command_ex("abdisk", shell_cmd_abdisk, "create a bootable A/B update disk "
-                           "(abdisk <dev>; destroys data)", "WP-10c-selfhost");
-    shell_register_command_ex("install", shell_cmd_install, "install the running system to a disk "
-                           "(install <dev>; destroys data)", "WP-10c-selfhost");
-    shell_register_command_ex("grub-install", shell_cmd_grubinstall, "write the GRUB BIOS boot loader "
-                           "(grub-install <dev>)", "WP-10c-selfhost");
-    shell_register_command_ex("abcfg", shell_cmd_abcfg_show, "show the grub.cfg files abdisk/install write", "WP-10c-selfhost");
-}
+
+/* ---- v2.0.0 file-local command declarations ---- */
+OC_SHELL_CMD("abcfg", shell_cmd_abcfg_show, "show the grub.cfg files abdisk/install write", "block");
+OC_SHELL_CMD("abdisk", shell_cmd_abdisk, "create a bootable A/B update disk (abdisk <dev>; destroys data)", "block");
+OC_SHELL_CMD("install", shell_cmd_install, "install the running system to a disk (install <dev>; destroys data)", "block");
+OC_SHELL_CMD("grub-install", shell_cmd_grubinstall, "write the GRUB BIOS boot loader (grub-install <dev>)", "block");

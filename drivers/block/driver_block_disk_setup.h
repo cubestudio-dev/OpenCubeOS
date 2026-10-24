@@ -35,6 +35,5 @@
 int grub_install_device(int dev_idx);
 
 /* Register the abdisk / install / grub-install shell commands. */
-void driver_block_disk_setup_register(void);
 
 #endif /* OC_DISK_SETUP_H */

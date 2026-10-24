@@ -24,6 +24,7 @@
 #include "lib_string.h"
 
 #include <stdint.h>
+#include "core_registry.h"
 
 /* ------------------------------------------------------------------ */
 /* helpers                                                             */
@@ -831,21 +832,21 @@ int shell_cmd_touchtest(const char *args) {
 /* registration                                                        */
 /* ------------------------------------------------------------------ */
 
-void shell_cmds_chipset_register(void) {
-    shell_register_command_ex("acpi",      shell_cmd_acpi,      "dump ACPI tables (RSDP/FADT/DSDT/MCFG)", "WP-10-input_chipset");
-    shell_register_command_ex("acpidev",   shell_cmd_acpidev,   "list ACPI namespace devices (AML)", "WP-10-input_chipset");
-    shell_register_command_ex("acpitest",  shell_cmd_acpitest,  "AML interpreter self-test + DSDT checks", "WP-10-input_chipset");
-    shell_register_command_ex("acpipow",   shell_cmd_acpipow,   "ACPI power status (S1-S5/SCI/GPE/FACS)", "WP-10-input_chipset");
-    shell_register_command_ex("msitest",   shell_cmd_msitest,   "LAPIC self-IPI + MSI/MSI-X device fire test", "WP-10-input_chipset");
-    shell_register_command_ex("pcidump",   shell_cmd_pcidump,   "dump PCI config space (pcidump <b:d.f>)", "WP-10-input_chipset");
-    shell_register_command_ex("pcibars",   shell_cmd_pcibars,   "list PCI devices with sized BARs", "WP-10-input_chipset");
-    shell_register_command_ex("pcie",      shell_cmd_pcie,      "PCIe MMCONFIG state + capability walk", "WP-10-input_chipset");
-    shell_register_command_ex("i2cdetect", shell_cmd_i2cdetect, "scan I2C/SMBus buses for devices", "WP-10-input_chipset");
-    shell_register_command_ex("i2cget",    shell_cmd_i2cget,    "read I2C byte (i2cget <bus> <addr> [reg])", "WP-10-input_chipset");
-    shell_register_command_ex("i2cset",    shell_cmd_i2cset,    "write I2C byte (i2cset <bus> <addr> <reg> <val>)", "WP-10-input_chipset");
-    shell_register_command_ex("i2ctest",   shell_cmd_i2ctest,   "I2C core/controller self-test", "WP-10-input_chipset");
-    shell_register_command_ex("smbus",     shell_cmd_smbus,     "list SMBus devices from the scan", "WP-10-input_chipset");
-    shell_register_command_ex("smbustest", shell_cmd_smbustest, "SMBus protocol test (byte/word/block)", "WP-10-input_chipset");
-    shell_register_command_ex("touchpad",  shell_cmd_touchpad,  "touchpad status + pending gesture events", "WP-10-input_chipset");
-    shell_register_command_ex("touchtest", shell_cmd_touchtest, "multitouch pipeline self-test (tap/scroll/pinch/swipe)", "WP-10-input_chipset");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("acpi", shell_cmd_acpi, "dump ACPI tables (RSDP/FADT/DSDT/MCFG)", "input");
+OC_SHELL_CMD("acpidev", shell_cmd_acpidev, "list ACPI namespace devices (AML)", "input");
+OC_SHELL_CMD("acpitest", shell_cmd_acpitest, "AML interpreter self-test + DSDT checks", "input");
+OC_SHELL_CMD("acpipow", shell_cmd_acpipow, "ACPI power status (S1-S5/SCI/GPE/FACS)", "input");
+OC_SHELL_CMD("msitest", shell_cmd_msitest, "LAPIC self-IPI + MSI/MSI-X device fire test", "input");
+OC_SHELL_CMD("pcidump", shell_cmd_pcidump, "dump PCI config space (pcidump <b:d.f>)", "input");
+OC_SHELL_CMD("pcibars", shell_cmd_pcibars, "list PCI devices with sized BARs", "input");
+OC_SHELL_CMD("pcie", shell_cmd_pcie, "PCIe MMCONFIG state + capability walk", "input");
+OC_SHELL_CMD("i2cdetect", shell_cmd_i2cdetect, "scan I2C/SMBus buses for devices", "input");
+OC_SHELL_CMD("i2cget", shell_cmd_i2cget, "read I2C byte (i2cget <bus> <addr> [reg])", "input");
+OC_SHELL_CMD("i2cset", shell_cmd_i2cset, "write I2C byte (i2cset <bus> <addr> <reg> <val>)", "input");
+OC_SHELL_CMD("i2ctest", shell_cmd_i2ctest, "I2C core/controller self-test", "input");
+OC_SHELL_CMD("smbus", shell_cmd_smbus, "list SMBus devices from the scan", "input");
+OC_SHELL_CMD("smbustest", shell_cmd_smbustest, "SMBus protocol test (byte/word/block)", "input");
+OC_SHELL_CMD("touchpad", shell_cmd_touchpad, "touchpad status + pending gesture events", "input");
+OC_SHELL_CMD("touchtest", shell_cmd_touchtest, "multitouch pipeline self-test (tap/scroll/pinch/swipe)", "input");

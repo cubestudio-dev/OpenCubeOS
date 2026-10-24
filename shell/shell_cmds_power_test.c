@@ -41,6 +41,7 @@
 #include "shell.h"
 #include "screen_console.h"
 #include "lib_string.h"
+#include "core_registry.h"
 
 /* 1. poweroff_test - real shutdown attempt (QEMU exits here) */
 static int shell_cmd_poweroff_test(const char *args) {
@@ -158,20 +159,11 @@ static int shell_cmd_help_wp_test(const char *args) {
     return ok ? 0 : 1;
 }
 
-void shell_cmds_power_test_register(void) {
-    shell_register_command_ex("poweroff_test", shell_cmd_poweroff_test,
-                              "real power-off attempt (QEMU exits)", "WP-10d-fix2");
-    /* fix3: 'suspend_test' hidden together with the suspend command --
-     * the honest-contract probe stays compiled but has no user-visible
-     * entry point while suspend itself is hidden (KNOWN_ISSUES 15.6). */
-    shell_register_command_ex("halt_test", shell_cmd_halt_test,
-                              "verify halt path (live halt via 'halt')", "WP-10d-fix2");
-    shell_register_command_ex("reboot_test", shell_cmd_reboot_test,
-                              "verify reboot path (live reset via 'reboot')", "WP-10d-fix2");
-    shell_register_command_ex("help_default_test", shell_cmd_help_default_test,
-                              "verify default help A-Z ordering", "WP-10d-fix2");
-    shell_register_command_ex("help_wp_test", shell_cmd_help_wp_test,
-                              "verify help -w group ordering", "WP-10d-fix2");
-    shell_register_command_ex("help_a_test", shell_cmd_help_a_test,
-                              "verify help -a A-Z ordering", "WP-10d-fix2");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("poweroff_test", shell_cmd_poweroff_test, "real power-off attempt (QEMU exits)", "power");
+OC_SHELL_CMD("halt_test", shell_cmd_halt_test, "verify halt path (live halt via 'halt')", "power");
+OC_SHELL_CMD("reboot_test", shell_cmd_reboot_test, "verify reboot path (live reset via 'reboot')", "power");
+OC_SHELL_CMD("help_default_test", shell_cmd_help_default_test, "verify default help A-Z ordering", "power");
+OC_SHELL_CMD("help_wp_test", shell_cmd_help_wp_test, "verify help -w group ordering", "power");
+OC_SHELL_CMD("help_a_test", shell_cmd_help_a_test, "verify help -a A-Z ordering", "power");

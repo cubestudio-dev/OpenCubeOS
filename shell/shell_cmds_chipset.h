@@ -43,6 +43,4 @@ int shell_cmd_touchpad(const char *args);
 /* touchtest - multitouch pipeline self-test (fixture-driven) */
 int shell_cmd_touchtest(const char *args);
 
-void shell_cmds_chipset_register(void);
-
 #endif /* OC_SHELL_CMDS_CHIPSET_H */

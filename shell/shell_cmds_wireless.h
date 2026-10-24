@@ -12,6 +12,5 @@
 #define SHELL_CMDS_WIRELESS_H
 
 int shell_cmd_wifi(const char *args);
-void shell_cmds_wireless_register(void);
 
 #endif /* SHELL_CMDS_WIRELESS_H */

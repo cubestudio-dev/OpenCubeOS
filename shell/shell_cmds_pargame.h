@@ -14,6 +14,4 @@ int shell_cmd_paralleltest(const char *args);
 int shell_cmd_gameport(const char *args);
 int shell_cmd_gameporttest(const char *args);
 
-void shell_cmds_pargame_register(void);
-
 #endif /* OC_SHELL_CMDS_PARGAME_H */

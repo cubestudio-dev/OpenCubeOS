@@ -6,7 +6,6 @@
  */
 #ifndef OC_DISK_CMDS_H
 #define OC_DISK_CMDS_H
-void shell_cmds_disk_register(void);
 
 /* WP-10a: format the block device `dev_idx` as FAT32 (the logic behind
  * the `mkfs.fat32` shell command), exported so the fs_mount_test command

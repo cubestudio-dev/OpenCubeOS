@@ -33,6 +33,7 @@
 #include "lib_string.h"
 #include "core_timer.h"
 #include "core_sched.h"
+#include "core_registry.h"
 
 static void t_pass(const char *test, const char *what) {
     char line[140];
@@ -518,14 +519,14 @@ static int shell_cmd_usb_hub_test(const char *args) {
  * drivers/usb/driver_usb.c in WP-10-tui; kmain starts it)
  * ================================================================== */
 
-void shell_cmds_usb_test_register(void) {
-    shell_register_command_ex("usb", shell_cmd_usb, "USB hosts/devices + class driver status", "WP-10d");
-    shell_register_command_ex("usbdev", shell_cmd_usbdev, "USB device detail (usbdev [slot])", "WP-10d");
-    shell_register_command_ex("usb_core_test", shell_cmd_usb_core_test, "USB core invariants + live transfers", "WP-10d");
-    shell_register_command_ex("usb_kbd_test", shell_cmd_usb_kbd_test, "USB HID keyboard presence + injection", "WP-10d");
-    shell_register_command_ex("usb_mouse_test", shell_cmd_usb_mouse_test, "USB HID mouse presence + event drain", "WP-10d");
-    shell_register_command_ex("usb_storage_test", shell_cmd_usb_storage_test, "USB MSC drive capacity/rw/partitions", "WP-10d");
-    shell_register_command_ex("usb_serial_test", shell_cmd_usb_serial_test, "USB serial TX/RX round", "WP-10d");
-    shell_register_command_ex("usb_hotplug_test", shell_cmd_usb_hotplug_test, "USB hot-plug (usb_hotplug_test [wait-new N|wait-leave N])", "WP-10d");
-    shell_register_command_ex("usb_hub_test", shell_cmd_usb_hub_test, "USB external hub + children", "WP-10d");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("usb", shell_cmd_usb, "USB hosts/devices + class driver status", "usb");
+OC_SHELL_CMD("usbdev", shell_cmd_usbdev, "USB device detail (usbdev [slot])", "usb");
+OC_SHELL_CMD("usb_core_test", shell_cmd_usb_core_test, "USB core invariants + live transfers", "usb");
+OC_SHELL_CMD("usb_kbd_test", shell_cmd_usb_kbd_test, "USB HID keyboard presence + injection", "usb");
+OC_SHELL_CMD("usb_mouse_test", shell_cmd_usb_mouse_test, "USB HID mouse presence + event drain", "usb");
+OC_SHELL_CMD("usb_storage_test", shell_cmd_usb_storage_test, "USB MSC drive capacity/rw/partitions", "usb");
+OC_SHELL_CMD("usb_serial_test", shell_cmd_usb_serial_test, "USB serial TX/RX round", "usb");
+OC_SHELL_CMD("usb_hotplug_test", shell_cmd_usb_hotplug_test, "USB hot-plug (usb_hotplug_test [wait-new N|wait-leave N])", "usb");
+OC_SHELL_CMD("usb_hub_test", shell_cmd_usb_hub_test, "USB external hub + children", "usb");

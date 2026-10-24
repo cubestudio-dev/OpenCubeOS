@@ -39,6 +39,7 @@
 #include "lib_string.h"
 #include "fs_vfs.h"
 #include "editor.h"
+#include "core_registry.h"
 static int g_shell_last_rc = 0;   /* fix2: $? */
 
 
@@ -211,32 +212,32 @@ int shell_execute(const char *line) {
 /* Canonical work-package display order + descriptions.  Tags not in
  * this table (if an L1 driver registers its own) are appended after the
  * known ones, sorted A-Z, with no description. */
-static const struct { const char *tag; const char *desc; } g_wp_order[] = {
-    { "WP-01",           "boot, framebuffer, text" },
-    { "WP-02",           "interrupts, timer, keyboard" },
-    { "WP-03",           "shell core" },
-    { "WP-04",           "memory, scheduler" },
-    { "WP-05",           "VFS, FAT32, ATA" },
-    { "WP-06",           "network stack" },
-    { "WP-07",           "block layer" },
-    { "WP-08a",          "ring-3 user mode" },
-    { "WP-08b",          "ELF, dynamic linking" },
-    { "WP-08cd",         "user-space shell + toolset" },
-    { "WP-09",           "secure transport" },
-    { "WP-09-fix5",      "config, update check" },
-    { "WP-10a",          "storage drivers" },
-    { "WP-10b",          "NIC drivers" },
-    { "WP-10c",          "sound drivers" },
-    { "WP-10d",          "USB host stack" },
-    { "WP-10u",          "in-system update" },
-    { "WP-10c-selfhost", "rule-9 self-hosting" },
-    { "WP-10d-fix2",     "power management, help" },
-    { "WP-10-input_chipset", "input devices + chipset" },
-    { "WP-10-timer_rtc",     "time sources (RTC/HPET/PMTimer/TSC)" },
-    { "WP-10-wireless_bluetooth", "wireless + bluetooth (802.11/HCI/L2CAP/RFCOMM)" },
-    { "WP-10-camera_misc",   "cameras, parallel port, game port" },
-    { "WP-10-tui",           "TUI framework, hw/net/sysinfo apps" },
-    { "WP-10-chinese_support", "GB2312 font, encoding, CJK render/IME" },
+static const struct { const char *tag; const char *desc; } g_svc_order[] = {
+    /* v2.0.0: command groups are the L0 service categories
+     * (services/<category> folders - one-to-one with the L1 interface
+     * surface).  The order below is the help -w display order. */
+    { "recovery",  "recovery shell core (oc>)" },
+    { "core",      "kernel core: memory, scheduler, diagnostics" },
+    { "fs",        "file service: VFS, ext4/FAT32/exFAT/ramfs" },
+    { "net",       "network service: TCP/IP, DNS, DHCP, SSH" },
+    { "block",     "block service + storage drivers" },
+    { "nic",       "NIC service + ethernet drivers" },
+    { "snd",       "sound service + audio drivers" },
+    { "display",   "display service: framebuffer, font, CJK render" },
+    { "input",     "input service: keyboard, mouse, touch" },
+    { "usb",       "USB service + host stack" },
+    { "wireless",  "wireless service (802.11)" },
+    { "bluetooth", "bluetooth service (HCI/L2CAP/RFCOMM)" },
+    { "camera",    "camera service (UVC)" },
+    { "i2c",       "I2C/SMBus service" },
+    { "time",      "time service: RTC/HPET/PMTimer/TSC" },
+    { "power",     "power service (ACPI)" },
+    { "klog",      "kernel log service" },
+    { "health",    "health monitoring service" },
+    { "watchdog",  "watchdog service" },
+    { "ota",       "OTA update service (A/B slots)" },
+    { "crypto",    "crypto service (TLS primitives)" },
+    { "l1",        "L1 extension service (ring-3 bridge)" },
 };
 
 /* Case-insensitive name compare (A-Z means alphabetical to a user). */
@@ -316,18 +317,18 @@ void shell_list_commands_by_wp(void) {
     console_cn_putcw('\n');
     int shown = 0;
     /* known tags in canonical order */
-    for (int k = 0; k < (int)(sizeof(g_wp_order) / sizeof(g_wp_order[0])); k++) {
+    for (int k = 0; k < (int)(sizeof(g_svc_order) / sizeof(g_svc_order[0])); k++) {
         int count = 0;
         for (int i = 0; i < n; i++)
-            if (strcmp(g_commands[idx[i]].wp, g_wp_order[k].tag) == 0) count++;
+            if (strcmp(g_commands[idx[i]].wp, g_svc_order[k].tag) == 0) count++;
         if (count == 0) continue;
         screen_console_puts("\n=== ");
-        screen_console_puts(g_wp_order[k].tag);
+        screen_console_puts(g_svc_order[k].tag);
         screen_console_puts(" (");
-        screen_console_puts(g_wp_order[k].desc);
+        screen_console_puts(g_svc_order[k].desc);
         screen_console_puts(") ===\n");
         for (int i = 0; i < n; i++)
-            if (strcmp(g_commands[idx[i]].wp, g_wp_order[k].tag) == 0)
+            if (strcmp(g_commands[idx[i]].wp, g_svc_order[k].tag) == 0)
                 shell_wp_print_entry(&g_commands[idx[i]], w);
         shown += count;
     }
@@ -342,8 +343,8 @@ void shell_list_commands_by_wp(void) {
     int other_shown = 0;
     for (int i = 0; i < n; i++) {
         int known = 0;
-        for (int k = 0; k < (int)(sizeof(g_wp_order) / sizeof(g_wp_order[0])); k++)
-            if (strcmp(g_commands[idx[i]].wp, g_wp_order[k].tag) == 0) { known = 1; break; }
+        for (int k = 0; k < (int)(sizeof(g_svc_order) / sizeof(g_svc_order[0])); k++)
+            if (strcmp(g_commands[idx[i]].wp, g_svc_order[k].tag) == 0) { known = 1; break; }
         if (known) continue;
         if (other_shown == 0) {
             console_cn_puts(shell_msg(SM_OTHER_BUCKET));
@@ -2007,16 +2008,21 @@ void shell_init(void) {
     memset(g_commands, 0, sizeof(shell_cmd_t) * SHELL_MAX_COMMANDS);
     strcpy(g_cwd, "/");
 
-    /* Register builtins. */
-    shell_register_command_ex("export", shell_cmd_export, "set env var (export NAME=value)", "WP-05");
-    shell_register_command_ex("set", shell_cmd_set, "list env vars", "WP-05");
-    shell_register_command_ex("alias", shell_cmd_alias, "set/show aliases", "WP-07");
-    shell_register_command_ex("unalias", shell_cmd_unalias, "remove an alias", "WP-07");
-    /* WP-10-wp08fix1: nano editor; BUG-0135 FIX: vi is now a real
-     * two-mode engine of its own (was a nano alias). */
-    shell_register_command_ex("nano", shell_cmd_nano, "nano-style editor (nano <file>; ^O save ^X exit)", "WP-10-wp08fix1");
-    shell_register_command_ex("vi", shell_cmd_vi, "vi editor, two-mode (hjkl move, i/a/o insert, ESC, :w :q :wq :q!)", "WP-AUDIT-01-p1fix3");
-
+    /* v2.0.0: the builtins (and every command in the tree) are
+     * file-local OC_SHELL_CMD declarations collected from the
+     * .oc_cmds linker section - see core_registry.h.  shell_init only
+     * ingests the collected descriptors below; the dynamic-register
+     * API stays for L1 extensions and tests. */
+    {
+        extern void core_registry_collect(void);
+        core_registry_collect();
+        int n = core_registry_cmds_count();
+        for (int i = 0; i < n; i++) {
+            const oc_shell_cmd_decl_t *d = core_registry_cmd_at(i);
+            shell_register_command_ex(d->name, d->handler, d->help, d->group);
+        }
+    }
+    
     /* Set some default env vars. */
     shell_setenv("SHELL", "/bin/ocsh");
     shell_setenv("PS1", "oc> ");
@@ -2043,10 +2049,10 @@ int shell_verify_sorted_a_z(void) {
 int shell_verify_wp_groups(void) {
     int idx[SHELL_MAX_COMMANDS];
     int n = shell_wp_sorted_indices(idx, (int)SHELL_MAX_COMMANDS);
-    for (int k = 0; k < (int)(sizeof(g_wp_order) / sizeof(g_wp_order[0])); k++) {
+    for (int k = 0; k < (int)(sizeof(g_svc_order) / sizeof(g_svc_order[0])); k++) {
         int prev = -1;
         for (int i = 0; i < n; i++) {
-            if (strcmp(g_commands[idx[i]].wp, g_wp_order[k].tag) != 0)
+            if (strcmp(g_commands[idx[i]].wp, g_svc_order[k].tag) != 0)
                 continue;
             if (prev >= 0 &&
                 shell_wp_name_cmp(g_commands[idx[prev]].name,
@@ -2070,3 +2076,11 @@ void l1_ext_shell_list_commands_a_z(void) {
 void l1_ext_shell_list_commands_by_wp(void) {
     shell_list_commands_by_wp();
 }
+
+/* ---- v2.0.0 file-local command declarations ---- */
+OC_SHELL_CMD("export", shell_cmd_export, "set env var (export NAME=value)", "recovery");
+OC_SHELL_CMD("set", shell_cmd_set, "list env vars", "recovery");
+OC_SHELL_CMD("alias", shell_cmd_alias, "set/show aliases", "recovery");
+OC_SHELL_CMD("unalias", shell_cmd_unalias, "remove an alias", "recovery");
+OC_SHELL_CMD("nano", shell_cmd_nano, "nano-style editor (nano <file>; ^O save ^X exit)", "fs");
+OC_SHELL_CMD("vi", shell_cmd_vi, "vi editor, two-mode (hjkl move, i/a/o insert, ESC, :w :q :wq :q!)", "fs");

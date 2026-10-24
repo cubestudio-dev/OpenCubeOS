@@ -22,6 +22,4 @@
 #ifndef OC_DISK_TEST_CMDS_H
 #define OC_DISK_TEST_CMDS_H
 
-void shell_cmds_disk_test_register(void);
-
 #endif /* OC_DISK_TEST_CMDS_H */

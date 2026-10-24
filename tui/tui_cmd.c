@@ -13,6 +13,7 @@
 #include "../shell/shell.h"
 #include "../shell/shell_lang.h"
 #include "../kernel/lib/lib_string.h"
+#include "core_registry.h"
 
 int tui_test_run(int verbose);
 int tui_time_main(void);
@@ -139,35 +140,14 @@ static int shell_cmd_tui_ext(const char *args) {
     return 0;
 }
 
-void tui_shell_cmds_register(void) {
-    tui_time_register_pages();   /* fix4: time.clock/set/tz pages */
-    tui_sys_register_pages();    /* fix4: sys.* pages + menu entry */
-    tui_ext_register_ext_page(); /* fix4: ext lab page */
-    shell_register_command_ex("tui", shell_cmd_tui,
-                              "full-screen TUI main menu (arrows/Tab/Enter/Esc)",
-                              "WP-10-tui");
-    shell_register_command_ex("tui-test", shell_cmd_tui_test,
-                              "run the TUI self-test suite (input/expected/actual/verdict)",
-                              "WP-10-tui");
-    shell_register_command_ex("tui-hw", shell_cmd_tui_hw,
-                              "hardware configuration TUI (optional: page name)",
-                              "WP-10-tui");
-    shell_register_command_ex("tui-net", shell_cmd_tui_net,
-                              "wireless network TUI (WiFi + Bluetooth)",
-                              "WP-10-tui");
-    shell_register_command_ex("tui-sysinfo", shell_cmd_tui_sysinfo,
-                              "system information TUI (optional: page name)",
-                              "WP-10-tui");
-    shell_register_command_ex("tui-time", shell_cmd_tui_time,
-                              "time TUI: clock/sources/set RTC/timezone",
-                              "WP-10-chinese_support-fix4");
-    shell_register_command_ex("tui-drv", shell_cmd_tui_drv,
-                              "driver setup TUI (alias of tui-hw; page name optional)",
-                              "WP-10-chinese_support-fix4");
-    shell_register_command_ex("tui-sys", shell_cmd_tui_sys,
-                              "system settings TUI (host/net/storage/user/security/update/log/tui)",
-                              "WP-10-chinese_support-fix4");
-    shell_register_command_ex("tui-ext", shell_cmd_tui_ext,
-                              "TUI L1 extension lab: selftest + registries",
-                              "WP-10-chinese_support-fix4");
-}
+
+/* ---- v2.0.0 file-local command declarations ---- */
+OC_SHELL_CMD("tui", shell_cmd_tui, "full-screen TUI main menu (arrows/Tab/Enter/Esc)", "display");
+OC_SHELL_CMD("tui-test", shell_cmd_tui_test, "run the TUI self-test suite (input/expected/actual/verdict)", "display");
+OC_SHELL_CMD("tui-hw", shell_cmd_tui_hw, "hardware configuration TUI (optional: page name)", "display");
+OC_SHELL_CMD("tui-net", shell_cmd_tui_net, "wireless network TUI (WiFi + Bluetooth)", "display");
+OC_SHELL_CMD("tui-sysinfo", shell_cmd_tui_sysinfo, "system information TUI (optional: page name)", "display");
+OC_SHELL_CMD("tui-time", shell_cmd_tui_time, "time TUI: clock/sources/set RTC/timezone", "display");
+OC_SHELL_CMD("tui-drv", shell_cmd_tui_drv, "driver setup TUI (alias of tui-hw; page name optional)", "display");
+OC_SHELL_CMD("tui-sys", shell_cmd_tui_sys, "system settings TUI (host/net/storage/user/security/update/log/tui)", "display");
+OC_SHELL_CMD("tui-ext", shell_cmd_tui_ext, "TUI L1 extension lab: selftest + registries", "display");

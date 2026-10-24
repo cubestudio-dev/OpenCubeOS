@@ -17,6 +17,7 @@
 #include "driver_sdhci.h"
 #include "screen_console.h"
 #include "lib_string.h"
+#include "core_registry.h"
 
 static int word_is(const char **p, const char *w) {
     const char *s = *p;
@@ -190,9 +191,6 @@ int shell_cmd_wifi(const char *args)
     return 0;
 }
 
-void shell_cmds_wireless_register(void)
-{
-    shell_register_command_ex("wifi", shell_cmd_wifi,
-        "wireless: status/scan/test/sdio (802.11 families + SDIO bus)",
-        "WP-10-wireless_bluetooth");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("wifi", shell_cmd_wifi, "wireless: status/scan/test/sdio (802.11 families + SDIO bus)", "wireless");

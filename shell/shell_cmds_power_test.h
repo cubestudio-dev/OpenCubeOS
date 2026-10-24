@@ -15,7 +15,6 @@ extern "C" {
 /* Register poweroff_test / suspend_test / halt_test / reboot_test /
  * help_default_test / help_wp_test / help_a_test.  Called once at boot
  * from kmain. */
-void shell_cmds_power_test_register(void);
 
 #ifdef __cplusplus
 }

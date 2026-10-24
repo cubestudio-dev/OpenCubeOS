@@ -21,6 +21,7 @@
 #include "core_timer.h"
 #include "net_tcp_cc.h"
 #include "fs_vfs.h"   /* P1-3 FIX: for fs_vfs_open / VFS_O_WRONLY in shell_cmd_wget */
+#include "core_registry.h"
 
 /* Allocate identity-mapped memory for DMA (e1000 needs physical addresses).
  * kmalloc returns heap memory at 0xC0000000 which is NOT identity-mapped.
@@ -6112,22 +6113,6 @@ static int shell_cmd_tcptest(const char *args) {
 /* Network shell command registration (WP-10d-fix2: shell.h include,
  * the local extern declaration predates it and did not know _ex). */
 void net_register_shell_commands(void) {
-    shell_register_command_ex("ifconfig", shell_cmd_ifconfig, "show network interface info", "WP-06");
-    shell_register_command_ex("ip", shell_cmd_ip, "show/set IP address", "WP-06");
-    shell_register_command_ex("route", shell_cmd_route, "show/add/del routing table (route add <dst> <mask> <gw>)", "WP-06");
-    shell_register_command_ex("arp", shell_cmd_arp, "show ARP cache", "WP-06");
-    shell_register_command_ex("firewall", shell_cmd_firewall, "show/add/del firewall rules (chains, states, policies, conntrack)", "WP-06");
-    shell_register_command_ex("nf_test", shell_cmd_nf_test, "netfilter self-test (rules, conntrack, policies, real-path)", "WP-06");
-    shell_register_command_ex("tcpstats", shell_cmd_tcpstats, "show TCP reliability stats (cwnd, rto, etc.)", "WP-06");
-    shell_register_command_ex("tcpcc_test", shell_cmd_tcpcc_test, "CUBIC congestion control self-test vectors", "WP-06");
-    shell_register_command_ex("ping", shell_cmd_ping, "send ICMP echo (ping <host>)", "WP-06");
-    shell_register_command_ex("netstat", shell_cmd_netstat, "show network statistics and sockets", "WP-06");
-    shell_register_command_ex("dhcp", shell_cmd_dhcp, "get IP via DHCP", "WP-06");
-    shell_register_command_ex("dns", shell_cmd_dns, "resolve domain name (dns <name> [aaaa|cname|mx|txt|ns|srv])", "WP-06");
-    shell_register_command_ex("dnstest", shell_cmd_dnstest, "DNS record-type self-test (A/AAAA/MX/TXT/NS/SRV live)", "WP-06");
-    shell_register_command_ex("tcptest", shell_cmd_tcptest, "TCP option negotiation self-test (MSS/WScale/SACK/TS live)", "WP-06");
-    shell_register_command_ex("lspci", shell_cmd_lspci, "list PCI devices", "WP-06");
-    shell_register_command_ex("wget", shell_cmd_wget, "download file via HTTP (wget <host> [port] [path])", "WP-06");
 }
 
 /* Periodic timer callback for network polling. */
@@ -6212,3 +6197,21 @@ void net_e1000_resume(void) {
         driver_pci_write_config(g_e1000_bus, g_e1000_dev, g_e1000_func, 0x04, cs);
     }
 }
+
+/* ---- v2.0.0 file-local command declarations ---- */
+OC_SHELL_CMD("ifconfig", shell_cmd_ifconfig, "show network interface info", "net");
+OC_SHELL_CMD("ip", shell_cmd_ip, "show/set IP address", "net");
+OC_SHELL_CMD("route", shell_cmd_route, "show/add/del routing table (route add <dst> <mask> <gw>)", "net");
+OC_SHELL_CMD("arp", shell_cmd_arp, "show ARP cache", "net");
+OC_SHELL_CMD("firewall", shell_cmd_firewall, "show/add/del firewall rules (chains, states, policies, conntrack)", "net");
+OC_SHELL_CMD("nf_test", shell_cmd_nf_test, "netfilter self-test (rules, conntrack, policies, real-path)", "net");
+OC_SHELL_CMD("tcpstats", shell_cmd_tcpstats, "show TCP reliability stats (cwnd, rto, etc.)", "net");
+OC_SHELL_CMD("tcpcc_test", shell_cmd_tcpcc_test, "CUBIC congestion control self-test vectors", "net");
+OC_SHELL_CMD("ping", shell_cmd_ping, "send ICMP echo (ping <host>)", "net");
+OC_SHELL_CMD("netstat", shell_cmd_netstat, "show network statistics and sockets", "net");
+OC_SHELL_CMD("dhcp", shell_cmd_dhcp, "get IP via DHCP", "net");
+OC_SHELL_CMD("dns", shell_cmd_dns, "resolve domain name (dns <name> [aaaa|cname|mx|txt|ns|srv])", "net");
+OC_SHELL_CMD("dnstest", shell_cmd_dnstest, "DNS record-type self-test (A/AAAA/MX/TXT/NS/SRV live)", "net");
+OC_SHELL_CMD("tcptest", shell_cmd_tcptest, "TCP option negotiation self-test (MSS/WScale/SACK/TS live)", "net");
+OC_SHELL_CMD("lspci", shell_cmd_lspci, "list PCI devices", "net");
+OC_SHELL_CMD("wget", shell_cmd_wget, "download file via HTTP (wget <host> [port] [path])", "net");

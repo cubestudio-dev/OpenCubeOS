@@ -25,7 +25,6 @@ int shell_cmd_update_status_test(const char *args);
 int shell_cmd_real_update_test(const char *args);
 
 /* Registers every WP-10u test command with the shell. */
-void shell_cmds_update_test_register(void);
 
 #ifdef __cplusplus
 }

@@ -26,6 +26,7 @@
 #include "lib_string.h"
 #include "mem_heap.h"
 #include "screen_console_in.h"   /* WP-09-fix5: edit command input */
+#include "core_registry.h"
 
 /* ---- Helpers ---- */
 
@@ -1144,23 +1145,23 @@ static int shell_cmd_edit(const char *args) {
     return 0;
 }
 
-void shell_cmds_file_register(void) {
-    shell_register_command_ex("ls", shell_cmd_ls, "list directory (ls [path])", "WP-05");
-    shell_register_command_ex("cd", shell_cmd_cd, "change directory (cd [path])", "WP-05");
-    shell_register_command_ex("pwd", shell_cmd_pwd, "print working directory", "WP-05");
-    shell_register_command_ex("cat", shell_cmd_cat, "print file contents (cat <file>)", "WP-05");
-    shell_register_command_ex("mkdir", shell_cmd_mkdir, "make directory (mkdir <path>)", "WP-05");
-    shell_register_command_ex("rmdir", shell_cmd_rmdir, "remove directory (rmdir <path>)", "WP-05");
-    shell_register_command_ex("touch", shell_cmd_touch, "create empty file (touch <path>)", "WP-05");
-    shell_register_command_ex("rm", shell_cmd_rm, "delete file (rm <file>)", "WP-05");
-    shell_register_command_ex("mv", shell_cmd_mv, "move/rename file (mv <src> <dst>)", "WP-05");
-    shell_register_command_ex("cp", shell_cmd_cp, "copy file (cp <src> <dst>)", "WP-05");
-    shell_register_command_ex("tree", shell_cmd_tree, "tree view of directory (tree [path])", "WP-05");
-    shell_register_command_ex("df", shell_cmd_df, "show disk/mount usage", "WP-05");
-    shell_register_command_ex("du", shell_cmd_du, "directory usage (du [path])", "WP-05");
-    shell_register_command_ex("mount", shell_cmd_mount, "list mounts, or mount a fs: mount <type> <device> <path>", "WP-05");  /* WP-09-FIX BUG-031 */
-    shell_register_command_ex("umount", shell_cmd_umount, "unmount (umount <path>)", "WP-05");
-    shell_register_command_ex("write", shell_cmd_write, "write text to file (write <path> <text>)", "WP-07");
-    shell_register_command_ex("grep", shell_cmd_grep, "filter lines matching pattern (grep <pattern> [file])", "WP-05");
-    shell_register_command_ex("edit", shell_cmd_edit, "line editor (edit <file>; :i :d :p :w :q :wq)", "WP-05");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("ls", shell_cmd_ls, "list directory (ls [path])", "fs");
+OC_SHELL_CMD("cd", shell_cmd_cd, "change directory (cd [path])", "fs");
+OC_SHELL_CMD("pwd", shell_cmd_pwd, "print working directory", "fs");
+OC_SHELL_CMD("cat", shell_cmd_cat, "print file contents (cat <file>)", "fs");
+OC_SHELL_CMD("mkdir", shell_cmd_mkdir, "make directory (mkdir <path>)", "fs");
+OC_SHELL_CMD("rmdir", shell_cmd_rmdir, "remove directory (rmdir <path>)", "fs");
+OC_SHELL_CMD("touch", shell_cmd_touch, "create empty file (touch <path>)", "fs");
+OC_SHELL_CMD("rm", shell_cmd_rm, "delete file (rm <file>)", "fs");
+OC_SHELL_CMD("mv", shell_cmd_mv, "move/rename file (mv <src> <dst>)", "fs");
+OC_SHELL_CMD("cp", shell_cmd_cp, "copy file (cp <src> <dst>)", "fs");
+OC_SHELL_CMD("tree", shell_cmd_tree, "tree view of directory (tree [path])", "fs");
+OC_SHELL_CMD("df", shell_cmd_df, "show disk/mount usage", "fs");
+OC_SHELL_CMD("du", shell_cmd_du, "directory usage (du [path])", "fs");
+OC_SHELL_CMD("mount", shell_cmd_mount, "list mounts, or mount a fs: mount <type> <device> <path>", "fs");
+OC_SHELL_CMD("umount", shell_cmd_umount, "unmount (umount <path>)", "fs");
+OC_SHELL_CMD("write", shell_cmd_write, "write text to file (write <path> <text>)", "block");
+OC_SHELL_CMD("grep", shell_cmd_grep, "filter lines matching pattern (grep <pattern> [file])", "fs");
+OC_SHELL_CMD("edit", shell_cmd_edit, "line editor (edit <file>; :i :d :p :w :q :wq)", "fs");

@@ -28,6 +28,7 @@
 #include "../drivers/display/screen_font.h"
 #include "../drivers/input/driver_input_keyboard.h"
 #include "../tui/tui.h"
+#include "core_registry.h"
 
 extern int chinese_test_run(int verbose);
 /* WP-10-tui-qa: the three TUI entry externs below were dangling since
@@ -409,29 +410,13 @@ static int cmd_ime_test(const char *args) {
 
 /* ---- registration ------------------------------------------------------ */
 
-void chinese_cmd_register(void) {
-    shell_register_command_ex("chinese", cmd_chinese,
-        "chinese support status (font/encoding/render/ime)",
-        "WP-10-chinese_support");
-    shell_register_command_ex("chinesetest", cmd_chinesetest,
-        "run the full Chinese support regression suite",
-        "WP-10-chinese_support");
-    shell_register_command_ex("font", cmd_font,
-        "list registered fonts and the active renderer",
-        "WP-10-chinese_support");
-    shell_register_command_ex("font-test", cmd_font_test,
-        "render a mixed CJK/ASCII sample row on the console",
-        "WP-10-chinese_support");
-    shell_register_command_ex("encoding", cmd_encoding,
-        "encoding codec status (gb2312/utf-8/ascii)",
-        "WP-10-chinese_support");
-    shell_register_command_ex("encoding-test", cmd_encoding_test,
-        "quick codec round-trip check (full: chinesetest)",
-        "WP-10-chinese_support");
-    shell_register_command_ex("ime", cmd_ime,
-        "pinyin IME status; \"ime -i\" opens the interactive console line",
-        "WP-10-chinese_support");
-    shell_register_command_ex("ime-test", cmd_ime_test,
-        "quick IME syllable resolution check",
-        "WP-10-chinese_support");
-}
+
+/* ---- v2.0.0 file-local command declarations ---- */
+OC_SHELL_CMD("chinese", cmd_chinese, "chinese support status (font/encoding/render/ime)", "display");
+OC_SHELL_CMD("chinesetest", cmd_chinesetest, "run the full Chinese support regression suite", "display");
+OC_SHELL_CMD("font", cmd_font, "list registered fonts and the active renderer", "display");
+OC_SHELL_CMD("font-test", cmd_font_test, "render a mixed CJK/ASCII sample row on the console", "display");
+OC_SHELL_CMD("encoding", cmd_encoding, "encoding codec status (gb2312/utf-8/ascii)", "display");
+OC_SHELL_CMD("encoding-test", cmd_encoding_test, "quick codec round-trip check (full: chinesetest)", "display");
+OC_SHELL_CMD("ime", cmd_ime, "pinyin IME status; \"ime -i\" opens the interactive console line", "display");
+OC_SHELL_CMD("ime-test", cmd_ime_test, "quick IME syllable resolution check", "display");

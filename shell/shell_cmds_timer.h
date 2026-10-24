@@ -28,6 +28,5 @@ int shell_cmd_pmtimer(const char *args);
 int shell_cmd_tsc(const char *args);
 
 /* Register all WP-10-timer_rtc commands (called from kmain). */
-void shell_cmds_timer_register(void);
 
 #endif /* OC_SHELL_CMDS_TIMER_H */

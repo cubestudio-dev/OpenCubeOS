@@ -33,6 +33,7 @@
 #include "core_watchdog.h"
 #include "core_sched.h"
 #include "core_timer.h"
+#include "core_registry.h"
 
 #pragma GCC optimize("Os")
 
@@ -286,7 +287,6 @@ int shell_cmd_watchdog(const char *args) {
     return 1;
 }
 
-void shell_cmds_wd_register(void) {
-    shell_register_command_ex("watchdog", shell_cmd_watchdog,
-                              "watchdog status/control (hw TCO/WDAT + monitored slots + policy tests)", "WP-12");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("watchdog", shell_cmd_watchdog, "watchdog status/control (hw TCO/WDAT + monitored slots + policy tests)", "watchdog");

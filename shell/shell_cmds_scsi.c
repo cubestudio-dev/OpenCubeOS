@@ -34,6 +34,7 @@
 #include "driver_scsi.h"
 #include "driver_block_blk.h"
 #include "shell_cmds_scsi.h"
+#include "core_registry.h"
 
 static void put(const char *s)
 {
@@ -343,12 +344,7 @@ int shell_cmd_scsitest(const char *args)
 
 /* ------------------------------------------------------------------ */
 
-void shell_cmds_scsi_register(void)
-{
-    shell_register_command_ex("scsi", shell_cmd_scsi,
-        "SCSI status (HBAs, targets, capacity, blk names)",
-        "WP-10-camera_misc");
-    shell_register_command_ex("scsitest", shell_cmd_scsitest,
-        "SCSI self test (CDB goldens, parsers, live target)",
-        "WP-10-camera_misc");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("scsi", shell_cmd_scsi, "SCSI status (HBAs, targets, capacity, blk names)", "camera");
+OC_SHELL_CMD("scsitest", shell_cmd_scsitest, "SCSI self test (CDB goldens, parsers, live target)", "camera");

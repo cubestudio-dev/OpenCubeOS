@@ -18,6 +18,7 @@
 #include "lib_string.h"
 #include "core_crash.h"
 #include "core_sched.h"    /* WP-11: crashtest ovf burns a kthread stack */
+#include "core_registry.h"
 
 #pragma GCC optimize("Os")
 
@@ -314,11 +315,8 @@ int shell_cmd_crash_crashtest(const char *args) {
 }
 
 /* registration (called from kmain after core_crash_init) */
-void shell_cmds_crash_register(void) {
-    shell_register_command_ex("crashlog", shell_cmd_crash_crashlog,
-                              "show last exception crashes", "WP-04");
-    shell_register_command_ex("crashtest", shell_cmd_crash_crashtest,
-                              "trigger kernel crash tests (panic/exc/pf/assert/wd/dump/policy)", "WP-11");
-    shell_register_command_ex("dumpinfo", shell_cmd_crash_dumpinfo,
-                              "show core dump status (size/persisted/header)", "WP-11");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("crashlog", shell_cmd_crash_crashlog, "show last exception crashes", "core");
+OC_SHELL_CMD("crashtest", shell_cmd_crash_crashtest, "trigger kernel crash tests (panic/exc/pf/assert/wd/dump/policy)", "recovery");
+OC_SHELL_CMD("dumpinfo", shell_cmd_crash_dumpinfo, "show core dump status (size/persisted/header)", "recovery");
