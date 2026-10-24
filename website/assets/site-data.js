@@ -3,10 +3,10 @@
    release time. Do not hand-edit: the script rewrites this file from
    the real dist/ assets + the release manifest. */
 window.SITE_DATA = {
-  version: "1.0.0",
+  version: "2.0.0",
   build: 278,
   date: "2026-10-24",
-  changes: "1.0.0 release - see the GitHub release note for the change list",
+  changes: "2.0.0 BREAKING: boots into the ring-3 service surface (ush + SYS_L1SVC); register-class interfaces removed (drivers/services declare identity in-file); L0 restructured to core/drivers/services/boot/recovery; every operational command class moved to ring 3 (17 services / 158 ops); ota incremental-build fix - see the GitHub release note",
   assets: {
     iso: {
       name: "opencube-1.0.0.iso",
@@ -31,10 +31,10 @@ window.SITE_DATA = {
     }
   },
   stats: {
-    commands: 233,
-    interfaces: 162,
-    syscalls: 53,
-    lines: "140,672"
+    commands: 251,
+    interfaces: 158,
+    syscalls: 54,
+    lines: "130,011"
   },
   history: [
     { version: "WP-14-docs_release", date: "2026-10-23",
