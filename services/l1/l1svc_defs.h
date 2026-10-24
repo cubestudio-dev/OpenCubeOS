@@ -232,8 +232,8 @@
 /* ---- usb operations (services/usb) ----------------------------------
  * v2.0.0 group N: the USB family (host/device status + class driver
  * tests).  Bodies stay in recovery/shell_cmds_usb_test.c (exported
- * as usb_cmd_* by group N; the poll thread stays kernel-side and is
- * started by the shell module init). */
+ * by group N; the poll thread stays kernel-side and is started by
+ * the shell module init). */
 #define L1SVC_USB_STATUS        1   /* usb                     */
 #define L1SVC_USB_DEV           2   /* usbdev [slot]           */
 #define L1SVC_USB_CORE_TEST     3   /* usb_core_test           */
@@ -243,5 +243,31 @@
 #define L1SVC_USB_SERIAL_TEST   7   /* usb_serial_test         */
 #define L1SVC_USB_HOTPLUG_TEST  8   /* usb_hotplug_test [...]  */
 #define L1SVC_USB_HUB_TEST      9   /* usb_hub_test            */
+
+/* ---- net operations (services/net) ----------------------------------
+ * v2.0.0 group O: the diagnostic half of the v1 net command class.
+ * ifconfig/ping/netstat/wget stay L0-declared: the ush built-ins of
+ * the same names reach them through the SYS_NETCMD bridge, which
+ * executes the L0 command line verbatim.  ssh/sshd stay L0 as
+ * interactive-session commands (request/response L1SVC semantics do
+ * not map to a bidirectional shell channel). */
+#define L1SVC_NET_ARP           1   /* arp                     */
+#define L1SVC_NET_DHCP          2   /* dhcp                    */
+#define L1SVC_NET_DNS           3   /* dns <host>              */
+#define L1SVC_NET_DNSTEST       4   /* dnstest                 */
+#define L1SVC_NET_FIREWALL      5   /* firewall [...]          */
+#define L1SVC_NET_IP            6   /* ip                      */
+#define L1SVC_NET_LSPCI         7   /* lspci                   */
+#define L1SVC_NET_NF_TEST       8   /* nf_test                 */
+#define L1SVC_NET_ROUTE         9   /* route                   */
+#define L1SVC_NET_TCPCC_TEST   10   /* tcpcc_test              */
+#define L1SVC_NET_TCPSTATS     11   /* tcpstats                */
+#define L1SVC_NET_TCPTEST      12   /* tcptest                 */
+
+/* ---- crypto operations (services/crypto) ------------------------------
+ * v2.0.0 group O: the self-test family (NIST vectors + DH modexp
+ * goldens).  ssh/sshd are interactive and stay in L0. */
+#define L1SVC_CRYPTO_CRYPTOTEST 1   /* cryptotest              */
+#define L1SVC_CRYPTO_DHTEST     2   /* dhtest                  */
 
 #endif /* OC_L1SVC_DEFS_H */

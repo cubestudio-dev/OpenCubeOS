@@ -2605,10 +2605,19 @@ static u64 sys_netcmd(u64 op, u64 arg, u64 out, u64 cap) {
     {
         /* WP-10-wp08fix1: kmalloc'd per call (was an 8 KiB static - the
          * kernel .bss must stay below the 0x400000 identity-window
-         * boundary, see editor.c). */
+         * boundary, see editor.c).
+         *
+         * v2.0.0 group O fix: re-enable interrupts around the captured
+         * execution (same root cause as the sys_l1svc fix above): the
+         * int 0x80 gate clears IF on entry, and the net bodies reached
+         * through this bridge (ifconfig MMIO polls, ping ICMP reply
+         * wait, dhcp DISCOVER/OFFER timeouts) are driven by IRQ/tick
+         * time.  With IF held clear those waits spin forever. */
         char *kout = (char *)kmalloc(8192);
         if (!kout) return (u64)-1;
+        __asm__ volatile("sti");
         shell_execute_captured(cmdline, kout, 8192);
+        __asm__ volatile("cli");
         int n = (int)strlen(kout);
         if (n > (int)cap - 1) n = (int)cap - 1;
         int rc = copy_to_user(out, kout, (u64)n);
