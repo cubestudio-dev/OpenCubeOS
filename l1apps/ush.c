@@ -60,6 +60,13 @@
 #define L1SVC_TIME_HPET     2   /* hpet [counter|oneshot|periodic|test] */
 #define L1SVC_TIME_PMTIMER  3   /* pmtimer [read|cal|wrap|test] */
 #define L1SVC_TIME_TSC      4   /* tsc [cal [hpet|pmtimer]|delay N|test] */
+#define L1SVC_CAT_FS        7
+#define L1SVC_FS_MOUNT      1   /* mount [type dev path] */
+#define L1SVC_FS_MOUNTS     2   /* mounts (alias of mount list) */
+#define L1SVC_FS_UMOUNT     3   /* umount <path> */
+#define L1SVC_FS_FATMOUNT   4   /* fatmount [dev] [path] */
+#define L1SVC_FS_FATSTAT    5   /* fatstat */
+#define L1SVC_FS_TREE       6   /* tree [path] */
 #define NETCMD_IFCONFIG  1
 #define NETCMD_PING      2
 #define NETCMD_NETSTAT   3
@@ -709,6 +716,13 @@ static const struct svc_cmd SVC_CMDS[] = {
     { "hpet",    L1SVC_CAT_TIME, L1SVC_TIME_HPET    },
     { "pmtimer", L1SVC_CAT_TIME, L1SVC_TIME_PMTIMER },
     { "tsc",     L1SVC_CAT_TIME, L1SVC_TIME_TSC     },
+    /* fs service (services/fs) */
+    { "mount",    L1SVC_CAT_FS, L1SVC_FS_MOUNT    },
+    { "mounts",   L1SVC_CAT_FS, L1SVC_FS_MOUNTS   },
+    { "umount",   L1SVC_CAT_FS, L1SVC_FS_UMOUNT   },
+    { "fatmount", L1SVC_CAT_FS, L1SVC_FS_FATMOUNT },
+    { "fatstat",  L1SVC_CAT_FS, L1SVC_FS_FATSTAT  },
+    { "tree",     L1SVC_CAT_FS, L1SVC_FS_TREE     },
 };
 
 static int svc_cmd_run(int argc, char *argv[]) {
@@ -813,6 +827,12 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  hpet [counter|oneshot|periodic|test]  HPET status + tests\n");
         puts_("  pmtimer [read|cal|wrap|test]  ACPI PM timer + calibration\n");
         puts_("  tsc [cal|delay N|test]  TSC reads + calibration + delay\n");
+        puts_("  mount [type dev path]  List mounts or mount a filesystem\n");
+        puts_("  mounts                 List VFS mount table\n");
+        puts_("  umount <path>          Unmount a filesystem\n");
+        puts_("  fatmount [dev path]    Mount FAT32 (default ata0 /mnt)\n");
+        puts_("  fatstat                Show FAT32 stats\n");
+        puts_("  tree [path]            Directory tree view\n");
         puts_("\n  Editing: Up/Down history, Left/Right/Home/End cursor, Del,\n");
         puts_("  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion\n");
         puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
@@ -2580,7 +2600,9 @@ void _start(void) {
                     "ln","chmod","chown","sed","awk","ping","wget",
                     "netstat","ifconfig","top",
                     /* v2.0.0: SYS_L1SVC service commands */
-                    "rtc","hpet","pmtimer","tsc",0
+                    "rtc","hpet","pmtimer","tsc",
+                    "mount","mounts","umount","fatmount","fatstat",
+                    "tree",0
                 };
                 int found = 0;
                 int blen = 0;

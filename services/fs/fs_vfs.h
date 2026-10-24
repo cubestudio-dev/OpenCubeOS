@@ -254,6 +254,8 @@ fs_vfs_node_t *fs_vfs_resolve(const char *path);
 
 int  fs_vfs_register_hook(int (*hook)(int op, const char *path));
 void fs_vfs_list_mounts(void);
+/* v2.0.0: buffer-rendering variant (SYS_L1SVC fs surface). */
+int fs_vfs_list_mounts_str(char *out, int cap);
 
 /* P2-06 FIX: expose the mount table so user-facing commands like `df`
  * don't have to hard-code strings. Each entry corresponds to one active

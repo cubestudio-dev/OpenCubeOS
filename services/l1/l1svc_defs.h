@@ -56,4 +56,16 @@
 #define L1SVC_TIME_PMTIMER  3   /* pmtimer            : PM timer status  */
 #define L1SVC_TIME_TSC      4   /* tsc                : TSC status       */
 
+/* ---- fs operations (services/fs) -----------------------------------
+ * Mirrors the v1 oc> commands mount / mounts / umount / fatmount /
+ * fatstat / tree.  (cat/ls/cp/mv/rm/mkdir/... already run in ring 3
+ * through the classic file syscalls; these six are the mount-table
+ * operations the classic surface never exposed.) */
+#define L1SVC_FS_MOUNT      1   /* mount [type dev p] : list or mount    */
+#define L1SVC_FS_MOUNTS     2   /* mounts             : list (alias)     */
+#define L1SVC_FS_UMOUNT     3   /* umount <path>      : unmount          */
+#define L1SVC_FS_FATMOUNT   4   /* fatmount [dev p]   : mount FAT32      */
+#define L1SVC_FS_FATSTAT    5   /* fatstat            : FAT32 stats      */
+#define L1SVC_FS_TREE       6   /* tree [path]        : directory tree   */
+
 #endif /* OC_L1SVC_DEFS_H */
