@@ -146,6 +146,9 @@ int shell_execute_line(const char *line);
  * copied NUL-terminated into out (max out_cap bytes). Returns the command
  * exit code; returns the uncaptured exit code if capture is unavailable. */
 int shell_execute_captured(const char *line, char *out, int out_cap);
+/* v2.0.0: direct captured invocation of a migrated service command. */
+int shell_run_fn_captured(int (*fn)(const char *), const char *arg,
+                          char *out, int out_cap);
 
 /* ---- Environment variables ---- */
 int shell_setenv(const char *name, const char *value);

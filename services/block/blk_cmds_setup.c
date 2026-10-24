@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-10d-pre (rule-9 system self-sufficiency fix)
- * File: drivers/block/driver_block_disk_setup.c
+ * File: services/block/blk_cmds_setup.c (migrated from drivers/block/driver_block_disk_setup.c)
  * Purpose: abdisk / install / grub-install - partition, format, install
  *          and make bootable a disk entirely from the oc> shell.
  *
@@ -22,12 +22,14 @@
  *     install (single system) disks.
  */
 #include "driver_block_disk_setup.h"
+#include "blk_cmds.h"
 #include "grub_boot_data.h"
 #include "arch_multiboot2.h"  /* arch_multiboot2_get_kernel_self(): boot-attached kernel */
 #include "ota_ab.h"   /* ota_ab_rescan(): re-scan after abdisk creates the layout */
 #include "block_svc.h"
 #include "driver_block_part.h"
-#include "shell_cmds_disk.h"
+/* v2.0.0 (was shell_cmds_disk.h): the WP-10a shared helper decl. */
+extern int driver_block_mkfs_fat32_device(int dev_idx);
 #include "shell.h"
 #include "fs_vfs.h"
 #include "screen_console.h"
@@ -304,7 +306,7 @@ int grub_install_device(int dev_idx) {
 #define AB_TOTAL_SECTORS \
     (AB_P1_START + AB_P1_SECTORS + 3u * AB_SLOT_SECTORS)
 
-static int shell_cmd_abdisk(const char *args) {
+int blk_cmd_abdisk(const char *args) {
     if (!args || !args[0]) {
         driver_block_disk_setup_puts("usage: abdisk <device>  (creates A/B update "
                         "disk; DESTROYS existing data)\n");
@@ -478,7 +480,7 @@ static int shell_cmd_abdisk(const char *args) {
 
 /* ---- install ---------------------------------------------------------- */
 
-static int shell_cmd_install(const char *args) {
+int blk_cmd_install(const char *args) {
     if (!args || !args[0]) {
         driver_block_disk_setup_puts("usage: install <device>  (install the running "
                         "system; DESTROYS existing data)\n");
@@ -585,7 +587,7 @@ static int shell_cmd_install(const char *args) {
 
 /* ---- grub-install ------------------------------------------------------ */
 
-static int shell_cmd_grubinstall(const char *args) {
+int blk_cmd_grubinstall(const char *args) {
     if (!args || !args[0]) {
         driver_block_disk_setup_puts("usage: grub-install <device>  (write the GRUB "
                         "BIOS boot loader)\n");
@@ -602,7 +604,7 @@ static int shell_cmd_grubinstall(const char *args) {
 }
 
 /* The grub.cfg sources are printed for transparency (cfg show). */
-static int shell_cmd_abcfg_show(const char *args) {
+int blk_cmd_abcfg_show(const char *args) {
     (void)args;
     driver_block_disk_setup_puts("# abdisk boot/flags grub.cfg (slot A/B selection):\n");
     print_lines(g_grub_ab_cfg_lines);
@@ -613,7 +615,3 @@ static int shell_cmd_abcfg_show(const char *args) {
 
 
 /* ---- v2.0.0 file-local command declarations ---- */
-OC_SHELL_CMD("abcfg", shell_cmd_abcfg_show, "show the grub.cfg files abdisk/install write", "block");
-OC_SHELL_CMD("abdisk", shell_cmd_abdisk, "create a bootable A/B update disk (abdisk <dev>; destroys data)", "block");
-OC_SHELL_CMD("install", shell_cmd_install, "install the running system to a disk (install <dev>; destroys data)", "block");
-OC_SHELL_CMD("grub-install", shell_cmd_grubinstall, "write the GRUB BIOS boot loader (grub-install <dev>)", "block");

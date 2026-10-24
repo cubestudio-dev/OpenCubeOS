@@ -1838,6 +1838,32 @@ int shell_execute_line_impl(const char *line) {
  * WP-09: shell_execute_captured - run a line, capture console output
  * ================================================================== */
 
+/* v2.0.0: run one migrated service command function with its
+ * screen-console output captured into `out` - the ring-3 path for the
+ * commands whose bodies moved from recovery/ into services/<cat>/.
+ * Same capture machinery as shell_execute_captured, but calls the
+ * function directly instead of going through the shell parser (the
+ * L0 shell no longer registers these commands).  Returns 0 when the
+ * function ran (its own exit code is reflected in the captured text,
+ * e.g. "usage:" / honest-FAIL lines), -1 on capture failure. */
+int shell_run_fn_captured(int (*fn)(const char *), const char *arg,
+                          char *out, int out_cap) {
+    if (!fn || !out || out_cap <= 0) return -1;
+    out[0] = 0;
+    if (shell_capture_begin(out_cap) != 0) return -1;
+    int rc = fn(arg ? arg : "");
+    shell_capture_end();
+    int n = g_capture.size;
+    if (n > out_cap - 1) n = out_cap - 1;
+    if (n > 0 && g_capture.buf) {
+        memcpy(out, g_capture.buf, (usize)n);
+    }
+    out[n > 0 ? n : 0] = 0;
+    shell_capture_free();
+    (void)rc;
+    return 0;
+}
+
 int shell_execute_captured(const char *line, char *out, int out_cap) {
     if (out && out_cap > 0) out[0] = 0;
 

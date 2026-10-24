@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - WP-07
- * File: shell/shell_cmds_disk.c
+ * File: services/block/blk_cmds.c (migrated from recovery/shell_cmds_disk.c)
  * Purpose: WP-07 shell commands for disk management.
  *   lsblk, parted, mkfs.fat32, mkfs.exfat, mkfs.ext4, fsck, sync
  *   Plus enhanced df/du that use the real VFS.
  */
-#include "shell_cmds_disk.h"
+#include "blk_cmds.h"
 #include "shell.h"
 #include "block_svc.h"
 #include "driver_block_cache.h"
@@ -21,7 +21,7 @@
 #include "core_registry.h"
 
 /* ---- lsblk: list block devices ---- */
-static int shell_cmd_lsblk(const char *args) {
+int blk_cmd_lsblk(const char *args) {
     (void)args;
     driver_block_list_devices();
     driver_block_cache_stats_t cs;
@@ -36,7 +36,7 @@ static int shell_cmd_lsblk(const char *args) {
 }
 
 /* ---- parted: show partition table ---- */
-static int shell_cmd_parted(const char *args) {
+int blk_cmd_parted(const char *args) {
     int dev_idx = 0;
     if (args[0]) {
         dev_idx = driver_block_find_device(args);
@@ -249,7 +249,7 @@ static int shell_mkfs_gate(const char *cmd, const char *args,
     return 0;
 }
 
-static int shell_cmd_mkfs_fat32(const char *args) {
+int blk_cmd_mkfs_fat32(const char *args) {
     /* BUG-0239 FIX (A15-13): require the explicit `confirm` token. */
     char dev[BLK_DEV_NAME_LEN];
     if (shell_mkfs_gate("mkfs.fat32", args, dev, (int)sizeof(dev)) != 0) {
@@ -270,7 +270,7 @@ static int shell_cmd_mkfs_fat32(const char *args) {
     return 0;
 }
 
-static int shell_cmd_mkfs_exfat(const char *args) {
+int blk_cmd_mkfs_exfat(const char *args) {
     /* BUG-0239 FIX (A15-13): require the explicit `confirm` token. */
     char dev[BLK_DEV_NAME_LEN];
     if (shell_mkfs_gate("mkfs.exfat", args, dev, (int)sizeof(dev)) != 0) {
@@ -390,7 +390,7 @@ static int shell_cmd_mkfs_exfat(const char *args) {
     return 0;
 }
 
-static int shell_cmd_mkfs_ext4(const char *args) {
+int blk_cmd_mkfs_ext4(const char *args) {
     /* BUG-0239 FIX (A15-13): require the explicit `confirm` token. */
     char dev[BLK_DEV_NAME_LEN];
     if (shell_mkfs_gate("mkfs.ext4", args, dev, (int)sizeof(dev)) != 0) {
@@ -429,7 +429,7 @@ static int shell_cmd_mkfs_ext4(const char *args) {
  * Reads the boot sector, verifies BPB, counts FAT entries.
  * Not a full fsck (no cross-link detection, no orphan recovery),
  * but it's a real check that reports useful information. */
-static int shell_cmd_fsck(const char *args) {
+int blk_cmd_fsck(const char *args) {
     /* If no device given, report mounted filesystems */
     if (!args || !args[0]) {
         screen_console_puts("fsck: checking mounted FAT32 filesystems\n");
@@ -651,7 +651,7 @@ static int shell_cmd_fsck(const char *args) {
 }
 
 /* ---- sync: flush disk cache ---- */
-static int shell_cmd_sync(const char *args) {
+int blk_cmd_sync(const char *args) {
     (void)args;
     driver_block_cache_flush();
     screen_console_puts("disk cache flushed\n");
@@ -660,10 +660,3 @@ static int shell_cmd_sync(const char *args) {
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("lsblk", shell_cmd_lsblk, "list block devices", "block");
-OC_SHELL_CMD("parted", shell_cmd_parted, "show partition table (parted [dev])", "block");
-OC_SHELL_CMD("mkfs.fat32", shell_cmd_mkfs_fat32, "format FAT32 (mkfs.fat32 <dev> confirm)", "block");
-OC_SHELL_CMD("mkfs.exfat", shell_cmd_mkfs_exfat, "format exFAT (mkfs.exfat <dev> confirm)", "block");
-OC_SHELL_CMD("mkfs.ext4", shell_cmd_mkfs_ext4, "format ext4 (mkfs.ext4 <dev> confirm)", "block");
-OC_SHELL_CMD("fsck", shell_cmd_fsck, "filesystem check", "block");
-OC_SHELL_CMD("sync", shell_cmd_sync, "flush disk cache", "block");
