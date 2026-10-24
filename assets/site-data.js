@@ -3,31 +3,31 @@
    release time. Do not hand-edit: the script rewrites this file from
    the real dist/ assets + the release manifest. */
 window.SITE_DATA = {
-  version: "WP-14-docs_release",
-  build: 274,
-  date: "2026-10-23",
-  changes: "WP-14-docs_release release - see the GitHub release note for the change list",
+  version: "1.0.0",
+  build: 278,
+  date: "2026-10-24",
+  changes: "1.0.0 release - see the GitHub release note for the change list",
   assets: {
     iso: {
-      name: "opencube-WP-14-docs_release.iso",
+      name: "opencube-1.0.0.iso",
       size: 12326912,
       size_h: "11.8 MiB",
-      sha256: "3f876901db0af0b5b1779207e9faef77dc9f00cdb7731a7f47339e1ac0e00328",
-      url: "downloads/opencube-WP-14-docs_release.iso"
+      sha256: "cee135aa49d2c62f8fce5bd39444867e169bb9ee62419846454d386c297b82e3",
+      url: "downloads/opencube-1.0.0.iso"
     },
     src: {
-      name: "opencube-WP-14-docs_release-src.zip",
-      size: 3976264,
-      size_h: "3.8 MiB",
-      sha256: "91169570191b1d5a348169b602ee70b2bc4a7e7a5de82a79b4f047acdf7fb1c3",
-      url: "downloads/opencube-WP-14-docs_release-src.zip"
+      name: "opencube-1.0.0-src.zip",
+      size: 4279323,
+      size_h: "4.1 MiB",
+      sha256: "17cfb67b03c0ca75537275995efffa8c0765af720936a94725d1563ce3ed3ba8",
+      url: "downloads/opencube-1.0.0-src.zip"
     },
     ota: {
-      name: "opencube-WP-14-docs_release-update.tar.gz",
-      size: 1058345,
+      name: "opencube-1.0.0-update.tar.gz",
+      size: 1058350,
       size_h: "1.0 MiB",
-      sha256: "0873224deff05a6838aa80ea1bc26a7648f64ac3b1273a0746d4345d076c5117",
-      url: "downloads/opencube-WP-14-docs_release-update.tar.gz"
+      sha256: "3061d1be9893b0782636ebd3cd4ebb77d8c22d17a847e9d367ec804e4f3e90a9",
+      url: "downloads/opencube-1.0.0-update.tar.gz"
     }
   },
   stats: {
@@ -37,6 +37,9 @@ window.SITE_DATA = {
     lines: "140,672"
   },
   history: [
+    { version: "WP-14-docs_release", date: "2026-10-23",
+      iso_sha: "3f876901db0af0b5b1779207e9faef77dc9f00cdb7731a7f47339e1ac0e00328",
+      iso_size: 12326912 },
     { version: "WP-13-build_system", date: "2026-10-22",
       iso_sha: "5ccf9188b7405597eb145fb28a6673416ab35678ed88ae13f1ac689fc68f81c7",
       iso_size: 12326912 },
