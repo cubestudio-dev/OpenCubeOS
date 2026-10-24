@@ -37,7 +37,7 @@ extern int chinese_test_run(int verbose);
 
 /* ---- status -------------------------------------------------------- */
 
-static int cmd_chinese(const char *args) {
+int disp_cmd_chinese(const char *args) {
     (void)args;
     chinese_font_stats_t st;
     chinese_font_status(&st);
@@ -87,7 +87,7 @@ static int cmd_chinese(const char *args) {
 
 /* ---- test ---------------------------------------------------------- */
 
-static int cmd_chinesetest(const char *args) {
+int disp_cmd_chinesetest(const char *args) {
     (void)args;
     screen_console_puts("chinesetest: full Chinese support suite\n");
     int failed = chinese_test_run(1);
@@ -101,7 +101,7 @@ static int cmd_chinesetest(const char *args) {
 
 /* ---- font ----------------------------------------------------------- */
 
-static int cmd_font(const char *args) {
+int disp_cmd_font(const char *args) {
     (void)args;
     screen_console_puts("registered fonts:\n");
     screen_console_puts("  ascii-8x16     built-in screen_font8x16, 8x16\n");
@@ -118,7 +118,7 @@ static int cmd_font(const char *args) {
     return 0;
 }
 
-static int cmd_font_test(const char *args) {
+int disp_cmd_font_test(const char *args) {
     (void)args;
     render_chinese_init();
     /* Render a sample line of mixed text at the current cursor row.
@@ -146,7 +146,7 @@ static int cmd_font_test(const char *args) {
 
 /* ---- encoding -------------------------------------------------------- */
 
-static int cmd_encoding(const char *args) {
+int disp_cmd_encoding(const char *args) {
     (void)args;
     char buf[192];
     encoding_status(buf, sizeof(buf));
@@ -155,7 +155,7 @@ static int cmd_encoding(const char *args) {
     return 0;
 }
 
-static int cmd_encoding_test(const char *args) {
+int disp_cmd_encoding_test(const char *args) {
     (void)args;
     u32 cp, consumed;
     int fails = 0;
@@ -354,7 +354,7 @@ int ime_console_compose(u8 *out, int cap) {
     return n;
 }
 
-static int cmd_ime(const char *args) {
+int disp_cmd_ime(const char *args) {
     (void)args;
     char num[12], buf[160];
     screen_console_puts("pinyin IME status:\n");
@@ -387,7 +387,7 @@ static int cmd_ime(const char *args) {
     return 0;
 }
 
-static int cmd_ime_test(const char *args) {
+int disp_cmd_ime_test(const char *args) {
     (void)args;
     u32 cands[9];
     int fails = 0;
@@ -412,11 +412,3 @@ static int cmd_ime_test(const char *args) {
 
 
 /* ---- v2.0.0 file-local command declarations ---- */
-OC_SHELL_CMD("chinese", cmd_chinese, "chinese support status (font/encoding/render/ime)", "display");
-OC_SHELL_CMD("chinesetest", cmd_chinesetest, "run the full Chinese support regression suite", "display");
-OC_SHELL_CMD("font", cmd_font, "list registered fonts and the active renderer", "display");
-OC_SHELL_CMD("font-test", cmd_font_test, "render a mixed CJK/ASCII sample row on the console", "display");
-OC_SHELL_CMD("encoding", cmd_encoding, "encoding codec status (gb2312/utf-8/ascii)", "display");
-OC_SHELL_CMD("encoding-test", cmd_encoding_test, "quick codec round-trip check (full: chinesetest)", "display");
-OC_SHELL_CMD("ime", cmd_ime, "pinyin IME status; \"ime -i\" opens the interactive console line", "display");
-OC_SHELL_CMD("ime-test", cmd_ime_test, "quick IME syllable resolution check", "display");

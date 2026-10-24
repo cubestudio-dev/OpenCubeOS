@@ -380,7 +380,7 @@ static int shell_cmd_help(const char *args) {
     return 0;
 }
 
-static int shell_cmd_stats(const char *args) {
+int shell_cmd_stats(const char *args)   /* v2.0.0: display L1 surface */ {
     (void)args;
     char buf[120]; char n[20];
     strcpy(buf, "ticks="); u64_to_str(core_timer_ticks(), n); strcpy(buf+strlen(buf), n);
@@ -435,7 +435,7 @@ static int shell_cmd_echo(const char *args) {
     return 0;
 }
 
-static int shell_cmd_clear(const char *args) {
+int shell_cmd_clear(const char *args)   /* v2.0.0: display L1 surface */ {
     (void)args;
     screen_console_clear();
     return 0;
@@ -1006,7 +1006,7 @@ static int shell_cmd_sshd(const char *args) {
 
 /* P5 fix: uname command — was missing from kernel shell (only existed in ush).
  * Supports -a (all), -s (kernel name, default), -r (release), -m (machine). */
-static int shell_cmd_uname(const char *args) {
+int shell_cmd_uname(const char *args)   /* v2.0.0: display L1 surface */ {
     int show_all = 0, show_s = 0, show_r = 0, show_m = 0;
     if (args && args[0] == '-' && args[1]) {
         for (int i = 1; args[i] && args[i] != ' '; i++) {
@@ -3486,16 +3486,13 @@ void kmain(u64 magic, u64 mbi_phys) {
 /* ---- v2.0.0 file-local command declarations (kernel-core commands
  * historically registered inline in kmain; see core_registry.h) ---- */
 OC_SHELL_CMD("help", shell_cmd_help, "show this message", "recovery");
-OC_SHELL_CMD("stats", shell_cmd_stats, "show interrupt/timer stats", "display");
 OC_SHELL_CMD("exc", shell_cmd_exc, "run exception self-test (#DE/#UD/#PF)", "input");
 OC_SHELL_CMD("timer", shell_cmd_timer, "register a 500ms one-shot timer", "input");
 OC_SHELL_CMD("echo", shell_cmd_echo, "echo the text back", "recovery");
-OC_SHELL_CMD("uname", shell_cmd_uname, "print OS name (uname [-a|-s|-r|-m])", "display");
 OC_SHELL_CMD("cryptotest", shell_cmd_cryptotest, "test AES/SHA-256/HMAC with NIST vectors", "crypto");
 OC_SHELL_CMD("dhtest", shell_cmd_dhtest, "DH modexp 1024-bit (Oakley Group 1) timing + correctness", "crypto");
 OC_SHELL_CMD("ssh", shell_cmd_ssh, "SSH client connect (ssh <ip> [port] [user] [password])", "crypto");
 OC_SHELL_CMD("sshd", shell_cmd_sshd, "SSH server (sshd [port=22] [user=oc] [password=oc])", "crypto");
-OC_SHELL_CMD("clear", shell_cmd_clear, "clear screen", "display");
 OC_SHELL_CMD("halt", shell_cmd_halt, "halt the kernel", "power");
 OC_SHELL_CMD("mem", shell_cmd_mem, "show physical memory stats", "core");
 OC_SHELL_CMD("heap", shell_cmd_heap, "show kernel heap stats", "core");
@@ -3522,7 +3519,6 @@ OC_SHELL_CMD("run", shell_cmd_run, "run a user program (hello/badapp/loop/fork_t
 OC_SHELL_CMD("ldd", shell_cmd_ldd, "list dynamic dependencies (ldd <program>)", "l1");
 OC_SHELL_CMD("fstest", shell_cmd_fstest, "run VFS self-test (mkdir/write/read/ls)", "fs");
 OC_SHELL_CMD("l1test", shell_cmd_l1test, "test L1 job_create/job_list/job_control with running process", "l1");
-OC_SHELL_CMD("lang", shell_cmd_lang, "show or set the shell output language (lang [en|zh])", "display");
 OC_SHELL_CMD("reboot", shell_cmd_reboot, "reboot the machine (reboot)", "ota");
 OC_SHELL_CMD("shutdown", shell_cmd_shutdown, "power off (flush + ACPI/Bochs/APM ports)", "power");
 OC_SHELL_CMD("poweroff", shell_cmd_shutdown, "alias of shutdown", "power");

@@ -749,7 +749,7 @@ int shell_cmd_smbustest(const char *args) {
 /* touchpad                                                            */
 /* ------------------------------------------------------------------ */
 
-int shell_cmd_touchpad(const char *args) {
+int inp_cmd_touchpad(const char *args)   /* v2.0.0: input L1 surface */ {
     (void)args;
     char line[100]; char n[16];
     if (driver_input_i2chid_present()) {
@@ -806,7 +806,7 @@ int shell_cmd_touchpad(const char *args) {
     return 0;
 }
 
-int shell_cmd_touchtest(const char *args) {
+int inp_cmd_touchtest(const char *args)   /* v2.0.0: input L1 surface */ {
     (void)args;
     int mask = driver_input_touchpad_selftest();
     if (mask == 0) {
@@ -848,5 +848,3 @@ OC_SHELL_CMD("i2cset", shell_cmd_i2cset, "write I2C byte (i2cset <bus> <addr> <r
 OC_SHELL_CMD("i2ctest", shell_cmd_i2ctest, "I2C core/controller self-test", "input");
 OC_SHELL_CMD("smbus", shell_cmd_smbus, "list SMBus devices from the scan", "input");
 OC_SHELL_CMD("smbustest", shell_cmd_smbustest, "SMBus protocol test (byte/word/block)", "input");
-OC_SHELL_CMD("touchpad", shell_cmd_touchpad, "touchpad status + pending gesture events", "input");
-OC_SHELL_CMD("touchtest", shell_cmd_touchtest, "multitouch pipeline self-test (tap/scroll/pinch/swipe)", "input");
