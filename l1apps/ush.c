@@ -147,6 +147,15 @@
 #define L1SVC_OTA_LOCAL_TEST      14  /* update_local_test */
 #define L1SVC_OTA_STATUS_TEST     15  /* update_status_test */
 #define L1SVC_OTA_REAL_TEST       16  /* real_update_test */
+#define L1SVC_CAT_POWER     5
+#define L1SVC_PWR_SHUTDOWN        1  /* shutdown / poweroff */
+#define L1SVC_PWR_REBOOT          2  /* reboot */
+#define L1SVC_PWR_HALT            3  /* halt */
+#define L1SVC_PWR_SLEEP           4  /* sleep <sec> */
+#define L1SVC_PWR_POWEROFF_TEST   5  /* poweroff_test */
+#define L1SVC_PWR_SUSPEND_TEST    6  /* suspend_test */
+#define L1SVC_PWR_HALT_TEST       7  /* halt_test */
+#define L1SVC_PWR_REBOOT_TEST     8  /* reboot_test */
 #define NETCMD_IFCONFIG  1
 #define NETCMD_PING      2
 #define NETCMD_NETSTAT   3
@@ -883,6 +892,16 @@ static const struct svc_cmd SVC_CMDS[] = {
     { "update_local_test",  L1SVC_CAT_OTA, L1SVC_OTA_LOCAL_TEST },
     { "update_status_test", L1SVC_CAT_OTA, L1SVC_OTA_STATUS_TEST },
     { "real_update_test",   L1SVC_CAT_OTA, L1SVC_OTA_REAL_TEST },
+    /* power service (services/power) */
+    { "shutdown",       L1SVC_CAT_POWER, L1SVC_PWR_SHUTDOWN },
+    { "poweroff",       L1SVC_CAT_POWER, L1SVC_PWR_SHUTDOWN },
+    { "reboot",         L1SVC_CAT_POWER, L1SVC_PWR_REBOOT },
+    { "halt",           L1SVC_CAT_POWER, L1SVC_PWR_HALT },
+    { "sleep",          L1SVC_CAT_POWER, L1SVC_PWR_SLEEP },
+    { "poweroff_test",  L1SVC_CAT_POWER, L1SVC_PWR_POWEROFF_TEST },
+    { "suspend_test",   L1SVC_CAT_POWER, L1SVC_PWR_SUSPEND_TEST },
+    { "halt_test",      L1SVC_CAT_POWER, L1SVC_PWR_HALT_TEST },
+    { "reboot_test",    L1SVC_CAT_POWER, L1SVC_PWR_REBOOT_TEST },
 };
 
 static int svc_cmd_run(int argc, char *argv[]) {
@@ -1009,6 +1028,9 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  update / checkupdate / rollback   A/B update family\n");
         puts_("  config list|get|set    System configuration store\n");
         puts_("  update_*_test          OTA test suite\n");
+        puts_("  halt/shutdown/reboot   Power controls (same bodies as oc>)\n");
+        puts_("  sleep <sec>            Delay N seconds\n");
+        puts_("  suspend_test           S3 capability contract\n");
         puts_("\n  Editing: Up/Down history, Left/Right/Home/End cursor, Del,\n");
         puts_("  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion\n");
         puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
@@ -2815,7 +2837,10 @@ void _start(void) {
                     "update_check_test","update_download_test",
                     "update_verify_test","update_install_test",
                     "update_rollback_test","update_local_test",
-                    "update_status_test","real_update_test",0
+                    "update_status_test","real_update_test",
+                    "shutdown","poweroff","reboot","halt","sleep",
+                    "poweroff_test","suspend_test","halt_test",
+                    "reboot_test",0
                 };
                 int found = 0;
                 int blen = 0;
