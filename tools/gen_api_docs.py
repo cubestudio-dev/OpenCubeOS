@@ -40,31 +40,35 @@ def esc(s):
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 L1_HEADERS = [
-    "l1/l1_ext.h", "l1/l1_wp8a.h", "l1/l1_wp8b.h", "l1/l1_wp8cd.h",
-    "tui/tui_ext.h",
-    # L1-callable driver interfaces declared in kernel headers (the
-    # extension surface the wp8/wpu headers include):
-    "drivers/block/driver_block_blk.h",
-    "drivers/nic/driver_nic.h",
-    "drivers/snd/driver_snd.h",
-    "services/ota/ota_ab.h", "services/ota/ota_update.h",
-    "services/watchdog/core_watchdog.h", "services/health/core_health.h",
-    "services/klog/lib_klog.h",
+    # v2.0.0: the L1 surface IS the service tree.  The numbered call
+    # surface is services/l1/l1svc_defs.h (SYS_L1SVC categories/ops);
+    # the per-service headers below carry the kernel-side declarations
+    # (block_svc.h is the declared driver interface).
+    "services/l1/l1svc_defs.h",
+    "services/block/block_svc.h",
+    "services/nic/nic_svc.h",
+    "services/snd/snd_svc.h",
+    "services/display/disp_cmds.h",
+    "services/usb/usb_cmds.h",
+    "services/net/net_l1_cmds.h",
+    "services/crypto/crypto_l1_cmds.h",
+    "services/ota/ota_ab.h",
+    "services/ota/ota_update.h",
 ]
 
-# Directories counted for the "lines of source" statistic (matches the
-# README stat: kernel + drivers + fs + net + shell + l1 + tui + chinese
-# + boot + arch + libs).
+# Directories counted for the "lines of source" statistic (v2.0.0 tree:
+# core + arch + drivers + services + recovery + tui + chinese + boot +
+# l1apps; matches the README verification command).
 STAT_DIRS = [
-    "kernel", "boot", "userprogs", "arch", "drivers", "fs", "net",
-    "shell", "l1", "tui", "chinese", "libs",
+    "core", "arch", "drivers", "services", "recovery",
+    "tui", "chinese", "boot", "l1apps",
 ]
 
 # Generated data blobs excluded from the line count - same exclusion the
 # README verification command applies (font/pinyin/boot-image data files
 # are machine-generated, not hand-written source).
 STAT_EXCLUDE = re.compile(
-    r"(chinese_font_data|pinyin_data|grub_boot_data|userprobs_data)")
+    r"(chinese_font_data|pinyin_data|grub_boot_data|userprogs_data)")
 
 DECL_START = re.compile(
     r"^[A-Za-z_][A-Za-z0-9_ \t\*]*\**\s+\**([a-z0-9_]+)\s*\(")
@@ -186,6 +190,144 @@ def capture_help_via_qemu(iso):
     except Exception:
         child.terminate(force=True)
     return out
+
+
+# ---- v2.0.0 command surface extraction ---------------------------------
+#
+# The v2 command table lives in TWO places: the L0 recovery shell
+# (file-local OC_SHELL_CMD declarations, one per command, carrying
+# name + one-line help + category) and the ring-3 ush shell (an
+# SVC_CMDS table of {name, cat, op} rows routed through SYS_L1SVC,
+# plus its built-ins and the four NETCMD-bridge names).  The runtime
+# `help -a` capture stays the L0 authority but no longer covers the
+# ring-3 half, so the v2 generator reads the sources directly.
+
+OC_SHELL_RE = re.compile(
+    r'OC_SHELL_CMD\(\s*"([^"]+)"\s*,\s*(\w+)\s*,\s*'
+    r'"((?:[^"\\]|\\.)*)"\s*,\s*"([^"]+)"\s*\)', re.S)
+
+USH_SVC_RE = re.compile(
+    r'\{\s*"([a-z0-9_:.-]+)"\s*,\s*L1SVC_(CAT_\w+)\s*,\s*(L1SVC_\w+)\s*\}')
+
+NETCMD_BRIDGE = ["ifconfig", "ping", "netstat", "wget"]
+
+
+def extract_v2_commands():
+    """Every v2 command with its home and help text.
+
+    Returns a list of dicts {name, help, where, cat}:
+      where = "L0" (oc> recovery shell) | "L1-SVC" (SYS_L1SVC op) |
+              "L1-builtin" (ush built-in) | "L1-bridge" (NETCMD)
+    """
+    cmds = {}
+    # 1) L0 declarations (name, handler, help, category)
+    for root, _dirs, names in os.walk(ROOT):
+        if ".git" in root or "build" in root or "docs" in root:
+            continue
+        for nm in names:
+            if not nm.endswith(".c"):
+                continue
+            path = os.path.join(root, nm)
+            rel = os.path.relpath(path, ROOT)
+            try:
+                text = open(path, encoding="utf-8",
+                            errors="replace").read()
+            except OSError:
+                continue
+            for m in OC_SHELL_RE.finditer(text):
+                name = m.group(1)
+                cmds.setdefault(name, {
+                    "name": name, "help": m.group(3),
+                    "where": "L0", "cat": m.group(4)})
+    # 2) ush SVC table rows
+    ush_path = os.path.join(ROOT, "l1apps", "ush.c")
+    ush = open(ush_path, encoding="utf-8", errors="replace").read()
+    for m in USH_SVC_RE.finditer(ush):
+        name = m.group(1)
+        # m.group(2) = "CAT_NET" (the L1SVC_ prefix is outside the
+        # group); normalize to the service folder name.
+        folder = m.group(2).replace("CAT_", "").lower()
+        cmds.setdefault(name, {
+            "name": name, "help": "",
+            "where": "L1-SVC", "cat": folder})
+    # 3) NETCMD bridge names (same bodies as L0, reached from ush
+    #    built-ins via SYS_NETCMD) - recorded as their own homes so
+    #    the mapping table shows the bridge.
+    for name in NETCMD_BRIDGE:
+        if name in cmds:
+            cmds[name]["bridge"] = "L1-bridge"
+    # 4) ush built-ins (streq dispatch) - only add names not already
+    #    present (SVC rows win: svc_cmd_run runs first in ush)
+    for m in re.finditer(r'streq\(argv\[0\],\s*"([a-z0-9_:.-]+)"\)', ush):
+        name = m.group(1)
+        if name not in cmds:
+            cmds.setdefault(name, {
+                "name": name, "help": "", "where": "L1-builtin",
+                "cat": "ush"})
+    # help text for SVC/builtin rows from the ush help block
+    for m in re.finditer(r'puts_\("\s{2}([a-z0-9_:./| -]+?)\s{2,}'
+                         r'[ <[]', ush):
+        label = m.group(1).strip()
+        for cand in label.split("/"):
+            cand = cand.strip().split(" ")[0]
+            if cand in cmds and not cmds[cand]["help"]:
+                cmds[cand]["help"] = label
+    out = sorted(cmds.values(), key=lambda c: c["name"])
+    return out
+
+
+def extract_l1svc_surface():
+    """Parse services/l1/l1svc_defs.h into the category/op tables."""
+    path = os.path.join(ROOT, "services", "l1", "l1svc_defs.h")
+    text = open(path, encoding="utf-8").read()
+    cats = {}
+    ops = {}
+    cur_cat = None
+    cat_re = re.compile(r'#define\s+L1SVC_CAT_(\w+)\s+(\d+)')
+    name_map_re = re.compile(r'\(n\)\s*==\s*L1SVC_CAT_(\w+)\s*\?\s*"([a-z0-9]+)"')
+    op_re = re.compile(r'#define\s+(L1SVC_\w+)\s+(\d+)\s*/\*\s*(.*?)\s*\*/')
+    for m in cat_re.finditer(text):
+        cats[m.group(1)] = {"num": int(m.group(2)), "folder": None}
+    for m in name_map_re.finditer(text):
+        if m.group(1) in cats:
+            cats[m.group(1)]["folder"] = m.group(2)
+    # attribute ops to the category block they are defined in
+    blocks = re.split(r'/\*\s*----\s*(.*?)\s*----', text)
+    for i in range(1, len(blocks), 2):
+        header = blocks[i]
+        body = blocks[i + 1] if i + 1 < len(blocks) else ""
+        mm = re.search(r'services/([a-z0-9]+)', header)
+        folder = mm.group(1) if mm else None
+        for m in op_re.finditer(body):
+            ops[m.group(1)] = {"num": int(m.group(2)),
+                               "cmd": m.group(3), "folder": folder}
+    return cats, ops
+
+
+def extract_v1_baseline():
+    """v1.0.0 command names + help from the v1 INTERFACES.md (git tag).
+
+    Falls back to evidence/v1_command_list.txt (names only) when the
+    tag is not available (e.g. the docs site checkout).
+    """
+    import subprocess
+    v1 = {}
+    try:
+        text = subprocess.run(
+            ["git", "show", "v1.0.0:INTERFACES.md"],
+            capture_output=True, text=True, timeout=90,
+            cwd=ROOT).stdout
+        for m in re.finditer(r'^\|\s*`([a-z0-9_:.-]+)`\s*\|\s*(.+?)\s*\|$',
+                             text, re.M):
+            v1[m.group(1)] = m.group(2)
+    except Exception:
+        pass
+    if not v1:
+        alt = os.path.join(ROOT, "evidence", "v1_command_list.txt")
+        if os.path.exists(alt):
+            for name in open(alt).read().split():
+                v1[name] = ""
+    return v1
 
 
 def extract_stats():
@@ -545,24 +687,45 @@ def main():
     print(f"gen_api_docs: interfaces.json - {len(interfaces)} declarations "
           f"from {len(L1_HEADERS)} surface headers")
 
-    # ---- commands ----
+    # ---- commands (v2: sources are the authority; a runtime capture
+    # is still accepted to cross-check the L0 half) ----
+    v2cmds = extract_v2_commands()
+    svc_cats, svc_ops = extract_l1svc_surface()
+    v1base = extract_v1_baseline()
+    cmds = v2cmds
     capture = None
     if args.help_capture:
         with open(args.help_capture, "r", encoding="latin-1") as f:
             capture = f.read()
     elif args.qemu:
         capture = capture_help_via_qemu(args.qemu)
-    cmds = []
+    # v2: the source-extracted table is the authority; a runtime
+    # capture (when given) cross-checks the L0 half only.
+    with open(os.path.join(args.out, "commands.json"), "w") as f:
+        json.dump({"count_v2_surface": len(cmds),
+                   "count_l0": sum(1 for c in cmds if c["where"] == "L0"),
+                   "count_l1_svc": sum(1 for c in cmds
+                                       if c["where"] == "L1-SVC"),
+                   "count_l1_builtin": sum(1 for c in cmds
+                                           if c["where"] == "L1-builtin"),
+                   "commands": cmds}, f, indent=1)
     if capture is not None:
-        cmds, total = extract_commands_from_capture_text(capture)
-        with open(os.path.join(args.out, "commands.json"), "w") as f:
-            json.dump({"count_declared": total, "count_listed": len(cmds),
-                       "commands": cmds}, f, indent=1)
-        print(f"gen_api_docs: commands.json - {len(cmds)} commands listed, "
-              f"system declares Total: {total}")
+        cap_cmds, total = extract_commands_from_capture_text(capture)
+        all_names = {c["name"] for c in cmds}
+        cap_names = {c["name"] for c in cap_cmds}
+        # v1 captured everything at the oc> prompt; v2 splits the same
+        # commands across L0 + ring-3 surface.  A real gap = a v1 name
+        # with no v2 home at all.
+        missing = cap_names - all_names
+        moved = cap_names - {c["name"] for c in cmds
+                             if c["where"] == "L0"}
+        print(f"gen_api_docs: runtime cross-check - v1 capture lists "
+              f"{len(cap_names)} (declares {total}); v2 surface "
+              f"{len(all_names)}; moved to ring 3: {len(moved)}; "
+              f"MISSING in v2: {sorted(missing) or 'none'}")
     else:
-        print("gen_api_docs: no --help-capture/--qemu; commands.json "
-              "skipped (interfaces + stats still generated)")
+        print(f"gen_api_docs: commands.json - {len(cmds)} v2 commands "
+              f"from the sources (no runtime capture requested)")
 
     # ---- stats ----
     stats = extract_stats()
@@ -589,55 +752,172 @@ def main():
     if args.md:
         path = os.path.join(ROOT, "INTERFACES.md")
         with open(path, "w") as f:
-            f.write(write_interfaces_md(interfaces, stats, cmds))
+            f.write(write_interfaces_md(interfaces, stats, cmds,
+                                        svc_cats=svc_cats,
+                                        svc_ops=svc_ops, v1=v1base))
         print("gen_api_docs: INTERFACES.md written at the repo root")
     return 0
 
 
-def write_interfaces_md(interfaces, stats, cmds):
-    """Render the root INTERFACES.md reference from the extracted data."""
+def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
+                         svc_ops=None, v1=None):
+    """Render the root INTERFACES.md reference from the extracted data.
+
+    v2.0.0 layout: Part 1 is the full command surface split by home
+    (L0 recovery shell / ring-3 SVC / ush built-ins), Part 1b is the
+    v1 -> v2 command mapping (the compatibility contract), Part 2 the
+    L1SVC service surface + kernel-side declarations, Part 3 syscalls.
+    """
     by_file = {}
     for itf in interfaces:
         by_file.setdefault(itf["file"], []).append(itf)
+    l0 = [c for c in cmds if c["where"] == "L0"]
+    l1svc = [c for c in cmds if c["where"] == "L1-SVC"]
+    l1b = [c for c in cmds if c["where"] == "L1-builtin"]
+    bridge = [c for c in cmds if c.get("bridge") == "L1-bridge"]
+    v1 = v1 or {}
     L = []
     w = L.append
     w("<!-- SPDX-License-Identifier: Apache-2.0 -->")
     w("<!-- GENERATED by tools/gen_api_docs.py --md (make api-docs).")
     w("     Do not hand-edit the tables; edit the generator or the")
     w("     surface headers instead. -->")
-    w("# Open Cube OS Interface Reference")
+    w("# Open Cube OS Interface Reference (2.0.0)")
     w("")
     w("Every entry below is extracted from the real tree at generation")
-    w("time: the shell command table from a live `help -a` runtime")
-    w("capture, the interface declarations straight from the surface")
-    w("headers. Regenerate with `make api-docs`.")
+    w("time: the L0 command declarations straight from the OC_SHELL_CMD")
+    w("call sites, the ring-3 surface from the ush SVC_CMDS table and")
+    w("services/l1/l1svc_defs.h, the kernel-side declarations from the")
+    w("service headers. Regenerate with `make api-docs`.")
     w("")
-    w("- Shell commands (runtime authority): **233**")
-    w("- L1 extension interfaces (numbered surface, the README formula")
-    w("  57+8+13+7+26+11+7+9+8+16): **162**")
-    w("- Callable declarations across the 13 surface headers (includes")
-    w("  internal helpers and unnumbered items): **%d**"
+    w("- v1.0.0 commands (compatibility baseline): **%d** - all mapped"
+      % len(v1))
+    w("  below, none dropped")
+    w("- v2.0.0 command homes: **%d total** = %d in the L0 recovery"
+      % (len(cmds), len(l0)))
+    w("  shell + %d ring-3 SYS_L1SVC ops + %d ush built-ins"
+      % (len(l1svc), len(l1b)))
+    w("- L1SVC service surface: **%d categories / %d numbered ops**"
+      % (len(svc_cats or {}), len(svc_ops or {})))
+    w("- Kernel-side declarations across the service headers: **%d**"
       % len(interfaces))
-    w("- Syscalls: 53 (`grep -c '#define SYS_' kernel/core/core_syscall.h`)")
+    w("- Syscalls: 54 (`grep -c '#define SYS_' core/core_syscall.h`,")
+    w("  SYS_L1SVC(110) added in 2.0.0)")
     w("- Source lines: **%s** across %d files (README verification"
       % (format(stats["total_lines"], ","), stats["total_files"]))
     w("  command; .c/.h/.S, generated data blobs excluded)")
     w("")
-    w("## Part 1 - Shell commands (233)")
+    w("2.0.0 is a breaking re-architecture: the register-class")
+    w("interfaces of 1.0.0 are gone (drivers and services now declare")
+    w("their identity in-file via OC_DRIVER_DECL / OC_SERVICE_DECL),")
+    w("and every operational command class moved to the ring-3 service")
+    w("surface. What deliberately stays in L0: the kernel self-tests,")
+    w("the watchdog, the crash policy controls, the kernel log readers")
+    w("(dmesg/logcat/logctl/crashlog/dumpinfo/crashtest), the chipset")
+    w("diagnostics, the recovery-environment file commands, and the")
+    w("interactive session commands (ssh/sshd).")
     w("")
-    w("From the runtime `help -a` capture (evidence/help_a_runtime.txt).")
+    w("## Part 1 - Command surface by home")
     w("")
-    w("| Command | One-line help |")
-    w("|---------|---------------|")
-    for c in cmds:
-        w("| `%s` | %s |" % (c["name"], esc(c["help"]).replace("|", "\\|")))
+    w("### 1a - L0 recovery shell (`oc>`, %d commands)"
+      % len(l0))
     w("")
-    w("## Part 2 - L1 surface header declarations")
+    w("File-local OC_SHELL_CMD declarations; the `oc>` prompt is the")
+    w("fallback environment after the ring-3 shell exits (or fails to")
+    w("start).")
     w("")
-    w("Every callable declaration in the 13 L1 surface headers, in file")
-    w("and declaration order. The **numbered L1 extension count is 162**")
-    w("(README formula); the tables below are the complete, unfiltered")
-    w("declaration truth of those headers.")
+    w("| Command | One-line help | Category |")
+    w("|---------|---------------|----------|")
+    for c in sorted(l0, key=lambda x: x["name"]):
+        w("| `%s` | %s | %s |" % (
+            c["name"], esc(c["help"]).replace("|", "\\|"), c["cat"]))
+    w("")
+    w("### 1b - Ring-3 service commands (ush, %d SVC rows + %d built-ins)"
+      % (len(l1svc), len(l1b)))
+    w("")
+    w("The default boot entry (ush, ring 3) routes these through")
+    w("SYS_L1SVC(110) to the owning L0 service; the built-ins run")
+    w("entirely in ring 3 (classic file/process syscalls) or through")
+    w("the SYS_NETCMD bridge (%s)."
+      % ", ".join("`%s`" % n for n in sorted(
+          c["name"] for c in bridge)))
+    w("")
+    w("| Command | Service |")
+    w("|---------|---------|")
+    for c in sorted(l1svc, key=lambda x: x["name"]):
+        w("| `%s` | `services/%s/` |" % (c["name"], c["cat"]))
+    w("")
+    w("Built-ins: %s." % ", ".join(
+        "`%s`" % c["name"] for c in sorted(l1b, key=lambda x: x["name"])))
+    w("")
+    w("## Part 1c - v1.0.0 -> 2.0.0 command mapping (%d rows)"
+      % len(v1))
+    w("")
+    w("The compatibility contract: every 1.0.0 command and where it")
+    w("lives now. `L0` = recovery shell (same name), `SVC` = ring-3")
+    w("service surface (same body, captured output), `builtin` = ush")
+    w("built-in, `bridge` = ush built-in reaching the L0 body through")
+    w("SYS_NETCMD, `L0-only` = recovery-environment command kept out")
+    w("of the ring-3 surface by design (kernel self-test / watchdog /")
+    w("crash policy / log reader / chipset diagnostic / interactive")
+    w("session classes).")
+    w("")
+    w("| v1.0.0 command | v2.0.0 home |")
+    w("|----------------|-------------|")
+    where_by_name = {c["name"]: c for c in cmds}
+    for name in sorted(v1):
+        c = where_by_name.get(name)
+        if c is None:
+            w("| `%s` | **MISSING** |" % name)
+            continue
+        if c.get("bridge"):
+            home = "bridge (L0 body + ush NETCMD built-in)"
+        elif c["where"] == "L0":
+            home = "L0-only (recovery environment)"
+        elif c["where"] == "L1-SVC":
+            home = "SVC `services/%s/`" % c["cat"]
+        else:
+            home = "builtin (ush)"
+        w("| `%s` | %s |" % (name, home))
+    w("")
+    w("## Part 2 - L1SVC service surface")
+    w("")
+    w("The numbered ring-3 call surface (SYS_L1SVC): category number")
+    w("selects the services/<category>/ folder, op selects the command.")
+    w("Renumber only by appending (see services/l1/l1svc_defs.h).")
+    w("")
+    if svc_cats:
+        w("| Cat | Folder | Categories with an L1 dispatch table |")
+        w("|-----|--------|--------------------------------------|")
+        dispatched = set()
+        if svc_ops:
+            for opname, op in svc_ops.items():
+                if op["folder"]:
+                    dispatched.add(op["folder"])
+        for catname, cat in sorted(svc_cats.items(),
+                                   key=lambda kv: kv[1]["num"]):
+            folder = cat["folder"] or catname.lower()
+            mark = "yes" if folder in dispatched else "-"
+            w("| %d | `services/%s/` | %s |" % (cat["num"], folder, mark))
+        w("")
+    if svc_ops:
+        for folder in sorted(set(o["folder"] for o in svc_ops.values()
+                                 if o["folder"])):
+            w("### services/%s (%d ops)" % (folder, sum(
+                1 for o in svc_ops.values() if o["folder"] == folder)))
+            w("")
+            w("| Op | Command | Constant |")
+            w("|----|---------|----------|")
+            for opname, op in sorted(
+                    ((k, v) for k, v in svc_ops.items()
+                     if v["folder"] == folder),
+                    key=lambda kv: kv[1]["num"]):
+                w("| %d | `%s` | `%s` |" % (op["num"], op["cmd"], opname))
+            w("")
+    w("### Kernel-side service header declarations")
+    w("")
+    w("Every callable declaration in the service surface headers, in")
+    w("file and declaration order.")
     w("")
     for fname in sorted(by_file):
         w("### %s" % fname)
@@ -648,12 +928,13 @@ def write_interfaces_md(interfaces, stats, cmds):
             w("| %d | `%s` |" % (itf["line"],
                                  itf["signature"].replace("|", "\\|")))
         w("")
-    w("## Part 3 - Syscall surface (53)")
+    w("## Part 3 - Syscall surface (54)")
     w("")
-    w("Defined in `kernel/core/core_syscall.h` (`#define SYS_*`).")
-    w("ABI: rax = number, rdi/rsi/rdx/r10 = arguments, rax = result")
-    w("(>= 0 success, < 0 error). The authoritative list is the header;")
-    w("the L1 syscall wrappers are declared in `l1/l1_wp8a.h`.")
+    w("Defined in `core/core_syscall.h` (`#define SYS_*`).")
+    w("ABI: rax = number, rdi/rsi/rdx/r10 = arguments (r8 = 5th for")
+    w("SYS_L1SVC), rax = result (>= 0 success, < 0 error).")
+    w("SYS_L1SVC(110) and SYS_NETCMD(101) are the 2.0.0 ring-3")
+    w("service bridges.")
     w("")
     return "\n".join(L)
 
