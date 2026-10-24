@@ -8,6 +8,5 @@
 #define OC_FILE_CMDS_H
 
 /* Register all WP-05/WP-07 file operation shell commands. Call once at boot. */
-void shell_cmds_file_register(void);
 
 #endif /* OC_FILE_CMDS_H */

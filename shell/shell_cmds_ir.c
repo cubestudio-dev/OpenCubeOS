@@ -15,6 +15,7 @@
 #include "shell.h"
 #include "driver_ir.h"
 #include "shell_cmds_ir.h"
+#include "core_registry.h"
 
 static void put(const char *s)
 {
@@ -220,12 +221,7 @@ int shell_cmd_irtest(const char *args)
 
 /* ------------------------------------------------------------------ */
 
-void shell_cmds_ir_register(void)
-{
-    shell_register_command_ex("ir", shell_cmd_ir,
-        "infrared status (CIR/SIR devices, carrier, counters)",
-        "WP-10-camera_misc");
-    shell_register_command_ex("irtest", shell_cmd_irtest,
-        "infrared self test (NEC/RC5/RC6/SIRC round trips)",
-        "WP-10-camera_misc");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("ir", shell_cmd_ir, "infrared status (CIR/SIR devices, carrier, counters)", "camera");
+OC_SHELL_CMD("irtest", shell_cmd_irtest, "infrared self test (NEC/RC5/RC6/SIRC round trips)", "camera");

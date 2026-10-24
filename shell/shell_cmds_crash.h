@@ -16,6 +16,5 @@ int shell_cmd_crash_crashtest(const char *args);
 int shell_cmd_crash_dumpinfo(const char *args);
 
 /* called once from kmain */
-void shell_cmds_crash_register(void);
 
 #endif /* OC_SHELL_CMDS_CRASH_H */

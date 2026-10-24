@@ -11,6 +11,4 @@ int shell_cmd_log_dmesg(const char *args);
 int shell_cmd_log_logcat(const char *args);
 int shell_cmd_log_logctl(const char *args);
 
-void shell_cmds_log_register(void);
-
 #endif /* OC_SHELL_CMDS_LOG_H */

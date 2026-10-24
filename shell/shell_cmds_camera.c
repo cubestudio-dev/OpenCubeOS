@@ -23,6 +23,7 @@
 #include "driver_usb.h"
 #include "shell_cmds_camera.h"
 #include "shell_cmds_camera_vectors.h"
+#include "core_registry.h"
 
 /* ------------------------------------------------------------------ */
 /* output helpers                                                      */
@@ -324,12 +325,7 @@ int shell_cmd_uvctest(const char *args)
     return fails == 0 ? 0 : 1;
 }
 
-void shell_cmds_camera_register(void)
-{
-    shell_register_command_ex("uvc", shell_cmd_uvc,
-        "camera subsystem status (UVC devices, formats, frames)",
-        "WP-10-camera_misc");
-    shell_register_command_ex("uvctest", shell_cmd_uvctest,
-        "camera self test (JPEG decode, UVC descriptor parse, core)",
-        "WP-10-camera_misc");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("uvc", shell_cmd_uvc, "camera subsystem status (UVC devices, formats, frames)", "camera");
+OC_SHELL_CMD("uvctest", shell_cmd_uvctest, "camera self test (JPEG decode, UVC descriptor parse, core)", "camera");

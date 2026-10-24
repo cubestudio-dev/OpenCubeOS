@@ -18,6 +18,7 @@
 #include "driver_parallel.h"
 #include "driver_gameport.h"
 #include "shell_cmds_pargame.h"
+#include "core_registry.h"
 
 /* ------------------------------------------------------------------ */
 /* output helpers                                                      */
@@ -330,18 +331,9 @@ int shell_cmd_gameporttest(const char *args)
 
 /* ------------------------------------------------------------------ */
 
-void shell_cmds_pargame_register(void)
-{
-    shell_register_command_ex("parallel", shell_cmd_parallel,
-        "parallel port status (IEEE 1284 modes, counters)",
-        "WP-10-camera_misc");
-    shell_register_command_ex("paralleltest", shell_cmd_paralleltest,
-        "parallel self test (SPP write, EPP cycles, ECP probe)",
-        "WP-10-camera_misc");
-    shell_register_command_ex("gameport", shell_cmd_gameport,
-        "game port status (axes, buttons, calibration)",
-        "WP-10-camera_misc");
-    shell_register_command_ex("gameporttest", shell_cmd_gameporttest,
-        "game port self test (axis reads, buttons, calibration)",
-        "WP-10-camera_misc");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("parallel", shell_cmd_parallel, "parallel port status (IEEE 1284 modes, counters)", "camera");
+OC_SHELL_CMD("paralleltest", shell_cmd_paralleltest, "parallel self test (SPP write, EPP cycles, ECP probe)", "camera");
+OC_SHELL_CMD("gameport", shell_cmd_gameport, "game port status (axes, buttons, calibration)", "camera");
+OC_SHELL_CMD("gameporttest", shell_cmd_gameporttest, "game port self test (axis reads, buttons, calibration)", "camera");

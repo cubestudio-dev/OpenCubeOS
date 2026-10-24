@@ -12,6 +12,5 @@
 #define SHELL_CMDS_BT_H
 
 int shell_cmd_bt(const char *args);
-void shell_cmds_bt_register(void);
 
 #endif /* SHELL_CMDS_BT_H */

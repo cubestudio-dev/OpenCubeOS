@@ -47,11 +47,17 @@ typedef struct {
     const char        *group;
 } oc_shell_cmd_decl_t;
 
-/* __COUNTER__ keeps the file-local symbol unique when one handler backs
- * several command words in the same file (alias-style entries).  The
- * symbol is static: no cross-object collision is possible. */
+/* Two-level expansion so __COUNTER__ is evaluated BEFORE the token
+ * paste (## suppresses macro expansion of its operands - the naive
+ * single-level paste produced a literal __COUNTER__ symbol and two
+ * entries with the same handler collided).  The symbol stays
+ * file-local (static): no cross-object collision is possible. */
+#define OC_DECL_UID(prefix)    OC_DECL_UID2(prefix, __COUNTER__)
+#define OC_DECL_UID2(prefix, c) OC_DECL_UID3(prefix, c)
+#define OC_DECL_UID3(prefix, c) prefix##c
+
 #define OC_SHELL_CMD(nm, fn, hp, grp) \
-    static const oc_shell_cmd_decl_t __ocsc_##fn##_##__COUNTER__ \
+    static const oc_shell_cmd_decl_t OC_DECL_UID(__ocsc_##fn##_) \
     __attribute__((used, section(".oc_cmds"))) = { (nm), (fn), (hp), (grp) }
 
 /* ---- Driver identity -----------------------------------------------

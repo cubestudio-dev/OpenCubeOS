@@ -8,6 +8,5 @@
 #define OC_SHELL_CMDS_WD_H
 
 int shell_cmd_watchdog(const char *args);
-void shell_cmds_wd_register(void);
 
 #endif /* OC_SHELL_CMDS_WD_H */

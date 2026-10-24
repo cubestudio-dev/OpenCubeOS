@@ -18,6 +18,7 @@
 #include "screen_console.h"
 #include "lib_string.h"
 #include "mem_heap.h"
+#include "core_registry.h"
 
 /* ---- lsblk: list block devices ---- */
 static int shell_cmd_lsblk(const char *args) {
@@ -657,14 +658,12 @@ static int shell_cmd_sync(const char *args) {
     return 0;
 }
 
-void shell_cmds_disk_register(void) {
-    /* P1-18 FIX: df/du/mount/umount are registered in file_cmds.c (WP-05).
-     * Only register WP-07-specific commands here to avoid duplicates. */
-    shell_register_command_ex("lsblk", shell_cmd_lsblk, "list block devices", "WP-10a");
-    shell_register_command_ex("parted", shell_cmd_parted, "show partition table (parted [dev])", "WP-10a");
-    shell_register_command_ex("mkfs.fat32", shell_cmd_mkfs_fat32, "format FAT32 (mkfs.fat32 <dev> confirm)", "WP-10a");
-    shell_register_command_ex("mkfs.exfat", shell_cmd_mkfs_exfat, "format exFAT (mkfs.exfat <dev> confirm)", "WP-10a");
-    shell_register_command_ex("mkfs.ext4", shell_cmd_mkfs_ext4, "format ext4 (mkfs.ext4 <dev> confirm)", "WP-10a");
-    shell_register_command_ex("fsck", shell_cmd_fsck, "filesystem check", "WP-10a");
-    shell_register_command_ex("sync", shell_cmd_sync, "flush disk cache", "WP-10a");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("lsblk", shell_cmd_lsblk, "list block devices", "block");
+OC_SHELL_CMD("parted", shell_cmd_parted, "show partition table (parted [dev])", "block");
+OC_SHELL_CMD("mkfs.fat32", shell_cmd_mkfs_fat32, "format FAT32 (mkfs.fat32 <dev> confirm)", "block");
+OC_SHELL_CMD("mkfs.exfat", shell_cmd_mkfs_exfat, "format exFAT (mkfs.exfat <dev> confirm)", "block");
+OC_SHELL_CMD("mkfs.ext4", shell_cmd_mkfs_ext4, "format ext4 (mkfs.ext4 <dev> confirm)", "block");
+OC_SHELL_CMD("fsck", shell_cmd_fsck, "filesystem check", "block");
+OC_SHELL_CMD("sync", shell_cmd_sync, "flush disk cache", "block");

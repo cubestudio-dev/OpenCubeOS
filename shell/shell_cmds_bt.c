@@ -22,6 +22,7 @@
 #include "driver_bt.h"
 #include "screen_console.h"
 #include "lib_string.h"
+#include "core_registry.h"
 
 static int word_is(const char **p, const char *w) {
     const char *s = *p;
@@ -269,9 +270,6 @@ int shell_cmd_bt(const char *args)
     return fails == 0 ? 0 : 1;
 }
 
-void shell_cmds_bt_register(void)
-{
-    shell_register_command_ex("bt", shell_cmd_bt,
-        "bluetooth: status/usb/uart/test (HCI/L2CAP/RFCOMM/SDP/SPP/HID)",
-        "WP-10-wireless_bluetooth");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("bt", shell_cmd_bt, "bluetooth: status/usb/uart/test (HCI/L2CAP/RFCOMM/SDP/SPP/HID)", "wireless");

@@ -39,6 +39,7 @@
 #include "screen_console.h"
 #include "lib_string.h"
 #include "mem_heap.h"
+#include "core_registry.h"
 
 /* ---- small report helpers ---- */
 
@@ -629,13 +630,13 @@ static int shell_cmd_real_hw_test(const char *args) {
 
 /* ---- registration ---- */
 
-void shell_cmds_disk_test_register(void) {
-    shell_register_command_ex("ahci_test", shell_cmd_ahci_test, "WP-10a: AHCI init/ports/read-write test", "WP-10a");
-    shell_register_command_ex("nvme_test", shell_cmd_nvme_test, "WP-10a: NVMe init/queues/read-write test", "WP-10a");
-    shell_register_command_ex("ata_dma_test", shell_cmd_ata_dma_test, "WP-10a: ATA Bus-Master DMA test + PIO timing", "WP-10a");
-    shell_register_command_ex("virtio_blk_test", shell_cmd_virtio_blk_test, "WP-10a: virtio-blk capacity + read/write test", "WP-10a");
-    shell_register_command_ex("disk_rw_test", shell_cmd_disk_rw_test, "WP-10a: rw round-trip on one device (disk_rw_test <dev>)", "WP-10a");
-    shell_register_command_ex("partition_test", shell_cmd_partition_test, "WP-10a: MBR+GPT parse test (partition_test [dev])", "WP-10a");
-    shell_register_command_ex("fs_mount_test", shell_cmd_fs_mount_test, "WP-10a: mkfs+mount FAT32 file round-trip (fs_mount_test <dev>)", "WP-10a");
-    shell_register_command_ex("real_hw_test", shell_cmd_real_hw_test, "WP-10a: real-hardware detection report", "WP-10a");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("ahci_test", shell_cmd_ahci_test, "WP-10a: AHCI init/ports/read-write test", "block");
+OC_SHELL_CMD("nvme_test", shell_cmd_nvme_test, "WP-10a: NVMe init/queues/read-write test", "block");
+OC_SHELL_CMD("ata_dma_test", shell_cmd_ata_dma_test, "WP-10a: ATA Bus-Master DMA test + PIO timing", "block");
+OC_SHELL_CMD("virtio_blk_test", shell_cmd_virtio_blk_test, "WP-10a: virtio-blk capacity + read/write test", "block");
+OC_SHELL_CMD("disk_rw_test", shell_cmd_disk_rw_test, "WP-10a: rw round-trip on one device (disk_rw_test <dev>)", "block");
+OC_SHELL_CMD("partition_test", shell_cmd_partition_test, "WP-10a: MBR+GPT parse test (partition_test [dev])", "block");
+OC_SHELL_CMD("fs_mount_test", shell_cmd_fs_mount_test, "WP-10a: mkfs+mount FAT32 file round-trip (fs_mount_test <dev>)", "block");
+OC_SHELL_CMD("real_hw_test", shell_cmd_real_hw_test, "WP-10a: real-hardware detection report", "block");

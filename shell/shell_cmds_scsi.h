@@ -11,6 +11,5 @@
 
 int shell_cmd_scsi(const char *args);
 int shell_cmd_scsitest(const char *args);
-void shell_cmds_scsi_register(void);
 
 #endif /* OC_SHELL_CMDS_SCSI_H */

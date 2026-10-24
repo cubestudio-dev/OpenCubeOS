@@ -16,8 +16,6 @@
  */
 #ifndef OC_USB_TEST_CMDS_H
 #define OC_USB_TEST_CMDS_H
-
-void shell_cmds_usb_test_register(void);
 void driver_usb_poll_start(void);
 
 #endif /* OC_USB_TEST_CMDS_H */

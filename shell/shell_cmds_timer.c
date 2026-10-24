@@ -21,6 +21,7 @@
 #include "lib_string.h"
 
 #include <stdint.h>
+#include "core_registry.h"
 
 /* ------------------------------------------------------------------ */
 /* tiny output helpers                                                 */
@@ -755,17 +756,9 @@ int shell_cmd_tsc(const char *args) {
     return 0;
 }
 
-void shell_cmds_timer_register(void) {
-    shell_register_command_ex("rtc", shell_cmd_rtc,
-        "CMOS RTC: time + status + UIE/PIE/alarm interrupt tests",
-        "WP-10-timer_rtc");
-    shell_register_command_ex("hpet", shell_cmd_hpet,
-        "HPET: caps + counter + one-shot/periodic IRQ8 tests",
-        "WP-10-timer_rtc");
-    shell_register_command_ex("pmtimer", shell_cmd_pmtimer,
-        "ACPI PM timer: read + PIT calibration + wrap tests",
-        "WP-10-timer_rtc");
-    shell_register_command_ex("tsc", shell_cmd_tsc,
-        "TSC: reads + PIT/HPET/PMTimer calibration + delay test",
-        "WP-10-timer_rtc");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("rtc", shell_cmd_rtc, "CMOS RTC: time + status + UIE/PIE/alarm interrupt tests", "time");
+OC_SHELL_CMD("hpet", shell_cmd_hpet, "HPET: caps + counter + one-shot/periodic IRQ8 tests", "time");
+OC_SHELL_CMD("pmtimer", shell_cmd_pmtimer, "ACPI PM timer: read + PIT calibration + wrap tests", "time");
+OC_SHELL_CMD("tsc", shell_cmd_tsc, "TSC: reads + PIT/HPET/PMTimer calibration + delay test", "time");

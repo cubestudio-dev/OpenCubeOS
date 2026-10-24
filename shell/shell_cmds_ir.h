@@ -12,6 +12,4 @@
 int shell_cmd_ir(const char *args);
 int shell_cmd_irtest(const char *args);
 
-void shell_cmds_ir_register(void);
-
 #endif /* OC_SHELL_CMDS_IR_H */

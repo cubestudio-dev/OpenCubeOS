@@ -18,6 +18,7 @@
 #include "core_health.h"
 #include "core_timer.h"
 #include "fs_vfs.h"
+#include "core_registry.h"
 
 #pragma GCC optimize("Os")
 
@@ -176,11 +177,8 @@ int shell_cmd_health_export(const char *args) {
     return health_export_core(path);
 }
 
-void shell_cmds_health_register(void) {
-    shell_register_command_ex("health", shell_cmd_health,
-                              "system health monitor (health [watch|export])", "WP-12");
-    shell_register_command_ex("health watch", shell_cmd_health_watch,
-                              "live health monitor, 1 s refresh (ENTER exits)", "WP-12");
-    shell_register_command_ex("health export", shell_cmd_health_export,
-                              "write health JSON to /var/log/health.json", "WP-12");
-}
+
+/* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
+OC_SHELL_CMD("health", shell_cmd_health, "system health monitor (health [watch|export])", "watchdog");
+OC_SHELL_CMD("health watch", shell_cmd_health_watch, "live health monitor, 1 s refresh (ENTER exits)", "watchdog");
+OC_SHELL_CMD("health export", shell_cmd_health_export, "write health JSON to /var/log/health.json", "watchdog");

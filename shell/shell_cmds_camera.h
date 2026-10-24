@@ -19,6 +19,5 @@ int shell_cmd_uvc(const char *args);
 int shell_cmd_uvctest(const char *args);
 
 /* Register the WP-10-camera_misc camera commands (called from kmain). */
-void shell_cmds_camera_register(void);
 
 #endif /* OC_SHELL_CMDS_CAMERA_H */
