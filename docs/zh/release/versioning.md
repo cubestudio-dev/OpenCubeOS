@@ -9,14 +9,14 @@
 
 此外，每次构建还携带：
 
-- **构建号** = 构建时的提交计数（`git rev-list --count HEAD`）- 单调递增，在 `uname -a` 和更新清单的 `build` 字段中可见。
+- **构建号** = 构建时的提交计数（`git rev-list --count HEAD`）- 单调递增，发布于更新清单的 `build` 字段（横幅/uname 携带版本号）。
 - **版本横幅** = Makefile 中固定的 `OC_RELEASE_VERSION ?= 1.0.0` 字面量（显式 `OC_RELEASE_VERSION=` 覆盖仍然优先，E2E 更新测试即依赖此机制）- 烘焙到内核横幅、uname、OTA 清单和 ISO 中。早期构建使用 `git describe --tags` 推导；v1.0.0 起固化为字面量，横幅不再依赖本地 git 状态。
 
 ## 各数字的含义
 
 | 位置 | 示例 | 含义 |
 |-------|---------|---------|
-| `uname -a` | `Open Cube OS 1.0.0 build 275` | 运行中内核的版本 + 构建 |
+| `uname -a` | `Open Cube OS 1.0.0 x86_64` | 运行中内核的版本 |
 | update.json | `version: 1.0.0, build: 275` | 已发布的清单 |
 | 发布标签 | `v1.0.0` | 资源所构建自的 git 标签 |
 | gh-pages | 下载页面中的相同两个数字 | 网站镜像了发布版本 |

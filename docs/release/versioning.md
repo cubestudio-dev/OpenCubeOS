@@ -11,8 +11,8 @@ work-package stage names (`WP-14-docs_release`, `WP-13-build_system`,
 Additionally every build carries:
 
 - **Build number** = the commit count (`git rev-list --count HEAD`)
-  at build time - monotonically increasing, visible in `uname -a`
-  and the update manifest's `build` field.
+  at build time - monotonically increasing, published in the update
+  manifest's `build` field (the banner/uname carry the version).
 - **Version banner** = the fixed `OC_RELEASE_VERSION ?= 1.0.0`
   literal in the Makefile (an explicit `OC_RELEASE_VERSION=` override
   still wins, which is how the E2E update test works) - baked into
@@ -24,7 +24,7 @@ Additionally every build carries:
 
 | Where | Example | Meaning |
 |-------|---------|---------|
-| `uname -a` | `Open Cube OS 1.0.0 build 275` | the running kernel's version + build |
+| `uname -a` | `Open Cube OS 1.0.0 x86_64` | the running kernel's version |
 | update.json | `version: 1.0.0, build: 275` | the published manifest |
 | Release tag | `v1.0.0` | the git tag the assets were built from |
 | gh-pages | the same two numbers in the download page | the website mirrors the Release |
