@@ -7,7 +7,7 @@
  *          buffers are caller-owned tui_field_t entries.
  */
 #include "tui.h"
-#include "../kernel/lib/lib_string.h"
+#include "../core/lib/lib_string.h"
 
 tui_form_t *tui_form_new(tui_window_t *win, tui_field_t *fields, int count) {
     if (!win || !fields || count <= 0) return (void *)0;

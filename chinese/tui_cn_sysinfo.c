@@ -15,14 +15,14 @@
  * one-for-one; all page text stays Chinese.
  */
 #include "tui_chinese.h"
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/lib/lib_config.h"
-#include "../kernel/core/core_sched.h"
-#include "../kernel/core/core_timer.h"
-#include "../kernel/core/core_rtc.h"
-#include "../kernel/core/core_power.h"
-#include "../kernel/ota/ota_ab.h"
-#include "../kernel/ota/ota_update.h"
+#include "../core/lib/lib_string.h"
+#include "../core/lib/lib_config.h"
+#include "../core/core_sched.h"
+#include "../core/core_timer.h"
+#include "../services/time/core_rtc.h"
+#include "../services/power/core_power.h"
+#include "../services/ota/ota_ab.h"
+#include "../services/ota/ota_update.h"
 #include "../drivers/block/driver_block_blk.h"
 #include "../mem/mem_pmm.h"
 /* boot-log ring (kernel/lib/lib_log.c) */

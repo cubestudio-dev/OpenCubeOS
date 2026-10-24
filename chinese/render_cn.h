@@ -21,7 +21,7 @@
 #ifndef OC_RENDER_CN_H
 #define OC_RENDER_CN_H
 
-#include "../kernel/types.h"
+#include "../core/types.h"
 #include "../drivers/display/screen_font.h"
 
 #define CN_FONT_MAX 8   /* pluggable font engine slots */

@@ -22,12 +22,12 @@
  */
 #include "tui.h"
 #include "tui_desktop.h"   /* WP-10-tui-native: tui_tr */
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/lib/lib_config.h"
-#include "../kernel/lib/lib_log.h"
-#include "../net/net_core.h"
-#include "../kernel/ota/ota_ab.h"
-#include "../fs/fs_vfs.h"
+#include "../core/lib/lib_string.h"
+#include "../core/lib/lib_config.h"
+#include "../core/lib/lib_log.h"
+#include "../services/net/net_core.h"
+#include "../services/ota/ota_ab.h"
+#include "../services/fs/fs_vfs.h"
 #include "../drivers/block/driver_block_blk.h"
 #include "../drivers/input/driver_input_keyboard.h"
 

@@ -8,8 +8,8 @@
  */
 #include "tui_ext.h"
 #include "tui_desktop.h"   /* WP-10-tui-native: tui_tr for bilingual UI */
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/mem/mem_heap.h"
+#include "../core/lib/lib_string.h"
+#include "../core/mem/mem_heap.h"
 
 /* ------------------------------------------------------------------ */
 /* 7.1 menu extension                                                  */

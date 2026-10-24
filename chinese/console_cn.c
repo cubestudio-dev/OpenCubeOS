@@ -14,9 +14,9 @@
 #include "../drivers/display/screen_console.h"
 #include "../drivers/display/screen_font.h"
 #include "../drivers/display/screen_fb.h"
-#include "../kernel/core/core_sync.h"
-#include "../kernel/lib/lib_string.h"
-#include "../l1/l1_ext.h"
+#include "../core/core_sync.h"
+#include "../core/lib/lib_string.h"
+#include "../services/l1/l1_ext.h"
 
 static encoding_kind_t g_enc = ENC_UTF8;
 static spinlock_t g_concn_lock;

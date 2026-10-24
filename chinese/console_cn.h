@@ -21,7 +21,7 @@
 #ifndef OC_CONSOLE_CN_H
 #define OC_CONSOLE_CN_H
 
-#include "../kernel/types.h"
+#include "../core/types.h"
 #include "encoding.h"
 
 #define CONSOLE_CN_ENC_MAX 16

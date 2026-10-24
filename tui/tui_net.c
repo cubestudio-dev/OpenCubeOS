@@ -10,8 +10,8 @@
 #include "tui.h"
 #include "../drivers/wireless/driver_wireless.h"
 #include "../drivers/bluetooth/driver_bt.h"
-#include "../net/net_core.h"
-#include "../kernel/lib/lib_string.h"
+#include "../services/net/net_core.h"
+#include "../core/lib/lib_string.h"
 
 #define WL_SCAN_MAX 16
 

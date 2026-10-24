@@ -22,12 +22,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "kernel/types.h"
+#include "core/types.h"
 
 void *kmalloc(u64 n) { return malloc(n); }
 void kfree(void *p) { free(p); }
 
-#include "kernel/lib/lib_tar.c"
+#include "core/lib/lib_tar.c"
 
 static int check(const char *name, int cond) {
     printf("%-58s %s\n", name, cond ? "PASS" : "FAIL");

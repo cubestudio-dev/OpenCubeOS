@@ -8,7 +8,7 @@
 #include "tui_chinese.h"
 #include "encoding.h"
 #include "render_cn.h"
-#include "../kernel/lib/lib_string.h"
+#include "../core/lib/lib_string.h"
 
 int tui_chinese_init(void) {
     render_chinese_init();

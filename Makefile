@@ -51,7 +51,7 @@ else
 #     make CONFIG_TUI=n iso
 # Dependency rule: CONFIG_CHINESE=n forces CONFIG_TUI=n (the TUI draws
 # CJK through the chinese renderer).  The generated header
-# kernel/generated/config_gen.h turns the values into OC_CONFIG_*
+# core/generated/config_gen.h turns the values into OC_CONFIG_*
 # macros and stubs the optional-module APIs (see the header's stub
 # section); source call sites stay unconditional behind those macros.
 -include $(OC_ROOT)/.config
@@ -106,24 +106,36 @@ OC_KERNEL_BUILD ?= $(shell expr $$(git -C $(OC_ROOT) rev-list --count HEAD 2>/de
 # One folder per module.  All include paths are exported to the compiler so
 # every #include stays a plain basename include (multi -I strategy).
 # NOTE: must be defined BEFORE CFLAGS because CFLAGS uses := (immediate).
-KERNEL_DIRS := kernel kernel/arch/x86_64 kernel/core kernel/mem kernel/lib \
-               kernel/crypto kernel/ota \
+# v2.0.0 L0 layout (one folder per rule):
+#   core/      - kernel foundation (arch-independent C + x86_64 asm in arch/)
+#   services/  - everything that provides a service; folder == L1 interface
+#                surface category (fs net crypto ota klog health watchdog
+#                power time l1 + the driver-service families below)
+#   drivers/   - hardware drivers, one folder per family
+#   recovery/  - the oc> recovery environment shell
+#   tui chinese - v1 TUI/CJK trees (rewritten as L1 ring-3 apps in the
+#                same 2.0.0 batch - see l1apps/)
+#   l1apps/    - ring-3 user applications (built by `make l1apps`)
+KERNEL_DIRS := core arch/x86_64 core/mem core/lib \
+               services/crypto services/ota services/klog services/health \
+               services/watchdog services/power services/time \
+               services/fs services/net services/l1 \
                drivers/block drivers/nic drivers/snd drivers/usb \
                drivers/input drivers/display drivers/pci \
                drivers/acpi drivers/i2c drivers/time \
                drivers/wireless drivers/bluetooth drivers/sd \
                drivers/camera drivers/misc drivers/scsi \
-               fs net shell l1 tui chinese
-# NOTE: kernel/generated is deliberately NOT in KERNEL_DIRS: it only holds
+               recovery tui chinese
+# NOTE: core/generated is deliberately NOT in KERNEL_DIRS: it only holds
 # the stage-2 generated grub_boot_data.c, which is compiled separately
 # (GRUB_DATA_OBJ) and linked in the second link stage only.  Its -I path
 # IS exported (WP-10-tui-qa): version_gen.h lives there and is included
 # by the objects that embed the release version.
 KERNEL_INC := $(foreach d,$(KERNEL_DIRS) boot tools,-I$(OC_ROOT)/$(d)) \
-              -I$(OC_ROOT)/kernel/generated
+              -I$(OC_ROOT)/core/generated
 
 # ---- Embedded user programs (embed chain, HANDOVER 2.3 gap) ----
-# kernel/core/userprogs_data.h is included by kernel/main.c (the `run`
+# core/userprogs_data.h is included by core/main.c (the `run`
 # command executes these programs) but was maintained by MANUAL tool runs:
 # the Makefile had ZERO rules touching it, so a clean rebuild silently
 # shipped stale embedded programs (the fix1 int3_user incident class).
@@ -141,8 +153,8 @@ BUILD_SOLIB_PY  := tools/build_solib.py
 # The embed chain covers every embedded image: asm progs, C progs, the six
 # dynamic-link programs (pie / pie-foo recipes), libfoo.c (solib leg) and
 # libs/ld_so.c (ld.so itself, ld_so.ld @ 0x10000000).
-USERPROG_SRCS   := $(wildcard $(OC_ROOT)/userprogs/*.asm) $(wildcard $(OC_ROOT)/userprogs/*.c) $(OC_ROOT)/libs/ld_so.c
-USERPROGS_HDR   := kernel/core/userprogs_data.h
+USERPROG_SRCS   := $(wildcard $(OC_ROOT)/l1apps/*.asm) $(wildcard $(OC_ROOT)/l1apps/*.c) $(OC_ROOT)/l1apps/ld_so.c
+USERPROGS_HDR   := core/userprogs_data.h
 
 CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
 	     -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel \
@@ -167,7 +179,7 @@ LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/linker.ld -z max-page-size=0x1000 -z noe
 # boot/grub_boot_stub.c is compiled separately (stage-1 link only).
 KERNEL_C    := $(foreach d,$(KERNEL_DIRS),$(wildcard $(OC_ROOT)/$(d)/*.c))
 KERNEL_ASM_B := $(wildcard $(OC_ROOT)/boot/*.S)
-KERNEL_ASM_K := $(wildcard $(OC_ROOT)/kernel/arch/x86_64/*.S)
+KERNEL_ASM_K := $(wildcard $(OC_ROOT)/arch/x86_64/*.S)
 # WP-13 multi-config source filtering: drop whole module dirs for TUI/
 # chinese (call sites stubbed via config_gen.h macros) and individual
 # block drivers for the hardware profile options (self-registering
@@ -192,7 +204,7 @@ endif
 
 KERNEL_OBJ  := $(patsubst $(OC_ROOT)/%.c,$(BUILD)/%.o,$(KERNEL_C)) \
                $(patsubst $(OC_ROOT)/boot/%.S,$(BUILD)/boot_%.o,$(KERNEL_ASM_B)) \
-               $(patsubst $(OC_ROOT)/kernel/%.S,$(BUILD)/%.o,$(KERNEL_ASM_K))
+               $(patsubst $(OC_ROOT)/arch/%.S,$(BUILD)/arch/%.o,$(KERNEL_ASM_K))
 
 KERNEL     := $(BUILD)/opencube.elf
 KERNEL_ISO := $(BUILD)/opencube.iso
@@ -203,7 +215,7 @@ KERNEL_ISO := $(BUILD)/opencube.iso
 # boot/core images (grub-mkimage) + the stage-1 ELF; stage 2 links the
 # final kernel with that data.  The in-system abdisk / install /
 # grub-install commands use it to make a disk bootable from the shell.
-GEN_DIR     := $(OC_ROOT)/kernel/generated
+GEN_DIR     := $(OC_ROOT)/core/generated
 GRUB_DATA_C := $(GEN_DIR)/grub_boot_data.c
 GRUB_DATA_OBJ := $(BUILD)/grub_boot_data.o
 STUB_OBJ    := $(BUILD)/grub_boot_stub.o
@@ -394,8 +406,8 @@ $(BUILD)/%.o: $(OC_ROOT)/%.c | $(BUILD)
 $(BUILD)/boot_%.o: $(OC_ROOT)/boot/%.S | $(BUILD)
 	$(NASM) $(ASFLAGS) $< -o $@
 
-# Assembly source (kernel/arch/x86_64/) → object file
-$(BUILD)/%.o: $(OC_ROOT)/kernel/%.S | $(BUILD)
+# Assembly source (arch/x86_64/) → object file
+$(BUILD)/arch/%.o: $(OC_ROOT)/arch/%.S | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(NASM) $(ASFLAGS) $< -o $@
 
@@ -654,7 +666,7 @@ dist: userprogs-check $(KERNEL_ISO)
 	TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
 	SRCZIP=$(DIST)/OpenCubeOS-src-$(OC_RELEASE_VERSION)-$$TIMESTAMP.zip; \
 	ISOCOPY=$(DIST)/OpenCubeOS-$(OC_RELEASE_VERSION)-$$TIMESTAMP.iso; \
-	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*" "website/rw*.sh" "website/build-local.sh" "website/public/downloads/*" "website/out/*" "website/.next/*" "website/node_modules/*" "kernel/generated/*"); \
+	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*" "website/rw*.sh" "website/build-local.sh" "website/public/downloads/*" "website/out/*" "website/.next/*" "website/node_modules/*" "core/generated/*"); \
 	cp $(KERNEL_ISO) $$ISOCOPY; \
 	echo "SRC: $$SRCZIP"; \
 	echo "ISO: $$ISOCOPY"; \

@@ -24,7 +24,7 @@
 #include "../mem/mem_pmm.h"
 #include "../mem/mem_heap.h"
 #include "../drivers/block/driver_block_blk.h"
-#include "../net/net_core.h"
+#include "../services/net/net_core.h"
 
 /* ---- state ---------------------------------------------------------- */
 static health_sample_t g_last;

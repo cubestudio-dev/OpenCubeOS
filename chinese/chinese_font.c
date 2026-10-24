@@ -10,8 +10,8 @@
  *   index -> unicode.
  */
 #include "chinese_font.h"
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/core/core_sync.h"
+#include "../core/lib/lib_string.h"
+#include "../core/core_sync.h"
 
 /* Slot table. Slot 0 is the embedded font and is always resident. */
 typedef struct chinese_font_slot {

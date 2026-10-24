@@ -16,9 +16,9 @@
  *   - every prompt, toast and page is bilingual (tui_tr)
  */
 #include "tui_desktop.h"
-#include "../fs/fs_vfs.h"
-#include "../kernel/lib/lib_string.h"
-#include "../kernel/mem/mem_heap.h"
+#include "../services/fs/fs_vfs.h"
+#include "../core/lib/lib_string.h"
+#include "../core/mem/mem_heap.h"
 #include "../drivers/input/driver_input_keyboard.h"
 #include "../drivers/block/driver_block_blk.h"
 

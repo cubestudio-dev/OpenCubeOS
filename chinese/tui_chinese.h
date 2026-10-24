@@ -16,7 +16,7 @@
 #ifndef OC_TUI_CHINESE_H
 #define OC_TUI_CHINESE_H
 
-#include "../kernel/types.h"
+#include "../core/types.h"
 #include "../tui/tui.h"
 
 /* Init: render_chinese_init + tui UTF-8 path ready. Idempotent. */

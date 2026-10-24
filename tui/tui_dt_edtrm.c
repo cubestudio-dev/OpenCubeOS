@@ -12,8 +12,8 @@
  *          never a panic.
  */
 #include "tui_desktop.h"
-#include "../kernel/lib/lib_string.h"
-#include "../shell/shell.h"
+#include "../core/lib/lib_string.h"
+#include "../recovery/shell.h"
 #include "../drivers/display/screen_console.h"
 #include "../drivers/input/driver_input_keyboard.h"
 

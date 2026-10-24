@@ -6,7 +6,7 @@
  */
 #include "encoding.h"
 #include "chinese_font.h"
-#include "../kernel/lib/lib_string.h"
+#include "../core/lib/lib_string.h"
 
 static u32 g_decodes;
 static u32 g_encodes;

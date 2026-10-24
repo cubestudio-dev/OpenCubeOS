@@ -10,9 +10,9 @@
  */
 #include "tui.h"
 #include "tui_desktop.h"
-#include "../shell/shell.h"
-#include "../shell/shell_lang.h"
-#include "../kernel/lib/lib_string.h"
+#include "../recovery/shell.h"
+#include "../recovery/shell_lang.h"
+#include "../core/lib/lib_string.h"
 #include "core_registry.h"
 
 int tui_test_run(int verbose);

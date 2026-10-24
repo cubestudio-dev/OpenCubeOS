@@ -33,13 +33,13 @@
 #include <math.h>
 
 /* --- kernel service shims (freestanding code compiled for host) ------ */
-#include "../kernel/types.h"
+#include "../core/types.h"
 
 void *kmalloc(unsigned long long size) { return malloc(size); }
 void  kfree(void *p)                   { free(p); }
 u64   core_timer_now_ms(void)          { return 1234; }
 
-#include "../kernel/lib/lib_string.c"
+#include "../core/lib/lib_string.c"
 #include "../drivers/camera/lib_mjpeg.c"
 #include "../drivers/camera/driver_camera.c"
 #include "../drivers/camera/driver_camera_uvc.c"

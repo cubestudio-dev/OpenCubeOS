@@ -22,7 +22,7 @@
 #ifndef OC_ENCODING_H
 #define OC_ENCODING_H
 
-#include "../kernel/types.h"
+#include "../core/types.h"
 
 typedef enum encoding_kind {
     ENC_ASCII  = 0,   /* only 0x00..0x7F bytes present               */

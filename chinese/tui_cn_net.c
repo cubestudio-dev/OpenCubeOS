@@ -6,10 +6,10 @@
  *          status / bluetooth pages on the real wl + bt stacks.
  */
 #include "tui_chinese.h"
-#include "../kernel/lib/lib_string.h"
+#include "../core/lib/lib_string.h"
 #include "../drivers/wireless/driver_wireless.h"
 #include "../drivers/bluetooth/driver_bt.h"
-#include "../net/net_core.h"
+#include "../services/net/net_core.h"
 
 #define CN_NET_MAX_SCAN 16
 
