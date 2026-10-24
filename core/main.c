@@ -87,7 +87,6 @@ void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 #include "../../services/nic/nic_svc.h"            /* WP-10b: NIC drivers + test/status commands */
 #include "ota_ab.h"       /* WP-10u: A/B slots + in-system update */
 #include "core_power.h"           /* WP-10d-fix2: shutdown/suspend/halt/reboot */
-#include "shell_cmds_update_test.h" /* WP-10u: update test suite */
 #include "../../services/snd/snd_svc.h"             /* WP-10c: sound card drivers */
 #include "driver_usb.h"              /* WP-10d: USB stack */
 #include "driver_usb_hid.h"
@@ -3523,13 +3522,7 @@ OC_SHELL_CMD("run", shell_cmd_run, "run a user program (hello/badapp/loop/fork_t
 OC_SHELL_CMD("ldd", shell_cmd_ldd, "list dynamic dependencies (ldd <program>)", "l1");
 OC_SHELL_CMD("fstest", shell_cmd_fstest, "run VFS self-test (mkdir/write/read/ls)", "fs");
 OC_SHELL_CMD("l1test", shell_cmd_l1test, "test L1 job_create/job_list/job_control with running process", "l1");
-OC_SHELL_CMD("checkupdate", shell_cmd_checkupdate, "check for updates via /etc/opencube.conf (http/https)", "ota");
-OC_SHELL_CMD("config", shell_cmd_config, "read/write system config (config list|get|set|restore|path)", "ota");
 OC_SHELL_CMD("lang", shell_cmd_lang, "show or set the shell output language (lang [en|zh])", "display");
-OC_SHELL_CMD("config_test", shell_cmd_config_test, "config subsystem self-test (write/read/get_all/delete/restore)", "ota");
-OC_SHELL_CMD("checkupdate_test", shell_cmd_checkupdate_test, "update check self-test (URL/JSON units + live probe)", "ota");
-OC_SHELL_CMD("update", shell_cmd_update, "check + install system update (update [local <pkg> | --local <pkg> | --status])", "ota");
-OC_SHELL_CMD("rollback", shell_cmd_rollback, "roll back to slot A (rollback)", "ota");
 OC_SHELL_CMD("reboot", shell_cmd_reboot, "reboot the machine (reboot)", "ota");
 OC_SHELL_CMD("shutdown", shell_cmd_shutdown, "power off (flush + ACPI/Bochs/APM ports)", "power");
 OC_SHELL_CMD("poweroff", shell_cmd_shutdown, "alias of shutdown", "power");

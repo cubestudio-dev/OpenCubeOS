@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
  * Open Cube OS - WP-10u
- * File: shell/shell_cmds_update_test.c
+ * File: services/ota/ota_cmds_test.c (migrated from recovery/shell_cmds_update_test.c)
  * Purpose: shell test suite for the in-system update (A/B partitions).
  *
  * Commands (registered in kmain.c):
@@ -21,7 +21,7 @@
  *
  * Every case prints its expected/actual values and PASS/FAIL.
  */
-#include "shell_cmds_update_test.h"
+#include "ota_cmds.h"
 #include "ota_ab.h"
 #include "ota_update.h"
 #include "lib_config.h"
@@ -160,7 +160,7 @@ static int lib_tar_acc_cb(void *ctx, const char *path, int type, u64 size,
 /* ota_update_pkg_test: gzip/DEFLATE + tar unit tests                        */
 /* ==================================================================== */
 
-int shell_cmd_update_pkg_test(const char *args) {
+int ota_cmd_update_pkg_test(const char *args) {
     (void)args;
     t_pass = 0; t_total = 0;
     screen_console_puts("[update_pkg_test] gzip/DEFLATE + tar unit tests\n");
@@ -346,7 +346,7 @@ int shell_cmd_update_pkg_test(const char *args) {
 /* ota_ab_partition_test: A/B disk discovery + partition devices + mounts    */
 /* ==================================================================== */
 
-int shell_cmd_ab_partition_test(const char *args) {
+int ota_cmd_ab_partition_test(const char *args) {
     (void)args;
     t_pass = 0; t_total = 0;
     screen_console_puts("[ab_partition_test] A/B disk + slots\n");
@@ -475,7 +475,7 @@ int shell_cmd_ab_partition_test(const char *args) {
 /* ota_update_check_test: manifest check with package fields                 */
 /* ==================================================================== */
 
-int shell_cmd_update_check_test(const char *args) {
+int ota_cmd_update_check_test(const char *args) {
     (void)args;
     t_pass = 0; t_total = 0;
     screen_console_puts("[update_check_test] package manifest check\n");
@@ -548,7 +548,7 @@ int shell_cmd_update_check_test(const char *args) {
 /* ota_update_download_test                                                  */
 /* ==================================================================== */
 
-int shell_cmd_update_download_test(const char *args) {
+int ota_cmd_update_download_test(const char *args) {
     (void)args;
     t_pass = 0; t_total = 0;
     screen_console_puts("[update_download_test] streaming package download\n");
@@ -609,7 +609,7 @@ int shell_cmd_update_download_test(const char *args) {
 /* ota_update_verify_test                                                    */
 /* ==================================================================== */
 
-int shell_cmd_update_verify_test(const char *args) {
+int ota_cmd_update_verify_test(const char *args) {
     (void)args;
     t_pass = 0; t_total = 0;
     screen_console_puts("[update_verify_test] SHA256 verification\n");
@@ -659,7 +659,7 @@ int shell_cmd_update_verify_test(const char *args) {
 /* ota_update_install_test                                                   */
 /* ==================================================================== */
 
-int shell_cmd_update_install_test(const char *args) {
+int ota_cmd_update_install_test(const char *args) {
     (void)args;
     t_pass = 0; t_total = 0;
     screen_console_puts("[update_install_test] install package into slot B\n");
@@ -711,7 +711,7 @@ int shell_cmd_update_install_test(const char *args) {
 /* ota_update_rollback_test                                                  */
 /* ==================================================================== */
 
-int shell_cmd_update_rollback_test(const char *args) {
+int ota_cmd_update_rollback_test(const char *args) {
     (void)args;
     t_pass = 0; t_total = 0;
     screen_console_puts("[update_rollback_test] boot flags + rollback\n");
@@ -760,7 +760,7 @@ int shell_cmd_update_rollback_test(const char *args) {
 /* ota_update_local_test (offline flow through shell_cmd_update --local)           */
 /* ==================================================================== */
 
-int shell_cmd_update_local_test(const char *args) {
+int ota_cmd_update_local_test(const char *args) {
     (void)args;
     t_pass = 0; t_total = 0;
     screen_console_puts("[update_local_test] offline package flow\n");
@@ -812,7 +812,7 @@ int shell_cmd_update_local_test(const char *args) {
 /* ota_update_status_test                                                    */
 /* ==================================================================== */
 
-int shell_cmd_update_status_test(const char *args) {
+int ota_cmd_update_status_test(const char *args) {
     (void)args;
     t_pass = 0; t_total = 0;
     screen_console_puts("[update_status_test] status struct coverage\n");
@@ -870,7 +870,7 @@ int shell_cmd_update_status_test(const char *args) {
 /* real_update_test: end-to-end phase 1                                  */
 /* ==================================================================== */
 
-int shell_cmd_real_update_test(const char *args) {
+int ota_cmd_real_update_test(const char *args) {
     (void)args;
     t_pass = 0; t_total = 0;
     screen_console_puts("[real_update_test] end-to-end phase 1 "
@@ -941,13 +941,3 @@ int shell_cmd_real_update_test(const char *args) {
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("update_pkg_test", shell_cmd_update_pkg_test, "gzip/DEFLATE + tar unit tests (WP-10u)", "ota");
-OC_SHELL_CMD("ab_partition_test", shell_cmd_ab_partition_test, "A/B disk discovery + slots + flags (WP-10u)", "ota");
-OC_SHELL_CMD("update_check_test", shell_cmd_update_check_test, "update manifest check with package fields (WP-10u)", "ota");
-OC_SHELL_CMD("update_download_test", shell_cmd_update_download_test, "download the update package (WP-10u)", "ota");
-OC_SHELL_CMD("update_verify_test", shell_cmd_update_verify_test, "SHA256 verification of the package (WP-10u)", "ota");
-OC_SHELL_CMD("update_install_test", shell_cmd_update_install_test, "install the package into slot B (WP-10u)", "ota");
-OC_SHELL_CMD("update_rollback_test", shell_cmd_update_rollback_test, "boot flags + rollback (WP-10u)", "ota");
-OC_SHELL_CMD("update_local_test", shell_cmd_update_local_test, "offline update flow via cmd_update --local (WP-10u)", "ota");
-OC_SHELL_CMD("update_status_test", shell_cmd_update_status_test, "ota_update_get_status coverage (WP-10u)", "ota");
-OC_SHELL_CMD("real_update_test", shell_cmd_real_update_test, "end-to-end update phase 1 (WP-10u)", "ota");
