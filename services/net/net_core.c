@@ -15,6 +15,7 @@
 #include "driver_pci.h"
 #include "../../services/nic/nic_svc.h"   /* WP-10b: NIC driver framework (e1000e/igb/rtl8139/...) */
 #include "mem_heap.h"
+#include "lib_log.h"
 #include "mem_pmm.h"
 #include "lib_string.h"
 #include "screen_console.h"
@@ -1631,8 +1632,14 @@ typedef struct {
     u8   buf[IP_FRAG_BUF_SIZE];
 } net_ip_frag_slot_t;
 
-static net_ip_frag_slot_t g_ip_frag_slots[IP_FRAG_SLOTS];
-static u8 g_ip_frag_synth[20 + IP_FRAG_BUF_SIZE];   /* reassembly output */
+/* v2.0.0: the fragment-reassembly buffers moved from static .bss to
+ * the kernel heap (66 KiB) - the identity-window boundary (see
+ * linker.ld ASSERT) leaves no headroom for static buffers this size.
+ * net_init() allocates them after the heap is up; until then (and on
+ * allocation failure) fragmented datagrams are counted as dropped,
+ * honestly, in g_stats.net_ip_frag_rx_dropped. */
+static net_ip_frag_slot_t *g_ip_frag_slots;   /* [IP_FRAG_SLOTS] */
+static u8 *g_ip_frag_synth;                   /* [20 + IP_FRAG_BUF_SIZE] */
 
 static void net_ip_frag_reset_slot(net_ip_frag_slot_t *s) {
     s->in_use = 0;
@@ -1644,6 +1651,7 @@ static void net_ip_frag_reset_slot(net_ip_frag_slot_t *s) {
 
 /* BUG-0210: idle-eviction sweep, called from net_poll (timer tick). */
 static void net_ip_frag_gc(void) {
+    if (!g_ip_frag_slots) return;
     u64 now = core_timer_ticks();
     for (int i = 0; i < IP_FRAG_SLOTS; i++) {
         if (g_ip_frag_slots[i].in_use &&
@@ -1658,6 +1666,10 @@ static void net_ip_frag_reassemble(u32 src_ip, u32 dst_ip, u8 protocol, u16 id,
                                    const u8 *payload, int payload_len,
                                    u16 frag_off, int more_frags) {
     if (payload_len <= 0) return;
+    if (!g_ip_frag_slots || !g_ip_frag_synth) {
+        g_stats.net_ip_frag_rx_dropped++;
+        return;
+    }
     if ((u32)frag_off + (u32)payload_len > (u32)IP_FRAG_BUF_SIZE) {
         g_stats.net_ip_frag_rx_dropped++;
         return;
@@ -4405,6 +4417,18 @@ void net_get_stats(net_stats_t *out) {
  * ============================================================ */
 void net_init(void) {
     memset(&g_stats, 0, sizeof(g_stats));
+    /* v2.0.0: heap-backed IP fragment reassembly (see the note at
+     * g_ip_frag_slots). net_init runs after the heap self-test in
+     * kmain, so kmalloc is available here. */
+    g_ip_frag_slots = (net_ip_frag_slot_t *)
+        kmalloc(sizeof(net_ip_frag_slot_t) * IP_FRAG_SLOTS);
+    g_ip_frag_synth = (u8 *)kmalloc(20 + IP_FRAG_BUF_SIZE);
+    if (g_ip_frag_slots) memset(g_ip_frag_slots, 0,
+                                sizeof(net_ip_frag_slot_t) * IP_FRAG_SLOTS);
+    if (g_ip_frag_synth) memset(g_ip_frag_synth, 0, 20 + IP_FRAG_BUF_SIZE);
+    if (!g_ip_frag_slots || !g_ip_frag_synth) {
+        lib_log_info("net: frag reassembly buffers unavailable (heap)");
+    }
     driver_pci_init();
     net_arp_init();
     net_udp_init();

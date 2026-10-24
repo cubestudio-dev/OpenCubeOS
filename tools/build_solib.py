@@ -67,7 +67,7 @@ def parse_soname(data):
 
 def main():
     _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(_ROOT, "userprogs", "libfoo.c")
+    src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(_ROOT, "l1apps", "libfoo.c")
     if not os.path.exists(src):
         fail(f"source not found: {src}")
     name = os.path.splitext(os.path.basename(src))[0]
@@ -128,7 +128,7 @@ def main():
                + f"const u8 solib_{name}[] = {{\n"
                + "\n".join(hex_lines) + "\n};\n"
                + f"const u64 solib_{name}_size = {len(data)};\n")
-    header_path = os.path.join(_ROOT, "l1", "solib_data.h")
+    header_path = os.path.join(_ROOT, "services", "l1", "solib_data.h")
     with open(header_path, "w") as f:
         f.write(content)
     print(f"  regenerated solib_{name} block in {header_path}")

@@ -20,6 +20,8 @@
 #include "arch_idt.h"
 #include "core_timer.h"
 #include "net_core.h"   /* WP-10-tui: socket syscalls */   /* P2-04: core_timer_now_ms() for sys_uptime */
+#include "l1svc_defs.h" /* v2.0.0: SYS_L1SVC category/op numbering */
+#include "core_registry.h" /* v2.0.0: service dispatch */
 
 /* WP-08b Batch 5: libfoo.so bytes are defined in usermode.c (which
  * #includes solib_data.h). We just reference them here so sys_map_solib
@@ -2666,4 +2668,44 @@ void core_syscall_wp08fix1_init(void) {
     core_syscall_register(SYS_NETSEND, sys_netsend);
     core_syscall_register(SYS_NETRECV, sys_netrecv);
     core_syscall_register(SYS_NETCLOSE, sys_netclose);
+}
+
+/* SYS_L1SVC(110): route one ring-3 service call to the owning L0
+ * service's l1_dispatch (see services/l1/l1svc_defs.h).  The category
+ * arrives as a NUMBER; the number->folder-name mapping and the
+ * per-service op numbering both live in l1svc_defs.h.  Output is a
+ * NUL-terminated text buffer rendered by the service itself.
+ * (cat, op, arg, out, cap) -> 0/-1; `cap` arrives through
+ * core_syscall_arg5() (the 5th argument slot, r8). */
+static u64 sys_l1svc(u64 cat, u64 op, u64 arg, u64 out) {
+    u64 cap = core_syscall_arg5();
+    if (!valid_user_ptr(out) || cap == 0 || cap > 8192) return (u64)-1;
+    const char *cat_name = L1SVC_CAT_NAME((u32)cat);
+    if (!cat_name) return (u64)-1;
+    char karg[256];
+    karg[0] = 0;
+    if (arg) {
+        if (copy_user_str(arg, karg, sizeof(karg)) < 0) return (u64)-1;
+    }
+    char *kout = (char *)kmalloc(cap);
+    if (!kout) return (u64)-1;
+    kout[0] = 0;
+    int rc = core_registry_svc_dispatch(cat_name, (u32)op,
+                                        karg[0] ? karg : 0, kout, (int)cap);
+    if (rc == 0) {
+        u64 n = strlen(kout);
+        if (n > cap - 1) n = cap - 1;
+        if (copy_to_user(out, kout, n) == 0) {
+            char z = 0;
+            copy_to_user(out + n, &z, 1);
+        } else {
+            rc = -1;
+        }
+    }
+    kfree(kout);
+    return (rc == 0) ? 0 : (u64)-1;
+}
+
+void core_syscall_l1svc_init(void) {
+    core_syscall_register(SYS_L1SVC, sys_l1svc);
 }

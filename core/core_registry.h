@@ -92,31 +92,47 @@ typedef struct {
  * the L1 interface surface categories are one-to-one by rule.
  * init/late_init run during boot collection (NULL = no callback);
  * both return void (failures are logged by the service itself).
+ *
+ * v2.0.0 L1 rewrite: l1_dispatch exposes the service's operation
+ * surface to ring-3 applications through SYS_L1SVC (see
+ * services/l1/l1svc_defs.h).  NULL = the service has no ring-3
+ * surface (kernel-only service).  OC_SERVICE_DECL declares one
+ * without a ring-3 surface; OC_SERVICE_DECL_L1 declares one with it.
  */
 typedef void (*oc_service_init_fn_t)(void);
 typedef int  (*oc_service_late_fn_t)(void);   /* 0 = probed something */
+typedef int  (*oc_service_l1_fn_t)(u32 op, const char *arg, char *out, int cap);
 
 typedef struct {
     const char         *category;   /* == services/<category> folder */
     const char         *desc;
     oc_service_init_fn_t init;      /* early bring-up, may be NULL */
     oc_service_late_fn_t late_init; /* probe pass, may be NULL */
+    oc_service_l1_fn_t  l1_dispatch; /* SYS_L1SVC entry, may be NULL */
 } oc_service_decl_t;
 
 #define OC_SERVICE_DECL(cat, dsc, ini, late) \
     static const oc_service_decl_t OC_DECL_UID(__ocsv_) \
-    __attribute__((used, section(".oc_svcs"))) = { (cat), (dsc), (ini), (late) }
+    __attribute__((used, section(".oc_svcs"))) = { (cat), (dsc), (ini), (late), (oc_service_l1_fn_t)0 }
+
+#define OC_SERVICE_DECL_L1(cat, dsc, ini, late, disp) \
+    static const oc_service_decl_t OC_DECL_UID(__ocsv_) \
+    __attribute__((used, section(".oc_svcs"))) = { (cat), (dsc), (ini), (late), (disp) }
 
 /* ---- L1 application identity ----------------------------------------
  * name  : app word used by the launcher (config l1.entry / oc> `l1`)
- * elf/size : embedded ET_EXEC image (see l1apps/ + userprogs build)
+ * elf/size_ptr : embedded ET_EXEC image (see l1apps/ + userprogs
+ * build).  The size arrives as a POINTER to the generated
+ * userprog_<name>_size symbol: the bytes live in a different
+ * translation unit (core_usermode.o compiles userprogs_data.h once),
+ * so the value itself is not a compile-time constant here.
  * is_default : non-zero = this app is the default boot entry
  * (exactly one default is expected; the launcher picks it at boot).
  */
 typedef struct {
     const char *name;
     const u8   *elf;
-    u64         size;
+    const u64  *size_ptr;
     int         is_default;
     const char *desc;
 } oc_l1_app_decl_t;
@@ -140,6 +156,12 @@ const oc_driver_decl_t *core_registry_drv_at(int i);
 
 int  core_registry_svcs_count(void);
 const oc_service_decl_t *core_registry_svc_at(int i);
+
+/* v2.0.0: dispatch one SYS_L1SVC call to the owning service.
+ * Returns the service's return code, or -1 when the category is
+ * unknown / has no ring-3 surface. */
+int core_registry_svc_dispatch(const char *cat, u32 op,
+                                const char *arg, char *out, int cap);
 
 int  core_registry_apps_count(void);
 const oc_l1_app_decl_t *core_registry_app_at(int i);

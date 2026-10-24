@@ -21,6 +21,14 @@
 #define MAX_SYSCALLS 256
 static core_syscall_handler_fn g_syscalls[MAX_SYSCALLS];
 
+/* v2.0.0: 5th syscall argument (r8).  core_syscall_dispatch stores it
+ * here before invoking the handler; SYS_L1SVC is the only 5-arg
+ * syscall today.  Syscalls never nest (ring-3 int 0x80 -> handler ->
+ * return), so a single slot is race-free; signal delivery happens
+ * AFTER the handler returns and never re-enters this path. */
+static u64 g_syscall_arg5;
+u64 core_syscall_arg5(void) { return g_syscall_arg5; }
+
 /* User process table. (non-static for syscall.c) */
 user_proc_t g_procs[MAX_USER_PROCS];
 int g_next_pid = 1;
@@ -200,6 +208,11 @@ void usermode_init(void) {
     /* WP-10-wp08fix1: links / permissions / net bridge / process table. */
     extern void core_syscall_wp08fix1_init(void);
     core_syscall_wp08fix1_init();
+
+    /* v2.0.0: SYS_L1SVC - ring-3 service call surface (per-service
+     * l1_dispatch; see services/l1/l1svc_defs.h). */
+    extern void core_syscall_l1svc_init(void);
+    core_syscall_l1svc_init();
 }
 
 int core_syscall_register(int num, core_syscall_handler_fn handler) {
@@ -375,6 +388,7 @@ void core_syscall_dispatch(u64 *regs) {
     u64 arg2 = f->rsi;
     u64 arg3 = f->rdx;
     u64 arg4 = regs[5];  /* r10 */
+    g_syscall_arg5 = regs[7];  /* r8 - v2.0.0: SYS_L1SVC cap */
 
     /* WP-08a: save frame pointer for fork access */
     g_current_frame = regs;

@@ -27,7 +27,9 @@ def main():
     elf_path = os.path.join(build_dir, f'{name}.elf')
     nasm = os.environ.get('NASM', 'nasm')
     ld = os.environ.get('LD', '/usr/bin/ld')
-    user_ld = os.path.join(_ROOT, 'userprogs', 'user.ld')
+    # v2.0.0: user programs live in l1apps/ (group C restructure;
+    # was userprogs/ in v1.x).
+    user_ld = os.path.join(_ROOT, 'l1apps', 'user.ld')
     obj_path = os.path.join(build_dir, f'{name}.o')
     r = subprocess.run([nasm, '-f', 'elf64', '-F', 'dwarf', '-g', asm_path, '-o', obj_path],
                        capture_output=True, text=True)
@@ -64,7 +66,8 @@ def main():
     # suite executed an older T2 than the source showed and its behaviour
     # could not be reproduced from the sources. The block is now located
     # by its two-part marker (array + size) and replaced in place.
-    header_path = os.path.join(_ROOT, 'kernel', 'core', 'userprogs_data.h')
+    # v2.0.0: the generated header lives in core/ (was kernel/core).
+    header_path = os.path.join(_ROOT, 'core', 'userprogs_data.h')
     with open(header_path, 'r') as f:
         content = f.read()
     start_marker = f"const u8 userprog_{name}[] = {{"

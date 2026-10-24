@@ -83,8 +83,9 @@ def main():
     elf_path = os.path.join(build_dir, f'{name}.elf')
     obj_path = os.path.join(build_dir, f'{name}_up.o')
     cc = os.environ.get('CC', '/usr/bin/gcc')
-    user_ld = os.path.join(_ROOT, 'userprogs', 'user.ld')
-    ld_so_ld = os.path.join(_ROOT, 'libs', 'ld_so.ld')
+    # v2.0.0: l1apps/user.ld (group C restructure; was userprogs/).
+    user_ld = os.path.join(_ROOT, 'l1apps', 'user.ld')
+    ld_so_ld = os.path.join(_ROOT, 'l1apps', 'ld_so.ld')
 
     # Mode resolution. A 3rd argument ending in ".ld" is the legacy
     # linker-script override (libs/ld_so.c MUST be linked with
@@ -175,7 +176,8 @@ def main():
     lines.append(f"const u64 userprog_{name}_size = {len(data)};")
     new_block = "\n".join(lines) + "\n"
 
-    header_path = os.path.join(_ROOT, 'kernel', 'core', 'userprogs_data.h')
+    # v2.0.0: the generated header lives in core/ (was kernel/core).
+    header_path = os.path.join(_ROOT, 'core', 'userprogs_data.h')
     with open(header_path, 'r') as f:
         content = f.read()
     pattern = re.compile(
