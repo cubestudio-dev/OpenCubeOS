@@ -16,7 +16,7 @@
  *  - real_hw_test reports NOT RUN when running in a VM - honest output
  *    instead of a fake PASS.
  */
-#include "shell_cmds_disk_test.h"
+#include "blk_cmds.h"
 #include "shell.h"
 #include "block_svc.h"
 #include "driver_block_cache.h"
@@ -32,7 +32,8 @@
 #include "driver_usb_msc.h"
 #include "driver_usb_serial.h"
 #include "driver_usb_audio.h"
-#include "shell_cmds_disk.h"
+/* v2.0.0 (was shell_cmds_disk.h): the WP-10a shared helper decl. */
+extern int driver_block_mkfs_fat32_device(int dev_idx);
 #include "fs_fat32.h"
 #include "fs_vfs.h"
 #include "core_timer.h"
@@ -143,7 +144,7 @@ static u64 safe_test_lba(driver_block_device_t *d) {
 
 /* ---- driver_block_ahci_test ---- */
 
-static int shell_cmd_ahci_test(const char *args) {
+int blk_cmd_ahci_test(const char *args) {
     (void)args;
     int idx = first_dev_of_type(BLK_TYPE_AHCI);
     if (idx < 0) {
@@ -172,7 +173,7 @@ static int shell_cmd_ahci_test(const char *args) {
 
 /* ---- driver_block_nvme_test ---- */
 
-static int shell_cmd_nvme_test(const char *args) {
+int blk_cmd_nvme_test(const char *args) {
     (void)args;
     int idx = first_dev_of_type(BLK_TYPE_NVME);
     if (idx < 0) {
@@ -199,7 +200,7 @@ static int shell_cmd_nvme_test(const char *args) {
 
 /* ---- driver_block_ata_dma_test ---- */
 
-static int shell_cmd_ata_dma_test(const char *args) {
+int blk_cmd_ata_dma_test(const char *args) {
     (void)args;
     int idx = first_dev_of_type(BLK_TYPE_ATA);
     if (idx < 0) {
@@ -252,7 +253,7 @@ static int shell_cmd_ata_dma_test(const char *args) {
 
 /* ---- driver_block_virtio_blk_test ---- */
 
-static int shell_cmd_virtio_blk_test(const char *args) {
+int blk_cmd_virtio_blk_test(const char *args) {
     (void)args;
     int idx = first_dev_of_type(BLK_TYPE_VIRTIO);
     if (idx < 0) {
@@ -282,7 +283,7 @@ static int shell_cmd_virtio_blk_test(const char *args) {
 
 /* ---- disk_rw_test <dev> ---- */
 
-static int shell_cmd_disk_rw_test(const char *args) {
+int blk_cmd_disk_rw_test(const char *args) {
     if (!args[0]) {
         screen_console_puts("usage: disk_rw_test <device>  (hda|sda|vda|nvme0|...)\n");
         return 1;
@@ -340,7 +341,7 @@ static int shell_cmd_disk_rw_test(const char *args) {
 
 /* ---- partition_test <dev> ---- */
 
-static int shell_cmd_partition_test(const char *args) {
+int blk_cmd_partition_test(const char *args) {
     char devname[BLK_DEV_NAME_LEN];
     if (args[0]) {
         strncpy(devname, args, BLK_DEV_NAME_LEN - 1);
@@ -477,7 +478,7 @@ static int shell_cmd_partition_test(const char *args) {
 
 /* ---- fs_mount_test <dev> ---- */
 
-static int shell_cmd_fs_mount_test(const char *args) {
+int blk_cmd_fs_mount_test(const char *args) {
     if (!args[0]) {
         screen_console_puts("usage: fs_mount_test <device>  (formats the device!)\n");
         screen_console_puts("  explicit argument required - never touches a device implicitly\n");
@@ -575,7 +576,7 @@ static int under_hypervisor(void) {
     return (int)((c >> 31) & 1u);
 }
 
-static int shell_cmd_real_hw_test(const char *args) {
+int blk_cmd_real_hw_test(const char *args) {
     (void)args;
     screen_console_puts("[real_hw_test] input: check execution environment\n");
     if (under_hypervisor()) {
@@ -632,11 +633,3 @@ static int shell_cmd_real_hw_test(const char *args) {
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("ahci_test", shell_cmd_ahci_test, "WP-10a: AHCI init/ports/read-write test", "block");
-OC_SHELL_CMD("nvme_test", shell_cmd_nvme_test, "WP-10a: NVMe init/queues/read-write test", "block");
-OC_SHELL_CMD("ata_dma_test", shell_cmd_ata_dma_test, "WP-10a: ATA Bus-Master DMA test + PIO timing", "block");
-OC_SHELL_CMD("virtio_blk_test", shell_cmd_virtio_blk_test, "WP-10a: virtio-blk capacity + read/write test", "block");
-OC_SHELL_CMD("disk_rw_test", shell_cmd_disk_rw_test, "WP-10a: rw round-trip on one device (disk_rw_test <dev>)", "block");
-OC_SHELL_CMD("partition_test", shell_cmd_partition_test, "WP-10a: MBR+GPT parse test (partition_test [dev])", "block");
-OC_SHELL_CMD("fs_mount_test", shell_cmd_fs_mount_test, "WP-10a: mkfs+mount FAT32 file round-trip (fs_mount_test <dev>)", "block");
-OC_SHELL_CMD("real_hw_test", shell_cmd_real_hw_test, "WP-10a: real-hardware detection report", "block");

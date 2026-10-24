@@ -67,6 +67,30 @@
 #define L1SVC_FS_FATMOUNT   4   /* fatmount [dev] [path] */
 #define L1SVC_FS_FATSTAT    5   /* fatstat */
 #define L1SVC_FS_TREE       6   /* tree [path] */
+#define L1SVC_CAT_BLOCK     2
+#define L1SVC_BLK_AHCI          1   /* ahci */
+#define L1SVC_BLK_NVME          2   /* nvme */
+#define L1SVC_BLK_ATA           3   /* ata */
+#define L1SVC_BLK_DSKSTAT       4   /* dskstat */
+#define L1SVC_BLK_LSBLK         5   /* lsblk */
+#define L1SVC_BLK_PARTED        6   /* parted [dev] */
+#define L1SVC_BLK_MKFS_FAT32    7   /* mkfs.fat32 <dev> */
+#define L1SVC_BLK_MKFS_EXFAT    8   /* mkfs.exfat <dev> */
+#define L1SVC_BLK_MKFS_EXT4     9   /* mkfs.ext4 <dev> */
+#define L1SVC_BLK_FSCK         10   /* fsck */
+#define L1SVC_BLK_SYNC         11   /* sync */
+#define L1SVC_BLK_AHCI_TEST    12   /* ahci_test */
+#define L1SVC_BLK_NVME_TEST    13   /* nvme_test */
+#define L1SVC_BLK_ATA_DMA_TEST 14   /* ata_dma_test */
+#define L1SVC_BLK_VIRTIO_TEST  15   /* virtio_blk_test */
+#define L1SVC_BLK_RW_TEST      16   /* disk_rw_test <dev> */
+#define L1SVC_BLK_PART_TEST    17   /* partition_test [dev] */
+#define L1SVC_BLK_FS_MOUNT_TEST 18  /* fs_mount_test <dev> */
+#define L1SVC_BLK_REAL_HW_TEST 19   /* real_hw_test */
+#define L1SVC_BLK_ABDISK       20   /* abdisk <dev> */
+#define L1SVC_BLK_INSTALL      21   /* install <dev> */
+#define L1SVC_BLK_GRUB_INSTALL 22   /* grub-install <dev> */
+#define L1SVC_BLK_ABCFG        23   /* abcfg */
 #define NETCMD_IFCONFIG  1
 #define NETCMD_PING      2
 #define NETCMD_NETSTAT   3
@@ -723,6 +747,30 @@ static const struct svc_cmd SVC_CMDS[] = {
     { "fatmount", L1SVC_CAT_FS, L1SVC_FS_FATMOUNT },
     { "fatstat",  L1SVC_CAT_FS, L1SVC_FS_FATSTAT  },
     { "tree",     L1SVC_CAT_FS, L1SVC_FS_TREE     },
+    /* block service (services/block) */
+    { "ahci",          L1SVC_CAT_BLOCK, L1SVC_BLK_AHCI          },
+    { "nvme",          L1SVC_CAT_BLOCK, L1SVC_BLK_NVME          },
+    { "ata",           L1SVC_CAT_BLOCK, L1SVC_BLK_ATA           },
+    { "dskstat",       L1SVC_CAT_BLOCK, L1SVC_BLK_DSKSTAT       },
+    { "lsblk",         L1SVC_CAT_BLOCK, L1SVC_BLK_LSBLK         },
+    { "parted",        L1SVC_CAT_BLOCK, L1SVC_BLK_PARTED        },
+    { "mkfs.fat32",    L1SVC_CAT_BLOCK, L1SVC_BLK_MKFS_FAT32    },
+    { "mkfs.exfat",    L1SVC_CAT_BLOCK, L1SVC_BLK_MKFS_EXFAT    },
+    { "mkfs.ext4",     L1SVC_CAT_BLOCK, L1SVC_BLK_MKFS_EXT4     },
+    { "fsck",          L1SVC_CAT_BLOCK, L1SVC_BLK_FSCK          },
+    { "sync",          L1SVC_CAT_BLOCK, L1SVC_BLK_SYNC          },
+    { "ahci_test",     L1SVC_CAT_BLOCK, L1SVC_BLK_AHCI_TEST     },
+    { "nvme_test",     L1SVC_CAT_BLOCK, L1SVC_BLK_NVME_TEST     },
+    { "ata_dma_test",  L1SVC_CAT_BLOCK, L1SVC_BLK_ATA_DMA_TEST  },
+    { "virtio_blk_test", L1SVC_CAT_BLOCK, L1SVC_BLK_VIRTIO_TEST },
+    { "disk_rw_test",  L1SVC_CAT_BLOCK, L1SVC_BLK_RW_TEST       },
+    { "partition_test", L1SVC_CAT_BLOCK, L1SVC_BLK_PART_TEST    },
+    { "fs_mount_test", L1SVC_CAT_BLOCK, L1SVC_BLK_FS_MOUNT_TEST },
+    { "real_hw_test",  L1SVC_CAT_BLOCK, L1SVC_BLK_REAL_HW_TEST  },
+    { "abdisk",        L1SVC_CAT_BLOCK, L1SVC_BLK_ABDISK        },
+    { "install",       L1SVC_CAT_BLOCK, L1SVC_BLK_INSTALL       },
+    { "grub-install",  L1SVC_CAT_BLOCK, L1SVC_BLK_GRUB_INSTALL  },
+    { "abcfg",         L1SVC_CAT_BLOCK, L1SVC_BLK_ABCFG         },
 };
 
 static int svc_cmd_run(int argc, char *argv[]) {
@@ -833,10 +881,32 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  fatmount [dev path]    Mount FAT32 (default ata0 /mnt)\n");
         puts_("  fatstat                Show FAT32 stats\n");
         puts_("  tree [path]            Directory tree view\n");
+        puts_("  dskstat / lsblk        Block devices + cache stats\n");
+        puts_("  ahci / nvme / ata      Controller status\n");
+        puts_("  parted [dev]           Partition table\n");
+        puts_("  mkfs.fat32|exfat|ext4 <dev>  Format (confirm)\n");
+        puts_("  fsck / sync            Filesystem check / flush cache\n");
+        puts_("  abdisk / install / grub-install <dev>  Disk setup\n");
+        puts_("  abcfg                  A/B grub.cfg preview\n");
+        puts_("  *_test                 Block driver test suite\n");
         puts_("\n  Editing: Up/Down history, Left/Right/Home/End cursor, Del,\n");
         puts_("  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion\n");
         puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
         puts_("\n");
+        return 1;
+    }
+    if (streq(argv[0], "write")) {
+        /* v2.0.0: the v1 oc> `write <path> <text>` command, as a ush
+         * builtin through the classic file syscalls. */
+        if (argc < 3) { puts_("usage: write <path> <text>\n"); return 1; }
+        long fd = sys_open(argv[1], 1 /* O_WRONLY|O_CREAT as v1 */);
+        if (fd < 0) { puts_("write: cannot open "); puts_(argv[1]); putc_('\n'); return 1; }
+        for (int i = 2; i < argc; i++) {
+            if (i > 2) sys_write(fd, " ", 1);
+            sys_write(fd, argv[i], strlen_(argv[i]));
+        }
+        sys_write(fd, "\n", 1);
+        sys_close(fd);
         return 1;
     }
     if (streq(argv[0], "export")) {
@@ -2602,7 +2672,13 @@ void _start(void) {
                     /* v2.0.0: SYS_L1SVC service commands */
                     "rtc","hpet","pmtimer","tsc",
                     "mount","mounts","umount","fatmount","fatstat",
-                    "tree",0
+                    "tree",
+                    "dskstat","lsblk","ahci","nvme","ata","parted",
+                    "mkfs.fat32","mkfs.exfat","mkfs.ext4","fsck","sync",
+                    "abdisk","install","grub-install","abcfg",
+                    "ahci_test","nvme_test","ata_dma_test",
+                    "virtio_blk_test","disk_rw_test","partition_test",
+                    "fs_mount_test","real_hw_test",0
                 };
                 int found = 0;
                 int blen = 0;

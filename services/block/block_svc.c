@@ -268,7 +268,9 @@ int driver_block_num_devices(void) {
 }
 
 /* ---- v2.0.0 file-local service identity ---- */
-OC_SERVICE_DECL("block", "block service (device table + RW/flush dispatch + cache gate)", block_svc_init, (oc_service_late_fn_t)0);
+/* v2.0.0: the service identity (with its ring-3 surface) is declared
+ * in services/block/block_l1.c - one declaration per file that owns
+ * it; the bring-up callbacks stay here. */
 
 /* v2.0.0: the block-driver probe list is COLLECTED from the
  * OC_DRIVER_DECL("block", ...) declarations (was hardcoded kmain

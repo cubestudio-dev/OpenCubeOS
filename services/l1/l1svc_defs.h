@@ -68,4 +68,32 @@
 #define L1SVC_FS_FATSTAT    5   /* fatstat            : FAT32 stats      */
 #define L1SVC_FS_TREE       6   /* tree [path]        : directory tree   */
 
+/* ---- block operations (services/block) -----------------------------
+ * Mirrors the v1 oc> block commands (23; `write` moved to the fs
+ * surface as a ush builtin).  Command bodies live in
+ * services/block/blk_cmds*.c, executed captured. */
+#define L1SVC_BLK_AHCI          1   /* ahci                    */
+#define L1SVC_BLK_NVME          2   /* nvme                    */
+#define L1SVC_BLK_ATA           3   /* ata                     */
+#define L1SVC_BLK_DSKSTAT       4   /* dskstat                 */
+#define L1SVC_BLK_LSBLK         5   /* lsblk                   */
+#define L1SVC_BLK_PARTED        6   /* parted [dev]            */
+#define L1SVC_BLK_MKFS_FAT32    7   /* mkfs.fat32 <dev>        */
+#define L1SVC_BLK_MKFS_EXFAT    8   /* mkfs.exfat <dev>        */
+#define L1SVC_BLK_MKFS_EXT4     9   /* mkfs.ext4 <dev>         */
+#define L1SVC_BLK_FSCK         10   /* fsck                    */
+#define L1SVC_BLK_SYNC         11   /* sync                    */
+#define L1SVC_BLK_AHCI_TEST    12   /* ahci_test               */
+#define L1SVC_BLK_NVME_TEST    13   /* nvme_test               */
+#define L1SVC_BLK_ATA_DMA_TEST 14   /* ata_dma_test            */
+#define L1SVC_BLK_VIRTIO_TEST  15   /* virtio_blk_test         */
+#define L1SVC_BLK_RW_TEST      16   /* disk_rw_test <dev>      */
+#define L1SVC_BLK_PART_TEST    17   /* partition_test [dev]    */
+#define L1SVC_BLK_FS_MOUNT_TEST 18  /* fs_mount_test <dev>     */
+#define L1SVC_BLK_REAL_HW_TEST 19   /* real_hw_test            */
+#define L1SVC_BLK_ABDISK       20   /* abdisk <dev>            */
+#define L1SVC_BLK_INSTALL      21   /* install <dev>           */
+#define L1SVC_BLK_GRUB_INSTALL 22   /* grub-install <dev>      */
+#define L1SVC_BLK_ABCFG        23   /* abcfg                   */
+
 #endif /* OC_L1SVC_DEFS_H */
