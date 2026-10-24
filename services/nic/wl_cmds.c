@@ -3,7 +3,7 @@
  * Copyright 2026 cubestudio-dev <cubestudio@qq.com>
  * Open Cube OS - WP-10-wireless_bluetooth
  *
- * File: shell/shell_cmds_wireless.c
+ * File: services/nic/wl_cmds.c (migrated from recovery/shell_cmds_wireless.c)
  *
  * `wifi` command:
  *   wifi            - family/device registry status (honest states)
@@ -11,7 +11,7 @@
  *   wifi test       - 802.11 core selftest + every family selftest
  *   wifi sdio       - SDHCI/SDIO bus status + selftest
  */
-#include "shell_cmds_wireless.h"
+#include "wl_cmds.h"
 #include "shell.h"
 #include "driver_wireless.h"
 #include "driver_sdhci.h"
@@ -62,7 +62,7 @@ static const char *wl_state_str(wl_state_t s)
     }
 }
 
-int shell_cmd_wifi(const char *args)
+int wl_cmd_wifi(const char *args)
 {
     const char *p = args;
     while (*p == ' ' || *p == '\t') p++;
@@ -193,4 +193,3 @@ int shell_cmd_wifi(const char *args)
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("wifi", shell_cmd_wifi, "wireless: status/scan/test/sdio (802.11 families + SDIO bus)", "wireless");

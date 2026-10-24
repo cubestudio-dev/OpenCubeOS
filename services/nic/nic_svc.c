@@ -201,4 +201,5 @@ void driver_nic_resume(void) {
 }
 
 /* ---- v2.0.0 file-local service identity ---- */
-OC_SERVICE_DECL("nic", "NIC service (card table + dispatch + probe collection)", nic_svc_init, nic_svc_probe_all);
+/* v2.0.0: the service identity (with its ring-3 surface) is declared
+ * in services/nic/nic_l1.c; the bring-up callbacks stay here. */

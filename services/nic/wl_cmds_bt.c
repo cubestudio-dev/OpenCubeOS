@@ -3,7 +3,7 @@
  * Copyright 2026 cubestudio-dev <cubestudio@qq.com>
  * Open Cube OS - WP-10-wireless_bluetooth
  *
- * File: shell/shell_cmds_bt.c
+ * File: services/nic/wl_cmds_bt.c (migrated from recovery/shell_cmds_bt.c)
  *
  * `bt` command:
  *   bt            - transport + controller status
@@ -17,7 +17,7 @@
  *                   from real controller/peer responses; a missing
  *                   transport prints an honest no-transport line.
  */
-#include "shell_cmds_bt.h"
+#include "wl_cmds.h"
 #include "shell.h"
 #include "driver_bt.h"
 #include "screen_console.h"
@@ -64,7 +64,7 @@ static int test_step(const char *name, int cond)
     return cond ? 0 : 1;
 }
 
-int shell_cmd_bt(const char *args)
+int wl_cmd_bt(const char *args)
 {
     const char *p = args;
     int fails = 0;
@@ -272,4 +272,3 @@ int shell_cmd_bt(const char *args)
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("bt", shell_cmd_bt, "bluetooth: status/usb/uart/test (HCI/L2CAP/RFCOMM/SDP/SPP/HID)", "wireless");
