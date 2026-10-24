@@ -2693,9 +2693,23 @@ static u64 sys_l1svc(u64 cat, u64 op, u64 arg, u64 out) {
     /* The service's own return code (command exit status) is NOT the
      * syscall status: a service that ran and reported "usage error" or
      * "device not present" in its text output still completed the call
-     * successfully.  Only an unrouteable category/op returns -1. */
+     * successfully.  Only an unrouteable category/op returns -1.
+     *
+     * v2.0.0 group N fix: re-enable interrupts around the dispatch.
+     * The syscall entry (int 0x80, interrupt gate) clears IF, and the
+     * service bodies run with the captured-output primitive can spend
+     * hundreds of milliseconds in device-wait loops whose timeouts are
+     * driven by the timer tick (e.g. paralleltest nibble handshake,
+     * usb_storage_test enumeration).  With IF held clear the tick
+     * never advances and those loops spin forever (same root cause as
+     * the sys_read sti;hlt pair below).  Nested IRQs during the
+     * dispatch are ordinary kernel re-entrancy: they iretq straight
+     * back into the syscall context, exactly like every other syscall
+     * that runs with interrupts enabled. */
+    __asm__ volatile("sti");
     int rc = core_registry_svc_dispatch(cat_name, (u32)op,
                                         karg[0] ? karg : 0, kout, (int)cap);
+    __asm__ volatile("cli");
     if (rc < 0 && kout[0] == 0) {
         /* dispatch refused the op outright (unknown op): syscall error */
         kfree(kout);

@@ -327,5 +327,3 @@ int shell_cmd_uvctest(const char *args)
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("uvc", shell_cmd_uvc, "camera subsystem status (UVC devices, formats, frames)", "camera");
-OC_SHELL_CMD("uvctest", shell_cmd_uvctest, "camera self test (JPEG decode, UVC descriptor parse, core)", "camera");

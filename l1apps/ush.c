@@ -172,6 +172,28 @@
 #define L1SVC_CAT_INPUT    15
 #define L1SVC_INP_TOUCHPAD     1   /* touchpad */
 #define L1SVC_INP_TOUCHTEST    2   /* touchtest */
+/* v2.0.0 group N: camera/usb (verbatim copy of services/l1/l1svc_defs.h) */
+#define L1SVC_CAT_CAMERA   16
+#define L1SVC_CAM_UVC           1   /* uvc */
+#define L1SVC_CAM_UVCTEST       2   /* uvctest */
+#define L1SVC_CAM_SCSI          3   /* scsi */
+#define L1SVC_CAM_SCSITEST      4   /* scsitest */
+#define L1SVC_CAM_GAMEPORT      5   /* gameport */
+#define L1SVC_CAM_GAMEPORTTEST  6   /* gameporttest */
+#define L1SVC_CAM_PARALLEL      7   /* parallel */
+#define L1SVC_CAM_PARALLELTEST  8   /* paralleltest */
+#define L1SVC_CAM_IR            9   /* ir */
+#define L1SVC_CAM_IRTEST       10   /* irtest */
+#define L1SVC_CAT_USB      17
+#define L1SVC_USB_STATUS        1   /* usb */
+#define L1SVC_USB_DEV           2   /* usbdev */
+#define L1SVC_USB_CORE_TEST     3   /* usb_core_test */
+#define L1SVC_USB_KBD_TEST      4   /* usb_kbd_test */
+#define L1SVC_USB_MOUSE_TEST    5   /* usb_mouse_test */
+#define L1SVC_USB_STORAGE_TEST  6   /* usb_storage_test */
+#define L1SVC_USB_SERIAL_TEST   7   /* usb_serial_test */
+#define L1SVC_USB_HOTPLUG_TEST  8   /* usb_hotplug_test */
+#define L1SVC_USB_HUB_TEST      9   /* usb_hub_test */
 #define NETCMD_IFCONFIG  1
 #define NETCMD_PING      2
 #define NETCMD_NETSTAT   3
@@ -934,6 +956,27 @@ static const struct svc_cmd SVC_CMDS[] = {
     /* input service (services/input) */
     { "touchpad",      L1SVC_CAT_INPUT, L1SVC_INP_TOUCHPAD },
     { "touchtest",     L1SVC_CAT_INPUT, L1SVC_INP_TOUCHTEST },
+    /* camera service (services/camera) */
+    { "uvc",           L1SVC_CAT_CAMERA, L1SVC_CAM_UVC },
+    { "uvctest",       L1SVC_CAT_CAMERA, L1SVC_CAM_UVCTEST },
+    { "scsi",          L1SVC_CAT_CAMERA, L1SVC_CAM_SCSI },
+    { "scsitest",      L1SVC_CAT_CAMERA, L1SVC_CAM_SCSITEST },
+    { "gameport",      L1SVC_CAT_CAMERA, L1SVC_CAM_GAMEPORT },
+    { "gameporttest",  L1SVC_CAT_CAMERA, L1SVC_CAM_GAMEPORTTEST },
+    { "parallel",      L1SVC_CAT_CAMERA, L1SVC_CAM_PARALLEL },
+    { "paralleltest",  L1SVC_CAT_CAMERA, L1SVC_CAM_PARALLELTEST },
+    { "ir",            L1SVC_CAT_CAMERA, L1SVC_CAM_IR },
+    { "irtest",        L1SVC_CAT_CAMERA, L1SVC_CAM_IRTEST },
+    /* usb service (services/usb) */
+    { "usb",           L1SVC_CAT_USB, L1SVC_USB_STATUS },
+    { "usbdev",        L1SVC_CAT_USB, L1SVC_USB_DEV },
+    { "usb_core_test",   L1SVC_CAT_USB, L1SVC_USB_CORE_TEST },
+    { "usb_kbd_test",    L1SVC_CAT_USB, L1SVC_USB_KBD_TEST },
+    { "usb_mouse_test",  L1SVC_CAT_USB, L1SVC_USB_MOUSE_TEST },
+    { "usb_storage_test", L1SVC_CAT_USB, L1SVC_USB_STORAGE_TEST },
+    { "usb_serial_test",  L1SVC_CAT_USB, L1SVC_USB_SERIAL_TEST },
+    { "usb_hotplug_test", L1SVC_CAT_USB, L1SVC_USB_HOTPLUG_TEST },
+    { "usb_hub_test",     L1SVC_CAT_USB, L1SVC_USB_HUB_TEST },
 };
 
 static int svc_cmd_run(int argc, char *argv[]) {
@@ -1067,6 +1110,11 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("  lang [en|zh]           Output language\n");
         puts_("  chinese / font / encoding / ime [+ -test variants]\n");
         puts_("  touchpad / touchtest   Input subsystem\n");
+        puts_("  uvc / uvctest          Camera (UVC devices + self test)\n");
+        puts_("  scsi / scsitest        SCSI controllers + self test\n");
+        puts_("  gameport / parallel / ir [+ *test]  Legacy port probes\n");
+        puts_("  usb / usbdev [slot]    USB hosts, devices, descriptors\n");
+        puts_("  usb_*_test             USB class driver test suite\n");
         puts_("\n  Editing: Up/Down history, Left/Right/Home/End cursor, Del,\n");
         puts_("  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion\n");
         puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
@@ -2880,7 +2928,13 @@ void _start(void) {
                     "stats","uname","clear","lang",
                     "chinese","chinesetest","font","font-test",
                     "encoding","encoding-test","ime","ime-test",
-                    "touchpad","touchtest",0
+                    "touchpad","touchtest",
+                    "uvc","uvctest","scsi","scsitest",
+                    "gameport","gameporttest","parallel","paralleltest",
+                    "ir","irtest",
+                    "usb","usbdev","usb_core_test","usb_kbd_test",
+                    "usb_mouse_test","usb_storage_test","usb_serial_test",
+                    "usb_hotplug_test","usb_hub_test",0
                 };
                 int found = 0;
                 int blen = 0;

@@ -223,5 +223,3 @@ int shell_cmd_irtest(const char *args)
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("ir", shell_cmd_ir, "infrared status (CIR/SIR devices, carrier, counters)", "camera");
-OC_SHELL_CMD("irtest", shell_cmd_irtest, "infrared self test (NEC/RC5/RC6/SIRC round trips)", "camera");

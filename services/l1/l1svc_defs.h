@@ -35,6 +35,9 @@
 /* v2.0.0 group M: display/input service categories (appended). */
 #define L1SVC_CAT_DISPLAY  14   /* services/display */
 #define L1SVC_CAT_INPUT    15   /* services/input   */
+/* v2.0.0 group N: camera/usb service categories (appended). */
+#define L1SVC_CAT_CAMERA   16   /* services/camera  */
+#define L1SVC_CAT_USB      17   /* services/usb      */
 
 /* Category number -> folder name (kernel side; used by SYS_L1SVC). */
 #define L1SVC_CAT_NAME(n) \
@@ -52,7 +55,9 @@
      (n) == L1SVC_CAT_CRYPTO   ? "crypto"   : \
      (n) == L1SVC_CAT_L1       ? "l1"       : \
      (n) == L1SVC_CAT_DISPLAY  ? "display"  : \
-     (n) == L1SVC_CAT_INPUT    ? "input"    : 0)
+     (n) == L1SVC_CAT_INPUT    ? "input"    : \
+     (n) == L1SVC_CAT_CAMERA   ? "camera"   : \
+     (n) == L1SVC_CAT_USB      ? "usb"      : 0)
 
 /* ---- time operations (services/time) -------------------------------
  * Mirrors the v1 oc> commands rtc / hpet / pmtimer / tsc. */
@@ -205,5 +210,38 @@
  * Bodies: recovery/shell_cmds_chipset.c (touchpad/touchtest). */
 #define L1SVC_INP_TOUCHPAD     1   /* touchpad                */
 #define L1SVC_INP_TOUCHTEST    2   /* touchtest               */
+
+/* ---- camera operations (services/camera) ---------------------------
+ * v2.0.0 group N: the camera + legacy-port diagnostics family (the
+ * v1 "camera" command class: UVC camera, SCSI, gameport, parallel
+ * port, IR).  Bodies stay in their v2 homes (recovery/
+ * shell_cmds_camera.c, shell_cmds_scsi.c, shell_cmds_pargame.c,
+ * shell_cmds_ir.c - all exported via their headers), referenced by
+ * the op table. */
+#define L1SVC_CAM_UVC           1   /* uvc                     */
+#define L1SVC_CAM_UVCTEST       2   /* uvctest                 */
+#define L1SVC_CAM_SCSI          3   /* scsi                    */
+#define L1SVC_CAM_SCSITEST      4   /* scsitest                */
+#define L1SVC_CAM_GAMEPORT      5   /* gameport                */
+#define L1SVC_CAM_GAMEPORTTEST  6   /* gameporttest            */
+#define L1SVC_CAM_PARALLEL      7   /* parallel                */
+#define L1SVC_CAM_PARALLELTEST  8   /* paralleltest            */
+#define L1SVC_CAM_IR            9   /* ir                      */
+#define L1SVC_CAM_IRTEST       10   /* irtest                  */
+
+/* ---- usb operations (services/usb) ----------------------------------
+ * v2.0.0 group N: the USB family (host/device status + class driver
+ * tests).  Bodies stay in recovery/shell_cmds_usb_test.c (exported
+ * as usb_cmd_* by group N; the poll thread stays kernel-side and is
+ * started by the shell module init). */
+#define L1SVC_USB_STATUS        1   /* usb                     */
+#define L1SVC_USB_DEV           2   /* usbdev [slot]           */
+#define L1SVC_USB_CORE_TEST     3   /* usb_core_test           */
+#define L1SVC_USB_KBD_TEST      4   /* usb_kbd_test            */
+#define L1SVC_USB_MOUSE_TEST    5   /* usb_mouse_test          */
+#define L1SVC_USB_STORAGE_TEST  6   /* usb_storage_test        */
+#define L1SVC_USB_SERIAL_TEST   7   /* usb_serial_test         */
+#define L1SVC_USB_HOTPLUG_TEST  8   /* usb_hotplug_test [...]  */
+#define L1SVC_USB_HUB_TEST      9   /* usb_hub_test            */
 
 #endif /* OC_L1SVC_DEFS_H */

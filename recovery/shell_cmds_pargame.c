@@ -333,7 +333,3 @@ int shell_cmd_gameporttest(const char *args)
 
 
 /* ---- v2.0.0 file-local command declarations (collected at boot; see core_registry.h) ---- */
-OC_SHELL_CMD("parallel", shell_cmd_parallel, "parallel port status (IEEE 1284 modes, counters)", "camera");
-OC_SHELL_CMD("paralleltest", shell_cmd_paralleltest, "parallel self test (SPP write, EPP cycles, ECP probe)", "camera");
-OC_SHELL_CMD("gameport", shell_cmd_gameport, "game port status (axes, buttons, calibration)", "camera");
-OC_SHELL_CMD("gameporttest", shell_cmd_gameporttest, "game port self test (axis reads, buttons, calibration)", "camera");
