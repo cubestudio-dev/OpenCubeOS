@@ -2,7 +2,7 @@
  "dirs": {
   "core": {
    "files": 36,
-   "lines": 16368
+   "lines": 16373
   },
   "arch": {
    "files": 23,
@@ -10,23 +10,23 @@
   },
   "drivers": {
    "files": 123,
-   "lines": 39249
+   "lines": 39303
   },
   "services": {
-   "files": 108,
-   "lines": 40490
+   "files": 109,
+   "lines": 40796
   },
   "recovery": {
    "files": 35,
-   "lines": 10420
+   "lines": 10458
   },
   "tui": {
    "files": 25,
-   "lines": 10940
+   "lines": 10996
   },
   "chinese": {
    "files": 15,
-   "lines": 4495
+   "lines": 4520
   },
   "boot": {
    "files": 4,
@@ -37,6 +37,6 @@
    "lines": 5082
   }
  },
- "total_lines": 130011,
- "total_files": 378
+ "total_lines": 130495,
+ "total_files": 379
 }
