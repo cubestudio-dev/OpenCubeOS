@@ -14,4 +14,4 @@ Everything an operator needs to run Open Cube OS.
 | [tui-guide](tui-guide.md) | the desktop, apps, keyboard model |
 | [chinese-console](chinese-console.md) | the CN layer, IME, the ASCII contract |
 | [recovery](recovery.md) | the WinRE workflow, crash artifacts, rescue kit |
-| [commands](commands/index.md) | ALL 233 command reference pages, 26 domains |
+| [commands](commands/index.md) | ALL 251 command reference pages, 13 domains (every command home: L0, SVC, built-ins) |

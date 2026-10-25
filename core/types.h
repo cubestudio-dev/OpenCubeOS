@@ -26,9 +26,20 @@ typedef long                intptr_t;
 #define NULL ((void*)0)
 #endif
 
+#if __STDC_VERSION__ >= 202000L
+/* C23 (final 202311L; the gcc 13/14 draft ships it as 202000L - and
+ * gcc >= 15 DEFAULTS to it as gnu23): bool/true/false are language
+ * keywords - `typedef u8 bool;` collides with the native _Bool
+ * ("error: two or more data types in declaration specifiers"),
+ * which is exactly what broke the CI host-test step on the 2.1.0
+ * runners while older default-standard toolchains compiled clean.
+ * Keep the compiler's native bool; code uses plain `bool` either
+ * way. The kernel itself builds with -std=gnu11 and keeps u8. */
+#else
 #define true 1
 #define false 0
 typedef u8 bool;
+#endif
 
 #define OC_API          /* exported kernel symbol */
 #define OC_EXT_API      /* exported extension API symbol */

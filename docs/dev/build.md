@@ -31,13 +31,15 @@ never fight).
 
 ## Version and build number
 
-- `OC_RELEASE_VERSION` defaults to the `1.0.0` literal in the
-  Makefile (see [versioning](../release/versioning.md)); override on
-  the command line (`make OC_RELEASE_VERSION=1.0.1-test1 iso`) or it
-  ends up in the banner, `uname -a`, the OTA manifest and the ISO
-  volume id.
-- The build number is the commit count (`git rev-list count`) - it
-  feeds `uname` and the update.json "build" field at release time.
+- `OC_RELEASE_VERSION` defaults to the version literal in the
+  Makefile (`2.1.0` while the 2.1.0 freeze is on; see
+  [versioning](../release/versioning.md)); override on the command
+  line (`make OC_RELEASE_VERSION=2.1.1-test1 iso`) and it ends up in
+  the banner, `uname -a`, the OTA manifest and the ISO volume id.
+- The build number is the commit count plus the permanent +21
+  alignment offset (see [versioning](../release/versioning.md);
+  `OC_KERNEL_BUILD_OFFSET := 21` in the Makefile) - it feeds `uname`
+  and the update.json "build" field at release time.
 
 ## Packaging determinism
 
@@ -57,12 +59,12 @@ never fight).
 ```
 make defconfig          # .config with everything on
 make menuconfig         # interactive (tools/oc_menuconfig.sh)
-make CONFIG_TUI=n CONFIG_CHINESE=n iso    # 216-command image
+make CONFIG_TUI=n CONFIG_CHINESE=n iso    # no-TUI/CN image (oc> 90)
 make ARCH=arm64         # PL011 bring-up shell ELF
 make ARCH=riscv         # NS16550A bring-up shell ELF
 ```
 
-The configurator generates `kernel/generated/config_gen.h` with
+The configurator generates `core/generated/config_gen.h` with
 compare-guarded macros; disabled features route to real ASCII
 equivalents (console_cn -> screen_console), never to deleted code.
 The GNU make `%` wildcard limitation (only the first `%` in a pattern
