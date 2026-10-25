@@ -2416,12 +2416,17 @@ static int shell_cmd_run(const char *args) {
              * definition (core_usermode.c) and every extern declaration
              * spells the same qualifier. */
             extern volatile int g_usershell_running;
+            extern void core_sched_yield(void);
             g_usershell_running = 1;
-            /* Spin-wait until ush exits. The timer IRQ + scheduler
-             * will keep ush running. When ush exits, sys_exit2
-             * sets g_usershell_running = 0. */
+            /* v2.0.0: park on the scheduler, not a bare sti;hlt spin.
+             * The ring-3 service surface under ush contains timed
+             * waits and interactive polls that park on sti;hlt inside
+             * the dispatch frame; a boot task preempted mid-halt here
+             * can be resumed onto the halt instruction with the
+             * switch-point IF=0 and never wake again (same discipline
+             * change as l1_launcher_boot_default). */
             while (g_usershell_running) {
-                __asm__ volatile("sti; hlt");
+                core_sched_yield();
             }
         }
         if (background) {
