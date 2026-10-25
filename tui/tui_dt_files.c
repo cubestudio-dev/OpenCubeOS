@@ -197,6 +197,16 @@ static int fl_prompt(const char *title, char *buf, int cap) {
         tui_window_refresh(fwin);
     }
     tui_form_unpost(form);
+    /* v2.0.0 fix (form-pool leak): release the slot - fl_prompt ran
+     * WITHOUT tui_form_free, so every prompt leaked one of the four
+     * static tui_form_t slots.  After FOUR prompts (mkdir, mkdir,
+     * create, create in a single Files session) tui_form_new returned
+     * NULL and the form driver's !form check made every later prompt
+     * exit on its FIRST key - the rename/create rounds then ran their
+     * text as browser hotkeys ('a' opened the attributes view...).
+     * This is the real "long-session state pollution" behind the v1
+     * WP-10-tui-native 5 E2E FAILs. */
+    tui_form_free(form);
     tui_window_free(fwin);
     /* CRITICAL: tui_form_post moved the input focus onto the form
      * window; once it is freed every tui_print would target the
@@ -674,6 +684,19 @@ int tui_dt_files_run(tui_dt_node_t *self) {
                 tui_dt_toast(rc >= 0, tui_tr("copy rc=%d", "复制 rc=%d"), rc);
             } else {
                 rc = fs_vfs_rename(g_clip_path, dst);
+                if (rc != 0) {
+                    /* v2.0.0: cross-directory move fix landed in the VFS
+                     * (fs_vfs_rename dispatches the two-parent move op);
+                     * this fallback only serves fs drivers without a
+                     * move op (disk fs) - copy + unlink, the same
+                     * strategy the shell mv command uses. */
+                    fl_copy_depth = 0;
+                    int crc = fl_copy_any(g_clip_path, dst);
+                    if (crc >= 0) {
+                        int urc = fs_vfs_unlink(g_clip_path);
+                        rc = (urc == 0) ? 0 : urc;
+                    }
+                }
                 tui_dt_toast(rc == 0, tui_tr("move rc=%d", "移动 rc=%d"), rc);
                 if (rc == 0) g_clip_copy = 0;
             }

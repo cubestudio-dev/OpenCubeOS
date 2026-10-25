@@ -1871,6 +1871,32 @@ int shell_run_fn_captured(int (*fn)(const char *), const char *arg,
 int shell_execute_captured(const char *line, char *out, int out_cap) {
     if (out && out_cap > 0) out[0] = 0;
 
+    /* v2.0.0 desktop SVC bridge (services/l1/l1_bridge.c): command
+     * names that migrated to the ring-3 ush surface dispatch through
+     * the kernel-side service entry here, keeping the v1 TUI bridge
+     * pages (Panel Storage/Network entries, the Update page, the
+     * command bridge page, sshd exec) functional.  L0-registered
+     * names always win - the L0-first order settles the power family,
+     * which lives on both surfaces - and the interactive oc> path
+     * (shell_execute_line) is deliberately NOT bridged: the recovery
+     * environment keeps its documented 99-command surface. */
+    {
+        const char *p = line ? line : "";
+        while (*p == ' ' || *p == '\t') p++;
+        char word[40];
+        int n = 0;
+        while (p[n] && p[n] != ' ' && p[n] != '\t' && n < 39) {
+            word[n] = p[n];
+            n++;
+        }
+        word[n] = 0;
+        if (word[0] && !shell_lookup(word)) {
+            extern int l1_bridge_try(const char *l, char *o, int c);
+            int brc = l1_bridge_try(line, out, out_cap);
+            if (brc != -1) return brc;
+        }
+    }
+
     int rc;
     if (shell_capture_begin(out_cap > 0 ? out_cap : 8192) == 0) {
         rc = shell_execute_line(line);

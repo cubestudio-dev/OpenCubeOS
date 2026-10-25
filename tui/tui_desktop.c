@@ -678,7 +678,14 @@ static int dt_activate(tui_dt_node_t *node) {
                          node->id, rc,
                          rc == -1000 ? tui_tr(" - contained", " - 已隔离") : "");
         } else {
-            tui_dt_loading_end(1, tui_tr("back to menu", "已返回菜单"), NULL);
+            /* keep an app-set exit toast (the editor's 'editor closed:
+             * <path>' etc): the generic notice only fills the slot when
+             * the app said nothing.  The old unconditional
+             * loading_end() clobbered every informative toast with
+             * "OK: back to menu". */
+            g_loading[0] = 0;
+            if (!g_toast[0])
+                tui_dt_loading_end(1, tui_tr("back to menu", "已返回菜单"), NULL);
         }
         return rc;
     }

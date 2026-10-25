@@ -271,6 +271,7 @@ int tui_dt_cmdbridge_run(tui_dt_node_t *self) {
             }
             line[m] = 0;
             tui_form_unpost(form);
+            tui_form_free(form);      /* v2.0.0: form-pool leak fix */
             tui_window_free(fwin);
             if (g_page_win) tui_window_focus_set(g_page_win);
             tui_dt_page_flush();   /* back to the bridge page */

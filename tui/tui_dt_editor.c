@@ -491,6 +491,7 @@ static int ed_prompt_path(const char *title_en, const char *title_zh,
         tui_window_refresh(fwin);
     }
     tui_form_unpost(form);
+    tui_form_free(form);          /* v2.0.0: form-pool leak fix */
     tui_window_free(fwin);
     tui_window_t *pg = tui_dt_page_window();
     if (pg) tui_window_focus_set(pg);
@@ -739,6 +740,11 @@ int tui_dt_editor_run(tui_dt_node_t *self) {
     tui_print_at(2, 1, tui_tr(
         "File to edit (created when missing):",
         "要编辑的文件（不存在则新建）："));
+    /* flush the page text BEFORE the prompt form takes the screen:
+     * without this the opening lines sat in the window matrix until
+     * the first ed_render() (after the path was already chosen), so
+     * the prompt appeared context-free on every backend */
+    tui_dt_page_flush();
     char path[128];
     path[0] = 0;
     if (ed_prompt_path("file path", "文件路径", path, (int)sizeof(path)) != 0 ||

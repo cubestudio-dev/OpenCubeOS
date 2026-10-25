@@ -287,6 +287,7 @@ static int nc_prompt_ip(const char *title_en, const char *title_zh,
         tui_window_refresh(fwin);
     }
     tui_form_unpost(form);
+    tui_form_free(form);          /* v2.0.0: form-pool leak fix */
     tui_window_free(fwin);
     tui_window_t *pg = tui_dt_page_window();
     if (pg) tui_window_focus_set(pg);

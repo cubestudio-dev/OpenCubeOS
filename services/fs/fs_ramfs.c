@@ -346,6 +346,36 @@ static int fs_ramfs_rename(fs_vfs_node_t *parent, const char *oldname, const cha
     return 0;
 }
 
+/* v2.0.0: cross-directory move.  ramfs is tree-authoritative (the node
+ * tree IS the storage), so reparenting the node completes the move.
+ * The same-name case is legal here: the conflict check runs against
+ * the NEW parent only.  Mount-point children are refused - their
+ * ->private belongs to the mounted fs, not ramfs (same rule as
+ * fs_ramfs_rmdir). */
+static int fs_ramfs_move(fs_vfs_node_t *oldparent, const char *oldname,
+                         fs_vfs_node_t *newparent, const char *newname) {
+    if (!oldparent || !newparent || !oldname || !newname) return -1;
+    fs_vfs_node_t *child = fs_ramfs_lookup(oldparent, oldname);
+    if (!child) return -2;
+    if (fs_ramfs_lookup(newparent, newname)) return -3;  /* target exists */
+    /* mount-point children are refused: their ->private belongs to
+     * the mounted fs, not ramfs (the fs_type identity check is the
+     * same rule fs_ramfs_rmdir uses) */
+    if (child->fs_type != &g_ramfs_fs_type) return -5;
+    /* Same-parent move degenerates to the rename op (keeps the
+     * existing conflict semantics identical). */
+    if (oldparent == newparent) {
+        strncpy(child->name, newname, VFS_NAME_LEN - 1);
+        child->name[VFS_NAME_LEN - 1] = 0;
+        return 0;
+    }
+    fs_vfs_detach_child(child);
+    strncpy(child->name, newname, VFS_NAME_LEN - 1);
+    child->name[VFS_NAME_LEN - 1] = 0;
+    fs_vfs_attach_child(newparent, child);
+    return 0;
+}
+
 /* ---- Mount / unmount ---- */
 
 static fs_vfs_node_t *fs_ramfs_mount(const char *device) {
@@ -419,6 +449,7 @@ void fs_ramfs_init(void) {
     g_ramfs_dir_ops.lookup  = fs_ramfs_lookup;
     g_ramfs_dir_ops.unlink  = fs_ramfs_unlink;
     g_ramfs_dir_ops.rename  = fs_ramfs_rename;
+    g_ramfs_dir_ops.move    = fs_ramfs_move;
     /* WP-10-wp08fix1 */
     g_ramfs_dir_ops.link     = fs_ramfs_link;
     g_ramfs_dir_ops.symlink  = fs_ramfs_symlink;

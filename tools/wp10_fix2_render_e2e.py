@@ -3,15 +3,21 @@
 # WP-10-chinese_support-fix2 rendering regression: pixel-verify that
 # TUI hanzi render FULL 16x16 glyphs (the fix1..earlier bug repainted
 # the TUI_WIDE_CONT cell with the background, erasing every glyph's
-# right half). Boot the ISO, enter tui-cn, screendump, then compare the
-# on-screen 16x16 blocks against the EMBEDDED font bitmaps parsed from
-# chinese/chinese_font_data.c. Position-independent: scan the whole
-# frame for each glyph.
+# right half). Boot the ISO, compare the on-screen 16x16 blocks against
+# the EMBEDDED font bitmaps parsed from chinese/chinese_font_data.c.
+# Position-independent: scan the whole frame for each glyph.
+#
+# v2.0.0 surface: the tui-cn launcher was removed at tui-unified and
+# `font-test` moved to the ring-3 SVC surface (whose captured dispatch
+# suppresses the framebuffer draw), so the fb-rendering hanzi surfaces
+# are the zh DESKTOP pages: the root menu, the control panel, the
+# Processes app and the Update page.  Language is set through the
+# run-ush bridge (lang is an SVC command in v2).
 import os, re, socket, subprocess, sys, time
 
-OC_TOOLS = "/home/z/opt/extract"
+OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract/root")
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
-ROOT = "/home/z/oc-read/OpenCubeOS"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = "/home/z/oc-work/render_e2e"
 os.makedirs(OUT, exist_ok=True)
 
@@ -167,74 +173,62 @@ def glyph_present(w, h, px, rows, fg_test):
 
 try:
     # v2.0.0: boot lands in the ring-3 ush shell; leave it for the L0
-    # recovery prompt (font-test runs at oc>, the TUI rounds need it)
+    # recovery prompt (the desktop rounds need it)
     expect(r"(?:ush>|oc>)", timeout=240)
     if b"ush>" in buf:
         ser.sendall(b"exit\n")
         expect(r"oc>", timeout=90)
     print("boot ok")
 
-    # console path reference: font-test sample row (中) at a known spot
-    run("font-test")
-    time.sleep(1)
-    mon(f"screendump {OUT}/font_test.ppm", wait=1.5)
-    # TUI path: the launcher menu (硬/无/系/中) with the WIDE_CONT fix
+    # v2: lang is a ring-3 SVC command - set zh through the run-ush
+    # bridge (the language persists into the L0 desktop)
+    ser.sendall(b"run ush\n")
+    expect(r"ush>", timeout=90)
+    ser.sendall(b"lang zh\n")
+    expect(r"ush>", timeout=30)
+    ser.sendall(b"exit\n")
+    expect(r"oc>", timeout=60)
+
+    # zh desktop: root menu (系统信息 / 中文输入 give 系 and 中),
+    # the Processes app (任务管理) and the control panel (硬件 gives
+    # 硬; the Network description 无线 gives 无), the Update page
+    # (检查更新).  FB backend - deterministic, unlike the serial
+    # backend timing the interactive suites race against.
     buf = b""
-    ser.sendall(b"tui-cn\n")
+    ser.sendall(b"tui\n")
     time.sleep(4)
     mon(f"screendump {OUT}/tui_cn_launcher.ppm", wait=1.5)
-    ser.sendall(b"q\n")
-    expect(r"oc>", timeout=60)
 
-    # fix2: drive launcher entry 2 (无线网络) and entry 3 (系统信息)
-    # with screenshot evidence (FB backend - deterministic, unlike the
-    # serial-backend timing the interactive suites race against)
-    def nav_entry(n):
-        buf = b""
-        ser.sendall(b"tui-cn\n")
-        time.sleep(3)
-        for _ in range(n):
-            ser.sendall(b"\x1b[B")
-            time.sleep(0.6)
-        ser.sendall(b"\r")
-        time.sleep(2.5)
-
-    def leave_app():
-        ser.sendall(b"q")
-        time.sleep(1.2)
-        ser.sendall(b"q")
-        time.sleep(1.2)
-        expect(r"oc>", timeout=60)
-
-    nav_entry(1)   # 无线网络
-    mon(f"screendump {OUT}/cn_entry2_wireless.ppm", wait=1.5)
-    leave_app()
-
-    nav_entry(2)   # 系统信息 menu
-    ser.sendall(b"\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B")   # down to 系统更新
-    time.sleep(1.5)
-    ser.sendall(b"\r")
-    time.sleep(2)
-    mon(f"screendump {OUT}/cn_entry3_update.ppm", wait=1.5)
-    ser.sendall(b"\x1b\x1b")   # leave the update page
-    time.sleep(1.2)
-    ser.sendall(b"q")           # leave the sysinfo menu
-    time.sleep(1.2)
-    ser.sendall(b"q")           # leave the launcher
-    expect(r"oc>", timeout=60)
-
-    # processes page: priority column (fix2 parity)
-    nav_entry(2)
-    ser.sendall(b"\x1b[B")     # 进程管理
-    time.sleep(1.2)
-    ser.sendall(b"\r")
-    time.sleep(2.5)
+    # root -> Processes app (quick-open digit 2)
+    ser.sendall(b"2")
+    time.sleep(3)
     mon(f"screendump {OUT}/cn_processes.ppm", wait=1.5)
-    ser.sendall(b"q")
-    time.sleep(1.2)
-    ser.sendall(b"q")
-    time.sleep(1.2)
-    ser.sendall(b"q")
+    ser.sendall(b"\x1bz")      # Esc leaves the app ('z' pairs the Esc)
+    time.sleep(2)
+
+    # root -> control panel (digit 3)
+    ser.sendall(b"3")
+    time.sleep(2.5)
+    mon(f"screendump {OUT}/cn_panel.ppm", wait=1.5)
+
+    # panel -> Update page (digit 6; crash-test sits at 5)
+    ser.sendall(b"6")
+    time.sleep(2.5)
+    mon(f"screendump {OUT}/cn_update.ppm", wait=1.5)
+    ser.sendall(b"\x1b[26~")   # F10 leaves the page
+    time.sleep(1.5)
+    ser.sendall(b"\x1bz")      # Esc: panel -> root
+    time.sleep(1.5)
+    ser.sendall(b"\x1bz")      # Esc: root -> leave the desktop
+    time.sleep(2)
+    expect(r"oc>", timeout=60)
+
+    # restore English through the ring-3 lang command
+    ser.sendall(b"run ush\n")
+    expect(r"ush>", timeout=90)
+    ser.sendall(b"lang en\n")
+    expect(r"ush>", timeout=30)
+    ser.sendall(b"exit\n")
     expect(r"oc>", timeout=60)
 
     from PIL import Image
@@ -264,23 +258,26 @@ try:
                 return f"{pos}({tag})"
         return None
 
-    # console check: 中 sample row
-    pos = find_glyph("zhong", "font_test", 0x4E2D)
-    print(("PASS" if pos else "FAIL") + f" console font-test renders FULL 中 glyph {pos}")
-    if not pos:
-        fails += 1
+    # v2: the console font-test path renders through the SVC capture
+    # machinery, which suppresses the framebuffer draw - the fb hanzi
+    # surfaces in v2 are the zh desktop pages (probes below).
 
-    # TUI check: launcher menu glyphs (the selected row inverts to dark
-    # ink on cyan - both ink polarities are tried per probe)
-    for name, cp in PROBES:
+    # zh root menu: 系 (系统信息) and 中 (中文输入)
+    for name, cp in [("系", 0x7CFB), ("中", 0x4E2D)]:
         pos = find_glyph(name, "tui_cn_launcher", cp)
-        print(("PASS" if pos else "FAIL") + f" TUI renders FULL {name} (U+{cp:04X}) glyph {pos}")
+        print(("PASS" if pos else "FAIL") + f" zh root renders FULL {name} (U+{cp:04X}) glyph {pos}")
         if not pos:
             fails += 1
 
-    # fix2 navigation checks: entry 2 (无线网络) opened - the wireless
-    # menu shows 扫描网络; entry 3's update page shows the REAL OTA menu
-    # (检查更新); the processes page shows the 优先级 column header
+    # control panel menu: 硬 (硬件) and 无 (Network description 无线)
+    for name, cp in [("硬", 0x786C), ("无", 0x65E0)]:
+        pos = find_glyph(name, "cn_panel", cp)
+        print(("PASS" if pos else "FAIL") + f" zh panel renders FULL {name} (U+{cp:04X}) glyph {pos}")
+        if not pos:
+            fails += 1
+
+    # v2 navigation checks: the Processes app opened (任务管理) and
+    # the Update page opened (检查更新 lines)
     def page_has(name, probes):
         w, h, px = load(name)
         hits = 0
@@ -294,24 +291,17 @@ try:
                     break
         return hits, len(probes)
 
-    # 扫描网络 on the wireless menu (扫 0x626B, 描 0x63CF, 网 0x7F51, 络 0x7EDC)
-    hits, tot = page_has("cn_entry2_wireless", [0x626B, 0x63CF, 0x7F51, 0x7EDC])
+    # 任务管理 on the processes app (任 0x4EFB, 务 0x52A1, 管 0x7BA1, 理 0x7406)
+    hits, tot = page_has("cn_processes", [0x4EFB, 0x52A1, 0x7BA1, 0x7406])
     ok = hits == tot
-    print(("PASS" if ok else "FAIL") + f" CN entry 2 wireless menu opened (扫描网络 glyphs {hits}/{tot})")
+    print(("PASS" if ok else "FAIL") + f" zh Processes app opened (任务管理 glyphs {hits}/{tot})")
     if not ok:
         fails += 1
 
     # 检查更新 on the update page (检 0x68C0, 查 0x67E5, 更 0x66F4, 新 0x65B0)
-    hits, tot = page_has("cn_entry3_update", [0x68C0, 0x67E5, 0x66F4, 0x65B0])
+    hits, tot = page_has("cn_update", [0x68C0, 0x67E5, 0x66F4, 0x65B0])
     ok = hits == tot
-    print(("PASS" if ok else "FAIL") + f" CN update page shows real OTA menu (检查更新 glyphs {hits}/{tot})")
-    if not ok:
-        fails += 1
-
-    # 优先级 on the processes page (优 0x4F18, 先 0x5148, 级 0x7EA7)
-    hits, tot = page_has("cn_processes", [0x4F18, 0x5148, 0x7EA7])
-    ok = hits == tot
-    print(("PASS" if ok else "FAIL") + f" CN processes page shows priority column (优先级 glyphs {hits}/{tot})")
+    print(("PASS" if ok else "FAIL") + f" zh Update page opened (检查更新 glyphs {hits}/{tot})")
     if not ok:
         fails += 1
 finally:

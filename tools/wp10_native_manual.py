@@ -28,7 +28,7 @@ Exit code: number of failed scenarios."""
 import os, re, sys, time
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/tools/grub")
+OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract/root")
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 F10 = "\x1b[26~"
 
