@@ -8,7 +8,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title data-i18n="title.index">Open Cube OS - a from-scratch x86_64 kernel that boots into ring 3</title>
-<meta name="description" content="Open Cube OS 2.0.0: a complete, self-contained x86_64 kernel that boots straight into its ring-3 service surface (ush, 251 commands) and falls back to a WinRE-style recovery shell (oc>). 17 SYS_L1SVC service categories / 158 ops, 54 syscalls, TCP/IP + TLS + SSH, 16 driver families, OTA A/B updates. Apache 2.0.">
+<meta name="description" content="Open Cube OS 2.1.0: a complete, self-contained x86_64 kernel that boots straight into its ring-3 service surface (ush, 251 commands) and falls back to a WinRE-style recovery shell (oc>). 17 SYS_L1SVC service categories / 158 ops, 54 syscalls, TCP/IP + TLS + SSH, 16 driver families, OTA A/B updates. Apache 2.0.">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3E%3C/text%3E%3C/svg%3E">
 <script>
@@ -51,7 +51,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
       <h1><span data-i18n="hero.h1a">A from-scratch</span><br>
           <span data-i18n="hero.h1b">x86_64 kernel.</span><br>
           <span class="accent" data-i18n="hero.h1c">Boots into ring 3.</span></h1>
-      <p class="tagline" data-i18n-html="hero.tagline"><b>Open Cube OS</b> 2.0.0 boots through its kernel (L0), launches the default ring-3 application &mdash; the <b><code>ush</code></b> user shell with <b id="stat-cmds">251</b> commands over the SYS_L1SVC service surface &mdash; and falls back to a WinRE-style recovery shell (<b><code>oc&gt;</code></b>) whenever the ring-3 world cannot start. Not a Linux fork: <b id="stat-lines2">130,011</b> lines of original code, Apache&nbsp;2.0.</p>
+      <p class="tagline" data-i18n-html="hero.tagline"><b>Open Cube OS</b> 2.1.0 boots through its kernel (L0), launches the default ring-3 application &mdash; the <b><code>ush</code></b> user shell with <b id="stat-cmds">251</b> commands over the SYS_L1SVC service surface &mdash; and falls back to a WinRE-style recovery shell (<b><code>oc&gt;</code></b>) whenever the ring-3 world cannot start. Not a Linux fork: <b id="stat-lines2">130,526</b> lines of original code, Apache&nbsp;2.0.</p>
       <div class="btn-row">
         <a class="btn btn-primary" href="download.html" data-i18n="hero.download">⬇️ Download the ISO</a>
         <a class="btn btn-ghost" href="docs/" data-i18n="hero.docs">Documentation →</a>
@@ -60,9 +60,9 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
     <div class="terminal-card">
       <div class="bar">
         <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-        <span class="t" data-i18n="hero.term.title">qemu — Open Cube OS 2.0.0</span>
+        <span class="t" data-i18n="hero.term.title">qemu — Open Cube OS 2.1.0</span>
       </div>
-      <pre class="term-anim" id="hero-term"><span class="d">[oc] Open Cube OS 2.0.0 kmain entered</span>
+      <pre class="term-anim" id="hero-term"><span class="d">[oc] Open Cube OS 2.1.0 kmain entered</span>
 <span class="d">boot complete .................... OK</span>
 <span class="d">crash recovery armed ............. OK</span>
 <span class="g">l1 launcher: booting 'ush' (ring 3, 53800 bytes)</span>
@@ -87,7 +87,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
     <div class="stat"><div class="n" id="stat-cmds2" data-count="251">251</div><div class="l" data-i18n="stats.commands">commands</div></div>
     <div class="stat"><div class="n" id="stat-ifaces" data-count="158">158</div><div class="l" data-i18n="stats.interfaces">L1SVC ops (17 services)</div></div>
     <div class="stat"><div class="n" id="stat-syscalls" data-count="54">54</div><div class="l" data-i18n="stats.syscalls">syscalls</div></div>
-    <div class="stat"><div class="n" id="stat-lines">130,011</div><div class="l" data-i18n="stats.lines">lines of source</div></div>
+    <div class="stat"><div class="n" id="stat-lines">130,526</div><div class="l" data-i18n="stats.lines">lines of source</div></div>
   </div>
 </section>
 

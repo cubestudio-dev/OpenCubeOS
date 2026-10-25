@@ -6,9 +6,12 @@
 
 **A from-scratch x86_64 kernel with a WinRE-style recovery shell.**
 
-Current release: **v2.0.0** - the breaking ring-3 release: the kernel
-boots into the ring-3 service surface, L0 is restructured and every
-operational command class moved to ring 3 (see
+Current release: **v2.1.0** - the 17-issue fix release on top of the
+2.0.0 ring-3 re-architecture: CI green again (and now a hard release
+gate), the docs/interface truth per-entry (v1 233-command mapping
+complete, the 278-declaration interface comparison, the declared
+deletion register), regenerated command reference, website data
+integrity (see
 [Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)).
 
 `oc>` is the prompt. Everything is extensible.
@@ -32,7 +35,7 @@ application (the ush user shell, **251 commands** across the L0
 recovery shell and the L1 service surface), and falls back to the
 recovery-shell prompt (`oc>`) when the ring-3 world cannot start.
 
-- **Not a Linux fork.** 130,495 lines of original C/assembly under
+- **Not a Linux fork.** 130,526 lines of original C/assembly under
   Apache 2.0 (verify: see *Stats* below).
 - **Boots everywhere the PC platform goes:** hybrid BIOS + UEFI ISO,
   512 MiB RAM is comfortable, disk optional.
@@ -86,12 +89,13 @@ compatibility contract).
 qemu-system-x86_64 -m 512 -cdrom build/opencube.iso \
     -netdev user,id=n1 -device e1000,netdev=n1
 
-# inside the guest
-oc> help -a
-oc> dhcp
-oc> ping 10.0.2.2
-oc> wget 10.0.2.2
-oc> uname -a
+# inside the guest (the default boot entry is the ring-3 ush shell)
+ush> help
+ush> dhcp
+ush> ping 10.0.2.2
+ush> wget 10.0.2.2
+ush> uname -a
+ush> exit          # -> drops into the oc> recovery shell (99 commands)
 ```
 
 UEFI instead of BIOS: `make run-uefi`. Windows hosts: `build.ps1`
@@ -107,9 +111,9 @@ and mirrored on the
 
 | Asset | What it is |
 |-------|------------|
-| `opencube-2.0.0.iso` | Hybrid BIOS+UEFI bootable ISO - boot it in QEMU or write to USB |
-| `opencube-2.0.0-src.zip` | Deterministic source zip (`git archive`) |
-| `opencube-2.0.0-update.tar.gz` | OTA update package (SHA256 + signature verified, A/B slots) |
+| `opencube-2.1.0.iso` | Hybrid BIOS+UEFI bootable ISO - boot it in QEMU or write to USB |
+| `opencube-2.1.0-src.zip` | Deterministic source zip (`git archive`) |
+| `opencube-2.1.0-update.tar.gz` | OTA update package (SHA256 + signature verified, A/B slots) |
 
 Each release note carries the SHA256 of all three; the website,
 the Release and the private mirror hold byte-identical copies.
@@ -133,7 +137,7 @@ All numbers below are machine-verified at build time
 (`make api-docs` writes `docs/data/*.json`; the README verification
 command is quoted per item):
 
-- **Source code**: 130,495 lines across 379 files - core + arch +
+- **Source code**: 130,526 lines across 379 files - core + arch +
   drivers + services + recovery + tui + chinese + boot + l1apps,
   headers included, docs/tools/tests and generated data blobs
   excluded.  Verify:

@@ -75,8 +75,7 @@ echo "  iso  $ISO_SZ  $ISO_SHA"
 echo "  src  $SRC_SZ  $SRC_SHA"
 echo "  ota  $OTA_SZ  $OTA_SHA"
 
-# ---- regenerate site-data.js ----------------------------------------
-# preserve the history array and stats from the existing file
+# carry history + links from the existing generated file
 python3 - "$VER" "$BUILD" "$DATE" \
     "$ISO_SHA" "$ISO_SZ" "$ISO_H" "$SRC_SHA" "$SRC_SZ" "$SRC_H" \
     "$OTA_SHA" "$OTA_SZ" "$OTA_H" "$CHANGES" <<'PYEOF'
@@ -89,8 +88,26 @@ changes = changes or ("%s release - see the GitHub release note for "
 path = "website/assets/site-data.js"
 old = open(path).read()
 
-# carry stats + history + links from the existing generated file
-stats = old[old.index("stats: {"):old.index("history:")]
+# 2.1.0 (P-10 fix): REGENERATE the stats block from docs/data/*.json
+# instead of carrying the previous file's block forward - the carry
+# was how the 2.0.0 site shipped a stale 130,011 line count while the
+# real tree measured 130,495 (audit P-10; violates the 12-point #7
+# "website numbers match docs/data/*.json" gate).
+jstats = json.load(open("docs/data/stats.json"))
+jcmds = json.load(open("docs/data/commands.json"))
+jifaces = json.load(open("docs/data/interfaces.json"))
+sc = 0
+for ln in open("core/core_syscall.h", encoding="utf-8"):
+    if "#define SYS_" in ln:
+        sc += 1
+stats = """stats: {
+    commands: %d,
+    interfaces: %d,
+    syscalls: %d,
+    lines: "%s"
+  }""" % (jcmds["count_v2_surface"], jifaces["l1_official_count"], sc,
+         format(jstats["total_lines"], ","))
+
 links = old[old.index("links: {"):old.index("};")]
 hist_m = re.search(r"history: \[(.*?)\]\s*,\s*\n\s*links", old, re.S)
 history = []
@@ -189,10 +206,16 @@ manifest = {
     "package_size": int(size),
 }
 for name in ("update.json", "update-v2.json"):
-    with open("website/" + name, "w") as f:
-        json.dump(manifest, f, indent=4)
-        f.write("\n")
-    print("update_website: website/%s regenerated" % name)
+    # 2.1.0 (P-12 fix): BOTH copies are written byte-identical - the
+    # website/ top-level pair AND website/public/. Through 2.0.0 only
+    # the top-level pair was rewritten and website/public/ drifted
+    # (it still carried the WP-13/build-259 manifests at the 2.0.0
+    # release - audit P-12).
+    for path in ("website/" + name, "website/public/" + name):
+        with open(path, "w") as f:
+            json.dump(manifest, f, indent=4)
+            f.write("\n")
+    print("update_website: %s regenerated (top level + public/)" % name)
 PYEOF
 
 echo "update_website: done. Next: website/build.sh then deploy out/ to gh-pages."

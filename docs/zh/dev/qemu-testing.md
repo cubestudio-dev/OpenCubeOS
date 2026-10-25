@@ -21,7 +21,7 @@ make run-bios-gui  # display on (for the TUI)
 python3 tools/run_fix4_regression.py build/opencube.iso out.log
 ```
 
-它等待 `oc>` 提示符出现，然后执行固定的命令集（uname、help -a、heaptest、fstest、cryptotest、crashlog、l1test，以及整个 `run *test` 用户程序集），并对组合输出执行 28 项检查 - 启动横幅、自检、命令计数 233、每个测试的 PASS 行。零失败是门槛。
+它等待 `ush>` 提示符出现（v2 默认启动项；如需 `oc>`，先发 `exit`），然后执行固定的命令集（uname、help -a、heaptest、fstest、cryptotest、crashlog、l1test，以及整个 `run *test` 用户程序集），并对组合输出执行 28 项检查 - 启动横幅、自检、命令计数 233、每个测试的 PASS 行。零失败是门槛。
 
 ## 看门狗 / 日志 E2E
 

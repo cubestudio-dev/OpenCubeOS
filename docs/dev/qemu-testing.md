@@ -27,7 +27,7 @@ python3 tools/run_fix4_regression.py build/opencube.iso out.log
 It waits for the `oc>` prompt, then runs the fixed command battery
 (uname, help -a, heaptest, fstest, cryptotest, crashlog, l1test, and
 the whole `run *test` user-program set), and asserts 28 checks on the
-combined output - boot banner, self-tests, command count 233, each
+combined output - boot banner, self-tests, the L0 command count, each
 test's PASS line. Zero failures is the bar.
 
 ## Watchdog / logging E2E

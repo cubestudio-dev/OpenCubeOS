@@ -138,10 +138,16 @@ make CONFIG_TUI=n       # one-shot override
 
 Options: `CONFIG_TUI`, `CONFIG_CHINESE`, `CONFIG_NVME`, `CONFIG_AHCI`,
 `CONFIG_VIRTIO_BLK`. `CONFIG_CHINESE=n` forces `CONFIG_TUI=n`.
-A `CONFIG_TUI=n CONFIG_CHINESE=n` build boots with 216 commands
-(233 - 17 TUI/Chinese commands); the full configuration boots 233.
+A `CONFIG_TUI=n CONFIG_CHINESE=n` build drops the 9 TUI commands
+from the `oc>` surface (99 -> 90) and turns the 8 chinese-locale
+SVC ops into clean -1 errors (the command bodies live in the
+filtered trees; op numbers stay stable); the full configuration
+boots 99 L0 commands with 251 command homes in total
+(2.1.0-verified live: banner + `help -a` on the off-path ISO).
 The off-path is real code, not deleted code - the configurator's
-generated header maps disabled features to no-op equivalents.
+generated header maps disabled features to no-op equivalents, and
+the L1SVC dispatch guards the locale ops (2.1.0: the v2.0.0 tree
+failed to link the off-path image - fixed).
 
 ## Build cache
 
