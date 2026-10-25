@@ -75,7 +75,12 @@ def main():
         args += ["-bios", f"{OC_TOOLS}/usr/share/ovmf/OVMF.fd"]
     child = pexpect.spawn(QEMU, args, timeout=200, encoding="latin-1",
                           codec_errors="replace", env=env)
-    child.expect(r"oc>\s*", timeout=200)
+    # v2.0.0: boot lands in the ring-3 ush shell; leave it for the L0
+    # recovery prompt (the TUI desktop and these test commands are L0)
+    child.expect(r"ush>\s", timeout=200)
+    child.sendline("exit")
+    child.expect(r"Type 'help' for commands", timeout=90)
+    child.expect(r"oc>\s", timeout=60)
     transcript = ""
 
     def drain(secs):

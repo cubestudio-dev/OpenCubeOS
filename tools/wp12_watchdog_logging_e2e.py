@@ -36,6 +36,9 @@ Exit code: number of failed scenarios.
 import sys, os, re, subprocess
 import pexpect
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from qemu_runner import boot_to_recovery
+
 OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -59,6 +62,7 @@ def run_boot(iso, commands, timeout=120, allow_reboot=False,
     """One fresh QEMU boot + serial commands; returns the full output."""
     args = [QEMU, "-m", "512M", "-cdrom", iso, "-boot", "d",
             "-L", f"{OC_TOOLS}/usr/share/qemu",
+            "-L", f"{OC_TOOLS}/usr/share/seabios",
             "-vga", "std", "-display", "none", "-serial", "mon:stdio",
             "-netdev", "user,id=n1", "-device", "e1000,netdev=n1"]
     if machine != "pc":
@@ -71,11 +75,9 @@ def run_boot(iso, commands, timeout=120, allow_reboot=False,
                       encoding="latin-1", dimensions=(30, 100), env=ENV)
     out = []
     try:
-        i = c.expect([r"Type 'help' for commands",
-                      pexpect.TIMEOUT, pexpect.EOF], timeout=150)
-        out.append(c.match.group(0) if i == 0 else "")
-        if i != 0:
-            return "".join(out) + "\n[BOOT-TIMEOUT]"
+        # v2.0.0: boot lands in the ring-3 ush shell; the adapter leaves
+        # it and waits for the real oc> prompt (line editor armed)
+        out.append(boot_to_recovery(c, boot_timeout=150) or "")
         resets = ("hw start",)
         for cmd in commands:
             c.sendline(cmd)
