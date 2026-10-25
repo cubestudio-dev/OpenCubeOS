@@ -31,7 +31,7 @@ application (the ush user shell, **251 commands** across the L0
 recovery shell and the L1 service surface), and falls back to the
 recovery-shell prompt (`oc>`) when the ring-3 world cannot start.
 
-- **Not a Linux fork.** 130,011 lines of original C/assembly under
+- **Not a Linux fork.** 130,495 lines of original C/assembly under
   Apache 2.0 (verify: see *Stats* below).
 - **Boots everywhere the PC platform goes:** hybrid BIOS + UEFI ISO,
   512 MiB RAM is comfortable, disk optional.
@@ -132,7 +132,7 @@ All numbers below are machine-verified at build time
 (`make api-docs` writes `docs/data/*.json`; the README verification
 command is quoted per item):
 
-- **Source code**: 130,011 lines across 378 files - core + arch +
+- **Source code**: 130,495 lines across 379 files - core + arch +
   drivers + services + recovery + tui + chinese + boot + l1apps,
   headers included, docs/tools/tests and generated data blobs
   excluded.  Verify:
