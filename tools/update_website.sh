@@ -13,7 +13,7 @@
 #   Then the site build (website/build.sh) picks the numbers up; nothing
 #   is hand-edited. Idempotent per release: same dist/ -> same outputs.
 #
-# Usage: tools/update_website.sh <version> <build> [date-iso]
+# Usage: tools/update_website.sh <version> <build> [date-iso] [changes]
 # Env:   none (pure local computation)
 
 set -euo pipefail
@@ -21,9 +21,12 @@ set -euo pipefail
 OC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$OC_ROOT"
 
-VER="${1:?usage: update_website.sh <version> <build> [date-iso]}"
-BUILD="${2:?usage: update_website.sh <version> <build> [date-iso]}"
+VER="${1:?usage: update_website.sh <version> <build> [date-iso] [changes]}"
+BUILD="${2:?usage: update_website.sh <version> <build> [date-iso] [changes]}"
 DATE="${3:-$(date -u +%Y-%m-%d)}"
+# v2.0.0: optional explicit changes text (e.g. the BREAKING summary the
+# OTA checkupdate banner shows). Falls back to the generic one-liner.
+CHANGES="${4:-}"
 
 DIST="$OC_ROOT/dist"
 ISO="$DIST/opencube-${VER}.iso"
@@ -76,11 +79,13 @@ echo "  ota  $OTA_SZ  $OTA_SHA"
 # preserve the history array and stats from the existing file
 python3 - "$VER" "$BUILD" "$DATE" \
     "$ISO_SHA" "$ISO_SZ" "$ISO_H" "$SRC_SHA" "$SRC_SZ" "$SRC_H" \
-    "$OTA_SHA" "$OTA_SZ" "$OTA_H" <<'PYEOF'
+    "$OTA_SHA" "$OTA_SZ" "$OTA_H" "$CHANGES" <<'PYEOF'
 import json, re, sys
 
 (ver, build, date, iso_sha, iso_sz, iso_h, src_sha, src_sz, src_h,
- ota_sha, ota_sz, ota_h) = sys.argv[1:13]
+ ota_sha, ota_sz, ota_h, changes) = sys.argv[1:14]
+changes = changes or ("%s release - see the GitHub release note for "
+                      "the change list" % ver)
 path = "website/assets/site-data.js"
 old = open(path).read()
 
@@ -123,7 +128,7 @@ window.SITE_DATA = {
   version: "%(ver)s",
   build: %(build)d,
   date: "%(date)s",
-  changes: "%(ver)s release - see the GitHub release note for the change list",
+  changes: "%(changes)s",
   assets: {
     iso: {
       name: "opencube-%(ver)s.iso",
@@ -153,7 +158,7 @@ window.SITE_DATA = {
   ],
   %(links)s
 };
-""" % {"ver": ver, "build": int(build), "date": date,
+""" % {"ver": ver, "build": int(build), "date": date, "changes": changes,
        "iso_sha": iso_sha, "iso_sz": int(iso_sz), "iso_h": iso_h,
        "src_sha": src_sha, "src_sz": int(src_sz), "src_h": src_h,
        "ota_sha": ota_sha, "ota_sz": int(ota_sz), "ota_h": ota_h,
@@ -165,14 +170,15 @@ print("update_website: website/assets/site-data.js regenerated")
 PYEOF
 
 # ---- regenerate update.json + update-v2.json ------------------------
-python3 - "$VER" "$BUILD" "$DATE" "$OTA_SHA" "$OTA_SZ" <<'PYEOF'
+python3 - "$VER" "$BUILD" "$DATE" "$OTA_SHA" "$OTA_SZ" "$CHANGES" <<'PYEOF'
 import json, sys
-ver, build, date, sha, size = sys.argv[1:6]
+ver, build, date, sha, size, changes = sys.argv[1:7]
 manifest = {
     "version": ver,
     "build": int(build),
     "time": date,
-    "changes": ("%s release. See the GitHub release note for the full "
+    "changes": (changes or
+                "%s release. See the GitHub release note for the full "
                 "change list, new interfaces and known issues." % ver),
     "changes_v2_url":
         "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",

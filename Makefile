@@ -86,7 +86,10 @@ SEABIOS_DIR  ?= $(OC_TOOLS)/share/seabios
 # (FINDING #1, HANDOVER 1.3, WP-10-AUDIT_P2-fix2) that served the
 # internal engineering phase (WP-* tags). The ?= override still wins for
 # the E2E update test. Engineering history remains in CHANGELOG and git.
-OC_RELEASE_VERSION ?= 1.0.0
+# v2.0.0 (2026-10-25): the breaking ring-3 release - L0 restructured
+# (core/drivers/services/boot/recovery), boots into the ring-3 service
+# surface (ush + SYS_L1SVC), register-class interfaces removed.
+OC_RELEASE_VERSION ?= 2.0.0
 # BUG-0347 (RUNTIME): monotonic build id baked into the kernel and
 # published by the server-side version.json - makes the update check a
 # numeric comparison instead of a string equality (see ota_update.h).
