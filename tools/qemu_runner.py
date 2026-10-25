@@ -68,9 +68,11 @@ def boot_to_recovery(child, boot_timeout=150, exit_timeout=60):
         child.sendline("exit")
         j = child.expect([r"Type 'help' for commands",
                           _px.TIMEOUT, _px.EOF], timeout=exit_timeout)
-        pre += child.before
+        pre += child.before + (child.match.group(0) if j == 0 else "")
         if j != 0:
             raise _px.TIMEOUT("recovery shell did not come up after exit")
+    elif i == 1:
+        pre += child.match.group(0)   # keep the banner text in the stream
     elif i != 1:
         raise _px.TIMEOUT("no shell prompt (ush> or recovery banner) within "
                           f"{boot_timeout}s")

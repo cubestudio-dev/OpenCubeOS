@@ -74,13 +74,24 @@ CMDS = [
     ("tui-sysinfo logs", "tui-sysinfo logs", r".", 120),
     ("tui-usb poll thread", "ps",
      r"usb-poll", 120),
+    # v2: help -w group view (oc>) - the TUI commands live in the
+    # 'display' service group now
+    ("help wp tag",      "help -w", r"=== display \(", 120),
+    ("help az tui",      "help -a", r"tui-sysinfo", 120),
+]
+
+# v2.0.0: the ring-3 entries run in the ush shell (wifi/uname/
+# checkupdate moved to the SVC surface; the closing alive-check runs
+# there too - the L0 rounds above already proved the oc> side alive)
+USH_CMDS = [
     ("wireless stack honest", "wifi",
      r"QEMU has no 802.11 models", 120),
-    ("help wp tag",      "help -w", r"WP-10-tui", 120),
-    ("help az tui",      "help -a", r"tui-sysinfo", 120),
-    ("uname intact",     "uname -a", r"Open Cube OS", 120),
-    ("ota intact",       "checkupdate --local", r".", 120),
+    # alive-check right after the first SVC round (the desktop-teardown
+    # session state has proven flaky after several captured-output
+    # commands in a row - verify the shell early, then continue)
     ("shell ok after",   "echo alive", r"alive", 120),
+    ("uname intact",     "uname -a", r"Open Cube OS", 120),
+    ("ota intact",       "checkupdate --local", r"\S", 120),
 ]
 
 
@@ -94,8 +105,8 @@ def tui_reenter_round(child, log, transcript, tag):
     ok = True
     for i in range(2):
         child.sendline("tui")
-        time.sleep(3)
-        idx = child.expect([r"oc>", pexpect.TIMEOUT], timeout=8)
+        time.sleep(4)
+        idx = child.expect([r"oc> ", pexpect.TIMEOUT], timeout=8)
         out = normalize(child.before or "")
         rendered = idx == 1 and "Control Panel" in out \
             and "Terminal" in out and "Command Bridge" in out
@@ -108,7 +119,7 @@ def tui_reenter_round(child, log, transcript, tag):
             # serial bridge turns a double-ESC into one real Esc key)
             child.send("\x1b\x1b")
             time.sleep(1.5)
-            idx2 = child.expect([r"oc>", pexpect.TIMEOUT], timeout=8)
+            idx2 = child.expect([r"oc> ", pexpect.TIMEOUT], timeout=8)
             back = idx2 == 0
             log.write(f"[{tag} #{i}] exit back to shell: "
                       f"{'PASS' if back else 'FAIL'}\n")
@@ -158,7 +169,12 @@ def main():
                           codec_errors="replace", timeout=180,
                           env=env, dimensions=(50, 120))
     try:
-        child.expect([r"oc>"], timeout=240)
+        # v2.0.0: boot lands in the ring-3 ush shell; leave it for the
+        # L0 recovery prompt (the TUI desktop is an L0 command)
+        child.expect([r"ush>"], timeout=240)
+        child.sendline("exit")
+        child.expect([r"Type 'help' for commands"], timeout=90)
+        child.expect([r"oc> "], timeout=60)
         log.write("=== boot ok, prompt reached ===\n")
     except Exception as e:
         log.write(f"BOOT FAIL: {e}\n")
@@ -199,7 +215,7 @@ def main():
             child.send("q")
             time.sleep(1)
         try:
-            idx = child.expect([r"oc>", pexpect.TIMEOUT], timeout=60 + extra)
+            idx = child.expect([r"oc> ", pexpect.TIMEOUT], timeout=60 + extra)
             out = normalize(child.before or "")
             transcript += f"\n=== {name}: {cmd} ===\n{out}\n"
             if regex is None:
@@ -231,7 +247,38 @@ def main():
         except Exception as e:
             failed += 1
             log.write(f"[FAIL] tui re-enter regression: exception {e}\n")
-    total = len(cmds) + (1 if reenter_ran else 0)
+    # ---- v2 ring-3 tail: the SVC-surface entries run under ush ----
+    try:
+        log.write("[INFO] entering ush for the ring-3 tail\n")
+        time.sleep(1.0)   # let the desktop teardown settle (editor reset)
+        child.sendline("")  # resync the line editor with an empty line
+        child.expect([r"oc> ", pexpect.TIMEOUT], timeout=15)
+        time.sleep(0.5)
+        child.sendline("run ush")
+        child.expect([r"ush>"], timeout=90)
+        for name, cmd, regex, extra in USH_CMDS:
+            child.sendline(cmd)
+            try:
+                idx = child.expect([r"ush>", pexpect.TIMEOUT],
+                                   timeout=60 + extra)
+                out = normalize(child.before or "")
+                transcript += f"\n=== {name}: {cmd} ===\n{out}\n"
+                ok = out and __import__("re").search(regex, out) is not None
+                verdict = "PASS" if ok else "FAIL"
+                log.write(f"[{verdict}] {name}: {cmd}\n")
+                if not ok:
+                    failed += 1
+                    log.write(f"    expected /{regex}/\n")
+                    log.write("    got: " + out[-600:] + "\n")
+            except Exception as e:
+                transcript += f"\n=== {name}: EXCEPTION {e} ===\n"
+                log.write(f"[FAIL] {name}: exception {e}\n")
+                failed += 1
+    except Exception as e:
+        log.write(f"[FAIL] ush tail: exception {e}\n")
+        failed += len(USH_CMDS)
+
+    total = len(cmds) + len(USH_CMDS) + (1 if reenter_ran else 0)
     log.write("\n=== full transcript tail ===\n")
     log.write(transcript[-8000:])
     log.write(f"\n=== summary: {total - failed}/{total} checks passed, {failed} failed ===\n")

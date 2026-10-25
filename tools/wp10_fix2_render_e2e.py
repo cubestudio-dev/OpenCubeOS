@@ -166,7 +166,12 @@ def glyph_present(w, h, px, rows, fg_test):
     return None
 
 try:
-    expect(r"oc>", timeout=240)
+    # v2.0.0: boot lands in the ring-3 ush shell; leave it for the L0
+    # recovery prompt (font-test runs at oc>, the TUI rounds need it)
+    expect(r"(?:ush>|oc>)", timeout=240)
+    if b"ush>" in buf:
+        ser.sendall(b"exit\n")
+        expect(r"oc>", timeout=90)
     print("boot ok")
 
     # console path reference: font-test sample row (中) at a known spot
