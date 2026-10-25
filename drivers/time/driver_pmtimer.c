@@ -112,7 +112,10 @@ int driver_pmtimer_calibrate(u64 *hz_out) {
     u32 c0 = driver_pmtimer_read();
     u64 ms;
     do {
-        core_sched_yield();
+        /* v2.0.0: sti;hlt park, not core_sched_yield - this runs on the
+         * SYS_L1SVC dispatch frame; yielding from there deadlocks the
+         * scheduler (see driver_cmos_rtc.c wait_counts note). */
+        __asm__ volatile("sti; hlt");
         ms = core_timer_now_ms();
     } while (ms - ms0 < 1100);          /* PIT-bounded ~1.1 s window */
     u32 c1 = driver_pmtimer_read();

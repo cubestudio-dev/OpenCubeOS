@@ -78,10 +78,10 @@ def boot_guest(port, path_out):
         "-vga","std","-display","none","-serial","mon:stdio",
         "-netdev","user,id=n1","-device","e1000,netdev=n1",
     ], timeout=150, encoding="latin-1", codec_errors="replace", env=env)
-    child.expect(r"oc>\s*", timeout=150)
+    child.expect(r"ush>\s", timeout=150)
     def sc(cmd, t=90):
         child.sendline(cmd)
-        child.expect(r"oc>\s*", timeout=t)
+        child.expect(r"ush>\s", timeout=t)
         return child.before or ""
     out = sc(f"wget https://10.0.2.2:{port}/hello.txt", 120)
     out += "\n" + sc("cat /wget_https.html", 60)
@@ -162,10 +162,10 @@ def main():
                 "-vga","std","-display","none","-serial","mon:stdio",
                 "-netdev","user,id=n1","-device","e1000,netdev=n1",
             ], timeout=150, encoding="latin-1", codec_errors="replace", env=env)
-            child.expect(r"oc>\s*", timeout=150)
+            child.expect(r"ush>\s", timeout=150)
             t0 = time.time()
             child.sendline("wget https://10.0.2.2:8444/hello.txt")
-            idx = child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=45)
+            idx = child.expect([r"ush>\s", pexpect.TIMEOUT], timeout=45)
             dt = time.time() - t0
             out = (child.before or "") + (f"\n<<TIMEOUT after {dt:.0f}s>>" if idx == 1 else "")
             child.close(force=True)

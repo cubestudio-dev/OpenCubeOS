@@ -180,7 +180,11 @@ int bt_rfcomm_open(u16 server_channel, u16 *dlci_out)
             (void)bt_rfcomm_poll();
             if (g_ctrl_open) break;
             if (core_timer_now_ms() >= dl) return -5;
-            core_sched_yield();
+        /* v2.0.0: timed wait on the SVC dispatch path - park on sti;hlt
+         * (any interrupt advances the timer/IO); core_sched_yield here
+         * would switch tasks inside an int 0x80 frame and deadlock (see
+         * driver_cmos_rtc.c wait_counts). */
+            __asm__ volatile("sti; hlt");
         }
     }
 

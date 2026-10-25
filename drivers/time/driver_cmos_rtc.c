@@ -134,12 +134,25 @@ static void disarm_irq8(void) {
     arch_irq_unregister_handler(8, cmos_rtc_irq_handler, NULL);
 }
 
-/* Wait until `*counter` reaches `want` or the deadline passes. */
+/* Wait until `*counter` reaches `want` or the deadline passes.
+ *
+ * v2.0.0 fix: this wait runs on the SYS_L1SVC dispatch path, i.e. inside
+ * an int 0x80 system-call frame on the ring-3 app's kernel stack.  The
+ * old core_sched_yield() park made the scheduler switch tasks from that
+ * frame; combined with the boot task parked in l1_launcher the machine
+ * deadlocked (interrupts off inside the switch path, timer tick never
+ * advanced, the timeout below never fired - rtc uie/pie/alarm under ush
+ * hung forever).  Same discipline as sys_read's key wait: keep the frame,
+ * enable interrupts and hlt until any interrupt (timer tick for the
+ * deadline, IRQ8 for the RTC counters themselves) lands.  The wait is
+ * bounded by timeout_ms (< 8 s for every rtc test), well inside the
+ * watchdog heartbeat budget, so not yielding to other tasks here is
+ * safe by construction. */
 static int wait_counts(volatile u64 *counter, u64 want, u64 timeout_ms) {
     u64 deadline = core_timer_now_ms() + timeout_ms;
     while (*counter < want) {
         if (core_timer_now_ms() >= deadline) return -1;
-        core_sched_yield();
+        __asm__ volatile("sti; hlt");
     }
     return 0;
 }

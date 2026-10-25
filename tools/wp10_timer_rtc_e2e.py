@@ -43,7 +43,9 @@ CMDS = [
     ("tsc cal hpet",      "tsc cal hpet", r"TSC calibration vs HPET \(~0\.1 s\): \d+ Hz"),
     ("tsc delay",         "tsc delay 100", r"PIT-measured actual: \d+ ms PASS"),
     ("tsc test",          "tsc test",  r"tsc: PASS"),
-    ("help wp group",     "help -w",   r"WP-10-timer_rtc \(time sources \(RTC/HPET/PMTimer/TSC\)\)"),
+    # v2: the ring-3 ush help lists the time service ops (the L0-only
+# work-package view of `help -w` is an oc> feature - see chipset e2e)
+    ("help wp group",     "help",     r"rtc \[uie\|pie\|alarm N\]  CMOS RTC"),
     ("help az intact",    "help -a",   r"pmtimer"),
     ("boot command count","echo boot", r"boot"),   # informational placeholder; count asserted via boot log below
     ("rtc still works",   "rtc",       r"Counters: total=\d+ update=\d+ periodic=\d+ alarm=\d+"),
@@ -70,21 +72,22 @@ def main():
 
     child = pexpect.spawn(QEMU, args, timeout=240, encoding="latin-1",
                           codec_errors="replace", env=env)
-    child.expect(r"oc>\s*", timeout=240)
+    child.expect(r"ush>\s", timeout=240)
     boot_out = child.before or ""
-    # the boot log carries the live command count (196 expected)
-    boot_count_ok = re.search(r"shell command system \(196 commands\)", boot_out) is not None
+    # v2.0.0 boot log counts the L0 recovery-shell registry (99
+    # commands; full surface = 251 with the ush SVC/builtin/bridge rows)
+    boot_count_ok = re.search(r"shell command system \(99 commands\)", boot_out) is not None
     outputs = {}
     for name, cmd, pat in CMDS:
         child.sendline(cmd)
-        idx = child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=120)
+        idx = child.expect([r"ush>\s", pexpect.TIMEOUT], timeout=120)
         out = (child.before or "") + ("\n<<TIMEOUT>>" if idx == 1 else "")
         outputs[name] = out
         ok = "?" if pat is None else ("PASS" if re.search(pat, out, re.I | re.S) else "FAIL")
         print(f"[e2e {mode}] {ok}  {name} ({len(out)} bytes)")
         child.sendline("")   # clear any pending line
         try:
-            child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=10)
+            child.expect([r"ush>\s", pexpect.TIMEOUT], timeout=10)
         except Exception:
             pass
     child.close(force=True)

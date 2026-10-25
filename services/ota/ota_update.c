@@ -786,7 +786,10 @@ static void ota_update_check_thread(void *arg) {
             lib_log_info("[autoupdate] skipped: network not ready");
             return;
         }
-        for (int i = 0; i < 50; i++) core_sched_yield();   /* ~50 ms slice */
+        /* v2.0.0: park on sti;hlt for the ~50 ms slice - this path is
+         * reachable from the checkupdate SVC op (int 0x80 frame); a
+         * core_sched_yield there deadlocks (see cmos_rtc note). */
+        for (int i = 0; i < 5; i++) __asm__ volatile("sti; hlt");
     }
 
     /* Give DHCP/ARP a moment to settle, then run the real check. */

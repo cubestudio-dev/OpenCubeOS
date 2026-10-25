@@ -219,7 +219,10 @@ int shell_cmd_sleep(const char *args) {
         return 1;
     }
     u64 deadline = core_timer_now_ms() + whole * 1000ull + frac_ms;
-    while (core_timer_now_ms() < deadline) core_sched_yield();
+    /* v2.0.0: sti;hlt park - `sleep` is reachable through the ring-3
+     * service surface (SYS_L1SVC power ops); core_sched_yield from the
+     * dispatch frame deadlocks (see driver_cmos_rtc.c wait_counts). */
+    while (core_timer_now_ms() < deadline) __asm__ volatile("sti; hlt");
     return 0;
 }
 

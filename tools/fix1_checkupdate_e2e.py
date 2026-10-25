@@ -41,12 +41,12 @@ def main():
                           codec_errors="replace", timeout=120, env=env)
     ok = True
     try:
-        child.expect(r"oc>", timeout=240)
+        child.expect(r"ush>", timeout=240)
         log.write("=== boot ok, prompt reached ===\n")
 
         def run(cmd, timeout=120):
             child.sendline(cmd)
-            child.expect(r"oc>", timeout=timeout)
+            child.expect(r"ush>", timeout=timeout)
             out = child.before or ""
             log.write(f"\n--- [{cmd}] ---\n{out}\n")
             return out

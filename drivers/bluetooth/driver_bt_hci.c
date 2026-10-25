@@ -203,7 +203,11 @@ int bt_hci_cmd(u16 opcode, const u8 *params, u8 plen,
                     handle_event(buf, len);
             }
             if (core_timer_now_ms() >= deadline) return BT_ERR_TIMEOUT;
-            core_sched_yield();
+        /* v2.0.0: timed wait on the SVC dispatch path - park on sti;hlt
+         * (any interrupt advances the timer/IO); core_sched_yield here
+         * would switch tasks inside an int 0x80 frame and deadlock (see
+         * driver_cmos_rtc.c wait_counts). */
+            __asm__ volatile("sti; hlt");
         }
     }
 }
