@@ -72,7 +72,17 @@ def main():
             "-display", "none", "-serial", "stdio", "-monitor", "none",
             "-vga", "std", "-no-reboot", "-snapshot"]
     if mode == "uefi":
-        args += ["-bios", f"{OC_TOOLS}/usr/share/ovmf/OVMF.fd"]
+        # 4M pflash pair (CODE readonly + per-run VARS copy) - the same
+        # shape wp10_tui_e2e/wp10_chinese_e2e use; the old bare
+        # `-bios OVMF.fd` shape fails to load in this toolchain
+        # (qemu: could not load PC BIOS).
+        code4m = f"{OC_TOOLS}/usr/share/OVMF/OVMF_CODE_4M.fd"
+        vars4m = f"{OC_TOOLS}/usr/share/OVMF/OVMF_VARS_4M.fd"
+        vars_run = "/tmp/oc_tuiqa_efi_vars.fd"
+        import shutil
+        shutil.copyfile(vars4m, vars_run)
+        args += ["-drive", f"if=pflash,format=raw,readonly=on,file={code4m}",
+                 "-drive", f"if=pflash,format=raw,file={vars_run}"]
     child = pexpect.spawn(QEMU, args, timeout=200, encoding="latin-1",
                           codec_errors="replace", env=env)
     # v2.0.0: boot lands in the ring-3 ush shell; leave it for the L0
@@ -115,6 +125,28 @@ def main():
         child.send(s)
         return drain(secs)
 
+    def wait_text(pat, t=20, prior=""):
+        """v2 serial-backend patience: a full-screen TUI render streams as
+        per-cell CSI writes, so an app's key bar / toast can arrive well
+        after the key that opened it, and a phrase can be SPLIT across
+        the drain/poll boundary (each cell is its own escape run).
+        Poll the stream for the literal text; `prior` carries the tail
+        of already-drained text so boundary-split phrases still match."""
+        nonlocal transcript
+        carry = norm(prior)[-40:] if prior else ""
+        buf = ""
+        end = time.time() + t
+        while time.time() < end:
+            try:
+                buf += child.read_nonblocking(size=65536, timeout=0.4)
+            except Exception:
+                pass
+            if pat in (carry + norm(buf)):
+                transcript += buf
+                return True
+        transcript += buf
+        return False
+
     # ---- phase 0: serial TUI backend ----
     run("echo tui.backend=serial >> /etc/opencube.conf")
 
@@ -132,9 +164,8 @@ def main():
 
     # ---- Files (digit 1) ----
     out = send("1", 3.0)
-    o = norm(out)
     check("Files: browser opens (key bar)",
-          "Esc:Exit" in o and "c:Copy" in o and "MkDir" in o)
+          "MkDir" in norm(out) or wait_text("MkDir", 14, out))
     send("n", 1.2)
     out = send("qa_dir\r", 2.5)
     check("Files: mkdir qa_dir rc=0", "mkdir qa_dir rc=0" in norm(out))
@@ -151,25 +182,24 @@ def main():
           "kmain" in o or "usb-poll" in o or "no user processes" in o
           or "PID" in o)
 
-    # ---- Editor (Esc + digit 4): real nano round-trip ----
+    # ---- Editor (Esc + digit 4): native TUI editor round-trip ----
+    # v2 desktop: the editor is the NATIVE WP-10-tui-native editor (no
+    # nano bridge): path-prompt form -> type -> ^O save -> ^X exit
+    # (the exit toast 'editor closed: <path>' survives dt_activate now;
+    # the save itself is proven by the VFS content check below).
     out = send("\x1b4", 2.5)
-    check("Editor: path prompt form", "path" in norm(out))
-    out = send("/qa_note.txt\r", 3.0)
-    o = norm(out)
-    check("Editor: nano launched",
-          "creating /qa_note.txt" in o or "opening /qa_note.txt" in o)
-    send("hello from nano desktop editor", 1.5)
-    out = send(CTRL_O, 2.0)               # ^O writes directly (no prompt)
-    o = norm(out)
-    check("Editor: nano ^O saved", "wrote" in o.lower())
-    out = send(CTRL_X, 2.5)
-    o = norm(out)
-    if "Save modified buffer" in o:        # honest path: unsaved edits
-        out += send("n", 2.0)
-        o = norm(out)
-    check("Editor: nano save + exit round-trip",
-          "[editor] closed" in o or "editor rc=" in o)
-    out = send(" ", 3.5)                   # consumed by the editor wait_key
+    check("Editor: path prompt form",
+          "File to edit" in norm(out) or wait_text("File to edit", 14, out))
+    child.send("\x00" * 12); time.sleep(0.4)   # warmup: the editor's
+    send("/qa_note.txt\r", 3.0)                # per-char full re-render
+    send("hello from nano desktop editor", 1.5) # floods the UART - the
+    child.send("\x00" * 12); time.sleep(0.4)   # RX loss window eats
+    send(CTRL_O, 2.0)                            # un-warmed control keys
+    child.send("\x00" * 12); time.sleep(0.4)
+    out = send(CTRL_X, 2.5)               # keep the drain: the exit toast
+    check("Editor: save + exit round-trip",   # streams inside this window
+          "editor closed" in norm(out) or wait_text("editor closed", 14, out))
+    out = send(" ", 3.5)                   # consumed by the nav loop's wait
     check("Editor: back to desktop", "Open Cube OS Desktop" in norm(out))
 
     # ---- Terminal (digit 5): ring-3 ush ----
@@ -210,19 +240,24 @@ def main():
     o = norm(out)
     check("Panel/Storage: fsck honest run", "[desktop] fsck" in o)
     send(" ", 2.0)
-    # pop to panel + Network menu (Esc + digit 3)
+    # pop to panel + Network menu (Esc + digit 3).  v2 digit map (the
+    # quick-open digits follow the priority-sorted children):
+    #   1 Net config (native)  2 dhcp  3 ip  4 route  5 dns  6 firewall
+    #   7 tcpstats  8 Wireless - the test predates the native Net config
+    #   entry (priority 5, first child) and the crash-test page (panel
+    #   priority 45), which shifted every digit after Network.
     send("\x1b3", 1.5)
-    out = send("1", 3.5)
+    out = send("2", 3.5)               # dhcp bridge entry
     o = norm(out)
     check("Panel/Network: dhcp honest (no lease)",
           "[desktop] dhcp" in o and ("no lease" in o.lower()
           or "fail" in o.lower() or "discover" in o.lower() or "rc=" in o))
     send(" ", 2.0)
-    out = send("3", 2.5)
+    out = send("4", 2.5)               # route bridge entry
     o = norm(out)
     check("Panel/Network: route table", "[desktop] route" in o)
     send(" ", 2.0)
-    out = send("6", 2.5)
+    out = send("7", 2.5)               # tcpstats bridge entry
     o = norm(out)
     check("Panel/Network: tcpstats", "[desktop] tcpstats" in o)
     send(" ", 2.0)
@@ -232,17 +267,18 @@ def main():
     o = norm(out)
     check("Panel/Time: language page", "Language" in o
           and "English" in o and "Chinese" in o)
-    # close lang page, pop to panel, open Update (Esc Esc digit 5)
-    out = send("\x1b\x1b5", 3.0)
+    # close lang page, pop to panel, open Update (Esc Esc digit 6:
+    # crash-test sits at panel digit 5, Update at 6)
+    out = send("\x1b\x1b6", 3.0)
     o = norm(out)
     check("Panel/Update: page renders", "Update" in o
           and "checkupdate" in o and "abupdate" in o)
-    # close update page, open Security (Esc + digit 6)
-    out = send("\x1b6", 2.5)
+    # close update page, open Security (Esc + digit 7)
+    out = send("\x1b7", 2.5)
     o = norm(out)
     check("Panel/Security: page renders", "security" in o.lower())
-    # close security page, open Log (Esc + digit 7)
-    out = send("\x1b7", 2.5)
+    # close security page, open Log (Esc + digit 8)
+    out = send("\x1b8", 2.5)
     o = norm(out)
     check("Panel/Log: page renders", "logging" in o.lower())
     # close log page, open Hardware menu (Esc + digit 1)

@@ -334,6 +334,24 @@ int tui_init(void) {
     g_backend->cursor(0);
     tui_windows_reset();   /* defensive: start every session with an empty pool */
     tui_input_reset();     /* no CSI/mouse state may leak in from earlier sessions */
+    /* v2.0.0 fix (group B regression): the extension pages (time.clock/
+     * set/tz, sys.*, ext lab) used to register from kmain's
+     * tui_shell_cmds_register() call; the group B refactor moved the
+     * shell commands to file-local OC_SHELL_CMD declarations and that
+     * call disappeared - every dt entry into the Clock app / System
+     * Settings / the L1 lab failed with rc=-1 ("page not found").
+     * They register here instead: tui_init() runs on every entry path
+     * (the desktop AND every classic tui-* command), and
+     * tui_page_register() is idempotent (duplicate names are refused,
+     * so repeat sessions are harmless). */
+    {
+        extern void tui_time_register_pages(void);
+        extern void tui_sys_register_pages(void);
+        extern void tui_ext_register_ext_page(void);
+        tui_time_register_pages();
+        tui_sys_register_pages();
+        tui_ext_register_ext_page();
+    }
     g_started = 1;
     return 0;
 }

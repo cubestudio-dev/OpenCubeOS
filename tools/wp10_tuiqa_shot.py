@@ -62,7 +62,17 @@ def main():
             "-serial", "stdio", "-monitor", "unix:" + qmon + ",server,nowait",
             "-vga", "std", "-no-reboot", "-snapshot"]
     if mode == "uefi":
-        args += ["-bios", f"{OC_TOOLS}/usr/share/ovmf/OVMF.fd"]
+        # 4M pflash pair (CODE readonly + per-run VARS copy) - the same
+        # shape wp10_tui_e2e/wp10_chinese_e2e use; the old bare
+        # `-bios OVMF.fd` shape fails to load in this toolchain
+        # (qemu: could not load PC BIOS).
+        code4m = f"{OC_TOOLS}/usr/share/OVMF/OVMF_CODE_4M.fd"
+        vars4m = f"{OC_TOOLS}/usr/share/OVMF/OVMF_VARS_4M.fd"
+        vars_run = "/tmp/oc_tuiqashot_efi_vars.fd"
+        import shutil
+        shutil.copyfile(vars4m, vars_run)
+        args += ["-drive", f"if=pflash,format=raw,readonly=on,file={code4m}",
+                 "-drive", f"if=pflash,format=raw,file={vars_run}"]
     child = pexpect.spawn(QEMU, args, timeout=200, encoding="latin-1",
                           codec_errors="replace", env=env)
 

@@ -137,6 +137,15 @@ typedef struct {
     /* WP-10-wp08fix1: read the target of a VFS_TYPE_SYMLINK node into
      * buf (NUL-terminated, at most cap-1 bytes). May be NULL. */
     int         (*readlink)(fs_vfs_node_t *node, char *buf, int cap);
+    /* v2.0.0: cross-directory move (two parents).  The single-parent
+     * rename contract above cannot express it - a same-name move
+     * tripped a false "target exists" in the OLD parent and a
+     * new-name move silently renamed in place without moving.  Only
+     * tree-authoritative drivers (ramfs, where the node tree IS the
+     * storage) implement it; disk fs leave it NULL and cross-dir
+     * moves go through the caller's copy+unlink fallback. */
+    int         (*move   )(fs_vfs_node_t *oldparent, const char *oldname,
+                           fs_vfs_node_t *newparent, const char *newname);
 } fs_vfs_dir_ops_t;
 
 /* Registered file system type. */

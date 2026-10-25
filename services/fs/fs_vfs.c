@@ -307,7 +307,14 @@ int fs_vfs_mount(const char *fs_type, const char *mount_point, const char *devic
         screen_console_puts("vfs_mount: fs mount failed\n");
         return -6;
     }
-    root->fs_type = ft;
+    /* NOTE: do NOT stamp root->fs_type with the registry entry (ft).
+     * The driver's mount() already set it to the driver's own static
+     * fs_type - the same pointer every node the driver creates carries
+     * (fs_vfs_alloc_node callers pass their static).  Overwriting it
+     * with the registry COPY gave the mount root a second "ramfs"
+     * identity: node->fs_type comparisons against the root (the
+     * fs_vfs_rename same-fs check) failed with -6 even though both
+     * sides were ramfs, so cross-directory moves never worked. */
 
     /* Record the mount. */
     fs_vfs_mount_t *m = &g_mounts[slot];
@@ -1134,7 +1141,20 @@ int fs_vfs_rename(const char *oldpath, const char *newpath) {
     /* Both must be on the same fs (same fs_type). */
     if (oldparent->fs_type != newparent->fs_type) return -6;
     if (!oldparent->fs_type || !oldparent->fs_type->dir_ops) return -7;
-    /* If rename is supported, use it. */
+    /* Cross-directory MOVE: the single-parent rename contract cannot
+     * express it (a same-name move used to trip a false -3 "target
+     * exists" inside the OLD parent, and a new-name move silently
+     * renamed the node IN PLACE, never moving it).  Dispatch to the
+     * two-parent move op when the driver provides one; otherwise
+     * return -9 so callers fall back (the shell mv and the TUI paste
+     * both copy+unlink). */
+    if (oldparent != newparent) {
+        if (oldparent->fs_type->dir_ops->move)
+            return oldparent->fs_type->dir_ops->move(oldparent, oldbase,
+                                                     newparent, newbase);
+        return -9;
+    }
+    /* Same-directory rename. */
     if (oldparent->fs_type->dir_ops->rename) {
         return oldparent->fs_type->dir_ops->rename(oldparent, oldbase, newbase);
     }
