@@ -262,9 +262,81 @@
     }
   }
 
+  /* =================== 2.0.0 motion layer ===================
+     - terminal card: line-by-line staggered reveal
+     - stats strip: count-up when scrolled into view
+     - sections/feat cards: scroll-reveal (respects prefers-reduced-
+       motion: everything appears instantly, nothing moves)
+     =========================================================== */
+  function reducedMotion() {
+    return window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function animateTerminal() {
+    var pre = document.getElementById("hero-term");
+    if (!pre) return;
+    var lines = pre.innerHTML.split("\n");
+    var stagger = reducedMotion() ? 0 : 170;
+    pre.innerHTML = lines.map(function (ln, i) {
+      return '<span class="tl" style="animation-delay:' +
+        (i * stagger) + 'ms">' + (ln || " ") + "</span>";
+    }).join("\n");
+    /* the blinking caret rides on the last line */
+    var last = pre.querySelector(".tl:last-child");
+    if (last && !reducedMotion()) last.classList.add("caret-line");
+  }
+
+  function countUp(el) {
+    var target = parseInt(el.getAttribute("data-count"), 10);
+    if (!isFinite(target)) { return; }
+    if (reducedMotion()) { el.textContent = String(target); return; }
+    var dur = 1100, t0 = null;
+    function step(ts) {
+      if (!t0) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur);
+      /* ease-out cubic */
+      var e = 1 - Math.pow(1 - p, 3);
+      el.textContent = fmt(Math.round(target * e));
+      if (p < 1) requestAnimationFrame(step);
+      else el.textContent = fmt(target);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function setupReveal() {
+    var targets = document.querySelectorAll(
+      ".section, .stats-strip, .feat, .step, .term-card, .terminal-card");
+    if (reducedMotion() || !("IntersectionObserver" in window)) {
+      for (var i = 0; i < targets.length; i++)
+        targets[i].classList.add("in");
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) {
+          en.target.classList.add("in");
+          var n = en.target.querySelector &&
+            en.target.querySelector(".n[data-count]");
+          if (n) countUp(n);
+          io.unobserve(en.target);
+        }
+      });
+    }, { threshold: 0.15 });
+    for (var j = 0; j < targets.length; j++) {
+      targets[j].classList.add("reveal");
+      io.observe(targets[j]);
+    }
+    /* count-up also for hero-adjacent stats already in view */
+    var first = document.querySelector(".stats-strip .n[data-count]");
+    if (first) countUp(first);
+  }
+
   /* =================== boot =================== */
   applyLang(detectLang());
   /* fillSiteData() is called by applyLang(); keep an explicit call for
      the case where I18N failed to load (dictionary script blocked) */
   fillSiteData();
+  animateTerminal();
+  setupReveal();
 })();

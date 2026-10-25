@@ -1,10 +1,10 @@
 {
-    "version": "1.0.0",
-    "build": 278,
-    "time": "2026-10-24",
-    "changes": "1.0.0 release. See the GitHub release note for the full change list, new interfaces and known issues.",
+    "version": "2.0.0",
+    "build": 302,
+    "time": "2026-10-25",
+    "changes": "2.0.0 BREAKING: boots into the ring-3 service surface (ush + SYS_L1SVC); register-class interfaces removed (drivers/services declare identity in-file); L0 restructured to core/drivers/services/boot/recovery; every operational command class moved to ring 3 (17 services / 158 ops); ota incremental-build fix - see the GitHub release note",
     "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-    "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-1.0.0-update.tar.gz",
-    "package_sha256": "3061d1be9893b0782636ebd3cd4ebb77d8c22d17a847e9d367ec804e4f3e90a9",
-    "package_size": 1058350
+    "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-2.0.0-update.tar.gz",
+    "package_sha256": "327c57766785d48347de780713f93b0f63d5f3786cda0d78849ede544772d691",
+    "package_size": 1080687
 }
