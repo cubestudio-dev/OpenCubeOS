@@ -1,14 +1,15 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-<!-- GENERATED page (tools/gen_api_docs.py --pages). Data
-     sources: live help -a capture + registration call sites
-     + usage strings from the handler sources. -->
+<!-- 由 tools/gen_api_docs.py --pages-zh 生成。数据源与英文页一致：
+     OC_SHELL_CMD 注册点 + ush 的 SVC_CMDS/内建表 +
+     处理函数源码中的 usage 字符串。命令帮助文本保留系统
+     原文（英文）。 -->
 
 # watchdog
 
-`watchdog` - 看门狗状态/控制 (硬件 TCO/WDAT + 监控槽位 + 策略测试)
+`watchdog` - watchdog status/control (hw TCO/WDAT + monitored slots + policy tests)
 
-注册于：`shell/shell_cmds_wd.c`
+家：L0 恢复壳（`oc>`）—— 注册于 `recovery/shell_cmds_wd.c`（OC_SHELL_CMD）
 
-分类：[看门狗](index.md#shell-wd)
+领域：[看门狗](index.md#shell-wd)
 
-完整命令索引：[commands](index.md) - 或在运行中的系统中输入 `help -a` / `help -w`。
+完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。

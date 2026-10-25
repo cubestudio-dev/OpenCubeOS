@@ -61,10 +61,46 @@ cp "$GRUB_DIR/x86_64-efi/"*.mod "$ISO_STAGE/boot/grub/x86_64-efi/" 2>/dev/null |
 cp "$GRUB_DIR/x86_64-efi/"*.lst "$ISO_STAGE/boot/grub/x86_64-efi/" 2>/dev/null || true
 
 # --- 5. Build BIOS El Torito boot image (i386-pc-eltorito) ---
-GRUB_MODULES_BIOS="biosdisk iso9660 fat ext2 normal echo ls cat help configfile search search_fs_file \
-              test linux multiboot2 multiboot boot serial terminal gfxterm \
-              all_video vbe vga video video_fb video_bochs video_cirrus \
-              video_colors font bufio part_msdos part_gpt reboot halt"
+# 2.1.0 (P-01 follow-up): filter the module lists against the modules
+# the installed GRUB actually ships.  GRUB retires old drivers over
+# time (2.12 removed efi_uga - UGA graphics is dead, efi_gop has been
+# the standard EFI driver for a decade+); a hardcoded list made
+# grub-mkimage fail on CI runners whose GRUB is newer than the list.
+# Boot behaviour is unchanged on every toolchain that still ships the
+# retired modules; a missing ESSENTIAL module still fails loudly.
+grub_mods() {
+    # grub_mods <dir> <mod> [mod...] - echo the shipped subset.
+    local dir="$1"; shift
+    local m out=""
+    for m in "$@"; do
+        if [ -f "$dir/$m.mod" ]; then
+            out="$out $m"
+        else
+            echo "[build_iso] note: $m.mod not shipped by this GRUB - skipped" >&2
+        fi
+    done
+    echo "${out# }"
+}
+
+grub_mods_required() {
+    # grub_mods_required <dir> <what> <mod>... - hard-fail if missing.
+    local dir="$1" what="$2"; shift 2
+    local m
+    for m in "$@"; do
+        if [ ! -f "$dir/$m.mod" ]; then
+            echo "[build_iso] FATAL: essential $what module $m.mod is missing from $dir" >&2
+            exit 1
+        fi
+    done
+}
+
+grub_mods_required "$GRUB_DIR/i386-pc" BIOS \
+    biosdisk iso9660 multiboot2 normal
+GRUB_MODULES_BIOS="$(grub_mods "$GRUB_DIR/i386-pc" \
+    biosdisk iso9660 fat ext2 normal echo ls cat help configfile search search_fs_file \
+    test linux multiboot2 multiboot boot serial terminal gfxterm \
+    all_video vbe vga video video_fb video_bochs video_cirrus \
+    video_colors font bufio part_msdos part_gpt reboot halt)"
 echo "[build_iso] building BIOS El Torito image"
 grub-mkimage -O i386-pc-eltorito \
   -d "$GRUB_DIR/i386-pc" \
@@ -73,11 +109,14 @@ grub-mkimage -O i386-pc-eltorito \
   $GRUB_MODULES_BIOS
 
 # --- 6. Build EFI bootloader (BOOTX64.EFI) ---
-GRUB_MODULES_EFI="iso9660 fat ext2 normal echo ls cat help configfile search search_fs_file \
-              test linux multiboot2 multiboot boot serial terminal gfxterm \
-              all_video efi_gop efi_uga fixvideo video video_fb video_bochs \
-              video_cirrus video_colors font bufio part_msdos part_gpt \
-              reboot halt"
+grub_mods_required "$GRUB_DIR/x86_64-efi" EFI \
+    iso9660 multiboot2 normal efi_gop
+GRUB_MODULES_EFI="$(grub_mods "$GRUB_DIR/x86_64-efi" \
+    iso9660 fat ext2 normal echo ls cat help configfile search search_fs_file \
+    test linux multiboot2 multiboot boot serial terminal gfxterm \
+    all_video efi_gop efi_uga fixvideo video video_fb video_bochs \
+    video_cirrus video_colors font bufio part_msdos part_gpt \
+    reboot halt)"
 echo "[build_iso] building EFI bootloader"
 grub-mkimage -O x86_64-efi \
   -d "$GRUB_DIR/x86_64-efi" \

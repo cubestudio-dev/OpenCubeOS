@@ -1,15 +1,15 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-<!-- GENERATED page (tools/gen_api_docs.py --pages). Data
-     sources: live help -a capture + registration call sites
-     + usage strings from the handler sources. -->
+<!-- 由 tools/gen_api_docs.py --pages-zh 生成。数据源与英文页一致：
+     OC_SHELL_CMD 注册点 + ush 的 SVC_CMDS/内建表 +
+     处理函数源码中的 usage 字符串。命令帮助文本保留系统
+     原文（英文）。 -->
 
 # help_a_test
 
-`help_a_test` - 验证 help -a 的 A-Z 排序
+`help_a_test` - verify help -a A-Z ordering
 
-注册于: `shell/shell_cmds_power_test.c`
+家：L0 恢复壳（`oc>`）—— 注册于 `recovery/shell_cmds_power_test.c`（OC_SHELL_CMD）
 
-分类: [电源管理测试](index.md#shell-power-test)
+领域：[电源管理测试](index.md#shell-power-test)
 
-完整命令索引: [commands](index.md) - 或在运行中的系统内执行 `help -a` /
-`help -w`。
+完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。

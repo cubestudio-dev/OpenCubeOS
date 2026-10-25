@@ -89,7 +89,7 @@ SEABIOS_DIR  ?= $(OC_TOOLS)/share/seabios
 # v2.0.0 (2026-10-25): the breaking ring-3 release - L0 restructured
 # (core/drivers/services/boot/recovery), boots into the ring-3 service
 # surface (ush + SYS_L1SVC), register-class interfaces removed.
-OC_RELEASE_VERSION ?= 2.0.0
+OC_RELEASE_VERSION ?= 2.1.0
 # BUG-0347 (RUNTIME): monotonic build id baked into the kernel and
 # published by the server-side version.json - makes the update check a
 # numeric comparison instead of a string equality (see ota_update.h).
@@ -116,9 +116,14 @@ OC_KERNEL_BUILD ?= $(shell expr $$(git -C $(OC_ROOT) rev-list --count HEAD 2>/de
 #                power time l1 + the driver-service families below)
 #   drivers/   - hardware drivers, one folder per family
 #   recovery/  - the oc> recovery environment shell
-#   tui chinese - v1 TUI/CJK trees (rewritten as L1 ring-3 apps in the
-#                same 2.0.0 batch - see l1apps/)
-#   l1apps/    - ring-3 user applications (built by `make l1apps`)
+#   tui chinese - the v1 TUI/CJK command trees, still compiled INTO the
+#                kernel (KERNEL_DIRS below) and reachable from the oc>
+#                prompt; the v2.0.0 comment claiming they were "rewritten
+#                as L1 ring-3 apps in l1apps/" was wrong (2.1.0 P-09:
+#                l1apps/ holds ush + the embedded test programs only)
+#   l1apps/    - ring-3 user applications: ush (the boot shell, the only
+#                OC_L1_APP_DECL application) + the embedded test programs
+#                (built by `make l1apps`)
 KERNEL_DIRS := core arch/x86_64 core/mem core/lib \
                services/crypto services/ota services/klog services/health \
                services/watchdog services/power services/time \

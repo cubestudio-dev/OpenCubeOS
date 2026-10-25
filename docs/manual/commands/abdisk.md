@@ -1,17 +1,18 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- GENERATED page (tools/gen_api_docs.py --pages). Data
-     sources: live help -a capture + registration call sites
-     + usage strings from the handler sources. -->
+     sources: OC_SHELL_CMD call sites + the ush SVC_CMDS /
+     built-in tables + usage strings from the handler
+     sources. -->
 
 # abdisk
 
-`abdisk` - create a bootable A/B update disk (abdisk &lt;dev&gt;; destroys data)
+`abdisk` - abdisk &lt;dev&gt;
 
 **Usage:** `abdisk &lt;device&gt;  (creates A/B update `
 
-Registered in: `drivers/block/driver_block_disk_setup.c`
+Home: ring-3 service surface - SVC_CMDS row in `l1apps/ush.c`, dispatched through SYS_L1SVC(110) to `services/block/`.
 
-Domain: [Storage and block devices](index.md#storage)
+Domain: [ush (ring-3 shell: SVC rows + built-ins)](index.md#ush)
 
 Full command index: [commands](index.md) - or `help -a` /
 `help -w` inside a running system.

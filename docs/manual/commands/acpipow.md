@@ -1,13 +1,14 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- GENERATED page (tools/gen_api_docs.py --pages). Data
-     sources: live help -a capture + registration call sites
-     + usage strings from the handler sources. -->
+     sources: OC_SHELL_CMD call sites + the ush SVC_CMDS /
+     built-in tables + usage strings from the handler
+     sources. -->
 
 # acpipow
 
 `acpipow` - ACPI power status (S1-S5/SCI/GPE/FACS)
 
-Registered in: `shell/shell_cmds_chipset.c`
+Home: L0 recovery shell (`oc>`) - OC_SHELL_CMD in `recovery/shell_cmds_chipset.c`
 
 Domain: [Chipset (ACPI/PCI/i2c)](index.md#shell-chipset)
 

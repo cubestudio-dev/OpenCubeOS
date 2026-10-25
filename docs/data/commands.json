@@ -3,10 +3,23 @@
  "count_l0": 99,
  "count_l1_svc": 133,
  "count_l1_builtin": 19,
+ "count_ush_svc_rows": 142,
+ "ush_svc_dual_homed": [
+  "halt",
+  "hpet",
+  "pmtimer",
+  "poweroff",
+  "reboot",
+  "rtc",
+  "shutdown",
+  "sleep",
+  "tsc"
+ ],
+ "caliber_note": "count_l1_svc counts unique names attributed to their first home (L0 wins). The ush SVC_CMDS table itself carries 142 rows; the 9 dual-homed names (halt, hpet, pmtimer, poweroff, reboot, rtc, shutdown, sleep, tsc) are registered both as L0 commands and as ush SVC rows, are attributed to L0 here, and remain callable from both shells.",
  "commands": [
   {
    "name": "ab_partition_test",
-   "help": "",
+   "help": "ab_partition_test",
    "where": "L1-SVC",
    "cat": "ota"
   },
@@ -18,19 +31,19 @@
   },
   {
    "name": "abdisk",
-   "help": "",
+   "help": "abdisk <dev>",
    "where": "L1-SVC",
    "cat": "block"
   },
   {
    "name": "ac97",
-   "help": "",
+   "help": "ac97",
    "where": "L1-SVC",
    "cat": "snd"
   },
   {
    "name": "ac97_test",
-   "help": "",
+   "help": "ac97_test",
    "where": "L1-SVC",
    "cat": "snd"
   },
@@ -66,7 +79,7 @@
   },
   {
    "name": "ahci_test",
-   "help": "",
+   "help": "ahci_test",
    "where": "L1-SVC",
    "cat": "block"
   },
@@ -90,13 +103,13 @@
   },
   {
    "name": "ata_dma_test",
-   "help": "",
+   "help": "ata_dma_test",
    "where": "L1-SVC",
    "cat": "block"
   },
   {
    "name": "audio_rw_test",
-   "help": "",
+   "help": "audio_rw_test",
    "where": "L1-SVC",
    "cat": "snd"
   },
@@ -108,13 +121,13 @@
   },
   {
    "name": "bcm57xx",
-   "help": "",
+   "help": "bcm57xx",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "bcm57xx_test",
-   "help": "",
+   "help": "bcm57xx_test",
    "where": "L1-SVC",
    "cat": "nic"
   },
@@ -144,19 +157,19 @@
   },
   {
    "name": "checkupdate_test",
-   "help": "",
+   "help": "checkupdate_test",
    "where": "L1-SVC",
    "cat": "ota"
   },
   {
    "name": "chinese",
-   "help": "",
+   "help": "chinese",
    "where": "L1-SVC",
    "cat": "display"
   },
   {
    "name": "chinesetest",
-   "help": "",
+   "help": "chinesetest",
    "where": "L1-SVC",
    "cat": "display"
   },
@@ -174,7 +187,7 @@
   },
   {
    "name": "clear",
-   "help": "",
+   "help": "clear",
    "where": "L1-SVC",
    "cat": "display"
   },
@@ -186,7 +199,7 @@
   },
   {
    "name": "config_test",
-   "help": "",
+   "help": "config_test",
    "where": "L1-SVC",
    "cat": "ota"
   },
@@ -246,7 +259,7 @@
   },
   {
    "name": "disk_rw_test",
-   "help": "",
+   "help": "disk_rw_test <dev>",
    "where": "L1-SVC",
    "cat": "block"
   },
@@ -288,13 +301,13 @@
   },
   {
    "name": "e1000e",
-   "help": "",
+   "help": "e1000e",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "e1000e_test",
-   "help": "",
+   "help": "e1000e_test",
    "where": "L1-SVC",
    "cat": "nic"
   },
@@ -312,13 +325,13 @@
   },
   {
    "name": "encoding",
-   "help": "",
+   "help": "encoding",
    "where": "L1-SVC",
    "cat": "display"
   },
   {
    "name": "encoding-test",
-   "help": "",
+   "help": "encoding-test",
    "where": "L1-SVC",
    "cat": "display"
   },
@@ -330,13 +343,13 @@
   },
   {
    "name": "es1370",
-   "help": "",
+   "help": "es1370",
    "where": "L1-SVC",
    "cat": "snd"
   },
   {
    "name": "es1370_test",
-   "help": "",
+   "help": "es1370_test",
    "where": "L1-SVC",
    "cat": "snd"
   },
@@ -360,7 +373,7 @@
   },
   {
    "name": "fatmount",
-   "help": "",
+   "help": "fatmount [dev p]   : mount FAT32",
    "where": "L1-SVC",
    "cat": "fs"
   },
@@ -378,13 +391,13 @@
   },
   {
    "name": "font",
-   "help": "",
+   "help": "font",
    "where": "L1-SVC",
    "cat": "display"
   },
   {
    "name": "font-test",
-   "help": "",
+   "help": "font-test",
    "where": "L1-SVC",
    "cat": "display"
   },
@@ -402,7 +415,7 @@
   },
   {
    "name": "fs_mount_test",
-   "help": "",
+   "help": "fs_mount_test <dev>",
    "where": "L1-SVC",
    "cat": "block"
   },
@@ -420,13 +433,13 @@
   },
   {
    "name": "gameport",
-   "help": "",
+   "help": "gameport",
    "where": "L1-SVC",
    "cat": "camera"
   },
   {
    "name": "gameporttest",
-   "help": "",
+   "help": "gameporttest",
    "where": "L1-SVC",
    "cat": "camera"
   },
@@ -438,7 +451,7 @@
   },
   {
    "name": "grub-install",
-   "help": "",
+   "help": "grub-install <dev>",
    "where": "L1-SVC",
    "cat": "block"
   },
@@ -446,23 +459,24 @@
    "name": "halt",
    "help": "halt the kernel",
    "where": "L0",
-   "cat": "power"
+   "cat": "power",
+   "svc_duo": "power"
   },
   {
    "name": "halt_test",
-   "help": "",
+   "help": "halt_test",
    "where": "L1-SVC",
    "cat": "power"
   },
   {
    "name": "hda",
-   "help": "",
+   "help": "hda",
    "where": "L1-SVC",
    "cat": "snd"
   },
   {
    "name": "hda_test",
-   "help": "",
+   "help": "hda_test",
    "where": "L1-SVC",
    "cat": "snd"
   },
@@ -542,7 +556,8 @@
    "name": "hpet",
    "help": "HPET: caps + counter + one-shot/periodic IRQ8 tests",
    "where": "L0",
-   "cat": "time"
+   "cat": "time",
+   "svc_duo": "time"
   },
   {
    "name": "i2cdetect",
@@ -577,31 +592,31 @@
   },
   {
    "name": "igb",
-   "help": "",
+   "help": "igb",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "igb_test",
-   "help": "",
+   "help": "igb_test",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "ime",
-   "help": "",
+   "help": "ime",
    "where": "L1-SVC",
    "cat": "display"
   },
   {
    "name": "ime-test",
-   "help": "",
+   "help": "ime-test",
    "where": "L1-SVC",
    "cat": "display"
   },
   {
    "name": "install",
-   "help": "",
+   "help": "install <dev>",
    "where": "L1-SVC",
    "cat": "block"
   },
@@ -613,7 +628,7 @@
   },
   {
    "name": "ir",
-   "help": "",
+   "help": "ir",
    "where": "L1-SVC",
    "cat": "camera"
   },
@@ -625,19 +640,19 @@
   },
   {
    "name": "irtest",
-   "help": "",
+   "help": "irtest",
    "where": "L1-SVC",
    "cat": "camera"
   },
   {
    "name": "ixgbe",
-   "help": "",
+   "help": "ixgbe",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "ixgbe_test",
-   "help": "",
+   "help": "ixgbe_test",
    "where": "L1-SVC",
    "cat": "nic"
   },
@@ -655,7 +670,7 @@
   },
   {
    "name": "lang",
-   "help": "",
+   "help": "lang [en|zh]",
    "where": "L1-SVC",
    "cat": "display"
   },
@@ -721,25 +736,25 @@
   },
   {
    "name": "mkfs.exfat",
-   "help": "",
+   "help": "mkfs.exfat <dev>",
    "where": "L1-SVC",
    "cat": "block"
   },
   {
    "name": "mkfs.ext4",
-   "help": "",
+   "help": "mkfs.ext4 <dev>",
    "where": "L1-SVC",
    "cat": "block"
   },
   {
    "name": "mkfs.fat32",
-   "help": "",
+   "help": "mkfs.fat32 <dev>",
    "where": "L1-SVC",
    "cat": "block"
   },
   {
    "name": "mount",
-   "help": "",
+   "help": "mount [type dev p] : list or mount",
    "where": "L1-SVC",
    "cat": "fs"
   },
@@ -788,7 +803,7 @@
   },
   {
    "name": "nic_rw_test",
-   "help": "",
+   "help": "nic_rw_test",
    "where": "L1-SVC",
    "cat": "nic"
   },
@@ -806,37 +821,37 @@
   },
   {
    "name": "nvme_test",
-   "help": "",
+   "help": "nvme_test",
    "where": "L1-SVC",
    "cat": "block"
   },
   {
    "name": "other_nic_test",
-   "help": "",
+   "help": "other_nic_test",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "parallel",
-   "help": "",
+   "help": "parallel",
    "where": "L1-SVC",
    "cat": "camera"
   },
   {
    "name": "paralleltest",
-   "help": "",
+   "help": "paralleltest",
    "where": "L1-SVC",
    "cat": "camera"
   },
   {
    "name": "parted",
-   "help": "",
+   "help": "parted [dev]",
    "where": "L1-SVC",
    "cat": "block"
   },
   {
    "name": "partition_test",
-   "help": "",
+   "help": "partition_test [dev]",
    "where": "L1-SVC",
    "cat": "block"
   },
@@ -873,7 +888,7 @@
   },
   {
    "name": "play",
-   "help": "",
+   "help": "play <file>",
    "where": "L1-SVC",
    "cat": "snd"
   },
@@ -887,17 +902,19 @@
    "name": "pmtimer",
    "help": "ACPI PM timer: read + PIT calibration + wrap tests",
    "where": "L0",
-   "cat": "time"
+   "cat": "time",
+   "svc_duo": "time"
   },
   {
    "name": "poweroff",
    "help": "alias of shutdown",
    "where": "L0",
-   "cat": "power"
+   "cat": "power",
+   "svc_duo": "power"
   },
   {
    "name": "poweroff_test",
-   "help": "",
+   "help": "poweroff_test",
    "where": "L1-SVC",
    "cat": "power"
   },
@@ -915,13 +932,13 @@
   },
   {
    "name": "real_hw_test",
-   "help": "",
+   "help": "real_hw_test",
    "where": "L1-SVC",
    "cat": "block"
   },
   {
    "name": "real_update_test",
-   "help": "",
+   "help": "real_update_test",
    "where": "L1-SVC",
    "cat": "ota"
   },
@@ -929,11 +946,12 @@
    "name": "reboot",
    "help": "reboot the machine (reboot)",
    "where": "L0",
-   "cat": "ota"
+   "cat": "ota",
+   "svc_duo": "power"
   },
   {
    "name": "reboot_test",
-   "help": "",
+   "help": "reboot_test",
    "where": "L1-SVC",
    "cat": "power"
   },
@@ -965,53 +983,54 @@
    "name": "rtc",
    "help": "CMOS RTC: time + status + UIE/PIE/alarm interrupt tests",
    "where": "L0",
-   "cat": "time"
+   "cat": "time",
+   "svc_duo": "time"
   },
   {
    "name": "rtl810x",
-   "help": "",
+   "help": "rtl810x",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "rtl810x_test",
-   "help": "",
+   "help": "rtl810x_test",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "rtl8125",
-   "help": "",
+   "help": "rtl8125",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "rtl8125_test",
-   "help": "",
+   "help": "rtl8125_test",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "rtl8139",
-   "help": "",
+   "help": "rtl8139",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "rtl8139_test",
-   "help": "",
+   "help": "rtl8139_test",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "rtl8168",
-   "help": "",
+   "help": "rtl8168",
    "where": "L1-SVC",
    "cat": "nic"
   },
   {
    "name": "rtl8168_test",
-   "help": "",
+   "help": "rtl8168_test",
    "where": "L1-SVC",
    "cat": "nic"
   },
@@ -1023,19 +1042,19 @@
   },
   {
    "name": "sample_rate_test",
-   "help": "",
+   "help": "sample_rate_test",
    "where": "L1-SVC",
    "cat": "snd"
   },
   {
    "name": "sb16",
-   "help": "",
+   "help": "sb16",
    "where": "L1-SVC",
    "cat": "snd"
   },
   {
    "name": "sb16_test",
-   "help": "",
+   "help": "sb16_test",
    "where": "L1-SVC",
    "cat": "snd"
   },
@@ -1073,13 +1092,15 @@
    "name": "shutdown",
    "help": "power off (flush + ACPI/Bochs/APM ports)",
    "where": "L0",
-   "cat": "power"
+   "cat": "power",
+   "svc_duo": "power"
   },
   {
    "name": "sleep",
    "help": "delay for N seconds (sleep <sec>)",
    "where": "L0",
-   "cat": "power"
+   "cat": "power",
+   "svc_duo": "power"
   },
   {
    "name": "smbus",
@@ -1101,7 +1122,7 @@
   },
   {
    "name": "sound",
-   "help": "",
+   "help": "sound",
    "where": "L1-SVC",
    "cat": "snd"
   },
@@ -1131,7 +1152,7 @@
   },
   {
    "name": "stats",
-   "help": "",
+   "help": "stats",
    "where": "L1-SVC",
    "cat": "display"
   },
@@ -1167,19 +1188,19 @@
   },
   {
    "name": "tcpcc_test",
-   "help": "",
+   "help": "tcpcc_test",
    "where": "L1-SVC",
    "cat": "net"
   },
   {
    "name": "tcpstats",
-   "help": "",
+   "help": "tcpstats",
    "where": "L1-SVC",
    "cat": "net"
   },
   {
    "name": "tcptest",
-   "help": "",
+   "help": "tcptest",
    "where": "L1-SVC",
    "cat": "net"
   },
@@ -1215,7 +1236,7 @@
   },
   {
    "name": "tree",
-   "help": "",
+   "help": "tree [path]        : directory tree",
    "where": "L1-SVC",
    "cat": "fs"
   },
@@ -1223,7 +1244,8 @@
    "name": "tsc",
    "help": "TSC: reads + PIT/HPET/PMTimer calibration + delay test",
    "where": "L0",
-   "cat": "time"
+   "cat": "time",
+   "svc_duo": "time"
   },
   {
    "name": "tui",
@@ -1281,7 +1303,7 @@
   },
   {
    "name": "umount",
-   "help": "",
+   "help": "umount <path>      : unmount",
    "where": "L1-SVC",
    "cat": "fs"
   },
@@ -1311,115 +1333,115 @@
   },
   {
    "name": "update_check_test",
-   "help": "",
+   "help": "update_check_test",
    "where": "L1-SVC",
    "cat": "ota"
   },
   {
    "name": "update_download_test",
-   "help": "",
+   "help": "update_download_test",
    "where": "L1-SVC",
    "cat": "ota"
   },
   {
    "name": "update_install_test",
-   "help": "",
+   "help": "update_install_test",
    "where": "L1-SVC",
    "cat": "ota"
   },
   {
    "name": "update_local_test",
-   "help": "",
+   "help": "update_local_test",
    "where": "L1-SVC",
    "cat": "ota"
   },
   {
    "name": "update_pkg_test",
-   "help": "",
+   "help": "update_pkg_test",
    "where": "L1-SVC",
    "cat": "ota"
   },
   {
    "name": "update_rollback_test",
-   "help": "",
+   "help": "update_rollback_test",
    "where": "L1-SVC",
    "cat": "ota"
   },
   {
    "name": "update_status_test",
-   "help": "",
+   "help": "update_status_test",
    "where": "L1-SVC",
    "cat": "ota"
   },
   {
    "name": "update_verify_test",
-   "help": "",
+   "help": "update_verify_test",
    "where": "L1-SVC",
    "cat": "ota"
   },
   {
    "name": "usb",
-   "help": "",
+   "help": "usb",
    "where": "L1-SVC",
    "cat": "usb"
   },
   {
    "name": "usb_audio_test",
-   "help": "",
+   "help": "usb_audio_test",
    "where": "L1-SVC",
    "cat": "snd"
   },
   {
    "name": "usb_core_test",
-   "help": "",
+   "help": "usb_core_test",
    "where": "L1-SVC",
    "cat": "usb"
   },
   {
    "name": "usb_hotplug_test",
-   "help": "",
+   "help": "usb_hotplug_test [...]",
    "where": "L1-SVC",
    "cat": "usb"
   },
   {
    "name": "usb_hub_test",
-   "help": "",
+   "help": "usb_hub_test",
    "where": "L1-SVC",
    "cat": "usb"
   },
   {
    "name": "usb_kbd_test",
-   "help": "",
+   "help": "usb_kbd_test",
    "where": "L1-SVC",
    "cat": "usb"
   },
   {
    "name": "usb_mouse_test",
-   "help": "",
+   "help": "usb_mouse_test",
    "where": "L1-SVC",
    "cat": "usb"
   },
   {
    "name": "usb_serial_test",
-   "help": "",
+   "help": "usb_serial_test",
    "where": "L1-SVC",
    "cat": "usb"
   },
   {
    "name": "usb_storage_test",
-   "help": "",
+   "help": "usb_storage_test",
    "where": "L1-SVC",
    "cat": "usb"
   },
   {
    "name": "usbaudio",
-   "help": "",
+   "help": "usbaudio",
    "where": "L1-SVC",
    "cat": "snd"
   },
   {
    "name": "usbdev",
-   "help": "",
+   "help": "usbdev [slot]",
    "where": "L1-SVC",
    "cat": "usb"
   },
@@ -1443,19 +1465,19 @@
   },
   {
    "name": "virtio_blk_test",
-   "help": "",
+   "help": "virtio_blk_test",
    "where": "L1-SVC",
    "cat": "block"
   },
   {
    "name": "virtio_snd_test",
-   "help": "",
+   "help": "virtio_snd_test",
    "where": "L1-SVC",
    "cat": "snd"
   },
   {
    "name": "virtiosnd",
-   "help": "",
+   "help": "virtiosnd",
    "where": "L1-SVC",
    "cat": "snd"
   },
@@ -1479,7 +1501,7 @@
   },
   {
    "name": "volume",
-   "help": "",
+   "help": "volume [0-100]",
    "where": "L1-SVC",
    "cat": "snd"
   },

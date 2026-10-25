@@ -1,13 +1,14 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- GENERATED page (tools/gen_api_docs.py --pages). Data
-     sources: live help -a capture + registration call sites
-     + usage strings from the handler sources. -->
+     sources: OC_SHELL_CMD call sites + the ush SVC_CMDS /
+     built-in tables + usage strings from the handler
+     sources. -->
 
 # help_wp_test
 
 `help_wp_test` - verify help -w group ordering
 
-Registered in: `shell/shell_cmds_power_test.c`
+Home: L0 recovery shell (`oc>`) - OC_SHELL_CMD in `recovery/shell_cmds_power_test.c`
 
 Domain: [Power management tests](index.md#shell-power-test)
 
