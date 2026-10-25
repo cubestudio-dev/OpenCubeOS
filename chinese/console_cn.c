@@ -68,13 +68,19 @@ void console_cn_putcw(u32 cp) {
     u8 utf8[4];
     u32 produced = 0;
     if (encoding_utf8_encode(cp, utf8, 4, &produced) == 0) {
+        /* v2.0.0 fix: EVERY byte of the glyph must reach the hook - the
+         * capture path (ring-3 service dispatch) collects console
+         * output through it. The old loop returned on the first
+         * suppressed byte, so a captured wide glyph delivered only its
+         * UTF-8 lead byte and the continuation bytes (BD A0 of 你)
+         * never entered the capture buffer (IME pads and composed-line
+         * redraws under ush showed mojibake tails). Suppression now
+         * only skips the framebuffer draw below. */
+        int suppressed = 0;
         for (u32 i = 0; i < produced; ++i) {
-            if (l1_ext_console_hook(utf8[i])) {
-                /* Hook suppressed the stream: keep suppressing the rest
-                 * of this glyph and skip drawing, exactly like putc. */
-                return;
-            }
+            if (l1_ext_console_hook(utf8[i])) suppressed = 1;
         }
+        if (suppressed) return;
     }
     screen_console_t* con = screen_console_get();
     u32 cols = render_chinese_cols(cp);

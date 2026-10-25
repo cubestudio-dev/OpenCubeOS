@@ -1162,6 +1162,10 @@ static int shell_capture_hook(void *ctx, u8 ch) {
     return shell_capture_hook_body(ctx, ch);
 }
 
+int shell_output_captured(void) {
+    return g_capture_depth > 0;
+}
+
 void shell_install_console_hook(shell_hook_fn_t hook, void *ctx) {
     g_user_hook = hook;
     g_user_hook_ctx = ctx;

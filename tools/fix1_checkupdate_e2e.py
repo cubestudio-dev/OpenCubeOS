@@ -51,14 +51,18 @@ def main():
             log.write(f"\n--- [{cmd}] ---\n{out}\n")
             return out
 
-        # 1. local build identity: uname is the git-describe build
-        #    provenance string (WP-10-chinese_support-N-g<sha>); the
-        #    release-tag string lives in the OTA metadata that
-        #    checkupdate reads (asserted below).
+        # 1. local build identity: v2.0.0 uname prints the release
+        #    identity (OC_RELEASE_VERSION baked at build time); the
+        #    v1 git-describe provenance suffix no longer exists.
         out = run("uname -a")
-        uname_ok = "Open Cube OS WP-10-chinese_support" in out
+        uname_ok = "Open Cube OS" in out
         # 2. the real-network check: must fetch the live update.json
-        #    (build 194, same as the ISO) and report up to date
+        #    and report up to date. Bring the link up first: right
+        #    after boot the DHCP lease may not be settled yet (the
+        #    UEFI boot path in particular shows 'connect failed' when
+        #    the query races the interface bring-up), so renew the
+        #    lease explicitly and wait for an address.
+        run("dhcp", timeout=60)
         out = run("checkupdate", timeout=180)
         log.write(f"\ncheckupdate result: {out.strip()[-400:]}\n")
         up_to_date = ("up to date" in out or "already" in out.lower()

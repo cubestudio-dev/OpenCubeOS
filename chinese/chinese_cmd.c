@@ -240,13 +240,19 @@ int ime_console_compose(u8 *out, int cap) {
             }
         }
 
-        /* next key: poll with a cooperative breather (the keyboard
-         * queue returns -1 when empty, never 0) */
+        /* next key: park on sti;hlt until any interrupt lands (the
+         * keyboard IRQ delivers the key; the timer tick bounds the
+         * wait). v2.0.0: the old core_sched_yield park deadlocked when
+         * this compose loop runs inside the ring-3 service dispatch
+         * frame (int 0x80) - switching tasks from that frame left the
+         * machine with interrupts off (see driver_cmos_rtc.c
+         * wait_counts for the full note). The keyboard queue returns
+         * -1 when empty, never 0. */
         int k;
         for (;;) {
             k = driver_input_keyboard_getch();
             if (k > 0) break;
-            core_sched_yield();
+            __asm__ volatile("sti; hlt");
         }
 
         if (k == '\r' || k == '\n') {

@@ -135,6 +135,14 @@ void shell_init(void);
  * l1_ext_set_console_hook() during boot. */
 void shell_install_console_hook(shell_hook_fn_t hook, void *ctx);
 
+/* v2.0.0: 1 while console output is being captured (the ring-3 service
+ * dispatch path captures command output into a kernel buffer instead of
+ * drawing it to the framebuffer). Console-cursor geometry assertions in
+ * self-tests read the REAL screen cursor; under capture the draw is
+ * suppressed so the cursor does not move - those checks are skipped by
+ * the callers instead of reporting false failures. */
+int shell_output_captured(void);
+
 /* Full parser/executor. Tokenizes the line, expands env vars, applies
  * aliases, splits on ; / && / ||, handles pipes, redirects, background,
  * and wildcards. Returns 0 normally, non-zero on parser error. */
