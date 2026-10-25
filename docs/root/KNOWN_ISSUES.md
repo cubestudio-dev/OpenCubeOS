@@ -32,4 +32,27 @@ lives in `docs/archive/KNOWN_ISSUES.md`.
 
 ## Open issues
 
-None known at 2.1.0.
+One known issue is open at 2.1.0, found by the new L1 per-app gate
+itself and declared rather than hot-fixed (a scheduler/exception
+return-path change hours before release would be reckless; it is
+NOT one of the 17 and does not affect any standard suite):
+
+- **Flaky wait4-vs-fork timing race (rare).** Under same-boot test
+  marathons (and once in ~35 fresh-boot rows), a wait4-sensitive
+  user program (g6_exec_a) occasionally observed its wait4 return
+  without a status write and then read an uninitialized stack word
+  (garbage "status = 142" where the deterministic result is 138 =
+  128+SIGUSR1), with the child's output arriving after the
+  parent's verdict line - i.e. the parent's wait4 returned before
+  the child was (fully) visible to it. Isolated replays of the
+  exact same protocol boot clean (138 PASS, correct serial order)
+  every time. The kernel's wait4 is POSIX-correct on paper (it
+  returns -1 without writing status when it sees no child); the
+  race is in the fork/child-visibility window under interrupt
+  timing. Recorded here and in the 2.1.0 delivery report; the
+  kernel fix belongs to the next batch. Evidence: the per-app
+  marathon logs quote "child status = 142" + the impossible print
+  order; the fresh-boot record in evidence/2_1_0_release/ shows
+  the deterministic 138 PASS run.
+
+Everything else known at 2.1.0 is in the fixed table above.

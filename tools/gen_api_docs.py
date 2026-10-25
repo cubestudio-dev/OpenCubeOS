@@ -1085,6 +1085,22 @@ def main():
     print(f"gen_api_docs: stats.json - {stats['total_files']} files, "
           f"{stats['total_lines']} lines across {len(STAT_DIRS)} dirs")
 
+    # ---- INTERFACES.md (root reference, generated) ----
+    # NOTE: must be written BEFORE the docs/root/ mirror sync below,
+    # so the mirror copies the freshly generated root file (2.1.0
+    # order bug: the mirror ran first and copied the previous root
+    # INTERFACES.md, leaving stale stats numbers in docs/root/).
+    if args.md:
+        path = os.path.join(ROOT, "INTERFACES.md")
+        with open(path, "w") as f:
+            f.write(write_interfaces_md(interfaces, stats, cmds,
+                                        svc_cats=svc_cats,
+                                        svc_ops=svc_ops, v1=v1base,
+                                        v1if=v1if,
+                                        svc_rows_total=svc_rows_total,
+                                        svc_dual=svc_dual))
+        print("gen_api_docs: INTERFACES.md written at the repo root")
+
     # ---- root-doc mirrors (docs/root/) ----
     if args.pages:
         m, r = sync_root_doc_mirrors()
@@ -1105,17 +1121,6 @@ def main():
         print(f"gen_api_docs: command pages (zh) - {n} pages across {d} "
               f"domains under docs/zh/manual/commands/")
 
-    # ---- INTERFACES.md (root reference, generated) ----
-    if args.md:
-        path = os.path.join(ROOT, "INTERFACES.md")
-        with open(path, "w") as f:
-            f.write(write_interfaces_md(interfaces, stats, cmds,
-                                        svc_cats=svc_cats,
-                                        svc_ops=svc_ops, v1=v1base,
-                                        v1if=v1if,
-                                        svc_rows_total=svc_rows_total,
-                                        svc_dual=svc_dual))
-        print("gen_api_docs: INTERFACES.md written at the repo root")
     # 2.1.0: the run log must state the v1 interface fate so the
     # release evidence shows the comparison result explicitly.
     if v1if:
@@ -1284,7 +1289,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
     w("## Part 2 - L1SVC service surface")
     w("")
     w("The numbered ring-3 call surface (SYS_L1SVC): category number")
-    w("selects the services/<category>/ folder, op selects the command.")
+    w("selects the services/`<category>`/ folder, op selects the command.")
     w("Renumber only by appending (see services/l1/l1svc_defs.h).")
     w("")
     if svc_cats:
