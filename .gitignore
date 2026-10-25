@@ -25,6 +25,15 @@ wp08a-test-*
 # logs are public artifacts) - exempt it from the *.log rule above.
 !docs/verification/*.log
 
+# 2.1.0 (P-11/P-13 fix): release assets under website/public/downloads/
+# and EVERYTHING under evidence/ are tracked public artifacts - the
+# release ISO/SRC must live in the public tree byte-identical with the
+# Release/gh-pages, and the suite logs are the release evidence.
+!website/public/downloads/*.iso
+!website/public/downloads/*.zip
+!website/public/downloads/*.tar.gz
+!evidence/**
+
 # Screenshots
 web-*.png
 

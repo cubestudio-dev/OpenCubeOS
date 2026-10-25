@@ -1,10 +1,10 @@
 {
-  "version": "WP-13-build_system",
-  "build": 259,
-  "time": "2026-10-22",
-  "changes": "WP-13-build_system: engineering build system. One-command unified entries: tools/build.sh (Linux; dependency detection with --install and the no-root toolchain route), build.ps1 (Windows via WSL2/MSYS2 forwarding) and make all (kernel + hybrid BIOS+UEFI ISO + deterministic SRC zip + OTA package). Reproducible builds: two clean builds produce a byte-identical ELF - no __DATE__/__TIME__ macros in the tree, stable grub-mkimage output, fixed link order, strip removes path sections; make reproducible-check double-runs and byte-compares; the SRC zip is deterministic by construction (git archive: tree order, commit mtimes, index permissions). Cross-compilation: make ARCH=arm64 / ARCH=riscv build real bare-metal bring-up shells (PL011 and NS16550A UARTs with real divisor programming, ARM generic timer and CLINT mtime counters, 1 s heartbeat) - banners and incrementing heartbeats verified live in QEMU, not just linked. Content-addressed compile cache (tools/oc_cc.sh): key = compiler identity + full flags + content hashes of the source and every header dependency; measured cold 46.6 s -> warm 14.4 s (186/186 hits, 3.2x), warm output byte-identical to cold. Multi-configuration builds: .config (make defconfig / menuconfig / CONFIG_X=n command-line overrides) for CONFIG_TUI / CONFIG_CHINESE / CONFIG_NVME / CONFIG_AHCI / CONFIG_VIRTIO_BLK; CONFIG_CHINESE=n forces TUI=n; the off-path is real code (console_cn routes to screen_console ASCII equivalents) - CONFIG_TUI=n CONFIG_CHINESE=n boots with 216 commands (233-17, exact), the full config boots 233. A CI pipeline (.github/workflows/build.yml: 0E0W gate, ISO, reproducible-check, QEMU regression, cache restore, packaging, artifacts). Build API interfaces as sourceable functions (build_all/build_iso/config_load/cache_lookup/cross_compile etc.) with an api-selftest. Two engineering defects found and fixed live: GNU make filter patterns treat only the first % as a wildcard, and the cache keys initially carried no header hashes (the -MMD -MP flags conflict with the -MM -MG probe). Gates, on the release ISO: WP-12 E2E 14/14, regression 28/28, dhtest + cryptotest, SSH E2E 5/5, HTTPS E2E 7/7, BIOS + UEFI boots (233 commands), 0 errors 0 warnings. 140,656 lines of source. Build 259.",
-  "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-  "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-WP-13-build_system-update.tar.gz",
-  "package_sha256": "ac9bcdcb3c51c8b5f51577fd7319c06f680d480711aa8c17a6ca846aeab793ed",
-  "package_size": 1063589
+    "version": "2.1.0",
+    "build": 309,
+    "time": "2026-10-25",
+    "changes": "2.1.0 - the 17-issue fix release: CI green again (hard release gate), the v1 233-command mapping completed, the per-entry interface comparison (278 declarations), the declared deletion register, regenerated command reference (EN+zh), website data integrity. See the GitHub release note.",
+    "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
+    "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-2.1.0-update.tar.gz",
+    "package_sha256": "21b52c98d9224574674f4fbea31fbe71b411e2e5618281cf545376abe4bc480b",
+    "package_size": 1081570
 }

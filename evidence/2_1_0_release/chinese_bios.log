@@ -1,0 +1,688 @@
+[H[J[1;1H[m[mGFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot ISO)                                                    [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS 2.1.0 kmain entered
+  Open Cube OS  [2.1.0]    Open Cube OS - L0 kernel (2.1.0)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+[00:00:00.010] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+    registry: cmds=99 drv=21 svc=13 app=1
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 1ffe2335 tables 5........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.030] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.030] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.040] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.060] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.070] SMBus: 8 device(s) at scan........................ OK
+    AML: AML: undefined name PRQ0
+    AML: AML: undefined name PRQ1
+    AML: AML: undefined name PRQ2
+    AML: AML: undefined name PRQ3
+    AML: AML: undefined name VEND
+    AML: AML: undefined name CSEL
+    AML: AML: undefined name CPEN
+[00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.110] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.120] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.130] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: IDE controller at 00:01.1 BAR4=0xc040
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: no controller found
+nvme: no controller found
+[00:00:00.300] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.320] virtio-blk + AHCI + NVMe drivers.................. OK
+[00:00:00.380] USB hosts up: 0................................... OK
+[00:00:00.390] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.430] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.440] system config (/etc/opencube.conf, ramfs)......... OK
+[00:00:00.470] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.060] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=3 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
+[00:00:01.580] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.590] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:01.590] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:01.770] sound: no sound card present (probe OK)........... OK
+[00:00:01.780] shell command system (99 commands)................ OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:01.790] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131040 pages, 129189 free
+[00:00:01.800] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + dispatches)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:01.870] boot complete..................................... OK
+[00:00:01.880] crash recovery armed (panic + dump + crashlog).... OK
+    l1 launcher: booting 'ush' (ring 3, 55952 bytes)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+
+--- [chinese] ---
+chinese
+chinese support status:
+  font     : embedded-unifont-16x16
+  coverage : 6763 hanzi + 682 symbols, 16x16, 2 bytes/row
+  data     : 216416 + 21824 bytes embedded
+  slots    : 1 of 4 used
+  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 0 | encode 0 | convert 0 | detect 0 | miss 0
+  ime      : pinyin, 396 syllables / 3755 level-1 chars
+  console encoding: utf-8
+
+--- [chinesetest] ---
+chinesetest
+chinesetest: full Chinese support suite
+[1] font data
+  PASS status() returns 0
+  PASS hanzi count == 6763
+  PASS symbol count == 682
+  PASS glyph bytes == 32 (16x16, 2 B/row)
+  PASS hanzi size == 216416 B
+  PASS symbol size == 21824 B
+  PASS embedded slot loaded
+  PASS zone 16 wei 1 -> compact index 0
+  PASS zone 87 wei 94 -> compact index 6762
+  PASS zone 55 wei 90 is a GB2312 gap slot
+  PASS all 6763 hanzi bitmaps non-empty
+  PASS symbol table reachable via bit15
+[2] font lookup
+  PASS U+4E2D found in unicode index
+  PASS zone/wei lookup agrees with unicode lookup
+  PASS index -> unicode round-trips to U+4E2D
+  PASS U+3002 in symbol table (bit15 set)
+  PASS unmapped/mapped U+4E00 handled without crash
+  PASS zone 95 rejected
+  PASS wei 0 rejected
+  PASS metrics 16x16 stride 2
+[3] font management
+  PASS embedded load idempotent
+  PASS runtime slot allocated (>=1)
+  PASS runtime font resolves its glyph
+  PASS runtime unload ok
+  PASS embedded slot unload rejected
+  PASS unknown slot rejected
+  PASS shutdown ok
+[4] GB2312 codec
+  PASS decode D6D0 -> U+4E2D
+  PASS decode 'A' -> 0x41
+  PASS lead 0x88 rejected
+  PASS truncated pair rejected
+  PASS encode U+4E2D -> D6 D0
+  PASS encode non-GB2312 cp rejected
+[5] UTF-8 codec
+  PASS decode E4 B8 AD -> U+4E2D
+  PASS decode 'z' pass-through
+  PASS overlong C1 81 rejected
+  PASS surrogate ED A0 80 rejected
+  PASS truncated 3-byte rejected
+  PASS bad continuation byte rejected
+  PASS decode 4-byte U+1F600
+  PASS encode U+4E2D -> E4 B8 AD
+  PASS encode surrogate rejected
+  PASS encode > U+10FFFF rejected
+[6] encoding conversion
+  PASS GB2312 zhongwen -> UTF-8
+  PASS UTF-8 -> GB2312 round trip
+  PASS UTF-8 -> Unicode cp U+4E2D
+[7] encoding detection
+  PASS detect ascii
+  PASS detect utf-8
+  PASS detect gb2312
+  PASS detect empty -> ascii
+[8] renderer extension
+  PASS render_chinese_init
+  PASS CJK width 16 px
+  PASS ASCII width 8 px
+  PASS CJK cols 2
+  PASS ASCII cols 1
+  PASS font_select finds CJK font
+  PASS font_get_bitmap CJK
+  PASS ascii + gb2312 fonts registered
+  PASS active renderer keeps 8x16 cell
+  PASS draw CJK/ASCII/missing-box without fault
+[9] console extension
+  PASS console_cn_init
+  PASS default encoding utf-8
+  PASS encoding switch
+  PASS mixed rejected
+  PASS cp cols CJK 2
+  PASS display cols a[zhong]b = 4
+中x  PASS putcw cursor geometry SKIP (output captured)
+   PASS cn backspace ok
+[11] line editing (UTF-8)
+abcab ab
+  PASS ascii line + backspace unchanged
+xx� x�x� x�x中 x中
+  PASS UTF-8 bytes stored intact
+xx� x�x� x�x中 x中x   x
+  PASS backspace removes one CJK char
+xx� x�x� x�x中 x中x中   xxy中   xy
+  PASS LEFT steps one CJK char, insert mid-line
+[12] font engine registry
+  PASS font_register accepts
+  PASS count increments
+  PASS registered font resolves cp
+  PASS font_unregister
+  PASS count restored
+  PASS unregistered cp unresolved
+  PASS unknown name rejected
+[13] TUI chinese layer
+  PASS tui_chinese_print utf-8 ok
+  PASS str cols zhongwen = 4
+  PASS IME 'ni' -> ni (U+4F60) first
+  PASS IME 'zhong' -> zhong in candidates
+  PASS IME nonsense syllable -> 0 candidates
+  PASS 396 syllables loaded
+  PASS 3755 level-1 chars loaded
+  PASS menu null rejected
+  PASS form null rejected
+[14] fix1 input paths (ASCII editor + IME keys)
+  PASS ascii input length == 4
+  PASS ascii input text == home
+  PASS IME composed length == 3 (one hanzi)
+  PASS IME composed text == 你 (U+4F60)
+[15] fix1 console IME line (n i 1 Enter -> 你; digits direct; Esc cancels)
+                                                                        IME>                                                                         IME> [n] 呐1 哪2 娜3 拿4                                                                         IME> [ni] 你1 倪2 匿3 妮4                                                                         IME> 你                                                                        
+ime: composed 1 character(s): 你
+  PASS console IME composed length == 3 (one hanzi)
+  PASS console IME composed text 
+
+--- [font] ---
+font
+registered fonts:
+  ascii-8x16     built-in screen_font8x16, 8x16
+  gb2312-16x16   embedded GB2312, 6763+682 glyphs
+  total live: 2
+  active renderer: cn-8x16-16x16
+
+--- [font-test] ---
+font-test
+font-test: rendering sample row (16x16 CJK):
+
+font-test: 16px row drawn above (zhongwen OpenCube shi)
+
+
+--- [encoding] ---
+encoding
+encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 189 | encode 58 | convert 2 | detect 4 | miss 5
+
+--- [encoding-test] ---
+encoding-test
+encoding-test: PASS (utf8+gb2312 spot checks)
+
+--- [ime] ---
+ime
+pinyin IME status:
+  syllables : 396
+  level-1   : 3755 chars (GB2312 zones 16-55)
+  usage     : run "ime -i" for the interactive line; then type pinyin
+              letters; digits 1-9 pick that candidate; space = first;
+              Backspace drops a letter; digits/symbols land verbatim
+              while no pinyin is pending; Enter ends; Esc / Ctrl+C leave
+  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 191 | encode 60 | convert 2 | detect 4 | miss 5
+
+--- [ime-test] ---
+ime-test
+ime-test: PASS (ni/hao resolve, qqq empty)
+
+--- [desktop ime] ---
+c退出] 输入区（回车后全文在此显示）: 示例: 输入 ni 看候选，按 1 或空格得到 你 拼音输入 [打字即拼音 数字1-9选字 空格首选 回车上屏 Esc退出] 输入区（回车后全文在此显示）: 示例: 输入 ni 看候选，按 1 或空格得到 你 拼音> 
+--- [desktop ime exit] ---
+/logs/monitor/power [中] Chinese Input - pinyin IME pad [>] Command Bridge - run any shell command with live output [x] Extensions - TUI L1 extension lab (7 interface sets) OK: back to menu Esc:Back 1-9:Quick Up/Down:Move Enter:Open F1:Help F2:Lang F5:Refresh F10:Exit tui: desktop closed, shell ok
+
+--- [ime -i] ---
+ime -i
+pinyin IME status:
+ syllables : 396
+ level-1 : 3755 chars (GB2312 zones 16-55)
+ usage : run "ime -i" for the interactive line; then type pinyin
+ letters; digits 1-9 pick that candidate; space = first;
+ Backspace drops a letter; digits/symbols land verbatim
+ while no pinyin is pending; Enter ends; Esc / Ctrl+C leave
+ encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 386 | encode 169 | convert 2 | detect 4 | miss 5
+ 
+IME> 
+ 
+IME> [n] 呐1 哪2 娜3 拿4 
+ 
+IME> [ni] 你1 倪2 匿3 妮4 
+ 
+IME> 你
+ 
+ime: composed 1 character(s): 你
+
+--- [desktop ime input pad] ---
+c退出] 输入区（回车后全文在此显示）: 示例: 输入 ni 看候选，按 1 或空格得到 你 拼音输入 [打字即拼音 数字1-9选字 空格首选 回车上屏 Esc退出] 输入区（回车后全文在此显示）: 示例: 输入 ni 看候选，按 1 或空格得到 你 拼音> 
+�得到 你 拼音> [n] 呐1 哪2 娜3 拿4 纳5 那6 钠7 拼音输入 [打字即拼音 数字1-9选字 空格首选 回车上屏 Esc退出] 输入区（回车后全文在此显示）: 示例: 输入 ni 看候选，按 1 或空格得到 你 拼音> [ni] 你1 倪2 匿3 妮4 尼5 拟6 泥7 溺8 腻9 
+ 输入区（回车后全文在此显示）: 你 示例: 输入 ni 看候选，按 1 或空格得到 你 拼音输入 [打字即拼音 数字1-9选字 空格首选 回车上屏 Esc退出] 输入区（回车后全文在此显示）: 你 示例: 输入 ni 看候选，按 1 或空格得到 你 拼音> 
+--- [desktop ime pad exit] ---
+/logs/monitor/power [中] Chinese Input - pinyin IME pad [>] Command Bridge - run any shell command with live output [x] Extensions - TUI L1 extension lab (7 interface sets) OK: back to menu Esc:Back 1-9:Quick Up/Down:Move Enter:Open F1:Help F2:Lang F5:Refresh F10:Exit tui: desktop closed, shell ok
+
+--- [desktop ime reenter] ---
+�到 你 拼音输入 [打字即拼音 数字1-9选字 空格首选 回车上屏 Esc退出] 输入区（回车后全文在此显示）: 示例: 输入 ni 看候选，按 1 或空格得到 你 拼音> 
+with live output [x] Extensions - TUI L1 extension lab (7 interface sets) OK: back to menu Esc:Back 1-9:Quick Up/Down:Move Enter:Open F1:Help F2:Lang F5:Refresh F10:Exit tui: desktop closed, shell ok
+
+--- [desktop ime reenter] ---
+�到 你 拼音输入 [打字即拼音 数字1-9选字 空格首选 回车上屏 Esc退出] 输入区（回车后全文在此显示）: 示例: 输入 ni 看候选，按 1 或空格得到 你 拼音> 
+with live output [x] Extensions - TUI L1 extension lab (7 interface sets) OK: back to menu Esc:Back 1-9:Quick Up/Down:Move Enter:Open F1:Help F2:Lang F5:Refresh F10:Exit tui: desktop closed, shell ok
+
+--- [chinesetest] ---
+chinesetest
+[37;40m[2J[H[0m[?25l[1;1H[37;40m [0m[1;2H[37;40m [0m[1;3H[37;40m [0m[1;4H[37;40m [0m[1;5H[37;40m [0m[1;6H[37;40m [0m[1;7H[37;40m [0m[1;8H[37;40m [0m[1;9H[37;40m [0m[1;10H[37;40m [0m[1;11H[37;40m [0m[1;12H[37;40m [0m[1;13H[37;40m [0m[1;14H[37;40m [0m[1;15H[37;40m [0m[1;16H[37;40m [0m[1;17H[37;40m [0m[1;18H[37;40m [0m[1;19H[37;40m [0m[1;20H[37;40m [0m[1;21H[37;40m [0m[1;22H[37;40m [0m[1;23H[37;40m [0m[1;24H[37;40m [0m[1;25H[37;40m [0m[1;26H[37;40m [0m[1;27H[37;40m [0m[1;28H[37;40m [0m[1;29H[37;40m [0m[1;30H[37;40m [0m[1;31H[37;40m [0m[1;32H[37;40m [0m[1;33H[37;40m [0m[1;34H[37;40m [0m[1;35H[37;40m [0m[1;36H[37;40m [0m[1;37H[37;40m [0m[1;38H[37;40m [0m[1;39H[37;40m [0m[1;40H[37;40m [0m[2;1H[37;40m [0m[2;2H[37;40m [0m[2;3H[37;40m [0m[2;4H[37;40m [0m[2;5H[37;40m [0m[2;6H[37;40m [0m[2;7H[37;40m [0m[2;8H[37;40m [0m[2;9H[37;40m [0m[2;10H[37;40m [0m[2;11H[37;40m [0m[2;12H[37;40m [0m[2;13H[37;40m [0m[2;14H[37;40m [0m[2;15H[37;40m [0m[2;16H[37;40m [0m[2;17H[37;40m [0m[2;18H[37;40m [0m[2;19H[37;40m [0m[2;20H[37;40m [0m[2;21H[37;40m [0m[2;22H[37;40m [0m[2;23H[37;40m [0m[2;24H[37;40m [0m[2;25H[37;40m [0m[2;26H[37;40m [0m[2;27H[37;40m [0m[2;28H[37;40m [0m[2;29H[37;40m [0m[2;30H[37;40m [0m[2;31H[37;40m [0m[2;32H[37;40m [0m[2;33H[37;40m [0m[2;34H[37;40m [0m[2;35H[37;40m [0m[2;36H[37;40m [0m[2;37H[37;40m [0m[2;38H[37;40m [0m[2;39H[37;40m [0m[2;40H[37;40m [0m[3;1H[37;40m [0m[3;2H[37;40m [0m[3;3H[37;40m [0m[3;4H[37;40m [0m[3;5H[37;40m [0m[3;6H[37;40m [0m[3;7H[37;40m [0m[3;8H[37;40m [0m[3;9H[37;40m [0m[3;10H[37;40m [0m[3;11H[37;40m [0m[3;12H[37;40m [0m[3;13H[37;40m [0m[3;14H[37;40m [0m[3;15H[37;40m [0m[3;16H[37;40m [0m[3;17H[37;40m [0m[3;18H[37;40m [0m[3;19H[37;40m [0m[3;20H[37;40m [0m[3;21H[37;40m [0m[3;22H[37;40m [0m[3;23H[37;40m [0m[3;24H[37;40m [0m[3;25H[37;40m [0m[3;26H[37;40m [0m[3;27H[37;40m [0m[3;28H[37;40m [0m[3;29H[37;40m [0m[3;30H[37;40m [0m[3;31H[37;40m [0m[3;32H[37;40m [0m[3;33H[37;40m [0m[3;34H[37;40m [0m[3;35H[37;40m [0m[3;36H[37;40m [0m[3;37H[37;40m [0m[3;38H[37;40m [0m[3;39H[37;40m [0m[3;40H[37;40m [0m[4;1H[37;40m [0m[4;2H[37;40m [0m[4;3H[37;40m [0m[4;4H[37;40m [0m[4;5H[37;40m [0m[4;6H[37;40m [0m[4;7H[37;40m [0m[4;8H[37;40m [0m[4;9H[37;40m [0m[4;10H[37;40m [0m[4;11H[37;40m [0m[4;12H[37;40m [0m[4;13H[37;40m [0m[4;14H[37;40m [0m[4;15H[37;40m [0m[4;16H[37;40m [0m[4;17H[37;40m [0m[4;18H[37;40m [0m[4;19H[37;40m [0m[4;20H[37;40m [0m[4;21H[37;40m [0m[4;22H[37;40m [0m[4;23H[37;40m [0m[4;24H[37;40m [0m[4;25H[37;40m [0m[4;26H[37;40m [0m[4;27H[37;40m [0m[4;28H[37;40m [0m[4;29H[37;40m [0m[4;30H[37;40m [0m[4;31H[37;40m [0m[4;32H[37;40m [0m[4;33H[37;40m [0m[4;34H[37;40m [0m[4;35H[37;40m [0m[4;36H[37;40m [0m[4;37H[37;40m [0m[4;38H[37;40m [0m[4;39H[37;40m [0m[4;40H[37;40m [0m[5;1H[37;40m [0m[5;2H[37;40m [0m[5;3H[37;40m [0m[5;4H[37;40m [0m[5;5H[37;40m [0m[5;6H[37;40m [0m[5;7H[37;40m [0m[5;8H[37;40m [0m[5;9H[37;40m [0m[5;10H[37;40m [0m[5;11H[37;40m [0m[5;12H[37;40m [0m[5;13H[37;40m [0m[5;14H[37;40m [0m[5;15H[37;40m [0m[5;16H[37;40m [0m[5;17H[37;40m [0m[5;18H[37;40m [0m[5;19H[37;40m [0m[5;20H[37;40m [0m[5;21H[37;40m [0m[5;22H[37;40m [0m[5;23H[37;40m [0m[5;24H[37;40m [0m[5;25H[37;40m [0m[5;26H[37;40m [0m[5;27H[37;40m [0m[5;28H[37;40m [0m[5;29H[37;40m [0m[5;30H[37;40m [0m[5;31H[37;40m [0m[5;32H[37;40m [0m[5;33H[37;40m [0m[5;34H[37;40m [0m[5;35H[37;40m [0m[5;36H[37;40m [0m[5;37H[37;40m [0m[5;38H[37;40m [0m[5;39H[37;40m [0m[5;40H[37;40m [0m[6;1H[97;44mS[0m[6;2H[97;44mS[0m[6;3H[97;44mI[0m[6;4H[97;44mD[0m[6;5H[97;44m:[0m[6;6H[97;44m [0m[6;7H[97;44m [0m[6;8H[97;44m [0m[6;9H[97;44m [0m[6;10H[97;44m [0m[6;11H[97;44m [0m[6;12H[97;44m [0m[6;13H[97;44m [0m[6;14H[97;44m [0m[6;15H[97;44m [0m[6;16H[97;44m [0m[6;17H[97;44m [0m[6;18H[97;44m [0m[6;19H[97;44m [0m[6;20H[97;44m [0m[6;21H[97;44m [0m[6;22H[97;44m [0m[6;23H[97;44m [0m[6;24H[97;44m [0m[6;25H[97;44m [0m[6;26H[97;44m [0m[6;27H[97;44m [0m[6;28H[97;44m [0m[6;29H[97;44m [0m[6;30H[97;44m [0m[6;31H[97;44m [0m[6;32H[97;44m [0m[6;33H[97;44m [0m[6;34H[97;44m [0m[6;35H[97;44m [0m[6;36H[97;44m [0m[6;37H[97;44m [0m[6;38H[97;44m [0m[6;39H[97;44m [0m[6;40H[97;44m [0m[1;1H[37;40m [0m[1;2H[37;40m [0m[1;3H[37;40m [0m[1;4H[37;40m [0m[1;5H[37;40m [0m[1;6H[37;40m [0m[1;7H[37;40m [0m[1;8H[37;40m [0m[1;9H[37;40m [0m[1;10H[37;40m [0m[1;11H[37;40m [0m[1;12H[37;40m [0m[1;13H[37;40m [0m[1;14H[37;40m [0m[1;15H[37;40m [0m[1;16H[37;40m [0m[1;17H[37;40m [0m[1;18H[37;40m [0m[1;19H[37;40m [0m[1;20H[37;40m [0m[1;21H[37;40m [0m[1;22H[37;40m [0m[1;23H[37;40m [0m[1;24H[37;40m [0m[1;25H[37;40m [0m[1;26H[37;40m [0m[1;27H[37;40m [0m[1;28H[37;40m [0m[1;29H[37;40m [0m[1;30H[37;40m [0m[1;31H[37;40m [0m[1;32H[37;40m [0m[1;33H[37;40m [0m[1;34H[37;40m [0m[1;35H[37;40m [0m[1;36H[37;40m [0m[1;37H[37;40m [0m[1;38H[37;40m [0m[1;39H[37;40m [0m[1;40H[37;40m [0m[2;1H[37;40m [0m[2;2H[37;40m [0m[2;3H[37;40m [0m[2;4H[37;40m [0m[2;5H[37;40m [0m[2;6H[37;40m [0m[2;7H[37;40m [0m[2;8H[37;40m [0m[2;9H[37;40m [0m[2;10H[37;40m [0m[2;11H[37;40m [0m[2;12H[37;40m [0m[2;13H[37;40m [0m[2;14H[37;40m [0m[2;15H[37;40m [0m[2;16H[37;40m [0m[2;17H[37;40m [0m[2;18H[37;40m [0m[2;19H[37;40m [0m[2;20H[37;40m [0m[2;21H[37;40m [0m[2;22H[37;40m [0m[2;23H[37;40m [0m[2;24H[37;40m [0m[2;25H[37;40m [0m[2;26H[37;40m [0m[2;27H[37;40m [0m[2;28H[37;40m [0m[2;29H[37;40m [0m[2;30H[37;40m [0m[2;31H[37;40m [0m[2;32H[37;40m [0m[2;33H[37;40m [0m[2;34H[37;40m [0m[2;35H[37;40m [0m[2;36H[37;40m [0m[2;37H[37;40m [0m[2;38H[37;40m [0m[2;39H[37;40m [0m[2;40H[37;40m [0m[3;1H[37;40m [0m[3;2H[37;40m [0m[3;3H[37;40m [0m[3;4H[37;40m [0m[3;5H[37;40m [0m[3;6H[37;40m [0m[3;7H[37;40m [0m[3;8H[37;40m [0m[3;9H[37;40m [0m[3;10H[37;40m [0m[3;11H[37;40m [0m[3;12H[37;40m [0m[3;13H[37;40m [0m[3;14H[37;40m [0m[3;15H[37;40m [0m[3;16H[37;40m [0m[3;17H[37;40m [0m[3;18H[37;40m [0m[3;19H[37;40m [0m[3;20H[37;40m [0m[3;21H[37;40m [0m[3;22H[37;40m [0m[3;23H[37;40m [0m[3;24H[37;40m [0m[3;25H[37;40m [0m[3;26H[37;40m [0m[3;27H[37;40m [0m[3;28H[37;40m [0m[3;29H[37;40m [0m[3;30H[37;40m [0m[3;31H[37;40m [0m[3;32H[37;40m [0m[3;33H[37;40m [0m[3;34H[37;40m [0m[3;35H[37;40m [0m[3;36H[37;40m [0m[3;37H[37;40m [0m[3;38H[37;40m [0m[3;39H[37;40m [0m[3;40H[37;40m [0m[4;1H[37;40m [0m[4;2H[37;40m [0m[4;3H[37;40m [0m[4;4H[37;40m [0m[4;5H[37;40m [0m[4;6H[37;40m [0m[4;7H[37;40m [0m[4;8H[37;40m [0m[4;9H[37;40m [0m[4;10H[37;40m [0m[4;11H[37;40m [0m[4;12H[37;40m [0m[4;13H[37;40m [0m[4;14H[37;40m [0m[4;15H[37;40m [0m[4;16H[37;40m [0m[4;17H[37;40m [0m[4;18H[37;40m [0m[4;19H[37;40m [0m[4;20H[37;40m [0m[4;21H[37;40m [0m[4;22H[37;40m [0m[4;23H[37;40m [0m[4;24H[37;40m [0m[4;25H[37;40m [0m[4;26H[37;40m [0m[4;27H[37;40m [0m[4;28H[37;40m [0m[4;29H[37;40m [0m[4;30H[37;40m [0m[4;31H[37;40m [0m[4;32H[37;40m [0m[4;33H[37;40m [0m[4;34H[37;40m [0m[4;35H[37;40m [0m[4;36H[37;40m [0m[4;37H[37;40m [0m[4;38H[37;40m [0m[4;39H[37;40m [0m[4;40H[37;40m [0m[5;1H[37;40m [0m[5;2H[37;40m [0m[5;3H[37;40m [0m[5;4H[37;40m [0m[5;5H[37;40m [0m[5;6H[37;40m [0m[5;7H[37;40m [0m[5;8H[37;40m [0m[5;9H[37;40m [0m[5;10H[37;40m [0m[5;11H[37;40m [0m[5;12H[37;40m [0m[5;13H[37;40m [0m[5;14H[37;40m [0m[5;15H[37;40m [0m[5;16H[37;40m [0m[5;17H[37;40m [0m[5;18H[37;40m [0m[5;19H[37;40m [0m[5;20H[37;40m [0m[5;21H[37;40m [0m[5;22H[37;40m [0m[5;23H[37;40m [0m[5;24H[37;40m [0m[5;25H[37;40m [0m[5;26H[37;40m [0m[5;27H[37;40m [0m[5;28H[37;40m [0m[5;29H[37;40m [0m[5;30H[37;40m [0m[5;31H[37;40m [0m[5;32H[37;40m [0m[5;33H[37;40m [0m[5;34H[37;40m [0m[5;35H[37;40m [0m[5;36H[37;40m [0m[5;37H[37;40m [0m[5;38H[37;40m [0m[5;39H[37;40m [0m[5;40H[37;40m [0m[6;1H[97;44mS[0m[6;2H[97;44mS[0m[6;3H[97;44mI[0m[6;4H[97;44mD[0m[6;5H[97;44m:[0m[6;6H[97;44m [0m[6;7H[97;44mh[0m[6;8H[97;44m [0m[6;9H[97;44m [0m[6;10H[97;44m [0m[6;11H[97;44m [0m[6;12H[97;44m [0m[6;13H[97;44m [0m[6;14H[97;44m [0m[6;15H[97;44m [0m[6;16H[97;44m [0m[6;17H[97;44m [0m[6;18H[97;44m [0m[6;19H[97;44m [0m[6;20H[97;44m [0m[6;21H[97;44m [0m[6;22H[97;44m [0m[6;23H[97;44m [0m[6;24H[97;44m [0m[6;25H[97;44m [0m[6;26H[97;44m [0m[6;27H[97;44m [0m[6;28H[97;44m [0m[6;29H[97;44m [0m[6;30H[97;44m [0m[6;31H[97;44m [0m[6;32H[97;44m [0m[6;33H[97;44m [0m[6;34H[97;44m [0m[6;35H[97;44m [0m[6;36H[97;44m [0m[6;37H[97;44m [0m[6;38H[97;44m [0m[6;39H[97;44m [0m[6;40H[97;44m [0m[1;1H[37;40m [0m[1;2H[37;40m [0m[1;3H[37;40m [0m[1;4H[37;40m [0m[1;5H[37;40m [0m[1;6H[37;40m [0m[1;7H[37;40m [0m[1;8H[37;40m [0m[1;9H[37;40m [0m[1;10H[37;40m [0m[1;11H[37;40m [0m[1;12H[37;40m [0m[1;13H[37;40m [0m[1;14H[37;40m [0m[1;15H[37;40m [0m[1;16H[37;40m [0m[1;17H[37;40m [0m[1;18H[37;40m [0m[1;19H[37;40m [0m[1;20H[37;40m [0m[1;21H[37;40m [0m[1;22H[37;40m [0m[1;23H[37;40m [0m[1;24H[37;40m [0m[1;25H[37;40m [0m[1;26H[37;40m [0m[1;27H[37;40m [0m[1;28H[37;40m [0m[1;29H[37;40m [0m[1;30H[37;40m [0m[1;31H[37;40m [0m[1;32H[37;40m [0m[1;33H[37;40m [0m[1;34H[37;40m [0m[1;35H[37;40m [0m[1;36H[37;40m [0m[1;37H[37;40m [0m[1;38H[37;40m [0m[1;39H[37;40m [0m[1;40H[37;40m [0m[2;1H[37;40m [0m[2;2H[37;40m [0m[2;3H[37;40m [0m[2;4H[37;40m [0m[2;5H[37;40m [0m[2;6H[37;40m [0m[2;7H[37;40m [0m[2;8H[37;40m [0m[2;9H[37;40m [0m[2;10H[37;40m [0m[2;11H[37;40m [0m[2;12H[37;40m [0m[2;13H[37;40m [0m[2;14H[37;40m [0m[2;15H[37;40m [0m[2;16H[37;40m [0m[2;17H[37;40m [0m[2;18H[37;40m [0m[2;19H[37;40m [0m[2;20H[37;40m [0m[2;21H[37;40m [0m[2;22H[37;40m [0m[2;23H[37;40m [0m[2;24H[37;40m [0m[2;25H[37;40m [0m[2;26H[37;40m [0m[2;27H[37;40m [0m[2;28H[37;40m [0m[2;29H[37;40m [0m[2;30H[37;40m [0m[2;31H[37;40m [0m[2;32H[37;40m [0m[2;33H[37;40m [0m[2;34H[37;40m [0m[2;35H[37;40m [0m[2;36H[37;40m [0m[2;37H[37;40m [0m[2;38H[37;40m [0m[2;39H[37;40m [0m[2;40H[37;40m [0m[3;1H[37;40m [0m[3;2H[37;40m [0m[3;3H[37;40m [0m[3;4H[37;40m [0m[3;5H[37;40m [0m[3;6H[37;40m [0m[3;7H[37;40m [0m[3;8H[37;40m [0m[3;9H[37;40m [0m[3;10H[37;40m [0m[3;11H[37;40m [0m[3;12H[37;40m [0m[3;13H[37;40m [0m[3;14H[37;40m [0m[3;15H[37;40m [0m[3;16H[37;40m [0m[3;17H[37;40m [0m[3;18H[37;40m [0m[3;19H[37;40m [0m[3;20H[37;40m [0m[3;21H[37;40m [0m[3;22H[37;40m [0m[3;23H[37;40m [0m[3;24H[37;40m [0m[3;25H[37;40m [0m[3;26H[37;40m [0m[3;27H[37;40m [0m[3;28H[37;40m [0m[3;29H[37;40m [0m[3;30H[37;40m [0m[3;31H[37;40m [0m[3;32H[37;40m [0m[3;33H[37;40m [0m[3;34H[37;40m [0m[3;35H[37;40m [0m[3;36H[37;40m [0m[3;37H[37;40m [0m[3;38H[37;40m [0m[3;39H[37;40m [0m[3;40H[37;40m [0m[4;1H[37;40m [0m[4;2H[37;40m [0m[4;3H[37;40m [0m[4;4H[37;40m [0m[4;5H[37;40m [0m[4;6H[37;40m [0m[4;7H[37;40m [0m[4;8H[37;40m [0m[4;9H[37;40m [0m[4;10H[37;40m [0m[4;11H[37;40m [0m[4;12H[37;40m [0m[4;13H[37;40m [0m[4;14H[37;40m [0m[4;15H[37;40m [0m[4;16H[37;40m [0m[4;17H[37;40m [0m[4;18H[37;40m [0m[4;19H[37;40m [0m[4;20H[37;40m [0m[4;21H[37;40m [0m[4;22H[37;40m [0m[4;23H[37;40m [0m[4;24H[37;40m [0m[4;25H[37;40m [0m[4;26H[37;40m [0m[4;27H[37;40m [0m[4;28H[37;40m [0m[4;29H[37;40m [0m[4;30H[37;40m [0m[4;31H[37;40m [0m[4;32H[37;40m [0m[4;33H[37;40m [0m[4;34H[37;40m [0m[4;35H[37;40m [0m[4;36H[37;40m [0m[4;37H[37;40m [0m[4;38H[37;40m [0m[4;39H[37;40m [0m[4;40H[37;40m [0m[5;1H[37;40m [0m[5;2H[37;40m [0m[5;3H[37;40m [0m[5;4H[37;40m [0m[5;5H[37;40m [0m[5;6H[37;40m [0m[5;7H[37;40m [0m[5;8H[37;40m [0m[5;9H[37;40m [0m[5;10H[37;40m [0m[5;11H[37;40m [0m[5;12H[37;40m [0m[5;13H[37;40m [0m[5;14H[37;40m [0m[5;15H[37;40m [0m[5;16H[37;40m [0m[5;17H[37;40m [0m[5;18H[37;40m [0m[5;19H[37;40m [0m[5;20H[37;40m [0m[5;21H[37;40m [0m[5;22H[37;40m [0m[5;23H[37;40m [0m[5;24H[37;40m [0m[5;25H[37;40m [0m[5;26H[37;40m [0m[5;27H[37;40m [0m[5;28H[37;40m [0m[5;29H[37;40m [0m[5;30H[37;40m [0m[5;31H[37;40m [0m[5;32H[37;40m [0m[5;33H[37;40m [0m[5;34H[37;40m [0m[5;35H[37;40m [0m[5;36H[37;40m [0m[5;37H[37;40m [0m[5;38H[37;40m [0m[5;39H[37;40m [0m[5;40H[37;40m [0m[6;1H[97;44mS[0m[6;2H[97;44mS[0m[6;3H[97;44mI[0m[6;4H[97;44mD[0m[6;5H[97;44m:[0m[6;6H[97;44m [0m[6;7H[97;44mh[0m[6;8H[97;44mo[0m[6;9H[97;44m [0m[6;10H[97;44m [0m[6;11H[97;44m [0m[6;12H[97;44m [0m[6;13H[97;44m [0m[6;14H[97;44m [0m[6;15H[97;44m [0m[6;16H[97;44m [0m[6;17H[97;44m [0m[6;18H[97;44m [0m[6;19H[97;44m [0m[6;20H[97;44m [0m[6;21H[97;44m [0m[6;22H[97;44m [0m[6;23H[97;44m [0m[6;24H[97;44m [0m[6;25H[97;44m [0m[6;26H[97;44m [0m[6;27H[97;44m [0m[6;28H[97;44m [0m[6;29H[97;44m [0m[6;30H[97;44m [0m[6;31H[97;44m [0m[6;32H[97;44m [0m[6;33H[97;44m [0m[6;34H[97;44m [0m[6;35H[97;44m [0m[6;36H[97;44m [0m[6;37H[97;44m [0m[6;38H[97;44m [0m[6;39H[97;44m [0m[6;40H[97;44m [0m[1;1H[37;40m [0m[1;2H[37;40m [0m[1;3H[37;40m [0m[1;4H[37;40m [0m[1;5H[37;40m [0m[1;6H[37;40m [0m[1;7H[37;40m [0m[1;8H[37;40m [0m[1;9H[37;40m [0m[1;10H[37;40m [0m[1;11H[37;40m [0m[1;12H[37;40m [0m[1;13H[37;40m [0m[1;14H[37;40m [0m[1;15H[37;40m [0m[1;16H[37;40m [0m[1;17H[37;40m [0m[1;18H[37;40m [0m[1;19H[37;40m [0m[1;20H[37;40m [0m[1;21H[37;40m [0m[1;22H[37;40m [0m[1;23H[37;40m [0m[1;24H[37;40m [0m[1;25H[37;40m [0m[1;26H[37;40m [0m[1;27H[37;40m [0m[1;28H[37;40m [0m[1;29H[37;40m [0m[1;30H[37;40m [0m[1;31H[37;40m [0m[1;32H[37;40m [0m[1;33H[37;40m [0m[1;34H[37;40m [0m[1;35H[37;40m [0m[1;36H[37;40m [0m[1;37H[37;40m [0m[1;38H[37;40m [0m[1;39H[37;40m [0m[1;40H[37;40m [0m[2;1H[37;40m [0m[2;2H[37;40m [0m[2;3H[37;40m [0m[2;4H[37;40m [0m[2;5H[37;40m [0m[2;6H[37;40m [0m[2;7H[37;40m [0m[2;8H[37;40m [0m[2;9H[37;40m [0m[2;10H[37;40m [0m[2;11H[37;40m [0m[2;12H[37;40m [0m[2;13H[37;40m [0m[2;14H[37;40m [0m[2;15H[37;40m [0m[2;16H[37;40m [0m[2;17H[37;40m [0m[2;18H[37;40m [0m[2;19H[37;40m [0m[2;20H[37;40m [0m[2;21H[37;40m [0m[2;22H[37;40m [0m[2;23H[37;40m [0m[2;24H[37;40m [0m[2;25H[37;40m [0m[2;26H[37;40m [0m[2;27H[37;40m [0m[2;28H[37;40m [0m[2;29H[37;40m [0m[2;30H[37;40m [0m[2;31H[37;40m [0m[2;32H[37;40m [0m[2;33H[37;40m [0m[2;34H[37;40m [0m[2;35H[37;40m [0m[2;36H[37;40m [0m[2;37H[37;40m [0m[2;38H[37;40m [0m[2;39H[37;40m [0m[2;40H[37;40m [0m[3;1H[37;40m [0m[3;2H[37;40m [0m[3;3H[37;40m [0m[3;4H[37;40m [0m[3;5H[37;40m [0m[3;6H[37;40m [0m[3;7H[37;40m [0m[3;8H[37;40m [0m[3;9H[37;40m [0m[3;10H[37;40m [0m[3;11H[37;40m [0m[3;12H[37;40m [0m[3;13H[37;40m [0m[3;14H[37;40m [0m[3;15H[37;40m [0m[3;16H[37;40m [0m[3;17H[37;40m [0m[3;18H[37;40m [0m[3;19H[37;40m [0m[3;20H[37;40m [0m[3;21H[37;40m [0m[3;22H[37;40m [0m[3;23H[37;40m [0m[3;24H[37;40m [0m[3;25H[37;40m [0m[3;26H[37;40m [0m[3;27H[37;40m [0m[3;28H[37;40m [0m[3;29H[37;40m [0m[3;30H[37;40m [0m[3;31H[37;40m [0m[3;32H[37;40m [0m[3;33H[37;40m [0m[3;34H[37;40m [0m[3;35H[37;40m [0m[3;36H[37;40m [0m[3;37H[37;40m [0m[3;38H[37;40m [0m[3;39H[37;40m [0m[3;40H[37;40m [0m[4;1H[37;40m [0m[4;2H[37;40m [0m[4;3H[37;40m [0m[4;4H[37;40m [0m[4;5H[37;40m [0m[4;6H[37;40m [0m[4;7H[37;40m [0m[4;8H[37;40m [0m[4;9H[37;40m [0m[4;10H[37;40m [0m[4;11H[37;40m [0m[4;12H[37;40m [0m[4;13H[37;40m [0m[4;14H[37;40m [0m[4;15H[37;40m [0m[4;16H[37;40m [0m[4;17H[37;40m [0m[4;18H[37;40m [0m[4;19H[37;40m [0m[4;20H[37;40m [0m[4;21H[37;40m [0m[4;22H[37;40m [0m[4;23H[37;40m [0m[4;24H[37;40m [0m[4;25H[37;40m [0m[4;26H[37;40m [0m[4;27H[37;40m [0m[4;28H[37;40m [0m[4;29H[37;40m [0m[4;30H[37;40m [0m[4;31H[37;40m [0m[4;32H[37;40m [0m[4;33H[37;40m [0m[4;34H[37;40m [0m[4;35H[37;40m [0m[4;36H[37;40m [0m[4;37H[37;40m [0m[4;38H[37;40m [0m[4;39H[37;40m [0m[4;40H[37;40m [0m[5;1H[37;40m [0m[5;2H[37;40m [0m[5;3H[37;40m [0m[5;4H[37;40m [0m[5;5H[37;40m [0m[5;6H[37;40m [0m[5;7H[37;40m [0m[5;8H[37;40m [0m[5;9H[37;40m [0m[5;10H[37;40m [0m[5;11H[37;40m [0m[5;12H[37;40m [0m[5;13H[37;40m [0m[5;14H[37;40m [0m[5;15H[37;40m [0m[5;16H[37;40m [0m[5;17H[37;40m [0m[5;18H[37;40m [0m[5;19H[37;40m [0m[5;20H[37;40m [0m[5;21H[37;40m [0m[5;22H[37;40m [0m[5;23H[37;40m [0m[5;24H[37;40m [0m[5;25H[37;40m [0m[5;26H[37;40m [0m[5;27H[37;40m [0m[5;28H[37;40m [0m[5;29H[37;40m [0m[5;30H[37;40m [0m[5;31H[37;40m [0m[5;32H[37;40m [0m[5;33H[37;40m [0m[5;34H[37;40m [0m[5;35H[37;40m [0m[5;36H[37;40m [0m[5;37H[37;40m [0m[5;38H[37;40m [0m[5;39H[37;40m [0m[5;40H[37;40m [0m[6;1H[97;44mS[0m[6;2H[97;44mS[0m[6;3H[97;44mI[0m[6;4H[97;44mD[0m[6;5H[97;44m:[0m[6;6H[97;44m [0m[6;7H[97;44mh[0m[6;8H[97;44mo[0m[6;9H[97;44mm[0m[6;10H[97;44m [0m[6;11H[97;44m [0m[6;12H[97;44m [0m[6;13H[97;44m [0m[6;14H[97;44m [0m[6;15H[97;44m [0m[6;16H[97;44m [0m[6;17H[97;44m [0m[6;18H[97;44m [0m[6;19H[97;44m [0m[6;20H[97;44m [0m[6;21H[97;44m [0m[6;22H[97;44m [0m[6;23H[97;44m [0m[6;24H[97;44m [0m[6;25H[97;44m [0m[6;26H[97;44m [0m[6;27H[97;44m [0m[6;28H[97;44m [0m[6;29H[97;44m [0m[6;30H[97;44m [0m[6;31H[97;44m [0m[6;32H[97;44m [0m[6;33H[97;44m [0m[6;34H[97;44m [0m[6;35H[97;44m [0m[6;36H[97;44m [0m[6;37H[97;44m [0m[6;38H[97;44m [0m[6;39H[97;44m [0m[6;40H[97;44m [0m[1;1H[37;40m [0m[1;2H[37;40m [0m[1;3H[37;40m [0m[1;4H[37;40m [0m[1;5H[37;40m [0m[1;6H[37;40m [0m[1;7H[37;40m [0m[1;8H[37;40m [0m[1;9H[37;40m [0m[1;10H[37;40m [0m[1;11H[37;40m [0m[1;12H[37;40m [0m[1;13H[37;40m [0m[1;14H[37;40m [0m[1;15H[37;40m [0m[1;16H[37;40m [0m[1;17H[37;40m [0m[1;18H[37;40m [0m[1;19H[37;40m [0m[1;20H[37;40m [0m[1;21H[37;40m [0m[1;22H[37;40m [0m[1;23H[37;40m [0m[1;24H[37;40m [0m[1;25H[37;40m [0m[1;26H[37;40m [0m[1;27H[37;40m [0m[1;28H[37;40m [0m[1;29H[37;40m [0m[1;30H[37;40m [0m[1;31H[37;40m [0m[1;32H[37;40m [0m[1;33H[37;40m [0m[1;34H[37;40m [0m[1;35H[37;40m [0m[1;36H[37;40m [0m[1;37H[37;40m [0m[1;38H[37;40m [0m[1;39H[37;40m [0m[1;40H[37;40m [0m[2;1H[37;40m [0m[2;2H[37;40m [0m[2;3H[37;40m [0m[2;4H[37;40m [0m[2;5H[37;40m [0m[2;6H[37;40m [0m[2;7H[37;40m [0m[2;8H[37;40m [0m[2;9H[37;40m [0m[2;10H[37;40m [0m[2;11H[37;40m [0m[2;12H[37;40m [0m[2;13H[37;40m [0m[2;14H[37;40m [0m[2;15H[37;40m [0m[2;16H[37;40m [0m[2;17H[37;40m [0m[2;18H[37;40m [0m[2;19H[37;40m [0m[2;20H[37;40m [0m[2;21H[37;40m [0m[2;22H[37;40m [0m[2;23H[37;40m [0m[2;24H[37;40m [0m[2;25H[37;40m [0m[2;26H[37;40m [0m[2;27H[37;40m [0m[2;28H[37;40m [0m[2;29H[37;40m [0m[2;30H[37;40m [0m[2;31H[37;40m [0m[2;32H[37;40m [0m[2;33H[37;40m [0m[2;34H[37;40m [0m[2;35H[37;40m [0m[2;36H[37;40m [0m[2;37H[37;40m [0m[2;38H[37;40m [0m[2;39H[37;40m [0m[2;40H[37;40m [0m[3;1H[37;40m [0m[3;2H[37;40m [0m[3;3H[37;40m [0m[3;4H[37;40m [0m[3;5H[37;40m [0m[3;6H[37;40m [0m[3;7H[37;40m [0m[3;8H[37;40m [0m[3;9H[37;40m [0m[3;10H[37;40m [0m[3;11H[37;40m [0m[3;12H[37;40m [0m[3;13H[37;40m [0m[3;14H[37;40m [0m[3;15H[37;40m [0m[3;16H[37;40m [0m[3;17H[37;40m [0m[3;18H[37;40m [0m[3;19H[37;40m [0m[3;20H[37;40m [0m[3;21H[37;40m [0m[3;22H[37;40m [0m[3;23H[37;40m [0m[3;24H[37;40m [0m[3;25H[37;40m [0m[3;26H[37;40m [0m[3;27H[37;40m [0m[3;28H[37;40m [0m[3;29H[37;40m [0m[3;30H[37;40m [0m[3;31H[37;40m [0m[3;32H[37;40m [0m[3;33H[37;40m [0m[3;34H[37;40m [0m[3;35H[37;40m [0m[3;36H[37;40m [0m[3;37H[37;40m [0m[3;38H[37;40m [0m[3;39H[37;40m [0m[3;40H[37;40m [0m[4;1H[37;40m [0m[4;2H[37;40m [0m[4;3H[37;40m [0m[4;4H[37;40m [0m[4;5H[37;40m [0m[4;6H[37;40m [0m[4;7H[37;40m [0m[4;8H[37;40m [0m[4;9H[37;40m [0m[4;10H[37;40m [0m[4;11H[37;40m [0m[4;12H[37;40m [0m[4;13H[37;40m [0m[4;14H[37;40m [0m[4;15H[37;40m [0m[4;16H[37;40m [0m[4;17H[37;40m [0m[4;18H[37;40m [0m[4;19H[37;40m [0m[4;20H[37;40m [0m[4;21H[37;40m [0m[4;22H[37;40m [0m[4;23H[37;40m [0m[4;24H[37;40m [0m[4;25H[37;40m [0m[4;26H[37;40m [0m[4;27H[37;40m [0m[4;28H[37;40m [0m[4;29H[37;40m [0m[4;30H[37;40m [0m[4;31H[37;40m [0m[4;32H[37;40m [0m[4;33H[37;40m [0m[4;34H[37;40m [0m[4;35H[37;40m [0m[4;36H[37;40m [0m[4;37H[37;40m [0m[4;38H[37;40m [0m[4;39H[37;40m [0m[4;40H[37;40m [0m[5;1H[37;40m [0m[5;2H[37;40m [0m[5;3H[37;40m [0m[5;4H[37;40m [0m[5;5H[37;40m [0m[5;6H[37;40m [0m[5;7H[37;40m [0m[5;8H[37;40m [0m[5;9H[37;40m [0m[5;10H[37;40m [0m[5;11H[37;40m [0m[5;12H[37;40m [0m[5;13H[37;40m [0m[5;14H[37;40m [0m[5;15H[37;40m [0m[5;16H[37;40m [0m[5;17H[37;40m [0m[5;18H[37;40m [0m[5;19H[37;40m [0m[5;20H[37;40m [0m[5;21H[37;40m [0m[5;22H[37;40m [0m[5;23H[37;40m [0m[5;24H[37;40m [0m[5;25H[37;40m [0m[5;26H[37;40m [0m[5;27H[37;40m [0m[5;28H[37;40m [0m[5;29H[37;40m [0m[5;30H[37;40m [0m[5;31H[37;40m [0m[5;32H[37;40m [0m[5;33H[37;40m [0m[5;34H[37;40m [0m[5;35H[37;40m [0m[5;36H[37;40m [0m[5;37H[37;40m [0m[5;38H[37;40m [0m[5;39H[37;40m [0m[5;40H[37;40m [0m[6;1H[97;44mS[0m[6;2H[97;44mS[0m[6;3H[97;44mI[0m[6;4H[97;44mD[0m[6;5H[97;44m:[0m[6;6H[97;44m [0m[6;7H[97;44mh[0m[6;8H[97;44mo[0m[6;9H[97;44mm[0m[6;10H[97;44me[0m[6;11H[97;44m [0m[6;12H[97;44m [0m[6;13H[97;44m [0m[6;14H[97;44m [0m[6;15H[97;44m [0m[6;16H[97;44m [0m[6;17H[97;44m [0m[6;18H[97;44m [0m[6;19H[97;44m [0m[6;20H[97;44m [0m[6;21H[97;44m [0m[6;22H[97;44m [0m[6;23H[97;44m [0m[6;24H[97;44m [0m[6;25H[97;44m [0m[6;26H[97;44m [0m[6;27H[97;44m [0m[6;28H[97;44m [0m[6;29H[97;44m [0m[6;30H[97;44m [0m[6;31H[97;44m [0m[6;32H[97;44m [0m[6;33H[97;44m [0m[6;34H[97;44m [0m[6;35H[97;44m [0m[6;36H[97;44m [0m[6;37H[97;44m [0m[6;38H[97;44m [0m[6;39H[97;44m [0m[6;40H[97;44m [0m[1;1H[37;40m [0m[1;2H[37;40m [0m[1;3H[37;40m [0m[1;4H[37;40m [0m[1;5H[37;40m [0m[1;6H[37;40m [0m[1;7H[37;40m [0m[1;8H[37;40m [0m[1;9H[37;40m [0m[1;10H[37;40m [0m[1;11H[37;40m [0m[1;12H[37;40m [0m[1;13H[37;40m [0m[1;14H[37;40m [0m[1;15H[37;40m [0m[1;16H[37;40m [0m[1;17H[37;40m [0m[1;18H[37;40m [0m[1;19H[37;40m [0m[1;20H[37;40m [0m[1;21H[37;40m [0m[1;22H[37;40m [0m[1;23H[37;40m [0m[1;24H[37;40m [0m[1;25H[37;40m [0m[1;26H[37;40m [0m[1;27H[37;40m [0m[1;28H[37;40m [0m[1;29H[37;40m [0m[1;30H[37;40m [0m[1;31H[37;40m [0m[1;32H[37;40m [0m[1;33H[37;40m [0m[1;34H[37;40m [0m[1;35H[37;40m [0m[1;36H[37;40m [0m[1;37H[37;40m [0m[1;38H[37;40m [0m[1;39H[37;40m [0m[1;40H[37;40m [0m[2;1H[37;40m [0m[2;2H[37;40m [0m[2;3H[37;40m [0m[2;4H[37;40m [0m[2;5H[37;40m [0m[2;6H[37;40m [0m[2;7H[37;40m [0m[2;8H[37;40m [0m[2;9H[37;40m [0m[2;10H[37;40m [0m[2;11H[37;40m [0m[2;12H[37;40m [0m[2;13H[37;40m [0m[2;14H[37;40m [0m[2;15H[37;40m [0m[2;16H[37;40m [0m[2;17H[37;40m [0m[2;18H[37;40m [0m[2;19H[37;40m [0m[2;20H[37;40m [0m[2;21H[37;40m [0m[2;22H[37;40m [0m[2;23H[37;40m [0m[2;24H[37;40m [0m[2;25H[37;40m [0m[2;26H[37;40m [0m[2;27H[37;40m [0m[2;28H[37;40m [0m[2;29H[37;40m [0m[2;30H[37;40m [0m[2;31H[37;40m [0m[2;32H[37;40m [0m[2;33H[37;40m [0m[2;34H[37;40m [0m[2;35H[37;40m [0m[2;36H[37;40m [0m[2;37H[37;40m [0m[2;38H[37;40m [0m[2;39H[37;40m [0m[2;40H[37;40m [0m[3;1H[37;40m [0m[3;2H[37;40m [0m[3;3H[37;40m [0m[3;4H[37;40m [0m[3;5H[37;40m [0m[3;6H[37;40m [0m[3;7H[37;40m [0m[3;8H[37;40m [0m[3;9H[37;40m [0m[3;10H[37;40m [0m[3;11H[37;40m [0m[3;12H[37;40m [0m[3;13H[37;40m [0m[3;14H[37;40m [0m[3;15H[37;40m [0m[3;16H[37;40m [0m[3;17H[37;40m [0m[3;18H[37;40m [0m[3;19H[37;40m [0m[3;20H[37;40m [0m[3;21H[37;40m [0m[3;22H[37;40m [0m[3;23H[37;40m [0m[3;24H[37;40m [0m[3;25H[37;40m [0m[3;26H[37;40m [0m[3;27H[37;40m [0m[3;28H[37;40m [0m[3;29H[37;40m [0m[3;30H[37;40m [0m[3;31H[37;40m [0m[3;32H[37;40m [0m[3;33H[37;40m [0m[3;34H[37;40m [0m[3;35H[37;40m [0m[3;36H[37;40m [0m[3;37H[37;40m [0m[3;38H[37;40m [0m[3;39H[37;40m [0m[3;40H[37;40m [0m[4;1H[37;40m [0m[4;2H[37;40m [0m[4;3H[37;40m [0m[4;4H[37;40m [0m[4;5H[37;40m [0m[4;6H[37;40m [0m[4;7H[37;40m [0m[4;8H[37;40m [0m[4;9H[37;40m [0m[4;10H[37;40m [0m[4;11H[37;40m [0m[4;12H[37;40m [0m[4;13H[37;40m [0m[4;14H[37;40m [0m[4;15H[37;40m [0m[4;16H[37;40m [0m[4;17H[37;40m [0m[4;18H[37;40m [0m[4;19H[37;40m [0m[4;20H[37;40m [0m[4;21H[37;40m [0m[4;22H[37;40m [0m[4;23H[37;40m [0m[4;24H[37;40m [0m[4;25H[37;40m [0m[4;26H[37;40m [0m[4;27H[37;40m [0m[4;28H[37;40m [0m[4;29H[37;40m [0m[4;30H[37;40m [0m[4;31H[37;40m [0m[4;32H[37;40m [0m[4;33H[37;40m [0m[4;34H[37;40m [0m[4;35H[37;40m [0m[4;36H[37;40m [0m[4;37H[37;40m [0m[4;38H[37;40m [0m[4;39H[37;40m [0m[4;40H[37;40m [0m[5;1H[37;40m [0m[5;2H[37;40m [0m[5;3H[37;40m [0m[5;4H[37;40m [0m[5;5H[37;40m [0m[5;6H[37;40m [0m[5;7H[37;40m [0m[5;8H[37;40m [0m[5;9H[37;40m [0m[5;10H[37;40m [0m[5;11H[37;40m [0m[5;12H[37;40m [0m[5;13H[37;40m [0m[5;14H[37;40m [0m[5;15H[37;40m [0m[5;16H[37;40m [0m[5;17H[37;40m [0m[5;18H[37;40m [0m[5;19H[37;40m [0m[5;20H[37;40m [0m[5;21H[37;40m [0m[5;22H[37;40m [0m[5;23H[37;40m [0m[5;24H[37;40m [0m[5;25H[37;40m [0m[5;26H[37;40m [0m[5;27H[37;40m [0m[5;28H[37;40m [0m[5;29H[37;40m [0m[5;30H[37;40m [0m[5;31H[37;40m [0m[5;32H[37;40m [0m[5;33H[37;40m [0m[5;34H[37;40m [0m[5;35H[37;40m [0m[5;36H[37;40m [0m[5;37H[37;40m [0m[5;38H[37;40m [0m[5;39H[37;40m [0m[5;40H[37;40m [0m[6;1H[97;44m拼[0m[6;3H[97;44m音[0m[6;5H[97;44m>[0m[6;6H[97;44m [0m[6;7H[97;44m [0m[6;8H[97;44m [0m[6;9H[97;44m [0m[6;10H[97;44m [0m[6;11H[97;44m [0m[6;12H[97;44m [0m[6;13H[97;44m [0m[6;14H[97;44m [0m[6;15H[97;44m [0m[6;16H[97;44m [0m[6;17H[97;44m [0m[6;18H[97;44m [0m[6;19H[97;44m [0m[6;20H[97;44m [0m[6;21H[97;44m [0m[6;22H[97;44m [0m[6;23H[97;44m [0m[6;24H[97;44m [0m[6;25H[97;44m [0m[6;26H[97;44m [0m[6;27H[97;44m [0m[6;28H[97;44m [0m[6;29H[97;44m [0m[6;30H[97;44m [0m[6;31H[97;44m [0m[6;32H[97;44m [0m[6;33H[97;44m [0m[6;34H[97;44m [0m[6;35H[97;44m [0m[6;36H[97;44m [0m[6;37H[97;44m [0m[6;38H[97;44m [0m[6;39H[97;44m [0m[6;40H[97;44m [0m[1;1H[37;40m [0m[1;2H[37;40m [0m[1;3H[37;40m [0m[1;4H[37;40m [0m[1;5H[37;40m [0m[1;6H[37;40m [0m[1;7H[37;40m [0m[1;8H[37;40m [0m[1;9H[37;40m [0m[1;10H[37;40m [0m[1;11H[37;40m [0m[1;12H[37;40m [0m[1;13H[37;40m [0m[1;14H[37;40m [0m[1;15H[37;40m [0m[1;16H[37;40m [0m[1;17H[37;40m [0m[1;18H[37;40m [0m[1;19H[37;40m [0m[1;20H[37;40m [0m[1;21H[37;40m [0m[1;22H[37;40m [0m[1;23H[37;40m [0m[1;24H[37;40m [0m[1;25H[37;40m [0m[1;26H[37;40m [0m[1;27H[37;40m [0m[1;28H[37;40m [0m[1;29H[37;40m [0m[1;30H[37;40m [0m[1;31H[37;40m [0m[1;32H[37;40m [0m[1;33H[37;40m [0m[1;34H[37;40m [0m[1;35H[37;40m [0m[1;36H[37;40m [0m[1;37H[37;40m [0m[1;38H[37;40m [0m[1;39H[37;40m [0m[1;40H[37;40m [0m[2;1H[37;40m [0m[2;2H[37;40m [0m[2;3H[37;40m [0m[2;4H[37;40m [0m[2;5H[37;40m [0m[2;6H[37;40m [0m[2;7H[37;40m [0m[2;8H[37;40m [0m[2;9H[37;40m [0m[2;10H[37;40m [0m[2;11H[37;40m [0m[2;12H[37;40m [0m[2;13H[37;40m [0m[2;14H[37;40m [0m[2;15H[37;40m [0m[2;16H[37;40m [0m[2;17H[37;40m [0m[2;18H[37;40m [0m[2;19H[37;40m [0m[2;20H[37;40m [0m[2;21H[37;40m [0m[2;22H[37;40m [0m[2;23H[37;40m [0m[2;24H[37;40m [0m[2;25H[37;40m [0m[2;26H[37;40m [0m[2;27H[37;40m [0m[2;28H[37;40m [0m[2;29H[37;40m [0m[2;30H[37;40m [0m[2;31H[37;40m [0m[2;32H[37;40m [0m[2;33H[37;40m [0m[2;34H[37;40m [0m[2;35H[37;40m [0m[2;36H[37;40m [0m[2;37H[37;40m [0m[2;38H[37;40m [0m[2;39H[37;40m [0m[2;40H[37;40m [0m[3;1H[37;40m [0m[3;2H[37;40m [0m[3;3H[37;40m [0m[3;4H[37;40m [0m[3;5H[37;40m [0m[3;6H[37;40m [0m[3;7H[37;40m [0m[3;8H[37;40m [0m[3;9H[37;40m [0m[3;10H[37;40m [0m[3;11H[37;40m [0m[3;12H[37;40m [0m[3;13H[37;40m [0m[3;14H[37;40m [0m[3;15H[37;40m [0m[3;16H[37;40m [0m[3;17H[37;40m [0m[3;18H[37;40m [0m[3;19H[37;40m [0m[3;20H[37;40m [0m[3;21H[37;40m [0m[3;22H[37;40m [0m[3;23H[37;40m [0m[3;24H[37;40m [0m[3;25H[37;40m [0m[3;26H[37;40m [0m[3;27H[37;40m [0m[3;28H[37;40m [0m[3;29H[37;40m [0m[3;30H[37;40m [0m[3;31H[37;40m [0m[3;32H[37;40m [0m[3;33H[37;40m [0m[3;34H[37;40m [0m[3;35H[37;40m [0m[3;36H[37;40m [0m[3;37H[37;40m [0m[3;38H[37;40m [0m[3;39H[37;40m [0m[3;40H[37;40m [0m[4;1H[37;40m [0m[4;2H[37;40m [0m[4;3H[37;40m [0m[4;4H[37;40m [0m[4;5H[37;40m [0m[4;6H[37;40m [0m[4;7H[37;40m [0m[4;8H[37;40m [0m[4;9H[37;40m [0m[4;10H[37;40m [0m[4;11H[37;40m [0m[4;12H[37;40m [0m[4;13H[37;40m [0m[4;14H[37;40m [0m[4;15H[37;40m [0m[4;16H[37;40m [0m[4;17H[37;40m [0m[4;18H[37;40m [0m[4;19H[37;40m [0m[4;20H[37;40m [0m[4;21H[37;40m [0m[4;22H[37;40m [0m[4;23H[37;40m [0m[4;24H[37;40m [0m[4;25H[37;40m [0m[4;26H[37;40m [0m[4;27H[37;40m [0m[4;28H[37;40m [0m[4;29H[37;40m [0m[4;30H[37;40m [0m[4;31H[37;40m [0m[4;32H[37;40m [0m[4;33H[37;40m [0m[4;34H[37;40m [0m[4;35H[37;40m [0m[4;36H[37;40m [0m[4;37H[37;40m [0m[4;38H[37;40m [0m[4;39H[37;40m [0m[4;40H[37;40m [0m[5;1H[37;40m [0m[5;2H[37;40m [0m[5;3H[37;40m [0m[5;4H[37;40m [0m[5;5H[37;40m [0m[5;6H[37;40m [0m[5;7H[37;40m [0m[5;8H[37;40m [0m[5;9H[37;40m [0m[5;10H[37;40m [0m[5;11H[37;40m [0m[5;12H[37;40m [0m[5;13H[37;40m [0m[5;14H[37;40m [0m[5;15H[37;40m [0m[5;16H[37;40m [0m[5;17H[37;40m [0m[5;18H[37;40m [0m[5;19H[37;40m [0m[5;20H[37;40m [0m[5;21H[37;40m [0m[5;22H[37;40m [0m[5;23H[37;40m [0m[5;24H[37;40m [0m[5;25H[37;40m [0m[5;26H[37;40m [0m[5;27H[37;40m [0m[5;28H[37;40m [0m[5;29H[37;40m [0m[5;30H[37;40m [0m[5;31H[37;40m [0m[5;32H[37;40m [0m[5;33H[37;40m [0m[5;34H[37;40m [0m[5;35H[37;40m [0m[5;36H[37;40m [0m[5;37H[37;40m [0m[5;38H[37;40m [0m[5;39H[37;40m [0m[5;40H[37;40m [0m[6;1H[97;44m拼[0m[6;3H[97;44m音[0m[6;5H[97;44m>[0m[6;6H[97;44m [0m[6;7H[97;44m[[0m[6;8H[97;44mn[0m[6;9H[97;44m][0m[6;10H[97;44m [0m[6;11H[97;44m呐[0m[6;13H[97;44m1[0m[6;14H[97;44m [0m[6;15H[97;44m哪[0m[6;17H[97;44m2[0m[6;18H[97;44m [0m[6;19H[97;44m娜[0m[6;21H[97;44m3[0m[6;22H[97;44m [0m[6;23H[97;44m拿[0m[6;25H[97;44m4[0m[6;26H[97;44m [0m[6;27H[97;44m纳[0m[6;29H[97;44m5[0m[6;30H[97;44m [0m[6;31H[97;44m那[0m[6;33H[97;44m6[0m[6;34H[97;44m [0m[6;35H[97;44m钠[0m[6;37H[97;44m7[0m[6;38H[97;44m [0m[6;39H[97;44m [0m[6;40H[97;44m [0m[1;1H[37;40m [0m[1;2H[37;40m [0m[1;3H[37;40m [0m[1;4H[37;40m [0m[1;5H[37;40m [0m[1;6H[37;40m [0m[1;7H[37;40m [0m[1;8H[37;40m [0m[1;9H[37;40m [0m[1;10H[37;40m [0m[1;11H[37;40m [0m[1;12H[37;40m [0m[1;13H[37;40m [0m[1;14H[37;40m [0m[1;15H[37;40m [0m[1;16H[37;40m [0m[1;17H[37;40m [0m[1;18H[37;40m [0m[1;19H[37;40m [0m[1;20H[37;40m [0m[1;21H[37;40m [0m[1;22H[37;40m [0m[1;23H[37;40m [0m[1;24H[37;40m [0m[1;25H[37;40m [0m[1;26H[37;40m [0m[1;27H[37;40m [0m[1;28H[37;40m [0m[1;29H[37;40m [0m[1;30H[37;40m [0m[1;31H[37;40m [0m[1;32H[37;40m [0m[1;33H[37;40m [0m[1;34H[37;40m [0m[1;35H[37;40m [0m[1;36H[37;40m [0m[1;37H[37;40m [0m[1;38H[37;40m [0m[1;39H[37;40m [0m[1;40H[37;40m [0m[2;1H[37;40m [0m[2;2H[37;40m [0m[2;3H[37;40m [0m[2;4H[37;40m [0m[2;5H[37;40m [0m[2;6H[37;40m [0m[2;7H[37;40m [0m[2;8H[37;40m [0m[2;9H[37;40m [0m[2;10H[37;40m [0m[2;11H[37;40m [0m[2;12H[37;40m [0m[2;13H[37;40m [0m[2;14H[37;40m [0m[2;15H[37;40m [0m[2;16H[37;40m [0m[2;17H[37;40m [0m[2;18H[37;40m [0m[2;19H[37;40m [0m[2;20H[37;40m [0m[2;21H[37;40m [0m[2;22H[37;40m [0m[2;23H[37;40m [0m[2;24H[37;40m [0m[2;25H[37;40m [0m[2;26H[37;40m [0m[2;27H[37;40m [0m[2;28H[37;40m [0m[2;29H[37;40m [0m[2;30H[37;40m [0m[2;31H[37;40m [0m[2;32H[37;40m [0m[2;33H[37;40m [0m[2;34H[37;40m [0m[2;35H[37;40m [0m[2;36H[37;40m [0m[2;37H[37;40m [0m[2;38H[37;40m [0m[2;39H[37;40m [0m[2;40H[37;40m [0m[3;1H[37;40m [0m[3;2H[37;40m [0m[3;3H[37;40m [0m[3;4H[37;40m [0m[3;5H[37;40m [0m[3;6H[37;40m [0m[3;7H[37;40m [0m[3;8H[37;40m [0m[3;9H[37;40m [0m[3;10H[37;40m [0m[3;11H[37;40m [0m[3;12H[37;40m [0m[3;13H[37;40m [0m[3;14H[37;40m [0m[3;15H[37;40m [0m[3;16H[37;40m [0m[3;17H[37;40m [0m[3;18H[37;40m [0m[3;19H[37;40m [0m[3;20H[37;40m [0m[3;21H[37;40m [0m[3;22H[37;40m [0m[3;23H[37;40m [0m[3;24H[37;40m [0m[3;25H[37;40m [0m[3;26H[37;40m [0m[3;27H[37;40m [0m[3;28H[37;40m [0m[3;29H[37;40m [0m[3;30H[37;40m [0m[3;31H[37;40m [0m[3;32H[37;40m [0m[3;33H[37;40m [0m[3;34H[37;40m [0m[3;35H[37;40m [0m[3;36H[37;40m [0m[3;37H[37;40m [0m[3;38H[37;40m [0m[3;39H[37;40m [0m[3;40H[37;40m [0m[4;1H[37;40m [0m[4;2H[37;40m [0m[4;3H[37;40m [0m[4;4H[37;40m [0m[4;5H[37;40m [0m[4;6H[37;40m [0m[4;7H[37;40m [0m[4;8H[37;40m [0m[4;9H[37;40m [0m[4;10H[37;40m [0m[4;11H[37;40m [0m[4;12H[37;40m [0m[4;13H[37;40m [0m[4;14H[37;40m [0m[4;15H[37;40m [0m[4;16H[37;40m [0m[4;17H[37;40m [0m[4;18H[37;40m [0m[4;19H[37;40m [0m[4;20H[37;40m [0m[4;21H[37;40m [0m[4;22H[37;40m [0m[4;23H[37;40m [0m[4;24H[37;40m [0m[4;25H[37;40m [0m[4;26H[37;40m [0m[4;27H[37;40m [0m[4;28H[37;40m [0m[4;29H[37;40m [0m[4;30H[37;40m [0m[4;31H[37;40m [0m[4;32H[37;40m [0m[4;33H[37;40m [0m[4;34H[37;40m [0m[4;35H[37;40m [0m[4;36H[37;40m [0m[4;37H[37;40m [0m[4;38H[37;40m [0m[4;39H[37;40m [0m[4;40H[37;40m [0m[5;1H[37;40m [0m[5;2H[37;40m [0m[5;3H[37;40m [0m[5;4H[37;40m [0m[5;5H[37;40m [0m[5;6H[37;40m [0m[5;7H[37;40m [0m[5;8H[37;40m [0m[5;9H[37;40m [0m[5;10H[37;40m [0m[5;11H[37;40m [0m[5;12H[37;40m [0m[5;13H[37;40m [0m[5;14H[37;40m [0m[5;15H[37;40m [0m[5;16H[37;40m [0m[5;17H[37;40m [0m[5;18H[37;40m [0m[5;19H[37;40m [0m[5;20H[37;40m [0m[5;21H[37;40m [0m[5;22H[37;40m [0m[5;23H[37;40m [0m[5;24H[37;40m [0m[5;25H[37;40m [0m[5;26H[37;40m [0m[5;27H[37;40m [0m[5;28H[37;40m [0m[5;29H[37;40m [0m[5;30H[37;40m [0m[5;31H[37;40m [0m[5;32H[37;40m [0m[5;33H[37;40m [0m[5;34H[37;40m [0m[5;35H[37;40m [0m[5;36H[37;40m [0m[5;37H[37;40m [0m[5;38H[37;40m [0m[5;39H[37;40m [0m[5;40H[37;40m [0m[6;1H[97;44m拼[0m[6;3H[97;44m音[0m[6;5H[97;44m>[0m[6;6H[97;44m [0m[6;7H[97;44m[[0m[6;8H[97;44mn[0m[6;9H[97;44mi[0m[6;10H[97;44m][0m[6;11H[97;44m [0m[6;12H[97;44m你[0m[6;14H[97;44m1[0m[6;15H[97;44m [0m[6;16H[97;44m倪[0m[6;18H[97;44m2[0m[6;19H[97;44m [0m[6;20H[97;44m匿[0m[6;22H[97;44m3[0m[6;23H[97;44m [0m[6;24H[97;44m妮[0m[6;26H[97;44m4[0m[6;27H[97;44m [0m[6;28H[97;44m尼[0m[6;30H[97;44m5[0m[6;31H[97;44m [0m[6;32H[97;44m拟[0m[6;34H[97;44m6[0m[6;35H[97;44m [0m[6;36H[97;44m泥[0m[6;38H[97;44m7[0m[6;39H[97;44m [0m[6;40H[97;44m [0m[1;1H[37;40m [0m[1;2H[37;40m [0m[1;3H[37;40m [0m[1;4H[37;40m [0m[1;5H[37;40m [0m[1;6H[37;40m [0m[1;7H[37;40m [0m[1;8H[37;40m [0m[1;9H[37;40m [0m[1;10H[37;40m [0m[1;11H[37;40m [0m[1;12H[37;40m [0m[1;13H[37;40m [0m[1;14H[37;40m [0m[1;15H[37;40m [0m[1;16H[37;40m [0m[1;17H[37;40m [0m[1;18H[37;40m [0m[1;19H[37;40m [0m[1;20H[37;40m [0m[1;21H[37;40m [0m[1;22H[37;40m [0m[1;23H[37;40m [0m[1;24H[37;40m [0m[1;25H[37;40m [0m[1;26H[37;40m [0m[1;27H[37;40m [0m[1;28H[37;40m [0m[1;29H[37;40m [0m[1;30H[37;40m [0m[1;31H[37;40m [0m[1;32H[37;40m [0m[1;33H[37;40m [0m[1;34H[37;40m [0m[1;35H[37;40m [0m[1;36H[37;40m [0m[1;37H[37;40m [0m[1;38H[37;40m [0m[1;39H[37;40m [0m[1;40H[37;40m [0m[2;1H[37;40m [0m[2;2H[37;40m [0m[2;3H[37;40m [0m[2;4H[37;40m [0m[2;5H[37;40m [0m[2;6H[37;40m [0m[2;7H[37;40m [0m[2;8H[37;40m [0m[2;9H[37;40m [0m[2;10H[37;40m [0m[2;11H[37;40m [0m[2;12H[37;40m [0m[2;13H[37;40m [0m[2;14H[37;40m [0m[2;15H[37;40m [0m[2;16H[37;40m [0m[2;17H[37;40m [0m[2;18H[37;40m [0m[2;19H[37;40m [0m[2;20H[37;40m [0m[2;21H[37;40m [0m[2;22H[37;40m [0m[2;23H[37;40m [0m[2;24H[37;40m [0m[2;25H[37;40m [0m[2;26H[37;40m [0m[2;27H[37;40m [0m[2;28H[37;40m [0m[2;29H[37;40m [0m[2;30H[37;40m [0m[2;31H[37;40m [0m[2;32H[37;40m [0m[2;33H[37;40m [0m[2;34H[37;40m [0m[2;35H[37;40m [0m[2;36H[37;40m [0m[2;37H[37;40m [0m[2;38H[37;40m [0m[2;39H[37;40m [0m[2;40H[37;40m [0m[3;1H[37;40m [0m[3;2H[37;40m [0m[3;3H[37;40m [0m[3;4H[37;40m [0m[3;5H[37;40m [0m[3;6H[37;40m [0m[3;7H[37;40m [0m[3;8H[37;40m [0m[3;9H[37;40m [0m[3;10H[37;40m [0m[3;11H[37;40m [0m[3;12H[37;40m [0m[3;13H[37;40m [0m[3;14H[37;40m [0m[3;15H[37;40m [0m[3;16H[37;40m [0m[3;17H[37;40m [0m[3;18H[37;40m [0m[3;19H[37;40m [0m[3;20H[37;40m [0m[3;21H[37;40m [0m[3;22H[37;40m [0m[3;23H[37;40m [0m[3;24H[37;40m [0m[3;25H[37;40m [0m[3;26H[37;40m [0m[3;27H[37;40m [0m[3;28H[37;40m [0m[3;29H[37;40m [0m[3;30H[37;40m [0m[3;31H[37;40m [0m[3;32H[37;40m [0m[3;33H[37;40m [0m[3;34H[37;40m [0m[3;35H[37;40m [0m[3;36H[37;40m [0m[3;37H[37;40m [0m[3;38H[37;40m [0m[3;39H[37;40m [0m[3;40H[37;40m [0m[4;1H[37;40m [0m[4;2H[37;40m [0m[4;3H[37;40m [0m[4;4H[37;40m [0m[4;5H[37;40m [0m[4;6H[37;40m [0m[4;7H[37;40m [0m[4;8H[37;40m [0m[4;9H[37;40m [0m[4;10H[37;40m [0m[4;11H[37;40m [0m[4;12H[37;40m [0m[4;13H[37;40m [0m[4;14H[37;40m [0m[4;15H[37;40m [0m[4;16H[37;40m [0m[4;17H[37;40m [0m[4;18H[37;40m [0m[4;19H[37;40m [0m[4;20H[37;40m [0m[4;21H[37;40m [0m[4;22H[37;40m [0m[4;23H[37;40m [0m[4;24H[37;40m [0m[4;25H[37;40m [0m[4;26H[37;40m [0m[4;27H[37;40m [0m[4;28H[37;40m [0m[4;29H[37;40m [0m[4;30H[37;40m [0m[4;31H[37;40m [0m[4;32H[37;40m [0m[4;33H[37;40m [0m[4;34H[37;40m [0m[4;35H[37;40m [0m[4;36H[37;40m [0m[4;37H[37;40m [0m[4;38H[37;40m [0m[4;39H[37;40m [0m[4;40H[37;40m [0m[5;1H[37;40m [0m[5;2H[37;40m [0m[5;3H[37;40m [0m[5;4H[37;40m [0m[5;5H[37;40m [0m[5;6H[37;40m [0m[5;7H[37;40m [0m[5;8H[37;40m [0m[5;9H[37;40m [0m[5;10H[37;40m [0m[5;11H[37;40m [0m[5;12H[37;40m [0m[5;13H[37;40m [0m[5;14H[37;40m [0m[5;15H[37;40m [0m[5;16H[37;40m [0m[5;17H[37;40m [0m[5;18H[37;40m [0m[5;19H[37;40m [0m[5;20H[37;40m [0m[5;21H[37;40m [0m[5;22H[37;40m [0m[5;23H[37;40m [0m[5;24H[37;40m [0m[5;25H[37;40m [0m[5;26H[37;40m [0m[5;27H[37;40m [0m[5;28H[37;40m [0m[5;29H[37;40m [0m[5;30H[37;40m [0m[5;31H[37;40m [0m[5;32H[37;40m [0m[5;33H[37;40m [0m[5;34H[37;40m [0m[5;35H[37;40m [0m[5;36H[37;40m [0m[5;37H[37;40m [0m[5;38H[37;40m [0m[5;39H[37;40m [0m[5;40H[37;40m [0m[6;1H[97;44m拼[0m[6;3H[97;44m音[0m[6;5H[97;44m>[0m[6;6H[97;44m [0m[6;7H[97;44m你[0m[6;9H[97;44m [0m[6;10H[97;44m [0m[6;11H[97;44m [0m[6;12H[97;44m [0m[6;13H[97;44m [0m[6;14H[97;44m [0m[6;15H[97;44m [0m[6;16H[97;44m [0m[6;17H[97;44m [0m[6;18H[97;44m [0m[6;19H[97;44m [0m[6;20H[97;44m [0m[6;21H[97;44m [0m[6;22H[97;44m [0m[6;23H[97;44m [0m[6;24H[97;44m [0m[6;25H[97;44m [0m[6;26H[97;44m [0m[6;27H[97;44m [0m[6;28H[97;44m [0m[6;29H[97;44m [0m[6;30H[97;44m [0m[6;31H[97;44m [0m[6;32H[97;44m [0m[6;33H[97;44m [0m[6;34H[97;44m [0m[6;35H[97;44m [0m[6;36H[97;44m [0m[6;37H[97;44m [0m[6;38H[97;44m [0m[6;39H[97;44m [0m[6;40H[97;44m [0m[?25h[37;40m[2J[H[0mchinesetest: full Chinese support suite
+[1] font data
+  PASS status() returns 0
+  PASS hanzi count == 6763
+  PASS symbol count == 682
+  PASS glyph bytes == 32 (16x16, 2 B/row)
+  PASS hanzi size == 216416 B
+  PASS symbol size == 21824 B
+  PASS embedded slot loaded
+  PASS zone 16 wei 1 -> compact index 0
+  PASS zone 87 wei 94 -> compact index 6762
+  PASS zone 55 wei 90 is a GB2312 gap slot
+  PASS all 6763 hanzi bitmaps non-empty
+  PASS symbol table reachable via bit15
+[2] font lookup
+  PASS U+4E2D found in unicode index
+  PASS zone/wei lookup agrees with unicode lookup
+  PASS index -> unicode round-trips to U+4E2D
+  PASS U+3002 in symbol table (bit15 set)
+  PASS unmapped/mapped U+4E00 handled without crash
+  PASS zone 95 rejected
+  PASS wei 0 rejected
+  PASS metrics 16x16 stride 2
+[3] font management
+  PASS embedded load idempotent
+  PASS runtime slot allocated (>=1)
+  PASS runtime font resolves its glyph
+  PASS runtime unload ok
+  PASS embedded slot unload rejected
+  PASS unknown slot rejected
+  PASS shutdown ok
+[4] GB2312 codec
+  PASS decode D6D0 -> U+4E2D
+  PASS decode 'A' -> 0x41
+  PASS lead 0x88 rejected
+  PASS truncated pair rejected
+  PASS encode U+4E2D -> D6 D0
+  PASS encode non-GB2312 cp rejected
+[5] UTF-8 codec
+  PASS decode E4 B8 AD -> U+4E2D
+  PASS decode 'z' pass-through
+  PASS overlong C1 81 rejected
+  PASS surrogate ED A0 80 rejected
+  PASS truncated 3-byte rejected
+  PASS bad continuation byte rejected
+  PASS decode 4-byte U+1F600
+  PASS encode U+4E2D -> E4 B8 AD
+  PASS encode surrogate rejected
+  PASS encode > U+10FFFF rejected
+[6] encoding conversion
+  PASS GB2312 zhongwen -> UTF-8
+  PASS UTF-8 -> GB2312 round trip
+  PASS UTF-8 -> Unicode cp U+4E2D
+[7] encoding detection
+  PASS detect ascii
+  PASS detect utf-8
+  PASS detect gb2312
+  PASS detect empty -> ascii
+[8] renderer extension
+  PASS render_chinese_init
+  PASS CJK width 16 px
+  PASS ASCII width 8 px
+  PASS CJK cols 2
+  PASS ASCII cols 1
+  PASS font_select finds CJK font
+  PASS font_get_bitmap CJK
+  PASS ascii + gb2312 fonts registered
+  PASS active renderer keeps 8x16 cell
+  PASS draw CJK/ASCII/missing-box without fault
+[9] console extension
+  PASS console_cn_init
+  PASS default encoding utf-8
+  PASS encoding switch
+  PASS mixed rejected
+  PASS cp cols CJK 2
+  PASS display cols a[zhong]b = 4
+中x  PASS putcw cursor geometry SKIP (output captured)
+   PASS cn backspace ok
+[11] line editing (UTF-8)
+abcab ab
+  PASS ascii line + backspace unchanged
+xx� x�x� x�x中 x中
+  PASS UTF-8 bytes stored intact
+xx� x�x� x�x中 x中x   x
+  PASS backspace removes one CJK char
+xx� x�x� x�x中 x中x中   xxy中   xy
+  PASS LEFT steps one CJK char, insert mid-line
+[12] font engine registry
+  PASS font_register accepts
+  PASS count increments
+  PASS registered font resolves cp
+  PASS font_unregister
+  PASS count restored
+  PASS unregistered cp unresolved
+  PASS unknown name rejected
+[13] TUI chinese layer
+  PASS tui_chinese_print utf-8 ok
+  PASS str cols zhongwen = 4
+  PASS IME 'ni' -> ni (U+4F60) first
+  PASS IME 'zhong' -> zhong in candidates
+  PASS IME nonsense syllable -> 0 candidates
+  PASS 396 syllables loaded
+  PASS 3755 level-1 chars loaded
+  PASS menu null rejected
+  PASS form null rejected
+[14] fix1 input paths (ASCII editor + IME keys)
+  PASS ascii input length == 4
+  PASS ascii input text == home
+  PASS IME composed length == 3 (one hanzi)
+  PASS IME composed text == 你 (U+4F60)
+[15] fix1 console IME line (n i 1 Enter -> 你; digits direct; Esc cancels)
+                                                                        IME>                                                                         IME> [n] 呐1 哪2 娜3 拿4                                                                         IME> [ni] 你1 倪2 匿3 妮4                                                                         IME> 你                                                                        
+ime: composed 1 character(s): 你
+  PASS console IME composed length == 3 (one hanzi)
+  PASS console IME composed text 
+
+--- [cat /tmp/cn.txt] ---
+cat /tmp/cn.txt
+中文测试
+--- [help] ---
+help
+
+Open Cube OS User-space Shell (ush) — built-in commands:
+
+  cd [dir]        Change directory
+  exit [code]     Exit shell
+  help            Show this help
+  export VAR=val  Set environment variable
+  alias name=val  Set command alias
+  unalias name    Remove alias
+  env             Show environment variables
+  pwd             Print working directory
+  echo [text]     Print text to stdout
+  history         Show command history
+  cat <file>      Print file contents
+  grep <pat> [f]  Filter lines matching pattern
+  wc <file>       Count lines/words/chars
+  head <file>     Print first 10 lines
+  tail <file>     Print last 10 lines
+  sort <file>     Sort lines alphabetically
+  uniq <file>     Remove duplicate consecutive lines
+  sed <script>    Stream editor (s/old/new/g, -n Np, Nd)
+  awk '{print $N}' Print a field / NF / NR per line
+  ls [dir]        List directory contents
+  cp <src> <dst>  Copy file
+  mv <src> <dst>  Move/rename file
+  rm <file>       Remove file
+  ln [-s] <a> <b> Hard link, or -s symlink (abs target)
+  chmod <m> <f>   Change permission bits (octal)
+  chown <u>:<g> <f> Change owner (numeric)
+  mkdir <dir>     Create directory
+  rmdir <dir>     Remove directory
+  touch <file>    Create empty file / update timestamp
+  stat <file>     Show file info
+  uname           Print OS name
+  free            Show memory info
+  date            Show date/time
+  df              Show disk usage
+  du [dir]        Directory usage (recursive)
+  ps              List all kernel tasks (TID/state/prio)
+  kill <pid>      Kill a task
+  top [-n N]      Snapshot + refresh process/memory stats
+  ping <host>     ICMP echo via the kernel stack
+  wget <h> [p] <path> Download via the kernel HTTP client
+  netstat         Network statistics / sockets
+  ifconfig        Network interface info
+  nano <file>     nano-style editor (^O save ^X exit)
+  vi <file>       Same editor, vi-compatible name
+  jobs            List background jobs
+  fg [job]        Bring job to foreground
+
+  v2.0.0 service commands (SYS_L1SVC):
+  rtc [uie|pie|alarm N]  CMOS RTC status + interrupt tests
+  hpet [counter|oneshot|periodic|test]  HPET status + tests
+  pmtimer [read|cal|wrap|test]  ACPI PM timer + calibration
+  tsc [cal|delay N|test]  TSC reads + calibration + delay
+  mount [type dev path]  List mounts or mount a filesystem
+  mounts                 List VFS mount table
+  umount <path>          Unmount a filesystem
+  fatmount [dev path]    Mount FAT32 (default ata0 /mnt)
+  fatstat                Show FAT32 stats
+  tree [path]            Directory tree view
+  dskstat / lsblk        Block devices + cache stats
+  ahci / nvme / ata      Controller status
+  parted [dev]           Partition table
+  mkfs.fat32|exfat|ext4 <dev>  Format (confirm)
+  fsck / sync            Filesystem check / flush cache
+  abdisk / install / grub-install <dev>  Disk setup
+  abcfg                  A/B grub.cfg preview
+  *_test                 Block driver test suite
+  <nicname> [/_test]     NIC status + tests (e1000e igb ixgbe
+                         rtl8139/8168/8125/810x bcm57xx, other)
+  wifi / bt              Wireless + bluetooth families
+  sound / play / volume  Audio cards, playback, mixer
+  hda/ac97/sb16/es1370/virtiosnd/usbaudio + _test variants
+  update / checkupdate / rollback   A/B update family
+  config list|get|set    System configuration store
+  update_*_test          OTA test suite
+  halt/shutdown/reboot   Power controls (same bodies as oc>)
+  sleep <sec>            Delay N seconds
+  suspend_test           S3 capability contract
+  stats / uname / clear  Console + kernel counters
+  lang [en|zh]           Output language
+  chinese / font / encoding / ime [+ -test variants]
+  touchpad / touchtest   Input subsystem
+  uvc / uvctest          Camera (UVC devices + self test)
+  scsi / scsitest        SCSI controllers + self test
+  gameport / parallel / ir [+ *test]  Legacy port probes
+  usb / usbdev [slot]    USB hosts, devices, descriptors
+  usb_*_test             USB class driver test suite
+  arp / route / ip       Neighbor, routing and address tables
+  dhcp / dns / dnstest   Resolver + lease diagnostics
+  firewall / nf_test     Ruleset + netfilter tests
+  tcpstats / tcptest / tcpcc_test  TCP diagnostics
+  lspci                  PCI device scan
+  cryptotest / dhtest    Crypto self-tests (NIST + DH)
+
+  Editing: Up/Down history, Left/Right/Home/End cursor, Del,
+  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion
+
+  Redirection:  > file   >> file   < file   | cmd
+
+
+--- [help] ---
+help
+
+Open Cube OS User-space Shell (ush) — built-in commands:
+
+  cd [dir]        Change directory
+  exit [code]     Exit shell
+  help            Show this help
+  export VAR=val  Set environment variable
+  alias name=val  Set command alias
+  unalias name    Remove alias
+  env             Show environment variables
+  pwd             Print working directory
+  echo [text]     Print text to stdout
+  history         Show command history
+  cat <file>      Print file contents
+  grep <pat> [f]  Filter lines matching pattern
+  wc <file>       Count lines/words/chars
+  head <file>     Print first 10 lines
+  tail <file>     Print last 10 lines
+  sort <file>     Sort lines alphabetically
+  uniq <file>     Remove duplicate consecutive lines
+  sed <script>    Stream editor (s/old/new/g, -n Np, Nd)
+  awk '{print $N}' Print a field / NF / NR per line
+  ls [dir]        List directory contents
+  cp <src> <dst>  Copy file
+  mv <src> <dst>  Move/rename file
+  rm <file>       Remove file
+  ln [-s] <a> <b> Hard link, or -s symlink (abs target)
+  chmod <m> <f>   Change permission bits (octal)
+  chown <u>:<g> <f> Change owner (numeric)
+  mkdir <dir>     Create directory
+  rmdir <dir>     Remove directory
+  touch <file>    Create empty file / update timestamp
+  stat <file>     Show file info
+  uname           Print OS name
+  free            Show memory info
+  date            Show date/time
+  df              Show disk usage
+  du [dir]        Directory usage (recursive)
+  ps              List all kernel tasks (TID/state/prio)
+  kill <pid>      Kill a task
+  top [-n N]      Snapshot + refresh process/memory stats
+  ping <host>     ICMP echo via the kernel stack
+  wget <h> [p] <path> Download via the kernel HTTP client
+  netstat         Network statistics / sockets
+  ifconfig        Network interface info
+  nano <file>     nano-style editor (^O save ^X exit)
+  vi <file>       Same editor, vi-compatible name
+  jobs            List background jobs
+  fg [job]        Bring job to foreground
+
+  v2.0.0 service commands (SYS_L1SVC):
+  rtc [uie|pie|alarm N]  CMOS RTC status + interrupt tests
+  hpet [counter|oneshot|periodic|test]  HPET status + tests
+  pmtimer [read|cal|wrap|test]  ACPI PM timer + calibration
+  tsc [cal|delay N|test]  TSC reads + calibration + delay
+  mount [type dev path]  List mounts or mount a filesystem
+  mounts                 List VFS mount table
+  umount <path>          Unmount a filesystem
+  fatmount [dev path]    Mount FAT32 (default ata0 /mnt)
+  fatstat                Show FAT32 stats
+  tree [path]            Directory tree view
+  dskstat / lsblk        Block devices + cache stats
+  ahci / nvme / ata      Controller status
+  parted [dev]           Partition table
+  mkfs.fat32|exfat|ext4 <dev>  Format (confirm)
+  fsck / sync            Filesystem check / flush cache
+  abdisk / install / grub-install <dev>  Disk setup
+  abcfg                  A/B grub.cfg preview
+  *_test                 Block driver test suite
+  <nicname> [/_test]     NIC status + tests (e1000e igb ixgbe
+                         rtl8139/8168/8125/810x bcm57xx, other)
+  wifi / bt              Wireless + bluetooth families
+  sound / play / volume  Audio cards, playback, mixer
+  hda/ac97/sb16/es1370/virtiosnd/usbaudio + _test variants
+  update / checkupdate / rollback   A/B update family
+  config list|get|set    System configuration store
+  update_*_test          OTA test suite
+  halt/shutdown/reboot   Power controls (same bodies as oc>)
+  sleep <sec>            Delay N seconds
+  suspend_test           S3 capability contract
+  stats / uname / clear  Console + kernel counters
+  lang [en|zh]           Output language
+  chinese / font / encoding / ime [+ -test variants]
+  touchpad / touchtest   Input subsystem
+  uvc / uvctest          Camera (UVC devices + self test)
+  scsi / scsitest        SCSI controllers + self test
+  gameport / parallel / ir [+ *test]  Legacy port probes
+  usb / usbdev [slot]    USB hosts, devices, descriptors
+  usb_*_test             USB class driver test suite
+  arp / route / ip       Neighbor, routing and address tables
+  dhcp / dns / dnstest   Resolver + lease diagnostics
+  firewall / nf_test     Ruleset + netfilter tests
+  tcpstats / tcptest / tcpcc_test  TCP diagnostics
+  lspci                  PCI device scan
+  cryptotest / dhtest    Crypto self-tests (NIST + DH)
+
+  Editing: Up/Down history, Left/Right/Home/End cursor, Del,
+  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion
+
+  Redirection:  > file   >> file   < file   | cmd
+
+
+--- [lang] ---
+lang
+shell output language: en
+
+--- [lang zh] ---
+lang zh
+Shell 输出语言已设为 zh（仅内存；配置卷为 ramfs，重启后丢失）
+
+--- [config get shell.lang] ---
+config get shell.lang
+zh
+
+--- [lang] ---
+lang
+Shell 输出语言：zh
+
+--- [config set shell.lang fr] ---
+config set shell.lang fr
+config: write rejected (empty, non-ASCII, too long, or invalid value)
+
+--- [lang en] ---
+lang en
+shell output language set to en (in-memory only; ramfs config, lost on reboot)
+
+--- [config get shell.lang] ---
+config get shell.lang
+en
+
+--- [uname -a] ---
+uname -a
+Open Cube OS 2.1.0 x86_64

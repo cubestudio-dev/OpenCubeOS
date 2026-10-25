@@ -1,0 +1,1252 @@
+
+===== main session S1-S11 =====
+[H[J[1;1H[m[mGFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot ISO)                                                    [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS 2.1.0 kmain entered
+  Open Cube OS  [2.1.0]    Open Cube OS - L0 kernel (2.1.0)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+[00:00:00.000] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+    registry: cmds=99 drv=21 svc=13 app=1
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 1ffe2335 tables 5........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.020] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.030] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.060] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.070] SMBus: 8 device(s) at scan........................ OK
+    AML: AML: undefined name PRQ0
+    AML: AML: undefined name PRQ1
+    AML: AML: undefined name PRQ2
+    AML: AML: undefined name PRQ3
+    AML: AML: undefined name VEND
+    AML: AML: undefined name CSEL
+    AML: AML: undefined name CPEN
+[00:00:00.100] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.110] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.110] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.120] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.130] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: IDE controller at 00:01.1 BAR4=0xc040
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: no controller found
+nvme: no controller found
+[00:00:00.300] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.310] virtio-blk + AHCI + NVMe drivers.................. OK
+[00:00:00.380] USB hosts up: 0................................... OK
+[00:00:00.390] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.400] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.440] system config (/etc/opencube.conf, ramfs)......... OK
+[00:00:00.470] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.150] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=3 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
+[00:00:01.650] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.650] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:01.650] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:01.830] sound: no sound card present (probe OK)........... OK
+[00:00:01.830] shell command system (99 commands)................ OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:01.840] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131040 pages, 129189 free
+[00:00:01.850] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + dispatches)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:01.920] boot complete..................................... OK
+[00:00:01.920] crash recovery armed (panic + dump + crashlog).... OK
+    l1 launcher: booting 'ush' (ring 3, 55952 bytes)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+exit
+    l1 launcher: default L1 app exited; recovery shell taking over
+
+Open Cube OS 2.1.0 ready. Type 'help' for commands.
+(Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)
+
+uname
+unknown command: uname (try 'help')
+oc> logctl test
+[2.150] INFO  klogtest: info line (level 1)
+[2.150] WARN  klogtest: warn line (level 2)
+[2.160] ERROR klogtest: error line (level 3)
+[2.160] FATAL klogtest: fatal line (level 4)
+klog: 5 lines emitted (DEBUG..FATAL, module klogtest)
+oc> logcat -m klogtest
+[2.150] DEBUG klogtest: debug line (level 0)
+[2.150] INFO  klogtest: info line (level 1)
+[2.150] WARN  klogtest: warn line (level 2)
+[2.160] ERROR klogtest: error line (level 3)
+[2.160] FATAL klogtest: fatal line (level 4)
+-- 5 lines --
+oc> logctl disable info
+level disabled
+oc> logctl test
+[2.360] WARN  klogtest: warn line (level 2)
+[2.370] ERROR klogtest: error line (level 3)
+[2.370] FATAL klogtest: fatal line (level 4)
+klog: 5 lines emitted (DEBUG..FATAL, module klogtest)
+oc> logctl enable info
+level enabled
+oc> logcat -l warn -m klogtest
+[2.150] WARN  klogtest: warn line (level 2)
+[2.160] ERROR klogtest: error line (level 3)
+[2.160] FATAL klogtest: fatal line (level 4)
+[2.360] WARN  klogtest: warn line (level 2)
+[2.370] ERROR klogtest: error line (level 3)
+[2.370] FATAL klogtest: fatal line (level 4)
+-- 6 lines --
+oc> logcat -k fatal -m klogtest
+[2.160] FATAL klogtest: fatal line (level 4)
+[2.370] FATAL klogtest: fatal line (level 4)
+-- 2 lines --
+oc> logcat -n 3 -m klogtest
+[2.360] WARN  klogtest: warn line (level 2)
+[2.370] ERROR klogtest: error line (level 3)
+[2.370] FATAL klogtest: fatal line (level 4)
+-- 3 lines --
+oc> dmesg 5
+[2.160] FATAL klogtest: fatal line (level 4)
+[2.360] DEBUG klogtest: debug line (level 0)
+[2.360] WARN  klogtest: warn line (level 2)
+[2.370] ERROR klogtest: error line (level 3)
+[2.370] FATAL klogtest: fatal line (level 4)
+-- 5 lines (ring 92/1024, dropped 0) --
+oc> logctl status
+klog status:
+  ring: 92/1024 entries, dropped 0
+  live level (console+serial): 1 (INFO)
+  level switches: DEBUG=on INFO=on WARN=on ERROR=on FATAL=on
+  file: /var/log/kernel.log open, 6649 bytes (rotate at 1048576, keep 3)
+  filter: none
+oc> logctl level 3
+live level set
+oc> logctl level -1
+live level set
+oc> logctl clear
+ring cleared
+oc> logctl flush
+klog: flushed 0 bytes to /var/log/kernel.log
+oc> logctl threshold 4096
+rotate threshold set
+oc> logctl status
+klog status:
+  ring: 0/1024 entries, dropped 0
+  live level (console+serial): muted
+  level switches: DEBUG=on INFO=on WARN=on ERROR=on FATAL=on
+  file: /var/log/kernel.log open, 6649 bytes (rotate at 4096, keep 3)
+  filter: none
+oc> logctl test
+[3.250] DEBUG klogtest: debug line (level 0)
+[3.250] INFO  klogtest: info line (level 1)
+[3.260] WARN  klogtest: warn line (level 2)
+[3.260] ERROR klogtest: error line (level 3)
+[3.260] FATAL klogtest: fatal line (level 4)
+klog: 5 lines emitted (DEBUG..FATAL, module klogtest)
+oc> logctl test
+[3.330] DEBUG klogtest: debug line (level 0)
+[3.330] INFO  klogtest: info line (level 1)
+[3.330] WARN  klogtest: warn line (level 2)
+[3.340] ERROR klogtest: error line (level 3)
+[3.340] FATAL klogtest: fatal line (level 4)
+klog: 5 lines emitted (DEBUG..FATAL, module klogtest)
+oc> logctl test
+[3.410] DEBUG klogtest: debug line (level 0)
+[3.410] INFO  klogtest: info line (level 1)
+[3.410] WARN  klogtest: warn line (level 2)
+[3.420] ERROR klogtest: error line (level 3)
+[3.420] FATAL klogtest: fatal line (level 4)
+klog: 5 lines emitted (DEBUG..FATAL, module klogtest)
+oc> logctl test
+[3.480] DEBUG klogtest: debug line (level 0)
+[3.490] INFO  klogtest: info line (level 1)
+[3.490] WARN  klogtest: warn line (level 2)
+[3.500] ERROR klogtest: error line (level 3)
+[3.500] FATAL klogtest: fatal line (level 4)
+klog: 5 lines emitted (DEBUG..FATAL, module klogtest)
+oc> ls /var/log
+         847 kernel.log
+        6694 kernel.log.1
+oc> logctl filter 3
+filter set (applies to live channels AND dmesg/logcat)
+oc> logctl test
+[3.690] ERROR klogtest: error line (level 3)
+[3.690] FATAL klogtest: fatal line (level 4)
+klog: 5 lines emitted (DEBUG..FATAL, module klogtest)
+oc> logcat -m klogtest
+[3.260] ERROR klogtest: error line (level 3)
+[3.260] FATAL klogtest: fatal line (level 4)
+[3.340] ERROR klogtest: error line (level 3)
+[3.340] FATAL klogtest: fatal line (level 4)
+[3.420] ERROR klogtest: error line (level 3)
+[3.420] FATAL klogtest: fatal line (level 4)
+[3.500] ERROR klogtest: error line (level 3)
+[3.500] FATAL klogtest: fatal line (level 4)
+[3.690] ERROR klogtest: error line (level 3)
+[3.690] FATAL klogtest: fatal line (level 4)
+-- 10 lines --
+oc> logctl filter clear
+filter cleared
+oc> logctl export /var/log/klog-e2e.txt
+klog: exported 25 lines (1115 bytes) to /var/log/klog-e2e.txt
+oc> watchdog status
+watchdog status:
+  hardware: none
+watchdog slots (1):
+  [0] system-heartbea  15000 ms  PANIC  stopped  timeouts=0
+oc> watchdog hw status
+watchdog hw: none (no WDAT table, no Intel TCO LPC)
+oc> watchdog test kill
+watchdog: wd-starve task started (tid 2) - registers itself monitored (3 s, KILL) and never feeds; e[4.120] INFO  watchdog: slot 1 registered: wd-starve 3000 ms policy 2
+[4.120] INFO  watchdog: slot 1 (wd-starve) ARMED, 3000 ms
+xpect the policy in 3 s
+oc> sleep 5
+oc> watchdog status
+watchdog status:
+  hardware: none
+watchdog slots (2):
+  [0] system-heartbea  15000 ms  PANIC  stopped  timeouts=0
+  [1] wd-starve  3000 ms  KILL  stopped  timeouts=1
+oc> watchdog test log
+watchdog: wd-starve task started (tid 2) - registers itself monitored (3 s, LOG) and never feeds; ex[9.330] INFO  watchdog: slot 2 registered: wd-starve 3000 ms policy 3
+[9.330] INFO  watchdog: slot 2 (wd-starve) ARMED, 3000 ms
+pect the policy in 3 s
+oc> sleep 5
+oc> dmesg 25
+[3.330] INFO  klogtest: info line (level 1)
+[3.330] WARN  klogtest: warn line (level 2)
+[3.340] ERROR klogtest: error line (level 3)
+[3.340] FATAL klogtest: fatal line (level 4)
+[3.410] DEBUG klogtest: debug line (level 0)
+[3.410] INFO  klogtest: info line (level 1)
+[3.410] WARN  klogtest: warn line (level 2)
+[3.420] ERROR klogtest: error line (level 3)
+[3.420] FATAL klogtest: fatal line (level 4)
+[3.480] DEBUG klogtest: debug line (level 0)
+[3.490] INFO  klogtest: info line (level 1)
+[3.490] WARN  klogtest: warn line (level 2)
+[3.500] ERROR klogtest: error line (level 3)
+[3.500] FATAL klogtest: fatal line (level 4)
+[3.690] DEBUG klogtest: debug line (level 0)
+[3.690] INFO  klogtest: info line (level 1)
+[3.690] WARN  klogtest: warn line (level 2)
+[3.690] ERROR klogtest: error line (level 3)
+[3.690] FATAL klogtest: fatal line (level 4)
+[4.120] INFO  watchdog: slot 1 registered: wd-starve 3000 ms policy 2
+[4.120] INFO  watchdog: slot 1 (wd-starve) ARMED, 3000 ms
+[8.060] ERROR watchdog: watchdog slot 1 (wd-starve) -> KILL task
+[9.330] INFO  watchdog: slot 2 registered: wd-starve 3000 ms policy 3
+[9.330] INFO  watchdog: slot 2 (wd-starve) ARMED, 3000 ms
+[13.060] ERROR watchdog: watchdog slot 2 (wd-starve) -> LOGGED (no action)
+-- 25 lines (ring 31/1024, dropped 0) --
+oc> health
+system health:
+  cpu:
+  busy                71 % (1 s window)
+  memory:
+  total               524160 KiB
+  used                7524 KiB
+  free                516636 KiB
+  tasks:
+  total               3
+  running             1
+  ready               2
+  blocked             0
+  disk:
+  read                0 bytes
+  written             0 bytes
+  network:
+  tx                  0 bytes
+  rx                  0 bytes
+  alarms: none
+oc> health export
+health: exported 389 bytes to /var/log/health.json
+{"ts_ms":14870,"cpu_busy_pct":67,"mem_total_kb":524160,"mem_used_kb":470,"mem_free_kb":516636,"heap_used_bytes":1062512,"heap_free_bytes":44112,"tasks_total":3,"tasks_running":1,"tasks_ready":2,"tasks_blocked":0,"disk_reads":0,"disk_writes":0,"disk_read_bytes":0,"disk_write_bytes":0,"net_tx_packets":0,"net_rx_packets":0,"net_tx_bytes":0,"net_rx_bytes":0,"alarms":0,"alarms_text":"none"}
+oc> watchdog test log
+watchdog: wd-starve task started (tid 3) - registers itself monitored (3 s, LOG) and never feeds; expect the policy in 3 s
+[14.990] INFO  watchdog: slot 3 registered: wd-starve 3000 ms policy 3
+[14.990] INFO  watchdog: slot 3 (wd-starve) ARMED, 3000 ms
+oc> watchdog test log
+watchdog: wd-starve task started (tid 4) - registers itself monitored (3 s, LOG) and never feeds; expect the policy in 3 s
+[15.410] INFO  watchdog: slot 4 registered: wd-starve 3000 ms policy 3
+[15.410] INFO  watchdog: slot 4 (wd-starve) ARMED, 3000 ms
+oc> sleep 14
+oc> health
+system health:
+  cpu:
+  busy                97 % (1 s window)
+  memory:
+  total               524160 KiB
+  used                7572 KiB
+  free                516588 KiB
+  tasks:
+  total               5
+  running             1
+  ready               4
+  blocked             0
+  disk:
+  read                0 bytes
+  written             0 bytes
+  network:
+  tx                  0 bytes
+  rx                  0 bytes
+  alarms: CPU-LOCKED 
+oc> 
+
+===== q35 session S12 =====
+[H[J[1;1H[m[mGFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot ISO)                                                    [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS 2.1.0 kmain entered
+  Open Cube OS  [2.1.0]    Open Cube OS - L0 kernel (2.1.0)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+[00:00:00.000] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+    registry: cmds=99 drv=21 svc=13 app=1
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 1ffe2351 tables 6........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.020] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.030] ACPI: MCFG parsed (PCIe MMCONFIG available)....... OK
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKF
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKF
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKF
+[00:00:00.090] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.090] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.100] INFO  watchdog: TCO probe: RCBA=0xfed1c000 GCS=0x20 (NO_REBOOT bit 1)
+[0.110] INFO  watchdog: Intel TCO found: PMBASE=0x600 TCOBASE=0x660 CNT=0x0 (RUNNING)
+[0.110] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.120] hardware watchdog (TCO/WDAT probe)................ OK
+[00:00:00.130] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.140] SMBus: 8 device(s) at scan........................ OK
+[00:00:00.140] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.150] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.150] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.160] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.170] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: no PCI IDE controller with BMDMA found - drives stay on PIO
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: controller at 00:1f.2
+ahci: CAP=0xc0141f05
+ahci: ports implemented=6 PI=0x3f
+ahci: port 2: ATAPI (not supported)
+nvme: no controller found
+[00:00:00.320] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.340] virtio-blk + AHCI + NVMe drivers.................. OK
+[00:00:00.410] USB hosts up: 0................................... OK
+[00:00:00.410] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.450] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.490] system config (/etc/opencube.conf, ramfs)......... OK
+[00:00:00.490] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.110] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=2 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=2 func=0
+[00:00:01.600] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.610] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:01.610] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:01.780] sound: no sound card present (probe OK)........... OK
+[00:00:01.790] shell command system (99 commands)................ OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:01.800] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131039 pages, 129168 free
+[00:00:01.810] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + dispatches)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:01.880] boot complete..................................... OK
+[00:00:01.890] crash recovery armed (panic + dump + crashlog).... OK
+    l1 launcher: booting 'ush' (ring 3, 55952 bytes)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+exit
+    l1 launcher: default L1 app exited; recovery shell taking over
+
+Open Cube OS 2.1.0 ready. Type 'help' for commands.
+(Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)
+
+dmesg 40
+[0.110] INFO  watchdog: Intel TCO found: PMBASE=0x600 TCOBASE=0x660 CNT=0x0 (RUNNING)
+[0.110] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.120] INFO  boot: [00:00:00.120] hardware watchdog (TCO/WDAT probe)................ OK
+[0.140] INFO  boot: [00:00:00.130] i801/PIIX4 SMBus controller....................... OK
+[0.140] INFO  boot: [00:00:00.140] SMBus: 8 device(s) at scan (OK)
+[0.150] INFO  boot: [00:00:00.140] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.150] INFO  boot: [00:00:00.150] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.160] INFO  boot: [00:00:00.150] HPET (ACPI table + MMIO caps)..................... OK
+[0.160] INFO  boot: [00:00:00.160] VFS (virtual file system)......................... OK
+[0.170] INFO  boot: [00:00:00.170] ramfs (in-memory file system, mounted at /)....... OK
+[0.330] INFO  boot: [00:00:00.320] ATA/IDE PIO driver (LBA28)........................ OK
+[0.340] INFO  boot: [00:00:00.340] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.410] INFO  boot: [00:00:00.410] USB hosts up: 0................................... OK
+[0.420] INFO  boot: [00:00:00.410] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+[0.450] INFO  boot: [00:00:00.450] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+[0.490] INFO  boot: config: created default /etc/opencube.conf (ramfs)
+[0.490] INFO  boot: [00:00:00.490] system config (/etc/opencube.conf, ramfs) (OK)
+[0.490] INFO  boot: [00:00:00.490] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+[0.500] INFO  boot: abupdate: no disk with an A/B partition layout found
+[1.110] INFO  boot: [00:00:01.110] shell file/disk commands.......................... OK
+[1.610] INFO  boot: [00:00:01.600] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.610] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[1.620] INFO  boot: [00:00:01.610] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[1.790] INFO  boot: [00:00:01.780] sound: no sound card present (probe OK)........... OK
+[1.790] INFO  boot: [00:00:01.790] shell command system (99 commands)................ OK
+[1.800] INFO  boot: block devices: 0 registered
+[1.800] INFO  boot: disk cache: 64 slots, LRU write-back
+[1.810] INFO  boot: [00:00:01.800] disk subsystem (block dev + cache + partition + FS). OK
+[1.810] INFO  boot: pmm: 131039 pages, 129168 free
+[1.820] INFO  boot: [00:00:01.810] kmalloc/kfree self-test........................... OK
+[1.860] INFO  boot: ASCII demo: !"#$%&'()*+,-./
+[1.860] INFO  boot: ASCII demo: 0123456789:;<=>?
+[1.860] INFO  boot: ASCII demo: @ABCDEFGHIJKLMNO
+[1.870] INFO  boot: ASCII demo: PQRSTUVWXYZ[\]^_
+[1.870] INFO  boot: ASCII demo: `abcdefghijklmno
+[1.880] INFO  boot: ASCII demo: pqrstuvwxyz{|}~
+[1.880] INFO  boot: [00:00:01.880] boot complete..................................... OK
+[1.890] INFO  boot: [00:00:01.890] crash recovery armed (panic + dump + crashlog).... OK
+[1.890] INFO  boot: l1 launcher: booting 'ush' (ring 3, 55952 bytes)
+[1.970] INFO  boot: l1 launcher: default L1 app exited; recovery shell taking over
+-- 40 lines (ring 91/1024, dropped 0) --
+oc> watchdog hw status
+watchdog hw: Intel TCO base=0x660 armed=yes timeout=0s GCS.NO_REBOOT=1
+oc> watchdog hw start 5
+[2.330] INFO  watchdog: hardware watchdog ARMED (Intel TCO, 5 s)
+watchdog hw: ARMED - machine RESETS if nobody feeds
+oc> 
+[SECOND-BOOT][H[J[1;1H[m[mGFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot ISO)                                                    [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS 2.1.0 kmain entered
+  Open Cube OS  [2.1.0]    Open Cube OS - L0 kernel (2.1.0)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+[00:00:00.000] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+    registry: cmds=99 drv=21 svc=13 app=1
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 1ffe2351 tables 6........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.020] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.030] ACPI: MCFG parsed (PCIe MMCONFIG available)....... OK
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKF
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKF
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKF
+[00:00:00.080] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.090] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.100] INFO  watchdog: TCO probe: RCBA=0xfed1c000 GCS=0x20 (NO_REBOOT bit 1)
+[0.100] INFO  watchdog: Intel TCO found: PMBASE=0x600 TCOBASE=0x660 CNT=0x0 (RUNNING)
+[0.110] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.110] hardware watchdog (TCO/WDAT probe)................ OK
+[00:00:00.130] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.130] SMBus: 8 device(s) at scan........................ OK
+[00:00:00.140] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.150] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.150] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.150] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.170] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: no PCI IDE controller with BMDMA found - drives stay on PIO
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: controller at 00:1f.2
+ahci: CAP=0xc0141f05
+ahci: ports implemented=6 PI=0x3f
+ahci: port 2: ATAPI (not supported)
+nvme: no controller found
+[00:00:00.320] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.330] virtio-blk + AHCI + NVMe drivers.................. OK
+[00:00:00.400] USB hosts up: 0................................... OK
+[00:00:00.400] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.440] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.470] system config (/etc/opencube.conf, ramfs)......... OK
+[00:00:00.480] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.080] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=2 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=2 func=0
+[00:00:01.570] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.570] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:01.580] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:01.750] sound: no sound card present (probe OK)........... OK
+[00:00:01.750] shell command system (99 commands)................ OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:01.760] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131039 pages, 129168 free
+[00:00:01.770] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + dispatches)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:01.840] boot complete..................................... OK
+[00:00:01.840] crash recovery armed (panic + dump + crashlog).... OK
+    l1 launcher: booting 'ush' (ring 3, 55952 bytes)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+ush> [H[J[1;1H[m[mGFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot ISO)                                                    [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS 2.1.0 kmain entered
+  Open Cube OS  [2.1.0]    Open Cube OS - L0 kernel (2.1.0)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+[00:00:00.000] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+    registry: cmds=99 drv=21 svc=13 app=1
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 1ffe2351 tables 6........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.020] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.030] ACPI: MCFG parsed (PCIe MMCONFIG available)....... OK
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKF
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKF
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKF
+[00:00:00.080] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.090] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.100] INFO  watchdog: TCO probe: RCBA=0xfed1c000 GCS=0x20 (NO_REBOOT bit 1)
+[0.100] INFO  watchdog: Intel TCO found: PMBASE=0x600 TCOBASE=0x660 CNT=0x0 (RUNNING)
+[0.110] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.110] hardware watchdog (TCO/WDAT probe)................ OK
+[00:00:00.130] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.130] SMBus: 8 device(s) at scan........................ OK
+[00:00:00.140] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.150] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.150] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.150] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.170] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: no PCI IDE controller with BMDMA found - drives stay on PIO
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: controller at 00:1f.2
+ahci: CAP=0xc0141f05
+ahci: ports implemented=6 PI=0x3f
+ahci: port 2: ATAPI (not supported)
+nvme: no controller found
+[00:00:00.320] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.330] virtio-blk + AHCI + NVMe drivers.................. OK
+[00:00:00.400] USB hosts up: 0................................... OK
+[00:00:00.400] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.440] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.470] system config (/etc/opencube.conf, ramfs)......... OK
+[00:00:00.480] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.080] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=2 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=2 func=0
+[00:00:01.570] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.570] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:01.580] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:01.750] sound: no sound card present (probe OK)........... OK
+[00:00:01.750] shell command system (99 commands)................ OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:01.760] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131039 pages, 129168 free
+[00:00:01.770] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + dispatches)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:01.840] boot complete..................................... OK
+[00:00:01.840] crash recovery armed (panic + dump + crashlog).... OK
+    l1 launcher: booting 'ush' (ring 3, 55952 bytes)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+ush> 
+
+===== q35+WDAT session S13 =====
+[H[J[1;1H[m[mGFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot ISO)                                                    [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS 2.1.0 kmain entered
+  Open Cube OS  [2.1.0]    Open Cube OS - L0 kernel (2.1.0)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+[00:00:00.010] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+    registry: cmds=99 drv=21 svc=13 app=1
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 1ffe23f5 tables 7........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.030] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.030] ACPI: MCFG parsed (PCIe MMCONFIG available)....... OK
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKF
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKF
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKF
+[00:00:00.090] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.090] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.100] INFO  watchdog: TCO probe: RCBA=0xfed1c000 GCS=0x20 (NO_REBOOT bit 1)
+[0.110] INFO  watchdog: Intel TCO found: PMBASE=0x600 TCOBASE=0x660 CNT=0x0 (RUNNING)
+[0.110] INFO  watchdog: ACPI WDAT found: 4 entries, period 600 ms
+[0.120] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.120] hardware watchdog (TCO/WDAT probe)................ OK
+[00:00:00.140] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.140] SMBus: 8 device(s) at scan........................ OK
+[00:00:00.150] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.150] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.160] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.160] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.180] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: no PCI IDE controller with BMDMA found - drives stay on PIO
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: controller at 00:1f.2
+ahci: CAP=0xc0141f05
+ahci: ports implemented=6 PI=0x3f
+ahci: port 2: ATAPI (not supported)
+nvme: no controller found
+[00:00:00.330] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.340] virtio-blk + AHCI + NVMe drivers.................. OK
+[00:00:00.430] USB hosts up: 0................................... OK
+[00:00:00.430] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.470] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.510] system config (/etc/opencube.conf, ramfs)......... OK
+[00:00:00.510] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.200] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=2 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=2 func=0
+[00:00:01.690] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.700] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:01.700] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:01.870] sound: no sound card present (probe OK)........... OK
+[00:00:01.870] shell command system (99 commands)................ OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:01.880] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131039 pages, 129168 free
+[00:00:01.890] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + dispatches)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:01.960] boot complete..................................... OK
+[00:00:01.970] crash recovery armed (panic + dump + crashlog).... OK
+    l1 launcher: booting 'ush' (ring 3, 55952 bytes)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+exit
+    l1 launcher: default L1 app exited; recovery shell taking over
+
+Open Cube OS 2.1.0 ready. Type 'help' for commands.
+(Try: dhcp, ping 10.0.2.2, wget 10.0.2.2, dns example.com, route, firewall, tcpstats)
+
+dmesg 40
+[0.110] INFO  watchdog: ACPI WDAT found: 4 entries, period 600 ms
+[0.120] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.130] INFO  boot: [00:00:00.120] hardware watchdog (TCO/WDAT probe)................ OK
+[0.140] INFO  boot: [00:00:00.140] i801/PIIX4 SMBus controller....................... OK
+[0.150] INFO  boot: [00:00:00.140] SMBus: 8 device(s) at scan (OK)
+[0.150] INFO  boot: [00:00:00.150] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.160] INFO  boot: [00:00:00.150] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.160] INFO  boot: [00:00:00.160] HPET (ACPI table + MMIO caps)..................... OK
+[0.170] INFO  boot: [00:00:00.160] VFS (virtual file system)......................... OK
+[0.180] INFO  boot: [00:00:00.180] ramfs (in-memory file system, mounted at /)....... OK
+[0.330] INFO  boot: [00:00:00.330] ATA/IDE PIO driver (LBA28)........................ OK
+[0.350] INFO  boot: [00:00:00.340] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.430] INFO  boot: [00:00:00.430] USB hosts up: 0................................... OK
+[0.440] INFO  boot: [00:00:00.430] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+[0.480] INFO  boot: [00:00:00.470] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+[0.510] INFO  boot: config: created default /etc/opencube.conf (ramfs)
+[0.510] INFO  boot: [00:00:00.510] system config (/etc/opencube.conf, ramfs) (OK)
+[0.520] INFO  boot: [00:00:00.510] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+[0.520] INFO  boot: abupdate: no disk with an A/B partition layout found
+[1.200] INFO  boot: [00:00:01.200] shell file/disk commands.......................... OK
+[1.700] INFO  boot: [00:00:01.690] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.700] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[1.700] INFO  boot: [00:00:01.700] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[1.870] INFO  boot: [00:00:01.870] sound: no sound card present (probe OK)........... OK
+[1.880] INFO  boot: [00:00:01.870] shell command system (99 commands)................ OK
+[1.880] INFO  boot: block devices: 0 registered
+[1.880] INFO  boot: disk cache: 64 slots, LRU write-back
+[1.890] INFO  boot: [00:00:01.880] disk subsystem (block dev + cache + partition + FS). OK
+[1.890] INFO  boot: pmm: 131039 pages, 129168 free
+[1.900] INFO  boot: [00:00:01.890] kmalloc/kfree self-test........................... OK
+[1.940] INFO  boot: ASCII demo: !"#$%&'()*+,-./
+[1.940] INFO  boot: ASCII demo: 0123456789:;<=>?
+[1.950] INFO  boot: ASCII demo: @ABCDEFGHIJKLMNO
+[1.950] INFO  boot: ASCII demo: PQRSTUVWXYZ[\]^_
+[1.950] INFO  boot: ASCII demo: `abcdefghijklmno
+[1.960] INFO  boot: ASCII demo: pqrstuvwxyz{|}~
+[1.970] INFO  boot: [00:00:01.960] boot complete..................................... OK
+[1.970] INFO  boot: [00:00:01.970] crash recovery armed (panic + dump + crashlog).... OK
+[1.980] INFO  boot: l1 launcher: booting 'ush' (ring 3, 55952 bytes)
+[2.060] INFO  boot: l1 launcher: default L1 app exited; recovery shell taking over
+-- 40 lines (ring 92/1024, dropped 0) --
+oc> watchdog hw status
+watchdog hw: ACPI WDAT base=0x660 armed=yes timeout=0s GCS.NO_REBOOT=1
+oc> watchdog hw start 5
+[2.430] INFO  watchdog: hardware watchdog ARMED (ACPI WDAT, 5 s)
+watchdog hw: ARMED - machine RESETS if nobody feeds
+oc> 
+[SECOND-BOOT][H[J[1;1H[m[mGFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot ISO)                                                    [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS 2.1.0 kmain entered
+  Open Cube OS  [2.1.0]    Open Cube OS - L0 kernel (2.1.0)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+[00:00:00.010] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+    registry: cmds=99 drv=21 svc=13 app=1
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 1ffe23f5 tables 7........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.030] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.030] ACPI: MCFG parsed (PCIe MMCONFIG available)....... OK
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKF
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKF
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKF
+[00:00:00.090] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.090] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.100] INFO  watchdog: TCO probe: RCBA=0xfed1c000 GCS=0x20 (NO_REBOOT bit 1)
+[0.110] INFO  watchdog: Intel TCO found: PMBASE=0x600 TCOBASE=0x660 CNT=0x0 (RUNNING)
+[0.110] INFO  watchdog: ACPI WDAT found: 4 entries, period 600 ms
+[0.120] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.120] hardware watchdog (TCO/WDAT probe)................ OK
+[00:00:00.140] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.140] SMBus: 8 device(s) at scan........................ OK
+[00:00:00.150] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.150] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.160] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.160] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.180] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: no PCI IDE controller with BMDMA found - drives stay on PIO
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: controller at 00:1f.2
+ahci: CAP=0xc0141f05
+ahci: ports implemented=6 PI=0x3f
+ahci: port 2: ATAPI (not supported)
+nvme: no controller found
+[00:00:00.330] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.340] virtio-blk + AHCI + NVMe drivers.................. OK
+[00:00:00.410] USB hosts up: 0................................... OK
+[00:00:00.410] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.450] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.490] system config (/etc/opencube.conf, ramfs)......... OK
+[00:00:00.490] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.120] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=2 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=2 func=0
+[00:00:01.600] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.610] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:01.610] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:01.790] sound: no sound card present (probe OK)........... OK
+[00:00:01.790] shell command system (99 commands)................ OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:01.800] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131039 pages, 129168 free
+[00:00:01.810] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + dispatches)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:01.890] boot complete..................................... OK
+[00:00:01.890] crash recovery armed (panic + dump + crashlog).... OK
+    l1 launcher: booting 'ush' (ring 3, 55952 bytes)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+ush> [H[J[1;1H[m[mGFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot ISO)                                                    [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS 2.1.0 kmain entered
+  Open Cube OS  [2.1.0]    Open Cube OS - L0 kernel (2.1.0)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+[00:00:00.010] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+    registry: cmds=99 drv=21 svc=13 app=1
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 1ffe23f5 tables 7........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.030] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.030] ACPI: MCFG parsed (PCIe MMCONFIG available)....... OK
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKF
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKF
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKG
+    AML: AML: undefined name LNKH
+    AML: AML: undefined name LNKE
+    AML: AML: undefined name LNKF
+[00:00:00.090] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.090] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.100] INFO  watchdog: TCO probe: RCBA=0xfed1c000 GCS=0x20 (NO_REBOOT bit 1)
+[0.110] INFO  watchdog: Intel TCO found: PMBASE=0x600 TCOBASE=0x660 CNT=0x0 (RUNNING)
+[0.110] INFO  watchdog: ACPI WDAT found: 4 entries, period 600 ms
+[0.120] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.120] hardware watchdog (TCO/WDAT probe)................ OK
+[00:00:00.140] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.140] SMBus: 8 device(s) at scan........................ OK
+[00:00:00.150] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.150] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.160] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.160] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.180] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: no PCI IDE controller with BMDMA found - drives stay on PIO
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: controller at 00:1f.2
+ahci: CAP=0xc0141f05
+ahci: ports implemented=6 PI=0x3f
+ahci: port 2: ATAPI (not supported)
+nvme: no controller found
+[00:00:00.330] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.340] virtio-blk + AHCI + NVMe drivers.................. OK
+[00:00:00.410] USB hosts up: 0................................... OK
+[00:00:00.410] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.450] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.490] system config (/etc/opencube.conf, ramfs)......... OK
+[00:00:00.490] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.120] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=2 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=2 func=0
+[00:00:01.600] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.610] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:01.610] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:01.790] sound: no sound card present (probe OK)........... OK
+[00:00:01.790] shell command system (99 commands)................ OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:01.800] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131039 pages, 129168 free
+[00:00:01.810] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + dispatches)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:01.890] boot complete..................................... OK
+[00:00:01.890] crash recovery armed (panic + dump + crashlog).... OK
+    l1 launcher: booting 'ush' (ring 3, 55952 bytes)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+ush> 

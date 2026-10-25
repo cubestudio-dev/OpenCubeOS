@@ -1,0 +1,66 @@
+ROW hello: '\r\r\noc> hello from userspace'
+
+ROW badapp: '\r\r\nbadapp: trying kernel access\r\r\n\x00\x00\r\r\n*** EXCEPTION 14: #PF Page Fault ***\r\r\n  error_code=0x0000000000000005  rip=0x000000000040001D  cs=0x0000000000000033  rflags=0x0000000000010246\r\r\n  rsp=0x000000003FFFFFF0  ss=0x000000000000003B\r\r\n  cr2=0x00000000FD000000  (faulting address)\r\r\n*** KILLING user process (pid=2) due to exception 14, kernel continues ***\r\r\n[user] process killed by exception (vector=14), kernel continues\r\r\noc> '
+
+ROW fork_test: '\r\r\noc> fork_test: start\r\r\nparent: pid=\x002 ppid=0 child=3child: pid=\x003 ppid=2fork_test: PASS\r\r\n\x00'
+
+ROW exec_test: '\r\r\noc> exec_test: start\r\r\nexec_test: parent waiting\r\r\nexexec_test: child execing hellohello from userspaceexec_test: PASS\r\r\ne'
+
+ROW pipe_test: "\r\r\noc> pipe_test: startpipe_test: parent readinpipe_test: got '\x00HHELLO from child'\r\r\nppipe_test: PASS"
+
+ROW mmap_test: '\r\r\noc> mmap_test: startmmap_test: wrote to mmaMMAP_OK!\r\r\nmmap_test: mprotect done\r\r\n\r\r\nmmap_test: PASS'
+
+ROW signal_test: '\r\r\nsignal_test: startsignal_test: handler registered\r\r\nsignal_test: parent waiting\r\r\nssignal_test: child sending SIGUSR1\r\r\nsignal_test: SIGNAL CAUGHT\r\r\nssignal_test: PASSoc> '
+
+ROW select_test: '\r\r\noc> select_test: startselect_test: parent selectingselect_test: pipe ready (PASS)\r\r\nselselect_test: PASS'
+
+ROW dyn_test: '\r\r\noc> main: foo_add(2,3)=5\r\r\n'
+
+ROW dyn_hello: '\r\r\nhello from dynamic program\r\r\noc> '
+
+ROW so_test: '=2 (kill 2 stops it)\r\r\noc> main: foo_add(2,3)=5\r\r\n'
+
+ROW dlsym_test: ' tid=2 (kill 2 stops it)\r\r\ndlsym_test: foo_add(7,8)=15\r\r\noc> '
+
+ROW pie_test: '\r\r\noc> pie_test: loaded at 0x20000000\r\r\n'
+
+ROW reloc_test: '\r\r\noc> reloc_test: foo_add=30 foo_global=42 fp=300 msg=r\r\r\n'
+
+ROW mmap_multi: '\r\r\noc> parent: mmap=\x001006632960child: mmap=\x001006637056mmap_multi: BAD child aparent: readback=PAAAmmap_multi: PASS\r\r\nmm'
+
+ROW test_min: '\r\r\nush_min: hello\r\r\noc> '
+
+ROW test_bss: '\r\r\noc> BSS!\r\r\n'
+
+ROW mprotect_test: 'll 2 stops it)\r\r\noc> MPROTECT_KERNEL_REJECTED\r\r\nMMPROTECT_USER_OKPASS\r\r\n'
+
+ROW sse_test: '\r\r\nSSE parent OK\r\r\n[user] process 2 exited (code=0)\r\r\nSSE child  OK\r\r\n[user] process 3 exited (code=0)\r\r\noc> '
+
+ROW pf_test: '\r\r\noc> PF-A LEAKED (P=1 fault grew stack: data lost + frames leaked)\r\r\n[user] process 3 exited (code=0)\r\r\n\r\r\n*** EXCEPTION 14: #PF Page Fault ***\r\r\n  error_code=0x0000000000000007  rip=0x00000000004000A7  cs=0x0000000000000033  rflags=0x0000000000010206\r\r\n  rsp=0x000000003FFEFFF0  ss=0x000000000000003B\r\r\n  cr2=0x000000003FFEFFF0  (faulting address)\r\r\n*** KILLING user process (pid=4) due to exception 14, kernel continues ***\r\r\n[user] process killed by exception (vector=14), kernel continues\r\r\nPF-T DONE\r\r\n[user] process 2 exited (code=0)\r\r\n'
+
+ROW fdref_test: '\r\r\noc> FDREF PASS\r\r\n[user] process 2 exited (code=0)\r\r\n'
+
+ROW select_zero_test: '\r\r\noc> SZ1\r\r\nS1 select(fd0,timeout=0)...\r\r\nS1B returned (rax in r15)\r\r\nS2B select(pipe,timeout=0) returned 0\r\r\nSZ-PASS\r\r\n[user] process 2 exited (code=0)\r\r\n'
+
+ROW int3_user: '\r\r\noc> int3_user: about to int3\r\r\n\r\r\n*** EXCEPTION 3: #BP Breakpoint ***\r\r\n  error_code=0x0000000000000000  rip=0x0000000000400019  cs=0x0000000000000033  rflags=0x0000000000000246\r\r\n  rsp=0x000000003FFFFFF0  ss=0x000000000000003B\r\r\n*** KILLING user process (pid=2) due to exception 3, kernel continues ***\r\r\n[user] process killed by exception (vector=3), kernel continues\r\r\n*** IST-exit: vector=3 exit-stack rsp=0x00000000003F5FD0 [off-IST2 OK]\r\r\n'
+
+ROW main_dyn: '\r\r\noc> main: foo_add(2,3)=5\r\r\n'
+
+ROW g7mmap: '\r\r\nG7MMAP: start\r\r\nG7MMAP PASS T1 (bump RW map + round-trip)\r\r\nG7MMAP PASS T2 (addr hint honoured)\r\r\nG7MMAP PASS T3 (kernel-addr hint rejected)\r\r\nG7MMAP PASS T4 (prot 0x8 rejected)\r\r\noc> G7MMAP PASS T5 (over-window length rejected)\r\r\nG7MMAP PASS T6 (munmap kernel addr rejected)\r\r\nG7MMAP PASS T7 (munmap legal range)\r\r\nG7MMAP PASS T8 (mprotect RW toggle + write)\r\r\nG7MMAP PASS T9 (mprotect prot 0x9 rejected)\r\r\nG7MMAP PASS T10 (munmap beyond window rejected)\r\r\nG7MMAP T11: PF probe armed (write to R-only page)\r\r\n\r\r\n*** EXCEPTION 14: #PF Page Fault ***\r\r\n  error_code=0x0000000000000007  rip=0x000000000040031C  cs=0x0000000000000033  rflags=0x0000000000010206\r\r\n  rsp=0x000000003FFFFFF0  ss=0x000000000000003B\r\r\n  cr2=0x000000003C012000  (faulting address)\r\r\n*** KILLING user process (pid=2) due to exception 14, kernel continues ***\r\r\n[user] process killed by exception (vector=14), kernel continues\r\r\n'
+
+ROW p3_test: '\r\r\noc> p3_test: startp3_test: PASS_P3123\r\r\np'
+
+ROW g6_exec_a: '\r\r\noc> g6_exec_a: start\r\r\ng6_exec_a: child execing g6_exec_b\r\r\ng6_exec_b: alive, raising SIGUSR1 with no handler\r\r\ng6_exec_a: child status = 138g6_exec_a: PASS\r\r\n'
+
+ROW g6_exec_b: '\r\r\noc> g6_exec_b: alive, raising SIGUSR1 with no handler\r\r\n'
+
+ROW g6_oom: '\r\r\noc> g6_oom: start\r\r\n\r\r\n*** EXCEPTION 14: #PF Page Fault ***\r\r\n  error_code=0x0000000000000007  rip=0x00000000004000D4  cs=0x0000000000000033  rflags=0x0000000000010246\r\r\n  rsp=0x000000003FFFFFF0  ss=0x000000000000003B\r\r\n  cr2=0x000000003C000000  (faulting address)\r\r\n*** KILLING user process (pid=2) due to exception 14, kernel continues ***\r\r\n[user] process killed by exception (vector=14), kernel continues\r\r\n'
+
+ROW g6_test: '(kill 2 stops it)\r\r\ng6_test: start\r\r\ng6_test: T2 fork-mmap-inherit start\r\r\nS0\r\r\nS1\r\r\nS2\r\r\noc> SP\r\r\nSC\r\r\ng6_test: =PASS=\r\r\ng6_test: T5 per-proc-cwd start\r\r\ng6_test: =PASS=\r\r\ng6_test: T1 exit0-reap start\r\r\n[user] process 6 exited (code=42)\r\r\ng6_test: =PASS=\r\r\ng6_test: T3 write2-no-reader start\r\r\ng6_test: =PASS=\r\r\ng6_test: T4 sig-restorer start\r\r\ng6_test: T4 handler entered\r\r\ng6_test: T4 back from handler\r\r\ng6_test: =PASS=\r\r\ng6_test: T7 solib-reject start\r\r\ng6_test: =PASS=\r\r\ng6_test: T6 solib-window start\r\r\ng6_test: T6 dlopen count = 3931g6_test: =PASS=\r\r\ng6_test: failed tests = 0g6_test: PASS\r\r\n'
+
+ROW priv_test: '\r\r\npriv_test: attempting out 0x70 from ring 3\r\r\n\r\r\n*** EXCEPTION 13: #GP General Protection ***\r\r\n  error_code=0x0000000000000000  rip=0x000000000040001A  cs=0x0000000000000033  rflags=0x0000000000010246\r\r\n  rsp=0x000000003FFFFFF0  ss=0x000000000000003B\r\r\n*** KILLING user process (pid=2) due to exception 13, kernel continues ***\r\r\n[user] process killed by exception (vector=13), kernel continues\r\r\noc> '
+
+ROW sigsegv_test: '\r\r\noc> sigsegv_test: SIGSEGV handler armed\r\r\nsigsegv_test: touching 0xFD000000 (kernel page)...\r\r\n\r\r\n*** EXCEPTION 14: #PF Page Fault ***\r\r\n  error_code=0x0000000000000005  rip=0x000000000040004D  cs=0x0000000000000033  rflags=0x0000000000010246\r\r\n  rsp=0x000000003FFFFFF0  ss=0x000000000000003B\r\r\n  cr2=0x00000000FD000000  (faulting address)\r\r\n*** SIGSEGV delivered to pid=2 (handler will run, delivery #1) - kernel continues ***\r\r\nSIGSEGV-TEST CAUGHT (signal 11 delivered, exiting cleanly)\r\r\n[user] process 2 exited (code=0)\r\r\n'
+
+ROW stackovf: '\r\r\noc> stackovf: fork+recursion (4 KiB frames, no handler)\r\r\nstackovf: parent waiting for child\r\r\nstackovf: child recursing - expect kill at the boundary\r\r\n\r\r\n*** EXCEPTION 14: #PF Page Fault ***\r\r\n  error_code=0x0000000000000007  rip=0x000000000040001A  cs=0x0000000000000033  rflags=0x0000000000010202\r\r\n  rsp=0x000000003FFEFF70  ss=0x000000000000003B\r\r\n  cr2=0x000000003FFEFF68  (faulting address)\r\r\n*** KILLING user process (pid=3) due to exception 14, kernel continues ***\r\r\n[user] process killed by exception (vector=14), kernel continues\r\r\nSTACKOVF-TEST DONE (child killed, kernel alive)\r\r\n[user] process 2 exited (code=0)\r\r\n'
+

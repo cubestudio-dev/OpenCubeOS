@@ -1,0 +1,23 @@
+python3 tools/run_host_tests.py
+TEST                                   RESULT
+host_a401_entry_test.c                 PASS
+host_aead_test.c                       PASS
+host_blk512_gate_test.c                PASS
+host_bn_ec_test.c                      PASS
+host_bt_test.c                         PASS
+host_camera_test.c                     PASS
+host_fix4_crypto_test.c                PASS
+host_fix4_tar_test.c                   PASS
+host_i2chid_touch_test.c               PASS
+host_ir_test.c                         PASS
+host_mb2_test.c                        PASS
+host_rsa_test.c                        SKIP-FIXTURE (needs openssl fixtures)
+host_scsi_test.c                       PASS
+host_tcpcc_test.c                      PASS
+host_tls13_ks_test.c                   PASS
+host_tls_p0_test.c                     PASS
+host_wifi_test.c                       PASS
+host_x25519_test.c                     PASS
+host_x509_test.c                       SKIP-FIXTURE (needs openssl fixtures)
+
+summary: 17 passed, 0 failed/build-failed, 2 skipped (fixtures)

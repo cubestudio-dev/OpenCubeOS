@@ -3,40 +3,43 @@
    release time. Do not hand-edit: the script rewrites this file from
    the real dist/ assets + the release manifest. */
 window.SITE_DATA = {
-  version: "2.0.0",
-  build: 302,
+  version: "2.1.0",
+  build: 309,
   date: "2026-10-25",
-  changes: "2.0.0 BREAKING: boots into the ring-3 service surface (ush + SYS_L1SVC); register-class interfaces removed (drivers/services declare identity in-file); L0 restructured to core/drivers/services/boot/recovery; every operational command class moved to ring 3 (17 services / 158 ops); ota incremental-build fix - see the GitHub release note",
+  changes: "2.1.0 - the 17-issue fix release: CI green again (hard release gate), the v1 233-command mapping completed, the per-entry interface comparison (278 declarations), the declared deletion register, regenerated command reference (EN+zh), website data integrity. See the GitHub release note.",
   assets: {
     iso: {
-      name: "opencube-2.0.0.iso",
+      name: "opencube-2.1.0.iso",
       size: 12392448,
       size_h: "11.8 MiB",
-      sha256: "efb650e25481a7b0ce9961c21c9747942d79e7b4417eb80ec41719a7bdec3854",
-      url: "downloads/opencube-2.0.0.iso"
+      sha256: "808b5423127fa6ee802f84d9edd2db2639052a57946ff554512787638cdcb9de",
+      url: "downloads/opencube-2.1.0.iso"
     },
     src: {
-      name: "opencube-2.0.0-src.zip",
-      size: 4632445,
-      size_h: "4.4 MiB",
-      sha256: "92b415a0bb476cdd2539681cd5a3fd5d4b02620115006007e03af26e61a3d672",
-      url: "downloads/opencube-2.0.0-src.zip"
+      name: "opencube-2.1.0-src.zip",
+      size: 4709022,
+      size_h: "4.5 MiB",
+      sha256: "8dba53d3fe6bd3d3c0615aa025a406616b4a72d23877e9eb3429eb6c4588aa14",
+      url: "downloads/opencube-2.1.0-src.zip"
     },
     ota: {
-      name: "opencube-2.0.0-update.tar.gz",
-      size: 1080687,
+      name: "opencube-2.1.0-update.tar.gz",
+      size: 1081570,
       size_h: "1.0 MiB",
-      sha256: "327c57766785d48347de780713f93b0f63d5f3786cda0d78849ede544772d691",
-      url: "downloads/opencube-2.0.0-update.tar.gz"
+      sha256: "21b52c98d9224574674f4fbea31fbe71b411e2e5618281cf545376abe4bc480b",
+      url: "downloads/opencube-2.1.0-update.tar.gz"
     }
   },
   stats: {
     commands: 251,
     interfaces: 158,
     syscalls: 54,
-    lines: "130,011"
+    lines: "130,526"
   },
   history: [
+    { version: "2.0.0", date: "2026-10-25",
+      iso_sha: "efb650e25481a7b0ce9961c21c9747942d79e7b4417eb80ec41719a7bdec3854",
+      iso_size: 12392448 },
     { version: "1.0.0", date: "2026-10-24",
       iso_sha: "cee135aa49d2c62f8fce5bd39444867e169bb9ee62419846454d386c297b82e3",
       iso_size: 12326912 },
