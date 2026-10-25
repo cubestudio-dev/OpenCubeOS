@@ -226,6 +226,15 @@ def main():
             results.append((t, f"BUILD-FAIL (see {OUT}/{t}.build.log)"))
             with open(f"{OUT}/{t}.build.log", "w") as f:
                 f.write(" ".join(toks) + "\n\n" + cp.stderr[-4000:])
+            # 2.1.0: echo the first error lines to stdout as well - CI
+            # (and any headless run) cannot read the /tmp log file, and
+            # a bare "BUILD-FAIL" line hides the actual compiler error.
+            err_lines = [ln for ln in cp.stderr.splitlines()
+                         if "error" in ln.lower()][:8]
+            if err_lines:
+                print(f"--- {t} build errors (first {len(err_lines)}):")
+                for ln in err_lines:
+                    print(f"    {ln[:200]}")
             failed += 1
             continue
         if t in SKIP_FIXTURE and not fixtures_ready(t):
