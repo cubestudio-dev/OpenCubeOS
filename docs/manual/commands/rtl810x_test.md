@@ -1,15 +1,16 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- GENERATED page (tools/gen_api_docs.py --pages). Data
-     sources: live help -a capture + registration call sites
-     + usage strings from the handler sources. -->
+     sources: OC_SHELL_CMD call sites + the ush SVC_CMDS /
+     built-in tables + usage strings from the handler
+     sources. -->
 
 # rtl810x_test
 
-`rtl810x_test` - WP-10b: RTL810x presence/link/send-recv test
+`rtl810x_test` - rtl810x_test
 
-Registered in: `shell/shell_cmds_nic_test.c`
+Home: ring-3 service surface - SVC_CMDS row in `l1apps/ush.c`, dispatched through SYS_L1SVC(110) to `services/nic/`.
 
-Domain: [Network interface tests](index.md#shell-nic-test)
+Domain: [ush (ring-3 shell: SVC rows + built-ins)](index.md#ush)
 
 Full command index: [commands](index.md) - or `help -a` /
 `help -w` inside a running system.

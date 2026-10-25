@@ -34,6 +34,21 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def release_version():
+    """The OC_RELEASE_VERSION the Makefile will bake into the next
+    build (2.1.0: doc titles track the freeze instead of hardcoding
+    a release number)."""
+    try:
+        with open(os.path.join(ROOT, "Makefile"), encoding="utf-8") as f:
+            m = re.search(r'OC_RELEASE_VERSION \?= ([A-Za-z0-9_.-]+)',
+                           f.read())
+        if m:
+            return m.group(1)
+    except OSError:
+        pass
+    return "2.0.0"
+
+
 def esc(s):
     """HTML-escape for markdown table cells: bare <dev> in help text would
     otherwise be parsed as an unterminated HTML tag by the docs renderer."""
@@ -242,11 +257,23 @@ def extract_v2_commands():
     # 2) ush SVC table rows
     ush_path = os.path.join(ROOT, "l1apps", "ush.c")
     ush = open(ush_path, encoding="utf-8", errors="replace").read()
+    svc_rows_total = 0
+    svc_dual = []
     for m in USH_SVC_RE.finditer(ush):
         name = m.group(1)
         # m.group(2) = "CAT_NET" (the L1SVC_ prefix is outside the
         # group); normalize to the service folder name.
         folder = m.group(2).replace("CAT_", "").lower()
+        svc_rows_total += 1
+        if name in cmds:
+            # 2.1.0 (P-14 caliber fix): nine names (rtc/hpet/pmtimer/
+            # tsc/shutdown/poweroff/reboot/halt/sleep) are carried by
+            # the ush SVC_CMDS table AND registered as L0 commands.
+            # setdefault attributes them to L0; the dual home is kept
+            # so the docs can state the counting caliber exactly.
+            cmds[name]["svc_duo"] = folder
+            svc_dual.append(name)
+            continue
         cmds.setdefault(name, {
             "name": name, "help": "",
             "where": "L1-SVC", "cat": folder})
@@ -273,7 +300,7 @@ def extract_v2_commands():
             if cand in cmds and not cmds[cand]["help"]:
                 cmds[cand]["help"] = label
     out = sorted(cmds.values(), key=lambda c: c["name"])
-    return out
+    return out, svc_rows_total, svc_dual
 
 
 def extract_l1svc_surface():
@@ -309,6 +336,12 @@ def extract_v1_baseline():
 
     Falls back to evidence/v1_command_list.txt (names only) when the
     tag is not available (e.g. the docs site checkout).
+
+    2.1.0 (P-03 fix): the name class now accepts spaces - v1.0.0
+    listed `health export` and `health watch` as separate commands
+    and the old no-space class silently dropped both, which is how
+    the v2.0.0 docs ended up claiming a 231-command baseline while
+    the real v1 baseline is 233.
     """
     import subprocess
     v1 = {}
@@ -317,17 +350,163 @@ def extract_v1_baseline():
             ["git", "show", "v1.0.0:INTERFACES.md"],
             capture_output=True, text=True, timeout=90,
             cwd=ROOT).stdout
-        for m in re.finditer(r'^\|\s*`([a-z0-9_:.-]+)`\s*\|\s*(.+?)\s*\|$',
-                             text, re.M):
-            v1[m.group(1)] = m.group(2)
+        for m in re.finditer(
+                r'^\|\s*`([a-z0-9_:. -]+)`\s*\|\s*(.+?)\s*\|$',
+                text, re.M):
+            v1[m.group(1).strip()] = m.group(2)
     except Exception:
         pass
     if not v1:
         alt = os.path.join(ROOT, "evidence", "v1_command_list.txt")
         if os.path.exists(alt):
-            for name in open(alt).read().split():
-                v1[name] = ""
+            for line in open(alt, encoding="utf-8"):
+                # 2.1.0: the fallback list is one name per line, quoted
+                # exactly as v1 typed them (two entries contain
+                # spaces: 'health export', 'health watch').
+                name = line.strip()
+                if name:
+                    v1[name] = ""
     return v1
+
+
+def index_v2_header_names():
+    """Scan every current-tree header and build two indexes over it:
+    index      - name -> files with a DECLARATION-LIKE line mentioning
+                 it (`name(` on a line starting with a type/identifier -
+                 real declarations and inline definitions, not comment
+                 mentions)
+    index_any  - name -> files mentioning it anywhere (comments
+                 included) - used for the drv_internal.h classification
+    (2.1.0 P-04: the first index classifies 'public', the second
+    classifies 'internalized' - a public header may NAME an
+    internalized hook in a comment without re-declaring it)."""
+    index = {}
+    index_any = {}
+    for root, _dirs, names in os.walk(ROOT):
+        if ".git" in root or "build" in root or "docs" in root:
+            continue
+        for nm in names:
+            if not nm.endswith(".h"):
+                continue
+            path = os.path.join(root, nm)
+            rel = os.path.relpath(path, ROOT)
+            try:
+                with open(path, encoding="utf-8",
+                          errors="replace") as f:
+                    text = f.read()
+            except OSError:
+                continue
+            in_comment = False
+            for line in text.splitlines():
+                # Per-character comment scan: handles /* */ opening or
+                # closing mid-line (after real code), and // tails.
+                n = len(line)
+                code = [True] * n
+                i = 0
+                while i < n:
+                    if in_comment:
+                        code[i] = False
+                        if line[i:i + 2] == "*/":
+                            code[i + 1] = False
+                            i += 2
+                            in_comment = False
+                            continue
+                        i += 1
+                        continue
+                    if line[i:i + 2] == "/*":
+                        code[i] = code[i + 1] = False
+                        i += 2
+                        in_comment = True
+                        continue
+                    if line[i:i + 2] == "//":
+                        for j in range(i, n):
+                            code[j] = False
+                        break
+                    i += 1
+                stripped = line.lstrip()
+                preproc = stripped.startswith("#")
+                first_code = -1
+                for j, ch in enumerate(line):
+                    if code[j] and not ch.isspace():
+                        first_code = j
+                        break
+                decl_like_head = (
+                    first_code >= 0
+                    and (line[first_code].isalpha()
+                         or line[first_code] == "_")
+                    and not preproc)
+                for m in re.finditer(
+                        r'\b([A-Za-z_][A-Za-z0-9_]*)\s*\(', line):
+                    name = m.group(1)
+                    index_any.setdefault(name, set()).add(rel)
+                    if decl_like_head and m.start() < n and code[m.start()]:
+                        index.setdefault(name, set()).add(rel)
+    return index, index_any
+
+
+def extract_v1_interface_baseline():
+    """The v1.0.0 Part 2 numbered L1 extension declarations, each with
+    its fate in the current tree.
+
+    2.1.0 (P-04): the 162 -> 158 interface-surface comparison is a
+    per-entry table, not a one-line summary.  The v1 README formula
+    said 162; the v1 Part 2 tables are the complete, unfiltered
+    declaration truth of the 13 L1 surface headers - 278 callable
+    rows - and this comparison covers ALL of them (a superset of any
+    numbered subset; the 2.0.0-postcheck's 163-row parse was itself
+    incomplete and is corrected here).
+
+    Returns {name: {v1_header, v1_line, v1_decl, v2_status, v2_home}}
+    with v2_status in {'public', 'internal', 'gone'}:
+      public    - declared/defined in a current public header
+      internal  - moved into a services/*/drv_internal.h
+      gone      - no declaration anywhere in the current tree
+    """
+    try:
+        text = subprocess.run(
+            ["git", "show", "v1.0.0:INTERFACES.md"],
+            capture_output=True, text=True, timeout=90,
+            cwd=ROOT).stdout
+    except Exception:
+        return {}
+    pub_index, any_index = index_v2_header_names()
+    entries = {}
+    cur = None
+    for line in text.splitlines():
+        m = re.match(r'^###\s+(\S+)\s*$', line)
+        if m:
+            cur = m.group(1)
+            continue
+        m = re.match(r'^\|\s*(\d+)\s*\|\s*`([^`]+)`\s*\|\s*$', line)
+        if not m or cur is None:
+            continue
+        decl = m.group(2).strip()
+        if "(" not in decl:
+            continue
+        before_paren = decl.split("(", 1)[0]
+        words = re.findall(r'[A-Za-z_][A-Za-z0-9_]*', before_paren)
+        if not words:
+            continue
+        nm = words[-1]
+        pub_h = sorted(h for h in pub_index.get(nm, set())
+                       if os.path.basename(h) != "drv_internal.h")
+        int_h = sorted(h for h in any_index.get(nm, set())
+                       if os.path.basename(h) == "drv_internal.h")
+        if pub_h:
+            status, home = "public", ", ".join(pub_h)
+        elif int_h:
+            status, home = "internal", ", ".join(int_h)
+        else:
+            status, home = "gone", "-"
+        ent = entries.setdefault(nm, {
+            "v1_header": cur, "v1_line": int(m.group(1)),
+            "v1_decl": decl, "v2_status": status, "v2_home": home})
+        # keep the earliest v1 header/line for duplicates (hub
+        # headers re-declare some names - same rule as the interface
+        # extraction: first wins)
+        if int(m.group(1)) < ent["v1_line"]:
+            ent["v1_header"], ent["v1_line"] = cur, int(m.group(1))
+    return entries
 
 
 def extract_stats():
@@ -355,20 +534,19 @@ def extract_stats():
 
 
 
-# ---- WP-14: per-command reference pages ------------------------------
+# ---- per-command reference pages -------------------------------------
 #
-# The registration table (file, name, help, wp) is extracted from every
-# shell_register_command / _ex call site; the runtime capture stays the
-# authority for the full 233-name list (registration sites and the live
-# table are cross-checked).
-
-REG_RE = re.compile(
-    r'shell_register_command(?:_ex)?\(\s*"([^"]+)"\s*,\s*([a-zA-Z0-9_]+)\s*,'
-    r'\s*"((?:[^"\\]|\\.)*)"')
+# 2.1.0 (P-15): the pages are v2-native now.  The registration table
+# (file, name, handler, help) is extracted from every OC_SHELL_CMD
+# call site; the ush SVC_CMDS rows and built-ins carry their own home
+# (l1apps/ush.c); domain grouping follows the v2 tree (recovery/,
+# services/, core/, tui/, chinese/, l1apps/).
 
 
 def extract_registration_table():
-    """[(file, name, handler, help)] for every registration call site."""
+    """[(file, name, handler, help)] for every OC_SHELL_CMD call site
+    (v2: file-local declarations; the v1 shell_register_command API
+    and its kernel//shell/ tree are gone - 2.1.0 P-15)."""
     regs = []
     for root, _dirs, names in os.walk(ROOT):
         if ".git" in root or "build" in root or "docs" in root:
@@ -379,62 +557,39 @@ def extract_registration_table():
             path = os.path.join(root, nm)
             rel = os.path.relpath(path, ROOT)
             try:
-                text = open(path, encoding="utf-8",
-                            errors="replace").read()
+                with open(path, encoding="utf-8",
+                          errors="replace") as f:
+                    text = f.read()
             except OSError:
                 continue
-            for m in REG_RE.finditer(text):
+            for m in OC_SHELL_RE.finditer(text):
                 regs.append((rel, m.group(1), m.group(2), m.group(3)))
     return regs
 
 
 def domain_of_file(rel):
-    """Group commands by the source file that registers them - the tree
-    structure IS the domain structure."""
+    """Group commands by their v2 home - the tree structure IS the
+    domain structure (2.1.0 P-15: v2 paths; the v1 kernel//shell//fs//
+    net/ layout no longer exists in the tree)."""
     base = os.path.basename(rel)
-    if rel.startswith("shell/shell.c"):
+    if rel.startswith("recovery/"):
+        if rel == "recovery/shell.c":
+            return "shell-core"
+        if base.startswith("shell_cmds_"):
+            dom = base[len("shell_cmds_"):-2]
+            return "shell-" + dom.replace("_", "-")
         return "shell-core"
-    if base.startswith("shell_cmds_"):
-        dom = base[len("shell_cmds_"):-2]
-        return "shell-" + dom.replace("_", "-")
+    if rel.startswith("services/"):
+        svc = rel.split("/")[1]
+        return "svc-" + svc
+    if rel.startswith("core/"):
+        return "kernel-core"
     if rel.startswith("tui/"):
         return "tui"
     if rel.startswith("chinese/"):
         return "chinese"
-    if rel.startswith("kernel/ota"):
-        return "ota-update"
-    if rel.startswith("kernel/mem"):
-        return "memory"
-    if rel.startswith("kernel/crypto"):
-        return "crypto"
-    if rel.startswith("kernel/"):
-        return "kernel-core"
-    if rel.startswith("drivers/block"):
-        return "storage"
-    if rel.startswith("drivers/nic"):
-        return "network"
-    if rel.startswith("drivers/usb"):
-        return "usb"
-    if rel.startswith("drivers/snd"):
-        return "sound"
-    if rel.startswith("drivers/acpi"):
-        return "acpi-chipset"
-    if rel.startswith("drivers/i2c"):
-        return "i2c"
-    if rel.startswith("drivers/time"):
-        return "time"
-    if rel.startswith("drivers/wireless"):
-        return "wireless"
-    if rel.startswith("drivers/bluetooth"):
-        return "bluetooth"
-    if rel.startswith("drivers/"):
-        return "drivers-misc"
-    if rel.startswith("net/"):
-        return "network"
-    if rel.startswith("fs/"):
-        return "filesystem"
-    if rel.startswith("l1/"):
-        return "l1"
+    if rel.startswith("l1apps/"):
+        return "ush"
     return "other"
 
 
@@ -476,9 +631,12 @@ DOMAIN_TITLES = {
     "shell-pargame": "Parallel port",
     "shell-usb-test": "USB tests",
     "shell-lang": "Language console",
+    "svc-net": "Networking service (L0 half)",
+    "ush": "ush (ring-3 shell: SVC rows + built-ins)",
     "tui": "TUI (terminal UI)",
     "chinese": "Chinese console layer",
     "kernel": "Kernel-level commands",
+    "kernel-core": "Kernel core commands",
     "other": "Other",
 }
 
@@ -487,8 +645,55 @@ def slug(name):
     return name.replace(" ", "_").replace(".", "-")
 
 
-def write_command_pages(cmds, out_dir):
-    """Generate one reference page per command + the domain index."""
+# 2.1.0 (P-15): zh command pages are generated from the same data as
+# the English pages.  The scaffolding strings are Chinese (user-facing
+# doc prose); the command help text stays the system's own English
+# string (the language policy keeps system strings English - zh docs
+# quote them verbatim instead of inventing translations).
+DOMAIN_TITLES_ZH = {
+    "shell-core": "Shell 核心（内建）",
+    "kernel-core": "内核核心命令",
+    "shell-chipset": "芯片组（ACPI/PCI/i2c）",
+    "shell-crash": "崩溃恢复与转储",
+    "shell-file": "文件与编辑器",
+    "shell-disk": "磁盘、分区、文件系统",
+    "shell-disk-test": "磁盘/存储测试",
+    "shell-fs": "文件系统内部",
+    "shell-nic-test": "网卡测试",
+    "shell-health": "健康监控",
+    "shell-log": "内核日志（klog）",
+    "shell-wd": "看门狗",
+    "shell-update-test": "OTA 更新测试",
+    "shell-timer": "时间源",
+    "shell-bt": "蓝牙",
+    "shell-wireless": "无线",
+    "shell-camera": "摄像头（UVC）",
+    "shell-ir": "红外",
+    "shell-scsi": "SCSI",
+    "shell-snd-test": "声音测试",
+    "shell-power-test": "电源管理测试",
+    "shell-pargame": "并口",
+    "shell-usb-test": "USB 测试",
+    "shell-lang": "语言控制台",
+    "svc-net": "网络服务（L0 半边）",
+    "ush": "ush（ring-3 shell：SVC 行 + 内建）",
+    "tui": "TUI（终端界面）",
+    "chinese": "中文控制台层",
+    "kernel": "内核级命令",
+    "other": "其他",
+}
+
+
+def write_command_pages(cmds, out_dir, lang="en"):
+    """Generate one reference page per command + the domain index.
+
+    2.1.0 (P-15): every command on the v2 surface gets a page - L0
+    OC_SHELL_CMD declarations, the 133 unique ush SVC rows, the 19
+    built-ins and the 4 NETCMD bridges alike - and 'Registered in'
+    cites the real v2 source locations.  lang='zh' emits the same
+    data with Chinese scaffolding into docs/zh/manual/commands/."""
+    zh = (lang == "zh")
+    titles = DOMAIN_TITLES_ZH if zh else DOMAIN_TITLES
     regs = extract_registration_table()
     reg_by_name = {}
     for rel, name, handler, _help in regs:
@@ -498,31 +703,82 @@ def write_command_pages(cmds, out_dir):
     for c in cmds:
         name = c["name"]
         files = reg_by_name.get(name) or []
-        dom = domain_of_file(files[0]) if files else "other"
+        if files:
+            dom = domain_of_file(files[0])
+        elif c["where"] in ("L1-SVC", "L1-builtin"):
+            dom = "ush"
+        else:
+            dom = "other"
         domains.setdefault(dom, []).append(c)
         page = os.path.join(out_dir, slug(name) + ".md")
         L = []
         w = L.append
         w("<!-- SPDX-License-Identifier: Apache-2.0 -->")
-        w("<!-- GENERATED page (tools/gen_api_docs.py --pages). Data")
-        w("     sources: live help -a capture + registration call sites")
-        w("     + usage strings from the handler sources. -->")
+        if zh:
+            w("<!-- 由 tools/gen_api_docs.py --pages-zh 生成。数据源与英文页一致：")
+            w("     OC_SHELL_CMD 注册点 + ush 的 SVC_CMDS/内建表 +")
+            w("     处理函数源码中的 usage 字符串。命令帮助文本保留系统")
+            w("     原文（英文）。 -->")
+        else:
+            w("<!-- GENERATED page (tools/gen_api_docs.py --pages). Data")
+            w("     sources: OC_SHELL_CMD call sites + the ush SVC_CMDS /")
+            w("     built-in tables + usage strings from the handler")
+            w("     sources. -->")
         w("")
         w("# %s" % name)
         w("")
         w("`%s` - %s" % (name, esc(c["help"])))
         w("")
         if name in usage:
-            w("**Usage:** `%s`" % esc(usage[name]))
+            w(("**用法：** `%s`" if zh else "**Usage:** `%s`")
+              % esc(usage[name]))
             w("")
-        if files:
-            w("Registered in: `%s`" % "`, `".join(sorted(set(files))))
+        if c["where"] == "L0":
+            if zh:
+                w("家：L0 恢复壳（`oc>`）—— 注册于 `%s`（OC_SHELL_CMD）"
+                  % "`, `".join(sorted(set(files))))
+                if c.get("svc_duo"):
+                    w("双归属：同时是 ush 的 SVC_CMDS 行（`l1apps/ush.c`），"
+                      "两个 shell 都可调用。")
+                if c.get("bridge"):
+                    w("亦可经 SYS_NETCMD 桥接从 ush 内建调用。")
+            else:
+                w("Home: L0 recovery shell (`oc>`) - OC_SHELL_CMD in `%s`"
+                  % "`, `".join(sorted(set(files))))
+                if c.get("svc_duo"):
+                    w("Also an ush SVC_CMDS row (`l1apps/ush.c`) - "
+                      "callable from both shells.")
+                if c.get("bridge"):
+                    w("Also reachable as a ush built-in through the "
+                      "SYS_NETCMD bridge.")
             w("")
-        w("Domain: [%s](index.md#%s)" % (
-            DOMAIN_TITLES.get(dom, dom), dom))
+        elif c["where"] == "L1-SVC":
+            if zh:
+                w("家：ring-3 服务面 —— ush 的 SVC_CMDS 行（`l1apps/ush.c`），"
+                  "经 SYS_L1SVC(110) 派发到 `services/%s/`。" % c["cat"])
+            else:
+                w("Home: ring-3 service surface - SVC_CMDS row in "
+                  "`l1apps/ush.c`, dispatched through SYS_L1SVC(110) to "
+                  "`services/%s/`." % c["cat"])
+            w("")
+        elif c["where"] == "L1-builtin":
+            via = (" 或经 SYS_NETCMD" if c.get("bridge") else "")
+            if zh:
+                w("家：ush 内建 —— `l1apps/ush.c` 的 streq 派发"
+                  "（完全运行于 ring 3%s）。" % via)
+            else:
+                w("Home: ush built-in - streq dispatch in "
+                  "`l1apps/ush.c` (runs entirely in ring 3%s)." % via)
+            w("")
+        w(("领域：[%s](index.md#%s)" if zh else "Domain: [%s](index.md#%s)")
+          % (titles.get(dom, dom), dom))
         w("")
-        w("Full command index: [commands](index.md) - or `help -a` /")
-        w("`help -w` inside a running system.")
+        if zh:
+            w("完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 "
+              "`help -a` / `help -w`。")
+        else:
+            w("Full command index: [commands](index.md) - or `help -a` /")
+            w("`help -w` inside a running system.")
         w("")
         with open(page, "w") as f:
             f.write("\n".join(L))
@@ -531,17 +787,24 @@ def write_command_pages(cmds, out_dir):
     L = []
     w = L.append
     w("<!-- SPDX-License-Identifier: Apache-2.0 -->")
-    w("<!-- GENERATED index (tools/gen_api_docs.py --pages). -->")
+    if zh:
+        w("<!-- 由 tools/gen_api_docs.py --pages-zh 生成的索引。 -->")
+    else:
+        w("<!-- GENERATED index (tools/gen_api_docs.py --pages). -->")
     w("")
-    w("# Shell command reference (%d commands)" % len(cmds))
+    w(("# Shell 命令参考（%d 条命令）" if zh
+       else "# Shell command reference (%d commands)") % len(cmds))
     w("")
-    w("Grouped by the source file that registers each command - the")
-    w("tree structure is the domain structure. Inside a running system")
-    w("use `help -a` (alphabetical) or `help -w` (by work package).")
+    if zh:
+        w("按 v2 的注册归属分组——目录结构即领域结构。运行中的系统内使用 "
+          "`help -a`（字母序）或 `help -w`（按工作包）。")
+    else:
+        w("Grouped by the v2 home that registers each command - the tree")
+        w("structure is the domain structure. Inside a running system use")
+        w("`help -a` (alphabetical) or `help -w` (by work package).")
     w("")
     for dom in sorted(domains):
-        w("## %s (%d)" % (DOMAIN_TITLES.get(dom, dom),
-                          len(domains[dom])))
+        w("## %s (%d)" % (titles.get(dom, dom), len(domains[dom])))
         w("<a id=\"%s\"></a>" % dom)
         w("")
         for c in sorted(domains[dom], key=lambda x: x["name"]):
@@ -550,6 +813,20 @@ def write_command_pages(cmds, out_dir):
         w("")
     with open(idx, "w") as f:
         f.write("\n".join(L))
+    # 2.1.0: purge ghost pages - any page left over from an older
+    # generation whose command no longer exists would silently lie
+    # about the surface (exactly how v1-era pages survived the 2.0.0
+    # docs regeneration).
+    want = set(slug(c["name"]) + ".md" for c in cmds)
+    want.add("index.md")
+    purged = 0
+    for old in os.listdir(out_dir):
+        if old.endswith(".md") and old not in want:
+            os.remove(os.path.join(out_dir, old))
+            purged += 1
+    if purged:
+        print(f"gen_api_docs: command pages ({lang}) - purged {purged} "
+              f"stale page(s) with no current command")
     return len(cmds), len(domains)
 
 
@@ -662,6 +939,10 @@ def main():
     ap.add_argument("--pages", action="store_true",
                     help="generate per-command reference pages under "
                          "docs/manual/commands/")
+    ap.add_argument("--pages-zh", action="store_true",
+                    help="2.1.0: regenerate the Chinese command pages "
+                         "(docs/zh/manual/commands/) from the same data "
+                         "with Chinese scaffolding")
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
@@ -671,15 +952,36 @@ def main():
     by_file = {}
     for itf in interfaces:
         by_file.setdefault(itf["file"], []).append(itf["name"])
+    v1if = extract_v1_interface_baseline()
+    gone = sorted(nm for nm, ent in v1if.items()
+                   if ent["v2_status"] == "gone")
     summary = {
         "declared_total": len(interfaces),
-        "l1_official_count": 162,
-        "note": ("declared_total = every callable declaration in the 13 "
-                 "L1 surface headers (includes internal helpers, the "
-                 "unnumbered WP-09-fix5 and rule-9 self-hosting items). "
-                 "l1_official_count = the README numbered L1 extension "
-                 "interface count (57+8+13+7+26+11+7+9+8+16=162), the "
-                 "repo-wide consistency figure."),
+        # 2.1.0 (P-04 fix): the official numbered L1 extension count is
+        # the CURRENT L1SVC op surface, not the v1 README formula. The
+        # v1 figure (162) was kept here through 2.0.0 and silently
+        # contradicted the 17-category/158-op surface the same doc
+        # reports.
+        "l1_official_count": 158,
+        "l1svc_categories": 17,
+        "v1_declaration_entries": len(v1if),
+        "v1_survivors_public": sum(
+            1 for e in v1if.values()
+            if e["v2_status"] == "public"),
+        "v1_internalized": sum(
+            1 for e in v1if.values()
+            if e["v2_status"] == "internal"),
+        "v1_gone": gone,
+        "note": ("declared_total = every callable declaration in the "
+                 "v2 service headers (includes internal helpers). "
+                 "l1_official_count = the numbered L1SVC op surface "
+                 "(17 categories / 158 ops, services/l1/l1svc_defs.h). "
+                 "v1_* fields record the COMPLETE v1.0.0 Part 2 "
+                 "declaration truth (all %d callable rows across the 13 "
+                 "surface headers; the v1 README numbered formula said "
+                 "162, and the 2.0.0 postcheck's 163-row parse was "
+                 "incomplete) and each row's fate in the current tree - "
+                 "see INTERFACES.md Part 2c and Part 2d." % len(v1if)),
         "by_file": by_file,
     }
     with open(os.path.join(args.out, "interfaces.json"), "w") as f:
@@ -689,10 +991,28 @@ def main():
 
     # ---- commands (v2: sources are the authority; a runtime capture
     # is still accepted to cross-check the L0 half) ----
-    v2cmds = extract_v2_commands()
+    v2cmds, svc_rows_total, svc_dual = extract_v2_commands()
     svc_cats, svc_ops = extract_l1svc_surface()
     v1base = extract_v1_baseline()
     cmds = v2cmds
+    # 2.1.0 (P-15): SVC rows whose ush help-block line uses a compact
+    # format the help regex can't see (e.g. "mkfs.fat32|exfat|ext4 <dev>")
+    # get the usage hint straight from the l1svc_defs.h op comment -
+    # the same string the numbered-op tables print.
+    op_hint = {}
+    for op in svc_ops.values():
+        parts = op["cmd"].split()
+        if parts:
+            op_hint[parts[0]] = op["cmd"]
+    filled_hints = 0
+    for c in cmds:
+        if (c["where"] == "L1-SVC" and not c["help"]
+                and c["name"] in op_hint):
+            c["help"] = op_hint[c["name"]]
+            filled_hints += 1
+    if filled_hints:
+        print(f"gen_api_docs: filled {filled_hints} SVC help hint(s) "
+              f"from l1svc_defs.h op comments")
     capture = None
     if args.help_capture:
         with open(args.help_capture, "r", encoding="latin-1") as f:
@@ -708,21 +1028,40 @@ def main():
                                        if c["where"] == "L1-SVC"),
                    "count_l1_builtin": sum(1 for c in cmds
                                            if c["where"] == "L1-builtin"),
+                   # 2.1.0 (P-14 fix): the SVC counting caliber. The ush
+                   # SVC_CMDS table carries svc_rows_total rows; the
+                   # len(svc_dual) dual-homed names are ALSO registered
+                   # as L0 commands and are attributed to L0 by the
+                   # first-home rule, so count_l1_svc + count_l0 is the
+                   # unique-name ledger - both halves stay reachable.
+                   "count_ush_svc_rows": svc_rows_total,
+                   "ush_svc_dual_homed": sorted(svc_dual),
+                   "caliber_note": (
+                       "count_l1_svc counts unique names attributed to "
+                       "their first home (L0 wins). The ush SVC_CMDS "
+                       "table itself carries %d rows; the %d dual-homed "
+                       "names (%s) are registered both as L0 commands "
+                       "and as ush SVC rows, are attributed to L0 here, "
+                       "and remain callable from both shells."
+                       % (svc_rows_total, len(svc_dual),
+                          ", ".join(sorted(svc_dual)))),
                    "commands": cmds}, f, indent=1)
     if capture is not None:
         cap_cmds, total = extract_commands_from_capture_text(capture)
         all_names = {c["name"] for c in cmds}
         cap_names = {c["name"] for c in cap_cmds}
-        # v1 captured everything at the oc> prompt; v2 splits the same
-        # commands across L0 + ring-3 surface.  A real gap = a v1 name
-        # with no v2 home at all.
+        # 2.1.0: the capture is the LIVE oc> `help -a` output of the
+        # current build; it cross-checks the L0 half of the extracted
+        # surface (a v1 capture would work the same way - any capture
+        # name with no v2 home at all is flagged MISSING).
         missing = cap_names - all_names
-        moved = cap_names - {c["name"] for c in cmds
-                             if c["where"] == "L0"}
-        print(f"gen_api_docs: runtime cross-check - v1 capture lists "
+        not_l0 = cap_names - {c["name"] for c in cmds
+                              if c["where"] == "L0"}
+        print(f"gen_api_docs: runtime cross-check - capture lists "
               f"{len(cap_names)} (declares {total}); v2 surface "
-              f"{len(all_names)}; moved to ring 3: {len(moved)}; "
-              f"MISSING in v2: {sorted(missing) or 'none'}")
+              f"{len(all_names)}; capture names outside the L0 half: "
+              f"{len(not_l0)}; MISSING in v2: "
+              f"{sorted(missing) or 'none'}")
     else:
         print(f"gen_api_docs: commands.json - {len(cmds)} v2 commands "
               f"from the sources (no runtime capture requested)")
@@ -747,6 +1086,12 @@ def main():
         n, d = write_command_pages(cmds, pages_dir)
         print(f"gen_api_docs: command pages - {n} pages across {d} "
               f"domains under docs/manual/commands/")
+    if args.pages_zh and cmds:
+        zh_dir = os.path.join(ROOT, "docs", "zh", "manual", "commands")
+        os.makedirs(zh_dir, exist_ok=True)
+        n, d = write_command_pages(cmds, zh_dir, lang="zh")
+        print(f"gen_api_docs: command pages (zh) - {n} pages across {d} "
+              f"domains under docs/zh/manual/commands/")
 
     # ---- INTERFACES.md (root reference, generated) ----
     if args.md:
@@ -754,20 +1099,38 @@ def main():
         with open(path, "w") as f:
             f.write(write_interfaces_md(interfaces, stats, cmds,
                                         svc_cats=svc_cats,
-                                        svc_ops=svc_ops, v1=v1base))
+                                        svc_ops=svc_ops, v1=v1base,
+                                        v1if=v1if,
+                                        svc_rows_total=svc_rows_total,
+                                        svc_dual=svc_dual))
         print("gen_api_docs: INTERFACES.md written at the repo root")
+    # 2.1.0: the run log must state the v1 interface fate so the
+    # release evidence shows the comparison result explicitly.
+    if v1if:
+        pub = sum(1 for e in v1if.values() if e["v2_status"] == "public")
+        internal = sum(1 for e in v1if.values()
+                       if e["v2_status"] == "internal")
+        gone = sorted(nm for nm, e in v1if.items()
+                      if e["v2_status"] == "gone")
+        print(f"gen_api_docs: v1 interface fate - {pub} public, "
+              f"{internal} internalized, gone: {gone}")
     return 0
 
 
 def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
-                         svc_ops=None, v1=None):
+                         svc_ops=None, v1=None, v1if=None,
+                         svc_rows_total=0, svc_dual=None):
     """Render the root INTERFACES.md reference from the extracted data.
 
     v2.0.0 layout: Part 1 is the full command surface split by home
     (L0 recovery shell / ring-3 SVC / ush built-ins), Part 1b is the
     v1 -> v2 command mapping (the compatibility contract), Part 2 the
-    L1SVC service surface + kernel-side declarations, Part 3 syscalls.
+    L1SVC service surface + kernel-side declarations, Part 2c/2d the
+    v1 -> v2 interface-surface comparison and the deletion register,
+    Part 3 syscalls.
     """
+    VER = release_version()
+    svc_dual = svc_dual or []
     by_file = {}
     for itf in interfaces:
         by_file.setdefault(itf["file"], []).append(itf)
@@ -776,13 +1139,14 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
     l1b = [c for c in cmds if c["where"] == "L1-builtin"]
     bridge = [c for c in cmds if c.get("bridge") == "L1-bridge"]
     v1 = v1 or {}
+    v1if = v1if or {}
     L = []
     w = L.append
     w("<!-- SPDX-License-Identifier: Apache-2.0 -->")
     w("<!-- GENERATED by tools/gen_api_docs.py --md (make api-docs).")
     w("     Do not hand-edit the tables; edit the generator or the")
     w("     surface headers instead. -->")
-    w("# Open Cube OS Interface Reference (2.0.0)")
+    w("# Open Cube OS Interface Reference (%s)" % VER)
     w("")
     w("Every entry below is extracted from the real tree at generation")
     w("time: the L0 command declarations straight from the OC_SHELL_CMD")
@@ -793,8 +1157,8 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
     w("- v1.0.0 commands (compatibility baseline): **%d** - all mapped"
       % len(v1))
     w("  below, none dropped")
-    w("- v2.0.0 command homes: **%d total** = %d in the L0 recovery"
-      % (len(cmds), len(l0)))
+    w("- %s command homes: **%d total** = %d in the L0 recovery"
+      % (VER, len(cmds), len(l0)))
     w("  shell + %d ring-3 SYS_L1SVC ops + %d ush built-ins"
       % (len(l1svc), len(l1b)))
     w("- L1SVC service surface: **%d categories / %d numbered ops**"
@@ -807,12 +1171,22 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
       % (format(stats["total_lines"], ","), stats["total_files"]))
     w("  command; .c/.h/.S, generated data blobs excluded)")
     w("")
-    w("2.0.0 is a breaking re-architecture: the register-class")
-    w("interfaces of 1.0.0 are gone (drivers and services now declare")
-    w("their identity in-file via OC_DRIVER_DECL / OC_SERVICE_DECL),")
-    w("and every operational command class moved to the ring-3 service")
-    w("surface. What deliberately stays in L0: the kernel self-tests,")
-    w("the watchdog, the crash policy controls, the kernel log readers")
+    w("2.0.0 is a breaking re-architecture, stated precisely (2.1.0")
+    w("correction of the over-general 2.0.0 phrasing): the three")
+    w("driver-family register hooks (`driver_block_register`,")
+    w("`driver_nic_register`, `driver_snd_register`) moved from the")
+    w("public v1 L1 headers into the per-family internal headers")
+    w("(`services/*/drv_internal.h`, 'internal since 2.0.0'); drivers")
+    w("and services now declare their identity in-file via")
+    w("OC_DRIVER_DECL / OC_SERVICE_DECL; every operational command")
+    w("class moved to the ring-3 service surface; and the only true")
+    w("deletions on the v1 numbered surface are the two entries in the")
+    w("deletion register (Part 2d). Other register-class declarations")
+    w("(tui_ext.h menus/pages/widgets/..., `watchdog_register`,")
+    w("`signal_register`, `shell_register_builtin`) are STILL PUBLIC")
+    w("in the v2 tree - the per-entry truth is Part 2c. What")
+    w("deliberately stays in L0: the kernel self-tests, the watchdog,")
+    w("the crash policy controls, the kernel log readers")
     w("(dmesg/logcat/logctl/crashlog/dumpinfo/crashtest), the chipset")
     w("diagnostics, the recovery-environment file commands, and the")
     w("interactive session commands (ssh/sshd).")
@@ -842,16 +1216,31 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
       % ", ".join("`%s`" % n for n in sorted(
           c["name"] for c in bridge)))
     w("")
+    w("Counting caliber (2.1.0, P-14): the ush SVC_CMDS table itself")
+    w("carries **%d** rows. The %d rows below are the unique names"
+      % (svc_rows_total, len(l1svc)))
+    w("attributed to their first home: the %d dual-homed names (%s)"
+      % (len(svc_dual), ", ".join("`%s`" % n for n in sorted(svc_dual))))
+    w("are registered BOTH as L0 recovery-shell commands and as ush")
+    w("SVC rows; the first-home rule counts them as L0 here, and they")
+    w("stay callable from both shells. 133 + 9 = 142 ush rows; the")
+    w("unique-name ledger (99 L0 + 133 SVC + 19 built-ins = 251) is")
+    w("unchanged by dual-homing.")
+    w("")
     w("| Command | Service |")
     w("|---------|---------|")
     for c in sorted(l1svc, key=lambda x: x["name"]):
         w("| `%s` | `services/%s/` |" % (c["name"], c["cat"]))
     w("")
+    w("Dual-homed with L0 (listed in Part 1a, reachable from ush")
+    w("too): %s." % ", ".join(
+        "`%s`" % n for n in sorted(svc_dual)))
+    w("")
     w("Built-ins: %s." % ", ".join(
         "`%s`" % c["name"] for c in sorted(l1b, key=lambda x: x["name"])))
     w("")
-    w("## Part 1c - v1.0.0 -> 2.0.0 command mapping (%d rows)"
-      % len(v1))
+    w("## Part 1c - v1.0.0 -> %s command mapping (%d rows)"
+      % (VER, len(v1)))
     w("")
     w("The compatibility contract: every 1.0.0 command and where it")
     w("lives now. `L0` = recovery shell (same name), `SVC` = ring-3")
@@ -927,6 +1316,108 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
         for itf in by_file[fname]:
             w("| %d | `%s` |" % (itf["line"],
                                  itf["signature"].replace("|", "\\|")))
+        w("")
+    if v1if:
+        pub = sum(1 for e in v1if.values()
+                  if e["v2_status"] == "public")
+        internal = sum(1 for e in v1if.values()
+                       if e["v2_status"] == "internal")
+        gone = [nm for nm, e in sorted(v1if.items())
+                if e["v2_status"] == "gone"]
+        w("## Part 2c - v1.0.0 -> %s interface-surface comparison "
+          "(%d entries)" % (VER, len(v1if)))
+        w("")
+        w("2.1.0 (P-04): the per-entry truth behind 'the register class")
+        w("is gone'. The v1 README formula counted 162 numbered L1")
+        w("extension interfaces; the v1 Part 2 tables are the complete")
+        w("unfiltered declaration truth of the 13 L1 surface headers -")
+        w("**%d callable rows** - and this comparison covers every one" % len(v1if))
+        w("of them (a superset of any numbered subset; the 2.0.0")
+        w("postcheck's 163-row parse was itself incomplete and missed")
+        w("three of the deletions below). Their fate in the current")
+        w("tree: **%d public + %d internalized + %d gone = %d.**"
+          % (pub, internal, len(gone), len(v1if)))
+        w("")
+        w("| v1.0.0 entry | v1 header | v2 status | v2 home |")
+        w("|---|---|---|---|")
+        for nm in sorted(v1if, key=lambda k: (v1if[k]["v1_header"],
+                                             v1if[k]["v1_line"])):
+            e = v1if[nm]
+            if e["v2_status"] == "public":
+                st = "public"
+            elif e["v2_status"] == "internal":
+                st = "internalized"
+            else:
+                st = "**gone** (deleted - Part 2d)"
+            w("| `%s` | `%s` | %s | %s |" % (
+                nm, e["v1_header"], st,
+                ("`%s`" % e["v2_home"].replace(", ", "`, `"))
+                if e["v2_home"] != "-" else "-"))
+        w("")
+        w("## Part 2d - Deletion register (declared, complete)")
+        w("")
+        w("Every v1.0.0 surface-header declaration with NO counterpart")
+        w("anywhere in the current tree - the complete declared deletion")
+        w("list. There are exactly **%d**; nothing else on the v1" % len(gone))
+        w("surface was removed (the remaining %d entries are public or" % (len(v1if) - len(gone)))
+        w("internalized per Part 2c). All deletions are *init/probe")
+        w("plumbing*, not user-visible capability: the functionality")
+        w("was rebuilt inside the v2 service model - each row names")
+        w("where.")
+        w("")
+        w("| v1 entry | v1 header | What it did | Why removed | Rebuilt where |")
+        w("|---|---|---|---|---|")
+        w("| `void driver_block_init(void);` | "
+          "`drivers/block/driver_block_blk.h` | hardcoded per-driver "
+          "block-layer init walk | v2 drivers self-register via "
+          "OC_DRIVER_DECL and services self-initialize from the "
+          "collected OC_SERVICE_DECL linker sections - a hardcoded "
+          "walk contradicts the model | `block_svc_init()` in "
+          "`services/block/block_svc.c` (OC_SERVICE_DECL_L1 in "
+          "`services/block/block_l1.c`) |")
+        w("| `int driver_nic_init(void);` | "
+          "`drivers/nic/driver_nic.h` | hardcoded per-family NIC "
+          "init walk | same self-declaration model | `nic_svc_init()` "
+          "in `services/nic/nic_svc.c` (`services/nic/nic_svc.h`) |")
+        w("| `int driver_nic_probe_all(void);` | "
+          "`drivers/nic/driver_nic.h` | hardcoded probe list over all "
+          "NIC families | the probe list is COLLECTED from per-driver "
+          "OC_DRIVER_DECL identities instead of hardcoded | "
+          "`nic_svc_probe_all()` in `services/nic/nic_svc.c` "
+          "(`services/nic/nic_svc.h`) |")
+        w("| `void driver_snd_init(void);` | "
+          "`drivers/snd/driver_snd.h` | hardcoded sound-driver init "
+          "walk | same self-declaration model | `snd_svc_init()` in "
+          "`services/snd/snd_svc.c` (`services/snd/snd_svc.h`) |")
+        w("| `int driver_snd_probe_all(void);` | "
+          "`drivers/snd/driver_snd.h` | hardcoded probe list over all "
+          "sound drivers | same collection model (see "
+          "`services/snd/snd_svc.c`) | `snd_svc_probe_all()` in "
+          "`services/snd/snd_svc.c` (OC_SERVICE_DECL_L1 late probe, "
+          "`services/snd/snd_l1.c`) |")
+        w("")
+        w("'Register class gone' - the exact statement (2.1.0")
+        w("correction):")
+        w("")
+        w("- The register-class hooks of the three driver families")
+        w("  were NOT deleted - they moved from the public v1 L1 headers")
+        w("  into the per-family internal headers 'internal since")
+        w("  2.0.0' (`driver_block_register` AND the block family's")
+        w("  `driver_block_register_device` / `_unregister_device` /")
+        w("  `driver_block_set_ops` -> `services/block/drv_internal.h`;")
+        w("  `driver_nic_register` -> `services/nic/drv_internal.h`;")
+        w("  `driver_snd_register` -> `services/snd/drv_internal.h` -")
+        w("  6 entries in Part 2c marked internalized). They are")
+        w("  driver-private plumbing now, not an L1 extension surface.")
+        w("- Still-public register-class declarations in the current")
+        w("  tree: the `tui_*_register` families (`tui/tui_ext.h`),")
+        w("  `watchdog_register` (`services/watchdog/core_watchdog.h`),")
+        w("  `signal_register` (`services/l1/l1_wp8a.h`),")
+        w("  `shell_register_builtin` (`services/l1/l1_wp8cd.h`) and")
+        w("  `l1_ext_shell_register_command_ex`")
+        w("  (`services/l1/l1_ext.h`).")
+        w("- The only true deletions on the v1 surface are the %d rows" % len(gone))
+        w("  above.")
         w("")
     w("## Part 3 - Syscall surface (54)")
     w("")

@@ -1,16 +1,17 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-<!-- GENERATED page (tools/gen_api_docs.py --pages). Data
-     sources: live help -a capture + registration call sites
-     + usage strings from the handler sources. -->
+<!-- 由 tools/gen_api_docs.py --pages-zh 生成。数据源与英文页一致：
+     OC_SHELL_CMD 注册点 + ush 的 SVC_CMDS/内建表 +
+     处理函数源码中的 usage 字符串。命令帮助文本保留系统
+     原文（英文）。 -->
 
 # abdisk
 
-`abdisk` - 创建可启动的 A/B 更新磁盘 (abdisk &lt;dev&gt;; 会销毁数据)
+`abdisk` - abdisk &lt;dev&gt;
 
-**用法：** `abdisk &lt;device&gt;  (创建 A/B 更新 `
+**用法：** `abdisk &lt;device&gt;  (creates A/B update `
 
-注册于：`drivers/block/driver_block_disk_setup.c`
+家：ring-3 服务面 —— ush 的 SVC_CMDS 行（`l1apps/ush.c`），经 SYS_L1SVC(110) 派发到 `services/block/`。
 
-领域：[存储与块设备](index.md#storage)
+领域：[ush（ring-3 shell：SVC 行 + 内建）](index.md#ush)
 
-完整命令索引：[commands](index.md) - 或在运行中的系统中输入 `help -a` / `help -w`。
+完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。

@@ -1,7 +1,18 @@
 {
  "declared_total": 144,
- "l1_official_count": 162,
- "note": "declared_total = every callable declaration in the 13 L1 surface headers (includes internal helpers, the unnumbered WP-09-fix5 and rule-9 self-hosting items). l1_official_count = the README numbered L1 extension interface count (57+8+13+7+26+11+7+9+8+16=162), the repo-wide consistency figure.",
+ "l1_official_count": 158,
+ "l1svc_categories": 17,
+ "v1_declaration_entries": 278,
+ "v1_survivors_public": 267,
+ "v1_internalized": 6,
+ "v1_gone": [
+  "driver_block_init",
+  "driver_nic_init",
+  "driver_nic_probe_all",
+  "driver_snd_init",
+  "driver_snd_probe_all"
+ ],
+ "note": "declared_total = every callable declaration in the v2 service headers (includes internal helpers). l1_official_count = the numbered L1SVC op surface (17 categories / 158 ops, services/l1/l1svc_defs.h). v1_* fields record the COMPLETE v1.0.0 Part 2 declaration truth (all 278 callable rows across the 13 surface headers; the v1 README numbered formula said 162, and the 2.0.0 postcheck's 163-row parse was incomplete) and each row's fate in the current tree - see INTERFACES.md Part 2c and Part 2d.",
  "by_file": {
   "services/block/block_svc.h": [
    "block_svc_init",

@@ -1,13 +1,14 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- GENERATED page (tools/gen_api_docs.py --pages). Data
-     sources: live help -a capture + registration call sites
-     + usage strings from the handler sources. -->
+     sources: OC_SHELL_CMD call sites + the ush SVC_CMDS /
+     built-in tables + usage strings from the handler
+     sources. -->
 
 # watchdog
 
 `watchdog` - watchdog status/control (hw TCO/WDAT + monitored slots + policy tests)
 
-Registered in: `shell/shell_cmds_wd.c`
+Home: L0 recovery shell (`oc>`) - OC_SHELL_CMD in `recovery/shell_cmds_wd.c`
 
 Domain: [Watchdog](index.md#shell-wd)
 

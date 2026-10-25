@@ -1,13 +1,14 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- GENERATED page (tools/gen_api_docs.py --pages). Data
-     sources: live help -a capture + registration call sites
-     + usage strings from the handler sources. -->
+     sources: OC_SHELL_CMD call sites + the ush SVC_CMDS /
+     built-in tables + usage strings from the handler
+     sources. -->
 
 # tui-test
 
 `tui-test` - run the TUI self-test suite (input/expected/actual/verdict)
 
-Registered in: `tui/tui_cmd.c`
+Home: L0 recovery shell (`oc>`) - OC_SHELL_CMD in `tui/tui_cmd.c`
 
 Domain: [TUI (terminal UI)](index.md#tui)
 

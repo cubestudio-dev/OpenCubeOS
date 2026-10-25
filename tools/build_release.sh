@@ -100,7 +100,7 @@ fi
 echo "== [5/5] release data =="
 BUILD_NO=$(git rev-list --count HEAD)
 DATE=$(date -u +%F)
-python3 tools/gen_api_docs.py --help-capture evidence/help_a_runtime.txt \
+python3 tools/gen_api_docs.py --help-capture evidence/help_a_runtime.txt --pages-zh \
     --pages --md
 tools/update_website.sh "$VER" "$BUILD_NO" "$DATE"
 website/build.sh
