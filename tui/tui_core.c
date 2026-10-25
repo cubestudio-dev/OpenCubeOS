@@ -162,12 +162,22 @@ static tui_backend_t g_backend_fb = {
 
 static void serial_byte(char c) {
     /* transmitter-holding-empty poll, same shape as the kernel's own
-     * early print path (arch_exceptions.c) */
+     * early print path (arch_exceptions.c).
+     * P0 fix (2.1.0): COM1 (0x3F8) and its status port (0x3FD) are
+     * >= 0x100, so the imm8 "N" constraint cannot apply (N covers only
+     * 0x00-0xFF).  Addressing must go indirectly through DX: the
+     * operand is forced into a DX-class register ("d", cast to u16 so
+     * the port value lives in %dx) and the template names %dx
+     * literally.  The old "Nd" form made gcc print an SImode register
+     * (inb %edx), which some binutils pairs tolerate and others reject
+     * with "operand type mismatch for `in'" - that is what broke the
+     * whole v2.0.0 CI chain (see audit/2.0.0-postcheck P-01). */
     u8 status;
     do {
-        __asm__ volatile("inb %1, %0" : "=a"(status) : "Nd"(OC_TUI_COM1 + 5));
+        __asm__ volatile("inb %%dx, %0" : "=a"(status)
+                         : "d"((u16)(OC_TUI_COM1 + 5)));
     } while ((status & 0x20) == 0);
-    __asm__ volatile("outb %0, %1" :: "a"(c), "Nd"(OC_TUI_COM1));
+    __asm__ volatile("outb %0, %%dx" :: "a"(c), "d"((u16)OC_TUI_COM1));
 }
 
 static void serial_str(const char *s) {
