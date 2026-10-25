@@ -2,19 +2,30 @@
 # End-to-end suites
 
 The deep tests that gate a release. All of them drive a real QEMU
-boot through pexpect on the serial console.
+boot through pexpect on the serial console; the 2.1.0 matrix below
+is what the release evidence quotes (real outputs, skip counts
+declared).
 
-## Regression battery - tools/run_fix4_regression.py
+## The 2.1.0 verification matrix
 
-28 checks: boot banner, boot-complete, exception self-test 3/3,
-command count 233, uname tag forms, heaptest, fstest, cryptotest,
-crashlog, l1test, and every `run <userprog>` (hello, fork, exec,
-pipe, signal, select, mmap variants, dynamic linking: so_test,
-dlsym_test, pie_test, reloc_test, p3, g6, g7...).
+| # | Gate | Tool |
+|---|------|------|
+| 1 | Host unit tests (`make test`) | `tools/run_host_tests.py` |
+| 2 | Watchdog/logging/health E2E | `tools/wp12_watchdog_logging_e2e.py` |
+| 3 | TUI command surface E2E | `tools/wp10_tui_e2e.py` |
+| 4 | Chinese console E2E | `tools/wp10_chinese_e2e.py` |
+| 5 | TUI desktop apps E2E | `tools/wp10_tuiqa_apps_e2e.py` |
+| 6 | Native desktop E2E | `tools/wp10_native_e2e.py` |
+| 7 | L1 per-app record (2.1.0) | every `l1apps/` program executed via `run` from ush, one record row per app |
 
-```
-python3 tools/run_fix4_regression.py build/opencube.iso out.log
-```
+## Host unit tests - tools/run_host_tests.py
+
+19 harnesses compile L0 components host-side and run them:
+multiboot2 parser, crypto (BN/EC/RSA/X.509/AEAD/X25519), TLS 1.3
+key schedule, TCP congestion control, block-512 gate, SCSI, IR,
+camera, wifi, bluetooth... **17 PASS + 2 SKIP-FIXTURE** without the
+openssl-generated fixtures (rsa/x509; with fixtures present they run
+for real - declare whichever state applied).
 
 ## Watchdog/logging/health E2E - tools/wp12_watchdog_logging_e2e.py
 
@@ -31,19 +42,44 @@ Plus klog write/flush/rotate/filter chains (threshold 4096 ->
 survives), and health (JSON export validity, 3-spinner CPU alarm
 `CPU-LOCKED` with the kernel alive).
 
-## SSH E2E
+## TUI / Chinese / desktop-app / native suites
 
-The in-guest `sshd` needs host/client keys on the /etc volume - the
-suite (or you) seed them with `host_keygen_etc`. Then a paramiko
-client from the host performs the full login + session + command
-round-trip: 5/5 ALL PASS is the gate.
+`tools/wp10_tui_e2e.py` drives the L0 TUI command surface from
+`oc>`; `tools/wp10_chinese_e2e.py` the CJK console; the
+`tuiqa`/`native` suites drive the desktop apps (files/editor/
+panel/terminal + the native editor/file-manager upgrades) starting
+from the ring-3 `ush>` prompt - the 2.x boot-flow adaptation.
 
-## HTTPS E2E
+## L1 per-app record (2.1.0 addition)
 
-`wget https://<reference-host>/` from inside the guest against a
-reference TLS server: handshake OK, GET received, body saved,
-close_notify clean. 7 checks (handshake, cert chain, body bytes,
-close semantics, timings).
+The formal L1 application set is small and honest: **ush** (the
+only `OC_L1_APP_DECL` application) plus the 36 embedded test
+programs in `l1apps/`. The per-app record boots the release ISO,
+starts each program via `run <name>` from ush, and notes the
+observed output. Evidence lives in `evidence/` with the suite logs.
+
+## Regression battery (v1-era, reference) - tools/run_fix4_regression.py
+
+28 checks from the 1.0.0 era: boot banner, boot-complete,
+exception self-test 3/3, command count 233 (the v1 single-prompt
+world), uname tag forms, heaptest, fstest, cryptotest, crashlog,
+l1test, and every `run <userprog>`. Its command-count and
+prompt-flow assertions predate the v2 ring-3 split - it is kept for
+reference and its `run <userprog>` section is covered by the L1
+per-app record instead.
+
+```
+python3 tools/run_fix4_regression.py build/opencube.iso out.log
+```
+
+## SSH / HTTPS suites (available, not standard gates)
+
+`tools/ssh_mainstream_test.py` + `tools/sshd_test.py` (paramiko
+client against the in-guest sshd, host keys seeded on /etc via
+`host_keygen_etc`) and `tools/run_fix4_https_e2e.py` against
+`tools/https_test_server.py`. They need a seeded `etc.img`
+(`make etc.img`) and network fixtures; run them when touching the
+net stack.
 
 ## The /etc volume fixture
 
