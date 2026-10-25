@@ -48,7 +48,7 @@ make -j"$(nproc)" kernel
 make iso
 ```
 
-版本横幅来自 Makefile 中的 `1.0.0` 字面量（可通过 `make OC_RELEASE_VERSION=1.0.1-test1` 覆盖）。构建号是提交计数加 +21 对齐偏移（见 Makefile 注释），使公开序列保持在已发布的 274 之上。
+版本横幅来自 Makefile 中的 `2.0.0` 字面量（可通过 `make OC_RELEASE_VERSION=1.0.1-test1` 覆盖）。构建号是提交计数加 +21 对齐偏移（见 Makefile 注释），使公开序列保持在已发布的 274 之上。
 
 ### 启动与测试
 

@@ -5,8 +5,10 @@
 
 **A from-scratch x86_64 kernel with a WinRE-style recovery shell.**
 
-Current release: **v1.0.0** - the first public, SemVer-numbered
-release (see [Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)).
+Current release: **v2.0.0** - the breaking ring-3 release: the kernel
+boots into the ring-3 service surface, L0 is restructured and every
+operational command class moved to ring 3 (see
+[Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)).
 
 `oc>` is the prompt. Everything is extensible.
 
@@ -104,9 +106,9 @@ and mirrored on the
 
 | Asset | What it is |
 |-------|------------|
-| `opencube-1.0.0.iso` | Hybrid BIOS+UEFI bootable ISO - boot it in QEMU or write to USB |
-| `opencube-1.0.0-src.zip` | Deterministic source zip (`git archive`) |
-| `opencube-1.0.0-update.tar.gz` | OTA update package (SHA256 + signature verified, A/B slots) |
+| `opencube-2.0.0.iso` | Hybrid BIOS+UEFI bootable ISO - boot it in QEMU or write to USB |
+| `opencube-2.0.0-src.zip` | Deterministic source zip (`git archive`) |
+| `opencube-2.0.0-update.tar.gz` | OTA update package (SHA256 + signature verified, A/B slots) |
 
 Each release note carries the SHA256 of all three; the website,
 the Release and the private mirror hold byte-identical copies.

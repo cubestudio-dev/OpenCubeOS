@@ -13,7 +13,7 @@ Additionally every build carries:
 - **Build number** = the commit count (`git rev-list --count HEAD`)
   at build time - monotonically increasing, published in the update
   manifest's `build` field (the banner/uname carry the version).
-- **Version banner** = the fixed `OC_RELEASE_VERSION ?= 1.0.0`
+- **Version banner** = the fixed `OC_RELEASE_VERSION ?= 2.0.0`
   literal in the Makefile (an explicit `OC_RELEASE_VERSION=` override
   still wins, which is how the E2E update test works) - baked into
   the kernel banner, uname, the OTA manifest and the ISO. Earlier
@@ -24,9 +24,9 @@ Additionally every build carries:
 
 | Where | Example | Meaning |
 |-------|---------|---------|
-| `uname -a` | `Open Cube OS 1.0.0 x86_64` | the running kernel's version |
-| update.json | `version: 1.0.0, build: 275` | the published manifest |
-| Release tag | `v1.0.0` | the git tag the assets were built from |
+| `uname -a` | `Open Cube OS 2.0.0 x86_64` | the running kernel's version |
+| update.json | `version: 2.0.0, build: 302` | the published manifest |
+| Release tag | `v2.0.0` | the git tag the assets were built from |
 | gh-pages | the same two numbers in the download page | the website mirrors the Release |
 
 One release = one tag = one build number = one manifest = one set of
