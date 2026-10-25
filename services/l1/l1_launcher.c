@@ -68,14 +68,32 @@ void l1_launcher_boot_default(void) {
         lib_log_info("l1 launcher: failed to start the default L1 app; entering recovery shell");
         return;
     }
-    /* Same wait discipline as the v1 `run ush` path: the kernel task
-     * parks on sti/hlt while the ring-3 app owns the keyboard; when
-     * the app exits, sys_exit2 clears the volatile flag and the boot
-     * task continues into the recovery shell loop. */
+    /* v2.0.0 fix (launcher wait discipline): the v1 `run ush` path
+     * parked the boot task on a bare "sti; hlt" spin.  That is only
+     * safe while the parked task is NEVER switched out mid-halt: the
+     * scheduler saves the switched-out register state with the flags
+     * of the switch point (IF=0 inside the IRQ path), so a task that
+     * gets preempted while halted and later resumed can drop back
+     * onto the halt instruction with interrupts disabled - and then
+     * nothing can ever wake it.  v1 never hit this because nothing
+     * under the ring-3 shell ever yielded; v2 ring-3 service calls
+     * with device-wait loops (rtc uie/pie/alarm, and any other
+     * wait_counts-style body reached through SYS_L1SVC) make the
+     * scheduler switch the parked boot task for real.  Park on the
+     * scheduler instead: core_sched_yield() re-queues the boot task
+     * at its priority, lets the ring-3 app (and every kernel thread)
+     * run, and returns promptly - with interrupts left in whatever
+     * state the scheduler left them, never parked in hardware halt.
+     * The yield loop is a busy wait by design: the kernel has no
+     * wakeup primitive for "user process exited" yet, and a parked
+     * boot task burning its slice in ready-park is harmless on this
+     * single-CPU design (the idle task still runs whenever nothing
+     * else is ready). */
     extern volatile int g_usershell_running;
+    extern void core_sched_yield(void);
     g_usershell_running = 1;
     while (g_usershell_running) {
-        __asm__ volatile("sti; hlt");
+        core_sched_yield();
     }
     lib_log_info("l1 launcher: default L1 app exited; recovery shell taking over");
 }

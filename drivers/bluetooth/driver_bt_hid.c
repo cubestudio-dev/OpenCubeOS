@@ -110,7 +110,11 @@ int bt_hid_get_report(u8 report_type, u8 *report_out, u16 *len_out)
             return 0;
         }
         if (core_timer_now_ms() >= dl) return -3;
-        core_sched_yield();
+        /* v2.0.0: timed wait on the SVC dispatch path - park on sti;hlt
+         * (any interrupt advances the timer/IO); core_sched_yield here
+         * would switch tasks inside an int 0x80 frame and deadlock (see
+         * driver_cmos_rtc.c wait_counts). */
+        __asm__ volatile("sti; hlt");
     }
 }
 

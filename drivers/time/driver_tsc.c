@@ -40,7 +40,9 @@ int driver_tsc_calibrate_pit(u64 *hz_out) {
     u64 t0 = driver_tsc_read();
     u64 ms;
     do {
-        core_sched_yield();
+        /* v2.0.0: sti;hlt park - runs on the SYS_L1SVC dispatch frame;
+         * core_sched_yield from there deadlocks (see cmos_rtc note). */
+        __asm__ volatile("sti; hlt");
         ms = core_timer_now_ms();
     } while (ms - ms0 < 1100);
     u64 t1 = driver_tsc_read();

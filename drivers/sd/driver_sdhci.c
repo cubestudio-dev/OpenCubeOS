@@ -169,7 +169,11 @@ static int sd_wait_cmd_free(sdhci_host_t *h)
     u64 dl = core_timer_now_ms() + 100;
     while (core_timer_now_ms() < dl) {
         if (!(sd_r32(h, SDHCI_PRESENT_STATE) & SDHCI_CMD_INHIBIT)) return 0;
-        core_sched_yield();
+        /* v2.0.0: timed wait on the SVC dispatch path - park on sti;hlt
+         * (any interrupt advances the timer/IO); core_sched_yield here
+         * would switch tasks inside an int 0x80 frame and deadlock (see
+         * driver_cmos_rtc.c wait_counts). */
+        __asm__ volatile("sti; hlt");
     }
     return -1;
 }
@@ -194,7 +198,11 @@ static int sd_send_cmd(sdhci_host_t *h, u8 idx, u32 arg, u16 flags,
         if (isr & SDHCI_INT_CMD_COMPLETE) break;
         if (isr & SDHCI_INT_ERROR) { sd_w32(h, SDHCI_INT_STATUS, isr); return -2; }
         if (core_timer_now_ms() >= dl) return -3;   /* honest timeout     */
-        core_sched_yield();
+        /* v2.0.0: timed wait on the SVC dispatch path - park on sti;hlt
+         * (any interrupt advances the timer/IO); core_sched_yield here
+         * would switch tasks inside an int 0x80 frame and deadlock (see
+         * driver_cmos_rtc.c wait_counts). */
+        __asm__ volatile("sti; hlt");
     }
     sd_w32(h, SDHCI_INT_STATUS, SDHCI_INT_CMD_COMPLETE | SDHCI_INT_ERROR);
     if (resp) {
@@ -284,7 +292,11 @@ int driver_sdhci_init(void)
         dl = core_timer_now_ms() + 200;
         while (core_timer_now_ms() < dl) {
             if (!(sd_r8(h, SDHCI_SOFTWARE_RESET) & SDHCI_RESET_ALL)) break;
-            core_sched_yield();
+        /* v2.0.0: timed wait on the SVC dispatch path - park on sti;hlt
+         * (any interrupt advances the timer/IO); core_sched_yield here
+         * would switch tasks inside an int 0x80 frame and deadlock (see
+         * driver_cmos_rtc.c wait_counts). */
+            __asm__ volatile("sti; hlt");
         }
         h->caps = sd_r32(h, SDHCI_CAPABILITIES);
         /* power: SD bus power + 3.3V select (bits 0-3 voltage window)  */
@@ -295,7 +307,11 @@ int driver_sdhci_init(void)
         dl = core_timer_now_ms() + 200;
         while (core_timer_now_ms() < dl) {
             if (sd_r16(h, SDHCI_CLOCK_CONTROL) & SDHCI_INT_CLK_STABLE) break;
-            core_sched_yield();
+        /* v2.0.0: timed wait on the SVC dispatch path - park on sti;hlt
+         * (any interrupt advances the timer/IO); core_sched_yield here
+         * would switch tasks inside an int 0x80 frame and deadlock (see
+         * driver_cmos_rtc.c wait_counts). */
+            __asm__ volatile("sti; hlt");
         }
         sd_w16(h, SDHCI_CLOCK_CONTROL,
                (u16)(sd_r16(h, SDHCI_CLOCK_CONTROL) | SDHCI_SD_CLK_EN));

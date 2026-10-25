@@ -38,7 +38,7 @@ QEMU_DATADIR = f"{OC_TOOLS}/usr/share/qemu"
 # recovery shell). Both prompts are valid command-completion markers.
 # OC_PROMPT overrides the pattern for special cases (e.g. waiting for a
 # sub-shell or a login banner).
-PROMPT_RE = os.environ.get("OC_PROMPT", r"(?:ush>|oc>)\s*")
+PROMPT_RE = os.environ.get("OC_PROMPT", r"(?:ush>|oc>)\s")
 
 def strip_ansi(s):
     s = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', s)
@@ -60,7 +60,7 @@ def boot_to_recovery(child, boot_timeout=150, exit_timeout=60):
     prompt output, or raises pexpect.TIMEOUT/EOF.
     """
     import pexpect as _px
-    i = child.expect([r"ush>\s*", r"Type 'help' for commands",
+    i = child.expect([r"ush>\s", r"Type 'help' for commands",
                       _px.TIMEOUT, _px.EOF], timeout=boot_timeout)
     pre = child.before
     if i == 0:
@@ -74,7 +74,15 @@ def boot_to_recovery(child, boot_timeout=150, exit_timeout=60):
     elif i != 1:
         raise _px.TIMEOUT("no shell prompt (ush> or recovery banner) within "
                           f"{boot_timeout}s")
-    return pre
+    # v2.0.0: the banner match above fires mid-banner (the READY line),
+    # BEFORE interactive_loop() has run shell_lineedit_init() - bytes sent
+    # in that window can be dropped by the editor's queue reset.  Wait for
+    # the actual oc> prompt so the line editor is armed before we return.
+    k = child.expect([r"oc>\s", _px.TIMEOUT, _px.EOF], timeout=exit_timeout)
+    if k != 0:
+        raise _px.TIMEOUT("recovery prompt (oc>) did not appear within "
+                          f"{exit_timeout}s")
+    return pre + child.before
 
 # ------------------------------------------------------------------
 # OC_USB_SERIAL_ECHO: loopback server for the guest usb-serial port

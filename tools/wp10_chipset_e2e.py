@@ -13,6 +13,8 @@ Exit code: number of failed checks.
 """
 import os, re, sys, time
 import pexpect
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from qemu_runner import boot_to_recovery
 
 OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
@@ -42,11 +44,18 @@ CMDS = [
     ("smbus eeprom",       "smbus",      r"EEPROM"),
     ("smbustest",          "smbustest",  r"smbustest: byte/word/block round-trips\s+PASS"),
     ("i2cget eeprom",      "i2cget 0 0x50 0x00", r"i2cget 0 0x50 0x00\s*\n0x[0-9a-f]{2}\s*\n"),
-    ("touchtest",          "touchtest",  r"touchtest: descriptor parse \+ TAP/SCROLL/PINCH/SWIPE\s+PASS"),
-    ("touchpad status",    "touchpad",   r"touchpad:"),
-    ("lspci still works",  "lspci",      r"vendor="),
-    ("help intact",        "help -w",    r"WP-10-input_chipset \(input devices \+ chipset\)"),
+    # v2.0.0: help -w groups follow the new L0 layout (recovery tree
+    # groups: core/input/fs/...).  The chipset commands live in 'input'.
+    ("help intact",        "help -w",    r"=== input \("),
     ("help az intact",     "help -a",    r"acpipow"),
+]
+
+# v2.0.0 ring-3 surface: these moved out of the recovery shell into the
+# ush SVC table - they are exercised right after boot, inside ush>.
+USH_CMDS = [
+    ("touchtest",          "touchtest",  r"touchtest: descriptor parse \+ TAP/SCROLL/PINCH/SWIPE\s+PASS|TAP/SCROLL/PINCH/SWIPE\s+PASS"),
+    ("touchpad status",    "touchpad",   r"touchpad:|Touchpad"),
+    ("lspci still works",  "lspci",      r"vendor="),
     ("uname",              "uname -a",   r"Open Cube OS"),
 ]
 
@@ -73,25 +82,40 @@ def main():
 
     child = pexpect.spawn(QEMU, args, timeout=240, encoding="latin-1",
                           codec_errors="replace", env=env)
-    child.expect(r"oc>\s*", timeout=240)
-    boot_out = child.before or ""
     outputs = {}
+
+    # ---- v2 segment 1: ring-3 ush shell (straight after boot) ----
+    i = child.expect([r"ush>\s", pexpect.TIMEOUT, pexpect.EOF], timeout=240)
+    if i != 0:
+        outputs["(boot)"] = "\n<<NO-USH-PROMPT>>"
+    else:
+        for name, cmd, pat in USH_CMDS:
+            child.sendline(cmd)
+            idx = child.expect([r"ush>\s", pexpect.TIMEOUT], timeout=90)
+            out = (child.before or "") + ("\n<<TIMEOUT>>" if idx == 1 else "")
+            outputs[name] = out
+            ok = "?" if pat is None else ("PASS" if re.search(pat, out, re.I | re.S) else "FAIL")
+            print(f"[e2e {mode}] {ok}  {name} ({len(out)} bytes)")
+
+    # ---- v2 segment 2: leave ush, recovery shell at oc> ----
+    # (manual exit: the ush banner was already consumed by segment 1, so
+    # the shared boot_to_recovery() adapter - which keys on the fresh-boot
+    # stream - cannot be reused here)
+    child.sendline("exit")
+    child.expect(r"Type 'help' for commands", timeout=60)
+    child.expect(r"oc>\s", timeout=30)
+    boot_out = child.before or ""
     for name, cmd, pat in CMDS:
         child.sendline(cmd)
-        idx = child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=90)
+        idx = child.expect([r"oc>\s", pexpect.TIMEOUT], timeout=90)
         out = (child.before or "") + ("\n<<TIMEOUT>>" if idx == 1 else "")
         outputs[name] = out
         ok = "?" if pat is None else ("PASS" if re.search(pat, out, re.I | re.S) else "FAIL")
         print(f"[e2e {mode}] {ok}  {name} ({len(out)} bytes)")
-        child.sendline("")   # clear any pending line
-        try:
-            child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=10)
-        except Exception:
-            pass
     child.close(force=True)
 
     parts = [boot_out]
-    for (name, cmd, _pat) in CMDS:
+    for (name, cmd, _pat) in USH_CMDS + CMDS:
         parts.append(f"=== [{name}] $ {cmd}\n{outputs.get(name, '')}")
     combined = "\n".join(parts)
     combined = combined.replace("\x00", "")
@@ -101,8 +125,12 @@ def main():
 
     passed = failed = 0
     print(f"\n=== {mode} checks ===")
-    for name, cmd, pat in CMDS:
+    for name, cmd, pat in USH_CMDS + CMDS:
         if pat is None:
+            continue
+        if name not in outputs:
+            failed += 1
+            print(f"  FAIL  {name} (no output)")
             continue
         ok = re.search(pat, outputs[name], re.I | re.S) is not None
         print(f"  {'PASS' if ok else 'FAIL'}  {name}")

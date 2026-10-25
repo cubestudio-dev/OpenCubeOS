@@ -282,7 +282,11 @@ static int resp_wait(u8 id, u8 *code_out, u8 *data_out, u16 *len_out,
             return 0;
         }
         if (core_timer_now_ms() >= dl) return -1;
-        core_sched_yield();
+        /* v2.0.0: timed wait on the SVC dispatch path - park on sti;hlt
+         * (any interrupt advances the timer/IO); core_sched_yield here
+         * would switch tasks inside an int 0x80 frame and deadlock (see
+         * driver_cmos_rtc.c wait_counts). */
+        __asm__ volatile("sti; hlt");
     }
 }
 

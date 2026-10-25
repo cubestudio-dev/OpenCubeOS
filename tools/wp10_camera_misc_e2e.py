@@ -29,7 +29,11 @@ import pexpect
 
 OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
-BOOT_COUNT = 208   # 198 after wireless_bluetooth + 10 camera_misc cmds
+# v2.0.0: the boot log line counts the L0 recovery-shell registry
+# (OC_SHELL_CMD declarations collected from .oc_cmds: 99 commands).
+# The full 2.0.0 command surface is 251 (99 L0 + 133 ush SVC ops +
+# 19 ush builtins + 4 NETCMD bridge rows).
+BOOT_COUNT = 99
 
 CHECKS = [
     # (name, regex-on-combined-output)
@@ -81,7 +85,7 @@ def main():
 
     child = pexpect.spawn(QEMU, args, timeout=240, encoding="latin-1",
                           codec_errors="replace", env=env)
-    child.expect(r"oc>\s*", timeout=240)
+    child.expect(r"ush>\s", timeout=240)
     boot_out = child.before or ""
     boot_count_ok = re.search(
         rf"shell command system \({BOOT_COUNT} commands\)", boot_out
@@ -102,14 +106,14 @@ def main():
         ("scsitest", "scsitest", r"scsitest: 0 failures - PASS"),
     ]:
         child.sendline(cmd)
-        child.expect(r"oc>\s*", timeout=240)
+        child.expect(r"ush>\s", timeout=240)
         outputs[label] = child.before or ""
         if pattern and not re.search(pattern, outputs[label]):
             fails += 1
         print(f"[e2e {mode}] {cmd} done")
 
     child.sendline("uname -a")
-    child.expect(r"oc>\s*", timeout=60)
+    child.expect(r"ush>\s", timeout=60)
     uname_out = child.before or ""
     child.sendline("quit")
     try:

@@ -116,7 +116,11 @@ int bt_h4_probe(void)
                 outb2(UART2_MCR, 0x0b);
                 return 0;
             }
-            core_sched_yield();
+        /* v2.0.0: timed wait on the SVC dispatch path - park on sti;hlt
+         * (any interrupt advances the timer/IO); core_sched_yield here
+         * would switch tasks inside an int 0x80 frame and deadlock (see
+         * driver_cmos_rtc.c wait_counts). */
+            __asm__ volatile("sti; hlt");
         }
         got = inb2(UART2_RBR);
     }
@@ -163,7 +167,7 @@ int bt_h4_active(void)
 /* ------------------------------------------------------------------ */
 static void uart_write(u8 b)
 {
-    while (!(inb2(UART2_LSR) & UART2_LSR_THRE)) core_sched_yield();
+    while (!(inb2(UART2_LSR) & UART2_LSR_THRE)) __asm__ volatile("pause"); /* short reg poll */
     outb2(UART2_THR, b);
 }
 
