@@ -7,8 +7,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title data-i18n="title.index">Open Cube OS - a from-scratch x86_64 kernel with a recovery shell</title>
-<meta name="description" content="Open Cube OS (L0): a complete, self-contained x86_64 kernel with a WinRE-style recovery shell (oc>), 233 commands, 162 L1 extension interfaces, TCP/IP + TLS + SSH, 16 driver families, OTA A/B updates. Apache 2.0.">
+<title data-i18n="title.index">Open Cube OS - a from-scratch x86_64 kernel that boots into ring 3</title>
+<meta name="description" content="Open Cube OS 2.0.0: a complete, self-contained x86_64 kernel that boots straight into its ring-3 service surface (ush, 251 commands) and falls back to a WinRE-style recovery shell (oc>). 17 SYS_L1SVC service categories / 158 ops, 54 syscalls, TCP/IP + TLS + SSH, 16 driver families, OTA A/B updates. Apache 2.0.">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3E%3C/text%3E%3C/svg%3E">
 <script>
@@ -50,8 +50,8 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
     <div>
       <h1><span data-i18n="hero.h1a">A from-scratch</span><br>
           <span data-i18n="hero.h1b">x86_64 kernel.</span><br>
-          <span class="accent" data-i18n="hero.h1c">Everything extensible.</span></h1>
-      <p class="tagline" data-i18n-html="hero.tagline"><b>Open Cube OS</b> is L0: a complete, self-contained 64-bit kernel that boots on real hardware and in QEMU, and hands you a WinRE-style recovery shell &mdash; <b><code>oc&gt;</code></b> &mdash; with <b id="stat-cmds">233</b> commands. Not a Linux fork: <b id="stat-lines2">140,672</b> lines of original code, Apache&nbsp;2.0.</p>
+          <span class="accent" data-i18n="hero.h1c">Boots into ring 3.</span></h1>
+      <p class="tagline" data-i18n-html="hero.tagline"><b>Open Cube OS</b> 2.0.0 boots through its kernel (L0), launches the default ring-3 application &mdash; the <b><code>ush</code></b> user shell with <b id="stat-cmds">251</b> commands over the SYS_L1SVC service surface &mdash; and falls back to a WinRE-style recovery shell (<b><code>oc&gt;</code></b>) whenever the ring-3 world cannot start. Not a Linux fork: <b id="stat-lines2">130,011</b> lines of original code, Apache&nbsp;2.0.</p>
       <div class="btn-row">
         <a class="btn btn-primary" href="download.html" data-i18n="hero.download">⬇️ Download the ISO</a>
         <a class="btn btn-ghost" href="docs/" data-i18n="hero.docs">Documentation →</a>
@@ -60,21 +60,23 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
     <div class="terminal-card">
       <div class="bar">
         <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-        <span class="t" data-i18n="hero.term.title">oc> — Open Cube OS</span>
+        <span class="t" data-i18n="hero.term.title">qemu — Open Cube OS 2.0.0</span>
       </div>
-      <pre><span class="d">Open Cube OS 1.0.0 ready.
-Type 'help' for commands.</span>
+      <pre class="term-anim" id="hero-term"><span class="d">[oc] Open Cube OS 2.0.0 kmain entered</span>
+<span class="d">boot complete .................... OK</span>
+<span class="d">crash recovery armed ............. OK</span>
+<span class="g">l1 launcher: booting 'ush' (ring 3, 53800 bytes)</span>
 
-<span class="c">oc&gt;</span> help -a
-<span class="d">  ... 233 commands, alphabetical ...</span>
-<span class="c">oc&gt;</span> dhcp
-<span class="a">nic0: 10.0.2.15/24 gw 10.0.2.2</span>
-<span class="c">oc&gt;</span> ping 10.0.2.2
-<span class="a">64 bytes from 10.0.2.2: seq=0 time=1.2 ms</span>
-<span class="c">oc&gt;</span> wget 10.0.2.2
-<span class="a">saved: index.html (45 bytes)</span>
-<span class="c">oc&gt;</span> health
-<span class="d">  cpu  3%   mem 42%   tasks 4/64</span>
+<span class="d">Open Cube OS User-space Shell (WP-08)</span>
+<span class="c">ush&gt;</span> mounts
+<span class="a">VFS mount table:
+  /  ramfs</span>
+<span class="c">ush&gt;</span> lsblk
+<span class="a">Block devices: (none attached)</span>
+<span class="c">ush&gt;</span> cryptotest
+<span class="a">AES-128-GCM NIST vectors: PASS (all)</span>
+<span class="c">ush&gt;</span> exit
+<span class="g">l1 launcher: default L1 app exited; recovery shell taking over</span>
 <span class="c">oc&gt;</span> <span class="d">&#9608;</span></pre>
     </div>
   </div>
@@ -82,10 +84,10 @@ Type 'help' for commands.</span>
 
 <section class="stats-strip">
   <div class="wrap stats-grid">
-    <div class="stat"><div class="n" id="stat-cmds2">233</div><div class="l" data-i18n="stats.commands">shell commands</div></div>
-    <div class="stat"><div class="n" id="stat-ifaces">162</div><div class="l" data-i18n="stats.interfaces">L1 interfaces</div></div>
-    <div class="stat"><div class="n" id="stat-syscalls">53</div><div class="l" data-i18n="stats.syscalls">syscalls</div></div>
-    <div class="stat"><div class="n" id="stat-lines">140,672</div><div class="l" data-i18n="stats.lines">lines of source</div></div>
+    <div class="stat"><div class="n" id="stat-cmds2" data-count="251">251</div><div class="l" data-i18n="stats.commands">commands</div></div>
+    <div class="stat"><div class="n" id="stat-ifaces" data-count="158">158</div><div class="l" data-i18n="stats.interfaces">L1SVC ops (17 services)</div></div>
+    <div class="stat"><div class="n" id="stat-syscalls" data-count="54">54</div><div class="l" data-i18n="stats.syscalls">syscalls</div></div>
+    <div class="stat"><div class="n" id="stat-lines">130,011</div><div class="l" data-i18n="stats.lines">lines of source</div></div>
   </div>
 </section>
 
@@ -101,7 +103,7 @@ Type 'help' for commands.</span>
       <div class="feat"><div class="k" data-i18n="feat.k.cpu">cpu</div><h3 data-i18n="feat.cpu.h">Preemptive scheduler</h3>
         <p data-i18n="feat.cpu.p">Priority + round-robin over TCBs, 100&nbsp;Hz tick, soft-timer wheel, IST-separated exception stacks, live 3/3 trap self-test on every boot.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.ring3">ring3</div><h3 data-i18n="feat.ring3.h">User programs</h3>
-        <p data-i18n="feat.ring3.p">ELF loader, 53 syscalls, fork/exec/pipes/signals/select/mmap, and an in-tree shared-object loader with dlsym and PIE relocations.</p></div>
+        <p data-i18n="feat.ring3.p">ELF loader, 54 syscalls, fork/exec/pipes/signals/select/mmap, an in-tree shared-object loader with dlsym and PIE relocations - and the SYS_L1SVC + SYS_NETCMD service bridges.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.net">net</div><h3 data-i18n="feat.net.h">TCP/IP + TLS + SSH</h3>
         <p data-i18n="feat.net.p">Seven NIC driver families, congestion-controlled TCP, sockets, firewall, an HTTPS client with X.509 verification, and a real sshd in-guest.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.storage">storage</div><h3 data-i18n="feat.storage.h">NVMe to FAT32</h3>
@@ -110,14 +112,14 @@ Type 'help' for commands.</span>
         <p data-i18n="feat.usb.p">UHCI, OHCI, EHCI and xHCI host controllers with MSC, HID, serial and audio classes - hotplug included.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.reliability">reliability</div><h3 data-i18n="feat.rel.h">Crash + watchdogs</h3>
         <p data-i18n="feat.rel.p">Register dumps to serial and crashlogs to /etc, Intel TCO and ACPI WDAT hardware watchdogs, policy watchdog slots, health alarms and JSON export.</p></div>
-      <div class="feat"><div class="k" data-i18n="feat.k.shell">shell</div><h3 data-i18n="feat.shell.h">233 commands</h3>
-        <p data-i18n="feat.shell.p">Pipes, redirection, background jobs, wildcards, env, aliases, scripting, and a full-screen editor - help in two views (-a / -w).</p></div>
+      <div class="feat"><div class="k" data-i18n="feat.k.shell">shell</div><h3 data-i18n="feat.shell.h">Two shells</h3>
+        <p data-i18n="feat.shell.p">ush boots in ring 3 with 133 service commands plus built-ins (pipes, jobs, wildcards, aliases, editor); the oc> recovery shell keeps 99 commands for when the ring-3 world cannot start.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.tui">tui</div><h3 data-i18n="feat.tui.h">Terminal UI</h3>
         <p data-i18n="feat.tui.p">Desktop, taskbar, menus, forms, editor and system apps on the framebuffer - plus a Chinese console layer with a pinyin IME.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.ota">ota</div><h3 data-i18n="feat.ota.h">A/B updates</h3>
         <p data-i18n="feat.ota.p">Manifest-driven OTA with SHA256 + signature verification, staged install onto the inactive slot, automatic rollback.</p></div>
-      <div class="feat"><div class="k" data-i18n="feat.k.l1">l1</div><h3 data-i18n="feat.l1.h">162 extension interfaces</h3>
-        <p data-i18n="feat.l1.p">L0 ships without L1 - the surface (plus driver/OTA/watchdog/health headers and a solib loader) is the contract for everything above.</p></div>
+      <div class="feat"><div class="k" data-i18n="feat.k.l1">l1</div><h3 data-i18n="feat.l1.h">17 services / 158 ops</h3>
+        <p data-i18n="feat.l1.p">The ring-3 surface is the contract: 17 SYS_L1SVC service categories with 158 numbered ops, every operational command class behind one syscall. The v1&rarr;v2 mapping table ships in INTERFACES.md.</p></div>
     </div>
   </div>
 </section>
@@ -137,7 +139,7 @@ Type 'help' for commands.</span>
         <h3 data-i18n="qs.s2.h">Watch it come up</h3>
         <p data-i18n="qs.s2.p">One <code>OK</code> line per subsystem: multiboot2 handshake, long mode, framebuffer, IDT, PIT, PMM, drivers, VFS, network, shell.</p>
         <div class="cmd"><span class="c">[00:00:00.000]</span> multiboot2 handshake ......... OK
-<span class="c">[00:00:01.710]</span> shell command system (233 commands) . OK
+<span class="c">[00:00:01.710]</span> service registry: 17 services collected . OK
 Open Cube OS ready. Type 'help' for commands.</div>
       </div></div>
       <div class="step"><div class="n">3</div><div>
@@ -150,7 +152,7 @@ Open Cube OS ready. Type 'help' for commands.</div>
       </div></div>
       <div class="step"><div class="n">4</div><div>
         <h3 data-i18n="qs.s4.h">Go deeper</h3>
-        <p data-i18n="qs.s4.p">The documentation center has the user manual, all 233 command pages, the developer handbook, the L1 extension guide and the architecture deep-dives.</p>
+        <p data-i18n="qs.s4.p">The documentation center has the user manual, the command reference, the developer handbook, the L1 extension guide and the architecture deep-dives.</p>
         <div class="btn-row" style="margin-top:6px">
           <a class="btn btn-ghost" href="docs/" data-i18n="qs.s4.btn">Open the docs →</a>
         </div>
@@ -188,12 +190,12 @@ Open Cube OS ready. Type 'help' for commands.</div>
       <div class="feat"><div class="k" data-i18n="feat.k.l0">l0</div><h3 data-i18n="layer.l0.h">Open Cube OS</h3>
         <p data-i18n-html="layer.l0.p">The kernel + the <code>oc&gt;</code> recovery shell. Boots, diagnoses, repairs, installs, updates. This repository.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.l1">l1</div><h3 data-i18n="layer.l1.h">Upper extensions</h3>
-        <p data-i18n="layer.l1.p">Anything built on the 162-interface surface - loaded as a shared object at runtime or compiled against the headers. L0 ships none.</p></div>
+        <p data-i18n="layer.l1.p">The ring-3 service world - ush, ld.so and the dynamic-linking programs ship in-tree under l1apps/; every operational command class runs behind the 17-service SYS_L1SVC surface.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.goal">goal</div><h3 data-i18n="layer.goal.h">Cube OS = L0 + L1</h3>
         <p data-i18n="layer.goal.p">The roadmap: a complete, daily-usable system assembled from the kernel below and the extension ecosystem above.</p></div>
       <div class="feat" style="background:var(--accent-soft);border-color:var(--accent)">
         <div class="k" data-i18n="feat.k.all">deep dive</div><h3 data-i18n="feat.all.h">See the whole picture</h3>
-        <p data-i18n="feat.all.p">Boot flow, every kernel subsystem, the TUI desktop and the 162-interface L1 surface, each on its own page.</p>
+        <p data-i18n="feat.all.p">Boot flow, every kernel subsystem, the TUI desktop and the 17-service L1SVC surface, each on its own page.</p>
         <div class="btn-row" style="margin:12px 0 0">
           <a class="btn btn-ghost" href="architecture.html" data-i18n="feat.all.btn">Architecture deep dive →</a>
         </div>

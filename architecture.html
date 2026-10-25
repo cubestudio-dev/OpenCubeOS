@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 <!-- Open Cube OS architecture page - L0/L1, boot flow, subsystems,
-     TUI desktop, the 162-interface surface, the 233-command surface,
+     TUI desktop, the 17-service SYS_L1SVC surface, the 251-command surface,
      reliability mechanisms, cross-platform build. All numbers are read
      from the real tree (INTERFACES.md / docs/manual/commands/). -->
 <html lang="en">
@@ -10,7 +10,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title data-i18n="title.architecture">Architecture - Open Cube OS</title>
-<meta name="description" content="Open Cube OS architecture: the L0/L1 layering, the hybrid BIOS+UEFI boot flow, every kernel subsystem (memory, scheduler, VFS, TCP/IP+TLS+SSH, 16 driver families), the TUI desktop, the 162 numbered L1 interfaces and the 233 shell commands.">
+<meta name="description" content="Open Cube OS architecture: the L0/L1 layering, the hybrid BIOS+UEFI boot flow, every kernel subsystem (memory, scheduler, VFS, TCP/IP+TLS+SSH, 16 driver families), the TUI desktop, the 17 SYS_L1SVC services (158 ops) and the 251-command surface split L0/ring-3.">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3C%3C/text%3E%3C/svg%3E">
 <script>
@@ -49,14 +49,14 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
 <div class="wrap">
   <div class="dl-head">
     <h1 data-i18n="arch.h1">Architecture</h1>
-    <p class="sub" data-i18n="arch.sub">How the machine is put together: the L0/L1 split, the boot flow, every kernel subsystem, the TUI desktop, and the 162-interface extension surface. Everything below is read straight from the tree.</p>
+    <p class="sub" data-i18n="arch.sub">How the machine is put together: the L0/L1 split, the boot flow, every kernel subsystem, the TUI desktop, and the 17-service SYS_L1SVC surface. Everything below is read straight from the tree.</p>
   </div>
 </div>
 
 <section class="section" style="border-top:1px solid var(--border)">
   <div class="wrap">
     <h2 data-i18n="arch.layers.h">Two layers by design</h2>
-    <p class="sub" data-i18n="arch.layers.sub">L0 is the complete kernel plus the recovery shell (this repository). L1 is everything built on the extension surface - L0 ships without any.</p>
+    <p class="sub" data-i18n="arch.layers.sub">L0 is the kernel plus the recovery shell; L1 is the ring-3 service world - and 2.0.0 ships both in one tree: the kernel boots straight into its default ring-3 application, with the oc&gt; recovery shell as the always-there fallback.</p>
     <div class="arch" style="margin-bottom:26px"><pre>
                      <span class="hl">GRUB 2.12 (hybrid BIOS + UEFI ISO)</span>
                                   |  multiboot2 + kernel-as-module
@@ -65,27 +65,30 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
          |   32-bit entry -&gt; GDT -&gt; 2 MiB identity map -&gt; long mode  |
          +------------------------+------------------------+
                                   |
-                   <span class="hb">kernel/</span> main -&gt; arch -&gt; core -&gt; mem -&gt; lib -&gt; crypto
-             (IDT/IST - scheduler - syscalls 53 - PMM/VMM/heap - klog - DRBG)
+              <span class="hb">core/</span>  main -&gt; registry -&gt; sched -&gt; syscall -&gt; crash
+             (IDT/IST - PMM/VMM/heap - syscalls 54 - klog - DRBG)
                                   |
-   +---------------+---------------+---------------+---------------+
-   |               |               |               |               |
-<span class="hb">drivers/</span>      <span class="hb">fs/</span>            <span class="hb">net/</span>          <span class="hb">shell/</span>         <span class="hb">tui/ + chinese/</span>
- 16 families     VFS + ramfs     e1000-family   233 commands    desktop/IME
- block usb nic   FAT32 exFAT     TCP + TLS      pipes/env      forms/editor
- snd acpi i2c    ext4 /etc       SSH + sshd     script lang    CN console
- time bt sd cam  A/B slots       sockets + fw   line editor    16x16 font
+        <span class="hb">drivers/</span>         <span class="hb">services/</span>            <span class="hb">recovery/</span>
+     26 declared            17 declared             oc&gt; shell
+     block usb nic          time fs block nic       99 commands
+     snd acpi i2c           snd ota power net       self-tests
+     time bt sd cam         display input camera    crash policy
+     (OC_DRIVER_DECL)       usb crypto klog...      log readers
                                   |
-                        <span class="hl">L1 surface: 162 numbered interfaces</span>
-                     <span class="hl">(driver / OTA / watchdog / health / klog / solib)</span>
+              <span class="hl">SYS_L1SVC(110): 17 services / 158 numbered ops</span>
+                                  |
+                     <span class="hb">l1apps/</span>  ush (default boot entry, ring 3)
+                     ld.so + dynlink tests (shared objects)
+                                  |
+                  <span class="hl">exit / failure -&gt; oc&gt; recovery shell</span>
 </pre></div>
     <div class="feat-grid">
       <div class="feat"><div class="k">l0</div><h3 data-i18n="arch.layers.l0.h">L0 - the kernel and the recovery shell</h3>
-        <p data-i18n-html="arch.layers.l0.p">Boot, memory, scheduling, ring-3, VFS, networking, drivers, TUI, crash recovery, OTA. <b>140,672 lines</b> across 353 source files, zero external runtime dependencies.</p></div>
-      <div class="feat"><div class="k">l1</div><h3 data-i18n="arch.layers.l1.h">L1 - the extension ecosystem</h3>
-        <p data-i18n-html="arch.layers.l1.p">Modules loaded as shared objects or compiled against the surface headers. <b>162 numbered interfaces</b> in 13 surface headers is the whole contract.</p></div>
+        <p data-i18n-html="arch.layers.l0.p">Boot, memory, scheduling, ring-3, VFS, networking, drivers, TUI, crash recovery, OTA - restructured into <b>core/ drivers/ services/ boot/ recovery/</b>. 130,011 lines across 378 source files, zero external runtime dependencies.</p></div>
+      <div class="feat"><div class="k">l1</div><h3 data-i18n="arch.layers.l1.h">L1 - the ring-3 service world</h3>
+        <p data-i18n-html="arch.layers.l1.p">2.0.0 ships it in-tree: <b>17 SYS_L1SVC services with 158 numbered ops</b> behind one syscall, plus the ush shell, ld.so and the dynamic-linking programs under <b>l1apps/</b>. The v1&rarr;v2 command mapping is the compatibility contract.</p></div>
       <div class="feat"><div class="k">why</div><h3 data-i18n="arch.layers.why.h">Why split at all</h3>
-        <p data-i18n-html="arch.layers.why.p">A recovery-first kernel must stay minimal and trustworthy; user-facing growth happens above it. The <code>oc&gt;</code> shell always works, even when everything above fails.</p></div>
+        <p data-i18n-html="arch.layers.why.p">A recovery-first kernel must stay minimal and trustworthy; user-facing growth happens above it. The kernel self-tests, watchdog, crash policy and log readers stay in L0; the <code>oc&gt;</code> shell always works, even when the ring-3 world cannot start.</p></div>
     </div>
   </div>
 </section>
@@ -102,11 +105,14 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
         <h3 data-i18n="arch.boot.t2.h">boot/boot.S - the 32-bit trampoline</h3>
         <p data-i18n="arch.boot.t2.p">Entry at 0x100000, builds the GDT, maps the first 2&nbsp;MiB identity, switches paging on and jumps to 64-bit long mode - 16 assembly screens of exactly that.</p></div></div>
       <div class="step"><div class="n">3</div><div>
-        <h3 data-i18n="arch.boot.t3.h">kernel/main.c - bring-up</h3>
-        <p data-i18n="arch.boot.t3.p">One OK line per subsystem: multiboot2 handshake, framebuffer, IDT + IST exception stacks, PIT at 100&nbsp;Hz, PMM over the memory map, then drivers, VFS, network, shell.</p></div></div>
+        <h3 data-i18n="arch.boot.t3.h">core/main.c - bring-up</h3>
+        <p data-i18n="arch.boot.t3.p">One OK line per subsystem: multiboot2 handshake, framebuffer, IDT + IST exception stacks, PIT at 100&nbsp;Hz, PMM over the memory map - then the declared drivers and services are collected from their link sections and initialised.</p></div></div>
       <div class="step"><div class="n">4</div><div>
-        <h3 data-i18n="arch.boot.t4.h">oc&gt; - the recovery shell</h3>
-        <p data-i18n-html="arch.boot.t4.p">233 commands over pipes, redirection, jobs and scripting; A/B slot menu when an update is staged; <code>help -a</code> lists everything alphabetically, <code>help -w</code> by work package.</p></div></div>
+        <h3 data-i18n="arch.boot.t4.h">ush&gt; - the ring-3 shell</h3>
+        <p data-i18n-html="arch.boot.t4.p">The launcher boots the default L1 entry: ush in ring 3, with 133 service commands plus built-ins over pipes, jobs and scripting; A/B slot menu when an update is staged. <code>exit</code> (or a launch failure) falls through to the recovery shell.</p></div></div>
+      <div class="step"><div class="n">5</div><div>
+        <h3 data-i18n="arch.boot.t5.h">oc&gt; - the recovery fallback</h3>
+        <p data-i18n-html="arch.boot.t5.p">99 commands for the recovery environment: kernel self-tests, watchdog and crash-policy controls, log readers, chipset diagnostics, file tools - always available, even when the ring-3 world cannot start.</p></div></div>
     </div>
     <p class="sub" style="margin:14px 0 0;font-size:14px" data-i18n="arch.boot.test">Every release gates on this exact sequence booting clean in QEMU twice - legacy BIOS and UEFI (OVMF).</p>
   </div>
@@ -123,16 +129,18 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
         <th data-i18n="arch.mods.th.role">What it does</th>
       </tr></thead>
       <tbody>
-        <tr><td><code>kernel/arch/</code></td><td data-i18n="arch.mods.arch">x86_64 entry and CPU plumbing</td></tr>
-        <tr><td><code>kernel/core/</code></td><td data-i18n="arch.mods.core">Scheduler, syscalls (53), IRQ routing</td></tr>
-        <tr><td><code>kernel/mem/</code></td><td data-i18n="arch.mods.mem">PMM bitmap, 4-level VMM, kmalloc heap</td></tr>
-        <tr><td><code>kernel/crypto/</code></td><td data-i18n="arch.mods.crypto">AES / SHA-256 / HMAC / DRBG, RDRAND-seeded</td></tr>
-        <tr><td><code>kernel/lib/</code></td><td data-i18n="arch.mods.lib">String, printf, ring buffer, klog</td></tr>
-        <tr><td><code>kernel/ota/</code></td><td data-i18n="arch.mods.ota">A/B slots, verified update install</td></tr>
-        <tr><td><code>drivers/</code></td><td data-i18n="arch.mods.drivers">16 driver families, block to wireless</td></tr>
-        <tr><td><code>fs/</code></td><td data-i18n="arch.mods.fs">VFS over FAT32 / exFAT / ext4 / ramfs</td></tr>
-        <tr><td><code>net/</code></td><td data-i18n="arch.mods.net">TCP/IP, TLS, SSH client + sshd</td></tr>
-        <tr><td><code>shell/</code></td><td data-i18n="arch.mods.shell">The oc&gt; shell, 233 commands</td></tr>
+        <tr><td><code>arch/</code></td><td data-i18n="arch.mods.arch">x86_64 entry and CPU plumbing</td></tr>
+        <tr><td><code>core/</code></td><td data-i18n="arch.mods.core">Scheduler, syscalls (54), registry, crash machinery</td></tr>
+        <tr><td><code>core/mem/</code></td><td data-i18n="arch.mods.mem">PMM bitmap, 4-level VMM, kmalloc heap</td></tr>
+        <tr><td><code>services/crypto/</code></td><td data-i18n="arch.mods.crypto">AES / SHA-256 / HMAC / DRBG, RDRAND-seeded</td></tr>
+        <tr><td><code>core/lib/</code></td><td data-i18n="arch.mods.lib">String, printf, ring buffer, klog</td></tr>
+        <tr><td><code>services/ota/</code></td><td data-i18n="arch.mods.ota">A/B slots, verified update install</td></tr>
+        <tr><td><code>services/</code></td><td data-i18n="arch.mods.drivers">17 declared services, one folder per L1SVC category</td></tr>
+        <tr><td><code>drivers/</code></td><td data-i18n="arch.mods.drv2">26 declared drivers, block to wireless</td></tr>
+        <tr><td><code>services/fs/</code></td><td data-i18n="arch.mods.fs">VFS over FAT32 / exFAT / ext4 / ramfs</td></tr>
+        <tr><td><code>services/net/</code></td><td data-i18n="arch.mods.net">TCP/IP, TLS, SSH client + sshd</td></tr>
+        <tr><td><code>l1apps/</code></td><td data-i18n="arch.mods.l1">Ring-3 applications: ush, ld.so, dynlink tests</td></tr>
+        <tr><td><code>recovery/</code></td><td data-i18n="arch.mods.shell">The oc&gt; recovery shell, 99 commands</td></tr>
         <tr><td><code>tui/</code></td><td data-i18n="arch.mods.tui">Desktop, taskbar, forms, editor</td></tr>
         <tr><td><code>chinese/</code></td><td data-i18n="arch.mods.chinese">CJK console, 16x16 font, pinyin IME</td></tr>
         <tr><td><code>l1/</code></td><td data-i18n="arch.mods.l1">The extension surface + solib loader</td></tr>
@@ -161,37 +169,31 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
 
 <section class="section">
   <div class="wrap">
-    <h2 data-i18n="arch.surface.h">The L1 surface - 162 interfaces</h2>
-    <p class="sub" data-i18n-html="arch.surface.sub">Ten numbered groups across 13 surface headers. The README formula is 57+8+13+7+26+11+7+9+8+16 = 162; INTERFACES.md lists every declaration with file and line.</p>
+    <h2 data-i18n="arch.surface.h">The L1SVC surface - 17 services / 158 ops</h2>
+    <p class="sub" data-i18n-html="arch.surface.sub">SYS_L1SVC(110): one syscall routes a ring-3 call to the owning L0 service by category; the folder under services/ is the category.  Ops are plain ASCII text renderers - the ring-3 side formats nothing. Renumber only by appending (services/l1/l1svc_defs.h).</p>
     <div class="tbl-scroll">
     <table class="tbl">
       <thead><tr>
-        <th data-i18n="arch.surface.th.g">Group</th>
-        <th data-i18n="arch.surface.th.n">Count</th>
-        <th data-i18n="arch.surface.th.w">Origin</th>
-        <th>Header</th>
+        <th data-i18n="arch.surface.th.g">Service</th>
+        <th data-i18n="arch.surface.th.n">Ops</th>
+        <th data-i18n="arch.surface.th.w">Folder</th>
+        <th>Commands</th>
       </tr></thead>
       <tbody>
-        <tr><td><span data-i18n="arch.surface.57">Core foundation</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.57d">framebuffer access, font engines, console hook, config, power, shell bridge</small></td>
-            <td class="num">57</td><td>core</td><td><code>l1/l1_ext.h</code></td></tr>
-        <tr><td><span data-i18n="arch.surface.8">Block drivers</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.8d">register/read/write/flush + AHCI / NVMe / ATA-DMA init</small></td>
-            <td class="num">+8</td><td>drivers</td><td><code>drivers/block/driver_block_blk.h</code></td></tr>
-        <tr><td><span data-i18n="arch.surface.13">NIC drivers</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.13d">register/send/recv/link/MAC + e1000-family and BCM57xx init</small></td>
-            <td class="num">+13</td><td>drivers</td><td><code>drivers/nic/driver_nic.h</code></td></tr>
-        <tr><td><span data-i18n="arch.surface.7">A/B update</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.7d">slots, flags, verify, staged install</small></td>
-            <td class="num">+7</td><td>ota</td><td><code>kernel/ota/ota_ab.h</code></td></tr>
-        <tr><td><span data-i18n="arch.surface.26">Sound drivers</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.26d">register/play/stop/rate/volume/caps + HDA/AC97/SB16/ES1370/virtio</small></td>
-            <td class="num">+26</td><td>drivers</td><td><code>drivers/snd/driver_snd.h</code></td></tr>
-        <tr><td><span data-i18n="arch.surface.11">Dynamic loading</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.11d">so_load/dlsym/dlopen, relocations, ldso</small></td>
-            <td class="num">+11</td><td>runtime</td><td><code>l1/l1_wp8b.h</code></td></tr>
-        <tr><td><span data-i18n="arch.surface.7b">Shell built-ins &amp; jobs</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.7d">register builtins, tool registry, job create/list/control</small></td>
-            <td class="num">+7</td><td>shell</td><td><code>l1/l1_wp8cd.h</code></td></tr>
-        <tr><td><span data-i18n="arch.surface.9">Process / fd / memory</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.9d">exec/exit, pipes, fd_dup, mmap-facing API</small></td>
-            <td class="num">+9</td><td>runtime</td><td><code>l1/l1_wp8a.h</code></td></tr>
-        <tr><td><span data-i18n="arch.surface.8t">TUI extensions</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.8td">the first TUI extension declarations</small></td>
-            <td class="num">+8</td><td>TUI</td><td><code>tui/tui_ext.h</code></td></tr>
-        <tr><td><span data-i18n="arch.surface.16">Watchdog / klog / health</span><br><small style="color:var(--text-dim)" data-i18n="arch.surface.16d">watchdog register/start/feed, klog levels + rotate, health export</small></td>
-            <td class="num">+16</td><td>core</td><td><code>lib_klog.h · core_watchdog.h · core_health.h</code></td></tr>
+        <tr><td>time</td><td class="num">4</td><td><code>services/time/</code></td><td>rtc hpet pmtimer tsc</td></tr>
+        <tr><td>block</td><td class="num">23</td><td><code>services/block/</code></td><td>ahci nvme ata dskstat lsblk parted mkfs.* fsck sync abdisk install abcfg + tests</td></tr>
+        <tr><td>nic</td><td class="num">20</td><td><code>services/nic/</code></td><td>e1000e igb ixgbe rtl-* bcm57xx wifi bt + tests</td></tr>
+        <tr><td>snd</td><td class="num">17</td><td><code>services/snd/</code></td><td>sound hda ac97 sb16 es1370 virtiosnd usbaudio play volume + tests</td></tr>
+        <tr><td>power</td><td class="num">8</td><td><code>services/power/</code></td><td>shutdown reboot halt sleep + tests (L0 keeps survival controls)</td></tr>
+        <tr><td>ota</td><td class="num">16</td><td><code>services/ota/</code></td><td>checkupdate config update rollback + tests</td></tr>
+        <tr><td>fs</td><td class="num">6</td><td><code>services/fs/</code></td><td>mount mounts umount fatmount fatstat tree</td></tr>
+        <tr><td>net</td><td class="num">12</td><td><code>services/net/</code></td><td>arp dhcp dns dnstest firewall ip lspci nf_test route tcpcc_test tcpstats tcptest</td></tr>
+        <tr><td>display</td><td class="num">12</td><td><code>services/display/</code></td><td>stats uname clear lang chinese* font* encoding* ime*</td></tr>
+        <tr><td>input</td><td class="num">2</td><td><code>services/input/</code></td><td>touchpad touchtest</td></tr>
+        <tr><td>camera</td><td class="num">10</td><td><code>services/camera/</code></td><td>uvc uvctest scsi scsitest gameport* parallel* ir*</td></tr>
+        <tr><td>usb</td><td class="num">9</td><td><code>services/usb/</code></td><td>usb usbdev usb_*_test</td></tr>
+        <tr><td>crypto</td><td class="num">2</td><td><code>services/crypto/</code></td><td>cryptotest dhtest</td></tr>
+        <tr><td colspan="4" style="color:var(--text-dim)">health / klog / watchdog / l1: kernel-side services with no ring-3 ops yet (log readers and watchdog stay L0 by design)</td></tr>
       </tbody>
     </table>
     </div>
@@ -199,47 +201,26 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
   </div>
 </section>
 
-<section class="section alt">
   <div class="wrap">
-    <h2 data-i18n="arch.cmds.h">The command surface - 233 commands</h2>
-    <p class="sub" data-i18n-html="arch.cmds.sub">Grouped by the source file that registers them - the tree structure is the domain structure. Live in the guest: help -a (alphabetical) or help -w (by work package).</p>
+    <h2 data-i18n="arch.cmds.h">The command surface - 251 commands</h2>
+    <p class="sub" data-i18n-html="arch.cmds.sub">Every 1.0.0 command is mapped: 134 moved to the ring-3 surface (133 SVC rows + the NETCMD bridge), 99 stay in the L0 recovery shell, 19 run as ush built-ins. The v1&rarr;v2 mapping table in INTERFACES.md is the compatibility contract.</p>
     <div class="tbl-scroll">
     <table class="tbl">
       <thead><tr>
-        <th data-i18n="arch.cmds.th.g">Group</th>
+        <th data-i18n="arch.cmds.th.g">Home</th>
         <th data-i18n="arch.cmds.th.n">Commands</th>
       </tr></thead>
       <tbody>
-        <tr><td data-i18n="arch.cmds.g1">Chinese console layer</td><td class="num">8</td></tr>
-        <tr><td data-i18n="arch.cmds.g2">Kernel core commands</td><td class="num">55</td></tr>
-        <tr><td data-i18n="arch.cmds.g3">Networking</td><td class="num">16</td></tr>
-        <tr><td data-i18n="arch.cmds.g4">Bluetooth</td><td class="num">1</td></tr>
-        <tr><td data-i18n="arch.cmds.g5">Cameras (UVC)</td><td class="num">2</td></tr>
-        <tr><td data-i18n="arch.cmds.g6">Chipset (ACPI/PCI/i2c)</td><td class="num">16</td></tr>
-        <tr><td data-i18n="arch.cmds.g7">Shell core (built-ins)</td><td class="num">6</td></tr>
-        <tr><td data-i18n="arch.cmds.g8">Crash recovery and dumps</td><td class="num">3</td></tr>
-        <tr><td data-i18n="arch.cmds.g9">Disks, partitions, filesystems</td><td class="num">7</td></tr>
-        <tr><td data-i18n="arch.cmds.g10">Disk/storage tests</td><td class="num">8</td></tr>
-        <tr><td data-i18n="arch.cmds.g11">Files and the editor</td><td class="num">18</td></tr>
-        <tr><td data-i18n="arch.cmds.g12">Health monitoring</td><td class="num">3</td></tr>
-        <tr><td data-i18n="arch.cmds.g13">Infrared</td><td class="num">2</td></tr>
-        <tr><td data-i18n="arch.cmds.g14">Kernel log (klog)</td><td class="num">3</td></tr>
-        <tr><td data-i18n="arch.cmds.g15">Network interface tests</td><td class="num">18</td></tr>
-        <tr><td data-i18n="arch.cmds.g16">Parallel port</td><td class="num">4</td></tr>
-        <tr><td data-i18n="arch.cmds.g17">Power management tests</td><td class="num">6</td></tr>
-        <tr><td data-i18n="arch.cmds.g18">SCSI</td><td class="num">2</td></tr>
-        <tr><td data-i18n="arch.cmds.g19">Sound tests</td><td class="num">17</td></tr>
-        <tr><td data-i18n="arch.cmds.g20">Time sources</td><td class="num">4</td></tr>
-        <tr><td data-i18n="arch.cmds.g21">OTA update tests</td><td class="num">10</td></tr>
-        <tr><td data-i18n="arch.cmds.g22">USB tests</td><td class="num">9</td></tr>
-        <tr><td data-i18n="arch.cmds.g23">Watchdog</td><td class="num">1</td></tr>
-        <tr><td data-i18n="arch.cmds.g24">Wireless</td><td class="num">1</td></tr>
-        <tr><td data-i18n="arch.cmds.g25">Storage and block devices</td><td class="num">4</td></tr>
-        <tr><td data-i18n="arch.cmds.g26">TUI (terminal UI)</td><td class="num">9</td></tr>
-      </tbody>
-    </table>
-    </div>
-    <p class="sub" style="margin:16px 0 0;font-size:14px"><a href="docs/manual/commands/index.html" data-i18n="arch.cmds.all">Full command reference (all 233 pages) →</a></p>
+        <tr><td data-i18n="arch.cmds.g1">Ring-3 service commands (SYS_L1SVC)</td><td class="num">133</td></tr>
+        <tr><td data-i18n="arch.cmds.g2">ush built-ins (files, jobs, net bridge)</td><td class="num">19</td></tr>
+        <tr><td data-i18n="arch.cmds.g3">L0 recovery shell - kernel self-tests, watchdog, crash policy, log readers</td><td class="num">29</td></tr>
+        <tr><td data-i18n="arch.cmds.g4">L0 recovery shell - chipset diagnostics (ACPI/PCI/i2c)</td><td class="num">16</td></tr>
+        <tr><td data-i18n="arch.cmds.g5">L0 recovery shell - files and the editor</td><td class="num">16</td></tr>
+        <tr><td data-i18n="arch.cmds.g6">L0 recovery shell - task/memory diagnostics</td><td class="num">9</td></tr>
+        <tr><td data-i18n="arch.cmds.g7">L0 recovery shell - interactive sessions (ssh/sshd), power survival controls</td><td class="num">6</td></tr>
+        <tr><td data-i18n="arch.cmds.g8">L0 recovery shell - time sources + misc</td><td class="num">23</td></tr>
+      </tbody></div>
+    <p class="sub" style="margin:16px 0 0;font-size:14px"><a href="docs/manual/commands/index.html" data-i18n="arch.cmds.all">Full command reference (all command pages) →</a></p>
   </div>
 </section>
 

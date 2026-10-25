@@ -640,3 +640,57 @@ pre, .cmd, .tbl-scroll, .hist-scroll { max-width: 100%; }
     * { transition: none !important; animation: none !important; }
     .btn:hover { transform: none; }
 }
+
+/* ===================== 2.0.0 motion layer =====================
+   Line-by-line terminal reveal, scroll-reveal for sections and
+   cards, and the count-up stats. All disabled when the user asks
+   for reduced motion (app.js short-circuits; these rules are the
+   no-JS / reduced-motion defaults). */
+
+/* terminal lines: staggered fade+rise */
+.terminal-card pre .tl {
+  display: block;
+  opacity: 0;
+  transform: translateY(4px);
+  animation: tl-in .32s ease-out forwards;
+}
+@keyframes tl-in {
+  to { opacity: 1; transform: none; }
+}
+.terminal-card pre .tl.caret-line::after {
+  content: "\2588";
+  animation: caret-blink 1s steps(1) infinite;
+  color: var(--fg, #46d977);
+}
+@keyframes caret-blink {
+  50% { opacity: 0; }
+}
+
+/* scroll reveal */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity .5s ease, transform .5s ease;
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+/* stagger the feature cards inside a revealed section */
+.feat.reveal:nth-child(3n+2) { transition-delay: .07s; }
+.feat.reveal:nth-child(3n)   { transition-delay: .14s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-card pre .tl { opacity: 1; transform: none; animation: none; }
+  .terminal-card pre .tl.caret-line::after { animation: none; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* subtle lift on the terminal card (hero) */
+.terminal-card {
+  transition: transform .35s ease, box-shadow .35s ease;
+}
+.terminal-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .35);
+}
