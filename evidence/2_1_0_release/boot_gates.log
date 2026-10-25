@@ -1,0 +1,42 @@
+[boot-gate bios] banner OK: Open Cube OS 2.1.0 kmain entered
+[boot-gate bios] ring-3 ush> prompt OK (default boot entry)
+[boot-gate bios] uname OK: Open Cube OS 2.1.0 x86_64
+[boot-gate bios] oc> fallback OK (exit -> recovery shell)
+[boot-gate bios] poweroff OK
+[boot-gate uefi] FAIL: End Of File (EOF). Exception style platform.
+<pexpect.pty_spawn.spawn object at 0x7fdcc56e5be0>
+command: /home/z/opt/extract/usr/bin/qemu-system-x86_64
+args: [b'/home/z/opt/extract/usr/bin/qemu-system-x86_64', b'-m', b'512M', b'-cdrom', b'build/opencube.iso', b'-boot', b'd', b'-display', b'none', b'-serial', b'mon:stdio', b'-L', b'/home/z/opt/extract/usr/share/qemu', b'-L', b'/home/z/opt/extract/usr/share/seabios', b'-bios', b'/home/z/opt/extract/usr/share/OVMF/OVMF_CODE_4M.fd']
+buffer (last 100 chars): ''
+before (last 100 chars): "qemu: could not load PC BIOS '/home/z/opt/extract/usr/share/OVMF/OVMF_CODE_4M.fd'\r\n"
+after: <class 'pexpect.exceptions.EOF'>
+match: None
+match_index: None
+exitstatus: None
+flag_eof: True
+pid: 11628
+child_fd: 5
+closed: False
+timeout: 180
+delimiter: <class 'pexpect.exceptions.EOF'>
+logfile: None
+logfile_read: None
+logfile_send: None
+maxread: 2000
+ignorecase: False
+searchwindowsize: None
+delaybeforesend: 0.05
+delayafterclose: 0.1
+delayafterterminate: 0.1
+searcher: searcher_re:
+    0: re.compile('Open Cube OS 2\\.1\\.0 kmain entered')
+=== boot gates: BIOS PASS + UEFI FAIL ===
+[boot-gate uefi] banner OK: Open Cube OS 2.1.0 kmain entered
+[boot-gate uefi] ring-3 ush> prompt OK (default boot entry)
+[boot-gate uefi] uname OK: Open Cube OS 2.1.0 x86_64
+[boot-gate uefi] oc> fallback OK (exit -> recovery shell)
+[boot-gate uefi] poweroff OK
+=== boot gates: BIOS PASS + UEFI PASS ===
+[final-iso boot-gate bios] PASS (banner + ush> + uname + oc> fallback)
+[final-iso boot-gate uefi] PASS (banner + ush> + uname + oc> fallback)
+=== FINAL shipped ISO (sha 808b5423...): BIOS PASS + UEFI PASS ===

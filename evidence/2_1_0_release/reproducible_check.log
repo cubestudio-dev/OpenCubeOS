@@ -1,0 +1,5 @@
+== reproducible-check: build 1/2 ==
+887c0587c6d07b29b6421fa3960cee57766a682dce809bbe3d429c95bd8ede2c  /home/z/oc-public/build/opencube.elf
+== reproducible-check: build 2/2 (clean again) ==
+reproducible-check: PASS - ELF byte-identical across two clean builds
+887c0587c6d07b29b6421fa3960cee57766a682dce809bbe3d429c95bd8ede2c  /home/z/oc-public/build/opencube.elf
