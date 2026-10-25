@@ -14,4 +14,4 @@
 | [tui-guide](tui-guide.md) | 桌面、应用、键盘模型 |
 | [chinese-console](chinese-console.md) | 中文层、输入法、ASCII 契约 |
 | [recovery](recovery.md) | WinRE 工作流、崩溃产物、救援工具包 |
-| [commands](commands/index.md) | 全部 233 条命令参考页、26 个领域 |
+| [commands](commands/index.md) | 全部 251 条命令参考页、13 个领域（每个命令归属：L0、SVC、内建） |

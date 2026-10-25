@@ -1,13 +1,14 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 发布流程（SOP）
 
-发布所遵循的确切流程。每一步都有一个门禁；失败的门禁会中止发布。
+发布走过的确切序列。每一步都有门；门失败即停。
 
-## 0. 发布前检查
+## 0. 预检
 
 ```
-git fetch && git status        (clean tree, correct branch)
-git tag --list 'WP-*'          (the new tag does not exist yet)
+git fetch && git status        （干净树、正确分支）
+git tag --list 'v*'            （新 tag 尚不存在）
+git config user.name / user.email   （作者 = cubestudio-dev <cubestudio@qq.com>）
 ```
 
 ## 1. 构建
@@ -16,71 +17,98 @@ git tag --list 'WP-*'          (the new tag does not exist yet)
 make clean && make -j$(nproc) all
 ```
 
-门禁：0 个错误 0 个警告（标志中包含 `-Wall -Wextra -Werror`）。
-输出：`build/opencube.iso`、`dist/OpenCubeOS-<ver>-src.zip`、`dist/OpenCubeOS-<ver>-update.tar.gz`。
+门：0 错误 0 警告（`-Wall -Wextra -Werror` 在编译参数里）
+**且本地工具链与 GitHub Actions runner 双双通过**——2.0.0 发布过
+本地能编译、CI 编不过的源码（tui_core.c 端口约束 P0；见
+KNOWN_ISSUES.md）。CI 绿是硬性发布门，不是锦上添花。
+产出：`build/opencube.iso`、`dist/OpenCubeOS-<ver>-src.zip`、
+`dist/OpenCubeOS-<ver>-update.tar.gz`。
 
-## 2. 可复现性检查
+## 2. 可复现
 
 ```
 make reproducible-check
 ```
 
-门禁：`PASS - 两次干净构建的 ELF 字节完全一致`。
+门：`PASS - ELF byte-identical across two clean builds`。
 
-## 3. 启动门禁
-
-```
-make run-bios      (banner + 233 commands + oc> + boot complete)
-make run-uefi      (same, through OVMF)
-```
-
-## 4. 深度测试门禁（在构建的 ISO 上）
-
-| 门禁 | 命令 | 必须满足 |
-|------|---------|------|
-| 回归测试套件 | `tools/run_fix4_regression.py` | 28/28 |
-| 看门狗/日志/健康监控端到端测试 | `tools/wp12_watchdog_logging_e2e.py` | 14/14 |
-| dhtest + cryptotest | 在客户机内 | PASS |
-| SSH 端到端测试 | paramiko 套件（已设置种子的 /etc） | 5/5 |
-| HTTPS 端到端测试 | 参考服务器 | 7/7 |
-
-## 5. 标签 + 发布
+## 3. 启动门
 
 ```
-git tag WP-<stage>
+make run-bios      （横幅 + Ring-3 ush> + boot complete）
+make run-uefi      （同上，走 OVMF）
+```
+
+默认启动落在 Ring-3 的 `ush>`；`exit` 之后（或启动器失败时）出现
+`oc>`——恢复姿态。
+
+## 4. 深度测试门（在构建出的 ISO 上）
+
+2.1.0 验证矩阵——每套都驱动真实 QEMU 启动、走串口控制台；把真实
+输出（含 skip 数）贴进发布证据：
+
+| 门 | 命令 | 证明什么 |
+|----|------|----------|
+| Host 单测 | `make test` | 17 项 PASS（无 openssl fixture 时 +2 SKIP-FIXTURE——如实申报 skip） |
+| 看门狗/日志/健康 E2E | `tools/wp12_watchdog_logging_e2e.py` | 14 场景（S1-S14，含 Intel TCO 真复位） |
+| TUI 命令面 E2E | `tools/wp10_tui_e2e.py` | v2 启动流上的 L0 TUI 命令 |
+| 中文控制台 E2E | `tools/wp10_chinese_e2e.py` | CJK 层端到端 |
+| TUI 桌面应用 E2E | `tools/wp10_tuiqa_apps_e2e.py` | 从 `ush>` 起步的桌面五应用流程 |
+| 原生桌面 E2E | `tools/wp10_native_e2e.py` | 原生编辑器/文件管理器流程 |
+| L1 逐应用记录 | 从 ush 经 `run` 跑每个 `l1apps/` 程序 | ush + 每个嵌入程序真实执行（2.1.0 新增；见 docs/dev/e2e-suites.md） |
+
+## 5. Tag + Release
+
+```
+git tag -a v<版本>            # 只打在 CI 绿的提交上
 git push origin main --tags
 ```
 
-从标签创建 GitHub Release，注释中包含：变更摘要、新接口、已知问题、三个 SHA256。附加三个资源。发布脚本（`tools/build_release.sh`）自动完成清单 + 注释 + 上传。
+从 tag 建 GitHub Release，说明含：变更摘要、新接口、已知问题、
+三个 SHA256。附三份资产。发布脚本（`tools/build_release.sh --deep`）
+自动完成清单 + 说明 + 上传。
 
-## 6. 网站 + Wiki
+**发布门（2.1.0）：tag 必须指向 CI 绿的提交。绝不在红的提交上打
+tag。**
+
+## 6. 网站 + wiki
 
 ```
-tools/update_website.sh    (versions/hashes/downloads on the site)
-tools/sync_wiki.sh         (docs/ -> the GitHub Wiki)
+tools/update_website.sh    （版本/哈希/下载）
+tools/sync_wiki.sh         （docs/ -> GitHub Wiki）
 ```
 
-门禁：实时网站显示新版本，三个 SHA256 与 Release 匹配，下载解析为 HTTP 200 且通过哈希验证。
+门：线上站点显示新版本、三个 SHA256 与 Release 一致、下载 HTTP 200
+且哈希校验通过、站点 stats 块**从 `docs/data/*.json` 再生成**
+（绝不从旧块照搬——2.0.0 的站点就是那样带着陈旧的 130,011 行数
+发出去的）。
 
-## 7. 私有镜像
+## 7. 私密镜像
 
-将三个资源 + 发布注释 + 镜像的网站文件复制到私有仓库；推送。门禁：两个仓库上的 `git ls-remote` 显示预期的 HEAD。
+把三份资产 + 发布说明 + 镜像的网站文件拷进私密仓（`oc-os/` 树 +
+仓级 audit 文档）；推送。门：两个仓的 `git ls-remote` 显示预期的
+HEAD。
 
-## 8. 12 点检查清单
+## 8. 12 点检查
 
-1. 两个仓库的远程 HEAD 与本地匹配。
-2. 标签存在于公共仓库。
+1. 两仓远端 HEAD 与本地一致。
+2. tag 在公开仓存在且指向 CI 绿的提交。
 3. 每个发布提交的作者身份。
-4. gh-pages 已更新（实时网站提供新版本）。
-5. update.json：版本 + 构建 + package_sha256。
-6. 三方资源哈希：本地 = Release API 摘要 = 实时下载。
-7. 网站数字（命令/接口/行数）与 `docs/data/*.json` 匹配。
-8. 步骤 4 中的所有门禁均为绿色（粘贴输出）。
-9. Token 卫生（仅显示后 4 位）。
-10. 整个仓库数字一致性（233 / 162 / 140,672 级）。
-11. 私有镜像完成。
-12. 发布提交的 CI 为绿色。
+4. gh-pages 已更新（线上站点服务新版本）。
+5. update.json：version + build + package_sha256（双副本——
+   website/ 顶层与 website/public/——字节一致）。
+6. 三方资产哈希：本地 = Release API digest = 实际下载。
+7. 网站数字（命令/接口/行数）与 `docs/data/*.json` 一致（再生成，
+   不是照搬）。
+8. 第 4 步的门全绿（贴输出，申报 skip 数）。
+9. token 卫生（只显示 last-4）。
+10. 全仓数字一致性：251 命令归属（99+133+19）/ 17 类 / 158 个
+    L1SVC 操作 / 54 syscall / 当前 stats.json 行数（每次发布重算；
+    绝不带陈旧数字）。
+11. 私密镜像完整。
+12. CI 在发布提交（及被 tag 的提交）上绿。
 
 ## 9. 报告
 
-交付报告引用：构建证据、所有门禁输出、推送输出（公共 + 私有）、Release URL、网站 URL、三个 SHA256，以及诚实偏离列表。
+交付报告引用：构建证据（本地 + CI）、全部门输出、推送输出（公开 +
+私密）、Release URL、站点 URL、三个 SHA256、以及诚实偏差清单。

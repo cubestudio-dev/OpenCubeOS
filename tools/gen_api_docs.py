@@ -872,7 +872,8 @@ def extract_usage_strings():
 # docs center (/root/BUILDING).
 
 ROOT_DOCS = ["README.md", "BUILDING.md", "INTERFACES.md",
-             "ARCHITECTURE.md", "FAQ.md", "CONTRIBUTING.md", "LICENSE"]
+             "ARCHITECTURE.md", "KNOWN_ISSUES.md", "FAQ.md",
+             "CONTRIBUTING.md", "LICENSE"]
 # LICENSE has no .md extension so VitePress cannot route it; the mirror
 # gains the extension (pure text renders fine as markdown paragraphs).
 MIRROR_RENAME = {"LICENSE": "LICENSE.md"}
@@ -1068,6 +1069,17 @@ def main():
 
     # ---- stats ----
     stats = extract_stats()
+    # 2.1.0 (P-17 follow-up): the file-count caliber documented in the
+    # data file itself - the 379-file figure counts .c/.h/.S sources
+    # only, so l1apps/ contributes its 9 .c files, not all 36 program
+    # files (25 .asm + 2 .ld are outside the extension set, same as
+    # the README verification command).
+    stats["note"] = ("Counts .c/.h/.S sources under the 9 STAT_DIRS "
+                     "(core arch drivers services recovery tui chinese "
+                     "boot l1apps); generated data blobs excluded, and "
+                     "l1apps/ .asm/.ld program files are not counted "
+                     "(9 of its 36 files are .c) - the same exclusions "
+                     "the README verification command applies.")
     with open(os.path.join(args.out, "stats.json"), "w") as f:
         json.dump(stats, f, indent=1)
     print(f"gen_api_docs: stats.json - {stats['total_files']} files, "

@@ -5,7 +5,7 @@ Every GitHub Release note follows this shape (fill every section;
 "none" is an acceptable, honest value):
 
 ```markdown
-# WP-<stage>
+# v<version>
 
 <one-paragraph summary: what this work package delivers>
 
@@ -39,7 +39,7 @@ Every GitHub Release note follows this shape (fill every section;
 - Watchdog/logging/health E2E: 14/14
 - dhtest / cryptotest: PASS
 - SSH E2E: 5/5 - HTTPS E2E: 7/7
-- BIOS + UEFI boots: banner + 233 commands
+- BIOS + UEFI boots: banner + ring-3 ush> + boot complete
 
 ## Known issues
 

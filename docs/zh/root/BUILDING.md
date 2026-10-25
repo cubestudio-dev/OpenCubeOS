@@ -48,7 +48,7 @@ make -j"$(nproc)" kernel
 make iso
 ```
 
-版本横幅来自 Makefile 中的 `2.0.0` 字面量（可通过 `make OC_RELEASE_VERSION=1.0.1-test1` 覆盖）。构建号是提交计数加 +21 对齐偏移（见 Makefile 注释），使公开序列保持在已发布的 274 之上。
+版本横幅来自 Makefile 中冻结的版本字面量（2.1.0 冻结期为 `2.1.0`）（可通过 `make OC_RELEASE_VERSION=1.0.1-test1` 覆盖）。构建号是提交计数加 +21 对齐偏移（见 Makefile 注释），使公开序列保持在已发布的 274 之上。
 
 ### 启动与测试
 
@@ -109,7 +109,7 @@ make CONFIG_TUI=n       # one-shot override
 
 选项：`CONFIG_TUI`, `CONFIG_CHINESE`, `CONFIG_NVME`, `CONFIG_AHCI`,
 `CONFIG_VIRTIO_BLK`。`CONFIG_CHINESE=n` 会强制 `CONFIG_TUI=n`。
-`CONFIG_TUI=n CONFIG_CHINESE=n` 的构建启动时有 216 条命令（233 - 17 条 TUI/中文命令）；完整配置启动时有 233 条。禁用路径是真实代码，而非被删除的代码 - 配置器生成的头文件将禁用的功能映射为空操作等价物。
+`CONFIG_TUI=n CONFIG_CHINESE=n` 的构建会把 9 条 TUI 命令从 `oc>` 命令面上移除（99 → 90），8 个中文 locale SVC 操作改为干净的 -1 错误（命令体在被动掉的编译树里；操作编号保持稳定）；完整配置启动时 `oc>` 有 99 条命令、命令归属共 251 个（2.1.0 实测：off-path ISO 的 banner 与 `help -a`）。禁用路径是真实代码，而非被删除的代码 - 配置器生成的头文件将禁用的功能映射为空操作等价物，L1SVC 派发对 locale 操作做了条件保护（2.1.0：v2.0.0 树曾把 off-path 镜像链接失败——已修复）。
 
 ## 构建缓存
 
