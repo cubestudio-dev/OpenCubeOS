@@ -1,0 +1,11 @@
+[boot-gate bios] banner OK: Open Cube OS 2.2.0 kmain entered
+[boot-gate bios] ring-3 ush> prompt OK (default boot entry)
+[boot-gate bios] uname OK: Open Cube OS 2.2.0 x86_64
+[boot-gate bios] oc> fallback OK (exit -> recovery shell)
+[boot-gate bios] poweroff OK
+[boot-gate uefi] banner OK: Open Cube OS 2.2.0 kmain entered
+[boot-gate uefi] ring-3 ush> prompt OK (default boot entry)
+[boot-gate uefi] uname OK: Open Cube OS 2.2.0 x86_64
+[boot-gate uefi] oc> fallback OK (exit -> recovery shell)
+[boot-gate uefi] poweroff OK
+=== boot gates: BIOS PASS + UEFI PASS ===

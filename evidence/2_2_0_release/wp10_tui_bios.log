@@ -1,0 +1,237 @@
+=== boot ok, prompt reached ===
+[INFO] set tui backend: echo tui.backend=serial >> /etc/opencube.conf
+[PASS] tui-test suite: tui-test
+[PASS] tui-test layers: tui-test
+[PASS] tui-test csi: tui-test
+[PASS] tui-test mouse: tui-test
+[PASS] tui-test colors: tui-test
+[PASS] tui-test panels: tui-test
+[PASS] tui-test menu: tui-test
+[PASS] tui-test form: tui-test
+[PASS] tui-test hw: tui-test
+[PASS] tui-test config: tui-test
+[PASS] tui-test wifi: tui-test
+[PASS] tui-test tasks: tui-test
+[PASS] tui-test logring: tui-test
+[PASS] tui-test fix1 getch: tui-test
+[PASS] tui-test fix1 block: tui-test
+[PASS] tui-test fix1 pool: tui-test
+[PASS] tui-test fix1 esc: tui-test
+[PASS] tui-hw cpu: tui-hw CPU
+[PASS] tui-hw mem: tui-hw Memory
+[PASS] tui-hw storage: tui-hw Storage
+[PASS] tui-hw network: tui-hw Network
+[PASS] tui-hw sound: tui-hw Sound
+[PASS] tui-hw pci: tui-hw PCI
+[PASS] tui-hw input: tui-hw Input
+[PASS] tui-hw camera: tui-hw Camera
+[PASS] tui-hw wireless: tui-hw Wireless
+[PASS] tui-hw timers: tui-hw Timers
+[PASS] tui-sysinfo logs: tui-sysinfo logs
+[PASS] tui-usb poll thread: ps
+[PASS] help wp tag: help -w
+[PASS] help az tui: help -a
+[INFO] tui re-enter regression: starting
+[fix1-reenter #0] render: PASS
+[fix1-reenter #0] exit back to shell: PASS
+[fix1-reenter #1] render: PASS
+[fix1-reenter #1] exit back to shell: PASS
+[PASS] tui re-enter regression: two full sessions
+[INFO] entering ush for the ring-3 tail
+[PASS] wireless stack honest: wifi
+[PASS] shell ok after: echo alive
+[PASS] uname intact: uname -a
+[PASS] ota intact: checkupdate --local
+
+=== full transcript tail ===
+uses for devices
+ i2cget - read I2C byte (i2cget <bus> <addr> [reg])
+ i2cset - write I2C byte (i2cset <bus> <addr> <reg> <val>)
+ i2ctest - I2C core/controller self-test
+ msitest - LAPIC self-IPI + MSI/MSI-X device fire test
+ pcibars - list PCI devices with sized BARs
+ pcidump - dump PCI config space (pcidump <b:d.f>)
+ pcie - PCIe MMCONFIG state + capability walk
+ smbus - list SMBus devices from the scan
+ smbustest - SMBus protocol test (byte/word/block)
+ timer - register a 500ms one-shot timer
+
+=== time (time service: RTC/HPET/PMTimer/TSC) ===
+ hpet - HPET: caps + counter + one-shot/periodic IRQ8 tests
+ pmtimer - ACPI PM timer: read + PIT calibration + wrap tests
+ rtc - CMOS RTC: time + status + UIE/PIE/alarm interrupt tests
+ tsc - TSC: reads + PIT/HPET/PMTimer calibration + delay test
+
+=== power (power service (ACPI)) ===
+ halt - halt the kernel
+ poweroff - alias of shutdown
+ shutdown - power off (flush + ACPI/Bochs/APM ports)
+ sleep - delay for N seconds (sleep <sec>)
+
+=== watchdog (watchdog service) ===
+ dmesg - show the kernel log ring (dmesg [N])
+ health - system health monitor (health [watch|export])
+ health export - write health JSON to /var/log/health.json
+ health watch - live health monitor, 1 s refresh (ENTER exits)
+ logcat - filter the kernel log (logcat -l lvl -m mod -k key -t sec -n N [-f])
+ logctl - control the kernel log (logctl status|level|enable|disable|clear|flush|rotate|e
+ watchdog - watchdog status/control (hw TCO/WDAT + monitored slots + policy tests)
+
+=== ota (OTA update service (A/B slots)) ===
+ reboot - reboot the machine (reboot)
+
+=== crypto (crypto service (TLS primitives)) ===
+ ssh - SSH client connect (ssh <ip> [port] [user] [password])
+ sshd - SSH server (sshd [port=22] [user=oc] [password=oc])
+
+=== l1 (L1 extension service (ring-3 bridge)) ===
+ l1test - test L1 job_create/job_list/job_control with running process
+ ldd - list dynamic dependencies (ldd <program>)
+
+Total: 99 commands.
+
+
+=== help az tui: help -a ===
+help -a
+Available commands (A-Z):
+ acpi - dump ACPI tables (RSDP/FADT/DSDT/MCFG)
+ acpidev - list ACPI namespace devices (AML)
+ acpipow - ACPI power status (S1-S5/SCI/GPE/FACS)
+ acpitest - AML interpreter self-test + DSDT checks
+ alias - set/show aliases
+ cat - print file contents (cat <file>)
+ cd - change directory (cd [path])
+ cp - copy file (cp <src> <dst>)
+ cr3test - test CR3 switching
+ crashlog - show last exception crashes
+ crashtest - trigger kernel crash tests (panic/exc/pf/assert/wd/dump/policy)
+ df - show disk/mount usage
+ dmesg - show the kernel log ring (dmesg [N])
+ du - directory usage (du [path])
+ dumpinfo - show core dump status (size/persisted/header)
+ echo - echo the text back
+ edit - line editor (edit <file>; :i :d :p :w :q :wq)
+ exc - run exception self-test (#DE/#UD/#PF)
+ export - set env var (export NAME=value)
+ frag - show memory fragmentation
+ fstest - run VFS self-test (mkdir/write/read/ls)
+ grep - filter lines matching pattern (grep <pattern> [file])
+ halt - halt the kernel
+ health - system health monitor (health [watch|export])
+ health export - write health JSON to /var/log/health.json
+ health watch - live health monitor, 1 s refresh (ENTER exits)
+ heap - show kernel heap stats
+ heapbounds - heap bounds regression (BUG-0140 wrap / BUG-0141 ceiling)
+ heaptest - test heap overhead with 100 allocs
+ help - show this message
+ help_a_test - verify help -a A-Z ordering
+ help_default_test - verify default help A-Z ordering
+ help_wp_test - verify help -w group ordering
+ hpet - HPET: caps + counter + one-shot/periodic IRQ8 tests
+ i2cdetect - scan I2C/SMBus buses for devices
+ i2cget - read I2C byte (i2cget <bus> <addr> [reg])
+ i2cset - write I2C byte (i2cset <bus> <addr> <reg> <val>)
+ i2ctest - I2C core/controller self-test
+ ifconfig - show network interface info
+ irqabitest - IRQ-entry ABI regression (BUG-0137 align / BUG-0138 DF)
+ kill - kill a task (kill <tid>)
+ l1test - test L1 job_create/job_list/job_control with running process
+ ldd - list dynamic dependencies (ldd <program>)
+ logcat - filter the kernel log (logcat -l lvl -m mod -k key -t sec -n N [-f])
+ logctl - control the kernel log (logctl status|level|enable|disable|clear|flush|rotate|e
+ ls - list directory (ls [path])
+ mem - show physical memory stats
+ memtest - run memory test (PMM + heap)
+ mkdir - make directory (mkdir <path>)
+ msitest - LAPIC self-IPI + MSI/MSI-X device fire test
+ multi - spawn 3 tasks with interleaved output
+ mv - move/rename file (mv <src> <dst>)
+ netstat - show network statistics and sockets
+ nice - change priority (nice <tid> <prio>)
+ pcibars - list PCI devices with sized BARs
+ pcidump - dump PCI config space (pcidump <b:d.f>)
+ pcie - PCIe MMCONFIG state + capability walk
+ pftest - test page fault handling
+ ping - send ICMP echo (ping <host>)
+ pmmrace - BUG-0043 repro: PMM bitmap race thread-vs-IRQ
+ pmtimer - ACPI PM timer: read + PIT calibration + wrap tests
+ poweroff - alias of shutdown
+ ps - list all tasks
+ pwd - print working directory
+ reboot - reboot the machine (reboot)
+ rm - delete file (rm <file>)
+ rmdir - remove directory (rmdir <path>)
+ rtc - CMOS RTC: time + status + UIE/PIE/alarm interrupt tests
+ run - run a user program (hello/badapp/loop/fork_test/.../dyn_test/so_test/dyn_hello/
+ sched - show scheduler stats
+ set - list env vars
+ shutdown - power off (flush + ACPI/Bochs/APM ports)
+ sleep - delay for N seconds (sleep <sec>)
+ smbus - list SMBus devices from the scan
+ smbustest - SMBus protocol test (byte/word/block)
+ spawn - spawn a test kernel thread
+ ssh - SSH client connect (ssh <ip> [port] [user] [password])
+ sshd - SSH server (sshd [port=22] [user=oc] [password=oc])
+ syncstat - show sync primitive stats
+ synctest - test sync primitives (spinlock/mutex/sem)
+ timer - register a 500ms one-shot timer
+ touch - create empty file (touch <path>)
+ tsc - TSC: reads + PIT/HPET/PMTimer calibration + delay test
+ tui - full-screen TUI main menu (arrows/Tab/Enter/Esc)
+ tui-drv - driver setup TUI (alias of tui-hw; page name optional)
+ tui-ext - TUI L1 extension lab: selftest + registries
+ tui-hw - hardware configuration TUI (optional: page name)
+ tui-net - wireless network TUI (WiFi + Bluetooth)
+ tui-sys - system settings TUI (host/net/storage/user/security/update/log/tui)
+ tui-sysinfo - system information TUI (optional: page name)
+ tui-test - run the TUI self-test suite (input/expected/actual/verdict)
+ tui-time - time TUI: clock/sources/set RTC/timezone
+ unalias - remove an alias
+ vmkernelpt - VMM PT-ownership regression (BUG-0136)
+ vmmap - show address space mappings
+ vmtest - run virtual memory test
+ watchdog - watchdog status/control (hw TCO/WDAT + monitored slots + policy tests)
+ wget - download file via HTTP (wget <host> [port] [path])
+ write - write text to file (write <path> <text>)
+Total: 99 commands. Use 'help -w' for the work-package view.
+
+
+=== wireless stack honest: wifi ===
+ wifi
+wireless families: 7 devices: 7
+ iwlwifi
+ rtlwifi
+ ath9k
+ ath10k
+ ath11k
+ b43
+ brcmfmac
+ dev0 iwlwifi bus=auto vid=0000 did=0000 state=down
+ dev1 rtlwifi bus=auto vid=0000 did=0000 state=down
+ dev2 ath9k bus=auto vid=0000 did=0000 state=down
+ dev3 ath10k bus=auto vid=0000 did=0000 state=down
+ dev4 ath11k bus=auto vid=0000 did=0000 state=down
+ dev5 b43 bus=auto vid=0000 did=0000 state=down
+ dev6 brcmfmac bus=auto vid=0000 did=0000 state=down
+(QEMU has no 802.11 models; down = device not present)
+
+
+=== shell ok after: echo alive ===
+ echo alive
+alive
+
+
+=== uname intact: uname -a ===
+ uname -a
+Open Cube OS 2.2.0 x86_64
+
+
+=== ota intact: checkupdate --local ===
+ checkupdate --local
+checkupdate: reading /etc/opencube.conf
+Current version is up to date.
+Version: 2.1.0
+Time: 2026-10-25
+
+
+=== summary: 37/37 checks passed, 0 failed ===
