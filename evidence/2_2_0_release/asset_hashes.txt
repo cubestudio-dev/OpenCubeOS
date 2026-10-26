@@ -1,0 +1,5 @@
+v2.2.0 asset hashes (sha256), build 316 (commit 083f148, count 295 + 21):
+20f93fee8c791af7ac9ec1b6b53a525bef2ac2d5697b829721b28bbe0fd950f9  opencube-2.2.0.iso
+a2041daaf3b1f5ff72cbbf161f3e90718da2adf16605cbb9ae29b8c24f2ed01b  opencube-2.2.0-src.zip
+ac9a6ec2c3dd679977ad1c716dbacb26ae84119ddc75751fb30712effa6ad19e  opencube-2.2.0-update.tar.gz
+f865abff08bd65a3d39e0799bbd1af96f8f18f80fcb3a8fc9a9dbdc9487c03cc  opencube.elf (kernel, byte-identical across clean rebuilds)

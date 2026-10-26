@@ -1,0 +1,412 @@
+
+oc> tui
+
+<<<KEY '1'>>>
+
+<<<KEY 'n'>>>
+
+<<<KEY 'qa_dir\r'>>>
+
+<<<KEY '\r'>>>
+
+<<<KEY 'n'>>>
+
+<<<KEY 'sub\r'>>>
+
+<<<KEY 'f'>>>
+
+<<<KEY 'qa_a.txt\r'>>>
+
+<<<KEY 'f'>>>
+
+<<<KEY 'qa_b.txt\r'>>>
+
+<<<KEY 'c'>>>
+
+<<<KEY '\x1b[B\x1b[B'>>>
+
+<<<KEY '\r'>>>
+
+<<<KEY 'p'>>>
+
+<<<KEY '\x7f'>>>
+
+<<<KEY 'v'>>>
+
+<<<KEY '\x1bz'>>>
+
+<<<KEY 'a'>>>
+
+<<<KEY '\x1bz'>>>
+
+<<<KEY 'r'>>>
+
+<<<KEY 'qa_c.txt\r'>>>
+
+<<<KEY 'x'>>>
+
+<<<KEY '\x7f'>>>
+
+<<<KEY 'p'>>>
+
+<<<KEY 'd'>>>
+
+<<<KEY 'y'>>>
+
+<<<KEY 'f'>>>
+
+<<<KEY 'qa_tmp.txt\r'>>>
+
+<<<KEY 'd'>>>
+
+<<<KEY 'n'>>>
+
+<<<KEY '\x1b[20~'>>>
+
+<<<KEY 'm'>>>
+
+<<<KEY '\x1bz'>>>
+
+<<<KEY '\x1bz'>>>
+tui: desktop closed, shell ok
+oc> 
+<<<RUN 'ls /qa_dir'>>>
+ls /qa_dir
+           0 qa_a.txt
+  [D] sub
+
+
+<<<RUN 'ls /qa_dir/sub'>>>
+ls /qa_dir/sub
+           0 qa_b.txt
+
+
+<<<RUN 'ls /'>>>
+ls /
+           0 qa_tmp.txt
+  [D] qa_dir
+  [D] var
+  [D] bin
+  [D] dev
+  [D] tmp
+  [D] etc
+
+
+<<<RUN 'ls /'>>>
+ls /
+           0 qa_tmp.txt
+  [D] qa_dir
+  [D] var
+  [D] bin
+  [D] dev
+  [D] tmp
+  [D] etc
+
+
+oc> tui
+tui: desktop closed, shell ok
+oc> [26~
+unknown command: [26~ (try 'help')
+oc> 
+oc> tui
+tui: desktop closed, shell ok
+oc> 
+oc> tui
+
+<<<KEY '4'>>>
+
+<<<KEY '/qa_cn.txt\r'>>>
+
+<<<KEY 'native editor ascii line\r'>>>
+
+<<<KEY '\x1b[14~'>>>
+
+<<<KEY 'zhong'>>>
+
+<<<KEY '1'>>>
+
+<<<KEY 'wen'>>>
+
+<<<KEY '1'>>>
+
+<<<KEY '\x1b[14~'>>>
+
+<<<KEY '\r'>>>
+
+<<<KEY '\x0f'>>>
+
+<<<KEY '\x1b[29~'>>>
+
+<<<KEY '/qa_cn2.txt\r'>>>
+
+<<<KEY '\x18'>>>
+
+<<<KEY 'y'>>>
+
+<<<KEY 'n'>>>
+tui: desktop closed, shell ok
+oc> 
+<<<RUN 'cat /qa_cn.txt'>>>
+cat /qa_cn.txt
+native editor ascii line
+中吻
+
+
+oc> tui
+
+<<<KEY '4'>>>
+
+<<<KEY '/qa_cn.txt\r'>>>
+
+<<<KEY '\x18'>>>
+
+<<<KEY 'y'>>>
+
+<<<KEY 'n'>>>
+tui: desktop closed, shell ok
+oc> 
+oc> 
+oc> tui
+tui: desktop closed, shell ok
+oc> 
+oc> tui
+
+<<<KEY '5'>>>
+
+[terminal] ring-3 ush - syscall-only sandbox; type 'exit' to return to the desktop
+started pid=2 tid=2 (kill 2 stops it)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+ush> echo hello-from-ush
+hello-from-ush
+ush> cat /qa_cn.txt
+native editor ascii line
+中吻
+ush> ls /qa_dir
+- qa_a.txt
+d sub
+ush> ps
+TID  STATE  PRI  CPU(ticks)  NAME
+0    RUN   31    17790          idle
+1    READY 31    10          usb-poll
+2    RUN   15    270          ush
+ush> loop &
+[1] 3
+ush> loop: running
+jobs
+0 loop
+ush> exit
+
+[terminal] ended (rc=
+<<<KEY ' '>>>
+1) - press any key for the desktop...tui: desktop closed, shell ok
+oc> 
+oc> tui
+
+<<<KEY '2'>>>
+
+<<<KEY '\r'>>>
+
+<<<KEY '\x1bz'>>>
+
+<<<KEY 'k'>>>
+
+<<<KEY 'y'>>>
+
+<<<KEY '\x1b[20~'>>>
+
+<<<KEY '\x1bz'>>>
+tui: desktop closed, shell ok
+oc> 
+<<<RUN 'ps'>>>
+ps
+TID  PRIO  STATE     CPU_TICKS  SWITCHES  NAME
+0    31    RUNNING   17986      1237      idle
+1    31    READY     10         5         usb-poll
+4    15    READY     2248       1124      ush
+
+User processes:
+PID  TID  ENTRY          NAME
+4    4    0x00400000     ush
+
+
+<<<RUNUSH 'uname'>>>
+uname
+Open Cube OS
+
+
+oc> 
+oc> tui
+
+<<<KEY '3'>>>
+
+<<<KEY '3'>>>
+
+<<<KEY '1'>>>
+
+<<<KEY 'd'>>>
+
+<<<KEY 'i'>>>
+
+<<<KEY '10.0.2.15'>>>
+
+<<<KEY '\r'>>>
+
+<<<KEY '255.255.255.0'>>>
+
+<<<KEY '\r'>>>
+
+<<<KEY '10.0.2.2'>>>
+
+<<<KEY '\r'>>>
+
+<<<KEY 'n'>>>
+
+<<<KEY '10.0.2.3'>>>
+
+<<<KEY '\r'>>>
+
+<<<KEY '\x1bz'>>>
+
+<<<KEY '\x1bz'>>>
+
+<<<KEY '4'>>>
+
+<<<KEY '1'>>>
+
+<<<KEY '\t'>>>
+
+<<<KEY '+'>>>
+
+<<<KEY 's'>>>
+
+<<<KEY '\x1bz'>>>
+
+<<<KEY '\x1bz'>>>
+
+<<<KEY '6'>>>
+
+<<<KEY '1'>>>
+
+<<<KEY ' '>>>
+
+<<<KEY '\x1bz'>>>
+
+<<<KEY '1'>>>
+
+<<<KEY '\t'>>>
+
+<<<KEY '\x1bz'>>>
+
+<<<KEY '\x1bz'>>>
+DHCP DISCOVER hex:
+  00: 01 01 06 00 12 34 56 78 00 00 80 00 00 00 00 00 
+  10: 00 00 00 00 00 00 00 00 00 00 00 00 52 54 00 12 
+  20: 34 56 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+  30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+tui: desktop closed, shell ok
+oc> 
+<<<RUNUSH 'ip'>>>
+ip
+IP: 10.0.2.15
+Mask: 255.255.255.0
+Gateway: 10.0.2.2
+
+
+<<<RUNUSH 'dns example.com'>>>
+dns example.com
+A: 104.20.23.154
+
+
+<<<RUN 'cat /etc/opencube.conf'>>>
+cat /etc/opencube.conf
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 cubestudio-dev <cubestudio@qq.com>
+# Open Cube OS configuration
+# Update check URL (HTTP or HTTPS)
+update_url=https://cubestudio-dev.github.io/OpenCubeOS/update.json
+
+# Update package base URL (WP-10u, HTTP or HTTPS)
+package_url=https://github.com/cubestudio-dev/OpenCubeOS/releases/latest
+
+# Auto check on boot (yes / no)
+auto_check=no
+
+# Enable online system update (yes / no)
+online_update=yes
+
+# Shell output language (en / zh); switch at runtime with `lang en|zh`
+shell.lang=en
+tz.offset=60
+
+
+oc> tui
+tui: desktop closed, shell ok
+oc> 
+oc> 
+oc> tui
+tui: desktop closed, shell ok
+oc> 
+oc> 
+oc> tui
+tui: desktop closed, shell ok
+oc> 
+oc> 
+oc> tui
+tui: desktop closed, shell ok
+oc> 
+oc> 
+oc> tui
+tui: desktop closed, shell ok
+oc> 
+oc> 
+oc> tui
+tui: desktop closed, shell ok
+oc> 
+oc> 
+oc> tui
+tui：桌面已退出，shell 正常
+oc> 
+oc> 
+oc> tui
+tui：桌面已退出，shell 正常
+oc> [26~
+未知命令：[26~（试试 'help'）
+oc> 
+oc> tui
+tui：桌面已退出，shell 正常
+oc> [26~
+未知命令：[26~（试试 'help'）
+oc> 
+oc> tui
+tui：桌面已退出，shell 正常
+oc> 
+oc> 
+oc> tui
+tui：桌面已退出，shell 正常
+oc> 
+oc> 
+oc> tui
+
+[终端] Ring 3 ush - 仅 syscall 沙箱；输入 'exit' 返回桌面
+started pid=8 tid=2 (kill 2 stops it)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+ush> exit
+
+[终端] 已结束 (rc=1) - 按任意键返回桌面...
+<<<KEY ' '>>>
+tui：桌面已退出，shell 正常
+oc> 
+oc> 
+<<<RUNUSH 'uname'>>>
+uname
+Open Cube OS
+
+poweroff
+Shutting down...
+Powering off...
