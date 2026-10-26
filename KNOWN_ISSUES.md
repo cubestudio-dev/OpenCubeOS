@@ -29,29 +29,13 @@ lives in `docs/archive/KNOWN_ISSUES.md`.
 | P-16 | P2 governance | The private mirror's SYNC-RULES.md described a tree layout that no longer exists; the 2.0.0 work log was not in-repo. | SYNC-RULES.md rewritten for the current layout; WORK_LOG.md extended through 2.1.0 (both in the private mirror). |
 | P-17 | P3 text defects | A docs/dev/index.md link flagged as "ost-tests (missing h)"; the wp14_site_v2 evidence dir name; the 379-file caliber note. | The link defect turned out to be a FALSE POSITIVE (byte-level inspection shows `[host-tests]` was always correct - a display artifact had eaten the `[h` sequence in the postcheck evidence; recorded honestly). The evidence dir naming is corrected for 2.1.0 and the file-count caliber is documented in the data note. |
 
+## 2.1.0 open issues - all fixed in 2.2.0
+
+| # | Class | Issue | Fixed in 2.2.0 by |
+|---|-------|-------|-------------------|
+| O-01 | kernel | wp10_tui suite #DF after the closing checkupdate SVC round (2.0.0 and 2.1.0 identical; declared in the 2.1.0 delivery dossier). Root cause: the deepest real kernel call chain (SYS_L1SVC -> ota_update_check -> http_get_body 6000 B frame -> net_tls_https_get 2144 -> tls13_do_handshake -> crypto_x509_verify_chain 1872 -> crypto_rsa_verify_pss 2704 -> crypto_bn_mod_exp 4160 -> mont_mul 1200 -> mont_redc 1856; -fstack-usage sum ~23.6 KB) plus a timer/e1000 IRQ nesting on the same stack exceeded the 20 KiB usable kthread stack (24 KiB alloc minus the unmapped guard page). Recorded crash: rip=crypto_bn_mont_redc+0x2A, rsp 20,880 B below the stack top inside the guard page. | OC_KTHREAD_STACK_PAGES 6 -> 10 (40 KiB window / 36 KiB usable, ~8 KiB headroom over the measured worst chain + IRQ nesting; cost 512 KiB of the ~505 MiB PMM pool). The corrupted #DF panic banner ("andled" -> "handled") is fixed too. Verified: the exact crashing chunk (wp10_tui tail + ush SVC rounds incl. checkupdate over live HTTPS) now runs to "12/12 checks passed" with the real checkupdate report and no panic. Commit 4293e94. |
+| O-02 | kernel | Flaky wait4-vs-fork timing race (the 2.1.0 open item). Misdiagnosed at 2.1.0 as an interrupt-timing race; actually DETERMINISTIC bookkeeping: when a process died, its children's g_procs entries kept parent_tid = the dead tid; after the tid was freed and reused, the new task's wait4(any-child) collected a stale zombie's exit code and returned before its own child was scheduled (g6_exec_a printed "child status = 142" = 128+SIGSEGV of pf_test's #PF-killed unwaited child, verdict ahead of the child's first output). Reproduced pre-fix in a same-boot marathon AND in a fresh boot with the zombie sources ahead of the victim (2/2 boots). | Orphan-detach in user_process_reap_resources (every entry still pointing at the dying tid -> sentinel -1, unownable by any task), plus the sys_fork half-product corpse paths (address-space copy failure / task creation failure) also detach - the living parent never collects a child POSIX says was never created. Verified: fresh-boot battery 20/20 boots CLEAN (pre-fix 2/2 hit the anomaly); same-boot marathon g6_exec_a = 138 both rounds; same-boot stress (zombie sources + wait4 family x 8 rounds = 80 runs) 0 anomalies, 8/8 status 138. Commit 11d2127. |
+
 ## Open issues
 
-One known issue is open at 2.1.0, found by the new L1 per-app gate
-itself and declared rather than hot-fixed (a scheduler/exception
-return-path change hours before release would be reckless; it is
-NOT one of the 17 and does not affect any standard suite):
-
-- **Flaky wait4-vs-fork timing race (rare).** Under same-boot test
-  marathons (and once in ~35 fresh-boot rows), a wait4-sensitive
-  user program (g6_exec_a) occasionally observed its wait4 return
-  without a status write and then read an uninitialized stack word
-  (garbage "status = 142" where the deterministic result is 138 =
-  128+SIGUSR1), with the child's output arriving after the
-  parent's verdict line - i.e. the parent's wait4 returned before
-  the child was (fully) visible to it. Isolated replays of the
-  exact same protocol boot clean (138 PASS, correct serial order)
-  every time. The kernel's wait4 is POSIX-correct on paper (it
-  returns -1 without writing status when it sees no child); the
-  race is in the fork/child-visibility window under interrupt
-  timing. Recorded here and in the 2.1.0 delivery report; the
-  kernel fix belongs to the next batch. Evidence: the per-app
-  marathon logs quote "child status = 142" + the impossible print
-  order; the fresh-boot record in evidence/2_1_0_release/ shows
-  the deterministic 138 PASS run.
-
-Everything else known at 2.1.0 is in the fixed table above.
+None known at 2.2.0.
