@@ -6,10 +6,12 @@
 
 **一个从零写起的 x86_64 内核，附带 WinRE 风格的恢复 Shell。**
 
-当前发布：**v2.1.0** —— 架在 2.0.0 Ring-3 重构之上的 17 项问题修复版：
-CI 重新全绿（并升格为硬性发布门禁）、文档与接口真相逐条化（v1 233
-条命令映射补全、278 条接口声明的逐条对照、如实申报的删除清单）、
-命令参考全量重生成、网站数据完整性（见
+当前发布：**v2.2.0** —— 修复批次：以真实的内核根因修复（不改测试套件、
+不做超时包装）关闭 2.1.0 的全部两项遗留——wp10_tui 套件末尾的内核栈
+**#DF**（`checkupdate` HTTPS x509/RSA 最深真实调用链超出 6 页 kthread
+栈、侵入守卫页——栈扩至 10 页并记录实测最深链）、**wait4-vs-fork**
+flake（tid 复用后收集到陈旧僵尸——孤儿脱钩记账修复，20/20 次 fresh
+boot 验证）。另：2.0.0 镜像资产补回、发布构建号三处口径完全一致（见
 [Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)）。
 
 `oc>` 是回退提示符，`ush>` 是默认提示符。一切皆可扩展。
@@ -32,7 +34,7 @@ Open Cube OS 是 **L0 + L1**：一个完整的、自包含的 64 位内核，可
 横跨 L0 恢复 Shell 与 L1 服务面的 **251 条命令**），并在 Ring-3 世界
 无法启动时回退到恢复 Shell 提示符（`oc>`）。
 
-- **不是 Linux 分支。** Apache 2.0 下的 130,526 行原创 C/汇编
+- **不是 Linux 分支。** Apache 2.0 下的 130,572 行原创 C/汇编
   （验证：见下文 *Stats*）。
 - **PC 平台能启动的地方都能启动：** BIOS + UEFI 混合 ISO，512 MiB
   内存即可舒适运行，磁盘可选。
@@ -105,9 +107,9 @@ UEFI 而非 BIOS：`make run-uefi`。Windows 宿主：`build.ps1`
 
 | 资产 | 它是什么 |
 |------|----------|
-| `opencube-2.1.0.iso` | BIOS+UEFI 混合可启动 ISO——QEMU 启动或写入 U 盘 |
-| `opencube-2.1.0-src.zip` | 确定性源码 zip（`git archive`） |
-| `opencube-2.1.0-update.tar.gz` | OTA 更新包（SHA256 + 签名验证，A/B 槽位） |
+| `opencube-2.2.0.iso` | BIOS+UEFI 混合可启动 ISO——QEMU 启动或写入 U 盘 |
+| `opencube-2.2.0-src.zip` | 确定性源码 zip（`git archive`） |
+| `opencube-2.2.0-update.tar.gz` | OTA 更新包（SHA256 + 签名验证，A/B 槽位） |
 
 每份发布说明附全部三个 SHA256；官网、Release 与私密镜像持有字节
 一致的副本。
@@ -129,7 +131,7 @@ UEFI 而非 BIOS：`make run-uefi`。Windows 宿主：`build.ps1`
 以下数字全部在构建时由机器验证
 （`make api-docs` 写入 `docs/data/*.json`；每项均附 README 验证命令）：
 
-- **源代码**：379 个文件共 130,526 行——core + arch + drivers +
+- **源代码**：379 个文件共 130,572 行——core + arch + drivers +
   services + recovery + tui + chinese + boot + l1apps，含头文件，
   排除 docs/tools/tests 与生成的数据块。验证：
   `git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(core|arch|drivers|services|recovery|tui|chinese|boot|l1apps)/' | grep -v '^core/generated/' | grep -vE 'userprogs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l`

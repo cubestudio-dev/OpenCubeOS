@@ -33,7 +33,7 @@ The design principle is "everything is extensible" - the shell, TUI,
 drivers and even the console font engine are extension surfaces.
 
 **Is it Linux?**
-No. Not a fork, not a distro. Every line of the kernel (130,526 lines
+No. Not a fork, not a distro. Every line of the kernel (130,572 lines
 across core/arch/drivers/services/recovery/tui/chinese/boot/l1apps)
 is original code under Apache 2.0. It does not run Linux binaries; it
 runs its own small ELF user programs (see `l1apps/` and the `run`
@@ -106,7 +106,7 @@ grows; any real deletion must be declared in the deletion register
 (`INTERFACES.md` Part 2d; the v2.0.0 tree removed only five init/probe
 plumbing entries, each declared with its replacement). The L0
 registry cap is `SHELL_MAX_COMMANDS` (256, with 99 registered at
-2.1.0 - headroom for growth; the limit lives in
+2.2.0 - headroom for growth; the limit lives in
 `recovery/shell.h`).
 
 **Where do my files go?**

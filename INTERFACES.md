@@ -18,7 +18,7 @@ service headers. Regenerate with `make api-docs`.
 - Kernel-side declarations across the service headers: **144**
 - Syscalls: 54 (`grep -c '#define SYS_' core/core_syscall.h`,
   SYS_L1SVC(110) added in 2.0.0)
-- Source lines: **130,526** across 379 files (README verification
+- Source lines: **130,572** across 379 files (README verification
   command; .c/.h/.S, generated data blobs excluded)
 
 2.0.0 is a breaking re-architecture, stated precisely (2.1.0
