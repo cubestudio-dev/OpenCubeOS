@@ -24,8 +24,25 @@
  * bytes, ota_update_download 3912, plus TLS frames) - only ~2 KB of
  * headroom on 16 KiB. 6 pages (24 KiB) doubles that margin so the full
  * update/check/download/install call chain (plus an IRQ-frame nesting
- * on top) can never overflow. */
-#define OC_KTHREAD_STACK_PAGES 6
+ * on top) can never overflow.
+ * 2.2.0 wp10_tui #DF (KNOWN_ISSUES open item): 6 pages proved NOT
+ * enough for the deepest REAL chain: ush's SYS_L1SVC dispatch into
+ * `checkupdate --local` runs ota_update_check -> http_get_body (6000 B
+ * frame) -> net_tls_https_get (2144) -> net_tls13_do_handshake ->
+ * crypto_x509_verify_chain (1872) -> crypto_rsa_verify_pss (2704) ->
+ * crypto_bn_mod_exp (4160) -> mont_mul (1200) -> mont_redc (1856) -
+ * measured -fstack-usage sum ~23.6 KB, and the crash itself recorded
+ * rip=crypto_bn_mont_redc+0x2A with rsp 20,880 B below the stack top,
+ * inside the guard page, on a 20 KiB usable window (24 KiB minus the
+ * unmapped guard page) - reproduced twice (2.0.0 and 2.1.0 release
+ * builds, and the 2.2.0 dev build).  A timer/e1000 IRQ nesting its
+ * frame + scheduler/net_poll work on the SAME stack adds 1-4 KB more.
+ * 10 pages (40 KiB window, 36 KiB usable) covers the measured worst
+ * chain (~24 KB) + worst IRQ nesting (~4 KB) with ~8 KB of headroom.
+ * Cost: 32 tasks x 16 KiB extra = 512 KiB of the ~505 MiB PMM pool
+ * (0.1%); mem_pmm_alloc_contig(10) is a first-fit scan with no size
+ * limit. */
+#define OC_KTHREAD_STACK_PAGES 10
 
 /* Task table. */
 static task_t g_tasks[MAX_TASKS];

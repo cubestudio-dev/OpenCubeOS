@@ -818,7 +818,7 @@ void kernel_panic_frame(const char *reason, const arch_irq_frame_t *f) {
         u64_to_hex(f->error_code, n, 16); strcat(b, n);
         strcat(b, " rip=0x");
         u64_to_hex(f->rip, n, 16); strcat(b, n);
-        strcat(b, "  [handled at dispatcher depth]\r\n");
+        strcat(b, "  [hhandled at dispatcher depth]\r\n");
         strcat(b, "  core dump: skipped in #DF mode (see KNOWN_ISSUES)\r\n  policy: ");
         strcat(b, crash_recovery_policy_name(g_policy));
         if (g_policy == CRASH_POLICY_REBOOT) {
