@@ -379,7 +379,12 @@ static u64 sys_fork(u64 a1, u64 a2, u64 a3, u64 a4) {
     strncpy(child->name, parent->name, 31);
 
     child->as = copy_user_address_space(parent->as);
-    if (child->as == 0) { child->alive = 0; return (u64)-1; }
+    /* 2.2.0 wait4-vs-fork fix: a failed fork leaves a half-created
+     * corpse entry (alive=0, waited=0, parent_tid = the LIVE parent).
+     * POSIX never created this child, so the parent's later wait4 must
+     * never collect it: detach it (-1 = no task can own it) instead of
+     * leaving a collectable zombie for the same parent. */
+    if (child->as == 0) { child->alive = 0; child->parent_tid = -1; return (u64)-1; }
 
     child->is_fork_child = 1;
     child->fork_rip = f->rip;
@@ -418,7 +423,10 @@ static u64 sys_fork(u64 a1, u64 a2, u64 a3, u64 a4) {
     }
 
     child->tid = core_kthread_create(user_task_launcher, child, child->name, TASK_PRIO_DEFAULT);
-    if (child->tid < 0) { child->alive = 0; return (u64)-1; }
+    /* 2.2.0 wait4-vs-fork fix: same half-product corpse rule as the
+     * address-space failure above - the task was never created, so the
+     * entry must not be attributable to the living parent either. */
+    if (child->tid < 0) { child->alive = 0; child->parent_tid = -1; return (u64)-1; }
     core_kthread_set_cr3(child->tid, child->as);
     /* Kernel-#UD root-cause fix (T1/T4/T6-collect crash investigation).
      * user_process_create sets task_t.rsp0 for exec-launched processes

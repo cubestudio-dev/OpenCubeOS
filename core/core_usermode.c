@@ -470,6 +470,27 @@ void user_process_reap_resources(user_proc_t *p, int exit_code) {
         mem_vmm_destroy_address_space(p->as);
         p->as = 0;
     }
+    /* 2.2.0 wait4-vs-fork fix (KNOWN_ISSUES open item): orphan-detach.
+     * Every g_procs entry that still points at the dying process as its
+     * parent - LIVING children orphaned by this death AND dead-but-
+     * unwaited zombies left behind by an earlier crashed/killed child
+     * of p (e.g. a #PF-killed child, exit_code = 128+14 = 142) - must
+     * stop being attributable to p->tid. p's task slot is about to be
+     * freed and the tid REUSED by a later task; a reused tid made the
+     * next wait4(pid=0, any-child) call collect the stale zombie's exit
+     * code and return BEFORE the caller's own child was ever scheduled
+     * (observed live: g6_exec_a in a same-boot marathon and in a fresh
+     * boot after pf_test/sigsegv_test rows printed "child status = 142"
+     * and its FAIL verdict ahead of its own child's first output line).
+     * The sentinel -1 is a value no task can own (tids are >= 0), so
+     * wait4's parent_tid == current-tid scan can never match an orphan,
+     * the exit/wake paths' `> 0` checks skip it, and the usershell
+     * flag's `== 0` test is untouched. The slot itself stays recyclable
+     * (alive == 0) for the next user_process_create. */
+    for (int i = 0; i < MAX_USER_PROCS; i++) {
+        if (&g_procs[i] != p && g_procs[i].parent_tid == p->tid)
+            g_procs[i].parent_tid = -1;
+    }
 }
 
 user_proc_t *user_process_current(void) {
