@@ -684,3 +684,69 @@ UEFI 18/18+20/20; regression 28/28 (baseline 222).
   (facade at 2.2.0/316, downloads/ adds 2.2.0, all history kept),
   three-way SHA verified by complete public downloads (ISO/SRC/OTA
   identical across tree, Release API digests, gh-pages).
+
+## 2026-10-26 - 3.0.0-WP-01-ocire-core: OCIRE independent recovery
+kernel (boot + minimal shell)
+
+- Scope: OCIRE = OpenCubeOS Independent Recovery Environment, a
+  second L0 kernel fully independent of OCOS.  WP-01 proves one
+  thing only: OCIRE boots independently and runs a minimal shell.
+  Recovery features (WP-02), the OCOS<->OCIRE interface and process
+  protection (WP-03) are NOT in this batch.  Zero OCOS kernel edits:
+  the only shared-surface changes are 3 Makefile lines (include
+  ocire/ocire.mk), a CI workflow step block, README/docs additions.
+- ocire/ - independent source tree (no OCOS headers): multiboot2
+  header (80x25 text request), boot.S (32->64-bit entry, 4 GiB
+  identity map), minimal IDT (32 exception vectors with fault
+  diagnostics), serial+VGA dual console, serial+PS/2 polled input,
+  minimal ACPI (checksum-verified RSDP/XSDT/FADT, tiny \_S5 package
+  reader, PM1a S5 + RESET_REG + 8042), shell with exactly
+  help/shutdown/reboot.  Own linker script, own build targets
+  (ocire-kernel/iso/disk/test/dual-test), -Wall -Wextra -Werror 0
+  errors 0 warnings.
+- Two boot bugs found and fixed during bring-up: GDT data64 selector
+  0x28 was out of bounds (5 descriptors only; #GP->#DF at the 64-bit
+  entry, fixed to 0x20); the UEFI El Torito entry must be the ESP FAT
+  image, not a bare BOOTX64.EFI (OVMF cannot boot the latter - same
+  lesson tools/build_iso.sh encodes).
+- Dual-boot layout (tools/make_ocire_disk.sh): hd0 GRUB dual-menu
+  disk (plain-dd GRUB install: boot.img in the MBR + core.img in the
+  post-MBR gap, source-default kernel_sector=1 verified live; UEFI
+  via /EFI/BOOT/BOOTX64.EFI), hd1 = the OCIRE disk: ONE MBR entry
+  type 0xEE (GPT protective shadow, no GPT header) holding the raw
+  OCIRE kernel at the partition start.  Integration facts learned
+  live and encoded: GRUB 2.12 msdos partmap SKIPS 0xEE entries (menu
+  loads the kernel with a whole-disk blocklist multiboot2
+  (hd1)2048+128); GRUB menus have no digit hotkeys (tests use the
+  ANSI cursor-down sequence); the OCOS ISO GRUB probes (hd0,msdos1)
+  for A/B, so isolation tests put the OCIRE disk first (its 0xEE
+  entry makes the probe fail and OCOS stays on the ISO slot).
+- Partition isolation measured from inside a running OCOS
+  (evidence/3_0_0_wp01_ocire/isolation.log): partscan registers ZERO
+  child devices for the OCIRE disk (0xEE -> parse_gpt fails -> whole
+  table refused; "partscan: 1 partition device(s) registered" with
+  only the control disk's p1), parted hda "no partition table
+  found", mkfs.fat32 hdap1 confirm "device not found",
+  disk_rw_test hdap1 "device lookup FAIL", df shows only OCOS
+  volumes.  Honest boundary declared and measured on a throwaway
+  copy (isolation_rawdecl.log): whole-disk nodes still exist
+  (disk_rw_test hda / mkfs.fat32 hda confirm work - same semantics
+  as Linux root with /dev/sdb); blocking them needs an OCOS
+  block-layer policy change this package forbids -> WP-03.
+- OCIRE test batteries (all PASS): standalone ISO 14/14 (BIOS+UEFI:
+  prompt/help/unknown/backspace/shutdown-S5-QEMU-exits/reboot
+  -no-reboot-QEMU-exits); dual-boot 11/11 (menu default->OCOS,
+  menu pick->OCIRE, both firmwares, both disks) plus the isolation
+  probes above.
+- OCOS regression on the OCIRE tree (zero OCOS code edits; OCOS ELF
+  differs from the 2.2.0 release build only by build id): host 17+2
+  declared fixture skips, reproducible-check PASS (50ebd666),
+  wp12 14/14, wp10_tui 37/37 no #DF, chinese 21/21, tuiqa 32/32
+  BIOS + 32/32 UEFI, native 36/36 BIOS + 36/36 UEFI, l1_per_app 35/35
+  (runs 1-2 each with one stray runner-side "no spawn ack" row on a
+  DIFFERENT app - the same phenomenon the 2.2.0 release recorded;
+  all three logs kept), wait4 fresh-boot battery 4x5 = 20/20 CLEAN,
+  boot gates BIOS+UEFI PASS.
+- CI gate extended: make ocire-kernel (0-warning rule) and
+  make ocire-iso now run on every push; chain 8517eeb / 26d401d /
+  0226e8c all green with the OCIRE steps listed and passing.
