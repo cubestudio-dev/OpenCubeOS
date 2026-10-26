@@ -683,6 +683,9 @@ dist: userprogs-check $(KERNEL_ISO)
 	echo "ISO: $$ISOCOPY"; \
 	sha256sum $$ISOCOPY | tee $$ISOCOPY.sha256
 
+# ---- 3.0.0-WP-01-ocire-core: OCIRE independent recovery kernel ----
+include $(OC_ROOT)/ocire/ocire.mk
+
 endif # ARCH dispatch
 
 # ---- WP-14-docs_release: documentation data generation ----
