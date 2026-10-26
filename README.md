@@ -5,12 +5,15 @@
 
 **A from-scratch x86_64 kernel with a WinRE-style recovery shell.**
 
-Current release: **v2.1.0** - the 17-issue fix release on top of the
-2.0.0 ring-3 re-architecture: CI green again (and now a hard release
-gate), the docs/interface truth per-entry (v1 233-command mapping
-complete, the 278-declaration interface comparison, the declared
-deletion register), regenerated command reference, website data
-integrity (see
+Current release: **v2.2.0** - the fix batch closing both 2.1.0 open
+items with real kernel root-cause fixes (no test-side workarounds):
+the wp10_tui post-suite kernel-stack **#DF** (the deepest real call
+chain, `checkupdate` HTTPS x509/RSA over a 6-page kthread stack,
+overflowed into the guard page - stacks now 10 pages with the measured
+worst chain documented) and the **wait4-vs-fork** flake (stale-zombie
+collection after tid reuse - orphan-detach bookkeeping, verified 20/20
+fresh boots). Also: the 2.0.0 mirror assets restored, and the release
+build-id caliber stated exactly in three places (see
 [Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)).
 
 `oc>` is the prompt. Everything is extensible.
@@ -110,9 +113,9 @@ and mirrored on the
 
 | Asset | What it is |
 |-------|------------|
-| `opencube-2.1.0.iso` | Hybrid BIOS+UEFI bootable ISO - boot it in QEMU or write to USB |
-| `opencube-2.1.0-src.zip` | Deterministic source zip (`git archive`) |
-| `opencube-2.1.0-update.tar.gz` | OTA update package (SHA256 + signature verified, A/B slots) |
+| `opencube-2.2.0.iso` | Hybrid BIOS+UEFI bootable ISO - boot it in QEMU or write to USB |
+| `opencube-2.2.0-src.zip` | Deterministic source zip (`git archive`) |
+| `opencube-2.2.0-update.tar.gz` | OTA update package (SHA256 + signature verified, A/B slots) |
 
 Each release note carries the SHA256 of all three; the website,
 the Release and the private mirror hold byte-identical copies.

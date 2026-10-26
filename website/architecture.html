@@ -56,7 +56,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
 <section class="section" style="border-top:1px solid var(--border)">
   <div class="wrap">
     <h2 data-i18n="arch.layers.h">Two layers by design</h2>
-    <p class="sub" data-i18n="arch.layers.sub">L0 is the kernel plus the recovery shell; L1 is the ring-3 service world - and 2.1.0 ships both in one tree: the kernel boots straight into its default ring-3 application, with the oc&gt; recovery shell as the always-there fallback.</p>
+    <p class="sub" data-i18n="arch.layers.sub">L0 is the kernel plus the recovery shell; L1 is the ring-3 service world - and 2.2.0 ships both in one tree: the kernel boots straight into its default ring-3 application, with the oc&gt; recovery shell as the always-there fallback.</p>
     <div class="arch" style="margin-bottom:26px"><pre>
                      <span class="hl">GRUB 2.12 (hybrid BIOS + UEFI ISO)</span>
                                   |  multiboot2 + kernel-as-module
@@ -86,7 +86,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
       <div class="feat"><div class="k">l0</div><h3 data-i18n="arch.layers.l0.h">L0 - the kernel and the recovery shell</h3>
         <p data-i18n-html="arch.layers.l0.p">Boot, memory, scheduling, ring-3, VFS, networking, drivers, TUI, crash recovery, OTA - restructured into <b>core/ drivers/ services/ boot/ recovery/</b>. 130,505 lines across 378 source files, zero external runtime dependencies.</p></div>
       <div class="feat"><div class="k">l1</div><h3 data-i18n="arch.layers.l1.h">L1 - the ring-3 service world</h3>
-        <p data-i18n-html="arch.layers.l1.p">2.1.0 ships it in-tree: <b>17 SYS_L1SVC services with 158 numbered ops</b> behind one syscall, plus the ush shell, ld.so and the dynamic-linking programs under <b>l1apps/</b>. The v1&rarr;v2 command mapping is the compatibility contract.</p></div>
+        <p data-i18n-html="arch.layers.l1.p">2.2.0 ships it in-tree: <b>17 SYS_L1SVC services with 158 numbered ops</b> behind one syscall, plus the ush shell, ld.so and the dynamic-linking programs under <b>l1apps/</b>. The v1&rarr;v2 command mapping is the compatibility contract.</p></div>
       <div class="feat"><div class="k">why</div><h3 data-i18n="arch.layers.why.h">Why split at all</h3>
         <p data-i18n-html="arch.layers.why.p">A recovery-first kernel must stay minimal and trustworthy; user-facing growth happens above it. The kernel self-tests, watchdog, crash policy and log readers stay in L0; the <code>oc&gt;</code> shell always works, even when the ring-3 world cannot start.</p></div>
     </div>

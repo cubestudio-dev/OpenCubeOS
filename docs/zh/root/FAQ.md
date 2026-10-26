@@ -29,7 +29,7 @@ Ring-3 应用层（"L1"），其默认启动项是 ush 用户 Shell。它从 BIO
 **它是 Linux 吗？**
 不是。不是分支、不是发行版。内核的每一行
 （core/arch/drivers/services/recovery/tui/chinese/boot/l1apps 共
-130,526 行）都是 Apache 2.0 下的原创代码。它不运行 Linux 二进制；
+130,572 行）都是 Apache 2.0 下的原创代码。它不运行 Linux 二进制；
 它运行自己的小型 ELF 用户程序（见 `l1apps/` 与 `run` 命令）。
 
 **什么协议？**
@@ -90,7 +90,7 @@ PIT 被编程为 100 Hz（`core/core_timer.h`）——10 ms 的 tick 驱动
 不能悄悄移除——接口契约规定命令面只增不减；任何真实删除必须写入
 删除申报清单（`INTERFACES.md` Part 2d；v2.0.0 树只删除了五个
 init/probe 管道条目，每个都带着替代者申报）。L0 注册表上限是
-`SHELL_MAX_COMMANDS`（256，2.1.0 注册 99 条——留有增长余量；上限
+`SHELL_MAX_COMMANDS`（256，2.2.0 注册 99 条——留有增长余量；上限
 定义在 `recovery/shell.h`）。
 
 **我的文件放哪？**
