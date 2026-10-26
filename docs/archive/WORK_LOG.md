@@ -618,3 +618,69 @@ UEFI 18/18+20/20; regression 28/28 (baseline 222).
   (VitePress Vue compile choked) and the docs/root mirror ran before
   the root file was written (stale numbers) - generator fixed, docs
   regenerated (96d8a12).
+
+## v2.2.0 batch (2026-10-26) - the fix release
+
+- Objective: close both 2.1.0 open items with real kernel root-cause
+  fixes (no test-side workarounds, no timeout inflation), restore the
+  2.0.0 mirror assets lost in the 2.1.0 sync, close the build-id
+  caliber question, and release 2.2.0 through the full chain.
+- O-01 wp10_tui post-suite #DF (present in 2.0.0 AND 2.1.0): root
+  cause measured - the deepest real kernel chain (checkupdate HTTPS
+  x509/RSA, -fstack-usage sum ~23.6 KB: http_get_body 6000 ->
+  net_tls_https_get 2144 -> tls13_do_handshake -> x509_verify_chain
+  1872 -> rsa_verify_pss 2704 -> bn_mod_exp 4160 -> mont_mul 1200 ->
+  mont_redc 1856) plus a timer/e1000 IRQ nesting exceeds the 20 KiB
+  usable kthread stack (crash record: rip=crypto_bn_mont_redc+0x2A,
+  rsp 20,880 B below top, inside the guard page; the #PF push on a
+  spent stack escalates to #DF). Fix: OC_KTHREAD_STACK_PAGES 6 -> 10
+  (commit 4293e94), covering the measured worst chain + worst IRQ
+  nesting with ~8 KiB headroom at 512 KiB PMM cost. The corrupted
+  "#DF ... andled" panic banner fixed in the same commit.
+- O-02 wait4-vs-fork flake: the 2.1.0 "interrupt-timing race"
+  diagnosis was WRONG - the mechanism is deterministic bookkeeping:
+  a dead process's g_procs children (orphans AND unwaited zombies)
+  kept parent_tid = the dead tid; the reaper freed and a later task
+  REUSED the tid; the new task's wait4(any-child) matched the stale
+  zombie, collected 142 (128+SIGSEGV of a #PF-killed unwaited child)
+  and returned before its own child was scheduled (observed pre-fix
+  2/2 fresh boots with the zombie sources ahead of the victim).
+  Fix: orphan-detach in user_process_reap_resources + the sys_fork
+  half-product corpse paths -> sentinel -1 (commit 11d2127).
+- Acceptance on the RELEASE build: wp10_tui runs THROUGH its closing
+  checkupdate round and exits 37/37 clean (no #DF); wait4 fresh-boot
+  battery 20/20 boots CLEAN (4x5 batches, zombie sources ahead of
+  victims, every child-status line checked); dev-stage record adds
+  same-boot marathon (g6_exec_a=138 both rounds) and stress (80
+  runs, 0 anomalies). KNOWN_ISSUES open section: "None known at
+  2.2.0" (commit 82f6114).
+- Build-id caliber closed: 2.1.0's tree header said 308 against a
+  309 release (stale generated header lagging one build; -D flags
+  authoritative). 2.2.0 stamps the header AT the tag commit's own
+  number: version_gen.h "2.2.0 build 316" == ELF immediate
+  (movq $0x13c in core_dump_save) == update.json build 316 ==
+  count 295 + 21. BUILDING.md freeze literal corrected (2.0.0 ->
+  2.2.0, stale since the 2.1.0 pass).
+- 2.0.0 mirror assets (ISO/SRC) restored to the private mirror from
+  Release 423468301 with SHA-verified downloads; the rsync --delete
+  trap documented in the mirror's SYNC-RULES (the files exist only
+  there - the public tree never carried them).
+- Docs regenerated after both fixes: stats 130,526 -> 130,572 (core
+  +46), command pages byte-identical (interface surface unchanged:
+  251/17/158/54/144), docs/root/KNOWN_ISSUES mirror caught up.
+- Verification on the release build (evidence/2_2_0_release/): host
+  17+2 declared skips, wp12 14/14, wp10_tui 37/37 NO #DF, chinese
+  21/21, tuiqa 32/32 BIOS + 32/32 UEFI, native 36/36 BIOS + 36/36
+  UEFI (UEFI host-cap cut after the summary line - declared), L1
+  per-app 35/35 (three earlier runs each hit one row-level runner
+  "no spawn ack" ERR on a DIFFERENT row, each PASSing in the other
+  runs; runner-side serial read race, not a kernel defect; all four
+  logs kept), boot gates BIOS+UEFI PASS, wait4 battery 20/20,
+  reproducible PASS (ELF f865abff byte-identical).
+- Release: CI-green chain 4293e94/82f6114/083f148/fb70c48, tag
+  v2.2.0 -> 083f148 (build 316 = 295+21), Release 424421405 with
+  the three assets, 2.0.0 Release erratum superseded to point at
+  2.2.0 (v2.0.0 tag untouched), gh-pages 65df0d2 -> b9fdd6b
+  (facade at 2.2.0/316, downloads/ adds 2.2.0, all history kept),
+  three-way SHA verified by complete public downloads (ISO/SRC/OTA
+  identical across tree, Release API digests, gh-pages).
