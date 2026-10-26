@@ -1,0 +1,49 @@
+== phase A: Files functional round ==
+  PASS  Files: mkdir+create persist (qa_a.txt)
+  PASS  Files: rename applied (no qa_b.txt)
+  PASS  Files: copy landed in sub/
+  PASS  Files: move+delete (no qa_c.txt at /)
+  PASS  Files: delete-cancel kept qa_tmp.txt
+== phase B: Files shot rounds ==
+  PASS  Files: browser+list render   [nonblack=0.063]
+  PASS  Files: mount page renders   [nonblack=0.063]
+== phase C: Editor functional round ==
+  PASS  Editor: cat shows ASCII line clean
+  PASS  Editor: cat shows CJK clean (UTF-8)
+== phase D: Editor shot rounds ==
+  PASS  Editor: open prompt renders   [nonblack=0.026]
+== phase E: Terminal (ring-3 ush) ==
+  PASS  Terminal: banner (bilingual)
+  PASS  Terminal: ush echo
+  PASS  Terminal: ush cat shows CJK
+  PASS  Terminal: ush ls
+  PASS  Terminal: ush ps table
+  PASS  Terminal: ush jobs lists loop
+  PASS  Terminal: ush exit contained
+== phase F: Processes (live table + kill) ==
+  PASS  Processes: loop killed (not in ps)
+  PASS  Processes: kernel alive after kill
+== phase G: Panel (net/time/update/hardware) ==
+  PASS  Panel: static IP applied (10.0.2.15)
+  PASS  Panel: DNS applied (resolve works)
+  PASS  Panel: tz offset persisted
+== phase H: Panel shot rounds ==
+  PASS  Panel: desktop renders   [nonblack=0.087]
+  PASS  Panel: menu renders   [nonblack=0.079]
+  PASS  Panel: net config renders   [nonblack=0.058]
+  PASS  Panel: clock page renders   [nonblack=0.028]
+  PASS  Panel: update page renders   [nonblack=0.008]
+  PASS  Panel: hardware page renders   [nonblack=0.079]
+== phase I: zh sweep ==
+  PASS  zh: desktop labels (CJK density)   [density=0.0830]
+  PASS  zh: Files key bar (CJK density)   [density=0.0694]
+  PASS  zh: Task manager (CJK density)   [density=0.0742]
+  PASS  zh: Control Panel (CJK density)   [density=0.0753]
+  PASS  zh: Editor prompt (CJK density)   [density=0.0270]
+  PASS  zh: Terminal banner (Group C fix)
+== phase J: teardown ==
+  PASS  teardown: desktop closes, shell alive
+  PASS  teardown: kernel still up
+
+== 36/36 PASS, 0 FAIL ==
+== 14 screendumps in /tmp/e301/native_e2e_uefi/shots ==

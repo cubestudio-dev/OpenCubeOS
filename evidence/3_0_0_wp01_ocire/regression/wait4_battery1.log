@@ -1,0 +1,11 @@
+[boot 0] g6_exec_a: child status = 138 (OK)
+=== boot 0: CLEAN ===
+[boot 1] g6_exec_a: child status = 138 (OK)
+=== boot 1: CLEAN ===
+[boot 2] g6_exec_a: child status = 138 (OK)
+=== boot 2: CLEAN ===
+[boot 3] g6_exec_a: child status = 138 (OK)
+=== boot 3: CLEAN ===
+[boot 4] g6_exec_a: child status = 138 (OK)
+=== boot 4: CLEAN ===
+=== BATTERY DONE: 5 boots, 0 anomalies ===

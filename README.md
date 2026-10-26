@@ -79,6 +79,7 @@ compatibility contract).
 | Shell | ush (ring 3, default boot entry): 133 service commands + built-ins with pipes/redirection/wildcards/env/aliases/jobs; oc> recovery shell: 99 commands |
 | TUI | Desktop, taskbar, menus, forms, editor, system apps - plus a Chinese console layer (16x16 font, pinyin IME) |
 | Reliability | Crash dumps to serial + /etc crashlog, kernel log with rotation + levels + filters, health monitor (CPU/mem/tasks/IO + JSON export), OTA with SHA256 + signatures and rollback |
+| OCIRE | Independent recovery kernel (3.0.0 development): a second L0 kernel in `ocire/` that shares no code with the OCOS kernel, boots standalone from its own ISO or from a GRUB dual-boot menu, and stores its image in an isolated partition OCOS cannot read or write (see `docs/dev/ocire.md`) |
 
 ## Quick start
 
