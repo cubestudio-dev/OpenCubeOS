@@ -80,7 +80,7 @@ $(OCIRE_ISO): $(OCIRE_ELF) $(OCIRE_DIR)/grub-ocire.cfg \
 	bash $(OC_ROOT)/tools/build_ocire_iso.sh
 
 .PHONY: ocire-kernel ocire-iso ocire-disk ocire-run-bios ocire-run-uefi \
-        ocire-run-bios-gui ocire-run-uefi-gui ocire-test
+        ocire-run-bios-gui ocire-run-uefi-gui ocire-test ocire-dual-test
 
 ocire-kernel: $(OCIRE_ELF)
 	@echo "ocire-kernel: $(OCIRE_ELF) ($$(stat -c%s $(OCIRE_ELF)) bytes)"
@@ -117,3 +117,7 @@ ocire-run-uefi-gui: $(OCIRE_ISO)
 
 ocire-test: $(OCIRE_ISO) $(OCIRE_ELF)
 	python3 $(OC_ROOT)/tools/run_ocire_tests.py
+
+ocire-dual-test: $(OCIRE_ISO) $(OCIRE_ELF) $(OC_ROOT)/tools/make_ocire_disk.sh
+	bash $(OC_ROOT)/tools/make_ocire_disk.sh
+	python3 $(OC_ROOT)/tools/run_ocire_dual_tests.py
