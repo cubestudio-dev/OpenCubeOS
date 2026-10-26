@@ -5,6 +5,8 @@
 # Purpose: CI gate for every push / PR to main.  Runs the exact same
 #          make targets developers run locally (see docs/BUILD.md):
 #            make kernel            -Wall -Wextra -Werror (0 warnings gate)
+#            make ocire-kernel       OCIRE recovery kernel, same 0-warning gate
+#            make ocire-iso           standalone OCIRE boot ISO (3.0.0-WP-01)
 #            make iso               hybrid BIOS+UEFI bootable ISO
 #            make src-zip            deterministic source zip (git archive)
 #            make ota                OTA update package
@@ -51,6 +53,12 @@ jobs:
       - name: "Kernel ELF (-Wall -Wextra -Werror)"
         run: make -j"$(nproc)" kernel
 
+      - name: "OCIRE recovery kernel (-Wall -Wextra -Werror)"
+        run: make ocire-kernel
+
+      - name: "OCIRE bootable ISO (hybrid BIOS+UEFI)"
+        run: make ocire-iso
+
       - name: Hybrid BIOS+UEFI ISO
         run: make iso
 
@@ -66,7 +74,7 @@ jobs:
       - name: Artifact digests
         run: |
           echo "== sha256 of every build artifact =="
-          sha256sum build/opencube.elf build/opencube.iso dist/OpenCubeOS-*.zip dist/OpenCubeOS-*-update.tar.gz
+          sha256sum build/opencube.elf build/opencube.iso build/ocire/ocire.elf build/ocire/ocire.iso dist/OpenCubeOS-*.zip dist/OpenCubeOS-*-update.tar.gz
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -75,6 +83,8 @@ jobs:
           path: |
             build/opencube.elf
             build/opencube.iso
+            build/ocire/ocire.elf
+            build/ocire/ocire.iso
             dist/OpenCubeOS-*-src-*.zip
             dist/OpenCubeOS-*-update.tar.gz
           if-no-files-found: error

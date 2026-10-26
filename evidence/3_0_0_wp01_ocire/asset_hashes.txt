@@ -1,0 +1,2 @@
+59011bd8c081a02c63faee78704005481a4d2f4372b8ac8e9ba620e18ed6a4cd  build/ocire/ocire.elf
+155b01f6652df6ac9788906df8344a4a50db96592e95ff698ed600eaa6fcbca4  build/ocire/ocire.iso

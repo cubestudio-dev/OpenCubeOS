@@ -1,0 +1,11 @@
+[rel301 bios] banner OK: Open Cube OS 2.2.0 kmain entered
+[rel301 bios] ring-3 ush> prompt OK (default boot entry)
+[rel301 bios] uname OK: Open Cube OS 2.2.0 x86_64
+[rel301 bios] oc> fallback OK (exit -> recovery shell)
+[rel301 bios] poweroff OK
+[rel301 uefi] banner OK: Open Cube OS 2.2.0 kmain entered
+[rel301 uefi] ring-3 ush> prompt OK (default boot entry)
+[rel301 uefi] uname OK: Open Cube OS 2.2.0 x86_64
+[rel301 uefi] oc> fallback OK (exit -> recovery shell)
+[rel301 uefi] poweroff OK
+=== boot gates: BIOS PASS + UEFI PASS ===

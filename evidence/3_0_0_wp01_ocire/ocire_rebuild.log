@@ -1,0 +1,43 @@
+make: regenerated  (3.0.0-WP-01)
+bash /home/z/oc-public/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/oc-public/ocire -I/home/z/oc-public/ocire/generated -MMD -MP -c /home/z/oc-public/ocire/ocire_acpi.c -o /home/z/oc-public/build/ocire/ocire_acpi.o
+bash /home/z/oc-public/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/oc-public/ocire -I/home/z/oc-public/ocire/generated -MMD -MP -c /home/z/oc-public/ocire/ocire_console.c -o /home/z/oc-public/build/ocire/ocire_console.o
+bash /home/z/oc-public/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/oc-public/ocire -I/home/z/oc-public/ocire/generated -MMD -MP -c /home/z/oc-public/ocire/ocire_idt.c -o /home/z/oc-public/build/ocire/ocire_idt.o
+bash /home/z/oc-public/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/oc-public/ocire -I/home/z/oc-public/ocire/generated -MMD -MP -c /home/z/oc-public/ocire/ocire_input.c -o /home/z/oc-public/build/ocire/ocire_input.o
+bash /home/z/oc-public/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/oc-public/ocire -I/home/z/oc-public/ocire/generated -MMD -MP -c /home/z/oc-public/ocire/ocire_main.c -o /home/z/oc-public/build/ocire/ocire_main.o
+bash /home/z/oc-public/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/oc-public/ocire -I/home/z/oc-public/ocire/generated -MMD -MP -c /home/z/oc-public/ocire/ocire_shell.c -o /home/z/oc-public/build/ocire/ocire_shell.o
+bash /home/z/oc-public/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/oc-public/ocire -I/home/z/oc-public/ocire/generated -MMD -MP -c /home/z/oc-public/ocire/ocire_util.c -o /home/z/oc-public/build/ocire/ocire_util.o
+nasm -f elf64 -F dwarf -g /home/z/oc-public/ocire/ocire_boot.S -o /home/z/oc-public/build/ocire/ocire_boot.o
+nasm -f elf64 -F dwarf -g /home/z/oc-public/ocire/ocire_mb2_header.S -o /home/z/oc-public/build/ocire/ocire_mb2_header.o
+ld -n -nostdlib -T /home/z/oc-public/ocire/linker_ocire.ld \
+      -z max-page-size=0x1000 -z noexecstack -o /home/z/oc-public/build/ocire/ocire.elf /home/z/oc-public/build/ocire/ocire_acpi.o /home/z/oc-public/build/ocire/ocire_console.o /home/z/oc-public/build/ocire/ocire_idt.o /home/z/oc-public/build/ocire/ocire_input.o /home/z/oc-public/build/ocire/ocire_main.o /home/z/oc-public/build/ocire/ocire_shell.o /home/z/oc-public/build/ocire/ocire_util.o /home/z/oc-public/build/ocire/ocire_boot.o /home/z/oc-public/build/ocire/ocire_mb2_header.o
+strip --strip-debug /home/z/oc-public/build/ocire/ocire.elf
+bash /home/z/oc-public/tools/build_ocire_iso.sh
+[ocire_iso] staging in /home/z/oc-public/build/ocire/iso-stage
+[ocire_iso] building BIOS El Torito image
+[ocire_iso] building EFI bootloader
+[ocire_iso] building ESP FAT image
+[ocire_iso] assembling ISO
+Written to medium : 1136 sectors at LBA 0
+Writing to 'stdio:/home/z/oc-public/build/ocire/ocire.iso' completed successfully.
+
+[ocire_iso] done: /home/z/oc-public/build/ocire/ocire.iso (2326528 bytes)
+[ocire_iso] El Torito info:
+El Torito catalog  : 33  1
+El Torito cat path : /boot.catalog
+El Torito images   :   N  Pltf  B   Emul  Ld_seg  Hdpt  Ldsiz         LBA
+El Torito boot img :   1  BIOS  y   none  0x0000  0x00      4         546
+El Torito boot img :   2  UEFI  y   none  0x0000  0x00   2048          34
+El Torito img path :   1  /boot/grub/i386-pc-eltorito.img
+El Torito img opts :   1  boot-info-table grub2-boot-info
+El Torito img path :   2  /boot/efi.img
+ocire-iso: /home/z/oc-public/build/ocire/ocire.iso (2326528 bytes)
+bash /home/z/oc-public/tools/make_ocire_disk.sh
+[ocire_disk] hd0: /home/z/oc-public/build/ocire/ocire-boot.img (260096 sectors FAT32)
+[ocire_disk] hd0 MBR written (p1 FAT32 LBA 2048, 260096 sectors)
+[ocire_disk] hd0 GRUB installed: boot.img (MBR) + core.img (LBA1, 313 sectors)
+[ocire_disk] hd1: /home/z/oc-public/build/ocire/ocire-hd.img (single partition, type 0xEE shadow)
+[ocire_disk] hd1 MBR written (p1 type 0xEE, LBA 2048, 30720 sectors, no GPT header)
+[ocire_disk] hd1: raw OCIRE kernel at LBA 2048 (31 sectors)
+[ocire_disk] done:
+-rw-rw-r-- 1 z z 134217728 Oct 26 19:45 /home/z/oc-public/build/ocire/ocire-boot.img
+-rw-rw-r-- 1 z z  16777216 Oct 26 19:45 /home/z/oc-public/build/ocire/ocire-hd.img
