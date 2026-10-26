@@ -557,3 +557,64 @@ Gates on the fix1 tree: 0E0W (-Werror); fix1_verify 7/7 (released
 ISO before-fix: 1c-B FAIL 8/12 + session death); chinesetest 91/91;
 chinese E2E 17/17 BIOS + 17/17 UEFI; TUI E2E BIOS 18/18+20/20 +
 UEFI 18/18+20/20; regression 28/28 (baseline 222).
+
+## v2.0.0 — the ring-3 re-architecture (2026-10-24/25)
+
+- Two-ring model shipped: L0 provides services (kernel + drivers +
+  services + the WinRE-style `oc>` recovery environment), L1 uses
+  services (ring-3 apps via SYS_L1SVC + the classic syscall ABI).
+  Default boot entry is the ring-3 `ush` shell; `oc>` is the
+  fallback after ush exits.
+- Command homes: 251 = 99 L0 + 133 SVC + 19 built-ins; register-class
+  driver interfaces internalized into `services/*/drv_internal.h`.
+- Fixes on the way: SVC-frame timed waits no longer deadlock the
+  scheduler (11 sites); putcw dropped captured UTF-8 continuation
+  bytes; VFS cross-dir move; TUI form-pool leak; extension-page
+  registration; desktop L1 bridge.
+- E2E adaptation: wp10_tui 37/37, wp12 14/14, chinese 21/21,
+  native/tuiqa boot-adapted.
+- Release: tag `v2.0.0` -> 0b410c3, build 302 (281+21), Release
+  423468301 (ISO/SRC/OTA), gh-pages rebuilt.
+- A full postcheck (archived in the private mirror) then found 17
+  issues - most severely P0: the release code did not compile on CI
+  (all 15 v2.0.0 runs red, undeclared) - which 2.1.0 fixes.
+
+## v2.1.0 — the 17-issue fix release (2026-10-25)
+
+- P0: `tui/tui_core.c` serial port I/O forced through `%dx` (ports
+  >= 0x100 break the imm8 "Nd" constraint); two further CI-environment
+  traps fixed on the way (runner GRUB 2.12+ dropped efi_uga.mod ->
+  module lists filtered against the installed GRUB; gcc >= 15
+  defaults to C23 where `typedef u8 bool` collides with `_Bool` ->
+  core/types.h keeps the compiler's bool under C23). CI green again
+  and now a hard release gate: the tag points at a CI-green commit.
+- Compatibility truth: the v1 233-command baseline fully mapped
+  (INTERFACES.md Part 1c; the 2.0.0 table had silently missed
+  `health export`/`health watch`); the per-entry v1 interface
+  comparison (all 278 callable declarations: 267 public, 6
+  internalized, 5 gone) plus the declared deletion register (Part
+  2d); the SVC caliber documented (142 ush rows, 9 dual-homed names).
+- Docs regenerated for the real tree: ARCHITECTURE.md rewritten
+  (v1-era layout gone), process docs to v2 reality, 251 command
+  reference pages EN+zh, KNOWN_ISSUES.md carries the 17-issue
+  fixed table.
+- Verification: six deep suites (host 17+2 declared skip, wp12
+  14/14, wp10_tui 37/37 BIOS, chinese 21/21, tuiqa 32/32 BIOS+UEFI,
+  native 36/36 BIOS+UEFI) + the new L1 per-app gate (35/35 embedded
+  programs, fresh boot per row, ush nested spawn/exit) + boot gates
+  BIOS+UEFI PASS on the final shipped ISO + reproducible build
+  (ELF byte-identical across clean rebuilds).
+- Declared, not hidden: the wp10_tui suite leaves a #DF tail after
+  its last check (pre-existing 2.0.0-era defect, same on the 2.0.0
+  ISO; fix deferred to the next batch); a rare wait4-vs-fork timing
+  flake in marathon mode (deterministic 138 PASS on fresh boots);
+  runner-side 10-minute caps on two native logs (all PASS lines in
+  the stdout logs).
+- Release: CI-green tag `v2.1.0` -> a7f8859 (build 309 = 288+21),
+  Release 423643773, main tree holds byte-identical download copies
+  + site data at 130,526/379; gh-pages rebuilt at 65df0d2.
+- Website build fix found during gh-pages deploy: the generated
+  INTERFACES.md carried a bare `<category>` outside a code span
+  (VitePress Vue compile choked) and the docs/root mirror ran before
+  the root file was written (stale numbers) - generator fixed, docs
+  regenerated (96d8a12).
