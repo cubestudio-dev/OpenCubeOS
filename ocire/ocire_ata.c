@@ -84,12 +84,12 @@ static int identify(int bus, int slave, ocire_ata_dev_t *out) {
     oc_outb(base + R_LBA2, 0);
     oc_outb(base + 7, 0xEC);            /* IDENTIFY DEVICE */
 
-    /* A missing drive leaves the bus floating: status 0 or the LBA0
-     * probe port stays 0 (the classic check for an empty slot). */
+    /* Empty slot: the status port reads 0 (QEMU) or floats 0xFF
+     * (real bus); both mean "no drive".  A live drive always has at
+     * least DRDY or BSY set at some point - the wait below covers it. */
     oc_io_wait();
     u8 st = oc_inb(base + R_STAT);
-    if (st == 0) return -1;
-    if (oc_inb(base + R_LBA2) == 0) return -1;
+    if (st == 0 || st == 0xFF) return -1;
 
     int s = wait_bsy(base);
     if (s < 0) return -1;

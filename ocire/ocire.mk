@@ -23,6 +23,16 @@ OCIRE_OUT := $(BUILD)/ocire
 
 OCIRE_VERSION ?= 3.0.0-WP-02
 
+# ---- WP-02: the ring-3 log agent (OCOS L1 ABI, OCIRE's asset) -----
+# Compiled like an l1apps/ C program (gcc freestanding + user.ld @
+# 0x400000, int 0x80 syscalls) but shipped as a STANDALONE ELF on the
+# recovery volume (/AGENT/AGENT.ELF) - never embedded in either
+# kernel.  The supervisor injects it at kexec; OCOS spawns it as the
+# ocire_guard-protected process.
+OCIRE_AGENT     := $(OCIRE_OUT)/agent.elf
+OCIRE_AGENT_SRC := $(OCIRE_DIR)/agent/ocire_agent.c
+OCIRE_AGENT_OBJ := $(OCIRE_OUT)/ocire_agent.o
+
 OCIRE_C := $(wildcard $(OCIRE_DIR)/*.c)
 OCIRE_S := $(wildcard $(OCIRE_DIR)/*.S)
 
@@ -80,7 +90,21 @@ $(OCIRE_ISO): $(OCIRE_ELF) $(OCIRE_DIR)/grub-ocire.cfg \
 	bash $(OC_ROOT)/tools/build_ocire_iso.sh
 
 .PHONY: ocire-kernel ocire-iso ocire-disk ocire-run-bios ocire-run-uefi \
-        ocire-run-bios-gui ocire-run-uefi-gui ocire-test ocire-dual-test
+        ocire-run-bios-gui ocire-run-uefi-gui ocire-test ocire-dual-test \
+        ocire-agent
+
+ocire-agent: $(OCIRE_AGENT)
+	@echo "ocire-agent: $(OCIRE_AGENT) ($$(stat -c%s $(OCIRE_AGENT)) bytes)"
+
+$(OCIRE_AGENT): $(OCIRE_AGENT_SRC)
+	@mkdir -p $(OCIRE_OUT)
+	$(CC) -ffreestanding -fno-stack-protector -mno-red-zone -mno-sse \
+	  -mno-mmx -mno-3dnow -fno-asynchronous-unwind-tables \
+	  -Wall -Wextra -Werror -O2 -std=gnu11 \
+	  -c $(OCIRE_AGENT_SRC) -o $(OCIRE_AGENT_OBJ)
+	$(CC) -nostdlib -Wl,--build-id=none -T $(OC_ROOT)/l1apps/user.ld \
+	  -o $@ $(OCIRE_AGENT_OBJ)
+	strip --strip-debug $@
 
 ocire-kernel: $(OCIRE_ELF)
 	@echo "ocire-kernel: $(OCIRE_ELF) ($$(stat -c%s $(OCIRE_ELF)) bytes)"
@@ -88,7 +112,7 @@ ocire-kernel: $(OCIRE_ELF)
 ocire-iso: $(OCIRE_ISO)
 	@echo "ocire-iso: $(OCIRE_ISO) ($$(stat -c%s $(OCIRE_ISO)) bytes)"
 
-ocire-disk: $(OCIRE_ELF) $(OC_ROOT)/tools/make_ocire_disk.sh
+ocire-disk: $(OCIRE_ELF) $(OCIRE_AGENT) $(OC_ROOT)/tools/make_ocire_disk.sh $(OCIRE_DIR)/grub-dual.cfg.in
 	bash $(OC_ROOT)/tools/make_ocire_disk.sh
 
 ocire-run-bios: $(OCIRE_ISO)

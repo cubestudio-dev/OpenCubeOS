@@ -5,8 +5,13 @@
  * Purpose: Linker script for the OCIRE independent recovery kernel.
  *
  * OCIRE is deliberately an independent kernel: this script shares no
- * symbols or layout with the OCOS linker.ld.  The kernel is loaded by
- * GRUB (multiboot2) at physical address 1 MiB.
+ * symbols or layout with the OCOS linker.ld.
+ *
+ * WP-02: the load address moved from 1 MiB to 16 MiB.  The boot
+ * supervisor (kexec) loads the OCOS kernel into ITS natural 1 MiB
+ * range while OCIRE is still running - at 1 MiB that copy would
+ * overwrite the executing OCIRE code; at 16 MiB the two kernels are
+ * disjoint and the hand-over is a plain segment copy + mode switch.
  *
  * Layout:
  *   - The multiboot2 header must be within the first 32768 bytes of
@@ -20,7 +25,7 @@ OUTPUT_FORMAT(elf64-x86-64)
 OUTPUT_ARCH(i386:x86-64)
 ENTRY(_start)
 
-OCIRE_LMA = 0x00100000;           /* load at 1 MiB */
+OCIRE_LMA = 0x01000000;           /* load at 16 MiB (see header note) */
 
 PHDRS
 {

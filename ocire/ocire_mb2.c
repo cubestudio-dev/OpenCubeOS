@@ -21,6 +21,19 @@ int ocire_mb2_parse(u64 magic, u64 mbi_phys) {
     g_mb2.mbi_phys = mbi_phys;
     g_mb2.mbi_total = total;
 
+    /* Relocate the info block to a safe low-memory page FIRST: GRUB
+     * places the mbi right after the loaded kernel image (here: just
+     * above OCIRE at 16 MiB), which lands inside OCIRE's static
+     * buffers once the supervisor stages the OCOS ELF - the kexec
+     * hand-over would read a corrupted tag chain.  0x70000 is free
+     * conventional memory (above the BIOS data area, below every
+     * kernel and below the 0x80000 kexec mbi area). */
+    if (mbi_phys != 0x70000) {
+        oc_memcpy((void *)(uintptr)0x70000, (const void *)(uintptr)mbi_phys, total);
+        mbi_phys = 0x70000;
+        g_mb2.mbi_phys = mbi_phys;   /* consumers must see the copy */
+    }
+
     u64 pos = mbi_phys + 8;
     u64 end = mbi_phys + total;
     while (pos + 8 <= end) {

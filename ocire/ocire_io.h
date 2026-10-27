@@ -17,7 +17,7 @@ static inline void oc_outb(u16 port, u8 val) {
 }
 
 static inline void oc_outw(u16 port, u16 val) {
-    __asm__ volatile("outw %0, %1" : : "a"(val), "Nd"(port));
+    __asm__ volatile("outw %0, %%dx" : : "a"(val), "d"(port));
 }
 
 static inline u8 oc_inb(u16 port) {
@@ -28,7 +28,21 @@ static inline u8 oc_inb(u16 port) {
 
 static inline u16 oc_inw(u16 port) {
     u16 v;
-    __asm__ volatile("inw %1, %0" : "=a"(v) : "Nd"(port));
+    __asm__ volatile("inw %%dx, %0" : "=a"(v) : "d"(port));
+    return v;
+}
+
+/* 32-bit port I/O.  Port comes through the "d" constraint (DX
+ * register): PCI config access uses 0xCF8/0xCFC which are far beyond
+ * the imm8 range of "Nd" - the exact trap that made the 2.0.0 CI
+ * build fail (tui serial ports), fixed the same way here. */
+static inline void oc_outl(u16 port, u32 val) {
+    __asm__ volatile("outl %0, %%dx" : : "a"(val), "d"(port));
+}
+
+static inline u32 oc_inl(u16 port) {
+    u32 v;
+    __asm__ volatile("inl %%dx, %0" : "=a"(v) : "d"(port));
     return v;
 }
 
