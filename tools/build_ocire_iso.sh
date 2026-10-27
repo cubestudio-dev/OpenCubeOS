@@ -18,8 +18,19 @@ OC_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [ -n "$OC_TOOLS" ]; then
     GRUB_DIR="$OC_TOOLS/usr/lib/grub"
+    GRUB_SHARE="$OC_TOOLS/usr/share/grub"
 else
     GRUB_DIR="/usr/lib/grub"
+    GRUB_SHARE="/usr/share/grub"
+fi
+# Fallback: if the font isn't in GRUB_SHARE, check the in-tree copy
+# (same chain as tools/build_iso.sh).
+if [ ! -f "$GRUB_SHARE/unicode.pf2" ]; then
+    if [ -f "/tmp/grub_share/unicode.pf2" ]; then
+        GRUB_SHARE="/tmp/grub_share"
+    elif [ -f "$OC_ROOT/iso/boot/grub/fonts/unicode.pf2" ]; then
+        GRUB_SHARE="$OC_ROOT/iso/boot/grub/fonts"
+    fi
 fi
 
 BUILD="$OC_ROOT/build/ocire"
@@ -31,9 +42,13 @@ ISO="$BUILD/ocire.iso"
 
 echo "[ocire_iso] staging in $STAGE"
 rm -rf "$STAGE"
-mkdir -p "$STAGE/boot/grub"
+mkdir -p "$STAGE/boot/grub/fonts"
 cp "$ELF" "$STAGE/boot/ocire.elf"
 cp "$OC_ROOT/ocire/grub-ocire.cfg" "$STAGE/boot/grub/grub.cfg"
+# WP-02: the font feeds gfxterm; GRUB only honours the multiboot2
+# framebuffer request when its own terminal runs on a video surface
+# (same recipe as the OCOS ISO - see grub.cfg there).
+cp "$GRUB_SHARE/unicode.pf2" "$STAGE/boot/grub/fonts/unicode.pf2"
 
 grub_mods() {
     local dir="$1"; shift
@@ -59,9 +74,11 @@ grub_mods_required() {
 
 # --- 1. BIOS El Torito boot image (i386-pc) ---
 grub_mods_required "$GRUB_DIR/i386-pc" BIOS \
-    biosdisk iso9660 multiboot2 normal
+    biosdisk iso9660 multiboot2 normal vbe video_fb
 MODS_BIOS="$(grub_mods "$GRUB_DIR/i386-pc" \
-    biosdisk iso9660 normal echo configfile boot multiboot2 serial terminal test)"
+    biosdisk iso9660 normal echo configfile boot multiboot2 serial terminal test \
+    vbe vga video video_fb gfxterm font bitmap bufio all_video video_bochs \
+    video_cirrus video_colors)"
 echo "[ocire_iso] building BIOS El Torito image"
 grub-mkimage -O i386-pc-eltorito \
   -d "$GRUB_DIR/i386-pc" \
@@ -74,7 +91,8 @@ grub_mods_required "$GRUB_DIR/x86_64-efi" EFI \
     iso9660 multiboot2 normal efi_gop
 MODS_EFI="$(grub_mods "$GRUB_DIR/x86_64-efi" \
     iso9660 normal echo configfile boot multiboot2 serial terminal test \
-    efi_gop fixvideo)"
+    efi_gop fixvideo video video_fb gfxterm font bitmap bufio all_video \
+    video_bochs video_cirrus video_colors)"
 echo "[ocire_iso] building EFI bootloader"
 mkdir -p "$STAGE/EFI/BOOT"
 grub-mkimage -O x86_64-efi \

@@ -21,7 +21,7 @@
 OCIRE_DIR := $(OC_ROOT)/ocire
 OCIRE_OUT := $(BUILD)/ocire
 
-OCIRE_VERSION ?= 3.0.0-WP-01
+OCIRE_VERSION ?= 3.0.0-WP-02
 
 OCIRE_C := $(wildcard $(OCIRE_DIR)/*.c)
 OCIRE_S := $(wildcard $(OCIRE_DIR)/*.S)
