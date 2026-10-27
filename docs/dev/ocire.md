@@ -1,8 +1,10 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # OCIRE - OpenCubeOS Independent Recovery Environment
 
-Status: **3.0.0-WP-01-ocire-core** (this work package lands the core:
-OCIRE boots independently and runs a minimal shell).
+Status: **3.0.0-WP-02-ocire_recovery** (this work package ships the
+recovery features: the boot supervisor with watchdog-based
+boot-failure detection, and the full recovery shell with syscheck /
+repair).
 
 ## What OCIRE is
 
@@ -21,16 +23,61 @@ headers with OCOS, links with its own linker script
 
 ## What WP-01 ships
 
-| Area | WP-01 (this) | WP-02 | WP-03 |
+| Area | WP-01 | WP-02 (this) | WP-03 |
 |---|---|---|---|
-| Boot + minimal shell | **here** | — | — |
-| help / shutdown / reboot | **here** | — | — |
-| Recovery features, FAT12, self-check, repair | — | here | — |
-| Boot-failure detection, 1-minute timeout | — | here | — |
+| Boot + minimal shell | **done** | — | — |
+| help / shutdown / reboot | **done** | — | — |
+| Recovery features, FAT12, self-check, repair | — | **here** | — |
+| Boot-failure detection, 1-minute timeout | — | **here** | — |
 | OCOS <-> OCIRE interface, process protection | — | — | here |
 
-The shell command set is exactly three commands (`help`, `shutdown`,
-`reboot`) — fixed for this work package, nothing more.
+## What WP-02 ships
+
+1. **The boot supervisor** (`ocire.mode=sup`, the dual-boot menu
+   default): scans the disks, runs the mailbox state machine, arms
+   the i6300esb watchdog for a 60 s boot window, stages and
+   digest-verifies the ring-3 log agent, then kexecs the OCOS kernel
+   with the mailbox / log / wdt facts on the command line
+   (`oc.log= oc.logsecs= oc.mb= oc.wdt= oc.agent=1`).
+2. **Boot-failure detection**: a watchdog reset that lands the
+   supervisor on a still-`WAIT_BOOT_SIGNAL` mailbox means OCOS never
+   came up - the supervisor prints the crash notice, bumps
+   `fail_count`, sets `ENTER_FULL` and reboots into the full recovery
+   shell.  Proven end to end in QEMU with the real i6300esb device
+   (`-device i6300esb`): arm -> kexec -> 60 s expiry -> reset ->
+   crash notice -> recovery shell.
+3. **The full recovery shell** (menu entry 2, or `ocire.mode=full`):
+   `logread` (dump the boot-log ring), `syscheck` (ten-point
+   integrity self-check), `repair quick` (fix MBRs / mailbox / log
+   header + restore any system file whose digest differs from the
+   golden manifest), `repair full` (DESTRUCTIVE reformat of the
+   system volume + full golden rewrite, typed-YES confirmation),
+   `return` (normal-boot mailbox + reboot), plus the WP-01
+   `help/shutdown/reboot`.
+4. **FAT12 read / FAT32 read+write**: the streaming helpers
+   (`ocire_fat_read_range`, `ocire_fat_hash_file`,
+   `ocire_fat_copy_stream`) let the recovery shell hash and restore
+   multi-megabyte files without buffering them; allocation carries a
+   reservation marker so two consecutive allocations can never hand
+   out the same cluster, and names that do not fit the 8.3 form are
+   rejected rather than silently truncated.
+
+### Honest boundary (WP-03 scope, by design)
+
+The OCOS side of the closed loop is **not** in this work package:
+OCOS does not yet parse the `oc.*` command-line facts, does not write
+the `SIGNAL_OK` mailbox state, does not disarm/ping the i6300esb, and
+does not spawn the injected agent (the `L1SVC_CAT_OCIRE` channel the
+agent calls does not exist yet).  Consequences, measured and declared:
+
+- On real hardware with an i6300esb present, a supervised boot that
+  reaches OCOS still hard-resets 60 s after hand-over (nobody
+  disarms the window) - entry 3 "Open Cube OS (direct boot)" is the
+  interim path for normal use.
+- Without the watchdog (the default QEMU setup), the mailbox-only
+  signalling means every second consecutive supervised boot degrades
+  into the recovery shell (un-signalled = presumed crash).  The
+  recovery shell's `return` resets the mailbox to NONE.
 
 ## Source layout (ocire/)
 
@@ -46,21 +93,45 @@ ocire/
                         print a diagnostic instead of triple-faulting
   ocire_acpi.c/.h       RSDP/XSDT/FADT (checksums verified), tiny \_S5
                         package reader, PM1a S5 + RESET_REG + 8042
-  ocire_shell.c/.h      the three commands, honest unknown-command hint
+  ocire_mb2.c/.h        multiboot2 info parsing (framebuffer/cmdline/
+                        modules - WP-02 group 1)
+  ocire_font.c/.h       embedded 8x16 font for the LFB console
+  ocire_ata.c/.h        ATA PIO driver (IDENTIFY, LBA28 read/write)
+  ocire_sha256.c/.h     SHA-256 (golden/agent/kernel digests)
+  ocire_fat.c/.h        FAT12 read + FAT32 read/write (mount, lookup,
+                        streaming read/hash/copy, create/mkdir/format)
+  ocire_wdt.c/.h        Intel 6300ESB watchdog (PCI 8086:25ab probe,
+                        arm/disarm/ping, 1 kHz two-stage window)
+  ocire_bootsvc.c/.h    the boot supervisor (mailbox state machine,
+                        agent staging, kexec hand-over)
+  ocire_kexec.c/.h      OCOS ELF staging + mb2 info rebuild + jump
+  ocire_kexec_jump.S    64-bit kexec trampoline
+  ocire_disk.c/.h       recovery-disk discovery, mailbox, golden image
+  ocire_recover.c/.h    the full recovery shell commands (logread/
+                        syscheck/repair/return)
+  ocire_shell.c/.h      the command loop (8 commands)
   ocire_util.c/.h       freestanding mem/string helpers
   ocire_io.h            port I/O inline helpers
   ocire_types.h         base scalar types
+  agent/ocire_agent.c   the ring-3 log agent (OCOS L1 ABI, injected
+                        at kexec; its L1SVC channel is WP-03)
   ocire.mk              build targets (included from the top Makefile)
   linker_ocire.ld       own link layout (1 MiB load address)
   grub-ocire.cfg        standalone ISO menu (single entry)
-  grub-dual.cfg         dual-boot disk menu (OCOS default, OCIRE entry)
+  grub-dual.cfg.in      dual-boot disk menu TEMPLATE (3 entries:
+                        supervisor default, full shell, direct OCOS)
 ```
 
 Build targets: `make ocire-kernel`, `make ocire-iso`, `make
-ocire-disk`, `make ocire-test`, `make ocire-dual-test` (run targets
-`ocire-run-bios/uefi[-gui]` are also available).  Compilation uses
-the same `-Wall -Wextra -Werror` zero-warning gate as the OCOS
-kernel; CI runs the OCIRE build on every push.
+ocire-disk`, `make ocire-test`, `make ocire-dual-test`, `make
+ocire-shell-test` (run targets `ocire-run-bios/uefi[-gui]` are also
+available).  Compilation uses the same `-Wall -Wextra -Werror`
+zero-warning gate as the OCOS kernel; CI runs the OCIRE build on
+every push.  The OCIRE object files carry their own `-include
+$(OCIRE_OBJ_C:.o=.d)` header-dependency tracking in ocire.mk (the
+top-level Makefile only includes the OCOS kernel's .d files - a
+header change in ocire/ used to silently link stale objects; found
+and fixed live by the WP-02 battery).
 
 ## How the two OSes coexist (WP-01 layout)
 
@@ -126,8 +197,22 @@ protection).
   `reboot` (8042/RESET_REG; with `-no-reboot` QEMU really exits).
 - `tools/run_ocire_dual_tests.py` (`make ocire-dual-test`) — 11
   cases: the four dual-boot combinations (BIOS/UEFI x menu default
-  OCOS / menu-pick OCIRE), the five isolation probes and the two
-  whole-disk declaration probes.
+  supervisor->kexec->OCOS / menu-pick OCIRE full shell) on throwaway
+  disk copies (the supervisor is stateful - see the WP-03 boundary),
+  the five isolation probes and the two whole-disk declaration
+  probes.
+- `tools/run_ocire_shell_tests.py` (`make ocire-shell-test`) — the
+  WP-02 recovery battery, 4 cases on throwaway copies:
+  `shell_healthy` (syscheck 10/10 + idempotent quick repair on a
+  pristine disk), `shell_quick_repair` (kernel-ELF byte flipped ->
+  syscheck catches the digest mismatch -> repair quick restores +
+  verifies -> healthy again), `shell_full_repair` (p1 BPB nuked ->
+  boot from the STANDALONE ISO, hd0's own GRUB cannot read its
+  config any more -> repair full rewrites the volume from the golden
+  image -> healthy) and `shell_wdt_timeout` (the real i6300esb
+  attached: supervisor arms the 60 s window -> kexec -> OCOS boots
+  but never signals -> watchdog reset -> crash notice -> the full
+  recovery shell).
 - Full OCOS regression matrix on a tree that contains OCIRE but zero
   OCOS edits: `evidence/3_0_0_wp01_ocire/regression/` (host tests,
   reproducible-check, wp12, wp10_tui, chinese, tuiqa x2, native x2,

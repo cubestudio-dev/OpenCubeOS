@@ -14,6 +14,7 @@
 #include "ocire_fat.h"
 #include "ocire_ata.h"
 #include "ocire_util.h"
+#include "ocire_sha256.h"
 
 #define DIRENT_SIZE 32
 #define ATTR_LFN  0x0F
@@ -99,6 +100,7 @@ int ocire_fat_mount(ocire_fat_vol_t *vol, int ata_idx, u64 part_lba) {
     vol->fat_start = reserved;
     vol->data_start = first_data;
     vol->total_clusters = clusters;
+    vol->free_hint = 2;
     vol->root_dir_sectors = root_secs;
 
     if (rootent != 0 && fatsz16 != 0 && clusters < 4085) {
@@ -131,6 +133,18 @@ static u64 fat_entry_sector(ocire_fat_vol_t *vol, u32 cluster, u32 *off_out) {
 static u32 fat_get_next(ocire_fat_vol_t *vol, u32 cluster) {
     u32 off;
     u64 lba = fat_entry_sector(vol, cluster, &off);
+    if (vol->fat_type == 12 && off == 511) {
+        /* FAT12 boundary entry: the 12-bit field spans the last byte
+         * of this FAT sector and the first byte of the next one
+         * (clusters 341, 682, 1023, ... - hit live by the WP-02
+         * golden-area chains).  Read both sectors and stitch. */
+        if (sec_read(vol->ata_idx, lba) != 0) return 0xFFFFFFFF;
+        u8 b0 = g_sec[511];
+        if (sec_read(vol->ata_idx, lba + 1) != 0) return 0xFFFFFFFF;
+        u32 v = (u32)b0 | ((u32)g_sec[0] << 8);
+        v = (cluster & 1) ? (v >> 4) : (v & 0xFFF);
+        return v >= 0xFF8 ? 0x0FFFFFF8 : v;
+    }
     if (sec_read(vol->ata_idx, lba) != 0) return 0xFFFFFFFF;
     if (vol->fat_type == 12) {
         u32 v = rd16(g_sec + off);
@@ -168,7 +182,11 @@ u64 ocire_fat_file_first_lba(ocire_fat_vol_t *vol, const ocire_fat_file_t *f) {
 /* ---- 8.3 name handling ---- */
 
 /* Convert "OPENCUBE.ELF" (upper, one dot) to the 11-byte on-disk form.
- * Returns 0 on success. */
+ * Returns 0 on success.  Names that do not FIT the 8.3 form are
+ * rejected (-1) rather than silently truncated: a truncated base
+ * would silently drop its extension ("EDGE_EXACT.BIN" and
+ * "EDGE_EXACT.DAT" would collide on "EDGE_EXA") and never round-trip
+ * through name_from_83 - found live by the WP-02 host harness. */
 static int name_to_83(const char *name, u8 out[11]) {
     oc_memset(out, ' ', 11);
     int i = 0;
@@ -177,6 +195,8 @@ static int name_to_83(const char *name, u8 out[11]) {
         if (c >= 'a' && c <= 'z') c -= 32;
         out[i] = c;
     }
+    if (i == 8 && name[i] != 0 && name[i] != '.')
+        return -1;                               /* base longer than 8 */
     if (name[i] == '.') {
         i++;
         int e = 8;
@@ -304,6 +324,11 @@ int ocire_fat_lookup(ocire_fat_vol_t *vol, const char *path,
         while (*p && *p != '/' && n < OCIRE_FAT_NAME_LEN - 1) {
             comp[n++] = *p++;
         }
+        if (*p && *p != '/')
+            return -1;      /* truncated: component > the 8.3 name limit.
+                             * (Silent truncation here used to split a long
+                             * name into TWO components - the second one was
+                             * then looked up inside a garbage directory.) */
         if (n == 0) return -1;
         comp[n] = 0;
         int last = (*p == 0);
@@ -381,17 +406,42 @@ int ocire_fat_file_patch(ocire_fat_vol_t *vol, const ocire_fat_file_t *f,
 
 /* ---- FAT32 write set ---- */
 
-/* Find a free cluster.  Returns the cluster number or 0. */
+/* Find a free cluster, mark it RESERVED in the FAT and return it.
+ * The reservation matters: the chain builders link prev->c only when
+ * the NEXT cluster is allocated, so without a mark two consecutive
+ * allocations return the SAME cluster and each one silently absorbs
+ * two data blocks (the second overwrites the first - the WP-02
+ * quick-repair battery caught this as a file whose chain held every
+ * even 1 KiB block and hashed short).  The marker is the FAT "bad
+ * cluster" value 0x0FFFFFF7: never handed out again, visible to
+ * chkdsk-style walkers, and overwritten by the real link / EOC once
+ * the chain completes.  Returns the cluster number or 0. */
 static u32 alloc_cluster(ocire_fat_vol_t *vol) {
+    for (u32 c = vol->free_hint; c < vol->total_clusters + 2; c++) {
+        if (fat_get_next(vol, c) == 0) {
+            if (fat_set_next(vol, c, 0x0FFFFFF7) != 0) return 0;
+            vol->free_hint = c + 1;
+            return c;
+        }
+    }
+    /* Hint exhausted (or stale past holes): one full rescan from the
+     * start, then give up. */
     for (u32 c = 2; c < vol->total_clusters + 2; c++) {
-        if (fat_get_next(vol, c) == 0) return c;
+        if (fat_get_next(vol, c) == 0) {
+            if (fat_set_next(vol, c, 0x0FFFFFF7) != 0) return 0;
+            vol->free_hint = c + 1;
+            return c;
+        }
     }
     return 0;
 }
 
+/* Free a chain.  Stops at EOC (>= 0x0FFFFFF8) and at the reservation
+ * marker 0x0FFFFFF7 (a crash or error can leave one at the tail - the
+ * marker itself must not be followed as if it were a link). */
 static int free_chain(ocire_fat_vol_t *vol, u32 first) {
     u32 c = first;
-    while (c >= 2 && c < 0x0FFFFFF8) {
+    while (c >= 2 && c < 0x0FFFFFF7) {
         u32 next = fat_get_next(vol, c);
         if (fat_set_next(vol, c, 0) != 0) return -1;
         c = next;
@@ -565,10 +615,12 @@ int ocire_fat_create_file(ocire_fat_vol_t *vol, const char *path,
         const char *base = slash + 1;
         int i = 0;
         for (; base[i] && i < OCIRE_FAT_NAME_LEN - 1; i++) name[i] = base[i];
+        if (base[i]) return -1;                  /* name > 8.3 limit */
         name[i] = 0;
     } else {
         int i = 0;
         for (; path[i] && i < OCIRE_FAT_NAME_LEN - 1; i++) name[i] = path[i];
+        if (path[i]) return -1;                  /* name > 8.3 limit */
         name[i] = 0;
     }
     /* Overwrite when it exists (same semantics for repair). */
@@ -606,10 +658,12 @@ int ocire_fat_mkdir(ocire_fat_vol_t *vol, const char *path) {
         const char *base = slash + 1;
         int i = 0;
         for (; base[i] && i < OCIRE_FAT_NAME_LEN - 1; i++) name[i] = base[i];
+        if (base[i]) return -1;                  /* name > 8.3 limit */
         name[i] = 0;
     } else {
         int i = 0;
         for (; path[i] && i < OCIRE_FAT_NAME_LEN - 1; i++) name[i] = path[i];
+        if (path[i]) return -1;                  /* name > 8.3 limit */
         name[i] = 0;
     }
     /* Allocate one zeroed cluster for the new directory, then write
@@ -730,4 +784,201 @@ int ocire_fat_format(ocire_fat_vol_t *vol, int ata_idx, u64 part_lba,
     }
 
     return ocire_fat_mount(vol, ata_idx, part_lba);
+}
+
+/* ---- WP-02 streaming helpers (see ocire_fat.h) ---- */
+
+s64 ocire_fat_read_range(ocire_fat_vol_t *vol, const ocire_fat_file_t *f,
+                         u64 off, u8 *buf, u64 len) {
+    if (off >= f->size) return 0;
+    if (off + len > f->size) len = f->size - off;
+    u64 done = 0;
+    u32 cluster = f->first_cluster;
+    u8 sec[512];
+    u64 pos = 0;                                    /* file byte offset */
+    while (cluster >= 2 && cluster < 0x0FFFFFF8 && done < len) {
+        u64 clu_bytes = (u64)vol->cluster_secs * 512;
+        u64 range_lo = off, range_hi = off + len;
+        if (range_hi > pos + clu_bytes) range_hi = pos + clu_bytes;
+        if (range_lo < pos) range_lo = pos;
+        if (range_lo < range_hi) {
+            u64 lba = cluster_lba(vol, cluster);
+            for (u32 s = 0; s < vol->cluster_secs && range_lo < range_hi; s++) {
+                u64 sec_start = pos + (u64)s * 512;
+                u64 sec_end = sec_start + 512;
+                if (range_lo < sec_end && range_hi > sec_start) {
+                    if (ocire_ata_read(vol->ata_idx, lba + s, 1, sec) != 0)
+                        return -2;
+                    u64 from = range_lo > sec_start ? range_lo : sec_start;
+                    u64 to = range_hi < sec_end ? range_hi : sec_end;
+                    oc_memcpy(buf + (from - off), sec + (from - sec_start),
+                              (u32)(to - from));
+                    range_lo = to;
+                    if (to == sec_end) range_lo = sec_end;
+                }
+            }
+            done = range_hi - off;
+        }
+        pos += clu_bytes;
+        cluster = fat_get_next(vol, cluster);
+    }
+    return (s64)done;
+}
+
+int ocire_fat_hash_file(ocire_fat_vol_t *vol, const ocire_fat_file_t *f,
+                        u8 digest[32], u64 *size_out) {
+    static u8 chunk[8192];
+    ocire_sha256_ctx ctx;
+    ocire_sha256_init(&ctx);
+    u64 off = 0;
+    while (off < f->size) {
+        u64 want = f->size - off;
+        if (want > sizeof(chunk)) want = sizeof(chunk);
+        s64 got = ocire_fat_read_range(vol, f, off, chunk, want);
+        if (got <= 0) return -1;
+        ocire_sha256_update(&ctx, chunk, (u64)got);
+        off += (u64)got;
+    }
+    ocire_sha256_final(&ctx, digest);
+    if (size_out) *size_out = f->size;
+    return 0;
+}
+
+/* Split "PARENT/NAME" for a FAT32 create-style path.  Fills parent
+ * ("" = root) and the 8.3 name; returns 0. */
+static int split_path(const char *path, char *parent, u32 parent_cap,
+                      char *name) {
+    const char *slash = (const char *)0;
+    const char *p = path;
+    for (; *p; p++) {
+        if (*p == '/') slash = p;
+    }
+    if (slash) {
+        u64 n = (u64)(slash - path);
+        if (n == 0 || n >= parent_cap) return -1;
+        oc_memcpy(parent, path, n);
+        parent[n] = 0;
+        const char *base = slash + 1;
+        int i = 0;
+        for (; base[i] && i < OCIRE_FAT_NAME_LEN - 1; i++) name[i] = base[i];
+        if (base[i]) return -1;                  /* name > 8.3 limit */
+        name[i] = 0;
+        if (i == 0) return -1;
+    } else {
+        parent[0] = 0;
+        int i = 0;
+        for (; path[i] && i < OCIRE_FAT_NAME_LEN - 1; i++) name[i] = path[i];
+        if (path[i]) return -1;                  /* name > 8.3 limit */
+        name[i] = 0;
+        if (i == 0) return -1;
+    }
+    return 0;
+}
+
+int ocire_fat_copy_stream(ocire_fat_vol_t *svol, const ocire_fat_file_t *src,
+                          ocire_fat_vol_t *dvol, const char *dst_path,
+                          u8 *chunk, u32 chunk_cap, u64 *written_out) {
+    if (dvol->fat_type != 32) return -1;
+    if (chunk_cap < 512) return -1;
+    char parent[OCIRE_FAT_NAME_LEN * 8];
+    char name[OCIRE_FAT_NAME_LEN];
+    if (split_path(dst_path, parent, sizeof(parent), name) != 0) return -2;
+    u32 parent_cluster = 0;
+    if (parent[0]) {
+        ocire_fat_file_t d;
+        if (ocire_fat_lookup(dvol, parent, &d) != 0) return -3;
+        parent_cluster = d.first_cluster;
+    }
+    /* Existing destination entry (overwrite in place) or a fresh one. */
+    ocire_fat_file_t ex;
+    int have_ex = (lookup_in_dir(dvol, parent_cluster, name, &ex) == 0);
+
+    /* Incremental chain build with zero-filled clusters (same on-disk
+     * result as write_new_chain, without buffering the file). */
+    u32 first = 0, prev = 0, cur = 0, cur_off = 0;
+    u64 written = 0;
+    u64 clu_bytes = (u64)dvol->cluster_secs * 512;
+    u8 sec[512];
+    oc_memset(sec, 0, 512);
+
+    while (written < src->size) {
+        u64 want = src->size - written;
+        if (want > chunk_cap) want = chunk_cap;
+        s64 got = ocire_fat_read_range(svol, src, written, chunk, want);
+        if (got <= 0) goto fail;
+        u64 n = (u64)got;
+        const u8 *p = chunk;
+        while (n > 0) {
+            if (cur == 0) {
+                u32 c = alloc_cluster(dvol);
+                if (c == 0) goto fail;
+                if (prev == 0) first = c;
+                else if (fat_set_next(dvol, prev, c) != 0) goto fail;
+                /* Zero the fresh cluster (clean tails, like the
+                 * non-streaming writers leave). */
+                u64 lba = cluster_lba(dvol, c);
+                for (u32 s = 0; s < dvol->cluster_secs; s++) {
+                    if (ocire_ata_write(dvol->ata_idx, lba + s, 1, sec) != 0)
+                        goto fail;
+                }
+                cur = c;
+                cur_off = 0;
+            }
+            u32 space = (u32)(clu_bytes - cur_off);
+            u32 take = (n < space) ? (u32)n : space;
+            u64 lba = cluster_lba(dvol, cur);
+            u64 cpos = 0;                       /* cluster-relative */
+            while (cpos < cur_off + take) {
+                if (cpos + 512 > cur_off && cpos < cur_off + take) {
+                    u64 from = cur_off > cpos ? cur_off : cpos;
+                    u64 to = (cur_off + take) < (cpos + 512)
+                                 ? (cur_off + take) : (cpos + 512);
+                    if (from == cpos && to == cpos + 512) {
+                        if (ocire_ata_write(dvol->ata_idx, lba + cpos / 512,
+                                            1, p + (from - cur_off)) != 0)
+                            goto fail;
+                    } else {
+                        if (ocire_ata_read(dvol->ata_idx, lba + cpos / 512,
+                                           1, sec) != 0) goto fail;
+                        oc_memcpy(sec + (from - cpos),
+                                  p + (from - cur_off), (u32)(to - from));
+                        if (ocire_ata_write(dvol->ata_idx, lba + cpos / 512,
+                                            1, sec) != 0) goto fail;
+                    }
+                }
+                cpos += 512;
+            }
+            cur_off += take;
+            p += take;
+            n -= take;
+            if (cur_off >= clu_bytes) {
+                prev = cur;
+                cur = 0;
+                cur_off = 0;
+            }
+        }
+        written += (u64)got;
+    }
+    /* Terminate the chain on its TRUE last cluster.  When the file
+     * ends mid-cluster the loop leaves it in `cur` (prev is then the
+     * second-to-last cluster) - marking EOC on prev would sever the
+     * final link and truncate the file by one cluster (found live by
+     * the WP-02 quick-repair battery: every restored OPENCUBE.ELF
+     * hashed short and syscheck reported I/O ERROR). */
+    {
+        u32 last = cur ? cur : prev;
+        if (last) fat_set_next(dvol, last, 0x0FFFFFF8);
+    }
+    if (have_ex) {
+        if (write_dirent(dvol, &ex, first, src->size) != 0) goto fail;
+        free_chain(dvol, ex.first_cluster);
+    } else {
+        if (make_dirent(dvol, parent_cluster, name, 0x20, first,
+                        src->size) != 0) goto fail;
+    }
+    if (written_out) *written_out = written;
+    return 0;
+fail:
+    if (first) free_chain(dvol, first);
+    return -10;
 }

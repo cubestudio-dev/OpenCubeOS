@@ -750,3 +750,63 @@ kernel (boot + minimal shell)
 - CI gate extended: make ocire-kernel (0-warning rule) and
   make ocire-iso now run on every push; chain 8517eeb / 26d401d /
   0226e8c all green with the OCIRE steps listed and passing.
+
+## 2026-10-27 - 3.0.0-WP-02-ocire_recovery: the full recovery feature
+(boot supervisor closed loop + boot-failure detection + recovery
+shell)
+
+- Scope: WP-02 = recovery features + FAT12 + self-check + repair +
+  boot-failure detection with the 1-minute watchdog window.  Groups
+  1-3 (mb2/LFB/ATA/SHA-256 base, supervisor, kexec, watchdog,
+  FAT12/FAT32, mailbox, agent, disk layout) landed in e1fd525+fc2f4a2;
+  this batch lands group 4 (the recovery shell + batteries + evidence)
+  and the eight fixes below.  Zero OCOS source edits (only the
+  generated build stamp).
+- Recovery shell (ocire_shell.c + ocire_recover.c): logread / syscheck
+  (ten-point) / repair quick / repair full (typed-YES, reformat +
+  golden rewrite) / return, on top of the WP-01 help/shutdown/reboot.
+  Streaming FAT helpers (read_range / hash_file / copy_stream) restore
+  multi-MB files without buffering; golden manifest now 5 files
+  (OPENCUBE.ELF, OCIRE.ELF, GRUB.CFG, UNICODE.PF2, BOOTX64.EFI).
+- Eight bugs found live by the new batteries and fixed (full stories
+  in evidence/3_0_0_wp02_recovery/README.txt): F1 copy_stream EOC on
+  the second-to-last cluster (files one cluster short); F2
+  alloc_cluster without reservation (each cluster absorbed two data
+  blocks - a 2070-cluster restore delivered 1035); F3 silent 8.3
+  name truncation in name_to_83 + five path splitters (a long name
+  split into two components, the second looked up inside a garbage
+  directory cluster); F4 O(n^2) allocation scan (9 min -> 13.7 s via
+  free_hint); F5 ocire.mk missing .d includes (header changes linked
+  stale objects -> mixed struct layouts -> MBR corruption; local-only
+  - CI builds fresh); F6 disk scan returned -2 before locating
+  mailbox/log (repair full's rebuilt mailbox lost its facts); F7
+  repair full required a mountable system volume (now falls back to
+  the MBR partition entry); F8 repair full reported REBUILT for an
+  already-correct MBR.
+- Battery design lessons encoded in the tests: the full-repair case
+  boots the STANDALONE OCIRE ISO (with hd0's p1 BPB destroyed, hd0's
+  own GRUB cannot read its menu config - the realistic
+  bootloader-broken path); the wdt case attaches the REAL i6300esb
+  and passes WITHOUT -no-reboot (the reset is the point); the dual
+  cases boot throwaway copies (the supervisor is stateful - a second
+  supervised boot without the WP-03 OCOS signal degrades into
+  recovery BY DESIGN).
+- Results (all logs in evidence/3_0_0_wp02_recovery/): standalone
+  14/14 (BIOS+UEFI); dual+isolation 11/11; recovery shell 4/4
+  (healthy / quick-repair / full-repair / wdt-timeout-degrade);
+  host-side FAT write-set harness 33/33 (new - compiles the real
+  ocire_fat.c against a copy of the real volume; caught F1-F4).
+- Boot-failure detection proven end to end with the real watchdog
+  device: supervisor arms the 60 s window -> kexec -> OCOS boots but
+  never signals -> i6300esb expiry resets the machine -> supervisor
+  reads the stale WAIT_BOOT_SIGNAL -> crash notice + fail_count++ ->
+  ENTER_FULL -> reboot -> full recovery shell.
+- Honest boundary (also in docs/dev/ocire.md): the OCOS side of the
+  closed loop is WP-03 - OCOS does not parse the oc.* cmdline facts,
+  does not write SIGNAL_OK, does not disarm/ping the i6300esb, and
+  the injected agent's L1SVC_CAT_OCIRE channel does not exist yet.
+  Consequences measured and declared: with an i6300esb present a
+  supervised boot hard-resets 60 s after hand-over (menu entry 3,
+  direct OCOS boot, is the interim normal path); without the watchdog
+  every second consecutive supervised boot degrades into recovery
+  until 'return' or WP-03.

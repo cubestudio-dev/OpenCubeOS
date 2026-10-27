@@ -1,13 +1,18 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS - 3.0.0-WP-01-ocire-core
+/* Open Cube OS - 3.0.0-WP02-ocire_recovery
  * File: ocire/ocire_shell.c
- * Purpose: OCIRE minimal shell.
+ * Purpose: the OCIRE full recovery shell.
  *
- * Command set (fixed for WP-01):
- *   help      - list available commands
- *   shutdown  - power off (ACPI S5, with legacy port fallbacks)
- *   reboot    - reset the machine (8042, ACPI RESET_REG, 0xCF9)
+ * WP-02 command set:
+ *   help         - list available commands
+ *   logread      - dump the boot-log ring (the OCOS agent's record)
+ *   syscheck     - ten-point integrity self-check
+ *   repair quick - fix metadata + restore damaged system files
+ *   repair full  - reformat + full golden rewrite (asks YES)
+ *   return       - reboot into OpenCubeOS (normal-boot mailbox)
+ *   shutdown     - power off (ACPI S5, with legacy port fallbacks)
+ *   reboot       - reset the machine (8042, ACPI RESET_REG, 0xCF9)
  *
  * Line editing supports backspace.  Anything unrecognised prints an
  * honest "unknown command" hint - never a silent drop.
@@ -19,15 +24,21 @@
 #include "ocire_io.h"
 #include "ocire_util.h"
 #include "ocire_acpi.h"
+#include "ocire_recover.h"
 
 #define OCIRE_PROMPT "ocire> "
 #define LINE_MAX 96
 
 static void cmd_help(void) {
     ocire_puts("OCIRE commands:\n");
-    ocire_puts("  help      - list available commands\n");
-    ocire_puts("  shutdown  - power off the machine (ACPI S5)\n");
-    ocire_puts("  reboot    - reset the machine\n");
+    ocire_puts("  help         - list available commands\n");
+    ocire_puts("  logread      - dump the boot-log ring (OCOS agent record)\n");
+    ocire_puts("  syscheck     - ten-point integrity self-check\n");
+    ocire_puts("  repair quick - fix metadata + restore damaged system files\n");
+    ocire_puts("  repair full  - reformat the system volume + golden rewrite\n");
+    ocire_puts("  return       - reboot into OpenCubeOS (normal-boot mailbox)\n");
+    ocire_puts("  shutdown     - power off the machine (ACPI S5)\n");
+    ocire_puts("  reboot       - reset the machine\n");
 }
 
 static void cmd_shutdown(void) {
@@ -101,6 +112,18 @@ void ocire_shell_run(void) {
         if (!s[0]) continue;
         if (oc_strcmp(s, "help") == 0) {
             cmd_help();
+        } else if (oc_strcmp(s, "logread") == 0) {
+            ocire_cmd_logread();
+        } else if (oc_strcmp(s, "syscheck") == 0) {
+            ocire_cmd_syscheck();
+        } else if (oc_strcmp(s, "repair quick") == 0) {
+            ocire_cmd_repair_quick();
+        } else if (oc_strcmp(s, "repair full") == 0) {
+            ocire_cmd_repair_full();
+        } else if (oc_strcmp(s, "return") == 0) {
+            ocire_cmd_return();            /* does not return */
+        } else if (oc_strcmp(s, "repair") == 0) {
+            ocire_puts("usage: repair quick | repair full\n");
         } else if (oc_strcmp(s, "shutdown") == 0) {
             cmd_shutdown();            /* does not return on success */
         } else if (oc_strcmp(s, "reboot") == 0) {

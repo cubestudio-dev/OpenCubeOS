@@ -48,6 +48,12 @@ typedef struct {
     u64  fat_start;        /* volume-relative LBA of first FAT */
     u64  data_start;       /* volume-relative LBA of data region */
     u32  total_clusters;   /* including the 2 reserved ones */
+    u32  free_hint;        /* alloc_cluster scans from here (mount/
+                              format set it to 2).  Keeps sequential
+                              allocations O(1) instead of rescanning
+                              the whole FAT per cluster - the WP-02
+                              repair copies allocate thousands of
+                              clusters in a row. */
     u32  root_cluster;     /* FAT32 only */
     u64  root_dir_sectors; /* FAT12: absolute sector count of the root
                               directory region; FAT32: 0 */
@@ -116,6 +122,33 @@ int ocire_fat_file_patch(ocire_fat_vol_t *vol, const ocire_fat_file_t *f,
  * ocire_fat_read_file; this is for the fixed-layout bootstrap facts
  * (mailbox / log ring start LBA passed through the kexec cmdline). */
 u64 ocire_fat_file_first_lba(ocire_fat_vol_t *vol, const ocire_fat_file_t *f);
+
+/* Streaming helpers for the recovery workloads (syscheck / repair),
+ * added in WP-02: the OCOS kernel (~1.4 MiB) and the GRUB font
+ * (~2.4 MiB) exceed OCIRE_FAT_MAX_FILE, so integrity checks and
+ * repairs must never buffer a whole file. */
+
+/* Read `len` bytes of the file starting at byte offset `off` into
+ * buf.  Returns the byte count read (short only at EOF) or negative
+ * on I/O error. */
+s64 ocire_fat_read_range(ocire_fat_vol_t *vol, const ocire_fat_file_t *f,
+                         u64 off, u8 *buf, u64 len);
+
+/* Stream a file through SHA-256 without buffering it: digest gets
+ * the 32-byte result, *size_out (may be NULL) the byte count
+ * hashed.  Returns 0 or negative on I/O error. */
+int ocire_fat_hash_file(ocire_fat_vol_t *vol, const ocire_fat_file_t *f,
+                        u8 digest[32], u64 *size_out);
+
+/* Copy `src` (any mounted volume, e.g. the FAT12 golden image) to
+ * `dst_path` (FAT32 target volume) in `chunk_cap`-sized pieces -
+ * the repair path for files larger than OCIRE_FAT_MAX_FILE.
+ * Creates or overwrites the destination.  `chunk` is caller-owned
+ * scratch (>= 512 bytes).  *written_out (may be NULL) receives the
+ * byte count.  Returns 0 or negative. */
+int ocire_fat_copy_stream(ocire_fat_vol_t *svol, const ocire_fat_file_t *src,
+                          ocire_fat_vol_t *dvol, const char *dst_path,
+                          u8 *chunk, u32 chunk_cap, u64 *written_out);
 
 /* Sector-level read/write on the volume's parent disk (absolute
  * LBA).  Exposed for the mailbox path (read-modify-write). */

@@ -113,12 +113,23 @@ def case_dual(uefi, pick_ocire):
     target = "OCIRE" if pick_ocire else "OCOS"
     case = f"dual_{tag}_{target.lower()}"
     port = 41000 + len(RESULTS)
-    child = spawn_disks(uefi, HD0, HD1, with_cd=False, mon_port=port,
+    # WP-02: the menu default is the BOOT SUPERVISOR, which is STATEFUL
+    # - it writes WAIT_BOOT_SIGNAL into the hd1 mailbox and (without
+    # the WP-03 OCOS-side signal) the NEXT supervised boot degrades
+    # into the recovery path by design.  Each dual case therefore
+    # boots THROWAWAY copies so it starts from a fresh (NONE)
+    # mailbox, exactly like the shell battery.
+    d0 = os.path.join(OUT, f"dual-throw0-{case}.img")
+    d1 = os.path.join(OUT, f"dual-throw1-{case}.img")
+    shutil.copyfile(HD0, d0)
+    shutil.copyfile(HD1, d1)
+    child = spawn_disks(uefi, d0, d1, with_cd=False, mon_port=port,
                         log_path=os.path.join(OUT, f"dual-{case}.log"),
                         timeout=180)
     try:
-        # Wait for the GRUB menu to render on serial.
-        i = child.expect(["OCIRE - recovery kernel", pexpect.TIMEOUT])
+        # Wait for the GRUB menu to render on serial.  (The menu-entry
+        # text changed with the WP-02 3-entry menu; match the banner.)
+        i = child.expect(["GNU GRUB", pexpect.TIMEOUT])
         if i != 0:
             record(case, False, "GRUB menu never appeared on serial")
             return False

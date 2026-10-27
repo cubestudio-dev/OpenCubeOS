@@ -91,7 +91,7 @@ $(OCIRE_ISO): $(OCIRE_ELF) $(OCIRE_DIR)/grub-ocire.cfg \
 
 .PHONY: ocire-kernel ocire-iso ocire-disk ocire-run-bios ocire-run-uefi \
         ocire-run-bios-gui ocire-run-uefi-gui ocire-test ocire-dual-test \
-        ocire-agent
+        ocire-shell-test ocire-agent
 
 ocire-agent: $(OCIRE_AGENT)
 	@echo "ocire-agent: $(OCIRE_AGENT) ($$(stat -c%s $(OCIRE_AGENT)) bytes)"
@@ -145,3 +145,21 @@ ocire-test: $(OCIRE_ISO) $(OCIRE_ELF)
 ocire-dual-test: $(OCIRE_ISO) $(OCIRE_ELF) $(OC_ROOT)/tools/make_ocire_disk.sh
 	bash $(OC_ROOT)/tools/make_ocire_disk.sh
 	python3 $(OC_ROOT)/tools/run_ocire_dual_tests.py
+
+# WP-02 group-4 battery: the full recovery shell (help/logread/syscheck/
+# repair quick/repair full/return) against throwaway dual-disk copies,
+# including a digest-damage case and a nuked-BPB full-repair case.
+ocire-shell-test: $(OCIRE_ELF) $(OCIRE_AGENT) $(OC_ROOT)/tools/make_ocire_disk.sh
+	bash $(OC_ROOT)/tools/make_ocire_disk.sh
+	python3 $(OC_ROOT)/tools/run_ocire_shell_tests.py
+
+# Header dependency tracking for the OCIRE objects.  The top-level
+# Makefile includes only $(KERNEL_OBJ:.o=.d) (its line 448) - the
+# OCIRE .d files were NEVER included, so a header change (e.g.
+# ocire_fat.h) silently linked STALE objects compiled against the
+# old struct layout.  Found live by the WP-02 battery: the mixed
+# build read ocire_layout_t fields at shifted offsets and wrote
+# garbage start LBAs into both MBRs.  (CI was never affected - it
+# builds from a fresh clone - only local incremental builds.)
+-include $(OCIRE_OBJ_C:.o=.d) $(OCIRE_AGENT_OBJ:.o=.d)
+

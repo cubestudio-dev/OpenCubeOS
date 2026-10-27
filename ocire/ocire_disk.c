@@ -115,16 +115,22 @@ int ocire_disk_scan(void) {
     }
 
     if (g_layout.ocire_idx < 0) return -1;
-    if (g_layout.ocos_idx < 0) return -2;
 
-    /* Mailbox + log must be locatable on the recovery volume. */
-    if (ocire_fat_lookup(&g_layout.ocire_vol, "MAILBOX.BIN",
-                         &g_layout.mb_file) != 0 ||
-        ocire_fat_lookup(&g_layout.ocire_vol, "LOG/BOOT.LOG",
-                         &g_layout.log_file) != 0) {
-        return -3;
-    }
-    if (ocire_mailbox_read() != 0) return -3;
+    /* Locate the recovery-volume files BEFORE the system-volume
+     * verdict: repair full must be able to work with an UNMOUNTABLE
+     * system volume (that is its job) and still needs the mailbox,
+     * the log ring and the agent digest facts.  Found live by the
+     * WP-02 full-repair battery: the early -2 used to leave
+     * mb_file/log_file zeroed and the rebuilt mailbox carried no
+     * log LBA and no agent digest. */
+    int files_ok =
+        (ocire_fat_lookup(&g_layout.ocire_vol, "MAILBOX.BIN",
+                          &g_layout.mb_file) == 0 &&
+         ocire_fat_lookup(&g_layout.ocire_vol, "LOG/BOOT.LOG",
+                          &g_layout.log_file) == 0 &&
+         ocire_mailbox_read() == 0);
+    if (!files_ok) return -3;
+    if (g_layout.ocos_idx < 0) return -2;
     return 0;
 }
 
