@@ -88,9 +88,14 @@ void ocire_main(u64 magic, u64 mbi) {
     }
 
     /* ---- role dispatch (WP-02) ------------------------------------
-     * The supervisor path (ocire.mode=sup) is armed in the boot
-     * service group (ocire_bootsvc.c); on standalone media (ISO) and
-     * the manual full-shell menu entry we come straight here. */
+     * ocire.mode=sup  -> the boot supervisor (watchdog closed loop);
+     * ocire.mode=full -> straight into the recovery shell;
+     * no cmdline      -> standalone media (ISO): full shell. */
+    if (ocire_mb2_cmdline_kv("ocire.mode", "sup")) {
+        extern void ocire_supervisor_run(void);
+        ocire_supervisor_run();       /* falls through on degrade */
+    }
+
     ocire_puts("Ready. Type 'help' for the command list.\n\n");
 
     ocire_shell_run();   /* never returns */
