@@ -1,0 +1,39 @@
+mounted: fat_type=32 cluster=1024 bytes total_clusters=129023
+  [PASS] create_file TESTBIG.BIN (2070 clusters)
+  [PASS] TESTBIG.BIN digest+size round-trip
+    chain=2070 need=2070
+  [PASS] TESTBIG.BIN chain length exact
+  [PASS] lookup before overwrite
+  [PASS] write_file overwrite (1465 clusters)
+  [PASS] overwrite digest+size round-trip
+    chain=1465 need=1465
+  [PASS] overwrite chain length exact
+  [PASS] copy src lookup
+  [PASS] copy_stream new path
+  [PASS] copy digest identical
+    chain=1465 need=1465
+  [PASS] copy chain length exact
+  [PASS] copy_stream overwrite path
+  [PASS] overwrite-copy digest identical
+  [PASS] overwrite-copy chain length exact
+  [PASS] edge create EDGEEXAC.BIN (102400 bytes)
+  [PASS] edge digest EDGEEXAC.BIN
+  [PASS] edge chain EDGEEXAC.BIN (100==100)
+  [PASS] edge create EDGEONE.BIN (1 bytes)
+  [PASS] edge digest EDGEONE.BIN
+  [PASS] edge chain EDGEONE.BIN (1==1)
+  [PASS] edge create EDGEHALF.BIN (1536 bytes)
+  [PASS] edge digest EDGEHALF.BIN
+  [PASS] edge chain EDGEHALF.BIN (2==2)
+  [PASS] create over-long name rejected
+  [PASS] lookup over-long name rejected
+  [PASS] no truncated ghost entry left behind
+  [PASS] mkdir over-long name rejected
+  [PASS] copy_stream over-long name rejected
+  [PASS] mkdir NEWDIR
+  [PASS] create NEWDIR/SMALL.BIN
+  [PASS] subdir file digest
+  [PASS] read_range length at offset 12345
+  [PASS] read_range content matches source pattern
+
+ALL PASS (52360 sector writes)

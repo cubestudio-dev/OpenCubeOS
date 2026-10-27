@@ -23,7 +23,9 @@
 #         /boot/ocire.elf    - the boot kernel; GRUB loads it with a
 #                              whole-disk blocklist (see grub-dual.cfg.in)
 #         /golden/...       - golden OCOS system image + MANIFEST.TXT
-#                              (SHA-256 per file; repair source)
+#                              (SHA-256 per file; repair source; 5 files:
+#                              OPENCUBE.ELF, OCIRE.ELF, GRUB.CFG,
+#                              UNICODE.PF2, BOOTX64.EFI)
 #         /agent/agent.elf  - the ring-3 log agent (kexec injection)
 #         /log/boot.log     - 64 KiB fixed-size ring (sector 0 =
 #                              header, data after; the OCOS agent
@@ -95,6 +97,7 @@ mmd  -i "$P1PULL" ::/boot ::/golden ::/agent ::/log
 # which the GRUB blocklist requires; verified below).
 mcopy -i "$P1PULL" "$OCIRE_ELF" ::/boot/ocire.elf
 mcopy -i "$P1PULL" "$OCOS_ELF"  ::/golden/opencube.elf
+mcopy -i "$P1PULL" "$OCIRE_ELF" ::/golden/ocire.elf
 mcopy -i "$P1PULL" "$AGENT_ELF" ::/agent/agent.elf
 
 # ---- golden manifest (SHA-256 + size per OCOS system file) ----
@@ -338,11 +341,13 @@ echo "[ocire_disk] hd0 GRUB installed: boot.img (MBR) + core.img (LBA1, $CORE_SE
 # ----------------------------------------------------------------------
 mcopy -i "$P1PULL" "$BUILD/.grub-dual.cfg"      ::/golden/grub.cfg
 mcopy -i "$P1PULL" "$BUILD/.BOOTX64.EFI"        ::/golden/bootx64.efi
+mcopy -i "$P1PULL" "$GRUB_SHARE/unicode.pf2"    ::/golden/unicode.pf2
 
 {
   echo "$(sha256_of "$OCOS_ELF") $(stat -c%s "$OCOS_ELF") BOOT/OPENCUBE.ELF"
   echo "$(sha256_of "$OCIRE_ELF") $(stat -c%s "$OCIRE_ELF") BOOT/OCIRE.ELF"
   echo "$(sha256_of "$BUILD/.grub-dual.cfg") $(stat -c%s "$BUILD/.grub-dual.cfg") BOOT/GRUB/GRUB.CFG"
+  echo "$(sha256_of "$GRUB_SHARE/unicode.pf2") $(stat -c%s "$GRUB_SHARE/unicode.pf2") BOOT/GRUB/FONTS/UNICODE.PF2"
   echo "$(sha256_of "$BUILD/.BOOTX64.EFI") $(stat -c%s "$BUILD/.BOOTX64.EFI") EFI/BOOT/BOOTX64.EFI"
 } > "$BUILD/.manifest.txt"
 mcopy -i "$P1PULL" "$BUILD/.manifest.txt" ::/golden/manifest.txt

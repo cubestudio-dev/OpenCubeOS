@@ -1,0 +1,116 @@
+[H[J[1;1H[m[m[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H[B+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*OCIRE boot supervisor (watchdog -> Open Cube OS)                           [m[5;78H[m[m[6;3H OCIRE recovery (full shell)                                                [m[6;78H[m[m[7;3H Open Cube OS (direct boot)                                                 [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 8s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 7s.                 [5;78H[22;1H                                                                               [23;1H                                                                               [5;78H[m[5;3H OCIRE boot supervisor (watchdog -> Open Cube OS)                           [m[5;78H[m[7m[6;3H*OCIRE recovery (full shell)                                                [m[6;78H[m[?25h[H[J[1;1H[H[J[1;1H
+OCIRE - OpenCubeOS Independent Recovery Environment
+OCIRE 3.0.0-WP-02 (build 324)
+Independent recovery kernel (L0 peer of Open Cube OS).
+Video: linear framebuffer 800x600x32
+Cmdline: ocire.mode=full
+CPU exception handlers armed.
+ACPI: FADT found (S5 SLP_TYP=0)
+Ready. Type 'help' for the command list.
+
+ocire> syscheck
+syscheck
+OCIRE syscheck
+  1. Disks: 2 ATA disk(s) ... OK
+  2. Recovery volume (0xEE + FAT12) ... OK (disk 1, LBA 2048)
+  3. System volume (FAT32) ... OK (disk 0, LBA 2048)
+  4. Mailbox ... OK (state NONE, boots 0, timeouts 0)
+  5. Boot log ring ... OK (65024 bytes, 0 used)
+  6. Log agent ... OK (SHA-256 matches the mailbox)
+  7. Golden manifest ... OK (5 entries)
+  8. Golden files ... OK (all match the manifest)
+  9. System files:
+       BOOT/OPENCUBE.ELF ... DIGEST MISMATCH
+syscheck
+       BOOT/OCIRE.ELF ... OK (60224 bytes)
+       BOOT/GRUB/GRUB.CFG ... OK (2288 bytes)
+       BOOT/GRUB/FONTS/UNICODE.PF2 ... OK (2411806 bytes)
+       EFI/BOOT/BOOTX64.EFI ... OK (794624 bytes)
+ 10. Recovery kernel copy (hd1) ... OK
+Result: 9 checks OK, 1 problems found
+ocire> syscheck
+OCIRE syscheck
+repair quick
+  1. Disks: 2 ATA disk(s) ... OK
+  2. Recovery volume (0xEE + FAT12) ... OK (disk 1, LBA 2048)
+  3. System volume (FAT32) ... OK (disk 0, LBA 2048)
+  4. Mailbox ... OK (state NONE, boots 0, timeouts 0)
+  5. Boot log ring ... OK (65024 bytes, 0 used)
+  6. Log agent ... OK (SHA-256 matches the mailbox)
+  7. Golden manifest ... OK (5 entries)
+  8. Golden files ... OK (all match the manifest)
+  9. System files:
+       BOOT/OPENCUBE.ELF ... DIGEST MISMATCH
+       BOOT/OCIRE.ELF ... OK (60224 bytes)
+       BOOT/GRUB/GRUB.CFG ... OK (2288 bytes)
+       BOOT/GRUB/FONTS/UNICODE.PF2 ... OK (2411806 bytes)
+       EFI/BOOT/BOOTX64.EFI ... OK (794624 bytes)
+ 10. Recovery kernel copy (hd1) ... OK
+Result: 9 checks OK, 1 problems found
+ocire> repair quick
+OCIRE repair (quick mode)
+  1. Boot-disk MBR ... OK
+  2. Recovery-disk MBR (0xEE) ... OK
+  3. Mailbox ... OK (state NONE)
+  4. Boot log ring header ... OK
+  5. System files:
+       BOOT/OPENCUBE.ELF ... RESTORED (2118992 bytes, vrepair quick
+erified)
+       BOOT/OCIRE.ELF ... OK
+       BOOT/GRUB/GRUB.CFG ... OK
+       BOOT/GRUB/FONTS/UNICODE.PF2 ... repair quick
+OK
+       EFI/BOOT/BOOTX64.EFI ... OK
+Result: quick repair complete - 1 restored, 4 unchanged, 0 failed
+syscheck
+ocire> repair quick
+OCIRE repair (quick mode)
+  1. Boot-disk MBR ... OK
+  2. Recovery-disk MBR (0xEE) ... OK
+  3. Mailbox ... OK (state NONE)
+  4. Boot log ring header ... OK
+  5. System files:
+       BOOT/OPENCUBE.ELF ... OK
+       BOOT/OCIRE.ELF ... OK
+       BOOT/GRUB/GRUB.CFG ... OK
+       BOOT/GRUB/FONTS/UNICODE.PF2 ... OK
+       EFI/BOOT/BOOTX64.EFI ... OK
+Result: quick repair complete - 0 restored, 5 unchanged, 0 failed
+Nothing needed repair.
+ocire> repair quick
+OCIRE repair (quick mode)
+  1. Boot-disk MBR ... OK
+  2. Recovery-disk MBR (0xEE) ... OK
+  3. Mailbox ... OK (state NONE)
+  4. Boot log ring header ... OK
+  5. System files:
+       BOOT/OPENCUBE.ELF ... OK
+       BOOT/OCIRE.ELF ... OK
+       BOOT/GRUB/GRUB.CFG ... OK
+       BOOT/GRUB/FONTS/UNICODE.PF2 ... OK
+       EFI/BOOT/BOOTX64.EFI ... OK
+Result: quick repair complete - 0 restored, 5 unchanged, 0 failed
+Nothing needed repair.
+ocire> syscheck
+OCIRE syscheck
+  1. Disks: 2 ATA disk(s) ... OK
+  2. Recovery volume (0xEE + FAT12) ... OK (disk 1, LBA 2048)
+  3. System volume (FAT32) ... OK (disk 0, LBA 2048)
+  4. Mailbox ... OK (state NONE, boots 0, timeouts 0)
+  5. Boot log ring ... OK (65024 bytes, 0 used)
+  6. Log agent ... OK (SHA-256 matches the mailbox)
+  7. Golden manifest ... OK (5 entries)
+  8. Golden files ... OK (all match the manifest)
+  9. System files:
+       BOOT/OPENCUBE.ELF ... OK (2118992 bytes)
+       BOOT/OCIRE.ELF ... OK (60224 bytes)
+       BOOT/GRUB/GRUB.CFG ... OK (2288 bytes)
+       BOOT/GRUB/FONTS/UNICODE.PF2 ... OK (2411806 bytes)
+       EFI/BOOT/BOOTX64.EFI ... OK (794624 bytes)
+ 10. Recovery kernel copy (hd1) ... OK
+Result: 10 checks OK, 0 problems found
+System healthy.
