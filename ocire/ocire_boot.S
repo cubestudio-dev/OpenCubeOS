@@ -1,15 +1,15 @@
 ; SPDX-License-Identifier: Apache-2.0
 ; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-; Open Cube OS - 3.0.0-WP-01-ocire-core
+; Open Cube OS - 3.0.0-WP02-ocire_recovery
 ; File: ocire/ocire_boot.S
 ; Purpose: OCIRE boot entry.  GRUB (BIOS or UEFI) jumps to _start in
 ;          32-bit protected mode, paging OFF, interrupts OFF:
 ;              eax = 0x36d76289  (multiboot2 magic)
 ;              ebx = multiboot2 info pointer
-;          OCIRE does not consume the multiboot2 info structure (it
-;          finds everything it needs from hardware: VGA text at
-;          0xB8000, serial COM1, ACPI tables in low memory), so the
-;          registers are simply discarded.
+;          WP-02: the magic + info pointer are now SAVED and handed to
+;          ocire_main(magic, mbi) - the boot supervisor needs the
+;          framebuffer tag, the command line (ocire.mode=) and the raw
+;          info block for the kexec hand-over to OCOS (see ocire_mb2.h).
 ;
 ;          Steps: own GDT -> identity-map the first 4 GiB with 2 MiB
 ;          pages -> enable PAE + LME + PG -> far jump into 64-bit
@@ -42,6 +42,7 @@ __ocire_pd:
 __ocire_stack_bottom:
     resb 32768              ; 32 KiB boot stack
 __ocire_stack_top:
+
 
 section .rodata
 align 8
@@ -91,6 +92,13 @@ _start:
     ; direction flag well-defined too.
     cli
     cld
+
+    ; Save the multiboot2 magic + info pointer (WP-02): they ride in
+    ; edi/esi through the GDT load and the far jump; the 32->64
+    ; transition zero-extends them into rdi/rsi, which is exactly the
+    ; SysV ABI for ocire_main(u64 magic, u64 mbi).
+    mov     edi, eax             ; magic
+    mov     esi, ebx             ; mbi pointer
 
     ; Load our own GDT and switch to the flat 32-bit segments.
     lgdt    [gdt_descriptor]
