@@ -32,6 +32,7 @@
 #include "nic_drv_internal.h"
 #include "lib_string.h"
 #include "mem_heap.h"
+#include "core_registry.h"
 
 /* ------------------------------------------------------------------ */
 /* Registry state                                                      */
@@ -485,6 +486,22 @@ int wl_channel_to_mhz(u8 channel)
 /* ------------------------------------------------------------------ */
 /* Registry: families + devices                                        */
 /* ------------------------------------------------------------------ */
+
+/* 3.0.0-WP03 G3: families self-declare via OC_DRIVER_DECL("wireless",
+ * ...) in the .oc_drvs section; this validator/fill helper is private
+ * to the core now (the public wl_register_family() call sites - the
+ * per-family *_register() functions and their kmain invocations - are
+ * gone). */
+static int wl_register_family(const wl_family_ops_t *ops)
+{
+    if (!ops || !ops->name || !ops->attach || !ops->tx_frame) return -1;
+    if (g_family_count >= WL_MAX_FAMILIES) return -2;
+    for (int i = 0; i < g_family_count; i++)
+        if (strcmp(g_families[i]->name, ops->name) == 0) return -3;
+    g_families[g_family_count] = ops;
+    return g_family_count++;
+}
+
 int driver_wireless_init(void)
 {
     g_family_count = 0;
@@ -496,17 +513,21 @@ int driver_wireless_init(void)
         g_scan_list[i].used = 0;
     g_rx_ring = (u8 *)kmalloc((u64)WL_RX_RING * WL_RX_ETH_MAX);
     if (!g_rx_ring) return -1;      /* honest: no bridge without the ring */
-    return 0;
-}
 
-int wl_register_family(const wl_family_ops_t *ops)
-{
-    if (!ops || !ops->name || !ops->attach || !ops->tx_frame) return -1;
-    if (g_family_count >= WL_MAX_FAMILIES) return -2;
-    for (int i = 0; i < g_family_count; i++)
-        if (strcmp(g_families[i]->name, ops->name) == 0) return -3;
-    g_families[g_family_count] = ops;
-    return g_family_count++;
+    /* 3.0.0-WP03 G3: collect the self-declared families ("wireless"
+     * entries in .oc_drvs).  Runs here so the families are registered
+     * before wl_device_probe_all() - the same slot the old explicit
+     * kmain per-family register calls used to occupy.  Adding a family
+     * = adding one .c file with an OC_DRIVER_DECL, nothing else.
+     * A rejected entry (validation failure) stays absent from
+     * wl_family_count() - this core deliberately prints nothing
+     * (unchanged since v1); the honest state is queryable. */
+    for (int i = 0; i < core_registry_drvs_count(); i++) {
+        const oc_driver_decl_t *c = core_registry_drv_at(i);
+        if (!c || strcmp(c->family, "wireless") != 0) continue;
+        (void)wl_register_family((const wl_family_ops_t *)c->ops);
+    }
+    return 0;
 }
 
 int wl_family_count(void)            { return g_family_count; }

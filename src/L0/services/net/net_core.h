@@ -66,8 +66,9 @@ void net_start_timer(void);
  * device's register state; rings/buffers in RAM survived). */
 void net_e1000_resume(void);
 
-/* Register network shell commands (ifconfig, ping, etc.). */
-void net_register_shell_commands(void);
+/* 3.0.0-WP03: the net shell-command registration prototype was stale
+ * since G1 (the L0 command surface is gone; net_cmds.c self-registers
+ * its L1SVC ops through the service declaration). */
 
 /* ---- Network configuration ---- */
 u32  net_get_ip(void);

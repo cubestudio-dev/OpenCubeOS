@@ -65,8 +65,6 @@ int l1_ext_self_test(void);  /* boot/l1_selftest.c - WP-01 extension self-test *
 #include "render_cn.h"
 #include "console_cn.h"
 
-/* WP-07 headers. */
-void driver_block_ata_register_blk(void);  /* WP-07: ATA blk registration */
 void net_wl_fw_provider_install(void); /* 3.0.0-WP03 G2: wl firmware provider (services/net/wl_fw.c) */
 #include "block_svc.h"
 #include "driver_block_cache.h"
@@ -550,14 +548,14 @@ void kmain(u64 magic, u64 mbi_phys) {
      * Class drivers register FIRST so the enumeration probes them:
      * HID keyboards/mice (boot protocol), MSC storage (BOT + SCSI,
      * lands in the blk table as usda/usdb before the partition scan
-     * below), CDC-ACM + FTDI serial, UAC audio.  Then all four host
-     * controller backends probe PCI (UHCI + OHCI + EHCI + XHCI) and
-     * enumerate their root hubs.  A poll kernel thread keeps hot-plug,
-     * input and serial RX alive for the whole session. */
-    driver_usb_hid_init();
-    driver_usb_msc_init();
-    driver_usb_serial_init();
-    driver_usb_audio_class_register();
+     * below), CDC-ACM + FTDI serial, UAC audio, UVC video.  Then all
+     * four host controller backends probe PCI (UHCI + OHCI + EHCI +
+     * XHCI) and enumerate their root hubs.  A poll kernel thread
+     * keeps hot-plug, input and serial RX alive for the whole session.
+     * 3.0.0-WP03 G3: the class drivers above are COLLECTED - each
+     * class-driver file declares OC_DRIVER_DECL("usb", ...) and
+     * driver_usb_probe_all() walks the section before probing hosts
+     * (the explicit kmain registration calls are gone). */
     {
         int uh = driver_usb_probe_all();
         char line[80]; char num[12];
@@ -615,13 +613,15 @@ void kmain(u64 magic, u64 mbi_phys) {
      * (fs reads live in the net root service now - no drivers->services
      * edge).  Installed after FAT mounts, before any family probe. */
     net_wl_fw_provider_install();
+    /* 3.0.0-WP03 G3: the 802.11 families are COLLECTED - each family
+     * file declares OC_DRIVER_DECL("wireless", ...) and the core
+     * walks the section inside driver_wireless_init() (the explicit
+     * kmain per-family register calls are gone). */
     driver_wireless_init();
-    driver_iwlwifi_register();
-    driver_rtlwifi_register();
-    driver_ath_register();
-    driver_brcm_register();
     /* SDHCI hosts (real emulated hardware in QEMU via sdhci-pci) run
-     * before the wireless probe so brcmfmac-SDIO cards can be bound.  */
+     * before the wireless probe so brcmfmac-SDIO cards can be bound
+     * (the SDIO client drivers are collected at driver_sdhci_init
+     * from their OC_DRIVER_DECL("sdio", ...) declarations).  */
     driver_sdhci_init();
     wl_device_probe_all();
     /* WP-10-tui: bridge the wireless STA into the NIC framework so
@@ -633,11 +633,11 @@ void kmain(u64 magic, u64 mbi_phys) {
      * reports "no transport" honestly. */
     bt_stack_init();
 
-    /* WP-10-camera_misc: camera core + UVC class driver.  The UVC
-     * class driver binds every enumerated USB video device; without
-     * hardware the uvc command reports zero cameras honestly. */
+    /* WP-10-camera_misc: camera core.  The UVC class driver is
+     * collected with the other USB class drivers before host
+     * enumeration (WP-03 G3); without hardware the uvc command
+     * reports zero cameras honestly. */
     camera_init();
-    driver_camera_uvc_register();
     /* WP-10-camera_misc: legacy ports (IEEE 1284 parallel, game
      * adapter) + infrared probe.  Missing hardware reports honestly. */
     parallel_init();

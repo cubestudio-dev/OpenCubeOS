@@ -124,8 +124,12 @@ EXTRA_SRC = {"host_tls_p0_test.c": ["tests/host_tls_p0_stub.c"],
              "host_a401_entry_test.c": ["tests/host_pmm_stub.c"],
              "host_rsa_test.c": ["tests/host_pmm_stub.c"],
              "host_x509_test.c": ["tests/host_pmm_stub.c"],
-             # WP-10-tui: the wireless bridge calls nic_dev_add (v2.0.0)
-             "host_wifi_test.c": ["tests/host_wifi_nic_stub.c"],
+             # WP-10-tui: the wireless bridge calls nic_dev_add (v2.0.0);
+             # WP-03 G3: driver_wireless_init collects families through the
+             # real registry (empty section boundaries via the stub)
+             "host_wifi_test.c": ["tests/host_wifi_nic_stub.c",
+                                   "tests/host_registry_stub.c",
+                                   "src/L0/core/core_registry.c"],
              # v2.0.0: block_svc.c probe path walks the driver registry
              "host_blk512_gate_test.c": ["tests/host_registry_stub.c",
                                           "src/L0/core/core_registry.c"]}

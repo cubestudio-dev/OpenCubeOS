@@ -11,7 +11,7 @@
 #ifndef DRIVER_RTLWIFI_H
 #define DRIVER_RTLWIFI_H
 
-/* Register the Realtek family with the wireless core. */
-void driver_rtlwifi_register(void);
+/* 3.0.0-WP03 G3: no register prototype anymore - the family
+ * self-declares in the .c file (OC_DRIVER_DECL("wireless", ...)). */
 
 #endif /* DRIVER_RTLWIFI_H */

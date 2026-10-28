@@ -21,6 +21,7 @@
 #include "mem_heap.h"
 #include "core_timer.h"
 #include "core_sched.h"
+#include "core_registry.h"
 #include "lib_string.h"
 
 static driver_usb_dev_t *g_dev;
@@ -31,12 +32,17 @@ static u8 g_ep_acl_out;              /* bulk OUT (ACL TX)              */
 static int bt_usb_probe(driver_usb_dev_t *d);
 static void bt_usb_disconnect(driver_usb_dev_t *d);
 
-int bt_usb_init(void)
-{
-    g_dev = 0;
-    return driver_usb_register_driver("btusb", 0xe0, bt_usb_probe,
-                                      bt_usb_disconnect);
-}
+/* 3.0.0-WP03 G3: file-local USB class-driver identity (was the
+ * explicit bt_usb_init() registration call from the HCI bring-up).
+ * The USB core collects it with the other class drivers before host
+ * enumeration - which runs before bt_stack_init(), so the transport
+ * is registered no later than before. */
+static const driver_usb_class_ops_t g_usbcls_btusb = {
+    "btusb", 0xe0,
+    bt_usb_probe, bt_usb_disconnect,
+};
+OC_DRIVER_DECL("usb", "btusb", &g_usbcls_btusb,
+               "Bluetooth USB transport (class 0xe0)");
 
 int bt_usb_present(void)
 {

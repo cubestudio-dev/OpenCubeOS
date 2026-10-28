@@ -28,6 +28,7 @@
 #include "driver_wireless.h"
 #include "driver_usb.h"
 #include "driver_pci.h"
+#include "core_registry.h"
 #include "mem_heap.h"
 #include "mem_pmm.h"
 #include "core_timer.h"
@@ -585,7 +586,7 @@ static const wl_family_ops_t rtl_ops = {
     0, rtl_tx_frame, rtl_selftest,
 };
 
-void driver_rtlwifi_register(void)
-{
-    wl_register_family(&rtl_ops);
-}
+/* 3.0.0-WP03 G3: file-local family identity (was the explicit
+ * driver_rtlwifi_register() call from kmain). */
+OC_DRIVER_DECL("wireless", "rtlwifi", &rtl_ops,
+               "Realtek wireless (rtlwifi PCI/USB family)");

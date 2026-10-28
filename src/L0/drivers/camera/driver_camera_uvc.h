@@ -38,7 +38,8 @@
 #include "driver_usb.h"
 #include "driver_camera.h"
 
-int  driver_camera_uvc_register(void);
+/* 3.0.0-WP03 G3: no register prototype anymore - the UVC class
+ * driver self-declares in the .c file (OC_DRIVER_DECL("usb", ...)). */
 int  driver_camera_uvc_count(void);
 int  driver_camera_uvc_descriptors(camera_dev_t *c, u8 *out, u16 max);
 

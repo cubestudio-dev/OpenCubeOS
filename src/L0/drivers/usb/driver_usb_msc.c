@@ -31,6 +31,7 @@
 #include "blk_drv_internal.h"
 #include "screen_console.h"
 #include "lib_string.h"
+#include "core_registry.h"
 #include "core_timer.h"
 #include "core_sched.h"
 
@@ -627,7 +628,11 @@ void driver_usb_msc_print_state(void) {
     if (!any) screen_console_puts("  msc: none\n");
 }
 
-int driver_usb_msc_init(void) {
-    return driver_usb_register_driver("usb-msc", USB_CLASS_MSC,
-                               driver_usb_msc_probe, driver_usb_msc_disconnect);
-}
+/* 3.0.0-WP03 G3: file-local class-driver identity (was the explicit
+ * driver_usb_msc_init() registration call from kmain). */
+static const driver_usb_class_ops_t g_usbcls_msc = {
+    "usb-msc", USB_CLASS_MSC,
+    driver_usb_msc_probe, driver_usb_msc_disconnect,
+};
+OC_DRIVER_DECL("usb", "usb-msc", &g_usbcls_msc,
+               "USB mass-storage BOT (SCSI passthrough)");

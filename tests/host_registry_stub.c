@@ -15,12 +15,17 @@
 
 /* lib_log_info shim - same observable behaviour as the kernel path
  * (core/lib/lib_log.c): the message goes to the console capture; the
- * ring/klog mirrors are kernel-only and not under test here. */
-extern void screen_console_puts(const char *s);
+ * ring/klog mirrors are kernel-only and not under test here.
+ * screen_console_puts is referenced WEAKLY: tests that provide a
+ * console capture (blk512) see the log line, tests without one
+ * (wifi, WP-03 G3) link cleanly and the message is dropped. */
+extern void screen_console_puts(const char *s) __attribute__((weak));
 void lib_log_info(const char *s) {
-    screen_console_puts("    ");
-    screen_console_puts(s);
-    screen_console_puts("\n");
+    if (screen_console_puts) {
+        screen_console_puts("    ");
+        screen_console_puts(s);
+        screen_console_puts("\n");
+    }
 }
 
 const oc_driver_decl_t     __oc_drvs_start[1] = {{0, 0, 0, 0}};

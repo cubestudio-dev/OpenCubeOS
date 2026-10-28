@@ -27,6 +27,7 @@
 #include "driver_wireless.h"
 #include "driver_pci.h"
 #include "mem_heap.h"
+#include "core_registry.h"
 #include "mem_pmm.h"
 #include "core_timer.h"
 #include "core_sched.h"
@@ -668,10 +669,11 @@ static const wl_family_ops_t ath11k_ops = {
     0, ath11k_tx_frame, ath11k_selftest,
 };
 
-/* ---------------- registration ---------------- */
-void driver_ath_register(void)
-{
-    wl_register_family(&ath9k_ops);
-    wl_register_family(&ath10k_ops);
-    wl_register_family(&ath11k_ops);
-}
+/* 3.0.0-WP03 G3: file-local family identities (was the explicit
+ * driver_ath_register() call from kmain). */
+OC_DRIVER_DECL("wireless", "ath9k", &ath9k_ops,
+               "Atheros ath9k (PCI family)");
+OC_DRIVER_DECL("wireless", "ath10k", &ath10k_ops,
+               "Atheros ath10k (PCIe family)");
+OC_DRIVER_DECL("wireless", "ath11k", &ath11k_ops,
+               "Atheros ath11k (PCIe family)");

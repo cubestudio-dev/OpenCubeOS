@@ -50,7 +50,8 @@ typedef struct {
     u8  wheel;
 } driver_usb_mouse_event_t;
 
-int  driver_usb_hid_init(void);
+/* 3.0.0-WP03 G3: no init/register prototype anymore - the class
+ * driver self-declares in the .c file (OC_DRIVER_DECL("usb", ...)). */
 void driver_usb_hid_poll(void);
 int  driver_usb_hid_num_keyboards(void);
 int  driver_usb_hid_num_mice(void);

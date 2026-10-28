@@ -195,8 +195,9 @@ void driver_snd_es1370_print_state(void);
 void driver_snd_virtio_print_state(void);
 void driver_usb_audio_print_state(void);
 
-/* WP-10c shell surface: tests + status commands (kernel/driver_snd_test_cmds.c). */
-void shell_cmds_snd_test_register(void);
+/* 3.0.0-WP03: the shell test-command registration prototype was stale
+ * since G1 (the L0 command surface is gone; snd_cmds.c self-registers
+ * its L1SVC ops through the service declaration). */
 
 /* Generate a PCM test tone (sine wave) into buf: rate/freq/channels and
  * milliseconds.  Returns the number of bytes written.  Used by `play`

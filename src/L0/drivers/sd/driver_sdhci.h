@@ -35,8 +35,9 @@ typedef struct sdio_driver {
 /* Bring-up.  Called once from kernel/main.c after the PCI scan.       */
 int  driver_sdhci_init(void);
 
-/* SDIO client driver registry (brcmfmac SDIO).                        */
-int  driver_sdio_register_driver(const sdio_driver_t *drv);
+/* SDIO client-driver registry (WP-03 G3: drivers self-declare via
+ * OC_DRIVER_DECL("sdio", ...) and the core collects them at init;
+ * the count accessor stays public for the shell/status surfaces). */
 int  driver_sdio_driver_count(void);
 
 /* Card state for the shell (honest states only).                      */

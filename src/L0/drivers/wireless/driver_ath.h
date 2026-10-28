@@ -11,7 +11,7 @@
 #ifndef DRIVER_ATH_H
 #define DRIVER_ATH_H
 
-/* Register all three Atheros sub-families with the wireless core. */
-void driver_ath_register(void);
+/* 3.0.0-WP03 G3: no register prototype anymore - the three Atheros
+ * sub-families self-declare in the .c file (OC_DRIVER_DECL). */
 
 #endif /* DRIVER_ATH_H */

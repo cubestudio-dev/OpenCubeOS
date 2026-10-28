@@ -30,6 +30,7 @@
 #include "screen_console.h"
 #include "lib_string.h"
 #include "core_timer.h"
+#include "core_registry.h"
 
 #define SER_MAX_PORTS 2
 #define SER_RX_RING   256
@@ -376,9 +377,18 @@ void driver_usb_serial_print_state(void) {
     if (!any) screen_console_puts("  serial: none\n");
 }
 
-int driver_usb_serial_init(void) {
-    driver_usb_register_driver("cdc-acm", USB_CLASS_CDC,
-                        driver_usb_serial_cdc_probe, driver_usb_serial_cdc_disconnect);
-    return driver_usb_register_driver("ftdi-serial", USB_CLASS_VENDOR,
-                               driver_usb_serial_ftdi_probe, driver_usb_serial_ftdi_disconnect);
-}
+/* 3.0.0-WP03 G3: file-local class-driver identity (was the explicit
+ * driver_usb_serial_init() registration call from kmain). */
+static const driver_usb_class_ops_t g_usbcls_cdc_acm = {
+    "cdc-acm", USB_CLASS_CDC,
+    driver_usb_serial_cdc_probe, driver_usb_serial_cdc_disconnect,
+};
+OC_DRIVER_DECL("usb", "cdc-acm", &g_usbcls_cdc_acm,
+               "USB CDC-ACM serial adapter");
+
+static const driver_usb_class_ops_t g_usbcls_ftdi = {
+    "ftdi-serial", USB_CLASS_VENDOR,
+    driver_usb_serial_ftdi_probe, driver_usb_serial_ftdi_disconnect,
+};
+OC_DRIVER_DECL("usb", "ftdi-serial", &g_usbcls_ftdi,
+               "FTDI USB-serial adapter (vendor class)");
