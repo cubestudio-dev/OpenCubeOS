@@ -115,6 +115,7 @@ void net_wl_fw_provider_install(void); /* 3.0.0-WP03 G2: wl firmware provider (s
 #include "ota_update.h"   /* WP-09-fix5: checkupdate */
 #include "version_gen.h"   /* WP-10-tui-qa: version recompile trigger (Makefile note) */
 #include "core_registry.h"
+#include "ocembed.h"      /* 3.0.0-WP03 G4: OCIRE embed (boot signal + agent) */
 
 /* User program data (defined in usermode.c). */
 extern const u8 userprog_hello[];
@@ -359,6 +360,14 @@ void kmain(u64 magic, u64 mbi_phys) {
     screen_console_reset(screen_fb_rgb(0xE0, 0xE0, 0xE0),
                      screen_fb_rgb(0x10, 0x10, 0x14));
     core_kcap_set_base_hook(screen_serial_hook, NULL);
+
+    /* ---- 3b. 3.0.0-WP03 G4: OCIRE embed facts ----
+     * Parse the oc.* command-line facts the recovery supervisor
+     * handed over (kexec) and capture the injected log-agent module.
+     * On a normal GRUB boot nothing matches and the embed service
+     * stays dormant.  Runs before the banner so a supervised boot is
+     * distinguishable from the very first console lines. */
+    ocembed_early_init(mbi.cmdline);
 
     /* ---- 4. Banner ---- */
     draw_banner();
@@ -741,6 +750,15 @@ void kmain(u64 magic, u64 mbi_phys) {
      * The system is fully up: clear the pessimistic bootfail marker
      * and promote slot B to the confirmed default (ok_B). */
     ota_update_confirm_boot();
+
+    /* ---- 16d. 3.0.0-WP03 G4: OCIRE boot confirmation ----
+     * The whole L0 is up.  On a supervised boot: write SIGNAL_OK into
+     * the recovery mailbox (+boot_count), DISARM the i6300esb the
+     * supervisor armed (inside its 60 s window - we are ~2 s in),
+     * ARM the whole-disk write protection on the recovery disk and
+     * spawn the injected log agent as the protected ocire_guard
+     * process.  No-op on a normal boot. */
+    ocembed_boot_confirm();
 
     /* ---- 17. 3.0.0-WP03 boot flow: L0 is a pure service kernel ----
      * L0 finishes init, announces readiness, and hands the machine to

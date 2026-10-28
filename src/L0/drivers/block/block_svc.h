@@ -111,6 +111,28 @@ int driver_block_write_sectors(int dev_idx, u64 lba, u32 count, const void *buf)
 int driver_block_read_sectors_raw(int dev_idx, u64 lba, u32 count, void *buf);
 int driver_block_write_sectors_raw(int dev_idx, u64 lba, u32 count, const void *buf);
 
+/* ---- 3.0.0-WP03 G4: whole-disk hard protection ----------------------
+ *
+ * When the OCIRE embed is active (the recovery supervisor handed the
+ * machine over with a mailbox), the disk carrying the mailbox/log is
+ * the RECOVERY DISK: every write through a covering device index is
+ * REFUSED (the whole-disk raw-write surface, e.g. disk_rw_test hda,
+ * is closed).  Reads stay open.  The OCOS partition on a normal
+ * dual-boot layout never exists as a child device (the 0xEE GPT
+ * shadow makes partscan see zero partitions - WP-01 isolation), so
+ * the guard cannot break a mounted filesystem: there is none on
+ * that disk.  Partition-child writes on OTHER disks go through the
+ * trusted path below (kernel-internal, parent ops direct).
+ *
+ * driver_block_write_sectors_trusted: kernel-internal channel for
+ * the OCIRE embed service itself (mailbox signal + boot-log ring
+ * appends) and for partition children writing through their parent.
+ * Never callable from ring 3. */
+void driver_block_set_protected(int dev_idx);
+int  driver_block_is_protected(int dev_idx);
+int  driver_block_read_sectors_trusted(int dev_idx, u64 lba, u32 count, void *buf);
+int  driver_block_write_sectors_trusted(int dev_idx, u64 lba, u32 count, const void *buf);
+
 /* ---- WP-10a: pointer-based driver API (L1 extension interface) ----
  *
  * These four functions are the recommended way for a driver or an L1

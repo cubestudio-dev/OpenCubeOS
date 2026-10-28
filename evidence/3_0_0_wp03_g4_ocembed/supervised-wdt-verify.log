@@ -1,0 +1,692 @@
+[H[J[1;1H[m[m[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2[B
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*OCIRE boot supervisor (watchdog -> Open Cube OS)                           [m[5;78H[m[m[6;3H OCIRE recovery (full shell)                                                [m[6;78H[m[m[7;3H Open Cube OS (direct boot)                                                 [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 8s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 7s.                 [5;78H[22;1H                                                                               [23;1H                                                                               [5;78H[m[5;3H OCIRE boot supervisor (watchdog -> Open Cube OS)                           [m[5;78H[m[7m[6;3H*OCIRE recovery (full shell)                                                [m[6;78H[m[?25h[H[J[1;1H[H[J[1;1H
+OCIRE - OpenCubeOS Independent Recovery Environment
+OCIRE 3.0.0-WP-02 (build 328)
+Independent recovery kernel (L0 peer of Open Cube OS).
+Video: linear framebuffer 800x600x32
+Cmdline: ocire.mode=full
+CPU exception handlers armed.
+ACPI: FADT found (S5 SLP_TYP=0)
+Ready. Type 'help' for the command list.
+
+ocire> syscheck
+syscheck
+OCIRE syscheck
+  1. Disks: 2 ATA disk(s) ... OK
+  2. Recovery volume (0xEE + FAT12) ... OK (disk 1, LBA 2048)
+  3. System volume (FAT32) ... OK (disk 0, LBA 2048)
+  4. Mailbox ... OK (state SIGNAL_OK, boots 1, timeouts 0)
+  5. Boot log ring ... logread
+OK (65024 bytes, 49480 used)
+  6. Log agent ... OK (SHA-256 matches the mailbox)
+  7. Golden manifest ... OK (5 entries)
+  8. Golden files ... OK (all match the manifest)
+  9. System files:
+       BOOT/OPENCUBE.ELF ... OK (1672040 bytes)
+       BOOT/OCIRE.ELF ... OK (60224 bytes)
+       BOOT/GRUB/GRUB.CFG ... OK (2288 bytes)
+       BOOT/GRUB/FONTS/UNICODE.PF2 ... OK (2411806 bytes)
+       EFI/BOOT/BOOTX64.EFI ... OK (794624 bytes)
+ 10. Recovery kernel copy (hd1) ... OK
+Result: 10 checks OK, 0 problems found
+System healthy.
+ocire> logread
+Boot log: 65024 bytes capacity, 49480 bytes used, boot sequence 0
+---- boot log begin ----
+=== ocire-agent started ===
+[0.000] INFO  ocire: supervised boot: mailbox located
+[0.000] INFO  boot: Open Cube OS - L0 kernel (2.2.0)
+[0.000] INFO  boot: Apache 2.0 licensed. See LICENSE.
+[0.000] INFO  boot: [00:00:00.000] multiboot2 handshake (OK)
+[0.000] INFO  boot: [00:00:00.000] long mode entry (OK)
+[0.000] INFO  boot: [00:00:00.000] framebuffer 800x600x32 (OK)
+[0.000] INFO  boot: fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[0.000] INFO  boot: [00:00:00.000] console grid (OK)
+[0.000] INFO  boot: [00:00:00.000] default 8x16 font engine (OK)
+[0.000] INFO  boot: [00:00:00.000] WP-01 ext: fb access / renderer / font / console hook (OK)
+[0.000] INFO  boot: [00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[0.000] INFO  boot: [00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[0.000] INFO  boot: [00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[0.000] INFO  boot: [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[0.000] INFO  boot: [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[0.000] INFO  boot: [00:00:00.000] console input line editor......................... OK
+[0.000] INFO  boot: [00:00:00.000] interrupts enabled (sti).......................... OK
+[0.000] INFO  boot: WP-01 ext self-test: 4/4 points reachable
+[0.000] INFO  boot: [00:00:00.000] WP-01 extension self-test......................... OK
+[0.000] INFO  boot: exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[0.000] INFO  boot: [00:00:00.000] exception self-test............................... OK
+[0.000] INFO  boot: [00:00:00.000] PMM (physical memory manager)..................... OK
+[0.000] INFO  boot: [00:00:00.000] VMM (virtual memory manager)...................... OK
+[0.000] INFO  boot: [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[0.000] INFO  boot: [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[0.000] INFO  boot: [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+[0.000] INFO  boot: [00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[0.010] INFO  boot: registry: file-local declarations collected
+[0.010] INFO  boot: registry: drv=37 svc=14 app=1
+[0.020] INFO  boot: [00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5 (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready) (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: DSDT located (AML interpreter can load) (OK)
+[0.030] INFO  boot: [00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[0.030] INFO  boot: [00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38 (OK)
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.070] INFO  boot: [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[0.080] INFO  boot: [00:00:00.070] SMBus: 8 device(s) at scan (OK)
+[0.080] INFO  boot: AML: AML: undefined name PRQ0
+[0.090] INFO  boot: AML: AML: undefined name PRQ1
+[0.090] INFO  boot: AML: AML: undefined name PRQ2
+[0.100] INFO  boot: AML: AML: undefined name PRQ3
+[0.100] INFO  boot: AML: AML: undefined name VEND
+[0.110] INFO  boot: AML: AML: undefined name CSEL
+[0.110] INFO  boot: AML: AML: undefined name CPEN
+[0.120] INFO  boot: [00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.120] INFO  boot: [00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.130] INFO  boot: [00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[0.130] INFO  boot: [00:00:00.130] VFS (virtual file system)......................... OK
+[0.150] INFO  boot: [00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+[0.260] INFO  boot: [00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+[0.270] INFO  boot: [00:00:00.270] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.390] INFO  boot: [00:00:00.380] USB hosts up: 0................................... OK
+[0.390] INFO  boot: [00:00:00.390] USB stack (4 HC backends, HID/MSC/seria=== ocire-agent alive ===
+logread
+[0.000] INFO  ocire: supervised boot: mailbox located
+[0.000] INFO  boot: Open Cube OS - L0 kernel (2.2.0)
+[0.000] INFO  boot: Apache 2.0 licensed. See LICENSE.
+[0.000] INFO  boot: [00:00:00.000] multiboot2 handshake (OK)
+[0.000] INFO  boot: [00:00:00.000] long mode entry (OK)
+[0.000] INFO  boot: [00:00:00.000] framebuffer 800x600x32 (OK)
+[0.000] INFO  boot: fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[0.000] INFO  boot: [00:00:00.000] console grid (OK)
+[0.000] INFO  boot: [00:00:00.000] default 8x16 font engine (OK)
+[0.000] INFO  boot: [00:00:00.000] WP-01 ext: fb access / renderer / font / console hook (OK)
+[0.000] INFO  boot: [00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[0.000] INFO  boot: [00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[0.000] INFO  boot: [00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[0.000] INFO  boot: [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[0.000] INFO  boot: [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[0.000] INFO  boot: [00:00:00.000] console input line editor......................... OK
+[0.000] INFO  boot: [00:00:00.000] interrupts enabled (sti).......................... OK
+[0.000] INFO  boot: WP-01 ext self-test: 4/4 points reachable
+[0.000] INFO  boot: [00:00:00.000] WP-01 extension self-test......................... OK
+[0.000] INFO  boot: exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[0.000] INFO  boot: [00:00:00.000] exception self-test............................... OK
+[0.000] INFO  boot: [00:00:00.000] PMM (physical memory manager)..................... OK
+[0.000] INFO  boot: [00:00:00.000] VMM (virtual memory manager)...................... OK
+[0.000] INFO  boot: [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[0.000] INFO  boot: [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[0.000] INFO  boot: [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+[0.000] INFO  boot: [00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[0.010] INFO  boot: registry: file-local declarations collected
+[0.010] INFO  boot: registry: drv=37 svc=14 app=1
+[0.020] INFO  boot: [00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5 (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready) (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: DSDT located (AML interpreter can load) (OK)
+[0.030] INFO  boot: [00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[0.030] INFO  boot: [00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38 (OK)
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.070] INFO  boot: [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[0.080] INFO  boot: [00:00:00.070] SMBus: 8 device(s) at scan (OK)
+[0.080] INFO  boot: AML: AML: undefined name PRQ0
+[0.090] INFO  boot: AML: AML: undefined name PRQ1
+[0.090] INFO  boot: AML: AML: undefined name PRQ2
+[0.100] INFO  boot: AML: AML: undefined name PRQ3
+[0.100] INFO  boot: AML: AML: undefined name VEND
+[0.110] INFO  boot: AML: AML: undefined name CSEL
+[0.110] INFO  boot: AML: AML: undefined name CPEN
+[0.120] INFO  boot: [00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.120] INFO  boot: [00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.130] INFO  boot: [00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[0.130] INFO  boot: [00:00:00.130] VFS (virtual file system)......................... OK
+[0.150] INFO  boot: [00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+[0.260] INFO  boot: [00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+[0.270] INFO  boot: [00:00:00.270] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.390] INFO  boot: [00:00:00.380] USB hosts up: 0................................... OK
+[0.390] INFO  boot: [00:00:00.390] USB stack (4 HC backends, HID/MSC/seria=== ocire-agent alive ===
+[0.000] INFO  ocire: supervised boot: mailbox located
+[0.000] INFO  boot: Open Cube OS - L0 kernel (2.2.0)
+[0.000] INFO  boot: Apache 2.0 licensed. See LICENSE.
+[0.000] INFO  boot: [00:00:00.000] multiboot2 handshake (OK)
+[0.000] INFO  boot: [00:00:00.000] long mode entry (OK)
+[0.000] INFO  boot: [00:00:00.000] framebuffer 800x600x32 (OK)
+[0.000] INFO  boot: fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[0.000] INFO  boot: [00:00:00.000] console grid (OK)
+[0.000] INFO  boot: [00:00:00.000] default 8x16 font engine (OK)
+[0.000] INFO  boot: [00:00:00.000] WP-01 ext: fb access / renderer / font / console hook (OK)
+[0.000] INFO  boot: [00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[0.000] INFO  boot: [00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[0.000] INFO  boot: [00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[0.000] INFO  boot: [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[0.000] INFO  boot: [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[0.000] INFO  boot: [00:00:00.000] console input line editor......................... OK
+[0.000] INFO  boot: [00:00:00.000] interrupts enabled (sti).......................... OK
+[0.000] INFO  boot: WP-01 ext self-test: 4/4 points reachable
+[0.000] INFO  boot: [00:00:00.000] WP-01 extension self-test......................... OK
+[0.000] INFO  boot: exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[0.000] INFO  boot: [00:00:00.000] exception self-test............................... OK
+[0.000] INFO  boot: [00:00:00.000] PMM (physical memory manager)..................... OK
+[0.000] INFO  boot: [00:00:00.000] VMM (virtual memory manager)...................... OK
+[0.000] INFO  boot: [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[0.000] INFO  boot: [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[0.000] INFO  boot: [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+[0.000] INFO  boot: [00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[0.010] INFO  boot: registry: file-local declarations collected
+[0.010] INFO  boot: registry: drv=37 svc=14 app=1
+[0.020] INFO  boot: [00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5 (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready) (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: DSDT located (AML interpreter can load) (OK)
+[0.030] INFO  boot: [00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[0.030] INFO  boot: [00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38 (OK)
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.070] INFO  boot: [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[0.080] INFO  boot: [00:00:00.070] SMBus: 8 device(s) at scan (OK)
+[0.080] INFO  boot: AML: AML: undefined name PRQ0
+[0.090] INFO  boot: AML: AML: undefined name PRQ1
+[0.090] INFO  boot: AML: AML: undefined name PRQ2
+[0.100] INFO  boot: AML: AML: undefined name PRQ3
+[0.100] INFO  boot: AML: AML: undefined name VEND
+[0.110] INFO  boot: AML: AML: undefined name CSEL
+[0.110] INFO  boot: AML: AML: undefined name CPEN
+[0.120] INFO  boot: [00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.120] INFO  boot: [00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.130] INFO  boot: [00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[0.130] INFO  boot: [00:00:00.130] VFS (virtual file system)......................... OK
+[0.150] INFO  boot: [00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+[0.260] INFO  boot: [00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+[0.270] INFO  boot: [00:00:00.270] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.390] INFO  boot: [00:00:00.380] USB hosts up: 0................................... OK
+[0.390] INFO  boot: [00:00:00.390] USB stack (4 HC backends, HID/MSC/seria=== ocire-agent alive ===
+[0.000] INFO  ocire: supervised boot: mailbox located
+[0.000] INFO  boot: Open Cube OS - L0 kernel (2.2.0)
+[0.000] INFO  boot: Apache 2.0 licensed. See LICENSE.
+[0.000] INFO  boot: [00:00:00.000] multiboot2 handshake (OK)
+[0.000] INFO  boot: [00:00:00.000] long mode entry (OK)
+[0.000] INFO  boot: [00:00:00.000] framebuffer 800x600x32 (OK)
+[0.000] INFO  boot: fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[0.000] INFO  boot: [00:00:00.000] console grid (OK)
+[0.000] INFO  boot: [00:00:00.000] default 8x16 font engine (OK)
+[0.000] INFO  boot: [00:00:00.000] WP-01 ext: fb access / renderer / font / console hook (OK)
+[0.000] INFO  boot: [00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[0.000] INFO  boot: [00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[0.000] INFO  boot: [00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[0.000] INFO  boot: [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[0.000] INFO  boot: [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[0.000] INFO  boot: [00:00:00.000] console input line editor......................... OK
+[0.000] INFO  boot: [00:00:00.000] interrupts enabled (sti).......................... OK
+[0.000] INFO  boot: WP-01 ext self-test: 4/4 points reachable
+[0.000] INFO  boot: [00:00:00.000] WP-01 extension self-test......................... OK
+[0.000] INFO  boot: exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[0.000] INFO  boot: [00:00:00.000] exception self-test............................... OK
+[0.000] INFO  boot: [00:00:00.000] PMM (physical memory manager)..................... OK
+[0.000] INFO  boot: [00:00:00.000] VMM (virtual memory manager)...................... OK
+[0.000] INFO  boot: [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[0.000] INFO  boot: [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[0.000] INFO  boot: [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+[0.000] INFO  boot: [00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[0.010] INFO  boot: registry: file-local declarations collected
+[0.010] INFO  boot: registry: drv=37 svc=14 app=1
+[0.020] INFO  boot: [00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5 (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready) (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: DSDT located (AML interpreter can load) (OK)
+[0.030] INFO  boot: [00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[0.030] INFO  boot: [00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38 (OK)
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.070] INFO  boot: [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[0.080] INFO  boot: [00:00:00.070] SMBus: 8 device(s) at scan (OK)
+[0.080] INFO  boot: AML: AML: undefined name PRQ0
+[0.090] INFO  boot: AML: AML: undefined name PRQ1
+[0.090] INFO  boot: AML: AML: undefined name PRQ2
+[0.100] INFO  boot: AML: AML: undefined name PRQ3
+[0.100] INFO  boot: AML: AML: undefined name VEND
+[0.110] INFO  boot: AML: AML: undefined name CSEL
+[0.110] INFO  boot: AML: AML: undefined name CPEN
+[0.120] INFO  boot: [00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.120] INFO  boot: [00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.130] INFO  boot: [00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[0.130] INFO  boot: [00:00:00.130] VFS (virtual file system)......................... OK
+[0.150] INFO  boot: [00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+[0.260] INFO  boot: [00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+[0.270] INFO  boot: [00:00:00.270] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.390] INFO  boot: [00:00:00.380] USB hosts up: 0................................... OK
+[0.390] INFO  boot: [00:00:00.390] USB stack (4 HC backends, HID/MSC/seria=== ocire-agent alive ===
+[0.000] INFO  ocire: supervised boot: mailbox located
+[0.000] INFO  boot: Open Cube OS - L0 kernel (2.2.0)
+[0.000] INFO  boot: Apache 2.0 licensed. See LICENSE.
+[0.000] INFO  boot: [00:00:00.000] multiboot2 handshake (OK)
+[0.000] INFO  boot: [00:00:00.000] long mode entry (OK)
+[0.000] INFO  boot: [00:00:00.000] framebuffer 800x600x32 (OK)
+[0.000] INFO  boot: fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[0.000] INFO  boot: [00:00:00.000] console grid (OK)
+[0.000] INFO  boot: [00:00:00.000] default 8x16 font engine (OK)
+[0.000] INFO  boot: [00:00:00.000] WP-01 ext: fb access / renderer / font / console hook (OK)
+[0.000] INFO  boot: [00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[0.000] INFO  boot: [00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[0.000] INFO  boot: [00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[0.000] INFO  boot: [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[0.000] INFO  boot: [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[0.000] INFO  boot: [00:00:00.000] console input line editor......................... OK
+[0.000] INFO  boot: [00:00:00.000] interrupts enabled (sti).......................... OK
+[0.000] INFO  boot: WP-01 ext self-test: 4/4 points reachable
+[0.000] INFO  boot: [00:00:00.000] WP-01 extension self-test......................... OK
+[0.000] INFO  boot: exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[0.000] INFO  boot: [00:00:00.000] exception self-test............................... OK
+[0.000] INFO  boot: [00:00:00.000] PMM (physical memory manager)..................... OK
+[0.000] INFO  boot: [00:00:00.000] VMM (virtual memory manager)...................... OK
+[0.000] INFO  boot: [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[0.000] INFO  boot: [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[0.000] INFO  boot: [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+[0.000] INFO  boot: [00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[0.010] INFO  boot: registry: file-local declarations collected
+[0.010] INFO  boot: registry: drv=37 svc=14 app=1
+[0.020] INFO  boot: [00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5 (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready) (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: DSDT located (AML interpreter can load) (OK)
+[0.030] INFO  boot: [00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[0.030] INFO  boot: [00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38 (OK)
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.070] INFO  boot: [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[0.080] INFO  boot: [00:00:00.070] SMBus: 8 device(s) at scan (OK)
+[0.080] INFO  boot: AML: AML: undefined name PRQ0
+[0.090] INFO  boot: AML: AML: undefined name PRQ1
+[0.090] INFO  boot: AML: AML: undefined name PRQ2
+[0.100] INFO  boot: AML: AML: undefined name PRQ3
+[0.100] INFO  boot: AML: AML: undefined name VEND
+[0.110] INFO  boot: AML: AML: undefined name CSEL
+[0.110] INFO  boot: AML: AML: undefined name CPEN
+[0.120] INFO  boot: [00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.120] INFO  boot: [00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.130] INFO  boot: [00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[0.130] INFO  boot: [00:00:00.130] VFS (virtual file system)......................... OK
+[0.150] INFO  boot: [00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+[0.260] INFO  boot: [00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+[0.270] INFO  boot: [00:00:00.270] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.390] INFO  boot: [00:00:00.380] USB hosts up: 0................................... OK
+[0.390] INFO  boot: [00:00:00.390] USB stack (4 HC backends, HID/MSC/seria=== ocire-agent alive ===
+[0.000] INFO  ocire: supervised boot: mailbox located
+[0.000] INFO  boot: Open Cube OS - L0 kernel (2.2.0)
+[0.000] INFO  boot: Apache 2.0 licensed. See LICENSE.
+[0.000] INFO  boot: [00:00:00.000] multiboot2 handshake (OK)
+[0.000] INFO  boot: [00:00:00.000] long mode entry (OK)
+[0.000] INFO  boot: [00:00:00.000] framebuffer 800x600x32 (OK)
+[0.000] INFO  boot: fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[0.000] INFO  boot: [00:00:00.000] console grid (OK)
+[0.000] INFO  boot: [00:00:00.000] default 8x16 font engine (OK)
+[0.000] INFO  boot: [00:00:00.000] WP-01 ext: fb access / renderer / font / console hook (OK)
+[0.000] INFO  boot: [00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[0.000] INFO  boot: [00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[0.000] INFO  boot: [00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[0.000] INFO  boot: [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[0.000] INFO  boot: [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[0.000] INFO  boot: [00:00:00.000] console input line editor......................... OK
+[0.000] INFO  boot: [00:00:00.000] interrupts enabled (sti).......................... OK
+[0.000] INFO  boot: WP-01 ext self-test: 4/4 points reachable
+[0.000] INFO  boot: [00:00:00.000] WP-01 extension self-test......................... OK
+[0.000] INFO  boot: exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[0.000] INFO  boot: [00:00:00.000] exception self-test............................... OK
+[0.000] INFO  boot: [00:00:00.000] PMM (physical memory manager)..................... OK
+[0.000] INFO  boot: [00:00:00.000] VMM (virtual memory manager)...................... OK
+[0.000] INFO  boot: [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[0.000] INFO  boot: [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[0.000] INFO  boot: [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+[0.000] INFO  boot: [00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[0.010] INFO  boot: registry: file-local declarations collected
+[0.010] INFO  boot: registry: drv=37 svc=14 app=1
+[0.020] INFO  boot: [00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5 (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready) (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: DSDT located (AML interpreter can load) (OK)
+[0.030] INFO  boot: [00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[0.030] INFO  boot: [00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38 (OK)
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.070] INFO  boot: [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[0.080] INFO  boot: [00:00:00.070] SMBus: 8 device(s) at scan (OK)
+[0.080] INFO  boot: AML: AML: undefined name PRQ0
+[0.090] INFO  boot: AML: AML: undefined name PRQ1
+[0.090] INFO  boot: AML: AML: undefined name PRQ2
+[0.100] INFO  boot: AML: AML: undefined name PRQ3
+[0.100] INFO  boot: AML: AML: undefined name VEND
+[0.110] INFO  boot: AML: AML: undefined name CSEL
+[0.110] INFO  boot: AML: AML: undefined name CPEN
+[0.120] INFO  boot: [00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.120] INFO  boot: [00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.130] INFO  boot: [00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[0.130] INFO  boot: [00:00:00.130] VFS (virtual file system)......................... OK
+[0.150] INFO  boot: [00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+[0.260] INFO  boot: [00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+[0.270] INFO  boot: [00:00:00.270] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.390] INFO  boot: [00:00:00.380] USB hosts up: 0................................... OK
+[0.390] INFO  boot: [00:00:00.390] USB stack (4 HC backends, HID/MSC/seria=== ocire-agent alive ===
+[0.000] INFO  ocire: supervised boot: mailbox located
+[0.000] INFO  boot: Open Cube OS - L0 kernel (2.2.0)
+[0.000] INFO  boot: Apache 2.0 licensed. See LICENSE.
+[0.000] INFO  boot: [00:00:00.000] multiboot2 handshake (OK)
+[0.000] INFO  boot: [00:00:00.000] long mode entry (OK)
+[0.000] INFO  boot: [00:00:00.000] framebuffer 800x600x32 (OK)
+[0.000] INFO  boot: fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[0.000] INFO  boot: [00:00:00.000] console grid (OK)
+[0.000] INFO  boot: [00:00:00.000] default 8x16 font engine (OK)
+[0.000] INFO  boot: [00:00:00.000] WP-01 ext: fb access / renderer / font / console hook (OK)
+[0.000] INFO  boot: [00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[0.000] INFO  boot: [00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[0.000] INFO  boot: [00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[0.000] INFO  boot: [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[0.000] INFO  boot: [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[0.000] INFO  boot: [00:00:00.000] console input line editor......................... OK
+[0.000] INFO  boot: [00:00:00.000] interrupts enabled (sti).......................... OK
+[0.000] INFO  boot: WP-01 ext self-test: 4/4 points reachable
+[0.000] INFO  boot: [00:00:00.000] WP-01 extension self-test......................... OK
+[0.000] INFO  boot: exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[0.000] INFO  boot: [00:00:00.000] exception self-test............................... OK
+[0.000] INFO  boot: [00:00:00.000] PMM (physical memory manager)..................... OK
+[0.000] INFO  boot: [00:00:00.000] VMM (virtual memory manager)...................... OK
+[0.000] INFO  boot: [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[0.000] INFO  boot: [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[0.000] INFO  boot: [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+[0.000] INFO  boot: [00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[0.010] INFO  boot: registry: file-local declarations collected
+[0.010] INFO  boot: registry: drv=37 svc=14 app=1
+[0.020] INFO  boot: [00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5 (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready) (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: DSDT located (AML interpreter can load) (OK)
+[0.030] INFO  boot: [00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[0.030] INFO  boot: [00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38 (OK)
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.070] INFO  boot: [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[0.080] INFO  boot: [00:00:00.070] SMBus: 8 device(s) at scan (OK)
+[0.080] INFO  boot: AML: AML: undefined name PRQ0
+[0.090] INFO  boot: AML: AML: undefined name PRQ1
+[0.090] INFO  boot: AML: AML: undefined name PRQ2
+[0.100] INFO  boot: AML: AML: undefined name PRQ3
+[0.100] INFO  boot: AML: AML: undefined name VEND
+[0.110] INFO  boot: AML: AML: undefined name CSEL
+[0.110] INFO  boot: AML: AML: undefined name CPEN
+[0.120] INFO  boot: [00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.120] INFO  boot: [00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.130] INFO  boot: [00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[0.130] INFO  boot: [00:00:00.130] VFS (virtual file system)......................... OK
+[0.150] INFO  boot: [00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+[0.260] INFO  boot: [00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+[0.270] INFO  boot: [00:00:00.270] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.390] INFO  boot: [00:00:00.380] USB hosts up: 0................................... OK
+[0.390] INFO  boot: [00:00:00.390] USB stack (4 HC backends, HID/MSC/seria=== ocire-agent alive ===
+[0.000] INFO  ocire: supervised boot: mailbox located
+[0.000] INFO  boot: Open Cube OS - L0 kernel (2.2.0)
+[0.000] INFO  boot: Apache 2.0 licensed. See LICENSE.
+[0.000] INFO  boot: [00:00:00.000] multiboot2 handshake (OK)
+[0.000] INFO  boot: [00:00:00.000] long mode entry (OK)
+[0.000] INFO  boot: [00:00:00.000] framebuffer 800x600x32 (OK)
+[0.000] INFO  boot: fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[0.000] INFO  boot: [00:00:00.000] console grid (OK)
+[0.000] INFO  boot: [00:00:00.000] default 8x16 font engine (OK)
+[0.000] INFO  boot: [00:00:00.000] WP-01 ext: fb access / renderer / font / console hook (OK)
+[0.000] INFO  boot: [00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[0.000] INFO  boot: [00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[0.000] INFO  boot: [00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[0.000] INFO  boot: [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[0.000] INFO  boot: [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[0.000] INFO  boot: [00:00:00.000] console input line editor......................... OK
+[0.000] INFO  boot: [00:00:00.000] interrupts enabled (sti).......................... OK
+[0.000] INFO  boot: WP-01 ext self-test: 4/4 points reachable
+[0.000] INFO  boot: [00:00:00.000] WP-01 extension self-test......................... OK
+[0.000] INFO  boot: exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[0.000] INFO  boot: [00:00:00.000] exception self-test............................... OK
+[0.000] INFO  boot: [00:00:00.000] PMM (physical memory manager)..................... OK
+[0.000] INFO  boot: [00:00:00.000] VMM (virtual memory manager)...................... OK
+[0.000] INFO  boot: [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[0.000] INFO  boot: [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[0.000] INFO  boot: [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+[0.000] INFO  boot: [00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[0.010] INFO  boot: registry: file-local declarations collected
+[0.010] INFO  boot: registry: drv=37 svc=14 app=1
+[0.020] INFO  boot: [00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5 (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready) (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: DSDT located (AML interpreter can load) (OK)
+[0.030] INFO  boot: [00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[0.030] INFO  boot: [00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38 (OK)
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.070] INFO  boot: [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[0.080] INFO  boot: [00:00:00.070] SMBus: 8 device(s) at scan (OK)
+[0.080] INFO  boot: AML: AML: undefined name PRQ0
+[0.090] INFO  boot: AML: AML: undefined name PRQ1
+[0.090] INFO  boot: AML: AML: undefined name PRQ2
+[0.100] INFO  boot: AML: AML: undefined name PRQ3
+[0.100] INFO  boot: AML: AML: undefined name VEND
+[0.110] INFO  boot: AML: AML: undefined name CSEL
+[0.110] INFO  boot: AML: AML: undefined name CPEN
+[0.120] INFO  boot: [00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.120] INFO  boot: [00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.130] INFO  boot: [00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[0.130] INFO  boot: [00:00:00.130] VFS (virtual file system)......................... OK
+[0.150] INFO  boot: [00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+[0.260] INFO  boot: [00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+[0.270] INFO  boot: [00:00:00.270] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.390] INFO  boot: [00:00:00.380] USB hosts up: 0................................... OK
+[0.390] INFO  boot: [00:00:00.390] USB stack (4 HC backends, HID/MSC/seria=== ocire-agent alive ===
+[0.000] INFO  ocire: supervised boot: mailbox located
+[0.000] INFO  boot: Open Cube OS - L0 kernel (2.2.0)
+[0.000] INFO  boot: Apache 2.0 licensed. See LICENSE.
+[0.000] INFO  boot: [00:00:00.000] multiboot2 handshake (OK)
+[0.000] INFO  boot: [00:00:00.000] long mode entry (OK)
+[0.000] INFO  boot: [00:00:00.000] framebuffer 800x600x32 (OK)
+[0.000] INFO  boot: fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[0.000] INFO  boot: [00:00:00.000] console grid (OK)
+[0.000] INFO  boot: [00:00:00.000] default 8x16 font engine (OK)
+[0.000] INFO  boot: [00:00:00.000] WP-01 ext: fb access / renderer / font / console hook (OK)
+[0.000] INFO  boot: [00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[0.000] INFO  boot: [00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[0.000] INFO  boot: [00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[0.000] INFO  boot: [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[0.000] INFO  boot: [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[0.000] INFO  boot: [00:00:00.000] console input line editor......................... OK
+[0.000] INFO  boot: [00:00:00.000] interrupts enabled (sti).......................... OK
+[0.000] INFO  boot: WP-01 ext self-test: 4/4 points reachable
+[0.000] INFO  boot: [00:00:00.000] WP-01 extension self-test......................... OK
+[0.000] INFO  boot: exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[0.000] INFO  boot: [00:00:00.000] exception self-test............................... OK
+[0.000] INFO  boot: [00:00:00.000] PMM (physical memory manager)..................... OK
+[0.000] INFO  boot: [00:00:00.000] VMM (virtual memory manager)...................... OK
+[0.000] INFO  boot: [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[0.000] INFO  boot: [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[0.000] INFO  boot: [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+[0.000] INFO  boot: [00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[0.010] INFO  boot: registry: file-local declarations collected
+[0.010] INFO  boot: registry: drv=37 svc=14 app=1
+[0.020] INFO  boot: [00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5 (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready) (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: DSDT located (AML interpreter can load) (OK)
+[0.030] INFO  boot: [00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[0.030] INFO  boot: [00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38 (OK)
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.070] INFO  boot: [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[0.080] INFO  boot: [00:00:00.070] SMBus: 8 device(s) at scan (OK)
+[0.080] INFO  boot: AML: AML: undefined name PRQ0
+[0.090] INFO  boot: AML: AML: undefined name PRQ1
+[0.090] INFO  boot: AML: AML: undefined name PRQ2
+[0.100] INFO  boot: AML: AML: undefined name PRQ3
+[0.100] INFO  boot: AML: AML: undefined name VEND
+[0.110] INFO  boot: AML: AML: undefined name CSEL
+[0.110] INFO  boot: AML: AML: undefined name CPEN
+[0.120] INFO  boot: [00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.120] INFO  boot: [00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.130] INFO  boot: [00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[0.130] INFO  boot: [00:00:00.130] VFS (virtual file system)......................... OK
+[0.150] INFO  boot: [00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+[0.260] INFO  boot: [00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+[0.270] INFO  boot: [00:00:00.270] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.390] INFO  boot: [00:00:00.380] USB hosts up: 0................................... OK
+[0.390] INFO  boot: [00:00:00.390] USB stack (4 HC backends, HID/MSC/seria=== ocire-agent alive ===
+[0.000] INFO  ocire: supervised boot: mailbox located
+[0.000] INFO  boot: Open Cube OS - L0 kernel (2.2.0)
+[0.000] INFO  boot: Apache 2.0 licensed. See LICENSE.
+[0.000] INFO  boot: [00:00:00.000] multiboot2 handshake (OK)
+[0.000] INFO  boot: [00:00:00.000] long mode entry (OK)
+[0.000] INFO  boot: [00:00:00.000] framebuffer 800x600x32 (OK)
+[0.000] INFO  boot: fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[0.000] INFO  boot: [00:00:00.000] console grid (OK)
+[0.000] INFO  boot: [00:00:00.000] default 8x16 font engine (OK)
+[0.000] INFO  boot: [00:00:00.000] WP-01 ext: fb access / renderer / font / console hook (OK)
+[0.000] INFO  boot: [00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[0.000] INFO  boot: [00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[0.000] INFO  boot: [00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[0.000] INFO  boot: [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[0.000] INFO  boot: [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[0.000] INFO  boot: [00:00:00.000] console input line editor......................... OK
+[0.000] INFO  boot: [00:00:00.000] interrupts enabled (sti).......................... OK
+[0.000] INFO  boot: WP-01 ext self-test: 4/4 points reachable
+[0.000] INFO  boot: [00:00:00.000] WP-01 extension self-test......................... OK
+[0.000] INFO  boot: exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[0.000] INFO  boot: [00:00:00.000] exception self-test............................... OK
+[0.000] INFO  boot: [00:00:00.000] PMM (physical memory manager)..................... OK
+[0.000] INFO  boot: [00:00:00.000] VMM (virtual memory manager)...................... OK
+[0.000] INFO  boot: [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[0.000] INFO  boot: [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[0.000] INFO  boot: [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+[0.000] INFO  boot: [00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[0.010] INFO  boot: registry: file-local declarations collected
+[0.010] INFO  boot: registry: drv=37 svc=14 app=1
+[0.020] INFO  boot: [00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5 (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready) (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: DSDT located (AML interpreter can load) (OK)
+[0.030] INFO  boot: [00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[0.030] INFO  boot: [00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38 (OK)
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.070] INFO  boot: [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[0.080] INFO  boot: [00:00:00.070] SMBus: 8 device(s) at scan (OK)
+[0.080] INFO  boot: AML: AML: undefined name PRQ0
+[0.090] INFO  boot: AML: AML: undefined name PRQ1
+[0.090] INFO  boot: AML: AML: undefined name PRQ2
+[0.100] INFO  boot: AML: AML: undefined name PRQ3
+[0.100] INFO  boot: AML: AML: undefined name VEND
+[0.110] INFO  boot: AML: AML: undefined name CSEL
+[0.110] INFO  boot: AML: AML: undefined name CPEN
+[0.120] INFO  boot: [00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.120] INFO  boot: [00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.130] INFO  boot: [00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[0.130] INFO  boot: [00:00:00.130] VFS (virtual file system)......................... OK
+[0.150] INFO  boot: [00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+[0.260] INFO  boot: [00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+[0.270] INFO  boot: [00:00:00.270] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.390] INFO  boot: [00:00:00.380] USB hosts up: 0................................... OK
+[0.390] INFO  boot: [00:00:00.390] USB stack (4 HC backends, HID/MSC/seria=== ocire-agent alive ===
+[0.000] INFO  ocire: supervised boot: mailbox located
+[0.000] INFO  boot: Open Cube OS - L0 kernel (2.2.0)
+[0.000] INFO  boot: Apache 2.0 licensed. See LICENSE.
+[0.000] INFO  boot: [00:00:00.000] multiboot2 handshake (OK)
+[0.000] INFO  boot: [00:00:00.000] long mode entry (OK)
+[0.000] INFO  boot: [00:00:00.000] framebuffer 800x600x32 (OK)
+[0.000] INFO  boot: fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[0.000] INFO  boot: [00:00:00.000] console grid (OK)
+[0.000] INFO  boot: [00:00:00.000] default 8x16 font engine (OK)
+[0.000] INFO  boot: [00:00:00.000] WP-01 ext: fb access / renderer / font / console hook (OK)
+[0.000] INFO  boot: [00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[0.000] INFO  boot: [00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[0.000] INFO  boot: [00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[0.000] INFO  boot: [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[0.000] INFO  boot: [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[0.000] INFO  boot: [00:00:00.000] console input line editor......................... OK
+[0.000] INFO  boot: [00:00:00.000] interrupts enabled (sti).......................... OK
+[0.000] INFO  boot: WP-01 ext self-test: 4/4 points reachable
+[0.000] INFO  boot: [00:00:00.000] WP-01 extension self-test......................... OK
+[0.000] INFO  boot: exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[0.000] INFO  boot: [00:00:00.000] exception self-test............................... OK
+[0.000] INFO  boot: [00:00:00.000] PMM (physical memory manager)..................... OK
+[0.000] INFO  boot: [00:00:00.000] VMM (virtual memory manager)...................... OK
+[0.000] INFO  boot: [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[0.000] INFO  boot: [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[0.000] INFO  boot: [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+[0.000] INFO  boot: [00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[0.010] INFO  boot: registry: file-local declarations collected
+[0.010] INFO  boot: registry: drv=37 svc=14 app=1
+[0.020] INFO  boot: [00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5 (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready) (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: DSDT located (AML interpreter can load) (OK)
+[0.030] INFO  boot: [00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[0.030] INFO  boot: [00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38 (OK)
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.070] INFO  boot: [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[0.080] INFO  boot: [00:00:00.070] SMBus: 8 device(s) at scan (OK)
+[0.080] INFO  boot: AML: AML: undefined name PRQ0
+[0.090] INFO  boot: AML: AML: undefined name PRQ1
+[0.090] INFO  boot: AML: AML: undefined name PRQ2
+[0.100] INFO  boot: AML: AML: undefined name PRQ3
+[0.100] INFO  boot: AML: AML: undefined name VEND
+[0.110] INFO  boot: AML: AML: undefined name CSEL
+[0.110] INFO  boot: AML: AML: undefined name CPEN
+[0.120] INFO  boot: [00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.120] INFO  boot: [00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.130] INFO  boot: [00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[0.130] INFO  boot: [00:00:00.130] VFS (virtual file system)......................... OK
+[0.150] INFO  boot: [00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+[0.260] INFO  boot: [00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+[0.270] INFO  boot: [00:00:00.270] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.390] INFO  boot: [00:00:00.380] USB hosts up: 0................................... OK
+[0.390] INFO  boot: [00:00:00.390] USB stack (4 HC backends, HID/MSC/seria=== ocire-agent alive ===
+[0.000] INFO  ocire: supervised boot: mailbox located
+[0.000] INFO  boot: Open Cube OS - L0 kernel (2.2.0)
+[0.000] INFO  boot: Apache 2.0 licensed. See LICENSE.
+[0.000] INFO  boot: [00:00:00.000] multiboot2 handshake (OK)
+[0.000] INFO  boot: [00:00:00.000] long mode entry (OK)
+[0.000] INFO  boot: [00:00:00.000] framebuffer 800x600x32 (OK)
+[0.000] INFO  boot: fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[0.000] INFO  boot: [00:00:00.000] console grid (OK)
+[0.000] INFO  boot: [00:00:00.000] default 8x16 font engine (OK)
+[0.000] INFO  boot: [00:00:00.000] WP-01 ext: fb access / renderer / font / console hook (OK)
+[0.000] INFO  boot: [00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[0.000] INFO  boot: [00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[0.000] INFO  boot: [00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[0.000] INFO  boot: [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[0.000] INFO  boot: [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[0.000] INFO  boot: [00:00:00.000] console input line editor......................... OK
+[0.000] INFO  boot: [00:00:00.000] interrupts enabled (sti).......................... OK
+[0.000] INFO  boot: WP-01 ext self-test: 4/4 points reachable
+[0.000] INFO  boot: [00:00:00.000] WP-01 extension self-test......................... OK
+[0.000] INFO  boot: exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[0.000] INFO  boot: [00:00:00.000] exception self-test............................... OK
+[0.000] INFO  boot: [00:00:00.000] PMM (physical memory manager)..................... OK
+[0.000] INFO  boot: [00:00:00.000] VMM (virtual memory manager)...................... OK
+[0.000] INFO  boot: [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[0.000] INFO  boot: [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[0.000] INFO  boot: [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+[0.000] INFO  boot: [00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[0.010] INFO  boot: registry: file-local declarations collected
+[0.010] INFO  boot: registry: drv=37 svc=14 app=1
+[0.020] INFO  boot: [00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5 (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready) (OK)
+[0.020] INFO  boot: [00:00:00.020] ACPI: DSDT located (AML interpreter can load) (OK)
+[0.030] INFO  boot: [00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[0.030] INFO  boot: [00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38 (OK)
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.070] INFO  boot: [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[0.080] INFO  boot: [00:00:00.070] SMBus: 8 device(s) at scan (OK)
+[0.080] INFO  boot: AML: AML: undefined name PRQ0
+[0.090] INFO  boot: AML: AML: undefined name PRQ1
+[0.090] INFO  boot: AML: AML: undefined name PRQ2
+[0.100] INFO  boot: AML: AML: undefined name PRQ3
+[0.100] INFO  boot: AML: AML: undefined name VEND
+[0.110] INFO  boot: AML: AML: undefined name CSEL
+[0.110] INFO  boot: AML: AML: undefined name CPEN
+[0.120] INFO  boot: [00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[0.120] INFO  boot: [00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[0.130] INFO  boot: [00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[0.130] INFO  boot: [00:00:00.130] VFS (virtual file system)......................... OK
+[0.150] INFO  boot: [00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+[0.260] INFO  boot: [00:00:00.250] ATA/IDE PIO driver (LBA28)........................ OK
+[0.270] INFO  boot: [00:00:00.270] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.390] INFO  boot: [00:00:00.380] USB hosts up: 0................................... OK
+[0.390] INFO  boot: [00:00:00.390] USB stack (4 HC backends, HID/MSC/seria=== ocire-agent alive ===
+
+---- boot log end ----
+ocire> logread
+Boot log: 65024 bytes capacity, 49480 bytes used, boot sequence 0

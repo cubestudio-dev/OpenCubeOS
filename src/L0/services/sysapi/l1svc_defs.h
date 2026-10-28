@@ -38,6 +38,11 @@
 /* v2.0.0 group N: camera/usb service categories (appended). */
 #define L1SVC_CAT_CAMERA   16   /* services/camera  */
 #define L1SVC_CAT_USB      17   /* services/usb      */
+/* 3.0.0-WP03 G4: the OCIRE embed channel (services/ocembed).  The
+ * numbering is a VERBATIM CONTRACT with the OCIRE log agent
+ * (ocire/agent/ocire_agent.c compiles against these numbers - an
+ * ABI, not a source dependency): cat 18, ops 4/5 guard-only. */
+#define L1SVC_CAT_OCIRE    18   /* services/ocembed  */
 
 /* Category number -> folder name (kernel side; used by SYS_L1SVC). */
 #define L1SVC_CAT_NAME(n) \
@@ -57,7 +62,8 @@
      (n) == L1SVC_CAT_DISPLAY  ? "display"  : \
      (n) == L1SVC_CAT_INPUT    ? "input"    : \
      (n) == L1SVC_CAT_CAMERA   ? "camera"   : \
-     (n) == L1SVC_CAT_USB      ? "usb"      : 0)
+     (n) == L1SVC_CAT_USB      ? "usb"      : \
+     (n) == L1SVC_CAT_OCIRE    ? "ocire"    : 0)
 
 /* ---- time operations (services/time) -------------------------------
  * Mirrors the v1 oc> commands rtc / hpet / pmtimer / tsc. */
@@ -271,5 +277,17 @@
  * goldens).  ssh/sshd are interactive and stay in L0. */
 #define L1SVC_CRYPTO_CRYPTOTEST 1   /* cryptotest              */
 #define L1SVC_CRYPTO_DHTEST     2   /* dhtest                  */
+
+/* ---- ocire operations (services/ocembed) ------------------------------
+ * 3.0.0-WP03 G4: the OCIRE embed channel, consumed by the injected
+ * log agent ONLY.  Both ops check the caller's ocire_guard process
+ * flag - any other ring-3 caller is refused (there is deliberately
+ * no code path that could turn the agent into a general "access
+ * OCIRE" door).  Numbering per the agent contract (verbatim). */
+#define L1SVC_OCIRE_LOG_APPEND    4   /* guard-only: append text to the
+                                      * boot-log ring on the OCIRE
+                                      * volume (arg = payload)      */
+#define L1SVC_OCIRE_KLOG_SNAPSHOT 5   /* guard-only: kernel log ring
+                                      * text into out (cap)         */
 
 #endif /* OC_L1SVC_DEFS_H */

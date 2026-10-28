@@ -213,16 +213,25 @@ def case_full_repair():
 
 
 def case_wdt_timeout():
-    """WP-02 boot-failure detection, end to end, with the REAL
-    i6300esb watchdog device attached.
+    """3.0.0-WP03 G4: the supervised watchdog loop, CLOSED.
 
-    Menu default = supervisor: mailbox WAIT_BOOT_SIGNAL + wdt armed
-    for 60 s + kexec into OCOS (which never signals - the OCOS-side
-    signal is WP-03 scope).  The window expires -> machine reset ->
-    supervisor sees the stale WAIT_SIGNAL -> crash notice ->
-    ENTER_FULL + reboot -> supervisor runs the full recovery shell.
+    The WP-02 edition of this case verified the honest-boundary
+    behaviour: OCOS never signalled and never disarmed, so the 60 s
+    window expired, the machine reset, and the supervisor degraded
+    into the full recovery shell (that evidence lives in
+    evidence/3_0_0_wp02_recovery/shell-wdt-timeout.log and stays
+    valid for a genuinely-hung OCOS - the OCIRE side is frozen).
 
-    Needs real resets: no -no-reboot on this spawn."""
+    WP-03 G4 closes the loop on the OCOS side: the embed service now
+    writes SIGNAL_OK and DISARMS the i6300esb inside the window, so a
+    HEALTHY supervised boot must stay up past the old 60 s horizon.
+    The case is therefore re-pointed at the new contract: armed ->
+    OCOS disarms -> machine ALIVE at t>75 s (the on-disk proof of the
+    live agent cycles is the supervised battery's wdt case; this case
+    pins the passive end-to-end observation from the boot choreography
+    itself).
+
+    Needs real resets allowed: no -no-reboot on this spawn."""
     case = "shell_wdt_timeout"
     d0, d1 = throwaway("smoke4")
     args = [QEMU, "-L", QDATA, "-L", SEA, "-m", "256M",
@@ -258,21 +267,28 @@ def case_wdt_timeout():
                            "Open Cube OS boot.", "supervisor banner")
         ok &= await_output("Watchdog armed (i6300esb): 60 s boot window.",
                            "wdt armed", timeout=60)
-        # 2. OCOS boots via kexec (and never signals - WP-03 boundary)
-        ok &= await_output("ush>", "ocos prompt", timeout=180)
-        # 3. ~60 s after the arm: the watchdog resets the machine
-        ok &= await_output("GNU GRUB", "wdt reset -> grub", timeout=180)
-        # 4. Supervisor: stale WAIT_SIGNAL = crash presumption
-        ok &= await_output("OpenCubeOS seems to have crashed, getting "
-                           "ready to reboot to OCIRE", "crash notice")
-        ok &= await_output("Rebooting into the full recovery environment "
-                           "in 3 seconds", "degrade reboot", timeout=60)
-        # 5. Second reset: ENTER_FULL one-shot -> the full shell
-        ok &= await_output("Supervisor: recovery entry requested - "
-                           "starting the full shell.", "recovery entry")
-        ok &= await_output("ocire>", "full shell prompt")
-        record(case, ok, "wdt 60s window -> reset -> crash notice -> "
-                         "full recovery shell")
+        # 2. The OCOS embed closes the loop: facts + signal + DISARM
+        ok &= await_output("ocire embed: SUPERVISED boot",
+                           "ocos embed facts", timeout=180)
+        ok &= await_output("boot signal written (SIGNAL_OK, boot_count+1)",
+                           "boot signal", timeout=30)
+        ok &= await_output("ocire embed: i6300esb watchdog DISARMED",
+                           "wdt disarmed", timeout=30)
+        ok &= await_output("ush>", "ocos prompt", timeout=60)
+        # 3. t+75 s: the machine must STILL be at the prompt - the old
+        #    60 s reset horizon is closed by the disarm.  (The reset
+        #    path itself stays proven by the WP-02 evidence for a
+        #    hung OCOS; nothing in ocire/ changed.)
+        print("    (waiting past the 60 s window...)")
+        time.sleep(62)
+        child.sendline("stats")
+        i = child.expect_exact(["ticks=", pexpect.TIMEOUT, pexpect.EOF],
+                               timeout=30)
+        ok &= (i == 0)
+        record(case, ok, "WP-03 G4: wdt armed -> OCOS SIGNAL_OK + DISARM "
+                         "-> machine alive past the 60 s window "
+                         "(WP-02 degrade flow stays proven for a hung "
+                         "OCOS by the frozen evidence)")
     finally:
         child.logfile.close()
         child.close(force=True)

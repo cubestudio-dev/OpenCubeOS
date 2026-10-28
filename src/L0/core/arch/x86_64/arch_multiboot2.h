@@ -140,6 +140,10 @@ typedef struct arch_multiboot2_info {
     u64 mem_lower_kb;
     u64 mem_upper_kb;
     const arch_multiboot2_module_tag_t* arch_kernel_self;   /* module with cmdline "self" */
+    /* 3.0.0-WP03 G4: the OCIRE log agent injected by the recovery
+     * supervisor as a module with cmdline "ocire-agent" (kexec
+     * hand-over).  NULL on a normal GRUB boot. */
+    const arch_multiboot2_module_tag_t* arch_ocire_agent;
     /* WP-10-input_chipset: physical address of the RSDP copy handed to
      * us by GRUB (tag 14/15) and the ACPI revision it implies (0 = no
      * ACPI, 1 = ACPI 1.x, 2 = ACPI 2.0+). driver_acpi_init() consumes it. */
@@ -154,6 +158,12 @@ int arch_multiboot2_parse(arch_multiboot2_info_t* out, uintptr_t mbi_phys);
  * "self").  Returns 0 and fills data/size when present, -1 when the
  * bootloader did not attach it (then install/abdisk refuse to run). */
 int arch_multiboot2_get_kernel_self(const u8** data, u64* size);
+
+/* 3.0.0-WP03 G4: the OCIRE log agent attached by the recovery
+ * supervisor (kexec hand-over) as a module with cmdline
+ * "ocire-agent".  Returns 0 and fills data/size when present, -1 on
+ * a normal boot (the embed stays inactive). */
+int arch_multiboot2_get_ocire_agent(const u8** data, u64* size);
 
 /* WP-10-chinese_support-fix2: the firmware memory map as parsed at boot
  * (points INTO the bootloader's info block, which stays valid). Used by

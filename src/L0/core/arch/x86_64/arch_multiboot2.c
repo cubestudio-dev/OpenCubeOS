@@ -84,13 +84,40 @@ int arch_multiboot2_parse(arch_multiboot2_info_t* out, uintptr_t mbi_phys) {
         case OC_MB2_TAG_MODULE: {
             /* WP-10d-pre: the grub.cfg files attach the booting kernel
              * itself as a module with cmdline "self" so install/abdisk
-             * can copy it onto a target disk. */
+             * can copy it onto a target disk.  3.0.0-WP03 G4: the OCIRE
+             * supervisor attaches its log agent with cmdline
+             * "ocire-agent" at the kexec hand-over.
+             *
+             * OCIRE layout note (cannot touch ocire/, accommodated
+             * here): ocire_kexec.c writes the module string at tag
+             * offset 20 with four zero bytes at 16-19 (its tag_size
+             * formula counts a 20-byte header), while the multiboot2
+             * spec - and GRUB, whose "self" modules this parser also
+             * reads - put the string at offset 16.  Both spellings are
+             * accepted for the agent marker. */
             if (sz < sizeof(arch_multiboot2_module_tag_t) + 5) break;
             const arch_multiboot2_module_tag_t* m = (const arch_multiboot2_module_tag_t*)tag;
             if (m->cmdline[0] == 's' && m->cmdline[1] == 'e' &&
                 m->cmdline[2] == 'l' && m->cmdline[3] == 'f' &&
                 (m->cmdline[4] == 0 || m->cmdline[4] == ' '))
                 out->arch_kernel_self = m;
+            else if (m->cmdline[0] == 'o' && m->cmdline[1] == 'c' &&
+                     m->cmdline[2] == 'i' && m->cmdline[3] == 'r' &&
+                     m->cmdline[4] == 'e' && m->cmdline[5] == '-' &&
+                     m->cmdline[6] == 'a' && m->cmdline[7] == 'g' &&
+                     m->cmdline[8] == 'e' && m->cmdline[9] == 'n' &&
+                     m->cmdline[10] == 't' && m->cmdline[11] == 0)
+                out->arch_ocire_agent = m;
+            else if (sz >= 32) {
+                /* the OCIRE kexec spelling: zero bytes at 16-19, the
+                 * marker at offset 20 (see the note above) */
+                const char *s20 = (const char *)tag + 20;
+                if (s20[0] == 'o' && s20[1] == 'c' && s20[2] == 'i' &&
+                    s20[3] == 'r' && s20[4] == 'e' && s20[5] == '-' &&
+                    s20[6] == 'a' && s20[7] == 'g' && s20[8] == 'e' &&
+                    s20[9] == 'n' && s20[10] == 't' && s20[11] == 0)
+                    out->arch_ocire_agent = m;
+            }
             break;
         }
         case OC_MB2_TAG_ACPI_OLD: {
@@ -127,6 +154,16 @@ int arch_multiboot2_parse(arch_multiboot2_info_t* out, uintptr_t mbi_phys) {
 int arch_multiboot2_get_kernel_self(const u8** data, u64* size) {
     if (!g_mb2_info || !g_mb2_info->arch_kernel_self) return -1;
     const arch_multiboot2_module_tag_t* m = g_mb2_info->arch_kernel_self;
+    if (m->mod_end <= m->mod_start) return -1;
+    if (data) *data = (const u8*)(uintptr_t)m->mod_start;
+    if (size) *size = (u64)(m->mod_end - m->mod_start);
+    return 0;
+}
+
+/* 3.0.0-WP03 G4: the OCIRE log agent module ("ocire-agent"). */
+int arch_multiboot2_get_ocire_agent(const u8** data, u64* size) {
+    if (!g_mb2_info || !g_mb2_info->arch_ocire_agent) return -1;
+    const arch_multiboot2_module_tag_t* m = g_mb2_info->arch_ocire_agent;
     if (m->mod_end <= m->mod_start) return -1;
     if (data) *data = (const u8*)(uintptr_t)m->mod_start;
     if (size) *size = (u64)(m->mod_end - m->mod_start);

@@ -143,6 +143,12 @@ u32  klog_get_rotate_keep(void);    /* current generation count  */
 
 const char *klog_level_name(int level);   /* "DEBUG".."FATAL" or "?"   */
 
+/* 3.0.0-WP03 G4: render the whole ring (oldest -> newest) as
+ * formatted lines into out[cap]; NUL-terminated.  Returns the byte
+ * count (0 = empty ring / bad args).  The OCIRE log agent's
+ * KLOG_SNAPSHOT op consumes this. */
+int  klog_snapshot_text(char *out, int cap);
+
 #ifdef __cplusplus
 }
 #endif
