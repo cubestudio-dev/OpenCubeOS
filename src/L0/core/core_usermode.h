@@ -159,6 +159,14 @@ typedef struct user_proc {
     /* BUG-0281 (A2-9): mmap window region table (see above). Zeroed with
      * the rest of the struct when a process slot is claimed. */
     proc_mmap_region_t mmap_regions[PROC_MAX_MMAP_REGIONS];
+
+    /* 3.0.0-WP03 G4: OCIRE process-protection layer 1.  Set on the
+     * injected log agent (task "ocire_guard") right after spawn:
+     * sys_kill refuses EVERY signal to a guarded process (kill is
+     * tested to fail), and the L1SVC ocire channel only serves
+     * guarded callers.  Layer 2 is the agent binary living on the
+     * OCIRE recovery volume where OCOS cannot touch it. */
+    int ocire_guard;
 } user_proc_t;
 
 /* Syscall handler function type. */

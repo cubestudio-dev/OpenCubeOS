@@ -197,6 +197,12 @@ int pwr_cmd_suspend(const char *args) {
  * its own command ('suspend'); this handler parses <seconds> with up
  * to 3 fractional digits (milliseconds) and yields until the wall
  * clock passes the deadline. */
+/* 3.0.0-WP03 G4: one-shot wake callback for pwr_cmd_sleep (timer IRQ
+ * context): re-queue the sleeper. */
+static void pwr_sleep_wake(void *ctx) {
+    core_kthread_wake((tid_t)(uintptr_t)ctx);
+}
+
 int pwr_cmd_sleep(const char *args) {
     if (!args || !args[0]) {
         screen_console_puts("usage: sleep <seconds>  (e.g. sleep 2, sleep 0.5)\n");
@@ -224,13 +230,39 @@ int pwr_cmd_sleep(const char *args) {
         screen_console_puts("sleep: invalid time\n");
         return 1;
     }
-    u64 deadline = core_timer_now_ms() + whole * 1000ull + frac_ms;
-    /* v2.0.0: sti;hlt park - `sleep` is reachable through the ring-3
-     * service surface (SYS_L1SVC power ops); core_sched_yield from the
-     * dispatch frame deadlocks (see driver_cmos_rtc.c wait_counts). */
-    while (core_timer_now_ms() < deadline) __asm__ volatile("sti; hlt");
+    u64 ms = whole * 1000ull + frac_ms;
+    /* 3.0.0-WP03 G4: the v2.0.0 sti;hlt park is UNSAFE when the parked
+     * task is preempted mid-halt: the scheduler saves the switch-point
+     * flags (IF=0), so the resumed task can drop back onto the hlt
+     * with interrupts disabled and freeze forever - the failure mode
+     * the v2.0.0 launcher fix documented (l1_launcher.c).  The OCIRE
+     * log agent (a ring-3 process calling SYS_L1SVC power sleep every
+     * 5 s alongside other running tasks) hit it live: its first sleep
+     * froze mid-park in the supervised battery.  Proper fix: BLOCK on
+     * the scheduler with a one-shot timer callback as the waker - the
+     * same primitive the pipe reads use from their syscall frames
+     * (proven since WP-08a).  No halt, no CPU burn; the timer IRQ
+     * wakes the task, the syscall then returns to ring 3 normally.
+     * core_timer_register_oneshot failing (table full) falls back to
+     * the preemptible sti+pause spin - correct, just warmer. */
+    {
+        tid_t me = core_kthread_current_tid();
+        int tid_timer = core_timer_register_oneshot(pwr_sleep_wake,
+                                                    (void *)(uintptr_t)me,
+                                                    ms);
+        if (tid_timer >= 0) {
+            core_kthread_block();
+            return 0;
+        }
+        u64 deadline = core_timer_now_ms() + ms;
+        while (core_timer_now_ms() < deadline) {
+            __asm__ volatile("sti");
+            __asm__ volatile("pause");
+        }
+    }
     return 0;
 }
+
 
 int pwr_cmd_reboot(const char *args) {
     (void)args;

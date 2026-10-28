@@ -47,6 +47,7 @@
 #include "lib_string.h"
 #include "screen_console.h"
 #include "driver_pci.h"
+#include "core_sync.h"      /* 3.0.0-WP03 G4: per-channel xfer locks */
 #include "block_svc.h"
 #include "blk_drv_internal.h"
 #include "core_registry.h"
@@ -139,10 +140,10 @@ static int          g_ctrl_count = 0;
 static driver_block_ata_dma_drive_t g_drives[4];
 static int          g_dma_drive_count = 0;
 
-/* Shared staging pointers for the split loop (single-threaded kernel;
- * avoids passing src/dst through several call layers). */
-static const u8 *g_xfer_src;
-static u8       *g_xfer_dst;
+/* (3.0.0-WP03 G4: the g_xfer_src/g_xfer_dst staging globals that
+ * used to live here are gone - per-channel locks + a passed-through
+ * buffer pointer replaced them; see the note above
+ * driver_block_ata_dma_xfer.) */
 
 /* ---- logging ---- */
 static void dlog(const char *s) { screen_console_puts(s); }
@@ -221,7 +222,27 @@ static void driver_block_ata_dma_stop_clear(driver_block_ata_dma_drive_t *d, int
  * is therefore retried a few times before the failure is reported -
  * standard block-layer practice, and it turns the intermittent
  * "read boot sector failed" mount loss into a deterministic boot. */
-static int driver_block_ata_dma_xfer(driver_block_ata_dma_drive_t *d, int is_write, u64 lba, u32 sectors) {
+/* 3.0.0-WP03 G4: per-channel transfer locks.  The DMA engine was
+ * built in the single-threaded shell era - one command at a time,
+ * staging through global pointers - and "no one else touches the
+ * disk at runtime" held from 2.0.0 until the OCIRE log agent
+ * (a ring-3 process appending to the boot-log ring every few
+ * seconds, preemptible, with interrupts enabled in the syscall
+ * dispatch frame) made disk I/O concurrent for the first time.
+ * Two fixes, both here:
+ *   - the staging pointers g_xfer_src/g_xfer_dst are GONE (the
+ *     buffer is passed through the call chain, so a preempted
+ *     transfer's state lives on its caller's stack);
+ *   - each BMDMA channel is serialized by an irqsave spinlock, so
+ *     command/PRDT/poll sequences cannot interleave.  spin_lock
+ *     runs the section with IF=0: the holder cannot be preempted,
+ *     and a healthy transfer finishes in ~1 ms (the 50M-iteration
+ *     poll budget is only walked on a sick controller).
+ * The per-drive BOUNCE buffer is covered by the same channel lock
+ * (one command per channel at a time). */
+static spinlock_t g_xfer_chan_lock[4];
+
+static int driver_block_ata_dma_xfer(driver_block_ata_dma_drive_t *d, int is_write, u64 lba, u32 sectors, u8 *buf) {
     int drive = (int)(d - g_drives);
     int chan  = g_drive_chan[drive];
     u16 bmic  = (u16)(d->ctrl->bar4 + BMIC_OFF(chan));
@@ -229,7 +250,9 @@ static int driver_block_ata_dma_xfer(driver_block_ata_dma_drive_t *d, int is_wri
 
     u32 bytes = sectors * 512u;
     if (bytes == 0 || bytes > 0x10000u) return -1;
-    if (is_write) memcpy(d->bounce, g_xfer_src, bytes);
+
+    spin_lock(&g_xfer_chan_lock[chan]);
+    if (is_write) memcpy(d->bounce, buf, bytes);
 
     u8 cmd = is_write ? ATA_CMD_WRITE_DMA : ATA_CMD_READ_DMA;
     int rc = -1;
@@ -311,16 +334,14 @@ static int driver_block_ata_dma_xfer(driver_block_ata_dma_drive_t *d, int is_wri
         dlog_hex("err=", err, "\n");
     }
 
-    if (rc == 0 && !is_write) memcpy(g_xfer_dst, d->bounce, bytes);
+    if (rc == 0 && !is_write) memcpy(buf, d->bounce, bytes);
+    spin_unlock(&g_xfer_chan_lock[chan]);
     return rc;
 }
 
-/* Shared staging pointers for the split loop (single-threaded kernel;
- * avoids passing src/dst through several call layers). */
-static const u8 *g_xfer_src;
-static u8       *g_xfer_dst;
-
-/* Public DMA read/write: split into <=8-sector transfers. */
+/* Public DMA read/write: split into <=8-sector transfers.
+ * (3.0.0-WP03 G4: the staging globals are gone - see the note at
+ * g_xfer_chan_lock above; the buffer pointer is passed through.) */
 int driver_block_ata_dma_read_sectors(int drive, u64 lba, int count, void *buf) {
     if (drive < 0 || drive > 3) return -1;
     driver_block_ata_dma_drive_t *d = &g_drives[drive];
@@ -332,8 +353,7 @@ int driver_block_ata_dma_read_sectors(int drive, u64 lba, int count, void *buf) 
     int remaining = count;
     while (remaining > 0) {
         u32 n = (remaining > (int)DMA_BUF_SECTORS) ? DMA_BUF_SECTORS : (u32)remaining;
-        g_xfer_dst = out;
-        if (driver_block_ata_dma_xfer(d, 0, cur, n) != 0) return (count - remaining > 0)
+        if (driver_block_ata_dma_xfer(d, 0, cur, n, out) != 0) return (count - remaining > 0)
                                                    ? (count - remaining) : -3;
         out += n * 512u;
         cur += n;
@@ -353,8 +373,7 @@ int driver_block_ata_dma_write_sectors(int drive, u64 lba, int count, const void
     int remaining = count;
     while (remaining > 0) {
         u32 n = (remaining > (int)DMA_BUF_SECTORS) ? DMA_BUF_SECTORS : (u32)remaining;
-        g_xfer_src = in;
-        if (driver_block_ata_dma_xfer(d, 1, cur, n) != 0) return (count - remaining > 0)
+        if (driver_block_ata_dma_xfer(d, 1, cur, n, (u8 *)in) != 0) return (count - remaining > 0)
                                                    ? (count - remaining) : -3;
         in += n * 512u;
         cur += n;
@@ -367,23 +386,39 @@ int driver_block_ata_dma_flush(int drive) {
     if (drive < 0 || drive > 3) return -1;
     driver_block_ata_dma_drive_t *d = &g_drives[drive];
     if (!d->active) return -1;
-    /* Prefer the 48-bit FLUSH EXT; fall back to legacy FLUSH. */
+    /* Prefer the 48-bit FLUSH EXT; fall back to legacy FLUSH.
+     * (WP-03 G4: the flush issues real commands on the channel - it
+     * takes the same per-channel lock as the transfers.) */
+    spin_lock(&g_xfer_chan_lock[g_drive_chan[drive]]);
     u16 base = g_chan_base[drive];
-    if (driver_block_ata_wait_not_bsy(base) != 0) return -1;
+    if (driver_block_ata_wait_not_bsy(base) != 0) {
+        spin_unlock(&g_xfer_chan_lock[g_drive_chan[drive]]);
+        return -1;
+    }
     outb(base + ATA_REG_DRIVE, (u8)(0xE0u | (u32)g_drive_slave[drive] << 4));
     io_wait();
     outb(base + ATA_REG_COMMAND, ATA_CMD_FLUSH_EXT);
     io_wait();
-    if (driver_block_ata_wait_not_bsy(base) != 0) return -1;
+    if (driver_block_ata_wait_not_bsy(base) != 0) {
+        spin_unlock(&g_xfer_chan_lock[g_drive_chan[drive]]);
+        return -1;
+    }
     u8 st = inb(base + ATA_REG_STATUS);
     if (st & (ATA_SR_ERR | ATA_SR_BSY)) {
         /* Legacy-only drive: retry with FLUSH CACHE. */
         outb(base + ATA_REG_COMMAND, ATA_CMD_FLUSH);
         io_wait();
-        if (driver_block_ata_wait_not_bsy(base) != 0) return -1;
+        if (driver_block_ata_wait_not_bsy(base) != 0) {
+            spin_unlock(&g_xfer_chan_lock[g_drive_chan[drive]]);
+            return -1;
+        }
         st = inb(base + ATA_REG_STATUS);
-        if (st & (ATA_SR_ERR | ATA_SR_BSY)) return -1;
+        if (st & (ATA_SR_ERR | ATA_SR_BSY)) {
+            spin_unlock(&g_xfer_chan_lock[g_drive_chan[drive]]);
+            return -1;
+        }
     }
+    spin_unlock(&g_xfer_chan_lock[g_drive_chan[drive]]);
     return 0;
 }
 
@@ -526,6 +561,10 @@ int driver_block_ata_dma_init(driver_pci_dev_t *pdev) {
     }
     memset(g_drives, 0, sizeof(g_drives));
     for (int i = 0; i < 4; i++) g_drives[i].driver_block_idx = -1;
+    /* WP-03 G4: the per-channel transfer locks (static storage is
+     * zeroed anyway; this makes the intent explicit and survives any
+     * future locked-flag repricing). */
+    for (int i = 0; i < 4; i++) spin_init(&g_xfer_chan_lock[i]);
 
     if (pdev) {
         u32 cls = (driver_pci_read_config(pdev->bus, pdev->dev, pdev->func, 0x08) >> 8) & 0xFFFFFFu;

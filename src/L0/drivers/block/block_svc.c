@@ -115,6 +115,37 @@ driver_block_device_t *driver_block_get_device(int index) {
     return &g_blk_devs[index];
 }
 
+/* ---- 3.0.0-WP03 G4: whole-disk hard protection ------------------- */
+
+static int g_blk_protected[BLK_MAX_DEVICES];
+
+void driver_block_set_protected(int dev_idx) {
+    if (dev_idx >= 0 && dev_idx < BLK_MAX_DEVICES) g_blk_protected[dev_idx] = 1;
+}
+
+int driver_block_is_protected(int dev_idx) {
+    return (dev_idx >= 0 && dev_idx < BLK_MAX_DEVICES)
+             ? g_blk_protected[dev_idx] : 0;
+}
+
+/* Kernel-internal trusted channel (the OCIRE embed service: mailbox
+ * boot signal + boot-log ring appends).  Identical to the raw path
+ * but never guarded - not reachable from ring 3. */
+int driver_block_read_sectors_trusted(int dev_idx, u64 lba, u32 count, void *buf) {
+    return driver_block_read_sectors_raw(dev_idx, lba, count, buf);
+}
+
+int driver_block_write_sectors_trusted(int dev_idx, u64 lba, u32 count, const void *buf) {
+    driver_block_device_t *d = driver_block_get_device(dev_idx);
+    if (!d || !d->ops || !d->ops->write) return -1;
+    int rc = d->ops->write(d, lba, count, buf);
+    if (rc == 0) {
+        g_blk_stats[dev_idx].writes++;
+        g_blk_stats[dev_idx].write_sectors += count;
+    }
+    return rc;
+}
+
 int driver_block_read_sectors_raw(int dev_idx, u64 lba, u32 count, void *buf) {
     driver_block_device_t *d = driver_block_get_device(dev_idx);
     if (!d || !d->ops || !d->ops->read) return -1;
@@ -129,6 +160,18 @@ int driver_block_read_sectors_raw(int dev_idx, u64 lba, u32 count, void *buf) {
 int driver_block_write_sectors_raw(int dev_idx, u64 lba, u32 count, const void *buf) {
     driver_block_device_t *d = driver_block_get_device(dev_idx);
     if (!d || !d->ops || !d->ops->write) return -1;
+    /* 3.0.0-WP03 G4: the recovery disk is write-closed.  Refuse BEFORE
+     * touching the device (whole-disk hard protection; reads stay
+     * open).  The embed service writes through the trusted channel. */
+    if (g_blk_protected[dev_idx]) {
+        char line[96]; char n[24];
+        strcpy(line, "blk: write to protected device ");
+        if (d->name[0]) strcat(line, d->name);
+        u64_to_str(lba, n); strcat(line, " lba="); strcat(line, n);
+        strcat(line, " REFUSED (ocire recovery disk)\n");
+        screen_console_puts(line);
+        return -1;
+    }
     int rc = d->ops->write(d, lba, count, buf);
     if (rc == 0) {
         g_blk_stats[dev_idx].writes++;
@@ -159,6 +202,13 @@ int driver_block_read_sectors(int dev_idx, u64 lba, u32 count, void *buf) {
  * while every caller believed the write succeeded. Errors from the
  * cache layer (including the write-through fallback) now propagate. */
 int driver_block_write_sectors(int dev_idx, u64 lba, u32 count, const void *buf) {
+    /* 3.0.0-WP03 G4: refuse BEFORE creating dirty cache lines on the
+     * protected recovery disk (the raw-write guard alone would leave
+     * unflushable dirty slots behind). */
+    if (dev_idx >= 0 && dev_idx < BLK_MAX_DEVICES && g_blk_protected[dev_idx]) {
+        screen_console_puts("blk: cached write to protected device REFUSED (ocire recovery disk)\n");
+        return -1;
+    }
     const u8 *src = (const u8 *)buf;
     for (u32 i = 0; i < count; i++) {
         if (driver_block_cache_write(dev_idx, lba + i, src + (u64)i * BLK_SECTOR_SIZE) != 0)

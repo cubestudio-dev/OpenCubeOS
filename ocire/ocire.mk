@@ -102,7 +102,7 @@ $(OCIRE_AGENT): $(OCIRE_AGENT_SRC)
 	  -mno-mmx -mno-3dnow -fno-asynchronous-unwind-tables \
 	  -Wall -Wextra -Werror -O2 -std=gnu11 \
 	  -c $(OCIRE_AGENT_SRC) -o $(OCIRE_AGENT_OBJ)
-	$(CC) -nostdlib -Wl,--build-id=none -T $(OC_ROOT)/l1apps/user.ld \
+	$(CC) -nostdlib -Wl,--build-id=none -T $(OC_ROOT)/src/L1/user.ld \
 	  -o $@ $(OCIRE_AGENT_OBJ)
 	strip --strip-debug $@
 

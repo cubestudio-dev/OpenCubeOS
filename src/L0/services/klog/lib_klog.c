@@ -383,6 +383,36 @@ void klog_record(int level, const char *module, const char *msg) {
     }
 }
 
+/* 3.0.0-WP03 G4: render the WHOLE ring (oldest -> newest) into a
+ * caller buffer as formatted lines - the OCIRE log agent's
+ * KLOG_SNAPSHOT op.  Returns the number of bytes written (NUL
+ * terminated), or 0 when nothing is recorded / cap too small.
+ * Takes the irq lock once so a concurrent writer cannot tear the
+ * walk; entries published after the call simply stay for the next
+ * snapshot. */
+int klog_snapshot_text(char *out, int cap) {
+    if (!out || cap < 2) return 0;
+    int n = 0;
+    out[0] = 0;
+    u64 f = klog_irq_save();
+    u32 count = g_ring_count;
+    u32 start = (g_ring_head + g_ring_cap - count) % g_ring_cap;
+    for (u32 i = 0; i < count; i++) {
+        const klog_entry_t *e = &g_ring[(start + i) % g_ring_cap];
+        char line[200];
+        int len = klog_format_entry(e, line, sizeof(line));
+        if (len < 0) len = 0;
+        for (int k = 0; k < len; k++) {
+            if (n >= cap - 1) break;
+            out[n++] = line[k];
+        }
+        if (n >= cap - 1) break;          /* buffer full: honest cut */
+    }
+    klog_irq_restore(f);
+    out[n] = 0;
+    return n;
+}
+
 /* ---- levels / switches ---------------------------------------------- */
 int klog_set_level(int level) {
     if (level < -1 || level > KLOG_LVL_MAX) return g_live_level;

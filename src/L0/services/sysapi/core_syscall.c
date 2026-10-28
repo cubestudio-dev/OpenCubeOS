@@ -22,6 +22,7 @@
 #include "net_core.h"   /* WP-10-tui: socket syscalls */   /* P2-04: core_timer_now_ms() for sys_uptime */
 #include "l1svc_defs.h" /* v2.0.0: SYS_L1SVC category/op numbering */
 #include "core_registry.h" /* v2.0.0: service dispatch */
+#include "lib_klog.h"    /* 3.0.0-WP03 G4: ocire_guard kill refusal log */
 
 /* WP-08b Batch 5: libfoo.so bytes are defined in usermode.c (which
  * #includes solib_data.h). We just reference them here so sys_map_solib
@@ -520,6 +521,17 @@ static u64 sys_kill(u64 pid_arg, u64 sig, u64 a3, u64 a4) {
     if (sig >= NSIG) return (u64)-1;
     for (int i = 0; i < MAX_USER_PROCS; i++) {
         if (g_procs[i].alive && g_procs[i].pid == (pid_t)pid_arg) {
+            /* 3.0.0-WP03 G4: process protection layer 1 - the OCIRE
+             * log agent (ocire_guard) cannot be signalled or killed
+             * from ring 3, whatever the signal number.  The recovery
+             * side's eyes stay alive by design; only a full OCOS
+             * reboot (or the OCIRE supervisor) ends it. */
+            if (g_procs[i].ocire_guard) {
+                klog_write(KLOG_WARN, "kill",
+                           "kill pid=%d refused: ocire_guard process",
+                           (int)(pid_t)pid_arg);
+                return (u64)-1;
+            }
             /* BUG-0277 FIX follow-up: resolve self-kill BEFORE the reap
              * clears g_procs[i].alive - user_process_current() only
              * returns LIVE entries, so a post-reap comparison always
@@ -2676,16 +2688,52 @@ void core_syscall_wp08fix1_init(void) {
  * core_syscall_arg5() (the 5th argument slot, r8). */
 static u64 sys_l1svc(u64 cat, u64 op, u64 arg, u64 out) {
     u64 cap = core_syscall_arg5();
-    if (!valid_user_ptr(out) || cap == 0 || cap > 8192) return (u64)-1;
-    const char *cat_name = L1SVC_CAT_NAME((u32)cat);
-    if (!cat_name) return (u64)-1;
-    char karg[256];
-    karg[0] = 0;
-    if (arg) {
-        if (copy_user_str(arg, karg, sizeof(karg)) < 0) return (u64)-1;
+    /* 3.0.0-WP03 G4: the OCIRE log agent calls the power sleep with
+     * out=0/cap=0 (fire-and-forget, no status line wanted - its
+     * source is frozen on the OCIRE side).  Accept that spelling:
+     * the service renders into a kernel scratch buffer and the
+     * copy-back is skipped.  Anything else with a bad out stays an
+     * error, exactly as before. */
+    static char kout_scratch[256];   /* task-context only (syscalls
+                                      * never nest in one task) */
+    char *kout;
+    int no_copy = 0;
+    if (out == 0) {
+        if (cap != 0) return (u64)-1;
+        kout = kout_scratch;
+        cap = sizeof(kout_scratch);
+        no_copy = 1;
+    } else {
+        if (!valid_user_ptr(out) || cap == 0 || cap > 8192) return (u64)-1;
+        kout = (char *)kmalloc(cap);
+        if (!kout) return (u64)-1;
     }
-    char *kout = (char *)kmalloc(cap);
-    if (!kout) return (u64)-1;
+    const char *cat_name = L1SVC_CAT_NAME((u32)cat);
+    if (!cat_name) {
+        if (!no_copy) kfree(kout);
+        return (u64)-1;
+    }
+    /* 3.0.0-WP03 G4: the OCIRE log agent appends kernel-log snapshots
+     * of up to 4096 bytes in ONE LOG_APPEND call (its klog[4096]
+     * buffer) - the generic 256-byte arg cap would refuse it.  The
+     * category gets a dedicated stack buffer (kernel stacks are 10
+     * pages = 40 KiB, so 4 KiB is safe).  All other categories keep
+     * the 256-byte contract unchanged. */
+    char karg_ocire[4096];
+    char karg[256];
+    char *argbuf = karg;
+    int    argcap = (int)sizeof(karg);
+    if (cat == L1SVC_CAT_OCIRE) {
+        argbuf = karg_ocire;
+        argcap = (int)sizeof(karg_ocire);
+    }
+    argbuf[0] = 0;
+    if (arg) {
+        if (copy_user_str(arg, argbuf, argcap) < 0) {
+            if (!no_copy) kfree(kout);
+            return (u64)-1;
+        }
+    }
     kout[0] = 0;
     /* The service's own return code (command exit status) is NOT the
      * syscall status: a service that ran and reported "usage error" or
@@ -2705,8 +2753,13 @@ static u64 sys_l1svc(u64 cat, u64 op, u64 arg, u64 out) {
      * that runs with interrupts enabled. */
     __asm__ volatile("sti");
     int rc = core_registry_svc_dispatch(cat_name, (u32)op,
-                                        karg[0] ? karg : 0, kout, (int)cap);
+                                        argbuf[0] ? argbuf : 0, kout, (int)cap);
     __asm__ volatile("cli");
+    if (no_copy) {
+        /* fire-and-forget spelling: the status line went to the
+         * scratch buffer; nothing is copied back */
+        return (rc < 0) ? (u64)-1 : 0;
+    }
     if (rc < 0 && kout[0] == 0) {
         /* dispatch refused the op outright (unknown op): syscall error */
         kfree(kout);
