@@ -1,0 +1,21 @@
+=== 3.0.0-WP03 G6 TEST MATRIX ===
+
+[1] clean build: 0 errors 0 warnings
+  compile lines: 2
+  warnings: 0
+
+[2] reproducible: two clean builds byte-identical
+  sha256: 55d930aa97d1cd93803f1ff6ac845ea2933f06fe10f822db3025c368db95a332 (both, pre-rename build)
+
+[3] L0 user plane deletion greps (this run):
+  oc> prompt strings in the ELF: 0
+  recovery/ tui/ chinese/ dirs in src/L0: 0
+  interactive_loop/tui_/pinyin/lineedit/IME code hits: 0 (comments only)
+
+[4] directory structure:
+boot
+core
+drivers
+services
+
+[5] dependency direction: check_deps: 0 violations (core -> nothing above it; drivers -> no services)

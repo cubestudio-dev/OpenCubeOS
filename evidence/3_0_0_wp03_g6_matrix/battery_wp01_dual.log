@@ -1,0 +1,15 @@
+[PASS] dual_bios_ocos - OCOS prompt
+[PASS] dual_bios_ocire - OCIRE prompt
+[PASS] dual_uefi_ocos - OCOS prompt
+[PASS] dual_uefi_ocire - OCIRE prompt
+[PASS] isolation:parted-hdb-control
+[PASS] isolation:parted-hda-refused
+[PASS] isolation:mkfs-hdap1-refused
+[PASS] isolation:diskrw-hdap1-refused
+[PASS] isolation:df-captured
+[PASS] isolation_rawdecl:rawdecl-diskrw-hda-whole
+[PASS] isolation_rawdecl:rawdecl-mkfs-hda-whole
+
+===== OCIRE dual-boot + isolation summary =====
+total cases: 11, passed: 11, failed: 0
+logs: /home/z/oc-public/build/ocire/dual-*.log, /home/z/oc-public/build/ocire/isolation*.log
