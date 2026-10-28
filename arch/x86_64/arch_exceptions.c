@@ -17,7 +17,6 @@
 #include "core_usermode.h"
 #include "core_sched.h"
 #include "core_crash.h"     /* WP-11: unified panic + crashlog       */
-#include "config_gen.h"   /* WP-13 multi-config: OC_CONFIG_TUI */
 
 /* Symbol name table for vectors 0..31 (moved to core_crash.c crash_src_name
  * for the panic banner; keep a local alias used by the ring-3 kill path) */
@@ -371,27 +370,10 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
      *    banner + full register snapshot + traceback, saves the core
      *    dump, flushes the crash log and applies the policy
      *    (HALT safe loop / REBOOT 8042+0xCF9). */
-#if OC_CONFIG_TUI
-    if ((f->cs & 3) == 0 && v != 1 && v != 2 && v != 8 && v != 18) {
-        extern char __tui_text_start[], __tui_text_end[];
-        extern int  tui_dt_guard_active(void);
-        extern void tui_dt_panic(int code) __attribute__((noreturn));
-        if (f->rip >= (u64)(uintptr_t)__tui_text_start &&
-            f->rip <  (u64)(uintptr_t)__tui_text_end &&
-            tui_dt_guard_active()) {
-            char what[48];
-            char num[8];
-            strcpy(what, "TUI page fault (");
-            u64_to_str(v, num); strcat(what, num);
-            strcat(what, ")");
-            crash_contained(what, f);
-            if (is_pf) exc_in_pf--;   /* this stack is abandoned now */
-            tui_dt_panic((int)v);     /* longjmps away - never returns */
-        }
-    }
-#endif /* OC_CONFIG_TUI: without the TUI there is no containment window
-       * and no guard - every ring-0 fault goes straight to the unified
-       * panic path below (WP-11). */
+/* 3.0.0-WP03: the TUI containment window (guarded ring-0 fault
+     * recovery for desktop page faults) died with the TUI user plane -
+     * every ring-0 fault goes straight to the unified panic path
+     * below (WP-11). */
 
     {
         char reason[112];

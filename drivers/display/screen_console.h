@@ -10,10 +10,12 @@
  *   - a software scroll (rows pushed off the top are lost)
  *   - foreground/background colors packed as framebuffer-native u32 pixels
  *
- * It also exposes an OUTPUT HOOK for L1 extensions: every character the
- * console emits is forwarded to l1_ext_console_hook(ch) before being
- * drawn. This lets L1 tee console output to a serial port, a log buffer,
- * or a network sink.
+ * It also owns the CONSOLE OUTPUT HOOK: every character the console
+ * emits is forwarded to the installed hook before being drawn (3.0.0:
+ * the hook storage moved down into the driver - it used to live behind
+ * l1_ext_set_console_hook() in services/, an inverted dependency).
+ * Consumers: the serial tee (boot), the klog capture stack (core_kcap)
+ * and the CJK wide-cell path (console_cn).
  */
 #ifndef OC_CONSOLE_H
 #define OC_CONSOLE_H
@@ -44,6 +46,27 @@ void screen_console_move_cursor(u32 x, u32 y);
 void screen_console_putc (char ch);          /* handles \n, \r, \t */
 void screen_console_puts (const char* s);
 void screen_console_clear(void);
+
+/* ---- Console output hook (driver-owned since 3.0.0) ----------------
+ * Called for every character BEFORE it is drawn.  Return 0 = let the
+ * console draw the char normally; non-zero = the hook handled it
+ * (teed it to serial, captured it, suppressed it) and the console must
+ * not draw it.  Only ONE hook is installed at a time; stacking is the
+ * hook's own business (see core_kcap.c for the capture stack).
+ * 3.0.0-WP03: a hook consumer that temporarily swaps the hook (the
+ * WP-01 self-test) MUST snapshot + restore it via
+ * screen_console_get_hook(), so the boot-time serial tee (installed
+ * through core_kcap) survives the swap. */
+typedef int (*screen_console_hook_fn)(void* ctx, u8 ch);
+typedef struct {
+    screen_console_hook_fn fn;
+    void                   *ctx;
+} screen_console_hook_t;
+void screen_console_set_hook(screen_console_hook_fn hook, void* ctx);
+/* Snapshot the installed hook (fn+ctx) for a later exact restore. */
+void screen_console_get_hook(screen_console_hook_t *out);
+/* Invoke the installed hook (returns its verdict; 0 = not present). */
+int  screen_console_call_hook(u8 ch);
 
 /* WP-10-chinese_support: scroll up one cell-row without moving the
  * cursor (used by the cn wide-write path). */

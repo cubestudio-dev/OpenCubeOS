@@ -10,7 +10,7 @@
  * l1_launcher_boot_default() runs at the end of kmain:
  *   - exactly one app declared is_default != 0 is expected;
  *   - starting it succeeds -> kmain waits for it like `run ush` did
- *     (g_usershell_running spin; when the app exits the kernel shell
+ *     (g_l1_entry_running spin; when the app exits the kernel shell
  *     resumes - the operator lands back at the oc> recovery prompt);
  *   - starting it fails -> the failure is logged and boot falls back
  *     to the oc> recovery environment directly.
@@ -89,10 +89,10 @@ void l1_launcher_boot_default(void) {
      * boot task burning its slice in ready-park is harmless on this
      * single-CPU design (the idle task still runs whenever nothing
      * else is ready). */
-    extern volatile int g_usershell_running;
+    extern volatile int g_l1_entry_running;
     extern void core_sched_yield(void);
-    g_usershell_running = 1;
-    while (g_usershell_running) {
+    g_l1_entry_running = 1;
+    while (g_l1_entry_running) {
         core_sched_yield();
     }
     lib_log_info("l1 launcher: default L1 app exited; recovery shell taking over");

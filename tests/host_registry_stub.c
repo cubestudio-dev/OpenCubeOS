@@ -6,10 +6,11 @@
  * The v2.0.0 declaration registry (core/core_registry.c) walks linker
  * section boundaries (__oc_*_start/__oc_*_end) that only exist in the
  * kernel image (linker.ld).  A host binary has no such sections, so
- * this stub defines the four boundary pairs as EMPTY arrays: the real
+ * this stub defines the boundary pairs as EMPTY arrays: the real
  * registry code links and runs unchanged, and its walks simply see
  * zero declarations.  Tests that need real declarations still must
- * run in QEMU. */
+ * run in QEMU.  3.0.0-WP03: the .oc_cmds command section died with
+ * the oc> shell (that boundary pair is gone). */
 #include "../../core/core_registry.h"
 
 /* lib_log_info shim - same observable behaviour as the kernel path
@@ -22,8 +23,6 @@ void lib_log_info(const char *s) {
     screen_console_puts("\n");
 }
 
-const oc_shell_cmd_decl_t  __oc_cmds_start[1] = {{0}};
-const oc_shell_cmd_decl_t  __oc_cmds_end[1]   = {{0}};
 const oc_driver_decl_t     __oc_drvs_start[1] = {{0, 0, 0, 0}};
 const oc_driver_decl_t     __oc_drvs_end[1]   = {{0, 0, 0, 0}};
 const oc_service_decl_t    __oc_svcs_start[1] = {{0, 0, 0, 0}};

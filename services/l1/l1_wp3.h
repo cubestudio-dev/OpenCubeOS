@@ -11,7 +11,8 @@
  *  11. PMM alloc/free/stats/emergency callback  - pmm.h
  *  12. VMM create/destroy/map/unmap/protect     - vmm.h
  *  13. Kernel heap kmalloc/kfree/krealloc/stats - heap.h
- *  14. Shell command registration               - shell.h
+ *  14. REMOVED in 3.0.0-WP03: shell command registration died with
+ *      the oc> user plane (recovery/shell.h is gone).
  *
  * All WP-01 and WP-02 interfaces remain unchanged.
  */
@@ -21,6 +22,5 @@
 #include "mem_pmm.h"
 #include "mem_vmm.h"
 #include "mem_heap.h"
-#include "shell.h"
 
 #endif /* OC_EXT_WP3_H */

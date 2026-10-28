@@ -12,7 +12,7 @@
  *   ota_update_verify_test    SHA256 verification + negative case
  *   ota_update_install_test   install the package into slot B (A/B disk)
  *   ota_update_rollback_test  boot-flag switching + rollback
- *   ota_update_local_test     offline flow through shell_cmd_update --local
+ *   ota_update_local_test     offline flow through ota_cmd_update --local
  *   ota_update_status_test    ota_update_get_status field coverage
  *   ota_ab_partition_test     A/B disk discovery, partition devices, mounts
  *   real_update_test      end-to-end phase 1 (download..set_boot); the
@@ -32,7 +32,7 @@
 #include "crypto_core.h"
 #include "mem_heap.h"
 #include "screen_console.h"
-#include "shell.h"
+#include "core_kcap.h"
 #include "lib_string.h"
 
 #include <stdint.h>
@@ -757,7 +757,7 @@ int ota_cmd_update_rollback_test(const char *args) {
 }
 
 /* ==================================================================== */
-/* ota_update_local_test (offline flow through shell_cmd_update --local)           */
+/* ota_update_local_test (offline flow through ota_cmd_update --local)           */
 /* ==================================================================== */
 
 int ota_cmd_update_local_test(const char *args) {
@@ -784,7 +784,7 @@ int ota_cmd_update_local_test(const char *args) {
     strcpy(cmdline, "--local ");
     strcat(cmdline, path);
     case_begin("cmd_update --local");
-    int rc = shell_cmd_update(cmdline);
+    int rc = ota_cmd_update(cmdline);
     case_result(rc == 0);
 
     case_begin("next boot flag = B");

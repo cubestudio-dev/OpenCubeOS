@@ -164,7 +164,7 @@ int core_power_suspend(void) {
 /* shell command handlers                                              */
 /* ------------------------------------------------------------------ */
 
-int shell_cmd_shutdown(const char *args) {
+int pwr_cmd_shutdown(const char *args) {
     (void)args;
     screen_console_puts("Shutting down...\n");
     if (core_power_shutdown() != 0) {
@@ -174,7 +174,7 @@ int shell_cmd_shutdown(const char *args) {
     return 0; /* unreachable on success */
 }
 
-int shell_cmd_suspend(const char *args) {
+int pwr_cmd_suspend(const char *args) {
     (void)args;
     screen_console_puts("Suspending...\n");
     if (core_power_suspend() != 0) {
@@ -191,7 +191,7 @@ int shell_cmd_suspend(const char *args) {
  * its own command ('suspend'); this handler parses <seconds> with up
  * to 3 fractional digits (milliseconds) and yields until the wall
  * clock passes the deadline. */
-int shell_cmd_sleep(const char *args) {
+int pwr_cmd_sleep(const char *args) {
     if (!args || !args[0]) {
         screen_console_puts("usage: sleep <seconds>  (e.g. sleep 2, sleep 0.5)\n");
         return 1;
@@ -226,7 +226,7 @@ int shell_cmd_sleep(const char *args) {
     return 0;
 }
 
-int shell_cmd_reboot(const char *args) {
+int pwr_cmd_reboot(const char *args) {
     (void)args;
     /* moved from ota_ab_update.c (WP-10u): flush + 8042 + 0xCF9 fallback */
     core_power_reboot();

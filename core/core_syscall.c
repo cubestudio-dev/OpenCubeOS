@@ -16,7 +16,7 @@
 #include "screen_console_in.h"
 #include "lib_string.h"
 #include "driver_input_keyboard.h"
-#include "shell.h"
+#include "lib_fspath.h"   /* 3.0.0-WP03: path resolution (ex shell_resolve_path) */
 #include "arch_idt.h"
 #include "core_timer.h"
 #include "net_core.h"   /* WP-10-tui: socket syscalls */   /* P2-04: core_timer_now_ms() for sys_uptime */
@@ -123,7 +123,7 @@ static int copy_to_user(u64 dst, const void *src, u64 len) {
  * (e.g. "test.txt") which the kernel must resolve against the cwd
  * before passing to fs_vfs_open/fs_vfs_stat/fs_vfs_readdir/etc.
  *
- * shell_resolve_path prepends g_cwd to relative paths and normalizes
+ * fspath_resolve_base prepends the process cwd to relative paths and normalizes
  * the result. We then copy the resolved absolute path into a kernel
  * buffer so subsequent VFS calls don't touch user memory.
  *
@@ -150,14 +150,12 @@ static int resolve_user_path(u64 user_path, char *out, int out_len) {
      * the caller never selected. */
     user_proc_t *proc = user_process_current();
     if (proc) {
-        extern int shell_resolve_path_base(const char *cwd, const char *path,
-                                           char *out, int out_len);
-        if (shell_resolve_path_base(proc->cwd, user_buf, out, out_len) < 0) return -1;
+        if (fspath_resolve_base(proc->cwd, user_buf, out, out_len) < 0) return -1;
         return 0;
     }
-    /* Defensive fallback (no current user process): kernel shell cwd. */
-    extern int shell_resolve_path(const char *path, char *out, int out_len);
-    if (shell_resolve_path(user_buf, out, out_len) < 0) return -1;
+    /* Defensive fallback (no current user process): kernel fallback
+     * cwd (rescued WP-03 into core/lib/lib_fspath.c). */
+    if (fspath_resolve(user_buf, out, out_len) < 0) return -1;
     return 0;
 }
 
@@ -307,7 +305,7 @@ static u64 sys_exit2(u64 code, u64 a2, u64 a3, u64 a4) {
     (void)a2;(void)a3;(void)a4;
     user_proc_t *p = user_process_current();
     if (p) {
-        /* WP-08cd: Clear usershell running flag ONLY when the ush
+        /* WP-08cd: Clear the L1-entry running flag ONLY when the ush
          * process itself exits (not when pipe children exit).
          * The ush process has no parent user process (parent_tid=0
          * because it was started from the kernel shell). Pipe children
@@ -317,9 +315,9 @@ static u64 sys_exit2(u64 code, u64 a2, u64 a3, u64 a4) {
          * this declaration must spell the same qualifier to stay
          * type-consistent with the definition (plain `extern int`
          * against a `volatile int` object is undefined behaviour). */
-        extern volatile int g_usershell_running;
+        extern volatile int g_l1_entry_running;
         if (p->parent_tid == 0) {
-            g_usershell_running = 0;
+            g_l1_entry_running = 0;
         }
         /* P3-11 FIX: Use the unified reaper so SIGKILL/exception/exit
          * all share the same cleanup logic (close fds + destroy AS). */
@@ -1290,7 +1288,7 @@ static u64 sys_chdir(u64 path, u64 a2, u64 a3, u64 a4) {
     if (!proc) return (u64)-1;
     /* BUG-0278 FIX (A2-14): chdir moves THIS process's cwd, not the
      * kernel shell's global g_cwd. The path is copy-in'd first (the old
-     * code handed the raw user pointer to shell_set_cwd, which read it
+     * code handed the raw user pointer to the cwd setter, which read it
      * directly - style-inconsistent with the rest of the syscall layer).
      * Validation mirrors the kernel shell's cd: the resolved path must
      * exist and be a directory. */
@@ -1305,10 +1303,8 @@ static u64 sys_chdir(u64 path, u64 a2, u64 a3, u64 a4) {
     }
     char resolved[USER_CWD_LEN];
     {
-        extern int shell_resolve_path_base(const char *cwd, const char *path,
-                                           char *out, int out_len);
-        if (shell_resolve_path_base(proc->cwd, user_buf, resolved,
-                                    (int)sizeof(resolved)) < 0)
+        if (fspath_resolve_base(proc->cwd, user_buf, resolved,
+                                (int)sizeof(resolved)) < 0)
             return (u64)-1;
     }
     fs_vfs_stat_t st;
@@ -2576,55 +2572,39 @@ static u64 sys_netclose(u64 sock, u64 a2, u64 a3, u64 a4) {
     return (net_close((int)sock) == 0) ? 0 : (u64)-1;
 }
 
-/* SYS_NETCMD(101): run a WP-06 network shell command in the kernel and
+/* SYS_NETCMD(101): run a WP-06 network command body in the kernel and
  * capture its REAL output for the user-space tools (ifconfig/ping/
- * netstat/wget). This reuses shell_execute_captured - the exact same
- * code path the oc> commands use - instead of duplicating the protocol
- * logic. (op, arg, out, cap) -> 0/-1. */
+ * netstat/wget).  3.0.0-WP03: the shell's captured-execution path is
+ * gone; the syscall calls the net service's exported bridge
+ * (net_netcmd_captured), which dispatches the identical bodies
+ * through the core_kcap capture machinery.  (op, arg, out, cap) ->
+ * 0/-1. */
 static u64 sys_netcmd(u64 op, u64 arg, u64 out, u64 cap) {
-    char cmdline[300];
+    char argbuf[250];
     if (!valid_user_ptr(out) || cap == 0 || cap > 8192) return (u64)-1;
-    switch (op) {
-        case NETCMD_IFCONFIG:
-            strcpy(cmdline, "ifconfig");
-            break;
-        case NETCMD_NETSTAT:
-            strcpy(cmdline, "netstat");
-            break;
-        case NETCMD_PING: {
-            char host[200];
-            if (copy_user_str(arg, host, sizeof(host)) < 0) return (u64)-1;
-            strcpy(cmdline, "ping ");
-            strncpy(cmdline + 5, host, sizeof(cmdline) - 6);
-            cmdline[sizeof(cmdline) - 1] = 0;
-            break;
-        }
-        case NETCMD_WGET: {
-            char args[250];
-            if (copy_user_str(arg, args, sizeof(args)) < 0) return (u64)-1;
-            strcpy(cmdline, "wget ");
-            strncpy(cmdline + 5, args, sizeof(cmdline) - 6);
-            cmdline[sizeof(cmdline) - 1] = 0;
-            break;
-        }
-        default:
-            return (u64)-1;
+    if (op == 1 || op == 3) {
+        argbuf[0] = 0;               /* ifconfig / netstat: no argument */
+    } else if (op == 2 || op == 4) { /* ping / wget: host (+ port/path) */
+        if (copy_user_str(arg, argbuf, sizeof(argbuf)) < 0) return (u64)-1;
+    } else {
+        return (u64)-1;
     }
     {
         /* WP-10-wp08fix1: kmalloc'd per call (was an 8 KiB static - the
          * kernel .bss must stay below the 0x400000 identity-window
-         * boundary, see editor.c).
+         * boundary, see the historical editor.c).
          *
          * v2.0.0 group O fix: re-enable interrupts around the captured
-         * execution (same root cause as the sys_l1svc fix above): the
-         * int 0x80 gate clears IF on entry, and the net bodies reached
+         * execution (same root cause as the sys_l1svc fix): the int
+         * 0x80 gate clears IF on entry, and the net bodies reached
          * through this bridge (ifconfig MMIO polls, ping ICMP reply
          * wait, dhcp DISCOVER/OFFER timeouts) are driven by IRQ/tick
          * time.  With IF held clear those waits spin forever. */
         char *kout = (char *)kmalloc(8192);
         if (!kout) return (u64)-1;
         __asm__ volatile("sti");
-        shell_execute_captured(cmdline, kout, 8192);
+        extern int net_netcmd_captured(u32 op, const char *arg, char *out, int cap);
+        net_netcmd_captured((u32)op, argbuf, kout, 8192);
         __asm__ volatile("cli");
         int n = (int)strlen(kout);
         if (n > (int)cap - 1) n = (int)cap - 1;

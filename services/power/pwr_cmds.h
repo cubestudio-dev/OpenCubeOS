@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS 2.0.2 - services/power command surface.
+/* Open Cube OS 3.0.0-WP03 - services/power op surface.
  *
- * halt/shutdown/poweroff/reboot/sleep command bodies live in
- * services/power/core_power.c; the test commands in pwr_cmds_test.c.
+ * shutdown/poweroff/reboot/sleep op bodies live in
+ * services/power/core_power.c; halt in pwr_cmds_kern.c (rescued from
+ * core/main.c when the oc> shell died); the test ops in
+ * pwr_cmds_test.c.  All renamed shell_cmd_* -> pwr_cmd_* in WP-03.
  */
 #ifndef OC_PWR_CMDS_H
 #define OC_PWR_CMDS_H
@@ -12,13 +14,13 @@
 extern "C" {
 #endif
 
-/* core_power.c (v1 bodies, unchanged) */
-int shell_cmd_shutdown(const char *args);
-int shell_cmd_sleep(const char *args);
-int shell_cmd_reboot(const char *args);
+/* core_power.c (v1 bodies, renamed pwr_cmd_* in WP-03) */
+int pwr_cmd_shutdown(const char *args);
+int pwr_cmd_sleep(const char *args);
+int pwr_cmd_reboot(const char *args);
 
-/* core/main.c */
-int shell_cmd_halt(const char *args);
+/* pwr_cmds_kern.c (rescued from core/main.c) */
+int pwr_cmd_halt(const char *args);
 
 /* pwr_cmds_test.c (migrated) */
 int pwr_cmd_poweroff_test(const char *args);

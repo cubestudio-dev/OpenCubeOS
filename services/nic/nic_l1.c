@@ -14,7 +14,7 @@
 #include "core_registry.h"
 #include "l1svc_defs.h"
 #include "wl_cmds.h"
-#include "shell.h"
+#include "core_kcap.h"
 
 typedef int (*nic_cmd_fn_t)(const char *);
 
@@ -44,7 +44,7 @@ static int nic_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
         case L1SVC_NIC_BT:            fn = wl_cmd_bt; break;
         default: return -1;
     }
-    return shell_run_fn_captured(fn, arg, out, cap) == 0 ? 0 : -1;
+    return core_kcap_run_fn(fn, arg, out, cap) == 0 ? 0 : -1;
 }
 
 /* v2.0.0: the nic service identity now carries its ring-3 surface

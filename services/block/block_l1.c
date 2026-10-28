@@ -13,7 +13,7 @@
 #include "core_registry.h"
 #include "l1svc_defs.h"
 #include "blk_cmds.h"
-#include "shell.h"
+#include "core_kcap.h"
 
 typedef int (*blk_cmd_fn_t)(const char *);
 
@@ -46,7 +46,7 @@ static int block_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
         case L1SVC_BLK_ABCFG:         fn = blk_cmd_abcfg_show; break;
         default: return -1;
     }
-    return shell_run_fn_captured(fn, arg, out, cap) == 0 ? 0 : -1;
+    return core_kcap_run_fn(fn, arg, out, cap) == 0 ? 0 : -1;
 }
 
 /* v2.0.0: the block service identity now carries its ring-3 surface.

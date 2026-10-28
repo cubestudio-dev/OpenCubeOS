@@ -169,8 +169,7 @@
 #define L1SVC_DISP_FONT_TEST   8   /* font-test */
 #define L1SVC_DISP_ENCODING    9   /* encoding */
 #define L1SVC_DISP_ENC_TEST   10   /* encoding-test */
-#define L1SVC_DISP_IME        11   /* ime */
-#define L1SVC_DISP_IME_TEST   12   /* ime-test */
+/* 3.0.0-WP03: ime / ime-test ops deleted with the IME engine. */
 #define L1SVC_CAT_INPUT    15
 #define L1SVC_INP_TOUCHPAD     1   /* touchpad */
 #define L1SVC_INP_TOUCHTEST    2   /* touchtest */
@@ -968,8 +967,6 @@ static const struct svc_cmd SVC_CMDS[] = {
     { "font-test",     L1SVC_CAT_DISPLAY, L1SVC_DISP_FONT_TEST },
     { "encoding",      L1SVC_CAT_DISPLAY, L1SVC_DISP_ENCODING },
     { "encoding-test", L1SVC_CAT_DISPLAY, L1SVC_DISP_ENC_TEST },
-    { "ime",           L1SVC_CAT_DISPLAY, L1SVC_DISP_IME },
-    { "ime-test",      L1SVC_CAT_DISPLAY, L1SVC_DISP_IME_TEST },
     /* input service (services/input) */
     { "touchpad",      L1SVC_CAT_INPUT, L1SVC_INP_TOUCHPAD },
     { "touchtest",     L1SVC_CAT_INPUT, L1SVC_INP_TOUCHTEST },
@@ -2967,7 +2964,7 @@ void _start(void) {
                     "reboot_test",
                     "stats","uname","clear","lang",
                     "chinese","chinesetest","font","font-test",
-                    "encoding","encoding-test","ime","ime-test",
+                    "encoding","encoding-test",
                     "touchpad","touchtest",
                     "uvc","uvctest","scsi","scsitest",
                     "gameport","gameporttest","parallel","paralleltest",

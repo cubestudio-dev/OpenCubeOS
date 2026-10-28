@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS 2.0.0 - services/crypto command surface (exported
- * bodies, migrated by declaration in group O).  The command bodies
- * live in core/main.c; this header exports them to the L1 dispatch
- * table (services/crypto/crypto_l1.c). */
+/* Open Cube OS 3.0.0-WP03 - services/crypto op surface.  The bodies
+ * were rescued verbatim from core/main.c into crypto_cmds.c (renamed
+ * shell_cmd_* -> crypto_cmd_*) when the oc> shell died; this header
+ * exports them to the L1 dispatch table (crypto_l1.c). */
 #ifndef OC_CRYPTO_L1_CMDS_H
 #define OC_CRYPTO_L1_CMDS_H
 
@@ -11,9 +11,9 @@
 extern "C" {
 #endif
 
-/* core/main.c (group O: static -> exported) */
-int shell_cmd_cryptotest(const char *args);
-int shell_cmd_dhtest(const char *args);
+/* crypto_cmds.c (WP-03 rescue, renamed crypto_cmd_*) */
+int crypto_cmd_cryptotest(const char *args);
+int crypto_cmd_dhtest(const char *args);
 
 #ifdef __cplusplus
 }

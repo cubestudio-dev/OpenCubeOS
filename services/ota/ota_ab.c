@@ -593,7 +593,7 @@ int ota_update_download(const char *url, const char *path) {
         net_send(sock, req, (int)strlen(req));
 
         /* WP-10u: two-phase receive, structurally identical to the proven
-         * shell_cmd_wget() pattern: phase 1 collects the response header into a
+         * wget() pattern: phase 1 collects the response header into a
          * small heap buffer, phase 2 streams the body to the VFS file.
          * The earlier single-phase version wrote the HTTP headers into
          * the package file and carried per-iteration wall-clock checks;
@@ -684,7 +684,7 @@ int ota_update_download(const char *url, const char *path) {
             if (code < 200 || code > 299) err = OC_UPDATE_E_HTTP;
         }
         if (!err) {
-            /* Content-Length (case-insensitive, like shell_cmd_wget) */
+            /* Content-Length (case-insensitive, like the wget body) */
             for (int k = 0; k < header_end && !have_cl; k++) {
                 if (hdr[k] == 'C' || hdr[k] == 'c') {
                     if (strncmp(hdr + k, "Content-Length:", 15) == 0 ||
@@ -1202,7 +1202,7 @@ static const char *update_target_slot(void) {
     return NULL;   /* ISO boot / no A/B disk: no safe target */
 }
 
-int shell_cmd_update(const char *args) {
+int ota_cmd_update(const char *args) {
     const char *a = args ? args : "";
 
     /* ---- update --status ---- */
@@ -1317,7 +1317,7 @@ int shell_cmd_update(const char *args) {
     return 0;
 }
 
-int shell_cmd_rollback(const char *args) {
+int ota_cmd_rollback(const char *args) {
     (void)args;
     if (!g_ab_present) {
         screen_console_puts("rollback: no A/B disk\n");
@@ -1339,7 +1339,7 @@ int shell_cmd_rollback(const char *args) {
     return 0;
 }
 
-/* shell_cmd_reboot moved to kernel/power.c (WP-10d-fix2): the reset path
+/* reboot body lives in services/power (WP-10d-fix2): the reset path
  * is shared with shutdown/halt and the block flush lives in
  * core_power_flush_blk().  ota_ab_update.c keeps the A/B update logic. */
 

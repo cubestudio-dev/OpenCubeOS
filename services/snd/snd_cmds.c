@@ -37,7 +37,7 @@
 #include "snd_cmds.h"
 #include "snd_svc.h"
 #include "driver_usb.h"
-#include "shell.h"
+#include "core_kcap.h"
 #include "screen_console.h"
 #include "lib_string.h"
 #include "core_timer.h"

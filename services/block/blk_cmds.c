@@ -7,7 +7,7 @@
  *   Plus enhanced df/du that use the real VFS.
  */
 #include "blk_cmds.h"
-#include "shell.h"
+#include "core_kcap.h"
 #include "block_svc.h"
 #include "driver_block_cache.h"
 #include "driver_block_part.h"
@@ -203,7 +203,7 @@ int driver_block_mkfs_fat32_device(int dev_idx) {
  * the data-loss warning and the usage line. Returns 0 when the caller may
  * proceed (device token copied into devbuf), 1 when refused (device
  * untouched). */
-static int shell_mkfs_gate(const char *cmd, const char *args,
+static int blk_mkfs_gate(const char *cmd, const char *args,
                            char *devbuf, int devbuf_len) {
     /* Extract the device token (first word). */
     int i = 0;
@@ -252,7 +252,7 @@ static int shell_mkfs_gate(const char *cmd, const char *args,
 int blk_cmd_mkfs_fat32(const char *args) {
     /* BUG-0239 FIX (A15-13): require the explicit `confirm` token. */
     char dev[BLK_DEV_NAME_LEN];
-    if (shell_mkfs_gate("mkfs.fat32", args, dev, (int)sizeof(dev)) != 0) {
+    if (blk_mkfs_gate("mkfs.fat32", args, dev, (int)sizeof(dev)) != 0) {
         return 1;
     }
     int dev_idx = driver_block_find_device(dev);
@@ -273,7 +273,7 @@ int blk_cmd_mkfs_fat32(const char *args) {
 int blk_cmd_mkfs_exfat(const char *args) {
     /* BUG-0239 FIX (A15-13): require the explicit `confirm` token. */
     char dev[BLK_DEV_NAME_LEN];
-    if (shell_mkfs_gate("mkfs.exfat", args, dev, (int)sizeof(dev)) != 0) {
+    if (blk_mkfs_gate("mkfs.exfat", args, dev, (int)sizeof(dev)) != 0) {
         return 1;
     }
     int dev_idx = driver_block_find_device(dev);
@@ -393,7 +393,7 @@ int blk_cmd_mkfs_exfat(const char *args) {
 int blk_cmd_mkfs_ext4(const char *args) {
     /* BUG-0239 FIX (A15-13): require the explicit `confirm` token. */
     char dev[BLK_DEV_NAME_LEN];
-    if (shell_mkfs_gate("mkfs.ext4", args, dev, (int)sizeof(dev)) != 0) {
+    if (blk_mkfs_gate("mkfs.ext4", args, dev, (int)sizeof(dev)) != 0) {
         return 1;
     }
     int dev_idx = driver_block_find_device(dev);

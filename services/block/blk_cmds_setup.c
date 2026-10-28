@@ -30,7 +30,7 @@
 #include "driver_block_part.h"
 /* v2.0.0 (was shell_cmds_disk.h): the WP-10a shared helper decl. */
 extern int driver_block_mkfs_fat32_device(int dev_idx);
-#include "shell.h"
+#include "core_kcap.h"
 #include "fs_vfs.h"
 #include "screen_console.h"
 #include "lib_string.h"

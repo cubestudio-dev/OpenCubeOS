@@ -18,7 +18,7 @@
  *                   transport prints an honest no-transport line.
  */
 #include "wl_cmds.h"
-#include "shell.h"
+#include "core_kcap.h"
 #include "driver_bt.h"
 #include "screen_console.h"
 #include "lib_string.h"

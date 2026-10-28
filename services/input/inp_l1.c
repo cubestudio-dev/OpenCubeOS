@@ -6,7 +6,7 @@
 #include "core_registry.h"
 #include "l1svc_defs.h"
 #include "disp_cmds.h"
-#include "shell.h"
+#include "core_kcap.h"
 
 typedef int (*inp_cmd_fn_t)(const char *);
 
@@ -18,7 +18,7 @@ static int inp_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
         case L1SVC_INP_TOUCHTEST: fn = inp_cmd_touchtest; break;
         default: return -1;
     }
-    return shell_run_fn_captured(fn, arg, out, cap) == 0 ? 0 : -1;
+    return core_kcap_run_fn(fn, arg, out, cap) == 0 ? 0 : -1;
 }
 
 OC_SERVICE_DECL_L1("input", "input service (keyboard + touch + ring-3 surface)",

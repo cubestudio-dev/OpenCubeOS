@@ -203,8 +203,10 @@
 #define L1SVC_DISP_FONT_TEST   8   /* font-test               */
 #define L1SVC_DISP_ENCODING    9   /* encoding                */
 #define L1SVC_DISP_ENC_TEST   10   /* encoding-test           */
-#define L1SVC_DISP_IME        11   /* ime                     */
-#define L1SVC_DISP_IME_TEST   12   /* ime-test                */
+/* 3.0.0-WP03: L1SVC_DISP_IME (11) / L1SVC_DISP_IME_TEST (12) are
+ * DELETED together with the input-method engine - the IME user plane
+ * leaves in WP-03.  Never renumber the surviving ops; 11/12 stay
+ * retired. */
 
 /* ---- input operations (services/input) -----------------------------
  * Bodies: recovery/shell_cmds_chipset.c (touchpad/touchtest). */

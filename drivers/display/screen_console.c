@@ -8,7 +8,6 @@
 #include "screen_fb.h"
 #include "core_sync.h"
 #include "lib_string.h"
-#include "l1_ext.h"   /* for the console output hook */
 
 static screen_console_t g_console;
 /* BUG-0319 (A7-04): the console state (cur_x/cur_y/scroll memmoves) had no
@@ -119,6 +118,34 @@ void screen_console_move_cursor(u32 x, u32 y) {
     spin_unlock(&g_console_lock);
 }
 
+/* ---- Console output hook (driver-owned since 3.0.0) ----------------
+ * Formerly l1_ext_set_console_hook()/l1_ext_console_hook() in
+ * services/l1/l1_ext.c - a drivers->services inversion.  The storage
+ * and the dispatch live HERE now; callers reach it through
+ * screen_console_set_hook()/screen_console_call_hook().  The
+ * suppression contract is unchanged (BUG-0091): non-zero return = the
+ * hook handled the char and the console must not draw it. */
+static screen_console_hook_fn g_hook_fn  = NULL;
+static void                  *g_hook_ctx = NULL;
+
+void screen_console_set_hook(screen_console_hook_fn hook, void* ctx) {
+    g_hook_fn  = hook;
+    g_hook_ctx = ctx;
+}
+
+void screen_console_get_hook(screen_console_hook_t *out) {
+    if (!out) return;
+    out->fn  = g_hook_fn;
+    out->ctx = g_hook_ctx;
+}
+
+int screen_console_call_hook(u8 ch) {
+    if (g_hook_fn) {
+        return g_hook_fn(g_hook_ctx, ch);
+    }
+    return 0;
+}
+
 void screen_console_clear(void) {
     spin_lock(&g_console_lock);
     screen_fb_clear(g_console.bg_pixel);
@@ -133,11 +160,11 @@ void screen_console_putc_at(u32 x, u32 y, char ch, u32 fg_pixel, u32 bg_pixel) {
 }
 
 void screen_console_putc(char ch) {
-    /* First, forward to the L1 hook.
+    /* First, forward to the installed console hook.
      * BUG-0091 FIX (A16-4): honor the documented suppression contract -
      * a non-zero hook return means the hook already handled the
-     * character (teeed it, captured it, ...) and L0 must NOT draw it. */
-    if (l1_ext_console_hook((u8)ch)) {
+     * character (teed it, captured it, ...) and L0 must NOT draw it. */
+    if (screen_console_call_hook((u8)ch)) {
         return;
     }
 

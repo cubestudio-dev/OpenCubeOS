@@ -7,7 +7,7 @@
 #include "core_registry.h"
 #include "l1svc_defs.h"
 #include "ota_cmds.h"
-#include "shell.h"
+#include "core_kcap.h"
 
 typedef int (*ota_cmd_fn_t)(const char *);
 
@@ -15,12 +15,12 @@ static int ota_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
     if (!out || cap <= 0) return -1;
     ota_cmd_fn_t fn = 0;
     switch (op) {
-        case L1SVC_OTA_CHECKUPDATE:      fn = shell_cmd_checkupdate; break;
-        case L1SVC_OTA_CONFIG:           fn = shell_cmd_config; break;
-        case L1SVC_OTA_CONFIG_TEST:      fn = shell_cmd_config_test; break;
-        case L1SVC_OTA_CHECKUPDATE_TEST: fn = shell_cmd_checkupdate_test; break;
-        case L1SVC_OTA_UPDATE:           fn = shell_cmd_update; break;
-        case L1SVC_OTA_ROLLBACK:         fn = shell_cmd_rollback; break;
+        case L1SVC_OTA_CHECKUPDATE:      fn = ota_cmd_checkupdate; break;
+        case L1SVC_OTA_CONFIG:           fn = ota_cmd_config; break;
+        case L1SVC_OTA_CONFIG_TEST:      fn = ota_cmd_config_test; break;
+        case L1SVC_OTA_CHECKUPDATE_TEST: fn = ota_cmd_checkupdate_test; break;
+        case L1SVC_OTA_UPDATE:           fn = ota_cmd_update; break;
+        case L1SVC_OTA_ROLLBACK:         fn = ota_cmd_rollback; break;
         case L1SVC_OTA_PKG_TEST:         fn = ota_cmd_update_pkg_test; break;
         case L1SVC_OTA_AB_TEST:          fn = ota_cmd_ab_partition_test; break;
         case L1SVC_OTA_CHECK_TEST:       fn = ota_cmd_update_check_test; break;
@@ -33,7 +33,7 @@ static int ota_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
         case L1SVC_OTA_REAL_TEST:        fn = ota_cmd_real_update_test; break;
         default: return -1;
     }
-    return shell_run_fn_captured(fn, arg, out, cap) == 0 ? 0 : -1;
+    return core_kcap_run_fn(fn, arg, out, cap) == 0 ? 0 : -1;
 }
 
 /* v2.0.0: ota service identity with its ring-3 surface.  Bring-up:

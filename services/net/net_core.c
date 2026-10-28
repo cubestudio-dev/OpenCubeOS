@@ -11,7 +11,6 @@
  * Uses polling mode (no IRQ). net_poll() must be called periodically.
  */
 #include "net_core.h"
-#include "shell.h"  /* WP-10d-fix2: shell_register_command_ex */
 #include "driver_pci.h"
 #include "../../services/nic/nic_svc.h"   /* WP-10b: NIC driver framework (e1000e/igb/rtl8139/...) */
 #include "mem_heap.h"
@@ -21,7 +20,7 @@
 #include "screen_console.h"
 #include "core_timer.h"
 #include "net_tcp_cc.h"
-#include "fs_vfs.h"   /* P1-3 FIX: for fs_vfs_open / VFS_O_WRONLY in shell_cmd_wget */
+#include "fs_vfs.h"   /* P1-3 FIX: for fs_vfs_open / VFS_O_WRONLY in net_cmd_wget */
 #include "core_registry.h"
 
 /* Allocate identity-mapped memory for DMA (e1000 needs physical addresses).
@@ -629,11 +628,11 @@ static int e1000_init(void) {
          * from whatever garbage was on the stack, so the write could run
          * past the end of the buffer. Start with buf[0]=0. */
         char buf[80]; char n[20];
-        u32 shell_cmd_reg = driver_pci_read_config(bus, dev, func, 0x04);
+        u32 pci_cmd_reg = driver_pci_read_config(bus, dev, func, 0x04);
         buf[0] = 0;
         strcat(buf, " dev="); u64_to_str(dev, n); strcat(buf, n);
         strcat(buf, " func="); u64_to_str(func, n); strcat(buf, n);
-        strcat(buf, " cmd=0x"); u64_to_hex(shell_cmd_reg, n, 4); strcat(buf, n);
+        strcat(buf, " cmd=0x"); u64_to_hex(pci_cmd_reg, n, 4); strcat(buf, n);
         strcat(buf, "\n");
         screen_console_puts(buf);
     }
@@ -643,11 +642,11 @@ static int e1000_init(void) {
      * The command register is 16-bit at offset 0x04, and the status register
      * is 16-bit at offset 0x06. We write 0x0000x107 where x107 = IO|MEM|BM|SERR.
      * Preserve the status register (high 16 bits) by reading first. */
-    u32 shell_cmd_stat = driver_pci_read_config(bus, dev, func, 0x04);
-    u32 shell_cmd_only = shell_cmd_stat & 0x0000FFFF;
-    u32 stat_only = shell_cmd_stat & 0xFFFF0000;
-    shell_cmd_only = 0x0107;  /* IO + MEM + BM + SERR# */
-    driver_pci_write_config(bus, dev, func, 0x04, stat_only | shell_cmd_only);
+    u32 pci_cmd_stat = driver_pci_read_config(bus, dev, func, 0x04);
+    u32 pci_cmd_only = pci_cmd_stat & 0x0000FFFF;
+    u32 stat_only = pci_cmd_stat & 0xFFFF0000;
+    pci_cmd_only = 0x0107;  /* IO + MEM + BM + SERR# */
+    driver_pci_write_config(bus, dev, func, 0x04, stat_only | pci_cmd_only);
 
     g_e1000_mmio = (volatile u32 *)(uintptr_t)bar0;
 
@@ -4569,7 +4568,7 @@ static void format_mac(const u8 *mac, char *out) {
     }
 }
 
-int shell_cmd_ifconfig(const char *args) {
+int net_cmd_ifconfig(const char *args) {
     (void)args;
     char buf[80];
     char ipstr[20], macstr[24];
@@ -4640,7 +4639,7 @@ int shell_cmd_ifconfig(const char *args) {
     return 0;
 }
 
-int shell_cmd_ip(const char *args) {
+int net_cmd_ip(const char *args) {
     if (!args[0]) {
         /* Show current config. */
         char buf[80]; char ipstr[20];
@@ -4676,7 +4675,7 @@ int shell_cmd_ip(const char *args) {
     return 0;
 }
 
-int shell_cmd_route(const char *args) {
+int net_cmd_route(const char *args) {
     char buf[120]; char ipstr[20];
     /* WP-09: show full routing table + support add/del */
     if (args[0] == 'a' && args[1] == 'd' && args[2] == 'd') {
@@ -4741,7 +4740,7 @@ int shell_cmd_route(const char *args) {
 }
 
 /* WP-09: arp command — show ARP cache */
-int shell_cmd_arp(const char *args) {
+int net_cmd_arp(const char *args) {
     (void)args;
     char buf[80]; char ipstr[20];
     screen_console_puts("ARP cache:\n");
@@ -4769,7 +4768,7 @@ int shell_cmd_arp(const char *args) {
 }
 
 /* WP-09: firewall command — add/del/list rules */
-int shell_cmd_firewall(const char *args) {
+int net_cmd_firewall(const char *args) {
     char buf[140]; char ipstr[20];
     if (args[0] == 0) {
         /* List rules + policies */
@@ -4823,8 +4822,8 @@ int shell_cmd_firewall(const char *args) {
     }
     if (args[0] == 'c' && args[1] == 't') {
         /* firewall ct — dump connection tracking table (external link) */
-        extern int shell_cmd_firewall_ct(const char *args);
-        return shell_cmd_firewall_ct(args + 3);
+        extern int net_cmd_firewall_ct(const char *args);
+        return net_cmd_firewall_ct(args + 3);
     }
     if (args[0] == 'r' && args[1] == 'e' && args[2] == 's') {
         net_netfilter_reset();
@@ -4929,7 +4928,7 @@ int shell_cmd_firewall(const char *args) {
 }
 
 /* firewall ct — connection tracking table dump */
-int shell_cmd_firewall_ct(const char *args) {
+int net_cmd_firewall_ct(const char *args) {
     (void)args;
     screen_console_puts("conntrack table:\n");
     int n = 0;
@@ -4960,7 +4959,7 @@ int shell_cmd_firewall_ct(const char *args) {
 }
 
 /* WP-09: tcpstats command — show TCP reliability stats */
-int shell_cmd_tcpstats(const char *args) {
+int net_cmd_tcpstats(const char *args) {
     (void)args;
     char buf[120]; char n[20];
     screen_console_puts("TCP reliability stats:\n");
@@ -5007,7 +5006,7 @@ int shell_cmd_tcpstats(const char *args) {
     return 0;
 }
 
-int shell_cmd_ping(const char *args) {
+int net_cmd_ping(const char *args) {
     if (!args[0]) {
         screen_console_puts("usage: ping <host|ip>\n");
         return 1;
@@ -5049,7 +5048,7 @@ int shell_cmd_ping(const char *args) {
     return got > 0 ? 0 : 1;
 }
 
-int shell_cmd_netstat(const char *args) {
+int net_cmd_netstat(const char *args) {
     (void)args;
     char buf[80];
 
@@ -5128,7 +5127,7 @@ int shell_cmd_netstat(const char *args) {
     return 0;
 }
 
-int shell_cmd_dhcp(const char *args) {
+int net_cmd_dhcp(const char *args) {
     (void)args;
     screen_console_puts("Sending DHCP discover...\n");
     int rc = net_dhcp_discover();
@@ -5157,7 +5156,7 @@ int shell_cmd_dhcp(const char *args) {
     return 0;
 }
 
-int shell_cmd_dns(const char *args) {
+int net_cmd_dns(const char *args) {
     if (!args[0]) {
         screen_console_puts("usage: dns <name> [aaaa|cname|mx|txt|ns|srv]\n");
         return 1;
@@ -5306,7 +5305,7 @@ int shell_cmd_dns(const char *args) {
 
 /* WP-09 mainstream: dnstest — exercise every record type against the
  * configured resolver (SLIRP forwards to the real upstream DNS). */
-int shell_cmd_dnstest(const char *args) {
+int net_cmd_dnstest(const char *args) {
     (void)args;
     int fails = 0;
     screen_console_puts("DNS record-type self-test (live resolver):\n");
@@ -5402,13 +5401,13 @@ int shell_cmd_dnstest(const char *args) {
     return fails == 0 ? 0 : 1;
 }
 
-int shell_cmd_lspci(const char *args) {
+int net_cmd_lspci(const char *args) {
     (void)args;
     driver_pci_list_devices();
     return 0;
 }
 
-int shell_cmd_wget(const char *args) {
+int net_cmd_wget(const char *args) {
     if (!args[0]) {
         screen_console_puts("usage: wget <http://host:port/path> | wget <host> [port] [path]\n");
         return 1;
@@ -5789,7 +5788,7 @@ static int net_tcp_cc_sim_test(void) {
  * inside the kernel. Covers integer_cbrt, the beta decrease, the cubic
  * growth curve at two sample points, RTO and fast-recovery bookkeeping,
  * plus a connection-level loss/congestion simulation. */
-int shell_cmd_tcpcc_test(const char *args) {
+int net_cmd_tcpcc_test(const char *args) {
     (void)args;
     int fails = 0;
     screen_console_puts("CUBIC (RFC 8312) kernel self-test:\n");
@@ -5872,7 +5871,7 @@ int shell_cmd_tcpcc_test(const char *args) {
  * state matching, per-rule hits, default policies, REJECT classification and
  * the conntrack state machine via the public netfilter interfaces, plus one
  * REAL-path check: an OUTPUT DROP rule makes net_icmp_ping fail. */
-int shell_cmd_nf_test(const char *args) {
+int net_cmd_nf_test(const char *args) {
     (void)args;
     int fails = 0;
     u32 peer = IP4(203, 0, 113, 7);
@@ -5973,7 +5972,7 @@ int shell_cmd_nf_test(const char *args) {
 /* WP-09 mainstream: tcptest — verify TCP option negotiation (MSS, Window
  * Scale, SACK-Permitted, Timestamps) on a REAL connection to a mainstream
  * server, plus option wire bytes on our own SYN. */
-int shell_cmd_tcptest(const char *args) {
+int net_cmd_tcptest(const char *args) {
     (void)args;
     int fails = 0;
     /* Single-line output on purpose (see KNOWN_ISSUES scroll-edge fault).
@@ -6223,7 +6222,3 @@ void net_e1000_resume(void) {
 }
 
 /* ---- v2.0.0 file-local command declarations ---- */
-OC_SHELL_CMD("ifconfig", shell_cmd_ifconfig, "show network interface info", "net");
-OC_SHELL_CMD("ping", shell_cmd_ping, "send ICMP echo (ping <host>)", "net");
-OC_SHELL_CMD("netstat", shell_cmd_netstat, "show network statistics and sockets", "net");
-OC_SHELL_CMD("wget", shell_cmd_wget, "download file via HTTP (wget <host> [port] [path])", "net");

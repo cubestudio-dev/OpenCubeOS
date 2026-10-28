@@ -66,12 +66,9 @@ SECTIONS
      * which steps by sizeof(decl) - would read misaligned garbage.
      * SUBALIGN(8) forces 8-byte input-section granularity: every
      * declaration type in this tree is a multiple of 8 bytes, so the
-     * entries pack back-to-back with no padding. */
-    .oc_cmds : SUBALIGN(8) {
-        __oc_cmds_start = .;
-        KEEP(*(.oc_cmds))
-        __oc_cmds_end = .;
-    } :boot
+     * entries pack back-to-back with no padding.
+     * 3.0.0-WP03: the .oc_cmds section (oc> command declarations)
+     * is deleted with the shell; the other identity sections stay. */
     .oc_drvs : SUBALIGN(8) {
         __oc_drvs_start = .;
         KEEP(*(.oc_drvs))

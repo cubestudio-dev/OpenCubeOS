@@ -6,7 +6,7 @@
  * (shell_cmds_disk.c, shell_cmds_disk_test.c), core/main.c (status
  * commands) and drivers/block/driver_block_disk_setup.c (setup
  * commands).  Function bodies are unchanged - the screen-console
- * output is captured by shell_run_fn_captured() when invoked through
+ * output is captured by core_kcap_run_fn() when invoked through
  * SYS_L1SVC.  Exported for services/block/block_l1.c (the op table).
  */
 #ifndef OC_BLK_CMDS_H

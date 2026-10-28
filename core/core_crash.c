@@ -554,7 +554,7 @@ static void crash_wdt_tick(void *ctx) {
     if (since > (u64)OC_WDT_TIMEOUT_MS) {
         char reason[72];
         task_t *t = core_kthread_current();
-        strcpy(reason, "watchdog timeout: no shell heartbeat for ");
+        strcpy(reason, "watchdog timeout: no heartbeat for ");
         u64_to_str(since / 1000ULL, reason + strlen(reason));
         strcat(reason, "s (task=");
         if (t) strcat(reason, t->name); else strcat(reason, "?");
