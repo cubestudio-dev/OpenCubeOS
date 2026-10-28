@@ -206,18 +206,27 @@ const char *ocembed_status(char *out, int cap) {
  *   unlock (write 0x80 then 0x86), reload (0x100), then clear the
  *   enable bit in PCI config 0x68 and read it back. */
 
+/* Port I/O with the port ALWAYS in DX (the 2.0.0 P-01 lesson: an
+ * "Nd" constraint lets gcc fold a constant port into an 8-bit
+ * immediate - 0xCFC+ > 255 then produces `out %al, $0xCFC`, which
+ * Debian binutils tolerates but the CI assembler rejects outright.
+ * Register-only, like the tui_core.c fix.) */
 static inline void esb_outw_io(u16 port, u16 val) {
-    __asm__ volatile("outw %0, %1" : : "a"(val), "Nd"(port));
+    __asm__ volatile("outw %0, %%dx" : : "a"(val), "d"(port));
 }
 
 static inline void esb_outb_io(u16 port, u8 val) {
-    __asm__ volatile("outb %0, %1" : : "a"(val), "Nd"(port));
+    __asm__ volatile("outb %0, %%dx" : : "a"(val), "d"(port));
 }
 
 static inline u8 esb_inb_io(u16 port) {
     u8 v;
-    __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(port));
+    __asm__ volatile("inb %%dx, %0" : "=a"(v) : "d"(port));
     return v;
+}
+
+static inline void esb_outl_io(u16 port, u32 val) {
+    __asm__ volatile("outl %0, %%dx" : : "a"(val), "d"(port));
 }
 
 /* 3.0.0-WP03 G4: TRUE 8-bit PCI config access.  The QEMU i6300esb
@@ -231,14 +240,14 @@ static inline u8 esb_inb_io(u16 port) {
 static void esb_pci_write8(u8 bus, u8 dev, u8 fn, u8 offset, u8 val) {
     u32 addr = ((u32)bus << 16) | ((u32)dev << 11) | ((u32)fn << 8)
                | ((u32)offset & 0xFCu) | 0x80000000u;
-    __asm__ volatile("outl %0, %1" : : "a"(addr), "Nd"(0xCF8));
+    esb_outl_io(0xCF8, addr);
     esb_outb_io((u16)(0xCFC + (offset & 3)), val);
 }
 
 static u8 esb_pci_read8(u8 bus, u8 dev, u8 fn, u8 offset) {
     u32 addr = ((u32)bus << 16) | ((u32)dev << 11) | ((u32)fn << 8)
                | ((u32)offset & 0xFCu) | 0x80000000u;
-    __asm__ volatile("outl %0, %1" : : "a"(addr), "Nd"(0xCF8));
+    esb_outl_io(0xCF8, addr);
     return esb_inb_io((u16)(0xCFC + (offset & 3)));
 }
 
