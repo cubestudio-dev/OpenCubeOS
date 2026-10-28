@@ -11,8 +11,7 @@
 #ifndef DRIVER_IWLWIFI_H
 #define DRIVER_IWLWIFI_H
 
-/* Register the iwlwifi family with the wireless core.  Called once from
- * the wireless init block in kernel/main.c. */
-void driver_iwlwifi_register(void);
+/* 3.0.0-WP03 G3: no register prototype anymore - the family
+ * self-declares in the .c file (OC_DRIVER_DECL("wireless", ...)). */
 
 #endif /* DRIVER_IWLWIFI_H */

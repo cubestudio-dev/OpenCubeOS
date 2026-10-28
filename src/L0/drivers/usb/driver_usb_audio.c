@@ -33,6 +33,7 @@
 #include "lib_string.h"
 #include "snd_svc.h"
 #include "snd_drv_internal.h"
+#include "core_registry.h"
 #include "core_sched.h"
 #include "core_timer.h"
 
@@ -439,13 +440,19 @@ static void driver_usb_audio_class_disconnect(driver_usb_dev_t *dev) {
     }
 }
 
-int driver_usb_audio_class_register(void) {
-    return driver_usb_register_driver("usb-audio", USB_CLASS_AUDIO,
-                               driver_usb_audio_class_probe,
-                               driver_usb_audio_class_disconnect);
-}
-
 /* ---- v2.0.0 file-local driver identity (collected at boot) ---- */
 static int snd_probe_usbaudio(void) { return driver_usb_audio_init(NULL); }
 static const snd_drv_ops_t g_snd_probe_usbaudio = { snd_probe_usbaudio };
 OC_DRIVER_DECL("snd", "usbaudio", &g_snd_probe_usbaudio, "USB audio class");
+
+/* 3.0.0-WP03 G3: USB class-driver identity for the SAME driver (was
+ * the explicit driver_usb_audio_class_register() call from kmain).
+ * The "snd" declaration above is the sound-family probe hook; this
+ * "usb" declaration is the hot-plug class binding - two facets of
+ * one driver, both self-declared in this file now. */
+static const driver_usb_class_ops_t g_usbcls_audio = {
+    "usb-audio", USB_CLASS_AUDIO,
+    driver_usb_audio_class_probe, driver_usb_audio_class_disconnect,
+};
+OC_DRIVER_DECL("usb", "usb-audio", &g_usbcls_audio,
+               "USB audio class (UAC hot-plug)");

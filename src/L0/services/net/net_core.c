@@ -6133,11 +6133,6 @@ int net_cmd_tcptest(const char *args) {
     return fails == 0 ? 0 : 1;
 }
 
-/* Network shell command registration (WP-10d-fix2: shell.h include,
- * the local extern declaration predates it and did not know _ex). */
-void net_register_shell_commands(void) {
-}
-
 /* Periodic timer callback for network polling. */
 static void net_timer_cb(void *ctx) {
     (void)ctx;

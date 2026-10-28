@@ -79,12 +79,15 @@
  *                                const void *buf, u16 len);
  *       Schedule one isochronous packet (audio: one per 1 ms frame).
  *
- *   int driver_usb_register_driver(const char *name, u8 class_code,
- *                           int (*probe)(driver_usb_dev_t *dev),
- *                           void (*disconnect)(driver_usb_dev_t *dev));
- *       Register a class driver.  The core calls probe() for every
- *       device whose interface/device class matches class_code
- *       (0xff = match everything).  disconnect() runs on hot-unplug.
+ *   Class drivers self-declare (3.0.0-WP03 G3): a class-driver file
+ *   places an OC_DRIVER_DECL("usb", name, &ops, desc) descriptor with
+ *   a driver_usb_class_ops_t ops table into the .oc_drvs linker
+ *   section.  driver_usb_probe_all() collects every "usb" entry into
+ *   the runtime registry before probing the host controllers - adding
+ *   a class driver = adding one file with its declaration, no boot
+ *   file edit, no registration call site.  (The old explicit
+ *   driver_usb_register_driver() boot calls are gone; the fill helper
+ *   is private to the core now.)
  */
 #ifndef OC_USB_H
 #define OC_USB_H
@@ -340,9 +343,19 @@ int  driver_usb_isochronous_transfer(driver_usb_dev_t *d, u8 ep_addr, void *buf,
 
 typedef int  (*driver_usb_probe_fn)(driver_usb_dev_t *dev);
 typedef void (*driver_usb_disconnect_fn)(driver_usb_dev_t *dev);
-int  driver_usb_register_driver(const char *name, u8 class_code,
-                         driver_usb_probe_fn probe,
-                         driver_usb_disconnect_fn disconnect);
+
+/* Class-driver identity ops for the OC_DRIVER_DECL("usb", ...)
+ * self-declaration (3.0.0-WP03 G3).  The core calls probe() for every
+ * device whose interface/device class matches class_code
+ * (USB_CLASS_VENDOR = 0xff matches everything); disconnect() runs on
+ * hot-unplug. */
+typedef struct {
+    const char                *name;
+    u8                         class_code;
+    driver_usb_probe_fn        probe;
+    driver_usb_disconnect_fn   disconnect;
+} driver_usb_class_ops_t;
+
 int  driver_usb_num_drivers(void);
 
 /* backend probe helpers (called by driver_usb_probe_all) */

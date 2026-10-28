@@ -28,6 +28,7 @@
 #include "driver_input_keyboard.h"
 #include "screen_console.h"
 #include "lib_string.h"
+#include "core_registry.h"
 #include "core_timer.h"
 #include "core_sched.h"
 
@@ -354,9 +355,18 @@ void driver_usb_mouse_print_state(void) {
     if (!any) screen_console_puts("  mouse: none\n");
 }
 
-int driver_usb_hid_init(void) {
-    driver_usb_register_driver("hid-kbd", USB_CLASS_HID,
-                        hid_kbd_probe, hid_kbd_disconnect);
-    return driver_usb_register_driver("hid-mouse", USB_CLASS_HID,
-                               hid_mouse_probe, hid_mouse_disconnect);
-}
+/* 3.0.0-WP03 G3: file-local class-driver identity - the boot-time
+ * driver_usb_hid_init() registration call (and its kmain call site)
+ * is gone.  The USB core collects these declarations from .oc_drvs
+ * before probing the host controllers. */
+static const driver_usb_class_ops_t g_usbcls_hid_kbd = {
+    "hid-kbd", USB_CLASS_HID, hid_kbd_probe, hid_kbd_disconnect,
+};
+OC_DRIVER_DECL("usb", "hid-kbd", &g_usbcls_hid_kbd,
+               "USB HID boot-protocol keyboard");
+
+static const driver_usb_class_ops_t g_usbcls_hid_mouse = {
+    "hid-mouse", USB_CLASS_HID, hid_mouse_probe, hid_mouse_disconnect,
+};
+OC_DRIVER_DECL("usb", "hid-mouse", &g_usbcls_hid_mouse,
+               "USB HID boot-protocol mouse");

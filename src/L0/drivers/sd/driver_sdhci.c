@@ -24,6 +24,7 @@
 #include "core_timer.h"
 #include "core_sched.h"
 #include "lib_string.h"
+#include "core_registry.h"
 
 /* ------------------------------------------------------------------ */
 /* SDHCI register set (SD Host Controller Standard Spec v2/v3)         */
@@ -259,6 +260,13 @@ static void sdhci_probe_card(sdhci_host_t *h)
 /* ------------------------------------------------------------------ */
 /* Host bring-up                                                       */
 /* ------------------------------------------------------------------ */
+/* 3.0.0-WP03 G3: client drivers self-declare via OC_DRIVER_DECL("sdio",
+ * ...) in .oc_drvs; this fill helper is private to the core (the
+ * public driver_sdio_register_driver() call site in driver_brcm.c is
+ * gone - it self-declares now).  The self-test further below still
+ * exercises the runtime fill path directly. */
+static int sdio_register_driver(const sdio_driver_t *drv);
+
 int driver_sdhci_init(void)
 {
     u8 bus, d, fn;
@@ -266,6 +274,16 @@ int driver_sdhci_init(void)
 
     for (int i = 0; i < SDHCI_MAX_HOSTS; i++) g_hosts[i].used = 0;
     g_sdio_driver_count = 0;
+
+    /* 3.0.0-WP03 G3: collect the self-declared "sdio" client drivers
+     * from .oc_drvs BEFORE probing the hosts, so cards found during
+     * host bring-up can bind immediately (the brcmfmac SDIO driver
+     * used to be registered by an explicit call chain from kmain). */
+    for (int i = 0; i < core_registry_drvs_count(); i++) {
+        const oc_driver_decl_t *c = core_registry_drv_at(i);
+        if (!c || strcmp(c->family, "sdio") != 0) continue;
+        sdio_register_driver((const sdio_driver_t *)c->ops);
+    }
 
     /* class scan: 08/05/0x (SD host controller)                        */
     while (idx < SDHCI_MAX_HOSTS &&
@@ -439,7 +457,9 @@ int driver_sdio_rw_extended(int host_id, int func, u32 addr, int write,
 /* ------------------------------------------------------------------ */
 /* SDIO client drivers                                                 */
 /* ------------------------------------------------------------------ */
-int driver_sdio_register_driver(const sdio_driver_t *drv)
+/* (see the forward declaration above the host bring-up for the
+ * WP-03 G3 self-declaration note) */
+static int sdio_register_driver(const sdio_driver_t *drv)
 {
     if (!drv || !drv->name || !drv->probe) return -1;
     if (g_sdio_driver_count >= (int)(sizeof(g_sdio_drivers) /
@@ -525,7 +545,7 @@ int driver_sdhci_selftest(char *out, int outlen)
             "sdio-selftest", 0x02d0, 0xffff, 0, 0,
         };
         int before = g_sdio_driver_count;
-        int rc = driver_sdio_register_driver(&selftest_drv);
+        int rc = sdio_register_driver(&selftest_drv);
         fails += wl_check(out, &o, outlen, "sdio driver register",
                           (rc == 0 && g_sdio_driver_count == before + 1) ||
                           (rc == -2));

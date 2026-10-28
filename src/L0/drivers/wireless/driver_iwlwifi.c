@@ -27,6 +27,7 @@
 #include "driver_iwlwifi.h"
 #include "driver_wireless.h"
 #include "driver_pci.h"
+#include "core_registry.h"
 #include "mem_heap.h"
 #include "mem_pmm.h"
 #include "core_timer.h"
@@ -437,7 +438,7 @@ static const wl_family_ops_t iwl_ops = {
     0 /* scan_start */, iwl_tx_frame, iwl_selftest,
 };
 
-void driver_iwlwifi_register(void)
-{
-    wl_register_family(&iwl_ops);
-}
+/* 3.0.0-WP03 G3: file-local family identity (was the explicit
+ * driver_iwlwifi_register() call from kmain). */
+OC_DRIVER_DECL("wireless", "iwlwifi", &iwl_ops,
+               "Intel Wireless (iwlwifi PCI family)");

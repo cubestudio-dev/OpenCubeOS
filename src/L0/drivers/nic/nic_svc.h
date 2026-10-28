@@ -155,8 +155,9 @@ int bcm57xx_init(driver_pci_dev_t *pdev);
 int other_nics_init(driver_pci_dev_t *pdev);
 void other_nics_print_state(void);
 
-/* WP-10b shell surface: tests + status commands (kernel/driver_nic_test_cmds.c). */
-void shell_cmds_nic_test_register(void);
+/* 3.0.0-WP03: the shell test-command registration prototype was stale
+ * since G1 (the L0 command surface is gone; nic_cmds.c self-registers
+ * its L1SVC ops through the service declaration). */
 
 /* Status printers for the shell commands (one per family). */
 void driver_nic_e1000e_print_state(void);

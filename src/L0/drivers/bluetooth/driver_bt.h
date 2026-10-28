@@ -189,7 +189,8 @@ const bt_transport_ops_t *bt_h4_ops(void);
 /* ------------------------------------------------------------------ */
 /* HCI-USB transport (btusb class driver)                              */
 /* ------------------------------------------------------------------ */
-int  bt_usb_init(void);                       /* registers the class drv */
+/* 3.0.0-WP03 G3: no bt_usb_init() prototype anymore - the class
+ * driver self-declares in driver_bt_usb.c (OC_DRIVER_DECL("usb", ...)). */
 int  bt_usb_present(void);                    /* device attached?       */
 const bt_transport_ops_t *bt_usb_ops(void);
 

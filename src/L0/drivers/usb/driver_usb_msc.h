@@ -26,7 +26,8 @@
 #ifndef OC_USB_MSC_H
 #define OC_USB_MSC_H
 
-int  driver_usb_msc_init(void);
+/* 3.0.0-WP03 G3: no init prototype anymore - the class driver
+ * self-declares in the .c file (OC_DRIVER_DECL("usb", ...)). */
 void driver_usb_msc_poll(void);
 int  driver_usb_msc_num_devices(void);
 void driver_usb_msc_print_state(void);

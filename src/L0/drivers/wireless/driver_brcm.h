@@ -11,8 +11,8 @@
 #ifndef DRIVER_BRCM_H
 #define DRIVER_BRCM_H
 
-/* Register the Broadcom families with the wireless core and the SDIO
- * client-driver registry. */
-void driver_brcm_register(void);
+/* 3.0.0-WP03 G3: no register prototype anymore - the Broadcom
+ * families and the brcmfmac SDIO client driver self-declare in the
+ * .c file (OC_DRIVER_DECL). */
 
 #endif /* DRIVER_BRCM_H */

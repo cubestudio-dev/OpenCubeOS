@@ -32,7 +32,8 @@
 #ifndef OC_USB_SERIAL_H
 #define OC_USB_SERIAL_H
 
-int  driver_usb_serial_init(void);
+/* 3.0.0-WP03 G3: no init prototype anymore - the class driver
+ * self-declares in the .c file (OC_DRIVER_DECL("usb", ...)). */
 void driver_usb_serial_poll(void);
 int  driver_usb_serial_num_ports(void);
 int  driver_usb_serial_write(const void *buf, int len);

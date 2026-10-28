@@ -28,6 +28,7 @@
 #include "driver_sdhci.h"
 #include "driver_pci.h"
 #include "mem_heap.h"
+#include "core_registry.h"
 #include "core_timer.h"
 #include "core_sched.h"
 #include "lib_string.h"
@@ -363,9 +364,13 @@ static const wl_family_ops_t brcmf_ops = {
     0, brcmf_tx_frame, brcmf_selftest,
 };
 
-void driver_brcm_register(void)
-{
-    wl_register_family(&b43_ops);
-    wl_register_family(&brcmf_ops);
-    driver_sdio_register_driver(&brcmf_sdio_drv);
-}
+/* 3.0.0-WP03 G3: file-local identities (was the explicit
+ * driver_brcm_register() call from kmain).  Two wireless families +
+ * the brcmfmac SDIO client driver (collected by the SDHCI core from
+ * the "sdio" family entries - same self-declaration rule). */
+OC_DRIVER_DECL("wireless", "b43", &b43_ops,
+               "Broadcom b43 (PCI family)");
+OC_DRIVER_DECL("wireless", "brcmfmac", &brcmf_ops,
+               "Broadcom brcmfmac (FullMAC PCI/SDIO family)");
+OC_DRIVER_DECL("sdio", "brcmfmac-sdio", &brcmf_sdio_drv,
+               "brcmfmac SDIO client driver");

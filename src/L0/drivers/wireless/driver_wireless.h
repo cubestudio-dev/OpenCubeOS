@@ -224,11 +224,13 @@ int  wl_fw_exists(const char *path);
 /* ------------------------------------------------------------------ */
 /* Core API                                                            */
 /* ------------------------------------------------------------------ */
-/* Bring-up.  Called once from kernel/main.c. */
+/* Bring-up.  Called once from the boot composition root; also collects
+ * the self-declared "wireless" families from .oc_drvs (WP-03 G3). */
 int  driver_wireless_init(void);
 
-/* Family registration (called by each family driver's init). */
-int  wl_register_family(const wl_family_ops_t *ops);
+/* 3.0.0-WP03 G3: no wl_register_family() prototype anymore - families
+ * self-declare in their own file via OC_DRIVER_DECL("wireless", ...)
+ * and the core collects them at init. */
 int  wl_family_count(void);
 const char *wl_family_name(int id);
 

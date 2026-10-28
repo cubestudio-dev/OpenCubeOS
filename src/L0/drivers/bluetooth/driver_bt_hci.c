@@ -518,7 +518,9 @@ int bt_stack_init(void)
     bt_rfcomm_register_l2cap();
     bt_sdp_register_l2cap();
     bt_spp_register_capture();
-    (void)bt_usb_init();               /* btusb class driver registered  */
+    /* 3.0.0-WP03 G3: the btusb class driver self-declares
+     * (OC_DRIVER_DECL in driver_bt_usb.c) and was collected by the
+     * USB core before host enumeration - no registration here. */
     /* transport choice: a live HCI-USB dongle wins, else the H4 UART  */
     if (bt_usb_present())
         return bt_hci_attach_transport(bt_usb_ops());

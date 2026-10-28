@@ -24,8 +24,8 @@
 int driver_usb_audio_init(void *driver_usb_dev);
 void driver_usb_audio_print_state(void);
 
-/* WP-10d: register the UAC driver as a USB class driver so hot-plugged
- * audio devices attach automatically (probe = driver_usb_audio_init(dev)). */
-int  driver_usb_audio_class_register(void);
+/* 3.0.0-WP03 G3: no class-register prototype anymore - the UAC
+ * driver self-declares both facets ("snd" probe + "usb" class
+ * binding) in the .c file via OC_DRIVER_DECL. */
 
 #endif /* OC_USB_AUDIO_H */

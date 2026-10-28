@@ -49,6 +49,7 @@
 #include "core_sched.h"
 #include "core_timer.h"
 #include "core_sync.h"
+#include "core_registry.h"
 #include "driver_usb_hid.h"
 #include "driver_usb_msc.h"
 #include "driver_usb_serial.h"
@@ -114,7 +115,11 @@ int driver_usb_num_devices(void) {
 
 int driver_usb_num_hosts(void) { return g_core.n_hosts; }
 
-int driver_usb_register_driver(const char *name, u8 class_code,
+/* 3.0.0-WP03 G3: class drivers self-declare via OC_DRIVER_DECL("usb",
+ * ...) in the .oc_drvs section; this fill helper is private to the core
+ * (the public driver_usb_register_driver() registration call site is
+ * gone - adding a class driver no longer touches any boot file). */
+static int usb_register_driver(const char *name, u8 class_code,
                         driver_usb_probe_fn probe,
                         driver_usb_disconnect_fn disconnect) {
     if (!name || !probe) return -1;
@@ -1621,8 +1626,36 @@ u16 driver_usb_uhci_frnum(void) {
  * probe-all: every supported controller type
  * ================================================================== */
 
+/* 3.0.0-WP03 G3: collect the self-declared "usb" class drivers from
+ * the .oc_drvs linker section into the runtime registry.  Runs once,
+ * at the top of driver_usb_probe_all(), exactly where the old explicit
+ * kmain registration calls used to sit (class drivers must be present
+ * before host enumeration so every device matches).  Adding a class
+ * driver = adding one .c file with an OC_DRIVER_DECL - no edit here,
+ * no edit in boot/. */
+static void usb_classes_collect(void)
+{
+    for (int i = 0; i < core_registry_drvs_count(); i++) {
+        const oc_driver_decl_t *c = core_registry_drv_at(i);
+        if (!c || strcmp(c->family, "usb") != 0) continue;
+        const driver_usb_class_ops_t *ops =
+            (const driver_usb_class_ops_t *)c->ops;
+        if (!ops || !ops->probe) continue;
+        int rc = usb_register_driver(ops->name, ops->class_code,
+                                     ops->probe, ops->disconnect);
+        if (rc < 0)
+            driver_usb_log("usb: class driver collect rejected (section entry \"");
+        else {
+            driver_usb_log("usb: class driver collected: ");
+            driver_usb_log(ops->name);
+            driver_usb_log("\n");
+        }
+    }
+}
+
 int driver_usb_probe_all(void) {
     int hosts = 0;
+    usb_classes_collect();   /* WP-03 G3: self-declared class drivers */
     /* UHCI (Intel PIIX3/4) */
     {
         u8 b, dv, fn;

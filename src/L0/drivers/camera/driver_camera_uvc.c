@@ -17,6 +17,7 @@
 #include "mem_heap.h"
 #include "driver_usb.h"
 #include "core_timer.h"
+#include "core_registry.h"
 #include "lib_mjpeg.h"
 #include "driver_camera.h"
 #include "driver_camera_uvc.h"
@@ -809,11 +810,19 @@ static void uvc_usb_disconnect(driver_usb_dev_t *dev)
     }
 }
 
-int driver_camera_uvc_register(void)
-{
-    return driver_usb_register_driver("uvc", 0x0E,
-                                      uvc_usb_probe, uvc_usb_disconnect);
-}
+/* 3.0.0-WP03 G3: file-local USB class-driver identity (was the
+ * explicit driver_camera_uvc_register() call from kmain).  Note the
+ * collection order change: the class driver is now registered BEFORE
+ * host enumeration (driver_usb_probe_all collects first), so UVC
+ * cameras present at power-on bind immediately instead of waiting
+ * for a later hot-plug event - strictly more complete, zero effect
+ * without UVC hardware. */
+static const driver_usb_class_ops_t g_usbcls_uvc = {
+    "uvc", 0x0E,
+    uvc_usb_probe, uvc_usb_disconnect,
+};
+OC_DRIVER_DECL("usb", "uvc", &g_usbcls_uvc,
+               "USB video class (UVC camera)");
 
 int driver_camera_uvc_test_bind(driver_usb_dev_t *dev)
 {
