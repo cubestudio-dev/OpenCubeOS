@@ -36,7 +36,7 @@
 #include "types.h"
 #include "lib_string.h"
 #include "screen_console.h"
-#include "drv_internal.h"
+#include "blk_drv_internal.h"
 #include "driver_block_cache.h"
 
 /* ---- host shims for the kernel dependencies of driver_block_blk.c ---- */

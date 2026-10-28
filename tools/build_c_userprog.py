@@ -84,8 +84,8 @@ def main():
     obj_path = os.path.join(build_dir, f'{name}_up.o')
     cc = os.environ.get('CC', '/usr/bin/gcc')
     # v2.0.0: l1apps/user.ld (group C restructure; was userprogs/).
-    user_ld = os.path.join(_ROOT, 'l1apps', 'user.ld')
-    ld_so_ld = os.path.join(_ROOT, 'l1apps', 'ld_so.ld')
+    user_ld = os.path.join(_ROOT, 'src', 'L1', 'user.ld')
+    ld_so_ld = os.path.join(_ROOT, 'src', 'L1', 'ld_so.ld')
 
     # Mode resolution. A 3rd argument ending in ".ld" is the legacy
     # linker-script override (libs/ld_so.c MUST be linked with
@@ -177,7 +177,7 @@ def main():
     new_block = "\n".join(lines) + "\n"
 
     # v2.0.0: the generated header lives in core/ (was kernel/core).
-    header_path = os.path.join(_ROOT, 'core', 'userprogs_data.h')
+    header_path = os.path.join(_ROOT, 'src', 'L0', 'core', 'userprogs_data.h')
     with open(header_path, 'r') as f:
         content = f.read()
     pattern = re.compile(

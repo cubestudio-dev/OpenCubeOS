@@ -11,7 +11,7 @@
  * zero declarations.  Tests that need real declarations still must
  * run in QEMU.  3.0.0-WP03: the .oc_cmds command section died with
  * the oc> shell (that boundary pair is gone). */
-#include "../../core/core_registry.h"
+#include "../../src/L0/core/core_registry.h"
 
 /* lib_log_info shim - same observable behaviour as the kernel path
  * (core/lib/lib_log.c): the message goes to the console capture; the

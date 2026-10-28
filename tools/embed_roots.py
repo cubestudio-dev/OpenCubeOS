@@ -29,7 +29,7 @@ ROOTS = [
 ]
 
 STORE = sys.argv[1] if len(sys.argv) > 1 else "/etc/ssl/certs"
-OUT = sys.argv[2] if len(sys.argv) > 2 else "services/crypto/crypto_roots.h"
+OUT = sys.argv[2] if len(sys.argv) > 2 else "src/L0/services/crypto/crypto_roots.h"
 
 def pem_to_der(path):
     b64 = []

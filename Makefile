@@ -42,7 +42,7 @@ endif
 
 ifneq ($(ARCH),x86_64)
 # cross build: the per-arch build.mk replaces the whole x86_64 body below
-include $(OC_ROOT)/arch/$(ARCH)/build.mk
+include $(OC_ROOT)/src/L0/core/arch/$(ARCH)/build.mk
 else
 
 # ---- WP-13-build_system: multi-configuration (spec 5.7) ---------------
@@ -99,51 +99,65 @@ OC_RELEASE_VERSION ?= 2.2.0
 OC_KERNEL_BUILD_OFFSET := 21
 OC_KERNEL_BUILD ?= $(shell expr $$(git -C $(OC_ROOT) rev-list --count HEAD 2>/dev/null || echo 0) + $(OC_KERNEL_BUILD_OFFSET))
 
-# ---- Source tree (WP-10-project_restructure-fix1 layout) ----
+# ---- Source tree (3.0.0-WP03 G2 layout: the src/L0 service kernel) ----
 # One folder per module.  All include paths are exported to the compiler so
 # every #include stays a plain basename include (multi -I strategy).
 # NOTE: must be defined BEFORE CFLAGS because CFLAGS uses := (immediate).
-# 3.0.0-WP03 L0 layout (one folder per rule; the src/L0/ tree move is
-# the next group - the directories keep their current top-level paths
-# until then):
-#   core/      - kernel foundation (arch-independent C + x86_64 asm in arch/)
-#   services/  - everything that provides a service; folder == L1 interface
-#                surface category (fs net crypto ota klog health watchdog
-#                power time l1 + the driver-service families below)
-#   drivers/   - hardware drivers, one folder per family
-#   chinese/   - the CJK display-pipeline bodies (font / encoding /
-#                render / console_cn + their regression suite) feeding
-#                the display root service - always compiled in
-#                3.0.0-WP03 deletions: recovery/ (the oc> environment
-#                shell), tui/ (the TUI framework + desktop), the IME
-#                (pinyin) engine - the whole L0 user plane is gone.
-#   l1apps/    - ring-3 user applications: ush (the boot shell, the only
-#                OC_L1_APP_DECL application) + the embedded test programs
-#                (built by `make l1apps`)
-KERNEL_DIRS := core arch/x86_64 core/mem core/lib \
-               services/crypto services/ota services/klog services/health \
-               services/watchdog services/power services/time \
-               services/fs services/net services/l1 \
-               services/block services/nic services/snd \
-               services/display services/input \
-               services/camera services/usb \
-               drivers/block drivers/nic drivers/snd drivers/usb \
-               drivers/input drivers/display drivers/pci \
-               drivers/acpi drivers/i2c drivers/time \
-               drivers/wireless drivers/bluetooth drivers/sd \
-               drivers/camera drivers/misc drivers/scsi \
-               chinese
+#   src/L0/boot/     - the boot composition root: boot.S / long_mode /
+#                      multiboot2 / grub_boot_stub + kmain.c (ex main.c),
+#                      the L1 launcher and the boot self-tests.  May call
+#                      into every layer (it is the top of the dependency
+#                      chain).
+#   src/L0/core/     - kernel mechanisms (sched/sync/timer/usermode/
+#                      registry/kcap/crash + mem/ + lib/ + generated/) and
+#                      core/arch/{x86_64,arm64,riscv}.  Depends on nothing
+#                      above it.
+#   src/L0/drivers/  - hardware drivers, one folder per family.
+#   src/L0/services/ - root services, folder == interface facet:
+#                      fs block net(audio-merged nic) audio font encoding
+#                      display loader selfhost | sysapi ipc klog health
+#                      crash (+time power crypto camera usb bodies)
+#   src/L1/          - ring-3 user applications: ush (the boot shell, the
+#                      only OC_L1_APP_DECL application) + the embedded
+#                      test programs (built by `make l1apps`)
+# 3.0.0-WP03 G1 deletions (still true): recovery/ (the oc> environment
+# shell), tui/ (the TUI framework + desktop), the IME (pinyin engine) -
+# the whole L0 user plane is gone.  G2 dissolved the old chinese/ and
+# services/l1/ grab-bags into font / encoding / display + sysapi / ipc /
+# loader + boot.
+KERNEL_DIRS := src/L0/core src/L0/core/arch/x86_64 src/L0/core/mem \
+               src/L0/core/lib \
+               src/L0/services/crypto src/L0/services/selfhost \
+               src/L0/services/klog src/L0/services/health \
+               src/L0/services/crash src/L0/services/power \
+               src/L0/services/time src/L0/services/fs \
+               src/L0/services/net src/L0/services/sysapi \
+               src/L0/services/block src/L0/services/audio \
+               src/L0/services/display src/L0/services/font \
+               src/L0/services/encoding src/L0/services/camera \
+               src/L0/services/usb src/L0/services/ipc \
+               src/L0/services/loader \
+               src/L0/drivers/block src/L0/drivers/nic src/L0/drivers/snd \
+               src/L0/drivers/usb src/L0/drivers/input \
+               src/L0/drivers/display src/L0/drivers/pci \
+               src/L0/drivers/acpi src/L0/drivers/i2c \
+               src/L0/drivers/time src/L0/drivers/wireless \
+               src/L0/drivers/bluetooth src/L0/drivers/sd \
+               src/L0/drivers/camera src/L0/drivers/misc \
+               src/L0/drivers/scsi \
+               src/L0/boot
 # NOTE: core/generated is deliberately NOT in KERNEL_DIRS: it only holds
 # the stage-2 generated grub_boot_data.c, which is compiled separately
 # (GRUB_DATA_OBJ) and linked in the second link stage only.  Its -I path
 # IS exported (WP-10-tui-qa): version_gen.h lives there and is included
 # by the objects that embed the release version.
-KERNEL_INC := $(foreach d,$(KERNEL_DIRS) boot tools,-I$(OC_ROOT)/$(d)) \
-              -I$(OC_ROOT)/core/generated
+KERNEL_INC := $(foreach d,$(KERNEL_DIRS) tools,-I$(OC_ROOT)/$(d)) \
+              -I$(OC_ROOT)/src/L0/core/generated -I$(OC_ROOT)/src/L1
 
 # ---- Embedded user programs (embed chain, HANDOVER 2.3 gap) ----
-# core/userprogs_data.h is included by core/main.c (the `run`
-# command executes these programs) but was maintained by MANUAL tool runs:
+# src/L0/core/userprogs_data.h is included by core_usermode.c (the
+# ring-3 images are mapped from these arrays) but was maintained by
+# MANUAL tool runs:
 # the Makefile had ZERO rules touching it, so a clean rebuild silently
 # shipped stale embedded programs (the fix1 int3_user incident class).
 # Two guards now exist:
@@ -160,8 +174,8 @@ BUILD_SOLIB_PY  := tools/build_solib.py
 # The embed chain covers every embedded image: asm progs, C progs, the six
 # dynamic-link programs (pie / pie-foo recipes), libfoo.c (solib leg) and
 # libs/ld_so.c (ld.so itself, ld_so.ld @ 0x10000000).
-USERPROG_SRCS   := $(wildcard $(OC_ROOT)/l1apps/*.asm) $(wildcard $(OC_ROOT)/l1apps/*.c) $(OC_ROOT)/l1apps/ld_so.c
-USERPROGS_HDR   := core/userprogs_data.h
+USERPROG_SRCS   := $(wildcard $(OC_ROOT)/src/L1/*.asm) $(wildcard $(OC_ROOT)/src/L1/*.c) $(OC_ROOT)/src/L1/ld_so.c
+USERPROGS_HDR   := src/L0/core/userprogs_data.h
 
 CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
 	     -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel \
@@ -180,13 +194,15 @@ ASFLAGS   := -f elf64 -F dwarf -g
 # `make cache-stats`.  Hits are byte-identical to fresh compiles, so the
 # cache is safe for reproducible-check.
 OC_CC := bash $(OC_ROOT)/tools/oc_cc.sh $(CC)
-LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/linker.ld -z max-page-size=0x1000 -z noexecstack
+LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/src/L0/core/arch/x86_64/linker.ld -z max-page-size=0x1000 -z noexecstack
 
 # Sources (recursive over KERNEL_DIRS)
-# boot/grub_boot_stub.c is compiled separately (stage-1 link only).
+# src/L0/boot/grub_boot_stub.c is compiled separately (stage-1 link
+# only); filter it out of the kernel-proper object list.
 KERNEL_C    := $(foreach d,$(KERNEL_DIRS),$(wildcard $(OC_ROOT)/$(d)/*.c))
-KERNEL_ASM_B := $(wildcard $(OC_ROOT)/boot/*.S)
-KERNEL_ASM_K := $(wildcard $(OC_ROOT)/arch/x86_64/*.S)
+KERNEL_C    := $(filter-out %grub_boot_stub.c,$(KERNEL_C))
+KERNEL_ASM_B := $(wildcard $(OC_ROOT)/src/L0/boot/*.S)
+KERNEL_ASM_K := $(wildcard $(OC_ROOT)/src/L0/core/arch/x86_64/*.S)
 # WP-13 multi-config source filtering: individual block drivers for
 # the hardware profile options (self-registering drivers; the init
 # calls in main.c are macro-stubbed by config_gen.h).  3.0.0-WP03: the
@@ -202,8 +218,8 @@ KERNEL_C    := $(filter-out %driver_block_virtio_blk.c,$(KERNEL_C))
 endif
 
 KERNEL_OBJ  := $(patsubst $(OC_ROOT)/%.c,$(BUILD)/%.o,$(KERNEL_C)) \
-               $(patsubst $(OC_ROOT)/boot/%.S,$(BUILD)/boot_%.o,$(KERNEL_ASM_B)) \
-               $(patsubst $(OC_ROOT)/arch/%.S,$(BUILD)/arch/%.o,$(KERNEL_ASM_K))
+               $(patsubst $(OC_ROOT)/src/L0/boot/%.S,$(BUILD)/boot_%.o,$(KERNEL_ASM_B)) \
+               $(patsubst $(OC_ROOT)/src/L0/core/arch/%.S,$(BUILD)/core/arch/%.o,$(KERNEL_ASM_K))
 
 KERNEL     := $(BUILD)/opencube.elf
 KERNEL_ISO := $(BUILD)/opencube.iso
@@ -214,7 +230,7 @@ KERNEL_ISO := $(BUILD)/opencube.iso
 # boot/core images (grub-mkimage) + the stage-1 ELF; stage 2 links the
 # final kernel with that data.  The in-system abdisk / install /
 # grub-install commands use it to make a disk bootable from the shell.
-GEN_DIR     := $(OC_ROOT)/core/generated
+GEN_DIR     := $(OC_ROOT)/src/L0/core/generated
 GRUB_DATA_C := $(GEN_DIR)/grub_boot_data.c
 GRUB_DATA_OBJ := $(BUILD)/grub_boot_data.o
 STUB_OBJ    := $(BUILD)/grub_boot_stub.o
@@ -307,27 +323,27 @@ $(BUILD):
 # the kernel image stays inside the 0x400000 identity window (the linker
 # ASSERT is byte-exact; measured over-run was 8 KiB at -O2).  Same
 # per-file-override pattern as the AML -O0 rule below.
-$(BUILD)/drivers/wireless/driver_wireless.o: $(OC_ROOT)/drivers/wireless/driver_wireless.c | $(BUILD)
+$(BUILD)/src/L0/drivers/wireless/driver_wireless.o: $(OC_ROOT)/src/L0/drivers/wireless/driver_wireless.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/drivers/wireless/driver_iwlwifi.o: $(OC_ROOT)/drivers/wireless/driver_iwlwifi.c | $(BUILD)
+$(BUILD)/src/L0/drivers/wireless/driver_iwlwifi.o: $(OC_ROOT)/src/L0/drivers/wireless/driver_iwlwifi.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/drivers/wireless/driver_rtlwifi.o: $(OC_ROOT)/drivers/wireless/driver_rtlwifi.c | $(BUILD)
+$(BUILD)/src/L0/drivers/wireless/driver_rtlwifi.o: $(OC_ROOT)/src/L0/drivers/wireless/driver_rtlwifi.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/drivers/wireless/driver_ath.o: $(OC_ROOT)/drivers/wireless/driver_ath.c | $(BUILD)
+$(BUILD)/src/L0/drivers/wireless/driver_ath.o: $(OC_ROOT)/src/L0/drivers/wireless/driver_ath.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/drivers/wireless/driver_brcm.o: $(OC_ROOT)/drivers/wireless/driver_brcm.c | $(BUILD)
+$(BUILD)/src/L0/drivers/wireless/driver_brcm.o: $(OC_ROOT)/src/L0/drivers/wireless/driver_brcm.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/drivers/sd/driver_sdhci.o: $(OC_ROOT)/drivers/sd/driver_sdhci.c | $(BUILD)
+$(BUILD)/src/L0/drivers/sd/driver_sdhci.o: $(OC_ROOT)/src/L0/drivers/sd/driver_sdhci.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
@@ -338,15 +354,15 @@ $(BUILD)/drivers/sd/driver_sdhci.o: $(OC_ROOT)/drivers/sd/driver_sdhci.c | $(BUI
 # above: -O2 miscompiles a working path (segfault pattern caught by the
 # 4:4:4 fixture on the host build), -Os is clean and the decoder is
 # not performance-critical (one frame at a time).
-$(BUILD)/drivers/camera/lib_mjpeg.o: $(OC_ROOT)/drivers/camera/lib_mjpeg.c | $(BUILD)
+$(BUILD)/src/L0/drivers/camera/lib_mjpeg.o: $(OC_ROOT)/src/L0/drivers/camera/lib_mjpeg.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/drivers/camera/driver_camera.o: $(OC_ROOT)/drivers/camera/driver_camera.c | $(BUILD)
+$(BUILD)/src/L0/drivers/camera/driver_camera.o: $(OC_ROOT)/src/L0/drivers/camera/driver_camera.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/drivers/camera/driver_camera_uvc.o: $(OC_ROOT)/drivers/camera/driver_camera_uvc.c | $(BUILD)
+$(BUILD)/src/L0/drivers/camera/driver_camera_uvc.o: $(OC_ROOT)/src/L0/drivers/camera/driver_camera_uvc.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
@@ -355,7 +371,7 @@ $(BUILD)/drivers/camera/driver_camera_uvc.o: $(OC_ROOT)/drivers/camera/driver_ca
 # interpreter's pointer-heavy value model (boot crash in kfree with a
 # wild pointer, codegen-sensitive across builds) while -O0 parses the
 # same tables cleanly (verified against the live QEMU DSDT).
-$(BUILD)/drivers/acpi/driver_acpi_aml.o: $(OC_ROOT)/drivers/acpi/driver_acpi_aml.c | $(BUILD)
+$(BUILD)/src/L0/drivers/acpi/driver_acpi_aml.o: $(OC_ROOT)/src/L0/drivers/acpi/driver_acpi_aml.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -O0 -c $< -o $@
 
@@ -375,34 +391,34 @@ $(BUILD)/%.o: $(OC_ROOT)/%.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(CFLAGS) -c $< -o $@
 
-# Assembly source (boot/) → object file
-$(BUILD)/boot_%.o: $(OC_ROOT)/boot/%.S | $(BUILD)
+# Assembly source (src/L0/boot/) → object file
+$(BUILD)/boot_%.o: $(OC_ROOT)/src/L0/boot/%.S | $(BUILD)
 	$(NASM) $(ASFLAGS) $< -o $@
 
-# Assembly source (arch/x86_64/) → object file
-$(BUILD)/arch/%.o: $(OC_ROOT)/arch/%.S | $(BUILD)
+# Assembly source (src/L0/core/arch/x86_64/) → object file
+$(BUILD)/core/arch/%.o: $(OC_ROOT)/src/L0/core/arch/%.S | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(NASM) $(ASFLAGS) $< -o $@
 
 # Link the kernel ELF in two stages (see WP-10d-pre note above), then
 # strip debug info (removes build-machine paths)
-$(STUB_OBJ): $(OC_ROOT)/boot/grub_boot_stub.c $(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
+$(STUB_OBJ): $(OC_ROOT)/src/L0/boot/grub_boot_stub.c $(OC_ROOT)/src/L0/boot/grub_boot_data.h | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(CFLAGS) -c $< -o $@
 
-$(BASE_ELF): $(KERNEL_OBJ) $(STUB_OBJ) $(OC_ROOT)/linker.ld | $(BUILD)
+$(BASE_ELF): $(KERNEL_OBJ) $(STUB_OBJ) $(OC_ROOT)/src/L0/core/arch/x86_64/linker.ld | $(BUILD)
 	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ) $(STUB_OBJ)
 	strip --strip-debug $@
 
 $(GRUB_DATA_C): $(OC_ROOT)/tools/embed_grub.py $(BASE_ELF) \
-                $(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
+                $(OC_ROOT)/src/L0/boot/grub_boot_data.h | $(BUILD)
 	python3 $(OC_ROOT)/tools/embed_grub.py "$(OC_TOOLS)" $(BASE_ELF) $@
 
-$(GRUB_DATA_OBJ): $(GRUB_DATA_C) $(OC_ROOT)/boot/grub_boot_data.h | $(BUILD)
+$(GRUB_DATA_OBJ): $(GRUB_DATA_C) $(OC_ROOT)/src/L0/boot/grub_boot_data.h | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(CFLAGS) -c $< -o $@
 
-$(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(OC_ROOT)/linker.ld | $(BUILD)
+$(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(OC_ROOT)/src/L0/core/arch/x86_64/linker.ld | $(BUILD)
 	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ) $(GRUB_DATA_OBJ)
 	strip --strip-debug $@
 
@@ -606,7 +622,7 @@ userprogs:
 	     *.asm) echo "userprogs: embed $$name (asm)"; python3 $(OC_ROOT)/$(EMBED_PY) "$$name" "$$src";; \
 	     */libfoo.c) echo "userprogs: embed $$name (solib)"; python3 $(OC_ROOT)/$(BUILD_SOLIB_PY) "$$src";; \
 	     */ld_so.c) echo "userprogs: embed $$name (c, ld_so.ld)"; \
-                python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" $(OC_ROOT)/l1apps/ld_so.ld;; \
+                python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" $(OC_ROOT)/src/L1/ld_so.ld;; \
 	     */dyn_hello.c|*/pie_test.c) echo "userprogs: embed $$name (c, pie)"; \
                 python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" pie;; \
 	     */so_test.c|*/dlsym_test.c|*/reloc_test.c|*/main_dyn.c) echo "userprogs: embed $$name (c, pie-foo)"; \
@@ -637,7 +653,7 @@ dist: userprogs-check $(KERNEL_ISO)
 	TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
 	SRCZIP=$(DIST)/OpenCubeOS-src-$(OC_RELEASE_VERSION)-$$TIMESTAMP.zip; \
 	ISOCOPY=$(DIST)/OpenCubeOS-$(OC_RELEASE_VERSION)-$$TIMESTAMP.iso; \
-	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*" "website/rw*.sh" "website/build-local.sh" "website/public/downloads/*" "website/out/*" "website/.next/*" "website/node_modules/*" "core/generated/*"); \
+	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*" "website/rw*.sh" "website/build-local.sh" "website/public/downloads/*" "website/out/*" "website/.next/*" "website/node_modules/*" "src/L0/core/generated/*"); \
 	cp $(KERNEL_ISO) $$ISOCOPY; \
 	echo "SRC: $$SRCZIP"; \
 	echo "ISO: $$ISOCOPY"; \
