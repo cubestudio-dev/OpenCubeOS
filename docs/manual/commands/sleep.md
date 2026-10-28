@@ -6,12 +6,11 @@
 
 # sleep
 
-`sleep` - delay for N seconds (sleep &lt;sec&gt;)
+`sleep` - sleep &lt;sec&gt;
 
-Home: L0 recovery shell (`oc>`) - OC_SHELL_CMD in `core/main.c`
-Also an ush SVC_CMDS row (`l1apps/ush.c`) - callable from both shells.
+Home: ring-3 service surface - SVC_CMDS row in `l1apps/ush.c`, dispatched through SYS_L1SVC(110) to `services/power/`.
 
-Domain: [Kernel core commands](index.md#kernel-core)
+Domain: [ush (ring-3 shell: SVC rows + built-ins)](index.md#ush)
 
 Full command index: [commands](index.md) - or `help -a` /
 `help -w` inside a running system.

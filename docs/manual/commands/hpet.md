@@ -6,12 +6,11 @@
 
 # hpet
 
-`hpet` - HPET: caps + counter + one-shot/periodic IRQ8 tests
+`hpet` - hpet               : HPET status
 
-Home: L0 recovery shell (`oc>`) - OC_SHELL_CMD in `recovery/shell_cmds_timer.c`
-Also an ush SVC_CMDS row (`l1apps/ush.c`) - callable from both shells.
+Home: ring-3 service surface - SVC_CMDS row in `l1apps/ush.c`, dispatched through SYS_L1SVC(110) to `services/time/`.
 
-Domain: [Time sources](index.md#shell-timer)
+Domain: [ush (ring-3 shell: SVC rows + built-ins)](index.md#ush)
 
 Full command index: [commands](index.md) - or `help -a` /
 `help -w` inside a running system.

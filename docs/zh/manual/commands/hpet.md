@@ -6,11 +6,10 @@
 
 # hpet
 
-`hpet` - HPET: caps + counter + one-shot/periodic IRQ8 tests
+`hpet` - hpet               : HPET status
 
-家：L0 恢复壳（`oc>`）—— 注册于 `recovery/shell_cmds_timer.c`（OC_SHELL_CMD）
-双归属：同时是 ush 的 SVC_CMDS 行（`l1apps/ush.c`），两个 shell 都可调用。
+家：ring-3 服务面 —— ush 的 SVC_CMDS 行（`l1apps/ush.c`），经 SYS_L1SVC(110) 派发到 `services/time/`。
 
-领域：[时间源](index.md#shell-timer)
+领域：[ush（ring-3 shell：SVC 行 + 内建）](index.md#ush)
 
 完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。

@@ -11,6 +11,7 @@
  */
 #include "types.h"
 #include "lib_klog.h"
+#include "klog_file.h"
 #include "fs_vfs.h"
 #include "lib_string.h"
 #include "lib_log.h"

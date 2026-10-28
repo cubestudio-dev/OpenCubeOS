@@ -1,43 +1,27 @@
 {
  "dirs": {
-  "core": {
-   "files": 36,
-   "lines": 16430
+  "src/L0/core": {
+   "files": 62,
+   "lines": 13134
   },
-  "arch": {
-   "files": 23,
-   "lines": 2715
+  "src/L0/drivers": {
+   "files": 125,
+   "lines": 40211
   },
-  "drivers": {
-   "files": 123,
-   "lines": 39303
+  "src/L0/services": {
+   "files": 131,
+   "lines": 43172
   },
-  "services": {
-   "files": 109,
-   "lines": 40806
+  "src/L0/boot": {
+   "files": 7,
+   "lines": 1297
   },
-  "recovery": {
-   "files": 35,
-   "lines": 10458
-  },
-  "tui": {
-   "files": 25,
-   "lines": 11006
-  },
-  "chinese": {
-   "files": 15,
-   "lines": 4520
-  },
-  "boot": {
-   "files": 4,
-   "lines": 252
-  },
-  "l1apps": {
+  "src/L1": {
    "files": 9,
-   "lines": 5082
+   "lines": 5079
   }
  },
- "total_lines": 130572,
- "total_files": 379,
+ "total_lines": 102893,
+ "total_files": 334,
  "note": "Counts .c/.h/.S sources under the 9 STAT_DIRS (core arch drivers services recovery tui chinese boot l1apps); generated data blobs excluded, and l1apps/ .asm/.ld program files are not counted (9 of its 36 files are .c) - the same exclusions the README verification command applies."
 }

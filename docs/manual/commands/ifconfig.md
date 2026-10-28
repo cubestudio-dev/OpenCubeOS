@@ -6,12 +6,11 @@
 
 # ifconfig
 
-`ifconfig` - show network interface info
+`ifconfig` - ifconfig
 
-Home: L0 recovery shell (`oc>`) - OC_SHELL_CMD in `services/net/net_core.c`
-Also reachable as a ush built-in through the SYS_NETCMD bridge.
+Home: ush built-in - streq dispatch in `l1apps/ush.c` (runs entirely in ring 3).
 
-Domain: [Networking service (L0 half)](index.md#svc-net)
+Domain: [ush (ring-3 shell: SVC rows + built-ins)](index.md#ush)
 
 Full command index: [commands](index.md) - or `help -a` /
 `help -w` inside a running system.

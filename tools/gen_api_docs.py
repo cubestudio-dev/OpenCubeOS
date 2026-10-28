@@ -303,9 +303,18 @@ def extract_v2_commands():
     return out, svc_rows_total, svc_dual
 
 
+def svc_folder_of_cat(cat):
+    """The implementing services/ folder for an L1SVC category.  The
+    registry convention is category == folder; the ONE exception is
+    cat 18 ("ocire" - the ABI name is frozen by the OCIRE log-agent
+    contract): its implementation lives in services/ocembed/ (the
+    3.0.0-WP03 spec's folder name)."""
+    return "ocembed" if cat == "ocire" else cat
+
+
 def extract_l1svc_surface():
-    """Parse services/l1/l1svc_defs.h into the category/op tables."""
-    path = os.path.join(ROOT, "services", "l1", "l1svc_defs.h")
+    """Parse src/L0/services/sysapi/l1svc_defs.h (the category/op ABI)."""
+    path = os.path.join(ROOT, "src", "L0", "services", "sysapi", "l1svc_defs.h")
     text = open(path, encoding="utf-8").read()
     cats = {}
     ops = {}
@@ -317,7 +326,7 @@ def extract_l1svc_surface():
         cats[m.group(1)] = {"num": int(m.group(2)), "folder": None}
     for m in name_map_re.finditer(text):
         if m.group(1) in cats:
-            cats[m.group(1)]["folder"] = m.group(2)
+            cats[m.group(1)]["folder"] = svc_folder_of_cat(m.group(2))
     # attribute ops to the category block they are defined in
     blocks = re.split(r'/\*\s*----\s*(.*?)\s*----', text)
     for i in range(1, len(blocks), 2):
@@ -755,11 +764,11 @@ def write_command_pages(cmds, out_dir, lang="en"):
         elif c["where"] == "L1-SVC":
             if zh:
                 w("家：ring-3 服务面 —— ush 的 SVC_CMDS 行（`l1apps/ush.c`），"
-                  "经 SYS_L1SVC(110) 派发到 `services/%s/`。" % c["cat"])
+                  "经 SYS_L1SVC(110) 派发到 `services/%s/`。" % svc_folder_of_cat(c["cat"]))
             else:
                 w("Home: ring-3 service surface - SVC_CMDS row in "
                   "`l1apps/ush.c`, dispatched through SYS_L1SVC(110) to "
-                  "`services/%s/`." % c["cat"])
+                  "`services/%s/`." % svc_folder_of_cat(c["cat"]))
             w("")
         elif c["where"] == "L1-builtin":
             via = (" 或经 SYS_NETCMD" if c.get("bridge") else "")
@@ -976,7 +985,7 @@ def main():
         "note": ("declared_total = every callable declaration in the "
                  "v2 service headers (includes internal helpers). "
                  "l1_official_count = the numbered L1SVC op surface "
-                 "(17 categories / 158 ops, services/l1/l1svc_defs.h). "
+                 "(kernel-side ABI table, src/L0/services/sysapi/l1svc_defs.h). "
                  "v1_* fields record the COMPLETE v1.0.0 Part 2 "
                  "declaration truth (all %d callable rows across the 13 "
                  "surface headers; the v1 README numbered formula said "
@@ -1247,7 +1256,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
     w("| Command | Service |")
     w("|---------|---------|")
     for c in sorted(l1svc, key=lambda x: x["name"]):
-        w("| `%s` | `services/%s/` |" % (c["name"], c["cat"]))
+        w("| `%s` | `services/%s/` |" % (c["name"], svc_folder_of_cat(c["cat"])))
     w("")
     w("Dual-homed with L0 (listed in Part 1a, reachable from ush")
     w("too): %s." % ", ".join(
@@ -1281,7 +1290,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
         elif c["where"] == "L0":
             home = "L0-only (recovery environment)"
         elif c["where"] == "L1-SVC":
-            home = "SVC `services/%s/`" % c["cat"]
+            home = "SVC `services/%s/`" % svc_folder_of_cat(c["cat"])
         else:
             home = "builtin (ush)"
         w("| `%s` | %s |" % (name, home))
@@ -1290,7 +1299,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
     w("")
     w("The numbered ring-3 call surface (SYS_L1SVC): category number")
     w("selects the services/`<category>`/ folder, op selects the command.")
-    w("Renumber only by appending (see services/l1/l1svc_defs.h).")
+    w("Renumber only by appending (see src/L0/services/sysapi/l1svc_defs.h).")
     w("")
     if svc_cats:
         w("| Cat | Folder | Categories with an L1 dispatch table |")

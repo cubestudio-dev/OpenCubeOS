@@ -6,11 +6,11 @@
 
 # kill
 
-`kill` - kill a task (kill &lt;tid&gt;)
+`kill` - 
 
-Home: L0 recovery shell (`oc>`) - OC_SHELL_CMD in `core/main.c`
+Home: ush built-in - streq dispatch in `l1apps/ush.c` (runs entirely in ring 3).
 
-Domain: [Kernel core commands](index.md#kernel-core)
+Domain: [ush (ring-3 shell: SVC rows + built-ins)](index.md#ush)
 
 Full command index: [commands](index.md) - or `help -a` /
 `help -w` inside a running system.

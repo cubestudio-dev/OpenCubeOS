@@ -6,11 +6,10 @@
 
 # wget
 
-`wget` - download file via HTTP (wget &lt;host&gt; [port] [path])
+`wget` - 
 
-家：L0 恢复壳（`oc>`）—— 注册于 `services/net/net_core.c`（OC_SHELL_CMD）
-亦可经 SYS_NETCMD 桥接从 ush 内建调用。
+家：ush 内建 —— `l1apps/ush.c` 的 streq 派发（完全运行于 ring 3）。
 
-领域：[网络服务（L0 半边）](index.md#svc-net)
+领域：[ush（ring-3 shell：SVC 行 + 内建）](index.md#ush)
 
 完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。
