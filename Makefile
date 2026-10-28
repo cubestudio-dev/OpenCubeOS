@@ -126,9 +126,9 @@ OC_KERNEL_BUILD ?= $(shell expr $$(git -C $(OC_ROOT) rev-list --count HEAD 2>/de
 # services/l1/ grab-bags into font / encoding / display + sysapi / ipc /
 # loader + boot.
 KERNEL_DIRS := src/L0/core src/L0/core/arch/x86_64 src/L0/core/mem \
-               src/L0/core/lib \
+               src/L0/core/lib src/L0/core/console \
                src/L0/services/crypto src/L0/services/selfhost \
-               src/L0/services/klog src/L0/services/health \
+               src/L0/services/health src/L0/services/klog \
                src/L0/services/crash src/L0/services/power \
                src/L0/services/time src/L0/services/fs \
                src/L0/services/net src/L0/services/sysapi \
@@ -139,7 +139,7 @@ KERNEL_DIRS := src/L0/core src/L0/core/arch/x86_64 src/L0/core/mem \
                src/L0/services/loader src/L0/services/ocembed \
                src/L0/drivers/block src/L0/drivers/nic src/L0/drivers/snd \
                src/L0/drivers/usb src/L0/drivers/input \
-               src/L0/drivers/display src/L0/drivers/pci \
+               src/L0/drivers/pci \
                src/L0/drivers/acpi src/L0/drivers/i2c \
                src/L0/drivers/time src/L0/drivers/wireless \
                src/L0/drivers/bluetooth src/L0/drivers/sd \

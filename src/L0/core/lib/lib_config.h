@@ -91,7 +91,26 @@ extern "C" {
  * a ramfs /etc, and make sure /etc/opencube.conf exists (recreate from the
  * built-in defaults when missing).  Returns 0 on success, negative on
  * unrecoverable error.  Safe to call once; later calls are no-ops. */
-int lib_config_init(void);
+/* 3.0.0-WP03 G5: the STORAGE backend - the key-value mechanism
+ * (this file) is core; the fs side (mount /etc, stat, read, write)
+ * is installed at boot by services/fs (fs_config_backend).  A NULL
+ * backend (or plain lib_config_init()) runs on the compiled
+ * defaults with no persistence. */
+typedef struct lib_config_backend {
+    const char *name;            /* log text: "fat32"/"ramfs"/"memory" */
+    int  persistent;             /* values survive a reboot            */
+    /* mount + ensure the file exists (seed `defaults` when missing);
+     * returns 0 on success */
+    int  (*bring_up)(const char *defaults, int defaults_len);
+    /* read the whole file into a kmalloc'd buffer (caller kfree()s);
+     * NULL = no file */
+    char *(*read)(int *len_out);
+    /* overwrite the file; 0 = success */
+    int  (*write)(const char *text, int len);
+} lib_config_backend_t;
+
+int lib_config_init_with(const lib_config_backend_t *backend);
+int lib_config_init(void);   /* = init_with(NULL): in-memory defaults */
 
 /* Delete the config file and recreate it from the built-in defaults.
  * Returns 0 on success. */

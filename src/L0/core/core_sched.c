@@ -5,8 +5,8 @@
  * Purpose: Preemptive scheduler implementation.
  */
 #include "core_sched.h"
-#include "core_power.h"
-#include "core_crash.h"   /* WP-11: kernel_panic on stack overflow */
+#include "arch_exceptions.h"   /* 3.0.0-WP03 G5: kernel_panic (core-owned panic slot) */
+
 #include "mem_vmm.h"      /* WP-11: guard-page unmap/remap        */
 #include "mem_pmm.h"
 #include "mem_heap.h"

@@ -29,17 +29,10 @@
 #include "lib_string.h"
 #include "core_timer.h"
 #include "mem_heap.h"             /* kmalloc for klog_grow()  */
-#include "fs_vfs.h"                    /* real stat struct + flags */
 
 /* ---- external surfaces -------------------------------------------- */
 extern void screen_console_puts(const char* s);            /* drivers/display  */
 extern void arch_exc_ser_puts(const char *s);              /* arch_exceptions  */
-extern int  fs_vfs_mkdir(const char *path);
-extern int  fs_vfs_open(const char *path, int flags);
-extern int  fs_vfs_write(int fd, const void *buf, int size);
-extern int  fs_vfs_close(int fd);
-extern int  fs_vfs_unlink(const char *path);
-extern int  fs_vfs_rename(const char *oldpath, const char *newpath);
 
 /* ---- entry + ring --------------------------------------------------- */
 #define KLOG_RING_EARLY 24                 /* static BSS bootstrap ring (4 KiB) */
@@ -67,6 +60,17 @@ static volatile u32 g_ring_count = 0;  /* valid entries (<= cap)        */
 static volatile u64 g_total = 0;       /* absolute entries ever written */
 static volatile u64 g_dropped = 0;     /* slots overwritten since boot  */
 
+/* ---- 3.0.0-WP03 G5: the emit hook (the file sink installs itself) ---
+ * The ring is the MECHANISM (core); the on-disk sink (services/klog)
+ * registers a callback that runs after each task-context publish -
+ * the old in-file fs_vfs calls are gone from core.  The sink keeps
+ * its own dirty/synced/rotate state. */
+static klog_emit_hook_fn g_emit_hook;
+
+void klog_set_emit_hook(klog_emit_hook_fn fn) {
+    g_emit_hook = fn;
+}
+
 /* ---- level switches + live-channel gates ---------------------------- */
 static u32 g_level_mask = 0x1F;        /* all five levels on            */
 static int g_live_level = KLOG_INFO;   /* console+serial verbosity      */
@@ -78,12 +82,6 @@ static char g_flt_module[KLOG_MOD_MAX];
 static char g_flt_keyword[32];
 
 /* ---- file channel ---------------------------------------------------- */
-static int  g_file_fd = -1;            /* open O_APPEND fd, -1 = down   */
-static u64  g_file_bytes = 0;          /* bytes in the ACTIVE file      */
-static u64  g_file_synced = 0;         /* absolute seq already appended */
-static u64  g_rotate_bytes = KLOG_ROTATE_BYTES;
-static u32  g_rotate_keep  = KLOG_ROTATE_KEEP;
-static volatile u32 g_file_dirty = 0;  /* ring tail not appended yet    */
 
 /* ---- small local helpers (lib_string has no strstr) ----------------- */
 static char *k_strstr(const char *hay, const char *needle) {
@@ -192,99 +190,6 @@ static int klog_entry_matches(const klog_entry_t *e) {
     return 1;
 }
 
-/* ---- file channel plumbing ------------------------------------------ */
-static void klog_file_close(void) {
-    if (g_file_fd >= 0) { fs_vfs_close(g_file_fd); g_file_fd = -1; }
-}
-
-/* shift generations: kernel.log -> .1 -> .2 -> ... (keep N) */
-static int klog_file_shift(void) {
-    char from[48], to[48];
-    static const char *base = KLOG_PATH;
-
-    if (g_rotate_keep >= 1) {
-        /* drop the oldest generation (best-effort) */
-        strcpy(from, base); strcat(from, ".");
-        u64_to_str((u64)g_rotate_keep, from + strlen(from));
-        fs_vfs_unlink(from);
-        /* rename .1 -> .2 ... (keep-1) -> keep, newest last */
-        for (u32 gen = g_rotate_keep; gen >= 2; gen--) {
-            strcpy(from, base); strcat(from, ".");
-            u64_to_str((u64)(gen - 1), from + strlen(from));
-            strcpy(to, base); strcat(to, ".");
-            u64_to_str((u64)gen, to + strlen(to));
-            fs_vfs_rename(from, to);
-            if (gen == 2) break;   /* guard: u32 would wrap below 2 */
-        }
-        /* active -> .1 */
-        strcpy(from, base);
-        strcpy(to, base); strcat(to, ".1");
-        fs_vfs_rename(from, to);
-    }
-    g_file_bytes = 0;
-    return 0;
-}
-
-/* ensure /var/log + an open append fd; returns fd or -1 */
-static int klog_file_open_(void) {
-    if (g_file_fd >= 0) return g_file_fd;
-    fs_vfs_mkdir("/var");
-    fs_vfs_mkdir("/var/log");
-    g_file_fd = fs_vfs_open(KLOG_PATH, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_APPEND);
-    if (g_file_fd >= 0) {
-        fs_vfs_stat_t st;
-        g_file_bytes = (fs_vfs_stat(KLOG_PATH, &st) == 0) ? st.size : 0;
-    }
-    return g_file_fd;
-}
-
-/* absolute seq -> physical slot (entry must still be inside the window) */
-static klog_entry_t *klog_slot_of(u64 seq) {
-    if (seq >= g_total) return 0;                 /* not written yet */
-    if (seq + g_ring_count < g_total) return 0;   /* overwritten    */
-    u32 off = (u32)(g_total - seq);               /* >= 1 here       */
-    if (off > g_ring_cap) return 0;
-    u32 slot = (g_ring_head + g_ring_cap - off) % g_ring_cap;
-    return &g_ring[slot];
-}
-
-/* append every not-yet-synced ring entry.  TASK CONTEXT ONLY (callers
- * gate on interrupts being enabled).  Returns bytes appended, or -1
- * when no filesystem is mounted. */
-static int klog_file_sync(void) {
-    if (klog_file_open_() < 0) return -1;
-
-    u64 total = g_total;
-    u64 from = g_file_synced;
-    u64 oldest = g_total - g_ring_count;   /* first seq still held */
-    if (from < oldest) from = oldest;      /* skip entries the wrap ate */
-    if (from >= total) { g_file_synced = total; g_file_dirty = 0; return 0; }
-
-    char line[200];
-    int total_bytes = 0;
-    for (u64 seq = from; seq < total; seq++) {
-        klog_entry_t *e = klog_slot_of(seq);
-        if (!e) continue;
-        int len = klog_format_entry(e, line, sizeof(line));
-        int w = fs_vfs_write(g_file_fd, line, len);
-        if (w < 0) break;                  /* open/fs hiccup: retry next */
-        total_bytes += w;
-        g_file_bytes += (u64)w;
-        g_file_synced = seq + 1;
-    }
-    g_file_dirty = (g_file_synced < g_total) ? 1 : 0;
-
-    /* automatic rotation check */
-    if (g_file_bytes >= g_rotate_bytes) {
-        klog_file_close();
-        klog_file_shift();
-        klog_file_open_();
-        /* the fresh file starts empty; the rotated entries live in .1;
-         * the ring remains replayable for dmesg regardless */
-    }
-    return total_bytes;
-}
-
 /* ===================== init / mount hooks ============================ */
 void klog_init(void) {
     g_ring_head = 0;
@@ -297,20 +202,10 @@ void klog_init(void) {
     g_flt_level = -1;
     g_flt_module[0] = 0;
     g_flt_keyword[0] = 0;
-    g_file_fd = -1;
-    g_file_bytes = 0;
-    g_file_synced = 0;
-    g_file_dirty = 0;
-    g_rotate_bytes = KLOG_ROTATE_BYTES;
-    g_rotate_keep = KLOG_ROTATE_KEEP;
+    g_emit_hook = 0;
 }
 
-void klog_on_mount(void) {
-    /* first filesystem: open the channel and dump the boot log */
-    if (klog_file_open_() >= 0) {
-        klog_file_sync();
-    }
-}
+
 
 /* ===================== the writers ==================================== */
 /* core publish path. live_ok: interrupts enabled (task context) ->
@@ -348,9 +243,11 @@ static int klog_emit(int level, const char *module, const char *msg, int live_ok
         screen_console_puts(line);
     }
 
-    /* file channel: only with interrupts enabled (task context) */
-    if (live_ok && g_file_fd >= 0) klog_file_sync();
-    else g_file_dirty = 1;
+    /* sink notification: only with interrupts enabled (task context);
+     * the registered sink (services/klog, on-disk channel) syncs its
+     * own tail here - a NULL hook means no sink yet (early boot or a
+     * memory-only system), the entries stay in the ring */
+    if (live_ok && g_emit_hook) g_emit_hook();
 
     return (int)((g_ring_head + KLOG_RING_MAX - 1) % KLOG_RING_MAX);
 }
@@ -371,15 +268,43 @@ int klog_write(int level, const char *module, const char *fmt, ...) {
     return klog_emit(level, module, msg, live_ok);
 }
 
+/* absolute seq -> physical slot (entry must still be inside the
+ * window).  Ring mechanics: kept in core (the sink + the snapshot
+ * both resolve through it). */
+static klog_entry_t *klog_slot_of(u64 seq) {
+    if (seq >= g_total) return 0;                 /* not written yet */
+    if (seq + g_ring_count < g_total) return 0;   /* overwritten    */
+    u32 off = (u32)(g_total - seq);               /* >= 1 here       */
+    if (off > g_ring_cap) return 0;
+    u32 slot = (g_ring_head + g_ring_cap - off) % g_ring_cap;
+    return &g_ring[slot];
+}
+
+/* ---- 3.0.0-WP03 G5: replay accessors for the on-disk sink -----------
+ * The sink (services/klog) walks the not-yet-synced entries through
+ * klog_entry_render(): pass a seq cursor, get the formatted line
+ * back, advance.  -1 = past the live window (stop). */
+u64 klog_total_seq(void)  { return g_total; }
+u64 klog_oldest_seq(void) { return g_total - g_ring_count; }
+
+int klog_entry_render(u64 *seq_io, char *line, int cap) {
+    if (!seq_io || !line || cap < 2) return -1;
+    klog_entry_t *e = klog_slot_of(*seq_io);
+    if (!e) return -1;
+    int len = klog_format_entry(e, line, cap);
+    (*seq_io)++;
+    return len;
+}
+
 void klog_record(int level, const char *module, const char *msg) {
     /* record-only: ring + file, never the live channels (lib_log boot
      * stage lines are already printed by lib_log itself) */
     klog_emit(level, module, msg, 0);
     /* task-context file catch-up opportunity */
-    if (g_file_fd >= 0 && g_file_dirty) {
+    if (g_emit_hook) {
         u64 flags;
         __asm__ volatile("pushfq; popq %0" : "=r"(flags) :: "memory");
-        if (flags & 0x200) klog_file_sync();
+        if (flags & 0x200) g_emit_hook();
     }
 }
 
@@ -436,33 +361,8 @@ int klog_get_level_enabled(int level) {
     return (int)((g_level_mask >> level) & 1);
 }
 
-/* ---- flush / rotate -------------------------------------------------- */
-int klog_flush(void) {
-    u64 flags;
-    __asm__ volatile("pushfq; popq %0" : "=r"(flags) :: "memory");
-    if (!(flags & 0x200)) return -1;     /* IRQ ctx: the timer/task will */
-    return klog_file_sync();
-}
-
-/* Panic-path variant: interrupts are OFF and this is the last chance -
- * sync unconditionally (crashlog_flush runs the same VFS writes from
- * the same depth, empirically reliable). */
-int klog_flush_panic(void) {
-    return klog_file_sync();
-}
-
-int klog_rotate(void) {
-    u64 flags;
-    __asm__ volatile("pushfq; popq %0" : "=r"(flags) :: "memory");
-    if (!(flags & 0x200)) return -1;
-    klog_file_sync();                    /* never lose the pending tail */
-    klog_file_close();
-    if (klog_file_open_() < 0 && g_file_fd < 0) return -1;  /* no fs */
-    klog_file_close();
-    klog_file_shift();
-    klog_file_open_();
-    return 0;
-}
+/* 3.0.0-WP03 G5: klog_flush / klog_flush_panic / klog_rotate moved
+ * to services/klog/klog_file.c - they are file-channel operations. */
 
 /* ---- filters ---------------------------------------------------------- */
 void klog_filter_set(int level, const char *module, const char *keyword) {
@@ -535,23 +435,9 @@ void klog_clear(void) {
     g_total = 0;
     g_dropped = 0;
     klog_irq_restore(f);
-    g_file_synced = 0;
-    g_file_dirty = 0;
+    /* (the on-disk sink in services/klog self-corrects: its cursor
+     * walks against klog_total_seq, which restarted at 0) */
 }
 
-u64  klog_file_bytes(void) { return g_file_bytes; }
-int  klog_file_open(void)  { return g_file_fd >= 0 ? 1 : 0; }
 u64  klog_dropped(void)    { return g_dropped; }
 
-u64  klog_set_rotate_bytes(u64 bytes) {
-    u64 prev = g_rotate_bytes;
-    if (bytes >= 512) g_rotate_bytes = bytes;   /* sane floor: one page+ */
-    return prev;
-}
-u32  klog_set_rotate_keep(u32 keep) {
-    u32 prev = g_rotate_keep;
-    if (keep >= 1 && keep <= 9) g_rotate_keep = keep;
-    return prev;
-}
-u64  klog_get_rotate_bytes(void) { return g_rotate_bytes; }
-u32  klog_get_rotate_keep(void)  { return g_rotate_keep; }

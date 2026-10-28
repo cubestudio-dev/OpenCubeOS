@@ -10,10 +10,36 @@
 #include "types.h"
 #include "mem_vmm.h"
 #include "core_sched.h"
-#include "core_syscall.h"
+/* 3.0.0-WP03 G5: no core_syscall.h include - that header lives in
+ * services/sysapi (the syscall IMPLEMENTATION side) and a core file
+ * must not depend on services/.  The registration API below is the
+ * core-side mechanism; the table lives in core_usermode.c. */
 
 /* Maximum user processes. */
 #define MAX_USER_PROCS 16
+
+/* ---- signal ABI (3.0.0-WP03 G5: owned here - the process mechanism
+ * owns its signal state; the syscall layer only consumes it) ------ */
+#define SIGHUP             1
+#define SIGINT             2
+#define SIGQUIT            3
+#define SIGKILL            9
+#define SIGSEGV           11
+#define SIGTERM           15
+#define SIGCHLD           17
+#define SIGUSR1           10
+#define SIGUSR2           12
+#define NSIG              32
+
+/* Signal handler type */
+typedef void (*signal_handler_fn)(int sig);
+
+/* sigaction structure (simplified POSIX) */
+typedef struct {
+    signal_handler_fn sa_handler;
+    u64               sa_flags;
+    u64               sa_mask;
+} sigaction_t;
 
 /* User address space layout:
  *   0x400000    - code/data (ELF load address)

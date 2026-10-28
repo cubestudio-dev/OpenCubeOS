@@ -16,7 +16,11 @@
 #include "mem_vmm.h"
 #include "core_usermode.h"
 #include "core_sched.h"
-#include "core_crash.h"     /* WP-11: unified panic + crashlog       */
+/* 3.0.0-WP03 G5: no core_crash.h - the crash capture lives in
+ * services/crash and a core file must not depend on services/.  The
+ * panic entry points below route through a handler SLOT the crash
+ * service installs at boot (crash_install_panic_handlers); before
+ * that (early boot) or without it, the fallback prints and halts. */
 
 /* Symbol name table for vectors 0..31 (moved to core_crash.c crash_src_name
  * for the panic banner; keep a local alias used by the ring-3 kill path) */
@@ -156,6 +160,57 @@ void arch_exc_kill_and_yield(user_proc_t *proc, u64 vec) {
  * the hostile #DF context (locked up mid-word during bring-up). */
 void arch_exc_ser_puts(const char *s) { ser_puts(s); }
 
+/* ---- 3.0.0-WP03 G5: the panic handler slot --------------------------
+ * kernel_panic / kernel_panic_frame are the CORE-side entry points
+ * (the scheduler's stack-bounds guard and the exception dispatcher
+ * call them).  The implementation (register capture, dump, crashlog,
+ * halt-or-reboot policy) lives in services/crash and registers here
+ * at boot.  The fallback (no handler yet: the first ~2 s of boot, or
+ * a crash-service-less system) prints the reason and halts - the
+ * honest pre-crash-infra behaviour. */
+static void (*g_panic_fn)(const char *reason) = 0;
+static void (*g_panic_frame_fn)(const char *reason, const arch_irq_frame_t *f) = 0;
+
+/* the crashlog recorder slot (same inversion): the ring-3 fault
+ * path records the fault before the signal delivery - the recorder
+ * itself (the on-disk crashlog) lives in services/crash */
+typedef void (*crashlog_record_fn_t)(u32 vector, u64 error_code, u64 rip,
+                                     u64 rsp, u64 cr2, const char *pname,
+                                     i32 tid, i32 pid, u32 ring);
+static crashlog_record_fn_t g_crashlog_record_fn = 0;
+
+void arch_set_panic_handlers(void (*panic)(const char *),
+                             void (*panic_frame)(const char *,
+                                                 const arch_irq_frame_t *)) {
+    g_panic_fn = panic;
+    g_panic_frame_fn = panic_frame;
+}
+
+void arch_set_crashlog_record(void (*record)(u32 vector, u64 error_code,
+                                             u64 rip, u64 rsp, u64 cr2,
+                                             const char *pname, i32 tid,
+                                             i32 pid, u32 ring)) {
+    g_crashlog_record_fn = record;
+}
+
+static void panic_fallback(const char *reason) {
+    screen_console_puts("\nKERNEL PANIC (no crash handler installed): ");
+    screen_console_puts(reason ? reason : "?");
+    screen_console_puts("\nSystem halted.\n");
+    for (;;) __asm__ volatile("cli; hlt");
+}
+
+void kernel_panic(const char *reason) {
+    if (g_panic_fn) g_panic_fn(reason);
+    panic_fallback(reason);
+}
+
+void kernel_panic_frame(const char *reason, const arch_irq_frame_t *f) {
+    if (g_panic_frame_fn) g_panic_frame_fn(reason, f);
+    (void)f;
+    panic_fallback(reason);
+}
+
 void arch_exc_dispatch(arch_irq_frame_t *f) {
     /* P0fix2 BUG-0041 (RUN-01): guard against recursive fault handling.
      * The fault-printing path itself can #PF (the KNOWN_ISSUES 6.1
@@ -259,9 +314,12 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
                         u64 cr2 = 0;
                         if (v == 14)
                             __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
-                        crashlog_record((u32)v, f->error_code, f->rip,
-                                        f->rsp, cr2, proc->name,
-                                        kt ? kt->tid : -1, proc->pid, 3);
+                        if (g_crashlog_record_fn)
+                            g_crashlog_record_fn((u32)v, f->error_code,
+                                                 f->rip, f->rsp, cr2,
+                                                 proc->name,
+                                                 kt ? kt->tid : -1,
+                                                 proc->pid, 3);
                     }
                     if (user_signal_deliver(proc, f, SIGSEGV) == 0) {
                         ser_puts("*** SIGSEGV delivered to pid=");
@@ -288,9 +346,10 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
                 u64 cr2 = 0;
                 if (v == 14)
                     __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
-                crashlog_record((u32)v, f->error_code, f->rip, f->rsp,
-                                cr2, proc->name,
-                                kt ? kt->tid : -1, proc->pid, 3);
+                if (g_crashlog_record_fn)
+                    g_crashlog_record_fn((u32)v, f->error_code, f->rip,
+                                         f->rsp, cr2, proc->name,
+                                         kt ? kt->tid : -1, proc->pid, 3);
             }
             ser_puts("*** KILLING user process (pid=");
             char num[20];
