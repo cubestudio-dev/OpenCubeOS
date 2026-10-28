@@ -59,24 +59,24 @@ L1_HEADERS = [
     # surface is services/l1/l1svc_defs.h (SYS_L1SVC categories/ops);
     # the per-service headers below carry the kernel-side declarations
     # (block_svc.h is the declared driver interface).
-    "services/l1/l1svc_defs.h",
-    "services/block/block_svc.h",
-    "services/nic/nic_svc.h",
-    "services/snd/snd_svc.h",
-    "services/display/disp_cmds.h",
-    "services/usb/usb_cmds.h",
-    "services/net/net_l1_cmds.h",
-    "services/crypto/crypto_l1_cmds.h",
-    "services/ota/ota_ab.h",
-    "services/ota/ota_update.h",
+    "src/L0/services/sysapi/l1svc_defs.h",
+    "src/L0/services/block/block_svc.h",
+    "src/L0/services/net/nic_svc.h",
+    "src/L0/services/audio/snd_svc.h",
+    "src/L0/services/display/disp_cmds.h",
+    "src/L0/services/usb/usb_cmds.h",
+    "src/L0/services/net/net_l1_cmds.h",
+    "src/L0/services/crypto/crypto_l1_cmds.h",
+    "src/L0/services/selfhost/ota_ab.h",
+    "src/L0/services/selfhost/ota_update.h",
 ]
 
 # Directories counted for the "lines of source" statistic (v2.0.0 tree:
 # core + arch + drivers + services + recovery + tui + chinese + boot +
 # l1apps; matches the README verification command).
 STAT_DIRS = [
-    "core", "arch", "drivers", "services", "recovery",
-    "tui", "chinese", "boot", "l1apps",
+    "src/L0/core", "src/L0/drivers", "src/L0/services", "src/L0/boot",
+    "src/L1",
 ]
 
 # Generated data blobs excluded from the line count - same exclusion the
@@ -255,7 +255,7 @@ def extract_v2_commands():
                     "name": name, "help": m.group(3),
                     "where": "L0", "cat": m.group(4)})
     # 2) ush SVC table rows
-    ush_path = os.path.join(ROOT, "l1apps", "ush.c")
+    ush_path = os.path.join(ROOT, "src", "L1", "ush.c")
     ush = open(ush_path, encoding="utf-8", errors="replace").read()
     svc_rows_total = 0
     svc_dual = []
@@ -579,16 +579,16 @@ def domain_of_file(rel):
             dom = base[len("shell_cmds_"):-2]
             return "shell-" + dom.replace("_", "-")
         return "shell-core"
-    if rel.startswith("services/"):
+    if rel.startswith("src/L0/services/"):
         svc = rel.split("/")[1]
         return "svc-" + svc
-    if rel.startswith("core/"):
+    if rel.startswith("src/L0/core/"):
         return "kernel-core"
     if rel.startswith("tui/"):
         return "tui"
-    if rel.startswith("chinese/"):
+    if rel.startswith("src/L0/services/font/"):
         return "chinese"
-    if rel.startswith("l1apps/"):
+    if rel.startswith("src/L1/"):
         return "ush"
     return "other"
 
@@ -1168,7 +1168,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
     w("Every entry below is extracted from the real tree at generation")
     w("time: the L0 command declarations straight from the OC_SHELL_CMD")
     w("call sites, the ring-3 surface from the ush SVC_CMDS table and")
-    w("services/l1/l1svc_defs.h, the kernel-side declarations from the")
+    w("src/L0/services/sysapi/l1svc_defs.h, the kernel-side declarations from the")
     w("service headers. Regenerate with `make api-docs`.")
     w("")
     w("- v1.0.0 commands (compatibility baseline): **%d** - all mapped"
@@ -1182,7 +1182,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
       % (len(svc_cats or {}), len(svc_ops or {})))
     w("- Kernel-side declarations across the service headers: **%d**"
       % len(interfaces))
-    w("- Syscalls: 54 (`grep -c '#define SYS_' core/core_syscall.h`,")
+    w("- Syscalls: 54 (`grep -c '#define SYS_' src/L0/services/sysapi/core_syscall.h`,")
     w("  SYS_L1SVC(110) added in 2.0.0)")
     w("- Source lines: **%s** across %d files (README verification"
       % (format(stats["total_lines"], ","), stats["total_files"]))
@@ -1438,7 +1438,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
         w("")
     w("## Part 3 - Syscall surface (54)")
     w("")
-    w("Defined in `core/core_syscall.h` (`#define SYS_*`).")
+    w("Defined in `src/L0/services/sysapi/core_syscall.h` (`#define SYS_*`).")
     w("ABI: rax = number, rdi/rsi/rdx/r10 = arguments (r8 = 5th for")
     w("SYS_L1SVC), rax = result (>= 0 success, < 0 error).")
     w("SYS_L1SVC(110) and SYS_NETCMD(101) are the 2.0.0 ring-3")

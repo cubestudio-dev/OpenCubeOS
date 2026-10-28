@@ -1,0 +1,103 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
+/*
+ * Open Cube OS - WP-10d-fix2
+ * File: kernel/core/core_power.h
+ * Purpose: power management - shutdown / suspend / halt / reboot.
+ *
+ * L0->L1 extension surface (4 interfaces, also wrapped as l1_ext_power_*
+ * in kernel/ext.h):
+ *
+ *   void core_power_halt(void);      flush every block device, then stop the
+ *                               CPU forever (cli + hlt loop).  Same flush
+ *                               guarantee shutdown/reboot give (BUG-0288):
+ *                               the shutdown-failure fallback halts too.
+ *   void core_power_reboot(void);    flush every block device, then reset via
+ *                               the 8042 keyboard controller with the
+ *                               ACPI RESET_REG (port 0xCF9) fallback.
+ *   int  core_power_shutdown(void);  flush every block device, then ask the
+ *                               machine to power off.  Tries, in order:
+ *                                 1. QEMU/PIIX4 ACPI PM1a_CNT (port 0x604,
+ *                                    value 0x2000 = SLP_EN)
+ *                                 2. Bochs-compatible shutdown port
+ *                                    (0xB004, value 0x2000)
+ *                                 3. legacy APM shutdown word (0xF000, 0)
+ *                               Returns -1 when the machine is still
+ *                               running after all attempts (caller should
+ *                               core_power_halt()).  On success this function
+ *                               never returns.
+ *   int  core_power_suspend(void);   suspend to RAM (ACPI S3).  Since
+ *                               WP-10-chinese_support-fix2 the full S3
+ *                               path is implemented: FACS waking vector
+ *                               + 16/32/64-bit real-mode resume
+ *                               trampoline + post-resume re-arm (PIT /
+ *                               PCI / NIC). Returns 0 after a live
+ *                               resume, OC_POWER_E_UNSUPPORTED when the
+ *                               platform has no \_S3.
+ *
+ * All block-device caches are flushed BEFORE any halt/reset/shutdown
+ * attempt, so an A/B update or user data survives the power transition.
+ *
+ * Shell commands (registered in kmain.c):
+ *   shutdown / poweroff  -> core_power_shutdown (with "System halted." fallback)
+ *   suspend              -> core_power_suspend (real ACPI S3)
+ *   sleep <seconds>      -> delay command (BUG-0346; NOT suspend)
+ *   halt                 -> core_power_halt
+ *   reboot               -> core_power_reboot (moved here from ota_ab_update.c)
+ */
+#ifndef OC_POWER_H
+#define OC_POWER_H
+
+#include "types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* 3.0.0-WP03: the l1_ext_power_* wrappers formerly declared in the
+ * l1_ext.h grab-bag (services/l1/) - declarations moved next to their
+ * implementations (core_power.c). */
+int  l1_ext_power_shutdown(void);   /* -1 unsupported (then halt yourself) */
+int  l1_ext_power_suspend(void);    /* 0 after a live S3 resume,           */
+                                    /* -1 when the platform has no \_S3    */
+void l1_ext_power_halt(void);       /* never returns                       */
+void l1_ext_power_reboot(void);     /* never returns                       */
+
+/* 3.0.0-WP03 G2: platform re-arm after a live S3 resume (PIC/IRQ/PIT/
+ * LAPIC/PCI/NIC/e1000/serial) - moved up from drivers/acpi so no driver
+ * calls into the net service.  pwr_s3_rearm.c. */
+void pwr_s3_rearm(void);
+
+
+/* core_power_shutdown() return codes. */
+#define OC_POWER_OFF          0   /* never observed: success never returns */
+#define OC_POWER_E_UNSUPPORTED (-1) /* machine still running after all ports */
+
+/* Stop the CPU forever: hide cursor, cli, hlt loop.  Never returns. */
+void core_power_halt(void);
+
+/* Flush all block devices and reset the machine.  Never returns. */
+void core_power_reboot(void);
+
+/* Flush all block devices and try every known power-off port.  Returns
+ * OC_POWER_E_UNSUPPORTED when still running (never returns on success). */
+int core_power_shutdown(void);
+
+/* Suspend to RAM.  Returns OC_POWER_E_UNSUPPORTED (ACPI S3 wake path is
+ * not implemented); never blocks, never powers down. */
+int core_power_suspend(void);
+
+/* Flush every present block device (used before shutdown/reboot). */
+void core_power_flush_blk(void);
+
+/* Shell command handlers (registered in kmain.c). */
+int pwr_cmd_shutdown(const char *args);   /* shutdown + poweroff alias */
+int pwr_cmd_suspend(const char *args);    /* suspend to RAM (ACPI S3)   */
+int pwr_cmd_sleep(const char *args);      /* delay N seconds (BUG-0346) */
+int pwr_cmd_reboot(const char *args);     /* reboot (moved from ota_ab_update.c) */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* OC_POWER_H */

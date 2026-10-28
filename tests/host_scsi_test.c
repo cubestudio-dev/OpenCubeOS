@@ -32,7 +32,7 @@
 #include <stdlib.h>
 
 #include "../core/types.h"
-#include "../services/block/block_svc.h"
+#include "../drivers/block/block_svc.h"
 
 /* ---- stubs the kernel .c expects on the host --------------------- */
 void *kmalloc(unsigned long long size) { return malloc(size); }

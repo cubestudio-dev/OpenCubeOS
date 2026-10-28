@@ -18,13 +18,13 @@
  * conflicts with glibc's, which hard-errors the build.
  *
  * Build (from oc-os/):
- *   gcc -O2 -I. -Ikernel/lib -Ikernel/mem tools/host_gzip_test.c \
+ *   gcc -O2 -I. -Isrc/L0/core/lib -Isrc/L0/core/mem tools/host_gzip_test.c \
  *       -o /tmp/host_gzip_test
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "core/types.h"
+#include "src/L0/core/types.h"
 
 /* host kmalloc/kfree shims (kernel sources link against mem_heap) */
 void *kmalloc(u64 n) { return malloc(n); }
@@ -36,8 +36,8 @@ static void lib_tar_selftest(void);
 #include "update_test_vectors.h"
 
 /* include the kernel sources directly (glibc supplies the libc calls) */
-#include "core/lib/lib_gzip.c"
-#include "core/lib/lib_tar.c"
+#include "src/L0/core/lib/lib_gzip.c"
+#include "src/L0/core/lib/lib_tar.c"
 
 static int run_one(const char *name, const u8 *gz, int len,
                    const char *expect, int explen) {

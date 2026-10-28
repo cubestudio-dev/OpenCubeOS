@@ -10,7 +10,7 @@
  * the bridge never registers hardware in a host run (no probe), and
  * the stub keeps that honest by returning "added" like the real
  * framework would for an empty table entry. */
-#include "../../services/nic/nic_svc.h"
+#include "../../src/L0/drivers/nic/nic_svc.h"
 
 int nic_dev_add(driver_nic_device_t *dev, const driver_nic_ops_t *ops) {
     (void)dev;
