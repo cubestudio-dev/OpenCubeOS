@@ -11,6 +11,44 @@
  * launcher.  The historical kmain bodies (self-test commands, the
  * ssh/sshd/net command wrappers) either died with the user plane or
  * were rescued into their owning services/ folders.
+ *
+ * =====================================================================
+ * 3.0.0-WP03 G5: the BOOT DEPENDENCY CHAIN (the spec's five phases,
+ * mapped onto this function - each phase prints a "boot chain N/4"
+ * marker that the boot-order test asserts):
+ *
+ *   PHASE 1  kernel core mechanisms        (nothing above may depend
+ *     serial/fb console, log, oc.* embed facts, banner, IDT/PIC,
+ *     exceptions, PIT, keyboard/serial input, PMM/VMM/heap,
+ *     scheduler/sync, userspace, registry collection, ACPI + PCIe +
+ *     watchdog hardware + I2C/SMBus chipset, RTC + HPET time sources
+ *
+ *   PHASE 2  drivers + driver-free services   (interleaved: the two
+ *     halves are independent of each other - VFS/ramfs need no
+ *     driver, the block/USB/wireless/SD/BT/camera/misc drivers need
+ *     no service; the boot log order within this phase is free)
+ *     VFS + ramfs (driver-free services; encoding + the dynamic
+ *     loader are demand-initialized on first use), block driver
+ *     family probe (COLLECTED from .oc_drvs), SCSI, USB stack
+ *
+ *   PHASE 3  driver-dependent services     (each mounts/starts only
+ *     FAT/exFAT/ext4 volume drivers + the /etc config + A/B slots
+ *     (need the block family), the PM timer (needs ACPI + config),
+ *     wireless families (need the fs for firmware files) + SDHCI,
+ *     Bluetooth, camera, legacy ports, the network stack (needs the
+ *     NIC family), the audio service (needs the snd family)
+ *
+ *   PHASE 4  interfaces ready              (everything is up: crash
+ *     dump + crashlog + soft watchdog armed, the health monitor
+ *     started, the auto-update check scheduled, the slot-B boot
+ *     confirmed, the OCIRE embed boot-confirmation - on a supervised
+ *     boot SIGNAL_OK + the i6300esb disarm + the whole-disk write
+ *     protection + the protected agent)
+ *
+ *   PHASE 5  "L0 ready, waiting for L1"   (the expected terminal
+ *     state of the L0 console: the launcher hands the machine to the
+ *     default ring-3 entry, ush)
+ * =====================================================================
  */
 #include "types.h"
 #include "arch_multiboot2.h"
@@ -111,7 +149,10 @@ void net_wl_fw_provider_install(void); /* 3.0.0-WP03 G2: wl firmware provider (s
 #include "driver_hpet.h"               /* WP-10-timer_rtc: HPET */
 #include "driver_pmtimer.h"            /* WP-10-timer_rtc: ACPI PM timer */
 #include "lib_config.h"   /* WP-09-fix5: /etc/opencube.conf */
+const lib_config_backend_t *fs_config_backend(void); /* 3.0.0-WP03 G5: services/fs */
 #include "lib_klog.h"     /* WP-12: unified kernel log */
+void klog_on_mount(void);   /* 3.0.0-WP03 G5: services/klog (the on-disk sink) */
+void crash_install_panic_handlers(void); /* 3.0.0-WP03 G5: services/crash */
 #include "ota_update.h"   /* WP-09-fix5: checkupdate */
 #include "version_gen.h"   /* WP-10-tui-qa: version recompile trigger (Makefile note) */
 #include "core_registry.h"
@@ -361,6 +402,11 @@ void kmain(u64 magic, u64 mbi_phys) {
                      screen_fb_rgb(0x10, 0x10, 0x14));
     core_kcap_set_base_hook(screen_serial_hook, NULL);
 
+    /* G5 boot chain marker: phase 1/4 - kernel core mechanisms (the
+     * console/log stack above IS phase 1's first bring-up; the marker
+     * prints the moment it can be seen) */
+    OC_LOG_OK2("boot chain 1/4: kernel core mechanisms");
+
     /* ---- 3b. 3.0.0-WP03 G4: OCIRE embed facts ----
      * Parse the oc.* command-line facts the recovery supervisor
      * handed over (kexec) and capture the injected log-agent module.
@@ -530,6 +576,11 @@ void kmain(u64 magic, u64 mbi_phys) {
     /* PM timer init follows lib_config_init() below so the runtime
      * pmtimer.width override is readable (see driver_pmtimer.c). */
 
+    /* ---- G5 boot chain marker: phase 2/4 - drivers + driver-free
+     * services (VFS/ramfs need no driver; the driver families need
+     * no service - the halves are independent, their order is free) */
+    OC_LOG_OK2("boot chain 2/4: drivers + driver-free services");
+
     /* ---- 12d. WP-05: VFS + ramfs + ATA + FAT32 ---- */
     fs_vfs_init();
     OC_LOG_OK2("VFS (virtual file system)");
@@ -582,6 +633,13 @@ void kmain(u64 magic, u64 mbi_phys) {
 
     OC_LOG_OK2("USB stack (4 HC backends, HID/MSC/serial/audio)");
 
+    /* ---- G5 boot chain marker: phase 3/4 - driver-dependent
+     * services (everything below mounts or starts ONLY after its
+     * driver family probed: the volume drivers + config + A/B need
+     * the block family, wireless needs mounted firmware files, the
+     * net stack needs the NIC family, snd needs the snd family) */
+    OC_LOG_OK2("boot chain 3/4: driver-dependent services");
+
     fs_fat32_init();
     fs_exfat_init();
     fs_ext4_init();
@@ -591,7 +649,10 @@ void kmain(u64 magic, u64 mbi_phys) {
      * Mounts the FAT32 /etc volume when a disk is attached (persistent
      * config), falls back to a ramfs /etc seeded with defaults, and
      * makes sure the config file exists. */
-    lib_config_init();
+    /* 3.0.0-WP03 G5: the config store's STORAGE is an installed
+     * backend (the fs side lives in services/fs; core/lib keeps only
+     * the key-value mechanism). */
+    lib_config_init_with(fs_config_backend());
 
     /* ---- WP-10-timer_rtc: ACPI PM timer ----
      * Initialized after lib_config_init() so the pmtimer.width config
@@ -727,6 +788,10 @@ void kmain(u64 magic, u64 mbi_phys) {
     screen_console_putc('\n');
     OC_LOG_OK2("boot complete");
 
+    /* ---- G5 boot chain marker: phase 4/4 - interfaces ready (the
+     * crash/health/embed infrastructure arms on a fully-up system) */
+    OC_LOG_OK2("boot chain 4/4: interfaces ready");
+
     /* ---- 16a. WP-11-crash_recovery: panic infrastructure ----
      * The core-dump buffer is allocated ONCE here - after this point
      * kmalloc may fail or the heap may corrupt, but the panic path
@@ -735,6 +800,7 @@ void kmain(u64 magic, u64 mbi_phys) {
      * synchronous commands own the shell task and cannot kick; see
      * crash_wdt_kick / crashtest wd). */
     core_dump_alloc();
+    crash_install_panic_handlers();   /* 3.0.0-WP03 G5: route the core panic slot here */
     crashlog_boot_alloc();
     crash_wdt_init();
     OC_LOG_OK2("crash recovery armed (panic + dump + crashlog)");

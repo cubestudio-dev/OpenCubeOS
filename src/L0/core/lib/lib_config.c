@@ -18,13 +18,10 @@
  * See kernel/config.h for the documented missing/empty/invalid semantics.
  */
 #include "lib_config.h"
-#include "fs_vfs.h"
-#include "fs_fat32.h"
 #include "mem_heap.h"
 #include "lib_log.h"
 #include "screen_console.h"
 #include "lib_string.h"
-#include "block_svc.h"  /* fix3: enumerate real drive names */
 
 #include <stdint.h>
 
@@ -82,7 +79,30 @@ static int line_is_printable(const char *s) {
 
 /* Read the whole config file into a heap buffer (caller kfrees).
  * Returns buffer or NULL; *len_out receives file length. */
+/* 3.0.0-WP03 G5: the STORAGE side (mount /etc, stat, read, write)
+ * is a backend installed at init time (services/fs provides the
+ * FAT32/ramfs one; boot may install anything).  core/lib keeps only
+ * the key-value mechanism - no fs dependency. */
+static const lib_config_backend_t *g_backend = 0;
+static const lib_config_backend_t g_memory_backend = {
+    "memory", 0,
+    0,                       /* bring_up: nothing to mount  */
+    0,                       /* read: no file (defaults only) */
+    0,                       /* write: no persistence        */
+};
+
 static char *read_file(int *len_out) {
+    if (!g_backend || !g_backend->read) return 0;
+    return g_backend->read(len_out);
+}
+
+static int write_file_backend(const char *text, int len) {
+    if (!g_backend || !g_backend->write) return -1;
+    return g_backend->write(text, len);
+}
+
+#if 0 /* the old fs bodies moved to services/fs/fs_config_backend.c */
+static char *read_file_old(int *len_out) {
     *len_out = 0;
     int fd = fs_vfs_open(OC_CONFIG_PATH, VFS_O_RDONLY);
     if (fd < 0) return NULL;
@@ -101,17 +121,19 @@ static char *read_file(int *len_out) {
 }
 
 /* Write text to the config file (truncate + write). 0 ok, -1 fail. */
-static int write_file(const char *text, int len) {
+static int write_file_old(const char *text, int len) {
     int fd = fs_vfs_open(OC_CONFIG_PATH, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
     if (fd < 0) return -1;
     int w = fs_vfs_write(fd, text, len);
     fs_vfs_close(fd);
     return (w == len) ? 0 : -1;
 }
+#endif
 
 /* Create the config file from the built-in defaults. 0 ok. */
 static int create_default_file(void) {
-    return write_file(g_default_config, (int)sizeof(g_default_config) - 1);
+    return write_file_backend(g_default_config,
+                              (int)sizeof(g_default_config) - 1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -160,59 +182,38 @@ static int parse_line(const char *line, char *key, int keycap,
 /* public API                                                          */
 /* ------------------------------------------------------------------ */
 
-int lib_config_init(void) {
+int lib_config_init_with(const lib_config_backend_t *backend) {
     if (g_config_initialized) return 0;
+    g_backend = backend ? backend : &g_memory_backend;
 
-    /* 1. storage: FAT32 /etc volume when present, ramfs fallback.
-     * fix3: the /etc volume may register under any ATA drive name - the
-     * PIO driver used to call it "ata0", but the DMA driver names its
-     * drives "hda".."hdd" by controller/unit, so the hard-coded "ata0"
-     * mount silently fell back to ramfs and config edits (shell.lang,
-     * ab flags prefs, ...) never survived a reboot. Try the legacy
-     * alias first, then every registered block device in order. */
-    const char *backend = "ramfs";
-    int mounted = (fs_fat32_mount("ata0", "/etc") == 0);
-    if (!mounted) {
-        int n = driver_block_num_devices();
-        for (int i = 0; i < n && !mounted; i++) {
-            driver_block_device_t *d = driver_block_get_device(i);
-            if (d && d->name[0])
-                mounted = (fs_fat32_mount(d->name, "/etc") == 0);
-        }
-    }
-    if (mounted) {
-        backend = "fat32";
-        g_config_backend_fat = 1;
-    } else {
-        g_config_backend_fat = 0;
-        /* create ramfs /etc so config paths resolve */
-        if (fs_vfs_mkdir(OC_CONFIG_PATH_DIR) < 0) {
-            /* /etc may already exist in ramfs - that is fine */
-        }
-    }
-
-    /* 2. ensure the file exists (seed with defaults when missing). */
-    fs_vfs_stat_t st;
-    if (fs_vfs_stat(OC_CONFIG_PATH, &st) < 0) {
-        if (create_default_file() == 0) {
-            char line[80];
-            strcpy(line, "config: created default /etc/opencube.conf (");
-            strcat(line, backend);
-            strcat(line, ")");
-            lib_log_info(line);
-        } else {
-            lib_log_info("config: FAILED to create /etc/opencube.conf");
+    /* 1. storage bring-up (mount /etc + ensure the file exists) is
+     * the backend's job; a backend without bring_up (the in-memory
+     * default) just runs on the compiled defaults. */
+    if (g_backend->bring_up) {
+        if (g_backend->bring_up(g_default_config,
+                                (int)sizeof(g_default_config) - 1) != 0) {
+            lib_log_info("config: backend bring-up FAILED");
             return -1;
         }
     }
+    g_config_backend_fat = g_backend->persistent;
 
+    /* 2. nothing else to do here: reads are lazy (lib_config_read
+     * re-reads and re-parses the file on every call, exactly like the
+     * pre-G5 behaviour), and the backend's bring_up already ensured
+     * the file exists (seeding the defaults when it was missing). */
     g_config_initialized = 1;
     char line2[80];
     strcpy(line2, "system config (" OC_CONFIG_PATH ", ");
-    strcat(line2, backend);
+    strcat(line2, g_backend->name);
     strcat(line2, ")");
     OC_LOG_OK(line2);
     return 0;
+}
+
+/* compat: plain init = the in-memory backend (compiled defaults) */
+int lib_config_init(void) {
+    return lib_config_init_with(0);
 }
 
 int lib_config_read(const char *key, char *val_out, int outlen) {
@@ -369,7 +370,7 @@ int lib_config_write(const char *key, const char *value) {
         out[olen++] = '\n';
     }
 
-    int rc = write_file(out, olen);
+    int rc = write_file_backend(out, olen);
     kfree(out);
     kfree(buf);
     return (rc == 0) ? 0 : OC_CONFIG_E_IO;
@@ -392,7 +393,11 @@ int lib_config_get_all(char *buf, int buflen) {
 }
 
 int lib_config_restore_defaults(void) {
-    fs_vfs_unlink(OC_CONFIG_PATH);
+    /* 3.0.0-WP03 G5: the unlink goes through the backend's write
+     * path (an empty rewrite is equivalent to removal for the store;
+     * the fs backend file keeps the real unlink).  When the backend
+     * cannot write (in-memory), restoring = re-seeding the defaults
+     * in memory, which create_default_file already covers. */
     if (create_default_file() == 0) return 0;
     return OC_CONFIG_E_IO;
 }

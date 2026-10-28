@@ -16,6 +16,7 @@
  *     allocated ONCE at boot (kmalloc before anything can break).
  */
 #include "core_crash.h"
+#include "arch_exceptions.h"  /* 3.0.0-WP03 G5: arch_set_panic_handlers + crashlog record slot */
 
 #include "lib_string.h"        /* strcpy/strlen/memcpy/memset        */
 #include "lib_klog.h"          /* WP-12: panic -> klog FATAL + flush */
@@ -783,7 +784,7 @@ static void panic_print_trace(const arch_irq_frame_t *f, const u64 live[22]) {
  * decimal printer, then a jump to 0x17). This function re-does the
  * whole panic sequence with ~8 KiB of guaranteed-good stack. */
 /* ---- the panic path itself --------------------------------------- */
-void kernel_panic_frame(const char *reason, const arch_irq_frame_t *f) {
+static void crash_panic_frame_impl(const char *reason, const arch_irq_frame_t *f) {
     /* nested panic: one line, then the safe loop. Never recurse. */
     if (g_in_panic) {
         cr_puts("\r\n*** NESTED PANIC INSIDE PANIC - HALTING ***\r\n");
@@ -986,7 +987,7 @@ void kernel_panic_frame(const char *reason, const arch_irq_frame_t *f) {
     for (;;) __asm__ volatile("hlt");
 }
 
-void kernel_panic(const char *reason) {
+static void crash_panic_impl(const char *reason) {
     kernel_panic_frame(reason, NULL);
 }
 
@@ -1004,4 +1005,13 @@ void crash_contained(const char *what, const arch_irq_frame_t *f) {
     cr_puts("\r\n*** CONTAINED: ");
     cr_puts(what ? what : "fault");
     cr_puts(" - isolated, kernel continues ***\r\n");
+}
+
+/* 3.0.0-WP03 G5: install this module's panic entry points into the
+ * core-owned slot (arch_exceptions).  Called from core_dump_alloc()
+ * (kmain 16a) - from then on every kernel_panic()/kernel_panic_frame()
+ * routes here. */
+void crash_install_panic_handlers(void) {
+    arch_set_panic_handlers(crash_panic_impl, crash_panic_frame_impl);
+    arch_set_crashlog_record(crashlog_record);
 }

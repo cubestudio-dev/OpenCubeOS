@@ -40,7 +40,6 @@
 #include "core_timer.h"
 #include "driver_pci.h"
 #include "nic_svc.h"
-#include "net_core.h"
 #include "screen_serial_in.h"
 #include "lib_string.h"
 #include "lib_log.h"

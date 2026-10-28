@@ -70,27 +70,9 @@
 #define SYS_SELECT        80
 #define SYS_POLL          81
 
-/* Signal numbers (POSIX subset) */
-#define SIGHUP             1
-#define SIGINT             2
-#define SIGQUIT            3
-#define SIGKILL            9
-#define SIGSEGV           11
-#define SIGTERM           15
-#define SIGCHLD           17
-#define SIGUSR1           10
-#define SIGUSR2           12
-#define NSIG              32
-
-/* Signal handler type */
-typedef void (*signal_handler_fn)(int sig);
-
-/* sigaction structure (simplified POSIX) */
-typedef struct {
-    signal_handler_fn sa_handler;
-    u64               sa_flags;
-    u64               sa_mask;
-} sigaction_t;
+/* 3.0.0-WP03 G5: the signal ABI (numbers, handler type, sigaction)
+ * moved UP into core_usermode.h - the process mechanism owns its
+ * signal state; the syscall implementation side only consumes it. */
 
 /* Initialize WP-08a syscalls (called from usermode_init) */
 void core_syscall_wp08a_init(void);

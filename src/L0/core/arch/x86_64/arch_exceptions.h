@@ -37,4 +37,17 @@ int arch_exc_register_handler(int vector, arch_exc_handler_fn handler);
 /* Unregister a handler. Returns 0 on success. */
 int arch_exc_unregister_handler(int vector, arch_exc_handler_fn handler);
 
+/* 3.0.0-WP03 G5: the panic entry points are core-owned; the crash
+ * service (services/crash) installs its implementation here. */
+void kernel_panic(const char *reason);
+void kernel_panic_frame(const char *reason, const arch_irq_frame_t *f);
+void arch_set_panic_handlers(void (*panic)(const char *),
+                             void (*panic_frame)(const char *,
+                                                 const arch_irq_frame_t *));
+
+void arch_set_crashlog_record(void (*record)(u32 vector, u64 error_code,
+                                             u64 rip, u64 rsp, u64 cr2,
+                                             const char *pname, i32 tid,
+                                             i32 pid, u32 ring));
+
 #endif /* OC_EXCEPTIONS_H */

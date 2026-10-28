@@ -1,0 +1,3 @@
+check_deps: 181 files under core/ + drivers/ scanned
+check_deps: 0 violations (core -> nothing above it; drivers -> no services)
+check_deps exit: 0

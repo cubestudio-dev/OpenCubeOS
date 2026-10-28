@@ -110,7 +110,17 @@ void klog_filter_clear(void);
 
 void klog_init(void);         /* earliest boot: zero state, defaults   */
 void klog_grow(void);         /* after mem_heap_init: full 1024 ring   */
-void klog_on_mount(void);     /* first fs mount: dump ring to the file */
+/* 3.0.0-WP03 G5: the on-disk channel lives in services/klog
+ * (klog_file.c - the fs sink).  It installs this hook after the
+ * first filesystem mounts; until then the ring simply holds the
+ * entries.  (klog_on_mount itself is declared in services/klog.) */
+typedef void (*klog_emit_hook_fn)(void);
+void klog_set_emit_hook(klog_emit_hook_fn fn);
+
+/* replay accessors for the sink: walk entries by absolute seq */
+u64  klog_total_seq(void);    /* absolute entries ever written       */
+u64  klog_oldest_seq(void);   /* first seq still inside the ring     */
+int  klog_entry_render(u64 *seq_io, char *line, int cap); /* -1 = end */
 int  klog_ring_count(void);   /* entries currently held (<= 1024)      */
 int  klog_ring_get(int idx, char *out, int cap); /* formatted replay   */
 void klog_clear(void);        /* wipe the ring (logctl clear)          */
@@ -127,19 +137,11 @@ const char *klog_filter_module(void);
 const char *klog_filter_keyword(void);
 
 /* File-channel bookkeeping (dumpinfo-style reporting). */
-u64  klog_file_bytes(void);    /* bytes in the active kernel.log       */
-int  klog_file_open(void);     /* 1 when the channel is live           */
 u64  klog_dropped(void);       /* ring slots overwritten since boot    */
 
-/* Rotation threshold / keep-count (the defaults are 1 MiB / 3).
- * Runtime-configurable so the E2E gate can exercise the REAL
- * automatic-rotate path quickly (a 1 MiB threshold needs ~10k
- * lines; a 4 KiB threshold proves the same code in seconds).
- * Returns the previous threshold / keep, -1 on a bad value. */
-u64  klog_set_rotate_bytes(u64 bytes);
-u32  klog_set_rotate_keep(u32 keep);
-u64  klog_get_rotate_bytes(void);   /* current threshold (bytes) */
-u32  klog_get_rotate_keep(void);    /* current generation count  */
+/* 3.0.0-WP03 G5: the file-channel API (klog_file_bytes/open, the
+ * rotate setters) moved to services/klog/klog_file.c - the on-disk
+ * channel is fs-side policy, not ring mechanism. */
 
 const char *klog_level_name(int level);   /* "DEBUG".."FATAL" or "?"   */
 

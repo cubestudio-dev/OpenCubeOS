@@ -24,7 +24,6 @@
 #include "driver_cmos_rtc.h"
 #include "driver_acpi.h"
 #include "arch_irq.h"
-#include "core_rtc.h"
 #include "core_timer.h"
 #include "core_sched.h"
 #include "lib_string.h"
@@ -199,11 +198,22 @@ static u8 enc_bcd_or_bin(int v, u8 regb) {
 
 int driver_cmos_rtc_alarm_test(int ahead_s, u64 timeout_ms) {
     if (!g_present || ahead_s < 1 || ahead_s > 3600) return -1;
-    core_rtc_time_t now;
-    core_rtc_read(&now);
-    int s = now.second + ahead_s;
-    int m = now.minute;
-    int h = now.hour;
+    /* 3.0.0-WP03 G5: read the CURRENT time from THIS driver's own
+     * registers (the old call went through the time root service's
+     * core_rtc_read - a drivers->services edge; the service itself
+     * reads the same CMOS ports, so the values are identical). */
+    u8 regb0 = driver_cmos_rtc_read_reg(0x0B);
+    int bin = (regb0 & 0x04) != 0;
+    int s, m, h;
+    {
+        u8 rsec = driver_cmos_rtc_read_reg(0x00);
+        u8 rmin = driver_cmos_rtc_read_reg(0x02);
+        u8 rhour = driver_cmos_rtc_read_reg(0x04);
+        s = bin ? rsec : ((rsec >> 4) * 10 + (rsec & 0x0F));
+        m = bin ? rmin : ((rmin >> 4) * 10 + (rmin & 0x0F));
+        h = bin ? rhour : ((rhour >> 4) * 10 + (rhour & 0x0F));
+    }
+    s += ahead_s;
     while (s >= 60) { s -= 60; m++; }
     while (m >= 60) { m -= 60; h++; }
     if (h >= 24) return -1;   /* alarm target would cross midnight */
