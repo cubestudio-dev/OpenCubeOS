@@ -102,33 +102,14 @@ screen_font_engine_t* l1_ext_font_engine_by_name(const char* name);
 screen_font_engine_t* l1_ext_default_font_engine(void);
 
 /* ------------------------------------------------------------------ *
- * 4. CONSOLE OUTPUT HOOK
+ * 4. CONSOLE OUTPUT HOOK  -- REMOVED in 3.0.0-WP03.
  *
- * L1 can install a hook that receives every character the console
- * emits. This is how L1 can tee console output to a serial line, a
- * ring buffer, a network socket, etc.
- *
- * The hook is called BEFORE the character is drawn on screen, so L1
- * can even suppress the char by returning non-zero (but then the L1
- * hook is responsible for any output the user should see).
- *
- * Return value: 0 = let L0 draw the char normally; non-zero = L1 handled it.
- *
- * Example (L1 code):
- *     static int my_hook(void* ctx, u8 ch) {
- *         uart_putc(ch);
- *         return 0;  // let L0 still draw it on the framebuffer
- *     }
- *     l1_ext_set_console_hook(my_hook, NULL);
+ * The hook storage and dispatch moved DOWN into the display driver
+ * (drivers/display/screen_console.c: screen_console_set_hook() /
+ * screen_console_call_hook()); keeping it behind this services/ header
+ * was a drivers->services dependency inversion.  The suppression
+ * contract is unchanged - see screen_console.h.
  * ------------------------------------------------------------------ */
-typedef int (*screen_console_hook_fn)(void* ctx, u8 ch);
-void l1_ext_set_console_hook(screen_console_hook_fn hook, void* ctx);
-
-/* Called by the L0 console for every character (do not call from L1).
- * BUG-0091 FIX (A16-4): returns the hook's verdict (0 = nothing
- * handled, L0 draws; non-zero = hook handled/suppressed the char),
- * matching the documented contract above. */
-int l1_ext_console_hook(u8 ch);
 
 /* ------------------------------------------------------------------ *
  * 5. SYSTEM CONFIGURATION (WP-09-fix5)

@@ -10,15 +10,18 @@
  *   linker section; at boot core_registry_collect() walks the section
  *   boundaries (exported by linker.ld) and fills the runtime tables.
  *
- *   Adding a new command/driver/service/app = adding one .c file in the
+ *   Adding a new driver/service/app = adding one .c file in the
  *   right folder + one declaration line.  No global table edit, no
  *   registration call site, no core file change.
  *
  * Sections (see linker.ld):
- *   .oc_cmds - oc_shell_cmd_decl_t   (oc> recovery shell commands)
  *   .oc_drvs - oc_driver_decl_t      (hardware drivers, per family)
  *   .oc_svcs - oc_service_decl_t     (kernel services, one per category)
  *   .oc_apps - oc_l1_app_decl_t      (embedded L1 ring-3 applications)
+ *
+ * 3.0.0-WP03: the .oc_cmds section (oc> recovery shell commands) is
+ * DELETED together with the L0 command surface - the whole shell
+ * identity block below (oc_shell_cmd_decl_t, OC_SHELL_CMD) is gone.
  */
 #ifndef OC_CORE_REGISTRY_H
 #define OC_CORE_REGISTRY_H
@@ -29,36 +32,15 @@
 extern "C" {
 #endif
 
-/* ---- Shell command identity ---------------------------------------
- * name  : command word typed at the oc> prompt
- * handler : int handler(const char *args) - unchanged shell ABI
- * help  : one-line English description (help -a / default help)
- * group : service-group tag (help -w view); a short lowercase token
- *         that names the owning L0 service category, e.g. "fs",
- *         "net", "klog", "health", "watchdog", "ota", "recovery",
- *         "power", "time", "block", "nic", "snd", "display", "input".
- */
-typedef int (*oc_shell_cmd_fn_t)(const char *args);
-
-typedef struct {
-    const char        *name;
-    oc_shell_cmd_fn_t  handler;
-    const char        *help;
-    const char        *group;
-} oc_shell_cmd_decl_t;
-
 /* Two-level expansion so __COUNTER__ is evaluated BEFORE the token
  * paste (## suppresses macro expansion of its operands - the naive
  * single-level paste produced a literal __COUNTER__ symbol and two
  * entries with the same handler collided).  The symbol stays
- * file-local (static): no cross-object collision is possible. */
+ * file-local (static): no cross-object collision is possible.
+ * (Shared by every identity block below.) */
 #define OC_DECL_UID(prefix)    OC_DECL_UID2(prefix, __COUNTER__)
 #define OC_DECL_UID2(prefix, c) OC_DECL_UID3(prefix, c)
 #define OC_DECL_UID3(prefix, c) prefix##c
-
-#define OC_SHELL_CMD(nm, fn, hp, grp) \
-    static const oc_shell_cmd_decl_t OC_DECL_UID(__ocsc_##fn##_) \
-    __attribute__((used, section(".oc_cmds"))) = { (nm), (fn), (hp), (grp) }
 
 /* ---- Driver identity -----------------------------------------------
  * family : "block", "nic", "snd", "display", "input", ... - selects the
@@ -147,9 +129,6 @@ typedef struct {
  * counts through the getters below (also surfaced via `svc` / tests).
  */
 void core_registry_collect(void);
-
-int  core_registry_cmds_count(void);
-const oc_shell_cmd_decl_t *core_registry_cmd_at(int i);
 
 int  core_registry_drvs_count(void);
 const oc_driver_decl_t *core_registry_drv_at(int i);

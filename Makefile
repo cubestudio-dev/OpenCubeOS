@@ -47,22 +47,16 @@ else
 
 # ---- WP-13-build_system: multi-configuration (spec 5.7) ---------------
 # The .config file is a make fragment (CONFIG_X=y|n) written by
-# `make defconfig` or `make menuconfig`; command-line overrides win:
-#     make CONFIG_TUI=n iso
-# Dependency rule: CONFIG_CHINESE=n forces CONFIG_TUI=n (the TUI draws
-# CJK through the chinese renderer).  The generated header
-# core/generated/config_gen.h turns the values into OC_CONFIG_*
-# macros and stubs the optional-module APIs (see the header's stub
-# section); source call sites stay unconditional behind those macros.
+# `make defconfig` or `make menuconfig`; command-line overrides win.
+# 3.0.0-WP03: CONFIG_TUI and CONFIG_CHINESE are GONE - the TUI and the
+# IME user plane are deleted, and the CJK display pipeline (font /
+# encoding / render / console_cn) is always compiled in (display root
+# service).  The surviving knobs are the hardware profile options
+# (NVME / AHCI / VIRTIO_BLK); config_gen.h stubs their APIs when off.
 -include $(OC_ROOT)/.config
-CONFIG_TUI        ?= y
-CONFIG_CHINESE    ?= y
 CONFIG_NVME       ?= y
 CONFIG_AHCI       ?= y
 CONFIG_VIRTIO_BLK ?= y
-ifeq ($(CONFIG_CHINESE),n)
-CONFIG_TUI := n
-endif
 
 # Tools (resolved via PATH)
 CC        ?= gcc
@@ -109,18 +103,20 @@ OC_KERNEL_BUILD ?= $(shell expr $$(git -C $(OC_ROOT) rev-list --count HEAD 2>/de
 # One folder per module.  All include paths are exported to the compiler so
 # every #include stays a plain basename include (multi -I strategy).
 # NOTE: must be defined BEFORE CFLAGS because CFLAGS uses := (immediate).
-# v2.0.0 L0 layout (one folder per rule):
+# 3.0.0-WP03 L0 layout (one folder per rule; the src/L0/ tree move is
+# the next group - the directories keep their current top-level paths
+# until then):
 #   core/      - kernel foundation (arch-independent C + x86_64 asm in arch/)
 #   services/  - everything that provides a service; folder == L1 interface
 #                surface category (fs net crypto ota klog health watchdog
 #                power time l1 + the driver-service families below)
 #   drivers/   - hardware drivers, one folder per family
-#   recovery/  - the oc> recovery environment shell
-#   tui chinese - the v1 TUI/CJK command trees, still compiled INTO the
-#                kernel (KERNEL_DIRS below) and reachable from the oc>
-#                prompt; the v2.0.0 comment claiming they were "rewritten
-#                as L1 ring-3 apps in l1apps/" was wrong (2.1.0 P-09:
-#                l1apps/ holds ush + the embedded test programs only)
+#   chinese/   - the CJK display-pipeline bodies (font / encoding /
+#                render / console_cn + their regression suite) feeding
+#                the display root service - always compiled in
+#                3.0.0-WP03 deletions: recovery/ (the oc> environment
+#                shell), tui/ (the TUI framework + desktop), the IME
+#                (pinyin) engine - the whole L0 user plane is gone.
 #   l1apps/    - ring-3 user applications: ush (the boot shell, the only
 #                OC_L1_APP_DECL application) + the embedded test programs
 #                (built by `make l1apps`)
@@ -136,7 +132,7 @@ KERNEL_DIRS := core arch/x86_64 core/mem core/lib \
                drivers/acpi drivers/i2c drivers/time \
                drivers/wireless drivers/bluetooth drivers/sd \
                drivers/camera drivers/misc drivers/scsi \
-               recovery tui chinese
+               chinese
 # NOTE: core/generated is deliberately NOT in KERNEL_DIRS: it only holds
 # the stage-2 generated grub_boot_data.c, which is compiled separately
 # (GRUB_DATA_OBJ) and linked in the second link stage only.  Its -I path
@@ -191,18 +187,10 @@ LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/linker.ld -z max-page-size=0x1000 -z noe
 KERNEL_C    := $(foreach d,$(KERNEL_DIRS),$(wildcard $(OC_ROOT)/$(d)/*.c))
 KERNEL_ASM_B := $(wildcard $(OC_ROOT)/boot/*.S)
 KERNEL_ASM_K := $(wildcard $(OC_ROOT)/arch/x86_64/*.S)
-# WP-13 multi-config source filtering: drop whole module dirs for TUI/
-# chinese (call sites stubbed via config_gen.h macros) and individual
-# block drivers for the hardware profile options (self-registering
-# drivers; the init calls in main.c are macro-stubbed by config_gen.h).
-ifeq ($(CONFIG_TUI),n)
-KERNEL_DIRS := $(filter-out tui,$(KERNEL_DIRS))
-KERNEL_C    := $(filter-out $(OC_ROOT)/tui/%,$(KERNEL_C))
-endif
-ifeq ($(CONFIG_CHINESE),n)
-KERNEL_DIRS := $(filter-out chinese,$(KERNEL_DIRS))
-KERNEL_C    := $(filter-out $(OC_ROOT)/chinese/%,$(KERNEL_C))
-endif
+# WP-13 multi-config source filtering: individual block drivers for
+# the hardware profile options (self-registering drivers; the init
+# calls in main.c are macro-stubbed by config_gen.h).  3.0.0-WP03: the
+# TUI/chinese dir-drops above are gone (dirs deleted / always-on).
 ifeq ($(CONFIG_NVME),n)
 KERNEL_C    := $(filter-out %driver_block_nvme.c,$(KERNEL_C))
 endif
@@ -269,35 +257,9 @@ $(CONFIG_GEN): FORCE
 	   echo ' * command-line CONFIG_X=n overrides. Do not edit. */'; \
 	   echo '#ifndef OC_CONFIG_GEN_H'; \
 	   echo '#define OC_CONFIG_GEN_H'; \
-	   echo '#define OC_CONFIG_TUI         $(if $(filter n,$(CONFIG_TUI)),0,1)'; \
-	   echo '#define OC_CONFIG_CHINESE     $(if $(filter n,$(CONFIG_CHINESE)),0,1)'; \
 	   echo '#define OC_CONFIG_NVME        $(if $(filter n,$(CONFIG_NVME)),0,1)'; \
 	   echo '#define OC_CONFIG_AHCI        $(if $(filter n,$(CONFIG_AHCI)),0,1)'; \
 	   echo '#define OC_CONFIG_VIRTIO_BLK  $(if $(filter n,$(CONFIG_VIRTIO_BLK)),0,1)'; \
-	   echo '#if !OC_CONFIG_CHINESE'; \
-	   echo '#include "screen_console.h"  /* -I drivers/display */'; \
-	   echo '/* ASCII-equivalent stubs for the cn write path */'; \
-	   echo '#define console_cn_init()            ((void)0)'; \
-	   echo '#define console_cn_puts(s)           screen_console_puts((s))'; \
-	   echo '#define console_cn_putcw(cp)         screen_console_putc((char)(cp))'; \
-	   echo '#define console_cn_cp_cols(cp)       1u'; \
-	   echo '#define render_chinese_init()        ((void)0)'; \
-	   echo 'static inline void oc_cn_puts_enc_stub(const unsigned char* s,'; \
-	   echo '                                          unsigned long n) {'; \
-	   echo '    for (unsigned long i = 0; i < n; i++) screen_console_putc((char)s[i]);'; \
-	   echo '}'; \
-	   echo '#define console_cn_puts_enc(s,n,e)   oc_cn_puts_enc_stub((s),(n))'; \
-	   echo 'static inline int oc_utf8_decode_stub(const unsigned char* in,'; \
-	   echo '        unsigned long n, unsigned int* cp, unsigned int* used) {'; \
-	   echo '    if (!n) { return 0; }'; \
-	   echo '    *cp = in[0]; *used = 1; return 1;'; \
-	   echo '}'; \
-	   echo '#define encoding_utf8_decode(i,n,c,u) oc_utf8_decode_stub((const unsigned char*)(i),(n),(c),(u))'; \
-	   echo '#endif /* !CHINESE */'; \
-	   echo '#if !OC_CONFIG_TUI'; \
-	   echo '#define tui_shell_cmds_register()     ((void)0)'; \
-	   echo '#define tui_ext_init()                ((void)0)'; \
-	   echo '#endif /* !TUI */'; \
 	   echo '#if !OC_CONFIG_NVME'; \
 	   echo '#define driver_block_nvme_init(a)     ((void)(a))'; \
 	   echo '#endif'; \
@@ -311,7 +273,7 @@ $(CONFIG_GEN): FORCE
 	 } > $(CONFIG_GEN).tmp
 	@if ! cmp -s $(CONFIG_GEN).tmp $(CONFIG_GEN); then \
 	   mv -f $(CONFIG_GEN).tmp $(CONFIG_GEN); \
-	   echo "make: regenerated $$@ (TUI=$(CONFIG_TUI) CHINESE=$(CONFIG_CHINESE) NVME=$(CONFIG_NVME) AHCI=$(CONFIG_AHCI) VIRTIO_BLK=$(CONFIG_VIRTIO_BLK))"; \
+	   echo "make: regenerated $$@ (NVME=$(CONFIG_NVME) AHCI=$(CONFIG_AHCI) VIRTIO_BLK=$(CONFIG_VIRTIO_BLK))"; \
 	 else rm -f $(CONFIG_GEN).tmp; fi
 # the header must exist before ANY object compiles (order-only: it does
 # not itself trigger rebuilds - the .d files do that)
@@ -599,8 +561,6 @@ reproducible-check:
 defconfig:
 	@{ echo '# Open Cube OS build configuration (WP-13) - defaults'; \
 	   echo '# Written by make defconfig; edit with make menuconfig'; \
-	   echo 'CONFIG_TUI=y'; \
-	   echo 'CONFIG_CHINESE=y'; \
 	   echo 'CONFIG_NVME=y'; \
 	   echo 'CONFIG_AHCI=y'; \
 	   echo 'CONFIG_VIRTIO_BLK=y'; \

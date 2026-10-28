@@ -12,7 +12,7 @@
  *   wifi sdio       - SDHCI/SDIO bus status + selftest
  */
 #include "wl_cmds.h"
-#include "shell.h"
+#include "core_kcap.h"
 #include "driver_wireless.h"
 #include "driver_sdhci.h"
 #include "screen_console.h"

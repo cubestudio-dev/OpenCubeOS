@@ -6,7 +6,7 @@
 #include "pwr_cmds.h"
 #include "core_power.h"
 #include "driver_acpi_power.h"
-#include "shell.h"
+#include "core_kcap.h"
 #include "screen_console.h"
 #include "lib_string.h"
 #include "core_timer.h"

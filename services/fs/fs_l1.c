@@ -20,7 +20,7 @@
 #include "core_registry.h"
 #include "l1svc_defs.h"
 #include "core_usermode.h"
-#include "shell.h"
+#include "lib_fspath.h"   /* 3.0.0-WP03: path resolution (ex shell_) */
 #include "lib_string.h"
 
 #include <stdint.h>
@@ -41,7 +41,7 @@ static void put_u64(u64 v) {
 }
 
 /* Resolve `path` against the calling process's cwd (ring-3 caller)
- * or the kernel shell cwd (oc> fallback).  out is VFS_PATH_LEN. */
+ * or the kernel fallback cwd (fspath).  out is VFS_PATH_LEN. */
 static int l1_resolve(const char *path, char *out, int out_len) {
     if (!path || !path[0]) {
         if (out_len > 0) out[0] = '/';
@@ -56,9 +56,9 @@ static int l1_resolve(const char *path, char *out, int out_len) {
     }
     user_proc_t *proc = user_process_current();
     if (proc) {
-        return shell_resolve_path_base(proc->cwd, path, out, out_len);
+        return fspath_resolve_base(proc->cwd, path, out, out_len);
     }
-    return shell_resolve_path(path, out, out_len);
+    return fspath_resolve(path, out, out_len);
 }
 
 /* ------------------------------------------------------------------ */

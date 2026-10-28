@@ -843,7 +843,7 @@ int ota_update_check_async(void) {
 
 /* checkupdate - run the update check now, print a full-English report.
  * All output strings are ASCII (0x20..0x7E) by design. */
-int shell_cmd_checkupdate(const char *args) {
+int ota_cmd_checkupdate(const char *args) {
     (void)args;
     ota_update_info_t info;
     screen_console_puts("checkupdate: reading /etc/opencube.conf\n");
@@ -874,7 +874,7 @@ int shell_cmd_checkupdate(const char *args) {
 /* Unit-level self-test of the pieces that do not depend on the network
  * (URL scheme parsing + JSON field extraction, including failure paths),
  * then one live probe using the configured ota_update_url. */
-int shell_cmd_checkupdate_test(const char *args) {
+int ota_cmd_checkupdate_test(const char *args) {
     (void)args;
     int pass = 0, total = 0;
     const char *ok;

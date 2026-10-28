@@ -121,8 +121,8 @@ int ota_update_check_async(void);
 const char *ota_update_check_strerror(int rc);
 
 /* Shell command handlers (registered in kmain.c). */
-int shell_cmd_checkupdate(const char *args);      /* checkupdate       */
-int shell_cmd_checkupdate_test(const char *args); /* checkupdate_test  */
+int ota_cmd_checkupdate(const char *args);      /* checkupdate       */
+int ota_cmd_checkupdate_test(const char *args); /* checkupdate_test  */
 
 /* ------------------------------------------------------------------ *
  * WP-10u: package manifest check + kernel-internal helpers

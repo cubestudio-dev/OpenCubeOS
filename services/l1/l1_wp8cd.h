@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS WP-08cd
+/* Open Cube OS WP-08cd (3.0.0-WP03 trimmed)
  * File: l1/l1_wp8cd.h
- * Purpose: L1 EXTENSION API - WP-08cd interfaces (items 51-57).
+ * Purpose: L1 process/job interface API (WP-08cd survivors).
  *
- * WP-08cd adds 7 L1 extension interfaces for user-space shell,
- * tools, job control, and signal handling.
- *
- * Total L1 surface: 57 (WP-01..07: 32, WP-08a: 8, WP-08b: 10, WP-08cd: 7).
+ * 3.0.0-WP03: interfaces 51 (shell_run) and 52 (shell_register_builtin
+ * / shell_unregister_builtin) are DELETED with the L0 user plane.
+ * The surviving L1 process/job interface set: tools (53-54), jobs
+ * (55-57).
  */
 #ifndef OC_EXT_WP8CD_H
 #define OC_EXT_WP8CD_H
@@ -17,24 +17,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* ---- Interface 51: shell_run ----
- * Launch the user-space shell (ush). Blocks until ush exits.
- * Returns 0 on normal exit, -1 on failure. */
-int shell_run(void);
-
-/* ---- Interface 52: shell_register_builtin ----
- * Register a built-in command in the user-space shell.
- * name: command name (e.g., "mycmd")
- * fn: function pointer to the command handler
- * help: help string
- * Returns 0 on success, -1 if table is full. */
-typedef int (*shell_builtin_fn)(int argc, char **argv);
-int shell_register_builtin(const char *name, shell_builtin_fn fn, const char *help);
-/* BUG-0092 FIX completion: symmetric removal of a previously registered
- * builtin (used by the boot self-test to clean up its probe entry so
- * the live oc> command count stays stable). Returns 0 = removed. */
-int shell_unregister_builtin(const char *name);
 
 /* ---- Interface 53: tool_register ----
  * Register a user-space tool that can be exec'd by the shell.

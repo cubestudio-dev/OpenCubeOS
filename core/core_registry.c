@@ -4,22 +4,20 @@
  * file-local identity declarations (see core_registry.h for the rule).
  *
  * The section boundaries below are exported by linker.ld
- * ( __oc_cmds_start/_end, __oc_drvs_start/_end, __oc_svcs_start/_end,
- *   __oc_apps_start/_end ).  Walking them once at boot replaces every
- * v1.x runtime registration call into global tables.
+ * ( __oc_drvs_start/_end, __oc_svcs_start/_end, __oc_apps_start/_end ).
+ * Walking them once at boot replaces every v1.x runtime registration
+ * call into global tables.  (3.0.0-WP03: the .oc_cmds command section
+ * died with the oc> shell.)
  */
 #include "core_registry.h"
 #include "lib_log.h"
 
 /* ---- Linker-provided boundaries ----------------------------------- */
-extern const oc_shell_cmd_decl_t  __oc_cmds_start[], __oc_cmds_end[];
 extern const oc_driver_decl_t     __oc_drvs_start[], __oc_drvs_end[];
 extern const oc_service_decl_t    __oc_svcs_start[], __oc_svcs_end[];
 extern const oc_l1_app_decl_t     __oc_apps_start[], __oc_apps_end[];
 
 /* ---- Collected views ---------------------------------------------- */
-static const oc_shell_cmd_decl_t *s_cmds[512];
-static int s_ncmds;
 static const oc_driver_decl_t    *s_drvs[256];
 static int s_ndrvs;
 static const oc_service_decl_t   *s_svcs[64];
@@ -29,11 +27,6 @@ static int s_napps;
 
 void core_registry_collect(void)
 {
-    s_ncmds = 0;
-    for (const oc_shell_cmd_decl_t *p = __oc_cmds_start; p < __oc_cmds_end; p++) {
-        if (p->name && p->handler && s_ncmds < (int)(sizeof(s_cmds) / sizeof(s_cmds[0])))
-            s_cmds[s_ncmds++] = p;
-    }
     s_ndrvs = 0;
     for (const oc_driver_decl_t *p = __oc_drvs_start; p < __oc_drvs_end; p++) {
         if (p->family && p->ops && s_ndrvs < (int)(sizeof(s_drvs) / sizeof(s_drvs[0])))
@@ -51,16 +44,7 @@ void core_registry_collect(void)
             s_apps[s_napps++] = p;
     }
     lib_log_info("registry: file-local declarations collected");
-    {
-        char line[96]; char n[12];
-        lib_log_info("registry: cmds/drivers/services/apps in table");
-        (void)line; (void)n;
-    }
 }
-
-int core_registry_cmds_count(void) { return s_ncmds; }
-const oc_shell_cmd_decl_t *core_registry_cmd_at(int i)
-{ return (i >= 0 && i < s_ncmds) ? s_cmds[i] : 0; }
 
 int core_registry_drvs_count(void) { return s_ndrvs; }
 const oc_driver_decl_t *core_registry_drv_at(int i)

@@ -83,14 +83,21 @@ int l1_ext_self_test_impl(void) {
         }
     }
 
-    /* ---- Point 4: console output hook ---- */
+    /* ---- Point 4: console output hook ----
+     * 3.0.0-WP03: snapshot + exact restore around the swap - the
+     * boot-time serial tee (core_kcap base hook) must survive the
+     * test or the rest of the boot log goes serial-silent (that is
+     * exactly how the WP-03 build first broke: the old code cleared
+     * the slot to NULL and nobody re-installed the tee). */
     int hook_counter = 0;
-    l1_ext_set_console_hook(test_hook, &hook_counter);
+    screen_console_hook_t saved_hook;
+    screen_console_get_hook(&saved_hook);
+    screen_console_set_hook(test_hook, &hook_counter);
     screen_console_putc('Z');
     if (hook_counter >= 1) {
         passed++;
     }
-    l1_ext_set_console_hook(NULL, NULL);  /* disable */
+    screen_console_set_hook(saved_hook.fn, saved_hook.ctx);  /* restore */
 
     return passed;
 }

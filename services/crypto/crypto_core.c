@@ -462,7 +462,7 @@ void net_tls13_ks_derive_secret(const u8 *secret, const char *label,
  * timer tick ("not cryptographic, but sufficient for QEMU"). That
  * was not sufficient anywhere: the whole protocol stack draws its
  * secrets from this single stream — SSH/TLS ECDHE and DH private
- * keys (net_sshd.c x25519/DH, net_tls.c x25519/P-256), TLS
+ * keys (net_tls.c x25519/P-256), TLS
  * client_random / session_id, SSH KEXINIT cookies and every packet's
  * padding. xorshift32 state is fully recoverable from ~4-8 observed
  * output bytes (a handful of SSH padding lengths), after which every

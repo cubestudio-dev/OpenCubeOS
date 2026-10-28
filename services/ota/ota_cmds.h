@@ -14,14 +14,14 @@ extern "C" {
 #endif
 
 /* ota_update.c */
-int shell_cmd_checkupdate(const char *args);
-int shell_cmd_checkupdate_test(const char *args);
+int ota_cmd_checkupdate(const char *args);
+int ota_cmd_checkupdate_test(const char *args);
 /* ota_ab.c */
-int shell_cmd_update(const char *args);
-int shell_cmd_rollback(const char *args);
+int ota_cmd_update(const char *args);
+int ota_cmd_rollback(const char *args);
 /* core/lib/lib_config.c */
-int shell_cmd_config(const char *args);
-int shell_cmd_config_test(const char *args);
+int ota_cmd_config(const char *args);
+int ota_cmd_config_test(const char *args);
 /* ota_cmds_test.c (migrated) */
 int ota_cmd_update_pkg_test(const char *args);
 int ota_cmd_ab_partition_test(const char *args);

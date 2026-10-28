@@ -185,11 +185,10 @@ int ota_update_install(const char *pkg_path, const char *slot);
 /* Human-readable text for ota_update_* / ota_update_check_* return codes. */
 const char *ota_update_strerror(int rc);
 
-/* ---- shell commands (registered in kmain.c) -------------------------- */
+/* ---- L1SVC ota op bodies (dispatched via ota_l1.c) ------------------ */
 
-int shell_cmd_update(const char *args);     /* update [local <path> | --local <path> | --status] */
-int shell_cmd_rollback(const char *args);   /* rollback            */
-int shell_cmd_reboot(const char *args);     /* reboot              */
+int ota_cmd_update(const char *args);     /* update [local <path> | --local <path> | --status] */
+int ota_cmd_rollback(const char *args);   /* rollback            */
 
 #ifdef __cplusplus
 }

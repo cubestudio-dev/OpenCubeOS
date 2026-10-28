@@ -32,7 +32,7 @@ u64 core_syscall_arg5(void) { return g_syscall_arg5; }
 /* User process table. (non-static for syscall.c) */
 user_proc_t g_procs[MAX_USER_PROCS];
 int g_next_pid = 1;
-volatile int g_usershell_running = 0;  // WP-08cd: set by shell_cmd_run when ush starts  /* BUG-047: non-static for fork() access */  /* BUG-0290: volatile - cleared by sys_exit2 in another task, polled by the kernel shell's sti/hlt spin (main.c, l1_wp8cd.c) */
+volatile int g_l1_entry_running = 0;  /* WP-08cd (renamed 3.0.0-WP03): set by the L1 launcher when the default ring-3 entry starts; BUG-047: non-static for fork() access; BUG-0290: volatile - cleared by sys_exit2 in another task, polled by the launcher's scheduler-yield loop (l1_launcher.c) */
 
 /* WP-08a: saved interrupt frame pointer (for fork). */
 static u64 *g_current_frame = NULL;
@@ -296,10 +296,10 @@ u64 core_syscall_exit(u64 code, u64 arg2, u64 arg3, u64 arg4) {
              * never woken, so a wait4 blocked forever; (c) exit_code was
              * never written, so wait4 reported 0. The unified reaper
              * handles (a)+(c), the explicit wake handles (b), and the
-             * usershell flag follows the same sys_exit2 rule. */
-            extern volatile int g_usershell_running;  /* BUG-0290: matches the volatile definition */
+             * L1-entry running flag follows the same sys_exit2 rule. */
+            extern volatile int g_l1_entry_running;  /* BUG-0290: matches the volatile definition */
             if (g_procs[i].parent_tid == 0) {
-                g_usershell_running = 0;
+                g_l1_entry_running = 0;
             }
             user_process_reap_resources(&g_procs[i], (int)code);
             if (g_procs[i].parent_tid > 0) core_kthread_wake(g_procs[i].parent_tid);
@@ -484,7 +484,7 @@ void user_process_reap_resources(user_proc_t *p, int exit_code) {
      * and its FAIL verdict ahead of its own child's first output line).
      * The sentinel -1 is a value no task can own (tids are >= 0), so
      * wait4's parent_tid == current-tid scan can never match an orphan,
-     * the exit/wake paths' `> 0` checks skip it, and the usershell
+     * the exit/wake paths' `> 0` checks skip it, and the L1-entry
      * flag's `== 0` test is untouched. The slot itself stays recyclable
      * (alive == 0) for the next user_process_create. */
     for (int i = 0; i < MAX_USER_PROCS; i++) {
@@ -907,13 +907,13 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
     proc->pid = g_next_pid++;
     proc->alive = 1;
     /* BUG-0278 FIX (A2-14): seed the per-process cwd with a COPY of the
-     * kernel shell's cwd at spawn time. Spawn-time inheritance keeps the
-     * old `cd /tmp` + `run ush` workflow working, while the two cwd
-     * variables stay independent afterwards (a user-process cd no longer
-     * moves the kernel shell's g_cwd or any other process's base). */
+     * kernel fallback cwd (core/lib/lib_fspath.c since WP-03; was the
+     * shell's g_cwd) at spawn time.  The two stay independent
+     * afterwards: a user-process cd never moves the kernel fallback or
+     * any other process's base. */
     {
-        extern const char *shell_get_cwd(void);
-        const char *kcwd = shell_get_cwd();
+        extern const char *fspath_kernel_cwd(void);
+        const char *kcwd = fspath_kernel_cwd();
         if (kcwd && kcwd[0]) {
             strncpy(proc->cwd, kcwd, USER_CWD_LEN - 1);
             proc->cwd[USER_CWD_LEN - 1] = 0;

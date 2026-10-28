@@ -16,7 +16,6 @@
 #include "../drivers/display/screen_fb.h"
 #include "../core/core_sync.h"
 #include "../core/lib/lib_string.h"
-#include "../services/l1/l1_ext.h"
 
 static encoding_kind_t g_enc = ENC_UTF8;
 static spinlock_t g_concn_lock;
@@ -78,7 +77,7 @@ void console_cn_putcw(u32 cp) {
          * only skips the framebuffer draw below. */
         int suppressed = 0;
         for (u32 i = 0; i < produced; ++i) {
-            if (l1_ext_console_hook(utf8[i])) suppressed = 1;
+            if (screen_console_call_hook(utf8[i])) suppressed = 1;
         }
         if (suppressed) return;
     }

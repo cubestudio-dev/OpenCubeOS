@@ -17,7 +17,7 @@
  *    instead of a fake PASS.
  */
 #include "blk_cmds.h"
-#include "shell.h"
+#include "core_kcap.h"
 #include "block_svc.h"
 #include "driver_block_cache.h"
 #include "driver_block_part.h"

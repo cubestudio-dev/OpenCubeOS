@@ -1,13 +1,16 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS WP-08cd
+/* Open Cube OS WP-08cd (3.0.0-WP03 trimmed)
  * File: l1/l1_wp8cd.c
- * Purpose: L1 extension API implementations for WP-08cd (items 51-57).
+ * Purpose: L1 process/job extension API implementations (WP-08cd).
  *
- * P1-6 FIX: All 7 interfaces now have real implementations (not stubs).
- *   - shell_register_builtin: stores into the L1 builtin table below;
- *     the kernel shell dispatches those names at oc> through
- *     l1_wp8cd_builtin_exec() (hooked into shell_exec_stage, BUG-0092)
+ * 3.0.0-WP03: interfaces 51 (shell_run - superseded by the L1
+ * launcher, l1_launcher.c) and 52 (shell_register_builtin /
+ * shell_unregister_builtin / l1_wp8cd_builtin_exec - the oc> builtin
+ * dispatch) are DELETED with the L0 user plane.  The surviving
+ * interface set (all real implementations, P1-6):
+ *   - tool_register: stores an embedded tool ELF by name
+ *   - tool_list / l1_wp8cd_tool_find: list / resolve tools
  *   - job_create: forks a real process, tracks tid
  *   - job_list: lists active jobs
  *   - job_control: fg/bg/kill on real tracked jobs */
@@ -18,7 +21,7 @@
 #include "core_usermode.h"
 #include "core_syscall.h"
 #include "core_sched.h"
-#include "shell.h"
+#include "core_kcap.h"
 
 #define MAX_TOOLS 32
 #define MAX_JOBS  16
@@ -37,116 +40,6 @@ static struct {
     int active;
 } g_jobs[MAX_JOBS];
 static int g_job_count = 0;
-
-/* P1-6 FIX: shell_register_builtin — stores the builtin in a table.
- * The builtin table is accessible from L1 extensions. Note: shell_builtin_fn
- * has signature int(int, char**) which differs from the kernel shell's
- * int(const char*). We store the fn pointer as-is; callers that need to
- * invoke a builtin must use the table directly. */
-typedef int (*shell_builtin_fn_t)(int argc, char **argv);
-static struct {
-    char name[32];
-    shell_builtin_fn_t fn;
-    char help[80];
-} g_builtins[32];
-static int g_builtin_count = 0;
-
-/* Interface 51: shell_run */
-int shell_run(void) {
-    /* BUG-0290 FIX (A3-13): volatile - this flag is cleared by sys_exit2
-     * in another task context while the spin below polls it; a plain int
-     * gave the compiler licence to hoist the load out of the loop. */
-    extern volatile int g_usershell_running;
-    extern const u8 userprog_ush[];
-    extern const u64 userprog_ush_size;
-    
-    pid_t pid = user_process_create(userprog_ush, userprog_ush_size, "ush");
-    if (pid < 0) return -1;
-    
-    g_usershell_running = 1;
-    while (g_usershell_running) {
-        __asm__ volatile("sti; hlt");
-    }
-    return 0;
-}
-
-/* Interface 52: shell_register_builtin — BUG-0092 FIX (A16-5)
- *
- * This used to be an ORPHANED TABLE: the fn was stored, the self-test
- * called the stored pointer directly, and nothing else ever looked at
- * the table - so a builtin registered through the documented L1 API
- * was NOT actually available at the oc> prompt (the doc promised
- * integration; the code delivered a private array).
- *
- * The kernel shell now consults this table through
- * l1_wp8cd_builtin_exec() whenever no built-in command matches. Since
- * the P1fix4 round that hook lives in shell_exec_stage - the LIVE
- * path (interactive_loop -> shell_execute_line -> shell_exec_segment
- * -> shell_exec_stage). The original hook sat in shell_run_simple,
- * which is only reachable from the legacy shell_execute() entry that
- * has zero callers in the live tree, so registered names still
- * printed "unknown command" at oc>; that copy is kept only to keep
- * the WP-03 shell_execute() API honest. */
-int shell_register_builtin(const char *name, shell_builtin_fn fn, const char *help) {
-    if (!name || !fn) return -1;
-    if (g_builtin_count >= 32) return -2;
-    strncpy(g_builtins[g_builtin_count].name, name, 31);
-    g_builtins[g_builtin_count].fn = (shell_builtin_fn_t)fn;
-    if (help) strncpy(g_builtins[g_builtin_count].help, help, 79);
-    else g_builtins[g_builtin_count].help[0] = 0;
-    g_builtin_count++;
-    return 0;
-}
-
-/* BUG-0092 FIX completion (A16-5): symmetric removal. The boot
- * self-test registers a probe builtin ("test_builtin") to prove the
- * registration path is real; without an unregister API that probe
- * leaked into the live command table and "help -a" counted 173
- * commands instead of 172. Callers that register dynamically now have
- * a way to remove their entry again. Returns 0 = removed, -1 = absent. */
-int shell_unregister_builtin(const char *name) {
-    if (!name) return -1;
-    for (int i = 0; i < g_builtin_count; i++) {
-        if (strcmp(g_builtins[i].name, name) == 0) {
-            for (int j = i + 1; j < g_builtin_count; j++)
-                g_builtins[j - 1] = g_builtins[j];
-            g_builtin_count--;
-            return 0;
-        }
-    }
-    return -1;
-}
-
-/* BUG-0092 FIX (A16-5): dispatch hook used by the kernel shell.
- * Looks up `cmd` in the L1 builtin table, splits `args` into
- * argc/argv (simple whitespace split; shell-style quoting is handled
- * by the kernel shell before reaching L1) and calls the fn.
- * Returns 1 = handled, 0 = name not registered. */
-int l1_wp8cd_builtin_exec(const char *cmd, const char *args) {
-    if (!cmd || !cmd[0]) return 0;
-    for (int i = 0; i < g_builtin_count; i++) {
-        if (strcmp(g_builtins[i].name, cmd) == 0) {
-            char buf[256];
-            char *argv[16];
-            int argc = 0;
-            if (args && args[0]) {
-                strncpy(buf, args, sizeof(buf) - 1);
-                buf[sizeof(buf) - 1] = 0;
-                char *p = buf;
-                while (*p && argc < 16) {
-                    while (*p == ' ' || *p == '\t') p++;
-                    if (!*p) break;
-                    argv[argc++] = p;
-                    while (*p && *p != ' ' && *p != '\t') p++;
-                    if (*p) *p++ = 0;
-                }
-            }
-            g_builtins[i].fn(argc, argv);
-            return 1;
-        }
-    }
-    return 0;
-}
 
 /* Interface 53: tool_register */
 int tool_register(const char *name, const u8 *elf_data, u64 elf_size) {
@@ -195,8 +88,8 @@ int tool_list(char *buf, int bufsize) {
  * same table sys_execve uses) and binds the job entry to the pid/task
  * that the spawn actually returned. The old "scan for the highest
  * alive pid" heuristic is gone: between a caller's spawn and this
- * call, any other process (timer helper, second shell, another run)
- * could steal the binding, and a recycled pid could alias an
+ * call, any other process (timer helper, another ring-3 app) could
+ * steal the binding, and a recycled pid could alias an
  * unrelated task - the old code even documented the race away as
  * "finds the most recently created process".
  * Returns the job id (index for job_list/job_control),
@@ -334,21 +227,10 @@ int job_control(int job_id, int action) {
     return 0;
 }
 
-/* Self-test — P1-6 FIX: comprehensive test of all 7 interfaces */
-static int test_builtin_calls = 0;
-static int test_builtin_fn(int argc, char **argv) {
-    /* BUG-0092 FIX: count CALLS, not argc. The old fn stored argc into
-     * test_builtin_called and the PASS check tested it for `> 0`, so a
-     * dispatch with NO arguments (the legitimate "test_builtin" typed
-     * bare at a prompt -> argc == 0) false-reported the dispatch as
-     * not having happened even though the fn had run. Whether the
-     * builtin was CALLED is the fact under test, not how many
-     * arguments it saw. */
-    (void)argc; (void)argv;
-    test_builtin_calls++;
-    return 0;
-}
-
+/* Self-test — 3.0.0-WP03: the surviving process/job interface set
+ * (tool_register / tool_list / job_create / job_list / job_control).
+ * The shell_run + shell_register_builtin probes died with the oc>
+ * user plane. */
 void ext_wp8cd_selftest(void) {
     screen_console_puts("ext_wp8cd: self-test start\n");
 
@@ -363,42 +245,9 @@ void ext_wp8cd_selftest(void) {
         screen_console_puts("FAIL\n");
     }
 
-    /* 2. shell_register_builtin — register a test builtin, verify it's stored */
-    int rc = shell_register_builtin("test_builtin", test_builtin_fn, "test builtin");
-    screen_console_puts("  shell_register_builtin: ");
-    if (rc == 0 && g_builtin_count > 0) {
-        /* Verify the builtin was stored correctly */
-        int found = 0;
-        for (int i = 0; i < g_builtin_count; i++) {
-            if (strncmp(g_builtins[i].name, "test_builtin", 12) == 0) {
-                found = 1;
-                break;
-            }
-        }
-        /* Dispatch through the REAL hook the kernel shell uses on the
-         * live path (shell_exec_stage -> l1_wp8cd_builtin_exec), with
-         * NO arguments - exactly the argc==0 case the old argc-counting
-         * check false-reported as "not called". */
-        int dispatched = found ? l1_wp8cd_builtin_exec("test_builtin", "") : 0;
-        if (found && dispatched && test_builtin_calls > 0) {
-            screen_console_puts("PASS (registered + dispatches)\n");
-        } else if (found) {
-            screen_console_puts("PASS (registered, fn stored)\n");
-        } else {
-            screen_console_puts("FAIL (not found in table)\n");
-        }
-        /* BUG-0092 FIX completion: clean the probe out of the live
-         * table again (the oc> dispatch consults it now) in every
-         * found branch, so the command surface stays stable. */
-        if (found) {
-            shell_unregister_builtin("test_builtin");
-        }
-    } else {
-        screen_console_puts("FAIL (registration failed)\n");
-    }
-
-    /* 3. job_list — should return 0 active (no jobs created yet) */
+    /* 2. job_list — should return 0 active (no jobs created yet) */
     char jbuf[128];
+    int rc;
     int jc = job_list(jbuf, sizeof(jbuf));
     screen_console_puts("  job_list (empty): ");
     if (jc >= 0) {
@@ -408,23 +257,22 @@ void ext_wp8cd_selftest(void) {
         screen_console_puts("FAIL\n");
     }
 
-    /* 4. job_control on invalid job — should return -1 */
+    /* 3. job_control on invalid job — should return -1 */
     rc = job_control(-1, 2);
     screen_console_puts("  job_control(invalid): ");
     if (rc < 0) screen_console_puts("PASS (correctly rejected)\n");
     else screen_console_puts("FAIL\n");
 
-    /* 5. job_control with valid action=bg on non-existent job — should fail */
+    /* 4. job_control with valid action=bg on non-existent job — should fail */
     rc = job_control(0, 1);
     screen_console_puts("  job_control(valid action, no job): ");
     if (rc < 0) screen_console_puts("PASS (correctly rejected)\n");
     else screen_console_puts("FAIL\n");
 
-    /* 6. job_create rejects unusable names without spawning (the
-     * positive path - real spawn + binding + fg wait + kill - is
-     * exercised by the kernel shell's l1test command with live
-     * processes; at boot we only assert the rejection side so the
-     * boot log stays quiet). BUG-0249 FIX. */
+    /* 5. job_create rejects unusable names without spawning (the
+     * positive path - real spawn + binding + fg wait + kill - needs
+     * live processes; at boot we only assert the rejection side so
+     * the boot log stays quiet). BUG-0249 FIX. */
     screen_console_puts("  job_create(bad names): ");
     {
         int r1 = job_create(0);

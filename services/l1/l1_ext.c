@@ -68,30 +68,9 @@ screen_font_engine_t* l1_ext_default_font_engine(void) {
     return &g_default_engine;
 }
 
-/* ---- 4. Console output hook ---- */
-static screen_console_hook_fn g_hook_fn  = NULL;
-static void*              g_hook_ctx = NULL;
-
-void l1_ext_set_console_hook(screen_console_hook_fn hook, void* ctx) {
-    g_hook_fn  = hook;
-    g_hook_ctx = ctx;
-}
-
-/* BUG-0091 FIX (A16-4): the documented contract in l1_ext.h says the
- * hook may SUPPRESS the character by returning non-zero ("0 = let L0
- * draw the char normally; non-zero = L1 handled it"), but this
- * function returned VOID and threw the return value away, so the
- * suppression promise was unimplementable: L0 always drew the char
- * even when the hook had already handled it (the shell's capture hook
- * worked around this with a private double-hook, but a plain L1
- * consumer following the documentation could not suppress anything).
- * Return the hook's verdict to the caller. */
-int l1_ext_console_hook(u8 ch) {
-    if (g_hook_fn) {
-        return g_hook_fn(g_hook_ctx, ch);
-    }
-    return 0;
-}
+/* ---- 4. Console output hook -- REMOVED in 3.0.0-WP03 ----------------
+ * Moved down into the display driver (screen_console_set_hook /
+ * screen_console_call_hook); see the note in l1_ext.h. */
 
 /* ---- Self-test: invokes every extension point ---- */
 /* Lives in ext_selftest.c (separate file so L1 can read the source and

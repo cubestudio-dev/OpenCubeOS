@@ -1,24 +1,23 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS - WP-10-chinese_support
+/* Open Cube OS 3.0.0-WP03 - CJK service-stack regression suite
  * File: chinese/chinese_test.c
- * Purpose: In-kernel regression suite for the Chinese support stack.
- *          Runs from the `chinesetest` shell command. Returns the
- *          number of failed checks (0 = all pass), mirroring
- *          tui/tui_test.c.
+ * Purpose: In-kernel regression suite for the Chinese support stack
+ *          (font / encoding / render / console).  Backs the L1SVC
+ *          display op L1SVC_DISP_CHINESETEST (ush "chinesetest").
+ *          Returns the number of failed checks (0 = all pass).
+ *          3.0.0-WP03: the line-editor / TUI / IME sections died with
+ *          the user plane (shell, TUI, input method engine); the
+ *          service-capability sections below are the survivors.
  */
 #include "chinese_font.h"
 #include "encoding.h"
 #include "render_cn.h"
 #include "console_cn.h"
-#include "tui_chinese.h"
 #include "../core/lib/lib_string.h"
 #include "../drivers/display/screen_console.h"
 #include "../drivers/display/screen_font.h"
-#include "../tui/tui.h"
-#include "../drivers/input/driver_input_keyboard.h"
-#include "../recovery/shell_lineedit.h"
-#include "../recovery/shell.h"
+#include "../core/core_kcap.h"
 #include "../services/fs/fs_vfs.h"
 
 static int g_total;
@@ -281,8 +280,7 @@ static void test_console(void) {
      * suppressed and the cursor never moves - assert the geometry only
      * on the direct-draw path, report an honest skip otherwise. */
     {
-        extern int shell_output_captured(void);
-        if (shell_output_captured()) {
+        if (core_kcap_capturing()) {
             console_cn_putcw(0x4E2D);
             console_cn_putcw('x');
             CHECK(1, "putcw cursor geometry SKIP (output captured)");
@@ -316,60 +314,6 @@ static void test_vfs_utf8_file(void) {
     }
 }
 
-/* --------------------------------------------- 10. lineedit tests */
-
-static void test_lineedit(void) {
-    screen_console_puts("[11] line editing (UTF-8)\n");
-    static shell_lineedit_t s;
-    char buf[64];
-    /* ASCII behavior unchanged: "abc" + BS -> "ab" */
-    shell_lineedit_session_init(&s, "", 0);
-    driver_input_keyboard_inject('a');
-    driver_input_keyboard_inject('b');
-    driver_input_keyboard_inject('c');
-    driver_input_keyboard_inject(OC_KEY_BACKSPACE);
-    driver_input_keyboard_inject(OC_KEY_ENTER);
-    int n = shell_lineedit_session_readline(&s, buf, sizeof(buf));
-    CHECK(n == 2 && buf[0] == 'a' && buf[1] == 'b',
-          "ascii line + backspace unchanged");
-
-    /* CJK input via the serial bridge bias (+0x100): E4 B8 AD (zhong) */
-    shell_lineedit_session_init(&s, "", 0);
-    driver_input_keyboard_inject('x');
-    driver_input_keyboard_inject(0x100 + 0xE4);
-    driver_input_keyboard_inject(0x100 + 0xB8);
-    driver_input_keyboard_inject(0x100 + 0xAD);
-    driver_input_keyboard_inject(OC_KEY_ENTER);
-    n = shell_lineedit_session_readline(&s, buf, sizeof(buf));
-    CHECK(n == 4 && (u8)buf[0] == 'x' && (u8)buf[1] == 0xE4 &&
-          (u8)buf[2] == 0xB8 && (u8)buf[3] == 0xAD,
-          "UTF-8 bytes stored intact");
-
-    /* CJK backspace: x + zhong + BS -> "x" (whole 3-byte char gone) */
-    shell_lineedit_session_init(&s, "", 0);
-    driver_input_keyboard_inject('x');
-    driver_input_keyboard_inject(0x100 + 0xE4);
-    driver_input_keyboard_inject(0x100 + 0xB8);
-    driver_input_keyboard_inject(0x100 + 0xAD);
-    driver_input_keyboard_inject(OC_KEY_BACKSPACE);
-    driver_input_keyboard_inject(OC_KEY_ENTER);
-    n = shell_lineedit_session_readline(&s, buf, sizeof(buf));
-    CHECK(n == 1 && buf[0] == 'x', "backspace removes one CJK char");
-
-    /* LEFT over CJK: x + zhong + LEFT + 'y' -> insert between -> "x?y?" */
-    shell_lineedit_session_init(&s, "", 0);
-    driver_input_keyboard_inject('x');
-    driver_input_keyboard_inject(0x100 + 0xE4);
-    driver_input_keyboard_inject(0x100 + 0xB8);
-    driver_input_keyboard_inject(0x100 + 0xAD);
-    driver_input_keyboard_inject(OC_KEY_LEFT);
-    driver_input_keyboard_inject('y');
-    driver_input_keyboard_inject(OC_KEY_ENTER);
-    n = shell_lineedit_session_readline(&s, buf, sizeof(buf));
-    CHECK(n == 5 && buf[0] == 'x' && buf[1] == 'y' &&
-          (u8)buf[2] == 0xE4, "LEFT steps one CJK char, insert mid-line");
-}
-
 /* -------------------------------------------- 11. font engine tests */
 
 static const u8 fake_glyph[32] = {0};
@@ -394,128 +338,6 @@ static void test_font_engine(void) {
     CHECK(font_unregister("no-such-font") == -3, "unknown name rejected");
 }
 
-/* ---------------------------------------------- 12. TUI cn tests */
-
-static void test_tui_cn(void) {
-    screen_console_puts("[13] TUI chinese layer\n");
-    /* the print path needs a live TUI session with a focused window */
-    if (!tui_started()) tui_init();
-    tui_window_t *cnwin = tui_window_new(0, 0, 6, 40);
-    if (cnwin) tui_window_focus_set(cnwin);
-    int prc = tui_chinese_print("\xE4\xB8\xAD\xE6\x96\x87");
-    if (prc != 0) {
-        char dbg[16];
-        screen_console_puts("    debug: cnwin=");
-        u64_to_str((u64)(long)cnwin, dbg);
-        screen_console_puts(dbg);
-        screen_console_puts(" wincount=");
-        u64_to_str((u64)tui_window_count(), dbg);
-        screen_console_puts(dbg);
-        screen_console_puts(" started=");
-        u64_to_str((u64)tui_started(), dbg);
-        screen_console_puts(dbg);
-        screen_console_putc('\n');
-    }
-    CHECK(prc == 0, "tui_chinese_print utf-8 ok");
-    CHECK(tui_chinese_str_cols("\xE4\xB8\xAD\xE6\x96\x87") == 4,
-          "str cols zhongwen = 4");
-    u32 cands[9];
-    int n = tui_chinese_ime_test("ni", cands, 9);
-    CHECK(n > 0 && cands[0] == 0x4F60, "IME 'ni' -> ni (U+4F60) first");
-    n = tui_chinese_ime_test("zhong", cands, 9);
-    int has_zhong = 0;
-    for (int i = 0; i < n && i < 9; i++) {
-        if (cands[i] == 0x4E2D) has_zhong = 1;
-    }
-    CHECK(n > 0 && has_zhong, "IME 'zhong' -> zhong in candidates");
-    CHECK(tui_chinese_ime_test("zzzzz", cands, 9) == 0,
-          "IME nonsense syllable -> 0 candidates");
-    CHECK(tui_chinese_ime_syllables() == 396, "396 syllables loaded");
-    CHECK(tui_chinese_ime_chars() == 3755, "3755 level-1 chars loaded");
-    /* menu/form argument validation */
-    CHECK(tui_chinese_menu(NULL, NULL, 0) == -1, "menu null rejected");
-    CHECK(tui_chinese_form(NULL, NULL, 0) == -1, "form null rejected");
-    if (cnwin) tui_window_free(cnwin);
-
-    /* ---- WP-10-chinese_support-fix1: user-facing input paths ---- */
-    screen_console_puts("[14] fix1 input paths (ASCII editor + IME keys)\n");
-    if (!tui_started()) tui_init();
-    tui_window_t *inwin = tui_window_new(0, 0, 6, 40);
-    if (inwin) tui_window_focus_set(inwin);
-    if (inwin) {
-        /* ASCII editor: plain lowercase letters must survive verbatim
-         * (the SSID field used to route them into the pinyin buffer). */
-        driver_input_keyboard_inject((u16)'h');
-        driver_input_keyboard_inject((u16)'o');
-        driver_input_keyboard_inject((u16)'m');
-        driver_input_keyboard_inject((u16)'e');
-        driver_input_keyboard_inject(OC_KEY_ENTER);
-        char ssid[32];
-        int rn = tui_chinese_input_ascii(inwin, "SSID: ", ssid, sizeof(ssid));
-        CHECK(rn == 4, "ascii input length == 4");
-        CHECK(strcmp(ssid, "home") == 0, "ascii input text == home");
-        /* IME editor: n i 1 -> the first candidate of "ni" (U+4F60)
-         * commits, Enter returns the composed UTF-8. */
-        driver_input_keyboard_inject((u16)'n');
-        driver_input_keyboard_inject((u16)'i');
-        driver_input_keyboard_inject((u16)'1');
-        driver_input_keyboard_inject(OC_KEY_ENTER);
-        char cn[32];
-        int cn_n = tui_chinese_input(inwin, "拼音> ", cn, sizeof(cn));
-        CHECK(cn_n == 3, "IME composed length == 3 (one hanzi)");
-        CHECK(cn_n == 3 && (u8)cn[0] == 0xE4 && (u8)cn[1] == 0xBD &&
-              (u8)cn[2] == 0xA0, "IME composed text == 你 (U+4F60)");
-        tui_window_free(inwin);
-    }
-
-    /* ---- fix1: the console ime command line (was status-only) ----
-     * The usage text promised interactive composition the command did
-     * not have.  ime_console_compose is that flow now: injected keys
-     * must compose and commit exactly like the TUI pad. */
-    screen_console_puts("[15] fix1 console IME line (n i 1 Enter -> 你; digits direct; Esc cancels)\n");
-    {
-        extern int ime_console_compose(u8 *out, int cap);
-        driver_input_keyboard_inject((u16)'n');
-        driver_input_keyboard_inject((u16)'i');
-        driver_input_keyboard_inject((u16)'1');
-        driver_input_keyboard_inject(OC_KEY_ENTER);
-        u8 line[64];
-        int rn2 = ime_console_compose(line, sizeof(line));
-        CHECK(rn2 == 3, "console IME composed length == 3 (one hanzi)");
-        CHECK(rn2 == 3 && line[0] == 0xE4 && line[1] == 0xBD &&
-              line[2] == 0xA0, "console IME composed text == 你 (U+4F60)");
-        /* letters always compose pinyin (same contract as the TUI
-         * pad): "home" is no syllable, so Enter ends the line with
-         * nothing committed - the pending letters are discarded. */
-        driver_input_keyboard_inject((u16)'h');
-        driver_input_keyboard_inject((u16)'o');
-        driver_input_keyboard_inject((u16)'m');
-        driver_input_keyboard_inject((u16)'e');
-        driver_input_keyboard_inject(OC_KEY_ENTER);
-        u8 line3[64];
-        int rn3 = ime_console_compose(line3, sizeof(line3));
-        CHECK(rn3 == 0, "non-syllable letters commit nothing (pinyin contract)");
-        /* digits/symbols land verbatim while no pinyin is pending */
-        driver_input_keyboard_inject((u16)'2');
-        driver_input_keyboard_inject((u16)'0');
-        driver_input_keyboard_inject((u16)'2');
-        driver_input_keyboard_inject((u16)'6');
-        driver_input_keyboard_inject(OC_KEY_ENTER);
-        u8 line5[64];
-        int rn5 = ime_console_compose(line5, sizeof(line5));
-        CHECK(rn5 == 4, "console IME digits length == 4");
-        CHECK(rn5 == 4 && strcmp((const char *)line5, "2026") == 0,
-              "console IME digits text == 2026");
-        /* Esc discards: inject n i then Esc -> -1 and empty buffer */
-        driver_input_keyboard_inject((u16)'n');
-        driver_input_keyboard_inject((u16)'i');
-        driver_input_keyboard_inject(OC_KEY_ESC_KEY);
-        u8 line4[64];
-        int rn4 = ime_console_compose(line4, sizeof(line4));
-        CHECK(rn4 == -1, "console IME Esc cancels (-1)");
-    }
-}
-
 /* ------------------------------------------------- entry point ----- */
 
 int chinese_test_run(int verbose) {
@@ -534,9 +356,7 @@ int chinese_test_run(int verbose) {
     test_detect();
     test_render();
     test_console();
-    test_lineedit();
     test_font_engine();
-    test_tui_cn();
     test_vfs_utf8_file();
 
     screen_console_puts("chinesetest: ");
@@ -547,10 +367,5 @@ int chinese_test_run(int verbose) {
     u64_to_str((u64)g_total, num);
     screen_console_puts(num);
     screen_console_puts(g_failed == 0 ? " PASS\n" : " FAIL\n");
-    /* fix2: test_tui_cn() calls tui_init() (clears the framebuffer and
-     * hides the cursor mid-suite) - without a matching tui_shutdown()
-     * the shell kept running with an invisible cursor and a wiped
-     * screen after the suite. Mirror tui-test's defensive close. */
-    if (tui_started()) tui_shutdown();
     return g_failed;
 }
