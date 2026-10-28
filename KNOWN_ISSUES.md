@@ -38,4 +38,24 @@ lives in `docs/archive/KNOWN_ISSUES.md`.
 
 ## Open issues
 
-None known at 2.2.0.
+None known at 3.0.0-WP03.  The WP-02 declared honest boundary (the
+OCOS side of the OCIRE embed was unimplemented: no oc.* fact
+parsing, no SIGNAL_OK, no watchdog disarm, no agent channel) is
+CLOSED by WP-03 G4 (`src/L0/services/ocembed/`, the supervised
+battery 3/3 in `evidence/3_0_0_wp03_g4_ocembed/`).  Declared
+post-WP-03 limitations (by design, not defects):
+
+- The ush `kill` reports "no such process" when a kill of the
+  ocire_guard agent is REFUSED - the syscall ABI carries a single
+  error code, so the refusal text is generic; the true reason is in
+  the kernel log (klog WARN "kill refused: ocire_guard process").
+- The pre-G5 bare `sti;hlt` park remains in four proven paths
+  (sys_read's keyboard wait, the wp8cd fg wait, the sdhci timed
+  wait, the OTA settle loop): the preempted-halt freeze it can cause
+  was fixed for the power sleep (timer-callback + block) and never
+  observed on those four; a real timed-block wakeup primitive is
+  future scheduler work.
+- The direct-boot GRUB entry ("Open Cube OS (direct boot)") carries
+  no oc.* facts: a direct boot is unsupervised by definition (no
+  signal, no protection) - the supervisor entry is the only
+  supervised path.

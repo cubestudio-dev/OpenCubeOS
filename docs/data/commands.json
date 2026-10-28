@@ -1,21 +1,11 @@
 {
- "count_v2_surface": 251,
- "count_l0": 99,
- "count_l1_svc": 133,
- "count_l1_builtin": 19,
- "count_ush_svc_rows": 142,
- "ush_svc_dual_homed": [
-  "halt",
-  "hpet",
-  "pmtimer",
-  "poweroff",
-  "reboot",
-  "rtc",
-  "shutdown",
-  "sleep",
-  "tsc"
- ],
- "caliber_note": "count_l1_svc counts unique names attributed to their first home (L0 wins). The ush SVC_CMDS table itself carries 142 rows; the 9 dual-homed names (halt, hpet, pmtimer, poweroff, reboot, rtc, shutdown, sleep, tsc) are registered both as L0 commands and as ush SVC rows, are attributed to L0 here, and remain callable from both shells.",
+ "count_v2_surface": 185,
+ "count_l0": 0,
+ "count_l1_svc": 140,
+ "count_l1_builtin": 45,
+ "count_ush_svc_rows": 140,
+ "ush_svc_dual_homed": [],
+ "caliber_note": "count_l1_svc counts unique names attributed to their first home (L0 wins). The ush SVC_CMDS table itself carries 140 rows; the 0 dual-homed names () are registered both as L0 commands and as ush SVC rows, are attributed to L0 here, and remain callable from both shells.",
  "commands": [
   {
    "name": "ab_partition_test",
@@ -48,30 +38,6 @@
    "cat": "snd"
   },
   {
-   "name": "acpi",
-   "help": "dump ACPI tables (RSDP/FADT/DSDT/MCFG)",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
-   "name": "acpidev",
-   "help": "list ACPI namespace devices (AML)",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
-   "name": "acpipow",
-   "help": "ACPI power status (S1-S5/SCI/GPE/FACS)",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
-   "name": "acpitest",
-   "help": "AML interpreter self-test + DSDT checks",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
    "name": "ahci",
    "help": "ahci / nvme / ata",
    "where": "L1-SVC",
@@ -85,9 +51,9 @@
   },
   {
    "name": "alias",
-   "help": "set/show aliases",
-   "where": "L0",
-   "cat": "recovery"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "arp",
@@ -139,15 +105,15 @@
   },
   {
    "name": "cat",
-   "help": "print file contents (cat <file>)",
-   "where": "L0",
-   "cat": "fs"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "cd",
-   "help": "change directory (cd [path])",
-   "where": "L0",
-   "cat": "fs"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "checkupdate",
@@ -205,27 +171,9 @@
   },
   {
    "name": "cp",
-   "help": "copy file (cp <src> <dst>)",
-   "where": "L0",
-   "cat": "fs"
-  },
-  {
-   "name": "cr3test",
-   "help": "test CR3 switching",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
-   "name": "crashlog",
-   "help": "show last exception crashes",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
-   "name": "crashtest",
-   "help": "trigger kernel crash tests (panic/exc/pf/assert/wd/dump/policy)",
-   "where": "L0",
-   "cat": "recovery"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "cryptotest",
@@ -241,9 +189,9 @@
   },
   {
    "name": "df",
-   "help": "show disk/mount usage",
-   "where": "L0",
-   "cat": "fs"
+   "help": "df",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "dhcp",
@@ -262,12 +210,6 @@
    "help": "disk_rw_test <dev>",
    "where": "L1-SVC",
    "cat": "block"
-  },
-  {
-   "name": "dmesg",
-   "help": "show the kernel log ring (dmesg [N])",
-   "where": "L0",
-   "cat": "watchdog"
   },
   {
    "name": "dns",
@@ -289,15 +231,9 @@
   },
   {
    "name": "du",
-   "help": "directory usage (du [path])",
-   "where": "L0",
-   "cat": "fs"
-  },
-  {
-   "name": "dumpinfo",
-   "help": "show core dump status (size/persisted/header)",
-   "where": "L0",
-   "cat": "recovery"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "e1000e",
@@ -313,15 +249,9 @@
   },
   {
    "name": "echo",
-   "help": "echo the text back",
-   "where": "L0",
-   "cat": "recovery"
-  },
-  {
-   "name": "edit",
-   "help": "line editor (edit <file>; :i :d :p :w :q :wq)",
-   "where": "L0",
-   "cat": "fs"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "encoding",
@@ -354,12 +284,6 @@
    "cat": "snd"
   },
   {
-   "name": "exc",
-   "help": "run exception self-test (#DE/#UD/#PF)",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
    "name": "exit",
    "help": "",
    "where": "L1-builtin",
@@ -367,9 +291,9 @@
   },
   {
    "name": "export",
-   "help": "set env var (export NAME=value)",
-   "where": "L0",
-   "cat": "recovery"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "fatmount",
@@ -402,12 +326,6 @@
    "cat": "display"
   },
   {
-   "name": "frag",
-   "help": "show memory fragmentation",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
    "name": "free",
    "help": "free",
    "where": "L1-builtin",
@@ -426,12 +344,6 @@
    "cat": "block"
   },
   {
-   "name": "fstest",
-   "help": "run VFS self-test (mkdir/write/read/ls)",
-   "where": "L0",
-   "cat": "fs"
-  },
-  {
    "name": "gameport",
    "help": "gameport",
    "where": "L1-SVC",
@@ -445,9 +357,9 @@
   },
   {
    "name": "grep",
-   "help": "filter lines matching pattern (grep <pattern> [file])",
-   "where": "L0",
-   "cat": "fs"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "grub-install",
@@ -457,10 +369,9 @@
   },
   {
    "name": "halt",
-   "help": "halt the kernel",
-   "where": "L0",
-   "cat": "power",
-   "svc_duo": "power"
+   "help": "halt/shutdown/reboot",
+   "where": "L1-SVC",
+   "cat": "power"
   },
   {
    "name": "halt_test",
@@ -487,64 +398,10 @@
    "cat": "ush"
   },
   {
-   "name": "health",
-   "help": "system health monitor (health [watch|export])",
-   "where": "L0",
-   "cat": "watchdog"
-  },
-  {
-   "name": "health export",
-   "help": "write health JSON to /var/log/health.json",
-   "where": "L0",
-   "cat": "watchdog"
-  },
-  {
-   "name": "health watch",
-   "help": "live health monitor, 1 s refresh (ENTER exits)",
-   "where": "L0",
-   "cat": "watchdog"
-  },
-  {
-   "name": "heap",
-   "help": "show kernel heap stats",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
-   "name": "heapbounds",
-   "help": "heap bounds regression (BUG-0140 wrap / BUG-0141 ceiling)",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
-   "name": "heaptest",
-   "help": "test heap overhead with 100 allocs",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
    "name": "help",
-   "help": "show this message",
-   "where": "L0",
-   "cat": "recovery"
-  },
-  {
-   "name": "help_a_test",
-   "help": "verify help -a A-Z ordering",
-   "where": "L0",
-   "cat": "recovery"
-  },
-  {
-   "name": "help_default_test",
-   "help": "verify default help A-Z ordering",
-   "where": "L0",
-   "cat": "recovery"
-  },
-  {
-   "name": "help_wp_test",
-   "help": "verify help -w group ordering",
-   "where": "L0",
-   "cat": "recovery"
+   "help": "help",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "history",
@@ -554,41 +411,15 @@
   },
   {
    "name": "hpet",
-   "help": "HPET: caps + counter + one-shot/periodic IRQ8 tests",
-   "where": "L0",
-   "cat": "time",
-   "svc_duo": "time"
-  },
-  {
-   "name": "i2cdetect",
-   "help": "scan I2C/SMBus buses for devices",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
-   "name": "i2cget",
-   "help": "read I2C byte (i2cget <bus> <addr> [reg])",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
-   "name": "i2cset",
-   "help": "write I2C byte (i2cset <bus> <addr> <reg> <val>)",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
-   "name": "i2ctest",
-   "help": "I2C core/controller self-test",
-   "where": "L0",
-   "cat": "input"
+   "help": "hpet               : HPET status",
+   "where": "L1-SVC",
+   "cat": "time"
   },
   {
    "name": "ifconfig",
-   "help": "show network interface info",
-   "where": "L0",
-   "cat": "net",
-   "bridge": "L1-bridge"
+   "help": "ifconfig",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "igb",
@@ -601,18 +432,6 @@
    "help": "igb_test",
    "where": "L1-SVC",
    "cat": "nic"
-  },
-  {
-   "name": "ime",
-   "help": "ime",
-   "where": "L1-SVC",
-   "cat": "display"
-  },
-  {
-   "name": "ime-test",
-   "help": "ime-test",
-   "where": "L1-SVC",
-   "cat": "display"
   },
   {
    "name": "install",
@@ -631,12 +450,6 @@
    "help": "ir",
    "where": "L1-SVC",
    "cat": "camera"
-  },
-  {
-   "name": "irqabitest",
-   "help": "IRQ-entry ABI regression (BUG-0137 align / BUG-0138 DF)",
-   "where": "L0",
-   "cat": "core"
   },
   {
    "name": "irtest",
@@ -658,15 +471,9 @@
   },
   {
    "name": "kill",
-   "help": "kill a task (kill <tid>)",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
-   "name": "l1test",
-   "help": "test L1 job_create/job_list/job_control with running process",
-   "where": "L0",
-   "cat": "l1"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "lang",
@@ -675,34 +482,16 @@
    "cat": "display"
   },
   {
-   "name": "ldd",
-   "help": "list dynamic dependencies (ldd <program>)",
-   "where": "L0",
-   "cat": "l1"
-  },
-  {
    "name": "ln",
    "help": "",
    "where": "L1-builtin",
    "cat": "ush"
   },
   {
-   "name": "logcat",
-   "help": "filter the kernel log (logcat -l lvl -m mod -k key -t sec -n N [-f])",
-   "where": "L0",
-   "cat": "watchdog"
-  },
-  {
-   "name": "logctl",
-   "help": "control the kernel log (logctl status|level|enable|disable|clear|flush|rotate|export|filter)",
-   "where": "L0",
-   "cat": "watchdog"
-  },
-  {
    "name": "ls",
-   "help": "list directory (ls [path])",
-   "where": "L0",
-   "cat": "fs"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "lsblk",
@@ -717,22 +506,10 @@
    "cat": "net"
   },
   {
-   "name": "mem",
-   "help": "show physical memory stats",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
-   "name": "memtest",
-   "help": "run memory test (PMM + heap)",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
    "name": "mkdir",
-   "help": "make directory (mkdir <path>)",
-   "where": "L0",
-   "cat": "fs"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "mkfs.exfat",
@@ -765,22 +542,10 @@
    "cat": "fs"
   },
   {
-   "name": "msitest",
-   "help": "LAPIC self-IPI + MSI/MSI-X device fire test",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
-   "name": "multi",
-   "help": "spawn 3 tasks with interleaved output",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
    "name": "mv",
-   "help": "move/rename file (mv <src> <dst>)",
-   "where": "L0",
-   "cat": "fs"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "nano",
@@ -790,10 +555,9 @@
   },
   {
    "name": "netstat",
-   "help": "show network statistics and sockets",
-   "where": "L0",
-   "cat": "net",
-   "bridge": "L1-bridge"
+   "help": "netstat",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "nf_test",
@@ -806,12 +570,6 @@
    "help": "nic_rw_test",
    "where": "L1-SVC",
    "cat": "nic"
-  },
-  {
-   "name": "nice",
-   "help": "change priority (nice <tid> <prio>)",
-   "where": "L0",
-   "cat": "core"
   },
   {
    "name": "nvme",
@@ -856,35 +614,10 @@
    "cat": "block"
   },
   {
-   "name": "pcibars",
-   "help": "list PCI devices with sized BARs",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
-   "name": "pcidump",
-   "help": "dump PCI config space (pcidump <b:d.f>)",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
-   "name": "pcie",
-   "help": "PCIe MMCONFIG state + capability walk",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
-   "name": "pftest",
-   "help": "test page fault handling",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
    "name": "ping",
-   "help": "send ICMP echo (ping <host>)",
-   "where": "L0",
-   "cat": "net",
-   "bridge": "L1-bridge"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "play",
@@ -893,24 +626,16 @@
    "cat": "snd"
   },
   {
-   "name": "pmmrace",
-   "help": "BUG-0043 repro: PMM bitmap race thread-vs-IRQ",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
    "name": "pmtimer",
-   "help": "ACPI PM timer: read + PIT calibration + wrap tests",
-   "where": "L0",
-   "cat": "time",
-   "svc_duo": "time"
+   "help": "pmtimer            : PM timer status",
+   "where": "L1-SVC",
+   "cat": "time"
   },
   {
    "name": "poweroff",
-   "help": "alias of shutdown",
-   "where": "L0",
-   "cat": "power",
-   "svc_duo": "power"
+   "help": "",
+   "where": "L1-SVC",
+   "cat": "power"
   },
   {
    "name": "poweroff_test",
@@ -920,15 +645,15 @@
   },
   {
    "name": "ps",
-   "help": "list all tasks",
-   "where": "L0",
-   "cat": "core"
+   "help": "ps",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "pwd",
-   "help": "print working directory",
-   "where": "L0",
-   "cat": "fs"
+   "help": "pwd",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "real_hw_test",
@@ -944,10 +669,9 @@
   },
   {
    "name": "reboot",
-   "help": "reboot the machine (reboot)",
-   "where": "L0",
-   "cat": "ota",
-   "svc_duo": "power"
+   "help": "halt/shutdown/reboot",
+   "where": "L1-SVC",
+   "cat": "power"
   },
   {
    "name": "reboot_test",
@@ -957,15 +681,15 @@
   },
   {
    "name": "rm",
-   "help": "delete file (rm <file>)",
-   "where": "L0",
-   "cat": "fs"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "rmdir",
-   "help": "remove directory (rmdir <path>)",
-   "where": "L0",
-   "cat": "fs"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "rollback",
@@ -981,10 +705,9 @@
   },
   {
    "name": "rtc",
-   "help": "CMOS RTC: time + status + UIE/PIE/alarm interrupt tests",
-   "where": "L0",
-   "cat": "time",
-   "svc_duo": "time"
+   "help": "rtc [uie N]        : CMOS RTC status",
+   "where": "L1-SVC",
+   "cat": "time"
   },
   {
    "name": "rtl810x",
@@ -1035,12 +758,6 @@
    "cat": "nic"
   },
   {
-   "name": "run",
-   "help": "run a user program (hello/badapp/loop/fork_test/.../dyn_test/so_test/dyn_hello/dlsym_test/pie_test/reloc_test)",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
    "name": "sample_rate_test",
    "help": "sample_rate_test",
    "where": "L1-SVC",
@@ -1057,12 +774,6 @@
    "help": "sb16_test",
    "where": "L1-SVC",
    "cat": "snd"
-  },
-  {
-   "name": "sched",
-   "help": "show scheduler stats",
-   "where": "L0",
-   "cat": "core"
   },
   {
    "name": "scsi",
@@ -1084,35 +795,21 @@
   },
   {
    "name": "set",
-   "help": "list env vars",
-   "where": "L0",
-   "cat": "recovery"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "shutdown",
-   "help": "power off (flush + ACPI/Bochs/APM ports)",
-   "where": "L0",
-   "cat": "power",
-   "svc_duo": "power"
+   "help": "halt/shutdown/reboot",
+   "where": "L1-SVC",
+   "cat": "power"
   },
   {
    "name": "sleep",
-   "help": "delay for N seconds (sleep <sec>)",
-   "where": "L0",
-   "cat": "power",
-   "svc_duo": "power"
-  },
-  {
-   "name": "smbus",
-   "help": "list SMBus devices from the scan",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
-   "name": "smbustest",
-   "help": "SMBus protocol test (byte/word/block)",
-   "where": "L0",
-   "cat": "input"
+   "help": "sleep <sec>",
+   "where": "L1-SVC",
+   "cat": "power"
   },
   {
    "name": "sort",
@@ -1125,24 +822,6 @@
    "help": "sound",
    "where": "L1-SVC",
    "cat": "snd"
-  },
-  {
-   "name": "spawn",
-   "help": "spawn a test kernel thread",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
-   "name": "ssh",
-   "help": "SSH client connect (ssh <ip> [port] [user] [password])",
-   "where": "L0",
-   "cat": "crypto"
-  },
-  {
-   "name": "sshd",
-   "help": "SSH server (sshd [port=22] [user=oc] [password=oc])",
-   "where": "L0",
-   "cat": "crypto"
   },
   {
    "name": "stat",
@@ -1169,18 +848,6 @@
    "cat": "block"
   },
   {
-   "name": "syncstat",
-   "help": "show sync primitive stats",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
-   "name": "synctest",
-   "help": "test sync primitives (spinlock/mutex/sem)",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
    "name": "tail",
    "help": "",
    "where": "L1-builtin",
@@ -1205,12 +872,6 @@
    "cat": "net"
   },
   {
-   "name": "timer",
-   "help": "register a 500ms one-shot timer",
-   "where": "L0",
-   "cat": "input"
-  },
-  {
    "name": "top",
    "help": "",
    "where": "L1-builtin",
@@ -1218,9 +879,9 @@
   },
   {
    "name": "touch",
-   "help": "create empty file (touch <path>)",
-   "where": "L0",
-   "cat": "fs"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "touchpad",
@@ -1242,64 +903,9 @@
   },
   {
    "name": "tsc",
-   "help": "TSC: reads + PIT/HPET/PMTimer calibration + delay test",
-   "where": "L0",
-   "cat": "time",
-   "svc_duo": "time"
-  },
-  {
-   "name": "tui",
-   "help": "full-screen TUI main menu (arrows/Tab/Enter/Esc)",
-   "where": "L0",
-   "cat": "display"
-  },
-  {
-   "name": "tui-drv",
-   "help": "driver setup TUI (alias of tui-hw; page name optional)",
-   "where": "L0",
-   "cat": "display"
-  },
-  {
-   "name": "tui-ext",
-   "help": "TUI L1 extension lab: selftest + registries",
-   "where": "L0",
-   "cat": "display"
-  },
-  {
-   "name": "tui-hw",
-   "help": "hardware configuration TUI (optional: page name)",
-   "where": "L0",
-   "cat": "display"
-  },
-  {
-   "name": "tui-net",
-   "help": "wireless network TUI (WiFi + Bluetooth)",
-   "where": "L0",
-   "cat": "display"
-  },
-  {
-   "name": "tui-sys",
-   "help": "system settings TUI (host/net/storage/user/security/update/log/tui)",
-   "where": "L0",
-   "cat": "display"
-  },
-  {
-   "name": "tui-sysinfo",
-   "help": "system information TUI (optional: page name)",
-   "where": "L0",
-   "cat": "display"
-  },
-  {
-   "name": "tui-test",
-   "help": "run the TUI self-test suite (input/expected/actual/verdict)",
-   "where": "L0",
-   "cat": "display"
-  },
-  {
-   "name": "tui-time",
-   "help": "time TUI: clock/sources/set RTC/timezone",
-   "where": "L0",
-   "cat": "display"
+   "help": "tsc                : TSC status",
+   "where": "L1-SVC",
+   "cat": "time"
   },
   {
    "name": "umount",
@@ -1309,9 +915,9 @@
   },
   {
    "name": "unalias",
-   "help": "remove an alias",
-   "where": "L0",
-   "cat": "recovery"
+   "help": "unalias name",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "uname",
@@ -1482,34 +1088,10 @@
    "cat": "snd"
   },
   {
-   "name": "vmkernelpt",
-   "help": "VMM PT-ownership regression (BUG-0136)",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
-   "name": "vmmap",
-   "help": "show address space mappings",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
-   "name": "vmtest",
-   "help": "run virtual memory test",
-   "where": "L0",
-   "cat": "core"
-  },
-  {
    "name": "volume",
    "help": "volume [0-100]",
    "where": "L1-SVC",
    "cat": "snd"
-  },
-  {
-   "name": "watchdog",
-   "help": "watchdog status/control (hw TCO/WDAT + monitored slots + policy tests)",
-   "where": "L0",
-   "cat": "watchdog"
   },
   {
    "name": "wc",
@@ -1519,10 +1101,9 @@
   },
   {
    "name": "wget",
-   "help": "download file via HTTP (wget <host> [port] [path])",
-   "where": "L0",
-   "cat": "net",
-   "bridge": "L1-bridge"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "wifi",
@@ -1532,9 +1113,9 @@
   },
   {
    "name": "write",
-   "help": "write text to file (write <path> <text>)",
-   "where": "L0",
-   "cat": "block"
+   "help": "",
+   "where": "L1-builtin",
+   "cat": "ush"
   }
  ]
 }

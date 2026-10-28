@@ -70,8 +70,11 @@ typedef struct {
 
 /* ---- Service identity ----------------------------------------------
  * One declaration per L0 service (services/<category>/ folder).  The
- * category string MUST equal the folder name - the services/ tree and
- * the L1 interface surface categories are one-to-one by rule.
+ * category string equals the folder name (the services/ tree and the
+ * L1 interface surface categories are one-to-one by rule) - with ONE
+ * declared exception: category "ocire" (the L1SVC ABI name, frozen by
+ * the OCIRE log-agent contract) is implemented by services/ocembed/
+ * (the 3.0.0-WP03 spec's folder name for the embed service).
  * init/late_init run during boot collection (NULL = no callback);
  * both return void (failures are logged by the service itself).
  *

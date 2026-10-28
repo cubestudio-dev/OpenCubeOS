@@ -810,3 +810,58 @@ shell)
   direct OCOS boot, is the interim normal path); without the watchdog
   every second consecutive supervised boot degrades into recovery
   until 'return' or WP-03.
+
+## 3.0.0-WP03: the L0 service-kernel rebuild (G1..G7)
+
+**G1 - the user plane deleted.** oc> shell, all 99 L0 commands, the
+TUI framework, the IME (pinyin): gone; the service bodies they
+accidentally hosted were rescued into their owning services/
+folders (cam/usb/inp/disp/power/crypto/ota/net); the capture
+primitive became core/core_kcap.c; the kernel finishes boot at
+"L0 ready, waiting for L1" and launches ush (ring 3).  The
+WP-02-declared OCOS-side OCIRE boundary stayed open until G4.
+
+**G2 - src/L0.** The tree moved to src/L0/{boot,core,drivers,
+services} + src/L1; services/l1 dissolved (disp_ext, font_engine,
+ota_ext, wl_fw, pwr_s3_rearm); the console hook moved down into the
+display driver; Makefile fully re-pathed.
+
+**G3 - self-declared identities.** The last register-class boot
+calls died: USB class drivers (hid-kbd/hid-mouse/msc/cdc-acm/
+ftdi-serial/usb-audio/btusb/uvc), the seven wireless families and
+the brcmfmac SDIO client all OC_DRIVER_DECL; the managers collect
+from .oc_drvs.  The extension live test (one file + one
+declaration, nothing else) passed and is documented.
+
+**G4 - the OCIRE embed closed (services/ocembed).** oc.* fact
+parsing, SIGNAL_OK, the i6300esb disarm (a TRUE 8-bit PCI write -
+the QEMU model only handles the LOCK/ENABLE register on len==1),
+the protected ocire_guard agent, the guard-only L1SVC_CAT_OCIRE
+channel, whole-disk write protection on the recovery disk.  Five
+live bugs found and fixed on the way: the sys_l1svc out=0
+rejection, the kcap-captured sleep, the ATA DMA global staging
+pointers (per-channel irqsave locks now), the v2.0.0 sti;hlt park
+freeze (the sleep blocks on a timer callback now), the QEMU
+writeback-cache evidence loss.  The wdt battery case is re-pointed
+at the closed loop (the degrade flow stays proven by the frozen
+WP-02 evidence for a genuinely hung OCOS).
+
+**G5 - the boot chain + the direction gate.** kmain documents the
+five-phase dependency chain and prints boot-chain markers;
+tools/check_deps.py gates core->nothing-above / drivers->no-services
+(23 violations found, 0 left: the platform console -> core/console,
+the klog ring mechanism split from its fs sink, crash capture ->
+services/crash with core-owned panic slots, lib_fspath ->
+services/fs, lib_config's fs backend installed from services/fs).
+
+**G6 - the matrix.** evidence/3_0_0_wp03_g6_matrix/: 16 items -
+clean 0-warning build twice (byte-identical), BIOS + UEFI with the
+markers, deletion greps, the direction gate, the registry, the
+extension test, the five OCIRE regression items, the OCOS
+batteries (supervised 3/3, WP-01 11/11, WP-02 4/4, host 17/0/2).
+
+**G7 - docs + release chain.** INTERFACES.md / command pages
+regenerated against the new tree (185 commands, the ocire category
+documented); ARCHITECTURE.md rewritten; the CI port-I/O regression
+(P-01 class, constant-folded 0xCFC immediates) fixed; the WP-03
+milestone artifact published.

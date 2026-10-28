@@ -6,10 +6,10 @@
 
 # mv
 
-`mv` - move/rename file (mv &lt;src&gt; &lt;dst&gt;)
+`mv` - 
 
-家：L0 恢复壳（`oc>`）—— 注册于 `recovery/shell_cmds_file.c`（OC_SHELL_CMD）
+家：ush 内建 —— `l1apps/ush.c` 的 streq 派发（完全运行于 ring 3）。
 
-领域：[文件与编辑器](index.md#shell-file)
+领域：[ush（ring-3 shell：SVC 行 + 内建）](index.md#ush)
 
 完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。

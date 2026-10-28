@@ -151,7 +151,7 @@ void net_wl_fw_provider_install(void); /* 3.0.0-WP03 G2: wl firmware provider (s
 #include "lib_config.h"   /* WP-09-fix5: /etc/opencube.conf */
 const lib_config_backend_t *fs_config_backend(void); /* 3.0.0-WP03 G5: services/fs */
 #include "lib_klog.h"     /* WP-12: unified kernel log */
-void klog_on_mount(void);   /* 3.0.0-WP03 G5: services/klog (the on-disk sink) */
+#include "klog_file.h"     /* 3.0.0-WP03 G5: services/klog (the on-disk sink) */
 void crash_install_panic_handlers(void); /* 3.0.0-WP03 G5: services/crash */
 #include "ota_update.h"   /* WP-09-fix5: checkupdate */
 #include "version_gen.h"   /* WP-10-tui-qa: version recompile trigger (Makefile note) */
