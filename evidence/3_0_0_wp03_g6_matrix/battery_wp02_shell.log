@@ -1,0 +1,14 @@
+[PASS] shell_healthy - help/logread/syscheck/repair-quick on pristine copy
+[PASS] shell_quick_repair - digest damage -> syscheck catches -> quick repair
+    [prompt] ok
+    [syscheck-fail] ok
+    [syscheck-problems] ok
+    [confirm] ok
+    [repair-complete] ok
+    [syscheck-healthy] ok
+    [logread] ok
+[PASS] shell_full_repair - BPB nuked -> ISO boot -> repair full YES -> healthy
+    (waiting past the 60 s window...)
+[PASS] shell_wdt_timeout - WP-03 G4: wdt armed -> OCOS SIGNAL_OK + DISARM -> machine alive past the 60 s window (WP-02 degrade flow stays proven for a hung OCOS by the frozen evidence)
+
+4/4 passed

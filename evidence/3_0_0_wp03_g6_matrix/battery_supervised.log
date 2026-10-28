@@ -1,0 +1,7 @@
+    (waiting 22 s for agent cycles...)
+[PASS] supervised_bios - facts+signal+protection+agent+kill-refused+disk_rw refused+isolation+on-disk verify
+    (waiting past the 60 s window...)
+[PASS] supervised_wdt - wdt armed -> disarmed -> alive at t>75s + on-disk ring shows live agent cycles (WP-02 honest boundary closed)
+[PASS] unsupervised_open - unsupervised: embed dormant, whole-disk surface open (protection is supervision-scoped), partition isolation holds
+
+supervised battery: 3 passed, 0 failed

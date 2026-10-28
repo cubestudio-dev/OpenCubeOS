@@ -708,14 +708,14 @@ static int e1000_init(void) {
      * Without bus master, QEMU's e1000 reports driver_pci_master=0 and refuses
      * to process any TX/RX descriptors (no DMA). */
     {
-        u32 shell_cmd_before = driver_pci_read_config(bus, dev, func, 0x04);
-        u32 shell_cmd_new = shell_cmd_before | 0x07;
-        driver_pci_write_config(bus, dev, func, 0x04, shell_cmd_new);
-        u32 shell_cmd_after = driver_pci_read_config(bus, dev, func, 0x04);
+        u32 pci_cmd_before = driver_pci_read_config(bus, dev, func, 0x04);
+        u32 pci_cmd_new = pci_cmd_before | 0x07;
+        driver_pci_write_config(bus, dev, func, 0x04, pci_cmd_new);
+        u32 pci_cmd_after = driver_pci_read_config(bus, dev, func, 0x04);
         char dbuf[100]; char dn[20];
         dbuf[0] = 0;   /* BUG-0064 FIX: same uninitialised-strcat issue */
-            strcat(dbuf, " wrote=0x"); u64_to_hex(shell_cmd_new, dn, 4); strcat(dbuf, dn);
-        strcat(dbuf, " after=0x"); u64_to_hex(shell_cmd_after, dn, 4); strcat(dbuf, dn);
+            strcat(dbuf, " wrote=0x"); u64_to_hex(pci_cmd_new, dn, 4); strcat(dbuf, dn);
+        strcat(dbuf, " after=0x"); u64_to_hex(pci_cmd_after, dn, 4); strcat(dbuf, dn);
         strcat(dbuf, " bus="); u64_to_str(bus, dn); strcat(dbuf, dn);
         strcat(dbuf, " dev="); u64_to_str(dev, dn); strcat(dbuf, dn);
         strcat(dbuf, " func="); u64_to_str(func, dn); strcat(dbuf, dn);
