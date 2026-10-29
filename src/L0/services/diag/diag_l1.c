@@ -35,6 +35,13 @@
 #include "arch_lapic.h"
 #include "driver_pci.h"
 #include "driver_pcie.h"
+#include "driver_acpi.h"
+#include "driver_acpi_aml.h"
+#include "driver_acpi_power.h"
+#include "driver_i2c.h"
+#include "driver_i2c_i801.h"
+#include "driver_i2c_dw.h"
+#include "driver_smbus.h"
 #include "fs_vfs.h"
 #include "fs_ramfs.h"
 #include "diag_kern.h"
@@ -1497,6 +1504,541 @@ static int diag_fstest(void) {
     return 0;
 }
 
+/* ---- G10: chipset family (v2.2.0 recovery/shell_cmds_chipset.c) ------ */
+static int parse_pci_loc(const char *s, u8 *bus, u8 *dev, u8 *fn) {
+    if (!s) return -1;
+    u32 b = 0, d = 0, f = 0;
+    int seen = 0;
+    while (*s >= '0' && *s <= '9') { b = b * 10 + (u32)(*s - '0'); s++; seen = 1; }
+    if (*s != ':') return -1;
+    s++;
+    while (*s >= '0' && *s <= '9') { d = d * 10 + (u32)(*s - '0'); s++; }
+    if (*s != '.') return -1;
+    s++;
+    while (*s >= '0' && *s <= '9') { f = f * 10 + (u32)(*s - '0'); s++; }
+    if (!seen || b > 255 || d > 31 || f > 7) return -1;
+    *bus = (u8)b; *dev = (u8)d; *fn = (u8)f;
+    return 0;
+}
+
+/* ---- acpi (op 27) - v2.2.0 shell_cmd_acpi, verbatim ---------------- */
+static int diag_acpi(void) {
+    if (!driver_acpi_available()) {
+        put("acpi: ACPI not available (no valid RSDP)\n");
+        return 1;
+    }
+    put("RSDP: 0x"); put_hex(driver_acpi_rsdp_phys(), 8);
+    put(" rev "); put_u64((u64)driver_acpi_rsdp_revision());
+    put(" OEM "); put(driver_acpi_oem_id());
+    put("\n");
+
+    put("tables: "); put_u64((u64)driver_acpi_table_count()); put("\n");
+    for (int i = 0; i < driver_acpi_table_count(); i++) {
+        char sig[5]; u32 len; u8 rev; u64 phys;
+        if (driver_acpi_table_info(i, sig, &len, &rev, &phys) != 0) break;
+        put("  "); put(sig);
+        put(" rev="); put_u64(rev);
+        put(" len="); put_u64(len);
+        put(" @0x"); put_hex(phys, 8);
+        put("\n");
+    }
+
+    const acpi_fadt_t *f = driver_acpi_fadt();
+    if (f) {
+        int ext = driver_acpi_fadt_is_extended();
+        put("FADT: rev "); put_u64(f->hdr.revision);
+        put(" SCI=IRQ"); put_u64(f->sci_int);
+        put(" PM1a_CNT=0x");
+        put_hex((ext && f->x_pm1a_cnt.address)
+                   ? (f->x_pm1a_cnt.address & 0xFFFF) : f->pm1a_cnt_blk, 4);
+        put(" GPE0=0x");
+        put_hex((ext && f->x_gpe0_blk.address)
+                   ? (f->x_gpe0_blk.address & 0xFFFF) : f->gpe0_blk, 4);
+        put(" GPE0len="); put_u64(f->gpe0_blk_len);
+        put("\n");
+    }
+    put("DSDT @0x"); put_hex(driver_acpi_dsdt_phys(), 8);
+    put(" SSDTs="); put_u64((u64)driver_acpi_ssdt_count());
+    put(" FACS @0x"); put_hex(driver_acpi_facs_phys(), 8);
+    put("\n");
+    if (driver_acpi_mcfg_present()) {
+        put("MCFG: MMCONFIG base 0x");
+        put_hex(driver_acpi_mmconfig_base(0), 8);
+        put("\n");
+    } else {
+        put("MCFG: not present (legacy CF8/CFC only)\n");
+    }
+    return 0;
+}
+
+/* ---- acpidev (op 28) - v2.2.0 shell_cmd_acpidev, verbatim ----------- */
+static int diag_acpidev(void) {
+    if (!driver_acpi_aml_loaded()) {
+        put("acpidev: AML namespace not loaded\n");
+        return 1;
+    }
+    int total = driver_acpi_aml_device_count();
+    put("AML namespace: nodes="); put_u64(driver_acpi_aml_node_count());
+    put(" methods="); put_u64(driver_acpi_aml_method_count());
+    put(" devices="); put_u64((u64)total);
+    put("\n");
+
+    for (int i = 0; i < total; i++) {
+        acpi_aml_dev_info_t d;
+        if (driver_acpi_aml_device_info(i, &d) != 0) break;
+        put("  "); put(d.path);
+        if (d.hid[0]) { put(" HID="); put(d.hid); }
+        if (d.cid[0]) { put(" CID="); put(d.cid); }
+        if (d.adr) {
+            put(" ADR=0x"); put_hex(d.adr, 2);
+        }
+        if (d.sta >= 0) {
+            put(" STA=0x"); put_hex((u64)d.sta, 2);
+        }
+        put("\n");
+        if (i >= 31) {
+            put("  ... (truncated at 32)\n");
+            break;
+        }
+    }
+    return 0;
+}
+
+/* ---- acpitest (op 30) - v2.2.0 shell_cmd_acpitest, verbatim --------- */
+static int diag_acpitest(void) {
+    int fails = 0;
+    put("acpitest: AML interpreter self-test\n");
+
+    u32 st = driver_acpi_aml_selftest_result();
+    if (driver_acpi_aml_loaded() && st == 0)
+        put("  fixture table eval:        PASS\n");
+    else if (st != 0) {
+        put("  fixture table eval:        FAIL\n");
+        fails++;
+    } else {
+        put("  fixture table eval:        SKIP (not run at boot)\n");
+    }
+
+    if (driver_acpi_aml_loaded()) {
+        u64 v = 0;
+        if (driver_acpi_aml_package_elements("\\_S5", NULL) == 0 &&
+            driver_acpi_aml_eval_package_integer("\\_S5", 0, &v) == 0) {
+            put("  \\_S5 SLP_TYP resolved: 0x");
+            put_hex(v, 2);
+            put("      PASS\n");
+        } else {
+            put("  \\_S5 package eval:         FAIL\n");
+            fails++;
+        }
+        int ndev = driver_acpi_aml_device_count();
+        put("  namespace device walk: "); put_u64((u64)ndev);
+        put(ndev > 0 ? "        PASS\n" : "        FAIL\n");
+        if (ndev <= 0) fails++;
+    } else {
+        put("  live DSDT: not loaded      FAIL\n");
+        fails++;
+    }
+
+    put(fails == 0 ? "acpitest: PASS\n" : "acpitest: FAIL\n");
+    return fails;
+}
+
+/* ---- acpipow (op 29) - v2.2.0 shell_cmd_acpipow, verbatim ------------ */
+static int diag_acpipow(void) {
+    if (!driver_acpi_available()) {
+        put("acpipow: ACPI not available\n");
+        return 1;
+    }
+    u32 mask = driver_acpi_power_sleep_mask();
+    put("sleep states offered: 0x");
+    put_hex(mask, 2);
+    put(" (S1..S5 bit i-1)\n");
+    for (int s = 1; s <= 5; s++) {
+        int typ = driver_acpi_power_slp_typ(s);
+        put("  S"); put_u64((u64)s);
+        put(": ");
+        if (typ >= 0) {
+            put("SLP_TYP=0x");
+            put_hex((u64)typ, 2);
+        } else {
+            put("not offered");
+        }
+        put("\n");
+    }
+    put("SCI: IRQ ");
+    put_u64((u64)(driver_acpi_power_sci_irq() < 0 ? 0
+                                                     : driver_acpi_power_sci_irq()));
+    put("  events: sci=");
+    put_u64(driver_acpi_power_sci_count());
+    put(" gpe=");
+    put_u64(driver_acpi_power_gpe_count());
+    put(" pwrbtn=");
+    put_u64(driver_acpi_power_pwrbtn_count());
+    put("\n");
+    const acpi_facs_t *facs = driver_acpi_facs();
+    if (facs) {
+        put("FACS: waking_vector=0x");
+        put_hex(facs->firmware_waking_vector, 8);
+        put(" x_waking=0x");
+        put_hex(facs->x_firmware_waking_vector, 8);
+        put("\n");
+    }
+    put(driver_acpi_power_resumed()
+                        ? "resume: last S3 wake successful\n"
+                        : "resume: no S3 wake yet this boot\n");
+    return 0;
+}
+
+/* ---- pcidump (op 31) - v2.2.0 shell_cmd_pcidump, verbatim ------------ */
+static int diag_pcidump(const char *args) {
+    if (!args || !args[0]) {
+        put("usage: pcidump <bus:dev.fn>  e.g. pcidump 0:1f.3\n");
+        return 1;
+    }
+    u8 bus, dev, fn;
+    if (parse_pci_loc(args, &bus, &dev, &fn) != 0) {
+        put("pcidump: bad location\n");
+        return 1;
+    }
+    u32 id = driver_pcie_read_config(bus, dev, fn, 0x00);
+    if (id == 0xFFFFFFFFu) {
+        put("pcidump: no such device\n");
+        return 1;
+    }
+    int ext = driver_pcie_mmconfig_active();
+    int words = ext ? 256 : 32;
+    put("config dump ");
+    put_hex(bus, 2);
+    put(":");
+    put_hex(dev, 2);
+    put(".");
+    put_hex(fn, 1);
+    put(ext ? " (MMCONFIG extended, 0x00-0xFF)\n" : " (legacy, 0x00-0x7F)\n");
+    for (int w = 0; w < words; w += 8) {
+        put(" ");
+        put_hex((u64)w, 2);
+        put(":");
+        for (int k = 0; k < 8; k++) {
+            u32 v = driver_pcie_read_config(bus, dev, fn, (u16)(w + k) * 4);
+            put(" ");
+            put_hex(v, 8);
+        }
+        put("\n");
+    }
+    return 0;
+}
+
+/* ---- pcibars (op 32) - v2.2.0 shell_cmd_pcibars, verbatim ------------- */
+static int diag_pcibars(void) {
+    if (driver_pcie_count() == 0) driver_pcie_scan();
+    put("PCI devices: ");
+    put_u64((u64)driver_pcie_count());
+    put("\n");
+    for (int i = 0; i < driver_pcie_count(); i++) {
+        const driver_pcie_dev_t *d = driver_pcie_get(i);
+        put(" ");
+        put_hex(d->bus, 2);
+        put(":");
+        put_hex(d->dev, 2);
+        put(".");
+        put_hex(d->fn, 1);
+        put(" vid=0x");
+        put_hex(d->vendor, 4);
+        put(" did=0x");
+        put_hex(d->device, 4);
+        put(" class=0x");
+        put_hex(((u32)d->base_class << 16) | ((u32)d->sub_class << 8) | d->prog_if,
+                   6);
+        put("\n");
+        for (int b = 0; b < 6; b++) {
+            if (!d->bar_size[b]) continue;
+            put("   BAR");
+            put_u64((u64)b);
+            put(": base=0x");
+            put_hex(d->bar_flags[b] & 1 ? (d->bar_raw[b] & 0xFFFFFFFCu)
+                                           : (d->bar_raw[b] & 0xFFFFFFF0u), 8);
+            put(" size=0x");
+            put_hex(d->bar_size[b], 8);
+            put((d->bar_flags[b] & 1) ? " io" : " mem");
+            if (d->bar_flags[b] & 4) put(" prefetch");
+            put("\n");
+        }
+    }
+    return 0;
+}
+
+/* ---- pcie (op 33) - v2.2.0 shell_cmd_pcie; the per-device cap walk
+ * inlined from driver_pcie_print_caps (a console printer) so the text
+ * lands in the op's out buffer in order ------------------------------ */
+static int diag_pcie(void) {
+    if (driver_pcie_mmconfig_active()) {
+        put("MMCONFIG: active, base 0x");
+        put_hex(driver_pcie_mmconfig_base(), 8);
+        put(" (extended config space 4 KiB/function)\n");
+    } else {
+        put("MMCONFIG: not active (MCFG absent) - legacy CF8/CFC only\n");
+    }
+    if (driver_pcie_count() == 0) driver_pcie_scan();
+    put("capabilities per device:\n");
+    for (int i = 0; i < driver_pcie_count(); i++) {
+        const driver_pcie_dev_t *d = driver_pcie_get(i);
+        put("  ");
+        put_hex(d->bus, 2);
+        put(":");
+        put_hex(d->dev, 2);
+        put(".");
+        put_hex(d->fn, 1);
+        put(" caps:");
+        if (d->cap_msi)  put(" MSI");
+        if (d->cap_msix) { put(" MSI-X(x"); put_u64(d->msix_count); put(")"); }
+        if (d->cap_pcie) { put(" PCIe(type"); put_u64(d->pcie_type); put(")"); }
+        if (!d->cap_msi && !d->cap_msix && !d->cap_pcie) put(" (legacy)");
+        put("\n");
+
+        /* ext caps via MMCONFIG (verbatim print_caps walk) */
+        {
+            u8 start, end;
+            int covers = (driver_acpi_mmconfig_bus_range(0, &start, &end) == 0 &&
+                          d->bus >= start && d->bus <= end);
+            if (driver_pcie_mmconfig_active() && covers && d->cap_pcie) {
+                u32 off = 0x100;
+                int guard = 0;
+                put("    ext:");
+                int any = 0;
+                while (off && off < 0x1000 && guard++ < 16) {
+                    u32 hdr = driver_pcie_read_config(d->bus, d->dev, d->fn, off);
+                    if (hdr == 0xFFFFFFFFu || hdr == 0) break;
+                    u16 id = hdr & 0xFFFF;
+                    u16 next = (hdr >> 20) & 0xFFF;
+                    put(" 0x");
+                    put_hex(id, 4);
+                    any = 1;
+                    off = next;
+                }
+                put(any ? "\n" : " none\n");
+            }
+        }
+    }
+    return 0;
+}
+
+/* ---- i2cdetect (op 34) - v2.2.0 shell_cmd_i2cdetect, verbatim -------- */
+static int diag_i2cdetect(void) {
+    int nb = driver_i2c_count();
+    if (nb <= 0) {
+        put("i2cdetect: no I2C buses registered\n");
+        return 1;
+    }
+    for (int b = 0; b < nb; b++) {
+        driver_i2c_bus_t *bus = driver_i2c_get(b);
+        put("i2c-");
+        put_u64((u64)b);
+        put(" (");
+        put(bus->name);
+        put("): ");
+        for (u16 a = 0x03; a <= 0x77; a++) {
+            if ((a & 0x0F) == 0) put("\n  ");
+            if (driver_smbus_quick(b, (u8)a) == 0) {
+                put_hex((u8)a, 2);
+                put(" ");
+            } else {
+                put("-- ");
+            }
+        }
+        put("\n");
+    }
+    return 0;
+}
+
+/* ---- i2cget (op 35) - v2.2.0 shell_cmd_i2cget, verbatim -------------- */
+static int diag_i2cget(const char *args) {
+    if (!args || !args[0]) {
+        put("usage: i2cget <bus> <addr> [reg]  (addr/reg in hex, 0x..)\n");
+        return 1;
+    }
+    char tmp[80];
+    for (int i = 0; i + 1 < (int)sizeof(tmp) && args[i]; i++) tmp[i] = args[i], tmp[i + 1] = 0;
+    u32 vals[3] = { 0, 0, 0 };
+    int nv = 0;
+    for (char *t = tmp; *t && nv < 3; ) {
+        while (*t == ' ') t++;
+        if (!*t) break;
+        u32 v = 0;
+        int ok = 0;
+        if (t[0] == '0' && (t[1] == 'x' || t[1] == 'X')) t += 2;
+        while ((*t >= '0' && *t <= '9') || (*t >= 'a' && *t <= 'f') || (*t >= 'A' && *t <= 'F')) {
+            u32 dgt = (*t <= '9') ? (u32)(*t - '0')
+                    : (*t <= 'F') ? (u32)(*t - 'A' + 10)
+                    : (u32)(*t - 'a' + 10);
+            v = v * 16 + dgt;
+            t++;
+            ok = 1;
+        }
+        if (ok) vals[nv++] = v;
+        else t++;
+    }
+    if (nv < 2) {
+        put("i2cget: need bus and address\n");
+        return 1;
+    }
+    int rc;
+    if (nv >= 3) rc = driver_smbus_read_byte_data((int)vals[0], (u8)vals[1], (u8)vals[2]);
+    else         rc = driver_smbus_read_byte((int)vals[0], (u8)vals[1]);
+    if (rc < 0) {
+        put("i2cget: error (");
+        put(driver_i2c_i801_last_error()[0] ? driver_i2c_i801_last_error() : "NACK");
+        put(")\n");
+        return 1;
+    }
+    put("0x");
+    put_hex((u64)rc, 2);
+    put("\n");
+    return 0;
+}
+
+/* ---- i2cset (op 36) - v2.2.0 shell_cmd_i2cset, verbatim -------------- */
+static int diag_i2cset(const char *args) {
+    if (!args || !args[0]) {
+        put("usage: i2cset <bus> <addr> <reg> <val>  (hex values)\n");
+        return 1;
+    }
+    char tmp[80];
+    for (int i = 0; i + 1 < (int)sizeof(tmp) && args[i]; i++) tmp[i] = args[i], tmp[i + 1] = 0;
+    u32 vals[4] = { 0, 0, 0, 0 };
+    int nv = 0;
+    for (char *t = tmp; *t && nv < 4; ) {
+        while (*t == ' ') t++;
+        if (!*t) break;
+        if (t[0] == '0' && (t[1] == 'x' || t[1] == 'X')) t += 2;
+        u32 v = 0; int ok = 0;
+        while ((*t >= '0' && *t <= '9') || (*t >= 'a' && *t <= 'f') || (*t >= 'A' && *t <= 'F')) {
+            u32 dgt = (*t <= '9') ? (u32)(*t - '0')
+                    : (*t <= 'F') ? (u32)(*t - 'A' + 10)
+                    : (u32)(*t - 'a' + 10);
+            v = v * 16 + dgt; t++; ok = 1;
+        }
+        if (ok) vals[nv++] = v; else t++;
+    }
+    if (nv < 4) {
+        put("i2cset: need bus addr reg val\n");
+        return 1;
+    }
+    int rc = driver_smbus_write_byte_data((int)vals[0], (u8)vals[1], (u8)vals[2], (u8)vals[3]);
+    if (rc != 0) {
+        put("i2cset: error\n");
+        return 1;
+    }
+    put("i2cset: written\n");
+    return 0;
+}
+
+/* ---- i2ctest (op 37) - v2.2.0 shell_cmd_i2ctest, verbatim ------------ */
+static int diag_i2ctest(void) {
+    int fails = 0;
+
+    int nb = driver_i2c_count();
+    put("I2C core: ");
+    put_u64((u64)nb);
+    put(" bus(es) registered\n");
+    if (nb <= 0) fails++;
+
+    if (driver_i2c_i801_present()) {
+        put("controller: ");
+        put(driver_i2c_i801_is_piix4() ? "PIIX4 (8086:7113)" : "i801 ICH-class");
+        put(" base 0x");
+        put_hex(driver_i2c_i801_base(), 4);
+        put(" xfers=");
+        put_u64(driver_i2c_i801_xfer_count());
+        put(" errs=");
+        put_u64(driver_i2c_i801_error_count());
+        put("\n");
+        put("  diag: cfg0x");
+        put(driver_i2c_i801_is_piix4() ? "90" : "20");
+        put("=0x");
+        put_hex(driver_i2c_i801_cfg_raw(), 8);
+        put(" sts=0x");
+        put_hex(driver_i2c_i801_sts_probe(), 2);
+        put("\n");
+    } else {
+        put("controller: i801/PIIX4 not present  FAIL\n");
+        fails++;
+    }
+
+    int dw = -1;
+    for (int b = 0; b < driver_i2c_count(); b++) {
+        if (strcmp(driver_i2c_get(b)->name, "dw-i2c") == 0) { dw = b; break; }
+    }
+    if (dw >= 0) {
+        int st = driver_i2c_dw_selftest(dw);
+        put(st == 0 ? "DesignWare: register selftest  PASS\n"
+                                    : "DesignWare: register selftest  FAIL\n");
+        if (st != 0) fails++;
+    } else {
+        put("DesignWare: not present on this platform (honest skip)\n");
+    }
+
+    if (dw >= 0) {
+        u8 t = 0;
+        int rc = driver_i2c_transfer(dw, 0x070, 1, &t, 1, NULL, 0);
+        put(rc <= 0 && rc != -1 ? "10-bit addr path: delivered   PASS\n"
+                                                : "10-bit addr path:             PASS (NACK expected)\n");
+    } else {
+        put("10-bit addressing: supported on DesignWare bus (none present)\n");
+    }
+
+    put(fails == 0 ? "i2ctest: PASS\n" : "i2ctest: FAIL\n");
+    return fails;
+}
+
+/* ---- smbus (op 38) - v2.2.0 shell_cmd_smbus, verbatim ----------------- */
+static int diag_smbus(void) {
+    if (driver_smbus_bus_id() < 0) {
+        put("smbus: not initialized\n");
+        return 1;
+    }
+    put("SMBus devices: ");
+    put_u64((u64)driver_smbus_device_count());
+    put("\n");
+    for (int i = 0; i < driver_smbus_device_count(); i++) {
+        const smbus_device_t *d = driver_smbus_device(i);
+        put("  0x");
+        put_hex(d->addr, 2);
+        put("  ");
+        if (d->kind == 1) {
+            put("EEPROM  first bytes: ");
+            for (int k = 0; k < 8; k++) {
+                put_hex(d->eep[k], 2);
+                put(" ");
+            }
+        } else if (d->kind == 2) {
+            put("sensor-class device");
+        } else {
+            put("generic device");
+        }
+        put("\n");
+    }
+    return 0;
+}
+
+/* ---- smbustest (op 39) - v2.2.0 shell_cmd_smbustest, verbatim ---------- */
+static int diag_smbustest(void) {
+    int mask = driver_smbus_selftest();
+    if (mask == 0) {
+        put("smbustest: byte/word/block round-trips  PASS\n");
+        return 0;
+    }
+    put("smbustest: FAIL\n");
+    if (mask & (1 << 0)) put("  byte-data round trip  FAIL\n");
+    else                 put("  byte-data round trip  PASS\n");
+    if (mask & (1 << 1)) put("  word-data round trip  FAIL\n");
+    else                 put("  word-data round trip  PASS\n");
+    if (mask & (1 << 2)) put("  block write/read-back FAIL\n");
+    else                 put("  block write/read-back PASS\n");
+    if (mask & (1 << 3)) put("  NACK-is-error check   FAIL\n");
+    else                 put("  NACK-is-error check   PASS\n");
+    return 1;
+}
+
 static int diag_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
     if (!out || cap <= 0) return -1;
     s_out = out; s_left = cap;
@@ -1530,7 +2072,21 @@ static int diag_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
     case L1SVC_DIAG_NICE:      return diag_nice(a);
     case L1SVC_DIAG_SYNCTEST:  return diag_synctest();
     case L1SVC_DIAG_FSTEST:    return diag_fstest();
-    default: return -1;   /* ops 27-39: the G10 chipset group lands next */
+    /* G10: chipset family */
+    case L1SVC_DIAG_ACPI:      return diag_acpi();
+    case L1SVC_DIAG_ACPIDEV:   return diag_acpidev();
+    case L1SVC_DIAG_ACPIPOW:   return diag_acpipow();
+    case L1SVC_DIAG_ACPITEST:  return diag_acpitest();
+    case L1SVC_DIAG_PCIDUMP:   return diag_pcidump(a);
+    case L1SVC_DIAG_PCIBARS:   return diag_pcibars();
+    case L1SVC_DIAG_PCIE:      return diag_pcie();
+    case L1SVC_DIAG_I2CDETECT: return diag_i2cdetect();
+    case L1SVC_DIAG_I2CGET:    return diag_i2cget(a);
+    case L1SVC_DIAG_I2CSET:    return diag_i2cset(a);
+    case L1SVC_DIAG_I2CTEST:   return diag_i2ctest();
+    case L1SVC_DIAG_SMBUS:     return diag_smbus();
+    case L1SVC_DIAG_SMBUSTEST: return diag_smbustest();
+    default: return -1;   /* ops 9-39 all landed: diag category complete */
     }
 }
 
