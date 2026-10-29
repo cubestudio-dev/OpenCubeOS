@@ -1,0 +1,33 @@
+Open Cube OS 3.0.0-WP04 G15 - clean-build determinism (release artifact)
+
+Two FULL clean builds of the freeze commit 2ae6a2b (count 327,
+OC_KERNEL_BUILD = 327 + 21 = 348), identical chain both times:
+
+    make clean; make -j userprogs; make -j kernel; make -j iso
+
+build 1 (17:17 UTC)          build 2 (clean, ~2 min later)
+--------------------------------------------------------------
+elf 31c7c8844ae33d91a4e8dba5  31c7c8844ae33d91a4e8dba5
+    5653aeb21024f4a626244ed      5653aeb21024f4a626244ed
+    dcab984b7c75125bf            dcab984b7c75125bf
+iso b2697ab8617ed21ec20a541f  b2697ab8617ed21ec20a541f
+    5f658d62eb6a095a40ca69bf      5f658d62eb6a095a40ca69bf
+    3e7796b96aa153c3              3e7796b96aa153c3
+
+cmp(1): BYTE-IDENTICAL for both artifacts.  0 errors 0 warnings on
+both builds (-Wall -Wextra -Werror is in the flags).
+
+The determinism stack is the G13 six-layer pinning, unchanged:
+gzip mtime=0 (gen_userprogs/gen_font_gz), xorriso --modification-date +
+--set_all_file_dates + --gpt_disk_guid, staged-tree touch @0, ESP FAT
+mformat -N 1 + tools/fat_zero_dates.py, tools/iso_zero_ctime.py
+(the 593 Rock Ridge TF ctime stamps).
+
+Note vs the G13 record: the G13 artifact (elf a61d7fc1, iso 92096640)
+was built in the post-sandbox-reset SHALLOW clone and therefore baked
+"build 24" (shallow count 3 + 21) - below the published 316 (2.2.0),
+breaking the BUG-0347 numeric OTA monotonicity, and not reproducible
+by any full-clone builder (CI included).  G15 restored the full
+history (git fetch --unshallow --filter=blob:none, count 326) BEFORE
+the freeze commit; the artifacts above are the canonical WP-04
+deliverables.  build 348 > 316 restores the published sequence.

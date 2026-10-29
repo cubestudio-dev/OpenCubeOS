@@ -1,0 +1,9 @@
+3.0.0-WP-04 milestone asset hashes (sha256), build 348 (freeze commit 2ae6a2b, count 327 + 21):
+b2697ab8617ed21ec20a541f5f658d62eb6a095a40ca69bf3e7796b96aa153c3  opencube-3.0.0-WP-04.iso  (12351488 B, hybrid BIOS+UEFI El Torito)
+31c7c8844ae33d91a4e8dba5653aeb21024f4a626244eddcbab984b7c75125bf  opencube-3.0.0-WP-04.elf  (2077472 B, kernel ELF for QEMU -kernel boot)
+
+The canonical upload names above map to build/opencube.iso and
+build/opencube.elf of the freeze commit.  Three-way SHA identity
+(12-point #6) is verified against the GitHub Release API digests and
+the live gh-pages download in the release record; see
+evidence/3_0_0_wp04_g15_release/README.txt.
