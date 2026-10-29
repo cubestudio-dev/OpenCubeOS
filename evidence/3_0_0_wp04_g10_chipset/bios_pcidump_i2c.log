@@ -1,0 +1,340 @@
+[runner] starting QEMU: opencube.iso
+[runner] will run 8 command(s): ['pcidump', 'pcidump 0:1.3', 'pcidump 5:0.0', 'i2cget 0 0x50', 'i2cget 0 0x10', 'i2ctest', 'smbus', 'smbustest']
+[H[J[1;1H[m[mGFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot ISO)                                                    [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS 3.0.0-WP03 kmain entered
+[00:00:00.000] boot chain 1/4: kernel core mechanisms............ OK
+  Open Cube OS  [3.0.0-WP03]    Open Cube OS - L0 kernel (3.0.0-WP03)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    WP-01 ext self-test: 4/4 points reachable
+[00:00:00.000] WP-01 extension self-test......................... OK
+    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.010] sync primitives (spinlock/sem/mutex/cond)......... OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: drv=37 svc=19 app=1
+[00:00:00.010] ACPI: RSDP rev 0 RSDT 1ffe2335 tables 5........... OK
+[00:00:00.010] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.010] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.080] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.090] SMBus: 8 device(s) at scan........................ OK
+    AML: AML: undefined name PRQ0
+    AML: AML: undefined name PRQ1
+    AML: AML: undefined name PRQ2
+    AML: AML: undefined name PRQ3
+    AML: AML: undefined name VEND
+    AML: AML: undefined name CSEL
+    AML: AML: undefined name CPEN
+[00:00:00.170] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.180] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.190] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.200] boot chain 2/4: drivers + driver-free services.... OK
+[00:00:00.210] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.240] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: IDE controller at 00:01.1 BAR4=0xc040
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: no controller found
+nvme: no controller found
+[00:00:00.440] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.460] virtio-blk + AHCI + NVMe drivers.................. OK
+usb: class driver collected: usb-audio
+usb: class driver collected: hid-mouse
+usb: class driver collected: hid-kbd
+usb: class driver collected: usb-msc
+usb: class driver collected: ftdi-serial
+usb: class driver collected: cdc-acm
+usb: class driver collected: btusb
+usb: class driver collected: uvc
+[00:00:00.610] USB hosts up: 0................................... OK
+[00:00:00.630] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+[00:00:00.640] boot chain 3/4: driver-dependent services......... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.720] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.760] system config (/etc/opencube.conf, fat32/ramfs)... OK
+[00:00:00.770] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.360] LAPIC (local APIC)................................ OK
+virtio-net: no device found
+ dev=3 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
+[00:00:01.890] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.900] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:01.910] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:02.090] sound: no sound card present (probe OK)........... OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:02.120] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131040 pages, 129248 free
+[00:00:02.140] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+[00:00:02.230] boot complete..................................... OK
+[00:00:02.240] boot chain 4/4: interfaces ready.................. OK
+[00:00:02.250] crash recovery armed (panic + dump + crashlog).... OK
+[00:00:02.260] L0 ready, waiting for L1.......................... OK
+    l1 launcher: booting 'ush' (ring 3, 29064 bytes)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+ush> [runner] boot complete (8095 chars)
+[runner] sending: pcidump
+pcidump
+usage: pcidump <bus:dev.fn>  e.g. pcidump 0:1f.3
+ush> [runner] got 51 chars for 'pcidump'
+[runner] sending: pcidump 0:1.3
+pcidump 0:1.3
+config dump 00:01.3 (legacy, 0x00-0x7F)
+ 00: 71138086 02800103 06800003 00000000 00000000 00000000 00000000 00000000
+ 08: 00000000 00000000 00000000 11001af4 00000000 00000000 00000000 00000109
+ 10: 00000601 00000000 00000000 00000000 00000000 00000000 02000000 90000000
+ 18: 60000000 08000000 00000000 00000000 00000000 00000000 00000000 00000000
+ush> [runner] got 358 chars for 'pcidump 0:1.3'
+[runner] sending: pcidump 5:0.0
+pcidump 5:0.0
+pcidump: no such device
+ush> [runner] got 26 chars for 'pcidump 5:0.0'
+[runner] sending: i2cget 0 0x50
+i2cget 0 0x50
+0x00
+ush> [runner] got 7 chars for 'i2cget 0 0x50'
+[runner] sending: i2cget 0 0x10
+i2cget 0 0x10
+i2cget: error (NACK/device error)
+ush> [runner] got 36 chars for 'i2cget 0 0x10'
+[runner] sending: i2ctest
+i2ctest
+I2C core: 1 bus(es) registered
+controller: PIIX4 (8086:7113) base 0x0700 xfers=73 errs=94
+  diag: cfg0x90=0x00000701 sts=0x00
+DesignWare: not present on this platform (honest skip)
+10-bit addressing: supported on DesignWare bus (none present)
+i2ctest: PASS
+ush> [runner] got 269 chars for 'i2ctest'
+[runner] sending: smbus
+smbus
+SMBus devices: 8
+  0x50  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x51  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x52  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x53  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x54  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x55  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x56  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x57  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+ush> [runner] got 467 chars for 'smbus'
+[runner] sending: smbustest
+smbustest
+smbustest: byte/word/block round-trips  PASS
+ush> [runner] got 47 chars for 'smbustest'
+
+============================================================
+OUTPUT SUMMARY
+============================================================
+
+--- [BOOT] ---
+GFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+GNU GRUB  version 2.12-9+deb13u2
+
++----------------------------------------------------------------------------+||||||||||||||||||||||||+----------------------------------------------------------------------------+     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                            *Open Cube OS (slot ISO)                                                     Open Cube OS (slot A, force)                                                Open Cube OS (slot B, force)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               The highlighted entry will be executed automatically in 5s.                    The highlighted entry will be executed automatically in 4s.                    The highlighted entry will be executed automatically in 3s.                    The highlighted entry will be executed automatically in 2s.                    The highlighted entry will be executed automatically in 1s.                    The highlighted entry will be executed automatically in 0s.                   Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS 3.0.0-WP03 kmain entered
+[00:00:00.000] boot chain 1/4: kernel core mechanisms............ OK
+  Open Cube OS  [3.0.0-WP03]    Open Cube OS - L0 kernel (3.0.0-WP03)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    WP-01 ext self-test: 4/4 points reachable
+[00:00:00.000] WP-01 extension self-test......................... OK
+    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.010] sync primitives (spinlock/sem/mutex/cond)......... OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: drv=37 svc=19 app=1
+[00:00:00.010] ACPI: RSDP rev 0 RSDT 1ffe2335 tables 5........... OK
+[00:00:00.010] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.010] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.050] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.080] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.090] SMBus: 8 device(s) at scan........................ OK
+    AML: AML: undefined name PRQ0
+    AML: AML: undefined name PRQ1
+    AML: AML: undefined name PRQ2
+    AML: AML: undefined name PRQ3
+    AML: AML: undefined name VEND
+    AML: AML: undefined name CSEL
+    AML: AML: undefined name CPEN
+[00:00:00.170] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.180] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.190] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.200] boot chain 2/4: drivers + driver-free services.... OK
+[00:00:00.210] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.240] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: IDE controller at 00:01.1 BAR4=0xc040
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: no controller found
+nvme: no controller found
+[00:00:00.440] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.460] virtio-blk + AHCI + NVMe drivers.................. OK
+usb: class driver collected: usb-audio
+usb: class driver collected: hid-mouse
+usb: class driver collected: hid-kbd
+usb: class driver collected: usb-msc
+usb: class driver collected: ftdi-serial
+usb: class driver collected: cdc-acm
+usb: class driver collected: btusb
+usb: class driver collected: uvc
+[00:00:00.610] USB hosts up: 0................................... OK
+[00:00:00.630] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+[00:00:00.640] boot chain 3/4: driver-dependent services......... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.720] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.760] system config (/etc/opencube.conf, fat32/ramfs)... OK
+[00:00:00.770] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.360] LAPIC (local APIC)................................ OK
+virtio-net: no device found
+ dev=3 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
+[00:00:01.890] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.900] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:01.910] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:02.090] sound: no sound card present (probe OK)........... OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:02.120] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131040 pages, 129248 free
+[00:00:02.140] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+[00:00:02.230] boot complete..................................... OK
+[00:00:02.240] boot chain 4/4: interfaces ready.................. OK
+[00:00:02.250] crash recovery armed (panic + dump + crashlog).... OK
+[00:00:02.260] L0 ready, waiting for L1.......................... OK
+    l1 launcher: booting 'ush' (ring 3, 29064 bytes)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+--- [pcidump] ---
+usage: pcidump <bus:dev.fn>  e.g. pcidump 0:1f.3
+
+--- [pcidump 0:1.3] ---
+config dump 00:01.3 (legacy, 0x00-0x7F)
+ 00: 71138086 02800103 06800003 00000000 00000000 00000000 00000000 00000000
+ 08: 00000000 00000000 00000000 11001af4 00000000 00000000 00000000 00000109
+ 10: 00000601 00000000 00000000 00000000 00000000 00000000 02000000 90000000
+ 18: 60000000 08000000 00000000 00000000 00000000 00000000 00000000 00000000
+
+--- [pcidump 5:0.0] ---
+pcidump: no such device
+
+--- [i2cget 0 0x50] ---
+0x00
+
+--- [i2cget 0 0x10] ---
+i2cget: error (NACK/device error)
+
+--- [i2ctest] ---
+I2C core: 1 bus(es) registered
+controller: PIIX4 (8086:7113) base 0x0700 xfers=73 errs=94
+  diag: cfg0x90=0x00000701 sts=0x00
+DesignWare: not present on this platform (honest skip)
+10-bit addressing: supported on DesignWare bus (none present)
+i2ctest: PASS
+
+--- [smbus] ---
+SMBus devices: 8
+  0x50  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x51  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x52  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x53  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x54  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x55  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x56  EEPROM  first bytes: 00 00 00 00 00 00 00 00 
+  0x57  EEPROM  first bytes: 00 00 00 00 00 00 00 00
+
+--- [smbustest] ---
+smbustest: byte/word/block round-trips  PASS
