@@ -29,6 +29,32 @@
 #define CHINESE_FONT_SYMBOL_COUNT 682
 #define CHINESE_FONT_UTO_COUNT    7445 /* 6763 hanzi + 682 symbols */
 
+/* 3.0.0-WP04 G11b: the six raw tables are gzip-wrapped in
+ * chinese_font_data.c (identity-window relief - the kernel image must
+ * end below 0x400000; see gen_font_gz.py).  chinese_font.c inflates
+ * the stream into one kmalloc'd buffer lazily on first glyph lookup;
+ * the macros below address the sections inside that buffer in the
+ * fixed order the generator emits them. */
+#define CHINESE_FONT_ZONE_INDEX_LEN    6768 /* (zone-16)*94+(wei-1)     */
+#define CHINESE_FONT_SYMBOL_INDEX_LEN   846 /* (zone-1)*94+(wei-1)     */
+#define CHINESE_FONT_GZ_RAW_LEN        298138u
+#define CHINESE_FONT_GZ_OFF_GLYPHS           0u
+#define CHINESE_FONT_GZ_OFF_SYMBOLS \
+    (CHINESE_FONT_GZ_OFF_GLYPHS + \
+     (CHINESE_FONT_HANZI_COUNT * CHINESE_FONT_GLYPH_BYTES))
+#define CHINESE_FONT_GZ_OFF_ZONE_INDEX \
+    (CHINESE_FONT_GZ_OFF_SYMBOLS + \
+     (CHINESE_FONT_SYMBOL_COUNT * CHINESE_FONT_GLYPH_BYTES))
+#define CHINESE_FONT_GZ_OFF_SYMBOL_INDEX \
+    (CHINESE_FONT_GZ_OFF_ZONE_INDEX + (CHINESE_FONT_ZONE_INDEX_LEN * 2))
+#define CHINESE_FONT_GZ_OFF_UTO_GB \
+    (CHINESE_FONT_GZ_OFF_SYMBOL_INDEX + (CHINESE_FONT_SYMBOL_INDEX_LEN * 2))
+#define CHINESE_FONT_GZ_OFF_IDX_TO_UNICODE \
+    (CHINESE_FONT_GZ_OFF_UTO_GB + (2 * CHINESE_FONT_UTO_COUNT * 2))
+/* CHINESE_FONT_GZ_OFF_IDX_TO_UNICODE + (CHINESE_FONT_UTO_COUNT * 2)
+ * == CHINESE_FONT_GZ_RAW_LEN (checked at compile time in
+ * chinese_font.c). */
+
 /* Max runtime-registered font slots: slot 0 is the embedded font. */
 #define CHINESE_FONT_MAX_SLOTS    4
 
@@ -77,7 +103,6 @@ int  chinese_font_unload(chinese_font_handle_t slot);
  * (1..94) -> compact glyph index, or -1 when the slot is invalid or the
  * slot is a gap in the GB2312 table. */
 int  chinese_font_lookup(chinese_font_handle_t slot, u32 zone, u32 wei);
-
 /* Unicode lookup: BMP codepoint -> compact glyph index (bit15 set =
  * symbol table), or -1 when unmapped. */
 int  chinese_font_lookup_unicode(chinese_font_handle_t slot, u32 cp);
@@ -96,6 +121,13 @@ int  chinese_font_get_metrics(u32* w, u32* h, u32* stride);
 /* Compact index -> Unicode codepoint (bit15 of idx = symbol table), or
  * 0xFFFFFFFF when unmapped. Needed by GB2312 -> Unicode decoding. */
 u32  chinese_font_index_to_unicode(chinese_font_handle_t slot, int idx);
+
+/* Raw index-table accessors (3.0.0-WP04 G11b: the tables live in the
+ * gzip container now; these force the lazy inflate and return the
+ * kmalloc'd copies - encoding.c walks them for GB2312 encoding).
+ * Returns NULL only when the heap-backed inflate failed. */
+const u16* chinese_font_zone_index_table(void);
+const u16* chinese_font_symbol_index_table(void);
 
 /* Fill a stats snapshot. Returns 0 on success, -2 when out is NULL. */
 int  chinese_font_status(chinese_font_stats_t* out);

@@ -67,10 +67,14 @@ int encoding_gb2312_encode(u32 cp, u8* out, u32 cap, u32* produced) {
      * and exact instead of carrying a third table. */
     int found = -1;
     if (idx & 0x8000) {
-        extern const u16 chinese_font_symbol_index[846];
+        /* 3.0.0-WP04 G11b: the raw index tables moved into the gzip
+         * container (identity-window relief); fetch the kmalloc'd
+         * copies through the font accessors. */
+        const u16* sym_index = chinese_font_symbol_index_table();
+        if (!sym_index) return ENC_E_UNMAP;
         u32 want = (u32)(idx & 0x7FFF);
-        for (u32 s = 0; s < 846; ++s) {
-            if (chinese_font_symbol_index[s] == want) {
+        for (u32 s = 0; s < CHINESE_FONT_SYMBOL_INDEX_LEN; ++s) {
+            if (sym_index[s] == want) {
                 found = (int)s;   /* (zone-1)*94 + (wei-1) */
                 break;
             }
@@ -84,9 +88,10 @@ int encoding_gb2312_encode(u32 cp, u8* out, u32 cap, u32* produced) {
         *produced = 2;
         return 0;
     }
-    extern const u16 chinese_font_zone_index[6768];
-    for (u32 s = 0; s < 6768; ++s) {
-        if (chinese_font_zone_index[s] == (u16)idx) {
+    const u16* zone_index = chinese_font_zone_index_table();
+    if (!zone_index) return ENC_E_UNMAP;
+    for (u32 s = 0; s < CHINESE_FONT_ZONE_INDEX_LEN; ++s) {
+        if (zone_index[s] == (u16)idx) {
             found = (int)s;       /* (zone-16)*94 + (wei-1) */
             break;
         }

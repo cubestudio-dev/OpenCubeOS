@@ -214,10 +214,12 @@
 #define L1SVC_DISP_FONT_TEST   8   /* font-test               */
 #define L1SVC_DISP_ENCODING    9   /* encoding                */
 #define L1SVC_DISP_ENC_TEST   10   /* encoding-test           */
-/* 3.0.0-WP03: L1SVC_DISP_IME (11) / L1SVC_DISP_IME_TEST (12) are
- * DELETED together with the input-method engine - the IME user plane
- * leaves in WP-03.  Never renumber the surviving ops; 11/12 stay
- * retired. */
+/* 3.0.0-WP04 G11b: the IME pair is REVIVED (engine back in
+ * services/display/ime_engine.c, bodies in disp_cmds_cn.c).
+ * The numbers keep their v2.2.0 places - WP-03 retired them
+ * without renumbering, and G11b re-occupies them exactly. */
+#define L1SVC_DISP_IME        11   /* ime [-i]                */
+#define L1SVC_DISP_IME_TEST   12   /* ime-test                */
 
 /* ---- input operations (services/input) -----------------------------
  * Bodies: recovery/shell_cmds_chipset.c (touchpad/touchtest). */
