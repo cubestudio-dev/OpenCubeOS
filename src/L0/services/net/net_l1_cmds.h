@@ -27,6 +27,8 @@ int net_cmd_nf_test(const char *args);
 int net_cmd_route(const char *args);
 int net_cmd_tcpcc_test(const char *args);
 int net_cmd_tcpstats(const char *args);
+int net_cmd_ssh(const char *args);    /* 3.0.0-WP04 G11a */
+int net_cmd_sshd(const char *args);   /* 3.0.0-WP04 G11a */
 int net_cmd_tcptest(const char *args);
 
 /* NETCMD bridge bodies (SYS_NETCMD ifconfig/ping/netstat/wget; reached

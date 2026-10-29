@@ -276,6 +276,13 @@
 #define L1SVC_NET_TCPCC_TEST   10   /* tcpcc_test              */
 #define L1SVC_NET_TCPSTATS     11   /* tcpstats                */
 #define L1SVC_NET_TCPTEST      12   /* tcptest                 */
+/* 3.0.0-WP04 G11a: the ssh / sshd commands return as ring-3 apps.
+ * The protocol engines (net_ssh.c / net_sshd.c, resurrected verbatim
+ * from v2.2.0) stay L0-side next to the TCP stack; the apps reach
+ * them through these two ops.  sshd's interactive session prints
+ * console-direct through the engine's own logging. */
+#define L1SVC_NET_SSH           13   /* ssh <ip> [port] [user] [pass] */
+#define L1SVC_NET_SSHD         14   /* sshd [port] [user] [pass]    */
 
 /* ---- crypto operations (services/crypto) ------------------------------
  * v2.0.0 group O: the self-test family (NIST vectors + DH modexp
