@@ -4,6 +4,11 @@
 # Open Cube OS - WP-01
 # File: tools/build_iso.sh
 # Purpose: Build a hybrid BIOS+UEFI bootable ISO using grub-mkimage + xorriso
+# 3.0.0-WP04 G13: --modification-date + --set_all_file_dates pin every
+# ISO9660/Rock-Ridge timestamp (epoch) so two clean builds of the same
+# tree are byte-identical (the G13 determinism gate).  NOTE: the TIME
+# form must be YYYYMMDDhhmmsscc - a bare '0' is rejected by xorriso
+# ('Cannot decode timestring') and silently leaves dates unpinned.
 #          directly, bypassing grub-mkrescue (which has trouble finding the
 #          extracted GRUB modules and unicode.pf2 in some environments).
 #
@@ -128,16 +133,25 @@ grub-mkimage -O x86_64-efi \
 echo "[build_iso] building ESP FAT image"
 ESP_IMG="$ISO_STAGE/boot/efi.img"
 dd if=/dev/zero of="$ESP_IMG" bs=1M count=1 status=none
-mformat -i "$ESP_IMG" -v EFI ::
+# G13 determinism: fixed volume serial (mformat derives it from the
+# wall clock otherwise) + all directory date/time fields scrubbed to
+# zero below, so clean builds minutes apart are byte-identical.
+mformat -i "$ESP_IMG" -N 1 -v EFI ::
 mmd -i "$ESP_IMG" ::/EFI
 mmd -i "$ESP_IMG" ::/EFI/BOOT
 mcopy -i "$ESP_IMG" "$ISO_STAGE/EFI/BOOT/BOOTX64.EFI" ::/EFI/BOOT/BOOTX64.EFI
+python3 "$OC_ROOT/tools/fat_zero_dates.py" "$ESP_IMG"
 echo "[build_iso] ESP FAT image contents:"
 mdir -i "$ESP_IMG" ::/ 2>&1
 echo "[build_iso] /EFI/BOOT contents:"
 mdir -i "$ESP_IMG" ::/EFI/BOOT 2>&1
 
 # --- 8. Build the ISO with xorriso, with both BIOS and UEFI boot ---
+# G13 determinism (final piece): the staged directories were mkdir'ed
+# seconds ago, so their ISO9660 directory-record dates would carry the
+# wall clock (--set_all_file_dates pins files, not dirs).  Normalize
+# the whole stage tree to the epoch before packing.
+find "$ISO_STAGE" -exec touch -d @0 {} +
 echo "[build_iso] building ISO"
 mkdir -p "$BUILD"
 xorriso -as mkisofs \
@@ -149,12 +163,20 @@ xorriso -as mkisofs \
   -boot-load-size 4 \
   -boot-info-table \
   --grub2-boot-info \
+  --modification-date=1970010100000000 \
+  --set_all_file_dates 1970010100000000 \
+  --gpt_disk_guid DEADBEEF-0000-0000-0000-00000000C0DE \
   -eltorito-alt-boot \
   -e boot/efi.img \
   -no-emul-boot \
   -isohybrid-gpt-hfsplus \
   -r "$ISO_STAGE" 2>&1 | tail -5
 
+# G13 determinimsm (last mile): xorriso hardcodes the Rock Ridge TF
+# ctime stamp to the assembly moment (-alter_date has no ctime type);
+# zero every TF ctime in the finished image so clean builds minutes
+# apart stay byte-identical.
+python3 "$OC_ROOT/tools/iso_zero_ctime.py" "$BUILD/opencube.iso"
 echo "[build_iso] ISO: $BUILD/opencube.iso"
 ls -la "$BUILD/opencube.iso"
 

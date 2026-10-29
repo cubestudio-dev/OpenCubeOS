@@ -1,0 +1,699 @@
+[runner] starting QEMU: opencube.iso
+[runner] will run 21 command(s): ['stats', 'uname -a', 'health', 'watchdog status', 'mem', 'frag', 'heap', 'sched', 'syncstat', 'crashlog', 'acpitest', 'i2ctest', 'smbustest', 'rtc', 'tsc', 'memtest', 'vmmap', 'chinesetest', 'ime-test', 'encoding-test', 'font']
+[H[J[1;1H[m[mGFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+[?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u2
+
+[m[4;2H+----------------------------------------------------------------------------+[5;2H|[5;79H|[6;2H|[6;79H|[7;2H|[7;79H|[8;2H|[8;79H|[9;2H|[9;79H|[10;2H|[10;79H|[11;2H|[11;79H|[12;2H|[12;79H|[13;2H|[13;79H|[14;2H|[14;79H|[15;2H|[15;79H|[16;2H|[16;79H|[17;2H+----------------------------------------------------------------------------+[m[18;2H[19;2H[m     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot ISO)                                                    [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS 2.2.0 kmain entered
+  Open Cube OS  [2.2.0]    Open Cube OS - L0 kernel (2.2.0)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+[00:00:00.010] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+    registry: cmds=99 drv=21 svc=13 app=1
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 1ffe2335 tables 5........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.030] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.030] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.040] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.060] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.070] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.080] SMBus: 8 device(s) at scan........................ OK
+    AML: AML: undefined name PRQ0
+    AML: AML: undefined name PRQ1
+    AML: AML: undefined name PRQ2
+    AML: AML: undefined name PRQ3
+    AML: AML: undefined name VEND
+    AML: AML: undefined name CSEL
+    AML: AML: undefined name CPEN
+[00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.130] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: IDE controller at 00:01.1 BAR4=0xc040
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: no controller found
+nvme: no controller found
+[00:00:00.310] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.320] virtio-blk + AHCI + NVMe drivers.................. OK
+[00:00:00.390] USB hosts up: 0................................... OK
+[00:00:00.400] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.430] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.450] system config (/etc/opencube.conf, ramfs)......... OK
+[00:00:00.450] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.010] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=3 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
+[00:00:01.510] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.510] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:01.520] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:01.680] sound: no sound card present (probe OK)........... OK
+[00:00:01.690] shell command system (99 commands)................ OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:01.700] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131040 pages, 129185 free
+[00:00:01.710] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + dispatches)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:01.780] boot complete..................................... OK
+[00:00:01.790] crash recovery armed (panic + dump + crashlog).... OK
+    l1 launcher: booting 'ush' (ring 3, 55952 bytes)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+ush> [runner] boot complete (7866 chars)
+[runner] sending: stats
+stats
+ticks=187  ms=1870  IRQ0=187  IRQ1=0  soft=0  one=0
+ush> [runner] got 54 chars for 'stats'
+[runner] sending: uname -a
+uname -a
+Open Cube OS 2.2.0 x86_64
+ush> [runner] got 28 chars for 'uname -a'
+[runner] sending: health
+health
+ush: command not found: health
+ush> [runner] got 33 chars for 'health'
+[runner] sending: watchdog status
+watchdog status
+ush: command not found: watchdog
+ush> [runner] got 35 chars for 'watchdog status'
+[runner] sending: mem
+mem
+ush: command not found: mem
+ush> [runner] got 30 chars for 'mem'
+[runner] sending: frag
+frag
+ush: command not found: frag
+ush> [runner] got 31 chars for 'frag'
+[runner] sending: heap
+heap
+ush: command not found: heap
+ush> [runner] got 31 chars for 'heap'
+[runner] sending: sched
+sched
+ush: command not found: sched
+ush> [runner] got 32 chars for 'sched'
+[runner] sending: syncstat
+syncstat
+ush: command not found: syncstat
+ush> [runner] got 35 chars for 'syncstat'
+[runner] sending: crashlog
+crashlog
+ush: command not found: crashlog
+ush> [runner] got 35 chars for 'crashlog'
+[runner] sending: acpitest
+acpitest
+ush: command not found: acpitest
+ush> [runner] got 35 chars for 'acpitest'
+[runner] sending: i2ctest
+i2ctest
+ush: command not found: i2ctest
+ush> [runner] got 34 chars for 'i2ctest'
+[runner] sending: smbustest
+smbustest
+ush: command not found: smbustest
+ush> [runner] got 36 chars for 'smbustest'
+[runner] sending: rtc
+rtc
+RTC: 2026-10-29 16:08:44 (UTC, CMOS ports 0x70/0x71)
+Status: UIP=0 BCD=1 24h=1 rate=1024Hz
+IRQ: PIE=0 AIE=0 UIE=0 VRT=1 FADT century reg=32
+Reg A=26 B=02 C=10 D=80
+Counters: total=0 update=0 periodic=0 alarm=0
+pdate.json
+
+# Update package base URL (WP-10u, HTTP or HTTPS)
+package_url=https://github.com/cubestudio-dev/OpenCubeOS/releases/latest
+
+# Auto check on boot (yes / no)
+auto_check=no
+
+# Enable online system update (yes / no)
+online_update=yes
+
+# Shell output language (en / zh); switch at runtime with `lang en|zh`
+shell.lang=en
+ush> [runner] got 574 chars for 'rtc'
+[runner] sending: tsc
+tsc
+TSC: 00000005967dbf9a (serialized rdtsc)
+invariant: 0 (CPUID 0x80000007 EDX[8])
+calibrated: not yet (run 'tsc cal')
+T=1 FADT century reg=32
+Reg A=26 B=02 C=10 D=80
+Counters: total=0 update=0 periodic=0 alarm=0
+pdate.json
+
+# Update package base URL (WP-10u, HTTP or HTTPS)
+package_url=https://github.com/cubestudio-dev/OpenCubeOS/releases/latest
+
+# Auto check on boot (yes / no)
+auto_check=no
+
+# Enable online system update (yes / no)
+online_update=yes
+
+# Shell output language (en / zh); switch at runtime with `lang en|zh`
+shell.lang=en
+ush> [runner] got 576 chars for 'tsc'
+[runner] sending: memtest
+memtest
+ush: command not found: memtest
+ush> [runner] got 34 chars for 'memtest'
+[runner] sending: vmmap
+vmmap
+ush: command not found: vmmap
+ush> [runner] got 32 chars for 'vmmap'
+[runner] sending: chinesetest
+chinesetest
+chinesetest: full Chinese support suite
+[1] font data
+  PASS status() returns 0
+  PASS hanzi count == 6763
+  PASS symbol count == 682
+  PASS glyph bytes == 32 (16x16, 2 B/row)
+  PASS hanzi size == 216416 B
+  PASS symbol size == 21824 B
+  PASS embedded slot loaded
+  PASS zone 16 wei 1 -> compact index 0
+  PASS zone 87 wei 94 -> compact index 6762
+  PASS zone 55 wei 90 is a GB2312 gap slot
+  PASS all 6763 hanzi bitmaps non-empty
+  PASS symbol table reachable via bit15
+[2] font lookup
+  PASS U+4E2D found in unicode index
+  PASS zone/wei lookup agrees with unicode lookup
+  PASS index -> unicode round-trips to U+4E2D
+  PASS U+3002 in symbol table (bit15 set)
+  PASS unmapped/mapped U+4E00 handled without crash
+  PASS zone 95 rejected
+  PASS wei 0 rejected
+  PASS metrics 16x16 stride 2
+[3] font management
+  PASS embedded load idempotent
+  PASS runtime slot allocated (>=1)
+  PASS runtime font resolves its glyph
+  PASS runtime unload ok
+  PASS embedded slot unload rejected
+  PASS unknown slot rejected
+  PASS shutdown ok
+[4] GB2312 codec
+  PASS decode D6D0 -> U+4E2D
+  PASS decode 'A' -> 0x41
+  PASS lead 0x88 rejected
+  PASS truncated pair rejected
+  PASS encode U+4E2D -> D6 D0
+  PASS encode non-GB2312 cp rejected
+[5] UTF-8 codec
+  PASS decode E4 B8 AD -> U+4E2D
+  PASS decode 'z' pass-through
+  PASS overlong C1 81 rejected
+  PASS surrogate ED A0 80 rejected
+  PASS truncated 3-byte rejected
+  PASS bad continuation byte rejected
+  PASS decode 4-byte U+1F600
+  PASS encode U+4E2D -> E4 B8 AD
+  PASS encode surrogate rejected
+  PASS encode > U+10FFFF rejected
+[6] encoding conversion
+  PASS GB2312 zhongwen -> UTF-8
+  PASS UTF-8 -> GB2312 round trip
+  PASS UTF-8 -> Unicode cp U+4E2D
+[7] encoding detection
+  PASS detect ascii
+  PASS detect utf-8
+  PASS detect gb2312
+  PASS detect empty -> ascii
+[8] renderer extension
+  PASS render_chinese_init
+  PASS CJK width 16 px
+  PASS ASCII width 8 px
+  PASS CJK cols 2
+  PASS ASCII cols 1
+  PASS font_select finds CJK font
+  PASS font_get_bitmap CJK
+  PASS ascii + gb2312 fonts registered
+  PASS active renderer keeps 8x16 cell
+  PASS draw CJK/ASCII/missing-box without fault
+[9] console extension
+  PASS console_cn_init
+  PASS default encoding utf-8
+  PASS encoding switch
+  PASS mixed rejected
+  PASS cp cols CJK 2
+  PASS display cols a[zhong]b = 4
+中x  PASS putcw cursor geometry SKIP (output captured)
+   PASS cn backspace ok
+[11] line editing (UTF-8)
+abcab ab
+  PASS ascii line + backspace unchanged
+xx� x�x� x�x中 x中
+  PASS UTF-8 bytes stored intact
+xx� x�x� x�x中 x中x   x
+  PASS backspace removes one CJK char
+xx� x�x� x�x中 x中x中   xxy中   xy
+  PASS LEFT steps one CJK char, insert mid-line
+[12] font engine registry
+  PASS font_register accepts
+  PASS count increments
+  PASS registered font resolves cp
+  PASS font_unregister
+  PASS count restored
+  PASS unregistered cp unresolved
+  PASS unknown name rejected
+[13] TUI chinese layer
+  PASS tui_chinese_print utf-8 ok
+  PASS str cols zhongwen = 4
+  PASS IME 'ni' -> ni (U+4F60) first
+  PASS IME 'zhong' -> zhong in candidates
+  PASS IME nonsense syllable -> 0 candidates
+  PASS 396 syllables loaded
+  PASS 3755 level-1 chars loaded
+  PASS menu null rejected
+  PASS form null rejected
+[14] fix1 input paths (ASCII editor + IME keys)
+  PASS ascii input length == 4
+  PASS ascii input text == home
+  PASS IME composed length == 3 (one hanzi)
+  PASS IME composed text == 你 (U+4F60)
+[15] fix1 console IME line (n i 1 Enter -> 你; digits direct; Esc cancels)
+                                                                        IME>                                                                         IME> [n] 呐1 哪2 娜3 拿4                                                                         IME> [ni] 你1 倪2 匿3 妮4                                                                         IME> 你                                                                        
+ime: composed 1 character(s): 你
+  PASS console IME composed length == 3 (one hanzi)
+  PASS console IME composed text 
+ush> [runner] got 4278 chars for 'chinesetest'
+[runner] sending: ime-test
+ime-test
+ime-test: PASS (ni/hao resolve, qqq empty)
+ush> [runner] got 45 chars for 'ime-test'
+[runner] sending: encoding-test
+encoding-test
+encoding-test: PASS (utf8+gb2312 spot checks)
+ush> [runner] got 48 chars for 'encoding-test'
+[runner] sending: font
+font
+registered fonts:
+  ascii-8x16     built-in screen_font8x16, 8x16
+  gb2312-16x16   embedded GB2312, 6763+682 glyphs
+  total live: 2
+  active renderer: cn-8x16-16x16
+ush> [runner] got 175 chars for 'font'
+
+============================================================
+OUTPUT SUMMARY
+============================================================
+
+--- [BOOT] ---
+GFXTERM_INIT
+BOOT_SLOT=ISO HAVE_AB=no
+GNU GRUB  version 2.12-9+deb13u2
+
++----------------------------------------------------------------------------+||||||||||||||||||||||||+----------------------------------------------------------------------------+     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                            *Open Cube OS (slot ISO)                                                     Open Cube OS (slot A, force)                                                Open Cube OS (slot B, force)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               The highlighted entry will be executed automatically in 5s.                    The highlighted entry will be executed automatically in 4s.                    The highlighted entry will be executed automatically in 3s.                    The highlighted entry will be executed automatically in 2s.                    The highlighted entry will be executed automatically in 1s.                    The highlighted entry will be executed automatically in 0s.                   Booting `Open Cube OS (slot ISO)'
+
+
+[oc] Open Cube OS 2.2.0 kmain entered
+  Open Cube OS  [2.2.0]    Open Cube OS - L0 kernel (2.2.0)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
+@    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+[00:00:00.010] shell state (env vars, aliases, cwd).............. OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: cmds/drivers/services/apps in table
+    registry: cmds=99 drv=21 svc=13 app=1
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 1ffe2335 tables 5........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.030] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.030] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.040] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.060] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.070] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.080] SMBus: 8 device(s) at scan........................ OK
+    AML: AML: undefined name PRQ0
+    AML: AML: undefined name PRQ1
+    AML: AML: undefined name PRQ2
+    AML: AML: undefined name PRQ3
+    AML: AML: undefined name VEND
+    AML: AML: undefined name CSEL
+    AML: AML: undefined name CPEN
+[00:00:00.110] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.120] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.130] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.140] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: IDE controller at 00:01.1 BAR4=0xc040
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: no controller found
+nvme: no controller found
+[00:00:00.310] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.320] virtio-blk + AHCI + NVMe drivers.................. OK
+[00:00:00.390] USB hosts up: 0................................... OK
+[00:00:00.400] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.430] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.450] system config (/etc/opencube.conf, ramfs)......... OK
+[00:00:00.450] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.010] shell file/disk commands.......................... OK
+virtio-net: no device found
+ dev=3 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
+[00:00:01.510] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.510] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:01.520] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:01.680] sound: no sound card present (probe OK)........... OK
+[00:00:01.690] shell command system (99 commands)................ OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:01.700] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131040 pages, 129185 free
+[00:00:01.710] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  shell_register_builtin: PASS (registered + dispatches)
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+    ASCII demo: !"#$%&'()*+,-./
+    ASCII demo: 0123456789:;<=>?
+    ASCII demo: @ABCDEFGHIJKLMNO
+    ASCII demo: PQRSTUVWXYZ[\]^_
+    ASCII demo: `abcdefghijklmno
+    ASCII demo: pqrstuvwxyz{|}~
+
+[00:00:01.780] boot complete..................................... OK
+[00:00:01.790] crash recovery armed (panic + dump + crashlog).... OK
+    l1 launcher: booting 'ush' (ring 3, 55952 bytes)
+
+Open Cube OS User-space Shell (WP-08)
+Type 'help' for built-in commands.
+
+--- [stats] ---
+ticks=187  ms=1870  IRQ0=187  IRQ1=0  soft=0  one=0
+
+--- [uname -a] ---
+Open Cube OS 2.2.0 x86_64
+
+--- [health] ---
+ush: command not found: health
+
+--- [watchdog status] ---
+ush: command not found: watchdog
+
+--- [mem] ---
+ush: command not found: mem
+
+--- [frag] ---
+ush: command not found: frag
+
+--- [heap] ---
+ush: command not found: heap
+
+--- [sched] ---
+ush: command not found: sched
+
+--- [syncstat] ---
+ush: command not found: syncstat
+
+--- [crashlog] ---
+ush: command not found: crashlog
+
+--- [acpitest] ---
+ush: command not found: acpitest
+
+--- [i2ctest] ---
+ush: command not found: i2ctest
+
+--- [smbustest] ---
+ush: command not found: smbustest
+
+--- [rtc] ---
+RTC: 2026-10-29 16:08:44 (UTC, CMOS ports 0x70/0x71)
+Status: UIP=0 BCD=1 24h=1 rate=1024Hz
+IRQ: PIE=0 AIE=0 UIE=0 VRT=1 FADT century reg=32
+Reg A=26 B=02 C=10 D=80
+Counters: total=0 update=0 periodic=0 alarm=0
+pdate.json
+
+# Update package base URL (WP-10u, HTTP or HTTPS)
+package_url=https://github.com/cubestudio-dev/OpenCubeOS/releases/latest
+
+# Auto check on boot (yes / no)
+auto_check=no
+
+# Enable online system update (yes / no)
+online_update=yes
+
+# Shell output language (en / zh); switch at runtime with `lang en|zh`
+shell.lang=en
+
+--- [tsc] ---
+TSC: 00000005967dbf9a (serialized rdtsc)
+invariant: 0 (CPUID 0x80000007 EDX[8])
+calibrated: not yet (run 'tsc cal')
+T=1 FADT century reg=32
+Reg A=26 B=02 C=10 D=80
+Counters: total=0 update=0 periodic=0 alarm=0
+pdate.json
+
+# Update package base URL (WP-10u, HTTP or HTTPS)
+package_url=https://github.com/cubestudio-dev/OpenCubeOS/releases/latest
+
+# Auto check on boot (yes / no)
+auto_check=no
+
+# Enable online system update (yes / no)
+online_update=yes
+
+# Shell output language (en / zh); switch at runtime with `lang en|zh`
+shell.lang=en
+
+--- [memtest] ---
+ush: command not found: memtest
+
+--- [vmmap] ---
+ush: command not found: vmmap
+
+--- [chinesetest] ---
+chinesetest: full Chinese support suite
+[1] font data
+  PASS status() returns 0
+  PASS hanzi count == 6763
+  PASS symbol count == 682
+  PASS glyph bytes == 32 (16x16, 2 B/row)
+  PASS hanzi size == 216416 B
+  PASS symbol size == 21824 B
+  PASS embedded slot loaded
+  PASS zone 16 wei 1 -> compact index 0
+  PASS zone 87 wei 94 -> compact index 6762
+  PASS zone 55 wei 90 is a GB2312 gap slot
+  PASS all 6763 hanzi bitmaps non-empty
+  PASS symbol table reachable via bit15
+[2] font lookup
+  PASS U+4E2D found in unicode index
+  PASS zone/wei lookup agrees with unicode lookup
+  PASS index -> unicode round-trips to U+4E2D
+  PASS U+3002 in symbol table (bit15 set)
+  PASS unmapped/mapped U+4E00 handled without crash
+  PASS zone 95 rejected
+  PASS wei 0 rejected
+  PASS metrics 16x16 stride 2
+[3] font management
+  PASS embedded load idempotent
+  PASS runtime slot allocated (>=1)
+  PASS runtime font resolves its glyph
+  PASS runtime unload ok
+  PASS embedded slot unload rejected
+  PASS unknown slot rejected
+  PASS shutdown ok
+[4] GB2312 codec
+  PASS decode D6D0 -> U+4E2D
+  PASS decode 'A' -> 0x41
+  PASS lead 0x88 rejected
+  PASS truncated pair rejected
+  PASS encode U+4E2D -> D6 D0
+  PASS encode non-GB2312 cp rejected
+[5] UTF-8 codec
+  PASS decode E4 B8 AD -> U+4E2D
+  PASS decode 'z' pass-through
+  PASS overlong C1 81 rejected
+  PASS surrogate ED A0 80 rejected
+  PASS truncated 3-byte rejected
+  PASS bad continuation byte rejected
+  PASS decode 4-byte U+1F600
+  PASS encode U+4E2D -> E4 B8 AD
+  PASS encode surrogate rejected
+  PASS encode > U+10FFFF rejected
+[6] encoding conversion
+  PASS GB2312 zhongwen -> UTF-8
+  PASS UTF-8 -> GB2312 round trip
+  PASS UTF-8 -> Unicode cp U+4E2D
+[7] encoding detection
+  PASS detect ascii
+  PASS detect utf-8
+  PASS detect gb2312
+  PASS detect empty -> ascii
+[8] renderer extension
+  PASS render_chinese_init
+  PASS CJK width 16 px
+  PASS ASCII width 8 px
+  PASS CJK cols 2
+  PASS ASCII cols 1
+  PASS font_select finds CJK font
+  PASS font_get_bitmap CJK
+  PASS ascii + gb2312 fonts registered
+  PASS active renderer keeps 8x16 cell
+  PASS draw CJK/ASCII/missing-box without fault
+[9] console extension
+  PASS console_cn_init
+  PASS default encoding utf-8
+  PASS encoding switch
+  PASS mixed rejected
+  PASS cp cols CJK 2
+  PASS display cols a[zhong]b = 4
+中x  PASS putcw cursor geometry SKIP (output captured)
+   PASS cn backspace ok
+[11] line editing (UTF-8)
+abcab ab
+  PASS ascii line + backspace unchanged
+xx� x�x� x�x中 x中
+  PASS UTF-8 bytes stored intact
+xx� x�x� x�x中 x中x   x
+  PASS backspace removes one CJK char
+xx� x�x� x�x中 x中x中   xxy中   xy
+  PASS LEFT steps one CJK char, insert mid-line
+[12] font engine registry
+  PASS font_register accepts
+  PASS count increments
+  PASS registered font resolves cp
+  PASS font_unregister
+  PASS count restored
+  PASS unregistered cp unresolved
+  PASS unknown name rejected
+[13] TUI chinese layer
+  PASS tui_chinese_print utf-8 ok
+  PASS str cols zhongwen = 4
+  PASS IME 'ni' -> ni (U+4F60) first
+  PASS IME 'zhong' -> zhong in candidates
+  PASS IME nonsense syllable -> 0 candidates
+  PASS 396 syllables loaded
+  PASS 3755 level-1 chars loaded
+  PASS menu null rejected
+  PASS form null rejected
+[14] fix1 input paths (ASCII editor + IME keys)
+  PASS ascii input length == 4
+  PASS ascii input text == home
+  PASS IME composed length == 3 (one hanzi)
+  PASS IME composed text == 你 (U+4F60)
+[15] fix1 console IME line (n i 1 Enter -> 你; digits direct; Esc cancels)
+                                                                        IME>                                                                         IME> [n] 呐1 哪2 娜3 拿4                                                                         IME> [ni] 你1 倪2 匿3 妮4                                                                         IME> 你                                                                        
+ime: composed 1 character(s): 你
+  PASS console IME composed length == 3 (one hanzi)
+  PASS console IME composed text
+
+--- [ime-test] ---
+ime-test: PASS (ni/hao resolve, qqq empty)
+
+--- [encoding-test] ---
+encoding-test: PASS (utf8+gb2312 spot checks)
+
+--- [font] ---
+registered fonts:
+  ascii-8x16     built-in screen_font8x16, 8x16
+  gb2312-16x16   embedded GB2312, 6763+682 glyphs
+  total live: 2
+  active renderer: cn-8x16-16x16

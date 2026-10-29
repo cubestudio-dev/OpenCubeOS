@@ -250,7 +250,7 @@ def emit(progs, blobs):
             lines.append(f"const u64 userprog_{sym}_size = {len(data)};")
             lines.append("")
             continue
-        gz = gzip.compress(data, 9)
+        gz = gzip.compress(data, 9, mtime=0)
         lines.append(f"const u8 userprog_gz_{sym}[] = {{")
         for i in range(0, len(gz), 16):
             chunk = gz[i:i + 16]

@@ -110,7 +110,7 @@ def main():
     if len(raw) != RAW_LEN:
         sys.exit(f"gen_font_gz: raw blob {len(raw)} != expected {RAW_LEN}")
 
-    gz = gzip.compress(raw, 9)
+    gz = gzip.compress(raw, 9, mtime=0)
     gz_sha = hashlib.sha256(gz).hexdigest()
     raw_sha = hashlib.sha256(raw).hexdigest()
     print(f"gen_font_gz: raw {len(raw)} B -> gzip {len(gz)} B "
