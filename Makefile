@@ -83,7 +83,7 @@ SEABIOS_DIR  ?= $(OC_TOOLS)/share/seabios
 # v2.0.0 (2026-10-25): the breaking ring-3 release - L0 restructured
 # (core/drivers/services/boot/recovery), boots into the ring-3 service
 # surface (ush + SYS_L1SVC), register-class interfaces removed.
-OC_RELEASE_VERSION ?= 3.0.0-WP03
+OC_RELEASE_VERSION ?= 3.0.0-WP04
 # BUG-0347 (RUNTIME): monotonic build id baked into the kernel and
 # published by the server-side version.json - makes the update check a
 # numeric comparison instead of a string equality (see ota_update.h).
