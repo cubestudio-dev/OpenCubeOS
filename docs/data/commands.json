@@ -1,1121 +1,1709 @@
 {
- "count_v2_surface": 185,
+ "count_v2_surface": 283,
  "count_l0": 0,
- "count_l1_svc": 140,
- "count_l1_builtin": 45,
- "count_ush_svc_rows": 140,
+ "count_l1_svc": 0,
+ "count_l1_builtin": 9,
+ "count_ush_svc_rows": 0,
  "ush_svc_dual_homed": [],
- "caliber_note": "count_l1_svc counts unique names attributed to their first home (L0 wins). The ush SVC_CMDS table itself carries 140 rows; the 0 dual-homed names () are registered both as L0 commands and as ush SVC rows, are attributed to L0 here, and remain callable from both shells.",
+ "caliber_note": "count_l1_svc counts unique names attributed to their first home (L0 wins). The ush SVC_CMDS table itself carries 0 rows; the 0 dual-homed names () are registered both as L0 commands and as ush SVC rows, are attributed to L0 here, and remain callable from both shells.",
  "commands": [
   {
    "name": "ab_partition_test",
-   "help": "ab_partition_test",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `ab_partition_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "abcfg",
-   "help": "abcfg",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `abcfg` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "abdisk",
-   "help": "abdisk <dev>",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `abdisk` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ac97",
-   "help": "ac97",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `ac97` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ac97_test",
-   "help": "ac97_test",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `ac97_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "acpi",
+   "help": "ring-3 half of the v2.2.0 `acpi` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "acpidev",
+   "help": "ring-3 half of the v2.2.0 `acpidev` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "acpipow",
+   "help": "ring-3 half of the v2.2.0 `acpipow` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "acpitest",
+   "help": "ring-3 half of the v2.2.0 `acpitest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ahci",
-   "help": "ahci / nvme / ata",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `ahci` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ahci_test",
-   "help": "ahci_test",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `ahci_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "alias",
-   "help": "",
+   "help": "name=val  Set command alias",
    "where": "L1-builtin",
    "cat": "ush"
   },
   {
    "name": "arp",
-   "help": "arp / route / ip",
-   "where": "L1-SVC",
-   "cat": "net"
+   "help": "ring-3 half of the v2.2.0 `arp` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ata",
-   "help": "ahci / nvme / ata",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `ata` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ata_dma_test",
-   "help": "ata_dma_test",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `ata_dma_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "audio_rw_test",
-   "help": "audio_rw_test",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `audio_rw_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "awk",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "badapp",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "bcm57xx",
-   "help": "bcm57xx",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `bcm57xx` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "bcm57xx_test",
-   "help": "bcm57xx_test",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `bcm57xx_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "bt",
-   "help": "wifi / bt",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `bt` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "cat",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "cd",
-   "help": "",
+   "help": "[dir]        Change directory",
    "where": "L1-builtin",
    "cat": "ush"
   },
   {
    "name": "checkupdate",
-   "help": "update / checkupdate / rollback",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `checkupdate` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "checkupdate_test",
-   "help": "checkupdate_test",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `checkupdate_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "chinese",
-   "help": "chinese",
-   "where": "L1-SVC",
-   "cat": "display"
+   "help": "ring-3 half of the v2.2.0 `chinese` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "chinesetest",
-   "help": "chinesetest",
-   "where": "L1-SVC",
-   "cat": "display"
+   "help": "ring-3 half of the v2.2.0 `chinesetest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "chmod",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "chown",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "clear",
-   "help": "clear",
-   "where": "L1-SVC",
-   "cat": "display"
+   "help": "ring-3 half of the v2.2.0 `clear` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "config",
-   "help": "config list|get|set",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `config` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "config_test",
-   "help": "config_test",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `config_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "cp",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "cr3test",
+   "help": "ring-3 half of the v2.2.0 `cr3test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "crashlog",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "crashtest",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "cryptotest",
-   "help": "cryptotest / dhtest",
-   "where": "L1-SVC",
-   "cat": "crypto"
+   "help": "ring-3 half of the v2.2.0 `cryptotest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "date",
-   "help": "date",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "df",
-   "help": "df",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "dhcp",
-   "help": "dhcp / dns / dnstest",
-   "where": "L1-SVC",
-   "cat": "net"
+   "help": "ring-3 half of the v2.2.0 `dhcp` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "dhtest",
-   "help": "cryptotest / dhtest",
-   "where": "L1-SVC",
-   "cat": "crypto"
+   "help": "ring-3 half of the v2.2.0 `dhtest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "disk_rw_test",
-   "help": "disk_rw_test <dev>",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `disk_rw_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "dlsym_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "dmesg",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "dns",
-   "help": "dhcp / dns / dnstest",
-   "where": "L1-SVC",
-   "cat": "net"
+   "help": "ring-3 half of the v2.2.0 `dns` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "dnstest",
-   "help": "dhcp / dns / dnstest",
-   "where": "L1-SVC",
-   "cat": "net"
+   "help": "ring-3 half of the v2.2.0 `dnstest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "dskstat",
-   "help": "dskstat / lsblk",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `dskstat` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "du",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "dumpinfo",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "dyn_hello",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "e1000e",
-   "help": "e1000e",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `e1000e` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "e1000e_test",
-   "help": "e1000e_test",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `e1000e_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "echo",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "edit",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "encoding",
-   "help": "encoding",
-   "where": "L1-SVC",
-   "cat": "display"
+   "help": "ring-3 half of the v2.2.0 `encoding` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "encoding-test",
-   "help": "encoding-test",
-   "where": "L1-SVC",
-   "cat": "display"
+   "help": "ring-3 half of the v2.2.0 `encoding-test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "env",
-   "help": "env",
+   "help": "Show environment variables",
    "where": "L1-builtin",
    "cat": "ush"
   },
   {
    "name": "es1370",
-   "help": "es1370",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `es1370` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "es1370_test",
-   "help": "es1370_test",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `es1370_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "exc",
+   "help": "ring-3 half of the v2.2.0 `exc` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "exec_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "exit",
-   "help": "",
+   "help": "[code]     Exit shell",
    "where": "L1-builtin",
    "cat": "ush"
   },
   {
    "name": "export",
-   "help": "",
+   "help": "VAR=val  Set environment variable",
    "where": "L1-builtin",
    "cat": "ush"
   },
   {
    "name": "fatmount",
-   "help": "fatmount [dev p]   : mount FAT32",
-   "where": "L1-SVC",
-   "cat": "fs"
+   "help": "ring-3 half of the v2.2.0 `fatmount` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "fatstat",
-   "help": "fatstat",
-   "where": "L1-SVC",
-   "cat": "fs"
+   "help": "ring-3 half of the v2.2.0 `fatstat` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "fdref_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "fg",
+   "help": "[job]        Bring job to foreground",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "firewall",
-   "help": "firewall / nf_test",
-   "where": "L1-SVC",
-   "cat": "net"
+   "help": "ring-3 half of the v2.2.0 `firewall` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "font",
-   "help": "font",
-   "where": "L1-SVC",
-   "cat": "display"
+   "help": "ring-3 half of the v2.2.0 `font` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "font-test",
-   "help": "font-test",
-   "where": "L1-SVC",
-   "cat": "display"
+   "help": "ring-3 half of the v2.2.0 `font-test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "fork_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "frag",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "free",
-   "help": "free",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "fs_mount_test",
-   "help": "fs_mount_test <dev>",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `fs_mount_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "fsck",
-   "help": "fsck / sync",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `fsck` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "fstest",
+   "help": "ring-3 half of the v2.2.0 `fstest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "g6_exec_a",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "g6_exec_b",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "g6_oom",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "g6_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "g7mmap",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "gameport",
-   "help": "gameport",
-   "where": "L1-SVC",
-   "cat": "camera"
+   "help": "ring-3 half of the v2.2.0 `gameport` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "gameporttest",
-   "help": "gameporttest",
-   "where": "L1-SVC",
-   "cat": "camera"
+   "help": "ring-3 half of the v2.2.0 `gameporttest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "grep",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "grub-install",
-   "help": "grub-install <dev>",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `grub-install` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "halt",
-   "help": "halt/shutdown/reboot",
-   "where": "L1-SVC",
-   "cat": "power"
+   "help": "ring-3 half of the v2.2.0 `halt` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "halt_test",
-   "help": "halt_test",
-   "where": "L1-SVC",
-   "cat": "power"
+   "help": "ring-3 half of the v2.2.0 `halt_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "hda",
-   "help": "hda",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `hda` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "hda_test",
-   "help": "hda_test",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `hda_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "head",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "health",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "heap",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "heapbounds",
+   "help": "ring-3 half of the v2.2.0 `heapbounds` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "heaptest",
+   "help": "ring-3 half of the v2.2.0 `heaptest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "hello",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "help",
-   "help": "help",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "help_a_test",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "help_default_test",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "help_wp_test",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "history",
-   "help": "history",
+   "help": "Show command history",
    "where": "L1-builtin",
    "cat": "ush"
   },
   {
    "name": "hpet",
-   "help": "hpet               : HPET status",
-   "where": "L1-SVC",
-   "cat": "time"
+   "help": "ring-3 half of the v2.2.0 `hpet` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "i2cdetect",
+   "help": "ring-3 half of the v2.2.0 `i2cdetect` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "i2cget",
+   "help": "ring-3 half of the v2.2.0 `i2cget` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "i2cset",
+   "help": "ring-3 half of the v2.2.0 `i2cset` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "i2ctest",
+   "help": "ring-3 half of the v2.2.0 `i2ctest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ifconfig",
-   "help": "ifconfig",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "igb",
-   "help": "igb",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `igb` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "igb_test",
-   "help": "igb_test",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `igb_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "ime",
+   "help": "ring-3 half of the v2.2.0 `ime` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "ime-test",
+   "help": "ring-3 half of the v2.2.0 `ime-test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "install",
-   "help": "install <dev>",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `install` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "int3_user",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ip",
-   "help": "arp / route / ip",
-   "where": "L1-SVC",
-   "cat": "net"
+   "help": "ring-3 half of the v2.2.0 `ip` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ir",
-   "help": "ir",
-   "where": "L1-SVC",
-   "cat": "camera"
+   "help": "ring-3 half of the v2.2.0 `ir` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "irqabitest",
+   "help": "ring-3 half of the v2.2.0 `irqabitest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "irtest",
-   "help": "irtest",
-   "where": "L1-SVC",
-   "cat": "camera"
+   "help": "ring-3 half of the v2.2.0 `irtest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ixgbe",
-   "help": "ixgbe",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `ixgbe` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ixgbe_test",
-   "help": "ixgbe_test",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `ixgbe_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "jobs",
+   "help": "List background jobs",
+   "where": "L1-builtin",
+   "cat": "ush"
   },
   {
    "name": "kill",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "l1test",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "lang",
-   "help": "lang [en|zh]",
-   "where": "L1-SVC",
-   "cat": "display"
+   "help": "ring-3 half of the v2.2.0 `lang` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "ld_so",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "ldd",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ln",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "logcat",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "logctl",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "loop",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ls",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "lsblk",
-   "help": "dskstat / lsblk",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `lsblk` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "lspci",
-   "help": "lspci",
-   "where": "L1-SVC",
-   "cat": "net"
+   "help": "ring-3 half of the v2.2.0 `lspci` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "main_dyn",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "mem",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "memtest",
+   "help": "ring-3 half of the v2.2.0 `memtest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "mkdir",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "mkfs.exfat",
-   "help": "mkfs.exfat <dev>",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `mkfs.exfat` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "mkfs.ext4",
-   "help": "mkfs.ext4 <dev>",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `mkfs.ext4` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "mkfs.fat32",
-   "help": "mkfs.fat32 <dev>",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `mkfs.fat32` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "mmap_multi",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "mmap_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "mount",
-   "help": "mount [type dev p] : list or mount",
-   "where": "L1-SVC",
-   "cat": "fs"
+   "help": "ring-3 half of the v2.2.0 `mount` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "mounts",
-   "help": "mounts",
-   "where": "L1-SVC",
-   "cat": "fs"
+   "help": "ring-3 half of the v2.2.0 `mounts` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "mprotect_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "msitest",
+   "help": "ring-3 half of the v2.2.0 `msitest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "multi",
+   "help": "ring-3 half of the v2.2.0 `multi` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "mv",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "nano",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "netstat",
-   "help": "netstat",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "nf_test",
-   "help": "firewall / nf_test",
-   "where": "L1-SVC",
-   "cat": "net"
+   "help": "ring-3 half of the v2.2.0 `nf_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "nic_rw_test",
-   "help": "nic_rw_test",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `nic_rw_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "nice",
+   "help": "ring-3 half of the v2.2.0 `nice` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "nvme",
-   "help": "ahci / nvme / ata",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `nvme` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "nvme_test",
-   "help": "nvme_test",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `nvme_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "other_nic_test",
-   "help": "other_nic_test",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `other_nic_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "p3_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "parallel",
-   "help": "parallel",
-   "where": "L1-SVC",
-   "cat": "camera"
+   "help": "ring-3 half of the v2.2.0 `parallel` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "paralleltest",
-   "help": "paralleltest",
-   "where": "L1-SVC",
-   "cat": "camera"
+   "help": "ring-3 half of the v2.2.0 `paralleltest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "parted",
-   "help": "parted [dev]",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `parted` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "partition_test",
-   "help": "partition_test [dev]",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `partition_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "pcibars",
+   "help": "ring-3 half of the v2.2.0 `pcibars` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "pcidump",
+   "help": "ring-3 half of the v2.2.0 `pcidump` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "pcie",
+   "help": "ring-3 half of the v2.2.0 `pcie` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "pf_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "pftest",
+   "help": "ring-3 half of the v2.2.0 `pftest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "pie_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ping",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "pipe_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "play",
-   "help": "play <file>",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `play` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "pmmrace",
+   "help": "ring-3 half of the v2.2.0 `pmmrace` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "pmtimer",
-   "help": "pmtimer            : PM timer status",
-   "where": "L1-SVC",
-   "cat": "time"
+   "help": "ring-3 half of the v2.2.0 `pmtimer` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "poweroff",
-   "help": "",
-   "where": "L1-SVC",
-   "cat": "power"
+   "help": "ring-3 half of the v2.2.0 `poweroff` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "poweroff_test",
-   "help": "poweroff_test",
-   "where": "L1-SVC",
-   "cat": "power"
+   "help": "ring-3 half of the v2.2.0 `poweroff_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "priv_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "ps",
-   "help": "ps",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "pwd",
-   "help": "pwd",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "real_hw_test",
-   "help": "real_hw_test",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `real_hw_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "real_update_test",
-   "help": "real_update_test",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `real_update_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "reboot",
-   "help": "halt/shutdown/reboot",
-   "where": "L1-SVC",
-   "cat": "power"
+   "help": "ring-3 half of the v2.2.0 `reboot` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "reboot_test",
-   "help": "reboot_test",
-   "where": "L1-SVC",
-   "cat": "power"
+   "help": "ring-3 half of the v2.2.0 `reboot_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "reloc_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "rm",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "rmdir",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "rollback",
-   "help": "update / checkupdate / rollback",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `rollback` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "route",
-   "help": "arp / route / ip",
-   "where": "L1-SVC",
-   "cat": "net"
+   "help": "ring-3 half of the v2.2.0 `route` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "rtc",
-   "help": "rtc [uie N]        : CMOS RTC status",
-   "where": "L1-SVC",
-   "cat": "time"
+   "help": "ring-3 half of the v2.2.0 `rtc` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "rtl810x",
-   "help": "rtl810x",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `rtl810x` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "rtl810x_test",
-   "help": "rtl810x_test",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `rtl810x_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "rtl8125",
-   "help": "rtl8125",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `rtl8125` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "rtl8125_test",
-   "help": "rtl8125_test",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `rtl8125_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "rtl8139",
-   "help": "rtl8139",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `rtl8139` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "rtl8139_test",
-   "help": "rtl8139_test",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `rtl8139_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "rtl8168",
-   "help": "rtl8168",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `rtl8168` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "rtl8168_test",
-   "help": "rtl8168_test",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `rtl8168_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "run",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "sample_rate_test",
-   "help": "sample_rate_test",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `sample_rate_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "sb16",
-   "help": "sb16",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `sb16` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "sb16_test",
-   "help": "sb16_test",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `sb16_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "sched",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "scsi",
-   "help": "scsi / scsitest",
-   "where": "L1-SVC",
-   "cat": "camera"
+   "help": "ring-3 half of the v2.2.0 `scsi` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "scsitest",
-   "help": "scsi / scsitest",
-   "where": "L1-SVC",
-   "cat": "camera"
+   "help": "ring-3 half of the v2.2.0 `scsitest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "sed",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
-   "name": "set",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "name": "select_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "select_zero_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "shutdown",
-   "help": "halt/shutdown/reboot",
-   "where": "L1-SVC",
-   "cat": "power"
+   "help": "ring-3 half of the v2.2.0 `shutdown` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "signal_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "sigsegv_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "sleep",
-   "help": "sleep <sec>",
-   "where": "L1-SVC",
-   "cat": "power"
+   "help": "ring-3 half of the v2.2.0 `sleep` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "smbus",
+   "help": "ring-3 half of the v2.2.0 `smbus` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "smbustest",
+   "help": "ring-3 half of the v2.2.0 `smbustest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "so_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "sort",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "sound",
-   "help": "sound",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `sound` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "spawn",
+   "help": "ring-3 half of the v2.2.0 `spawn` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "sse_test",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "ssh",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "sshd",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "stackovf",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "stat",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "stats",
-   "help": "stats",
-   "where": "L1-SVC",
-   "cat": "display"
+   "help": "ring-3 half of the v2.2.0 `stats` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "suspend_test",
-   "help": "suspend_test",
-   "where": "L1-SVC",
-   "cat": "power"
+   "help": "ring-3 half of the v2.2.0 `suspend_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "sync",
-   "help": "fsck / sync",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `sync` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "syncstat",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "synctest",
+   "help": "ring-3 half of the v2.2.0 `synctest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "tail",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "tcpcc_test",
-   "help": "tcpcc_test",
-   "where": "L1-SVC",
-   "cat": "net"
+   "help": "ring-3 half of the v2.2.0 `tcpcc_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "tcpstats",
-   "help": "tcpstats",
-   "where": "L1-SVC",
-   "cat": "net"
+   "help": "ring-3 half of the v2.2.0 `tcpstats` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "tcptest",
-   "help": "tcptest",
-   "where": "L1-SVC",
-   "cat": "net"
+   "help": "ring-3 half of the v2.2.0 `tcptest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "timer",
+   "help": "ring-3 half of the v2.2.0 `timer` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "top",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "touch",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "touchpad",
-   "help": "touchpad / touchtest",
-   "where": "L1-SVC",
-   "cat": "input"
+   "help": "ring-3 half of the v2.2.0 `touchpad` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "touchtest",
-   "help": "touchpad / touchtest",
-   "where": "L1-SVC",
-   "cat": "input"
+   "help": "ring-3 half of the v2.2.0 `touchtest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "tree",
-   "help": "tree [path]        : directory tree",
-   "where": "L1-SVC",
-   "cat": "fs"
+   "help": "ring-3 half of the v2.2.0 `tree` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "tsc",
-   "help": "tsc                : TSC status",
-   "where": "L1-SVC",
-   "cat": "time"
+   "help": "ring-3 half of the v2.2.0 `tsc` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "tui",
+   "help": "ring-3 half of the v2.2.0 `tui` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "tui-drv",
+   "help": "ring-3 half of the v2.2.0 `tui-drv` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "tui-ext",
+   "help": "ring-3 half of the v2.2.0 `tui-ext` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "tui-hw",
+   "help": "ring-3 half of the v2.2.0 `tui-hw` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "tui-net",
+   "help": "ring-3 half of the v2.2.0 `tui-net` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "tui-sys",
+   "help": "ring-3 half of the v2.2.0 `tui-sys` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "tui-sysinfo",
+   "help": "ring-3 half of the v2.2.0 `tui-sysinfo` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "tui-test",
+   "help": "ring-3 half of the v2.2.0 `tui-test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "tui-time",
+   "help": "ring-3 half of the v2.2.0 `tui-time` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "umount",
-   "help": "umount <path>      : unmount",
-   "where": "L1-SVC",
-   "cat": "fs"
+   "help": "ring-3 half of the v2.2.0 `umount` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "unalias",
-   "help": "unalias name",
+   "help": "name    Remove alias",
    "where": "L1-builtin",
    "cat": "ush"
   },
   {
    "name": "uname",
-   "help": "uname",
-   "where": "L1-SVC",
-   "cat": "display"
+   "help": "ring-3 half of the v2.2.0 `uname` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "uniq",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "update",
-   "help": "update / checkupdate / rollback",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `update` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "update_check_test",
-   "help": "update_check_test",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `update_check_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "update_download_test",
-   "help": "update_download_test",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `update_download_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "update_install_test",
-   "help": "update_install_test",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `update_install_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "update_local_test",
-   "help": "update_local_test",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `update_local_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "update_pkg_test",
-   "help": "update_pkg_test",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `update_pkg_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "update_rollback_test",
-   "help": "update_rollback_test",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `update_rollback_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "update_status_test",
-   "help": "update_status_test",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `update_status_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "update_verify_test",
-   "help": "update_verify_test",
-   "where": "L1-SVC",
-   "cat": "ota"
+   "help": "ring-3 half of the v2.2.0 `update_verify_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "usb",
-   "help": "usb",
-   "where": "L1-SVC",
-   "cat": "usb"
+   "help": "ring-3 half of the v2.2.0 `usb` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "usb_audio_test",
-   "help": "usb_audio_test",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `usb_audio_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "usb_core_test",
-   "help": "usb_core_test",
-   "where": "L1-SVC",
-   "cat": "usb"
+   "help": "ring-3 half of the v2.2.0 `usb_core_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "usb_hotplug_test",
-   "help": "usb_hotplug_test [...]",
-   "where": "L1-SVC",
-   "cat": "usb"
+   "help": "ring-3 half of the v2.2.0 `usb_hotplug_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "usb_hub_test",
-   "help": "usb_hub_test",
-   "where": "L1-SVC",
-   "cat": "usb"
+   "help": "ring-3 half of the v2.2.0 `usb_hub_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "usb_kbd_test",
-   "help": "usb_kbd_test",
-   "where": "L1-SVC",
-   "cat": "usb"
+   "help": "ring-3 half of the v2.2.0 `usb_kbd_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "usb_mouse_test",
-   "help": "usb_mouse_test",
-   "where": "L1-SVC",
-   "cat": "usb"
+   "help": "ring-3 half of the v2.2.0 `usb_mouse_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "usb_serial_test",
-   "help": "usb_serial_test",
-   "where": "L1-SVC",
-   "cat": "usb"
+   "help": "ring-3 half of the v2.2.0 `usb_serial_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "usb_storage_test",
-   "help": "usb_storage_test",
-   "where": "L1-SVC",
-   "cat": "usb"
+   "help": "ring-3 half of the v2.2.0 `usb_storage_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "usbaudio",
-   "help": "usbaudio",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `usbaudio` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "usbdev",
-   "help": "usbdev [slot]",
-   "where": "L1-SVC",
-   "cat": "usb"
+   "help": "ring-3 half of the v2.2.0 `usbdev` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "ush",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "uvc",
-   "help": "uvc / uvctest",
-   "where": "L1-SVC",
-   "cat": "camera"
+   "help": "ring-3 half of the v2.2.0 `uvc` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "uvctest",
-   "help": "uvc / uvctest",
-   "where": "L1-SVC",
-   "cat": "camera"
+   "help": "ring-3 half of the v2.2.0 `uvctest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "vi",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "virtio_blk_test",
-   "help": "virtio_blk_test",
-   "where": "L1-SVC",
-   "cat": "block"
+   "help": "ring-3 half of the v2.2.0 `virtio_blk_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "virtio_snd_test",
-   "help": "virtio_snd_test",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `virtio_snd_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "virtiosnd",
-   "help": "virtiosnd",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `virtiosnd` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "vmkernelpt",
+   "help": "ring-3 half of the v2.2.0 `vmkernelpt` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "vmmap",
+   "help": "ring-3 half of the v2.2.0 `vmmap` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "vmtest",
+   "help": "ring-3 half of the v2.2.0 `vmtest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "volume",
-   "help": "volume [0-100]",
-   "where": "L1-SVC",
-   "cat": "snd"
+   "help": "ring-3 half of the v2.2.0 `volume` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "watchdog",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "wc",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "wget",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "wifi",
-   "help": "wifi / bt",
-   "where": "L1-SVC",
-   "cat": "nic"
+   "help": "ring-3 half of the v2.2.0 `wifi` command",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "write",
-   "help": "",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   }
  ]
 }

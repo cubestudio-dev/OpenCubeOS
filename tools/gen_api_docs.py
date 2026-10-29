@@ -172,6 +172,69 @@ def extract_commands_from_capture(path):
     return cmds, total
 
 
+def extract_l1_registry(path):
+    """3.0.0-WP04: parse a runtime `run` usage capture - one program
+    name per line plus the '-- N programs registered --' footer."""
+    names, total, seen = [], None, set()
+    footer = re.compile(r"^--\s*(\d+)\s*programs registered\s*--$")
+    for line in open(path, "r", encoding="latin-1"):
+        t = line.strip()
+        m = footer.match(t)
+        if m:
+            total = int(m.group(1))
+            continue
+        if t.startswith("usage:") or not t:
+            continue
+        if re.match(r"^[a-z0-9_][a-z0-9_.-]*$", t) and t not in seen:
+            seen.add(t)
+            names.append(t)
+    return names, total
+
+
+def l1_app_help(name):
+    """One-line help for a src/L1/<name>/ app: the first descriptive
+    sentence of its main.c header (the 'ring-3 half of ...' line), or
+    the generic note.  Legacy flat programs have no folder."""
+    mc = os.path.join(ROOT, "src", "L1", name, "main.c")
+    if not os.path.exists(mc):
+        return "legacy flat L1 program"
+    try:
+        text = open(mc, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return "ring-3 L1 app"
+    m = re.search(r"\* (the ring-3 half of\n \* the v2\.2\.0 "
+                  r"`[a-z0-9_.-]+` command[^\n]*the v2\.2\.0 "
+                  r"`([a-z0-9_.-]+)`)", text)
+    m2 = re.search(r"the v2\.2\.0\s+`([a-z0-9_.-]+)`\s+command", text)
+    if m2:
+        return ("ring-3 half of the v2.2.0 `%s` command" % m2.group(1))
+    m3 = re.search(r"\* (.+)\n \*", text)
+    return "ring-3 L1 app"
+
+
+def extract_ush_builtins():
+    """3.0.0-WP04: parse the ush help listing out of
+    src/L1/ush/main.c - the hardcoded  puts_("  name [args]  Help")
+    rows of the help builtin."""
+    mc = os.path.join(ROOT, "src", "L1", "ush", "main.c")
+    if not os.path.exists(mc):
+        return []
+    out = []
+    in_block = False
+    for line in open(mc, encoding="utf-8", errors="replace"):
+        if "built-in commands:" in line:
+            in_block = True
+            continue
+        if in_block:
+            if line.strip().startswith("}"):
+                break
+            m = re.match(r'\s*puts_\("  (\S+) +(\S.*?)\\n"\);', line)
+            if m and re.match(r"^[a-z][a-z0-9_.-]*$", m.group(1)):
+                out.append({"name": m.group(1), "help": m.group(2),
+                            "where": "L1-builtin", "cat": "ush"})
+    return out
+
+
 def capture_help_via_qemu(iso):
     """Boot the ISO in QEMU and capture `help -a` from the live system."""
     oc_tools = os.environ.get("OC_TOOLS", "/usr")
@@ -255,10 +318,17 @@ def extract_v2_commands():
                     "name": name, "help": m.group(3),
                     "where": "L0", "cat": m.group(4)})
     # 2) ush SVC table rows
-    ush_path = os.path.join(ROOT, "src", "L1", "ush.c")
-    ush = open(ush_path, encoding="utf-8", errors="replace").read()
+    # 3.0.0-WP04: the v2.x ush.c SVC_CMDS table is GONE (every command
+    # is a src/L1/<name>/ app folder now; the runtime help capture is
+    # the command authority).  Scan the app folders as the L1 side and
+    # keep going when the legacy file is absent.
     svc_rows_total = 0
     svc_dual = []
+    ush_path = os.path.join(ROOT, "src", "L1", "ush.c")
+    if os.path.exists(ush_path):
+        ush = open(ush_path, encoding="utf-8", errors="replace").read()
+    else:
+        ush = ""
     for m in USH_SVC_RE.finditer(ush):
         name = m.group(1)
         # m.group(2) = "CAT_NET" (the L1SVC_ prefix is outside the
@@ -941,6 +1011,9 @@ def main():
     ap = argparse.ArgumentParser(description="generate_api_docs()")
     ap.add_argument("--help-capture", default=None,
                     help="runtime `help -a` capture file")
+    ap.add_argument("--l1-registry", default=None,
+                    help="3.0.0-WP04: runtime `run` usage capture "
+                         "(the embedded program registry listing)")
     ap.add_argument("--qemu", default=None,
                     help="boot this ISO and capture help -a live")
     ap.add_argument("--out", default=os.path.join(ROOT, "docs", "data"))
@@ -1023,6 +1096,32 @@ def main():
     if filled_hints:
         print(f"gen_api_docs: filled {filled_hints} SVC help hint(s) "
               f"from l1svc_defs.h op comments")
+    # 3.0.0-WP04: the embedded program registry capture is the
+    # command-surface AUTHORITY (one command = one app = one folder;
+    # the v2.x L0/SVC split is history).  Merge over the static scan.
+    if getattr(args, "l1_registry", None):
+        reg_names, reg_total = extract_l1_registry(args.l1_registry)
+        by_name = {c["name"]: c for c in cmds}
+        for nm in reg_names:
+            if nm in by_name:
+                by_name[nm]["where"] = "L1-app"
+                if not by_name[nm].get("help"):
+                    by_name[nm]["help"] = l1_app_help(nm)
+            else:
+                cmds.append({"name": nm, "help": l1_app_help(nm),
+                             "where": "L1-app", "cat": "l1-app"})
+        # the ush builtins ride along (shell-internal, not registry
+        # programs; the v2 table carried them the same way)
+        existing = {c["name"] for c in cmds}
+        nb = 0
+        for b in extract_ush_builtins():
+            if b["name"] not in existing:
+                cmds.append(b)
+                nb += 1
+        cmds.sort(key=lambda c: c["name"])
+        print(f"gen_api_docs: l1 registry merged - {len(reg_names)} "
+              f"programs (declares {reg_total}) + {nb} ush builtins; "
+              f"command table now {len(cmds)} rows")
     capture = None
     if args.help_capture:
         with open(args.help_capture, "r", encoding="latin-1") as f:
