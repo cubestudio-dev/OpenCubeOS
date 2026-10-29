@@ -90,6 +90,7 @@ int l1_ext_self_test(void);  /* boot/l1_selftest.c - WP-01 extension self-test *
 #include "driver_block_ata.h"
 #include "fs_fat32.h"
 #include "core_watchdog.h"     /* WP-12: watchdog subsystem init */
+#include "diag_kern.h"   /* 3.0.0-WP04: exception self-test block (boot step 11 + L1 exc op share the counter) */
 #include "core_health.h"       /* WP-12: health monitor init */
 
 /* WP-06 headers. */
@@ -315,56 +316,11 @@ static void lib_log_stage_ts(const char *stage, const char *status) {
 #define OC_LOG_OK2(stage)    lib_log_stage_ts((stage), "OK")
 #define OC_LOG_FAIL2(stage) lib_log_stage_ts((stage), "FAIL")
 
-/* ---- Exception self-test ---- */
-static u64 g_exc_test_pass_count = 0;
-
-static int arch_exc_test_de_handler(arch_irq_frame_t *f) {
-    extern u8 arch_exc_test_de_resume;
-    f->rip = (u64)(uintptr_t)&arch_exc_test_de_resume;
-    f->rax = 0; f->rdx = 0;
-    g_exc_test_pass_count++;
-    return 1;
-}
-static int arch_exc_test_ud_handler(arch_irq_frame_t *f) {
-    extern u8 arch_exc_test_ud_resume;
-    f->rip = (u64)(uintptr_t)&arch_exc_test_ud_resume;
-    g_exc_test_pass_count++;
-    return 1;
-}
-static int arch_exc_test_pf_handler(arch_irq_frame_t *f) {
-    extern u8 arch_exc_test_pf_resume;
-    f->rip = (u64)(uintptr_t)&arch_exc_test_pf_resume;
-    g_exc_test_pass_count++;
-    return 1;
-}
-
-static void arch_exc_tests(void) {
-    arch_exc_register_handler(OC_EXC_DE, arch_exc_test_de_handler);
-    arch_exc_register_handler(OC_EXC_UD, arch_exc_test_ud_handler);
-    arch_exc_register_handler(OC_EXC_PF, arch_exc_test_pf_handler);
-
-    __asm__ volatile(
-        "xor %%rcx, %%rcx\n"
-        "div %%rcx\n"
-        "arch_exc_test_de_resume:\n"
-        : : : "rax","rcx","rdx"
-    );
-    __asm__ volatile(
-        ".byte 0x0F, 0x0B\n"
-        "arch_exc_test_ud_resume:\n"
-        : :
-    );
-    __asm__ volatile(
-        "movq $0xFFFFFFFFDEADBEEF, %%rax\n"
-        "movq (%%rax), %%rbx\n"
-        "arch_exc_test_pf_resume:\n"
-        : : : "rax","rbx"
-    );
-
-    arch_exc_unregister_handler(OC_EXC_DE, arch_exc_test_de_handler);
-    arch_exc_unregister_handler(OC_EXC_UD, arch_exc_test_ud_handler);
-    arch_exc_unregister_handler(OC_EXC_PF, arch_exc_test_pf_handler);
-}
+/* ---- Exception self-test ----
+ * 3.0.0-WP04: the block moved VERBATIM to services/diag/diag_exc_test.c
+ * (exported via diag_kern.h) so the boot self-test below and the ring-3
+ * `exc` op share ONE counter - the exact v2.2.0 sharing between
+ * kmain's boot test and the core/main.c shell command. */
 
 void kmain(u64 magic, u64 mbi_phys) {
     /* ---- 0. Serial console ---- */

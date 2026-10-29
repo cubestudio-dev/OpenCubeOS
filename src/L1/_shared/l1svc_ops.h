@@ -25,6 +25,7 @@
 #define L1SVC_CAT_CAMERA   16   /* services/camera  */
 #define L1SVC_CAT_USB      17   /* services/usb      */
 #define L1SVC_CAT_OCIRE    18   /* services/ocembed  */
+#define L1SVC_CAT_DIAG     19   /* services/diag     */
 #define L1SVC_TIME_RTC      1   /* rtc [uie N]        : CMOS RTC status  */
 #define L1SVC_TIME_HPET     2   /* hpet               : HPET status      */
 #define L1SVC_TIME_PMTIMER  3   /* pmtimer            : PM timer status  */

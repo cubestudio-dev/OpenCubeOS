@@ -425,7 +425,9 @@ void mem_heap_get_stats(mem_heap_stats_t *out) {
     out->free_count = g_free_count;
     out->total_allocs = g_total_allocs;
     out->total_frees = g_total_frees;
-    if (!(flags & 0x200)) __asm__ volatile("sti");
+    /* F6 (WP-04 G9): restore IF only when it was set (old form was
+     * inverted - see core_sync.c sync_get_stats). */
+    if (flags & 0x200) __asm__ volatile("sti");
 }
 
 void mem_heap_register_allocator_hook(mem_heap_hook_fn fn) {
