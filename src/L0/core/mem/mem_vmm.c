@@ -421,7 +421,9 @@ void mem_vmm_get_fault_stats(mem_vmm_fault_stats_t *out) {
     u64 flags;
     __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags));
     *out = g_fault_stats;
-    if (!(flags & 0x200)) __asm__ volatile("sti");
+    /* F6 (WP-04 G9): restore IF only when it was set (old form was
+     * inverted - see core_sync.c sync_get_stats). */
+    if (flags & 0x200) __asm__ volatile("sti");
 }
 
 /* Check if a virtual address is near the faulting stack pointer (stack growth).

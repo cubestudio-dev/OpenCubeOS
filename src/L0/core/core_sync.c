@@ -16,7 +16,13 @@ void sync_get_stats(sync_stats_t *out) {
     u64 flags;
     __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags));
     *out = g_stats;
-    if (!(flags & 0x200)) __asm__ volatile("sti");
+    /* F6 (WP-04 G9): restore IF only when it was set - the old
+     * `if (!(flags & 0x200)) sti` was inverted (v2.2.0 latent bug):
+     * it ENABLED interrupts inside IRQ context (a 7.9 kHz race-window
+     * tick then nested a full IRQ entry per health_tick sample until
+     * the task stack hit its guard page -> #DF) and, in task context,
+     * it left interrupts DISABLED after the call. */
+    if (flags & 0x200) __asm__ volatile("sti");
 }
 
 /* ---- Spinlock ---- */
