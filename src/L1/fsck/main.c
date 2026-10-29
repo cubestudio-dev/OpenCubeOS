@@ -10,4 +10,5 @@
 #include "_shared/l1_lib.h"
 #include "_shared/l1svc_ops.h"
 
-void _start(void) { l1svc_main(L1SVC_CAT_BLOCK, L1SVC_BLK_FSCK); }
+int app_main(int argc, char **argv)
+{ return l1svc_main(argc, argv, L1SVC_CAT_BLOCK, L1SVC_BLK_FSCK); }

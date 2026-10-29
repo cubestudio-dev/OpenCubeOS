@@ -107,16 +107,66 @@ static inline long sys_l1svc(long cat, long op, long arg,
     return syscall5(SYS_L1SVC, cat, op, arg, out, cap);
 }
 
-/* ---- argv: the kernel execve entry leaves argc at [rsp] ------------ */
-static inline int l1_args(int *argc, char ***argv) {
-    int a;
-    char **v;
-    __asm__ volatile("mov (%%rsp), %0" : "=r"(a));
-    __asm__ volatile("lea 8(%%rsp), %0" : "=r"(v));
-    if (argc) *argc = a;
-    if (argv) *argv = v;
-    return a;
+/* ---- additional syscall wrappers (3.0.0-WP04 G5) -------------------
+ * The file-tool apps moved out of the ush shell need the classic fs/
+ * proc/mem/net syscalls; same numbers, same register contracts as the
+ * ush macros had - only the packaging changed. */
+static inline long sys_getcwd(void *buf, long size) {
+    return syscall2(SYS_GETCWD, (long)buf, size);
 }
+static inline long sys_getch(void) { return syscall0(SYS_GETCH); }
+static inline long sys_uptime(void) { return syscall0(SYS_UPTIME); }
+static inline long sys_meminfo(void *buf) {
+    return syscall1(SYS_MEMINFO, (long)buf);
+}
+/* SYS_KILL is (pid, sig, ...) - WP04 G5 live-catch: a 1-arg wrapper
+ * leaked stale register state into the kernel's `sig` (garbage failed
+ * the sig >= NSIG gate and kill always returned -1).  The shell `kill`
+ * command means SIGKILL (9), spelled explicitly. */
+static inline long sys_kill(long pid) { return syscall2(SYS_KILL, pid, 9); }
+static inline long sys_ps(void *buf, long cap) {
+    return syscall2(SYS_PS, (long)buf, cap);
+}
+static inline long sys_readdir(const char *path, long idx, void *buf) {
+    return syscall3(SYS_READDIR, (long)path, idx, (long)buf);
+}
+static inline long sys_mkdir(const char *path) {
+    return syscall1(SYS_MKDIR, (long)path);
+}
+static inline long sys_rmdir(const char *path) {
+    return syscall1(SYS_RMDIR, (long)path);
+}
+static inline long sys_unlink(const char *path) {
+    return syscall1(SYS_UNLINK, (long)path);
+}
+static inline long sys_stat(const char *path, void *st) {
+    return syscall2(SYS_STAT, (long)path, (long)st);
+}
+static inline long sys_symlink(const char *target, const char *linkpath) {
+    return syscall2(SYS_SYMLINK, (long)target, (long)linkpath);
+}
+static inline long sys_readlink(const char *path, char *buf, long cap) {
+    return syscall3(SYS_READLINK, (long)path, (long)buf, cap);
+}
+static inline long sys_link(const char *oldpath, const char *newpath) {
+    return syscall2(SYS_LINK, (long)oldpath, (long)newpath);
+}
+static inline long sys_chmod(const char *path, long mode) {
+    return syscall2(SYS_CHMOD, (long)path, mode);
+}
+static inline long sys_chown(const char *path, long uid, long gid) {
+    return syscall3(SYS_CHOWN, (long)path, uid, gid);
+}
+static inline long sys_netcmd(long op, const void *arg, void *out, long cap) {
+    return syscall4(SYS_NETCMD, op, (long)arg, (long)out, cap);
+}
+
+/* ---- argv ------------------------------------------------------------
+ * The kernel execve entry leaves argc at [rsp], argv[] right above it.
+ * A compiled C _start() cannot read that layout itself (the compiler
+ * may insert a stack prologue before any asm - the WP04 G5 live-catch),
+ * so every folder app links the _shared/crt0.asm trampoline, which
+ * hands argc/argv to app_main(int argc, char **argv). */
 
 /* ---- tiny string / IO helpers -------------------------------------- */
 static inline long strlen_(const char *s) {
@@ -185,12 +235,12 @@ static inline void putx_(unsigned long v) {
  * with one).  l1svc_main() is exactly that body, verbatim semantics;
  * each wrapper app is:
  *     #include "_shared/l1_lib.h"
- *     void _start(void) { l1svc_main(CAT, OP); }
- * Errors print "<name>: service call failed (rc=-1)" like ush did. */
-static inline void l1svc_main(long cat, long op) {
-    int argc; char **argv;
-    l1_args(&argc, &argv);
-
+ *     #include "_shared/l1svc_ops.h"
+ *     int app_main(int argc, char **argv)
+ *     { return l1svc_main(argc, argv, CAT, OP); }
+ * Errors print "<name>: service call failed (rc=-1)" like ush did.
+ * Returns the app exit code. */
+static inline int l1svc_main(int argc, char **argv, long cat, long op) {
     char arg[256];
     int len = 0;
     arg[0] = 0;
@@ -206,11 +256,11 @@ static inline void l1svc_main(long cat, long op) {
     if (rc != 0) {
         puts_(argv[0]);
         puts_(": service call failed (rc=-1)\n");
-        sys_exit2(1);
+        return 1;
     }
     puts_(out);
     if (out[0] && out[strlen_(out) - 1] != '\n') putc_('\n');
-    sys_exit2(0);
+    return 0;
 }
 
 /* ---- L1SVC categories/ops -------------------------------------------
@@ -236,5 +286,38 @@ static inline void l1svc_main(long cat, long op) {
 #define L1SVC_CAT_USB      17
 #define L1SVC_CAT_OCIRE    18
 #define L1SVC_CAT_DIAG     19
+
+/* ---- fixed-width aliases --------------------------------------------
+ * The same aliases the ush shell defines for its builtin tools; the
+ * kernel on-wire structures below and the G5 file-tool apps use them. */
+typedef unsigned long u64;
+typedef long i64;
+typedef int i32;
+typedef unsigned int u32;
+typedef char i8;
+typedef unsigned char u8;
+
+/* ---- kernel process table entry -------------------------------------
+ * MUST match the layout the kernel writes in sys_ps (tid, state,
+ * priority, name[32], cpu ticks).  Moved verbatim from ush - the
+ * `ush_` prefix is a historical name, the memory layout is the
+ * contract; used by the ps/top apps. */
+struct ush_ps_entry {
+    i32 tid;
+    i32 state;
+    i32 priority;
+    char name[32];
+    u64 cpu_time_ticks;
+};
+
+/* ---- SYS_NETCMD bridge op codes (kernel net_core.c contract) --------
+ * Verbatim copy of the ush block (the shell keeps its own duplicate of
+ * these four numbers so it stays self-contained; the duplication is
+ * declared in the WP04-G5 notes).  The ping/wget/netstat/ifconfig apps
+ * pick these for sys_netcmd(). */
+#define NETCMD_IFCONFIG  1
+#define NETCMD_PING      2
+#define NETCMD_NETSTAT   3
+#define NETCMD_WGET      4
 
 #endif /* OC_L1_LIB_H */
