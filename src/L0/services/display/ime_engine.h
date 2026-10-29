@@ -45,6 +45,11 @@ int tui_chinese_ime_test(const char *pinyin, u32 *out, int cap);
  * TUI compose pad in G11c.) */
 int ime_match(const char *buf, int len);
 
+/* Syllable table spelling: syllable idx as a NUL-terminated ASCII
+ * string in out[0..cap). (v2.2.0 file-static, exported for the TUI
+ * compose pad in G11c.) */
+void ime_syllable_str(int idx, char *out, int cap);
+
 /* Collect up to cap candidates for a syllable: level-1 chars in
  * GB2312 order (that order is frequency-ordered, so the first
  * candidates are the common ones). (v2.2.0 file-static, exported.) */

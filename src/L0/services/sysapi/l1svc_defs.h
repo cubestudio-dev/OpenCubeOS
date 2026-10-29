@@ -47,6 +47,10 @@
  * diagnostic commands that fit none of the nine root-service classes.
  * Category string equals the services/diag folder name. */
 #define L1SVC_CAT_DIAG     19   /* services/diag     */
+/* 3.0.0-WP04 G11c: the full-screen TUI family (v2.2.0 tui/), revived
+ * as the services/tui service.  Category string equals the folder
+ * name (the category-number rule). */
+#define L1SVC_CAT_TUI      20   /* services/tui      */
 
 /* Category number -> folder name (kernel side; used by SYS_L1SVC). */
 #define L1SVC_CAT_NAME(n) \
@@ -68,7 +72,8 @@
      (n) == L1SVC_CAT_CAMERA   ? "camera"   : \
      (n) == L1SVC_CAT_USB      ? "usb"      : \
      (n) == L1SVC_CAT_OCIRE    ? "ocire"    : \
-     (n) == L1SVC_CAT_DIAG     ? "diag"     : 0)
+     (n) == L1SVC_CAT_DIAG     ? "diag"     : \
+     (n) == L1SVC_CAT_TUI      ? "tui"      : 0)
 
 /* ---- time operations (services/time) -------------------------------
  * Mirrors the v1 oc> commands rtc / hpet / pmtimer / tsc. */
@@ -411,5 +416,22 @@
 #define L1SVC_DIAG_I2CTEST   37
 #define L1SVC_DIAG_SMBUS     38
 #define L1SVC_DIAG_SMBUSTEST 39
+
+/* ---- tui operations (services/tui) ---------------------------------
+ * 3.0.0-WP04 G11c: the v2.2.0 tui command family (tui_cmd.c), revived
+ * as its own service category.  Bodies: services/tui/tui_cmd.c (the
+ * v2.2.0 shell_cmd_tui_* set, exported).  Eight full-screen ops route
+ * live (direct call, see tui_l1.c); tui-test serves its verdict block
+ * through the capture.  tui-drv keeps its v2.2.0 alias role (same body
+ * as tui-hw, own op number). */
+#define L1SVC_TUI_TUI        1   /* tui      (desktop)       */
+#define L1SVC_TUI_TEST       2   /* tui-test (selftests)     */
+#define L1SVC_TUI_HW         3   /* tui-hw   [page]          */
+#define L1SVC_TUI_NET        4   /* tui-net                  */
+#define L1SVC_TUI_SYSINFO    5   /* tui-sysinfo [page]       */
+#define L1SVC_TUI_TIME       6   /* tui-time                 */
+#define L1SVC_TUI_DRV        7   /* tui-drv   [page]         */
+#define L1SVC_TUI_SYS        8   /* tui-sys   [page]         */
+#define L1SVC_TUI_EXT        9   /* tui-ext                  */
 
 #endif /* OC_L1SVC_DEFS_H */

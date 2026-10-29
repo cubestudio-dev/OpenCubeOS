@@ -745,15 +745,20 @@ int ext_wp8b_selftest(void) {
     int passed = 0;
     const char *needed[8];
     char num[20];
-    extern const u8 userprog_so_test[];
-    extern const u64 userprog_so_test_size;
-    extern const u8 userprog_hello[];
-    extern const u64 userprog_hello_size;
+    /* 3.0.0-WP04 G11c: the raw userprog_* arrays are gone (gzip
+     * registry); resolve through the cached lookup like every other
+     * consumer.  This selftest runs from ring 3 (tui-ext/lab), well
+     * after the heap is up. */
+    extern const u8 *core_userprog_lookup(const char *name, u64 *size_out);
+    u64 so_test_size = 0, hello_size = 0;
+    const u8 *so_test_blob = core_userprog_lookup("so_test", &so_test_size);
+    const u8 *hello_blob = core_userprog_lookup("hello", &hello_size);
     t_build_fixtures();
 
     /* Test 1 (legit): elf_get_needed on a dynamic ELF (so_test) with its
      * real size -> exactly one DT_NEEDED: "libfoo.so". */
-    int n = elf_get_needed(userprog_so_test, userprog_so_test_size, needed, 8);
+    int n = so_test_blob
+        ? elf_get_needed(so_test_blob, so_test_size, needed, 8) : -1;
     if (n == 1 && needed[0] && strcmp(needed[0], "libfoo.so") == 0) {
         screen_console_puts("  ext_wp8b: elf_get_needed(so_test) = 1 (libfoo.so) - PASS\n");
         passed++;
@@ -761,7 +766,7 @@ int ext_wp8b_selftest(void) {
         screen_console_puts("  ext_wp8b: elf_get_needed(so_test) - FAIL\n");
     }
     /* Test 2 (legit): static ELF (hello) -> 0. */
-    n = elf_get_needed(userprog_hello, userprog_hello_size, needed, 8);
+    n = hello_blob ? elf_get_needed(hello_blob, hello_size, needed, 8) : -1;
     if (n == 0) {
         screen_console_puts("  ext_wp8b: elf_get_needed(hello) = 0 (static, correct) - PASS\n");
         passed++;
@@ -784,7 +789,7 @@ int ext_wp8b_selftest(void) {
         screen_console_puts("  ext_wp8b: ldso_run - FAIL\n");
     }
     /* Test 5 (BUG-0258 hostile): truncated buffer -> rejected by bounds. */
-    n = elf_get_needed(userprog_so_test, 48, needed, 8);
+    n = so_test_blob ? elf_get_needed(so_test_blob, 48, needed, 8) : -1;
     if (n == 0) {
         screen_console_puts("  ext_wp8b: elf_get_needed(truncated 48B) = 0 (rejected) - PASS\n");
         passed++;

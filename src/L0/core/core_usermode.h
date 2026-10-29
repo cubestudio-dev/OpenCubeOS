@@ -23,13 +23,27 @@
  * included exactly once, by core_usermode.c).  The registry is the
  * execve name surface: core_userprog_lookup() walks it - no name is
  * hand-registered anywhere in the kernel. */
+/* 3.0.0-WP04 G11c: each program ships as its own gzip stream
+ * (generated userprogs_data.h); core_userprog_inflate() decompresses
+ * an entry lazily into a per-app heap cache on first use - the raw
+ * arrays were 527 KiB of .rodata and outran the 0x400000
+ * identity-window guard rail.  The default entry (ush) stays raw:
+ * the l1 launcher's OC_L1_APP_DECL needs compile-time ELF pointers
+ * before any lookup can run (gz == NULL, raw points at the array). */
 struct oc_userprog_decl {
     const char *name;
-    const u8   *elf;
-    const u64  *size_ptr;
+    const u8   *gz;         /* per-app gzip stream; NULL = raw below  */
+    const u8   *raw;        /* uncompressed entry (ush only)          */
+    u64         gz_len;     /* stream bytes when gz != NULL           */
+    u64         raw_size;   /* ELF bytes                              */
 };
 extern const struct oc_userprog_decl OC_USERPROGS[];
 extern const u64 OC_USERPROGS_COUNT;
+
+/* Decompressed ELF bytes for registry index idx (cached; the buffer
+ * stays for the kernel's lifetime).  Returns NULL on a bad index or
+ * inflate failure.  Raw entries return their array directly. */
+const u8 *core_userprog_inflate(u64 idx);
 
 /* ---- signal ABI (3.0.0-WP03 G5: owned here - the process mechanism
  * owns its signal state; the syscall layer only consumes it) ------ */

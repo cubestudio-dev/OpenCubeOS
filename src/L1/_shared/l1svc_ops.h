@@ -26,6 +26,7 @@
 #define L1SVC_CAT_USB      17   /* services/usb      */
 #define L1SVC_CAT_OCIRE    18   /* services/ocembed  */
 #define L1SVC_CAT_DIAG     19   /* services/diag     */
+#define L1SVC_CAT_TUI      20   /* services/tui      */
 #define L1SVC_TIME_RTC      1   /* rtc [uie N]        : CMOS RTC status  */
 #define L1SVC_TIME_HPET     2   /* hpet               : HPET status      */
 #define L1SVC_TIME_PMTIMER  3   /* pmtimer            : PM timer status  */
@@ -223,5 +224,14 @@
 #define L1SVC_DIAG_I2CTEST   37
 #define L1SVC_DIAG_SMBUS     38
 #define L1SVC_DIAG_SMBUSTEST 39
+#define L1SVC_TUI_TUI        1   /* tui      (desktop)       */
+#define L1SVC_TUI_TEST       2   /* tui-test (selftests)     */
+#define L1SVC_TUI_HW         3   /* tui-hw   [page]          */
+#define L1SVC_TUI_NET        4   /* tui-net                  */
+#define L1SVC_TUI_SYSINFO    5   /* tui-sysinfo [page]       */
+#define L1SVC_TUI_TIME       6   /* tui-time                 */
+#define L1SVC_TUI_DRV        7   /* tui-drv   [page]         */
+#define L1SVC_TUI_SYS        8   /* tui-sys   [page]         */
+#define L1SVC_TUI_EXT        9   /* tui-ext                  */
 
 #endif /* OC_L1SVC_OPS_MIRROR_H */
