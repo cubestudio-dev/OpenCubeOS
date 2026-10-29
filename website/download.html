@@ -113,6 +113,28 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
     </div>
   </section>
 
+  <!-- 3.0.0 development milestone - WP-04 (the L1 migration).  Static
+       like the OCIRE section above: tools/update_website.sh only tracks
+       the OCOS formal release line (2.2.0 until the 3.0.0 release);
+       milestone assets are fixed once published.  Keep in sync with the
+       WP release note (v3.0.0-WP-04). -->
+  <section class="section" style="padding-top:34px">
+    <h2>3.0.0 WP-04: the L1 migration (development milestone)</h2>
+    <p class="sub">Every command of the v2.2.0 baseline now runs from ring 3 - one
+    command = one app = one folder under src/L1/.  The L0 side is a pure service kernel
+    (drivers, services, the numbered L1SVC ABI); 235 of the 251 commands migrated, the
+    9 shell-state builtins stay in ush by design.  This is NOT the 3.0.0 release; see
+    <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.0-WP-04" rel="noopener">the WP-04 release page</a>.</p>
+    <div class="cards">
+      <div class="card">
+        <h3>opencube-3.0.0-WP-04.iso</h3>
+        <p class="f">11.8 MiB &middot; hybrid BIOS+UEFI bootable ISO &middot; boots to the ring-3 ush shell</p>
+        <p class="sha" style="word-break:break-all;font-size:12px">SHA256 b2697ab8617ed21ec20a541f5f658d62eb6a095a40ca69bf3e7796b96aa153c3</p>
+        <a class="btn" href="downloads/opencube-3.0.0-WP-04.iso" download>Download ISO</a>
+      </div>
+    </div>
+  </section>
+
   <section class="section" style="padding-top:10px">
     <h2 data-i18n="dl.verify.h2">Verify</h2>
     <div class="steps">

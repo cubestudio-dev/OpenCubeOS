@@ -31,10 +31,10 @@ window.SITE_DATA = {
     }
   },
   stats: {
-    commands: 251,
+    commands: 283,
     interfaces: 158,
     syscalls: 54,
-    lines: "130,572"
+    lines: "128,556"
   },
   history: [
     { version: "2.1.0", date: "2026-10-25",
