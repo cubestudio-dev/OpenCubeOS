@@ -130,6 +130,8 @@
 #define L1SVC_DISP_FONT_TEST   8   /* font-test               */
 #define L1SVC_DISP_ENCODING    9   /* encoding                */
 #define L1SVC_DISP_ENC_TEST   10   /* encoding-test           */
+#define L1SVC_DISP_IME        11   /* ime [-i]                */
+#define L1SVC_DISP_IME_TEST   12   /* ime-test                */
 #define L1SVC_INP_TOUCHPAD     1   /* touchpad                */
 #define L1SVC_INP_TOUCHTEST    2   /* touchtest               */
 #define L1SVC_CAM_UVC           1   /* uvc                     */

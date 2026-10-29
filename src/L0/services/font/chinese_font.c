@@ -12,6 +12,8 @@
 #include "chinese_font.h"
 #include "lib_string.h"
 #include "core_sync.h"
+#include "mem_heap.h"
+#include "lib_gzip.h"
 
 /* Slot table. Slot 0 is the embedded font and is always resident. */
 typedef struct chinese_font_slot {
@@ -31,13 +33,91 @@ static int g_font_ready;
 static u32 g_lookups;
 static u32 g_misses;
 
-/* Generated data (chinese_font_data.c). */
-extern const u8  chinese_font_glyphs[CHINESE_FONT_HANZI_COUNT][CHINESE_FONT_GLYPH_BYTES];
-extern const u8  chinese_font_symbols[CHINESE_FONT_SYMBOL_COUNT][CHINESE_FONT_GLYPH_BYTES];
-extern const u16 chinese_font_zone_index[6768];
-extern const u16 chinese_font_symbol_index[846];
-extern const u16 chinese_font_uto_gb[2 * CHINESE_FONT_UTO_COUNT];
-extern const u16 chinese_font_idx_to_unicode[CHINESE_FONT_UTO_COUNT];
+/* Generated data (chinese_font_data.c).  3.0.0-WP04 G11b: the six raw
+ * tables are gzip-wrapped into chinese_font_gz_blob[] (the raw arrays
+ * were ~292 KiB of .rodata and pushed the kernel image past the
+ * 0x400000 identity-window guard rail; see tools/gen_font_gz.py).
+ * The stream inflates lazily into one kmalloc'd buffer below. */
+extern const u8  chinese_font_gz_blob[];
+extern const u32 chinese_font_gz_len;
+
+/* Heap-backed pointers into the inflated blob (set once, lazily). */
+static u8*        g_gz_raw;
+static const u8*  g_hanzi_data;
+static const u8*  g_symbols_data;
+static const u16* g_zone_index_data;
+static const u16* g_symbol_index_data;
+static const u16* g_uto_gb_data;
+static const u16* g_idx_to_unicode_data;
+
+/* Generator layout contract (checked here so a mismatched data file
+ * fails the build instead of paging garbage at runtime). */
+_Static_assert(
+    CHINESE_FONT_GZ_OFF_IDX_TO_UNICODE + (CHINESE_FONT_UTO_COUNT * 2)
+        == CHINESE_FONT_GZ_RAW_LEN,
+    "chinese_font gz layout mismatch - regenerate chinese_font_data.c");
+
+typedef struct {
+    u8*  p;
+    u64  cap;
+    u64  len;
+} font_gz_sink_t;
+
+static int font_gz_sink(void* ctx, const u8* data, int len) {
+    font_gz_sink_t* s = ctx;
+    if (!s->p || len < 0 || s->len + (u64)len > s->cap) return -1;
+    for (int i = 0; i < len; i++) s->p[s->len++] = data[i];
+    return 0;
+}
+
+/* Inflate the gz container once, on first table access.  Boot step 3
+ * (render_chinese_init) only registers the renderer and touches no
+ * glyph data - boot output is pure ASCII; the first real lookup comes
+ * from command/render context where the kernel heap is up.  Returns 0
+ * with all pointers (and slot 0's data pointers) set, or -1: the CJK
+ * surface then degrades to honest misses (ASCII rendering and every
+ * non-CJK path are unaffected). */
+static int chinese_font_data_ensure(void) {
+    if (g_gz_raw) return 0;
+    u8* raw = kmalloc(CHINESE_FONT_GZ_RAW_LEN);
+    lib_gzip_t* gz = kmalloc(sizeof(lib_gzip_t));
+    if (!raw || !gz) {
+        kfree(raw);
+        kfree(gz);
+        return -1;
+    }
+    memset(gz, 0, sizeof(*gz));
+    font_gz_sink_t sink;
+    sink.p   = raw;
+    sink.cap = CHINESE_FONT_GZ_RAW_LEN;
+    sink.len = 0;
+    lib_gzip_init(gz, font_gz_sink, &sink);
+    int rc = 0;
+    for (u32 off = 0; off < chinese_font_gz_len && rc == 0; ) {
+        u32 n = chinese_font_gz_len - off;
+        if (n > 4096) n = 4096;
+        rc = lib_gzip_feed(gz, chinese_font_gz_blob + off, (int)n);
+        off += n;
+    }
+    if (rc == 0) rc = lib_gzip_finish(gz);
+    kfree(gz);
+    if (rc != 0 || sink.len != CHINESE_FONT_GZ_RAW_LEN) {
+        kfree(raw);
+        return -1;
+    }
+    g_gz_raw              = raw;
+    g_hanzi_data          = raw + CHINESE_FONT_GZ_OFF_GLYPHS;
+    g_symbols_data        = raw + CHINESE_FONT_GZ_OFF_SYMBOLS;
+    g_zone_index_data     = (const u16*)(void*)(raw + CHINESE_FONT_GZ_OFF_ZONE_INDEX);
+    g_symbol_index_data   = (const u16*)(void*)(raw + CHINESE_FONT_GZ_OFF_SYMBOL_INDEX);
+    g_uto_gb_data         = (const u16*)(void*)(raw + CHINESE_FONT_GZ_OFF_UTO_GB);
+    g_idx_to_unicode_data = (const u16*)(void*)(raw + CHINESE_FONT_GZ_OFF_IDX_TO_UNICODE);
+    /* Slot 0's data pointers point into the heap copy. */
+    g_slots[0].hanzi   = g_hanzi_data;
+    g_slots[0].symbols = g_symbols_data;
+    g_slots[0].uto_gb  = g_uto_gb_data;
+    return 0;
+}
 
 static const char* k_embedded_name = "embedded-unifont-16x16";
 
@@ -50,9 +130,9 @@ int chinese_font_init(void) {
         g_slots[i].in_use = 0;
     }
     g_slots[0].name         = k_embedded_name;
-    g_slots[0].hanzi        = &chinese_font_glyphs[0][0];
-    g_slots[0].symbols      = &chinese_font_symbols[0][0];
-    g_slots[0].uto_gb       = chinese_font_uto_gb;
+    /* hanzi/symbols/uto_gb stay NULL until the first lookup inflates
+     * the gz container (chinese_font_data_ensure) - the heap is not up
+     * yet at the boot step that calls render_chinese_init. */
     g_slots[0].hanzi_count  = CHINESE_FONT_HANZI_COUNT;
     g_slots[0].symbol_count = CHINESE_FONT_SYMBOL_COUNT;
     g_slots[0].uto_count    = CHINESE_FONT_UTO_COUNT;
@@ -137,14 +217,15 @@ static const chinese_font_slot_t* slot_ok(int slot) {
 int chinese_font_lookup(chinese_font_handle_t slot, u32 zone, u32 wei) {
     const chinese_font_slot_t* s = slot_ok(slot);
     if (!s) return -3;
+    if (chinese_font_data_ensure() != 0) { g_misses++; return -1; }
     g_lookups++;
     if (wei == 0 || wei > 94) { g_misses++; return -1; }
     if (zone >= 16 && zone <= 87 && s->hanzi_count > 0) {
-        u16 idx = chinese_font_zone_index[(zone - 16) * 94 + (wei - 1)];
+        u16 idx = g_zone_index_data[(zone - 16) * 94 + (wei - 1)];
         if (idx != 0xFFFF) return idx;
     }
     if (zone >= 1 && zone <= 9 && s->symbols) {
-        u16 idx = chinese_font_symbol_index[(zone - 1) * 94 + (wei - 1)];
+        u16 idx = g_symbol_index_data[(zone - 1) * 94 + (wei - 1)];
         if (idx != 0xFFFF) return idx | 0x8000;
     }
     g_misses++;
@@ -154,6 +235,7 @@ int chinese_font_lookup(chinese_font_handle_t slot, u32 zone, u32 wei) {
 int chinese_font_lookup_unicode(chinese_font_handle_t slot, u32 cp) {
     const chinese_font_slot_t* s = slot_ok(slot);
     if (!s) return -3;
+    if (chinese_font_data_ensure() != 0) { g_misses++; return -1; }
     g_lookups++;
     /* Binary search over the flat {unicode, idx} pair table. */
     u32 lo = 0, hi = s->uto_count;
@@ -172,6 +254,7 @@ int chinese_font_lookup_unicode(chinese_font_handle_t slot, u32 cp) {
 const u8* chinese_font_get_bitmap(chinese_font_handle_t slot, int idx) {
     const chinese_font_slot_t* s = slot_ok(slot);
     if (!s) return NULL;
+    if (chinese_font_data_ensure() != 0) return NULL;
     if (idx & 0x8000) {
         u32 i = (u32)(idx & 0x7FFF);
         if (!s->symbols || i >= s->symbol_count) return NULL;
@@ -198,6 +281,7 @@ int chinese_font_get_metrics(u32* w, u32* h, u32* stride) {
 u32 chinese_font_index_to_unicode(chinese_font_handle_t slot, int idx) {
     const chinese_font_slot_t* s = slot_ok(slot);
     if (!s || !s->hanzi_count) return 0xFFFFFFFFu;
+    if (chinese_font_data_ensure() != 0) return 0xFFFFFFFFu;
     u32 i;
     if (idx & 0x8000) {
         i = (u32)(idx & 0x7FFF);
@@ -212,7 +296,7 @@ u32 chinese_font_index_to_unicode(chinese_font_handle_t slot, int idx) {
      * with a different layout fall back to the unicode reverse table. */
     if (s->hanzi_count + s->symbol_count == CHINESE_FONT_UTO_COUNT &&
         i < CHINESE_FONT_UTO_COUNT) {
-        u16 v = chinese_font_idx_to_unicode[i];
+        u16 v = g_idx_to_unicode_data[i];
         return (v & 0x8000) ? (v & 0x7FFF) : v;
     }
     /* Runtime font: rebuild from its own uto_gb (idx -> unicode scan). */
@@ -243,4 +327,17 @@ int chinese_font_status(chinese_font_stats_t* out) {
     out->source           = g_slots[0].name;
     spin_unlock(&g_font_lock);
     return 0;
+}
+
+/* Raw index-table accessors for encoding.c's GB2312 encode path
+ * (3.0.0-WP04 G11b: the tables live in the gz container; these force
+ * the lazy inflate and hand back the kmalloc'd copies). */
+const u16* chinese_font_zone_index_table(void) {
+    if (chinese_font_data_ensure() != 0) return NULL;
+    return g_zone_index_data;
+}
+
+const u16* chinese_font_symbol_index_table(void) {
+    if (chinese_font_data_ensure() != 0) return NULL;
+    return g_symbol_index_data;
 }
