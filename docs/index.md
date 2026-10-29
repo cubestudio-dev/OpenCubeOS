@@ -18,6 +18,7 @@ the file that implements what they describe.
 - Architecture questions: [ARCHITECTURE.md](root/ARCHITECTURE.md) then
     the deep dives under [arch/](arch/)
 - Something broke: [Troubleshooting](troubleshooting/common-errors.md)
+- The 3.0.0 story: [WP-04 L1 migration record](release/wp04-l1-migration.md)
 
 ## The library
 
