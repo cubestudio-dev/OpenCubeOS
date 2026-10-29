@@ -57,6 +57,12 @@ ET_DYN = 3
 PT_INTERP = 3
 
 
+def ident(name):
+    """C symbol safe form of a program name (mkfs.fat32 -> mkfs_fat32)."""
+    import re as _re
+    return _re.sub(r"\W", "_", name)
+
+
 def fail(msg):
     print(f"gen_userprogs: ERROR: {msg}", file=sys.stderr)
     sys.exit(1)
@@ -210,14 +216,15 @@ def emit(progs, blobs):
     lines.append("")
     for (name, kind, cs, asms, *rest) in progs:
         data = blobs[name]
-        lines.append(f"const u8 userprog_{name}[] = {{")
+        sym = ident(name)
+        lines.append(f"const u8 userprog_{sym}[] = {{")
         for i in range(0, len(data), 16):
             chunk = data[i:i + 16]
             hex_vals = ", ".join(f"0x{b:02x}" for b in chunk)
             comma = "," if i + 16 < len(data) else ""
             lines.append(f"    {hex_vals}{comma}")
         lines.append("};")
-        lines.append(f"const u64 userprog_{name}_size = {len(data)};")
+        lines.append(f"const u64 userprog_{sym}_size = {len(data)};")
         lines.append("")
     # the registry
     lines.append("/* The execve name registry: name -> embedded ELF.")
@@ -225,8 +232,9 @@ def emit(progs, blobs):
     lines.append(" * consumed by core_userprog_lookup(). */")
     lines.append("const struct oc_userprog_decl OC_USERPROGS[] = {")
     for (name, *_rest) in progs:
-        lines.append(f"    {{ \"{name}\", userprog_{name}, "
-                     f"&userprog_{name}_size }},")
+        sym = ident(name)
+        lines.append(f"    {{ \"{name}\", userprog_{sym}, "
+                     f"&userprog_{sym}_size }},")
     lines.append("};")
     lines.append(f"const u64 OC_USERPROGS_COUNT = {len(progs)};")
     text = "\n".join(lines) + "\n"
@@ -236,6 +244,16 @@ def emit(progs, blobs):
 
 def main():
     os.makedirs(BUILD, exist_ok=True)
+    # Mirror the kernel L1SVC numbering into the app library FIRST so
+    # wrapper apps always compile against the current contract.
+    r = subprocess.run([sys.executable,
+                        os.path.join(ROOT, "tools", "gen_l1svc_ops.py")],
+                       capture_output=True, text=True)
+    print(r.stdout, end="")
+    if r.returncode != 0:
+        print(r.stderr, file=sys.stderr)
+        fail("gen_l1svc_ops.py failed")
+
     out = build_solib()
     print(out, end="")
 
