@@ -3,4 +3,4 @@
  * The -D OC_RELEASE_VERSION / OC_KERNEL_BUILD flags remain the
  * authoritative value source; this header only makes their
  * change visible to the dependency graph. */
-#define OC_VERSION_STAMP "3.0.0-WP03 build 23"
+#define OC_VERSION_STAMP "3.0.0-WP03 build 24"

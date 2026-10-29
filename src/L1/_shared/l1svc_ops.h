@@ -163,6 +163,8 @@
 #define L1SVC_NET_TCPCC_TEST   10   /* tcpcc_test              */
 #define L1SVC_NET_TCPSTATS     11   /* tcpstats                */
 #define L1SVC_NET_TCPTEST      12   /* tcptest                 */
+#define L1SVC_NET_SSH           13   /* ssh <ip> [port] [user] [pass] */
+#define L1SVC_NET_SSHD         14   /* sshd [port] [user] [pass]    */
 #define L1SVC_CRYPTO_CRYPTOTEST 1   /* cryptotest              */
 #define L1SVC_CRYPTO_DHTEST     2   /* dhtest                  */
 #define L1SVC_OCIRE_LOG_APPEND    4   /* guard-only: append text to the
