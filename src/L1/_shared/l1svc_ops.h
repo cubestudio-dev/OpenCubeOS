@@ -179,5 +179,44 @@
 #define L1SVC_L1_APPS   1   /* registry listing (help/run surface) */
 #define L1SVC_L1_L1TEST 2   /* l1test (job + wp8b + CPL0 smoke)  */
 #define L1SVC_L1_LDD    3   /* ldd <program>                     */
+#define L1SVC_DIAG_MEM       1   /* mem        : PMM stats             */
+#define L1SVC_DIAG_FRAG      2   /* frag       : PMM fragments        */
+#define L1SVC_DIAG_HEAP      3   /* heap       : kernel heap stats     */
+#define L1SVC_DIAG_SCHED     4   /* sched      : scheduler stats      */
+#define L1SVC_DIAG_SYNCSTAT  5   /* syncstat   : sync primitive stats  */
+#define L1SVC_DIAG_CRASHLOG  6   /* crashlog [flush]                   */
+#define L1SVC_DIAG_CRASHTEST 7   /* crashtest panic|exc|...|policy ... */
+#define L1SVC_DIAG_DUMPINFO  8   /* dumpinfo   : core dump status      */
+#define L1SVC_DIAG_CR3TEST   9
+#define L1SVC_DIAG_EXC      10
+#define L1SVC_DIAG_PFTEST   11
+#define L1SVC_DIAG_PMMRACE  12
+#define L1SVC_DIAG_VMTEST   13
+#define L1SVC_DIAG_VMKERNELPT 14
+#define L1SVC_DIAG_VMMAP    15
+#define L1SVC_DIAG_MEMTEST  16
+#define L1SVC_DIAG_HEAPTEST 17
+#define L1SVC_DIAG_HEAPBOUNDS 18
+#define L1SVC_DIAG_IRQABITEST 19
+#define L1SVC_DIAG_TIMER    20
+#define L1SVC_DIAG_MSITEST  21
+#define L1SVC_DIAG_SPAWN    22
+#define L1SVC_DIAG_MULTI    23
+#define L1SVC_DIAG_NICE     24
+#define L1SVC_DIAG_SYNCTEST 25
+#define L1SVC_DIAG_FSTEST   26
+#define L1SVC_DIAG_ACPI      27
+#define L1SVC_DIAG_ACPIDEV   28
+#define L1SVC_DIAG_ACPIPOW   29
+#define L1SVC_DIAG_ACPITEST  30
+#define L1SVC_DIAG_PCIDUMP   31
+#define L1SVC_DIAG_PCIBARS   32
+#define L1SVC_DIAG_PCIE      33
+#define L1SVC_DIAG_I2CDETECT 34
+#define L1SVC_DIAG_I2CGET    35
+#define L1SVC_DIAG_I2CSET    36
+#define L1SVC_DIAG_I2CTEST   37
+#define L1SVC_DIAG_SMBUS     38
+#define L1SVC_DIAG_SMBUSTEST 39
 
 #endif /* OC_L1SVC_OPS_MIRROR_H */

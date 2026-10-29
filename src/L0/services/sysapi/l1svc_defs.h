@@ -43,6 +43,10 @@
  * (ocire/agent/ocire_agent.c compiles against these numbers - an
  * ABI, not a source dependency): cat 18, ops 4/5 guard-only. */
 #define L1SVC_CAT_OCIRE    18   /* services/ocembed  */
+/* 3.0.0-WP04: the diagnostics home - the v2.2.0 chipset/memory/crash
+ * diagnostic commands that fit none of the nine root-service classes.
+ * Category string equals the services/diag folder name. */
+#define L1SVC_CAT_DIAG     19   /* services/diag     */
 
 /* Category number -> folder name (kernel side; used by SYS_L1SVC). */
 #define L1SVC_CAT_NAME(n) \
@@ -63,7 +67,8 @@
      (n) == L1SVC_CAT_INPUT    ? "input"    : \
      (n) == L1SVC_CAT_CAMERA   ? "camera"   : \
      (n) == L1SVC_CAT_USB      ? "usb"      : \
-     (n) == L1SVC_CAT_OCIRE    ? "ocire"    : 0)
+     (n) == L1SVC_CAT_OCIRE    ? "ocire"    : \
+     (n) == L1SVC_CAT_DIAG     ? "diag"     : 0)
 
 /* ---- time operations (services/time) -------------------------------
  * Mirrors the v1 oc> commands rtc / hpet / pmtimer / tsc. */
@@ -343,5 +348,59 @@
 #define L1SVC_L1_APPS   1   /* registry listing (help/run surface) */
 #define L1SVC_L1_L1TEST 2   /* l1test (job + wp8b + CPL0 smoke)  */
 #define L1SVC_L1_LDD    3   /* ldd <program>                     */
+
+/* ---- diag operations (services/diag) -------------------------------------
+ * 3.0.0-WP04: the v2.2.0 chipset/memory/crash diagnostics migrate to L1
+ * under ONE new category "diag" (the WP-03 9-class root services had
+ * no home for them; the category string equals the services/diag
+ * folder name).  Every op maps 1:1 to a former command - numbered,
+ * no string dispatch.  The full numbering is frozen here up front
+ * (append-only ABI); the three migration groups fill the bodies:
+ *   G8  1-8   vitals (mem/frag/heap/sched/syncstat) + crash family
+ *   G9  9-26  the ring-0 self-test commands (cr3test..fstest)
+ *   G10 27-39 the chipset family (acpi, pci, i2c, smbus commands)
+ * Note: crashtest's panic|exc|pf|assert|wd|ovf variants REALLY crash
+ * the kernel (v2.2.0 behaviour); policy/dump/usage are safe. */
+#define L1SVC_DIAG_MEM       1   /* mem        : PMM stats             */
+#define L1SVC_DIAG_FRAG      2   /* frag       : PMM fragments        */
+#define L1SVC_DIAG_HEAP      3   /* heap       : kernel heap stats     */
+#define L1SVC_DIAG_SCHED     4   /* sched      : scheduler stats      */
+#define L1SVC_DIAG_SYNCSTAT  5   /* syncstat   : sync primitive stats  */
+#define L1SVC_DIAG_CRASHLOG  6   /* crashlog [flush]                   */
+#define L1SVC_DIAG_CRASHTEST 7   /* crashtest panic|exc|...|policy ... */
+#define L1SVC_DIAG_DUMPINFO  8   /* dumpinfo   : core dump status      */
+/* G9 range (ring-0 self-tests) - reserved, bodies land with the group */
+#define L1SVC_DIAG_CR3TEST   9
+#define L1SVC_DIAG_EXC      10
+#define L1SVC_DIAG_PFTEST   11
+#define L1SVC_DIAG_PMMRACE  12
+#define L1SVC_DIAG_VMTEST   13
+#define L1SVC_DIAG_VMKERNELPT 14
+#define L1SVC_DIAG_VMMAP    15
+#define L1SVC_DIAG_MEMTEST  16
+#define L1SVC_DIAG_HEAPTEST 17
+#define L1SVC_DIAG_HEAPBOUNDS 18
+#define L1SVC_DIAG_IRQABITEST 19
+#define L1SVC_DIAG_TIMER    20
+#define L1SVC_DIAG_MSITEST  21
+#define L1SVC_DIAG_SPAWN    22
+#define L1SVC_DIAG_MULTI    23
+#define L1SVC_DIAG_NICE     24
+#define L1SVC_DIAG_SYNCTEST 25
+#define L1SVC_DIAG_FSTEST   26
+/* G10 range (chipset) - reserved, bodies land with the group */
+#define L1SVC_DIAG_ACPI      27
+#define L1SVC_DIAG_ACPIDEV   28
+#define L1SVC_DIAG_ACPIPOW   29
+#define L1SVC_DIAG_ACPITEST  30
+#define L1SVC_DIAG_PCIDUMP   31
+#define L1SVC_DIAG_PCIBARS   32
+#define L1SVC_DIAG_PCIE      33
+#define L1SVC_DIAG_I2CDETECT 34
+#define L1SVC_DIAG_I2CGET    35
+#define L1SVC_DIAG_I2CSET    36
+#define L1SVC_DIAG_I2CTEST   37
+#define L1SVC_DIAG_SMBUS     38
+#define L1SVC_DIAG_SMBUSTEST 39
 
 #endif /* OC_L1SVC_DEFS_H */
