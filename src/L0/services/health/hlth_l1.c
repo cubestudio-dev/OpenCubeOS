@@ -32,14 +32,20 @@ static void put_u64(u64 v) {
     put(b);
 }
 
-/* v2.2.0 hc_line(): "  <label>: <value> <unit>" */
-static void hc_line(const char *label, u64 v, const char *unit) {
-    put("    ");
-    put(label);
-    put(": ");
-    put_u64(v);
-    if (unit && *unit) { put(" "); put(unit); }
-    put("\n");
+/* v2.2.0 hc_line() VERBATIM (recovery/shell_cmds_health.c): the label
+ * is space-padded to column 22 - two spaces, the label, padding, then
+ * the value and unit.  (G6 had rewritten this into a colon style and
+ * mislabeled it as v2.2.0-verbatim; the G13 matrix battery against the
+ * real 2.2.0 ISO caught the divergence - restored to the original.) */
+static void hc_line(const char *a, u64 v, const char *unit) {
+    char msg[96]; char n[24];
+    strcpy(msg, "  ");
+    strcat(msg, a);
+    while (strlen(msg) < 22) strcat(msg, " ");
+    u64_to_str(v, n); strcat(msg, n);
+    if (unit && *unit) { strcat(msg, " "); strcat(msg, unit); }
+    strcat(msg, "\n");
+    put(msg);
 }
 
 /* v2.2.0 health_print(): fresh sample, console-side wording kept. */
