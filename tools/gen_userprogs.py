@@ -92,6 +92,19 @@ def verify_elf(name, data, mode):
     # ET_EXEC, verified by the kernel loader at runtime anyway.
 
 
+def build_crt0():
+    """Compile the shared ring-3 crt0 trampoline (_shared/crt0.asm).
+    Every folder app links it: it reads the execve stack layout
+    (argc at [rsp]) BEFORE any compiler prologue and tail-calls
+    app_main(argc, argv) - a compiled C _start() cannot do that
+    (the compiler may insert `sub $N,%rsp` before any inline asm;
+    the WP04 G5 live-catch)."""
+    obj = os.path.join(BUILD, "crt0.o")
+    run([NASM, "-f", "elf64", "-F", "dwarf", "-g",
+         os.path.join(L1, "_shared", "crt0.asm"), "-o", obj])
+    return obj
+
+
 def build_solib():
     solib_py = os.path.join(ROOT, "tools", "build_solib.py")
     r = subprocess.run([sys.executable, solib_py], capture_output=True, text=True)
@@ -102,7 +115,7 @@ def build_solib():
     return r.stdout
 
 
-def compile_c(name, c_paths, mode, extra_cflags=None):
+def compile_c(name, c_paths, mode, extra_cflags=None, extra_objs=None):
     """Compile every .c to an object; link per mode; return ELF bytes."""
     objs = []
     cflags = list(CFLAGS_BASE) + (extra_cflags or [])
@@ -121,7 +134,7 @@ def compile_c(name, c_paths, mode, extra_cflags=None):
     if mode == "exec":
         run([LD, "-n", "-nostdlib", "-T", USER_LD,
              "-z", "max-page-size=0x1000", "-z", "noexecstack",
-             "-o", elf, *objs])
+             "-o", elf, *(extra_objs or []), *objs])
     elif mode == "ld_so":
         run([LD, "-n", "-nostdlib", "-T", LD_SO_LD,
              "-z", "max-page-size=0x1000", "-z", "noexecstack",
@@ -143,7 +156,7 @@ def compile_c(name, c_paths, mode, extra_cflags=None):
     return data
 
 
-def compile_asm(name, asm_paths, ld_script=USER_LD):
+def compile_asm(name, asm_paths, ld_script=USER_LD, extra_objs=None):
     objs = []
     for i, a in enumerate(asm_paths):
         obj = os.path.join(BUILD, f"{name}_up{i}.o")
@@ -152,7 +165,7 @@ def compile_asm(name, asm_paths, ld_script=USER_LD):
     elf = os.path.join(BUILD, f"{name}.elf")
     run([LD, "-n", "-nostdlib", "-T", ld_script,
          "-z", "max-page-size=0x1000", "-z", "noexecstack",
-         "-o", elf, *objs])
+         "-o", elf, *(extra_objs or []), *objs])
     subprocess.run(["strip", "--strip-debug", elf], check=False)
     with open(elf, "rb") as f:
         data = f.read()
@@ -243,7 +256,9 @@ def emit(progs, blobs):
 
 
 def main():
+    global CRT0
     os.makedirs(BUILD, exist_ok=True)
+    CRT0 = build_crt0()
     # Mirror the kernel L1SVC numbering into the app library FIRST so
     # wrapper apps always compile against the current contract.
     r = subprocess.run([sys.executable,
@@ -273,7 +288,15 @@ def main():
                 data = compile_asm(name, asms,
                                   LD_SO_LD if mode == "ld_so" else USER_LD)
         else:
-            # folder app: C sources + optional asm, always plain exec
+            # folder app: C sources + optional asm, always plain exec.
+            # _shared/crt0.o provides _start (the app defines app_main);
+            # a folder program that still defines its own _start (ush)
+            # links exactly as before - no crt0, no duplicate entry.
+            main_c = cs[0] if cs else ""
+            crt = []
+            if main_c and os.path.exists(main_c) and \
+               "int app_main(" in open(main_c).read():
+                crt = [CRT0]
             if cs and asms:
                 # link both kinds: compile asm first, then ld everything
                 objs = []
@@ -294,9 +317,9 @@ def main():
                     data = f.read()
                 verify_elf(name, data, "exec")
             elif cs:
-                data = compile_c(name, cs, "exec")
+                data = compile_c(name, cs, "exec", extra_objs=crt)
             else:
-                data = compile_asm(name, asms)
+                data = compile_asm(name, asms, extra_objs=crt)
         blobs[name] = data
         print(f"gen_userprogs: {name} = {len(data)} bytes [{mode}]")
 

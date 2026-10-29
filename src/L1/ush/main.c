@@ -11,7 +11,7 @@
  *
  * Features: prompt, fork+exec, pipe (|), redirect (> >> <),
  * environment variables ($VAR), built-in commands (cd, exit, export,
- * echo, alias, unalias, history).
+ * alias, unalias, history).
  */
 
 #define SYS_WRITE    1
@@ -56,8 +56,11 @@
  * table row is now its own ring-3 app (src/L1/<name>/main.c, a thin
  * l1svc_main() wrapper over _shared/l1_lib.h); ush reaches them like
  * any other program through fork + execve + the generated OC_USERPROGS
- * registry.  The shell keeps only its own process-state builtins and
- * the file tools still pending migration. */
+ * registry.  G5: the file tools, the net bridge tools and the nano/vi
+ * editor moved out the same way (see the `3.0.0-WP04: ... moved to
+ * src/L1/<name>/` markers below); the shell keeps only its own
+ * process-state builtins (cd/exit/help/export/alias/unalias/history/
+ * set/env/jobs/fg/bg) plus the line editor. */
 
 /* SYS_NETCMD bridge op codes (kernel net_core.c contract) */
 #define NETCMD_IFCONFIG  1
@@ -65,46 +68,24 @@
 #define NETCMD_NETSTAT   3
 #define NETCMD_WGET      4
 
-/* VFS node types (match kernel vfs.h: VFS_TYPE_FILE=1, DIR=2, DEVICE=3) */
-#define USH_TYPE_FILE 1
-#define USH_TYPE_DIR  2
-#define USH_TYPE_DEV  3
+/* 3.0.0-WP04 G5: USH_TYPE_* moved to _shared/fs_lib.h (only the moved
+ * file-tool apps use them now). */
 
 typedef unsigned long u64;
-typedef long i64;
-typedef int i32;
-typedef unsigned int u32;
-typedef char i8;
-typedef unsigned char u8;
-
 /* VFS on-wire structures - must match kernel layout (vfs.h, VFS_NAME_LEN=64).
  * The kernel's sys_readdir/sys_stat memcpy sizeof(vfs_dirent_t / vfs_stat_t)
  * bytes into our buffer, so our struct size must equal the kernel's.
- * WP-10-wp08fix1: fs_vfs_stat_t grew mode/uid/gid/nlink - mirrored here. */
+ * WP-10-wp08fix1: fs_vfs_stat_t grew mode/uid/gid/nlink - mirrored here.
+ * 3.0.0-WP04 G5: the shared copy of these structs now lives in
+ * _shared/fs_lib.h; ush_stat and ush_ps_entry are GONE from here (all
+ * their users became apps) - ush keeps ush_dirent for Tab file-name
+ * completion. */
 struct ush_dirent {
     char name[64];
     int  type;
     u64  inode;
 };
-struct ush_stat {
-    int  type;
-    u64  size;
-    u32  mode;
-    u32  uid;
-    u32  gid;
-    u32  nlink;
-    char name[64];
-};
-
-/* WP-10-wp08fix1: kernel process table entry - MUST match the layout the
- * kernel writes in sys_ps (tid, state, priority, name[32], cpu ticks). */
-struct ush_ps_entry {
-    i32 tid;
-    i32 state;
-    i32 priority;
-    char name[32];
-    u64 cpu_time_ticks;
-};
+/* 3.0.0-WP04 G5: ush_ps_entry moved to _shared/l1_lib.h (ps/top apps). */
 
 /* Inline syscall wrappers */
 static inline long syscall0(long n) {
@@ -129,45 +110,29 @@ static inline long syscall3(long n, long a, long b, long c) {
 }
 
 #define sys_write(fd, buf, len)  syscall3(SYS_WRITE2, (fd), (long)(buf), (len))
-#define sys_read(fd, buf, len)   syscall3(SYS_READ, (fd), (long)(buf), (len))
 #define sys_readline(buf, max)   syscall2(SYS_READLINE, (long)(buf), (max))
 #define sys_getch()           syscall0(SYS_GETCH)
 #define sys_fork()               syscall0(SYS_FORK)
 #define sys_execve(path, argv, envp) syscall3(SYS_EXECVE, (long)(path), (long)(argv), (long)(envp))
-#define sys_wait4(pid)           syscall1(SYS_WAIT4, (pid))
+/* SYS_WAIT4 is 4-arg; spell the status_ptr (0 = not collected) so the
+ * call site can never leak stale register state into the kernel. */
+#define sys_wait4(pid)           syscall2(SYS_WAIT4, (pid), 0)
 #define sys_exit2(code)          syscall1(SYS_EXIT2, (code))
 #define sys_pipe(fds)            syscall1(SYS_PIPE, (long)(fds))
 #define sys_dup(old)             syscall2(SYS_DUP, (old), 0)
 #define sys_dup2(old, new)       syscall2(SYS_DUP2, (old), (new))
 #define sys_chdir(path)          syscall1(SYS_CHDIR, (long)(path))
-#define sys_getcwd(buf, size)    syscall2(SYS_GETCWD, (long)(buf), (size))
 #define sys_open(path, flags)    syscall2(SYS_OPEN, (long)(path), (flags))
 #define sys_close(fd)            syscall1(SYS_CLOSE, (fd))
 #define sys_readdir(path, idx, buf) syscall3(SYS_READDIR, (long)(path), (long)(idx), (long)(buf))
-#define sys_mkdir(path)             syscall1(SYS_MKDIR, (long)(path))
-#define sys_rmdir(path)             syscall1(SYS_RMDIR, (long)(path))
-#define sys_unlink(path)            syscall1(SYS_UNLINK, (long)(path))
-#define sys_kill(pid)               syscall1(SYS_KILL, (long)(pid))
 #define sys_getpid()                syscall0(SYS_GETPID)
-#define sys_stat(path, st)          syscall2(SYS_STAT, (long)(path), (long)(st))
-#define sys_uptime()                syscall0(SYS_UPTIME)
-#define sys_meminfo(buf)            syscall1(SYS_MEMINFO, (long)(buf))
-#define sys_symlink(target, linkp)  syscall2(SYS_SYMLINK, (long)(target), (long)(linkp))
-#define sys_readlink(path, buf, cap) syscall3(SYS_READLINK, (long)(path), (long)(buf), (long)(cap))
-#define sys_link(oldp, newp)        syscall2(SYS_LINK, (long)(oldp), (long)(newp))
-#define sys_chmod(path, mode)       syscall2(SYS_CHMOD, (long)(path), (long)(mode))
-#define sys_chown(path, uid, gid)   syscall3(SYS_CHOWN, (long)(path), (long)(uid), (long)(gid))
-#define sys_netcmd(op, arg, out, cap) syscall4_(SYS_NETCMD, (long)(op), (long)(arg), (long)(out), (long)(cap))
-#define sys_ps(buf, cap)            syscall2(SYS_PS, (long)(buf), (long)(cap))
 #define sys_l1svc(cat, op, arg, out, cap) syscall5(SYS_L1SVC, (long)(cat), (long)(op), (long)(arg), (long)(out), (long)(cap))
 
-/* 4-argument syscall (WP-10-wp08fix1: SYS_NETCMD needs it). */
-static inline long syscall4_(long n, long a, long b, long c, long d) {
-    long r;
-    register long r10 __asm__("r10") = d;
-    __asm__ volatile("int $0x80" : "=a"(r) : "a"(n), "D"(a), "S"(b), "d"(c), "r"(r10) : "rcx", "r11", "memory");
-    return r;
-}
+/* 3.0.0-WP04 G5: the fs/proc/mem/net macro wrappers below moved to
+ * _shared/l1_lib.h as static inline functions (sys_read/sys_stat/
+ * sys_mkdir/sys_rmdir/sys_unlink/sys_kill/sys_getcwd/sys_uptime/
+ * sys_meminfo/sys_symlink/sys_readlink/sys_link/sys_chmod/sys_chown/
+ * sys_netcmd/sys_ps) - only the migrated tool apps use them now. */
 
 /* 5-argument syscall (v2.0.0: SYS_L1SVC needs it). */
 static inline long syscall5(long n, long a, long b, long c, long d, long e) {
@@ -232,26 +197,8 @@ static int atoi_(const char *s) {
     return n * sign;
 }
 
-/* Substring search: 1 if needle appears in hay, 0 otherwise. */
-static int strstr_(const char *hay, const char *needle) {
-    if (!needle[0]) return 1;
-    int hl = strlen_(hay);
-    int nl = strlen_(needle);
-    if (nl > hl) return 0;
-    for (int i = 0; i <= hl - nl; i++) {
-        int j = 0;
-        while (j < nl && hay[i + j] == needle[j]) j++;
-        if (j == nl) return 1;
-    }
-    return 0;
-}
-
-/* strcmp: 0 if equal, negative if a<b, positive if a>b. */
-static int strcmp_(const char *a, const char *b) {
-    int i = 0;
-    while (a[i] && b[i] && a[i] == b[i]) i++;
-    return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
-}
+/* 3.0.0-WP04 G5: strstr_/strcmp_ moved to _shared (fs_lib.h carries
+ * strstr_; l1_lib.h carries strcmp_) - grep/awk/sort are apps now. */
 
 /* Output helpers */
 static void puts_(const char *s) {
@@ -410,287 +357,9 @@ static int parse_args(char *line, char *argv[], int max_argv) {
     return argc;
 }
 
-/* ==================================================================
- * WP-10-wp08fix1: nano-style editor for ush (real interactive editing)
- * ==================================================================
- * Keys: arrows select/move, typing inserts, BKSP/DEL delete,
- * ENTER splits the line, ^K deletes the line, ^C reports the position,
- * ^O saves, ^X exits (asks before discarding), ^G shows the key guide.
- * Rendering: print the file once, then redraw only the CURRENT line
- * in place with \r (the console has no ANSI escapes). */
-
-#define UNANO_MAX_LINES 256
-#define UNANO_LINE_CAP  128
-
-static char unano_lines[UNANO_MAX_LINES][UNANO_LINE_CAP];
-static int  unano_nlines;
-static int  unano_dirty;
-static int  unano_cl;    /* current line */
-static int  unano_cc;    /* cursor col */
-
-static void unano_prefix(int lineno) {
-    char num[12];
-    putu_((u64)lineno);
-    /* pad to width 3 + ": " */
-    int n = 0;
-    int v = lineno;
-    while (v > 0) { v /= 10; n++; }
-    while (n < 3) { putc_(' '); n++; }
-    (void)num;
-    putc_(':');
-    putc_(' ');
-}
-
-static void unano_redraw_line(void) {
-    char cr = '\r';
-    char sp = ' ';
-    sys_write(1, &cr, 1);
-    unano_prefix(unano_cl + 1);
-    sys_write(1, unano_lines[unano_cl], strlen_(unano_lines[unano_cl]));
-    sys_write(1, &sp, 1);
-    sys_write(1, &cr, 1);
-    unano_prefix(unano_cl + 1);
-    if (unano_cc > 0) sys_write(1, unano_lines[unano_cl], unano_cc);
-}
-
-static void unano_state(const char *file) {
-    puts_("[nano ");
-    puts_(file);
-    puts_(" line ");
-    putu_((u64)(unano_cl + 1));
-    putc_('/');
-    putu_((u64)unano_nlines);
-    puts_(unano_dirty ? "  modified] ^O save  ^X exit  ^K del-line  ^C pos  ^G help\n"
-                       : "  saved   ] ^O save  ^X exit  ^K del-line  ^C pos  ^G help\n");
-}
-
-static void unano_print_all(const char *file) {
-    puts_("-- nano: ");
-    puts_(file);
-    puts_(" -- ^O save ^X exit ^K del line ^G help --\n");
-    for (int i = 0; i < unano_nlines; i++) {
-        unano_prefix(i + 1);
-        puts_(unano_lines[i]);
-        putc_('\n');
-    }
-}
-
-static int unano_getch_blocking(void) {
-    for (;;) {
-        long k = sys_getch();
-        if (k >= 0) return (int)k;
-        for (volatile int s = 0; s < 100; s++);
-    }
-}
-
-static int unano_save(const char *file) {
-    /* BUG-0089 FIX (A16-2): save with O_TRUNC - without it, saving a
-     * SHORTER document over a longer existing file left the old tail
-     * bytes behind (corrupted file). */
-    int fd = sys_open(file, 22);   /* WRONLY|CREAT|TRUNC */
-    if (fd < 0) return -1;
-    for (int i = 0; i < unano_nlines; i++) {
-        sys_write(fd, unano_lines[i], strlen_(unano_lines[i]));
-        sys_write(fd, "\n", 1);
-    }
-    sys_close(fd);
-    unano_dirty = 0;
-    return 0;
-}
-
-static void ush_nano_run(const char *file) {
-    /* load */
-    unano_nlines = 0;
-    unano_dirty = 0;
-    unano_cl = 0;
-    unano_cc = 0;
-    int fd = sys_open(file, 1);
-    if (fd >= 0) {
-        static char rbuf[4096];
-        long n;
-        char cur[UNANO_LINE_CAP];
-        int cl = 0;
-        cur[0] = 0;
-        while ((n = sys_read(fd, rbuf, 4096)) > 0) {
-            for (int i = 0; i < (int)n; i++) {
-                if (rbuf[i] == '\n') {
-                    if (unano_nlines < UNANO_MAX_LINES) {
-                        strncpy_(unano_lines[unano_nlines++], cur, UNANO_LINE_CAP);
-                    }
-                    cl = 0;
-                    cur[0] = 0;
-                } else if (cl + 1 < UNANO_LINE_CAP) {
-                    cur[cl++] = rbuf[i];
-                    cur[cl] = 0;
-                }
-            }
-        }
-        sys_close(fd);
-        if (cl > 0 || unano_nlines == 0) {
-            if (unano_nlines < UNANO_MAX_LINES) {
-                strncpy_(unano_lines[unano_nlines++], cur, UNANO_LINE_CAP);
-            }
-        }
-    } else {
-        unano_lines[0][0] = 0;
-        unano_nlines = 1;
-    }
-
-    unano_print_all(file);
-    unano_state(file);
-    unano_redraw_line();
-
-    for (;;) {
-        int k = unano_getch_blocking();
-        if (k == 0x80) {          /* Up */
-            if (unano_cl > 0) {
-                unano_cl--;
-                int ll = strlen_(unano_lines[unano_cl]);
-                if (unano_cc > ll) unano_cc = ll;
-                unano_redraw_line();
-            }
-        } else if (k == 0x81) {   /* Down */
-            if (unano_cl + 1 < unano_nlines) {
-                unano_cl++;
-                int ll = strlen_(unano_lines[unano_cl]);
-                if (unano_cc > ll) unano_cc = ll;
-                unano_redraw_line();
-            }
-        } else if (k == 0x82) {   /* Left */
-            if (unano_cc > 0) { unano_cc--; unano_redraw_line(); }
-        } else if (k == 0x83) {   /* Right */
-            if (unano_cc < strlen_(unano_lines[unano_cl])) {
-                unano_cc++; unano_redraw_line();
-            }
-        } else if (k == 0x84 || k == 0x01) {   /* Home / ^A */
-            unano_cc = 0; unano_redraw_line();
-        } else if (k == 0x85 || k == 0x05) {   /* End / ^E */
-            unano_cc = strlen_(unano_lines[unano_cl]); unano_redraw_line();
-        } else if (k == 0x89) {   /* Delete */
-            char *l = unano_lines[unano_cl];
-            int ll = strlen_(l);
-            if (unano_cc < ll) {
-                for (int i = unano_cc; i < ll; i++) l[i] = l[i + 1];
-                unano_dirty = 1;
-                unano_redraw_line();
-            }
-        } else if (k == 0x08 || k == 0x7F) {   /* Backspace */
-            char *l = unano_lines[unano_cl];
-            if (unano_cc > 0) {
-                int ll = strlen_(l);
-                for (int i = unano_cc - 1; i < ll; i++) l[i] = l[i + 1];
-                unano_cc--;
-                unano_dirty = 1;
-                unano_redraw_line();
-            } else if (unano_cl > 0) {
-                /* merge with previous line */
-                char *prev = unano_lines[unano_cl - 1];
-                int plen = strlen_(prev);
-                int ll = strlen_(l);
-                if (plen + ll < UNANO_LINE_CAP - 1) {
-                    strcat_(prev, l);
-                    unano_cc = plen;
-                    unano_cl--;
-                    for (int i = unano_cl + 1; i + 1 < unano_nlines; i++) {
-                        strncpy_(unano_lines[i], unano_lines[i + 1], UNANO_LINE_CAP);
-                    }
-                    unano_nlines--;
-                    unano_dirty = 1;
-                    unano_print_all(file);
-                    unano_state(file);
-                    unano_redraw_line();
-                }
-            }
-        } else if (k == '\n' || k == '\r') {   /* ENTER: split line */
-            if (unano_nlines < UNANO_MAX_LINES) {
-                char *l = unano_lines[unano_cl];
-                char tail[UNANO_LINE_CAP];
-                strncpy_(tail, l + unano_cc, UNANO_LINE_CAP);
-                l[unano_cc] = 0;
-                /* shift lines down */
-                for (int i = unano_nlines; i > unano_cl + 1; i--) {
-                    strncpy_(unano_lines[i], unano_lines[i - 1], UNANO_LINE_CAP);
-                }
-                strncpy_(unano_lines[unano_cl + 1], tail, UNANO_LINE_CAP);
-                unano_nlines++;
-                unano_cl++;
-                unano_cc = 0;
-                unano_dirty = 1;
-                unano_print_all(file);
-                unano_state(file);
-                unano_redraw_line();
-            }
-        } else if (k == 0x0B) {   /* ^K: delete line */
-            for (int i = unano_cl; i + 1 < unano_nlines; i++) {
-                strncpy_(unano_lines[i], unano_lines[i + 1], UNANO_LINE_CAP);
-            }
-            unano_nlines--;
-            if (unano_nlines == 0) {
-                unano_lines[0][0] = 0;
-                unano_nlines = 1;
-            }
-            if (unano_cl >= unano_nlines) unano_cl = unano_nlines - 1;
-            int ll = strlen_(unano_lines[unano_cl]);
-            if (unano_cc > ll) unano_cc = ll;
-            unano_dirty = 1;
-            unano_print_all(file);
-            unano_state(file);
-            unano_redraw_line();
-        } else if (k == 0x03) {   /* ^C: report position (nano binding) */
-            puts_("\n[line ");
-            putu_((u64)(unano_cl + 1));
-            puts_(", col ");
-            putu_((u64)(unano_cc + 1));
-            puts_("]\n");
-            unano_state(file);
-            unano_redraw_line();
-        } else if (k == 0x07) {   /* ^G: help */
-            puts_("\narrows move | type to insert | BKSP/DEL delete\n");
-            puts_("ENTER split line | ^K del line | ^O save | ^X exit | ^C pos\n");
-            unano_state(file);
-            unano_redraw_line();
-        } else if (k == 0x0F) {   /* ^O: save */
-            if (unano_save(file) == 0) {
-                puts_("\n[wrote ");
-                putu_((u64)unano_nlines);
-                puts_(" lines]\n");
-            } else {
-                puts_("\n[save failed]\n");
-            }
-            unano_state(file);
-            unano_redraw_line();
-        } else if (k == 0x18) {   /* ^X: exit */
-            if (unano_dirty) {
-                puts_("\nSave modified buffer? (y/n): ");
-                int c = unano_getch_blocking();
-                putc_((char)c);
-                putc_('\n');
-                if (c == 'y' || c == 'Y') {
-                    if (unano_save(file) != 0) {
-                        puts_("[save failed - stay in editor]\n");
-                        unano_state(file);
-                        unano_redraw_line();
-                        continue;
-                    }
-                    return;
-                }
-                return;   /* quit without saving */
-            }
-            return;
-        } else if (k >= 0x20 && k < 0x7F) {   /* insert */
-            char *l = unano_lines[unano_cl];
-            int ll = strlen_(l);
-            if (ll + 1 < UNANO_LINE_CAP) {
-                for (int i = ll; i > unano_cc; i--) l[i] = l[i - 1];
-                l[unano_cc] = (char)k;
-                unano_cc++;
-                unano_dirty = 1;
-                unano_redraw_line();
-            }
-        }
-        /* other keys ignored */
-    }
-}
+/* 3.0.0-WP04 G5: the nano/vi editor moved to _shared/editor_core.h;
+ * the apps src/L1/nano/, src/L1/vi/ and src/L1/edit/ (the v2.2.0 L0
+ * `edit` command) are thin shells over it (reached via execve). */
 
 /* Built-in commands. Return 1 if handled, 0 if not. */
 /* ------------------------------------------------------------------ */
@@ -813,20 +482,7 @@ static int builtin_cmd(int argc, char *argv[]) {
         puts_("\n");
         return 1;
     }
-    if (streq(argv[0], "write")) {
-        /* v2.0.0: the v1 oc> `write <path> <text>` command, as a ush
-         * builtin through the classic file syscalls. */
-        if (argc < 3) { puts_("usage: write <path> <text>\n"); return 1; }
-        long fd = sys_open(argv[1], 1 /* O_WRONLY|O_CREAT as v1 */);
-        if (fd < 0) { puts_("write: cannot open "); puts_(argv[1]); putc_('\n'); return 1; }
-        for (int i = 2; i < argc; i++) {
-            if (i > 2) sys_write(fd, " ", 1);
-            sys_write(fd, argv[i], strlen_(argv[i]));
-        }
-        sys_write(fd, "\n", 1);
-        sys_close(fd);
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: write moved to src/L1/write/ (app via execve). */
     if (streq(argv[0], "export")) {
         if (argc > 1) {
             char *eq = argv[1];
@@ -840,14 +496,7 @@ static int builtin_cmd(int argc, char *argv[]) {
         }
         return 1;
     }
-    if (streq(argv[0], "echo")) {
-        for (int i = 1; i < argc; i++) {
-            if (i > 1) putc_(' ');
-            puts_(argv[i]);
-        }
-        putc_('\n');
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: echo moved to src/L1/echo/ (app via execve). */
     if (streq(argv[0], "alias")) {
         if (argc < 2) {
             for (int i = 0; i < g_alias_count; i++) {
@@ -917,13 +566,8 @@ static int builtin_cmd(int argc, char *argv[]) {
         }
         return 1;
     }
-    if (streq(argv[0], "pwd")) {
-        char buf[256];
-        sys_getcwd((long)buf, 256);
-        puts_(buf);
-        putc_('\n');
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: pwd moved to src/L1/pwd/ (app via execve; a forked
+     * app inherits the shell cwd, so the output is unchanged). */
     if (streq(argv[0], "set")) {
         if (argc > 1) {
             puts_(argv[1]);
@@ -946,1149 +590,74 @@ static int builtin_cmd(int argc, char *argv[]) {
         return 1;
     }
 
-    /* ============= Additional built-in tools ============= */
+    /* ============= File tools: all moved out (3.0.0-WP04 G5) ============= */
 
-    /* ---------- ls [path] ---------- */
-    if (streq(argv[0], "ls")) {
-        char path[256];
-        if (argc > 1) {
-            strncpy_(path, argv[1], 256);
-        } else {
-            sys_getcwd(path, 256);
-        }
-        int idx = 0;
-        for (;;) {
-            struct ush_dirent e;
-            memset_(&e, 0, (int)sizeof(e));
-            if (sys_readdir(path, idx, &e) < 0) break;
-            if (e.name[0] == 0) break;
-            char tag = '-';
-            if (e.type == USH_TYPE_DIR) tag = 'd';
-            else if (e.type == USH_TYPE_DEV) tag = 'c';
-            putc_(tag);
-            putc_(' ');
-            puts_(e.name);
-            putc_('\n');
-            idx++;
-            if (idx > 1024) break;
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: ls moved to src/L1/ls/ (app via execve). */
 
-    /* ---------- cat [file...] ---------- */
-    if (streq(argv[0], "cat")) {
-        if (argc < 2) {
-            static char cbuf[4096];
-            long n;
-            while ((n = sys_read(0, cbuf, 4096)) > 0) {
-                sys_write(1, cbuf, n);
-            }
-            return 1;
-        }
-        for (int i = 1; i < argc; i++) {
-            int fd = sys_open(argv[i], 1);
-            if (fd < 0) {
-                puts_("cat: cannot open ");
-                puts_(argv[i]);
-                putc_('\n');
-                continue;
-            }
-            static char rbuf[4096];
-            long n;
-            while ((n = sys_read(fd, rbuf, 4096)) > 0) {
-                sys_write(1, rbuf, n);
-            }
-            sys_close(fd);
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: cat moved to src/L1/cat/ (app via execve). */
 
-    /* ---------- wc [file] ---------- */
-    if (streq(argv[0], "wc")) {
-        static char wbuf[8192];
-        long total = 0, lines = 0, words = 0;
-        int in_word = 0;
-        int fd = 0;
-        int opened = 0;
-        if (argc > 1) {
-            /* A16-6 FIX: wc only READS the file, but flag 6 =
-             * WRONLY(2)|CREAT(4) silently CREATED an empty file when the
-             * path did not exist and reported a bogus `0 0 0`. RDONLY(1)
-             * is the correct mode: a missing path now reports an error
-             * and creates nothing (same flag cat/tail/sed use). */
-            fd = sys_open(argv[1], 1);
-            if (fd < 0) {
-                puts_("wc: cannot open ");
-                puts_(argv[1]);
-                putc_('\n');
-                return 1;
-            }
-            opened = 1;
-        }
-        long n;
-        while ((n = sys_read(fd, wbuf, 8192)) > 0) {
-            total += n;
-            for (int i = 0; i < (int)n; i++) {
-                char c = wbuf[i];
-                if (c == '\n') lines++;
-                if (c == ' ' || c == '\n' || c == '\t' || c == '\r') {
-                    in_word = 0;
-                } else if (!in_word) {
-                    in_word = 1;
-                    words++;
-                }
-            }
-        }
-        if (opened) sys_close(fd);
-        putu_((u64)lines);
-        putc_(' ');
-        putu_((u64)words);
-        putc_(' ');
-        putu_((u64)total);
-        if (argc > 1) { putc_(' '); puts_(argv[1]); }
-        putc_('\n');
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: wc moved to src/L1/wc/ (app via execve). */
 
-    /* ---------- grep <pattern> ---------- */
-    if (streq(argv[0], "grep")) {
-        if (argc < 2) {
-            puts_("usage: grep <pattern>\n");
-            return 1;
-        }
-        const char *pat = argv[1];
-        static char gbuf[8192];
-        static char gline[1024];
-        int lpos = 0;
-        long n;
-        while ((n = sys_read(0, gbuf, 8192)) > 0) {
-            for (int i = 0; i < (int)n; i++) {
-                char c = gbuf[i];
-                if (c == '\n') {
-                    gline[lpos] = 0;
-                    if (strstr_(gline, pat)) {
-                        puts_(gline);
-                        putc_('\n');
-                    }
-                    lpos = 0;
-                } else {
-                    if (lpos < 1023) gline[lpos++] = c;
-                }
-            }
-        }
-        if (lpos > 0) {
-            gline[lpos] = 0;
-            if (strstr_(gline, pat)) {
-                puts_(gline);
-                putc_('\n');
-            }
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: grep moved to src/L1/grep/ (app via execve). */
 
-    /* ---------- head [N] [file] ---------- */
-    if (streq(argv[0], "head")) {
-        int nlines = 10;
-        int argi = 1;
-        if (argc > 1) {
-            char *a = argv[1];
-            if (a[0] == '-' || (a[0] >= '0' && a[0] <= '9')) {
-                nlines = atoi_(a[0] == '-' ? a + 1 : a);
-                argi = 2;
-            }
-        }
-        if (nlines < 1) nlines = 10;
-        int fd = 0;
-        int opened = 0;
-        if (argi < argc) {
-            fd = sys_open(argv[argi], 1);
-            if (fd < 0) {
-                puts_("head: cannot open ");
-                puts_(argv[argi]);
-                putc_('\n');
-                return 1;
-            }
-            opened = 1;
-        }
-        static char hbuf[4096];
-        static char hline[1024];
-        int lpos = 0;
-        int printed = 0;
-        long n;
-        while (printed < nlines && (n = sys_read(fd, hbuf, 4096)) > 0) {
-            for (int i = 0; i < (int)n && printed < nlines; i++) {
-                char c = hbuf[i];
-                if (c == '\n') {
-                    hline[lpos] = 0;
-                    puts_(hline);
-                    putc_('\n');
-                    printed++;
-                    lpos = 0;
-                } else {
-                    if (lpos < 1023) hline[lpos++] = c;
-                }
-            }
-        }
-        if (lpos > 0 && printed < nlines) {
-            hline[lpos] = 0;
-            puts_(hline);
-            putc_('\n');
-        }
-        if (opened) sys_close(fd);
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: head moved to src/L1/head/ (app via execve). */
 
-    /* ---------- tail [N] [file] ---------- */
-    if (streq(argv[0], "tail")) {
-        int nlines = 10;
-        int argi = 1;
-        if (argc > 1) {
-            char *a = argv[1];
-            if (a[0] == '-' || (a[0] >= '0' && a[0] <= '9')) {
-                nlines = atoi_(a[0] == '-' ? a + 1 : a);
-                argi = 2;
-            }
-        }
-        if (nlines < 1) nlines = 10;
-        if (nlines > 512) nlines = 512;
-        int fd = 0;
-        int opened = 0;
-        if (argi < argc) {
-            fd = sys_open(argv[argi], 1);
-            if (fd < 0) {
-                puts_("tail: cannot open ");
-                puts_(argv[argi]);
-                putc_('\n');
-                return 1;
-            }
-            opened = 1;
-        }
-        static char tbuf[16384];
-        static char *tlines[512];
-        int total = 0;
-        int inpos = 0;
-        long n;
-        /* A16-12 FIX: the old condition `inpos < 16384 - 4096` stopped
-         * the loop at 12288 B (the && short-circuit ate the final read),
-         * so tail only ever saw the first 12 KiB of its 16 KiB buffer.
-         * Read until the buffer is genuinely full (or EOF), requesting
-         * exactly the remaining space; the capacity is checked BEFORE
-         * the read, so the NUL below can never land 1 past the end. */
-        while (inpos < (int)sizeof(tbuf) - 1 &&
-               (n = sys_read(fd, tbuf + inpos, (int)sizeof(tbuf) - 1 - inpos)) > 0) {
-            inpos += (int)n;
-        }
-        tbuf[inpos] = 0;
-        int start = 0;
-        for (int i = 0; i < inpos; i++) {
-            if (tbuf[i] == '\n') {
-                tbuf[i] = 0;
-                if (total < 512) tlines[total++] = &tbuf[start];
-                start = i + 1;
-            }
-        }
-        if (start < inpos) {
-            if (total < 512) tlines[total++] = &tbuf[start];
-        }
-        int s = total > nlines ? total - nlines : 0;
-        for (int i = s; i < total; i++) {
-            puts_(tlines[i]);
-            putc_('\n');
-        }
-        if (opened) sys_close(fd);
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: tail moved to src/L1/tail/ (app via execve). */
 
-    /* ---------- mkdir <path> ---------- */
-    if (streq(argv[0], "mkdir")) {
-        if (argc < 2) {
-            puts_("usage: mkdir <path>\n");
-            return 1;
-        }
-        if (sys_mkdir(argv[1]) < 0) {
-            puts_("mkdir: cannot create '");
-            puts_(argv[1]);
-            puts_("'\n");
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: mkdir moved to src/L1/mkdir/ (app via execve). */
 
-    /* ---------- rmdir <path> ---------- */
-    if (streq(argv[0], "rmdir")) {
-        if (argc < 2) {
-            puts_("usage: rmdir <path>\n");
-            return 1;
-        }
-        if (sys_rmdir(argv[1]) < 0) {
-            puts_("rmdir: cannot remove '");
-            puts_(argv[1]);
-            puts_("'\n");
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: rmdir moved to src/L1/rmdir/ (app via execve). */
 
-    /* ---------- touch <file> ---------- */
-    if (streq(argv[0], "touch")) {
-        if (argc < 2) {
-            puts_("usage: touch <file>\n");
-            return 1;
-        }
-        int fd = sys_open(argv[1], 6);
-        if (fd >= 0) sys_close(fd);
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: touch moved to src/L1/touch/ (app via execve). */
 
-    /* ---------- rm <file> ---------- */
-    if (streq(argv[0], "rm")) {
-        if (argc < 2) {
-            puts_("usage: rm <file>\n");
-            return 1;
-        }
-        if (sys_unlink(argv[1]) < 0) {
-            puts_("rm: cannot remove '");
-            puts_(argv[1]);
-            puts_("'\n");
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: rm moved to src/L1/rm/ (app via execve). */
 
-    /* ---------- cp <src> <dst> ---------- */
-    if (streq(argv[0], "cp")) {
-        if (argc < 3) {
-            puts_("usage: cp <src> <dst>\n");
-            return 1;
-        }
-        int sfd = sys_open(argv[1], 1);
-        if (sfd < 0) {
-            puts_("cp: cannot open '");
-            puts_(argv[1]);
-            puts_("'\n");
-            return 1;
-        }
-        /* BUG-0089 FIX (A16-2): O_TRUNC on the copy target - an existing
-         * longer destination kept its stale tail after a shorter copy. */
-        int dfd = sys_open(argv[2], 22);
-        if (dfd < 0) {
-            puts_("cp: cannot open '");
-            puts_(argv[2]);
-            puts_("'\n");
-            sys_close(sfd);
-            return 1;
-        }
-        static char cpbuf[4096];
-        long n;
-        while ((n = sys_read(sfd, cpbuf, 4096)) > 0) {
-            sys_write(dfd, cpbuf, n);
-        }
-        sys_close(sfd);
-        sys_close(dfd);
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: cp moved to src/L1/cp/ (app via execve). */
 
-    /* ---------- mv <src> <dst> ---------- */
-    if (streq(argv[0], "mv")) {
-        if (argc < 3) {
-            puts_("usage: mv <src> <dst>\n");
-            return 1;
-        }
-        int sfd = sys_open(argv[1], 1);
-        if (sfd < 0) {
-            puts_("mv: cannot open '");
-            puts_(argv[1]);
-            puts_("'\n");
-            return 1;
-        }
-        /* BUG-0089 FIX (A16-2): O_TRUNC on the move target - an existing
-         * longer destination kept its stale tail after a shorter move. */
-        int dfd = sys_open(argv[2], 22);
-        if (dfd < 0) {
-            puts_("mv: cannot open '");
-            puts_(argv[2]);
-            puts_("'\n");
-            sys_close(sfd);
-            return 1;
-        }
-        static char mvbuf[4096];
-        long n;
-        while ((n = sys_read(sfd, mvbuf, 4096)) > 0) {
-            sys_write(dfd, mvbuf, n);
-        }
-        sys_close(sfd);
-        sys_close(dfd);
-        sys_unlink(argv[1]);
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: mv moved to src/L1/mv/ (app via execve). */
 
-    /* ---------- sort (file or stdin) ---------- */
-    if (streq(argv[0], "sort")) {
-        static char sbuf[16384];
-        static char *slines[512];
-        int total = 0;
-        int inpos = 0;
-        long n;
-        /* P2-03 FIX: if a filename argument is provided, read from the
-         * file instead of stdin. */
-        int src_fd = 0;
-        int opened = 0;
-        if (argc >= 2) {
-            int fd = sys_open(argv[1], 1);  /* VFS_O_RDONLY (kernel flag 1 = read) */
-            if (fd < 0) {
-                puts_("sort: cannot open ");
-                puts_(argv[1]);
-                putc_('\n');
-                return 1;
-            }
-            src_fd = fd;
-            opened = 1;
-        }
-        /* A16-12 FIX: same 12288-B short-read as tail (see there):
-         * `inpos < 16384 - 4096` silently capped sort at the first
-         * 12 KiB of input. Read to the full buffer capacity instead. */
-        while (inpos < (int)sizeof(sbuf) - 1 &&
-               (n = sys_read(src_fd, sbuf + inpos, (int)sizeof(sbuf) - 1 - inpos)) > 0) {
-            inpos += (int)n;
-        }
-        if (opened) sys_close(src_fd);
-        sbuf[inpos] = 0;
-        int start = 0;
-        for (int i = 0; i < inpos; i++) {
-            if (sbuf[i] == '\n') {
-                sbuf[i] = 0;
-                if (total < 512) slines[total++] = &sbuf[start];
-                start = i + 1;
-            }
-        }
-        if (start < inpos) {
-            if (total < 512) slines[total++] = &sbuf[start];
-        }
-        /* Bubble sort (stable enough for shell use). */
-        for (int a = 0; a < total - 1; a++) {
-            for (int b = 0; b < total - a - 1; b++) {
-                if (strcmp_(slines[b], slines[b + 1]) > 0) {
-                    char *tmp = slines[b];
-                    slines[b] = slines[b + 1];
-                    slines[b + 1] = tmp;
-                }
-            }
-        }
-        for (int a = 0; a < total; a++) {
-            puts_(slines[a]);
-            putc_('\n');
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: sort moved to src/L1/sort/ (app via execve). */
 
-    /* ---------- uniq (file or stdin) ---------- */
-    if (streq(argv[0], "uniq")) {
-        static char ubuf[4096];
-        static char uprev[1024];
-        static char uline[1024];
-        uprev[0] = 0;
-        int has_prev = 0;
-        int lpos = 0;
-        long n;
-        /* P2-03 FIX: if a filename argument is provided, read from the
-         * file instead of stdin. */
-        int src_fd = 0;
-        int opened = 0;
-        if (argc >= 2) {
-            int fd = sys_open(argv[1], 1);  /* VFS_O_RDONLY (kernel flag 1 = read) */
-            if (fd < 0) {
-                puts_("uniq: cannot open ");
-                puts_(argv[1]);
-                putc_('\n');
-                return 1;
-            }
-            src_fd = fd;
-            opened = 1;
-        }
-        while ((n = sys_read(src_fd, ubuf, 4096)) > 0) {
-            for (int i = 0; i < (int)n; i++) {
-                char c = ubuf[i];
-                if (c == '\n') {
-                    uline[lpos] = 0;
-                    if (!has_prev || !streq(uprev, uline)) {
-                        puts_(uline);
-                        putc_('\n');
-                        strncpy_(uprev, uline, 1024);
-                        has_prev = 1;
-                    }
-                    lpos = 0;
-                } else {
-                    if (lpos < 1023) uline[lpos++] = c;
-                }
-            }
-        }
-        if (opened) sys_close(src_fd);
-        if (lpos > 0) {
-            uline[lpos] = 0;
-            if (!has_prev || !streq(uprev, uline)) {
-                puts_(uline);
-                putc_('\n');
-            }
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: uniq moved to src/L1/uniq/ (app via execve). */
 
-    /* ---------- ps (WP-10-wp08fix1: real kernel process table) ---------- */
-    if (streq(argv[0], "ps")) {
-        static struct ush_ps_entry ptab[32];
-        long n = sys_ps((long)ptab, (long)sizeof(ptab));
-        if (n < 0) {
-            puts_("ps: SYS_PS unavailable (kernel too old)\n");
-            return 1;
-        }
-        puts_("TID  STATE  PRI  CPU(ticks)  NAME\n");
-        for (long i = 0; i < n; i++) {
-            putu_((u64)ptab[i].tid);
-            puts_("    ");
-            switch (ptab[i].state) {
-                case 0: puts_("READY "); break;
-                case 1: puts_("RUN   "); break;
-                case 2: puts_("BLOCK "); break;
-                case 3: puts_("EXIT  "); break;
-                default: puts_("?     "); break;
-            }
-            putu_((u64)ptab[i].priority);
-            puts_("    ");
-            putu_(ptab[i].cpu_time_ticks);
-            puts_("          ");
-            puts_(ptab[i].name);
-            putc_('\n');
-        }
-        return 1;
- }
+    /* 3.0.0-WP04 G5: ps moved to src/L1/ps/ (app via execve). */
+    /* 3.0.0-WP04 G5: top moved to src/L1/top/ (app via execve). */
 
-    /* ---------- top (WP-10-wp08fix1: snapshot + optional refresh) ----------
-     * Rolling-screen TUI is impossible on a scrolling framebuffer console,
-     * so top prints a REAL snapshot (scheduler stats + memory + process
-     * table).  -n N refreshes N times, one second apart (uptime spin). */
-    if (streq(argv[0], "top")) {
-        int rounds = 1;
-        if (argc > 2 && streq(argv[1], "-n")) rounds = atoi_(argv[2]);
-        if (rounds < 1) rounds = 1;
-        if (rounds > 10) rounds = 10;
-        for (int r = 0; r < rounds; r++) {
-            if (r > 0) {
-                /* spin ~1 second between refreshes */
-                u64 start = (u64)sys_uptime();
-                while ((u64)sys_uptime() - start < 1000) { }
-            }
-            u64 now = (u64)sys_uptime();
-            puts_("top - up ");
-            putu_(now);
-            puts_(" ms\n");
-            unsigned long long mi[3];
-            if (sys_meminfo((long)mi) == 0) {
-                puts_("Mem: ");
-                putu_(mi[1]);
-                puts_(" used / ");
-                putu_(mi[0]);
-                puts_(" total / ");
-                putu_(mi[2]);
-                puts_(" free\n");
-            }
-            static struct ush_ps_entry ptab[32];
-            long n = sys_ps((long)ptab, (long)sizeof(ptab));
-            if (n >= 0) {
-                puts_("TID  STATE  PRI  CPU(ticks)  NAME\n");
-                for (long i = 0; i < n; i++) {
-                    putu_((u64)ptab[i].tid);
-                    puts_("    ");
-                    switch (ptab[i].state) {
-                        case 0: puts_("READY "); break;
-                        case 1: puts_("RUN   "); break;
-                        case 2: puts_("BLOCK "); break;
-                        case 3: puts_("EXIT  "); break;
-                        default: puts_("?     "); break;
-                    }
-                    putu_((u64)ptab[i].priority);
-                    puts_("    ");
-                    putu_(ptab[i].cpu_time_ticks);
-                    puts_("          ");
-                    puts_(ptab[i].name);
-                    putc_('\n');
-                }
-            }
-            if (r + 1 < rounds) puts_("\n");
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: kill moved to src/L1/kill/ (app via execve). */
 
-    /* ---------- kill <pid> ---------- */
-    if (streq(argv[0], "kill")) {
-        if (argc < 2) {
-            puts_("usage: kill <pid>\n");
-            return 1;
-        }
-        long pid = (long)atoi_(argv[1]);
-        if (sys_kill(pid) < 0) {
-            puts_("kill: no such process\n");
-        }
-        return 1;
-    }
-
-    /* ---------- date ----------
-     * P2-04 FIX: the kernel has no RTC driver, so we cannot read a real
-     * wall-clock date. Instead of printing a hardcoded fake date string,
-     * we report the kernel uptime (PIT tick counter in ms since boot) via
-     * SYS_UPTIME. This is a real value from the kernel, not fabricated. */
-    if (streq(argv[0], "date")) {
-        puts_("Open Cube OS uptime: ");
-        putu_((u64)sys_uptime());
-        puts_(" ms since boot (no RTC driver)\n");
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: date moved to src/L1/date/ (app via execve). */
 
     /* 3.0.0-WP04: builtin uname removed - the v2.2.0 shell always
      * dispatched it through the SVC table (this branch was dead);
      * the uname app (src/L1/uname/) now serves it via execve. */
-    /* ---------- free ---------- */
-    if (streq(argv[0], "free")) {
-        /* WP-09-FIX BUG-014: query real PMM numbers via SYS_MEMINFO
-         * instead of printing hardcoded fake data (the old line claimed
-         * 128 MiB total on a 512 MiB VM). Falls back to an honest
-         * message if the syscall is unavailable. */
-        unsigned long long mi[3];
-        if (sys_meminfo((long)mi) == 0) {
-            puts_("              total        used        free\n");
-            puts_("Mem:     ");
-            putu_(mi[0]); puts_(" ");
-            putu_(mi[1]); puts_(" ");
-            putu_(mi[2]); puts_("\n");
-            puts_("Swap:            0           0            0\n");
-        } else {
-            puts_("free: SYS_MEMINFO unavailable (kernel too old)\n");
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: free moved to src/L1/free/ (app via execve). */
 
-    /* ---------- df ----------
-     * P2-04 FIX: the user-space shell cannot access the kernel's VFS mount
-     * table directly. Rather than printing fabricated "/ 64M 4M 60M 6%"
-     * data, we report the real info we CAN observe from ring3 — for each
-     * path that user-mode VFS exposes via sys_readdir/stat — and clearly
-     * label that detailed mount info is only available from the kernel
-     * shell's `df` command. */
-    if (streq(argv[0], "df")) {
-        puts_("Filesystem     Mount     Size     Used    Avail  Use%\n");
-        /* Walk root directory, count nodes/sizes (real VFS data). */
-        int idx = 0;
-        u64 total_bytes = 0;
-        int file_count = 0;
-        for (;;) {
-            struct ush_dirent e;
-            memset_(&e, 0, (int)sizeof(e));
-            if (sys_readdir("/", idx, &e) < 0) break;
-            if (e.name[0] == 0) break;
-            file_count++;
-            struct ush_stat st;
-            memset_(&st, 0, (int)sizeof(st));
-            char full[80];
-            strncpy_(full, "/", 80);
-            strcat_(full, e.name);
-            if (sys_stat(full, &st) == 0) total_bytes += st.size;
-            idx++;
-            if (idx > 1024) break;
-        }
-        /* Print a single ramfs row reflecting the actual counted totals. */
-        puts_("ramfs          /         ");
-        putu_(total_bytes);
-        puts_("        ");
-        putu_((u64)file_count);
-        puts_(" files (kernel df for full mount table)\n");
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: df moved to src/L1/df/ (app via execve). */
 
-    /* ---------- stat <path> (WP-10-wp08fix1) ----------
-     * `help` has listed `stat` since WP-08 but no dispatcher entry ever
-     * existed. Print the REAL fs_vfs_stat_t data (type/size/mode/uid/gid/
-     * nlink/name) returned by SYS_STAT. */
-    if (streq(argv[0], "stat")) {
-        if (argc < 2) {
-            puts_("usage: stat <path>\n");
-            return 1;
-        }
-        struct ush_stat st;
-        memset_(&st, 0, (int)sizeof(st));
-        if (sys_stat(argv[1], &st) < 0) {
-            puts_("stat: cannot stat '");
-            puts_(argv[1]);
-            puts_("'\n");
-            return 1;
-        }
-        puts_("  File: ");
-        puts_(st.name[0] ? st.name : argv[1]);
-        putc_('\n');
-        puts_("  Type: ");
-        if (st.type == USH_TYPE_DIR) puts_("directory");
-        else if (st.type == USH_TYPE_DEV) puts_("device");
-        else puts_("regular file");
-        putc_('\n');
-        puts_("  Size: ");
-        putu_(st.size);
-        puts_(" bytes\n");
-        /* mode in octal (e.g. 0600) */
-        puts_("  Mode: ");
-        {
-            char mb[8];
-            int mv = (int)(st.mode & 07777);
-            mb[5] = 0;
-            for (int d = 4; d >= 1; d--) { mb[d] = (char)('0' + (mv & 7)); mv >>= 3; }
-            mb[0] = '0';   /* leading 0 for octal display */
-            puts_(mb);
-        }
-        putc_('\n');
-        puts_("  Uid:  ");
-        putu_((u64)st.uid);
-        puts_("  Gid: ");
-        putu_((u64)st.gid);
-        putc_('\n');
-        puts_("  Links: ");
-        putu_((u64)st.nlink);
-        putc_('\n');
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: stat moved to src/L1/stat/ (app via execve). */
 
-    /* ---------- du [path] (WP-10-wp08fix1: recursive) ---------- */
-    if (streq(argv[0], "du")) {
-        char path[256];
-        if (argc > 1) {
-            strncpy_(path, argv[1], 256);
-        } else {
-            sys_getcwd(path, 256);
-        }
-        /* Recursive walker: sums file sizes under path. */
-        static u64 du_total;
-        static long du_files;
-        du_total = 0;
-        du_files = 0;
-        /* Iterative stack of (path) strings - depth-first walk. */
-        static char stack[16][256];
-        int sp = 0;
-        strncpy_(stack[sp++], path, 256);
-        while (sp > 0) {
-            char cur[256];
-            strncpy_(cur, stack[--sp], 256);
-            int idx = 0;
-            for (;;) {
-                struct ush_dirent e;
-                memset_(&e, 0, (int)sizeof(e));
-                if (sys_readdir(cur, idx, &e) < 0) break;
-                if (e.name[0] == 0) break;
-                char full[512];
-                strncpy_(full, cur, 500);
-                int fl = strlen_(full);
-                if (fl > 0 && full[fl - 1] != '/' && fl < 500) full[fl++] = '/';
-                full[fl] = 0;
-                strcat_(full, e.name);
-                struct ush_stat st;
-                memset_(&st, 0, (int)sizeof(st));
-                if (sys_stat(full, &st) == 0) {
-                    if (st.type == USH_TYPE_DIR) {
-                        if (sp < 16) {
-                            strncpy_(stack[sp++], full, 256);
-                        }
-                    } else {
-                        du_total += st.size;
-                        du_files++;
-                    }
-                }
-                idx++;
-                if (idx > 1024) break;
-            }
-        }
-        putu_(du_total);
-        puts_(" bytes  ");
-        putu_((u64)du_files);
-        puts_(" files  ");
-        puts_(path);
-        putc_('\n');
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: du moved to src/L1/du/ (app via execve). */
 
-    /* ================= WP-10-wp08fix1: new tools ================= */
+    /* ================= link/perm tools: moved out (3.0.0-WP04 G5) ================ */
 
-    /* ---------- ln [-s] <target/old> <linkpath> ---------- */
-    if (streq(argv[0], "ln")) {
-        if (argc >= 4 && streq(argv[1], "-s")) {
-            if (sys_symlink((long)argv[2], (long)argv[3]) < 0) {
-                puts_("ln: cannot create symlink (target must be an absolute path)\n");
-            }
-            return 1;
-        }
-        if (argc < 3) {
-            puts_("usage: ln <old> <new> | ln -s <abs-target> <linkpath>\n");
-            return 1;
-        }
-        long lrc = sys_link((long)argv[1], (long)argv[2]);
-        if (lrc < 0) {
-            puts_("ln: hard link failed (rc=");
-            /* small decimal print of the errno-ish value */
-            long v = -lrc;
-            char nb[12];
-            int ni = 0;
-            if (v == 0) nb[ni++] = '0';
-            while (v > 0 && ni < 11) { nb[ni++] = (char)('0' + (v % 10)); v /= 10; }
-            nb[ni] = 0;
-            /* reverse */
-            for (int a = 0, b = ni - 1; a < b; a++, b--) {
-                char tc = nb[a]; nb[a] = nb[b]; nb[b] = tc;
-            }
-            puts_(nb);
-            puts_(")\n");
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: ln moved to src/L1/ln/ (app via execve). */
 
-    /* ---------- chmod <octal-mode> <path> ---------- */
-    if (streq(argv[0], "chmod")) {
-        if (argc < 3) {
-            puts_("usage: chmod <mode> <path>   (mode in octal, e.g. 644)\n");
-            return 1;
-        }
-        /* parse octal */
-        u32 mode = 0;
-        const char *m = argv[1];
-        while (*m >= '0' && *m <= '7') { mode = mode * 8 + (u32)(*m - '0'); m++; }
-        if (sys_chmod((long)argv[2], (long)mode) < 0) {
-            puts_("chmod: cannot change mode\n");
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: chmod moved to src/L1/chmod/ (app via execve). */
 
-    /* ---------- chown <uid>[:<gid>] <path> ---------- */
-    if (streq(argv[0], "chown")) {
-        if (argc < 3) {
-            puts_("usage: chown <uid>[:<gid>] <path>\n");
-            return 1;
-        }
-        u32 uid = 0, gid = 0;
-        const char *s = argv[1];
-        int got_uid = 0;
-        while (*s >= '0' && *s <= '9') { uid = uid * 10 + (u32)(*s - '0'); s++; got_uid = 1; }
-        if (*s == ':') {
-            s++;
-            while (*s >= '0' && *s <= '9') { gid = gid * 10 + (u32)(*s - '0'); s++; }
-        }
-        if (!got_uid || *s != 0) {
-            puts_("usage: chown <uid>[:<gid>] <path>\n");
-            return 1;
-        }
-        if (sys_chown((long)argv[2], (long)uid, (long)gid) < 0) {
-            puts_("chown: cannot change owner\n");
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: chown moved to src/L1/chown/ (app via execve). */
 
-    /* ---------- sed s/old/new/[g] | -n Np | Nd [file] ---------- */
-    if (streq(argv[0], "sed")) {
-        if (argc < 2) {
-            puts_("usage: sed s/old/new/[g] [file] | sed -n Np [file] | sed Nd [file]\n");
-            return 1;
-        }
-        int src_fd = 0;
-        int opened = 0;
-        int script_idx = 1;
-        if (argc >= 3) {
-            /* last arg may be a file (when it is not part of the script) */
-            if (streq(argv[1], "-n") && argc >= 4) {
-                script_idx = 2;
-            }
-            /* try the last argument as a file name */
-            int fd = sys_open(argv[argc - 1], 1);
-            if (fd >= 0) {
-                src_fd = fd;
-                opened = 1;
-            }
-        }
-        static char sbuf[16384];
-        long total = 0;
-        long n;
-        /* A16-12 FIX: same 12288-B short-read as tail (see there); the
-         * old condition also performed the read BEFORE the capacity
-         * check, so a full final read let `sbuf[total] = 0` touch
-         * sbuf[16384] — 1 byte past the buffer. Capacity is checked
-         * first and each read asks for exactly the remaining space. */
-        while (total < (long)sizeof(sbuf) - 1 &&
-               (n = sys_read(src_fd, sbuf + total, (long)sizeof(sbuf) - 1 - total)) > 0) {
-            total += n;
-        }
-        if (opened) sys_close(src_fd);
-        sbuf[total] = 0;
+    /* 3.0.0-WP04 G5: sed moved to src/L1/sed/ (app via execve). */
 
-        const char *script = argv[script_idx];
-        int lineno = 0;
-        int i = 0;
-        while (i <= total) {
-            /* find one line */
-            int ls = i;
-            while (i < total && sbuf[i] != '\n') i++;
-            int le = i;
-            if (i < total) i++;      /* skip \n */
-            int len = le - ls;
-            if (ls == le && i > total) break;
-            lineno++;
-            (void)len;
+    /* 3.0.0-WP04 G5: awk moved to src/L1/awk/ (app via execve). */
 
-            if (script[0] == '-' && script[1] == 'n') {
-                script++;
-            }
-            if (script[0] == '-' && script[1] == 'n') {
-                /* -n inside argv[1] handled above; skip */
-            }
-            const char *sc = argv[script_idx];
-            if (sc[0] == '-' && sc[1] == 'n') sc += 2;
-            if (sc[0] == 's' && sc[1] == '/') {
-                /* s/old/new/[g] */
-                char pat[128], rep[128];
-                int pi = 0;
-                const char *p = sc + 2;
-                while (*p && *p != '/' && pi < 127) pat[pi++] = *p++;
-                pat[pi] = 0;
-                if (*p == '/') p++;
-                int ri = 0;
-                while (*p && *p != '/' && ri < 127) rep[ri++] = *p++;
-                rep[ri] = 0;
-                int global = 0;
-                if (*p == '/') p++;
-                if (*p == 'g') global = 1;
-                /* emit line with replacements */
-                int j = ls;
-                while (j < le) {
-                    int m = 0;
-                    while (m < pi && j + m < le && sbuf[j + m] == pat[m]) m++;
-                    if (pi > 0 && m == pi) {
-                        sys_write(1, rep, ri);
-                        if (!global) {
-                            /* rest of the line verbatim */
-                            sys_write(1, sbuf + j + pi, le - (j + pi));
-                            break;
-                        }
-                        j += pi;
-                    } else {
-                        putc_(sbuf[j]);
-                        j++;
-                    }
-                }
-                putc_('\n');
-            } else if (sc[0] == 'd') {
-                int num = atoi_(sc + 1);
-                if (num == lineno) {
-                    /* delete: print nothing */
-                } else {
-                    sys_write(1, sbuf + ls, le - ls);
-                    putc_('\n');
-                }
-            } else if (sc[0] == 'p' || (sc[0] >= '0' && sc[0] <= '9')) {
-                /* [N]p - print only line N */
-                int num = 0;
-                int k2 = 0;
-                while (sc[k2] >= '0' && sc[k2] <= '9') { num = num * 10 + (sc[k2] - '0'); k2++; }
-                if (sc[k2] == 'p') {
-                    if (num == lineno) {
-                        sys_write(1, sbuf + ls, le - ls);
-                        putc_('\n');
-                    }
-                }
-            } else {
-                puts_("sed: unknown script\n");
-                return 1;
-            }
-            if (i > total) break;
-            if (ls == le && i >= total) break;
-        }
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: ping moved to src/L1/ping/ (app via execve). */
 
-    /* ---------- awk '{print $N | NF | NR}' [/pat/] [file] ---------- */
-    if (streq(argv[0], "awk")) {
-        if (argc < 2) {
-            puts_("usage: awk '{print $N|NF|NR}' [/pat/] [file]\n");
-            return 1;
-        }
-        const char *prog = argv[1];
-        /* accept both quoted '{print $1}' and bare {print $1} */
-        while (*prog && *prog != '{') prog++;
-        if (*prog != '{') {
-            puts_("awk: missing {print ...}\n");
-            return 1;
-        }
-        prog++;
-        while (*prog == ' ') prog++;
-        if (strncmp_(prog, "print", 5) != 0) {
-            puts_("awk: only {print ...} is supported\n");
-            return 1;
-        }
-        prog += 5;
-        while (*prog == ' ') prog++;
-        char field_spec[8];
-        int fs = 0;
-        while (*prog && *prog != '}' && *prog != ' ' && fs < 7) {
-            field_spec[fs++] = *prog++;
-        }
-        field_spec[fs] = 0;
-        const char *pattern = 0;
-        if (argc >= 3 && argv[2][0] == '/') {
-            /* A16-13 FIX: a trailing '/' used to disable the whole
-             * filter (`/apple/` set pattern=0 and was then treated as
-             * the FILE argument -> "awk: cannot open /apple/"). Strip
-             * the trailing '/' and keep filtering; a bare "/" leaves
-             * an empty pattern, which strstr_ always matches (same as
-             * the old bare-/ behavior). */
-            pattern = argv[2] + 1;
-            int pl = strlen_(pattern);
-            if (pl > 0 && pattern[pl - 1] == '/') {
-                /* BUG-0251 FIX: NUL-terminate at the trailing '/'
-                 * ITSELF. `pattern` is argv[2]+1, so its last char
-                 * (the '/') sits at argv[2][pl] == pattern[pl-1]. The
-                 * old write landed at argv[2][pl-1] == pattern[pl-2] -
-                 * one byte EARLY - cutting the final character of the
-                 * pattern: host-C simulation showed "/apple/"
-                 * filtering on "appl" and "/x/" becoming an EMPTY
-                 * pattern that matched every line. */
-                argv[2][pl] = 0;
-            }
-        }
-        int file_arg = (pattern ? 3 : 2);
-        int src_fd = 0;
-        int opened = 0;
-        if (argc > file_arg) {
-            int fd = sys_open(argv[file_arg], 1);
-            if (fd < 0) {
-                puts_("awk: cannot open ");
-                puts_(argv[file_arg]);
-                putc_('\n');
-                return 1;
-            }
-            src_fd = fd;
-            opened = 1;
-        }
-        static char abuf[8192];
-        static char aline[1024];
-        int lpos = 0;
-        int nr = 0;
-        long n;
-        /* helper macro-ish code: print requested field of aline */
-        while ((n = sys_read(src_fd, abuf, 8192)) > 0) {
-            for (int i2 = 0; i2 < (int)n; i2++) {
-                char c = abuf[i2];
-                if (c == '\n') {
-                    aline[lpos] = 0;
-                    nr++;
-                    /* pattern filter */
-                    int show = 1;
-                    if (pattern && !strstr_(aline, pattern)) show = 0;
-                    if (show) {
-                        if (streq(field_spec, "NR")) {
-                            putu_((u64)nr);
-                            putc_('\n');
-                        } else if (streq(field_spec, "NF")) {
-                            int nf = 0;
-                            int in_w = 0;
-                            for (int q = 0; aline[q]; q++) {
-                                if (aline[q] == ' ' || aline[q] == '\t') in_w = 0;
-                                else if (!in_w) { in_w = 1; nf++; }
-                            }
-                            putu_((u64)nf);
-                            putc_('\n');
-                        } else if (field_spec[0] == '$') {
-                            int want = atoi_(field_spec + 1);
-                            int fno = 0;
-                            int q = 0;
-                            while (aline[q] == ' ' || aline[q] == '\t') q++;
-                            while (aline[q] && fno <= want) {
-                                int ws = q;
-                                while (aline[q] && aline[q] != ' ' && aline[q] != '\t') q++;
-                                fno++;
-                                if (fno == want) {
-                                    sys_write(1, aline + ws, q - ws);
-                                    break;
-                                }
-                                while (aline[q] == ' ' || aline[q] == '\t') q++;
-                            }
-                            putc_('\n');
-                        } else {
-                            puts_(aline);
-                            putc_('\n');
-                        }
-                    }
-                    lpos = 0;
-                } else {
-                    if (lpos < 1023) aline[lpos++] = c;
-                }
-            }
-        }
-        if (opened) sys_close(src_fd);
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: wget moved to src/L1/wget/ (app via execve). */
 
-    /* ---------- ping <host> (kernel ICMP via NETCMD bridge) ---------- */
-    if (streq(argv[0], "ping")) {
-        if (argc < 2) {
-            puts_("usage: ping <host>\n");
-            return 1;
-        }
-        static char nout[4096];
-        long rc = sys_netcmd(NETCMD_PING, (long)argv[1], (long)nout, (long)sizeof(nout));
-        if (rc < 0) {
-            puts_("ping: kernel bridge unavailable\n");
-            return 1;
-        }
-        puts_(nout);
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: netstat/ifconfig moved to src/L1/{netstat,ifconfig}/ (apps via execve). */
 
-    /* ---------- wget <host> [port] [path] ---------- */
-    if (streq(argv[0], "wget")) {
-        if (argc < 2) {
-            puts_("usage: wget <host> [port] [path]\n");
-            return 1;
-        }
-        static char arg[256];
-        arg[0] = 0;
-        int used = 0;
-        for (int i = 1; i < argc && i <= 3; i++) {
-            if (i > 1) arg[used++] = ' ';
-            int al = strlen_(argv[i]);
-            for (int q = 0; q < al && used < 250; q++) arg[used++] = argv[i][q];
-        }
-        arg[used] = 0;
-        static char nout[4096];
-        long rc = sys_netcmd(NETCMD_WGET, (long)arg, (long)nout, (long)sizeof(nout));
-        if (rc < 0) {
-            puts_("wget: kernel bridge unavailable\n");
-            return 1;
-        }
-        puts_(nout);
-        return 1;
-    }
-
-    /* ---------- netstat / ifconfig (kernel stats via bridge) ---------- */
-    if (streq(argv[0], "netstat") || streq(argv[0], "ifconfig")) {
-        int op = streq(argv[0], "netstat") ? NETCMD_NETSTAT : NETCMD_IFCONFIG;
-        static char nout[4096];
-        long rc = sys_netcmd(op, 0, (long)nout, (long)sizeof(nout));
-        if (rc < 0) {
-            puts_(argv[0]);
-            puts_(": kernel bridge unavailable\n");
-            return 1;
-        }
-        puts_(nout);
-        return 1;
-    }
-
-    /* ---------- nano / vi <file> (WP-10-wp08fix1: real nano-style) ---- */
-    if (streq(argv[0], "vi") || streq(argv[0], "nano")) {
-        if (argc < 2) {
-            puts_("usage: ");
-            puts_(argv[0]);
-            puts_(" <file>\n");
-            return 1;
-        }
-        ush_nano_run(argv[1]);
-        return 1;
-    }
+    /* 3.0.0-WP04 G5: nano/vi moved to src/L1/{nano,vi,edit}/ over
+     * _shared/editor_core.h (apps via execve). */
 
     return 0;
 }
@@ -2273,7 +842,17 @@ static int exec_single(char *cmd) {
         }
         sys_exit2(1);
     }
-    /* Parent: wait for child */
+    /* Parent: wait for child.  3.0.0-WP04 G5 live-catch: SYS_WAIT4 is a
+     * 4-argument syscall (pid, status_ptr, options, ...); the old
+     * syscall1 wrapper left RSI holding whatever the preceding code
+     * left there, and the kernel's status_ptr validation rejected the
+     * garbage pointer -> wait4 returned -1 immediately and the shell
+     * printed the prompt before the child ever ran (observed: `date`
+     * output landing after the prompt, `echo` intermittently lost).
+     * v2.x got away with it only because its code layout happened to
+     * leave RSI = 0 at this call site.  Pass status_ptr = 0
+     * explicitly ("do not collect an exit status") - the wrapper
+     * macro below now spells the second argument. */
     sys_wait4(pid);
     return 0;
 }
