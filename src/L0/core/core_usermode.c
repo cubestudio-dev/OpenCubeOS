@@ -33,6 +33,14 @@ u64 core_syscall_arg5(void) { return g_syscall_arg5; }
 user_proc_t g_procs[MAX_USER_PROCS];
 int g_next_pid = 1;
 volatile int g_l1_entry_running = 0;  /* WP-08cd (renamed 3.0.0-WP03): set by the L1 launcher when the default ring-3 entry starts; BUG-047: non-static for fork() access; BUG-0290: volatile - cleared by sys_exit2 in another task, polled by the launcher's scheduler-yield loop (l1_launcher.c) */
+/* 3.0.0-WP04 G7 live-catch: the exit-flag rule "parent_tid == 0 clears
+ * g_l1_entry_running" was written when the launcher was the ONLY
+ * kernel-context spawner.  WP-04 services (l1test's job_create) spawn
+ * kernel-parented programs too - the v2.2.0 l1test caught a spawned
+ * hello clearing the flag mid-session and the launcher declaring the
+ * shell dead ("recovery shell taking over").  The launcher now records
+ * the default app's pid here, and only THAT pid clears the flag. */
+volatile int g_l1_entry_pid = 0;
 
 /* WP-08a: saved interrupt frame pointer (for fork). */
 static u64 *g_current_frame = NULL;
@@ -298,7 +306,8 @@ u64 core_syscall_exit(u64 code, u64 arg2, u64 arg3, u64 arg4) {
              * handles (a)+(c), the explicit wake handles (b), and the
              * L1-entry running flag follows the same sys_exit2 rule. */
             extern volatile int g_l1_entry_running;  /* BUG-0290: matches the volatile definition */
-            if (g_procs[i].parent_tid == 0) {
+            extern volatile int g_l1_entry_pid;     /* 3.0.0-WP04: launcher-recorded default-app pid */
+            if (g_procs[i].pid == g_l1_entry_pid) {
                 g_l1_entry_running = 0;
             }
             user_process_reap_resources(&g_procs[i], (int)code);

@@ -176,5 +176,8 @@
 #define L1SVC_KLOG_LOGCAT 2   /* logcat -l lvl -m mod -k key -t sec -n N [-f] */
 #define L1SVC_KLOG_LOGCTL 3   /* logctl status|level|...      */
 #define L1SVC_WDT_CMD 1     /* watchdog [subcommand ...]     */
+#define L1SVC_L1_APPS   1   /* registry listing (help/run surface) */
+#define L1SVC_L1_L1TEST 2   /* l1test (job + wp8b + CPL0 smoke)  */
+#define L1SVC_L1_LDD    3   /* ldd <program>                     */
 
 #endif /* OC_L1SVC_OPS_MIRROR_H */

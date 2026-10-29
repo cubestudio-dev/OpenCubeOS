@@ -89,7 +89,9 @@ void l1_launcher_boot_default(void) {
      * single-CPU design (the idle task still runs whenever nothing
      * else is ready). */
     extern volatile int g_l1_entry_running;
+    extern volatile int g_l1_entry_pid;   /* 3.0.0-WP04 G7 live-catch */
     extern void core_sched_yield(void);
+    g_l1_entry_pid = pid;                /* only THIS exit clears the flag */
     g_l1_entry_running = 1;
     while (g_l1_entry_running) {
         core_sched_yield();
