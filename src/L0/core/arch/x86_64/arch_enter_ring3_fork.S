@@ -66,7 +66,27 @@ enter_ring3_fork:
     mov rbp, [rdi + 80]     ; rbp
     mov rbx, [rdi + 104]    ; rbx
 
-    ; 5. Restore rdi LAST (frame[8]=offset 64)
+    ; 5. 3.0.0-WP04 G7 live-catch: restore the CALLER-saved registers
+    ;    too.  The parent returns from int 0x80 through iretq with the
+    ;    complete frame - rdx/rcx/r8..r11 intact; this child path
+    ;    restored only callee-saved + rsi/rdi, so the forked child saw
+    ;    garbage in rcx/rdx/r8-r11 while the parent kept its values
+    ;    (asymmetric; every asm-era test used only low registers).
+    ;    The first C caller-saved user (WP-04 `run` - argv cached in
+    ;    rcx across fork) crashed on garbage.  Order matters: these
+    ;    reads must run while rdi is STILL the frame pointer - the
+    ;    first attempt placed the block after the rdi reload and read
+    ;    user-garbage through it.  A fork child now continues with the
+    ;    same register state as its parent at the fork point.
+    mov r11, [rdi + 32]     ; r11 (frame[4])
+    mov r10, [rdi + 40]     ; r10 (frame[5])
+    mov r9,  [rdi + 48]     ; r9  (frame[6])
+    mov r8,  [rdi + 56]     ; r8  (frame[7])
+    mov rdx, [rdi + 88]     ; rdx (frame[11])
+    mov rcx, [rdi + 96]     ; rcx (frame[12])
+
+    ; 6. Restore rdi LAST (frame[8]=offset 64) - after this the frame
+    ;    pointer is gone.
     mov rdi, [rdi + 64]     ; rdi
 
     ; 6. Set RAX = 0 (fork return value)

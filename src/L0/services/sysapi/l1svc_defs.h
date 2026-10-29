@@ -321,4 +321,27 @@
  * as the v2.2.0 shell command did. */
 #define L1SVC_WDT_CMD 1     /* watchdog [subcommand ...]     */
 
+/* ---- l1 operations (services/l1) ---------------------------------------
+ * 3.0.0-WP04: the L1-domain commands migrate to ring 3 under their
+ * long-reserved category 13 ("l1").  The folder services/l1/ is
+ * rebuilt as the category's face: it consumes the loader/IPC
+ * mechanisms (services/loader, services/ipc) and the generated
+ * OC_USERPROGS registry - the v2.2.0 hardcoded program tables (run's
+ * 30-name if-else, ldd's 20-name chain) are gone; every registered
+ * app is reachable by name.
+ *   APPS   - the registry listing (name lines, A-Z, with the count):
+ *            the help/run surface; the generator emits it sorted, the
+ *            help_*_test apps assert that invariant.
+ *   L1TEST - the v2.2.0 l1test body: job_create/job_list/job_control
+ *            (steps 1-6), ext_wp8b self-test (step 7), the CPL0
+ *            int-0x80 wrapper smoke (step 8).  The v2.2.0 steps 9/10
+ *            (g7test/g8test sched+clock regressions) do not exist in
+ *            3.0.0 (their suites were removed with the L0 shell) and
+ *            are dropped with this declaration.
+ *   LDD    - the v2.2.0 ldd body over the registry: PT_INTERP +
+ *            DT_NEEDED introspection of a registered program. */
+#define L1SVC_L1_APPS   1   /* registry listing (help/run surface) */
+#define L1SVC_L1_L1TEST 2   /* l1test (job + wp8b + CPL0 smoke)  */
+#define L1SVC_L1_LDD    3   /* ldd <program>                     */
+
 #endif /* OC_L1SVC_DEFS_H */

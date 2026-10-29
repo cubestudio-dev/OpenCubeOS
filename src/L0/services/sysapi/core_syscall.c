@@ -317,7 +317,10 @@ static u64 sys_exit2(u64 code, u64 a2, u64 a3, u64 a4) {
          * type-consistent with the definition (plain `extern int`
          * against a `volatile int` object is undefined behaviour). */
         extern volatile int g_l1_entry_running;
-        if (p->parent_tid == 0) {
+        extern volatile int g_l1_entry_pid;  /* 3.0.0-WP04: only the
+         * launcher-recorded default app clears the flag (a kernel-
+         * spawned job program must not "exit the shell") */
+        if (p->pid == g_l1_entry_pid) {
             g_l1_entry_running = 0;
         }
         /* P3-11 FIX: Use the unified reaper so SIGKILL/exception/exit

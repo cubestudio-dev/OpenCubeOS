@@ -137,7 +137,7 @@ KERNEL_DIRS := src/L0/core src/L0/core/arch/x86_64 src/L0/core/mem \
                src/L0/services/encoding src/L0/services/camera \
                src/L0/services/usb src/L0/services/ipc \
                src/L0/services/loader src/L0/services/ocembed \
-               src/L0/services/watchdog \
+               src/L0/services/watchdog src/L0/services/l1 \
                src/L0/drivers/block src/L0/drivers/nic src/L0/drivers/snd \
                src/L0/drivers/usb src/L0/drivers/input \
                src/L0/drivers/pci \

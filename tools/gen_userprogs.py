@@ -273,6 +273,9 @@ def main():
     print(out, end="")
 
     progs = discover()
+    # Global A-Z by name: folder apps and legacy flat programs share ONE
+    # sorted registry (the help_*_test apps assert this invariant).
+    progs.sort(key=lambda t: t[0])
     names = [p[0] for p in progs]
     if len(set(names)) != len(names):
         dup = [n for n in names if names.count(n) > 1]
