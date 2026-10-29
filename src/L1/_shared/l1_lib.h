@@ -111,8 +111,8 @@ static inline long sys_l1svc(long cat, long op, long arg,
 static inline int l1_args(int *argc, char ***argv) {
     int a;
     char **v;
-    __asm__ volatile("mov (%rsp), %0" : "=r"(a));
-    __asm__ volatile("lea 8(%rsp), %0" : "=r"(v));
+    __asm__ volatile("mov (%%rsp), %0" : "=r"(a));
+    __asm__ volatile("lea 8(%%rsp), %0" : "=r"(v));
     if (argc) *argc = a;
     if (argv) *argv = v;
     return a;
