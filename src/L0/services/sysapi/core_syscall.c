@@ -1521,85 +1521,27 @@ static void sys_execve_write_user(mem_vmm_as_t as, u64 va, const void *data, u64
  * by sys_execve and the L1 job API (job_create, l1/l1_wp8cd.c). One
  * table means the two paths can never disagree about what a program
  * name resolves to. Returns the ELF pointer and stores its size in
- * *size_out (when size_out != 0), or NULL for an unknown name. */
+ * *size_out (when size_out != 0), or NULL for an unknown name.
+ *
+ * 3.0.0-WP04: the hardcoded name chain is gone; the walk covers the
+ * generated OC_USERPROGS[] registry (tools/gen_userprogs.py discovers
+ * every src/L1/<name>/ app folder and every legacy flat program - no
+ * name is registered by hand).  The "usershell" alias and the WP-08cd
+ * tool-table fallback stay (l1_wp8cd_tool_find). */
 const u8 *core_userprog_lookup(const char *name, u64 *size_out) {
-    extern const u8 userprog_hello[];
-    extern const u8 userprog_fork_test[];
-    extern const u8 userprog_exec_test[];
-    extern const u8 userprog_pipe_test[];
-    extern const u8 userprog_mmap_test[];
-    extern const u8 userprog_signal_test[];
-    extern const u8 userprog_select_test[];
-    extern const u8 userprog_dyn_hello[];
-    extern const u8 userprog_so_test[];
-    extern const u8 userprog_dlsym_test[];
-    extern const u8 userprog_pie_test[];
-    extern const u8 userprog_reloc_test[];
-    extern const u8 userprog_main_dyn[];
-    extern const u8 userprog_mmap_multi[];
-    extern const u8 userprog_ush[];
-    extern const u8 userprog_fdref_test[];
-    extern const u8 userprog_select_zero_test[];
-    extern const u8 userprog_loop[];
-    /* WP-10-AUDIT_P2-fix3 G6 regression programs (BUG-0274..0280 evidence
-     * suites) - merged from fix3-laneA so sys_execve and the L1 job API
-     * resolve the same names the `run` command does (BUG-0249 one-table
-     * invariant). */
-    extern const u8 userprog_g6_test[];
-    extern const u8 userprog_g6_exec_a[];
-    extern const u8 userprog_g6_exec_b[];
-    extern const u8 userprog_g6_oom[];
-    /* Sizes are defined next to the arrays in userprogs_data.h (only
-     * included by core_usermode.c), so declare them here. */
-    extern const u64 userprog_hello_size;
-    extern const u64 userprog_fork_test_size;
-    extern const u64 userprog_exec_test_size;
-    extern const u64 userprog_pipe_test_size;
-    extern const u64 userprog_mmap_test_size;
-    extern const u64 userprog_signal_test_size;
-    extern const u64 userprog_select_test_size;
-    extern const u64 userprog_dyn_hello_size;
-    extern const u64 userprog_so_test_size;
-    extern const u64 userprog_dlsym_test_size;
-    extern const u64 userprog_pie_test_size;
-    extern const u64 userprog_reloc_test_size;
-    extern const u64 userprog_main_dyn_size;
-    extern const u64 userprog_mmap_multi_size;
-    extern const u64 userprog_ush_size;
-    extern const u64 userprog_fdref_test_size;
-    extern const u64 userprog_select_zero_test_size;
-    extern const u64 userprog_loop_size;
-    extern const u64 userprog_g6_test_size;
-    extern const u64 userprog_g6_exec_a_size;
-    extern const u64 userprog_g6_exec_b_size;
-    extern const u64 userprog_g6_oom_size;
-    const u8 *elf = NULL;
-    u64 size = 0;
-    if (strcmp(name, "hello") == 0) { elf = userprog_hello; size = userprog_hello_size; }
-    else if (strcmp(name, "fork_test") == 0) { elf = userprog_fork_test; size = userprog_fork_test_size; }
-    else if (strcmp(name, "exec_test") == 0) { elf = userprog_exec_test; size = userprog_exec_test_size; }
-    else if (strcmp(name, "pipe_test") == 0) { elf = userprog_pipe_test; size = userprog_pipe_test_size; }
-    else if (strcmp(name, "mmap_test") == 0) { elf = userprog_mmap_test; size = userprog_mmap_test_size; }
-    else if (strcmp(name, "signal_test") == 0) { elf = userprog_signal_test; size = userprog_signal_test_size; }
-    else if (strcmp(name, "select_test") == 0) { elf = userprog_select_test; size = userprog_select_test_size; }
-    else if (strcmp(name, "dyn_hello") == 0) { elf = userprog_dyn_hello; size = userprog_dyn_hello_size; }
-    else if (strcmp(name, "so_test") == 0) { elf = userprog_so_test; size = userprog_so_test_size; }
-    else if (strcmp(name, "dlsym_test") == 0) { elf = userprog_dlsym_test; size = userprog_dlsym_test_size; }
-    else if (strcmp(name, "pie_test") == 0) { elf = userprog_pie_test; size = userprog_pie_test_size; }
-    else if (strcmp(name, "reloc_test") == 0) { elf = userprog_reloc_test; size = userprog_reloc_test_size; }
-    else if (strcmp(name, "main_dyn") == 0) { elf = userprog_main_dyn; size = userprog_main_dyn_size; }
-    else if (strcmp(name, "mmap_multi") == 0) { elf = userprog_mmap_multi; size = userprog_mmap_multi_size; }
-    else if (strcmp(name, "fdref_test") == 0) { elf = userprog_fdref_test; size = userprog_fdref_test_size; }
-    else if (strcmp(name, "select_zero_test") == 0) { elf = userprog_select_zero_test; size = userprog_select_zero_test_size; }
-    else if (strcmp(name, "loop") == 0) { elf = userprog_loop; size = userprog_loop_size; }
-    else if (strcmp(name, "g6_test") == 0) { elf = userprog_g6_test; size = userprog_g6_test_size; }
-    else if (strcmp(name, "g6_exec_a") == 0) { elf = userprog_g6_exec_a; size = userprog_g6_exec_a_size; }
-    else if (strcmp(name, "g6_exec_b") == 0) { elf = userprog_g6_exec_b; size = userprog_g6_exec_b_size; }
-    else if (strcmp(name, "g6_oom") == 0) { elf = userprog_g6_oom; size = userprog_g6_oom_size; }
-    else if (strcmp(name, "ush") == 0 || strcmp(name, "usershell") == 0) {
-        elf = userprog_ush; size = userprog_ush_size;
+    if (!name)
+        return NULL;
+    /* compat alias used by early boot paths */
+    if (strcmp(name, "usershell") == 0)
+        name = "ush";
+    for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
+        if (strcmp(name, OC_USERPROGS[i].name) == 0) {
+            if (size_out)
+                *size_out = *OC_USERPROGS[i].size_ptr;
+            return OC_USERPROGS[i].elf;
+        }
     }
-    if (!elf) {
+    {
         /* BUG-0092 FIX (A16-5): fall back to the WP-08cd L1 tool table -
          * a tool registered via tool_register() is genuinely
          * executable by name. */
@@ -1607,12 +1549,12 @@ const u8 *core_userprog_lookup(const char *name, u64 *size_out) {
         u64 tool_size = 0;
         const u8 *tool_elf = NULL;
         if (l1_wp8cd_tool_find(name, &tool_elf, &tool_size) && tool_elf) {
-            elf = tool_elf;
-            size = tool_size;
+            if (size_out)
+                *size_out = tool_size;
+            return tool_elf;
         }
     }
-    if (elf && size_out) *size_out = size;
-    return elf;
+    return NULL;
 }
 
 static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {

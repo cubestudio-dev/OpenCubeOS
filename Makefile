@@ -174,7 +174,11 @@ BUILD_SOLIB_PY  := tools/build_solib.py
 # The embed chain covers every embedded image: asm progs, C progs, the six
 # dynamic-link programs (pie / pie-foo recipes), libfoo.c (solib leg) and
 # libs/ld_so.c (ld.so itself, ld_so.ld @ 0x10000000).
-USERPROG_SRCS   := $(wildcard $(OC_ROOT)/src/L1/*.asm) $(wildcard $(OC_ROOT)/src/L1/*.c) $(OC_ROOT)/src/L1/ld_so.c
+# 3.0.0-WP04: folder apps join the staleness gate - a newer source
+# under any app folder (or the shared header library) must refresh the
+# generated header exactly like a legacy flat program does.
+USERPROG_SRCS   := $(wildcard $(OC_ROOT)/src/L1/*.asm) $(wildcard $(OC_ROOT)/src/L1/*.c) $(OC_ROOT)/src/L1/ld_so.c \
+                   $(wildcard $(OC_ROOT)/src/L1/*/*.c) $(wildcard $(OC_ROOT)/src/L1/*/*.asm) $(wildcard $(OC_ROOT)/src/L1/_shared/*.h)
 USERPROGS_HDR   := src/L0/core/userprogs_data.h
 
 CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
@@ -612,24 +616,14 @@ test:
 	python3 tools/run_host_tests.py
 
 # ---- Embedded-user-program targets (embed chain) ----
-# Regenerate the embedded program header from sources. asm programs go
-# through tools/embed_userprog.py <name> <path>; C programs through
-# tools/build_c_userprog.py <name> <path>. nasm/gcc must be on PATH.
+# 3.0.0-WP04: full regeneration via tools/gen_userprogs.py - it
+# discovers every src/L1/<name>/ app folder (one command = one app =
+# one folder; name = folder) plus every legacy flat program with its
+# v2.x build mode, builds them all, and emits userprogs_data.h with
+# the OC_USERPROGS[] name registry (the execve surface - no name is
+# hand-registered in the kernel). nasm/gcc must be on PATH.
 userprogs:
-	@set -e; for src in $(USERPROG_SRCS); do \
-	   base=$$(basename "$$src"); name=$${base%.*}; \
-	   case "$$src" in \
-	     *.asm) echo "userprogs: embed $$name (asm)"; python3 $(OC_ROOT)/$(EMBED_PY) "$$name" "$$src";; \
-	     */libfoo.c) echo "userprogs: embed $$name (solib)"; python3 $(OC_ROOT)/$(BUILD_SOLIB_PY) "$$src";; \
-	     */ld_so.c) echo "userprogs: embed $$name (c, ld_so.ld)"; \
-                python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" $(OC_ROOT)/src/L1/ld_so.ld;; \
-	     */dyn_hello.c|*/pie_test.c) echo "userprogs: embed $$name (c, pie)"; \
-                python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" pie;; \
-	     */so_test.c|*/dlsym_test.c|*/reloc_test.c|*/main_dyn.c) echo "userprogs: embed $$name (c, pie-foo)"; \
-                python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src" pie-foo;; \
-	     *.c)   echo "userprogs: embed $$name (c)";   python3 $(OC_ROOT)/$(BUILD_C_PY) "$$name" "$$src";; \
-	   esac || exit 1; \
-	 done; echo "userprogs: regenerated $(USERPROGS_HDR)"
+	python3 $(OC_ROOT)/tools/gen_userprogs.py
 
 # Staleness gate: fail when any userprog source is more than 2 seconds
 # newer than the embedded header (2 s slack absorbs fresh-clone mtime
