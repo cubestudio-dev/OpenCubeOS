@@ -160,86 +160,11 @@ void crash_install_panic_handlers(void); /* 3.0.0-WP03 G5: services/crash */
 #include "ocembed.h"      /* 3.0.0-WP03 G4: OCIRE embed (boot signal + agent) */
 
 /* User program data (defined in usermode.c). */
-extern const u8 userprog_hello[];
-extern const u64 userprog_hello_size;
-extern const u8 userprog_badapp[];
-extern const u64 userprog_badapp_size;
-extern const u8 userprog_loop[];
-extern const u64 userprog_loop_size;
-extern const u8 userprog_fork_test[];
-extern const u64 userprog_fork_test_size;
-extern const u8 userprog_exec_test[];
-extern const u64 userprog_exec_test_size;
-extern const u8 userprog_pipe_test[];
-extern const u64 userprog_pipe_test_size;
-extern const u8 userprog_mmap_test[];
-extern const u64 userprog_mmap_test_size;
-extern const u8 userprog_signal_test[];
-extern const u64 userprog_signal_test_size;
-extern const u8 userprog_select_test[];
-extern const u64 userprog_select_test_size;
-/* WP-08b Batch 1: ET_DYN test program (PIE ELF with PT_INTERP=/lib/ld.so). */
-extern const u8 userprog_dyn_test[];
-extern const u64 userprog_dyn_test_size;
-/* WP-08b Batch 5: additional dynamic test programs. */
-extern const u8 userprog_dyn_hello[];
-extern const u64 userprog_dyn_hello_size;
-extern const u8 userprog_so_test[];
-extern const u64 userprog_so_test_size;
-extern const u8 userprog_dlsym_test[];
-extern const u64 userprog_dlsym_test_size;
-extern const u8 userprog_pie_test[];
-extern const u64 userprog_pie_test_size;
-extern const u8 userprog_reloc_test[];
-extern const u64 userprog_reloc_test_size;
-extern const u8 userprog_main_dyn[];
-extern const u64 userprog_main_dyn_size;
-extern const u8 userprog_mmap_multi[];
-extern const u64 userprog_mmap_multi_size;
-extern const u8 userprog_g7mmap[];      /* WP-10-AUDIT_P2-fix3 G7: BUG-0281 regression */
-extern const u64 userprog_g7mmap_size;
-extern const u8 userprog_ush[];
-extern const u8 userprog_test_min[];
-extern const u64 userprog_test_min_size;
-extern const u8 userprog_test_bss[];
-extern const u64 userprog_test_bss_size;
-extern const u64 userprog_ush_size;
-extern const u8 userprog_mprotect_test[];
-extern const u64 userprog_mprotect_test_size;
-
-extern const u8 userprog_p3_test[];
-extern const u64 userprog_p3_test_size;
-
-/* BUG-0042 repro: per-task FPU/SSE state check. */
-extern const u8 userprog_sse_test[];
-extern const u64 userprog_sse_test_size;
-extern const u8 userprog_pf_test[];
-extern const u64 userprog_pf_test_size;
-/* WP-11-crash_recovery: SIGSEGV delivery + ring-3 stack overflow. */
-extern const u8 userprog_sigsegv_test[];
-extern const u64 userprog_sigsegv_test_size;
-extern const u8 userprog_stackovf[];
-extern const u64 userprog_stackovf_size;
-
-/* p1fix2 repro programs. */
-extern const u8 userprog_fdref_test[];
-extern const u64 userprog_fdref_test_size;
-extern const u8 userprog_select_zero_test[];
-extern const u64 userprog_select_zero_test_size;
-extern const u8 userprog_int3_user[];
-extern const u8 userprog_priv_test[];
-extern const u64 userprog_priv_test_size;
-extern const u64 userprog_int3_user_size;
-extern const u8 userprog_g6_test[];
-extern const u64 userprog_g6_test_size;
-extern const u8 userprog_g6_exec_a[];
-extern const u64 userprog_g6_exec_a_size;
-extern const u8 userprog_g6_exec_b[];
-extern const u64 userprog_g6_exec_b_size;
-extern const u8 userprog_g6_oom[];
-extern const u64 userprog_g6_oom_size;
-
-/* Direct serial output via I/O port 0x3F8 (COM1). */
+/* 3.0.0-WP04 G11c: a 70-line block of dead `extern const u8
+ * userprog_*[]` declarations (leftovers from the v2.x boot-time
+ * self-test spawns that WP-03 removed - nothing referenced
+ * them) is deleted together with the gzip registry switch:
+ * those symbols no longer exist.  */
 static inline void outb(u16 port, u8 v) {
     __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(port));
 }

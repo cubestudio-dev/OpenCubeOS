@@ -52,6 +52,16 @@ typedef struct {
 static acpi_table_entry_t g_tables[ACPI_MAX_TABLES];
 static int                g_table_count;
 static const acpi_rsdp_t *g_rsdp;
+/* 3.0.0-WP04 G11c bugfix: the multiboot2 ACPI tags carry an RSDP COPY
+ * that GRUB places in loader memory (the scan hint is tag+8).  The
+ * kernel used to keep g_rsdp pointing straight at that copy - and once
+ * the heap grew large enough to reuse those loader pages (the G11b/G11c
+ * inflate caches pushed it there), the pointer went stale and the
+ * `acpi` status op faulted (#PF reading the old tag page).  The RSDP
+ * struct is copied into kernel storage at init instead; rsdt_phys/
+ * xsdt_phys still point at the real BIOS tables (ROM area, never
+ * heap-reusable). */
+static acpi_rsdp_t g_rsdp_copy;
 static u64                g_rsdp_phys;
 static const acpi_fadt_t *g_fadt;
 static u64                g_dsdt_phys;
@@ -153,7 +163,8 @@ int driver_acpi_init(u64 rsdp_phys_hint) {
         return -1;
     }
     g_rsdp_phys = rp;
-    g_rsdp      = (const acpi_rsdp_t*)(uintptr_t)rp;
+    memcpy(&g_rsdp_copy, (const void*)(uintptr_t)rp, sizeof(g_rsdp_copy));
+    g_rsdp      = &g_rsdp_copy;
 
     /* Walk the root table: XSDT (ACPI 2.0+) or RSDT. */
     u64 root_phys = 0;

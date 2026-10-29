@@ -1539,9 +1539,13 @@ const u8 *core_userprog_lookup(const char *name, u64 *size_out) {
         name = "ush";
     for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
         if (strcmp(name, OC_USERPROGS[i].name) == 0) {
+            /* 3.0.0-WP04 G11c: entries are gzip'd (ush is raw); the
+             * inflate is cached per app in core_usermode.c. */
+            const u8 *elf = core_userprog_inflate(i);
+            if (!elf) return NULL;
             if (size_out)
-                *size_out = *OC_USERPROGS[i].size_ptr;
-            return OC_USERPROGS[i].elf;
+                *size_out = OC_USERPROGS[i].raw_size;
+            return elf;
         }
     }
     {

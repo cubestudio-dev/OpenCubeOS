@@ -28,6 +28,12 @@ static void syllable_str(int idx, char* out, int cap) {
     out[n] = 0;
 }
 
+/* Exported spelling helper for the G11c TUI compose pad (the v2.2.0
+ * file-static syllable_str, renamed to make the export explicit). */
+void ime_syllable_str(int idx, char* out, int cap) {
+    syllable_str(idx, out, cap);
+}
+
 /* Longest syllable matching the prefix buf[0..len): returns syllable
  * index or -1. Exact match wins; otherwise the first syllable that
  * starts with the typed prefix. */

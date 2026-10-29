@@ -16,6 +16,57 @@
 #include "userprogs_data.h"
 #include "solib_data.h"
 #include "core_sched.h"
+#include "lib_gzip.h"   /* 3.0.0-WP04 G11c: per-app program inflate */
+
+/* ---- 3.0.0-WP04 G11c: gzip'd program cache -------------------------
+ * Each registry entry (except the raw ush default) ships as its own
+ * gzip stream; the first exec inflates it into a heap buffer that
+ * stays for the kernel's lifetime.  Boot order guarantees the cache is
+ * only ever touched post-heap: the l1 launcher spawns ush from the
+ * RAW entry (no inflate), and every other program arrives through
+ * core_userprog_lookup() from ring 3 (execve/job_create) - long after
+ * the heap is up. */
+static u8 *g_prog_cache[OC_USERPROGS_COUNT_LITERAL];
+_Static_assert(OC_USERPROGS_COUNT_LITERAL > 0, "registry empty");
+
+typedef struct {
+    u8  *p;
+    u64  cap;
+    u64  len;
+} prog_gz_sink_t;
+
+static int prog_gz_sink(void *ctx, const u8 *data, int len) {
+    prog_gz_sink_t *s = ctx;
+    if (!s->p || len < 0 || s->len + (u64)len > s->cap) return -1;
+    for (int i = 0; i < len; i++) s->p[s->len++] = data[i];
+    return 0;
+}
+
+const u8 *core_userprog_inflate(u64 idx) {
+    if (idx >= OC_USERPROGS_COUNT) return NULL;
+    if (g_prog_cache[idx]) return g_prog_cache[idx];
+    const struct oc_userprog_decl *d = &OC_USERPROGS[idx];
+    if (d->raw) return d->raw;         /* raw entry (ush) */
+    if (!d->gz || d->raw_size == 0) return NULL;
+    u8 *buf = kmalloc(d->raw_size);
+    lib_gzip_t *gz = kmalloc(sizeof(lib_gzip_t));
+    if (!buf || !gz) { kfree(buf); kfree(gz); return NULL; }
+    memset(gz, 0, sizeof(*gz));
+    prog_gz_sink_t sink;
+    sink.p   = buf;
+    sink.cap = d->raw_size;
+    sink.len = 0;
+    lib_gzip_init(gz, prog_gz_sink, &sink);
+    int rc = lib_gzip_feed(gz, d->gz, (int)d->gz_len);
+    if (rc == 0) rc = lib_gzip_finish(gz);
+    kfree(gz);
+    if (rc != 0 || sink.len != d->raw_size) {
+        kfree(buf);
+        return NULL;
+    }
+    g_prog_cache[idx] = buf;
+    return buf;
+}
 
 /* Syscall table. */
 #define MAX_SYSCALLS 256
@@ -135,11 +186,12 @@ static u64 user_aslr_page_slice(u64 region_span) {
 
 struct interp_entry {
     const char *path;
-    const u8 *elf_data;
-    u64 elf_size;
+    const char *prog_name;   /* 3.0.0-WP04 G11c: resolved through the
+                              * gzip registry + inflate cache on use
+                              * (the raw userprog_ld_so array is gone) */
 };
 static const struct interp_entry g_interp_table[] = {
-    { "/lib/ld.so", userprog_ld_so, userprog_ld_so_size },
+    { "/lib/ld.so", "ld_so" },
 };
 #define NUM_INTERP_ENTRIES (sizeof(g_interp_table) / sizeof(g_interp_table[0]))
 
@@ -160,8 +212,20 @@ static const u8 *interp_lookup(const char *path, u64 path_len, u64 *out_size) {
         /* Match: the table entry's path is fully consumed (at NUL), AND
          * the input is also at end (either at NUL or at path_len). */
         if (*q == '\0' && (plen == path_len || *p == '\0')) {
-            *out_size = g_interp_table[i].elf_size;
-            return g_interp_table[i].elf_data;
+            /* 3.0.0-WP04 G11c: resolve through the gzip registry +
+             * inflate cache (see g_interp_table).  The walk stays in
+             * core - core_userprog_lookup() lives in services/sysapi
+             * and core must not depend on services. */
+            for (u64 k = 0; k < OC_USERPROGS_COUNT; k++) {
+                if (strcmp(g_interp_table[i].prog_name,
+                           OC_USERPROGS[k].name) == 0) {
+                    const u8 *elf = core_userprog_inflate(k);
+                    if (!elf) return NULL;
+                    *out_size = OC_USERPROGS[k].raw_size;
+                    return elf;
+                }
+            }
+            return NULL;
         }
     }
     return NULL;
