@@ -290,4 +290,35 @@
 #define L1SVC_OCIRE_KLOG_SNAPSHOT 5   /* guard-only: kernel log ring
                                       * text into out (cap)         */
 
+/* ---- health operations (services/health) ------------------------------
+ * 3.0.0-WP04: the v2.2.0 L0 command `health` (with its `watch` and
+ * `export` subcommands) migrates to L1.  The category number 9 has
+ * been reserved since v2.0.0; these are its first ops.  SNAPSHOT
+ * renders the fresh-sample health report; EXPORT writes the JSON to
+ * arg (default /var/log/health.json); WATCH runs the interactive
+ * 1 s refresh loop (console output, ENTER exits - the v2.2.0 body). */
+#define L1SVC_HEALTH_SNAPSHOT 1   /* health                  */
+#define L1SVC_HEALTH_EXPORT   2   /* health export [path]    */
+#define L1SVC_HEALTH_WATCH    3   /* health watch (loop, ENTER exits) */
+
+/* ---- klog operations (services/klog) -----------------------------------
+ * 3.0.0-WP04: dmesg / logcat / logctl migrate to L1 (category 10,
+ * reserved since v2.0.0).  DMESG takes "[N]" in arg (default 30);
+ * LOGCAT takes the full v2.2.0 option string (-l -m -k -t -n -f);
+ * LOGCTL takes the subcommand line (status|level|enable|disable|
+ * clear|flush|rotate|export|filter).  Interactive follow (-f) runs
+ * the v2.2.0 loop console-side inside the op. */
+#define L1SVC_KLOG_DMESG  1   /* dmesg [N]                    */
+#define L1SVC_KLOG_LOGCAT 2   /* logcat -l lvl -m mod -k key -t sec -n N [-f] */
+#define L1SVC_KLOG_LOGCTL 3   /* logctl status|level|...      */
+
+/* ---- watchdog operations (services/watchdog) ---------------------------
+ * 3.0.0-WP04: the v2.2.0 `watchdog` command migrates to L1.  Category
+ * 11 has been reserved since v2.0.0; the op carries the whole
+ * subcommand line in arg (status|slots|hw ...|start|stop|feed|
+ * timeout|register|test) - the subcommand words are arguments of the
+ * ONE registered command name, dispatched by the service body exactly
+ * as the v2.2.0 shell command did. */
+#define L1SVC_WDT_CMD 1     /* watchdog [subcommand ...]     */
+
 #endif /* OC_L1SVC_DEFS_H */

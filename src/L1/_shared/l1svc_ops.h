@@ -169,5 +169,12 @@
                                       * volume (arg = payload)      */
 #define L1SVC_OCIRE_KLOG_SNAPSHOT 5   /* guard-only: kernel log ring
                                       * text into out (cap)         */
+#define L1SVC_HEALTH_SNAPSHOT 1   /* health                  */
+#define L1SVC_HEALTH_EXPORT   2   /* health export [path]    */
+#define L1SVC_HEALTH_WATCH    3   /* health watch (loop, ENTER exits) */
+#define L1SVC_KLOG_DMESG  1   /* dmesg [N]                    */
+#define L1SVC_KLOG_LOGCAT 2   /* logcat -l lvl -m mod -k key -t sec -n N [-f] */
+#define L1SVC_KLOG_LOGCTL 3   /* logctl status|level|...      */
+#define L1SVC_WDT_CMD 1     /* watchdog [subcommand ...]     */
 
 #endif /* OC_L1SVC_OPS_MIRROR_H */
