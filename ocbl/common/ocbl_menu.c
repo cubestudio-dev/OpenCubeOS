@@ -219,7 +219,7 @@ void ocbl_menu_announce(u32 index)
     ocbl_serial_puts("[menu] selected: ");
     if (index >= t->count) {
         ocbl_serial_puts(shutdown_label);
-        ocbl_serial_puts("\r\n[menu] shutdown request (S5 wiring lands in B4)\r\n");
+        ocbl_serial_puts("\r\n[menu] shutdown request\r\n");
         return;
     }
     ocbl_serial_puts(t->entries[index].label);

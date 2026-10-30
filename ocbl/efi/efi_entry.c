@@ -26,6 +26,9 @@
 #include "../common/ocbl_serial.h"
 #include "../common/ocbl_scan.h"
 #include "../common/ocbl_disk.h"
+#include "../common/ocbl_menu.h"
+#include "../common/ocbl_boot.h"
+#include "../common/ocbl_wdt.h"
 
 /* the PE converter leaves the .bss range as raw-vs-virtual slack;
  * EDK2's loader does NOT guarantee zero-fill there (live-caught:
@@ -188,6 +191,31 @@ EFI_CALL efi_status efi_main(efi_handle image, efi_system_table* st)
     ocbl_serial_puts("[efi] scan complete: ");
     ocbl_serial_dec(entries);
     ocbl_serial_puts(" entries\r\n");
+
+    /* B5-4: the menu (same state machine as the BIOS flavor - the
+     * ConOut render + ReadKeyStroke/16550 keys + timer-event clock
+     * are the backend in ocbl_con_efi.c) */
+    ocbl_wdt_probe();
+    if (ocbl_wdt_present())
+        ocbl_wdt_arm(60);
+    u32 pick = ocbl_menu_run();
+    ocbl_menu_announce(pick);
+
+    /* B5-5 wires the payload handoff (GOP fb, GetMemoryMap, ELF load,
+     * ExitBootServices, the 64->32 downgrade); B5-6 the LoadImage
+     * chainload.  Until then every pick parks honestly - except the
+     * Shutdown row, which is ALREADY the real ACPI S5 (the FADT/_S5
+     * walk in common + the RSDP from the config table). */
+    ocbl_scan_t* t = ocbl_scan_result();
+    if (pick >= t->count) {
+        ocbl_serial_puts("[boot] ACPI S5 shutdown\r\n");
+        ocbl_wdt_disarm();
+        ocbl_acpi_enter_s5();
+        ocbl_serial_puts("[boot] S5 did not power off; halting\r\n");
+        for (;;)
+            __asm__ volatile("hlt");
+    }
+    ocbl_serial_puts("[boot] payload handoff lands in B5-5; halting\r\n");
 
     /* mirror the banner on the firmware console too (OVMF routes
      * ConOut to the serial line as well - both surfaces stay in the
