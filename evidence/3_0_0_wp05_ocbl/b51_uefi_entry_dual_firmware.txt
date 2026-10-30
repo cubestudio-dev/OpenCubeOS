@@ -1,0 +1,47 @@
+Open Cube OS 3.0.0-WP05 OCBL - B5-1: UEFI flavor entry + dual-firmware ISO evidence
+==============================================================
+Test: make ocbl-efi; make ocbl-iso (dual-firmware); QEMU OVMF boot of the SAME ISO
+      qemu-system-x86_64 -m 256M -cdrom ocbl_test.iso -boot d -no-reboot -bios OVMF.fd -serial file:...
+Date: 2026-10-30 17:3x UTC  qemu 10.0.13 OVMF 2025.02 (toolchain extract)
+Artifacts: ocbl_x64.efi 8017 B (PE/COFF x64, subsystem 10, .reloc seeded);
+           ocbl_test.iso 1466368 B - El Torito catalog with BOTH entries:
+             img 1 BIOS 63 sectors @ LBA 546 (stage1 + core)
+             img 2 UEFI 2048 sectors @ LBA 34 (1 MiB ESP FAT -> /EFI/BOOT/BOOTX64.EFI)
+Build gate: 0 errors 0 warnings (gcc -Wall -Wextra -Werror -mcmodel=large, ld -m i386pep)
+
+Live-caught during B5-1 (all root-caused + fixed + re-verified):
+  R1: ld -m i386pep emits no relocation directory -> EDK2 PeCoffLoader
+      refuses the image (OVMF BdsDxe 'Load Error'); fixed by seeding an
+      empty .reloc block (efi/reloc.S) - the gnu-efi crt0 trick, self-made.
+  R2: mkisofs emulation drops the BIOS catalog entry when -e follows -b
+      without the -eltorito-alt-boot separator (silently single-UEFI ISO);
+      fixed in build_test_iso.py (T1-T4 live experiments in the batch log).
+  R3: 8-space vs TAB recipe indentation (edit-tool whitespace
+      normalization) - 'missing separator'; restored TABs file-wide.
+
+--- OVMF serial transcript (OCBL EFI application, parked by design) ---
+[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0001 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0001 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+
+OCBL 3.0.0 boot loader (3.0.0-WP04 build 355)
+UEFI flavor entry OK
+[efi] UEFI revision 0x00020046  config tables: 10
+cpu: QEMU Virtual CPU version 2.5+
+stack at 0x0FE8E780
+OCBL B5-1 UEFI chain verified
+OCBL 3.0.0 boot loader - UEFI flavor - B5-1 OK
+
+--- SeaBIOS regression on the SAME dual-firmware ISO (BIOS entry intact) ---
+qemu ... -serial file (SeaBIOS): 
+OCBL stage1 ok
+
+OCBL 3.0.0 boot loader (3.0.0-WP04 build 21)
+long mode 64-bit C entry OK
+flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
+cpu: QEMU Virtual CPU version 2.5+
+stack at 0x0009EF00
+OCBL B1 chain verified
+[b2a] trampoline installed at 0x40000
+[b2a] E820 entries: 7
+  [0] base=0x00000000 len=0x0009FC00 type=1
+  [1] base=0x0009FC00 len=0x00000400 type=2
