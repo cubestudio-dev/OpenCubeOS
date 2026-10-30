@@ -80,6 +80,13 @@ bool ocbl_fs_stat(const ocbl_volume_t* v, const char* path, u32* size);
 u32 ocbl_fs_read_file(const ocbl_volume_t* v, const char* path,
                       void* buf, u32 max);
 
+/* Positional read: `len` bytes of `path` starting at byte offset
+ * `off` into `buf`.  Returns the byte count read (0 on failure).
+ * The loader paths need this - reading a 2 MiB kernel through
+ * read_file-at-offset-zero would be quadratic. */
+u32 ocbl_fs_pread(const ocbl_volume_t* v, const char* path, u32 off,
+                  void* buf, u32 len);
+
 /* List a directory's direct entries.  Returns the entry count (0 on
  * failure or empty).  `out` holds up to `max` entries.  FAT only -
  * ISO9660 directories are probed by stat, not listed. */

@@ -17,6 +17,9 @@
 #include "ocbl_mmap.h"
 #include "ocbl_scan.h"
 #include "ocbl_menu.h"
+#include "ocbl_boot.h"
+#include "ocbl_vbe.h"
+#include "ocbl_fs.h"
 
 #ifndef OCBL_RELEASE
 #define OCBL_RELEASE "3.0.0-WP05"
@@ -198,7 +201,64 @@ void ocbl_run(void)
     u32 pick = ocbl_menu_run();
     ocbl_menu_announce(pick);
 
-    for (;;) {
-        __asm__ volatile("cli; hlt");
+    /* B4: load the chosen payload and hand off (multiboot2, the
+     * exact GRUB contract); B4b wires Shutdown to the real S5 */
+    ocbl_scan_t* t = ocbl_scan_result();
+    if (pick >= t->count) {
+        ocbl_serial_puts("[boot] S5 power-off lands in B4b; halting\r\n");
+        for (;;)
+            __asm__ volatile("cli; hlt");
     }
+    ocbl_entry_t* e = &t->entries[pick];
+    if (e->type != OCBL_ENT_OCOS && e->type != OCBL_ENT_OCIRE) {
+        ocbl_serial_puts("[boot] chainload payloads land in B4b; halting\r\n");
+        for (;;)
+            __asm__ volatile("cli; hlt");
+    }
+
+
+    ocbl_volume_t v;
+    if (!ocbl_fs_mount(e->drive, e->base_lba, e->ssz, &v)) {
+        ocbl_serial_puts("[boot] FATAL: payload volume remount failed\r\n");
+        for (;;)
+            __asm__ volatile("cli; hlt");
+    }
+
+    const char* slot = 0;
+    if (e->type == OCBL_ENT_OCOS)
+        slot = e->slot == 1 ? "A" : (e->slot == 2 ? "B" : "ISO");
+
+    /* the mb2 "self" module: a raw copy of the kernel ELF at 0x800000
+     * (install/abdisk copy it onto target disks from there) */
+    u32 self_size = 0;
+    if (e->type == OCBL_ENT_OCOS)
+        self_size = ocbl_load_raw(&v, e->path, OCBL_SELF_BASE);
+
+    ocbl_fb_info_t fb;
+    bool fb_ok = ocbl_vbe_set_800x600x32(&fb);
+    ocbl_serial_puts(fb_ok ? "[boot] VBE 800x600x32 ok\r\n"
+                           : "[boot] VBE FAILED (kernel will refuse)\r\n");
+
+    u64 base = e->type == OCBL_ENT_OCIRE ? OCBL_OCIRE_BASE : 0x100000ull;
+    u32 ksize = 0;
+    u64 entry = ocbl_load_elf(&v, e->path, base, &ksize);
+    if (!entry) {
+        ocbl_serial_puts("[boot] FATAL: kernel load failed\r\n");
+        for (;;)
+            __asm__ volatile("cli; hlt");
+    }
+    ocbl_serial_puts("[boot] kernel loaded: entry=0x");
+    ocbl_serial_hex(entry, 8);
+    ocbl_serial_puts(" size=");
+    ocbl_serial_dec(ksize);
+    ocbl_serial_puts("\r\n");
+
+    u64 self_start = self_size ? OCBL_SELF_BASE : 0;
+    u64 self_end = self_start + self_size;
+    u32 mbisz = ocbl_build_mbi(slot, self_start, self_end,
+                               fb_ok ? &fb : 0);
+    ocbl_serial_puts("[boot] mbi built: ");
+    ocbl_serial_dec(mbisz);
+    ocbl_serial_puts(" bytes at 0x50000\r\n");
+    ocbl_handoff(entry, OCBL_MBI_BASE);
 }

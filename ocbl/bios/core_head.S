@@ -120,6 +120,52 @@ core_long:
         jmp     .hang
 
 ; ---------------------------------------------------------------------------
+; ocbl_handoff(rdi = kernel 32-bit entry, rsi = mbi physical)
+;
+; Downgrades the core back to 32-bit protected mode with paging OFF
+; and jumps to the kernel entry with the multiboot2 contract
+; (EAX = 0x36D76289, EBX = mbi).  Mirrors GRUB's handoff to boot.S.
+; ---------------------------------------------------------------------------
+        global ocbl_handoff
+        section .text.ho progbits alloc exec nowrite align=16
+        bits 64
+ocbl_handoff:
+        cli
+        cld
+        mov rcx, rdi                     ; kernel entry
+        ; STEP 1: far-jump into the 32-bit COMPATIBLE code segment
+        ; while long mode is still active (paging ON).  Clearing PG
+        ; while CS.L=1 is invalid would #GP on the very next fetch
+        ; (live-caught: three variants of that, all triple faults).
+        ; 64-bit-mode far jmp reads m16:64 (8-byte offset + selector)
+        ; - the same 10-byte layout the working trampoline entry uses
+        lea rax, [rel handoff32]
+        mov [rel farptr], rax
+        mov word [rel farptr+8], 0x08
+        jmp far [rel farptr]
+
+        section .data
+        align 8
+farptr: dq 0
+        dw 0
+        section .text.ho
+
+        bits 32
+handoff32:
+        ; STEP 2: now drop the paging - CS.L=0 keeps legacy valid
+        mov eax, cr0
+        btc eax, 31                      ; PG off -> legacy mode
+        mov cr0, eax
+        mov eax, cr4
+        and eax, ~0x20                   ; PAE off (legal without PG)
+        mov cr4, eax
+        xor eax, eax
+        mov cr3, eax
+        mov eax, 0x36D76289              ; multiboot2 boot magic
+        mov ebx, esi                     ; mbi physical (low dword)
+        jmp ecx                          ; kernel _start
+
+; ---------------------------------------------------------------------------
 ; data
 ; ---------------------------------------------------------------------------
         section .rodata progbits alloc noexec nowrite align=8

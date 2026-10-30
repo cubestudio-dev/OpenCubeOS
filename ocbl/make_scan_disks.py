@@ -201,6 +201,16 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     os_elf = mk_elf_stub(True)
     plain = mk_elf_stub(False)
+    # real payloads when the kernels are built (B4a: OCBL loads the
+    # actual opencube.elf / ocire.elf, not the stubs)
+    real_ocos = OUT + "/_real_ocos.elf"
+    real_ocire = OUT + "/_real_ocire.elf"
+    import shutil
+    if os.path.exists("build/opencube.elf"):
+        shutil.copy("build/opencube.elf", real_ocos)
+        os_elf = open(real_ocos, "rb").read()
+    if os.path.exists("build/ocire/ocire.elf"):
+        shutil.copy("build/ocire/ocire.elf", real_ocire)
 
     secs2 = 36 * 1024 * 1024 // 512
     if MODE == "many":
@@ -278,7 +288,9 @@ def main():
     with open(hd1, "wb") as f:
         f.truncate(16 * 1024 * 1024)
     sh_lba, sh_n = 32, 9 * SPU          # ~4.5 MiB FAT12 shadow
-    vol, _ = mk_fat(5, {"/boot/ocire.elf": os_elf,
+    ocire_blob = open(real_ocire, "rb").read() \
+        if os.path.exists(real_ocire) else os_elf
+    vol, _ = mk_fat(5, {"/boot/ocire.elf": ocire_blob,
                         "/golden/MANIFEST.TXT": b"golden\n"})
     dd_in(hd1, vol, sh_lba, sh_n)
     write_mbr(hd1, [(0xEE, sh_lba, sh_n, 0)])
