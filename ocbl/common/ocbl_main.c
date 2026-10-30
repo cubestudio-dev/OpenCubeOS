@@ -20,6 +20,8 @@
 #include "ocbl_boot.h"
 #include "ocbl_vbe.h"
 #include "ocbl_fs.h"
+#include "ocbl_wdt.h"
+#include "ocbl_chain.h"
 
 #ifndef OCBL_RELEASE
 #define OCBL_RELEASE "3.0.0-WP05"
@@ -198,6 +200,12 @@ void ocbl_run(void)
 
     /* B3: the menu - three keys, Shutdown always last, countdown to
      * the default entry */
+    /* the hardware watchdog guards the whole OCBL stay: probe and
+     * arm 60 s now, the menu loop kicks it as its heartbeat */
+    ocbl_wdt_probe();
+    if (ocbl_wdt_present())
+        ocbl_wdt_arm(60);
+
     u32 pick = ocbl_menu_run();
     ocbl_menu_announce(pick);
 
@@ -205,13 +213,21 @@ void ocbl_run(void)
      * exact GRUB contract); B4b wires Shutdown to the real S5 */
     ocbl_scan_t* t = ocbl_scan_result();
     if (pick >= t->count) {
-        ocbl_serial_puts("[boot] S5 power-off lands in B4b; halting\r\n");
+        ocbl_serial_puts("[boot] ACPI S5 shutdown\r\n");
+        ocbl_wdt_disarm();
+        ocbl_acpi_enter_s5();
+        ocbl_serial_puts("[boot] S5 did not power off; halting\r\n");
         for (;;)
             __asm__ volatile("cli; hlt");
     }
     ocbl_entry_t* e = &t->entries[pick];
     if (e->type != OCBL_ENT_OCOS && e->type != OCBL_ENT_OCIRE) {
-        ocbl_serial_puts("[boot] chainload payloads land in B4b; halting\r\n");
+        /* BIOS chainload: the volume's own VBR takes over (GRUB
+         * `chainloader +1` contract).  ESP-only loaders (BOOTX64.EFI)
+         * are refused honestly - they need the UEFI flavor. */
+        ocbl_serial_puts("[boot] chainload\r\n");
+        ocbl_wdt_disarm();
+        ocbl_chain_vbr(e->drive, e->base_lba, e->ssz);
         for (;;)
             __asm__ volatile("cli; hlt");
     }
@@ -260,5 +276,7 @@ void ocbl_run(void)
     ocbl_serial_puts("[boot] mbi built: ");
     ocbl_serial_dec(mbisz);
     ocbl_serial_puts(" bytes at 0x50000\r\n");
+    /* fresh 60 s window for the payload to take the watchdog over */
+    ocbl_wdt_arm(60);
     ocbl_handoff(entry, OCBL_MBI_BASE);
 }

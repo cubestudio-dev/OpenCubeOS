@@ -166,6 +166,61 @@ handoff32:
         jmp ecx                          ; kernel _start
 
 ; ---------------------------------------------------------------------------
+; ocbl_chain16(rdi = drive number, rsi = VBR LBA already LOADED by the
+; caller into 0x7C00)
+;
+; Full downgrade to REAL MODE with interrupts still vectored through
+; the BIOS IVT, then a far jump to the loaded VBR with the classic
+; chainload register contract (DL = BIOS drive).  This is what GRUB's
+; `chainloader +1` does for BIOS-booted partitions.
+; ---------------------------------------------------------------------------
+        global ocbl_chain16
+        bits 64
+ocbl_chain16:
+        cli
+        cld
+        mov r8d, edi                     ; drive number
+        ; 64 -> 32 (compatible segment, paging still on)
+        lea rax, [rel chain32]
+        mov [rel farptr], rax
+        mov word [rel farptr+8], 0x08
+        jmp far [rel farptr]
+
+        bits 32
+chain32:
+        mov eax, cr0
+        btc eax, 31                      ; PG off -> legacy mode
+        mov cr0, eax
+        mov eax, cr4
+        and eax, ~0x20                   ; PAE off
+        mov cr4, eax
+        xor eax, eax
+        mov cr3, eax
+        ; The trampoline leaves the TRAMP GDT loaded (its 0x20 base is
+        ; 0x40000, live-caught: far jmping to chain16 through it
+        ; triple-faulted).  Reload the CORE GDT first - its 0x20 is
+        ; the flat-base code16 this path needs.
+        lgdt [core_gdt_desc]
+        ; 32 -> 16-bit protected (byte-granular segments)
+        jmp dword 0x20:chain16
+
+        bits 16
+chain16:
+        mov eax, cr0
+        and eax, ~1
+        mov cr0, eax
+        xor ax, ax
+        mov cx, ax
+        mov dx, ax
+        mov ds, ax
+        mov es, ax
+        mov fs, ax
+        mov gs, ax
+        mov ss, ax
+        mov sp, 0x7C00                   ; stack just below the VBR
+        jmp dword 0x0000:0x7C00          ; far jump: real mode, CS=0
+
+; ---------------------------------------------------------------------------
 ; data
 ; ---------------------------------------------------------------------------
         section .rodata progbits alloc noexec nowrite align=8
@@ -177,6 +232,10 @@ core_gdt:
         db 0x00, 0x92, 0xCF, 0x00               ; 0x10 data32
         dw 0xFFFF, 0x0000
         db 0x00, 0x9A, 0xAF, 0x00               ; 0x18 code64 (L=1)
+        dw 0xFFFF, 0x0000
+        db 0x00, 0x9A, 0x8F, 0x00               ; 0x20 code16 (byte gran)
+        dw 0xFFFF, 0x0000
+        db 0x00, 0x92, 0x8F, 0x00               ; 0x28 data16
 core_gdt_end:
 
 core_gdt_desc:
