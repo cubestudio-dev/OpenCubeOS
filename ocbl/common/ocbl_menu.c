@@ -23,14 +23,9 @@
 #include "ocbl_menu.h"
 #include "ocbl_scan.h"
 #include "ocbl_serial.h"
-#include "ocbl_vga.h"
-#include "ocbl_bios.h"
+#include "ocbl_platform.h"
 
 #define OCBL_MENU_WINDOW  19
-
-#define KEY_UP    0x48
-#define KEY_DOWN  0x50
-#define KEY_ENTER 0x1C
 
 #ifndef OCBL_STRINGIFY
 #define OCBL_STRINGIFY_(x) #x
@@ -41,52 +36,6 @@ static const char shutdown_label[] = "Shutdown";
 
 static u32 total_entries;               /* scanned + shutdown */
 static u32 sel, top;
-
-/* ---- clock: int 1Ah AH=00h ticks since midnight (54.9 ms) ---- */
-static u32 ticks_now(void)
-{
-    ocbl_bios_regs_t r = {0};
-    r.eax = 0x0000;
-    ocbl_bios_int(0x1A, &r);
-    return ((u32)r.ecx << 16) | (r.edx & 0xFFFF);
-}
-
-/* ---- keyboard: int 16h (PS/2) + int 14h (serial line) ----
- * Both sources collapse to the same three-key contract. */
-static int poll_key(void)
-{
-    ocbl_bios_regs_t r = {0};
-    r.eax = 0x0100;                     /* AH=01: peek, ZF=0 if ready */
-    ocbl_bios_int(0x16, &r);
-    if (!(r.flags & 0x40)) {
-        r.eax = 0x0000;                 /* AH=00: consume */
-        ocbl_bios_int(0x16, &r);
-        u16 k = (u16)(r.eax & 0xFFFF);
-        u8 sc = (u8)(k >> 8);
-        if (sc == KEY_UP || sc == KEY_DOWN || sc == KEY_ENTER)
-            return sc;
-        return -1;                      /* registered: ignore */
-    }
-    /* serial console keying (16550 line status bit0 = data ready) */
-    ocbl_bios_regs_t s = {0};
-    s.eax = 0x0300;                     /* AH=03: line status */
-    s.edx = 0;
-    ocbl_bios_int(0x14, &s);
-    if (s.eax & 0x0100) {               /* AH bit0: receive ready */
-        s.eax = 0x0200;                 /* AH=02: read char */
-        s.edx = 0;
-        ocbl_bios_int(0x14, &s);
-        char c = (char)(s.eax & 0xFF);
-        if (c == 'A')
-            return KEY_UP;              /* CSI tail after ESC+['[' */
-        if (c == 'B')
-            return KEY_DOWN;
-        if (c == '\r' || c == '\n')
-            return KEY_ENTER;
-        return -1;
-    }
-    return -1;
-}
 
 /* ---- rendering ---- */
 static void serial_at(u8 row, u8 col, const char* s, u8 inverse)
@@ -114,11 +63,8 @@ static void serial_at(u8 row, u8 col, const char* s, u8 inverse)
 
 static void line_at(u8 row, const char* label, u8 selected)
 {
-#ifdef OCBL_FLAVOR_BIOS
-    u8 attr = selected ? OCBL_VGA_ATTR_SELECT : OCBL_VGA_ATTR_NORMAL;
-    ocbl_vga_padline(row, attr);
-    ocbl_vga_puts(row, 1, attr, label);
-#endif
+    ocbl_plat_con_line(row, 1, label,
+                       selected ? OCBL_CON_SELECT : OCBL_CON_ENTRY);
     serial_at(row, 1, label, selected);
 }
 
@@ -137,9 +83,7 @@ static void put_dec(char** p, u32 v)
 static void render_full(void)
 {
 #ifdef OCBL_FLAVOR_BIOS
-    ocbl_vga_text_mode();
-    ocbl_vga_clear();
-    ocbl_vga_cursor_off();
+    ocbl_plat_con_init();
 #endif
     {
         char t[96];
@@ -151,15 +95,11 @@ static void render_full(void)
         put_dec(&p, OCBL_BUILD);
         *p++ = ')';
         *p = 0;
-#ifdef OCBL_FLAVOR_BIOS
-        ocbl_vga_puts(0, 1, OCBL_VGA_ATTR_BRIGHT, t);
-#endif
+        ocbl_plat_con_line(0, 1, t, OCBL_CON_BRIGHT);
         serial_at(0, 1, t, 0);
     }
-#ifdef OCBL_FLAVOR_BIOS
-    ocbl_vga_puts(1, 1, OCBL_VGA_ATTR_NORMAL,
-                  "Up/Down to select, Enter to boot. Other keys are not accepted.");
-#endif
+    ocbl_plat_con_line(1, 1, "Up/Down to select, Enter to boot.",
+                       OCBL_CON_PLAIN);
     serial_at(1, 1, "Up/Down to select, Enter to boot.", 0);
 
     ocbl_scan_t* t = ocbl_scan_result();
@@ -203,9 +143,7 @@ static void render_countdown(u32 remain, u32 countdown_active)
     while (o < 78)
         line[o++] = ' ';
     line[o] = 0;
-#ifdef OCBL_FLAVOR_BIOS
-    ocbl_vga_puts(2, 1, OCBL_VGA_ATTR_BRIGHT, line);
-#endif
+    ocbl_plat_con_line(2, 1, line, OCBL_CON_BRIGHT);
     serial_at(2, 1, line, 0);
 }
 
@@ -244,13 +182,13 @@ u32 ocbl_menu_run(void)
     render_countdown(OCBL_MENU_TIMEOUT_SEC, 1);
 
 
-    u32 base = ticks_now();
+    u32 base = ocbl_plat_ms();
     u32 last_shown = 0;
     u32 cancelled = 0;
     for (;;) {
-        int k = poll_key();
-        if (k == KEY_UP || k == KEY_DOWN) {
-            if (k == KEY_UP)
+        int k = ocbl_plat_getkey();
+        if (k == OCBL_KEY_UP || k == OCBL_KEY_DOWN) {
+            if (k == OCBL_KEY_UP)
                 sel = sel ? sel - 1 : total_entries - 1;
             else
                 sel = (sel + 1) % total_entries;
@@ -260,12 +198,12 @@ u32 ocbl_menu_run(void)
             cancelled = 1;
             continue;
         }
-        if (k == KEY_ENTER)
+        if (k == OCBL_KEY_ENTER)
             return sel;
 
         if (cancelled)
             continue;                   /* armed mode: no timeout */
-        u32 dt = (ticks_now() - base) / 18;
+        u32 dt = (ocbl_plat_ms() - base) / 1000;
         if (dt >= OCBL_MENU_TIMEOUT_SEC)
             return sel;                 /* default boots */
         if (dt != last_shown) {

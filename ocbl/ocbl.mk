@@ -33,6 +33,18 @@ OCBL_COMMON_C := $(wildcard $(OCBL_DIR)/common/*.c)
 OCBL_COMMON_H := $(wildcard $(OCBL_DIR)/common/*.h)
 OCBL_OBJ := $(patsubst $(OCBL_DIR)/%.c,$(OCBL_OUT)/%.o,$(OCBL_COMMON_C))
 
+# ---- BIOS flavor backend implementations (B5-2 split: the int 13h /
+#      VGA / E820 / VBE / VBR-chain / RSDP-scan units moved from common
+#      to bios/; common is now firmware-agnostic and the UEFI flavor
+#      provides its own versions of the same contracts) ----
+OCBL_BIOS_IMPL_C := $(wildcard $(OCBL_DIR)/bios/*.c)
+OCBL_BIOS_IMPL_H := $(wildcard $(OCBL_DIR)/bios/*.h)
+OCBL_BIOS_IMPL_OBJ := $(patsubst $(OCBL_DIR)/bios/%.c,$(OCBL_OUT)/bios_impl/%.o,$(OCBL_BIOS_IMPL_C))
+
+$(OCBL_OUT)/bios_impl/%.o: $(OCBL_DIR)/bios/%.c $(OCBL_COMMON_H) $(OCBL_BIOS_IMPL_H) | $(OCBL_OUT)
+	@mkdir -p $(OCBL_OUT)/bios_impl
+	$(OCBL_CC) $(OCBL_CFLAGS) -c $< -o $@
+
 # ---- stage 1 (two flavors from one source) ----
 $(OCBL_OUT)/stage1_eltorito.bin: $(OCBL_DIR)/bios/stage1.asm | $(OCBL_OUT)
 	@mkdir -p $(OCBL_OUT)
@@ -68,10 +80,10 @@ $(OCBL_OUT)/common/%.o: $(OCBL_DIR)/common/%.c $(OCBL_COMMON_H) | $(OCBL_OUT)
 
 OCBL_BIOS_OBJS := $(OCBL_OUT)/bios/tramp_data.o $(OCBL_OUT)/bios/ocbl_bios_asm.o
 
-$(OCBL_OUT)/core.elf: $(OCBL_OUT)/bios/core_head.o $(OCBL_BIOS_OBJS) $(OCBL_OBJ) $(OCBL_DIR)/linker_bios.ld
+$(OCBL_OUT)/core.elf: $(OCBL_OUT)/bios/core_head.o $(OCBL_BIOS_OBJS) $(OCBL_OBJ) $(OCBL_BIOS_IMPL_OBJ) $(OCBL_DIR)/linker_bios.ld
 	$(LD) -n -nostdlib -T $(OCBL_DIR)/linker_bios.ld \
               -z max-page-size=0x1000 -z noexecstack -o $@ \
-              $(OCBL_OUT)/bios/core_head.o $(OCBL_BIOS_OBJS) $(OCBL_OBJ)
+              $(OCBL_OUT)/bios/core_head.o $(OCBL_BIOS_OBJS) $(OCBL_OBJ) $(OCBL_BIOS_IMPL_OBJ)
 	strip --strip-debug $@
 	python3 -c "import sys; b=open('$(abspath $@)','rb').read(); print('ocbl: core.elf %d bytes' % len(b))"
 

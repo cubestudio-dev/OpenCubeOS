@@ -389,27 +389,21 @@ u32 ocbl_scan_all(void)
     ocbl_scan_table.count = 0;
     ab_slot_drive = 0;
 
-    /* fixed hard-disk range; geom gates presence */
-    for (u8 d = 0x80; d < 0x90; d++) {
+    /* the flavor enumerates the disks (BIOS: the int 13h ranges with
+     * geom-gated presence; UEFI: the BlockIo handle table), the rest
+     * of the sweep is pure common logic */
+    u8 drives[32];
+    u32 n = ocbl_disk_enumerate(drives, 32);
+    for (u32 i = 0; i < n; i++) {
+        u8 d = drives[i];
         u64 total = 0;
         u16 bps = 0;
         if (!ocbl_disk_geom(d, &total, &bps))
             continue;
         if (bps == 0)
             bps = 512;
-        scan_drive(d, bps);
-    }
-
-    /* CD drives (no-emulation El Torito / ATAPI): sweep the usual
-     * 0xE0..0xEF range, geom gates presence (multiple optical drives
-     * are legal - the install media may sit in the second one) */
-    for (u8 d = 0xE0; d < 0xF0; d++) {
-        u64 total = 0;
-        u16 bps = 0;
-        if (!ocbl_disk_geom(d, &total, &bps))
-            continue;
-        if (bps != 2048)
-            continue;
+        if (ocbl_disk_kind(d) && bps != 2048)
+            continue;               /* cdrom-like must be 2048 B */
         scan_drive(d, bps);
     }
 

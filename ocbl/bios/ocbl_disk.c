@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - 3.0.0-WP05-ocbl
- * File: ocbl/common/ocbl_disk.c
- * Purpose: int 13h disk services via the real-mode trampoline.
+ * File: ocbl/bios/ocbl_disk.c
+ * Purpose: int 13h disk services via the real-mode trampoline (the
+ *          BIOS flavor of the ocbl_disk.h backend; the UEFI flavor
+ *          implements the same contract over EFI_BLOCK_IO).
  *
  *          Sector size discipline (found live in B2a): SeaBIOS exposes
  *          the no-emulation El Torito boot drive with 2048-BYTE sectors
@@ -129,4 +131,31 @@ bool ocbl_disk_probe(u8 drive)
         return ocbl_disk_ext_ok(drive);
     }
     return true;
+}
+
+/* ---- flavor backend: enumeration + kind (B5-2) ---------------------- */
+
+u32 ocbl_disk_enumerate(u8* drives, u32 max)
+{
+    u32 n = 0;
+    /* fixed hard-disk range; geom gates presence */
+    for (u8 d = 0x80; d < 0x90 && n < max; d++) {
+        if (!ocbl_disk_geom(d, 0, 0))
+            continue;
+        drives[n++] = d;
+    }
+    /* CD drives (no-emulation El Torito / ATAPI): sweep the usual
+     * 0xE0..0xEF range, geom gates presence (multiple optical drives
+     * are legal - the install media may sit in the second one) */
+    for (u8 d = 0xE0; d < 0xF0 && n < max; d++) {
+        if (!ocbl_disk_geom(d, 0, 0))
+            continue;
+        drives[n++] = d;
+    }
+    return n;
+}
+
+u8 ocbl_disk_kind(u8 drive)
+{
+    return drive >= 0xE0 ? 1 : 0;
 }
