@@ -1,0 +1,39 @@
+# WP05 B2b Round A - six-class scan fleet
+OCBL stage1 ok
+
+OCBL 3.0.0 boot loader (3.0.0-WP04 build 351)
+long mode 64-bit C entry OK
+flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
+cpu: QEMU Virtual CPU version 2.5+
+stack at 0x0009EF70
+OCBL B1 chain verified
+[b2a] trampoline installed at 0x40000
+[b2a] E820 entries: 7
+  [0] base=0x00000000 len=0x0009FC00 type=1
+  [1] base=0x0009FC00 len=0x00000400 type=2
+  [2] base=0x000F0000 len=0x00010000 type=2
+  [3] base=0x00100000 len=0x0FED1000 type=1
+  [4] base=0x0FFD1000 len=0x0002F000 type=2
+  [5] base=0xFFFC0000 len=0x00040000 type=2
+  [6] base=0x00000000 len=0x00000000 type=2
+[b2a] hd 0x80 LBA0:0000000000000000 sig=AA55
+[b2a] scanning BIOS drives (boot=0xE0)
+  drive 0x80: 262144 sectors x 512 B
+  drive 0x81: 32768 sectors x 512 B
+  drive 0x82: 73728 sectors x 512 B
+  drive 0x83: 73728 sectors x 512 B
+  drive 0x84: 73728 sectors x 512 B
+  drive 0x85: 34272 sectors x 512 B
+  drive 0x86: 32768 sectors x 512 B
+  cdrom 0xE0: 18446744073709551615 sectors x 2048 B
+  PVD: 'CD001' type=1
+  boot image first bytes: FA FC 31 C0 8E D0 BC 00
+[scan] entries: 7
+  [0] OCOS: Open Cube OS (slot B, hd0)  path=/boot/opencube.elf size=256  slot=B
+  [1] OCIRE: OCIRE recovery (hd1 p1)  path=/boot/ocire.elf size=256
+  [2] WINDOWS: Windows (hd2 gpt1)  efi=/EFI/Microsoft/Boot/bootmgfw.efi
+  [3] LINUX: Linux: UBUNTU (hd3 gpt1)  efi=/EFI/UBUNTU/grubx64.efi
+  [4] GENERIC: EFI loader (hd4 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+  [5] OCOS: Open Cube OS (hd5)  path=/boot/opencube.elf size=256
+  [6] OCSE: OCSE install media (cd1)
+qemu-system-x86_64: terminating on signal 15 from pid 28464 (timeout)

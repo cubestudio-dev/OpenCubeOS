@@ -107,3 +107,26 @@ ocbl-run-bios: $(OCBL_OUT)/ocbl_test.iso
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
 	  -m 256M -cdrom $(OCBL_OUT)/ocbl_test.iso -boot d \
 	  -no-reboot -display none -serial stdio -monitor none -vga std
+
+# ---- B2b scanner test fleet (QEMU bring-up disks) ----
+$(OCBL_OUT)/scan_disks/hd0.img: ocbl/make_scan_disks.py | $(OCBL_OUT)
+	python3 ocbl/make_scan_disks.py $(OCBL_OUT)/scan_disks
+
+.PHONY: ocbl-scan-disks
+ocbl-scan-disks: $(OCBL_OUT)/scan_disks/hd0.img
+	@echo "ocbl: scan fleet ready"
+
+.PHONY: ocbl-run-scan
+ocbl-run-scan: ocbl-iso $(OCBL_OUT)/scan_disks/hd0.img
+	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
+	  -m 256M \
+	  -drive file=$(OCBL_OUT)/scan_disks/hd0.img,if=ide,index=0,media=disk,format=raw \
+	  -drive file=$(OCBL_OUT)/scan_disks/hd1.img,if=ide,index=1,media=disk,format=raw \
+	  -drive file=$(OCBL_OUT)/scan_disks/hd2.img,if=virtio,format=raw \
+	  -drive file=$(OCBL_OUT)/scan_disks/hd3.img,if=virtio,format=raw \
+	  -drive file=$(OCBL_OUT)/scan_disks/hd4.img,if=virtio,format=raw \
+	  -drive file=$(OCBL_OUT)/scan_disks/fat0.img,if=virtio,format=raw \
+	  -drive file=$(OCBL_OUT)/scan_disks/bare0.img,if=virtio,format=raw \
+	  -drive file=$(OCBL_OUT)/scan_disks/cd0.iso,if=ide,index=3,media=cdrom,format=raw \
+	  -cdrom $(OCBL_OUT)/ocbl_test.iso -boot d \
+	  -no-reboot -display none -serial stdio -monitor none -vga std

@@ -15,6 +15,7 @@
 #include "ocbl_bios.h"
 #include "ocbl_disk.h"
 #include "ocbl_mmap.h"
+#include "ocbl_scan.h"
 
 #ifndef OCBL_RELEASE
 #define OCBL_RELEASE "3.0.0-WP05"
@@ -185,6 +186,12 @@ void ocbl_run(void)
 #ifdef OCBL_FLAVOR_BIOS
     bios_b2a_probe();
 #endif
+
+    /* B2b: the six-class boot-entry scan + serial dump (the menu
+     * replaces this output in B3) */
+    u32 n = ocbl_scan_all();
+    (void)n;
+    ocbl_scan_dump();
 
     for (;;) {
         __asm__ volatile("cli; hlt");
