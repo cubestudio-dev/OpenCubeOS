@@ -27,10 +27,15 @@ def main():
     for p in (sock, serial_out):
         if os.path.exists(p):
             os.unlink(p)
-    cmd = [
-        BIN + '/qemu-system-x86_64',
-        '-L', '/home/z/opt/extract/share/qemu',
-        '-L', '/home/z/opt/extract/share/seabios',
+    cmd = [BIN + '/qemu-system-x86_64']
+    # the toolchain data dirs are always needed (VGA BIOS etc.)
+    cmd += ['-L', '/home/z/opt/extract/share/qemu',
+            '-L', '/home/z/opt/extract/share/seabios']
+    if os.environ.get('OCBL_OVMF'):
+        # the UEFI flavor of the SAME dual-firmware ISO (B5-4): OVMF
+        # routes ConIn from the PS/2 keyboard, ConOut to the serial
+        cmd += ['-bios', '/home/z/opt/extract/share/ovmf/OVMF.fd']
+    cmd += [
         '-m', '256M', '-boot', 'd', '-no-reboot',
         '-display', 'none',
         '-serial', f'file:{serial_out}',

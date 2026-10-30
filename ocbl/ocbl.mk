@@ -119,7 +119,10 @@ OCBL_EFI_SRC := $(wildcard $(OCBL_DIR)/efi/*.c) \
                 $(OCBL_DIR)/common/ocbl_serial.c \
                 $(OCBL_DIR)/common/ocbl_fs.c \
                 $(OCBL_DIR)/common/ocbl_part.c \
-                $(OCBL_DIR)/common/ocbl_scan.c
+                $(OCBL_DIR)/common/ocbl_scan.c \
+                $(OCBL_DIR)/common/ocbl_menu.c \
+                $(OCBL_DIR)/common/ocbl_acpi.c \
+                $(OCBL_DIR)/common/ocbl_wdt.c
 OCBL_EFI_OBJ := $(patsubst $(OCBL_DIR)/%.c,$(OCBL_OUT)/efiobj/%.o,$(OCBL_EFI_SRC))
 
 $(OCBL_OUT)/efiobj/%.o: $(OCBL_DIR)/%.c $(OCBL_COMMON_H) $(OCBL_DIR)/efi/efi.h | $(OCBL_OUT)
