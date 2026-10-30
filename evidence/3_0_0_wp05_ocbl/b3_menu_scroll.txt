@@ -1,0 +1,113 @@
+# WP05 B3 - scroll fleet (1 OCOS + 22 generic ESP + Shutdown = 24 rows
+# over the 19-row window): 8x PS/2 'down' via monitor sendkey at
+# 0.25s pace; the window scrolls and the armed hint follows focus.
+OCBL stage1 ok
+
+
+OCBL 3.0.0 boot loader (3.0.0-WP04 build 352)
+
+long mode 64-bit C entry OK
+
+flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
+
+cpu: QEMU Virtual CPU version 2.5+
+
+stack at 0x0009EF70
+
+OCBL B1 chain verified
+
+[b2a] trampoline installed at 0x40000
+
+[b2a] E820 entries: 7
+
+  [0] base=0x00000000 len=0x0009FC00 type=1
+
+  [1] base=0x0009FC00 len=0x00000400 type=2
+
+  [2] base=0x000F0000 len=0x00010000 type=2
+
+  [3] base=0x00100000 len=0x0FE9E000 type=1
+
+  [4] base=0x0FF9E000 len=0x00062000 type=2
+
+  [5] base=0xFFFC0000 len=0x00040000 type=2
+
+  [6] base=0x00000000 len=0x00000000 type=2
+
+[b2a] hd 0x80 LBA0:0000000000000000 sig=AA55
+
+[b2a] scanning BIOS drives (boot=0xE0)
+
+  drive 0x80: 32768 sectors x 512 B
+
+  drive 0x81: 73728 sectors x 512 B
+
+  drive 0x82: 73728 sectors x 512 B
+
+  drive 0x83: 73728 sectors x 512 B
+
+  drive 0x84: 73728 sectors x 512 B
+
+  drive 0x85: 73728 sectors x 512 B
+
+  drive 0x86: 73728 sectors x 512 B
+
+  drive 0x87: 73728 sectors x 512 B
+
+  drive 0x88: 73728 sectors x 512 B
+
+  drive 0x89: 73728 sectors x 512 B
+
+  drive 0x8A: 73728 sectors x 512 B
+
+  drive 0x8B: 73728 sectors x 512 B
+
+  drive 0x8C: 73728 sectors x 512 B
+
+  drive 0x8D: 73728 sectors x 512 B
+
+  drive 0x8E: 73728 sectors x 512 B
+
+  drive 0x8F: 73728 sectors x 512 B
+
+  cdrom 0xE0: 18446744073709551615 sectors x 2048 B
+
+  PVD: 'CD001' type=1
+
+  boot image first bytes: FA FC 31 C0 8E D0 BC 00
+
+[scan] entries: 16
+
+  [0] OCOS: Open Cube OS (hd0 p1)  path=/boot/opencube.elf size=256
+
+  [1] GENERIC: EFI loader (hd1 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [2] GENERIC: EFI loader (hd2 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [3] GENERIC: EFI loader (hd3 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [4] GENERIC: EFI loader (hd4 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [5] GENERIC: EFI loader (hd5 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [6] GENERIC: EFI loader (hd6 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [7] GENERIC: EFI loader (hd7 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [8] GENERIC: EFI loader (hd8 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [9] GENERIC: EFI loader (hd9 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [10] GENERIC: EFI loader (hd10 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [11] GENERIC: EFI loader (hd11 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [12] GENERIC: EFI loader (hd12 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [13] GENERIC: EFI loader (hd13 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [14] GENERIC: EFI loader (hd14 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+  [15] GENERIC: EFI loader (hd15 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+
+[0;1HOpen Cube OS Boot Loader (3.0.0-WP04 build 352)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOpen Cube OS (hd0 p1)[0m[5;1HEFI loader (hd1 gpt1)[6;1HEFI loader (hd2 gpt1)[7;1HEFI loader (hd3 gpt1)[8;1HEFI loader (hd4 gpt1)[9;1HEFI loader (hd5 gpt1)[10;1HEFI loader (hd6 gpt1)[11;1HEFI loader (hd7 gpt1)[12;1HEFI loader (hd8 gpt1)[13;1HEFI loader (hd9 gpt1)[14;1HEFI loader (hd10 gpt1)[15;1HEFI loader (hd11 gpt1)[16;1HEFI loader (hd12 gpt1)[17;1HEFI loader (hd13 gpt1)[18;1HEFI loader (hd14 gpt1)[19;1HEFI loader (hd15 gpt1)[20;1HShutdown[2;1HBooting Open Cube OS (hd0 p1) in 10s                                          [2;1HBooting Open Cube OS (hd0 p1) in 9s                                           [0;1HOpen Cube OS Boot Loader (3.0.0-WP04 build 352)[1;1HUp/Down to select, Enter to boot.[4;1HOpen Cube OS (hd0 p1)[7m[5;1HEFI loader (hd1 gpt1)[0m[6;1HEFI loader (hd2 gpt1)[7;1HEFI loader (hd3 gpt1)[8;1HEFI loader (hd4 gpt1)[9;1HEFI loader (hd5 gpt1)[10;1HEFI loader (hd6 gpt1)[11;1HEFI loader (hd7 gpt1)[12;1HEFI loader (hd8 gpt1)[13;1HEFI loader (hd9 gpt1)[14;1HEFI loader (hd10 gpt1)[15;1HEFI loader (hd11 gpt1)[16;1HEFI loader (hd12 gpt1)[17;1HEFI loader (hd13 gpt1)[18;1HEFI loader (hd14 gpt1)[19;1HEFI loader (hd15 gpt1)[20;1HShutdown[2;1HBooting EFI loader (hd1 gpt1) (timer cancelled)                               [0;1HOpen Cube OS Boot Loader (3.0.0-WP04 build 352)[1;1HUp/Down to select, Enter to boot.[4;1HOpen Cube OS (hd0 p1)[5;1HEFI loader (hd1 gpt1)[7m[6;1HEFI loader (hd2 gpt1)[0m[7;1HEFI loader (hd3 gpt1)[8;1HEFI loader (hd4 gpt1)[9;1HEFI loader (hd5 gpt1)[10;1HEFI loader (hd6 gpt1)[11;1HEFI loader (hd7 gpt1)[12;1HEFI loader (hd8 gpt1)[13;1HEFI loader (hd9 gpt1)[14;1HEFI loader (hd10 gpt1)[15;1HEFI loader (hd11 gpt1)[16;1HEFI loader (hd12 gpt1)[17;1HEFI loader (hd13 gpt1)[18;1HEFI loader (hd14 gpt1)[19;1HEFI loader (hd15 gpt1)[20;1HShutdown[2;1HBooting EFI loader (hd2 gpt1) (timer cancelled)                               [0;1HOpen Cube OS Boot Loader (3.0.0-WP04 build 352)[1;1HUp/Down to select, Enter to boot.[4;1HOpen Cube OS (hd0 p1)[5;1HEFI loader (hd1 gpt1)[6;1HEFI loader (hd2 gpt1)[7m[7;1HEFI loader (hd3 gpt1)[0m[8;1HEFI loader (hd4 gpt1)[9;1HEFI loader (hd5 gpt1)[10;1HEFI loader (hd6 gpt1)[11;1HEFI loader (hd7 gpt1)[12;1HEFI loader (hd8 gpt1)[13;1HEFI loader (hd9 gpt1)[14;1HEFI loader (hd10 gpt1)[15;1HEFI loader (hd11 gpt1)[16;1HEFI loader (hd12 gpt1)[17;1HEFI loader (hd13 gpt1)[18;1HEFI loader (hd14 gpt1)[19;1HEFI loader (hd15 gpt1)[20;1HShutdown[2;1HBooting EFI loader (hd3 gpt1) (timer cancelled)                               [0;1HOpen Cube OS Boot Loader (3.0.0-WP04 build 352)[1;1HUp/Down to select, Enter to boot.[4;1HOpen Cube OS (hd0 p1)[5;1HEFI loader (hd1 gpt1)[6;1HEFI loader (hd2 gpt1)[7;1HEFI loader (hd3 gpt1)[7m[8;1HEFI loader (hd4 gpt1)[0m[9;1HEFI loader (hd5 gpt1)[10;1HEFI loader (hd6 gpt1)[11;1HEFI loader (hd7 gpt1)[12;1HEFI loader (hd8 gpt1)[13;1HEFI loader (hd9 gpt1)[14;1HEFI loader (hd10 gpt1)[15;1HEFI loader (hd11 gpt1)[16;1HEFI loader (hd12 gpt1)[17;1HEFI loader (hd13 gpt1)[18;1HEFI loader (hd14 gpt1)[19;1HEFI loader (hd15 gpt1)[20;1HShutdown[2;1HBooting EFI loader (hd4 gpt1) (timer cancelled)                               [0;1HOpen Cube OS Boot Loader (3.0.0-WP04 build 352)[1;1HUp/Down to select, Enter to boot.[4;1HOpen Cube OS (hd0 p1)[5;1HEFI loader (hd1 gpt1)[6;1HEFI loader (hd2 gpt1)[7;1HEFI loader (hd3 gpt1)[8;1HEFI loader (hd4 gpt1)[7m[9;1HEFI loader (hd5 gpt1)[0m[10;1HEFI loader (hd6 gpt1)[11;1HEFI loader (hd7 gpt1)[12;1HEFI loader (hd8 gpt1)[13;1HEFI loader (hd9 gpt1)[14;1HEFI loader (hd10 gpt1)[15;1HEFI loader (hd11 gpt1)[16;1HEFI loader (hd12 gpt1)[17;1HEFI loader (hd13 gpt1)[18;1HEFI loader (hd14 gpt1)[19;1HEFI loader (hd15 gpt1)[20;1HShutdown[2;1HBooting EFI loader (hd5 gpt1) (timer cancelled)                               [0;1HOpen Cube OS Boot Loader (3.0.0-WP04 build 352)[1;1HUp/Down to select, Enter to boot.[4;1HOpen Cube OS (hd0 p1)[5;1HEFI loader (hd1 gpt1)[6;1HEFI loader (hd2 gpt1)[7;1HEFI loader (hd3 gpt1)[8;1HEFI loader (hd4 gpt1)[9;1HEFI loader (hd5 gpt1)[7m[10;1HEFI loader (hd6 gpt1)[0m[11;1HEFI loader (hd7 gpt1)[12;1HEFI loader (hd8 gpt1)[13;1HEFI loader (hd9 gpt1)[14;1HEFI loader (hd10 gpt1)[15;1HEFI loader (hd11 gpt1)[16;1HEFI loader (hd12 gpt1)[17;1HEFI loader (hd13 gpt1)[18;1HEFI loader (hd14 gpt1)[19;1HEFI loader (hd15 gpt1)[20;1HShutdown[2;1HBooting EFI loader (hd6 gpt1) (timer cancelled)                               [0;1HOpen Cube OS Boot Loader (3.0.0-WP04 build 352)[1;1HUp/Down to select, Enter to boot.[4;1HOpen Cube OS (hd0 p1)[5;1HEFI loader (hd1 gpt1)[6;1HEFI loader (hd2 gpt1)[7;1HEFI loader (hd3 gpt1)[8;1HEFI loader (hd4 gpt1)[9;1HEFI loader (hd5 gpt1)[10;1HEFI loader (hd6 gpt1)[7m[11;1HEFI loader (hd7 gpt1)[0m[12;1HEFI loader (hd8 gpt1)[13;1HEFI loader (hd9 gpt1)[14;1HEFI loader (hd10 gpt1)[15;1HEFI loader (hd11 gpt1)[16;1HEFI loader (hd12 gpt1)[17;1HEFI loader (hd13 gpt1)[18;1HEFI loader (hd14 gpt1)[19;1HEFI loader (hd15 gpt1)[20;1HShutdown[2;1HBooting EFI loader (hd7 gpt1) (timer cancelled)                               [0;1HOpen Cube OS Boot Loader (3.0.0-WP04 build 352)[1;1HUp/Down to select, Enter to boot.[4;1HOpen Cube OS (hd0 p1)[5;1HEFI loader (hd1 gpt1)[6;1HEFI loader (hd2 gpt1)[7;1HEFI loader (hd3 gpt1)[8;1HEFI loader (hd4 gpt1)[9;1HEFI loader (hd5 gpt1)[10;1HEFI loader (hd6 gpt1)[11;1HEFI loader (hd7 gpt1)[7m[12;1HEFI loader (hd8 gpt1)[0m[13;1HEFI loader (hd9 gpt1)[14;1HEFI loader (hd10 gpt1)[15;1HEFI loader (hd11 gpt1)[16;1HEFI loader (hd12 gpt1)[17;1HEFI loader (hd13 gpt1)[18;1HEFI loader (hd14 gpt1)[19;1HEFI loader (hd15 gpt1)[20;1HShutdown[2;1HBooting EFI loader (hd8 gpt1) (timer cancelled)                               

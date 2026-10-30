@@ -38,6 +38,12 @@ if "--rollback" in sys.argv:
     MODE = "rollback"
 elif "--empty" in sys.argv:
     MODE = "empty"
+elif "--many" in sys.argv:
+    MODE = "many"
+MANY_N = 0
+for a in sys.argv:
+    if a.startswith("--many="):
+        MANY_N = int(a.split("=")[1])
 BIN = "/home/z/opt/extract/usr/bin"
 ENV = dict(os.environ,
            PATH=BIN + ":" + os.environ.get("PATH", ""),
@@ -196,6 +202,30 @@ def main():
     os_elf = mk_elf_stub(True)
     plain = mk_elf_stub(False)
 
+    secs2 = 36 * 1024 * 1024 // 512
+    if MODE == "many":
+        # scroll fleet: one OCOS disk + MANY_N generic ESP disks -
+        # the menu rows (1 + N + Shutdown) must exceed the 19-row
+        # window so the scroll path is exercised
+        n = MANY_N if MANY_N else 22
+        hd0 = OUT + "/hd0.img"
+        with open(hd0, "wb") as f:
+            f.truncate(16 * 1024 * 1024)
+        vol, _ = mk_fat(5, {"/boot/opencube.elf": os_elf})
+        dd_in(hd0, vol, 32, 9 * SPU)
+        write_mbr(hd0, [(0x0C, 32, 9 * SPU, 0x80)])
+        for i in range(n):
+            p = OUT + f"/g{i}.img"
+            with open(p, "wb") as f:
+                f.truncate(secs2 * 512)
+            vol, _ = mk_fat(38, {"/EFI/BOOT/BOOTX64.EFI": plain},
+                            fat32=True)
+            dd_in(p, vol, 2048, 68 * SPU)
+            write_gpt(p, [(GPT_ESP_GUID, 2048, 2048 + 68 * SPU - 1,
+                           "EFI system partition")], secs2)
+        print(f"many fleet ready in {OUT} ({n} generics)")
+        return
+
     if MODE == "empty":
         # boundary fleet: all disks present but no bootable payload
         bare0 = OUT + "/bare0.img"
@@ -256,7 +286,6 @@ def main():
 
     # ---------- hd2: Windows GPT ESP ----------
     hd2 = OUT + "/hd2.img"
-    secs2 = 36 * 1024 * 1024 // 512
     with open(hd2, "wb") as f:
         f.truncate(secs2 * 512)
     esp_lba, esp_last = 2048, 2048 + 68 * SPU - 1

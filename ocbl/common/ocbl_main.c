@@ -16,6 +16,7 @@
 #include "ocbl_disk.h"
 #include "ocbl_mmap.h"
 #include "ocbl_scan.h"
+#include "ocbl_menu.h"
 
 #ifndef OCBL_RELEASE
 #define OCBL_RELEASE "3.0.0-WP05"
@@ -187,11 +188,15 @@ void ocbl_run(void)
     bios_b2a_probe();
 #endif
 
-    /* B2b: the six-class boot-entry scan + serial dump (the menu
-     * replaces this output in B3) */
-    u32 n = ocbl_scan_all();
-    (void)n;
+    /* B2b: the six-class boot-entry scan + serial dump (diagnostics;
+     * the menu below is the user-facing surface) */
+    ocbl_scan_all();
     ocbl_scan_dump();
+
+    /* B3: the menu - three keys, Shutdown always last, countdown to
+     * the default entry */
+    u32 pick = ocbl_menu_run();
+    ocbl_menu_announce(pick);
 
     for (;;) {
         __asm__ volatile("cli; hlt");

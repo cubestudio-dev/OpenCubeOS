@@ -14,6 +14,8 @@ import sys
 import time
 import os
 
+QEMU = os.environ.get('OCBL_QEMU', 'qemu-system-x86_64')
+
 def main():
     iso = sys.argv[1]
     out = sys.argv[2]
@@ -25,7 +27,7 @@ def main():
     if os.path.exists(ppm):
         os.unlink(ppm)
     cmd = [
-        'qemu-system-x86_64',
+        QEMU,
         '-L', '/home/z/opt/extract/share/qemu',
         '-L', '/home/z/opt/extract/share/seabios',
         '-m', '256M', '-cdrom', iso, '-boot', 'd', '-no-reboot',
