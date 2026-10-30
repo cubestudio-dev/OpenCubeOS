@@ -659,6 +659,9 @@ dist: userprogs-check $(KERNEL_ISO)
 # ---- 3.0.0-WP-01-ocire-core: OCIRE independent recovery kernel ----
 include $(OC_ROOT)/ocire/ocire.mk
 
+# ---- 3.0.0-WP-05-ocbl: OCBL boot loader (the GRUB replacement) ----
+include $(OC_ROOT)/ocbl/ocbl.mk
+
 endif # ARCH dispatch
 
 # ---- WP-14-docs_release: documentation data generation ----

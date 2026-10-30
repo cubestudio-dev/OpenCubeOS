@@ -1,0 +1,31 @@
+Open Cube OS 3.0.0-WP05 OCBL - B1: BIOS boot chain bring-up evidence
+==============================================================
+Test: make ocbl-bios; make ocbl-iso; QEMU SeaBIOS boot of build/ocbl/ocbl_test.iso
+      qemu-system-x86_64 -m 256M -cdrom ocbl_test.iso -boot d -no-reboot -serial file:...
+Date: 2026-10-30 11:00 UTC  qemu 10.0.13 SeaBIOS (toolchain extract)
+Artifacts: ocbl_bios.bin 2048 B (stage1 512 + core 1536, 4 load sectors), stage1_mbr.bin 512 B
+Build gate: 0 errors 0 warnings (gcc -Wall -Wextra -Werror, ld PHDRS split, nasm)
+
+--- serial transcript (verbatim) ---
+OCBL stage1 ok
+
+OCBL 3.0.0 boot loader (3.0.0-WP04 build 349)
+long mode 64-bit C entry OK
+flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
+cpu: QEMU Virtual CPU version 2.5+
+stack at 0x0009EFB0
+OCBL B1 chain verified
+--- end ---
+
+Live-caught traps fixed on the way (all reproduced -> root-caused -> fixed -> re-verified):
+1. xorriso -as mkisofs has no -boot-load-seg and SeaBIOS maps El Torito load_seg=0 to 0000:0x7C00
+   (same entry form as an MBR) - stage1 rewritten around the 0x7C00 base + entry-form check.
+2. -boot-info-table zeroes boot-image bytes 8..0x47 (ISOLINUX/GRUB convention; their images keep
+   the first 72 bytes free) - it silently destroyed stage1's entry code.  OCBL does not need its
+   LBA (BIOS preloads the whole image), the option is OFF and the reason documented in the ISO
+   script.  Found via a minimal UART boot sector that flooded the serial line with 5 MB of zeros.
+3. build_test_iso.py was not a make prerequisite - the fixed script never ran (stale ISO);
+   same dependency class as WP-02 F5.  Script now a hard dep.
+4. The PE switch left the segment registers at their real-mode values (DS=0x07C0 is beyond
+   the GDT limit) - the first DS-relative access in the core faulted.  core_head loads flat
+   data segments as its very first instruction group.
