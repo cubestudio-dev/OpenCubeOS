@@ -1,0 +1,75 @@
+Open Cube OS 3.0.0-WP05 OCBL - B5-3: UEFI disk backend + scanner on OVMF evidence
+==============================================================
+Test: make ocbl-efi ocbl-iso (dual-firmware); QEMU OVMF boot with the
+      full B2b scan fleet attached (hd0 OCOS A/B + hd1 OCIRE shadow +
+      hd2 Windows GPT + hd3 Linux GPT + hd4 generic GPT + cd0 OCSE ISO)
+Date: 2026-10-30 20:2x UTC  qemu 10.0.13 OVMF 2025.02 (toolchain extract)
+Artifacts: ocbl_x64.efi 56,288 B (PE/COFF x64, our own elf_to_efi.py
+           converter, 215 DIR64 relocs / 215 operands rewritten);
+           ocbl_test.iso 1,515,520 B dual-firmware (BIOS 63-sector El
+           Torito + UEFI 2048-sector El Torito with the 1 MiB ESP FAT)
+
+RESULT: the six-class scanner works under UEFI end to end:
+
+[efi] connect sweep: 10 controllers
+[efi] BlockIo whole-disk handles: 7
+[scan] entries: 6
+  [0] OCOS: Open Cube OS (slot B, hd0)  path=/boot/opencube.elf size=2077472  slot=B
+  [1] OCSE: OCSE install media (hd2)
+  [2] OCIRE: OCIRE recovery (hd3 p1)  path=/boot/ocire.elf size=2077472
+  [3] WINDOWS: Windows (hd4 gpt1)  efi=/EFI/Microsoft/Boot/bootmgfw.efi
+  [4] LINUX: Linux: UBUNTU (hd5 gpt1)  efi=/EFI/UBUNTU/grubx64.efi
+  [5] GENERIC: EFI loader (hd6 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+[efi] scan complete: 6 entries
+
+--- SeaBIOS regression on the SAME dual-firmware ISO (fleet) ---
+[b2a] E820 entries: 7
+[scan] entries: 7
+  [0] OCOS: Open Cube OS (slot B, hd0)  path=/boot/opencube.elf size=2077472  slot=B
+  [2] WINDOWS: Windows (hd2 gpt1)  efi=/EFI/Microsoft/Boot/bootmgfw.efi
+  [3] LINUX: Linux: UBUNTU (hd3 gpt1)  efi=/EFI/UBUNTU/grubx64.efi
+  [4] GENERIC: EFI loader (hd4 gpt1)  efi=/EFI/BOOT/BOOTX64.EFI
+--- SeaBIOS empty-fleet S5 ---
+OCBL B1 chain verified
+[scan] entries: 0
+[boot] ACPI S5 shutdown
+
+Live-caught during B5-3 (the full hunt, all root-caused + fixed):
+  R4: ld -m i386pep emits a PARTIAL .reloc directory (228 entries
+      covering only the front of .text); every late movabs kept its
+      link-time value under OVMF's high load. The BlockIo GUID
+      argument read garbage memory, HandleProtocol matched the FAT
+      volume's SimpleFileSystem, and 'ReadBlocks' landed on FAT
+      code -> #UD. FIXED by the self-made elf_to_efi.py two-step
+      link (ld -m elf_x86_64 --emit-relocs -> full DIR64 directory).
+  R5: BlockIo GUID is 964e5b21 - one hex digit from SimpleFileSystem
+      (964e5b22); with the wrong digit every handle returned SFS and
+      the 'BlockIo' struct dump was a SimpleFileSystem all along
+      (Revision 0x00010000 is SFS's constant too - the masquerade
+      was structurally perfect).
+  R6: the BDS only connects the BOOT chain - one BlockIo exists when
+      our EFI starts (the ESP partition view). The Shell looks
+      complete because it runs ConnectAll itself. FIXED by the
+      recursive ConnectController sweep over ALL handles.
+  R7: PE32+ has no BaseOfData - optional-header offsets shift by 4
+      (an early converter draft used the PE32 layout and OVMF
+      refused the image with a bare 'Unsupported').
+  R8: section Characteristics live at +36 (not +32); the PE
+      signature must precede the COFF header; entry symbols must
+      travel through the VMA->RVA mapping like everything else.
+  R9: EDK2 does NOT zero the .bss slack of rsz<vsz sections - the
+      entry now zeroes [__bss_start,__bss_end) first (freestanding
+      crt0 move); the bss symbols map through the converter.
+  R10 (the deepest): gcc folds (fixed_low_buffer - rodata_symbol)
+      address DIFFERENCES into single movabs immediates
+      (0xfffffffffffb4360 = 0x62000 - hdr). Those immediates are
+      not addresses, get no relocation, and silently point at the
+      LINK-TIME address after the image moves. is_gpt compared
+      correct bytes to garbage and lost. FIXED by routing PBUF
+      through a runtime pointer accessor (ocbl_fs_pbuf) in
+      part.c - the compiler can no longer fold the difference.
+
+UEFI vs BIOS fleet note: 6 entries under UEFI vs 7 under BIOS - the
+7th BIOS entry is the El Torito boot-CD self-detection (OCSE cd1);
+under OVMF the boot medium is the ESP (no ocse.marker), correctly
+not self-reported.

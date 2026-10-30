@@ -242,8 +242,13 @@ typedef struct efi_boot_services {
     EFI_CALL efi_status (*stall)(u64 usec);
     EFI_CALL efi_status (*set_watchdog_timer)(u32 timeout, u64 code,
                                               u64 data_sz, efi_char16* data);
-    void* connect_controller;
-    void* disconnect_controller;
+    EFI_CALL efi_status (*connect_controller)(efi_handle ctrl,
+                                              efi_handle driver_image,
+                                              void* remaining_path,
+                                              u8 recursive);
+    EFI_CALL efi_status (*disconnect_controller)(efi_handle ctrl,
+                                                 efi_handle driver_image,
+                                                 efi_handle child);
     EFI_CALL efi_status (*open_protocol)(efi_handle h, const efi_guid* proto,
                                          void** iface, efi_handle agent,
                                          efi_handle ctrl, u32 attrs);
@@ -267,6 +272,11 @@ typedef struct efi_boot_services {
     void (*set_mem)(void* dst, u8 val, u64 len);
     void* create_event_ex;
 } efi_boot_services;
+
+/* ---- flavor globals (defined in efi_entry.c) ---- */
+extern efi_handle ocbl_efi_image;
+extern efi_system_table* ocbl_efi_st;
+extern efi_boot_services* ocbl_efi_bs;
 
 /* ---- GUIDs we need ---- */
 extern const efi_guid ocbl_efi_block_io_guid;
