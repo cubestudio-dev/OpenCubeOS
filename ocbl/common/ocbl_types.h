@@ -46,7 +46,6 @@ typedef u32 ocbl_phys_t;   /* usable below-4G addressing for handoff data */
  */
 #define OCBL_LO_BOOTDRIVE   0x520
 #define OCBL_LO_FLAVOR      0x521
-#define OCBL_TRAMP_BASE     0x40000
 #define OCBL_MBI_BASE       0x50000
 #define OCBL_SCRATCH_BASE   0x60000
 #define OCBL_STACK_TOP      0x9F000
@@ -65,8 +64,6 @@ typedef enum {
     OCBL_ENT_GENERIC,     /* chainload VBR / BOOTX64.EFI                  */
     OCBL_ENT_SHUTDOWN,    /* always last: ACPI S5                         */
 } ocbl_ent_type_t;
-
-#endif /* OCBL_TYPES_H */
 
 /* Fixed-address access helpers (GCC -Warray-bounds false-positives
  * literal pointer casts at -O2, so low-memory facts go through asm). */
@@ -95,3 +92,6 @@ OCBL_INLINE void ocbl_poke8(u64 addr, u8 v)
 {
     __asm__ volatile("movb %0, (%1)" : : "q"(v), "r"(addr) : "memory");
 }
+
+#endif /* OCBL_TYPES_H */
+
