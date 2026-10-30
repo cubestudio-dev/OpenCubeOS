@@ -41,7 +41,7 @@ typedef u32 ocbl_phys_t;   /* usable below-4G addressing for handoff data */
  *   0x60000-0x9EFFF  scan scratch (E820 copy, path buffers, ISO/FAT meta)
  *   0x8F000-0x94FFF  OCBL identity page tables
  *   0x9F000          core stack top (grows down)
- * The kernel payloads land at their own link bases: OCOS 0x400000+,
+ * The kernel payloads land at their own link bases: OCOS 0x100000+
  * the mb2 "self" module copy 0x800000+, OCIRE 0x1000000+.
  */
 #define OCBL_LO_BOOTDRIVE   0x520

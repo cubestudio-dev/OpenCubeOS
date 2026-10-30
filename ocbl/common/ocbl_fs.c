@@ -654,6 +654,91 @@ u32 ocbl_fs_read_file(const ocbl_volume_t* v, const char* path,
     return done;
 }
 
+u32 ocbl_fs_pread(const ocbl_volume_t* v, const char* path, u32 off,
+                  void* buf, u32 len)
+{
+    if (v->fs == OCBL_VOL_ISO9660) {
+        u64 lba = 0;
+        u32 sz = 0;
+        bool isdir = false;
+        if (!iso_walk(v, path, &lba, &sz, &isdir) || isdir)
+            return 0;
+        if (off >= sz)
+            return 0;
+        u32 want = sz - off;
+        if (want > len)
+            want = len;
+        u32 done = 0;
+        u32 sec = off / 2048;
+        u32 in = off % 2048;
+        u8* dst = (u8*)buf;
+        while (done < want) {
+            if (!fs_rd_vsec(v, lba + sec, 1, secbuf()))
+                return done;
+            u32 chunk = 2048 - in;
+            if (chunk > want - done)
+                chunk = want - done;
+            for (u32 i = 0; i < chunk; i++)
+                dst[done + i] = secbuf()[in + i];
+            done += chunk;
+            sec++;
+            in = 0;
+        }
+        return done;
+    }
+    if (v->fs == OCBL_VOL_NONE)
+        return 0;
+    ocbl_fs_dirent_t de;
+    u32 start = (v->fs == OCBL_VOL_FAT32) ? v->root_cluster : 0;
+    if (!fat_walk(v, start, path, &de))
+        return 0;
+    if (de.attr & 0x10)
+        return 0;
+    if (off >= de.size)
+        return 0;
+    u32 want = de.size - off;
+    if (want > len)
+        want = len;
+    u32 clus_bytes = (u32)v->sec_per_clus * v->bytes_per_sector;
+    /* skip to the cluster holding `off` */
+    u32 skip = off / clus_bytes;
+    u32 in_clus = off % clus_bytes;
+    u32 clus = de.cluster;
+    while (skip && clus >= 2 && !fat_eoc(v, clus)) {
+        clus = fat_entry(v, clus);
+        skip--;
+    }
+    u32 done = 0;
+    u8* dst = (u8*)buf;
+    u32 guard = 0;
+    while (done < want && clus >= 2 && !fat_eoc(v, clus)) {
+        if (++guard > 200000)
+            break;
+        u64 lba = fat_clus_lba(v, clus) + in_clus / v->bytes_per_sector;
+        u32 in = in_clus % v->bytes_per_sector;
+        u32 take = clus_bytes - in_clus;
+        if (take > want - done)
+            take = want - done;
+        u32 got = 0;
+        while (got < take) {
+            u32 chunk = v->bytes_per_sector - in;
+            if (chunk > take - got)
+                chunk = take - got;
+            if (!fs_rd_vsec(v, lba, 1, secbuf()))
+                return done;
+            for (u32 i = 0; i < chunk; i++)
+                dst[done + got + i] = secbuf()[in + i];
+            got += chunk;
+            in = 0;
+            lba++;
+        }
+        done += take;
+        in_clus = 0;
+        clus = fat_entry(v, clus);
+    }
+    return done;
+}
+
 u32 ocbl_fs_list_dir(const ocbl_volume_t* v, const char* path,
                      ocbl_fs_dirent_t* out, u32 max)
 {
