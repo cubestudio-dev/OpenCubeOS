@@ -1,0 +1,4 @@
+# WP05 B4b - watchdog negative test transcript (dead payload, i6300esb armed 60s)
+# qemu self-exited rc=0 at 107.5s: the OCBL-armed watchdog reclaimed the machine
+# banners=1 kmain=0 - the payload never reached kmain
+# menu loop kept kicking; handoff re-armed 60s fresh before the jump

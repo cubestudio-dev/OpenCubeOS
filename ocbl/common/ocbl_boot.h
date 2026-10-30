@@ -49,7 +49,16 @@ u32 ocbl_build_mbi(const char* slot_cmdline, u64 self_start, u64 self_end,
 /* RSDP discovery (ocbl_acpi.c): validated physical address or 0. */
 u64 ocbl_rsdp_find(void);
 
+/* ACPI S5 (ocbl_acpi.c): 0 when FACP+\_S5 resolved; enter_s5 writes
+ * PM1a_CNT and returns -1 if the machine is still running. */
+int ocbl_acpi_s5_ready(void);
+int ocbl_acpi_enter_s5(void);
+
 /* Downgrade 64->32 and jump to the kernel.  Does not return. */
 void ocbl_handoff(u64 entry, u64 mbi_phys);
 
 #endif /* OCBL_BOOT_H */
+
+/* VBR chainload: reload through real mode and jump to the boot
+ * sector copied at 0x7C00.  Does not return. */
+void ocbl_chain16(u64 drive, u64 vbr_lba);

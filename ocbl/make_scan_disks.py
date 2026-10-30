@@ -344,6 +344,26 @@ def main():
     write_mbr(bare0, [(0x0C, 2048, 32736, 0)])
     print("bare0 ok (garbage FAT area, no entry expected)")
 
+    # ---------- hd5: chainload disk --------------------------------
+    # Whole-disk FAT12 with /EFI/BOOT/BOOTX64.EFI (registers as the
+    # generic EFI loader entry); the boot sector's code area (0x3E+)
+    # is patched with a 16-bit stub that prints 'C','L','!' over COM1
+    # and halts - proving OCBL dropped to real mode and jumped.
+    hd5 = OUT + "/hd5.img"
+    vol, _ = mk_fat(5, {"/EFI/BOOT/BOOTX64.EFI": plain})
+    stub = bytes([0xFA])                                  # cli
+    stub += bytes([0xBA, 0xF8, 0x03])                     # mov dx,3F8
+    for ch in (0x43, 0x4C, 0x21):                         # 'C','L','!'
+        stub += bytes([0xB0, ch, 0xEE])                   # mov al,ch; out
+    stub += bytes([0xF4])                                 # hlt
+    stub += bytes([0xEB, 0xFD])                           # jmp $
+    with open(vol, "r+b") as f:
+        f.seek(0x3E)
+        f.write(stub)
+    with open(hd5, "wb") as f:
+        f.write(open(vol, "rb").read())
+    print("hd5 ok (chainload boot sector)")
+
     # ---------- cd0: OCSE install media ----------
     stage = OUT + "/iso_stage"
     os.makedirs(stage + "/boot", exist_ok=True)
