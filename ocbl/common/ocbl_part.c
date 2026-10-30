@@ -11,7 +11,8 @@
 /* shared scratch: the sector read window doubles as the decode buffer
  * (512 bytes is enough for MBR + protective; GPT headers are 92 bytes
  * valid, entries stream 128 bytes at a time) */
-#define PBUF   ((u8*)OCBL_FS_SECBUF)
+#define PBUF   (ocbl_fs_pbuf())
+
 
 static u32 rd32(const u8* p)
 {

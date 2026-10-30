@@ -20,6 +20,19 @@
  *    8.3 short name.
  */
 #include "ocbl_fs.h"
+
+/* The sector-window pointer as a RUNTIME value (B5-3 live-caught):
+ * with PBUF as a plain constant the compiler folds (PBUF - symbol)
+ * address DIFFERENCES into single movabs immediates; those lose the
+ * relocation entirely under a relocatable PE image and read garbage.
+ * Routing every access through this accessor forces independent
+ * symbol loads that the PE loader can relocate. */
+u8* ocbl_fs_pbuf(void)
+{
+    static u8* p = (u8*)(u64)OCBL_FS_SECBUF;
+    return p;
+}
+
 #include "ocbl_disk.h"
 
 static u8* secbuf(void) { return (u8*)OCBL_FS_SECBUF; }

@@ -25,6 +25,10 @@
 #include "ocbl_types.h"
 
 #define OCBL_FS_SECBUF   0x62000u   /* 2 KiB shared sector window */
+/* runtime accessor for the sector window (see ocbl_fs.c - plain
+ * constant use lets gcc fold (window - symbol) differences into
+ * unrelocatable immediates under the PE image) */
+u8* ocbl_fs_pbuf(void);
 #define OCBL_FS_FATBUF   0x62800u   /* FAT table cache, 128 KiB max */
 
 typedef enum {

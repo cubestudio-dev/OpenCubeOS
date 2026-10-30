@@ -95,11 +95,14 @@ $(OCBL_OUT)/ocbl_bios.bin: $(OCBL_OUT)/stage1_eltorito.bin $(OCBL_OUT)/core.bin
 	python3 $(OCBL_DIR)/build_image.py $@ $(OCBL_OUT)/stage1_eltorito.bin $(OCBL_OUT)/core.bin
 
 # ---- UEFI flavor (B5): a plain PE/COFF x64 application ----
-# ld's i386pep emulation links freestanding gcc objects straight into
-# an EFI subsystem-10 image; the .reloc seed (efi/reloc.S) is what
-# makes EDK2's PeCoffLoader accept it (live-caught: without it OVMF
-# answers "Load Error").  mcmodel=large keeps every address reference
-# a 64-bit movabs the linker can relocate.
+# linked as an intermediate ELF (`ld -m elf_x86_64 --emit-relocs` over
+# linker_efi.ld, VMA base 0x10000) and converted to a PE/COFF EFI
+# application by our own ocbl/elf_to_efi.py, which derives the
+# COMPLETE .reloc directory from the emitted relocations (the plain
+# ld i386pep route emitted a partial directory and OVMF silently
+# mis-relocated half the image - B5-3 live-caught, see the converter
+# header).  mcmodel=large keeps every address reference a 64-bit
+# movabs the converter can relocate.
 OCBL_EFI_CFLAGS := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
                    -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large \
                    -fno-ident -fno-asynchronous-unwind-tables \
@@ -109,23 +112,34 @@ OCBL_EFI_CFLAGS := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
                    -DOCBL_RELEASE="\"$(OC_RELEASE_VERSION)\"" \
                    -DOCBL_BUILD=$(OC_KERNEL_BUILD)
 
-# flavor-independent common sources the EFI build links too
+# flavor-independent common sources the EFI build links (B5-3: the
+# scanner chain - fs/part/scan - is firmware-agnostic since B5-2;
+# menu/load/acpi/wdt join as their backends land in B5-4/5/6)
 OCBL_EFI_SRC := $(wildcard $(OCBL_DIR)/efi/*.c) \
-                $(OCBL_DIR)/common/ocbl_serial.c
+                $(OCBL_DIR)/common/ocbl_serial.c \
+                $(OCBL_DIR)/common/ocbl_fs.c \
+                $(OCBL_DIR)/common/ocbl_part.c \
+                $(OCBL_DIR)/common/ocbl_scan.c
 OCBL_EFI_OBJ := $(patsubst $(OCBL_DIR)/%.c,$(OCBL_OUT)/efiobj/%.o,$(OCBL_EFI_SRC))
 
 $(OCBL_OUT)/efiobj/%.o: $(OCBL_DIR)/%.c $(OCBL_COMMON_H) $(OCBL_DIR)/efi/efi.h | $(OCBL_OUT)
 	@mkdir -p $(dir $@)
 	$(OCBL_CC) $(OCBL_EFI_CFLAGS) -c $< -o $@
 
-$(OCBL_OUT)/efi/reloc.o: $(OCBL_DIR)/efi/reloc.S | $(OCBL_OUT)
-	@mkdir -p $(OCBL_OUT)/efi
-	$(CC) -c -o $@ $<
-
-$(OCBL_OUT)/ocbl_x64.efi: $(OCBL_EFI_OBJ) $(OCBL_OUT)/efi/reloc.o
-	$(LD) -m i386pep -e efi_main --subsystem 10 \
-              --image-base 0x10000 --build-id=none -o $@ \
-              $(OCBL_EFI_OBJ) $(OCBL_OUT)/efi/reloc.o
+# ---- EFI link: ELF with emitted relocs -> our own PE converter ----
+# (B5-3 live-caught: `ld -m i386pep` emitted a PARTIAL .reloc
+#  directory - only the front of .text got relocation entries, later
+#  movabs absolute references kept their link-time values under
+#  OVMF's high load address, and HandleProtocol matched the WRONG
+#  protocol (the FAT SimpleFileSystem) with the corrupted GUID
+#  argument - see elf_to_efi.py's header for the full chain.  The
+#  two-step link keeps every R_X86_64_64 and builds the complete
+#  directory deterministically.)
+$(OCBL_OUT)/ocbl_x64.efi: $(OCBL_EFI_OBJ) $(OCBL_DIR)/elf_to_efi.py $(OCBL_DIR)/linker_efi.ld
+	$(LD) -m elf_x86_64 --emit-relocs -n -nostdlib \
+	      -T $(OCBL_DIR)/linker_efi.ld -o $(OCBL_OUT)/core_efi.elf \
+	      $(OCBL_EFI_OBJ)
+	python3 $(OCBL_DIR)/elf_to_efi.py $(OCBL_OUT)/core_efi.elf $@ efi_main
 	python3 -c "d=open('$(abspath $@)','rb').read(); pe=int.from_bytes(d[0x3c:0x40],'little'); assert d[:2]==b'MZ' and d[pe:pe+4]==b'PE\x00\x00' and int.from_bytes(d[pe+4:pe+6],'little')==0x8664 and int.from_bytes(d[pe+0x5c:pe+0x5e],'little')==10, 'bad PE/EFI header'; print('ocbl: ocbl_x64.efi %d bytes (x64 EFI app)' % len(d))"
 
 .PHONY: ocbl-efi
