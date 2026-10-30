@@ -1,0 +1,64 @@
+Open Cube OS 3.0.0-WP05 OCBL - B2a: BIOS services trampoline evidence
+====================================================================
+Test: QEMU SeaBIOS boot of build/ocbl/ocbl_test.iso with a control
+      hard disk (known magic EB 'XXCTRLHD' + 0xAA55) attached.
+      qemu -cdrom ocbl_test.iso -drive if=ide,format=raw,file=ctrlhd.img
+Date: 2026-10-30 11:53 UTC
+
+What is proven (serial transcript below, verbatim):
+  1. 64->32->16 real-mode trampoline round trip (16+ full cycles per
+     boot; every BIOS call below went through it)
+  2. int 15h AX=E820 memory map: 6 real entries, [0] 0..0x9FC00 usable
+     (the canonical QEMU/SeaBIOS map - matches what GRUB sees; the
+     trailing zero-length entry is the SeaBIOS terminator quirk,
+     stored but filtered from display)
+  3. int 13h AH=48h geometry: hd 0x80 = 2048 sectors x 512 B,
+     cd 0xE0 = 2048-B sectors (total -1 = unknown, CD semantics)
+  4. int 13h AH=42h extended reads: hd 0x80 LBA 0 returns the
+     control disk magic 'EB 58 58 43 54 52 4C 48'; cd 0xE0 LBA 16
+     returns the ISO PVD ('CD001', type 1); cd 0xE0 LBA 34 returns
+     our own El Torito image's first bytes (FA FC 31 C0 8E D0 BC 00
+     = the stage1 entry code)
+  5. int 13h AH=02h classic CHS read verified on the control disk
+
+Live-caught traps fixed on the way (all reproduced -> root-caused ->
+fixed -> re-verified, root causes recorded in the source comments):
+  T1 16-bit code segment truncates 32-bit far-jump offsets -> the
+     trampoline's code16/data16 descriptors got BASE=0x40000 (GRUB
+     avoids this only because its trampoline lives below 64 KiB)
+  T2 DAP byte-layout mis-mapping (block count is u16[1], not u16[2])
+     -> the BIOS 'transfers' zero blocks and reports success: CF=0,
+     AL=0, buffer untouched - found via a 0xEE-prefill canary
+  T3 E820 scratch slot landed exactly on entries[0] (the array starts
+     at BUF+8 because of u64 alignment) -> every call corrupted the
+     map; moved to a separate 0x61000 scratch
+  T4 continuation-id and SMAP-echo mishandling in the E820 loop
+  T5 the self-patch INT opcode byte was clobbered by a debug probe
+     placed between the label and the instruction
+
+--- serial transcript (probe lines trimmed) ---
+OCBL stage1 ok
+
+OCBL 3.0.0 boot loader (3.0.0-WP04 build 350)
+long mode 64-bit C entry OK
+flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
+cpu: QEMU Virtual CPU version 2.5+
+stack at 0x0009EF70
+OCBL B1 chain verified
+[b2a] trampoline installed at 0x40000
+[b2a] E820 entries: 7
+  [0] base=0x00000000 len=0x0009FC00 type=1
+  [1] base=0x0009FC00 len=0x00000400 type=2
+  [2] base=0x000F0000 len=0x00010000 type=2
+  [3] base=0x00100000 len=0x0FEE0000 type=1
+  [4] base=0x0FFE0000 len=0x00020000 type=2
+  [5] base=0xFFFC0000 len=0x00040000 type=2
+  [6] base=0x00000000 len=0x00000000 type=2
+[b2a] hd 0x80 LBA0:EB58584354524C48 sig=0000
+[b2a] scanning BIOS drives (boot=0xE0)
+  drive 0x80: 2048 sectors x 512 B
+  cdrom 0xE0: 18446744073709551615 sectors x 2048 B
+  PVD: 'CD001' type=1
+  boot image first bytes: FA FC 31 C0 8E D0 BC 00
+
+--- end ---

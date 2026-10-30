@@ -44,6 +44,19 @@ $(OCBL_OUT)/stage1_mbr.bin: $(OCBL_DIR)/bios/stage1.asm | $(OCBL_OUT)
 	$(NASM) -f bin -D OCBL_MBR -o $@ $<
 	python3 -c "import sys; b=open('$(abspath $@)','rb').read(); assert len(b)==512, 'stage1 mbr %d bytes' % len(b); print('ocbl: stage1 mbr 512B ok')"
 
+# ---- real-mode trampoline (flat binary, embedded as data) ----
+$(OCBL_OUT)/tramp16.bin: $(OCBL_DIR)/bios/tramp16.asm | $(OCBL_OUT)
+	$(NASM) -f bin -o $@ $<
+	python3 -c "b=open('$(abspath $@)','rb').read(); assert len(b)<=0x300, 'tramp blob %d B overflows the 0x100 code area' % len(b); print('ocbl: tramp16.bin %dB ok' % len(b))"
+
+$(OCBL_OUT)/bios/tramp_data.o: $(OCBL_DIR)/bios/tramp_data.asm $(OCBL_OUT)/tramp16.bin | $(OCBL_OUT)
+	@mkdir -p $(OCBL_OUT)/bios
+	$(NASM) -f elf64 -I$(OCBL_OUT)/ -o $@ $<
+
+$(OCBL_OUT)/bios/ocbl_bios_asm.o: $(OCBL_DIR)/bios/ocbl_bios_asm.S | $(OCBL_OUT)
+	@mkdir -p $(OCBL_OUT)/bios
+	$(NASM) -f elf64 -o $@ $<
+
 # ---- core (32-bit head + 64-bit C) ----
 $(OCBL_OUT)/bios/core_head.o: $(OCBL_DIR)/bios/core_head.S | $(OCBL_OUT)
 	@mkdir -p $(OCBL_OUT)/bios
@@ -53,10 +66,12 @@ $(OCBL_OUT)/common/%.o: $(OCBL_DIR)/common/%.c $(OCBL_COMMON_H) | $(OCBL_OUT)
 	@mkdir -p $(OCBL_OUT)/common
 	$(OCBL_CC) $(OCBL_CFLAGS) -c $< -o $@
 
-$(OCBL_OUT)/core.elf: $(OCBL_OUT)/bios/core_head.o $(OCBL_OBJ) $(OCBL_DIR)/linker_bios.ld
+OCBL_BIOS_OBJS := $(OCBL_OUT)/bios/tramp_data.o $(OCBL_OUT)/bios/ocbl_bios_asm.o
+
+$(OCBL_OUT)/core.elf: $(OCBL_OUT)/bios/core_head.o $(OCBL_BIOS_OBJS) $(OCBL_OBJ) $(OCBL_DIR)/linker_bios.ld
 	$(LD) -n -nostdlib -T $(OCBL_DIR)/linker_bios.ld \
 	      -z max-page-size=0x1000 -z noexecstack -o $@ \
-	      $(OCBL_OUT)/bios/core_head.o $(OCBL_OBJ)
+	      $(OCBL_OUT)/bios/core_head.o $(OCBL_BIOS_OBJS) $(OCBL_OBJ)
 	strip --strip-debug $@
 	python3 -c "import sys; b=open('$(abspath $@)','rb').read(); print('ocbl: core.elf %d bytes' % len(b))"
 
