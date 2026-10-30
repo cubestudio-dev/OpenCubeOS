@@ -1,0 +1,31 @@
+# WP05 B3 - full menu transcript: boot -> scan -> menu -> countdown 10s -> default auto-boot (hd0+hd1 fleet, no key input)
+OCBL stage1 ok
+
+OCBL 3.0.0 boot loader (3.0.0-WP04 build 352)
+long mode 64-bit C entry OK
+flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
+cpu: QEMU Virtual CPU version 2.5+
+stack at 0x0009EF70
+OCBL B1 chain verified
+[b2a] trampoline installed at 0x40000
+[b2a] E820 entries: 7
+  [0] base=0x00000000 len=0x0009FC00 type=1
+  [1] base=0x0009FC00 len=0x00000400 type=2
+  [2] base=0x000F0000 len=0x00010000 type=2
+  [3] base=0x00100000 len=0x0FEE0000 type=1
+  [4] base=0x0FFE0000 len=0x00020000 type=2
+  [5] base=0xFFFC0000 len=0x00040000 type=2
+  [6] base=0x00000000 len=0x00000000 type=2
+[b2a] hd 0x80 LBA0:0000000000000000 sig=AA55
+[b2a] scanning BIOS drives (boot=0xE0)
+  drive 0x80: 262144 sectors x 512 B
+  drive 0x81: 32768 sectors x 512 B
+  cdrom 0xE0: 18446744073709551615 sectors x 2048 B
+  PVD: 'CD001' type=1
+  boot image first bytes: FA FC 31 C0 8E D0 BC 00
+[scan] entries: 2
+  [0] OCOS: Open Cube OS (slot B, hd0)  path=/boot/opencube.elf size=256  slot=B
+  [1] OCIRE: OCIRE recovery (hd1 p1)  path=/boot/ocire.elf size=256
+[0;1HOpen Cube OS Boot Loader (3.0.0-WP04 build 352)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOpen Cube OS (slot B, hd0)[0m[5;1HOCIRE recovery (hd1 p1)[6;1HShutdown[2;1HBooting Open Cube OS (slot B, hd0) in 10s                                     [2;1HBooting Open Cube OS (slot B, hd0) in 9s                                      [2;1HBooting Open Cube OS (slot B, hd0) in 8s                                      [2;1HBooting Open Cube OS (slot B, hd0) in 7s                                      [2;1HBooting Open Cube OS (slot B, hd0) in 6s                                      [2;1HBooting Open Cube OS (slot B, hd0) in 5s                                      [2;1HBooting Open Cube OS (slot B, hd0) in 4s                                      [2;1HBooting Open Cube OS (slot B, hd0) in 3s                                      [2;1HBooting Open Cube OS (slot B, hd0) in 2s                                      [2;1HBooting Open Cube OS (slot B, hd0) in 1s                                      [menu] selected: Open Cube OS (slot B, hd0)
+[menu] B4 will load this payload (mb2 handoff)
+
