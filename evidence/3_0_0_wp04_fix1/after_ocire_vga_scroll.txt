@@ -1,0 +1,21 @@
+=== [after] OCIRE boot (tail) ===
+b"recovery kernel (L0 peer of Open Cube OS).\nVideo: framebuffer tag present but not RGB32 (type=2 bpp=16) - VGA text fallback\nCmdline: ocire.mode=full\nCPU exception handlers armed.\nACPI: FADT found (S5 SLP_TYP=0)\nReady. Type 'help' for the command list.\n\nocire> "
+[PASS] OCIRE reached (full shell)
+[PASS] OCIRE in VGA text mode (type-2 tag fallback)
+early dump: ok
+final dump: ok
+[PASS] both screendumps captured
+top band md5 early=9443c189afb1e42ab0b3679930c7adeb final=838499bd0d6be58e5e1c31721057a497
+bottom band md5 early=01c563ab0775d1f7a938cd2c9b87b335 final=91310e07dc5bd76629a12119320ea324
+bottom ink early=6512 final=6516
+[PASS] top band scrolled on (early != final)
+[PASS] BUG 10 FIXED: bottom band scrolled on (md5 changed)
+[PASS] bottom band still has ink (live content)
+=== SUMMARY after ===
+PASS: OCIRE reached (full shell)
+PASS: OCIRE in VGA text mode (type-2 tag fallback)
+PASS: both screendumps captured
+PASS: top band scrolled on (early != final)
+PASS: BUG 10 FIXED: bottom band scrolled on (md5 changed)
+PASS: bottom band still has ink (live content)
+TOTAL 6/6

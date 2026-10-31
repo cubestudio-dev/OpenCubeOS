@@ -1,0 +1,22 @@
+=== [bug 8] banner ===
+b"covery armed (panic + dump + crashlog).... OK\r\n[00:00:02.650] L0 ready, waiting for L1.......................... OK\r\n    l1 launcher: booting 'ush' (ring 3, 18888 bytes)\r\n\r\nOpen Cube OS User-space Shell (3.0.0-WP04)\r\nType 'help' for built-in commands.\r\n\r\nush> "
+[PASS] banner shows 3.0.0-WP04 (not WP-08)
+=== [bug 7/E1] Left + insert + Home + End + Del + BS ===
+b'ab\rush> ab\rush> a\rush> aXb\rush> aX\rush> aXb\rush> \rush> YaXb\rush> Y\rush> YaXb\rush> YaXbZ\rush> YaXbZ\rush> YaXb\rush> YaXb \rush> YaXb\r\nush: command not found: YaXb\r\nush> '
+[PASS] E1 cursor keys assemble YaXb
+b'ab\rush> ab\rush> a\rush> aXb\rush> aX\rush> aXb\rush> \rush> YaXb\rush> Y\rush> YaXb\rush> YaXbZ\rush> YaXbZ\rush> YaXb\rush> YaXb \rush> YaXb\r\nush: command not found: YaXb\r\nush> '
+[PASS] E1 repeat stable (clean redraw, no ghost)
+=== [bug 7/E2] Ctrl+A/E/W/K + Ctrl+C ===
+b'one two\rush> one two\rush> \rush> Xone two\rush> X\rush> Xone two\rush> Xone twoY\rush> Xone    \rush> Xone \r\nush: command not found: Xone\r\nush> '
+[PASS] E2 Ctrl+A/E/W assemble Xone
+b'junkjunk^C\r\nush> '
+[PASS] E2 Ctrl+C cancels line (^C, no command-not-found)
+=== [bug 7/E3] history Up/Down (ghost-free) ===
+b'echo 1111111111 2222222222 3333333333\r\n1111111111 2222222222 3333333333\r\nush> '
+b'echo s\r\ns\r\nush> '
+b'\rush> echo s\rush> echo s\rush> echo 1111111111 2222222222 3333333333\rush> echo 1111111111 2222222222 3333333333\rush> echo s                               \rush> echo s'
+[PASS] E3 history ghost-free after Down to short entry
+b'\r\ns\r\nush> '
+[PASS] E3 recalled short entry runs (echo s -> s)
+=== [bug 7/E4 + bug 6] Tab completion (registry-driven) ===
+b'date \rush> date \rush> date '

@@ -2084,7 +2084,13 @@ void core_syscall_wp08a_init(void) {
     core_syscall_register(SYS_GETCH, sys_getch);
     core_syscall_register(SYS_UPTIME, sys_uptime);  /* P2-04 */
     core_syscall_register(SYS_MEMINFO, sys_meminfo);  /* WP-09-FIX BUG-014 */
-    memset(g_pipes, 0, sizeof(g_pipes));
+    /* 3.0.0-WP04-fix1 (bug 11): this memset ran at init time when
+     * g_pipes is still NULL (the pipe table is LAZY - allocated on the
+     * first pipe syscall, see pipes_ready()), so it wrote 8 zero bytes
+     * to physical address 0x0. It was also wrong twice over even with
+     * a table: sizeof(g_pipes) is the POINTER size (8), not the array
+     * size, and the lazy allocation already memsets the whole table on
+     * every successful kmalloc. Line removed; nothing else needed. */
 }
 
 /* ============================================================

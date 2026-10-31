@@ -359,7 +359,10 @@
  *            are dropped with this declaration.
  *   LDD    - the v2.2.0 ldd body over the registry: PT_INTERP +
  *            DT_NEEDED introspection of a registered program. */
-#define L1SVC_L1_APPS   1   /* registry listing (help/run surface) */
+#define L1SVC_L1_APPS   1   /* registry listing; fix1: arg selects
+                                 * the mode - "" plain A-Z listing,
+                                 * "-a" full A-Z with wp tags, "-w"
+                                 * grouped by work package */
 #define L1SVC_L1_L1TEST 2   /* l1test (job + wp8b + CPL0 smoke)  */
 #define L1SVC_L1_LDD    3   /* ldd <program>                     */
 

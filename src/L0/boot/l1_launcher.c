@@ -96,5 +96,13 @@ void l1_launcher_boot_default(void) {
     while (g_l1_entry_running) {
         core_sched_yield();
     }
-    lib_log_info("l1 launcher: default L1 app exited; recovery shell taking over");
+    /* 3.0.0-WP04-fix1 (bug 4): WP-03 removed the L0 user plane - there
+     * IS no recovery shell to "take over" anymore. The old message
+     * ("recovery shell taking over") lied about a prompt that never
+     * comes. Say what actually happens: the boot task parks in the
+     * kmain halt loop, and the honest guidance is the boot menu (OCBL)
+     * or a reboot. (ush itself no longer offers exit - see the exit
+     * builtin - but a crashed or killed default entry still lands
+     * here, so the message must still be true.) */
+    lib_log_info("l1 launcher: default L1 app exited; L0 halting (reboot or use the boot menu)");
 }

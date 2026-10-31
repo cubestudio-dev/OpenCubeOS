@@ -1,0 +1,18 @@
+=== boot serial (tail) ===
+b"e)\r\n\r[boot] kernel loaded: entry=0x01008810 size=60288\r\n\r[boot] mbi built: 288 bytes at 0x50000\r\n\r\nOCIRE - OpenCubeOS Independent Recovery Environment\nOCIRE 3.0.0-WP-02 (build 360)\nIndependent recovery kernel (L0 peer of Open Cube OS).\nVideo: VGA text 80x25 (no framebuffer tag)\nCmdline: \nCPU exception handlers armed.\nACPI: FADT found (S5 SLP_TYP=0)\nReady. Type 'help' for the command list.\n\nocire> "
+[PASS] boot reached ocire>
+=== [bug 9/after] PS/2 keys via monitor sendkey ===
+b"1a=-\ttest\nUnknown command: 1a=-\ttest  (try 'help')\nocire> "
+[PASS] key '1' -> '1'
+[PASS] key '=' -> '=' (no backspace erasure)
+[PASS] key Tab live (\t in line)
+[PASS] line assembled byte-exact 1a=-\tttest
+=== after bug9 line (tail) ===
+b"1a=-\ttest\nUnknown command: 1a=-\ttest  (try 'help')\nocire> "
+=== SUMMARY after ===
+PASS: boot reached ocire>
+PASS: key '1' -> '1'
+PASS: key '=' -> '=' (no backspace erasure)
+PASS: key Tab live (\t in line)
+PASS: line assembled byte-exact 1a=-\tttest
+TOTAL 5/5
