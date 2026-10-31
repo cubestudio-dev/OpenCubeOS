@@ -6,11 +6,9 @@
 
 # mkfs.fat32
 
-`mkfs.fat32` - mkfs.fat32 &lt;dev&gt;
+`mkfs.fat32` - ring-3 half of the v2.2.0 `mkfs.fat32` command
 
-Home: ring-3 service surface - SVC_CMDS row in `l1apps/ush.c`, dispatched through SYS_L1SVC(110) to `services/block/`.
-
-Domain: [ush (ring-3 shell: SVC rows + built-ins)](index.md#ush)
+Domain: [Other](index.md#other)
 
 Full command index: [commands](index.md) - or `help -a` /
 `help -w` inside a running system.

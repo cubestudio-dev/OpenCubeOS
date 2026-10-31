@@ -6,12 +6,10 @@
 
 # lang
 
-`lang` - lang [en|zh]
+`lang` - ring-3 half of the v2.2.0 `lang` command
 
 **用法：** `lang [en|zh]  (no argument shows the current language)`
 
-家：ring-3 服务面 —— ush 的 SVC_CMDS 行（`l1apps/ush.c`），经 SYS_L1SVC(110) 派发到 `services/display/`。
-
-领域：[ush（ring-3 shell：SVC 行 + 内建）](index.md#ush)
+领域：[其他](index.md#other)
 
 完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。

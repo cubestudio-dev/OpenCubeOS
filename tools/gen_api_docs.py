@@ -213,24 +213,29 @@ def l1_app_help(name):
 
 
 def extract_ush_builtins():
-    """3.0.0-WP04: parse the ush help listing out of
-    src/L1/ush/main.c - the hardcoded  puts_("  name [args]  Help")
-    rows of the help builtin."""
+    """3.0.0-WP04: parse the ush shell built-in rows out of
+    src/L1/ush/main.c.  3.0.0-WP04-fix1: the help builtin was rewritten
+    registry-driven - the rows now live in the `builtin_rows[]` string
+    array (one "name [args]  help" per entry); the old parser matched
+    the pre-fix1 puts_("  name ...") rows and would silently drop the
+    whole built-in set from the regenerated docs."""
     mc = os.path.join(ROOT, "src", "L1", "ush", "main.c")
     if not os.path.exists(mc):
         return []
     out = []
     in_block = False
     for line in open(mc, encoding="utf-8", errors="replace"):
-        if "built-in commands:" in line:
+        if "builtin_rows[] = {" in line:
             in_block = True
             continue
         if in_block:
             if line.strip().startswith("}"):
                 break
-            m = re.match(r'\s*puts_\("  (\S+) +(\S.*?)\\n"\);', line)
-            if m and re.match(r"^[a-z][a-z0-9_.-]*$", m.group(1)):
-                out.append({"name": m.group(1), "help": m.group(2),
+            m = re.match(r'\s*"([a-z][a-z0-9_.-]*)(?: ([^"]*?))?\s\s+(\S[^"]*)",?\s*$',
+                         line)
+            if m:
+                help_txt = ((m.group(2) + "  ") if m.group(2) else "") + m.group(3)
+                out.append({"name": m.group(1), "help": help_txt,
                             "where": "L1-builtin", "cat": "ush"})
     return out
 
@@ -618,7 +623,7 @@ def extract_stats():
 # 2.1.0 (P-15): the pages are v2-native now.  The registration table
 # (file, name, handler, help) is extracted from every OC_SHELL_CMD
 # call site; the ush SVC_CMDS rows and built-ins carry their own home
-# (l1apps/ush.c); domain grouping follows the v2 tree (recovery/,
+# (src/L1/ush/main.c); domain grouping follows the v2 tree (recovery/,
 # services/, core/, tui/, chinese/, l1apps/).
 
 
@@ -817,7 +822,7 @@ def write_command_pages(cmds, out_dir, lang="en"):
                 w("家：L0 恢复壳（`oc>`）—— 注册于 `%s`（OC_SHELL_CMD）"
                   % "`, `".join(sorted(set(files))))
                 if c.get("svc_duo"):
-                    w("双归属：同时是 ush 的 SVC_CMDS 行（`l1apps/ush.c`），"
+                    w("双归属：同时是 ush 的 SVC_CMDS 行（`src/L1/ush/main.c`），"
                       "两个 shell 都可调用。")
                 if c.get("bridge"):
                     w("亦可经 SYS_NETCMD 桥接从 ush 内建调用。")
@@ -825,7 +830,7 @@ def write_command_pages(cmds, out_dir, lang="en"):
                 w("Home: L0 recovery shell (`oc>`) - OC_SHELL_CMD in `%s`"
                   % "`, `".join(sorted(set(files))))
                 if c.get("svc_duo"):
-                    w("Also an ush SVC_CMDS row (`l1apps/ush.c`) - "
+                    w("Also an ush SVC_CMDS row (`src/L1/ush/main.c`) - "
                       "callable from both shells.")
                 if c.get("bridge"):
                     w("Also reachable as a ush built-in through the "
@@ -833,21 +838,21 @@ def write_command_pages(cmds, out_dir, lang="en"):
             w("")
         elif c["where"] == "L1-SVC":
             if zh:
-                w("家：ring-3 服务面 —— ush 的 SVC_CMDS 行（`l1apps/ush.c`），"
+                w("家：ring-3 服务面 —— ush 的 SVC_CMDS 行（`src/L1/ush/main.c`），"
                   "经 SYS_L1SVC(110) 派发到 `services/%s/`。" % svc_folder_of_cat(c["cat"]))
             else:
                 w("Home: ring-3 service surface - SVC_CMDS row in "
-                  "`l1apps/ush.c`, dispatched through SYS_L1SVC(110) to "
+                  "`src/L1/ush/main.c`, dispatched through SYS_L1SVC(110) to "
                   "`services/%s/`." % svc_folder_of_cat(c["cat"]))
             w("")
         elif c["where"] == "L1-builtin":
             via = (" 或经 SYS_NETCMD" if c.get("bridge") else "")
             if zh:
-                w("家：ush 内建 —— `l1apps/ush.c` 的 streq 派发"
+                w("家：ush 内建 —— `src/L1/ush/main.c` 的 streq 派发"
                   "（完全运行于 ring 3%s）。" % via)
             else:
                 w("Home: ush built-in - streq dispatch in "
-                  "`l1apps/ush.c` (runs entirely in ring 3%s)." % via)
+                  "`src/L1/ush/main.c` (runs entirely in ring 3%s)." % via)
             w("")
         w(("领域：[%s](index.md#%s)" if zh else "Domain: [%s](index.md#%s)")
           % (titles.get(dom, dom), dom))
@@ -1556,27 +1561,40 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
 
 
 def extract_commands_from_capture_text(text):
+    """Names from a runtime help capture.  3.0.0-WP04-fix1: help -a is
+    the registry listing ("  name  [wp-tag]" rows + a \"(A-Z, N
+    programs)\" header); the v2.2.0-era captures ("  name - help"
+    rows + "Total: N commands") keep parsing, so old evidence files
+    remain cross-checkable."""
     cmds = []
     seen = set()
     total = None
     total_re = re.compile(r"Total:\s*(\d+)\s*commands")
+    total_re_fix1 = re.compile(r"\(A-Z,\s*(\d+)\s*programs\)")
     entry_re = re.compile(
         r"^\s{2}([a-z0-9_.][a-z0-9_. -]*?)\s+-\s+(.*)$")
+    entry_re_fix1 = re.compile(
+        r"^\s{2}([a-z0-9_.][a-z0-9_.-]*)\s+\[([a-z0-9_]+)\]\s*$")
     for line in text.splitlines():
-        m = total_re.search(line)
+        m = total_re.search(line) or total_re_fix1.search(line)
         if m:
             total = int(m.group(1))
             continue
         m = entry_re.match(line)
         if m:
             name = m.group(1)
-            # a runner capture can contain the command table twice
-            # (the live serial log + the runner's OUTPUT SUMMARY
-            # replay) - dedupe by name, first occurrence wins.
             if name in seen:
                 continue
             seen.add(name)
             cmds.append({"name": name, "help": m.group(2).strip()})
+            continue
+        m = entry_re_fix1.match(line)
+        if m:
+            name = m.group(1)
+            if name in seen:
+                continue
+            seen.add(name)
+            cmds.append({"name": name, "help": "registry program [%s]" % m.group(2)})
     return cmds, total
 
 

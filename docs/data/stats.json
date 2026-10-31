@@ -2,26 +2,26 @@
  "dirs": {
   "src/L0/core": {
    "files": 62,
-   "lines": 13264
+   "lines": 13269
   },
   "src/L0/drivers": {
    "files": 125,
-   "lines": 40222
+   "lines": 40347
   },
   "src/L0/services": {
    "files": 176,
-   "lines": 65175
+   "lines": 65305
   },
   "src/L0/boot": {
    "files": 7,
-   "lines": 1180
+   "lines": 1188
   },
   "src/L1": {
    "files": 254,
-   "lines": 8715
+   "lines": 8781
   }
  },
- "total_lines": 128556,
+ "total_lines": 128890,
  "total_files": 624,
  "note": "Counts .c/.h/.S sources under the 9 STAT_DIRS (core arch drivers services recovery tui chinese boot l1apps); generated data blobs excluded, and l1apps/ .asm/.ld program files are not counted (9 of its 36 files are .c) - the same exclusions the README verification command applies."
 }

@@ -6,10 +6,8 @@
 
 # ifconfig
 
-`ifconfig` - ifconfig
+`ifconfig` - ring-3 L1 app
 
-家：ush 内建 —— `l1apps/ush.c` 的 streq 派发（完全运行于 ring 3）。
-
-领域：[ush（ring-3 shell：SVC 行 + 内建）](index.md#ush)
+领域：[其他](index.md#other)
 
 完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。
