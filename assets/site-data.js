@@ -4,29 +4,29 @@
    the real dist/ assets + the release manifest. */
 window.SITE_DATA = {
   version: "3.0.0-WP04",
-  build: 360,
+  build: 361,
   date: "2026-10-31",
-  changes: "fix1: all 11 known bugs fixed - ush/help/editor restored to WP-14 level, OCIRE keyboard + VGA scroll, serial CSI decode, g_pipes NULL write removed",
+  changes: "fix1: all 11 known bugs fixed (ush/help/editor, OCIRE kbd+VGA, serial CSI, g_pipes); ISO determinism restored (stage-tree pin + RR TF atime zeroing) - root/dir stamps epoch-pinned, two clean builds byte-identical across minutes",
   assets: {
     iso: {
       name: "opencube-3.0.0-WP04.iso",
       size: 3637248,
       size_h: "3.5 MiB",
-      sha256: "6b1f07d04cc368e30b2c7eb2dd95e707c3fffbabbe24bd4b985627e0350b95af",
+      sha256: "b0f348576f61601ba7d7655a0e53e74610e2d36701959187d56f8232e792001d",
       url: "downloads/opencube-3.0.0-WP04.iso"
     },
     src: {
       name: "opencube-3.0.0-WP04-src.zip",
-      size: 4078947,
-      size_h: "3.9 MiB",
-      sha256: "08807c04fbbbfaea469393281bcdbc8777f43644bc1037c212929462146e9311",
+      size: 4157834,
+      size_h: "4.0 MiB",
+      sha256: "886bf41200d3165543ffb1f26c1644f286fb4b2ff1b5090d6d11248a4792b98f",
       url: "downloads/opencube-3.0.0-WP04-src.zip"
     },
     ota: {
       name: "opencube-3.0.0-WP04-update.tar.gz",
-      size: 1153962,
+      size: 1153842,
       size_h: "1.1 MiB",
-      sha256: "3346d6e43df15b6eeef87ac6adc7777bada280506473ecfe966d32b05c91ca1d",
+      sha256: "9f7a7030b6990c8a3736ba67573293d636d9b4ac18067a7fac4e71ea1d5db2bd",
       url: "downloads/opencube-3.0.0-WP04-update.tar.gz"
     }
   },
