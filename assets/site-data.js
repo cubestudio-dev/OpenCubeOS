@@ -3,40 +3,43 @@
    release time. Do not hand-edit: the script rewrites this file from
    the real dist/ assets + the release manifest. */
 window.SITE_DATA = {
-  version: "2.2.0",
-  build: 316,
-  date: "2026-10-26",
-  changes: "2.2.0 fix release: wp10_tui post-suite kthread-stack #DF fixed (stacks 6->10 pages, measured worst chain documented); wait4-vs-fork stale-zombie/tid-reuse race fixed (orphan-detach bookkeeping, 20/20 fresh-boot battery); 2.0.0 mirror assets restored; build-id caliber exact in three places. See the GitHub release note for the full root-cause records.",
+  version: "3.0.0-WP04",
+  build: 360,
+  date: "2026-10-31",
+  changes: "fix1: all 11 known bugs fixed - ush/help/editor restored to WP-14 level, OCIRE keyboard + VGA scroll, serial CSI decode, g_pipes NULL write removed",
   assets: {
     iso: {
-      name: "opencube-2.2.0.iso",
-      size: 12392448,
-      size_h: "11.8 MiB",
-      sha256: "20f93fee8c791af7ac9ec1b6b53a525bef2ac2d5697b829721b28bbe0fd950f9",
-      url: "downloads/opencube-2.2.0.iso"
+      name: "opencube-3.0.0-WP04.iso",
+      size: 3637248,
+      size_h: "3.5 MiB",
+      sha256: "6b1f07d04cc368e30b2c7eb2dd95e707c3fffbabbe24bd4b985627e0350b95af",
+      url: "downloads/opencube-3.0.0-WP04.iso"
     },
     src: {
-      name: "opencube-2.2.0-src.zip",
-      size: 4716252,
-      size_h: "4.5 MiB",
-      sha256: "a2041daaf3b1f5ff72cbbf161f3e90718da2adf16605cbb9ae29b8c24f2ed01b",
-      url: "downloads/opencube-2.2.0-src.zip"
+      name: "opencube-3.0.0-WP04-src.zip",
+      size: 4078947,
+      size_h: "3.9 MiB",
+      sha256: "08807c04fbbbfaea469393281bcdbc8777f43644bc1037c212929462146e9311",
+      url: "downloads/opencube-3.0.0-WP04-src.zip"
     },
     ota: {
-      name: "opencube-2.2.0-update.tar.gz",
-      size: 1080741,
-      size_h: "1.0 MiB",
-      sha256: "ac9a6ec2c3dd679977ad1c716dbacb26ae84119ddc75751fb30712effa6ad19e",
-      url: "downloads/opencube-2.2.0-update.tar.gz"
+      name: "opencube-3.0.0-WP04-update.tar.gz",
+      size: 1153962,
+      size_h: "1.1 MiB",
+      sha256: "3346d6e43df15b6eeef87ac6adc7777bada280506473ecfe966d32b05c91ca1d",
+      url: "downloads/opencube-3.0.0-WP04-update.tar.gz"
     }
   },
   stats: {
-    commands: 283,
+    commands: 285,
     interfaces: 158,
     syscalls: 54,
-    lines: "128,556"
+    lines: "128,890"
   },
   history: [
+    { version: "2.2.0", date: "2026-10-26",
+      iso_sha: "20f93fee8c791af7ac9ec1b6b53a525bef2ac2d5697b829721b28bbe0fd950f9",
+      iso_size: 12392448 },
     { version: "2.1.0", date: "2026-10-25",
       iso_sha: "808b5423127fa6ee802f84d9edd2db2639052a57946ff554512787638cdcb9de",
       iso_size: 12392448 },
