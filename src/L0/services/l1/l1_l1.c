@@ -33,7 +33,21 @@ static void put_u64(u64 v) {
 
 /* ---- op 1: the registry listing -----------------------------------------
  * One name per line, A-Z (gen_userprogs.py emits the registry sorted;
- * the help_*_test apps assert this invariant), with a count footer. */
+ * the help_*_test apps assert this invariant), with a count footer.
+ *
+ * 3.0.0-WP04-fix1 (bugs 5/6): op 1 now accepts an OPTIONAL mode in
+ * arg - the same op number, three renderings, no new interface:
+ *   arg ""   (or 0) -> the machine-readable A-Z plain listing above
+ *              (EXACT unchanged format: the help_*_test apps and
+ *              the ush Tab completion parse this shape)
+ *   arg "-a" -> the human "all" view: every registry entry A-Z with
+ *              its work-package tag (help -a)
+ *   arg "-w" -> the human "by work package" view: entries grouped
+ *              under === <tag> (<description>) === headers in the
+ *              canonical service-category order, members A-Z within
+ *              each group (the restored v2.2.0 help -w shape)
+ * Everything renders FROM THE REGISTRY - there is no hand-written
+ * command list anywhere on this path. */
 static int l1_apps_core(void) {
     for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
         put(OC_USERPROGS[i].name);
@@ -42,6 +56,103 @@ static int l1_apps_core(void) {
     put("-- ");
     put_u64(OC_USERPROGS_COUNT);
     put(" programs registered --\n");
+    return 0;
+}
+
+/* The canonical work-package group order + descriptions.
+ * 3.0.0-WP04-fix1: the v2.2.0 g_svc_order semantics restored over
+ * the 3.0.0 registry tag set (18 groups; the empty v2.2.0 groups
+ * that lost every member to the WP-03 user-plane removal are not
+ * listed - help -w skips empty groups by design). */
+static const struct { const char *tag; const char *desc; } s_wp_order[] = {
+    { "recovery", "recovery shell core (oc>)" },
+    { "core",     "kernel core: memory, scheduler, diagnostics" },
+    { "fs",       "file service: VFS, ext4/FAT32/exFAT/ramfs" },
+    { "net",      "network service: TCP/IP, DNS, DHCP, SSH" },
+    { "block",    "block service + storage drivers" },
+    { "nic",      "NIC service + ethernet drivers" },
+    { "snd",      "sound service + audio drivers" },
+    { "display",  "display service: framebuffer, font, CJK render" },
+    { "input",    "input service: keyboard, mouse, touch" },
+    { "usb",      "USB service + host stack" },
+    { "camera",   "camera service (UVC)" },
+    { "time",     "time service: RTC/HPET/PMTimer/TSC" },
+    { "power",    "power service (ACPI)" },
+    { "watchdog", "watchdog service" },
+    { "ota",      "OTA update service (A/B slots)" },
+    { "crypto",   "crypto service (TLS primitives)" },
+    { "ush",      "shell service commands (former ush SVC rows)" },
+    { "l1",       "L1 service: registry, jobs, IPC, ring-3 tests" },
+};
+
+static int wp_order_known(const char *tag) {
+    for (u64 k = 0; k < sizeof(s_wp_order) / sizeof(s_wp_order[0]); k++)
+        if (strcmp(tag, s_wp_order[k].tag) == 0) return 1;
+    return 0;
+}
+
+/* help -a: every entry A-Z with its tag. */
+static int l1_apps_help_a(void) {
+    put("ring-3 program registry (A-Z, ");
+    put_u64(OC_USERPROGS_COUNT);
+    put(" programs):\n");
+    for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
+        put("  ");
+        put(OC_USERPROGS[i].name);
+        put("  [");
+        put(OC_USERPROGS[i].wp);
+        put("]\n");
+    }
+    return 0;
+}
+
+/* help -w: grouped by work-package tag, canonical order, A-Z inside. */
+static int l1_apps_help_w(void) {
+    put("ring-3 program registry by work package (");
+    put_u64(OC_USERPROGS_COUNT);
+    put(" programs):\n");
+    u64 shown = 0;
+    u64 groups = 0;
+    for (u64 k = 0; k < sizeof(s_wp_order) / sizeof(s_wp_order[0]); k++) {
+        u64 count = 0;
+        for (u64 i = 0; i < OC_USERPROGS_COUNT; i++)
+            if (strcmp(OC_USERPROGS[i].wp, s_wp_order[k].tag) == 0) count++;
+        if (count == 0) continue;
+        groups++;
+        put("\n=== ");
+        put(s_wp_order[k].tag);
+        put(" (");
+        put(s_wp_order[k].desc);
+        put(") ===\n");
+        for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
+            if (strcmp(OC_USERPROGS[i].wp, s_wp_order[k].tag) != 0) continue;
+            put("  ");
+            put(OC_USERPROGS[i].name);
+            put("\n");
+            shown++;
+        }
+    }
+    /* unregistered tags land in one bounded "other" bucket (v2.2.0
+     * BUG-0237 semantics: nothing is silently dropped). */
+    u64 other = 0;
+    for (u64 i = 0; i < OC_USERPROGS_COUNT; i++)
+        if (!wp_order_known(OC_USERPROGS[i].wp)) other++;
+    if (other > 0) {
+        put("\n=== other (unregistered tags) ===\n");
+        groups++;
+        for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
+            if (wp_order_known(OC_USERPROGS[i].wp)) continue;
+            put("  ");
+            put(OC_USERPROGS[i].name);
+            put("\n");
+            shown++;
+        }
+    }
+    put("\n-- ");
+    put_u64(shown);
+    put(" programs in ");
+    put_u64(groups);
+    put(" groups --\n");
     return 0;
 }
 
@@ -337,7 +448,17 @@ static int l1_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
     out[0] = 0;
     const char *a = arg ? arg : "";
     switch (op) {
-    case L1SVC_L1_APPS:   return l1_apps_core();
+    case L1SVC_L1_APPS:
+        /* 3.0.0-WP04-fix1: op 1 renders one of three modes from the
+         * registry ("" machine listing / "-a" full A-Z / "-w" by
+         * work package); no new op number, no hand-written lists. */
+        if (a[0] == '-' && a[1] == 'a' && a[2] == 0) return l1_apps_help_a();
+        if (a[0] == '-' && a[1] == 'w' && a[2] == 0) return l1_apps_help_w();
+        if (a[0] != 0) {
+            put("usage: help [-a | -w]\n");
+            return 1;
+        }
+        return l1_apps_core();
     case L1SVC_L1_L1TEST: return l1_l1test_core();
     case L1SVC_L1_LDD:    return l1_ldd_core(a);
     default: return -1;

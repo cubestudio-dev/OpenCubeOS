@@ -1,0 +1,61 @@
+=== boot serial (tail) ===
+b"e)\r\n\r[boot] kernel loaded: entry=0x01008810 size=60288\r\n\r[boot] mbi built: 288 bytes at 0x50000\r\n\r\nOCIRE - OpenCubeOS Independent Recovery Environment\nOCIRE 3.0.0-WP-02 (build 360)\nIndependent recovery kernel (L0 peer of Open Cube OS).\nVideo: VGA text 80x25 (no framebuffer tag)\nCmdline: \nCPU exception handlers armed.\nACPI: FADT found (S5 SLP_TYP=0)\nReady. Type 'help' for the command list.\n\nocire> "
+[PASS] boot reached ocire>
+=== [bug 9/before] PS/2 keys via monitor sendkey ===
+b"2a\x08 \x08=test\nUnknown command: 2=test  (try 'help')\nocire> "
+[FAIL] key '1' -> '1'
+[FAIL] key '=' -> '=' (no backspace erasure)
+[FAIL] key Tab live (\t in line)
+[FAIL] line assembled byte-exact 1a=-\tttest
+=== after bug9 line (tail) ===
+b"2a\x08 \x08=test\nUnknown command: 2=test  (try 'help')\nocire> "
+=== [bug 10/before] 30 marker lines force scrolling ===
+b"24  (try 'help')\nocire> L25\nUnknown command: L25  (try 'help')\nocire> L26\nUnknown command: L26  (try 'help')\nocire> L27\nUnknown command: L27  (try 'help')\nocire> L28\nUnknown command: L28  (try 'help')\nocire> L29\nUnknown command: L29  (try 'help')\nocire> L30\nUnknown command: L30  (try 'help')\nocire> "
+=== pmemsave monitor response ===
+memsave 4734976 4000 build/fix1_vga.pmemsave 4734976 4000 build/fix1_vga.bpmemsave 4734976 4000 build/fix1_vga.bipmemsave 4734976 4000 build/fix1_vga.bin
+(qemu)
+[PASS] VGA cell dump captured
+=== VGA rows (live dump) ===
+00|................................................................................|
+01|................................................................................|
+02|................................................................................|
+03|................................................................................|
+04|................................................................................|
+05|................................................................................|
+06|................................................................................|
+07|................................................................................|
+08|................................................................................|
+09|................................................................................|
+10|................................................................................|
+11|................................................................................|
+12|................................................................................|
+13|................................................................................|
+14|................................................................................|
+15|................................................................................|
+16|................................................................................|
+17|................................................................................|
+18|................................................................................|
+19|................................................................................|
+20|................................................................................|
+21|................................................................................|
+22|................................................................................|
+23|................................................................................|
+24|................................................................................|
+[FAIL] late marker L30 present on screen
+[PASS] early marker L01 scrolled off (no residue)
+[PASS] early marker L02 scrolled off (no residue)
+[PASS] early marker L05 scrolled off (no residue)
+[FAIL] tail rows dominate the screen
+=== SUMMARY before ===
+PASS: boot reached ocire>
+FAIL: key '1' -> '1'
+FAIL: key '=' -> '=' (no backspace erasure)
+FAIL: key Tab live (\t in line)
+FAIL: line assembled byte-exact 1a=-\tttest
+PASS: VGA cell dump captured
+FAIL: late marker L30 present on screen
+PASS: early marker L01 scrolled off (no residue)
+PASS: early marker L02 scrolled off (no residue)
+PASS: early marker L05 scrolled off (no residue)
+FAIL: tail rows dominate the screen
+TOTAL 5/11

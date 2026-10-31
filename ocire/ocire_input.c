@@ -26,10 +26,18 @@ static int g_shift;
 static int g_caps;
 static int g_e0;
 
-/* Unshifted map for scancodes 0x02..0x39 (set 1). */
+/* Unshifted map, indexed by the RAW scancode (set 1, US).
+ * 3.0.0-WP04-fix1 (bug 9): the table was off by one - row 1 carried
+ * a single leading 0, so every key reported its NEIGHBOR: '1' came
+ * out as '2' (sc 0x02 read the '2' slot), '=' came out as backspace
+ * (sc 0x0D read the '\b' slot), and Tab (0x0F) mapped to 0 (dead
+ * key). Two leading zeros put '1'..'=' at 0x02..0x0C, backspace at
+ * 0x0E, and Tab at 0x0F where set 1 actually puts them; all later
+ * rows (already correctly commented) keep their positions. */
 static const char map_lo[0x38] = {
-    /* 0x00 */ 0,   '1','2','3','4','5','6','7','8','9','0','-','=', '\b',
-    /* 0x0E */ 0,   /* 0x0F (Tab) */ 0,
+    /* 0x00 */ 0,   0,
+    /* 0x02 */ '1','2','3','4','5','6','7','8','9','0','-','=', '\b',
+    /* 0x0F */ '\t',
     /* 0x10 */ 'q','w','e','r','t','y','u','i','o','p','[',']','\n',
     /* 0x1D */ 0,   /* LCtrl */
     /* 0x1E */ 'a','s','d','f','g','h','j','k','l',';','\'','`',
@@ -40,10 +48,11 @@ static const char map_lo[0x38] = {
     /* 0x37 */ '*'  /* keypad * */
 };
 
-/* Shifted map for the same range. */
+/* Shifted map, same indexing fix as map_lo (bug 9). */
 static const char map_hi[0x38] = {
-    /* 0x00 */ 0,   '!','@','#','$','%','^','&','*','(',')','_','+', '\b',
-    /* 0x0E */ 0,   0,
+    /* 0x00 */ 0,   0,
+    /* 0x02 */ '!','@','#','$','%','^','&','*','(',')','_','+', '\b',
+    /* 0x0F */ '\t',
     /* 0x10 */ 'Q','W','E','R','T','Y','U','I','O','P','{','}','\n',
     /* 0x1D */ 0,
     /* 0x1E */ 'A','S','D','F','G','H','J','K','L',':','"','~',

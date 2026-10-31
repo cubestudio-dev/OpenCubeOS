@@ -143,6 +143,12 @@ static inline long syscall5(long n, long a, long b, long c, long d, long e) {
     return r;
 }
 
+/* 3.0.0-WP04-fix1: the L1SVC category/op numbers come from the SAME
+ * generated mirror every other L1 app uses (_shared/l1svc_ops.h) -
+ * ush previously hand-spelled its op constants, which is how the WP-08
+ * era constants drifted from the numbering contract. */
+#include "_shared/l1svc_ops.h"
+
 /* String helpers (no libc) */
 static int strlen_(const char *s) {
     int n = 0;
@@ -183,8 +189,11 @@ static void __attribute__((unused)) memset_(void *d, int c, int n) {
 }
 static int isspace_(char c) { return c == ' ' || c == '\t'; }
 
-/* Parse decimal integer (returns 0 on no digits). */
-static int atoi_(const char *s) {
+/* Parse decimal integer (returns 0 on no digits).
+ * 3.0.0-WP04-fix1: exit was the last caller (it took an exit-code
+ * argument); kept for future callers, marked unused like the other
+ * kept helpers so the 0-warning gate stays green. */
+static int __attribute__((unused)) atoi_(const char *s) {
     int n = 0;
     int sign = 1;
     int i = 0;
@@ -375,111 +384,86 @@ static int builtin_cmd(int argc, char *argv[]) {
         return 1;
     }
     if (streq(argv[0], "exit")) {
-        /* A16-15 FIX: both arms of the ternary were 0, so the documented
-         * `exit [code]` argument was silently dropped (status always 0).
-         * Parse the argument (atoi_: non-numeric -> 0) and pass it on so
-         * a parent's wait4 can observe the real status; no arg stays 0. */
-        sys_exit2(argc > 1 ? atoi_(argv[1]) : 0);
+        /* 3.0.0-WP04-fix1 (bug 1 + bug 4): there is nothing to exit
+         * TO. WP-03 removed the L0 user plane, so once ush exits the
+         * launcher returns into kmain's bare halt loop and the machine
+         * sits blank - exactly what the old exit produced (and the
+         * launcher then LIED about a "recovery shell taking over").
+         * The shell is the user surface now, so exit refuses with
+         * guidance instead of killing the session. DECLARED behavior
+         * change per the fix1 spec ("exit is deleted, or changed to
+         * prompt to use shutdown to shut down"); kept as a word so
+         * scripts see a clean message instead of a not-found error. */
+        puts_("ush: 'exit' is not available; use 'shutdown' to power off, 'reboot' to restart\n");
         return 1;
     }
-    /* P1-4 FIX: add help builtin */
+    /* 3.0.0-WP04-fix1 (bugs 5 + 6): three modes, all registry-driven.
+     *   help          -> short: shell built-ins + the registry count
+     *   help -a       -> built-ins + EVERY registry entry, A-Z, tagged
+     *   help -w       -> built-ins + registry grouped by work package
+     * The command list is NO LONGER hand-written anywhere in ush: the
+     * registry text comes from the kernel L1SVC "l1" service (op
+     * L1SVC_L1_APPS, mode in arg), which renders from OC_USERPROGS[]
+     * - the registry has it, help shows it. The old ~100-line static
+     * list (which still advertised the deleted oc> shell, GRUB-era
+     * families and commands that moved to apps) is gone. */
     if (streq(argv[0], "help")) {
-        puts_("\nOpen Cube OS User-space Shell (ush) — built-in commands:\n\n");
-        puts_("  cd [dir]        Change directory\n");
-        puts_("  exit [code]     Exit shell\n");
-        puts_("  help            Show this help\n");
-        puts_("  export VAR=val  Set environment variable\n");
-        puts_("  alias name=val  Set command alias\n");
-        puts_("  unalias name    Remove alias\n");
-        puts_("  env             Show environment variables\n");
-        puts_("  pwd             Print working directory\n");
-        puts_("  echo [text]     Print text to stdout\n");
-        puts_("  history         Show command history\n");
-        puts_("  cat <file>      Print file contents\n");
-        puts_("  grep <pat> [f]  Filter lines matching pattern\n");
-        puts_("  wc <file>       Count lines/words/chars\n");
-        puts_("  head <file>     Print first 10 lines\n");
-        puts_("  tail <file>     Print last 10 lines\n");
-        puts_("  sort <file>     Sort lines alphabetically\n");
-        puts_("  uniq <file>     Remove duplicate consecutive lines\n");
-        puts_("  sed <script>    Stream editor (s/old/new/g, -n Np, Nd)\n");
-        puts_("  awk '{print $N}' Print a field / NF / NR per line\n");
-        puts_("  ls [dir]        List directory contents\n");
-        puts_("  cp <src> <dst>  Copy file\n");
-        puts_("  mv <src> <dst>  Move/rename file\n");
-        puts_("  rm <file>       Remove file\n");
-        puts_("  ln [-s] <a> <b> Hard link, or -s symlink (abs target)\n");
-        puts_("  chmod <m> <f>   Change permission bits (octal)\n");
-        puts_("  chown <u>:<g> <f> Change owner (numeric)\n");
-        puts_("  mkdir <dir>     Create directory\n");
-        puts_("  rmdir <dir>     Remove directory\n");
-        puts_("  touch <file>    Create empty file / update timestamp\n");
-        puts_("  stat <file>     Show file info\n");
-        puts_("  uname           Print OS name\n");
-        puts_("  free            Show memory info\n");
-        puts_("  date            Show date/time\n");
-        puts_("  df              Show disk usage\n");
-        puts_("  du [dir]        Directory usage (recursive)\n");
-        puts_("  ps              List all kernel tasks (TID/state/prio)\n");
-        puts_("  kill <pid>      Kill a task\n");
-        puts_("  top [-n N]      Snapshot + refresh process/memory stats\n");
-        puts_("  ping <host>     ICMP echo via the kernel stack\n");
-        puts_("  wget <h> [p] <path> Download via the kernel HTTP client\n");
-        puts_("  netstat         Network statistics / sockets\n");
-        puts_("  ifconfig        Network interface info\n");
-        puts_("  nano <file>     nano-style editor (^O save ^X exit)\n");
-        puts_("  vi <file>       Same editor, vi-compatible name\n");
-        puts_("  jobs            List background jobs\n");
-        puts_("  fg [job]        Bring job to foreground\n");
-        puts_("\n  v2.0.0 service commands (SYS_L1SVC):\n");
-        puts_("  rtc [uie|pie|alarm N]  CMOS RTC status + interrupt tests\n");
-        puts_("  hpet [counter|oneshot|periodic|test]  HPET status + tests\n");
-        puts_("  pmtimer [read|cal|wrap|test]  ACPI PM timer + calibration\n");
-        puts_("  tsc [cal|delay N|test]  TSC reads + calibration + delay\n");
-        puts_("  mount [type dev path]  List mounts or mount a filesystem\n");
-        puts_("  mounts                 List VFS mount table\n");
-        puts_("  umount <path>          Unmount a filesystem\n");
-        puts_("  fatmount [dev path]    Mount FAT32 (default ata0 /mnt)\n");
-        puts_("  fatstat                Show FAT32 stats\n");
-        puts_("  tree [path]            Directory tree view\n");
-        puts_("  dskstat / lsblk        Block devices + cache stats\n");
-        puts_("  ahci / nvme / ata      Controller status\n");
-        puts_("  parted [dev]           Partition table\n");
-        puts_("  mkfs.fat32|exfat|ext4 <dev>  Format (confirm)\n");
-        puts_("  fsck / sync            Filesystem check / flush cache\n");
-        puts_("  abdisk / install / grub-install <dev>  Disk setup\n");
-        puts_("  abcfg                  A/B grub.cfg preview\n");
-        puts_("  *_test                 Block driver test suite\n");
-        puts_("  <nicname> [/_test]     NIC status + tests (e1000e igb ixgbe\n");
-        puts_("                         rtl8139/8168/8125/810x bcm57xx, other)\n");
-        puts_("  wifi / bt              Wireless + bluetooth families\n");
-        puts_("  sound / play / volume  Audio cards, playback, mixer\n");
-        puts_("  hda/ac97/sb16/es1370/virtiosnd/usbaudio + _test variants\n");
-        puts_("  update / checkupdate / rollback   A/B update family\n");
-        puts_("  config list|get|set    System configuration store\n");
-        puts_("  update_*_test          OTA test suite\n");
-        puts_("  halt/shutdown/reboot   Power controls (same bodies as oc>)\n");
-        puts_("  sleep <sec>            Delay N seconds\n");
-        puts_("  suspend_test           S3 capability contract\n");
-        puts_("  stats / uname / clear  Console + kernel counters\n");
-        puts_("  lang [en|zh]           Output language\n");
-        puts_("  chinese / font / encoding / ime [+ -test variants]\n");
-        puts_("  touchpad / touchtest   Input subsystem\n");
-        puts_("  uvc / uvctest          Camera (UVC devices + self test)\n");
-        puts_("  scsi / scsitest        SCSI controllers + self test\n");
-        puts_("  gameport / parallel / ir [+ *test]  Legacy port probes\n");
-        puts_("  usb / usbdev [slot]    USB hosts, devices, descriptors\n");
-        puts_("  usb_*_test             USB class driver test suite\n");
-        puts_("  arp / route / ip       Neighbor, routing and address tables\n");
-        puts_("  dhcp / dns / dnstest   Resolver + lease diagnostics\n");
-        puts_("  firewall / nf_test     Ruleset + netfilter tests\n");
-        puts_("  tcpstats / tcptest / tcpcc_test  TCP diagnostics\n");
-        puts_("  lspci                  PCI device scan\n");
-        puts_("  cryptotest / dhtest    Crypto self-tests (NIST + DH)\n");
-        puts_("\n  Editing: Up/Down history, Left/Right/Home/End cursor, Del,\n");
-        puts_("  Ctrl+A/E/U/K/W, Ctrl+C cancel, Tab completion\n");
-        puts_("\n  Redirection:  > file   >> file   < file   | cmd\n");
-        puts_("\n");
+        static const char *builtin_rows[] = {
+            "cd [dir]        change directory (shell state)",
+            "help [-a|-w]    this text; -a = full A-Z, -w = by work package",
+            "export VAR=val  set environment variable",
+            "alias name=val  set command alias",
+            "unalias name    remove alias",
+            "env             show environment variables",
+            "set             show a variable",
+            "history         show command history",
+            "jobs            list background jobs",
+            "fg [job] / bg   foreground / background a job",
+            "exit            not available (use shutdown / reboot)",
+            (const char *)0
+        };
+        int mode = 0;   /* 0 = short, 'a' = all, 'w' = by work package */
+        if (argc > 1) {
+            if (streq(argv[1], "-a") || streq(argv[1], "--all")) mode = 'a';
+            else if (streq(argv[1], "-w") || streq(argv[1], "--wp")) mode = 'w';
+            else {
+                puts_("help: unknown option '");
+                puts_(argv[1]);
+                puts_("' (use: help, help -a, help -w)\n");
+                return 1;
+            }
+        }
+        puts_("\nOpen Cube OS User-space Shell (ush) - built-in commands:\n\n");
+        for (int i = 0; builtin_rows[i]; i++) puts_(builtin_rows[i]), puts_("\n");
+        puts_("\nAll other commands are ring-3 apps served from the registry.\n");
+        static char out[8192];
+        if (mode == 0) {
+            long rc = sys_l1svc(L1SVC_CAT_L1, L1SVC_L1_APPS, 0,
+                                (long)out, (long)sizeof(out));
+            if (rc == 0) {
+                /* count the listed names (skip the -- footer line) */
+                int n = 0;
+                for (const char *q = out; *q; ) {
+                    const char *e = q;
+                    while (*e && *e != '\n') e++;
+                    if (!(q[0] == '-' && q[1] == '-')) n++;
+                    if (!*e) break;
+                    q = e + 1;
+                }
+                puts_("Registry: ");
+                putu_((u64)n);
+                puts_(" programs - 'help -a' lists them all, 'help -w' groups by work package.\n");
+            } else {
+                puts_("(registry unavailable)\n");
+            }
+        } else {
+            long rc = sys_l1svc(L1SVC_CAT_L1, L1SVC_L1_APPS,
+                                (long)(mode == 'a' ? "-a" : "-w"),
+                                (long)out, (long)sizeof(out));
+            if (rc == 0) puts_(out);
+            else puts_("(registry listing failed)\n");
+        }
+        putc_('\n');
         return 1;
     }
     /* 3.0.0-WP04 G5: write moved to src/L1/write/ (app via execve). */
@@ -958,15 +942,33 @@ static void exec_pipeline(char *line) {
  * Ctrl+W (kill word), Ctrl+C (cancel line), Tab (completion).
  * Rendering uses only \r and re-printing (console has no ANSI). */
 
-/* Redraw the input line with the cursor at `cur`. */
+/* Redraw the input line with the cursor at `cur`.
+ * 3.0.0-WP04-fix1 (bug 7): the redraw must be PROMPT-AWARE and must
+ * clear to the PREVIOUS rendered length, not one trailing cell:
+ *  - the old redraw started at column 0, painting the line OVER the
+ *    prompt: broken cursor geometry and what looked like duplicated
+ *    text after every history/cursor operation;
+ *  - clearing exactly one cell left the tail of a recalled longer
+ *    history entry on screen (the "history concatenation" ghost)
+ *    and left stale bytes after delete/kill operations ("delete does
+ *    not redraw"). The prompt is remembered in g_le_prompt by the
+ * read loop; g_le_prevlen tracks the previous rendered length. */
+static const char *g_le_prompt = "";
+static int g_le_prevlen = 0;
+
 static void le_redraw(const char *line, int llen, int cur) {
     char cr = '\r';
     char sp = ' ';
+    int plen = strlen_(g_le_prompt);
     sys_write(1, &cr, 1);
+    sys_write(1, g_le_prompt, plen);
     if (llen > 0) sys_write(1, line, llen);
-    sys_write(1, &sp, 1);          /* clear one trailing cell */
+    for (int i = llen; i < g_le_prevlen; i++)
+        sys_write(1, &sp, 1);      /* wipe the old render's tail */
     sys_write(1, &cr, 1);
+    sys_write(1, g_le_prompt, plen);
     if (cur > 0) sys_write(1, line, cur);
+    g_le_prevlen = llen;
 }
 
 /* Insert a char at the cursor position. Returns the new cursor. */
@@ -1011,7 +1013,25 @@ void _start(void) {
     env_set("HOME", "/");
     env_set("PS1", "ush> ");
 
-    puts_("\nOpen Cube OS User-space Shell (WP-08)\n");
+    /* 3.0.0-WP04-fix1 (bug 8): the banner version tracks the REAL
+     * kernel release - fetched from the uname service at startup -
+     * instead of a frozen work-package label. The old hardcoded
+     * "(WP-08)" string outlived four work packages. The literal
+     * below is only the build-time FALLBACK for a failed fetch. */
+    {
+        char rel[64];
+        rel[0] = 0;
+        long rc = sys_l1svc(L1SVC_CAT_DISPLAY, L1SVC_DISP_UNAME,
+                            (long)"-r", (long)rel, (long)sizeof(rel));
+        int rl = 0;
+        if (rc == 0) {
+            while (rel[rl] && rel[rl] != '\n' && rl < 40) rl++;
+            rel[rl] = 0;
+        }
+        puts_("\nOpen Cube OS User-space Shell (");
+        puts_(rc == 0 && rel[0] ? rel : "3.0.0-WP04");
+        puts_(")\n");
+    }
     puts_("Type 'help' for built-in commands.\n\n");
 
     char line[512];
@@ -1025,6 +1045,11 @@ void _start(void) {
         const char *ps1 = env_get("PS1");
         if (!ps1[0]) ps1 = "ush> ";
         puts_(ps1);
+        /* 3.0.0-WP04-fix1 (bug 7): the line editor redraw is prompt-
+         * aware (see le_redraw) - remember the prompt and reset the
+         * previous-render length for the fresh line. */
+        g_le_prompt = ps1;
+        g_le_prevlen = 0;
 
         /* Read a line: full editing (history/cursor/Tab/Ctrl+C) */
         int llen = 0;
@@ -1153,74 +1178,53 @@ void _start(void) {
                 char *word = line + wstart;
                 int wlen = llen - wstart;
                 if (wlen <= 0) continue;
-                /* Check builtin commands */
-                static const char *builtins[] = {
-                    "echo","ls","cat","grep","wc","head","tail","mkdir",
-                    "touch","rm","rmdir","cp","mv","sort","uniq","ps","kill",
-                    "date","uname","free","df","du","vi","nano","pwd",
-                    "cd","exit","export","alias","unalias","history",
-                    "jobs","fg","bg",
-                    /* WP-10-wp08fix1 */
-                    "ln","chmod","chown","sed","awk","ping","wget",
-                    "netstat","ifconfig","top",
-                    /* v2.0.0: SYS_L1SVC service commands */
-                    "rtc","hpet","pmtimer","tsc",
-                    "mount","mounts","umount","fatmount","fatstat",
-                    "tree",
-                    "dskstat","lsblk","ahci","nvme","ata","parted",
-                    "mkfs.fat32","mkfs.exfat","mkfs.ext4","fsck","sync",
-                    "abdisk","install","grub-install","abcfg",
-                    "ahci_test","nvme_test","ata_dma_test",
-                    "virtio_blk_test","disk_rw_test","partition_test",
-                    "fs_mount_test","real_hw_test",
-                    "e1000e","igb","ixgbe","rtl8139","rtl8168","rtl8125",
-                    "rtl810x","bcm57xx","other_nic_test","nic_rw_test",
-                    "wifi","bt",
-                    "e1000e_test","igb_test","ixgbe_test","rtl8139_test",
-                    "rtl8168_test","rtl8125_test","rtl810x_test",
-                    "bcm57xx_test",
-                    "sound","hda","ac97","sb16","es1370","virtiosnd",
-                    "usbaudio","play","volume",
-                    "hda_test","ac97_test","sb16_test","es1370_test",
-                    "virtio_snd_test","usb_audio_test","audio_rw_test",
-                    "sample_rate_test",
-                    "checkupdate","config","config_test","checkupdate_test",
-                    "update","rollback","update_pkg_test","ab_partition_test",
-                    "update_check_test","update_download_test",
-                    "update_verify_test","update_install_test",
-                    "update_rollback_test","update_local_test",
-                    "update_status_test","real_update_test",
-                    "shutdown","poweroff","reboot","halt","sleep",
-                    "poweroff_test","suspend_test","halt_test",
-                    "reboot_test",
-                    "stats","uname","clear","lang",
-                    "chinese","chinesetest","font","font-test",
-                    "encoding","encoding-test",
-                    "touchpad","touchtest",
-                    "uvc","uvctest","scsi","scsitest",
-                    "gameport","gameporttest","parallel","paralleltest",
-                    "ir","irtest",
-                    "usb","usbdev","usb_core_test","usb_kbd_test",
-                    "usb_mouse_test","usb_storage_test","usb_serial_test",
-                    "usb_hotplug_test","usb_hub_test",
-                    "arp","dhcp","dns","dnstest","firewall","ip",
-                    "lspci","nf_test","route","tcpcc_test","tcpstats",
-                    "tcptest","cryptotest","dhtest",0
+                /* 3.0.0-WP04-fix1 (bug 7 Tab + bug 6): the candidate set
+                 * is the LIVE registry (fetched through the L1SVC
+                 * listing - the exact text help prints) plus the true
+                 * shell built-ins. The old ~200-name hardcoded array
+                 * still listed commands that had moved to apps (and
+                 * had drifted from the registry), which is what made
+                 * Tab completion complete into stale names. */
+                static char regbuf[8192];
+                static char *cands[300];
+                int ncand = 0;
+                long rc = sys_l1svc(L1SVC_CAT_L1, L1SVC_L1_APPS, 0,
+                                    (long)regbuf, (long)sizeof(regbuf));
+                if (rc == 0) {
+                    char *rp = regbuf;
+                    while (*rp && ncand < 290) {
+                        if (rp[0] == '-' && rp[1] == '-') {
+                            /* skip the "-- N programs registered --" footer */
+                            while (*rp && *rp != '\n') rp++;
+                            if (*rp) rp++;
+                            continue;
+                        }
+                        cands[ncand++] = rp;
+                        while (*rp && *rp != '\n') rp++;
+                        if (*rp) *rp++ = 0;
+                    }
+                }
+                static const char *le_builtins[] = {
+                    "cd", "help", "export", "alias", "unalias",
+                    "env", "set", "history", "jobs", "fg", "bg",
+                    "exit", (const char *)0
                 };
+                for (int b = 0; le_builtins[b] && ncand < 299; b++)
+                    cands[ncand++] = (char *)le_builtins[b];
                 int found = 0;
                 int blen = 0;
                 char match[64];
                 match[0] = 0;
-                for (int i = 0; builtins[i]; i++) {
-                    if (strncmp_(builtins[i], word, wlen) == 0) {
+                for (int ci = 0; ci < ncand; ci++) {
+                    if (strncmp_(cands[ci], word, wlen) == 0) {
                         if (found == 0) {
-                            strcpy_(match, builtins[i]);
+                            strcpy_(match, cands[ci]);
                             blen = strlen_(match);
                         } else {
                             /* Find common prefix */
-                            int j = 0;
-                            while (j < blen && match[j] && builtins[i][j] && match[j] == builtins[i][j]) j++;
-                            blen = j;
+                            int jj = 0;
+                            while (jj < blen && match[jj] && cands[ci][jj] && match[jj] == cands[ci][jj]) jj++;
+                            blen = jj;
                             match[blen] = 0;
                         }
                         found++;
@@ -1335,6 +1339,20 @@ void _start(void) {
             /* WP-10-tui-qa: the old empty '&' branch here was dead code
              * (the real background handling is the line[llen-1]=='&'
              * check after Enter, below); removed. */
+            /* 3.0.0-WP04-fix1 (bug 7 char loss): serial-pasted UTF-8
+             * bytes (CJK text) arrive biased by +0x100 from the COM1
+             * bridge (they must not collide with the OC_KEY_* special
+             * range). The old filter dropped them silently - pasted
+             * Chinese simply vanished from the line. Strip the bias
+             * and store the RAW byte: a multi-byte glyph accumulates
+             * byte-by-byte exactly as the kernel console editor does,
+             * and the terminal reassembles it on echo. */
+            if (k >= 0x100 && k <= 0x1FF) {
+                char c = (char)(k & 0xFF);
+                cur = le_insert(line, llen, cur, c, 511);
+                llen = strlen_(line);
+                continue;
+            }
             if (k >= 0x20 && k < 0x7F && llen < 510) {
                 cur = le_insert(line, llen, cur, (char)k, 511);
                 llen = strlen_(line);

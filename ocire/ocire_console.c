@@ -86,8 +86,13 @@ static void vga_update_cursor(void) {
 }
 
 static void vga_scroll(void) {
+    /* 3.0.0-WP04-fix1 (bug 10): the length was half the required bytes
+     * - VGA_COLS*(VGA_ROWS-1) is the CELL count (80*24=1920), but
+     * oc_memcpy counts BYTES and every cell is a u16 (attribute+char):
+     * the real length is 3840. The half copy left the bottom half of
+     * the screen holding the PREVIOUS rows (residual ghosting). */
     oc_memcpy((void *)VGA_BASE, (const void *)(VGA_BASE + VGA_COLS),
-              (u64)(VGA_COLS * (VGA_ROWS - 1)));
+              (u64)(VGA_COLS * (VGA_ROWS - 1) * sizeof(u16)));
     volatile u16 *last = VGA_BASE + (u64)VGA_COLS * (VGA_ROWS - 1);
     for (int i = 0; i < VGA_COLS; i++) last[i] = (u16)0x0F00;
     g_row = VGA_ROWS - 1;

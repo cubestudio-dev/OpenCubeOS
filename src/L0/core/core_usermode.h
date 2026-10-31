@@ -36,6 +36,11 @@ struct oc_userprog_decl {
     const u8   *raw;        /* uncompressed entry (ush only)          */
     u64         gz_len;     /* stream bytes when gz != NULL           */
     u64         raw_size;   /* ELF bytes                              */
+    /* 3.0.0-WP04-fix1 (bug 5/6): the service-category work-package
+     * tag this command belongs to (the v2.2.0 help -w grouping, live-
+     * registration derived; emitted by gen_userprogs.py). help -w
+     * renders from THIS field - the registry is the only source. */
+    const char *wp;
 };
 extern const struct oc_userprog_decl OC_USERPROGS[];
 extern const u64 OC_USERPROGS_COUNT;

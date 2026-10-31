@@ -1,35 +1,78 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS 3.0.0-WP04 - L1 app "help".
+/* Open Cube OS 3.0.0-WP04-fix1 - L1 app "help".
  *
- * The v2.2.0 ush `help` builtin printed the shell's static command
- * list.  In 3.0.0-WP04 the command surface IS the app registry, so
- * help prints the shell-state builtins (still inside ush - cd and
- * friends must run in the shell process) followed by the live registry
- * listing (L1SVC cat "l1" op 1: every migrated command app, A-Z,
- * generated - no hand-written command table anywhere). */
+ * The standalone help command mirrors the ush `help` builtin exactly
+ * (three modes, registry-driven - bugs 5+6):
+ *   help        -> shell built-in summary + the registry count
+ *   help -a     -> built-ins + every registry entry, A-Z, tagged
+ *   help -w     -> built-ins + registry grouped by work package
+ * All registry text is rendered by the kernel "l1" service from the
+ * OC_USERPROGS[] registry - nothing here lists commands by hand. */
 #include "_shared/l1_lib.h"
 #include "_shared/l1svc_ops.h"
 
 int app_main(int argc, char **argv) {
-    (void)argc; (void)argv;
-    puts_("\nOpen Cube OS User-space Shell (ush) - shell built-in commands:\n\n");
-    puts_("  cd [dir]        Change directory (shell process state)\n");
-    puts_("  exit [code]     Exit shell\n");
-    puts_("  export VAR=val  Set environment variable\n");
-    puts_("  alias name=val  Set command alias\n");
-    puts_("  unalias name    Remove alias\n");
-    puts_("  env             Show environment variables\n");
-    puts_("  set             Show shell variables\n");
-    puts_("  history         Show command history\n");
-    puts_("  jobs            List background jobs\n");
-    puts_("  fg [job]        Bring job to foreground\n\n");
-    puts_("All other commands are ring-3 apps (src/L1/<name>/), served\n");
-    puts_("through the OC_USERPROGS registry:\n\n");
-    char out[8192];
-    long rc = sys_l1svc(L1SVC_CAT_L1, L1SVC_L1_APPS, 0,
-                        (long)out, (long)sizeof(out));
-    if (rc == 0) puts_(out);
-    else puts_("(registry unavailable)\n");
+    const char *mode = "";
+    if (argc > 1) {
+        if (strcmp_(argv[1], "-a") == 0 || strcmp_(argv[1], "--all") == 0)
+            mode = "-a";
+        else if (strcmp_(argv[1], "-w") == 0 || strcmp_(argv[1], "--wp") == 0)
+            mode = "-w";
+        else {
+            puts_("help: unknown option '");
+            puts_(argv[1]);
+            puts_("' (use: help, help -a, help -w)\n");
+            return 1;
+        }
+    }
+
+    static const char *builtin_rows[] = {
+        "cd [dir]        change directory (shell state)",
+        "help [-a|-w]    this text; -a = full A-Z, -w = by work package",
+        "export VAR=val  set environment variable",
+        "alias name=val  set command alias",
+        "unalias name    remove alias",
+        "env             show environment variables",
+        "set             show a variable",
+        "history         show command history",
+        "jobs            list background jobs",
+        "fg [job] / bg   foreground / background a job",
+        "exit            not available (use shutdown / reboot)",
+        (const char *)0
+    };
+    puts_("\nOpen Cube OS User-space Shell (ush) - built-in commands:\n\n");
+    for (int i = 0; builtin_rows[i]; i++) {
+        puts_(builtin_rows[i]);
+        putc_('\n');
+    }
+    puts_("\nAll other commands are ring-3 apps served from the registry.\n");
+
+    static char out[8192];
+    if (mode[0] == 0) {
+        long rc = sys_l1svc(L1SVC_CAT_L1, L1SVC_L1_APPS, 0,
+                            (long)out, (long)sizeof(out));
+        if (rc == 0) {
+            int n = 0;
+            for (const char *q = out; *q; ) {
+                const char *e = q;
+                while (*e && *e != '\n') e++;
+                if (!(q[0] == '-' && q[1] == '-')) n++;
+                if (!*e) break;
+                q = e + 1;
+            }
+            puts_("Registry: ");
+            putu_(n);
+            puts_(" programs - 'help -a' lists them all, 'help -w' groups by work package.\n");
+        } else {
+            puts_("(registry unavailable)\n");
+        }
+    } else {
+        long rc = sys_l1svc(L1SVC_CAT_L1, L1SVC_L1_APPS, (long)mode,
+                            (long)out, (long)sizeof(out));
+        if (rc == 0) puts_(out);
+        else puts_("(registry listing failed)\n");
+    }
+    putc_('\n');
     return 0;
 }
