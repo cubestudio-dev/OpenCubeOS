@@ -85,7 +85,8 @@ $(OCIRE_ELF): $(OCIRE_OBJ) $(OCIRE_DIR)/linker_ocire.ld
 	      -z max-page-size=0x1000 -z noexecstack -o $@ $(OCIRE_OBJ)
 	strip --strip-debug $@
 
-$(OCIRE_ISO): $(OCIRE_ELF) $(OCIRE_DIR)/grub-ocire.cfg \
+$(OCIRE_ISO): $(OCIRE_ELF) $(BUILD)/ocbl/ocbl_bios.bin \
+              $(BUILD)/ocbl/ocbl_x64.efi \
               $(OC_ROOT)/tools/build_ocire_iso.sh
 	bash $(OC_ROOT)/tools/build_ocire_iso.sh
 
@@ -112,7 +113,7 @@ ocire-kernel: $(OCIRE_ELF)
 ocire-iso: $(OCIRE_ISO)
 	@echo "ocire-iso: $(OCIRE_ISO) ($$(stat -c%s $(OCIRE_ISO)) bytes)"
 
-ocire-disk: $(OCIRE_ELF) $(OCIRE_AGENT) $(OC_ROOT)/tools/make_ocire_disk.sh $(OCIRE_DIR)/grub-dual.cfg.in
+ocire-disk: $(OCIRE_ELF) $(OCIRE_AGENT) $(OC_ROOT)/tools/make_ocire_disk.sh
 	bash $(OC_ROOT)/tools/make_ocire_disk.sh
 
 ocire-run-bios: $(OCIRE_ISO)

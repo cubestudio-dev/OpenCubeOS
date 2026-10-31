@@ -39,22 +39,22 @@ u32 ocbl_plat_ms(void)
     return g_ticks * 100u;
 }
 
-/* ---- keyboard: ReadKeyStroke + the 16550 line ---- */
+/* ---- keyboard: the 16550 line FIRST, then ReadKeyStroke ----
+ * B5-5 live-caught: OVMF's Terminal/ConIn driver reads the SAME RBR
+ * when ReadKeyStroke is called - calling it first steals a byte of
+ * the serial CSI sequence (ESC '[' tail), and neither consumer ever
+ * sees a complete key (the injected arrow silently vanished, the pick
+ * fell back to the default entry).  Order matters: drain OUR OWN
+ * polled serial byte first (it needs no firmware driver), and only
+ * then ask ConIn for PS/2 events - those live in the firmware's own
+ * queue and cannot be stolen by us. */
+/* B5-5 bring-up: key-path counters - one live run tells which of
+ * the two sources is silent (diagnostics only, zero behavior).
+ * ser_bytes  - raw bytes our own 16550 poll consumed
+ * conin_calls- ReadKeyStroke invocations
+ * conin_hits- ReadKeyStroke returns with EFI_SUCCESS */
 int ocbl_plat_getkey(void)
 {
-    /* firmware keyboard (PS/2 through OVMF) */
-    efi_input_key k;
-    if (ocbl_efi_st->con_in &&
-        ocbl_efi_st->con_in->read_keystroke(ocbl_efi_st->con_in, &k)
-            == EFI_SUCCESS) {
-        if (k.scan_code == 1)
-            return OCBL_KEY_UP;      /* SCAN_UP   */
-        if (k.scan_code == 2)
-            return OCBL_KEY_DOWN;    /* SCAN_DOWN */
-        if (k.unicode == '\r' || k.unicode == '\n')
-            return OCBL_KEY_ENTER;
-        /* every other key is consumed and ignored (three-key rule) */
-    }
     /* serial console keying - the 16550 is plain port I/O under UEFI
      * exactly as under BIOS; the harness writes the same CSI tails */
     u8 lsr;
@@ -68,6 +68,20 @@ int ocbl_plat_getkey(void)
             return OCBL_KEY_DOWN;
         if (c == '\r' || c == '\n')
             return OCBL_KEY_ENTER;
+        /* ESC and '[' are consumed and ignored - the tail decides */
+    }
+    /* firmware keyboard (PS/2 through OVMF) */
+    efi_input_key k;
+    if (ocbl_efi_st->con_in &&
+        ocbl_efi_st->con_in->read_keystroke(ocbl_efi_st->con_in, &k)
+            == EFI_SUCCESS) {
+        if (k.scan_code == 1)
+            return OCBL_KEY_UP;      /* SCAN_UP   */
+        if (k.scan_code == 2)
+            return OCBL_KEY_DOWN;    /* SCAN_DOWN */
+        if (k.unicode == '\r' || k.unicode == '\n')
+            return OCBL_KEY_ENTER;
+        /* every other key is consumed and ignored (three-key rule) */
     }
     return -1;
 }

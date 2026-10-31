@@ -11,17 +11,9 @@
 #define OCBL_VBE_H
 
 #include "ocbl_types.h"
-
-typedef struct ocbl_fb_info {
-    u64 addr;
-    u32 pitch;
-    u32 width;
-    u32 height;
-    u8  bpp;
-    u8  red_pos, red_size;
-    u8  green_pos, green_size;
-    u8  blue_pos, blue_size;
-} ocbl_fb_info_t;
+#include "ocbl_fb.h"             /* shared ocbl_fb_info_t (B5-5: the
+                                   UEFI flavor fills the same shape from
+                                   GOP instead of VBE) */
 
 /* Set 800x600x32 through VBE.  Returns true and fills `fb` on
  * success.  BIOS flavor only (the UEFI flavor hands out the GOP

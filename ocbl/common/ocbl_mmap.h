@@ -32,6 +32,14 @@ typedef struct ocbl_mmap {
  * complete failure - pre-E820 machines get the fallback path). */
 u32 ocbl_mmap_query(void);
 
+#ifdef OCBL_FLAVOR_UEFI
+/* UEFI backend only (B5-5): the GetMemoryMap key from the last
+ * ocbl_mmap_query() - ExitBootServices wants it, and it expires with
+ * every boot-services allocation. */
+u64 ocbl_mmap_boot_key(void);
+#endif
+
+
 /* The map (fixed low-memory block, valid after ocbl_mmap_query). */
 const ocbl_mmap_t* ocbl_mmap_get(void);
 

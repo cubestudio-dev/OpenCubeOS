@@ -21,6 +21,13 @@
  *          hardcoded layout and the kernel mb2 contract stays frozen),
  *          enumerate BlockIo disks and run the B2b six-class scanner
  *          on top of them.
+ *
+ *          B5-5 scope: the payload handoff - GOP framebuffer, the
+ *          GetMemoryMap->E820 conversion (ocbl_mmap_efi.c), the ELF
+ *          loads through the shared loader, ExitBootServices with the
+ *          retry loop, and the 64->32 downgrade through the
+ *          low-address trampoline (handoff_blob.asm, copied to the
+ *          reserved 0x30000 bounce window right after EBS).
  */
 #include "efi.h"
 #include "../common/ocbl_serial.h"
@@ -29,6 +36,13 @@
 #include "../common/ocbl_menu.h"
 #include "../common/ocbl_boot.h"
 #include "../common/ocbl_wdt.h"
+#include "../common/ocbl_fs.h"
+#include "../common/ocbl_fb.h"
+#include "../common/ocbl_mmap.h"
+
+/* efi/handoff_data.asm (incbin of handoff_blob.bin) */
+extern char ocbl_efi_handoff_blob[];
+extern char ocbl_efi_handoff_blob_end[];
 
 /* the PE converter leaves the .bss range as raw-vs-virtual slack;
  * EDK2's loader does NOT guarantee zero-fill there (live-caught:
@@ -39,6 +53,10 @@ extern char __bss_end[];
 
 /* efi/ocbl_disk_efi.c */
 void ocbl_efi_disk_init(void);
+
+/* efi/ocbl_chain_efi.c (B5-6: LoadImage/StartImage chainload) */
+efi_status ocbl_efi_chainload(const struct ocbl_volume* v,
+                              const char* efi_path);
 
 #ifndef OCBL_RELEASE
 #define OCBL_RELEASE "3.0.0-WP05"
@@ -201,11 +219,13 @@ EFI_CALL efi_status efi_main(efi_handle image, efi_system_table* st)
     u32 pick = ocbl_menu_run();
     ocbl_menu_announce(pick);
 
-    /* B5-5 wires the payload handoff (GOP fb, GetMemoryMap, ELF load,
-     * ExitBootServices, the 64->32 downgrade); B5-6 the LoadImage
-     * chainload.  Until then every pick parks honestly - except the
-     * Shutdown row, which is ALREADY the real ACPI S5 (the FADT/_S5
-     * walk in common + the RSDP from the config table). */
+
+    /* B5-5: the payload handoff (GOP fb, GetMemoryMap, ELF load,
+     * ExitBootServices, the 64->32 downgrade through the low-address
+     * trampoline).  B5-6 wires the LoadImage chainload; until then
+     * every foreign pick parks honestly - except the Shutdown row,
+     * which is ALREADY the real ACPI S5 (the FADT/_S5 walk in common
+     * + the RSDP from the config table). */
     ocbl_scan_t* t = ocbl_scan_result();
     if (pick >= t->count) {
         ocbl_serial_puts("[boot] ACPI S5 shutdown\r\n");
@@ -215,15 +235,133 @@ EFI_CALL efi_status efi_main(efi_handle image, efi_system_table* st)
         for (;;)
             __asm__ volatile("hlt");
     }
-    ocbl_serial_puts("[boot] payload handoff lands in B5-5; halting\r\n");
+    ocbl_entry_t* e = &t->entries[pick];
+    if (e->type != OCBL_ENT_OCOS && e->type != OCBL_ENT_OCIRE) {
+        /* B5-6: the ESP chainload (Windows bootmgfw / a foreign Linux
+         * shim / a generic BOOTX64.EFI) - the UEFI mirror of the
+         * BIOS flavor's VBR chainload. */
+        ocbl_volume_t cv;
+        if (!ocbl_fs_mount(e->drive, e->base_lba, e->ssz, &cv)) {
+            ocbl_serial_puts("[boot] FATAL: chainload volume remount "
+                             "failed\r\n");
+            for (;;)
+                __asm__ volatile("hlt");
+        }
+        ocbl_serial_puts("[boot] EFI chainload\r\n");
+        ocbl_wdt_disarm();
+        ocbl_efi_chainload(&cv, e->efi_path);
+        /* the image returned control: park honestly (menu re-entry is
+         * out of 3.0.0 scope - a chainloaded loader that exits hands
+         * the machine back, the machine halts rather than guessing) */
+        for (;;)
+            __asm__ volatile("hlt");
+    }
 
-    /* mirror the banner on the firmware console too (OVMF routes
-     * ConOut to the serial line as well - both surfaces stay in the
-     * same transcript for the acceptance run) */
-    ocbl_efi_conout("OCBL 3.0.0 boot loader - UEFI flavor - B5-1 OK\r\n");
+    /* ---- B5-5: the mb2 payload path (the ocbl_run() flow, with the
+     * three UEFI substitutions: GOP for VBE, GetMemoryMap for E820,
+     * ExitBootServices + the 0x30000 trampoline for the in-place
+     * downgrade) ---- */
+    ocbl_volume_t v;
+    if (!ocbl_fs_mount(e->drive, e->base_lba, e->ssz, &v)) {
+        ocbl_serial_puts("[boot] FATAL: payload volume remount "
+                         "failed\r\n");
+        for (;;)
+            __asm__ volatile("hlt");
+    }
 
-    /* park: B5-4 wires the menu (ConOut render + ReadKeyStroke),
-     * B5-5 the payload handoff, B5-6 the LoadImage chainload */
+    const char* slot = 0;
+    if (e->type == OCBL_ENT_OCOS)
+        slot = e->slot == 1 ? "A" : (e->slot == 2 ? "B" : "ISO");
+
+    /* the mb2 "self" module: raw kernel ELF copy at 0x800000 (only
+     * OCOS entries; install/abdisk copy it from there) */
+    u32 self_size = 0;
+    if (e->type == OCBL_ENT_OCOS)
+        self_size = ocbl_load_raw(&v, e->path, OCBL_SELF_BASE);
+
+    ocbl_fb_info_t fb;
+    bool fb_ok = ocbl_gop_set_fb(&fb);
+    if (!fb_ok)
+        ocbl_serial_puts("[boot] GOP FAILED (kernel will refuse)\r\n");
+
+    u64 base = e->type == OCBL_ENT_OCIRE ? OCBL_OCIRE_BASE : 0x100000ull;
+    u32 ksize = 0;
+    u64 entry = ocbl_load_elf(&v, e->path, base, &ksize);
+    if (!entry) {
+        ocbl_serial_puts("[boot] FATAL: kernel load failed\r\n");
+        for (;;)
+            __asm__ volatile("hlt");
+    }
+    ocbl_serial_puts("[boot] kernel loaded: entry=0x");
+    ocbl_serial_hex(entry, 8);
+    ocbl_serial_puts(" size=");
+    ocbl_serial_dec(ksize);
+    ocbl_serial_puts("\r\n");
+
+    u64 self_start = self_size ? OCBL_SELF_BASE : 0;
+    u64 self_end = self_start + self_size;
+
+
+    /* the firmware watchdog (OVMF arms 5 minutes) would reset the
+     * machine right under the kernel - off BEFORE the EBS loop so it
+     * can never invalidate the map key */
+    ocbl_efi_bs->set_watchdog_timer(0, 0, 0, 0);
+
+    /* our hardware watchdog instead: fresh 60 s window for the payload
+     * to install its own heartbeat */
+    ocbl_wdt_arm(60);
+
+    /* ExitBootServices loop (spec 7.2): the map key expires with any
+     * boot-services allocation, so query -> build-mbi -> EBS runs as
+     * one unit and retries honestly on EFI_INVALID_PARAMETER. */
+    int exited = 0;
+    for (int attempt = 0; attempt < 3; attempt++) {
+        u32 nmap = ocbl_mmap_query();
+        if (!nmap) {
+            ocbl_serial_puts("[efi] FATAL: memory map failed\r\n");
+            for (;;)
+                __asm__ volatile("hlt");
+        }
+        u32 mbisz = ocbl_build_mbi(slot, self_start, self_end,
+                                   fb_ok ? &fb : 0);
+        ocbl_serial_puts("[boot] mbi built: ");
+        ocbl_serial_dec(mbisz);
+        ocbl_serial_puts(" bytes at 0x50000 (");
+        ocbl_serial_dec(nmap);
+        ocbl_serial_puts(" mmap ranges)\r\n");
+        efi_status st = ocbl_efi_bs->exit_boot_services(
+            ocbl_efi_image, ocbl_mmap_boot_key());
+        if (st == EFI_SUCCESS) {
+            exited = 1;
+            break;
+        }
+        ocbl_serial_puts("[efi] EBS retry (0x");
+        ocbl_serial_hex((u64)st, 8);
+        ocbl_serial_puts(") - map key expired\r\n");
+    }
+    if (!exited) {
+        ocbl_serial_puts("[boot] FATAL: ExitBootServices refused\r\n");
+        for (;;)
+            __asm__ volatile("hlt");
+    }
+    ocbl_serial_puts("[boot] boot services exited\r\n");
+
+    /* copy the downgrade trampoline into the reserved bounce window
+     * and drop into it - plain memory writes only (0x30000 survives
+     * both the firmware page tables and the CR0.PG=0 world). */
+    {
+        const char* b0 = ocbl_efi_handoff_blob;
+        const char* b1 = ocbl_efi_handoff_blob_end;
+        u8* dst = (u8*)(u64)OCBL_BOUNCE;
+        u64 n = (u64)(b1 - b0);
+        for (u64 i = 0; i < n; i++)
+            dst[i] = (u8)b0[i];
+        ocbl_serial_puts("[boot] handoff trampoline at 0x30000 (");
+        ocbl_serial_dec((u32)n);
+        ocbl_serial_puts(" bytes)\r\n");
+        ((void (*)(u64, u64))(u64)OCBL_BOUNCE)(entry, OCBL_MBI_BASE);
+    }
+
     for (;;)
         __asm__ volatile("hlt");
 }

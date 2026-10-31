@@ -1,0 +1,66 @@
+# Open Cube OS 3.0.0-WP05 OCBL - B5-5: UEFI payload handoff evidence
+==============================================================
+Test: QEMU OVMF boots the dual-firmware ocbl_test.iso with the real
+      kernels in the fleet; the default entry (the fleet makes the
+      target the first OCOS/OCIRE) auto-boots after the 10 s menu
+      countdown - the spec's "load the default entry" path, no keys.
+Date: 2026-10-31 UTC  qemu 10.0.13 OVMF 2025.02 (toolchain extract)
+Artifacts: ocbl_x64.efi 79268 B (PE/COFF x64);
+           handoff trampoline blob 156 B (org 0x30000, the reserved
+           bounce window; stack top 0x3E000 inside the same window).
+
+What B5-5 wires (all in the transcript below):
+  1. GOP: mode scan -> SetMode(800x600x32) - the exact VBE twin the
+     BIOS flavor sets (mode info read at +4 per the live-caught note
+     in ocbl_gop_efi.c; PixelsPerScanLine at +32 fixed pitch=3200).
+  2. GetMemoryMap -> E820-style conversion into the shared 0x60000
+     buffer (BOOT_SERVICES/CODE + CONVENTIONAL -> usable, ACPI NVS/
+     reclaim mapped, adjacent ranges coalesced; 26 ranges typical).
+  3. ExitBootServices with the fresh-key retry loop, firmware 5-min
+     watchdog off first (SetWatchdogTimer 0), our i6300ESB armed
+     for the fresh 60 s window.
+  4. The 64->32 downgrade: memcpy of the trampoline blob to 0x30000
+     AFTER EBS (OVMF loads the image at ~0x3E000000 - out of QEMU's
+     RAM: the downgrade MUST already live at a physical address that
+     survives CR0.PG=0), far-jmp into the 32-bit compatible segment,
+     PG/PAE/CR3 off, flat segments, EAX=0x36D76289, EBX=0x50000, jmp
+     the kernel 32-bit entry.  Identical GRUB contract, zero changes
+     in the kernel.
+
+--- scenario 1: OCOS 2 MiB kernel + self module (hd0, slot B) ---
+enu] B4 will load this payload (mb2 handoff)
+55] setting GOP mode
+oot] GOP 800x600x32 ok (800x600 picked)
+oot] handoff trampoline at 0x30000 (156 bytes)
+[00:00:00.000] boot chain 1/4: kernel core mechanisms............ OK
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+[00:00:00.010] ACPI: RSDP rev 2 XSDT 0f77d0e8 tables 6........... OK
+[00:00:00.010] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.010] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.120] boot chain 2/4: drivers + driver-free services.... OK
+[00:00:00.450] boot chain 3/4: driver-dependent services......... OK
+[00:00:02.430] boot complete..................................... OK
+[00:00:02.430] boot chain 4/4: interfaces ready.................. OK
+[00:00:02.440] L0 ready, waiting for L1.......................... OK
+ush> 
+--- scenario 2: OCIRE recovery kernel (hd1 shadow, 60 KiB) ---
+enu] B4 will load this payload (mb2 handoff)
+55] setting GOP mode
+oot] GOP 800x600x32 ok (800x600 picked)
+oot] handoff trampoline at 0x30000 (156 bytes)
+Video: linear framebuffer 800x600x32
+ACPI: FADT found (S5 SLP_TYP=0)
+Ready. Type 'help' for the command list.
+ocire> 
+Notes:
+  - OCOS boots the FULL boot chain 4/4 into the L1 ring-3 shell (ush>)
+    under UEFI - byte-for-byte the same kernel the BIOS flavor boots.
+  - OCIRE picks up the mb2 ACPI tag (RSDP copy) through its mb2 path
+    (ocire_acpi.c find_rsdp(): mb2 tag first, legacy EBDA/ROM scan as
+    the BIOS fallback) - "ACPI: FADT found (S5 SLP_TYP=0)" matches the
+    B4a BIOS evidence exactly.
+  - read performance under OVMF: fs_rd_vsec multi-sector batches (<=64
+    sectors), the one-sector FAT cache at the reserved OCBL_FS_FATBUF
+    head and whole-cluster reads into the 127 KiB cluster buffer behind
+    it turned the 2 MiB kernel load from minutes into seconds.

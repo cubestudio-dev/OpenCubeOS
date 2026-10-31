@@ -3,12 +3,23 @@
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 # Open Cube OS - 3.0.0-WP05-ocbl
 # File: ocbl/menu_drive.py
-# Purpose: drive the B3 menu in QEMU through the monitor `sendkey`
-#          (real PS/2 path) and capture the serial transcript.
-#          Brings-up helper - not part of any acceptance gate.
+# Purpose: drive the OCBL menu in QEMU: monitor `sendkey` (the PS/2
+#          path BOTH flavors consume - proven by the B3/B5-4 evidence)
+#          with a MENU-READY poll on the serial transcript (B5-5
+#          live-caught: a fixed sleep sends the keys while OVMF BDS is
+#          still probing the fleet disks and the pick silently falls
+#          back to the default).  The serial line rides a tcp socket
+#          so the transcript streams live for the poll.
+#
+#          (Second live-caught: injecting CSI bytes through the tcp
+#          socket itself does NOT work - the bytes reach the 16550
+#          far too late, only to be echoed by the started kernel's
+#          shell.  PS/2 sendkey stays THE injection path.)
 #
 # Usage: menu_drive.py <scenario> <iso> <serial_out> [disk.img ...]
-#   scenario: timeout | downret | shutdown
+#   scenario: timeout | down1 | down2 | downN | downret (=down1)
+#             | shutdown | ocos (the default entry, Enter)
+#   Env OCBL_OVMF=1 boots the UEFI flavor of the dual-firmware ISO.
 import subprocess
 import sys
 import time
@@ -27,19 +38,19 @@ def main():
     for p in (sock, serial_out):
         if os.path.exists(p):
             os.unlink(p)
+
+    # serial on a TCP server socket: bidirectional (transcript OUT,
+    # keys IN) - the file: backend only captures, it cannot inject.
     cmd = [BIN + '/qemu-system-x86_64']
-    # the toolchain data dirs are always needed (VGA BIOS etc.)
     cmd += ['-L', '/home/z/opt/extract/share/qemu',
             '-L', '/home/z/opt/extract/share/seabios']
     if os.environ.get('OCBL_OVMF'):
-        # the UEFI flavor of the SAME dual-firmware ISO (B5-4): OVMF
-        # routes ConIn from the PS/2 keyboard, ConOut to the serial
         cmd += ['-bios', '/home/z/opt/extract/share/ovmf/OVMF.fd']
     cmd += [
         '-m', '256M', '-boot', 'd', '-no-reboot',
         '-display', 'none',
         '-serial', f'file:{serial_out}',
-        '-monitor', f'unix:{sock},server,nowait', '-vga', 'std',
+        '-qmp', f'unix:{sock},server,nowait', '-vga', 'std',
         '-cdrom', iso,
     ]
     ide_i = 0
@@ -54,36 +65,118 @@ def main():
         else:
             cmd += ['-drive', f'file={d},if=virtio,format=raw']
     p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL)
-    time.sleep(2.5)                     # scan + menu render
-    s = socket.socket(socket.AF_UNIX)
-    s.connect(sock)
-    time.sleep(0.2)
+                         stderr=None)
 
-    def mcmd(c, wait=0.5):
-        s.sendall((c + '\n').encode())
-        time.sleep(wait)
+    buf = b''
+
+    def pump():
+        nonlocal buf
+        try:
+            buf = open(serial_out, 'rb').read()
+        except Exception:
+            pass
+
+    def wait_for(needle, timeout):
+        end = time.time() + timeout
+        while time.time() < end:
+            pump()
+            if needle in buf:
+                return True
+            time.sleep(0.3)
+        return False
+
+    # QMP socket for send-key (the PS/2 injection path)
+    m = None
+    end = time.time() + 30
+    while time.time() < end and m is None:
+        try:
+            c = socket.socket(socket.AF_UNIX)
+            c.connect(sock)
+            m = c                        # only a CONNECTED socket qualifies
+        except Exception:
+            time.sleep(0.4)
+    if m is None:
+        print("FATAL: qmp socket never came up")
+        p.kill()
+        sys.exit(1)
+
+    # QMP handshake: read the greeting, say qmp_capabilities
+    m.setblocking(False)
+    greet_end = time.time() + 5
+    greet = b''
+    while time.time() < greet_end:
+        try:
+            d = m.recv(4096)
+            if not d:
+                break
+            greet += d
+            if b'"return"' in greet:
+                break
+        except BlockingIOError:
+            pass
+        except Exception:
+            break
+        time.sleep(0.2)
+    try:
+        m.sendall(b'{"execute":"qmp_capabilities"}\n')
+    except Exception as e:
+        sys.stderr.write(f"[dbg] qmp handshake failed: {e}\n")
+        sys.stderr.flush()
+    time.sleep(0.3)
 
     def key(k, wait=0.4):
-        mcmd('sendkey ' + k, wait)
+        try:
+            q = ('{"execute":"send-key","arguments":{"keys":'
+                 '[{"type":"qcode","data":"%s"}]}}\n' % k).encode()
+            m.sendall(q)
+            m.recv(4096)
+        except Exception as e:
+            sys.stderr.write(f"[dbg] sendkey {k} failed: {e}\n")
+            sys.stderr.flush()
+        time.sleep(wait)
 
+    ok = wait_for(b'Up/Down to select', 150)
+    tail = 8
     if scenario == 'timeout':
-        time.sleep(12)                  # let the 10s timer fire
-    elif scenario == 'downret':
+        time.sleep(13)                  # let the 10s timer fire
+        tail = 90                       # B5-5: 2 MiB kernel + boot
+    elif scenario in ('ocos', 'default'):
+        key('ret')                      # boot the default entry now
+        tail = 40                        # 2 MiB payloads take a while
+    elif scenario in ('downret', 'down1'):
         key('down')                     # move to entry 1
-        time.sleep(0.5)
         key('ret')
+        tail = 30                        # OCIRE: 60 KiB payload
+    elif scenario.startswith('down'):   # down2..downN: B5-6 chain rows
+        n = int(scenario[4:])
+        for _ in range(n):
+            key('down', wait=0.4)
+        key('ret')
+        tail = 30
     elif scenario == 'shutdown':
         key('down')                     # hd0-only fleet: row 1 = Shutdown
-        time.sleep(0.5)
         key('ret')
-    time.sleep(4)
-    mcmd('quit', 0.3)
+        tail = 10
+
+    end = time.time() + tail
+    while time.time() < end:
+        pump()
+        time.sleep(0.5)
+    
+    # hard stop: the handoff'ed kernel would run forever
+    try:
+        m.sendall(b'{"execute":"quit"}\n')
+        time.sleep(0.5)
+        m.close()
+    except Exception:
+        pass
     try:
         p.wait(timeout=8)
     except Exception:
         p.kill()
-    print(open(serial_out).read()[-1400:])
+    pump()
+    txt = buf.decode(errors='replace')
+    print(txt[-2000:])
 
 
 if __name__ == '__main__':

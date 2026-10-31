@@ -122,8 +122,21 @@ OCBL_EFI_SRC := $(wildcard $(OCBL_DIR)/efi/*.c) \
                 $(OCBL_DIR)/common/ocbl_scan.c \
                 $(OCBL_DIR)/common/ocbl_menu.c \
                 $(OCBL_DIR)/common/ocbl_acpi.c \
-                $(OCBL_DIR)/common/ocbl_wdt.c
+                $(OCBL_DIR)/common/ocbl_wdt.c \
+                $(OCBL_DIR)/common/ocbl_load.c
 OCBL_EFI_OBJ := $(patsubst $(OCBL_DIR)/%.c,$(OCBL_OUT)/efiobj/%.o,$(OCBL_EFI_SRC))
+
+# ---- B5-5: the 64->32 downgrade trampoline ----
+# flat binary org'd at the fixed bounce window (0x30000), embedded
+# into the EFI image through handoff_data.asm (incbin) exactly like
+# the BIOS flavor embeds its real-mode trampoline.
+$(OCBL_OUT)/handoff_blob.bin: $(OCBL_DIR)/efi/handoff_blob.asm | $(OCBL_OUT)
+	$(NASM) -f bin -o $@ $<
+	python3 -c "b=open('$(abspath $@)','rb').read(); assert len(b)<=0x1000, 'handoff blob %d bytes overflows the 0x30000 code area' % len(b); print('ocbl: handoff_blob.bin %dB ok' % len(b))"
+
+$(OCBL_OUT)/efiobj/handoff_data.o: $(OCBL_DIR)/efi/handoff_data.asm $(OCBL_OUT)/handoff_blob.bin | $(OCBL_OUT)
+	@mkdir -p $(dir $@)
+	$(NASM) -f elf64 -I$(OCBL_OUT)/ -o $@ $<
 
 $(OCBL_OUT)/efiobj/%.o: $(OCBL_DIR)/%.c $(OCBL_COMMON_H) $(OCBL_DIR)/efi/efi.h | $(OCBL_OUT)
 	@mkdir -p $(dir $@)
@@ -138,10 +151,10 @@ $(OCBL_OUT)/efiobj/%.o: $(OCBL_DIR)/%.c $(OCBL_COMMON_H) $(OCBL_DIR)/efi/efi.h |
 #  argument - see elf_to_efi.py's header for the full chain.  The
 #  two-step link keeps every R_X86_64_64 and builds the complete
 #  directory deterministically.)
-$(OCBL_OUT)/ocbl_x64.efi: $(OCBL_EFI_OBJ) $(OCBL_DIR)/elf_to_efi.py $(OCBL_DIR)/linker_efi.ld
+$(OCBL_OUT)/ocbl_x64.efi: $(OCBL_EFI_OBJ) $(OCBL_OUT)/efiobj/handoff_data.o $(OCBL_DIR)/elf_to_efi.py $(OCBL_DIR)/linker_efi.ld
 	$(LD) -m elf_x86_64 --emit-relocs -n -nostdlib \
-	      -T $(OCBL_DIR)/linker_efi.ld -o $(OCBL_OUT)/core_efi.elf \
-	      $(OCBL_EFI_OBJ)
+              -T $(OCBL_DIR)/linker_efi.ld -o $(OCBL_OUT)/core_efi.elf \
+              $(OCBL_EFI_OBJ) $(OCBL_OUT)/efiobj/handoff_data.o
 	python3 $(OCBL_DIR)/elf_to_efi.py $(OCBL_OUT)/core_efi.elf $@ efi_main
 	python3 -c "d=open('$(abspath $@)','rb').read(); pe=int.from_bytes(d[0x3c:0x40],'little'); assert d[:2]==b'MZ' and d[pe:pe+4]==b'PE\x00\x00' and int.from_bytes(d[pe+4:pe+6],'little')==0x8664 and int.from_bytes(d[pe+0x5c:pe+0x5e],'little')==10, 'bad PE/EFI header'; print('ocbl: ocbl_x64.efi %d bytes (x64 EFI app)' % len(d))"
 
@@ -185,15 +198,22 @@ ocbl-run-uefi: $(OCBL_OUT)/ocbl_test.iso
           -no-reboot -display none -serial stdio -monitor none -vga std
 
 # ---- B2b scanner test fleet (QEMU bring-up disks) ----
-$(OCBL_OUT)/scan_disks/hd0.img: ocbl/make_scan_disks.py | $(OCBL_OUT)
+# NOTE (B5-7 live-caught): the fleet is ELEVEN sibling images produced
+# by one script run - hd0.img alone as the anchor timestamp left the rest
+# stale after a kernel rebuild (hd1 shipped the OLD ocire.elf and the
+# handoff test silently regressed).  The stamp covers them all.
+$(OCBL_OUT)/scan_disks/.stamp: ocbl/make_scan_disks.py \
+	$(wildcard $(OCBL_OUT)/ocbl_bios.bin $(OCBL_OUT)/ocbl_x64.efi) | $(OCBL_OUT)
+	@rm -rf $(OCBL_OUT)/scan_disks
 	python3 ocbl/make_scan_disks.py $(OCBL_OUT)/scan_disks
+	@touch $@
 
 .PHONY: ocbl-scan-disks
-ocbl-scan-disks: $(OCBL_OUT)/scan_disks/hd0.img
+ocbl-scan-disks: $(OCBL_OUT)/scan_disks/.stamp
 	@echo "ocbl: scan fleet ready"
 
 .PHONY: ocbl-run-scan
-ocbl-run-scan: ocbl-iso $(OCBL_OUT)/scan_disks/hd0.img
+ocbl-run-scan: ocbl-iso $(OCBL_OUT)/scan_disks/.stamp
 	$(QEMU) -L $(QEMU_DATADIR) -L $(SEABIOS_DIR) \
           -m 256M \
           -drive file=$(OCBL_OUT)/scan_disks/hd0.img,if=ide,index=0,media=disk,format=raw \
