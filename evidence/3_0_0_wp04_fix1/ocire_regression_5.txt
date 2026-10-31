@@ -1,0 +1,18 @@
+Open Cube OS 3.0.0-WP04-fix1 - OCIRE five-point regression (fixed build)
+=========================================================================
+All five checks on the rebuilt artifacts (OCIRE.elf build 360,
+ocire.iso sha256 2673753d...):
+  R1 PASS  BIOS dual-firmware ISO boots OCIRE to ocire>
+  R2 PASS  UEFI (OVMF) same ISO boots OCIRE to ocire>
+  R3 PASS  recovery shell: help command list
+  R4 PASS  recovery shell: syscheck
+  R5 PASS  logread dumps the boot ring (WP-02 dual-boot disk pair,
+           GRUB menu -> full shell -> logread; the OCOS-ISO + hd
+           combination is not the OCIRE boot path - syscheck there
+           honestly reports 0 ATA disks, QEMU bus-layout fact)
+Plus the two fix1 bug harnesses re-run green on this build:
+  keyboard (bug 9)  5/5  - see after_ocire_kbd.txt
+  VGA scroll (bug 10) 6/6 - see after_ocire_vga_scroll.txt
+           (band md5s byte-identical to the fix1 evidence:
+            top early 9443c189... final 838499bd...
+            bottom early 01c563ab... final 91310e07... ink 6512->6516)

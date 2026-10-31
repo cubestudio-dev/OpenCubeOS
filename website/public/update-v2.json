@@ -1,10 +1,10 @@
 {
     "version": "3.0.0-WP04",
-    "build": 360,
+    "build": 361,
     "time": "2026-10-31",
-    "changes": "fix1: all 11 known bugs fixed - ush/help/editor restored to WP-14 level, OCIRE keyboard + VGA scroll, serial CSI decode, g_pipes NULL write removed",
+    "changes": "fix1: all 11 known bugs fixed (ush/help/editor, OCIRE kbd+VGA, serial CSI, g_pipes); ISO determinism restored (stage-tree pin + RR TF atime zeroing) - root/dir stamps epoch-pinned, two clean builds byte-identical across minutes",
     "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
     "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-3.0.0-WP04-update.tar.gz",
-    "package_sha256": "3346d6e43df15b6eeef87ac6adc7777bada280506473ecfe966d32b05c91ca1d",
-    "package_size": 1153962
+    "package_sha256": "9f7a7030b6990c8a3736ba67573293d636d9b4ac18067a7fac4e71ea1d5db2bd",
+    "package_size": 1153842
 }

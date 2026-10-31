@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 """
-iso_zero_ctime.py: zero every Rock Ridge TF ctime stamp in an ISO image.
+iso_zero_ctime.py: zero every Rock Ridge TF ctime/atime stamp in an ISO.
 
 The G13 clean-build determinism gate requires two clean builds of the
 same tree to be byte-identical.  xorriso pins the volume dates
@@ -14,6 +14,14 @@ access/modification, no ctime).  This walker visits every ISO9660
 directory record, parses the SUSP entry chain, and rewrites the TF
 ctime stamp bytes to the 1970 epoch encoding.  ISO9660 records carry no
 checksums, so the byte patch keeps the image valid.
+
+3.0.0-WP04-fix1 (audit finding, fixed on the spot): DIRECTORY nodes
+leak one more stamp - xorriso touches the source directory atime while
+walking the tree (after any pre-utime), and --set_all_file_dates pins
+the atime of FILE nodes only, so two clean builds differed in exactly
+the root + per-directory TF atime minute/second bytes.  The walker now
+zeroes the TF atime (bit 2) as well; mtime is already pinned epoch by
+--set_all_file_dates, so the normalisation stays idempotent.
 
 Usage: python3 tools/iso_zero_ctime.py <image>
 """
@@ -64,7 +72,7 @@ def walk_extent(d, lba, size, seen, stats):
                 # backup, expiration, effective (present bits 1..7)
                 for bit in range(1, 8):
                     if tflags & (1 << bit):
-                        if bit == 3:  # ctime -> epoch
+                        if bit == 3 or bit == 2:  # ctime / atime -> epoch
                             d[q:q + stamp_len] = \
                                 EPOCH7 if stamp_len == 7 else \
                                 bytes([0x46, 0x01, 0x01, 0, 0, 0, 0, 0, 0, 0,

@@ -1,0 +1,50 @@
+=== [1] boot chain ===
+b"plete..................................... OK\r\n[00:00:02.520] boot chain 4/4: interfaces ready.................. OK\r\n[00:00:02.520] crash recovery armed (panic + dump + crashlog).... OK\r\n[00:00:02.530] L0 ready, waiting for L1.......................... OK\r\n    l1 launcher: booting 'ush' (ring 3, 18968 bytes)\r\n\r\nOpen Cube OS User-space Shell (3.0.0-WP04)\r\nType 'help' for built-in commands.\r\n\r\nush> "
+[PASS] S1 boot chain 4/4 to ush> (L0 ready, L1 launched)
+=== [2] S2 uname identity ===
+b'uname -a\r\nOpen Cube OS 3.0.0-WP04 x86_64\r\nush> '
+[PASS] S2 uname identity
+=== [3] S3 stats (system counters) ===
+b'stats\r\nticks=483  ms=4830  IRQ0=483  IRQ1=0  soft=0  one=0\r\nush> '
+[PASS] S3 stats (system counters)
+=== [4] S4 health report ===
+b'1 s window)\r\n  memory:\r\n  total               524160 KiB\r\n  used                9628 KiB\r\n  free                514532 KiB\r\n  tasks:\r\n  total               4\r\n  running             2\r\n  ready               1\r\n  blocked             1\r\n  disk:\r\n  read                0 bytes\r\n  written             0 bytes\r\n  network:\r\n  tx                  0 bytes\r\n  rx                  0 bytes\r\n  alarms: none\r\nush> '
+[PASS] S4 health report
+=== [5] S5 mem (memory map) ===
+b'mem\r\nPhysical memory:\r\n  total: 536739840 bytes (131040 pages)\r\n  used:  9895936 bytes (2416 pages)\r\n  free:  526843904 bytes (128624 pages)\r\n  fragments: 3\r\n  allocs: 605  frees: 232  failures: 0\r\nush> '
+[PASS] S5 mem (memory map)
+=== [6] S6 watchdog status ===
+b'watchdog status\r\nwatchdog status:\r\n  hardware: none\r\nwatchdog slots (1):\r\n  [0] system-heartbea  15000 ms  PANIC  stopped  timeouts=0\r\nush> '
+[PASS] S6 watchdog status
+=== [7] S7 dmesg (kernel ring log) ===
+b"........ OK\r\n[2.520] INFO  boot: [00:00:02.520] boot chain 4/4: interfaces ready.................. OK\r\n[2.530] INFO  boot: [00:00:02.520] crash recovery armed (panic + dump + crashlog).... OK\r\n[2.530] INFO  boot: [00:00:02.530] L0 ready, waiting for L1.......................... OK\r\n[2.540] INFO  boot: l1 launcher: booting 'ush' (ring 3, 18968 bytes)\r\n-- 30 lines (ring 76/1024, dropped 0) --\r\nush> "
+[PASS] S7 dmesg (kernel ring log)
+=== [8] S8 tsc (time source) ===
+b"tsc\r\nTSC: 0000000deace5951 (serialized rdtsc)\r\ninvariant: 0 (CPUID 0x80000007 EDX[8])\r\ncalibrated: not yet (run 'tsc cal')\r\nush> "
+[PASS] S8 tsc (time source)
+=== [9] S9 mounts (filesystems) ===
+b'mounts\r\nVFS mount table:\r\n  /  ramfs\r\nush> '
+[PASS] S9 mounts (filesystems)
+=== [10] S10 pipes + registry app (wc) ===
+b'echo regression-fix1 | wc\r\n1 1 16\r\nush> '
+[PASS] S10 pipes + registry app (wc)
+=== [11] S11 shell history state ===
+b'history\r\n1 uname -a\r\n2 stats\r\n3 health\r\n4 mem\r\n5 watchdog status\r\n6 dmesg\r\n7 tsc\r\n8 mounts\r\n9 echo regression-fix1 | wc\r\n10 history\r\nush> '
+[PASS] S11 shell history state
+=== [12] tui-test self-check ===
+b'NAL\r\n    expected : 4\r\n    actual   : 4\r\n[PASS] desktop: terminal runner wired\r\n    input    : tui_dt_terminal_run\r\n    expected : 1\r\n    actual   : 1\r\n[PASS] desktop: terminal at root level\r\n    input    : depth 1\r\n    expected : 1\r\n    actual   : 1\r\n[PASS] priv: containment payload embedded\r\n    input    : ELF64\r\n    expected : 1\r\n    actual   : 1\r\ntui-test: 93/93 checks passed, all green\r\nush> '
+[PASS] S12 tui-test 93/93 all green
+=== SUMMARY ===
+PASS: S1 boot chain 4/4 to ush> (L0 ready, L1 launched)
+PASS: S2 uname identity
+PASS: S3 stats (system counters)
+PASS: S4 health report
+PASS: S5 mem (memory map)
+PASS: S6 watchdog status
+PASS: S7 dmesg (kernel ring log)
+PASS: S8 tsc (time source)
+PASS: S9 mounts (filesystems)
+PASS: S10 pipes + registry app (wc)
+PASS: S11 shell history state
+PASS: S12 tui-test 93/93 all green
+TOTAL 12/12

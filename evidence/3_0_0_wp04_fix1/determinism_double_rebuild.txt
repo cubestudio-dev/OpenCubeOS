@@ -1,0 +1,41 @@
+Open Cube OS 3.0.0-WP04-fix1 - ISO determinism restored (audit finding)
+========================================================================
+Found during the fix1 re-verification (declared per the fix1 spec:
+found = fixed on the spot):
+
+SYMPTOM
+  The WP-05 OCBL packer (ocbl/build_test_iso.py) claims the G13
+  determinism stack is "delegated" to it, but two FORCED rebuilds
+  minutes apart produced ISOs differing in exactly:
+    - the PVD root-record mtime + every directory-record mtime
+      (minute/second fields) - the staging tree is recreated per
+      build, and --set_all_file_dates pins FILE nodes only;
+    - the Rock Ridge TF atime of DIRECTORY nodes - xorriso touches
+      the source directory atimes while walking (after any pre-touch),
+  The G13 stack had this fixed (make-iso: find -exec touch -d @0);
+  the WP-05 packer rewrite dropped that step.  (The naive same-minute
+  double build stays identical - the stamps only drift across
+  minutes; that is how it slipped through.)
+
+FIX (ocbl/build_test_iso.py + tools/iso_zero_ctime.py)
+  1. pin the whole staging tree mtimes to the epoch before xorriso;
+  2. zero the RR TF ctime post-build (the G13 walker, now wired into
+     the packer);
+  3. extend the walker to also zero the RR TF atime (directory leak).
+
+PROOF (this file, 2026-10-31, toolchain extract = CI):
+  make OC_KERNEL_BUILD=361 reproducible-check  (WP-13 gate, the ELF):
+    reproducible-check: PASS - ELF byte-identical across two clean builds
+    e7c6ce9796775bd66af52b0f3913c97bde44df8c197e7f6b80ef9734f0ba32fc  build/opencube.elf
+  opencube.iso, FORCED rebuild (rm iso + iso-stage) 65 s apart:
+    b0f348576f61601ba7d7655a0e53e74610e2d36701959187d56f8232e792001d  (build 361)
+  ocire.iso, FORCED rebuild 65 s apart (OC_KERNEL_BUILD=360):
+    2673753dc20391155333876aec60aef8175226c7e1b149b9bf983f1897f8dae2
+  src.zip regenerated twice:
+    886bf41200d3165543ffb1f26c1644f286fb4b2ff1b5090d6d11248a4792b98f
+  OCIRE.elf rebuilt twice:
+    701a100d4f7e27c651fe7cb59ccd0baf39733a1715e9b6aa19f41c8e6b4878c4
+  All byte-identical.  Root-record + directory stamps now read
+  46 01 01 00 00 00 00 (1970-01-01) in every rebuilt image.
+  Boot re-verified after the change: BIOS E1 battery 3/3 (see
+  after_ush_battery.txt) and the UEFI gate 4/4 (uefi_gate.txt).
