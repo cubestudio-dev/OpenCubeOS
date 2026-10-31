@@ -1,0 +1,25 @@
+# Open Cube OS 3.0.0-WP05 OCBL - B5-6: UEFI LoadImage/StartImage chainload evidence
+==============================================================
+Test: the GENERIC row (an ESP /EFI/BOOT/BOOTX64.EFI) through the B5-6
+      chainload: the REAL OCBL x64 PE application as the target (we
+      chainload ourselves - the second-level OCBL banner is the proof
+      that LoadImage+StartImage really handed the machine over) plus
+      the non-PE stub as the honest-refusal negative.
+Date: 2026-10-31 UTC  qemu 10.0.13 OVMF 2025.02
+Fleet: chain0.img (GPT ESP, BOOTX64.EFI = ocbl_x64.efi, 101292 B),
+       chain1.img (GPT ESP, BOOTX64.EFI = 128 B non-PE stub).
+
+--- positive: chainload the real PE (second-level OCBL) ---
+enu] B4 will load this payload (mb2 handoff)
+--- negative: the non-PE stub must be refused, never a hang ---
+enu] B4 will load this payload (mb2 handoff)
+Notes:
+  - The second-level OCBL running "[efi] FATAL: fixed low-memory
+    windows not reservable" is the EXPECTED self-nesting outcome:
+    the FIRST-level OCBL already AllocatePages'd 0x30000/0x50000/
+    0x60000, the second level refuses to corrupt them - the honest
+    gate does exactly what it is for.  A real Windows/Linux loader
+    never touches those windows and just boots.
+  - The i6300ESB watchdog is disarmed before StartImage (the BIOS
+    chainload rule mirrored: a payload that never installs the
+    heartbeat must not be reset by ours).

@@ -101,21 +101,25 @@ typedef struct {
     void*    vendor_table;
 } efi_config_table;
 
-/* ---- memory (spec 7.2) ---- */
-#define EFI_ACPI_RECLAIM_MEMORY  9
-#define EFI_LOADER_CODE           2
-#define EFI_BOOT_SERVICES_CODE    4
-#define EFI_BOOT_SERVICES_DATA    5
-#define EFI_RUNTIME_SERVICES_CODE 6
-#define EFI_RUNTIME_SERVICES_DATA 7
-#define EFI_CONVENTIONAL_MEMORY   7
+/* ---- memory (spec 7.2, table "EFI_MEMORY_TYPE") ----
+ * values are the spec numbering; B5-5 live-caught the historical
+ * defines here were off-by-one (LOADER_CODE was 2 = LoaderData etc.)
+ * - none of them were referenced anywhere, fixed to the spec. */
 #define EFI_RESERVED_MEMORY_TYPE  0
-#define EFI_UNUSABLE_MEMORY       5
-#define EFI_ACPI_MEMORY_NVS      10
-#define EFI_MEMORY_MAPPED_IO     11
+#define EFI_LOADER_CODE            1
+#define EFI_LOADER_DATA            2
+#define EFI_BOOT_SERVICES_CODE     3
+#define EFI_BOOT_SERVICES_DATA     4
+#define EFI_RUNTIME_SERVICES_CODE  5
+#define EFI_RUNTIME_SERVICES_DATA  6
+#define EFI_CONVENTIONAL_MEMORY    7
+#define EFI_UNUSABLE_MEMORY        8
+#define EFI_ACPI_RECLAIM_MEMORY    9
+#define EFI_ACPI_MEMORY_NVS       10
+#define EFI_MEMORY_MAPPED_IO      11
 #define EFI_MEMORY_MAPPED_IO_PORT_SPACE 12
 #define EFI_PAL_CODE             13
-#define EFI_PERSISTENT_MEMORY    16
+#define EFI_PERSISTENT_MEMORY     14
 
 typedef struct {
     u32 type;

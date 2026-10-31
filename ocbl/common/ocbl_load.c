@@ -12,7 +12,9 @@
 #include "ocbl_fs.h"
 #include "ocbl_disk.h"
 #include "ocbl_mmap.h"
-#include "ocbl_vbe.h"
+#include "ocbl_fb.h"            /* shared ocbl_fb_info_t (the vbe.h one
+                                 * was BIOS-only; the EFI flavor fills
+                                 * the same shape from GOP) */
 #include "ocbl_serial.h"
 
 #define BOUNCE ((u8*)OCBL_BOUNCE)

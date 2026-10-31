@@ -9,9 +9,14 @@
 #   opencube-<ver>-update/
 #     manifest.json          version + files + payload sha256
 #     kernel/opencube.elf    kernel ELF (installed to /boot/opencube.elf)
-#     boot/grub.cfg          GRUB config (mirrored to the flag partition)
 #     etc/opencube.conf      default configuration
 #     docs/...               documentation
+#
+#     3.0.0-WP05 B5-7: the boot/grub.cfg payload member is GONE - the
+#     boot menu is OCBL's own dynamic scan, there is no loader config
+#     left to update.  The kernel installer (ota_ab.c) still accepts
+#     packages that CARRY the member (older releases stay upgradable),
+#     it simply never appears in ours anymore.
 #
 # manifest.json "sha256" = SHA256 over the CONCATENATION of every payload
 # file body, in ARCHIVE order, manifest.json itself excluded.  The kernel
@@ -35,9 +40,8 @@ STAGE="$(mktemp -d)"
 PKGDIR="$STAGE/opencube-${VER}-update"
 TARBALL="$STAGE/pkg.tar"
 
-mkdir -p "$PKGDIR/kernel" "$PKGDIR/boot" "$PKGDIR/etc" "$PKGDIR/docs"
+mkdir -p "$PKGDIR/kernel" "$PKGDIR/etc" "$PKGDIR/docs"
 cp "$KERNEL" "$PKGDIR/kernel/opencube.elf"
-cp "$OC_ROOT/grub-ab.cfg" "$PKGDIR/boot/grub.cfg"
 cp "$OC_ROOT/etc/opencube.conf" "$PKGDIR/etc/opencube.conf"
 cp "$OC_ROOT/docs/CONFIG.md" "$PKGDIR/docs/" 2>/dev/null || true
 
@@ -47,7 +51,6 @@ cp "$OC_ROOT/docs/CONFIG.md" "$PKGDIR/docs/" 2>/dev/null || true
   echo "  \"time\": \"$(date -u +%F)\","
   echo "  \"files\": ["
   echo "    \"kernel/opencube.elf\","
-  echo "    \"boot/grub.cfg\","
   echo "    \"etc/opencube.conf\","
   echo "    \"docs/CONFIG.md\""
   echo "  ],"

@@ -140,9 +140,33 @@ static u32 judge_volume(const ocbl_volume_t* v,
 {
     u32 size = 0;
 
-    /* OCOS: the multiboot2 system kernel */
-    if (v->fs != OCBL_VOL_ISO9660 &&
-        ocbl_fs_stat(v, "/boot/opencube.elf", &size) &&
+    /* OCSE FIRST (B5-7 live-caught): a marker-carrying install medium
+     * is OCSE even when it also ships a kernel - the class is the
+     * marker's, the ordering below settles the precedence. */
+    /* OCSE: the install media marker (WP-06 contract; the 8.3-safe
+     * name survives every plain-ISO9660 mangling xorriso can apply) */
+    if (v->fs == OCBL_VOL_ISO9660 &&
+        ocbl_fs_stat(v, "/ocse.mrk", &size)) {
+        ocbl_entry_t* e = add_entry(OCBL_ENT_OCSE);
+        if (e) {
+            fill_vol(e, v);
+            e->file_size = size;
+            label_ctx_t l;
+            lab_init(&l, e->label, OCBL_LABEL_MAX);
+            lab_add(&l, "OCSE install media (");
+            lab_drive(&l, v->drive);
+            lab_add(&l, ")");
+            *out = e;
+        }
+        return OCBL_ENT_OCSE;
+    }
+
+
+    /* OCOS: the multiboot2 system kernel.  ISO volumes are NOT
+     * excluded anymore (B5-7): the release opencube.iso IS the
+     * bootable OCOS itself - a marker-less ISO carrying
+     * /boot/opencube.elf registers as "Open Cube OS (cd0)". */
+    if (ocbl_fs_stat(v, "/boot/opencube.elf", &size) &&
         file_has_mb2_header(v, "/boot/opencube.elf")) {
         /* slot-consumed volumes belong to an already-registered
          * A/B entry on the same disk */
@@ -215,9 +239,9 @@ static u32 judge_volume(const ocbl_volume_t* v,
         return OCBL_ENT_OCOS;
     }
 
-    /* OCIRE: the recovery kernel (shadow volume or plain volume) */
-    if (v->fs != OCBL_VOL_ISO9660 &&
-        ocbl_fs_stat(v, "/boot/ocire.elf", &size)) {
+    /* OCIRE: the recovery kernel (shadow volume, plain volume, or the
+     * standalone recovery ISO - B5-7 opens the ISO gate here too) */
+    if (ocbl_fs_stat(v, "/boot/ocire.elf", &size)) {
         ocbl_entry_t* e = add_entry(OCBL_ENT_OCIRE);
         if (e) {
             fill_vol(e, v);
@@ -232,24 +256,6 @@ static u32 judge_volume(const ocbl_volume_t* v,
             *out = e;
         }
         return OCBL_ENT_OCIRE;
-    }
-
-    /* OCSE: the install media marker (WP-06 contract; the 8.3-safe
-     * name survives every plain-ISO9660 mangling xorriso can apply) */
-    if (v->fs == OCBL_VOL_ISO9660 &&
-        ocbl_fs_stat(v, "/ocse.mrk", &size)) {
-        ocbl_entry_t* e = add_entry(OCBL_ENT_OCSE);
-        if (e) {
-            fill_vol(e, v);
-            e->file_size = size;
-            label_ctx_t l;
-            lab_init(&l, e->label, OCBL_LABEL_MAX);
-            lab_add(&l, "OCSE install media (");
-            lab_drive(&l, v->drive);
-            lab_add(&l, ")");
-            *out = e;
-        }
-        return OCBL_ENT_OCSE;
     }
 
     /* WINDOWS: the MS boot manager on an ESP */

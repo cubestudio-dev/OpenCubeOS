@@ -16,6 +16,7 @@
 #include "ocire_io.h"
 #include "ocire_util.h"
 #include "ocire_console.h"
+#include "ocire_mb2.h"
 
 /* ---- ACPI table layouts (packed by hand, offsets per the spec) ------ */
 
@@ -92,6 +93,17 @@ static u16 read_phys16(u64 addr) {
 }
 
 static rsdp_t *find_rsdp(void) {
+    /* 0) The multiboot2 ACPI tags FIRST (WP-05/OCBL): the tag body
+     * carries a VERBATIM RSDP copy the loader made.  Under UEFI the
+     * firmware keeps its RSDP HIGH (the 0xF.. MiB range, outside any
+     * legacy area), so the EBDA/ROM scans below cannot reach it -
+     * BIOS boots keep working through the fallback. */
+    const ocire_mb2_info_t *mb2 = ocire_mb2_get();
+    if (mb2 && mb2->rsdp_phys &&
+        oc_memcmp((const void *)(uintptr)mb2->rsdp_phys,
+                  "RSD PTR ", 8) == 0) {
+        return (rsdp_t *)(uintptr)mb2->rsdp_phys;
+    }
     /* 1) EBDA: the word at 0x40E points at the extended BIOS data area. */
     u32 ebda = ((u32)read_phys16(0x40E)) << 4;
     if (ebda >= 0x400 && ebda < 0x9FC00) {

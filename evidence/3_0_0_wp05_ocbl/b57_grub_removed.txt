@@ -1,0 +1,104 @@
+# Open Cube OS 3.0.0-WP05 OCBL - B5-7: GRUB removed, OCBL everywhere
+==============================================================
+Test: the RELEASE pipeline (make all) with the GRUB chain deleted:
+      tools/build_iso.sh now stages the dual-firmware OCBL pair and
+      packs through the OCBL ISO packer; the SAME build/opencube.iso
+      boots under SeaBIOS AND OVMF, and the OCBL scanner registers
+      the ISO itself as the OCOS boot target ("Open Cube OS (cd0)").
+Date: 2026-10-31 UTC  qemu 10.0.13  SeaBIOS 1.16.3 + OVMF 2025.02
+
+GRUB removal ledger (the WP-05 spec hard requirement):
+  REMOVED            grub.cfg, grub-ab.cfg (the GRUB menus)
+  REMOVED            ocire/grub-ocire.cfg (the OCIRE ISO menu)
+  REMOVED            iso/ tree (boot/grub/fonts/unicode.pf2 + stage dir)
+  REWIRED            Makefile KERNEL_ISO: depends on the OCBL pair,
+                     not grub.cfg; iso: -> tools/build_iso.sh (OCBL)
+  REWIRED            tools/build_iso.sh: GRUB-mkimage/xorriso pipeline
+                     -> the OCBL packer (dual El Torito + ESP + G13)
+  REWIRED            tools/build_ocire_iso.sh: same swap (B5-7)
+  REWIRED            ocire/ocire.mk: ISO deps -> the OCBL pair
+  REWIRED            tools/make_update_pkg.sh: the update package no
+                     longer carries boot/grub.cfg (there is no loader
+                     config left to update); ota_ab.c still ACCEPTS
+                     packages that carry it - older releases stay
+                     upgradable.
+  SCANNER            judge_volume: the OCSE marker now judges FIRST;
+                     the ISO gate on OCOS/OCIRE opened - the release
+                     ISO self-registers as "Open Cube OS (cd0)" and
+                     the OCIRE recovery ISO as "OCIRE recovery (cd0)".
+  DECLARED BOUNDARY  embed_grub.py / kernel-internal grub_boot_data:
+                     the WP-10d rule-9 INSTALLER payload (abdisk /
+                     install / grub-install write a boot image from
+                     inside the running OS).  It is NOT a boot-time
+                     GRUB path - no boot ever goes through it - and
+                     the disk-install chain belongs to the upcoming
+                     installer work packages.  Untouched, declared.
+  DECLARED BOUNDARY  ocire/grub-dual.cfg.in + tools/make_ocire_disk.sh:
+                     the WP-02 dual-boot DISK generator (a development
+                     fixture).  Same installer-domain boundary.
+
+Build gates: make all RC=0 - kernel ELF 2,077,472 B (baseline-exact
+byte size), opencube.iso 3,639,296 B (GRUB-free: the 12.3 MiB GRUB
+modules+font ISO shrinks to 3.5 MiB), OTA package without the
+grub.cfg member, OCBL dual-firmware pair inside.
+
+--- release ISO, SeaBIOS: OCBL pulls OCOS from CD into L1 ---
+  [0] base=0x00000000 len=0x0009FC00 type=1
+  [0] OCOS: Open Cube OS (cd0)  path=/boot/opencube.elf size=2077472
+Open Cube OS Boot Loader (3.0.0-WP04 build 22)Up/Down to select, Enter to boot.Open Cube OS (cd0)ShutdownBooting Open Cube OS (cd0) in 10s                                             Booting Open Cube OS (cd0) in 9s                                              Booting Open Cube OS (cd0) in 8s                                              Booting Open Cube OS (cd0) in 7s                                              Booting Open Cube OS (cd0) in 6s                                              Booting Open Cube OS (cd0) in 5s                                              Booting Open Cube OS (cd0) in 4s                                              Booting Open Cube OS (cd0) in 3s                                              Booting Open Cube OS (cd0) in 2s                                              Booting Open Cube OS (cd0) in 1s                                              enu] selected: Open Cube OS (cd0)
+enu] B4 will load this payload (mb2 handoff)
+c] Open Cube OS 3.0.0-WP04 kmain entered
+[00:00:00.000] boot chain 1/4: kernel core mechanisms............ OK
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe2335 tables 5........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.020] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.130] boot chain 2/4: drivers + driver-free services.... OK
+[00:00:00.560] boot chain 3/4: driver-dependent services......... OK
+[00:00:02.550] boot complete..................................... OK
+--- the SAME release ISO, OVMF: the UEFI chain into L1 ---
+  [0] OCOS: Open Cube OS (hd0)  path=/boot/opencube.elf size=2077472
+Open Cube OS Boot Loader (3.0.0-WP04 build 22)Open Cube OS Boot Loader (3.0.0-WP04 build 22)Up/Down to select, Enter to boot.Up/Down to select, Enter to boot.                                                                                Open Cube OS (hd0)Open Cube OS (hd0)                                                                                ShutdownShutdownBooting Open Cube OS (hd0) in 10s                                             Booting Open Cube OS (hd0) in 10s                                             Booting Open Cube OS (hd0) in 9s                                              Booting Open Cube OS (hd0) in 9s                                              Booting Open Cube OS (hd0) in 8s                                              Booting Open Cube OS (hd0) in 8s                                              Booting Open Cube OS (hd0) in 7s                                              Booting Open Cube OS (hd0) in 7s                                              Booting Open Cube OS (hd0) in 6s                                              Booting Open Cube OS (hd0) in 6s                                              Booting Open Cube OS (hd0) in 5s                                              Booting Open Cube OS (hd0) in 5s                                              Booting Open Cube OS (hd0) in 4s                                              Booting Open Cube OS (hd0) in 4s                                              Booting Open Cube OS (hd0) in 3s                                              Booting Open Cube OS (hd0) in 3s                                              Booting Open Cube OS (hd0) in 2s                                              Booting Open Cube OS (hd0) in 2s                                              Booting Open Cube OS (hd0) in 1s                                              Booting Open Cube OS (hd0) in 1s                                              enu] selected: Open Cube OS (hd0)
+enu] B4 will load this payload (mb2 handoff)
+oot] handoff trampoline at 0x30000 (156 bytes)
+c] Open Cube OS 3.0.0-WP04 kmain entered
+[00:00:00.000] boot chain 1/4: kernel core mechanisms............ OK
+[00:00:00.010] ACPI: RSDP rev 2 XSDT 0f77d0e8 tables 6........... OK
+[00:00:00.010] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.010] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.120] boot chain 2/4: drivers + driver-free services.... OK
+[00:00:00.550] boot chain 3/4: driver-dependent services......... OK
+[00:00:02.660] boot complete..................................... OK
+[00:00:02.660] boot chain 4/4: interfaces ready.................. OK
+ush> 
+--- OCIRE recovery ISO (ocire-iso), SeaBIOS ---
+  [0] base=0x00000000 len=0x0009FC00 type=1
+  [0] OCIRE: OCIRE recovery (cd0)  path=/boot/ocire.elf size=60288
+Open Cube OS Boot Loader (3.0.0-WP04 build 22)Up/Down to select, Enter to boot.OCIRE recovery (cd0)ShutdownBooting OCIRE recovery (cd0) in 10s                                           Booting OCIRE recovery (cd0) in 9s                                            Booting OCIRE recovery (cd0) in 8s                                            Booting OCIRE recovery (cd0) in 7s                                            Booting OCIRE recovery (cd0) in 6s                                            Booting OCIRE recovery (cd0) in 5s                                            Booting OCIRE recovery (cd0) in 4s                                            Booting OCIRE recovery (cd0) in 3s                                            Booting OCIRE recovery (cd0) in 2s                                            Booting OCIRE recovery (cd0) in 1s                                            enu] selected: OCIRE recovery (cd0)
+enu] B4 will load this payload (mb2 handoff)
+Video: linear framebuffer 800x600x32
+ACPI: FADT found (S5 SLP_TYP=0)
+ocire> 
+--- OCIRE recovery ISO, OVMF ---
+  [0] OCIRE: OCIRE recovery (hd0)  path=/boot/ocire.elf size=60288
+Open Cube OS Boot Loader (3.0.0-WP04 build 22)Open Cube OS Boot Loader (3.0.0-WP04 build 22)Up/Down to select, Enter to boot.Up/Down to select, Enter to boot.                                                                                OCIRE recovery (hd0)OCIRE recovery (hd0)                                                                                ShutdownShutdownBooting OCIRE recovery (hd0) in 10s                                           Booting OCIRE recovery (hd0) in 10s                                           Booting OCIRE recovery (hd0) in 9s                                            Booting OCIRE recovery (hd0) in 9s                                            Booting OCIRE recovery (hd0) in 8s                                            Booting OCIRE recovery (hd0) in 8s                                            Booting OCIRE recovery (hd0) in 7s                                            Booting OCIRE recovery (hd0) in 7s                                            Booting OCIRE recovery (hd0) in 6s                                            Booting OCIRE recovery (hd0) in 6s                                            Booting OCIRE recovery (hd0) in 5s                                            Booting OCIRE recovery (hd0) in 5s                                            Booting OCIRE recovery (hd0) in 4s                                            Booting OCIRE recovery (hd0) in 4s                                            Booting OCIRE recovery (hd0) in 3s                                            Booting OCIRE recovery (hd0) in 3s                                            Booting OCIRE recovery (hd0) in 2s                                            Booting OCIRE recovery (hd0) in 2s                                            Booting OCIRE recovery (hd0) in 1s                                            Booting OCIRE recovery (hd0) in 1s                                            enu] selected: OCIRE recovery (hd0)
+enu] B4 will load this payload (mb2 handoff)
+oot] handoff trampoline at 0x30000 (156 bytes)
+Video: linear framebuffer 800x600x32
+ACPI: FADT found (S5 SLP_TYP=0)
+ocire> 
+--- three-key regression (BIOS flavor, sendkey): down cancels the
+    countdown and moves the row, ret boots it, ACPI S5 is real ---
+  [0] base=0x00000000 len=0x0009FC00 type=1
+  [0] OCIRE: OCIRE recovery (hd0 p1)  path=/boot/ocire.elf size=60288
+Open Cube OS Boot Loader (3.0.0-WP04 build 22)Up/Down to select, Enter to boot.OCIRE recovery (hd0 p1)ShutdownBooting OCIRE recovery (hd0 p1) in 10s                                        Booting OCIRE recovery (hd0 p1) in 9s                                         Booting OCIRE recovery (hd0 p1) in 8s                                         Booting OCIRE recovery (hd0 p1) in 7s                                         Booting OCIRE recovery (hd0 p1) in 6s                                         Booting OCIRE recovery (hd0 p1) in 5s                                         Open Cube OS Boot Loader (3.0.0-WP04 build 22)Up/Down to select, Enter to boot.OCIRE recovery (hd0 p1)ShutdownBooting Shutdown (timer cancelled)                                            enu] selected: Shutdown
+oot] ACPI S5 shutdown
+Notes:
+  - Under OVMF the optical drive enumerates as BlockIo "hd0" (whole-
+    disk index naming); under SeaBIOS the same ISO is cd0/0xE0 - the
+    six-class scanner labels the class correctly on both sides.
+  - QEMU monitor key injection never reaches OVMF's ConIn on big
+    fleets (BDS probes every disk first); the acceptance flows ride
+    the spec's default-entry auto-load path, and the three-key
+    contract is regression-proven on the BIOS flavor (above) exactly
+    as in the B3 evidence.  No OCBL change involved - the UEFI flavor
+    polls ReadKeyStroke continuously (50w+ calls per menu window).

@@ -46,37 +46,31 @@ static u32 rd32(const u8* p)
 }
 
 /* ---- byte-granular read through the shared window ---- */
-static bool fs_rd(const ocbl_volume_t* v, u64 byte_off, u32 len, void* out)
-{
-    u8* dst = (u8*)out;
-    u32 dsz = v->sector_size;
-    u64 abs_byte = v->base_lba * (u64)dsz + byte_off;
-    while (len) {
-        u64 dsec = abs_byte / dsz;
-        u32 in = (u32)(abs_byte % dsz);
-        u32 chunk = dsz - in;
-        if (chunk > len)
-            chunk = len;
-        if (!ocbl_disk_read(v->drive, dsec, 1, secbuf()))
-            return false;
-        for (u32 i = 0; i < chunk; i++)
-            dst[i] = secbuf()[in + i];
-        dst += chunk;
-        abs_byte += chunk;
-        len -= chunk;
-    }
-    return true;
-}
 
 /* Volume-sector-granular read (volume sector = drive sector size). */
 static bool fs_rd_vsec(const ocbl_volume_t* v, u64 vsec, u16 count,
                        void* out)
 {
+    /* B5-5 live-caught: the per-sector loop through the 2 KiB secbuf
+     * made the 2 MiB kernel load take MINUTES under OVMF (one
+     * boot-services ReadBlocks per 512 B).  Multi-sector pass-through
+     * in <=64-sector batches - the 127 limit is the classic int 13h
+     * DAP ceiling, 64 is safely under it and 32 KiB a natural chunk. */
+    if (count > 1) {
+        u8* dst = (u8*)out;
+        u32 dsz = v->sector_size;
+        u32 done = 0;
+        while (done < (u32)count) {
+            u16 n = (count - done) > 64 ? 64 : (u16)(count - done);
+            if (!ocbl_disk_read(v->drive, v->base_lba + vsec + done,
+                               n, dst + (u64)done * dsz))
+                return false;
+            done += n;
+        }
+        return true;
+    }
     u64 abs_byte = (v->base_lba * (u64)v->sector_size) +
                    (vsec * (u64)v->sector_size);
-    if (count > 1)
-        return fs_rd(v, vsec * (u64)v->sector_size,
-                     (u32)count * v->sector_size, out);
     return ocbl_disk_read(v->drive, abs_byte / v->sector_size, 1, out);
 }
 
@@ -92,29 +86,50 @@ static u64 fat_byte_off(const ocbl_volume_t* v, u32 clus)
     return (u64)clus * 4;
 }
 
+/* B5-5: the ONE-sector FAT cache at the reserved OCBL_FS_FATBUF head.
+ * Chain walks hammer consecutive FAT sectors (every 2 MiB kernel =
+ * 512 cluster hops in 4 KiB clusters, all inside a couple of FAT
+ * sectors) - one disk read per sector instead of one per lookup. */
+static u64 g_fatc_vol;                /* cached volume base_lba (~0=off) */
+static u64 g_fatc_sec;
+static u8* fatc(void)
+{
+    return (u8*)(u64)OCBL_FS_FATBUF;
+}
+#define OCBL_CLUSBUF (OCBL_FS_FATBUF + 0x400)   /* 1 KiB behind the FATc */
+#define OCBL_CLUSBUF_MAX (128 * 1024 - 0x400)
+
 static u32 fat_entry(const ocbl_volume_t* v, u32 clus)
 {
     u64 off = fat_byte_off(v, clus);
     u64 sec = v->reserved_sectors + off / v->bytes_per_sector;
     u32 in = (u32)(off % v->bytes_per_sector);
-    if (!fs_rd_vsec(v, sec, 1, secbuf()))
-        return 0x0FFFFFF8;             /* EOC on read failure */
+    if (g_fatc_vol != v->base_lba || g_fatc_sec != sec) {
+        if (!fs_rd_vsec(v, sec, 1, fatc()))
+            return 0x0FFFFFF8;         /* EOC on read failure */
+        g_fatc_vol = v->base_lba;
+        g_fatc_sec = sec;
+    }
+    if (0) {                          /* keep the original branch shape */
+        if (!fs_rd_vsec(v, sec, 1, fatc()))
+            return 0x0FFFFFF8;
+    }
     if (v->fs == OCBL_VOL_FAT12) {
-        u32 b0 = secbuf()[in];
+        u32 b0 = fatc()[in];
         u32 b1;
         if (in + 1 < (u32)v->bytes_per_sector)
-            b1 = secbuf()[in + 1];
+            b1 = fatc()[in + 1];
         else {
-            if (!fs_rd_vsec(v, sec + 1, 1, secbuf()))
+            if (!fs_rd_vsec(v, sec + 1, 1, fatc()))
                 return 0x0FFFFFF8;
-            b1 = secbuf()[0];
+            b1 = fatc()[0];
         }
         u32 val = b0 | (b1 << 8);
         return (clus & 1) ? (val >> 4) : (val & 0xFFF);
     }
     if (v->fs == OCBL_VOL_FAT16)
-        return rd16(secbuf() + in);
-    return rd32(secbuf() + in) & 0x0FFFFFFF;
+        return rd16(fatc() + in);
+    return rd32(fatc() + in) & 0x0FFFFFFF;
 }
 
 static bool fat_eoc(const ocbl_volume_t* v, u32 val)
@@ -727,24 +742,23 @@ u32 ocbl_fs_pread(const ocbl_volume_t* v, const char* path, u32 off,
     while (done < want && clus >= 2 && !fat_eoc(v, clus)) {
         if (++guard > 200000)
             break;
-        u64 lba = fat_clus_lba(v, clus) + in_clus / v->bytes_per_sector;
-        u32 in = in_clus % v->bytes_per_sector;
+        /* B5-5: ONE multi-sector read per cluster (the per-sector
+         * secbuf relay made the 2 MiB kernel load take minutes under
+         * OVMF).  The cluster buffer lives right behind the FAT cache
+         * in the reserved 128 KiB window; FAT clusters are <= 64 KiB
+         * (128 sectors), the buffer holds 127 KiB. */
         u32 take = clus_bytes - in_clus;
         if (take > want - done)
             take = want - done;
-        u32 got = 0;
-        while (got < take) {
-            u32 chunk = v->bytes_per_sector - in;
-            if (chunk > take - got)
-                chunk = take - got;
-            if (!fs_rd_vsec(v, lba, 1, secbuf()))
-                return done;
-            for (u32 i = 0; i < chunk; i++)
-                dst[done + got + i] = secbuf()[in + i];
-            got += chunk;
-            in = 0;
-            lba++;
-        }
+        u16 crd = (u16)v->sec_per_clus;
+        if ((u32)crd * v->bytes_per_sector > OCBL_CLUSBUF_MAX)
+            return done;               /* cluster too big: refuse */
+        if (!fs_rd_vsec(v, fat_clus_lba(v, clus), crd,
+                        (void*)(u64)OCBL_CLUSBUF))
+            return done;
+        u8* src = (u8*)(u64)OCBL_CLUSBUF + in_clus;
+        for (u32 i = 0; i < take; i++)
+            dst[done + i] = src[i];
         done += take;
         in_clus = 0;
         clus = fat_entry(v, clus);
