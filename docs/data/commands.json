@@ -1,8 +1,8 @@
 {
- "count_v2_surface": 283,
+ "count_v2_surface": 285,
  "count_l0": 0,
  "count_l1_svc": 0,
- "count_l1_builtin": 9,
+ "count_l1_builtin": 11,
  "count_ush_svc_rows": 0,
  "ush_svc_dual_homed": [],
  "caliber_note": "count_l1_svc counts unique names attributed to their first home (L0 wins). The ush SVC_CMDS table itself carries 0 rows; the 0 dual-homed names () are registered both as L0 commands and as ush SVC rows, are attributed to L0 here, and remain callable from both shells.",
@@ -75,7 +75,7 @@
   },
   {
    "name": "alias",
-   "help": "name=val  Set command alias",
+   "help": "name=val  set command alias",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -128,6 +128,12 @@
    "cat": "l1-app"
   },
   {
+   "name": "bg",
+   "help": "send a job to the background",
+   "where": "L1-builtin",
+   "cat": "ush"
+  },
+  {
    "name": "bt",
    "help": "ring-3 half of the v2.2.0 `bt` command",
    "where": "L1-app",
@@ -141,7 +147,7 @@
   },
   {
    "name": "cd",
-   "help": "[dir]        Change directory",
+   "help": "[dir]  change directory (shell state)",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -345,7 +351,7 @@
   },
   {
    "name": "env",
-   "help": "Show environment variables",
+   "help": "show environment variables",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -375,13 +381,13 @@
   },
   {
    "name": "exit",
-   "help": "[code]     Exit shell",
+   "help": "not available (use shutdown / reboot)",
    "where": "L1-builtin",
    "cat": "ush"
   },
   {
    "name": "export",
-   "help": "VAR=val  Set environment variable",
+   "help": "VAR=val  set environment variable",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -405,7 +411,7 @@
   },
   {
    "name": "fg",
-   "help": "[job]        Bring job to foreground",
+   "help": "[job]  bring a job to the foreground",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -603,7 +609,7 @@
   },
   {
    "name": "history",
-   "help": "Show command history",
+   "help": "show command history",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -717,7 +723,7 @@
   },
   {
    "name": "jobs",
-   "help": "List background jobs",
+   "help": "list background jobs",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -1226,6 +1232,12 @@
    "cat": "l1-app"
   },
   {
+   "name": "set",
+   "help": "show a variable",
+   "where": "L1-builtin",
+   "cat": "ush"
+  },
+  {
    "name": "shutdown",
    "help": "ring-3 half of the v2.2.0 `shutdown` command",
    "where": "L1-app",
@@ -1473,7 +1485,7 @@
   },
   {
    "name": "unalias",
-   "help": "name    Remove alias",
+   "help": "name  remove alias",
    "where": "L1-builtin",
    "cat": "ush"
   },

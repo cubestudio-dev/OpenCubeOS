@@ -37,7 +37,8 @@ int app_main(int argc, char **argv) {
         "set             show a variable",
         "history         show command history",
         "jobs            list background jobs",
-        "fg [job] / bg   foreground / background a job",
+        "fg [job]        bring a job to the foreground",
+            "bg              send a job to the background",
         "exit            not available (use shutdown / reboot)",
         (const char *)0
     };

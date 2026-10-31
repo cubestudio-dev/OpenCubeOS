@@ -6,9 +6,9 @@
 
 # cd
 
-`cd` - 
+`cd` - [dir]  change directory (shell state)
 
-家：ush 内建 —— `l1apps/ush.c` 的 streq 派发（完全运行于 ring 3）。
+家：ush 内建 —— `src/L1/ush/main.c` 的 streq 派发（完全运行于 ring 3）。
 
 领域：[ush（ring-3 shell：SVC 行 + 内建）](index.md#ush)
 

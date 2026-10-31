@@ -1,195 +1,299 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- 由 tools/gen_api_docs.py --pages-zh 生成的索引。 -->
 
-# Shell 命令参考（185 条命令）
+# Shell 命令参考（285 条命令）
 
 按 v2 的注册归属分组——目录结构即领域结构。运行中的系统内使用 `help -a`（字母序）或 `help -w`（按工作包）。
 
-## ush（ring-3 shell：SVC 行 + 内建） (185)
+## 其他 (274)
+<a id="other"></a>
+
+- [ab_partition_test](ab_partition_test.md) - ring-3 half of the v2.2.0 `ab_partition_test` command
+- [abcfg](abcfg.md) - ring-3 half of the v2.2.0 `abcfg` command
+- [abdisk](abdisk.md) - ring-3 half of the v2.2.0 `abdisk` command
+- [ac97](ac97.md) - ring-3 half of the v2.2.0 `ac97` command
+- [ac97_test](ac97_test.md) - ring-3 half of the v2.2.0 `ac97_test` command
+- [acpi](acpi.md) - ring-3 half of the v2.2.0 `acpi` command
+- [acpidev](acpidev.md) - ring-3 half of the v2.2.0 `acpidev` command
+- [acpipow](acpipow.md) - ring-3 half of the v2.2.0 `acpipow` command
+- [acpitest](acpitest.md) - ring-3 half of the v2.2.0 `acpitest` command
+- [ahci](ahci.md) - ring-3 half of the v2.2.0 `ahci` command
+- [ahci_test](ahci_test.md) - ring-3 half of the v2.2.0 `ahci_test` command
+- [arp](arp.md) - ring-3 half of the v2.2.0 `arp` command
+- [ata](ata.md) - ring-3 half of the v2.2.0 `ata` command
+- [ata_dma_test](ata_dma_test.md) - ring-3 half of the v2.2.0 `ata_dma_test` command
+- [audio_rw_test](audio_rw_test.md) - ring-3 half of the v2.2.0 `audio_rw_test` command
+- [awk](awk.md) - ring-3 L1 app
+- [badapp](badapp.md) - legacy flat L1 program
+- [bcm57xx](bcm57xx.md) - ring-3 half of the v2.2.0 `bcm57xx` command
+- [bcm57xx_test](bcm57xx_test.md) - ring-3 half of the v2.2.0 `bcm57xx_test` command
+- [bt](bt.md) - ring-3 half of the v2.2.0 `bt` command
+- [cat](cat.md) - ring-3 L1 app
+- [checkupdate](checkupdate.md) - ring-3 half of the v2.2.0 `checkupdate` command
+- [checkupdate_test](checkupdate_test.md) - ring-3 half of the v2.2.0 `checkupdate_test` command
+- [chinese](chinese.md) - ring-3 half of the v2.2.0 `chinese` command
+- [chinesetest](chinesetest.md) - ring-3 half of the v2.2.0 `chinesetest` command
+- [chmod](chmod.md) - ring-3 L1 app
+- [chown](chown.md) - ring-3 L1 app
+- [clear](clear.md) - ring-3 half of the v2.2.0 `clear` command
+- [config](config.md) - ring-3 half of the v2.2.0 `config` command
+- [config_test](config_test.md) - ring-3 half of the v2.2.0 `config_test` command
+- [cp](cp.md) - ring-3 L1 app
+- [cr3test](cr3test.md) - ring-3 half of the v2.2.0 `cr3test` command
+- [crashlog](crashlog.md) - ring-3 L1 app
+- [crashtest](crashtest.md) - ring-3 L1 app
+- [cryptotest](cryptotest.md) - ring-3 half of the v2.2.0 `cryptotest` command
+- [date](date.md) - ring-3 L1 app
+- [df](df.md) - ring-3 L1 app
+- [dhcp](dhcp.md) - ring-3 half of the v2.2.0 `dhcp` command
+- [dhtest](dhtest.md) - ring-3 half of the v2.2.0 `dhtest` command
+- [disk_rw_test](disk_rw_test.md) - ring-3 half of the v2.2.0 `disk_rw_test` command
+- [dlsym_test](dlsym_test.md) - legacy flat L1 program
+- [dmesg](dmesg.md) - ring-3 L1 app
+- [dns](dns.md) - ring-3 half of the v2.2.0 `dns` command
+- [dnstest](dnstest.md) - ring-3 half of the v2.2.0 `dnstest` command
+- [dskstat](dskstat.md) - ring-3 half of the v2.2.0 `dskstat` command
+- [du](du.md) - ring-3 L1 app
+- [dumpinfo](dumpinfo.md) - ring-3 L1 app
+- [dyn_hello](dyn_hello.md) - legacy flat L1 program
+- [e1000e](e1000e.md) - ring-3 half of the v2.2.0 `e1000e` command
+- [e1000e_test](e1000e_test.md) - ring-3 half of the v2.2.0 `e1000e_test` command
+- [echo](echo.md) - ring-3 L1 app
+- [edit](edit.md) - ring-3 L1 app
+- [encoding](encoding.md) - ring-3 half of the v2.2.0 `encoding` command
+- [encoding-test](encoding-test.md) - ring-3 half of the v2.2.0 `encoding-test` command
+- [es1370](es1370.md) - ring-3 half of the v2.2.0 `es1370` command
+- [es1370_test](es1370_test.md) - ring-3 half of the v2.2.0 `es1370_test` command
+- [exc](exc.md) - ring-3 half of the v2.2.0 `exc` command
+- [exec_test](exec_test.md) - legacy flat L1 program
+- [fatmount](fatmount.md) - ring-3 half of the v2.2.0 `fatmount` command
+- [fatstat](fatstat.md) - ring-3 half of the v2.2.0 `fatstat` command
+- [fdref_test](fdref_test.md) - legacy flat L1 program
+- [firewall](firewall.md) - ring-3 half of the v2.2.0 `firewall` command
+- [font](font.md) - ring-3 half of the v2.2.0 `font` command
+- [font-test](font-test.md) - ring-3 half of the v2.2.0 `font-test` command
+- [fork_test](fork_test.md) - legacy flat L1 program
+- [frag](frag.md) - ring-3 L1 app
+- [free](free.md) - ring-3 L1 app
+- [fs_mount_test](fs_mount_test.md) - ring-3 half of the v2.2.0 `fs_mount_test` command
+- [fsck](fsck.md) - ring-3 half of the v2.2.0 `fsck` command
+- [fstest](fstest.md) - ring-3 half of the v2.2.0 `fstest` command
+- [g6_exec_a](g6_exec_a.md) - legacy flat L1 program
+- [g6_exec_b](g6_exec_b.md) - legacy flat L1 program
+- [g6_oom](g6_oom.md) - legacy flat L1 program
+- [g6_test](g6_test.md) - legacy flat L1 program
+- [g7mmap](g7mmap.md) - legacy flat L1 program
+- [gameport](gameport.md) - ring-3 half of the v2.2.0 `gameport` command
+- [gameporttest](gameporttest.md) - ring-3 half of the v2.2.0 `gameporttest` command
+- [grep](grep.md) - ring-3 L1 app
+- [grub-install](grub-install.md) - ring-3 half of the v2.2.0 `grub-install` command
+- [halt](halt.md) - ring-3 half of the v2.2.0 `halt` command
+- [halt_test](halt_test.md) - ring-3 half of the v2.2.0 `halt_test` command
+- [hda](hda.md) - ring-3 half of the v2.2.0 `hda` command
+- [hda_test](hda_test.md) - ring-3 half of the v2.2.0 `hda_test` command
+- [head](head.md) - ring-3 L1 app
+- [health](health.md) - ring-3 L1 app
+- [heap](heap.md) - ring-3 L1 app
+- [heapbounds](heapbounds.md) - ring-3 half of the v2.2.0 `heapbounds` command
+- [heaptest](heaptest.md) - ring-3 half of the v2.2.0 `heaptest` command
+- [hello](hello.md) - legacy flat L1 program
+- [help](help.md) - ring-3 L1 app
+- [help_a_test](help_a_test.md) - ring-3 L1 app
+- [help_default_test](help_default_test.md) - ring-3 L1 app
+- [help_wp_test](help_wp_test.md) - ring-3 L1 app
+- [hpet](hpet.md) - ring-3 half of the v2.2.0 `hpet` command
+- [i2cdetect](i2cdetect.md) - ring-3 half of the v2.2.0 `i2cdetect` command
+- [i2cget](i2cget.md) - ring-3 half of the v2.2.0 `i2cget` command
+- [i2cset](i2cset.md) - ring-3 half of the v2.2.0 `i2cset` command
+- [i2ctest](i2ctest.md) - ring-3 half of the v2.2.0 `i2ctest` command
+- [ifconfig](ifconfig.md) - ring-3 L1 app
+- [igb](igb.md) - ring-3 half of the v2.2.0 `igb` command
+- [igb_test](igb_test.md) - ring-3 half of the v2.2.0 `igb_test` command
+- [ime](ime.md) - ring-3 half of the v2.2.0 `ime` command
+- [ime-test](ime-test.md) - ring-3 half of the v2.2.0 `ime-test` command
+- [install](install.md) - ring-3 half of the v2.2.0 `install` command
+- [int3_user](int3_user.md) - legacy flat L1 program
+- [ip](ip.md) - ring-3 half of the v2.2.0 `ip` command
+- [ir](ir.md) - ring-3 half of the v2.2.0 `ir` command
+- [irqabitest](irqabitest.md) - ring-3 half of the v2.2.0 `irqabitest` command
+- [irtest](irtest.md) - ring-3 half of the v2.2.0 `irtest` command
+- [ixgbe](ixgbe.md) - ring-3 half of the v2.2.0 `ixgbe` command
+- [ixgbe_test](ixgbe_test.md) - ring-3 half of the v2.2.0 `ixgbe_test` command
+- [kill](kill.md) - ring-3 L1 app
+- [l1test](l1test.md) - ring-3 L1 app
+- [lang](lang.md) - ring-3 half of the v2.2.0 `lang` command
+- [ld_so](ld_so.md) - legacy flat L1 program
+- [ldd](ldd.md) - ring-3 L1 app
+- [ln](ln.md) - ring-3 L1 app
+- [logcat](logcat.md) - ring-3 L1 app
+- [logctl](logctl.md) - ring-3 L1 app
+- [loop](loop.md) - legacy flat L1 program
+- [ls](ls.md) - ring-3 L1 app
+- [lsblk](lsblk.md) - ring-3 half of the v2.2.0 `lsblk` command
+- [lspci](lspci.md) - ring-3 half of the v2.2.0 `lspci` command
+- [main_dyn](main_dyn.md) - legacy flat L1 program
+- [mem](mem.md) - ring-3 L1 app
+- [memtest](memtest.md) - ring-3 half of the v2.2.0 `memtest` command
+- [mkdir](mkdir.md) - ring-3 L1 app
+- [mkfs.exfat](mkfs-exfat.md) - ring-3 half of the v2.2.0 `mkfs.exfat` command
+- [mkfs.ext4](mkfs-ext4.md) - ring-3 half of the v2.2.0 `mkfs.ext4` command
+- [mkfs.fat32](mkfs-fat32.md) - ring-3 half of the v2.2.0 `mkfs.fat32` command
+- [mmap_multi](mmap_multi.md) - legacy flat L1 program
+- [mmap_test](mmap_test.md) - legacy flat L1 program
+- [mount](mount.md) - ring-3 half of the v2.2.0 `mount` command
+- [mounts](mounts.md) - ring-3 half of the v2.2.0 `mounts` command
+- [mprotect_test](mprotect_test.md) - legacy flat L1 program
+- [msitest](msitest.md) - ring-3 half of the v2.2.0 `msitest` command
+- [multi](multi.md) - ring-3 half of the v2.2.0 `multi` command
+- [mv](mv.md) - ring-3 L1 app
+- [nano](nano.md) - ring-3 L1 app
+- [netstat](netstat.md) - ring-3 L1 app
+- [nf_test](nf_test.md) - ring-3 half of the v2.2.0 `nf_test` command
+- [nic_rw_test](nic_rw_test.md) - ring-3 half of the v2.2.0 `nic_rw_test` command
+- [nice](nice.md) - ring-3 half of the v2.2.0 `nice` command
+- [nvme](nvme.md) - ring-3 half of the v2.2.0 `nvme` command
+- [nvme_test](nvme_test.md) - ring-3 half of the v2.2.0 `nvme_test` command
+- [other_nic_test](other_nic_test.md) - ring-3 half of the v2.2.0 `other_nic_test` command
+- [p3_test](p3_test.md) - legacy flat L1 program
+- [parallel](parallel.md) - ring-3 half of the v2.2.0 `parallel` command
+- [paralleltest](paralleltest.md) - ring-3 half of the v2.2.0 `paralleltest` command
+- [parted](parted.md) - ring-3 half of the v2.2.0 `parted` command
+- [partition_test](partition_test.md) - ring-3 half of the v2.2.0 `partition_test` command
+- [pcibars](pcibars.md) - ring-3 half of the v2.2.0 `pcibars` command
+- [pcidump](pcidump.md) - ring-3 half of the v2.2.0 `pcidump` command
+- [pcie](pcie.md) - ring-3 half of the v2.2.0 `pcie` command
+- [pf_test](pf_test.md) - legacy flat L1 program
+- [pftest](pftest.md) - ring-3 half of the v2.2.0 `pftest` command
+- [pie_test](pie_test.md) - legacy flat L1 program
+- [ping](ping.md) - ring-3 L1 app
+- [pipe_test](pipe_test.md) - legacy flat L1 program
+- [play](play.md) - ring-3 half of the v2.2.0 `play` command
+- [pmmrace](pmmrace.md) - ring-3 half of the v2.2.0 `pmmrace` command
+- [pmtimer](pmtimer.md) - ring-3 half of the v2.2.0 `pmtimer` command
+- [poweroff](poweroff.md) - ring-3 half of the v2.2.0 `poweroff` command
+- [poweroff_test](poweroff_test.md) - ring-3 half of the v2.2.0 `poweroff_test` command
+- [priv_test](priv_test.md) - legacy flat L1 program
+- [ps](ps.md) - ring-3 L1 app
+- [pwd](pwd.md) - ring-3 L1 app
+- [real_hw_test](real_hw_test.md) - ring-3 half of the v2.2.0 `real_hw_test` command
+- [real_update_test](real_update_test.md) - ring-3 half of the v2.2.0 `real_update_test` command
+- [reboot](reboot.md) - ring-3 half of the v2.2.0 `reboot` command
+- [reboot_test](reboot_test.md) - ring-3 half of the v2.2.0 `reboot_test` command
+- [reloc_test](reloc_test.md) - legacy flat L1 program
+- [rm](rm.md) - ring-3 L1 app
+- [rmdir](rmdir.md) - ring-3 L1 app
+- [rollback](rollback.md) - ring-3 half of the v2.2.0 `rollback` command
+- [route](route.md) - ring-3 half of the v2.2.0 `route` command
+- [rtc](rtc.md) - ring-3 half of the v2.2.0 `rtc` command
+- [rtl810x](rtl810x.md) - ring-3 half of the v2.2.0 `rtl810x` command
+- [rtl810x_test](rtl810x_test.md) - ring-3 half of the v2.2.0 `rtl810x_test` command
+- [rtl8125](rtl8125.md) - ring-3 half of the v2.2.0 `rtl8125` command
+- [rtl8125_test](rtl8125_test.md) - ring-3 half of the v2.2.0 `rtl8125_test` command
+- [rtl8139](rtl8139.md) - ring-3 half of the v2.2.0 `rtl8139` command
+- [rtl8139_test](rtl8139_test.md) - ring-3 half of the v2.2.0 `rtl8139_test` command
+- [rtl8168](rtl8168.md) - ring-3 half of the v2.2.0 `rtl8168` command
+- [rtl8168_test](rtl8168_test.md) - ring-3 half of the v2.2.0 `rtl8168_test` command
+- [run](run.md) - ring-3 L1 app
+- [sample_rate_test](sample_rate_test.md) - ring-3 half of the v2.2.0 `sample_rate_test` command
+- [sb16](sb16.md) - ring-3 half of the v2.2.0 `sb16` command
+- [sb16_test](sb16_test.md) - ring-3 half of the v2.2.0 `sb16_test` command
+- [sched](sched.md) - ring-3 L1 app
+- [scsi](scsi.md) - ring-3 half of the v2.2.0 `scsi` command
+- [scsitest](scsitest.md) - ring-3 half of the v2.2.0 `scsitest` command
+- [sed](sed.md) - ring-3 L1 app
+- [select_test](select_test.md) - legacy flat L1 program
+- [select_zero_test](select_zero_test.md) - legacy flat L1 program
+- [shutdown](shutdown.md) - ring-3 half of the v2.2.0 `shutdown` command
+- [signal_test](signal_test.md) - legacy flat L1 program
+- [sigsegv_test](sigsegv_test.md) - legacy flat L1 program
+- [sleep](sleep.md) - ring-3 half of the v2.2.0 `sleep` command
+- [smbus](smbus.md) - ring-3 half of the v2.2.0 `smbus` command
+- [smbustest](smbustest.md) - ring-3 half of the v2.2.0 `smbustest` command
+- [so_test](so_test.md) - legacy flat L1 program
+- [sort](sort.md) - ring-3 L1 app
+- [sound](sound.md) - ring-3 half of the v2.2.0 `sound` command
+- [spawn](spawn.md) - ring-3 half of the v2.2.0 `spawn` command
+- [sse_test](sse_test.md) - legacy flat L1 program
+- [ssh](ssh.md) - ring-3 L1 app
+- [sshd](sshd.md) - ring-3 L1 app
+- [stackovf](stackovf.md) - legacy flat L1 program
+- [stat](stat.md) - ring-3 L1 app
+- [stats](stats.md) - ring-3 half of the v2.2.0 `stats` command
+- [suspend_test](suspend_test.md) - ring-3 half of the v2.2.0 `suspend_test` command
+- [sync](sync.md) - ring-3 half of the v2.2.0 `sync` command
+- [syncstat](syncstat.md) - ring-3 L1 app
+- [synctest](synctest.md) - ring-3 half of the v2.2.0 `synctest` command
+- [tail](tail.md) - ring-3 L1 app
+- [tcpcc_test](tcpcc_test.md) - ring-3 half of the v2.2.0 `tcpcc_test` command
+- [tcpstats](tcpstats.md) - ring-3 half of the v2.2.0 `tcpstats` command
+- [tcptest](tcptest.md) - ring-3 half of the v2.2.0 `tcptest` command
+- [timer](timer.md) - ring-3 half of the v2.2.0 `timer` command
+- [top](top.md) - ring-3 L1 app
+- [touch](touch.md) - ring-3 L1 app
+- [touchpad](touchpad.md) - ring-3 half of the v2.2.0 `touchpad` command
+- [touchtest](touchtest.md) - ring-3 half of the v2.2.0 `touchtest` command
+- [tree](tree.md) - ring-3 half of the v2.2.0 `tree` command
+- [tsc](tsc.md) - ring-3 half of the v2.2.0 `tsc` command
+- [tui](tui.md) - ring-3 half of the v2.2.0 `tui` command
+- [tui-drv](tui-drv.md) - ring-3 half of the v2.2.0 `tui-drv` command
+- [tui-ext](tui-ext.md) - ring-3 half of the v2.2.0 `tui-ext` command
+- [tui-hw](tui-hw.md) - ring-3 half of the v2.2.0 `tui-hw` command
+- [tui-net](tui-net.md) - ring-3 half of the v2.2.0 `tui-net` command
+- [tui-sys](tui-sys.md) - ring-3 half of the v2.2.0 `tui-sys` command
+- [tui-sysinfo](tui-sysinfo.md) - ring-3 half of the v2.2.0 `tui-sysinfo` command
+- [tui-test](tui-test.md) - ring-3 half of the v2.2.0 `tui-test` command
+- [tui-time](tui-time.md) - ring-3 half of the v2.2.0 `tui-time` command
+- [umount](umount.md) - ring-3 half of the v2.2.0 `umount` command
+- [uname](uname.md) - ring-3 half of the v2.2.0 `uname` command
+- [uniq](uniq.md) - ring-3 L1 app
+- [update](update.md) - ring-3 half of the v2.2.0 `update` command
+- [update_check_test](update_check_test.md) - ring-3 half of the v2.2.0 `update_check_test` command
+- [update_download_test](update_download_test.md) - ring-3 half of the v2.2.0 `update_download_test` command
+- [update_install_test](update_install_test.md) - ring-3 half of the v2.2.0 `update_install_test` command
+- [update_local_test](update_local_test.md) - ring-3 half of the v2.2.0 `update_local_test` command
+- [update_pkg_test](update_pkg_test.md) - ring-3 half of the v2.2.0 `update_pkg_test` command
+- [update_rollback_test](update_rollback_test.md) - ring-3 half of the v2.2.0 `update_rollback_test` command
+- [update_status_test](update_status_test.md) - ring-3 half of the v2.2.0 `update_status_test` command
+- [update_verify_test](update_verify_test.md) - ring-3 half of the v2.2.0 `update_verify_test` command
+- [usb](usb.md) - ring-3 half of the v2.2.0 `usb` command
+- [usb_audio_test](usb_audio_test.md) - ring-3 half of the v2.2.0 `usb_audio_test` command
+- [usb_core_test](usb_core_test.md) - ring-3 half of the v2.2.0 `usb_core_test` command
+- [usb_hotplug_test](usb_hotplug_test.md) - ring-3 half of the v2.2.0 `usb_hotplug_test` command
+- [usb_hub_test](usb_hub_test.md) - ring-3 half of the v2.2.0 `usb_hub_test` command
+- [usb_kbd_test](usb_kbd_test.md) - ring-3 half of the v2.2.0 `usb_kbd_test` command
+- [usb_mouse_test](usb_mouse_test.md) - ring-3 half of the v2.2.0 `usb_mouse_test` command
+- [usb_serial_test](usb_serial_test.md) - ring-3 half of the v2.2.0 `usb_serial_test` command
+- [usb_storage_test](usb_storage_test.md) - ring-3 half of the v2.2.0 `usb_storage_test` command
+- [usbaudio](usbaudio.md) - ring-3 half of the v2.2.0 `usbaudio` command
+- [usbdev](usbdev.md) - ring-3 half of the v2.2.0 `usbdev` command
+- [ush](ush.md) - ring-3 L1 app
+- [uvc](uvc.md) - ring-3 half of the v2.2.0 `uvc` command
+- [uvctest](uvctest.md) - ring-3 half of the v2.2.0 `uvctest` command
+- [vi](vi.md) - ring-3 L1 app
+- [virtio_blk_test](virtio_blk_test.md) - ring-3 half of the v2.2.0 `virtio_blk_test` command
+- [virtio_snd_test](virtio_snd_test.md) - ring-3 half of the v2.2.0 `virtio_snd_test` command
+- [virtiosnd](virtiosnd.md) - ring-3 half of the v2.2.0 `virtiosnd` command
+- [vmkernelpt](vmkernelpt.md) - ring-3 half of the v2.2.0 `vmkernelpt` command
+- [vmmap](vmmap.md) - ring-3 half of the v2.2.0 `vmmap` command
+- [vmtest](vmtest.md) - ring-3 half of the v2.2.0 `vmtest` command
+- [volume](volume.md) - ring-3 half of the v2.2.0 `volume` command
+- [watchdog](watchdog.md) - ring-3 L1 app
+- [wc](wc.md) - ring-3 L1 app
+- [wget](wget.md) - ring-3 L1 app
+- [wifi](wifi.md) - ring-3 half of the v2.2.0 `wifi` command
+- [write](write.md) - ring-3 L1 app
+
+## ush（ring-3 shell：SVC 行 + 内建） (11)
 <a id="ush"></a>
 
-- [ab_partition_test](ab_partition_test.md) - ab_partition_test
-- [abcfg](abcfg.md) - abcfg
-- [abdisk](abdisk.md) - abdisk &lt;dev&gt;
-- [ac97](ac97.md) - ac97
-- [ac97_test](ac97_test.md) - ac97_test
-- [ahci](ahci.md) - ahci / nvme / ata
-- [ahci_test](ahci_test.md) - ahci_test
-- [alias](alias.md) - 
-- [arp](arp.md) - arp / route / ip
-- [ata](ata.md) - ahci / nvme / ata
-- [ata_dma_test](ata_dma_test.md) - ata_dma_test
-- [audio_rw_test](audio_rw_test.md) - audio_rw_test
-- [awk](awk.md) - 
-- [bcm57xx](bcm57xx.md) - bcm57xx
-- [bcm57xx_test](bcm57xx_test.md) - bcm57xx_test
-- [bt](bt.md) - wifi / bt
-- [cat](cat.md) - 
-- [cd](cd.md) - 
-- [checkupdate](checkupdate.md) - update / checkupdate / rollback
-- [checkupdate_test](checkupdate_test.md) - checkupdate_test
-- [chinese](chinese.md) - chinese
-- [chinesetest](chinesetest.md) - chinesetest
-- [chmod](chmod.md) - 
-- [chown](chown.md) - 
-- [clear](clear.md) - clear
-- [config](config.md) - config list|get|set
-- [config_test](config_test.md) - config_test
-- [cp](cp.md) - 
-- [cryptotest](cryptotest.md) - cryptotest / dhtest
-- [date](date.md) - date
-- [df](df.md) - df
-- [dhcp](dhcp.md) - dhcp / dns / dnstest
-- [dhtest](dhtest.md) - cryptotest / dhtest
-- [disk_rw_test](disk_rw_test.md) - disk_rw_test &lt;dev&gt;
-- [dns](dns.md) - dhcp / dns / dnstest
-- [dnstest](dnstest.md) - dhcp / dns / dnstest
-- [dskstat](dskstat.md) - dskstat / lsblk
-- [du](du.md) - 
-- [e1000e](e1000e.md) - e1000e
-- [e1000e_test](e1000e_test.md) - e1000e_test
-- [echo](echo.md) - 
-- [encoding](encoding.md) - encoding
-- [encoding-test](encoding-test.md) - encoding-test
-- [env](env.md) - env
-- [es1370](es1370.md) - es1370
-- [es1370_test](es1370_test.md) - es1370_test
-- [exit](exit.md) - 
-- [export](export.md) - 
-- [fatmount](fatmount.md) - fatmount [dev p]   : mount FAT32
-- [fatstat](fatstat.md) - fatstat
-- [firewall](firewall.md) - firewall / nf_test
-- [font](font.md) - font
-- [font-test](font-test.md) - font-test
-- [free](free.md) - free
-- [fs_mount_test](fs_mount_test.md) - fs_mount_test &lt;dev&gt;
-- [fsck](fsck.md) - fsck / sync
-- [gameport](gameport.md) - gameport
-- [gameporttest](gameporttest.md) - gameporttest
-- [grep](grep.md) - 
-- [grub-install](grub-install.md) - grub-install &lt;dev&gt;
-- [halt](halt.md) - halt/shutdown/reboot
-- [halt_test](halt_test.md) - halt_test
-- [hda](hda.md) - hda
-- [hda_test](hda_test.md) - hda_test
-- [head](head.md) - 
-- [help](help.md) - help
-- [history](history.md) - history
-- [hpet](hpet.md) - hpet               : HPET status
-- [ifconfig](ifconfig.md) - ifconfig
-- [igb](igb.md) - igb
-- [igb_test](igb_test.md) - igb_test
-- [install](install.md) - install &lt;dev&gt;
-- [ip](ip.md) - arp / route / ip
-- [ir](ir.md) - ir
-- [irtest](irtest.md) - irtest
-- [ixgbe](ixgbe.md) - ixgbe
-- [ixgbe_test](ixgbe_test.md) - ixgbe_test
-- [kill](kill.md) - 
-- [lang](lang.md) - lang [en|zh]
-- [ln](ln.md) - 
-- [ls](ls.md) - 
-- [lsblk](lsblk.md) - dskstat / lsblk
-- [lspci](lspci.md) - lspci
-- [mkdir](mkdir.md) - 
-- [mkfs.exfat](mkfs-exfat.md) - mkfs.exfat &lt;dev&gt;
-- [mkfs.ext4](mkfs-ext4.md) - mkfs.ext4 &lt;dev&gt;
-- [mkfs.fat32](mkfs-fat32.md) - mkfs.fat32 &lt;dev&gt;
-- [mount](mount.md) - mount [type dev p] : list or mount
-- [mounts](mounts.md) - mounts
-- [mv](mv.md) - 
-- [nano](nano.md) - 
-- [netstat](netstat.md) - netstat
-- [nf_test](nf_test.md) - firewall / nf_test
-- [nic_rw_test](nic_rw_test.md) - nic_rw_test
-- [nvme](nvme.md) - ahci / nvme / ata
-- [nvme_test](nvme_test.md) - nvme_test
-- [other_nic_test](other_nic_test.md) - other_nic_test
-- [parallel](parallel.md) - parallel
-- [paralleltest](paralleltest.md) - paralleltest
-- [parted](parted.md) - parted [dev]
-- [partition_test](partition_test.md) - partition_test [dev]
-- [ping](ping.md) - 
-- [play](play.md) - play &lt;file&gt;
-- [pmtimer](pmtimer.md) - pmtimer            : PM timer status
-- [poweroff](poweroff.md) - 
-- [poweroff_test](poweroff_test.md) - poweroff_test
-- [ps](ps.md) - ps
-- [pwd](pwd.md) - pwd
-- [real_hw_test](real_hw_test.md) - real_hw_test
-- [real_update_test](real_update_test.md) - real_update_test
-- [reboot](reboot.md) - halt/shutdown/reboot
-- [reboot_test](reboot_test.md) - reboot_test
-- [rm](rm.md) - 
-- [rmdir](rmdir.md) - 
-- [rollback](rollback.md) - update / checkupdate / rollback
-- [route](route.md) - arp / route / ip
-- [rtc](rtc.md) - rtc [uie N]        : CMOS RTC status
-- [rtl810x](rtl810x.md) - rtl810x
-- [rtl810x_test](rtl810x_test.md) - rtl810x_test
-- [rtl8125](rtl8125.md) - rtl8125
-- [rtl8125_test](rtl8125_test.md) - rtl8125_test
-- [rtl8139](rtl8139.md) - rtl8139
-- [rtl8139_test](rtl8139_test.md) - rtl8139_test
-- [rtl8168](rtl8168.md) - rtl8168
-- [rtl8168_test](rtl8168_test.md) - rtl8168_test
-- [sample_rate_test](sample_rate_test.md) - sample_rate_test
-- [sb16](sb16.md) - sb16
-- [sb16_test](sb16_test.md) - sb16_test
-- [scsi](scsi.md) - scsi / scsitest
-- [scsitest](scsitest.md) - scsi / scsitest
-- [sed](sed.md) - 
-- [set](set.md) - 
-- [shutdown](shutdown.md) - halt/shutdown/reboot
-- [sleep](sleep.md) - sleep &lt;sec&gt;
-- [sort](sort.md) - 
-- [sound](sound.md) - sound
-- [stat](stat.md) - 
-- [stats](stats.md) - stats
-- [suspend_test](suspend_test.md) - suspend_test
-- [sync](sync.md) - fsck / sync
-- [tail](tail.md) - 
-- [tcpcc_test](tcpcc_test.md) - tcpcc_test
-- [tcpstats](tcpstats.md) - tcpstats
-- [tcptest](tcptest.md) - tcptest
-- [top](top.md) - 
-- [touch](touch.md) - 
-- [touchpad](touchpad.md) - touchpad / touchtest
-- [touchtest](touchtest.md) - touchpad / touchtest
-- [tree](tree.md) - tree [path]        : directory tree
-- [tsc](tsc.md) - tsc                : TSC status
-- [umount](umount.md) - umount &lt;path&gt;      : unmount
-- [unalias](unalias.md) - unalias name
-- [uname](uname.md) - uname
-- [uniq](uniq.md) - 
-- [update](update.md) - update / checkupdate / rollback
-- [update_check_test](update_check_test.md) - update_check_test
-- [update_download_test](update_download_test.md) - update_download_test
-- [update_install_test](update_install_test.md) - update_install_test
-- [update_local_test](update_local_test.md) - update_local_test
-- [update_pkg_test](update_pkg_test.md) - update_pkg_test
-- [update_rollback_test](update_rollback_test.md) - update_rollback_test
-- [update_status_test](update_status_test.md) - update_status_test
-- [update_verify_test](update_verify_test.md) - update_verify_test
-- [usb](usb.md) - usb
-- [usb_audio_test](usb_audio_test.md) - usb_audio_test
-- [usb_core_test](usb_core_test.md) - usb_core_test
-- [usb_hotplug_test](usb_hotplug_test.md) - usb_hotplug_test [...]
-- [usb_hub_test](usb_hub_test.md) - usb_hub_test
-- [usb_kbd_test](usb_kbd_test.md) - usb_kbd_test
-- [usb_mouse_test](usb_mouse_test.md) - usb_mouse_test
-- [usb_serial_test](usb_serial_test.md) - usb_serial_test
-- [usb_storage_test](usb_storage_test.md) - usb_storage_test
-- [usbaudio](usbaudio.md) - usbaudio
-- [usbdev](usbdev.md) - usbdev [slot]
-- [uvc](uvc.md) - uvc / uvctest
-- [uvctest](uvctest.md) - uvc / uvctest
-- [vi](vi.md) - 
-- [virtio_blk_test](virtio_blk_test.md) - virtio_blk_test
-- [virtio_snd_test](virtio_snd_test.md) - virtio_snd_test
-- [virtiosnd](virtiosnd.md) - virtiosnd
-- [volume](volume.md) - volume [0-100]
-- [wc](wc.md) - 
-- [wget](wget.md) - 
-- [wifi](wifi.md) - wifi / bt
-- [write](write.md) - 
+- [alias](alias.md) - name=val  set command alias
+- [bg](bg.md) - send a job to the background
+- [cd](cd.md) - [dir]  change directory (shell state)
+- [env](env.md) - show environment variables
+- [exit](exit.md) - not available (use shutdown / reboot)
+- [export](export.md) - VAR=val  set environment variable
+- [fg](fg.md) - [job]  bring a job to the foreground
+- [history](history.md) - show command history
+- [jobs](jobs.md) - list background jobs
+- [set](set.md) - show a variable
+- [unalias](unalias.md) - name  remove alias

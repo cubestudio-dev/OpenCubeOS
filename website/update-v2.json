@@ -1,10 +1,10 @@
 {
-    "version": "2.2.0",
-    "build": 316,
-    "time": "2026-10-26",
-    "changes": "2.2.0 fix release: wp10_tui post-suite kthread-stack #DF fixed (stacks 6->10 pages, measured worst chain documented); wait4-vs-fork stale-zombie/tid-reuse race fixed (orphan-detach bookkeeping, 20/20 fresh-boot battery); 2.0.0 mirror assets restored; build-id caliber exact in three places. See the GitHub release note for the full root-cause records.",
+    "version": "3.0.0-WP04",
+    "build": 360,
+    "time": "2026-10-31",
+    "changes": "fix1: all 11 known bugs fixed - ush/help/editor restored to WP-14 level, OCIRE keyboard + VGA scroll, serial CSI decode, g_pipes NULL write removed",
     "changes_v2_url": "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
-    "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-2.2.0-update.tar.gz",
-    "package_sha256": "ac9a6ec2c3dd679977ad1c716dbacb26ae84119ddc75751fb30712effa6ad19e",
-    "package_size": 1080741
+    "package_url": "https://cubestudio-dev.github.io/OpenCubeOS/downloads/opencube-3.0.0-WP04-update.tar.gz",
+    "package_sha256": "3346d6e43df15b6eeef87ac6adc7777bada280506473ecfe966d32b05c91ca1d",
+    "package_size": 1153962
 }

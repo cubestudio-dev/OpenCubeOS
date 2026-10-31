@@ -6,11 +6,9 @@
 
 # scsitest
 
-`scsitest` - scsi / scsitest
+`scsitest` - ring-3 half of the v2.2.0 `scsitest` command
 
-Home: ring-3 service surface - SVC_CMDS row in `l1apps/ush.c`, dispatched through SYS_L1SVC(110) to `services/camera/`.
-
-Domain: [ush (ring-3 shell: SVC rows + built-ins)](index.md#ush)
+Domain: [Other](index.md#other)
 
 Full command index: [commands](index.md) - or `help -a` /
 `help -w` inside a running system.

@@ -6,9 +6,9 @@
 
 # export
 
-`export` - 
+`export` - VAR=val  set environment variable
 
-Home: ush built-in - streq dispatch in `l1apps/ush.c` (runs entirely in ring 3).
+Home: ush built-in - streq dispatch in `src/L1/ush/main.c` (runs entirely in ring 3).
 
 Domain: [ush (ring-3 shell: SVC rows + built-ins)](index.md#ush)
 
