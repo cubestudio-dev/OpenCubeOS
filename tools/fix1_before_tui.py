@@ -53,7 +53,7 @@ def main():
         while time.time() < end:
             d = drain(0.8)
             if d: seen += d
-            if seen.endswith(b"ush>"): return seen
+            if seen.endswith(b"ush> "): return seen
         return seen
 
     try:

@@ -58,7 +58,7 @@ def main():
         while time.time() < end:
             d = drain(0.8)
             if d: seen += d
-            if seen.endswith(b"ush>"): return seen
+            if seen.endswith(b"ush> "): return seen
         return seen
 
     def w(s): log.write(s + "\n")
@@ -155,11 +155,11 @@ def main():
         raw(out2)
         check("E4 Tab completes 'dat' -> 'date ' (registry)",
               b"date" in out and (b"\r\n" in out2 and b"ush>" in out2))
-        send(b"hel"); send(b"\t", 1.0)
+        send(b"hist"); send(b"\t", 1.0)
         out = drain(1.5); raw(out)
         send(b"\x15"); send(b"\x03"); drain(1.5)
-        check("E4 Tab completes 'hel' -> 'help' (builtin present)",
-              b"help" in out)
+        check("E4 Tab completes 'hist' -> 'history ' (builtin present)",
+              b"history " in out)
 
         # ---- E5: CJK paste (char-loss fix) ----
         w("=== [bug 7/E5] CJK paste (UTF-8 bytes not dropped) ===")
@@ -177,7 +177,7 @@ def main():
         out = until_prompt(60)
         raw(out)
         check("E6 exit prints guidance and shell survives",
-              b"'exit' is not available" in out and out.endswith(b"ush>"))
+              b"'exit' is not available" in out and out.rstrip().endswith(b"ush>"))
         check("E6 no 'recovery shell' lie on the wire",
               b"recovery shell taking over" not in out)
 

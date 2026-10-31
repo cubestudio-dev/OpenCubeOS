@@ -1,5 +1,5 @@
 === boot tail ===
-b"g 'ush' (ring 3, 18888 bytes)\r\n\r\nOpen Cube OS User-space Shell (3.0.0-WP04)\r\nType 'help' for built-in commands.\r\n\r\nush> "
+b"g 'ush' (ring 3, 18968 bytes)\r\n\r\nOpen Cube OS User-space Shell (3.0.0-WP04)\r\nType 'help' for built-in commands.\r\n\r\nush> "
 === config set ===
 b'config set tui.backend serial\r\nconfig: saved\r\nush> '
 === tui serial-backend raw output ===

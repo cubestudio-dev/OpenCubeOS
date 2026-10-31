@@ -93,6 +93,24 @@ def main():
         i = cmd.index(stage)
         cmd[i:i] = ['-eltorito-alt-boot', '-e', '/efi.img',
                     '-no-emul-boot']
+    # 3.0.0-WP04-fix1 (audit finding, fixed on the spot; completes the
+    # ctime fix below): the ISO9660 DEC stamps of the ROOT record and
+    # every directory node are taken from the SOURCE directory tree
+    # mtimes - and the staging dir is recreated per build, so two
+    # clean builds differed in exactly those bytes (root record +
+    # per-directory records, minute/second fields).  --set_all_file_
+    # dates pins only the FILE nodes.  Pin the whole stage tree to
+    # the epoch so the directory stamps become build-independent.
+    for root, dirs, files in os.walk(stage):
+        for n in dirs + files:
+            try:
+                os.utime(os.path.join(root, n), (0, 0))
+            except OSError:
+                pass
+    try:
+        os.utime(stage, (0, 0))
+    except OSError:
+        pass
     r = subprocess.run(cmd, capture_output=True, text=True)
     sys.stdout.write(r.stdout)
     sys.stderr.write(r.stderr)
@@ -100,6 +118,18 @@ def main():
         print(f"ocbl: xorriso failed rc={r.returncode}")
         sys.exit(1)
     print(f"[build_test_iso] ISO: {out} ({os.path.getsize(out)} B)")
+    # 3.0.0-WP04-fix1 (audit finding, fixed on the spot): xorriso
+    # hardcodes the Rock Ridge TF ctime of every node to the assembly
+    # moment (--set_all_file_dates pins mtime/atime only; -alter_date
+    # has no ctime), so two clean builds differed in exactly those
+    # stamp bytes - contradicting the byte-identical claim above and
+    # in tools/build_iso.sh.  Zero them with the G13 post-walker,
+    # mirroring the fat_zero_dates.py pattern used for the ESP above.
+    z = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     '..', 'tools', 'iso_zero_ctime.py')
+    if os.path.exists(z):
+        subprocess.run(['python3', z, out], check=True)
+        print("[build_test_iso] RR TF ctime zeroed (deterministic ISO)")
     rep = subprocess.run(['xorriso', '-indev', out, '-report_el_torito', 'plain'],
                          capture_output=True, text=True)
     for line in rep.stdout.splitlines():

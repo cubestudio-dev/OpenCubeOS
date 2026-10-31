@@ -1,0 +1,14 @@
+=== UEFI boot (tail) ===
+b"plete..................................... OK\r\n[00:00:02.530] boot chain 4/4: interfaces ready.................. OK\r\n[00:00:02.530] crash recovery armed (panic + dump + crashlog).... OK\r\n[00:00:02.540] L0 ready, waiting for L1.......................... OK\r\n    l1 launcher: booting 'ush' (ring 3, 18968 bytes)\r\n\r\nOpen Cube OS User-space Shell (3.0.0-WP04)\r\nType 'help' for built-in commands.\r\n\r\nush> "
+[PASS] UEFI: reached ush> prompt
+[PASS] UEFI: banner 3.0.0-WP04
+b'_test  [snd]\r\n  virtiosnd  [snd]\r\n  vmkernelpt  [core]\r\n  vmmap  [core]\r\n  vmtest  [core]\r\n  volume  [snd]\r\n  watchdog  [watchdog]\r\n  wc  [ush]\r\n  wget  [net]\r\n  wifi  [nic]\r\n  write  [block]\r\n\r\nush> '
+[PASS] UEFI: help -a full registry (274 programs)
+b'echo uefi-live | wc\r\n1 1 10\r\nush> '
+[PASS] UEFI: pipes + registry app run
+=== SUMMARY ===
+PASS: UEFI: reached ush> prompt
+PASS: UEFI: banner 3.0.0-WP04
+PASS: UEFI: help -a full registry (274 programs)
+PASS: UEFI: pipes + registry app run
+TOTAL 4/4
