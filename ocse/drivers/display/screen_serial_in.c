@@ -1,0 +1,88 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
+/* Open Cube OS - WP-02
+ * File: drivers/display/screen_serial_in.c
+ * Purpose: COM1 serial RX ? keyboard queue bridge.
+ */
+#include "screen_serial_in.h"
+#include "driver_input_keyboard.h"
+#include "arch_irq.h"
+#include "arch_idt.h"
+
+static inline u8 inb(u16 p) { u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v; }
+static inline void outb(u16 p, u8 v) { __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(p)); }
+
+#define COM1 0x3F8
+
+void screen_serial_in_init(void) {
+    /* Enable FIFO + trigger at 1 byte. */
+    outb(COM1 + 2, 0xC7);
+    /* Enable received-data-available IRQ (bit 0 of IER). */
+    outb(COM1 + 1, 0x01);
+    /* IRQ4 will now fire on each byte received. */
+    arch_irq_register_handler(4, screen_serial_in_irq_handler, NULL);
+}
+
+void screen_serial_in_irq_handler(void *ctx, arch_irq_frame_t *f) {
+    (void)ctx; (void)f;
+    /* Check IIR: bit 0 = 0 means interrupt pending. */
+    u8 iir = inb(COM1 + 2);
+    if (iir & 0x01) return;  /* no interrupt */
+
+    /* Drain all available bytes (FIFO may have multiple).
+     * BUG-0323 (A7-18): the drain used to be open-ended - a stuck or
+     * absent UART whose LSR data-ready bit reads 1 forever (0xFF from a
+     * nonexistent port) spun this IRQ handler for eternity and hung the
+     * whole machine. Bound the burst; anything left waits for the next
+     * IRQ (the FIFO trigger re-arms). */
+    int drained = 0;
+    while (drained < 32 && (inb(COM1 + 5) & 0x01)) {
+        drained++;
+        u8 b = inb(COM1);
+        u16 key;
+        switch (b) {
+            case '\r': case '\n':
+                key = OC_KEY_ENTER;
+                break;
+            case 0x7F: case 0x08:
+                key = OC_KEY_BACKSPACE;
+                break;
+            case 0x03: /* Ctrl+C */
+                key = OC_KEY_CTRL_C;
+                break;
+            case 0x04: /* Ctrl+D */
+                key = OC_KEY_CTRL_D;
+                break;
+            case 0x1B:
+                key = OC_KEY_ESC;
+                break;
+            case '\t':
+                key = OC_KEY_TAB;
+                break;
+            default:
+                if (b >= 0x20 && b < 0x7F) {
+                    key = (u16)b;
+                } else if (b >= 0x01 && b < 0x20) {
+                    /* WP-10-wp08fix1: pass the remaining Ctrl+letter codes
+                     * (0x01=A ... 0x1A=Z) straight through - the kernel
+                     * line editor and the editors bind them (Ctrl+A/E/U/
+                     * K/W, Ctrl+O save, Ctrl+X exit, Ctrl+K del line...).
+                     * A real terminal sends exactly these bytes. */
+                    key = (u16)b;
+                } else if (b >= 0x80) {
+                    /* WP-10-chinese_support: 8-bit bytes are UTF-8
+                     * continuation/lead bytes (pasted CJK text). They
+                     * must not collide with the OC_KEY_* special range
+                     * (0x80..0x9B), so inject them biased by +0x100;
+                     * the line editor strips the bias before storing. */
+                    key = (u16)b + 0x100;
+                } else {
+                    continue;
+                }
+        }
+        /* Push directly into the keyboard queue via the internal API.
+         * We mark the modifiers as 0 since serial doesn't carry mods. */
+        /* Reuse the keyboard IRQ handler's queue by calling a helper. */
+        driver_input_keyboard_inject(key);
+    }
+}

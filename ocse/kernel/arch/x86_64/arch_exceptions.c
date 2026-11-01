@@ -1,0 +1,320 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
+/* Open Cube OS - WP-02
+ * File: kernel/arch/x86_64/arch_exceptions.c
+ * Purpose: Default CPU exception handlers + L1 exception-handler chain.
+ *
+ * Default behavior: print a diagnostic to the serial console + framebuffer
+ * (in red), dump the frame, and halt. L1 can override per-vector by
+ * registering a handler.
+ */
+#include "arch_exceptions.h"
+#include "arch_idt.h"
+#include "lib_string.h"
+#include "screen_fb.h"
+#include "screen_console.h"
+#include "mem_vmm.h"
+/* WP06a-E5: no ring 3 in OCSE - the user-mode kill path below is
+ * removed; every fault is a kernel fault. A minimal local type
+ * keeps the parked arch_exc_kill_and_yield() signature compiling. */
+typedef struct { int _pad; } user_proc_t;
+#include "core_sched.h"
+#include "core_crash.h"     /* WP-11: unified panic + crashlog       */
+/* WP06a-E5: config_gen.h not vendored; the OC_CONFIG_TUI window below
+ * is compiled out (macro undefined = 0). */
+
+/* Symbol name table for vectors 0..31 (moved to core_crash.c crash_src_name
+ * for the panic banner; keep a local alias used by the ring-3 kill path) */
+static const char *arch_exc_names[32] = {
+    "#DE Divide Error",
+    "#DB Debug",
+    "NMI Non-Maskable Interrupt",
+    "#BP Breakpoint",
+    "#OF Overflow",
+    "#BR Bound Range Exceeded",
+    "#UD Invalid Opcode",
+    "#NM Device Not Available",
+    "#DF Double Fault",
+    "?? Coprocessor Segment Overrun",
+    "#TS Invalid TSS",
+    "#NP Segment Not Present",
+    "#SS Stack-Segment Fault",
+    "#GP General Protection",
+    "#PF Page Fault",
+    "?? Reserved",
+    "#MF x87 FPU Error",
+    "#AC Alignment Check",
+    "#MC Machine Check",
+    "#XM SIMD FP Exception",
+    "?? Virtualization",
+    "?? Reserved",
+    "?? Reserved",
+    "?? Reserved",
+    "?? Reserved",
+    "?? Reserved",
+    "?? Reserved",
+    "?? Reserved",
+    "?? Reserved",
+    "?? Reserved",
+    "#SX Security Exception",
+    "?? Reserved",
+};
+
+/* L1 handler chain. We support up to 4 handlers per vector. */
+#define OC_EXC_CHAIN_LEN 4
+static arch_exc_handler_fn g_exc_handlers[32][OC_EXC_CHAIN_LEN];
+
+void arch_exc_init(void) {
+    memset(g_exc_handlers, 0, sizeof(g_exc_handlers));
+}
+
+int arch_exc_register_handler(int vector, arch_exc_handler_fn handler) {
+    if (vector < 0 || vector >= 32 || !handler) return -1;
+    for (int i = 0; i < OC_EXC_CHAIN_LEN; i++) {
+        if (g_exc_handlers[vector][i] == NULL) {
+            g_exc_handlers[vector][i] = handler;
+            return 0;
+        }
+    }
+    return -2;  /* chain full */
+}
+
+int arch_exc_unregister_handler(int vector, arch_exc_handler_fn handler) {
+    if (vector < 0 || vector >= 32 || !handler) return -1;
+    for (int i = 0; i < OC_EXC_CHAIN_LEN; i++) {
+        if (g_exc_handlers[vector][i] == handler) {
+            g_exc_handlers[vector][i] = NULL;
+            /* compact */
+            for (int j = i; j + 1 < OC_EXC_CHAIN_LEN; j++) {
+                g_exc_handlers[vector][j] = g_exc_handlers[vector][j+1];
+                g_exc_handlers[vector][j+1] = NULL;
+            }
+            return 0;
+        }
+    }
+    return -2;
+}
+
+/* Serial output for exception dumps (so we can see them even if the
+ * framebuffer is broken). COM1 at 0x3F8. */
+static inline void outb(u16 p, u8 v) { __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(p)); }
+static inline u8   inb(u16 p)        { u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v; }
+#define COM1 0x3F8
+static void ser_putc(char c) {
+    while ((inb(COM1 + 5) & 0x20) == 0) ;
+    outb(COM1, (u8)c);
+}
+static void ser_puts(const char *s) { while (*s) ser_putc(*s++); }
+static void ser_hex(u64 v) {
+    char buf[17];
+    const char *hex = "0123456789ABCDEF";
+    for (int i = 15; i >= 0; i--) { buf[i] = hex[v & 0xF]; v >>= 4; }
+    buf[16] = 0;
+    ser_puts(buf);
+}
+static void ser_dec(u64 v) {
+    char buf[21];
+    int i = 20;
+    if (v == 0) { ser_putc('0'); return; }
+    buf[i--] = 0;
+    while (v) { buf[i--] = '0' + (v % 10); v /= 10; }
+    ser_puts(&buf[i+1]);
+}
+
+/* WP06a-E5: arch_exc_kill_and_yield() (the BUG-0139 IST2 exit
+ * continuation) is parked - it reaped a RING-3 victim and is
+ * unreachable without a user plane; the asm trampoline still
+ * references the symbol, so the signature stays. */
+void arch_exc_kill_and_yield(user_proc_t *proc, u64 vec) {
+    /* WP06a-E5: the ring-3 kill continuation is unreachable in
+     * OCSE (no user plane), but the IST2 exit trampoline in
+     * arch_exc_exit.S still references the symbol. Keep the
+     * signature and park. */
+    (void)proc; (void)vec;
+    for (;;) __asm__ volatile("hlt");
+}
+
+/* WP-11: public shim onto the PROVEN serial printer (this file's
+ * ser_puts printed every exception banner since WP-02, including the
+ * #DF banner itself). The #DF panic path in core_crash.c must print
+ * through THIS printer: the -Os cr_puts variant proved unreliable in
+ * the hostile #DF context (locked up mid-word during bring-up). */
+void arch_exc_ser_puts(const char *s) { ser_puts(s); }
+
+void arch_exc_dispatch(arch_irq_frame_t *f) {
+    /* P0fix2 BUG-0041 (RUN-01): guard against recursive fault handling.
+     * The fault-printing path itself can #PF (the KNOWN_ISSUES 6.1
+     * framebuffer rolling-edge page), and the old handler re-entered
+     * itself with no bound: each entry pushed ~0x230 bytes until the
+     * stack ran out and the CPU raised a triple fault (tcptest 100%
+     * crash chain in the audit).  An in-handler counter stops the
+     * recursion: on a NESTED #PF (a fault while already handling one)
+     * we report once via SERIAL ONLY (no framebuffer, no crash-log
+     * write) and halt immediately.  Faults that the VMM legitimately
+     * handles (stack/heap growth) decrement the counter on resume.
+     * (WP-11: the nested-panic guard inside kernel_panic_frame is the
+     * second layer of the same defence.) */
+    static int exc_in_pf = 0;
+    int is_pf = (f->int_no == 14);
+    if (is_pf && exc_in_pf) {
+        ser_puts("\r\n*** NESTED #PF INSIDE EXCEPTION HANDLER - HALTING ***\r\n");
+        for (;;) {
+            __asm__ volatile("cli; hlt");
+        }
+    }
+    if (is_pf) exc_in_pf++;
+
+    /* Try L1 handlers first (most-recently-registered runs first). */
+    for (int i = OC_EXC_CHAIN_LEN - 1; i >= 0; i--) {
+        if (g_exc_handlers[f->int_no][i]) {
+            if (g_exc_handlers[f->int_no][i](f)) {
+                if (is_pf) exc_in_pf--;   /* P0fix2 BUG-0041: resumed */
+                return;  /* L1 handled it, resume */
+            }
+        }
+    }
+
+    /* Special handling for #PF (vector 14): call VMM page fault handler.
+     * It may handle the fault (stack growth, heap growth, etc.) and we
+     * resume. If it returns 0 (illegal), fall through to the default
+     * panic path. (WP-11: crashlog entries are now written only on the
+     * unhandled paths, so there is nothing to pop here.) */
+    if (f->int_no == OC_EXC_PF) {
+        u64 cr2;
+        __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+        if (mem_vmm_handle_page_fault(cr2, f->error_code, f->rip, f->rsp)) {
+            if (is_pf) exc_in_pf--;   /* P0fix2 BUG-0041: resumed */
+            return;  /* fault handled, resume */
+        }
+    }
+
+    /* Default: print diagnostic. */
+    u64 v = f->int_no;
+    const char *name = (v < 32) ? arch_exc_names[v] : "Unknown";
+
+    ser_puts("\r\n*** EXCEPTION ");
+    ser_dec(v);
+    ser_puts(": ");
+    ser_puts(name);
+    ser_puts(" ***\r\n");
+    ser_puts("  error_code=0x"); ser_hex(f->error_code);
+    ser_puts("  rip=0x");        ser_hex(f->rip);
+    ser_puts("  cs=0x");         ser_hex(f->cs);
+    ser_puts("  rflags=0x");     ser_hex(f->rflags);
+    ser_puts("\r\n  rsp=0x");    ser_hex(f->rsp);
+    ser_puts("  ss=0x");         ser_hex(f->ss);
+    ser_puts("\r\n");
+
+    /* For #PF, also print CR2. */
+    if (v == 14) {
+        u64 cr2;
+        __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+        ser_puts("  cr2=0x");
+        ser_hex(cr2);
+        ser_puts("  (faulting address)\r\n");
+    }
+
+    /* BUG-001 FIX: If the exception came from ring-3 (user mode), kill the
+     * offending process and continue running the kernel. Only ring-0
+     * (kernel) exceptions cause a kernel panic. */
+    /* WP06a-E5: the ring-3 exception branch (kill the user process
+     * and continue) is gone - (f->cs & 3) is always 0 in OCSE, so
+     * every fault falls through to the kernel panic path below. */
+
+    /* ---- Ring-0 (kernel) exception = kernel panic (WP-11) ----
+     *
+     * 1. TUI CONTAINMENT: if the faulting RIP is inside the TUI code
+     *    window (linker.ld exports __tui_text_start and __tui_text_end
+     *    around the TUI objects: build/tui plus the tui_cn_* Chinese
+     *    renderers) AND a tui_dt_guard() is active on this task, the
+     *    crash is contained: record it via crash_contained(), then
+     *    tui_dt_panic() longjmps back to the guarded runner (the
+     *    desktop shows "page contained" and the menu survives).
+     *    Limited to non-IST vectors (a fault on the current task
+     *    stack is safe to abandon; vectors 1/2/3 ride IST2 and
+     *    8/18 ride IST1/IST3 - those never longjmp).
+     *
+     * 2. Otherwise: the unified panic path (core_crash.c) prints the
+     *    banner + full register snapshot + traceback, saves the core
+     *    dump, flushes the crash log and applies the policy
+     *    (HALT safe loop / REBOOT 8042+0xCF9). */
+#if OC_CONFIG_TUI
+    if ((f->cs & 3) == 0 && v != 1 && v != 2 && v != 8 && v != 18) {
+        extern char __tui_text_start[], __tui_text_end[];
+        extern int  tui_dt_guard_active(void);
+        extern void tui_dt_panic(int code) __attribute__((noreturn));
+        if (f->rip >= (u64)(uintptr_t)__tui_text_start &&
+            f->rip <  (u64)(uintptr_t)__tui_text_end &&
+            tui_dt_guard_active()) {
+            char what[48];
+            char num[8];
+            strcpy(what, "TUI page fault (");
+            u64_to_str(v, num); strcat(what, num);
+            strcat(what, ")");
+            crash_contained(what, f);
+            if (is_pf) exc_in_pf--;   /* this stack is abandoned now */
+            tui_dt_panic((int)v);     /* longjmps away - never returns */
+        }
+    }
+#endif /* OC_CONFIG_TUI: without the TUI there is no containment window
+       * and no guard - every ring-0 fault goes straight to the unified
+       * panic path below (WP-11). */
+
+    {
+        char reason[112];
+        char num[12];
+        /* WP-11 4.4: name stack overflows for what they are.
+         * (a) #PF whose CR2 lands in a kthread's UNMAPPED guard page
+         *     (core_kthread_create unmaps the lowest stack page).
+         * (b) #DF with the frame RSP below the current task's stack
+         *     base: the guard-page #PF pushed its error code onto the
+         *     already-burned stack, the push itself faulted, the CPU
+         *     escalated to a Double Fault and switched to the IST1
+         *     stack - which is why the panic machinery can still run.
+         *     (Same shape as mainstream kernels: guard page ->
+         *     double fault.) */
+        const char *ovf_task = NULL;
+        const char *ovf_kind = NULL;
+        if (v == 14) {
+            u64 cr2;
+            __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+            extern task_t *core_kthread_get_task(int tid);
+            for (int ti = 1; ti < 32 && !ovf_task; ti++) {
+                task_t *tt = core_kthread_get_task(ti);
+                if (tt && tt->stack_base && tt->stack_size) {
+                    u64 base = (u64)(uintptr_t)tt->stack_base;
+                    if (cr2 >= base && cr2 < base + 4096)
+                        ovf_task = tt->name;
+                }
+            }
+            if (ovf_task) ovf_kind = "guard page hit";
+        } else if (v == 8) {
+            /* a burned stack shows either rsp BELOW the window, or an
+             * implausible garbage rsp (observed 0xFFFFFFFFFFFFF040 -
+             * the #DF frame's own slot can be nonsense) - both mean
+             * the stack was destroyed before the frame was pushed */
+            task_t *ct = core_kthread_current();
+            if (ct && ct->stack_base && ct->stack_size &&
+                (f->rsp < (u64)(uintptr_t)ct->stack_base ||
+                 f->rsp >= 0x40000000000ULL)) {
+                ovf_task = ct->name;
+                ovf_kind = "stack exhausted -> #DF";
+            }
+        }
+        if (ovf_task) {
+            strcpy(reason, "KERNEL STACK OVERFLOW (");
+            strcat(reason, ovf_kind);
+            strcat(reason, ", task=");
+            strcat(reason, ovf_task);
+            strcat(reason, ")");
+        } else {
+            strcpy(reason, "ring-0 exception ");
+            u64_to_str(v, num); strcat(reason, num);
+            strcat(reason, " (");
+            strcat(reason, name);
+            strcat(reason, ")");
+        }
+        kernel_panic_frame(reason, f);
+    }
+}
+

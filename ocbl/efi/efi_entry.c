@@ -236,7 +236,10 @@ EFI_CALL efi_status efi_main(efi_handle image, efi_system_table* st)
             __asm__ volatile("hlt");
     }
     ocbl_entry_t* e = &t->entries[pick];
-    if (e->type != OCBL_ENT_OCOS && e->type != OCBL_ENT_OCIRE) {
+    /* WP06a: OCSE rides the same mb2 ELF handoff as OCOS/OCIRE; it
+     * must NOT fall into the chainload branch. */
+    if (e->type != OCBL_ENT_OCOS && e->type != OCBL_ENT_OCIRE &&
+        e->type != OCBL_ENT_OCSE) {
         /* B5-6: the ESP chainload (Windows bootmgfw / a foreign Linux
          * shim / a generic BOOTX64.EFI) - the UEFI mirror of the
          * BIOS flavor's VBR chainload. */

@@ -669,6 +669,10 @@ include $(OC_ROOT)/ocire/ocire.mk
 # ---- 3.0.0-WP-05-ocbl: OCBL boot loader (the GRUB replacement) ----
 include $(OC_ROOT)/ocbl/ocbl.mk
 
+# 3.0.0-WP06a-ocse: the OCSE install-environment kernel (vendored
+# from tag v1.0.0; see ocse/VENDORING.md). Independent of the OCOS tree.
+include $(OC_ROOT)/ocse/ocse.mk
+
 endif # ARCH dispatch
 
 # ---- WP-14-docs_release: documentation data generation ----

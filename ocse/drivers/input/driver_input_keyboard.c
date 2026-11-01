@@ -1,0 +1,356 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
+/* Open Cube OS - WP-02
+ * File: drivers/input/driver_input_keyboard.c
+ * Purpose: PS/2 keyboard driver.
+ *
+ * IRQ1 (vector 33) handler reads port 0x60, decodes scancode set 1,
+ * updates modifier state, produces ASCII / special keycodes, pushes
+ * them into a ring buffer. L1 handlers run first.
+ */
+#include "driver_input_keyboard.h"
+#include "arch_idt.h"
+#include "arch_pic.h"
+#include "arch_irq.h"
+#include "core_sync.h"
+#include "lib_string.h"
+
+static inline u8 inb(u16 p) { u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v; }
+
+/* Modifier state. */
+static u8 g_mods = 0;
+static int g_pause_bytes = 0;  /* P1-23: Pause/Break multi-byte sequence */
+
+/* Ring buffer for produced keycodes. */
+/* WP-09-FIX BUG-015: enlarge the key ring buffer from 128 to 1024.
+ * The COM1 bridge pushes whole serial FIFO bursts (up to 16+ bytes per
+ * IRQ) and a pasted 190-character command line arrived faster than the
+ * shell drained it — the ring overflowed, characters were silently
+ * dropped, the ENTER byte got lost and readline never returned. */
+#define OC_KBD_BUF_LEN 1024
+static u16 g_buf[OC_KBD_BUF_LEN];
+static u32 g_buf_head = 0;  /* consumer reads here */
+static u32 g_buf_tail = 0;  /* producer writes here */
+
+/* L1 handler chain. */
+#define OC_KBD_CHAIN_LEN 4
+static driver_input_kbd_handler_fn g_handlers[OC_KBD_CHAIN_LEN];
+
+/* BUG-0327 (A7-28): the ring has multiple producers - the PS/2 IRQ1
+ * handler, the COM1 serial bridge (IRQ4) and task-context inject - so
+ * head/tail updates run under one irqsave spinlock (BUG-0285 semantics);
+ * the L1 handler chain deliberately stays OUTSIDE the lock (handlers are
+ * arbitrary user code and never touch the ring). */
+static spinlock_t g_kbd_ring_lock;
+
+/* Scancode set 1 ? ASCII (unshifted). 0 = no mapping / special. */
+/* 0x01 (Esc) maps to the dedicated OC_KEY_ESC_KEY: raw 0x1B is the ANSI
+ * CSI opener on the serial bridge, and mapping the physical key to it
+ * made the TUI CSI decoder swallow every Esc press. */
+static const u8 scancode_map[128] = {
+    /* 0x00 */ 0,    OC_KEY_ESC_KEY, '1',  '2',  '3',  '4',  '5',  '6',
+    /* 0x08 */ '7',  '8',  '9',  '0',  '-',  '=',  0x08, '\t',
+    /* 0x10 */ 'q',  'w',  'e',  'r',  't',  'y',  'u',  'i',
+    /* 0x18 */ 'o',  'p',  '[',  ']',  '\r', 0,    'a',  's',
+    /* 0x20 */ 'd',  'f',  'g',  'h',  'j',  'k',  'l',  ';',
+    /* 0x28 */ '\'', '`',  0,    '\\', 'z',  'x',  'c',  'v',
+    /* 0x30 */ 'b',  'n',  'm',  ',',  '.',  '/',  0,    '*',
+    /* 0x38 */ 0,    ' ',  0,    OC_KEY_F1, OC_KEY_F2, OC_KEY_F3, OC_KEY_F4, OC_KEY_F5,
+    /* 0x40 */ OC_KEY_F6, OC_KEY_F7, OC_KEY_F8, OC_KEY_F9, OC_KEY_F10, 0, 0, OC_KEY_HOME,
+    /* 0x48 */ OC_KEY_UP, OC_KEY_PGUP, 0, OC_KEY_LEFT, 0, OC_KEY_RIGHT, 0, OC_KEY_END,
+    /* 0x50 */ OC_KEY_DOWN, OC_KEY_PGDN, OC_KEY_INS, OC_KEY_DEL, 0, 0, 0, OC_KEY_F11,
+    /* 0x58 */ OC_KEY_F12, 0, 0, 0, 0, 0, 0, 0,
+};
+
+/* Shifted variants. */
+static const u8 scancode_map_shift[128] = {
+    /* 0x00 */ 0,    0x1B, '!',  '@',  '#',  '$',  '%',  '^',
+    /* 0x08 */ '&',  '*',  '(',  ')',  '_',  '+',  0x08, '\t',
+    /* 0x10 */ 'Q',  'W',  'E',  'R',  'T',  'Y',  'U',  'I',
+    /* 0x18 */ 'O',  'P',  '{',  '}',  '\r', 0,    'A',  'S',
+    /* 0x20 */ 'D',  'F',  'G',  'H',  'J',  'K',  'L',  ':',
+    /* 0x28 */ '"',  '~',  0,    '|',  'Z',  'X',  'C',  'V',
+    /* 0x30 */ 'B',  'N',  'M',  '<',  '>',  '?',  0,    '*',
+    /* 0x38 */ 0,    ' ',  0,    0,    0,    0,    0,    0,
+    /* 0x40 */ 0,    0,    0,    0,    0,    0,    0,    0,
+    /* rest 0 */
+};
+
+/* WP-10-chinese_support-fix4: Dvorak Simplified layout. Same scan
+ * codes, different letter/symbol placement; the number row and the
+ * punctuation already shared with US stay put. Special keys (Esc,
+ * arrows, F-keys, Enter/Tab/Backspace) are identical in both layouts. */
+static const u8 scancode_map_dvorak[128] = {
+    /* 0x00 */ 0,    OC_KEY_ESC_KEY, '1',  '2',  '3',  '4',  '5',  '6',
+    /* 0x08 */ '7',  '8',  '9',  '0',  '[',  ']',  0x08, '\t',
+    /* 0x10 */ '\'', ',', '.', 'p',  'y',  'f',  'g',  'c',
+    /* 0x18 */ 'r',  'l',  '/',  '=',  '\r', 0,    'a',  'o',
+    /* 0x20 */ 'e',  'u',  'i',  'd',  'h',  't',  'n',  's',
+    /* 0x28 */ '-',  '`',  0,    '\\', ';',  'q',  'j',  'k',
+    /* 0x30 */ 'x',  'b',  'm',  'w',  'v',  'z',  0,    '*',
+    /* 0x38 */ 0,    ' ',  0,    OC_KEY_F1, OC_KEY_F2, OC_KEY_F3, OC_KEY_F4, OC_KEY_F5,
+    /* 0x40 */ OC_KEY_F6, OC_KEY_F7, OC_KEY_F8, OC_KEY_F9, OC_KEY_F10, 0, 0, OC_KEY_HOME,
+    /* 0x48 */ OC_KEY_UP, OC_KEY_PGUP, 0, OC_KEY_LEFT, 0, OC_KEY_RIGHT, 0, OC_KEY_END,
+    /* 0x50 */ OC_KEY_DOWN, OC_KEY_PGDN, OC_KEY_INS, OC_KEY_DEL, 0, 0, 0, OC_KEY_F11,
+    /* 0x58 */ OC_KEY_F12, 0, 0, 0, 0, 0, 0, 0,
+};
+
+static const u8 scancode_map_dvorak_shift[128] = {
+    /* 0x00 */ 0,    0x1B, '!',  '@',  '#',  '$',  '%',  '^',
+    /* 0x08 */ '&',  '*',  '(',  ')',  '{',  '}',  0x08, '\t',
+    /* 0x10 */ '"',  '<',  '>',  'P',  'Y',  'F',  'G',  'C',
+    /* 0x18 */ 'R',  'L',  '?',  '+',  '\r', 0,    'A',  'O',
+    /* 0x20 */ 'E',  'U',  'I',  'D',  'H',  'T',  'N',  'S',
+    /* 0x28 */ '_',  '~',  0,    '|',  ':',  'Q',  'J',  'K',
+    /* 0x30 */ 'X',  'B',  'M',  'W',  'V',  'Z',  0,    '*',
+    /* 0x38 */ 0,    ' ',  0,    0,    0,    0,    0,    0,
+    /* 0x40 */ 0,    0,    0,    0,    0,    0,    0,    0,
+    /* rest 0 */
+};
+
+/* Active layout (fix4): 0 = us, 1 = dvorak. Switched at runtime via
+ * driver_input_keyboard_set_layout() and persisted as kbd.layout in
+ * /etc/opencube.conf; the TUI keyboard page and
+ * `config set kbd.layout dvorak` share the same key. */
+static int g_layout;
+
+void driver_input_keyboard_set_layout(const char *name) {
+    g_layout = (name && name[0] == 'd' && strcmp(name, "dvorak") == 0) ? 1 : 0;
+}
+
+const char *driver_input_keyboard_get_layout(void) {
+    return g_layout ? "dvorak" : "us";
+}
+
+void driver_input_keyboard_init(void) {
+    spin_init(&g_kbd_ring_lock);
+    spin_lock(&g_kbd_ring_lock);
+    g_buf_head = g_buf_tail = 0;
+    g_mods = 0;
+    memset(g_handlers, 0, sizeof(g_handlers));
+    spin_unlock(&g_kbd_ring_lock);
+    /* Register the IRQ1 handler. */
+    arch_irq_register_handler(1, driver_input_keyboard_irq_handler, NULL);
+}
+
+u8 driver_input_keyboard_get_mods(void) {
+    return g_mods;
+}
+
+int driver_input_keyboard_has_key(void) {
+    spin_lock(&g_kbd_ring_lock);
+    int has = g_buf_head != g_buf_tail;
+    spin_unlock(&g_kbd_ring_lock);
+    return has;
+}
+
+int driver_input_keyboard_getch(void) {
+    spin_lock(&g_kbd_ring_lock);
+    if (g_buf_head == g_buf_tail) {
+        spin_unlock(&g_kbd_ring_lock);
+        return -1;
+    }
+    u16 k = g_buf[g_buf_head];
+    g_buf_head = (g_buf_head + 1) % OC_KBD_BUF_LEN;
+    spin_unlock(&g_kbd_ring_lock);
+    return (int)k;
+}
+
+static void push_key(u16 key) {
+    spin_lock(&g_kbd_ring_lock);
+    u32 next = (g_buf_tail + 1) % OC_KBD_BUF_LEN;
+    if (next != g_buf_head) {
+        g_buf[g_buf_tail] = key;
+        g_buf_tail = next;
+    }
+    spin_unlock(&g_kbd_ring_lock);
+}
+
+void driver_input_keyboard_inject(u16 keycode) {
+    /* WP-09-FIX BUG-030: run the L1 handler chain for injected keys too —
+     * the COM1 serial RX bridge feeds the queue through this entry point.
+     * Previously only the PS/2 IRQ path ran the chain, so L1 extension
+     * handlers never saw serial input (inconsistent extension behavior). */
+    for (int i = 0; i < OC_KBD_CHAIN_LEN; i++) {
+        if (g_handlers[i]) {
+            if (g_handlers[i](keycode, g_mods)) {
+                return;  /* L1 consumed it */
+            }
+        }
+    }
+    push_key(keycode);
+}
+
+int driver_input_keyboard_register_handler(driver_input_kbd_handler_fn handler) {
+    if (!handler) return -1;
+    for (int i = 0; i < OC_KBD_CHAIN_LEN; i++) {
+        if (g_handlers[i] == NULL) {
+            g_handlers[i] = handler;
+            return 0;
+        }
+    }
+    return -2;
+}
+
+int driver_input_keyboard_unregister_handler(driver_input_kbd_handler_fn handler) {
+    if (!handler) return -1;
+    for (int i = 0; i < OC_KBD_CHAIN_LEN; i++) {
+        if (g_handlers[i] == handler) {
+            g_handlers[i] = NULL;
+            for (int j = i; j + 1 < OC_KBD_CHAIN_LEN; j++) {
+                g_handlers[j] = g_handlers[j+1];
+                g_handlers[j+1] = NULL;
+            }
+            return 0;
+        }
+    }
+    return -2;
+}
+
+/* Process one scancode byte. Returns the produced keycode (or 0 = none). */
+static u16 process_scancode(u8 sc, int *extended) {
+    /* Extended prefix. */
+    if (sc == 0xE0) { *extended = 1; return 0; }
+    /* P1-23 FIX: Pause/Break key sends 0xE1 prefix followed by 7 bytes.
+     * Consume the entire sequence by tracking a counter. */
+    if (sc == 0xE1) { g_pause_bytes = 7; return 0; }
+    if (g_pause_bytes > 0) { g_pause_bytes--; return 0; }
+
+    int release = (sc & 0x80) != 0;
+    u8  code    = sc & 0x7F;
+
+    /* Extended-key handling: arrows + nav keys + numpad enter + etc. */
+    if (*extended) {
+        *extended = 0;
+        u16 ext = 0;
+        switch (code) {
+            case 0x48: ext = OC_KEY_UP;        break;
+            case 0x50: ext = OC_KEY_DOWN;      break;
+            case 0x4B: ext = OC_KEY_LEFT;      break;
+            case 0x4D: ext = OC_KEY_RIGHT;     break;
+            case 0x47: ext = OC_KEY_HOME;      break;
+            case 0x4F: ext = OC_KEY_END;       break;
+            case 0x49: ext = OC_KEY_PGUP;      break;
+            case 0x51: ext = OC_KEY_PGDN;      break;
+            case 0x52: ext = OC_KEY_INS;       break;
+            case 0x53: ext = OC_KEY_DEL;       break;
+            case 0x1C: ext = OC_KEY_ENTER;     break;  /* numpad enter */
+            /* BUG-0325 (A7-26): the E0 branch previously dropped the right
+             * modifiers entirely - right Ctrl (E0 0x1D) and right Alt /
+             * AltGr (E0 0x38) fell into default and were discarded, so
+             * right-side modifiers never set g_mods. Both now drive the
+             * same modifier state as their left counterparts (the only
+             * layout in the kernel is US; AltGr-specific character
+             * composition is a layout-table capability, not a modifier
+             * bug). The E0 0x2A/0xAA fake-shift sequences still fall to
+             * default and are discarded, as they must be. */
+            case 0x1D: /* right Ctrl */
+                if (release) g_mods &= ~OC_MOD_CTRL;
+                else         g_mods |=  OC_MOD_CTRL;
+                return 0;
+            case 0x38: /* right Alt / AltGr */
+                if (release) g_mods &= ~OC_MOD_ALT;
+                else         g_mods |=  OC_MOD_ALT;
+                return 0;
+            default:   return 0;
+        }
+        if (!release) return ext;
+        return 0;
+    }
+
+    /* Modifier keys. */
+    switch (code) {
+        case 0x2A: /* LShift */
+        case 0x36: /* RShift */
+            if (release) g_mods &= ~OC_MOD_SHIFT;
+            else         g_mods |= OC_MOD_SHIFT;
+            return 0;
+        case 0x1D: /* Ctrl */
+            if (release) g_mods &= ~OC_MOD_CTRL;
+            else         g_mods |= OC_MOD_CTRL;
+            return 0;
+        case 0x38: /* Alt */
+            if (release) g_mods &= ~OC_MOD_ALT;
+            else         g_mods |= OC_MOD_ALT;
+            return 0;
+        case 0x3A: /* CapsLock */
+            if (!release) g_mods ^= OC_MOD_CAPS;
+            return 0;
+        case 0x45: /* NumLock */
+            if (!release) g_mods ^= OC_MOD_NUM;
+            return 0;
+        case 0x46: /* ScrollLock */
+            if (!release) g_mods ^= OC_MOD_SCROLL;
+            return 0;
+    }
+
+    if (release) return 0;  /* ignore break codes for regular keys */
+
+    /* BUG-0326 (A7-27): NumLock turns the keypad block into digits. The
+     * static map always produced navigation codes (and gave keypad
+     * '-'/'+'/'5' no mapping at all in ANY state). Keypad '-' and '+'
+     * work regardless of NumLock like on real hardware; keypad-5 types
+     * '5' only with NumLock on and stays dead when off. */
+    if (code >= 0x47 && code <= 0x53) {
+        static const u8 keypad_num[13] = {
+            /* 0x47 */ '7', '8', '9', 0,   /* 4A = '-' below */
+            /* 0x4B */ '4', '5', '6', '+', /* 4E handled below too */
+            /* 0x4F */ '1', '2', '3', '0',
+            /* 0x53 */ '.'
+        };
+        if (g_mods & OC_MOD_NUM) {
+            u8 digit = keypad_num[code - 0x47];
+            if (digit) return digit;
+        }
+        if (code == 0x4A) return '-';
+        if (code == 0x4E) return '+';
+    }
+
+    u16 key = (g_layout ? scancode_map_dvorak : scancode_map)[code];
+    if (key == 0) return 0;
+
+    /* Ctrl + letter ? control code. */
+    if ((g_mods & OC_MOD_CTRL) && key >= 'a' && key <= 'z') {
+        return (u16)(key - 'a' + 1);
+    }
+    if ((g_mods & OC_MOD_CTRL) && key >= 'A' && key <= 'Z') {
+        return (u16)(key - 'A' + 1);
+    }
+
+    /* Shift selects shifted map (for letters, CapsLock also flips case). */
+    if (g_mods & OC_MOD_SHIFT) {
+        u8 shifted = (g_layout ? scancode_map_dvorak_shift : scancode_map_shift)[code];
+        if (shifted) key = shifted;
+        /* BUG-043 FIX: CapsLock+Shift should invert case for letters.
+         * When both CapsLock and Shift are active, letters should be
+         * lowercase (CapsLock inverts the Shift effect for letters).
+         * Old code only checked Shift OR CapsLock (if-else), so
+         * CapsLock+Shift produced uppercase instead of lowercase. */
+        if ((g_mods & OC_MOD_CAPS) && key >= 'A' && key <= 'Z') {
+            key += 32;  /* invert to lowercase */
+        }
+    } else if (g_mods & OC_MOD_CAPS) {
+        /* CapsLock flips case of letters only. */
+        if (key >= 'a' && key <= 'z') key -= 32;
+    }
+    return key;
+}
+
+void driver_input_keyboard_irq_handler(void *ctx, arch_irq_frame_t *f) {
+    (void)ctx; (void)f;
+    static int extended = 0;
+    u8 sc = inb(0x60);
+    u16 key = process_scancode(sc, &extended);
+    if (key == 0) return;
+
+    /* Run L1 handlers first. */
+    for (int i = 0; i < OC_KBD_CHAIN_LEN; i++) {
+        if (g_handlers[i]) {
+            if (g_handlers[i](key, g_mods)) {
+                return;  /* L1 consumed it */
+            }
+        }
+    }
+    /* Default: enqueue. */
+    push_key(key);
+}
