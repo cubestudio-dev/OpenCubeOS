@@ -7,6 +7,7 @@
  * stays greppable in both languages).
  */
 #include "ocse_detect.h"
+#include "ocse_atapi.h"
 #include "lib_string.h"
 #include "screen_fb.h"
 #include "mem_pmm.h"
@@ -77,14 +78,19 @@ static void check_disp(char* out, int cap) {
     set_result(2, ok, out);
 }
 
-/* check 4: at least one usable block device. */
+/* check 4: at least one usable block device. WP-06b: optical drives
+ * (the ATAPI install medium, "cdN") are deliberately NOT install
+ * targets - the check counts storage the system can be installed TO.
+ * The negative acceptance (boot from ISO, no hard disk) must still
+ * FAIL and halt even though the install medium itself is present. */
 static void check_disk(char* out, int cap) {
     (void)cap;
     int n = driver_block_num_devices();
     int usable = 0;
     for (int i = 0; i < n; i++) {
         driver_block_device_t* dev = driver_block_get_device(i);
-        if (dev && dev->present) usable++;
+        if (dev && dev->present && !ocse_atapi_is_cd_name(dev->name))
+            usable++;
     }
     char num[12];
     strcpy(out, "block devices: ");

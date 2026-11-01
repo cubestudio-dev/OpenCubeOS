@@ -13,6 +13,9 @@
 #include "ocse_disk.h"
 #include "ocse_gui.h"
 #include "ocse_cl.h"
+#include "ocse_atapi.h"
+#include "ocse_iso.h"
+#include "fs_vfs.h"
 #include "screen_console.h"
 #include "screen_fb.h"
 #include "screen_serial_in.h"
@@ -59,6 +62,51 @@ static int ocse_console_sink(void* ctx, u8 ch) {
 void ocse_main_run(const arch_multiboot2_info_t* mbi) {
     (void)mbi;
     ocse_i18n_init();
+
+    /* WP-06b: bring up the ATAPI install medium and mount it at
+     * /install (read-only). Serial-log only: a missing medium is not
+     * fatal - the negative acceptance boots from the ISO with no
+     * target disk and must still reach check4 FAIL -> halt. */
+    {
+        int cds = ocse_atapi_init();
+        ocse_iso_init();
+        char n[4];
+        n[0] = '0' + (char)(cds > 9 ? 9 : cds); n[1] = 0;
+        ocse_serial_puts_raw("[ocse] atapi drives: ");
+        ocse_serial_puts_raw(n);
+        ocse_serial_puts_raw("\r\n");
+        int mounted = fs_vfs_mount("iso9660", "/install", "cd0");
+        if (mounted == 0) {
+            ocse_serial_puts_raw(
+                "[ocse] install medium: /install (iso9660 cd0)\r\n");
+            /* Medium self-check: the two WP-06b payloads must be
+             * reachable through the VFS (case-insensitive lookup, ";1"
+             * stripped) before the shell offers tar/ocbl-install. */
+            fs_vfs_stat_t st;
+            if (fs_vfs_stat("/install/ocos.tar", &st) == 0) {
+                char n[24];
+                ocse_serial_puts_raw("[ocse] medium check: ocos.tar ");
+                u64_to_str(st.size, n);
+                ocse_serial_puts_raw(n);
+                if (fs_vfs_stat("/install/ocblmbr.bin", &st) == 0) {
+                    ocse_serial_puts_raw(" B, ocblmbr.bin ");
+                    u64_to_str(st.size, n);
+                    ocse_serial_puts_raw(n);
+                    ocse_serial_puts_raw(" B");
+                } else {
+                    ocse_serial_puts_raw(" B, ocblmbr.bin MISSING");
+                }
+                ocse_serial_puts_raw("\r\n");
+            } else {
+                ocse_serial_puts_raw(
+                    "[ocse] medium check: ocos.tar MISSING\r\n");
+            }
+        }
+        else
+            ocse_serial_puts_raw(
+                "[ocse] no ISO install medium (tar/ocbl-install need it)\r\n");
+    }
+
     ocse_detect_run();
     ocse_disk_scan();
 
