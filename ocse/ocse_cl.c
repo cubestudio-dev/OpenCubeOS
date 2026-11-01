@@ -8,6 +8,7 @@
  * converted to GB2312 for the console renderer).
  */
 #include "ocse_cl.h"
+#include "ocse_gui.h"
 #include "ocse_i18n.h"
 #include "ocse_detect.h"
 #include "ocse_disk.h"
@@ -95,6 +96,28 @@ static int run_command(const char* cmd) {
     } else if (strcmp(cmd, "clear") == 0) {
         screen_console_reset(screen_fb_rgb(0xE0, 0xE0, 0xE0),
                              screen_fb_rgb(0x10, 0x10, 0x14));
+    } else if (strncmp(cmd, "click ", 6) == 0) {
+        /* Button geometry self-check (the acceptance battery drives
+         * this when a real pointer device is unavailable: the QEMU
+         * monitor cannot inject USB mouse events into the vendored
+         * v1.0.0 USB stack). */
+        int x = -1, y = -1;
+        const char* a = cmd + 6;
+        while (*a == ' ') a++;
+        x = 0;
+        while (*a >= '0' && *a <= '9') x = x * 10 + (*a++ - '0');
+        while (*a == ' ') a++;
+        y = 0;
+        while (*a >= '0' && *a <= '9') y = y * 10 + (*a++ - '0');
+        int act = ocse_gui_hit_test((u32)x, (u32)y);
+        ocse_out("click at (");
+        char n[12];
+        u64_to_str((u64)x, n); ocse_out(n); ocse_out(",");
+        u64_to_str((u64)y, n); ocse_out(n); ocse_out("): ");
+        ocse_outln(act == OCSE_ACT_GOTO_CL ? "action=goto-cl"
+                  : act == OCSE_ACT_TOGGLE_LANG ? "action=toggle-lang"
+                  : act == OCSE_ACT_RECHECK ? "action=recheck"
+                  : "action=none");
     } else if (strcmp(cmd, "halt") == 0) {
         ocse_outln(ocse_tr(OCSE_T_HALT));
         core_power_halt();          /* never returns */

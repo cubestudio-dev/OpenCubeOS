@@ -144,7 +144,12 @@ static void draw_disks(void) {
     }
 }
 
-static int hit_test(u32 x, u32 y) {
+/* Public for the OCSECL `click <x> <y>` self-check: the QEMU
+ * monitor cannot inject USB mouse events (the v1.0.0 vendored USB
+ * stack never had a QEMU-side event injection path - verified against
+ * the v1.0.0 tree), so the battery proves the button geometry and
+ * action mapping through the same hit_test() the pointer path uses. */
+int ocse_gui_hit_test(u32 x, u32 y) {
     for (int i = 0; i < OCSE_NBTN; i++) {
         const ocse_button_t* b = &g_buttons[i];
         if (x >= b->x && x < b->x + b->w && y >= b->y && y < b->y + b->h)
@@ -172,7 +177,7 @@ void ocse_gui_draw(void) {
     draw_disks();
     for (int i = 0; i < OCSE_NBTN; i++) {
         const ocse_button_t* b = &g_buttons[i];
-        int hover = hit_test((u32)g_mx, (u32)g_my) == b->act;
+        int hover = ocse_gui_hit_test((u32)g_mx, (u32)g_my) == b->act;
         screen_fb_fill_rect(b->x, b->y, b->w, b->h,
                             hover ? COL_BTN_HOV : COL_BTN);
         screen_fb_fill_rect(b->x, b->y, b->w, 2, 0x00000000);
@@ -191,19 +196,34 @@ void ocse_gui_init(void) {
 }
 
 /* Poll pointer inputs once; returns OCSE_ACT_* on click. */
+static void clamp_pointer(void) {
+    const screen_fb_info_t* fb = screen_fb_get_info();
+    if (fb->width == 0 || fb->height == 0) return;
+    if (g_mx < 0) g_mx = 0;
+    if (g_my < 0) g_my = 0;
+    if ((u32)g_mx >= fb->width)  g_mx = (int)fb->width - 1;
+    if ((u32)g_my >= fb->height) g_my = (int)fb->height - 1;
+}
+
 static int poll_pointer(void) {
     driver_usb_mouse_event_t ev;
     while (driver_usb_mouse_read_event(&ev)) {
         g_mx += ev.dx;
         g_my += ev.dy;
         if (ev.buttons & 1) g_btn |= 1; else g_btn &= ~1;
+        clamp_pointer();
         g_need_draw = 1;
     }
     touchpad_event_t te;
-    while (driver_input_touchpad_get_event(&te)) {
+    /* v1.0.0 contract: 0 = event returned, -1 = empty (the USB
+     * mouse ring is the other way round - 1 = event). Live-caught
+     * in the T4 battery: `while (get_event(&te))` spun forever on
+     * the -1 empty case and froze the GUI loop. */
+    while (driver_input_touchpad_get_event(&te) == 0) {
         if (te.type == TPE_MOVE) {
             g_mx += te.dx;
             g_my += te.dy;
+            clamp_pointer();
             g_need_draw = 1;
         } else if (te.type == TPE_TAP) {
             g_btn |= 1;             /* tap = press; released next poll */
@@ -212,7 +232,7 @@ static int poll_pointer(void) {
     }
     if (g_btn && !g_prev_btn) {     /* rising edge = click */
         g_prev_btn = g_btn;
-        return hit_test((u32)g_mx, (u32)g_my);
+        return ocse_gui_hit_test((u32)g_mx, (u32)g_my);
     }
     g_prev_btn = g_btn;
     return OCSE_ACT_NONE;

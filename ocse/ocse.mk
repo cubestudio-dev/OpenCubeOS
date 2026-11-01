@@ -89,6 +89,12 @@ OCSE_D_C := $(filter-out $(OCSE_DIR)/drivers/block/driver_block_disk_setup.c,$(O
 # WP06a-E2: driver_block_disk_setup.c is GRUB-era install tooling
 # (writes grub boot.img/core.img; pulls grub_boot_data.h + shell.h).
 OCSE_D_C := $(filter-out $(OCSE_DIR)/drivers/block/driver_block_disk_setup.c,$(OCSE_D_C))
+# WP06a-E2: driver_block_disk_setup.c is GRUB-era install tooling
+# (writes grub boot.img/core.img; pulls grub_boot_data.h + shell.h).
+OCSE_D_C := $(filter-out $(OCSE_DIR)/drivers/block/driver_block_disk_setup.c,$(OCSE_D_C))
+# WP06a-E2: driver_block_disk_setup.c is GRUB-era install tooling
+# (writes grub boot.img/core.img; pulls grub_boot_data.h + shell.h).
+OCSE_D_C := $(filter-out $(OCSE_DIR)/drivers/block/driver_block_disk_setup.c,$(OCSE_D_C))
 OCSE_FS_C     := $(wildcard $(OCSE_DIR)/fs/*.c)
 OCSE_L1_C     := $(wildcard $(OCSE_DIR)/l1/*.c)
 OCSE_CN_C     := $(wildcard $(OCSE_DIR)/chinese/*.c)
