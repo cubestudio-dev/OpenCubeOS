@@ -221,7 +221,10 @@ void ocbl_run(void)
             __asm__ volatile("cli; hlt");
     }
     ocbl_entry_t* e = &t->entries[pick];
-    if (e->type != OCBL_ENT_OCOS && e->type != OCBL_ENT_OCIRE) {
+    /* WP06a: OCSE rides the same mb2 ELF handoff as OCOS/OCIRE; it
+     * must NOT fall into the chainload branch. */
+    if (e->type != OCBL_ENT_OCOS && e->type != OCBL_ENT_OCIRE &&
+        e->type != OCBL_ENT_OCSE) {
         /* BIOS chainload: the volume's own VBR takes over (GRUB
          * `chainloader +1` contract).  ESP-only loaders (BOOTX64.EFI)
          * are refused honestly - they need the UEFI flavor. */

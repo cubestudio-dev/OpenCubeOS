@@ -151,9 +151,13 @@ static u32 judge_volume(const ocbl_volume_t* v,
         if (e) {
             fill_vol(e, v);
             e->file_size = size;
+            /* WP06a: the install-environment kernel sits at a fixed
+             * path on the medium; the menu boots it through the same
+             * mb2 ELF handoff as OCOS (BIOS + UEFI flavors). */
+            set_path(e, "/boot/ocse.elf");
             label_ctx_t l;
             lab_init(&l, e->label, OCBL_LABEL_MAX);
-            lab_add(&l, "OCSE install media (");
+            lab_add(&l, "OpenCubeOS Setup (OCSE) (");
             lab_drive(&l, v->drive);
             lab_add(&l, ")");
             *out = e;
