@@ -39,6 +39,10 @@ int ocse_part_lspart(const char* disk);
 int ocse_part_parted(const char* disk);
 int ocse_part_mkpart(const char* disk, u64 start_mib, u64 end_mib);
 int ocse_part_rmpart(const char* disk, int part_no);
+/* WP-06b: update a GPT partition's type GUID (mkfs type sync). */
+int ocse_part_gpt_set_type(const char* disk, int part_no,
+                           const u8* guid);
+
 int ocse_part_setflag(const char* disk, int part_no,
                       const char* flag, int value);
 

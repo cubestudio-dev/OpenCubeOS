@@ -274,17 +274,28 @@ static int driver_block_ata_dma_xfer(driver_block_ata_dma_drive_t *d, int is_wri
         for (u64 i = 0; i < 50000000u; i++) {
             s_last = inb(bmis);
             if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }
-            if (s_last & BMIS_DMA_INT)   { rc = 0;  break; }
-            if ((i & 0xFFFu) == 0xFFFu && s_last == 0) {
+            /* WP06b-E15: BMIS bit0 = ACTIVE (in flight), bit2 =
+             * IDE interrupt. Done = Active CLEARED (with the IDE
+             * interrupt or an idle device confirming); the old
+             * poll broke on Active SET - the in-flight window -
+             * and spun forever on transfers that completed before
+             * the first poll (every 1-sector DMA). */
+            if (!(s_last & BMIS_DMA_INT)) {
+                if (s_last & BMIS_IDE_INT) { rc = 0; break; }
                 u8 stq = inb(g_chan_base[drive] + ATA_REG_STATUS);
                 if (!(stq & ATA_SR_BSY) && !(stq & ATA_SR_DRQ)) {
-                    /* re-read once: a completing DMA may race the idle check */
+                    /* re-read once: a completing DMA may race
+                     * the idle check */
                     s_last = inb(bmis);
-                    if (s_last & BMIS_DMA_INT) { rc = 0; break; }
                     if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }
-                    rc = -5;            /* dropped: retry the sequence */
-                    break;
+                    if (s_last & BMIS_IDE_INT) { rc = 0; break; }
+                    if (!(s_last & BMIS_DMA_INT)) {
+                        rc = -5;        /* dropped: retry the sequence */
+                        break;
+                    }
+                    /* Active again (race): keep polling */
                 }
+                /* device busy, BM idle: launch latency - poll on */
             }
         }
 

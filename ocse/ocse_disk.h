@@ -56,4 +56,8 @@ void ocse_disk_scan(void);
  * "swap", "?"). */
 const char* ocse_fs_name(ocse_fs_t fs);
 
+/* WP-06b: probe a registered block device's filesystem signature
+ * (mount command auto-detection). */
+ocse_fs_t ocse_disk_probe_fs(const char* dev_name);
+
 #endif /* OCSE_DISK_H */

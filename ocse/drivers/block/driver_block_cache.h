@@ -46,6 +46,12 @@ int driver_block_cache_flush(void);
 
 /* Flush dirty blocks for a specific device. */
 int driver_block_cache_flush_dev(int dev_idx);
+/* WP06b-E14: raw-path write-back coherence (implemented in
+ * driver_block_cache.c; used by the raw I/O dispatch in
+ * driver_block_blk.c). */
+void driver_block_cache_drop(int dev_idx, u64 lba);
+void driver_block_cache_dirty_fill(int dev_idx, u64 lba,
+                                   void *buf);
 
 /* Get cache statistics. */
 void driver_block_cache_get_stats(driver_block_cache_stats_t *out);
