@@ -105,6 +105,34 @@ static ocse_fs_t classify_part(int dev_idx, const partition_t* pt) {
     }
 }
 
+/* Partition children register as "<parent>pN" block devices (the
+ * v1.0.0 stage-22 scan). They are VIEWS of a disk, not disks: the
+ * installer lists physical tables only, so a name that ends in 'p'
+ * plus digits AND whose prefix names another device is skipped. */
+static int is_partition_child(int idx, int total) {
+    driver_block_device_t* self = driver_block_get_device(idx);
+    if (!self) return 0;
+    const char* nm = self->name;
+    u32 len = 0;
+    while (nm[len]) len++;
+    /* strip trailing digits */
+    u32 end = len;
+    while (end > 0 && nm[end - 1] >= '0' && nm[end - 1] <= '9') end--;
+    if (end == 0 || end == len) return 0;      /* no digits at all */
+    if (end > 0 && nm[end - 1] != 'p') return 0;   /* not pN */
+    u32 plen = end - 1;                        /* parent name length */
+    if (plen == 0) return 0;
+    for (int j = 0; j < total; j++) {
+        if (j == idx) continue;
+        driver_block_device_t* other = driver_block_get_device(j);
+        if (!other || !other->present) continue;
+        if (strlen(other->name) != plen) continue;
+        if (memcmp(other->name, nm, plen) == 0)
+            return 1;                          /* nm = other + "pN" */
+    }
+    return 0;
+}
+
 void ocse_disk_scan(void) {
     g_ocse_ndisks = 0;
     for (int i = 0; i < OCSE_MAX_DISKS; i++) {
@@ -115,6 +143,7 @@ void ocse_disk_scan(void) {
     for (int i = 0; i < n && g_ocse_ndisks < OCSE_MAX_DISKS; i++) {
         driver_block_device_t* dev = driver_block_get_device(i);
         if (!dev || !dev->present) continue;
+        if (is_partition_child(i, n)) continue;
         ocse_disk_t* d = &g_ocse_disks[g_ocse_ndisks++];
         d->present = 1;
         for (int k = 0; k < 15 && dev->name[k]; k++)

@@ -34,8 +34,14 @@ int g_ocse_hotkey_req = 0;
 static int ocse_kbd_hotkeys(u16 key, u8 mods) {
     if ((mods & (OC_MOD_CTRL | OC_MOD_ALT)) != (OC_MOD_CTRL | OC_MOD_ALT))
         return 0;
-    if (key == OC_KEY_F2) { g_ocse_hotkey_req = 1; return 1; }
-    if (key == OC_KEY_F1) { g_ocse_hotkey_req = 2; return 1; }
+    if (key == OC_KEY_F2) {
+        ocse_serial_puts_raw("[ocse] hotkey: Ctrl+Alt+F2\r\n");
+        g_ocse_hotkey_req = 1; return 1;
+    }
+    if (key == OC_KEY_F1) {
+        ocse_serial_puts_raw("[ocse] hotkey: Ctrl+Alt+F1\r\n");
+        g_ocse_hotkey_req = 2; return 1;
+    }
     return 0;
 }
 

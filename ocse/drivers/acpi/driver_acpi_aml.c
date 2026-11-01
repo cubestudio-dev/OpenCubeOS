@@ -664,13 +664,6 @@ static int aml_invoke_method(acpi_node_t *m, acpi_value_t *args, u32 argc,
          * as a plain integer 0. The success path overwrites it. */
         ret_out->integer = 0;
     }
-    if (ret_out) {
-        ret_out->kind = AO_INTEGER;   /* WP06a-E11 (base bug 2): the
-         * early returns below used to leave *ret_out unwritten (the
-         * caller read garbage on failure); a failed call now reads
-         * as a plain integer 0. The success path overwrites it. */
-        ret_out->integer = 0;
-    }
     if (!m || m->kind != AO_METHOD || !m->aml) return -1;
     if (depth >= AML_MAX_DEPTH) {
         aml_note("method recursion limit");
