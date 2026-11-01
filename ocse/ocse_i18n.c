@@ -37,15 +37,38 @@ static const char* const g_msgs[OCSE_T_COUNT_][2] = {
     [OCSE_T_BTN_CHECK]  = { "Re-check",               "重新检测" },
     [OCSE_T_GUI_HINT]   = { "Click a button. Ctrl+Alt+F2 = command line",
                             "点击按钮，Ctrl+Alt+F2 进入命令行" },
-    [OCSE_T_CLI_BANNER] = { "OCSECL - the OCSE command line. Type 'help'.",
-                            "OCSECL —— OCSE 命令行，输入 help 查看命令。" },
-    [OCSE_T_CLI_HELP]   = { "commands: help | lang [en|zh] | hwcheck |"
-                            " disks | gui | clear | halt",
-                            "命令：help | lang [en|zh] | hwcheck | disks |"
-                            " gui | clear | halt" },
+    [OCSE_T_CLI_BANNER] = { "OCSECL - the OpenCubeOS setup command line.",
+                            "OCSECL —— OpenCubeOS 安装命令行。" },
+    [OCSE_T_CLI_HELP]   = { "Type 'help' to list commands, 'help <cmd>' for"
+                            " one command.",
+                            "输入 help 列出全部命令，help <命令> 查看单条帮助。" },
     [OCSE_T_LANG_NOW]   = { "language: English",      "语言：中文" },
     [OCSE_T_DONE]       = { "done",                   "完成" },
     [OCSE_T_HALT]       = { "halting...",             "正在关机..." },
+    [OCSE_T_REBOOTING]  = { "rebooting...",          "正在重启..." },
+    [OCSE_T_POWEROFF]   = { "powering off...",        "正在关机..." },
+    [OCSE_T_POWEROFF_NOACPI] =
+        { "power-off unsupported here - halting", "不支持关机，改为停机" },
+    [OCSE_T_P_NODISK]   = { "disk not found: ",       "未找到磁盘：" },
+    [OCSE_T_P_NOPART]   = { "no partitions on this disk", "该磁盘没有分区" },
+    [OCSE_T_P_BADPART]  = { "partition not found",   "未找到分区" },
+    [OCSE_T_P_NOTABLE]  = { "no partition table found", "未找到分区表" },
+    [OCSE_T_P_NOFREE]   = { "No free space, please clean up or shrink "
+                            "partitions manually.",
+                            "无可用空间，请手动清理或缩小分区。" },
+    [OCSE_T_P_OVERLAP]  = { "space overlaps an existing partition",
+                            "空间与已有分区重叠" },
+    [OCSE_T_P_TABLEFULL] = { "partition table is full (4 MBR slots)",
+                            "分区表已满（MBR 仅 4 个主分区）" },
+    [OCSE_T_P_CREATED]  = { "partition created",      "分区已创建" },
+    [OCSE_T_P_REMOVED]  = { "partition removed",     "分区已删除" },
+    [OCSE_T_P_FLAGSET]  = { "flag updated",          "标志已更新" },
+    [OCSE_T_P_BADFLAG]  = { "unknown flag (supported: boot)",
+                            "未知标志（支持：boot）" },
+    [OCSE_T_P_MNT_WARN] = { "partition is mounted - umount first",
+                            "分区已挂载，请先卸载" },
+    [OCSE_T_P_BADRANGE] = { "invalid range (need start < end <= disk size)",
+                            "范围无效（需 start < end ≤ 磁盘容量）" },
 };
 
 void ocse_i18n_init(void) {
