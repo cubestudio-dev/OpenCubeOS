@@ -62,6 +62,41 @@ static int find_slot(int dev_idx, u64 lba) {
     return -1;
 }
 
+/* WP06b-E14: write-back cache coherence for the raw I/O paths.
+ * cache_drop_nolock: the device was just written through the
+ * raw path - any line for this sector is stale by definition
+ * and must go (a dirty line's data is OLDER than the raw write
+ * that triggered the drop; discarding it is correct). Callers
+ * hold g_cache_lock; the public wrapper below takes it. */
+static void cache_drop_nolock(int dev_idx, u64 lba) {
+    int s = find_slot(dev_idx, lba);
+    if (s >= 0) {
+        g_cache[s].dev_idx = -1;
+        g_cache[s].dirty = 0;
+        g_cache_stats.evicts++;
+    }
+}
+
+void driver_block_cache_drop(int dev_idx, u64 lba) {
+    if (!g_cache) return;
+    spin_lock(&g_cache_lock);
+    cache_drop_nolock(dev_idx, lba);
+    spin_unlock(&g_cache_lock);
+}
+
+/* A raw READ must not serve pre-dirty device content: copy the
+ * newer dirty line over the sector just read (the line stays
+ * dirty; flush still owns the write-back). Never called while
+ * g_cache_lock is held (only from the raw READ dispatch). */
+void driver_block_cache_dirty_fill(int dev_idx, u64 lba, void *buf) {
+    if (!g_cache) return;
+    spin_lock(&g_cache_lock);
+    int s = find_slot(dev_idx, lba);
+    if (s >= 0 && g_cache[s].dirty)
+        memcpy(buf, g_cache[s].data, 512);
+    spin_unlock(&g_cache_lock);
+}
+
 /* BUG-0116 FIX: pick a victim slot. The old code picked the LRU slot,
  * fired one write-back for a dirty page and IGNORED the return value -
  * a device error silently dropped the data (the slot got reused). Now
@@ -88,8 +123,14 @@ static int pick_victim(void) {
         }
         if (vi < 0) return -1;   /* every candidate failed its write-back */
         if (!g_cache[vi].dirty) return vi;
-        if (driver_block_write_sectors_raw(g_cache[vi].dev_idx, g_cache[vi].lba, 1,
-                                           g_cache[vi].data) == 0) {
+        /* WP06b-E14: the write-back runs under g_cache_lock -
+         * use the no-coherence write and drop the line here
+         * (the plain raw write would re-enter the lock through
+         * the drop hook and deadlock the eviction). */
+        if (driver_block_write_sectors_raw_noco(g_cache[vi].dev_idx,
+                                                g_cache[vi].lba, 1,
+                                                g_cache[vi].data) == 0) {
+            cache_drop_nolock(g_cache[vi].dev_idx, g_cache[vi].lba);
             g_cache[vi].dirty = 0;
             g_cache_stats.writebacks++;
             return vi;
@@ -175,10 +216,15 @@ int driver_block_cache_flush_dev(int dev_idx) {
     spin_lock(&g_cache_lock);
     for (int i = 0; i < BLK_CACHE_SLOTS; i++) {
         if (g_cache[i].dev_idx == dev_idx && g_cache[i].dirty) {
-            if (driver_block_write_sectors_raw(dev_idx, g_cache[i].lba, 1, g_cache[i].data) != 0) {
+            /* WP06b-E14: flush holds g_cache_lock - noco write
+             * + local drop (see pick_victim above). */
+            if (driver_block_write_sectors_raw_noco(dev_idx,
+                                                    g_cache[i].lba, 1,
+                                                    g_cache[i].data) != 0) {
                 spin_unlock(&g_cache_lock);
                 return -1;
             }
+            cache_drop_nolock(dev_idx, g_cache[i].lba);
             g_cache[i].dirty = 0;
             g_cache_stats.writebacks++;
         }
@@ -192,10 +238,15 @@ int driver_block_cache_flush(void) {
     spin_lock(&g_cache_lock);
     for (int i = 0; i < BLK_CACHE_SLOTS; i++) {
         if (g_cache[i].dev_idx != -1 && g_cache[i].dirty) {
-            if (driver_block_write_sectors_raw(g_cache[i].dev_idx, g_cache[i].lba, 1, g_cache[i].data) != 0) {
+            /* WP06b-E14: flush holds g_cache_lock - noco write
+             * + local drop (see pick_victim above). */
+            if (driver_block_write_sectors_raw_noco(g_cache[i].dev_idx,
+                                                    g_cache[i].lba, 1,
+                                                    g_cache[i].data) != 0) {
                 spin_unlock(&g_cache_lock);
                 return -1;
             }
+            cache_drop_nolock(g_cache[i].dev_idx, g_cache[i].lba);
             g_cache[i].dirty = 0;
             g_cache_stats.writebacks++;
         }

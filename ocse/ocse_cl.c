@@ -16,9 +16,12 @@
 #include "ocse_detect.h"
 #include "ocse_disk.h"
 #include "ocse_part.h"
+#include "ocse_mkfs.h"
+#include "fs_vfs.h"
 #include "screen_console.h"
 #include "screen_fb.h"
 #include "driver_input_keyboard.h"
+#include "driver_block_blk.h"
 #include "core_sched.h"
 #include "core_power.h"
 #include "lib_string.h"
@@ -237,6 +240,7 @@ static int cmd_lsdisk(int argc, char** argv) {
     (void)argc; (void)argv;
     return ocse_part_lsdisk();
 }
+
 static int cmd_lspart(int argc, char** argv) {
     (void)argc;
     if (!argv[1]) { ocse_outln("usage: lspart <disk>"); return 1; }
@@ -310,6 +314,148 @@ static int cmd_setflag(int argc, char** argv) {
     return ocse_part_setflag(argv[1], n, argv[3], on);
 }
 
+/* ---- WP-06b format + mount commands ----
+ * mkfs.* keeps the BUG-0239 data-loss gate: nothing is written until
+ * the literal token `confirm` arrives as the last argument, and a
+ * mounted device is refused outright. */
+static int mkfs_dev_mounted(const char* dev) {
+    fs_vfs_mount_info_t m[VFS_MAX_MOUNTS];
+    int n = fs_vfs_get_mounts(m, VFS_MAX_MOUNTS);
+    for (int i = 0; i < n; i++)
+        if (m[i].in_use && strcmp(m[i].device, dev) == 0) return 1;
+    return 0;
+}
+
+static int cmd_mkfs_common(const char* cmd, int argc, char** argv, int fmt) {
+    if (argc < 2) {
+        ocse_out(cmd);
+        ocse_outln(": WARNING: formatting DESTROYS ALL DATA on the target device!");
+        ocse_out("  usage: ");
+        ocse_out(cmd);
+        ocse_outln(" <device> confirm");
+        return 1;
+    }
+    /* rebuild "<dev> [confirm]" for the shared gate */
+    char tail[CL_BUF];
+    strncpy(tail, argv[1], sizeof(tail) - 1);
+    tail[sizeof(tail) - 1] = 0;
+    for (int i = 2; i < argc; i++) {
+        u64 l = strlen(tail);
+        u64 al = strlen(argv[i]);
+        if (l + al + 2 > sizeof(tail)) break;
+        tail[l] = ' ';
+        tail[l + 1] = 0;
+        strcat(tail, argv[i]);
+    }
+    char dev[32];
+    if (ocse_mkfs_gate(cmd, tail, dev, sizeof(dev)) != 0) return 1;
+    if (mkfs_dev_mounted(dev)) {
+        ocse_out(cmd);
+        ocse_out(": '");
+        ocse_out(dev);
+        ocse_outln("' is mounted - umount it first");
+        return 1;
+    }
+    int idx = driver_block_find_device(dev);
+    if (idx < 0) {
+        ocse_out(cmd);
+        ocse_out(": no such device: ");
+        ocse_outln(dev);
+        return 1;
+    }
+    int rc;
+    if (fmt == OCSE_FMT_FAT32) rc = ocse_mkfs_fat32(idx);
+    else if (fmt == OCSE_FMT_EXFAT) rc = ocse_mkfs_exfat(idx);
+    else rc = ocse_mkfs_ext4(idx);
+    if (rc != 0) {
+        ocse_out(cmd);
+        ocse_out(": format failed on '");
+        ocse_out(dev);
+        ocse_outln("'");
+        return 1;
+    }
+    ocse_out(cmd);
+    ocse_out(": '");
+    ocse_out(dev);
+    ocse_outln("' formatted");
+    ocse_mkfs_sync_mbr_type(dev, fmt);
+    ocse_disk_scan();
+    return 0;
+}
+
+static int cmd_mkfs_fat32(int argc, char** argv) {
+    return cmd_mkfs_common("mkfs.fat32", argc, argv, OCSE_FMT_FAT32);
+}
+static int cmd_mkfs_exfat(int argc, char** argv) {
+    return cmd_mkfs_common("mkfs.exfat", argc, argv, OCSE_FMT_EXFAT);
+}
+static int cmd_mkfs_ext4(int argc, char** argv) {
+    return cmd_mkfs_common("mkfs.ext4", argc, argv, OCSE_FMT_EXT4);
+}
+
+static int cmd_mount(int argc, char** argv) {
+    (void)argc;
+    if (!argv[1] || !argv[2]) {
+        ocse_outln("usage: mount <device> <path>");
+        return 1;
+    }
+    const char* dev = argv[1];
+    const char* path = argv[2];
+    if (path[0] != '/') {
+        ocse_outln("mount: path must be absolute (start with '/')");
+        return 1;
+    }
+    /* fs auto-detection: the CD drive is the ISO medium; everything
+     * else is classified by its on-disk signature */
+    const char* fs = NULL;
+    if (dev[0] == 'c' && dev[1] == 'd' && dev[2] >= '0' && dev[2] <= '9') {
+        fs = "iso9660";
+    } else {
+        ocse_fs_t k = ocse_disk_probe_fs(dev);
+        if (k == OCSE_FS_FAT32) fs = "fat32";
+        else if (k == OCSE_FS_EXFAT) fs = "exfat";
+        else if (k == OCSE_FS_EXT) fs = "ext4";
+    }
+    if (!fs) {
+        ocse_out("mount: '");
+        ocse_out(dev);
+        ocse_outln("' does not carry a mountable filesystem");
+        return 1;
+    }
+    if (fs_vfs_mount(fs, path, dev) != 0) {
+        ocse_out("mount: ");
+        ocse_out(dev);
+        ocse_out(" -> ");
+        ocse_out(path);
+        ocse_outln(" failed");
+        return 1;
+    }
+    ocse_out("mounted ");
+    ocse_out(dev);
+    ocse_out(" (");
+    ocse_out(fs);
+    ocse_out(") at ");
+    ocse_outln(path);
+    return 0;
+}
+
+static int cmd_umount(int argc, char** argv) {
+    (void)argc;
+    if (!argv[1]) {
+        ocse_outln("usage: umount <path>");
+        return 1;
+    }
+    if (fs_vfs_umount(argv[1]) != 0) {
+        ocse_out("umount: ");
+        ocse_out(argv[1]);
+        ocse_outln(" failed (busy or not a mount point)");
+        return 1;
+    }
+    ocse_out("unmounted ");
+    ocse_outln(argv[1]);
+    return 0;
+}
+
 /* ---- help ---- */
 static int cmd_help(int argc, char** argv);
 
@@ -336,6 +482,11 @@ static const cl_cmd_t g_cmds[] = {
     { "mkpart",   "create a partition: mkpart <disk> <startMiB> <endMiB>", cmd_mkpart },
     { "rmpart",   "delete partition #n: rmpart <disk> <n>",  cmd_rmpart },
     { "setflag",  "set a flag: setflag <disk> <n> boot [on|off]", cmd_setflag },
+    { "mkfs.fat32", "format <device> FAT32 (DESTROYS DATA; needs 'confirm')", cmd_mkfs_fat32 },
+    { "mkfs.exfat", "format <device> exFAT (DESTROYS DATA; needs 'confirm')", cmd_mkfs_exfat },
+    { "mkfs.ext4",  "format <device> ext4 (DESTROYS DATA; needs 'confirm')", cmd_mkfs_ext4 },
+    { "mount",    "mount <device> <path> (filesystem auto-detected)", cmd_mount },
+    { "umount",   "unmount the filesystem at <path>", cmd_umount },
     { "reboot",   "flush disks and reboot the machine",     cmd_reboot },
     { "shutdown", "flush disks and power off",              cmd_shutdown },
     { "hwcheck",  "re-run the four hardware checks",         cmd_hwcheck },

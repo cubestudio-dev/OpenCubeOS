@@ -118,6 +118,14 @@ int driver_block_read_sectors_raw(int dev_idx, u64 lba, u32 count, void *buf) {
     if (!d || !d->ops || !d->ops->read) return -1;
     int rc = d->ops->read(d, lba, count, buf);
     if (rc == 0) {
+        /* WP06b-E14: a DIRTY write-back line for this sector is
+         * newer than anything the device can return - fill it
+         * over the raw data (write-back semantics). The read path
+         * never runs under g_cache_lock, so the helper may lock. */
+        u8 *out = (u8 *)buf;
+        for (u32 i = 0; i < count; i++)
+            driver_block_cache_dirty_fill(dev_idx, lba + i,
+                                          out + (u64)i * BLK_SECTOR_SIZE);
         g_blk_stats[dev_idx].reads++;
         g_blk_stats[dev_idx].read_sectors += count;
     }
@@ -125,6 +133,29 @@ int driver_block_read_sectors_raw(int dev_idx, u64 lba, u32 count, void *buf) {
 }
 
 int driver_block_write_sectors_raw(int dev_idx, u64 lba, u32 count, const void *buf) {
+    driver_block_device_t *d = driver_block_get_device(dev_idx);
+    if (!d || !d->ops || !d->ops->write) return -1;
+    int rc = d->ops->write(d, lba, count, buf);
+    if (rc == 0) {
+        /* WP06b-E14: the device now holds NEWER data than any
+         * cache line for these sectors (the raw path bypasses
+         * the write-back cache). Drop the lines - keeping them
+         * would serve stale bytes to later cached reads and a
+         * late eviction would write the stale data back OVER
+         * the fresh raw write. */
+        for (u32 i = 0; i < count; i++)
+            driver_block_cache_drop(dev_idx, lba + i);
+        g_blk_stats[dev_idx].writes++;
+        g_blk_stats[dev_idx].write_sectors += count;
+    }
+    return rc;
+}
+
+/* WP06b-E14: device write only - NO cache interaction. The
+ * write-back cache's eviction/flush paths call this while
+ * HOLDING g_cache_lock and drop the line themselves (a plain
+ * raw write would re-enter the lock and deadlock). */
+int driver_block_write_sectors_raw_noco(int dev_idx, u64 lba, u32 count, const void *buf) {
     driver_block_device_t *d = driver_block_get_device(dev_idx);
     if (!d || !d->ops || !d->ops->write) return -1;
     int rc = d->ops->write(d, lba, count, buf);

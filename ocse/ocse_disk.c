@@ -60,18 +60,22 @@ static int guid_is(const u8* g, const u8* want) {
     return 1;
 }
 
-/* Read the first sectors of a partition and classify the filesystem. */
+/* Read the first sectors of a partition and classify the filesystem.
+ * WP06b: RAW reads - the probe must see the device as it is NOW, never
+ * a write-back cache line left over from an earlier mount (the cache's
+ * raw-path coherence, WP06b-E14, covers new raw writes; a probe that
+ * bypasses the cache entirely is the belt to those braces). */
 static ocse_fs_t sniff_fs(int dev_idx, u64 start_lba) {
     static u8 sec[1536];                     /* three sectors: the ext2/3/4
                                               * superblock magic sits at byte
                                               * 1024+56 = 1080, in sector 3. */
     u64 lba = start_lba ? start_lba : 0;
     int got = -1;
-    if (driver_block_read_sectors(dev_idx, lba, 3, sec) == 0)
+    if (driver_block_read_sectors_raw(dev_idx, lba, 3, sec) == 0)
         got = 3;
-    else if (driver_block_read_sectors(dev_idx, lba, 2, sec) == 0)
+    else if (driver_block_read_sectors_raw(dev_idx, lba, 2, sec) == 0)
         got = 2;
-    else if (driver_block_read_sectors(dev_idx, lba, 1, sec) == 0)
+    else if (driver_block_read_sectors_raw(dev_idx, lba, 1, sec) == 0)
         got = 1;
     if (got < 1)
         return OCSE_FS_UNKNOWN;
@@ -173,4 +177,16 @@ void ocse_disk_scan(void) {
             }
         }
     }
+}
+
+/* WP-06b: public filesystem probe for the `mount` command - classify a
+ * registered block device (disk or partition child) by its on-disk
+ * signature. Whole disks and partition children both start their
+ * volume at their own sector 0 (children are blk-layer VIEWS), so the
+ * same sniff works for both. */
+ocse_fs_t ocse_disk_probe_fs(const char* dev_name) {
+    if (!dev_name || !dev_name[0]) return OCSE_FS_UNKNOWN;
+    int idx = driver_block_find_device(dev_name);
+    if (idx < 0) return OCSE_FS_UNKNOWN;
+    return sniff_fs(idx, 0);
 }

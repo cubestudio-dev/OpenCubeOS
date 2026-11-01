@@ -228,7 +228,7 @@ int ocse_part_lspart(const char* disk) {
         putnum(pt->mb);
         ocse_out("MiB type=0x");
         char n[8];
-        u64_to_str((u64)pt->mbr_type, n);
+        u64_to_hex((u64)pt->mbr_type, n, 2);     /* WP06b: hex, not decimal */
         ocse_out(n);
         ocse_outln("");
     }
@@ -493,6 +493,30 @@ int ocse_part_rmpart(const char* disk, int part_no) {
     ocse_outln(ocse_tr(OCSE_T_P_REMOVED));
     ocse_disk_scan();
     return 0;
+}
+
+/* WP-06b: set the GPT partition type GUID (mkfs syncs the type with
+ * the filesystem it just laid down - what mkfs on Linux leaves for
+ * parted to see). Both entry arrays are updated and the CRCs
+ * refreshed. Returns 0 on success. */
+int ocse_part_gpt_set_type(const char* disk, int part_no,
+                           const u8* guid) {
+    int dev_idx = ocse_part_disk_idx(disk);
+    if (dev_idx < 0 || part_no < 1) return 1;
+    u64 entries_lba, backup_lba, last_usable;
+    u32 nent, esz;
+    if (gpt_read_hdr(dev_idx, &entries_lba, &nent, &esz,
+                     &backup_lba, &last_usable) != 0) return 1;
+    if ((u32)part_no > nent) return 1;
+    if (gpt_read_entry(dev_idx, entries_lba, esz, part_no - 1) != 0)
+        return 1;
+    if (!g_gpt_ent[0] && !g_gpt_ent[1]) return 1;    /* unused slot */
+    memcpy(g_gpt_ent, guid, 16);
+    u64 bents = backup_lba - ((u64)nent * esz + 511) / 512;
+    if (gpt_write_entry(dev_idx, entries_lba, esz, part_no - 1) != 0)
+        return 1;
+    if (gpt_write_entry(dev_idx, bents, esz, part_no - 1) != 0) return 1;
+    return gpt_refresh_crcs(dev_idx, entries_lba, nent, esz, backup_lba);
 }
 
 int ocse_part_setflag(const char* disk, int part_no,

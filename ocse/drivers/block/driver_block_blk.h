@@ -108,6 +108,14 @@ int driver_block_write_sectors(int dev_idx, u64 lba, u32 count, const void *buf)
  * that must bypass caching (e.g. mkfs). */
 int driver_block_read_sectors_raw(int dev_idx, u64 lba, u32 count, void *buf);
 int driver_block_write_sectors_raw(int dev_idx, u64 lba, u32 count, const void *buf);
+/* WP06b-E14: device write WITHOUT any cache interaction.
+ * For the write-back cache's own eviction/flush paths, which
+ * run holding g_cache_lock (the public raw write would take
+ * it again through the drop hook). The caller drops the line
+ * itself after a successful write-back. */
+int driver_block_write_sectors_raw_noco(int dev_idx, u64 lba,
+                                        u32 count,
+                                        const void *buf);
 
 /* ---- WP-10a: pointer-based driver API (L1 extension interface) ----
  *

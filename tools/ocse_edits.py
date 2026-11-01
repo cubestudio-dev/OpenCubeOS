@@ -53,6 +53,12 @@ def edit(rel, old, new, expect=1):
     """Replace exactly `expect` occurrences of `old` with `new`."""
     global applied
     t = _rd(rel)
+    # WP06b: generic idempotency pre-check. Appending edits (new contains
+    # old, e.g. E2/E11) keep the anchor present, so the n==0 guard below
+    # never fires on a re-run and the block got duplicated. If the final
+    # text is already in the file the edit is done - skip unconditionally.
+    if new and new in t:
+        return
     n = t.count(old)
     if n == 0:
         if new and t.count(new) >= 1:      # already applied
@@ -70,6 +76,8 @@ def cut_block(rel, start_marker, replacement):
     after `start_marker` (the marker text itself is deleted too)."""
     global applied
     t = _rd(rel)
+    if replacement and replacement in t:
+        return                         # already applied
     i = t.find(start_marker)
     if i < 0:
         if replacement in t:
@@ -105,6 +113,8 @@ def cut_span(rel, start_marker, end_marker, replacement):
     """Delete text from start_marker up to AND INCLUDING end_marker."""
     global applied
     t = _rd(rel)
+    if replacement and replacement in t:
+        return                         # already applied
     i = t.find(start_marker)
     if i < 0:
         if replacement in t:
@@ -379,5 +389,422 @@ def e12_main():
 
 
 e12_main()
+
+# ---------------------------------------------------------------------------
+# E13: ext4 write path (WP-06b) - the on-disk structures and the
+# ctx/inode typedefs move VERBATIM from fs_ext4.c to fs_ext4.h so
+# ocse_ext4w.c (the new write-path module: write/mkdir/rmdir/create/
+# unlink/rename + block+inode allocation) can share them, and
+# fs_ext4_init() attaches the write ops onto the same op structures
+# the VFS registry points at (registry stores POINTERS, so one patch
+# covers both the mount root and every looked-up node).
+# ---------------------------------------------------------------------------
+def e13_ext4w():
+    global applied
+    c_rel = "ocse/fs/fs_ext4.c"
+    h_rel = "ocse/fs/fs_ext4.h"
+    c = _rd(c_rel)
+    h = _rd(h_rel)
+    if "ocse_ext4w_attach" in c and "fs_ext4_sb_t;" in h:
+        return                          # already applied
+    # 1. extract the packed on-disk struct block. The anchor CANNOT be
+    # the bare "#pragma pack(push, 1)" string: the fs_ext4.c file-header
+    # COMMENT contains that exact text ("...use #pragma pack(push, 1).
+    # All functions are static..."), and .index() on the bare string
+    # matched the comment, swallowing the comment tail + the whole
+    # include block into the move (live-caught batch 3). Anchor on the
+    # pragma PLUS the first struct's first member instead.
+    pragma_real = ("#pragma pack(push, 1)\ntypedef struct {\n"
+                   "    u32 s_inodes_count;")
+    a0 = c.index(pragma_real)
+    a1 = c.index("#pragma pack(pop)", a0) + len("#pragma pack(pop)")
+    struct_block = c[a0:a1]
+    # 2. extract the ctx + per-node typedef block
+    b0 = c.index("/* FS-wide state.")
+    b1 = c.index("} fs_ext4_inode_t;") + len("} fs_ext4_inode_t;")
+    ctx_block = c[b0:b1]
+    # 3. cut both from the .c
+    c2 = c.replace(struct_block,
+        "/* WP06b-E13: on-disk structures moved to fs_ext4.h "
+        "(shared with ocse_ext4w.c). */")
+    c2 = c2.replace(ctx_block,
+        "/* WP06b-E13: ctx/inode typedefs moved to fs_ext4.h. */")
+    # 4. attach the write ops after registration
+    anchor = ('fs_vfs_register_fs("ext4", &g_ext4_fs_ops, '
+              '&g_ext4_file_ops,\n                    &g_ext4_dir_ops);')
+    if anchor not in c2:
+        sys.exit("[edits] E13 register anchor not found")
+    c2 = c2.replace(anchor,
+        anchor + "\n    ocse_ext4w_attach(&g_ext4_file_ops, &g_ext4_dir_ops);")
+    _wr(c_rel, c2)
+    # 5. append the shared section inside the header guard
+    guard = "#endif /* OC_EXT4_H */"
+    if guard not in h:
+        sys.exit("[edits] E13 header guard not found")
+    shared = ("\n/* =========================================================\n"
+              " * WP-06b-E13: shared ext4 structures (moved verbatim from\n"
+              " * fs_ext4.c so ocse_ext4w.c - the write path - sees the same\n"
+              " * layouts; the read driver keeps its kmalloc'd copies).\n"
+              " * ========================================================= */\n"
+              "#include \"fs_vfs.h\"\n"
+              + struct_block + "\n\n" + ctx_block + "\n\n"
+              "/* WP-06b: the ext4 write path (ocse_ext4w.c). */\n"
+              "void ocse_ext4w_attach(fs_vfs_file_ops_t *file_ops,\n"
+              "                      fs_vfs_dir_ops_t *dir_ops);\n\n")
+    _wr(h_rel, h.replace(guard, shared + guard))
+    applied += 1
+
+
+e13_ext4w()
+
+# ---------------------------------------------------------------------------
+# E14: write-back cache coherence for the raw I/O paths (WP-06b,
+# live-caught in the batch-3 battery). The write-back cache had NO
+# invalidation hook: a raw WRITE (every mkfs.* path) updated the device
+# while any cache line for the same sector survived. A later CACHED
+# read (filesystem signature probing, fs metadata reads) then served
+# the PRE-format bytes - reproducible: mkfs.fat32 + mount + umount +
+# mkfs.exfat, then a cached sniff reported "fat32" and the exFAT mount
+# was never even attempted ("fat32: invalid BPB"), and a late eviction
+# could have written the stale sector back OVER the fresh raw write.
+# Fix: raw WRITE drops the line for every sector it wrote (a dirty
+# line's data is OLDER than the raw write that triggered the drop -
+# discarding it is correct); raw READ copies any dirty line over the
+# freshly read sector (write-back semantics: the line is newer than
+# the device until flushed).
+# ---------------------------------------------------------------------------
+def e14_cache_cohere():
+    global applied
+    changed = False
+    # 1. blk.h: declare the no-coherence write used by the cache's own
+    # write-back paths (it holds g_cache_lock - the plain raw write
+    # would re-enter the cache lock through the E14 drop hook and
+    # deadlock; live-caught batch 3).
+    bh_rel = "ocse/drivers/block/driver_block_blk.h"
+    bh = _rd(bh_rel)
+    if "raw_noco" not in bh:
+        anchor = ("int driver_block_write_sectors_raw(int dev_idx, u64 lba, "
+                  "u32 count, const void *buf);")
+        if anchor not in bh:
+            sys.exit("[edits] E14 blk.h anchor not found")
+        decl = ("\n/* WP06b-E14: device write WITHOUT any cache interaction.\n"
+                " * For the write-back cache's own eviction/flush paths, which\n"
+                " * run holding g_cache_lock (the public raw write would take\n"
+                " * it again through the drop hook). The caller drops the line\n"
+                " * itself after a successful write-back. */\n"
+                "int driver_block_write_sectors_raw_noco(int dev_idx, u64 lba,\n"
+                "                                        u32 count,\n"
+                "                                        const void *buf);")
+        _wr(bh_rel, bh.replace(anchor, anchor + decl))
+        changed = True
+    # 2. cache.h: declare the two public coherence helpers
+    h_rel = "ocse/drivers/block/driver_block_cache.h"
+    h = _rd(h_rel)
+    if "driver_block_cache_drop" not in h:
+        anchor = "/* Flush dirty blocks for a specific device. */\nint driver_block_cache_flush_dev(int dev_idx);"
+        if anchor not in h:
+            sys.exit("[edits] E14 cache.h anchor not found")
+        decl = ("\n/* WP06b-E14: raw-path write-back coherence (implemented in\n"
+                " * driver_block_cache.c; used by the raw I/O dispatch in\n"
+                " * driver_block_blk.c). */\n"
+                "void driver_block_cache_drop(int dev_idx, u64 lba);\n"
+                "void driver_block_cache_dirty_fill(int dev_idx, u64 lba,\n"
+                "                                   void *buf);")
+        _wr(h_rel, h.replace(anchor, anchor + decl))
+        changed = True
+    # 3. cache.c: nolock drop + public helpers + write-back swap
+    c_rel = "ocse/drivers/block/driver_block_cache.c"
+    c = _rd(c_rel)
+    if "cache_drop_nolock" not in c:
+        # 3a. the nolock helper + the public pair, in front of get_stats
+        anchor = ("/* BUG-0116 FIX: pick a victim slot. The old code picked the LRU slot,\n"
+                    " * fired one write-back for a dirty page and IGNORED the return value -")
+        if anchor not in c:
+            sys.exit("[edits] E14 cache.c get_stats anchor not found")
+        impl = (
+            "/* WP06b-E14: write-back cache coherence for the raw I/O paths.\n"
+            " * cache_drop_nolock: the device was just written through the\n"
+            " * raw path - any line for this sector is stale by definition\n"
+            " * and must go (a dirty line's data is OLDER than the raw write\n"
+            " * that triggered the drop; discarding it is correct). Callers\n"
+            " * hold g_cache_lock; the public wrapper below takes it. */\n"
+            "static void cache_drop_nolock(int dev_idx, u64 lba) {\n"
+            "    int s = find_slot(dev_idx, lba);\n"
+            "    if (s >= 0) {\n"
+            "        g_cache[s].dev_idx = -1;\n"
+            "        g_cache[s].dirty = 0;\n"
+            "        g_cache_stats.evicts++;\n"
+            "    }\n"
+            "}\n"
+            "\n"
+            "void driver_block_cache_drop(int dev_idx, u64 lba) {\n"
+            "    if (!g_cache) return;\n"
+            "    spin_lock(&g_cache_lock);\n"
+            "    cache_drop_nolock(dev_idx, lba);\n"
+            "    spin_unlock(&g_cache_lock);\n"
+            "}\n"
+            "\n"
+            "/* A raw READ must not serve pre-dirty device content: copy the\n"
+            " * newer dirty line over the sector just read (the line stays\n"
+            " * dirty; flush still owns the write-back). Never called while\n"
+            " * g_cache_lock is held (only from the raw READ dispatch). */\n"
+            "void driver_block_cache_dirty_fill(int dev_idx, u64 lba, void *buf) {\n"
+            "    if (!g_cache) return;\n"
+            "    spin_lock(&g_cache_lock);\n"
+            "    int s = find_slot(dev_idx, lba);\n"
+            "    if (s >= 0 && g_cache[s].dirty)\n"
+            "        memcpy(buf, g_cache[s].data, 512);\n"
+            "    spin_unlock(&g_cache_lock);\n"
+            "}\n"
+            "\n")
+        c = c.replace(anchor, impl + anchor)
+        # 3b. pick_victim write-back: noco write + nolock drop
+        old_pv = ("        if (!g_cache[vi].dirty) return vi;\n"
+                  "        if (driver_block_write_sectors_raw(g_cache[vi].dev_idx, g_cache[vi].lba, 1,\n"
+                  "                                           g_cache[vi].data) == 0) {\n"
+                  "            g_cache[vi].dirty = 0;\n"
+                  "            g_cache_stats.writebacks++;\n"
+                  "            return vi;\n"
+                  "        }")
+        new_pv = ("        if (!g_cache[vi].dirty) return vi;\n"
+                  "        /* WP06b-E14: the write-back runs under g_cache_lock -\n"
+                  "         * use the no-coherence write and drop the line here\n"
+                  "         * (the plain raw write would re-enter the lock through\n"
+                  "         * the drop hook and deadlock the eviction). */\n"
+                  "        if (driver_block_write_sectors_raw_noco(g_cache[vi].dev_idx,\n"
+                  "                                                g_cache[vi].lba, 1,\n"
+                  "                                                g_cache[vi].data) == 0) {\n"
+                  "            cache_drop_nolock(g_cache[vi].dev_idx, g_cache[vi].lba);\n"
+                  "            g_cache[vi].dirty = 0;\n"
+                  "            g_cache_stats.writebacks++;\n"
+                  "            return vi;\n"
+                  "        }")
+        if old_pv not in c:
+            sys.exit("[edits] E14 cache.c pick_victim anchor not found")
+        c = c.replace(old_pv, new_pv)
+        # 3c. both flush loops: same swap
+        old_fl = ("        if (g_cache[i].dev_idx == dev_idx && g_cache[i].dirty) {\n"
+                  "            if (driver_block_write_sectors_raw(dev_idx, g_cache[i].lba, 1, g_cache[i].data) != 0) {\n"
+                  "                spin_unlock(&g_cache_lock);\n"
+                  "                return -1;\n"
+                  "            }\n"
+                  "            g_cache[i].dirty = 0;\n"
+                  "            g_cache_stats.writebacks++;\n"
+                  "        }")
+        new_fl = ("        if (g_cache[i].dev_idx == dev_idx && g_cache[i].dirty) {\n"
+                  "            /* WP06b-E14: flush holds g_cache_lock - noco write\n"
+                  "             * + local drop (see pick_victim above). */\n"
+                  "            if (driver_block_write_sectors_raw_noco(dev_idx,\n"
+                  "                                                    g_cache[i].lba, 1,\n"
+                  "                                                    g_cache[i].data) != 0) {\n"
+                  "                spin_unlock(&g_cache_lock);\n"
+                  "                return -1;\n"
+                  "            }\n"
+                  "            cache_drop_nolock(dev_idx, g_cache[i].lba);\n"
+                  "            g_cache[i].dirty = 0;\n"
+                  "            g_cache_stats.writebacks++;\n"
+                  "        }")
+        if old_fl not in c:
+            sys.exit("[edits] E14 cache.c flush_dev anchor not found")
+        c = c.replace(old_fl, new_fl)
+        old_f2 = ("        if (g_cache[i].dev_idx != -1 && g_cache[i].dirty) {\n"
+                  "            if (driver_block_write_sectors_raw(g_cache[i].dev_idx, g_cache[i].lba, 1, g_cache[i].data) != 0) {\n"
+                  "                spin_unlock(&g_cache_lock);\n"
+                  "                return -1;\n"
+                  "            }\n"
+                  "            g_cache[i].dirty = 0;\n"
+                  "            g_cache_stats.writebacks++;\n"
+                  "        }")
+        new_f2 = ("        if (g_cache[i].dev_idx != -1 && g_cache[i].dirty) {\n"
+                  "            /* WP06b-E14: flush holds g_cache_lock - noco write\n"
+                  "             * + local drop (see pick_victim above). */\n"
+                  "            if (driver_block_write_sectors_raw_noco(g_cache[i].dev_idx,\n"
+                  "                                                    g_cache[i].lba, 1,\n"
+                  "                                                    g_cache[i].data) != 0) {\n"
+                  "                spin_unlock(&g_cache_lock);\n"
+                  "                return -1;\n"
+                  "            }\n"
+                  "            cache_drop_nolock(g_cache[i].dev_idx, g_cache[i].lba);\n"
+                  "            g_cache[i].dirty = 0;\n"
+                  "            g_cache_stats.writebacks++;\n"
+                  "        }")
+        if old_f2 not in c:
+            sys.exit("[edits] E14 cache.c flush anchor not found")
+        c = c.replace(old_f2, new_f2)
+        _wr(c_rel, c)
+        changed = True
+    # 4. blk.c: wire the raw dispatch + add the noco write
+    b_rel = "ocse/drivers/block/driver_block_blk.c"
+    b = _rd(b_rel)
+    if "cache_dirty_fill" not in b:
+        old_rd = (
+            "int driver_block_read_sectors_raw(int dev_idx, u64 lba, u32 count, void *buf) {\n"
+            "    driver_block_device_t *d = driver_block_get_device(dev_idx);\n"
+            "    if (!d || !d->ops || !d->ops->read) return -1;\n"
+            "    int rc = d->ops->read(d, lba, count, buf);\n"
+            "    if (rc == 0) {\n"
+            "        g_blk_stats[dev_idx].reads++;\n"
+            "        g_blk_stats[dev_idx].read_sectors += count;\n"
+            "    }\n"
+            "    return rc;\n"
+            "}")
+        new_rd = (
+            "int driver_block_read_sectors_raw(int dev_idx, u64 lba, u32 count, void *buf) {\n"
+            "    driver_block_device_t *d = driver_block_get_device(dev_idx);\n"
+            "    if (!d || !d->ops || !d->ops->read) return -1;\n"
+            "    int rc = d->ops->read(d, lba, count, buf);\n"
+            "    if (rc == 0) {\n"
+            "        /* WP06b-E14: a DIRTY write-back line for this sector is\n"
+            "         * newer than anything the device can return - fill it\n"
+            "         * over the raw data (write-back semantics). The read path\n"
+            "         * never runs under g_cache_lock, so the helper may lock. */\n"
+            "        u8 *out = (u8 *)buf;\n"
+            "        for (u32 i = 0; i < count; i++)\n"
+            "            driver_block_cache_dirty_fill(dev_idx, lba + i,\n"
+            "                                          out + (u64)i * BLK_SECTOR_SIZE);\n"
+            "        g_blk_stats[dev_idx].reads++;\n"
+            "        g_blk_stats[dev_idx].read_sectors += count;\n"
+            "    }\n"
+            "    return rc;\n"
+            "}")
+        if old_rd not in b:
+            sys.exit("[edits] E14 blk.c read anchor not found")
+        b = b.replace(old_rd, new_rd)
+        old_wr = (
+            "int driver_block_write_sectors_raw(int dev_idx, u64 lba, u32 count, const void *buf) {\n"
+            "    driver_block_device_t *d = driver_block_get_device(dev_idx);\n"
+            "    if (!d || !d->ops || !d->ops->write) return -1;\n"
+            "    int rc = d->ops->write(d, lba, count, buf);\n"
+            "    if (rc == 0) {\n"
+            "        g_blk_stats[dev_idx].writes++;\n"
+            "        g_blk_stats[dev_idx].write_sectors += count;\n"
+            "    }\n"
+            "    return rc;\n"
+            "}")
+        new_wr = (
+            "int driver_block_write_sectors_raw(int dev_idx, u64 lba, u32 count, const void *buf) {\n"
+            "    driver_block_device_t *d = driver_block_get_device(dev_idx);\n"
+            "    if (!d || !d->ops || !d->ops->write) return -1;\n"
+            "    int rc = d->ops->write(d, lba, count, buf);\n"
+            "    if (rc == 0) {\n"
+            "        /* WP06b-E14: the device now holds NEWER data than any\n"
+            "         * cache line for these sectors (the raw path bypasses\n"
+            "         * the write-back cache). Drop the lines - keeping them\n"
+            "         * would serve stale bytes to later cached reads and a\n"
+            "         * late eviction would write the stale data back OVER\n"
+            "         * the fresh raw write. */\n"
+            "        for (u32 i = 0; i < count; i++)\n"
+            "            driver_block_cache_drop(dev_idx, lba + i);\n"
+            "        g_blk_stats[dev_idx].writes++;\n"
+            "        g_blk_stats[dev_idx].write_sectors += count;\n"
+            "    }\n"
+            "    return rc;\n"
+            "}\n"
+            "\n"
+            "/* WP06b-E14: device write only - NO cache interaction. The\n"
+            " * write-back cache's eviction/flush paths call this while\n"
+            " * HOLDING g_cache_lock and drop the line themselves (a plain\n"
+            " * raw write would re-enter the lock and deadlock). */\n"
+            "int driver_block_write_sectors_raw_noco(int dev_idx, u64 lba, u32 count, const void *buf) {\n"
+            "    driver_block_device_t *d = driver_block_get_device(dev_idx);\n"
+            "    if (!d || !d->ops || !d->ops->write) return -1;\n"
+            "    int rc = d->ops->write(d, lba, count, buf);\n"
+            "    if (rc == 0) {\n"
+            "        g_blk_stats[dev_idx].writes++;\n"
+            "        g_blk_stats[dev_idx].write_sectors += count;\n"
+            "    }\n"
+            "    return rc;\n"
+            "}")
+        if old_wr not in b:
+            sys.exit("[edits] E14 blk.c write anchor not found")
+        b = b.replace(old_wr, new_wr)
+        _wr(b_rel, b)
+        changed = True
+    if changed:
+        applied += 1
+
+
+e14_cache_cohere()
+
+# ---------------------------------------------------------------------------
+# E15: BMDMA completion detection rewritten (WP-06b, live-caught in the
+# batch-3 battery). Per the PCI IDE controller spec - and QEMU's
+# implementation - BMIS bit0 is "Bus Master ACTIVE" (1 WHILE the
+# transfer runs, cleared on completion) and bit2 is the IDE interrupt.
+# The vendored poll broke on Active==1 - the IN-FLIGHT state - and read
+# success from it; when the transfer finished before the FIRST poll
+# (the normal case for a 1-sector transfer: QEMU completes the DMA
+# inside the START write) the loop saw Active=0 forever and burned its
+# whole 50M-iteration budget, 8 attempts per sector - every short DMA
+# hung the shell for minutes (mkfs.fat32 = ~1000 single-sector writes
+# = effectively forever; the "atadma: xfer FAIL rc=1 bmis=4" evidence:
+# bmis=4 = IDE INT set = transfer COMPLETE while the poll wanted
+# Active). Success is now: no error AND no longer active, confirmed by
+# the IDE interrupt or an idle device; the fix3 dropped-command
+# signature (idle device, no BM status) is preserved as the retry path.
+# ---------------------------------------------------------------------------
+def e15_dma_completion():
+    global applied
+    f_rel = "ocse/drivers/block/driver_block_ata_dma.c"
+    f = _rd(f_rel)
+    if "WP06b-E15" in f:
+        return
+    old_poll = (
+        "        rc = -1;\n"
+        "        s_last = 0;\n"
+        "        for (u64 i = 0; i < 50000000u; i++) {\n"
+        "            s_last = inb(bmis);\n"
+        "            if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }\n"
+        "            if (s_last & BMIS_DMA_INT)   { rc = 0;  break; }\n"
+        "            if ((i & 0xFFFu) == 0xFFFu && s_last == 0) {\n"
+        "                u8 stq = inb(g_chan_base[drive] + ATA_REG_STATUS);\n"
+        "                if (!(stq & ATA_SR_BSY) && !(stq & ATA_SR_DRQ)) {\n"
+        "                    /* re-read once: a completing DMA may race the idle check */\n"
+        "                    s_last = inb(bmis);\n"
+        "                    if (s_last & BMIS_DMA_INT) { rc = 0; break; }\n"
+        "                    if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }\n"
+        "                    rc = -5;            /* dropped: retry the sequence */\n"
+        "                    break;\n"
+        "                }\n"
+        "            }\n"
+        "        }")
+    new_poll = (
+        "        rc = -1;\n"
+        "        s_last = 0;\n"
+        "        for (u64 i = 0; i < 50000000u; i++) {\n"
+        "            s_last = inb(bmis);\n"
+        "            if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }\n"
+        "            /* WP06b-E15: BMIS bit0 = ACTIVE (in flight), bit2 =\n"
+        "             * IDE interrupt. Done = Active CLEARED (with the IDE\n"
+        "             * interrupt or an idle device confirming); the old\n"
+        "             * poll broke on Active SET - the in-flight window -\n"
+        "             * and spun forever on transfers that completed before\n"
+        "             * the first poll (every 1-sector DMA). */\n"
+        "            if (!(s_last & BMIS_DMA_INT)) {\n"
+        "                if (s_last & BMIS_IDE_INT) { rc = 0; break; }\n"
+        "                u8 stq = inb(g_chan_base[drive] + ATA_REG_STATUS);\n"
+        "                if (!(stq & ATA_SR_BSY) && !(stq & ATA_SR_DRQ)) {\n"
+        "                    /* re-read once: a completing DMA may race\n"
+        "                     * the idle check */\n"
+        "                    s_last = inb(bmis);\n"
+        "                    if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }\n"
+        "                    if (s_last & BMIS_IDE_INT) { rc = 0; break; }\n"
+        "                    if (!(s_last & BMIS_DMA_INT)) {\n"
+        "                        rc = -5;        /* dropped: retry the sequence */\n"
+        "                        break;\n"
+        "                    }\n"
+        "                    /* Active again (race): keep polling */\n"
+        "                }\n"
+        "                /* device busy, BM idle: launch latency - poll on */\n"
+        "            }\n"
+        "        }")
+    if old_poll not in f:
+        sys.exit("[edits] E15 poll anchor not found")
+    f = f.replace(old_poll, new_poll)
+    _wr(f_rel, f)
+    applied += 1
+
+
+e15_dma_completion()
 
 print("[ocse_edits] %d edit groups applied - OCSE tree is build-ready" % applied)
