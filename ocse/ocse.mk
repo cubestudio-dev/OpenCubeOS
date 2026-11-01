@@ -131,7 +131,7 @@ $(OCSE_ELF): $(OCSE_OBJ) $(OCSE_DIR)/linker_ocse.ld
 ocse-elf: ocse-vendor-check $(OCSE_ELF)
 
 .PHONY: ocse-iso
-ocse-iso: ocse-elf
+ocse-iso: ocse-elf ocbl-bios
 	bash tools/build_ocse_iso.sh
 
 .PHONY: ocse-clean

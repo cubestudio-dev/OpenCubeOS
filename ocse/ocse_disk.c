@@ -17,6 +17,7 @@
  * when the boot sector carries no recognizable signature.
  */
 #include "ocse_disk.h"
+#include "ocse_atapi.h"
 #include "lib_string.h"
 #include "driver_block_blk.h"
 #include "driver_block_part.h"
@@ -143,6 +144,9 @@ void ocse_disk_scan(void) {
     for (int i = 0; i < n && g_ocse_ndisks < OCSE_MAX_DISKS; i++) {
         driver_block_device_t* dev = driver_block_get_device(i);
         if (!dev || !dev->present) continue;
+        /* WP-06b: the ATAPI install medium ("cdN") is a medium, not an
+         * install target - never listed as a disk. */
+        if (ocse_atapi_is_cd_name(dev->name)) continue;
         if (is_partition_child(i, n)) continue;
         ocse_disk_t* d = &g_ocse_disks[g_ocse_ndisks++];
         d->present = 1;
