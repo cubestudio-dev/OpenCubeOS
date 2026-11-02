@@ -33,7 +33,8 @@ int ocse_mkfs_gate(const char* cmd, const char* args,
     devbuf[i] = 0;
     if (!devbuf[0]) {
         ocse_out(cmd);
-        ocse_outln(": WARNING: formatting DESTROYS ALL DATA on the target device!");
+        ocse_out(": ");
+        ocse_outln(ocse_tr(OCSE_T_M_WARN));
         ocse_out("  usage: ");
         ocse_out(cmd);
         ocse_outln(" <device> confirm");
@@ -47,9 +48,12 @@ int ocse_mkfs_gate(const char* cmd, const char* args,
     while (ti > 0 && (tail[ti - 1] == ' ' || tail[ti - 1] == '\t')) tail[--ti] = 0;
     if (args[i] || strcmp(tail, "confirm") != 0) {
         ocse_out(cmd);
-        ocse_out(": WARNING: formatting DESTROYS ALL DATA on '");
+        ocse_out(": ");
+        ocse_out(ocse_tr(OCSE_T_M_WARN));
+        ocse_out(" on '");
         ocse_out(devbuf);
-        ocse_outln("'! Nothing was written.");
+        ocse_out("'");
+        ocse_outln(ocse_tr(OCSE_T_M_CONFIRMED));
         ocse_out("  To really format, append the literal token 'confirm' as the last argument:");
         ocse_out("  usage: ");
         ocse_out(cmd);

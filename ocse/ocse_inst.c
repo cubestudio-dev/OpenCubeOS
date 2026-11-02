@@ -8,6 +8,7 @@
 #include "ocse_cl.h"
 #include "ocse_part.h"
 #include "ocse_disk.h"
+#include "ocse_i18n.h"
 #include "ocse_mkfs.h"
 #include "fs_vfs.h"
 #include "driver_block_blk.h"
@@ -63,7 +64,7 @@ int ocse_inst_ocbl(int disk_idx, const char* medium_path,
         if (first_part_lba == 0 || lba < first_part_lba) first_part_lba = lba;
     }
     if (nparts == 0 || first_part_lba == 0) {
-        ocse_outln("ocbl-install: disk has no partition table - create a partition first");
+        ocse_outln(ocse_tr(OCSE_T_O_NOPART));
         return -2;
     }
 
@@ -110,11 +111,11 @@ int ocse_inst_ocbl(int disk_idx, const char* medium_path,
     }
 
     char n[24];
-    ocse_out("ocbl-install: boot code written (stage1 @LBA0, core ");
+    ocse_out(ocse_tr(OCSE_T_O_BOOTCODE));
     u64_to_str(core_secs, n); ocse_out(n);
     ocse_out(" sectors @LBA ");
     u64_to_str(core_lba, n); ocse_out(n);
-    ocse_outln(", partition table preserved, verified)");
+    ocse_outln(ocse_tr(OCSE_T_O_VERIFIED));
     return 0;
 }
 
@@ -140,14 +141,14 @@ int ocse_inst_install(const char* disk, int part_no, int confirm,
     char dev[40];
 
     /* step 1: the medium */
-    ocse_outln("install: checking the install medium ...");
+    ocse_outln(ocse_tr(OCSE_T_I_MEDIUMCHK));
     fs_vfs_stat_t st;
     if (fs_vfs_stat(INST_TAR_PATH, &st) != 0 ||
         fs_vfs_stat(INST_MBR_PATH, &st) != 0) {
-        ocse_outln("install: FATAL - install medium incomplete (OCOS.TAR / OCBLMBR.BIN)");
+        ocse_outln(ocse_tr(OCSE_T_I_MFATAL));
         return 1;
     }
-    ocse_out("install: medium ok (ocos.tar ");
+    ocse_out(ocse_tr(OCSE_T_I_MEDIUMOK));
     u64_to_str(st.size, n); ocse_out(n);
     ocse_outln(" B)");
 
@@ -169,8 +170,9 @@ int ocse_inst_install(const char* disk, int part_no, int confirm,
     if (fs != OCSE_FS_FAT32) {
         ocse_out("install: FATAL - '");
         ocse_out(dev);
-        ocse_outln("' is not FAT32 (OCBL loads the kernel from FAT volumes;");
-        ocse_outln("install:               format it with: mkfs.fat32 <device> confirm)");
+        ocse_out("'");
+        ocse_outln(ocse_tr(OCSE_T_I_NOTFAT));
+        ocse_outln(ocse_tr(OCSE_T_I_NOTFAT2));
         return 3;
     }
 
@@ -179,23 +181,24 @@ int ocse_inst_install(const char* disk, int part_no, int confirm,
     if (inst_find_mount(dev, mount, sizeof(mount)) != 0) {
         ocse_out("install: FATAL - ");
         ocse_out(dev);
-        ocse_outln(" is not mounted (mount it first, e.g. mount <device> /mnt)");
+        ocse_outln(ocse_tr(OCSE_T_I_NOTMOUNTED));
         return 4;
     }
     ocse_out("install: target ");
     ocse_out(dev);
-    ocse_out(" (fat32) mounted at ");
+    ocse_out(ocse_tr(OCSE_T_I_TARGETW));
     ocse_outln(mount);
 
     /* step 5: the confirm gate */
     if (!confirm) {
-        ocse_outln("install: this OVERWRITES the boot area and /boot on the target - append 'confirm'");
-        ocse_outln("install: Nothing was written.");
+        ocse_outln(ocse_tr(OCSE_T_I_GATE));
+        ocse_out("install: ");
+        ocse_outln(ocse_tr(OCSE_T_M_NOWRITE));
         return 5;
     }
 
     /* step 6: extract the system image */
-    ocse_outln("install: extracting OCOS.TAR ...");
+    ocse_outln(ocse_tr(OCSE_T_I_EXTRACT));
     if (ocse_cl_tar_extract(INST_TAR_PATH, mount) != 0) {
         ocse_outln("install: FATAL - extraction failed");
         return 6;
@@ -209,12 +212,12 @@ int ocse_inst_install(const char* disk, int part_no, int confirm,
         ocse_outln("install: FATAL - /boot/opencube.elf missing after extraction");
         return 6;
     }
-    ocse_out("install: kernel in place (");
+    ocse_out(ocse_tr(OCSE_T_I_KERNELIN));
     u64_to_str(st.size, n); ocse_out(n);
     ocse_outln(" B)");
 
     /* step 7: boot code */
-    ocse_outln("install: writing the boot code ...");
+    ocse_outln(ocse_tr(OCSE_T_I_BOOTCODE));
     int didx = ocse_part_disk_idx(disk);
     if (didx < 0) return 2;
     int rc = ocse_inst_ocbl(didx, INST_MBR_PATH, work, work_sz);
@@ -230,12 +233,12 @@ int ocse_inst_install(const char* disk, int part_no, int confirm,
     }
     ocse_out("install: partition #");
     u64_to_str((u64)part_no, n); ocse_out(n);
-    ocse_outln(" marked bootable");
+    ocse_outln(ocse_tr(OCSE_T_I_BOOTABLE));
 
     ocse_outln("");
-    ocse_outln("Installation complete.");
-    ocse_outln("Remove the installation medium and boot from the disk,");
-    ocse_outln("or run: reboot");
+    ocse_outln(ocse_tr(OCSE_T_I_COMPLETE));
+    ocse_outln(ocse_tr(OCSE_T_I_REMOVE));
+    ocse_outln(ocse_tr(OCSE_T_I_REBOOT));
     return 0;
 }
 
@@ -269,7 +272,7 @@ static int conf_read(const char* path, char* buf, int cap) {
 int ocse_inst_config_show(void) {
     char mount[VFS_PATH_LEN];
     if (conf_target(mount, sizeof(mount)) != 0) {
-        ocse_outln("config: no installed system mounted (mount the FAT32 target first)");
+        ocse_outln(ocse_tr(OCSE_T_C_NOMOUNT));
         return 1;
     }
     char path[VFS_PATH_LEN];
@@ -320,13 +323,13 @@ static int conf_key_valid(const char* key, const char* value) {
 
 int ocse_inst_config_set(const char* key, const char* value) {
     if (!conf_key_valid(key, value)) {
-        ocse_outln("config: invalid key or value");
-        ocse_outln("config: keys: hostname <name> | lang en|zh | boot.slot A|B");
+        ocse_outln(ocse_tr(OCSE_T_C_INVALID));
+        ocse_outln(ocse_tr(OCSE_T_C_KEYS));
         return 1;
     }
     char mount[VFS_PATH_LEN];
     if (conf_target(mount, sizeof(mount)) != 0) {
-        ocse_outln("config: no installed system mounted (mount the FAT32 target first)");
+        ocse_outln(ocse_tr(OCSE_T_C_NOMOUNT));
         return 1;
     }
     char path[VFS_PATH_LEN];
@@ -395,6 +398,6 @@ int ocse_inst_config_set(const char* key, const char* value) {
     ocse_out(key);
     ocse_out("=");
     ocse_out(value);
-    ocse_outln(" written");
+    ocse_outln(ocse_tr(OCSE_T_C_WRITTEN));
     return 0;
 }
