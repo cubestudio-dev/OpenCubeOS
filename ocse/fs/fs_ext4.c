@@ -407,8 +407,11 @@ static fs_vfs_node_t *fs_ext4_node_from_inode(fs_ext4_ctx_t *ctx, u32 inode_num,
 static int fs_ext4_open(fs_vfs_node_t *node, int flags) {
     if (!node) return -1;
     if (node->type == VFS_TYPE_DIR) return -2;
-    /* ext4 is read-only; reject write/create flags. */
-    if (flags & (VFS_O_WRONLY | VFS_O_RDWR | VFS_O_CREAT)) return -3;
+    /* ext4 is read-only; reject write/create flags. WP06b-E16:
+     * VFS_O_RDWR == RDONLY|WRONLY, so the old mask (which ORed
+     * RDWR in) matched a pure O_RDONLY open too and refused
+     * EVERY read; the WRONLY bit alone covers both write modes. */
+    if (flags & (VFS_O_WRONLY | VFS_O_CREAT)) return -3;
     return 0;
 }
 
