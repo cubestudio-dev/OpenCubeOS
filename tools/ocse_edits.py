@@ -805,6 +805,139 @@ def e15_dma_completion():
     applied += 1
 
 
+def e16_rdonly_masks():
+    """WP06b b4: the read-only opens of fs_ext4.c rejected EVERY open.
+    VFS_O_RDWR == VFS_O_RDONLY|VFS_O_WRONLY (0x3), so a mask that ORs
+    RDWR in also matches a pure RDONLY open (bit 0). The WRONLY bit
+    alone is the write-intent indicator for both write modes. The
+    iso9660 twin of this bug (ocse_iso.c, our own file) broke every
+    /install file open - live-caught by the b4 tar battery; the ext4
+    copy is dead code while ocse_ext4w_attach() overrides .open but
+    is fixed here for hygiene (same class, same fix)."""
+    edit("ocse/fs/fs_ext4.c",
+         "    /* ext4 is read-only; reject write/create flags. */\n"
+         "    if (flags & (VFS_O_WRONLY | VFS_O_RDWR | VFS_O_CREAT)) return -3;",
+         "    /* ext4 is read-only; reject write/create flags. WP06b-E16:\n"
+         "     * VFS_O_RDWR == RDONLY|WRONLY, so the old mask (which ORed\n"
+         "     * RDWR in) matched a pure O_RDONLY open too and refused\n"
+         "     * EVERY read; the WRONLY bit alone covers both write modes. */\n"
+         "    if (flags & (VFS_O_WRONLY | VFS_O_CREAT)) return -3;")
+
+
+def e17_flush_guard():
+    """WP06b b4: flush write-back vs partition-child reentrancy.
+    A dirty line's write-back runs under g_cache_lock via the noco
+    write - but a PARTITION child device's ops->write remaps to the
+    parent through the PUBLIC raw API (d->ops->write -> the partition
+    mapper -> driver_block_write_sectors_raw on the parent), whose
+    E14 hooks (drop / dirty_fill) take g_cache_lock AGAIN: single-core
+    spin deadlock. Live-caught: `sync` after dd'ing to hdap2 spun
+    forever (RIP=spin_lock, stack flush_dev -> noco -> child write ->
+    raw write -> cache_drop). While the guard is up the hooks run
+    lockless-inline - the exact semantics the E14 eviction path
+    already uses via cache_drop_nolock."""
+    c = "ocse/drivers/block/driver_block_cache.c"
+    # 1. the guard variable
+    edit(c,
+         "static spinlock_t g_cache_lock;",
+         "static spinlock_t g_cache_lock;\n"
+         "/* WP06b-E17: flush-path reentrancy guard - see the E17 note at\n"
+         " * driver_block_cache_drop below. */\n"
+         "static volatile int g_cache_flush_guard = 0;")
+    # 2. cache_drop: guarded entry
+    edit(c,
+         "void driver_block_cache_drop(int dev_idx, u64 lba) {\n"
+         "    if (!g_cache) return;\n"
+         "    spin_lock(&g_cache_lock);\n"
+         "    cache_drop_nolock(dev_idx, lba);\n"
+         "    spin_unlock(&g_cache_lock);\n"
+         "}",
+         "void driver_block_cache_drop(int dev_idx, u64 lba) {\n"
+         "    if (!g_cache) return;\n"
+         "    /* WP06b-E17: a flush write-back through a partition child\n"
+         "     * re-enters here via the parent raw-write hook while the\n"
+         "     * caller already holds g_cache_lock - run inline instead. */\n"
+         "    if (g_cache_flush_guard) { cache_drop_nolock(dev_idx, lba); return; }\n"
+         "    spin_lock(&g_cache_lock);\n"
+         "    cache_drop_nolock(dev_idx, lba);\n"
+         "    spin_unlock(&g_cache_lock);\n"
+         "}")
+    # 3. dirty_fill: guarded entry
+    edit(c,
+         "void driver_block_cache_dirty_fill(int dev_idx, u64 lba, void *buf) {\n"
+         "    if (!g_cache) return;\n"
+         "    spin_lock(&g_cache_lock);\n"
+         "    int s = find_slot(dev_idx, lba);\n"
+         "    if (s >= 0 && g_cache[s].dirty)\n"
+         "        memcpy(buf, g_cache[s].data, 512);\n"
+         "    spin_unlock(&g_cache_lock);\n"
+         "}",
+         "void driver_block_cache_dirty_fill(int dev_idx, u64 lba, void *buf) {\n"
+         "    if (!g_cache) return;\n"
+         "    /* WP06b-E17: same reentrancy class as cache_drop (the raw\n"
+         "     * READ dispatch can be reached from a flush write-back\n"
+         "     * through a partition child). Inline, lockless. */\n"
+         "    if (g_cache_flush_guard) {\n"
+         "        int s = find_slot(dev_idx, lba);\n"
+         "        if (s >= 0 && g_cache[s].dirty)\n"
+         "            memcpy(buf, g_cache[s].data, 512);\n"
+         "        return;\n"
+         "    }\n"
+         "    spin_lock(&g_cache_lock);\n"
+         "    int s = find_slot(dev_idx, lba);\n"
+         "    if (s >= 0 && g_cache[s].dirty)\n"
+         "        memcpy(buf, g_cache[s].data, 512);\n"
+         "    spin_unlock(&g_cache_lock);\n"
+         "}")
+    # 4. pick_victim write-back: raise the guard around the noco write
+    edit(c,
+         "        if (driver_block_write_sectors_raw_noco(g_cache[vi].dev_idx,\n"
+         "                                                g_cache[vi].lba, 1,\n"
+         "                                                g_cache[vi].data) == 0) {",
+         "        g_cache_flush_guard = 1;      /* WP06b-E17 */\n"
+         "        int wbrc = driver_block_write_sectors_raw_noco(g_cache[vi].dev_idx,\n"
+         "                                                g_cache[vi].lba, 1,\n"
+         "                                                g_cache[vi].data);\n"
+         "        g_cache_flush_guard = 0;\n"
+         "        if (wbrc == 0) {")
+    # 5. flush_dev write-back
+    edit(c,
+         "            if (driver_block_write_sectors_raw_noco(dev_idx,\n"
+         "                                                    g_cache[i].lba, 1,\n"
+         "                                                    g_cache[i].data) != 0) {\n"
+         "                spin_unlock(&g_cache_lock);\n"
+         "                return -1;\n"
+         "            }",
+         "            g_cache_flush_guard = 1;  /* WP06b-E17 */\n"
+         "            int wbrc = driver_block_write_sectors_raw_noco(dev_idx,\n"
+         "                                                    g_cache[i].lba, 1,\n"
+         "                                                    g_cache[i].data);\n"
+         "            g_cache_flush_guard = 0;\n"
+         "            if (wbrc != 0) {\n"
+         "                spin_unlock(&g_cache_lock);\n"
+         "                return -1;\n"
+         "            }")
+    # 6. flush-all write-back
+    edit(c,
+         "            if (driver_block_write_sectors_raw_noco(g_cache[i].dev_idx,\n"
+         "                                                    g_cache[i].lba, 1,\n"
+         "                                                    g_cache[i].data) != 0) {\n"
+         "                spin_unlock(&g_cache_lock);\n"
+         "                return -1;\n"
+         "            }",
+         "            g_cache_flush_guard = 1;  /* WP06b-E17 */\n"
+         "            int wbrc = driver_block_write_sectors_raw_noco(g_cache[i].dev_idx,\n"
+         "                                                    g_cache[i].lba, 1,\n"
+         "                                                    g_cache[i].data);\n"
+         "            g_cache_flush_guard = 0;\n"
+         "            if (wbrc != 0) {\n"
+         "                spin_unlock(&g_cache_lock);\n"
+         "                return -1;\n"
+         "            }")
+
+
+e17_flush_guard()
+e16_rdonly_masks()
 e15_dma_completion()
 
 print("[ocse_edits] %d edit groups applied - OCSE tree is build-ready" % applied)

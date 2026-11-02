@@ -32,6 +32,9 @@ static u64 g_cache_clock = 0;   /* monotonic counter for LRU */
  * semantics). Raw device I/O inside pick_victim/flush uses the RAW path,
  * which never re-enters this lock, so the critical sections are flat. */
 static spinlock_t g_cache_lock;
+/* WP06b-E17: flush-path reentrancy guard - see the E17 note at
+ * driver_block_cache_drop below. */
+static volatile int g_cache_flush_guard = 0;
 
 void driver_block_cache_init(void) {
     spin_init(&g_cache_lock);
@@ -79,6 +82,10 @@ static void cache_drop_nolock(int dev_idx, u64 lba) {
 
 void driver_block_cache_drop(int dev_idx, u64 lba) {
     if (!g_cache) return;
+    /* WP06b-E17: a flush write-back through a partition child
+     * re-enters here via the parent raw-write hook while the
+     * caller already holds g_cache_lock - run inline instead. */
+    if (g_cache_flush_guard) { cache_drop_nolock(dev_idx, lba); return; }
     spin_lock(&g_cache_lock);
     cache_drop_nolock(dev_idx, lba);
     spin_unlock(&g_cache_lock);
@@ -90,6 +97,15 @@ void driver_block_cache_drop(int dev_idx, u64 lba) {
  * g_cache_lock is held (only from the raw READ dispatch). */
 void driver_block_cache_dirty_fill(int dev_idx, u64 lba, void *buf) {
     if (!g_cache) return;
+    /* WP06b-E17: same reentrancy class as cache_drop (the raw
+     * READ dispatch can be reached from a flush write-back
+     * through a partition child). Inline, lockless. */
+    if (g_cache_flush_guard) {
+        int s = find_slot(dev_idx, lba);
+        if (s >= 0 && g_cache[s].dirty)
+            memcpy(buf, g_cache[s].data, 512);
+        return;
+    }
     spin_lock(&g_cache_lock);
     int s = find_slot(dev_idx, lba);
     if (s >= 0 && g_cache[s].dirty)
@@ -127,9 +143,12 @@ static int pick_victim(void) {
          * use the no-coherence write and drop the line here
          * (the plain raw write would re-enter the lock through
          * the drop hook and deadlock the eviction). */
-        if (driver_block_write_sectors_raw_noco(g_cache[vi].dev_idx,
+        g_cache_flush_guard = 1;      /* WP06b-E17 */
+        int wbrc = driver_block_write_sectors_raw_noco(g_cache[vi].dev_idx,
                                                 g_cache[vi].lba, 1,
-                                                g_cache[vi].data) == 0) {
+                                                g_cache[vi].data);
+        g_cache_flush_guard = 0;
+        if (wbrc == 0) {
             cache_drop_nolock(g_cache[vi].dev_idx, g_cache[vi].lba);
             g_cache[vi].dirty = 0;
             g_cache_stats.writebacks++;
@@ -218,9 +237,12 @@ int driver_block_cache_flush_dev(int dev_idx) {
         if (g_cache[i].dev_idx == dev_idx && g_cache[i].dirty) {
             /* WP06b-E14: flush holds g_cache_lock - noco write
              * + local drop (see pick_victim above). */
-            if (driver_block_write_sectors_raw_noco(dev_idx,
+            g_cache_flush_guard = 1;  /* WP06b-E17 */
+            int wbrc = driver_block_write_sectors_raw_noco(dev_idx,
                                                     g_cache[i].lba, 1,
-                                                    g_cache[i].data) != 0) {
+                                                    g_cache[i].data);
+            g_cache_flush_guard = 0;
+            if (wbrc != 0) {
                 spin_unlock(&g_cache_lock);
                 return -1;
             }
@@ -240,9 +262,12 @@ int driver_block_cache_flush(void) {
         if (g_cache[i].dev_idx != -1 && g_cache[i].dirty) {
             /* WP06b-E14: flush holds g_cache_lock - noco write
              * + local drop (see pick_victim above). */
-            if (driver_block_write_sectors_raw_noco(g_cache[i].dev_idx,
+            g_cache_flush_guard = 1;  /* WP06b-E17 */
+            int wbrc = driver_block_write_sectors_raw_noco(g_cache[i].dev_idx,
                                                     g_cache[i].lba, 1,
-                                                    g_cache[i].data) != 0) {
+                                                    g_cache[i].data);
+            g_cache_flush_guard = 0;
+            if (wbrc != 0) {
                 spin_unlock(&g_cache_lock);
                 return -1;
             }

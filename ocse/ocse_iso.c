@@ -146,7 +146,13 @@ static fs_vfs_node_t* iso_new_node(iso_ctx_t* ctx, const char* name,
 
 static int iso_file_open(fs_vfs_node_t* node, int flags) {
     (void)node;
-    if (flags & (VFS_O_WRONLY | VFS_O_RDWR)) return -1;  /* read-only fs */
+    /* WP06b b4: read-only fs. VFS_O_RDWR == RDONLY|WRONLY, so the plain
+     * WRONLY bit is the write-intent indicator for BOTH write modes; the
+     * old mask (WRONLY|RDWR) == 0x3 also matched a pure O_RDONLY open
+     * (bit 0) and made EVERY read of an install-medium file fail with
+     * "cannot open" - only stat() ever touched /install before, so the
+     * b1 chain never noticed. Live-caught by the b4 tar battery. */
+    if (flags & (VFS_O_WRONLY | VFS_O_CREAT)) return -1;  /* read-only fs */
     return 0;
 }
 
@@ -156,7 +162,17 @@ static int iso_file_read(fs_vfs_node_t* node, u64 offset, void* buf, int size) {
     if (offset >= in->size) return 0;
     u32 want = (u32)size;
     if (want > in->size - (u32)offset) want = in->size - (u32)offset;
-    if (iso_read_extent(in->ctx, in->lba, in->size, (u32)offset, buf) != 0)
+    /* WP06b b4: pass the READ WINDOW END (offset+want), not the extent
+     * size. iso_read_extent(ctx, lba, end, off, buf) copies bytes
+     * [off, end); the old call handed it in->size, so every read of a
+     * file LARGER than the caller's buffer flooded it with the whole
+     * rest of the file (cat of the 2 MB OCOS.TAR ran 2 MB into a
+     * 64 KiB buffer, flattening the .bss tail until the write hit the
+     * read-only boot page tables -> triple fault). Small files never
+     * noticed: reading them whole made size == offset+want by
+     * accident. Live-caught by the b4 battery; stack walk pinned the
+     * faulting memcpy to iso_read_extent with done=0x25000. */
+    if (iso_read_extent(in->ctx, in->lba, (u32)offset + want, (u32)offset, buf) != 0)
         return -1;
     return (int)want;
 }

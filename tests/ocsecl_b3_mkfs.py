@@ -229,9 +229,10 @@ hcheck("root dirent '..'", (ino, rec, nl, ft) == (2, 12, 2, 2))
 ino, rec, nl, ft = struct.unpack_from("<IHBB", rb, 24)
 hcheck("root dirent lost+found", (ino, rec, nl) == (11, 4096 - 24, 10)
        and rb[32:42] == b"lost+found")
-# root inode (itable block 4, offset 2*256): size 4096, 1 extent -> 132
+# root inode (itable block 4, offset (2-1)*256): size 4096, 1 extent -> 132
+# (slot N-1 holds inode N - fixed with the mkfs off-by-one, b4 battery)
 itb = p1[4 * bsz:5 * bsz]
-rino = itb[2 * 256:3 * 256]
+rino = itb[1 * 256:2 * 256]
 mode, = struct.unpack_from("<H", rino, 0)
 size, = struct.unpack_from("<I", rino, 4)
 links, = struct.unpack_from("<H", rino, 26)

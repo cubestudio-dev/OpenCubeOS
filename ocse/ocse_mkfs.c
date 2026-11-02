@@ -423,14 +423,22 @@ int ocse_mkfs_ext4(int dev_idx) {
         g_e4_block[b / 8] |= (u8)(1u << (b % 8));
     if (e4_write_block(dev_idx, ibitmap, g_e4_block) != 0) return -1;
 
-    /* ---- blocks 4..: inode table (group 0) ---- */
+    /* ---- blocks 4..: inode table (group 0) ----
+     * Slot i holds inode i+1 (ext4 numbers inodes from 1; e2fsprogs and
+     * the read/write drivers both address inode N at slot N-1). B3's
+     * battery never read the volume back through the driver, so the
+     * original loop compared the SLOT INDEX against the inode NUMBER -
+     * root(2) landed in inode 3's slot and every post-mount read saw
+     * zeros. Live-caught by the b4 file battery ("cd /mnt: not a
+     * directory"; the mount root stat'd as a size-0 FILE). */
     for (u32 i = 0; i < EXT4_IPG; i++) {
+        u32 ino_num = i + 1;
         u64 blk = itable + (u64)(i * EXT4_ISZ) / EXT4_BSZ;
         u64 off = (u64)(i * EXT4_ISZ) % EXT4_BSZ;
         if (off == 0) {
             memset(g_e4_block, 0, sizeof(g_e4_block));
         }
-        if (i == EXT4_ROOT_INO) {
+        if (ino_num == EXT4_ROOT_INO) {
             /* root directory inode */
             u8* ino = g_e4_block + off;
             e4_wr16(ino + 0, 0x41ED);          /* drwxr-xr-x */
@@ -450,7 +458,7 @@ int ocse_mkfs_ext4(int dev_idx) {
             e4_wr16(ino + 56, 1);
             e4_wr16(ino + 58, (u16)((first_free) >> 32));
             e4_wr32(ino + 60, (u32)(first_free));
-        } else if (i == EXT4_LPF_INO) {
+        } else if (ino_num == EXT4_LPF_INO) {
             u8* ino = g_e4_block + off;
             e4_wr16(ino + 0, 0x41C0);          /* drwx------ */
             e4_wr32(ino + 4, EXT4_BSZ);
