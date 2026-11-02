@@ -21,6 +21,10 @@ if [ ! -f "$BUILD/ocse/ocse.elf" ]; then
     echo "[ocse_iso] FATAL: $BUILD/ocse/ocse.elf missing (make ocse-elf)" >&2
     exit 1
 fi
+
+# WP06b b4 lesson: no .bss variable may reach the boot-structure zone
+# (page tables + boot stack live at the top of .bss; ~140 B headroom).
+python3 "$OC_ROOT/tools/check_bss.py" "$BUILD/ocse/ocse.elf" || exit 1
 if [ ! -f "$BUILD/ocbl/ocbl_bios.bin" ] || \
    [ ! -f "$BUILD/ocbl/ocbl_x64.efi" ]; then
     echo "[ocse_iso] FATAL: OCBL images missing (make ocbl-bios ocbl-efi)" >&2

@@ -14,4 +14,9 @@
  * types `gui` or presses Ctrl+Alt+F1 (main performs the switch). */
 int ocse_cl_loop(void);
 
+/* WP-06b batch-5: shared ustar extract engine (the `install` state
+ * machine in ocse_inst.c calls this). Archive/destdir are paths as
+ * the user would type them; returns a command exit code. */
+int ocse_cl_tar_extract(const char* archive, const char* destdir);
+
 #endif /* OCSE_CL_H */

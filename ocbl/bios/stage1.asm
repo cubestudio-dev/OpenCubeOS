@@ -115,35 +115,71 @@ start:
 
 %ifdef OCBL_MBR
         ; ---- disk flavor: the core is NOT preloaded - raw-read it
+        ; WP06b b5 live-caught: every DAP field below used to sit +2
+        ; off the packet layout (sectors landed in the buffer-offset
+        ; slot, the buffer offset in the segment slot, the LBA words
+        ; one slot late) - AH=42h saw a zero block count and failed,
+        ; the silent MBR halt followed, and the installed disk never
+        ; spoke. The MBR flavor had never actually been booted before
+        ; (WP-06a's T6 fixture booted the El Torito flavor from the
+        ; CD and only READ the disk). Fixed to the spec layout:
+        ;   +0 u8 size / +1 u8 reserved / +2 u16 blocks / +4 u16 buf
+        ;   offset / +6 u16 buf segment / +8 u64 LBA
         mov     ax, 0x0060                    ; DAP at linear 0x600
         mov     es, ax
         xor     si, si
         mov     word [es:si+0], 0x0010
-        mov     word [es:si+2], 0
         mov     ax, [PATCH_SECTORS]
-        mov     word [es:si+4], ax
-        mov     word [es:si+6], 0x7E00       ; target offset
-        mov     word [es:si+8], 0x0000       ; target segment -> 0x7E00
+        mov     word [es:si+2], ax            ; blocks to transfer
+        mov     word [es:si+4], 0x7E00        ; buffer offset
+        mov     word [es:si+6], 0x0000        ; buffer segment -> 0x7E00
         mov     ax, [PATCH_LBA_LO]
-        mov     word [es:si+10], ax
+        mov     word [es:si+8], ax            ; LBA bits 0-15
+        mov     ax, [PATCH_LBA_LO+2]
+        mov     word [es:si+10], ax           ; LBA bits 16-31
         mov     ax, [PATCH_LBA_HI]
-        mov     word [es:si+12], ax
-        mov     word [es:si+14], 0
+        mov     word [es:si+12], ax           ; LBA bits 32-47
+        mov     ax, [PATCH_LBA_HI+2]
+        mov     word [es:si+14], ax           ; LBA bits 48-63
+        ; WP06b b5 live-caught #3: AH=42h takes the DAP from DS:SI.
+        ; DS is 0x07C0 here (the PATCH_* labels) - point it at the
+        ; real DAP at linear 0x600 for the call, restore afterwards.
+        push    ds
+        xor     ax, ax
+        mov     ds, ax
+        mov     si, 0x600                       ; DS:SI = 0x0000:0x0600
         mov     ah, 0x42
         int     0x13                          ; dl = boot drive from entry
         jnc     .read_ok
-        xor     ax, ax                        ; reset + one retry
-        int     0x13
+        ; WP06b b5 live-caught #2: do NOT reset-and-retry. On QEMU's
+        ; IDE + SeaBIOS the first few extended reads fail while the
+        ; BIOS still tries DMA; SeaBIOS falls back to PIO only after
+        ; ~5 failed attempts, and an AH=00 drive reset CLEARS that
+        ; fallback state - reset+retry looped forever (8/8 failures
+        ; with a reset before every read; 5 fails then steady success
+        ; with plain retries). Retry without touching the drive.
+        mov     bp, dx                        ; keep the boot drive (DL) safe
+        mov     bx, 12                        ; attempt budget
+        mov     cx, 12                        ; io-wait iterations
+.rtry:
+        mov     dx, 0x1ED                     ; ISA POST-style pause port
+.w1:    out     dx, al
+        loop    .w1
+        mov     dx, bp                        ; restore DL = boot drive
         mov     ah, 0x42
         int     0x13
         jnc     .read_ok
+        mov     cx, 12
+        dec     bx
+        jnz     .rtry
 .hang_r:                                ; MBR stage1 is deliberately silent
         hlt                                   ; (512B budget; the industry
         jmp     .hang_r                       ;  pattern - GRUB boot.img and
                                                 ;  ISOLINUX stage1 carry no
                                                 ;  strings; core speaks after)
 .read_ok:
-        xor     ax, ax
+        pop     ds                            ; back to 0x07C0 for the
+        xor     ax, ax                        ; gdt_desc / label addressing
         mov     es, ax
 %endif
 

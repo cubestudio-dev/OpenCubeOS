@@ -18,6 +18,7 @@
 #include "ocse_part.h"
 #include "ocse_mkfs.h"
 #include "ocse_sha256.h"
+#include "ocse_inst.h"
 #include "fs_vfs.h"
 #include "lib_tar.h"
 #include "screen_console.h"
@@ -1046,42 +1047,17 @@ static int cl_tar_cb(void* vctx, const char* epath, int type, u64 size,
     return 0;
 }
 
-static int cmd_tar(int argc, char** argv) {
-    if (argc < 3) {
-        ocse_outln("usage: tar -t <archive>             list entries");
-        ocse_outln("       tar -x <archive> [destdir]   extract");
-        return 1;
-    }
-    int list;
-    if (strcmp(argv[1], "-t") == 0) list = 1;
-    else if (strcmp(argv[1], "-x") == 0) list = 0;
-    else { ocse_outln("tar: mode must be -t (list) or -x (extract)"); return 1; }
-    const char* dest = (argc >= 4) ? argv[3] : NULL;
-    char apath[VFS_PATH_LEN];
-    if (cl_resolve(argv[2], apath, sizeof(apath)) != 0) {
-        ocse_outln("tar: bad archive path");
-        return 1;
-    }
+/* Shared engine (the `install` state machine calls the extract side
+ * too). apath/base are resolved ABSOLUTE paths; base empty = entry
+ * paths as-is, "/" normalized to empty. */
+static int tar_run(const char* apath, const char* base, int list) {
     cl_tar_ctx ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.list = list;
     ctx.fd = -1;
-    if (!list) {
-        if (!dest) {
-            strncpy(ctx.base, g_cwd, sizeof(ctx.base) - 1);
-            ctx.base[sizeof(ctx.base) - 1] = 0;
-        } else {
-            if (cl_resolve(dest, ctx.base, sizeof(ctx.base)) != 0) {
-                ocse_outln("tar: bad destdir");
-                return 1;
-            }
-            fs_vfs_stat_t st;
-            if (fs_vfs_stat(ctx.base, &st) != 0 || st.type != VFS_TYPE_DIR) {
-                ocse_outln("tar: destdir is not a directory");
-                return 1;
-            }
-            if (strcmp(ctx.base, "/") == 0) ctx.base[0] = 0;
-        }
+    if (base && base[0]) {
+        strncpy(ctx.base, base, sizeof(ctx.base) - 1);
+        ctx.base[sizeof(ctx.base) - 1] = 0;
     }
     int fd = fs_vfs_open(apath, VFS_O_RDONLY);
     if (fd < 0) {
@@ -1111,6 +1087,65 @@ static int cmd_tar(int argc, char** argv) {
         return 1;
     }
     return 0;
+}
+
+/* Public extract entry for the installer (ocse_inst.c). */
+int ocse_cl_tar_extract(const char* archive, const char* destdir) {
+    char apath[VFS_PATH_LEN];
+    char base[VFS_PATH_LEN];
+    if (cl_resolve(archive, apath, sizeof(apath)) != 0) {
+        ocse_outln("tar: bad archive path");
+        return 1;
+    }
+    if (!destdir || cl_resolve(destdir, base, sizeof(base)) != 0) {
+        ocse_outln("tar: bad destdir");
+        return 1;
+    }
+    fs_vfs_stat_t st;
+    if (fs_vfs_stat(base, &st) != 0 || st.type != VFS_TYPE_DIR) {
+        ocse_outln("tar: destdir is not a directory");
+        return 1;
+    }
+    if (strcmp(base, "/") == 0) base[0] = 0;
+    return tar_run(apath, base, 0);
+}
+
+static int cmd_tar(int argc, char** argv) {
+    if (argc < 3) {
+        ocse_outln("usage: tar -t <archive>             list entries");
+        ocse_outln("       tar -x <archive> [destdir]   extract");
+        return 1;
+    }
+    int list;
+    if (strcmp(argv[1], "-t") == 0) list = 1;
+    else if (strcmp(argv[1], "-x") == 0) list = 0;
+    else { ocse_outln("tar: mode must be -t (list) or -x (extract)"); return 1; }
+    const char* dest = (argc >= 4) ? argv[3] : NULL;
+    char apath[VFS_PATH_LEN];
+    if (cl_resolve(argv[2], apath, sizeof(apath)) != 0) {
+        ocse_outln("tar: bad archive path");
+        return 1;
+    }
+    char base[VFS_PATH_LEN];
+    base[0] = 0;
+    if (!list) {
+        if (!dest) {
+            strncpy(base, g_cwd, sizeof(base) - 1);
+            base[sizeof(base) - 1] = 0;
+        } else {
+            if (cl_resolve(dest, base, sizeof(base)) != 0) {
+                ocse_outln("tar: bad destdir");
+                return 1;
+            }
+            fs_vfs_stat_t st;
+            if (fs_vfs_stat(base, &st) != 0 || st.type != VFS_TYPE_DIR) {
+                ocse_outln("tar: destdir is not a directory");
+                return 1;
+            }
+            if (strcmp(base, "/") == 0) base[0] = 0;
+        }
+    }
+    return tar_run(apath, base, list);
 }
 
 /* ---- dd: block copy between devices and files ---- */
@@ -1360,6 +1395,64 @@ static int cmd_sha256sum(int argc, char** argv) {
     return 0;
 }
 
+/* ---- WP-06b batch-5: the installer commands ---- */
+static int cmd_ocbl_install(int argc, char** argv) {
+    if (argc < 2) {
+        ocse_outln("ocbl-install: writes the OCBL boot code - append 'confirm'");
+        ocse_outln("usage: ocbl-install <disk> confirm");
+        return 1;
+    }
+    int confirm = (argc >= 3 && strcmp(argv[2], "confirm") == 0);
+    if (!confirm) {
+        ocse_outln("ocbl-install: OVERWRITES the boot area - append 'confirm'");
+        ocse_outln("ocbl-install: Nothing was written.");
+        return 1;
+    }
+    int idx = ocse_part_disk_idx(argv[1]);
+    if (idx < 0) {
+        ocse_out("ocbl-install: no such disk: ");
+        ocse_outln(argv[1]);
+        return 1;
+    }
+    return (ocse_inst_ocbl(idx, "/install/OCBLMBR.BIN",
+                           g_io_buf, CL_IOBUF_SZ) == 0) ? 0 : 1;
+}
+
+static int cmd_install(int argc, char** argv) {
+    if (argc < 3) {
+        ocse_outln("usage: install <disk> <n> confirm");
+        ocse_outln("       (target partition must be FAT32 and mounted)");
+        return 1;
+    }
+    int n = 0, i = 0;
+    while (argv[2][i] >= '0' && argv[2][i] <= '9' && i < 4) {
+        n = n * 10 + (argv[2][i] - '0'); i++;
+    }
+    if (argv[2][i] || i == 0 || n < 1) {
+        ocse_outln("install: bad partition number");
+        return 1;
+    }
+    int confirm = (argc >= 4 && strcmp(argv[3], "confirm") == 0);
+    return ocse_inst_install(argv[1], n, confirm, g_io_buf, CL_IOBUF_SZ);
+}
+
+static int cmd_config(int argc, char** argv) {
+    if (argc >= 2 && strcmp(argv[1], "set") == 0) {
+        if (argc != 4) {
+            ocse_outln("usage: config set <key> <value>");
+            ocse_outln("       keys: hostname <name> | lang en|zh | boot.slot A|B");
+            return 1;
+        }
+        return ocse_inst_config_set(argv[2], argv[3]);
+    }
+    if (argc >= 2) {
+        ocse_outln("usage: config                show the installed config");
+        ocse_outln("       config set <key> <value>");
+        return 1;
+    }
+    return ocse_inst_config_show();
+}
+
 /* ---- sync: flush the whole block cache to the media ---- */
 static int cmd_sync(int argc, char** argv) {
     (void)argc; (void)argv;
@@ -1413,6 +1506,9 @@ static const cl_cmd_t g_cmds[] = {
     { "tar",      "ustar tool: tar -t <arc> | tar -x <arc> [dir]", cmd_tar },
     { "dd",       "block copy: dd if= of= [bs= count= skip= seek=] [confirm]", cmd_dd },
     { "sha256sum", "SHA-256 digest: sha256sum <file> | <dev> <sectors>", cmd_sha256sum },
+    { "install",  "install OCOS onto a partition: install <disk> <n> confirm", cmd_install },
+    { "ocbl-install", "write the OCBL boot code: ocbl-install <disk> confirm", cmd_ocbl_install },
+    { "config",   "show/edit the installed config: config [set <k> <v>]", cmd_config },
     { "sync",     "flush the block cache to the disks",         cmd_sync },
     { "reboot",   "flush disks and reboot the machine",     cmd_reboot },
     { "shutdown", "flush disks and power off",              cmd_shutdown },
