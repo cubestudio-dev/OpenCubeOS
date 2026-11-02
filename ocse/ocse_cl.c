@@ -430,7 +430,8 @@ static int cmd_mkfs_common(const char* cmd, int argc, char** argv, int fmt) {
         ocse_out(cmd);
         ocse_out(": '");
         ocse_out(dev);
-        ocse_outln("' is mounted - umount it first");
+        ocse_out("'");
+        ocse_outln(ocse_tr(OCSE_T_M_MOUNTED));
         return 1;
     }
     int idx = driver_block_find_device(dev);
@@ -446,15 +447,17 @@ static int cmd_mkfs_common(const char* cmd, int argc, char** argv, int fmt) {
     else rc = ocse_mkfs_ext4(idx);
     if (rc != 0) {
         ocse_out(cmd);
-        ocse_out(": format failed on '");
+        ocse_out(": '");
         ocse_out(dev);
-        ocse_outln("'");
+        ocse_out("' ");
+        ocse_outln(ocse_tr(OCSE_T_M_FMTFAIL));
         return 1;
     }
     ocse_out(cmd);
     ocse_out(": '");
     ocse_out(dev);
-    ocse_outln("' formatted");
+    ocse_out("' ");
+    ocse_outln(ocse_tr(OCSE_T_M_FORMATTED));
     ocse_mkfs_sync_mbr_type(dev, fmt);
     ocse_disk_scan();
     return 0;
@@ -496,7 +499,8 @@ static int cmd_mount(int argc, char** argv) {
     if (!fs) {
         ocse_out("mount: '");
         ocse_out(dev);
-        ocse_outln("' does not carry a mountable filesystem");
+        ocse_out("'");
+        ocse_outln(ocse_tr(OCSE_T_M_NOFS));
         return 1;
     }
     if (fs_vfs_mount(fs, path, dev) != 0) {
@@ -507,11 +511,11 @@ static int cmd_mount(int argc, char** argv) {
         ocse_outln(" failed");
         return 1;
     }
-    ocse_out("mounted ");
+    ocse_out(ocse_tr(OCSE_T_M_MOUNTEDW));
     ocse_out(dev);
     ocse_out(" (");
     ocse_out(fs);
-    ocse_out(") at ");
+    ocse_out(ocse_tr(OCSE_T_M_MNTAT));
     ocse_outln(path);
     return 0;
 }
@@ -525,10 +529,10 @@ static int cmd_umount(int argc, char** argv) {
     if (fs_vfs_umount(argv[1]) != 0) {
         ocse_out("umount: ");
         ocse_out(argv[1]);
-        ocse_outln(" failed (busy or not a mount point)");
+        ocse_outln(ocse_tr(OCSE_T_M_UMNTFAIL));
         return 1;
     }
-    ocse_out("unmounted ");
+    ocse_out(ocse_tr(OCSE_T_M_UNMOUNTEDW));
     ocse_outln(argv[1]);
     return 0;
 }
@@ -1240,7 +1244,8 @@ static int cmd_dd(int argc, char** argv) {
         if (!confirm) {
             if (in.fd >= 0) fs_vfs_close(in.fd);
             ocse_outln("dd: writing a raw device DESTROYS DATA - append 'confirm' to proceed");
-            ocse_outln("dd: Nothing was written.");
+            ocse_out("dd: ");
+            ocse_outln(ocse_tr(OCSE_T_M_NOWRITE));
             return 1;
         }
     }
@@ -1457,7 +1462,7 @@ static int cmd_config(int argc, char** argv) {
 static int cmd_sync(int argc, char** argv) {
     (void)argc; (void)argv;
     core_power_flush_blk();
-    ocse_outln("sync: block cache flushed");
+    ocse_outln(ocse_tr(OCSE_T_S_FLUSHED));
     return 0;
 }
 
