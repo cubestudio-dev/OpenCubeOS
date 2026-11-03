@@ -7,8 +7,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title data-i18n="title.index">Open Cube OS 3.0.0-WP06 (development preview) - a from-scratch x86_64 kernel that boots into ring 3</title>
-<meta name="description" content="Open Cube OS 3.0.0-WP06 development preview: a complete, self-contained x86_64 kernel that boots straight into its ring-3 service surface (ush, 285 commands). 20 SYS_L1SVC service categories / 190 ops, 54 syscalls, TCP/IP + TLS + SSH, 16 driver families, OTA A/B updates. Apache 2.0.">
+<title data-i18n="title.index">Open Cube OS 3.0.0-WP06c (development preview) - a from-scratch x86_64 kernel that boots into ring 3</title>
+<meta name="description" content="Open Cube OS 3.0.0-WP06c development preview: a pure L0 service kernel (OCBL bootloader, no shell, no TUI) that boots straight into its ring-3 world - the ush shell with 285 commands. 20 SYS_L1SVC service categories / 190 ops, 54 syscalls, TCP/IP + TLS + SSH, 16 driver families, OTA A/B updates. Apache 2.0.">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3E%3C/text%3E%3C/svg%3E">
 <script>
@@ -51,7 +51,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
       <h1><span data-i18n="hero.h1a">A from-scratch</span><br>
           <span data-i18n="hero.h1b">x86_64 kernel.</span><br>
           <span class="accent" data-i18n="hero.h1c">Boots into ring 3.</span></h1>
-      <p class="tagline" data-i18n-html="hero.tagline"><b>Open Cube OS</b> 3.0.0-WP06 (development preview) boots through its kernel (L0), launches the default ring-3 application &mdash; the <b><code>ush</code></b> user shell with <b id="stat-cmds">285</b> commands over the SYS_L1SVC service surface &mdash; and falls back to a WinRE-style recovery shell (<b><code>oc&gt;</code></b>) whenever the ring-3 world cannot start. Not a Linux fork: <b id="stat-lines2">128,890</b> lines of original code, Apache&nbsp;2.0.</p>
+      <p class="tagline" data-i18n-html="hero.tagline"><b>Open Cube OS</b> 3.0.0-WP06c (development preview) boots through its own bootloader and kernel (L0), then hands the machine to the default ring-3 application &mdash; the <b><code>ush</code></b> user shell with <b id="stat-cmds">285</b> commands riding the SYS_L1SVC service surface. L0 is a pure service kernel: no shell, no commands, no TUI. Not a Linux fork: <b id="stat-lines2">128,890</b> lines of original code, Apache&nbsp;2.0.</p>
       <div class="btn-row">
         <a class="btn btn-primary" href="download.html" data-i18n="hero.download">⬇️ Download the ISO</a>
         <a class="btn btn-ghost" href="docs/" data-i18n="hero.docs">Documentation →</a>
@@ -60,24 +60,15 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
     <div class="terminal-card">
       <div class="bar">
         <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-        <span class="t" data-i18n="hero.term.title">qemu — Open Cube OS 3.0.0-WP06</span>
+        <span class="t" data-i18n="hero.term.title">qemu — Open Cube OS 3.0.0-WP06c</span>
       </div>
-      <pre class="term-anim" id="hero-term"><span class="d">[oc] Open Cube OS 3.0.0-WP06 kmain entered</span>
-<span class="d">boot complete .................... OK</span>
-<span class="d">crash recovery armed ............. OK</span>
-<span class="g">l1 launcher: booting 'ush' (ring 3, 53800 bytes)</span>
+      <pre class="term-anim" id="hero-term"><span class="d">[oc] Open Cube OS 3.0.0-WP06c kmain entered</span>
+<span class="d">[00:00:02.550] boot complete..................... OK</span>
+<span class="d">[00:00:02.560] L0 ready, waiting for L1.......... OK</span>
+<span class="g">l1 launcher: booting 'ush' (ring 3, 18968 bytes)</span>
 
-<span class="d">Open Cube OS User-space Shell (WP-08)</span>
-<span class="c">ush&gt;</span> mounts
-<span class="a">VFS mount table:
-  /  ramfs</span>
-<span class="c">ush&gt;</span> lsblk
-<span class="a">Block devices: (none attached)</span>
-<span class="c">ush&gt;</span> cryptotest
-<span class="a">AES-128-GCM NIST vectors: PASS (all)</span>
-<span class="c">ush&gt;</span> exit
-<span class="g">l1 launcher: default L1 app exited; recovery shell taking over</span>
-<span class="c">oc&gt;</span> <span class="d">&#9608;</span></pre>
+<span class="d">Open Cube OS User-space Shell (ush)</span>
+<span class="c">ush&gt;</span> <span class="d">&#9608;</span></pre>
     </div>
   </div>
 </section>
@@ -96,8 +87,8 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
     <h2 data-i18n="feat.h2">Features</h2>
     <p class="sub" data-i18n-html="feat.sub">A real kernel, not a demo: preemptive scheduling, four-level paging, ring-3 processes, a VFS over four filesystems, a full TCP/IP stack with TLS and SSH (client <i>and</i> server), 16 driver families, crash dumps, hardware watchdogs, and OTA A/B updates.</p>
     <div class="feat-grid">
-      <div class="feat"><div class="k" data-i18n="feat.k.boot">boot</div><h3 data-i18n="feat.boot.h">Hybrid BIOS + UEFI</h3>
-        <p data-i18n="feat.boot.p">One ISO boots both firmware paths through GRUB 2.12, with an A/B slot menu and the kernel attached as its own install payload.</p></div>
+      <div class="feat"><div class="k" data-i18n="feat.k.boot">boot</div><h3 data-i18n="feat.boot.h">OCBL - the in-tree bootloader</h3>
+        <p data-i18n="feat.boot.p">One ISO boots both firmware paths through OCBL, the self-written bootloader (16&rarr;32&rarr;64-bit long mode, dynamic disk scan) - no GRUB anywhere in the 3.0.0 chain.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.memory">memory</div><h3 data-i18n="feat.mem.h">PMM / VMM / heap</h3>
         <p data-i18n="feat.mem.p">Bitmap physical manager over the multiboot2 map, 4-level paging, kmalloc with coalescing and stack/heap growth by page fault.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.cpu">cpu</div><h3 data-i18n="feat.cpu.h">Preemptive scheduler</h3>
@@ -112,10 +103,10 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
         <p data-i18n="feat.usb.p">UHCI, OHCI, EHCI and xHCI host controllers with MSC, HID, serial and audio classes - hotplug included.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.reliability">reliability</div><h3 data-i18n="feat.rel.h">Crash + watchdogs</h3>
         <p data-i18n="feat.rel.p">Register dumps to serial and crashlogs to /etc, Intel TCO and ACPI WDAT hardware watchdogs, policy watchdog slots, health alarms and JSON export.</p></div>
-      <div class="feat"><div class="k" data-i18n="feat.k.shell">shell</div><h3 data-i18n="feat.shell.h">Two shells</h3>
-        <p data-i18n="feat.shell.p">ush boots in ring 3 with 133 service commands plus built-ins (pipes, jobs, wildcards, aliases, editor); the oc> recovery shell keeps 99 commands for when the ring-3 world cannot start.</p></div>
-      <div class="feat"><div class="k" data-i18n="feat.k.tui">tui</div><h3 data-i18n="feat.tui.h">Terminal UI</h3>
-        <p data-i18n="feat.tui.p">Desktop, taskbar, menus, forms, editor and system apps on the framebuffer - plus a Chinese console layer with a pinyin IME.</p></div>
+      <div class="feat"><div class="k" data-i18n="feat.k.shell">shell</div><h3 data-i18n="feat.shell.h">One shell, all ring 3</h3>
+        <p data-i18n="feat.shell.p">ush is the only shell: 274 registry apps (one command = one app = one folder under src/L1/) plus 11 built-ins with pipes, jobs, wildcards, aliases and an editor. The 2.x L0 recovery shell was removed in WP-03 - L0 has no shell at all.</p></div>
+      <div class="feat"><div class="k" data-i18n="feat.k.tui">tui</div><h3 data-i18n="feat.tui.h">Terminal UI - an L1 world</h3>
+        <p data-i18n="feat.tui.p">Desktop, taskbar, menus, forms, editor and system apps ride the L1SVC tui service from ring 3 - plus a Chinese console layer with a pinyin IME, all under src/L1/.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.ota">ota</div><h3 data-i18n="feat.ota.h">A/B updates</h3>
         <p data-i18n="feat.ota.p">Manifest-driven OTA with SHA256 + signature verification, staged install onto the inactive slot, automatic rollback.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.l1">l1</div><h3 data-i18n="feat.l1.h">20 services / 190 ops</h3>
@@ -127,7 +118,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
 <section class="section alt" id="quickstart">
   <div class="wrap">
     <h2 data-i18n="qs.h2">Quick start</h2>
-    <p class="sub" data-i18n-html="qs.sub">From download to an <code>oc&gt;</code> prompt in about a minute. Any machine with QEMU works; real hardware boots the same ISO from USB.</p>
+    <p class="sub" data-i18n-html="qs.sub">From download to a <code>ush&gt;</code> prompt in about a minute. Any machine with QEMU works; real hardware boots the same ISO from USB.</p>
     <div class="steps">
       <div class="step"><div class="n">1</div><div>
         <h3 data-i18n="qs.s1.h">Boot the ISO in QEMU</h3>
@@ -137,18 +128,18 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
       </div></div>
       <div class="step"><div class="n">2</div><div>
         <h3 data-i18n="qs.s2.h">Watch it come up</h3>
-        <p data-i18n="qs.s2.p">One <code>OK</code> line per subsystem: multiboot2 handshake, long mode, framebuffer, IDT, PIT, PMM, drivers, VFS, network, shell.</p>
-        <div class="cmd"><span class="c">[00:00:00.000]</span> multiboot2 handshake ......... OK
-<span class="c">[00:00:01.710]</span> service registry: 17 services collected . OK
-Open Cube OS ready. Type 'help' for commands.</div>
+        <p data-i18n="qs.s2.p">One <code>OK</code> line per subsystem: the OCBL handoff, long mode, framebuffer, IDT, PIT, PMM, drivers, VFS, network - then <code>L0 ready, waiting for L1</code>.</p>
+        <div class="cmd"><span class="c">[00:00:02.480]</span> disk subsystem (block dev + cache + partition + FS). OK
+<span class="c">[00:00:02.560]</span> L0 ready, waiting for L1.......... OK
+<span class="c">l1 launcher:</span> booting 'ush' (ring 3, 18968 bytes)</div>
       </div></div>
       <div class="step"><div class="n">3</div><div>
         <h3 data-i18n="qs.s3.h">Drive the machine</h3>
-        <p data-i18n="qs.s3.p">Bring up networking, pull a page, inspect the system - all from the recovery shell.</p>
-        <div class="cmd"><span class="c">oc&gt;</span> dhcp &amp;&amp; ping 10.0.2.2
-<span class="c">oc&gt;</span> wget 10.0.2.2
-<span class="c">oc&gt;</span> dmesg
-<span class="c">oc&gt;</span> help -a</div>
+        <p data-i18n="qs.s3.p">Bring up networking, pull a page, inspect the system - every command is a ring-3 app served from the registry.</p>
+        <div class="cmd"><span class="c">ush&gt;</span> dhcp &amp;&amp; ping 10.0.2.2
+<span class="c">ush&gt;</span> wget 10.0.2.2
+<span class="c">ush&gt;</span> dmesg
+<span class="c">ush&gt;</span> help -a</div>
       </div></div>
       <div class="step"><div class="n">4</div><div>
         <h3 data-i18n="qs.s4.h">Go deeper</h3>
@@ -164,19 +155,19 @@ Open Cube OS ready. Type 'help' for commands.</div>
 <section class="section" id="shots">
   <div class="wrap">
     <h2 data-i18n="shots.h2">It really runs</h2>
-    <p class="sub" data-i18n="shots.sub">Captured from the release ISO in QEMU - the BIOS and the UEFI boot path, straight to the shell prompt.</p>
+    <p class="sub" data-i18n="shots.sub">Captured from the 3.0.0-WP06c release ISO in QEMU - the BIOS and the UEFI boot path, through OCBL to the ring-3 ush prompt.</p>
     <div class="shots">
       <div class="shot">
         <img src="assets/shot-bios.png" width="800" height="600"
-             alt="Open Cube OS booted in QEMU via legacy BIOS, showing the kernel boot log and the oc&gt; shell prompt"
+             alt="Open Cube OS 3.0.0-WP06c booted in QEMU via legacy BIOS: the OCBL handoff, the L0 boot log ending at L0 ready waiting for L1, and the ush shell prompt"
              data-i18n-alt="shots.bios.alt">
-        <div class="cap"><span data-i18n="shots.bios">Legacy BIOS boot</span><span class="tag">800&times;600</span></div>
+        <div class="cap"><span data-i18n="shots.bios">Legacy BIOS boot - 3.0.0-WP06c</span><span class="tag">800&times;600</span></div>
       </div>
       <div class="shot">
         <img src="assets/shot-uefi.png" width="800" height="600"
-             alt="Open Cube OS booted in QEMU via UEFI (OVMF), showing the kernel boot log and the oc&gt; shell prompt"
+             alt="Open Cube OS 3.0.0-WP06c booted in QEMU via UEFI (OVMF): the same L0 boot log and the ring-3 ush shell prompt"
              data-i18n-alt="shots.uefi.alt">
-        <div class="cap"><span data-i18n="shots.uefi">UEFI boot (OVMF)</span><span class="tag">800&times;600</span></div>
+        <div class="cap"><span data-i18n="shots.uefi">UEFI boot (OVMF) - 3.0.0-WP06c</span><span class="tag">800&times;600</span></div>
       </div>
     </div>
   </div>
@@ -185,17 +176,17 @@ Open Cube OS ready. Type 'help' for commands.</div>
 <section class="section alt" id="layered">
   <div class="wrap">
     <h2 data-i18n="layer.h2">The two-layer idea</h2>
-    <p class="sub" data-i18n-html="layer.sub">&ldquo;Everything is extensible&rdquo; is the whole design: L0 is a complete kernel and nothing more; everything users actually see above the shell is meant to be an L1 module riding the surface.</p>
+    <p class="sub" data-i18n-html="layer.sub">&ldquo;Everything is extensible&rdquo; is the whole design: L0 is a pure service kernel and nothing more; everything users actually see - the shell, the TUI desktop, the editor, the IME - is an L1 program riding the surface.</p>
     <div class="feat-grid">
-      <div class="feat"><div class="k" data-i18n="feat.k.l0">l0</div><h3 data-i18n="layer.l0.h">Open Cube OS</h3>
-        <p data-i18n-html="layer.l0.p">The kernel + the <code>oc&gt;</code> recovery shell. Boots, diagnoses, repairs, installs, updates. This repository.</p></div>
-      <div class="feat"><div class="k" data-i18n="feat.k.l1">l1</div><h3 data-i18n="layer.l1.h">Upper extensions</h3>
-        <p data-i18n="layer.l1.p">The ring-3 service world - ush, ld.so and the dynamic-linking programs ship in-tree under l1apps/; every operational command class runs behind the 17-service SYS_L1SVC surface.</p></div>
+      <div class="feat"><div class="k" data-i18n="feat.k.l0">l0</div><h3 data-i18n="layer.l0.h">OCOS - the service kernel</h3>
+        <p data-i18n-html="layer.l0.p">Kernel + drivers + root services + the numbered L1SVC interface. Boots, serves, recovers - and stops there: no shell, no commands, no TUI, no IME in L0 (the 2.x recovery shell was removed in WP-03). This repository.</p></div>
+      <div class="feat"><div class="k" data-i18n="feat.k.l1">l1</div><h3 data-i18n="layer.l1.h">The ring-3 world</h3>
+        <p data-i18n="layer.l1.p">275 programs under <b>src/L1/</b>: ush, the TUI desktop, the editor, the Chinese console + IME and one command per app - every operational command class runs behind the 20-service SYS_L1SVC surface.</p></div>
       <div class="feat"><div class="k" data-i18n="feat.k.goal">goal</div><h3 data-i18n="layer.goal.h">Cube OS = L0 + L1</h3>
         <p data-i18n="layer.goal.p">The roadmap: a complete, daily-usable system assembled from the kernel below and the extension ecosystem above.</p></div>
       <div class="feat" style="background:var(--accent-soft);border-color:var(--accent)">
         <div class="k" data-i18n="feat.k.all">deep dive</div><h3 data-i18n="feat.all.h">See the whole picture</h3>
-        <p data-i18n="feat.all.p">Boot flow, every kernel subsystem, the TUI desktop and the 17-service L1SVC surface, each on its own page.</p>
+        <p data-i18n="feat.all.p">OCBL boot flow, every L0 subsystem, the L1 program world and the 20-service L1SVC surface, each on its own page.</p>
         <div class="btn-row" style="margin:12px 0 0">
           <a class="btn btn-ghost" href="architecture.html" data-i18n="feat.all.btn">Architecture deep dive →</a>
         </div>

@@ -216,7 +216,28 @@
         href(k + "-url", ast.url);
       }
 
-      /* history table: current release row + the history array */
+      /* WP06e: the development-preview pair (SITE_DATA.dev) */
+      if (d.dev && d.dev.assets) {
+        var da = d.dev.assets;
+        var drows = ["oc", "ocse"];
+        for (var r2 = 0; r2 < drows.length; r2++) {
+          var kk = drows[r2];
+          var dst = da[kk];
+          if (!dst) continue;
+          text("dev-" + kk + "-name", dst.name);
+          var dSizeEl = $("dev-" + kk + "-size");
+          if (dSizeEl) {
+            dSizeEl.textContent = dst.size_h + " (" + fmt(dst.size) +
+              (window.OC_LANG === "zh" ? " \u5B57\u8282)" : " bytes)");
+          }
+          text("dev-" + kk + "-sha", "SHA256: " + dst.sha256);
+          href("dev-" + kk + "-url", dst.url);
+        }
+      }
+
+      /* history table: current release row + the history array. WP06e:
+         an entry may carry its own iso_url (milestones whose asset is
+         not opencube-<version>.iso, e.g. the OCIRE ISO). */
       var body = $("hist-body");
       if (body) {
         var html = "";
@@ -226,11 +247,22 @@
                   "</td><td>" + fmt(a.iso.size) +
                   "</td><td class='sha'>" + a.iso.sha256 + "</td></tr>";
         }
+        if (d.dev && d.dev.version) {
+          var dv = d.dev.assets && d.dev.assets.opencube;
+          html += "<tr><td class='v'>" + d.dev.version + "</td><td>" +
+                  d.dev.date + "</td><td><a href='" +
+                  (dv ? dv.url : "#") + "'>iso</a></td><td>" +
+                  (dv ? fmt(dv.size) : "-") +
+                  "</td><td class='sha'>" + (dv ? dv.sha256 : "-") +
+                  "</td></tr>";
+        }
         for (var h = 0; h < (d.history || []).length; h++) {
           var e = d.history[h];
+          var isoRef = e.iso_url
+            ? "<a href='" + e.iso_url + "'>iso</a>"
+            : "<a href='downloads/opencube-" + e.version + ".iso'>iso</a>";
           html += "<tr><td class='v'>" + e.version + "</td><td>" + e.date +
-                  "</td><td><a href='downloads/opencube-" + e.version +
-                  ".iso'>iso</a></td><td>" + fmt(e.iso_size) +
+                  "</td><td>" + isoRef + "</td><td>" + fmt(e.iso_size) +
                   "</td><td class='sha'>" + e.iso_sha + "</td></tr>";
         }
         body.innerHTML = html;
@@ -260,6 +292,35 @@
         });
       })(shas[s2]);
     }
+  }
+
+  /* =================== download channel tabs (WP06e) =================== */
+  var tabDev = document.getElementById("tab-dev");
+  var tabStable = document.getElementById("tab-stable");
+  var panelDev = document.getElementById("panel-dev");
+  var panelStable = document.getElementById("panel-stable");
+  function setChannel(which) {
+    var dev = which !== "stable";
+    if (tabDev) {
+      tabDev.classList.toggle("active", dev);
+      tabDev.setAttribute("aria-pressed", dev ? "true" : "false");
+    }
+    if (tabStable) {
+      tabStable.classList.toggle("active", !dev);
+      tabStable.setAttribute("aria-pressed", !dev ? "true" : "false");
+    }
+    if (panelDev) panelDev.hidden = !dev;
+    if (panelStable) panelStable.hidden = dev;
+    try { localStorage.setItem("oc-dl-channel", dev ? "dev" : "stable"); }
+    catch (e) { /* private mode */ }
+  }
+  if (tabDev && tabStable) {
+    tabDev.addEventListener("click", function () { setChannel("dev"); });
+    tabStable.addEventListener("click", function () { setChannel("stable"); });
+    var storedChannel = null;
+    try { storedChannel = localStorage.getItem("oc-dl-channel"); }
+    catch (e) { /* private mode */ }
+    if (storedChannel === "stable") setChannel("stable");
   }
 
   /* =================== 2.0.0 motion layer ===================
