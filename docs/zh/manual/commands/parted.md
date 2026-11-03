@@ -8,6 +8,8 @@
 
 `parted` - ring-3 half of the v2.2.0 `parted` command
 
+**用法：** `parted &lt;disk&gt;`
+
 领域：[其他](index.md#other)
 
 完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。

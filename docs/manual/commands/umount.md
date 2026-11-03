@@ -8,6 +8,8 @@
 
 `umount` - ring-3 half of the v2.2.0 `umount` command
 
+**Usage:** `umount &lt;path&gt;`
+
 Domain: [Other](index.md#other)
 
 Full command index: [commands](index.md) - or `help -a` /

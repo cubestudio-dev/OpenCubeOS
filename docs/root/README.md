@@ -4,20 +4,17 @@
 
 # Open Cube OS
 
-**A from-scratch x86_64 kernel with a WinRE-style recovery shell.**
+**A from-scratch x86_64 kernel that boots into ring 3.**
 
-Current release: **v2.2.0** - the fix batch closing both 2.1.0 open
-items with real kernel root-cause fixes (no test-side workarounds):
-the wp10_tui post-suite kernel-stack **#DF** (the deepest real call
-chain, `checkupdate` HTTPS x509/RSA over a 6-page kthread stack,
-overflowed into the guard page - stacks now 10 pages with the measured
-worst chain documented) and the **wait4-vs-fork** flake (stale-zombie
-collection after tid reuse - orphan-detach bookkeeping, verified 20/20
-fresh boots). Also: the 2.0.0 mirror assets restored, and the release
-build-id caliber stated exactly in three places (see
-[Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)).
+Current development preview: **3.0.0-WP06c** - the OCBL bootloader, a
+pure L0 service kernel (no shell, no TUI, no IME in L0), 275 ring-3
+programs under `src/L1/`, and the OCSE install environment with the
+9-step GUI install wizard (every wizard mutation is a real OCSECL
+command, en/zh). Stable line: **2.2.0** (the last formal release of
+the 2.x world, kept for reference and real-hardware stability). See
+[Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases).
 
-`oc>` is the prompt. Everything is extensible.
+`ush>` is the prompt. Everything is extensible.
 
 [Website](https://ocos.cubestudio.cn/) ·
 [Documentation](https://ocos.cubestudio.cn/docs/) ·
@@ -32,44 +29,50 @@ build-id caliber stated exactly in three places (see
 
 ## What it is
 
-Open Cube OS is **L0 + L1**: a complete, self-contained 64-bit kernel
-that boots on real hardware and in QEMU, launches its default ring-3
-application (the ush user shell, **251 commands** across the L0
-recovery shell and the L1 service surface), and falls back to the
-recovery-shell prompt (`oc>`) when the ring-3 world cannot start.
+Open Cube OS is **L0 + L1**:
 
-- **Not a Linux fork.** 130,526 lines of original C/assembly under
+- **L0 provides services.** A pure service kernel - the boot chain,
+  the core mechanisms, the drivers, the root services and the numbered
+  interface. 3.0.0-WP03 deleted the L0 user plane entirely (the 2.x
+  `oc>` recovery shell, the in-kernel TUI, the input method engine);
+  L0 finishes boot at `L0 ready, waiting for L1` and hands the machine
+  to the default ring-3 entry.
+- **L1 uses services.** 275 ring-3 programs under `src/L1/` (242 app
+  folders + 8 flat `.c` + 25 flat `.asm`): the default boot entry is
+  the `ush` user shell (**285 commands = 274 registry apps + 11
+  built-ins, zero commands in L0**), plus the TUI desktop, the editor,
+  the Chinese console + pinyin IME and one command per app.
+
+- **Not a Linux fork.** 128,890 lines of original C/assembly under
   Apache 2.0 (verify: see *Stats* below).
-- **Boots everywhere the PC platform goes:** hybrid BIOS + UEFI ISO,
-  512 MiB RAM is comfortable, disk optional.
+- **Boots everywhere the PC platform goes:** one hybrid BIOS + UEFI
+  ISO through OCBL, the in-tree bootloader (512-byte real-mode stage 1
+  / EFI entry, 16→32→64-bit long mode, dynamic disk scan) - 512 MiB
+  RAM is comfortable, disk optional.
 - **A real kernel:** preemptive scheduler, 4-level paging, ring-3 user
   programs with 54 syscalls, VFS over FAT32/exFAT/ext4/ramfs, a full
-  TCP/IP stack with TLS 1.2/1.3 and SSH (client *and* server), 16
+  TCP/IP stack with TLS 1.2/1.3 and SSH (client *and* server), 15
   driver families from NVMe to xHCI to ACPI AML, crash dumps, hardware
   watchdog (Intel TCO / ACPI WDAT), OTA A/B updates.
-- **A recovery shell by design:** the system *is* the WinRE-style
-  environment - boot, diagnose, repair, install, update.
+- **Honest by design:** if the ring-3 world cannot start, L0 says so
+  and halts - the guidance is a reboot or the OCBL boot menu (there is
+  deliberately no L0 shell to fall back to).
 
 The two-layer architecture:
 
 ```
-L0  Open Cube OS        kernel + oc> recovery shell     <- this repo
-L1  ring-3 services     17 SYS_L1SVC categories / 158 ops + ush
+L0  OCOS (src/L0/)     kernel + drivers + root services + the
+                       numbered L1SVC ABI - no shell, no TUI
+L1  the world (src/L1/)  275 programs: ush, TUI, editor, IME,
+                       one command per app (285 commands)
 ```
-
-2.0.0 ships the L1 side in-tree: `l1apps/` holds the ring-3
-applications (ush - the default boot entry - plus ld.so and the
-dynamic-linking test programs), and every operational command class
-moved behind the SYS_L1SVC service surface
-([INTERFACES.md](INTERFACES.md) - the v1->v2 mapping table is the
-compatibility contract).
 
 ## Highlights
 
 | Area | What you get |
 |------|--------------|
-| Boot | GRUB 2.12 hybrid ISO (BIOS El Torito + UEFI image), multiboot2 with the kernel attached as a `self` module, A/B slot menu |
-| Memory | PMM bitmap over the multiboot2 map, 4-level VMM, kmalloc heap with real growth via #PF |
+| Boot | OCBL - the in-tree bootloader: hybrid BIOS + UEFI ISO, 16→32→64-bit long mode, dynamic disk scan, boot menu with a 10 s countdown (no GRUB in the 3.0.0 chain) |
+| Memory | PMM bitmap over the boot memory map, 4-level VMM, kmalloc heap with real growth via #PF |
 | CPU | Preemptive priority + round-robin scheduler, 256-gate IDT with IST stacks, 100 Hz PIT + HPET/PM-timer/TSC sources, LAPIC |
 | Ring 3 | ELF loader, 54 syscalls, signals, fork/exec/pipes/select/mmap, dynamic linking (in-tree ld.so, PIE, dlsym); SYS_L1SVC + SYS_NETCMD service bridges |
 | Storage | AHCI, ATA/ATA-DMA, NVMe, virtio-blk, USB MSC, SCSI (LSI); FAT32 with LFN, exFAT, ext4, ramfs; GPT/MBR partitions; A/B slots |
@@ -77,10 +80,12 @@ compatibility contract).
 | USB | UHCI, OHCI, EHCI, xHCI; mass storage, HID, serial, audio classes |
 | Media | HDA / AC97 / SB16 / ES1370 / virtio sound; UVC cameras with MJPEG |
 | Platform | ACPI (FADT/DSDT/MCFG, real AML walker, S3 suspend/resume), Intel TCO + ACPI WDAT hardware watchdogs, HPET, i2c/SMBus |
-| Shell | ush (ring 3, default boot entry): 133 service commands + built-ins with pipes/redirection/wildcards/env/aliases/jobs; oc> recovery shell: 99 commands |
-| TUI | Desktop, taskbar, menus, forms, editor, system apps - plus a Chinese console layer (16x16 font, pinyin IME) |
+| Shell | ush (ring 3, the default boot entry): 274 registry apps + 11 built-ins with pipes/redirection/wildcards/env/aliases/jobs; zero commands in L0 (the 2.x recovery shell was removed in WP-03) |
+| TUI | Desktop, taskbar, menus, forms, editor, system apps - ring-3 programs under src/L1/ riding the L1SVC tui service, plus a Chinese console layer (16x16 font, pinyin IME) |
 | Reliability | Crash dumps to serial + /etc crashlog, kernel log with rotation + levels + filters, health monitor (CPU/mem/tasks/IO + JSON export), OTA with SHA256 + signatures and rollback |
-| OCIRE | Independent recovery kernel (3.0.0 development): a second L0 kernel in `ocire/` that shares no code with the OCOS kernel, boots standalone from its own ISO or from a GRUB dual-boot menu, and stores its image in an isolated partition OCOS cannot read or write (see `docs/dev/ocire.md`) |
+| OCBL | The in-tree bootloader (`ocbl/`): BIOS stage 1 (El Torito / MBR) + UEFI entry, the boot menu, the installer target (`ocbl-install`) |
+| OCSE | The install-environment kernel (`src/L0` sibling, own build): boots standalone, runs the 9-step GUI install wizard + OCSECL - every mutation a real command |
+| OCIRE | The independent recovery kernel (`ocire/`): a second L0 that shares no code with OCOS, boots standalone from its own ISO, stores its image in an isolated partition OCOS cannot read or write (see `docs/dev/ocire.md`) |
 
 ## Quick start
 
@@ -99,7 +104,6 @@ ush> dhcp
 ush> ping 10.0.2.2
 ush> wget 10.0.2.2
 ush> uname -a
-ush> exit          # -> drops into the oc> recovery shell (99 commands)
 ```
 
 UEFI instead of BIOS: `make run-uefi`. Windows hosts: `build.ps1`
@@ -107,27 +111,24 @@ UEFI instead of BIOS: `make run-uefi`. Windows hosts: `build.ps1`
 
 ## Downloads
 
-Every release ships three assets from the same byte-reproducible
-pipeline - the current release is always on the
-[GitHub releases page](https://github.com/cubestudio-dev/OpenCubeOS/releases)
-and mirrored on the
-[website downloads page](https://ocos.cubestudio.cn/):
+Two channels ship from the same byte-reproducible pipeline - both are
+on the [GitHub releases page](https://github.com/cubestudio-dev/OpenCubeOS/releases)
+and mirrored on the [website downloads page](https://ocos.cubestudio.cn/download.html):
 
-| Asset | What it is |
-|-------|------------|
-| `opencube-2.2.0.iso` | Hybrid BIOS+UEFI bootable ISO - boot it in QEMU or write to USB |
-| `opencube-2.2.0-src.zip` | Deterministic source zip (`git archive`) |
-| `opencube-2.2.0-update.tar.gz` | OTA update package (SHA256 + signature verified, A/B slots) |
+| Channel | Assets |
+|---------|--------|
+| **3.0.0-WP06c** (development preview) | `opencube-3.0.0-WP06c.iso` (boots OCBL → OCOS → ush) · `ocse-3.0.0-WP06c.iso` (the GUI install environment, en/zh) |
+| **2.2.0** (stable, the 2.x line) | `opencube-2.2.0.iso` · `opencube-2.2.0-src.zip` (deterministic source) · `opencube-2.2.0-update.tar.gz` (OTA) |
 
-Each release note carries the SHA256 of all three; the website,
+Each release note carries the SHA256 of every asset; the website,
 the Release and the private mirror hold byte-identical copies.
 
 ## Documentation
 
 - [BUILDING.md](BUILDING.md) - build on Linux/Windows, QEMU,
   cross-compilation (ARM64/RISC-V shells), reproducible verification
-- [ARCHITECTURE.md](ARCHITECTURE.md) - the L0 architecture, top to bottom
-- [INTERFACES.md](INTERFACES.md) - the 251-command surface by home, the v1->v2 mapping and the L1SVC service tables
+- [ARCHITECTURE.md](ARCHITECTURE.md) - the L0/L1 architecture, top to bottom
+- [INTERFACES.md](INTERFACES.md) - the 285-command surface by home, the v1→v3 mapping and the L1SVC service tables
   (generated from the tree: `make api-docs`)
 - [FAQ.md](FAQ.md) - common questions
 - [CONTRIBUTING.md](CONTRIBUTING.md) - ground rules and the PR bar
@@ -141,19 +142,19 @@ All numbers below are machine-verified at build time
 (`make api-docs` writes `docs/data/*.json`; the README verification
 command is quoted per item):
 
-- **Source code**: 130,526 lines across 379 files - core + arch +
-  drivers + services + recovery + tui + chinese + boot + l1apps,
-  headers included, docs/tools/tests and generated data blobs
-  excluded.  Verify:
-  `git ls-files | grep -E '\.(c|h|S)$' | grep -E '^(core|arch|drivers|services|recovery|tui|chinese|boot|l1apps)/' | grep -v '^core/generated/' | grep -vE 'userprogs_data|chinese_font_data|pinyin_data|grub_boot_data' | xargs wc -l`
-- **Commands**: 251 total - 99 in the L0 recovery shell (`help -a`
-  at the `oc>` prompt) + 133 ring-3 SYS_L1SVC service commands +
-  19 ush built-ins. Every 1.0.0 command is mapped - see the
-  v1->v2 table in [INTERFACES.md](INTERFACES.md).
-- **L1SVC service surface**: 17 categories / 158 numbered ops -
+- **Source code**: 128,890 lines across 624 files - src/L0/ (boot,
+  core, drivers, services) + src/L1/, headers included, generated
+  data blobs excluded (the generator caliber: `tools/gen_api_docs.py`
+  `STAT_DIRS`/`STAT_EXCLUDE`).  Verify:
+  `find src/L0/core src/L0/drivers src/L0/services src/L0/boot src/L1 \( -name '*.c' -o -name '*.h' -o -name '*.S' \) | grep -v generated | grep -vE 'chinese_font_data|pinyin_data|grub_boot_data|userprogs_data' | xargs wc -l | tail -1`
+- **Commands**: 285 total - 274 ring-3 registry apps (one command =
+  one app = one folder under `src/L1/`) + 11 ush built-ins + 0 in L0.
+  Every 1.0.0 command is mapped - see the v1→v3 table in
+  [INTERFACES.md](INTERFACES.md).
+- **L1SVC service surface**: 20 categories / 190 numbered entries -
   see [INTERFACES.md](INTERFACES.md) for the exact tables.
 - **Syscalls**: 54 - verify:
-  `grep -c '#define SYS_' core/core_syscall.h`
+  `grep -c '#define SYS_' src/L0/services/sysapi/core_syscall.h`
 - **CI**: green on every push - build, ISO, packages, host tests and
   the reproducibility gate
   (`.github/workflows/build.yml`).

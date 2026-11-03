@@ -8,7 +8,7 @@
 
 `lang` - ring-3 half of the v2.2.0 `lang` command
 
-**用法：** `lang [en|zh]  (no argument shows the current language)`
+**用法：** `lang [en|zh]`
 
 领域：[其他](index.md#other)
 

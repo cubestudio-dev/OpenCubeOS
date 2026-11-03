@@ -8,6 +8,8 @@
 
 `mount` - ring-3 half of the v2.2.0 `mount` command
 
+**用法：** `mount &lt;device&gt; &lt;path&gt;`
+
 领域：[其他](index.md#other)
 
 完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。

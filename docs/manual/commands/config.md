@@ -8,6 +8,8 @@
 
 `config` - ring-3 half of the v2.2.0 `config` command
 
+**Usage:** `config                show the installed config`
+
 Domain: [Other](index.md#other)
 
 Full command index: [commands](index.md) - or `help -a` /

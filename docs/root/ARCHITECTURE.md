@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Open Cube OS Architecture
 
-This document describes the tree as it exists in 3.0.0-WP03 - every
+This document describes the tree as it exists in 3.0.0-WP06c - every
 component named below is a real file you can open. Line counts and
 per-directory detail live in `docs/data/stats.json` (regenerate:
 `make api-docs`).
@@ -19,13 +19,18 @@ Open Cube OS is a two-ring system:
   and hands the machine to the default ring-3 entry.
 - **L1 - uses services.** Ring-3 user applications that reach L0
   capability through the extension surface (the `SYS_L1SVC` op
-  table and the classic syscall ABI). The default boot entry is the
-  ring-3 `ush` shell (`OC_L1_APP_DECL("ush", ..., dflt=1)` in
-  `src/L0/boot/l1_launcher.c`).
+  table and the classic syscall ABI). 3.0.0-WP04 moved every command
+  into L1: **275 programs under `src/L1/`** (242 app folders + 8 flat
+  `.c` + 25 flat `.asm`) - one command = one app = one folder. The
+  default boot entry is the ring-3 `ush` shell (`OC_L1_APP_DECL("ush",
+  ..., dflt=1)` in `src/L0/boot/l1_launcher.c`); **285 commands = 274
+  registry apps + 11 ush built-ins, zero in L0**.
 
 ```
-                  GRUB 2.12 (hybrid BIOS + UEFI ISO)
-                                  |  multiboot2 + kernel-as-module
+              OCBL - the in-tree bootloader (hybrid BIOS + UEFI ISO)
+              512-byte real-mode stage 1 (El Torito / MBR) or the EFI
+              entry -> 16 -> 32 -> 64-bit long mode, dynamic disk scan,
+              boot menu with a 10 s countdown (no GRUB in the chain)
         +-------------------------+-------------------------+
         |              src/L0/boot/boot.S                  |
         |  32-bit entry -> GDT -> 2 MiB identity map of    |
@@ -40,7 +45,7 @@ Open Cube OS is a two-ring system:
         |    ACPI/PCIe/watchdog-hw/chipset, RTC/HPET        |
         |  PHASE 2  drivers + driver-free services          |
         |    VFS + ramfs (driver-free); block/USB/wireless/ |
-        |    SD/BT/camera/misc driver families             |
+        |    SD/BT/camera/misc driver families              |
         |  PHASE 3  driver-dependent services               |
         |    FAT/exFAT/ext4 + config + A/B (after block),   |
         |    wireless (after fs-mounted firmware),          |
@@ -53,6 +58,9 @@ Open Cube OS is a two-ring system:
                      "L0 ready, waiting for L1"
                                |
                     l1 launcher -> ush (ring 3)
+                               |
+          exit / failure -> L0 halts honestly (reboot or the
+          OCBL menu; the 2.x oc> recovery fallback is gone)
 ```
 
 (The boot prints `boot chain N/4` markers for the middle phases;
@@ -82,9 +90,14 @@ src/L0/
             core/ and drivers/ (and, where a real dependency
             exists, on other services - fs before selfhost, for
             example).
-src/L1/     the ring-3 applications: ush (the only
-            OC_L1_APP_DECL default entry) + the embedded test
-            programs (built by `make l1apps`).
+src/L1/     the ring-3 world: 275 programs (242 app folders + 8 flat
+            .c + 25 flat .asm) - ush (the only OC_L1_APP_DECL default
+            entry), the TUI desktop family, the editor, the Chinese
+            console + IME, and one command per app (built by
+            `make l1apps`).
+ocbl/       OCBL, the in-tree bootloader (BIOS stage 1 + EFI entry,
+            the boot menu, the ocbl-install target) - a separate
+            freestanding build (ocbl/ocbl.mk). NOT part of L0.
 ocire/      the independent recovery kernel (a separate freestanding
             binary, own build in ocire/ocire.mk).  NOT part of L0.
 ```
@@ -122,14 +135,17 @@ fate record).
 
 Ring 3 reaches L0 through two doors:
 
-- the classic syscall ABI (`src/L0/services/sysapi/core_syscall.h`),
-  including `SYS_L1SVC(110)`: `(category, op, arg, out, cap)` routed
-  by the registry to the owning service's `l1_dispatch`.
+- the classic syscall ABI (`src/L0/services/sysapi/core_syscall.h`,
+  54 syscalls), including `SYS_L1SVC(110)`: `(category, op, arg,
+  out, cap)` routed by the registry to the owning service's
+  `l1_dispatch`.
 - the categories/ops are the frozen ABI table in
-  `src/L0/services/sysapi/l1svc_defs.h` (category number -> the
-  owning services/ folder; category 18 "ocire" is the declared
-  exception - the OCIRE log-agent contract's ABI name, implemented
-  by `services/ocembed/`).
+  `src/L0/services/sysapi/l1svc_defs.h`: **20 categories / 190
+  numbered entries** (category number -> the owning services/
+  folder; category 18 "ocire" is the declared exception - the OCIRE
+  log-agent contract's ABI name, implemented by `services/ocembed/`).
+  Ops are plain ASCII text renderers - the ring-3 side formats
+  nothing.
 
 ## The OCIRE embed (3.0.0-WP03 G4)
 
@@ -143,7 +159,7 @@ supervised 60 s window, spawns the agent as the protected
 `ocire_guard` process (kill is refused by sys_kill), serves the
 guard-only `L1SVC_CAT_OCIRE` channel (boot-log append + kernel-log
 snapshot) and arms whole-disk write protection on the recovery disk.
-On a normal GRUB boot no fact is present and the service stays
+On a normal OCBL boot no fact is present and the service stays
 dormant.  The five regression properties (partition isolation, boot
 signal, bidirectional interfaces, process protection, whole-disk
 hard protection) are tested end-to-end by

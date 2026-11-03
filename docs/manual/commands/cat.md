@@ -8,6 +8,8 @@
 
 `cat` - ring-3 L1 app
 
+**Usage:** `cat &lt;file&gt;`
+
 Domain: [Other](index.md#other)
 
 Full command index: [commands](index.md) - or `help -a` /
