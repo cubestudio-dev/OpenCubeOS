@@ -219,10 +219,12 @@
       /* WP06e: the development-preview pair (SITE_DATA.dev) */
       if (d.dev && d.dev.assets) {
         var da = d.dev.assets;
-        var drows = ["oc", "ocse"];
+        /* element-prefix -> data-key pairs (dev-oc-* reads the
+           "opencube" asset, dev-ocse-* the "ocse" one) */
+        var drows = [["oc", "opencube"], ["ocse", "ocse"]];
         for (var r2 = 0; r2 < drows.length; r2++) {
-          var kk = drows[r2];
-          var dst = da[kk];
+          var kk = drows[r2][0];
+          var dst = da[drows[r2][1]];
           if (!dst) continue;
           text("dev-" + kk + "-name", dst.name);
           var dSizeEl = $("dev-" + kk + "-size");
