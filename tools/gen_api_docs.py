@@ -1043,15 +1043,23 @@ def main():
     v1if = extract_v1_interface_baseline()
     gone = sorted(nm for nm, ent in v1if.items()
                    if ent["v2_status"] == "gone")
+    # WP06d-site_fix: extract the surface FIRST and derive the official
+    # counts dynamically. Through 2.1.0 these were hardcoded (158/17)
+    # and silently lagged the tree - the same run wrote 190/20 into
+    # INTERFACES.md (dynamic) and 158/17 into interfaces.json
+    # (hardcoded), the json feeding update_website.sh and the site.
+    svc_cats, svc_ops = extract_l1svc_surface()
     summary = {
         "declared_total": len(interfaces),
         # 2.1.0 (P-04 fix): the official numbered L1 extension count is
-        # the CURRENT L1SVC op surface, not the v1 README formula. The
-        # v1 figure (162) was kept here through 2.0.0 and silently
-        # contradicted the 17-category/158-op surface the same doc
-        # reports.
-        "l1_official_count": 158,
-        "l1svc_categories": 17,
+        # the CURRENT L1SVC op surface, not the v1 README formula (the
+        # v1 figure, 162, contradicted the surface the same doc
+        # reported). WP06d: computed from l1svc_defs.h at generation
+        # time - 190 ops / 20 categories at the 3.0.0-WP06c tree
+        # (ops carry a command comment; the bare numbered defines
+        # without one - the DIAG odd-slot internals - do not count).
+        "l1_official_count": len(svc_ops),
+        "l1svc_categories": len(svc_cats),
         "v1_declaration_entries": len(v1if),
         "v1_survivors_public": sum(
             1 for e in v1if.values()
@@ -1080,7 +1088,6 @@ def main():
     # ---- commands (v2: sources are the authority; a runtime capture
     # is still accepted to cross-check the L0 half) ----
     v2cmds, svc_rows_total, svc_dual = extract_v2_commands()
-    svc_cats, svc_ops = extract_l1svc_surface()
     v1base = extract_v1_baseline()
     cmds = v2cmds
     # 2.1.0 (P-15): SVC rows whose ush help-block line uses a compact

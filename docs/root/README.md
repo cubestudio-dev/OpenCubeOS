@@ -19,8 +19,8 @@ build-id caliber stated exactly in three places (see
 
 `oc>` is the prompt. Everything is extensible.
 
-[Website](https://cubestudio-dev.github.io/OpenCubeOS/) ·
-[Documentation](https://cubestudio-dev.github.io/OpenCubeOS/docs/) ·
+[Website](https://ocos.cubestudio.cn/) ·
+[Documentation](https://ocos.cubestudio.cn/docs/) ·
 [Downloads](#downloads) ·
 [Building](BUILDING.md) ·
 [Architecture](ARCHITECTURE.md) ·
@@ -111,7 +111,7 @@ Every release ships three assets from the same byte-reproducible
 pipeline - the current release is always on the
 [GitHub releases page](https://github.com/cubestudio-dev/OpenCubeOS/releases)
 and mirrored on the
-[website downloads page](https://cubestudio-dev.github.io/OpenCubeOS/):
+[website downloads page](https://ocos.cubestudio.cn/):
 
 | Asset | What it is |
 |-------|------------|
@@ -133,7 +133,7 @@ the Release and the private mirror hold byte-identical copies.
 - [CONTRIBUTING.md](CONTRIBUTING.md) - ground rules and the PR bar
 - The full documentation center (user manual, developer handbook,
   driver bring-up guides, L1 extension guide, internals):
-  **https://cubestudio-dev.github.io/OpenCubeOS/docs/**
+  **https://ocos.cubestudio.cn/docs/**
 
 ## Stats
 

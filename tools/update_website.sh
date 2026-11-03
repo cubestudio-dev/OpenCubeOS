@@ -132,6 +132,12 @@ if prev and prev_iso and prev_ver != ver and not already:
                        "iso_sha": prev_iso.group(3),
                        "iso_size": int(prev_iso.group(2))})
 
+# WP06d-site_fix: when the release line moves BACK to an earlier version
+# (e.g. the facade returns from a dev milestone to the formal line), the
+# current version may already sit in history - drop it there so the
+# download page table never lists it twice.
+history = [h for h in history if h["version"] != ver]
+
 hist_lines = ",\n".join(
     '    { version: "%s", date: "%s",\n      iso_sha: "%s",\n'
     '      iso_size: %d }' % (h["version"], h["date"], h["iso_sha"],
@@ -198,9 +204,9 @@ manifest = {
                 "%s release. See the GitHub release note for the full "
                 "change list, new interfaces and known issues." % ver),
     "changes_v2_url":
-        "https://cubestudio-dev.github.io/OpenCubeOS/update-v2.json",
+        "https://ocos.cubestudio.cn/update-v2.json",
     "package_url":
-        "https://cubestudio-dev.github.io/OpenCubeOS/downloads/"
+        "https://ocos.cubestudio.cn/downloads/"
         "opencube-%s-update.tar.gz" % ver,
     "package_sha256": sha,
     "package_size": int(size),

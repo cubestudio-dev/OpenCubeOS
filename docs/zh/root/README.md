@@ -16,9 +16,9 @@ boot 验证）。另：2.0.0 镜像资产补回、发布构建号三处口径完
 
 `oc>` 是回退提示符，`ush>` 是默认提示符。一切皆可扩展。
 
-[官网](https://cubestudio-dev.github.io/OpenCubeOS/) ·
-[文档](https://cubestudio-dev.github.io/OpenCubeOS/docs/) ·
-[下载](https://cubestudio-dev.github.io/OpenCubeOS/#downloads) ·
+[官网](https://ocos.cubestudio.cn/) ·
+[文档](https://ocos.cubestudio.cn/docs/) ·
+[下载](https://ocos.cubestudio.cn/#downloads) ·
 [构建](BUILDING.md) ·
 [架构](ARCHITECTURE.md) ·
 [接口参考](INTERFACES.md)
@@ -104,7 +104,7 @@ UEFI 而非 BIOS：`make run-uefi`。Windows 宿主：`build.ps1`
 
 每个发布都从同一字节可复现流水线产出三份资产——当前发布永远在
 [GitHub releases 页](https://github.com/cubestudio-dev/OpenCubeOS/releases)
-并镜像于[官网下载页](https://cubestudio-dev.github.io/OpenCubeOS/)：
+并镜像于[官网下载页](https://ocos.cubestudio.cn/)：
 
 | 资产 | 它是什么 |
 |------|----------|
@@ -125,7 +125,7 @@ UEFI 而非 BIOS：`make run-uefi`。Windows 宿主：`build.ps1`
 - [FAQ.md](FAQ.md) - 常见问题
 - [CONTRIBUTING.md](CONTRIBUTING.md) - 基本规则与 PR 门槛
 - 完整文档中心（用户手册、开发者手册、驱动上手指南、L1 扩展指南、
-  内部机制）：**https://cubestudio-dev.github.io/OpenCubeOS/docs/**
+  内部机制）：**https://ocos.cubestudio.cn/docs/**
 
 ## Stats
 

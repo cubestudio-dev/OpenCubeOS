@@ -30,13 +30,16 @@ function ocTokenize(text: string): string[] {
   return tokens
 }
 
-const SITE = 'https://cubestudio-dev.github.io/OpenCubeOS'
+const SITE = 'https://ocos.cubestudio.cn'
 
 export default defineConfig({
-  // gh-pages serves this site under /OpenCubeOS/ (project pages):
-  // the docs center lives at /OpenCubeOS/docs/ - base MUST match or every
-  // asset URL 404s in production.
-  base: '/OpenCubeOS/docs/',
+  // The site serves from the custom domain https://ocos.cubestudio.cn/ (the
+  // gh-pages root carries the CNAME): the facade sits at / and the docs
+  // center lives at /docs/ - base MUST match or every asset URL 404s in
+  // production. (WP06d-site_fix: was '/OpenCubeOS/docs/', the project-pages
+  // subpath - correct for cubestudio-dev.github.io, all 404 under the
+  // custom domain.)
+  base: '/docs/',
   title: 'Open Cube OS',
   description: 'Documentation center for Open Cube OS - the from-scratch x86_64 kernel with the oc> recovery shell.',
   // docs-src/docs/ is a BUILD-TIME copy of the repository's docs/ tree
@@ -48,6 +51,15 @@ export default defineConfig({
   // rewrite them (404). Keep the .html suffix - works everywhere.
   cleanUrls: false,
   cacheDir: './.vitepress/cache',
+  // WP06d-site_fix: pin the PostCSS config to EMPTY. Vite's postcss
+  // loader walks UP the directory tree, and a parent-directory
+  // postcss.config.* (e.g. an unrelated Next.js workspace root on the
+  // build host) breaks the VitePress CSS pipeline with
+  // "Invalid PostCSS Plugin found at: plugins[0]". The docs center has
+  // no PostCSS processing of its own - an empty config is exact.
+  vite: {
+    css: { postcss: {} }
+  },
 
   locales: {
     root: {
