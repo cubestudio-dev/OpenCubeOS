@@ -11,7 +11,7 @@
 
 运行后的验证：
 
-- `https://cubestudio-dev.github.io/OpenCubeOS/update.json` 显示新版本/构建/哈希。
+- `https://ocos.cubestudio.cn/update.json` 显示新版本/构建/哈希。
 - 下载页面的三个哈希值与 Release 的三个哈希值相等。
 - 对每个资源运行 `curl -sL <asset-url> | sha256sum`，结果等于其声明的 SHA256。
 

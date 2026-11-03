@@ -6,7 +6,7 @@ From zero to an `oc>` prompt in five minutes.
 ## 1. Download
 
 Grab the current release ISO from the
-[downloads page](https://cubestudio-dev.github.io/OpenCubeOS/) or the
+[downloads page](https://ocos.cubestudio.cn/) or the
 [GitHub releases](https://github.com/cubestudio-dev/OpenCubeOS/releases):
 
 - `opencube-<version>.iso` - hybrid BIOS+UEFI bootable image

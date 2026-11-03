@@ -135,6 +135,30 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
     </div>
   </section>
 
+  <!-- 3.0.0 development milestone - WP-06 (the installer stack).  Static
+       like the sections below: tools/update_website.sh only tracks the
+       OCOS formal release line (2.2.0 until the 3.0.0 release);
+       milestone assets are fixed once published.  Keep in sync with the
+       WP release notes (v3.0.0-WP-06c).  WP06d-site_fix addition. -->
+  <section class="section" style="padding-top:34px">
+    <h2>3.0.0 WP-06: the installer stack (development preview)</h2>
+    <p class="sub">OCSE (the install-environment kernel) + OCSECL (the command-line installer) + the 9-step GUI install wizard: hardware checks, disk identification with a no-overwrite gate, largest-gap partitioning, mkfs, SHA-256 user passwords - and every wizard mutation is a real OCSECL command. The installed disk boots OCBL &rarr; OCOS to the ring-3 ush shell. This is NOT the 3.0.0 release; see <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.0-WP-06c" rel="noopener">the WP-06c release page</a>.</p>
+    <div class="cards">
+      <div class="card">
+        <h3>opencube-3.0.0-WP06c.iso</h3>
+        <p class="f">3.5 MiB &middot; hybrid BIOS+UEFI bootable ISO &middot; boots to the ring-3 ush shell</p>
+        <p class="sha" style="word-break:break-all;font-size:12px">SHA256 d783658bb95cc46cf7761b3240c47c52dfedfd75b191fbe87f45e03ca11b9ad7</p>
+        <a class="btn" href="downloads/opencube-3.0.0-WP06c.iso" download>Download ISO</a>
+      </div>
+      <div class="card">
+        <h3>ocse-3.0.0-WP06c.iso</h3>
+        <p class="f">4.2 MiB &middot; hybrid BIOS+UEFI install medium &middot; GUI wizard + OCSECL, en/zh</p>
+        <p class="sha" style="word-break:break-all;font-size:12px">SHA256 2a1bad5bdb9030b79f0e23803e1f53c3ebf683ddae97ead17b44bf56d91fbf6b</p>
+        <a class="btn" href="downloads/ocse-3.0.0-WP06c.iso" download>Download ISO</a>
+      </div>
+    </div>
+  </section>
+
   <section class="section" style="padding-top:10px">
     <h2 data-i18n="dl.verify.h2">Verify</h2>
     <div class="steps">

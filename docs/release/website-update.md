@@ -17,7 +17,7 @@ exist. What it does (each step verifiable):
 
 Verification after it runs:
 
-- `https://cubestudio-dev.github.io/OpenCubeOS/update.json` shows the
+- `https://ocos.cubestudio.cn/update.json` shows the
   new version/build/sha.
 - The download page's three hashes equal the Release's three.
 - `curl -sL <asset-url> | sha256sum` on each asset equals its

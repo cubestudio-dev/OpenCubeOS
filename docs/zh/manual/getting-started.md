@@ -5,7 +5,7 @@
 
 ## 1. 下载
 
-从[下载页面](https://cubestudio-dev.github.io/OpenCubeOS/)或
+从[下载页面](https://ocos.cubestudio.cn/)或
 [GitHub 发布页](https://github.com/cubestudio-dev/OpenCubeOS/releases)获取当前发布的 ISO：
 
 - `opencube-<version>.iso` - 支持 BIOS+UEFI 混合启动的镜像

@@ -48,7 +48,21 @@ cp -f index.html architecture.html download.html about.html out/
 # would nest (out/assets/assets) instead of updating the files.
 rm -rf out/assets
 cp -rf assets out/assets
+# WP06d-site_fix: the deploy root must carry the custom-domain pair
+# itself - CNAME (content: the bare domain, no trailing newline) and
+# .nojekyll (empty; stops GitHub Pages from running Jekyll over the
+# VitePress output). Previously these existed only on the gh-pages
+# branch, so a full-tree redeploy could silently drop them.
+printf 'ocos.cubestudio.cn' > out/CNAME
+: > out/.nojekyll
+# WP06d-site_fix: the deploy root must also carry the OTA manifests.
+# website/update*.json are WRITTEN by tools/update_website.sh (content
+# stays release-managed), but the gh-pages root never received them -
+# the download-page footer link and the kernel's checkupdate
+# changes_v2_url pointed at a 404. Copy the managed pair into out/ so
+# every deploy ships them.
+cp -f update.json update-v2.json out/
 # downloads/ and update.json are managed by the release script
 # (tools/update_website.sh) - not part of the site build.
-echo "    out/index.html out/architecture.html out/download.html out/about.html out/assets/ out/docs/"
+echo "    out/index.html out/architecture.html out/download.html out/about.html out/assets/ out/docs/ out/CNAME out/.nojekyll"
 echo "build.sh: done."

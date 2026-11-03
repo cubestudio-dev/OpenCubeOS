@@ -6,7 +6,7 @@
 代码树再生成：L0 命令直取 `OC_SHELL_CMD` 注册点、Ring-3 面取 ush 的
 `SVC_CMDS` 表与 `services/l1/l1svc_defs.h`、内核侧声明取各服务头）。
 逐条表格体量庞大且随每次再生成而变化，英文版
-[INTERFACES.md](https://cubestudio-dev.github.io/OpenCubeOS/docs/root/INTERFACES.html)
+[INTERFACES.md](https://ocos.cubestudio.cn/docs/root/INTERFACES.html)
 是唯一权威文本；本页给出中文导读与关键口径。
 
 ## 关键口径（2.1.0）
