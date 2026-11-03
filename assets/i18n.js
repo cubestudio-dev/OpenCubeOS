@@ -37,18 +37,18 @@
       "foot.build": "build 274",
 
       /* ---- index: hero ---- */
-      "title.index": "Open Cube OS - a from-scratch x86_64 kernel that boots into ring 3",
+      "title.index": "Open Cube OS 3.0.0-WP06 (development preview) - a from-scratch x86_64 kernel that boots into ring 3",
       "hero.h1a": "A from-scratch",
       "hero.h1b": "x86_64 kernel.",
       "hero.h1c": "Boots into ring 3.",
-      "hero.tagline": "<b>Open Cube OS</b> 2.2.0 boots through its kernel (L0), launches the default ring-3 application &mdash; the <b><code>ush</code></b> user shell with <b id=\"stat-cmds\">251</b> commands over the SYS_L1SVC service surface &mdash; and falls back to a WinRE-style recovery shell (<b><code>oc&gt;</code></b>) whenever the ring-3 world cannot start. Not a Linux fork: <b id=\"stat-lines2\">130,572</b> lines of original code, Apache&nbsp;2.0.",
+      "hero.tagline": "<b>Open Cube OS</b> 3.0.0-WP06 (development preview) boots through its kernel (L0), launches the default ring-3 application &mdash; the <b><code>ush</code></b> user shell with <b id=\"stat-cmds\">285</b> commands over the SYS_L1SVC service surface &mdash; and falls back to a WinRE-style recovery shell (<b><code>oc&gt;</code></b>) whenever the ring-3 world cannot start. Not a Linux fork: <b id=\"stat-lines2\">128,890</b> lines of original code, Apache&nbsp;2.0.",
       "hero.download": "\u2b07\ufe0f Download the ISO",
       "hero.docs": "Documentation \u2192",
-      "hero.term.title": "qemu \u2014 Open Cube OS 2.2.0",
+      "hero.term.title": "qemu \u2014 Open Cube OS 3.0.0-WP06",
 
       /* ---- index: stats ---- */
       "stats.commands": "commands",
-      "stats.interfaces": "L1SVC ops (17 services)",
+      "stats.interfaces": "L1SVC ops (20 services)",
       "stats.syscalls": "syscalls",
       "stats.lines": "lines of source",
 
@@ -92,10 +92,10 @@
       "feat.tui.p": "Desktop, taskbar, menus, forms, editor and system apps on the framebuffer - plus a Chinese console layer with a pinyin IME.",
       "feat.ota.h": "A/B updates",
       "feat.ota.p": "Manifest-driven OTA with SHA256 + signature verification, staged install onto the inactive slot, automatic rollback.",
-      "feat.l1.h": "17 services / 158 ops",
-      "feat.l1.p": "The ring-3 surface is the contract: 17 SYS_L1SVC service categories with 158 numbered ops, every operational command class behind one syscall. The v1&rarr;v2 mapping table ships in INTERFACES.md.",
+      "feat.l1.h": "20 services / 190 ops",
+      "feat.l1.p": "The ring-3 surface is the contract: 20 SYS_L1SVC service categories with 190 numbered ops, every operational command class behind one syscall. The v1&rarr;v2 mapping table ships in INTERFACES.md.",
       "feat.all.h": "See the whole picture",
-      "feat.all.p": "Boot flow, every kernel subsystem, the TUI desktop and the 17-service L1SVC surface, each on its own page.",
+      "feat.all.p": "Boot flow, every kernel subsystem, the TUI desktop and the 20-service L1SVC surface, each on its own page.",
       "feat.all.btn": "Architecture deep dive \u2192",
 
       /* ---- index: quickstart ---- */
@@ -125,7 +125,7 @@
       "layer.l0.h": "Open Cube OS",
       "layer.l0.p": "The kernel + the <code>oc&gt;</code> recovery shell. Boots, diagnoses, repairs, installs, updates. This repository.",
       "layer.l1.h": "Upper extensions",
-      "layer.l1.p": "The ring-3 service world - ush, ld.so and the dynamic-linking programs ship in-tree under l1apps/; every operational command class runs behind the 17-service SYS_L1SVC surface.",
+      "layer.l1.p": "The ring-3 service world - ush, ld.so and the dynamic-linking programs ship in-tree under l1apps/; every operational command class runs behind the 20-service SYS_L1SVC surface.",
       "layer.goal.h": "Cube OS = L0 + L1",
       "layer.goal.p": "The roadmap: a complete, daily-usable system assembled from the kernel below and the extension ecosystem above.",
 
@@ -332,18 +332,18 @@
       "foot.build": "构建 274",
 
       /* ---- 首页：首屏 ---- */
-      "title.index": "Open Cube OS - 从零写起的 x86_64 内核，直上 Ring 3",
+      "title.index": "Open Cube OS 3.0.0-WP06（开发版）—— 从零写起的 x86_64 内核，直上 Ring 3",
       "hero.h1a": "从零写起的",
       "hero.h1b": "x86_64 内核。",
       "hero.h1c": "直上 Ring 3。",
-      "hero.tagline": "<b>Open Cube OS</b> 2.2.0 先启动内核（L0），随即拉起默认的 Ring 3 应用 —— 带有 <b id=\"stat-cmds\">251</b> 条命令、经由 SYS_L1SVC 服务面的用户 Shell <b><code>ush</code></b>；一旦 Ring 3 世界无法启动，则退回 WinRE 风格的恢复 Shell（<b><code>oc&gt;</code></b>）。不是 Linux 分支：<b id=\"stat-lines2\">130,572</b> 行原创代码，Apache&nbsp;2.0 授权。",
+      "hero.tagline": "<b>Open Cube OS</b> 3.0.0-WP06（开发版）先启动内核（L0），随即拉起默认的 Ring 3 应用 —— 带有 <b id=\"stat-cmds\">285</b> 条命令、经由 SYS_L1SVC 服务面的用户 Shell <b><code>ush</code></b>；一旦 Ring 3 世界无法启动，则退回 WinRE 风格的恢复 Shell（<b><code>oc&gt;</code></b>）。不是 Linux 分支：<b id=\"stat-lines2\">128,890</b> 行原创代码，Apache&nbsp;2.0 授权。",
       "hero.download": "\u2b07\ufe0f 下载 ISO",
       "hero.docs": "查阅文档 \u2192",
-      "hero.term.title": "qemu \u2014 Open Cube OS 2.2.0",
+      "hero.term.title": "qemu \u2014 Open Cube OS 3.0.0-WP06",
 
       /* ---- 首页：统计 ---- */
       "stats.commands": "条命令",
-      "stats.interfaces": "个 L1SVC 操作（17 服务）",
+      "stats.interfaces": "个 L1SVC 操作（20 服务）",
       "stats.syscalls": "个系统调用",
       "stats.lines": "行源代码",
 
@@ -372,7 +372,7 @@
       "feat.cpu.h": "抢占式调度器",
       "feat.cpu.p": "TCB 上的优先级 + 时间片轮转、100&nbsp;Hz 时基、软定时器轮、IST 独立异常栈，每次开机都跑一遍 3/3 陷阱自测。",
       "feat.ring3.h": "用户程序",
-      "feat.ring3.p": "ELF 加载器、53 个系统调用、fork/exec/管道/信号/select/mmap，外加自带 dlsym 与 PIE 重定位的共享对象加载器。",
+      "feat.ring3.p": "ELF 加载器、54 个系统调用、fork/exec/管道/信号/select/mmap，外加自带 dlsym 与 PIE 重定位的共享对象加载器。",
       "feat.net.h": "TCP/IP + TLS + SSH",
       "feat.net.p": "七个网卡驱动族、带拥塞控制的 TCP、套接字、防火墙、带 X.509 校验的 HTTPS 客户端，以及跑在客户机里的真实 sshd。",
       "feat.storage.h": "从 NVMe 到 FAT32",
@@ -387,10 +387,10 @@
       "feat.tui.p": "直接跑在帧缓冲上的桌面、任务栏、菜单、表单、编辑器与系统应用 —— 还有带拼音输入法的中文控制台层。",
       "feat.ota.h": "A/B 升级",
       "feat.ota.p": "清单驱动的 OTA：SHA256 + 签名校验，安装写入非活动槽位，失败自动回滚。",
-      "feat.l1.h": "17 服务 / 158 操作",
-      "feat.l1.p": "Ring 3 服务面即契约：17 个 SYS_L1SVC 服务类别、158 个编号操作，所有操作类命令都走同一个系统调用。v1→v2 对照表随 INTERFACES.md 发布。",
+      "feat.l1.h": "20 服务 / 190 操作",
+      "feat.l1.p": "Ring 3 服务面即契约：20 个 SYS_L1SVC 服务类别、190 个编号操作，所有操作类命令都走同一个系统调用。v1→v2 对照表随 INTERFACES.md 发布。",
       "feat.all.h": "看完整图景",
-      "feat.all.p": "启动流程、每一个内核子系统、TUI 桌面与 17 服务 L1SVC 面，都在架构页逐层拆开。",
+      "feat.all.p": "启动流程、每一个内核子系统、TUI 桌面与 20 服务 L1SVC 面，都在架构页逐层拆开。",
       "feat.all.btn": "深入架构 \u2192",
 
       /* ---- 首页：快速上手 ---- */
@@ -420,7 +420,7 @@
       "layer.l0.h": "Open Cube OS",
       "layer.l0.p": "内核 + <code>oc&gt;</code> 恢复 Shell。启动、诊断、修复、安装、升级。就是本仓库。",
       "layer.l1.h": "上层扩展",
-      "layer.l1.p": "Ring 3 服务世界 —— ush、ld.so 与动态链接程序随树发布在 l1apps/ 下；所有操作类命令都走 17 服务的 SYS_L1SVC 面。",
+      "layer.l1.p": "Ring 3 服务世界 —— ush、ld.so 与动态链接程序随树发布在 l1apps/ 下；所有操作类命令都走 20 服务的 SYS_L1SVC 面。",
       "layer.goal.h": "Cube OS = L0 + L1",
       "layer.goal.p": "路线图：由下层的内核与上层的扩展生态，装配出一个完整、日用可用的系统。",
 
