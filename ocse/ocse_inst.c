@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS - 3.0.0-WP06b-ocsecl
+/* Open Cube OS - 3.0.0-WP06c-installer_gui
  * File: ocse/ocse_inst.c
  * Purpose: see ocse_inst.h.
  */
@@ -318,13 +318,23 @@ static int conf_key_valid(const char* key, const char* value) {
         }
         return 1;
     }
+    /* WP-06c: the wizard's system step sets the two update keys.
+     * update_url must be an http(s) URL; auto_check is yes/no. */
+    if (strcmp(key, "update_url") == 0) {
+        int l = (int)strlen(value);
+        if (l < 10 || l > 79) return 0;
+        return strncmp(value, "http://", 7) == 0 ||
+               strncmp(value, "https://", 8) == 0;
+    }
+    if (strcmp(key, "auto_check") == 0)
+        return strcmp(value, "yes") == 0 || strcmp(value, "no") == 0;
     return 0;
 }
 
 int ocse_inst_config_set(const char* key, const char* value) {
     if (!conf_key_valid(key, value)) {
         ocse_outln(ocse_tr(OCSE_T_C_INVALID));
-        ocse_outln(ocse_tr(OCSE_T_C_KEYS));
+        ocse_outln(ocse_tr(OCSE_T_C_KEYS2));
         return 1;
     }
     char mount[VFS_PATH_LEN];
