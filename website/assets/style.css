@@ -275,8 +275,19 @@ html[data-theme="dark"] .btn-primary { color: #06120a; }
     background: transparent;
     color: var(--term-text);
     font-size: 13px;
-    min-height: 300px;
+    min-height: 180px;
+    /* WP06e: the demo card must never outgrow the hero - cap it and
+       let the overflow scroll inside the card instead. */
+    max-height: 340px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
+.terminal-card pre::-webkit-scrollbar { width: 8px; }
+.terminal-card pre::-webkit-scrollbar-thumb {
+    background: #2c3a31;
+    border-radius: 4px;
+}
+.terminal-card pre::-webkit-scrollbar-track { background: transparent; }
 .terminal-card .c { color: var(--term-green); font-weight: 700; }
 .terminal-card .a { color: #9fd0ff; }
 .terminal-card .d { color: #6f8076; }
