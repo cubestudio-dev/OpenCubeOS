@@ -294,6 +294,30 @@ static int cmd_clear(int argc, char** argv) {
                          screen_fb_rgb(0x10, 0x10, 0x14));
     return 0;
 }
+
+/* click <x> <y>: probe the GUI button geometry through the same
+ * hit_test() the pointer path uses (T4's F-step matrix; the QEMU
+ * monitor cannot inject pointer events into the vendored USB
+ * stack). Pure geometry - no state, no side effects. */
+static int cmd_click(int argc, char** argv) {
+    if (argc != 3) {
+        ocse_outln("usage: click <x> <y>");
+        return 1;
+    }
+    u64 v[2] = { 0, 0 };
+    for (int i = 0; i < 2; i++) {
+        int j = 0;
+        while (argv[i + 1][j] >= '0' && argv[i + 1][j] <= '9' && j < 9) {
+            v[i] = v[i] * 10 + (u64)(argv[i + 1][j] - '0');
+            j++;
+        }
+        if (argv[i + 1][j]) {
+            ocse_outln("click: bad coordinate");
+            return 1;
+        }
+    }
+    return ocse_gui_click_probe((int)v[0], (int)v[1]);
+}
 static int cmd_reboot(int argc, char** argv) {
     (void)argc; (void)argv;
     ocse_outln(ocse_tr(OCSE_T_REBOOTING));
@@ -1521,6 +1545,7 @@ static const cl_cmd_t g_cmds[] = {
     { "disks",    "raw disk inventory (WP-06a view)",        cmd_disks },
     { "lang",     "show or set the language: lang [en|zh]", cmd_lang },
     { "clear",    "clear the screen",                        cmd_clear },
+    { "click",    "probe the GUI button geometry: click <x> <y>", cmd_click },
     { "gui",      "switch back to the graphical panel",      cmd_gui },
     { "halt",     "stop the CPU (no ACPI path)",             cmd_halt },
     { NULL, NULL, NULL }
@@ -1577,6 +1602,23 @@ static int run_line(char* line) {
     const cl_cmd_t* c = cl_find(argv[0]);
     if (!c) { cl_unknown(argv[0]); return 1; }
     return c->fn(argc, argv);
+}
+
+/* ==================================================================
+ * WP-06c: the wizard's command channel. One line, same tokenizer/
+ * table/handlers, output captured (console silent, serial mirrors).
+ * The line is copied first: handlers mutate their argv in place and
+ * the wizard's buffers must not be aliased.
+ * ================================================================== */
+int ocse_cl_exec(const char* line, char* out, int outsz) {
+    char buf[CL_BUF];
+    int l = (int)strlen(line);
+    if (l >= CL_BUF) return 1;
+    memcpy(buf, line, (usize)l + 1);
+    ocse_out_capture(out, outsz);
+    int rc = run_line(buf);
+    ocse_out_capture_off();
+    return rc;
 }
 
 /* ==================================================================

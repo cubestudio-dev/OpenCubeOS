@@ -63,7 +63,9 @@ try:
     # The scanner sees BOTH classes on the two volumes (the scan log
     # lists the disk OCOS entry first, the CD OCSE entry second)
     child.expect(r"\[scan\] entries: 2", timeout=120)
-    child.expect(r"OCOS: Open Cube OS \(hd0\)", timeout=20)
+    # WP06b b5: the scan entries carry the partition suffix
+    # ("hd0 p1", the FAT volume's partition number)
+    child.expect(r"OCOS: Open Cube OS \(hd0 p1\)", timeout=20)
     child.expect(r"OCSE: OpenCubeOS Setup \(OCSE\) \(cd0\)", timeout=20)
     print("[T6.1 PASS] dynamic scan: OCSE marker class + OCOS class "
           "co-exist (2 entries)")

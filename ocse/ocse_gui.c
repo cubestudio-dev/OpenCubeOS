@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS - 3.0.0-WP06a-ocse
+/* Open Cube OS - 3.0.0-WP06c-installer_gui
  * File: ocse/ocse_gui.c
  * Purpose: the OCSE framebuffer front-end: four hardware-check rows,
  * the disk identification panel and three buttons (command-line
- * install / language / re-check). Input: USB mouse + I2C touchpad
- * (pointer, tap = click); the Ctrl+Alt+F1/F2 hotkeys are handled by
- * ocse_main.c and checked between interactions.
+ * install / language / re-check). Input: PS/2 aux mouse + USB mouse
+ * + I2C touchpad (pointer, tap = click); the Ctrl+Alt+F1/F2 hotkeys
+ * are handled by ocse_main.c and checked between interactions.
  */
 #include "ocse_gui.h"
 #include "ocse_i18n.h"
@@ -18,6 +18,7 @@
 #include "encoding.h"
 #include "driver_usb_hid.h"
 #include "driver_input_i2chid.h"
+#include "driver_input_ps2mouse.h"
 #include "driver_input_keyboard.h"
 #include "core_sched.h"
 #include "lib_string.h"
@@ -45,11 +46,14 @@ static int g_need_draw = 1;
 
 typedef struct { u32 x, y, w, h; int act; int key; } ocse_button_t;
 
-#define OCSE_NBTN 3
+/* WP-06c: the 4th button enters the install wizard (620,400
+ * 150x52 - right of the disk panel, clear of the bottom row). */
+#define OCSE_NBTN 4
 static const ocse_button_t g_buttons[OCSE_NBTN] = {
     {  40, 516, 300, 52, OCSE_ACT_GOTO_CL,     OCSE_T_BTN_CLI   },
     { 360, 516, 190, 52, OCSE_ACT_RECHECK,     OCSE_T_BTN_CHECK  },
     { 570, 516, 190, 52, OCSE_ACT_TOGGLE_LANG, OCSE_T_BTN_LANG   },
+    { 620, 400, 150, 52, OCSE_ACT_WIZARD,      OCSE_T_BTN_INSTALL},
 };
 
 /* ---- text renderer: UTF-8 -> ASCII cell (8x16) or CJK cell (16x16) */
@@ -158,6 +162,31 @@ int ocse_gui_hit_test(u32 x, u32 y) {
     return OCSE_ACT_NONE;
 }
 
+/* OCSECL `click <x> <y>` self-check: feed the point through the SAME
+ * hit_test() the pointer path uses and NAME the action, so the T4
+ * battery can prove the button geometry without injecting pointer
+ * events (the QEMU monitor cannot reach the vendored v1.0.0 USB
+ * stack). Lives next to hit_test so the two can never drift. */
+int ocse_gui_click_probe(int x, int y) {
+    static const char* const names[] = {
+        "none", "goto-cl", "toggle-lang", "recheck", "goto-gui",
+        "wizard",
+    };
+    int act = ocse_gui_hit_test((u32)x, (u32)y);
+    const char* name = (act >= 0 && act < (int)(sizeof(names) /
+                        sizeof(names[0]))) ? names[act] : "?";
+    char nx[12], ny[12];
+    u64_to_str((u64)x, nx);
+    u64_to_str((u64)y, ny);
+    ocse_out("click at (");
+    ocse_out(nx);
+    ocse_out(",");
+    ocse_out(ny);
+    ocse_out("): action=");
+    ocse_outln(name);
+    return 0;
+}
+
 static void draw_pointer(void) {
     /* block arrow: shaft + head */
     screen_fb_fill_rect((u32)g_mx, (u32)g_my, 3, 14, COL_CURSOR);
@@ -206,6 +235,18 @@ static void clamp_pointer(void) {
 }
 
 static int poll_pointer(void) {
+    /* PS/2 aux mouse (WP06c: the wizard's third pointer source, now
+     * also on the main panel - QEMU's default pointing device is a
+     * PS/2 mouse, and a machine without USB HID still gets a
+     * pointer). Y grows upward on the aux port. */
+    ps2mouse_event_t mv;
+    while (driver_input_ps2mouse_read_event(&mv)) {
+        g_mx += mv.dx;
+        g_my -= mv.dy;
+        if (mv.buttons & 1) g_btn |= 1; else g_btn &= ~1;
+        clamp_pointer();
+        g_need_draw = 1;
+    }
     driver_usb_mouse_event_t ev;
     while (driver_usb_mouse_read_event(&ev)) {
         g_mx += ev.dx;

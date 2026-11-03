@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS - 3.0.0-WP06a-ocse
+/* Open Cube OS - 3.0.0-WP06c-installer_gui
  * File: ocse/ocse_main.c
  * Purpose: OCSE environment assembly + the GUI/CLI mode loop. Owns
  * the Ctrl+Alt+F1/F2 hotkey handler (GUI <-> CLI) and the GUI-mode
@@ -13,6 +13,7 @@
 #include "ocse_disk.h"
 #include "ocse_gui.h"
 #include "ocse_cl.h"
+#include "ocse_wizard.h"
 #include "ocse_atapi.h"
 #include "ocse_iso.h"
 #include "fs_vfs.h"
@@ -21,6 +22,7 @@
 #include "screen_serial_in.h"
 #include "l1_ext.h"
 #include "driver_input_keyboard.h"
+#include "driver_input_ps2mouse.h"
 #include "core_power.h"
 #include "lib_string.h"
 #include <stdint.h>
@@ -145,6 +147,14 @@ void ocse_main_run(const arch_multiboot2_info_t* mbi) {
     int mode_gui = 1;
     l1_ext_set_console_hook(ocse_console_sink, NULL);
     ocse_gui_init();
+    /* WP-06c: bring the PS/2 aux mouse up too (USB + I2C touchpad
+     * were already wired in the T4-era drivers; the aux mouse is the
+     * pointing device every QEMU/BIOS default provides). Missing aux
+     * port is not fatal - the pointer then rides USB/touchpad. */
+    if (driver_input_ps2mouse_init() == 0)
+        ocse_serial_puts_raw("[ocse] ps2 aux mouse: present\r\n");
+    else
+        ocse_serial_puts_raw("[ocse] ps2 aux mouse: absent\r\n");
     ocse_serial_puts_raw("[ocse] environment up: GUI mode\r\n");
 
     for (;;) {
@@ -169,6 +179,11 @@ void ocse_main_run(const arch_multiboot2_info_t* mbi) {
                 ocse_disk_scan();
                 ocse_gui_draw();
                 ocse_serial_puts_raw("[ocse] re-check done\r\n");
+            } else if (act == OCSE_ACT_WIZARD) {
+                ocse_serial_puts_raw("[ocse] wizard: enter\r\n");
+                ocse_wizard_run();
+                ocse_serial_puts_raw("[ocse] wizard: exit\r\n");
+                ocse_gui_draw();
             }
         } else {
             if (ocse_cl_loop() == OCSE_ACT_GOTO_GUI || g_ocse_hotkey_req == 2) {
