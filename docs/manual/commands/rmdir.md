@@ -8,6 +8,8 @@
 
 `rmdir` - ring-3 L1 app
 
+**Usage:** `rmdir &lt;path&gt;`
+
 Domain: [Other](index.md#other)
 
 Full command index: [commands](index.md) - or `help -a` /

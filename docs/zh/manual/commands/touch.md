@@ -8,6 +8,8 @@
 
 `touch` - ring-3 L1 app
 
+**用法：** `touch &lt;file&gt;`
+
 领域：[其他](index.md#other)
 
 完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。

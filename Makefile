@@ -83,7 +83,11 @@ SEABIOS_DIR  ?= $(OC_TOOLS)/share/seabios
 # v2.0.0 (2026-10-25): the breaking ring-3 release - L0 restructured
 # (core/drivers/services/boot/recovery), boots into the ring-3 service
 # surface (ush + SYS_L1SVC), register-class interfaces removed.
-OC_RELEASE_VERSION ?= 3.0.0-WP04
+# 3.0.0-WP06e: the default tracks the current milestone.  The WP06a/b/c
+# release builds ran with the WP-04 default still set, so the shipped
+# ISO banners say 3.0.0-WP04 - a build-parameter miss, fixed here for
+# every future build (the released artifacts themselves stay as-is).
+OC_RELEASE_VERSION ?= 3.0.0-WP06c
 # BUG-0347 (RUNTIME): monotonic build id baked into the kernel and
 # published by the server-side version.json - makes the update check a
 # numeric comparison instead of a string equality (see ota_update.h).
@@ -682,4 +686,5 @@ endif # ARCH dispatch
 # (see evidence/help_a_runtime.txt; regenerate with tools/gen_api_docs.py
 # --qemu build/opencube.iso).
 api-docs:
-	python3 $(OC_ROOT)/tools/gen_api_docs.py --help-capture $(OC_ROOT)/evidence/help_a_runtime.txt
+	python3 $(OC_ROOT)/tools/gen_api_docs.py --help-capture $(OC_ROOT)/evidence/help_a_runtime.txt \
+		--l1-registry $(OC_ROOT)/evidence/help_a_runtime.txt

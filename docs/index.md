@@ -2,7 +2,9 @@
 # Open Cube OS documentation
 
 Welcome to the documentation center for Open Cube OS - the
-from-scratch x86_64 kernel with the `oc>` recovery shell.
+from-scratch x86_64 kernel that boots into ring 3 (L0 is a pure
+service kernel; the whole user world - the ush shell, the TUI
+desktop, the Chinese console - lives in L1 under `src/L1/`).
 
 Everything here is written against the real tree: command counts,
 interface tables and line statistics are machine-generated
@@ -33,10 +35,12 @@ the file that implements what they describe.
 | [internals/](internals/) | Subsystem internals: watchdog, klog, health, crash dump, crypto seeding, OTA/A-B |
 | [release/](release/) | Release engineering: process SOP, versioning, website + wiki sync |
 
-## Quick facts
+## Quick facts (3.0.0-WP06c)
 
-- 233 shell commands (`help -a` in the guest)
-- 162 numbered L1 extension interfaces (INTERFACES.md)
-- 53 syscalls (`kernel/core/core_syscall.h`)
-- 140,672 lines of original source
+- 285 shell commands - 274 ring-3 registry apps + 11 ush built-ins,
+  zero commands in L0 (`help -a` in the guest)
+- 20 SYS_L1SVC service categories / 190 numbered entries
+  (INTERFACES.md, l1svc_defs.h)
+- 54 syscalls (`src/L0/services/sysapi/core_syscall.h`)
+- 128,890 lines of original source across 624 files
 - Apache 2.0, every file SPDX-tagged

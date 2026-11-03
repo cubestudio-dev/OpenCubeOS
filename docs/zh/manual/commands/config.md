@@ -8,6 +8,8 @@
 
 `config` - ring-3 half of the v2.2.0 `config` command
 
+**用法：** `config                show the installed config`
+
 领域：[其他](index.md#other)
 
 完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。

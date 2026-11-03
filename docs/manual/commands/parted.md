@@ -8,6 +8,8 @@
 
 `parted` - ring-3 half of the v2.2.0 `parted` command
 
+**Usage:** `parted &lt;disk&gt;`
+
 Domain: [Other](index.md#other)
 
 Full command index: [commands](index.md) - or `help -a` /

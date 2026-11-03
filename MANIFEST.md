@@ -4,88 +4,133 @@
 # Open Cube OS — Repository Manifest
 
 ## Version
-WP-10-chinese_support-fix2 (CJK font/codec/render/IME + CN TUI parity + real-mode S3 resume + fsck/exit-code/$? shell contract)
+
+3.0.0-WP06c (development preview: the OCBL bootloader + a pure L0
+service kernel + 275 ring-3 programs under src/L1/ + the OCSE install
+environment with the GUI install wizard). Stable line: 2.2.0.
 
 ## Directory Structure
 
 ```
-oc-os/                        ← repository root
-├── boot/                     ← boot assembly (5 files: .S + headers)
-├── kernel/                   ← kernel source (79 files: .c + .h + .S, incl. WP-09 crypto/ssh/sshd/tls + WP-10a storage + WP-10b NIC drivers + WP-10-timer_rtc time sources)
-├── drivers/                  ← device drivers (16 subdirs: block, nic, snd, usb, input, display, pci, acpi, i2c, time, wireless(10)/bluetooth(9)/sd(2) from WP-10-wireless_bluetooth + camera(6)/misc(6: parallel, gameport, ir)/scsi(4) from WP-10-camera_misc)
-├── userprogs/                ← user programs (.c/.asm/.ld — 31 files)
-├── tools/                    ← build/test scripts (50 files, public)
-├── docs/                     ← documentation (37 files + audit/ + verification/)
-├── build/                    ← build artifacts (opencube.elf + .o files) — gitignored
+opencube/                     ← repository root
+├── src/
+│   ├── L0/                   ← the pure service kernel (no shell, no TUI, no IME)
+│   │   ├── boot/             ← composition root (7 files): boot.S, long-mode
+│   │   │                       entry, kmain.c, l1_launcher.c (the ush default
+│   │   │                       entry), l1_selftest.c, the multiboot2 header/stub
+│   │   ├── core/             ← kernel mechanisms (62 files): scheduling, sync,
+│   │   │                       timers, usermode, the OC_*_DECL registry, crash,
+│   │   │                       mem/ (PMM/VMM/heap), lib/, console/, arch/,
+│   │   │                       generated/ (build stamps)
+│   │   ├── drivers/          ← 15 hardware families (125 files): acpi block
+│   │   │                       bluetooth camera i2c input misc nic pci scsi
+│   │   │                       sd snd time usb wireless
+│   │   └── services/         ← 24 root-service folders (176 files): the folder
+│   │                           is the L1SVC facet - audio block camera crash
+│   │                           crypto diag display encoding font fs health
+│   │                           ipc klog l1 loader net ocembed power selfhost
+│   │                           sysapi time tui usb watchdog (+ time/crypto
+│   │                           bodies); sysapi/ holds the frozen ABI headers
+│   │                           (core_syscall.h 54 + l1svc_defs.h 20/190)
+│   └── L1/                   ← the ring-3 world: 275 programs (242 app folders
+│                               + 8 flat .c + 25 flat .asm) - ush (the default
+│                               boot entry), the TUI desktop family, the editor,
+│                               the Chinese console + pinyin IME, one command
+│                               per app; plus _shared/ (the common L1 libs)
+├── ocbl/                     ← OCBL, the in-tree bootloader: bios/ (512-byte
+│                               stage 1, the 16-bit trampoline), efi/ (the UEFI
+│                               entry), common/ (menu, disk scan, loader) - own
+│                               build (ocbl.mk), NOT part of L0
+├── ocire/                    ← the independent recovery kernel (shares no code
+│                               with OCOS; own ISO; agent/, boot/, kernel/...)
+├── ocse/                     ← the OCSE install-environment kernel (WP-06a/b:
+│                               the vendored OCOS core + OCSECL + the wizard)
+├── tools/                    ← build/test/generation scripts (43 .py/.sh,
+│                               public): build.sh, build_iso.sh, gen_api_docs.py,
+│                               update_website.sh, sync_wiki.sh, the e2e suites
+├── docs/                     ← the documentation center (796 .md pages):
+│                               manual/ (user + commands), dev/, arch/,
+│                               drivers/, internals/, l1/, troubleshooting/,
+│                               release/, root/ (README/ARCHITECTURE/INTERFACES/
+│                               BUILDING/FAQ/CONTRIBUTING/KNOWN_ISSUES mirrors)
+│                               + zh/ (the full Chinese mirror) + data/ (the
+│                               generated stats/interfaces/commands JSON)
+├── website/                  ← the site: static facade (index/architecture/
+│                               download/about + assets/i18n/app/site-data) +
+│                               docs-src/ (VitePress over docs/) + public/
+│                               downloads/ (the mirrored release assets)
+├── evidence/                 ← release/batch evidence (runtime captures,
+│                               battery logs)
+├── tests/                    ← host-side unit tests (the host_* suite)
+├── etc/                      ← the default /etc content (opencube.conf)
+├── dist/                     ← release assets staged by tools/build_release.sh
+│                               (2.2.0 ISO/src/OTA; gitignored)
 ├── archive/                  ← archived old versions (see archive/README.md)
-│   └── old-ldso/             ← Batch 2 assembly ld.so (only tracked subdir)
-├── Makefile                  ← top-level build
-├── linker.ld                ← kernel link script
-├── grub.cfg                  ← GRUB boot config
-├── LICENSE                   ← Apache 2.0 (201 lines, full text)
+├── Makefile                  ← top-level build (kernel, l1apps, ocbl, iso)
+├── build.ps1                 ← Windows host build (WSL2 / MSYS2)
+├── LICENSE                   ← Apache 2.0 (full text)
 ├── NOTICE                    ← copyright + third-party components
-├── README.md                 ← project overview (WP-01..WP-09)
+├── README.md                 ← project overview (3.0.0-WP06c)
 ├── MANIFEST.md               ← this file
-└── .gitignore                ← excludes build/, *.o, *.elf, *.iso, *.zip, releases/, etc.
+└── .gitignore                ← excludes build/, *.o, *.elf, dist/ contents, etc.
 ```
 
 **Note:** Binary releases (ISO + src zip) are hosted on
-[GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases),
-not stored in this repo. The `releases/` directory (if it exists locally)
-is gitignored. Use the website or GitHub Releases page to download.
+[GitHub Releases](https://github.com/cubestudio-dev/OpenCubeOS/releases)
+and mirrored under `website/public/downloads/` (the gh-pages deploy
+serves the same bytes). Use the website or GitHub Releases page to
+download.
 
 ## How to Build
 
 ```bash
-source source env.sh (toolchain setup)   # set up toolchain (gcc/nasm/xorriso/grub-mkimage/qemu)
-make clean && make          # build kernel ELF → build/opencube.elf
-make iso                    # build bootable ISO → build/opencube.iso
+# toolchain (no-root sandbox): gcc + nasm + xorriso + mtools + OVMF
+bash tools/install-toolchain.sh
+
+make clean && make          # kernel + L1 apps → build/
+make iso                    # bootable hybrid ISO → build/opencube.iso
 ```
 
 ## How to Run
 
 ```bash
 qemu-system-x86_64 \
-  -m 256M -cdrom build/opencube.iso -boot d \
-  -no-reboot -display none -serial stdio -monitor none \
-  -vga std -snapshot
+  -m 512 -cdrom build/opencube.iso -boot d \
+  -netdev user,id=n1 -device e1000,netdev=n1 \
+  -vga std
 ```
 
-Shell prompt `oc>` appears after boot. Type `help` for commands.
+OCBL shows the boot menu (10 s countdown), boots OCOS, and the ring-3
+`ush>` prompt appears after `L0 ready, waiting for L1`. Type `help`
+for the built-ins; every other command is a registry app.
 
 ## How to Test
 
 ```bash
-# WP-09 canonical regression (one QEMU session, 18/18) — now run WITH the
-# four WP-10a disks attached (see EXTENSIONS_WP10a.md for the QEMU args):
-#   uname -a, run hello/fork_test/exec_test/pipe_test/signal_test/
-#   select_test/mmap_test/dyn_hello/so_test/dlsym_test/pie_test/
-#   reloc_test/p3_test, heaptest, l1test, crashlog
-python3.13 tools/qemu_runner.py build/opencube.iso uname -a run hello ...
-
-# WP-10a storage suite (each prints input/expect/actual/PASS|FAIL):
-#   ahci_test, nvme_test, ata_dma_test, virtio_blk_test,
-#   disk_rw_test <dev>, partition_test [dev], fs_mount_test <dev>,
-#   real_hw_test        (NOT RUN under QEMU by design; full report on bare metal)
-python3.13 tools/qemu_runner.py build/opencube.iso ahci_test nvme_test ...
-
-# DH modexp self-test (5/5)
-#   dhtest
-
-# SSH/TLS E2E (paramiko 5.0 required: python3.13 -m pip install paramiko)
-python3.13 tools/sshd_test.py build/opencube.iso        # paramiko client -> kernel sshd
-python3.13 tools/paramiko_sshd.py 2222 &                # then in kernel: ssh 10.0.2.2 2222 oc oc
-python3.13 tools/https_test_server.py cert key dh 8443 & # then in kernel: wget https://10.0.2.2:8443/
+# the canonical battery matrix runs per work package - see the
+# evidence/ tree and docs/dev/e2e-suites.md for the current set
+# (b2..b6, T1..T7 style batteries; every command above is covered)
+make test                   # host unit tests (tests/host_*.c)
+python3 tools/run_*.py      # the QEMU e2e suites (per subsystem)
 ```
 
-All 18 regression items + the eight WP-10a storage tests + dhtest 5/5
-must PASS.
+The release gate: the full regression matrix green + CI green
+(`.github/workflows/build.yml`: build, ISO, packages, host tests,
+reproducibility) before any tag.
 
-## Line Count (WP-10a)
+## Line Count (3.0.0-WP06c generator caliber)
 
-- Source code (kernel + boot + userprogs, no docs): **56,019 lines**
-  (includes the embedded-data headers; verify with:
+- Source code (src/L0/boot+core+drivers+services + src/L1, .c/.h/.S,
+  generated data blobs excluded): **128,890 lines across 624 files**
+  (verify with:
   ```bash
-  find kernel boot userprogs \( -name '*.c' -o -name '*.h' -o -name '*.S' \) \
+  find src/L0/core src/L0/drivers src/L0/services src/L0/boot src/L1 \
+    \( -name '*.c' -o -name '*.h' -o -name '*.S' \) \
+    | grep -v generated \
+    | grep -vE 'chinese_font_data|pinyin_data|grub_boot_data|userprogs_data' \
     | xargs wc -l | tail -1
-  ```)
+  ```
+  )
+- Commands: **285** = 274 ring-3 registry apps + 11 ush built-ins
+- L1SVC surface: **20 categories / 190 numbered entries**
+- Syscalls: **54**

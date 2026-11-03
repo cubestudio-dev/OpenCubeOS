@@ -8,7 +8,7 @@
 
 `lang` - ring-3 half of the v2.2.0 `lang` command
 
-**Usage:** `lang [en|zh]  (no argument shows the current language)`
+**Usage:** `lang [en|zh]`
 
 Domain: [Other](index.md#other)
 

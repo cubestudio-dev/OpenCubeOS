@@ -8,6 +8,8 @@
 
 `mount` - ring-3 half of the v2.2.0 `mount` command
 
+**Usage:** `mount &lt;device&gt; &lt;path&gt;`
+
 Domain: [Other](index.md#other)
 
 Full command index: [commands](index.md) - or `help -a` /

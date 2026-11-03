@@ -173,21 +173,32 @@ def extract_commands_from_capture(path):
 
 
 def extract_l1_registry(path):
-    """3.0.0-WP04: parse a runtime `run` usage capture - one program
-    name per line plus the '-- N programs registered --' footer."""
+    """3.0.0-WP04: parse a runtime registry capture.  Two formats:
+    (a) the `run` usage capture - one program name per line plus the
+        '-- N programs registered --' footer;
+    (b) the `help -a` capture (the WP06e default) - a
+        'ring-3 program registry (A-Z, N programs):' header followed
+        by '  name  [wp-tag]' rows."""
     names, total, seen = [], None, set()
     footer = re.compile(r"^--\s*(\d+)\s*programs registered\s*--$")
+    header = re.compile(r"^ring-3 program registry \(A-Z, (\d+) programs\):$")
+    row = re.compile(r"^([a-z0-9_][a-z0-9_.-]*)(?:\s+\[[a-z0-9_-]+\])?$")
     for line in open(path, "r", encoding="latin-1"):
         t = line.strip()
         m = footer.match(t)
         if m:
             total = int(m.group(1))
             continue
+        m = header.match(t)
+        if m:
+            total = int(m.group(1))
+            continue
         if t.startswith("usage:") or not t:
             continue
-        if re.match(r"^[a-z0-9_][a-z0-9_.-]*$", t) and t not in seen:
-            seen.add(t)
-            names.append(t)
+        m = row.match(t)
+        if m and m.group(1) not in seen:
+            seen.add(m.group(1))
+            names.append(m.group(1))
     return names, total
 
 
@@ -1273,6 +1284,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
         by_file.setdefault(itf["file"], []).append(itf)
     l0 = [c for c in cmds if c["where"] == "L0"]
     l1svc = [c for c in cmds if c["where"] == "L1-SVC"]
+    l1app = [c for c in cmds if c["where"] == "L1-app"]
     l1b = [c for c in cmds if c["where"] == "L1-builtin"]
     bridge = [c for c in cmds if c.get("bridge") == "L1-bridge"]
     v1 = v1 or {}
@@ -1287,17 +1299,19 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
     w("")
     w("Every entry below is extracted from the real tree at generation")
     w("time: the L0 command declarations straight from the OC_SHELL_CMD")
-    w("call sites, the ring-3 surface from the ush SVC_CMDS table and")
-    w("src/L0/services/sysapi/l1svc_defs.h, the kernel-side declarations from the")
-    w("service headers. Regenerate with `make api-docs`.")
+    w("call sites, the ring-3 surface from the embedded program registry")
+    w("capture (--l1-registry, one command = one app = one src/L1/ folder)")
+    w("and src/L0/services/sysapi/l1svc_defs.h, the kernel-side")
+    w("declarations from the service headers. Regenerate with")
+    w("`make api-docs`.")
     w("")
     w("- v1.0.0 commands (compatibility baseline): **%d** - all mapped"
       % len(v1))
     w("  below, none dropped")
     w("- %s command homes: **%d total** = %d in the L0 recovery"
       % (VER, len(cmds), len(l0)))
-    w("  shell + %d ring-3 SYS_L1SVC ops + %d ush built-ins"
-      % (len(l1svc), len(l1b)))
+    w("  shell + %d ring-3 registry apps (src/L1/) + %d ush built-ins"
+      % (len(l1app) + len(l1svc), len(l1b)))
     w("- L1SVC service surface: **%d categories / %d numbered ops**"
       % (len(svc_cats or {}), len(svc_ops or {})))
     w("- Kernel-side declarations across the service headers: **%d**"

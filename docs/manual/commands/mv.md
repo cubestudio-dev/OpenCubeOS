@@ -8,6 +8,8 @@
 
 `mv` - ring-3 L1 app
 
+**Usage:** `mv &lt;src&gt; &lt;dst&gt;`
+
 Domain: [Other](index.md#other)
 
 Full command index: [commands](index.md) - or `help -a` /
