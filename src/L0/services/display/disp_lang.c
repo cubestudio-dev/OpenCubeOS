@@ -8,6 +8,7 @@
 #include "lib_string.h"
 #include "screen_console.h"
 #include "console_cn.h"
+#include "l0_i18n.h"
 
 static int g_disp_lang = DISP_LANG_EN;
 
@@ -36,29 +37,33 @@ const char *disp_lang_name(void) {
 }
 
 /* ---- strings the display lang op itself emits -----------------------
- * (the bilingual shell-UI message table died with the oc> shell; these
- * five are the op surface's own output, rescued byte-identical from
- * the historical SM_LANG_* / SM_PERSIST_* table entries - the zh
- * column is the CJK rendering path this very op selects). */
+ * 3.0.0-WP06g2: the historical zh columns of these five were ENGLISH
+ * PLACEHOLDERS (the v2.2.0 rescue note said "the zh column is the CJK
+ * rendering path this very op selects" - but the carried-over text
+ * was English, so `lang zh` printed English; the WP06g1 close-out
+ * recorded it as the "lang placeholder note").  They now render
+ * through the L0 i18n resource (etc/i18n/l0/{en,zh}.json) keyed
+ * disp_lang_* - real Chinese under zh, byte-identical English under
+ * en (the resource IS the en text now, no file-local tables left). */
 static const char *disp_lang_msg_cur(int zh) {
-    return zh ? "Console output language: "
-              : "shell output language: ";
+    (void)zh;
+    return l0_tr_("disp_lang_cur");
 }
 static const char *disp_lang_msg_set(int zh) {
-    return zh ? "Console output language set to "
-              : "shell output language set to ";
+    (void)zh;
+    return l0_tr_("disp_lang_set");
 }
 static const char *disp_lang_msg_usage(int zh) {
-    return zh ? "Usage: lang [en|zh] (no argument shows the current language)"
-              : "usage: lang [en|zh]  (no argument shows the current language)";
+    (void)zh;
+    return l0_tr_("disp_lang_usage");
 }
 static const char *disp_lang_msg_persist_ok(int zh) {
     (void)zh;
-    return " (persisted)";
+    return l0_tr_("disp_lang_persist_ok");
 }
 static const char *disp_lang_msg_persist_ram(int zh) {
     (void)zh;
-    return " (in-memory only; ramfs config, lost on reboot)";
+    return l0_tr_("disp_lang_persist_ram");
 }
 
 int disp_cmd_lang(const char *args) {

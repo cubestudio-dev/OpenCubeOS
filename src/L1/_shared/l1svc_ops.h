@@ -133,6 +133,10 @@
 #define L1SVC_DISP_ENC_TEST   10   /* encoding-test           */
 #define L1SVC_DISP_IME        11   /* ime [-i]                */
 #define L1SVC_DISP_IME_TEST   12   /* ime-test                */
+#define L1SVC_DISP_IME_BEGIN  13   /* ime session open        */
+#define L1SVC_DISP_IME_KEY    14   /* ime session key feed    */
+#define L1SVC_DISP_IME_END    15   /* ime session close       */
+#define L1SVC_DISP_LANG_GET   16   /* locale query (en|zh)    */
 #define L1SVC_INP_TOUCHPAD     1   /* touchpad                */
 #define L1SVC_INP_TOUCHTEST    2   /* touchtest               */
 #define L1SVC_CAM_UVC           1   /* uvc                     */

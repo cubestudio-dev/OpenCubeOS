@@ -226,6 +226,25 @@
 #define L1SVC_DISP_IME        11   /* ime [-i]                */
 #define L1SVC_DISP_IME_TEST   12   /* ime-test                */
 
+/* 3.0.0-WP06g2: the SYSTEM IME session ops + the programmatic
+ * locale query.  The IME is a system service by design: ONE engine
+ * and ONE session state live in the L0 display service; editors
+ * (nano/vi/edit) drive it per keystroke through BEGIN/KEY/END and
+ * never embed the engine themselves.
+ *   IME_BEGIN   reset + open the compose session (out: "")
+ *   IME_KEY     arg = one decimal key code; out = the session
+ *               protocol line (see ime_session.c: action, the
+ *               rendered compose strip, and the committed UTF-8
+ *               text when the action is commit)
+ *   IME_END     close the session (out: "")
+ *   LANG_GET    programmatic locale: out = "en" or "zh" (no arg)
+ * Numbers appended at the tail of the display block per the
+ * renumbering contract. */
+#define L1SVC_DISP_IME_BEGIN  13   /* ime session open        */
+#define L1SVC_DISP_IME_KEY    14   /* ime session key feed    */
+#define L1SVC_DISP_IME_END    15   /* ime session close       */
+#define L1SVC_DISP_LANG_GET   16   /* locale query (en|zh)    */
+
 /* ---- input operations (services/input) -----------------------------
  * Bodies: recovery/shell_cmds_chipset.c (touchpad/touchtest). */
 #define L1SVC_INP_TOUCHPAD     1   /* touchpad                */

@@ -148,6 +148,7 @@ static inline long syscall5(long n, long a, long b, long c, long d, long e) {
  * ush previously hand-spelled its op constants, which is how the WP-08
  * era constants drifted from the numbering contract. */
 #include "_shared/l1svc_ops.h"
+#include "_shared/i18n.h"   /* WP06g2: tr_() + the per-app tables */
 
 /* String helpers (no libc) */
 static int strlen_(const char *s) {
@@ -408,19 +409,30 @@ static int builtin_cmd(int argc, char *argv[]) {
      * list (which still advertised the deleted oc> shell, GRUB-era
      * families and commands that moved to apps) is gone. */
     if (streq(argv[0], "help")) {
+        /* WP06g2: the built-in help text renders through the app's
+         * i18n resource (src/L1/ush/i18n/{en,zh}.json) - English keys
+         * stay the source of truth, `lang zh` serves the Chinese
+         * column.  Nothing is hand-written twice. */
         static const char *builtin_rows[] = {
-            "cd [dir]        change directory (shell state)",
-            "help [-a|-w]    this text; -a = full A-Z, -w = by work package",
-            "export VAR=val  set environment variable",
-            "alias name=val  set command alias",
-            "unalias name    remove alias",
-            "env             show environment variables",
-            "set             show a variable",
-            "history         show command history",
-            "jobs            list background jobs",
-            "fg [job]        bring a job to the foreground",
-            "bg              send a job to the background",
-            "exit            not available (use shutdown / reboot)",
+            "cd [dir]        ",
+            "help [-a|-w]    ",
+            "export VAR=val  ",
+            "alias name=val  ",
+            "unalias name    ",
+            "env             ",
+            "set             ",
+            "history         ",
+            "jobs            ",
+            "fg [job]        ",
+            "bg              ",
+            "exit            ",
+            (const char *)0
+        };
+        static const char *builtin_keys[] = {
+            "help_row_cd", "help_row_help", "help_row_export",
+            "help_row_alias", "help_row_unalias", "help_row_env",
+            "help_row_set", "help_row_history", "help_row_jobs",
+            "help_row_fg", "help_row_bg", "help_row_exit",
             (const char *)0
         };
         int mode = 0;   /* 0 = short, 'a' = all, 'w' = by work package */
@@ -434,9 +446,13 @@ static int builtin_cmd(int argc, char *argv[]) {
                 return 1;
             }
         }
-        puts_("\nOpen Cube OS User-space Shell (ush) - built-in commands:\n\n");
-        for (int i = 0; builtin_rows[i]; i++) puts_(builtin_rows[i]), puts_("\n");
-        puts_("\nAll other commands are ring-3 apps served from the registry.\n");
+        puts_(tr_("help_title"));
+        for (int i = 0; builtin_rows[i]; i++) {
+            puts_(builtin_rows[i]);
+            puts_(tr_(builtin_keys[i]));
+            puts_("\n");
+        }
+        puts_(tr_("help_registry_note"));
         static char out[8192];
         if (mode == 0) {
             long rc = sys_l1svc(L1SVC_CAT_L1, L1SVC_L1_APPS, 0,
@@ -451,18 +467,18 @@ static int builtin_cmd(int argc, char *argv[]) {
                     if (!*e) break;
                     q = e + 1;
                 }
-                puts_("Registry: ");
+                puts_(tr_("help_registry_prefix"));
                 putu_((u64)n);
-                puts_(" programs - 'help -a' lists them all, 'help -w' groups by work package.\n");
+                puts_(tr_("help_registry_suffix"));
             } else {
-                puts_("(registry unavailable)\n");
+                puts_(tr_("help_registry_unavailable"));
             }
         } else {
             long rc = sys_l1svc(L1SVC_CAT_L1, L1SVC_L1_APPS,
                                 (long)(mode == 'a' ? "-a" : "-w"),
                                 (long)out, (long)sizeof(out));
             if (rc == 0) puts_(out);
-            else puts_("(registry listing failed)\n");
+            else puts_(tr_("help_registry_listing_failed"));
         }
         putc_('\n');
         return 1;
