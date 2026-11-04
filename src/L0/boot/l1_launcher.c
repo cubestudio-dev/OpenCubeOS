@@ -22,6 +22,7 @@
 #include "screen_console.h"
 #include "lib_log.h"
 #include "lib_string.h"
+#include "boot_state.h"      /* 3.0.0-WP07a: the L1_LAUNCHED state point */
 
 /* Embedded ELF bytes live in core/userprogs_data.h (compiled once,
  * inside core_usermode.o) - reference them, never re-include. */
@@ -67,6 +68,10 @@ void l1_launcher_boot_default(void) {
         lib_log_info("l1 launcher: failed to start the default L1 app; entering recovery shell");
         return;
     }
+    /* 3.0.0-WP07a: the default L1 entry is launched - the L1_LAUNCHED
+     * state point (L1_READY follows on its first syscall, see
+     * core_syscall_dispatch). */
+    boot_state_advance(OCST_STAGE_L1_LAUNCHED);
     /* v2.0.0 fix (launcher wait discipline): the v1 `run ush` path
      * parked the boot task on a bare "sti; hlt" spin.  That is only
      * safe while the parked task is NEVER switched out mid-halt: the

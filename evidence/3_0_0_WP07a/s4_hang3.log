@@ -1,0 +1,196 @@
+OCBL stage1 ok
+
+OCBL 3.0.0 boot loader (3.0.0-WP06c build 378)
+long mode 64-bit C entry OK
+flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
+cpu: QEMU Virtual CPU version 2.5+
+stack at 0x0009EF00
+OCBL B1 chain verified
+[b2a] trampoline installed at 0x40000
+[b2a] E820 entries: 7
+  [0] base=0x00000000 len=0x0009FC00 type=1
+  [1] base=0x0009FC00 len=0x00000400 type=2
+  [2] base=0x000F0000 len=0x00010000 type=2
+  [3] base=0x00100000 len=0x0FEE0000 type=1
+  [4] base=0x0FFE0000 len=0x00020000 type=2
+  [5] base=0xFFFC0000 len=0x00040000 type=2
+  [6] base=0x00000000 len=0x00000000 type=2
+[b2a] hd 0x80 LBA0:EB58904D544F4F34 sig=AA55
+[b2a] scanning BIOS drives (boot=0xE0)
+  drive 0x80: 97776 sectors x 512 B
+  drive 0x81: 32256 sectors x 512 B
+  drive 0x82: 65536 sectors x 512 B
+  cdrom 0xE0: 18446744073709551615 sectors x 2048 B
+  PVD: 'CD001' type=1
+  boot image first bytes: EB 3C 90 4D 54 4F 4F 34
+[state] fresh boot - state area initialized
+[state] boot attempt seq 1
+[scan] entries: 2
+  [0] OCOS: Open Cube OS (hd0)  path=/boot/opencube.elf size=2080808
+  [1] OCIRE: OCIRE recovery (hd1)  path=/boot/ocire.elf size=62384
+[0;1HOpen Cube OS Boot Loader (3.0.0-WP06c build 378)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOpen Cube OS (hd0)[0m[5;1HOCIRE recovery (hd1)[6;1HShutdown[2;1HBooting Open Cube OS (hd0) in 10s                                             [2;1HBooting Open Cube OS (hd0) in 9s                                              [2;1HBooting Open Cube OS (hd0) in 8s                                              [2;1HBooting Open Cube OS (hd0) in 7s                                              [2;1HBooting Open Cube OS (hd0) in 6s                                              [2;1HBooting Open Cube OS (hd0) in 5s                                              [2;1HBooting Open Cube OS (hd0) in 4s                                              [2;1HBooting Open Cube OS (hd0) in 3s                                              [2;1HBooting Open Cube OS (hd0) in 2s                                              [2;1HBooting Open Cube OS (hd0) in 1s                                              [menu] selected: Open Cube OS (hd0)
+[menu] B4 will load this payload (mb2 handoff)
+[state] /HANGAT diagnostic hook: oc.hang=3 (the kernel will halt after the stage)
+[boot] VBE 800x600x32 ok
+[boot] kernel loaded: entry=0x001FB640 size=2080808
+[boot] mbi built: 416 bytes at 0x50000
+[state] payload armed: boot budget 30s on the watchdog relay
+
+[oc] Open Cube OS 3.0.0-WP06c kmain entered
+[ocst] boot-state monitor: state area 0x98000, watchdog 6300ESB (relay active)
+[ocst] /HANGAT diagnostic: will halt after stage 3
+[ocst] stage 1/6: KM_AIN_ENTERED (budget 10s)
+[00:00:00.000] boot chain 1/4: kernel core mechanisms............ OK
+  Open Cube OS  [3.0.0-WP06c]    Open Cube OS - L0 kernel (3.0.0-WP06c)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] PIT @ 100 Hz + tick counter....................... OK
+[00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.000] console input line editor......................... OK
+[00:00:00.010] interrupts enabled (sti).......................... OK
+@    WP-01 ext self-test: 4/4 points reachable
+[00:00:00.010] WP-01 extension self-test......................... OK
+    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.010] exception self-test............................... OK
+[00:00:00.010] PMM (physical memory manager)..................... OK
+[00:00:00.010] VMM (virtual memory manager)...................... OK
+[00:00:00.010] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.010] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.010] sync primitives (spinlock/sem/mutex/cond)......... OK
+[00:00:00.020] userspace (ring 3, syscalls, ELF loader).......... OK
+    registry: file-local declarations collected
+    registry: drv=37 svc=20 app=1
+[00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5........... OK
+[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.020] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.030] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.060] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.070] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.070] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.080] SMBus: 8 device(s) at scan........................ OK
+    AML: AML: undefined name PRQ0
+    AML: AML: undefined name PRQ1
+    AML: AML: undefined name PRQ2
+    AML: AML: undefined name PRQ3
+    AML: AML: undefined name VEND
+    AML: AML: undefined name CSEL
+    AML: AML: undefined name CPEN
+[00:00:00.120] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.130] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.130] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.140] boot chain 2/4: drivers + driver-free services.... OK
+[ocst] stage 2/6: SCHED_READY (budget 10s)
+[00:00:00.150] VFS (virtual file system)......................... OK
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.160] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: IDE controller at 00:01.1 BAR4=0xc040
+ata_dma: drive hda registered (DMA, 97776 sectors)
+ata_dma: drive hdd registered (DMA, 65536 sectors)
+ata: primary master present
+ata: primary slave present
+ata: secondary slave present
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: no controller found
+nvme: no controller found
+[00:00:00.300] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.320] virtio-blk + AHCI + NVMe drivers.................. OK
+usb: class driver collected: usb-audio
+usb: class driver collected: hid-mouse
+usb: class driver collected: hid-kbd
+usb: class driver collected: usb-msc
+usb: class driver collected: ftdi-serial
+usb: class driver collected: cdc-acm
+usb: class driver collected: btusb
+usb: class driver collected: uvc
+[00:00:00.460] USB hosts up: 0................................... OK
+[00:00:00.460] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+[00:00:00.470] boot chain 3/4: driver-dependent services......... OK
+[ocst] stage 3/6: DRIVERS_READY (budget 10s)
+[ocst] HANGAT: deliberate halt with interrupts off - the watchdog relay must catch this
+i6300esb_timer_expired: I would send APIC 1 INT 10 here if I knew how (XXX)
+OCBL stage1 ok
+
+OCBL 3.0.0 boot loader (3.0.0-WP06c build 378)
+long mode 64-bit C entry OK
+flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
+cpu: QEMU Virtual CPU version 2.5+
+stack at 0x0009EF00
+OCBL B1 chain verified
+[b2a] trampoline installed at 0x40000
+[b2a] E820 entries: 7
+  [0] base=0x00000000 len=0x0009FC00 type=1
+  [1] base=0x0009FC00 len=0x00000400 type=2
+  [2] base=0x000F0000 len=0x00010000 type=2
+  [3] base=0x00100000 len=0x0FEE0000 type=1
+  [4] base=0x0FFE0000 len=0x00020000 type=2
+  [5] base=0xFFFC0000 len=0x00040000 type=2
+  [6] base=0x00000000 len=0x00000000 type=2
+[b2a] hd 0x80 LBA0:EB58904D544F4F34 sig=AA55
+[b2a] scanning BIOS drives (boot=0xE0)
+  drive 0x80: 97776 sectors x 512 B
+  drive 0x81: 32256 sectors x 512 B
+  drive 0x82: 65536 sectors x 512 B
+  cdrom 0xE0: 18446744073709551615 sectors x 2048 B
+  PVD: 'CD001' type=1
+  boot image first bytes: EB 3C 90 4D 54 4F 4F 34
+[state] previous boot judged FAILED at stage DRIVERS_READY (silence 10s, seq 1) - BOOT_FAILED recorded
+Open Cube OS failed to boot at stage: DRIVERS_READY
+Rebooting to recovery...
+OCBL stage1 ok
+
+OCBL 3.0.0 boot loader (3.0.0-WP06c build 378)
+long mode 64-bit C entry OK
+flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
+cpu: QEMU Virtual CPU version 2.5+
+stack at 0x0009EF00
+OCBL B1 chain verified
+[b2a] trampoline installed at 0x40000
+[b2a] E820 entries: 7
+  [0] base=0x00000000 len=0x0009FC00 type=1
+  [1] base=0x0009FC00 len=0x00000400 type=2
+  [2] base=0x000F0000 len=0x00010000 type=2
+  [3] base=0x00100000 len=0x0FEE0000 type=1
+  [4] base=0x0FFE0000 len=0x00020000 type=2
+  [5] base=0xFFFC0000 len=0x00040000 type=2
+  [6] base=0x00000000 len=0x00000000 type=2
+[b2a] hd 0x80 LBA0:EB58904D544F4F34 sig=AA55
+[b2a] scanning BIOS drives (boot=0xE0)
+  drive 0x80: 97776 sectors x 512 B
+  drive 0x81: 32256 sectors x 512 B
+  drive 0x82: 65536 sectors x 512 B
+  cdrom 0xE0: 18446744073709551615 sectors x 2048 B
+  PVD: 'CD001' type=1
+  boot image first bytes: EB 3C 90 4D 54 4F 4F 34
+[state] previous stall already judged - routing to recovery
+[state] boot attempt seq 2
+[scan] entries: 2
+  [0] OCOS: Open Cube OS (hd0)  path=/boot/opencube.elf size=2080808
+  [1] OCIRE: OCIRE recovery (hd1)  path=/boot/ocire.elf size=62384
+[state] BOOT_FAILED record pending (stall DRIVERS_READY) - auto-booting OCIRE
+[menu] selected: OCIRE recovery (hd1)
+[menu] B4 will load this payload (mb2 handoff)
+[boot] VBE 800x600x32 ok
+[boot] kernel loaded: entry=0x01008AD0 size=62384
+[boot] mbi built: 376 bytes at 0x50000
+
+OCIRE - OpenCubeOS Independent Recovery Environment
+OCIRE 3.0.0-WP-02 (build 378)
+Independent recovery kernel (L0 peer of Open Cube OS).
+Video: linear framebuffer 800x600x32
+Cmdline: 
+CPU exception handlers armed.
+ACPI: FADT found (S5 SLP_TYP=0)
+OCBL boot record found (boot-state monitor).
+  Previous boot FAILED at stage DRIVERS_READY (no progress for 10s, seq 1, unix ts 1793760581

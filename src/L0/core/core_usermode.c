@@ -17,6 +17,7 @@
 #include "solib_data.h"
 #include "core_sched.h"
 #include "lib_gzip.h"   /* 3.0.0-WP04 G11c: per-app program inflate */
+#include "boot_state.h"   /* 3.0.0-WP07a: the L1_READY syscall gate */
 
 /* ---- 3.0.0-WP04 G11c: gzip'd program cache -------------------------
  * Each registry entry (except the raw ush default) ships as its own
@@ -465,6 +466,17 @@ void core_syscall_dispatch(u64 *regs) {
 
     /* WP-08a: save frame pointer for fork access */
     g_current_frame = regs;
+
+    /* 3.0.0-WP07a: the FIRST syscall from the default L1 entry marks
+     * L1_READY - ush is up and actually serving (its first console
+     * write lands here).  The gate is a single global load on the
+     * hot path; the pid compare only runs until the one-shot fires. */
+    if (boot_state_l1_pending()) {
+        user_proc_t *bs_p = user_process_current();
+        extern volatile int g_l1_entry_pid;
+        if (bs_p && bs_p->pid == g_l1_entry_pid)
+            boot_state_l1_syscall();
+    }
 
     if (core_syscall_num < MAX_SYSCALLS && g_syscalls[core_syscall_num]) {
         f->rax = g_syscalls[core_syscall_num](arg1, arg2, arg3, arg4);

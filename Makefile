@@ -159,7 +159,8 @@ KERNEL_DIRS := src/L0/core src/L0/core/arch/x86_64 src/L0/core/mem \
 # IS exported (WP-10-tui-qa): version_gen.h lives there and is included
 # by the objects that embed the release version.
 KERNEL_INC := $(foreach d,$(KERNEL_DIRS) tools,-I$(OC_ROOT)/$(d)) \
-              -I$(OC_ROOT)/src/L0/core/generated -I$(OC_ROOT)/src/L1
+              -I$(OC_ROOT)/src/L0/core/generated -I$(OC_ROOT)/src/L1 \
+              -I$(OC_ROOT)/include
 
 # ---- Embedded user programs (embed chain, HANDOVER 2.3 gap) ----
 # src/L0/core/userprogs_data.h is included by core_usermode.c (the

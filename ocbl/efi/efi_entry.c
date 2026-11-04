@@ -39,6 +39,8 @@
 #include "../common/ocbl_fs.h"
 #include "../common/ocbl_fb.h"
 #include "../common/ocbl_mmap.h"
+#include "../common/ocbl_statemon.h"   /* 3.0.0-WP07a */
+#include "ocbl_state.h"               /* 3.0.0-WP07a: OCST_* addrs */
 
 /* efi/handoff_data.asm (incbin of handoff_blob.bin) */
 extern char ocbl_efi_handoff_blob[];
@@ -190,7 +192,11 @@ EFI_CALL efi_status efi_main(efi_handle image, efi_system_table* st)
 
     /* reserve the shared low-memory windows (B5-3): one honest gate -
      * if the firmware already uses any of them, the common loader
-     * layout would corrupt firmware data, so we stop right here */
+     * layout would corrupt firmware data, so we stop right here.
+     * 3.0.0-WP07a: the state-monitor window (0x98000/0x2000) is
+     * reserved the same way, but a collision there only DISABLES the
+     * monitor (an honest serial declaration + " oc.stmon=off" on
+     * the kernel cmdline) instead of halting the boot. */
     if (!reserve(0x30000, 0x10000) ||   /* loader bounce window      */
         !reserve(0x50000, 0x10000) ||   /* multiboot2 info (64 KiB)  */
         !reserve(0x60000, 0x23000)) {   /* mmap + secbuf + FAT cache */
@@ -201,6 +207,14 @@ EFI_CALL efi_status efi_main(efi_handle image, efi_system_table* st)
     }
     ocbl_serial_puts("[efi] fixed windows reserved (0x30000/0x50000/"
                      "0x60000)\r\n");
+
+    /* 3.0.0-WP07a: the boot-state monitor - window availability via
+     * AllocateAddress, then the early post-reset diagnosis (a judged
+     * BOOT_FAILED writes the record, shows the notice and pulses the
+     * 8042 reset - never returns on that path). */
+    ocbl_statemon_boot_check(reserve(OCST_STATE_ADDR,
+                                     OCST_RESERVED_ADDR + OCST_RESERVED_SIZE -
+                                     OCST_STATE_ADDR));
 
     /* the disk backend + the B2b six-class scanner (B5-3) */
     ocbl_efi_disk_init();
@@ -216,7 +230,27 @@ EFI_CALL efi_status efi_main(efi_handle image, efi_system_table* st)
     ocbl_wdt_probe();
     if (ocbl_wdt_present())
         ocbl_wdt_arm(60);
-    u32 pick = ocbl_menu_run();
+
+    /* 3.0.0-WP07a: a pending unrouted BOOT_FAILED record auto-boots
+     * the OCIRE entry (one-shot - the record is marked routed, the
+     * next boot returns to the normal menu) */
+    int auto_route = ocbl_statemon_route_pending();
+    u32 pick = (u32)-1;
+    if (auto_route) {
+        ocbl_scan_t* rt = ocbl_scan_result();
+        for (u32 i = 0; i < rt->count; i++) {
+            if (rt->entries[i].type == OCBL_ENT_OCIRE) {
+                pick = i;
+                break;
+            }
+        }
+        if (pick == (u32)-1) {
+            ocbl_serial_puts("[state] no OCIRE entry found by the scan - "
+                             "falling back to the menu\r\n");
+        }
+    }
+    if (pick == (u32)-1)
+        pick = ocbl_menu_run();
     ocbl_menu_announce(pick);
 
 
@@ -260,6 +294,12 @@ EFI_CALL efi_status efi_main(efi_handle image, efi_system_table* st)
             __asm__ volatile("hlt");
     }
 
+    /* 3.0.0-WP07a: a MANUAL OCIRE pick records USER_REQUEST (the
+     * auto-routed recovery boot above keeps the BOOT_FAILED record
+     * untouched - that is exactly the distinction OCIRE reports). */
+    if (!auto_route && e->type == OCBL_ENT_OCIRE)
+        ocbl_statemon_user_request();
+
     /* ---- B5-5: the mb2 payload path (the ocbl_run() flow, with the
      * three UEFI substitutions: GOP for VBE, GetMemoryMap for E820,
      * ExitBootServices + the 0x30000 trampoline for the in-place
@@ -275,6 +315,11 @@ EFI_CALL efi_status efi_main(efi_handle image, efi_system_table* st)
     const char* slot = 0;
     if (e->type == OCBL_ENT_OCOS)
         slot = e->slot == 1 ? "A" : (e->slot == 2 ? "B" : "ISO");
+
+    /* 3.0.0-WP07a: the /HANGAT diagnostic hook rides the payload
+     * volume (a no-op without the file; see ocbl_statemon.h). */
+    if (e->type == OCBL_ENT_OCOS)
+        ocbl_statemon_probe_hangat(&v);
 
     /* the mb2 "self" module: raw kernel ELF copy at 0x800000 (only
      * OCOS entries; install/abdisk copy it from there) */
@@ -310,9 +355,17 @@ EFI_CALL efi_status efi_main(efi_handle image, efi_system_table* st)
      * can never invalidate the map key */
     ocbl_efi_bs->set_watchdog_timer(0, 0, 0, 0);
 
-    /* our hardware watchdog instead: fresh 60 s window for the payload
-     * to install its own heartbeat */
-    ocbl_wdt_arm(60);
+    /* 3.0.0-WP07a: the watchdog relay - a monitored OCOS handoff
+     * arms the boot-phase budget (30 s) and marks the state area
+     * armed; the kernel re-arms per stage and pets from its tick.
+     * OCIRE/OCSE own their own watchdog story, so the relay is
+     * disarmed before their handoff (the old blind 60 s window
+     * reset a still session after a minute - see the WP07a report) */
+    if (e->type == OCBL_ENT_OCOS) {
+        ocbl_statemon_arm_payload();
+    } else {
+        ocbl_wdt_disarm();
+    }
 
     /* ExitBootServices loop (spec 7.2): the map key expires with any
      * boot-services allocation, so query -> build-mbi -> EBS runs as

@@ -87,6 +87,15 @@ void ocire_main(u64 magic, u64 mbi) {
         ocire_puts("ACPI: not found - legacy power ports will be used\n");
     }
 
+    /* ---- 3.0.0-WP07a: the OCBL boot record --------------------------
+     * When OCBL routed this boot into OCIRE (a judged boot failure or
+     * a user request), the reserved area carries the record - report
+     * it before the shell takes over.  Silent on a normal boot. */
+    {
+        extern int ocire_ocbl_report(void);   /* ocire/ocire_ocbl.c */
+        ocire_ocbl_report();
+    }
+
     /* ---- role dispatch (WP-02) ------------------------------------
      * ocire.mode=sup  -> the boot supervisor (watchdog closed loop);
      * ocire.mode=full -> straight into the recovery shell;
