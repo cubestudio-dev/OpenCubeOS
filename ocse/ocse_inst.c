@@ -33,14 +33,24 @@ int ocse_inst_ocbl(int disk_idx, const char* medium_path,
     driver_block_device_t* dv = driver_block_get_device(disk_idx);
     if (!dv || !dv->present) return -2;
 
-    /* 1. read the medium image */
+    /* 1. read the medium image.
+     * WP06f cross-review fix: the read used to be capped at 32768 B
+     * (63 core sectors) while the OCBL core has long outgrown that
+     * (37376 B image / 73 sectors at WP06f) - ocbl-install silently
+     * wrote a TRUNCATED core and the installed disk hung at boot with
+     * zero serial output (live-caught by the b5 phase-2 battery on a
+     * pre-WP06f tree too: the bug is latent since the core passed
+     * 32768 B).  The buffer layout below now takes the full 64 KiB
+     * work buffer: image [0,40960) (80-sector cap, honest refusal
+     * beyond), MBR scratch [40960,41472), verify window
+     * [41472,65536) = 47 sectors per round. */
     int fd = fs_vfs_open(medium_path, VFS_O_RDONLY);
     if (fd < 0) {
         ocse_out("ocbl-install: cannot open ");
         ocse_outln(medium_path);
         return -1;
     }
-    int img_len = fs_vfs_read(fd, work, 32768);
+    int img_len = fs_vfs_read(fd, work, 40960);
     fs_vfs_close(fd);
     if (img_len < 1024 || (img_len & 511) != 0 ||
         work[510] != 0x55 || work[511] != 0xAA) {
@@ -49,7 +59,7 @@ int ocse_inst_ocbl(int disk_idx, const char* medium_path,
     }
 
     /* 2. the disk's current table (also the bytes we must preserve) */
-    u8* mbr = work + 32768;                  /* 512 B scratch */
+    u8* mbr = work + 40960;                  /* 512 B scratch */
     if (driver_block_read_sectors_raw(disk_idx, 0, 1, mbr) != 0)
         return -4;
     u64 first_part_lba = 0;
@@ -95,19 +105,32 @@ int ocse_inst_ocbl(int disk_idx, const char* medium_path,
     if (driver_block_write_sectors(disk_idx, core_lba, core_secs, work + 512) != 0)
         return -4;
 
-    /* 7. writer-side verify (stage1 is silent; the installer speaks) */
-    u8* vfy = work + 33280;                  /* 32256 B verify window */
+    /* 7. writer-side verify (stage1 is silent; the installer speaks).
+     * WP06f: the verify window is 24064 B (47 sectors) - the core is
+     * verified in ROUNDS instead of one oversized read. */
+    u8* vfy = work + 41472;                  /* 24064 B verify window */
     if (driver_block_read_sectors_raw(disk_idx, 0, 1, vfy) != 0)
         return -5;
     if (memcmp(vfy, work, 512) != 0) {
         ocse_outln("ocbl-install: stage1 verify FAILED");
         return -5;
     }
-    if (driver_block_read_sectors_raw(disk_idx, core_lba, core_secs, vfy) != 0)
-        return -5;
-    if (memcmp(vfy, work + 512, (usize)(core_secs * 512)) != 0) {
-        ocse_outln("ocbl-install: core verify FAILED");
-        return -5;
+    {
+        u32 left = core_secs;
+        u64 lba = core_lba;
+        const u8* src = work + 512;
+        while (left > 0) {
+            u32 chunk = left > 47 ? 47 : left;
+            if (driver_block_read_sectors_raw(disk_idx, lba, chunk, vfy) != 0)
+                return -5;
+            if (memcmp(vfy, src, (usize)(chunk * 512)) != 0) {
+                ocse_outln("ocbl-install: core verify FAILED");
+                return -5;
+            }
+            left -= chunk;
+            lba += chunk;
+            src += (u64)chunk * 512;
+        }
     }
 
     char n[24];
