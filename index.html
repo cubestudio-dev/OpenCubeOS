@@ -7,8 +7,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title data-i18n="title.index">Open Cube OS 3.0.0-WP06f (development preview) - a from-scratch x86_64 kernel that boots into ring 3</title>
-<meta name="description" content="Open Cube OS 3.0.0-WP06f development preview: a pure L0 service kernel (OCBL bootloader, no shell, no TUI) that boots straight into its ring-3 world - the ush shell with 285 commands. 20 SYS_L1SVC service categories / 190 ops, 54 syscalls, TCP/IP + TLS + SSH, 16 driver families, OTA A/B updates. Apache 2.0.">
+<title data-i18n="title.index">Open Cube OS 3.0.0-WP06g1 (development preview) - a from-scratch x86_64 kernel that boots into ring 3</title>
+<meta name="description" content="Open Cube OS 3.0.0-WP06g1 development preview: a pure L0 service kernel (OCBL bootloader, no shell, no TUI) that boots straight into its ring-3 world - the ush shell with 285 commands. 20 SYS_L1SVC service categories / 190 ops, 54 syscalls, TCP/IP + TLS + SSH, 16 driver families, OTA A/B updates. Apache 2.0.">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3E%3C/text%3E%3C/svg%3E">
 <script>
@@ -51,7 +51,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
       <h1><span data-i18n="hero.h1a">A from-scratch</span><br>
           <span data-i18n="hero.h1b">x86_64 kernel.</span><br>
           <span class="accent" data-i18n="hero.h1c">Boots into ring 3.</span></h1>
-      <p class="tagline" data-i18n-html="hero.tagline"><b>Open Cube OS</b> 3.0.0-WP06f (development preview) boots through its own bootloader and kernel (L0), then hands the machine to the default ring-3 application &mdash; the <b><code>ush</code></b> user shell with <b id="stat-cmds">285</b> commands riding the SYS_L1SVC service surface. L0 is a pure service kernel: no shell, no commands, no TUI. Not a Linux fork: <b id="stat-lines2">128,890</b> lines of original code, Apache&nbsp;2.0.</p>
+      <p class="tagline" data-i18n-html="hero.tagline"><b>Open Cube OS</b> 3.0.0-WP06g1 (development preview) boots through its own bootloader and kernel (L0), then hands the machine to the default ring-3 application &mdash; the <b><code>ush</code></b> user shell with <b id="stat-cmds">285</b> commands riding the SYS_L1SVC service surface. L0 is a pure service kernel: no shell, no commands, no TUI. Not a Linux fork: <b id="stat-lines2">128,890</b> lines of original code, Apache&nbsp;2.0.</p>
       <div class="btn-row">
         <a class="btn btn-primary" href="download.html" data-i18n="hero.download">⬇️ Download the ISO</a>
         <a class="btn btn-ghost" href="docs/" data-i18n="hero.docs">Documentation →</a>
@@ -60,9 +60,9 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
     <div class="terminal-card">
       <div class="bar">
         <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-        <span class="t" data-i18n="hero.term.title">qemu — Open Cube OS 3.0.0-WP06f</span>
+        <span class="t" data-i18n="hero.term.title">qemu — Open Cube OS 3.0.0-WP06g1</span>
       </div>
-      <pre class="term-anim" id="hero-term"><span class="d">[oc] Open Cube OS 3.0.0-WP06f kmain entered</span>
+      <pre class="term-anim" id="hero-term"><span class="d">[oc] Open Cube OS 3.0.0-WP06g1 kmain entered</span>
 <span class="d">[00:00:02.550] boot complete..................... OK</span>
 <span class="d">[00:00:02.560] L0 ready, waiting for L1.......... OK</span>
 <span class="g">l1 launcher: booting 'ush' (ring 3, 18968 bytes)</span>
@@ -123,7 +123,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
       <div class="step"><div class="n">1</div><div>
         <h3 data-i18n="qs.s1.h">Boot the ISO in QEMU</h3>
         <p data-i18n="qs.s1.p">One command - the ISO is self-contained, 512&nbsp;MiB of RAM is comfortable.</p>
-        <div class="cmd"><span class="c">$</span> qemu-system-x86_64 -m 512 -cdrom opencube-3.0.0-WP06f.iso \
+        <div class="cmd"><span class="c">$</span> qemu-system-x86_64 -m 512 -cdrom opencube-3.0.0-WP06g1.iso \
       -netdev user,id=n1 -device e1000,netdev=n1</div>
       </div></div>
       <div class="step"><div class="n">2</div><div>
@@ -155,19 +155,19 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
 <section class="section" id="shots">
   <div class="wrap">
     <h2 data-i18n="shots.h2">It really runs</h2>
-    <p class="sub" data-i18n="shots.sub">Captured from the 3.0.0-WP06f release ISO in QEMU - the BIOS and the UEFI boot path, through OCBL to the ring-3 ush prompt.</p>
+    <p class="sub" data-i18n="shots.sub">Captured from the 3.0.0-WP06g1 release ISO in QEMU - the BIOS and the UEFI boot path, through OCBL to the ring-3 ush prompt.</p>
     <div class="shots">
       <div class="shot">
         <img src="assets/shot-bios.png" width="800" height="600"
-             alt="Open Cube OS 3.0.0-WP06f booted in QEMU via legacy BIOS: the OCBL handoff, the L0 boot log ending at L0 ready waiting for L1, and the ush shell prompt"
+             alt="Open Cube OS 3.0.0-WP06g1 booted in QEMU via legacy BIOS: the OCBL handoff, the L0 boot log ending at L0 ready waiting for L1, and the ush shell prompt"
              data-i18n-alt="shots.bios.alt">
-        <div class="cap"><span data-i18n="shots.bios">Legacy BIOS boot - 3.0.0-WP06f</span><span class="tag">800&times;600</span></div>
+        <div class="cap"><span data-i18n="shots.bios">Legacy BIOS boot - 3.0.0-WP06g1</span><span class="tag">800&times;600</span></div>
       </div>
       <div class="shot">
         <img src="assets/shot-uefi.png" width="800" height="600"
-             alt="Open Cube OS 3.0.0-WP06f booted in QEMU via UEFI (OVMF): the same L0 boot log and the ring-3 ush shell prompt"
+             alt="Open Cube OS 3.0.0-WP06g1 booted in QEMU via UEFI (OVMF): the same L0 boot log and the ring-3 ush shell prompt"
              data-i18n-alt="shots.uefi.alt">
-        <div class="cap"><span data-i18n="shots.uefi">UEFI boot (OVMF) - 3.0.0-WP06f</span><span class="tag">800&times;600</span></div>
+        <div class="cap"><span data-i18n="shots.uefi">UEFI boot (OVMF) - 3.0.0-WP06g1</span><span class="tag">800&times;600</span></div>
       </div>
     </div>
   </div>
