@@ -130,6 +130,13 @@ static void test_gb2312(void) {
     CHECK(encoding_gb2312_decode((const u8*)"\xD6\xD0", 2, &cp,
                                  &consumed) == 0 && cp == 0x4E2D &&
           consumed == 2, "decode D6D0 -> U+4E2D");
+    /* WP06g1 blind-spot repair: hanzi at U+8000..U+9FA5 used to come
+     * back with bit15 stripped (a U+963F read as U+163F - 2366 of
+     * the 6763 hanzi); the old suite only ever decoded D6D0 (zhong,
+     * U+4E2D < 0x8000) and the whole class stayed green. */
+    CHECK(encoding_gb2312_decode((const u8*)"\xB0\xA2", 2, &cp,
+                                 &consumed) == 0 && cp == 0x963F &&
+          consumed == 2, "decode B0A2 -> U+963F (a, >= U+8000)");
     /* ASCII pass-through */
     CHECK(encoding_gb2312_decode((const u8*)"A", 1, &cp,
                                  &consumed) == 0 && cp == 'A' &&
@@ -147,6 +154,9 @@ static void test_gb2312(void) {
     CHECK(encoding_gb2312_encode(0x4E2D, out, 4, &produced) == 0 &&
           produced == 2 && out[0] == 0xD6 && out[1] == 0xD0,
           "encode U+4E2D -> D6 D0");
+    CHECK(encoding_gb2312_encode(0x963F, out, 4, &produced) == 0 &&
+          produced == 2 && out[0] == 0xB0 && out[1] == 0xA2,
+          "encode U+963F -> B0 A2 (>= U+8000)");
     CHECK(encoding_gb2312_encode(0x2E80, out, 4, &produced) == ENC_E_UNMAP,
           "encode non-GB2312 cp rejected");
 }
@@ -338,6 +348,67 @@ static void test_font_engine(void) {
     CHECK(font_unregister("no-such-font") == -3, "unknown name rejected");
 }
 
+/* ---------------- 13. WP06g1 full-library round trip -----------------
+ * The font-completeness gate: every non-gap GB2312 slot must survive
+ * zone/wei -> index -> unicode -> encode-back -> decode with the
+ * exact same zone/wei and codepoint.  Catches any table-layout or
+ * marker-bit regression across all 6763 hanzi + 682 symbols (the
+ * old suite sampled exactly two characters). */
+static void test_gb2312_full(void) {
+    screen_console_puts("[13] GB2312 full-library round trip\n");
+    int bad = 0;
+    u32 checked = 0, hi_cnt = 0;
+    for (u32 zone = 16; zone <= 87 && !bad; ++zone) {
+        for (u32 wei = 1; wei <= 94; ++wei) {
+            int idx = chinese_font_lookup(0, zone, wei);
+            if (idx < 0) continue;          /* gap slot */
+            u32 cp = chinese_font_index_to_unicode(0, idx);
+            if (cp == 0xFFFFFFFFu) { bad++; break; }
+            u8 out[4]; u32 produced = 0;
+            if (encoding_gb2312_encode(cp, out, 4, &produced) != 0 ||
+                produced != 2 || out[0] != (u8)(zone + 0xA0) ||
+                out[1] != (u8)(wei + 0xA0)) { bad++; break; }
+            u32 cp2 = 0, consumed = 0;
+            if (encoding_gb2312_decode(out, 2, &cp2, &consumed) != 0 ||
+                cp2 != cp || consumed != 2) { bad++; break; }
+            if (cp >= 0x8000) hi_cnt++;
+            checked++;
+        }
+    }
+    u32 sym_checked = 0;
+    for (u32 zone = 1; zone <= 9 && !bad; ++zone) {
+        for (u32 wei = 1; wei <= 94; ++wei) {
+            int idx = chinese_font_lookup(0, zone, wei);
+            if (idx < 0) continue;
+            u32 cp = chinese_font_index_to_unicode(0, idx);
+            if (cp == 0xFFFFFFFFu) { bad++; break; }
+            u8 out[4]; u32 produced = 0;
+            if (encoding_gb2312_encode(cp, out, 4, &produced) != 0 ||
+                produced != 2 || out[0] != (u8)(zone + 0xA0) ||
+                out[1] != (u8)(wei + 0xA0)) { bad++; break; }
+            u32 cp2 = 0, consumed = 0;
+            if (encoding_gb2312_decode(out, 2, &cp2, &consumed) != 0 ||
+                cp2 != cp || consumed != 2) { bad++; break; }
+            sym_checked++;
+        }
+    }
+    CHECK(bad == 0 && checked == 6763,
+          "6763 hanzi zone/wei <-> cp round trip");
+    CHECK(bad == 0 && sym_checked == 682,
+          "682 symbols zone/wei <-> cp round trip");
+    char num[12];
+    screen_console_puts("  full trip: ");
+    u64_to_str((u64)checked, num);
+    screen_console_puts(num);
+    screen_console_puts(" hanzi (");
+    u64_to_str((u64)hi_cnt, num);
+    screen_console_puts(num);
+    screen_console_puts(" at >= U+8000) + ");
+    u64_to_str((u64)sym_checked, num);
+    screen_console_puts(num);
+    screen_console_puts(" symbols\n");
+}
+
 /* ------------------------------------------------- entry point ----- */
 
 int chinese_test_run(int verbose) {
@@ -358,6 +429,7 @@ int chinese_test_run(int verbose) {
     test_console();
     test_font_engine();
     test_vfs_utf8_file();
+    test_gb2312_full();
 
     screen_console_puts("chinesetest: ");
     char num[12];

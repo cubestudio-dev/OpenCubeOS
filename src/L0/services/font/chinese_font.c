@@ -293,11 +293,16 @@ u32 chinese_font_index_to_unicode(chinese_font_handle_t slot, int idx) {
     }
     if (i >= s->hanzi_count + s->symbol_count) return 0xFFFFFFFFu;
     /* The embedded index table covers hanzi then symbols; runtime fonts
-     * with a different layout fall back to the unicode reverse table. */
+     * with a different layout fall back to the unicode reverse table.
+     * WP06g1 fix: the stored value is the RAW codepoint - the old
+     * reader re-tested bit15 here and stripped it, which corrupted
+     * every hanzi at U+8000..U+9FA5 (2366 of 6763, e.g. a U+963F
+     * decoded as U+163F): the generator only set that bit on SYMBOL
+     * entries, but the hanzi/symbol split is already known from the
+     * idx argument above - the table value needs no marker. */
     if (s->hanzi_count + s->symbol_count == CHINESE_FONT_UTO_COUNT &&
         i < CHINESE_FONT_UTO_COUNT) {
-        u16 v = g_idx_to_unicode_data[i];
-        return (v & 0x8000) ? (v & 0x7FFF) : v;
+        return (u32)g_idx_to_unicode_data[i];
     }
     /* Runtime font: rebuild from its own uto_gb (idx -> unicode scan). */
     for (u32 p = 0; p < s->uto_count; ++p) {

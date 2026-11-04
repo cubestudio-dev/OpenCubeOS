@@ -238,12 +238,20 @@ def main():
         flat += [cp, idx]
     parts.append(c_array_u16("chinese_font_uto_gb", flat, 8))
     parts.append("\n\n")
-    # compact index -> unicode (bit15 of value set = symbol table entry)
+    # compact index -> unicode.  WP06g1 fix: this table stores the RAW
+    # codepoint for both tables - the hanzi/symbol discrimination is
+    # carried by the idx ARGUMENT's bit15 at read time (the reader,
+    # chinese_font_index_to_unicode, already knows which sub-table the
+    # entry belongs to and must not re-test bit15 on the stored value).
+    # The old scheme ORed 0x8000 into the SYMBOL entries as a marker,
+    # but GB2312 hanzi legitimately live at U+8000..U+9FA5 (2366 of
+    # the 6763), so a stored hanzi value >= 0x8000 was misread as the
+    # symbol marker and stripped ("a" U+963F came back as U+163F).
     idx2u = []
     for _z, _w, cp in hanzi:
         idx2u.append(cp)
     for _z, _w, cp in symbols:
-        idx2u.append(cp | 0x8000)
+        idx2u.append(cp)
     parts.append(c_array_u16("chinese_font_idx_to_unicode", idx2u, 16))
     parts.append("\n")
 
