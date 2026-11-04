@@ -316,7 +316,12 @@ $(KERNEL_OBJ) $(STUB_OBJ) $(GRUB_DATA_OBJ): | $(VERSION_GEN) $(CONFIG_GEN)
 # ---- WP-13-build_system: unified full pipeline ----
 # kernel -> hybrid BIOS+UEFI ISO -> deterministic SRC zip -> OTA package.
 # Same entry point as tools/build.sh and build.ps1.
-all: $(KERNEL_ISO) src-zip ota
+# 3.0.0-WP06g2: `all` now rebuilds the embedded programs first -
+# the 06g1 catch-2 gap: `make all` used to ship the STALE
+# userprogs_data.h because nothing in the all chain rebuilt it
+# (only `make dist` ran userprogs-check).  A changed L1 app now
+# always rides the next `make all` ISO.
+all: userprogs $(KERNEL_ISO) src-zip ota
 	@echo "make all: full pipeline done"
 	@echo "  kernel : $(KERNEL)"
 	@echo "  ISO    : $(KERNEL_ISO)"
@@ -442,7 +447,10 @@ $(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(OC_ROOT)/src/L0/core/arch/x86_64/linke
 # stage1+core + UEFI PE) and packs through the OCBL ISO packer - the
 # same artifact boots under SeaBIOS and OVMF, and the OCBL scanner
 # pulls OCOS (this ISO) / OCIRE / foreign loaders from the fleet.
-$(KERNEL_ISO): $(KERNEL) $(BUILD)/ocbl/ocbl_bios.bin \
+# 3.0.0-WP06g2: $(USERPROGS_HDR) rides the ISO prerequisites so a
+# standalone `make iso` can never pack a kernel with stale
+# embedded programs either.
+$(KERNEL_ISO): $(KERNEL) $(USERPROGS_HDR) $(BUILD)/ocbl/ocbl_bios.bin \
                $(BUILD)/ocbl/ocbl_x64.efi $(OC_ROOT)/tools/build_iso.sh
 	mkdir -p $(BUILD)
 	bash $(OC_ROOT)/tools/build_iso.sh
@@ -637,8 +645,16 @@ test:
 # v2.x build mode, builds them all, and emits userprogs_data.h with
 # the OC_USERPROGS[] name registry (the execve surface - no name is
 # hand-registered in the kernel). nasm/gcc must be on PATH.
-userprogs:
+# 3.0.0-WP06g2: the header is a REAL file target - any L1 source
+# (or generator script) newer than it regenerates it; the emit is
+# idempotent (byte-compare, mtime kept when unchanged) so an
+# up-to-date tree rebuilds NOTHING and incremental kernel builds
+# stay fast.
+$(USERPROGS_HDR): $(USERPROG_SRCS) tools/gen_userprogs.py tools/gen_l1svc_ops.py $(BUILD_C_PY) $(EMBED_PY) $(BUILD_SOLIB_PY)
 	python3 $(OC_ROOT)/tools/gen_userprogs.py
+
+userprogs: $(USERPROGS_HDR)
+	@echo "userprogs: $(USERPROGS_HDR) up to date"
 
 # Staleness gate: fail when any userprog source is more than 2 seconds
 # newer than the embedded header (2 s slack absorbs fresh-clone mtime

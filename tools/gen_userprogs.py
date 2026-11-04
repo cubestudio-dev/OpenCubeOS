@@ -573,6 +573,19 @@ def emit(progs, blobs):
     lines.append(f"const u64 OC_USERPROGS_COUNT = {len(progs)};")
     lines.append(f"#define OC_USERPROGS_COUNT_LITERAL {len(progs)}")
     text = "\n".join(lines) + "\n"
+    # 3.0.0-WP06g2: idempotent emit.  The header is now a REAL make
+    # target (see the Makefile USERPROGS_HDR rule), so an unchanged
+    # regeneration must NOT touch the file - rewriting it would bump
+    # the mtime and force a pointless core_usermode.o rebuild on
+    # every `make all`.  Byte-compare first, write only on change.
+    try:
+        with open(HEADER, "r") as f:
+            old = f.read()
+    except OSError:
+        old = None
+    if old == text:
+        print(f"gen_userprogs: {HEADER} unchanged (mtime kept)")
+        return
     with open(HEADER, "w") as f:
         f.write(text)
 
