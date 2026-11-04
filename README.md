@@ -52,7 +52,11 @@ Open Cube OS is **L0 + L1**:
   programs with 54 syscalls, VFS over FAT32/exFAT/ext4/ramfs, a full
   TCP/IP stack with TLS 1.2/1.3 and SSH (client *and* server), 15
   driver families from NVMe to xHCI to ACPI AML, crash dumps, hardware
-  watchdog (Intel TCO / ACPI WDAT), OTA A/B updates.
+  watchdog (Intel TCO / ACPI WDAT), OTA A/B updates, and the WP07a
+  boot-state monitor: six boot stages recorded into a fixed state
+  area, per-phase watchdog budgets, and a post-mortem BOOT_FAILED
+  record OCIRE reads after the reboot to print the stall point and
+  repair advice.
 - **Honest by design:** if the ring-3 world cannot start, L0 says so
   and halts - the guidance is a reboot or the OCBL boot menu (there is
   deliberately no L0 shell to fall back to).

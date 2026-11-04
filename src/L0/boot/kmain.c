@@ -158,6 +158,7 @@ void crash_install_panic_handlers(void); /* 3.0.0-WP03 G5: services/crash */
 #include "version_gen.h"   /* WP-10-tui-qa: version recompile trigger (Makefile note) */
 #include "core_registry.h"
 #include "ocembed.h"      /* 3.0.0-WP03 G4: OCIRE embed (boot signal + agent) */
+#include "boot_state.h"   /* 3.0.0-WP07a: the boot-state monitor */
 
 /* User program data (defined in usermode.c). */
 /* 3.0.0-WP04 G11c: a 70-line block of dead `extern const u8
@@ -263,6 +264,14 @@ void kmain(u64 magic, u64 mbi_phys) {
         screen_serial_puts("[oc] FATAL: multiboot2 parse failed\r\n");
         for (;;) { __asm__ volatile("hlt"); }
     }
+
+    /* ---- 1b. 3.0.0-WP07a: the boot-state monitor comes alive ----
+     * Parse the oc.* monitor facts from the command line (the
+     * /HANGAT diagnostic halt, the oc.stmon=off disable), take the
+     * 6300ESB watchdog over from OCBL's relay handoff, then record
+     * stage 1: kmain is executing. */
+    boot_state_early_init(mbi.cmdline);
+    boot_state_advance(OCST_STAGE_KM_AIN_ENTERED);
 
     /* ---- 2. Framebuffer ---- */
     if (screen_fb_init(mbi.fb) != 0) {
@@ -461,6 +470,9 @@ void kmain(u64 magic, u64 mbi_phys) {
      * services (VFS/ramfs need no driver; the driver families need
      * no service - the halves are independent, their order is free) */
     OC_LOG_OK2("boot chain 2/4: drivers + driver-free services");
+    /* 3.0.0-WP07a: phase 1 (core mechanisms incl. the scheduler)
+     * completed at this boundary - the SCHED_READY state point. */
+    boot_state_advance(OCST_STAGE_SCHED_READY);
 
     /* ---- 12d. WP-05: VFS + ramfs + ATA + FAT32 ---- */
     fs_vfs_init();
@@ -520,6 +532,9 @@ void kmain(u64 magic, u64 mbi_phys) {
      * the block family, wireless needs mounted firmware files, the
      * net stack needs the NIC family, snd needs the snd family) */
     OC_LOG_OK2("boot chain 3/4: driver-dependent services");
+    /* 3.0.0-WP07a: phase 2 (all driver families probed/initialized)
+     * completed at this boundary - the DRIVERS_READY state point. */
+    boot_state_advance(OCST_STAGE_DRIVERS_READY);
 
     fs_fat32_init();
     fs_exfat_init();
@@ -672,6 +687,9 @@ void kmain(u64 magic, u64 mbi_phys) {
     /* ---- G5 boot chain marker: phase 4/4 - interfaces ready (the
      * crash/health/embed infrastructure arms on a fully-up system) */
     OC_LOG_OK2("boot chain 4/4: interfaces ready");
+    /* 3.0.0-WP07a: phase 3 (all driver-dependent root services up)
+     * completed at this boundary - the SERVICES_READY state point. */
+    boot_state_advance(OCST_STAGE_SERVICES_READY);
 
     /* ---- 16a. WP-11-crash_recovery: panic infrastructure ----
      * The core-dump buffer is allocated ONCE here - after this point

@@ -22,6 +22,7 @@
 #include "ocbl_fs.h"
 #include "ocbl_wdt.h"
 #include "ocbl_chain.h"
+#include "ocbl_statemon.h"    /* 3.0.0-WP07a: the boot-state monitor */
 
 #ifndef OCBL_RELEASE
 #define OCBL_RELEASE "3.0.0-WP05"
@@ -193,6 +194,14 @@ void ocbl_run(void)
     bios_b2a_probe();
 #endif
 
+    /* 3.0.0-WP07a: the boot-state monitor's early diagnosis - reads
+     * the previous boot's state area (stage + RTC silence), judges a
+     * watchdog-caught hang, and on failure writes the BOOT_FAILED
+     * record, shows the notice and pulses the 8042 reset (never
+     * returns on that path).  Runs after the E820 probe (the window
+     * availability check needs the cached map) but before the scan. */
+    ocbl_statemon_boot_check(ocbl_statemon_bios_window_ok());
+
     /* B2b: the six-class boot-entry scan + serial dump (diagnostics;
      * the menu below is the user-facing surface) */
     ocbl_scan_all();
@@ -206,7 +215,26 @@ void ocbl_run(void)
     if (ocbl_wdt_present())
         ocbl_wdt_arm(60);
 
-    u32 pick = ocbl_menu_run();
+    /* 3.0.0-WP07a: a pending unrouted BOOT_FAILED record auto-boots
+     * the OCIRE entry (one-shot - the record is marked routed, the
+     * next boot returns to the normal menu) */
+    int auto_route = ocbl_statemon_route_pending();
+    u32 pick = (u32)-1;
+    if (auto_route) {
+        ocbl_scan_t* rt = ocbl_scan_result();
+        for (u32 i = 0; i < rt->count; i++) {
+            if (rt->entries[i].type == OCBL_ENT_OCIRE) {
+                pick = i;
+                break;
+            }
+        }
+        if (pick == (u32)-1) {
+            ocbl_serial_puts("[state] no OCIRE entry found by the scan - "
+                             "falling back to the menu\r\n");
+        }
+    }
+    if (pick == (u32)-1)
+        pick = ocbl_menu_run();
     ocbl_menu_announce(pick);
 
     /* B4: load the chosen payload and hand off (multiboot2, the
@@ -235,6 +263,12 @@ void ocbl_run(void)
             __asm__ volatile("cli; hlt");
     }
 
+    /* 3.0.0-WP07a: a MANUAL OCIRE pick records USER_REQUEST (the
+     * auto-routed recovery boot above keeps the BOOT_FAILED record
+     * untouched - that is exactly the distinction OCIRE reports). */
+    if (!auto_route && e->type == OCBL_ENT_OCIRE)
+        ocbl_statemon_user_request();
+
 
     ocbl_volume_t v;
     if (!ocbl_fs_mount(e->drive, e->base_lba, e->ssz, &v)) {
@@ -246,6 +280,11 @@ void ocbl_run(void)
     const char* slot = 0;
     if (e->type == OCBL_ENT_OCOS)
         slot = e->slot == 1 ? "A" : (e->slot == 2 ? "B" : "ISO");
+
+    /* 3.0.0-WP07a: the /HANGAT diagnostic hook rides the payload
+     * volume (a no-op without the file; see ocbl_statemon.h). */
+    if (e->type == OCBL_ENT_OCOS)
+        ocbl_statemon_probe_hangat(&v);
 
     /* the mb2 "self" module: a raw copy of the kernel ELF at 0x800000
      * (install/abdisk copy it onto target disks from there) */
@@ -279,7 +318,19 @@ void ocbl_run(void)
     ocbl_serial_puts("[boot] mbi built: ");
     ocbl_serial_dec(mbisz);
     ocbl_serial_puts(" bytes at 0x50000\r\n");
-    /* fresh 60 s window for the payload to take the watchdog over */
-    ocbl_wdt_arm(60);
+    /* 3.0.0-WP07a: the watchdog relay - a monitored OCOS handoff
+     * arms the boot-phase budget (30 s) and marks the state area
+     * armed; the kernel re-arms per stage and pets from its tick.
+     * OCIRE/OCSE are NOT monitored: they own their own watchdog
+     * story (WP-02 supervisor / installer), so the relay is disarmed
+     * before their handoff (the old code armed a blind 60 s window
+     * here for every payload - with nobody petting it, an OCIRE or
+     * OCSE session that sat still for a minute lost the machine to
+     * a reset; see the WP07a report). */
+    if (e->type == OCBL_ENT_OCOS) {
+        ocbl_statemon_arm_payload();
+    } else {
+        ocbl_wdt_disarm();
+    }
     ocbl_handoff(entry, OCBL_MBI_BASE);
 }

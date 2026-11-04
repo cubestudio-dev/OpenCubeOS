@@ -51,6 +51,7 @@ OCIRE_CFLAGS := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
 		-mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel \
 		-fno-asynchronous-unwind-tables -Wall -Wextra -Werror \
 		-O2 -g -std=gnu11 -I$(OCIRE_DIR) -I$(OCIRE_DIR)/generated \
+		-I$(OC_ROOT)/include \
 		-MMD -MP
 
 OCIRE_VERSION_GEN := $(OCIRE_DIR)/generated/ocire_version_gen.h

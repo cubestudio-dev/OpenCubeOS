@@ -1,0 +1,18 @@
+[PASS] shell:help (BIOS)
+[PASS] shell:unknown (BIOS)
+[PASS] shell:backspace (BIOS)
+[PASS] shutdown:notice (BIOS)
+[PASS] shutdown:qemu-exit (BIOS)
+[PASS] reboot:notice (BIOS)
+[PASS] reboot:qemu-exit (BIOS)
+[PASS] shell:help (UEFI)
+[PASS] shell:unknown (UEFI)
+[PASS] shell:backspace (UEFI)
+[PASS] shutdown:notice (UEFI)
+[PASS] shutdown:qemu-exit (UEFI)
+[PASS] reboot:notice (UEFI)
+[PASS] reboot:qemu-exit (UEFI)
+
+===== OCIRE test battery summary =====
+total cases: 14, passed: 14, failed: 0
+logs: /home/z/my-project/oc-os/build/ocire/test-*.log

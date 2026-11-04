@@ -146,6 +146,66 @@ Ring 3 reaches L0 through two doors:
   Ops are plain ASCII text renderers - the ring-3 side formats
   nothing.
 
+## The boot-state monitor (3.0.0-WP07a)
+
+OCBL cannot execute while the kernel runs, so the WP07a boot-state
+monitor enforces the boot timeouts with a hardware watchdog relay
+(the 6300ESB, the same PCI device OCIRE's supervisor loop uses):
+
+```
+OCBL arm(30s) -> handoff -> kernel stage N: write stage + arm(next
+budget) -> ... -> L1_READY: 1 Hz tick pets the 15 s runtime budget
+                |
+                v (a hang stops the feeding)
+6300ESB resets the machine (warm reset, DRAM kept)
+                |
+OCBL boots again: reads the state area -> silence >= 8 s and no
+CLEAN marker -> JUDGED: writes the BOOT_FAILED record (stall point,
+timestamp, measured silence) -> screen notice -> 8042 pulse
+                |
+OCBL boots again: pending unrouted record -> auto-boots OCIRE
+                |
+OCIRE: reads the record -> prints the stall point + repair advice
+```
+
+The contract lives in `include/ocbl_state.h` (shared byte-for-byte
+by OCBL, OCOS and OCIRE):
+
+- **State area** at 0x98000 - what the kernel is doing (stage,
+  heartbeat, the RTC clock of the last progress).  The kernel only
+  WRITES it (blind, never reads back); OCBL reads/writes; OCIRE
+  reads.  L1 applications cannot reach it: the pages sit in the
+  supervisor-only half of every user address space (verified live by
+  a CR3 walk at L1_READY + the badapp canary class).
+- **Reserved area** at 0x9B000 - the post-mortem boot record
+  (BOOT_FAILED vs USER_REQUEST, the stall stage, the judgment
+  timestamp, the measured silence, a ones-complement checksum).
+  It survives warm resets (the two addresses are the empirically
+  proven surviving islands of the QEMU/SeaBIOS reset wipe - see
+  `evidence/3_0_0_WP07a/`); cold boots clear it and every reader
+  validates the magic first.
+- **Six state points**: KM_AIN_ENTERED (kmain entry), SCHED_READY
+  (core mechanisms up), DRIVERS_READY (driver families probed),
+  SERVICES_READY (root services up), L1_LAUNCHED (ush started),
+  L1_READY (ush serving - its first syscall).
+- **Phase budgets**: 30 s (boot start -> stage 1), 10 s per middle
+  phase, 30 s (L1_LAUNCHED -> L1_READY), 15 s runtime heartbeat.
+- **Judgment**: OCBL computes the silence (RTC now minus the last
+  kernel progress); >= 8 s without the CLEAN marker = a judged
+  failure (a healthy boot progresses every second, so a manual warm
+  reset measures < ~4 s and is NOT a failure).
+- **Clean reboots**: the kernel marks the state area CLEAN before
+  its deliberate 8042 reboot, so a normal `reboot` never produces a
+  failure record.
+- **User requests**: picking the OCIRE entry in the OCBL menu writes
+  a USER_REQUEST record - the exact distinction OCIRE reports
+  ("requested by the user" vs a judged failure with repair advice).
+
+The whole chain is driven live (real watchdog resets, real 8042
+pulses, both record kinds, every phase budget, the runtime hang, the
+manual-reset discrimination) by `tools/wp07a_state_e2e.py`; the
+transcripts are archived under `evidence/3_0_0_WP07a/`.
+
 ## The OCIRE embed (3.0.0-WP03 G4)
 
 When the OCIRE recovery supervisor (see `ocire/`) hands the machine

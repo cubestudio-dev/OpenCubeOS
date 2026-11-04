@@ -61,6 +61,58 @@ Open Cube OS 是一个双环系统：
    动态链接、g6/g7 链），经 `run` 运行。
 ```
 
+## 启动状态监控（3.0.0-WP07a）
+
+OCBL 在内核运行期间无法执行，因此 WP07a 的启动状态监控用硬件
+看门狗接力（6300ESB，与 OCIRE 恢复环同一设备）来执行启动超时：
+
+```
+OCBL arm(30s) -> 交接 -> 内核每阶段：写状态点 + 设下一阶段预算
+                        -> L1_READY 后：1Hz tick 喂 15s 运行期预算
+        |
+        v（卡死则停止喂狗）
+6300ESB 复位机器（暖复位，DRAM 保留）
+        |
+OCBL 再次启动：读状态区 -> 静默 >= 8s 且无 CLEAN 标记
+  -> 判定失败：写 BOOT_FAILED 记录（卡死点/时间戳/静默时长）
+  -> 屏幕提示 -> 8042 复位
+        |
+OCBL 再次启动：发现未路由的失败记录 -> 自动进入 OCIRE
+        |
+OCIRE：读记录 -> 打印卡死点 + 修复建议
+```
+
+契约在 `include/ocbl_state.h`（OCBL、OCOS、OCIRE 三方逐字节共享）：
+
+- **状态区**（0x98000）：内核正在做什么（阶段、心跳、最近一次
+  推进的 RTC 时钟）。内核只写（盲写，从不回读）；OCBL 读写；
+  OCIRE 只读。L1 应用无法访问：该页在所有用户地址空间中均为
+  supervisor-only（L1_READY 时对真实 CR3 做在线遍历验证 +
+  badapp 金丝雀类证明）。
+- **保留区**（0x9B000）：事后启动记录（BOOT_FAILED 或
+  USER_REQUEST、卡死阶段、判定时间戳、实测静默时长、反码校验和）。
+  暖复位后保留（这两个地址是 QEMU/SeaBIOS 复位清零区的实测存活
+  岛，见 `evidence/3_0_0_WP07a/`）；冷启动会清空，读取方始终先
+  验证 magic。
+- **六个状态点**：KM_AIN_ENTERED（kmain 入口）、SCHED_READY（核心
+  机制就绪）、DRIVERS_READY（驱动家族探测完成）、SERVICES_READY
+  （根服务就绪）、L1_LAUNCHED（ush 已启动）、L1_READY（ush 开始
+  服务——首个 syscall）。
+- **阶段预算**：启动段 30s，中间各阶段 10s，L1_LAUNCHED→READY
+  30s，运行期 15s 心跳。
+- **判定**：OCBL 计算"静默"（当前 RTC 减去内核最近推进时刻）；
+  >= 8s 且无 CLEAN 标记即判定失败（健康启动每秒都有推进，手动
+  暖复位测得 < ~4s，不算失败）。
+- **干净重启**：内核在主动 8042 复位前写入 CLEAN 标记，正常
+  `reboot` 不会产生失败记录。
+- **用户主动**：在 OCBL 菜单选择 OCIRE 条目时写入 USER_REQUEST
+  记录——这正是 OCIRE 报告中区分"用户主动进入"与"判定失败 +
+  修复建议"的依据。
+
+整条链路由 `tools/wp07a_state_e2e.py` 实测驱动（真实看门狗复位、
+真实 8042 脉冲、两类记录、每个阶段预算、运行期死机、手动复位
+甄别），串口全记录存档于 `evidence/3_0_0_WP07a/`。
+
 ## 启动流（串口日志顺序）
 
 1. GRUB 加载 `boot/opencube.elf`（内核同时作为标记 `self` 的

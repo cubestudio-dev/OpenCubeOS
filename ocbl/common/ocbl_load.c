@@ -16,6 +16,8 @@
                                  * was BIOS-only; the EFI flavor fills
                                  * the same shape from GOP) */
 #include "ocbl_serial.h"
+#include "ocbl_statemon.h"     /* 3.0.0-WP07a: cmdline extra */
+#include "ocbl_state.h"        /* 3.0.0-WP07a: the carve window */
 
 #define BOUNCE ((u8*)OCBL_BOUNCE)
 
@@ -231,9 +233,11 @@ u32 ocbl_build_mbi(const char* slot_cmdline, u64 self_start, u64 self_end,
     u32 hdr_at = mbi_off;
     mbi_off += 8;                       /* total_size + reserved */
 
-    /* tag 1: command line (oc.slot=... for the OCOS entries) */
+    /* tag 1: command line (oc.slot=... for the OCOS entries, plus
+     * the WP07a diagnostic extra " oc.hang=N" when /HANGAT was
+     * present on the payload volume) */
     {
-        char cl[32];
+        char cl[48];
         u32 o = 0;
         if (slot_cmdline) {
             static const char pre[] = "oc.slot=";
@@ -241,6 +245,9 @@ u32 ocbl_build_mbi(const char* slot_cmdline, u64 self_start, u64 self_end,
                 cl[o++] = pre[k];
             cl[o++] = slot_cmdline[0];
         }
+        const char* extra = ocbl_statemon_cmdline_extra();
+        for (u32 k = 0; extra[k] && o < sizeof(cl) - 1; k++)
+            cl[o++] = extra[k];
         cl[o] = 0;
         u32 sz = 8 + o + 1;
         mbi_tag(1, sz);
@@ -282,13 +289,35 @@ u32 ocbl_build_mbi(const char* slot_cmdline, u64 self_start, u64 self_end,
     /* tag 6: memory map.  GRUB-compatible 24-byte entries:
      * [addr8][len8][type4][reserved4] with entry_size=24 - the shape
      * the kernel's mem_pmm has always consumed from GRUB (its
-     * sizeof-check is 24B and the type field sits at entry+16). */
+     * sizeof-check is 24B and the type field sits at entry+16).
+     *
+     * 3.0.0-WP07a: the state-area + reserved-area pages
+     * [0x98000, 0x9C000) are carved out of every USABLE range as
+     * E820-reserved so that no payload's memory manager ever
+     * allocates over the monitor blocks (defense in depth on top of
+     * the OCOS PMM's whole-first-MiB reservation). */
     {
+        const u64 carve_lo = (u64)OCST_STATE_ADDR;
+        const u64 carve_hi = (u64)OCST_RESERVED_ADDR + OCST_RESERVED_SIZE;
         const ocbl_mmap_t* mm = ocbl_mmap_get();
         u32 n = 0;
-        for (u32 i = 0; i < mm->count; i++)
-            if (mm->entries[i].len)
+        for (u32 i = 0; i < mm->count; i++) {
+            if (mm->entries[i].len == 0)
+                continue;
+            if (mm->entries[i].type == 1 &&
+                mm->entries[i].addr < carve_hi &&
+                mm->entries[i].addr + mm->entries[i].len > carve_lo) {
+                /* count EXACTLY what the emission below writes:
+                 * below-part + carved overlap + above-part */
+                if (mm->entries[i].addr < carve_lo)
+                    n++;
                 n++;
+                if (mm->entries[i].addr + mm->entries[i].len > carve_hi)
+                    n++;
+            } else {
+                n++;
+            }
+        }
         u32 sz = 8 + 8 + n * 24;
         mbi_tag(6, sz);
         mbi_u32(hdr_at + mbi_off, 24);       /* entry_size */
@@ -297,9 +326,38 @@ u32 ocbl_build_mbi(const char* slot_cmdline, u64 self_start, u64 self_end,
         for (u32 i = 0; i < mm->count; i++) {
             if (mm->entries[i].len == 0)
                 continue;
-            mbi_u64(w, mm->entries[i].addr);
-            mbi_u64(w + 8, mm->entries[i].len);
-            mbi_u32(w + 16, mm->entries[i].type);
+            u64 a = mm->entries[i].addr;
+            u64 l = mm->entries[i].len;
+            u32 tp = mm->entries[i].type;
+            if (tp == 1 && a < carve_hi && a + l > carve_lo) {
+                /* emit the split: [a..carve_lo) usable,
+                 * [overlap] reserved, [carve_hi..end) usable */
+                if (a < carve_lo) {
+                    mbi_u64(w, a);
+                    mbi_u64(w + 8, carve_lo - a);
+                    mbi_u32(w + 16, 1);
+                    mbi_u32(w + 20, 0);
+                    w += 24;
+                }
+                u64 ov_lo = a > carve_lo ? a : carve_lo;
+                u64 ov_hi = (a + l) < carve_hi ? (a + l) : carve_hi;
+                mbi_u64(w, ov_lo);
+                mbi_u64(w + 8, ov_hi - ov_lo);
+                mbi_u32(w + 16, 2);              /* reserved */
+                mbi_u32(w + 20, 0);
+                w += 24;
+                if (a + l > carve_hi) {
+                    mbi_u64(w, carve_hi);
+                    mbi_u64(w + 8, a + l - carve_hi);
+                    mbi_u32(w + 16, 1);
+                    mbi_u32(w + 20, 0);
+                    w += 24;
+                }
+                continue;
+            }
+            mbi_u64(w, a);
+            mbi_u64(w + 8, l);
+            mbi_u32(w + 16, tp);
             mbi_u32(w + 20, 0);              /* reserved */
             w += 24;
         }

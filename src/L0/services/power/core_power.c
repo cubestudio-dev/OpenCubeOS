@@ -30,6 +30,7 @@
 #include "screen_console.h"
 #include "core_timer.h"
 #include "core_sched.h"
+#include "boot_state.h"   /* 3.0.0-WP07a: the clean-reboot marker */
 
 #include <stdint.h>
 
@@ -97,6 +98,10 @@ void core_power_reboot(void) {
     /* flush every block device so the update survives the reset */
     core_power_flush_blk();
     screen_console_puts("Rebooting...\n");
+    /* 3.0.0-WP07a: mark the boot CLEAN so OCBL's next-boot diagnosis
+     * does not judge this deliberate reboot a failure, and disarm the
+     * watchdog relay before the pulse. */
+    boot_state_clean_reboot();
     /* 8042 keyboard controller reset (mainstream PC method) */
     pwr_io_wait();
     pwr_outb(0x64, 0xFE);

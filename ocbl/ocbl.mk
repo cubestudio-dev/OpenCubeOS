@@ -24,13 +24,18 @@ OCBL_CC := $(CC)
 OCBL_CFLAGS := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
                -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small \
                -Wall -Wextra -Werror -O2 -std=gnu11 \
-               -I$(OCBL_DIR)/common -I$(OCBL_DIR)/bios \
+               -I$(OCBL_DIR)/common -I$(OCBL_DIR)/bios -I$(OC_ROOT)/include \
                -DOCBL_FLAVOR_BIOS \
                -DOCBL_RELEASE="\"$(OC_RELEASE_VERSION)\"" \
                -DOCBL_BUILD=$(OC_KERNEL_BUILD)
 
 OCBL_COMMON_C := $(wildcard $(OCBL_DIR)/common/*.c)
 OCBL_COMMON_H := $(wildcard $(OCBL_DIR)/common/*.h)
+# 3.0.0-WP07a: the shared state-monitor contract is a build input of
+# every OCBL object (stale-address live-catch: the header moved the
+# state/reserved addresses and the wildcard missed it, shipping an
+# OCBL that wrote the OLD addresses while the kernel wrote the new).
+OCBL_COMMON_H += $(OC_ROOT)/include/ocbl_state.h
 OCBL_OBJ := $(patsubst $(OCBL_DIR)/%.c,$(OCBL_OUT)/%.o,$(OCBL_COMMON_C))
 
 # ---- BIOS flavor backend implementations (B5-2 split: the int 13h /
@@ -107,7 +112,7 @@ OCBL_EFI_CFLAGS := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
                    -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large \
                    -fno-ident -fno-asynchronous-unwind-tables \
                    -Wall -Wextra -Werror -O2 -std=gnu11 \
-                   -I$(OCBL_DIR)/common -I$(OCBL_DIR)/efi \
+                   -I$(OCBL_DIR)/common -I$(OCBL_DIR)/efi -I$(OC_ROOT)/include \
                    -DOCBL_FLAVOR_UEFI \
                    -DOCBL_RELEASE="\"$(OC_RELEASE_VERSION)\"" \
                    -DOCBL_BUILD=$(OC_KERNEL_BUILD)
@@ -116,6 +121,7 @@ OCBL_EFI_CFLAGS := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
 # scanner chain - fs/part/scan - is firmware-agnostic since B5-2;
 # menu/load/acpi/wdt join as their backends land in B5-4/5/6)
 OCBL_EFI_SRC := $(wildcard $(OCBL_DIR)/efi/*.c) \
+                $(OCBL_DIR)/common/ocbl_statemon.c \
                 $(OCBL_DIR)/common/ocbl_serial.c \
                 $(OCBL_DIR)/common/ocbl_fs.c \
                 $(OCBL_DIR)/common/ocbl_part.c \
