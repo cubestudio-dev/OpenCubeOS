@@ -33,27 +33,28 @@ window.SITE_DATA = {
       url: "downloads/opencube-2.2.0-update.tar.gz"
     }
   },
-  /* WP06e: the 3.0.0 development-preview channel (current milestone:
-     3.0.0-WP06c). Assets verified against the GitHub Release
-     v3.0.0-WP-06c (three-way: local tree == Release digests). */
+  /* WP06e: the 3.0.0 development-preview channel.  WP06f carries the
+     milestone forward (3.0.0-WP06f, build 387).  Assets verified
+     against the GitHub Release v3.0.0-WP06f (three-way: local tree ==
+     Release digests). */
   dev: {
-    version: "3.0.0-WP07a",
-    build: 379,
+    version: "3.0.0-WP06f",
+    build: 387,
     date: "2026-11-04",
     assets: {
       opencube: {
-        name: "opencube-3.0.0-WP07a.iso",
-        size: 3655680,
+        name: "opencube-3.0.0-WP06f.iso",
+        size: 3665920,
         size_h: "3.5 MiB",
-        sha256: "8a33821995d634d4ac6e867be18455229a02857ff15e96520f3327cf3e9d5ac4",
-        url: "downloads/opencube-3.0.0-WP07a.iso"
+        sha256: "9d72a07354ab11b47b867d4310ffe20cfbf804e3816cee5515361824ff413dff",
+        url: "downloads/opencube-3.0.0-WP06f.iso"
       },
       ocse: {
-        name: "ocse-3.0.0-WP06c.iso",
-        size: 4450304,
-        size_h: "4.2 MiB",
-        sha256: "2a1bad5bdb9030b79f0e23803e1f53c3ebf683ddae97ead17b44bf56d91fbf6b",
-        url: "downloads/ocse-3.0.0-WP06c.iso"
+        name: "ocse-3.0.0-WP06f.iso",
+        size: 4489216,
+        size_h: "4.3 MiB",
+        sha256: "44459661e6220ec6cef55d9f6258a020426f259808fd5a5c38693175aacd1cbc",
+        url: "downloads/ocse-3.0.0-WP06f.iso"
       }
     }
   },
@@ -64,6 +65,10 @@ window.SITE_DATA = {
     lines: "128,890"
   },
   history: [
+    { version: "3.0.0-WP07a", date: "2026-11-04",
+      iso_url: "downloads/opencube-3.0.0-WP07a.iso",
+      iso_sha: "8a33821995d634d4ac6e867be18455229a02857ff15e96520f3327cf3e9d5ac4",
+      iso_size: 3655680 },
     { version: "3.0.0-WP06c", date: "2026-11-02",
       iso_url: "downloads/opencube-3.0.0-WP06c.iso",
       iso_sha: "d783658bb95cc46cf7761b3240c47c52dfedfd75b191fbe87f45e03ca11b9ad7",
