@@ -24,10 +24,18 @@ monolithic kernel. Rationale:
 
 1. `tools/vendor_ocse.sh` - re-creates `ocse/` from the pristine
    v1.0.0 sources (143 files, this script is the file-list source of
-   truth).
-2. `tools/ocse_edits.py` - applies every modification on top (14 edit
-   groups). Never edit vendored files by hand: a re-vendor would
-   erase them.
+   truth).  WP06f: OCSE-native additions inside the vendored subtrees
+   (the PS/2 mouse driver, the regenerated Chinese font data) are
+   stashed and restored automatically; on a fresh bootstrap a missing
+   font data file must be regenerated with the FIXED
+   `tools/gen_chinese_font.py` (see `tools/ocse_edits.py` E20).
+2. `tools/ocse_edits.py` - applies every modification on top (E1-E20;
+   never edit vendored files by hand: a re-vendor would
+   erase them).
+3. WP06f: `ocse/chinese/chinese_font_data.c` is GENERATED data from
+   `tools/gen_chinese_font.py` (committed output, same precedent as
+   `drivers/display/screen_font_data.c`).  The v1.0.0 tag carries the
+   pre-WP06f glyph data (baseline-clipped strokes); never restore it.
 
 ## Excluded on purpose (v1.0.0 areas not vendored)
 

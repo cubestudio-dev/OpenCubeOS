@@ -60,6 +60,7 @@ void  wz_set_default(int id);          /* the button Enter activates */
 
 void  wz_draw(void);
 void  wz_repaint(void);                /* draw + clear the dirty flag */
+void  wz_repaint_if_dirty(void);       /* WP06f: draw only when marked  */
 void  wz_touch(void);                  /* request a redraw            */
 int   wz_handle_key(int key);          /* Tab/Enter/arrows/typing    */
 int   wz_poll_click(void);             /* pointer pumps + hit test   */

@@ -45,4 +45,35 @@ void screen_fb_blit       (u32 x, u32 y, u32 w, u32 h, const u32* src, u32 src_p
 /* Convenience: clear entire framebuffer to a single pixel value. */
 void screen_fb_clear(u32 pixel);
 
+/* ---- 3.0.0-WP06f: the double-buffer (back buffer) -------------------
+ * The GUI used to render straight onto the live framebuffer, blanking
+ * the whole screen with a background fill before repainting every
+ * widget - every state update (progress bar, countdown, pointer move)
+ * was a visible full-screen flash.  With a shadow attached, ALL draw
+ * primitives (put_pixel / fill_rect / blit / clear / write_px / the
+ * glyph blitters) render into the RAM back buffer instead; a finished
+ * frame is published with screen_fb_present(), which copies only the
+ * rows that differ (the local refresh: a pointer move touches ~20 of
+ * 600 rows).  Each visible pixel is written exactly once per frame,
+ * so no intermediate state is ever displayed - no flicker.
+ *
+ * Attach before entering the GUI panel/wizard, detach when the CLI
+ * console takes the screen over (the text console draws cells in
+ * place and needs direct framebuffer writes). */
+int  screen_fb_shadow_attach(void);   /* allocate + route draws to RAM */
+void screen_fb_shadow_detach(void);   /* route draws back to the FB    */
+int  screen_fb_shadow_active(void);
+void screen_fb_present(void);         /* publish changed rows to the FB */
+
+/* Unconditional pixel write used by the glyph blitters and the cursor
+ * sprite (fg AND bg pixels - unlike put_pixel callers that layer on an
+ * existing background).  Routes to the back buffer when attached. */
+void screen_fb_write_px(u32 x, u32 y, u32 pixel);
+
+/* 3.0.0-WP06f: the standard arrow pointer sprite (11x16 classic arrow,
+ * white outline + black fill, transparent background - the transparent
+ * pixels leave the back-buffer content untouched).  Clipped at the
+ * screen edges.  Routes to the back buffer when attached. */
+void screen_fb_draw_cursor(u32 x, u32 y);
+
 #endif /* OC_FB_H */

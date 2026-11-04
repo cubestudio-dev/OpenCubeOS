@@ -146,6 +146,16 @@ void ocse_main_run(const arch_multiboot2_info_t* mbi) {
 
     int mode_gui = 1;
     l1_ext_set_console_hook(ocse_console_sink, NULL);
+    /* WP06f: route all GUI drawing through the RAM back buffer (the
+     * double-buffer fix for the installer flicker).  A failed
+     * allocation is not fatal: the panel then draws directly like
+     * before - declared on the serial line. */
+    if (screen_fb_shadow_attach() == 0)
+        ocse_serial_puts_raw("[ocse] gui double-buffer: on (back "
+                             "buffer attached)\r\n");
+    else
+        ocse_serial_puts_raw("[ocse] gui double-buffer: UNAVAILABLE - "
+                             "direct rendering (alloc failed)\r\n");
     ocse_gui_init();
     /* WP-06c: bring the PS/2 aux mouse up too (USB + I2C touchpad
      * were already wired in the T4-era drivers; the aux mouse is the
@@ -163,6 +173,8 @@ void ocse_main_run(const arch_multiboot2_info_t* mbi) {
             if (g_ocse_hotkey_req == 1 || act == OCSE_ACT_GOTO_CL) {
                 g_ocse_hotkey_req = 0;
                 mode_gui = 0;
+                screen_fb_shadow_detach();   /* WP06f: the CLI console
+                                                draws cells directly */
                 l1_ext_set_console_hook(NULL, NULL);
                 screen_console_reset(screen_fb_rgb(0xE0, 0xE0, 0xE0),
                                      screen_fb_rgb(0x10, 0x10, 0x14));
@@ -189,6 +201,7 @@ void ocse_main_run(const arch_multiboot2_info_t* mbi) {
             if (ocse_cl_loop() == OCSE_ACT_GOTO_GUI || g_ocse_hotkey_req == 2) {
                 g_ocse_hotkey_req = 0;
                 mode_gui = 1;
+                screen_fb_shadow_attach();  /* WP06f: back to buffered */
                 l1_ext_set_console_hook(ocse_console_sink, NULL);
                 ocse_gui_draw();
                 ocse_serial_puts_raw("[ocse] switched: GUI mode\r\n");
