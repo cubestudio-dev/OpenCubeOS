@@ -37,16 +37,16 @@ window.SITE_DATA = {
      3.0.0-WP06c). Assets verified against the GitHub Release
      v3.0.0-WP-06c (three-way: local tree == Release digests). */
   dev: {
-    version: "3.0.0-WP06c",
-    build: 387,
-    date: "2026-11-02",
+    version: "3.0.0-WP07a",
+    build: 379,
+    date: "2026-11-04",
     assets: {
       opencube: {
-        name: "opencube-3.0.0-WP06c.iso",
-        size: 3637248,
+        name: "opencube-3.0.0-WP07a.iso",
+        size: 3655680,
         size_h: "3.5 MiB",
-        sha256: "d783658bb95cc46cf7761b3240c47c52dfedfd75b191fbe87f45e03ca11b9ad7",
-        url: "downloads/opencube-3.0.0-WP06c.iso"
+        sha256: "8a33821995d634d4ac6e867be18455229a02857ff15e96520f3327cf3e9d5ac4",
+        url: "downloads/opencube-3.0.0-WP07a.iso"
       },
       ocse: {
         name: "ocse-3.0.0-WP06c.iso",
@@ -64,6 +64,10 @@ window.SITE_DATA = {
     lines: "128,890"
   },
   history: [
+    { version: "3.0.0-WP06c", date: "2026-11-02",
+      iso_url: "downloads/opencube-3.0.0-WP06c.iso",
+      iso_sha: "d783658bb95cc46cf7761b3240c47c52dfedfd75b191fbe87f45e03ca11b9ad7",
+      iso_size: 3637248 },
     { version: "3.0.0-WP-01", date: "2026-10-29",
       iso_url: "downloads/OCIRE-3.0.0-WP-01.iso",
       iso_sha: "155b01f6652df6ac9788906df8344a4a50db96592e95ff698ed600eaa6fcbca4",
