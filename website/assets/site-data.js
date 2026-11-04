@@ -33,30 +33,31 @@ window.SITE_DATA = {
       url: "downloads/opencube-2.2.0-update.tar.gz"
     }
   },
-  /* WP06e: the 3.0.0 development-preview channel.  WP06f carries the
-     milestone forward (3.0.0-WP06f, build 387).  Assets verified
-     against the GitHub Release v3.0.0-WP06f (three-way: local tree ==
+  /* WP06e: the 3.0.0 development-preview channel.  WP06g1 carries the
+     milestone forward (3.0.0-WP06g1, build 387).  Assets verified
+     against the GitHub Release v3.0.0-WP06g1 (three-way: local tree ==
      Release digests). */
   dev: {
-    version: "3.0.0-WP06f",
-    build: 387,
+    version: "3.0.0-WP06g1",
+    build: 393,
     date: "2026-11-04",
     assets: {
       opencube: {
-        name: "opencube-3.0.0-WP06f.iso",
-        size: 3665920,
+        name: "opencube-3.0.0-WP06g1.iso",
+        size: 3667968,
         size_h: "3.5 MiB",
-        sha256: "9d72a07354ab11b47b867d4310ffe20cfbf804e3816cee5515361824ff413dff",
-        url: "downloads/opencube-3.0.0-WP06f.iso"
+        sha256: "579fa8690f0670f38619fe5cda4a8491589afdd84558c3290cd6460109081974",
+        url: "downloads/opencube-3.0.0-WP06g1.iso"
       },
       ocse: {
-        name: "ocse-3.0.0-WP06f.iso",
-        size: 4489216,
+        name: "ocse-3.0.0-WP06g1.iso",
+        size: 4491264,
         size_h: "4.3 MiB",
-        sha256: "fd79347d8c70fdc3915adf84bafd7a9d1fb085c6ea77e910768b08143e7a74d8",
-        url: "downloads/ocse-3.0.0-WP06f.iso"
+        sha256: "e6e13cf436e1e324a17ab95f89706cf4bfd8f587c2a24572f2ac78004853e688",
+        url: "downloads/ocse-3.0.0-WP06g1.iso"
       }
     }
+  }
   },
   stats: {
     commands: 285,
@@ -65,6 +66,10 @@ window.SITE_DATA = {
     lines: "128,890"
   },
   history: [
+    { version: "3.0.0-WP06f", date: "2026-11-04",
+      iso_url: "downloads/opencube-3.0.0-WP06f.iso",
+      iso_sha: "9d72a07354ab11b47b867d4310ffe20cfbf804e3816cee5515361824ff413dff",
+      iso_size: 3665920 },
     { version: "3.0.0-WP07a", date: "2026-11-04",
       iso_url: "downloads/opencube-3.0.0-WP07a.iso",
       iso_sha: "8a33821995d634d4ac6e867be18455229a02857ff15e96520f3327cf3e9d5ac4",
