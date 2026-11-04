@@ -14,6 +14,8 @@
 #include "fs_vfs.h"
 #include "screen_console.h"
 #include "screen_console_in.h"
+#include "console_cn.h"   /* WP06g1: sys_write console fallback -> UTF-8 wide path */
+#include "encoding.h"     /* WP06g1: ENC_UTF8 for console_cn_puts_enc */
 #include "lib_string.h"
 #include "driver_input_keyboard.h"
 #include "lib_fspath.h"   /* 3.0.0-WP03: path resolution (ex shell_resolve_path) */
@@ -697,8 +699,13 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
     if (!valid_user_buf(buf, len)) return (u64)-1;
     user_proc_t *proc = user_process_current();
     if (!proc) {
-        const char *p = (const char*)(uintptr_t)buf;
-        for (u64 i = 0; i < len; i++) screen_console_putc(p[i]);
+        /* WP06g1 fix (system-side mojibake root cause A): route the
+         * early console fallback through the UTF-8 wide decoder - the
+         * old byte-at-a-time stock putc painted every byte of a
+         * multi-byte CJK glyph as its own Latin-1 cell (three solid
+         * blocks per hanzi). ASCII output is byte-identical (the cn
+         * path passes < 0x80 straight to the stock putc). */
+        console_cn_puts_enc((const u8*)(uintptr_t)buf, (u32)len, ENC_UTF8);
         return len;
     }
     /* P3-9: for the actual write path, mapping is required. */
@@ -783,7 +790,18 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
      * WP-09-FIX BUG-023: emit the whole write atomically (cli window,
      * capped at 512 bytes per chunk) so concurrent user processes cannot
      * interleave character-by-character on the serial console
-     * ("parent: pid= 3 ppid=0 child=4child: pid= 4 ppid=3"). */
+     * ("parent: pid= 3 ppid=0 child=4child: pid= 4 ppid=3").
+     * WP06g1 fix (system-side mojibake root cause A): each chunk now
+     * flows through the UTF-8 wide decoder instead of the byte-at-a-
+     * time stock putc - a multi-byte CJK glyph renders as ONE 16px
+     * glyph (2 cells) instead of one Latin-1 block per byte.  ASCII
+     * stays byte-identical: the cn path passes < 0x80 straight to the
+     * stock putc, and invalid bytes are emitted raw exactly as the
+     * old loop did (console_cn_puts_enc's error branch).  The chunk
+     * boundaries can split a UTF-8 sequence, but the cli window keeps
+     * the stream contiguous - no foreign output lands between the
+     * pieces, so every UTF-8 terminal still decodes the full write
+     * correctly. */
     if (fd == 1 || fd == 2) {
         const char *p = (const char*)(uintptr_t)buf;
         u64 done = 0;
@@ -792,7 +810,8 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
             if (chunk > 512) chunk = 512;
             u64 eflags;
             __asm__ volatile("pushfq; popq %0; cli" : "=r"(eflags));
-            for (u64 i = 0; i < chunk; i++) screen_console_putc(p[done + i]);
+            console_cn_puts_enc((const u8*)(uintptr_t)(p + done),
+                                (u32)chunk, ENC_UTF8);
             __asm__ volatile("pushq %0; popfq" : : "r"(eflags));
             done += chunk;
         }

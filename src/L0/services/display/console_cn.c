@@ -75,10 +75,21 @@ void console_cn_putcw(u32 cp) {
          * never entered the capture buffer (IME pads and composed-line
          * redraws under ush showed mojibake tails). Suppression now
          * only skips the framebuffer draw below. */
+        /* WP06g1 fix (serial mojibake root cause C): the mirror loop
+         * runs with interrupts ON, so an IRQ-context console print
+         * (keyboard hook, timer) could land BETWEEN the lead byte and
+         * the continuation bytes of this glyph - the serial stream
+         * then carries a split sequence and every UTF-8 terminal
+         * misdecodes from that point on. Emit the whole sequence
+         * inside one irqsave window (same discipline as sys_write's
+         * 512-byte console chunk). */
+        u64 irq_flags;
+        __asm__ volatile("pushfq; popq %0; cli" : "=r"(irq_flags));
         int suppressed = 0;
         for (u32 i = 0; i < produced; ++i) {
             if (screen_console_call_hook(utf8[i])) suppressed = 1;
         }
+        if (irq_flags & 0x200) __asm__ volatile("sti");
         if (suppressed) return;
     }
     screen_console_t* con = screen_console_get();
