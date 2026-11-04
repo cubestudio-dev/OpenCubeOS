@@ -46,14 +46,14 @@ window.SITE_DATA = {
         name: "opencube-3.0.0-WP06g1.iso",
         size: 3667968,
         size_h: "3.5 MiB",
-        sha256: "579fa8690f0670f38619fe5cda4a8491589afdd84558c3290cd6460109081974",
+        sha256: "c2c13e4906b5d12e5a9816e734c51b744257341127796c823a645607bc6a9e24",
         url: "downloads/opencube-3.0.0-WP06g1.iso"
       },
       ocse: {
         name: "ocse-3.0.0-WP06g1.iso",
         size: 4491264,
         size_h: "4.3 MiB",
-        sha256: "e6e13cf436e1e324a17ab95f89706cf4bfd8f587c2a24572f2ac78004853e688",
+        sha256: "b751fe26ba3d0273ac585530fc8e9a6e29dcaced76da2a546428a73a5fb5ddc4",
         url: "downloads/ocse-3.0.0-WP06g1.iso"
       }
     }
