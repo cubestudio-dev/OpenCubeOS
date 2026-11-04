@@ -1,6 +1,6 @@
 OCBL stage1 ok
 
-OCBL 3.0.0 boot loader (3.0.0-WP06c build 378)
+OCBL 3.0.0 boot loader (3.0.0-WP07a build 378)
 long mode 64-bit C entry OK
 flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
 cpu: QEMU Virtual CPU version 2.5+
@@ -28,7 +28,7 @@ OCBL stage1 ok
 [scan] entries: 2
   [0] OCOS: Open Cube OS (hd0)  path=/boot/opencube.elf size=2080808
   [1] OCIRE: OCIRE recovery (hd1)  path=/boot/ocire.elf size=62384
-[0;1HOpen Cube OS Boot Loader (3.0.0-WP06c build 378)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOpen Cube OS (hd0)[0m[5;1HOCIRE recovery (hd1)[6;1HShutdown[2;1HBooting Open Cube OS (hd0) in 10s                                             [2;1HBooting Open Cube OS (hd0) in 9s                                              [2;1HBooting Open Cube OS (hd0) in 8s                                              [2;1HBooting Open Cube OS (hd0) in 7s                                              [2;1HBooting Open Cube OS (hd0) in 6s                                              [2;1HBooting Open Cube OS (hd0) in 5s                                              [2;1HBooting Open Cube OS (hd0) in 4s                                              [2;1HBooting Open Cube OS (hd0) in 3s                                              [2;1HBooting Open Cube OS (hd0) in 2s                                              [2;1HBooting Open Cube OS (hd0) in 1s                                              [menu] selected: Open Cube OS (hd0)
+[0;1HOpen Cube OS Boot Loader (3.0.0-WP07a build 378)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOpen Cube OS (hd0)[0m[5;1HOCIRE recovery (hd1)[6;1HShutdown[2;1HBooting Open Cube OS (hd0) in 10s                                             [2;1HBooting Open Cube OS (hd0) in 9s                                              [2;1HBooting Open Cube OS (hd0) in 8s                                              [2;1HBooting Open Cube OS (hd0) in 7s                                              [2;1HBooting Open Cube OS (hd0) in 6s                                              [2;1HBooting Open Cube OS (hd0) in 5s                                              [2;1HBooting Open Cube OS (hd0) in 4s                                              [2;1HBooting Open Cube OS (hd0) in 3s                                              [2;1HBooting Open Cube OS (hd0) in 2s                                              [2;1HBooting Open Cube OS (hd0) in 1s                                              [menu] selected: Open Cube OS (hd0)
 [menu] B4 will load this payload (mb2 handoff)
 [state] /HANGAT diagnostic hook: oc.hang=3 (the kernel will halt after the stage)
 [boot] VBE 800x600x32 ok
@@ -36,12 +36,12 @@ OCBL stage1 ok
 [boot] mbi built: 416 bytes at 0x50000
 [state] payload armed: boot budget 30s on the watchdog relay
 
-[oc] Open Cube OS 3.0.0-WP06c kmain entered
+[oc] Open Cube OS 3.0.0-WP07a kmain entered
 [ocst] boot-state monitor: state area 0x98000, watchdog 6300ESB (relay active)
 [ocst] /HANGAT diagnostic: will halt after stage 3
 [ocst] stage 1/6: KM_AIN_ENTERED (budget 10s)
 [00:00:00.000] boot chain 1/4: kernel core mechanisms............ OK
-  Open Cube OS  [3.0.0-WP06c]    Open Cube OS - L0 kernel (3.0.0-WP06c)
+  Open Cube OS  [3.0.0-WP07a]    Open Cube OS - L0 kernel (3.0.0-WP07a)
     Apache 2.0 licensed. See LICENSE.
 
 [00:00:00.000] multiboot2 handshake.............................. OK
@@ -57,28 +57,28 @@ OCBL stage1 ok
 [00:00:00.000] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
 [00:00:00.000] COM1 serial RX -> keyboard queue.................. OK
 [00:00:00.000] console input line editor......................... OK
-[00:00:00.010] interrupts enabled (sti).......................... OK
+[00:00:00.000] interrupts enabled (sti).......................... OK
 @    WP-01 ext self-test: 4/4 points reachable
-[00:00:00.010] WP-01 extension self-test......................... OK
+[00:00:00.000] WP-01 extension self-test......................... OK
     exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
-[00:00:00.010] exception self-test............................... OK
-[00:00:00.010] PMM (physical memory manager)..................... OK
-[00:00:00.010] VMM (virtual memory manager)...................... OK
-[00:00:00.010] kernel heap (kmalloc/kfree)....................... OK
-[00:00:00.010] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.000] exception self-test............................... OK
+[00:00:00.000] PMM (physical memory manager)..................... OK
+[00:00:00.000] VMM (virtual memory manager)...................... OK
+[00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
 [00:00:00.010] sync primitives (spinlock/sem/mutex/cond)......... OK
-[00:00:00.020] userspace (ring 3, syscalls, ELF loader).......... OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
     registry: file-local declarations collected
     registry: drv=37 svc=20 app=1
-[00:00:00.020] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5........... OK
-[00:00:00.020] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
-[00:00:00.020] ACPI: DSDT located (AML interpreter can load)..... OK
-[00:00:00.030] AML namespace (DSDT + SSDTs)...................... OK
-[00:00:00.030] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[00:00:00.010] ACPI: RSDP rev 0 RSDT 0ffe233b tables 5........... OK
+[00:00:00.010] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.010] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.020] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.020] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
 [0.060] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
-[0.070] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[0.060] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
 [00:00:00.070] i801/PIIX4 SMBus controller....................... OK
-[00:00:00.080] SMBus: 8 device(s) at scan........................ OK
+[00:00:00.070] SMBus: 8 device(s) at scan........................ OK
     AML: AML: undefined name PRQ0
     AML: AML: undefined name PRQ1
     AML: AML: undefined name PRQ2
@@ -87,11 +87,11 @@ OCBL stage1 ok
     AML: AML: undefined name CSEL
     AML: AML: undefined name CPEN
 [00:00:00.120] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
-[00:00:00.130] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.120] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
 [00:00:00.130] HPET (ACPI table + MMIO caps)..................... OK
 [00:00:00.140] boot chain 2/4: drivers + driver-free services.... OK
 [ocst] stage 2/6: SCHED_READY (budget 10s)
-[00:00:00.150] VFS (virtual file system)......................... OK
+[00:00:00.140] VFS (virtual file system)......................... OK
 vfs: mounted ramfs at /
 ramfs: mounted at /
 [00:00:00.160] ramfs (in-memory file system, mounted at /)....... OK
@@ -116,13 +116,13 @@ usb: class driver collected: btusb
 usb: class driver collected: uvc
 [00:00:00.460] USB hosts up: 0................................... OK
 [00:00:00.460] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
-[00:00:00.470] boot chain 3/4: driver-dependent services......... OK
+[00:00:00.490] boot chain 3/4: driver-dependent services......... OK
 [ocst] stage 3/6: DRIVERS_READY (budget 10s)
 [ocst] HANGAT: deliberate halt with interrupts off - the watchdog relay must catch this
 i6300esb_timer_expired: I would send APIC 1 INT 10 here if I knew how (XXX)
 OCBL stage1 ok
 
-OCBL 3.0.0 boot loader (3.0.0-WP06c build 378)
+OCBL 3.0.0 boot loader (3.0.0-WP07a build 378)
 long mode 64-bit C entry OK
 flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
 cpu: QEMU Virtual CPU version 2.5+
@@ -150,7 +150,7 @@ OCBL stage1 ok
 Rebooting to recovery...
 OCBL stage1 ok
 
-OCBL 3.0.0 boot loader (3.0.0-WP06c build 378)
+OCBL 3.0.0 boot loader (3.0.0-WP07a build 378)
 long mode 64-bit C entry OK
 flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
 cpu: QEMU Virtual CPU version 2.5+
@@ -193,4 +193,4 @@ Cmdline:
 CPU exception handlers armed.
 ACPI: FADT found (S5 SLP_TYP=0)
 OCBL boot record found (boot-state monitor).
-  Previous boot FAILED at stage DRIVERS_READY (no progress for 10s, seq 1, unix ts 1793760581
+  Previous boot FAILED at stage DRIVERS_READY (no progress for 10s, seq 1, unix ts 
