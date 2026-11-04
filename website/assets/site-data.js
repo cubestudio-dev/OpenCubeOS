@@ -53,7 +53,7 @@ window.SITE_DATA = {
         name: "ocse-3.0.0-WP06f.iso",
         size: 4489216,
         size_h: "4.3 MiB",
-        sha256: "44459661e6220ec6cef55d9f6258a020426f259808fd5a5c38693175aacd1cbc",
+        sha256: "fd79347d8c70fdc3915adf84bafd7a9d1fb085c6ea77e910768b08143e7a74d8",
         url: "downloads/ocse-3.0.0-WP06f.iso"
       }
     }
