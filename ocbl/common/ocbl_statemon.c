@@ -198,11 +198,37 @@ static void record_write(u8 kind, u8 stall, u16 seq, u32 ts,
 }
 
 /* ---- the BIOS-flavor window check ----------------------------------- */
+/* WP06f: the E820 "usable" verdict alone is not enough - the EBDA
+ * (Extended BIOS Data Area) is the BIOS's private low-memory area and
+ * its start lives in the BDA word at 0x40E, not in E820 (VMware's
+ * E820 marks 0x98000+ usable while its EBDA reaches well below
+ * 0x9F000).  Both state pages must stay clear of [ebda, 0xA0000):
+ * writing the state area into the EBDA corrupts BIOS data and the
+ * next INT call triple-faults. */
+static u32 ebda_base(void)
+{
+    /* BDA 0x40E: the EBDA segment (e.g. 0x9FC0).  0 or a value outside
+     * conventional memory means "no EBDA reported" - no extra guard. */
+    u16 seg = (u16)(((u16)port_inb(0x40F) << 8) | port_inb(0x40E));
+    if (seg < 0x8000 || seg >= 0xA000)
+        return 0;
+    return (u32)seg << 4;
+}
+
 int ocbl_statemon_bios_window_ok(void)
 {
     const ocbl_mmap_t* mm = ocbl_mmap_get();
     const u64 lo = (u64)OCST_STATE_ADDR;
     const u64 hi = (u64)OCST_RESERVED_ADDR + OCST_RESERVED_SIZE;
+    u32 ebda = ebda_base();
+    if (ebda != 0 && (u64)ebda < hi && 0xA0000ull > lo) {
+        /* overlap test: [lo,hi) vs [ebda, 0xA0000) */
+        ocbl_serial_puts("[state] EBDA at 0x");
+        ocbl_serial_hex((u64)ebda, 8);
+        ocbl_serial_puts(" overlaps the monitor window - state "
+                         "monitoring DISABLED this boot\r\n");
+        return 0;
+    }
     for (u32 i = 0; i < mm->count; i++) {
         if (mm->entries[i].type != 1 || mm->entries[i].len == 0)
             continue;

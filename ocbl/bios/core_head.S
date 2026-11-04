@@ -13,10 +13,18 @@
 ;               every PD entry = 2 MiB page, present|writable|huge
 ;               (identity-maps the first 4 GiB with 4 tables)
 ;          4. enable PAE + LME (+NXE) + PG, far-jump into 64-bit code
-;          5. set the core stack (0x9F000, grows down) and call ocbl_main
+;          5. set the core stack (0x8E000, grows down) and call ocbl_main
 ;
-;          The core image stays well below the EBDA (0x9FC00) - the
-;          linker enforces nothing, the build logs the final size and
+;          WP06f VMware fix: the stack top used to be 0x9F000, sized for
+;          SeaBIOS's 1 KiB EBDA at 0x9FC00.  VMware's EBDA is larger and
+;          starts LOWER (commonly 0x9E000 and below), so the growing
+;          stack overwrote BIOS EBDA data and the very next INT 16h/1Ah
+;          menu call triple-faulted ("virtual CPU enters shutdown").
+;          The stack now tops at 0x8E000 - below every observed EBDA and
+;          above the FAT cache top (0x82800), still 46 KiB deep.
+;
+;          The core image stays well below the EBDA - the linker
+;          enforces nothing, the build logs the final size and
 ;          ocbl.mk fails the build if the image would cross 0x40000
 ;          (the trampoline scratch area).
 
@@ -111,7 +119,8 @@ core_long:
         mov     fs, ax
         mov     gs, ax
         mov     ss, ax
-        mov     rsp, 0x9F000                     ; core stack top
+        mov     rsp, 0x8E000                     ; core stack top (WP06f:
+                                                ; below any EBDA - see header)
         xor     rbp, rbp
         call    ocbl_run
 .hang:
