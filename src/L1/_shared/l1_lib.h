@@ -227,6 +227,13 @@ static inline void putx_(unsigned long v) {
     puts_(&buf[i + 1]);
 }
 
+/* 3.0.0-WP06g2: the per-app i18n runtime (SELF-CONTAINED header: its
+ * own inline int-0x80 locale probe, no dependency on the wrappers
+ * above).  Included here so l1svc_main's failure line renders
+ * through tr_("svc_call_failed"); apps add translations in their
+ * own i18n/{en,zh}.json - nothing is hardcoded. */
+#include "_shared/i18n.h"
+
 /* ---- the standard L1SVC wrapper app body ---------------------------
  * v2.2.0 parity: the ush SVC_CMDS runner joined argv[1..] with single
  * spaces into one 256-byte argument line, called
@@ -250,12 +257,19 @@ static inline int l1svc_main(int argc, char **argv, long cat, long op) {
             arg[len++] = *p;
         arg[len] = 0;
     }
-    char out[4096];
+    /* WP06g2: 4096-stack -> 32768-static.  help -a renders the full
+     * bilingual registry (~12 KiB with hints); 4096 truncated it
+     * mid-list, and 32 KiB on the STACK would risk the user stack -
+     * BSS is mapped per-exec, freed with the process. */
+    static char out[32768];
     long rc = sys_l1svc(cat, op, arg[0] ? (long)arg : 0,
                         (long)out, (long)sizeof(out));
     if (rc != 0) {
+        /* WP06g2: the one string every wrapper app can print now
+         * renders through the per-app i18n resource (the
+         * svc_call_failed key) - Chinese under `lang zh`. */
         puts_(argv[0]);
-        puts_(": service call failed (rc=-1)\n");
+        puts_(tr_("svc_call_failed"));
         return 1;
     }
     puts_(out);

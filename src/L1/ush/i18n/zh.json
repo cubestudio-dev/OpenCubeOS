@@ -1,0 +1,22 @@
+{
+  "_hint": "Open Cube OS 的 ring-3 shell（默认入口）",
+  "help_title": "\nOpen Cube OS 用户态 shell（ush）—— 内建命令：\n\n",
+  "help_registry_note": "\n其余命令均由注册表提供的 ring-3 程序承担。\n",
+  "help_row_cd": "切换目录（shell 状态）",
+  "help_row_help": "本帮助；-a = 全量 A-Z 列表，-w = 按工作包分组",
+  "help_row_export": "设置环境变量",
+  "help_row_alias": "设置命令别名",
+  "help_row_unalias": "删除别名",
+  "help_row_env": "显示环境变量",
+  "help_row_set": "显示单个变量",
+  "help_row_history": "显示命令历史",
+  "help_row_jobs": "列出后台作业",
+  "help_row_fg": "把作业调到前台",
+  "help_row_bg": "把作业放到后台",
+  "help_row_exit": "不可用（请用 shutdown / reboot）",
+  "help_registry_prefix": "注册表：",
+  "help_registry_suffix": " 个程序 —— 'help -a' 列出全部，'help -w' 按工作包分组。\n",
+  "help_registry_unavailable": "（注册表不可用）\n",
+  "help_registry_listing_failed": "（注册表列表失败）\n",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+}

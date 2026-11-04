@@ -46,6 +46,17 @@ static int disp_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
         case L1SVC_DISP_ENC_TEST:    fn = disp_cmd_encoding_test; break;
         case L1SVC_DISP_IME:         fn = disp_cmd_ime; break;
         case L1SVC_DISP_IME_TEST:    fn = disp_cmd_ime_test; break;
+        /* 3.0.0-WP06g2: the programmatic locale query - the i18n
+         * runtime in every L1 app (i18n_lang_zh()) asks this once per
+         * process instead of parsing human output.  Emits exactly
+         * "en" or "zh" (NUL-terminated, no newline). */
+        case L1SVC_DISP_LANG_GET: {
+            const char *name = disp_lang_name();
+            int i = 0;
+            while (name[i] && i < cap - 1) { out[i] = name[i]; i++; }
+            out[i] = 0;
+            return 0;
+        }
         default: return -1;
     }
     return core_kcap_run_fn(fn, arg, out, cap) == 0 ? 0 : -1;

@@ -13,6 +13,8 @@
 #include "core_usermode.h"
 #include "core_sched.h"
 #include "lib_string.h"
+#include "l0_i18n.h"
+#include "disp_lang.h"
 #include "l1_wp8a.h"
 #include "l1_wp8b.h"
 #include "l1_wp8cd.h"
@@ -53,9 +55,10 @@ static int l1_apps_core(void) {
         put(OC_USERPROGS[i].name);
         put("\n");
     }
-    put("-- ");
+    put(l0_tr_("l1_registry_footer"));
     put_u64(OC_USERPROGS_COUNT);
-    put(" programs registered --\n");
+    put(l0_tr_("l1_registry_footer_tail"));
+    put("\n");
     return 0;
 }
 
@@ -65,25 +68,28 @@ static int l1_apps_core(void) {
  * that lost every member to the WP-03 user-plane removal are not
  * listed - help -w skips empty groups by design). */
 static const struct { const char *tag; const char *desc; } s_wp_order[] = {
-    { "recovery", "recovery shell core (oc>)" },
-    { "core",     "kernel core: memory, scheduler, diagnostics" },
-    { "fs",       "file service: VFS, ext4/FAT32/exFAT/ramfs" },
-    { "net",      "network service: TCP/IP, DNS, DHCP, SSH" },
-    { "block",    "block service + storage drivers" },
-    { "nic",      "NIC service + ethernet drivers" },
-    { "snd",      "sound service + audio drivers" },
-    { "display",  "display service: framebuffer, font, CJK render" },
-    { "input",    "input service: keyboard, mouse, touch" },
-    { "usb",      "USB service + host stack" },
-    { "camera",   "camera service (UVC)" },
-    { "time",     "time service: RTC/HPET/PMTimer/TSC" },
-    { "power",    "power service (ACPI)" },
-    { "watchdog", "watchdog service" },
-    { "ota",      "OTA update service (A/B slots)" },
-    { "crypto",   "crypto service (TLS primitives)" },
-    { "ush",      "shell service commands (former ush SVC rows)" },
-    { "l1",       "L1 service: registry, jobs, IPC, ring-3 tests" },
+    { "recovery", "wp_recovery" },
+    { "core",     "wp_core" },
+    { "fs",       "wp_fs" },
+    { "net",      "wp_net" },
+    { "block",    "wp_block" },
+    { "nic",      "wp_nic" },
+    { "snd",      "wp_snd" },
+    { "display",  "wp_display" },
+    { "input",    "wp_input" },
+    { "usb",      "wp_usb" },
+    { "camera",   "wp_camera" },
+    { "time",     "wp_time" },
+    { "power",    "wp_power" },
+    { "watchdog", "wp_watchdog" },
+    { "ota",      "wp_ota" },
+    { "crypto",   "wp_crypto" },
+    { "ush",      "wp_ush" },
+    { "l1",       "wp_l1" },
 };
+/* WP06g2: desc now carries the l0_tr_ KEY; the (fixed) English text
+ * lives in etc/i18n/l0/en.json and the Chinese column in zh.json -
+ * the same resource every other L0 surface uses. */
 
 static int wp_order_known(const char *tag) {
     for (u64 k = 0; k < sizeof(s_wp_order) / sizeof(s_wp_order[0]); k++)
@@ -91,26 +97,45 @@ static int wp_order_known(const char *tag) {
     return 0;
 }
 
-/* help -a: every entry A-Z with its tag. */
+/* help -a: every entry A-Z with its tag + the bilingual hint.
+ * WP06g2: the hint comes from the registry's hint_en/hint_zh pair
+ * (generated from each program's i18n/en.json + i18n/zh.json
+ * "_hint" key) selected by the active display locale. */
 static int l1_apps_help_a(void) {
-    put("ring-3 program registry (A-Z, ");
+    put(l0_tr_("l1_registry_title_a"));
     put_u64(OC_USERPROGS_COUNT);
-    put(" programs):\n");
+    put(l0_tr_("l1_registry_title_a_tail"));
+    put("\n");
     for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
         put("  ");
         put(OC_USERPROGS[i].name);
         put("  [");
         put(OC_USERPROGS[i].wp);
-        put("]\n");
+        put("]");
+        const char *hint = (disp_lang_get() == DISP_LANG_ZH)
+                               ? OC_USERPROGS[i].hint_zh
+                               : OC_USERPROGS[i].hint_en;
+        if (!hint) hint = "";
+        /* zh miss falls back to the en hint (a program whose zh
+         * resource carries no _hint still shows English, never
+         * nothing). */
+        if (!hint[0] && disp_lang_get() == DISP_LANG_ZH)
+            hint = OC_USERPROGS[i].hint_en ? OC_USERPROGS[i].hint_en : "";
+        if (hint[0]) {
+            put("  ");
+            put(hint);
+        }
+        put("\n");
     }
     return 0;
 }
 
 /* help -w: grouped by work-package tag, canonical order, A-Z inside. */
 static int l1_apps_help_w(void) {
-    put("ring-3 program registry by work package (");
+    put(l0_tr_("l1_registry_title_w"));
     put_u64(OC_USERPROGS_COUNT);
-    put(" programs):\n");
+    put(l0_tr_("l1_registry_groups_tail"));
+    put("\n");
     u64 shown = 0;
     u64 groups = 0;
     for (u64 k = 0; k < sizeof(s_wp_order) / sizeof(s_wp_order[0]); k++) {
@@ -122,7 +147,7 @@ static int l1_apps_help_w(void) {
         put("\n=== ");
         put(s_wp_order[k].tag);
         put(" (");
-        put(s_wp_order[k].desc);
+        put(l0_tr_(s_wp_order[k].desc));
         put(") ===\n");
         for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
             if (strcmp(OC_USERPROGS[i].wp, s_wp_order[k].tag) != 0) continue;
@@ -138,7 +163,9 @@ static int l1_apps_help_w(void) {
     for (u64 i = 0; i < OC_USERPROGS_COUNT; i++)
         if (!wp_order_known(OC_USERPROGS[i].wp)) other++;
     if (other > 0) {
-        put("\n=== other (unregistered tags) ===\n");
+        put("\n=== ");
+        put(l0_tr_("wp_other"));
+        put(" ===\n");
         groups++;
         for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
             if (wp_order_known(OC_USERPROGS[i].wp)) continue;
@@ -148,11 +175,13 @@ static int l1_apps_help_w(void) {
             shown++;
         }
     }
-    put("\n-- ");
+    put("\n");
+    put(l0_tr_("l1_registry_footer"));
     put_u64(shown);
-    put(" programs in ");
+    put(l0_tr_("l1_registry_groups_mid"));
     put_u64(groups);
-    put(" groups --\n");
+    put(l0_tr_("l1_registry_groups_tail2"));
+    put("\n");
     return 0;
 }
 

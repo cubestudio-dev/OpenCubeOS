@@ -41,6 +41,13 @@ struct oc_userprog_decl {
      * registration derived; emitted by gen_userprogs.py). help -w
      * renders from THIS field - the registry is the only source. */
     const char *wp;
+    /* 3.0.0-WP06g2: the bilingual registry hint, read from each
+     * program's i18n/en.json + i18n/zh.json "_hint" key by the
+     * generator. help -a renders the pair selected by the active
+     * display locale (services/display/disp_lang.c); "" means no
+     * hint was authored. */
+    const char *hint_en;
+    const char *hint_zh;
 };
 extern const struct oc_userprog_decl OC_USERPROGS[];
 extern const u64 OC_USERPROGS_COUNT;

@@ -435,7 +435,10 @@ $(GRUB_DATA_OBJ): $(GRUB_DATA_C) $(OC_ROOT)/src/L0/boot/grub_boot_data.h | $(BUI
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(CFLAGS) -c $< -o $@
 
-$(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(OC_ROOT)/src/L0/core/arch/x86_64/linker.ld | $(BUILD)
+# WP06g2: the kernel links the L0 i18n tables - regenerate them
+# before the kernel builds (object -MMD deps then ride
+# incremental resource changes).
+$(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(L0_I18N_GEN) $(OC_ROOT)/src/L0/core/arch/x86_64/linker.ld | $(BUILD)
 	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ) $(GRUB_DATA_OBJ)
 	strip --strip-debug $@
 
@@ -645,6 +648,18 @@ test:
 # v2.x build mode, builds them all, and emits userprogs_data.h with
 # the OC_USERPROGS[] name registry (the execve surface - no name is
 # hand-registered in the kernel). nasm/gcc must be on PATH.
+# 3.0.0-WP06g2: the L0 i18n tables regenerate from the JSON
+# resources (etc/i18n/l0/{en,zh}.json).  The generated file is
+# committed like userprogs_data.h, so the KERNEL_C wildcard
+# always sees it; this rule keeps it fresh.  Idempotent emit
+# (mtime kept when unchanged).
+L0_I18N_GEN := src/L0/core/lib/l0_i18n_data.c
+$(L0_I18N_GEN): etc/i18n/l0/en.json etc/i18n/l0/zh.json tools/gen_l0_i18n.py
+	python3 $(OC_ROOT)/tools/gen_l0_i18n.py
+
+l0-i18n: $(L0_I18N_GEN)
+	@echo "l0-i18n: $(L0_I18N_GEN) up to date"
+
 # 3.0.0-WP06g2: the header is a REAL file target - any L1 source
 # (or generator script) newer than it regenerates it; the emit is
 # idempotent (byte-compare, mtime kept when unchanged) so an

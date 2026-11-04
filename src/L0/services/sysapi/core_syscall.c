@@ -2678,7 +2678,14 @@ static u64 sys_l1svc(u64 cat, u64 op, u64 arg, u64 out) {
         cap = sizeof(kout_scratch);
         no_copy = 1;
     } else {
-        if (!valid_user_ptr(out) || cap == 0 || cap > 8192) return (u64)-1;
+        /* 3.0.0-WP06g2: the L1SVC text-surface cap ceiling rises
+         * 8192 -> 32768: help -a renders the FULL 274-program
+         * registry with the bilingual per-program hints (~12 KiB);
+         * 8192 truncated it mid-list (an English-era inherited
+         * limit - the plain name-only listing never approached it).
+         * Callers still pass their own cap; only the guard rail
+         * moves.  (sys_netcmd keeps its 8192.) */
+        if (!valid_user_ptr(out) || cap == 0 || cap > 32768) return (u64)-1;
         kout = (char *)kmalloc(cap);
         if (!kout) return (u64)-1;
     }
