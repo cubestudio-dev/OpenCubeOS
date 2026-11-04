@@ -87,7 +87,7 @@ SEABIOS_DIR  ?= $(OC_TOOLS)/share/seabios
 # release builds ran with the WP-04 default still set, so the shipped
 # ISO banners say 3.0.0-WP04 - a build-parameter miss, fixed here for
 # every future build (the released artifacts themselves stay as-is).
-OC_RELEASE_VERSION ?= 3.0.0-WP06f
+OC_RELEASE_VERSION ?= 3.0.0-WP06g1
 # BUG-0347 (RUNTIME): monotonic build id baked into the kernel and
 # published by the server-side version.json - makes the update check a
 # numeric comparison instead of a string equality (see ota_update.h).
