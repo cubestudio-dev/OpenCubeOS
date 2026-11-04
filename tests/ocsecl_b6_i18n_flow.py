@@ -123,7 +123,12 @@ try:
     check("medium ok zh", r"install: [^\x00-\x7F]+ocos\.tar")
     check("target zh", r"install: target hdap1[^\x00-\x7F]+fat32[^\x00-\x7F]+ /mnt")
     check("extract (file-tool EN)", r"extracted /mnt/boot/opencube\.elf")
-    check("kernel in place zh", r"install: [^\x00-\x7F]+2075728 B\)")
+    KERNEL_SZ = os.path.getsize(f"{BUILD}/opencube.elf")
+    # WP06f: the expected kernel size is derived from the build
+    # (the WP06f font regeneration grew the image; the old literal
+    # 2075728 went stale - a test bug, declared in the report).
+    check("kernel in place zh",
+          r"install: [^\x00-\x7F]+" + str(KERNEL_SZ) + r" B\)")
     check("boot code zh", r"ocbl-install: [^\x00-\x7F]+stage1 @LBA0")
     check("bootable zh", r"partition #1 [^\x00-\x7F]+")
     check("complete zh", r"[^\x00-\x7F]{4,}")
