@@ -31,6 +31,8 @@ enum {
     WZA_NO     = 11,
     WZA_REBOOT = 12,
     WZA_FINISH = 13,
+    WZA_ADV    = 14,   /* 3.0.0-WP06f: toggle Advanced options */
+    WZA_DEL    = 15,   /* 3.0.0-WP06f: delete the selected partition */
 };
 
 void ocse_wizard_init(void);    /* work-zone state reset + first page */

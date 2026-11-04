@@ -162,6 +162,15 @@ enum {
     OCSE_W_CANCEL_WROT,   /* data already written - sure? */
     OCSE_W_YES,           /* Yes */
     OCSE_W_NO,            /* No */
+    /* 3.0.0-WP06f: the Advanced options toggle (GUI/OCSECL parity:
+     * rmpart behind an explicit, default-off switch). */
+    OCSE_W_ADV_TOGGLE,    /* "Advanced options: off" */
+    OCSE_W_ADV_ON,        /* "Advanced options: on" */
+    OCSE_W_ADV_DEL,       /* "Delete partition" */
+    OCSE_W_ADV_DELQ,      /* delete the selected partition? */
+    OCSE_W_ADV_DELW,      /* ALL DATA ... cannot be undone */
+    OCSE_W_ADV_NONE,      /* select a partition in the list first */
+    OCSE_W_ADV_EXIST,     /* existing system detected - may delete below */
     OCSE_T_COUNT_
 };
 

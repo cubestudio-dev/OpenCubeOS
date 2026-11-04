@@ -249,6 +249,24 @@ static const char* const g_msgs[OCSE_T_COUNT_][2] = {
                              "磁盘上已有写入的数据——仍要取消吗？" },
     [OCSE_W_YES]         = { "Yes", "是" },
     [OCSE_W_NO]          = { "No",  "否" },
+    /* 3.0.0-WP06f: Advanced options (GUI/OCSECL parity). */
+    [OCSE_W_ADV_TOGGLE]  = { "Advanced options: off",
+                             "高级选项：关" },
+    [OCSE_W_ADV_ON]      = { "Advanced options: on",
+                             "高级选项：开" },
+    [OCSE_W_ADV_DEL]     = { "Delete partition", "删除分区" },
+    [OCSE_W_ADV_DELQ]    = { "Delete the selected partition?",
+                             "要删除所选分区吗？" },
+    [OCSE_W_ADV_DELW]    = { "ALL DATA on it will be lost. This cannot "
+                            "be undone.",
+                             "其上的全部数据将丢失，且无法撤销。" },
+    [OCSE_W_ADV_NONE]    = { "Select a partition in the list first.",
+                             "请先在列表中选择一个分区。" },
+    [OCSE_W_ADV_EXIST]   = { "An existing system was detected - with "
+                            "Advanced on you may delete its partition "
+                            "below.",
+                             "检测到已有系统——开启高级选项后可在下方删"
+                            "除其分区。" },
 };
 
 void ocse_i18n_init(void) {
