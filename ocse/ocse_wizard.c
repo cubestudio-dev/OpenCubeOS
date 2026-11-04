@@ -57,6 +57,10 @@ static WZ_WORK int  wz_written;            /* 0 clean, 1 mkfs ran,
                                               2 system extracted     */
 static WZ_WORK int  wz_failed_stage;       /* install stage to retry */
 static WZ_WORK int  wz_err_page;           /* Back target for errors */
+static WZ_WORK int  wz_advanced;           /* WP06f: Advanced options */
+static WZ_WORK int  wz_del_part;           /* WP06f: rmpart target # */
+static WZ_WORK int  wz_adv_exist;          /* WP06f: existing-system
+                                              note on the part page */
 
 /* ---- pages ---- */
 #define WZ_PG_LANG    0
@@ -71,6 +75,7 @@ static WZ_WORK int  wz_err_page;           /* Back target for errors */
 #define WZ_PG_ERROR   9
 #define WZ_PG_CANCEL  10
 #define WZ_PG_EXIT    11
+#define WZ_PG_DELC    12   /* WP06f: delete-partition confirmation */
 
 /* install stages (the error page retries one stage) */
 #define WZ_ST_MOUNT   0
@@ -293,7 +298,11 @@ static void page_frame(const char* stepname, int stepno) {
     wz_add_label(24, 56, 0, wz_head);
 }
 
-/* One modal page: pump keyboard + pointer until a button fires. */
+/* One modal page: pump keyboard + pointer until a button fires.
+ * WP06f: the repaint is DIRTY-GATED - an idle page renders zero frames
+ * (the old loop repainted the full screen on every scheduler tick,
+ * which blanked-and-repainted the live framebuffer thousands of times
+ * per second: the installer's flicker). */
 static int page_pump(void) {
     for (;;) {
         if (g_ocse_hotkey_req)
@@ -305,7 +314,7 @@ static int page_pump(void) {
         }
         int act = wz_poll_click();
         if (act != WZ_ACT_NONE) return act;
-        wz_repaint();
+        wz_repaint_if_dirty();
         core_sched_yield();
     }
 }
@@ -347,6 +356,12 @@ static int wz_page_disk(void) {
     wz_add_label(24, 96, OCSE_W_DISK_HEAD, NULL);
     int lst = wz_add_list(24, 126, 700, 220);
     wz_add_label(24, 366, OCSE_W_DISK_NOOVER, NULL);
+    /* WP06f: the Advanced options toggle (default OFF - the safe
+     * surface only).  ON unlocks the dangerous operations (delete
+     * partition) on the next page, mirroring OCSECL's rmpart. */
+    int b_adv = wz_add_button(24, 440, 220, 46,
+                              wz_advanced ? OCSE_W_ADV_ON : OCSE_W_ADV_TOGGLE,
+                              NULL, WZA_ADV);
     int b_next = wz_add_button(470, 500, 150, 46, OCSE_W_BTN_NEXT, NULL,
                                WZA_NEXT);
     wz_add_button(630, 500, 140, 46, OCSE_W_BTN_CANCEL, NULL, WZA_CANCEL);
@@ -371,6 +386,13 @@ static int wz_page_disk(void) {
         int act = page_pump();
         if (act == WZA_RESCAN) continue;
         if (act == WZA_CANCEL) return WZ_PG_CANCEL;
+        if (act == WZA_ADV) {
+            wz_advanced = !wz_advanced;
+            wz_set_raw(b_adv, ocse_tr(wz_advanced ? OCSE_W_ADV_ON
+                                                  : OCSE_W_ADV_TOGGLE));
+            wz_touch();
+            continue;
+        }
         if (act == WZA_NEXT) {
             if (!wz_have_disk || wz_list_count(lst) == 0) continue;
             const char* row = wz_list_row(lst, wz_list_sel(lst));
@@ -410,17 +432,37 @@ static int wz_page_disk(void) {
                 (void)wz_runq("umount /mnt");
             }
             if (existing) {
-                strcpy(wz_line1, "OpenCubeOS is already installed on ");
-                strcat(wz_line1, wz_disk);
-                strncpy(wz_errcmd, wz_line1, sizeof(wz_errcmd) - 1);
-                wz_errcmd[sizeof(wz_errcmd) - 1] = 0;
-                strcpy(wz_errout,
-                       "The installer never overwrites an existing"
-                       " system. Remove it by hand (rmpart) or choose"
-                       " another disk.");
-                wz_failed_stage = WZ_ST_NONE;
-                wz_err_page = WZ_PG_DISK;
-                return WZ_PG_ERROR;
+                if (!wz_advanced) {
+                    /* the safe default: refuse (the WP-06c gate).  The
+                     * refusal is declared on the serial line too - the
+                     * error page is visual, the log greps need text. */
+                    ocse_serial_puts_raw("[wizard] refuse: existing "
+                                         "OpenCubeOS on ");
+                    ocse_serial_puts_raw(wz_disk);
+                    ocse_serial_puts_raw(" (Advanced options + Delete "
+                                         "partition can clear it)\r\n");
+                    strcpy(wz_line1, "OpenCubeOS is already installed on ");
+                    strcat(wz_line1, wz_disk);
+                    strncpy(wz_errcmd, wz_line1, sizeof(wz_errcmd) - 1);
+                    wz_errcmd[sizeof(wz_errcmd) - 1] = 0;
+                    strcpy(wz_errout,
+                           "The installer never overwrites an existing"
+                           " system. Remove it by hand (rmpart) or choose"
+                           " another disk.");
+                    wz_failed_stage = WZ_ST_NONE;
+                    wz_err_page = WZ_PG_DISK;
+                    return WZ_PG_ERROR;
+                }
+                /* WP06f Advanced path: the operator explicitly enabled
+                 * the dangerous surface - proceed to the partition page
+                 * where Delete partition (rmpart) can clear the old
+                 * system.  Declared on the serial line. */
+                wz_adv_exist = 1;
+                ocse_serial_puts_raw("[wizard] advanced: existing system "
+                                     "on ");
+                ocse_serial_puts_raw(wz_disk);
+                ocse_serial_puts_raw(" - proceeding (rmpart available)"
+                                     "\r\n");
             }
             wz_have_part = 0;
             wz_fmt_ok = 0;
@@ -439,6 +481,19 @@ static int wz_page_part(void) {
     int lst = wz_add_list(24, 126, 700, 180);
     int lb_gap = wz_add_label(24, 330, 0, "");
     wz_add_label(24, 360, OCSE_W_PART_AUTO, NULL);
+    /* WP06f: the Advanced row - the same toggle as the disk page plus
+     * (when ON) the dangerous Delete partition button = OCSECL's
+     * `rmpart <disk> <n>`, behind its own confirmation page. */
+    int b_adv = wz_add_button(24, 440, 220, 46,
+                              wz_advanced ? OCSE_W_ADV_ON : OCSE_W_ADV_TOGGLE,
+                              NULL, WZA_ADV);
+    int b_del = wz_add_button(300, 440, 190, 46, OCSE_W_ADV_DEL, NULL,
+                              WZA_DEL);
+    wz_set_visible(b_del, wz_advanced);
+    if (wz_adv_exist) {
+        if (wz_advanced)
+            wz_add_label(24, 396, OCSE_W_ADV_EXIST, NULL);
+    }
     int b_create = wz_add_button(24, 500, 220, 46, OCSE_W_BTN_CREATE,
                                  NULL, WZA_CREATE);
     wz_add_button(300, 500, 150, 46, OCSE_W_BTN_BACK, NULL, WZA_BACK);
@@ -498,6 +553,31 @@ static int wz_page_part(void) {
         int act = page_pump();
         if (act == WZA_BACK) return WZ_PG_DISK;
         if (act == WZA_CANCEL) return WZ_PG_CANCEL;
+        if (act == WZA_ADV) {
+            wz_advanced = !wz_advanced;
+            wz_set_raw(b_adv, ocse_tr(wz_advanced ? OCSE_W_ADV_ON
+                                                  : OCSE_W_ADV_TOGGLE));
+            wz_set_visible(b_del, wz_advanced);
+            wz_touch();
+            continue;
+        }
+        if (act == WZA_DEL) {
+            /* delete the SELECTED list row ("#n FAT32 start=...") */
+            const char* row = wz_list_row(lst, wz_list_sel(lst));
+            int pn = 0;
+            if (row && row[0] == '#') {
+                int i = 1;
+                while (row[i] >= '0' && row[i] <= '9' && i < 5)
+                    pn = pn * 10 + (row[i++] - '0');
+            }
+            if (pn < 1) {
+                wz_set_raw(lb_gap, ocse_tr(OCSE_W_ADV_NONE));
+                wz_touch();
+                continue;
+            }
+            wz_del_part = pn;
+            return WZ_PG_DELC;
+        }
         if (act == WZA_CREATE) {
             if (best <= 0) continue;
             char lo[16], hi[16];
@@ -915,6 +995,52 @@ static int wz_page_cancel(void) {
 }
 
 /* ==================================================================
+ * WP06f: the delete-partition confirmation (Advanced options)
+ * ================================================================== */
+static int wz_page_delconfirm(void) {
+    wz_reset();
+    page_frame(ocse_tr(OCSE_W_STEP_PART), 3);
+    strcpy(wz_line1, ocse_tr(OCSE_W_ADV_DELQ));   /* head */
+    strcpy(wz_line2, "  ");
+    strcat(wz_line2, wz_disk);
+    strcat(wz_line2, "p");
+    char num[8];
+    u64_to_str((u64)wz_del_part, num);
+    strcat(wz_line2, num);
+    wz_add_label(24, 130, 0, wz_line1);
+    wz_add_label(24, 160, 0, wz_line2);
+    wz_add_label(24, 210, OCSE_W_ADV_DELW, NULL);
+    wz_add_button(300, 500, 150, 46, OCSE_W_BTN_CANCEL, NULL, WZA_NO);
+    int b_yes = wz_add_button(470, 500, 150, 46, OCSE_W_YES, NULL,
+                              WZA_YES);
+    wz_focus_set(b_yes);
+    wz_set_default(b_yes);
+
+    for (;;) {
+        int act = page_pump();
+        if (act == WZA_NO) return WZ_PG_PART;
+        if (act == WZA_CANCEL) return WZ_PG_CANCEL;
+        if (act == WZA_YES) {
+            /* the real command, recorded like every wizard mutation:
+             * rmpart <disk> <n> */
+            char cmd[WZ_CMD_SZ];
+            wz_cat(cmd, sizeof(cmd), "rmpart ", wz_disk, " ", NULL);
+            strcat(cmd, num);
+            /* any wizard-chosen target is stale after a deletion (MBR
+             * slot renumbering) - drop it so the flow re-picks */
+            wz_have_part = 0;
+            wz_fmt_ok = 0;
+            wz_dev[0] = 0;
+            wz_partno = 0;
+            wz_adv_exist = 0;
+            if (wz_run(cmd, WZ_ST_NONE, WZ_PG_PART) != 0)
+                return WZ_PG_ERROR;
+            return WZ_PG_PART;
+        }
+    }
+}
+
+/* ==================================================================
  * the wizard loop
  * ================================================================== */
 void ocse_wizard_init(void) {
@@ -934,6 +1060,9 @@ void ocse_wizard_init(void) {
     wz_written = 0;
     wz_failed_stage = WZ_ST_NONE;
     wz_err_page = WZ_PG_DISK;
+    wz_advanced = 0;          /* WP06f: Advanced options default OFF */
+    wz_del_part = 0;
+    wz_adv_exist = 0;
 }
 
 void ocse_wizard_run(void) {
@@ -952,6 +1081,7 @@ void ocse_wizard_run(void) {
         case WZ_PG_DONE:    pg = wz_page_done();    break;
         case WZ_PG_ERROR:   pg = wz_page_error();   break;
         case WZ_PG_CANCEL:  pg = wz_page_cancel();  break;
+        case WZ_PG_DELC:    pg = wz_page_delconfirm(); break;
         default:            pg = WZ_PG_EXIT;        break;
         }
     }
