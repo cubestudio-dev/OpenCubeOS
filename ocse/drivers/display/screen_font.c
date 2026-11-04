@@ -8,16 +8,18 @@
 
 void screen_renderer_default_draw_glyph(u32 x, u32 y, u32 cp, u32 fg_pixel, u32 bg_pixel) {
     const u8* glyph = screen_font8x16[cp & 0xFF];
-    /* For each of 16 rows: for each of 8 columns, pick fg or bg pixel. */
+    /* For each of 16 rows: for each of 8 columns, pick fg or bg pixel.
+     * WP06f: writes route through screen_fb_write_px so the glyph
+     * lands in the RAM back buffer while the GUI owns the screen
+     * (the double-buffer path - see screen_fb.h). */
     for (u32 row = 0; row < OC_FONT_CELL_H; ++row) {
         u8  bits   = glyph[row];
         u32 ypix   = y + row;
-        u8* rowptr = screen_fb_get_info()->addr + (u64)ypix * screen_fb_get_info()->pitch;
         for (u32 col = 0; col < OC_FONT_CELL_W; ++col) {
             u32 xpix = x + col;
             if (xpix >= screen_fb_get_info()->width || ypix >= screen_fb_get_info()->height) continue;
-            u32* px = (u32*)(rowptr + (u64)xpix * 4);
-            *px = (bits & (0x80 >> col)) ? fg_pixel : bg_pixel;
+            screen_fb_write_px(xpix, ypix,
+                               (bits & (0x80 >> col)) ? fg_pixel : bg_pixel);
         }
     }
 }

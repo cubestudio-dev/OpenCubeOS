@@ -200,14 +200,19 @@ int wz_add_progress(int x, int y, int w, int h) {
 }
 
 /* ---- setters ---- */
+/* WP06f: every state change marks the frame dirty - the page pump
+ * redraws only then (local refresh: an idle page costs zero frames,
+ * a progress tick repaints exactly once). */
 void wz_set_raw(int id, const char* text) {
     if (id < 0 || id >= g_wn) return;
     g_w[id].raw = text;
+    g_need_draw = 1;
 }
 
 void wz_set_visible(int id, int vis) {
     if (id < 0 || id >= g_wn) return;
     g_w[id].visible = (u8)(vis ? 1 : 0);
+    g_need_draw = 1;
 }
 
 void wz_set_progress(int id, int pct) {
@@ -215,6 +220,7 @@ void wz_set_progress(int id, int pct) {
     if (pct < 0) pct = 0;
     if (pct > 100) pct = 100;
     g_w[id].pct = pct;
+    g_need_draw = 1;
 }
 
 void wz_list_clear(int id) {
@@ -222,6 +228,7 @@ void wz_list_clear(int id) {
     g_w[id].nrows = 0;
     g_w[id].sel = 0;
     for (int r = 0; r < WZ_LIST_ROWS; r++) g_w[id].u.rows[r][0] = 0;
+    g_need_draw = 1;
 }
 
 void wz_list_add(int id, const char* row) {
@@ -230,6 +237,7 @@ void wz_list_add(int id, const char* row) {
     int r = g_w[id].nrows++;
     strncpy(g_w[id].u.rows[r], row, WZ_ROW_LEN - 1);
     g_w[id].u.rows[r][WZ_ROW_LEN - 1] = 0;
+    g_need_draw = 1;
 }
 
 void wz_list_set_sel(int id, int row) {
@@ -237,6 +245,7 @@ void wz_list_set_sel(int id, int row) {
     if (row < 0) row = 0;
     if (row >= g_w[id].nrows) row = g_w[id].nrows - 1;
     if (row < 0) row = 0;
+    if (g_w[id].sel != row) g_need_draw = 1;
     g_w[id].sel = row;
 }
 
@@ -267,17 +276,20 @@ void wz_input_set(int id, const char* text) {
     g_w[id].u.buf[WZ_INPUT_LEN - 1] = 0;
     g_w[id].len = (int)strlen(g_w[id].u.buf);
     g_w[id].cur = g_w[id].len;
+    g_need_draw = 1;
 }
 
 void wz_input_mask(int id, int on) {
     if (id < 0 || id >= g_wn) return;
     g_w[id].mask = (u8)(on ? 1 : 0);
+    g_need_draw = 1;
 }
 
 void wz_set_default(int id) {
     if (id < 0 || id >= g_wn) return;
     if (g_w[id].kind != WZ_BUTTON) return;
     g_default = id;
+    g_need_draw = 1;
 }
 
 int wz_focus_id(void) {
@@ -313,9 +325,10 @@ static void wz_frame(u32 x, u32 y, u32 w, u32 h, u32 color) {
 }
 
 static void draw_pointer(void) {
-    screen_fb_fill_rect((u32)g_mx, (u32)g_my, 3, 14, COL_CURSOR);
-    screen_fb_fill_rect((u32)g_mx + 3, (u32)g_my + 2, 3, 9, COL_CURSOR);
-    screen_fb_fill_rect((u32)g_mx + 6, (u32)g_my + 4, 2, 5, COL_CURSOR);
+    /* WP06f: the standard arrow sprite (white outline + black fill,
+     * transparent background) - replaces the three-fill_rect block
+     * arrow that read as a random blob. */
+    screen_fb_draw_cursor((u32)g_mx, (u32)g_my);
 }
 
 static void draw_widget(const wz_widget_t* w, int id) {
@@ -412,6 +425,10 @@ static void draw_widget(const wz_widget_t* w, int id) {
 }
 
 void wz_draw(void) {
+    /* WP06f: the whole page renders into the RAM back buffer first
+     * (when attached - see screen_fb.h); screen_fb_present() then
+     * publishes the changed rows in one pass, so the user never sees
+     * the blank-between-repaints intermediate state that flickered. */
     const screen_fb_info_t* fb = screen_fb_get_info();
     screen_fb_fill_rect(0, 0, fb->width, fb->height, COL_BG);
     screen_fb_fill_rect(0, 0, fb->width, 48, COL_BAR);
@@ -419,9 +436,18 @@ void wz_draw(void) {
     for (int i = 0; i < g_wn; i++)
         draw_widget(&g_w[i], i);
     draw_pointer();
+    screen_fb_present();
 }
 
 void wz_repaint(void) {
+    wz_draw();
+    g_need_draw = 0;
+}
+
+void wz_repaint_if_dirty(void) {
+    /* WP06f: the page pump's gate - an idle page renders NOTHING (the
+     * unconditional per-tick repaint was the installer's flicker). */
+    if (!g_need_draw) return;
     wz_draw();
     g_need_draw = 0;
 }

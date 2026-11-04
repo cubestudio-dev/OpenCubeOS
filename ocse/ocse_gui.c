@@ -188,13 +188,16 @@ int ocse_gui_click_probe(int x, int y) {
 }
 
 static void draw_pointer(void) {
-    /* block arrow: shaft + head */
-    screen_fb_fill_rect((u32)g_mx, (u32)g_my, 3, 14, COL_CURSOR);
-    screen_fb_fill_rect((u32)g_mx + 3, (u32)g_my + 2, 3, 9, COL_CURSOR);
-    screen_fb_fill_rect((u32)g_mx + 6, (u32)g_my + 4, 2, 5, COL_CURSOR);
+    /* WP06f: the standard arrow sprite (white outline + black fill,
+     * transparent background) - replaces the three-fill_rect block
+     * arrow that read as a random blob. */
+    screen_fb_draw_cursor((u32)g_mx, (u32)g_my);
 }
 
 void ocse_gui_draw(void) {
+    /* WP06f: the panel renders into the RAM back buffer first (when
+     * attached); screen_fb_present() publishes the changed rows in one
+     * pass - the blank-then-repaint flash between states is gone. */
     const screen_fb_info_t* fb = screen_fb_get_info();
     screen_fb_fill_rect(0, 0, fb->width, fb->height, COL_BG);
     screen_fb_fill_rect(0, 0, fb->width, 64, COL_BAR);
@@ -216,6 +219,7 @@ void ocse_gui_draw(void) {
     }
     gui_text(40, 580, COL_SUB, ocse_tr(OCSE_T_GUI_HINT));
     draw_pointer();
+    screen_fb_present();
 }
 
 void ocse_gui_init(void) {

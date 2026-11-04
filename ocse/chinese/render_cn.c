@@ -153,17 +153,19 @@ void cn_draw_missing_box(u32 x, u32 y, u32 w, u32 h, u32 fg, u32 bg) {
 }
 
 static void blit_8x16(u32 x, u32 y, const u8* glyph, u32 fg, u32 bg) {
+    /* WP06f: unconditional writes route through screen_fb_write_px so
+     * glyphs follow the active draw target (RAM back buffer while the
+     * GUI owns the screen, live framebuffer otherwise). */
     const screen_fb_info_t* fb = screen_fb_get_info();
     for (u32 row = 0; row < 16; ++row) {
         u8 bits = glyph[row];
         u32 ypix = y + row;
         if (ypix >= fb->height) break;
-        u8* rowptr = fb->addr + (u64)ypix * fb->pitch;
         for (u32 col = 0; col < 8; ++col) {
             u32 xpix = x + col;
             if (xpix >= fb->width) break;
-            *(u32*)(rowptr + (u64)xpix * 4) =
-                (bits & (0x80 >> col)) ? fg : bg;
+            screen_fb_write_px(xpix, ypix,
+                               (bits & (0x80 >> col)) ? fg : bg);
         }
     }
 }
@@ -174,12 +176,11 @@ static void blit_16x16(u32 x, u32 y, const u8* glyph, u32 fg, u32 bg) {
         u16 bits = (u16)((glyph[row * 2] << 8) | glyph[row * 2 + 1]);
         u32 ypix = y + row;
         if (ypix >= fb->height) break;
-        u8* rowptr = fb->addr + (u64)ypix * fb->pitch;
         for (u32 col = 0; col < 16; ++col) {
             u32 xpix = x + col;
             if (xpix >= fb->width) break;
-            *(u32*)(rowptr + (u64)xpix * 4) =
-                (bits & (0x8000 >> col)) ? fg : bg;
+            screen_fb_write_px(xpix, ypix,
+                               (bits & (0x8000 >> col)) ? fg : bg);
         }
     }
 }

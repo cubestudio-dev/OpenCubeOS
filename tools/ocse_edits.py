@@ -940,4 +940,371 @@ e17_flush_guard()
 e16_rdonly_masks()
 e15_dma_completion()
 
+# ---------------------------------------------------------------------------
+# E18 (3.0.0-WP06f): the GUI double buffer in screen_fb (flicker fix).
+# The GUI used to render straight onto the live framebuffer - every
+# repaint blanked the whole screen with a background fill before
+# redrawing each widget, so every state update (progress bar, pointer
+# move) flashed.  screen_fb gains an optional RAM back buffer: while
+# attached, ALL draw primitives render into it and screen_fb_present()
+# publishes only the rows that differ (the local refresh).  Includes
+# the standard arrow cursor sprite (the old pointer was three stacked
+# fill_rects).
+# ---------------------------------------------------------------------------
+def e18_double_buffer():
+    # 18a. header: the new API surface
+    edit("ocse/drivers/display/screen_fb.h",
+         "/* Convenience: clear entire framebuffer to a single pixel value. */\n"
+         "void screen_fb_clear(u32 pixel);\n"
+         "\n"
+         "#endif /* OC_FB_H */",
+         "/* Convenience: clear entire framebuffer to a single pixel value. */\n"
+         "void screen_fb_clear(u32 pixel);\n"
+         "\n"
+         "/* ---- 3.0.0-WP06f: the double-buffer (back buffer) -------------------\n"
+         " * The GUI used to render straight onto the live framebuffer, blanking\n"
+         " * the whole screen with a background fill before repainting every\n"
+         " * widget - every state update (progress bar, countdown, pointer move)\n"
+         " * was a visible full-screen flash.  With a shadow attached, ALL draw\n"
+         " * primitives (put_pixel / fill_rect / blit / clear / write_px / the\n"
+         " * glyph blitters) render into the RAM back buffer instead; a finished\n"
+         " * frame is published with screen_fb_present(), which copies only the\n"
+         " * rows that differ (the local refresh: a pointer move touches ~20 of\n"
+         " * 600 rows).  Each visible pixel is written exactly once per frame,\n"
+         " * so no intermediate state is ever displayed - no flicker.\n"
+         " *\n"
+         " * Attach before entering the GUI panel/wizard, detach when the CLI\n"
+         " * console takes the screen over (the text console draws cells in\n"
+         " * place and needs direct framebuffer writes). */\n"
+         "int  screen_fb_shadow_attach(void);   /* allocate + route draws to RAM */\n"
+         "void screen_fb_shadow_detach(void);   /* route draws back to the FB    */\n"
+         "int  screen_fb_shadow_active(void);\n"
+         "void screen_fb_present(void);         /* publish changed rows to the FB */\n"
+         "\n"
+         "/* Unconditional pixel write used by the glyph blitters and the cursor\n"
+         " * sprite (fg AND bg pixels - unlike put_pixel callers that layer on an\n"
+         " * existing background).  Routes to the back buffer when attached. */\n"
+         "void screen_fb_write_px(u32 x, u32 y, u32 pixel);\n"
+         "\n"
+         "/* 3.0.0-WP06f: the standard arrow pointer sprite (11x16 classic arrow,\n"
+         " * white outline + black fill, transparent background - the transparent\n"
+         " * pixels leave the back-buffer content untouched).  Clipped at the\n"
+         " * screen edges.  Routes to the back buffer when attached. */\n"
+         "void screen_fb_draw_cursor(u32 x, u32 y);\n"
+         "\n"
+         "#endif /* OC_FB_H */")
+
+    # 18b. screen_fb.c: include + shadow state + routed primitives
+    edit("ocse/drivers/display/screen_fb.c",
+         '#include "screen_fb.h"\n'
+         '#include "arch_multiboot2.h"\n'
+         '#include "lib_string.h"\n'
+         '\n'
+         'static screen_fb_info_t g_fb;',
+         '#include "screen_fb.h"\n'
+         '#include "arch_multiboot2.h"\n'
+         '#include "lib_string.h"\n'
+         '#include "mem_heap.h"     /* WP06f: the double-buffer allocation */\n'
+         '\n'
+         'static screen_fb_info_t g_fb;\n'
+         '\n'
+         '/* ---- 3.0.0-WP06f: the RAM back buffer (double buffering) --------------\n'
+         ' * While attached, every draw primitive renders into g_shadow (a\n'
+         ' * width*4-pitch mirror of the screen) instead of the live framebuffer;\n'
+         ' * screen_fb_present() publishes only the rows that differ.  A frame\n'
+         ' * reaches the visible surface as one final write per pixel - the\n'
+         ' * blank-then-repaint intermediate states that flickered are gone. */\n'
+         'static u8* g_shadow;          /* kmalloc\'d W*H*4 back buffer (or NULL) */\n'
+         'static int g_shadow_on;       /* 1 = draws route to the back buffer   */\n'
+         '\n'
+         'static u8* draw_base(void)\n'
+         '{\n'
+         '    return g_shadow_on && g_shadow ? g_shadow : g_fb.addr;\n'
+         '}\n'
+         '\n'
+         'static u32 draw_pitch(void)\n'
+         '{\n'
+         '    /* the back buffer is always tightly packed */\n'
+         '    return (g_shadow_on && g_shadow) ? g_fb.width * 4u : g_fb.pitch;\n'
+         '}')
+
+    edit("ocse/drivers/display/screen_fb.c",
+         "void screen_fb_put_pixel(u32 x, u32 y, u32 pixel) {\n"
+         "    if (x >= g_fb.width || y >= g_fb.height) return;\n"
+         "    u8* row = g_fb.addr + (u64)y * g_fb.pitch;\n"
+         "    u32* px = (u32*)(row + (u64)x * 4);\n"
+         "    *px = pixel;\n"
+         "}",
+         "void screen_fb_put_pixel(u32 x, u32 y, u32 pixel) {\n"
+         "    if (x >= g_fb.width || y >= g_fb.height) return;\n"
+         "    u8* row = draw_base() + (u64)y * draw_pitch();\n"
+         "    u32* px = (u32*)(row + (u64)x * 4);\n"
+         "    *px = pixel;\n"
+         "}\n"
+         "\n"
+         "void screen_fb_write_px(u32 x, u32 y, u32 pixel) {\n"
+         "    /* WP06f: unconditional write for glyph blitters / the cursor sprite -\n"
+         "     * identical routing to put_pixel (kept separate so the call sites\n"
+         "     * document that fg AND bg pixels land, never a layered overlay). */\n"
+         "    if (x >= g_fb.width || y >= g_fb.height) return;\n"
+         "    u8* row = draw_base() + (u64)y * draw_pitch();\n"
+         "    u32* px = (u32*)(row + (u64)x * 4);\n"
+         "    *px = pixel;\n"
+         "}")
+
+    edit("ocse/drivers/display/screen_fb.c",
+         "    for (u32 j = 0; j < h; ++j) {\n"
+         "        u8*  row = g_fb.addr + (u64)(y + j) * g_fb.pitch;\n"
+         "        u32* px  = (u32*)(row + (u64)x * 4);\n"
+         "        for (u32 i = 0; i < w; ++i) px[i] = pixel;\n"
+         "    }",
+         "    u8* base = draw_base();\n"
+         "    u32 pitch = draw_pitch();\n"
+         "    for (u32 j = 0; j < h; ++j) {\n"
+         "        u8*  row = base + (u64)(y + j) * pitch;\n"
+         "        u32* px  = (u32*)(row + (u64)x * 4);\n"
+         "        for (u32 i = 0; i < w; ++i) px[i] = pixel;\n"
+         "    }")
+
+    edit("ocse/drivers/display/screen_fb.c",
+         "    for (u32 j = 0; j < h; ++j) {\n"
+         "        u8*        dst_row = g_fb.addr + (u64)(y + j) * g_fb.pitch;\n"
+         "        const u32* src_row = (const u32*)((const u8*)src + (u64)j * src_pitch_bytes);\n"
+         "        u32*       dpx     = (u32*)(dst_row + (u64)x * 4);\n"
+         "        for (u32 i = 0; i < w; ++i) dpx[i] = src_row[i];\n"
+         "    }",
+         "    u8* base = draw_base();\n"
+         "    u32 pitch = draw_pitch();\n"
+         "    for (u32 j = 0; j < h; ++j) {\n"
+         "        u8*        dst_row = base + (u64)(y + j) * pitch;\n"
+         "        const u32* src_row = (const u32*)((const u8*)src + (u64)j * src_pitch_bytes);\n"
+         "        u32*       dpx     = (u32*)(dst_row + (u64)x * 4);\n"
+         "        for (u32 i = 0; i < w; ++i) dpx[i] = src_row[i];\n"
+         "    }")
+
+    # 18c. screen_fb.c: the shadow API + present + the cursor sprite
+    edit("ocse/drivers/display/screen_fb.c",
+         "void screen_fb_clear(u32 pixel) {\n"
+         "    screen_fb_fill_rect(0, 0, g_fb.width, g_fb.height, pixel);\n"
+         "}",
+         "void screen_fb_clear(u32 pixel) {\n"
+         "    screen_fb_fill_rect(0, 0, g_fb.width, g_fb.height, pixel);\n"
+         "}\n"
+         "\n"
+         "int screen_fb_shadow_attach(void) {\n"
+         "    if (g_shadow) { g_shadow_on = 1; return 0; }\n"
+         "    if (g_fb.width == 0 || g_fb.height == 0) return -1;\n"
+         "    g_shadow = kmalloc((u64)g_fb.width * g_fb.height * 4u);\n"
+         "    if (!g_shadow) return -1;\n"
+         "    /* start as a faithful copy of what is on screen so a partial\n"
+         "     * repaint + present never flashes stale content */\n"
+         "    for (u32 y = 0; y < g_fb.height; ++y)\n"
+         "        memcpy(g_shadow + (u64)y * g_fb.width * 4u,\n"
+         "               g_fb.addr + (u64)y * g_fb.pitch,\n"
+         "               (usize)g_fb.width * 4u);\n"
+         "    g_shadow_on = 1;\n"
+         "    return 0;\n"
+         "}\n"
+         "\n"
+         "void screen_fb_shadow_detach(void) {\n"
+         "    g_shadow_on = 0;\n"
+         "}\n"
+         "\n"
+         "int screen_fb_shadow_active(void) {\n"
+         "    return g_shadow_on && g_shadow ? 1 : 0;\n"
+         "}\n"
+         "\n"
+         "void screen_fb_present(void) {\n"
+         "    /* Publish the finished frame: copy ONLY the rows that differ\n"
+         "     * (the local refresh - a pointer move rewrites ~20 of 600 rows,\n"
+         "     * a progress tick ~2).  With no back buffer this is a no-op: the\n"
+         "     * primitives already wrote the live surface directly. */\n"
+         "    if (!g_shadow_on || !g_shadow) return;\n"
+         "    u32 pitch = g_fb.width * 4u;\n"
+         "    for (u32 y = 0; y < g_fb.height; ++y) {\n"
+         "        u8* srow = g_shadow + (u64)y * pitch;\n"
+         "        u8* frow = g_fb.addr + (u64)y * g_fb.pitch;\n"
+         "        if (memcmp(srow, frow, pitch) != 0)\n"
+         "            memcpy(frow, srow, pitch);\n"
+         "    }\n"
+         "}\n"
+         "\n"
+         "/* ---- 3.0.0-WP06f: the standard arrow pointer (13x16) -------------------\n"
+         " * The classic arrow silhouette: a solid black triangular head with its\n"
+         " * left edge vertical, the hypotenuse down to the tip at row 10, and a\n"
+         " * 3px stem descending to row 15.  One-pixel white outline all around\n"
+         " * (so the pointer stays visible on dark backgrounds); everything else\n"
+         " * transparent - the underlying frame shows through untouched.\n"
+         " *\n"
+         " *   bit=1 in k_cursor_mask : this pixel belongs to the pointer\n"
+         " *   bit=1 in k_cursor_white: outline pixel (white); 0 = fill (black)\n"
+         " *\n"
+         " * (The old pointer was three stacked fill_rects - a chunky block\n"
+         " * \"arrow\" with no outline that read as a random black blob.) */\n"
+         "#define CURSOR_W 13u\n"
+         "#define CURSOR_H 16u\n"
+         "static const u16 k_cursor_mask[CURSOR_H] = {\n"
+         "    0xE000, 0xF000, 0xF800, 0xFC00, 0xFE00, 0xFF00, 0xFF80, 0xFFC0,\n"
+         "    0xFFE0, 0xFFF0, 0xFFF8, 0xFFF0, 0xF800, 0xF800, 0xF800, 0xF800,\n"
+         "};\n"
+         "static const u16 k_cursor_white[CURSOR_H] = {\n"
+         "    0xA000, 0x9000, 0x8800, 0x8400, 0x8200, 0x8100, 0x8080, 0x8040,\n"
+         "    0x8020, 0x8010, 0x8008, 0x87F0, 0x8800, 0x8800, 0x8800, 0x8800,\n"
+         "};\n"
+         "\n"
+         "void screen_fb_draw_cursor(u32 x, u32 y) {\n"
+         "    u32 white = screen_fb_rgb(0xFF, 0xFF, 0xFF);\n"
+         "    u32 black = screen_fb_rgb(0x10, 0x10, 0x10);\n"
+         "    for (u32 r = 0; r < CURSOR_H; r++) {\n"
+         "        u32 py = y + r;\n"
+         "        if (py >= g_fb.height) break;\n"
+         "        u16 m = k_cursor_mask[r];\n"
+         "        u16 w = k_cursor_white[r];\n"
+         "        for (u32 c = 0; c < CURSOR_W; c++) {\n"
+         "            if (!(m & (0x8000u >> c))) continue;   /* transparent */\n"
+         "            u32 px = x + c;\n"
+         "            if (px >= g_fb.width) break;\n"
+         "            screen_fb_write_px(px, py, (w & (0x8000u >> c)) ? white : black);\n"
+         "        }\n"
+         "    }\n"
+         "}")
+
+
+# ---------------------------------------------------------------------------
+# E19 (3.0.0-WP06f): the glyph blitters route through screen_fb_write_px
+# so console/CJK glyphs follow the active draw target (RAM back buffer
+# while the GUI owns the screen).  Behavior with no shadow attached is
+# identical to v1.0.0 (direct framebuffer writes).
+# ---------------------------------------------------------------------------
+def e19_glyph_routing():
+    edit("ocse/drivers/display/screen_font.c",
+         "void screen_renderer_default_draw_glyph(u32 x, u32 y, u32 cp, u32 fg_pixel, u32 bg_pixel) {\n"
+         "    const u8* glyph = screen_font8x16[cp & 0xFF];\n"
+         "    /* For each of 16 rows: for each of 8 columns, pick fg or bg pixel. */\n"
+         "    for (u32 row = 0; row < OC_FONT_CELL_H; ++row) {\n"
+         "        u8  bits   = glyph[row];\n"
+         "        u32 ypix   = y + row;\n"
+         "        u8* rowptr = screen_fb_get_info()->addr + (u64)ypix * screen_fb_get_info()->pitch;\n"
+         "        for (u32 col = 0; col < OC_FONT_CELL_W; ++col) {\n"
+         "            u32 xpix = x + col;\n"
+         "            if (xpix >= screen_fb_get_info()->width || ypix >= screen_fb_get_info()->height) continue;\n"
+         "            u32* px = (u32*)(rowptr + (u64)xpix * 4);\n"
+         "            *px = (bits & (0x80 >> col)) ? fg_pixel : bg_pixel;\n"
+         "        }\n"
+         "    }\n"
+         "}",
+         "void screen_renderer_default_draw_glyph(u32 x, u32 y, u32 cp, u32 fg_pixel, u32 bg_pixel) {\n"
+         "    const u8* glyph = screen_font8x16[cp & 0xFF];\n"
+         "    /* For each of 16 rows: for each of 8 columns, pick fg or bg pixel.\n"
+         "     * WP06f: writes route through screen_fb_write_px so the glyph\n"
+         "     * lands in the RAM back buffer while the GUI owns the screen\n"
+         "     * (the double-buffer path - see screen_fb.h). */\n"
+         "    for (u32 row = 0; row < OC_FONT_CELL_H; ++row) {\n"
+         "        u8  bits   = glyph[row];\n"
+         "        u32 ypix   = y + row;\n"
+         "        for (u32 col = 0; col < OC_FONT_CELL_W; ++col) {\n"
+         "            u32 xpix = x + col;\n"
+         "            if (xpix >= screen_fb_get_info()->width || ypix >= screen_fb_get_info()->height) continue;\n"
+         "            screen_fb_write_px(xpix, ypix,\n"
+         "                               (bits & (0x80 >> col)) ? fg_pixel : bg_pixel);\n"
+         "        }\n"
+         "    }\n"
+         "}")
+
+    edit("ocse/chinese/render_cn.c",
+         "static void blit_8x16(u32 x, u32 y, const u8* glyph, u32 fg, u32 bg) {\n"
+         "    const screen_fb_info_t* fb = screen_fb_get_info();\n"
+         "    for (u32 row = 0; row < 16; ++row) {\n"
+         "        u8 bits = glyph[row];\n"
+         "        u32 ypix = y + row;\n"
+         "        if (ypix >= fb->height) break;\n"
+         "        u8* rowptr = fb->addr + (u64)ypix * fb->pitch;\n"
+         "        for (u32 col = 0; col < 8; ++col) {\n"
+         "            u32 xpix = x + col;\n"
+         "            if (xpix >= fb->width) break;\n"
+         "            *(u32*)(rowptr + (u64)xpix * 4) =\n"
+         "                (bits & (0x80 >> col)) ? fg : bg;\n"
+         "        }\n"
+         "    }\n"
+         "}",
+         "static void blit_8x16(u32 x, u32 y, const u8* glyph, u32 fg, u32 bg) {\n"
+         "    /* WP06f: unconditional writes route through screen_fb_write_px so\n"
+         "     * glyphs follow the active draw target (RAM back buffer while the\n"
+         "     * GUI owns the screen, live framebuffer otherwise). */\n"
+         "    const screen_fb_info_t* fb = screen_fb_get_info();\n"
+         "    for (u32 row = 0; row < 16; ++row) {\n"
+         "        u8 bits = glyph[row];\n"
+         "        u32 ypix = y + row;\n"
+         "        if (ypix >= fb->height) break;\n"
+         "        for (u32 col = 0; col < 8; ++col) {\n"
+         "            u32 xpix = x + col;\n"
+         "            if (xpix >= fb->width) break;\n"
+         "            screen_fb_write_px(xpix, ypix,\n"
+         "                               (bits & (0x80 >> col)) ? fg : bg);\n"
+         "        }\n"
+         "    }\n"
+         "}")
+
+    edit("ocse/chinese/render_cn.c",
+         "static void blit_16x16(u32 x, u32 y, const u8* glyph, u32 fg, u32 bg) {\n"
+         "    const screen_fb_info_t* fb = screen_fb_get_info();\n"
+         "    for (u32 row = 0; row < 16; ++row) {\n"
+         "        u16 bits = (u16)((glyph[row * 2] << 8) | glyph[row * 2 + 1]);\n"
+         "        u32 ypix = y + row;\n"
+         "        if (ypix >= fb->height) break;\n"
+         "        u8* rowptr = fb->addr + (u64)ypix * fb->pitch;\n"
+         "        for (u32 col = 0; col < 16; ++col) {\n"
+         "            u32 xpix = x + col;\n"
+         "            if (xpix >= fb->width) break;\n"
+         "            *(u32*)(rowptr + (u64)xpix * 4) =\n"
+         "                (bits & (0x8000 >> col)) ? fg : bg;\n"
+         "        }\n"
+         "    }\n"
+         "}",
+         "static void blit_16x16(u32 x, u32 y, const u8* glyph, u32 fg, u32 bg) {\n"
+         "    const screen_fb_info_t* fb = screen_fb_get_info();\n"
+         "    for (u32 row = 0; row < 16; ++row) {\n"
+         "        u16 bits = (u16)((glyph[row * 2] << 8) | glyph[row * 2 + 1]);\n"
+         "        u32 ypix = y + row;\n"
+         "        if (ypix >= fb->height) break;\n"
+         "        for (u32 col = 0; col < 16; ++col) {\n"
+         "            u32 xpix = x + col;\n"
+         "            if (xpix >= fb->width) break;\n"
+         "            screen_fb_write_px(xpix, ypix,\n"
+         "                               (bits & (0x8000 >> col)) ? fg : bg);\n"
+         "        }\n"
+         "    }\n"
+         "}")
+
+
+# ---------------------------------------------------------------------------
+# E20 (3.0.0-WP06f): regenerated font data freshness guard.
+# tools/gen_chinese_font.py rasterize() was mapping the 16px cell to the
+# em box [0,64] while Unifont's glyph box is baseline-relative
+# [descent..ascent] = [-8,+56] - every hanzi sat 2 rows too low and the
+# bottom 2 rows of strokes were clipped (missing strokes).  The fixed
+# generator's output is committed; this guard aborts loudly if a
+# re-vendor restored the v1.0.0 (pre-fix) data, so the operator
+# regenerates instead of shipping clipped glyphs.
+# ---------------------------------------------------------------------------
+def e20_font_freshness():
+    t = _rd("ocse/chinese/chinese_font_data.c")
+    # WP06f 啊 (hanzi idx 0): content begins at byte 2 (row 1) and the
+    # last row carries strokes.  The v1.0.0 data began 0x00,0x00,0x00,
+    # 0x00,0x00,0x00,0x0E,0xFC (content at row 3).
+    if "{0x00,0x00,0x0E,0xFC,0xEA,0x08" in t:
+        return
+    sys.exit("[ocse_edits] E20: ocse/chinese/chinese_font_data.c carries the "
+             "pre-WP06f (clipped) glyph data - regenerate it:\n"
+             "  python3 tools/gen_chinese_font.py   # fixed rasterizer\n"
+             "  cp chinese/chinese_font_data.c ocse/chinese/chinese_font_data.c\n"
+             "  sed -i 's|#include \"../core/types.h\"|#include \"../kernel/types.h\"|' "
+             "ocse/chinese/chinese_font_data.c\n"
+             "  rm -rf chinese/")
+
+
+e18_double_buffer()
+e19_glyph_routing()
+e20_font_freshness()
+
 print("[ocse_edits] %d edit groups applied - OCSE tree is build-ready" % applied)
