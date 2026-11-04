@@ -86,14 +86,21 @@ def load_contours(font, cp):
 def rasterize(contours):
     """Even-odd rasterization onto a 16x16 grid.
 
-    Font units: upem=64 == 16 px, so pixel (col,row) center maps to
-    (col*4+2, (15-row)*4+2) in font units (y flipped: TTF y-up).
+    Font units: upem=64 == 16 px, so one pixel == 4 font units.
+    Unifont's glyph box is BASELINE-relative, not em-box-relative:
+    hhea ascent=56 / descent=-8 units means the 16px cell spans
+    y in [-8, +56] (the baseline sits 2 px above the cell bottom).
+    Pixel row 0 covers y in [52, 56] (center 54); pixel row 15
+    covers y in [-8, -4] (center -6).  The WP06f fix: the old
+    mapping assumed y in [0, 64] (cy = (15-row)*4 + 2), which
+    shifted every glyph DOWN 2 rows, left the top 2-3 rows empty
+    and CLIPPED the bottom 2 rows of strokes (missing strokes).
     Returns 16 rows of u16 (bit15 = leftmost pixel), MSB-first like the
     existing screen_font8x16 (bit7 = leftmost of an 8px row).
     """
     rows = []
     for row in range(16):
-        cy = (15 - row) * 4 + 2
+        cy = (15 - row) * 4 - 6
         line = 0
         for col in range(16):
             cx = col * 4 + 2
