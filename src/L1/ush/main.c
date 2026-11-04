@@ -935,13 +935,125 @@ static void exec_pipeline(char *line) {
     }
 }
 
-/* ==================================================================
- * WP-10-wp08fix1: full line editing for the ush prompt
+/* ==================================================================\n * WP-10-wp08fix1: full line editing for the ush prompt
  * ==================================================================
  * Keys: Up/Down history, Left/Right/Home/End cursor, Delete,
  * Ctrl+A/E (line start/end), Ctrl+U/K (kill to start/end),
  * Ctrl+W (kill word), Ctrl+C (cancel line), Tab (completion).
- * Rendering uses only \r and re-printing (console has no ANSI). */
+ * Rendering uses only \r and re-printing (console has no ANSI).
+ */
+
+/* ==================================================================
+ * WP06g1: UTF-8 aware line editing
+ * ==================================================================
+ * Pasted CJK text is multi-byte UTF-8; the byte-at-a-time editor
+ * below used to split glyphs in half on every Backspace/Left/Right
+ * (a 2-cell hanzi moved the cursor 1 cell) and "\b \b" erased only
+ * the left half of a wide glyph.  All cursor motion and deletion is
+ * now CHARACTER-based, and the backspace wipe width mirrors the
+ * kernel renderer's per-codepoint advance (see render_cn.c: 16px =
+ * 2 cells for every codepoint the gb2312 font covers plus the
+ * cp_is_cjk_range() wide ranges; 8px = 1 cell otherwise). */
+
+/* GB2312 symbol-zone codepoints below U+2E80: every one renders 16px
+ * through the embedded 682-symbol table (the kernel's generic CJK
+ * range check starts at U+2E80, so these need an explicit table to
+ * stay column-exact).  Generated from the GB2312 mapping - the exact
+ * 347 narrow codepoints compressed into 73 ranges. */
+static const struct { unsigned short lo, hi; } k_gb2312_narrow[] = {
+    {0x00A4,0x00A4},{0x00A7,0x00A8},{0x00B0,0x00B1},{0x00D7,0x00D7},
+    {0x00E0,0x00E1},{0x00E8,0x00EA},{0x00EC,0x00ED},{0x00F2,0x00F3},
+    {0x00F7,0x00F7},{0x00F9,0x00FA},{0x00FC,0x00FC},{0x0101,0x0101},
+    {0x0113,0x0113},{0x011B,0x011B},{0x012B,0x012B},{0x014D,0x014D},
+    {0x016B,0x016B},{0x01CE,0x01CE},{0x01D0,0x01D0},{0x01D2,0x01D2},
+    {0x01D4,0x01D4},{0x01D6,0x01D6},{0x01D8,0x01D8},{0x01DA,0x01DA},
+    {0x01DC,0x01DC},{0x02C7,0x02C7},{0x02C9,0x02C9},{0x0391,0x03A1},
+    {0x03A3,0x03A9},{0x03B1,0x03C1},{0x03C3,0x03C9},{0x0401,0x0401},
+    {0x0410,0x044F},{0x0451,0x0451},{0x2015,0x2016},{0x2018,0x2019},
+    {0x201C,0x201D},{0x2026,0x2026},{0x2030,0x2030},{0x2032,0x2033},
+    {0x203B,0x203B},{0x2103,0x2103},{0x2116,0x2116},{0x2160,0x216B},
+    {0x2190,0x2193},{0x2208,0x2208},{0x220F,0x220F},{0x2211,0x2211},
+    {0x221A,0x221A},{0x221D,0x221E},{0x2220,0x2220},{0x2225,0x2225},
+    {0x2227,0x222B},{0x222E,0x222E},{0x2234,0x2237},{0x223D,0x223D},
+    {0x2248,0x2248},{0x224C,0x224C},{0x2260,0x2261},{0x2264,0x2265},
+    {0x226E,0x226F},{0x2299,0x2299},{0x22A5,0x22A5},{0x2312,0x2312},
+    {0x2460,0x2469},{0x2474,0x249B},{0x2500,0x254B},{0x25A0,0x25A1},
+    {0x25B2,0x25B3},{0x25C6,0x25C7},{0x25CB,0x25CB},{0x25CE,0x25CF},
+    {0x2605,0x2606},{0x2640,0x2640},{0x2642,0x2642},
+};
+
+/* UTF-8 continuation byte test. */
+static int u8_cont(char c) { return (((unsigned char)c) & 0xC0) == 0x80; }
+
+/* Length of the UTF-8 sequence starting at s (bounded by avail).
+ * Invalid lead -> 1 (treated as one single-byte cell, matching the
+ * kernel console's raw-byte fallback). */
+static int u8_charlen(const char *s, int avail) {
+    unsigned char b = (unsigned char)s[0];
+    if (b < 0x80) return 1;
+    int n = 0;
+    if ((b & 0xE0) == 0xC0) n = 2;
+    else if ((b & 0xF0) == 0xE0) n = 3;
+    else if ((b & 0xF8) == 0xF0) n = 4;
+    if (n == 0 || n > avail) return 1;
+    for (int i = 1; i < n; i++)
+        if (!u8_cont(s[i])) return 1;   /* broken sequence: 1 cell */
+    return n;
+}
+
+/* Decode the character at s (length known good) to a codepoint. */
+static unsigned int u8_cp(const char *s, int n) {
+    unsigned int cp = (unsigned char)s[0];
+    if (n == 2) cp = ((cp & 0x1F) << 6) | ((unsigned char)s[1] & 0x3F);
+    else if (n == 3) cp = ((cp & 0x0F) << 12)
+                        | (((unsigned char)s[1] & 0x3F) << 6)
+                        | ((unsigned char)s[2] & 0x3F);
+    else if (n == 4) cp = ((cp & 0x07) << 18)
+                        | (((unsigned char)s[1] & 0x3F) << 12)
+                        | (((unsigned char)s[2] & 0x3F) << 6)
+                        | ((unsigned char)s[3] & 0x3F);
+    return cp;
+}
+
+/* Display columns of the character at s - mirrors the kernel's
+ * render_chinese_width(): 2 cells for the gb2312-font codepoints
+ * (all GB2312 hanzi + symbols) and the wide CJK ranges, else 1. */
+static int u8_cols(const char *s, int avail) {
+    int n = u8_charlen(s, avail);
+    if (n == 1) return 1;
+    unsigned int cp = u8_cp(s, n);
+    if (cp < 0x100) return 1;
+    if (cp >= 0x2E80 && cp <= 0x9FFF) return 2;   /* CJK + kana + yi */
+    if (cp >= 0xF900 && cp <= 0xFAFF) return 2;   /* compat ideographs */
+    if (cp >= 0xFF00 && cp <= 0xFF60) return 2;   /* fullwidth forms */
+    if (cp >= 0x20000 && cp <= 0x2FFFD) return 2; /* ext-B plane */
+    if (cp >= 0x30000 && cp <= 0x3FFFD) return 2; /* ext-G plane */
+    if (cp < 0x2E80) {
+        for (unsigned i = 0;
+             i < sizeof(k_gb2312_narrow) / sizeof(k_gb2312_narrow[0]); i++)
+            if (cp >= k_gb2312_narrow[i].lo && cp <= k_gb2312_narrow[i].hi)
+                return 2;   /* gb2312 symbol-zone glyph (16px) */
+    }
+    return 1;
+}
+
+/* Start byte of the character that ends at cur (i.e. the previous
+ * character's lead byte).  cur must be a character boundary. */
+static int u8_prev(const char *line, int cur) {
+    int p = cur - 1;
+    while (p > 0 && u8_cont(line[p])) p--;
+    if (p < 0) p = 0;
+    return p;
+}
+
+/* Start byte of the character at cur (defensive: skips a broken
+ * continuation run so the cursor always lands on a boundary). */
+static int u8_next(const char *line, int cur, int llen) {
+    if (cur >= llen) return llen;
+    while (cur < llen && u8_cont(line[cur])) cur++;
+    if (cur >= llen) return llen;
+    return cur + u8_charlen(line + cur, llen - cur);
+}
 
 /* Redraw the input line with the cursor at `cur`.
  * 3.0.0-WP04-fix1 (bug 7): the redraw must be PROMPT-AWARE and must
@@ -972,7 +1084,10 @@ static void le_redraw(const char *line, int llen, int cur) {
     g_le_prevlen = llen;
 }
 
-/* Insert a char at the cursor position. Returns the new cursor. */
+/* Insert a char at the cursor position. Returns the new cursor.
+ * (Byte-at-a-time on purpose: the multi-byte characters of a pasted
+ * CJK glyph accumulate one byte per key event exactly as the serial
+ * bridge delivers them; the renderer above reassembles them.) */
 static int le_insert(char *line, int llen, int cur, char c, int cap) {
     if (llen + 1 >= cap) return cur;
     if (cur == llen) {
@@ -987,23 +1102,32 @@ static int le_insert(char *line, int llen, int cur, char c, int cap) {
     return cur + 1;
 }
 
-/* Delete the char before the cursor. */
+/* Delete the char before the cursor (whole UTF-8 character, wipe
+ * exactly as many cells as it rendered). */
 static int le_backspace(char *line, int llen, int cur) {
     if (cur <= 0) return cur;
-    for (int i = cur - 1; i < llen; i++) line[i] = line[i + 1];
+    int pstart = u8_prev(line, cur);
+    int n = cur - pstart;
+    int cols = u8_cols(line + pstart, n);
+    for (int i = pstart; i + n <= llen; i++) line[i] = line[i + n];
+    line[llen - n] = 0;
     if (cur == llen) {
-        puts_("\b \b");
+        for (int i = 0; i < cols; i++) puts_("\b \b");
     } else {
-        le_redraw(line, llen - 1, cur - 1);
+        le_redraw(line, llen - n, pstart);
     }
-    return cur - 1;
+    return pstart;
 }
 
-/* Delete the char AT the cursor. */
+/* Delete the char AT the cursor (whole UTF-8 character). */
 static int le_delete(char *line, int llen, int cur) {
     if (cur >= llen) return cur;
-    for (int i = cur; i < llen; i++) line[i] = line[i + 1];
-    le_redraw(line, llen - 1, cur);
+    if (cur < llen && u8_cont(line[cur]))
+        cur = u8_prev(line, cur);   /* defensive: snap to boundary */
+    int n = u8_charlen(line + cur, llen - cur);
+    for (int i = cur; i + n <= llen; i++) line[i] = line[i + n];
+    line[llen - n] = 0;
+    le_redraw(line, llen - n, cur);
     return cur;
 }
 
@@ -1108,11 +1232,17 @@ void _start(void) {
                 continue;
             }
             if (k == 0x82) { /* Left */
-                if (cur > 0) { cur--; le_redraw(line, llen, cur); }
+                if (cur > 0) {
+                    cur = u8_prev(line, cur);
+                    le_redraw(line, llen, cur);
+                }
                 continue;
             }
             if (k == 0x83) { /* Right */
-                if (cur < llen) { cur++; le_redraw(line, llen, cur); }
+                if (cur < llen) {
+                    cur = u8_next(line, cur, llen);
+                    le_redraw(line, llen, cur);
+                }
                 continue;
             }
             if (k == 0x84 || k == 0x01) { /* Home / Ctrl+A */
