@@ -33,10 +33,8 @@ window.SITE_DATA = {
       url: "downloads/opencube-2.2.0-update.tar.gz"
     }
   },
-  /* WP06e: the 3.0.0 development-preview channel.  WP06g3 carries the
-     milestone forward (the real-hardware fix batch: disk probing,
-     serial_encoding, OCIRE everywhere, editor zh UI + IME preedit +
-     differential render, OCSE/OCIRE encoding repair, build 416).
+  /* WP06e: the 3.0.0 development-preview channel.  WP06g2 carries the
+     milestone forward (L1 localization + system IME, build 403).
      Assets verified against the GitHub Release v3.0.0-WP06g3
      (three-way: local tree == Release digests). */
   dev: {
