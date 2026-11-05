@@ -85,3 +85,30 @@ Declared WP06g2 boundaries (honest limits, not defects):
   batch.
 - The IME phrase library is 622 hand-authored high-frequency words;
   single characters cover all 3755 level-1 hanzi as before.
+
+WP06g2 delivery-fix addendum (post-close-out, same batch):
+
+- The close-out push never reached a green CI: the phrase-library
+  generator imported pypinyin, and the clean CI environment (no pip
+  packages, by design) failed the ISO step with ModuleNotFoundError.
+  The generator is now self-contained - the pinyin composes from
+  pinyin_data.c's own single-char table (the syllables the engine
+  itself matches), and the ten polyphonic words carry their
+  dictionary readings as explicit pairs in the list; the emitted
+  table is byte-identical to the pypinyin-built one.  A misspelled
+  explicit pair cannot pass the legal-syllable decomposition check.
+- The site-data.js the wp06g1 site carried had a stray `},` after the
+  dev block - a SyntaxError, so window.SITE_DATA never loaded and the
+  app.js fill layer (stats, download cards, history table) silently
+  ran on the static HTML fallbacks since wp06g1.  The structure is
+  repaired and the data corrected in the same pass: the stable line
+  is 2.2.0/316 again (the close-out had pushed the milestone into
+  the stable slot, which would have pointed the OTA channel at a
+  package that was never uploaded), and the dev block carries the
+  real WP06g2 pair (build 403).
+- Known cosmetic leftover (deliberately not touched this batch): the
+  CI workflow's `branches:` filters read `ain]` (a `[main` truncation
+  present since the workflow was created).  Push-to-main triggers
+  have worked throughout (215+ runs); only the pull_request path is
+  affected and this repository does not use PRs.  Fix rides the next
+  batch.
