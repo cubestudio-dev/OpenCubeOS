@@ -8,6 +8,7 @@
  *          hostname matched against SAN dNSName.
  */
 #include "net_tls.h"
+#include "mem_heap.h"   /* WP06g3 window diet: kmalloc for the record buffers */
 #include "crypto_core.h"
 #include "crypto_sha512.h"
 #include "crypto_aead.h"
@@ -398,8 +399,13 @@ static int net_tls13_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int buf_
 }
 
 static int net_tls13_send_record(net_tls_ctx_t *c, int ctype, const u8 *payload, int len) {
-    static u8 rec[16640];
-    if (len + 1 + 16 + 5 > (int)sizeof(rec)) return -1;
+    /* WP06g3 window diet: heap-backed, one lazy allocation per buffer
+     * (the identity window closed within 24 KiB of 0x400000; the same
+     * pattern as the socket table, 0c38bda). */
+    static u8 *rec_st = 0;
+    if (!rec_st && !(rec_st = (u8*)kmalloc(16640))) return -1;
+    u8 *rec = rec_st;
+    if (len + 1 + 16 + 5 > 16640) return -1;
     if (c->hs_keys_active || c->app_keys_active) {
         memcpy(rec + 5, payload, len);
         rec[5 + len] = (u8)ctype;
@@ -768,7 +774,7 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
     /* ServerHello (static: kernel stack is small) */
     static u8 body[8192];
     int blen, ctype;
-    int shrc = net_tls13_recv_hs(c, HT_SERVER_HELLO, body, (int)sizeof(body), &blen, &ctype);
+    int shrc = net_tls13_recv_hs(c, HT_SERVER_HELLO, body, TLS12_REC_MAX, &blen, &ctype);
     if (shrc < 0) {
         /* BUG-0233 (A14-47): an EOF before any ServerHello is the classic
          * version-intolerant server. RFC 7507: retry at TLS 1.2 only and
@@ -1256,7 +1262,11 @@ static int net_tls12_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int cap)
         /* CBC: IV(16) || content || MAC(32) || padding || pad_len; decrypt
          * first, then authenticate the plaintext (MAC-then-encrypt, RFC
          * 5246 6.2.3.2). */
-        static u8 plain[TLS12_REC_MAX];   /* P0fix2 BUG-0023: was 16640 */
+        /* P0fix2 BUG-0023 sized this TLS12_REC_MAX; WP06g3 window diet
+         * moves it to the heap (one lazy allocation). */
+        static u8 *plain_st = 0;
+        if (!plain_st && !(plain_st = (u8*)kmalloc(TLS12_REC_MAX))) return -1;
+        u8 *plain = plain_st;
         int blocks = len - 16;
         if (blocks < 48 || (blocks & 15)) return -1;
         crypto_aes128_cbc_decrypt(c->enc_key_r, buf, buf + 16, blocks, plain);
@@ -1346,7 +1356,11 @@ static int net_tls12_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int cap)
     aad[8] = hdr[0]; aad[9] = hdr[1]; aad[10] = hdr[2];
     /* AAD length = plaintext fragment length (excl. explicit nonce+tag) */
     aad[11] = (u8)(dlen >> 8); aad[12] = (u8)dlen;
-    static u8 plain[TLS12_REC_MAX];   /* P0fix2 BUG-0023: was 16640 */
+    /* P0fix2 BUG-0023 sized this TLS12_REC_MAX; WP06g3 window diet
+     * moves it to the heap (one lazy allocation). */
+    static u8 *plain_st = 0;
+    if (!plain_st && !(plain_st = (u8*)kmalloc(TLS12_REC_MAX))) return -2;
+    u8 *plain = plain_st;
     int rc;
     if (c->cipher == CS_TLS12_ECDHE_RSA_CHACHA20)
         rc = chacha20poly1305_open(c->enc_key_r, nonce, aad, 13, buf + 8,
@@ -1366,7 +1380,12 @@ static int net_tls12_recv_record(net_tls_ctx_t *c, int *ctype, u8 *buf, int cap)
 }
 
 static int net_tls12_send_record(net_tls_ctx_t *c, int ctype, const u8 *payload, int len) {
-    static u8 rec[16640];
+    /* WP06g3 window diet: heap-backed, one lazy allocation per buffer
+     * (the identity window closed within 24 KiB of 0x400000; the same
+     * pattern as the socket table, 0c38bda). */
+    static u8 *rec_st = 0;
+    if (!rec_st && !(rec_st = (u8*)kmalloc(16640))) return -1;
+    u8 *rec = rec_st;
     /* BUG-0231 (A14-45): hard length gate before any write into rec[].
      * The old code memcpy'd an arbitrary len straight into rec[16640] on
      * both the plaintext and the encrypted paths. */
@@ -1395,7 +1414,11 @@ static int net_tls12_send_record(net_tls_ctx_t *c, int ctype, const u8 *payload,
         u8 *pt = rec + 21;
         memcpy(pt, payload, len);
         u64 seq = c->seq12_w;
-        static u8 mbuf[17000];   /* static: kernel stacks are small */
+        /* static: kernel stacks are small - WP06g3 window diet keeps it
+         * off the window too (heap, one lazy allocation). */
+        static u8 *mbuf_st = 0;
+        if (!mbuf_st && !(mbuf_st = (u8*)kmalloc(17000))) return -1;
+        u8 *mbuf = mbuf_st;
         for (int i = 0; i < 8; i++) mbuf[i] = (u8)(seq >> (56 - 8 * i));
         mbuf[8] = (u8)ctype; mbuf[9] = 3; mbuf[10] = 3;
         mbuf[11] = (u8)(len >> 8); mbuf[12] = (u8)len;
@@ -1447,7 +1470,11 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
      * in-cap handshake message fits; the old 12288-byte buffer was both
      * the target of the mlen overflow and, when intact, a needless
      * rejection of big-but-legal certificate messages. */
-    static u8 body[TLS12_REC_MAX];   /* static: kernel stack is small */
+    /* static: kernel stack is small - WP06g3 window diet moves it to
+     * the heap (one lazy allocation). */
+    static u8 *body_st = 0;
+    if (!body_st && !(body_st = (u8*)kmalloc(TLS12_REC_MAX))) return -1;
+    u8 *body = body_st;
     /* One shared record buffer for the four handshake record reads below
      * (P0fix2 BUG-0023: each was 16640; merging four into one TLS12_REC_MAX
      * buffer also keeps the size-asserted kernel image small). */
@@ -1456,7 +1483,7 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
 
     /* Certificate (plaintext) */
     {
-        int payload = net_tls12_recv_record(c, &ctype, rec, (int)sizeof(rec));
+        int payload = net_tls12_recv_record(c, &ctype, rec, 16640);
 #if TLS_DBG
         {
             char pb[80]; char t2[16];
@@ -1484,7 +1511,7 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
          * record payload (≤16636) while body held 12288 bytes — a hostile
          * Certificate message overflowed body by ~4.3 KB BEFORE any chain
          * verification ran.  mlen is now checked against both. */
-        if (mlen < 0 || mlen + 4 > payload || mlen > (int)sizeof(body)) return -1;
+        if (mlen < 0 || mlen + 4 > payload || mlen > TLS12_REC_MAX) return -1;
         memcpy(body, rec + 4, mlen);
         blen = mlen;
         hs_log_push(c, rec, mlen + 4);
@@ -1546,7 +1573,7 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
 
     /* ServerKeyExchange (may be absent for fixed-DH; we require ECDHE) */
     {
-        int payload = net_tls12_recv_record(c, &ctype, rec, (int)sizeof(rec));
+        int payload = net_tls12_recv_record(c, &ctype, rec, 16640);
 #if TLS_DBG
         {
             char pb[80]; char t2[16];
@@ -1565,7 +1592,7 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
          * was NEVER checked against either the record payload or body —
          * mlen up to 16 MB meant a massive OOB read from rec and an OOB
          * write into body. */
-        if (mlen < 0 || mlen + 4 > payload || mlen > (int)sizeof(body)) return -1;
+        if (mlen < 0 || mlen + 4 > payload || mlen > TLS12_REC_MAX) return -1;
         memcpy(body, rec + 4, mlen);
         blen = mlen;
         hs_log_push(c, rec, mlen + 4);
@@ -1750,7 +1777,7 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
 
     /* ServerHelloDone */
     {
-        int payload = net_tls12_recv_record(c, &ctype, rec, (int)sizeof(rec));
+        int payload = net_tls12_recv_record(c, &ctype, rec, 16640);
         if (payload < 4 || ctype != CT_HANDSHAKE || rec[0] != HT_SERVER_HELLO_DONE)
             return -1;
         hs_log_push(c, rec, payload);
@@ -1816,9 +1843,9 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
     }
     /* server CCS + Finished */
     {
-        int payload = net_tls12_recv_record(c, &ctype, rec, (int)sizeof(rec));
+        int payload = net_tls12_recv_record(c, &ctype, rec, 16640);
         if (payload < 1 || ctype != CT_CCS) return -1;
-        payload = net_tls12_recv_record(c, &ctype, rec, (int)sizeof(rec));
+        payload = net_tls12_recv_record(c, &ctype, rec, 16640);
         if (payload < 4 || ctype != CT_HANDSHAKE || rec[0] != HT_FINISHED)
             return -1;
         u8 hlog2[32];
@@ -1939,7 +1966,11 @@ int net_tls_send(net_tls_ctx_t *c, const void *data, int len) {
  * next net_tls_recv call instead of being dropped (a 16 KiB record read
  * through a 4 KiB download chunk used to lose three quarters of every
  * record, corrupting every large transfer). */
-static u8 g_tls_leftover[TLS12_REC_MAX];   /* P0fix2 BUG-0023: was 16640 */
+/* P0fix2 BUG-0023 sized this TLS12_REC_MAX; WP06g3 window diet moves
+ * it to the heap - the alias macro keeps every reference untouched
+ * (the socket-table pattern, 0c38bda). */
+static u8 *g_tls_leftover_p = 0;
+#define g_tls_leftover (*(u8 (*)[TLS12_REC_MAX])g_tls_leftover_p)
 static int g_tls_leftover_have;
 static int g_tls_leftover_off;
 
@@ -1989,7 +2020,14 @@ static int net_tls13_handle_key_update(net_tls_ctx_t *c, const u8 *msg, int n) {
 
 int net_tls_recv(net_tls_ctx_t *c, void *buf, int len) {
     int ctype;
-    static u8 tmp[TLS12_REC_MAX];   /* P0fix2 BUG-0023: was 16640 */
+    /* WP06g3 window diet: heap-backed, one lazy allocation per buffer
+     * (the identity window closed within 24 KiB of 0x400000; the same
+     * pattern as the socket table, 0c38bda). */
+    static u8 *tmp_st = 0;
+    if (!tmp_st && !(tmp_st = (u8*)kmalloc(TLS12_REC_MAX))) return -1;
+    u8 *tmp = tmp_st;
+    if (!g_tls_leftover_p &&
+        !(g_tls_leftover_p = (u8*)kmalloc(TLS12_REC_MAX))) return -1;
 
     if (len <= 0) return 0;
 
@@ -2012,8 +2050,8 @@ int net_tls_recv(net_tls_ctx_t *c, void *buf, int len) {
      * DoS. Loop instead of recursing; the frame count is now O(1). */
     for (;;) {
         int n = (c->version == TLS13 || c->hs_keys_active)
-                    ? net_tls13_recv_record(c, &ctype, tmp, (int)sizeof(tmp))
-                    : net_tls12_recv_record(c, &ctype, tmp, (int)sizeof(tmp));
+                    ? net_tls13_recv_record(c, &ctype, tmp, TLS12_REC_MAX)
+                    : net_tls12_recv_record(c, &ctype, tmp, TLS12_REC_MAX);
         if (n < 0) {
             /* BUG-0228 (A14-42): EOF without close_notify while data was
              * expected = truncation. Flag it on the context so callers can

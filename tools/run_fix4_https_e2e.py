@@ -19,7 +19,7 @@ Exit code: number of failed checks."""
 import os, re, socket, subprocess, sys, time
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/tools")
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EVD = "/home/z/work/fix4-evidence/g8"
