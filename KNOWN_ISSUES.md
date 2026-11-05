@@ -114,3 +114,12 @@ WP06g2 delivery-fix addendum (post-close-out, same batch):
   shell-output display layer eats a literal '[m' as if it were
   an ANSI SGR reset sequence), never a real typo.  No workflow
   change was ever needed; the entry is retired.
+
+- tools/run_fix4_regression.py (the v2.x-era 28-check battery) asserts
+  the old boot flow (the `oc>` L0 recovery-shell prompt, the v1.0.0
+  banner, "233 commands") - the main ISO has booted straight to the
+  L1 shell (`ush>`) for many batches now, so the battery cannot pass
+  as-is and the release SOP runs without --deep.  It needs an
+  assertion refresh; the wp06g3 batteries (serial_enc, ocse_enc,
+  editor_rework, ocire_menu, install_ocire) and the https e2e 7/7
+  carry this batch's regression weight.
