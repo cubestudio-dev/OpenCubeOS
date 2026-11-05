@@ -655,9 +655,12 @@ test:
 # the OC_USERPROGS[] name registry (the execve surface - no name is
 # hand-registered in the kernel). nasm/gcc must be on PATH.
 # 3.0.0-WP06g2: the IME phrase library regenerates from
-# tools/ime_phrases.txt (needs pypinyin; the generated .h/.c
-# are committed like every generated file so the wildcard
-# build always sees them).  Idempotent emit.
+# tools/ime_phrases.txt (self-contained: the tone-free pinyin
+# composes from pinyin_data.c's own single-char table - no pypinyin,
+# which broke the clean CI env; polyphonic words carry an explicit
+# "word pinyin" pair in the list; the generated .h/.c are committed
+# like every generated file so the wildcard build always sees
+# them).  Idempotent emit.
 IME_PHRASE_GEN := src/L0/services/display/pinyin_phrase_data.c
 $(IME_PHRASE_GEN) $(OC_ROOT)/src/L0/services/display/pinyin_phrase.h: tools/ime_phrases.txt tools/gen_pinyin_phrase.py $(OC_ROOT)/src/L0/services/display/pinyin_data.c
 	python3 $(OC_ROOT)/tools/gen_pinyin_phrase.py

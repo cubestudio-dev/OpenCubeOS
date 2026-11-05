@@ -1,10 +1,10 @@
 {
-    "version": "3.0.0-WP06g2",
-    "build": 401,
-    "time": "2026-11-05",
-    "changes": "L1 localization + system IME",
+    "version": "2.2.0",
+    "build": 316,
+    "time": "2026-10-26",
+    "changes": "the fix release closing both 2.1.0 open items with real kernel root-cause fixes: the wp10_tui kthread-stack #DF (10-page stacks over the measured worst call chain) and the wait4-vs-fork stale-zombie race (orphan-detach bookkeeping, 20/20 fresh boots clean)",
     "changes_v2_url": "https://ocos.cubestudio.cn/update-v2.json",
-    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP06g2-update.tar.gz",
-    "package_sha256": "71c090462f2ef7523dc5356176ed97a1c5202ae42d63f97764cda3d6bebbe66d",
-    "package_size": 1401212
+    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-2.2.0-update.tar.gz",
+    "package_sha256": "ac9a6ec2c3dd679977ad1c716dbacb26ae84119ddc75751fb30712effa6ad19e",
+    "package_size": 1080741
 }
