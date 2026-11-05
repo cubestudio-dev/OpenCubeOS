@@ -155,6 +155,12 @@ int chinese_font_lookup_unicode(chinese_font_handle_t slot, u32 cp) {
     const chinese_font_slot_t* s = slot_ok(slot);
     if (!s) return -3;
     g_lookups++;
+    /* WP06g3-4.8 (em-dash fix): fold U+2014 (EM DASH, what
+     * real-world text carries) onto the table's U+2015 (the
+     * Python gb2312 codec mapped 0xA1AA there) - an em dash in
+     * a zh string neither kills the whole-string GB2312
+     * conversion nor misses its glyph on screen. */
+    if (cp == 0x2014) cp = 0x2015;
     /* Binary search over the flat {unicode, idx} pair table. */
     u32 lo = 0, hi = s->uto_count;
     while (lo < hi) {

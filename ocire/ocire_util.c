@@ -35,6 +35,14 @@ u64 oc_strlen(const char *s) {
     return n;
 }
 
+int oc_strncmp(const char *a, const char *b, int n) {
+    for (int i = 0; i < n; i++) {
+        if (a[i] != b[i]) return 1;
+        if (!a[i]) return 0;
+    }
+    return 0;
+}
+
 int oc_strcmp(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; }
     return (int)(u8)*a - (int)(u8)*b;
