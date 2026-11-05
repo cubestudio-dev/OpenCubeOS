@@ -1303,8 +1303,270 @@ def e20_font_freshness():
              "  rm -rf chinese/")
 
 
+# ---------------------------------------------------------------------------
+# E21 (3.0.0-WP06g3-ocse_enc_fix, task 4.1): disk-probe diagnostics reach
+# the serial line + RAID/RST-mode SATA visibility + NVMe real-hardware
+# tolerance.  Postmortem disaster 1: the OCSE AHCI/NVMe/ATA probe logs go
+# to screen_console_puts ONLY - a serial user saw the boot ladder and
+# then "no usable disk" with the whole probe walk in between invisible;
+# and the probe surface only matched PCI class 010601/010802 exactly, so
+# a factory-default RAID/RST-mode SATA controller (class 0x0104xx, the
+# OEM default on many brand-name machines) was never even enumerated.
+# ---------------------------------------------------------------------------
+def e21_disk_probe_diag():
+    # ---- (a) AHCI: log helper -> screen + serial dual path ----
+    edit("ocse/drivers/block/driver_block_ahci.c",
+         '/* ---- logging helpers ---- */\n'
+         'static void driver_block_ahci_log(const char *s) { screen_console_puts(s); }\n',
+         '/* ---- logging helpers ---- */\n'
+         '/* WP06g3-4.1: probe diagnostics must reach the serial line too - the\n'
+         ' * postmortem caught probe output painted on the screen only, leaving\n'
+         ' * serial users with a black box between the boot ladder and the\n'
+         ' * "no usable disk" stop. */\n'
+         'extern void ocse_serial_puts_raw(const char *s);\n'
+         'static void driver_block_ahci_log(const char *s) {\n'
+         '    screen_console_puts(s);\n'
+         '    ocse_serial_puts_raw(s);\n'
+         '}\n')
+
+    # ---- (b) AHCI: version register (RAID-card guard) ----
+    edit("ocse/drivers/block/driver_block_ahci.c",
+         '#define AHCI_REG_CAP2       0x24u\n',
+         '#define AHCI_REG_CAP2       0x24u\n'
+         '#define AHCI_REG_VS         0x10u   /* WP06g3: version reg (RAID-card guard) */\n')
+
+    # ---- (c) AHCI: 2 -> 4 controllers ----
+    edit("ocse/drivers/block/driver_block_ahci.c",
+         'static driver_block_ahci_ctrl_t  g_ctrls[2];\n',
+         'static driver_block_ahci_ctrl_t  g_ctrls[4];   /* WP06g3: was 2 - real machines routinely carry more */\n')
+
+    # ---- (d) AHCI: CAP/VS sanity guard before the port walk ----
+    edit("ocse/drivers/block/driver_block_ahci.c",
+         '    c->mmio_base = bar;\n'
+         '\n'
+         '    /* Enable AHCI mode, keep host interrupts off. */\n',
+         '    c->mmio_base = bar;\n'
+         '\n'
+         '    /* WP06g3-4.1: RAID/RST-mode SATA controllers (PCI class 0x0104xx,\n'
+         '     * the factory default on many OEM machines) expose the same AHCI\n'
+         '     * register block at BAR5 - but a hardware RAID card does not.\n'
+         '     * Gate on a sane CAP (never zero: at least NP+SSC bits are set on\n'
+         '     * every real HBA) and a sane VS (major byte 1..2 per AHCI 1.x-\n'
+         '     * 2.x) BEFORE the port walk, so a non-AHCI block is refused with\n'
+         '     * a clear log line instead of a blind probe that hangs. */\n'
+         '    {\n'
+         '        u32 cap_probe = mmio_read32((volatile void *)(bar + AHCI_REG_CAP));\n'
+         '        u32 vs_probe  = mmio_read32((volatile void *)(bar + AHCI_REG_VS));\n'
+         '        u32 vs_major  = (vs_probe >> 16) & 0xFFu;\n'
+         '        if (cap_probe == 0u || vs_probe == 0u || vs_major == 0u || vs_major > 2u) {\n'
+         '            driver_block_ahci_log_hex("ahci: BAR5 is not an AHCI register block (CAP=0x",\n'
+         '                                      (u64)cap_probe, " VS=0x");\n'
+         '            driver_block_ahci_log_hex("", (u64)vs_probe, ") - controller skipped\\n");\n'
+         '            return -1;\n'
+         '        }\n'
+         '    }\n'
+         '\n'
+         '    /* Enable AHCI mode, keep host interrupts off. */\n')
+
+    # ---- (e) AHCI: extension path accepts RAID/RST class too ----
+    edit("ocse/drivers/block/driver_block_ahci.c",
+         '        if (cls != 0x010601u) {\n'
+         '            driver_block_ahci_log("ahci: requested PCI function is not class 010601\\n");\n'
+         '            return -1;\n'
+         '        }\n',
+         '        /* WP06g3-4.1: also accept RAID/RST-mode SATA (class 0x0104xx) -\n'
+         '         * the OEM default on many brand-name machines. */\n'
+         '        if (cls != 0x010601u && (cls >> 8) != 0x0104u) {\n'
+         '            driver_block_ahci_log("ahci: requested PCI function is not class 010601/0104xx\\n");\n'
+         '            return -1;\n'
+         '        }\n')
+
+    # ---- (f) AHCI: probe RAID/RST-class controllers too ----
+    edit("ocse/drivers/block/driver_block_ahci.c",
+         '    /* Find up to 2 AHCI controllers. */\n'
+         '    for (int nth = 0; nth < 2; nth++) {\n'
+         '        u8 bus = 0, dev = 0, func = 0;\n'
+         '        if (driver_pci_find_class_exact(0x010601u, nth, &bus, &dev, &func) != 0) break;\n'
+         '        driver_block_ahci_init_ctrl(bus, dev, func);\n'
+         '    }\n'
+         '    if (g_ctrl_count == 0) {\n',
+         '    /* Find up to 2 standard AHCI controllers (class 010601). */\n'
+         '    for (int nth = 0; nth < 2; nth++) {\n'
+         '        u8 bus = 0, dev = 0, func = 0;\n'
+         '        if (driver_pci_find_class_exact(0x010601u, nth, &bus, &dev, &func) != 0) break;\n'
+         '        driver_block_ahci_init_ctrl(bus, dev, func);\n'
+         '    }\n'
+         '    /* WP06g3-4.1: then RAID/RST-mode SATA controllers (subclass 0x0104,\n'
+         '     * any programming interface).  Intel RST and friends expose the\n'
+         '     * same AHCI register block at BAR5 in RAID mode; init_ctrl\'s\n'
+         '     * CAP/VS guard refuses a real hardware RAID card with a log line\n'
+         '     * instead of a blind probe.  Without this loop a factory-default\n'
+         '     * RAID-mode SATA controller is invisible and the machine reports\n'
+         '     * no usable disk. */\n'
+         '    for (int nth = 0; nth < 2; nth++) {\n'
+         '        u8 bus = 0, dev = 0, func = 0;\n'
+         '        if (driver_pci_find_class_mask(0x010400u, 0xFFFF00u, nth, &bus, &dev, &func) != 0) break;\n'
+         '        driver_block_ahci_log("ahci: RAID/RST-class SATA controller (0104xx) - probing as AHCI\\n");\n'
+         '        driver_block_ahci_init_ctrl(bus, dev, func);\n'
+         '    }\n'
+         '    if (g_ctrl_count == 0) {\n')
+
+    # ---- (g) NVMe: log helper -> screen + serial dual path ----
+    edit("ocse/drivers/block/driver_block_nvme.c",
+         'static void driver_block_nvme_log(const char *s) { screen_console_puts(s); }\n',
+         '/* WP06g3-4.1: probe diagnostics must reach the serial line too. */\n'
+         'extern void ocse_serial_puts_raw(const char *s);\n'
+         'static void driver_block_nvme_log(const char *s) {\n'
+         '    screen_console_puts(s);\n'
+         '    ocse_serial_puts_raw(s);\n'
+         '}\n')
+
+    # ---- (h) NVMe: TO-scaled RDY poll budget ----
+    edit("ocse/drivers/block/driver_block_nvme.c",
+         '#define NVME_POLL_RESET_ITERS   50000000u\n'
+         '#define NVME_POLL_CMD_ITERS     50000000u\n',
+         '#define NVME_POLL_RESET_ITERS   50000000u\n'
+         '#define NVME_POLL_CMD_ITERS     50000000u\n'
+         '\n'
+         '/* WP06g3-4.1: CSTS.RDY poll budget, scaled from CAP.TO at init.  The\n'
+         ' * fixed 50M-iteration budget (~5s) is shorter than the worst-case\n'
+         ' * readiness window real controllers may take (CAP.TO is in units of\n'
+         ' * 500ms and the spec allows up to 0xF = 7.5s) - a slow-but-healthy\n'
+         ' * controller was declared dead on real machines.  ~100ns per\n'
+         ' * iteration => 5M iterations per 500ms unit; never below 50M. */\n'
+         'static u64 g_rdy_poll_iters = NVME_POLL_RESET_ITERS;\n')
+    edit("ocse/drivers/block/driver_block_nvme.c",
+         'static int driver_block_nvme_wait_rdy(driver_block_nvme_dev_t *d, int target) {\n'
+         '    for (u64 i = 0; i < NVME_POLL_RESET_ITERS; i++) {\n',
+         'static int driver_block_nvme_wait_rdy(driver_block_nvme_dev_t *d, int target) {\n'
+         '    for (u64 i = 0; i < g_rdy_poll_iters; i++) {\n')
+    edit("ocse/drivers/block/driver_block_nvme.c",
+         '    g_nvme.dstrd = (u32)NVME_CAP_DSTRD(cap);\n'
+         '    driver_block_nvme_log_hex("nvme: CAP=0x", cap, "\\n");\n',
+         '    g_nvme.dstrd = (u32)NVME_CAP_DSTRD(cap);\n'
+         '    /* WP06g3-4.1: scale the RDY poll budget with CAP.TO (units of\n'
+         '     * 500ms, ~5M iterations per unit at ~100ns/iter) so slow-but-\n'
+         '     * healthy real controllers are not declared dead. */\n'
+         '    {\n'
+         '        u64 to_units = (cap >> 48) & 0xFFu;\n'
+         '        u64 want = to_units * 5000000u;\n'
+         '        if (want > g_rdy_poll_iters) g_rdy_poll_iters = want;\n'
+         '    }\n'
+         '    driver_block_nvme_log_hex("nvme: CAP=0x", cap, "\\n");\n')
+
+    # ---- (i) NVMe: disable timeout tolerance (rewrite CC=0 + retry) ----
+    edit("ocse/drivers/block/driver_block_nvme.c",
+         '    /* Disable controller first; wait for RDY=0. */\n'
+         '    driver_block_nvme_write(&g_nvme, NVME_REG_CC, 0);\n'
+         '    if (driver_block_nvme_wait_rdy(&g_nvme, 0) != 0) {\n'
+         '        driver_block_nvme_log("nvme: timeout waiting for disable\\n");\n'
+         '        return -1;\n'
+         '    }\n',
+         '    /* Disable controller first; wait for RDY=0.\n'
+         '     * WP06g3-4.1 (real-hardware tolerance): on a genuine disable\n'
+         '     * timeout rewrite CC=0 once and wait again with the TO-scaled\n'
+         '     * budget before giving up - some real chips miss the first\n'
+         '     * transition window (firmware still settling after power-on). */\n'
+         '    driver_block_nvme_write(&g_nvme, NVME_REG_CC, 0);\n'
+         '    if (driver_block_nvme_wait_rdy(&g_nvme, 0) != 0) {\n'
+         '        driver_block_nvme_log("nvme: disable timeout, rewriting CC=0 and retrying\\n");\n'
+         '        driver_block_nvme_write(&g_nvme, NVME_REG_CC, 0);\n'
+         '        if (driver_block_nvme_wait_rdy(&g_nvme, 0) != 0) {\n'
+         '            driver_block_nvme_log("nvme: timeout waiting for disable\\n");\n'
+         '            return -1;\n'
+         '        }\n'
+         '    }\n')
+
+    # ---- (j) NVMe: enable timeout tolerance (full reset + retry round) ----
+    edit("ocse/drivers/block/driver_block_nvme.c",
+         '        driver_block_nvme_write(&g_nvme, NVME_REG_CC, cc);\n'
+         '    }\n'
+         '    if (driver_block_nvme_wait_rdy(&g_nvme, 1) != 0) {\n'
+         '        driver_block_nvme_log("nvme: timeout waiting for ready\\n");\n'
+         '        return -1;\n'
+         '    }\n'
+         '    driver_block_nvme_log("nvme: controller enabled\\n");\n',
+         '        driver_block_nvme_write(&g_nvme, NVME_REG_CC, cc);\n'
+         '    }\n'
+         '    if (driver_block_nvme_wait_rdy(&g_nvme, 1) != 0) {\n'
+         '        /* WP06g3-4.1 (real-hardware tolerance): full reset-and-retry\n'
+         '         * round before declaring the controller dead - some real\n'
+         '         * chips miss the first CC.EN=1 ready window (firmware still\n'
+         '         * booting after power-on).  Disable, reprogram the admin\n'
+         '         * queues (the buffers are still allocated; only the registers\n'
+         '         * are rewired), and enable once more with the TO-scaled\n'
+         '         * budget. */\n'
+         '        driver_block_nvme_log("nvme: ready timeout, resetting and retrying\\n");\n'
+         '        driver_block_nvme_write(&g_nvme, NVME_REG_CC, 0);\n'
+         '        (void)driver_block_nvme_wait_rdy(&g_nvme, 0);\n'
+         '        {\n'
+         '            u64 asq_phys = (u64)(uintptr_t)g_nvme.asq;\n'
+         '            u64 acq_phys = (u64)(uintptr_t)g_nvme.acq;\n'
+         '            u32 aqa_r = ((g_nvme.admin_qsize - 1u) << 16) | (g_nvme.admin_qsize - 1u);\n'
+         '            driver_block_nvme_write(&g_nvme, NVME_REG_AQA, aqa_r);\n'
+         '            driver_block_nvme_write(&g_nvme, NVME_REG_ASQ,     (u32)(asq_phys & 0xFFFFFFFFu));\n'
+         '            driver_block_nvme_write(&g_nvme, NVME_REG_ASQ + 4, (u32)(asq_phys >> 32));\n'
+         '            driver_block_nvme_write(&g_nvme, NVME_REG_ACQ,     (u32)(acq_phys & 0xFFFFFFFFu));\n'
+         '            driver_block_nvme_write(&g_nvme, NVME_REG_ACQ + 4, (u32)(acq_phys >> 32));\n'
+         '            driver_block_nvme_write(&g_nvme, NVME_REG_CC,\n'
+         '                NVME_CC_EN\n'
+         '                | (0u << NVME_CC_CSS_SHIFT)\n'
+         '                | (0u << NVME_CC_MPS_SHIFT)\n'
+         '                | (0u << NVME_CC_AMS_SHIFT)\n'
+         '                | (6u << 16)\n'
+         '                | (4u << 20));\n'
+         '        }\n'
+         '        if (driver_block_nvme_wait_rdy(&g_nvme, 1) != 0) {\n'
+         '            driver_block_nvme_log("nvme: timeout waiting for ready\\n");\n'
+         '            return -1;\n'
+         '        }\n'
+         '    }\n'
+         '    driver_block_nvme_log("nvme: controller enabled\\n");\n')
+
+    # ---- (k) ATA: probe report -> screen + serial dual path ----
+    edit("ocse/drivers/block/driver_block_ata.c",
+         '#include "driver_block_ata.h"\n'
+         '#include "screen_console.h"\n'
+         '#include "lib_string.h"\n',
+         '#include "driver_block_ata.h"\n'
+         '#include "screen_console.h"\n'
+         '#include "lib_string.h"\n'
+         '\n'
+         '/* WP06g3-4.1: probe diagnostics must reach the serial line too. */\n'
+         'extern void ocse_serial_puts_raw(const char *s);\n')
+    edit("ocse/drivers/block/driver_block_ata.c",
+         '            strcpy(msg + strlen(msg), " present\\n");\n'
+         '            screen_console_puts(msg);\n',
+         '            strcpy(msg + strlen(msg), " present\\n");\n'
+         '            screen_console_puts(msg);\n'
+         '            ocse_serial_puts_raw(msg);\n')
+
+    # ---- (l) ATA DMA: dlog -> screen + serial dual path ----
+    edit("ocse/drivers/block/driver_block_ata_dma.c",
+         '/* ---- logging ---- */\n'
+         'static void dlog(const char *s) { screen_console_puts(s); }\n',
+         '/* ---- logging ---- */\n'
+         '/* WP06g3-4.1: probe diagnostics must reach the serial line too. */\n'
+         'extern void ocse_serial_puts_raw(const char *s);\n'
+         'static void dlog(const char *s) {\n'
+         '    screen_console_puts(s);\n'
+         '    ocse_serial_puts_raw(s);\n'
+         '}\n')
+
+    # ---- (m) virtio-blk: log helper -> screen + serial dual path ----
+    edit("ocse/drivers/block/driver_block_virtio_blk.c",
+         'static void driver_block_virtio_blk_log(const char *s) { screen_console_puts(s); }\n',
+         '/* WP06g3-4.1: probe diagnostics must reach the serial line too. */\n'
+         'extern void ocse_serial_puts_raw(const char *s);\n'
+         'static void driver_block_virtio_blk_log(const char *s) {\n'
+         '    screen_console_puts(s);\n'
+         '    ocse_serial_puts_raw(s);\n'
+         '}\n')
+
+
 e18_double_buffer()
 e19_glyph_routing()
 e20_font_freshness()
+e21_disk_probe_diag()
 
 print("[ocse_edits] %d edit groups applied - OCSE tree is build-ready" % applied)

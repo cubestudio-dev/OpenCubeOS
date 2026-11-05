@@ -52,6 +52,7 @@ static inline void mmio_write32(volatile void *p, u32 v) { *(volatile u32 *)p = 
 #define AHCI_REG_IS         0x08u
 #define AHCI_REG_PI         0x0Cu
 #define AHCI_REG_CAP2       0x24u
+#define AHCI_REG_VS         0x10u   /* WP06g3: version reg (RAID-card guard) */
 #define AHCI_REG_PORTS      0x100u
 #define AHCI_PORT_REG_SIZE  0x80u
 
@@ -208,13 +209,21 @@ typedef struct {
     char         name[8];   /* "sda" ... */
 } driver_block_ahci_drive_t;
 
-static driver_block_ahci_ctrl_t  g_ctrls[2];
+static driver_block_ahci_ctrl_t  g_ctrls[4];   /* WP06g3: was 2 - real machines routinely carry more */
 static int          g_ctrl_count = 0;
 static driver_block_ahci_drive_t g_drives[AHCI_MAX_DRIVES];
 static int          g_drive_count = 0;
 
 /* ---- logging helpers ---- */
-static void driver_block_ahci_log(const char *s) { screen_console_puts(s); }
+/* WP06g3-4.1: probe diagnostics must reach the serial line too - the
+ * postmortem caught probe output painted on the screen only, leaving
+ * serial users with a black box between the boot ladder and the
+ * "no usable disk" stop. */
+extern void ocse_serial_puts_raw(const char *s);
+static void driver_block_ahci_log(const char *s) {
+    screen_console_puts(s);
+    ocse_serial_puts_raw(s);
+}
 
 static void driver_block_ahci_log_hex(const char *prefix, u64 v, const char *suffix) {
     char buf[72]; char n[20];
@@ -591,6 +600,25 @@ static int driver_block_ahci_init_ctrl(u8 bus, u8 dev, u8 func) {
     }
     c->mmio_base = bar;
 
+    /* WP06g3-4.1: RAID/RST-mode SATA controllers (PCI class 0x0104xx,
+     * the factory default on many OEM machines) expose the same AHCI
+     * register block at BAR5 - but a hardware RAID card does not.
+     * Gate on a sane CAP (never zero: at least NP+SSC bits are set on
+     * every real HBA) and a sane VS (major byte 1..2 per AHCI 1.x-
+     * 2.x) BEFORE the port walk, so a non-AHCI block is refused with
+     * a clear log line instead of a blind probe that hangs. */
+    {
+        u32 cap_probe = mmio_read32((volatile void *)(bar + AHCI_REG_CAP));
+        u32 vs_probe  = mmio_read32((volatile void *)(bar + AHCI_REG_VS));
+        u32 vs_major  = (vs_probe >> 16) & 0xFFu;
+        if (cap_probe == 0u || vs_probe == 0u || vs_major == 0u || vs_major > 2u) {
+            driver_block_ahci_log_hex("ahci: BAR5 is not an AHCI register block (CAP=0x",
+                                      (u64)cap_probe, " VS=0x");
+            driver_block_ahci_log_hex("", (u64)vs_probe, ") - controller skipped\n");
+            return -1;
+        }
+    }
+
     /* Enable AHCI mode, keep host interrupts off. */
     u32 ghc = mmio_read32((volatile void *)(bar + AHCI_REG_GHC));
     ghc |= AHCI_GHC_AE;
@@ -647,16 +675,31 @@ static int driver_block_ahci_init_ctrl(u8 bus, u8 dev, u8 func) {
 int driver_block_ahci_init(driver_pci_dev_t *pdev) {
     if (pdev) {
         u32 cls = (driver_pci_read_config(pdev->bus, pdev->dev, pdev->func, 0x08) >> 8) & 0xFFFFFFu;
-        if (cls != 0x010601u) {
-            driver_block_ahci_log("ahci: requested PCI function is not class 010601\n");
+        /* WP06g3-4.1: also accept RAID/RST-mode SATA (class 0x0104xx) -
+         * the OEM default on many brand-name machines. */
+        if (cls != 0x010601u && (cls >> 8) != 0x0104u) {
+            driver_block_ahci_log("ahci: requested PCI function is not class 010601/0104xx\n");
             return -1;
         }
         return driver_block_ahci_init_ctrl(pdev->bus, pdev->dev, pdev->func) == 0 ? 1 : 0;
     }
-    /* Find up to 2 AHCI controllers. */
+    /* Find up to 2 standard AHCI controllers (class 010601). */
     for (int nth = 0; nth < 2; nth++) {
         u8 bus = 0, dev = 0, func = 0;
         if (driver_pci_find_class_exact(0x010601u, nth, &bus, &dev, &func) != 0) break;
+        driver_block_ahci_init_ctrl(bus, dev, func);
+    }
+    /* WP06g3-4.1: then RAID/RST-mode SATA controllers (subclass 0x0104,
+     * any programming interface).  Intel RST and friends expose the
+     * same AHCI register block at BAR5 in RAID mode; init_ctrl's
+     * CAP/VS guard refuses a real hardware RAID card with a log line
+     * instead of a blind probe.  Without this loop a factory-default
+     * RAID-mode SATA controller is invisible and the machine reports
+     * no usable disk. */
+    for (int nth = 0; nth < 2; nth++) {
+        u8 bus = 0, dev = 0, func = 0;
+        if (driver_pci_find_class_mask(0x010400u, 0xFFFF00u, nth, &bus, &dev, &func) != 0) break;
+        driver_block_ahci_log("ahci: RAID/RST-class SATA controller (0104xx) - probing as AHCI\n");
         driver_block_ahci_init_ctrl(bus, dev, func);
     }
     if (g_ctrl_count == 0) {

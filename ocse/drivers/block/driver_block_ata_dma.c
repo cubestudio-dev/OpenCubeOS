@@ -143,7 +143,12 @@ static const u8 *g_xfer_src;
 static u8       *g_xfer_dst;
 
 /* ---- logging ---- */
-static void dlog(const char *s) { screen_console_puts(s); }
+/* WP06g3-4.1: probe diagnostics must reach the serial line too. */
+extern void ocse_serial_puts_raw(const char *s);
+static void dlog(const char *s) {
+    screen_console_puts(s);
+    ocse_serial_puts_raw(s);
+}
 
 static void dlog_hex(const char *prefix, u64 v, const char *suffix) {
     char buf[80]; char n[20];

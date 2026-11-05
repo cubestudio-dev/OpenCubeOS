@@ -187,7 +187,12 @@ static void driver_block_virtio_blk_status_set(u32 io_base, u8 v) {
     outb((u16)(io_base + VIRTIO_REG_STATUS), v);
 }
 
-static void driver_block_virtio_blk_log(const char *s) { screen_console_puts(s); }
+/* WP06g3-4.1: probe diagnostics must reach the serial line too. */
+extern void ocse_serial_puts_raw(const char *s);
+static void driver_block_virtio_blk_log(const char *s) {
+    screen_console_puts(s);
+    ocse_serial_puts_raw(s);
+}
 
 static void driver_block_virtio_blk_log_pci(const char *prefix, u8 bus, u8 dev, u8 func) {
     char buf[64]; char n[20];

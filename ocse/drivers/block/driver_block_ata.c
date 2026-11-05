@@ -23,6 +23,9 @@
 #include "screen_console.h"
 #include "lib_string.h"
 
+/* WP06g3-4.1: probe diagnostics must reach the serial line too. */
+extern void ocse_serial_puts_raw(const char *s);
+
 /* ---- Port I/O helpers ---- */
 
 static inline void outb(u16 p, u8  v) { __asm__ volatile("outb %0, %1" :: "a"(v),  "Nd"(p)); }
@@ -111,6 +114,7 @@ void driver_block_ata_init(void) {
             strcpy(msg + strlen(msg), role);
             strcpy(msg + strlen(msg), " present\n");
             screen_console_puts(msg);
+            ocse_serial_puts_raw(msg);
         }
     }
 }

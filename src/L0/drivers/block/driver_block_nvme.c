@@ -134,6 +134,14 @@ static inline void mmio_write32(volatile void *p, u32 v) {
 #define NVME_POLL_RESET_ITERS   50000000u
 #define NVME_POLL_CMD_ITERS     50000000u
 
+/* WP06g3-4.1: CSTS.RDY poll budget, scaled from CAP.TO at init.  The
+ * fixed 50M-iteration budget (~5s) is shorter than the worst-case
+ * readiness window real controllers may take (CAP.TO is in units of
+ * 500ms and the spec allows up to 0xF = 7.5s) - a slow-but-healthy
+ * controller was declared dead on real machines.  ~100ns per iteration
+ * => 5M iterations per 500ms unit; never below the legacy 50M. */
+static u64 g_rdy_poll_iters = NVME_POLL_RESET_ITERS;
+
 /* ---- on-wire structures (packed) ---- */
 #pragma pack(push, 1)
 typedef struct {
@@ -273,7 +281,7 @@ static void *driver_block_nvme_kmalloc_page_aligned(u64 size) {
 
 /* Wait for CSTS.RDY to equal `target` (1 = ready, 0 = disabled). */
 static int driver_block_nvme_wait_rdy(driver_block_nvme_dev_t *d, int target) {
-    for (u64 i = 0; i < NVME_POLL_RESET_ITERS; i++) {
+    for (u64 i = 0; i < g_rdy_poll_iters; i++) {
         u32 csts = driver_block_nvme_read(d, NVME_REG_CSTS);
         if (target) {
             if (csts & NVME_CSTS_RDY) return 0;
@@ -433,6 +441,14 @@ int driver_block_nvme_init(driver_pci_dev_t *pdev) {
     if ((u32)g_nvme.mqes + 1u < g_nvme.admin_qsize)
         g_nvme.admin_qsize = (u32)g_nvme.mqes + 1u;
     g_nvme.dstrd = (u32)NVME_CAP_DSTRD(cap);
+    /* WP06g3-4.1: scale the RDY poll budget with CAP.TO (units of 500ms,
+     * ~5M iterations per unit at ~100ns/iter) so slow-but-healthy real
+     * controllers are not declared dead after the fixed ~5s budget. */
+    {
+        u64 to_units = (cap >> 48) & 0xFFu;
+        u64 want = to_units * 5000000u;
+        if (want > g_rdy_poll_iters) g_rdy_poll_iters = want;
+    }
     driver_block_nvme_log_hex("nvme: CAP=0x", cap, "\n");
     driver_block_nvme_log_dec("nvme: MQES=", g_nvme.mqes, "");
     driver_block_nvme_log_dec(" DSTRD=", g_nvme.dstrd, "\n");
@@ -441,11 +457,19 @@ int driver_block_nvme_init(driver_pci_dev_t *pdev) {
     driver_block_nvme_log_hex("nvme: VS=0x", (u64)vs, "\n");
     (void)vs;
 
-    /* Disable controller first; wait for RDY=0. */
+    /* Disable controller first; wait for RDY=0.
+     * WP06g3-4.1 (real-hardware tolerance): on a genuine disable timeout
+     * rewrite CC=0 once and wait again with the TO-scaled budget before
+     * giving up - some real chips miss the first transition window
+     * (firmware still settling after power-on). */
     driver_block_nvme_write(&g_nvme, NVME_REG_CC, 0);
     if (driver_block_nvme_wait_rdy(&g_nvme, 0) != 0) {
-        driver_block_nvme_log("nvme: timeout waiting for disable\n");
-        return -1;
+        driver_block_nvme_log("nvme: disable timeout, rewriting CC=0 and retrying\n");
+        driver_block_nvme_write(&g_nvme, NVME_REG_CC, 0);
+        if (driver_block_nvme_wait_rdy(&g_nvme, 0) != 0) {
+            driver_block_nvme_log("nvme: timeout waiting for disable\n");
+            return -1;
+        }
     }
 
     /* Allocate admin queues (page-aligned). */
@@ -492,8 +516,36 @@ int driver_block_nvme_init(driver_pci_dev_t *pdev) {
         driver_block_nvme_write(&g_nvme, NVME_REG_CC, cc);
     }
     if (driver_block_nvme_wait_rdy(&g_nvme, 1) != 0) {
-        driver_block_nvme_log("nvme: timeout waiting for ready\n");
-        return -1;
+        /* WP06g3-4.1 (real-hardware tolerance): full reset-and-retry
+         * round before declaring the controller dead - some real chips
+         * miss the first CC.EN=1 ready window (firmware still booting
+         * after power-on).  Disable, reprogram the admin queues (the
+         * buffers are still allocated; only the registers are rewired),
+         * and enable once more with the TO-scaled budget. */
+        driver_block_nvme_log("nvme: ready timeout, resetting and retrying\n");
+        driver_block_nvme_write(&g_nvme, NVME_REG_CC, 0);
+        (void)driver_block_nvme_wait_rdy(&g_nvme, 0);
+        {
+            u64 asq_phys = (u64)(uintptr_t)g_nvme.asq;
+            u64 acq_phys = (u64)(uintptr_t)g_nvme.acq;
+            u32 aqa_r = ((g_nvme.admin_qsize - 1u) << 16) | (g_nvme.admin_qsize - 1u);
+            driver_block_nvme_write(&g_nvme, NVME_REG_AQA, aqa_r);
+            driver_block_nvme_write(&g_nvme, NVME_REG_ASQ,     (u32)(asq_phys & 0xFFFFFFFFu));
+            driver_block_nvme_write(&g_nvme, NVME_REG_ASQ + 4, (u32)(asq_phys >> 32));
+            driver_block_nvme_write(&g_nvme, NVME_REG_ACQ,     (u32)(acq_phys & 0xFFFFFFFFu));
+            driver_block_nvme_write(&g_nvme, NVME_REG_ACQ + 4, (u32)(acq_phys >> 32));
+            driver_block_nvme_write(&g_nvme, NVME_REG_CC,
+                NVME_CC_EN
+                | (0u << NVME_CC_CSS_SHIFT)
+                | (0u << NVME_CC_MPS_SHIFT)
+                | (0u << NVME_CC_AMS_SHIFT)
+                | (6u << 16)
+                | (4u << 20));
+        }
+        if (driver_block_nvme_wait_rdy(&g_nvme, 1) != 0) {
+            driver_block_nvme_log("nvme: timeout waiting for ready\n");
+            return -1;
+        }
     }
     driver_block_nvme_log("nvme: controller enabled\n");
 
