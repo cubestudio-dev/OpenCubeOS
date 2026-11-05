@@ -29,6 +29,13 @@ if [ ! -f "$BUILD/ocbl/ocbl_bios.bin" ] || \
     echo "[build_iso] FATAL: OCBL images missing (make ocbl-bios ocbl-efi)" >&2
     exit 1
 fi
+# WP06g3-4.4: the recovery kernel rides the main ISO too - the OCBL
+# scanner finds /boot/ocire.elf and offers "OCIRE recovery" in the
+# boot menu straight from the install medium.
+if [ ! -f "$BUILD/ocire/ocire.elf" ]; then
+    echo "[build_iso] FATAL: $BUILD/ocire/ocire.elf missing (make ocire-kernel)" >&2
+    exit 1
+fi
 
 echo "[build_iso] staging in $ISO_STAGE"
 rm -rf "$ISO_STAGE"
@@ -37,6 +44,12 @@ mkdir -p "$ISO_STAGE/boot"
 # --- 1. the kernel ELF (OCOS: the ISO registers as an OCOS entry
 #        through the OCBL scanner's ISO9660 path) ---
 cp "$BUILD/opencube.elf" "$ISO_STAGE/boot/opencube.elf"
+
+# --- 1b. (WP06g3-4.4) the OCIRE recovery kernel: the OCBL scanner
+#         picks up /boot/ocire.elf and the menu gains a recovery entry
+#         on the medium itself (postmortem disaster 4: the recovery
+#         environment was architecturally absent from every path) ---
+cp "$BUILD/ocire/ocire.elf" "$ISO_STAGE/boot/ocire.elf"
 
 # --- 2. the OCBL dual-firmware pair ---
 cp "$BUILD/ocbl/ocbl_bios.bin" "$ISO_STAGE/OCBL.BIN"

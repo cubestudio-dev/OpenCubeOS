@@ -8,6 +8,10 @@
 #
 # Content (single source of truth for what "install OCOS" means):
 #   boot/opencube.elf   - the OCOS kernel (OCBL scans for this name)
+#   boot/ocire.elf      - the OCIRE recovery kernel (WP06g3-4.4: the
+#                         in-volume recovery entry; install additionally
+#                         copies it onto a dedicated recovery partition
+#                         when the disk has unallocated tail space)
 #   etc/opencube.conf   - config template (config write overrides it)
 #
 # Determinism: POSIX ustar format, zero mtimes, uid/gid 0, sorted
@@ -15,7 +19,7 @@
 # byte-identical archives (the G13 rule the whole release chain
 # follows).
 #
-# Usage: make_ocos_tar.py <out.tar> <kernel.elf>
+# Usage: make_ocos_tar.py <out.tar> <kernel.elf> <ocire.elf>
 import sys
 
 OCT = lambda n, w: ("%0*o" % (w - 1, n)) + "\0"
@@ -59,6 +63,10 @@ def dir_header(name):
 def main():
     out, kern = sys.argv[1], sys.argv[2]
     kernel = open(kern, "rb").read()
+    # WP06g3-4.4: the recovery kernel rides the system image so the
+    # installed volume carries /boot/ocire.elf (an OCBL-scanable
+    # recovery entry) even before the dedicated partition step.
+    ocire = open(sys.argv[3], "rb").read()
     conf = (
         b"# OpenCubeOS configuration\n"
         b"hostname=opencube\n"
@@ -69,6 +77,7 @@ def main():
     entries = [
         (dir_header("boot/"), None),
         (dir_header("etc/"), None),
+        (ustar_header("boot/ocire.elf", len(ocire)), ocire),
         (ustar_header("boot/opencube.elf", len(kernel)), kernel),
         (ustar_header("etc/opencube.conf", len(conf)), conf),
     ]
@@ -82,7 +91,8 @@ def main():
         f.write(b"\0" * 1024)                           # end-of-archive
     import os
     print(f"[ocos_tar] {out}: {os.path.getsize(out)} B "
-          f"(boot/opencube.elf {len(kernel)} B + etc/opencube.conf)")
+          f"(boot/opencube.elf {len(kernel)} B + boot/ocire.elf "
+          f"{len(ocire)} B + etc/opencube.conf)")
 
 if __name__ == "__main__":
     main()

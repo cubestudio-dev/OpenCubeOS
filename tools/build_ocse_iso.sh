@@ -41,6 +41,14 @@ if [ ! -f "$BUILD/opencube.elf" ]; then
     echo "[ocse_iso] FATAL: $BUILD/opencube.elf missing (make kernel)" >&2
     exit 1
 fi
+# WP06g3-4.4: the system image carries the recovery kernel now
+# (boot/ocire.elf inside OCOS.TAR); the install step additionally
+# copies it onto a dedicated recovery partition when the disk has
+# unallocated tail space.
+if [ ! -f "$BUILD/ocire/ocire.elf" ]; then
+    echo "[ocse_iso] FATAL: $BUILD/ocire/ocire.elf missing (make ocire-kernel)" >&2
+    exit 1
+fi
 
 echo "[ocse_iso] staging in $STAGE"
 rm -rf "$STAGE"
@@ -71,9 +79,10 @@ python3 "$OC_ROOT/ocbl/build_image.py" "$STAGE/OCBLMBR.BIN" \
         "$BUILD/ocbl/stage1_mbr.bin" "$BUILD/ocbl/core.bin"
 
 # --- 3c. (WP-06b) the OCOS system image `tar -xf` unpacks onto the
-#         target partition (boot/opencube.elf + etc/opencube.conf) ---
+#         target partition (boot/opencube.elf + boot/ocire.elf +
+#         etc/opencube.conf) ---
 python3 "$OC_ROOT/tools/make_ocos_tar.py" "$STAGE/OCOS.TAR" \
-        "$BUILD/opencube.elf"
+        "$BUILD/opencube.elf" "$BUILD/ocire/ocire.elf"
 
 # --- 4. pack: BIOS El Torito + UEFI El Torito (1 MiB ESP), G13 seals ---
 python3 "$OC_ROOT/ocbl/build_test_iso.py" "$BUILD/ocse.iso" \

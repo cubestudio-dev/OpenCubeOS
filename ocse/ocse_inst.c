@@ -12,6 +12,7 @@
 #include "ocse_mkfs.h"
 #include "fs_vfs.h"
 #include "driver_block_blk.h"
+#include "driver_block_part.h"   /* WP06g3-4.4: recovery-partition carve */
 #include "lib_string.h"
 #include "screen_console.h"
 
@@ -158,6 +159,138 @@ static int inst_find_mount(const char* dev, char* path, int cap) {
     return -1;
 }
 
+/* step 6.5 (WP06g3-4.4): the dedicated OCIRE recovery partition.
+ * The tar already landed /boot/ocire.elf inside the system partition
+ * (an OCBL-scanable recovery entry on its own); this step additionally
+ * carves a DEDICATED recovery partition out of the disk's unallocated
+ * tail, formats it FAT32 and copies the recovery kernel onto it, so
+ * the installed machine keeps the recovery entry even if the system
+ * volume is later damaged.  Skipped with an honest report when the
+ * tail is too small or the table is full - the in-volume entry stays.
+ * Returns 0 always: a skipped recovery partition is not a failed
+ * install (the system volume carries the entry). */
+static void inst_recovery_skip(const char* why) {
+    ocse_out("install: recovery partition skipped - ");
+    ocse_out(why);
+    ocse_outln(" (the system volume keeps /boot/ocire.elf)");
+}
+
+static void inst_recovery_partition(const char* disk, const char* sys_mount,
+                                     u8* work, int work_sz) {
+    int didx = ocse_part_disk_idx(disk);
+    if (didx < 0) { inst_recovery_skip("no such disk"); return; }
+    driver_block_part_table_t tbl;
+    if (driver_block_part_parse(didx, &tbl) != 0) {
+        inst_recovery_skip("partition table unreadable");
+        return;
+    }
+    driver_block_device_t* dev = driver_block_get_device(didx);
+    if (!dev || !dev->present) { inst_recovery_skip("disk gone"); return; }
+
+    /* the end of the last partition + a free table slot */
+    u64 last_end = 2047;   /* LBA 0..2047 stays reserved (alignment) */
+    for (int i = 0; i < tbl.count; i++) {
+        if (!tbl.parts[i].present) continue;
+        u64 e = tbl.parts[i].start_lba + tbl.parts[i].sectors - 1;
+        if (e > last_end) last_end = e;
+    }
+    if (tbl.table_type == PART_TYPE_MBR && tbl.count >= 4) {
+        inst_recovery_skip("MBR table full");
+        return;
+    }
+    /* at least 16 MiB of tail space, 1 MiB-aligned start */
+    u64 start_mib = (last_end + 1 + 2047) / 2048;
+    u64 disk_mib  = dev->sectors / 2048;
+    if (disk_mib < 16 || start_mib + 16 > disk_mib) {
+        inst_recovery_skip("no unallocated tail space");
+        return;
+    }
+
+    /* the recovery kernel, read from the freshly extracted system volume */
+    char src[VFS_PATH_LEN];
+    int sl = (int)strlen(sys_mount);
+    if (sl + 20 >= (int)sizeof(src)) { inst_recovery_skip("path too long"); return; }
+    memcpy(src, sys_mount, (usize)sl);
+    strcpy(src + sl, "/boot/ocire.elf");
+    fs_vfs_stat_t st;
+    if (fs_vfs_stat(src, &st) != 0 || st.size == 0 ||
+        st.size > (u64)work_sz) {
+        inst_recovery_skip("recovery kernel unreadable");
+        return;
+    }
+    int fd = fs_vfs_open(src, VFS_O_RDONLY);
+    if (fd < 0) { inst_recovery_skip("recovery kernel open failed"); return; }
+    int got = 0;
+    while (got < (int)st.size) {
+        int r = fs_vfs_read(fd, work + got, (int)st.size - got);
+        if (r <= 0) break;
+        got += r;
+    }
+    fs_vfs_close(fd);
+    if (got != (int)st.size) {
+        inst_recovery_skip("recovery kernel short read");
+        return;
+    }
+
+    /* carve, format, mount, write */
+    ocse_outln("install: creating the dedicated OCIRE recovery partition ...");
+    if (ocse_part_mkpart(disk, start_mib, disk_mib) != 0) {
+        inst_recovery_skip("mkpart failed");
+        return;
+    }
+    driver_block_part_table_t fresh;
+    int rec_no = -1;
+    if (driver_block_part_parse(didx, &fresh) == 0) {
+        for (int i = 0; i < fresh.count; i++) {
+            if (fresh.parts[i].present &&
+                fresh.parts[i].start_lba == start_mib * 2048) {
+                rec_no = i + 1;
+                break;
+            }
+        }
+    }
+    if (rec_no < 0) { inst_recovery_skip("created partition not found"); return; }
+    char recdev[40];
+    int dl = (int)strlen(disk);
+    if (dl + 8 >= (int)sizeof(recdev)) { inst_recovery_skip("name too long"); return; }
+    memcpy(recdev, disk, (usize)dl);
+    recdev[dl] = 'p';
+    char nb[8];
+    u64_to_str((u64)rec_no, nb);
+    strcpy(recdev + dl + 1, nb);
+    int ridx = driver_block_find_device(recdev);
+    if (ridx < 0) { inst_recovery_skip("partition device missing"); return; }
+    if (ocse_mkfs_fat32(ridx) != 0) {
+        inst_recovery_skip("mkfs.fat32 failed");
+        return;
+    }
+    if (fs_vfs_mount("fat32", "/rec", recdev) != 0) {
+        inst_recovery_skip("mount failed");
+        return;
+    }
+    fs_vfs_mkdir("/rec/boot");
+    int wfd = fs_vfs_open("/rec/boot/ocire.elf",
+                          VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+    if (wfd < 0) {
+        fs_vfs_umount("/rec");
+        inst_recovery_skip("cannot create /boot/ocire.elf on it");
+        return;
+    }
+    int w = fs_vfs_write(wfd, work, got);
+    fs_vfs_close(wfd);
+    fs_vfs_umount("/rec");
+    if (w != got) {
+        inst_recovery_skip("short write");
+        return;
+    }
+    ocse_out("install: recovery partition #");
+    ocse_out(recdev);
+    ocse_out(" ready (boot/ocire.elf, ");
+    char n[24];
+    u64_to_str((u64)got, n); ocse_out(n);
+    ocse_outln(" B)");
+}
+
 int ocse_inst_install(const char* disk, int part_no, int confirm,
                       u8* work, int work_sz) {
     char n[24];
@@ -238,6 +371,12 @@ int ocse_inst_install(const char* disk, int part_no, int confirm,
     ocse_out(ocse_tr(OCSE_T_I_KERNELIN));
     u64_to_str(st.size, n); ocse_out(n);
     ocse_outln(" B)");
+
+    /* step 6.5 (WP06g3-4.4): the dedicated OCIRE recovery partition.
+     * The extracted system volume already carries /boot/ocire.elf
+     * (the in-volume recovery entry); this carves the dedicated
+     * recovery partition from the disk's unallocated tail. */
+    inst_recovery_partition(disk, mount, work, work_sz);
 
     /* step 7: boot code */
     ocse_outln(ocse_tr(OCSE_T_I_BOOTCODE));
