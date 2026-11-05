@@ -240,6 +240,27 @@ static u32 judge_volume(const ocbl_volume_t* v,
             lab_add(&l, ")");
         }
         *out = e;
+        /* WP06g3-4.4: a volume carrying BOTH the system kernel and the
+         * recovery kernel (the main ISO since this batch) exposes the
+         * recovery entry TOO.  The short-circuit used to hide
+         * /boot/ocire.elf behind the OCOS verdict - the recovery
+         * environment was unreachable from the install medium even
+         * though the file sat right next to the kernel (postmortem
+         * disaster 4). */
+        if (ocbl_fs_stat(v, "/boot/ocire.elf", &size)) {
+            ocbl_entry_t* r = add_entry(OCBL_ENT_OCIRE);
+            if (r) {
+                fill_vol(r, v);
+                r->file_size = size;
+                set_path(r, "/boot/ocire.elf");
+                label_ctx_t rl;
+                lab_init(&rl, r->label, OCBL_LABEL_MAX);
+                lab_add(&rl, "OCIRE recovery (");
+                lab_drive(&rl, v->drive);
+                if (pt) lab_part(&rl, pt, table_kind);
+                lab_add(&rl, ")");
+            }
+        }
         return OCBL_ENT_OCOS;
     }
 
