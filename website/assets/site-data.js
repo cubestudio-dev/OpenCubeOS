@@ -6,58 +6,57 @@
    (opencube + ocse ISOs of the current milestone) - maintained per
    milestone, preserved by the release script. */
 window.SITE_DATA = {
-  version: "3.0.0-WP06g2",
-  build: 401,
-  date: "2026-11-05",
-  changes: "L1 localization + system IME",
+  version: "2.2.0",
+  build: 316,
+  date: "2026-10-26",
+  changes: "the fix release closing both 2.1.0 open items with real kernel root-cause fixes: the wp10_tui kthread-stack #DF (10-page stacks over the measured worst call chain) and the wait4-vs-fork stale-zombie race (orphan-detach bookkeeping, 20/20 fresh boots clean)",
   assets: {
     iso: {
-      name: "opencube-3.0.0-WP06g2.iso",
-      size: 3833856,
-      size_h: "3.7 MiB",
-      sha256: "310a2da3b2c31f6cbc624b98070ad26a4254e9afab3f89e11a6ffe0e1c196916",
-      url: "downloads/opencube-3.0.0-WP06g2.iso"
+      name: "opencube-2.2.0.iso",
+      size: 12392448,
+      size_h: "11.8 MiB",
+      sha256: "20f93fee8c791af7ac9ec1b6b53a525bef2ac2d5697b829721b28bbe0fd950f9",
+      url: "downloads/opencube-2.2.0.iso"
     },
     src: {
-      name: "opencube-3.0.0-WP06g2-src.zip",
-      size: 5752866,
-      size_h: "5.5 MiB",
-      sha256: "138f1b4b09ddc5074e59f59e8100ff5765cbd0eb83aff0a08e6ab08e3a4a639c",
-      url: "downloads/opencube-3.0.0-WP06g2-src.zip"
+      name: "opencube-2.2.0-src.zip",
+      size: 4716252,
+      size_h: "4.5 MiB",
+      sha256: "a2041daaf3b1f5ff72cbbf1613f3e90718da2adf16605cbb9ae29b8c24f2ed01b",
+      url: "downloads/opencube-2.2.0-src.zip"
     },
     ota: {
-      name: "opencube-3.0.0-WP06g2-update.tar.gz",
-      size: 1401212,
-      size_h: "1.3 MiB",
-      sha256: "71c090462f2ef7523dc5356176ed97a1c5202ae42d63f97764cda3d6bebbe66d",
-      url: "downloads/opencube-3.0.0-WP06g2-update.tar.gz"
+      name: "opencube-2.2.0-update.tar.gz",
+      size: 1080741,
+      size_h: "1.0 MiB",
+      sha256: "ac9a6ec2c3dd679977ad1c716dbacb26ae84119ddc75751fb30712effa6ad19e",
+      url: "downloads/opencube-2.2.0-update.tar.gz"
     }
   },
-  /* WP06e: the 3.0.0 development-preview channel.  WP06g1 carries the
-     milestone forward (3.0.0-WP06g1, build 387).  Assets verified
-     against the GitHub Release v3.0.0-WP06g1 (three-way: local tree ==
-     Release digests). */
+  /* WP06e: the 3.0.0 development-preview channel.  WP06g2 carries the
+     milestone forward (L1 localization + system IME, build 403).
+     Assets verified against the GitHub Release v3.0.0-WP06g2
+     (three-way: local tree == Release digests). */
   dev: {
-    version: "3.0.0-WP06g1",
-    build: 393,
-    date: "2026-11-04",
+    version: "3.0.0-WP06g2",
+    build: 403,
+    date: "2026-11-05",
     assets: {
       opencube: {
-        name: "opencube-3.0.0-WP06g1.iso",
-        size: 3667968,
-        size_h: "3.5 MiB",
-        sha256: "c2c13e4906b5d12e5a9816e734c51b744257341127796c823a645607bc6a9e24",
-        url: "downloads/opencube-3.0.0-WP06g1.iso"
+        name: "opencube-3.0.0-WP06g2.iso",
+        size: 3833856,
+        size_h: "3.7 MiB",
+        sha256: "a76de621f314e7b02983fbbe0e284a8b109dee5825bed41d51815d925ce6ddd7",
+        url: "downloads/opencube-3.0.0-WP06g2.iso"
       },
       ocse: {
-        name: "ocse-3.0.0-WP06g1.iso",
-        size: 4491264,
-        size_h: "4.3 MiB",
-        sha256: "b751fe26ba3d0273ac585530fc8e9a6e29dcaced76da2a546428a73a5fb5ddc4",
-        url: "downloads/ocse-3.0.0-WP06g1.iso"
+        name: "ocse-3.0.0-WP06g2.iso",
+        size: 4655104,
+        size_h: "4.4 MiB",
+        sha256: "1461815491d6d4df6970e18a5f2fcf516e0cbf4ad72906e15c3f7df7d3d0cd56",
+        url: "downloads/ocse-3.0.0-WP06g2.iso"
       }
     }
-  }
   },
   stats: {
     commands: 285,
@@ -66,9 +65,6 @@ window.SITE_DATA = {
     lines: "131,230"
   },
   history: [
-    { version: "2.2.0", date: "2026-10-26",
-      iso_sha: "20f93fee8c791af7ac9ec1b6b53a525bef2ac2d5697b829721b28bbe0fd950f9",
-      iso_size: 12392448 },
     { version: "3.0.0-WP06f", date: "2026-11-04",
       iso_url: "downloads/opencube-3.0.0-WP06f.iso",
       iso_sha: "9d72a07354ab11b47b867d4310ffe20cfbf804e3816cee5515361824ff413dff",

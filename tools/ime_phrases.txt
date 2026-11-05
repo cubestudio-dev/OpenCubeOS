@@ -1,9 +1,16 @@
 # Open Cube OS - IME phrase table (3.0.0-WP06g2)
 # One word per line, '#' starts a comment.  Every character must be a
 # GB2312 level-1 hanzi (the IME char map covers zones 16-55 only).
-# tools/gen_pinyin_phrase.py reads this list, tags each word with its
-# tone-free full pinyin string (pypinyin) and emits the sorted
-# pinyin_phrase_data.c lookup table.
+# tools/gen_pinyin_phrase.py composes each word's tone-free full
+# pinyin from the KERNEL single-char table (pinyin_data.c - the
+# syllables the single-char engine itself matches), so the generator
+# is self-contained (no pypinyin; the CI clean env broke on it).
+# A polyphonic word whose dictionary reading differs from the
+# composed one carries an explicit reading: "word pinyin" (space
+# separated, e.g. "银行 yinhang").  The generator validates every
+# explicit reading decomposes into legal syllables, one per
+# character.  The ten pairs below are the readings the original
+# pypinyin-built table carried - the emitted table is unchanged.
 # --- pronouns / question ---
 我们
 你们
@@ -146,7 +153,7 @@
 没有
 有无
 知道
-了解
+了解 liaojie
 理解
 认为
 觉得
@@ -201,7 +208,7 @@
 工作
 生活
 休息
-睡觉
+睡觉 shuijiao
 起床
 吃饭
 喝水
@@ -253,7 +260,7 @@
 回家
 上班
 下班
-出差
+出差 chuchai
 # --- system / computer (the OS user surface) ---
 系统
 电脑
@@ -335,7 +342,7 @@
 图片
 照片
 视频
-音乐
+音乐 yinyue
 游戏
 应用
 应用层
@@ -366,13 +373,13 @@
 账户
 登录
 注销
-重启
+重启 chongqi
 开机
 关机
 睡眠
 恢复
 备份
-还原
+还原 huanyuan
 镜像
 版本
 发布
@@ -386,14 +393,14 @@
 源码
 编译
 加载
-调试
+调试 tiaoshi
 断点
 堆栈
 队列
 缓存
 同步
 异步
-阻塞
+阻塞 zuse
 # --- adjectives / description ---
 好的
 新的
@@ -474,7 +481,7 @@
 公园
 学校
 医院
-银行
+银行 yinhang
 商店
 超市
 市场
@@ -612,7 +619,7 @@
 教程
 示例
 范例
-模板
+模板 muban
 工具
 脚本
 插件
