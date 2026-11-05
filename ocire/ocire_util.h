@@ -15,6 +15,8 @@ void *oc_memcpy(void *dst, const void *src, u64 len);
 int   oc_memcmp(const void *a, const void *b, u64 len);
 u64   oc_strlen(const char *s);
 int   oc_strcmp(const char *a, const char *b);
+/* WP06g3-4.8: prefix compare for the shell's 'lang <arg>' dispatch */
+int   oc_strncmp(const char *a, const char *b, int n);
 
 /* Search a memory blob for a byte pattern; returns the offset or
  * (u64)-1 when not found.  Used by the ACPI \_S5 package scan. */

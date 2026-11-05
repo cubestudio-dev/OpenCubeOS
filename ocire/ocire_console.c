@@ -27,6 +27,7 @@
 #include "ocire_util.h"
 #include "ocire_mb2.h"
 #include "ocire_font.h"
+#include "ocire_cn.h"     /* WP06g3-4.8: wide hanzi glyphs */
 
 #define COM1 0x3F8
 
@@ -162,6 +163,31 @@ static void lfb_scroll(void) {
     g_col = 0;
 }
 
+static void lfb_fill_wide(int row, int col, u32 color) {
+    /* clear a 2-cell (16px) wide area */
+    volatile u32 *dst = g_lfb + (u64)row * OCIRE_FONT_HEIGHT * g_fb_pitch_u32
+                        + (u64)col * OCIRE_FONT_WIDTH;
+    for (int y = 0; y < OCIRE_FONT_HEIGHT; y++) {
+        volatile u32 *px = dst + (u64)y * g_fb_pitch_u32;
+        for (int x = 0; x < 2 * OCIRE_FONT_WIDTH; x++) px[x] = color;
+    }
+}
+
+static void lfb_draw_wide(int row, int col, const u8 *glyph) {
+    /* 16x16 bitmap: 16 rows x 2 bytes, bit7 = leftmost pixel */
+    volatile u32 *dst = g_lfb + (u64)row * OCIRE_FONT_HEIGHT * g_fb_pitch_u32
+                        + (u64)col * OCIRE_FONT_WIDTH;
+    for (int y = 0; y < OCIRE_FONT_HEIGHT; y++) {
+        u8 b0 = glyph[2 * y];
+        u8 b1 = glyph[2 * y + 1];
+        volatile u32 *px = dst + (u64)y * g_fb_pitch_u32;
+        for (int x = 0; x < 8; x++) {
+            px[x]     = (b0 & (0x80 >> x)) ? LFB_FG : LFB_BG;
+            px[8 + x] = (b1 & (0x80 >> x)) ? LFB_FG : LFB_BG;
+        }
+    }
+}
+
 static void lfb_putc(char c) {
     if (c == '\n') {
         g_col = 0;
@@ -178,6 +204,30 @@ static void lfb_putc(char c) {
         g_col++;
         if (g_col >= g_fb_cols) { g_col = 0; g_row++; }
     }
+    if (g_row >= g_fb_rows) lfb_scroll();
+}
+
+/* ---- WP06g3-4.8: the wide (CJK) path --------------------------------
+ * A complete UTF-8 sequence is decoded in ocire_putc() and lands
+ * here; the glyph renders as a 2-cell 16x16 bitmap from the shared
+ * GB2312 tables.  Unknown codepoints degrade to '?'. */
+static void lfb_putw(u32 cp) {
+    if (cp < 0x80) {
+        lfb_putc((char)cp);
+        return;
+    }
+    if (g_col + 2 > g_fb_cols) { g_col = 0; g_row++; }
+    if (g_row >= g_fb_rows) lfb_scroll();
+    const u8 *g = ocire_cn_bitmap(cp);
+    if (g) {
+        lfb_fill_wide(g_row, g_col, LFB_BG);
+        lfb_draw_wide(g_row, g_col, g);
+        g_col += 2;
+    } else {
+        lfb_draw_char(g_row, g_col, '?');
+        g_col++;
+    }
+    if (g_col >= g_fb_cols) { g_col = 0; g_row++; }
     if (g_row >= g_fb_rows) lfb_scroll();
 }
 
@@ -219,10 +269,54 @@ int ocire_console_is_lfb(void) {
     return g_lfb_active;
 }
 
+/* WP06g3-4.8: the UTF-8 sequence accumulator.  ASCII passes straight
+ * through every backend; a multi-byte sequence is collected (1-3
+ * continuation bytes) and flushed as ONE codepoint to the wide path.
+ * The serial line always receives the raw UTF-8 bytes - a UTF-8
+ * terminal decodes them itself, and the GBK-terminal case is the
+ * outer serial_encoding story (main kernel), not a recovery-shell
+ * concern.  The VGA-text backend degrades CJK to '?' (the 80x25 text
+ * cell cannot carry a hanzi bitmap; LFB is the normal path). */
+static u32 g_utf8_cp;
+static int g_utf8_need;    /* 0 = idle, else bytes still expected */
+static int g_utf8_have;
+
+static void utf8_flush_vga(u32 cp) {
+    if (cp < 0x80) vga_putc((char)cp);
+    else           vga_putc('?');
+}
+
 void ocire_putc(char c) {
     serial_putc(c);
-    if (g_lfb_active) lfb_putc(c);
-    else              vga_putc(c);
+    u8 b = (u8)c;
+    if (g_utf8_need == 0) {
+        if (b < 0x80) {
+            if (g_lfb_active) lfb_putc(c);
+            else              vga_putc(c);
+            return;
+        }
+        if ((b & 0xE0) == 0xC0) { g_utf8_cp = b & 0x1F; g_utf8_need = 1; g_utf8_have = 1; return; }
+        if ((b & 0xF0) == 0xE0) { g_utf8_cp = b & 0x0F; g_utf8_need = 2; g_utf8_have = 1; return; }
+        if ((b & 0xF8) == 0xF0) { g_utf8_cp = b & 0x07; g_utf8_need = 3; g_utf8_have = 1; return; }
+        /* stray continuation: degrade */
+        if (g_lfb_active) lfb_putc('?');
+        else              vga_putc('?');
+        return;
+    }
+    if ((b & 0xC0) == 0x80) {
+        g_utf8_cp = (g_utf8_cp << 6) | (b & 0x3F);
+        g_utf8_have++;
+        if (g_utf8_have > g_utf8_need) {
+            /* complete */
+            if (g_lfb_active) lfb_putw(g_utf8_cp);
+            else              utf8_flush_vga(g_utf8_cp);
+            g_utf8_need = 0;
+        }
+        return;
+    }
+    /* broken sequence: restart on this byte */
+    g_utf8_need = 0;
+    ocire_putc(c);
 }
 
 void ocire_puts(const char *s) {

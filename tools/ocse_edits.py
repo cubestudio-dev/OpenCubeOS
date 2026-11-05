@@ -1727,10 +1727,41 @@ def e22_ocse_out_enc():
          '    { "serial_encoding", "show/set the serial line encoding: serial_encoding [utf8|gbk]", cmd_serial_encoding },\n')
 
 
+
+# ---------------------------------------------------------------------------
+# E24 (3.0.0-WP06g3-ocse_enc_fix, task 4.8): the em-dash mapping fix.
+# GB2312 0xA1AA is the em dash, but the font generator's extraction
+# codec (Python gb2312) mapped that slot to U+2015 (HORIZONTAL BAR)
+# while real-world source strings carry U+2014 (EM DASH) - the lookup
+# missed, and a zh string containing an em dash failed the WHOLE-STRING
+# GB2312 conversion (and missed the glyph on screen).  U+2014 now folds
+# onto the table's U+2015 - same fix as the main kernel's
+# services/font/chinese_font.c.
+# ---------------------------------------------------------------------------
+def e24_emdash():
+    edit("ocse/chinese/chinese_font.c",
+         'int chinese_font_lookup_unicode(chinese_font_handle_t slot, u32 cp) {\n'
+         '    const chinese_font_slot_t* s = slot_ok(slot);\n'
+         '    if (!s) return -3;\n'
+         '    g_lookups++;\n',
+         'int chinese_font_lookup_unicode(chinese_font_handle_t slot, u32 cp) {\n'
+         '    const chinese_font_slot_t* s = slot_ok(slot);\n'
+         '    if (!s) return -3;\n'
+         '    g_lookups++;\n'
+         '    /* WP06g3-4.8 (em-dash fix): fold U+2014 (EM DASH, what\n'
+         '     * real-world text carries) onto the table\'s U+2015 (the\n'
+         '     * Python gb2312 codec mapped 0xA1AA there) - an em dash in\n'
+         '     * a zh string neither kills the whole-string GB2312\n'
+         '     * conversion nor misses its glyph on screen. */\n'
+         '    if (cp == 0x2014) cp = 0x2015;\n')
+
+
 e18_double_buffer()
 e19_glyph_routing()
 e20_font_freshness()
 e21_disk_probe_diag()
 e22_ocse_out_enc()
+e23_placeholder_unused = None
+e24_emdash()
 
 print("[ocse_edits] %d edit groups applied - OCSE tree is build-ready" % applied)

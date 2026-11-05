@@ -237,6 +237,13 @@ int chinese_font_lookup_unicode(chinese_font_handle_t slot, u32 cp) {
     if (!s) return -3;
     if (chinese_font_data_ensure() != 0) { g_misses++; return -1; }
     g_lookups++;
+    /* WP06g3-4.8 (em-dash fix): GB2312 0xA1AA is the em dash, but the
+     * font generator's extraction codec mapped that slot to U+2015
+     * (HORIZONTAL BAR - the Python gb2312 quirk) while real-world text
+     * carries U+2014 (EM DASH).  Fold U+2014 onto the table's U+2015
+     * so an em dash in a source string neither kills the whole-string
+     * GB2312 conversion nor misses its glyph on screen. */
+    if (cp == 0x2014) cp = 0x2015;
     /* Binary search over the flat {unicode, idx} pair table. */
     u32 lo = 0, hi = s->uto_count;
     while (lo < hi) {

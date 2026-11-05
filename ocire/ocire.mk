@@ -33,8 +33,22 @@ OCIRE_AGENT     := $(OCIRE_OUT)/agent.elf
 OCIRE_AGENT_SRC := $(OCIRE_DIR)/agent/ocire_agent.c
 OCIRE_AGENT_OBJ := $(OCIRE_OUT)/ocire_agent.o
 
-OCIRE_C := $(wildcard $(OCIRE_DIR)/*.c)
+OCIRE_C := $(wildcard $(OCIRE_DIR)/*.c) \
+           $(OCIRE_DIR)/generated/ocire_cn_font_data.c
 OCIRE_S := $(wildcard $(OCIRE_DIR)/*.S)
+
+# WP06g3-4.8: the OCIRE Chinese glyph data is GENERATED from the OCSE
+# font data (the WP06f regenerated Unifont rasterization) - the copy
+# only rewrites the include line, so a re-vendor or a font
+# regeneration flows into OCIRE automatically.
+$(OCIRE_DIR)/generated/ocire_cn_font_data.c: $(OC_ROOT)/ocse/chinese/chinese_font_data.c
+	@mkdir -p $(OCIRE_DIR)/generated
+	@sed -e 's|#include "../kernel/types.h"|#include "../ocire_types.h"|' \
+	     -e 's|#include "types.h"|#include "../ocire_types.h"|' \
+	     $< > $@.tmp
+	@if ! cmp -s $@.tmp $@; then mv -f $@.tmp $@; \
+	    echo "ocire: regenerated ocire_cn_font_data.c"; \
+	else rm -f $@.tmp; fi
 
 OCIRE_OBJ_C := $(patsubst $(OCIRE_DIR)/%.c,$(OCIRE_OUT)/%.o,$(OCIRE_C))
 OCIRE_OBJ_S := $(patsubst $(OCIRE_DIR)/%.S,$(OCIRE_OUT)/%.o,$(OCIRE_S))
