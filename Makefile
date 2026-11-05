@@ -438,7 +438,7 @@ $(GRUB_DATA_OBJ): $(GRUB_DATA_C) $(OC_ROOT)/src/L0/boot/grub_boot_data.h | $(BUI
 # WP06g2: the kernel links the L0 i18n tables - regenerate them
 # before the kernel builds (object -MMD deps then ride
 # incremental resource changes).
-$(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(L0_I18N_GEN) $(OC_ROOT)/src/L0/core/arch/x86_64/linker.ld | $(BUILD)
+$(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(L0_I18N_GEN) $(IME_PHRASE_GEN) $(OC_ROOT)/src/L0/core/arch/x86_64/linker.ld | $(BUILD)
 	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ) $(GRUB_DATA_OBJ)
 	strip --strip-debug $@
 
@@ -648,6 +648,14 @@ test:
 # v2.x build mode, builds them all, and emits userprogs_data.h with
 # the OC_USERPROGS[] name registry (the execve surface - no name is
 # hand-registered in the kernel). nasm/gcc must be on PATH.
+# 3.0.0-WP06g2: the IME phrase library regenerates from
+# tools/ime_phrases.txt (needs pypinyin; the generated .h/.c
+# are committed like every generated file so the wildcard
+# build always sees them).  Idempotent emit.
+IME_PHRASE_GEN := src/L0/services/display/pinyin_phrase_data.c
+$(IME_PHRASE_GEN) $(OC_ROOT)/src/L0/services/display/pinyin_phrase.h: tools/ime_phrases.txt tools/gen_pinyin_phrase.py $(OC_ROOT)/src/L0/services/display/pinyin_data.c
+	python3 $(OC_ROOT)/tools/gen_pinyin_phrase.py
+
 # 3.0.0-WP06g2: the L0 i18n tables regenerate from the JSON
 # resources (etc/i18n/l0/{en,zh}.json).  The generated file is
 # committed like userprogs_data.h, so the KERNEL_C wildcard

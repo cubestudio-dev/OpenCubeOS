@@ -18,6 +18,9 @@
 #include "lib_string.h"
 #include "driver_input_keyboard.h"
 #include "ime_engine.h"
+#include "ime_session.h"
+#include "pinyin_phrase.h"
+#include "l0_i18n.h"
 
 extern int chinese_test_run(int verbose);
 /* ---- status -------------------------------------------------------- */
@@ -155,6 +158,17 @@ int disp_cmd_encoding_test(const char *args) {
     return 1;
 }
 
+/* local substring probe (lib_string carries no strstr) */
+static const char *cn_strstr(const char *hay, const char *needle) {
+    if (!hay || !needle) return 0;
+    for (; *hay; hay++) {
+        const char *a = hay, *b = needle;
+        while (*a && *b && *a == *b) { a++; b++; }
+        if (!*b) return hay;
+    }
+    return 0;
+}
+
 /* ---- ime -------------------------------------------------------------- */
 /* 3.0.0-WP04 G11b: revived verbatim from v2.2.0 chinese/chinese_cmd.c
  * (ime_console_compose + disp_cmd_ime + disp_cmd_ime_test). */
@@ -175,59 +189,40 @@ int disp_cmd_encoding_test(const char *args) {
  * Returns the committed UTF-8 byte count (also NUL-terminated), or
  * -1 when the line was cancelled with content discarded. */
 int ime_console_compose(u8 *out, int cap) {
+    /* 3.0.0-WP06g2: rewritten onto the SYSTEM IME session engine
+     * (ime_session.c) - the same engine the nano/vi editors drive
+     * through L1SVC_DISP_IME_KEY.  Nothing IME-shaped lives here
+     * anymore: this loop only parks for keys, feeds each one to the
+     * engine, renders the strip the engine renders for the editors,
+     * and accumulates the committed text.  Phrases, paging and the
+     * compose model all come from the one engine. */
     if (!out || cap < 8) return -1;
-    u32 cps[12];               /* committed codepoints (display)   */
-    int ncp = 0;
     u8 composed[128];          /* committed UTF-8 (return value)   */
     int comp_len = 0;
     composed[0] = 0;
-    char pinyin[8];            /* typed letters (max 6)            */
-    int py_len = 0;
-    pinyin[0] = 0;
-    int done = 0, cancelled = 0;
+    int cancelled = 0;
+
+    ime_session_reset();
 
     screen_console_t *con = screen_console_get();
     int pad = (con && con->cols > 8) ? (int)con->cols - 8 : 72;
     if (pad > 72) pad = 72;
 
-    while (!done) {
-        /* current candidates for the pending letters */
-        u32 cands[9];
-        int ncand = (py_len > 0)
-                    ? tui_chinese_ime_test(pinyin, cands, 9) : 0;
-        if (ncand < 0) ncand = 0;
-
-        /* redraw the single line in place */
+    for (;;) {
+        /* render: "IME> <committed>[strip]" on one line */
+        char strip[160];
+        ime_session_compose_line(strip, sizeof(strip));
         screen_console_putc('\r');
         for (int i = 0; i < pad; i++) screen_console_putc(' ');
         screen_console_putc('\r');
         screen_console_puts("IME> ");
-        for (int i = 0; i < ncp; i++) console_cn_putcw(cps[i]);
-        if (py_len > 0) {
-            screen_console_putc('[');
-            screen_console_puts(pinyin);
-            screen_console_putc(']');
-            if (ncand > 0) {
-                screen_console_putc(' ');
-                for (int i = 0; i < ncand && i < 4; i++) {
-                    console_cn_putcw(cands[i]);
-                    char dig[3];
-                    dig[0] = (char)('1' + i);
-                    dig[1] = ' ';
-                    dig[2] = 0;
-                    screen_console_puts(dig);
-                }
-            }
+        screen_console_puts((const char *)composed);
+        if (strip[0]) {
+            screen_console_puts(strip);
         }
 
-        /* next key: park on sti;hlt until any interrupt lands (the
-         * keyboard IRQ delivers the key; the timer tick bounds the
-         * wait). v2.0.0: the old core_sched_yield park deadlocked when
-         * this compose loop runs inside the ring-3 service dispatch
-         * frame (int 0x80) - switching tasks from that frame left the
-         * machine with interrupts off (see driver_cmos_rtc.c
-         * wait_counts for the full note). The keyboard queue returns
-         * -1 when empty, never 0. */
+        /* park until a key (same discipline as v2.2.0: sti;hlt in the
+         * ring-3 service frame; the timer tick bounds the wait). */
         int k;
         for (;;) {
             k = driver_input_keyboard_getch();
@@ -235,102 +230,70 @@ int ime_console_compose(u8 *out, int cap) {
             __asm__ volatile("sti; hlt");
         }
 
-        if (k == '\r' || k == '\n') {
-            done = 1;
-        } else if (k == 0x1B || k == OC_KEY_ESC_KEY ||
-                   k == OC_KEY_CTRL_C) {
-            cancelled = 1;
-            done = 1;
-        } else if (k == OC_KEY_BACKSPACE || k == 0x08) {
-            if (py_len > 0) {
-                pinyin[--py_len] = 0;
-            } else if (ncp > 0) {
-                ncp--;
-                /* drop the last UTF-8 character of the composition */
-                int p = comp_len - 1;
-                while (p > 0 && ((u8)composed[p] & 0xC0) == 0x80) p--;
-                comp_len = p;
+        if ((k == '\r' || k == '\n') && !ime_session_active()) {
+            break;               /* Enter ends the LINE (not compose) */
+        }
+
+        char proto[256];
+        int act = ime_session_key(k, proto, sizeof(proto));
+        const char *text = (proto[0] >= '0' && proto[0] <= '9' &&
+                            proto[1] == '\n') ? proto + 2 : proto;
+        if (act == 2 || act == 3) {
+            /* commit: append the engine's UTF-8 text */
+            int n = (int)strlen(text);
+            if (comp_len + n < (int)sizeof(composed) - 1) {
+                for (int i = 0; i < n; i++)
+                    composed[comp_len++] = text[i];
                 composed[comp_len] = 0;
             }
-        } else if (k >= 'a' && k <= 'z' && py_len < 6) {
-            pinyin[py_len++] = (char)k;
-            pinyin[py_len] = 0;
-        } else if (k >= '1' && k <= '9' && py_len > 0) {
-            int pick = k - '1';
-            if (pick < ncand) {
-                u8 u8buf[4];
-                u32 produced = 0;
-                if (encoding_utf8_encode(cands[pick], u8buf, 4,
-                                         &produced) == 0 &&
-                    comp_len + (int)produced < (int)sizeof(composed) - 1 &&
-                    ncp < (int)(sizeof(cps) / sizeof(cps[0]))) {
-                    for (u32 b = 0; b < produced; b++) {
-                        composed[comp_len++] = (char)u8buf[b];
-                    }
-                    composed[comp_len] = 0;
-                    cps[ncp++] = cands[pick];
-                }
-                py_len = 0;
-                pinyin[0] = 0;
-                if (ncp >= (int)(sizeof(cps) / sizeof(cps[0]))) done = 1;
-            }
-        } else if (k == ' ') {
-            if (py_len > 0) {
-                if (ncand > 0) {
-                    u8 u8buf[4];
-                    u32 produced = 0;
-                    if (encoding_utf8_encode(cands[0], u8buf, 4,
-                                             &produced) == 0 &&
-                        comp_len + (int)produced <
-                            (int)sizeof(composed) - 1 &&
-                        ncp < (int)(sizeof(cps) / sizeof(cps[0]))) {
-                        for (u32 b = 0; b < produced; b++) {
-                            composed[comp_len++] = (char)u8buf[b];
-                        }
-                        composed[comp_len] = 0;
-                        cps[ncp++] = cands[0];
-                    }
-                    if (ncp >= (int)(sizeof(cps) / sizeof(cps[0])))
-                        done = 1;
-                }
-                py_len = 0;
-                pinyin[0] = 0;
-            } else if (comp_len + 1 < (int)sizeof(composed) - 1 &&
-                       ncp < (int)(sizeof(cps) / sizeof(cps[0]))) {
-                composed[comp_len++] = ' ';
-                composed[comp_len] = 0;
-                cps[ncp++] = (u32)' ';
-            }
-        } else if (k >= 0x20 && k < 0x7F && py_len == 0) {
-            /* ASCII direct input when no pinyin is being composed */
-            if (comp_len + 1 < (int)sizeof(composed) - 1 &&
-                ncp < (int)(sizeof(cps) / sizeof(cps[0]))) {
+        }
+        if (act == 3 || act == 0) {
+            /* passthrough tail: plain ASCII lands verbatim (the
+             * engine already committed its part for act==3) */
+            if (!ime_session_active() && k >= 0x20 && k < 0x7F &&
+                comp_len + 1 < (int)sizeof(composed) - 1) {
                 composed[comp_len++] = (char)k;
                 composed[comp_len] = 0;
-                cps[ncp++] = (u32)k;
             }
+        }
+        if ((k == 0x1B || k == OC_KEY_ESC_KEY || k == OC_KEY_CTRL_C) &&
+            !ime_session_active() && comp_len == 0) {
+            cancelled = 1;       /* Esc on an empty line cancels */
+            break;
+        }
+        if ((k == 0x1B || k == OC_KEY_ESC_KEY || k == OC_KEY_CTRL_C) &&
+            !ime_session_active() && comp_len > 0) {
+            break;               /* Esc with content: end the line */
         }
     }
 
+    ime_session_reset();
     screen_console_putc('\r');
     for (int i = 0; i < pad; i++) screen_console_putc(' ');
     screen_console_putc('\r');
     screen_console_putc('\n');
     char num[12];
+    int ncp = 0;
+    for (int i = 0; composed[i]; ) {
+        /* count CHARACTERS (UTF-8 lead bytes) */
+        if (((u8)composed[i] & 0xC0) != 0x80) ncp++;
+        i++;
+    }
     if (cancelled) {
-        screen_console_puts("ime: cancelled, ");
+        screen_console_puts(l0_tr_("ime_cancelled"));
         u64_to_str((u64)ncp, num);
         screen_console_puts(num);
-        screen_console_puts(" character(s) discarded\n");
+        screen_console_puts(l0_tr_("ime_chars_discarded"));
+        screen_console_putc('\n');
         return -1;
     }
-    screen_console_puts("ime: composed ");
+    screen_console_puts(l0_tr_("ime_composed"));
     u64_to_str((u64)ncp, num);
     screen_console_puts(num);
-    screen_console_puts(" character(s)");
+    screen_console_puts(l0_tr_("ime_characters"));
     if (ncp > 0) {
         screen_console_puts(": ");
-        for (int i = 0; i < ncp; i++) console_cn_putcw(cps[i]);
+        console_cn_puts((const char *)composed);
     }
     screen_console_putc('\n');
     int n = comp_len;
@@ -341,21 +304,29 @@ int ime_console_compose(u8 *out, int cap) {
 }
 
 int disp_cmd_ime(const char *args) {
+    /* 3.0.0-WP06g2: the status text renders through the L0 i18n
+     * resource (etc/i18n/l0), and the usage block documents the
+     * session engine: phrases, paging, the editors' F2 entry. */
     (void)args;
     char num[12], buf[160];
-    screen_console_puts("pinyin IME status:\n");
-    screen_console_puts("  syllables : ");
+    screen_console_puts(l0_tr_("ime_status_title"));
+    screen_console_puts(l0_tr_("ime_status_syllables"));
     u64_to_str(tui_chinese_ime_syllables(), num);
     screen_console_puts(num);
     screen_console_putc('\n');
-    screen_console_puts("  level-1   : ");
+    screen_console_puts(l0_tr_("ime_status_level1"));
     u64_to_str(tui_chinese_ime_chars(), num);
     screen_console_puts(num);
-    screen_console_puts(" chars (GB2312 zones 16-55)\n");
-    screen_console_puts("  usage     : run \"ime -i\" for the interactive line; then type pinyin\n");
-    screen_console_puts("              letters; digits 1-9 pick that candidate; space = first;\n");
-    screen_console_puts("              Backspace drops a letter; digits/symbols land verbatim\n");
-    screen_console_puts("              while no pinyin is pending; Enter ends; Esc / Ctrl+C leave\n");
+    screen_console_puts(l0_tr_("ime_status_level1_tail"));
+    screen_console_putc('\n');
+    screen_console_puts(l0_tr_("ime_status_phrases"));
+    u64_to_str((u64)PINYIN_PHRASE_COUNT, num);
+    screen_console_puts(num);
+    screen_console_putc('\n');
+    screen_console_puts(l0_tr_("ime_usage_1"));
+    screen_console_puts(l0_tr_("ime_usage_2"));
+    screen_console_puts(l0_tr_("ime_usage_3"));
+    screen_console_puts(l0_tr_("ime_usage_4"));
     encoding_status(buf, sizeof(buf));
     screen_console_puts("  ");
     screen_console_puts(buf);
@@ -373,22 +344,125 @@ int disp_cmd_ime(const char *args) {
     return 0;
 }
 
+/* 3.0.0-WP06g2: the SYSTEM IME session battery.  The single-char
+ * checks ride the v2.2.0 engine contract (ni/hao/qqq); the session
+ * checks drive ime_session_key through the exact key sequence an
+ * editor sends and assert the action protocol + committed text:
+ * phrase-first (zhongguo -> 中国), smart compose (xiezi -> 写字,
+ * NOT in the phrase list), paging (yi has 18 candidates), digit
+ * pick, space pick, Enter raw-letters, Backspace letter-drop, Esc
+ * clear. */
 int disp_cmd_ime_test(const char *args) {
     (void)args;
     u32 cands[9];
     int fails = 0;
     int n = tui_chinese_ime_test("ni", cands, 9);
-    if (n <= 0 || cands[0] != 0x4F60) fails++;       /* ni -> ni */
+    if (n <= 0 || cands[0] != 0x4F60)
+        { fails++; screen_console_puts("  [E1 ni]\n"); }
     n = tui_chinese_ime_test("hao", cands, 9);
     int has_hao = 0;
     for (int i = 0; i < n && i < 9; i++)
         if (cands[i] == 0x597D) has_hao = 1;         /* hao -> hao */
-    if (n <= 0 || !has_hao) fails++;
-    if (tui_chinese_ime_test("qqq", cands, 9) != 0) fails++;
+    if (n <= 0 || !has_hao) { fails++; screen_console_puts("  [E2 hao]\n"); }
+    if (tui_chinese_ime_test("qqq", cands, 9) != 0)
+        { fails++; screen_console_puts("  [E3 qqq]\n"); }
+
+    /* ---- session battery ---- */
+    char proto[256];
+    const char *text;
+    int act;
+
+    ime_session_reset();
+
+    /* S1: phrase-first - "zhongguo" composes and SPACE commits 中国 */
+    for (const char *k = "zhongguo"; *k; k++) {
+        act = ime_session_key(*k, proto, sizeof(proto));
+        if (act != 1) { fails++; screen_console_puts("  [S1a keys]\n"); break; }
+    }
+    if (act == 1) {
+        char line[160];
+        (void)ime_session_compose_line(line, sizeof(line));
+        if (cn_strstr(line, "zhongguo") == 0)
+            { fails++; screen_console_puts("  [S1b strip]\n"); }
+    }
+    act = ime_session_key(' ', proto, sizeof(proto));
+    text = proto + 2;
+    if (act != 2 || strcmp(text, "\xe4\xb8\xad\xe5\x9b\xbd") != 0)
+        { fails++; screen_console_puts("  [S1c zhongguo commit]\n"); }
+
+    /* S2: smart compose - "xiezi" (NOT in the phrase list) composes
+     * 写字 (xie's + zi's first candidates) and SPACE commits it */
+    for (const char *k = "xiezi"; *k; k++)
+        (void)ime_session_key(*k, proto, sizeof(proto));
+    act = ime_session_key(' ', proto, sizeof(proto));
+    text = proto + 2;
+    if (act != 2 || strlen(text) != 6)
+        { fails++; screen_console_puts("  [S2 xiezi compose]\n"); }
+    /* S3: paging - "yi" has many candidates; PageDown flips to 2/2
+     * and the strip shows the page marker */
+    (void)ime_session_key('y', proto, sizeof(proto));
+    (void)ime_session_key('i', proto, sizeof(proto));
+    act = ime_session_key(OC_KEY_PGDN, proto, sizeof(proto));
+    {
+        char line[160];
+        int ln = ime_session_compose_line(line, sizeof(line));
+        int has_page2 = 0;
+        for (int i = 0; i + 4 < ln; i++)
+            if (line[i] == '(' && line[i+1] == '2' && line[i+2] == '/')
+                has_page2 = 1;
+        if (act != 1 || !has_page2)
+            { fails++; screen_console_puts("  [S3 paging]\n"); }
+    }
+
+    /* S4: digit pick - restart "ni", digit 1 commits 你 */
+    ime_session_reset();
+    (void)ime_session_key('n', proto, sizeof(proto));
+    (void)ime_session_key('i', proto, sizeof(proto));
+    act = ime_session_key('1', proto, sizeof(proto));
+    text = proto + 2;
+    if (act != 2 || strcmp(text, "\xe4\xbd\xa0") != 0)
+        { fails++; screen_console_puts("  [S4 digit pick]\n"); }
+
+    /* S5: Enter commits the RAW letters */
+    ime_session_reset();
+    (void)ime_session_key('a', proto, sizeof(proto));
+    (void)ime_session_key('b', proto, sizeof(proto));
+    act = ime_session_key('\r', proto, sizeof(proto));
+    text = proto + 2;
+    if (act != 2 || strcmp(text, "ab") != 0)
+        { fails++; screen_console_puts("  [S5 enter raw]\n"); }
+
+    /* S6: Backspace drops a letter; Esc clears the compose */
+    ime_session_reset();
+    (void)ime_session_key('n', proto, sizeof(proto));
+    (void)ime_session_key('i', proto, sizeof(proto));
+    (void)ime_session_key('m', proto, sizeof(proto));
+    (void)ime_session_key('a', proto, sizeof(proto));
+    act = ime_session_key(OC_KEY_BACKSPACE, proto, sizeof(proto));
+    if (act != 1 || ime_session_py_len() != 3)
+        { fails++; screen_console_puts("  [S6a backspace]\n"); }
+    act = ime_session_key(OC_KEY_ESC_KEY, proto, sizeof(proto));
+    if (act != 1 || ime_session_active())
+        { fails++; screen_console_puts("  [S6b esc]\n"); }
+
+    /* S7: passthrough - a digit with NO compose is action 0 */
+    ime_session_reset();
+    act = ime_session_key('5', proto, sizeof(proto));
+    if (act != 0) { fails++; screen_console_puts("  [S7 passthrough]\n"); }
+
+    ime_session_reset();
+
     if (fails == 0) {
-        screen_console_puts("ime-test: PASS (ni/hao resolve, qqq empty)\n");
+        screen_console_puts(l0_tr_("ime_test_pass"));
         return 0;
     }
-    screen_console_puts("ime-test: FAIL\n");
+    {
+        char num[12];
+        screen_console_puts(l0_tr_("ime_test_fail"));
+        u64_to_str((u64)fails, num);
+        screen_console_puts(" (");
+        screen_console_puts(num);
+        screen_console_puts(" subtest(s))\n");
+    }
     return 1;
 }

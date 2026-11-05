@@ -29,7 +29,22 @@
   "wp_ota": "OTA 升级服务（A/B 分区）",
   "wp_crypto": "加密服务（TLS 原语）",
   "wp_ush": "shell 服务命令（原 ush SVC 行）",
-  "wp_l1": "L1 服务：注册表、作业、IPC、ring-3 测试"
-  ,
-  "wp_other": "其他（未注册标签）"
+  "wp_l1": "L1 服务：注册表、作业、IPC、ring-3 测试",
+  "wp_other": "其他（未注册标签）",
+  "ime_status_title": "拼音输入法状态：\n",
+  "ime_status_syllables": "  音节数     ：",
+  "ime_status_level1": "  一级字库  ：",
+  "ime_status_level1_tail": " 字（GB2312 16-55 区）",
+  "ime_status_phrases": "  词组库    ：",
+  "ime_usage_1": "  用法       ：\"ime -i\" 打开交互组合行（与 nano/vi 编辑器内 F2 是\n",
+  "ime_usage_2": "               同一个系统输入法引擎）；输入拼音；数字 1-9 选词；\n",
+  "ime_usage_3": "               空格选第一个；PageUp/PageDown（或 - / =）翻页；\n",
+  "ime_usage_4": "               退格删一个字母；回车上屏原始字母；Esc 取消；\n",
+  "ime_usage_5": "               长词优先，支持词组与智能组词\n",
+  "ime_cancelled": "ime：已取消，丢弃 ",
+  "ime_chars_discarded": " 个字符\n",
+  "ime_composed": "ime：已组合 ",
+  "ime_characters": " 个字符",
+  "ime_test_pass": "ime-test：通过（引擎 ni/hao/qqq + 会话：词组、组词、翻页、数字选词、空格、回车、退格、Esc、透传）\n",
+  "ime_test_fail": "ime-test：失败\n"
 }
