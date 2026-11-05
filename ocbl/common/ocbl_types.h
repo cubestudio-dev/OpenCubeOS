@@ -38,9 +38,11 @@ typedef u32 ocbl_phys_t;   /* usable below-4G addressing for handoff data */
  *   0x00600          int13h DAP scratch (stage1)
  *   0x40000-0x4FFFF  16<->64 real-mode trampoline + BIOS reg block
  *   0x50000-0x57FFF  multiboot2 info build buffer (64 KiB)
- *   0x60000-0x9EFFF  scan scratch (E820 copy, path buffers, ISO/FAT meta)
+ *   0x60000-0x827FF  scan scratch (E820 copy, path buffers, ISO/FAT
+ *                     meta + the FAT cache, bounded at 0x82800)
+ *   0x82800-0x8DFFF  core stack region (top 0x8E000, grows down -
+ *                     the WP06f VMware fix: below every observed EBDA)
  *   0x8F000-0x94FFF  OCBL identity page tables
- *   0x9F000          core stack top (grows down)
  * The kernel payloads land at their own link bases: OCOS 0x100000+
  * the mb2 "self" module copy 0x800000+, OCIRE 0x1000000+.
  */
@@ -48,7 +50,12 @@ typedef u32 ocbl_phys_t;   /* usable below-4G addressing for handoff data */
 #define OCBL_LO_FLAVOR      0x521
 #define OCBL_MBI_BASE       0x50000
 #define OCBL_SCRATCH_BASE   0x60000
-#define OCBL_STACK_TOP      0x9F000
+/* WP06f VMware fix (kept in sync with core_head.S's `mov rsp`): the
+ * stack tops at 0x8E000, below every observed EBDA (VMware's starts
+ * at 0x9E000 and lower; SeaBIOS's at 0x9FC00) and above the FAT cache
+ * top (0x82800), still 46 KiB deep.  ocbl_statemon additionally reads
+ * the BDA 0x40E EBDA boundary and disables the state area on overlap. */
+#define OCBL_STACK_TOP      0x8E000
 
 /* A "boot entry" the scanner produces; the menu shows one line each. */
 #define OCBL_MAX_ENTRIES    64
