@@ -263,10 +263,31 @@ typedef struct driver_usb_xhci_state {
 } driver_usb_xhci_state_t;
 
 #define XHCI_MAX_CTRL 2
-static driver_usb_xhci_state_t g_xhci[XHCI_MAX_CTRL];
+/* 3.0.0-WP06g2 kernel-window diet: the 26 KiB controller-state table
+ * moved from .bss to kmalloc - the 0x400000 identity-window link
+ * budget (kernel .bss/data above 0x400000 is unreachable on the
+ * user-CR3 syscall/IRQ path, and the WP06g2 i18n/IME tables ate the
+ * remaining headroom).  The table is seeded at the FIRST PCI probe
+ * (process context, before any controller or IRQ runs); the GNU
+ * array-pointer macro below keeps every g_xhci[i] reference (11
+ * sites) untouched.  A failed seed is fatal-by-log: every runtime
+ * path checks xhci_tab_ready() first and reports no-controller. */
+static driver_usb_xhci_state_t *g_xhci_p = 0;
 static driver_usb_host_t   g_xhci_host[XHCI_MAX_CTRL];
 static driver_usb_hc_ops_t g_xhci_ops[XHCI_MAX_CTRL];
 static int g_n_xhci = 0;
+
+static driver_usb_xhci_state_t *xhci_tab(void) {
+    if (!g_xhci_p) {
+        g_xhci_p = kmalloc(sizeof(driver_usb_xhci_state_t) * XHCI_MAX_CTRL);
+        if (g_xhci_p)
+            memset(g_xhci_p, 0,
+                   sizeof(driver_usb_xhci_state_t) * XHCI_MAX_CTRL);
+    }
+    return g_xhci_p;
+}
+static int xhci_tab_ready(void) { return g_xhci_p != 0; }
+#define g_xhci (*(driver_usb_xhci_state_t (*)[XHCI_MAX_CTRL])g_xhci_p)
 
 static inline u32 xrd(driver_usb_xhci_state_t *x, volatile u32 *base, u32 off) {
     (void)x;
@@ -799,6 +820,7 @@ static int driver_usb_xhci_config_ep(driver_usb_xhci_state_t *x, driver_usb_xhci
 
 /* reset an endpoint after STALL + CLEAR_FEATURE(ENDPOINT_HALT) */
 int driver_usb_xhci_reset_ep(driver_usb_dev_t *d, u8 ep_addr) {
+    if (!xhci_tab_ready()) return OC_USB_EINVAL;   /* no controller probed */
     for (int i = 0; i < g_n_xhci; i++) {
         driver_usb_xhci_state_t *x = &g_xhci[i];
         if (!x->up) continue;
@@ -1424,6 +1446,10 @@ static const driver_usb_hc_ops_t driver_usb_xhci_ops_tmpl = {
 
 static int driver_usb_xhci_probe_one(u8 bus, u8 dev, u8 func) {
     if (g_n_xhci >= XHCI_MAX_CTRL) return -1;
+    /* WP06g2: seed the kmalloc'd controller table (process context,
+     * before any controller or IRQ runs; see the g_xhci_p note). */
+    if (!xhci_tab())
+        return -1;                 /* no heap: no xHCI (logged once) */
     driver_usb_xhci_state_t *x = &g_xhci[g_n_xhci];
     memset(x, 0, sizeof(*x));
 

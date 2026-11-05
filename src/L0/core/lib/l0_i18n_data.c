@@ -11,6 +11,22 @@ const struct l0_i18n_kv L0_I18N_EN[] = {
     { "disp_lang_persist_ram", " (in-memory only; ramfs config, lost on reboot)" },
     { "disp_lang_set", "Console output language set to " },
     { "disp_lang_usage", "Usage: lang [en|zh] (no argument shows the current language)" },
+    { "ime_cancelled", "ime: cancelled, " },
+    { "ime_characters", " character(s)" },
+    { "ime_chars_discarded", " character(s) discarded\n" },
+    { "ime_composed", "ime: composed " },
+    { "ime_status_level1", "  level-1   : " },
+    { "ime_status_level1_tail", " chars (GB2312 zones 16-55)" },
+    { "ime_status_phrases", "  phrases   : " },
+    { "ime_status_syllables", "  syllables : " },
+    { "ime_status_title", "pinyin IME status:\n" },
+    { "ime_test_fail", "ime-test: FAIL\n" },
+    { "ime_test_pass", "ime-test: PASS (engine ni/hao/qqq + session: phrase, compose, page, digit, space, enter, backspace, esc, passthrough)\n" },
+    { "ime_usage_1", "  usage     : \"ime -i\" opens the interactive compose line (the SAME\n" },
+    { "ime_usage_2", "              engine the nano/vi editors use - F2 inside an editor);\n" },
+    { "ime_usage_3", "              type pinyin; digits 1-9 pick; space = first; PageUp/PageDown\n" },
+    { "ime_usage_4", "              (or - / =) page; Backspace drops a letter; Enter commits the\n" },
+    { "ime_usage_5", "              raw letters; Esc cancels; long words come first\n" },
     { "l1_registry_footer", "-- " },
     { "l1_registry_footer_tail", " programs registered --" },
     { "l1_registry_groups_mid", " programs in " },
@@ -39,13 +55,29 @@ const struct l0_i18n_kv L0_I18N_EN[] = {
     { "wp_ush", "shell service commands (former ush SVC rows)" },
     { "wp_watchdog", "watchdog service" }
 };
-const int L0_I18N_EN_N = 32;
+const int L0_I18N_EN_N = 48;
 const struct l0_i18n_kv L0_I18N_ZH[] = {
     { "disp_lang_cur", "控制台输出语言：" },
     { "disp_lang_persist_ok", "（已持久化）" },
     { "disp_lang_persist_ram", "（仅内存生效；ramfs 配置，重启后失效）" },
     { "disp_lang_set", "控制台输出语言已设为 " },
     { "disp_lang_usage", "用法：lang [en|zh]（不带参数显示当前语言）" },
+    { "ime_cancelled", "ime：已取消，丢弃 " },
+    { "ime_characters", " 个字符" },
+    { "ime_chars_discarded", " 个字符\n" },
+    { "ime_composed", "ime：已组合 " },
+    { "ime_status_level1", "  一级字库  ：" },
+    { "ime_status_level1_tail", " 字（GB2312 16-55 区）" },
+    { "ime_status_phrases", "  词组库    ：" },
+    { "ime_status_syllables", "  音节数     ：" },
+    { "ime_status_title", "拼音输入法状态：\n" },
+    { "ime_test_fail", "ime-test：失败\n" },
+    { "ime_test_pass", "ime-test：通过（引擎 ni/hao/qqq + 会话：词组、组词、翻页、数字选词、空格、回车、退格、Esc、透传）\n" },
+    { "ime_usage_1", "  用法       ：\"ime -i\" 打开交互组合行（与 nano/vi 编辑器内 F2 是\n" },
+    { "ime_usage_2", "               同一个系统输入法引擎）；输入拼音；数字 1-9 选词；\n" },
+    { "ime_usage_3", "               空格选第一个；PageUp/PageDown（或 - / =）翻页；\n" },
+    { "ime_usage_4", "               退格删一个字母；回车上屏原始字母；Esc 取消；\n" },
+    { "ime_usage_5", "               长词优先，支持词组与智能组词\n" },
     { "l1_registry_footer", "-- 共 " },
     { "l1_registry_footer_tail", " 个已注册程序 --" },
     { "l1_registry_groups_mid", " 个程序，分 " },
@@ -74,4 +106,4 @@ const struct l0_i18n_kv L0_I18N_ZH[] = {
     { "wp_ush", "shell 服务命令（原 ush SVC 行）" },
     { "wp_watchdog", "看门狗服务" }
 };
-const int L0_I18N_ZH_N = 32;
+const int L0_I18N_ZH_N = 48;

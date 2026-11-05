@@ -12,6 +12,8 @@
 #include "l1svc_defs.h"
 #include "disp_cmds.h"
 #include "disp_lang.h"
+#include "ime_session.h"
+#include "lib_string.h"
 #include "core_kcap.h"
 
 typedef int (*disp_cmd_fn_t)(const char *);
@@ -56,6 +58,39 @@ static int disp_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
             while (name[i] && i < cap - 1) { out[i] = name[i]; i++; }
             out[i] = 0;
             return 0;
+        }
+        /* 3.0.0-WP06g2: the SYSTEM IME session - the editors' engine.
+         * BEGIN/END reset the session; KEY feeds one key code (the
+         * arg line is the decimal key code) and returns the action
+         * protocol line (see ime_session.h: "0" passthrough / "1"
+         * strip update / "2" commit / "3" commit + passthrough).
+         * Routed DIRECTLY, not through the text capture: nothing
+         * here prints (the editor renders the strip itself). */
+        case L1SVC_DISP_IME_BEGIN:
+            ime_session_reset();
+            out[0] = 0;
+            return 0;
+        case L1SVC_DISP_IME_END:
+            ime_session_reset();
+            out[0] = 0;
+            return 0;
+        case L1SVC_DISP_IME_KEY: {
+            /* arg = decimal key code (may be NULL for a no-op probe) */
+            int key = 0;
+            if (arg && arg[0]) {
+                int neg = 0;
+                const char *p = arg;
+                if (*p == '-') { neg = 1; p++; }
+                while (*p >= '0' && *p <= '9')
+                    key = key * 10 + (*p++ - '0');
+                if (neg) key = -key;
+            }
+            char proto[256];
+            int act = ime_session_key(key, proto, (int)sizeof(proto));
+            int i = 0;
+            while (proto[i] && i < cap - 1) { out[i] = proto[i]; i++; }
+            out[i] = 0;
+            return act >= 0 ? 0 : -1;
         }
         default: return -1;
     }
