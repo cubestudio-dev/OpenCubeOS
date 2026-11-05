@@ -22,7 +22,7 @@ window.SITE_DATA = {
       name: "opencube-2.2.0-src.zip",
       size: 4716252,
       size_h: "4.5 MiB",
-      sha256: "a2041daaf3b1f5ff72cbbf161f3e90718da2adf16605cbb9ae29b8c24f2ed01b",
+      sha256: "a2041daaf3b1f5ff72cbbf1613f3e90718da2adf16605cbb9ae29b8c24f2ed01b",
       url: "downloads/opencube-2.2.0-src.zip"
     },
     ota: {
@@ -33,37 +33,36 @@ window.SITE_DATA = {
       url: "downloads/opencube-2.2.0-update.tar.gz"
     }
   },
-  /* WP06e: the 3.0.0 development-preview channel.  WP06g1 carries the
-     milestone forward (3.0.0-WP06g1, build 387).  Assets verified
-     against the GitHub Release v3.0.0-WP06g1 (three-way: local tree ==
-     Release digests). */
+  /* WP06e: the 3.0.0 development-preview channel.  WP06g2 carries the
+     milestone forward (L1 localization + system IME, build 403).
+     Assets verified against the GitHub Release v3.0.0-WP06g2
+     (three-way: local tree == Release digests). */
   dev: {
-    version: "3.0.0-WP06g1",
-    build: 393,
-    date: "2026-11-04",
+    version: "3.0.0-WP06g2",
+    build: 403,
+    date: "2026-11-05",
     assets: {
       opencube: {
-        name: "opencube-3.0.0-WP06g1.iso",
-        size: 3667968,
-        size_h: "3.5 MiB",
-        sha256: "c2c13e4906b5d12e5a9816e734c51b744257341127796c823a645607bc6a9e24",
-        url: "downloads/opencube-3.0.0-WP06g1.iso"
+        name: "opencube-3.0.0-WP06g2.iso",
+        size: 3833856,
+        size_h: "3.7 MiB",
+        sha256: "53e22e538e6de9c9e4aa29216791e3f568b2a82e88422876b0f2f6517160f84d",
+        url: "downloads/opencube-3.0.0-WP06g2.iso"
       },
       ocse: {
-        name: "ocse-3.0.0-WP06g1.iso",
-        size: 4491264,
-        size_h: "4.3 MiB",
-        sha256: "b751fe26ba3d0273ac585530fc8e9a6e29dcaced76da2a546428a73a5fb5ddc4",
-        url: "downloads/ocse-3.0.0-WP06g1.iso"
+        name: "ocse-3.0.0-WP06g2.iso",
+        size: 4655104,
+        size_h: "4.4 MiB",
+        sha256: "074ffa85b9e45b7b7a35bdf2f60b29724bd0f8c8afdc48d8760276891fa09e9b",
+        url: "downloads/ocse-3.0.0-WP06g2.iso"
       }
     }
-  }
   },
   stats: {
     commands: 285,
     interfaces: 190,
     syscalls: 54,
-    lines: "128,890"
+    lines: "131,230"
   },
   history: [
     { version: "3.0.0-WP06f", date: "2026-11-04",
