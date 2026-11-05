@@ -150,25 +150,20 @@ child.logfile_read.flush()
 raw3 = open(f"{OUT}/pty-all.log", "rb").read()
 k3 = raw3.rfind(b"nano /tmp/t1.txt")
 seg3 = raw3[k3:] if k3 >= 0 else b""
-# One redraw = "\r<no.> <full line> \r<no.> <cursor prefix>".
-# End state: the cursor prefix is the FULL line (中国好).
-full_prefix = b"\r1  : \xe4\xb8\xad\xe5\x9b\xbd\xe5\xa5\xbd"
-# after one glyph-Left: a redraw whose prefix is 中国 and the NEXT
-# bytes are NOT 好 (the prefix genuinely stops before the last glyph)
-hao = b"\xe5\xa5\xbd"
-half_marker = b" \r1  : \xe4\xb8\xad\xe5\x9b\xbd"
-n3a = seg3.count(full_prefix) >= 1
-n3b = False
-pos = seg3.find(half_marker)
-while pos >= 0:
-    after = seg3[pos + len(half_marker):pos + len(half_marker) + 3]
-    if after != hao:
-        n3b = True          # prefix ends in 中国 with no 好 after it
-        break
-    pos = seg3.find(half_marker, pos + 1)
-check("N3a nano End redraws the full line as the cursor prefix", n3a,
+# WP06g3-4.7 rewrite: the renderer is now ADDRESSED (ESC[r;cH + ESC[K),
+# not the typewriter stream - the assertion moved from the old byte
+# layout ("\r<full line> \r<cursor prefix>") to the functional level:
+# after End the addressed row repaint carries the full line AND the
+# cursor is placed past the last glyph (col 12 = 5 gutter + 2+2+2 cols
+# + 1); after one glyph-Left the cursor col drops by exactly one glyph
+# (12 -> 10 for a 2-cell hanzi).
+full_line = b"1  : \xe4\xb8\xad\xe5\x9b\xbd\xe5\xa5\xbd"
+n3a = (seg3.count(full_line) >= 2 and
+       b"\x1b[2;12H" in seg3)
+n3b = b"\x1b[2;10H" in seg3
+check("N3a nano End repaints the row and parks the cursor past the last glyph", n3a,
       repr(seg3[-160:]))
-check("N3b nano one glyph-Left drops exactly the last glyph", n3b,
+check("N3b nano one glyph-Left moves the cursor back one full glyph cell", n3b,
       repr(seg3[-160:]))
 child.send("\x18")                # clean exit (file untouched)
 time.sleep(0.6)
