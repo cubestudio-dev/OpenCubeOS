@@ -213,24 +213,15 @@ static void inst_recovery_partition(const char* disk, const char* sys_mount,
     memcpy(src, sys_mount, (usize)sl);
     strcpy(src + sl, "/boot/ocire.elf");
     fs_vfs_stat_t st;
-    if (fs_vfs_stat(src, &st) != 0 || st.size == 0 ||
-        st.size > (u64)work_sz) {
+    if (fs_vfs_stat(src, &st) != 0 || st.size == 0) {
         inst_recovery_skip("recovery kernel unreadable");
         return;
     }
+    /* WP06g3 follow-up: the zh-capable ocire.elf grew past any fixed
+     * buffer (62384 -> 363536 B), so the copy is STREAMED through the
+     * work buffer in 4 KiB windows instead of a whole-file read. */
     int fd = fs_vfs_open(src, VFS_O_RDONLY);
     if (fd < 0) { inst_recovery_skip("recovery kernel open failed"); return; }
-    int got = 0;
-    while (got < (int)st.size) {
-        int r = fs_vfs_read(fd, work + got, (int)st.size - got);
-        if (r <= 0) break;
-        got += r;
-    }
-    fs_vfs_close(fd);
-    if (got != (int)st.size) {
-        inst_recovery_skip("recovery kernel short read");
-        return;
-    }
 
     /* carve, format, mount, write */
     ocse_outln("install: creating the dedicated OCIRE recovery partition ...");
@@ -249,7 +240,7 @@ static void inst_recovery_partition(const char* disk, const char* sys_mount,
             }
         }
     }
-    if (rec_no < 0) { inst_recovery_skip("created partition not found"); return; }
+    if (rec_no < 0) { fs_vfs_close(fd); inst_recovery_skip("created partition not found"); return; }
     char recdev[40];
     int dl = (int)strlen(disk);
     if (dl + 8 >= (int)sizeof(recdev)) { inst_recovery_skip("name too long"); return; }
@@ -259,12 +250,14 @@ static void inst_recovery_partition(const char* disk, const char* sys_mount,
     u64_to_str((u64)rec_no, nb);
     strcpy(recdev + dl + 1, nb);
     int ridx = driver_block_find_device(recdev);
-    if (ridx < 0) { inst_recovery_skip("partition device missing"); return; }
+    if (ridx < 0) { fs_vfs_close(fd); inst_recovery_skip("partition device missing"); return; }
     if (ocse_mkfs_fat32(ridx) != 0) {
+        fs_vfs_close(fd);
         inst_recovery_skip("mkfs.fat32 failed");
         return;
     }
     if (fs_vfs_mount("fat32", "/rec", recdev) != 0) {
+        fs_vfs_close(fd);
         inst_recovery_skip("mount failed");
         return;
     }
@@ -272,22 +265,40 @@ static void inst_recovery_partition(const char* disk, const char* sys_mount,
     int wfd = fs_vfs_open("/rec/boot/ocire.elf",
                           VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
     if (wfd < 0) {
+        fs_vfs_close(fd);
         fs_vfs_umount("/rec");
         inst_recovery_skip("cannot create /boot/ocire.elf on it");
         return;
     }
-    int w = fs_vfs_write(wfd, work, got);
+    int got = 0, wsum = 0, rerr = 0;
+    for (;;) {
+        int win = work_sz < 4096 ? work_sz : 4096;
+        int r = fs_vfs_read(fd, work, win);
+        if (r < 0) { rerr = 1; break; }
+        if (r == 0) break;
+        int off = 0;
+        while (off < r) {
+            int w = fs_vfs_write(wfd, work + off, r - off);
+            if (w <= 0) { rerr = 2; break; }
+            off += w;
+            wsum += w;
+        }
+        if (rerr) break;
+        got += r;
+    }
+    fs_vfs_close(fd);
     fs_vfs_close(wfd);
     fs_vfs_umount("/rec");
-    if (w != got) {
-        inst_recovery_skip("short write");
+    if (rerr || wsum != (int)st.size) {
+        inst_recovery_skip(rerr == 1 ? "recovery kernel short read"
+                            : "short write");
         return;
     }
     ocse_out("install: recovery partition #");
     ocse_out(recdev);
     ocse_out(" ready (boot/ocire.elf, ");
     char n[24];
-    u64_to_str((u64)got, n); ocse_out(n);
+    u64_to_str((u64)wsum, n); ocse_out(n);
     ocse_outln(" B)");
 }
 

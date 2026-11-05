@@ -69,8 +69,8 @@ boot_banner() {
     timeout 90 "$QEMU" -m 512 -cdrom build/opencube.iso \
         -L "$DATADIR" -display none -serial file:/tmp/rel_boot.log "$@" \
         >/dev/null 2>&1 || true
-    grep -aq "ready. Type 'help' for commands" /tmp/rel_boot.log \
-        && grep -aq "shell command system (233 commands)" /tmp/rel_boot.log
+    grep -aq "Type 'help' for built-in commands" /tmp/rel_boot.log \
+        && grep -aq "Open Cube OS User-space Shell" /tmp/rel_boot.log
 }
 boot_banner "bios" && echo "    BIOS boot gate: PASS" \
     || { echo "    BIOS boot gate: FAIL" >&2; exit 1; }
