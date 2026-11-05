@@ -6,31 +6,31 @@
    (opencube + ocse ISOs of the current milestone) - maintained per
    milestone, preserved by the release script. */
 window.SITE_DATA = {
-  version: "2.2.0",
-  build: 316,
-  date: "2026-10-26",
-  changes: "the fix release closing both 2.1.0 open items with real kernel root-cause fixes: the wp10_tui kthread-stack #DF (10-page stacks over the measured worst call chain) and the wait4-vs-fork stale-zombie race (orphan-detach bookkeeping, 20/20 fresh boots clean)",
+  version: "3.0.0-WP06g2",
+  build: 400,
+  date: "2026-11-05",
+  changes: "L1 localization + system IME",
   assets: {
     iso: {
-      name: "opencube-2.2.0.iso",
-      size: 12392448,
-      size_h: "11.8 MiB",
-      sha256: "20f93fee8c791af7ac9ec1b6b53a525bef2ac2d5697b829721b28bbe0fd950f9",
-      url: "downloads/opencube-2.2.0.iso"
+      name: "opencube-3.0.0-WP06g2.iso",
+      size: 3833856,
+      size_h: "3.7 MiB",
+      sha256: "310a2da3b2c31f6cbc624b98070ad26a4254e9afab3f89e11a6ffe0e1c196916",
+      url: "downloads/opencube-3.0.0-WP06g2.iso"
     },
     src: {
-      name: "opencube-2.2.0-src.zip",
-      size: 4716252,
-      size_h: "4.5 MiB",
-      sha256: "a2041daaf3b1f5ff72cbbf161f3e90718da2adf16605cbb9ae29b8c24f2ed01b",
-      url: "downloads/opencube-2.2.0-src.zip"
+      name: "opencube-3.0.0-WP06g2-src.zip",
+      size: 5752866,
+      size_h: "5.5 MiB",
+      sha256: "138f1b4b09ddc5074e59f59e8100ff5765cbd0eb83aff0a08e6ab08e3a4a639c",
+      url: "downloads/opencube-3.0.0-WP06g2-src.zip"
     },
     ota: {
-      name: "opencube-2.2.0-update.tar.gz",
-      size: 1080741,
-      size_h: "1.0 MiB",
-      sha256: "ac9a6ec2c3dd679977ad1c716dbacb26ae84119ddc75751fb30712effa6ad19e",
-      url: "downloads/opencube-2.2.0-update.tar.gz"
+      name: "opencube-3.0.0-WP06g2-update.tar.gz",
+      size: 1401212,
+      size_h: "1.3 MiB",
+      sha256: "71c090462f2ef7523dc5356176ed97a1c5202ae42d63f97764cda3d6bebbe66d",
+      url: "downloads/opencube-3.0.0-WP06g2-update.tar.gz"
     }
   },
   /* WP06e: the 3.0.0 development-preview channel.  WP06g1 carries the
@@ -63,9 +63,12 @@ window.SITE_DATA = {
     commands: 285,
     interfaces: 190,
     syscalls: 54,
-    lines: "128,890"
+    lines: "131,230"
   },
   history: [
+    { version: "2.2.0", date: "2026-10-26",
+      iso_sha: "20f93fee8c791af7ac9ec1b6b53a525bef2ac2d5697b829721b28bbe0fd950f9",
+      iso_size: 12392448 },
     { version: "3.0.0-WP06f", date: "2026-11-04",
       iso_url: "downloads/opencube-3.0.0-WP06f.iso",
       iso_sha: "9d72a07354ab11b47b867d4310ffe20cfbf804e3816cee5515361824ff413dff",

@@ -59,3 +59,29 @@ post-WP-03 limitations (by design, not defects):
   no oc.* facts: a direct boot is unsupervised by definition (no
   signal, no protection) - the supervisor entry is the only
   supervised path.
+
+## 3.0.0-WP06g2 notes
+
+The WP06g1 close-out's "make all does not rebuild userprogs" gap
+(the 06g1 catch-2) is CLOSED by WP06g2: `src/L0/core/userprogs_data.h`
+is a real make target now (any L1 source, i18n resource, or generator
+script newer than the header regenerates it; `make all` and `make iso`
+both carry the prerequisite; the emit is idempotent - byte-compare
+before write, mtime kept when unchanged).  Live-verified both ways: a
+marked app rides `make all` into the ISO byte-identical with the fresh
+build, and reverting the mark regenerates the original header.
+
+Declared WP06g2 boundaries (honest limits, not defects):
+
+- The L0 diagnostic/test-class service bodies (the *_test and wp-style
+  programs' captured outputs) keep their English technical text; the
+  user-facing sentence class (usage/errors/descriptions of the file
+  tools, the registry hints, the editors, the IME, the shell) is
+  bilingual through the i18n resources.  Column headers and state
+  words deliberately stay English (the zh_CN locale convention - CJK
+  width would break the alignment).
+- The OCSE install-wizard GUI text was already bilingual in WP-06c
+  (its own dictionary); the TUI desktop pages remain English this
+  batch.
+- The IME phrase library is 622 hand-authored high-frequency words;
+  single characters cover all 3755 level-1 hanzi as before.

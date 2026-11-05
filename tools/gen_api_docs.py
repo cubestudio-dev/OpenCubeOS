@@ -83,7 +83,7 @@ STAT_DIRS = [
 # README verification command applies (font/pinyin/boot-image data files
 # are machine-generated, not hand-written source).
 STAT_EXCLUDE = re.compile(
-    r"(chinese_font_data|pinyin_data|grub_boot_data|userprogs_data)")
+    r"(chinese_font_data|pinyin_data|pinyin_phrase_data|l0_i18n_data|grub_boot_data|userprogs_data)")
 
 DECL_START = re.compile(
     r"^[A-Za-z_][A-Za-z0-9_ \t\*]*\**\s+\**([a-z0-9_]+)\s*\(")

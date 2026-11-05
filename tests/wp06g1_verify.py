@@ -23,7 +23,7 @@ import sys
 import time
 import pexpect
 
-BUILD = "/home/z/my-project/oc-os/build"
+BUILD = "/home/z/oc-os/build"
 OUT = f"{BUILD}/wp06g1-verify"
 MON = f"{OUT}/mon.sock"
 os.makedirs(OUT, exist_ok=True)
@@ -171,7 +171,7 @@ print("[V3] cat /tmp/cn.txt echoed bytes:", repr(out.strip()[-60:]))
 # ---- V4: backspace over a pasted CJK glyph ---------------------------
 # type 'echo ' + one hanzi, then backspace: the whole 2-cell glyph must
 # disappear (two "\b \b" sequences in the raw pty stream)
-before = child.logfile_read.tell()
+before = os.path.getsize(f"{OUT}/pty-all.log")
 child.send(b"echo " + "中".encode("utf-8"))
 time.sleep(1.5)
 child.send(b"\x7f")            # Backspace over the hanzi
@@ -179,16 +179,19 @@ time.sleep(1.5)
 child.send(b"\r")
 time.sleep(2)
 child.expect([b"ush>", pexpect.TIMEOUT], timeout=6)
-child.logfile_read.seek(before)
-raw = child.logfile_read.read()
+child.logfile_read.flush()
+with open(f"{OUT}/pty-all.log", "rb") as _lf:
+    _lf.seek(before)
+    raw = _lf.read()
 # count "\b \b" pairs between the hanzi paste and the Enter
 seg = raw.split("中".encode("utf-8"))[-1] if "中".encode("utf-8") in raw else b""
 wipes = seg.count(b"\x08 \x08")
 print("[V4] backspace over CJK glyph: %d '\\b \\b' wipe(s) (expect 2)" % wipes)
 
 # ---- V5: full serial stream strictly valid UTF-8 ---------------------
-child.logfile_read.seek(0)
-allout = child.logfile_read.read()
+child.logfile_read.flush()
+with open(f"{OUT}/pty-all.log", "rb") as _lf:
+    allout = _lf.read()
 try:
     allout.decode("utf-8")
     ok = True
