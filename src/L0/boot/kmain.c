@@ -69,6 +69,10 @@ int l1_ext_self_test(void);  /* boot/l1_selftest.c - WP-01 extension self-test *
 #include "core_timer.h"
 #include "driver_input_keyboard.h"
 #include "screen_serial_in.h"
+/* WP06g3-4.2: the serial tee with the configurable output encoding
+ * (serial_encoding utf8|gbk) - the single conversion point for every
+ * console byte that reaches COM1. */
+#include "serial_enc.h"
 #include "core_kcap.h"      /* 3.0.0-WP03: captured-run infra + base hook */
 #include "screen_console_in.h"
 
@@ -191,12 +195,9 @@ static void screen_serial_putc(char c) {
 static void screen_serial_puts(const char *s) {
     while (*s) screen_serial_putc(*s++);
 }
-static int screen_serial_hook(void* ctx, u8 ch) {
-    (void)ctx;
-    if (ch == '\n') screen_serial_putc('\r');
-    screen_serial_putc((char)ch);
-    return 0;
-}
+/* WP06g3-4.2: the console base hook now lives in services/display/
+ * serial_enc.c (serial_enc_hook) - it tees through the configurable
+ * output encoding (serial_encoding utf8|gbk) instead of raw bytes. */
 
 /* Draw the splash banner. All ASCII - no em dash. */
 static void draw_banner(void) {
@@ -251,6 +252,7 @@ static void lib_log_stage_ts(const char *stage, const char *status) {
 void kmain(u64 magic, u64 mbi_phys) {
     /* ---- 0. Serial console ---- */
     screen_serial_init();
+    serial_enc_init();   /* WP06g3-4.2: tee state (default utf8) */
     screen_serial_putc('\r'); screen_serial_putc('\n');
     screen_serial_puts("[oc] Open Cube OS " OC_RELEASE_VERSION " kmain entered\r\n");
 
@@ -290,7 +292,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     klog_init();     /* WP-12: unified kernel log, before any entry */
     screen_console_reset(screen_fb_rgb(0xE0, 0xE0, 0xE0),
                      screen_fb_rgb(0x10, 0x10, 0x14));
-    core_kcap_set_base_hook(screen_serial_hook, NULL);
+    core_kcap_set_base_hook(serial_enc_hook, NULL);
 
     /* G5 boot chain marker: phase 1/4 - kernel core mechanisms (the
      * console/log stack above IS phase 1's first bring-up; the marker
@@ -374,7 +376,7 @@ void kmain(u64 magic, u64 mbi_phys) {
     else             OC_LOG_FAIL2("WP-01 extension self-test");
 
     /* Re-install serial hook (WP-01 self-test clears it in step 4). */
-    core_kcap_set_base_hook(screen_serial_hook, NULL);
+    core_kcap_set_base_hook(serial_enc_hook, NULL);
 
     /* ---- 11. WP-02 exception self-test ---- */
     {

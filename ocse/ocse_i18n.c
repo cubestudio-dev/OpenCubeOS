@@ -10,6 +10,7 @@
 #include "encoding.h"
 #include "screen_console.h"
 #include "lib_string.h"
+#include "console_cn.h"   /* WP06g3: zh screen path renders wide */
 
 /* Declared in ocse_main.c (kept next to the hotkey plumbing). */
 void ocse_serial_puts_raw(const char* s);
@@ -320,32 +321,60 @@ static void cap_puts(const char* s) {
     g_cap_buf[g_cap_len] = 0;
 }
 
-void ocse_out(const char* s) {
-    if (g_cap_buf) { cap_puts(s); ocse_serial_puts_raw(s); return; }
-    if (g_lang == OCSE_LANG_ZH) {
-        static char conv[512];
-        u32 n = 0;
-        int rc = encoding_convert((const u8*)s, (u32)strlen(s),
-                                  ENC_UTF8, ENC_GB2312,
-                                  (u8*)conv, sizeof(conv) - 1, &n);
-        if (rc == 0 && n > 0) {
-            conv[n] = 0;
-            screen_console_puts(conv);
-            ocse_serial_puts_raw(conv);
-            return;
-        }
-        /* fall through on conversion failure: raw bytes are better
-         * than silence. */
+/* WP06g3-4.2: the serial line output encoding - ONE standard
+ * shared with the main kernel's serial_encoding setting
+ * (utf8 default, gbk for the GBK-default Chinese serial-terminal
+ * ecosystem).  The old zh path put GB2312 bytes on the serial
+ * line - mojibake on every UTF-8 terminal (postmortem disaster 2). */
+static int g_serial_gbk = 0;
+
+void ocse_serial_encoding_set_str(const char* s) {
+    g_serial_gbk = (s && s[0]=='g' && s[1]=='b' && s[2]=='k'
+                   && s[3]==0) ? 1 : 0;
+}
+
+const char* ocse_serial_encoding_name(void) {
+    return g_serial_gbk ? "gbk" : "utf8";
+}
+
+/* Emit to the serial line in the CONFIGURED encoding.  GBK mode
+ * converts UTF-8 through the vendored codec; a conversion failure
+ * degrades to the raw UTF-8 bytes (better than silence). */
+static void ocse_serial_emit(const char* s) {
+    if (!g_serial_gbk) { ocse_serial_puts_raw(s); return; }
+    static char conv[512];
+    u32 n = 0;
+    if (encoding_convert((const u8*)s, (u32)strlen(s),
+                          ENC_UTF8, ENC_GB2312,
+                          (u8*)conv, sizeof(conv) - 1, &n) == 0 && n > 0) {
+        conv[n] = 0;
+        ocse_serial_puts_raw(conv);
+        return;
     }
-    screen_console_puts(s);
     ocse_serial_puts_raw(s);
+}
+
+/* WP06g3-4.8: the zh SCREEN path renders through the vendored
+ * console_cn wide renderer (UTF-8, codepoint-indexed glyphs)
+ * instead of feeding GB2312 bytes to the stock ASCII console -
+ * the exact screen mojibake the postmortem photographed.  The
+ * GUI capture path keeps the raw UTF-8 (the GUI canvas decodes
+ * UTF-8 itself, gui_text()). */
+void ocse_out(const char* s) {
+    if (g_cap_buf) { cap_puts(s); ocse_serial_emit(s); return; }
+    if (g_lang == OCSE_LANG_ZH) {
+        console_cn_puts(s);
+    } else {
+        screen_console_puts(s);
+    }
+    ocse_serial_emit(s);
 }
 
 void ocse_outln(const char* s) {
     if (g_cap_buf) {
         cap_puts(s);
         cap_puts("\n");
-        ocse_serial_puts_raw(s);
+        ocse_serial_emit(s);
         ocse_serial_puts_raw("\r\n");
         return;
     }

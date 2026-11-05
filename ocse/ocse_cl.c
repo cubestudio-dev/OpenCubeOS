@@ -288,6 +288,26 @@ static int cmd_lang(int argc, char** argv) {
     ocse_outln("usage: lang [en|zh]");
     return 1;
 }
+/* WP06g3-4.2: serial line output encoding - the same setting the
+ * main kernel exposes (serial_encoding utf8|gbk).  System
+ * strings stay English; the encoding names are the terminology. */
+static int cmd_serial_encoding(int argc, char** argv) {
+    if (argc == 1) {
+        ocse_out("serial encoding: ");
+        ocse_outln(ocse_serial_encoding_name());
+        return 0;
+    }
+    if (argc == 2 && (strcmp(argv[1], "utf8") == 0 ||
+                      strcmp(argv[1], "gbk") == 0)) {
+        ocse_serial_encoding_set_str(argv[1]);
+        ocse_out("serial encoding: ");
+        ocse_outln(ocse_serial_encoding_name());
+        return 0;
+    }
+    ocse_outln("usage: serial_encoding [utf8|gbk]");
+    return 1;
+}
+
 static int cmd_clear(int argc, char** argv) {
     (void)argc; (void)argv;
     screen_console_reset(screen_fb_rgb(0xE0, 0xE0, 0xE0),
@@ -1544,6 +1564,7 @@ static const cl_cmd_t g_cmds[] = {
     { "hwcheck",  "re-run the four hardware checks",         cmd_hwcheck },
     { "disks",    "raw disk inventory (WP-06a view)",        cmd_disks },
     { "lang",     "show or set the language: lang [en|zh]", cmd_lang },
+    { "serial_encoding", "show/set the serial line encoding: serial_encoding [utf8|gbk]", cmd_serial_encoding },
     { "clear",    "clear the screen",                        cmd_clear },
     { "click",    "probe the GUI button geometry: click <x> <y>", cmd_click },
     { "gui",      "switch back to the graphical panel",      cmd_gui },

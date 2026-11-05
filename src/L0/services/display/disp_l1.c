@@ -12,6 +12,7 @@
 #include "l1svc_defs.h"
 #include "disp_cmds.h"
 #include "disp_lang.h"
+#include "serial_enc.h"   /* WP06g3-4.2: serial_encoding op */
 #include "ime_session.h"
 #include "lib_string.h"
 #include "core_kcap.h"
@@ -40,6 +41,9 @@ static int disp_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
         case L1SVC_DISP_UNAME:       fn = disp_cmd_uname; break;
         case L1SVC_DISP_CLEAR:       fn = disp_cmd_clear; break;
         case L1SVC_DISP_LANG:        fn = disp_cmd_lang; break;
+        /* WP06g3-4.2: the serial line output encoding - the single
+         * setting every console byte's COM1 tee follows. */
+        case L1SVC_DISP_SERIAL_ENC:  fn = disp_cmd_serial_encoding; break;
         case L1SVC_DISP_CHINESE:     fn = disp_cmd_chinese; break;
         case L1SVC_DISP_CHINESETEST: fn = disp_cmd_chinesetest; break;
         case L1SVC_DISP_FONT:        fn = disp_cmd_font; break;
