@@ -1564,9 +1564,173 @@ def e21_disk_probe_diag():
          '}\n')
 
 
+# ---------------------------------------------------------------------------
+# E22 (3.0.0-WP06g3-ocse_enc_fix, tasks 4.2+4.8): one serial encoding
+# standard + the OCSE screen mojibake root fix.
+# Postmortem disasters 2/3: ocse_out()'s zh path converted UTF-8 to
+# GB2312 and fed the GB2312 bytes BOTH to the stock ASCII console
+# (screen mojibake) and to the serial line (UTF-8 terminal mojibake) -
+# while the vendored console_cn wide renderer sat initialized but
+# never called.  The serial line now emits in a CONFIGURED encoding
+# (serial_encoding utf8|gbk, default utf8 - one standard with the main
+# kernel), and the zh screen path renders UTF-8 through console_cn.
+# ---------------------------------------------------------------------------
+def e22_ocse_out_enc():
+    # ---- (a) ocse_i18n.c: console_cn include ----
+    edit("ocse/ocse_i18n.c",
+         '#include "ocse_i18n.h"\n'
+         '#include "encoding.h"\n'
+         '#include "screen_console.h"\n'
+         '#include "lib_string.h"\n',
+         '#include "ocse_i18n.h"\n'
+         '#include "encoding.h"\n'
+         '#include "screen_console.h"\n'
+         '#include "lib_string.h"\n'
+         '#include "console_cn.h"   /* WP06g3: zh screen path renders wide */\n')
+
+    # ---- (b) ocse_i18n.c: rewrite ocse_out/ocse_outln ----
+    edit("ocse/ocse_i18n.c",
+         'void ocse_out(const char* s) {\n'
+         '    if (g_cap_buf) { cap_puts(s); ocse_serial_puts_raw(s); return; }\n'
+         '    if (g_lang == OCSE_LANG_ZH) {\n'
+         '        static char conv[512];\n'
+         '        u32 n = 0;\n'
+         '        int rc = encoding_convert((const u8*)s, (u32)strlen(s),\n'
+         '                                  ENC_UTF8, ENC_GB2312,\n'
+         '                                  (u8*)conv, sizeof(conv) - 1, &n);\n'
+         '        if (rc == 0 && n > 0) {\n'
+         '            conv[n] = 0;\n'
+         '            screen_console_puts(conv);\n'
+         '            ocse_serial_puts_raw(conv);\n'
+         '            return;\n'
+         '        }\n'
+         '        /* fall through on conversion failure: raw bytes are better\n'
+         '         * than silence. */\n'
+         '    }\n'
+         '    screen_console_puts(s);\n'
+         '    ocse_serial_puts_raw(s);\n'
+         '}\n'
+         '\n'
+         'void ocse_outln(const char* s) {\n'
+         '    if (g_cap_buf) {\n'
+         '        cap_puts(s);\n'
+         '        cap_puts("\\n");\n'
+         '        ocse_serial_puts_raw(s);\n'
+         '        ocse_serial_puts_raw("\\r\\n");\n'
+         '        return;\n'
+         '    }\n'
+         '    ocse_out(s);\n'
+         '    screen_console_putc(\'\\n\');\n'
+         '    ocse_serial_puts_raw("\\r\\n");\n'
+         '}\n',
+         '/* WP06g3-4.2: the serial line output encoding - ONE standard\n'
+         ' * shared with the main kernel\'s serial_encoding setting\n'
+         ' * (utf8 default, gbk for the GBK-default Chinese serial-terminal\n'
+         ' * ecosystem).  The old zh path put GB2312 bytes on the serial\n'
+         ' * line - mojibake on every UTF-8 terminal (postmortem disaster 2). */\n'
+         'static int g_serial_gbk = 0;\n'
+         '\n'
+         'void ocse_serial_encoding_set_str(const char* s) {\n'
+         '    g_serial_gbk = (s && s[0]==\'g\' && s[1]==\'b\' && s[2]==\'k\'\n'
+         '                   && s[3]==0) ? 1 : 0;\n'
+         '}\n'
+         '\n'
+         'const char* ocse_serial_encoding_name(void) {\n'
+         '    return g_serial_gbk ? "gbk" : "utf8";\n'
+         '}\n'
+         '\n'
+         '/* Emit to the serial line in the CONFIGURED encoding.  GBK mode\n'
+         ' * converts UTF-8 through the vendored codec; a conversion failure\n'
+         ' * degrades to the raw UTF-8 bytes (better than silence). */\n'
+         'static void ocse_serial_emit(const char* s) {\n'
+         '    if (!g_serial_gbk) { ocse_serial_puts_raw(s); return; }\n'
+         '    static char conv[512];\n'
+         '    u32 n = 0;\n'
+         '    if (encoding_convert((const u8*)s, (u32)strlen(s),\n'
+         '                          ENC_UTF8, ENC_GB2312,\n'
+         '                          (u8*)conv, sizeof(conv) - 1, &n) == 0 && n > 0) {\n'
+         '        conv[n] = 0;\n'
+         '        ocse_serial_puts_raw(conv);\n'
+         '        return;\n'
+         '    }\n'
+         '    ocse_serial_puts_raw(s);\n'
+         '}\n'
+         '\n'
+         '/* WP06g3-4.8: the zh SCREEN path renders through the vendored\n'
+         ' * console_cn wide renderer (UTF-8, codepoint-indexed glyphs)\n'
+         ' * instead of feeding GB2312 bytes to the stock ASCII console -\n'
+         ' * the exact screen mojibake the postmortem photographed.  The\n'
+         ' * GUI capture path keeps the raw UTF-8 (the GUI canvas decodes\n'
+         ' * UTF-8 itself, gui_text()). */\n'
+         'void ocse_out(const char* s) {\n'
+         '    if (g_cap_buf) { cap_puts(s); ocse_serial_emit(s); return; }\n'
+         '    if (g_lang == OCSE_LANG_ZH) {\n'
+         '        console_cn_puts(s);\n'
+         '    } else {\n'
+         '        screen_console_puts(s);\n'
+         '    }\n'
+         '    ocse_serial_emit(s);\n'
+         '}\n'
+         '\n'
+         'void ocse_outln(const char* s) {\n'
+         '    if (g_cap_buf) {\n'
+         '        cap_puts(s);\n'
+         '        cap_puts("\\n");\n'
+         '        ocse_serial_emit(s);\n'
+         '        ocse_serial_puts_raw("\\r\\n");\n'
+         '        return;\n'
+         '    }\n'
+         '    ocse_out(s);\n'
+         '    screen_console_putc(\'\\n\');\n'
+         '    ocse_serial_puts_raw("\\r\\n");\n'
+         '}\n')
+
+    # ---- (c) ocse_i18n.h: public API for the setting ----
+    edit("ocse/ocse_i18n.h",
+         'void ocse_out(const char* s);\n'
+         'void ocse_outln(const char* s);\n',
+         '/* WP06g3-4.2: serial line output encoding (utf8|gbk) - one\n'
+         ' * standard with the main kernel\'s serial_encoding command. */\n'
+         'void         ocse_serial_encoding_set_str(const char* s);\n'
+         'const char*  ocse_serial_encoding_name(void);\n'
+         '\n'
+         'void ocse_out(const char* s);\n'
+         'void ocse_outln(const char* s);\n')
+
+    # ---- (d) OCSECL: the serial_encoding command ----
+    edit("ocse/ocse_cl.c",
+         'static int cmd_clear(int argc, char** argv) {',
+         '/* WP06g3-4.2: serial line output encoding - the same setting the\n'
+         ' * main kernel exposes (serial_encoding utf8|gbk).  System\n'
+         ' * strings stay English; the encoding names are the terminology. */\n'
+         'static int cmd_serial_encoding(int argc, char** argv) {\n'
+         '    if (argc == 1) {\n'
+         '        ocse_out("serial encoding: ");\n'
+         '        ocse_outln(ocse_serial_encoding_name());\n'
+         '        return 0;\n'
+         '    }\n'
+         '    if (argc == 2 && (strcmp(argv[1], "utf8") == 0 ||\n'
+         '                      strcmp(argv[1], "gbk") == 0)) {\n'
+         '        ocse_serial_encoding_set_str(argv[1]);\n'
+         '        ocse_out("serial encoding: ");\n'
+         '        ocse_outln(ocse_serial_encoding_name());\n'
+         '        return 0;\n'
+         '    }\n'
+         '    ocse_outln("usage: serial_encoding [utf8|gbk]");\n'
+         '    return 1;\n'
+         '}\n'
+         '\n'
+         'static int cmd_clear(int argc, char** argv) {')
+    edit("ocse/ocse_cl.c",
+         '    { "lang",     "show or set the language: lang [en|zh]", cmd_lang },\n',
+         '    { "lang",     "show or set the language: lang [en|zh]", cmd_lang },\n'
+         '    { "serial_encoding", "show/set the serial line encoding: serial_encoding [utf8|gbk]", cmd_serial_encoding },\n')
+
+
 e18_double_buffer()
 e19_glyph_routing()
 e20_font_freshness()
 e21_disk_probe_diag()
+e22_ocse_out_enc()
 
 print("[ocse_edits] %d edit groups applied - OCSE tree is build-ready" % applied)

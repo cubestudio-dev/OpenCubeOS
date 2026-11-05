@@ -183,6 +183,11 @@ const char*  ocse_lang_name(int lang);/* "English" / "中文" */
 /* Console+serial output line: converts zh to GB2312 for the console
  * renderer (the serial line gets the same bytes; QEMU log greps use
  * the en mode where everything is plain ASCII). */
+/* WP06g3-4.2: serial line output encoding (utf8|gbk) - one
+ * standard with the main kernel's serial_encoding command. */
+void         ocse_serial_encoding_set_str(const char* s);
+const char*  ocse_serial_encoding_name(void);
+
 void ocse_out(const char* s);
 void ocse_outln(const char* s);
 

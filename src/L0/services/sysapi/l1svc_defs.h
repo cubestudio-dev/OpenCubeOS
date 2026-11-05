@@ -244,6 +244,7 @@
 #define L1SVC_DISP_IME_KEY    14   /* ime session key feed    */
 #define L1SVC_DISP_IME_END    15   /* ime session close       */
 #define L1SVC_DISP_LANG_GET   16   /* locale query (en|zh)    */
+#define L1SVC_DISP_SERIAL_ENC 17   /* serial_encoding [utf8|gbk] (WP06g3) */
 
 /* ---- input operations (services/input) -----------------------------
  * Bodies: recovery/shell_cmds_chipset.c (touchpad/touchtest). */

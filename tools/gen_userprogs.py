@@ -235,6 +235,7 @@ WP_TAGS = {
     "sed": "ush",
     "select_test": "l1",
     "select_zero_test": "l1",
+    "serial_encoding": "display",
     "shutdown": "power",
     "signal_test": "l1",
     "sigsegv_test": "l1",
