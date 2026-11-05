@@ -7,7 +7,7 @@
    milestone, preserved by the release script. */
 window.SITE_DATA = {
   version: "3.0.0-WP06g2",
-  build: 400,
+  build: 401,
   date: "2026-11-05",
   changes: "L1 localization + system IME",
   assets: {

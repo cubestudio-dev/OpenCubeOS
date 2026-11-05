@@ -1,6 +1,6 @@
 {
     "version": "3.0.0-WP06g2",
-    "build": 400,
+    "build": 401,
     "time": "2026-11-05",
     "changes": "L1 localization + system IME",
     "changes_v2_url": "https://ocos.cubestudio.cn/update-v2.json",
