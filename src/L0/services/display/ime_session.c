@@ -81,9 +81,17 @@ static void cand_phrases(const char *py, int len) {
         int mid = (lo + hi) / 2;
         const char *fp = phrase_py(&PINYIN_PHRASES[mid]);
         int c = strncmp(fp, py, (usize)len);
-        if (c == 0 && fp[len] == 0) {
+        if (c == 0) {
+            /* tie on the first len bytes: fp[len] decides - 0 means
+             * EXACT, > 0 means fp is LONGER than py (fp > py, search
+             * right).  (The old code fell into the hi=mid-1 branch
+             * here and could miss every entry to the right - the
+             * host probe caught nihao -> 你号 instead of 你好.) */
+            c = (unsigned char)fp[len];
+        }
+        if (c == 0) {
             first = mid;
-            hi = mid - 1;
+            hi = mid - 1;               /* keep hunting the FIRST */
         } else if (c < 0) {
             lo = mid + 1;
         } else {
@@ -191,9 +199,17 @@ static void recalc(void) {
     s_ncand = 0;
     s_page = 0;
     if (s_py_len == 0) return;
+    /* Priority order (live-caught by the editor battery: the smart
+     * compose 'ha'+'o' = 哈哦 was outranking the real character 好):
+     *   1. phrase-library words (true vocabulary - always first)
+     *   2. single characters for the matching syllable (the user's
+     *      most likely pick when no word matches)
+     *   3. the smart-compose JOIN last (it is a guess - useful when
+     *      nothing else covers the whole string, never ahead of the
+     *      real characters) */
     cand_phrases(s_py, s_py_len);
-    cand_compose(s_py, s_py_len);
     cand_singles(s_py, s_py_len);
+    cand_compose(s_py, s_py_len);
 }
 
 /* ---- compose strip rendering ----------------------------------------

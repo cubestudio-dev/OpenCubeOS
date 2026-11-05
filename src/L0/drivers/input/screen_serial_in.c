@@ -73,6 +73,32 @@ static int csi_finalize(const u8 *b, u8 n) {
     }
     /* Tilde finals with a numeric parameter. */
     if (fin == '~' && n >= 2) {
+        /* 3.0.0-WP06g2: TWO-digit finals first - ESC[11~ is F1 while
+         * ESC[1~ is Home, so the first byte alone cannot decide (the
+         * one-digit switch below would shadow every 1x/2x code).
+         * The xterm F-key sequences make F2 (the editors' IME
+         * toggle) reachable from REAL serial terminals - the raw
+         * 0x90..0x9B codes can never arrive over serial (bytes
+         * >= 0x80 are UTF-8 paste, biased +0x100), so the CSI table
+         * is the only road. */
+        if (n >= 3 && b[0] >= '1' && b[0] <= '2' && b[1] >= '0' && b[1] <= '9') {
+            int num = (b[0] - '0') * 10 + (b[1] - '0');
+            switch (num) {
+                case 11: return OC_KEY_F1;
+                case 12: return OC_KEY_F2;
+                case 13: return OC_KEY_F3;
+                case 14: return OC_KEY_F4;
+                case 15: return OC_KEY_F5;
+                case 17: return OC_KEY_F6;
+                case 18: return OC_KEY_F7;
+                case 19: return OC_KEY_F8;
+                case 20: return OC_KEY_F9;
+                case 21: return OC_KEY_F10;
+                case 23: return OC_KEY_F11;
+                case 24: return OC_KEY_F12;
+                default: return -1;
+            }
+        }
         u8 p = b[0];
         switch (p) {
             case '1': case '7': return OC_KEY_HOME;
@@ -84,6 +110,12 @@ static int csi_finalize(const u8 *b, u8 n) {
             default:            return -1;
         }
     }
+    /* SS3 finals P/Q/R/S: F1..F4 in application mode (xterm sends
+     * ESC O P for F1, ESC O Q for F2, ...). */
+    if (fin == 'P') return OC_KEY_F1;
+    if (fin == 'Q') return OC_KEY_F2;
+    if (fin == 'R') return OC_KEY_F3;
+    if (fin == 'S') return OC_KEY_F4;
     return -1;
 }
 
@@ -159,6 +191,12 @@ void screen_serial_in_irq_handler(void *ctx, arch_irq_frame_t *f) {
                     OC_KEY_UP, OC_KEY_DOWN, OC_KEY_RIGHT, OC_KEY_LEFT
                 };
                 driver_input_keyboard_inject(ss3_arrows[b - 'A']);
+            } else if (b == 'P' || b == 'Q' || b == 'R' || b == 'S') {
+                /* WP06g2: xterm application-mode F1..F4 */
+                static const u16 ss3_fkeys[4] = {
+                    OC_KEY_F1, OC_KEY_F2, OC_KEY_F3, OC_KEY_F4
+                };
+                driver_input_keyboard_inject(ss3_fkeys[b - 'P']);
             }
             continue;  /* unknown SS3 pair swallowed */
         }

@@ -123,11 +123,19 @@ def main():
     rows = []
     for py, w in words:
         wb = w.encode("utf-8")
+        # NUL-terminate EVERY pool string: the offsets are byte
+        # offsets into one flat char array, and phrase_py() returns a
+        # C string - without the separators the pool is a single
+        # glued run and every lookup walks past its own entry (the
+        # live-caught nihao -> 你号 miss: '你好' sat in the table but
+        # no boundary ever ended the comparison).
         py_off = pool_len
         pool.append(py)
+        pool.append("\x00")
         pool_len += len(py) + 1
         u_off = pool_len
-        pool.append(wb.decode("utf-8"))
+        pool.append(w)
+        pool.append("\x00")
         pool_len += len(wb) + 1
         rows.append(f'    {{ {py_off}, {u_off}, {len(wb)}, {len(w)} }},')
     table = "\n".join(rows)
