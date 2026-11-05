@@ -8,11 +8,11 @@
 int app_main(int argc, char **argv) {
     /* ---------- rmdir <path> ---------- */
     if (argc < 2) {
-        puts_("usage: rmdir <path>\n");
+        puts_(tr_("usage: rmdir <path>\n"));
         return 0;
     }
     if (sys_rmdir(argv[1]) < 0) {
-        puts_("rmdir: cannot remove '");
+        puts_(tr_("rmdir: cannot remove '"));
         puts_(argv[1]);
         puts_("'\n");
     }

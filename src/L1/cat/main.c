@@ -18,7 +18,7 @@ int app_main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         long fd = sys_open(argv[i], 1);
         if (fd < 0) {
-            puts_("cat: cannot open ");
+            puts_(tr_("cat: cannot open "));
             puts_(argv[i]);
             putc_('\n');
             continue;

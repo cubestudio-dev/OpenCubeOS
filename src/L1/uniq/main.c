@@ -22,7 +22,7 @@ int app_main(int argc, char **argv) {
     if (argc >= 2) {
         long fd = sys_open(argv[1], 1);  /* VFS_O_RDONLY (kernel flag 1 = read) */
         if (fd < 0) {
-            puts_("uniq: cannot open ");
+            puts_(tr_("uniq: cannot open "));
             puts_(argv[1]);
             putc_('\n');
             return 0;

@@ -1,4 +1,6 @@
 {
-  "_hint": "",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "_hint": "show date/time from the RTC",
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "Open Cube OS uptime: ": "Open Cube OS uptime: ",
+  " ms since boot (no RTC driver)\n": " ms since boot (no RTC driver)\n"
 }

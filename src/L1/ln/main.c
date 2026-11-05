@@ -10,17 +10,17 @@ int app_main(int argc, char **argv) {
     /* ---------- ln [-s] <target/old> <linkpath> ---------- */
     if (argc >= 4 && streq_(argv[1], "-s")) {
         if (sys_symlink(argv[2], argv[3]) < 0) {
-            puts_("ln: cannot create symlink (target must be an absolute path)\n");
+            puts_(tr_("ln: cannot create symlink (target must be an absolute path)\n"));
         }
         return 0;
     }
     if (argc < 3) {
-        puts_("usage: ln <old> <new> | ln -s <abs-target> <linkpath>\n");
+        puts_(tr_("usage: ln <old> <new> | ln -s <abs-target> <linkpath>\n"));
         return 0;
     }
     long lrc = sys_link(argv[1], argv[2]);
     if (lrc < 0) {
-        puts_("ln: hard link failed (rc=");
+        puts_(tr_("ln: hard link failed (rc="));
         /* small decimal print of the errno-ish value */
         long v = -lrc;
         char nb[12];

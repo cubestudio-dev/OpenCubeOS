@@ -22,7 +22,7 @@ int app_main(int argc, char **argv) {
     if (argi < argc) {
         fd = sys_open(argv[argi], 1);
         if (fd < 0) {
-            puts_("head: cannot open ");
+            puts_(tr_("head: cannot open "));
             puts_(argv[argi]);
             putc_('\n');
             return 0;

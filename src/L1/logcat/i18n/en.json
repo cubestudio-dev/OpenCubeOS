@@ -1,4 +1,4 @@
 {
-  "_hint": "",
+  "_hint": "filtered kernel log stream",
   "svc_call_failed": ": service call failed (rc=-1)\n"
 }

@@ -8,7 +8,7 @@
 int app_main(int argc, char **argv) {
     /* ---------- touch <file> ---------- */
     if (argc < 2) {
-        puts_("usage: touch <file>\n");
+        puts_(tr_("usage: touch <file>\n"));
         return 0;
     }
     long fd = sys_open(argv[1], 6);

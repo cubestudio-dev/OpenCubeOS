@@ -8,7 +8,7 @@
 int app_main(int argc, char **argv) {
     /* ---------- chmod <octal-mode> <path> ---------- */
     if (argc < 3) {
-        puts_("usage: chmod <mode> <path>   (mode in octal, e.g. 644)\n");
+        puts_(tr_("usage: chmod <mode> <path>   (mode in octal, e.g. 644)\n"));
         return 0;
     }
     /* parse octal */
@@ -16,7 +16,7 @@ int app_main(int argc, char **argv) {
     const char *m = argv[1];
     while (*m >= '0' && *m <= '7') { mode = mode * 8 + (u32)(*m - '0'); m++; }
     if (sys_chmod(argv[2], (long)mode) < 0) {
-        puts_("chmod: cannot change mode\n");
+        puts_(tr_("chmod: cannot change mode\n"));
     }
     return 0;
 }

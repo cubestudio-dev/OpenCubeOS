@@ -185,8 +185,14 @@ BUILD_SOLIB_PY  := tools/build_solib.py
 # 3.0.0-WP04: folder apps join the staleness gate - a newer source
 # under any app folder (or the shared header library) must refresh the
 # generated header exactly like a legacy flat program does.
+# WP06g2: the per-app i18n resources ride the staleness set too - a
+# changed en/zh json must regenerate the embedded tables exactly like
+# a changed .c does (live-caught: the hint sweep updated all 548 json
+# files and `make all` kept the stale header because json was not in
+# the dependency set).
 USERPROG_SRCS   := $(wildcard $(OC_ROOT)/src/L1/*.asm) $(wildcard $(OC_ROOT)/src/L1/*.c) $(OC_ROOT)/src/L1/ld_so.c \
-                   $(wildcard $(OC_ROOT)/src/L1/*/*.c) $(wildcard $(OC_ROOT)/src/L1/*/*.asm) $(wildcard $(OC_ROOT)/src/L1/_shared/*.h)
+                   $(wildcard $(OC_ROOT)/src/L1/*/*.c) $(wildcard $(OC_ROOT)/src/L1/*/*.asm) $(wildcard $(OC_ROOT)/src/L1/_shared/*.h) \
+                   $(wildcard $(OC_ROOT)/src/L1/*/i18n/*.json) $(wildcard $(OC_ROOT)/src/L1/_i18n/*/*.json)
 USERPROGS_HDR   := src/L0/core/userprogs_data.h
 
 CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \

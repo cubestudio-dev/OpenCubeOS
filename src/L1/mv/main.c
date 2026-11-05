@@ -8,12 +8,12 @@
 int app_main(int argc, char **argv) {
     /* ---------- mv <src> <dst> ---------- */
     if (argc < 3) {
-        puts_("usage: mv <src> <dst>\n");
+        puts_(tr_("usage: mv <src> <dst>\n"));
         return 0;
     }
     long sfd = sys_open(argv[1], 1);
     if (sfd < 0) {
-        puts_("mv: cannot open '");
+        puts_(tr_("mv: cannot open '"));
         puts_(argv[1]);
         puts_("'\n");
         return 0;
@@ -22,7 +22,7 @@ int app_main(int argc, char **argv) {
      * longer destination kept its stale tail after a shorter move. */
     long dfd = sys_open(argv[2], 22);
     if (dfd < 0) {
-        puts_("mv: cannot open '");
+        puts_(tr_("mv: cannot open '"));
         puts_(argv[2]);
         puts_("'\n");
         sys_close(sfd);

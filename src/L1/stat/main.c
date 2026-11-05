@@ -13,30 +13,30 @@ int app_main(int argc, char **argv) {
      * existed. Print the REAL fs_vfs_stat_t data (type/size/mode/uid/gid/
      * nlink/name) returned by SYS_STAT. */
     if (argc < 2) {
-        puts_("usage: stat <path>\n");
+        puts_(tr_("usage: stat <path>\n"));
         return 0;
     }
     struct ush_stat st;
     memset_(&st, 0, (int)sizeof(st));
     if (sys_stat(argv[1], &st) < 0) {
-        puts_("stat: cannot stat '");
+        puts_(tr_("stat: cannot stat '"));
         puts_(argv[1]);
         puts_("'\n");
         return 0;
     }
-    puts_("  File: ");
+    puts_(tr_("  File: "));
     puts_(st.name[0] ? st.name : argv[1]);
     putc_('\n');
-    puts_("  Type: ");
-    if (st.type == USH_TYPE_DIR) puts_("directory");
-    else if (st.type == USH_TYPE_DEV) puts_("device");
-    else puts_("regular file");
+    puts_(tr_("  Type: "));
+    if (st.type == USH_TYPE_DIR) puts_(tr_("directory"));
+    else if (st.type == USH_TYPE_DEV) puts_(tr_("device"));
+    else puts_(tr_("regular file"));
     putc_('\n');
-    puts_("  Size: ");
+    puts_(tr_("  Size: "));
     putu_(st.size);
-    puts_(" bytes\n");
+    puts_(tr_(" bytes\n"));
     /* mode in octal (e.g. 0600) */
-    puts_("  Mode: ");
+    puts_(tr_("  Mode: "));
     {
         char mb[8];
         int mv = (int)(st.mode & 07777);
@@ -46,12 +46,12 @@ int app_main(int argc, char **argv) {
         puts_(mb);
     }
     putc_('\n');
-    puts_("  Uid:  ");
+    puts_(tr_("  Uid:  "));
     putu_((u64)st.uid);
-    puts_("  Gid: ");
+    puts_(tr_("  Gid: "));
     putu_((u64)st.gid);
     putc_('\n');
-    puts_("  Links: ");
+    puts_(tr_("  Links: "));
     putu_((u64)st.nlink);
     putc_('\n');
     return 0;

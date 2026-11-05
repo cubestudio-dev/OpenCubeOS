@@ -21,7 +21,7 @@ int app_main(int argc, char **argv) {
          * and creates nothing (same flag cat/tail/sed use). */
         fd = sys_open(argv[1], 1);
         if (fd < 0) {
-            puts_("wc: cannot open ");
+            puts_(tr_("wc: cannot open "));
             puts_(argv[1]);
             putc_('\n');
             return 0;

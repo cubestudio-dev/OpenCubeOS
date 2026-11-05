@@ -21,7 +21,7 @@ int app_main(int argc, char **argv) {
         putu_(mi[2]); puts_("\n");
         puts_("Swap:            0           0            0\n");
     } else {
-        puts_("free: SYS_MEMINFO unavailable (kernel too old)\n");
+        puts_(tr_("free: SYS_MEMINFO unavailable (kernel too old)\n"));
     }
     return 0;
 }

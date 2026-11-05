@@ -8,11 +8,11 @@
 int app_main(int argc, char **argv) {
     /* ---------- rm <file> ---------- */
     if (argc < 2) {
-        puts_("usage: rm <file>\n");
+        puts_(tr_("usage: rm <file>\n"));
         return 0;
     }
     if (sys_unlink(argv[1]) < 0) {
-        puts_("rm: cannot remove '");
+        puts_(tr_("rm: cannot remove '"));
         puts_(argv[1]);
         puts_("'\n");
     }

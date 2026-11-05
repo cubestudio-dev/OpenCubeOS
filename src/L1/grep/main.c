@@ -10,7 +10,7 @@
 int app_main(int argc, char **argv) {
     /* ---------- grep <pattern> ---------- */
     if (argc < 2) {
-        puts_("usage: grep <pattern>\n");
+        puts_(tr_("usage: grep <pattern>\n"));
         return 0;
     }
     const char *pat = argv[1];

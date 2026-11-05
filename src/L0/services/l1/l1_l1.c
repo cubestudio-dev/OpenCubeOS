@@ -476,22 +476,32 @@ static int l1_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
     s_out = out; s_left = cap;
     out[0] = 0;
     const char *a = arg ? arg : "";
+    int rc;
     switch (op) {
     case L1SVC_L1_APPS:
         /* 3.0.0-WP04-fix1: op 1 renders one of three modes from the
          * registry ("" machine listing / "-a" full A-Z / "-w" by
          * work package); no new op number, no hand-written lists. */
-        if (a[0] == '-' && a[1] == 'a' && a[2] == 0) return l1_apps_help_a();
-        if (a[0] == '-' && a[1] == 'w' && a[2] == 0) return l1_apps_help_w();
-        if (a[0] != 0) {
+        if (a[0] == '-' && a[1] == 'a' && a[2] == 0) rc = l1_apps_help_a();
+        else if (a[0] == '-' && a[1] == 'w' && a[2] == 0) rc = l1_apps_help_w();
+        else if (a[0] != 0) {
             put("usage: help [-a | -w]\n");
-            return 1;
-        }
-        return l1_apps_core();
-    case L1SVC_L1_L1TEST: return l1_l1test_core();
-    case L1SVC_L1_LDD:    return l1_ldd_core(a);
+            rc = 1;
+        } else rc = l1_apps_core();
+        break;
+    case L1SVC_L1_L1TEST: rc = l1_l1test_core(); break;
+    case L1SVC_L1_LDD:    rc = l1_ldd_core(a); break;
     default: return -1;
     }
+    /* WP06g2 live-caught: put() never NUL-terminates, so the caller's
+     * strlen(kout) read PAST the rendered text into heap garbage (the
+     * 32 KiB buffer + the full bilingual registry listing exposed a
+     * latent bug the 4096-era short listings never hit - ~100 bytes
+     * of heap noise rode every `help -a`).  vsnprintf discipline:
+     * ALWAYS terminate. */
+    if (s_left > 0) *s_out = 0;
+    else out[cap - 1] = 0;
+    return rc;
 }
 
 /* Category string equals the services/l1 folder name (rebuilt in

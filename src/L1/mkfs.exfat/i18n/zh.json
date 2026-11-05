@@ -1,4 +1,4 @@
 {
-  "_hint": "",
+  "_hint": "创建 exFAT 文件系统",
   "svc_call_failed": "：服务调用失败（rc=-1）\n"
 }

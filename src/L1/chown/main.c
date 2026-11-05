@@ -8,7 +8,7 @@
 int app_main(int argc, char **argv) {
     /* ---------- chown <uid>[:<gid>] <path> ---------- */
     if (argc < 3) {
-        puts_("usage: chown <uid>[:<gid>] <path>\n");
+        puts_(tr_("usage: chown <uid>[:<gid>] <path>\n"));
         return 0;
     }
     u32 uid = 0, gid = 0;
@@ -20,11 +20,11 @@ int app_main(int argc, char **argv) {
         while (*s >= '0' && *s <= '9') { gid = gid * 10 + (u32)(*s - '0'); s++; }
     }
     if (!got_uid || *s != 0) {
-        puts_("usage: chown <uid>[:<gid>] <path>\n");
+        puts_(tr_("usage: chown <uid>[:<gid>] <path>\n"));
         return 0;
     }
     if (sys_chown(argv[2], (long)uid, (long)gid) < 0) {
-        puts_("chown: cannot change owner\n");
+        puts_(tr_("chown: cannot change owner\n"));
     }
     return 0;
 }
