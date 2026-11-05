@@ -106,9 +106,11 @@ WP06g2 delivery-fix addendum (post-close-out, same batch):
   the stable slot, which would have pointed the OTA channel at a
   package that was never uploaded), and the dev block carries the
   real WP06g2 pair (build 403).
-- Known cosmetic leftover (deliberately not touched this batch): the
-  CI workflow's `branches:` filters read `ain]` (a `[main` truncation
-  present since the workflow was created).  Push-to-main triggers
-  have worked throughout (215+ runs); only the pull_request path is
-  affected and this repository does not use PRs.  Fix rides the next
-  batch.
+- WP06g3 correction - the "branches: ain]" entry that used to ride
+  here was a phantom.  A byte-level audit (od -c against
+  fef5f41, 0226e8c, and HEAD) shows the workflow filters have
+  read `branches: [main]` since the day the file was created;
+  the "ain]" reading was a terminal-transcription artifact (the
+  shell-output display layer eats a literal '[m' as if it were
+  an ANSI SGR reset sequence), never a real typo.  No workflow
+  change was ever needed; the entry is retired.

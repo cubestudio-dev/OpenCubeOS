@@ -12,7 +12,7 @@ Exit code: number of failed checks."""
 import os, re, sys
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/tools")
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 
 CMDS = [

@@ -11,9 +11,9 @@
 import sys, time
 import pexpect
 
-QEMU = "/home/z/opt/extract/usr/bin/qemu-system-x86_64"
-QL   = "/home/z/opt/extract/usr/share/qemu"
-SEA  = "/home/z/opt/extract/usr/share/seabios"
+QEMU = "/home/z/tools/usr/bin/qemu-system-x86_64"
+QL   = "/home/z/tools/usr/share/qemu"
+SEA  = "/home/z/tools/usr/share/seabios"
 ISO  = "/home/z/oc-os/build/opencube.iso"
 OUT  = "/home/z/oc-os/evidence/3_0_0_wp06g3_ocse_enc_fix"
 

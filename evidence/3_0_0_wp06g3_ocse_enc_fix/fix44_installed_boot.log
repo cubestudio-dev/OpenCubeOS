@@ -1,5 +1,5 @@
 
-OCBL 3.0.0 boot loader (3.0.0-WP06g2 build 409)
+OCBL 3.0.0 boot loader (3.0.0-WP06g2 build 413)
 long mode 64-bit C entry OK
 flavor: mbr  boot drive: 0x80  stage1 CS: 0x0000
 cpu: QEMU Virtual CPU version 2.5+
@@ -20,6 +20,6 @@
 [state] fresh boot - state area initialized
 [state] boot attempt seq 1
 [scan] entries: 2
-  [0] OCOS: Open Cube OS (hd0 p1)  path=/boot/opencube.elf size=2263264
-  [1] OCIRE: OCIRE recovery (hd0 p1)  path=/boot/ocire.elf size=62384
+  [0] OCOS: Open Cube OS (hd0 p1)  path=/boot/opencube.elf size=2271792
+  [1] OCIRE: OCIRE recovery (hd0 p1)  path=/boot/ocire.elf size=363536
 

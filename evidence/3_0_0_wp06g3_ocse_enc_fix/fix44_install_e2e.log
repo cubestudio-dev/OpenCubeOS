@@ -1,6 +1,6 @@
 OCBL stage1 ok
 
-OCBL 3.0.0 boot loader (3.0.0-WP06g2 build 409)
+OCBL 3.0.0 boot loader (3.0.0-WP06g2 build 413)
 long mode 64-bit C entry OK
 flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
 cpu: QEMU Virtual CPU version 2.5+
@@ -25,10 +25,10 @@ OCBL stage1 ok
 [state] boot attempt seq 1
 [scan] entries: 1
   [0] OCSE: OpenCubeOS Setup (OCSE) (cd0)  path=/boot/ocse.elf size=124
-[0;1HOpen Cube OS Boot Loader (3.0.0-WP06g2 build 409)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOpenCubeOS Setup (OCSE) (cd0)[0m[5;1HShutdown[2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 10s                                  [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 9s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 8s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 7s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 6s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 5s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 4s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 3s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 2s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 1s                                   [menu] selected: OpenCubeOS Setup (OCSE) (cd0)
+[0;1HOpen Cube OS Boot Loader (3.0.0-WP06g2 build 413)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOpenCubeOS Setup (OCSE) (cd0)[0m[5;1HShutdown[2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 10s                                  [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 9s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 8s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 7s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 6s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 5s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 4s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 3s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 2s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 1s                                   [menu] selected: OpenCubeOS Setup (OCSE) (cd0)
 [menu] B4 will load this payload (mb2 handoff)
 [boot] VBE 800x600x32 ok
-[boot] kernel loaded: entry=0x001538E0 size=781944
+[boot] kernel loaded: entry=0x001539A0 size=782136
 [boot] mbi built: 376 bytes at 0x50000
 
 [ocse] OpenCubeOS Setup Environment 3.0.0-WP06g2
@@ -65,7 +65,7 @@ nvme: no controller found
 [ocse] stage 24/24: handing over to the OCSE environment
 [ocse] atapi drives: 1
 [ocse] install medium: /install (iso9660 cd0)
-[ocse] medium check: ocos.tar 2330112 B, ocblmbr.bin 38400 B
+[ocse] medium check: ocos.tar 2640384 B, ocblmbr.bin 38400 B
 [ocse] checks: cpu=PASS mem=PASS disp=PASS disk=PASS
 [ocse] gui double-buffer: on (back buffer attached)
 [ocse] ps2 aux mouse: present
@@ -85,13 +85,13 @@ install: checking the install medium ...
 install: medium ok (ocos.tar 38400 B)
 install: target sdap1 (fat32) mounted at /t
 install: extracting OCOS.TAR ...
-  extracted /t/boot/ocire.elf (62384 bytes)
-  extracted /t/boot/opencube.elf (2263264 bytes)
+  extracted /t/boot/ocire.elf (363536 bytes)
+  extracted /t/boot/opencube.elf (2271792 bytes)
   extracted /t/etc/opencube.conf (65 bytes)
-install: kernel in place (2263264 B)
+install: kernel in place (2271792 B)
 install: creating the dedicated OCIRE recovery partition ...
 partition created: sdap2
-install: recovery partition #sdap2 ready (boot/ocire.elf, 62384 B)
+install: recovery partition #sdap2 ready (boot/ocire.elf, 363536 B)
 install: writing the boot code ...
 ocbl-install: boot code written (stage1 @LBA0, core 74 sectors @LBA 1, partition table preserved, verified)
 flag updated
