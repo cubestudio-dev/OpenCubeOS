@@ -56,7 +56,7 @@ child.sendline("ime")
 time.sleep(1.0)
 child.expect_exact("ush>", timeout=60)
 log = open(f"{OUT}/pty-all.log", "rb").read().decode(errors="replace")
-check("I1 ime status shows 610 phrases", "610" in log and "phrases" in log)
+check("I1 ime status shows 622 phrases", "622" in log and "phrases" in log)
 
 child.sendline("ime-test")
 time.sleep(1.5)
