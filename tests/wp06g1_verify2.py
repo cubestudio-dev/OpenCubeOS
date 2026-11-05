@@ -10,7 +10,7 @@ import sys
 import time
 import pexpect
 
-BUILD = "/home/z/my-project/oc-os/build"
+BUILD = "/home/z/oc-os/build"
 OUT = f"{BUILD}/wp06g1-verify2"
 MON = f"{OUT}/mon.sock"
 LOG = f"{OUT}/pty-all.log"
@@ -44,6 +44,10 @@ child.send(b"echo " + zh)
 time.sleep(1.5)
 child.send(b"\x7f")            # Backspace over the hanzi
 time.sleep(1.5)
+try:
+    child.expect([b"ush>", pexpect.TIMEOUT], timeout=1)
+except pexpect.TIMEOUT:
+    pass
 logf.flush()
 mark_after_bs = os.path.getsize(LOG)
 child.send(b"\r")              # now the line is just "echo "

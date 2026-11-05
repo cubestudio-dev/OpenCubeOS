@@ -18,7 +18,7 @@ import re
 import struct
 import sys
 
-ROOT = "/home/z/my-project/oc-os"
+ROOT = "/home/z/oc-os"
 HANZI, SYM, UTO = 6763, 682, 7445
 ZI, SI = 6768, 846
 fails = 0
