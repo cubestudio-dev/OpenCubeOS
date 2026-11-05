@@ -8,11 +8,11 @@
 int app_main(int argc, char **argv) {
     /* ---------- mkdir <path> ---------- */
     if (argc < 2) {
-        puts_("usage: mkdir <path>\n");
+        puts_(tr_("usage: mkdir <path>\n"));
         return 0;
     }
     if (sys_mkdir(argv[1]) < 0) {
-        puts_("mkdir: cannot create '");
+        puts_(tr_("mkdir: cannot create '"));
         puts_(argv[1]);
         puts_("'\n");
     }

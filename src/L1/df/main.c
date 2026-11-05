@@ -41,6 +41,6 @@ int app_main(int argc, char **argv) {
     putu_(total_bytes);
     puts_("        ");
     putu_((u64)file_count);
-    puts_(" files (kernel df for full mount table)\n");
+    puts_(tr_(" files (kernel df for full mount table)\n"));
     return 0;
 }

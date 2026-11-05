@@ -1,4 +1,5 @@
 {
-  "_hint": "",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "_hint": "打印文件内容",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "cat: cannot open ": "cat：无法打开 "
 }

@@ -11,7 +11,7 @@ int app_main(int argc, char **argv) {
     static struct ush_ps_entry ptab[32];
     long n = sys_ps(ptab, (long)sizeof(ptab));
     if (n < 0) {
-        puts_("ps: SYS_PS unavailable (kernel too old)\n");
+        puts_(tr_("ps: SYS_PS unavailable (kernel too old)\n"));
         return 0;
     }
     puts_("TID  STATE  PRI  CPU(ticks)  NAME\n");

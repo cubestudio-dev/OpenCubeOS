@@ -1,4 +1,6 @@
 {
-  "_hint": "",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "_hint": "修改文件属主",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: chown <uid>[:<gid>] <path>\n": "用法：chown <uid>[:<gid>] <路径>\n",
+  "chown: cannot change owner\n": "chown：无法修改属主\n"
 }

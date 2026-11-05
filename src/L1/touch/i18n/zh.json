@@ -1,4 +1,5 @@
 {
-  "_hint": "",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "_hint": "创建空文件/更新时间戳",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: touch <file>\n": "用法：touch <文件>\n"
 }

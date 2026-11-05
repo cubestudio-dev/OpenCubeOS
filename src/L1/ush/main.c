@@ -453,7 +453,10 @@ static int builtin_cmd(int argc, char *argv[]) {
             puts_("\n");
         }
         puts_(tr_("help_registry_note"));
-        static char out[8192];
+        /* WP06g2: 8192 -> 32768, same as l1svc_main - help -a with
+         * the bilingual hints is ~14 KiB and 8 KiB cut it at so_test
+         * (live-caught by the H1 per-program battery). */
+        static char out[32768];
         if (mode == 0) {
             long rc = sys_l1svc(L1SVC_CAT_L1, L1SVC_L1_APPS, 0,
                                 (long)out, (long)sizeof(out));

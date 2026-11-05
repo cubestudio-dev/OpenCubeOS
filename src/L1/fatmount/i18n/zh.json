@@ -1,4 +1,4 @@
 {
-  "_hint": "",
+  "_hint": "挂载 FAT32 卷",
   "svc_call_failed": "：服务调用失败（rc=-1）\n"
 }

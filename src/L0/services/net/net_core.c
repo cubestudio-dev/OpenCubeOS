@@ -3458,7 +3458,16 @@ typedef struct {
     u16 rx_from_port;
 } net_socket_t;
 
-static net_socket_t g_sockets[MAX_SOCKETS];
+/* 3.0.0-WP06g2: the 66 KiB socket table moved from .bss to the heap
+ * (the same diet as the IP fragment buffers above - the 0x400000
+ * identity-window link budget; the WP06g2 i18n/IME tables consumed
+ * the static headroom).  net_init() seeds it (process context, before
+ * any NIC IRQ runs); the GNU array-pointer macro keeps all 57
+ * reference sites untouched.  On the (boot-early, ~impossible) seed
+ * failure the table stays NULL and net stays down - reported through
+ * net_tcp_init's honest-return path below. */
+static net_socket_t *g_sockets_p = 0;
+#define g_sockets (*(net_socket_t (*)[MAX_SOCKETS])g_sockets_p)
 
 /* Called from UDP handler to deliver data to bound sockets.
  * Returns 1 when a socket with a matching port exists (BUG-0217(b): an
@@ -4431,8 +4440,15 @@ void net_init(void) {
     driver_pci_init();
     net_arp_init();
     net_udp_init();
+    /* WP06g2: seed the heap-backed socket table (before the NIC
+     * probes below bring IRQs up). */
+    g_sockets_p = (net_socket_t *)kmalloc(sizeof(net_socket_t) * MAX_SOCKETS);
+    if (!g_sockets_p) {
+        lib_log_info("net: socket table unavailable (heap) - net down");
+        return;                     /* honest: net stays down */
+    }
+    memset(g_sockets, 0, sizeof(net_socket_t) * MAX_SOCKETS);
     if (net_tcp_init() != 0) return;   /* honest: net stays down */
-    memset(g_sockets, 0, sizeof(g_sockets));
 
     /* WP-10b: probe the nic-framework families first (e1000e, igb,
      * rtl8168/8125/810x, rtl8139, bcm57xx, ixgbe, legacy others).  The

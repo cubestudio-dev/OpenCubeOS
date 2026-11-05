@@ -1,4 +1,4 @@
 {
-  "_hint": "",
+  "_hint": "system health snapshot/watch",
   "svc_call_failed": ": service call failed (rc=-1)\n"
 }

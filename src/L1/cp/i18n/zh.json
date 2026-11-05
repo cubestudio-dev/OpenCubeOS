@@ -1,4 +1,6 @@
 {
-  "_hint": "",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "_hint": "复制文件",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: cp <src> <dst>\n": "用法：cp <源> <目标>\n",
+  "cp: cannot open '": "cp：无法打开 '"
 }

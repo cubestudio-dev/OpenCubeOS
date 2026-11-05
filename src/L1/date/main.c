@@ -13,8 +13,8 @@ int app_main(int argc, char **argv) {
      * wall-clock date. Instead of printing a hardcoded fake date string,
      * we report the kernel uptime (PIT tick counter in ms since boot) via
      * SYS_UPTIME. This is a real value from the kernel, not fabricated. */
-    puts_("Open Cube OS uptime: ");
+    puts_(tr_("Open Cube OS uptime: "));
     putu_((u64)sys_uptime());
-    puts_(" ms since boot (no RTC driver)\n");
+    puts_(tr_(" ms since boot (no RTC driver)\n"));
     return 0;
 }

@@ -1,4 +1,5 @@
 {
-  "_hint": "",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "_hint": "search text in files",
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "usage: grep <pattern>\n": "usage: grep <pattern>\n"
 }

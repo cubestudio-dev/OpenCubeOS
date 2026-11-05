@@ -1,4 +1,6 @@
 {
-  "_hint": "",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "_hint": "change file permissions",
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "usage: chmod <mode> <path>   (mode in octal, e.g. 644)\n": "usage: chmod <mode> <path>   (mode in octal, e.g. 644)\n",
+  "chmod: cannot change mode\n": "chmod: cannot change mode\n"
 }
