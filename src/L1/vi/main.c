@@ -25,23 +25,47 @@
 static int vi_mode = VI_MODE_CMD;
 
 static void vi_status(const char *file) {
-    puts_("[");
-    puts_(unano_dirty ? "* " : "  ");
-    puts_(file);
-    puts_(" ");
-    putu_((u64)(unano_cl + 1));
-    putc_('/');
-    putu_((u64)unano_nlines);
-    puts_(vi_mode == VI_MODE_INS ? " INSERT]" : " CMD]");
-    if (vi_mode == VI_MODE_INS) {
-        if (unano_ime_composing && unano_ime_strip[0]) {
-            puts_("  ");
-            puts_(unano_ime_strip);
-        } else if (unano_ime_on) {
-            puts_("  [IME on]");
+    /* WP06g3-4.7: the vi modal bar is the same differential pinned
+     * bottom row as nano's - mode, position, IME state and the preedit
+     * strip, no key legend, ZERO output when unchanged. */
+    char bar[192];
+    int n = 0;
+    const char *tag = tr_(vi_mode == VI_MODE_INS ? "vi_mode_ins" : "vi_mode_cmd");
+    bar[n++] = '[';
+    if (unano_dirty) bar[n++] = '*';
+    bar[n++] = ' ';
+    for (int i = 0; file[i] && n < (int)sizeof(bar) - 32; i++) bar[n++] = file[i];
+    bar[n++] = ' ';
+    {
+        char num[12]; int m = 0; int v = unano_cl + 1;
+        if (v == 0) num[m++] = '0';
+        while (v > 0 && m < 11) { num[m++] = (char)('0' + v % 10); v /= 10; }
+        for (int i = 0; i < m && n < (int)sizeof(bar) - 24; i++) bar[n++] = num[m - 1 - i];
+        bar[n++] = '/';
+        m = 0; v = unano_nlines;
+        if (v == 0) num[m++] = '0';
+        while (v > 0 && m < 11) { num[m++] = (char)('0' + v % 10); v /= 10; }
+        for (int i = 0; i < m && n < (int)sizeof(bar) - 24; i++) bar[n++] = num[m - 1 - i];
+    }
+    bar[n++] = ' ';
+    for (int i = 0; tag[i] && n < (int)sizeof(bar) - 1; i++) bar[n++] = tag[i];
+    bar[n++] = ']';
+    if (unano_ime_err) {
+        const char *err = tr_("editor_ime_err");
+        for (int i = 0; err[i] && n < (int)sizeof(bar) - 1; i++) bar[n++] = err[i];
+    }
+    bar[n] = 0;
+    if (unano_ime_composing && unano_ime_strip[0]) {
+        int room = (int)sizeof(bar) - 2 - n;
+        if (room > 2) {
+            bar[n++] = ' ';
+            bar[n++] = ' ';
+            for (int i = 0; unano_ime_strip[i] && i < room; i++)
+                bar[n++] = unano_ime_strip[i];
+            bar[n] = 0;
         }
     }
-    puts_("\n");
+    unano_bar_draw(bar);
 }
 
 static void vi_redraw(void) {
@@ -49,14 +73,18 @@ static void vi_redraw(void) {
 }
 
 static void vi_print_all(const char *file) {
+    /* WP06g3-4.7: the addressed layout (legend row 1, viewport, bar) -
+     * vi rides the same rewrite. */
+    unano_ansi("\033[2J");
+    unano_goto(1, 1);
     puts_("-- vi: ");
     puts_(file);
-    puts_(" -- CMD: hjkl move, x del, dd cut, yy copy, p paste, i/a/o insert, :w/:q --\n");
-    for (int i = 0; i < unano_nlines; i++) {
-        unano_prefix(i + 1);
-        puts_(unano_lines[i]);
-        putc_('\n');
-    }
+    puts_(" --");
+    puts_(tr_("vi_helpbar"));
+    puts_(" --");
+    unano_view_ensure();
+    unano_view_redraw();
+    unano_bar_invalidate();
     vi_status(file);
     vi_redraw();
 }
@@ -90,23 +118,27 @@ static int vi_ex_line(const char *file) {
     }
     if (want_w) {
         if (unano_save(file) == 0) {
-            puts_("[wrote ");
+            puts_(tr_("editor_wrote_head"));
             putu_((u64)unano_nlines);
-            puts_(" lines]\n");
+            puts_(tr_("editor_wrote_tail"));
         } else {
-            puts_("[save failed]\n");
+            puts_(tr_("editor_save_failed"));
+            puts_("\n");
         }
     }
     if (want_q) {
         if (unano_dirty && !want_w && !bang) {
-            puts_("[modified - :wq to save, :q! to discard]\n");
+            puts_(tr_("vi_modified"));
+            puts_("\n");
             return 0;
         }
         unano_ime_off();
         return 1;                     /* quit */
     }
-    if (!want_w && !want_q && n > 0)
-        puts_("[unknown ex command]\n");
+    if (!want_w && !want_q && n > 0) {
+        puts_(tr_("vi_unknown_ex"));
+        puts_("\n");
+    }
     return 0;
 }
 
@@ -131,22 +163,29 @@ static void vi_insert_mode(const char *file) {
             vi_redraw();
             continue;
         }
+        /* WP06g3-4.6: preedit routing with NO passthrough - a failed
+         * service call shows the bar notice and swallows the key. */
         if (unano_ime_on &&
             (unano_ime_composing || (k >= 'a' && k <= 'z'))) {
             int act = unano_ime_feed(k);
-            if (act == 1) {
+            if (act == 4) {
+                unano_ime_err = 1;
                 vi_status(file);
-                vi_redraw();
+                continue;
+            }
+            if (act == 1) {
+                vi_status(file);      /* preedit on the modal bar */
                 continue;
             }
             if (act == 2) {
                 vi_redraw();
                 vi_status(file);
-                vi_redraw();
                 continue;
             }
             if (act == 3) {
                 vi_redraw();
+                vi_status(file);
+                if (unano_ime_composing) continue;
                 /* fall through: the editor handles the key too */
             }
         }

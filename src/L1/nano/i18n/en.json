@@ -1,4 +1,19 @@
 {
   "_hint": "the nano-style editor (F2 = Chinese IME)",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "editor_helpbar": " ^O save ^X exit ^K cut ^R copy ^U paste ^G help F2 ime",
+  "editor_ime_on": " IME:on]",
+  "editor_ime_idle": " IME:on]",
+  "editor_ime_err": " [IME unavailable]",
+  "editor_pos_line": "[line ",
+  "editor_pos_col": ", col ",
+  "editor_help1": "arrows move (glyph-wise) | type to insert | BKSP/DEL delete\n",
+  "editor_help2": "ENTER split | ^K cut line | ^R copy line | ^U paste\n",
+  "editor_help3": "F2 Chinese IME (type pinyin; 1-9 pick; space first; PgUp/PgDn page)\n",
+  "editor_help4": "^O save | ^X exit | ^C pos\n",
+  "editor_wrote_head": "[wrote ",
+  "editor_wrote_tail": " lines]\n",
+  "editor_save_failed": "[save failed]",
+  "editor_save_failed_stay": "[save failed - stay in editor]",
+  "editor_save_prompt": "Save modified buffer? (y/n): "
 }

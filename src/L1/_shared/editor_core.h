@@ -51,10 +51,96 @@ static int  unano_clip_len;
 static int  unano_clip_valid;
 
 /* ---- IME state (the engine itself lives in the L0 display service;
- * the editor only toggles + feeds keys + renders the strip) -------- */
+ * the editor only toggles + feeds keys + renders the preedit strip
+ * on the status bar) ----------------------------------------------- */
 static int  unano_ime_on;          /* F2 switch                        */
-static int  unano_ime_composing;   /* a strip is showing               */
+static int  unano_ime_composing;   /* a preedit strip is showing       */
 static char unano_ime_strip[160];  /* the last strip the service sent  */
+static int  unano_ime_err;         /* WP06g3-4.6: service-down notice  */
+
+/* ---- WP06g3-4.7: the pinned status bar ----------------------------
+ * The bar is drawn at the BOTTOM row via ANSI cursor addressing
+ * (\033[s save, \033[999;1H pin-to-last-row, \033[K erase-line, then
+ * the bar text, \033[u restore) and is DIFFERENTIAL: the bar text is
+ * compared against the last drawn copy and nothing is emitted when
+ * it has not changed.  Keystroke editing therefore scrolls nothing;
+ * the key legend shows ONCE (in the print header / ^G help), never in
+ * the per-keystroke bar (postmortem disaster 7: 3 scrolled lines per
+ * letter, 8 full-bar prints in one short session). */
+static char unano_bar_prev[192];
+
+static void unano_ansi(const char *s) {
+    sys_write(1, s, (int)strlen_(s));
+}
+
+/* Shared differential bar renderer (nano's own bar and vi's modal bar
+ * both go through here): identical text emits NOTHING; changed text
+ * is repainted at the pinned bottom row with cursor save/restore. */
+static void unano_bar_draw(const char *bar) {
+    for (int i = 0; ; i++) {
+        if (bar[i] != unano_bar_prev[i]) {
+            /* changed: redraw at the pinned bottom row */
+            strncpy_(unano_bar_prev, bar, sizeof(unano_bar_prev));
+            unano_ansi("\033[s");          /* save cursor            */
+            unano_ansi("\033[999;1H");     /* pin to the last row   */
+            unano_ansi("\r\033[K");       /* erase the whole line  */
+            sys_write(1, bar, (int)strlen_(bar));
+            unano_ansi("\033[u");          /* restore cursor        */
+            return;
+        }
+        if (!bar[i] && !unano_bar_prev[i]) return;   /* identical */
+    }
+}
+
+static void unano_bar_invalidate(void) {
+    unano_bar_prev[0] = 0;   /* force the next statusbar() to draw */
+}
+
+static void unano_statusbar(const char *file) {
+    char bar[192];
+    int n = 0;
+    /* "[* ]file 1/3 IME:on [nihao] 1你岄 2你呴" - no key legend */
+    if (n < (int)sizeof(bar) - 1) bar[n++] = '[';
+    if (unano_dirty && n < (int)sizeof(bar) - 1) bar[n++] = '*';
+    if (n < (int)sizeof(bar) - 1) bar[n++] = ' ';
+    for (int i = 0; file[i] && n < (int)sizeof(bar) - 1; i++) bar[n++] = file[i];
+    if (n < (int)sizeof(bar) - 1) bar[n++] = ' ';
+    /* line/col */
+    {
+        char num[12];
+        int m = 0;
+        int v = unano_cl + 1;
+        if (v == 0) num[m++] = '0';
+        while (v > 0 && m < 11) { num[m++] = (char)('0' + v % 10); v /= 10; }
+        for (int i = 0; i < m && n < (int)sizeof(bar) - 1; i++) bar[n++] = num[m - 1 - i];
+        if (n < (int)sizeof(bar) - 1) bar[n++] = '/';
+        m = 0; v = unano_nlines;
+        if (v == 0) num[m++] = '0';
+        while (v > 0 && m < 11) { num[m++] = (char)('0' + v % 10); v /= 10; }
+        for (int i = 0; i < m && n < (int)sizeof(bar) - 1; i++) bar[n++] = num[m - 1 - i];
+    }
+    if (unano_ime_on) {
+        const char *tag = tr_(unano_ime_composing ? "editor_ime_on" : "editor_ime_idle");
+        for (int i = 0; tag[i] && n < (int)sizeof(bar) - 1; i++) bar[n++] = tag[i];
+    }
+    if (unano_ime_err) {
+        const char *err = tr_("editor_ime_err");
+        for (int i = 0; err[i] && n < (int)sizeof(bar) - 1; i++) bar[n++] = err[i];
+    }
+    bar[n] = 0;
+    /* preedit strip: rendered in the BAR (never in the text flow) */
+    if (unano_ime_composing && unano_ime_strip[0]) {
+        int room = (int)sizeof(bar) - 2 - n;
+        if (room > 2) {
+            bar[n++] = ' ';
+            bar[n++] = ' ';
+            for (int i = 0; unano_ime_strip[i] && i < room; i++)
+                bar[n++] = unano_ime_strip[i];
+            bar[n] = 0;
+        }
+    }
+    unano_bar_draw(bar);
+}
 
 /* ==================================================================
  * WP06g2: UTF-8 glyph helpers (the ush line-editor discipline)
@@ -137,47 +223,101 @@ static void unano_prefix(int lineno) {
     putc_(' ');
 }
 
-static void unano_redraw_line(void) {
-    char cr = '\r';
-    char sp = ' ';
-    sys_write(1, &cr, 1);
-    unano_prefix(unano_cl + 1);
-    sys_write(1, unano_lines[unano_cl], strlen_(unano_lines[unano_cl]));
-    sys_write(1, &sp, 1);
-    sys_write(1, &cr, 1);
-    unano_prefix(unano_cl + 1);
-    if (unano_cc > 0) sys_write(1, unano_lines[unano_cl], unano_cc);
+/* ---- WP06g3-4.7: viewport rendering (the rewrite) -----------------
+ * Old model: the typewriter stream - every keystroke re-PRINTED the
+ * current line at the console cursor (wherever that was), so the text
+ * landed on the wrong screen row and every print scrolled the stream.
+ * New model: the screen is addressed.  Row 1 carries the key legend,
+ * rows 2..N+1 carry a 20-line viewport of the buffer (clamped to keep
+ * the current line visible), the LAST row carries the differential
+ * status bar.  A keystroke repaints exactly ONE addressed row and
+ * moves the console cursor to the addressed glyph cell - zero output
+ * scrolls, the cursor is always on the real current line. */
+#define ED_VIEW_ROWS 20          /* viewport height (any console >= 25 rows) */
+#define ED_ROW_BASE 2            /* first buffer row's screen row (1-based) */
+
+static int unano_view_top = 0;   /* buffer index at viewport row 0 */
+
+static void unano_goto(int row, int col) {
+    char seq[20];
+    char num[12];
+    int n = 0, m = 0, v = row;
+    seq[n++] = 27; seq[n++] = '[';
+    if (v == 0) num[m++] = '0';
+    while (v > 0 && m < 11) { num[m++] = (char)('0' + v % 10); v /= 10; }
+    for (int i = 0; i < m; i++) seq[n++] = num[m - 1 - i];
+    seq[n++] = ';';
+    m = 0; v = col;
+    if (v == 0) num[m++] = '0';
+    while (v > 0 && m < 11) { num[m++] = (char)('0' + v % 10); v /= 10; }
+    for (int i = 0; i < m; i++) seq[n++] = num[m - 1 - i];
+    seq[n++] = 'H';
+    seq[n] = 0;
+    sys_write(1, seq, n);
 }
 
-static __attribute__((unused)) void unano_state(const char *file) {
-    puts_("[");
-    puts_(unano_dirty ? "* " : "  ");
-    puts_(file);
-    puts_(" ");
-    putu_((u64)(unano_cl + 1));
-    putc_('/');
-    putu_((u64)unano_nlines);
-    if (unano_ime_on) {
-        puts_(unano_ime_composing ? " IME:ON]" : " IME:on]");
+static void unano_view_ensure(void) {
+    if (unano_cl < unano_view_top) unano_view_top = unano_cl;
+    if (unano_cl >= unano_view_top + ED_VIEW_ROWS)
+        unano_view_top = unano_cl - ED_VIEW_ROWS + 1;
+    if (unano_view_top < 0) unano_view_top = 0;
+}
+
+/* repaint ONE addressed row: goto, erase-to-EOL, gutter, text */
+static void unano_row_draw(int i) {
+    unano_goto(i - unano_view_top + ED_ROW_BASE, 1);
+    unano_ansi("\033[K");
+    unano_prefix(i + 1);
+    sys_write(1, unano_lines[i], strlen_(unano_lines[i]));
+}
+
+static void unano_view_redraw(void) {
+    for (int i = unano_view_top;
+         i < unano_nlines && i < unano_view_top + ED_VIEW_ROWS; i++)
+        unano_row_draw(i);
+    /* blank any leftover viewport rows below the buffer tail */
+    for (int i = unano_nlines;
+         i < unano_view_top + ED_VIEW_ROWS; i++) {
+        unano_goto(i - unano_view_top + ED_ROW_BASE, 1);
+        unano_ansi("\033[K");
+    }
+}
+
+static void unano_redraw_line(void) {
+    int old_top = unano_view_top;
+    unano_view_ensure();
+    if (unano_view_top != old_top) {
+        unano_view_redraw();     /* the window moved: repaint it all */
     } else {
-        puts_("]");
+        unano_row_draw(unano_cl);
     }
-    if (unano_ime_composing && unano_ime_strip[0]) {
-        puts_("  ");
-        puts_(unano_ime_strip);
+    /* place the console cursor ON the current glyph cell (gutter is
+     * 5 cells wide: "NNN : ") */
+    {
+        int col = 5 + u8_cols(unano_lines[unano_cl], unano_cc) + 1;
+        unano_goto(unano_cl - unano_view_top + ED_ROW_BASE, col);
     }
-    puts_(" ^O save ^X exit ^K cut ^R copy ^U paste ^G help F2 ime\n");
+}
+static __attribute__((unused)) void unano_state(const char *file) {
+    /* WP06g3-4.7: the differential pinned status bar replaces the old
+     * per-keystroke full-bar reprint (postmortem disaster 7). */
+    unano_statusbar(file);
 }
 
 static __attribute__((unused)) void unano_print_all(const char *file) {
+    /* WP06g3-4.7: addressed full-screen layout - the key legend sits
+     * ONCE on row 1, the viewport on rows 2..N+1, the bar on the last
+     * row.  Nothing in the editing loop scrolls. */
+    unano_ansi("\033[2J");       /* clear screen, cursor home */
+    unano_goto(1, 1);
     puts_("-- ");
     puts_(file);
-    puts_(" -- ^O save ^X exit ^K cut ^R copy ^U paste ^G help F2 ime --\n");
-    for (int i = 0; i < unano_nlines; i++) {
-        unano_prefix(i + 1);
-        puts_(unano_lines[i]);
-        putc_('\n');
-    }
+    puts_(" --");
+    puts_(tr_("editor_helpbar"));
+    puts_(" --");
+    unano_view_ensure();
+    unano_view_redraw();
+    unano_bar_invalidate();
 }
 
 static int unano_getch_blocking(void) {
@@ -273,9 +413,13 @@ static void unano_paste_line(void) {
  * ================================================================== */
 /* Feed one key to the system IME.  Returns the action:
  *   0 = not IME business (caller handles the key)
- *   1 = strip updated (already stored in unano_ime_strip)
+ *   1 = preedit strip updated (stored in unano_ime_strip)
  *   2 = committed - text already INSERTED into the line
- *   3 = committed + the caller still handles this key */
+ *   3 = committed + the caller still handles this key
+ *   4 = SERVICE FAILURE (WP06g3-4.6): the call failed or the protocol
+ *       is malformed - the caller must NOT let the key silently fall
+ *       into the file text (postmortem disaster 6); the bar shows the
+ *       unavailability notice instead. */
 static int unano_ime_feed(int key) {
     char arg[16];
     char num[12];
@@ -294,9 +438,9 @@ static int unano_ime_feed(int key) {
     char proto[256];
     long rc = sys_l1svc(L1SVC_CAT_DISPLAY, L1SVC_DISP_IME_KEY,
                         (long)arg, (long)proto, (long)sizeof(proto));
-    if (rc != 0) return 0;              /* service down: passthrough */
+    if (rc != 0) return 4;              /* service down: NO passthrough */
     if (proto[0] < '0' || proto[0] > '3' || proto[1] != '\n')
-        return 0;                        /* malformed: passthrough */
+        return 4;                        /* malformed: NO passthrough   */
     int act = proto[0] - '0';
     const char *text = proto + 2;
     if (act == 1) {
@@ -307,12 +451,14 @@ static int unano_ime_feed(int key) {
         }
         unano_ime_strip[i] = 0;
         unano_ime_composing = (unano_ime_strip[0] != 0);
+        unano_ime_err = 0;
         return 1;
     }
     if (act == 2 || act == 3) {
         unano_insert_text(text, (int)strlen_(text));
         unano_ime_composing = 0;
         unano_ime_strip[0] = 0;
+        unano_ime_err = 0;
         return act;
     }
     return 0;
@@ -327,6 +473,7 @@ static void unano_ime_off(void) {
     unano_ime_on = 0;
     unano_ime_composing = 0;
     unano_ime_strip[0] = 0;
+    unano_ime_err = 0;
 }
 
 static void unano_ime_toggle(void) {
@@ -339,6 +486,7 @@ static void unano_ime_toggle(void) {
         unano_ime_on = 1;
         unano_ime_composing = 0;
         unano_ime_strip[0] = 0;
+        unano_ime_err = 0;
     }
 }
 
@@ -419,28 +567,39 @@ static __attribute__((unused)) void ush_nano_run(const char *file) {
             continue;
         }
 
-        /* IME compose: letters/digits/space/paging/enter/esc/backspace
-         * go to the ENGINE first while composing or (for letters)
-         * while IME is on */
+        /* WP06g3-4.6 IME preedit routing: while IME is ON, letters go
+         * through the engine FIRST and NEVER leak into the file text -
+         * the pinyin lives in the preedit strip on the status bar until
+         * a candidate commits (postmortem disaster 6: a failed service
+         * call used to pass the raw letters straight into the buffer,
+         * silently).  While composing, the IME's own keys (digits,
+         * space, paging, enter, esc, backspace) route to the engine
+         * too; act==4 (service down/malformed) shows the bar notice
+         * and swallows the key - visible degradation, never silence. */
         if (unano_ime_on &&
             (unano_ime_composing ||
              (k >= 'a' && k <= 'z'))) {
             int act = unano_ime_feed(k);
+            if (act == 4) {
+                unano_ime_err = 1;
+                unano_state(file);      /* bar shows the notice */
+                continue;               /* the key does NOT enter the text */
+            }
             if (act == 1) {
-                unano_state(file);
-                unano_redraw_line();
+                unano_state(file);      /* preedit strip on the bar */
                 continue;
             }
             if (act == 2) {
                 unano_redraw_line();
                 unano_state(file);
-                unano_redraw_line();
                 continue;
             }
             if (act == 3) {
                 /* committed; fall through so the editor handles the
                  * key too (punctuation, navigation) */
                 unano_redraw_line();
+                unano_state(file);
+                if (unano_ime_composing) continue;
             }
             /* act == 0: not IME business after all */
         }
@@ -541,39 +700,46 @@ static __attribute__((unused)) void ush_nano_run(const char *file) {
             unano_state(file);
             unano_redraw_line();
         } else if (k == 0x03) {   /* ^C: report position */
-            puts_("\n[line ");
+            puts_("\n");
+            puts_(tr_("editor_pos_line"));
             putu_((u64)(unano_cl + 1));
-            puts_(", col ");
+            puts_(tr_("editor_pos_col"));
             putu_((u64)(u8_cols(unano_lines[unano_cl], unano_cc) + 1));
             puts_("]\n");
             unano_state(file);
             unano_redraw_line();
         } else if (k == 0x07) {   /* ^G: help */
-            puts_("\narrows move (glyph-wise) | type to insert | BKSP/DEL delete\n");
-            puts_("ENTER split | ^K cut line | ^R copy line | ^U paste\n");
-            puts_("F2 Chinese IME (type pinyin; 1-9 pick; space first; PgUp/PgDn page)\n");
-            puts_("^O save | ^X exit | ^C pos\n");
+            puts_("\n");
+            puts_(tr_("editor_help1"));
+            puts_(tr_("editor_help2"));
+            puts_(tr_("editor_help3"));
+            puts_(tr_("editor_help4"));
             unano_state(file);
             unano_redraw_line();
         } else if (k == 0x0F) {   /* ^O: save */
             if (unano_save(file) == 0) {
-                puts_("\n[wrote ");
+                puts_("\n");
+                puts_(tr_("editor_wrote_head"));
                 putu_((u64)unano_nlines);
-                puts_(" lines]\n");
+                puts_(tr_("editor_wrote_tail"));
             } else {
-                puts_("\n[save failed]\n");
+                puts_("\n");
+                puts_(tr_("editor_save_failed"));
+                puts_("\n");
             }
             unano_state(file);
             unano_redraw_line();
         } else if (k == 0x18) {   /* ^X: exit */
             if (unano_dirty) {
-                puts_("\nSave modified buffer? (y/n): ");
+                puts_("\n");
+                puts_(tr_("editor_save_prompt"));
                 int c = unano_getch_blocking();
                 putc_((char)c);
                 putc_('\n');
                 if (c == 'y' || c == 'Y') {
                     if (unano_save(file) != 0) {
-                        puts_("[save failed - stay in editor]\n");
+                        puts_(tr_("editor_save_failed_stay"));
+                        puts_("\n");
                         unano_state(file);
                         unano_redraw_line();
                         continue;
@@ -590,8 +756,10 @@ static __attribute__((unused)) void ush_nano_run(const char *file) {
             char one[2];
             one[0] = (char)k;
             one[1] = 0;
-            if (unano_insert_text(one, 1))
+            if (unano_insert_text(one, 1)) {
                 unano_redraw_line();
+                unano_state(file);   /* differential: col change only */
+            }
         }
         /* other keys ignored */
     }

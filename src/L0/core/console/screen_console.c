@@ -20,6 +20,7 @@ static screen_console_t g_console;
  * lock is taken and re-entry would self-deadlock). */
 static spinlock_t g_console_lock;
 
+
 static void draw_cell(u32 cx, u32 cy, char ch, u32 fg_pixel, u32 bg_pixel) {
     if (!screen_active_renderer) return;
     u32 cw = screen_active_renderer->cell_w;
@@ -58,6 +59,123 @@ static void scroll_up_one(void) {
     /* Clear the last cell-row to bg. */
     screen_fb_fill_rect(0, (rows - 1) * chh,
                     g_console.cols * cw, chh, g_console.bg_pixel);
+}
+
+/* ---- WP06g3-4.7: minimal ANSI CSI support ---------------------------------
+ * Editors (and any TUI) need cursor addressing to pin a status bar
+ * while text flows above it.  Sequences are parsed AFTER the hook
+ * forward (serial terminals see the exact same bytes) and BEFORE the
+ * printable path.  Supported: CUU/CUD/CUF/CUB (A/B/C/D, clamped), CUP
+ * (H with r;c, clamped - row 999 pins to the last row), ED (J, 0/2/3),
+ * EL (K, 0/2), SCP/RCP (s/u).  An unknown final resets the machine;
+ * a stray ESC can never poison the following text. */
+#define CSI_IDLE 0
+#define CSI_ESC  1
+#define CSI_PAR  2
+static u8  g_csi_state = CSI_IDLE;
+static int g_csi_n[2];            /* accumulated params (2 used max) */
+static int g_csi_p;               /* param index */
+static u32 g_csi_saved_x, g_csi_saved_y;
+
+static void csi_erase_cursor(void) {
+    if (g_console.cursor_visible)
+        draw_cell(g_console.cur_x, g_console.cur_y, ' ',
+                  g_console.fg_pixel, g_console.bg_pixel);
+}
+static void csi_draw_cursor(void) {
+    if (g_console.cursor_visible)
+        draw_cell(g_console.cur_x, g_console.cur_y, '_',
+                  g_console.fg_pixel, g_console.bg_pixel);
+}
+
+static void csi_execute(char final) {
+    spin_lock(&g_console_lock);
+    int n0 = g_csi_n[0] ? g_csi_n[0] : 1;    /* default 1 */
+    int n1 = g_csi_n[1] ? g_csi_n[1] : 1;
+    switch (final) {
+    case 'A':                                  /* CUU: up, clamped */
+        csi_erase_cursor();
+        if ((u32)n0 > g_console.cur_y) g_console.cur_y = 0;
+        else g_console.cur_y -= (u32)n0;
+        csi_draw_cursor();
+        break;
+    case 'B':                                  /* CUD: down, clamped, NO scroll */
+        csi_erase_cursor();
+        g_console.cur_y += (u32)n0;
+        if (g_console.cur_y >= g_console.rows) g_console.cur_y = g_console.rows - 1;
+        csi_draw_cursor();
+        break;
+    case 'C':                                  /* CUF: right, clamped */
+        csi_erase_cursor();
+        g_console.cur_x += (u32)n0;
+        if (g_console.cur_x >= g_console.cols) g_console.cur_x = g_console.cols - 1;
+        csi_draw_cursor();
+        break;
+    case 'D':                                  /* CUB: left, clamped */
+        csi_erase_cursor();
+        if ((u32)n0 > g_console.cur_x) g_console.cur_x = 0;
+        else g_console.cur_x -= (u32)n0;
+        csi_draw_cursor();
+        break;
+    case 'H': {                                /* CUP: absolute, clamped */
+        csi_erase_cursor();
+        u32 r = (u32)(n0 - 1);
+        u32 c = (u32)(n1 - 1);
+        if (r >= g_console.rows) r = g_console.rows - 1;
+        if (c >= g_console.cols) c = g_console.cols - 1;
+        g_console.cur_y = r;
+        g_console.cur_x = c;
+        csi_draw_cursor();
+        break;
+    }
+    case 'J':                                  /* ED */
+        csi_erase_cursor();
+        if (g_csi_n[0] == 2 || g_csi_n[0] == 3) {
+            screen_fb_fill_rect(0, 0,
+                g_console.cols * screen_active_renderer->cell_w,
+                g_console.rows * screen_active_renderer->cell_h,
+                g_console.bg_pixel);
+            g_console.cur_x = 0;
+            g_console.cur_y = 0;
+        } else {
+            /* 0/absent: cursor to end of screen */
+            for (u32 x = g_console.cur_x; x < g_console.cols; x++)
+                draw_cell(x, g_console.cur_y, ' ',
+                          g_console.fg_pixel, g_console.bg_pixel);
+            for (u32 y = g_console.cur_y + 1; y < g_console.rows; y++)
+                for (u32 x = 0; x < g_console.cols; x++)
+                    draw_cell(x, y, ' ',
+                              g_console.fg_pixel, g_console.bg_pixel);
+        }
+        csi_draw_cursor();
+        break;
+    case 'K':                                  /* EL */
+        csi_erase_cursor();
+        if (g_csi_n[0] == 2) {
+            for (u32 x = 0; x < g_console.cols; x++)
+                draw_cell(x, g_console.cur_y, ' ',
+                          g_console.fg_pixel, g_console.bg_pixel);
+        } else {
+            for (u32 x = g_console.cur_x; x < g_console.cols; x++)
+                draw_cell(x, g_console.cur_y, ' ',
+                          g_console.fg_pixel, g_console.bg_pixel);
+        }
+        csi_draw_cursor();
+        break;
+    case 's':                                  /* SCP */
+        g_csi_saved_x = g_console.cur_x;
+        g_csi_saved_y = g_console.cur_y;
+        break;
+    case 'u':                                  /* RCP */
+        csi_erase_cursor();
+        g_console.cur_x = g_csi_saved_x;
+        g_console.cur_y = g_csi_saved_y;
+        csi_draw_cursor();
+        break;
+    default:
+        break;                                 /* unknown: ignore */
+    }
+    spin_unlock(&g_console_lock);
 }
 
 int screen_console_init(void) {
@@ -165,6 +283,36 @@ void screen_console_putc(char ch) {
      * a non-zero hook return means the hook already handled the
      * character (teed it, captured it, ...) and L0 must NOT draw it. */
     if (screen_console_call_hook((u8)ch)) {
+        return;
+    }
+
+    /* WP06g3-4.7: the ANSI CSI state machine.  Control bytes of a
+     * sequence never reach the printable path below. */
+    if (g_csi_state == CSI_ESC) {
+        if (ch == '[') {
+            g_csi_state = CSI_PAR;
+            g_csi_p = 0;
+            g_csi_n[0] = 0;
+            g_csi_n[1] = 0;
+            return;
+        }
+        g_csi_state = CSI_IDLE;   /* not CSI: treat the byte as text */
+    } else if (g_csi_state == CSI_PAR) {
+        if (ch >= '0' && ch <= '9') {
+            if (g_csi_p < 2)
+                g_csi_n[g_csi_p] = g_csi_n[g_csi_p] * 10 + (ch - '0');
+            return;
+        }
+        if (ch == ';') {
+            if (g_csi_p == 0) { g_csi_p = 1; g_csi_n[1] = 0; }
+            return;
+        }
+        g_csi_state = CSI_IDLE;
+        csi_execute(ch);
+        return;
+    }
+    if ((u8)ch == 27) {           /* ESC: start of a possible CSI */
+        g_csi_state = CSI_ESC;
         return;
     }
 
