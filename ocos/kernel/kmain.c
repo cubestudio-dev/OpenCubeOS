@@ -16,7 +16,11 @@
 
 static void com1_putc(char c)
 {
-    __asm__ __volatile__("outb %0, %1" : : "a"(c), "Nd"(COM1_DATA));
+    /* %w1 forces the 16-bit %dx register form (`outb %al, %dx`), the
+     * only encoding accepted by every gcc/binutils combination; an
+     * immediate port operand would be rejected because 0x3F8 exceeds
+     * the 8-bit imm8 port range. */
+    __asm__ __volatile__("outb %b0, %w1" : : "a"(c), "d"((uint16_t)COM1_DATA));
 }
 
 static void com1_puts(const char *s)
