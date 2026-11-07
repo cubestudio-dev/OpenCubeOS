@@ -1,76 +1,24 @@
-# Build artifacts
-build/
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 cubestudio-dev <cubestudio@qq.com>
+# Open Cube OS NAK - gitignore for the NAK tree.
+# Only real build products are ignored; everything tracked stays tracked.
+
+# Compiler / linker products
 *.o
 *.d
 *.elf
-*.so
-*.iso
-*.zip
 
 # Python cache
 __pycache__/
 *.pyc
 
-# OS temp files
+# OS / editor noise
 .DS_Store
 Thumbs.db
+*~
+*.swp
+.vscode/
+.idea/
 
-# Test logs and captures
-audit-test-*
-wp08a-test-*
+# Logs
 *.log
-*.pcap
-# docs/verification/ ships in every SRC zip AND in the public tree per
-# docs/RELEASE_PACKAGING.md finding #4 (WP-10-AUDIT_P2-fix2: verification
-# logs are public artifacts) - exempt it from the *.log rule above.
-!docs/verification/*.log
-
-# 2.1.0 (P-11/P-13 fix): release assets under website/public/downloads/
-# and EVERYTHING under evidence/ are tracked public artifacts - the
-# release ISO/SRC must live in the public tree byte-identical with the
-# Release/gh-pages, and the suite logs are the release evidence.
-!website/public/downloads/*.iso
-!website/public/downloads/*.zip
-!website/public/downloads/*.tar.gz
-!evidence/**
-
-# Screenshots
-web-*.png
-
-# Internal scripts (not for public)
-run_audit_tests*.py
-run_wp08a_tests.py
-test_bug003_tcp.py
-upload_iso.py
-
-# Internal docs (contains server info, SSH paths)
-docs/WORKFLOW.md
-docs/worklog.md
-docs/HANDOFF.md
-
-# Internal tools (contains credentials, server info)
-tools/push_to_git.py
-tools/release.sh
-tools/wp02_test.py
-tools/wp03_test.py
-tools/wp04_test.py
-tools/wp06_socket_test.py
-
-# Release snapshot archives (the public repo itself carries none; binaries
-# are published on GitHub Releases). Note: site download assets under
-# website/public/downloads/ ARE intentionally tracked as site content —
-# see website/.gitignore for the un-ignore rules (fix3 G5, BUG-0266).
-releases/
-
-# Old archived trees (not needed in main repo)
-archive/old-src-tree/
-archive/old-tests/
-archive/WP06/
-
-# Dist
-dist/
-
-# Website (not part of OS kernel)
-web/
-kernel/generated/
-.config
