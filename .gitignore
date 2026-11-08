@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 # Open Cube OS NAK - gitignore for the NAK tree.
-# Only real build products are ignored; everything tracked stays tracked.
+# Note: final artifacts (ISO / zip / ELF) are deliberately NOT ignored
+# here - they are release evidence and go to GitHub Releases.
 
-# Compiler / linker products
+# Compiler / linker intermediates
 *.o
 *.d
-*.elf
 
-# Python cache
+# Python cache (no Python is used by the NAK build)
 __pycache__/
 *.pyc
 

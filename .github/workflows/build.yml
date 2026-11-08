@@ -2,12 +2,12 @@
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 # Open Cube OS NAK - NAK-01-tree
 # File: .github/workflows/build.yml
-# Purpose: CI gate for the NAK tree. Builds every component through
-#          the root Makefile (today: the ocos.elf kernel stub) under
+# Purpose: CI gate for the NAK tree. Installs the toolchain, builds
+#          every component (kernel.elf + nak.iso + placeholders) under
 #          the zero-warning gate (-Wall -Wextra -Werror), verifies the
-#          ELF artifact, then verifies `make clean` leaves nothing
-#          behind. Legacy 3.0.0 targets (iso, src-zip, ota, ...) are
-#          archived under archive/v3.0.0/ and are NOT part of NAK CI.
+#          artifacts, then verifies `make clean` leaves nothing behind.
+#          Legacy 3.0.0 targets (iso, src-zip, ota, ...) are archived
+#          under archive/v3.0.0/ and are NOT part of NAK CI.
 
 name: build
 
@@ -30,16 +30,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build all components (make all, -Werror gate)
-        run: make all
+      - name: Install toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential nasm xorriso mtools grub-pc-bin grub-common
 
-      - name: Verify ocos.elf artifact
-        run: file ocos/ocos.elf
+      - name: Build ocos (kernel.elf + nak.iso)
+        run: make -C ocos all
+
+      - name: Build ocbl
+        run: make -C ocbl all
+
+      - name: Build ocse
+        run: make -C ocse all
+
+      - name: Build ocire
+        run: make -C ocire all
+
+      - name: Verify artifacts
+        run: |
+          file ocos/build/kernel.elf
+          file ocos/build/nak.iso
 
       - name: Verify make clean leaves no products
         run: |
           make clean
-          if [ -e ocos/ocos.elf ]; then echo "FAIL: ocos/ocos.elf survived make clean"; exit 1; fi
-          left=$(find ocos -name '*.o' -o -name '*.d' -o -name '*.elf' | wc -l)
+          left=$(find ocos ocbl ocse ocire \
+                 -name '*.o' -o -name '*.d' -o -name '*.elf' -o -name '*.iso' | wc -l)
           echo "leftover build products: $left"
           test "$left" -eq 0

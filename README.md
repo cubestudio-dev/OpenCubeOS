@@ -33,19 +33,25 @@ OpenCubeOS/
 
 ## Status
 
-NAK work package `NAK-01-tree` is done: the directory skeleton, a
-clean Make build system and a minimal `ocos.elf` kernel stub. The
-legacy 3.0.0 tree is fully preserved under `archive/v3.0.0/` and is
-not part of any NAK build.
+NAK work package `NAK-01-tree`: the directory skeleton, the Make build
+system and the bootable skeleton kernel are in place. `make -C ocos all`
+produces `build/kernel.elf` and `build/nak.iso` (GRUB + Multiboot2);
+booting the ISO in QEMU prints the four-line boot banner on COM1. The
+legacy 3.0.0 tree is fully preserved under `archive/v3.0.0/` and is not
+part of any NAK build.
 
 ## Build
 
 ```
-make all      # build every component (today: ocos.elf stub)
+make all      # build every component (kernel.elf + nak.iso + placeholders)
 make clean    # remove all build products
 ```
 
-Requirements: `gcc`, `binutils`, GNU `make`.
+Requirements: `gcc` (14.x), `binutils`, GNU `make`, `nasm`, `xorriso`,
+`mtools`, `grub-pc-bin` + `grub-common`, and `qemu-system-x86` for
+`make -C ocos run`. A no-root installer for the extra tools is
+`tools/install-toolchain.sh` (uses apt download + dpkg extraction into
+a user prefix; no root needed).
 
 ## License
 
