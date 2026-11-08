@@ -1,8 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 # Open Cube OS NAK - gitignore for the NAK tree.
-# Note: final artifacts (ISO / zip / ELF) are deliberately NOT ignored
-# here - they are release evidence and go to GitHub Releases.
+#
+# Final artifacts (ISO / source zip / ELF) are build products living
+# under build/ trees and never enter git: they are released through
+# GitHub Releases (opencubenak-WP-01-tree.iso, built by ocos/Makefile;
+# opencubenak-WP-01-tree-src.zip, built by the root Makefile from a
+# git archive of HEAD).
+
+# Build trees (every component writes into its own build/)
+build/
 
 # Compiler / linker intermediates
 *.o

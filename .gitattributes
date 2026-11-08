@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 cubestudio-dev <cubestudio@qq.com>
+# Open Cube OS NAK - git attributes.
+#
+# export-ignore keeps the frozen legacy tree out of `git archive`
+# output, which is how the opencubenak-*-src.zip release asset is
+# produced (root Makefile, `make srczip`). Working-tree checkouts are
+# unaffected: archive/ still exists locally and in fresh clones.
+
+archive/ export-ignore

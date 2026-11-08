@@ -3,11 +3,13 @@
 # Open Cube OS NAK - WP-01-tree
 # File: .github/workflows/build.yml
 # Purpose: CI gate for the NAK tree. Installs the toolchain, builds
-#          every component (kernel.elf + nak.iso + placeholders) under
-#          the zero-warning gate (-Wall -Wextra -Werror), verifies the
-#          artifacts, then verifies `make clean` leaves nothing behind.
-#          Legacy 3.0.0 targets (iso, src-zip, ota, ...) are archived
-#          under archive/v3.0.0/ and are NOT part of NAK CI.
+#          every component (kernel.elf + opencubenak-WP-01-tree.iso +
+#          placeholders) under the zero-warning gate
+#          (-Wall -Wextra -Werror), builds the source zip release
+#          asset and verifies its contents, then verifies `make clean`
+#          leaves nothing behind. Legacy 3.0.0 targets (iso, src-zip,
+#          ota, ...) are archived under archive/v3.0.0/ and are NOT
+#          part of NAK CI.
 
 name: build
 
@@ -36,7 +38,7 @@ jobs:
           sudo apt-get install -y -qq \
             build-essential nasm xorriso mtools grub-pc-bin grub-common
 
-      - name: Build ocos (kernel.elf + nak.iso)
+      - name: Build ocos (kernel.elf + opencubenak-WP-01-tree.iso)
         run: make -C ocos all
 
       - name: Build ocbl
@@ -51,7 +53,26 @@ jobs:
       - name: Verify artifacts
         run: |
           file ocos/build/kernel.elf
-          file ocos/build/nak.iso
+          file ocos/build/opencubenak-WP-01-tree.iso
+
+      - name: Build source zip (release asset)
+        run: make srczip
+
+      - name: Verify source zip contents
+        run: |
+          unzip -l build/opencubenak-WP-01-tree-src.zip > /tmp/ziplist.txt
+          # the four component trees and the root files must be inside
+          grep -q 'opencubenak-WP-01-tree-src/ocos/' /tmp/ziplist.txt
+          grep -q 'opencubenak-WP-01-tree-src/ocbl/' /tmp/ziplist.txt
+          grep -q 'opencubenak-WP-01-tree-src/ocse/' /tmp/ziplist.txt
+          grep -q 'opencubenak-WP-01-tree-src/ocire/' /tmp/ziplist.txt
+          grep -q 'opencubenak-WP-01-tree-src/README.md' /tmp/ziplist.txt
+          # archive/ and build/ must NOT be inside
+          if grep -E 'opencubenak-WP-01-tree-src/(archive|build)/' /tmp/ziplist.txt; then
+            echo "ERROR: forbidden paths inside the source zip"
+            exit 1
+          fi
+          echo "source zip contents verified"
 
       - name: Verify make clean leaves no products
         run: |

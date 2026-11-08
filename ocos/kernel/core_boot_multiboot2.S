@@ -7,21 +7,28 @@
  * Multiboot2 boot information block. The NAK kernel is x86_64-only,
  * so this file carries the Multiboot2 header plus the minimal
  * architectural trampoline - identity page tables, EFER.LME, a tiny
- * 64-bit GDT - to enter long mode and call the C entry point kmain().
+ * 64-bit GDT - to enter long mode and call the C entry point
+ * core_main_entry() (kernel/core_main_entry.c).
  *
  * It implements no kernel services by design: no allocator, no
  * interrupt handling, no drivers (those arrive in later NAK packages).
+ *
+ * _start and _start64 keep their conventional ELF entry-point names
+ * (kernel/linker.ld ENTRY() references _start; the name is the
+ * ecosystem-wide convention, not an ad-hoc one). Every other symbol
+ * here follows the [class]_[category]_[role] naming scheme:
+ * CORE_BOOT_* assembler-time constants.
  */
 
-.set MB2_HEADER_MAGIC, 0xE85250D6
-.set MB2_ARCH_I386,    0
-.set MB2_HEADER_LEN,   multiboot2_header_end - multiboot2_header
-.set MB2_CHECKSUM,     -(MB2_HEADER_MAGIC + MB2_ARCH_I386 + MB2_HEADER_LEN)
+.set CORE_BOOT_MB2_HEADER_MAGIC, 0xE85250D6
+.set CORE_BOOT_MB2_ARCH_I386,    0
+.set CORE_BOOT_MB2_HEADER_LEN,   multiboot2_header_end - multiboot2_header
+.set CORE_BOOT_MB2_CHECKSUM,     -(CORE_BOOT_MB2_HEADER_MAGIC + CORE_BOOT_MB2_ARCH_I386 + CORE_BOOT_MB2_HEADER_LEN)
 
-.set MB2_BOOTLOADER_MAGIC, 0x36D76289
+.set CORE_BOOT_MB2_BOOTLOADER_MAGIC, 0x36D76289
 
-.set GDT_CODE64, 0x08
-.set GDT_DATA,   0x10
+.set CORE_BOOT_GDT_CODE64, 0x08
+.set CORE_BOOT_GDT_DATA,   0x10
 
 /*
  * Multiboot2 header: must be 8-byte aligned and sit inside the first
@@ -30,10 +37,10 @@
 .section .multiboot2_header, "a"
 .align 8
 multiboot2_header:
-    .long MB2_HEADER_MAGIC
-    .long MB2_ARCH_I386
-    .long MB2_HEADER_LEN
-    .long MB2_CHECKSUM
+    .long CORE_BOOT_MB2_HEADER_MAGIC
+    .long CORE_BOOT_MB2_ARCH_I386
+    .long CORE_BOOT_MB2_HEADER_LEN
+    .long CORE_BOOT_MB2_CHECKSUM
     /* end tag */
     .short 0                    /* type = end */
     .short 0                    /* flags */
@@ -158,7 +165,7 @@ _start:
 
     /* far jump into the 64-bit code segment */
     lgdt gdt64_descriptor
-    ljmp $GDT_CODE64, $_start64
+    ljmp $CORE_BOOT_GDT_CODE64, $_start64
 
 .Lno_long_mode:
     /* x86_64 is locked in as the NAK architecture; nothing to fall
@@ -171,13 +178,13 @@ _start:
 
 /*
  * 64-bit entry: reload segment registers, hand the saved Multiboot2
- * values to kmain(magic, info_addr) and stop.
+ * values to core_main_entry(magic, info_addr) and stop.
  */
 .code64
 .global _start64
 .type _start64, @function
 _start64:
-    movw $GDT_DATA, %ax
+    movw $CORE_BOOT_GDT_DATA, %ax
     movw %ax, %ds
     movw %ax, %es
     movw %ax, %ss
@@ -187,9 +194,9 @@ _start64:
 
     movl mb2_boot_magic, %edi
     movl mb2_info_addr, %esi
-    call kmain
+    call core_main_entry
 
-    /* kmain never returns; spin if it ever does */
+    /* core_main_entry never returns; spin if it ever does */
     cli
 .Lspin:
     hlt

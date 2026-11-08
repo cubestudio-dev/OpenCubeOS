@@ -4,7 +4,7 @@
  * Open Cube OS NAK - kernel link script (WP-01-tree).
  *
  * The image is loaded by GRUB via Multiboot2:
- *   - the entry point is _start (kernel/boot/multiboot2.S);
+ *   - the entry point is _start (kernel/core_boot_multiboot2.S);
  *   - the Multiboot2 header section is placed first so it stays well
  *     inside the first 32 KiB of the image;
  *   - everything is linked at 1 MiB with virtual == physical, which
