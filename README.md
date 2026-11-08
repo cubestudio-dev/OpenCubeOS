@@ -33,7 +33,7 @@ OpenCubeOS/
 
 ## Status
 
-NAK work package `NAK-01-tree`: the directory skeleton, the Make build
+NAK work package `WP-01-tree`: the directory skeleton, the Make build
 system and the bootable skeleton kernel are in place. `make -C ocos all`
 produces `build/kernel.elf` and `build/nak.iso` (GRUB + Multiboot2);
 booting the ISO in QEMU prints the four-line boot banner on COM1. The

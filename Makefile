@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS NAK - root Makefile (NAK-01-tree)
+# Open Cube OS NAK - root Makefile (WP-01-tree)
 #
 # The root Makefile owns no build logic. Its only job is to recurse
 # into the component Makefiles: ocos/ (main system), ocbl/ (bootloader),

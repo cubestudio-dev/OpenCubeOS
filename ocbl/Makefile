@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS NAK - ocbl Makefile (NAK-01-tree)
+# Open Cube OS NAK - ocbl Makefile (WP-01-tree)
 #
 # Placeholder build: compiles src/ through the same zero-warning gate
 # as the kernel, proving the component builds, without implementing

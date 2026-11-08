@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
- * Open Cube OS NAK - Multiboot2 boot image (NAK-01-tree).
+ * Open Cube OS NAK - Multiboot2 boot image (WP-01-tree).
  *
  * GRUB hands control to _start in 32-bit protected mode with the
  * Multiboot2 boot information block. The NAK kernel is x86_64-only,

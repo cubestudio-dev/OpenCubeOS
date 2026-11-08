@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS NAK - NAK-01-tree
+# Open Cube OS NAK - WP-01-tree
 # File: .github/workflows/build.yml
 # Purpose: CI gate for the NAK tree. Installs the toolchain, builds
 #          every component (kernel.elf + nak.iso + placeholders) under

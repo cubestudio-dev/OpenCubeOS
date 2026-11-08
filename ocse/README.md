@@ -8,7 +8,7 @@ standalone environment that prepares a target machine for Open Cube OS
 (disk setup, image staging, first-boot configuration). **It will be
 implemented in NAK-24.**
 
-NAK-01-tree only establishes the component: `src/placeholder.c` is
+WP-01-tree only establishes the component: `src/placeholder.c` is
 compiled through the same zero-warning gate (`-Wall -Wextra -Werror`)
 as the kernel to prove the build works; no installer functionality
 exists yet.

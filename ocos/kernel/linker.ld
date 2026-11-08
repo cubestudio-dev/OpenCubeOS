@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
- * Open Cube OS NAK - kernel link script (NAK-01-tree).
+ * Open Cube OS NAK - kernel link script (WP-01-tree).
  *
  * The image is loaded by GRUB via Multiboot2:
  *   - the entry point is _start (kernel/boot/multiboot2.S);

@@ -1,14 +1,23 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
- * Open Cube OS NAK - kernel C entry point (NAK-01-tree).
+ * Open Cube OS NAK - kernel C entry point (WP-01-tree).
  *
- * Skeleton scope only: initialise the COM1 UART, print the four-line
- * boot banner and halt. No memory management, no interrupts, no
- * drivers - those arrive in later work packages.
+ * Skeleton scope only: take over the VGA text screen, initialise the
+ * COM1 UART, print the four-line boot banner on BOTH outputs and
+ * halt. No memory management, no interrupts, no drivers - those
+ * arrive in later work packages.
+ *
+ * The banner a user sees on a real machine is the VGA copy. The
+ * kernel clears the whole 80x25 text screen first, so no firmware or
+ * bootloader leftovers (the SeaBIOS boot lines, GRUB's
+ * `Booting '<title>'`) survive, and the first visible line is the
+ * kernel's own first line. The hardware cursor is parked right after
+ * the banner once it is printed.
  *
  * OCOS_BUILD_TIMESTAMP is provided by ocos/Makefile and derives from
- * SOURCE_DATE_EPOCH, which is what makes the banner reproducible.
+ * SOURCE_DATE_EPOCH (already converted to UTC+8 by the Makefile),
+ * which is what makes the banner reproducible.
  */
 
 #include <stdint.h>
@@ -18,7 +27,7 @@
 #define OCOS_BUILD_TIMESTAMP "unknown"
 #endif
 
-#define OCOS_VERSION "0.1.0-dev"
+#define OCOS_VERSION "WP-01-tree (0.1.0-dev)"
 #define OCOS_ARCH    "x86_64"
 
 /* COM1 - first 16550 UART at I/O port 0x3F8. */
@@ -32,6 +41,20 @@
 #define COM1_LSR  (COM1 + 5U)   /* line status */
 
 #define COM1_LSR_THRE 0x20U     /* transmitter holding register empty */
+
+/* VGA colour text mode: 80x25 cells at physical 0xB8000, each cell a
+ * 16-bit word (ASCII byte in the low byte, attribute in the high
+ * byte). The boot trampoline identity-maps the first 1 GiB, so the
+ * linear address equals the physical one. 0x0F = light grey on
+ * black. */
+#define VGA_MEM_BASE 0xB8000
+#define VGA_COLS     80U
+#define VGA_ROWS     25U
+#define VGA_ATTR     0x0F00U
+
+/* CRTC index/data ports, used only to place the hardware cursor. */
+#define CRTC_INDEX 0x3D4U
+#define CRTC_DATA  0x3D5U
 
 static inline void io_outb(uint16_t port, uint8_t value)
 {
@@ -78,17 +101,87 @@ static void com1_puts(const char *s)
     }
 }
 
+static uint16_t *const vga_mem = (uint16_t *)VGA_MEM_BASE;
+static size_t vga_row;
+static size_t vga_col;
+
+/* Blank every cell and park the print position at the top-left, so
+ * the banner starts at screen line 1 no matter what the firmware or
+ * the bootloader left behind. */
+static void vga_clear(void)
+{
+    for (size_t i = 0U; i < VGA_COLS * VGA_ROWS; ++i) {
+        vga_mem[i] = (uint16_t)' ' | VGA_ATTR;
+    }
+    vga_row = 0U;
+    vga_col = 0U;
+}
+
+static void vga_newline(void)
+{
+    vga_col = 0U;
+    if (vga_row + 1U < VGA_ROWS) {
+        ++vga_row;
+    }
+    /* the four-line banner never reaches the bottom row; staying put
+     * there is the defined fallback */
+}
+
+static void vga_putc(char c)
+{
+    if (c == '\n') {
+        vga_newline();
+        return;
+    }
+    if (vga_col >= VGA_COLS) {
+        vga_newline();
+    }
+    vga_mem[vga_row * VGA_COLS + vga_col] =
+        (uint16_t)(unsigned char)c | VGA_ATTR;
+    ++vga_col;
+}
+
+static void vga_puts(const char *s)
+{
+    for (size_t i = 0U; s[i] != '\0'; ++i) {
+        vga_putc(s[i]);
+    }
+}
+
+/* Park the blinking hardware cursor right after the last banner
+ * character, so no stray cursor is left mid-screen. */
+static void vga_sync_cursor(void)
+{
+    uint16_t pos = (uint16_t)(vga_row * VGA_COLS + vga_col);
+
+    io_outb(CRTC_INDEX, 0x0FU);                    /* cursor loc low */
+    io_outb(CRTC_DATA, (uint8_t)(pos & 0x00FFU));
+    io_outb(CRTC_INDEX, 0x0EU);                    /* cursor loc high */
+    io_outb(CRTC_DATA, (uint8_t)((pos >> 8) & 0x00FFU));
+}
+
+/* One banner line to both sinks: the serial log and the screen show
+ * byte-identical text. */
+static void banner_puts(const char *s)
+{
+    com1_puts(s);
+    vga_puts(s);
+}
+
 void kmain(uint32_t mb2_magic, uint32_t mb2_info_addr)
 {
     (void)mb2_magic;
     (void)mb2_info_addr;
 
     com1_init();
+    vga_clear();
 
-    com1_puts("Open Cube OS NAK kernel booted\n");
-    com1_puts("Version: " OCOS_VERSION "\n");
-    com1_puts("Arch: " OCOS_ARCH "\n");
-    com1_puts("Build: " OCOS_BUILD_TIMESTAMP "\n");
+    banner_puts("Open Cube OS NAK kernel booted\n");
+    banner_puts("Version: " OCOS_VERSION "\n");
+    banner_puts("Arch: " OCOS_ARCH "\n");
+    banner_puts("Build: " OCOS_BUILD_TIMESTAMP "\n");
+
+    vga_sync_cursor();
 
     for (;;) {
         __asm__ __volatile__("hlt");

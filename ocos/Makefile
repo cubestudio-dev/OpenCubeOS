@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS NAK - ocos main system Makefile (NAK-01-tree)
+# Open Cube OS NAK - ocos main system Makefile (WP-01-tree)
 #
 # Targets:
 #   all     - kernel.elf + nak.iso (default)
@@ -32,8 +32,11 @@ QEMU_FWARGS  := $(if $(QEMU_PREFIX),-L $(QEMU_PREFIX)/usr/share/qemu -L $(QEMU_P
 # --- reproducible build stamp -------------------------------------------
 # SOURCE_DATE_EPOCH (env or make override) drives the kernel banner;
 # without it the current time is used, so normal builds stay truthful.
+# The stamp is UTC+8 (Asia/Shanghai): 28800 seconds are added to the
+# epoch BEFORE the UTC breakdown, so the date rolls over correctly
+# across midnight, and the suffix states the offset explicitly.
 SOURCE_DATE_EPOCH ?= $(shell date +%s)
-BUILD_TIMESTAMP := $(shell date -u -d @$(SOURCE_DATE_EPOCH) '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo unknown)
+BUILD_TIMESTAMP := $(shell date -u -d "@$$(( $(SOURCE_DATE_EPOCH) + 28800 ))" '+%Y-%m-%d %H:%M:%S +08:00' 2>/dev/null || echo unknown)
 
 # --- layout ------------------------------------------------------------------
 BUILD_DIR := build
