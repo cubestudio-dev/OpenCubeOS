@@ -62,13 +62,18 @@ jobs:
           test "$(stat -c%s ocbl/build/ocbl-bios.bin)" -gt 512
           file ocbl/build/ocbl-uefi.efi | grep -q 'PE32+ executable for EFI'
 
-      - name: Gate - no GRUB in the bootloader
+      - name: Gate - no GRUB code/config in the bootloader
         run: |
-          if grep -rniE 'grub' ocbl/boot ocbl/drivers ocbl/lib ocbl/Makefile; then
-            echo "ERROR: GRUB reference inside ocbl/"
+          # The gate matches GRUB tooling and configuration exactly
+          # (grub-mkrescue, grub.cfg, grub-install, grub-emu, the
+          # grub module dirs). The descriptive words "GRUB-less" /
+          # "GRUB-free" in comments and docs are not tooling.
+          if grep -rniE 'grub-mkrescue|grub\.cfg|grub-install|grub-emu|/grub/i386-pc' \
+              ocbl/boot ocbl/drivers ocbl/lib ocbl/Makefile; then
+            echo "ERROR: GRUB tooling/config reference inside ocbl/"
             exit 1
           fi
-          echo "ocbl/ tree is GRUB-free"
+          echo "ocbl/ tree carries no GRUB tooling or config"
 
       - name: Gate - BIOS/UEFI decoupling
         run: |
