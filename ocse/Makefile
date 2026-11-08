@@ -2,13 +2,35 @@
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 # Open Cube OS NAK - ocse Makefile (NAK-01-tree)
 #
-# The install environment arrives in a later work package; today this Makefile exists
-# only so the root recursion has a real, honest target to call.
+# Placeholder build: compiles src/ through the same zero-warning gate
+# as the kernel, proving the component builds, without implementing
+# any install-environment functionality (that arrives in NAK-24).
+
+CC := gcc
+
+BUILD_DIR := build
+
+CFLAGS := -std=c11 -O2 -Wall -Wextra -Werror \
+          -ffreestanding -nostdlib -fno-builtin \
+          -fno-pie -fno-pic -fno-stack-protector \
+          -MMD -MP
+
+# filesystem scan, no hand-written file lists
+rwildcard = $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
+SRCS := $(call rwildcard,src/,*.c)
+OBJS := $(patsubst %.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 .PHONY: all clean
 
-all:
-	@echo "ocse: nothing to build yet (NAK-01-tree placeholder)"
+all: $(OBJS)
+
+$(BUILD_DIR)/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	@echo "ocse: nothing to clean (NAK-01-tree placeholder)"
+	rm -rf $(BUILD_DIR)
+
+-include $(OBJS:.o=.d)
+
+.DELETE_ON_ERROR:
