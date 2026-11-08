@@ -22,6 +22,13 @@ SECTIONS
         KEEP(*(.multiboot2_header))
     }
 
+    /* GRUB-less boot protocol: absolute 64-bit entry pointer (read by
+     * OCBL from the loaded image, see core_boot_multiboot2.S) */
+    .ocbl_boot64 : ALIGN(8)
+    {
+        KEEP(*(.ocbl_boot64))
+    }
+
     .text : ALIGN(4096)
     {
         *(.text .text.*)

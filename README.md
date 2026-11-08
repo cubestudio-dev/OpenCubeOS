@@ -53,25 +53,32 @@ OpenCubeOS/
 
 ## Status
 
-NAK work package `WP-01-tree`: the directory skeleton, the Make build
-system and the bootable skeleton kernel are in place. `make -C ocos
-all` produces `build/kernel.elf` and
-`build/opencubenak-WP-01-tree.iso` (GRUB + Multiboot2); booting the
-ISO in QEMU prints the four-line boot banner on the VGA screen and on
-COM1. The legacy 3.0.0 tree is fully preserved under `archive/v3.0.0/`
-and is not part of any NAK build.
+- `WP-01-tree` delivered the directory skeleton, the Make build
+  system and the bootable skeleton kernel (`kernel.elf`, four-line
+  banner on VGA + COM1; the GRUB ISO of that work package stays as
+  delivered).
+- `WP-02-ocbl` replaces GRUB on the boot path with the handwritten
+  OCBL bootloader: `make -C ocbl all` produces `ocbl-bios.bin`
+  (BIOS: 16 -> 32 -> 64 bit, INT 13h, identity page tables) and
+  `ocbl-uefi.efi` (native PE32+: Simple File System, GOP, hand-off
+  GDT, ExitBootServices). Both firmware paths parse the kernel ELF
+  with one shared loader and start the NAK kernel - verified in QEMU
+  (SeaBIOS raw disk and OVMF pflash) with the four-line banner on
+  COM1. The legacy 3.0.0 tree is fully preserved under
+  `archive/v3.0.0/` and is not part of any NAK build.
 
 ## Build
 
 ```
-make all      # build every component (kernel.elf + opencubenak-WP-01-tree.iso + placeholders)
-make srczip   # build/opencubenak-WP-01-tree-src.zip from the committed tree
+make all      # build every component (kernel.elf + ISO + ocbl-bios.bin + ocbl-uefi.efi + placeholders)
+make srczip   # build/opencubenak-WP-02-ocbl-src.zip from the committed tree
 make clean    # remove all build products
 ```
 
 Requirements: `gcc` (14.x), `binutils`, GNU `make`, `nasm`, `xorriso`,
-`mtools`, `grub-pc-bin` + `grub-common`, and `qemu-system-x86` for
-`make -C ocos run`. A no-root installer for the extra tools is
+`mtools`, `grub-pc-bin` + `grub-common`, `gcc-mingw-w64-x86-64` (the
+UEFI PE32+ build) and `qemu-system-x86` + `ovmf` for the OCBL run
+targets. A no-root installer for the extra tools is
 `tools/install-toolchain.sh` (uses apt download + dpkg extraction into
 a user prefix; no root needed).
 

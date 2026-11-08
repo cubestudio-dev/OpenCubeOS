@@ -11,7 +11,7 @@
 # Targets:
 #   all     - build every component (default)
 #   clean   - remove every build product (component trees + build/)
-#   srczip  - build/opencubenak-WP-01-tree-src.zip from HEAD
+#   srczip  - build/opencubenak-WP-02-ocbl-src.zip from HEAD
 #
 # The source zip is produced with `git archive`, so it contains
 # exactly the committed tree: ocos/ ocbl/ ocse/ ocire/ and the root
@@ -21,8 +21,8 @@
 # committing the tree you want to archive.
 
 BUILD_DIR := build
-SRC_ZIP   := $(BUILD_DIR)/opencubenak-WP-01-tree-src.zip
-ZIP_PREFIX := opencubenak-WP-01-tree-src/
+SRC_ZIP   := $(BUILD_DIR)/opencubenak-WP-02-ocbl-src.zip
+ZIP_PREFIX := opencubenak-WP-02-ocbl-src/
 
 .PHONY: all clean srczip
 

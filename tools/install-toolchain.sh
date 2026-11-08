@@ -45,6 +45,10 @@ command -v xorriso            >/dev/null 2>&1 || NEED+=(xorriso)
 command -v mformat            >/dev/null 2>&1 || NEED+=(mtools)
 command -v grub-mkrescue      >/dev/null 2>&1 || NEED+=(grub-pc-bin grub-common)
 command -v qemu-system-x86_64 >/dev/null 2>&1 || NEED+=(qemu-system-x86 ovmf)
+# WP-02-ocbl: the UEFI side is built as a real PE32+ image, which needs
+# the mingw-w64 cross toolchain (x86_64-w64-mingw32-gcc produces native
+# EFI executables with -Wl,--subsystem,10).
+command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || NEED+=(gcc-mingw-w64-x86-64)
 
 if [ "${#NEED[@]}" -eq 0 ]; then
     echo "install-toolchain: nothing to do, all tools already on PATH"

@@ -203,4 +203,19 @@ _start64:
     jmp .Lspin
 .size _start64, . - _start64
 
+/*
+ * 64-bit entry pointer for GRUB-less bootloaders (OCBL, WP-02-ocbl):
+ * GRUB enters the kernel in 32-bit protected mode at _start, but a
+ * bootloader that is ALREADY in long mode must not execute that
+ * 32-bit trampoline. Such a bootloader locates this section by name
+ * (.ocbl_boot64) and jumps to the absolute _start64 address stored
+ * here. The section travels with the loaded image (linker.ld keeps
+ * it in the PT_LOAD coverage).
+ */
+.section .ocbl_boot64, "a"
+.align 8
+.globl core_boot_entry64_ptr
+core_boot_entry64_ptr:
+    .quad _start64
+
 .section .note.GNU-stack, "", @progbits
