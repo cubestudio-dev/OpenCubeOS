@@ -59,18 +59,24 @@ OpenCubeOS/
   delivered).
 - `WP-02-ocbl` replaces GRUB on the boot path with the handwritten
   OCBL bootloader: `make -C ocbl all` produces `ocbl-bios.bin`
-  (BIOS: 16 -> 32 -> 64 bit, INT 13h, identity page tables) and
+  (BIOS: 16 -> 32 -> 64 bit, INT 13h, identity page tables),
   `ocbl-uefi.efi` (native PE32+: Simple File System, GOP, hand-off
-  GDT, ExitBootServices). Both firmware paths parse the kernel ELF
+  GDT, ExitBootServices) and `opencubenak-WP-02-ocbl.iso` - **the
+  user-facing deliverable**, a dual El Torito ISO that boots on
+  both firmwares from the same medium (BIOS no-emulation image with
+  the kernel preloaded at 0x7C00; UEFI FAT volume with
+  `\EFI\BOOT\BOOTX64.EFI`, also USB-bootable through the appended
+  0xEF partition). Both firmware paths parse the kernel ELF
   with one shared loader and start the NAK kernel - verified in QEMU
-  (SeaBIOS raw disk and OVMF pflash) with the four-line banner on
-  COM1. The legacy 3.0.0 tree is fully preserved under
-  `archive/v3.0.0/` and is not part of any NAK build.
+  (SeaBIOS raw disk + ISO, OVMF pflash with virtual FAT and ISO)
+  with the four-line banner on COM1. The legacy 3.0.0 tree is fully
+  preserved under `archive/v3.0.0/` and is not part of any NAK
+  build.
 
 ## Build
 
 ```
-make all      # build every component (kernel.elf + ISO + ocbl-bios.bin + ocbl-uefi.efi + placeholders)
+make all      # build every component (kernel.elf + ocbl ISOs + ocbl-bios.bin + ocbl-uefi.efi + placeholders)
 make srczip   # build/opencubenak-WP-02-ocbl-src.zip from the committed tree
 make clean    # remove all build products
 ```

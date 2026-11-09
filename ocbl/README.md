@@ -11,6 +11,9 @@ config is used anywhere in this tree.**
 
 ## Products
 
+- `build/opencubenak-WP-02-ocbl.iso` — **THE user-facing deliverable**:
+  one bootable ISO with dual El Torito entries, boots on BIOS and
+  UEFI from the same medium (see below)
 - `build/ocbl-bios.bin` — raw bootable disk image (BIOS/SeaBIOS path)
 - `build/ocbl-uefi.efi` — native PE32+ EFI application (OVMF/UEFI path)
 
@@ -58,6 +61,33 @@ Platform-specific drivers never mix: the BIOS path uses
 `drivers/drv_video_uefi_gop.c` (GOP framebuffer takeover). A grep
 gate in CI enforces the decoupling.
 
+## The release ISO (dual El Torito)
+
+`make -C ocbl iso` assembles `build/opencubenak-WP-02-ocbl.iso`
+with xorriso (mkisofs compatibility mode — no external bootloader
+involved). The same medium boots on both firmwares:
+
+- **BIOS (SeaBIOS)**: El Torito entry 1 is the no-emulation image
+  `boot/ocbl-bios-cd.bin`. The firmware loads the WHOLE image —
+  stage 1 + stage 2a + stage 2b + the kernel.elf at image LBA 64 —
+  contiguously at 0x7C00 and enters stage 1. This is the
+  `OCBL_BOOT_CD` flavor of the same three stages: stage 1 makes no
+  INT 13h call at all, stage 2a keeps `ocbl_kernel_sectors` at its
+  link-time zero (the read loop is skipped) and the kernel is
+  parsed straight from its in-memory address 0x7C00 + 32 KiB
+  (0xFC00). The image layout is deliberately identical to the raw
+  disk image, so both flavors stay in lockstep.
+- **UEFI (OVMF/real firmware)**: El Torito entry 2 is `efi.img`, a
+  1 MiB FAT volume (mtools) exposing `\EFI\BOOT\BOOTX64.EFI` and
+  `\boot\kernel.elf`. The firmware mounts the El Torito volume
+  and runs the exact same `ocbl-uefi.efi` code the FAT/USB path
+  uses. `efi.img` is additionally appended as MBR partition 2
+  (type 0xEF), so the ISO is USB-stick bootable on UEFI too.
+
+`/boot/kernel.elf` is also visible as a plain ISO file — the very
+  bytes both boot paths load. CI verifies the dual El Torito
+catalog, the image paths and the kernel file contents.
+
 ## Kernel boot protocol (GRUB-less)
 
 `e_entry` of a NAK kernel is the 32-bit Multiboot2 trampoline
@@ -71,10 +101,13 @@ later work package.
 ## Build / run
 
 ```
-make -C ocbl all        # both products, -Wall -Wextra -Werror
-make -C ocbl run-bios   # SeaBIOS, raw disk, serial on stdio
-make -C ocbl run-uefi   # OVMF (pflash) + QEMU virtual FAT ESP
-make -C ocbl test       # both paths, serial logs to build/
+make -C ocbl all           # ISO + bios + uefi, -Wall -Wextra -Werror
+make -C ocbl iso           # the release ISO only
+make -C ocbl run-bios      # SeaBIOS, raw disk, serial on stdio
+make -C ocbl run-uefi      # OVMF (pflash) + QEMU virtual FAT ESP
+make -C ocbl run-iso-bios  # SeaBIOS booting the ISO (-cdrom)
+make -C ocbl run-iso-uefi  # OVMF (pflash) booting the ISO (-cdrom)
+make -C ocbl test          # all four paths, serial logs to build/
 make -C ocbl clean
 ```
 

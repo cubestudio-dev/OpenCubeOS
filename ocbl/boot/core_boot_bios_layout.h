@@ -20,8 +20,26 @@
 /* first LBA of the kernel.elf area inside ocbl-bios.bin */
 #define CORE_BOOT_BIOS_KERNEL_LBA   64
 
-/* physical address the kernel ELF is streamed to in real mode */
+/* physical address the kernel ELF lives at when the 64-bit payload
+ * starts. Two flavors share this layout:
+ *
+ *  - disk flavor (default): stage 2a streams the kernel from disk to
+ *    0x20000 in real mode (INT 13h AH=42h, 64-sector batches, count
+ *    patched into ocbl_kernel_sectors by the Makefile);
+ *
+ *  - El Torito no-emulation flavor (OCBL_BOOT_CD, the BIOS boot
+ *    image inside opencubenak-WP-02-ocbl.iso): the firmware loads
+ *    the WHOLE boot image - stage 1, stage 2a, stage 2b and the
+ *    kernel at image LBA 64 (file offset 32 KiB) - contiguously at
+ *    0x7C00 before entering stage 1, so the kernel is already in
+ *    memory at 0x7C00 + 0x8000 and no INT 13h happens at all: the
+ *    Makefile keeps ocbl_kernel_sectors at its link-time zero, which
+ *    makes stage 2a skip its read loop entirely. */
+#ifndef OCBL_BOOT_CD
 #define CORE_BOOT_BIOS_KERNEL_BASE  0x00020000
+#else
+#define CORE_BOOT_BIOS_KERNEL_BASE  0x0000FC00
+#endif
 
 /* link/load address of the 64-bit payload (stage 2b + C code):
  * inside the first 64 KiB segment (stage 1 loads stages 2a+2b with

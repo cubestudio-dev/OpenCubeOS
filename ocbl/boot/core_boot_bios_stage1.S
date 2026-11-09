@@ -52,6 +52,17 @@ _start:
      * for the boot HDD) - before any register gets clobbered */
     movb %dl, BOOT_DRIVE_SLOT
 
+#ifdef OCBL_BOOT_CD
+    /* El Torito no-emulation flavor (OCBL_BOOT_CD, the BIOS boot
+     * image of opencubenak-WP-02-ocbl.iso): the firmware has already
+     * loaded the WHOLE image - this sector, stage 2a, stage 2b and
+     * the kernel.elf at image LBA 64 - contiguously at 0x7C00, which
+     * is exactly the layout the image is assembled for (stage 2a at
+     * 0x7E00, stage 2b at its link address 0xBC00, kernel at
+     * 0x7C00 + 32 KiB). Nothing has to be read from the disk:
+     * jump straight into stage 2a. */
+    ljmp $0, $STAGE2A_LOAD
+#else
     /* INT 13h extensions present? (AH=41h, BX=55AA) */
     movw $0x55AA, %bx
     movb $0x41, %ah
@@ -80,6 +91,7 @@ _start:
 .Lhalt:
     hlt
     jmp .Lhalt
+#endif
 
 /* Disk Address Packets (16 bytes each):
  *   +0 size, +1 zero, +2 count, +4 transfer buffer packed as
