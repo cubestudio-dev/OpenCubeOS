@@ -1,0 +1,5 @@
+{
+  "_hint": "去除相邻重复行",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "uniq: cannot open ": "uniq：无法打开 "
+}

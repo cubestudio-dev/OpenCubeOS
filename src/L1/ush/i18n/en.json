@@ -1,0 +1,22 @@
+{
+  "_hint": "the Open Cube OS ring-3 shell (default entry)",
+  "help_title": "\nOpen Cube OS User-space Shell (ush) - built-in commands:\n\n",
+  "help_registry_note": "\nAll other commands are ring-3 apps served from the registry.\n",
+  "help_row_cd": "change directory (shell state)",
+  "help_row_help": "this text; -a = full A-Z, -w = by work package",
+  "help_row_export": "set environment variable",
+  "help_row_alias": "set command alias",
+  "help_row_unalias": "remove alias",
+  "help_row_env": "show environment variables",
+  "help_row_set": "show a variable",
+  "help_row_history": "show command history",
+  "help_row_jobs": "list background jobs",
+  "help_row_fg": "bring a job to the foreground",
+  "help_row_bg": "send a job to the background",
+  "help_row_exit": "not available (use shutdown / reboot)",
+  "help_registry_prefix": "Registry: ",
+  "help_registry_suffix": " programs - 'help -a' lists them all, 'help -w' groups by work package.\n",
+  "help_registry_unavailable": "(registry unavailable)\n",
+  "help_registry_listing_failed": "(registry listing failed)\n",
+  "svc_call_failed": ": service call failed (rc=-1)\n"
+}

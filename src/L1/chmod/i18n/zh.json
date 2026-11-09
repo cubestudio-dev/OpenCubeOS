@@ -1,0 +1,6 @@
+{
+  "_hint": "修改文件权限",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: chmod <mode> <path>   (mode in octal, e.g. 644)\n": "用法：chmod <模式> <路径>（模式为八进制，如 644）\n",
+  "chmod: cannot change mode\n": "chmod：无法修改模式\n"
+}

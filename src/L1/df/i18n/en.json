@@ -1,0 +1,5 @@
+{
+  "_hint": "report filesystem free space",
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  " files (kernel df for full mount table)\n": " files (kernel df for full mount table)\n"
+}

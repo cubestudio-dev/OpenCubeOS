@@ -1,0 +1,6 @@
+{
+  "_hint": "删除空目录",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: rmdir <path>\n": "用法：rmdir <路径>\n",
+  "rmdir: cannot remove '": "rmdir：无法删除 '"
+}

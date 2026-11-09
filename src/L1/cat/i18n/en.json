@@ -1,0 +1,5 @@
+{
+  "_hint": "print file contents",
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "cat: cannot open ": "cat: cannot open "
+}

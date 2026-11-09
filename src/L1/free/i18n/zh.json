@@ -1,0 +1,5 @@
+{
+  "_hint": "内存使用摘要",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "free: SYS_MEMINFO unavailable (kernel too old)\n": "free：SYS_MEMINFO 不可用（内核过旧）\n"
+}

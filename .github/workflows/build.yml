@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
-# Open Cube OS NAK - WP-02-ocbl
+# Open Cube OS 3.0.0 - WP00-environment_restore
 # File: .github/workflows/build.yml
-# Purpose: CI gate for the NAK tree. Installs the toolchain (including
-#          mingw-w64 for the UEFI PE32+ bootloader), builds every
-#          component (kernel.elf + opencubenak-WP-01-tree.iso +
-#          ocbl-bios.bin + ocbl-uefi.efi + the dual El Torito
-#          opencubenak-WP-02-ocbl.iso + placeholders) under the
-#          zero-warning gate (-Wall -Wextra -Werror), verifies the
-#          release ISO structure (dual El Torito entries + the
-#          kernel.elf inside), builds the source zip release asset
-#          and verifies its contents, runs the no-GRUB and
-#          firmware-decoupling grep gates, then verifies `make clean`
-#          leaves nothing behind. Legacy 3.0.0 targets (iso, src-zip,
-#          ota, ...) are archived under archive/v3.0.0/ and are NOT
-#          part of NAK CI.
+# Purpose: CI gate for the restored 3.0.0 mainline tree. Builds the
+#          full WP-13 pipeline (`make all`: userprogs -> kernel ->
+#          dual-firmware OCBL ISO -> deterministic src zip -> OTA
+#          package) under the zero-warning gate (-Wall -Wextra
+#          -Werror, enforced by the Makefiles of every component),
+#          verifies the artifacts, and checks `make clean` leaves
+#          nothing behind.
+#
+# Provenance note (honest declaration, WP00): the 3.0.0 mainline had
+# NO CI workflow file at its last mainline commit - nothing to
+# restore. This file is NEW infrastructure written for the restored
+# tree so "CI green" remains an enforceable gate. It builds, it does
+# not boot (QEMU runs are sandbox-only acceptance steps).
 
 name: build
 
@@ -30,9 +30,9 @@ permissions:
 
 jobs:
   build:
-    name: NAK build (0-warning gate)
+    name: 3.0.0 build (0-warning gate)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,111 +41,44 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            build-essential nasm xorriso mtools grub-pc-bin grub-common \
-            gcc-mingw-w64-x86-64
+            build-essential nasm xorriso mtools \
+            grub-pc-bin grub-efi-amd64-bin grub-common
 
-      - name: Build ocos (kernel.elf + opencubenak-WP-01-tree.iso)
-        run: make -C ocos all
+      - name: Select compiler (prefer gcc-14, the release compiler)
+        id: cc
+        run: |
+          sudo apt-get install -y -qq gcc-14 || true
+          if command -v gcc-14 >/dev/null; then
+            echo "cc=gcc-14" >> "$GITHUB_OUTPUT"
+          else
+            echo "cc=gcc" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Build ocbl (ocbl-bios.bin + ocbl-uefi.efi + release ISO)
-        run: make -C ocbl all
-
-      - name: Build ocse
-        run: make -C ocse all
-
-      - name: Build ocire
-        run: make -C ocire all
+      - name: Build (make all - full WP-13 pipeline)
+        run: make all CC=${{ steps.cc.outputs.cc }}
 
       - name: Verify artifacts
         run: |
-          file ocos/build/kernel.elf
-          file ocos/build/opencubenak-WP-01-tree.iso
-          file ocbl/build/ocbl-bios.bin
-          file ocbl/build/ocbl-uefi.efi
-          test "$(stat -c%s ocbl/build/ocbl-bios.bin)" -gt 512
-          file ocbl/build/ocbl-uefi.efi | grep -q 'PE32+ executable for EFI'
-          test -s ocbl/build/opencubenak-WP-02-ocbl.iso
-          file ocbl/build/opencubenak-WP-02-ocbl.iso | grep -q 'ISO 9660'
-
-      - name: Gate - dual El Torito structure of the release ISO
-        run: |
-          # The release ISO must carry BOTH boot entries:
-          #   1 = BIOS no-emulation image (boot/ocbl-bios-cd.bin),
-          #   2 = UEFI no-emulation FAT volume (efi.img),
-          # and the kernel.elf must be visible as a plain ISO file,
-          # byte-identical to the one the build just produced.
-          report="$(xorriso -indev ocbl/build/opencubenak-WP-02-ocbl.iso \
+          file build/opencube.elf
+          file build/opencube.iso
+          test -s build/opencube.elf
+          test -s build/opencube.iso
+          file build/opencube.elf | grep -q 'ELF 64-bit'
+          file build/opencube.iso | grep -q 'ISO 9660'
+          # dual-firmware El Torito: the same ISO boots BIOS and UEFI
+          report="$(xorriso -indev build/opencube.iso \
                      -report_el_torito plain | tr -s ' ')"
           echo "$report"
           echo "$report" | grep -q 'El Torito boot img : 1 BIOS y none'
           echo "$report" | grep -q 'El Torito boot img : 2 UEFI y none'
-          echo "$report" | grep -q 'El Torito img path : 1 /boot/ocbl-bios-cd.bin'
-          echo "$report" | grep -q 'El Torito img path : 2 /efi.img'
-          xorriso -osirrox on -indev ocbl/build/opencubenak-WP-02-ocbl.iso \
-              -extract /boot/kernel.elf /tmp/kernel-from-iso.elf
-          cmp ocos/build/kernel.elf /tmp/kernel-from-iso.elf
-          echo "dual El Torito release ISO verified"
-
-      - name: Gate - no GRUB code/config in the bootloader
-        run: |
-          # The gate matches GRUB tooling and configuration exactly
-          # (grub-mkrescue, grub.cfg, grub-install, grub-emu, the
-          # grub module dirs). The descriptive words "GRUB-less" /
-          # "GRUB-free" in comments and docs are not tooling.
-          if grep -rniE 'grub-mkrescue|grub\.cfg|grub-install|grub-emu|/grub/i386-pc' \
-              ocbl/boot ocbl/drivers ocbl/lib ocbl/Makefile; then
-            echo "ERROR: GRUB tooling/config reference inside ocbl/"
-            exit 1
-          fi
-          echo "ocbl/ tree carries no GRUB tooling or config"
-
-      - name: Gate - BIOS/UEFI decoupling
-        run: |
-          if grep -rn -iE '#include.*(uefi|efi)' \
-              ocbl/boot/core_boot_bios_stage1.S \
-              ocbl/boot/core_boot_bios_stage2.S \
-              ocbl/boot/core_boot_bios_stage2b.S \
-              ocbl/boot/core_boot_bios_main.c \
-              ocbl/boot/core_boot_bios_layout.h \
-              ocbl/drivers/drv_video_vga.c \
-              ocbl/drivers/drv_video_vga.h; then
-            echo "ERROR: BIOS code includes UEFI headers"
-            exit 1
-          fi
-          if grep -rn -E '#include.*bios|core_boot_bios_|CORE_BOOT_BIOS_' \
-              ocbl/boot/core_boot_uefi.c \
-              ocbl/boot/core_boot_uefi.h \
-              ocbl/drivers/drv_video_uefi_gop.c \
-              ocbl/drivers/drv_video_uefi_gop.h; then
-            echo "ERROR: UEFI code references BIOS headers/symbols"
-            exit 1
-          fi
-          echo "BIOS and UEFI paths are decoupled"
-
-      - name: Build source zip (release asset)
-        run: make srczip
-
-      - name: Verify source zip contents
-        run: |
-          unzip -l build/opencubenak-WP-02-ocbl-src.zip > /tmp/ziplist.txt
-          # the four component trees and the root files must be inside
-          grep -q 'opencubenak-WP-02-ocbl-src/ocos/' /tmp/ziplist.txt
-          grep -q 'opencubenak-WP-02-ocbl-src/ocbl/' /tmp/ziplist.txt
-          grep -q 'opencubenak-WP-02-ocbl-src/ocse/' /tmp/ziplist.txt
-          grep -q 'opencubenak-WP-02-ocbl-src/ocire/' /tmp/ziplist.txt
-          grep -q 'opencubenak-WP-02-ocbl-src/README.md' /tmp/ziplist.txt
-          # archive/ and build/ must NOT be inside
-          if grep -E 'opencubenak-WP-02-ocbl-src/(archive|build)/' /tmp/ziplist.txt; then
-            echo "ERROR: forbidden paths inside the source zip"
-            exit 1
-          fi
-          echo "source zip contents verified"
+          ls -la dist/
+          test -s "dist/OpenCubeOS-src-3.0.0-WP06g3.zip"
+          test -s "dist/OpenCubeOS-3.0.0-WP06g3-update.tar.gz"
+          echo "artifacts verified"
 
       - name: Verify make clean leaves no products
         run: |
           make clean
-          left=$(find ocos ocbl ocse ocire \
-                 -name '*.o' -o -name '*.d' -o -name '*.elf' -o -name '*.iso' \
-                 -o -name '*.bin' -o -name '*.efi' | wc -l)
+          left=$(find build dist -type f 2>/dev/null | wc -l)
           echo "leftover build products: $left"
           test "$left" -eq 0

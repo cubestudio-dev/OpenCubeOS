@@ -1,0 +1,4 @@
+{
+  "_hint": "play a WAV file",
+  "svc_call_failed": ": service call failed (rc=-1)\n"
+}

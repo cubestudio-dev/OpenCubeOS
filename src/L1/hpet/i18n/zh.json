@@ -1,0 +1,4 @@
+{
+  "_hint": "HPET 定时器状态",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+}

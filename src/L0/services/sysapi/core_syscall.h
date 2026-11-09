@@ -1,0 +1,122 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
+/* Open Cube OS - WP-08a
+ * File: kernel/core/core_syscall.h
+ * Purpose: Syscall number definitions, signal constants, and WP-08a API.
+ *
+ * Syscall ABI: rax=core_syscall_num, rdi=arg1, rsi=arg2, rdx=arg3, r10=arg4
+ * Return: rax = result (>= 0 success, < 0 error)
+ */
+#ifndef OC_SYSCALL_H
+#define OC_SYSCALL_H
+
+#include "types.h"
+
+/* Existing syscalls (WP-01..WP-07) */
+#define SYS_EXIT           0
+#define SYS_WRITE          1
+#define SYS_WRITE_AND_EXIT 2
+
+/* WP-08cd: File operations (user-space shell + tools) */
+#define SYS_OPEN           3
+#define SYS_CLOSE          4
+#define SYS_STAT           5
+#define SYS_READDIR        6
+#define SYS_MKDIR          7
+#define SYS_RMDIR          8
+#define SYS_UNLINK         9
+
+/* WP-08a: Process management */
+#define SYS_FORK          10
+#define SYS_EXECVE        11
+#define SYS_WAIT4         12
+#define SYS_KILL          13
+#define SYS_GETPID        14
+#define SYS_GETPPID       15
+#define SYS_EXIT2         16
+
+/* WP-08a: IPC */
+#define SYS_PIPE          20
+#define SYS_DUP           50
+#define SYS_DUP2          51
+
+/* WP-08a: Memory */
+#define SYS_MMAP          30
+#define SYS_MUNMAP        31
+#define SYS_MPROTECT      32
+#define SYS_BRK           33
+
+/* WP-08a: Signals */
+#define SYS_SIGNAL        40
+#define SYS_SIGACTION     41
+#define SYS_SIGRETURN     42
+
+/* WP-08a: File / directory */
+#define SYS_CHDIR         60
+#define SYS_GETCWD        61
+#define SYS_IOCTL         62
+#define SYS_READ          70
+
+/* WP-08cd: User-space shell support */
+#define SYS_WRITE2        72   /* (fd, buf, len) — fd-aware write for pipes/redirect */
+#define SYS_READLINE      73   /* (buf, maxlen) — read a line from keyboard */
+#define SYS_GETCH         74   /* (void) -> int: read one raw key from keyboard (no echo) */
+
+/* P2-04 FIX: uptime / time syscall so userland can read kernel tick counter. */
+#define SYS_UPTIME        75   /* (void) -> u64: milliseconds since boot */
+#define SYS_MEMINFO       76   /* (buf) -> 0: fills 3 u64s (total/used/free bytes) from PMM */
+
+/* WP-08a: I/O multiplexing */
+#define SYS_SELECT        80
+#define SYS_POLL          81
+
+/* 3.0.0-WP03 G5: the signal ABI (numbers, handler type, sigaction)
+ * moved UP into core_usermode.h - the process mechanism owns its
+ * signal state; the syscall implementation side only consumes it. */
+
+/* Initialize WP-08a syscalls (called from usermode_init) */
+void core_syscall_wp08a_init(void);
+
+/* WP-08b Batch 5: dynamic library loading via dlopen() */
+#define SYS_MAP_SOLIB    90
+
+/* ---- WP-10-wp08fix1: links / permissions / net bridge / process table ----
+ * Numbers 96-102 are reserved for the user-space shell support added by
+ * the WP-08 completion work package. */
+#define SYS_SYMLINK      96   /* (target, linkpath) -> 0/-1               */
+#define SYS_READLINK     97   /* (path, buf, cap) -> len / -1             */
+#define SYS_LINK         98   /* (oldpath, newpath) -> 0/-1 (hard link)   */
+#define SYS_CHMOD        99   /* (path, mode) -> 0/-1                     */
+#define SYS_CHOWN       100   /* (path, uid, gid) -> 0/-1                 */
+#define SYS_NETCMD      101   /* (op, arg, out, cap) -> 0/-1              */
+#define SYS_PS          102   /* (buf, cap) -> entry count / -1           */
+/* WP-10-tui: kernel socket API (net_core.h).  The first argument is a
+ * NET SOCKET id from net_socket(), not a process file descriptor. */
+#define SYS_SOCKET      103   /* (type SOCK_TCP/SOCK_UDP) -> sock / -1    */
+#define SYS_NETBIND     104   /* (sock, ip_le, port) -> 0/-1              */
+#define SYS_NETCONNECT  105   /* (sock, ip_le, port) -> 0/-1              */
+#define SYS_NETACCEPT   106   /* (lsock, &ip, &port) -> sock / -1         */
+#define SYS_NETSEND     107   /* (sock, buf, len) -> sent / -1            */
+#define SYS_NETRECV     108   /* (sock, buf, maxlen) -> recvd / -1        */
+#define SYS_NETCLOSE    109   /* (sock) -> 0/-1                           */
+#define SYS_L1SVC       110   /* (cat, op, arg, out, cap) -> 0/-1         */
+
+/* SYS_NETCMD operation codes (must match userprogs/ush.c). */
+#define NETCMD_IFCONFIG  1
+#define NETCMD_PING      2
+#define NETCMD_NETSTAT   3
+#define NETCMD_WGET      4
+
+/* Register the WP-10-wp08fix1 syscalls (called from usermode_init after
+ * core_syscall_wp08a_init). */
+void core_syscall_wp08fix1_init(void);
+
+/* v2.0.0: register SYS_L1SVC (called from usermode_init). */
+void core_syscall_l1svc_init(void);
+
+/* BUG-0249 FIX (A16-11): shared name -> embedded-ELF lookup used by
+ * sys_execve and the L1 job API (job_create). Stores the program size
+ * in *size_out when size_out != 0. Returns NULL for an unknown name. */
+const u8 *core_userprog_lookup(const char *name, u64 *size_out);
+
+#endif /* OC_SYSCALL_H */

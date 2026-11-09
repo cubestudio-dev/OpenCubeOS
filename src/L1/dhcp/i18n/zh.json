@@ -1,0 +1,4 @@
+{
+  "_hint": "DHCP 租约状态/续租",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+}

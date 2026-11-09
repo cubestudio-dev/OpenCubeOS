@@ -1,0 +1,6 @@
+{
+  "_hint": "remove an empty directory",
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "usage: rmdir <path>\n": "usage: rmdir <path>\n",
+  "rmdir: cannot remove '": "rmdir: cannot remove '"
+}

@@ -1,0 +1,5 @@
+{
+  "_hint": "在文件中搜索文本",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: grep <pattern>\n": "用法：grep <模式>\n"
+}

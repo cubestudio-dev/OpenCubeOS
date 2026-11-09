@@ -1,0 +1,4 @@
+{
+  "_hint": "对主机发 ICMP 回显",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+}

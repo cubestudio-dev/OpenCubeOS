@@ -1,0 +1,4 @@
+{
+  "_hint": "show shell built-ins and the program registry",
+  "svc_call_failed": ": service call failed (rc=-1)\n"
+}

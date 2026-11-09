@@ -1,0 +1,5 @@
+{
+  "_hint": "show the last lines of a file",
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "tail: cannot open ": "tail: cannot open "
+}

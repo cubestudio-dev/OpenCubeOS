@@ -1,0 +1,5 @@
+{
+  "_hint": "报告文件系统剩余空间",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  " files (kernel df for full mount table)\n": " 个文件（完整挂载表见内核 df）\n"
+}

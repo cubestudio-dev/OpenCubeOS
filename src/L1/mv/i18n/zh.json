@@ -1,0 +1,6 @@
+{
+  "_hint": "移动/重命名文件",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: mv <src> <dst>\n": "用法：mv <源> <目标>\n",
+  "mv: cannot open '": "mv：无法打开 '"
+}

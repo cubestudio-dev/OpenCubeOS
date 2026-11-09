@@ -1,0 +1,137 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+
+# Release packaging: SRC zip standard procedure
+
+Applies to every `opencube-*-src.zip` shipped as a Release asset or a
+`website/public/downloads/` entry. Introduced after WP-AUDIT-01-p1fix1,
+whose first SRC zip accidentally weighed 217 MB because the packaging
+source tree carried `website/public/downloads/` (286 MB of historical
+Release assets, including the 102 MB p0fix1 package).
+
+## 1. Fixed exclusion list (mandatory, never optional)
+
+A SRC zip contains source, docs and build tooling only. Exclude:
+
+| Exclusion | Reason |
+|---|---|
+| `website/public/downloads/` (everything) | Historical Release assets; they live in git history and on Releases, never inside a SRC zip |
+| `website/out/` | Website build output |
+| `website/.next/` | Website incremental build cache (leaks 345 files / ~1.7 MB if present) |
+| `website/node_modules/` | Website dependencies |
+| `.git/` | Repository history |
+| `build/` | Kernel/ISO build products |
+| `docs/WORKFLOW.md` | Internal agent workflow notes; not part of the shipped source (excluded since WP-10-AUDIT_P2-fix1) |
+| `docs/verification/` | SINCE WP-10-AUDIT_P2-fix2 this directory is NO LONGER excluded (finding #4, HANDOVER 1.3: decision "make public"). It MUST be present in every SRC zip AND in the public git tree, so the two stay identical. Older releases that shipped without it are not retroactively patched. |
+| `*.o`, `*.elf`, `*.bin`, `*.iso`, `*.img`, `*.tar.gz` outside `iso/boot/grub/fonts/` | Compiled artifacts (the GRUB `unicode.pf2` font is a legit source-tree asset and stays) |
+| `__pycache__/`, `*.pyc` | Python caches |
+
+## 2. Standard command (run from a clean checkout or export)
+
+```sh
+rm -f /tmp/<name>-src.zip
+zip -r -q /tmp/<name>-src.zip . \
+  -x "website/public/downloads/*" \
+  -x "website/public/downloads/" \
+  -x "website/out/*" \
+  -x "website/.next/*" \
+  -x "website/node_modules/*" \
+  -x ".git/*" \
+  -x "build/*" \
+  -x "docs/WORKFLOW.md" \
+  -x "*.pyc" -x "*__pycache__*"
+```
+
+NOTE (finding #4, WP-10-AUDIT_P2-fix2): `docs/verification/` is NOT in the
+exclusion list anymore - the verification logs are public artifacts now.
+The same directory must be committed to the public repo (it already is on
+the private archive), so `git -C <public clone> ls-files docs/verification`
+lists the same files the zip carries. Verification rule after packaging:
+
+```sh
+unzip -l <name>-src.zip | grep -c "docs/verification/"   # must be >= 7
+git -C <public clone> ls-files docs/verification | wc -l  # must match
+```
+
+Sanity gates before shipping:
+
+1. `unzip -l <name>-src.zip | grep -E "downloads/|/build/|node_modules|\.iso|\.next/|WORKFLOW\.md"` -> zero matches
+   (only `iso/boot/grub/fonts/unicode.pf2` may match the broad `\.(bin|pf2)$` net).
+2. Expected size: roughly 2.5-3.5 MB (p0fix2 = 2,566,826 B; p1fix1 = 2,647,642 B).
+   Anything above ~5 MB means an exclusion leaked — stop and fix the pack.
+3. `sha256sum` the zip and record it; the same value must appear on the
+   GitHub Release asset, the site `/downloads/` copy and the local build
+   (3-way identical rule, as with the ISO).
+
+## 3. gh-pages downloads convention
+
+`website/public/downloads/` holds the CURRENT release's ISO + SRC zip plus
+already-published historical assets. Rules:
+
+- Never commit a new large file (>50 MB, GitHub warning threshold) here.
+  If a historical SRC zip was oversized, replace it with a corrected
+  package (this was done for p0fix1: 102,802,637 B -> 2,323,002 B,
+  sha256 51a9d93c...).
+- The packaging step must not pull this directory into any SRC zip (see §1).
+- gh-pages ships what this directory holds; keep it lean.
+
+## 4. OTA update manifest (update.json / update-v2.json) — MANDATORY at every release
+
+The update manifest lives in `website/public/` (shipped to gh-pages by the
+website build) and MUST be refreshed at every release. Skipping it leaves
+older kernels with a permanent "new version available" false alarm (the
+manifest stayed at WP-AUDIT-01-p0fix2 from 2026-10-05 through the fix3 /
+fix4 / chipset releases and every user checkupdate reported a bogus
+update - fixed 2026-10-13).
+
+Per release:
+1. Build the release kernel from the tag (worktree checkout, clean build).
+2. `bash tools/make_update_pkg.sh <tag> build/opencube.elf \
+   build/opencube-<tag>-update.tar.gz` -> prints the package sha256 + size.
+3. Copy the .tar.gz into `website/public/downloads/`.
+4. Update `website/public/update.json` AND `update-v2.json`:
+   `version` = tag name, `build` = `git rev-list --count <tag>` (the same
+   OC_KERNEL_BUILD the tagged build baked in), `time` = tag date,
+   `changes` <= 127 bytes (v1, WP-09 compatibility) / <= 255 bytes (v2),
+   `package_url` + `package_sha256` + `package_size` from step 2.
+5. Verify in QEMU: checkupdate against the live URL reports "up to date"
+   for the tagged build (numeric build-id compare) and "new version
+   available" for kernels older than the tag.
+
+The numeric `build` field is the primary comparison (BUG-0347): when both
+sides publish it, a local tree newer than an old server tag no longer
+depends on the git-describe string fallback, which only recognizes the
+`<server-tag>-N-g<hash>` direct-descendant shape.
+
+### 4.1 Monotonic build counter (lesson from WP-10-chinese_support-fix1)
+
+The `build` field MUST be monotonic across releases: it is the ONLY
+update gate for every ISO in the field (stage 1 of
+`ota_update_remote_is_newer`).  A regression breaks update offers for
+whole release cohorts - this actually happened: the repository history
+rewrite between the camera_misc and chinese_support releases regressed
+the baked counter 193 -> 187, the chinese_support release also skipped
+the OTA package entirely, and every chinese_support checkupdate offered
+the OLDER camera_misc build as an update (fixed by fix1).
+
+Rule per release:
+
+- `build = max(git rev-list --count <tag>, previous published build + 1)`.
+- If the max picks the second term, bake the same number into the ISO
+  itself with the documented override (`make OC_KERNEL_BUILD=<N>`) so
+  the freshly released ISO sees "up to date" against its own manifest,
+  and record the override in the release notes.
+- Never publish a manifest whose `build` is lower than any released
+  ISO's baked counter.
+
+## 5. Token hygiene (related lesson from p1fix1)
+
+- Public repo (cubestudio-dev/OpenCubeOS) push/Release/gh-pages:
+  use the `opencube-os-push` token only.
+- Private archive repo (cubestudio-dev/tdgh...): use the
+  `OpneCubeOS-push-save` token only.
+- A 403 with `Permission to ... denied` is a wrong-token symptom, not a
+  missing-permission symptom, when each token's scope is known-good.
+- `GET /repos/{owner}/{repo}` `permissions.push` reflects the USER's role
+  (owner -> true), never the token's resource grant. Fine-grained PAT
+  resource grants have no self-inspection API; test with a real write.

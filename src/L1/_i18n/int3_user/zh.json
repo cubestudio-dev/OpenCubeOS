@@ -1,0 +1,4 @@
+{
+  "_hint": "ring-3 int3 陷阱测试",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+}

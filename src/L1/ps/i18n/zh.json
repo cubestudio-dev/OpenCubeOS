@@ -1,0 +1,5 @@
+{
+  "_hint": "列出进程",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "ps: SYS_PS unavailable (kernel too old)\n": "ps：SYS_PS 不可用（内核过旧）\n"
+}

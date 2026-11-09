@@ -1,0 +1,17 @@
+{
+  "_hint": "显示文件元数据",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: stat <path>\n": "用法：stat <路径>\n",
+  "stat: cannot stat '": "stat：无法获取状态 '",
+  "  File: ": "  文件：",
+  "  Type: ": "  类型：",
+  "directory": "目录",
+  "device": "设备",
+  "regular file": "普通文件",
+  "  Size: ": "  大小：",
+  " bytes\n": " 字节\n",
+  "  Mode: ": "  模式：",
+  "  Uid:  ": "  Uid：",
+  "  Gid: ": "  Gid：",
+  "  Links: ": "  链接数："
+}

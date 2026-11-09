@@ -1,0 +1,4 @@
+{
+  "_hint": "ICMP echo to a host",
+  "svc_call_failed": ": service call failed (rc=-1)\n"
+}

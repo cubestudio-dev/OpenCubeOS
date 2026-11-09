@@ -1,0 +1,4 @@
+{
+  "_hint": "转储 PCI 配置",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+}

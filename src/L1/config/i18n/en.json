@@ -1,0 +1,4 @@
+{
+  "_hint": "read/write system config",
+  "svc_call_failed": ": service call failed (rc=-1)\n"
+}

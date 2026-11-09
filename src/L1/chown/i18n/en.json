@@ -1,0 +1,6 @@
+{
+  "_hint": "change file owner",
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "usage: chown <uid>[:<gid>] <path>\n": "usage: chown <uid>[:<gid>] <path>\n",
+  "chown: cannot change owner\n": "chown: cannot change owner\n"
+}

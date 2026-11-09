@@ -1,0 +1,6 @@
+{
+  "_hint": "remove files",
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "usage: rm <file>\n": "usage: rm <file>\n",
+  "rm: cannot remove '": "rm: cannot remove '"
+}

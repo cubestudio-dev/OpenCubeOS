@@ -1,0 +1,7 @@
+{
+  "_hint": "create links",
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "ln: cannot create symlink (target must be an absolute path)\n": "ln: cannot create symlink (target must be an absolute path)\n",
+  "usage: ln <old> <new> | ln -s <abs-target> <linkpath>\n": "usage: ln <old> <new> | ln -s <abs-target> <linkpath>\n",
+  "ln: hard link failed (rc=": "ln: hard link failed (rc="
+}

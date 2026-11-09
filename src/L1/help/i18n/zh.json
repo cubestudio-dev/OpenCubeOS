@@ -1,0 +1,4 @@
+{
+  "_hint": "显示 shell 内建命令与程序注册表",
+  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+}

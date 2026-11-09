@@ -1,0 +1,49 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
+/* Open Cube OS - WP-01
+ * File: kernel/lib/lib_log.h
+ * Purpose: Boot stage logger - writes a line per stage of the form:
+ *
+ *     [HH:MM:SS.mmm] stage_name ......... OK
+ *
+ * Time source: a free-running 32-bit counter at 0xB8000 (PIT-pumped
+ * dummy for WP-01). For WP-01 we don't have a real timer running, so
+ * the "time" is a monotonic 1/100s counter incremented per log call -
+ * it's enough to demonstrate the format and ordering. WP-02 will wire
+ * a real PIT/HPET.
+ */
+#ifndef OC_LOG_H
+#define OC_LOG_H
+
+#include "types.h"
+
+void lib_log_init(void);
+
+/* WP-10-chinese_support-fix4: log level. 0 = default (everything),
+ * 1 = quiet (stage lines whose status is NOT a failure are suppressed;
+ * FAIL/ERROR/PANIC still print). Persisted as log.level in
+ * /etc/opencube.conf; the TUI log page and `config set log.level N`
+ * share the same key. */
+void lib_log_set_level(int level);
+int  lib_log_get_level(void);
+
+/* Emit a log line for the given stage name. status is "OK" or "FAIL". */
+void lib_log_stage(const char* stage, const char* status);
+
+/* Convenience wrappers. */
+#define OC_LOG_OK(stage)    lib_log_stage((stage), "OK")
+#define OC_LOG_FAIL(stage) lib_log_stage((stage), "FAIL")
+
+/* Plain info line (no [time] prefix, just indentation). */
+void lib_log_info(const char* s);
+
+/* WP-12: exposed so main.c's OC_LOG_OK2/FAIL2 mirror can classify the
+ * level without duplicating the FAIL matcher. */
+int lib_log_status_is_failure(const char *status);
+
+#endif /* OC_LOG_H */
+
+/* WP-10-tui: boot-log ring.  lib_log_stage/lib_log_info mirror every
+ * line they print into a 64-entry ring; the TUI log viewer pages it. */
+int lib_log_ring_count(void);
+int lib_log_ring_get(int idx, char *out, int cap);
