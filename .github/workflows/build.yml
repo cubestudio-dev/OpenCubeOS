@@ -34,8 +34,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
+      # Full history (fetch-depth: 0) is REQUIRED for a correct build id:
+      # OC_KERNEL_BUILD = git rev-list --count HEAD + 21 (Makefile) and the
+      # OTA update check compares build ids numerically (BUG-0347,
+      # src/L0/services/selfhost/ota_update.c: remote > local only).  A
+      # shallow checkout would bake a build id far BELOW the published
+      # ones (278/321/414/416) and every installed machine would then
+      # silently ignore the release as a "downgrade".
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install toolchain
         run: |

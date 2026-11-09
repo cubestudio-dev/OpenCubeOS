@@ -551,10 +551,15 @@ clean:
 # uid/gid/extra fields.  Heavy non-source trees are excluded by pathspec
 # (same exclusion set the release chain uses).  Two builds of the same
 # commit produce identical zips.
+# 3.0.0-WP00-verify1: archive/ (the ~943 MB history vault that lives in
+# the repo tree since the WP00 mainline restore) and trash/ (the retired
+# NAK line) are excluded as well - the src zip must ship the working
+# tree, not the museum.  A 380 MB "source" zip is a release defect.
 SRC_ZIP := $(DIST)/OpenCubeOS-src-$(OC_RELEASE_VERSION).zip
 space := $(empty) $(empty)
 SRC_EXCLUDE := website/public/downloads website/out website/.next website/node_modules \
-               build dist releases .zscripts public/deliverables evidence
+               build dist releases .zscripts public/deliverables evidence \
+               archive trash
 src-zip:
 	@mkdir -p $(DIST)
 	@git -C $(OC_ROOT) ls-files \
