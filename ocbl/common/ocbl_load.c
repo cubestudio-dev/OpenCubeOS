@@ -21,6 +21,12 @@
 
 #define BOUNCE ((u8*)OCBL_BOUNCE)
 
+/* #46: PT_LOAD destinations must stay inside [want_base,
+ * OCBL_LOAD_WINDOW_END) - the identity-mapped loading window.  Every
+ * bounds check against it is written in subtraction form (x > end - y)
+ * so a hostile program header cannot wrap an addition past it. */
+#define OCBL_LOAD_WINDOW_END 0x40000000ull
+
 /* ---- ELF64 structures (only the fields we consume) ---- */
 typedef struct {
     u8  e_ident[16];
@@ -99,8 +105,8 @@ u64 ocbl_load_elf(const ocbl_volume_t* v, const char* path, u64 want_base,
     /* program headers through the bounce window, then stash the
      * compact copy (segment reads overwrite the window) */
     u32 ph_bytes = phnum * sizeof(elf64_phdr_t);
-    if (phoff + ph_bytes > (u64)fsize)
-        return 0;
+    if (phoff > (u64)fsize || ph_bytes > (u64)fsize - phoff)
+        return 0;                   /* phdr table past EOF (no wrap) */
     if (ocbl_fs_pread(v, path, (u32)phoff, BOUNCE, ph_bytes) < ph_bytes)
         return 0;
     elf64_phdr_t ph[32];
@@ -120,13 +126,20 @@ u64 ocbl_load_elf(const ocbl_volume_t* v, const char* path, u64 want_base,
             continue;
         if (ph[i].p_memsz == 0)
             continue;
+        /* #46: range gates in subtraction form - the additions
+         * dst+memsz / foff+filesz are never computed, so they cannot
+         * wrap past a limit. */
+        if (ph[i].p_filesz > ph[i].p_memsz)
+            return 0;                   /* file part must fit the mem part */
         u64 dst = ph[i].p_paddr;
-        if (dst < want_base || dst >= 0x40000000ull)
+        if (dst < want_base || dst >= OCBL_LOAD_WINDOW_END)
             return 0;                   /* outside the identity window */
+        if (ph[i].p_memsz > OCBL_LOAD_WINDOW_END - dst)
+            return 0;                   /* dst..dst+memsz past the window */
         u64 foff = ph[i].p_offset;
+        if (ph[i].p_filesz > (u64)fsize || foff > (u64)fsize - ph[i].p_filesz)
+            return 0;                   /* [foff, foff+filesz) past EOF */
         u32 filesz = (u32)ph[i].p_filesz;
-        if (foff + filesz > (u64)fsize)
-            return 0;
         u8* dmem = (u8*)(u64)dst;
         u32 off = 0;
         while (off < filesz) {
@@ -216,8 +229,8 @@ static u32 upper_kb(void)
         u64 l = mm->entries[i].len;
         if (mm->entries[i].type != 1)
             continue;
-        if (a <= 0x100000ull && a + l > 0x100000ull) {
-            u64 kib = (a + l - 0x100000ull) >> 10;
+        if (a <= 0x100000ull && l > 0x100000ull - a) {
+            u64 kib = (l - (0x100000ull - a)) >> 10;
             if (kib > 0xFFFF0000ull)
                 kib = 0xFFFF0000ull;
             return (u32)kib;
@@ -302,17 +315,20 @@ u32 ocbl_build_mbi(const char* slot_cmdline, u64 self_start, u64 self_end,
         const ocbl_mmap_t* mm = ocbl_mmap_get();
         u32 n = 0;
         for (u32 i = 0; i < mm->count; i++) {
-            if (mm->entries[i].len == 0)
+            u64 a = mm->entries[i].addr;
+            u64 l = mm->entries[i].len;
+            if (l == 0)
                 continue;
-            if (mm->entries[i].type == 1 &&
-                mm->entries[i].addr < carve_hi &&
-                mm->entries[i].addr + mm->entries[i].len > carve_lo) {
+            /* #46: end-of-entry tests in subtraction form - a+l is
+             * never computed, so it cannot wrap */
+            if (mm->entries[i].type == 1 && a < carve_hi &&
+                (a >= carve_lo || l > carve_lo - a)) {
                 /* count EXACTLY what the emission below writes:
                  * below-part + carved overlap + above-part */
-                if (mm->entries[i].addr < carve_lo)
+                if (a < carve_lo)
                     n++;
                 n++;
-                if (mm->entries[i].addr + mm->entries[i].len > carve_hi)
+                if (l > carve_hi - a)   /* a < carve_hi holds here */
                     n++;
             } else {
                 n++;
@@ -329,7 +345,8 @@ u32 ocbl_build_mbi(const char* slot_cmdline, u64 self_start, u64 self_end,
             u64 a = mm->entries[i].addr;
             u64 l = mm->entries[i].len;
             u32 tp = mm->entries[i].type;
-            if (tp == 1 && a < carve_hi && a + l > carve_lo) {
+            if (tp == 1 && a < carve_hi &&
+                (a >= carve_lo || l > carve_lo - a)) {
                 /* emit the split: [a..carve_lo) usable,
                  * [overlap] reserved, [carve_hi..end) usable */
                 if (a < carve_lo) {
@@ -340,15 +357,15 @@ u32 ocbl_build_mbi(const char* slot_cmdline, u64 self_start, u64 self_end,
                     w += 24;
                 }
                 u64 ov_lo = a > carve_lo ? a : carve_lo;
-                u64 ov_hi = (a + l) < carve_hi ? (a + l) : carve_hi;
+                u64 ov_hi = (l < carve_hi - a) ? (a + l) : carve_hi;
                 mbi_u64(w, ov_lo);
                 mbi_u64(w + 8, ov_hi - ov_lo);
                 mbi_u32(w + 16, 2);              /* reserved */
                 mbi_u32(w + 20, 0);
                 w += 24;
-                if (a + l > carve_hi) {
+                if (l > carve_hi - a) {          /* a < carve_hi holds here */
                     mbi_u64(w, carve_hi);
-                    mbi_u64(w + 8, a + l - carve_hi);
+                    mbi_u64(w + 8, l - (carve_hi - a));
                     mbi_u32(w + 16, 1);
                     mbi_u32(w + 20, 0);
                     w += 24;

@@ -95,6 +95,7 @@ static u32 g_node_count;
 static int g_loaded;
 static u32 g_method_count;
 static u32 g_undef_warn;
+static u32 g_region_warn;   /* #20: rate-limited OpRegion rejection log */
 
 #define AML_OP_BUDGET 524288u
 #define AML_MAX_DEPTH 8
@@ -415,6 +416,37 @@ static acpi_node_t *aml_parse_and_resolve(exec_ctx_t *ctx, int create) {
 /* 3. field access                                                     */
 /* ------------------------------------------------------------------ */
 
+/* #20: is a declared OpRegion window [base, base+len) itself legal for
+ * its address space?  Wraparound-safe: base+len is never computed,
+ * the check is written as len <= limit - base.  PCI_Config regions
+ * pack bus/dev/fn into the upper base bits, so only the low 8 bits
+ * count against the 256-byte config-space window. */
+static int aml_region_window_ok(u8 space, u64 base, u64 len) {
+    u64 wbase, limit;
+    switch (space) {
+    case 0x00: wbase = base;           limit = 0x100000000ull; break; /* SystemMemory <= 4 GiB */
+    case 0x01: wbase = base;           limit = 0x10000ull;     break; /* SystemIO <= 64 KiB */
+    case 0x02: wbase = base & 0xFFull; limit = 0x100ull;       break; /* PCI config <= 256 */
+    default:   return 0;               /* unsupported space stays sealed */
+    }
+    if (len > 0xFFFFFFFFull) return 0;         /* cannot be stored in region_len */
+    if (wbase > limit) return 0;
+    if (len > limit - wbase) return 0;         /* wbase + len <= limit, no wrap */
+    return 1;
+}
+
+/* #20: gate every OpRegion-backed field access: offset+len must stay
+ * inside the declared region window without u64 wraparound, and the
+ * window itself must be legal for its address space (defence in depth
+ * on top of the declaration-time check).  Returns 1 only when the
+ * access may touch memory/IO. */
+static int aml_region_bounds_ok(const acpi_node_t *r, u64 offset, u64 len) {
+    if (!r) return 0;
+    if (offset > ~0ull - len) return 0;               /* offset+len would wrap */
+    if (offset + len > (u64)r->region_len) return 0;   /* past the declared window */
+    return aml_region_window_ok(r->space, r->region_base, (u64)r->region_len);
+}
+
 static int aml_field_read(acpi_node_t *field, u64 *out, exec_ctx_t *ctx) {
     if (!field) return -1;
     if (!field->region) {
@@ -444,6 +476,8 @@ static int aml_field_read(acpi_node_t *field, u64 *out, exec_ctx_t *ctx) {
     u32 byte_off = field->bit_offset >> 3;
     int width = (int)((field->bit_len + 7) >> 3);
     if (width > 8) return -1;
+    if (!aml_region_bounds_ok(r, byte_off, (u64)width))
+        return -1;   /* #20: access outside the declared region window */
     u64 raw = 0;
     switch (r->space) {
     case 0x00: {
@@ -513,6 +547,8 @@ static int aml_field_write(acpi_node_t *field, u64 value, exec_ctx_t *ctx) {
     u32 byte_off = field->bit_offset >> 3;
     int width = (int)((field->bit_len + 7) >> 3);
     if (width > 8) return -1;
+    if (!aml_region_bounds_ok(r, byte_off, (u64)width))
+        return -1;   /* #20: access outside the declared region window */
     u32 sh = field->bit_offset & 7;
     u64 mask = (field->bit_len >= 64) ? ~0ull : ((1ull << field->bit_len) - 1);
     u64 all = mask << sh;
@@ -1359,6 +1395,23 @@ static int aml_exec_statement(exec_ctx_t *ctx) {
             n->space = space;
             n->region_base = off.integer;
             n->region_len  = (u32)ln.integer;
+            /* #20: the declared window itself must be legal for its
+             * address space (wraparound-safe).  An illegal region is
+             * logged (rate-limited, like undefined names) and marked
+             * unusable (region_len = 0) so every later field access
+             * fails the aml_region_bounds_ok gate instead of touching
+             * memory/IO; the rest of the table still loads. */
+            if (!aml_region_window_ok(space, off.integer, ln.integer)) {
+                if (g_region_warn < 12) {
+                    char line[64];
+                    strcpy(line, "opregion ");
+                    strcat(line, n->name);
+                    strcat(line, " window invalid (disabled)");
+                    aml_note(line);
+                    g_region_warn++;
+                }
+                n->region_len = 0;
+            }
             aml_val_clear(&off); aml_val_clear(&ln);
             return 0;
         }
