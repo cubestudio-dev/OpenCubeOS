@@ -84,6 +84,17 @@ int mem_vmm_map_page(mem_vmm_as_t as, u64 vaddr, u64 paddr, u64 flags);
 /* Unmap a virtual page. Returns the physical address that was mapped, or 0. */
 u64 mem_vmm_unmap_page(mem_vmm_as_t as, u64 vaddr);
 
+/* #4 FIX (WP-11 guard pages): unmap a virtual page, force-SPLITTING a
+ * 2 MiB huge-page PDE first when the target still lives inside one.
+ * The plain mem_vmm_unmap_page is a silent no-op there (walk_pt with
+ * create=0 refuses to walk through a huge PDE), so the boot.S identity
+ * window never actually lost a page. Splits use the same PT allocation
+ * and ownership tagging as walk_pt()'s create path, drop the PS bit,
+ * clear the leaf PTE and invalidate the TLB entry for vaddr.
+ * Returns 0 when a present leaf PTE was cleared, -1 if the address is
+ * not mapped (or the split could not allocate a page table). */
+int mem_vmm_unmap_page_force(mem_vmm_as_t as, u64 vaddr);
+
 /* Change protection flags of a mapped page.
  * Returns 0 on success, -1 if the page wasn't mapped. */
 int mem_vmm_protect_page(mem_vmm_as_t as, u64 vaddr, u64 flags);
@@ -91,6 +102,18 @@ int mem_vmm_protect_page(mem_vmm_as_t as, u64 vaddr, u64 flags);
 /* Query whether a virtual address is mapped. Returns 1 if mapped, 0 if not.
  * If paddr_out is non-NULL, stores the physical address. */
 int mem_vmm_is_mapped(mem_vmm_as_t as, u64 vaddr, u64 *paddr_out);
+
+/* AUD-2a-001 FIX: user-pointer-safe variant of mem_vmm_is_mapped.
+ * Requires PRESENT *and* USER at EVERY paging level (PML4E, PDPTE, PDE
+ * and the leaf PTE - or the PDE itself when it is a 2 MiB huge page).
+ * mem_vmm_is_mapped only checks PRESENT on the final PTE, so the
+ * supervisor-only 0-4 GiB identity window that every user address
+ * space inherits passes that check; a ring-0 memcpy behind it would
+ * then read/write kernel memory on ring 3's behalf. Use this (plus a
+ * USER_PTR_FLOOR range check at the call site) to validate ring-3
+ * pointers. Returns 1 only if ring 3 itself could reach a user page
+ * at vaddr. */
+int mem_vmm_is_mapped_user(mem_vmm_as_t as, u64 vaddr);
 
 /* Switch to the given address space (loads CR3). */
 void mem_vmm_switch_as(mem_vmm_as_t as);

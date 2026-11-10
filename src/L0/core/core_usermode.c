@@ -844,6 +844,20 @@ void enter_ring3(u64 entry_point, u64 user_rsp, u64 user_cr3) {
     );
 }
 
+/* #6 FIX: exec 失败/OOM 早退点的统一清理——销毁已建地址空间再返回错误。
+ * 此前多个早退点直接 return，泄漏整个 AS（fork 路径已修，exec 路径漏配）。 */
+static int user_proc_create_exec_fail(user_proc_t *proc, int err) {
+    /* proc->as is never loaded into CR3 before the success path
+     * (core_kthread_set_cr3 only runs after the LAST early return), so
+     * no CR3 switch is needed here - same rollback shape as the fork
+     * path's OOM teardown in copy_user_address_space. */
+    if (proc->as) {
+        mem_vmm_destroy_address_space(proc->as);
+        proc->as = 0;
+    }
+    return err;
+}
+
 pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
     if (!elf_data || elf_size < sizeof(elf64_hdr_t)) return -1;
     elf64_hdr_t *hdr = (elf64_hdr_t*)elf_data;
@@ -1045,7 +1059,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
                                    main_phdr[i].filesz) != 0) {
                     screen_console_puts("dynlink: failed to map main PT_LOAD\n");
                     proc->alive = 0;
-                    return -1;
+                    return user_proc_create_exec_fail(proc, -1);
                 }
                 /* Allocate fresh zero pages for the bss region
                  * (memsz > filesz) so .bss reads as zero. */
@@ -1096,7 +1110,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
                                        lib_phdr[i].filesz) != 0) {
                         screen_console_puts("dynlink: failed to map libfoo.so PT_LOAD\n");
                         proc->alive = 0;
-                        return -1;
+                        return user_proc_create_exec_fail(proc, -1);
                     }
                     /* Allocate fresh zero pages for libfoo.so's bss. */
                     if (lib_phdr[i].memsz > lib_phdr[i].filesz) {
@@ -1169,7 +1183,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
      */
     if (hdr->phentsize != sizeof(elf64_phdr_t)) {
         screen_console_puts("[user] bad phentsize\n");
-        proc->alive = 0; return -1;
+        proc->alive = 0; return user_proc_create_exec_fail(proc, -1);
     }
     /* Check phoff + phnum * phentsize <= elf_size (with overflow guard). */
     {
@@ -1178,7 +1192,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
             phdr_table_end < hdr->phoff ||  /* overflow */
             phdr_table_end > elf_size) {
             screen_console_puts("[user] program-header table out of bounds\n");
-            proc->alive = 0; return -1;
+            proc->alive = 0; return user_proc_create_exec_fail(proc, -1);
         }
     }
     /* P3-14 FIX: Pre-validate every PT_LOAD range and check for overlaps.
@@ -1192,23 +1206,23 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         u64 file_end = phdr[i].offset + phdr[i].filesz;
         if (file_end < phdr[i].offset || file_end > elf_size) {
             screen_console_puts("[user] PT_LOAD file range out of bounds\n");
-            proc->alive = 0; return -1;
+            proc->alive = 0; return user_proc_create_exec_fail(proc, -1);
         }
         /* p_vaddr + p_memsz must not overflow. */
         u64 mem_end = phdr[i].vaddr + phdr[i].memsz;
         if (mem_end < phdr[i].vaddr) {
             screen_console_puts("[user] PT_LOAD vaddr+memsz overflow\n");
-            proc->alive = 0; return -1;
+            proc->alive = 0; return user_proc_create_exec_fail(proc, -1);
         }
         /* p_memsz must be >= p_filesz (BSS section is memsz - filesz). */
         if (phdr[i].memsz < phdr[i].filesz) {
             screen_console_puts("[user] PT_LOAD memsz < filesz\n");
-            proc->alive = 0; return -1;
+            proc->alive = 0; return user_proc_create_exec_fail(proc, -1);
         }
         /* p_vaddr must be in user space. */
         if (phdr[i].vaddr >= 0x0000800000000000ULL) {
             screen_console_puts("[user] PT_LOAD vaddr in kernel space\n");
-            proc->alive = 0; return -1;
+            proc->alive = 0; return user_proc_create_exec_fail(proc, -1);
         }
         /* Check for overlap with previous PT_LOAD segments. */
         for (int j = 0; j < i; j++) {
@@ -1220,7 +1234,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
             /* Overlap if i_start < j_end && j_start < i_end. */
             if (i_start < j_end && j_start < i_end) {
                 screen_console_puts("[user] PT_LOAD segments overlap\n");
-                proc->alive = 0; return -1;
+                proc->alive = 0; return user_proc_create_exec_fail(proc, -1);
             }
         }
     }
@@ -1254,7 +1268,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         }
         if (map_user_pages(proc->as, phdr[i].vaddr,
                            elf_data + phdr[i].offset, phdr[i].filesz) != 0) {
-            proc->alive = 0; return -1;
+            proc->alive = 0; return user_proc_create_exec_fail(proc, -1);
         }
         if (phdr[i].memsz > phdr[i].filesz) {
             u64 bss_start = phdr[i].vaddr + phdr[i].filesz;
@@ -1315,7 +1329,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
     proc->user_rsp = USER_STACK_TOP - 16;
 
     proc->tid = core_kthread_create(user_task_launcher, proc, proc->name, TASK_PRIO_DEFAULT);
-    if (proc->tid < 0) { proc->alive = 0; return -1; }
+    if (proc->tid < 0) { proc->alive = 0; return user_proc_create_exec_fail(proc, -1); }
     core_kthread_set_cr3(proc->tid, proc->as);
     /* BUG-029 FIX: Set rsp0 for TSS stack switching on ring-3 IRQ. */
     {

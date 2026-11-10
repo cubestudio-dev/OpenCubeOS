@@ -208,6 +208,63 @@ u64 mem_vmm_unmap_page(mem_vmm_as_t as, u64 vaddr) {
     return old;
 }
 
+/* #4 FIX (WP-11 guard pages): mem_vmm_unmap_page is a silent no-op
+ * while vaddr still lives inside a boot.S 2 MiB huge page - walk_pt()
+ * with create=0 refuses to walk through a huge PDE, so the PTE clear
+ * never happens and callers believed a guard page existed that wasn't
+ * there. This variant first splits the huge page into a 4 KiB page
+ * table (same frame allocation and BUG-0136 ownership tagging walk_pt()'s
+ * create path uses), then clears the leaf PTE, then invalidates the TLB
+ * entry for vaddr. Unlike walk_pt()'s split, the USER bit is propagated
+ * from the original PDE instead of being forced on: a kernel huge page
+ * must stay supervisor-only after the split (AUD-2a-001).
+ *
+ * The invlpg is UNCONDITIONAL (not only when `as` is the current CR3,
+ * like mem_vmm_unmap_page does): the old huge translation for vaddr may
+ * have been cached while a different CR3 was loaded - user address
+ * spaces share the kernel's 1-4 GiB PD pages - and INVLPG drops the
+ * cached translation for that linear address regardless.
+ *
+ * Returns 0 when a present leaf PTE was cleared, -1 when the address
+ * is not mapped or the split could not allocate a page table. */
+int mem_vmm_unmap_page_force(mem_vmm_as_t as, u64 vaddr) {
+    /* Walk to the PDE without allocating (mirrors walk_pt's structure). */
+    volatile u64 *pml4e = pml4_entry_ptr(as, vaddr);
+    if (!(*pml4e & VMM_FLAG_PRESENT)) return -1;
+    u64 *pdpt = (u64*)(*pml4e & PTE_ADDR_MASK);
+    volatile u64 *pdpte = &pdpt[PDPT_INDEX(vaddr)];
+    if (!(*pdpte & VMM_FLAG_PRESENT)) return -1;
+    u64 *pd = (u64*)(*pdpte & PTE_ADDR_MASK);
+    volatile u64 *pde = &pd[PD_INDEX(vaddr)];
+    if (!(*pde & VMM_FLAG_PRESENT)) return -1;
+
+    if (*pde & 0x80) {
+        /* Huge page (2 MiB): split it into 512 4 KiB PTEs first.
+         * P0-9 FIX mask: the 2 MiB physical base is bits 21..51. */
+        u64 huge_phys = *pde & 0x000FFFFFFFE00000ULL;
+        u64 flags = VMM_FLAG_PRESENT | VMM_FLAG_WRITE;
+        if (*pde & VMM_FLAG_USER) flags |= VMM_FLAG_USER;
+        u64 pt_phys = mem_pmm_alloc_frame();
+        if (pt_phys == 0) return -1;
+        u64 *new_pt = (u64*)pt_phys;
+        memset(new_pt, 0, PMM_PAGE_SIZE);
+        for (int i = 0; i < 512; i++) {
+            new_pt[i] = (huge_phys + (u64)i * PMM_PAGE_SIZE) | flags;
+        }
+        /* BUG-0136 FIX (A1-10): tag private PTs like walk_pt() does. */
+        const u64 owner = (as != g_kernel_pml4) ? VMM_FLAG_PT_OWNER : 0;
+        *pde = pt_phys | flags | owner;  /* PS bit (0x80) dropped */
+    }
+
+    /* PDE now points at a regular page table: clear the leaf PTE. */
+    u64 *pt = (u64*)(*pde & PTE_ADDR_MASK);
+    volatile u64 *pte = &pt[PT_INDEX(vaddr)];
+    if (!(*pte & VMM_FLAG_PRESENT)) return -1;
+    *pte = 0;
+    invlpg(vaddr);
+    return 0;
+}
+
 int mem_vmm_protect_page(mem_vmm_as_t as, u64 vaddr, u64 flags) {
     volatile u64 *pte = walk_pt(as, vaddr, 0);
     if (!pte || !(*pte & VMM_FLAG_PRESENT)) return -1;
@@ -222,6 +279,27 @@ int mem_vmm_is_mapped(mem_vmm_as_t as, u64 vaddr, u64 *paddr_out) {
     volatile u64 *pte = walk_pt(as, vaddr, 0);
     if (!pte || !(*pte & VMM_FLAG_PRESENT)) return 0;
     if (paddr_out) *paddr_out = *pte & PTE_ADDR_MASK;
+    return 1;
+}
+
+/* AUD-2a-001 FIX: user-pointer-safe variant of mem_vmm_is_mapped -
+ * see the header comment. Software walk (walk_pt() cannot be used:
+ * its create=0 path returns NULL for huge PDEs, and neither its checks
+ * nor mem_vmm_is_mapped's look at the USER bit). Every level must be
+ * PRESENT and USER; a 2 MiB PDE with PS set is itself the leaf. */
+int mem_vmm_is_mapped_user(mem_vmm_as_t as, u64 vaddr) {
+    volatile u64 *pml4e = pml4_entry_ptr(as, vaddr);
+    if (!(*pml4e & VMM_FLAG_PRESENT) || !(*pml4e & VMM_FLAG_USER)) return 0;
+    u64 *pdpt = (u64*)(*pml4e & PTE_ADDR_MASK);
+    volatile u64 *pdpte = &pdpt[PDPT_INDEX(vaddr)];
+    if (!(*pdpte & VMM_FLAG_PRESENT) || !(*pdpte & VMM_FLAG_USER)) return 0;
+    u64 *pd = (u64*)(*pdpte & PTE_ADDR_MASK);
+    volatile u64 *pde = &pd[PD_INDEX(vaddr)];
+    if (!(*pde & VMM_FLAG_PRESENT) || !(*pde & VMM_FLAG_USER)) return 0;
+    if (*pde & 0x80) return 1;  /* 2 MiB huge page: the PDE is the leaf */
+    u64 *pt = (u64*)(*pde & PTE_ADDR_MASK);
+    volatile u64 *pte = &pt[PT_INDEX(vaddr)];
+    if (!(*pte & VMM_FLAG_PRESENT) || !(*pte & VMM_FLAG_USER)) return 0;
     return 1;
 }
 

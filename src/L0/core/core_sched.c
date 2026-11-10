@@ -400,8 +400,18 @@ tid_t core_kthread_create(void (*fn)(void *arg), void *arg, const char *name, in
      * reason (the dispatcher checks whether CR2 lands in a task's
      * guard page). The frame is re-mapped in core_kthread_destroy
      * before the PMM free so the next owner starts from a clean,
-     * fully-mapped set of pages. */
-    mem_vmm_unmap_page(mem_vmm_kernel_as(), (u64)stack_phys);
+     * fully-mapped set of pages.
+     *
+     * #4 FIX: use the force variant. kthread stacks come from the PMM
+     * pool, whose whole 0-4 GiB range is covered by boot.S 2 MiB huge
+     * PDEs; the plain mem_vmm_unmap_page is a SILENT NO-OP inside a
+     * still-unsplit huge page (walk_pt create=0 refuses huge PDEs), so
+     * first-generation stacks never actually got their guard page.
+     * mem_vmm_unmap_page_force splits the huge page (with a TLB
+     * invalidation for the cleared entry) so the guard gap below is
+     * real: overflow -> #PF -> "KERNEL STACK OVERFLOW" panic, as
+     * WP-11 4.4 documents. */
+    mem_vmm_unmap_page_force(mem_vmm_kernel_as(), (u64)stack_phys);
 
     /* Set up saved register state. */
     u64 *sp = (u64*)((u8*)t->stack_base + t->stack_size);
