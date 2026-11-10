@@ -139,7 +139,13 @@ void core_sched_idle_counters(u64 *idle_ticks, u64 *total_ticks) {
 }
 
 /* WP-12-watchdog_logging: task-state split for the health monitor.
- * Walks the static table under cli (IRQ-safe, no allocation). */
+ * Walks the static table under cli (IRQ-safe, no allocation).
+ * BUG-#3 FIX: the restore path used to re-execute "pushfq; popq %0"
+ * into the SAME variable f, clobbering the SAVED flags with the
+ * CURRENT ones. After the entry-side cli, IF is always 0, so the
+ * "if (f & 0x200) sti" test never fired and the first call from task
+ * context left GLOBAL interrupts off forever. Restore from the saved
+ * value instead (same idiom as core_sched_reap_exited below). */
 int core_sched_task_states(u32 *running, u32 *ready, u32 *blocked, u32 *total) {
     if (!running || !ready || !blocked || !total) return -1;
     u32 run = 0, rdy = 0, blk = 0, tot = 0;
@@ -155,7 +161,6 @@ int core_sched_task_states(u32 *running, u32 *ready, u32 *blocked, u32 *total) {
         default: break;              /* EXITED: about to be reaped   */
         }
     }
-    __asm__ volatile("pushfq; popq %0" : "=r"(f) :: "memory");
     if (f & 0x200) __asm__ volatile("sti" ::: "memory");
     *running = run; *ready = rdy; *blocked = blk; *total = tot;
     return 0;
