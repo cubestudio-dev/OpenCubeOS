@@ -135,15 +135,60 @@ void ocire_supervisor_run(void) {
     if (mb->state == OCIRE_MB_STATE_WAIT_SIGNAL) {
         /* Previous boot never signalled: the watchdog reset landed
          * here (or the mailbox survived a hard power cut mid-boot).
-         * WP-02: show the notice, then reboot into the full shell. */
+         * WP-02: show the notice, then reboot into the full shell.
+         *
+         * #47: this write MUST land before the reboot - ENTER_FULL is
+         * what makes the next pass take the full shell instead of
+         * coming back here. A persistent failure (dead / read-only
+         * recovery volume) used to "continue anyway" into the reboot
+         * and loop this branch forever: the on-disk mailbox still
+         * reads WAIT_SIGNAL, so the next boot re-enters this exact
+         * path. Keep the retry bounded and loud; if all attempts fail
+         * the machine halts for the operator instead of resetting. */
+        int mbw = -1;
         ocire_puts("\n");
         ocire_puts("OpenCubeOS seems to have crashed, getting ready to reboot to OCIRE\n");
         ocire_puts("\n");
         mb->fail_count++;
         mb->state = OCIRE_MB_STATE_ENTER_FULL;
-        if (ocire_mailbox_write() != 0) {
-            ocire_puts("Supervisor: mailbox write failed; continuing anyway.\n");
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            ocire_puts("Supervisor: mailbox write attempt ");
+            ocire_putdec("", (u64)attempt);
+            ocire_puts("/3 ...\n");
+            mbw = ocire_mailbox_write();
+            if (mbw == 0) break;
+            ocire_puts("Supervisor: mailbox write attempt ");
+            ocire_putdec("", (u64)attempt);
+            ocire_puts("/3 FAILED (rc ");
+            ocire_putdec("", (u64)(-mbw));
+            ocire_puts(")\n");
+            if (attempt < 3) ocire_sleep_sec(2);  /* back off, then retry */
         }
+        if (mbw != 0) {
+            /* 3/3 failed: a reboot would find the same stale
+             * WAIT_BOOT_SIGNAL and re-enter this branch forever. Stop
+             * here instead - loudly, with the failure decoded. */
+            ocire_puts("\n");
+            ocire_puts("Supervisor: FATAL - mailbox write failed 3/3.\n");
+            ocire_puts("  The ENTER_FULL crash state cannot be recorded\n");
+            ocire_puts("  (recovery volume dead or read-only), and a\n");
+            ocire_puts("  reboot would re-enter this crash path forever\n");
+            ocire_puts("  - so the machine stops here instead.\n");
+            ocire_putdec("  last failure rc ", (u64)(-mbw));
+            ocire_puts(" (1 = /MAILBOX.BIN lookup failed, "
+                       "2 = data-sector write failed)\n");
+            /* Watchdog policy: this pass never armed one (arming
+             * happens only after a good mailbox write, on the handoff
+             * path). A stale timer from a previous boot must not fire
+             * under the halt and turn it into yet another reset loop -
+             * disarm defensively, then halt for the operator. */
+            if (ocire_wdt_present()) ocire_wdt_disarm();
+            ocire_puts("Watchdog disarmed - the halt is final.\n");
+            ocire_puts("mailbox write failed - insert recovery media / "
+                       "check disk; halting.\n");
+            oc_halt();                            /* never returns */
+        }
+        ocire_puts("Supervisor: mailbox write ok - ENTER_FULL recorded.\n");
         ocire_puts("Rebooting into the full recovery environment in 3 seconds...\n");
         ocire_sleep_sec(3);
         reboot_machine();                        /* never returns */
