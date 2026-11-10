@@ -130,9 +130,50 @@ static void health_alarms(health_sample_t *s) {
     if (rising & HEALTH_ALARM_TASKS)
         klog_write(KLOG_ERROR, "health",
                    "alarm: %u active tasks (>64)", s->tasks_total);
-    if (rising & HEALTH_ALARM_CPU)
+    if (rising & HEALTH_ALARM_CPU) {
         klog_write(KLOG_ERROR, "health",
                    "alarm: CPU >=90%% busy for 10 consecutive seconds");
+        /* #112 FIX: the documented chain is "cpu >= 90% x 10 s -> alarm
+         * -> the watchdog kills the unresponsive application", but the
+         * alarm used to be the end of the line - nothing ever acted on
+         * it (issue #112: `loop` busy-waited for 35 s+ with the alarm
+         * pending and no takeover). Identify the alive non-idle task
+         * with the most accumulated CPU time (the hog that keeps the
+         * sampler at 100% busy) and terminate it with the watchdog's
+         * WD_POLICY_KILL semantics (klog + core_sched_task_exited).
+         * The per-second heartbeat feed of slot 0 stays UNCONDITIONAL:
+         * it is the WP-11 kernel-alive signal (a locked-up kernel
+         * stops feeding), not the application-kill path - killing it
+         * on alarms would disable the kernel-lockup guard instead. */
+        {
+            core_sched_task_info_t ti[MAX_TASKS];
+            int n = core_sched_task_info_get(ti, MAX_TASKS);
+            int hog = -1;
+            u64 best = 0;
+            for (int i = 0; i < n; i++) {
+                if (ti[i].tid == 0) continue;              /* idle */
+                if (ti[i].state == TASK_EXITED) continue;  /* dying/dead */
+                if (ti[i].cpu_time_ticks > best) {
+                    best = ti[i].cpu_time_ticks;
+                    hog = (int)ti[i].tid;
+                }
+            }
+            if (hog > 0) {
+                const char *hogname = "?";
+                for (int i = 0; i < n; i++) {
+                    if ((int)ti[i].tid == hog) { hogname = ti[i].name; break; }
+                }
+                klog_write(KLOG_ERROR, "health",
+                           "watchdog: killing CPU hog '%s' (tid %d) "
+                           "- unresponsive application (issue #112)",
+                           hogname, hog);
+                core_sched_task_exited((tid_t)hog);
+            } else {
+                klog_write(KLOG_ERROR, "health",
+                           "alarm: CPU busy but no identifiable hog task");
+            }
+        }
+    }
 
     s->alarms = live;
     g_alarm_live = live;
