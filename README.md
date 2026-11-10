@@ -95,7 +95,7 @@ L1  the world (src/L1/)  275 programs: ush, TUI, editor, IME,
 ```
 # build (Linux): needs gcc nasm xorriso mtools grub-common
 #               grub-pc-bin grub-efi-amd64-bin zip python3
-./build.sh iso
+tools/build.sh iso
 
 # run it
 qemu-system-x86_64 -m 512 -cdrom build/opencube.iso \

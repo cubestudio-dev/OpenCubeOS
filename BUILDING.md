@@ -30,7 +30,7 @@ MSYS2).
 mtools (mformat/mcopy), python3, zip`.
 
 `tools/build.sh` checks all of them and prints the exact Debian package
-names for anything missing; `./build.sh --install` apt-installs them
+names for anything missing; `tools/build.sh --install` apt-installs them
 when you are root. Building the ISO additionally needs the GRUB module
 trees (`grub-pc-bin` for `i386-pc`, `grub-efi-amd64-bin` for
 `x86_64-efi`) and `unicode.pf2` from `grub-common`.
@@ -49,7 +49,7 @@ sudo apt-get install gcc nasm xorriso mtools \
 ```
 git clone https://github.com/cubestudio-dev/OpenCubeOS.git
 cd OpenCubeOS
-./build.sh            # = make all
+tools/build.sh         # = make all (from the repo root)
 # or step by step:
 make -j"$(nproc)" kernel
 make iso
