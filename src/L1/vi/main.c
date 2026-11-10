@@ -84,6 +84,14 @@ static void vi_print_all(const char *file) {
     puts_(" --");
     unano_view_ensure();
     unano_view_redraw();
+    /* #34: vi shows no load status of its own, so mirror the shared
+     * engine's truncation banner here (unano_truncated is set by
+     * unano_load; unano_save refuses while it is set). */
+    if (unano_truncated) {
+        unano_goto(ED_ROW_BASE + ED_VIEW_ROWS, 1);
+        unano_ansi("\033[K");
+        puts_("!! file exceeds editor limits: showing partial copy, SAVE DISABLED !!");
+    }
     unano_bar_invalidate();
     vi_status(file);
     vi_redraw();

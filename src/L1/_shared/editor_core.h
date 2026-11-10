@@ -39,9 +39,40 @@
 #define UNANO_MAX_LINES 256
 #define UNANO_LINE_CAP  128
 
+/* ---- #34 fix: load/save status codes ------------------------------
+ * The buffer holds at most UNANO_MAX_LINES lines of UNANO_LINE_CAP-1
+ * bytes.  When a file exceeds that, a FULL load is impossible - and
+ * writing the partial copy back would silently destroy the rest of
+ * the file (issue #34: open a 300-line file, hit ^O, 44 lines gone).
+ * Contract:
+ *
+ * unano_load() returns:
+ *   0                the whole file is in the buffer (a file that
+ *                    cannot be opened reads as a new empty buffer,
+ *                    the create-new-file path, unchanged)
+ *   UNANO_LOAD_EBIG  the file EXCEEDS THE EDITOR LIMITS (more than
+ *                    UNANO_MAX_LINES lines, a line longer than
+ *                    UNANO_LINE_CAP-1 bytes, or a failed read that
+ *                    leaves the tail unknown): only a partial VIEW is
+ *                    in the buffer and unano_truncated LOCKS THE SAVE
+ *
+ * unano_save() returns:
+ *   0                the buffer was written
+ *   UNANO_SAVE_EIO   open or write failed - unano_dirty is KEPT
+ *                    (a short/failed write is never reported saved)
+ *   UNANO_SAVE_EBIG  save REFUSED: the buffer is only a partial view
+ *                    of the on-disk file (unano_truncated is set) and
+ *                    writing it back would destroy the file tail. */
+#define UNANO_LOAD_EBIG  (-2)
+#define UNANO_SAVE_EIO   (-1)
+#define UNANO_SAVE_EBIG  (-2)
+
 static char unano_lines[UNANO_MAX_LINES][UNANO_LINE_CAP];
 static int  unano_nlines;
 static int  unano_dirty;
+/* #34: the buffer is a partial view of a LARGER file on disk - save
+ * is LOCKED for the whole session (cleared only by the next load). */
+static int  unano_truncated;
 static int  unano_cl;    /* current line */
 static int  unano_cc;    /* cursor col (BYTE offset into the line) */
 
@@ -118,6 +149,12 @@ static void unano_statusbar(const char *file) {
         if (v == 0) num[m++] = '0';
         while (v > 0 && m < 11) { num[m++] = (char)('0' + v % 10); v /= 10; }
         for (int i = 0; i < m && n < (int)sizeof(bar) - 1; i++) bar[n++] = num[m - 1 - i];
+    }
+    /* #34: partial view of a larger file - say so while it matters */
+    if (unano_truncated) {
+        const char *tag = " [RO:truncated]";
+        for (int i = 0; tag[i] && n < (int)sizeof(bar) - 1; i++)
+            bar[n++] = tag[i];
     }
     if (unano_ime_on) {
         const char *tag = tr_(unano_ime_composing ? "editor_ime_on" : "editor_ime_idle");
@@ -317,6 +354,14 @@ static __attribute__((unused)) void unano_print_all(const char *file) {
     puts_(" --");
     unano_view_ensure();
     unano_view_redraw();
+    /* #34: the viewport may be a PARTIAL copy of the file - say so on
+     * the banner row (ED_ROW_BASE+ED_VIEW_ROWS, below the viewport and
+     * above the pinned bar; per-keystroke row updates never touch it). */
+    if (unano_truncated) {
+        unano_goto(ED_ROW_BASE + ED_VIEW_ROWS, 1);
+        unano_ansi("\033[K");
+        puts_("!! file exceeds editor limits: showing partial copy, SAVE DISABLED !!");
+    }
     unano_bar_invalidate();
 }
 
@@ -494,22 +539,43 @@ static void unano_ime_toggle(void) {
  * save / load
  * ================================================================== */
 static int unano_save(const char *file) {
+    /* #34: a truncated view must NEVER reach the disk.  The refusal
+     * happens BEFORE the open - mode 22 is WRONLY|CREAT|TRUNC, the
+     * open alone would already wipe the file even if no byte was
+     * ever written. */
+    if (unano_truncated)
+        return UNANO_SAVE_EBIG;
     long fd = sys_open(file, 22);   /* WRONLY|CREAT|TRUNC */
-    if (fd < 0) return -1;
+    if (fd < 0) return UNANO_SAVE_EIO;
     for (int i = 0; i < unano_nlines; i++) {
-        sys_write(fd, unano_lines[i], strlen_(unano_lines[i]));
-        sys_write(fd, "\n", 1);
+        long len = (long)strlen_(unano_lines[i]);
+        /* every write is checked (short/failed = unsaved data); on
+         * any failure unano_dirty is KEPT - never report a save that
+         * did not fully happen (audit AUD-2c-004). */
+        if (sys_write(fd, unano_lines[i], len) != len ||
+            sys_write(fd, "\n", 1) != 1) {
+            sys_close(fd);
+            return UNANO_SAVE_EIO;
+        }
     }
     sys_close(fd);
     unano_dirty = 0;
     return 0;
 }
 
-static void unano_load(const char *file) {
+/* Loads the file into the buffer.  Returns 0 when the WHOLE file is
+ * in the buffer, UNANO_LOAD_EBIG when the file exceeds the editor
+ * limits: the load then keeps only the first UNANO_MAX_LINES lines
+ * (lines longer than UNANO_LINE_CAP-1 bytes are shortened in the
+ * view) and sets unano_truncated, which LOCKS unano_save - the
+ * partial copy can never overwrite the bigger file on disk.  See the
+ * status-code contract at the top of this file. */
+static int unano_load(const char *file) {
     unano_nlines = 0;
     unano_dirty = 0;
     unano_cl = 0;
     unano_cc = 0;
+    unano_truncated = 0;
     long fd = sys_open(file, 1);
     if (fd >= 0) {
         static char rbuf[4096];
@@ -520,7 +586,11 @@ static void unano_load(const char *file) {
         while ((n2 = sys_read(fd, rbuf, 4096)) > 0) {
             for (int i = 0; i < (int)n2; i++) {
                 if (rbuf[i] == '\n') {
-                    if (unano_nlines < UNANO_MAX_LINES) {
+                    if (unano_nlines >= UNANO_MAX_LINES) {
+                        /* #34: line 257+ exists and is DROPPED from
+                         * the view - lock the save, never overwrite */
+                        unano_truncated = 1;
+                    } else {
                         strncpy_(unano_lines[unano_nlines++], cur,
                                  UNANO_LINE_CAP);
                     }
@@ -529,20 +599,28 @@ static void unano_load(const char *file) {
                 } else if (cl + 1 < UNANO_LINE_CAP) {
                     cur[cl++] = rbuf[i];
                     cur[cl] = 0;
+                } else {
+                    /* #34: line longer than the cap - the tail is
+                     * dropped from the view - lock the save */
+                    unano_truncated = 1;
                 }
             }
         }
+        if (n2 < 0)
+            unano_truncated = 1;   /* read failed: the tail is unknown */
         sys_close(fd);
         if (cl > 0 || unano_nlines == 0) {
-            if (unano_nlines < UNANO_MAX_LINES) {
+            if (unano_nlines >= UNANO_MAX_LINES)
+                unano_truncated = 1;   /* trailing line beyond the cap */
+            else
                 strncpy_(unano_lines[unano_nlines++], cur,
                          UNANO_LINE_CAP);
-            }
         }
     } else {
         unano_lines[0][0] = 0;
         unano_nlines = 1;
     }
+    return unano_truncated ? UNANO_LOAD_EBIG : 0;
 }
 
 /* ==================================================================
@@ -717,7 +795,8 @@ static __attribute__((unused)) void ush_nano_run(const char *file) {
             unano_state(file);
             unano_redraw_line();
         } else if (k == 0x0F) {   /* ^O: save */
-            if (unano_save(file) == 0) {
+            int rc = unano_save(file);
+            if (rc == 0) {
                 puts_("\n");
                 puts_(tr_("editor_wrote_head"));
                 putu_((u64)unano_nlines);
@@ -725,7 +804,10 @@ static __attribute__((unused)) void ush_nano_run(const char *file) {
             } else {
                 puts_("\n");
                 puts_(tr_("editor_save_failed"));
-                puts_("\n");
+                if (rc == UNANO_SAVE_EBIG)   /* #34: say WHY it failed */
+                    puts_(" (file exceeds editor limits: save disabled)\n");
+                else
+                    puts_("\n");
             }
             unano_state(file);
             unano_redraw_line();
@@ -737,9 +819,13 @@ static __attribute__((unused)) void ush_nano_run(const char *file) {
                 putc_((char)c);
                 putc_('\n');
                 if (c == 'y' || c == 'Y') {
-                    if (unano_save(file) != 0) {
+                    int rc = unano_save(file);
+                    if (rc != 0) {
                         puts_(tr_("editor_save_failed_stay"));
-                        puts_("\n");
+                        if (rc == UNANO_SAVE_EBIG)   /* #34: say WHY */
+                            puts_(" (file exceeds editor limits: save disabled)\n");
+                        else
+                            puts_("\n");
                         unano_state(file);
                         unano_redraw_line();
                         continue;
