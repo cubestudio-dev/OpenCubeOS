@@ -52,6 +52,8 @@ log = open(f"{EV}/fix44_main_iso_ocire_menu.log", "wb")
 child = pexpect.spawn(cmd, timeout=120)
 child.logfile = log
 
+failures = []   # Fake-green #65: collected verdicts; any entry => exit 1
+
 try:
     child.expect(r"OCIRE recovery \(cd0\)", timeout=60)
     print("[1] menu lists OCIRE recovery: OK")
@@ -72,9 +74,19 @@ try:
 except Exception as e:
     print(f"FAILED: {e}")
     child.terminate(force=True)
+    failures.append(f"session exception: {e}")
 finally:
     try:
         child.close(force=True)
     except Exception:
         pass
     log.close()
+
+# Fake-green #65: propagate the verdict - any failed check => exit 1.
+if failures:
+    print(f"\n== wp06g3_test_ocire_menu: {len(failures)} check(s) FAILED ==")
+    for f in failures:
+        print("  FAIL:", f)
+    sys.exit(1)
+print("\n== wp06g3_test_ocire_menu: all checks PASSED ==")
+sys.exit(0)

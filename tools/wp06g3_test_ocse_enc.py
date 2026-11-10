@@ -70,6 +70,8 @@ log = open(f"{EV}/fix42_ocse_serial_encoding.bin", "wb")
 child = pexpect.spawn(cmd, timeout=180)
 child.logfile = log
 
+failures = []   # Fake-green #65: collected verdicts; any entry => exit 1
+
 def dump(name):
     try:
         m.cmd("screendump " + EV + "/" + name, 1.0)
@@ -117,6 +119,7 @@ try:
 except Exception as e:
     print(f"FAILED: {e}")
     child.terminate(force=True)
+    failures.append(f"session exception: {e}")
 finally:
     try:
         child.close(force=True)
@@ -136,6 +139,8 @@ if gbk_yu_after and not utf8_yu_after:
     print("[7] OCSE GBK serial conversion: OK")
 else:
     print("[7] OCSE GBK serial conversion: FAIL")
+    failures.append("[7] OCSE GBK serial conversion (utf8-yu=%s gbk-yu=%s after gbk switch)"
+                    % (utf8_yu_after, gbk_yu_after))
 
 # before the gbk marker (utf8 phase), zh output must be UTF-8
 seg0 = raw[:i_gbk] if i_gbk >= 0 else raw
@@ -145,3 +150,13 @@ if utf8_yu_before:
     print("[8] OCSE utf8 serial path: OK")
 else:
     print("[8] OCSE utf8 serial path: FAIL")
+    failures.append("[8] OCSE utf8 serial path (no UTF-8 'yu' before the gbk marker)")
+
+# Fake-green #65: propagate the verdict - any failed check => exit 1.
+if failures:
+    print(f"\n== wp06g3_test_ocse_enc: {len(failures)} check(s) FAILED ==")
+    for f in failures:
+        print("  FAIL:", f)
+    sys.exit(1)
+print("\n== wp06g3_test_ocse_enc: all checks PASSED ==")
+sys.exit(0)

@@ -64,13 +64,38 @@ DATADIR="$OC_TOOLS/usr/share/qemu"
 [ -d "$DATADIR" ] || DATADIR=/usr/share/qemu
 export LD_LIBRARY_PATH="$OC_TOOLS/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
+# Fake-green #63: the serial log used to live at the fixed path
+# /tmp/rel_boot.log, so a log left over from an EARLIER run could be
+# grepped as "evidence" even when this run's QEMU never started.  Give
+# every run its own scratch dir and remove it on exit.
+REL_TMP="$(mktemp -d /tmp/rel_gate.XXXXXX)"
+trap 'rm -rf "$REL_TMP"' EXIT
+
 boot_banner() {
     local mode="$1"; shift
+    local log="$REL_TMP/serial_${mode}.log"
+    rm -f "$log"
+    # The guest does not power off during this gate, so timeout killing
+    # QEMU at 90s (rc=124) is the expected end - and rc=0 (guest exited
+    # on its own) is accepted.  EVERY other rc means QEMU itself failed
+    # and must propagate: the old '|| true' turned a dead QEMU into a
+    # silent gate (fake-green #63).
+    local rc=0
     timeout 90 "$QEMU" -m 512 -cdrom build/opencube.iso \
-        -L "$DATADIR" -display none -serial file:/tmp/rel_boot.log "$@" \
-        >/dev/null 2>&1 || true
-    grep -aq "Type 'help' for built-in commands" /tmp/rel_boot.log \
-        && grep -aq "Open Cube OS User-space Shell" /tmp/rel_boot.log
+        -L "$DATADIR" -display none -serial "file:$log" "$@" \
+        >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then
+        echo "    boot gate ($mode): QEMU failed rc=$rc (propagated)" >&2
+        return 1
+    fi
+    # Evidence rule: the serial log must exist AND be non-empty before
+    # any grep verdict counts.
+    if [ ! -s "$log" ]; then
+        echo "    boot gate ($mode): serial log missing or empty - no evidence" >&2
+        return 1
+    fi
+    grep -aq "Type 'help' for built-in commands" "$log" \
+        && grep -aq "Open Cube OS User-space Shell" "$log"
 }
 boot_banner "bios" && echo "    BIOS boot gate: PASS" \
     || { echo "    BIOS boot gate: FAIL" >&2; exit 1; }
@@ -79,10 +104,10 @@ boot_banner "bios" && echo "    BIOS boot gate: PASS" \
 OVMF_CODE="${OVMF_FD:-$OC_TOOLS/usr/share/OVMF/OVMF_CODE_4M.fd}"
 OVMF_VARS="${OVMF_CODE/OVMF_CODE_/OVMF_VARS_}"
 [ -f "$OVMF_VARS" ] || OVMF_VARS=/usr/share/OVMF/OVMF_VARS_4M.fd
-cp -f "$OVMF_VARS" /tmp/rel_ovmf_vars.fd
+cp -f "$OVMF_VARS" "$REL_TMP/rel_ovmf_vars.fd"
 boot_banner "uefi" -machine q35 \
     -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
-    -drive if=pflash,format=raw,file=/tmp/rel_ovmf_vars.fd \
+    -drive if=pflash,format=raw,file="$REL_TMP/rel_ovmf_vars.fd" \
     && echo "    UEFI boot gate: PASS" \
     || { echo "    UEFI boot gate: FAIL" >&2; exit 1; }
 

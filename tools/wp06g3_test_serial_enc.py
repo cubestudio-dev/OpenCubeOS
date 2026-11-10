@@ -8,6 +8,9 @@
 #   3. lang zh under gbk          -> the zh ack line arrives as GBK bytes
 #      (UTF-8 e6 8e a7 "控" becomes GBK bf d8); captured RAW (latin-1)
 #   4. lang zh under utf8         -> legal UTF-8 again after switching back
+# Fake-green #65 fix: every check records its verdict and ANY failure
+# (including session TIMEOUT/EOF) makes the process exit non-zero with
+# a failure list - the old script only printed FAIL and exited 0.
 import sys, time
 import pexpect
 
@@ -22,6 +25,8 @@ cmd = (f"{QEMU} -L {QL} -L {SEA} -m 256M -cdrom {ISO} -boot d "
 
 child = pexpect.spawn(cmd, timeout=120, encoding="latin-1", codec_errors="replace")
 child.logfile = open(f"{OUT}/fix42_main_serial_encoding.bin", "w", encoding="latin-1")
+
+failures = []   # collected verdicts; any entry => exit 1
 
 def raw_tail(n=400):
     return open(f"{OUT}/fix42_main_serial_encoding.bin", "rb").read()[-n:]
@@ -54,6 +59,8 @@ try:
         print("[4] GBK conversion on serial: OK")
     else:
         print("[4] GBK conversion on serial: FAIL")
+        failures.append("[4] GBK conversion on serial (utf8-kong=%s gbk-kong=%s)"
+                        % (has_utf8_kong, has_gbk_kong))
 
     # back to utf8 + zh: the Chinese must arrive as legal UTF-8 again
     child.sendline("serial_encoding utf8")
@@ -68,6 +75,11 @@ try:
 except pexpect.TIMEOUT:
     print("TIMEOUT", flush=True)
     print(child.before, flush=True)
+    failures.append("session TIMEOUT")
+except pexpect.EOF:
+    print("EOF before the shutdown path completed", flush=True)
+    print(child.before, flush=True)
+    failures.append("session EOF")
 finally:
     try:
         child.close(force=True)
@@ -83,3 +95,13 @@ if has_utf8_kong:
     print("[5] utf8 restored: OK")
 else:
     print("[5] utf8 restored: FAIL")
+    failures.append("[5] utf8 restored (no UTF-8 'kong' in session tail)")
+
+# Fake-green #65: propagate the verdict - any failed check => exit 1.
+if failures:
+    print(f"\n== wp06g3_test_serial_enc: {len(failures)} check(s) FAILED ==")
+    for f in failures:
+        print("  FAIL:", f)
+    sys.exit(1)
+print("\n== wp06g3_test_serial_enc: all checks PASSED ==")
+sys.exit(0)

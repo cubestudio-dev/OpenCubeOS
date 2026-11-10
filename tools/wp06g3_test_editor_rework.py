@@ -10,8 +10,15 @@
 #       3 scrolled lines per letter, 8 full-bar prints) - the byte stream
 #       per letter must carry no '\n' and no bar reprint after the first
 #   [D] vi: same preedit discipline in insert mode
+#   [E] #66 screendump channel: screen content is now MACHINE-asserted
+#       (coarse pixel-level, no OCR): editor-up non-blank, IME commit
+#       visibly moves the frame, after-exit screen alive - helpers from
+#       tools/qemu_runner.py (fake-green killer: serial-green/screen-rot)
 import os, socket, sys, time
 import pexpect
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from qemu_runner import assert_screen_not_blank, assert_screen_changed  # noqa: E402
 
 BUILD = "/home/z/oc-os/build"
 EV    = "/home/z/oc-os/evidence/3_0_0_wp06g3_ocse_enc_fix"
@@ -60,8 +67,21 @@ child = pexpect.spawn(cmd, timeout=120, encoding="latin-1",
 child.logfile = open(f"{EV}/fix4567_editor_rework.log", "w",
                      encoding="latin-1")
 
+failures = []   # Fake-green #65: collected verdicts; any entry => exit 1
+
 def raw():
     return open(f"{EV}/fix4567_editor_rework.bin", "rb").read()
+
+def shot(name, settle=1.0):
+    """#66: screendump through the unix monitor socket and VERIFY the
+    PPM actually landed - a silent HMP error must never be mistaken
+    for screen evidence (same rule as qemu_runner.hmp_screendump).
+    Returns the dump path."""
+    p = f"{EV}/{name}.ppm"
+    m.cmd("screendump " + p, settle)
+    if not os.path.exists(p) or os.path.getsize(p) == 0:
+        raise RuntimeError(f"screendump produced no file: {p}")
+    return p
 
 try:
     child.expect("ush>", timeout=90)
@@ -76,7 +96,10 @@ try:
     # [A] the zh header legend (shows once, Chinese)
     m = Mon(mon_path)
     time.sleep(0.5)
-    m.cmd("screendump " + EV + "/fix45_nano_zh_legend.ppm", 1.0)
+    p_zh = shot("fix45_nano_zh_legend")
+    # #66 [A2] editor UI must be machine-proven ON SCREEN, not just
+    # "no exception on the serial stream": coarse non-blank assert.
+    print(f"[A2] nano screen nonblank: {assert_screen_not_blank(p_zh)}")
 
     # [C] typing discipline: type 'abc' and measure the byte stream
     logpos0 = len(open(f"{EV}/fix4567_editor_rework.log","rb").read())
@@ -90,6 +113,8 @@ try:
         print("[C] no scrolling, differential bar: OK")
     else:
         print("[C] FAIL (postmortem: 3 newlines per letter, full-bar prints)")
+        failures.append("[C] typing discipline (newlines=%d bar-repaints=%d)"
+                        % (nl_count, has_bar_reprint))
 
     # [B] IME preedit: F2 on, type nihao - letters must NOT reach the text
     m.cmd("sendkey f2", 1.0)      # F2
@@ -108,20 +133,35 @@ try:
     logpos2 = len(open(f"{EV}/fix4567_editor_rework.log","rb").read())
     m.cmd("sendkey 1", 1.5)
     time.sleep(1.0)
-    m.cmd("screendump " + EV + "/fix46_nano_ime_commit.ppm", 1.0)
+    p_commit = shot("fix46_nano_ime_commit")
     seg = open(f"{EV}/fix4567_editor_rework.log","rb").read()[logpos2:]
     has_ni_hao = b"\xe4\xbd\xa0\xe5\xa5\xbd" in seg   # 你好 UTF-8
     print(f"[B2] commit: utf8-nihao={'yes' if has_ni_hao else 'no'}")
+    # #66 [B2.5] pixel-level: the commit must VISIBLY move the frame.
+    # Stream bytes only prove what was SENT to the terminal; this assert
+    # proves the VGA plane repainted.  NOTE (coarse): it cannot tell
+    # real hanzi from tofu boxes - tofu WOULD also move pixels; a
+    # zero-render commit (the #110 shape) would NOT.  Text-level proof
+    # (pixels->glyphs->chars) is follow-up work.
+    print("[B2.5] commit frame moved: "
+          f"{assert_screen_changed(EV + '/fix46_nano_ime_preedit.ppm', p_commit)}")
     if has_ni_hao:
         print("[B] preedit + commit: OK")
     else:
         print("[B] FAIL")
+        failures.append("[B] preedit + commit (no UTF-8 'nihao' in commit stream)")
 
     # the final text line must NOT contain raw pinyin letters appended after abc
     child.sendcontrol("x")   # ^X exit (dirty -> prompt)
     child.expect("y/n", timeout=20)
     child.sendline("y")
     child.expect("ush>", timeout=20)
+    # #66 [E] after editor exit: the screen must be alive (prompt
+    # rendered, VGA plane not trashed/blank) - coarse non-blank assert.
+    time.sleep(0.5)
+    p_after_exit = shot("fix45_after_exit_shell")
+    print(f"[E] after-exit screen nonblank: "
+          f"{assert_screen_not_blank(p_after_exit)}")
     child.sendline("cat t.txt")
     child.expect("ush>", timeout=20)
     # dump the cat output from the stream
@@ -150,6 +190,7 @@ try:
 except Exception as e:
     print(f"FAILED: {e}")
     child.terminate(force=True)
+    failures.append(f"session exception: {e}")
 finally:
     try:
         child.close(force=True)
@@ -171,3 +212,13 @@ if not pinyin_leak:
     print("[B3] pinyin never entered the text: OK")
 else:
     print("[B3] FAIL")
+    failures.append("[B3] pinyin leaked into the text line: %r" % final_txt)
+
+# Fake-green #65: propagate the verdict - any failed check => exit 1.
+if failures:
+    print(f"\n== wp06g3_test_editor_rework: {len(failures)} check(s) FAILED ==")
+    for f in failures:
+        print("  FAIL:", f)
+    sys.exit(1)
+print("\n== wp06g3_test_editor_rework: all checks PASSED ==")
+sys.exit(0)

@@ -16,8 +16,28 @@ Env:
                         socket chardev client, so the guest's
                         usb-serial port loops back (TX -> RX)
   OC_CMD_TIMEOUT=300    per-command timeout
+
+Screendump API (fake-green #66 - the screen was never machine-asserted
+because every run_* / wp10_* / wp12_* E2E uses -display none):
+  hmp_screendump(child, path)
+        take a VGA screendump via the existing mon:stdio monitor
+        channel (Ctrl-A c, 'screendump <path>', Ctrl-A c) and VERIFY
+        the PPM actually landed on disk;
+  screen_nonblank(path) / assert_screen_not_blank(path)
+        coarse machine assertion on the dumped PPM: the frame must
+        contain a minimum number of non-background pixels (i.e. not a
+        blank/all-background screen);
+  screen_diff(a, b) / assert_screen_changed(a, b)
+        coarse frame-to-frame assertion: count pixels that changed
+        between two screendumps, proving "the screen really moved
+        between event A and event B" (e.g. an IME commit, a redraw).
+  NOTE: all of this is deliberately coarse - it proves "the screen
+  shows SOMETHING / CHANGED", it cannot read characters; a text-level
+  assert_screen_contains(text) needs a font-render/OCR comparison and
+  is follow-up work.
 """
 import sys, os, re, time, signal, socket, threading
+from collections import Counter
 import pexpect
 
 # Setup LD_LIBRARY_PATH + QEMU paths
@@ -120,6 +140,183 @@ class EchoServer(threading.Thread):
             pass
 
 
+# ------------------------------------------------------------------
+# QEMU monitor (HMP) helpers - shared by run_qemu_commands and the
+# screendump API (fake-green #66)
+# ------------------------------------------------------------------
+
+def hmp_cmd(child, hcmd):
+    """Switch to the QEMU monitor, run one HMP command, switch back.
+    After switching back to serial the guest shell does NOT reprint
+    its prompt (it never left it), so just let the switch settle."""
+    child.send("\x01c")                     # Ctrl-A c -> monitor
+    child.expect(r"\(qemu\)", timeout=10)
+    child.sendline(hcmd)
+    child.expect(r"\(qemu\)", timeout=20)
+    out = strip_ansi(child.before)
+    child.send("\x01c")                     # Ctrl-A c -> serial
+    time.sleep(0.5)
+    return out
+
+
+def hmp_screendump(child, path):
+    """Take a VGA screendump through the QEMU monitor and verify it.
+
+    Uses the existing mon:stdio multiplex (hmp_cmd).  Returns
+    (ok, detail); ok is True only when the PPM exists AND is non-empty
+    afterwards - a silent HMP error must never be mistaken for
+    evidence."""
+    try:
+        out = hmp_cmd(child, "screendump " + path)
+    except pexpect.TIMEOUT:
+        return False, "monitor TIMEOUT during screendump"
+    except pexpect.EOF:
+        return False, "monitor EOF during screendump"
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return False, ("screendump produced no file (monitor said: "
+                       f"{out.strip()[:120]!r})")
+    return True, f"{os.path.getsize(path)} bytes written"
+
+
+def read_ppm(path):
+    """Minimal binary-PPM (P6) reader, stdlib only - no PIL required.
+    Returns (width, height, raster_bytes).  Raises ValueError/OSError
+    on anything that is not a complete P6 image."""
+    with open(path, "rb") as f:
+        data = f.read()
+    if not data.startswith(b"P6"):
+        raise ValueError(f"{path}: not a binary PPM (P6)")
+    fields = []
+    i = 2
+    n = len(data)
+    # i starts PAST the "P6" magic, so fields[0..2] = width, height, maxval
+    while len(fields) < 3 and i < n:
+        while i < n and data[i:i+1].isspace():
+            i += 1
+        if i < n and data[i:i+1] == b"#":      # comment to end of line
+            while i < n and data[i:i+1] not in (b"\n", b"\r"):
+                i += 1
+            continue
+        j = i
+        while j < n and not data[j:j+1].isspace() and data[j:j+1] != b"#":
+            j += 1
+        if j == i:
+            break
+        fields.append(data[i:j])
+        i = j
+    if len(fields) < 3:
+        raise ValueError(f"{path}: truncated PPM header")
+    try:
+        w, h, maxval = int(fields[0]), int(fields[1]), int(fields[2])
+    except ValueError:
+        raise ValueError(f"{path}: malformed PPM header {fields!r}")
+    if maxval != 255:
+        raise ValueError(f"{path}: unsupported maxval {maxval}")
+    if not data[i:i+1].isspace():
+        raise ValueError(f"{path}: no whitespace after maxval token")
+    need = w * h * 3
+    raster = data[i + 1:i + 1 + need]   # one whitespace byte after maxval
+    if len(raster) < need:
+        raise ValueError(f"{path}: truncated raster "
+                         f"({len(raster)}/{need} bytes)")
+    return w, h, raster
+
+
+def screen_nonblank(path, min_fg_pixels=64, bg_tolerance=40):
+    """COARSE machine assertion on a QEMU screendump (P6 PPM).
+
+    Estimates the background colour as the dominant pixel value, then
+    counts pixels differing from it by more than bg_tolerance on any
+    channel.  ok = (foreground pixels >= min_fg_pixels), i.e. the frame
+    is not just a blank background (one 8x16 VGA glyph is up to ~128
+    lit pixels, a text screen has thousands).
+
+    Known granularity limits (reported under #66): this proves "the
+    screen shows non-background content"; it canNOT read characters,
+    detect tofu blocks vs real hanzi, or compare layouts.  A
+    text-level assert_screen_contains(text) needs a font-render/OCR
+    comparison against the fb font and is follow-up work.
+    Returns (ok, detail_string)."""
+    try:
+        w, h, raster = read_ppm(path)
+    except (OSError, ValueError) as e:
+        return False, f"screendump unreadable: {e}"
+    total = w * h
+    cnt = Counter()
+    for p in range(0, total, 7):            # sample for the dominant bg
+        cnt[raster[p*3:p*3+3]] += 1
+    if not cnt:
+        return False, "screendump has zero pixels"
+    bg = cnt.most_common(1)[0][0]
+    fg = 0
+    for p in range(total):
+        px = raster[p*3:p*3+3]
+        if (abs(px[0] - bg[0]) > bg_tolerance
+                or abs(px[1] - bg[1]) > bg_tolerance
+                or abs(px[2] - bg[2]) > bg_tolerance):
+            fg += 1
+    ok = fg >= min_fg_pixels
+    return ok, (f"{w}x{h} bg={tuple(bg)} fg={fg}/{total} "
+                f"(min {min_fg_pixels})")
+
+
+def assert_screen_not_blank(path, **kw):
+    """screen_nonblank() as a raising assertion (for try/except-style
+    E2E batteries).  AssertionError carries the measured detail."""
+    ok, detail = screen_nonblank(path, **kw)
+    if not ok:
+        raise AssertionError(f"screen blank/unreadable ({path}): {detail}")
+    return detail
+
+
+def screen_diff(path_a, path_b, min_changed_pixels=64, pixel_tolerance=8):
+    """COARSE frame-to-frame machine assertion between two screendumps.
+
+    Counts pixels whose channel deltas exceed pixel_tolerance in any
+    channel; ok = (changed >= min_changed_pixels).  This proves "the
+    visible frame really moved between the two dumps" - catching the
+    fake-green shape where the serial stream claims an event (commit,
+    redraw, mode switch) but the screen never changed, or vice versa.
+
+    Frames with different dimensions are simply not comparable ->
+    (False, detail), never an exception, so callers can drop this in
+    between existing screendump pairs.
+
+    Granularity limits (same as screen_nonblank, #66): it cannot say
+    WHAT changed, only that >= min_changed_pixels did.
+    Returns (ok, detail_string)."""
+    try:
+        wa, ha, ra = read_ppm(path_a)
+        wb, hb, rb = read_ppm(path_b)
+    except (OSError, ValueError) as e:
+        return False, f"screendump unreadable: {e}"
+    if (wa, ha) != (wb, hb):
+        return False, (f"frames not comparable: {path_a} is {wa}x{ha}, "
+                       f"{path_b} is {wb}x{hb}")
+    total = wa * ha
+    changed = 0
+    for p in range(total):
+        pa = ra[p*3:p*3+3]
+        pb = rb[p*3:p*3+3]
+        if (abs(pa[0] - pb[0]) > pixel_tolerance
+                or abs(pa[1] - pb[1]) > pixel_tolerance
+                or abs(pa[2] - pb[2]) > pixel_tolerance):
+            changed += 1
+    ok = changed >= min_changed_pixels
+    return ok, (f"{wa}x{ha} changed={changed}/{total} "
+                f"(min {min_changed_pixels}, tol {pixel_tolerance})")
+
+
+def assert_screen_changed(path_a, path_b, **kw):
+    """screen_diff() as a raising assertion.  AssertionError carries
+    the measured detail (including the both-frames-identical case)."""
+    ok, detail = screen_diff(path_a, path_b, **kw)
+    if not ok:
+        raise AssertionError(f"screen did not change between dumps "
+                             f"({path_a} -> {path_b}): {detail}")
+    return detail
+
+
 def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
     """Boot ISO, run commands, return all output."""
     cmd = [
@@ -193,18 +390,6 @@ def run_qemu_commands(iso_path, commands, timeout_per_cmd=30):
     child.logfile_read = sys.stdout
     
     all_output = []
-    def hmp_cmd(child, hcmd):
-        """Switch to the QEMU monitor, run one HMP command, switch back.
-        After switching back to serial the guest shell does NOT reprint
-        its prompt (it never left it), so just let the switch settle."""
-        child.send("\x01c")                     # Ctrl-A c -> monitor
-        child.expect(r"\(qemu\)", timeout=10)
-        child.sendline(hcmd)
-        child.expect(r"\(qemu\)", timeout=20)
-        out = strip_ansi(child.before)
-        child.send("\x01c")                     # Ctrl-A c -> serial
-        time.sleep(0.5)
-        return out
 
     try:
         # Wait for boot prompt (v2: ring-3 ush by default, oc> on fallback)

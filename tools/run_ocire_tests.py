@@ -125,21 +125,37 @@ def main():
     for uefi in (False, True):
         tag = "uefi" if uefi else "bios"
 
-        # boot + banner + help + unknown-command + backspace editing
-        case_boot_and_shell(uefi, [
-            ("help", "shutdown", "help"),
-            ("kermit", "Unknown command: kermit", "unknown"),
-            # 'helx' + BS + 'p' + Enter: backspace must delete the 'x'
-            # so the kernel sees a clean 'help' (functional BS proof).
-            ("helx\x08p", "shutdown", "backspace"),
-        ], "shell", f"shell-{tag}")
+        # Fake-green #65: a case that dies with an unexpected exception
+        # (pexpect EOF/TIMEOUT outside the pattern list, missing
+        # OVMF/QEMU binary, ...) must become a recorded FAIL - it must
+        # never abort the battery before the summary/exit code can
+        # reflect every result.  The summary + `return 1 if fails`
+        # below are the single propagation point.
+        try:
+            # boot + banner + help + unknown-command + backspace editing
+            case_boot_and_shell(uefi, [
+                ("help", "shutdown", "help"),
+                ("kermit", "Unknown command: kermit", "unknown"),
+                # 'helx' + BS + 'p' + Enter: backspace must delete the 'x'
+                # so the kernel sees a clean 'help' (functional BS proof).
+                ("helx\x08p", "shutdown", "backspace"),
+            ], "shell", f"shell-{tag}")
+        except Exception as e:
+            record("shell", uefi, False, f"case crashed: {e!r}")
 
-        # Shutdown: real S5 -> QEMU exits
-        case_power(uefi, "shutdown", "Shutting down",
-                   "shutdown", f"shutdown-{tag}")
-        # Reboot: 8042/RESET_REG -> reset -> QEMU exits (-no-reboot)
-        case_power(uefi, "reboot", "Rebooting",
-                   "reboot", f"reboot-{tag}")
+        try:
+            # Shutdown: real S5 -> QEMU exits
+            case_power(uefi, "shutdown", "Shutting down",
+                       "shutdown", f"shutdown-{tag}")
+        except Exception as e:
+            record("shutdown", uefi, False, f"case crashed: {e!r}")
+
+        try:
+            # Reboot: 8042/RESET_REG -> reset -> QEMU exits (-no-reboot)
+            case_power(uefi, "reboot", "Rebooting",
+                       "reboot", f"reboot-{tag}")
+        except Exception as e:
+            record("reboot", uefi, False, f"case crashed: {e!r}")
 
     fails = [r for r in RESULTS if not r[2]]
     print("\n===== OCIRE test battery summary =====")
