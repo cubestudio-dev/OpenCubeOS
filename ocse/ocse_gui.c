@@ -29,6 +29,15 @@ extern int g_ocse_hotkey_req;
 
 static int g_mx = 400, g_my = 300;      /* pointer position          */
 static int g_btn = 0, g_prev_btn = 0;   /* current/previous buttons */
+/* #113 fix: press LATCH. The click decision used to sample the live
+ * button state per poll; the WP06f full-panel redraw that runs between
+ * polls is slower than a human click under TCG, so the press and the
+ * release packets drained in the SAME batch, the live 0->1 transition
+ * was never observed and every real click was silently dropped (hover
+ * and the `click x y` geometry probe were unaffected). The latch
+ * OR-accumulates "a button-down arrived" across the whole drain batch
+ * so the click survives regardless of poll latency. */
+static int g_btn_latch = 0;
 static int g_need_draw = 1;
 
 /* Palette (avoiding blue per house style). */
@@ -223,7 +232,7 @@ void ocse_gui_draw(void) {
 }
 
 void ocse_gui_init(void) {
-    g_mx = 400; g_my = 300; g_btn = g_prev_btn = 0;
+    g_mx = 400; g_my = 300; g_btn = g_prev_btn = g_btn_latch = 0;
     g_need_draw = 1;
     ocse_gui_draw();
 }
@@ -247,7 +256,7 @@ static int poll_pointer(void) {
     while (driver_input_ps2mouse_read_event(&mv)) {
         g_mx += mv.dx;
         g_my -= mv.dy;
-        if (mv.buttons & 1) g_btn |= 1; else g_btn &= ~1;
+        if (mv.buttons & 1) { g_btn |= 1; g_btn_latch = 1; } else g_btn &= ~1;
         clamp_pointer();
         g_need_draw = 1;
     }
@@ -255,7 +264,7 @@ static int poll_pointer(void) {
     while (driver_usb_mouse_read_event(&ev)) {
         g_mx += ev.dx;
         g_my += ev.dy;
-        if (ev.buttons & 1) g_btn |= 1; else g_btn &= ~1;
+        if (ev.buttons & 1) { g_btn |= 1; g_btn_latch = 1; } else g_btn &= ~1;
         clamp_pointer();
         g_need_draw = 1;
     }
@@ -272,14 +281,17 @@ static int poll_pointer(void) {
             g_need_draw = 1;
         } else if (te.type == TPE_TAP) {
             g_btn |= 1;             /* tap = press; released next poll */
+            g_btn_latch = 1;
             g_need_draw = 1;
         }
     }
-    if (g_btn && !g_prev_btn) {     /* rising edge = click */
-        g_prev_btn = g_btn;
+    if (g_btn_latch && !g_prev_btn) {   /* a press arrived = click */
+        g_prev_btn = 1;                 /* one click per press gesture */
+        g_btn_latch = 0;
         return ocse_gui_hit_test((u32)g_mx, (u32)g_my);
     }
-    g_prev_btn = g_btn;
+    g_btn_latch = 0;                    /* batch fully evaluated */
+    if (!g_btn) g_prev_btn = 0;         /* release seen: re-arm */
     return OCSE_ACT_NONE;
 }
 
@@ -293,7 +305,7 @@ int ocse_gui_loop(void) {
             (void)driver_input_keyboard_getch();   /* GUI ignores keys */
         int act = poll_pointer();
         if (act != OCSE_ACT_NONE) {
-            g_btn = 0; g_prev_btn = 0;
+            g_btn = 0; g_prev_btn = 0; g_btn_latch = 0;
             if (act != OCSE_ACT_NONE)
                 ocse_gui_draw();
             return act;
