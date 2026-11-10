@@ -743,11 +743,32 @@ static int exec_single(char *cmd) {
          * nothing then no longer creates an empty redirect file. */
         const char *alr = alias_get(argv[0]);
         if (alr) {
+            /* #33 fix (AUD-2c-002): an alias value (<=63B) plus the args
+             * of a 511B line can total ~600B - the old unbounded strcat_
+             * chain smashed newcmd[512] right here in the PARENT (ush
+             * pid 1, live-caught as rip=0x6262...). Bound every append
+             * (same used/strlen_ idiom as the `alias` builtin); on
+             * overflow abort the expansion - the original argv stays in
+             * effect - instead of smashing the stack. */
             char newcmd[512];
-            strcpy_(newcmd, alr);
-            for (int i = 1; i < argc; i++) { strcat_(newcmd, " "); strcat_(newcmd, argv[i]); }
-            argc = parse_args(newcmd, argv, 32);
-            if (argc == 0) return 0;
+            strncpy_(newcmd, alr, (int)sizeof(newcmd));
+            int used = strlen_(newcmd);
+            int too_long = 0;
+            for (int i = 1; i < argc && !too_long; i++) {
+                int alen = strlen_(argv[i]);
+                if (used + 1 + alen >= (int)sizeof(newcmd)) { too_long = 1; break; }
+                newcmd[used++] = ' ';
+                for (int j = 0; j < alen; j++) newcmd[used++] = argv[i][j];
+                newcmd[used] = 0;
+            }
+            if (too_long) {
+                puts_("ush: alias expansion too long: ");
+                puts_(argv[0]);
+                putc_('\n');
+            } else {
+                argc = parse_args(newcmd, argv, 32);
+                if (argc == 0) return 0;
+            }
         }
         int saved_out = sys_dup(1);   /* keep the real console slot */
         int saved_in  = sys_dup(0);
@@ -783,8 +804,18 @@ static int exec_single(char *cmd) {
         if (pid == 0) {
             long ret = sys_execve((long)argv[0], (long)argv, 0);
             if (ret < 0) {
-                char path[64]; strcpy_(path, "/bin/"); strcat_(path, argv[0]);
-                sys_execve((long)path, (long)argv, 0);
+                /* #31 fix (AUD-2c-003): argv[0] is raw user input that
+                 * can be ~500B long - the old "/bin/" + argv[0] build
+                 * smashed path[64] in the child. 264B covers the
+                 * kernel's 256B execve path limit, and every build is
+                 * bounds-checked: if it does not fit, skip the /bin/
+                 * fallback (exec already failed for argv[0]). */
+                char path[264];
+                if (5 + strlen_(argv[0]) < (int)sizeof(path)) {
+                    strcpy_(path, "/bin/");
+                    strcat_(path, argv[0]);
+                    sys_execve((long)path, (long)argv, 0);
+                }
             }
             sys_exit2(1);
         }
@@ -801,11 +832,29 @@ static int exec_single(char *cmd) {
     /* Check alias */
     const char *al = alias_get(argv[0]);
     if (al) {
+        /* #33 fix (AUD-2c-002): twin of the redirect-path bound above -
+         * the old unbounded strcat_ chain could write ~600B into
+         * newcmd[512] in the parent. Abort the expansion on overflow
+         * and fall through with the original argv. */
         char newcmd[512];
-        strcpy_(newcmd, al);
-        for (int i = 1; i < argc; i++) { strcat_(newcmd, " "); strcat_(newcmd, argv[i]); }
-        argc = parse_args(newcmd, argv, 32);
-        if (builtin_cmd(argc, argv)) return 0;
+        strncpy_(newcmd, al, (int)sizeof(newcmd));
+        int used = strlen_(newcmd);
+        int too_long = 0;
+        for (int i = 1; i < argc && !too_long; i++) {
+            int alen = strlen_(argv[i]);
+            if (used + 1 + alen >= (int)sizeof(newcmd)) { too_long = 1; break; }
+            newcmd[used++] = ' ';
+            for (int j = 0; j < alen; j++) newcmd[used++] = argv[i][j];
+            newcmd[used] = 0;
+        }
+        if (too_long) {
+            puts_("ush: alias expansion too long: ");
+            puts_(argv[0]);
+            putc_('\n');
+        } else {
+            argc = parse_args(newcmd, argv, 32);
+            if (builtin_cmd(argc, argv)) return 0;
+        }
     }
 
     /* Fork and exec */
@@ -834,10 +883,15 @@ static int exec_single(char *cmd) {
         long ret = sys_execve((long)argv[0], (long)argv, 0);
         /* If exec failed, try with /bin/ prefix */
         if (ret < 0) {
-            char path[64];
-            strcpy_(path, "/bin/");
-            strcat_(path, argv[0]);
-            ret = sys_execve((long)path, (long)argv, 0);
+            /* #31 fix (AUD-2c-003): bound the /bin/ fallback build -
+             * argv[0] is raw user input (see the redirect twin above);
+             * if "/bin/" + argv[0] does not fit, skip the fallback. */
+            char path[264];
+            if (5 + strlen_(argv[0]) < (int)sizeof(path)) {
+                strcpy_(path, "/bin/");
+                strcat_(path, argv[0]);
+                ret = sys_execve((long)path, (long)argv, 0);
+            }
         }
         if (ret < 0) {
             puts_("ush: command not found: ");
@@ -1368,7 +1422,10 @@ void _start(void) {
                 for (int ci = 0; ci < ncand; ci++) {
                     if (strncmp_(cands[ci], word, wlen) == 0) {
                         if (found == 0) {
-                            strcpy_(match, cands[ci]);
+                            /* #32 fix (AUD-2c-014): bound the registry
+                             * candidate copy - a >63B name would smash
+                             * match[64] (truncates instead). */
+                            strncpy_(match, cands[ci], (int)sizeof(match));
                             blen = strlen_(match);
                         } else {
                             /* Find common prefix */
@@ -1380,7 +1437,14 @@ void _start(void) {
                         found++;
                     }
                 }
-                if (found == 1 && blen > wlen) {
+                /* #32 fix (AUD-2c-014): typing is gated at llen < 510,
+                 * but completion appended to line[512] with no bound at
+                 * all - a long word plus a 63B match ran off the end.
+                 * Require the whole completion (plus the trailing space
+                 * on a unique match) to stay under 510; if it does not
+                 * fit, safely skip the completion. */
+                if (found == 1 && blen > wlen &&
+                    llen + (blen - wlen) + 1 < 510) {
                     /* Complete the word */
                     for (int i = wlen; i < blen; i++) {
                         line[llen++] = match[i];
@@ -1389,7 +1453,8 @@ void _start(void) {
                     /* Add space if single match */
                     line[llen++] = ' ';
                     putc_(' ');
-                } else if (found > 1 && blen > wlen) {
+                } else if (found > 1 && blen > wlen &&
+                           llen + (blen - wlen) < 510) {
                     /* Complete common prefix */
                     for (int i = wlen; i < blen; i++) {
                         line[llen++] = match[i];
@@ -1464,7 +1529,10 @@ void _start(void) {
                         }
                         ffound++;
                     }
-                    if (ffound == 1 && fblen > flen) {
+                    /* #32 fix: same <510 bound for the file-name
+                     * completion twin (fblen can be 63B). */
+                    if (ffound == 1 && fblen > flen &&
+                        llen + (fblen - flen) + 1 < 510) {
                         /* Complete the file name. */
                         for (int i = flen; i < fblen; i++) {
                             line[llen++] = fmatch[i];
@@ -1472,7 +1540,8 @@ void _start(void) {
                         }
                         line[llen++] = ' ';
                         putc_(' ');
-                    } else if (ffound > 1 && fblen > flen) {
+                    } else if (ffound > 1 && fblen > flen &&
+                               llen + (fblen - flen) < 510) {
                         for (int i = flen; i < fblen; i++) {
                             line[llen++] = fmatch[i];
                             putc_(fmatch[i]);
