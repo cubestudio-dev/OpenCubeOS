@@ -21,7 +21,14 @@
 OCIRE_DIR := $(OC_ROOT)/ocire
 OCIRE_OUT := $(BUILD)/ocire
 
-OCIRE_VERSION ?= 3.0.0-WP-02
+# The OCIRE banner version tracks the tree-wide release stamp:
+# OC_RELEASE_VERSION in the top-level Makefile is the single source of
+# truth (the OCIRE_VERSION_GEN rule below bakes it into the generated
+# header).  A hard-coded default here let the recovery kernel
+# self-report '3.0.0-WP-02' while the rest of the tree moved on
+# (BUG #92).  A command-line override still wins:
+#   make ocire-kernel OCIRE_VERSION=3.0.0-WP99
+OCIRE_VERSION ?= $(OC_RELEASE_VERSION)
 
 # ---- WP-02: the ring-3 log agent (OCOS L1 ABI, OCIRE's asset) -----
 # Compiled like an l1apps/ C program (gcc freestanding + user.ld @
