@@ -3945,6 +3945,15 @@ static int  g_dns_got_ns = 0;
 static u16  g_dns_srv_pri, g_dns_srv_wgt, g_dns_srv_port;
 static char g_dns_srv_target[256];
 static int  g_dns_got_srv = 0;
+/* P1-22 FIX (#22): DNS anti-poisoning state. The exact bytes of the
+ * query currently in flight — so net_dns_handler can demand the response
+ * echo the question section — plus its random transaction id and the
+ * random UDP source port it was sent from. */
+static u16 g_dns_txid;               /* txid of the in-flight query */
+static u8  g_dns_query_pkt[512];     /* exact bytes of the in-flight query */
+static u16 g_dns_query_len;          /* its length (<= 12 means: no query) */
+static u16 g_dns_bound_port;         /* UDP source port bound for it */
+static int dns_send_query(const char *name, u16 qtype);
 
 /* Decode a DNS name at `off` (handles compression pointers, 128-jump cap).
  * Writes dotted text into out (out_len capped). Returns the offset just
@@ -3985,11 +3994,29 @@ static int net_dns_decode_name(const u8 *pkt, int pkt_len, int off,
 }
 
 static void net_dns_handler(u32 src_ip, u16 src_port, const void *data, int len) {
-    (void)src_ip;
     (void)src_port;
     if (len < (int)sizeof(net_dns_hdr_t)) return;
     const net_dns_hdr_t *h = (const net_dns_hdr_t *)data;
     if (ntohs(h->ancount) == 0) return;
+
+    /* P1-22 FIX (#22): anti-poisoning validation — an unsolicited or
+     * forged datagram must never reach the parsing code below (and thus
+     * can never touch the g_dns_result_* globals). ALL of these must
+     * hold, otherwise the packet is dropped silently:
+     *   (a) it came from the configured resolver (g_dns),
+     *   (b) the transaction id matches the id of the query in flight
+     *       (same byte-order convention the query was built with),
+     *   (c) ancount > 0 (checked above),
+     *   (d) the question section is a byte-for-byte echo of the query
+     *       we sent (qname + qtype + qclass), i.e. the answer is to
+     *       OUR question. */
+    if (g_dns_query_len <= sizeof(net_dns_hdr_t)) return;  /* no query in flight */
+    if (src_ip != g_dns) return;                           /* (a) resolver only */
+    if (h->id != htons(g_dns_txid)) return;                /* (b) txid must match */
+    if (len < (int)g_dns_query_len) return;                /* (d) must cover the query */
+    if (memcmp((const u8 *)data + sizeof(net_dns_hdr_t),   /* (d) question echo */
+               g_dns_query_pkt + sizeof(net_dns_hdr_t),
+               g_dns_query_len - sizeof(net_dns_hdr_t)) != 0) return;
 
     /* P1-14 FIX: add bounds checks throughout DNS parsing to prevent
      * OOB reads on truncated/malicious DNS responses. */
@@ -4114,47 +4141,12 @@ static void net_dns_handler(u32 src_ip, u16 src_port, const void *data, int len)
 int net_dns_resolve(const char *name, u32 *net_ip_out) {
     if (!g_nic_ok || g_dns == 0) return -1;
 
-    net_udp_bind(DNS_PORT, net_dns_handler);  /* We'll use port 53 as "source" (simplified) */
-
-    u8 buf[512];
-    net_dns_hdr_t *h = (net_dns_hdr_t *)buf;
-    h->id = htons(0x1234);
-    h->flags = htons(0x0100);  /* standard query, recursion desired */
-    h->qdcount = htons(1);
-    h->ancount = 0;
-    h->nscount = 0;
-    h->arcount = 0;
-
-    /* Encode domain name as DNS labels. */
-    u8 *q = buf + sizeof(net_dns_hdr_t);
-    const char *p = name;
-    while (*p) {
-        const char *dot = p;
-        while (*dot && *dot != '.') dot++;
-        int labellen = dot - p;
-        if (labellen > 63) return -1;
-        /* BUG-0211: bounds-check every write (length byte + label + the
-         * trailing NUL and the 4-byte QTYPE/QCLASS that must still fit). */
-        if (q + 1 + labellen + 5 > buf + sizeof(buf)) return -1;
-        *q++ = (u8)labellen;
-        for (int i = 0; i < labellen; i++) *q++ = p[i];
-        if (*dot == '.') p = dot + 1;
-        else { p = dot; break; }
-    }
-    if (q + 5 > buf + sizeof(buf)) return -1;  /* BUG-0211: NUL + qtype + qclass */
-    *q++ = 0;  /* end of name */
-    *(u16 *)q = htons(1);  /* QTYPE = A */
-    q += 2;
-    *(u16 *)q = htons(1);  /* QCLASS = IN */
-    q += 2;
-
-    int pkt_len = (int)(q - buf);
-
     g_dns_got_response = 0;
-    /* Use a fixed source port and bind to it so the response is received. */
-    u16 net_dns_src_port = 1024 + DNS_PORT;
-    net_udp_bind(net_dns_src_port, net_dns_handler);
-    net_udp_send(g_dns, DNS_PORT, net_dns_src_port, buf, pkt_len);
+    /* P1-22 FIX (#22): every query now goes through dns_send_query —
+     * random transaction id (was hardcoded 0x1234) and random source
+     * port (was fixed 1077). A spoofed reply must guess both AND echo
+     * our question section to pass net_dns_handler validation. */
+    if (dns_send_query(name, 1) != 0) return -1;  /* QTYPE = A */
 
     /* Wait for response. */
     u64 start = core_timer_ticks();
@@ -4205,39 +4197,9 @@ int net_dns_resolve_cname(const char *name, char *cname_out, int cname_len, u32 
 int net_dns_resolve_aaaa(const char *name, u8 *ipv6_out) {
     if (!g_nic_ok || g_dns == 0) return -1;
 
-    u8 buf[512];
-    net_dns_hdr_t *h = (net_dns_hdr_t *)buf;
-    h->id = htons(0x5678);
-    h->flags = htons(0x0100);
-    h->qdcount = htons(1);
-    h->ancount = 0; h->nscount = 0; h->arcount = 0;
-
-    u8 *q = buf + sizeof(net_dns_hdr_t);
-    const char *p = name;
-    while (*p) {
-        const char *dot = p;
-        while (*dot && *dot != '.') dot++;
-        int labellen = dot - p;
-        if (labellen > 63) return -1;
-        /* BUG-0211: bounds-check every write against the real buffer. */
-        if (q + 1 + labellen + 5 > buf + sizeof(buf)) return -1;
-        *q++ = (u8)labellen;
-        for (int i = 0; i < labellen; i++) *q++ = p[i];
-        if (*dot == '.') p = dot + 1;
-        else { p = dot; break; }
-    }
-    if (q + 5 > buf + sizeof(buf)) return -1;  /* BUG-0211: NUL + qtype + qclass */
-    *q++ = 0;
-    *(u16 *)q = htons(28);  /* QTYPE = AAAA */
-    q += 2;
-    *(u16 *)q = htons(1);   /* QCLASS = IN */
-    q += 2;
-
-    int pkt_len = (int)(q - buf);
     g_dns_got_aaaa = 0;
-    u16 net_dns_src_port = 2048 + DNS_PORT;
-    net_udp_bind(net_dns_src_port, net_dns_handler);
-    net_udp_send(g_dns, DNS_PORT, net_dns_src_port, buf, pkt_len);
+    /* P1-22 FIX (#22): was hardcoded txid 0x5678, fixed source port 2101. */
+    if (dns_send_query(name, 28) != 0) return -1;  /* QTYPE = AAAA */
 
     u64 start = core_timer_ticks();
     while ((core_timer_ticks() - start) < 500) {
@@ -4284,18 +4246,71 @@ static int net_dns_build_query(const char *name, u16 qtype, u16 id, u8 *buf, int
     return (int)(q - buf);
 }
 
+/* P1-22 FIX (#22): entropy for DNS randomization. rdtsc (both halves)
+ * mixed with the system tick counter (core_timer_ticks — g_tick_count
+ * is private to core_timer.c), then xorshift-mixed so successive
+ * queries issued within the same tick still get unpredictable values. */
+static u16 dns_rand16(void) {
+    u32 lo, hi;
+    asm volatile("rdtsc" : "=a"(lo), "=d"(hi));
+    u32 t = lo ^ hi ^ (u32)core_timer_ticks();
+    t ^= t >> 13;
+    t ^= t << 5;
+    t ^= t >> 7;
+    return (u16)(t >> 16);
+}
+
+/* P1-22 FIX (#22): single choke point for every outbound DNS query.
+ * Builds the query into g_dns_query_pkt with a fresh random txid,
+ * binds a random ephemeral source port (20000..59999) and sends it to
+ * the configured resolver. Off-path poisoning now has to guess BOTH
+ * the 16-bit txid AND the source port, and net_dns_handler moreover
+ * demands the question section be echoed byte-for-byte.
+ * Returns 0 on success, -1 on error. */
+static int dns_send_query(const char *name, u16 qtype) {
+    if (name == NULL || !g_nic_ok || g_dns == 0) return -1;
+    u16 txid = dns_rand16();
+    int pkt_len = net_dns_build_query(name, qtype, txid,
+                                      g_dns_query_pkt,
+                                      (int)sizeof(g_dns_query_pkt));
+    if (pkt_len < (int)sizeof(net_dns_hdr_t)) return -1;
+
+    /* Release the previous query's source-port binding first. Only one
+     * DNS query is ever in flight, so the old binding is dead — and
+     * keeping it would eat one of the 32 UDP handler slots per lookup. */
+    if (g_dns_bound_port != 0) {
+        net_udp_unbind(g_dns_bound_port);
+        g_dns_bound_port = 0;
+    }
+
+    /* Random ephemeral source port; retry on the (rare) collision with
+     * a port some other client already bound (net_udp_bind rejects
+     * duplicate binds). */
+    u16 src_port = 0;
+    for (int i = 0; i < 8 && src_port == 0; i++) {
+        u16 cand = (u16)(20000 + dns_rand16() % 40000);
+        if (net_udp_bind(cand, net_dns_handler) == 0) src_port = cand;
+    }
+    if (src_port == 0) return -1;
+
+    /* Publish the query state BEFORE the packet leaves, so a racing
+     * response is never validated against a stale query. */
+    g_dns_txid = txid;
+    g_dns_query_len = (u16)pkt_len;
+    g_dns_bound_port = src_port;
+
+    net_udp_send(g_dns, DNS_PORT, src_port, g_dns_query_pkt, pkt_len);
+    return 0;
+}
+
 /* WP-09 mainstream: net_dns_resolve_mx — mail exchangers, sorted by preference.
  * mx_host_out receives up to max entries of "pref host" pairs. */
 int net_dns_resolve_mx(const char *name, u16 *pref_out, char *host_out,
                    int host_stride, int max) {
     if (!g_nic_ok || g_dns == 0) return -1;
-    u8 buf[512];
-    int pkt_len = net_dns_build_query(name, 15, 0x2468, buf, (int)sizeof(buf));
-    if (pkt_len < 0) return -1;
     g_dns_mx_count = 0;
-    u16 net_dns_src_port = 4096 + DNS_PORT;
-    net_udp_bind(net_dns_src_port, net_dns_handler);
-    net_udp_send(g_dns, DNS_PORT, net_dns_src_port, buf, pkt_len);
+    /* P1-22 FIX (#22): was hardcoded txid 0x2468, fixed source port 4149. */
+    if (dns_send_query(name, 15) != 0) return -1;  /* QTYPE = MX */
     u64 start = core_timer_ticks();
     while ((core_timer_ticks() - start) < 500) {
         net_poll();
@@ -4315,13 +4330,9 @@ int net_dns_resolve_mx(const char *name, u16 *pref_out, char *host_out,
 /* WP-09 mainstream: net_dns_resolve_txt — first TXT record string. */
 int net_dns_resolve_txt(const char *name, char *txt_out, int txt_len) {
     if (!g_nic_ok || g_dns == 0) return -1;
-    u8 buf[512];
-    int pkt_len = net_dns_build_query(name, 16, 0x3690, buf, (int)sizeof(buf));
-    if (pkt_len < 0) return -1;
     g_dns_got_txt = 0;
-    u16 net_dns_src_port = 5120 + DNS_PORT;
-    net_udp_bind(net_dns_src_port, net_dns_handler);
-    net_udp_send(g_dns, DNS_PORT, net_dns_src_port, buf, pkt_len);
+    /* P1-22 FIX (#22): was hardcoded txid 0x3690, fixed source port 5173. */
+    if (dns_send_query(name, 16) != 0) return -1;  /* QTYPE = TXT */
     u64 start = core_timer_ticks();
     while ((core_timer_ticks() - start) < 500) {
         net_poll();
@@ -4337,13 +4348,9 @@ int net_dns_resolve_txt(const char *name, char *txt_out, int txt_len) {
 /* WP-09 mainstream: net_dns_resolve_ns — authoritative name server. */
 int net_dns_resolve_ns(const char *name, char *ns_out, int ns_len) {
     if (!g_nic_ok || g_dns == 0) return -1;
-    u8 buf[512];
-    int pkt_len = net_dns_build_query(name, 2, 0x4271, buf, (int)sizeof(buf));
-    if (pkt_len < 0) return -1;
     g_dns_got_ns = 0;
-    u16 net_dns_src_port = 6144 + DNS_PORT;
-    net_udp_bind(net_dns_src_port, net_dns_handler);
-    net_udp_send(g_dns, DNS_PORT, net_dns_src_port, buf, pkt_len);
+    /* P1-22 FIX (#22): was hardcoded txid 0x4271, fixed source port 6197. */
+    if (dns_send_query(name, 2) != 0) return -1;   /* QTYPE = NS */
     u64 start = core_timer_ticks();
     while ((core_timer_ticks() - start) < 500) {
         net_poll();
@@ -4360,13 +4367,9 @@ int net_dns_resolve_ns(const char *name, char *ns_out, int ns_len) {
 int net_dns_resolve_srv(const char *name, u16 *pri, u16 *wgt, u16 *port,
                     char *target_out, int target_len) {
     if (!g_nic_ok || g_dns == 0) return -1;
-    u8 buf[512];
-    int pkt_len = net_dns_build_query(name, 33, 0x52A1, buf, (int)sizeof(buf));
-    if (pkt_len < 0) return -1;
     g_dns_got_srv = 0;
-    u16 net_dns_src_port = 7168 + DNS_PORT;
-    net_udp_bind(net_dns_src_port, net_dns_handler);
-    net_udp_send(g_dns, DNS_PORT, net_dns_src_port, buf, pkt_len);
+    /* P1-22 FIX (#22): was hardcoded txid 0x52A1, fixed source port 7221. */
+    if (dns_send_query(name, 33) != 0) return -1;  /* QTYPE = SRV */
     u64 start = core_timer_ticks();
     while ((core_timer_ticks() - start) < 500) {
         net_poll();
