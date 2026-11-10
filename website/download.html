@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
+<!-- Open Cube OS download page - 3.0.0-WP06e layout: a channel switch
+     (development preview / stable release) at the top, the WP06g3 dev
+     pair (opencube + ocse ISOs, linked from the GitHub Release - the
+     main tree carries no ISO binaries, see SYNC-NOTES.md), the 2.2.0 stable trio (ISO + source
+     + OTA), and the release history table. Every asset hash-gated,
+     every string bilingual (EN/ZH) + light/dark theme. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title data-i18n="title.download">Download - Open Cube OS</title>
+<meta name="description" content="Download Open Cube OS: the 3.0.0-WP06g3 development preview (opencube + ocse hybrid BIOS+UEFI ISOs) or the 2.2.0 stable release (ISO, deterministic source zip, OTA package) - with SHA256 for every asset.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3C/text%3E%3C/svg%3E">
+<script>
+(function(){try{var t=localStorage.getItem("oc-theme");
+if(t!=="dark"&&t!=="light"){t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}
+document.documentElement.setAttribute("data-theme",t);}catch(e){document.documentElement.setAttribute("data-theme","light");}})();
+</script>
+</head>
+<body>
+<a class="skip" href="#main" data-i18n="nav.skip">Skip to content</a>
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="./"><span class="p">[</span>opencube<span class="p">]</span> OS</a>
+    <div class="nav-links">
+      <a href="./" data-i18n="nav.home">Home</a>
+      <a href="architecture.html" data-i18n="nav.architecture">Architecture</a>
+      <a href="download.html" class="active" data-i18n="nav.download">Download</a>
+      <a href="docs/" data-i18n="nav.docs">Documentation</a>
+      <a href="about.html" data-i18n="nav.about">About</a>
+      <a class="cta" href="https://github.com/cubestudio-dev/OpenCubeOS" rel="noopener" data-i18n="nav.github">GitHub</a>
+    </div>
+    <div class="nav-ctrl">
+      <div class="seg" role="group" aria-label="Language / 语言">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="zh" aria-pressed="false">中文</button>
+      </div>
+      <button type="button" class="icon-btn" id="theme-btn" aria-label="Switch to dark theme">🌙</button>
+      <button type="button" id="nav-toggle" aria-label="Menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<main id="main">
+<div class="wrap">
+  <div class="dl-head">
+    <h1 data-i18n="dl.h1">Download</h1>
+    <p class="sub" data-i18n-html="dl.sub">Two channels: the <b>3.0.0 development preview</b> (the L0/L1 world of WP06g3) and the <b>2.2.0 stable release</b>. Every asset's SHA256 is listed - verify what you download: <code>sha256sum &lt;file&gt;</code>.</p>
+    <div class="dl-tabs seg" role="group" aria-label="Release channel">
+      <button type="button" id="tab-dev" class="active" aria-pressed="true" data-i18n="dl.tab.dev">Development preview</button>
+      <button type="button" id="tab-stable" aria-pressed="false" data-i18n="dl.tab.stable">Stable release</button>
+    </div>
+  </div>
+
+  <!-- ============ channel: development preview (3.0.0-WP06g3) ============ -->
+  <div id="panel-dev">
+    <section class="section" style="padding-top:26px">
+      <h2 data-i18n="dl.dev.h2">3.0.0-WP06g3 - development preview</h2>
+      <p class="sub" data-i18n-html="dl.dev.sub">The current 3.0.0 milestone: OCBL &rarr; OCOS &rarr; the ring-3 ush shell (285 commands), plus the OCSE install environment (the 9-step GUI install wizard + OCSECL, en/zh). Boot either ISO in QEMU (<code>-cdrom</code>) or write it to USB. See the <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.0-WP06g3" rel="noopener">WP06g3 release page</a>.</p>
+      <div class="dl-grid">
+        <div class="dl-card" id="card-dev-oc">
+          <div class="type" data-i18n="dl.dev.oc.type">Bootable ISO - the OS</div>
+          <h3 id="dev-oc-name">opencube-3.0.0-WP06g3.iso</h3>
+          <p class="desc" data-i18n-html="dl.dev.oc.desc">Hybrid BIOS + UEFI image (4.0 MiB). Boots through OCBL into the ring-3 ush shell - the development preview of 3.0.0.</p>
+          <div class="meta"><span data-i18n="dl.size">Size:</span> <b id="dev-oc-size">-</b></div>
+          <div class="sha" id="dev-oc-sha">-</div>
+          <a class="btn btn-primary" id="dev-oc-url" href="#" data-i18n="dl.dev.oc.btn">⬇️ Download ISO</a>
+        </div>
+        <div class="dl-card" id="card-dev-ocse">
+          <div class="type" data-i18n="dl.dev.ocse.type">Install medium - OCSE</div>
+          <h3 id="dev-ocse-name">ocse-3.0.0-WP06g3.iso</h3>
+          <p class="desc" data-i18n-html="dl.dev.ocse.desc">The OCSE install environment (4.8 MiB): the 9-step GUI install wizard and OCSECL, en/zh - every wizard mutation is a real OCSECL command. Installs OCBL + OCOS onto a disk that then boots to ush.</p>
+          <div class="meta"><span data-i18n="dl.size">Size:</span> <b id="dev-ocse-size">-</b></div>
+          <div class="sha" id="dev-ocse-sha">-</div>
+          <a class="btn btn-ghost" id="dev-ocse-url" href="#" data-i18n="dl.dev.ocse.btn">⬇️ Download ISO</a>
+        </div>
+      </div>
+    </section>
+    <section class="section" style="padding-top:0">
+      <h3 data-i18n="dl.dev.try.h">Try it in one command</h3>
+      <div class="cmd"><span class="c">$</span> qemu-system-x86_64 -m 512 -cdrom opencube-3.0.0-WP06g3.iso \
+      -netdev user,id=n1 -device e1000,netdev=n1</div>
+      <p class="sub" data-i18n="dl.dev.try.p" style="margin:10px 0 0">512 MiB of RAM is comfortable; the ISO is self-contained. The installed-disk path: boot ocse, run the wizard, reboot - OCBL takes over.</p>
+    </section>
+  </div>
+
+  <!-- ============ channel: stable release (2.2.0) ============ -->
+  <div id="panel-stable" hidden>
+    <section class="section" style="padding-top:26px">
+      <h2><span data-i18n="dl.stable.h2a">2.2.0 - the stable release</span> <span class="v" id="dl-version">-</span></h2>
+      <p class="sub" data-i18n-html="dl.stable.sub">The last formal release of the 2.x line &middot; build <span class="v" id="dl-build">-</span> &middot; <span id="dl-date">-</span>. The 2.x world (recovery shell included) - kept for reference and real-hardware stability.</p>
+      <div class="dl-grid">
+        <div class="dl-card" id="card-iso">
+          <div class="type" data-i18n="dl.iso.type">Bootable ISO</div>
+          <h3 id="iso-name">-</h3>
+          <p class="desc" data-i18n-html="dl.iso.desc">Hybrid BIOS + UEFI image (~12 MiB). Boot it in QEMU (<code>-cdrom</code>) or write it to a USB stick for real hardware.</p>
+          <div class="meta"><span data-i18n="dl.size">Size:</span> <b id="iso-size">-</b></div>
+          <div class="sha" id="iso-sha">-</div>
+          <a class="btn btn-primary" id="iso-url" href="#" data-i18n="dl.iso.btn">⬇️ Download ISO</a>
+        </div>
+        <div class="dl-card" id="card-src">
+          <div class="type" data-i18n="dl.src.type">Source</div>
+          <h3 id="src-name">-</h3>
+          <p class="desc" data-i18n-html="dl.src.desc">Deterministic source zip (<code>git archive</code>): tree order, commit mtimes, index permissions - the same commit always rebuilds the same zip.</p>
+          <div class="meta"><span data-i18n="dl.size">Size:</span> <b id="src-size">-</b></div>
+          <div class="sha" id="src-sha">-</div>
+          <a class="btn btn-ghost" id="src-url" href="#" data-i18n="dl.src.btn">⬇️ Download source</a>
+        </div>
+        <div class="dl-card" id="card-ota">
+          <div class="type" data-i18n="dl.ota.type">OTA update</div>
+          <h3 id="ota-name">-</h3>
+          <p class="desc" data-i18n-html="dl.ota.desc">Update package for a running system: <code>checkupdate</code> fetches the <a href="update.json">manifest</a>, verification is SHA256 + signature, install goes to the inactive A/B slot.</p>
+          <div class="meta"><span data-i18n="dl.size">Size:</span> <b id="ota-size">-</b></div>
+          <div class="sha" id="ota-sha">-</div>
+          <a class="btn btn-ghost" id="ota-url" href="#" data-i18n="dl.ota.btn">⬇️ Download package</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ history ============ -->
+  <section class="section" style="padding-top:34px">
+    <h2 data-i18n="dl.hist.h2">Previous releases</h2>
+    <p class="sub" data-i18n-html="dl.hist.sub">ISO SHA256 for the recent line; every asset of every release lives on the <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases" rel="noopener">GitHub releases page</a>.</p>
+    <div class="hist-scroll">
+    <table class="hist" id="hist-table">
+      <thead><tr>
+        <th data-i18n="dl.hist.th.v">Version</th><th data-i18n="dl.hist.th.d">Date</th><th data-i18n="dl.hist.th.iso">ISO</th><th data-i18n="dl.hist.th.s">Size</th><th data-i18n="dl.hist.th.sha">ISO SHA256</th>
+      </tr></thead>
+      <tbody id="hist-body">
+        <tr><td class="v">-</td><td>-</td><td>-</td><td>-</td><td class="sha">-</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:10px">
+    <h2 data-i18n="dl.verify.h2">Verify</h2>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><div>
+        <h3 data-i18n="dl.verify.s1.h">Hash the file you downloaded</h3>
+        <div class="cmd"><span class="c">$</span> sha256sum opencube-3.0.0-WP06g3.iso</div>
+      </div></div>
+      <div class="step"><div class="n">2</div><div>
+        <h3 data-i18n="dl.verify.s2.h">Compare with the value above</h3>
+        <p data-i18n="dl.verify.s2.p">These are the exact bytes served from this site and attached to the GitHub Release - the site, the Release and the private mirror hold identical copies (three-way verified at every release).</p>
+      </div></div>
+    </div>
+  </section>
+</div>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="col">
+        <div class="h" data-i18n="foot.project">Project</div>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS" rel="noopener" data-i18n="foot.repo">GitHub repository</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases" rel="noopener" data-i18n="foot.releases">Releases</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/issues" rel="noopener" data-i18n="foot.issues">Issue tracker</a>
+        <a href="https://github.com/cubestudio-dev/OpenCubeOS/wiki" rel="noopener" data-i18n="foot.wiki">GitHub Wiki</a>
+      </div>
+      <div class="col">
+        <div class="h" data-i18n="foot.docs">Documentation</div>
+        <a href="docs/" data-i18n="foot.docs-center">Documentation center</a>
+        <a href="docs/manual/getting-started.html" data-i18n="foot.gs">Getting started</a>
+        <a href="docs/root/BUILDING.html">BUILDING.md</a>
+        <a href="docs/l1/overview.html" data-i18n="foot.l1">L1 extension guide</a>
+      </div>
+      <div class="col">
+        <div class="h" data-i18n="foot.dl">Download</div>
+        <a href="download.html" data-i18n="foot.current">Current release</a>
+        <a href="update.json" data-i18n="foot.update">Update manifest (JSON)</a>
+        <a href="about.html" data-i18n="nav.about">About</a>
+      </div>
+    </div>
+    <div class="foot-note">
+      <span>Apache License 2.0</span>
+      <span data-i18n="foot.copyright">Copyright 2026 cubestudio-dev &lt;cubestudio@qq.com&gt;</span>
+      <span id="foot-build">build 316</span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site-data.js"></script>
+<script src="assets/i18n.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
