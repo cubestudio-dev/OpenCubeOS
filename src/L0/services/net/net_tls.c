@@ -1019,24 +1019,23 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
         }
     }
     {
-        /* Same policy as the TLS 1.2 path below: a hostname mismatch for
-         * a dNSName reference identity is fatal (active-impersonation
-         * signal); an un-anchored chain (self-signed / private-CA) warns
-         * and continues. IP-literal connections arrive here with an
-         * empty hostname (see net_tls_connect). */
+        /* GH #21 FIX (fail-closed): EVERY verify result other than
+         * X509_OK is fatal and aborts the handshake — hostname
+         * mismatch, self-signed / private-CA (no trusted root), expired
+         * or not-yet-valid, bad signature, bad format. The old policy
+         * only made a hostname mismatch fatal and warned through every
+         * other code, so an active MITM needed nothing but a self-signed
+         * certificate to impersonate any server. Chains anchoring at
+         * the embedded crypto_roots[] store (incl. ISRG Root X1) still
+         * return X509_OK and connect normally. IP-literal connections
+         * arrive here with an empty hostname (see net_tls_connect). */
         const char *ref = c->hostname[0] ? c->hostname : (const char *)0;
         int vrc = crypto_x509_verify_chain(c->certs, c->ncerts, ref);
-        if (vrc == X509_E_HOSTNAME) {
+        if (vrc != X509_OK) {
             screen_console_puts("[tls] x509 verify failed: ");
             screen_console_puts(crypto_x509_errstr(vrc));
             screen_console_puts("\n");
             return -4;
-        }
-        if (vrc != X509_OK) {
-            char db[80]; char n2[12];
-            strcpy(db, "[tls] warning: server chain not anchored (code ");
-            u64_to_str((u64)(-vrc), n2); strcat(db, n2); strcat(db, ") - continuing\n");
-            screen_console_puts(db);
         }
     }
     c->verified = 1;
@@ -1550,23 +1549,27 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
         }
 #endif
     }
-    /* Certificate chain policy. The kernel parses and structurally
-     * bounds-checks the chain (P0fix2 BUG-0024/0025) but historically
-     * does NOT refuse a connection it cannot anchor (self-signed or
-     * private-CA servers — the https_test_server.py contract and the
-     * WP-09 behaviour). A mismatch for a user-supplied hostname is the
-     * one failure that IS fatal: that is an active-impersonation signal.
+    /* Certificate chain policy (GH #21 FIX, fail-closed): the kernel
+     * parses and structurally bounds-checks the chain (P0fix2
+     * BUG-0024/0025) and now also REFUSES any connection whose chain
+     * does not verify — self-signed / private-CA (no trusted root),
+     * expired / not-yet-valid, bad signature, hostname mismatch. The
+     * old policy only made a hostname mismatch fatal and warned
+     * through every other code ("not anchored ... continuing"), so an
+     * active MITM needed nothing but a self-signed certificate to
+     * impersonate any server. Chains anchoring at the embedded
+     * crypto_roots[] store still return X509_OK and connect normally.
      * An IP-address connection (empty hostname) has no reference
-     * identity, so no hostname check is possible (RFC 6125). */
+     * identity, so no hostname check is possible (RFC 6125) — but the
+     * chain must still anchor at a trusted root. */
     {
         const char *ref = c->hostname[0] ? c->hostname : (const char *)0;
         int vrc = crypto_x509_verify_chain(c->certs, c->ncerts, ref);
-        if (vrc == X509_E_HOSTNAME) return -4;
         if (vrc != X509_OK) {
-            char db[80]; char n2[12];
-            strcpy(db, "[tls] warning: server chain not anchored (code ");
-            u64_to_str((u64)(-vrc), n2); strcat(db, n2); strcat(db, ") - continuing\n");
-            screen_console_puts(db);
+            screen_console_puts("[tls] x509 verify failed: ");
+            screen_console_puts(crypto_x509_errstr(vrc));
+            screen_console_puts("\n");
+            return -4;
         }
     }
     c->verified = 1;
