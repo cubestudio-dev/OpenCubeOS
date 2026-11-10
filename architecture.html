@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
-<!-- Open Cube OS architecture page - the 3.0.0-WP06g3 truth: the L0/L1
+<!-- Open Cube OS architecture page - the 3.0.0-WP06g2 truth: the L0/L1
      split (L0 = pure service kernel, no shell/TUI/IME; L1 = the whole
      ring-3 world), the OCBL boot flow, every src/L0 subsystem, the
      275-program src/L1 world, the 20-service / 190-entry SYS_L1SVC
@@ -14,7 +14,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title data-i18n="title.architecture">Architecture - Open Cube OS</title>
-<meta name="description" content="Open Cube OS 3.0.0-WP06g3 architecture: L0 is a pure service kernel (OCBL bootloader, boot/core/drivers/services, no shell, no TUI); L1 is the whole ring-3 world (275 programs under src/L1, the ush shell with 285 commands). 20 SYS_L1SVC services / 190 numbered entries, 54 syscalls, 16 driver families, 128,890 lines.">
+<meta name="description" content="Open Cube OS 3.0.0-WP06g2 architecture: L0 is a pure service kernel (OCBL bootloader, boot/core/drivers/services, no shell, no TUI); L1 is the whole ring-3 world (275 programs under src/L1, the ush shell with 285 commands). 20 SYS_L1SVC services / 190 numbered entries, 54 syscalls, 16 driver families, 128,890 lines.">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3C/text%3E%3C/svg%3E">
 <script>
@@ -53,7 +53,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
 <div class="wrap">
   <div class="dl-head">
     <h1 data-i18n="arch.h1">Architecture</h1>
-    <p class="sub" data-i18n="arch.sub">How the machine is put together at 3.0.0-WP06g3: the L0/L1 split, the OCBL boot flow, every L0 subsystem, the 275-program L1 world, and the 20-service SYS_L1SVC surface. Everything below is read straight from the tree.</p>
+    <p class="sub" data-i18n="arch.sub">How the machine is put together at 3.0.0-WP06g2: the L0/L1 split, the OCBL boot flow, every L0 subsystem, the 275-program L1 world, and the 20-service SYS_L1SVC surface. Everything below is read straight from the tree.</p>
   </div>
 </div>
 

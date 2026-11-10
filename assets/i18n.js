@@ -111,11 +111,11 @@
 
       /* ---- index: screenshots ---- */
       "shots.h2": "It really runs",
-      "shots.sub": "Captured from the 3.0.0-WP06g3 release ISO in QEMU - the BIOS and the UEFI boot path, through OCBL to the ring-3 ush prompt.",
-      "shots.bios": "Legacy BIOS boot - 3.0.0-WP06g3",
-      "shots.uefi": "UEFI boot (OVMF) - 3.0.0-WP06g3",
-      "shots.bios.alt": "Open Cube OS 3.0.0-WP06g3 booted in QEMU via legacy BIOS: the OCBL handoff, the L0 boot log ending at L0 ready waiting for L1, and the ush shell prompt",
-      "shots.uefi.alt": "Open Cube OS 3.0.0-WP06g3 booted in QEMU via UEFI (OVMF): the same L0 boot log and the ring-3 ush shell prompt",
+      "shots.sub": "Captured from the 3.0.0-WP06g2 release ISO in QEMU - the BIOS and the UEFI boot path, through OCBL to the ring-3 ush prompt.",
+      "shots.bios": "Legacy BIOS boot - 3.0.0-WP06g2",
+      "shots.uefi": "UEFI boot (OVMF) - 3.0.0-WP06g2",
+      "shots.bios.alt": "Open Cube OS 3.0.0-WP06g2 booted in QEMU via legacy BIOS: the OCBL handoff, the L0 boot log ending at L0 ready waiting for L1, and the ush shell prompt",
+      "shots.uefi.alt": "Open Cube OS 3.0.0-WP06g2 booted in QEMU via UEFI (OVMF): the same L0 boot log and the ring-3 ush shell prompt",
 
       /* ---- index: layered ---- */
       "layer.h2": "The two-layer idea",
@@ -130,7 +130,7 @@
       /* ---- architecture page ---- */
       "title.architecture": "Architecture - Open Cube OS",
       "arch.h1": "Architecture",
-      "arch.sub": "How the machine is put together at 3.0.0-WP06g3: the L0/L1 split, the OCBL boot flow, every L0 subsystem, the 275-program L1 world, and the 20-service SYS_L1SVC surface. Everything below is read straight from the tree.",
+      "arch.sub": "How the machine is put together at 3.0.0-WP06g2: the L0/L1 split, the OCBL boot flow, every L0 subsystem, the 275-program L1 world, and the 20-service SYS_L1SVC surface. Everything below is read straight from the tree.",
       "arch.layers.h": "Two layers by design",
       "arch.layers.sub": "L0 is a pure service kernel: kernel + drivers + root services + the numbered interface, and nothing else - no shell, no commands, no TUI, no input method (the 2.x recovery shell was removed in WP-03). L1 is the whole user world in ring 3, and 3.0.0 ships both in one tree under src/L0/ and src/L1/.",
       "arch.layers.l0.h": "L0 - the pure service kernel",
@@ -219,7 +219,7 @@
       /* ---- download page ---- */
       "title.download": "Download - Open Cube OS",
       "dl.h1": "Download",
-      "dl.sub": "Two channels: the <b>3.0.0 development preview</b> (the L0/L1 world of WP06g1) and the <b>2.2.0 stable release</b>. Every asset's SHA256 is listed - verify what you download: <code>sha256sum &lt;file&gt;</code>.",
+      "dl.sub": "Two channels: the <b>3.0.0 development preview</b> (the L0/L1 world of WP06g3) and the <b>2.2.0 stable release</b>. Every asset's SHA256 is listed - verify what you download: <code>sha256sum &lt;file&gt;</code>.",
       "dl.iso.type": "Bootable ISO",
       "dl.iso.desc": "Hybrid BIOS + UEFI image (~12 MiB). Boot it in QEMU (<code>-cdrom</code>) or write it to a USB stick for real hardware.",
       "dl.src.type": "Source",
@@ -232,12 +232,12 @@
       "dl.tab.dev": "Development preview",
       "dl.tab.stable": "Stable release",
       "dl.dev.h2": "3.0.0-WP06g3 - development preview",
-      "dl.dev.sub": "The current 3.0.0 milestone: OCBL &rarr; OCOS &rarr; the ring-3 ush shell (285 commands) &mdash; now fully bilingual: every one of the 274 ring-3 programs carries i18n resources (<code>lang zh</code> switches the registry, the file tools and the editors), and the system pinyin IME (F2 inside nano/vi) brings Chinese input with a 622-word phrase library, smart compose and paging. Plus the OCSE install environment. Boot either ISO in QEMU (<code>-cdrom</code>) or write it to USB. See the <a href=\"https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.0-WP06g1\" rel=\"noopener\">WP06g1 release page</a> for the encoding fixes this builds on.",
+      "dl.dev.sub": "The current 3.0.0 milestone: OCBL &rarr; OCOS &rarr; the ring-3 ush shell (285 commands) &mdash; the real-hardware fix batch: disk probing that matches RAID/RST SATA machines, <code>serial_encoding utf8|gbk</code>, the VMware boot-crash fix, OCIRE recovery on every install path, and the reworked localized editors with the IME preedit strip. Plus the OCSE install environment. Boot either ISO in QEMU (<code>-cdrom</code>) or write it to USB. See the <a href=\"https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.0-WP06g3\" rel=\"noopener\">WP06g3 release page</a> for the real-hardware fixes this batch delivers.",
       "dl.dev.oc.type": "Bootable ISO - the OS",
-      "dl.dev.oc.desc": "Hybrid BIOS + UEFI image (4.0 MiB). Boots through OCBL into the ring-3 ush shell - the development preview of 3.0.0.",
+      "dl.dev.oc.desc": "Hybrid BIOS + UEFI image (3.7 MiB). Boots through OCBL into the ring-3 ush shell - the development preview of 3.0.0.",
       "dl.dev.oc.btn": "⬇️ Download ISO",
       "dl.dev.ocse.type": "Install medium - OCSE",
-      "dl.dev.ocse.desc": "The OCSE install environment (4.8 MiB): the 9-step GUI install wizard and OCSECL, en/zh - every wizard mutation is a real OCSECL command. Installs OCBL + OCOS onto a disk that then boots to ush.",
+      "dl.dev.ocse.desc": "The OCSE install environment (4.4 MiB): the 9-step GUI install wizard and OCSECL, en/zh - every wizard mutation is a real OCSECL command. Installs OCBL + OCOS onto a disk that then boots to ush.",
       "dl.dev.ocse.btn": "⬇️ Download ISO",
       "dl.dev.try.h": "Try it in one command",
       "dl.dev.try.p": "512 MiB of RAM is comfortable; the ISO is self-contained. The installed-disk path: boot ocse, run the wizard, reboot - OCBL takes over.",
@@ -392,11 +392,11 @@
 
       /* ---- 首页：截图 ---- */
       "shots.h2": "它真的能跑",
-      "shots.sub": "从 3.0.0-WP06g3 发布版 ISO 在 QEMU 里截取 —— BIOS 与 UEFI 两条启动路径，经 OCBL 到 Ring 3 的 ush 提示符。",
-      "shots.bios": "传统 BIOS 启动 —— 3.0.0-WP06g3",
-      "shots.uefi": "UEFI 启动（OVMF）—— 3.0.0-WP06g3",
-      "shots.bios.alt": "Open Cube OS 3.0.0-WP06g3 在 QEMU 中以传统 BIOS 启动：OCBL 交接、以 L0 ready waiting for L1 结尾的 L0 启动日志，以及 ush Shell 提示符",
-      "shots.uefi.alt": "Open Cube OS 3.0.0-WP06g3 在 QEMU 中以 UEFI（OVMF）启动：同样的 L0 启动日志和 Ring 3 的 ush Shell 提示符",
+      "shots.sub": "从 3.0.0-WP06g2 发布版 ISO 在 QEMU 里截取 —— BIOS 与 UEFI 两条启动路径，经 OCBL 到 Ring 3 的 ush 提示符。",
+      "shots.bios": "传统 BIOS 启动 —— 3.0.0-WP06g2",
+      "shots.uefi": "UEFI 启动（OVMF）—— 3.0.0-WP06g2",
+      "shots.bios.alt": "Open Cube OS 3.0.0-WP06g2 在 QEMU 中以传统 BIOS 启动：OCBL 交接、以 L0 ready waiting for L1 结尾的 L0 启动日志，以及 ush Shell 提示符",
+      "shots.uefi.alt": "Open Cube OS 3.0.0-WP06g2 在 QEMU 中以 UEFI（OVMF）启动：同样的 L0 启动日志和 Ring 3 的 ush Shell 提示符",
 
       /* ---- 首页：分层理念 ---- */
       "layer.h2": "两层设计",
@@ -411,7 +411,7 @@
       /* ---- 架构页 ---- */
       "title.architecture": "架构 - Open Cube OS",
       "arch.h1": "架构",
-      "arch.sub": "3.0.0-WP06g3 时点的整机结构：L0/L1 分层、OCBL 启动流程、每个 L0 子系统、275 个程序的 L1 世界、20 服务的 SYS_L1SVC 面。以下全部读自真实代码树。",
+      "arch.sub": "3.0.0-WP06g2 时点的整机结构：L0/L1 分层、OCBL 启动流程、每个 L0 子系统、275 个程序的 L1 世界、20 服务的 SYS_L1SVC 面。以下全部读自真实代码树。",
       "arch.layers.h": "两层设计",
       "arch.layers.sub": "L0 是纯服务内核：内核 + 驱动 + 根服务 + 编号接口，仅此而已 —— 无 Shell、无命令、无 TUI、无输入法（2.x 恢复 Shell 已在 WP-03 删除）。L1 是 Ring 3 里的全部用户世界，3.0.0 把两者放在同一棵树里：src/L0/ 与 src/L1/。",
       "arch.layers.l0.h": "L0 —— 纯服务内核",
@@ -500,7 +500,7 @@
       /* ---- 下载页 ---- */
       "title.download": "下载 - Open Cube OS",
       "dl.h1": "下载",
-      "dl.sub": "两个通道：<b>3.0.0 开发预览版</b>（WP06g1 的 L0/L1 世界）和 <b>2.2.0 正式版</b>。每个资产都列出 SHA256 —— 下载后请校验：<code>sha256sum &lt;文件&gt;</code>。",
+      "dl.sub": "两个通道：<b>3.0.0 开发预览版</b>（WP06g3 的 L0/L1 世界）和 <b>2.2.0 正式版</b>。每个资产都列出 SHA256 —— 下载后请校验：<code>sha256sum &lt;文件&gt;</code>。",
       "dl.iso.type": "可启动 ISO",
       "dl.iso.desc": "BIOS + UEFI 混合镜像（约 12 MiB）。QEMU 里 <code>-cdrom</code> 直接启动，或写入 U 盘在真实硬件上启动。",
       "dl.src.type": "源码",
@@ -513,7 +513,7 @@
       "dl.tab.dev": "开发预览版",
       "dl.tab.stable": "正式版",
       "dl.dev.h2": "3.0.0-WP06g3 —— 开发预览版",
-      "dl.dev.sub": "当前 3.0.0 里程碑：OCBL &rarr; OCOS &rarr; Ring 3 的 ush Shell（285 条命令）——现已全面双语：274 个 Ring 3 程序全部内建 i18n 资源（<code>lang zh</code> 一键切换注册表、文件工具与编辑器界面），系统级拼音输入法（nano/vi 内按 F2）支持 622 词组库、智能组词与翻页。另含 OCSE 安装环境。任一 ISO 在 QEMU 里 <code>-cdrom</code> 启动或写入 U 盘。编码链路修复见 <a href=\"https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.0-WP06g1\" rel=\"noopener\">WP06g1 发布页</a>。",
+      "dl.dev.sub": "当前 3.0.0 里程碑：OCBL &rarr; OCOS &rarr; Ring 3 的 ush Shell（285 条命令）——真机修复批次：匹配 RAID/RST SATA 主机的磁盘探测、<code>serial_encoding utf8|gbk</code>、VMware 启动崩溃修复、安装全路径内置 OCIRE 恢复、重做的本地化编辑器与 IME 预编辑条。另含 OCSE 安装环境。任一 ISO 在 QEMU 里 <code>-cdrom</code> 启动或写入 U 盘。真机修复详见 <a href=\"https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.0-WP06g3\" rel=\"noopener\">WP06g1 发布页</a>。",
       "dl.dev.oc.type": "可启动 ISO —— 操作系统",
       "dl.dev.oc.desc": "BIOS + UEFI 混合镜像（3.7 MiB）。经 OCBL 启动进 Ring 3 的 ush Shell —— 3.0.0 的开发预览。",
       "dl.dev.oc.btn": "⬇️ 下载 ISO",

@@ -3,7 +3,8 @@
 <!-- Copyright 2026 cubestudio-dev <cubestudio@qq.com> -->
 <!-- Open Cube OS download page - 3.0.0-WP06e layout: a channel switch
      (development preview / stable release) at the top, the WP06g3 dev
-     pair (opencube + ocse ISOs), the 2.2.0 stable trio (ISO + source
+     pair (opencube + ocse ISOs, linked from the GitHub Release - the
+     main tree carries no ISO binaries, see SYNC-NOTES.md), the 2.2.0 stable trio (ISO + source
      + OTA), and the release history table. Every asset hash-gated,
      every string bilingual (EN/ZH) + light/dark theme. -->
 <html lang="en">
@@ -50,7 +51,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
 <div class="wrap">
   <div class="dl-head">
     <h1 data-i18n="dl.h1">Download</h1>
-    <p class="sub" data-i18n-html="dl.sub">Two channels: the <b>3.0.0 development preview</b> (the L0/L1 world of WP06g1) and the <b>2.2.0 stable release</b>. Every asset's SHA256 is listed - verify what you download: <code>sha256sum &lt;file&gt;</code>.</p>
+    <p class="sub" data-i18n-html="dl.sub">Two channels: the <b>3.0.0 development preview</b> (the L0/L1 world of WP06g3) and the <b>2.2.0 stable release</b>. Every asset's SHA256 is listed - verify what you download: <code>sha256sum &lt;file&gt;</code>.</p>
     <div class="dl-tabs seg" role="group" aria-label="Release channel">
       <button type="button" id="tab-dev" class="active" aria-pressed="true" data-i18n="dl.tab.dev">Development preview</button>
       <button type="button" id="tab-stable" aria-pressed="false" data-i18n="dl.tab.stable">Stable release</button>
@@ -61,7 +62,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
   <div id="panel-dev">
     <section class="section" style="padding-top:26px">
       <h2 data-i18n="dl.dev.h2">3.0.0-WP06g3 - development preview</h2>
-      <p class="sub" data-i18n-html="dl.dev.sub">The current 3.0.0 milestone: OCBL &rarr; OCOS &rarr; the ring-3 ush shell (285 commands), plus the OCSE install environment (the 9-step GUI install wizard + OCSECL, en/zh). Boot either ISO in QEMU (<code>-cdrom</code>) or write it to USB. See the <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.0-WP-06c" rel="noopener">WP-06c release page</a>.</p>
+      <p class="sub" data-i18n-html="dl.dev.sub">The current 3.0.0 milestone: OCBL &rarr; OCOS &rarr; the ring-3 ush shell (285 commands), plus the OCSE install environment (the 9-step GUI install wizard + OCSECL, en/zh). Boot either ISO in QEMU (<code>-cdrom</code>) or write it to USB. See the <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.0-WP06g3" rel="noopener">WP06g3 release page</a>.</p>
       <div class="dl-grid">
         <div class="dl-card" id="card-dev-oc">
           <div class="type" data-i18n="dl.dev.oc.type">Bootable ISO - the OS</div>
