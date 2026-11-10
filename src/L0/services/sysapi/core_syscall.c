@@ -2339,8 +2339,17 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
              * the sys_write console fallback (WP-09-FIX BUG-023). The
              * old write2 path emitted character-by-character with
              * interrupts on, so concurrent user processes interleaved
-             * on the serial console; the two write syscalls now behave
-             * identically. */
+             * on the serial console.
+             * BUG-#110/#130 FIX (WP06g1 port): the emission itself used
+             * to go through the byte-at-a-time stock putc, so every
+             * byte of a multi-byte UTF-8 CJK glyph painted its own
+             * Latin-1 tofu cell - all ush output (which goes through
+             * SYS_WRITE2) was mojibake while echo/cat (sys_write) were
+             * fine. Mirror the sys_write fallback exactly: each chunk
+             * flows once through console_cn_puts_enc(ENC_UTF8) - ASCII
+             * bytes still hit the stock putc unchanged, invalid bytes
+             * are emitted raw, serial keeps receiving the original
+             * UTF-8 stream. */
             const char *p = (const char*)(uintptr_t)buf;
             u64 done = 0;
             while (done < len) {
@@ -2348,7 +2357,8 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
                 if (chunk > 512) chunk = 512;
                 u64 eflags;
                 __asm__ volatile("pushfq; popq %0; cli" : "=r"(eflags));
-                for (u64 i = 0; i < chunk; i++) screen_console_putc(p[done + i]);
+                console_cn_puts_enc((const u8*)(uintptr_t)(p + done),
+                                    (u32)chunk, ENC_UTF8);
                 __asm__ volatile("pushq %0; popfq" : : "r"(eflags));
                 done += chunk;
             }
