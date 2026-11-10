@@ -32,7 +32,12 @@ static WZ_WORK char wz_out[WZ_OUT_SZ];     /* last command output    */
 static WZ_WORK char wz_errcmd[WZ_CMD_SZ];  /* failed command copy    */
 static WZ_WORK char wz_errout[WZ_OUT_SZ];  /* failed output copy     */
 static WZ_WORK char wz_head[80];           /* per-page headline      */
-static WZ_WORK char wz_line1[96];          /* dynamic label texts    */
+static WZ_WORK char wz_line1[192];         /* dynamic label texts +
+                                              install-stage commands
+                                              (AUD-2e-003: the users
+                                              command peaks at 166 B,
+                                              the old 96 B overflowed
+                                              into wz_line2) */
 static WZ_WORK char wz_line2[96];
 static WZ_WORK char wz_line3[96];
 static WZ_WORK char wz_line4[96];
@@ -132,6 +137,20 @@ static void wz_cat(char* dst, int cap, const char* a, const char* b,
         if (strlen(dst) + strlen(parts[i]) + 1 >= (usize)cap) return;
         strcat(dst, parts[i]);
     }
+}
+
+/* AUD-2e-003: bounded append - strcat that stops at the buffer edge
+ * instead of running past it.  Clips at cap-1; returns 0 when the
+ * whole string fit, 1 when it was truncated. */
+static int wz_app(char* dst, int cap, const char* s) {
+    int dl = (int)strlen(dst);
+    int sl = (int)strlen(s);
+    if (dl >= cap) { dst[cap - 1] = 0; return 1; }
+    int room = cap - 1 - dl;
+    int n = sl < room ? sl : room;
+    if (n > 0) memcpy(dst + dl, s, (usize)n);
+    dst[dl + n] = 0;
+    return (sl > room) ? 1 : 0;
 }
 
 /* ==================================================================
@@ -962,14 +981,16 @@ static int wz_page_install(void) {
     if (wz_run(wz_line1, WZ_ST_CONFIG, WZ_PG_INSTALL) != 0)
         return WZ_PG_ERROR;
 
-    /* stage 4: the user record (name:full:sha256 - never plain) */
+    /* stage 4: the user record (name:full:sha256 - never plain).
+     * AUD-2e-003: worst case 21 + 31 (login) + 1 + 47 (full name) +
+     * 1 + 64 (hex) + NUL = 166 B - build the command with the
+     * bounded wz_cat/wz_app helpers only, never raw strcat. */
     wz_set_progress(pg, 80);
-    strcpy(wz_line1, "write /mnt/etc/users ");
-    strcat(wz_line1, wz_user);
-    strcat(wz_line1, ":");
-    strcat(wz_line1, wz_full);
-    strcat(wz_line1, ":");
-    strcat(wz_line1, wz_pass_sha);
+    wz_cat(wz_line1, (int)sizeof(wz_line1),
+           "write /mnt/etc/users ", wz_user, ":", NULL);
+    wz_app(wz_line1, (int)sizeof(wz_line1), wz_full);
+    wz_app(wz_line1, (int)sizeof(wz_line1), ":");
+    wz_app(wz_line1, (int)sizeof(wz_line1), wz_pass_sha);
     wz_set_raw(lb, wz_line1);
     wz_repaint();
     if (wz_run(wz_line1, WZ_ST_USER, WZ_PG_INSTALL) != 0)
