@@ -5,7 +5,7 @@
 
 **A from-scratch x86_64 kernel that boots into ring 3.**
 
-Current development preview: **3.0.0-WP06c** - the OCBL bootloader, a
+Current development preview: **3.0.0-WP06g3** - the OCBL bootloader, a
 pure L0 service kernel (no shell, no TUI, no IME in L0), 275 ring-3
 programs under `src/L1/`, and the OCSE install environment with the
 9-step GUI install wizard (every wizard mutation is a real OCSECL
@@ -120,7 +120,7 @@ and mirrored on the [website downloads page](https://ocos.cubestudio.cn/download
 
 | Channel | Assets |
 |---------|--------|
-| **3.0.0-WP06c** (development preview) | `opencube-3.0.0-WP06c.iso` (boots OCBL → OCOS → ush) · `ocse-3.0.0-WP06c.iso` (the GUI install environment, en/zh) |
+| **3.0.0-WP06g3** (development preview) | `opencube-3.0.0-WP06g3.iso` (boots OCBL → OCOS → ush) · `ocse-3.0.0-WP06g3.iso` (the GUI install environment, en/zh) |
 | **2.2.0** (stable, the 2.x line) | `opencube-2.2.0.iso` · `opencube-2.2.0-src.zip` (deterministic source) · `opencube-2.2.0-update.tar.gz` (OTA) |
 
 Each release note carries the SHA256 of every asset; the website,

@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Open Cube OS Architecture
 
-This document describes the tree as it exists in 3.0.0-WP06c - every
+This document describes the tree as it exists in 3.0.0-WP06g3 - every
 component named below is a real file you can open. Line counts and
 per-directory detail live in `docs/data/stats.json` (regenerate:
 `make api-docs`).
