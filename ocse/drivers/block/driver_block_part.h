@@ -32,6 +32,13 @@ typedef struct {
      * grub-install needs it to find the BIOS boot partition on GPT
      * disks (GUID 21686148-6449-6E6F-744E-656564454649). */
     u8  gpt_type_guid[16];
+    /* AUD-2e-001: raw on-disk slot of this partition - MBR slot 1-4,
+     * GPT partition-entry array index (0-based).  The PUBLIC numbering
+     * (lspart "#n", "<parent>pN" device names, install <disk> <n>,
+     * parts[] index + 1) stays DENSE because the parsers skip empty
+     * slots; writers must translate dense #n -> this raw slot before
+     * touching the on-disk table (ocse_part.c find_part_no). */
+    int slot;
 } partition_t;
 
 typedef struct {

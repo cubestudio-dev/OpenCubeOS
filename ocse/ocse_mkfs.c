@@ -586,20 +586,27 @@ void ocse_mkfs_sync_mbr_type(const char* dev_name, int fmt) {
     if (pno < 1 || pno > 4) return;
     int pidx = driver_block_find_device(parent);
     if (pidx < 0) return;
-    /* GPT partitions take a type GUID instead of an MBR type byte. */
+    /* AUD-2e-001: pno is the DENSE partition number parsed from
+     * "<parent>pN"; resolve it to the raw on-disk slot (MBR 1-4 /
+     * GPT entry index) through the parse table - with empty slots
+     * before it, using pno as a slot index patched the wrong entry. */
     driver_block_part_table_t tbl;
-    if (driver_block_part_parse(pidx, &tbl) == 0 &&
-        tbl.table_type == PART_TYPE_GPT) {
+    if (driver_block_part_parse(pidx, &tbl) != 0) return;
+    if (pno > tbl.count || !tbl.parts[pno - 1].present) return;
+    int slot = tbl.parts[pno - 1].slot;
+    /* GPT partitions take a type GUID instead of an MBR type byte. */
+    if (tbl.table_type == PART_TYPE_GPT) {
         const u8* guid = fmt == OCSE_FMT_EXT4 ? g_mk_guid_linux_fs
                                               : g_mk_guid_ms_basic;
         ocse_part_gpt_set_type(parent, pno, guid);
         return;
     }
+    if (slot < 1 || slot > 4) return;      /* defense: raw slot out of range */
     u8 sec[512];
     if (driver_block_read_sectors_raw(pidx, 0, 1, sec) != 0) return;
     u8 type = fmt == OCSE_FMT_FAT32 ? 0x0C :
               fmt == OCSE_FMT_EXFAT ? 0x07 : 0x83;
-    u8* p = sec + 446 + (pno - 1) * 16;
+    u8* p = sec + 446 + (slot - 1) * 16;   /* AUD-2e-001: raw slot */
     if (p[4] != type) {
         p[4] = type;
         driver_block_write_sectors_raw(pidx, 0, 1, sec);

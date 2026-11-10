@@ -89,6 +89,7 @@ int driver_block_part_parse_mbr(int dev_idx, driver_block_part_table_t *out) {
         p->type = e->type;
         p->start_lba = e->start_lba;
         p->sectors = e->sectors;
+        p->slot = i + 1;   /* AUD-2e-001: raw MBR slot 1-4 (dense count may differ) */
         char nm[20]; char n[8];
         strcpy(nm, "MBR-"); u64_to_str(out->count, n); strcat(nm, n);
         strncpy(p->name, nm, PART_NAME_LEN - 1);
@@ -212,6 +213,7 @@ int driver_block_part_parse_gpt(int dev_idx, driver_block_part_table_t *out) {
         p->type = e->type_guid[0];   /* first byte is a rough type indicator */
         p->start_lba = e->first_lba;
         p->sectors = e->last_lba - e->first_lba + 1;
+        p->slot = (int)i;   /* AUD-2e-001: raw GPT entry index */
         memcpy(p->gpt_type_guid, e->type_guid, 16);
         /* Extract ASCII name from UTF-16LE (take low bytes, stop at null). */
         int ni = 0;

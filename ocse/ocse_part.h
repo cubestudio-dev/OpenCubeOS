@@ -13,6 +13,15 @@
  *   setflag <disk> <n> <flag>   set/clear boot (MBR 0x80) or the GPT
  *                     legacy-boot attribute
  *
+ * Numbering (AUD-2e-001): <n> above is the DENSE lspart number
+ * (parse skips empty slots, so #n = row index + 1).  The on-disk
+ * writes translate dense #n -> the RAW slot recorded by the parsers
+ * in partition_t.slot (MBR 1-4, GPT entry index) before touching
+ * sector 0 / the GPT entry array - with a hole in the middle of the
+ * table the two numbers differ and reusing the dense number as a
+ * slot index edits the wrong (or an empty) entry while reporting
+ * success.  Device names ("<disk>pN") stay dense, matching lspart.
+ *
  * Rules enforced here (the WP-06b contract):
  *  - Existing partitions are never moved or resized: mkpart only
  *    carves space the table reports free, and refuses overlaps.

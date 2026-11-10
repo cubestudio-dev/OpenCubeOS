@@ -440,12 +440,27 @@ int ocse_part_mkpart(const char* disk, u64 start_mib, u64 end_mib) {
     return 0;
 }
 
+/* AUD-2e-001: lspart / "<disk>pN" device names / install all address
+ * partitions by the DENSE number (parts[] index + 1 - the parsers skip
+ * empty slots), but the on-disk write paths below need the RAW slot
+ * (MBR 1-4, GPT entry index).  find_part_no keeps the dense number for
+ * the outside world and hands the writers the raw slot via *slot_out;
+ * it fails when dense #n names a hole or the raw slot is nonsense. */
 static int find_part_no(int dev_idx, int part_no, int* is_gpt,
-                        driver_block_part_table_t* tbl) {
+                        driver_block_part_table_t* tbl, int* slot_out) {
     if (driver_block_part_parse(dev_idx, tbl) != 0) return -1;
     *is_gpt = (tbl->table_type == PART_TYPE_GPT);
     if (part_no < 1 || part_no > tbl->count) return -1;
     if (!tbl->parts[part_no - 1].present) return -1;
+    if (slot_out) {
+        int slot = tbl->parts[part_no - 1].slot;
+        if (*is_gpt) {
+            if (slot < 0 || slot >= PART_MAX_PARTITIONS) return -1;
+        } else {
+            if (slot < 1 || slot > 4) return -1;
+        }
+        *slot_out = slot;
+    }
     return 0;
 }
 
@@ -462,9 +477,9 @@ int ocse_part_rmpart(const char* disk, int part_no) {
         ocse_outln(ocse_tr(OCSE_T_P_MNT_WARN));
         return 1;
     }
-    int is_gpt;
+    int is_gpt, slot;
     driver_block_part_table_t tbl;
-    if (find_part_no(dev_idx, part_no, &is_gpt, &tbl) != 0) {
+    if (find_part_no(dev_idx, part_no, &is_gpt, &tbl, &slot) != 0) {
         ocse_outln(ocse_tr(OCSE_T_P_BADPART));
         return 1;
     }
@@ -473,17 +488,18 @@ int ocse_part_rmpart(const char* disk, int part_no) {
         u32 nent, esz;
         if (gpt_read_hdr(dev_idx, &entries_lba, &nent, &esz,
                          &backup_lba, &last_usable) != 0) return 1;
+        if (slot >= (int)nent) return 1;   /* defense: raw slot out of range */
         memset(g_gpt_ent, 0, 128);
         u64 bents = backup_lba - ((u64)nent * esz + 511) / 512;
-        if (gpt_write_entry(dev_idx, entries_lba, esz, part_no - 1) != 0)
+        if (gpt_write_entry(dev_idx, entries_lba, esz, slot) != 0)
             return 1;
-        if (gpt_write_entry(dev_idx, bents, esz, part_no - 1) != 0)
+        if (gpt_write_entry(dev_idx, bents, esz, slot) != 0)
             return 1;
         if (gpt_refresh_crcs(dev_idx, entries_lba, nent, esz, backup_lba) != 0)
             return 1;
     } else {
         if (mbr_read(dev_idx) != 0) return 1;
-        u8* p = g_sec + 446 + (part_no - 1) * 16;
+        u8* p = g_sec + 446 + (slot - 1) * 16;   /* AUD-2e-001: raw slot */
         memset(p, 0, 16);
         if (mbr_write(dev_idx) != 0) return 1;
     }
@@ -503,19 +519,29 @@ int ocse_part_gpt_set_type(const char* disk, int part_no,
                            const u8* guid) {
     int dev_idx = ocse_part_disk_idx(disk);
     if (dev_idx < 0 || part_no < 1) return 1;
+    /* AUD-2e-001: part_no arrives as the DENSE lspart number (mkfs's
+     * type sync parses it out of "<parent>pN"); resolve it to the raw
+     * GPT entry slot before touching the on-disk array - with empty
+     * slots present the two numbers differ and the old code patched
+     * the wrong entry. */
+    int is_gpt, slot;
+    driver_block_part_table_t tbl;
+    if (find_part_no(dev_idx, part_no, &is_gpt, &tbl, &slot) != 0)
+        return 1;
+    if (!is_gpt) return 1;
     u64 entries_lba, backup_lba, last_usable;
     u32 nent, esz;
     if (gpt_read_hdr(dev_idx, &entries_lba, &nent, &esz,
                      &backup_lba, &last_usable) != 0) return 1;
-    if ((u32)part_no > nent) return 1;
-    if (gpt_read_entry(dev_idx, entries_lba, esz, part_no - 1) != 0)
+    if (slot >= (int)nent) return 1;       /* defense: raw slot out of range */
+    if (gpt_read_entry(dev_idx, entries_lba, esz, slot) != 0)
         return 1;
     if (!g_gpt_ent[0] && !g_gpt_ent[1]) return 1;    /* unused slot */
     memcpy(g_gpt_ent, guid, 16);
     u64 bents = backup_lba - ((u64)nent * esz + 511) / 512;
-    if (gpt_write_entry(dev_idx, entries_lba, esz, part_no - 1) != 0)
+    if (gpt_write_entry(dev_idx, entries_lba, esz, slot) != 0)
         return 1;
-    if (gpt_write_entry(dev_idx, bents, esz, part_no - 1) != 0) return 1;
+    if (gpt_write_entry(dev_idx, bents, esz, slot) != 0) return 1;
     return gpt_refresh_crcs(dev_idx, entries_lba, nent, esz, backup_lba);
 }
 
@@ -531,9 +557,9 @@ int ocse_part_setflag(const char* disk, int part_no,
         ocse_outln(ocse_tr(OCSE_T_P_BADFLAG));
         return 1;
     }
-    int is_gpt;
+    int is_gpt, slot;
     driver_block_part_table_t tbl;
-    if (find_part_no(dev_idx, part_no, &is_gpt, &tbl) != 0) {
+    if (find_part_no(dev_idx, part_no, &is_gpt, &tbl, &slot) != 0) {
         ocse_outln(ocse_tr(OCSE_T_P_BADPART));
         return 1;
     }
@@ -542,7 +568,8 @@ int ocse_part_setflag(const char* disk, int part_no,
         u32 nent, esz;
         if (gpt_read_hdr(dev_idx, &entries_lba, &nent, &esz,
                          &backup_lba, &last_usable) != 0) return 1;
-        if (gpt_read_entry(dev_idx, entries_lba, esz, part_no - 1) != 0)
+        if (slot >= (int)nent) return 1;   /* defense: raw slot out of range */
+        if (gpt_read_entry(dev_idx, entries_lba, esz, slot) != 0)
             return 1;
         u64 attrs = rd32_(g_gpt_ent + 48) | ((u64)rd32_(g_gpt_ent + 52) << 32);
         if (value) attrs |= (1ULL << 2);        /* legacy BIOS bootable */
@@ -550,15 +577,15 @@ int ocse_part_setflag(const char* disk, int part_no,
         wr32_(g_gpt_ent + 48, (u32)attrs);
         wr32_(g_gpt_ent + 52, (u32)(attrs >> 32));
         u64 bents = backup_lba - ((u64)nent * esz + 511) / 512;
-        if (gpt_write_entry(dev_idx, entries_lba, esz, part_no - 1) != 0)
+        if (gpt_write_entry(dev_idx, entries_lba, esz, slot) != 0)
             return 1;
-        if (gpt_write_entry(dev_idx, bents, esz, part_no - 1) != 0)
+        if (gpt_write_entry(dev_idx, bents, esz, slot) != 0)
             return 1;
         if (gpt_refresh_crcs(dev_idx, entries_lba, nent, esz, backup_lba) != 0)
             return 1;
     } else {
         if (mbr_read(dev_idx) != 0) return 1;
-        u8* p = g_sec + 446 + (part_no - 1) * 16;
+        u8* p = g_sec + 446 + (slot - 1) * 16;   /* AUD-2e-001: raw slot */
         p[0] = value ? 0x80 : 0x00;
         if (mbr_write(dev_idx) != 0) return 1;
     }
