@@ -140,7 +140,7 @@ static int vi_ex_line(const char *file) {
             puts_("\n");
             return 0;
         }
-        unano_ime_off();
+        unano_finish();   /* #111: IME off + console clear + cursor home */
         return 1;                     /* quit */
     }
     if (!want_w && !want_q && n > 0) {

@@ -521,6 +521,26 @@ static void unano_ime_off(void) {
     unano_ime_err = 0;
 }
 
+/* #111 fix: the ONE exit teardown every editor face calls before it
+ * returns to ush.  The session paints the whole screen (banner row,
+ * viewport, pinned bottom status bar) through ANSI sequences, and the
+ * L0 framebuffer console DOES interpret them - so on quit the banner/
+ * bar/line contents stay painted on the framebuffer while the shell
+ * prompt prints wherever the cursor happens to rest (the middle of
+ * the leftover layout).  The serial side is fine; the kernel console
+ * just never gets a clear.  Fix: close the IME session, then invoke
+ * the kernel clear primitive - SYS_L1SVC display CLEAR (op 3) runs
+ * disp_cmd_clear -> screen_console_clear(): framebuffer wiped and the
+ * cursor homed to 0,0, so the "ush> " prompt lands at the top-left of
+ * a clean screen.  The out buffer is mandatory (disp_l1_dispatch
+ * rejects out==NULL), same shape as the IME_BEGIN/END calls. */
+static void unano_finish(void) {
+    unano_ime_off();
+    char out[8];
+    (void)sys_l1svc(L1SVC_CAT_DISPLAY, L1SVC_DISP_CLEAR,
+                    0, (long)out, (long)sizeof(out));
+}
+
 static void unano_ime_toggle(void) {
     if (unano_ime_on) {
         unano_ime_off();
@@ -830,13 +850,13 @@ static __attribute__((unused)) void ush_nano_run(const char *file) {
                         unano_redraw_line();
                         continue;
                     }
-                    unano_ime_off();
+                    unano_finish();   /* #111: clear + home before ush */
                     return;
                 }
-                unano_ime_off();
+                unano_finish();   /* #111: clear + home before ush */
                 return;   /* quit without saving */
             }
-            unano_ime_off();
+            unano_finish();   /* #111: clear + home before ush */
             return;
         } else if (k >= 0x20 && k < 0x7F) {   /* insert ASCII */
             char one[2];
