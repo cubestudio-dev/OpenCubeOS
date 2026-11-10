@@ -849,15 +849,16 @@ static int wz_page_install(void) {
         return WZ_PG_ERROR;
     wz_written = 2;
 
-    /* stage 3: config (four keys) */
+    /* stage 3: config (four keys, #129: kernel dialect - the kernel
+     * reads "sys.hostname" and "shell.lang", not "hostname"/"lang") */
     wz_set_progress(pg, 65);
-    strcpy(wz_line1, "config set hostname ");
+    strcpy(wz_line1, "config set sys.hostname ");
     strcat(wz_line1, wz_host);
     wz_set_raw(lb, wz_line1);
     wz_repaint();
     if (wz_run(wz_line1, WZ_ST_CONFIG, WZ_PG_INSTALL) != 0)
         return WZ_PG_ERROR;
-    strcpy(wz_line1, "config set lang ");
+    strcpy(wz_line1, "config set shell.lang ");
     strcat(wz_line1, ocse_i18n_lang() == OCSE_LANG_ZH ? "zh" : "en");
     if (wz_run(wz_line1, WZ_ST_CONFIG, WZ_PG_INSTALL) != 0)
         return WZ_PG_ERROR;

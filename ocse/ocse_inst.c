@@ -476,11 +476,14 @@ int ocse_inst_config_show(void) {
 }
 
 static int conf_key_valid(const char* key, const char* value) {
-    if (strcmp(key, "lang") == 0)
+    /* #129: write the kernel's dialect.  lib_config/tui_sys only ever
+     * read "shell.lang" (en|zh) and "sys.hostname" (default "opencube");
+     * the old "lang"/"hostname"/"boot.slot" keys had zero kernel
+     * readers and were silently rewritten by the kernel on first
+     * boot.  update_url / auto_check stay unchanged. */
+    if (strcmp(key, "shell.lang") == 0)
         return (strcmp(value, "en") == 0 || strcmp(value, "zh") == 0);
-    if (strcmp(key, "boot.slot") == 0)
-        return (strcmp(value, "A") == 0 || strcmp(value, "B") == 0);
-    if (strcmp(key, "hostname") == 0) {
+    if (strcmp(key, "sys.hostname") == 0) {
         int l = (int)strlen(value);
         if (l < 1 || l > 31) return 0;
         for (int i = 0; i < l; i++) {

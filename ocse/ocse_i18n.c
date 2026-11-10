@@ -134,19 +134,19 @@ static const char* const g_msgs[OCSE_T_COUNT_][2] = {
                               "ocbl-install: 磁盘没有分区表——请先创建分区" },
     [OCSE_T_C_INVALID]   = { "config: invalid key or value",
                               "config: 无效的键或值" },
-    [OCSE_T_C_KEYS]      = { "config: keys: hostname <name> | lang en|zh | boot.slot A|B",
-                              "config: 键：hostname <名称> | lang en|zh | boot.slot A|B" },
+    [OCSE_T_C_KEYS]      = { "config: keys: sys.hostname <name> | shell.lang en|zh",
+                              "config: 键：sys.hostname <名称> | shell.lang en|zh" },
     [OCSE_T_C_NOMOUNT]   = { "config: no installed system mounted (mount the FAT32 target first)",
                               "config: 未挂载已安装的系统（请先挂载 FAT32 目标）" },
     [OCSE_T_C_WRITTEN]   = { " written",
                               " 已写入" },
     [OCSE_T_S_FLUSHED]   = { "sync: block cache flushed",
                               "sync: 块缓存已刷写" },
-    [OCSE_T_C_KEYS2]     = { "config: keys: hostname <name> | lang en|zh |"
-                            " boot.slot A|B | update_url <http...> |"
+    [OCSE_T_C_KEYS2]     = { "config: keys: sys.hostname <name> | shell.lang en|zh |"
+                            " update_url <http...> |"
                             " auto_check yes|no",
-                            "config: 键：hostname <名称> | lang en|zh |"
-                            " boot.slot A|B | update_url <http…> |"
+                            "config: 键：sys.hostname <名称> | shell.lang en|zh |"
+                            " update_url <http…> |"
                             " auto_check yes|no" },
     /* WP-06c: GUI wizard. zh fragments compose at the same skeleton
      * positions as the English ones (the b6 rule). */

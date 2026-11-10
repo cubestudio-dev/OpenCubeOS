@@ -1489,7 +1489,7 @@ static int cmd_config(int argc, char** argv) {
     if (argc >= 2 && strcmp(argv[1], "set") == 0) {
         if (argc != 4) {
             ocse_outln("usage: config set <key> <value>");
-            ocse_outln("       keys: hostname <name> | lang en|zh | boot.slot A|B");
+            ocse_outln("       keys: sys.hostname <name> | shell.lang en|zh");
             return 1;
         }
         return ocse_inst_config_set(argv[2], argv[3]);

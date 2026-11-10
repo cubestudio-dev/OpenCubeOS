@@ -67,11 +67,13 @@ def main():
     # installed volume carries /boot/ocire.elf (an OCBL-scanable
     # recovery entry) even before the dedicated partition step.
     ocire = open(sys.argv[3], "rb").read()
+    # #129: seed the kernel's dialect keys (lib_config reads
+    # "sys.hostname" / "shell.lang"); the old hostname/lang/boot.slot
+    # lines were dead keys the kernel rewrote on first boot.
     conf = (
         b"# OpenCubeOS configuration\n"
-        b"hostname=opencube\n"
-        b"lang=en\n"
-        b"boot.slot=A\n"
+        b"sys.hostname=opencube\n"
+        b"shell.lang=en\n"
     )
     # Directory entries first (sorted), then files (sorted).
     entries = [
