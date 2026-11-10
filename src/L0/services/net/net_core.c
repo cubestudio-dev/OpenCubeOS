@@ -1168,11 +1168,29 @@ static void net_arp_handle_packet(const net_arp_pkt_t *pkt, int len) {
     }
 }
 
-int net_arp_resolve(u32 ip, u8 *mac_out) {
-    /* Check cache first. */
-    if (net_arp_cache_lookup(ip, mac_out) == 0) return 0;
+/* #24: zero-side-effect probe — is `ip` already resolved in the ARP
+ * cache (valid AND within its TTL)? Unlike net_arp_cache_lookup this
+ * never ages an entry out, never sends a request and never blocks.
+ * The RTO sweep (net_tcp_check_rto) runs with IF=0 inside the
+ * net_timer_cb → net_poll chain and must not enter net_arp_resolve's
+ * reply wait: there the inner net_poll is swallowed by the
+ * g_net_polling reentrancy guard and timer ticks cannot advance, so an
+ * expired ARP entry used to hang the whole machine. */
+static int net_arp_is_resolved(u32 ip) {
+    u64 now = core_timer_ticks();
+    for (int i = 0; i < ARP_CACHE_SIZE; i++) {
+        if (g_arp_cache[i].valid && g_arp_cache[i].ip == ip) {
+            return (now - g_arp_cache[i].timestamp < ARP_CACHE_TTL_TICKS) ? 1 : 0;
+        }
+    }
+    return 0;
+}
 
-    /* Send ARP request. */
+/* #24: build and transmit ONE ARP request (broadcast) without waiting
+ * for the reply. This is the "send request" step of net_arp_resolve,
+ * extracted so the RTO sweep can arm resolution non-blockingly (the
+ * request goes out now; the reply is handled by a later net_poll). */
+static void net_arp_send_request(u32 ip) {
     u8 broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     u8 req_buf[sizeof(net_arp_pkt_t)];
     net_arp_pkt_t *req = (net_arp_pkt_t *)req_buf;
@@ -1185,10 +1203,17 @@ int net_arp_resolve(u32 ip, u8 *mac_out) {
     req->spa = htonl(g_ip);
     memset(req->tha, 0, 6);
     req->tpa = htonl(ip);
+    eth_send(broadcast, ETH_TYPE_ARP, req_buf, sizeof(net_arp_pkt_t));
+}
+
+int net_arp_resolve(u32 ip, u8 *mac_out) {
+    /* Check cache first. */
+    if (net_arp_cache_lookup(ip, mac_out) == 0) return 0;
 
     /* Send the first ARP request; up to two retries are sent while the
      * resolve is still pending (BUG-0204(c): a single request that gets
-     * lost used to burn the whole 3-second timeout). */
+     * lost used to burn the whole 3-second timeout). Request build+send
+     * lives in net_arp_send_request above (#24 extraction). */
     g_arp_reply_received = 0;
 
     /* Wait for reply with timeout (3 seconds at 100Hz = 300 ticks). */
@@ -1198,7 +1223,7 @@ int net_arp_resolve(u32 ip, u8 *mac_out) {
         u64 now = core_timer_ticks();
         /* Bounded re-request: one request every 100 ticks, max 3 total. */
         if (requests < 3 && (u32)(now - start) >= (u32)requests * 100) {
-            eth_send(broadcast, ETH_TYPE_ARP, req_buf, sizeof(net_arp_pkt_t));
+            net_arp_send_request(ip);
             requests++;
         }
         net_poll();
@@ -2482,7 +2507,24 @@ static void net_tcp_parse_options(net_tcp_conn_t *c, const u8 *opts, int opt_len
             case TCP_OPT_MSS:
                 if (len == 4 && is_syn) {
                     u16 mss = ((u16)opts[i] << 8) | opts[i+1];
-                    if (mss > 536 && mss < 9000) c->mss = mss;
+                    /* AUD-2b-001: the peer-advertised MSS used to be
+                     * adopted verbatim (up to 8999), but net_tcp_send_raw
+                     * only ever puts min(len, 1480-opt) bytes on the wire
+                     * while flush_queued/RTO advanced rtx_sent by the
+                     * full segment — bytes beyond the wire limit were
+                     * marked sent without ever being transmitted, so any
+                     * peer advertising MSS>1480 silently lost data.
+                     * Clamp at this single adoption point (all callers:
+                     * established path, listener SYN path, selftest) so
+                     * every consumer (flush seg, RTO/fast-retransmit rtx
+                     * bound, CUBIC cwnd*mss, our own SYN MSS advert)
+                     * sees a value the TX path can actually deliver.
+                     * 1460 = this stack's default/Ethernet MSS
+                     * (alloc_conn default 1460, flush fallback 1460). */
+                    if (mss > 536 && mss < 9000) {
+                        if (mss > 1460) mss = 1460;
+                        c->mss = mss;
+                    }
                 }
                 break;
             case TCP_OPT_WSCALE:
@@ -2757,13 +2799,46 @@ static void net_tcp_check_rto(void) {
         if (now < c->rto_deadline) continue;
         /* RTO expired! Retransmit oldest unacked (already-sent) data. */
         {
-            int rtx = c->rtx_sent;
-            if (rtx > c->mss) rtx = c->mss;
-            /* Retransmit from rtx_buf */
-            c->our_seq = c->rtx_seq;  /* go back to oldest unacked */
-            net_tcp_send_raw(c, TCP_ACK | TCP_PSH, c->rtx_buf, rtx);
-            c->our_seq = c->rtx_seq + (u32)rtx;
-            c->rtx_retransmitted = 1;
+            /* #24: the retransmit below reaches the wire via net_ip_send →
+             * net_arp_resolve, whose reply wait is a busy loop around
+             * net_poll — swallowed by the reentrancy guard while ticks
+             * cannot advance here (IF=0), so an expired ARP entry used
+             * to hang the whole machine. Mirror net_ip_send's next-hop
+             * selection (directly connected → peer IP, otherwise routing
+             * table / default gateway) and only retransmit when that
+             * next hop is ALREADY resolved. Otherwise fire one
+             * non-blocking ARP request and skip the send this round: the
+             * CUBIC response and the exponential backoff below still
+             * run, so rto_deadline advances and the segment goes out on
+             * a later sweep once the reply was handled by net_poll. A
+             * skipped round does NOT set rtx_retransmitted — nothing was
+             * retransmitted, so Karn's RTT rule at the ACK path stays
+             * valid. */
+            u32 next_hop = c->remote_ip;
+            int can_send = 1;
+            if ((next_hop & g_mask) != (g_ip & g_mask)) {
+                u32 gw = 0;
+                if (route_lookup(next_hop, &gw) == 0 && gw != 0) {
+                    next_hop = gw;  /* via routing table */
+                } else if (g_gateway != 0) {
+                    next_hop = g_gateway;  /* default gateway */
+                } else {
+                    can_send = 0;  /* no route: net_ip_send would fail anyway */
+                }
+            }
+            if (can_send && !net_arp_is_resolved(next_hop)) {
+                net_arp_send_request(next_hop);
+                can_send = 0;
+            }
+            if (can_send) {
+                int rtx = c->rtx_sent;
+                if (rtx > c->mss) rtx = c->mss;
+                /* Retransmit from rtx_buf */
+                c->our_seq = c->rtx_seq;  /* go back to oldest unacked */
+                net_tcp_send_raw(c, TCP_ACK | TCP_PSH, c->rtx_buf, rtx);
+                c->our_seq = c->rtx_seq + (u32)rtx;
+                c->rtx_retransmitted = 1;
+            }
         }
         /* CUBIC RTO response (RFC 8312 4.6): ssthresh = 0.7*cwnd,
          * cwnd = 1 MSS, back to slow start. */
