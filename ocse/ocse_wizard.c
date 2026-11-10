@@ -216,6 +216,74 @@ static int count_parts(const char* cap) {
     return n;
 }
 
+/* AUD-2e-002: the mkpart success line names the created device
+ * (OCSE_T_P_CREATED "...: hdap3" - the prefix is localized, the
+ * "<disk>pN" token is not).  Scan every whitespace token for
+ * exactly "<disk>p<digits>" and keep the LAST match - language
+ * independent, and later lines win if the capture carries more
+ * than one.  Returns 1 and fills `out` on a hit. */
+static int parse_created_dev(const char* cap, const char* disk,
+                             char* out, int outcap) {
+    int found = 0;
+    const char* p = cap;
+    char line[WZ_ROW_LEN];
+    while (*p) {
+        int l = 0;
+        while (*p && *p != '\n' && l < WZ_ROW_LEN - 1) line[l++] = *p++;
+        line[l] = 0;
+        if (*p == '\n') p++;
+        const char* q = line;
+        char t[32];
+        while (tok(&q, t, sizeof(t))) {
+            int dl = 0;
+            while (disk[dl]) dl++;
+            if (strncmp(t, disk, (usize)dl) != 0) continue;
+            if (t[dl] != 'p') continue;
+            int ok = t[dl + 1] >= '1' && t[dl + 1] <= '9';
+            for (int i = dl + 2; t[i]; i++)
+                if (t[i] < '0' || t[i] > '9') { ok = 0; break; }
+            if (!ok) continue;
+            if (dl + (int)strlen(t + dl) + 1 > outcap) continue;
+            strcpy(out, t);
+            found = 1;
+        }
+    }
+    return found;
+}
+
+/* AUD-2e-002 fallback: lspart rows read "  #3 FAT32 start=120MiB ...".
+ * Return the dense "#n" of the row whose start MiB equals
+ * `start_mib` (the wizard always creates its partition at
+ * wz_gap_lo), 0 when no row matches. */
+static int lspart_find_start(const char* cap, int start_mib) {
+    const char* p = cap;
+    char line[WZ_ROW_LEN];
+    while (*p) {
+        int l = 0;
+        while (*p && *p != '\n' && l < WZ_ROW_LEN - 1) line[l++] = *p++;
+        line[l] = 0;
+        if (*p == '\n') p++;
+        if (strncmp(line, "  #", 3) != 0) continue;
+        const char* q = line;
+        char t[32];
+        (void)tok(&q, t, sizeof(t));            /* "#n"        */
+        int n = 0;
+        { const char* r = t + 1;
+          while (*r >= '0' && *r <= '9') n = n * 10 + (*r++ - '0'); }
+        if (n < 1) continue;
+        if (!tok(&q, t, sizeof(t))) continue;   /* fs name     */
+        if (!tok(&q, t, sizeof(t))) continue;   /* start=..MiB */
+        const char* r = t;
+        while (*r && *r != '=') r++;
+        if (*r != '=') continue;
+        r++;
+        int sm = 0;
+        while (*r >= '0' && *r <= '9') sm = sm * 10 + (*r++ - '0');
+        if (sm == start_mib) return n;
+    }
+    return 0;
+}
+
 /* lspart capture -> the largest free gap (MiB) >= 64. Lines (the
  * WP06b lspart format): "  #1 FAT32 start=1MiB end=128MiB size=127MiB
  * type=0x0C" - start/end arrive in MiB (no LBA conversion); the gap
@@ -588,18 +656,39 @@ static int wz_page_part(void) {
             strcat(cmd, hi);
             if (wz_run(cmd, WZ_ST_NONE, WZ_PG_PART) != 0)
                 return WZ_PG_ERROR;
-            /* re-read: the new partition is the last one */
-            wz_cat(cmd, sizeof(cmd), "lspart ", wz_disk, NULL, NULL);
-            if (wz_runq(cmd) == 0) {
-                int n = count_parts(wz_out);
-                wz_partno = n;
-                strcpy(wz_dev, wz_disk);
-                strcat(wz_dev, "p");
-                char num[4];
-                u64_to_str((u64)wz_partno, num);
-                strcat(wz_dev, num);
-                wz_have_part = 1;
+            /* AUD-2e-002: identify the NEW partition by what the
+             * commands say, never by "dense total == new number" -
+             * mkpart fills the first FREE slot, so the created
+             * device can sit BEFORE occupied slots and the old
+             * heuristic selected an existing partition (step 4 then
+             * formatted it).  1) the mkpart output names the device;
+             * 2) fallback: the lspart row created at wz_gap_lo. */
+            wz_partno = 0;
+            wz_dev[0] = 0;
+            if (parse_created_dev(wz_out, wz_disk,
+                                  wz_dev, (int)sizeof(wz_dev))) {
+                int i = 0;
+                while (wz_dev[i] && wz_dev[i] != 'p') i++;
+                for (int j = i + 1;
+                     wz_dev[j] >= '0' && wz_dev[j] <= '9'; j++)
+                    wz_partno = wz_partno * 10 + (wz_dev[j] - '0');
             }
+            if (wz_partno < 1) {
+                wz_cat(cmd, sizeof(cmd), "lspart ", wz_disk, NULL, NULL);
+                if (wz_runq(cmd) == 0)
+                    wz_partno = lspart_find_start(wz_out, wz_gap_lo);
+                if (wz_partno >= 1) {
+                    strcpy(wz_dev, wz_disk);
+                    strcat(wz_dev, "p");
+                    char num[4];
+                    u64_to_str((u64)wz_partno, num);
+                    strcat(wz_dev, num);
+                }
+            }
+            /* only a positively identified partition becomes the
+             * format/install target */
+            if (wz_partno >= 1 && wz_dev[0])
+                wz_have_part = 1;
             continue;
         }
         if (act == WZA_NEXT) {
