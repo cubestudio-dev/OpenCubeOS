@@ -16,6 +16,7 @@
 #include "core_timer.h"
 #include "arch_irq.h"
 #include "arch_idt.h"
+#include "lib_klog.h"       /* BUG-AUD-2a-002/#4: guard-page fail-loud */
 
 /* P0fix1 BUG-0006 (A13-2): kthread stacks were 1 page (4 KiB), raised to
  * 4 pages (16 KiB) so network I/O chains fit.
@@ -155,7 +156,15 @@ int core_sched_task_states(u32 *running, u32 *ready, u32 *blocked, u32 *total) {
         default: break;              /* EXITED: about to be reaped   */
         }
     }
-    __asm__ volatile("pushfq; popq %0" : "=r"(f) :: "memory");
+    /* BUG #3 FIX (P1, WP-fix-critical-security): the old code did a
+     * SECOND "pushfq; popq" into the SAME variable after the critical
+     * section - reading the CURRENT flags (IF=0, because the cli above
+     * had already cleared it) instead of the SAVED ones.  The restore
+     * check `f & 0x200` was therefore always false and a single call
+     * from task context left interrupts disabled FOREVER (timer dead,
+     * whole machine frozen - the health monitor hit this every second).
+     * Restore from the value saved BEFORE the cli, like every other
+     * critical section in this file. */
     if (f & 0x200) __asm__ volatile("sti" ::: "memory");
     *running = run; *ready = rdy; *blocked = blk; *total = tot;
     return 0;
@@ -400,8 +409,27 @@ tid_t core_kthread_create(void (*fn)(void *arg), void *arg, const char *name, in
      * reason (the dispatcher checks whether CR2 lands in a task's
      * guard page). The frame is re-mapped in core_kthread_destroy
      * before the PMM free so the next owner starts from a clean,
-     * fully-mapped set of pages. */
+     * fully-mapped set of pages.
+     *
+     * BUG-AUD-2a-002/#4 FIX (P1, WP-fix-critical-security): the
+     * 0-4 GiB identity map is 2 MiB huge PDEs, and unmap on a huge
+     * PDE is a SILENT NO-OP (walk_pt create=0 returns NULL), so
+     * stacks landing in a not-yet-split region had no guard page at
+     * all.  Force the 4 KiB split FIRST (idempotent), then unmap, and
+     * verify the page is really gone - fail loud in the klog instead
+     * of silently shipping an unprotected stack. */
+    mem_vmm_split_huge_page(mem_vmm_kernel_as(), (u64)stack_phys);
     mem_vmm_unmap_page(mem_vmm_kernel_as(), (u64)stack_phys);
+    {
+        u64 guard_probe;
+        if (mem_vmm_is_mapped(mem_vmm_kernel_as(), (u64)stack_phys,
+                              &guard_probe)) {
+            klog_write(KLOG_WARN, "sched",
+                       "kthread %s: guard page unmap FAILED at 0x%lx "
+                       "(stack protection absent)",
+                       name ? name : "?", (u64)stack_phys);
+        }
+    }
 
     /* Set up saved register state. */
     u64 *sp = (u64*)((u8*)t->stack_base + t->stack_size);
@@ -785,12 +813,28 @@ void core_sched_tick(void) {
             next_tid = force_next;
         } else {
             next_tid = ready_pop_highest();
-            /* If the popped task is the same as the current (only one task at
-             * this priority level), re-add it to the queue and switch to idle
-             * so that lower-priority tasks (the shell) get a turn. */
+            /* If the popped task is the same as the current (the only one
+             * at its priority level), re-add it to the queue and give the
+             * NEXT ready task - ANY priority - its turn.
+             *
+             * BUG #109/#112 FIX (WP-fix-critical-security): the old code
+             * re-queued the current task and dropped straight to IDLE.
+             * Idle's own expiry then popped the same current task back,
+             * so the system ping-ponged current<->idle and EVERY
+             * lower-priority ready task starved FOREVER (observed live:
+             * `crashtest ovf`'s prio-20 kstack-ovf kthread sat READY with
+             * 0 ticks while prio-15 ush parked in sti;hlt - the guard
+             * page could never be exercised).  The round-robin now holds
+             * the expired current out of the pop, hands the CPU to the
+             * next-highest OTHER task, and only falls back to idle when
+             * current is the ONLY ready task. */
             if (next_tid == g_current->tid && g_current != g_idle_task) {
-                ready_push(next_tid);
-                next_tid = 0;  /* idle */
+                /* ready_pop_highest returns 0 (the idle sentinel) when
+                 * nothing else is queued - exactly the fall-back we
+                 * want, so `other` is used as-is. */
+                tid_t other = ready_pop_highest();
+                ready_push(next_tid);   /* current: behind its peers */
+                next_tid = other;
             }
         }
         if (next_tid != g_current->tid) {

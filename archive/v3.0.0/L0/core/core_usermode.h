@@ -134,6 +134,21 @@ typedef struct {
 #define LDSO_API_TABLE_ADDR 0x08000000ULL
 #define USER_SOLIB_BASE     0x38000000ULL
 
+/* WP-fix-critical-security (P0 fence fallout, #7): dynamic-ELF layout
+ * constants + loader helpers, shared by BOTH ELF loaders
+ * (user_process_create in core and sys_execve in services/sysapi).
+ * sys_execve used to map ET_DYN images at their RAW p_vaddr (~0x1000)
+ * - inside the kernel identity window below USER_CODE_BASE - which
+ * the P0 user-pointer fence now rejects; it now runs dynamic images
+ * through the same embedded-ld.so + ASLR layout as user_process_create. */
+#define MAIN_PROG_BASE          0x20000000ULL  /* main ET_DYN region */
+#define SOLIB_LIBFOO_BASE       0x30000000ULL  /* embedded libfoo region */
+#define LDSO_API_MAIN_BASE_SLOT   24  /* byte offset in the API page */
+#define LDSO_API_LIBFOO_BASE_SLOT 32  /* byte offset in the API page */
+
+const u8 *user_interp_lookup(const char *path, u64 path_len, u64 *out_size);
+u64 user_aslr_page_slice(u64 region_span);
+
 /* Maximum FDs per process (includes VFS fds + pipe fds) */
 #define PROC_MAX_FDS 32
 

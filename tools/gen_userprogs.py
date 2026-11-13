@@ -195,6 +195,7 @@ WP_TAGS = {
     "pcidump": "input",
     "pcie": "input",
     "pf_test": "l1",
+    "p0leak": "core",
     "pftest": "core",
     "pie_test": "l1",
     "ping": "net",

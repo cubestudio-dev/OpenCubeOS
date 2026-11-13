@@ -225,6 +225,43 @@ int mem_vmm_is_mapped(mem_vmm_as_t as, u64 vaddr, u64 *paddr_out) {
     return 1;
 }
 
+/* BUG-AUD-2a-001 FIX (P0, WP-fix-critical-security): user-pointer
+ * validation variant.  The plain is_mapped only checks PRESENT -
+ * but PRESENT-supervisor pages are exactly the kernel identity
+ * window, and they BECOME walkable in a user AS whenever the
+ * user brk/mmap splits one of the copied 2 MiB kernel huge PDEs
+ * (walk_pt(create=1) fills 512 leaf PTEs; the pages the split
+ * owner does not map stay PRESENT supervisor siblings pointing at
+ * kernel heap frames).  Ring 0 can memcpy such pages just fine, so
+ * a PRESENT-only access_ok happily leaked/wrote kernel memory
+ * through sys_read/sys_write.  This variant requires the leaf PTE
+ * to carry the USER flag (and WRITE when require_write is set) -
+ * a supervisor leaf can never pass a user-pointer check again. */
+int mem_vmm_is_mapped_user(mem_vmm_as_t as, u64 vaddr, int require_write,
+                           u64 *paddr_out) {
+    volatile u64 *pte = walk_pt(as, vaddr, 0);
+    if (!pte || !(*pte & VMM_FLAG_PRESENT)) return 0;
+    if (!(*pte & VMM_FLAG_USER)) return 0;
+    if (require_write && !(*pte & VMM_FLAG_WRITE)) return 0;
+    if (paddr_out) *paddr_out = *pte & PTE_ADDR_MASK;
+    return 1;
+}
+
+/* BUG-AUD-2a-002/#4 FIX (P1, WP-fix-critical-security): the 0-4 GiB
+ * kernel identity map is built from 2 MiB huge PDEs (boot.S .fill_pd),
+ * and walk_pt(create=0) returns NULL on a huge PDE - so every
+ * page-granular unmap on a not-yet-split region was a silent no-op.
+ * The kthread guard-page creation (core_sched.c) relied on exactly
+ * such an unmap, so stacks landing in fresh 2 MiB regions had NO
+ * guard page and overflowed silently instead of raising a clean
+ * #PF panic.  This helper walks with create=1, which splits the
+ * containing huge PDE into 512 leaf PTEs (idempotent: an already
+ * split region just returns its leaf). */
+int mem_vmm_split_huge_page(mem_vmm_as_t as, u64 vaddr) {
+    volatile u64 *pte = walk_pt(as, vaddr, 1);
+    return pte ? 0 : -1;
+}
+
 mem_vmm_as_t mem_vmm_create_address_space(void) {
     /* Allocate a new PML4. */
     u64 pml4_phys = mem_pmm_alloc_frame();
@@ -394,9 +431,42 @@ void mem_vmm_destroy_address_space(mem_vmm_as_t as) {
             }
             /* Free PD0 frame (per-process copy of kernel PD0). */
             mem_pmm_free_frame(pd0_phys);
+
+            /* BUG-AUD-2a-001 FIX (P0): create_user_address_space now
+             * takes PRIVATE copies of PDPT[1..3] (1-4 GiB) instead of
+             * sharing the kernel's PD pages.  Free those copies here.
+             * Entries that still equal the kernel's current PD entry
+             * are value-copies of kernel-owned huge PDEs - the frames
+             * they map belong to the kernel identity window and must
+             * NOT be freed.  A diverged non-huge entry is a PT this
+             * AS created (only possible if something mapped >= 1 GiB
+             * through this AS): free its USER leaves, then the PT. */
+            for (int k = 1; k < 4; k++) {
+                if (!(pdpt[k] & VMM_FLAG_PRESENT)) continue;
+                u64 pd_phys = pdpt[k] & PTE_ADDR_MASK;
+                u64 *pd = (u64*)pd_phys;
+                u64 *kern_pd = (mem_vmm_kern_pdpt &&
+                                (mem_vmm_kern_pdpt[k] & VMM_FLAG_PRESENT))
+                             ? (u64*)(mem_vmm_kern_pdpt[k] & PTE_ADDR_MASK) : 0;
+                for (int l = 0; l < 512; l++) {
+                    if (!(pd[l] & VMM_FLAG_PRESENT)) continue;
+                    if (kern_pd && pd[l] == kern_pd[l])
+                        continue;  /* verbatim kernel snapshot entry */
+                    if (pd[l] & 0x80) continue;   /* huge: kernel-owned */
+                    u64 pt_phys2 = pd[l] & PTE_ADDR_MASK;
+                    u64 *pt2 = (u64*)pt_phys2;
+                    for (int m = 0; m < 512; m++) {
+                        if ((pt2[m] & VMM_FLAG_PRESENT) && (pt2[m] & VMM_FLAG_USER))
+                            mem_pmm_free_frame(pt2[m] & PTE_ADDR_MASK);
+                    }
+                    mem_pmm_free_frame(pt_phys2);
+                }
+                mem_pmm_free_frame(pd_phys);
+            }
         }
         /* Free PDPT frame (per-process). PDPT[1..3] entries point to
-         * shared kernel PDs but the PDPT page itself is per-process. */
+         * private copies (user AS) or shared kernel PDs (plain AS);
+         * the PDPT page itself is always per-process. */
         if (!is_priv_pdpt_as) {
             mem_pmm_free_frame(pdpt_phys);
         }

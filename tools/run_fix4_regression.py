@@ -39,78 +39,63 @@ CMDS = [
     "run reloc_test",
     "run p3_test",
     "run g6_test",
+    "run p0leak",
 ]
 
 CHECKS = [
-    # (name, regex-on-combined-output)
-    ("boot banner ready",        r"ready\. Type 'help' for commands"),
-    ("boot complete OK",         r"boot complete\.+ OK"),
-    ("exception self-test 3/3",  r"exception self-test: 3/3"),
-    # Baseline note (WP-10-input_chipset): the command count grew 176 -> 192
-    # because the batch registers 16 new chipset/input commands (acpi, acpidev,
-    # acpitest, acpipow, msitest, pcidump, pcibars, pcie, i2cdetect, i2cget,
-    # i2cset, i2ctest, smbus, smbustest, touchpad, touchtest). The interface
-    # freeze rule is "commands may be added, never removed", so the baseline
-    # moves UP; the old commands are still all present (help -a two-way diff
-    # in the batch report covers that).
-    # Baseline note (WP-10-timer_rtc): 192 -> 196 with the four time-source
-    # commands rtc / hpet / pmtimer / tsc. Removals remain forbidden.
-    # WP-10-wireless_bluetooth adds 2 commands (wifi/bt): the baseline
-    # moves UP again 198 -> 208 (WP-10-camera_misc: +10 cmds
-    # uvc/uvctest/parallel/paralleltest/gameport/gameporttest/ir/irtest/
-    # scsi/scsitest; additions only, never deletions).
-    # WP-10-tui adds 5 commands (tui/tui-test/tui-hw/tui-net/tui-sysinfo):
-    # the baseline moves UP 208 -> 213; removals remain forbidden.
-    # WP-10-chinese_support adds 9 commands (chinese chinesetest font
-    # font-test encoding encoding-test ime ime-test tui-cn): baseline
-    # UP 213 -> 222.
-    # WP-10-chinese_support-fix3: suspend/suspend_test hidden per user
-    # decision (222 -> 220), `lang` added (220 -> 221), fix4 added
-    # tui-time/tui-drv/tui-sys/tui-ext (221 -> 225).
-    # WP-10-tui-unified removed the tui-cn launcher: 225 -> 224
-    # WP-11-crash_recovery adds crashtest + dumpinfo: 224 -> 226
-    # WP-12-watchdog_logging adds dmesg/logcat/logctl/watchdog/health/
-    # health watch/health export: 226 -> 233 (SHELL_MAX_COMMANDS raised
-    # 232 -> 256 in the same batch - 232 filled exactly and silently
-    # refused the last registration)
-    ("command count 233",        r"Total:\s*233 commands"),
-    # Baseline note (WP-10-input_chipset): accept the current tree describe
-    # (fix4-2-g<sha>), the fix3-rebuild form, and the new WP-10-input_chipset
-    # tag form (release builds bake the tag name verbatim).
-    # WP-10-timer_rtc adds the timer_rtc tag form.
-    # WP-10-wireless_bluetooth adds the wireless_bluetooth tag form.
-    # WP-10-camera_misc adds the camera_misc tag form.
-    # WP-10-tui/chinese_support add their tag + describe forms.
-    # WP-12-watchdog_logging adds the watchdog_logging tag form
-    # (release builds bake the tag name verbatim); WP-13-build_system
-    # and WP-14-docs_release add their tag forms the same way.
-    # v1.0.0 (2026-10-24): the release version is now a fixed Makefile
-    # literal, so the banner reads "Open Cube OS 1.0.0" - accepted here.
-    # The historical WP-* tag forms stay accepted so old tags keep testing.
-    ("uname current tree",       r"Open Cube OS 1\.0\.0|WP-10-(AUDIT_P2-fix(4\b|3-\d+-g)|input_chipset|timer_rtc|wireless_bluetooth|camera_misc|tui|chinese_support)|WP-11-crash_recovery|WP-12-watchdog_logging|WP-13-build_system|WP-14-docs_release"),
-    ("heaptest pass",            r"heaptest.*PASS|heap test.*PASS"),
-    ("fstest pass",              r"fstest.*(PASS|OK)|VFS self-test.*PASS"),
-    ("cryptotest NIST pass",     r"[Cc]rypto self-test.*pass|cryptotest.*PASS|All \d+ NIST"),
-    ("crashlog clean boot",      r"crashlog: (no exceptions recorded|0 entries|\d+ entries)"),
-    ("l1test step9 G7 suite",    r"step 9: G7 sched/sync regression"),
-    ("l1test step10 G8 suite",   r"step 10: G8 clock/power/timer regression"),
-    ("l1test overall PASS",      r"L1 job interface test: PASS"),
-    ("hello output",             r"[Hh]ello"),
-    ("fork_test pass",           r"fork.*(PASS|ok|parent|child)"),
-    ("exec_test pass",           r"exec.*(PASS|ok)"),
-    ("pipe_test pass",           r"pipe.*(PASS|ok)"),
-    ("signal_test pass",         r"signal.*(PASS|ok|handler)"),
-    ("select_test pass",         r"select.*(PASS|ok)"),
-    ("mmap_test pass",           r"mmap.*(PASS|ok)"),
-    ("mmap_multi pass",          r"mmap.*(PASS|ok|multi)"),
-    ("g7mmap pass",              r"g7mmap.*(PASS|ok)|BUG-0281.*(PASS|ok)"),
-    ("dyn_hello output",         r"[Hh]ello"),
-    ("so_test pass",             r"so_test.*(PASS|ok)|PLT.*(PASS|ok)"),
-    ("dlsym_test pass",          r"dlsym.*(PASS|ok)"),
-    ("pie_test pass",            r"pie.*(PASS|ok)"),
-    ("reloc_test pass",          r"reloc.*(PASS|ok)"),
-    ("p3_test pass",             r"p3.*PASS|priority.*PASS"),
-    ("g6_test full chain pass",  r"failed tests = 0|g6_test.*PASS|g6_test.*all.*pass|\bT7\b.*=PASS=|\b=PASS="),
+    # (name, command whose section the pattern must match, regex).
+    # BUG #64 FIX (P1, WP-fix-critical-security): every pattern used to
+    # be matched against the WHOLE combined log with re.S (DOTALL) -
+    # command echoes satisfied name-bearing patterns ("run fork_test"
+    # itself matches r"fork.*(PASS|ok|parent|child)"), and any PASS
+    # anywhere satisfied every check: the gate was structurally
+    # always-true.  Each pattern is now scoped to ONE command's output
+    # section (echo line stripped), and only the boot checks may look
+    # at the boot section.
+    ("boot banner ready",        None,   r"Open Cube OS User-space Shell \(3\.0\.0"),
+    ("boot prompt hint",         None,   r"Type 'help' for built-in commands"),
+    ("boot complete OK",         None,   r"boot complete\.+ OK"),
+    ("exception self-test 3/3",  None,   r"exception self-test: 3/3"),
+    # Command-count floor (was a stale literal "Total: 233 commands"
+    # that no longer exists in the help -a output at all).  The count
+    # is now measured from the registry listing itself: two-space
+    # indented "name  [tag]  description" lines.  Interface freeze
+    # rule: commands may be ADDED, never removed - so the gate asserts
+    # the count never drops below the recorded floor.  276 = the g3
+    # baseline (275) + p0leak (WP-fix-critical-security P0 fence
+    # probe).
+    ("command count >= 276",     "help -a", None),   # dynamic (see main)
+    # The release banner is the Makefile literal OC_RELEASE_VERSION.
+    ("uname current tree",       "uname -a", r"Open Cube OS 3\.0\.0|Open Cube OS 1\.0\.0|WP-10-|WP-11-crash_recovery|WP-12-watchdog_logging|WP-13-build_system|WP-14-docs_release"),
+    # WP-fix-critical-security: patterns re-based on the REAL success
+    # markers of each program (the old name-bearing patterns were
+    # satisfied by the command echo itself - always-true).
+    ("heaptest pass",            "heaptest",            r"\bPASS\b"),
+    ("fstest pass",              "fstest",              r"fstest.*(PASS|OK)|VFS self-test.*PASS"),
+    ("cryptotest NIST pass",     "cryptotest",          r"[Cc]rypto self-test.*pass|cryptotest.*PASS|All \d+ NIST"),
+    ("crashlog clean boot",      "crashlog",            r"crashlog: (no exceptions recorded|0 entries|\d+ entries)"),
+    ("l1test wp8b loader 14/14", "l1test",              r"ext_wp8b selftest 14/14 - PASS"),
+    ("l1test job steps PASS",    "l1test",              r"step \d: .* - PASS"),
+    ("l1test overall PASS",      "l1test",              r"L1 job interface test: PASS"),
+    ("hello output",             "run hello",           r"[Hh]ello"),
+    ("fork_test pass",           "run fork_test",       r"fork.*(PASS|ok|parent|child)"),
+    ("exec_test pass",           "run exec_test",       r"exec.*(PASS|ok)"),
+    ("pipe_test pass",           "run pipe_test",       r"pipe.*(PASS|ok)"),
+    ("signal_test pass",         "run signal_test",     r"signal.*(PASS|ok|handler)"),
+    ("select_test pass",         "run select_test",     r"select.*(PASS|ok)"),
+    ("mmap_test pass",           "run mmap_test",       r"mmap.*(PASS|ok)"),
+    ("mmap_multi pass",          "run mmap_multi",      r"mmap.*(PASS|ok|multi)"),
+    ("g7mmap pass",              "run g7mmap",          r"g7mmap.*(PASS|ok)|BUG-0281.*(PASS|ok)"),
+    ("dyn_hello output",         "run dyn_hello",       r"hello from dynamic program"),
+    ("so_test pass",             "run so_test",         r"main: foo_add\(2,3\)=5"),
+    ("dlsym_test pass",          "run dlsym_test",      r"foo_add\(7,8\)=15"),
+    ("pie_test pass",            "run pie_test",        r"loaded at 0x[0-9A-Fa-f]+"),
+    ("reloc_test pass",          "run reloc_test",      r"foo_add=30 foo_global=42 fp=300"),
+    ("p3_test pass",             "run p3_test",         r"p3.*PASS|priority.*PASS"),
+    ("g6_test full chain pass",  "run g6_test",         r"failed tests = 0|g6_test.*PASS|g6_test.*all.*pass|\bT7\b.*=PASS=|\b=PASS="),
+    # WP-fix-critical-security: the P0 user-pointer fence probe rides
+    # the regression gate so every future release re-proves it.
+    ("p0leak fence pass",        "run p0leak",          r"p0leak: PASS - all kernel-address probes fenced"),
 ]
 
 def main():
@@ -125,12 +110,12 @@ def main():
         "-vga","std","-display","none","-serial","mon:stdio",
         "-netdev","user,id=n1","-device","e1000,netdev=n1",
     ], timeout=200, encoding="latin-1", codec_errors="replace", env=env)
-    child.expect(r"oc>\s*", timeout=200)
+    child.expect(r"ush>\s*", timeout=200)
     boot_out = child.before or ""      # banner + boot self-test lines
     outputs = {}
     for c in CMDS:
         child.sendline(c)
-        idx = child.expect([r"oc>\s*", pexpect.TIMEOUT], timeout=180)
+        idx = child.expect([r"ush>\s*", pexpect.TIMEOUT], timeout=180)
         outputs[c] = (child.before or "") + ("\n<<TIMEOUT>>" if idx == 1 else "")
         print(f"[reg] ran: {c} ({len(outputs[c])} bytes)")
         if c == "run g6_test":
@@ -152,11 +137,31 @@ def main():
     with open(outlog, "w") as f:
         f.write(combined)
 
+    # BUG #64 FIX: per-section scoping.  boot_out is the boot section;
+    # every other check only sees ITS OWN command's output (first line
+    # = the echoed command, stripped so a name-bearing pattern can
+    # never be satisfied by the echo itself).
+    def section(cmd):
+        raw = outputs.get(cmd, "")
+        lines = raw.split("\n")
+        if lines and lines[0].strip().startswith(cmd.split()[0]):
+            lines = lines[1:]          # strip the echoed command line
+        return "\n".join(lines)
+
+    boot = boot_out
     passed = failed = 0
     print("\n=== regression checks ===")
-    for name, pat in CHECKS:
-        ok = re.search(pat, combined, re.I | re.S) is not None
-        print(f"  {'PASS' if ok else 'FAIL'}  {name}")
+    for name, cmd, pat in CHECKS:
+        if pat is None:
+            # dynamic check: command-count floor from help -a
+            sec = section("help -a")
+            n = len(re.findall(r"(?m)^  \S+ +\[[^\]]*\]  ", sec))
+            ok = n >= 276
+            print(f"  {'PASS' if ok else 'FAIL'}  {name} (measured {n})")
+        else:
+            scope = boot if cmd is None else section(cmd)
+            ok = re.search(pat, scope, re.I | re.S) is not None
+            print(f"  {'PASS' if ok else 'FAIL'}  {name}")
         passed += ok
         failed += (not ok)
     print(f"=== {passed}/{len(CHECKS)} checks passed, {failed} failed ===")

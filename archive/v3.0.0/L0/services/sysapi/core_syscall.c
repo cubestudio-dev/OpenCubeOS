@@ -36,11 +36,26 @@ extern const u64 solib_libfoo_size;
 
 #define USER_LIMIT 0x0000800000000000ULL
 
-static int valid_user_ptr(u64 addr) { return addr != 0 && addr < USER_LIMIT; }
+/* BUG-AUD-2a-001 FIX (P0, WP-fix-critical-security): the old bounds
+ * check only rejected NULL and >= USER_LIMIT (128 TiB).  Everything
+ * below 128 TiB was accepted and left to the page walk - which only
+ * checked PRESENT, not USER.  The user window is actually
+ * [USER_CODE_BASE, USER_STACK_TOP): program image at 0x400000, brk
+ * from 0x500000, solibs/mmap below 0x3FFF0000, 64 KiB stack below
+ * 0x40000000.  Below 0x400000 lies the kernel identity window
+ * (kernel image 1-4 MiB); at/above 0x40000000 the user AS shares the
+ * kernel PDPT[1..3] subtree (1-4 GiB supervisor mappings).  Both are
+ * kernel memory and must NEVER pass a user-pointer check.  This is
+ * the same lower-bound discipline sys_mem_munmap/mprotect already
+ * enforce (BUG-003); read/write now enforce it too. */
+static int valid_user_ptr(u64 addr) {
+    return addr >= USER_CODE_BASE && addr < USER_STACK_TOP;
+}
 static int valid_user_buf(u64 addr, u64 len) {
-    if (addr >= USER_LIMIT) return 0;
+    if (addr < USER_CODE_BASE) return 0;
+    if (addr >= USER_STACK_TOP) return 0;
     if (len > 65536) return 0;
-    if (addr + len > USER_LIMIT) return 0;
+    if (addr + len > USER_STACK_TOP) return 0;
     return 1;
 }
 
@@ -66,13 +81,17 @@ static int access_ok_read(u64 addr, u64 len) {
     if (!valid_user_buf(addr, len)) return 0;
     user_proc_t *proc = user_process_current();
     if (!proc || !proc->as) return 0;  /* no AS — fail closed */
-    /* Walk every page that the buffer touches. */
+    /* Walk every page that the buffer touches.
+     * BUG-AUD-2a-001 FIX (P0): the walk now demands the USER flag on
+     * the leaf PTE.  PRESENT-only accepted supervisor leaves, and the
+     * user brk/mmap split of a copied kernel huge PDE exposes exactly
+     * such leaves (kernel heap frames) inside the user window. */
     u64 start = addr & ~0xFFFULL;
     u64 end = addr + len;
     if (end < addr) return 0;  /* overflow */
     for (u64 a = start; a < end; a += 0x1000) {
         u64 phys;
-        if (!mem_vmm_is_mapped(proc->as, a, &phys)) return 0;
+        if (!mem_vmm_is_mapped_user(proc->as, a, 0, &phys)) return 0;
     }
     return 1;
 }
@@ -92,7 +111,8 @@ static int access_ok_str(u64 addr) {
     u64 a = addr & ~0xFFFULL;
     for (u32 page = 0; page < ACCESS_OK_STR_MAX_PAGES && a < USER_LIMIT; page++) {
         u64 phys;
-        if (!mem_vmm_is_mapped(proc->as, a, &phys)) return 0;
+        /* BUG-AUD-2a-001 FIX (P0): same USER-flag fence as access_ok_read. */
+        if (!mem_vmm_is_mapped_user(proc->as, a, 0, &phys)) return 0;
         /* Scan the page for a NUL byte. */
         const u8 *p = (const u8*)(a + (addr > a ? (addr - a) : 0));
         u64 scan_end = a + 0x1000;
@@ -548,12 +568,20 @@ static u64 sys_kill(u64 pid_arg, u64 sig, u64 a3, u64 a4) {
                  * kill) AND leaving any open pipe fds dangling (the
                  * reader_count/writer_count never decremented, so a
                  * blocked peer would block forever). Now we call the
-                 * unified reaper — same path as sys_exit2. */
+                 * unified reaper — same path as sys_exit2.
+                 *
+                 * BUG #5 FIX (P1, WP-fix-critical-security): the order
+                 * used to be reap-then-exit-mark.  Between the AS
+                 * destruction and the EXITED marking, a timer tick
+                 * could still schedule the victim (it sat in the
+                 * ready queue with a live tid) onto its FREED CR3 -
+                 * garbage execution / kernel crash under fork+kill
+                 * pressure.  Mark EXITED and dequeue FIRST (wake()
+                 * only transitions BLOCKED->READY, so the dead task
+                 * can never be re-queued), THEN reap the resources. */
+                core_sched_task_exited(g_procs[i].tid);
                 user_process_reap_resources(&g_procs[i], 128 + (int)sig);
                 if (g_procs[i].parent_tid > 0) core_kthread_wake(g_procs[i].parent_tid);
-                /* WP-09-FIX BUG-004: remove from ready queue too (see
-                 * core_sched_task_exited). */
-                core_sched_task_exited(g_procs[i].tid);
                 if (is_self) {
                     task_t *t = core_kthread_current();
                     if (t) t->state = TASK_EXITED;
@@ -563,10 +591,12 @@ static u64 sys_kill(u64 pid_arg, u64 sig, u64 a3, u64 a4) {
             }
             g_procs[i].pending_signal = (int)sig;
             if (g_procs[i].sig_handlers[sig] == NULL) {
-                /* Default action terminates the process — use reaper. */
+                /* Default action terminates the process — use reaper.
+                 * BUG #5 FIX: same reorder as the SIGKILL branch -
+                 * dequeue + mark EXITED before the AS is destroyed. */
+                core_sched_task_exited(g_procs[i].tid);
                 user_process_reap_resources(&g_procs[i], 128 + (int)sig);
                 if (g_procs[i].parent_tid > 0) core_kthread_wake(g_procs[i].parent_tid);
-                core_sched_task_exited(g_procs[i].tid);
                 if (is_self) {
                     /* Same self-kill rule as the SIGKILL path above:
                      * default action on the CALLING task (raise() to
@@ -1646,8 +1676,50 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     /* BUG-0249 FIX (A16-11): the name -> embedded-ELF chain moved into
      * core_userprog_lookup() so sys_execve and the L1 job API resolve
      * program names from ONE table (behavior unchanged here). */
-    const u8 *elf = core_userprog_lookup(name, 0);
+    u64 elf_size = 0;
+    const u8 *elf = core_userprog_lookup(name, &elf_size);
     if (!elf) return (u64)-1;
+
+    typedef struct __attribute__((packed)) {
+        u8 ident[16]; u16 type; u16 machine; u32 version; u64 entry; u64 phoff;
+        u64 shoff; u32 flags; u16 ehsize; u16 phentsize; u16 phnum;
+        u16 shentsize; u16 shnum; u16 shstrndx;
+    } elf64_hdr_t;
+    typedef struct __attribute__((packed)) {
+        u32 type; u32 flags; u64 offset; u64 vaddr; u64 paddr;
+        u64 filesz; u64 memsz; u64 align;
+    } elf64_phdr_t;
+
+    /* WP-fix-critical-security (P0 fence fallout, #7): dynamic-image
+     * support.  sys_execve used to map ET_DYN (PIE) images at their RAW
+     * p_vaddr (~0x1000) - INSIDE the kernel identity window below
+     * USER_CODE_BASE.  The P0 user-pointer fence now (correctly)
+     * rejects buffers there, which exposed the defect: `run` on any
+     * dynamic program died silently.  Detect PT_INTERP up front and run
+     * the image through the SAME embedded-ld.so + ASLR layout
+     * user_process_create uses: main at MAIN_PROG_BASE+aslr, libfoo at
+     * SOLIB_LIBFOO_BASE+aslr, the API page at LDSO_API_TABLE_ADDR with
+     * the bases published, ld.so's own segments at their link
+     * addresses, and ld.so's entry as the process entry. */
+    const u8 *ldso_data = 0;
+    u64 ldso_size = 0;
+    {
+        elf64_hdr_t *h = (elf64_hdr_t*)elf;
+        if (elf_size >= sizeof(elf64_hdr_t) &&
+            h->phentsize == sizeof(elf64_phdr_t) && h->phnum > 0 &&
+            (u64)h->phoff + (u64)h->phnum * (u64)h->phentsize <= elf_size) {
+            elf64_phdr_t *ph = (elf64_phdr_t*)(elf + h->phoff);
+            for (int i = 0; i < h->phnum; i++) {
+                if (ph[i].type == 3 /* PT_INTERP */) {
+                    if (ph[i].offset + ph[i].filesz <= elf_size) {
+                        const char *ip = (const char*)(elf + ph[i].offset);
+                        ldso_data = user_interp_lookup(ip, ph[i].filesz, &ldso_size);
+                    }
+                    break;
+                }
+            }
+        }
+    }
 
     user_proc_t *proc = user_process_current();
     if (!proc) return (u64)-1;
@@ -1701,31 +1773,138 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     }
 
     extern mem_vmm_as_t mem_vmm_kernel_as(void);
+    /* BUG #7 FIX (P1, WP-fix-critical-security): build the NEW address
+     * space completely BEFORE destroying the old one.  POSIX requires
+     * execve failure to preserve the calling image; the old order
+     * (destroy old -> create new) returned -1 on OOM with proc->as==0
+     * and a stale task->cr3, so the iretq back to ring 3 landed on the
+     * kernel CR3 and the process died instead of failing gracefully.
+     * Any failure below now unwinds ONLY the new AS and returns -1
+     * with the caller's image untouched. */
     mem_vmm_as_t old_as = proc->as;
-    __asm__ volatile("mov %0, %%cr3" :: "r"(mem_vmm_kernel_as()) : "memory");
-    if (old_as) mem_vmm_destroy_address_space(old_as);
-    proc->as = create_user_address_space();
-    if (proc->as == 0) {
+    mem_vmm_as_t new_as = create_user_address_space();
+    if (new_as == 0) {
         kfree(ab);
         kfree(eb);
-        return (u64)-1;
+        return (u64)-1;              /* old image intact */
     }
-
-    typedef struct __attribute__((packed)) {
-        u8 ident[16]; u16 type; u16 machine; u32 version; u64 entry; u64 phoff;
-        u64 shoff; u32 flags; u16 ehsize; u16 phentsize; u16 phnum;
-        u16 shentsize; u16 shnum; u16 shstrndx;
-    } elf64_hdr_t;
-    typedef struct __attribute__((packed)) {
-        u32 type; u32 flags; u64 offset; u64 vaddr; u64 paddr;
-        u64 filesz; u64 memsz; u64 align;
-    } elf64_phdr_t;
 
     elf64_hdr_t *hdr = (elf64_hdr_t*)elf;
     elf64_phdr_t *phdr = (elf64_phdr_t*)(elf + hdr->phoff);
+    if (ldso_data) {
+        /* ---- dynamic image: main + libfoo + API page, then ld.so ---- */
+        u64 dyn_main_base = MAIN_PROG_BASE + user_aslr_page_slice(0x10000000ULL);
+        u64 dyn_lib_base  = SOLIB_LIBFOO_BASE + user_aslr_page_slice(0x08000000ULL);
+        proc->next_solib_addr = USER_SOLIB_BASE + user_aslr_page_slice(0x00800000ULL);
+        /* main PT_LOADs at dyn_main_base (+ BSS zero pages) */
+        for (int i = 0; i < hdr->phnum; i++) {
+            if (phdr[i].type != 1) continue;
+            if (map_user_pages(new_as, dyn_main_base + phdr[i].vaddr,
+                               elf + phdr[i].offset, phdr[i].filesz) != 0) {
+                mem_vmm_destroy_address_space(new_as);
+                kfree(ab); kfree(eb);
+                return (u64)-1;
+            }
+            if (phdr[i].memsz > phdr[i].filesz) {
+                u64 bss_start = dyn_main_base + phdr[i].vaddr + phdr[i].filesz;
+                u64 bss_end = bss_start + (phdr[i].memsz - phdr[i].filesz);
+                u64 page = bss_start & ~0xFFFULL;
+                while (page < bss_end) {
+                    u64 phys;
+                    if (!mem_vmm_is_mapped(new_as, page, &phys)) {
+                        phys = mem_pmm_alloc_frame();
+                        if (phys) {
+                            mem_vmm_map_page(new_as, page, phys,
+                                         VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
+                            memset((void*)phys, 0, PMM_PAGE_SIZE);
+                        }
+                    }
+                    page += PMM_PAGE_SIZE;
+                }
+            }
+        }
+        /* embedded libfoo.so at dyn_lib_base (+ BSS) */
+        {
+            extern const u8 solib_libfoo[];
+            extern const u64 solib_libfoo_size;
+            elf64_hdr_t *lh = (elf64_hdr_t*)solib_libfoo;
+            if ((u64)solib_libfoo_size >= sizeof(elf64_hdr_t) &&
+                lh->phentsize == sizeof(elf64_phdr_t)) {
+                elf64_phdr_t *lph = (elf64_phdr_t*)(solib_libfoo + lh->phoff);
+                for (int i = 0; i < lh->phnum; i++) {
+                    if (lph[i].type != 1) continue;
+                    if (map_user_pages(new_as, dyn_lib_base + lph[i].vaddr,
+                                       solib_libfoo + lph[i].offset,
+                                       lph[i].filesz) != 0) {
+                        mem_vmm_destroy_address_space(new_as);
+                        kfree(ab); kfree(eb);
+                        return (u64)-1;
+                    }
+                    if (lph[i].memsz > lph[i].filesz) {
+                        u64 bss_start = dyn_lib_base + lph[i].vaddr + lph[i].filesz;
+                        u64 bss_end = bss_start + (lph[i].memsz - lph[i].filesz);
+                        u64 page = bss_start & ~0xFFFULL;
+                        while (page < bss_end) {
+                            u64 phys;
+                            if (!mem_vmm_is_mapped(new_as, page, &phys)) {
+                                phys = mem_pmm_alloc_frame();
+                                if (phys) {
+                                    mem_vmm_map_page(new_as, page, phys,
+                                                 VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
+                                    memset((void*)phys, 0, PMM_PAGE_SIZE);
+                                }
+                            }
+                            page += PMM_PAGE_SIZE;
+                        }
+                    }
+                }
+            }
+        }
+        /* API page at the fixed address + publish the randomized bases */
+        {
+            u64 api_phys = mem_pmm_alloc_frame();
+            if (api_phys == 0) {
+                mem_vmm_destroy_address_space(new_as);
+                kfree(ab); kfree(eb);
+                return (u64)-1;
+            }
+            mem_vmm_map_page(new_as, LDSO_API_TABLE_ADDR, api_phys,
+                             VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
+            memset((void*)api_phys, 0, PMM_PAGE_SIZE);
+            *(u64 *)(api_phys + LDSO_API_MAIN_BASE_SLOT) = dyn_main_base;
+            *(u64 *)(api_phys + LDSO_API_LIBFOO_BASE_SLOT) = dyn_lib_base;
+        }
+        /* Redirect the remaining generic path onto ld.so: its PT_LOADs
+         * map at their own link addresses (ET_EXEC at 0x10000000) and
+         * the process entry becomes ld.so's entry. */
+        elf = ldso_data;
+        hdr = (elf64_hdr_t*)elf;
+        phdr = (elf64_phdr_t*)(elf + hdr->phoff);
+    }
     for (int i = 0; i < hdr->phnum; i++) {
         if (phdr[i].type != 1) continue;
-        map_user_pages(proc->as, phdr[i].vaddr, elf + phdr[i].offset, phdr[i].filesz);
+        /* P0 fence (BUG-AUD-2a-001): a STATIC image linked below
+         * USER_CODE_BASE would land inside the kernel identity
+         * window - reject instead of mapping user pages over kernel
+         * memory. (Dynamic images never reach here: their vaddrs are
+         * offset by dyn_main_base above.) */
+        if (phdr[i].vaddr < USER_CODE_BASE) {
+            mem_vmm_destroy_address_space(new_as);
+            kfree(ab);
+            kfree(eb);
+            return (u64)-1;
+        }
+        /* BUG #7 FIX: map failures are FATAL for the exec (a half-
+         * mapped image is a guaranteed ring-3 #PF) - unwind the new
+         * AS and keep the old image. The old code ignored the return
+         * value entirely. */
+        if (map_user_pages(new_as, phdr[i].vaddr, elf + phdr[i].offset,
+                           phdr[i].filesz) != 0) {
+            mem_vmm_destroy_address_space(new_as);
+            kfree(ab);
+            kfree(eb);
+            return (u64)-1;
+        }
         /* P6 fix: handle BSS (memsz > filesz). The old code only mapped
          * filesz bytes, leaving the BSS portion unmapped. Programs with
          * uninitialized globals (static variables in BSS) would #PF on
@@ -1737,10 +1916,10 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
             u64 page = bss_start & ~0xFFFULL;
             while (page < bss_end) {
                 u64 phys;
-                if (!mem_vmm_is_mapped(proc->as, page, &phys)) {
+                if (!mem_vmm_is_mapped(new_as, page, &phys)) {
                     phys = mem_pmm_alloc_frame();
                     if (phys) {
-                        mem_vmm_map_page(proc->as, page, phys,
+                        mem_vmm_map_page(new_as, page, phys,
                                      VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
                         memset((void*)phys, 0, PMM_PAGE_SIZE);
                     }
@@ -1752,13 +1931,20 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     u64 stack_base = USER_STACK_TOP - USER_STACK_SIZE;
     for (u64 vaddr = stack_base; vaddr < USER_STACK_TOP; vaddr += 0x1000) {
         u64 phys = mem_pmm_alloc_frame();
-        if (phys) {
-            mem_vmm_map_page(proc->as, vaddr, phys, VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
-            /* P0fix2 BUG-0033 (A2-3): zero the new stack pages (same as
-             * user_process_create) so argc/argv reads never see old PMM
-             * frame garbage. */
-            memset((void *)(uintptr_t)phys, 0, PMM_PAGE_SIZE);
+        /* BUG #7 FIX: a missing stack page used to be silently skipped
+         * (`if (phys)`) - the process then entered ring 3 without parts
+         * of its stack. Treat it as a fatal, unwinding the new AS. */
+        if (phys == 0) {
+            mem_vmm_destroy_address_space(new_as);
+            kfree(ab);
+            kfree(eb);
+            return (u64)-1;
         }
+        mem_vmm_map_page(new_as, vaddr, phys, VMM_FLAG_PRESENT | VMM_FLAG_WRITE | VMM_FLAG_USER);
+        /* P0fix2 BUG-0033 (A2-3): zero the new stack pages (same as
+         * user_process_create) so argc/argv reads never see old PMM
+         * frame garbage. */
+        memset((void *)(uintptr_t)phys, 0, PMM_PAGE_SIZE);
     }
     proc->entry_point = hdr->entry;
     proc->brk = USER_BRK_BASE;
@@ -1773,6 +1959,15 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     proc->pending_signal = 0;
     proc->sig_in_progress = 0;
     proc->sigsegv_delivered = 0;   /* WP-11: new program, fresh guard */
+
+    /* BUG #7 FIX (commit point): the new AS is fully built and every
+     * failure path above has returned with the OLD image intact.  Now
+     * it is safe to commit: switch CR3 to the kernel AS (never run on
+     * the tables we are about to free), destroy the old image, and
+     * adopt the new one. */
+    __asm__ volatile("mov %0, %%cr3" :: "r"(mem_vmm_kernel_as()) : "memory");
+    if (old_as) mem_vmm_destroy_address_space(old_as);
+    proc->as = new_as;
 
     /* P4 fix: build a proper user stack with argc + argv[] + envp[].
      * Layout (top to bottom, RSP grows down):

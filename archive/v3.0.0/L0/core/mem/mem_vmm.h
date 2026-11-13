@@ -92,6 +92,19 @@ int mem_vmm_protect_page(mem_vmm_as_t as, u64 vaddr, u64 flags);
  * If paddr_out is non-NULL, stores the physical address. */
 int mem_vmm_is_mapped(mem_vmm_as_t as, u64 vaddr, u64 *paddr_out);
 
+/* BUG-AUD-2a-001 FIX (P0): user-pointer validation variant - the leaf
+ * PTE must carry USER (and WRITE when require_write).  Used by the
+ * syscall access_ok fence so supervisor (kernel) pages can never pass
+ * a user-buffer check even when they are PRESENT-walkable. */
+int mem_vmm_is_mapped_user(mem_vmm_as_t as, u64 vaddr, int require_write,
+                           u64 *paddr_out);
+
+/* BUG-AUD-2a-002/#4 FIX (P1): force 4 KiB granularity for the 2 MiB
+ * region containing vaddr (splits the kernel huge PDE so page-granular
+ * map/unmap operations stop being silent no-ops). Returns 0 on
+ * success, -1 if the split could not be performed. */
+int mem_vmm_split_huge_page(mem_vmm_as_t as, u64 vaddr);
+
 /* Switch to the given address space (loads CR3). */
 void mem_vmm_switch_as(mem_vmm_as_t as);
 

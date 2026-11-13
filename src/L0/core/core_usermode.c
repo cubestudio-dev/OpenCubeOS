@@ -129,7 +129,8 @@ extern const u64 userprog_ld_so_size;
  * page-aligned base inside the region (rdtsc-driven, see
  * user_aslr_page_slice below); ld.so receives the actual bases through
  * two reserved slots in the (fixed) API page. */
-#define MAIN_PROG_BASE 0x20000000ULL
+/* WP-fix-critical-security: MAIN_PROG_BASE / SOLIB_LIBFOO_BASE and the
+ * API-page slots moved to core_usermode.h - both loaders share them. */
 
 /* WP-08b Batch 4a: the kernel maps the embedded libfoo.so (from
  * solib_data.h) to SOLIB_LIBFOO_BASE so ld.so can read its ELF header,
@@ -142,7 +143,6 @@ extern const u64 userprog_ld_so_size;
  * loading an ET_DYN ELF (since it's the only embedded .so for now).
  * Later batches will let ld.so decide which .so to load (via DT_NEEDED
  * parsing → name → kernel syscall → map). */
-#define SOLIB_LIBFOO_BASE 0x30000000ULL
 
 /* BUG-0216 FIX (A13-28): load-base randomization. The kernel owns the
  * main/libfoo/dlopen mappings, so the randomization happens HERE (the
@@ -172,7 +172,7 @@ static inline u64 rdtsc_u64(void) {
  * samples are taken and each is mixed with the splitmix64 finalizer, so
  * back-to-back calls (main base + libfoo base in the same load)
  * decorrelate even when the TSC barely advances between them. */
-static u64 user_aslr_page_slice(u64 region_span) {
+static u64 user_aslr_page_slice_impl(u64 region_span) {
     u64 a = rdtsc_u64();
     u64 b = rdtsc_u64();
     u64 keep;
@@ -230,6 +230,20 @@ static const u8 *interp_lookup(const char *path, u64 path_len, u64 *out_size) {
         }
     }
     return NULL;
+}
+
+/* WP-fix-critical-security (P0 fence fallout, #7): public wrappers so
+ * the sys_execve loader can run dynamic images through the SAME
+ * embedded ld.so + ASLR layout user_process_create uses (one layout,
+ * not two).  sys_execve used to map ET_DYN images at their RAW
+ * p_vaddr (~0x1000) - INSIDE the kernel identity window below
+ * USER_CODE_BASE - which the P0 user-pointer fence now rejects. */
+const u8 *user_interp_lookup(const char *path, u64 path_len, u64 *out_size) {
+    return interp_lookup(path, path_len, out_size);
+}
+
+u64 user_aslr_page_slice(u64 region_span) {
+    return user_aslr_page_slice_impl(region_span);
 }
 
 /* ELF64 header structures (minimal). */
@@ -619,8 +633,40 @@ mem_vmm_as_t create_user_address_space(void) {
     u64 *mem_vmm_kern_pd0 = (u64*)(mem_vmm_kern_pdpt[0] & 0x000FFFFFFFFFF000ULL);
     for (int i = 0; i < 512; i++) pd0[i] = mem_vmm_kern_pd0[i];
 
-    /* Copy PDPT[1..3] from kernel (1-4GiB, no user pages, safe to share) */
-    for (int i = 1; i < 4; i++) pdpt[i] = mem_vmm_kern_pdpt[i];
+    /* BUG-AUD-2a-001 FIX (P0, WP-fix-critical-security): PDPT[1..3]
+     * (1-4 GiB) used to SHARE the kernel's PD physical pages, so any
+     * kernel-side walk_pt(create=1) at >= 1 GiB (e.g. the kthread
+     * guard-remap) split a huge PDE INSIDE the shared PD and the new
+     * supervisor 4K leaves became instantly visible (and walkable) in
+     * every user AS.  Each user AS now takes a PRIVATE COPY of the
+     * three PD pages - kernel-side splits no longer mutate user ASes.
+     * The copy is a snapshot: entries are value-copies of the kernel's
+     * current huge PDEs, which map the same physical 2 MiB regions
+     * with the same supervisor flags, so kernel code running on a user
+     * CR3 still resolves 1-4 GiB identity addresses identically.
+     * destroy frees the private copies (entries that still equal the
+     * kernel's are skipped there - only the PD page itself is ours). */
+    for (int i = 1; i < 4; i++) {
+        u64 kern_pd = mem_vmm_kern_pdpt[i] & 0x000FFFFFFFFFF000ULL;
+        if (!(mem_vmm_kern_pdpt[i] & VMM_FLAG_PRESENT) || kern_pd == 0) {
+            pdpt[i] = 0;  /* nothing mapped there in the kernel either */
+            continue;
+        }
+        u64 priv_phys = mem_pmm_alloc_frame();
+        if (priv_phys == 0) {
+            /* Roll back everything allocated so far. */
+            mem_pmm_free_frame(pd0_phys);
+            mem_pmm_free_frame(pdpt_phys);
+            mem_pmm_free_frame(pml4_phys);
+            for (int j = 1; j < i; j++) {
+                u64 p = pdpt[j] & 0x000FFFFFFFFFF000ULL;
+                if (p) mem_pmm_free_frame(p);
+            }
+            return 0;
+        }
+        memcpy((void*)priv_phys, (const void*)kern_pd, PMM_PAGE_SIZE);
+        pdpt[i] = priv_phys | 0x003;  /* present | writable (supervisor) */
+    }
 
     /* P3-1 FIX (security): The old code split the 2MiB huge page at PD0[2]
      * (0x400000-0x600000) and PRE-POPULATED all 512 PT entries with
@@ -647,6 +693,12 @@ mem_vmm_as_t create_user_address_space(void) {
     u64 pt_phys = mem_pmm_alloc_frame();
     if (pt_phys == 0) {
         mem_pmm_free_frame(pd0_phys); mem_pmm_free_frame(pdpt_phys); mem_pmm_free_frame(pml4_phys);
+        /* BUG-AUD-2a-001 FIX: also roll back the private PDPT[1..3]
+         * copies allocated above. */
+        for (int j = 1; j < 4; j++) {
+            u64 p = pdpt[j] & 0x000FFFFFFFFFF000ULL;
+            if (p) mem_pmm_free_frame(p);
+        }
         return 0;
     }
     memset((void*)pt_phys, 0, PMM_PAGE_SIZE);
@@ -1045,7 +1097,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
                                    main_phdr[i].filesz) != 0) {
                     screen_console_puts("dynlink: failed to map main PT_LOAD\n");
                     proc->alive = 0;
-                    return -1;
+                    goto fail_as;
                 }
                 /* Allocate fresh zero pages for the bss region
                  * (memsz > filesz) so .bss reads as zero. */
@@ -1096,7 +1148,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
                                        lib_phdr[i].filesz) != 0) {
                         screen_console_puts("dynlink: failed to map libfoo.so PT_LOAD\n");
                         proc->alive = 0;
-                        return -1;
+                        goto fail_as;
                     }
                     /* Allocate fresh zero pages for libfoo.so's bss. */
                     if (lib_phdr[i].memsz > lib_phdr[i].filesz) {
@@ -1169,7 +1221,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
      */
     if (hdr->phentsize != sizeof(elf64_phdr_t)) {
         screen_console_puts("[user] bad phentsize\n");
-        proc->alive = 0; return -1;
+        goto fail_as;
     }
     /* Check phoff + phnum * phentsize <= elf_size (with overflow guard). */
     {
@@ -1178,7 +1230,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
             phdr_table_end < hdr->phoff ||  /* overflow */
             phdr_table_end > elf_size) {
             screen_console_puts("[user] program-header table out of bounds\n");
-            proc->alive = 0; return -1;
+            goto fail_as;
         }
     }
     /* P3-14 FIX: Pre-validate every PT_LOAD range and check for overlaps.
@@ -1192,23 +1244,23 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         u64 file_end = phdr[i].offset + phdr[i].filesz;
         if (file_end < phdr[i].offset || file_end > elf_size) {
             screen_console_puts("[user] PT_LOAD file range out of bounds\n");
-            proc->alive = 0; return -1;
+            goto fail_as;
         }
         /* p_vaddr + p_memsz must not overflow. */
         u64 mem_end = phdr[i].vaddr + phdr[i].memsz;
         if (mem_end < phdr[i].vaddr) {
             screen_console_puts("[user] PT_LOAD vaddr+memsz overflow\n");
-            proc->alive = 0; return -1;
+            goto fail_as;
         }
         /* p_memsz must be >= p_filesz (BSS section is memsz - filesz). */
         if (phdr[i].memsz < phdr[i].filesz) {
             screen_console_puts("[user] PT_LOAD memsz < filesz\n");
-            proc->alive = 0; return -1;
+            goto fail_as;
         }
         /* p_vaddr must be in user space. */
         if (phdr[i].vaddr >= 0x0000800000000000ULL) {
             screen_console_puts("[user] PT_LOAD vaddr in kernel space\n");
-            proc->alive = 0; return -1;
+            goto fail_as;
         }
         /* Check for overlap with previous PT_LOAD segments. */
         for (int j = 0; j < i; j++) {
@@ -1220,7 +1272,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
             /* Overlap if i_start < j_end && j_start < i_end. */
             if (i_start < j_end && j_start < i_end) {
                 screen_console_puts("[user] PT_LOAD segments overlap\n");
-                proc->alive = 0; return -1;
+                goto fail_as;
             }
         }
     }
@@ -1254,7 +1306,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         }
         if (map_user_pages(proc->as, phdr[i].vaddr,
                            elf_data + phdr[i].offset, phdr[i].filesz) != 0) {
-            proc->alive = 0; return -1;
+            goto fail_as;
         }
         if (phdr[i].memsz > phdr[i].filesz) {
             u64 bss_start = phdr[i].vaddr + phdr[i].filesz;
@@ -1315,7 +1367,7 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
     proc->user_rsp = USER_STACK_TOP - 16;
 
     proc->tid = core_kthread_create(user_task_launcher, proc, proc->name, TASK_PRIO_DEFAULT);
-    if (proc->tid < 0) { proc->alive = 0; return -1; }
+    if (proc->tid < 0) goto fail_as;   /* BUG #6: AS leak on thread-table exhaustion */
     core_kthread_set_cr3(proc->tid, proc->as);
     /* BUG-029 FIX: Set rsp0 for TSS stack switching on ring-3 IRQ. */
     {
@@ -1323,6 +1375,22 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         if (t) t->rsp0 = (u64)(uintptr_t)t->stack_base + t->stack_size;
     }
     return proc->pid;
+
+fail_as:
+    /* BUG #6 FIX (P1, WP-fix-critical-security): every early exit
+     * after create_user_address_space() used to `return -1` directly,
+     * leaking the ENTIRE fresh address space (PML4 + private PDPT +
+     * PD0 + PT + every mapped image/stack frame) on exec failure or
+     * OOM.  Fork's teardown had this cleanup; exec's create path did
+     * not.  Destroy the AS, clear the slot, THEN fail.  A later
+     * user_process_reap_resources() sees as==0 and skips - no double
+     * free. */
+    if (proc->as) {
+        mem_vmm_destroy_address_space(proc->as);
+        proc->as = 0;
+    }
+    proc->alive = 0;
+    return -1;
 }
 
 /* BUG-0134 FIX: expose the kernel task id (tid) behind a user process.
