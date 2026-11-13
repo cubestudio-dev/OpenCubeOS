@@ -83,3 +83,4 @@ if has_utf8_kong:
     print("[5] utf8 restored: OK")
 else:
     print("[5] utf8 restored: FAIL")
+import sys as _sys; _sys.exit(1)  # BUG #65: propagate failure

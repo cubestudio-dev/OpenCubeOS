@@ -123,25 +123,39 @@ u64 ocbl_load_elf(const ocbl_volume_t* v, const char* path, u64 want_base,
         u64 dst = ph[i].p_paddr;
         if (dst < want_base || dst >= 0x40000000ull)
             return 0;                   /* outside the identity window */
+        /* BUG #46 FIX (P1, WP-fix-critical-security): overflow-safe
+         * bounds.  The old `foff + filesz > fsize` check WRAPPED when
+         * p_offset was near 2^64 (foff + filesz overflowed to a small
+         * value, the check passed, and the truncated (u32)foff read
+         * then loaded attacker bytes into the load window); the file
+         * size was also cast to u32 BEFORE the check (a p_filesz of
+         * 0x100000001 truncated to 1).  And the .bss tail loop had NO
+         * upper bound at all: p_memsz near 2^64 zeroed everything
+         * above p_paddr, far past the identity window. */
+        if (ph[i].p_filesz > ph[i].p_memsz)
+            return 0;                   /* ELF spec: filesz <= memsz */
+        if (ph[i].p_filesz > (u64)fsize ||
+            ph[i].p_offset > (u64)fsize - ph[i].p_filesz)
+            return 0;                   /* segment outside the file (no wrap) */
+        u64 mem_end = dst + ph[i].p_memsz;
+        if (mem_end < dst || mem_end > 0x40000000ull)
+            return 0;                   /* segment outside the window (no wrap) */
         u64 foff = ph[i].p_offset;
-        u32 filesz = (u32)ph[i].p_filesz;
-        if (foff + filesz > (u64)fsize)
-            return 0;
+        u64 filesz = ph[i].p_filesz;
         u8* dmem = (u8*)(u64)dst;
-        u32 off = 0;
+        u64 off = 0;
         while (off < filesz) {
-            u32 chunk = filesz - off;
-            if (chunk > OCBL_BOUNCE_SZ)
-                chunk = OCBL_BOUNCE_SZ;
-            if (ocbl_fs_pread(v, path, (u32)foff + off, BOUNCE, chunk) <
-                chunk)
+            u32 chunk = (filesz - off > OCBL_BOUNCE_SZ)
+                      ? OCBL_BOUNCE_SZ : (u32)(filesz - off);
+            if (ocbl_fs_pread(v, path, (u32)foff + (u32)off, BOUNCE,
+                              chunk) < chunk)
                 return 0;
             for (u32 k = 0; k < chunk; k++)
                 dmem[off + k] = BOUNCE[k];
             off += chunk;
         }
         for (u64 z = ph[i].p_filesz; z < ph[i].p_memsz; z++)
-            dmem[z] = 0;                /* .bss tail */
+            dmem[z] = 0;                /* .bss tail (bounded by mem_end) */
     }
     if (total_size)
         *total_size = fsize;

@@ -150,6 +150,7 @@ try:
     child.terminate(force=True)
 except Exception as e:
     print(f"PHASE2 FAILED: {e}")
+    import sys as _sys; _sys.exit(1)  # BUG #65: propagate failure
     child.terminate(force=True)
 finally:
     try:

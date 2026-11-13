@@ -66,11 +66,26 @@ export LD_LIBRARY_PATH="$OC_TOOLS/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$L
 
 boot_banner() {
     local mode="$1"; shift
+    # BUG #63 FIX (P1, WP-fix-critical-security): the gate used a FIXED
+    # /tmp/rel_boot.log - a stale log from an earlier run satisfied the
+    # greps even when THIS QEMU invocation failed to boot (fake green),
+    # and the `|| true` swallowed the failure entirely.  The log is now
+    # FRESH per run (mktemp + cleanup trap): the greps can only pass on
+    # output produced by THIS boot.
+    local log
+    log="$(mktemp /tmp/rel_boot.XXXXXX.log)" || { echo "boot gate: mktemp failed" >&2; return 1; }
     timeout 90 "$QEMU" -m 512 -cdrom build/opencube.iso \
-        -L "$DATADIR" -display none -serial file:/tmp/rel_boot.log "$@" \
-        >/dev/null 2>&1 || true
-    grep -aq "Type 'help' for built-in commands" /tmp/rel_boot.log \
-        && grep -aq "Open Cube OS User-space Shell" /tmp/rel_boot.log
+        -L "$DATADIR" -display none -serial "file:$log" "$@" \
+        >/dev/null 2>&1
+    local qemu_rc=$?
+    grep -aq "Type 'help' for built-in commands" "$log" \
+        && grep -aq "Open Cube OS User-space Shell" "$log"
+    local grep_rc=$?
+    if [ "$grep_rc" -ne 0 ] && [ ! -s "$log" ]; then
+        echo "boot gate ($mode): QEMU produced NO serial output (rc=$qemu_rc)" >&2
+    fi
+    rm -f "$log"
+    return "$grep_rc"
 }
 boot_banner "bios" && echo "    BIOS boot gate: PASS" \
     || { echo "    BIOS boot gate: FAIL" >&2; exit 1; }

@@ -276,3 +276,137 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# =====================================================================
+# BUG #66 FIX (P1, WP-fix-critical-security): framebuffer assertions.
+# Every E2E driver used `-display none` and asserted ONLY the serial
+# stream - the screen content was never machine-checked, so a dead or
+# garbage panel passed every gate (the "serial green / screen broken"
+# pattern of #110/#111).  These helpers take a REAL screendump through
+# the QEMU human monitor and machine-assert its content.
+# =====================================================================
+
+def monitor_screendump(sock_path, ppm_path, timeout=15):
+    """Connect to a QEMU HMP unix socket, issue `screendump`, and return
+    the raw PPM bytes (None on any failure)."""
+    import socket as _s
+    try:
+        s = _s.socket(_s.AF_UNIX, _s.SOCK_STREAM)
+        s.settimeout(timeout)
+        s.connect(sock_path)
+        try:
+            s.recv(4096)          # drain the banner
+        except Exception:
+            pass
+        s.sendall(("screendump " + ppm_path + "\n").encode())
+        buf = b""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                chunk = s.recv(4096)
+            except Exception:
+                break
+            if not chunk:
+                break
+            buf += chunk
+            if b"(qemu)" in buf:
+                break
+        s.close()
+        with open(ppm_path, "rb") as f:
+            return f.read()
+    except Exception:
+        return None
+
+
+def ppm_stats(ppm):
+    """Parse a P6 PPM and return (distinct_colors, total_samples), or
+    (0, 0) when the dump is not a parseable P6."""
+    if not ppm or not ppm.startswith(b"P6"):
+        return (0, 0)
+    # header: P6\n<w> <h>\n<max>\n<binary RGB>
+    idx = 2
+    dims = []
+    while len(dims) < 3 and idx < len(ppm):
+        # skip whitespace
+        while idx < len(ppm) and ppm[idx:idx+1].isspace():
+            idx += 1
+        if ppm[idx:idx+1] == b"#":
+            while idx < len(ppm) and ppm[idx:idx+1] != b"\n":
+                idx += 1
+            continue
+        start = idx
+        while idx < len(ppm) and not ppm[idx:idx+1].isspace():
+            idx += 1
+        try:
+            dims.append(int(ppm[start:idx]))
+        except ValueError:
+            return (0, 0)
+    if len(dims) < 3 or idx >= len(ppm):
+        return (0, 0)
+    idx += 1                      # the single newline after maxval
+    body = ppm[idx:]
+    colors = set()
+    samples = 0
+    # sample every 31st pixel to bound the cost on a 720x400 panel
+    for off in range(0, len(body) - 2, 31 * 3):
+        colors.add((body[off], body[off+1], body[off+2]))
+        samples += 1
+        if samples > 20000:
+            break
+    return (len(colors), samples)
+
+
+def screen_assert_text(sock_path, ppm_path, min_colors=2, min_fg_ratio=0.002):
+    """Assert the framebuffer shows TEXT.  A stock VGA text panel is
+    exactly TWO colors (background + glyph foreground), so the machine
+    assertion is: at least min_colors distinct colors AND the minority
+    (foreground) pixels are a measurable fraction of the panel - a
+    blank or garbage panel is one dominant color with (almost) nothing
+    else.  Returns (ok, detail) - the BUG #66 panel assertion."""
+    ppm = monitor_screendump(sock_path, ppm_path)
+    if ppm is None:
+        return (False, "screendump failed (no monitor / no file)")
+    colors, samples = ppm_stats(ppm)
+    if samples == 0:
+        return (False, "unparseable screendump")
+    if colors < min_colors:
+        return (False, f"framebuffer uniform ({colors} color(s) in "
+                       f"{samples} samples) - screen is blank")
+    # count the dominant color's share
+    ppm2 = ppm
+    # reuse the same sampling stride as ppm_stats
+    idx = 2
+    dims = []
+    while len(dims) < 3 and idx < len(ppm2):
+        while idx < len(ppm2) and ppm2[idx:idx+1].isspace():
+            idx += 1
+        if ppm2[idx:idx+1] == b"#":
+            while idx < len(ppm2) and ppm2[idx:idx+1] != b"\n":
+                idx += 1
+            continue
+        start = idx
+        while idx < len(ppm2) and not ppm2[idx:idx+1].isspace():
+            idx += 1
+        try:
+            dims.append(int(ppm2[start:idx]))
+        except ValueError:
+            return (False, "unparseable PPM header")
+    idx += 1
+    body = ppm2[idx:]
+    counts = {}
+    n = 0
+    for off in range(0, len(body) - 2, 31 * 3):
+        c = (body[off], body[off+1], body[off+2])
+        counts[c] = counts.get(c, 0) + 1
+        n += 1
+        if n > 20000:
+            break
+    dominant = max(counts.values())
+    fg_ratio = 1.0 - (dominant / max(1, n))
+    if fg_ratio < min_fg_ratio:
+        return (False, f"framebuffer near-uniform ({colors} colors but "
+                       f"{fg_ratio*100:.2f}% non-dominant pixels) - "
+                       f"screen is blank/garbage")
+    return (True, f"{colors} distinct colors, {fg_ratio*100:.2f}% "
+                  f"non-dominant pixels in {n} samples")

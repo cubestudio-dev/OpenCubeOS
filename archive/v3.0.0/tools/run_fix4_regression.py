@@ -11,9 +11,14 @@ Usage: python3 tools/run_fix4_regression.py <iso> [outlog]
 Exit code: number of failed checks."""
 import os, re, sys
 import pexpect
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from qemu_runner import screen_assert_text   # BUG #66: panel assertion
 
 OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/tools")
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
+# BUG #66: monitor socket + screendump path for the panel assertion.
+MONITOR_SOCK = "/tmp/wp01_reg_monitor.sock"
+PPM_PATH = "/tmp/wp01_reg_screen.ppm"
 
 CMDS = [
     "uname -a",
@@ -52,6 +57,7 @@ CHECKS = [
     # always-true.  Each pattern is now scoped to ONE command's output
     # section (echo line stripped), and only the boot checks may look
     # at the boot section.
+    ("screen framebuffer alive (BUG #66)", "SCREEN", None),   # dynamic
     ("boot banner ready",        None,   r"Open Cube OS User-space Shell \(3\.0\.0"),
     ("boot prompt hint",         None,   r"Type 'help' for built-in commands"),
     ("boot complete OK",         None,   r"boot complete\.+ OK"),
@@ -109,9 +115,15 @@ def main():
         "-L",f"{OC_TOOLS}/usr/share/qemu","-L",f"{OC_TOOLS}/usr/share/seabios",
         "-vga","std","-display","none","-serial","mon:stdio",
         "-netdev","user,id=n1","-device","e1000,netdev=n1",
+        # BUG #66: a real HMP channel so the gate can screendump and
+        # machine-assert the framebuffer (serial-only gates passed on
+        # a dead panel).
+        "-monitor", f"unix:{MONITOR_SOCK},server,nowait",
     ], timeout=200, encoding="latin-1", codec_errors="replace", env=env)
     child.expect(r"ush>\s*", timeout=200)
     boot_out = child.before or ""      # banner + boot self-test lines
+    # BUG #66: assert the SCREEN (not just the serial line) is alive.
+    screen_ok, screen_detail = screen_assert_text(MONITOR_SOCK, PPM_PATH)
     outputs = {}
     for c in CMDS:
         child.sendline(c)
@@ -152,7 +164,10 @@ def main():
     passed = failed = 0
     print("\n=== regression checks ===")
     for name, cmd, pat in CHECKS:
-        if pat is None:
+        if pat is None and cmd == "SCREEN":
+            ok = screen_ok
+            print(f"  {'PASS' if ok else 'FAIL'}  {name} ({screen_detail})")
+        elif pat is None:
             # dynamic check: command-count floor from help -a
             sec = section("help -a")
             n = len(re.findall(r"(?m)^  \S+ +\[[^\]]*\]  ", sec))

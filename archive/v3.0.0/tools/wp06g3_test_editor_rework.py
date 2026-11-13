@@ -171,3 +171,5 @@ if not pinyin_leak:
     print("[B3] pinyin never entered the text: OK")
 else:
     print("[B3] FAIL")
+import sys as _sys; _sys.exit(1)  # BUG #65: propagate failure
+import sys as _sys; _sys.exit(1)  # BUG #65: propagate failure

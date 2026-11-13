@@ -142,11 +142,20 @@ void ocire_supervisor_run(void) {
         mb->fail_count++;
         mb->state = OCIRE_MB_STATE_ENTER_FULL;
         if (ocire_mailbox_write() != 0) {
-            ocire_puts("Supervisor: mailbox write failed; continuing anyway.\n");
+            /* BUG #47 FIX (P1, WP-fix-critical-security): the write
+             * failed, so the PERSISTED mailbox still says WAIT_SIGNAL
+             * - rebooting would land right back here and fail again:
+             * an infinite reset loop with the user locked out.  Skip
+             * the reboot and enter the full shell in THIS boot (the
+             * in-RAM state already says ENTER_FULL below). */
+            ocire_puts("Supervisor: mailbox write failed - skipping the "
+                       "reboot to avoid a reset loop; entering the full "
+                       "shell now.\n");
+        } else {
+            ocire_puts("Rebooting into the full recovery environment in 3 seconds...\n");
+            ocire_sleep_sec(3);
+            reboot_machine();                    /* never returns */
         }
-        ocire_puts("Rebooting into the full recovery environment in 3 seconds...\n");
-        ocire_sleep_sec(3);
-        reboot_machine();                        /* never returns */
     }
 
     if (mb->state == OCIRE_MB_STATE_ENTER_FULL) {

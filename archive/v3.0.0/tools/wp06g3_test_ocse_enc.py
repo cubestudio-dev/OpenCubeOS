@@ -136,6 +136,7 @@ if gbk_yu_after and not utf8_yu_after:
     print("[7] OCSE GBK serial conversion: OK")
 else:
     print("[7] OCSE GBK serial conversion: FAIL")
+import sys as _sys; _sys.exit(1)  # BUG #65: propagate failure
 
 # before the gbk marker (utf8 phase), zh output must be UTF-8
 seg0 = raw[:i_gbk] if i_gbk >= 0 else raw
@@ -145,3 +146,4 @@ if utf8_yu_before:
     print("[8] OCSE utf8 serial path: OK")
 else:
     print("[8] OCSE utf8 serial path: FAIL")
+import sys as _sys; _sys.exit(1)  # BUG #65: propagate failure
