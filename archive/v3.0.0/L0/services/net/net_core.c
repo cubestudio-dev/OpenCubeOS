@@ -1168,6 +1168,25 @@ static void net_arp_handle_packet(const net_arp_pkt_t *pkt, int len) {
     }
 }
 
+/* BUG #24 FIX (P1, WP-fix-critical-security): fire ONE ARP request
+ * without waiting.  Safe from any context (single frame send, no
+ * polling loop); the reply lands in the cache via the normal RX path. */
+static void net_arp_request_async(u32 ip) {
+    u8 broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    u8 req_buf[sizeof(net_arp_pkt_t)];
+    net_arp_pkt_t *req = (net_arp_pkt_t *)req_buf;
+    req->htype = htons(1);
+    req->ptype = htons(ETH_TYPE_IP);
+    req->hlen = 6;
+    req->plen = 4;
+    req->op = htons(1);  /* request */
+    memcpy(req->sha, g_mac, 6);
+    req->spa = htonl(g_ip);
+    memset(req->tha, 0, 6);
+    req->tpa = htonl(ip);
+    eth_send(broadcast, ETH_TYPE_ARP, req_buf, sizeof(net_arp_pkt_t));
+}
+
 int net_arp_resolve(u32 ip, u8 *mac_out) {
     /* Check cache first. */
     if (net_arp_cache_lookup(ip, mac_out) == 0) return 0;
@@ -2482,7 +2501,19 @@ static void net_tcp_parse_options(net_tcp_conn_t *c, const u8 *opts, int opt_len
             case TCP_OPT_MSS:
                 if (len == 4 && is_syn) {
                     u16 mss = ((u16)opts[i] << 8) | opts[i+1];
-                    if (mss > 536 && mss < 9000) c->mss = mss;
+                    /* BUG #142 FIX (P1, WP-fix-critical-security): clamp
+                     * the negotiated MSS to the local MTU budget (1480 =
+                     * 1500 - 20 IP header - what net_tcp_send_raw can
+                     * put on the wire).  The old range (536..8999) let a
+                     * jumbo-advertising peer push flush_queued into
+                     * marking 8999-byte segments as sent while send_raw
+                     * silently transmitted only the first 1480 bytes -
+                     * every segment then lost mss-1480 bytes that no RTO
+                     * could ever recover (rtx_sent had advanced past
+                     * them).  min() keeps small advertised MSS intact. */
+                    if (mss > 536) {
+                        c->mss = (mss < 1480) ? mss : 1480;
+                    }
                 }
                 break;
             case TCP_OPT_WSCALE:
@@ -2757,6 +2788,19 @@ static void net_tcp_check_rto(void) {
         if (now < c->rto_deadline) continue;
         /* RTO expired! Retransmit oldest unacked (already-sent) data. */
         {
+            /* BUG #24 FIX: this sweep runs under cli in the timer
+             * context; a cache-miss ARP resolve here used to fall into
+             * the 3-second busy-wait (whose net_poll() is a no-op -
+             * the re-entrancy guard is held by OUR caller), freezing
+             * the whole machine with interrupts off.  Pre-check the
+             * ARP cache instead: on a miss fire ONE async request and
+             * defer the retransmit to the next sweep. */
+            u8 dst_mac_probe[6];
+            if (net_arp_cache_lookup(c->remote_ip, dst_mac_probe) != 0) {
+                net_arp_request_async(c->remote_ip);
+                c->rto_deadline = now + 20;   /* retry in 200 ms */
+                continue;
+            }
             int rtx = c->rtx_sent;
             if (rtx > c->mss) rtx = c->mss;
             /* Retransmit from rtx_buf */
@@ -3984,11 +4028,47 @@ static int net_dns_decode_name(const u8 *pkt, int pkt_len, int off,
     return advanced ? advanced : pos;
 }
 
+/* BUG #22 FIX (P1, WP-fix-critical-security): DNS response validation.
+ * Every query used a FIXED transaction id (0x1234 for A, 0x5678 for
+ * AAAA, 0x2468/0x3690/0x4271/0x52A1 for the MX/TXT/NS/SRV builders)
+ * and the handler checked NOTHING - any off-path spoof with the
+ * source IP/port and a matching ancount poisoned the cache.  Each
+ * query now carries a fresh rdtsc-mixed transaction id, and the
+ * handler drops every response whose id, QR flag, source address,
+ * source port, qdcount or echoed question name does not match the
+ * outstanding query. */
+static u16 g_dns_txid = 0;        /* transaction id of the outstanding query */
+static char g_dns_qname[256];     /* question name of the outstanding query */
+
+static u16 dns_new_txid(void) {
+    u32 lo, hi;
+    __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
+    u64 t = ((u64)hi << 32) | (u64)lo;
+    t ^= t >> 33; t *= 0xff51afd7ed558ccdULL; t ^= t >> 29;
+    return (u16)(t >> 16);
+}
+
+/* Called by every query sender right before building the packet:
+ * picks the fresh transaction id and records the question name the
+ * response must echo back. */
+static u16 dns_query_begin(const char *name) {
+    g_dns_txid = dns_new_txid();
+    if (g_dns_txid == 0) g_dns_txid = 1;   /* 0 means "no query outstanding" */
+    strncpy(g_dns_qname, name ? name : "", sizeof(g_dns_qname) - 1);
+    g_dns_qname[sizeof(g_dns_qname) - 1] = 0;
+    return g_dns_txid;
+}
+
 static void net_dns_handler(u32 src_ip, u16 src_port, const void *data, int len) {
-    (void)src_ip;
-    (void)src_port;
     if (len < (int)sizeof(net_dns_hdr_t)) return;
     const net_dns_hdr_t *h = (const net_dns_hdr_t *)data;
+    /* BUG #22 FIX: validate the response against the outstanding query. */
+    if (g_dns_txid == 0) return;                 /* no query outstanding */
+    if (ntohs(h->id) != g_dns_txid) return;      /* wrong transaction id */
+    if (!(ntohs(h->flags) & 0x8000)) return;     /* QR=0: not a response */
+    if (src_ip != g_dns) return;                 /* not the resolver    */
+    if (src_port != DNS_PORT) return;            /* not from port 53    */
+    if (ntohs(h->qdcount) != 1) return;          /* malformed echo      */
     if (ntohs(h->ancount) == 0) return;
 
     /* P1-14 FIX: add bounds checks throughout DNS parsing to prevent
@@ -3996,13 +4076,17 @@ static void net_dns_handler(u32 src_ip, u16 src_port, const void *data, int len)
     const u8 *p = (const u8 *)data + sizeof(net_dns_hdr_t);
     const u8 *end = (const u8 *)data + len;
 
-    /* Skip question name (labels until 0). */
-    while (p < end && *p != 0) {
-        if (*p & 0xC0) { p += 2; break; }
-        p += *p + 1;
-        if (p >= end) return;  /* P1-14: bounds */
+    /* BUG #22 FIX: the question section must echo the name we asked
+     * about - a spoofed answer for a different name is dropped. */
+    {
+        char qecho[256];
+        int adv = net_dns_decode_name((const u8 *)data, len,
+                                      (int)(p - (const u8 *)data),
+                                      qecho, sizeof(qecho));
+        if (adv < 0) return;
+        if (g_dns_qname[0] && strcmp(qecho, g_dns_qname) != 0) return;
+        p = (const u8 *)data + adv;
     }
-    if (p < end && *p == 0) p++;  /* skip null terminator */
     p += 4;  /* skip QTYPE and QCLASS */
     if (p > end) return;  /* P1-14: bounds */
 
@@ -4118,7 +4202,7 @@ int net_dns_resolve(const char *name, u32 *net_ip_out) {
 
     u8 buf[512];
     net_dns_hdr_t *h = (net_dns_hdr_t *)buf;
-    h->id = htons(0x1234);
+    h->id = htons(dns_query_begin(name));  /* BUG #22: fresh txid + qname */
     h->flags = htons(0x0100);  /* standard query, recursion desired */
     h->qdcount = htons(1);
     h->ancount = 0;
@@ -4207,7 +4291,7 @@ int net_dns_resolve_aaaa(const char *name, u8 *ipv6_out) {
 
     u8 buf[512];
     net_dns_hdr_t *h = (net_dns_hdr_t *)buf;
-    h->id = htons(0x5678);
+    h->id = htons(dns_query_begin(name));  /* BUG #22: fresh txid + qname */
     h->flags = htons(0x0100);
     h->qdcount = htons(1);
     h->ancount = 0; h->nscount = 0; h->arcount = 0;
@@ -4290,7 +4374,7 @@ int net_dns_resolve_mx(const char *name, u16 *pref_out, char *host_out,
                    int host_stride, int max) {
     if (!g_nic_ok || g_dns == 0) return -1;
     u8 buf[512];
-    int pkt_len = net_dns_build_query(name, 15, 0x2468, buf, (int)sizeof(buf));
+    int pkt_len = net_dns_build_query(name, 15, dns_query_begin(name), buf, (int)sizeof(buf));
     if (pkt_len < 0) return -1;
     g_dns_mx_count = 0;
     u16 net_dns_src_port = 4096 + DNS_PORT;
@@ -4316,7 +4400,7 @@ int net_dns_resolve_mx(const char *name, u16 *pref_out, char *host_out,
 int net_dns_resolve_txt(const char *name, char *txt_out, int txt_len) {
     if (!g_nic_ok || g_dns == 0) return -1;
     u8 buf[512];
-    int pkt_len = net_dns_build_query(name, 16, 0x3690, buf, (int)sizeof(buf));
+    int pkt_len = net_dns_build_query(name, 16, dns_query_begin(name), buf, (int)sizeof(buf));
     if (pkt_len < 0) return -1;
     g_dns_got_txt = 0;
     u16 net_dns_src_port = 5120 + DNS_PORT;
@@ -4338,7 +4422,7 @@ int net_dns_resolve_txt(const char *name, char *txt_out, int txt_len) {
 int net_dns_resolve_ns(const char *name, char *ns_out, int ns_len) {
     if (!g_nic_ok || g_dns == 0) return -1;
     u8 buf[512];
-    int pkt_len = net_dns_build_query(name, 2, 0x4271, buf, (int)sizeof(buf));
+    int pkt_len = net_dns_build_query(name, 2, dns_query_begin(name), buf, (int)sizeof(buf));
     if (pkt_len < 0) return -1;
     g_dns_got_ns = 0;
     u16 net_dns_src_port = 6144 + DNS_PORT;
@@ -4361,7 +4445,7 @@ int net_dns_resolve_srv(const char *name, u16 *pri, u16 *wgt, u16 *port,
                     char *target_out, int target_len) {
     if (!g_nic_ok || g_dns == 0) return -1;
     u8 buf[512];
-    int pkt_len = net_dns_build_query(name, 33, 0x52A1, buf, (int)sizeof(buf));
+    int pkt_len = net_dns_build_query(name, 33, dns_query_begin(name), buf, (int)sizeof(buf));
     if (pkt_len < 0) return -1;
     g_dns_got_srv = 0;
     u16 net_dns_src_port = 7168 + DNS_PORT;
@@ -5322,8 +5406,77 @@ int net_cmd_dns(const char *args) {
 /* WP-09 mainstream: dnstest — exercise every record type against the
  * configured resolver (SLIRP forwards to the real upstream DNS). */
 int net_cmd_dnstest(const char *args) {
-    (void)args;
     int fails = 0;
+    /* BUG #22 (WP-fix-critical-security) acceptance mode: feed FORGED
+     * DNS responses straight into the real net_dns_handler and assert
+     * the validation fence drops them.  The forged packets exercise
+     * the exact production path (id / QR / source-port / qname-echo
+     * checks); only the wire is virtual. */
+    if (args && args[0] && strcmp(args, "poison") == 0) {
+        screen_console_puts("DNS poison self-test (forged responses):\n");
+        u16 txid = dns_query_begin("poison.test");
+        /* Question section for "poison.test" + a minimal A answer. */
+        u8 q[512];
+        int ql = 0;
+        net_dns_hdr_t *qh = (net_dns_hdr_t *)q;
+        qh->flags = htons(0x8180); qh->qdcount = htons(1);
+        qh->ancount = htons(1); qh->nscount = 0; qh->arcount = 0;
+        ql = (int)sizeof(net_dns_hdr_t);
+        q[ql++] = 11; memcpy(q + ql, "poison.test", 11); ql += 11; q[ql++] = 0;
+        *(u16 *)(q + ql) = htons(1); ql += 2;
+        *(u16 *)(q + ql) = htons(1); ql += 2;
+        /* answer: pointer to the question name, type A, class IN,
+         * TTL 60, rdlen 4, address 6.6.6.6 */
+        int ans_len = ql;
+        *(u16 *)(q + ans_len) = htons(0xC000 | sizeof(net_dns_hdr_t)); ans_len += 2;
+        *(u16 *)(q + ans_len) = htons(1); ans_len += 2;
+        *(u16 *)(q + ans_len) = htons(1); ans_len += 2;
+        *(u32 *)(q + ans_len) = htonl(60); ans_len += 4;
+        *(u16 *)(q + ans_len) = htons(4); ans_len += 2;
+        q[ans_len++] = 6; q[ans_len++] = 6; q[ans_len++] = 6; q[ans_len++] = 6;
+
+        struct { const char *name; u16 id; u16 flags; const char *qname; int want; } cases[] = {
+            { "wrong transaction id dropped",  (u16)(txid ^ 0x55AA), 0x8180, "poison.test", 0 },
+            { "query (QR=0) dropped",          txid,                 0x0100, "poison.test", 0 },
+            { "wrong qname echo dropped",      txid,                 0x8180, "evil.test",   0 },
+            { "legit reply accepted (control)",txid,                 0x8180, "poison.test", 1 },
+        };
+        for (unsigned ci = 0; ci < sizeof(cases) / sizeof(cases[0]); ci++) {
+            /* (re)build the question name for this case */
+            ql = (int)sizeof(net_dns_hdr_t);
+            const char *qn = cases[ci].qname;
+            int qnl = (int)strlen(qn);
+            q[ql++] = (u8)qnl; memcpy(q + ql, qn, qnl); ql += qnl; q[ql++] = 0;
+            *(u16 *)(q + ql) = htons(1); ql += 2;
+            *(u16 *)(q + ql) = htons(1); ql += 2;
+            int al = ql;
+            *(u16 *)(q + al) = htons(0xC000 | sizeof(net_dns_hdr_t)); al += 2;
+            *(u16 *)(q + al) = htons(1); al += 2;
+            *(u16 *)(q + al) = htons(1); al += 2;
+            *(u32 *)(q + al) = htonl(60); al += 4;
+            *(u16 *)(q + al) = htons(4); al += 2;
+            q[al++] = 6; q[al++] = 6; q[al++] = 6; q[al++] = 6;
+            net_dns_hdr_t *ch = (net_dns_hdr_t *)q;
+            ch->id = htons(cases[ci].id);
+            ch->flags = htons(cases[ci].flags);
+            ch->qdcount = htons(1);
+            ch->ancount = htons(1);
+            g_dns_result_ip = 0;
+            g_dns_got_response = 0;
+            net_dns_handler(g_dns, DNS_PORT, q, al);
+            int got = g_dns_got_response;
+            int ok = (got == cases[ci].want)
+                  && (cases[ci].want == 0 || g_dns_result_ip == IP4(6,6,6,6));
+            if (!ok) fails++;
+            char b[96];
+            strcpy(b, "  ["); strcat(b, ok ? "PASS" : "FAIL");
+            strcat(b, "] "); strcat(b, cases[ci].name);
+            strcat(b, "\n"); screen_console_puts(b);
+        }
+        if (fails == 0) screen_console_puts("DNS poison self-test: PASS\n");
+        else screen_console_puts("DNS poison self-test: FAIL\n");
+        return fails ? 1 : 0;
+    }
     screen_console_puts("DNS record-type self-test (live resolver):\n");
 
     /* A */

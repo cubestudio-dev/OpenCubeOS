@@ -68,7 +68,7 @@ def wait_port(port, t=4):
     time.sleep(t)
     return True
 
-def boot_guest(port, path_out):
+def boot_guest(port, path_out, insecure=False):
     env = dict(os.environ)
     env["LD_LIBRARY_PATH"] = (f"{OC_TOOLS}/usr/lib/x86_64-linux-gnu:"
                               f"{OC_TOOLS}/lib/x86_64-linux-gnu")
@@ -83,6 +83,12 @@ def boot_guest(port, path_out):
         child.sendline(cmd)
         child.expect(r"ush>\s", timeout=t)
         return child.before or ""
+    # BUG #21 (WP-fix-critical-security): the kernel REFUSES un-anchored
+    # (self-signed) chains by default; the historical lenient behaviour
+    # is an explicit opt-in (`config set tls.insecure 1`, the wget -k /
+    # curl -k pattern) which this E2E uses for the compatibility checks.
+    if insecure:
+        sc("config set tls.insecure 1", 30)
     out = sc(f"wget https://10.0.2.2:{port}/hello.txt", 120)
     out += "\n" + sc("cat /wget_https.html", 60)
     child.close(force=True)
@@ -116,7 +122,21 @@ def main():
         if not wait_port(8443):
             results.append(("server started", False)); 
         else:
-            kout = boot_guest(8443, f"{EVD}/https_kernel.log")
+            # ---- check 0: default policy REFUSES the self-signed chain ----
+            # (BUG #21 acceptance: a MITM with any self-signed cert must
+            # not get a connection.  This server serves exactly ONE
+            # connection, so the refusal pass consumes it - restart a
+            # fresh server for the insecure compatibility pass below.)
+            kout0 = boot_guest(8443, f"{EVD}/https_kernel_refused.log", insecure=False)
+            results.append(("0 self-signed chain REFUSED by default (#21)",
+                            "REFUSED" in kout0
+                            and "hello-from-opencube-tls" not in kout0))
+            srv.terminate()
+            srv = subprocess.Popen(
+                [sys.executable, f"{ROOT}/tools/https_test_server.py", cert, key, dh, "8443"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            wait_port(8443)
+            kout = boot_guest(8443, f"{EVD}/https_kernel.log", insecure=True)
             slog = server_log_wait(srv)
             open(f"{EVD}/https_server.log", "w").write(slog)
             results.append(("1 TLS handshake (kernel connected)", "Connecting" in kout and "(TLS)" in kout))
@@ -134,7 +154,7 @@ def main():
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     try:
         time.sleep(4)
-        kout6 = boot_guest(8451, f"{EVD}/https_kernel_observe.log")
+        kout6 = boot_guest(8451, f"{EVD}/https_kernel_observe.log", insecure=True)
         olog = server_log_wait(srv_obs)
         open(f"{EVD}/https_observe.log", "w").write(olog)
         for name, ok in results:
@@ -163,6 +183,8 @@ def main():
                 "-netdev","user,id=n1","-device","e1000,netdev=n1",
             ], timeout=150, encoding="latin-1", codec_errors="replace", env=env)
             child.expect(r"ush>\s", timeout=150)
+            child.sendline("config set tls.insecure 1")
+            child.expect(r"ush>\s", timeout=30)
             t0 = time.time()
             child.sendline("wget https://10.0.2.2:8444/hello.txt")
             idx = child.expect([r"ush>\s", pexpect.TIMEOUT], timeout=45)

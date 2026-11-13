@@ -444,6 +444,14 @@ static int aml_field_read(acpi_node_t *field, u64 *out, exec_ctx_t *ctx) {
     u32 byte_off = field->bit_offset >> 3;
     int width = (int)((field->bit_len + 7) >> 3);
     if (width > 8) return -1;
+    /* BUG #20 FIX (P1, WP-fix-critical-security): OpRegion bounds
+     * check.  region_len was parsed at the OpRegion declaration but
+     * never used - a crafted DSDT could point a Field at ANY physical
+     * address (or run it off the end of a legitimate region) and the
+     * read/write paths below happily touched it: arbitrary physical
+     * memory read/write from the interpreter.  Every access must now
+     * land inside the declared [region_base, region_base+region_len). */
+    if ((u64)byte_off + (u64)width > (u64)r->region_len) return -1;
     u64 raw = 0;
     switch (r->space) {
     case 0x00: {
@@ -513,6 +521,8 @@ static int aml_field_write(acpi_node_t *field, u64 value, exec_ctx_t *ctx) {
     u32 byte_off = field->bit_offset >> 3;
     int width = (int)((field->bit_len + 7) >> 3);
     if (width > 8) return -1;
+    /* BUG #20 FIX: OpRegion bounds check - see aml_field_read. */
+    if ((u64)byte_off + (u64)width > (u64)r->region_len) return -1;
     u32 sh = field->bit_offset & 7;
     u64 mask = (field->bit_len >= 64) ? ~0ull : ((1ull << field->bit_len) - 1);
     u64 all = mask << sh;

@@ -19,6 +19,23 @@
 #include "mem_heap.h"   /* WP-10-wp08fix1: lazy handshake buffers */
 #include "screen_console.h"
 #include "lib_string.h"
+#include "lib_config.h"   /* BUG #21: tls.insecure opt-in (mainstream -k pattern) */
+
+/* BUG #21 FIX (P1, WP-fix-critical-security): certificate-verification
+ * policy.  Both handshake paths used to treat an un-anchored chain
+ * (self-signed / private CA) as a WARNING and continued with
+ * verified=1 - an active MITM only needed any self-signed cert.
+ * The default is now REFUSE.  The historical lenient behaviour stays
+ * available through an explicit opt-in (the curl -k / wget
+ * --no-check-certificate pattern): `config set tls.insecure 1`.
+ * Hostname mismatches stay fatal in BOTH modes (impersonation). */
+static int tls_insecure_ok(void) {
+    char v[16];
+    /* lib_config_read returns 0 on success, OC_CONFIG_E_* (< 0) on error. */
+    if (lib_config_read("tls.insecure", v, sizeof(v)) != 0) return 0;
+    return (v[0] == '1' || v[0] == 'y' || v[0] == 't' ||
+            (v[0] == 'o' && v[1] == 'n'));
+}
 #include "core_timer.h"
 
 /* bring-up debugging (0 = quiet, production; 1 = verbose during bring-up.
@@ -1026,17 +1043,17 @@ static int net_tls13_do_handshake(net_tls_ctx_t *c) {
          * empty hostname (see net_tls_connect). */
         const char *ref = c->hostname[0] ? c->hostname : (const char *)0;
         int vrc = crypto_x509_verify_chain(c->certs, c->ncerts, ref);
-        if (vrc == X509_E_HOSTNAME) {
+        if (vrc != X509_OK) {
             screen_console_puts("[tls] x509 verify failed: ");
             screen_console_puts(crypto_x509_errstr(vrc));
-            screen_console_puts("\n");
-            return -4;
-        }
-        if (vrc != X509_OK) {
-            char db[80]; char n2[12];
-            strcpy(db, "[tls] warning: server chain not anchored (code ");
-            u64_to_str((u64)(-vrc), n2); strcat(db, n2); strcat(db, ") - continuing\n");
-            screen_console_puts(db);
+            if (!tls_insecure_ok()) {
+                /* BUG #21 FIX: refuse - the old warn-and-continue made
+                 * a self-signed MITM indistinguishable from the real
+                 * server (verified was set to 1 regardless). */
+                screen_console_puts(" - connection REFUSED\n");
+                return -5;
+            }
+            screen_console_puts(" - tls.insecure=1, continuing\n");
         }
     }
     c->verified = 1;
@@ -1561,12 +1578,15 @@ static int net_tls12_finish_after_hello(net_tls_ctx_t *c) {
     {
         const char *ref = c->hostname[0] ? c->hostname : (const char *)0;
         int vrc = crypto_x509_verify_chain(c->certs, c->ncerts, ref);
-        if (vrc == X509_E_HOSTNAME) return -4;
         if (vrc != X509_OK) {
-            char db[80]; char n2[12];
-            strcpy(db, "[tls] warning: server chain not anchored (code ");
-            u64_to_str((u64)(-vrc), n2); strcat(db, n2); strcat(db, ") - continuing\n");
-            screen_console_puts(db);
+            screen_console_puts("[tls] x509 verify failed: ");
+            screen_console_puts(crypto_x509_errstr(vrc));
+            if (!tls_insecure_ok()) {
+                /* BUG #21 FIX: refuse (see the TLS 1.3 path above). */
+                screen_console_puts(" - connection REFUSED\n");
+                return -5;
+            }
+            screen_console_puts(" - tls.insecure=1, continuing\n");
         }
     }
     c->verified = 1;
