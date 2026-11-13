@@ -476,6 +476,12 @@ int ocse_inst_config_show(void) {
 }
 
 static int conf_key_valid(const char* key, const char* value) {
+    /* BUG #129: the canonical kernel keys are accepted alongside the
+     * installer dialect (the twin-write path above routes through). */
+    if (strcmp(key, "shell.lang") == 0)
+        return (strcmp(value, "en") == 0 || strcmp(value, "zh") == 0);
+    if (strcmp(key, "sys.hostname") == 0)
+        return conf_key_valid("hostname", value);
     if (strcmp(key, "lang") == 0)
         return (strcmp(value, "en") == 0 || strcmp(value, "zh") == 0);
     if (strcmp(key, "boot.slot") == 0)
@@ -509,6 +515,21 @@ int ocse_inst_config_set(const char* key, const char* value) {
         ocse_outln(ocse_tr(OCSE_T_C_INVALID));
         ocse_outln(ocse_tr(OCSE_T_C_KEYS2));
         return 1;
+    }
+    /* BUG #129 FIX (P1, WP-fix-critical-security): the installer used
+     * to write ONLY its own dialect keys (lang / hostname) - dead keys
+     * the booted kernel never read.  Each installer key now also sets
+     * the kernel's canonical twin (shell.lang / sys.hostname), so a
+     * fresh install honours the user's language/hostname choices with-
+     * out depending on the read-side alias. */
+    {
+        const char* canon = 0;
+        if (strcmp(key, "lang") == 0)         canon = "shell.lang";
+        else if (strcmp(key, "hostname") == 0) canon = "sys.hostname";
+        if (canon) {
+            int crc = ocse_inst_config_set(canon, value);
+            if (crc != 0) return crc;
+        }
     }
     char mount[VFS_PATH_LEN];
     if (conf_target(mount, sizeof(mount)) != 0) {

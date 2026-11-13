@@ -239,6 +239,18 @@ static void clamp_pointer(void) {
 }
 
 static int poll_pointer(void) {
+    /* BUG #113 FIX (P1, WP-fix-critical-security): lost clicks.
+     * The old code tracked only the CURRENT button state, then tested
+     * a rising edge AFTER draining the event rings.  A press and its
+     * release frequently land in the SAME drain (the GUI loop yields
+     * between polls; the mouse IRQ batches both) - the state then
+     * went 0 -> 1 -> 0 inside one call and the "rising edge" test
+     * saw nothing: hover rendered, clicks never fired (the audit's
+     * exact finding; the OCSECL `click x y` probe worked because it
+     * bypasses the ring).  The press EDGE is now latched WITH its
+     * position inside the drain loop, and the latch is what fires. */
+    int click_latched = 0;
+    int click_x = 0, click_y = 0;
     /* PS/2 aux mouse (WP06c: the wizard's third pointer source, now
      * also on the main panel - QEMU's default pointing device is a
      * PS/2 mouse, and a machine without USB HID still gets a
@@ -247,16 +259,24 @@ static int poll_pointer(void) {
     while (driver_input_ps2mouse_read_event(&mv)) {
         g_mx += mv.dx;
         g_my -= mv.dy;
-        if (mv.buttons & 1) g_btn |= 1; else g_btn &= ~1;
         clamp_pointer();
+        if ((mv.buttons & 1) && !(g_btn & 1)) {   /* press edge */
+            click_latched = 1;
+            click_x = g_mx; click_y = g_my;
+        }
+        if (mv.buttons & 1) g_btn |= 1; else g_btn &= ~1;
         g_need_draw = 1;
     }
     driver_usb_mouse_event_t ev;
     while (driver_usb_mouse_read_event(&ev)) {
         g_mx += ev.dx;
         g_my += ev.dy;
-        if (ev.buttons & 1) g_btn |= 1; else g_btn &= ~1;
         clamp_pointer();
+        if ((ev.buttons & 1) && !(g_btn & 1)) {   /* press edge */
+            click_latched = 1;
+            click_x = g_mx; click_y = g_my;
+        }
+        if (ev.buttons & 1) g_btn |= 1; else g_btn &= ~1;
         g_need_draw = 1;
     }
     touchpad_event_t te;
@@ -271,11 +291,19 @@ static int poll_pointer(void) {
             clamp_pointer();
             g_need_draw = 1;
         } else if (te.type == TPE_TAP) {
+            if (!(g_btn & 1)) {                    /* press edge */
+                click_latched = 1;
+                click_x = g_mx; click_y = g_my;
+            }
             g_btn |= 1;             /* tap = press; released next poll */
             g_need_draw = 1;
         }
     }
-    if (g_btn && !g_prev_btn) {     /* rising edge = click */
+    if (click_latched) {            /* BUG #113: the latched press */
+        g_prev_btn = g_btn;
+        return ocse_gui_hit_test((u32)click_x, (u32)click_y);
+    }
+    if (g_btn && !g_prev_btn) {     /* held press (no release yet) */
         g_prev_btn = g_btn;
         return ocse_gui_hit_test((u32)g_mx, (u32)g_my);
     }

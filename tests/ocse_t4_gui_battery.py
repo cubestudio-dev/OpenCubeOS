@@ -106,14 +106,17 @@ try:
     child.expect(r"hda \[no table\] 64 MiB", timeout=20)
     print("[C PASS] disks: hda [no table] 64 MiB")
 
-    # D: language switch - zh then back to en (the GB2312 bytes come out
-    # as U+FFFD through the UTF-8 pexpect decoder - any replacement char
-    # proves the zh path emitted converted bytes)
+    # D: language switch - zh then back to en.  WP06g3 made the OCSE
+    # serial output UTF-8 (the ocse_enc fix), so the zh path now emits
+    # VALID UTF-8 (the old GB2312-bytes/U+FFFD expectation is stale -
+    # it failed identically on the unmodified g3 release ISO; verified
+    # live during WP-fix-critical-security).  The assertion checks the
+    # zh glyphs actually arrive.
     mon.type_line("lang zh")
-    child.expect("\ufffd", timeout=20)
+    child.expect("\u8bed\u8a00", timeout=20)      # "语言" in UTF-8
     mon.type_line("lang en")
     child.expect("language: English", timeout=20)
-    print("[D PASS] lang zh (GB2312) / lang en")
+    print("[D PASS] lang zh (UTF-8) / lang en")
 
     # E: hotkey back to the GUI
     mon.cmd("sendkey ctrl-alt-f1", 0.8)
@@ -147,7 +150,7 @@ try:
     mon.cmd("sendkey ctrl-alt-f2", 0.8)
     child.expect("switched: CLI mode", timeout=20)
     mon.type_line("lang zh")
-    child.expect("\ufffd", timeout=20)
+    child.expect("\u8bed\u8a00", timeout=20)   # UTF-8 zh (WP06g3 serial)
     mon.type_line("click 665 542")
     child.expect(r"click at \(665,542\): action=toggle-lang", timeout=20)
     mon.type_line("lang en")

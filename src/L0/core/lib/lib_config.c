@@ -216,6 +216,20 @@ int lib_config_init(void) {
     return lib_config_init_with(0);
 }
 
+/* BUG #129 FIX (P1, WP-fix-critical-security): installer/kernel config
+ * dialect split.  The install wizard and OCSECL write `lang` /
+ * `hostname` / `boot.slot`; the kernel historically read ONLY
+ * `shell.lang` / `sys.hostname` - the installer's keys were dead and
+ * the installed system silently ignored the user's choices.  These
+ * read-through aliases make BOTH dialects live: the canonical kernel
+ * key wins when present, the installer's key is the fallback.  (The
+ * canonical keys stay untouched - old configs and new installs both
+ * work, rule 8 compat.) */
+static const struct { const char *key, *alias; } g_key_aliases[] = {
+    { "shell.lang",   "lang" },
+    { "sys.hostname", "hostname" },
+};
+
 int lib_config_read(const char *key, char *val_out, int outlen) {
     if (!key || !val_out || outlen <= 0) return OC_CONFIG_E_ARGS;
 
@@ -248,6 +262,15 @@ int lib_config_read(const char *key, char *val_out, int outlen) {
         }
     }
     kfree(buf);
+    /* BUG #129: alias fallback (installer dialect). */
+    if (rc == OC_CONFIG_E_NOKEY) {
+        for (unsigned a = 0;
+             a < sizeof(g_key_aliases) / sizeof(g_key_aliases[0]); a++) {
+            if (strcmp(key, g_key_aliases[a].key) == 0)
+                return lib_config_read(g_key_aliases[a].alias,
+                                       val_out, outlen);
+        }
+    }
     return rc;
 }
 

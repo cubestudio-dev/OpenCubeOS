@@ -449,6 +449,45 @@ static int find_part_no(int dev_idx, int part_no, int* is_gpt,
     return 0;
 }
 
+/* BUG #143 FIX (P1, WP-fix-critical-security): dense index -> raw slot.
+ * Everything user-facing (lspart, child names hdapN, install) numbers
+ * partitions DENSELY (parse skips empty slots), but rmpart/setflag/
+ * gpt_set_type used that number directly as the MBR slot / GPT entry
+ * index.  With a gap in the slots (1,2,4 occupied, 3 empty) they
+ * validated one partition and MUTATED ANOTHER (or a hole), then
+ * reported success.  The resolvers below match by start_lba - the
+ * same technique the installer's recovery-partition locator uses - so
+ * the mutated slot is provably the listed partition. */
+static u64 rd64_(const u8* p) {
+    return (u64)p[0] | ((u64)p[1] << 8) | ((u64)p[2] << 16) |
+           ((u64)p[3] << 24) | ((u64)p[4] << 32) | ((u64)p[5] << 40) |
+           ((u64)p[6] << 48) | ((u64)p[7] << 56);
+}
+
+static int mbr_slot_of(int dev_idx, u64 start_lba) {
+    if (mbr_read(dev_idx) != 0) return -1;
+    for (int slot = 0; slot < 4; slot++) {
+        const u8* e = g_sec + 446 + slot * 16;
+        if (e[4] == 0) continue;                    /* empty slot   */
+        u64 lba = (u64)e[8] | ((u64)e[9] << 8) |
+                  ((u64)e[10] << 16) | ((u64)e[11] << 24);
+        if (lba == start_lba) return slot;
+    }
+    return -1;
+}
+
+static int gpt_entry_of(int dev_idx, u64 entries_lba, u32 esz,
+                        u64 start_lba) {
+    for (u32 e = 0; e < 128; e++) {
+        if (gpt_read_entry(dev_idx, entries_lba, esz, (int)e) != 0)
+            break;
+        if (!g_gpt_ent[0] && !g_gpt_ent[1]) continue;   /* unused */
+        u64 lba = rd64_(g_gpt_ent + 32);
+        if (lba == start_lba) return (int)e;
+    }
+    return -1;
+}
+
 int ocse_part_rmpart(const char* disk, int part_no) {
     int dev_idx = ocse_part_disk_idx(disk);
     if (dev_idx < 0) {
@@ -473,17 +512,30 @@ int ocse_part_rmpart(const char* disk, int part_no) {
         u32 nent, esz;
         if (gpt_read_hdr(dev_idx, &entries_lba, &nent, &esz,
                          &backup_lba, &last_usable) != 0) return 1;
+        /* BUG #143: resolve the dense number to the real entry. */
+        int ent = gpt_entry_of(dev_idx, entries_lba, esz,
+                               tbl.parts[part_no - 1].start_lba);
+        if (ent < 0) {
+            ocse_outln(ocse_tr(OCSE_T_P_BADPART));
+            return 1;
+        }
         memset(g_gpt_ent, 0, 128);
         u64 bents = backup_lba - ((u64)nent * esz + 511) / 512;
-        if (gpt_write_entry(dev_idx, entries_lba, esz, part_no - 1) != 0)
+        if (gpt_write_entry(dev_idx, entries_lba, esz, ent) != 0)
             return 1;
-        if (gpt_write_entry(dev_idx, bents, esz, part_no - 1) != 0)
+        if (gpt_write_entry(dev_idx, bents, esz, ent) != 0)
             return 1;
         if (gpt_refresh_crcs(dev_idx, entries_lba, nent, esz, backup_lba) != 0)
             return 1;
     } else {
         if (mbr_read(dev_idx) != 0) return 1;
-        u8* p = g_sec + 446 + (part_no - 1) * 16;
+        /* BUG #143: resolve the dense number to the real MBR slot. */
+        int slot = mbr_slot_of(dev_idx, tbl.parts[part_no - 1].start_lba);
+        if (slot < 0) {
+            ocse_outln(ocse_tr(OCSE_T_P_BADPART));
+            return 1;
+        }
+        u8* p = g_sec + 446 + slot * 16;
         memset(p, 0, 16);
         if (mbr_write(dev_idx) != 0) return 1;
     }
@@ -503,19 +555,27 @@ int ocse_part_gpt_set_type(const char* disk, int part_no,
                            const u8* guid) {
     int dev_idx = ocse_part_disk_idx(disk);
     if (dev_idx < 0 || part_no < 1) return 1;
+    /* BUG #143: part_no is the DENSE number the caller listed - resolve
+     * it to the real GPT entry by start_lba, not by array position. */
+    driver_block_part_table_t tbl;
+    if (driver_block_part_parse(dev_idx, &tbl) != 0) return 1;
+    if (tbl.table_type != PART_TYPE_GPT) return 1;
+    if (part_no > tbl.count || !tbl.parts[part_no - 1].present) return 1;
     u64 entries_lba, backup_lba, last_usable;
     u32 nent, esz;
     if (gpt_read_hdr(dev_idx, &entries_lba, &nent, &esz,
                      &backup_lba, &last_usable) != 0) return 1;
-    if ((u32)part_no > nent) return 1;
-    if (gpt_read_entry(dev_idx, entries_lba, esz, part_no - 1) != 0)
+    int ent = gpt_entry_of(dev_idx, entries_lba, esz,
+                           tbl.parts[part_no - 1].start_lba);
+    if (ent < 0) return 1;
+    if (gpt_read_entry(dev_idx, entries_lba, esz, ent) != 0)
         return 1;
     if (!g_gpt_ent[0] && !g_gpt_ent[1]) return 1;    /* unused slot */
     memcpy(g_gpt_ent, guid, 16);
     u64 bents = backup_lba - ((u64)nent * esz + 511) / 512;
-    if (gpt_write_entry(dev_idx, entries_lba, esz, part_no - 1) != 0)
+    if (gpt_write_entry(dev_idx, entries_lba, esz, ent) != 0)
         return 1;
-    if (gpt_write_entry(dev_idx, bents, esz, part_no - 1) != 0) return 1;
+    if (gpt_write_entry(dev_idx, bents, esz, ent) != 0) return 1;
     return gpt_refresh_crcs(dev_idx, entries_lba, nent, esz, backup_lba);
 }
 
@@ -542,7 +602,14 @@ int ocse_part_setflag(const char* disk, int part_no,
         u32 nent, esz;
         if (gpt_read_hdr(dev_idx, &entries_lba, &nent, &esz,
                          &backup_lba, &last_usable) != 0) return 1;
-        if (gpt_read_entry(dev_idx, entries_lba, esz, part_no - 1) != 0)
+        /* BUG #143: resolve the dense number to the real entry. */
+        int ent = gpt_entry_of(dev_idx, entries_lba, esz,
+                               tbl.parts[part_no - 1].start_lba);
+        if (ent < 0) {
+            ocse_outln(ocse_tr(OCSE_T_P_BADPART));
+            return 1;
+        }
+        if (gpt_read_entry(dev_idx, entries_lba, esz, ent) != 0)
             return 1;
         u64 attrs = rd32_(g_gpt_ent + 48) | ((u64)rd32_(g_gpt_ent + 52) << 32);
         if (value) attrs |= (1ULL << 2);        /* legacy BIOS bootable */
@@ -550,15 +617,21 @@ int ocse_part_setflag(const char* disk, int part_no,
         wr32_(g_gpt_ent + 48, (u32)attrs);
         wr32_(g_gpt_ent + 52, (u32)(attrs >> 32));
         u64 bents = backup_lba - ((u64)nent * esz + 511) / 512;
-        if (gpt_write_entry(dev_idx, entries_lba, esz, part_no - 1) != 0)
+        if (gpt_write_entry(dev_idx, entries_lba, esz, ent) != 0)
             return 1;
-        if (gpt_write_entry(dev_idx, bents, esz, part_no - 1) != 0)
+        if (gpt_write_entry(dev_idx, bents, esz, ent) != 0)
             return 1;
         if (gpt_refresh_crcs(dev_idx, entries_lba, nent, esz, backup_lba) != 0)
             return 1;
     } else {
         if (mbr_read(dev_idx) != 0) return 1;
-        u8* p = g_sec + 446 + (part_no - 1) * 16;
+        /* BUG #143: resolve the dense number to the real MBR slot. */
+        int slot = mbr_slot_of(dev_idx, tbl.parts[part_no - 1].start_lba);
+        if (slot < 0) {
+            ocse_outln(ocse_tr(OCSE_T_P_BADPART));
+            return 1;
+        }
+        u8* p = g_sec + 446 + slot * 16;
         p[0] = value ? 0x80 : 0x00;
         if (mbr_write(dev_idx) != 0) return 1;
     }

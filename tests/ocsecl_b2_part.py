@@ -169,7 +169,9 @@ try:
 
     # L: lang switch round-trip (zh comes back as GB2312 -> U+FFFD)
     mon.type_line("lang zh")
-    check("lang zh output", "\ufffd", timeout=20)
+    # WP06g3+: OCSE serial is UTF-8 - assert the zh glyphs (the old
+    # GB2312/U+FFFD expectation is stale; updated in WP-fix-critical-security).
+    check("lang zh output", "\u8bed\u8a00", timeout=20)
     mon.type_line("lang en")
     check("lang en output", "language: English")
 

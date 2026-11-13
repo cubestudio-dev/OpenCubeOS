@@ -38,6 +38,31 @@ static WZ_WORK char wz_line3[96];
 static WZ_WORK char wz_line4[96];
 static WZ_WORK char wz_line5[96];
 static WZ_WORK char wz_line6[96];
+
+/* BUG #145 FIX (P1, WP-fix-critical-security): the step-8 command
+ * chains concatenated UNBOUNDED into wz_line1[96] - the users record
+ * alone ("write /mnt/etc/users " + name + ":" + full + ":" + the
+ * 64-hex SHA-256) needs ~90+ bytes before the name/full even start,
+ * smashing the following wizard state.  All command building now goes
+ * through this bounded builder; a line that cannot fit is refused
+ * with a clear error instead of overflowing. */
+static WZ_WORK char wz_cmd[WZ_CMD_SZ];
+static int wz_cmd_len;
+static void wz_bld_reset(void) { wz_cmd_len = 0; wz_cmd[0] = 0; }
+/* bounded copy of the built command into the 96-byte label line */
+static void wz_bld_render(char *dst96) {
+    int i = 0;
+    while (i < 95 && wz_cmd[i]) { dst96[i] = wz_cmd[i]; i++; }
+    dst96[i] = 0;
+}
+static int wz_bld_add(const char *s) {
+    int n = 0;
+    while (s[n]) n++;
+    if (wz_cmd_len + n + 1 > (int)sizeof(wz_cmd)) return -1;  /* no room */
+    for (int i = 0; i < n; i++) wz_cmd[wz_cmd_len++] = s[i];
+    wz_cmd[wz_cmd_len] = 0;
+    return 0;
+}
 static WZ_WORK char wz_rows[8][76];        /* error-page output rows */
 static WZ_WORK char wz_disk[16];           /* "hda"                  */
 static WZ_WORK int  wz_partno;             /* 1-based partition no   */
@@ -202,6 +227,65 @@ static int parse_lsdisk_mb(const char* cap) {
 /* Count "#n" partition lines in an lspart capture. The lines look
  * like "  #1 FAT32 start=1MiB end=128MiB ..." (2-space prefix; the
  * WP06b lspart printer emits exactly two leading spaces). */
+/* BUG #144 (P1, WP-fix-critical-security): find the partition number
+ * that mkpart ACTUALLY created, instead of guessing "the last one".
+ * mkpart places the new partition in the FIRST FREE SLOT, while
+ * lspart numbers densely - with a gap in the slots (or after a middle
+ * rmpart) "count = the new number" pointed at an EXISTING partition
+ * and the next step formatted/installed onto real user data.  Two-step
+ * resolution: (a) parse mkpart's own "created: <dev>p<N>" line;
+ * (b) fall back to the lspart row whose start MiB equals the gap the
+ * wizard carved (wz_gap_lo).  -1 when neither matches. */
+static int created_part_from_output(const char* cap, const char* disk) {
+    /* look for "created: " then <disk>p<N> */
+    char pat[40];
+    int pl = 0;
+    pat[pl++] = 'c'; pat[pl++] = 'r'; pat[pl++] = 'e'; pat[pl++] = 'a';
+    pat[pl++] = 't'; pat[pl++] = 'e'; pat[pl++] = 'd'; pat[pl++] = ':';
+    pat[pl++] = ' ';
+    int dl = 0;
+    while (disk[dl] && dl < 20) pat[pl++] = disk[dl++];
+    pat[pl++] = 'p';
+    pat[pl] = 0;
+    const char* q = cap;
+    while ((q = wz_strstr(q, pat)) != 0) {
+        int n = 0, i = 0;
+        const char* d = q + pl;
+        while (d[i] >= '0' && d[i] <= '9' && i < 4)
+            n = n * 10 + (d[i++] - '0');
+        if (i > 0 && n >= 1) return n;
+        q += pl;
+    }
+    return -1;
+}
+
+/* lspart capture -> the dense number of the partition starting at
+ * start_mb MiB ("  #N ... start=<X>MiB ...").  -1 when absent. */
+static int part_no_at_start(const char* cap, int start_mb) {
+    const char* p = cap;
+    char line[WZ_ROW_LEN];
+    while (*p) {
+        int l = 0;
+        while (*p && *p != '\n' && l < WZ_ROW_LEN - 1) line[l++] = *p++;
+        line[l] = 0;
+        if (*p == '\n') p++;
+        if (strncmp(line, "  #", 3) != 0) continue;
+        int n = 0, i = 3;
+        while (line[i] >= '0' && line[i] <= '9' && i < 7)
+            n = n * 10 + (line[i++] - '0');
+        const char* s = wz_strstr(line, "start=");
+        if (s && n >= 1) {
+            int v = 0, j = 6, neg = 0;
+            if (s[j] == '-') { neg = 1; j++; }
+            while (s[j] >= '0' && s[j] <= '9' && j < 24)
+                v = v * 10 + (s[j++] - '0');
+            if (neg) v = -v;
+            if (v == start_mb) return n;
+        }
+    }
+    return -1;
+}
+
 static int count_parts(const char* cap) {
     int n = 0;
     const char* p = cap;
@@ -588,17 +672,32 @@ static int wz_page_part(void) {
             strcat(cmd, hi);
             if (wz_run(cmd, WZ_ST_NONE, WZ_PG_PART) != 0)
                 return WZ_PG_ERROR;
-            /* re-read: the new partition is the last one */
-            wz_cat(cmd, sizeof(cmd), "lspart ", wz_disk, NULL, NULL);
-            if (wz_runq(cmd) == 0) {
-                int n = count_parts(wz_out);
-                wz_partno = n;
-                strcpy(wz_dev, wz_disk);
-                strcat(wz_dev, "p");
-                char num[4];
-                u64_to_str((u64)wz_partno, num);
-                strcat(wz_dev, num);
-                wz_have_part = 1;
+            /* BUG #144: resolve the ACTUAL new partition, never
+             * "whatever is last".  mkpart's own output names it; the
+             * lspart start-MiB match is the fallback. */
+            {
+                int n = created_part_from_output(wz_out, wz_disk);
+                if (n < 0) {
+                    wz_cat(cmd, sizeof(cmd), "lspart ", wz_disk, NULL, NULL);
+                    if (wz_runq(cmd) == 0)
+                        n = part_no_at_start(wz_out, wz_gap_lo);
+                }
+                if (n >= 1) {
+                    wz_partno = n;
+                    strcpy(wz_dev, wz_disk);
+                    strcat(wz_dev, "p");
+                    char num[4];
+                    u64_to_str((u64)wz_partno, num);
+                    strcat(wz_dev, num);
+                    wz_have_part = 1;
+                } else {
+                    /* refuse rather than guess: a wrong number here
+                     * formats/installs onto the WRONG partition. */
+                    wz_set_raw(lb_gap,
+                        "partition created but its number could not be"
+                        " resolved - not formatting; select it by hand");
+                    wz_touch();
+                }
             }
             continue;
         }
@@ -824,9 +923,13 @@ static int wz_page_install(void) {
      * mount refusal then names it; drop the stale mount and retry
      * once before giving up. */
     wz_set_progress(pg, 10);
-    strcpy(wz_line1, "mount ");
-    strcat(wz_line1, wz_dev);
-    strcat(wz_line1, " /mnt");
+    wz_bld_reset();                         /* BUG #145: bounded */
+    if (wz_bld_add("mount ") == 0 && wz_bld_add(wz_dev) == 0 &&
+        wz_bld_add(" /mnt") == 0) {
+        wz_bld_render(wz_line1);
+    } else {
+        strcpy(wz_line1, "mount (too long)");
+    }
     wz_set_raw(lb, wz_line1);
     wz_repaint();
     if (wz_run(wz_line1, WZ_ST_MOUNT, WZ_PG_INSTALL) != 0) {
@@ -838,11 +941,14 @@ static int wz_page_install(void) {
     /* stage 2: install - the full b5 state machine (medium check,
      * FAT gate, extract, boot code, boot flag) */
     wz_set_progress(pg, 25);
-    strcpy(wz_line1, "install ");
-    strcat(wz_line1, wz_disk);
-    strcat(wz_line1, " ");
-    strcat(wz_line1, num);
-    strcat(wz_line1, " confirm");
+    wz_bld_reset();                         /* BUG #145: bounded */
+    if (wz_bld_add("install ") == 0 && wz_bld_add(wz_disk) == 0 &&
+        wz_bld_add(" ") == 0 && wz_bld_add(num) == 0 &&
+        wz_bld_add(" confirm") == 0) {
+        wz_bld_render(wz_line1);
+    } else {
+        strcpy(wz_line1, "install (too long)");
+    }
     wz_set_raw(lb, wz_line1);
     wz_repaint();
     if (wz_run(wz_line1, WZ_ST_INSTALL, WZ_PG_INSTALL) != 0)
@@ -851,8 +957,10 @@ static int wz_page_install(void) {
 
     /* stage 3: config (four keys) */
     wz_set_progress(pg, 65);
-    strcpy(wz_line1, "config set hostname ");
-    strcat(wz_line1, wz_host);
+    wz_bld_reset();                         /* BUG #145: bounded */
+    if (wz_bld_add("config set hostname ") != 0 || wz_bld_add(wz_host) != 0)
+        return WZ_PG_ERROR;              /* hostname is validated <=31; cannot overflow */
+    wz_bld_render(wz_line1);
     wz_set_raw(lb, wz_line1);
     wz_repaint();
     if (wz_run(wz_line1, WZ_ST_CONFIG, WZ_PG_INSTALL) != 0)
@@ -862,8 +970,11 @@ static int wz_page_install(void) {
     if (wz_run(wz_line1, WZ_ST_CONFIG, WZ_PG_INSTALL) != 0)
         return WZ_PG_ERROR;
     if (wz_upd[0]) {
-        strcpy(wz_line1, "config set update_url ");
-        strcat(wz_line1, wz_upd);
+        wz_bld_reset();
+        if (wz_bld_add("config set update_url ") == 0 && wz_bld_add(wz_upd) == 0)
+            wz_bld_render(wz_line1);
+        else
+            return WZ_PG_ERROR;          /* update_url validated <=79 */
         if (wz_run(wz_line1, WZ_ST_CONFIG, WZ_PG_INSTALL) != 0)
             return WZ_PG_ERROR;
     }
@@ -874,12 +985,22 @@ static int wz_page_install(void) {
 
     /* stage 4: the user record (name:full:sha256 - never plain) */
     wz_set_progress(pg, 80);
-    strcpy(wz_line1, "write /mnt/etc/users ");
-    strcat(wz_line1, wz_user);
-    strcat(wz_line1, ":");
-    strcat(wz_line1, wz_full);
-    strcat(wz_line1, ":");
-    strcat(wz_line1, wz_pass_sha);
+    /* BUG #145: this was THE overflow - the unbounded chain wrote
+     * "write /mnt/etc/users " + name + ":" + full + ":" + the 64-hex
+     * SHA-256 straight into wz_line1[96] (90+ bytes before the name
+     * even starts).  Bounded build; an over-long record is refused. */
+    wz_bld_reset();
+    if (wz_bld_add("write /mnt/etc/users ") != 0 ||
+        wz_bld_add(wz_user) != 0 || wz_bld_add(":") != 0 ||
+        wz_bld_add(wz_full) != 0 || wz_bld_add(":") != 0 ||
+        wz_bld_add(wz_pass_sha) != 0) {
+        strcpy(wz_errcmd, "write /mnt/etc/users (record too long)");
+        strcpy(wz_errout,
+               "The user record (name + full name) is too long for the"
+               " installer. Use a shorter name/full name.");
+        return WZ_PG_ERROR;
+    }
+    wz_bld_render(wz_line1);
     wz_set_raw(lb, wz_line1);
     wz_repaint();
     if (wz_run(wz_line1, WZ_ST_USER, WZ_PG_INSTALL) != 0)

@@ -572,6 +572,18 @@ static void unano_load(const char *file) {
     }
 }
 
+/* BUG #111 FIX (P1, WP-fix-critical-security): editor exit residue.
+ * The editors drew their chrome (top legend, viewport lines, pinned
+ * status bar) with absolute ANSI positioning and NEVER cleared on
+ * exit - the shell prompt then printed into the middle of the leftover
+ * screen and every later redraw fought the residue.  unano_leave()
+ * wipes the panel and homes the cursor before the editor returns. */
+static void unano_leave(void) {
+    unano_ansi("\033[2J");       /* clear screen */
+    unano_ansi("\033[H");        /* cursor home */
+    unano_ansi("\033[u");        /* drop any saved cursor slot */
+}
+
 /* ==================================================================
  * the nano face: modal-free editing loop
  * ================================================================== */
@@ -772,12 +784,15 @@ static __attribute__((unused)) void ush_nano_run(const char *file) {
                         continue;
                     }
                     unano_ime_off();
+                    unano_leave();
                     return;
                 }
                 unano_ime_off();
+                unano_leave();
                 return;   /* quit without saving */
             }
             unano_ime_off();
+            unano_leave();
             return;
         } else if (k >= 0x20 && k < 0x7F) {   /* insert ASCII */
             char one[2];

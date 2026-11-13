@@ -356,7 +356,10 @@ static void vi_run(const char *file) {
             }
             vi_insert_mode(file);
         } else if (k == ':') {
-            if (vi_ex_line(file)) return;    /* quit */
+            if (vi_ex_line(file)) {   /* BUG #111: clear on exit */
+                puts_("\033[2J\033[H");
+                return;
+            }
             vi_print_all(file);
         }
         /* other keys ignored in command mode */
