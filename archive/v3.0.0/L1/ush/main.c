@@ -743,9 +743,23 @@ static int exec_single(char *cmd) {
          * nothing then no longer creates an empty redirect file. */
         const char *alr = alias_get(argv[0]);
         if (alr) {
+            /* BUG #33 FIX (P1, WP-fix-critical-security): the alias body
+             * was concatenated with the arguments UNBOUNDED - a long
+             * alias plus arguments smashed the 512-byte stack buffer
+             * (RIP control proven in the audit).  Bound every append. */
             char newcmd[512];
             strcpy_(newcmd, alr);
-            for (int i = 1; i < argc; i++) { strcat_(newcmd, " "); strcat_(newcmd, argv[i]); }
+            int too_long = 0;
+            for (int i = 1; i < argc; i++) {
+                int l = 0; while (newcmd[l]) l++;
+                int a = 0; while (argv[i][a]) a++;
+                if (l + 1 + a + 1 > (int)sizeof(newcmd)) { too_long = 1; break; }
+                strcat_(newcmd, " "); strcat_(newcmd, argv[i]);
+            }
+            if (too_long) {
+                puts_("ush: alias expansion too long\n");
+                return 0;
+            }
             argc = parse_args(newcmd, argv, 32);
             if (argc == 0) return 0;
         }
@@ -783,8 +797,16 @@ static int exec_single(char *cmd) {
         if (pid == 0) {
             long ret = sys_execve((long)argv[0], (long)argv, 0);
             if (ret < 0) {
-                char path[64]; strcpy_(path, "/bin/"); strcat_(path, argv[0]);
-                sys_execve((long)path, (long)argv, 0);
+                /* BUG #31 FIX (P1): the command name was appended to
+                 * "/bin/" UNBOUNDED into path[64] - a 100+ char command
+                 * name smashed the stack.  Refuse names that cannot
+                 * fit (they cannot be real /bin/ programs anyway). */
+                char path[64];
+                int n0 = 0; while (argv[0][n0]) n0++;
+                if (5 + n0 + 1 <= (int)sizeof(path)) {
+                    strcpy_(path, "/bin/"); strcat_(path, argv[0]);
+                    sys_execve((long)path, (long)argv, 0);
+                }
             }
             sys_exit2(1);
         }
@@ -801,9 +823,20 @@ static int exec_single(char *cmd) {
     /* Check alias */
     const char *al = alias_get(argv[0]);
     if (al) {
+        /* BUG #33 FIX: bounded alias expansion (see the redirect path). */
         char newcmd[512];
         strcpy_(newcmd, al);
-        for (int i = 1; i < argc; i++) { strcat_(newcmd, " "); strcat_(newcmd, argv[i]); }
+        int too_long = 0;
+        for (int i = 1; i < argc; i++) {
+            int l = 0; while (newcmd[l]) l++;
+            int a = 0; while (argv[i][a]) a++;
+            if (l + 1 + a + 1 > (int)sizeof(newcmd)) { too_long = 1; break; }
+            strcat_(newcmd, " "); strcat_(newcmd, argv[i]);
+        }
+        if (too_long) {
+            puts_("ush: alias expansion too long\n");
+            return 0;
+        }
         argc = parse_args(newcmd, argv, 32);
         if (builtin_cmd(argc, argv)) return 0;
     }
@@ -834,10 +867,14 @@ static int exec_single(char *cmd) {
         long ret = sys_execve((long)argv[0], (long)argv, 0);
         /* If exec failed, try with /bin/ prefix */
         if (ret < 0) {
+            /* BUG #31 FIX: bounded - see the redirect path. */
             char path[64];
-            strcpy_(path, "/bin/");
-            strcat_(path, argv[0]);
-            ret = sys_execve((long)path, (long)argv, 0);
+            int n0 = 0; while (argv[0][n0]) n0++;
+            if (5 + n0 + 1 <= (int)sizeof(path)) {
+                strcpy_(path, "/bin/");
+                strcat_(path, argv[0]);
+                ret = sys_execve((long)path, (long)argv, 0);
+            }
         }
         if (ret < 0) {
             puts_("ush: command not found: ");
@@ -1381,17 +1418,19 @@ void _start(void) {
                     }
                 }
                 if (found == 1 && blen > wlen) {
-                    /* Complete the word */
-                    for (int i = wlen; i < blen; i++) {
+                    /* Complete the word.
+                     * BUG #32 FIX (P1): every appended byte is bounded -
+                     * a long completion used to run line[llen++] past
+                     * the 512-byte buffer (out-of-bounds write). */
+                    for (int i = wlen; i < blen && llen < 510; i++) {
                         line[llen++] = match[i];
                         putc_(match[i]);
                     }
                     /* Add space if single match */
-                    line[llen++] = ' ';
-                    putc_(' ');
+                    if (llen < 510) { line[llen++] = ' '; putc_(' '); }
                 } else if (found > 1 && blen > wlen) {
                     /* Complete common prefix */
-                    for (int i = wlen; i < blen; i++) {
+                    for (int i = wlen; i < blen && llen < 510; i++) {
                         line[llen++] = match[i];
                         putc_(match[i]);
                     }
@@ -1465,15 +1504,15 @@ void _start(void) {
                         ffound++;
                     }
                     if (ffound == 1 && fblen > flen) {
-                        /* Complete the file name. */
-                        for (int i = flen; i < fblen; i++) {
+                        /* Complete the file name.
+                         * BUG #32 FIX: bounded append (see above). */
+                        for (int i = flen; i < fblen && llen < 510; i++) {
                             line[llen++] = fmatch[i];
                             putc_(fmatch[i]);
                         }
-                        line[llen++] = ' ';
-                        putc_(' ');
+                        if (llen < 510) { line[llen++] = ' '; putc_(' '); }
                     } else if (ffound > 1 && fblen > flen) {
-                        for (int i = flen; i < fblen; i++) {
+                        for (int i = flen; i < fblen && llen < 510; i++) {
                             line[llen++] = fmatch[i];
                             putc_(fmatch[i]);
                         }

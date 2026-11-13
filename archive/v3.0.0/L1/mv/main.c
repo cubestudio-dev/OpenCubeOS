@@ -11,6 +11,20 @@ int app_main(int argc, char **argv) {
         puts_(tr_("usage: mv <src> <dst>\n"));
         return 0;
     }
+    /* BUG #36 FIX (P1, WP-fix-critical-security): same-file guard.
+     * `cp x x` opened the target with O_TRUNC BEFORE reading - the
+     * read then returned nothing and the file was emptied; `mv x x`
+     * copied nothing then unlinked the source (file deleted).  Refuse
+     * identical operands (the busybox first-line check; the VFS stat
+     * carries no inode, so path equality is the available identity). */
+    if (strcmp_(argv[1], argv[2]) == 0) {
+        puts_(tr_("mv: '"));
+        puts_(argv[1]);
+        puts_(tr_("' and '"));
+        puts_(argv[2]);
+        puts_(tr_("' are the same file\n"));
+        return 1;
+    }
     long sfd = sys_open(argv[1], 1);
     if (sfd < 0) {
         puts_(tr_("mv: cannot open '"));

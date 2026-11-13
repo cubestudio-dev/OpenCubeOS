@@ -40,6 +40,13 @@
 #define UNANO_LINE_CAP  128
 
 static char unano_lines[UNANO_MAX_LINES][UNANO_LINE_CAP];
+/* BUG #34 (P1, WP-fix-critical-security): set by unano_load when the
+ * on-disk file exceeded the editor's fixed limits (256 lines / 128
+ * bytes per line).  unano_save REFUSES to overwrite while this is set:
+ * the loaded buffer only holds a prefix of the file, and the old code
+ * wrote that prefix back silently - opening an oversized file and
+ * saving destroyed everything past the limits with NO warning. */
+static int  unano_file_truncated;
 static int  unano_nlines;
 static int  unano_dirty;
 static int  unano_cl;    /* current line */
@@ -494,6 +501,12 @@ static void unano_ime_toggle(void) {
  * save / load
  * ================================================================== */
 static int unano_save(const char *file) {
+    /* BUG #34 FIX: never write a truncated buffer back over the file. */
+    if (unano_file_truncated) {
+        puts_("editor: file exceeds editor limits (256 lines / 128 bytes "
+              "per line) - save REFUSED, original file untouched\n");
+        return -1;
+    }
     long fd = sys_open(file, 22);   /* WRONLY|CREAT|TRUNC */
     if (fd < 0) return -1;
     for (int i = 0; i < unano_nlines; i++) {
@@ -510,12 +523,14 @@ static void unano_load(const char *file) {
     unano_dirty = 0;
     unano_cl = 0;
     unano_cc = 0;
+    unano_file_truncated = 0;   /* BUG #34 */
     long fd = sys_open(file, 1);
     if (fd >= 0) {
         static char rbuf[4096];
         long n2;
         char cur[UNANO_LINE_CAP];
         int cl = 0;
+        int dropped_lines = 0, long_line = 0;
         cur[0] = 0;
         while ((n2 = sys_read(fd, rbuf, 4096)) > 0) {
             for (int i = 0; i < (int)n2; i++) {
@@ -523,12 +538,16 @@ static void unano_load(const char *file) {
                     if (unano_nlines < UNANO_MAX_LINES) {
                         strncpy_(unano_lines[unano_nlines++], cur,
                                  UNANO_LINE_CAP);
+                    } else {
+                        dropped_lines++;   /* BUG #34: track, don't drop silently */
                     }
                     cl = 0;
                     cur[0] = 0;
                 } else if (cl + 1 < UNANO_LINE_CAP) {
                     cur[cl++] = rbuf[i];
                     cur[cl] = 0;
+                } else {
+                    long_line = 1;        /* BUG #34: this line exceeds 128 bytes */
                 }
             }
         }
@@ -537,7 +556,15 @@ static void unano_load(const char *file) {
             if (unano_nlines < UNANO_MAX_LINES) {
                 strncpy_(unano_lines[unano_nlines++], cur,
                          UNANO_LINE_CAP);
+            } else {
+                dropped_lines++;
             }
+        }
+        if (dropped_lines > 0 || long_line) {
+            unano_file_truncated = 1;
+            puts_("editor: WARNING - file exceeds editor limits; only the "
+                  "first 256 lines / 128 bytes per line are editable. "
+                  "Saving is DISABLED to protect the original file.\n");
         }
     } else {
         unano_lines[0][0] = 0;
