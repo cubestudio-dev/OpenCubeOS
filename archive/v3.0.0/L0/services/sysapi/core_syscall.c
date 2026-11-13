@@ -2453,7 +2453,15 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
                 if (chunk > 512) chunk = 512;
                 u64 eflags;
                 __asm__ volatile("pushfq; popq %0; cli" : "=r"(eflags));
-                for (u64 i = 0; i < chunk; i++) screen_console_putc(p[done + i]);
+                /* BUG #130/#110 FIX (P1, WP-fix-critical-security): the
+                 * WP06g1 UTF-8 fix only reached sys_write - this write2
+                 * fallback still emitted BYTE-at-a-time putc, so every
+                 * multi-byte CJK glyph painted as one solid block per
+                 * byte (ush output, help tables, command echo).  The
+                 * two write syscalls now REALLY behave identically:
+                 * each chunk flows through the UTF-8 wide decoder. */
+                console_cn_puts_enc((const u8*)(uintptr_t)(p + done),
+                                    (u32)chunk, ENC_UTF8);
                 __asm__ volatile("pushq %0; popfq" : : "r"(eflags));
                 done += chunk;
             }
