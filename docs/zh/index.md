@@ -28,7 +28,7 @@
 | [internals/](internals/) | 子系统内部机制：看门狗、klog、健康监控、崩溃转储、加密核心、OTA/A-B |
 | [release/](release/) | 发布工程：流程 SOP、版本号、官网 + Wiki 同步 |
 
-## 快速数据（3.0.0-WP06c）
+## 快速数据（3.0.0-WP06g3）
 
 - 285 条 Shell 命令 —— 274 个 Ring 3 注册表应用 + 11 个 ush 内建，L0 里零条命令（在访客系统中运行 `help -a`）
 - 20 个 SYS_L1SVC 服务类别 / 190 个编号条目（INTERFACES.md，l1svc_defs.h）

@@ -33,28 +33,30 @@ window.SITE_DATA = {
       url: "downloads/opencube-2.2.0-update.tar.gz"
     }
   },
-  /* WP06e: the 3.0.0 development-preview channel.  WP06g2 carries the
-     milestone forward (L1 localization + system IME, build 403).
-     Assets verified against the GitHub Release v3.0.0-WP06g2
-     (three-way: local tree == Release digests). */
+  /* WP06e: the 3.0.0 development-preview channel.  WP06g3 carries the
+     milestone forward (the real-hardware fix batch, build 414).
+     Sizes + SHA256 verified against the GitHub Release API
+     v3.0.0-WP06g3 (assets[].size / assets[].digest).  The main tree
+     carries no ISO binaries (see SYNC-NOTES.md) - the dev entries
+     link the GitHub Release download URLs directly. */
   dev: {
-    version: "3.0.0-WP06g2",
-    build: 403,
+    version: "3.0.0-WP06g3",
+    build: 414,
     date: "2026-11-05",
     assets: {
       opencube: {
-        name: "opencube-3.0.0-WP06g2.iso",
-        size: 3833856,
-        size_h: "3.7 MiB",
-        sha256: "53e22e538e6de9c9e4aa29216791e3f568b2a82e88422876b0f2f6517160f84d",
-        url: "downloads/opencube-3.0.0-WP06g2.iso"
+        name: "opencube-3.0.0-WP06g3.iso",
+        size: 4210688,
+        size_h: "4.0 MiB",
+        sha256: "34bcccdbcf8f66ab9e70bcb8c9a516a4a491d28c3dd9b47d970ee1b37c93fef9",
+        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP06g3/opencube-3.0.0-WP06g3.iso"
       },
       ocse: {
-        name: "ocse-3.0.0-WP06g2.iso",
-        size: 4655104,
-        size_h: "4.4 MiB",
-        sha256: "074ffa85b9e45b7b7a35bdf2f60b29724bd0f8c8afdc48d8760276891fa09e9b",
-        url: "downloads/ocse-3.0.0-WP06g2.iso"
+        name: "ocse-3.0.0-WP06g3.iso",
+        size: 5038080,
+        size_h: "4.8 MiB",
+        sha256: "0abb622cf3e88641db227fcec1082ecdfa42c367d6eb85247524e4a3923cf3ff",
+        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP06g3/ocse-3.0.0-WP06g3.iso"
       }
     }
   },

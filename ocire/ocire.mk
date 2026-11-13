@@ -21,7 +21,13 @@
 OCIRE_DIR := $(OC_ROOT)/ocire
 OCIRE_OUT := $(BUILD)/ocire
 
-OCIRE_VERSION ?= 3.0.0-WP-02
+# BUG #92 FIX (P1, WP-fix-critical-security): the OCIRE banner was a
+# separate literal stuck four milestones behind the release line
+# ("OCIRE 3.0.0-WP-02 (build 414)" while the tree shipped WP06g3).
+# OCIRE_VERSION now defaults to the SAME release literal as the main
+# kernel (OC_RELEASE_VERSION is defined before this file is included);
+# an explicit OCIRE_VERSION=... override still wins.
+OCIRE_VERSION ?= $(OC_RELEASE_VERSION)
 
 # ---- WP-02: the ring-3 log agent (OCOS L1 ABI, OCIRE's asset) -----
 # Compiled like an l1apps/ C program (gcc freestanding + user.ld @

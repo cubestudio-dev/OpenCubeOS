@@ -35,7 +35,7 @@ the file that implements what they describe.
 | [internals/](internals/) | Subsystem internals: watchdog, klog, health, crash dump, crypto seeding, OTA/A-B |
 | [release/](release/) | Release engineering: process SOP, versioning, website + wiki sync |
 
-## Quick facts (3.0.0-WP06c)
+## Quick facts (3.0.0-WP06g3)
 
 - 285 shell commands - 274 ring-3 registry apps + 11 ush built-ins,
   zero commands in L0 (`help -a` in the guest)

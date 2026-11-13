@@ -5,7 +5,7 @@
 
 ## Version
 
-3.0.0-WP06c (development preview: the OCBL bootloader + a pure L0
+3.0.0-WP06g3 (development preview: the OCBL bootloader + a pure L0
 service kernel + 275 ring-3 programs under src/L1/ + the OCSE install
 environment with the GUI install wizard). Stable line: 2.2.0.
 
@@ -70,7 +70,7 @@ opencube/                     ← repository root
 ├── build.ps1                 ← Windows host build (WSL2 / MSYS2)
 ├── LICENSE                   ← Apache 2.0 (full text)
 ├── NOTICE                    ← copyright + third-party components
-├── README.md                 ← project overview (3.0.0-WP06c)
+├── README.md                 ← project overview (3.0.0-WP06g3)
 ├── MANIFEST.md               ← this file
 └── .gitignore                ← excludes build/, *.o, *.elf, dist/ contents, etc.
 ```
@@ -118,7 +118,7 @@ The release gate: the full regression matrix green + CI green
 (`.github/workflows/build.yml`: build, ISO, packages, host tests,
 reproducibility) before any tag.
 
-## Line Count (3.0.0-WP06c generator caliber)
+## Line Count (3.0.0-WP06g3 generator caliber)
 
 - Source code (src/L0/boot+core+drivers+services + src/L1, .c/.h/.S,
   generated data blobs excluded): **128,890 lines across 624 files**
