@@ -15,3 +15,13 @@
 
 int net_tcp_established_or_close_wait(int fd) { (void)fd; return 1; }
 void *oc_kernel_strchr_decl(void) { return (void *)0; }
+
+/* WP-fix-critical-security #21: net_tls now consults the kernel config
+ * for the tls.insecure opt-in (default REFUSE for un-anchored chains).
+ * The host harness has no config backend - returning the error code
+ * models the DEFAULT (secure) policy, which is exactly what the P0
+ * handshake tests assert. */
+int lib_config_read(const char *key, char *val_out, int outlen) {
+    (void)key; (void)val_out; (void)outlen;
+    return -3;   /* OC_CONFIG_E_NOKEY: no tls.insecure -> secure default */
+}
