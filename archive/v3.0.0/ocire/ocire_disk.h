@@ -66,7 +66,16 @@ typedef struct {
     u32  log_start_lba;   /* absolute LBA of /LOG/BOOT.LOG data start */
     u32  log_sectors;     /* ring size in sectors (incl. header sect) */
     u8   agent_sha256[32];
-    u8   reserved[68];
+    /* #52 (WP-fix-p2-p3-cleanup): carved from the old reserved[68].
+     * ver=1 mailboxes carry a ones-complement checksum over every
+     * field except the cksum word itself, so a power-cut torn write
+     * (half new / half old fields passing the magic check) can no
+     * longer smuggle an illegal state to the supervisor.  ver=0 =
+     * legacy layout (pre-fix disks): accepted, state-range check
+     * only.  Total size stays OCIRE_MAILBOX_BYTES (128). */
+    u32  ver;
+    u32  cksum;
+    u8   reserved[60];
 } ocire_mailbox_t;
 #pragma pack(pop)
 

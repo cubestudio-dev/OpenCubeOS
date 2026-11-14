@@ -93,6 +93,7 @@ enum {
     OCSE_T_C_NOMOUNT,     /* config: no installed system mounted ... */
     OCSE_T_C_WRITTEN,     /* ' written' tail */
     OCSE_T_S_FLUSHED,     /* sync: block cache flushed */
+    OCSE_T_S_FLUSHING,    /* #132: install flushing (durability gate) */
     /* WP-06c: config gains the two update keys (the wizard's system
      * step sets them; the CLI help line grows with them). */
     OCSE_T_C_KEYS2,       /* config: keys (extended, mentions update_url) */

@@ -132,6 +132,15 @@ try:
     check("kernel in place", r"install: kernel in place \(")
     check("boot code written", r"ocbl-install: boot code written")
     check("bootable", r"marked bootable")
+    # #132 (WP-fix-p2-p3-cleanup): the install state machine now lands
+    # everything DURABLY before the completion banner (step 9 flush).
+    # The old test ran an explicit `sync` here, which masked the
+    # defect: without it, a power-cut right after "Installation
+    # complete" left a zero-holed, unbootable boot core (byte-level
+    # forensics in the audit).  Phase 2 below now proves the install's
+    # OWN flush is sufficient - QEMU is SIGKILLed, no guest shutdown,
+    # no manual sync.
+    check("install flush", "install: flushing all disks")
     check("complete", "Installation complete.")
 
     # ---- D: config ----
@@ -145,8 +154,7 @@ try:
     check("config slot B", "config: boot.slot=B written")
     mon.type_line("cat /mnt/etc/opencube.conf")
     check("conf on disk", r"hostname=cube01")
-    mon.type_line("sync")
-    check("sync", "sync: block cache flushed")
+    # #132: the explicit `sync` step is GONE - see the flush note above.
     mon.type_line("umount /mnt")
     check("umount", "unmounted /mnt")
 
@@ -179,7 +187,12 @@ CMD2 = (f"{QEMU} -L /home/z/opt/extract/usr/share/qemu "
 child = pexpect.spawn(CMD2, timeout=240, encoding="utf-8", codec_errors="replace")
 child.logfile = sys.stdout
 try:
-    check("ocbl scan", r"\[scan\] entries: 1", timeout=120)
+    # WP06g3-4.4: the extracted system volume carries /boot/ocire.elf,
+    # so the installed disk legitimately scans TWO entries (OCOS +
+    # in-volume OCIRE recovery).  The "entries: 1" expectation below
+    # was a WP06b-era leftover and went stale when the recovery entry
+    # landed (found while re-running the battery for #132).
+    check("ocbl scan", r"\[scan\] entries: 2", timeout=120)
     check("ocos entry", r"OCOS: Open Cube OS \(hd0 p1\)")
     check("countdown", r"Booting ")
     check("kernel loaded", r"\[boot\] kernel loaded", timeout=90)

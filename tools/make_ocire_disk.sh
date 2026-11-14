@@ -257,8 +257,21 @@ struct.pack_into("<I", mb, 16, 0)       # fail_count
 struct.pack_into("<I", mb, 20, log_lba) # log ring LBA (absolute)
 struct.pack_into("<I", mb, 24, 128)     # log sectors
 mb[28:60] = binascii.unhexlify(agent_sha)
+# #52 (WP-fix-p2-p3-cleanup): ver=1 + ones-complement checksum (words
+# 0..63 skipping the cksum pair at words 32/33), mirroring
+# ocire_mb_checksum() in ocire/ocire_disk.c so a fresh disk carries
+# the same torn-write protection the kernel enforces on read.
+struct.pack_into("<I", mb, 60, 1)       # ver = 1
+s = 0
+for i in range(64):
+    if i in (32, 33):
+        continue
+    s += struct.unpack_from("<H", mb, i * 2)[0]
+    if s > 0xFFFF:
+        s = (s & 0xFFFF) + 1
+struct.pack_into("<I", mb, 64, (~s) & 0xFFFF)
 open(img + ".mb", "wb").write(bytes(mb))
-print("[ocire_disk] mailbox staged (state=NONE, log_lba=%d)" % log_lba)
+print("[ocire_disk] mailbox staged (state=NONE, log_lba=%d, ver=1)" % log_lba)
 PYEOF
 mcopy -i "$P1PULL" "$P1PULL.mb" ::/mailbox.bin
 rm -f "$P1PULL.mb"

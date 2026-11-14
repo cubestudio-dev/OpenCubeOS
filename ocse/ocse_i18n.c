@@ -142,6 +142,8 @@ static const char* const g_msgs[OCSE_T_COUNT_][2] = {
                               " 已写入" },
     [OCSE_T_S_FLUSHED]   = { "sync: block cache flushed",
                               "sync: 块缓存已刷写" },
+    [OCSE_T_S_FLUSHING]  = { "install: flushing all disks (do not power off)",
+                              "install: 正在刷写全部磁盘（请勿断电）" },
     [OCSE_T_C_KEYS2]     = { "config: keys: hostname <name> | lang en|zh |"
                             " boot.slot A|B | update_url <http...> |"
                             " auto_check yes|no",

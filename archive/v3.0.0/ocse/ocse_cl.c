@@ -394,7 +394,7 @@ static int cmd_mkpart(int argc, char** argv) {
 static int cmd_rmpart(int argc, char** argv) {
     (void)argc;
     if (!argv[1] || !argv[2]) {
-        ocse_outln("usage: rmpart <disk> <n>");
+        ocse_outln("usage: rmpart <disk> <n> confirm");
         return 1;
     }
     int n = 0, i = 0;
@@ -403,6 +403,20 @@ static int cmd_rmpart(int argc, char** argv) {
     }
     if (argv[2][i] || i == 0 || n < 1) {
         ocse_outln("rmpart: bad partition number");
+        return 1;
+    }
+    /* #54 (WP-fix-p2-p3-cleanup): deleting a partition entry is the
+     * same data-loss class mkfs gates behind the BUG-0239 'confirm'
+     * token, but rmpart had NO gate - a single scripted
+     * `rmpart hd0 1` removed the partition (the mounted-device
+     * refusal was the only protection; install/ocbl-install both
+     * already require confirm).  Same gate shape as mkfs: nothing is
+     * deleted unless the literal token 'confirm' is the last
+     * argument. */
+    if (argc != 4 || strcmp(argv[3], "confirm") != 0) {
+        ocse_outln("rmpart: WARNING: deleting a partition DESTROYS ITS DATA!");
+        ocse_outln("  To really delete, append the literal token 'confirm' as the last argument:");
+        ocse_outln("  usage: rmpart <disk> <n> confirm");
         return 1;
     }
     return ocse_part_rmpart(argv[1], n);
@@ -1463,8 +1477,19 @@ static int cmd_ocbl_install(int argc, char** argv) {
         ocse_outln(argv[1]);
         return 1;
     }
-    return (ocse_inst_ocbl(idx, "/install/OCBLMBR.BIN",
-                           g_io_buf, CL_IOBUF_SZ) == 0) ? 0 : 1;
+    if (ocse_inst_ocbl(idx, "/install/OCBLMBR.BIN",
+                       g_io_buf, CL_IOBUF_SZ) != 0)
+        return 1;
+    /* #132 (WP-fix-p2-p3-cleanup): the boot-code writes ride the LRU
+     * write-back cache; "verified" reads raw but through the DEVICE
+     * cache, so without an explicit flush the bytes were still volatile
+     * when the command returned (power-off right after = zero-holed,
+     * unbootable core - byte-level proven).  Land them durably before
+     * reporting success; the full `install` path flushes too (step 9
+     * in ocse_inst.c), this covers the standalone re-install. */
+    core_power_flush_blk();
+    ocse_outln(ocse_tr(OCSE_T_S_FLUSHED));
+    return 0;
 }
 
 static int cmd_install(int argc, char** argv) {
@@ -1534,7 +1559,7 @@ static const cl_cmd_t g_cmds[] = {
     { "lspart",   "list partitions of <disk>",              cmd_lspart },
     { "parted",   "show the raw partition table of <disk>", cmd_parted },
     { "mkpart",   "create a partition: mkpart <disk> <startMiB> <endMiB>", cmd_mkpart },
-    { "rmpart",   "delete partition #n: rmpart <disk> <n>",  cmd_rmpart },
+    { "rmpart",   "delete partition #n (needs 'confirm'): rmpart <disk> <n> confirm",  cmd_rmpart },
     { "setflag",  "set a flag: setflag <disk> <n> boot [on|off]", cmd_setflag },
     { "mkfs.fat32", "format <device> FAT32 (DESTROYS DATA; needs 'confirm')", cmd_mkfs_fat32 },
     { "mkfs.exfat", "format <device> exFAT (DESTROYS DATA; needs 'confirm')", cmd_mkfs_exfat },

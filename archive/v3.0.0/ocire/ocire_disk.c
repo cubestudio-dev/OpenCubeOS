@@ -134,6 +134,21 @@ int ocire_disk_scan(void) {
     return 0;
 }
 
+/* #52 (WP-fix-p2-p3-cleanup): ones-complement checksum over the
+ * mailbox as u16 words, skipping the cksum field itself (bytes
+ * 64..67 = words 32/33).  Mirrored byte-for-byte by
+ * tools/make_ocire_disk.sh so a fresh disk and the kernel agree. */
+static u32 ocire_mb_checksum(const ocire_mailbox_t *mb) {
+    const u16 *w = (const u16 *)mb;
+    u32 sum = 0;
+    for (u32 i = 0; i < OCIRE_MAILBOX_BYTES / 2; i++) {
+        if (i == 32 || i == 33) continue;   /* the cksum word pair */
+        sum += (u32)w[i];
+        if (sum & 0xFFFF0000u) sum = (sum & 0xFFFFu) + 1u;
+    }
+    return (~sum) & 0xFFFFu;
+}
+
 int ocire_mailbox_read(void) {
     ocire_fat_file_t f;
     if (ocire_fat_lookup(&g_layout.ocire_vol, "MAILBOX.BIN", &f) != 0)
@@ -149,6 +164,24 @@ int ocire_mailbox_read(void) {
         oc_memset(&g_layout.mb, 0, sizeof(g_layout.mb));
         return -2;
     }
+    /* #52: the old read only compared the magic - a power-cut torn
+     * patch left half-new/half-old fields that still passed, and a
+     * garbage state value could steer the supervisor down the
+     * "normal handover" branch.  Reject illegal state enums on every
+     * mailbox, and enforce the checksum on ver>=1 (ver=0 = legacy
+     * disk written before this fix; its torn writes are not
+     * detectable, but every kernel write from now on stamps ver=1). */
+    if (g_layout.mb.state > OCIRE_MB_STATE_ENTER_FULL) {
+        oc_memset(&g_layout.mb, 0, sizeof(g_layout.mb));
+        return -2;
+    }
+    if (g_layout.mb.ver >= 1) {
+        if (g_layout.mb.ver > 1 ||
+            g_layout.mb.cksum != ocire_mb_checksum(&g_layout.mb)) {
+            oc_memset(&g_layout.mb, 0, sizeof(g_layout.mb));
+            return -2;
+        }
+    }
     return 0;
 }
 
@@ -156,6 +189,11 @@ int ocire_mailbox_write(void) {
     ocire_fat_file_t f;
     if (ocire_fat_lookup(&g_layout.ocire_vol, "MAILBOX.BIN", &f) != 0)
         return -1;
+    /* #52: stamp version + checksum so the read side can detect a
+     * torn write of THIS patch (the field layout is unchanged -
+     * legacy ver=0 readers just see reserved bytes). */
+    g_layout.mb.ver = 1;
+    g_layout.mb.cksum = ocire_mb_checksum(&g_layout.mb);
     if (ocire_fat_file_patch(&g_layout.ocire_vol, &f, 0,
                              &g_layout.mb, OCIRE_MAILBOX_BYTES) != 0)
         return -2;

@@ -560,13 +560,29 @@ space := $(empty) $(empty)
 SRC_EXCLUDE := website/public/downloads website/out website/.next website/node_modules \
                build dist releases .zscripts public/deliverables evidence \
                archive trash
+# #138 (WP-fix-p2-p3-cleanup): release source zips are cut from the
+# TAGGED tree ("the delivery assets are re-cut from the tagged tree",
+# the g2 promise that regressed at g3: the zip matched HEAD, one commit
+# past the tag).  When the version tag exists, archive from it; HEAD is
+# only a development fallback and is announced loudly so a pre-tag cut
+# can never masquerade as the release asset again.
+SRC_REV := $(shell git -C $(OC_ROOT) rev-parse -q --verify "refs/tags/v$(OC_RELEASE_VERSION)" 2>/dev/null || echo HEAD)
 src-zip:
 	@mkdir -p $(DIST)
 	@git -C $(OC_ROOT) ls-files \
            | grep -vE '^($(subst $(space),|,$(SRC_EXCLUDE)))(/|$$)' > $(DIST)/.srclist \
            || true
 	@if [ ! -s $(DIST)/.srclist ]; then echo "src-zip: not a git checkout - use 'make dist'" >&2; exit 1; fi
-	@git -C $(OC_ROOT) archive --format=zip -o $(SRC_ZIP) HEAD -- $$(cat $(DIST)/.srclist)
+	@if [ "$(SRC_REV)" = "HEAD" ]; then \
+	    echo "src-zip: WARNING - tag v$(OC_RELEASE_VERSION) not found, cutting from HEAD (development cut, NOT a release asset)"; \
+	else \
+	    echo "src-zip: cutting from tag v$(OC_RELEASE_VERSION) ($(SRC_REV))"; \
+	    git -C $(OC_ROOT) ls-tree -r --name-only $(SRC_REV) > $(DIST)/.taglist; \
+	    grep -Fx -f $(DIST)/.taglist $(DIST)/.srclist > $(DIST)/.srclist.tmp || true; \
+	    mv $(DIST)/.srclist.tmp $(DIST)/.srclist; \
+	    rm -f $(DIST)/.taglist; \
+	fi
+	@git -C $(OC_ROOT) archive --format=zip -o $(SRC_ZIP) $(SRC_REV) -- $$(cat $(DIST)/.srclist)
 	@rm -f $(DIST)/.srclist
 	@echo "src-zip: $(SRC_ZIP) ($$(stat -c%s $(SRC_ZIP)) bytes)"
 

@@ -131,7 +131,15 @@ try:
     check("setflag boot", "flag updated")
     mon.type_line("parted hda")
     check("parted boot=y", r"boot=y")
+    # #54 (WP-fix-p2-p3-cleanup): rmpart now carries the BUG-0239-style
+    # confirm gate (same data-loss class as mkfs).  First prove the gate
+    # REFUSES without the token (and the partition survives), then the
+    # confirmed delete works.
     mon.type_line("rmpart hda 2")
+    check("rmpart without confirm refused", "DESTROYS ITS DATA")
+    mon.type_line("lspart hda")
+    check("partition survived the refused delete", r"#2 ext")
+    mon.type_line("rmpart hda 2 confirm")
     check("rmpart 2", "partition removed")
 
     # H: fill the table. Slot reuse after rmpart is mainstream

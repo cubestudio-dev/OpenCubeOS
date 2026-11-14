@@ -43,16 +43,30 @@ TARBALL="$STAGE/pkg.tar"
 mkdir -p "$PKGDIR/kernel" "$PKGDIR/etc" "$PKGDIR/docs"
 cp "$KERNEL" "$PKGDIR/kernel/opencube.elf"
 cp "$OC_ROOT/etc/opencube.conf" "$PKGDIR/etc/opencube.conf"
-cp "$OC_ROOT/docs/CONFIG.md" "$PKGDIR/docs/" 2>/dev/null || true
+# #137 (WP-fix-p2-p3-cleanup): docs/CONFIG.md moved to docs/archive/ at
+# g3 and the old `cp ... || true` silently shipped an EMPTY docs/ dir
+# while the manifest kept promising the file (manifest != content).  Try
+# the live location first, then the archive; if the tree genuinely has
+# no config doc the package simply carries none - and the manifest
+# below lists ONLY members that actually exist, so the contract stays
+# honest either way.
+if [ -f "$OC_ROOT/docs/CONFIG.md" ]; then
+    cp "$OC_ROOT/docs/CONFIG.md" "$PKGDIR/docs/CONFIG.md"
+elif [ -f "$OC_ROOT/docs/archive/CONFIG.md" ]; then
+    cp "$OC_ROOT/docs/archive/CONFIG.md" "$PKGDIR/docs/CONFIG.md"
+fi
+rmdir "$PKGDIR/docs" 2>/dev/null || true   # drop docs/ when it ended up empty
 
+# manifest "files" is generated from the ACTUAL package members (sorted)
+# so it can never drift from what ships.
+FILES_JSON="$(cd "$PKGDIR" && find kernel etc docs -type f 2>/dev/null | LC_ALL=C sort \
+              | awk 'NR>1 { printf ",\n" } { printf "    \"%s\"", $0 }')"
 {
   echo '{'
   echo "  \"version\": \"$VER\","
   echo "  \"time\": \"$(date -u +%F)\","
   echo "  \"files\": ["
-  echo "    \"kernel/opencube.elf\","
-  echo "    \"etc/opencube.conf\","
-  echo "    \"docs/CONFIG.md\""
+  echo "$FILES_JSON"
   echo "  ],"
   echo "  \"sha256\": \"PENDING\""
   echo '}'

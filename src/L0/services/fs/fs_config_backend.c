@@ -52,6 +52,23 @@ static int cfg_write(const char *text, int len) {
     return (w == len) ? 0 : -1;
 }
 
+static int cfg_bring_up(const char *defaults, int defaults_len);
+
+/* #135 (WP-fix-p2-p3-cleanup): the backend used to be const with a
+ * HARDCODED persistent=1, so lib_config_backend_fat() answered 1 even
+ * when no FAT32 volume ever mounted and /etc was the ramfs fallback
+ * - `lang zh` then printed "persisted" while the setting died on
+ * reboot, and disp_lang's honest persist_ram message was dead code.
+ * The struct is now mutable and cfg_bring_up() sets the field from
+ * the ACTUAL mount result (lib_config_init_with runs bring_up before
+ * it samples ->persistent, so the report is truthful from boot on). */
+static lib_config_backend_t g_fs_config_backend = {
+    "fat32/ramfs", 0,
+    cfg_bring_up,
+    cfg_read,
+    cfg_write,
+};
+
 static int cfg_bring_up(const char *defaults, int defaults_len) {
     /* 1. mount FAT32 /etc when present (legacy alias, then every
      * registered block device). */
@@ -70,6 +87,11 @@ static int cfg_bring_up(const char *defaults, int defaults_len) {
             /* /etc may already exist in ramfs - that is fine */
         }
     }
+    /* #135 (WP-fix-p2-p3-cleanup): report persistence TRUTHFULLY - a
+     * FAT32 /etc survives reboot, the ramfs fallback does not.  The
+     * comment above the struct used to admit the superset lie in
+     * writing ("report the honest superset") while hardcoding 1. */
+    g_fs_config_backend.persistent = mounted ? 1 : 0;
 
     /* 2. ensure the file exists (seed with defaults when missing). */
     fs_vfs_stat_t st;
@@ -85,17 +107,6 @@ static int cfg_bring_up(const char *defaults, int defaults_len) {
     }
     return 0;
 }
-
-/* the fs backend: FAT32 when a volume mounted, ramfs otherwise (the
- * name/persistent fields are filled at bring-up time... they are
- * const in the struct, so report the honest superset: "fat32/ramfs".
- * The log line in lib_config_init_with prints this name.) */
-static const lib_config_backend_t g_fs_config_backend = {
-    "fat32/ramfs", 1,
-    cfg_bring_up,
-    cfg_read,
-    cfg_write,
-};
 
 const lib_config_backend_t *fs_config_backend(void) {
     return &g_fs_config_backend;

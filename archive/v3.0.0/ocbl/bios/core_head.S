@@ -75,18 +75,42 @@ core_head:
 
         ; ---- identity page tables: PML4[0] -> PDPT, PDPT[0..3] -> PDs,
         ;      every PD entry a 2 MiB page (4 GiB total)
-        mov     edi, 0x8F000                    ; PML4
-        mov     dword [edi], 0x90003            ; PDPT | P | W
-        mov     eax, 0x91003                     ; PD[0] | P | W
-        mov     ecx, 0x90000                     ; PDPT entry iterator
+        ; #134 (WP-fix-p2-p3-cleanup): EBDA guard.  The tables used to
+        ; be written at FIXED 0x8F000-0x95000 with no check; firmware
+        ; whose EBDA starts below 0x95000 (large-EBDA servers, some
+        ; VMware configs - exactly the machines WP06f moved the stack
+        ; below 0x8E000 for) had EBDA data stomped by these fill
+        ; loops, and the very next INT 13h/16h/1Ah triple-faulted.
+        ; Read the EBDA base from the BDA word at 0x40E; on overlap
+        ; relocate the whole 6-page block to [0x40000, 0x46000) - a
+        ; window no boot stage uses (the int13 bounce ends at 0x3FFFF,
+        ; the mb2 info starts at 0x50000) and that dies with OCBL
+        ; anyway: the handoff turns paging OFF before the kernel entry.
+        mov     edi, 0x8F000                    ; default PML4
+        movzx   eax, word [0x40E]               ; BDA: EBDA segment
+        cmp     eax, 0x8000                     ; sane segment? (>= 0x80000)
+        jb      .pt_base_ok                     ; 0 / garbage: keep fixed
+        shl     eax, 4                          ; EBDA linear base
+        cmp     eax, 0x95000                    ; starts below window end?
+        jae     .pt_base_ok                     ; clear of the window
+        mov     edi, 0x40000                    ; overlap: relocate (above)
+.pt_base_ok:
+        mov     ebx, edi                        ; PT base (for cr3 load)
+        ; PML4[0] -> PDPT (base+0x1000) | P | W
+        lea     eax, [edi + 0x1003]
+        mov     [edi], eax
+        ; PDPT[0..3] -> PDs (base+0x2000 .. base+0x5000) | P | W
+        lea     eax, [edi + 0x2003]
+        lea     ecx, [edi + 0x1000]             ; PDPT entry iterator
+        lea     edx, [edi + 0x1020]             ; end of the 4 entries
 .pt_pdpt:
         mov     [ecx], eax
         add     eax, 0x1000                       ; next PD table
         add     ecx, 8
-        cmp     ecx, 0x90020                     ; 4 entries
+        cmp     ecx, edx
         jb      .pt_pdpt
         ; fill all 4 PD tables with 2 MiB pages (2048 entries)
-        mov     edi, 0x91000
+        lea     edi, [edi + 0x2000]
         mov     eax, 0x83                        ; P | W | PS (2 MiB page)
         mov     ecx, 2048
 .pt_pd:
@@ -97,7 +121,7 @@ core_head:
         jnz     .pt_pd
 
         ; ---- long mode on
-        mov     eax, 0x8F000
+        mov     eax, ebx
         mov     cr3, eax
         mov     eax, cr4
         or      eax, 1 << 5                      ; PAE

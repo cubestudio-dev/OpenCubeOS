@@ -122,6 +122,13 @@ static u32 fat_entry(const ocbl_volume_t* v, u32 clus)
         else {
             if (!fs_rd_vsec(v, sec + 1, 1, fatc()))
                 return 0x0FFFFFF8;
+            /* #133 (WP-fix-p2-p3-cleanup): the shared single-sector FAT
+             * cache now holds sec+1 - the label MUST follow.  The old
+             * code left g_fatc_sec == sec, so the next entry lookup in
+             * `sec` hit the "matching" label and read sec+1's bytes:
+             * wrong cluster links (premature EOC or a wrong hop) and a
+             * byte-corrupted payload (kernel / recovery image). */
+            g_fatc_sec = sec + 1;
             b1 = fatc()[0];
         }
         u32 val = b0 | (b1 << 8);

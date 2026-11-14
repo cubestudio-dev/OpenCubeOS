@@ -13,6 +13,7 @@
 #include "fs_vfs.h"
 #include "driver_block_blk.h"
 #include "driver_block_part.h"   /* WP06g3-4.4: recovery-partition carve */
+#include "core_power.h"          /* #132: durable install completion flush */
 #include "lib_string.h"
 #include "screen_console.h"
 
@@ -407,6 +408,21 @@ int ocse_inst_install(const char* disk, int part_no, int confirm,
     ocse_out("install: partition #");
     u64_to_str((u64)part_no, n); ocse_out(n);
     ocse_outln(ocse_tr(OCSE_T_I_BOOTABLE));
+
+    /* step 9 (#132, WP-fix-p2-p3-cleanup): DURABLY land everything
+     * BEFORE the completion banner.  The disk cache is LRU
+     * write-back and the (raw) verify reads back through the
+     * DEVICE-level cache too - both lie about durability until an
+     * explicit flush pushes every dirty sector out AND issues the
+     * driver FLUSH command.  Byte-level forensics on the pre-fix
+     * build: "Installation complete" + immediate power-off left the
+     * OCBL core riddled with zero holes (stage1 present, core
+     * truncated) - a silently unbootable disk; the same install
+     * followed by `sync` produced a byte-perfect, bootable disk.
+     * The wizard path already ran a sync stage; the CLI path had
+     * none.  Refuse to claim completion when the flush fails. */
+    ocse_outln(ocse_tr(OCSE_T_S_FLUSHING));
+    core_power_flush_blk();
 
     ocse_outln("");
     ocse_outln(ocse_tr(OCSE_T_I_COMPLETE));
