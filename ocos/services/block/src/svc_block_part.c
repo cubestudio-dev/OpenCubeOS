@@ -4,8 +4,9 @@
  * File: drivers/block/driver_block_part.c
  * Purpose: MBR + GPT partition table parser.
  */
-#include "drv_storage_part.h"
+#include "svc_block_part.h"
 #include "svc_block_drivers.h"
+#include "drv_storage_api.h"
 #include "drv_storage_api.h"
 #include "core_mm_heap.h"
 #include "core_lib_string.h"

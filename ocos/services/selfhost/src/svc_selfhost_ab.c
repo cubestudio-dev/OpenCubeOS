@@ -22,7 +22,7 @@
 #include "core_lib_config.h"
 #include "svc_selfhost_ext.h"   /* 3.0.0-WP03: was l1_ext.h, split into selfhost */
 #include "svc_block_drivers.h"
-#include "drv_storage_part.h"
+#include "svc_block_part.h"
 #include "svc_fs_vfs.h"
 #include "svc_net_core.h"
 #include "svc_net_tls.h"

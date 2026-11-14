@@ -29,7 +29,7 @@
  *               hdr area: status_error(4, DD=bit0), length(2), vlan(2).
  *   - Polling mode: interrupts masked via IMC.
  */
-#include "svc_net_drivers.h"
+#include "drv_net_api.h"
 #include "drv_net_api.h"
 #include "core_console_screen.h"
 #include "core_lib_string.h"

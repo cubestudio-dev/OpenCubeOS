@@ -7,7 +7,7 @@
  * disp_lang_get() - the very `lang` command this batch makes real. */
 #include "core_lib_i18n.h"
 #include "core_lib_string.h"
-#include "svc_display_lang.h"
+#include "core_lib_i18n.h"
 
 static const struct l0_i18n_kv *lookup(const struct l0_i18n_kv *tab,
                                        int n, const char *key) {

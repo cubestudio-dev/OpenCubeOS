@@ -13,7 +13,79 @@
 #ifndef OC_SND_DRV_INTERNAL_H
 #define OC_SND_DRV_INTERNAL_H
 
-#include "svc_audio_drivers.h"
+#include "types.h"
+
+/* ---- Registry limits ---- */
+#define SND_MAX_DEVICES  8
+#define SND_NAME_LEN     16
+
+/* ---- Driver families ---- */
+typedef enum {
+    SND_TYPE_HDA       = 1,
+    SND_TYPE_AC97      = 2,
+    SND_TYPE_SB16      = 3,
+    SND_TYPE_ES1370    = 4,
+    SND_TYPE_VIRTIO    = 5,
+    SND_TYPE_USB_AUDIO = 6,
+} driver_snd_type_t;
+
+/* ---- Rate bitmap (Linux/AC'97 convention: one bit per standard rate) ---- */
+#define SND_RATE_8000   (1u << 0)
+#define SND_RATE_11025  (1u << 1)
+#define SND_RATE_16000  (1u << 2)
+#define SND_RATE_22050  (1u << 3)
+#define SND_RATE_32000  (1u << 4)
+#define SND_RATE_44100  (1u << 5)
+#define SND_RATE_48000  (1u << 6)
+#define SND_RATE_64000  (1u << 7)
+#define SND_RATE_88200  (1u << 8)
+#define SND_RATE_96000  (1u << 9)
+
+/* ---- Capabilities ---- */
+typedef struct driver_snd_caps {
+    u32 rates;          /* SND_RATE_* bitmap */
+    u8  min_channels;   /* usually 1 */
+    u8  max_channels;   /* 2 = stereo */
+    u8  bits8;          /* 1 = 8-bit PCM supported */
+    u8  bits16;         /* 1 = 16-bit PCM supported */
+    u8  bits32;         /* 1 = 32-bit PCM supported */
+    u8  reserved;
+    u32 cur_rate;       /* rate currently programmed */
+    u32 cur_volume;     /* 0..100 currently set */
+} driver_snd_caps_t;
+
+/* Per-driver operations.  play/stop are mandatory; set_rate/set_volume/
+ * get_caps may be NULL (the framework then keeps its bookkeeping and
+ * reports -1 for unsupported operations). */
+typedef struct driver_snd_device driver_snd_device_t;
+
+typedef struct driver_snd_ops {
+    int (*play)(driver_snd_device_t *dev, const void *buf, int len);
+    int (*stop)(driver_snd_device_t *dev);
+    int (*set_rate)(driver_snd_device_t *dev, u32 rate);
+    int (*set_volume)(driver_snd_device_t *dev, u32 vol);
+    int (*get_caps)(driver_snd_device_t *dev, driver_snd_caps_t *caps);
+} driver_snd_ops_t;
+
+/* One registered sound card.  name/type/pci ids describe the hardware;
+ * ops/priv bind the driver implementation; rate/channels/volume mirror
+ * the currently programmed state. */
+struct driver_snd_device {
+    char       name[SND_NAME_LEN];
+    driver_snd_type_t type;
+    u8         present;
+    u8         bus, dev, func;
+    u16        vendor_id, device_id;
+    u32        rate;          /* current sample rate, Hz */
+    u8         channels;      /* current channel count (1 or 2) */
+    u32        volume;        /* 0..100 */
+    const driver_snd_ops_t *ops;
+    void       *priv;
+    int        index;
+    u64        played_bytes;  /* bytes accepted by the driver */
+    u64        irqs;          /* device interrupts observed */
+};
+
 
 #ifdef __cplusplus
 extern "C" {

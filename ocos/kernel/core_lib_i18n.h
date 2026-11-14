@@ -37,4 +37,16 @@ const char *l0_tr_(const char *key);
 /* The active locale name ("en" / "zh") for status lines. */
 const char *l0_i18n_lang_name(void);
 
+
+/* ---- Console-language contract (NAK dependency direction) -----------
+ * The console output language is a kernel-console concept consumed by
+ * the i18n core (the message-column selector).  The STATE lives in
+ * services/display (disp_lang.c, the ring-3 switch surface); this
+ * kernel-side declaration is the contract the lib layer includes, so
+ * core/ never needs a services/ include.  Values are the historical
+ * SHELL_LANG_* (config data compatibility). */
+#define DISP_LANG_EN 0
+#define DISP_LANG_ZH 1
+int disp_lang_get(void);
+
 #endif /* OC_L0_I18N_H */

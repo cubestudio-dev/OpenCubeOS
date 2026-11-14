@@ -4,7 +4,8 @@
  * File: drivers/block/driver_block_cache.c
  * Purpose: LRU disk-block cache with write-back.
  */
-#include "drv_storage_cache.h"
+#include "svc_block_cache.h"
+#include "drv_storage_api.h"
 #include "svc_block_drivers.h"
 #include "core_timer.h"
 #include "core_sync.h"

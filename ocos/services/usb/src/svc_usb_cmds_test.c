@@ -27,7 +27,7 @@
 #include "drv_usb_serial.h"
 #include "drv_usb_audio.h"
 #include "svc_block_drivers.h"
-#include "drv_storage_part.h"
+#include "svc_block_part.h"
 #include "svc_usb_cmds.h"    /* v2.0.0 group N: L1 surface exports */
 #include "core_console_screen.h"
 #include "core_lib_string.h"

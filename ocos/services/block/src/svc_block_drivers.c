@@ -14,7 +14,7 @@
 #include "drv_storage_api.h"
 #include "core_registry.h"
 #include "drv_framework.h"
-#include "drv_storage_cache.h"
+#include "svc_block_cache.h"
 #include "core_mm_heap.h"
 #include "core_lib_string.h"
 #include "core_console_screen.h"

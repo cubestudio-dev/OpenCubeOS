@@ -27,7 +27,7 @@
 #include "arch_multiboot2.h"  /* arch_multiboot2_get_kernel_self(): boot-attached kernel */
 #include "svc_selfhost_ab.h"   /* ota_ab_rescan(): re-scan after abdisk creates the layout */
 #include "svc_block_drivers.h"
-#include "drv_storage_part.h"
+#include "svc_block_part.h"
 /* v2.0.0 (was shell_cmds_disk.h): the WP-10a shared helper decl. */
 extern int driver_block_mkfs_fat32_device(int dev_idx);
 #include "core_kcap.h"

@@ -28,7 +28,7 @@
  */
 #include "types.h"
 #include "drv_net_wireless.h"
-#include "svc_net_drivers.h"
+#include "drv_net_api.h"
 #include "drv_net_api.h"
 #include "core_lib_string.h"
 #include "core_mm_heap.h"

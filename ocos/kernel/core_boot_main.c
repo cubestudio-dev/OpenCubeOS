@@ -110,8 +110,8 @@ int l1_ext_self_test(void);  /* boot/l1_selftest.c - WP-01 extension self-test *
 
 void net_wl_fw_provider_install(void); /* 3.0.0-WP03 G2: wl firmware provider (services/net/wl_fw.c) */
 #include "svc_block_drivers.h"
-#include "drv_storage_cache.h"
-#include "drv_storage_part.h"
+#include "svc_block_cache.h"
+#include "svc_block_part.h"
 #include "drv_storage_virtio_blk.h"
 #include "drv_storage_nvme.h"
 #include "drv_storage_ahci.h"      /* WP-10a: SATA */

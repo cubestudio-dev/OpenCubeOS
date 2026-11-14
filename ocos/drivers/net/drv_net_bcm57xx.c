@@ -109,7 +109,7 @@
  * TSO/jumbo/ASF firmware download (5701-A0/TSO/57766 only); GRC_LOCAL_CTRL
  * and DMA_RW_CTRL are left at power-on values; tg3_poll_fw is shortened.
  */
-#include "svc_net_drivers.h"
+#include "drv_net_api.h"
 #include "drv_net_api.h"
 #include "core_console_screen.h"
 #include "core_lib_string.h"

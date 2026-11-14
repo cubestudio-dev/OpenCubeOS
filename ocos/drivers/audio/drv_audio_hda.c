@@ -45,7 +45,7 @@
 #include "core_console_screen.h"
 #include "core_lib_config.h"
 #include "core_lib_string.h"
-#include "svc_audio_drivers.h"
+#include "drv_audio_api.h"
 #include "drv_audio_api.h"
 #include "core_sched.h"
 #include "core_timer.h"

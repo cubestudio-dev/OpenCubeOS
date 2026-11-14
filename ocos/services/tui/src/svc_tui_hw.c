@@ -17,7 +17,7 @@
 #include "core_mm_pmm.h"
 #include "arch_multiboot2.h"
 #include "svc_block_drivers.h"
-#include "drv_storage_part.h"
+#include "svc_block_part.h"
 #include "svc_net_drivers.h"
 #include "svc_audio_drivers.h"
 #include "drv_usb_core.h"

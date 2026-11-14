@@ -21,7 +21,7 @@
  * QEMU).  The datapath code below is datasheet-derived and has NOT been
  * exercised; real-hardware bring-up is future work.
  */
-#include "svc_net_drivers.h"
+#include "drv_net_api.h"
 #include "drv_net_api.h"
 #include "core_console_screen.h"
 #include "core_lib_string.h"

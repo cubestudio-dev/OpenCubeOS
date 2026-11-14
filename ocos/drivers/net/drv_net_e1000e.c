@@ -22,7 +22,7 @@
  *   - Polling mode: interrupts are masked, net.c polls driver_nic_recv().
  *   - DMA buffers come from the identity-mapped PMM region.
  */
-#include "svc_net_drivers.h"
+#include "drv_net_api.h"
 #include "drv_net_api.h"
 #include "core_console_screen.h"
 #include "core_lib_string.h"

@@ -8,7 +8,7 @@
 #include "drv_storage_nvme.h"
 #include "drv_storage_ata_dma.h"
 #include "drv_storage_ata.h"
-#include "drv_storage_cache.h"
+#include "svc_block_cache.h"
 #include "core_console_screen.h"
 #include "core_lib_string.h"
 

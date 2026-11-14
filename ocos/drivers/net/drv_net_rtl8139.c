@@ -16,7 +16,7 @@
  *     (status 16b + length 16b).
  *   - Polling mode: IMR = 0.
  */
-#include "svc_net_drivers.h"
+#include "drv_net_api.h"
 #include "drv_net_api.h"
 #include "core_console_screen.h"
 #include "core_lib_string.h"

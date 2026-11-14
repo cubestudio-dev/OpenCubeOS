@@ -19,12 +19,10 @@
 extern "C" {
 #endif
 
-/* Values are the historical SHELL_LANG_* (config data compatibility). */
-#define DISP_LANG_EN 0
-#define DISP_LANG_ZH 1
-
-/* Current in-memory language (DISP_LANG_EN or DISP_LANG_ZH). */
-int  disp_lang_get(void);
+/* The DISP_LANG_* values + the disp_lang_get() contract live in the
+ * kernel-side core_lib_i18n.h (the NAK dependency direction: the
+ * display service implements, the kernel lib declares). */
+#include "core_lib_i18n.h"
 void disp_lang_set(int lang);
 /* Set from a config string ("en"/"zh"; anything else = en). */
 void disp_lang_set_str(const char *s);

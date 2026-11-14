@@ -39,7 +39,7 @@
 #include "arch_multiboot2.h"
 #include "core_timer.h"
 #include "drv_bus_pci.h"
-#include "svc_net_drivers.h"
+#include "drv_net_api.h"
 #include "drv_input_serial.h"
 #include "core_lib_string.h"
 #include "core_lib_log.h"

@@ -27,7 +27,7 @@
  * for an end-to-end run.  This limitation is stated honestly in the
  * WP-10b delivery report (no fake test output).
  */
-#include "svc_net_drivers.h"
+#include "drv_net_api.h"
 #include "drv_net_api.h"
 #include "core_console_screen.h"
 #include "core_lib_string.h"

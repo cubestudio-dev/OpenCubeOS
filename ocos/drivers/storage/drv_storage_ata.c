@@ -231,7 +231,6 @@ int driver_block_ata_write_sectors(int drive, u64 lba, int count, const void *bu
 }
 
 /* ---- WP-07 blk layer integration ---- */
-#include "svc_block_drivers.h"
 #include "drv_storage_api.h"
 #include "drv_framework.h"
 

@@ -26,7 +26,7 @@
  * derived.  The driver compiles, links, and PCI-probes (nothing found
  * under QEMU).
  */
-#include "svc_net_drivers.h"
+#include "drv_net_api.h"
 #include "drv_net_api.h"
 #include "core_console_screen.h"
 #include "core_lib_string.h"

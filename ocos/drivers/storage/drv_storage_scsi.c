@@ -27,7 +27,7 @@
 #include "core_lib_string.h"
 #include "core_mm_heap.h"
 #include "core_console_screen.h"
-#include "svc_block_drivers.h"
+#include "drv_storage_api.h"
 #include "drv_storage_api.h"
 #include "drv_storage_scsi.h"
 #include "drv_framework.h"

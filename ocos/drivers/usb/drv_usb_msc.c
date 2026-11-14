@@ -27,7 +27,7 @@
  */
 #include "drv_usb_msc.h"
 #include "drv_usb_core.h"
-#include "svc_block_drivers.h"
+#include "drv_storage_api.h"
 #include "drv_storage_api.h"
 #include "core_console_screen.h"
 #include "core_lib_string.h"

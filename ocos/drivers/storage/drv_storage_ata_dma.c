@@ -48,7 +48,7 @@
 #include "core_console_screen.h"
 #include "drv_bus_pci.h"
 #include "core_sync.h"      /* 3.0.0-WP03 G4: per-channel xfer locks */
-#include "svc_block_drivers.h"
+#include "drv_storage_api.h"
 #include "drv_storage_api.h"
 #include "drv_framework.h"
 
