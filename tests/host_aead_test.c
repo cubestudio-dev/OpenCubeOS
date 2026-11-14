@@ -10,8 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "types.h"
-#include "crypto_aead.h"
-#include "crypto_sha512.h"
+#include "svc_crypto_aead.h"
+#include "svc_crypto_sha512.h"
 
 void *memset(void *d, int c, unsigned long n);
 void *memcpy(void *d, const void *s, unsigned long n);

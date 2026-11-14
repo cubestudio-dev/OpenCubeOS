@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 """
-gen_font_gz.py: wrap the six chinese_font_data.c tables into one gzip
+gen_font_gz.py: wrap the six svc_font_chinese_data.c tables into one gzip
 container (3.0.0-WP04 G11b identity-window relief).
 
 The kernel image must end below 0x400000 (P3-1 security invariant: user
@@ -11,15 +11,15 @@ above 0x400000 is unreachable from syscall/IRQ context on a user CR3).
 The embedded GB2312 font tables alone were ~298 KiB of .rodata, and the
 WP-04 L1 migration (user program blobs + IME revival) ran the link into
 that guard rail.  This tool replaces the six raw arrays in
-src/L0/services/font/chinese_font_data.c with ONE gzip stream
-(chinese_font_gz_blob[]); chinese_font.c inflates it lazily into a
+ocos/services/font/src/svc_font_chinese_data.c with ONE gzip stream
+(chinese_font_gz_blob[]); svc_font_chinese.c inflates it lazily into a
 kmalloc'd buffer on first glyph lookup (boot step 3 renders ASCII only,
 so the heap is always up by the time CJK data is first touched).
 
 Regeneration chain: tools/gen_chinese_font.py (Unifont source, emits the
 six raw arrays) -> tools/gen_font_gz.py (this tool, wraps them).
 
-Raw blob layout (fixed order, offsets derivable from chinese_font.h):
+Raw blob layout (fixed order, offsets derivable from svc_font_chinese.h):
     [0]      chinese_font_glyphs          CHINESE_FONT_HANZI_COUNT * 32
     [1]      chinese_font_symbols         CHINESE_FONT_SYMBOL_COUNT * 32
     [2]      chinese_font_zone_index      6768 * 2
@@ -36,7 +36,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA = os.path.join(ROOT, "src", "L0", "services", "font", "chinese_font_data.c")
+DATA = os.path.join(ROOT, "ocos", "services", "font", "src", "svc_font_chinese_data.c")
 
 HANZI_COUNT = 6763
 SYMBOL_COUNT = 682
@@ -92,12 +92,12 @@ def parse_u16_array(text, name, count):
 
 def main():
     if not os.path.exists(DATA):
-        sys.exit("gen_font_gz: missing chinese_font_data.c")
+        sys.exit("gen_font_gz: missing svc_font_chinese_data.c")
     src = open(DATA).read()
     if "chinese_font_gz_blob" in src:
         # Already wrapped.  Refuse to double-wrap; the raw arrays are
         # gone from this tree (recover via gen_chinese_font.py first).
-        sys.exit("gen_font_gz: chinese_font_data.c is already the gzip "
+        sys.exit("gen_font_gz: svc_font_chinese_data.c is already the gzip "
                  "wrapper; regenerate the raw arrays with "
                  "tools/gen_chinese_font.py first")
 
@@ -134,14 +134,14 @@ def main():
     w(" * 3.0.0-WP04 G11b: the kernel image must end below the 0x400000")
     w(" * identity-window boundary (P3-1 security invariant), and the raw")
     w(" * tables (~292 KiB .rodata) plus the WP-04 L1 app blobs ran the")
-    w(" * link into that guard rail.  chinese_font.c now inflates this")
+    w(" * link into that guard rail.  svc_font_chinese.c now inflates this")
     w(" * stream lazily into a kmalloc'd buffer on first glyph lookup;")
-    w(" * section offsets live in chinese_font.h (CHINESE_FONT_GZ_*).")
+    w(" * section offsets live in svc_font_chinese.h (CHINESE_FONT_GZ_*).")
     w(" *")
     w(f" * raw={RAW_LEN} B sha256={raw_sha}")
     w(f" * gz={len(gz)} B sha256={gz_sha}")
     w(" */")
-    w("#include \"chinese_font.h\"")
+    w("#include \"svc_font_chinese.h\"")
     w("")
     w("const u8 chinese_font_gz_blob[] = {")
     for i in range(0, len(gz), 20):

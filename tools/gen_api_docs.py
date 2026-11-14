@@ -58,17 +58,17 @@ L1_HEADERS = [
     # v2.0.0: the L1 surface IS the service tree.  The numbered call
     # surface is services/l1/l1svc_defs.h (SYS_L1SVC categories/ops);
     # the per-service headers below carry the kernel-side declarations
-    # (block_svc.h is the declared driver interface).
-    "src/L0/services/sysapi/l1svc_defs.h",
+    # (svc_block_drivers.h is the declared driver interface).
+    "ocos/services/sysapi/interface/svc_sysapi_l1svc.h",
     "src/L0/services/block/block_svc.h",
     "src/L0/services/net/nic_svc.h",
     "src/L0/services/audio/snd_svc.h",
-    "src/L0/services/display/disp_cmds.h",
-    "src/L0/services/usb/usb_cmds.h",
-    "src/L0/services/net/net_l1_cmds.h",
-    "src/L0/services/crypto/crypto_l1_cmds.h",
-    "src/L0/services/selfhost/ota_ab.h",
-    "src/L0/services/selfhost/ota_update.h",
+    "ocos/services/display/src/svc_display_cmds.h",
+    "ocos/services/usb/src/svc_usb_cmds.h",
+    "ocos/services/net/src/svc_net_l1_cmds.h",
+    "ocos/services/crypto/src/svc_crypto_l1_cmds.h",
+    "ocos/services/selfhost/interface/svc_selfhost_ab.h",
+    "ocos/services/selfhost/interface/svc_selfhost_update.h",
 ]
 
 # Directories counted for the "lines of source" statistic (v2.0.0 tree:
@@ -206,7 +206,7 @@ def l1_app_help(name):
     """One-line help for a src/L1/<name>/ app: the first descriptive
     sentence of its main.c header (the 'ring-3 half of ...' line), or
     the generic note.  Legacy flat programs have no folder."""
-    mc = os.path.join(ROOT, "src", "L1", name, "main.c")
+    mc = os.path.join(ROOT, "ocos", "l1apps", name, "main.c")
     if not os.path.exists(mc):
         return "legacy flat L1 program"
     try:
@@ -225,12 +225,12 @@ def l1_app_help(name):
 
 def extract_ush_builtins():
     """3.0.0-WP04: parse the ush shell built-in rows out of
-    src/L1/ush/main.c.  3.0.0-WP04-fix1: the help builtin was rewritten
+    ocos/l1apps/ush/main.c.  3.0.0-WP04-fix1: the help builtin was rewritten
     registry-driven - the rows now live in the `builtin_rows[]` string
     array (one "name [args]  help" per entry); the old parser matched
     the pre-fix1 puts_("  name ...") rows and would silently drop the
     whole built-in set from the regenerated docs."""
-    mc = os.path.join(ROOT, "src", "L1", "ush", "main.c")
+    mc = os.path.join(ROOT, "ocos", "l1apps", "ush", "main.c")
     if not os.path.exists(mc):
         return []
     out = []
@@ -340,7 +340,7 @@ def extract_v2_commands():
     # keep going when the legacy file is absent.
     svc_rows_total = 0
     svc_dual = []
-    ush_path = os.path.join(ROOT, "src", "L1", "ush.c")
+    ush_path = os.path.join(ROOT, "ocos", "l1apps", "ush", "main.c")
     if os.path.exists(ush_path):
         ush = open(ush_path, encoding="utf-8", errors="replace").read()
     else:
@@ -399,8 +399,8 @@ def svc_folder_of_cat(cat):
 
 
 def extract_l1svc_surface():
-    """Parse src/L0/services/sysapi/l1svc_defs.h (the category/op ABI)."""
-    path = os.path.join(ROOT, "src", "L0", "services", "sysapi", "l1svc_defs.h")
+    """Parse ocos/services/sysapi/interface/svc_sysapi_l1svc.h (the category/op ABI)."""
+    path = os.path.join(ROOT, "ocos", "services", "sysapi", "interface", "svc_sysapi_l1svc.h")
     text = open(path, encoding="utf-8").read()
     cats = {}
     ops = {}
@@ -634,7 +634,7 @@ def extract_stats():
 # 2.1.0 (P-15): the pages are v2-native now.  The registration table
 # (file, name, handler, help) is extracted from every OC_SHELL_CMD
 # call site; the ush SVC_CMDS rows and built-ins carry their own home
-# (src/L1/ush/main.c); domain grouping follows the v2 tree (recovery/,
+# (ocos/l1apps/ush/main.c); domain grouping follows the v2 tree (recovery/,
 # services/, core/, tui/, chinese/, l1apps/).
 
 
@@ -833,7 +833,7 @@ def write_command_pages(cmds, out_dir, lang="en"):
                 w("家：L0 恢复壳（`oc>`）—— 注册于 `%s`（OC_SHELL_CMD）"
                   % "`, `".join(sorted(set(files))))
                 if c.get("svc_duo"):
-                    w("双归属：同时是 ush 的 SVC_CMDS 行（`src/L1/ush/main.c`），"
+                    w("双归属：同时是 ush 的 SVC_CMDS 行（`ocos/l1apps/ush/main.c`），"
                       "两个 shell 都可调用。")
                 if c.get("bridge"):
                     w("亦可经 SYS_NETCMD 桥接从 ush 内建调用。")
@@ -841,7 +841,7 @@ def write_command_pages(cmds, out_dir, lang="en"):
                 w("Home: L0 recovery shell (`oc>`) - OC_SHELL_CMD in `%s`"
                   % "`, `".join(sorted(set(files))))
                 if c.get("svc_duo"):
-                    w("Also an ush SVC_CMDS row (`src/L1/ush/main.c`) - "
+                    w("Also an ush SVC_CMDS row (`ocos/l1apps/ush/main.c`) - "
                       "callable from both shells.")
                 if c.get("bridge"):
                     w("Also reachable as a ush built-in through the "
@@ -849,21 +849,21 @@ def write_command_pages(cmds, out_dir, lang="en"):
             w("")
         elif c["where"] == "L1-SVC":
             if zh:
-                w("家：ring-3 服务面 —— ush 的 SVC_CMDS 行（`src/L1/ush/main.c`），"
+                w("家：ring-3 服务面 —— ush 的 SVC_CMDS 行（`ocos/l1apps/ush/main.c`），"
                   "经 SYS_L1SVC(110) 派发到 `services/%s/`。" % svc_folder_of_cat(c["cat"]))
             else:
                 w("Home: ring-3 service surface - SVC_CMDS row in "
-                  "`src/L1/ush/main.c`, dispatched through SYS_L1SVC(110) to "
+                  "`ocos/l1apps/ush/main.c`, dispatched through SYS_L1SVC(110) to "
                   "`services/%s/`." % svc_folder_of_cat(c["cat"]))
             w("")
         elif c["where"] == "L1-builtin":
             via = (" 或经 SYS_NETCMD" if c.get("bridge") else "")
             if zh:
-                w("家：ush 内建 —— `src/L1/ush/main.c` 的 streq 派发"
+                w("家：ush 内建 —— `ocos/l1apps/ush/main.c` 的 streq 派发"
                   "（完全运行于 ring 3%s）。" % via)
             else:
                 w("Home: ush built-in - streq dispatch in "
-                  "`src/L1/ush/main.c` (runs entirely in ring 3%s)." % via)
+                  "`ocos/l1apps/ush/main.c` (runs entirely in ring 3%s)." % via)
             w("")
         w(("领域：[%s](index.md#%s)" if zh else "Domain: [%s](index.md#%s)")
           % (titles.get(dom, dom), dom))
@@ -1065,7 +1065,7 @@ def main():
         # 2.1.0 (P-04 fix): the official numbered L1 extension count is
         # the CURRENT L1SVC op surface, not the v1 README formula (the
         # v1 figure, 162, contradicted the surface the same doc
-        # reported). WP06d: computed from l1svc_defs.h at generation
+        # reported). WP06d: computed from svc_sysapi_l1svc.h at generation
         # time - 190 ops / 20 categories at the 3.0.0-WP06c tree
         # (ops carry a command comment; the bare numbered defines
         # without one - the DIAG odd-slot internals - do not count).
@@ -1082,7 +1082,7 @@ def main():
         "note": ("declared_total = every callable declaration in the "
                  "v2 service headers (includes internal helpers). "
                  "l1_official_count = the numbered L1SVC op surface "
-                 "(kernel-side ABI table, src/L0/services/sysapi/l1svc_defs.h). "
+                 "(kernel-side ABI table, ocos/services/sysapi/interface/svc_sysapi_l1svc.h). "
                  "v1_* fields record the COMPLETE v1.0.0 Part 2 "
                  "declaration truth (all %d callable rows across the 13 "
                  "surface headers; the v1 README numbered formula said "
@@ -1103,7 +1103,7 @@ def main():
     cmds = v2cmds
     # 2.1.0 (P-15): SVC rows whose ush help-block line uses a compact
     # format the help regex can't see (e.g. "mkfs.fat32|exfat|ext4 <dev>")
-    # get the usage hint straight from the l1svc_defs.h op comment -
+    # get the usage hint straight from the svc_sysapi_l1svc.h op comment -
     # the same string the numbered-op tables print.
     op_hint = {}
     for op in svc_ops.values():
@@ -1118,7 +1118,7 @@ def main():
             filled_hints += 1
     if filled_hints:
         print(f"gen_api_docs: filled {filled_hints} SVC help hint(s) "
-              f"from l1svc_defs.h op comments")
+              f"from svc_sysapi_l1svc.h op comments")
     # 3.0.0-WP04: the embedded program registry capture is the
     # command-surface AUTHORITY (one command = one app = one folder;
     # the v2.x L0/SVC split is history).  Merge over the static scan.
@@ -1301,7 +1301,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
     w("time: the L0 command declarations straight from the OC_SHELL_CMD")
     w("call sites, the ring-3 surface from the embedded program registry")
     w("capture (--l1-registry, one command = one app = one src/L1/ folder)")
-    w("and src/L0/services/sysapi/l1svc_defs.h, the kernel-side")
+    w("and ocos/services/sysapi/interface/svc_sysapi_l1svc.h, the kernel-side")
     w("declarations from the service headers. Regenerate with")
     w("`make api-docs`.")
     w("")
@@ -1316,7 +1316,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
       % (len(svc_cats or {}), len(svc_ops or {})))
     w("- Kernel-side declarations across the service headers: **%d**"
       % len(interfaces))
-    w("- Syscalls: 54 (`grep -c '#define SYS_' src/L0/services/sysapi/core_syscall.h`,")
+    w("- Syscalls: 54 (`grep -c '#define SYS_' ocos/services/sysapi/interface/svc_sysapi_syscall.h`,")
     w("  SYS_L1SVC(110) added in 2.0.0)")
     w("- Source lines: **%s** across %d files (README verification"
       % (format(stats["total_lines"], ","), stats["total_files"]))
@@ -1333,7 +1333,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
     w("class moved to the ring-3 service surface; and the only true")
     w("deletions on the v1 numbered surface are the two entries in the")
     w("deletion register (Part 2d). Other register-class declarations")
-    w("(tui_ext.h menus/pages/widgets/..., `watchdog_register`,")
+    w("(svc_tui_ext.h menus/pages/widgets/..., `watchdog_register`,")
     w("`signal_register`, `shell_register_builtin`) are STILL PUBLIC")
     w("in the v2 tree - the per-entry truth is Part 2c. What")
     w("deliberately stays in L0: the kernel self-tests, the watchdog,")
@@ -1424,7 +1424,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
     w("")
     w("The numbered ring-3 call surface (SYS_L1SVC): category number")
     w("selects the services/`<category>`/ folder, op selects the command.")
-    w("Renumber only by appending (see src/L0/services/sysapi/l1svc_defs.h).")
+    w("Renumber only by appending (see ocos/services/sysapi/interface/svc_sysapi_l1svc.h).")
     w("")
     if svc_cats:
         w("| Cat | Folder | Categories with an L1 dispatch table |")
@@ -1572,7 +1572,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
         w("")
     w("## Part 3 - Syscall surface (54)")
     w("")
-    w("Defined in `src/L0/services/sysapi/core_syscall.h` (`#define SYS_*`).")
+    w("Defined in `ocos/services/sysapi/interface/svc_sysapi_syscall.h` (`#define SYS_*`).")
     w("ABI: rax = number, rdi/rsi/rdx/r10 = arguments (r8 = 5th for")
     w("SYS_L1SVC), rax = result (>= 0 success, < 0 error).")
     w("SYS_L1SVC(110) and SYS_NETCMD(101) are the 2.0.0 ring-3")

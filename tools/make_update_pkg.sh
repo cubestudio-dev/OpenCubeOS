@@ -14,7 +14,7 @@
 #
 #     3.0.0-WP05 B5-7: the boot/grub.cfg payload member is GONE - the
 #     boot menu is OCBL's own dynamic scan, there is no loader config
-#     left to update.  The kernel installer (ota_ab.c) still accepts
+#     left to update.  The kernel installer (svc_selfhost_ab.c) still accepts
 #     packages that CARRY the member (older releases stay upgradable),
 #     it simply never appears in ours anymore.
 #

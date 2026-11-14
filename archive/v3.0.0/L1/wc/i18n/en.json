@@ -1,5 +1,0 @@
-{
-  "_hint": "count lines/words/bytes",
-  "svc_call_failed": ": service call failed (rc=-1)\n",
-  "wc: cannot open ": "wc: cannot open "
-}

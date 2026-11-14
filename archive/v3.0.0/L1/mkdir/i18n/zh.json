@@ -1,6 +1,0 @@
-{
-  "_hint": "创建目录",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n",
-  "usage: mkdir <path>\n": "用法：mkdir <路径>\n",
-  "mkdir: cannot create '": "mkdir：无法创建 '"
-}

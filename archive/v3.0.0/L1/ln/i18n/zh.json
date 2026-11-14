@@ -1,7 +1,0 @@
-{
-  "_hint": "创建链接",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n",
-  "ln: cannot create symlink (target must be an absolute path)\n": "ln：无法创建符号链接（目标必须是绝对路径）\n",
-  "usage: ln <old> <new> | ln -s <abs-target> <linkpath>\n": "用法：ln <旧> <新> | ln -s <绝对目标> <链接路径>\n",
-  "ln: hard link failed (rc=": "ln：硬链接失败（rc="
-}

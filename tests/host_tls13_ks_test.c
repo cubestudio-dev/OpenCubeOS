@@ -8,7 +8,7 @@
  * Plus the P1fix4 BUG-0081 KeyUpdate derivation KATs (RFC 8446 7.2).
  * NOT kernel code.
  * Build (post-restructure paths; -fno-builtin is REQUIRED at -O2: the
- * kernel lib_string.h prototypes differ from the glibc builtins and GCC
+ * kernel core_lib_string.h prototypes differ from the glibc builtins and GCC
  * miscompiles the mismatch into a crash before the first KAT):
  *   gcc -O2 -fno-builtin -Ikernel -Ikernel/crypto -Ikernel/lib \
  *       -Ikernel/mem -Ikernel/core -Ikernel/arch/x86_64 \
@@ -17,13 +17,13 @@
  *       kernel/core/core_rtc.c tests/host_pmm_stub.c -o /tmp/host_tls13ks
  */
 #include <stdio.h>
-/* P1fix4: no <string.h> — the kernel lib_string.h below declares the same
+/* P1fix4: no <string.h> — the kernel core_lib_string.h below declares the same
  * mem* functions with identical ABIs (usize == size_t on x86-64) and we
  * link the libc/ASAN ones; glibc's strchr(const char*, int) would collide
  * with the kernel declaration. */
 #include "types.h"
-#include "lib_string.h"
-#include "crypto_core.h"
+#include "core_lib_string.h"
+#include "svc_crypto_core.h"
 
 static void hex2bin(const char *h, u8 *out, int n) {
     for (int i = 0; i < n; i++) {
@@ -125,7 +125,7 @@ int main(void) {
      * "finished" vector above. Three distinct input secrets: all-0x00,
      * all-0x01, all-0xaa. NOTE: in/out are separate buffers — the
      * kernel's fail-closed hkdf_expand (BUG-0298) zeroes `out` first,
-     * so an aliased call would hash the zeroed secret (net_tls.c uses
+     * so an aliased call would hash the zeroed secret (svc_net_tls.c uses
      * a scratch `next` buffer + memcpy for the same reason). */
     u8 ku_in[32], ku_next[32];
     memset(ku_in, 0x00, 32);

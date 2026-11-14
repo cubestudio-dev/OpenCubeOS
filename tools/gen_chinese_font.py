@@ -35,7 +35,7 @@ from fontTools.pens.recordingPen import RecordingPen
 UNIFONT = os.environ.get("UNIFONT_OTF",
                          "/usr/share/fonts/opentype/unifont/unifont.otf")
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                   "chinese", "chinese_font_data.c")
+                   "chinese", "svc_font_chinese_data.c")
 
 # ---------------------------------------------------------------- GB2312 set
 

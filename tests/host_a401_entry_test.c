@@ -3,11 +3,11 @@
  *
  * BUG-0082 (P1, A14-31) verification: the X.509 DER negative-length
  * defect fixed by P0fix2 BUG-0035 (A4-01) must be rejected at the DER
- * layer for EVERY caller, including the four net_tls.c entry points
+ * layer for EVERY caller, including the four svc_net_tls.c entry points
  * (TLS 1.3 Certificate, TLS 1.2 Certificate, verify_cert_sig, and the
  * inner element walkers) that all funnel through crypto_der_*.
  *
- * This harness compiles the exact kernel crypto_x509.c and feeds it
+ * This harness compiles the exact kernel svc_crypto_x509.c and feeds it
  * crafted DER blobs whose long-form lengths wrap to negative values in
  * a signed-int accumulation; every one of them must be rejected with a
  * negative error and ASAN must stay silent.
@@ -24,12 +24,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include "types.h"
-#include "crypto_x509.h"
+#include "svc_crypto_x509.h"
 
 void *memset(void*,int,unsigned long);
 void *memcpy(void*,const void*,unsigned long);
 int   memcmp(const void*,const void*,unsigned long);
-void *kmalloc(unsigned long);   /* crypto_x509.c uses kmalloc/kfree */
+void *kmalloc(unsigned long);   /* svc_crypto_x509.c uses kmalloc/kfree */
 void  kfree(void*);
 
 /* map kernel heap to libc */

@@ -9,7 +9,7 @@
  */
 #include <stdio.h>
 #include "types.h"
-#include "crypto_x509.h"
+#include "svc_crypto_x509.h"
 void *memset(void*,int,unsigned long);
 void *memcpy(void*,const void*,unsigned long);
 int   memcmp(const void*,const void*,unsigned long);

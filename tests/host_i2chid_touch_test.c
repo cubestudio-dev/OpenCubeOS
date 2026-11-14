@@ -36,7 +36,7 @@ int  driver_i2c_transfer(int id, u16 addr, int addr10,
     return -1;
 }
 
-#include "drivers/input/driver_input_i2chid.c"
+#include "drv_input_i2chid.c"
 
 static int check(const char *name, int cond) {
     printf("%-58s %s\n", name, cond ? "PASS" : "FAIL");

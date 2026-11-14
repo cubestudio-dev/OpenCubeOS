@@ -1,6 +1,0 @@
-{
-  "_hint": "copy files",
-  "svc_call_failed": ": service call failed (rc=-1)\n",
-  "usage: cp <src> <dst>\n": "usage: cp <src> <dst>\n",
-  "cp: cannot open '": "cp: cannot open '"
-}

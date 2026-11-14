@@ -6,7 +6,7 @@
  */
 #include <stdio.h>
 #include "types.h"
-#include "net_tcp_cc.h"
+#include "svc_net_tcp_cc.h"
 
 static int g_fail = 0;
 

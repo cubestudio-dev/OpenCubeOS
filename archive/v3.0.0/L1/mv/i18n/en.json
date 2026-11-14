@@ -1,6 +1,0 @@
-{
-  "_hint": "move/rename files",
-  "svc_call_failed": ": service call failed (rc=-1)\n",
-  "usage: mv <src> <dst>\n": "usage: mv <src> <dst>\n",
-  "mv: cannot open '": "mv: cannot open '"
-}

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Host-side unit test for crypto_bn.c + crypto_ec_nist.c (NOT part of the kernel build).
+/* Host-side unit test for svc_crypto_bn.c + svc_crypto_ec_nist.c (NOT part of the kernel build).
  * Verifies against NIST P-256 ECDSA known-answer vector and ECDH
  * self-consistency + known public key. Built only for development testing:
  *   gcc -O2 -Ikernel -Ikernel/lib -Ikernel/crypto tests/host_bn_ec_test.c \
@@ -13,11 +13,11 @@
  * mask it, which makes the crash look like an -O2-only code bug.
  */
 #include <stdio.h>
-#include "lib_string.h"  /* kernel string.h — use oc_* fns in host tests too */
+#include "core_lib_string.h"  /* kernel string.h — use oc_* fns in host tests too */
 /* libc string.h is included first on purpose; kernel headers only add oc_*
  * functions and must not shadow libc declarations in this host test. */
-#include "crypto_bn.h"
-#include "crypto_ec_nist.h"
+#include "svc_crypto_bn.h"
+#include "svc_crypto_ec_nist.h"
 
 /* crypto_random stub for host test (deterministic) */
 void crypto_random(u8 *buf, int len) {

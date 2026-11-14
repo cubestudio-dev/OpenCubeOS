@@ -1,5 +1,0 @@
-{
-  "_hint": "list processes",
-  "svc_call_failed": ": service call failed (rc=-1)\n",
-  "ps: SYS_PS unavailable (kernel too old)\n": "ps: SYS_PS unavailable (kernel too old)\n"
-}

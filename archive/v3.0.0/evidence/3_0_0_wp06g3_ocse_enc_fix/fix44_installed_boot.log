@@ -1,25 +1,0 @@
-
-OCBL 3.0.0 boot loader (3.0.0-WP06g2 build 413)
-long mode 64-bit C entry OK
-flavor: mbr  boot drive: 0x80  stage1 CS: 0x0000
-cpu: QEMU Virtual CPU version 2.5+
-stack at 0x0008DF00
-OCBL B1 chain verified
-[b2a] trampoline installed at 0x40000
-[b2a] E820 entries: 7
-  [0] base=0x00000000 len=0x0009FC00 type=1
-  [1] base=0x0009FC00 len=0x00000400 type=2
-  [2] base=0x000F0000 len=0x00010000 type=2
-  [3] base=0x00100000 len=0x0FEE0000 type=1
-  [4] base=0x0FFE0000 len=0x00020000 type=2
-  [5] base=0xFFFC0000 len=0x00040000 type=2
-  [6] base=0x00000000 len=0x00000000 type=2
-[b2a] hd 0x80 LBA0:FAFC31C08ED0BC00 sig=AA55
-[b2a] scanning BIOS drives (boot=0x80)
-  drive 0x80: 131072 sectors x 512 B
-[state] fresh boot - state area initialized
-[state] boot attempt seq 1
-[scan] entries: 2
-  [0] OCOS: Open Cube OS (hd0 p1)  path=/boot/opencube.elf size=2271792
-  [1] OCIRE: OCIRE recovery (hd0 p1)  path=/boot/ocire.elf size=363536
-

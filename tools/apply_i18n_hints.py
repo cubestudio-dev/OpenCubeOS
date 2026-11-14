@@ -306,7 +306,7 @@ H = {
 
 def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    L1 = os.path.join(root, "src", "L1")
+    L1 = os.path.join(root, "ocos", "l1apps")
     missing = []
     covered = 0
     # folder apps

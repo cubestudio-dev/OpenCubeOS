@@ -136,8 +136,8 @@ def cut_span(rel, start_marker, end_marker, replacement):
 E1 = "ocse/l1/l1_ext.h"
 
 edit(E1,
-     '#include "ota_ab.h"   /* WP-10u: ota_update_status_t + pkg info */\n',
-     '/* WP06a-E1: ota_ab.h not vendored - the update/A-B API below is\n'
+     '#include "svc_selfhost_ab.h"   /* WP-10u: ota_update_status_t + pkg info */\n',
+     '/* WP06a-E1: svc_selfhost_ab.h not vendored - the update/A-B API below is\n'
      ' * stripped; OCSE keeps hooks 1-4 (fb / renderer / font / console). */\n')
 
 cut_span(E1,
@@ -157,7 +157,7 @@ edit("ocse/ocse.mk",
      "                 $(wildcard $(OCSE_DIR)/drivers/usb/*.c)\n",
      "                 $(wildcard $(OCSE_DIR)/drivers/usb/*.c)\n"
      "# WP06a-E2: driver_block_disk_setup.c is GRUB-era install tooling\n"
-     "# (writes grub boot.img/core.img; pulls grub_boot_data.h + shell.h).\n"
+     "# (writes grub boot.img/core.img; pulls core_boot_grubdata.h + shell.h).\n"
      "OCSE_D_C := $(filter-out $(OCSE_DIR)/drivers/block/driver_block_disk_setup.c,$(OCSE_D_C))\n")
 
 # ---------------------------------------------------------------------------
@@ -290,8 +290,8 @@ edit(E6,
 E7 = "ocse/drivers/usb/driver_usb.c"
 
 edit(E7,
-     '#include "driver_usb_msc.h"\n'
-     '#include "driver_usb_serial.h"\n',
+     '#include "drv_usb_msc.h"\n'
+     '#include "drv_usb_serial.h"\n',
      '/* WP06a-E7: MSC/serial (and audio) class drivers are not vendored\n'
      ' * into OCSE - the installer reads disks via the ATA block layer,\n'
      ' * not USB storage; HID (keyboard + mouse) is what OCSE uses. */\n')
@@ -392,7 +392,7 @@ e12_main()
 
 # ---------------------------------------------------------------------------
 # E13: ext4 write path (WP-06b) - the on-disk structures and the
-# ctx/inode typedefs move VERBATIM from fs_ext4.c to fs_ext4.h so
+# ctx/inode typedefs move VERBATIM from svc_fs_ext4.c to svc_fs_ext4.h so
 # ocse_ext4w.c (the new write-path module: write/mkdir/rmdir/create/
 # unlink/rename + block+inode allocation) can share them, and
 # fs_ext4_init() attaches the write ops onto the same op structures
@@ -408,7 +408,7 @@ def e13_ext4w():
     if "ocse_ext4w_attach" in c and "fs_ext4_sb_t;" in h:
         return                          # already applied
     # 1. extract the packed on-disk struct block. The anchor CANNOT be
-    # the bare "#pragma pack(push, 1)" string: the fs_ext4.c file-header
+    # the bare "#pragma pack(push, 1)" string: the svc_fs_ext4.c file-header
     # COMMENT contains that exact text ("...use #pragma pack(push, 1).
     # All functions are static..."), and .index() on the bare string
     # matched the comment, swallowing the comment tail + the whole
@@ -425,10 +425,10 @@ def e13_ext4w():
     ctx_block = c[b0:b1]
     # 3. cut both from the .c
     c2 = c.replace(struct_block,
-        "/* WP06b-E13: on-disk structures moved to fs_ext4.h "
+        "/* WP06b-E13: on-disk structures moved to svc_fs_ext4.h "
         "(shared with ocse_ext4w.c). */")
     c2 = c2.replace(ctx_block,
-        "/* WP06b-E13: ctx/inode typedefs moved to fs_ext4.h. */")
+        "/* WP06b-E13: ctx/inode typedefs moved to svc_fs_ext4.h. */")
     # 4. attach the write ops after registration
     anchor = ('fs_vfs_register_fs("ext4", &g_ext4_fs_ops, '
               '&g_ext4_file_ops,\n                    &g_ext4_dir_ops);')
@@ -443,10 +443,10 @@ def e13_ext4w():
         sys.exit("[edits] E13 header guard not found")
     shared = ("\n/* =========================================================\n"
               " * WP-06b-E13: shared ext4 structures (moved verbatim from\n"
-              " * fs_ext4.c so ocse_ext4w.c - the write path - sees the same\n"
+              " * svc_fs_ext4.c so ocse_ext4w.c - the write path - sees the same\n"
               " * layouts; the read driver keeps its kmalloc'd copies).\n"
               " * ========================================================= */\n"
-              "#include \"fs_vfs.h\"\n"
+              "#include \"svc_fs_vfs.h\"\n"
               + struct_block + "\n\n" + ctx_block + "\n\n"
               "/* WP-06b: the ext4 write path (ocse_ext4w.c). */\n"
               "void ocse_ext4w_attach(fs_vfs_file_ops_t *file_ops,\n"
@@ -505,7 +505,7 @@ def e14_cache_cohere():
         if anchor not in h:
             sys.exit("[edits] E14 cache.h anchor not found")
         decl = ("\n/* WP06b-E14: raw-path write-back coherence (implemented in\n"
-                " * driver_block_cache.c; used by the raw I/O dispatch in\n"
+                " * drv_storage_cache.c; used by the raw I/O dispatch in\n"
                 " * driver_block_blk.c). */\n"
                 "void driver_block_cache_drop(int dev_idx, u64 lba);\n"
                 "void driver_block_cache_dirty_fill(int dev_idx, u64 lba,\n"
@@ -806,7 +806,7 @@ def e15_dma_completion():
 
 
 def e16_rdonly_masks():
-    """WP06b b4: the read-only opens of fs_ext4.c rejected EVERY open.
+    """WP06b b4: the read-only opens of svc_fs_ext4.c rejected EVERY open.
     VFS_O_RDWR == VFS_O_RDONLY|VFS_O_WRONLY (0x3), so a mask that ORs
     RDWR in also matches a pure RDONLY open (bit 0). The WRONLY bit
     alone is the write-intent indicator for both write modes. The
@@ -994,17 +994,17 @@ def e18_double_buffer():
          "\n"
          "#endif /* OC_FB_H */")
 
-    # 18b. screen_fb.c: include + shadow state + routed primitives
+    # 18b. core_console_fb.c: include + shadow state + routed primitives
     edit("ocse/drivers/display/screen_fb.c",
-         '#include "screen_fb.h"\n'
+         '#include "core_console_fb.h"\n'
          '#include "arch_multiboot2.h"\n'
-         '#include "lib_string.h"\n'
+         '#include "core_lib_string.h"\n'
          '\n'
          'static screen_fb_info_t g_fb;',
-         '#include "screen_fb.h"\n'
+         '#include "core_console_fb.h"\n'
          '#include "arch_multiboot2.h"\n'
-         '#include "lib_string.h"\n'
-         '#include "mem_heap.h"     /* WP06f: the double-buffer allocation */\n'
+         '#include "core_lib_string.h"\n'
+         '#include "core_mm_heap.h"     /* WP06f: the double-buffer allocation */\n'
          '\n'
          'static screen_fb_info_t g_fb;\n'
          '\n'
@@ -1082,7 +1082,7 @@ def e18_double_buffer():
          "        for (u32 i = 0; i < w; ++i) dpx[i] = src_row[i];\n"
          "    }")
 
-    # 18c. screen_fb.c: the shadow API + present + the cursor sprite
+    # 18c. core_console_fb.c: the shadow API + present + the cursor sprite
     edit("ocse/drivers/display/screen_fb.c",
          "void screen_fb_clear(u32 pixel) {\n"
          "    screen_fb_fill_rect(0, 0, g_fb.width, g_fb.height, pixel);\n"
@@ -1198,7 +1198,7 @@ def e19_glyph_routing():
          "    /* For each of 16 rows: for each of 8 columns, pick fg or bg pixel.\n"
          "     * WP06f: writes route through screen_fb_write_px so the glyph\n"
          "     * lands in the RAM back buffer while the GUI owns the screen\n"
-         "     * (the double-buffer path - see screen_fb.h). */\n"
+         "     * (the double-buffer path - see core_console_fb.h). */\n"
          "    for (u32 row = 0; row < OC_FONT_CELL_H; ++row) {\n"
          "        u8  bits   = glyph[row];\n"
          "        u32 ypix   = y + row;\n"
@@ -1525,12 +1525,12 @@ def e21_disk_probe_diag():
 
     # ---- (k) ATA: probe report -> screen + serial dual path ----
     edit("ocse/drivers/block/driver_block_ata.c",
-         '#include "driver_block_ata.h"\n'
-         '#include "screen_console.h"\n'
-         '#include "lib_string.h"\n',
-         '#include "driver_block_ata.h"\n'
-         '#include "screen_console.h"\n'
-         '#include "lib_string.h"\n'
+         '#include "drv_storage_ata.h"\n'
+         '#include "core_console_screen.h"\n'
+         '#include "core_lib_string.h"\n',
+         '#include "drv_storage_ata.h"\n'
+         '#include "core_console_screen.h"\n'
+         '#include "core_lib_string.h"\n'
          '\n'
          '/* WP06g3-4.1: probe diagnostics must reach the serial line too. */\n'
          'extern void ocse_serial_puts_raw(const char *s);\n')
@@ -1579,14 +1579,14 @@ def e22_ocse_out_enc():
     # ---- (a) ocse_i18n.c: console_cn include ----
     edit("ocse/ocse_i18n.c",
          '#include "ocse_i18n.h"\n'
-         '#include "encoding.h"\n'
-         '#include "screen_console.h"\n'
-         '#include "lib_string.h"\n',
+         '#include "svc_encoding_core.h"\n'
+         '#include "core_console_screen.h"\n'
+         '#include "core_lib_string.h"\n',
          '#include "ocse_i18n.h"\n'
-         '#include "encoding.h"\n'
-         '#include "screen_console.h"\n'
-         '#include "lib_string.h"\n'
-         '#include "console_cn.h"   /* WP06g3: zh screen path renders wide */\n')
+         '#include "svc_encoding_core.h"\n'
+         '#include "core_console_screen.h"\n'
+         '#include "core_lib_string.h"\n'
+         '#include "svc_display_cn.h"   /* WP06g3: zh screen path renders wide */\n')
 
     # ---- (b) ocse_i18n.c: rewrite ocse_out/ocse_outln ----
     edit("ocse/ocse_i18n.c",

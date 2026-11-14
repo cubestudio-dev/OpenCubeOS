@@ -1,5 +1,0 @@
-{
-  "_hint": "create an empty file / update mtime",
-  "svc_call_failed": ": service call failed (rc=-1)\n",
-  "usage: touch <file>\n": "usage: touch <file>\n"
-}

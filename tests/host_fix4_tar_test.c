@@ -16,7 +16,7 @@
  * Build (from oc-os/):
  *   gcc -O2 -I. -Ikernel/lib -Ikernel/mem tests/host_fix4_tar_test.c \
  *       -o /tmp/fix4_tar_test
- * (do NOT include <string.h> - same lib_string.h strchr conflict as
+ * (do NOT include <string.h> - same core_lib_string.h strchr conflict as
  * tools/host_gzip_test.c)
  */
 #include <stdio.h>
@@ -27,7 +27,7 @@
 void *kmalloc(u64 n) { return malloc(n); }
 void kfree(void *p) { free(p); }
 
-#include "core/lib/lib_tar.c"
+#include "core_lib_tar.c"
 
 static int check(const char *name, int cond) {
     printf("%-58s %s\n", name, cond ? "PASS" : "FAIL");

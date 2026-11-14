@@ -1,53 +1,0 @@
-[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0001 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
-BdsDxe: starting Boot0001 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
-[efi] bss 0x00000E3F9000-0x000000029884
-
-OCBL 3.0.0 boot loader (3.0.0-WP04 build 363)
-UEFI flavor entry OK
-[efi] UEFI revision 0x00020046  config tables: 10
-cpu: QEMU Virtual CPU version 2.5+
-stack at 0x0FE8E6B0
-OCBL B5-1 UEFI chain verified
-[efi] fixed windows reserved (0x30000/0x50000/0x60000)
-[efi] connect sweep: 6 controllers
-[efi] BlockIo whole-disk handles: 2
-[scan] entries: 1
-  [0] OCSE: OpenCubeOS Setup (OCSE) (hd1)  path=/boot/ocse.elf size=117
-[efi] scan complete: 1 entries
-[1m[37m[40m[01;02HOpen Cube OS Boot Loader (3.0.0-WP04 build 363)[0;1HOpen Cube OS Boot Loader (3.0.0-WP04 build 363)[0m[37m[40m[02;02HUp/Down to select, Enter to boot.[1;1HUp/Down to select, Enter to boot.[0m[30m[47m[05;01H                                                                                [05;02HOpenCubeOS Setup (OCSE) (hd1)[7m[4;1HOpenCubeOS Setup (OCSE) (hd1)[0m[0m[37m[40m[06;01H                                                                                [06;02HShutdown[5;1HShutdown[1m[37m[40m[03;02HBooting OpenCubeOS Setup (OCSE) (hd1) in 10s                                  [2;1HBooting OpenCubeOS Setup (OCSE) (hd1) in 10s                                  [03;02HBooting OpenCubeOS Setup (OCSE) (hd1) in 9s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (hd1) in 9s                                   [03;02HBooting OpenCubeOS Setup (OCSE) (hd1) in 8s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (hd1) in 8s                                   [03;02HBooting OpenCubeOS Setup (OCSE) (hd1) in 7s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (hd1) in 7s                                   [03;02HBooting OpenCubeOS Setup (OCSE) (hd1) in 6s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (hd1) in 6s                                   [03;02HBooting OpenCubeOS Setup (OCSE) (hd1) in 5s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (hd1) in 5s                                   [03;02HBooting OpenCubeOS Setup (OCSE) (hd1) in 4s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (hd1) in 4s                                   [03;02HBooting OpenCubeOS Setup (OCSE) (hd1) in 3s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (hd1) in 3s                                   [03;02HBooting OpenCubeOS Setup (OCSE) (hd1) in 2s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (hd1) in 2s                                   [03;02HBooting OpenCubeOS Setup (OCSE) (hd1) in 1s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (hd1) in 1s                                   [menu] selected: OpenCubeOS Setup (OCSE) (hd1)
-[menu] B4 will load this payload (mb2 handoff)
-[boot] GOP 800x600x32 ok (800x600 picked)
-[boot] kernel loaded: entry=0x00140240 size=670408
-[boot] mbi built: 800 bytes at 0x50000 (26 mmap ranges)
-[boot] boot services exited
-[boot] handoff trampoline at 0x30000 (156 bytes)
-
-[ocse] OpenCubeOS Setup Environment 3.0.0-WP04
-[ocse] stage 1/24: serial console (COM1)
-[ocse] stage 2/24: multiboot2 handshake (OCBL handoff)
-[ocse] stage 3/24: framebuffer (OCBL-provided 800x600x32)
-[ocse] stage 4/24: console + CJK renderer + kernel log
-[ocse] stage 5/24: IDT + GDT + PIC remap
-[ocse] stage 6/24: PIT timer @ 100 Hz
-[ocse] stage 7/24: PS/2 keyboard
-[ocse] stage 8/24: COM1 serial input + line editor
-[ocse] stage 9/24: interrupts on + exception self-test (3/3 caught)
-[ocse] stage 10/24: PMM (physical memory manager)
-[ocse] stage 11/24: VMM (virtual memory manager)
-[ocse] stage 12/24: kernel heap + full klog ring
-[ocse] stage 13/24: scheduler + sync primitives
-[ocse] stage 14/24: ACPI namespace (DSDT/SSDT) + power
-[ocse] stage 15/24: PCIe + (no watchdog) + SMBus + touchpad
-[ocse] stage 16/24: CMOS RTC
-[ocse] stage 17/24: HPET time source
-[ocse] stage 18/24: VFS + ramfs
-[ocse] stage 19/24: block layer (ATA/PIO+DMA, virtio/AHCI/NVMe probes)
-[ocse] stage 20/24: USB stack up (0 HC backends, HID kbd+mouse)
-[ocse] stage 21/24: FAT32/exFAT/ext4 + ACPI PM timer
-[ocse] stage 22/24: partition scan (MBR + GPT children)
-[ocse] stage 23/24: crash recovery armed (dump + crashlog + soft watchdog)
-[ocse] stage 24/24: handing over to the OCSE environment
-[ocse] checks: cpu=PASS mem=PASS disp=PASS disk=PASS
-[ocse] environment up: GUI mode
-
-[T3 PASS] OVMF UEFI positive: dual-firmware handoff -> GUI up

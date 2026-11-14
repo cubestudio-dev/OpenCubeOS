@@ -1,4 +1,0 @@
-{
-  "_hint": "WP-fix-p2-p3-cleanup 实机探针（UTF-8 分块 / 零长读 / 管道）",
-  "usage: p2test <utf8|read0|pipe>\n": "用法：p2test <utf8|read0|pipe>\n"
-}

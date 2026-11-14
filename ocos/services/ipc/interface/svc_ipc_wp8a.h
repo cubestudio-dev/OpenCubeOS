@@ -1,0 +1,60 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
+/* Open Cube OS - WP-08a
+ * File: l1/l1_wp8a.h
+ * Purpose: L1 EXTENSION API - WP-08a interfaces (items 33-40).
+ */
+#ifndef OC_EXT_WP8A_H
+#define OC_EXT_WP8A_H
+
+#include "types.h"
+#include "svc_sysapi_syscall.h"
+#include "core_usermode.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+pid_t sys_proc_fork(void);
+int sys_proc_exec(const char *path, const char *argv[], const char *envp[]);
+pid_t sys_proc_wait(pid_t pid, int *status);
+void sys_proc_exit(int code) __attribute__((noreturn));
+pid_t sys_proc_getpid(void);
+pid_t sys_proc_getppid(void);
+int pipe_create(int pipefd[2]);
+int fd_dup(int oldfd);
+int fd_dup2(int oldfd, int newfd);
+signal_handler_fn signal_register(int sig, signal_handler_fn handler);
+int signal_send(pid_t pid, int sig);
+int signal_return(void);
+void *sys_mem_mmap(void *addr, u64 length, int prot);
+int sys_mem_munmap(void *addr, u64 length);
+int sys_mem_mprotect(void *addr, u64 length, int prot);
+void *sys_mem_brk(void *addr);
+int sys_chdir(const char *path);
+char *sys_getcwd(char *buf, u64 size);
+int sys_ioctl(int fd, u64 cmd, void *arg);
+int sys_select(int nfds, void *readfds, u32 timeout_ms);
+typedef struct { int fd; short events; short revents; } pollfd_t;
+int sys_poll(pollfd_t *fds, u64 nfds, i64 timeout_ms);
+
+#ifdef __cplusplus
+}
+#endif
+#endif /* OC_EXT_WP8A_H */
+
+
+/* ---- WP-10-tui: ring3 wrappers for the kernel socket syscalls ----
+ * The first argument of every call below is a NET socket id returned
+ * by l1_socket(), not a process file descriptor: socket ids live in
+ * the net stack's own table and do not participate in dup/select/
+ * poll/fork.  IP addresses are host-order u32 (as in net_core.h). */
+#define L1_SOCK_TCP 1
+#define L1_SOCK_UDP 2
+int l1_socket(int type);
+int l1_net_bind(int sock, u32 ip, u16 port);
+int l1_net_connect(int sock, u32 ip, u16 port);
+int l1_net_accept(int lsock, u32 *client_ip, u16 *client_port);
+int l1_net_send(int sock, const void *buf, int len);
+int l1_net_recv(int sock, void *buf, int maxlen);
+int l1_net_close(int sock);

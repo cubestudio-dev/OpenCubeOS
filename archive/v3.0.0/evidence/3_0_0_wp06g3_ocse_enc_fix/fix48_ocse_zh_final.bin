@@ -1,79 +1,0 @@
-OCBL stage1 ok
-
-OCBL 3.0.0 boot loader (3.0.0-WP06g2 build 409)
-long mode 64-bit C entry OK
-flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
-cpu: QEMU Virtual CPU version 2.5+
-stack at 0x0008DF00
-OCBL B1 chain verified
-[b2a] trampoline installed at 0x40000
-[b2a] E820 entries: 7
-  [0] base=0x00000000 len=0x0009FC00 type=1
-  [1] base=0x0009FC00 len=0x00000400 type=2
-  [2] base=0x000F0000 len=0x00010000 type=2
-  [3] base=0x00100000 len=0x0FEDF000 type=1
-  [4] base=0x0FFDF000 len=0x00021000 type=2
-  [5] base=0xFFFC0000 len=0x00040000 type=2
-  [6] base=0x00000000 len=0x00000000 type=2
-[b2a] hd 0x80 LBA0:0000000000000000 sig=0000
-[b2a] scanning BIOS drives (boot=0xE0)
-  drive 0x80: 131072 sectors x 512 B
-  cdrom 0xE0: 18446744073709551615 sectors x 2048 B
-  PVD: 'CD001' type=1
-  boot image first bytes: EB 3C 90 4D 54 4F 4F 34
-[state] fresh boot - state area initialized
-[state] boot attempt seq 1
-[scan] entries: 1
-  [0] OCSE: OpenCubeOS Setup (OCSE) (cd0)  path=/boot/ocse.elf size=124
-[0;1HOpen Cube OS Boot Loader (3.0.0-WP06g2 build 409)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOpenCubeOS Setup (OCSE) (cd0)[0m[5;1HShutdown[2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 10s                                  [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 9s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 8s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 7s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 6s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 5s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 4s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 3s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 2s                                   [2;1HBooting OpenCubeOS Setup (OCSE) (cd0) in 1s                                   [menu] selected: OpenCubeOS Setup (OCSE) (cd0)
-[menu] B4 will load this payload (mb2 handoff)
-[boot] VBE 800x600x32 ok
-[boot] kernel loaded: entry=0x00153920 size=782008
-[boot] mbi built: 376 bytes at 0x50000
-
-[ocse] OpenCubeOS Setup Environment 3.0.0-WP06g2
-[ocse] stage 1/24: serial console (COM1)
-[ocse] stage 2/24: multiboot2 handshake (OCBL handoff)
-[ocse] stage 3/24: framebuffer (OCBL-provided 800x600x32)
-[ocse] stage 4/24: console + CJK renderer + kernel log
-[ocse] stage 5/24: IDT + GDT + PIC remap
-[ocse] stage 6/24: PIT timer @ 100 Hz
-[ocse] stage 7/24: PS/2 keyboard
-[ocse] stage 8/24: COM1 serial input + line editor
-[ocse] stage 9/24: interrupts on + exception self-test (3/3 caught)
-[ocse] stage 10/24: PMM (physical memory manager)
-[ocse] stage 11/24: VMM (virtual memory manager)
-[ocse] stage 12/24: kernel heap + full klog ring
-[ocse] stage 13/24: scheduler + sync primitives
-[ocse] stage 14/24: ACPI namespace (DSDT/SSDT) + power
-[ocse] stage 15/24: PCIe + (no watchdog) + SMBus + touchpad
-[ocse] stage 16/24: CMOS RTC
-[ocse] stage 17/24: HPET time source
-[ocse] stage 18/24: VFS + ramfs
-ata_dma: IDE controller at 00:01.1 BAR4=0xc060
-virtio-blk: no legacy PCI device found (modern-only devices not supported)
-ahci: controller at 00:04.0
-ahci: CAP=0xc0141f05
-ahci: ports implemented=6 PI=0x3f
-ahci: registered sda (131072 sectors)
-nvme: no controller found
-[ocse] stage 19/24: block layer (ATA/PIO+DMA, virtio/AHCI/NVMe probes)
-[ocse] stage 20/24: USB stack up (0 HC backends, HID kbd+mouse)
-[ocse] stage 21/24: FAT32/exFAT/ext4 + ACPI PM timer
-[ocse] stage 22/24: partition scan (MBR + GPT children)
-[ocse] stage 23/24: crash recovery armed (dump + crashlog + soft watchdog)
-[ocse] stage 24/24: handing over to the OCSE environment
-[ocse] atapi drives: 1
-[ocse] install medium: /install (iso9660 cd0)
-[ocse] medium check: ocos.tar 2640384 B, ocblmbr.bin 38400 B
-[ocse] checks: cpu=PASS mem=PASS disp=PASS disk=PASS
-[ocse] gui double-buffer: on (back buffer attached)
-[ocse] ps2 aux mouse: present
-[ocse] environment up: GUI mode
-[ocse] hotkey: Ctrl+Alt+F2
-OCSECL - the OpenCubeOS setup command line.
-Type 'help' to list commands, 'help <cmd>' for one command.
-[ocse] switched: CLI mode
-ocsecl> lang zh
-语言：中文
-ocsecl> 

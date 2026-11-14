@@ -72,7 +72,7 @@ C_HEADER = """\
  *
  * DO NOT EDIT - generated file (excluded from the source distribution).
  */
-#include "grub_boot_data.h"
+#include "core_boot_grubdata.h"
 
 """
 

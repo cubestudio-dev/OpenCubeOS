@@ -24,7 +24,7 @@
  *   gcc -O2 -g -Ikernel -Ikernel/lib -Ikernel/mem -Ikernel/core \
  *       -Idrivers/camera -Idrivers/usb -Idrivers/pci \
  *       tests/host_camera_test.c -o /tmp/host_camera_test -lm
- * (no <string.h>: lib_string.c below provides memset/memcpy/...)
+ * (no <string.h>: core_lib_string.c below provides memset/memcpy/...)
  *
  * Exit code = number of failing checks.
  */
@@ -39,10 +39,10 @@ void *kmalloc(unsigned long long size) { return malloc(size); }
 void  kfree(void *p)                   { free(p); }
 u64   core_timer_now_ms(void)          { return 1234; }
 
-#include "../core/lib/lib_string.c"
-#include "../drivers/camera/lib_mjpeg.c"
-#include "../drivers/camera/driver_camera.c"
-#include "../drivers/camera/driver_camera_uvc.c"
+#include "core_lib_string.c"
+#include "drv_misc_mjpeg.c"
+#include "drv_misc_camera.c"
+#include "drv_misc_camera_uvc.c"
 
 static int g_check_id;
 static int check(const char *name, int cond)

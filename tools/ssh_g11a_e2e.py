@@ -18,7 +18,7 @@ def main():
     # host ssh server for test A
     server = subprocess.Popen(
         ["python3", "tools/paramiko_sshd.py", "2222"],
-        cwd="/home/z/oc-public",
+        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(1.5)
     env = dict(os.environ)

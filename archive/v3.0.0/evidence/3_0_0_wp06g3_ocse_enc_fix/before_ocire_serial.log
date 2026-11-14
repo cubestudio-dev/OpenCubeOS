@@ -1,54 +1,0 @@
-OCBL stage1 ok
-
-OCBL 3.0.0 boot loader (3.0.0-WP06g2 build 405)
-long mode 64-bit C entry OK
-flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
-cpu: QEMU Virtual CPU version 2.5+
-stack at 0x0008DF00
-OCBL B1 chain verified
-[b2a] trampoline installed at 0x40000
-[b2a] E820 entries: 7
-  [0] base=0x00000000 len=0x0009FC00 type=1
-  [1] base=0x0009FC00 len=0x00000400 type=2
-  [2] base=0x000F0000 len=0x00010000 type=2
-  [3] base=0x00100000 len=0x0FEE0000 type=1
-  [4] base=0x0FFE0000 len=0x00020000 type=2
-  [5] base=0xFFFC0000 len=0x00040000 type=2
-  [6] base=0x00000000 len=0x00000000 type=2
-[b2a] scanning BIOS drives (boot=0xE0)
-  cdrom 0xE0: 18446744073709551615 sectors x 2048 B
-  PVD: 'CD001' type=1
-  boot image first bytes: EB 3C 90 4D 54 4F 4F 34
-[state] fresh boot - state area initialized
-[state] boot attempt seq 1
-[scan] entries: 1
-  [0] OCIRE: OCIRE recovery (cd0)  path=/boot/ocire.elf size=62384
-[0;1HOpen Cube OS Boot Loader (3.0.0-WP06g2 build 405)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOCIRE recovery (cd0)[0m[5;1HShutdown[2;1HBooting OCIRE recovery (cd0) in 10s                                           [2;1HBooting OCIRE recovery (cd0) in 9s                                            [2;1HBooting OCIRE recovery (cd0) in 8s                                            [2;1HBooting OCIRE recovery (cd0) in 7s                                            [2;1HBooting OCIRE recovery (cd0) in 6s                                            [2;1HBooting OCIRE recovery (cd0) in 5s                                            [2;1HBooting OCIRE recovery (cd0) in 4s                                            [2;1HBooting OCIRE recovery (cd0) in 3s                                            [2;1HBooting OCIRE recovery (cd0) in 2s                                            [2;1HBooting OCIRE recovery (cd0) in 1s                                            [menu] selected: OCIRE recovery (cd0)
-[menu] B4 will load this payload (mb2 handoff)
-[state] USER_REQUEST recorded - recovery session
-[boot] VBE 800x600x32 ok
-[boot] kernel loaded: entry=0x01008AD0 size=62384
-[boot] mbi built: 376 bytes at 0x50000
-
-OCIRE - OpenCubeOS Independent Recovery Environment
-OCIRE 3.0.0-WP-02 (build 405)
-Independent recovery kernel (L0 peer of Open Cube OS).
-Video: linear framebuffer 800x600x32
-Cmdline: 
-CPU exception handlers armed.
-ACPI: FADT found (S5 SLP_TYP=0)
-OCBL boot record found (boot-state monitor).
-  Recovery session requested by the user (seq 1, unix ts 1793876099).
-  No boot failure was judged - this is a manual recovery session.
-Ready. Type 'help' for the command list.
-
-helpocire> help
-OCIRE commands:
-  help         - list available commands
-  logread      - dump the boot-log ring (OCOS agent record)
-  syscheck     - ten-point integrity self-check
-  repair quick - fix metadata + restore damaged system files
-  repair full  - reformat the system volume + golden rewrite
-  return       - reboot into OpenCubeOS (normal-boot mailbox)
-  shutdown     - power off the machine (ACPI S5)
-  reboot       - reset the machine

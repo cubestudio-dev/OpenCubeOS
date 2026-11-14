@@ -1,4 +1,0 @@
-{
-  "_hint": "mount a filesystem / list mounts",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
-}

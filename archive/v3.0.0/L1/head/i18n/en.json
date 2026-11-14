@@ -1,5 +1,0 @@
-{
-  "_hint": "show the first lines of a file",
-  "svc_call_failed": ": service call failed (rc=-1)\n",
-  "head: cannot open ": "head: cannot open "
-}

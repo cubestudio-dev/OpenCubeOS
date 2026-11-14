@@ -1,6 +1,0 @@
-{
-  "_hint": "显示 RTC 日期时间",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n",
-  "Open Cube OS uptime: ": "Open Cube OS 运行时长：",
-  " ms since boot (no RTC driver)\n": " 毫秒（自启动起，无 RTC 驱动）\n"
-}

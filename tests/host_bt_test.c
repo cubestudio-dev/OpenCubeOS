@@ -28,32 +28,32 @@ void  kfree(void *p)                { free(p); }
 u64   core_timer_now_ms(void)       { static u64 t; return t += 5; }
 void  core_sched_yield(void)        { }
 
-#include "../core/lib/lib_string.c"
+#include "core_lib_string.c"
 /* the layers each define file-local le/be helpers; rename them per TU */
 #define le16      le16_hci
 #define put_le16  put_le16_hci
-#include "../drivers/bluetooth/driver_bt_hci.c"
+#include "drv_misc_bt_hci.c"
 #undef le16
 #undef put_le16
 #define le16      le16_l2
 #define put_le16  put_le16_l2
-#include "../drivers/bluetooth/driver_bt_l2cap.c"
+#include "drv_misc_bt_l2cap.c"
 #undef le16
 #undef put_le16
 #define put_le16  put_le16_rf
-#include "../drivers/bluetooth/driver_bt_rfcomm.c"
+#include "drv_misc_bt_rfcomm.c"
 #undef put_le16
 #define be16      be16_sdp
 #define be32      be32_sdp
 #define put_be16  put_be16_sdp
 #define put_be32  put_be32_sdp
-#include "../drivers/bluetooth/driver_bt_sdp.c"
+#include "drv_misc_bt_sdp.c"
 #undef be16
 #undef be32
 #undef put_be16
 #undef put_be32
-#include "../drivers/bluetooth/driver_bt_spp.c"
-#include "../drivers/bluetooth/driver_bt_hid.c"
+#include "drv_misc_bt_spp.c"
+#include "drv_misc_bt_hid.c"
 
 /* transports are not part of this host test; stub the init entry points */
 int  bt_usb_init(void)                    { return 0; }

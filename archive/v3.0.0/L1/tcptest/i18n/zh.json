@@ -1,4 +1,0 @@
-{
-  "_hint": "TCP 回环测试",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
-}

@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 #include <stdio.h>
 #include "types.h"
-#include "crypto_aead.h"
+#include "svc_crypto_aead.h"
 void *memset(void*,int,unsigned long);
 void *memcpy(void*,const void*,unsigned long);
 int   memcmp(const void*,const void*,unsigned long);

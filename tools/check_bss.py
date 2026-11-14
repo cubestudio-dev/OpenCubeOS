@@ -3,7 +3,7 @@
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 # Open Cube OS - tools/check_bss.py (3.0.0-WP06c-installer_gui)
 # Purpose: build guard - no regular .bss variable may land inside the
-#   boot-structure zone. boot.S reserves the page tables (PML4/PDPT/
+#   boot-structure zone. core_boot_entry.S reserves the page tables (PML4/PDPT/
 #   PD) and the boot stack INSIDE .bss; the linker happily places
 #   other objects below them, and the WP-06b b4 session live-caught
 #   what happens when the variable area grows past __boot_pml4: a

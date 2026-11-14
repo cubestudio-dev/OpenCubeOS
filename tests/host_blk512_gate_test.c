@@ -30,14 +30,14 @@
  * (kernel sources compiled with host shims for the console/log/cache
  * dependencies - same pattern as tests/host_a401_entry_test.c and
  * tests/host_fix4_tar_test.c; do NOT include <string.h>, the kernel
- * lib_string.h declarations are used instead)
+ * core_lib_string.h declarations are used instead)
  */
 #include <stdio.h>
 #include "types.h"
-#include "lib_string.h"
-#include "screen_console.h"
-#include "blk_drv_internal.h"
-#include "driver_block_cache.h"
+#include "core_lib_string.h"
+#include "core_console_screen.h"
+#include "drv_storage_api.h"
+#include "drv_storage_cache.h"
 
 /* ---- host shims for the kernel dependencies of driver_block_blk.c ---- */
 
@@ -58,7 +58,7 @@ static int log_contains(const char *needle) {
     return 0;
 }
 
-/* Decimal formatter with the kernel lib_string.h signature (base 10,
+/* Decimal formatter with the kernel core_lib_string.h signature (base 10,
  * no leading zeros, NUL-terminated, returns digit count). */
 usize u64_to_str(u64 v, char *out) {
     char tmp[24];

@@ -1,5 +1,0 @@
-{
-  "_hint": "统计行数/单词/字节",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n",
-  "wc: cannot open ": "wc：无法打开 "
-}

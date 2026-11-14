@@ -1,5 +1,0 @@
-{
-  "_hint": "显示文件末尾几行",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n",
-  "tail: cannot open ": "tail：无法打开 "
-}

@@ -4,7 +4,7 @@
 # Open Cube OS - tests/wp06g1_font_audit.py (3.0.0-WP06g1-encoding_fix)
 # Host-side font-library completeness audit.  Unpacks BOTH consumers'
 # data and verifies, against Python's own gb2312 codec:
-#   1. the kernel gzip container (src/L0/services/font/chinese_font_data.c)
+#   1. the kernel gzip container (ocos/services/font/src/svc_font_chinese_data.c)
 #   2. the OCSE raw tables       (ocse/chinese/chinese_font_data.c)
 # Checks per consumer:
 #   A. counts: 6763 hanzi + 682 symbols + 7445 uto pairs
@@ -49,7 +49,7 @@ def parse_u16(text, name, count):
 
 def audit_kernel():
     print("[kernel gz container]")
-    src = open(f"{ROOT}/src/L0/services/font/chinese_font_data.c").read()
+    src = open(f"{ROOT}/ocos/services/font/src/svc_font_chinese_data.c").read()
     m = re.search(r"const u8\s+chinese_font_gz_blob\s*(?:\[[^\]]*\])+\s*=\s*\{", src)
     end = src.index("};", m.end())
     vals = re.findall(r"0x([0-9A-Fa-f]{2})(?![0-9A-Fa-f])", src[m.end():end])

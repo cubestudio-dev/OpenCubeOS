@@ -6,7 +6,7 @@
  */
 #include <stdio.h>
 #include "types.h"
-#include "crypto_curve25519.h"
+#include "svc_crypto_curve25519.h"
 
 void *memset(void *d, int c, unsigned long n);
 void *memcpy(void *d, const void *s, unsigned long n);

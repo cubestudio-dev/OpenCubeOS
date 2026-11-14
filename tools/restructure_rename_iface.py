@@ -13,10 +13,10 @@ ROOT = "/home/z/my-project/oc-os"
 # (struct members / function parameters / static locals that happen to
 #  carry one of the old prefixes)
 SHIELD = [
-    # xHCI command-ring locals & descriptor fields (driver_usb_xhci.c)
+    # xHCI command-ring locals & descriptor fields (drv_usb_xhci.c)
     "cmd_tab", "cmd_list", "cmd_enq", "cmd_phys", "cmd_cycle",
     "cmd_rc", "cmd_slot", "cmd_status", "cmd_type_len",
-    # x509 pubkey struct members (crypto_x509.h)
+    # x509 pubkey struct members (svc_crypto_x509.h)
     "rsa_n", "rsa_e", "rsa_n_len", "rsa_e_len",
     "ec_pub", "ec_pub_len", "ec_curve",
     # ahci port struct member
@@ -41,7 +41,7 @@ WORD = [
     ("rsa_public_op_wrapper",   "crypto_rsa_public_op_wrapper"),
     ("rsa_public_op",           "crypto_rsa_public_op"),
     ("rsa_hash_len",            "crypto_rsa_hash_len"),
-    # EC point helpers (static in crypto_ec_nist.c); pt_len is an aead
+    # EC point helpers (static in svc_crypto_ec_nist.c); pt_len is an aead
     # parameter name and is NOT touched
     ("pt_add",          "crypto_pt_add"),
     ("pt_copy",         "crypto_pt_copy"),
@@ -76,7 +76,7 @@ WORD = [
     ("kernel_pipe_t",    "sys_pipe_t"),
     ("kernel_self",      "arch_kernel_self"),
     ("get_kernel_self",  "arch_get_kernel_self"),
-    # virtio-net transport lives inside net_core.c
+    # virtio-net transport lives inside svc_net_core.c
     ("virtio_alloc_virtq", "net_virtio_alloc_virtq"),
 ]
 

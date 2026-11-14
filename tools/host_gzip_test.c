@@ -13,7 +13,7 @@
  * The strncpy shim that forced d[n-1] = 0 (masking real kernel strncpy
  * semantics, see A5-08/A5-14) is gone with it.
  *
- * NOTE: do NOT include <string.h> in this TU - lib_string.h (pulled in by
+ * NOTE: do NOT include <string.h> in this TU - core_lib_string.h (pulled in by
  * the kernel sources) declares strchr with a kernel signature that
  * conflicts with glibc's, which hard-errors the build.
  *
@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "src/L0/core/types.h"
+#include "ocos/kernel/types.h"
 
 /* host kmalloc/kfree shims (kernel sources link against mem_heap) */
 void *kmalloc(u64 n) { return malloc(n); }
@@ -36,8 +36,8 @@ static void lib_tar_selftest(void);
 #include "update_test_vectors.h"
 
 /* include the kernel sources directly (glibc supplies the libc calls) */
-#include "src/L0/core/lib/lib_gzip.c"
-#include "src/L0/core/lib/lib_tar.c"
+#include "core_lib_gzip.c"
+#include "core_lib_tar.c"
 
 static int run_one(const char *name, const u8 *gz, int len,
                    const char *expect, int explen) {

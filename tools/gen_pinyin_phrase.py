@@ -3,7 +3,7 @@
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 """
 gen_pinyin_phrase.py: regenerate src/L0/services/display/
-pinyin_phrase_data.c from tools/ime_phrases.txt.
+svc_display_pinyin_phrase_data.c from tools/ime_phrases.txt.
 
 3.0.0-WP06g2: the IME phrase library.  Each word is tagged with its
 tone-free full pinyin string (e.g. 中国 -> "zhongguo"); the generator
@@ -12,11 +12,11 @@ for the longest whole-string match (phrase-first candidate ordering -
 "long words first").
 
 CI fix (same batch): the tone-free pinyin now composes from the
-KERNEL single-char table (pinyin_data.c - the very syllables the
+KERNEL single-char table (svc_display_pinyin_data.c - the very syllables the
 single-char engine matches), so this generator is fully
 self-contained.  The original version imported pypinyin and the
 clean CI environment (which installs no pip packages) failed with
-ModuleNotFoundError mid-ISO; composing from pinyin_data.c removes
+ModuleNotFoundError mid-ISO; composing from svc_display_pinyin_data.c removes
 the dependency AND makes the phrase readings agree with the
 single-char engine by construction.  Polyphonic words - where the
 word's dictionary reading differs from the composed single-char
@@ -25,7 +25,7 @@ reading (e.g. 银行 yinhang, not yinxing) - carry an explicit
 every explicit reading decomposes into legal syllables, exactly
 one per character (a misspelling cannot pass).
 
-Every CHARACTER must exist in the level-1 char map (pinyin_data.c,
+Every CHARACTER must exist in the level-1 char map (svc_display_pinyin_data.c,
 GB2312 zones 16-55): the generator cross-checks each word's
 characters and fails on a miss (a word the single-char engine
 cannot type end-to-end would be a broken promise).
@@ -38,16 +38,16 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "tools", "ime_phrases.txt")
-OUT_C = os.path.join(ROOT, "src", "L0", "services", "display",
-                     "pinyin_phrase_data.c")
-OUT_H = os.path.join(ROOT, "src", "L0", "services", "display",
-                     "pinyin_phrase.h")
+OUT_C = os.path.join(ROOT, "ocos", "services", "display", "src",
+                     "svc_display_pinyin_phrase_data.c")
+OUT_H = os.path.join(ROOT, "ocos", "services", "display", "interface",
+                     "svc_display_pinyin_phrase.h")
 
 # The level-1 char set + the syllable inventory: both rebuilt from
-# the emitted pinyin_data.c (the KERNEL table pinyin_char_map is the
+# the emitted svc_display_pinyin_data.c (the KERNEL table pinyin_char_map is the
 # truth - the single-char engine matches exactly these syllables).
-PINYIN_DATA = os.path.join(ROOT, "src", "L0", "services", "display",
-                           "pinyin_data.c")
+PINYIN_DATA = os.path.join(ROOT, "ocos", "services", "display", "src",
+                           "svc_display_pinyin_data.c")
 
 
 def fail(msg):
@@ -61,17 +61,17 @@ def parse_c_array(text, name):
     which mentions every table name and would otherwise shadow it."""
     m = re.search(re.escape(name) + r"\s*\[[^\]]*\]\s*=\s*\{", text)
     if not m:
-        fail(f"pinyin_data.c: array '{name}' not found")
+        fail(f"svc_display_pinyin_data.c: array '{name}' not found")
     j = m.end() - 1
     k = text.find("}", j)
     if k < 0:
-        fail(f"pinyin_data.c: array '{name}' not terminated")
+        fail(f"svc_display_pinyin_data.c: array '{name}' not terminated")
     return [int(t, 16) for t in
             re.findall(r"0[xX][0-9a-fA-F]+", text[j + 1:k])]
 
 
 def load_kernel_tables():
-    """Parse pinyin_data.c: syllable pool + per-syllable offsets +
+    """Parse svc_display_pinyin_data.c: syllable pool + per-syllable offsets +
     the {unicode, syllable_idx} char map.  Returns
     (char2syllable, syllable_set)."""
     with open(PINYIN_DATA, "r", encoding="utf-8") as f:
@@ -80,27 +80,27 @@ def load_kernel_tables():
     offs = parse_c_array(text, "pinyin_syllable_off")
     cmap = parse_c_array(text, "pinyin_char_map")
     if len(cmap) % 2 != 0:
-        fail("pinyin_data.c: odd pair count")
+        fail("svc_display_pinyin_data.c: odd pair count")
     if not pool or not offs or not cmap:
-        fail("pinyin_data.c: empty table(s)")
+        fail("svc_display_pinyin_data.c: empty table(s)")
     # offs[] carries count+1 entries: syllable i spans off[i]..off[i+1]
     syllables = []
     for i in range(len(offs) - 1):
         s = bytes(pool[offs[i]:offs[i + 1]]).decode("ascii")
         if not s.isalpha() or not s.islower():
-            fail(f"pinyin_data.c: bad syllable '{s}'")
+            fail(f"svc_display_pinyin_data.c: bad syllable '{s}'")
         syllables.append(s)
     char2syl = {}
     for i in range(0, len(cmap), 2):
         cp, si = cmap[i], cmap[i + 1]
         if si >= len(syllables):
-            fail("pinyin_data.c: syllable index out of range")
+            fail("svc_display_pinyin_data.c: syllable index out of range")
         if cp in char2syl and char2syl[cp] != syllables[si]:
-            fail(f"pinyin_data.c: char U+{cp:04X} has conflicting "
+            fail(f"svc_display_pinyin_data.c: char U+{cp:04X} has conflicting "
                  "syllables")
         char2syl[cp] = syllables[si]
     if not char2syl:
-        fail("pinyin_data.c: no char values parsed")
+        fail("svc_display_pinyin_data.c: no char values parsed")
     return char2syl, set(syllables)
 
 
@@ -253,7 +253,7 @@ def main():
         " * sorted by the pinyin string: whole-string matches give the\n"
         " * phrase-first candidates.  Every character is level-1 GB2312\n"
         " * (the single-char engine can type each one). */\n"
-        '#include "pinyin_phrase.h"\n'
+        '#include "svc_display_pinyin_phrase.h"\n'
         "\n"
         f"const u32 PINYIN_PHRASE_COUNT = {len(words)};\n"
         "\n"

@@ -97,7 +97,7 @@ jstats = json.load(open("docs/data/stats.json"))
 jcmds = json.load(open("docs/data/commands.json"))
 jifaces = json.load(open("docs/data/interfaces.json"))
 sc = 0
-for ln in open("src/L0/services/sysapi/core_syscall.h", encoding="utf-8"):
+for ln in open("ocos/services/sysapi/interface/svc_sysapi_syscall.h", encoding="utf-8"):
     if "#define SYS_" in ln:
         sc += 1
 stats = """stats: {

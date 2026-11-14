@@ -24,10 +24,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* lib_string.h declares strchr(const char*, char) — a different signature
+/* core_lib_string.h declares strchr(const char*, char) — a different signature
  * from the host libc.  Include libc first, then rename the kernel decl. */
 #define strchr oc_kernel_strchr_decl
-#include "../services/net/net_tls.c"   /* code under test */
+#include "svc_net_tls.c"   /* code under test */
 #undef strchr
 
 #ifndef TLS12_REC_MAX

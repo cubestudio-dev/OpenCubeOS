@@ -6,7 +6,7 @@
  * File: tests/host_wifi_test.c
  *
  * Host-side byte-level test of the 802.11 core (drivers/wireless/
- * driver_wireless.c).  The SAME kernel .c is compiled for the host so the
+ * drv_net_wireless.c).  The SAME kernel .c is compiled for the host so the
  * exact production code paths run here: frame control parsing, IE walks,
  * beacon -> scan-list assembly, auth/assoc builders + parsers, the
  * Ethernet <-> 802.11 data bridge and the family/device registry state
@@ -15,7 +15,7 @@
  * Build (same pattern as the other host tests, e.g. host_fix4_tar_test):
  *   gcc -O2 -g -Ikernel -Ikernel/lib -Ikernel/mem -Idrivers/wireless \
  *       tests/host_wifi_test.c -o /tmp/host_wifi_test
- * (do NOT include <string.h>: the kernel's own lib_string.c below provides
+ * (do NOT include <string.h>: the kernel's own core_lib_string.c below provides
  *  memset/memcpy/strcmp/... for the freestanding code)
  *
  * Exit code = number of failing checks.
@@ -27,8 +27,8 @@
 void *kmalloc(unsigned long long size) { return malloc(size); }
 void  kfree(void *p)                   { free(p); }
 
-#include "../core/lib/lib_string.c"
-#include "../drivers/wireless/driver_wireless.c"
+#include "core_lib_string.c"
+#include "drv_net_wireless.c"
 
 static int check(const char *name, int cond)
 {

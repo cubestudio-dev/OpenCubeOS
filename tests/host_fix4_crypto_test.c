@@ -27,15 +27,15 @@
 #include <string.h>
 #include <stdlib.h>
 #include "types.h"
-/* NOTE: do NOT include lib_string.h here - its strchr declaration conflicts
+/* NOTE: do NOT include core_lib_string.h here - its strchr declaration conflicts
  * with glibc's and hard-errors the host build (see host_bn_ec_test.c). */
-#include "crypto_bn.h"
-#include "crypto_ec_nist.h"
-#include "crypto_curve25519.h"
-#include "crypto_core.h"
+#include "svc_crypto_bn.h"
+#include "svc_crypto_ec_nist.h"
+#include "svc_crypto_curve25519.h"
+#include "svc_crypto_core.h"
 
 /* ---- stubs: core_timer_ticks for crypto_random's seeding path.
- * (crypto_random itself is defined in crypto_core.c - do NOT redefine.) ---- */
+ * (crypto_random itself is defined in svc_crypto_core.c - do NOT redefine.) ---- */
 u64 core_timer_ticks(void) { return 0; }
 
 /* ---- PMM stub with a failure toggle (for BUG-0298 fail-closed proofs) ---- */

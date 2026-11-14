@@ -78,7 +78,7 @@ def main():
     (the needle no longer matches)."""
     changed = 0
     for app, table in ZH.items():
-        src_path = os.path.join(ROOT, "src", "L1", app, "main.c")
+        src_path = os.path.join(ROOT, "ocos", "l1apps", app, "main.c")
         if not os.path.exists(src_path):
             print(f"SKIP {app}: no main.c")
             continue
@@ -94,7 +94,7 @@ def main():
             changed += 1
         for lang, mapping in (("en", {k: k for k in table}),
                               ("zh", table)):
-            jp = os.path.join(ROOT, "src", "L1", app, "i18n",
+            jp = os.path.join(ROOT, "ocos", "l1apps", app, "i18n",
                               f"{lang}.json")
             with open(jp, encoding="utf-8") as f:
                 d = json.load(f)

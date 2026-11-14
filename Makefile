@@ -42,7 +42,7 @@ endif
 
 ifneq ($(ARCH),x86_64)
 # cross build: the per-arch build.mk replaces the whole x86_64 body below
-include $(OC_ROOT)/src/L0/core/arch/$(ARCH)/build.mk
+include $(OC_ROOT)/ocos/kernel/arch/$(ARCH)/build.mk
 else
 
 # ---- WP-13-build_system: multi-configuration (spec 5.7) ---------------
@@ -90,7 +90,7 @@ SEABIOS_DIR  ?= $(OC_TOOLS)/share/seabios
 OC_RELEASE_VERSION ?= 3.0.0-WP06g3
 # BUG-0347 (RUNTIME): monotonic build id baked into the kernel and
 # published by the server-side version.json - makes the update check a
-# numeric comparison instead of a string equality (see ota_update.h).
+# numeric comparison instead of a string equality (see svc_selfhost_update.h).
 # Base: "git rev-list --count HEAD" of the built tree; override for tests:
 #   make OC_KERNEL_BUILD=42
 # v1.0.0 (2026-10-24): +21 alignment offset. The published build ids
@@ -107,8 +107,8 @@ OC_KERNEL_BUILD ?= $(shell expr $$(git -C $(OC_ROOT) rev-list --count HEAD 2>/de
 # One folder per module.  All include paths are exported to the compiler so
 # every #include stays a plain basename include (multi -I strategy).
 # NOTE: must be defined BEFORE CFLAGS because CFLAGS uses := (immediate).
-#   src/L0/boot/     - the boot composition root: boot.S / long_mode /
-#                      multiboot2 / grub_boot_stub + kmain.c (ex main.c),
+#   src/L0/boot/     - the boot composition root: core_boot_entry.S / long_mode /
+#                      multiboot2 / grub_boot_stub + core_boot_main.c (ex main.c),
 #                      the L1 launcher and the boot self-tests.  May call
 #                      into every layer (it is the top of the dependency
 #                      chain).
@@ -129,41 +129,23 @@ OC_KERNEL_BUILD ?= $(shell expr $$(git -C $(OC_ROOT) rev-list --count HEAD 2>/de
 # the whole L0 user plane is gone.  G2 dissolved the old chinese/ and
 # services/l1/ grab-bags into font / encoding / display + sysapi / ipc /
 # loader + boot.
-KERNEL_DIRS := src/L0/core src/L0/core/arch/x86_64 src/L0/core/mem \
-               src/L0/core/lib src/L0/core/console \
-               src/L0/services/crypto src/L0/services/selfhost \
-               src/L0/services/health src/L0/services/klog \
-               src/L0/services/crash src/L0/services/power \
-               src/L0/services/time src/L0/services/fs \
-               src/L0/services/net src/L0/services/sysapi \
-               src/L0/services/block src/L0/services/audio \
-               src/L0/services/display src/L0/services/font \
-               src/L0/services/encoding src/L0/services/camera \
-               src/L0/services/usb src/L0/services/ipc \
-               src/L0/services/loader src/L0/services/ocembed \
-               src/L0/services/watchdog src/L0/services/l1 \
-               src/L0/services/diag \
-               src/L0/services/tui \
-               src/L0/drivers/block src/L0/drivers/nic src/L0/drivers/snd \
-               src/L0/drivers/usb src/L0/drivers/input \
-               src/L0/drivers/pci \
-               src/L0/drivers/acpi src/L0/drivers/i2c \
-               src/L0/drivers/time src/L0/drivers/wireless \
-               src/L0/drivers/bluetooth src/L0/drivers/sd \
-               src/L0/drivers/camera src/L0/drivers/misc \
-               src/L0/drivers/scsi \
-               src/L0/boot
+KERNEL_DIRS := ocos/kernel ocos/kernel/arch/x86_64 \
+               ocos/services ocos/drivers \
+               $(patsubst %/,%,$(wildcard ocos/services/*/src)) \
+               $(patsubst %/,%,$(wildcard ocos/drivers/*/))
 # NOTE: core/generated is deliberately NOT in KERNEL_DIRS: it only holds
 # the stage-2 generated grub_boot_data.c, which is compiled separately
 # (GRUB_DATA_OBJ) and linked in the second link stage only.  Its -I path
 # IS exported (WP-10-tui-qa): version_gen.h lives there and is included
 # by the objects that embed the release version.
 KERNEL_INC := $(foreach d,$(KERNEL_DIRS) tools,-I$(OC_ROOT)/$(d)) \
-              -I$(OC_ROOT)/src/L0/core/generated -I$(OC_ROOT)/src/L1 \
+              -I$(OC_ROOT)/ocos/drivers -I$(OC_ROOT)/ocos/services \
+              -I$(OC_ROOT)/ocos/kernel/generated \
+              $(foreach d,$(wildcard ocos/services/*/interface),-I$(OC_ROOT)/$(d)) \
               -I$(OC_ROOT)/include
 
 # ---- Embedded user programs (embed chain, HANDOVER 2.3 gap) ----
-# src/L0/core/userprogs_data.h is included by core_usermode.c (the
+# ocos/kernel/userprogs_data.h is included by core_usermode.c (the
 # ring-3 images are mapped from these arrays) but was maintained by
 # MANUAL tool runs:
 # the Makefile had ZERO rules touching it, so a clean rebuild silently
@@ -190,10 +172,10 @@ BUILD_SOLIB_PY  := tools/build_solib.py
 # a changed .c does (live-caught: the hint sweep updated all 548 json
 # files and `make all` kept the stale header because json was not in
 # the dependency set).
-USERPROG_SRCS   := $(wildcard $(OC_ROOT)/src/L1/*.asm) $(wildcard $(OC_ROOT)/src/L1/*.c) $(OC_ROOT)/src/L1/ld_so.c \
-                   $(wildcard $(OC_ROOT)/src/L1/*/*.c) $(wildcard $(OC_ROOT)/src/L1/*/*.asm) $(wildcard $(OC_ROOT)/src/L1/_shared/*.h) \
-                   $(wildcard $(OC_ROOT)/src/L1/*/i18n/*.json) $(wildcard $(OC_ROOT)/src/L1/_i18n/*/*.json)
-USERPROGS_HDR   := src/L0/core/userprogs_data.h
+USERPROG_SRCS   := $(wildcard $(OC_ROOT)/ocos/l1apps/*.asm) $(wildcard $(OC_ROOT)/ocos/l1apps/*.c) $(OC_ROOT)/ocos/l1apps/ld_so.c \
+                   $(wildcard $(OC_ROOT)/ocos/l1apps/*/*.c) $(wildcard $(OC_ROOT)/ocos/l1apps/*/*.asm) $(wildcard $(OC_ROOT)/ocos/interface/*.h) \
+                   $(wildcard $(OC_ROOT)/ocos/l1apps/*/i18n/*.json) $(wildcard $(OC_ROOT)/ocos/l1apps/_i18n/*/*.json)
+USERPROGS_HDR   := ocos/kernel/userprogs_data.h
 
 CFLAGS    := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
              -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel \
@@ -212,32 +194,32 @@ ASFLAGS   := -f elf64 -F dwarf -g
 # `make cache-stats`.  Hits are byte-identical to fresh compiles, so the
 # cache is safe for reproducible-check.
 OC_CC := bash $(OC_ROOT)/tools/oc_cc.sh $(CC)
-LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/src/L0/core/arch/x86_64/linker.ld -z max-page-size=0x1000 -z noexecstack
+LDFLAGS   := -n -nostdlib -T $(OC_ROOT)/ocos/kernel/arch/x86_64/linker.ld -z max-page-size=0x1000 -z noexecstack
 
 # Sources (recursive over KERNEL_DIRS)
-# src/L0/boot/grub_boot_stub.c is compiled separately (stage-1 link
+# ocos/kernel/core_boot_grubstub.c is compiled separately (stage-1 link
 # only); filter it out of the kernel-proper object list.
 KERNEL_C    := $(foreach d,$(KERNEL_DIRS),$(wildcard $(OC_ROOT)/$(d)/*.c))
-KERNEL_C    := $(filter-out %grub_boot_stub.c,$(KERNEL_C))
-KERNEL_ASM_B := $(wildcard $(OC_ROOT)/src/L0/boot/*.S)
-KERNEL_ASM_K := $(wildcard $(OC_ROOT)/src/L0/core/arch/x86_64/*.S)
+KERNEL_C    := $(filter-out %core_boot_grubstub.c,$(KERNEL_C))
+KERNEL_ASM_B := $(wildcard $(OC_ROOT)/ocos/kernel/core_boot_*.S)
+KERNEL_ASM_K := $(wildcard $(OC_ROOT)/ocos/kernel/arch/x86_64/*.S)
 # WP-13 multi-config source filtering: individual block drivers for
 # the hardware profile options (self-registering drivers; the init
 # calls in main.c are macro-stubbed by config_gen.h).  3.0.0-WP03: the
 # TUI/chinese dir-drops above are gone (dirs deleted / always-on).
 ifeq ($(CONFIG_NVME),n)
-KERNEL_C    := $(filter-out %driver_block_nvme.c,$(KERNEL_C))
+KERNEL_C    := $(filter-out %drv_storage_nvme.c,$(KERNEL_C))
 endif
 ifeq ($(CONFIG_AHCI),n)
-KERNEL_C    := $(filter-out %driver_block_ahci.c,$(KERNEL_C))
+KERNEL_C    := $(filter-out %drv_storage_ahci.c,$(KERNEL_C))
 endif
 ifeq ($(CONFIG_VIRTIO_BLK),n)
-KERNEL_C    := $(filter-out %driver_block_virtio_blk.c,$(KERNEL_C))
+KERNEL_C    := $(filter-out %drv_storage_virtio_blk.c,$(KERNEL_C))
 endif
 
 KERNEL_OBJ  := $(patsubst $(OC_ROOT)/%.c,$(BUILD)/%.o,$(KERNEL_C)) \
-               $(patsubst $(OC_ROOT)/src/L0/boot/%.S,$(BUILD)/boot_%.o,$(KERNEL_ASM_B)) \
-               $(patsubst $(OC_ROOT)/src/L0/core/arch/%.S,$(BUILD)/core/arch/%.o,$(KERNEL_ASM_K))
+               $(patsubst $(OC_ROOT)/ocos/kernel/%.S,$(BUILD)/boot_%.o,$(KERNEL_ASM_B)) \
+               $(patsubst $(OC_ROOT)/ocos/kernel/arch/%.S,$(BUILD)/core/arch/%.o,$(KERNEL_ASM_K))
 
 KERNEL     := $(BUILD)/opencube.elf
 KERNEL_ISO := $(BUILD)/opencube.iso
@@ -248,7 +230,7 @@ KERNEL_ISO := $(BUILD)/opencube.iso
 # boot/core images (grub-mkimage) + the stage-1 ELF; stage 2 links the
 # final kernel with that data.  The in-system abdisk / install /
 # grub-install commands use it to make a disk bootable from the shell.
-GEN_DIR     := $(OC_ROOT)/src/L0/core/generated
+GEN_DIR     := $(OC_ROOT)/ocos/kernel/generated
 GRUB_DATA_C := $(GEN_DIR)/grub_boot_data.c
 GRUB_DATA_OBJ := $(BUILD)/grub_boot_data.o
 STUB_OBJ    := $(BUILD)/grub_boot_stub.o
@@ -346,27 +328,27 @@ $(BUILD):
 # the kernel image stays inside the 0x400000 identity window (the linker
 # ASSERT is byte-exact; measured over-run was 8 KiB at -O2).  Same
 # per-file-override pattern as the AML -O0 rule below.
-$(BUILD)/src/L0/drivers/wireless/driver_wireless.o: $(OC_ROOT)/src/L0/drivers/wireless/driver_wireless.c | $(BUILD)
+$(BUILD)/ocos/drivers/net/drv_net_wireless.o: $(OC_ROOT)/ocos/drivers/net/drv_net_wireless.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/src/L0/drivers/wireless/driver_iwlwifi.o: $(OC_ROOT)/src/L0/drivers/wireless/driver_iwlwifi.c | $(BUILD)
+$(BUILD)/ocos/drivers/net/drv_net_iwlwifi.o: $(OC_ROOT)/ocos/drivers/net/drv_net_iwlwifi.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/src/L0/drivers/wireless/driver_rtlwifi.o: $(OC_ROOT)/src/L0/drivers/wireless/driver_rtlwifi.c | $(BUILD)
+$(BUILD)/ocos/drivers/net/drv_net_rtlwifi.o: $(OC_ROOT)/ocos/drivers/net/drv_net_rtlwifi.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/src/L0/drivers/wireless/driver_ath.o: $(OC_ROOT)/src/L0/drivers/wireless/driver_ath.c | $(BUILD)
+$(BUILD)/ocos/drivers/net/drv_net_ath.o: $(OC_ROOT)/ocos/drivers/net/drv_net_ath.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/src/L0/drivers/wireless/driver_brcm.o: $(OC_ROOT)/src/L0/drivers/wireless/driver_brcm.c | $(BUILD)
+$(BUILD)/ocos/drivers/net/drv_net_brcm.o: $(OC_ROOT)/ocos/drivers/net/drv_net_brcm.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/src/L0/drivers/sd/driver_sdhci.o: $(OC_ROOT)/src/L0/drivers/sd/driver_sdhci.c | $(BUILD)
+$(BUILD)/ocos/drivers/storage/drv_storage_sdhci.o: $(OC_ROOT)/ocos/drivers/storage/drv_storage_sdhci.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
@@ -377,15 +359,15 @@ $(BUILD)/src/L0/drivers/sd/driver_sdhci.o: $(OC_ROOT)/src/L0/drivers/sd/driver_s
 # above: -O2 miscompiles a working path (segfault pattern caught by the
 # 4:4:4 fixture on the host build), -Os is clean and the decoder is
 # not performance-critical (one frame at a time).
-$(BUILD)/src/L0/drivers/camera/lib_mjpeg.o: $(OC_ROOT)/src/L0/drivers/camera/lib_mjpeg.c | $(BUILD)
+$(BUILD)/ocos/drivers/misc/drv_misc_mjpeg.o: $(OC_ROOT)/ocos/drivers/misc/drv_misc_mjpeg.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/src/L0/drivers/camera/driver_camera.o: $(OC_ROOT)/src/L0/drivers/camera/driver_camera.c | $(BUILD)
+$(BUILD)/ocos/drivers/misc/drv_misc_camera.o: $(OC_ROOT)/ocos/drivers/misc/drv_misc_camera.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
-$(BUILD)/src/L0/drivers/camera/driver_camera_uvc.o: $(OC_ROOT)/src/L0/drivers/camera/driver_camera_uvc.c | $(BUILD)
+$(BUILD)/ocos/drivers/misc/drv_misc_camera_uvc.o: $(OC_ROOT)/ocos/drivers/misc/drv_misc_camera_uvc.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
 
@@ -394,57 +376,53 @@ $(BUILD)/src/L0/drivers/camera/driver_camera_uvc.o: $(OC_ROOT)/src/L0/drivers/ca
 # interpreter's pointer-heavy value model (boot crash in kfree with a
 # wild pointer, codegen-sensitive across builds) while -O0 parses the
 # same tables cleanly (verified against the live QEMU DSDT).
-$(BUILD)/src/L0/drivers/acpi/driver_acpi_aml.o: $(OC_ROOT)/src/L0/drivers/acpi/driver_acpi_aml.c | $(BUILD)
+$(BUILD)/ocos/drivers/bus/drv_bus_acpi_aml.o: $(OC_ROOT)/ocos/drivers/bus/drv_bus_acpi_aml.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -O0 -c $< -o $@
 
-# WP-10-tui-native: the native desktop editor + file-manager upgrades
-# compile at -Os so the kernel image stays inside the 0x400000 identity
-# window (same per-file-override pattern as the wireless -Os rules; the
-# -O2 codegen over-ran the linker ASSERT with the new native editor).
-$(BUILD)/tui/tui_dt_editor.o: $(OC_ROOT)/tui/tui_dt_editor.c | $(BUILD)
-	@mkdir -p $(dir $@)
-	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
-
-$(BUILD)/tui/tui_dt_files.o: $(OC_ROOT)/tui/tui_dt_files.c | $(BUILD)
-	@mkdir -p $(dir $@)
-	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+# NOTE (NAK cleanup): two WP-10-tui-native -Os override rules for
+# $(BUILD)/tui/tui_dt_editor.o / tui_dt_files.o referenced a root-level
+# tui/ directory that never existed in this tree - dead rules whose
+# targets never matched a real object (the real objects always compiled
+# through the generic -O2 rule below and the link ASSERT held).  They
+# are deleted instead of path-updated: activating them now would change
+# the codegen of files that have always shipped as -O2.
 
 $(BUILD)/%.o: $(OC_ROOT)/%.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(CFLAGS) -c $< -o $@
 
 # Assembly source (src/L0/boot/) → object file
-$(BUILD)/boot_%.o: $(OC_ROOT)/src/L0/boot/%.S | $(BUILD)
+$(BUILD)/boot_%.o: $(OC_ROOT)/ocos/kernel/%.S | $(BUILD)
 	$(NASM) $(ASFLAGS) $< -o $@
 
 # Assembly source (src/L0/core/arch/x86_64/) → object file
-$(BUILD)/core/arch/%.o: $(OC_ROOT)/src/L0/core/arch/%.S | $(BUILD)
+$(BUILD)/core/arch/%.o: $(OC_ROOT)/ocos/kernel/arch/%.S | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(NASM) $(ASFLAGS) $< -o $@
 
 # Link the kernel ELF in two stages (see WP-10d-pre note above), then
 # strip debug info (removes build-machine paths)
-$(STUB_OBJ): $(OC_ROOT)/src/L0/boot/grub_boot_stub.c $(OC_ROOT)/src/L0/boot/grub_boot_data.h | $(BUILD)
+$(STUB_OBJ): $(OC_ROOT)/ocos/kernel/core_boot_grubstub.c $(OC_ROOT)/ocos/kernel/core_boot_grubdata.h | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(CFLAGS) -c $< -o $@
 
-$(BASE_ELF): $(KERNEL_OBJ) $(STUB_OBJ) $(OC_ROOT)/src/L0/core/arch/x86_64/linker.ld | $(BUILD)
+$(BASE_ELF): $(KERNEL_OBJ) $(STUB_OBJ) $(OC_ROOT)/ocos/kernel/arch/x86_64/linker.ld | $(BUILD)
 	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ) $(STUB_OBJ)
 	strip --strip-debug $@
 
 $(GRUB_DATA_C): $(OC_ROOT)/tools/embed_grub.py $(BASE_ELF) \
-                $(OC_ROOT)/src/L0/boot/grub_boot_data.h | $(BUILD)
+                $(OC_ROOT)/ocos/kernel/core_boot_grubdata.h | $(BUILD)
 	python3 $(OC_ROOT)/tools/embed_grub.py "$(OC_TOOLS)" $(BASE_ELF) $@
 
-$(GRUB_DATA_OBJ): $(GRUB_DATA_C) $(OC_ROOT)/src/L0/boot/grub_boot_data.h | $(BUILD)
+$(GRUB_DATA_OBJ): $(GRUB_DATA_C) $(OC_ROOT)/ocos/kernel/core_boot_grubdata.h | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(CFLAGS) -c $< -o $@
 
 # WP06g2: the kernel links the L0 i18n tables - regenerate them
 # before the kernel builds (object -MMD deps then ride
 # incremental resource changes).
-$(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(L0_I18N_GEN) $(IME_PHRASE_GEN) $(OC_ROOT)/src/L0/core/arch/x86_64/linker.ld | $(BUILD)
+$(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(L0_I18N_GEN) $(IME_PHRASE_GEN) $(OC_ROOT)/ocos/kernel/arch/x86_64/linker.ld | $(BUILD)
 	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ) $(GRUB_DATA_OBJ)
 	strip --strip-debug $@
 
@@ -678,13 +656,13 @@ test:
 # hand-registered in the kernel). nasm/gcc must be on PATH.
 # 3.0.0-WP06g2: the IME phrase library regenerates from
 # tools/ime_phrases.txt (self-contained: the tone-free pinyin
-# composes from pinyin_data.c's own single-char table - no pypinyin,
+# composes from svc_display_pinyin_data.c's own single-char table - no pypinyin,
 # which broke the clean CI env; polyphonic words carry an explicit
 # "word pinyin" pair in the list; the generated .h/.c are committed
 # like every generated file so the wildcard build always sees
 # them).  Idempotent emit.
-IME_PHRASE_GEN := src/L0/services/display/pinyin_phrase_data.c
-$(IME_PHRASE_GEN) $(OC_ROOT)/src/L0/services/display/pinyin_phrase.h: tools/ime_phrases.txt tools/gen_pinyin_phrase.py $(OC_ROOT)/src/L0/services/display/pinyin_data.c
+IME_PHRASE_GEN := ocos/services/display/src/svc_display_pinyin_phrase_data.c
+$(IME_PHRASE_GEN) $(OC_ROOT)/ocos/services/display/interface/svc_display_pinyin_phrase.h: tools/ime_phrases.txt tools/gen_pinyin_phrase.py $(OC_ROOT)/ocos/services/display/src/svc_display_pinyin_data.c
 	python3 $(OC_ROOT)/tools/gen_pinyin_phrase.py
 
 # 3.0.0-WP06g2: the L0 i18n tables regenerate from the JSON
@@ -692,7 +670,7 @@ $(IME_PHRASE_GEN) $(OC_ROOT)/src/L0/services/display/pinyin_phrase.h: tools/ime_
 # committed like userprogs_data.h, so the KERNEL_C wildcard
 # always sees it; this rule keeps it fresh.  Idempotent emit
 # (mtime kept when unchanged).
-L0_I18N_GEN := src/L0/core/lib/l0_i18n_data.c
+L0_I18N_GEN := ocos/kernel/core_lib_i18n_data.c
 $(L0_I18N_GEN): etc/i18n/l0/en.json etc/i18n/l0/zh.json tools/gen_l0_i18n.py
 	python3 $(OC_ROOT)/tools/gen_l0_i18n.py
 
@@ -732,7 +710,7 @@ dist: userprogs-check $(KERNEL_ISO)
 	TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
 	SRCZIP=$(DIST)/OpenCubeOS-src-$(OC_RELEASE_VERSION)-$$TIMESTAMP.zip; \
 	ISOCOPY=$(DIST)/OpenCubeOS-$(OC_RELEASE_VERSION)-$$TIMESTAMP.iso; \
-	(cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*" "website/rw*.sh" "website/build-local.sh" "website/public/downloads/*" "website/out/*" "website/.next/*" "website/node_modules/*" "src/L0/core/generated/*"); \
+        (cd $(OC_ROOT) && zip -qr $$SRCZIP . -x "build/*" "dist/*" ".git/*" "tools/push_to_git.py" "releases/*" "website/rw*.sh" "website/build-local.sh" "website/public/downloads/*" "website/out/*" "website/.next/*" "website/node_modules/*" "ocos/kernel/generated/*"); \
 	cp $(KERNEL_ISO) $$ISOCOPY; \
 	echo "SRC: $$SRCZIP"; \
 	echo "ISO: $$ISOCOPY"; \

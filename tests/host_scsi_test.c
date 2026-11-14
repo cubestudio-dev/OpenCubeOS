@@ -32,7 +32,7 @@
 #include <stdlib.h>
 
 #include "../core/types.h"
-#include "../drivers/block/block_svc.h"
+#include "svc_block_drivers.h"
 
 /* ---- stubs the kernel .c expects on the host --------------------- */
 void *kmalloc(unsigned long long size) { return malloc(size); }
@@ -66,8 +66,8 @@ int  driver_block_read_sectors_raw(int dev_idx, u64 lba, u32 count, void *buf)
 int  driver_block_write_sectors_raw(int dev_idx, u64 lba, u32 count, const void *buf)
 { (void)dev_idx; (void)lba; (void)count; (void)buf; return -1; }
 
-#include "../core/lib/lib_string.c"
-#include "../drivers/scsi/driver_scsi.c"
+#include "core_lib_string.c"
+#include "drv_storage_scsi.c"
 
 static int check(const char *name, int cond)
 {

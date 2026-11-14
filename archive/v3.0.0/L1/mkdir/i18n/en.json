@@ -1,6 +1,0 @@
-{
-  "_hint": "create a directory",
-  "svc_call_failed": ": service call failed (rc=-1)\n",
-  "usage: mkdir <path>\n": "usage: mkdir <path>\n",
-  "mkdir: cannot create '": "mkdir: cannot create '"
-}
