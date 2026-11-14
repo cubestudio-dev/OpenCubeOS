@@ -112,16 +112,34 @@ u32 ocbl_rtc_unix_now(void)
 }
 
 /* busy-wait `sec` seconds on the RTC seconds field (OCBL has no
- * timer interrupts; the RTC is the one always-present clock) */
+ * timer interrupts; the RTC is the one always-present clock).
+ * #53 (WP-fix-p2-p3-cleanup): BOUNDED.  A frozen RTC (dead CMOS
+ * battery / halted oscillator) never ticks the seconds field, and
+ * the old pure tick-count loop then hung FOREVER - right at the
+ * BOOT_FAILED notice, so the "Rebooting to recovery..." dwell never
+ * ended and the 8042 reset pulse (the thing that actually recovers
+ * the machine) was never reached: a fake-dead machine staring at a
+ * failure page.  The loop now gives up after ~5M polling passes per
+ * intended second (a healthy RTC ticks once a second; one CMOS port
+ * read costs well under a microsecond, so that is an order of
+ * magnitude beyond what a working clock ever needs) and lets the
+ * caller proceed - a reset after a shortened dwell is infinitely
+ * better than an eternal hang on a dead clock. */
 void ocbl_rtc_sleep_sec(int sec)
 {
     u8 last = rtc_reg(0x00);
     int seen = 0;
+    u64 passes = 0;
+    u64 cap = (u64)(sec > 0 ? sec : 1) * 5000000ull;
     while (seen < sec) {
         u8 now = rtc_reg(0x00);
         if (now != last) {
             last = now;
             seen++;
+        }
+        if (++passes > cap) {
+            ocbl_serial_puts("[rtc] clock frozen - skipping the dwell\r\n");
+            return;
         }
     }
 }

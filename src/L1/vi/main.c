@@ -30,31 +30,41 @@ static void vi_status(const char *file) {
      * strip, no key legend, ZERO output when unchanged. */
     char bar[192];
     int n = 0;
+    /* #40 (WP-fix-p2-p3-cleanup): ONE bounded-append guard for every
+     * write.  The old mixed limits (-32 file, -24 numbers, -1 tag)
+     * let the tag loop reach bar[191], the closing ']' push n to 192,
+     * and the final bar[n]=0 write ONE BYTE PAST the array; long file
+     * names (>120 B, reachable via the path argument) also starved
+     * the -24-guarded line-number loops into silently dropping the
+     * total ("12/").  Same shape as nano's unano_statusbar guards. */
+#define VI_BAR_PUT(c) do { if (n < (int)sizeof(bar) - 1) bar[n++] = (c); } while (0)
     const char *tag = tr_(vi_mode == VI_MODE_INS ? "vi_mode_ins" : "vi_mode_cmd");
-    bar[n++] = '[';
-    if (unano_dirty) bar[n++] = '*';
-    bar[n++] = ' ';
-    for (int i = 0; file[i] && n < (int)sizeof(bar) - 32; i++) bar[n++] = file[i];
-    bar[n++] = ' ';
+    VI_BAR_PUT('[');
+    if (unano_dirty) VI_BAR_PUT('*');
+    VI_BAR_PUT(' ');
+    for (int i = 0; file[i] && n < (int)sizeof(bar) - 1; i++) VI_BAR_PUT(file[i]);
+    VI_BAR_PUT(' ');
     {
         char num[12]; int m = 0; int v = unano_cl + 1;
         if (v == 0) num[m++] = '0';
         while (v > 0 && m < 11) { num[m++] = (char)('0' + v % 10); v /= 10; }
-        for (int i = 0; i < m && n < (int)sizeof(bar) - 24; i++) bar[n++] = num[m - 1 - i];
-        bar[n++] = '/';
+        for (int i = 0; i < m && n < (int)sizeof(bar) - 1; i++) VI_BAR_PUT(num[m - 1 - i]);
+        VI_BAR_PUT('/');
         m = 0; v = unano_nlines;
         if (v == 0) num[m++] = '0';
         while (v > 0 && m < 11) { num[m++] = (char)('0' + v % 10); v /= 10; }
-        for (int i = 0; i < m && n < (int)sizeof(bar) - 24; i++) bar[n++] = num[m - 1 - i];
+        for (int i = 0; i < m && n < (int)sizeof(bar) - 1; i++) VI_BAR_PUT(num[m - 1 - i]);
     }
-    bar[n++] = ' ';
-    for (int i = 0; tag[i] && n < (int)sizeof(bar) - 1; i++) bar[n++] = tag[i];
-    bar[n++] = ']';
+    VI_BAR_PUT(' ');
+    for (int i = 0; tag[i] && n < (int)sizeof(bar) - 1; i++) VI_BAR_PUT(tag[i]);
+    VI_BAR_PUT(']');
     if (unano_ime_err) {
         const char *err = tr_("editor_ime_err");
-        for (int i = 0; err[i] && n < (int)sizeof(bar) - 1; i++) bar[n++] = err[i];
+        for (int i = 0; err[i] && n < (int)sizeof(bar) - 1; i++) VI_BAR_PUT(err[i]);
     }
+    /* n <= sizeof(bar)-1 is now invariant: the NUL can never overflow. */
     bar[n] = 0;
+#undef VI_BAR_PUT
     if (unano_ime_composing && unano_ime_strip[0]) {
         int room = (int)sizeof(bar) - 2 - n;
         if (room > 2) {

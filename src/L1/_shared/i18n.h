@@ -14,8 +14,9 @@
  * never depends on _shared/l1_lib.h's wrapper order - l1_lib.h
  * includes it at its tail and every app gets tr_() for free.
  *
- * Lookup: i18n_lang_zh() asks the SYSTEM locale once per process
- * (SYS_L1SVC display/LANG_GET), then tr_() binary-searches the
+ * Lookup: i18n_lang_zh() asks the SYSTEM locale per call
+ * (SYS_L1SVC display/LANG_GET - live, so `lang` switches take
+ * effect immediately, #136), then tr_() binary-searches the
  * selected table (tables are emitted key-sorted); a miss in zh
  * falls back to en, a miss in en falls back to the key itself -
  * an untranslated app can never crash or print garbage, it just
@@ -44,29 +45,33 @@ extern const struct i18n_kv I18N_ZH[];
 extern const int            I18N_ZH_N;
 
 /* ---- locale -------------------------------------------------------
- * One SYS_L1SVC round trip per process (cached in a static).  Any
- * failure (old kernel, service down) reads as English - the safe
- * default.  The int-0x80 sequence is the l1_lib.h syscall5 contract
- * spelled locally: SYS_L1SVC(110), cat=DISPLAY, op=LANG_GET,
- * arg=0, out=&buf, cap=sizeof(buf). */
+ * #136 (WP-fix-p2-p3-cleanup): probed LIVE on every call.  The old
+ * one-shot static cache froze the locale at the FIRST tr_() of the
+ * process: in the long-running ush that meant `help` before `lang
+ * zh` pinned every later help / help -a / help -w render (and every
+ * other translated surface) to English for the whole session - the
+ * g3 flagship language switch looked broken inside the very shell
+ * that owns it.  The probe is one non-blocking int-0x80 round trip
+ * (kernel side: a 2-byte copy out of disp_lang_get()), so tr_()
+ * stays cheap even for help -a's ~300 strings.  Any failure (old
+ * kernel, service down) still reads as English - the safe default.
+ * The int-0x80 sequence is the l1_lib.h syscall5 contract spelled
+ * locally: SYS_L1SVC(110), cat=DISPLAY, op=LANG_GET, arg=0,
+ * out=&buf, cap=sizeof(buf). */
 static inline int i18n_lang_zh(void) {
-    static int cached = -1;
-    if (cached < 0) {
-        char out[8];
-        out[0] = 0;
-        register long r10 __asm__("r10") = (long)out;
-        register long r8  __asm__("r8")  = (long)sizeof(out);
-        long rc;
-        __asm__ volatile("int $0x80"
-                         : "=a"(rc)
-                         : "a"((long)SYS_L1SVC),
-                           "D"((long)L1SVC_CAT_DISPLAY),
-                           "S"((long)L1SVC_DISP_LANG_GET),
-                           "d"(0L), "r"(r10), "r"(r8)
-                         : "memory");
-        cached = (rc == 0 && out[0] == 'z' && out[1] == 'h') ? 1 : 0;
-    }
-    return cached;
+    char out[8];
+    out[0] = 0;
+    register long r10 __asm__("r10") = (long)out;
+    register long r8  __asm__("r8")  = (long)sizeof(out);
+    long rc;
+    __asm__ volatile("int $0x80"
+                     : "=a"(rc)
+                     : "a"((long)SYS_L1SVC),
+                       "D"((long)L1SVC_CAT_DISPLAY),
+                       "S"((long)L1SVC_DISP_LANG_GET),
+                       "d"(0L), "r"(r10), "r"(r8)
+                     : "memory");
+    return (rc == 0 && out[0] == 'z' && out[1] == 'h');
 }
 
 /* Human name of the active locale (for status lines). */

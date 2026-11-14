@@ -1014,12 +1014,18 @@ static void exec_pipeline(char *line) {
 /* GB2312 symbol-zone codepoints below U+2E80: every one renders 16px
  * through the embedded 682-symbol table (the kernel's generic CJK
  * range check starts at U+2E80, so these need an explicit table to
- * stay column-exact).  Generated from the GB2312 mapping - the exact
- * 347 narrow codepoints compressed into 73 ranges. */
+ * stay column-exact).  Generated from the GB2312 mapping.
+ * #42 (WP-fix-p2-p3-cleanup): the eleven sub-0x100 ranges from the
+ * generator output (0x00A4..0x00FC - Latin-1 area) are DELETED:
+ * u8_cols() returns 1 cell for every cp < 0x100 BEFORE this table is
+ * consulted, and the kernel's render_chinese_width() fixes the same
+ * codepoints to 1 cell too - the rows were unreachable dead data, and
+ * the old "every one renders 16px" comment was wrong for exactly
+ * them (a future kernel change would have desynced the two sides).
+ * Invariant: this table only covers [0x0100, 0x2E7F]; both sides
+ * treat everything below 0x100 as one cell. */
 static const struct { unsigned short lo, hi; } k_gb2312_narrow[] = {
-    {0x00A4,0x00A4},{0x00A7,0x00A8},{0x00B0,0x00B1},{0x00D7,0x00D7},
-    {0x00E0,0x00E1},{0x00E8,0x00EA},{0x00EC,0x00ED},{0x00F2,0x00F3},
-    {0x00F7,0x00F7},{0x00F9,0x00FA},{0x00FC,0x00FC},{0x0101,0x0101},
+    {0x0101,0x0101},
     {0x0113,0x0113},{0x011B,0x011B},{0x012B,0x012B},{0x014D,0x014D},
     {0x016B,0x016B},{0x01CE,0x01CE},{0x01D0,0x01D0},{0x01D2,0x01D2},
     {0x01D4,0x01D4},{0x01D6,0x01D6},{0x01D8,0x01D8},{0x01DA,0x01DA},
