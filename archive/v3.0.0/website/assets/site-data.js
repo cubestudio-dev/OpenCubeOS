@@ -40,23 +40,23 @@ window.SITE_DATA = {
      carries no ISO binaries (see SYNC-NOTES.md) - the dev entries
      link the GitHub Release download URLs directly. */
   dev: {
-    version: "3.0.0-WP-fix-critical-security",
-    build: 12,
-    date: "2026-11-13",
+    version: "3.0.0-WP-fix-p2-p3-cleanup",
+    build: 445,
+    date: "2026-11-14",
     assets: {
       opencube: {
-        name: "opencube-3.0.0-WP-fix-critical-security.iso",
-        size: 4216832,
+        name: "opencube-3.0.0-WP-fix-p2-p3-cleanup.iso",
+        size: 4210688,
         size_h: "4.0 MiB",
-        sha256: "efd2b9ae4a81f9b195fcd66a8c353f0f24f801873bdca9198613625641428d67",
-        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP-fix-critical-security/opencube-3.0.0-WP-fix-critical-security.iso"
+        sha256: "a4d587f2c82fbf6744739d5743a97f76770dd36bc8a1298c39a06bfcd9789a15",
+        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP-fix-p2-p3-cleanup/opencube-3.0.0-WP-fix-p2-p3-cleanup.iso"
       },
       ocse: {
-        name: "ocse-3.0.0-WP-fix-critical-security.iso",
-        size: 5048320,
+        name: "ocse-3.0.0-WP-fix-p2-p3-cleanup.iso",
+        size: 5040128,
         size_h: "4.8 MiB",
-        sha256: "49e57a55fcc9f9dbe4ff788ec1b019ce2a6bb288e749ceb448a3b2ce289509c3",
-        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP-fix-critical-security/ocse-3.0.0-WP-fix-critical-security.iso"
+        sha256: "5214b39b04e071b79a06cadb467f35a94f58f735651ad0ad44f1d3618df0d21e",
+        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP-fix-p2-p3-cleanup/ocse-3.0.0-WP-fix-p2-p3-cleanup.iso"
       }
     }
   },
@@ -67,6 +67,8 @@ window.SITE_DATA = {
     lines: "131,230"
   },
   history: [
+    { version: "3.0.0-WP-fix-p2-p3-cleanup", date: "2026-11-14",
+      note: "25 P2 defects closed in four batches (syscall/pipe/ELF gates, net-stack hardening, persistence/data safety, Chinese UX); P1 audit zero" },
     { version: "3.0.0-WP-fix-critical-security", date: "2026-11-13",
       note: "40 P0/P1 audit defects closed (kernel security fence, TLS/DNS hardening, ush/app safety, OCSE installer safety)" },
     { version: "3.0.0-WP06g3", date: "2026-11-05",
