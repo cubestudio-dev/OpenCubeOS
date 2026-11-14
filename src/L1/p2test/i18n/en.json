@@ -1,0 +1,4 @@
+{
+  "_hint": "WP-fix-p2-p3-cleanup live probes (utf8 chunking / read0 / pipe)",
+  "usage: p2test <utf8|read0|pipe>\n": "usage: p2test <utf8|read0|pipe>\n"
+}

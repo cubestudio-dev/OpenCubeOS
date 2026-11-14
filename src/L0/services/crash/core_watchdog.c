@@ -44,6 +44,7 @@
 #include "core_timer.h"
 #include "core_sched.h"
 #include "core_power.h"
+#include "core_usermode.h"     /* #11: user_process_kill_by_tid (KILL reaper path) */
 #include "core_crash.h"        /* kernel_panic (policy PANIC)         */
 #include "driver_pci.h"
 #include "driver_acpi.h"
@@ -458,7 +459,31 @@ static void watchdog_tick(void *ctx) {
         case WD_POLICY_KILL:
             strcat(msg, " -> KILL task");
             klog_write(KLOG_ERROR, "watchdog", "%s", msg);
-            if (s->tid > 0) core_sched_task_exited((tid_t)s->tid);
+            /* #11 (WP-fix-p2-p3-cleanup): s->tid was captured at
+             * register() time.  If that task already died and the slot
+             * was handed to a new tenant, the blind
+             * core_sched_task_exited() marked the INNOCENT new task
+             * EXITED and dropped it off the ready queue (stale-tid
+             * kill - the same class BUG-0099 fixed in sys_wait4 /
+             * sys_kill, but the watchdog path was never synced).  And
+             * when the victim was a USER process task, the scheduler
+             * only reclaimed the kthread stack: the user_proc_t entry
+             * stayed alive forever (fds open, AS leaked, parent wait4
+             * never returns - a zombie process-table slot).  Guard
+             * with the live task state, and route user processes
+             * through user_process_kill_by_tid (the unified reaper:
+             * fds closed, exit code written, parent woken, then the
+             * task exited). */
+            if (s->tid > 0) {
+                task_t *wt = core_kthread_get_task((tid_t)s->tid);
+                if (wt && wt->state != TASK_EXITED) {
+                    if (user_process_kill_by_tid((tid_t)s->tid) != 0) {
+                        /* not a user process (or self-kill refusal):
+                         * plain scheduler exit, the old behavior */
+                        core_sched_task_exited((tid_t)s->tid);
+                    }
+                }
+            }
             s->running = 0;                 /* episode over */
             break;
         case WD_POLICY_LOG:

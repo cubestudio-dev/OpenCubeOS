@@ -196,6 +196,7 @@ WP_TAGS = {
     "pcie": "input",
     "pf_test": "l1",
     "p0leak": "core",
+    "p2test": "core",
     "pftest": "core",
     "pie_test": "l1",
     "ping": "net",

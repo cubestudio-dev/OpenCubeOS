@@ -300,6 +300,16 @@ void pipe_close_fd(int pipe_id, int kind) {
      * because writer_count==0, or writable because reader_count==0). */
     pipe_wake_all(p->reader_waiters);
     pipe_wake_all(p->writer_waiters);
+    /* WP-fix-p2-p3-cleanup (found by the p2test pipe stress probe):
+     * in_use was NEVER cleared, so every pipe() consumed one of the 32
+     * slots forever - after 32 pipe()/close() cycles pipe_alloc()
+     * returned 0 and every later pipeline in ush failed.  Both ends
+     * gone (reader_count <= 0 && writer_count <= 0) means no fd table
+     * entry references this pipe anymore: release the slot.  Waiters
+     * were woken above and re-check the counts through their saved
+     * pointer, so freeing here is safe. */
+    if (p->reader_count <= 0 && p->writer_count <= 0)
+        p->in_use = 0;
 }
 
 static int sys_proc_fd_alloc(user_proc_t *proc) {
@@ -307,6 +317,94 @@ static int sys_proc_fd_alloc(user_proc_t *proc) {
         if (proc->fds[i].kind == 0) { proc->fds[i].kind = 1; return i; }
     }
     return -1;
+}
+
+/* ============================================================
+ * ELF64 layouts + table-level validation gate (#8,
+ * WP-fix-p2-p3-cleanup).  The typedefs used to live inside
+ * sys_execve; they are promoted to file scope so the validation
+ * helper below (and every exec mapping loop) can share them.
+ * ============================================================ */
+typedef struct __attribute__((packed)) {
+    u8 ident[16]; u16 type; u16 machine; u32 version; u64 entry; u64 phoff;
+    u64 shoff; u32 flags; u16 ehsize; u16 phentsize; u16 phnum;
+    u16 shentsize; u16 shnum; u16 shstrndx;
+} elf64_hdr_t;
+typedef struct __attribute__((packed)) {
+    u32 type; u32 flags; u64 offset; u64 vaddr; u64 paddr;
+    u64 filesz; u64 memsz; u64 align;
+} elf64_phdr_t;
+
+/* #8 (WP-fix-p2-p3-cleanup): table-level ELF program-header
+ * validation gate for sys_execve.  The P3-13/P3-14 checks in
+ * core_usermode.c only guard the post-ld.so-switch path of
+ * user_process_create; sys_execve's own mapping loops ran with ZERO
+ * table validation, so a malformed image could push p_offset or
+ * p_filesz past the blob end (kernel-heap OOB read copied into
+ * USER-readable pages) or wrap p_vaddr + p_memsz into the kernel
+ * window.  Gate every image (main, libfoo, ld.so) through here
+ * BEFORE any field is trusted:
+ *   - phentsize must match the struct (no misaligned iteration)
+ *   - phnum sane (non-zero, <= 256)
+ *   - phoff + phnum*phentsize <= size, overflow-checked
+ *   - per PT_LOAD: offset+filesz <= size (OOB read guard),
+ *     memsz >= filesz (BSS underflow guard), vaddr+memsz does not
+ *     wrap, and vaddr stays below USER_LIMIT (kernel-space guard).
+ * Returns 0 = table trustworthy, -1 = reject the exec. */
+static int elf64_phdrs_check(const u8 *elf, u64 size) {
+    if (!elf || size < sizeof(elf64_hdr_t)) return -1;
+    elf64_hdr_t *h = (elf64_hdr_t *)elf;
+    if (h->phentsize != sizeof(elf64_phdr_t)) return -1;
+    if (h->phnum == 0 || h->phnum > 256) return -1;
+    u64 tbl_end = (u64)h->phoff + (u64)h->phnum * (u64)h->phentsize;
+    if (tbl_end < (u64)h->phoff || tbl_end > size) return -1;
+    elf64_phdr_t *ph = (elf64_phdr_t *)(elf + h->phoff);
+    for (int i = 0; i < h->phnum; i++) {
+        if (ph[i].type != 1 /* PT_LOAD */) continue;
+        u64 file_end = (u64)ph[i].offset + (u64)ph[i].filesz;
+        if (file_end < (u64)ph[i].offset || file_end > size) return -1;
+        if (ph[i].memsz < ph[i].filesz) return -1;
+        u64 mem_end = (u64)ph[i].vaddr + (u64)ph[i].memsz;
+        if (mem_end < (u64)ph[i].vaddr) return -1;      /* wraparound */
+        if (ph[i].vaddr >= USER_LIMIT) return -1;       /* kernel space */
+    }
+    return 0;
+}
+
+/* #12 (WP-fix-p2-p3-cleanup): UTF-8-aware console chunking.  The
+ * 512-byte cli windows in sys_write / sys_write2 emit each chunk as
+ * an independent console_cn_puts_enc() decode with no cross-call
+ * state, so a chunk boundary landing mid multi-byte sequence painted
+ * the leading bytes as Latin-1 mojibake (frame buffer) once per ~171
+ * hanzi.  This helper shrinks a NON-FINAL chunk back to the start of
+ * the sequence that the boundary would have split, so every complete
+ * glyph is emitted inside one cli window.  The FINAL chunk is never
+ * shrunk: a sequence truncated by the caller's own buffer length is
+ * invalid input and the decoder emits it raw either way. */
+static u64 utf8_safe_chunk(const u8 *p, u64 remain, u64 want) {
+    if (want > remain) want = remain;
+    if (want == remain) return want;   /* final chunk: no boundary to fix */
+    /* How many continuation bytes (10xxxxxx) end at the boundary? */
+    u64 back = 0;
+    while (back < 3 && back < want && (p[want - 1 - back] & 0xC0) == 0x80)
+        back++;
+    if (back == 0) return want;        /* boundary on a lead/ASCII byte */
+    u8 lead = p[want - 1 - back];
+    u64 need = 0;                      /* full sequence length */
+    if      ((lead & 0xE0) == 0xC0) need = 2;
+    else if ((lead & 0xF0) == 0xE0) need = 3;
+    else if ((lead & 0xF8) == 0xF0) need = 4;
+    /* No valid lead byte within 3 bytes: garbage, emit as-is. */
+    if (need == 0) return want;
+    /* Sequence bytes inside the chunk: back + 1 (the lead).  If the
+     * sequence needs more than that, it crosses the boundary: cut at
+     * the lead byte so the NEXT chunk carries it whole. */
+    if (back + 1 < need) {
+        u64 cut = want - (back + 1);
+        if (cut == 0) return want;     /* pathological: emit raw */
+        return cut;
+    }
+    return want;
 }
 
 /* ============================================================
@@ -639,6 +737,12 @@ static u64 sys_pipe(u64 pipefd_ptr, u64 a2, u64 a3, u64 a4) {
 
 static u64 sys_read(u64 fd, u64 buf, u64 count, u64 a4) {
     (void)a4;
+    /* #14 (WP-fix-p2-p3-cleanup): POSIX - read(fd, buf, 0) returns 0
+     * immediately: no blocking, no buffer touch, no key consumed.  The
+     * old stdin loop wrote ub[0] BEFORE checking got >= count, so a
+     * zero-length read still swallowed one keystroke and stored 1 byte
+     * (a page-boundary buffer then took a spurious fault). */
+    if (count == 0) return 0;
     /* P3-9 FIX: verify buffer is mapped (was only range-check). */
     if (!access_ok_read(buf, count)) return (u64)-1;
     user_proc_t *proc = user_process_current();
@@ -694,10 +798,7 @@ static u64 sys_read(u64 fd, u64 buf, u64 count, u64 a4) {
         u64 irq_flags;
         for (;;) {
             __asm__ volatile("pushfq; popq %0; cli" : "=r"(irq_flags));
-            if (pipe_data_avail(p) > 0) {
-                if (irq_flags & 0x200) __asm__ volatile("sti");
-                break;
-            }
+            if (pipe_data_avail(p) > 0) break;   /* #9: stay cli-atomic through the copy */
             if (p->writer_count == 0) {
                 if (irq_flags & 0x200) __asm__ volatile("sti");
                 return 0;  /* EOF: all writers gone */
@@ -709,15 +810,28 @@ static u64 sys_read(u64 fd, u64 buf, u64 count, u64 a4) {
             pipe_wait_remove(p->reader_waiters, my_tid);
             if (irq_flags & 0x200) __asm__ volatile("sti");
         }
-        u32 avail = pipe_data_avail(p);
-        if (avail > count) avail = (u32)count;
-        u8 *dst = (u8*)(uintptr_t)buf;
-        for (u32 i = 0; i < avail; i++)
-            dst[i] = p->buf[(p->read_pos + i) % PIPE_BUF_SIZE];
-        p->read_pos += avail;
-        /* P3-15: wake ONE writer (not just one specific tid). */
-        pipe_wake_one(p->writer_waiters);
-        return (u64)avail;
+        /* #9 (WP-fix-p2-p3-cleanup): the data-plane race.  The old code
+         * re-enabled interrupts between the wait loop and the copy, so
+         * two readers (fork/dup makes that legal) could both compute
+         * avail from the same read_pos, get the SAME bytes (duplicate
+         * delivery), then both advance read_pos past write_pos -
+         * pipe_data_avail (u32 write_pos - read_pos) underflowed to
+         * ~4 GiB and every later read on this pipe returned ring-buffer
+         * garbage.  The avail check + copy + read_pos writeback are now
+         * ONE cli-atomic window (the copy is <= 4 KiB, the window is
+         * short); wake + return happen after the flags are restored. */
+        {
+            u32 avail = pipe_data_avail(p);
+            if (avail > count) avail = (u32)count;
+            u8 *dst = (u8*)(uintptr_t)buf;
+            for (u32 i = 0; i < avail; i++)
+                dst[i] = p->buf[(p->read_pos + i) % PIPE_BUF_SIZE];
+            p->read_pos += avail;
+            if (irq_flags & 0x200) __asm__ volatile("sti");
+            /* P3-15: wake ONE writer (not just one specific tid). */
+            pipe_wake_one(p->writer_waiters);
+            return (u64)avail;
+        }
     }
     return (u64)-1;
 }
@@ -797,11 +911,14 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
                      * re-enable before the space recheck loops. */
                     if (irq_flags & 0x200) __asm__ volatile("sti");
                 }
-                /* Space is available (or the first pass fell straight
-                 * through the loop): leave the atomic check window
-                 * before the data copy so we never keep interrupts off
-                 * across the copy / wake path or return with IF=0. */
-                if (irq_flags & 0x200) __asm__ volatile("sti");
+                /* #9 (WP-fix-p2-p3-cleanup): the writer-side data race.
+                 * The old code re-enabled interrupts right here, BEFORE
+                 * the copy: two writers could both see the same free
+                 * space and interleave overwrites, and both advance
+                 * write_pos - skewing it past the real data.  The space
+                 * check + copy + write_pos writeback are now ONE
+                 * cli-atomic window (mirror of the sys_read fix); the
+                 * wake happens after the flags are restored. */
                 u32 space = pipe_space_avail(p);
                 u32 to_write = remaining < space ? remaining : space;
                 for (u32 i = 0; i < to_write; i++)
@@ -809,6 +926,7 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
                 p->write_pos += to_write;
                 total_written += to_write;
                 remaining -= to_write;
+                if (irq_flags & 0x200) __asm__ volatile("sti");
                 /* P3-15: wake ONE reader (FIFO). */
                 pipe_wake_one(p->reader_waiters);
             }
@@ -836,8 +954,13 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
         const char *p = (const char*)(uintptr_t)buf;
         u64 done = 0;
         while (done < len) {
-            u64 chunk = len - done;
-            if (chunk > 512) chunk = 512;
+            /* #12 (WP-fix-p2-p3-cleanup): shrink the chunk to a UTF-8
+             * sequence boundary (look back at most 3 bytes) so a CJK
+             * glyph is never split across two cli windows - each chunk
+             * is decoded independently by console_cn_puts_enc, and the
+             * split halves used to paint as Latin-1 mojibake on the
+             * frame buffer. */
+            u64 chunk = utf8_safe_chunk((const u8*)(p + done), len - done, 512);
             u64 eflags;
             __asm__ volatile("pushfq; popq %0; cli" : "=r"(eflags));
             console_cn_puts_enc((const u8*)(uintptr_t)(p + done),
@@ -1680,15 +1803,14 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
     const u8 *elf = core_userprog_lookup(name, &elf_size);
     if (!elf) return (u64)-1;
 
-    typedef struct __attribute__((packed)) {
-        u8 ident[16]; u16 type; u16 machine; u32 version; u64 entry; u64 phoff;
-        u64 shoff; u32 flags; u16 ehsize; u16 phentsize; u16 phnum;
-        u16 shentsize; u16 shnum; u16 shstrndx;
-    } elf64_hdr_t;
-    typedef struct __attribute__((packed)) {
-        u32 type; u32 flags; u64 offset; u64 vaddr; u64 paddr;
-        u64 filesz; u64 memsz; u64 align;
-    } elf64_phdr_t;
+    /* #8 (WP-fix-p2-p3-cleanup): table-level gate BEFORE any field of
+     * the program-header table is trusted.  sys_execve's mapping loops
+     * (generic static path, dyn-main, libfoo, and the ld.so switch
+     * below) used to run with zero validation: a malformed image could
+     * push p_offset/p_filesz past the blob (kernel-heap OOB read
+     * copied into USER-readable pages) or wrap vaddr+memsz into the
+     * kernel window. */
+    if (elf64_phdrs_check(elf, elf_size) != 0) return (u64)-1;
 
     /* WP-fix-critical-security (P0 fence fallout, #7): dynamic-image
      * support.  sys_execve used to map ET_DYN (PIE) images at their RAW
@@ -1799,6 +1921,18 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
         /* main PT_LOADs at dyn_main_base (+ BSS zero pages) */
         for (int i = 0; i < hdr->phnum; i++) {
             if (phdr[i].type != 1) continue;
+            /* #8 (WP-fix-p2-p3-cleanup): bound the randomized load
+             * window.  p_vaddr used to be added to dyn_main_base with
+             * no range check; a huge or wrapping vaddr mapped user
+             * pages anywhere (including over the stack window or past
+             * USER_STACK_TOP).  Reject instead of mapping. */
+            u64 mbase = dyn_main_base + phdr[i].vaddr;
+            if (mbase < dyn_main_base || mbase >= USER_STACK_TOP ||
+                phdr[i].memsz > USER_STACK_TOP - mbase) {
+                mem_vmm_destroy_address_space(new_as);
+                kfree(ab); kfree(eb);
+                return (u64)-1;
+            }
             if (map_user_pages(new_as, dyn_main_base + phdr[i].vaddr,
                                elf + phdr[i].offset, phdr[i].filesz) != 0) {
                 mem_vmm_destroy_address_space(new_as);
@@ -1833,6 +1967,16 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
                 elf64_phdr_t *lph = (elf64_phdr_t*)(solib_libfoo + lh->phoff);
                 for (int i = 0; i < lh->phnum; i++) {
                     if (lph[i].type != 1) continue;
+                    /* #8 (WP-fix-p2-p3-cleanup): same window bound for
+                     * the libfoo PT_LOADs (BUG-0280 rejected the
+                     * "embedded blobs are trusted" premise). */
+                    u64 lbase = dyn_lib_base + lph[i].vaddr;
+                    if (lbase < dyn_lib_base || lbase >= USER_STACK_TOP ||
+                        lph[i].memsz > USER_STACK_TOP - lbase) {
+                        mem_vmm_destroy_address_space(new_as);
+                        kfree(ab); kfree(eb);
+                        return (u64)-1;
+                    }
                     if (map_user_pages(new_as, dyn_lib_base + lph[i].vaddr,
                                        solib_libfoo + lph[i].offset,
                                        lph[i].filesz) != 0) {
@@ -1878,8 +2022,21 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
          * map at their own link addresses (ET_EXEC at 0x10000000) and
          * the process entry becomes ld.so's entry. */
         elf = ldso_data;
+        /* #8 (WP-fix-p2-p3-cleanup): keep elf_size in sync with the
+         * switch - the variable still carried the MAIN image's size, so
+         * any size-based reasoning below described the wrong blob. */
+        elf_size = ldso_size;
         hdr = (elf64_hdr_t*)elf;
         phdr = (elf64_phdr_t*)(elf + hdr->phoff);
+        /* #8: second gate - the generic mapping loop below iterates the
+         * ld.so program headers with zero checks of its own; a
+         * malformed interp blob got the same OOB/wrap treatment as the
+         * main image. */
+        if (elf64_phdrs_check(elf, elf_size) != 0) {
+            mem_vmm_destroy_address_space(new_as);
+            kfree(ab); kfree(eb);
+            return (u64)-1;
+        }
     }
     for (int i = 0; i < hdr->phnum; i++) {
         if (phdr[i].type != 1) continue;
@@ -2366,6 +2523,12 @@ static u64 sys_close(u64 fd, u64 a2, u64 a3, u64 a4) {
             /* P3-15: wake ALL waiters on close. */
             pipe_wake_all(pp->reader_waiters);
             pipe_wake_all(pp->writer_waiters);
+            /* WP-fix-p2-p3-cleanup (pipe slot leak): mirror the
+             * pipe_close_fd() fix - release the slot when the last end
+             * is closed, or 32 pipe()/close() cycles exhaust the table
+             * forever. */
+            if (pp->reader_count <= 0 && pp->writer_count <= 0)
+                pp->in_use = 0;
         }
     }
     return 0;
@@ -2449,8 +2612,11 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
             const char *p = (const char*)(uintptr_t)buf;
             u64 done = 0;
             while (done < len) {
-                u64 chunk = len - done;
-                if (chunk > 512) chunk = 512;
+                /* #12 (WP-fix-p2-p3-cleanup): UTF-8 sequence boundary
+                 * chunking, same as the sys_write console fallback - a
+                 * CJK glyph split across two cli windows painted as
+                 * Latin-1 mojibake on the frame buffer. */
+                u64 chunk = utf8_safe_chunk((const u8*)(p + done), len - done, 512);
                 u64 eflags;
                 __asm__ volatile("pushfq; popq %0; cli" : "=r"(eflags));
                 /* BUG #130/#110 FIX (P1, WP-fix-critical-security): the
@@ -2523,11 +2689,12 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
                  * re-enable before the space recheck loops. */
                 if (irq_flags & 0x200) __asm__ volatile("sti");
             }
-            /* Space is available (or the first pass fell straight
-             * through the loop): leave the atomic check window before
-             * the data copy so we never keep interrupts off across the
-             * copy / wake path or return with IF=0. */
-            if (irq_flags & 0x200) __asm__ volatile("sti");
+            /* #9 (WP-fix-p2-p3-cleanup): writer-side data race, mirror
+             * of the sys_write fix - the old code left the cli window
+             * BEFORE the copy, so two writers could see the same space
+             * and overwrite each other's bytes while both advanced
+             * write_pos.  Space check + copy + write_pos writeback are
+             * now ONE cli-atomic window; wake after the restore. */
             u32 space = pipe_space_avail(p);
             u32 to_copy = (u32)((len - written < space) ? (len - written) : space);
             u32 wpos = p->write_pos % PIPE_BUF_SIZE;
@@ -2535,6 +2702,7 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
             memcpy(p->buf + wpos, src + written, to_copy);
             p->write_pos += to_copy;
             written += to_copy;
+            if (irq_flags & 0x200) __asm__ volatile("sti");
             /* P3-15: wake ONE reader (FIFO). */
             pipe_wake_one(p->reader_waiters);
         }

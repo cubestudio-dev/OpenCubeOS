@@ -9,8 +9,8 @@
  * Purpose: the desktop task manager - live process table (g_procs),
  *          real PMM memory statistics, uptime, and Kill.  F5 refreshes;
  *          Enter opens a per-process detail page; k kills the selected
- *          process through user_process_kill (the same path `kill`
- *          uses).  All data is read from the real subsystems.
+ *          process through user_process_kill_by_tid (the same path
+ *          `kill` uses).  All data is read from the real subsystems.
  *
  * WP-10-tui-native upgrades:
  *   - STATE and CPU(ms) columns: the live scheduler table

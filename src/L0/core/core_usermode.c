@@ -275,6 +275,34 @@ typedef struct {
     u64 align;
 } __attribute__((packed)) elf64_phdr_t;
 
+/* #8 (WP-fix-p2-p3-cleanup): table-level ELF program-header
+ * validation gate, the same checks P3-13/P3-14 run for the
+ * post-ld.so-switch path - promoted into a helper so the dyn-main and
+ * libfoo mapping loops can run it BEFORE trusting any field.  The old
+ * dyn-main loop mapped with ZERO validation: a malformed PIE could
+ * push p_offset/p_filesz past the blob (kernel-heap OOB read copied
+ * into USER-readable pages) or wrap p_vaddr + p_memsz past the user
+ * window.  Returns 0 = table trustworthy, -1 = reject the image. */
+static int elf64_phdrs_check(const u8 *elf, u64 size) {
+    if (!elf || size < sizeof(elf64_hdr_t)) return -1;
+    elf64_hdr_t *h = (elf64_hdr_t *)elf;
+    if (h->phentsize != sizeof(elf64_phdr_t)) return -1;
+    if (h->phnum == 0 || h->phnum > 256) return -1;
+    u64 tbl_end = (u64)h->phoff + (u64)h->phnum * (u64)h->phentsize;
+    if (tbl_end < (u64)h->phoff || tbl_end > size) return -1;
+    elf64_phdr_t *ph = (elf64_phdr_t *)(elf + h->phoff);
+    for (int i = 0; i < h->phnum; i++) {
+        if (ph[i].type != 1 /* PT_LOAD */) continue;
+        u64 file_end = (u64)ph[i].offset + (u64)ph[i].filesz;
+        if (file_end < (u64)ph[i].offset || file_end > size) return -1;
+        if (ph[i].memsz < ph[i].filesz) return -1;
+        u64 mem_end = (u64)ph[i].vaddr + (u64)ph[i].memsz;
+        if (mem_end < (u64)ph[i].vaddr) return -1;      /* wraparound */
+        if (ph[i].vaddr >= 0x0000800000000000ULL) return -1; /* kernel space */
+    }
+    return 0;
+}
+
 /* Forward declarations. */
 u64 core_syscall_exit(u64 code, u64 arg2, u64 arg3, u64 arg4);
 u64 core_syscall_write(u64 buf, u64 len, u64 arg3, u64 arg4);
@@ -1087,11 +1115,33 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         u64 dyn_lib_base  = SOLIB_LIBFOO_BASE + user_aslr_page_slice(0x08000000ULL);
         elf64_hdr_t *main_hdr = (elf64_hdr_t*)main_elf_data_orig;
         if (main_elf_size_orig >= sizeof(elf64_hdr_t)) {
+            /* #8 (WP-fix-p2-p3-cleanup): the dyn-main mapping loop used
+             * to run with ZERO validation - the P3-13/P3-14 checks below
+             * only guard the post-ld.so-switch path, and this loop runs
+             * FIRST.  A malformed PIE could push p_offset/p_filesz past
+             * the blob (kernel-heap OOB read copied into USER-readable
+             * pages) or wrap p_vaddr into the kernel window.  Gate the
+             * table + every PT_LOAD before mapping anything. */
+            if (elf64_phdrs_check(main_elf_data_orig, main_elf_size_orig) != 0) {
+                screen_console_puts("dynlink: main image failed ELF header checks\n");
+                proc->alive = 0;
+                goto fail_as;
+            }
             elf64_phdr_t *main_phdr =
                 (elf64_phdr_t*)(main_elf_data_orig + main_hdr->phoff);
             for (int i = 0; i < main_hdr->phnum; i++) {
                 if (main_phdr[i].type != 1 /* PT_LOAD */) continue;
                 u64 load_vaddr = dyn_main_base + main_phdr[i].vaddr;
+                /* #8: bound the randomized load window - reject a
+                 * wrapping or out-of-window vaddr instead of mapping
+                 * user pages over the stack window / past the user
+                 * space end. */
+                if (load_vaddr < dyn_main_base || load_vaddr >= USER_STACK_TOP ||
+                    main_phdr[i].memsz > USER_STACK_TOP - load_vaddr) {
+                    screen_console_puts("dynlink: main PT_LOAD out of user window\n");
+                    proc->alive = 0;
+                    goto fail_as;
+                }
                 if (map_user_pages(proc->as, load_vaddr,
                                    main_elf_data_orig + main_phdr[i].offset,
                                    main_phdr[i].filesz) != 0) {
@@ -1138,11 +1188,25 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         {
             elf64_hdr_t *lib_hdr = (elf64_hdr_t*)solib_libfoo;
             if (solib_libfoo_size >= sizeof(elf64_hdr_t)) {
+                /* #8 (WP-fix-p2-p3-cleanup): gate + window bound for the
+                 * libfoo loop too (same defect class; BUG-0280 rejected
+                 * the "embedded blobs are trusted" premise). */
+                if (elf64_phdrs_check(solib_libfoo, (u64)solib_libfoo_size) != 0) {
+                    screen_console_puts("dynlink: libfoo failed ELF header checks\n");
+                    proc->alive = 0;
+                    goto fail_as;
+                }
                 elf64_phdr_t *lib_phdr =
                     (elf64_phdr_t*)(solib_libfoo + lib_hdr->phoff);
                 for (int i = 0; i < lib_hdr->phnum; i++) {
                     if (lib_phdr[i].type != 1 /* PT_LOAD */) continue;
                     u64 load_vaddr = dyn_lib_base + lib_phdr[i].vaddr;
+                    if (load_vaddr < dyn_lib_base || load_vaddr >= USER_STACK_TOP ||
+                        lib_phdr[i].memsz > USER_STACK_TOP - load_vaddr) {
+                        screen_console_puts("dynlink: libfoo PT_LOAD out of user window\n");
+                        proc->alive = 0;
+                        goto fail_as;
+                    }
                     if (map_user_pages(proc->as, load_vaddr,
                                        solib_libfoo + lib_phdr[i].offset,
                                        lib_phdr[i].filesz) != 0) {
@@ -1422,38 +1486,17 @@ int user_process_kill_by_tid(tid_t tid) {
     return -1;
 }
 
-int user_process_kill(pid_t pid) {
-    for (int i = 0; i < MAX_USER_PROCS; i++) {
-        if (g_procs[i].alive && g_procs[i].pid == pid) {
-            g_procs[i].alive = 0;
-            /* BUG-008 FIX: Destroy address space when killing a process.
-             * Switch to kernel CR3 first if this is the current process. */
-            /* P1-9 FIX: The old code had an EMPTY if block here —
-             * mem_vmm_destroy_address_space was never called. */
-            if (g_procs[i].as) {
-                tid_t cur = core_kthread_current_tid();
-                if (cur == g_procs[i].tid) {
-                    __asm__ volatile("mov %0, %%cr3" : : "r"(mem_vmm_kernel_as()) : "memory");
-                }
-                mem_vmm_destroy_address_space(g_procs[i].as);
-                g_procs[i].as = 0;
-            }
-            /* BUG-0099 FIX (A2-6): stale-tid guard, same pattern as
-             * sys_wait4/sys_kill in core_syscall.c. g_procs[i].tid can
-             * point at a task slot the scheduler already reaped and
-             * handed to a NEW task; a blind core_kthread_destroy() then
-             * kills the innocent new tenant (stack freed under it
-             * mid-run). Only destroy a task that still exists and has
-             * not already been reaped (state != TASK_EXITED); a recycled
-             * or already-dead slot has nothing left to destroy. */
-            task_t *t = core_kthread_get_task(g_procs[i].tid);
-            if (t && t->state != TASK_EXITED)
-                core_kthread_destroy(g_procs[i].tid);
-            return 0;
-        }
-    }
-    return -1;
-}
+/* #10 (WP-fix-p2-p3-cleanup): user_process_kill(pid) was deleted.
+ * It had NO callers (only this definition, its header declaration and
+ * a stale comment in tui_dt_proc.c) and its semantics violated three
+ * system invariants at once: it destroyed the victim's address space
+ * BEFORE the task was marked EXITED (a timer preemption in that
+ * window left a READY task running on freed page tables), it never
+ * closed pipe/VFS fds (the peer blocked forever), and it never wrote
+ * the exit code or woke a wait4-ing parent (the user_proc_t entry
+ * stayed alive forever).  Anyone "fixing kill semantics" by wiring
+ * this back would have re-introduced all three regressions.  The
+ * unified reaper path is user_process_kill_by_tid() above - use it. */
 
 void user_process_list(void) {
     char buf[80]; char n[20];

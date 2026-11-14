@@ -274,8 +274,10 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name);
  * Returns the tid, or -1 when no alive process owns the pid. */
 int user_process_get_tid(pid_t pid);
 
-/* Kill a user process. */
-int user_process_kill(pid_t pid);
+/* #10 (WP-fix-p2-p3-cleanup): user_process_kill(pid) was deleted -
+ * dead code with dangerous semantics (AS destroyed before EXITED, no
+ * fd close, no parent wake).  Use user_process_kill_by_tid() below:
+ * it is the unified reaper every kill path shares. */
 
 /* WP-10-tui-unified: kill a user process by its kernel task id - the
  * same unified-reaper path the `kill <tid>` shell command uses (fds +

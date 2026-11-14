@@ -9,11 +9,11 @@
  * static sample ring (one u64-pair window guarded by a cli/sti
  * publish) - no allocation, no VFS, safe at IRQ depth.  Alarms are
  * klog ERROR lines (the IRQ-safe ring path; the file channel catches
- * up from task context).  The watchdog linkage feeds the system
- * heartbeat slot (watchdog_feed(0)) while the machine is alive -
- * callers that armed slot 0 get an automatic heartbeat from the
- * health sampler, and a locked-up kernel stops feeding (the WP-11
- * panic path then fires from the real tick).
+ * up from task context).  The watchdog linkage (#131,
+ * WP-fix-p2-p3-cleanup) feeds the monitor's OWN "kernel-health"
+ * slot: slot 0 (system-heartbeat) is no longer fed from the kernel,
+ * so an L1 shell that arms it can actually starve it - and a locked
+ * up kernel still panics via this slot's 15 s PANIC policy.
  */
 #include "core_health.h"
 #include "lib_string.h"
@@ -37,6 +37,18 @@ static u64 g_prev_total_ticks = 0;
 /* alarm dedup: 1 while the alarm condition holds */
 static u32 g_alarm_live = 0;
 static u32 g_cpu_100_run = 0;     /* consecutive 100%-busy samples */
+
+/* #131 (WP-fix-p2-p3-cleanup): dedicated watchdog slot for the kernel
+ * health monitor itself.  The monitor used to feed slot 0
+ * ("system-heartbeat") every second unconditionally, so whenever a
+ * user armed slot 0 (`watchdog start 0`) to watch an L1 shell, the
+ * kernel-side feed kept it alive forever - the shell heartbeat
+ * semantics were dead on arrival (#112 root cause: `loop` after
+ * ARMED never triggered a timeout).  The sampler now feeds ONLY its
+ * own slot: if the 1 s sampler itself stops (kernel lockup), THIS
+ * slot panics after 15 s; slot 0 stays exclusively fed by its user
+ * (the L1 shell) and can actually starve when they hang. */
+static int g_khealth_wd = -1;
 
 /* task states: walk the scheduler table through the stats API plus a
  * light state split (core_sched exposes the table via a helper) */
@@ -153,11 +165,14 @@ static void health_tick(void *ctx) {
     __asm__ volatile("pushfq; popq %0" : "=r"(f) :: "memory");
     if (f & 0x200) __asm__ volatile("sti" ::: "memory");
 
-    /* watchdog linkage (spec 5.7): an ALIVE machine keeps feeding the
-     * system heartbeat slot; if the kernel locks up hard enough that
-     * this timer stops, the feed stops and the WP-11 panic path (or
-     * the armed hardware dog) takes over. */
-    watchdog_feed(0);
+    /* watchdog linkage (spec 5.7 + #131, WP-fix-p2-p3-cleanup): feed
+     * ONLY the kernel-health's own slot.  An ALIVE sampler keeps it
+     * fed; if the kernel locks up hard enough that this timer stops,
+     * the feed stops and this slot's PANIC policy takes over.  Slot 0
+     * (system-heartbeat) is deliberately NOT fed here anymore - it is
+     * the slot L1 shells arm to watch themselves, and a kernel-side
+     * automatic feed made its timeout unreachable (#112). */
+    watchdog_feed(g_khealth_wd);
 }
 
 /* ---- init --------------------------------------------------------------- */
@@ -170,6 +185,12 @@ void health_init(void) {
     g_cpu_100_run = 0;
     /* prime the CPU window so the first sample is meaningful */
     core_sched_idle_counters(&g_prev_idle_ticks, &g_prev_total_ticks);
+    /* #131 (WP-fix-p2-p3-cleanup): register + ARM the kernel-health
+     * monitor's own watchdog slot (PANIC after 15 s without a sample).
+     * watchdog_init() has already run (kmain order), so slot 0 stays
+     * "system-heartbeat" and this takes the next free id. */
+    g_khealth_wd = watchdog_register("kernel-health", 15000, WD_POLICY_PANIC);
+    if (g_khealth_wd >= 0) watchdog_start(g_khealth_wd);
     core_timer_register_periodic(health_tick, NULL, 1000);
     klog_write(KLOG_INFO, "health", "monitor started (1 s samples, alarms: mem>90%% tasks>64 cpu>=90%%x10s)");
 }
