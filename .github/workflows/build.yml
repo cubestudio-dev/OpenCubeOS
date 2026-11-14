@@ -81,8 +81,8 @@ jobs:
           echo "$report" | grep -q 'El Torito boot img : 1 BIOS y none'
           echo "$report" | grep -q 'El Torito boot img : 2 UEFI y none'
           ls -la dist/
-          test -s "dist/OpenCubeOS-src-3.0.0-WP06g3.zip"
-          test -s "dist/OpenCubeOS-3.0.0-WP06g3-update.tar.gz"
+          test -s "dist/OpenCubeOS-src-3.0.0-NAK.zip"
+          test -s "dist/OpenCubeOS-3.0.0-NAK-update.tar.gz"
           echo "artifacts verified"
 
       - name: Verify make clean leaves no products
