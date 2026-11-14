@@ -1119,6 +1119,16 @@ static int driver_nic_bcm57xx_ops_recv(driver_nic_device_t *ndev, void *buf, int
         return 0;
     }
     if (len > maxlen) len = maxlen;
+    /* #30 (WP-fix-p2-p3-cleanup): defensive DMA-length clamp.  The
+     * descriptor length field is 16 bits (idx_len & 0xFFFF minus the
+     * FCS can reach 65531) while the buffer is BCM_BUF_SIZE (2048); a
+     * hostile device model made the memcpy read past the DMA page.
+     * Recycle the buffer and count the drop, like the runt path. */
+    if (len > BCM_BUF_SIZE) {
+        bcm_rx_post(d, data);
+        d->rx_dropped++;
+        return 0;
+    }
     memcpy(buf, data, (usize)len);
 
     /* Recycle the same buffer into the next producer slot. */

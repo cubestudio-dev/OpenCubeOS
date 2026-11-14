@@ -257,6 +257,11 @@ typedef struct {
     u64 net_ip_frag_reassembled;   /* BUG-0210: fragmented datagrams
                                       reassembled and delivered to the
                                       normal IP input path */
+    u64 tx_errors;                 /* #27 (WP-fix-p2-p3-cleanup): legacy
+                                      e1000 TX attempts that failed the DD
+                                      wait or reported EC/LC - previously
+                                      every timed-out frame was counted as
+                                      a successful tx_packet */
 } net_stats_t;
 
 void net_get_stats(net_stats_t *out);

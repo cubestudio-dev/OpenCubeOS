@@ -13,6 +13,7 @@
 #include "net_core.h"
 #include "driver_pci.h"
 #include "nic_svc.h"   /* WP-10b: NIC driver framework (e1000e/igb/rtl8139/...) */
+#include "crypto_core.h"   /* #26: crypto_random for the server-side ISN */
 #include "mem_heap.h"
 #include "lib_log.h"
 #include "mem_pmm.h"
@@ -875,9 +876,22 @@ static int e1000_send(const void *data, int len) {
     mmio_write32((volatile void *)((u8 *)g_e1000_mmio + E1000_TDT), (u32)g_tx_tail);
     __asm__ volatile("mfence" ::: "memory");
 
-    /* Wait for TX to complete (DD bit in status). Poll for up to 1 s. */
+    /* Wait for TX to complete (DD bit in status). Poll for up to 1 s.
+     * #27 (WP-fix-p2-p3-cleanup): the wait result used to be discarded
+     * - a timeout (link down / hung device) still counted the frame as
+     * sent and returned len, and the TX error bits were never checked.
+     * This is the path QEMU's default `-device e1000` takes, so the
+     * same defect the e1000e driver fixed (BUG-0328) lived on here.
+     * Honest-failure semantics now: DD timeout or EC/LC errors fail the
+     * send and are counted in tx_errors. */
+    int ok = 0;
     for (int timeout = 0; timeout < 1000000; timeout++) {
-        if (g_tx_descs[old_tail].status & 0x01) break;
+        if (g_tx_descs[old_tail].status & 0x01) { ok = 1; break; }
+    }
+    if (!ok || (g_tx_descs[old_tail].status & 0x06)) {
+        /* 0x06 = EC (excess collisions) | LC (late collision) */
+        g_stats.tx_errors++;
+        return -1;
     }
 
     g_stats.tx_packets++;
@@ -2254,6 +2268,15 @@ typedef enum {
  * suggestion scaled down) keeps old duplicate segments from leaking into
  * a reused 4-tuple while still recycling quickly. */
 #define TCP_TIME_WAIT_TICKS (10u * OC_TIMER_HZ)   /* 10 s @ 100 Hz */
+/* #28 (WP-fix-p2-p3-cleanup): FIN-family linger budget.  A peer that
+ * dies silently mid-teardown (unplug, crash, NAT drop) used to hold
+ * its connection slot in FIN_WAIT_1/2, CLOSING or LAST_ACK forever -
+ * 32 such peers exhausted the table and every later connection (or
+ * listener accept) failed until reboot.  net_tcp_close parks the
+ * deadline when it sends our FIN; the FIN_WAIT_1 -> FIN_WAIT_2 /
+ * CLOSING transitions refresh it (progress happened); the RTO sweep
+ * reclaims the slot when it expires. */
+#define TCP_FIN_TIMEOUT_TICKS (60u * OC_TIMER_HZ)  /* 60 s @ 100 Hz */
 
 /* WP-09: TCP reliability fields. */
 #define TCP_RTX_BUF_SIZE 4096
@@ -2518,7 +2541,15 @@ static void net_tcp_parse_options(net_tcp_conn_t *c, const u8 *opts, int opt_len
                 break;
             case TCP_OPT_WSCALE:
                 if (len == 3 && is_syn) {
-                    c->win_scale_recv = opts[i];
+                    /* #25 (WP-fix-p2-p3-cleanup): RFC 9293 - a shift
+                     * count above 14 is not a legal window scale.  The
+                     * old code stored the raw byte and later shifted
+                     * the peer window by it: > 31 is C UB (on x86 the
+                     * count is taken mod 32), silently magnifying or
+                     * zeroing the window and stalling or over-opening
+                     * the connection.  Treat an out-of-range shift as
+                     * "not negotiated" (scale stays 0). */
+                    if (opts[i] <= 14) c->win_scale_recv = opts[i];
                 }
                 break;
             case TCP_OPT_SACK_PERM:
@@ -2779,6 +2810,23 @@ static void net_tcp_check_rto(void) {
             c->in_use = 0;
             continue;
         }
+        /* #28 (WP-fix-p2-p3-cleanup): FIN-family linger reclaim.  A
+         * connection parked in FIN_WAIT_1 / FIN_WAIT_2 / CLOSING /
+         * LAST_ACK whose peer went silent used to hold its slot
+         * FOREVER (nothing below ran for those states) — 32 dead
+         * peers exhausted the table and every new connection was
+         * refused until reboot.  net_tcp_close parked the deadline at
+         * FIN time and the progress transitions refresh it; expiry
+         * here reclaims the slot (the peer already received our best-
+         * effort FIN retransmits for a full minute). */
+        if (c->state == TCP_FIN_WAIT_1 || c->state == TCP_FIN_WAIT_2 ||
+            c->state == TCP_CLOSING  || c->state == TCP_LAST_ACK) {
+            if (c->rto_deadline != 0 && now >= c->rto_deadline) {
+                c->state = TCP_CLOSED;
+                c->in_use = 0;
+            }
+            continue;
+        }
         if (c->state != TCP_ESTABLISHED) continue;
         /* BUG-0205: only data that was actually transmitted can time out.
          * rtx_sent == the in-flight byte count; rtx_len may additionally
@@ -2962,6 +3010,10 @@ int net_tcp_close(int sock) {
             net_tcp_send_raw(c, TCP_FIN | TCP_ACK, NULL, 0);
             c->our_seq += 1;
             c->state = TCP_FIN_WAIT_1;
+            /* #28 (WP-fix-p2-p3-cleanup): bound the FIN_WAIT_1/CLOSING
+             * linger — a silently-dead peer must not hold the slot
+             * forever (the RTO sweep reclaims it on expiry). */
+            c->rto_deadline = core_timer_ticks() + TCP_FIN_TIMEOUT_TICKS;
             break;
         case TCP_CLOSE_WAIT:
             /* Passive close: we already ACKed the peer's FIN. Flush any
@@ -2972,6 +3024,8 @@ int net_tcp_close(int sock) {
             net_tcp_send_raw(c, TCP_FIN | TCP_ACK, NULL, 0);
             c->our_seq += 1;
             c->state = TCP_LAST_ACK;
+            /* #28: same linger bound for the passive-close tail. */
+            c->rto_deadline = core_timer_ticks() + TCP_FIN_TIMEOUT_TICKS;
             break;
         case TCP_SYN_SENT:
             /* Connect never completed: just release the slot. */
@@ -3118,7 +3172,17 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
                     c->remote_port = src_port;
                     c->local_port = dst_port;
                     c->state = TCP_SYN_RCVD;
-                    c->our_seq = 1000;
+                    /* #26 (WP-fix-p2-p3-cleanup): random ISN from the
+                     * stack DRBG.  The old constant 1000 gave every
+                     * server connection the SAME ISN, so an off-path
+                     * attacker who knew (or guessed) the 4-tuple could
+                     * forge the ACK that completes the handshake and
+                     * start injecting data segments. */
+                    {
+                        u32 srv_isn;
+                        crypto_random((u8 *)&srv_isn, 4);
+                        c->our_seq = srv_isn;
+                    }
                     c->our_ack = seq + 1;
                     /* WP-09: init reliability fields for server-side conn */
                     c->driver_snd_una = c->our_seq;
@@ -3195,6 +3259,15 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
         case TCP_SYN_RCVD:
             /* P1-12 FIX: handle SYN_RCVD — ACK completes the handshake. */
             if (flags & TCP_ACK) {
+                /* #26 (WP-fix-p2-p3-cleanup): the ACK must cover OUR
+                 * SYN-ACK: SEG.ACK == SND.NXT (== ISN + 1 after the
+                 * SYN-ACK bump), RFC 9293 3.10.7.2 - the exact mirror
+                 * of the client-side BUG-0209 check in SYN_SENT above.
+                 * The old code accepted ANY ACK, so a blind spoofer who
+                 * knew the 4-tuple completed the server handshake and
+                 * injected data with our_ack/window advancing to
+                 * attacker-chosen values. */
+                if (ack != c->our_seq) break;
                 c->state = TCP_ESTABLISHED;
             }
             break;
@@ -3437,11 +3510,16 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
         case TCP_FIN_WAIT_1:
             if (flags & TCP_ACK && !(flags & TCP_FIN)) {
                 c->state = TCP_FIN_WAIT_2;
+                /* #28: the peer ACKed our FIN — teardown made progress,
+                 * refresh the linger budget for the FIN_WAIT_2 half. */
+                c->rto_deadline = core_timer_ticks() + TCP_FIN_TIMEOUT_TICKS;
             } else if (flags & TCP_FIN) {
                 /* Simultaneous close: both sent FIN. */
                 c->our_ack = seq + 1;
                 net_tcp_send_raw(c, TCP_ACK, NULL, 0);
                 c->state = TCP_CLOSING;
+                /* #28: refresh for the CLOSING wait (peer's ACK owed). */
+                c->rto_deadline = core_timer_ticks() + TCP_FIN_TIMEOUT_TICKS;
             }
             break;
         case TCP_FIN_WAIT_2:

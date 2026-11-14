@@ -382,6 +382,21 @@ static int driver_nic_ixgbe_ops_recv(driver_nic_device_t *ndev, void *buf, int m
     if (!(d->rx_descs[d->rx_tail].cmd_type_len & IXGBE_RX_DD)) return 0;
 
     int len = (int)(d->rx_descs[d->rx_tail].olinfo_status & 0xFFFFu);
+    /* #30 (WP-fix-p2-p3-cleanup): defensive DMA-length clamp.  The
+     * write-back length is 16 bits (up to 65535) while the buffer is
+     * IXGBE_BUF_SIZE (4096; SRRCTL is even programmed for 2 KB); a
+     * hostile device model made the memcpy walk past the DMA page into
+     * neighboring ring data.  Clear DD, rehang the buffer, drop. */
+    if (len > IXGBE_BUF_SIZE) {
+        d->rx_descs[d->rx_tail].cmd_type_len = 0;   /* clear DD */
+        d->rx_descs[d->rx_tail].olinfo_status = 0;
+        d->rx_descs[d->rx_tail].addr = (u64)(uintptr_t)d->rx_bufs[d->rx_tail];
+        __asm__ volatile("sfence" ::: "memory");
+        d->rx_tail = (d->rx_tail + 1) % IXGBE_NUM_DESC;
+        u32 rdt = (u32)((d->rx_tail + IXGBE_NUM_DESC - 1) % IXGBE_NUM_DESC);
+        ix_wreg(d, IXGBE_RXQ_BASE(0) + IXGBE_Q_DT, rdt);
+        return 0;
+    }
     if (len > maxlen) len = maxlen;
     if (len > 0) memcpy(buf, d->rx_bufs[d->rx_tail], len);
 

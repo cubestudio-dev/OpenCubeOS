@@ -481,6 +481,12 @@ static int driver_nic_igb_ops_recv(driver_nic_device_t *ndev, void *buf, int max
      * descriptor arrives. */
     int drop = d->rx_frag || !eop ||
                ((staterr & IGB_RXDEXT_ERR_FRAME_ERR_MASK) != 0);
+    /* #30 (WP-fix-p2-p3-cleanup): defensive DMA-length clamp.  The
+     * write-back length is a bare u16 (up to 65535) while the buffer
+     * is IGB_BUF_SIZE (2048); a hostile device model or misprogrammed
+     * SRRCTL made the memcpy read past the DMA page.  Oversized frames
+     * take the drop path (buffer recycled, rx_dropped counted). */
+    if (desc->wb.length > IGB_BUF_SIZE) drop = 1;
     d->rx_frag = eop ? 0 : 1;
 
     int len = 0;

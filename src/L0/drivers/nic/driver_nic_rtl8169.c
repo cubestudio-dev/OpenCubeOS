@@ -376,6 +376,20 @@ static int driver_nic_rtl8169_ops_recv(driver_nic_device_t *ndev, void *buf, int
     }
 
     int len = (int)(desc->opts1 & R8169_D_SIZE);
+    /* #30 (WP-fix-p2-p3-cleanup): defensive DMA-length clamp.  The
+     * descriptor size field is 14 bits (up to 16383) but the buffer is
+     * R8169_BUF_SIZE (2048); normal hardware never exceeds it, but a
+     * misprogrammed register or hostile device model made the memcpy
+     * read past the DMA page and feed neighboring ring data to the
+     * stack.  Rehang the descriptor and drop, exactly like the
+     * error-frame branch above. */
+    if (len > R8169_BUF_SIZE) {
+        desc->opts1 = R8169_D_OWN |
+                      ((d->rx_head == R8169_RX_DESCS - 1) ? R8169_D_EOR : 0) |
+                      R8169_BUF_SIZE;
+        d->rx_head = (d->rx_head + 1) % R8169_RX_DESCS;
+        return 0;
+    }
     if (len > maxlen) len = maxlen;
     if (len > 0) memcpy(buf, d->rx_bufs[d->rx_head], len);
 

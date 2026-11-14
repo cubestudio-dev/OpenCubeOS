@@ -399,6 +399,22 @@ static int driver_nic_e1000e_ops_recv(driver_nic_device_t *ndev, void *buf, int 
     }
 
     int len = d->rx_descs[d->rx_tail].length;
+    /* #30 (WP-fix-p2-p3-cleanup): defensive DMA-length clamp.  The
+     * write-back length is a bare u16 (up to 65535) while the buffer
+     * is E1000E_BUF_SIZE (2048); a misprogrammed RCTL or hostile
+     * device model made the memcpy read past the DMA page.  Rehang the
+     * descriptor and drop. */
+    if (len > E1000E_BUF_SIZE) {
+        d->rx_descs[d->rx_tail].status = 0;
+        d->rx_descs[d->rx_tail].addr =
+            (u64)(uintptr_t)d->rx_bufs[d->rx_tail];
+        d->rx_descs[d->rx_tail].length = 0;
+        d->rx_descs[d->rx_tail].errors = 0;
+        d->rx_tail = (d->rx_tail + 1) % E1000E_NUM_DESC;
+        u32 rdt = (u32)((d->rx_tail + E1000E_NUM_DESC - 1) % E1000E_NUM_DESC);
+        mmio_write32((volatile void *)((u8 *)d->mmio + E1000E_RDT), rdt);
+        return 0;
+    }
     if (len > maxlen) len = maxlen;
     if (len > 0) memcpy(buf, d->rx_bufs[d->rx_tail], len);
 
