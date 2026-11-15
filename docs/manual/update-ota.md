@@ -68,6 +68,34 @@ URL, package SHA256, size. The build comparison is numeric
 (BUG-0347), so a rebuild with a higher build number wins even when
 the version string is equal.
 
+## Update sources and mirrors
+
+The update source is the `update_url` configuration key - a plain
+HTTPS URL to a `update.json` manifest. The wizard's step 3 reads the
+live value (`config get update_url`) and resolves its host before
+anything touches the network. To point a machine at a different
+source, use the ordinary config writer:
+
+```
+ush> config set update_url <url>
+```
+
+Known-good values (they all serve the *same* manifest from the
+gh-pages branch, so pick the one your network reaches best):
+
+| Source | URL |
+|--------|-----|
+| Official (GitHub Pages) | `https://cubestudio-dev.github.io/OpenCubeOS/update.json` |
+| GitHub raw mirror | `https://raw.githubusercontent.com/cubestudio-dev/OpenCubeOS/gh-pages/update.json` |
+| jsDelivr CDN mirror | `https://cdn.jsdelivr.net/gh/cubestudio-dev/OpenCubeOS@gh-pages/update.json` |
+
+A custom value works too - it must start with `http://` or
+`https://` and point at a manifest with the same shape
+(`checkupdate` prints a parse error otherwise). Mirrors matter when
+one host is blocked or slow from your network: the manifest carries
+absolute package URLs, so after switching the source the package
+download follows the manifest's own `url` field.
+
 ## Applying an update
 
 The online flow (what the wizard's step 5 runs after confirmation,
@@ -88,6 +116,12 @@ The OTA package (`opencube-<version>-update.tar.gz`) carries the new
 kernel ELF plus a manifest. Verification is cryptographic: the
 manifest SHA256 is enforced inside the install - a package that
 fails it is refused.
+
+Large packages never stress memory: the downloader streams the
+package to disk in 4 KiB chunks (`DL_CHUNK`,
+`ocos/services/selfhost/src/svc_selfhost_ab.c` - `ota_update_download`),
+so an update works for packages far larger than RAM; only the
+SHA256 state and one chunk buffer ever live in memory.
 
 ## Rollback
 

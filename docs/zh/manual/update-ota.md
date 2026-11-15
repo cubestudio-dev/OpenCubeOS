@@ -53,6 +53,24 @@ ush> config get update_url  (the configuration key it uses)
 
 清单就是网站上的 `update.json`：版本、构建号、包 URL、包 SHA256、大小。构建号比较是数值式的（BUG-0347），因此即使版本字符串相同，构建号更高的重构建也会胜出。
 
+## 更新源与镜像
+
+更新源就是 `update_url` 配置键——一个指向 `update.json` 清单的普通 HTTPS URL。向导第 3 步读取实时值（`config get update_url`）并在任何网络动作之前先解析它的主机名。要让机器指向另一个源，用普通的配置写入器：
+
+```
+ush> config set update_url <url>
+```
+
+已知可用值（它们都从 gh-pages 分支提供*同一份*清单，选你网络里最快的一个即可）：
+
+| 源 | URL |
+|--------|-----|
+| 官方（GitHub Pages） | `https://cubestudio-dev.github.io/OpenCubeOS/update.json` |
+| GitHub raw 镜像 | `https://raw.githubusercontent.com/cubestudio-dev/OpenCubeOS/gh-pages/update.json` |
+| jsDelivr CDN 镜像 | `https://cdn.jsdelivr.net/gh/cubestudio-dev/OpenCubeOS@gh-pages/update.json` |
+
+自定义值也可用——必须以 `http://` 或 `https://` 开头，并指向同样形状的清单（否则 `checkupdate` 会打印解析错误）。镜像在你某个主机被屏蔽或很慢时有用：清单携带绝对包 URL，所以切换源后，包下载跟随清单自身的 `url` 字段。
+
 ## 应用更新
 
 在线流程（向导第 5 步确认后所运行的，也是裸 `update direct` 所做的）：
@@ -69,6 +87,8 @@ ush> update --local /path/to/package.tar.gz
 ```
 
 OTA 包（`opencube-<version>-update.tar.gz`）携带新的内核 ELF 和一份清单。校验是密码学层面的：清单 SHA256 在安装过程中强制校验——未通过的包会被拒绝。
+
+大包从不压迫内存：下载器以 4 KiB 块流式写盘（`DL_CHUNK`，`ocos/services/selfhost/src/svc_selfhost_ab.c` 的 `ota_update_download`），因此包远大于内存也能完成更新；内存里只会有 SHA256 状态和一个块缓冲区。
 
 ## 回滚
 
