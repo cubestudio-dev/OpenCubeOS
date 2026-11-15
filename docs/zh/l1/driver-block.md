@@ -1,31 +1,50 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# L1 指南：块设备驱动
+# 块驱动
 
-注册一个存储设备，使整个系统（VFS、分区、文件系统工具）都能识别它。
+一个存储设备家族如何加入块服务，让整个系统（VFS、分区、fs
+工具、disk-tool 向导）看见它。
 
-## 接口面
+## 模型（3.0.0）
 
-`drivers/block/driver_block_blk.h`（17 个声明；编号为 8 的）：
+- 驱动住在 `ocos/drivers/storage/` - 每个家族一对文件
+  （`drv_storage_ahci.{c,h}`、`drv_storage_nvme.*`、
+  `drv_storage_ata*`、`drv_storage_virtio_blk.*`、
+  `drv_storage_scsi*`、`drv_storage_sdhci.*`）。
+- 身份用 `OC_DRIVER_DECL("block", "ahci", &ops, "SATA AHCI")`
+  声明 - 一个由启动收集器遍历的 const 描述符。没有全局注册表
+  编辑，没有手工的 init-call 链。
+- 驱动只能在自己的探测/摘除路径内，通过驱动内部 API
+  （`drv_storage_api.h`：`driver_block_add_device` /
+  `remove_device`；`BLK_MAX_DEVICES` 个槽、512 字节扇区、32 字符
+  名字）修改块服务的设备表。寄存器类条目已在 v2.0.0 移除 - 这个
+  头是内核内部的，不是 L1 表面。
+- 硬件配置旋钮（`CONFIG_NVME` / `CONFIG_AHCI` /
+  `CONFIG_VIRTIO_BLK`，`make defconfig` / `menuconfig`）把单个
+  家族编译出去；init 调用由 `core/generated/config_gen.h` 宏
+  桩化。
 
-```
-driver_block_register(name, ops, ctx)     -> device id
-driver_block_read(dev, lba, count, buf)   -> bytes read / <0
-driver_block_write(dev, lba, count, buf)  -> bytes written / <0
-driver_block_flush(dev)                   -> 0 / <0
-driver_block_set_ops(dev, ops)
-```
+## 服务侧
 
-加上将发现的 PCI 设备绑定到驱动的家族初始化条目：`driver_block_ahci_init(pci)`、`driver_block_nvme_init(pci)`、`driver_block_ata_dma_init(pci)`。
+`ocos/services/block/` 代理 L1SVC 类别 2 表面：设备列表
+（`lsblk`）、分区表（`parted`）、mkfs（FAT32 / exFAT / ext4）、
+`fsck`、`sync`、A/B 盘工具（`abdisk`、`install`、
+`grub-install`、`abcfg`）、磁盘统计，以及测试家族
+（`ahci_test` .. `fs_mount_test`）。缓存门禁（64 槽）位于服务与
+驱动之间。
 
-## 实现驱动程序
+## 一个新家族长什么样
 
-1. 探测你的总线（通过 `driver_pci_find_class_mask` 进行 PCI 类别匹配）。
-2. 映射 BAR，重置设备，协商特性。
-3. 构建一个操作结构体（以扇区为单位的读写/刷新）并调用 `driver_block_register("myd0", &ops, ctx)` - 实例名称是 `dskstat` 显示的内容。
-4. 优雅地失败：探测时拒绝并附带消息，胜过静默的部分注册。
+1. `ocos/drivers/storage/drv_storage_<fam>.{c,h}` - 探测总线、
+   读容量、每发现一块盘 `driver_block_add_device()` 一次。
+2. 底部一行 `OC_DRIVER_DECL("block", "<fam>", &ops, "description")`。
+3. 服务里一个状态操作（如果这个家族配得上的话），操作号追加到
+   `svc_sysapi_l1svc.h`（只许追加！），重新生成镜像
+   （`tools/gen_l1svc_ops.py`）。
+4. 应用侧：一个薄包装文件夹或大应用经典表里的一行
+   （`disk-tool` 的 `g_ops[]` 是样板）。
 
-## 带有约束的规则
+## 消费者契约
 
-- DMA 边界：32 位掩码设备必须在探测时和每次传输时拒绝超过 4GiB 的地址（遵循 xHCI 先例）。
-- 对齐：ATA-DMA PRDT 对齐依赖于堆的 32 字节头保证。
-- 作为门禁的测试：`fstest`、`disk_rw_test`、各驱动的 `*_test` 命令。
+应用从不触碰驱动：它们调用服务（`disk-tool lsblk` ->
+`sys_l1svc(BLOCK, LSBLK, ...)`）。设备名是稳定契约（`hd0`、
+`hd0p1`、...）；向导展示 `lsblk` 并按那种拼法询问名字。

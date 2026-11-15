@@ -1,4 +1,3 @@
-<!-- GENERATED mirror of the repository-root KNOWN_ISSUES.md - maintained by tools/gen_api_docs.py (make api-docs); the source of truth is the root file. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Known issues
 
@@ -60,3 +59,67 @@ post-WP-03 limitations (by design, not defects):
   no oc.* facts: a direct boot is unsupervised by definition (no
   signal, no protection) - the supervisor entry is the only
   supervised path.
+
+## 3.0.0-WP06g2 notes
+
+The WP06g1 close-out's "make all does not rebuild userprogs" gap
+(the 06g1 catch-2) is CLOSED by WP06g2: `src/L0/core/userprogs_data.h`
+is a real make target now (any L1 source, i18n resource, or generator
+script newer than the header regenerates it; `make all` and `make iso`
+both carry the prerequisite; the emit is idempotent - byte-compare
+before write, mtime kept when unchanged).  Live-verified both ways: a
+marked app rides `make all` into the ISO byte-identical with the fresh
+build, and reverting the mark regenerates the original header.
+
+Declared WP06g2 boundaries (honest limits, not defects):
+
+- The L0 diagnostic/test-class service bodies (the *_test and wp-style
+  programs' captured outputs) keep their English technical text; the
+  user-facing sentence class (usage/errors/descriptions of the file
+  tools, the registry hints, the editors, the IME, the shell) is
+  bilingual through the i18n resources.  Column headers and state
+  words deliberately stay English (the zh_CN locale convention - CJK
+  width would break the alignment).
+- The OCSE install-wizard GUI text was already bilingual in WP-06c
+  (its own dictionary); the TUI desktop pages remain English this
+  batch.
+- The IME phrase library is 622 hand-authored high-frequency words;
+  single characters cover all 3755 level-1 hanzi as before.
+
+WP06g2 delivery-fix addendum (post-close-out, same batch):
+
+- The close-out push never reached a green CI: the phrase-library
+  generator imported pypinyin, and the clean CI environment (no pip
+  packages, by design) failed the ISO step with ModuleNotFoundError.
+  The generator is now self-contained - the pinyin composes from
+  pinyin_data.c's own single-char table (the syllables the engine
+  itself matches), and the ten polyphonic words carry their
+  dictionary readings as explicit pairs in the list; the emitted
+  table is byte-identical to the pypinyin-built one.  A misspelled
+  explicit pair cannot pass the legal-syllable decomposition check.
+- The site-data.js the wp06g1 site carried had a stray `},` after the
+  dev block - a SyntaxError, so window.SITE_DATA never loaded and the
+  app.js fill layer (stats, download cards, history table) silently
+  ran on the static HTML fallbacks since wp06g1.  The structure is
+  repaired and the data corrected in the same pass: the stable line
+  is 2.2.0/316 again (the close-out had pushed the milestone into
+  the stable slot, which would have pointed the OTA channel at a
+  package that was never uploaded), and the dev block carries the
+  real WP06g2 pair (build 403).
+- WP06g3 correction - the "branches: ain]" entry that used to ride
+  here was a phantom.  A byte-level audit (od -c against
+  fef5f41, 0226e8c, and HEAD) shows the workflow filters have
+  read `branches: [main]` since the day the file was created;
+  the "ain]" reading was a terminal-transcription artifact (the
+  shell-output display layer eats a literal '[m' as if it were
+  an ANSI SGR reset sequence), never a real typo.  No workflow
+  change was ever needed; the entry is retired.
+
+- tools/run_fix4_regression.py (the v2.x-era 28-check battery) asserts
+  the old boot flow (the `oc>` L0 recovery-shell prompt, the v1.0.0
+  banner, "233 commands") - the main ISO has booted straight to the
+  L1 shell (`ush>`) for many batches now, so the battery cannot pass
+  as-is and the release SOP runs without --deep.  It needs an
+  assertion refresh; the wp06g3 batteries (serial_enc, ocse_enc,
+  editor_rework, ocire_menu, install_ocire) and the https e2e 7/7
+  carry this batch's regression weight.

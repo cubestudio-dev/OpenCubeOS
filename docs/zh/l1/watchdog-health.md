@@ -1,47 +1,41 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# L1 指南：看门狗与健康监控
+# 应用视角的看门狗、健康与 klog
 
-## 看门狗 - `kernel/core/core_watchdog.h`（18 个声明；编号 5）
+## 看门狗（服务 `watchdog`，L1SVC cat 11）
+
+一个注册的槽是一个*策略*看门狗：持有它的任务必须喂它；超时会
+击杀该任务（原因写入日志）而内核继续活着。硬件看门狗（Intel
+TCO、ACPI WDAT）叠在其下并复位整机 - E2E 套件用真实复位和
+第二次启动证明两者。
 
 ```
 watchdog_register(name, timeout_ms, policy)  -> slot
-watchdog_start(slot)
-watchdog_feed(slot)
-watchdog_stop(slot)
-watchdog_set_timeout(slot, ms)
+watchdog_start / feed / stop / set_timeout
 ```
 
-已注册的槽位是一个策略看门狗：任务必须喂狗；
-超时会杀死任务（原因已记录），而内核继续运行。
-硬件看门狗（Intel TCO、ACPI WDAT）位于其下层并
-重置整台机器 - 端到端测试套件通过真实重置和二次启动
-证明了这一点。
+`ush> watchdog`（或 sysdiag 经典表）报告槽位与策略；饿死测试
+（`wd-starve`，3000 ms）是 E2E 证明击杀路径的方式。
 
-## 健康 - `kernel/core/core_health.h`（8 个声明；编号 5）
+## 健康（服务 `health`，L1SVC cat 9）
 
 ```
-health_get_cpu(out)
-health_get_mem(out)
-health_get_tasks(out)
-health_get_io(out)
-health_export(path)          // valid JSON to /var/log/health.json
+health_get_cpu / mem / tasks / io      (the snapshot sources)
+health_export(path)                    (valid JSON)
 ```
 
-阈值会向内核日志发出警报（在锁定的核心上触发 `CPU-LOCKED`...）；
-`health`、`health watch`、`health export` 是相关命令；
-端到端测试验证了警报线路和 JSON 有效性。
+阈值触发告警进内核日志（`CPU-LOCKED` 表示一个被钉死的核心、
+...）。应用表面：`health`（快照 - sysdiag 向导的第一个菜单项）、
+`health watch`（实时监视，ENTER 退出）、`health export [path]`。
 
-## klog - `kernel/lib/lib_klog.h`（29 个声明；编号 6）
+## klog（服务 `klog`，L1SVC cat 10）
 
-```
-klog_write(level, fmt, ...)
-klog_set_level(lvl)
-klog_set_level_enabled(lvl, on)
-klog_flush()
-klog_rotate()
-klog_filter_set(min_level)
-```
+`dmesg [N]`（环形日志，最新在末尾）、`logcat`（结构化：-l
+level -m module -k key -t seconds -n N -f follow）、`logctl
+status|level|...`（运行时控制）。sysdiag 的日志工具子菜单代理
+全部三者。
 
-级别：DEBUG/INFO/WARN/ERROR/FATAL；轮转
-（`kernel.log` -> `kernel.log.1`，阈值 4096）和过滤是
-真实存在且经过端到端验证的行为。
+## 大应用视图
+
+`sysdiag` 汇集整个可观测性故事：健康快照、内核日志、内存画像、
+调度器统计、崩溃记录、日志工具、自检实验室。看门狗 + 健康 +
+klog 仍可单独触达（经典/直通），供脚本和 E2E 套件使用。

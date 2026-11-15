@@ -1,84 +1,75 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# 端到端测试套件
+# 端到端套件
 
-门住发布的深度测试。全部经串口控制台驱动真实 QEMU 启动；下面是
-2.1.0 矩阵——发布证据引用的是真实输出（申报 skip 数）。
+把关发布的深度测试。它们全部通过串口控制台上的 pexpect 驱动
+一次真实的 QEMU 启动；下表就是发布证据引用的矩阵（真实输出、
+声明的跳过计数）。
 
-## 2.1.0 验证矩阵
+## 验证矩阵
 
-| # | 门 | 工具 |
-|---|-----|------|
-| 1 | Host 单测（`make test`） | `tools/run_host_tests.py` |
-| 2 | 看门狗/日志/健康 E2E | `tools/wp12_watchdog_logging_e2e.py` |
-| 3 | TUI 命令面 E2E | `tools/wp10_tui_e2e.py` |
-| 4 | 中文控制台 E2E | `tools/wp10_chinese_e2e.py` |
-| 5 | TUI 桌面应用 E2E | `tools/wp10_tuiqa_apps_e2e.py` |
-| 6 | 原生桌面 E2E | `tools/wp10_native_e2e.py` |
-| 7 | L1 逐应用记录（2.1.0） | 从 ush 经 `run` 执行每个 `l1apps/` 程序，一应用一行记录 |
+| # | 门禁 | 工具 | 必须打印的行 |
+|---|------|------|------------------------|
+| 1 | 宿主机单元测试（`make test`） | `tools/run_host_tests.py` | 所有测试桩 PASS（SKIP-FIXTURE 已声明） |
+| 2 | 完整回归 31/31 | `tools/run_fix4_regression.py` | `=== 31/31 checks passed` |
+| 3 | SSH E2E | `tools/ssh_g11a_e2e.py` | `[g11a] ALL PASS`（5 项检查） |
+| 4 | HTTPS E2E | `tools/run_fix4_https_e2e.py` | `=== 8/8 HTTPS E2E checks passed` |
+| 5 | 看门狗/日志/健康 E2E | `tools/wp12_watchdog_logging_e2e.py` | S1-S14 |
+| 6 | TUI / 中文 / 桌面 E2E | `tools/wp10_*.py` | 按套件 |
+| 7 | 大应用冒烟 | WP-l1apps-merge 冒烟脚本 | 21/21（经典分发 + 向导打开/退出 + 菜单操作 + 更新步骤） |
 
-## Host 单测 - tools/run_host_tests.py
+## 回归门禁（31/31）- tools/run_fix4_regression.py
 
-19 个测试宿主侧编译 L0 组件并运行：multiboot2 解析器、密码学
-（BN/EC/RSA/X.509/AEAD/X25519）、TLS 1.3 密钥调度、TCP 拥塞控制、
-块层 512 门、SCSI、红外、摄像头、wifi、蓝牙……无 openssl fixture 时
-**17 PASS + 2 SKIP-FIXTURE**（rsa/x509；fixture 齐备时真跑——如实
-申报当时的状态）。
+启动 ISO，运行命令清单（uname、help -a、经 `run` 的自检程序），
+并把每条命令的断言模式限定在该命令自己的输出段内（BUG #64：
+旧的整日志匹配在结构上恒为真）。它还断言：
 
-## 看门狗/日志/健康 E2E - tools/wp12_watchdog_logging_e2e.py
+- **活动的帧缓冲**，通过一次真实的 HMP 截屏（BUG #66 - 仅串口
+  的门禁曾在一块死面板上通过）；
+- **注册表下限**：`help -a` 必须列出 >= 276 个程序（含 8 个
+  合并应用实测 284）- 接口冻结规则落到可执行层面。
 
-14 个场景（S1-S14）。最重要的两个：
+## SSH E2E（5/5）- tools/ssh_g11a_e2e.py
 
-- **S12（Intel TCO）**：q35 + `-no-reboot`；断言 TCO 发现行
-  （`Intel TCO found: PMBASE=... TCOBASE=...`）、武装看门狗、饿死
-  它、断言真实复位与第二次启动。
-- **S13（ACPI WDAT）**：同一形态，走 WDAT 表项。
+在真实 TCP 栈上的客户端与服务器两个方向：ssh-auth、ssh-exec、
+sshd-listen、sshd-exec、sshd-capture-log。能帮你省下数小时的
+注记：
 
-另含 klog 写/冲/轮转/过滤链（阈值 4096 -> 实际生成 `kernel.log` +
-`kernel.log.1`）、看门狗策略击杀（饿死任务被杀并留日志、内核存活）、
-健康（JSON 导出合法性、3-spinner CPU 告警 `CPU-LOCKED` 且内核
-存活）。
+- TCG RSA-2048 主机密钥生成很慢（>500 s）- 用 mtools 把密钥
+  （n||d，各 256 B，e=65537）预置进 `build/etc.img`
+  （`ssh_host_key`）；加载器会走"密钥已在磁盘上"的快路径。
+- 在服务器测试前先用一个客户端方向的包暖 ARP 缓存（冷缓存的
+  SYN-ACK 停摆）。
 
-## TUI / 中文 / 桌面应用 / 原生套件
+## HTTPS E2E（8/8）- tools/run_fix4_https_e2e.py
 
-`tools/wp10_tui_e2e.py` 从 `oc>` 驱动 L0 TUI 命令面；
-`tools/wp10_chinese_e2e.py` 驱动 CJK 控制台；tuiqa/native 套件从
-Ring-3 的 `ush>` 提示符起步驱动桌面应用（文件/编辑器/面板/终端 +
-原生编辑器/文件管理器升级）——2.x 启动流适配。
+真实 OpenSSL 支撑的测试服务器 + 内核 TLS 客户端：握手、
+TLS1.2 + 密码套件协商、加密 GET、规范正文、正文保存、
+close_notify、截断守卫（及时检测到硬关闭的服务器）、自签名
+证书链拒绝。
 
-## L1 逐应用记录（2.1.0 新增）
+## 大应用冒烟（21/21）
 
-正式 L1 应用集小而诚实：**ush**（唯一的 `OC_L1_APP_DECL` 应用）加
-`l1apps/` 的 36 个嵌入测试程序。逐应用记录启动发布 ISO、从 ush 经
-`run <名字>` 启动每个程序并记录观察到的输出。证据与套件日志一起放
-在 `evidence/`。
+阶段 A - 经典分发逐字节兼容：每个大应用运行它的一个历史操作
+（`disk-tool lsblk`、`net-tool ip`、`sound-tool sound`、
+`sysdiag health`、`hwinfo uname`、`power sleep 1`、`files df`、
+`update status`、`disk-tool direct lsblk`、未知操作 usage）。
 
-## 回归电池（v1 时代，参考）- tools/run_fix4_regression.py
+阶段 B - 向导：每个应用的无参菜单渲染出来并在 `q` 上退出；
+`disk-tool` 经菜单键 1 + ENTER 暂停运行 lsblk；`update` 真实
+走完步骤 1-2（网络检查、A/B 缺盘处理）并干净地回到 ush。
 
-1.0.0 时代的 28 项检查：启动横幅、启动完成、异常自测 3/3、命令计数
-233（v1 单提示符世界）、uname tag 形态、heaptest、fstest、
-cryptotest、crashlog、l1test、以及每个 `run <userprog>`。其命令
-计数与提示符流断言早于 v2 的 Ring-3 拆分——保留作参考，其
-`run <userprog>` 部分由 L1 逐应用记录覆盖。
+## 宿主机单元测试 - tools/run_host_tests.py
 
-```
-python3 tools/run_fix4_regression.py build/opencube.iso out.log
-```
+测试桩在宿主机侧编译并运行 L0 组件：multiboot2 解析器（ASAN）、
+crypto（NIST AES/SHA/HMAC、RSA、X.509、AEAD）、TLS 密钥日程、
+TCP 拥塞控制、block-512 门禁、FAT 结构、堆/VMM 不变量……
+当 openssl 夹具存在时，SKIP-FIXTURE 测试桩会真实运行 - 声明
+状态即可。
 
-## SSH / HTTPS 套件（可用，非常规门）
+## 看门狗 / TUI / 中文套件
 
-`tools/ssh_mainstream_test.py` + `tools/sshd_test.py`（paramiko 客户
-端对访客内 sshd，主机密钥经 `host_keygen_etc` 种到 /etc）与
-`tools/run_fix4_https_e2e.py`（对 `tools/https_test_server.py`）。
-需要种好的 `etc.img`（`make etc.img`）与网络 fixture；动网络栈时
-跑它们。
-
-## /etc 卷 fixture
-
-SSH 与 HTTPS 套件假设有种好的 `etc.img`。每个测试周期构建一次：
-
-```
-make etc.img          # 32 MiB FAT32 + opencube.conf
-# 然后首次启动后：host_keygen_etc（写 SSH 密钥）
-```
-
-QEMU 的 `run-*` make 目标会自动挂上它。
+`tools/wp12_watchdog_logging_e2e.py`（S12：Intel TCO 真实复位 +
+第二次启动；S13：ACPI WDAT；klog 轮转链；策略击杀；健康
+JSON）、`tools/wp10_tui_e2e.py`、`wp10_chinese_e2e.py`、
+`wp10_tuiqa_apps_e2e.py`、`wp10_native_e2e.py` - 机制未变，
+动到它们的领域时运行它们。

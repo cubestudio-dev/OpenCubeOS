@@ -4,13 +4,11 @@
      built-in tables + usage strings from the handler
      sources. -->
 
-# fg
+# hwinfo
 
-`fg` - [job]  bring a job to the foreground
+`hwinfo` - ring-3 L1 app
 
-Home: ush built-in - streq dispatch in `src/L1/ush/main.c` (runs entirely in ring 3).
-
-Domain: [ush (ring-3 shell: SVC rows + built-ins)](index.md#ush)
+Domain: [Other](index.md#other)
 
 Full command index: [commands](index.md) - or `help -a` /
 `help -w` inside a running system.

@@ -1,4 +1,3 @@
-<!-- GENERATED mirror of the repository-root FAQ.md - maintained by tools/gen_api_docs.py (make api-docs); the source of truth is the root file. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # FAQ - Open Cube OS
 
@@ -10,7 +9,7 @@ Where a limit is quoted, the header that defines it is named.
 **What is Open Cube OS?**
 A from-scratch x86_64 kernel ("L0") that provides services - memory,
 scheduling, VFS, network, drivers, and a WinRE-style recovery shell
-(the `oc>` prompt) - plus a ring-3 application layer ("L1") whose
+(the 2.x `oc>` prompt) - plus a ring-3 application layer ("L1") whose
 default boot entry is the ush user shell. It boots from a hybrid
 BIOS+UEFI ISO and gives you **251 command homes** (99 in the L0
 recovery shell, 133 ring-3 service commands, 19 ush built-ins) to
@@ -53,7 +52,7 @@ or write the ISO to a USB stick and boot real hardware. The ISO is
 hybrid: it boots through legacy BIOS (El Torito) and UEFI (an EFI boot
 image) alike - `make run-bios` / `make run-uefi` do the QEMU variants.
 The default boot lands in the ring-3 `ush>` prompt; `exit` drops into
-the `oc>` recovery shell.
+the 2.x `oc>` recovery shell (deleted in 3.0.0).
 
 **Does it need a hard disk?**
 No. The ISO boots self-contained (the kernel is attached as a multiboot2
@@ -69,14 +68,14 @@ and the OTA commands control it from inside the system.
 
 **How many commands?**
 251 command homes: 99 L0 recovery-shell commands (`help -a` at the
-`oc>` prompt), 133 ring-3 SVC commands routed through SYS_L1SVC, and
+`ush>` prompt), the L1SVC service bridge (20 categories), and
 19 ush built-ins (`help` inside ush). Verify live in the guest, or
 `make api-docs` and read `docs/data/commands.json`. The v1.0.0
 baseline of 233 commands is mapped whole - see the compatibility
 table in `INTERFACES.md` Part 1c.
 
 **Where is the full command list?**
-At `oc>`: `help -a` (alphabetical), `help -w` (by work-package),
+At `ush>`: `help -a` (alphabetical), `help -w` (by work-package),
 `help` (short list). Inside ush: `help`. The reference documentation
 under `docs/manual/commands/` covers all 251.
 

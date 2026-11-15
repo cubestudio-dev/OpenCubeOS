@@ -1,13 +1,13 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- GENERATED index (tools/gen_api_docs.py --pages). -->
 
-# Shell command reference (285 commands)
+# Shell command reference (292 commands)
 
 Grouped by the v2 home that registers each command - the tree
 structure is the domain structure. Inside a running system use
 `help -a` (alphabetical) or `help -w` (by work package).
 
-## Other (274)
+## Other (284)
 <a id="other"></a>
 
 - [ab_partition_test](ab_partition_test.md) - ring-3 half of the v2.2.0 `ab_partition_test` command
@@ -49,6 +49,7 @@ structure is the domain structure. Inside a running system use
 - [df](df.md) - ring-3 L1 app
 - [dhcp](dhcp.md) - ring-3 half of the v2.2.0 `dhcp` command
 - [dhtest](dhtest.md) - ring-3 half of the v2.2.0 `dhtest` command
+- [disk-tool](disk-tool.md) - ring-3 L1 app
 - [disk_rw_test](disk_rw_test.md) - ring-3 half of the v2.2.0 `disk_rw_test` command
 - [dlsym_test](dlsym_test.md) - legacy flat L1 program
 - [dmesg](dmesg.md) - ring-3 L1 app
@@ -71,6 +72,7 @@ structure is the domain structure. Inside a running system use
 - [fatmount](fatmount.md) - ring-3 half of the v2.2.0 `fatmount` command
 - [fatstat](fatstat.md) - ring-3 half of the v2.2.0 `fatstat` command
 - [fdref_test](fdref_test.md) - legacy flat L1 program
+- [files](files.md) - ring-3 L1 app
 - [firewall](firewall.md) - ring-3 half of the v2.2.0 `firewall` command
 - [font](font.md) - ring-3 half of the v2.2.0 `font` command
 - [font-test](font-test.md) - ring-3 half of the v2.2.0 `font-test` command
@@ -104,6 +106,7 @@ structure is the domain structure. Inside a running system use
 - [help_default_test](help_default_test.md) - ring-3 L1 app
 - [help_wp_test](help_wp_test.md) - ring-3 L1 app
 - [hpet](hpet.md) - ring-3 half of the v2.2.0 `hpet` command
+- [hwinfo](hwinfo.md) - ring-3 L1 app
 - [i2cdetect](i2cdetect.md) - ring-3 half of the v2.2.0 `i2cdetect` command
 - [i2cget](i2cget.md) - ring-3 half of the v2.2.0 `i2cget` command
 - [i2cset](i2cset.md) - ring-3 half of the v2.2.0 `i2cset` command
@@ -149,6 +152,7 @@ structure is the domain structure. Inside a running system use
 - [multi](multi.md) - ring-3 half of the v2.2.0 `multi` command
 - [mv](mv.md) - ring-3 L1 app
 - [nano](nano.md) - ring-3 L1 app
+- [net-tool](net-tool.md) - ring-3 L1 app
 - [netstat](netstat.md) - ring-3 L1 app
 - [nf_test](nf_test.md) - ring-3 half of the v2.2.0 `nf_test` command
 - [nic_rw_test](nic_rw_test.md) - ring-3 half of the v2.2.0 `nic_rw_test` command
@@ -156,6 +160,8 @@ structure is the domain structure. Inside a running system use
 - [nvme](nvme.md) - ring-3 half of the v2.2.0 `nvme` command
 - [nvme_test](nvme_test.md) - ring-3 half of the v2.2.0 `nvme_test` command
 - [other_nic_test](other_nic_test.md) - ring-3 half of the v2.2.0 `other_nic_test` command
+- [p0leak](p0leak.md) - legacy flat L1 program
+- [p2test](p2test.md) - ring-3 L1 app
 - [p3_test](p3_test.md) - legacy flat L1 program
 - [parallel](parallel.md) - ring-3 half of the v2.2.0 `parallel` command
 - [paralleltest](paralleltest.md) - ring-3 half of the v2.2.0 `paralleltest` command
@@ -172,6 +178,7 @@ structure is the domain structure. Inside a running system use
 - [play](play.md) - ring-3 half of the v2.2.0 `play` command
 - [pmmrace](pmmrace.md) - ring-3 half of the v2.2.0 `pmmrace` command
 - [pmtimer](pmtimer.md) - ring-3 half of the v2.2.0 `pmtimer` command
+- [power](power.md) - ring-3 L1 app
 - [poweroff](poweroff.md) - ring-3 half of the v2.2.0 `poweroff` command
 - [poweroff_test](poweroff_test.md) - ring-3 half of the v2.2.0 `poweroff_test` command
 - [priv_test](priv_test.md) - legacy flat L1 program
@@ -205,6 +212,7 @@ structure is the domain structure. Inside a running system use
 - [sed](sed.md) - ring-3 L1 app
 - [select_test](select_test.md) - legacy flat L1 program
 - [select_zero_test](select_zero_test.md) - legacy flat L1 program
+- [serial_encoding](serial_encoding.md) - ring-3 L1 app
 - [shutdown](shutdown.md) - ring-3 half of the v2.2.0 `shutdown` command
 - [signal_test](signal_test.md) - legacy flat L1 program
 - [sigsegv_test](sigsegv_test.md) - legacy flat L1 program
@@ -214,6 +222,7 @@ structure is the domain structure. Inside a running system use
 - [so_test](so_test.md) - legacy flat L1 program
 - [sort](sort.md) - ring-3 L1 app
 - [sound](sound.md) - ring-3 half of the v2.2.0 `sound` command
+- [sound-tool](sound-tool.md) - ring-3 L1 app
 - [spawn](spawn.md) - ring-3 half of the v2.2.0 `spawn` command
 - [sse_test](sse_test.md) - legacy flat L1 program
 - [ssh](ssh.md) - ring-3 L1 app
@@ -225,6 +234,7 @@ structure is the domain structure. Inside a running system use
 - [sync](sync.md) - ring-3 half of the v2.2.0 `sync` command
 - [syncstat](syncstat.md) - ring-3 L1 app
 - [synctest](synctest.md) - ring-3 half of the v2.2.0 `synctest` command
+- [sysdiag](sysdiag.md) - ring-3 L1 app
 - [tail](tail.md) - ring-3 L1 app
 - [tcpcc_test](tcpcc_test.md) - ring-3 half of the v2.2.0 `tcpcc_test` command
 - [tcpstats](tcpstats.md) - ring-3 half of the v2.2.0 `tcpstats` command
@@ -248,7 +258,7 @@ structure is the domain structure. Inside a running system use
 - [umount](umount.md) - ring-3 half of the v2.2.0 `umount` command
 - [uname](uname.md) - ring-3 half of the v2.2.0 `uname` command
 - [uniq](uniq.md) - ring-3 L1 app
-- [update](update.md) - ring-3 half of the v2.2.0 `update` command
+- [update](update.md) - ring-3 L1 app
 - [update_check_test](update_check_test.md) - ring-3 half of the v2.2.0 `update_check_test` command
 - [update_download_test](update_download_test.md) - ring-3 half of the v2.2.0 `update_download_test` command
 - [update_install_test](update_install_test.md) - ring-3 half of the v2.2.0 `update_install_test` command
@@ -285,17 +295,14 @@ structure is the domain structure. Inside a running system use
 - [wifi](wifi.md) - ring-3 half of the v2.2.0 `wifi` command
 - [write](write.md) - ring-3 L1 app
 
-## ush (ring-3 shell: SVC rows + built-ins) (11)
+## ush (ring-3 shell: SVC rows + built-ins) (8)
 <a id="ush"></a>
 
-- [alias](alias.md) - name=val  set command alias
-- [bg](bg.md) - send a job to the background
-- [cd](cd.md) - [dir]  change directory (shell state)
-- [env](env.md) - show environment variables
-- [exit](exit.md) - not available (use shutdown / reboot)
-- [export](export.md) - VAR=val  set environment variable
-- [fg](fg.md) - [job]  bring a job to the foreground
-- [history](history.md) - show command history
-- [jobs](jobs.md) - list background jobs
-- [set](set.md) - show a variable
-- [unalias](unalias.md) - name  remove alias
+- [alias](alias.md) - 
+- [cd](cd.md) - 
+- [env](env.md) - 
+- [exit](exit.md) - 
+- [export](export.md) - 
+- [history](history.md) - 
+- [set](set.md) - 
+- [unalias](unalias.md) - 

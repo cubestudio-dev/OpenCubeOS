@@ -1,27 +1,43 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Website update mechanics
 
-`tools/update_website.sh` - run at release time after the assets
-exist. What it does (each step verifiable):
+The public site is the **gh-pages branch** of this repository
+(https://ocos.cubestudio.cn/, GitHub Pages). The facade is static:
+`assets/site-data.js` carries the version data, `download.html` /
+`index.html` render it, `downloads/` holds the asset copies.
 
-1. Reads the three assets from `dist/`, computes SHA256 + size.
-2. Regenerates the site's data file (`site.ts` constants: RELEASE /
-   ISO / SRC / OTA names + hashes + sizes) from those values - no
-   hand-editing of versions anywhere.
-3. Regenerates `update.json` + `update-v2.json` (version, build,
-   time, changes text, package URL/sha/size) from the manifest
-   template + the release notes.
-4. Runs the hash gate: the downloads directory's files must match
-   the constants before anything is pushed.
-5. Builds the static site and pushes gh-pages.
+## The release-time update (per release)
 
-Verification after it runs:
+1. Read the assets from `dist/`, compute SHA256 + size.
+2. **Facade**: `assets/site-data.js` - update the `dev` channel block
+   (version / build / date / the asset four-tuples: name, url, sha,
+   size) and insert the release into the `history` array head.
+3. **Pages**: `download.html` + `index.html` - replace the previous
+   version strings in place (the gh-pages HTML and the archived
+   release HTML have structural differences - do not overwrite the
+   whole file, only the strings).
+4. **OTA manifest**: `update.json` at the branch root (version,
+   build, time, changes text, package URL/sha/size) - what
+   `checkupdate` inside the system parses.
+5. **downloads/**: copy the four release assets in (the lowercase
+   `opencube-<ver>.*` canonical names).
+6. Two commits (facade + downloads) and push the branch.
 
-- `https://ocos.cubestudio.cn/update.json` shows the
-  new version/build/sha.
-- The download page's three hashes equal the Release's three.
+## Verification after it runs
+
+- `https://ocos.cubestudio.cn/update.json` shows the new
+  version/build/sha.
+- The download page's four hashes equal the Release's four.
 - `curl -sL <asset-url> | sha256sum` on each asset equals its
   declared SHA256.
+- The OTA E2E (`tools/run_fix4_regression.py` update section + the
+  checkupdate flow) sees "New version available." on a machine
+  built with a lower build id.
 
-The script is idempotent per release: rerunning with the same dist/
-produces the same pages (deterministic templates).
+## Where the numbers come from
+
+`tools/update_website.sh <version> <build> [date-iso] [changes]`
+computes the SHA256/size set from `dist/` and writes the data files
+(no hand-editing of versions anywhere) - the same numbers the
+GitHub Release body and the private-mirror audit record carry, so
+website / Release / mirror hold byte-identical copies.

@@ -6,7 +6,7 @@ This work package completes the 3.0.0 restructure: every command of
 the v2.2.0 baseline now runs from ring 3.  The L0 side stays a pure
 service kernel - drivers, services and the numbered L1SVC ABI - and
 the user plane is the embedded program registry: **one command = one
-app = one folder** (`src/L1/<name>/main.c`), discovered mechanically
+app = one folder** (`ocos/l1apps/<name>/main.c`), discovered mechanically
 by `tools/gen_userprogs.py` into the `OC_USERPROGS[]` registry.
 
 ## Where the 251 v2.2.0 commands went

@@ -1,65 +1,68 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# L1 扩展指南：总览
+# ring-3 应用 - 总览
 
-L0 不附带任何 L1。整个架构的意义在于 L0 暴露的扩展接口面，以便 L1 *可以* 存在：162 个编号的扩展接口，以及驱动/OTA/看门狗/健康/内核日志（klog）头文件家族，还有一个共享对象加载器，使模块能够在运行时加载。
+L0 是一个纯服务内核：它以启动 `ush`（ring-3 shell）完成启动，
+而每条用户可见的命令本身就是一个 ring-3 程序。这套架构的全部
+要点在于：L0 暴露的表面小、编号化且完备 - 这样应用才能存在。
 
-## 各层架构，再次说明
+## 分层
 
 ```
-L1  your module: .so loaded by the in-tree ld.so, or a built-in
-    compiled against the surface headers
+L1  ush (the boot shell) + 284 registry programs
+    in ocos/l1apps/<name>/main.c - freestanding C against
+    ocos/interface/*.h
      |
-    162 numbered interfaces + driver/OTA/watchdog/health/klog
-    families (INTERFACES.md = the full generated tables)
+    SYS_L1SVC(cat, op, arg, out, cap)   20 categories, ~245 ops
+    SYS_* (open/read/write/fork/execve/wait4/readline/getch/...)
      |
-L0  Open Cube OS kernel + oc> shell (this repo)
+L0  Open Cube OS service kernel
+    (ocos/kernel + ocos/services + ocos/drivers)
 ```
 
-## 扩展接口面的位置
+## 表面住在哪里
 
-| 头文件 | 涵盖内容 |
-|--------|----------|
-| `l1/l1_ext.h` | 帧缓冲信息、字体引擎、控制台钩子、配置读写、更新链、电源、Shell 桥、自检 |
-| `l1/l1_wp8a.h` | 进程/文件描述符/信号/mmap/chdir - 类 Unix 的用户 API |
-| `l1/l1_wp8b.h` | 动态加载器（elf_load_dynamic、so_load、dlsym_impl、reloc_apply...） |
-| `l1/l1_wp8cd.h` | Shell 内建命令、工具嵌入、任务 |
-| `tui/tui_ext.h` | 37 个 TUI 声明（窗口/菜单/表单/面板/文本） |
-| `drivers/block/driver_block_blk.h` | 块设备注册 + I/O |
-| `drivers/nic/driver_nic.h` | 网卡注册 + I/O |
-| `drivers/snd/driver_snd.h` | 声卡注册 + 播放 |
-| `kernel/ota/ota_ab.h`, `ota_update.h` | 槽位与更新链 |
-| `kernel/core/core_watchdog.h`, `core_health.h` | 看门狗槽位与健康指标 |
-| `kernel/lib/lib_klog.h` | 内核日志 |
+| 头文件（ocos/interface/） | 覆盖内容 |
+|---------------------------|----------------|
+| `l1_lib.h` | 系统调用包装、字符串/IO 辅助、`l1svc_main()` - 逐字的服务包装体 |
+| `l1svc_ops.h` | 类别/操作编号契约（从 L0 头文件自动镜像） |
+| `i18n.h` | `tr_()` + 每应用双语表 |
+| `wizard_lib.h` | 共享向导原语（菜单、询问、确认、锚点探测） |
+| `fs_lib.h` | 文件工具共享的路径辅助 |
+| `editor_core.h` | `edit` 与 TUI 编辑器背后的编辑器引擎 |
 
-完整的声明表（包含所有 278 个声明的文件、行号和签名）由 `make api-docs` 生成并输出到 [INTERFACES.md](../root/INTERFACES.md)。
+服务侧声明住在 `ocos/services/*/interface/`（每个侧面一个
+文件夹）；编号镜像用 `tools/gen_l1svc_ops.py` 重新生成。
 
-## 关键计数
+## 关键数字
 
-- **162 个编号的 L1 接口** - README 中的公式
-  57+8+13+7+26+11+7+9+8+16，这是整个仓库的一致性数量。
-- 13 个扩展接口头文件中共有 278 个可调用声明
-  （包含内部辅助函数和未编号的文档化分组）。
+- **284 个注册表程序** - 276 个历史命令（接口冻结下限；命令
+  只增不减）加上 8 个合并的大应用。
+- **20 个 L1SVC 类别**（time/block/nic/snd/power/ota/fs/net/
+  health/klog/watchdog/crypto/l1/display/input/camera/usb/ocire/
+  diag/tui），约 245 个编号操作。
+- 每个程序都附带 `i18n/{en,zh}.json` - 缺资源则构建失败
+  （一个没有翻译的程序是交付违规，不是警告）。
 
-## 模块加载方式
+## 一条命令如何运行
 
-三种真实路径：
+```
+ush> disk-tool lsblk
+  ush forks; child execve("disk-tool", ["disk-tool","lsblk"])
+  app_main(argc, argv) sees argv[1] = "lsblk"
+  -> classic dispatch: table lookup -> sys_l1svc(BLOCK, LSBLK, ...)
+  -> service output printed verbatim
+  ush wait4()s the child, prints the next prompt
+```
 
-1. **编译进内核的 L1** - 你的模块编译进内核并直接调用扩展接口
-   （TUI 命令桥的工作方式）。
-2. **运行时的共享对象** - `libs/ld_so.c` 加载 ELF .so 文件，
-   解析符号并应用重定位：
-   [solib-loader.md](solib-loader.md)。
-3. **嵌入式工具** - `tool_register` 嵌入 ELF 负载，
-   Shell 可以 `run` 它。
+历史单命令是同一机制再简单一层：`lsblk/main.c` 就是
+`l1svc_main(argc, argv, CAT, OP)` - 与 v2.2.0 的 ush SVC runner
+语义逐字节相同。
 
-## 学习顺序
+## 阅读顺序
 
-1. 本页面。
-2. [surface-map.md](surface-map.md) - 按 162 个接口的功能分组。
-3. 各系列页面：[driver-block.md](driver-block.md)、
-   [driver-nic.md](driver-nic.md)、[driver-snd.md](driver-snd.md)、
-   [ota.md](ota.md)、[watchdog-health.md](watchdog-health.md)、
-   [shell-bridge.md](shell-bridge.md)。
-4. [tui-ext.md](tui-ext.md) - 用 L1 构建用户界面。
-5. [writing-modules.md](writing-modules.md) - 完整的模块，
-   从源码到 `run`。
+1. 本页。
+2. [surface-map.md](surface-map.md) - 按组分类的类别/操作。
+3. [app-anatomy](app-anatomy.md) - main.c 由什么构成。
+4. [writing-apps](writing-apps.md) - 一个完整应用，从源码到
+   `run`。
+5. 各家族页：驱动、OTA、加载器、TUI、看门狗/健康。

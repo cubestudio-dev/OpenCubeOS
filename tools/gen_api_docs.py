@@ -60,9 +60,9 @@ L1_HEADERS = [
     # the per-service headers below carry the kernel-side declarations
     # (svc_block_drivers.h is the declared driver interface).
     "ocos/services/sysapi/interface/svc_sysapi_l1svc.h",
-    "src/L0/services/block/block_svc.h",
-    "src/L0/services/net/nic_svc.h",
-    "src/L0/services/audio/snd_svc.h",
+    "ocos/services/block/interface/svc_block_drivers.h",
+    "ocos/services/net/interface/svc_net_drivers.h",
+    "ocos/services/audio/interface/svc_audio_api.h",
     "ocos/services/display/src/svc_display_cmds.h",
     "ocos/services/usb/src/svc_usb_cmds.h",
     "ocos/services/net/src/svc_net_l1_cmds.h",
@@ -75,8 +75,8 @@ L1_HEADERS = [
 # core + arch + drivers + services + recovery + tui + chinese + boot +
 # l1apps; matches the README verification command).
 STAT_DIRS = [
-    "src/L0/core", "src/L0/drivers", "src/L0/services", "src/L0/boot",
-    "src/L1",
+    "ocos/kernel", "ocos/drivers", "ocos/services", "ocos/interface",
+    "ocos/l1apps", "ocbl", "ocire",
 ]
 
 # Generated data blobs excluded from the line count - same exclusion the
@@ -156,15 +156,25 @@ def extract_commands_from_capture(path):
     the trailing 'Total: N commands.' authority line."""
     cmds = []
     total = None
-    total_re = re.compile(r"Total:\s*(\d+)\s*commands")
+    # 3.0.0 registry formats (help -a / help -w renders):
+    #   "ring-3 program registry (A-Z, 284 programs):"  (the count)
+    #   "  name  [tag]  hint"                           (the entries)
+    # The v2 "name - help" + "Total: N commands" spellings stay
+    # accepted so old captures keep parsing.
+    total_re = re.compile(
+        r"(?:Total:\s*(\d+)\s*commands"
+        r"|registry \(A-Z,\s*(\d+)\s*programs\))")
+    # the tag brackets are optional: a serial-echo overlap can eat
+    # the leading "[m" of "[mega]" (the capture then shows "ega]");
+    # the name + hint columns are what the docs actually consume.
     entry_re = re.compile(
-        r"^\s{2}([a-z0-9_.][a-z0-9_. -]*?)\s+-\s+(.*)$")
+        r"^\s{2}([a-z0-9_][a-z0-9_.\-]*)\s+\[?[a-z0-9_]+\]?\s+(.*)$")
     with open(path, "r", encoding="latin-1") as f:
         for line in f:
             line = line.rstrip("\r\n")
             m = total_re.search(line)
             if m:
-                total = int(m.group(1))
+                total = int(m.group(1) or m.group(2))
                 continue
             m = entry_re.match(line)
             if m:
@@ -182,21 +192,32 @@ def extract_l1_registry(path):
     names, total, seen = [], None, set()
     footer = re.compile(r"^--\s*(\d+)\s*programs registered\s*--$")
     header = re.compile(r"^ring-3 program registry \(A-Z, (\d+) programs\):$")
-    row = re.compile(r"^([a-z0-9_][a-z0-9_.-]*)(?:\s+\[[a-z0-9_-]+\])?$")
+    # WP06g2+: registry rows carry the bilingual hint after the tag
+    # ("  name  [tag]  hint"); the tag brackets may lose their lead
+    # chars to a serial-echo overlap.  The ush BUILT-IN rows that
+    # precede the header ("cd [dir]  change directory ...") must not
+    # be counted as registry programs - rows only count once the
+    # header has been seen (format (b)) or in the plain footer
+    # format (a).
+    row = re.compile(
+        r"^([a-z0-9_][a-z0-9_.-]*)(?:\s+\[?[a-z0-9_-]+\]?)(?:\s+.*)?$")
+    in_registry = False
     for line in open(path, "r", encoding="latin-1"):
         t = line.strip()
         m = footer.match(t)
         if m:
             total = int(m.group(1))
+            in_registry = True
             continue
         m = header.match(t)
         if m:
             total = int(m.group(1))
+            in_registry = True
             continue
         if t.startswith("usage:") or not t:
             continue
         m = row.match(t)
-        if m and m.group(1) not in seen:
+        if m and m.group(1) not in seen and in_registry:
             seen.add(m.group(1))
             names.append(m.group(1))
     return names, total
@@ -1300,7 +1321,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
     w("Every entry below is extracted from the real tree at generation")
     w("time: the L0 command declarations straight from the OC_SHELL_CMD")
     w("call sites, the ring-3 surface from the embedded program registry")
-    w("capture (--l1-registry, one command = one app = one src/L1/ folder)")
+    w("capture (--l1-registry, one command = one app = one ocos/l1apps/ folder)")
     w("and ocos/services/sysapi/interface/svc_sysapi_l1svc.h, the kernel-side")
     w("declarations from the service headers. Regenerate with")
     w("`make api-docs`.")

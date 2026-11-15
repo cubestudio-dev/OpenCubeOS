@@ -6,9 +6,9 @@
 
 # cd
 
-`cd` - [dir]  change directory (shell state)
+`cd` - 
 
-Home: ush built-in - streq dispatch in `src/L1/ush/main.c` (runs entirely in ring 3).
+Home: ush built-in - streq dispatch in `ocos/l1apps/ush/main.c` (runs entirely in ring 3).
 
 Domain: [ush (ring-3 shell: SVC rows + built-ins)](index.md#ush)
 

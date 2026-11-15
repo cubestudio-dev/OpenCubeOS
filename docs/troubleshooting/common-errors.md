@@ -15,10 +15,10 @@
 
 | Symptom | Meaning | Next step |
 |---------|---------|-----------|
-| No `multiboot2 handshake OK` | GRUB didn't hand off a valid mbi | check the ISO booted the right entry; capture serial |
+| No `multiboot2 handshake OK` | OCBL didn't hand off a valid mbi | check the ISO booted the right entry (OCBL menu); capture serial |
 | Boot stops at a non-OK line | that subsystem failed | the file implementing it - read its init error path |
 | Triple-fault/reset loop | early exception before the dump path works | `-d int,cpu_reset -D qemu.log` + gdb via `-s -S` |
-| GRUB menu boots wrong slot | stale A/B flag | force the other slot from the menu, then `update rollback` |
+| boot menu picks wrong slot | stale A/B flag | force the other slot from the menu, then `update rollback` |
 
 ## Runtime
 
@@ -27,11 +27,12 @@
 | `mount` refuses a valid FAT32 volume | BPB check failed | `fatstat <dev>` shows the parsed BPB; wrong device? |
 | NIC silent | driver didn't bind | `lspci` + the family command (`e1000`...) |
 | TCP connects then stalls | checksum/refactor regression | `tcpstats`, `tcptest` |
-| `usda` missing | USB MSC didn't bind | `usb`, `usb_storage_test` |
+| USB stick missing | USB MSC didn't bind | `usb`, `usb_storage_test` |
 | fsck reports dirty after clean unmount | FSINFO/FAT mirror regression | report it - this class is a bug |
 
 ## Testing
 
-- SSH E2E needs the seeded /etc volume (`host_keygen_etc`).
+- SSH E2E needs the seeded host key (the mtools recipe in
+  [../dev/e2e-suites.md](../dev/e2e-suites.md)).
 - HTTPS E2E needs the reference server reachable.
 - The regression suite needs pexpect; the SSH suite paramiko.

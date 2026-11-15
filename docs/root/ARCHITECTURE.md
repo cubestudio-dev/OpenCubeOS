@@ -1,8 +1,7 @@
-<!-- GENERATED mirror of the repository-root ARCHITECTURE.md - maintained by tools/gen_api_docs.py (make api-docs); the source of truth is the root file. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Open Cube OS Architecture
 
-This document describes the tree as it exists in 3.0.0-WP06c - every
+This document describes the tree as it exists in 3.0.0-WP-l1apps-merge - every
 component named below is a real file you can open. Line counts and
 per-directory detail live in `docs/data/stats.json` (regenerate:
 `make api-docs`).
@@ -20,11 +19,11 @@ Open Cube OS is a two-ring system:
 - **L1 - uses services.** Ring-3 user applications that reach L0
   capability through the extension surface (the `SYS_L1SVC` op
   table and the classic syscall ABI). 3.0.0-WP04 moved every command
-  into L1: **275 programs under `src/L1/`** (242 app folders + 8 flat
-  `.c` + 25 flat `.asm`) - one command = one app = one folder. The
+  into L1: **284 programs under `ocos/l1apps/`** (the 8 merged
+  mega-apps included) - one command = one app = one folder. The
   default boot entry is the ring-3 `ush` shell (`OC_L1_APP_DECL("ush",
-  ..., dflt=1)` in `src/L0/boot/l1_launcher.c`); **285 commands = 274
-  registry apps + 11 ush built-ins, zero in L0**.
+  ..., dflt=1)` in `ocos/kernel/core_boot_l1launch.c`); **296 commands = 284
+  registry apps + 12 ush built-ins, zero in L0**.
 
 ```
               OCBL - the in-tree bootloader (hybrid BIOS + UEFI ISO)
@@ -32,11 +31,11 @@ Open Cube OS is a two-ring system:
               entry -> 16 -> 32 -> 64-bit long mode, dynamic disk scan,
               boot menu with a 10 s countdown (no GRUB in the chain)
         +-------------------------+-------------------------+
-        |              src/L0/boot/boot.S                  |
+        |              ocos/kernel/core_boot_entry.S                  |
         |  32-bit entry -> GDT -> 2 MiB identity map of    |
         |  the first 4 GiB -> PAE+LME+PGE -> long mode     |
         +---------------------------------------------------+
-                               |  kmain (src/L0/boot/kmain.c)
+                               |  kmain (ocos/kernel/core_boot_main.c)
         +-------------------------+-------------------------+
         |  PHASE 1  kernel core mechanisms                  |
         |    core/console (serial/fb platform text layer),  |
@@ -69,7 +68,7 @@ Open Cube OS is a two-ring system:
 ## The L0 tree (3.0.0-WP03 layout)
 
 ```
-src/L0/
+ocos/kernel/
   boot/     the composition root: boot.S, long mode entry, the
             multiboot2 header/stub, kmain.c, the L1 launcher and the
             boot self-tests. May depend on every layer.
@@ -90,7 +89,7 @@ src/L0/
             core/ and drivers/ (and, where a real dependency
             exists, on other services - fs before selfhost, for
             example).
-src/L1/     the ring-3 world: 275 programs (242 app folders + 8 flat
+ocos/l1apps/     the ring-3 world: 275 programs (242 app folders + 8 flat
             .c + 25 flat .asm) - ush (the only OC_L1_APP_DECL default
             entry), the TUI desktop family, the editor, the Chinese
             console + IME, and one command per app (built by
@@ -135,12 +134,12 @@ fate record).
 
 Ring 3 reaches L0 through two doors:
 
-- the classic syscall ABI (`src/L0/services/sysapi/core_syscall.h`,
+- the classic syscall ABI (`ocos/kernel/services/sysapi/core_syscall.h`,
   54 syscalls), including `SYS_L1SVC(110)`: `(category, op, arg,
   out, cap)` routed by the registry to the owning service's
   `l1_dispatch`.
 - the categories/ops are the frozen ABI table in
-  `src/L0/services/sysapi/l1svc_defs.h`: **20 categories / 190
+  `ocos/kernel/services/sysapi/l1svc_defs.h`: **20 categories / 190
   numbered entries** (category number -> the owning services/
   folder; category 18 "ocire" is the declared exception - the OCIRE
   log-agent contract's ABI name, implemented by `services/ocembed/`).

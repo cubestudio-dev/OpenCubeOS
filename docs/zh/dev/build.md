@@ -1,77 +1,93 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 构建与打包
 
-这里是构建系统的开发者视角。用户级指南见仓库根目录的
-[BUILDING.md](../root/BUILDING.md)——本页补充开发者工作流的细节。
+构建系统的开发者视图。用户级指南见仓库根部的
+[BUILDING.md](../root/BUILDING.md) - 本页补充开发者工作流的
+细节。
 
-## 你真正会用的目标
+## 你真正会用到的目标
 
 ```
 make -j$(nproc) kernel     # fast inner loop: ELF only
 make iso                   # + bootable ISO
+make userprogs             # regenerate the embedded program registry
 make test                  # host unit tests (no QEMU needed)
 make run-bios              # boot the ISO
+make all                   # userprogs + kernel + ISO + src zip + OTA
 make clean                 # start fresh
 make reproducible-check    # two clean builds -> byte-identical ELF
 ```
 
-## 编译缓存让内循环飞快
+## 应用内嵌链
 
-`tools/oc_cc.sh` 给每条编译规则包了一层内容寻址缓存：
-键 = 编译器身份 + 完整旗标集 + 源文件内容哈希
-+ 每个头文件依赖的内容哈希（依赖探测是一次 `gcc -MM -MG` 扫描，并剥掉
--MMD/-MP 旗标，让两者互不打架）。
+`make userprogs`（属于 `make all`，也属于过期门禁）运行
+`tools/gen_userprogs.py`：它发现每个 `ocos/l1apps/<name>/` 文件夹
++ 每个平铺的旧式程序，逐个独立环境编译（`-I ocos/interface`），
+按镜像模式链接，生成每个应用的 i18n 表，并写出
+`ocos/kernel/userprogs_data.h`（blob + `OC_USERPROGS[]` 注册表）。
+没有任何手工注册；一个新文件夹就是一条新命令。
 
-- 发布树冷构建：46.6 秒。热构建：14.4 秒（186/186 命中，
-  3.2 倍提速）。热对象与冷对象逐字节一致。
-- `make cache-stats` / `make cache-clear` 负责管理它。
-- 过期缓存条目不可能存在：任何头文件改动都会改变键。
+过期门禁：任何比生成头更新的源文件、接口头或 i18n json 都会强制
+重新生成 - `make dist` 在内嵌内容过期时失败。
+
+## 编译缓存让内层循环变快
+
+`tools/oc_cc.sh` 用一个内容寻址缓存包装每条编译规则：
+键 = 编译器标识 + 完整标志集 + 源内容哈希 + 每个头文件依赖的
+内容哈希。
+
+- 热对象与冷对象逐字节一致。
+- `make cache-stats` / `make cache-clear` 管理它。
+- 过期的缓存条目不可能存在：任何头文件编辑都会改变键。
 
 ## 版本号与构建号
 
-- `OC_RELEASE_VERSION` 默认取 Makefile 中的 `1.0.0` 字面量（见
-  [版本号规则](../release/versioning.md)）；在命令行
-  覆盖（`make OC_RELEASE_VERSION=1.0.1-test1 iso`），否则它会
-  进入横幅、`uname -a`、OTA 清单与 ISO 卷标。
-- 构建号是提交计数（`git rev-list count`）——它供给 `uname`
-  以及发布时 update.json 的 "build" 字段。
+- `OC_RELEASE_VERSION` 默认取 Makefile 中的版本字面量；可在
+  命令行覆盖（`make OC_RELEASE_VERSION=3.0.0-test1 iso`），它
+  会进入横幅、`uname -a`、OTA 清单和 ISO 卷 ID。
+- `OC_KERNEL_BUILD` = `git rev-list --count HEAD` + 永久的
+  +21 对齐偏移（`OC_KERNEL_BUILD_OFFSET := 21`）- 它在发布时
+  供给 `uname` 和 update.json 的 "build" 字段。数值比较
+  （BUG-0347）使 OTA 检查感知构建号。
+- 版本重编译触发器（`kernel/generated/version_gen.h`，
+  cmp 守卫）让 -D 标志的变化对依赖图可见 - 新代码上挂着旧横幅
+  的情况不会再发生。
 
 ## 打包确定性
 
-- **SRC zip**（`make src-zip`）：一次 `git archive`——目录树
-  顺序、提交时间戳、索引权限全固定；同一提交产出逐字节一致。
-  经由 `SRC_EXCLUDE` 排除 website/out/build/deliverables 树。
+- **SRC zip**（`make src-zip`）：一次 `git archive` - 树序、
+  提交 mtime、索引权限；同一提交逐字节一致。
 - **OTA**（`make ota`）：内核 ELF + 清单；清单携带构建日
-  （UTC），使包在同一天内逐字节可复现。
-- **ELF**：全树任何位置都没有 __DATE__/__TIME__/__TIMESTAMP__
-  （一道 make 门禁专门 grep 它们）、链接顺序固定、`strip
-  --strip-debug` 移除携带路径的节。
+  （UTC），因此包在同一天内逐字节可复现。
+- **ELF**：树中任何地方都没有 `__DATE__`/`__TIME__`/
+  `__TIMESTAMP__`（一个 make 门禁会 grep 它们），固定链接顺序，
+  `strip --strip-debug` 移除携带路径的节。
 
-## 多配置与交叉构建（开发者须知）
+## 多配置与交叉构建（开发者注记）
 
 ```
 make defconfig          # .config with everything on
 make menuconfig         # interactive (tools/oc_menuconfig.sh)
-make CONFIG_TUI=n CONFIG_CHINESE=n iso    # 216-command image
+make CONFIG_NVME=n iso  # hardware profile: NVME off
+make CONFIG_AHCI=n CONFIG_VIRTIO_BLK=n iso
 make ARCH=arm64         # PL011 bring-up shell ELF
 make ARCH=riscv         # NS16550A bring-up shell ELF
 ```
 
-配置器生成带比较保护的宏到 `kernel/generated/config_gen.h`；
-被关闭的特性会路由到真正的 ASCII 等价物（console_cn ->
-screen_console），而不是删代码。GNU make 的 `%` 通配符限制
-（一条模式里只有第一个 `%` 生效）正是 TUI/中文源码过滤器长成
-那个样子的原因——不要去"简化"它们。
+配置器生成 `kernel/generated/config_gen.h`，其中是带比较守卫的
+宏（3.0.0 的旋钮是硬件配置选项 NVME / AHCI / VIRTIO_BLK；TUI
+与 CJK 管线始终编译在内）。被禁用的驱动改接到桩，绝不删除
+代码。
 
-## 可脚本化 API
+## 可脚本化的 API
 
-`tools/build.sh` 同时是一个函数库：
+`tools/build.sh` 还兼作函数库：
 
 ```
 source tools/build.sh
 build_all; build_iso; config_load; cache_lookup; cross_compile ...
-tools/build.sh api-selftest     # verifies the 8 spec'd interfaces
+tools/build.sh api-selftest     # verifies the spec'd interfaces
 ```
 
 发布自动化（见 [../release/process.md](../release/process.md)）
-直接组合这些函数，而不是去解析 make 输出。
+组合调用这些函数，而不是解析 make 输出。

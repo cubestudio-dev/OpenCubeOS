@@ -1,4 +1,3 @@
-<!-- GENERATED mirror of the repository-root BUILDING.md - maintained by tools/gen_api_docs.py (make api-docs); the source of truth is the root file. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Building Open Cube OS
 
@@ -31,7 +30,7 @@ MSYS2).
 mtools (mformat/mcopy), python3, zip`.
 
 `tools/build.sh` checks all of them and prints the exact Debian package
-names for anything missing; `./build.sh --install` apt-installs them
+names for anything missing; `tools/build.sh --install` apt-installs them
 when you are root. Building the ISO additionally needs the GRUB module
 trees (`grub-pc-bin` for `i386-pc`, `grub-efi-amd64-bin` for
 `x86_64-efi`) and `unicode.pf2` from `grub-common`.
@@ -50,7 +49,7 @@ sudo apt-get install gcc nasm xorriso mtools \
 ```
 git clone https://github.com/cubestudio-dev/OpenCubeOS.git
 cd OpenCubeOS
-./build.sh            # = make all
+tools/build.sh        # = make all
 # or step by step:
 make -j"$(nproc)" kernel
 make iso
@@ -139,7 +138,7 @@ make CONFIG_TUI=n       # one-shot override
 Options: `CONFIG_TUI`, `CONFIG_CHINESE`, `CONFIG_NVME`, `CONFIG_AHCI`,
 `CONFIG_VIRTIO_BLK`. `CONFIG_CHINESE=n` forces `CONFIG_TUI=n`.
 A `CONFIG_TUI=n CONFIG_CHINESE=n` build drops the 9 TUI commands
-from the `oc>` surface (99 -> 90) and turns the 8 chinese-locale
+from the ush surface and turns the 8 chinese-locale
 SVC ops into clean -1 errors (the command bodies live in the
 filtered trees; op numbers stay stable); the full configuration
 boots 99 L0 commands with 251 command homes in total

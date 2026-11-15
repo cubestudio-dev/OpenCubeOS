@@ -1,28 +1,37 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# 宿主侧单元测试
+# 宿主机侧单元测试
 
-`make test` 运行 `tools/run_host_tests.py`：它在宿主上编译并执行 `tests/host_*.c` 中的测试桩，使用它们包含的实际内核源文件。
+`make test` 运行 `tools/run_host_tests.py`：它在*宿主机上*编译
+并执行 `tests/host_*.c` 中的测试桩，针对它们所包含的真实内核
+源文件。
 
-## 运行内容
+## 运行什么
 
-运行程序从每个测试桩的头文件中提取文档化的 gcc 命令行，重映射重构前的路径（`kernel/aead.c` -> `kernel/crypto/crypto_aead.c` 等），使用宿主工具链编译（测试桩要求时使用 ASAN），然后执行它。需要外部固件（openssl 生成的密钥文件）的测试桩会编译但报告 SKIP-FIXTURE 而非失败。
+运行器从每个测试桩的头部注释提取文档化的 gcc 命令行，重映射
+重构前的路径（`kernel/aead.c` -> `kernel/crypto/crypto_aead.c`，
+...），用宿主机工具链编译（在测试桩要求时开 ASAN）并执行。
+需要外部夹具（openssl 生成的密钥文件）的测试桩会编译通过但
+报告 SKIP-FIXTURE 而不是失败。
 
-覆盖率亮点（每个族一个测试桩）：
+覆盖亮点（每个家族一个测试桩）：
 
 - crypto：NIST AES/SHA/HMAC 向量、RSA、X.509 解析、AEAD
-- tar / gzip / string：lib_* 基础组件
+- tar / gzip / string：lib_* 原语
 - FAT 结构与 LFN 编码
-- multiboot2 解析（包含损坏 MBI 情况，ASAN）
-- 堆与 VMM 不变性
+- multiboot2 解析（含畸形 mbi 场景，ASAN）
+- 堆与 VMM 不变量
 
-## 何时运行
+## 什么时候运行
 
-随时运行。它是反馈循环中最快的信号 - 无需启动，能在几秒内捕获纯逻辑回归（校验和链、头文件对齐、边界）。
+始终运行。它是整个循环里最快的信号 - 不需要启动，几秒钟内就
+能抓住纯逻辑回归（校验和链、头对齐、边界）。
 
-## 添加测试桩
+## 新增一个测试桩
 
-1. 创建 `tests/host_<name>.c`，包含标准头文件注释，注明确切的编译命令行（标志 + 包含路径）。
-2. 统计检查次数，按失败数量退出。
-3. `make test` 会自动拾取它。
+1. 创建 `tests/host_<name>.c`，带标准头部注释，其中包含确切的
+   编译命令行（标志 + 包含路径）。
+2. 数清你的检查数，并以失败数作为退出码。
+3. `make test` 会自动发现它。
 
-来自 [CONTRIBUTING.md](../root/CONTRIBUTING.md) 的规则：切勿削弱测试以使其通过。如果测试有误，修复测试 *并在提交中说明*。
+[CONTRIBUTING.md](../root/CONTRIBUTING.md) 的规则：绝不为通过
+而削弱测试。如果测试本身错了，修测试，*并在提交里说明*。

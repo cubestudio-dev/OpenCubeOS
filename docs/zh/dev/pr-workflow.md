@@ -1,22 +1,35 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# 合入门槛（PR 规范）
+# 拉取请求门槛
 
-PR 必须按顺序通过以下审核：
+一个 PR 必须按顺序通过：
 
-1. **干净构建**：在本地机器和 CI 上均通过 `make kernel` 且带上 `-Wall -Wextra -Werror` 参数（CI 的工具链通常更严格；multiboot2 打包转换与 rdrand setc 修复的存在，正是因为运行器上的更严格的 GCC/GAS 发现了本地构建所接受的问题）。
-2. **宿主测试**：`make test` - 零失败。
-3. **启动测试**：`make run-bios` 和 `make run-uefi` - 两者都应到达 `oc>` 提示符并显示 `boot complete ... OK`。
-4. **针对你所修改内容的深度测试** - [CONTRIBUTING.md](../root/CONTRIBUTING.md) 中的矩阵（存储 -> fstest；加密 -> cryptotest + HTTPS E2E；看门狗/klog/健康监控 -> WP-12 E2E；启动路径 -> 28 项回归检查）。
-5. **可复现性检查**：`make reproducible-check` 输出 PASS。
-6. **文档同步**：新增命令 -> 生成其参考页（`make api-docs` 会刷新 `docs/manual/commands/` 和 `INTERFACES.md`）；新增接口 -> 更新接口面表格；行为变更 -> 更新对应的用户手册页面。
-7. **CI 通过**：工作流在每次 PR 上都会运行构建、ISO 打包、宿主测试和可复现性门禁 - 仅在全部通过时才允许合并。
+1. **干净构建**：`make kernel` 带 `-Wall -Wextra -Werror` - 在
+   你的机器上*并且*在 CI 上（CI 的工具链常常更严格；multiboot2
+   packed-cast 与 rdrand setc 修复的存在，恰恰是因为运行器上更
+   严格的 GCC/GAS 抓住了本地构建接受的东西）。
+2. **宿主机测试**：`make test` - 零失败。
+3. **能启动**：`make run-bios` 和 `make run-uefi` - 两者都带着
+   `boot complete ... OK` 到达 `ush>` 提示符。
+4. **针对你所改动内容的深度测试** - [CONTRIBUTING.md](../root/CONTRIBUTING.md)
+   中的矩阵（存储 -> fstest；加密 -> cryptotest + HTTPS E2E；
+   看门狗/klog/健康 -> WP-12 E2E；启动路径 -> 28 项回归）。
+5. **可复现**：`make reproducible-check` 打印 PASS。
+6. **文档随同一个 PR**：新命令 -> 生成其参考页
+   （`make api-docs` 刷新 `docs/manual/commands/` 和
+   `INTERFACES.md`）；新接口 -> 表面表；行为变化 -> 对应的
+   手册页。
+7. **CI 绿**：工作流在每个 PR 上运行构建、ISO、打包、宿主机
+   测试和可复现性门禁 - 只有全绿才合并。
 
-## PR 描述撰写
+## 撰写 PR 描述
 
-- 变更内容与原因 - 提交信息已包含详细说明。
-- 你运行了哪些测试（命令 + 结果行，直接粘贴）。
-- 你刻意未完成的事项（范围边界）。
+- 改了什么、*为什么* - 细节由提交信息承载。
+- 你运行了哪些测试（命令 + 结果行，原样粘贴）。
+- 你有意不做的事（范围边界）。
 
-## 审核预期
+## 评审预期
 
-请准备好回答关于错误路径、DMA 边界以及硬件撒谎时会发生什么（截断的表、卡住的 NAK、返回垃圾数据的设备）的问题。项目自身的历史记录 - BUG-0136..0238 - 正是这些问题的目录；阅读其中几个修复提交是最好的准备方式。
+预期会收到关于错误路径、DMA 边界，以及硬件撒谎时会发生什么
+（被截断的表、卡死的 NAK、应答乱码的卡）的问题。这棵树自己的
+历史 - BUG-0136..0238 - 正是这类问题的目录；读几个那样的修复
+提交是最好的准备。

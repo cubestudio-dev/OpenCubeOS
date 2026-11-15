@@ -1,8 +1,8 @@
 {
- "count_v2_surface": 285,
+ "count_v2_surface": 292,
  "count_l0": 0,
  "count_l1_svc": 0,
- "count_l1_builtin": 11,
+ "count_l1_builtin": 8,
  "count_ush_svc_rows": 0,
  "ush_svc_dual_homed": [],
  "caliber_note": "count_l1_svc counts unique names attributed to their first home (L0 wins). The ush SVC_CMDS table itself carries 0 rows; the 0 dual-homed names () are registered both as L0 commands and as ush SVC rows, are attributed to L0 here, and remain callable from both shells.",
@@ -75,7 +75,7 @@
   },
   {
    "name": "alias",
-   "help": "name=val  set command alias",
+   "help": "",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -128,12 +128,6 @@
    "cat": "l1-app"
   },
   {
-   "name": "bg",
-   "help": "send a job to the background",
-   "where": "L1-builtin",
-   "cat": "ush"
-  },
-  {
    "name": "bt",
    "help": "ring-3 half of the v2.2.0 `bt` command",
    "where": "L1-app",
@@ -147,7 +141,7 @@
   },
   {
    "name": "cd",
-   "help": "[dir]  change directory (shell state)",
+   "help": "",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -260,6 +254,12 @@
    "cat": "l1-app"
   },
   {
+   "name": "disk-tool",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
    "name": "disk_rw_test",
    "help": "ring-3 half of the v2.2.0 `disk_rw_test` command",
    "where": "L1-app",
@@ -351,7 +351,7 @@
   },
   {
    "name": "env",
-   "help": "show environment variables",
+   "help": "",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -381,13 +381,13 @@
   },
   {
    "name": "exit",
-   "help": "not available (use shutdown / reboot)",
+   "help": "",
    "where": "L1-builtin",
    "cat": "ush"
   },
   {
    "name": "export",
-   "help": "VAR=val  set environment variable",
+   "help": "",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -410,10 +410,10 @@
    "cat": "l1-app"
   },
   {
-   "name": "fg",
-   "help": "[job]  bring a job to the foreground",
-   "where": "L1-builtin",
-   "cat": "ush"
+   "name": "files",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
   },
   {
    "name": "firewall",
@@ -587,7 +587,7 @@
    "name": "help",
    "help": "ring-3 L1 app",
    "where": "L1-app",
-   "cat": "l1-app"
+   "cat": "ush"
   },
   {
    "name": "help_a_test",
@@ -609,13 +609,19 @@
   },
   {
    "name": "history",
-   "help": "show command history",
+   "help": "",
    "where": "L1-builtin",
    "cat": "ush"
   },
   {
    "name": "hpet",
    "help": "ring-3 half of the v2.2.0 `hpet` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "hwinfo",
+   "help": "ring-3 L1 app",
    "where": "L1-app",
    "cat": "l1-app"
   },
@@ -720,12 +726,6 @@
    "help": "ring-3 half of the v2.2.0 `ixgbe_test` command",
    "where": "L1-app",
    "cat": "l1-app"
-  },
-  {
-   "name": "jobs",
-   "help": "list background jobs",
-   "where": "L1-builtin",
-   "cat": "ush"
   },
   {
    "name": "kill",
@@ -896,6 +896,12 @@
    "cat": "l1-app"
   },
   {
+   "name": "net-tool",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
    "name": "netstat",
    "help": "ring-3 L1 app",
    "where": "L1-app",
@@ -934,6 +940,18 @@
   {
    "name": "other_nic_test",
    "help": "ring-3 half of the v2.2.0 `other_nic_test` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "p0leak",
+   "help": "legacy flat L1 program",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "p2test",
+   "help": "ring-3 L1 app",
    "where": "L1-app",
    "cat": "l1-app"
   },
@@ -1030,6 +1048,12 @@
   {
    "name": "pmtimer",
    "help": "ring-3 half of the v2.2.0 `pmtimer` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "power",
+   "help": "ring-3 L1 app",
    "where": "L1-app",
    "cat": "l1-app"
   },
@@ -1232,8 +1256,14 @@
    "cat": "l1-app"
   },
   {
+   "name": "serial_encoding",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
    "name": "set",
-   "help": "show a variable",
+   "help": "",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -1288,6 +1318,12 @@
   {
    "name": "sound",
    "help": "ring-3 half of the v2.2.0 `sound` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "sound-tool",
+   "help": "ring-3 L1 app",
    "where": "L1-app",
    "cat": "l1-app"
   },
@@ -1354,6 +1390,12 @@
   {
    "name": "synctest",
    "help": "ring-3 half of the v2.2.0 `synctest` command",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
+   "name": "sysdiag",
+   "help": "ring-3 L1 app",
    "where": "L1-app",
    "cat": "l1-app"
   },
@@ -1485,7 +1527,7 @@
   },
   {
    "name": "unalias",
-   "help": "name  remove alias",
+   "help": "",
    "where": "L1-builtin",
    "cat": "ush"
   },
@@ -1503,7 +1545,7 @@
   },
   {
    "name": "update",
-   "help": "ring-3 half of the v2.2.0 `update` command",
+   "help": "ring-3 L1 app",
    "where": "L1-app",
    "cat": "l1-app"
   },

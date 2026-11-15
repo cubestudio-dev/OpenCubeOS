@@ -6,7 +6,7 @@
 
 # update
 
-`update` - ring-3 half of the v2.2.0 `update` command
+`update` - ring-3 L1 app
 
 领域：[其他](index.md#other)
 

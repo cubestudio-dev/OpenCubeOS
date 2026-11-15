@@ -4,12 +4,10 @@
      处理函数源码中的 usage 字符串。命令帮助文本保留系统
      原文（英文）。 -->
 
-# jobs
+# sysdiag
 
-`jobs` - list background jobs
+`sysdiag` - ring-3 L1 app
 
-家：ush 内建 —— `src/L1/ush/main.c` 的 streq 派发（完全运行于 ring 3）。
-
-领域：[ush（ring-3 shell：SVC 行 + 内建）](index.md#ush)
+领域：[其他](index.md#other)
 
 完整命令索引：[commands](index.md) —— 或在运行中的系统内输入 `help -a` / `help -w`。

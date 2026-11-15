@@ -1,4 +1,3 @@
-<!-- GENERATED mirror of the repository-root CONTRIBUTING.md - maintained by tools/gen_api_docs.py (make api-docs); the source of truth is the root file. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Contributing to Open Cube OS
 

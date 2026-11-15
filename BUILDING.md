@@ -138,7 +138,7 @@ make CONFIG_TUI=n       # one-shot override
 Options: `CONFIG_TUI`, `CONFIG_CHINESE`, `CONFIG_NVME`, `CONFIG_AHCI`,
 `CONFIG_VIRTIO_BLK`. `CONFIG_CHINESE=n` forces `CONFIG_TUI=n`.
 A `CONFIG_TUI=n CONFIG_CHINESE=n` build drops the 9 TUI commands
-from the `oc>` surface (99 -> 90) and turns the 8 chinese-locale
+from the ush surface and turns the 8 chinese-locale
 SVC ops into clean -1 errors (the command bodies live in the
 filtered trees; op numbers stay stable); the full configuration
 boots 99 L0 commands with 251 command homes in total

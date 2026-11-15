@@ -41,7 +41,7 @@ make run-bios      (banner + ring-3 ush> + boot complete)
 make run-uefi      (same, through OVMF)
 ```
 
-The default boot lands in the ring-3 `ush>` shell; `oc>` appears
+The default boot lands in the ring-3 `ush>` shell; the 2.x `oc>` prompt appears
 after `exit` (or on launcher failure - the recovery posture).
 
 ## 4. Deep test gates (on the built ISO)
