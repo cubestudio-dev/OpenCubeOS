@@ -40,33 +40,37 @@ window.SITE_DATA = {
      carries no ISO binaries (see SYNC-NOTES.md) - the dev entries
      link the GitHub Release download URLs directly. */
   dev: {
-    version: "3.0.0-WP06g3",
-    build: 414,
-    date: "2026-11-05",
+    version: "3.0.0-WP-l1apps-merge",
+    build: 455,
+    date: "2026-11-15",
     assets: {
       opencube: {
-        name: "opencube-3.0.0-WP06g3.iso",
-        size: 4210688,
-        size_h: "4.0 MiB",
-        sha256: "34bcccdbcf8f66ab9e70bcb8c9a516a4a491d28c3dd9b47d970ee1b37c93fef9",
-        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP06g3/opencube-3.0.0-WP06g3.iso"
+        name: "opencube-3.0.0-WP-l1apps-merge.iso",
+        size: 4257792,
+        size_h: "4.1 MiB",
+        sha256: "9ab557bd432c96f9f980747bef6e1d0afd9fa46415087670bd4c714c6c49147b",
+        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP-l1apps-merge/opencube-3.0.0-WP-l1apps-merge.iso"
       },
       ocse: {
-        name: "ocse-3.0.0-WP06g3.iso",
-        size: 5038080,
-        size_h: "4.8 MiB",
-        sha256: "0abb622cf3e88641db227fcec1082ecdfa42c367d6eb85247524e4a3923cf3ff",
-        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP06g3/ocse-3.0.0-WP06g3.iso"
+        name: "ocse-3.0.0-WP-l1apps-merge.iso",
+        size: 5089280,
+        size_h: "4.9 MiB",
+        sha256: "9eddea98b437973684bade9861733a8b9909d3ac2980caa5f20d1fc18c17db8a",
+        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP-l1apps-merge/ocse-3.0.0-WP-l1apps-merge.iso"
       }
     }
   },
   stats: {
-    commands: 285,
-    interfaces: 190,
+    commands: 296,
+    interfaces: 208,
     syscalls: 54,
-    lines: "131,230"
+    lines: "158,474"
   },
   history: [
+    { version: "3.0.0-WP-fix-p2-p3-cleanup", date: "2026-11-14",
+      iso_url: "downloads/opencube-3.0.0-WP-fix-p2-p3-cleanup.iso",
+      iso_sha: "a4d587f2c82fbf6744739d5743a97f76770dd36bc8a1298c39a06bfcd9789a15",
+      iso_size: 4210688 },
     { version: "3.0.0-WP06f", date: "2026-11-04",
       iso_url: "downloads/opencube-3.0.0-WP06f.iso",
       iso_sha: "9d72a07354ab11b47b867d4310ffe20cfbf804e3816cee5515361824ff413dff",
