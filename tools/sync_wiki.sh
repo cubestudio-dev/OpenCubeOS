@@ -36,6 +36,7 @@ map_page() {
     case "$1" in
         Home)                   echo "docs/index.md" ;;
         Getting-Started)        echo "docs/manual/getting-started.md" ;;
+        Mega-Apps)              echo "docs/manual/mega-apps.md" ;;
         Boot-Modes)             echo "docs/manual/boot-modes.md" ;;
         Shell-Basics)           echo "docs/manual/shell-basics.md" ;;
         Filesystems)            echo "docs/manual/filesystems.md" ;;
@@ -77,9 +78,10 @@ map_page() {
         L1-Sound-Drivers)       echo "docs/l1/driver-snd.md" ;;
         L1-OTA)                 echo "docs/l1/ota.md" ;;
         L1-Watchdog-Health)     echo "docs/l1/watchdog-health.md" ;;
-        L1-Shell-Bridge)        echo "docs/l1/shell-bridge.md" ;;
+        L1-App-Anatomy)         echo "docs/l1/app-anatomy.md" ;;
         L1-TUI-Extensions)      echo "docs/l1/tui-ext.md" ;;
-        L1-Writing-Modules)     echo "docs/l1/writing-modules.md" ;;
+        L1-Writing-Apps)        echo "docs/l1/writing-apps.md" ;;
+        L1-Wizard-Library)      echo "docs/l1/wizard-library.md" ;;
         L1-Solib-Loader)        echo "docs/l1/solib-loader.md" ;;
         Drivers-Storage)        echo "docs/drivers/storage.md" ;;
         Drivers-Network)        echo "docs/drivers/network.md" ;;
@@ -120,7 +122,7 @@ map_page() {
 }
 
 PAGES=(
-    Home Getting-Started Boot-Modes Shell-Basics Filesystems Networking
+    Home Getting-Started Mega-Apps Boot-Modes Shell-Basics Filesystems Networking
     Update-and-OTA TUI-Guide Chinese-Console Recovery User-Manual
     Command-Reference Building-from-Source Architecture-Overview
     Interfaces-Reference FAQ Contributing Developer-Environment
@@ -130,8 +132,8 @@ PAGES=(
     Architecture-Ring3 Architecture-VFS Architecture-Network
     Architecture-Driver-Model Architecture-TUI Architecture-OTA
     L1-Overview L1-Surface-Map L1-Block-Drivers L1-NIC-Drivers
-    L1-Sound-Drivers L1-OTA L1-Watchdog-Health L1-Shell-Bridge
-    L1-TUI-Extensions L1-Writing-Modules L1-Solib-Loader Drivers-Storage
+    L1-Sound-Drivers L1-OTA L1-Watchdog-Health L1-App-Anatomy
+    L1-Wizard-Library L1-TUI-Extensions L1-Writing-Apps L1-Solib-Loader Drivers-Storage
     Drivers-Network Drivers-USB Drivers-Sound Drivers-Input Drivers-Display
     Drivers-PCI Drivers-ACPI Drivers-I2C Drivers-Time Drivers-Wireless
     Drivers-Bluetooth Drivers-SD-Camera Drivers-Misc-SCSI
@@ -325,7 +327,7 @@ for p in "${PAGES[@]}"; do
             python3 - "$OC_ROOT" zh <<'PYEOF'
 import json, os, re, sys
 root, lang = sys.argv[1], sys.argv[2]
-sd = os.path.join(root, "website", "assets", "site-data.js")
+sd = os.path.join(os.environ.get("OC_SITEDATA", os.path.join(root, "website", "assets", "site-data.js")))
 txt = open(sd).read()
 ver = re.search(r'version: "([^"]+)"', txt)
 build = re.search(r'build: (\d+)', txt)
@@ -357,7 +359,7 @@ PYEOF
             python3 - "$OC_ROOT" en <<'PYEOF'
 import json, os, re, sys
 root, lang = sys.argv[1], sys.argv[2]
-sd = os.path.join(root, "website", "assets", "site-data.js")
+sd = os.path.join(os.environ.get("OC_SITEDATA", os.path.join(root, "website", "assets", "site-data.js")))
 txt = open(sd).read()
 ver = re.search(r'version: "([^"]+)"', txt)
 build = re.search(r'build: (\d+)', txt)
