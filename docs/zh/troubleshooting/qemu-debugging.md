@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# QEMU 调试技巧
+# QEMU 调试技术
 
-## 捕获全部内容
+## 捕获一切
 
 ```
 qemu-system-x86_64 -m 512 -cdrom build/opencube.iso \
@@ -9,16 +9,16 @@ qemu-system-x86_64 -m 512 -cdrom build/opencube.iso \
     -netdev user,id=n1 -device e1000,netdev=n1
 ```
 
-串行日志就是启动过程记录 - 每个子系统都会输出一个 `OK`。
+串口日志**就是**启动叙事——每个子系统一行 `OK`。
 
-## 观察宿主机，而不仅仅是虚拟机
+## 监视整机，而不只是客户机
 
 ```
 -d int,cpu_reset,guest_errors -D qemu.log    (interrupts/resets/errors)
 -monitor stdio                               (QEMU monitor alongside)
 ```
 
-## 使用 GDB 调试内核
+## GDB 接入内核
 
 ```
 qemu-system-x86_64 ... -s -S        # gdb stub, frozen at reset
@@ -28,12 +28,17 @@ gdb build/opencube_base.elf          # the pre-strip ELF has symbols
 (gdb) continue
 ```
 
-`make kernel` 命令特意保留了 `build/opencube_base.elf` 文件，就是为了这个目的 - 最终的 `build/opencube.elf` 文件已被剥离调试符号。
+`build/opencube_base.elf` 正是为此被 `make kernel` 保留——最终
+的 `build/opencube.elf` 是剥离过的。
 
-## 确定性回放
+## 确定性复现
 
-构建是可复现的 - 相同的源代码树会产生字节完全相同的 ELF 文件，因此一个可以复现两次的崩溃，两次产生的字节也是相同的。在网络测试中，可以结合 QEMU 自身的 `-icount` 参数来获得时间稳定性。
+构建是可复现的——同一棵代码树产出逐字节相同的 ELF，因此
+你能复现两次的崩溃，两次都是同一批字节。配合 QEMU 自带的
+`-icount` 可让网络测试的时序保持稳定。
 
-## 一目了然的设备矩阵
+## 设备矩阵一览
 
-点亮各个驱动家族所需的 QEMU 参数在[驱动手册](../drivers/storage.md)中已制表呈现 - 请精确附加你要调试的设备。
+点亮各驱动家族的 QEMU 参数表列在
+[驱动手册](../drivers/storage.md)中——精确挂上你正在调试的那个
+设备。

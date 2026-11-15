@@ -1,24 +1,31 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Wiki 同步机制
 
-`tools/sync_wiki.sh` - docs/ 目录树也存在于 GitHub Wiki 上。
+`tools/sync_wiki.sh`——docs/ 树同时活在 GitHub Wiki 上。
 
-## 同步内容
+## 同步什么
 
-Wiki 获取的是经过筛选的页面集（首页、快速上手、构建、架构概览、调试与 QEMU、L1 扩展指南、用户手册、常见问题、发布说明，以及各领域的手册），这些页面都从相同的 `docs/` 源文件生成 - 一个创作源，两个输出（网站上的文档中心，以及 GitHub 上的 Wiki）。
+Wiki 得到的是精选页面集（Home、Getting Started、Building、
+Architecture Overview、Debugging & QEMU、L1 Extension Guide、
+User Manual、FAQ、Release Notes，外加各领域手册），由同一批
+`docs/` 源渲染——一个写作面，两个输出（网站上的文档中心、
+GitHub 上的 Wiki）。
 
-## 如何同步
+## 怎么做
 
-1. 脚本将 `docs/` 页面映射到 Wiki 页面名称（映射表存储在脚本中）。
-2. 将相对链接重写为 Wiki 页面链接。
+1. 脚本把 `docs/` 页面映射到 Wiki 页面名（映射表在
+   脚本里）。
+2. 把相对链接改写为 Wiki 页面链接。
 3. 克隆 `{repo}.wiki`，写入页面，提交，推送。
 
 ## 验证
 
-- 所有映射的 Wiki 页面均存在（脚本会打印列表）。
-- 链接检查：映射集合中没有红色链接。
-- 内容一致性：Wiki 页面和 docs 页面渲染相同的 markdown 源（脚本在推送前会比较它们的差异）。
+- 每个被映射的 Wiki 页面都存在（脚本会打印清单）。
+- 链接检查：映射集之内没有红链。
+- 内容相等：Wiki 页面与文档页面渲染同一
+   份 markdown 源（脚本推送前会对它们做 diff）。
 
-## 运行时机
+## 何时运行
 
-在发布时（docs/ 更新合并后）以及针对仅 docs 的更新按需运行。
+发布时（docs/ 变更落地之后），以及仅文档更新时按需
+运行。

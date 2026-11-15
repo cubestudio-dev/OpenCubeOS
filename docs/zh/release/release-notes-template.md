@@ -1,11 +1,11 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 发布说明模板
 
-每个 GitHub 发布说明都遵循以下格式（请填写每个部分；
-"none"（无）是可接受的、诚实的值）：
+每份 GitHub Release 说明都遵循这个形状（填满每一节；
+"none" 是一个可接受的、诚实的取值）：
 
 ```markdown
-# v<版本>
+# v<version>
 
 <one-paragraph summary: what this work package delivers>
 
@@ -47,5 +47,6 @@
 (or: "None known.")
 ```
 
-三个 SHA256 值是根据上传的确切字节计算的；
-网站的下载页面必须显示相同的三个值（update_website 脚本会机械地保证这一点）。
+三个 SHA256 值从上传的确切字节计算得出；网站的下载页必须
+显示同样的三个值（update_website 脚本在机制上保证这一
+点）。
