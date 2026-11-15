@@ -36,8 +36,7 @@ gate asserts).
 ## The TUI command family
 
 `tui` (desktop), `tui-test` (the selftests), `tui-hw`, `tui-net`,
-`tui-sysinfo [page]`, `tui-time`, `tui-drv [page]`, `tui-sys
-[page]`, `tui-ext` - all registry programs, all also reachable
+`tui-sysinfo [page]`, `tui-time`, `tui-drv [page]`, `tui-sys [page]`, `tui-ext` - all registry programs, all also reachable
 through the shell while the desktop runs.
 
 ## TUI and the merged apps

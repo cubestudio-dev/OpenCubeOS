@@ -22,20 +22,31 @@ the file that implements what they describe.
 - Architecture questions: [ARCHITECTURE.md](root/ARCHITECTURE.md) then
     the deep dives under [arch/](arch/)
 - Something broke: [Troubleshooting](troubleshooting/common-errors.md)
+- Every command, including the hidden ones:
+    [Function dictionary](manual/function-dictionary.md) then
+    [Hidden commands & test stubs](manual/hidden-commands.md)
+- Every error the system can emit: [Error codes](troubleshooting/error-codes.md)
+    then the [full error catalog](troubleshooting/error-catalog.md)
+- The whole picture, hidden corners included:
+    [System map](arch/system-map.md), [tree map](arch/tree-map.md),
+    [hidden mechanisms](arch/hidden-mechanisms.md)
+- Every interface: [L1SVC dictionary (208 ops)](dev/interface-dictionary.md),
+    [syscall reference (54)](dev/syscall-reference.md),
+    [kernel data structures](dev/data-structures.md)
 - The merged-app story: [3.0.0-WP-l1apps-merge](release/3.0.0-WP-l1apps-merge.md)
 
 ## The library
 
 | Section | Contents |
 |---------|----------|
-| [manual/](manual/) | User manual: the mega-apps, boot, shell, files, network, TUI, OTA, recovery + all 292 command pages |
-| [dev/](dev/) | Developer handbook: environment, build, QEMU, debugging, tests, PR bar, portability, style |
-| [arch/](arch/) | Architecture deep dives: boot flow, memory, scheduler, interrupts, ring 3, VFS, network, drivers, TUI |
+| [manual/](manual/) | User manual: the mega-apps, boot, shell, files, network, TUI, OTA, recovery, the 296-command function dictionary, hidden commands & 93 test stubs + all 292 command pages |
+| [dev/](dev/) | Developer handbook: environment, build, the L1SVC interface dictionary (208 ops), syscall reference, data structures, call chains, debug handbook, hidden debug interfaces, writing services, QEMU, tests, PR bar |
+| [arch/](arch/) | System anatomy: the system map, the full repository tree map, hidden mechanisms, private headers + deep dives: boot flow, memory, scheduler, interrupts, ring 3, VFS, network, drivers, TUI |
 | [l1/](l1/) | Ring-3 app development: the surface map, app anatomy, the wizard library, writing apps, service families |
 | [drivers/](drivers/) | Driver bring-up manuals: 16 families |
-| [troubleshooting/](troubleshooting/) | Error catalogues and QEMU debugging |
-| [internals/](internals/) | Subsystem internals: watchdog, klog, health, crash dump, crypto seeding, OTA/A-B |
-| [release/](release/) | Release engineering: process SOP, versioning, website + wiki sync |
+| [troubleshooting/](troubleshooting/) | Error library: 61 errno codes + panics, the all-subsystem error catalog, silent failures, boot/network/storage/QEMU guides |
+| [internals/](internals/) | Subsystem internals: watchdog, klog, health, crash dump, crypto seeding, OTA/A-B, the OCIRE guard channel |
+| [release/](release/) | Maintainer guide: build system reference, guard scripts, CI gates, tool inventory (117), disaster recovery & push channels, process SOP, versioning, website + wiki sync |
 
 ## Quick facts (3.0.0-WP-l1apps-merge)
 

@@ -33,16 +33,12 @@ GAS 拒绝该操作数大小。现在它是 `u8`。
 ## 编译标志契约
 
 内核标志固定在 Makefile 中：
-`-ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone
--mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel
--fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g
--std=gnu11`。新标志属于 Makefile（一处），不要散落在各个文件
+`-ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11`。新标志属于 Makefile（一处），不要散落在各个文件
 里。
 
 ## 交叉构建
 
 `make ARCH=arm64` / `ARCH=riscv` 使用 aarch64/riscv64 交叉
-工具链和它们自己的链接规则（`--hash-style=sysv
---build-id=none`；`-n` 与 PHDR 布局不兼容）。点亮用的 shell 是
+工具链和它们自己的链接规则（`--hash-style=sysv --build-id=none`；`-n` 与 PHDR 布局不兼容）。点亮用的 shell 是
 真实的（PL011/NS16550A 除数、定时器计数、心跳）但有意保持
 最小 - x86_64 才是功能完备的架构。

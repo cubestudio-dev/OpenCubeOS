@@ -3,6 +3,11 @@
 
 | 页面 | 内容概览 |
 |------|----------------|
+| [构建系统全量参考](build-reference.md) | 每个 Makefile 目标、变量、宏与 .mk 包含 |
+| [架构守护脚本](guard-scripts.md) | check_deps / check_bss / 注册表门禁等 |
+| [CI 门禁与发布链](ci-gates.md) | CI 步骤、硬断言与 12 点发布链 |
+| [工具清单](tool-inventory.md) | tools/ 全部 117 个文件，每个一行 |
+| [灾备与推送通道](disaster-recovery.md) | 双仓同步、沙盒重置恢复、受限出口推送通道 |
 | [流程](process.md) | 发布 SOP，门禁一个不少 |
 | [版本管理](versioning.md) | 阶段名、构建号、承诺 |
 | [发布说明模板](release-notes-template.md) | 强制的说明格式 |

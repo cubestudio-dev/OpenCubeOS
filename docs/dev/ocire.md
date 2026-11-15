@@ -122,13 +122,10 @@ ocire/
                         supervisor default, full shell, direct OCOS)
 ```
 
-Build targets: `make ocire-kernel`, `make ocire-iso`, `make
-ocire-disk`, `make ocire-test`, `make ocire-dual-test`, `make
-ocire-shell-test` (run targets `ocire-run-bios/uefi[-gui]` are also
+Build targets: `make ocire-kernel`, `make ocire-iso`, `make ocire-disk`, `make ocire-test`, `make ocire-dual-test`, `make ocire-shell-test` (run targets `ocire-run-bios/uefi[-gui]` are also
 available).  Compilation uses the same `-Wall -Wextra -Werror`
 zero-warning gate as the OCOS kernel; CI runs the OCIRE build on
-every push.  The OCIRE object files carry their own `-include
-$(OCIRE_OBJ_C:.o=.d)` header-dependency tracking in ocire.mk (the
+every push.  The OCIRE object files carry their own `-include $(OCIRE_OBJ_C:.o=.d)` header-dependency tracking in ocire.mk (the
 top-level Makefile only includes the OCOS kernel's .d files - a
 header change in ocire/ used to silently link stale objects; found
 and fixed live by the WP-02 battery).
@@ -182,8 +179,7 @@ running OCOS with both disks attached:
 - `df` — only OCOS volumes are mounted; nothing from the OCIRE disk.
 
 Honest boundary (also measured, `isolation_rawdecl.log`): whole-disk
-device nodes still exist — `disk_rw_test hda` and `mkfs.fat32 hda
-confirm` both work on a throwaway copy, exactly like Linux root with
+device nodes still exist — `disk_rw_test hda` and `mkfs.fat32 hda confirm` both work on a throwaway copy, exactly like Linux root with
 `/dev/sdb`.  Blocking administrator-level whole-disk operations
 requires an OCOS block-layer policy — an OCOS kernel change this
 work package explicitly forbids — and belongs to WP-03 (process

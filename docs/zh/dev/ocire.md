@@ -110,9 +110,7 @@ ocire/
                         supervisor default, full shell, direct OCOS)
 ```
 
-构建目标：`make ocire-kernel`、`make ocire-iso`、`make
-ocire-disk`、`make ocire-test`、`make ocire-dual-test`、`make
-ocire-shell-test`（运行目标 `ocire-run-bios/uefi[-gui]` 同样
+构建目标：`make ocire-kernel`、`make ocire-iso`、`make ocire-disk`、`make ocire-test`、`make ocire-dual-test`、`make ocire-shell-test`（运行目标 `ocire-run-bios/uefi[-gui]` 同样
 可用）。编译使用与 OCOS 内核相同的 `-Wall -Wextra -Werror`
 零警告门禁；CI 在每次 push 时运行 OCIRE 构建。OCIRE 的目标
 文件在 ocire.mk 中携带自己的 `-include $(OCIRE_OBJ_C:.o=.d)`

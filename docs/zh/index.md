@@ -20,20 +20,29 @@ Shell、TUI 桌面、中文控制台、8 个融合大应用 —— 都在
 - 架构问题：[ARCHITECTURE.md](root/ARCHITECTURE.md) 然后
     [arch/](arch/) 下的深度剖析
 - 出了问题：[问题排查](troubleshooting/common-errors.md)
+- 每一条命令，含隐藏的：[全量功能字典](manual/function-dictionary.md)
+    然后 [隐藏命令与测试桩](manual/hidden-commands.md)
+- 系统能发出的每一个错误：[错误码全表](troubleshooting/error-codes.md)
+    然后 [全场景报错库](troubleshooting/error-catalog.md)
+- 完整全景，含隐藏角落：[系统全景](arch/system-map.md)、
+    [仓库目录全景图](arch/tree-map.md)、[隐藏机制全集](arch/hidden-mechanisms.md)
+- 全部接口：[L1SVC 接口字典（208 操作）](dev/interface-dictionary.md)、
+    [系统调用参考（54 个）](dev/syscall-reference.md)、
+    [内核数据结构](dev/data-structures.md)
 - 融合应用的故事：[3.0.0-WP-l1apps-merge](release/3.0.0-WP-l1apps-merge.md)
 
 ## 文档库
 
 | 板块 | 内容 |
 |------|------|
-| [manual/](manual/) | 用户手册：大应用、启动、Shell、文件、网络、TUI、OTA、恢复 + 全部 292 个命令参考页 |
-| [dev/](dev/) | 开发者手册：环境、构建、QEMU、调试、测试、PR 门槛、可移植性、风格 |
-| [arch/](arch/) | 架构深度剖析：启动流、内存、调度器、中断、Ring 3、VFS、网络、驱动、TUI |
+| [manual/](manual/) | 用户手册：大应用、启动、Shell、文件、网络、TUI、OTA、恢复、296 条命令全量功能字典、隐藏命令与 93 个测试桩 + 全部 292 个命令参考页 |
+| [dev/](dev/) | 开发者手册：环境、构建、L1SVC 接口字典（208 操作）、系统调用参考、数据结构、调用链、调试手册、隐藏调试接口、编写后台服务、QEMU、测试、PR 门槛 |
+| [arch/](arch/) | 系统总览：系统全景、全仓目录全景图、隐藏机制、私有头文件 + 深度剖析：启动流、内存、调度器、中断、Ring 3、VFS、网络、驱动、TUI |
 | [l1/](l1/) | Ring-3 应用开发：接口面地图、应用解剖、向导库、应用编写教程、服务家族 |
 | [drivers/](drivers/) | 驱动上手手册：16 个家族 |
-| [troubleshooting/](troubleshooting/) | 错误目录与 QEMU 调试 |
-| [internals/](internals/) | 子系统内幕：看门狗、klog、健康、崩溃转储、密码学种子、OTA/A-B |
-| [release/](release/) | 发布工程：流程 SOP、版本号、网站与 Wiki 同步 |
+| [troubleshooting/](troubleshooting/) | 报错库：61 个 errno + panic、全子系统报错目录、静默失败、启动/网络/存储/QEMU 指南 |
+| [internals/](internals/) | 子系统内幕：看门狗、klog、健康、崩溃转储、密码学种子、OTA/A-B、OCIRE 守卫通道 |
+| [release/](release/) | 维护者手册：构建系统全量参考、守护脚本、CI 门禁、工具清单（117）、灾备与推送通道、流程 SOP、版本号、网站与 Wiki 同步 |
 
 ## 速览（3.0.0-WP-l1apps-merge）
 

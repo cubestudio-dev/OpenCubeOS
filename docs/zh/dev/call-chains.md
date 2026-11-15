@@ -1,0 +1,274 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+# 内部调用链
+
+对阅读或修改内核时最重要的六条路径的解剖。每条都以带编号的
+阶段呈现，附 触发 -> 处理 -> 影响 契约与拥有各阶段的文件。
+地址、常量与错误字符串均取自源码；这里没有任何臆测。
+
+## 1. execve 路径（运行一个程序）
+
+**触发**：ush 解析到一条非内建的命令行（或某程序直接调用
+`SYS_EXECVE`，或 `job_create`/`run` 包装了它）。
+
+1. **ush 分发**（`ocos/l1apps/ush/main.c`）：切分该行
+   （展开 `$VAR`、处理管道/重定向），argv 装配进静态存储，
+   子进程中 `fork()` 然后 `execve(name, argv)`；父进程
+   `wait4`（前台）或记录一个作业槽位（后台 `&`）。
+2. **系统调用**（`SYS_EXECVE` = 11，`core_usermode.c`）：
+   经 `core_userprog_lookup(name, &size)` 查找名字 —— 在
+   生成的 `OC_USERPROGS[]` 注册表（`userprogs_data.h`，
+   284 个条目，各是自己的 gzip 流；唯独 ush 保持原始，
+   因为 `OC_L1_APP_DECL` 需要编译期 ELF 指针）之上做共享
+   的名字到内嵌 ELF 查找。
+3. **惰性解压**（`core_usermode.c` + `core_lib_gzip.c`）：
+   在一个应用的第一次 exec 时，gzip blob 被充气进一个
+   每程序堆缓存（`g_prog_cache[OC_USERPROGS_COUNT]`）；
+   之后的 exec 复用缓存的原始 ELF。解压器是完整的
+   RFC 1951/1952 实现（stored/fixed/dynamic Huffman、
+   可恢复的流式喂入、CRC32+ISIZE 校验）。
+4. **ELF 加载**（`core_usermode.c`）：ET_EXEC 映射到固定
+   用户布局（代码基址 0x400000）；ET_DYN（PIE）路由到
+   加载器家族（`services/loader`）：解析 PT_INTERP，把
+   ld.so 映射到固定的 0x10000000，主程序加上已知 .so
+   镜像落在各自的递增基址，经 `user_aslr_page_slice`
+   做 ASLR（两次 rdtsc 采样 + splitmix64 终结器），然后
+   控制权转给 ld.so 的入口 —— ld.so（ring 3）解析
+   .dynamic、修补 GOT/PLT 并跳转到 `app_main` 的调用者
+   `_start`（共享的 `crt0.asm` 读 `[rsp]`=argc /
+   `[rsp+8]`=argv、对齐、调用 `app_main`）。
+5. **地址空间构造**：全新 PML4；拷贝内核 PML4[1..3]；
+   PRIVATE PDPT[0]+PD0（内核 512 x 2 MiB 大页 PDE 的
+   副本）；PD0[2]（0x400000-0x600000）替换为一个*空* PT
+   （绝不预填内核物理页）；栈顶 0x40000000（64 KiB）。
+6. **调度**：新任务占用 16 个用户进程槽位 / 32 个任务槽位
+   之一，默认优先级 15；父进程的 wait4 在退出后由统一
+   回收器（`user_process_reap_resources`）运行时完成 ——
+   它从 tick 与 yield 两处、在 cli 之下运行
+   （BUG-0282 双重释放修复）。
+
+**影响**：首系统调用门禁 —— 默认 L1 入口
+（pid == `g_l1_entry_pid`）的第一个系统调用翻转
+`OCST_STAGE_L1_READY`，即热路径上的一次性启动状态加载。
+
+## 2. 一次 L1SVC 调用的端到端
+
+**触发**：一个 ring-3 包装调用
+`syscall5(SYS_L1SVC, cat, op, arg, out, cap)`。
+
+1. **ring-3 包装**（`ocos/interface/l1_lib.h`）：
+   `l1svc_main` 把 argv 拼成 256 字节参数行；`out` 是
+   静态 32 KiB BSS 缓冲区。
+2. **入口**：`int 0x80` -> IDT 向量 128（DPL=3 门）->
+   stub 压入 15 个 GPR + 伪造错误码 ->
+   `arch_isr_dispatch` -> `core_syscall_dispatch(frame)`；
+   `r8`（第 5 参，cap）被暂存进 `g_syscall_arg5`。
+3. **sys_l1svc**
+   （`services/sysapi/src/svc_sysapi_syscall.c`）：校验
+   out/cap（1..32768，或 0/0 的发后即忘拼法），把 `arg`
+   拷入 256 字节内核缓冲区（cat OCIRE 为 4096），`sti`。
+4. **服务分发**（`services/svc_framework.c`）：
+   `svc_framework_dispatch(cat, op, arg, out, cap)` 扫描
+   `s_svcs[64]` 找精确匹配的类别字符串并调用该服务的
+   `l1_dispatch(op, arg, out, cap)`。
+5. **kcap 捕获**（`kernel/core_kcap.c`）：捕获式 op 运行在
+   `core_kcap_run_fn(fn, arg, out, cap)` 之内 —— 激活期间
+   捕获钩子*就是*控制台钩子（唯一槽位）：字符收集进
+   `out`，帧缓冲绘制与串口 tee 被压制，捕获可叠至 4 层
+   （只有最内层的活跃捕获接受数据），溢出被标记、绝不
+   静默截断；最后一个捕获结束时重装基础钩子（kmain
+   安装的启动串口 tee）。
+6. **返回**：`cli`；服务自身的非零退出状态仍算调用成功 ——
+   只有不可路由的 cat/op（或 rc&lt;0 且 out 为空）返回 -1；
+   否则回拷 NUL 结尾的文本并返回 0。信号投递（若有）
+   发生在处理函数之后、`iretq` 之前。
+
+**影响**：这唯一的一扇门承载全部 208 个 op；`sti/cli`
+窗口正是让 op 体内的设备等待循环可以 tick 驱动、而不是
+冻住整台机器的原因。
+
+## 3. 网络接收路径
+
+**触发**：一帧到达 NIC（或 10 ms 软定时器触发轮询）。
+
+1. **驱动层**：e1000 环（`e1000_desc_t`，2048 字节缓冲区）/
+   virtio-net 队列（`net_virtq_*`，VIRTIO_BUF_SIZE
+   2048）/ WP-10b 框架网卡暴露
+   `driver_nic_ops_t.recv(dev, buf, maxlen)` —— 轮询式，
+   返回一帧（>0）、无帧时 0、出错 -1。
+2. **轮询引擎**（`services/net/src/svc_net_core.c`）：
+   `net_start_timer()` 注册
+   `core_timer_register_periodic(net_timer_cb, NULL, 10)`
+   —— 每 **10 ms** 一次 `net_poll`；`net_poll` 也在
+   `net_recv` 的等待循环中从线程上下文被调用（套接字读
+   阻塞得富有产出）。
+3. **以太网解复用**（`eth_hdr_t`，类型 ARP 0x0806 / IP
+   0x0800）：ARP 喂给 16 项缓存
+   （`g_arp_cache[ARP_CACHE_SIZE]`）；IP 继续。
+4. **IP**（`net_ip_hdr_t`）：分片重组
+   （`IP_FRAG_MAX_FRAGS 8`，8*1480 缓冲区，5 秒超时；
+   重组/丢弃/驱逐统计 —— BUG-0210）；坏校验和数据报
+   被计数并丢弃（`net_rx_bad_checksum`，BUG-0072）。
+5. **Netfilter INPUT 链**（`g_nf_rules[NF_MAX_RULES=32]`，
+   conntrack `g_nf_ct[32]`，60 秒超时；
+   ACCEPT/DROP/REJECT，NEW/ESTABLISHED）：DROP 在此终结
+   遍历并计数。
+6. **L4 解复用**：ICMP echo -> ping 应答器；UDP -> 32 项
+   处理程序表（`g_udp_handlers`，DHCP 68/67、DNS 53
+   客户端）；TCP -> 32 连接引擎（内核堆上的
+   `net_tcp_conn_t`，约 520 KiB）：定序、SACK 块、乱序
+   缓存、CUBIC 拥塞窗口（RFC 8312 整数数学，
+   `cubic_state_t`）、带 srtt/rttvar + Karn 规则的 RTO、
+   时间戳、窗口缩放。
+7. **套接字**（`g_sockets[MAX_SOCKETS=32]`，堆）：
+   `SYS_NETRECV` 找到该套接字的 rx 缓冲区（TCP rx_buf
+   8192 —— WP-09-FIX BUG-002 之前是 2048）并拷贝到用户
+   缓冲区；被阻塞的读方被唤醒。
+
+**影响**：`netstat`/`tcpstats` 读的正是这条链所改动的
+那些表（`net_stats_t` 计数器、`g_tcp_conns[]` CUBIC
+内部状态）；`net_e1000_resume()` 在 ACPI S3 唤醒后重放
+legacy e1000 寄存器编程。
+
+## 4. 块 I/O 路径
+
+**触发**：一个文件系统（或分区解析器，或安装器）读或写
+扇区。
+
+1. **fs 层**（services/fs）：FAT32/exFAT/ext4 经
+   `driver_block_read/write_sectors`（下标形式）或指针
+   形式 `driver_block_read/write(dev, lba, count, buf)`
+   读写元数据与数据 —— 绝不直连驱动。
+2. **缓存门**（`services/block/src/svc_block_cache.c`）：
+   按 (dev_idx, lba) 咨询 64 槽位 LRU 写回缓存
+   （`driver_block_cache_slot_t`，共 32 KiB）；命中更新
+   `last_used`；未命中挑选牺牲者 —— 先空槽、再按 LRU
+   顺序，且脏牺牲者只在其写回*成功*后才被释放
+   （BUG-0116：旧代码忽略写回返回值并静默丢数据）；
+   若所有脏槽位都失败，调用方退回写通。
+3. **设备分发**（`svc_block_drivers.c`）：运行设备的
+   `driver_block_ops_t.read/write`；`driver_block_flush(dev)`
+   在推完脏扇区后调用 `.flush`（可选）（ATA FLUSH CACHE /
+   NVMe Flush / virtio-blk FLUSH）。
+4. **驱动**（drivers/storage）：ATA PIO LBA28/LBA48 或
+   Bus-Master DMA（PRDT 在 BAR4，保留 PIO 回退）；AHCI
+   经每端口 4 KiB 页对齐跳板缓冲执行 READ/WRITE DMA EXT，
+   按至多 8 扇区分块（每块一条 PRDT 项）；NVMe Read/Write
+   （0x02/0x01）以 64 位 PRP 走两对 I/O 队列；
+   virtio-blk 请求/应答描述符。
+5. **DMA 纪律**：传输缓冲区遵守堆的 32 字节头/16 字节
+   对齐契约（奇偶 40 字节头 bug 曾把 ATA-DMA 缓冲区偏移
+   了 8）；xHCI 在探测与每次传输时拒绝 4 GiB 以上的
+   DMA。
+6. **保护门**（OCIRE 嵌入）：嵌入激活时，经覆盖设备进行
+   的每一次写都被拒绝；内核内部的
+   `driver_block_read/write_sectors_trusted` 是唯一的
+   写方（嵌入服务与分区子项）；绝不可从 ring 3 调用。
+
+**影响**：`sync`（op BLK 11）端到端刷洗这条链；
+`dskstat`/`lsblk` 报告每设备统计与缓存计数器；
+`power shutdown` 在 S5 之前刷洗缓存。
+
+## 5. 崩溃路径
+
+**触发**：无人认领的 ring-0 异常、一次 `kernel_panic`
+调用、一次 `OC_ASSERT` 失败，或看门狗策略 PANIC。
+
+1. **向量入口**（`arch_idt_stub.S` -> `arch_exceptions.c`）：
+   先过嵌套 #PF 守卫（#PF 处理中再遇 #PF 会打印
+   `*** NESTED #PF INSIDE EXCEPTION HANDLER - HALTING ***`
+   并 cli;hlt）；L1 处理链（每向量 4 个，最近注册者先
+   运行）；#PF 路由到 `mem_vmm_handle_page_fault`（栈
+   增长；保护违例绝不重映射）；ring-3 来源的故障改走
+   SIGSEGV 投递 / kill 路径（向量 1/2/3 的 kill 运行在
+   专用退出栈上，保持 IST2 完好 —— BUG-0139）。
+2. **panic 路由**（`kernel_panic`/`kernel_panic_frame` ->
+   services/crash 经 `arch_set_panic_handlers` 安装的
+   处理程序）：#DF 被完全特判在分发器深度，仅一条静态
+   192 字节串口行（无记录、无转储、无刷洗 —— 见
+   KNOWN_ISSUES）；其他所有来源走完整路径。
+3. **规范化 + 首条记录**：CR3 切到内核地址空间，使
+   traceback/转储/堆读取安全；
+   `klog_record(KLOG_FATAL, "kernel", reason)` 写入环形
+   日志（仅环形 —— 该深度没有 VFS）。
+4. **横幅 + 快照**（`svc_crash_core.c`）：串口为权威
+   （VGA 红底尽力而为）：
+   `*** KERNEL PANIC: <reason> [task=<name>] ***`、内核
+   身份行、`source: exception <n> (<name>) err=0x...`、
+   任务行、寄存器转储（4x4 网格 r15..rax +
+   rip/cs/ss/rflags/rsp/int/err，#PF 加 cr2，外加 cr3）、
+   经 `looks_like_code` 过滤的 rbp 链 + 栈扫描回溯。
+   栈耗尽会被归因：守卫页 #PF 或耗尽栈 #DF 会在 reason
+   中点名任务。
+5. **OCDUMP01 核心转储**（`core_dump_save`）：填充启动
+   保留缓冲区（`core_dump_alloc()` 已在 kmain 步骤 16a
+   一次性 kmalloc —— 此后 kmalloc 可能失败或堆可能
+   损坏，panic 路径只碰保留缓冲区）：头、22 个 u64 寄存
+   器（帧或活体快照）、任务块、4 KiB 栈窗口、CR3 + PML4
+   自扫描 PTE 计数；持久化到 `/var/crash/core.dump`
+   （ramfs rootfs 或 FAT32）；没有文件系统时前 2048
+   字节以十六进制转储到串口，数据不丢失。
+6. **Crashlog 环**（`crashlog_record`）：向 32 槽位环
+   写入一条 `crashlog_entry_t`（向量或合成来源 32..36；
+   ring 0/3；err/rip/rsp/cr2；tid/pid/task；jiffies +
+   rtc_epoch）；`crashlog_flush()` 把一切追加到
+   `/var/log/crash.log`。
+7. **策略**：已注册的 panic 处理程序（至多 4 个，最近
+   注册者先运行）可以认领恢复
+   （`*** panic handler claimed recovery - resuming ***`、
+   `*** CONTAINED: ... - isolated, kernel continues ***`
+   —— TUI 守卫机制）；否则 `CRASH_POLICY_HALT`（默认，
+   cli + 安全 hlt）或 `CRASH_POLICY_REBOOT`（8042 +
+   0xCF9），可用 `crashtest policy [halt|reboot]` 在线
+   切换。
+
+**OCBL/OCIRE 继电器（启动失败）**：让启动状态心跳停摆的
+挂死会停止喂 6300ESB -> 硬复位 -> OCBL 读 0x98000 状态区，
+判定（沉默 >= 8 秒、无 CLEAN 标记），在 0x9B000 写入
+BOOT_FAILED 记录 -> 下次启动自动启动 OCIRE -> OCIRE 读
+该记录并打印停滞点 + 修复建议。*用户请求的* OCIRE 启动
+则改写 USER_REQUEST 记录。完整契约：
+[data-structures.md](data-structures.md) 第 8 节、
+[../internals/crash-dump.md](../internals/crash-dump.md)。
+
+## 6. OTA 安装路径
+
+**触发**：`update`（裸在线流程）、`update --local <pkg>`
+（离线），或更新向导的第 5 步确认。
+
+1. **检查**（`L1SVC_OTA_CHECKUPDATE` -> `ota_update_check`）：
+   抓取 `update.json`（按配置的 `update_url` 走 HTTP 或
+   HTTPS），比较 `version` 与 `build`（`OC_KERNEL_BUILD`，
+   数字比较 —— BUG-0347；构建 id 是
+   `git rev-list --count HEAD + 21`，因此在已发布 id 之上
+   保持单调）。锚点："Current version is up to date." /
+   "New version available."。
+2. **下载**（`ota_update_download`）：经 TCP/TLS 流式
+   下载到 `/data/update-pkg.tar.gz`（默认；临时
+   `/tmp/update-pkg.tar.gz`）；失败打印
+   `"update: download failed: "`。
+3. **校验**：包 SHA256 对照清单（`update_verify`）；
+   清单还携带按归档顺序拼接的成员体之上的载荷 sha256。
+4. **解码**：解压（RFC 1952/1951，校验 CRC32+ISIZE）+
+   解包（带校验和验证的流式 ustar、GNU 'L' 长名、pax
+   跳过）直接写入**非活动槽位**（运行 A 时写 B；
+   `ota_ab_target_slot()` —— 从 ISO 运行时
+   "update: cannot determine target slot (not booted
+   from A/B?)"）。
+5. **写启动标志**：创建 `/boot/next_B`；新槽位的内核
+   **在启动时悲观地**写入 `/boot/bootfail_B`，仅当系统
+   完全起来后才移除（kmain 步骤 16c 的
+   `ota_update_confirm_boot`）；`ok_B` 标记已确认的 B。
+   启动选择（grub.cfg）：存在 `next_B` 且无 `bootfail_B`
+   -> 启动 B；两者皆在 -> 回滚到 A；`ok_B` -> B；否则
+   A。启动尝试预算：GRUB 环境块 `/boot/grub/grubenv`
+   （1024 字节，`ab_attempts`），`OC_AB_MAX_ATTEMPTS 3`，
+   A 完成启动或 B 确认时重置。
+6. **重启**：流程打印 "reboot required"；`POWER/REBOOT`
+   （8042 + 0xCF9）落到新槽位；回滚
+   （`L1SVC_OTA_ROLLBACK`）清除标志。
+
+**影响**：失败的写永远不碰运行中的槽位 —— 活动系统一直
+服务到翻转那一刻；A/B 磁盘布局（p1 boot/flags 32 MB
+FAT32 + p2 槽位 A 128M + p3 槽位 B 128M + p4 /data）由
+`abdisk` 创建，其后再跑一遍 `ota_ab_rescan()`。完整页面：
+[../internals/ota-ab.md](../internals/ota-ab.md)。

@@ -167,6 +167,9 @@ export default defineConfig({
             { text: 'TUI guide', link: '/manual/tui-guide' },
             { text: 'Chinese console', link: '/manual/chinese-console' },
             { text: 'Recovery workflow', link: '/manual/recovery' },
+            { text: 'Function dictionary (296 cmds)', link: '/manual/function-dictionary' },
+            { text: 'Hidden commands & test stubs (93)', link: '/manual/hidden-commands' },
+            { text: 'The ush shell reference', link: '/manual/ush-reference' },
             { text: 'All 292 commands', link: '/manual/commands/' }
           ]
         },
@@ -176,6 +179,13 @@ export default defineConfig({
           items: [
             { text: 'Environment', link: '/dev/environment' },
             { text: 'Building & packaging', link: '/dev/build' },
+            { text: 'L1SVC interface dictionary (208 ops)', link: '/dev/interface-dictionary' },
+            { text: 'Syscall reference (54)', link: '/dev/syscall-reference' },
+            { text: 'Kernel data structures', link: '/dev/data-structures' },
+            { text: 'Internal call chains', link: '/dev/call-chains' },
+            { text: 'Debug & crash handbook', link: '/dev/debug-handbook' },
+            { text: 'Hidden debug interfaces', link: '/dev/debug-interfaces' },
+            { text: 'Writing a background service', link: '/dev/writing-services' },
             { text: 'QEMU testing', link: '/dev/qemu-testing' },
             { text: 'Debugging', link: '/dev/debugging' },
             { text: 'Host unit tests', link: '/dev/host-tests' },
@@ -190,6 +200,10 @@ export default defineConfig({
           text: 'Architecture',
           collapsed: true,
           items: [
+            { text: 'System map (4 components)', link: '/arch/system-map' },
+            { text: 'Repository tree map', link: '/arch/tree-map' },
+            { text: 'Hidden mechanisms', link: '/arch/hidden-mechanisms' },
+            { text: 'Private headers (interface/)', link: '/arch/private-headers' },
             { text: 'Boot flow', link: '/arch/boot-flow' },
             { text: 'Memory', link: '/arch/memory' },
             { text: 'Scheduler', link: '/arch/scheduler' },
@@ -251,13 +265,17 @@ export default defineConfig({
             { text: 'Health monitor', link: '/internals/health' },
             { text: 'Crash dumps', link: '/internals/crash-dump' },
             { text: 'Entropy & crypto', link: '/internals/drbg-crypto' },
-            { text: 'OTA/A-B mechanics', link: '/internals/ota-ab' }
+            { text: 'OTA/A-B mechanics', link: '/internals/ota-ab' },
+            { text: 'OCIRE guard channel', link: '/internals/ocembed-guard' }
           ]
         },
         {
           text: 'Troubleshooting',
           collapsed: true,
           items: [
+            { text: 'Error codes (61 errno + panics)', link: '/troubleshooting/error-codes' },
+            { text: 'Error catalog (all subsystems)', link: '/troubleshooting/error-catalog' },
+            { text: 'Silent failures', link: '/troubleshooting/silent-failures' },
             { text: 'Common errors', link: '/troubleshooting/common-errors' },
             { text: 'QEMU debugging', link: '/troubleshooting/qemu-debugging' },
             { text: 'Boot failures', link: '/troubleshooting/boot-failures' },
@@ -270,6 +288,11 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'Release notes', link: '/release/' },
+            { text: 'Build system reference', link: '/release/build-reference' },
+            { text: 'Guard scripts', link: '/release/guard-scripts' },
+            { text: 'CI gates & release chain', link: '/release/ci-gates' },
+            { text: 'Tool inventory (117)', link: '/release/tool-inventory' },
+            { text: 'Disaster recovery & push channels', link: '/release/disaster-recovery' },
             { text: 'The release SOP', link: '/release/process' },
             { text: 'Versioning', link: '/release/versioning' },
             { text: 'Release note template', link: '/release/release-notes-template' },
@@ -295,6 +318,9 @@ export default defineConfig({
             { text: 'TUI 指南', link: '/zh/manual/tui-guide' },
             { text: '中文控制台', link: '/zh/manual/chinese-console' },
             { text: '恢复工作流', link: '/zh/manual/recovery' },
+            { text: '全量功能字典（296 条命令）', link: '/zh/manual/function-dictionary' },
+            { text: '隐藏命令与测试桩（93 个）', link: '/zh/manual/hidden-commands' },
+            { text: 'ush shell 完全参考', link: '/zh/manual/ush-reference' },
             { text: '全部 292 条命令', link: '/zh/manual/commands/' }
           ]
         },
@@ -304,6 +330,13 @@ export default defineConfig({
           items: [
             { text: '开发环境', link: '/zh/dev/environment' },
             { text: '构建与打包', link: '/zh/dev/build' },
+            { text: 'L1SVC 接口字典（208 操作）', link: '/zh/dev/interface-dictionary' },
+            { text: '系统调用参考（54 个）', link: '/zh/dev/syscall-reference' },
+            { text: '内核数据结构', link: '/zh/dev/data-structures' },
+            { text: '内部调用链', link: '/zh/dev/call-chains' },
+            { text: '调试与崩溃手册', link: '/zh/dev/debug-handbook' },
+            { text: '隐藏调试接口', link: '/zh/dev/debug-interfaces' },
+            { text: '编写后台服务', link: '/zh/dev/writing-services' },
             { text: 'QEMU 测试', link: '/zh/dev/qemu-testing' },
             { text: '调试', link: '/zh/dev/debugging' },
             { text: '宿主侧单元测试', link: '/zh/dev/host-tests' },
@@ -318,6 +351,10 @@ export default defineConfig({
           text: '架构深度解析',
           collapsed: true,
           items: [
+            { text: '系统全景（四组件）', link: '/zh/arch/system-map' },
+            { text: '仓库目录全景图', link: '/zh/arch/tree-map' },
+            { text: '隐藏机制全集', link: '/zh/arch/hidden-mechanisms' },
+            { text: '私有头文件（interface/）', link: '/zh/arch/private-headers' },
             { text: '启动流程', link: '/zh/arch/boot-flow' },
             { text: '内存管理', link: '/zh/arch/memory' },
             { text: '进程调度', link: '/zh/arch/scheduler' },
@@ -379,13 +416,17 @@ export default defineConfig({
             { text: '健康监控', link: '/zh/internals/health' },
             { text: '崩溃转储', link: '/zh/internals/crash-dump' },
             { text: '熵与加密核心', link: '/zh/internals/drbg-crypto' },
-            { text: 'OTA/A-B 运作原理', link: '/zh/internals/ota-ab' }
+            { text: 'OTA/A-B 运作原理', link: '/zh/internals/ota-ab' },
+            { text: 'OCIRE 守卫通道', link: '/zh/internals/ocembed-guard' }
           ]
         },
         {
           text: '故障排查',
           collapsed: true,
           items: [
+            { text: '错误码全表（61 errno + panic）', link: '/zh/troubleshooting/error-codes' },
+            { text: '全场景报错库（按子系统）', link: '/zh/troubleshooting/error-catalog' },
+            { text: '静默失败专题', link: '/zh/troubleshooting/silent-failures' },
             { text: '常见错误与修复', link: '/zh/troubleshooting/common-errors' },
             { text: 'QEMU 调试', link: '/zh/troubleshooting/qemu-debugging' },
             { text: '启动故障', link: '/zh/troubleshooting/boot-failures' },
@@ -398,6 +439,11 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: '发布说明', link: '/zh/release/' },
+            { text: '构建系统全量参考', link: '/zh/release/build-reference' },
+            { text: '架构守护脚本', link: '/zh/release/guard-scripts' },
+            { text: 'CI 门禁与发布链', link: '/zh/release/ci-gates' },
+            { text: '工具清单（117 个）', link: '/zh/release/tool-inventory' },
+            { text: '灾备与推送通道', link: '/zh/release/disaster-recovery' },
             { text: '发布流程（SOP）', link: '/zh/release/process' },
             { text: '版本号规则', link: '/zh/release/versioning' },
             { text: '发布说明模板', link: '/zh/release/release-notes-template' },

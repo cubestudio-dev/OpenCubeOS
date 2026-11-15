@@ -35,17 +35,13 @@ embed_grub generator probes both layouts - do not assume either one.
 ## Compile-flag contract
 
 The kernel flags are fixed in the Makefile:
-`-ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone
--mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel
--fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g
--std=gnu11`. New flags belong in the Makefile (one place), not
+`-ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11`. New flags belong in the Makefile (one place), not
 scattered in files.
 
 ## Cross builds
 
 `make ARCH=arm64` / `ARCH=riscv` use the aarch64/riscv64 cross
-toolchains and their own linker rules (`--hash-style=sysv
---build-id=none`; `-n` and PHDR layouts do not mix). The bring-up
+toolchains and their own linker rules (`--hash-style=sysv --build-id=none`; `-n` and PHDR layouts do not mix). The bring-up
 shells are real (PL011/NS16550A divisors, timer counters, heartbeat)
 but deliberately minimal - x86_64 is the feature-complete
 architecture.
