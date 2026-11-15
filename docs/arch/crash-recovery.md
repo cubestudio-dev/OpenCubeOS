@@ -221,3 +221,49 @@ mailbox dance: [system-map.md](system-map.md); user-facing recovery:
 [../manual/recovery.md](../manual/recovery.md); dump format internals:
 [../internals/crash-dump.md](../internals/crash-dump.md),
 [../internals/watchdog.md](../internals/watchdog.md).
+
+## WP-07: consecutive-failure routing + the takeover menus
+
+Two semantics changed with the WP-07 lifecycle loop:
+
+**Consecutive failures.** A single judged boot failure no longer
+routes recovery immediately - the record's `boot_fails` counter
+(riding the former `rsvd0` byte of `ocst_record_t`) increments and
+OCOS gets retried. The second CONSECUTIVE judgment (the counter
+reaching `OCST_BOOT_FAILS_ROUTE`, 2) leaves the record unrouted and
+the next OCBL pass auto-boots OCIRE. "Consecutive" is honest: the
+kernel invalidates the record only after 5 STABLE seconds past
+L1_READY (the pet tick - a runtime hang inside that window keeps
+the counter, so a hang/retry/hang loop still routes on the second
+judgment; clearing at the transition itself would have looped the
+machine on "failure 1" forever - live-caught by the WP07a battery).
+
+**The blocking menus.** OCIRE raises them from
+`ocire_menu_takeover()` when it was routed for a reason:
+
+- `BOOT_FAILED` with the counter spent:
+
+      ==================================================
+       OPEN CUBE OS FAILED TO BOOT (OCIRE takeover)
+      ==================================================
+      Consecutive boot failures: 2 - the last one stalled at stage ...
+       [R] Rollback to the previous OCOS version
+       [C] Continue and try booting OCOS again
+
+- `WAKE_FAILED` - the S3/S0ix case. The kernel sets
+  `OCST_KFLAG_SLEEP_ARMED` immediately before the PM1a_CNT SLP_EN
+  write (`boot_state_sleep_arm`, the exposed low-level function
+  behind `power suspend`) and clears it the moment the resume path
+  returns. A reboot that still sees the flag = the wake vector died:
+
+      ==================================================
+       S3/S0ix WAKE FAILURE DETECTED (OCIRE takeover)
+      ==================================================
+       [W] Wake from sleep failed.
+       [R] Rollback to the previous OCOS version
+       [C] Try to boot OCOS normally
+
+Both menus REALLY block (any other key is ignored, no timeout).
+`[W]` prints the wake diagnostics; `[R]` flips the OCOS A/B slot
+flags (the `next_B`/`ok_B`/`bootfail_B` protocol) and reboots;
+`[C]` clears the record and reboots OCOS.

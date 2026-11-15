@@ -163,3 +163,57 @@ install -> reboot for real. `update_test_vectors` live in
 User-facing guides: [../manual/update-ota.md](../manual/update-ota.md),
 [../l1/ota.md](../l1/ota.md); internals twin:
 [../internals/ota-ab.md](../internals/ota-ab.md).
+
+## WP-07: the OCIRE self-update (dual physical slots + Ed25519)
+
+The OCOS A/B story above is about the RUNNING system's slots. WP-07
+closes the same loop for the RECOVERY kernel itself - with stricter
+rules, because a broken recovery environment is the one failure you
+cannot boot around.
+
+### The recovery disk (produced by `tools/make_ocire_disk.sh`)
+
+```
+ LBA 0        OCBL BIOS image (stage1_mbr + core, +0x1A0 boot patch)
+ LBA 1024     the OCIREAB1 A/B flags sector (24 bytes, checksummed)
+ p1 (2048,      64 MiB)  OCIRE-A - a FULL FAT32 recovery environment
+ p2 (133120,    64 MiB)  OCIRE-B - a FULL FAT32 recovery environment
+```
+
+Two INDEPENDENT physical partitions (never two files in one volume),
+each carrying the complete WP-02 file set (boot kernel, golden image,
+log agent, log ring, mailbox). The flags sector (`ocire_abflags_t`,
+mirrored in `ocire/ocire_disk.h` and `ocbl/common/ocbl_scan.h`)
+records `active_slot / try_slot / attempts / boot_count` behind a
+ones-complement checksum; OCBL reads it during the scan, bumps the
+try-attempt counter, gives up on a try-slot after two failed loads
+and falls back to the active slot in the SAME boot; OCIRE confirms a
+slot that demonstrably runs (`ocire_ab_confirm_boot`).
+
+### `update` - the strictly manual OTA
+
+The OCIRE shell command (never a timer, never network):
+
+1. mount the ESP - a real GPT EFI System Partition (or an MBR
+   0xEF/0x0C FAT32 volume), found by scanning the GPT entry array
+   for the ESP type GUID;
+2. read `\EFI\OpenCube\ocire-update.bin` + `ocire-update.sig`
+   (long file names, matched case-insensitively);
+3. verify with the built-in Ed25519 public key
+   (`ocire/ocire_ed25519.c`, an independent freestanding
+   implementation; the private key never leaves the build host -
+   `tools/gen_ocire_ed25519.py gen|sign`);
+4. sanity-check the payload as a 64-bit multiboot2 ELF;
+5. flash the INACTIVE slot as `/BOOT/OCIRE.ELF` (FAT32 write set
+   with LFN-aware lookup), read it back and SHA-256-compare;
+6. arm the new slot (`try_slot = target, attempts = 0`) - the next
+   boot tries it first, two failed loads fall back automatically.
+
+A forged or unsigned package is refused BEFORE anything is written
+(`SIGNATURE VERIFICATION FAILED ... REFUSED`), proven live by the
+WP-07 battery.
+
+### Shell surface
+
+`update`, `ls [slotA:|slotB:]` (list the ESP or a recovery slot),
+`slots` (the flags + slot map). EN+zh help entries.

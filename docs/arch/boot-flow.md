@@ -257,3 +257,29 @@ For the user-facing side of the same story:
 [../manual/boot-modes.md](../manual/boot-modes.md); for OCSE's own
 24-stage ladder and OCIRE's supervisor decision loop:
 [system-map.md](system-map.md) and [../dev/ocire.md](../dev/ocire.md).
+
+## WP-07: the recovery disk's own boot (dual-slot selection)
+
+The WP-07 recovery disk is SELF-booting: OCBL's stage1 + core live
+at LBA 0 of the recovery disk itself (the `+0x1A0` boot patch block
+carries the core LBA/count, the same installer contract), so the
+machine boots straight into the loader without any other medium.
+
+The scan's OCIRE branch (`judge_volume`) handles the dual-slot
+shape: a disk whose first two partitions BOTH look like OCIRE slots
+(FAT32 + `/boot/ocire.elf` + `/mailbox.bin`) is recognized through
+the OCIREAB1 flags sector at LBA 1024; OCBL picks the flags-selected
+slot (a pending `try_slot` gets the boot with its attempt counter
+bumped; after two failed loads the try is abandoned and the active
+slot boots), mounts THAT partition and registers exactly ONE OCIRE
+entry (the second slot volume is consumed). Legacy single-volume
+media (the old 0xEE FAT12 shadow, single FAT32 volumes, the ISO)
+still register the plain way.
+
+If the selected slot's kernel will not load, `ocbl_run()` retries
+the OTHER slot immediately and rewrites the flags so the next boot
+starts from the survivor - the anti-brick guarantee.
+
+UEFI note: the EFI flavor's BlockIo drives are numbered FROM ZERO
+(the BIOS flavor uses 0x80+), so every "drive seen" sentinel in the
+common scanner uses 0xFF, never 0.
