@@ -1,0 +1,34 @@
+import{_ as a,o as e,c as n,a2 as o}from"./chunks/framework.BM5YPQmL.js";const u=JSON.parse('{"title":"开发环境","description":"","frontmatter":{},"headers":[],"relativePath":"zh/dev/environment.md","filePath":"zh/dev/environment.md"}'),i={name:"zh/dev/environment.md"};function p(l,s,c,t,d,r){return e(),n("div",null,[...s[0]||(s[0]=[o(`<h1 id="开发环境" tabindex="-1">开发环境 <a class="header-anchor" href="#开发环境" aria-label="Permalink to &quot;开发环境&quot;">​</a></h1><p>如何从一台全新机器开始投入内核开发。</p><h2 id="环境要求" tabindex="-1">环境要求 <a class="header-anchor" href="#环境要求" aria-label="Permalink to &quot;环境要求&quot;">​</a></h2><ul><li>一台 Linux 宿主机（已在 Debian/Ubuntu 上测试；装有下列软件包 的任何系统均可）。Windows：WSL2 给你的正是这套环境。</li><li><code>gcc</code>（已测试 14.x）、<code>binutils</code>（ld）、<code>nasm</code> 2.16+、<code>xorriso</code>、 <code>mtools</code>、<code>grub-common</code> + <code>grub-pc-bin</code> + <code>grub-efi-amd64-bin</code>、 <code>python3</code>（3.9+）、<code>zip</code>。</li><li>测试需要：<code>qemu-system-x86</code>、<code>ovmf</code>、<code>seabios</code>、<code>ipxe-qemu</code>。</li><li>E2E 套件需要：Python <code>pexpect</code>（回归、大应用冒烟）和 <code>paramiko</code>（SSH E2E）。</li></ul><p><code>tools/build.sh</code> 会校验构建工具集，并为每个缺失项打印确切的 Debian 软件包名；当你是 root 时 <code>./build.sh --install</code> 会安装 它们。无 root 的替代方案是 <code>tools/install-toolchain.sh</code>（解包 一棵可重定位的工具树并导出 <code>OC_TOOLS</code> - 用 <code>make OC_TOOLS=&lt;tree&gt;</code> 让 Makefile 指向它；它会探测 <code>&lt;tree&gt;/usr/...</code> 与 <code>&lt;tree&gt;/...</code> 两种布局）。</p><h2 id="获取代码树" tabindex="-1">获取代码树 <a class="header-anchor" href="#获取代码树" aria-label="Permalink to &quot;获取代码树&quot;">​</a></h2><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>git clone https://github.com/cubestudio-dev/OpenCubeOS.git</span></span>
+<span class="line"><span>cd OpenCubeOS</span></span></code></pre></div><h2 id="健全性构建" tabindex="-1">健全性构建 <a class="header-anchor" href="#健全性构建" aria-label="Permalink to &quot;健全性构建&quot;">​</a></h2><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>make all             # userprogs + kernel + ISO + src zip + OTA pkg</span></span>
+<span class="line"><span>make test            # host unit tests</span></span>
+<span class="line"><span>make run-bios        # boot it</span></span></code></pre></div><p>三项全部通过，你的环境就绪。一个变更需要满足的完整门槛见 <a href="./../root/CONTRIBUTING.html">CONTRIBUTING.md</a>。</p><h2 id="仓库布局" tabindex="-1">仓库布局 <a class="header-anchor" href="#仓库布局" aria-label="Permalink to &quot;仓库布局&quot;">​</a></h2><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>ocos/kernel/      L0 core: boot chain, sched, PMM/VMM/heap, usermode</span></span>
+<span class="line"><span>ocos/kernel/arch/x86_64/  the 64-bit arch layer (cross archs in build.mk)</span></span>
+<span class="line"><span>ocos/services/    one folder per service facet: block, net, audio,</span></span>
+<span class="line"><span>                  fs, selfhost (OTA), power, diag, health, klog,</span></span>
+<span class="line"><span>                  watchdog, display, tui, crypto, camera, usb, ...</span></span>
+<span class="line"><span>ocos/drivers/     one folder per class: storage, net, audio, bus</span></span>
+<span class="line"><span>                  (pci/acpi/i2c), usb, input, display, time, misc</span></span>
+<span class="line"><span>ocos/interface/   the ring-3 contract headers: l1_lib.h,</span></span>
+<span class="line"><span>                  l1svc_ops.h, i18n.h, wizard_lib.h, fs_lib.h,</span></span>
+<span class="line"><span>                  editor_core.h</span></span>
+<span class="line"><span>ocos/l1apps/      one command = one app = one folder (284 programs)</span></span>
+<span class="line"><span>                  + _i18n/ for the flat legacy test programs</span></span>
+<span class="line"><span>ocire/            the independent recovery kernel (second L0)</span></span>
+<span class="line"><span>tools/            build + test + docs generators</span></span>
+<span class="line"><span>tests/            host-side unit tests (make test)</span></span>
+<span class="line"><span>docs/             this documentation tree (en + zh mirror)</span></span>
+<span class="line"><span>etc/              the default /etc volume content + l0 i18n</span></span></code></pre></div><h2 id="必须立刻知道的约定" tabindex="-1">必须立刻知道的约定 <a class="header-anchor" href="#必须立刻知道的约定" aria-label="Permalink to &quot;必须立刻知道的约定&quot;">​</a></h2><ul><li><code>-Wall -Wextra -Werror</code> - 零警告，无例外。</li><li>每个文件都带 SPDX 头。</li><li>内核/服务可见的字符串是 ASCII 英文（它们是脚本 + 向导锚点 契约）；面向人的表面通过 <code>tr_()</code> 以 en+zh 资源渲染。</li><li>命令表面只增不减（接口冻结，见 CONTRIBUTING）。</li></ul><h2 id="qemu-配方" tabindex="-1">QEMU 配方 <a class="header-anchor" href="#qemu-配方" aria-label="Permalink to &quot;QEMU 配方&quot;">​</a></h2><p>把下面这些单行命令留在手边：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span># quick BIOS boot, serial on stdio</span></span>
+<span class="line"><span>qemu-system-x86_64 -m 512M -cdrom build/opencube.iso \\</span></span>
+<span class="line"><span>    -netdev user,id=n1 -device e1000,netdev=n1 -serial mon:stdio</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># UEFI</span></span>
+<span class="line"><span>qemu-system-x86_64 -m 512M -machine q35 -bios /usr/share/ovmf/OVMF.fd \\</span></span>
+<span class="line"><span>    -cdrom build/opencube.iso -display none -serial mon:stdio</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># with a scratch disk + TUI visible</span></span>
+<span class="line"><span>qemu-system-x86_64 -m 512M -cdrom build/opencube.iso \\</span></span>
+<span class="line"><span>    -drive file=scratch.qcow2,if=ide -netdev user,id=n1 \\</span></span>
+<span class="line"><span>    -device e1000,netdev=n1</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># boot log to a file</span></span>
+<span class="line"><span>... -serial file:boot.log</span></span></code></pre></div><p><code>make run-bios</code>、<code>make run-uefi</code>、<code>make run-bios-gui</code>、 <code>make shot-bios</code> 封装了最常见的几种（包括 /etc 卷的设置）。 可重定位工具链：<code>make OC_TOOLS=&lt;tree&gt; run-bios</code>（当工具树布局 不同时再加 <code>OVMF_FD=...</code>）。</p>`,18)])])}const m=a(i,[["render",p]]);export{u as __pageData,m as default};
