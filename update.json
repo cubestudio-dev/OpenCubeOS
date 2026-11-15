@@ -1,10 +1,10 @@
 {
-    "version": "3.0.0-WP-l1apps-merge",
-    "build": 455,
+    "version": "3.0.0-WP-07-ocire-loop-perfect",
+    "build": 460,
     "time": "2026-11-15",
-    "changes": "the 8 merged mega-apps (update/disk-tool/net-tool/sound-tool/files/sysdiag/hwinfo/power): intent wizards with cross-domain repair + direct/classic verbatim dispatch, 296 commands, zero functionality loss, and the from-scratch documentation rewrite",
+    "changes": "OCIRE lifecycle loop: dual physical A/B partitions, Ed25519-verified ESP self-update (update command), two-failure [R]/[C] takeover, S3 wake-failure [W]/[R]/[C] menu, power suspend surface",
     "changes_v2_url": "https://ocos.cubestudio.cn/update-v2.json",
-    "package_url": "https://ocos.cubestudio.cn/downloads/OpenCubeOS-3.0.0-WP-l1apps-merge-update.tar.gz",
-    "package_sha256": "ab0d3850c5633e3a832920b82c5e857868178310fe7bd73752e5850b65a1fe65",
-    "package_size": 1453162
+    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-07-ocire-loop-perfect-update.tar.gz",
+    "package_sha256": "efe9ee58e87071aa4d325b11cca15574d832544ec7718bbeabc16846d90a917a",
+    "package_size": 1453875
 }
