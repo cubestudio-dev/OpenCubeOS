@@ -346,11 +346,20 @@ def hang_scenario(name, hangat, budget, uefi=False):
         if hangat != 0:
             b.expect("[ocst] stage %d/6: %s" % (hangat, stall), 60)
             b.expect("[ocst] HANGAT: deliberate halt", 10)
-        # the watchdog fires after the phase budget; OCBL judges
+        # WP-07: the FIRST judged failure only retries OCOS; the
+        # second (the /HANGAT still rides the volume) routes recovery
         b.expect("[state] previous boot judged FAILED at stage " + stall,
                  budget + 60)
+        b.expect("consecutive failure 1", 10)
         b.expect("Open Cube OS failed to boot at stage: " + stall, 10)
-        b.expect("Rebooting to recovery...", 10)
+        b.expect("Rebooting to retry...", 10)
+        if hangat != 0:
+            b.expect("[ocst] stage %d/6: %s" % (hangat, stall), 120)
+            b.expect("[ocst] HANGAT: deliberate halt", 10)
+        b.expect("[state] previous boot judged FAILED at stage " + stall,
+                 budget + 120)
+        b.expect("consecutive failure 2", 10)
+        b.expect("routing to recovery", 10)
         # the 8042 pulse reboots into OCBL again -> the auto-route
         b.expect("[state] BOOT_FAILED record pending (stall " + stall
                  + ") - auto-booting OCIRE", 60)
@@ -380,7 +389,16 @@ def s5_runtime():
         b.expect("[ocst] HANGAT runtime: deliberate halt", 15)
         b.expect("[state] previous boot judged FAILED at stage L1_READY",
                  90)
-        b.expect("Open Cube OS failed to boot at stage: L1_READY", 10)
+        b.expect("consecutive failure 1", 10)
+        b.expect("Rebooting to retry...", 10)
+        # round 2: the runtime hangs again (the menu countdown sits in
+        # between - the timeouts cover it)
+        b.expect("[ocst] stage 6/6: L1_READY", 150)
+        b.expect("[ocst] HANGAT runtime: deliberate halt", 15)
+        b.expect("[state] previous boot judged FAILED at stage L1_READY",
+                 150)
+        b.expect("consecutive failure 2", 10)
+        b.expect("routing to recovery", 10)
         b.expect("[state] BOOT_FAILED record pending (stall L1_READY)"
                  " - auto-booting OCIRE", 60)
         b.expect("Previous boot FAILED at stage L1_READY", 60)

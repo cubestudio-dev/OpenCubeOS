@@ -198,7 +198,7 @@ static void state_init(u16 seq, u32 now)
 }
 
 static void record_write(u8 kind, u8 stall, u16 seq, u32 ts,
-                         u32 silence, u8 routed)
+                         u32 silence, u8 routed, u8 boot_fails)
 {
     volatile ocst_record_t* r = rec();
     r->magic = OCST_RESERVED_MAGIC;
@@ -210,7 +210,7 @@ static void record_write(u8 kind, u8 stall, u16 seq, u32 ts,
     r->ts_unix = ts;
     r->silence_sec = silence;
     r->routed = routed;
-    r->rsvd0 = 0;
+    r->boot_fails = boot_fails;
     r->rsvd1 = 0;
     r->checksum = ocst_record_checksum(r);
 }
@@ -274,32 +274,71 @@ void ocbl_statemon_boot_check(int window_ok)
     if (ocst_state_valid(s)) {
         int clean = (s->kflags & OCST_KFLAG_CLEAN) != 0;
         int judged = (s->kflags & OCST_KFLAG_JUDGED) != 0;
+        int sleep_armed = (s->kflags & OCST_KFLAG_SLEEP_ARMED) != 0;
         int progress = (s->armed || s->stage > OCST_STAGE_RESET);
         u32 silence = now - s->last_progress;
+
+        /* WP-07: a surviving SLEEP_ARMED flag means the S3/S0ix
+         * resume path died before it could clear the flag (wake
+         * vector crash, death mid-sleep, watchdog while asleep).
+         * That is a WAKE_FAILED: record it and route OCIRE - a
+         * one-shot event, no consecutive-failure counting. */
+        if (sleep_armed && !clean && !judged) {
+            u8 fails = (ocst_record_valid(rec()) &&
+                        rec()->kind == OCST_KIND_BOOT_FAILED)
+                           ? rec()->boot_fails : 0;
+            record_write(OCST_KIND_WAKE_FAILED, s->stage, s->seq, now,
+                         silence, 0, fails);
+            ocbl_serial_puts("[state] SLEEP_ARMED survived the reboot - "
+                             "WAKE_FAILED recorded (suspended at stage ");
+            ocbl_serial_puts(ocst_stage_name(s->stage));
+            ocbl_serial_puts(")\r\n");
+            /* JUDGED keeps the next boot_check from re-recording */
+            s->kflags = OCST_KFLAG_JUDGED;
+            ocbl_rtc_sleep_sec((int)OCST_FAIL_DWELL_SEC);
+            pulse_8042_reset();               /* never returns */
+        }
 
         if (!clean && !judged && progress &&
             silence >= OCST_SILENCE_FAIL_SEC && silence <= 3600u) {
             /* JUDGED FAILURE: the previous payload was mid-boot with
              * the relay armed and nothing has touched the state area
              * for the measured silence - the watchdog (or the hang
-             * it caught) reset the machine here. */
+             * it caught) reset the machine here.
+             *
+             * WP-07 consecutive-fail routing: bump the counter that
+             * rides the record.  Reaching OCST_BOOT_FAILS_ROUTE (2)
+             * leaves the record UNROUTED so the pending-failure pass
+             * below auto-boots OCIRE; a first failure is written
+             * routed (= acknowledged, OCOS gets retried). */
+            u8 prev_fails = (ocst_record_valid(rec()) &&
+                             rec()->kind == OCST_KIND_BOOT_FAILED)
+                                ? rec()->boot_fails : 0;
+            u8 fails = (u8)(prev_fails + 1);
             u8 stall = s->stage;
+            int route = (fails >= OCST_BOOT_FAILS_ROUTE);
             record_write(OCST_KIND_BOOT_FAILED, stall, s->seq, now,
-                         silence, 0);
+                         silence, route ? 0 : 1, fails);
             ocbl_serial_puts("[state] previous boot judged FAILED at stage ");
             ocbl_serial_puts(ocst_stage_name(stall));
             ocbl_serial_puts(" (silence ");
             ocbl_serial_dec(silence);
             ocbl_serial_puts("s, seq ");
             ocbl_serial_dec(s->seq);
-            ocbl_serial_puts(") - BOOT_FAILED recorded\r\n");
+            ocbl_serial_puts(", consecutive failure ");
+            ocbl_serial_dec(fails);
+            ocbl_serial_puts(fails >= OCST_BOOT_FAILS_ROUTE
+                ? ") - BOOT_FAILED recorded, routing to recovery\r\n"
+                : ") - BOOT_FAILED recorded, retrying OCOS\r\n");
             ocbl_serial_puts("Open Cube OS failed to boot at stage: ");
             ocbl_serial_puts(ocst_stage_name(stall));
-            ocbl_serial_puts("\r\nRebooting to recovery...\r\n");
+            ocbl_serial_puts(route
+                ? "\r\nRebooting (recovery will take over)...\r\n"
+                : "\r\nRebooting to retry...\r\n");
             show_failure_notice(ocst_stage_name(stall));
             /* mark the stall JUDGED in the state area BEFORE the
-             * pulse, so the boot after the reset routes into OCIRE
-             * instead of re-judging the same silence again */
+             * pulse, so the boot after the reset does not re-judge
+             * the same silence again */
             s->kflags = OCST_KFLAG_JUDGED;
             ocbl_rtc_sleep_sec((int)OCST_FAIL_DWELL_SEC);
             pulse_8042_reset();               /* never returns */
@@ -333,18 +372,27 @@ void ocbl_statemon_boot_check(int window_ok)
     ocbl_serial_puts("\r\n");
 }
 
-/* ---- 2. the pending-failure auto route ------------------------------- */
+/* ---- 2. the pending-failure auto route -------------------------------
+ * WP-07: a BOOT_FAILED record routes OCIRE only when the
+ * consecutive-failure counter reached OCST_BOOT_FAILS_ROUTE; a
+ * first failure was written with routed=1 (acknowledged, retried)
+ * and never lands here.  WAKE_FAILED always routes (one-shot). */
 int ocbl_statemon_route_pending(void)
 {
     volatile ocst_record_t* r = rec();
     if (!g_monitor_ok)
         return 0;
-    if (!ocst_record_valid(r) || r->kind != OCST_KIND_BOOT_FAILED ||
-        r->routed)
+    if (!ocst_record_valid(r) || r->routed)
+        return 0;
+    if (r->kind == OCST_KIND_BOOT_FAILED &&
+        r->boot_fails < OCST_BOOT_FAILS_ROUTE)
         return 0;
     r->routed = 1;
     r->checksum = ocst_record_checksum(r);   /* volatile: see header */
-    ocbl_serial_puts("[state] BOOT_FAILED record pending (stall ");
+    ocbl_serial_puts("[state] ");
+    ocbl_serial_puts(r->kind == OCST_KIND_WAKE_FAILED
+                         ? "WAKE_FAILED" : "BOOT_FAILED");
+    ocbl_serial_puts(" record pending (stall ");
     ocbl_serial_puts(ocst_stage_name(r->stall));
     ocbl_serial_puts(") - auto-booting OCIRE\r\n");
     return 1;
@@ -356,7 +404,7 @@ void ocbl_statemon_user_request(void)
     u32 now = ocbl_rtc_unix_now();
     if (!g_monitor_ok)
         return;
-    record_write(OCST_KIND_USER_REQUEST, 0, st()->seq, now, 0, 1);
+    record_write(OCST_KIND_USER_REQUEST, 0, st()->seq, now, 0, 1, 0);
     ocbl_serial_puts("[state] USER_REQUEST recorded - recovery session\r\n");
 }
 

@@ -202,6 +202,7 @@
 #define L1SVC_PWR_SUSPEND_TEST    6  /* suspend_test          */
 #define L1SVC_PWR_HALT_TEST       7  /* halt_test             */
 #define L1SVC_PWR_REBOOT_TEST     8  /* reboot_test           */
+#define L1SVC_PWR_SUSPEND         9  /* suspend (real S3, WP-07: SLEEP_ARMED) */
 
 /* ---- display operations (services/display) ------------------------
  * The rendering/locale family.  Bodies: chinese/chinese_cmd.c

@@ -33,6 +33,11 @@ static int pwr_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
         case L1SVC_PWR_SUSPEND_TEST:  fn = pwr_cmd_suspend_test; break;
         case L1SVC_PWR_HALT_TEST:     fn = pwr_cmd_halt_test; break;
         case L1SVC_PWR_REBOOT_TEST:   fn = pwr_cmd_reboot_test; break;
+        /* WP-07: the REAL S3 entry, exposed at last - the suspend
+         * path brackets the sleep with the SLEEP_ARMED flag so a
+         * dead wake vector lands the machine in OCIRE's rollback
+         * menu instead of a silent reboot loop */
+        case L1SVC_PWR_SUSPEND:       fn = pwr_cmd_suspend; break;
         default: return -1;
     }
     return core_kcap_run_fn(fn, arg, out, cap) == 0 ? 0 : -1;

@@ -89,4 +89,9 @@ int driver_block_part_write_mbr_table(int dev_idx,
  * Idempotent: already-registered names are left untouched. */
 void driver_block_part_scan_register_all(void);
 
+/* WP-07: true when the device carries the OCIREAB1 flags sector at
+ * LBA 1024 (the WP-07 dual-slot recovery disk) - its partitions are
+ * never registered and the running system reports it as opaque. */
+int driver_block_is_ocire_disk_public(int dev_idx);
+
 #endif /* OC_PART_H */

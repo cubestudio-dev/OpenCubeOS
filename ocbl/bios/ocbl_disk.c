@@ -83,6 +83,45 @@ bool ocbl_disk_read(u8 drive, u64 lba, u16 nsec, void* buf)
     return true;
 }
 
+/* WP-07: int 13h AH=43h extended write (write-with-verify, AL=01).
+ * Used ONLY for the OCIRE A/B flags sector on the recovery disk.
+ * Same DAP + real-mode constraints as the read. */
+bool ocbl_disk_write(u8 drive, u64 lba, u16 nsec, const void* buf)
+{
+    u64 addr = (u64)(u32)(u64)(const void*)buf;
+    if (addr >= 0x100000) return false;
+    u32 seg = (u32)(addr >> 4);
+    u32 off = (u32)(addr & 0xF);
+
+    volatile u16* dap = (volatile u16*)OCBL_TRAMP_DAP;
+    dap[0] = 0x0010;
+    dap[1] = nsec;
+    dap[2] = (u16)off;
+    dap[3] = (u16)seg;
+    dap[4] = (u16)(lba & 0xFFFF);
+    dap[5] = (u16)((lba >> 16) & 0xFFFF);
+    dap[6] = (u16)((lba >> 32) & 0xFFFF);
+    dap[7] = (u16)((lba >> 48) & 0xFFFF);
+
+    ocbl_bios_regs_t r;
+    r.eax = 0x4301;                       /* write with verify */
+    r.edx = (u16)drive;
+    r.esi = 0x0500;
+    r.ds = 0x4000;
+    r.es = 0;
+    r.edi = 0;
+    r.ebx = 0;
+    r.ecx = 0;
+    if (ocbl_bios_int(0x13, &r) != 0) {
+        ocbl_bios_regs_t z = {0};
+        z.edx = (u16)drive;
+        ocbl_bios_int(0x13, &z);
+        if (ocbl_bios_int(0x13, &r) != 0)
+            return false;
+    }
+    return true;
+}
+
 bool ocbl_disk_geom(u8 drive, u64* total_sectors, u16* bytes_per_sector)
 {
     /* AH=48h extensions geometry into the trampoline scratch (0x40200) */

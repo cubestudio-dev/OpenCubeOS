@@ -47,6 +47,22 @@
  *          sees the pending record and auto-boots OCIRE, which reads
  *          the record and prints the repair advice.
  *
+ *          WP-07 additions (ocire-loop-perfect):
+ *          - CONSECUTIVE-FAIL ROUTING: a single judged boot failure
+ *            only bumps the record's boot_fails counter and retries
+ *            OCOS; OCBL auto-routes OCIRE once the counter reaches
+ *            OCST_BOOT_FAILS_ROUTE (2).  The kernel clears the
+ *            counter after a confirmed good boot (L1_READY), so
+ *            "consecutive" is honest.  The counter rides the
+ *            record's former rsvd0 byte - the 28-byte layout is
+ *            unchanged, old readers keep working.
+ *          - SLEEP_ARMED: the kernel sets OCST_KFLAG_SLEEP_ARMED
+ *            right before entering S3/S0ix and clears it on the
+ *            resume path.  A reboot that finds the flag still set
+ *            means the wake vector crashed or the machine died
+ *            mid-sleep - OCBL records WAKE_FAILED and routes OCIRE,
+ *            which offers the rollback menu.
+ *
  *          This header is freestanding-safe for all three builds and
  *          must stay dependency-free (ocst_ prefixed types only - the
  *          builds have conflicting u8/u16/u32 typedefs).
@@ -107,11 +123,23 @@ typedef unsigned long long ocst_u64;
                                        * before the 8042 pulse so the
                                        * next boot routes instead of
                                        * re-judging the same stall)    */
+#define OCST_KFLAG_SLEEP_ARMED 0x04u  /* WP-07: kernel armed S3/S0ix -
+                                       * set immediately before the
+                                       * SLP_EN write, cleared on the
+                                       * resume path; surviving a
+                                       * reboot = wake failure        */
 
 /* ---- reserved-area record kinds ----------------------------------- */
 #define OCST_KIND_NONE          0u
 #define OCST_KIND_BOOT_FAILED   1u   /* watchdog/judged boot failure   */
 #define OCST_KIND_USER_REQUEST  2u   /* user chose OCIRE in the menu   */
+#define OCST_KIND_WAKE_FAILED   3u   /* WP-07: SLEEP_ARMED survived a
+                                       * reboot (wake vector crash or
+                                       * death mid-sleep)              */
+
+/* WP-07: how many CONSECUTIVE main-system boot failures route the
+ * machine into OCIRE (the spec's "two failures -> takeover"). */
+#define OCST_BOOT_FAILS_ROUTE   2u
 
 /* ---- phase timeout budgets, seconds --------------------------------
  * The table the whole chain enforces (the requirement's default
@@ -172,7 +200,7 @@ typedef struct ocst_record {
     ocst_u32 ts_unix;         /* judgment time, unix seconds (CMOS)   */
     ocst_u32 silence_sec;     /* measured no-progress seconds         */
     ocst_u8  routed;          /* 1 = OCBL already auto-booted OCIRE   */
-    ocst_u8  rsvd0;           /* 0                                    */
+    ocst_u8  boot_fails;      /* WP-07: consecutive judged failures   */
     ocst_u16 rsvd1;           /* 0                                    */
     ocst_u32 checksum;        /* see above                            */
 } ocst_record_t;
@@ -201,7 +229,8 @@ static inline int ocst_record_valid(const volatile ocst_record_t* r)
     if (r->magic != OCST_RESERVED_MAGIC) return 0;
     if (r->ver != OCST_RESERVED_VER)      return 0;
     if (r->size != sizeof(ocst_record_t)) return 0;
-    if (r->kind != OCST_KIND_BOOT_FAILED && r->kind != OCST_KIND_USER_REQUEST)
+    if (r->kind != OCST_KIND_BOOT_FAILED && r->kind != OCST_KIND_USER_REQUEST &&
+        r->kind != OCST_KIND_WAKE_FAILED)
         return 0;
     return r->checksum == ocst_record_checksum(r);
 }

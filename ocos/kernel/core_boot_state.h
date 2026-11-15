@@ -40,6 +40,20 @@
  * at handoff that nothing in the kernel ever fed). */
 void boot_state_early_init(const char *cmdline);
 
+/* WP-07: arm/clear the SLEEP_ARMED flag around every S3/S0ix entry
+ * - the LOW-LEVEL suspend flag the spec asks the kernel to expose.
+ * boot_state_sleep_arm() is called immediately before the PM1a_CNT
+ * SLP_EN write; boot_state_sleep_disarm() on the resume path the
+ * moment the machine is back.  If a reboot ever finds the flag
+ * still set, OCBL records WAKE_FAILED and routes OCIRE. */
+void boot_state_sleep_arm(void);
+void boot_state_sleep_disarm(void);
+
+/* WP-07: invalidate a stale BOOT_FAILED record once the system has
+ * demonstrably booted (the L1_READY transition) so the
+ * consecutive-failure counter never counts across a GOOD boot. */
+void boot_state_record_clear(void);
+
 /* Record a forward stage transition into the state area and re-arm
  * the phase watchdog budget.  Out-of-order calls are ignored (the
  * stage only ever moves forward).  The /HANGAT diagnostic halt fires

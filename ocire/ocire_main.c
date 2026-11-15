@@ -30,6 +30,8 @@
 #include "ocire_acpi.h"
 #include "ocire_shell.h"
 #include "ocire_mb2.h"
+#include "ocire_menu.h"
+#include "ocire_disk.h"
 #include "ocire_version_gen.h"
 
 void ocire_main(u64 magic, u64 mbi) {
@@ -95,6 +97,26 @@ void ocire_main(u64 magic, u64 mbi) {
         extern int ocire_ocbl_report(void);   /* ocire/ocire_ocbl.c */
         ocire_ocbl_report();
     }
+
+    /* ---- 3.0.0-WP07: the dual-slot boot confirmation ----------------
+     * OCIRE running IS the proof a slot boots: promote the try-slot
+     * (or initialize sane flags on a fresh disk) before anything
+     * else can take the machine down.  Failures stay silent - a
+     * single-slot or legacy disk simply has nothing to confirm. */
+    {
+        extern int ocire_disk_scan(void);
+        extern int ocire_ab_confirm_boot(ocire_layout_t *);
+        extern ocire_layout_t *ocire_layout_mut(void);
+        (void)ocire_disk_scan();
+        ocire_ab_confirm_boot(ocire_layout_mut());
+    }
+
+    /* ---- 3.0.0-WP07: the takeover menus -----------------------------
+     * A routed BOOT_FAILED (consecutive failures) or WAKE_FAILED
+     * (SLEEP_ARMED residue) record raises the blocking [R]/[C](/[W])
+     * menu - the machine stays in recovery until a human decides.
+     * Never reached on a normal boot. */
+    ocire_menu_takeover();
 
     /* ---- role dispatch (WP-02) ------------------------------------
      * ocire.mode=sup  -> the boot supervisor (watchdog closed loop);

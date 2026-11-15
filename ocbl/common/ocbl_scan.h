@@ -35,6 +35,30 @@
 #include "ocbl_types.h"
 #include "ocbl_fs.h"
 
+/* ---- WP-07: the recovery-disk A/B flags sector (LBA 1024) --------
+ * The 24-byte OCIREAB1 block the recovery disk carries between the
+ * OCBL image and the first partition; the layout is shared with
+ * ocire/ocire_disk.h (byte-for-byte). */
+#pragma pack(push, 1)
+typedef struct {
+    char magic[8];        /* "OCIREAB1"                                 */
+    u8  active_slot;      /* 1 = A, 2 = B (last confirmed good)        */
+    u8  try_slot;         /* 0 = none; else the candidate being tried  */
+    u8  attempts;         /* boot attempts made on try_slot            */
+    u8  flags;            /* bit0 = dirty                              */
+    u16 boot_count;       /* successful OCIRE boots                    */
+    u16 rsvd;
+    u32 cksum;            /* ones-complement over the first 16 bytes   */
+} ocbl_abflags_t;
+#pragma pack(pop)
+
+/* Read + validate the flags sector on `drive` (checksum-checked).
+ * Returns true and fills `f`. */
+bool ocbl_ab_read(u8 drive, ocbl_abflags_t* f);
+
+/* Recompute the checksum and write the flags sector back. */
+bool ocbl_ab_write(u8 drive, const ocbl_abflags_t* f);
+
 typedef struct ocbl_entry {
     u8  type;                   /* ocbl_ent_type_t */
     char label[OCBL_LABEL_MAX];

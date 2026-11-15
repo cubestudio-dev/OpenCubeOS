@@ -18,6 +18,8 @@ extern "C" {
 int pwr_cmd_shutdown(const char *args);
 int pwr_cmd_sleep(const char *args);
 int pwr_cmd_reboot(const char *args);
+/* WP-07: the real S3 entry (SLEEP_ARMED brackets the sleep) */
+int pwr_cmd_suspend(const char *args);
 
 /* pwr_cmds_kern.c (rescued from core/main.c) */
 int pwr_cmd_halt(const char *args);

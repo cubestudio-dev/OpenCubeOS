@@ -1,0 +1,9 @@
+OCIRE recovery disk /home/z/ocos/build/ocire/ocire-hd.img (dual independent partitions)
+MBR signature: 55aa
+
+p1 type=0x0C start=2048 sectors=131072 (64 MiB)
+p2 type=0x0C start=133120 sectors=131072 (64 MiB)
+
+A/B flags sector at LBA 1024: magic=b'OCIREAB1' active=1 try=0 attempts=0
+slot OCIRE-A: LBA 2048, FAT32 label='OCIRE_A' root_cluster=2
+slot OCIRE-B: LBA 133120, FAT32 label='OCIRE_A' root_cluster=2

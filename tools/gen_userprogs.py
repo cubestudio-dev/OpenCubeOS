@@ -260,6 +260,7 @@ WP_TAGS = {
     "stackovf": "l1",
     "stat": "ush",
     "stats": "display",
+    "suspend": "power",
     "suspend_test": "power",
     "sync": "block",
     "syncstat": "core",

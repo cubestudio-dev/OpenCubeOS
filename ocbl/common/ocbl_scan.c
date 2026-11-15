@@ -24,6 +24,120 @@ ocbl_scan_t* ocbl_scan_result(void)
  * as slot kernels - they must not register their own entries. */
 static u8 ab_slot_drive;   /* drive whose slots were consumed (0 = none) */
 
+/* ---- WP-07: the OCIRE dual-slot recovery disk ------------------------
+ * The recovery disk carries TWO OCIRE slots (p1=A, p2=B) plus the
+ * OCIREAB1 flags sector at LBA 1024.  The flags decide which slot
+ * OCBL loads: a pending try-slot gets the boot with its attempt
+ * counter bumped (give up + fall back after OCIRE_AB_MAX_ATTEMPTS),
+ * otherwise the confirmed active slot.  Only ONE OCIRE entry is
+ * registered per recovery disk. */
+static u8 ocire_dual_drive = 0xFFu;  /* drive already handled as dual-slot
+                                       * (0xFF = none: UEFI BlockIo drives
+                                       * are numbered FROM ZERO, so the
+                                       * original 0 sentinel consumed the
+                                       * very first OCIRE volume on the
+                                       * UEFI flavor - live-caught as
+                                       * "entries: 0" on the install ISO) */
+
+static u32 ocbl_ab_checksum(const volatile ocbl_abflags_t* f)
+{
+    /* ones-complement sum over the first 16 payload bytes (u16 words
+     * 0..7 - the cksum word pair at words 8/9 is SKIPPED, the same
+     * #52 mailbox discipline; the writer computes the sum before the
+     * cksum field exists) */
+    const u16* w = (const u16*)f;
+    u32 sum = 0;
+    for (u32 i = 0; i < 8; i++)
+        sum += (u32)w[i];
+    return (~sum) & 0xFFFFu;
+}
+
+/* Read + validate the flags sector on `drive`.  Returns true and
+ * fills `f`.
+ *
+ * REAL-MODE CONSTRAINT: the BIOS-flavor ocbl_disk_read routes through
+ * the int 13h DAP, which needs the buffer BELOW 1 MiB - a stack
+ * array in this deep call chain sits in high memory, so the sector
+ * window is a fixed low-memory static (the same discipline the
+ * trampoline bounce buffers use). */
+static u8 ocbl_ab_sec[2048] __attribute__((aligned(16)));
+
+bool ocbl_ab_read(u8 drive, ocbl_abflags_t* f)
+{
+    /* sector-size guard: the flags live on the 512-byte-sector HDD
+     * recovery disk.  A 2048-byte-sector medium (the install ISO,
+     * UEFI BlockIo units) would write nsec*block_size bytes into the
+     * window - the 512-byte buffer of the first cut overran BSS and
+     * silently killed the whole scan (live-caught: the UEFI flavor
+     * registered 0 entries on the very ISO the baseline still
+     * boots).  Non-512 media simply carry no flags. */
+    u64 total = 0;
+    u16 bps = 0;
+    if (!ocbl_disk_geom(drive, &total, &bps) || bps != 512)
+        return false;
+    if (!ocbl_disk_read(drive, 1024, 1, ocbl_ab_sec))
+        return false;
+    volatile ocbl_abflags_t* p = (volatile ocbl_abflags_t*)ocbl_ab_sec;
+    if (p->magic[0] != 'O' || p->magic[1] != 'C' || p->magic[2] != 'I' ||
+        p->magic[3] != 'R' || p->magic[4] != 'E' || p->magic[5] != 'A' ||
+        p->magic[6] != 'B' || p->magic[7] != '1')
+        return false;
+    if (p->cksum != ocbl_ab_checksum(p))
+        return false;
+    for (u32 i = 0; i < sizeof(*f); i++)
+        ((u8*)f)[i] = ocbl_ab_sec[i];
+    return true;
+}
+
+/* Write the flags sector back (checksum recomputed). */
+bool ocbl_ab_write(u8 drive, const ocbl_abflags_t* f)
+{
+    u64 total = 0;
+    u16 bps = 0;
+    if (!ocbl_disk_geom(drive, &total, &bps) || bps != 512)
+        return false;
+    for (u32 i = 0; i < 512; i++)
+        ocbl_ab_sec[i] = 0;
+    for (u32 i = 0; i < sizeof(*f); i++)
+        ocbl_ab_sec[i] = ((const u8*)f)[i];
+    volatile ocbl_abflags_t* p = (volatile ocbl_abflags_t*)ocbl_ab_sec;
+    p->cksum = ocbl_ab_checksum(p);
+    return ocbl_disk_write(drive, 1024, 1, ocbl_ab_sec);
+}
+
+/* Pick the recovery slot per the flags; bumps the try-attempt
+ * counter and falls back to the active slot when the candidate has
+ * burned its attempts.  Returns the slot partition index (1/2) and
+ * updates `*flags_out` for the caller's write-back. */
+static u32 ocbl_dual_pick(u8 drive, ocbl_abflags_t* f, bool* wrote)
+{
+    u32 pick;
+    if (f->try_slot == 1 || f->try_slot == 2) {
+        f->attempts = (u8)(f->attempts + 1);
+        if (f->attempts > 2 /* OCIRE_AB_MAX_ATTEMPTS */) {
+            ocbl_serial_puts("[ab] try-slot burned its attempts - "
+                             "falling back to the active slot\r\n");
+            f->try_slot = 0;
+            f->attempts = 0;
+            pick = (f->active_slot == 2) ? 2 : 1;
+        } else {
+            pick = f->try_slot;
+            ocbl_serial_puts("[ab] trying recovery slot ");
+            ocbl_serial_puts(pick == 1 ? "A" : "B");
+            ocbl_serial_puts(" (attempt ");
+            ocbl_serial_dec(f->attempts);
+            ocbl_serial_puts(")\r\n");
+        }
+        ocbl_ab_write(drive, f);         /* persist the counter */
+        *wrote = true;
+    } else if (f->active_slot == 2) {
+        pick = 2;
+    } else {
+        pick = 1;
+    }
+    return pick;
+}
+
 /* multiboot2 header presence: the header must live in the first
  * 32764 bytes of the file (spec); we scan the first 8 KiB, which
  * covers every layout our kernels generate. */
@@ -264,9 +378,53 @@ static u32 judge_volume(const ocbl_volume_t* v,
         return OCBL_ENT_OCOS;
     }
 
-    /* OCIRE: the recovery kernel (shadow volume, plain volume, or the
-     * standalone recovery ISO - B5-7 opens the ISO gate here too) */
+    /* OCIRE: the recovery kernel.  WP-07: a DUAL-SLOT recovery disk
+     * registers ONE entry pointing at the flags-selected slot; the
+     * second slot volume of that disk is consumed (no own entry). */
     if (ocbl_fs_stat(v, "/boot/ocire.elf", &size)) {
+        if (ocire_dual_drive == v->drive)
+            return 0;              /* the other slot: consumed */
+        ocbl_abflags_t ab;
+        if (ocbl_ab_read(v->drive, &ab)) {
+            /* dual-slot recovery disk: pick the slot from the flags */
+            bool wrote = false;
+            u32 pick = ocbl_dual_pick(v->drive, &ab, &wrote);
+            (void)wrote;
+            ocire_dual_drive = v->drive;
+            /* remount the picked slot partition (index 1 -> p2 is
+             * wrong; MBR slot 0 = p1 = slot A = index 1 in the part
+             * table scan) - the flags live on the same drive */
+            ocbl_part_table_t pt2;
+            if (ocbl_part_scan(v->drive, v->sector_size, &pt2) &&
+                pick <= pt2.count) {
+                ocbl_volume_t sv;
+                if (ocbl_fs_mount(v->drive, pt2.parts[pick - 1].first_lba,
+                                  v->sector_size, &sv) &&
+                    ocbl_fs_stat(&sv, "/boot/ocire.elf", &size)) {
+                    ocbl_entry_t* e = add_entry(OCBL_ENT_OCIRE);
+                    if (e) {
+                        fill_vol(e, &sv);
+                        e->file_size = size;
+                        e->slot = (u8)pick;      /* WP-07 slot marker */
+                        set_path(e, "/boot/ocire.elf");
+                        label_ctx_t l;
+                        lab_init(&l, e->label, OCBL_LABEL_MAX);
+                        lab_add(&l, "OCIRE recovery (slot ");
+                        lab_add(&l, pick == 1 ? "A" : "B");
+                        lab_add(&l, ", ");
+                        lab_drive(&l, v->drive);
+                        lab_add(&l, ")");
+                        *out = e;
+                    }
+                    return OCBL_ENT_OCIRE;
+                }
+            }
+            /* flags exist but the picked slot will not mount - fall
+             * through to the plain single-volume registration so the
+             * machine still offers SOMETHING bootable */
+            ocbl_serial_puts("[ab] picked slot failed to mount - "
+                             "registering the raw volume\r\n");
+        }
         ocbl_entry_t* e = add_entry(OCBL_ENT_OCIRE);
         if (e) {
             fill_vol(e, v);
@@ -419,6 +577,7 @@ u32 ocbl_scan_all(void)
 {
     ocbl_scan_table.count = 0;
     ab_slot_drive = 0;
+    ocire_dual_drive = 0xFFu;
 
     /* the flavor enumerates the disks (BIOS: the int 13h ranges with
      * geom-gated presence; UEFI: the BlockIo handle table), the rest

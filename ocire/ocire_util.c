@@ -48,6 +48,13 @@ int oc_strcmp(const char *a, const char *b) {
     return (int)(u8)*a - (int)(u8)*b;
 }
 
+void oc_strncpyz(char *dst, const char *src, int cap) {
+    int i = 0;
+    if (cap <= 0) return;
+    for (; src[i] && i < cap - 1; i++) dst[i] = src[i];
+    dst[i] = 0;
+}
+
 u64 oc_memfind(const void *haystack, u64 hay_len,
                const void *needle, u64 needle_len) {
     if (!haystack || !needle || needle_len == 0 || hay_len < needle_len)

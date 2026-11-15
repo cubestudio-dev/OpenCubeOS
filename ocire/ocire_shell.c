@@ -25,6 +25,7 @@
 #include "ocire_util.h"
 #include "ocire_acpi.h"
 #include "ocire_recover.h"
+#include "ocire_update.h"
 
 #define OCIRE_PROMPT "ocire> "
 #define LINE_MAX 96
@@ -41,7 +42,7 @@ static int g_shell_zh;
 enum {
     SH_TITLE, SH_HELP, SH_LOGREAD, SH_SYSCHECK, SH_RQUICK, SH_RFULL,
     SH_RETURN, SH_SHUTDOWN, SH_REBOOT, SH_LANG_NOW, SH_UNKNOWN,
-    SH_USAGE_REPAIR, SH_COUNT_
+    SH_USAGE_REPAIR, SH_UPDATE, SH_LS, SH_SLOTS, SH_COUNT_
 };
 static const char* const g_shell_msgs[SH_COUNT_][2] = {
     [SH_TITLE]    = { "OCIRE commands:\n",                        "OCIRE 命令：\n" },
@@ -63,6 +64,12 @@ static const char* const g_shell_msgs[SH_COUNT_][2] = {
                       "  reboot       - 重启机器\n" },
     [SH_LANG_NOW] = { "  lang         - show or set the language: lang [en|zh]\n",
                       "  lang         - 显示或设置语言：lang [en|zh]\n" },
+    [SH_UPDATE]   = { "  update       - verify + flash a signed OCIRE update from the ESP\n",
+                      "  update       - 验签并刷入 ESP 上的签名更新包\n" },
+    [SH_LS]       = { "  ls [path]    - list files on the ESP (ls slotA:|slotB: for slots)\n",
+                      "  ls [路径]    - 列出 ESP 文件（ls slotA:|slotB: 列槽位）\n" },
+    [SH_SLOTS]    = { "  slots        - show the recovery-disk A/B slot map and flags\n",
+                      "  slots        - 显示恢复盘 A/B 槽位图与标志\n" },
     [SH_UNKNOWN]  = { "Unknown command: ",                         "未知命令：" },
     [SH_USAGE_REPAIR] = { "usage: repair quick | repair full\n",  "用法：repair quick | repair full\n" },
 };
@@ -82,6 +89,9 @@ static void cmd_help(void) {
     ocire_puts(sh_tr(SH_SHUTDOWN));
     ocire_puts(sh_tr(SH_REBOOT));
     ocire_puts(sh_tr(SH_LANG_NOW));
+    ocire_puts(sh_tr(SH_UPDATE));
+    ocire_puts(sh_tr(SH_LS));
+    ocire_puts(sh_tr(SH_SLOTS));
 }
 
 static void cmd_lang(const char* arg) {
@@ -182,6 +192,14 @@ void ocire_shell_run(void) {
             cmd_shutdown();            /* does not return on success */
         } else if (oc_strcmp(s, "reboot") == 0) {
             cmd_reboot();              /* does not return on success */
+        } else if (oc_strcmp(s, "update") == 0) {
+            ocire_cmd_update();
+        } else if (oc_strcmp(s, "slots") == 0) {
+            ocire_cmd_slots();
+        } else if (oc_strcmp(s, "ls") == 0) {
+            ocire_cmd_ls("");
+        } else if (oc_strncmp(s, "ls ", 3) == 0) {
+            ocire_cmd_ls(s + 3);
         } else {
             ocire_puts(sh_tr(SH_UNKNOWN));
             ocire_puts(s);

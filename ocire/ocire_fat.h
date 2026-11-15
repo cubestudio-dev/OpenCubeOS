@@ -24,8 +24,11 @@
  *           mounts on both sides.
  *
  * The implementation is independent of the OCOS fs_fat32.c driver
- * (WP-01 rule); only 8.3 short names are handled (LFN entries are
- * skipped) - every file the recovery volume carries is 8.3 upper.
+ * (WP-01 rule); only 8.3 short names are handled natively, but
+ * LFN (long file name) entries are READ and matched since WP-07 -
+ * a real ESP carries long names like "ocire-update.bin" and the
+ * update path must find them.  LFN chains are validated against
+ * the 8.3 checksum; a broken chain falls back to the short name.
  */
 
 #ifndef OCIRE_FAT_H
@@ -35,6 +38,8 @@
 
 #define OCIRE_FAT_MAX_FILE   (192 * 1024)   /* largest file held in memory */
 #define OCIRE_FAT_NAME_LEN   13             /* 8 + 1 + 3 + NUL */
+#define OCIRE_FAT_LFN_MAX    255            /* FAT LFN limit */
+#define OCIRE_FAT_NAME_MAX   64             /* stored/printed name cap */
 
 typedef struct {
     int  ata_idx;          /* disk (ocire_ata_dev index) */
@@ -72,18 +77,43 @@ typedef struct {
     u64  data_lba;         /* absolute LBA of first data sector
                               (contiguity NOT assumed except where a
                               caller states it) */
-    char name[OCIRE_FAT_NAME_LEN];
+    char name[OCIRE_FAT_NAME_MAX];  /* LFN when present, else 8.3 */
 } ocire_fat_file_t;
+
+/* Directory enumeration entry (WP-07: the `ls` surface + ESP
+ * listing).  `name` is the LFN when the entry carries a valid LFN
+ * chain, otherwise the 8.3 short name. */
+typedef struct {
+    char name[OCIRE_FAT_NAME_MAX];
+    u8   attr;             /* FAT attributes, 0x10 = directory */
+    u32  first_cluster;
+    u64  size;
+} ocire_fat_dirent_t;
 
 /* Mount the volume at part_lba on disk ata_idx.  Returns 0 and fills
  * vol, negative on error (bad BPB / unsupported FAT16). */
 int ocire_fat_mount(ocire_fat_vol_t *vol, int ata_idx, u64 part_lba);
 
-/* Look up "PATH/TO/NAME" (8.3 upper-case, '/'-separated, no leading
- * slash) under the volume root.  Returns 0 and fills out, -1 when not
- * found, -2 on I/O or malformed directory. */
+/* Look up "PATH/TO/NAME" under the volume root.  Matching is
+ * case-insensitive on BOTH forms: the 8.3 short name and the LFN
+ * long name (WP-07 - "EFI/OPENCUBE/ocire-update.bin" style paths
+ * on a real ESP resolve through LFN chains).  '/'-separated, no
+ * leading slash.  Returns 0 and fills out, -1 when not found,
+ * -2 on I/O or malformed directory. */
 int ocire_fat_lookup(ocire_fat_vol_t *vol, const char *path,
                      ocire_fat_file_t *out);
+
+/* Enumerate one directory (path = "" for the root, else a
+ * looked-up directory path).  Fills ents (up to max entries) and
+ * returns the entry count, or negative on error (-1 not found,
+ * -2 I/O).  `.` and `..` entries are skipped. */
+int ocire_fat_list_dir(ocire_fat_vol_t *vol, const char *path,
+                       ocire_fat_dirent_t *ents, int max);
+
+/* Delete a file (NOT a directory) by path: the directory entry is
+ * marked deleted and its FAT chain freed.  FAT32 only.  Returns 0
+ * on success, -1 not found, -2 I/O, -3 is a directory. */
+int ocire_fat_delete(ocire_fat_vol_t *vol, const char *path);
 
 /* Read the whole file into buf (cap bytes).  Returns bytes read, or
  * negative on error. */

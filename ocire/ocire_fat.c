@@ -224,17 +224,96 @@ static void name_from_83(const u8 e[11], char out[OCIRE_FAT_NAME_LEN]) {
     out[n] = 0;
 }
 
+/* ---- LFN (long file name) chain collection (WP-07) ----------------
+ * A long name is stored as N "LFN entries" (attr 0x0F) PRECEDING
+ * the 8.3 entry, in reverse order (slot 1 = the first 13 chars,
+ * last-written).  Each entry carries the sequence number (| 0x40 on
+ * the terminator) and the 8.3 checksum.  We collect slots, verify
+ * the checksum against the 8.3 entry that follows and only then
+ * hand the assembled name to the iterator callback - a broken
+ * chain (torn write) falls back to the plain short name. */
+
+#define LFN_MAX_SLOTS 20        /* 20 * 13 = 260 >= the 255 limit */
+
+typedef struct {
+    u16 slots[LFN_MAX_SLOTS][13];
+    u8  have[LFN_MAX_SLOTS];
+    u8  checksum;
+    u8  any;
+} lfn_acc_t;
+
+static u8 lfn_checksum83(const u8 e[11]) {
+    u8 sum = 0;
+    for (int i = 0; i < 11; i++)
+        sum = (u8)(((sum & 1) << 7) + (sum >> 1) + e[i]);
+    return sum;
+}
+
+/* Feed one raw directory entry into the accumulator. */
+static void lfn_feed(lfn_acc_t *a, const u8 *ent) {
+    u8 seq = ent[0];
+    if (seq == DELETED || seq == 0) { a->any = 0; return; }
+    u8 idx = seq & 0x1F;
+    if (idx == 0 || idx > LFN_MAX_SLOTS) { a->any = 0; return; }
+    /* a fresh chain starts at the terminator entry */
+    if (seq & 0x40)
+        oc_memset(a, 0, sizeof(*a));
+    else if (!a->any)
+        return;                 /* mid-chain orphan: drop */
+    const u8 *p = ent;
+    u16 *dst = a->slots[idx - 1];
+    for (int i = 0; i < 13; i++) {
+        u32 o = (i < 5) ? 1 + i * 2
+              : (i < 11) ? 14 + (i - 5) * 2
+                         : 28 + (i - 11) * 2;
+        dst[i] = (u16)(p[o] | ((u16)p[o + 1] << 8));
+    }
+    a->have[idx - 1] = 1;
+    a->checksum = ent[13];
+    a->any = 1;
+}
+
+/* Assemble the collected chain into `out` (ASCII-collapsed: every
+ * code point outside printable ASCII becomes '?').  Returns 0 when
+ * a valid full chain was assembled, -1 otherwise. */
+static int lfn_take(lfn_acc_t *a, const u8 e83[11], char *out, u32 cap) {
+    if (!a->any || a->checksum != lfn_checksum83(e83)) {
+        oc_memset(a, 0, sizeof(*a));
+        return -1;
+    }
+    u32 n = 0;
+    int done = 0;
+    for (int s = 0; s < LFN_MAX_SLOTS && !done; s++) {
+        if (!a->have[s]) break;                  /* chain hole: invalid */
+        for (int i = 0; i < 13; i++) {
+            u16 c = a->slots[s][i];
+            if (c == 0x0000) { done = 1; break; }
+            if (c == 0xFFFF) continue;           /* padding */
+            if (n + 1 < cap)
+                out[n++] = (c >= 0x20 && c < 0x7F) ? (char)c : '?';
+        }
+    }
+    oc_memset(a, 0, sizeof(*a));
+    if (!done) return -1;                        /* no terminator seen */
+    out[n] = 0;
+    return 0;
+}
+
 /* ---- directory walking ---- */
 
 /* Iterator over the directory starting at cluster (0 = FAT12 root
- * fixed area).  Calls cb(entry_sector, entry_off, dirent_copy) for
- * every live entry; stops on I/O error or when cb returns non-zero. */
+ * fixed area).  Calls cb(entry_sector, entry_off, dirent_copy, lfn)
+ * for every live entry - `lfn` is the assembled long name or NULL.
+ * Stops on I/O error or when cb returns non-zero. */
 typedef int (*dir_iter_fn)(ocire_fat_vol_t *vol, u64 sector, u32 off,
-                           const u8 *ent, void *ud);
+                           const u8 *ent, const char *lfn, void *ud);
 
 static int iter_cluster_dir(ocire_fat_vol_t *vol, u32 cluster, dir_iter_fn cb,
                             void *ud) {
     u8 ents[512];
+    char lfn[OCIRE_FAT_NAME_MAX];
+    lfn_acc_t acc;
+    oc_memset(&acc, 0, sizeof(acc));
     while (cluster >= 2 && cluster < 0x0FFFFFF8) {
         u64 lba = cluster_lba(vol, cluster);
         for (u32 s = 0; s < vol->cluster_secs; s++) {
@@ -242,9 +321,19 @@ static int iter_cluster_dir(ocire_fat_vol_t *vol, u32 cluster, dir_iter_fn cb,
             for (u32 o = 0; o + DIRENT_SIZE <= 512; o += DIRENT_SIZE) {
                 u8 first = ents[o];
                 if (first == 0) return 0;             /* end of dir */
-                if (first == DELETED) continue;
-                if ((ents[o + 11] & ATTR_LFN) == ATTR_LFN) continue;
-                int rc = cb(vol, lba + s, o, ents + o, ud);
+                if (first == DELETED) {
+                    oc_memset(&acc, 0, sizeof(acc));
+                    continue;
+                }
+                if ((ents[o + 11] & ATTR_LFN) == ATTR_LFN) {
+                    lfn_feed(&acc, ents + o);
+                    continue;
+                }
+                const char *lp = 0;
+                if (acc.any &&
+                    lfn_take(&acc, ents + o, lfn, sizeof(lfn)) == 0)
+                    lp = lfn;
+                int rc = cb(vol, lba + s, o, ents + o, lp, ud);
                 if (rc != 0) return rc;
             }
         }
@@ -258,6 +347,9 @@ static int iter_dir(ocire_fat_vol_t *vol, u32 dir_cluster, dir_iter_fn cb,
     if (vol->fat_type == 12 && dir_cluster == 0) {
         /* Fixed root directory area. */
         u8 ents[512];
+        char lfn[OCIRE_FAT_NAME_MAX];
+        lfn_acc_t acc;
+        oc_memset(&acc, 0, sizeof(acc));
         u64 root_lba = vol->part_lba + vol->reserved_secs +
                        (u64)vol->nfats * vol->fat_secs;
         for (u64 s = 0; s < vol->root_dir_sectors; s++) {
@@ -266,9 +358,19 @@ static int iter_dir(ocire_fat_vol_t *vol, u32 dir_cluster, dir_iter_fn cb,
             for (u32 o = 0; o + DIRENT_SIZE <= 512; o += DIRENT_SIZE) {
                 u8 first = ents[o];
                 if (first == 0) return 0;
-                if (first == DELETED) continue;
-                if ((ents[o + 11] & ATTR_LFN) == ATTR_LFN) continue;
-                int rc = cb(vol, root_lba + s, o, ents + o, ud);
+                if (first == DELETED) {
+                    oc_memset(&acc, 0, sizeof(acc));
+                    continue;
+                }
+                if ((ents[o + 11] & ATTR_LFN) == ATTR_LFN) {
+                    lfn_feed(&acc, ents + o);
+                    continue;
+                }
+                const char *lp = 0;
+                if (acc.any &&
+                    lfn_take(&acc, ents + o, lfn, sizeof(lfn)) == 0)
+                    lp = lfn;
+                int rc = cb(vol, root_lba + s, o, ents + o, lp, ud);
                 if (rc != 0) return rc;
             }
         }
@@ -279,22 +381,42 @@ static int iter_dir(ocire_fat_vol_t *vol, u32 dir_cluster, dir_iter_fn cb,
 }
 
 typedef struct {
-    const u8 want[11];
+    const u8 want[11];         /* 8.3 form, all-zero when unmatchable */
+    const char *want_lfn;      /* long-name component (may be NULL) */
     ocire_fat_file_t *out;
     int found;
 } lookup_ud_t;
 
+/* case-insensitive ASCII compare */
+static int name_ieq(const char *a, const char *b) {
+    while (*a && *b) {
+        char x = *a++, y = *b++;
+        if (x >= 'A' && x <= 'Z') x += 32;
+        if (y >= 'A' && y <= 'Z') y += 32;
+        if (x != y) return 0;
+    }
+    return *a == 0 && *b == 0;
+}
+
 static int lookup_cb(ocire_fat_vol_t *vol, u64 sector, u32 off,
-                     const u8 *ent, void *ud) {
+                     const u8 *ent, const char *lfn, void *ud) {
     lookup_ud_t *l = (lookup_ud_t *)ud;
-    if (oc_memcmp(ent, l->want, 11) != 0) return 0;
+    int hit = 0;
+    if (l->want[0] != 0 || l->want[1] != 0 || l->want[2] != 0)
+        hit = (oc_memcmp(ent, l->want, 11) == 0);
+    if (!hit && lfn && l->want_lfn && name_ieq(lfn, l->want_lfn))
+        hit = 1;
+    if (!hit) return 0;
     l->out->vol = vol;
     l->out->first_cluster = rd16(ent + 26) | ((u32)rd16(ent + 20) << 16);
     l->out->size = rd32(ent + 28);
     l->out->dir_entry_sector = sector;
     l->out->dir_entry_off = off;
     l->out->data_lba = 0;
-    name_from_83(ent, l->out->name);
+    if (lfn)
+        oc_strncpyz(l->out->name, lfn, OCIRE_FAT_NAME_MAX);
+    else
+        name_from_83(ent, l->out->name);
     l->found = 1;
     return 1;
 }
@@ -302,33 +424,34 @@ static int lookup_cb(ocire_fat_vol_t *vol, u64 sector, u32 off,
 static int lookup_in_dir(ocire_fat_vol_t *vol, u32 dir_cluster,
                          const char *name, ocire_fat_file_t *out) {
     u8 want[11];
-    if (name_to_83(name, want) != 0) return -1;
+    int have83 = (name_to_83(name, want) == 0);
     lookup_ud_t ud;
     oc_memset(&ud, 0, sizeof(ud));
-    oc_memcpy((void *)ud.want, want, 11);
+    if (have83)
+        oc_memcpy((void *)ud.want, want, 11);
+    ud.want_lfn = name;       /* long-name match is always attempted */
     ud.out = out;
     int rc = iter_dir(vol, dir_cluster, lookup_cb, &ud);
     if (rc < 0) return -2;
     return ud.found ? 0 : -1;
 }
 
-/* Split "A/B/C" into the directory chain walk + final name. */
+/* Split "A/B/C" into the directory chain walk + final name.
+ * WP-07: components may be LONG names (up to the LFN cap, matched
+ * case-insensitively against LFN chains). */
 int ocire_fat_lookup(ocire_fat_vol_t *vol, const char *path,
                      ocire_fat_file_t *out) {
     oc_memset(out, 0, sizeof(*out));
     u32 dir_cluster = 0;                            /* root */
-    char comp[OCIRE_FAT_NAME_LEN];
+    char comp[OCIRE_FAT_NAME_MAX];
     const char *p = path;
     while (*p) {
         int n = 0;
-        while (*p && *p != '/' && n < OCIRE_FAT_NAME_LEN - 1) {
+        while (*p && *p != '/' && n < OCIRE_FAT_NAME_MAX - 1) {
             comp[n++] = *p++;
         }
         if (*p && *p != '/')
-            return -1;      /* truncated: component > the 8.3 name limit.
-                             * (Silent truncation here used to split a long
-                             * name into TWO components - the second one was
-                             * then looked up inside a garbage directory.) */
+            return -1;      /* truncated: component over the LFN cap */
         if (n == 0) return -1;
         comp[n] = 0;
         int last = (*p == 0);
@@ -348,6 +471,94 @@ int ocire_fat_lookup(ocire_fat_vol_t *vol, const char *path,
 }
 
 /* ---- file reads ---- */
+
+/* ---- directory enumeration (WP-07: ls / ESP listing) ---- */
+
+typedef struct {
+    ocire_fat_dirent_t *ents;
+    int max, n;
+} list_ud_t;
+
+static int list_cb(ocire_fat_vol_t *vol, u64 sector, u32 off,
+                   const u8 *ent, const char *lfn, void *ud) {
+    (void)vol; (void)sector; (void)off;
+    list_ud_t *l = (list_ud_t *)ud;
+    if (l->n >= l->max) return 1;                 /* buffer full: stop */
+    u8 attr = ent[11];
+    /* skip . and .. */
+    if (ent[0] == '.') {
+        int only_dots = 1;
+        for (int i = 0; i < 11; i++)
+            if (ent[i] != '.' && ent[i] != ' ') { only_dots = 0; break; }
+        if (only_dots) return 0;
+    }
+    ocire_fat_dirent_t *d = &l->ents[l->n++];
+    oc_memset(d, 0, sizeof(*d));
+    d->attr = attr;
+    d->first_cluster = rd16(ent + 26) | ((u32)rd16(ent + 20) << 16);
+    d->size = rd32(ent + 28);
+    if (lfn)
+        oc_strncpyz(d->name, lfn, OCIRE_FAT_NAME_MAX);
+    else
+        name_from_83(ent, d->name);
+    return 0;
+}
+
+int ocire_fat_list_dir(ocire_fat_vol_t *vol, const char *path,
+                       ocire_fat_dirent_t *ents, int max) {
+    u32 dir_cluster = 0;                            /* root */
+    if (path && path[0]) {
+        ocire_fat_file_t f;
+        /* exact path lookup first; a trailing slash means "the dir
+         * named path" so strip it before the split walk */
+        char tmp[OCIRE_FAT_NAME_MAX * 4];
+        u64 plen = oc_strlen(path);
+        if (plen >= sizeof(tmp)) return -1;
+        oc_memcpy(tmp, path, plen);
+        while (plen > 1 && tmp[plen - 1] == '/') plen--;
+        tmp[plen] = 0;
+        if (ocire_fat_lookup(vol, tmp, &f) != 0) return -1;
+        dir_cluster = f.first_cluster;
+        /* must be a directory (cluster 0 + dir attr only happens on
+         * the FAT12 fixed root, where dir_cluster 0 already means
+         * "the fixed root" to iter_dir) */
+        u8 sec[512];
+        if (ocire_ata_read(vol->ata_idx, f.dir_entry_sector, 1, sec) != 0)
+            return -2;
+        if (!(sec[f.dir_entry_off + 11] & ATTR_DIR)) return -1;
+    }
+    list_ud_t ud = { ents, max, 0 };
+    int rc = iter_dir(vol, dir_cluster, list_cb, &ud);
+    if (rc < 0) return -2;
+    return ud.n;
+}
+
+/* ---- delete (WP-07: rollback flag-file removal) ---- */
+
+static int free_chain(ocire_fat_vol_t *vol, u32 first);   /* below */
+
+int ocire_fat_delete(ocire_fat_vol_t *vol, const char *path) {
+    if (vol->fat_type != 32) return -2;            /* FAT12: read-only */
+    ocire_fat_file_t f;
+    if (ocire_fat_lookup(vol, path, &f) != 0) return -1;
+    u8 sec[512];
+    if (ocire_ata_read(vol->ata_idx, f.dir_entry_sector, 1, sec) != 0)
+        return -2;
+    u8 *e = sec + f.dir_entry_off;
+    if (e[11] & ATTR_DIR) return -3;
+    u32 first = rd16(e + 26) | ((u32)rd16(e + 20) << 16);
+    /* mark deleted (LFN entries preceding the 8.3 entry are NOT
+     * cleared - deleted-orphan chains are skipped by every FAT
+     * implementation, and a conservative single-entry delete cannot
+     * corrupt anything) */
+    e[0] = DELETED;
+    if (ocire_fat_write_sect(vol, f.dir_entry_sector, sec) != 0) return -2;
+    /* free the data chain */
+    if (first >= 2) {
+        if (free_chain(vol, first) != 0) return -2;
+    }
+    return 0;
+}
 
 s64 ocire_fat_read_file(ocire_fat_vol_t *vol, const ocire_fat_file_t *f,
                         u8 *buf, u64 cap) {

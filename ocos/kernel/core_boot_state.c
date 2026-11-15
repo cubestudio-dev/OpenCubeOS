@@ -290,6 +290,20 @@ static void bs_pet_tick(void *ctx)
     /* the epoch + tick arithmetic keeps CMOS reads out of IRQ
      * context; drift against the RTC is < 1 s per boot session */
     g_state->last_progress = (ocst_u32)(g_pet_epoch + g_pet_ticks);
+    /* WP-07: after 5 STABLE seconds the system has demonstrably
+     * stayed up - any stale BOOT_FAILED record stops counting now
+     * ("consecutive" stays honest across GOOD boots, while a runtime
+     * hang inside the window keeps the counter for the retry) */
+    if (g_pet_ticks == 5) {
+        volatile ocst_record_t* r =
+            (volatile ocst_record_t *)OCST_RESERVED_ADDR;
+        if (ocst_record_valid(r)) {
+            r->kind = OCST_KIND_NONE;
+            r->checksum = ocst_record_checksum(r);
+            bs_puts("[ocst] stale boot record invalidated "
+                    "(5 s stable)\r\n");
+        }
+    }
     wdt_pet();
 }
 
@@ -364,6 +378,13 @@ void boot_state_l1_syscall(void)
 
     boot_state_advance(OCST_STAGE_L1_READY);
 
+    /* WP-07: the runtime heartbeat below invalidates any stale
+     * BOOT_FAILED record once the system has demonstrably STAYED up
+     * (5 stable pet ticks) - clearing here at the transition itself
+     * would reset the consecutive counter between a runtime hang and
+     * its retry, and the machine would loop on "failure 1" forever
+     * (live-caught by the WP07a S5 battery) */
+
     /* the runtime heartbeat: 1 Hz pets on the 15 s runtime budget */
     g_pet_epoch = core_rtc_unix_now();
     g_pet_ticks = 0;
@@ -382,6 +403,53 @@ void boot_state_l1_syscall(void)
     }
 }
 
+/* ---- WP-07: the SLEEP_ARMED suspend flag ---------------------------- */
+/* The kernel owns kflags (OCBL zeroed it at arm time) but must keep
+ * the write-only contract: a mirror holds the composed value and
+ * every change stores the WHOLE word, never a read-modify-write. */
+static ocst_u8 g_kflags_mirror;
+
+void boot_state_sleep_arm(void)
+{
+    if (!g_enabled)
+        return;
+    g_kflags_mirror |= OCST_KFLAG_SLEEP_ARMED;
+    g_state->kflags = g_kflags_mirror;
+    g_state->last_progress = (ocst_u32)core_rtc_unix_now();
+    /* a sleeping machine cannot pet the dog - the suspend budget is
+     * disarmed; the SLEEP_ARMED flag + the next OCBL run take over
+     * the detection duty instead */
+    wdt_disarm();
+    bs_puts("[ocst] SLEEP_ARMED set (suspend-to-RAM entering)\r\n");
+}
+
+void boot_state_sleep_disarm(void)
+{
+    if (!g_enabled)
+        return;
+    g_kflags_mirror = (ocst_u8)(g_kflags_mirror & ~OCST_KFLAG_SLEEP_ARMED);
+    g_state->kflags = g_kflags_mirror;
+    g_state->last_progress = (ocst_u32)core_rtc_unix_now();
+    /* the resume re-arms the runtime budget (same discipline as the
+     * stage advances: the pets pick it up from the next tick) */
+    wdt_arm(ocst_stage_budget(OCST_STAGE_L1_READY));
+    bs_puts("[ocst] SLEEP_ARMED cleared (resumed from suspend)\r\n");
+}
+
+/* ---- WP-07: stale-record invalidation -------------------------------- */
+void boot_state_record_clear(void)
+{
+    if (!g_enabled)
+        return;
+    volatile ocst_record_t* r = (volatile ocst_record_t *)OCST_RESERVED_ADDR;
+    /* kind NONE never validates (ocst_record_valid accepts 1/2/3) -
+     * the checksum is recomputed so the block stays well-formed for
+     * any debugger reading it */
+    r->kind = OCST_KIND_NONE;
+    r->checksum = ocst_record_checksum(r);
+    bs_puts("[ocst] stale boot record invalidated (good boot)\r\n");
+}
+
 /* ---- the clean-reboot marker ----------------------------------------- */
 void boot_state_clean_reboot(void)
 {
@@ -390,6 +458,7 @@ void boot_state_clean_reboot(void)
     /* plain store, no read-modify-write: the kernel owns kflags
      * entirely (OCBL zeroed it at arm time) - the write-only
      * contract stays literally true */
+    g_kflags_mirror = OCST_KFLAG_CLEAN;
     g_state->kflags = OCST_KFLAG_CLEAN;
     g_state->last_progress = (ocst_u32)core_rtc_unix_now();
     wdt_disarm();

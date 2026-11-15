@@ -371,6 +371,37 @@ int driver_block_part_write_mbr_table(int dev_idx,
  * system partition cannot be mounted; the A/B scan in ota_ab_update.c only
  * covers the A/B layout.  Idempotent via driver_block_part_register_child().
  */
+/* ---- WP-07: OCIRE recovery-disk isolation ---------------------------
+ * The WP-07 recovery disk carries two STANDARD FAT32 partitions, so
+ * the generic partition scan would register them as ordinary block
+ * devices - the WP-02 isolation contract (the recovery media is not
+ * the running system's to touch) must survive the layout change.
+ * The disk is identified by the OCIREAB1 flags sector at LBA 1024
+ * (the same anchor OCBL and OCIRE use); its partitions are never
+ * registered and parted reports it as opaque. */
+static int driver_block_is_ocire_disk_impl(int dev_idx)
+{
+    static int cached_idx = -1;
+    static int cached_verdict = 0;
+    if (dev_idx == cached_idx)
+        return cached_verdict;
+    u8 sec[512];
+    if (driver_block_read_sectors_raw(dev_idx, 1024, 1, sec) != 0)
+        return 0;                    /* unreadable: not ours to judge */
+    int hit = (sec[0] == 'O' && sec[1] == 'C' && sec[2] == 'I' &&
+               sec[3] == 'R' && sec[4] == 'E' && sec[5] == 'A' &&
+               sec[6] == 'B' && sec[7] == '1');
+    cached_idx = dev_idx;
+    cached_verdict = hit;
+    return hit;
+}
+
+/* public alias for blk_cmd_parted (svc_block_cmds.c) */
+int driver_block_is_ocire_disk_public(int dev_idx)
+{
+    return driver_block_is_ocire_disk_impl(dev_idx);
+}
+
 void driver_block_part_scan_register_all(void) {
     int n = driver_block_num_devices();      /* snapshot: children registered
                                        below are not re-scanned */
@@ -378,6 +409,13 @@ void driver_block_part_scan_register_all(void) {
     for (int i = 0; i < n; i++) {
         driver_block_device_t *dev = driver_block_get_device(i);
         if (!dev || !dev->present) continue;
+        /* WP-07: the OCIRE recovery disk stays opaque - no child
+         * devices, nothing for parted/mkfs/disk_rw to touch */
+        if (driver_block_is_ocire_disk_impl(i)) {
+            lib_log_info("partscan: OCIRE recovery disk - partitions "
+                         "not exposed");
+            continue;
+        }
         driver_block_part_table_t tbl;
         if (driver_block_part_parse(i, &tbl) != 0) continue;
         for (int p = 0; p < tbl.count && p < PART_MAX_PARTITIONS; p++) {

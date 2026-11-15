@@ -15,6 +15,7 @@
 #include "ocbl_bios.h"
 #include "ocbl_disk.h"
 #include "ocbl_mmap.h"
+#include "ocbl_part.h"
 #include "ocbl_scan.h"
 #include "ocbl_menu.h"
 #include "ocbl_boot.h"
@@ -300,6 +301,51 @@ void ocbl_run(void)
     u64 base = e->type == OCBL_ENT_OCIRE ? OCBL_OCIRE_BASE : 0x100000ull;
     u32 ksize = 0;
     u64 entry = ocbl_load_elf(&v, e->path, base, &ksize);
+    /* WP-07: OCIRE dual-slot anti-brick fallback - a try-slot whose
+     * kernel will not load (corrupt flash, torn update) is retried
+     * from the OTHER slot right here, and the flags are updated so
+     * the next boot starts from the surviving one. */
+    if (!entry && e->type == OCBL_ENT_OCIRE && e->slot) {
+        ocbl_serial_puts("[ab] OCIRE slot load FAILED - falling back "
+                         "to the other slot\r\n");
+        ocbl_part_table_t pt3;
+        if (ocbl_part_scan(e->drive, e->ssz, &pt3)) {
+            u32 other = e->slot == 1 ? 2 : 1;
+            if (other <= pt3.count) {
+                ocbl_volume_t ov;
+                if (ocbl_fs_mount(e->drive, pt3.parts[other - 1].first_lba,
+                                  e->ssz, &ov)) {
+                    u32 osize = 0;
+                    u64 oentry = ocbl_load_elf(&ov, "/boot/ocire.elf",
+                                                base, &osize);
+                    if (oentry) {
+                        ocbl_serial_puts("[ab] fallback slot boots - "
+                                         "switching the entry\r\n");
+                        u8 tried_slot = e->slot;     /* the dead one */
+                        e->base_lba = ov.base_lba;
+                        e->fs = ov.fs;
+                        e->slot = (u8)other;
+                        e->file_size = osize;
+                        v = ov;
+                        entry = oentry;
+                        ksize = osize;
+                        /* give the try-slot up in the flags so the next
+                         * boot (and OCIRE's slot confirmation) agree
+                         * with what actually runs now */
+                        ocbl_abflags_t ab2;
+                        if (ocbl_ab_read(e->drive, &ab2) &&
+                            (ab2.try_slot == tried_slot)) {
+                            ab2.try_slot = 0;
+                            ab2.attempts = 0;
+                            ocbl_ab_write(e->drive, &ab2);
+                            ocbl_serial_puts("[ab] try-slot abandoned in "
+                                             "the flags\r\n");
+                        }
+                    }
+                }
+            }
+        }
+    }
     if (!entry) {
         ocbl_serial_puts("[boot] FATAL: kernel load failed\r\n");
         for (;;)

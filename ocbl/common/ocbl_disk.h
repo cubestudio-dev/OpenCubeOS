@@ -32,6 +32,13 @@ bool ocbl_disk_ext_ok(u8 drive);
  * on success. */
 bool ocbl_disk_read(u8 drive, u64 lba, u16 nsec, void* buf);
 
+/* WP-07: write `nsec` sectors starting at LBA `lba` of `drive` from
+ * `buf` (BIOS AH=43h write-with-verify / UEFI WriteBlocks).  Used
+ * ONLY for the OCIRE A/B flags sector on the recovery disk - never
+ * for payload data.  Same constraints as the read.  Returns true on
+ * success. */
+bool ocbl_disk_write(u8 drive, u64 lba, u16 nsec, const void* buf);
+
 /* Query geometry (AH=48h extensions): total sectors + bytes/sector.
  * Returns true on success. */
 bool ocbl_disk_geom(u8 drive, u64* total_sectors, u16* bytes_per_sector);

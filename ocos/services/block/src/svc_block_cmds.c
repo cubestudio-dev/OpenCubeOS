@@ -69,6 +69,14 @@ int blk_cmd_parted(const char *args) {
             return 1;
         }
     }
+    /* WP-07: the OCIRE recovery disk stays opaque to the running
+     * system (the isolation contract) - parted reports it the same
+     * way it reports a table-less disk */
+    if (driver_block_is_ocire_disk_public(dev_idx)) {
+        screen_console_puts("parted: no partition table found "
+                            "(OCIRE recovery disk)\n");
+        return 1;
+    }
     driver_block_part_table_t tbl;
     if (driver_block_part_parse(dev_idx, &tbl) != 0) {
         screen_console_puts("parted: no partition table found\n");

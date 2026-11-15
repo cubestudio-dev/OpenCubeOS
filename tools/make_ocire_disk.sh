@@ -61,36 +61,85 @@ HD1="$BUILD/ocire-hd.img"
 [ -f "$GRUB_SHARE/unicode.pf2" ] || { echo "[ocire_disk] FATAL: $GRUB_SHARE/unicode.pf2 missing" >&2; exit 1; }
 
 # ----------------------------------------------------------------------
-# hd1 first: the recovery disk (the boot disk's menu blocklists into it)
+# ----------------------------------------------------------------------
+# hd1: the OCIRE recovery disk - WP-07 DUAL-INDEPENDENT-PARTITION edition
+#
+#   LBA 0        OCBL BIOS image (stage1_mbr + core): the disk boots
+#                itself straight into the loader; the loader's A/B
+#                scan picks the slot from the flags sector
+#   LBA 1024     the OCIREAB1 A/B flags sector (active/try/attempts)
+#   p1  (LBA 2048, 64 MiB)  OCIRE-A  - a FULL recovery environment
+#   p2  (LBA 133120, 64 MiB) OCIRE-B - a FULL recovery environment
+#
+#   Both slots are REAL physical partitions carrying the complete WP-02
+#   file set (boot kernel, golden image, log agent, log ring, mailbox);
+#   slot B starts as a byte-identical copy of slot A.  The 0xEE/FAT12
+#   single-shadow layout of WP-02..WP-06 is retired on this disk (the
+#   OCIRE reader still mounts old media for compatibility).
 # ----------------------------------------------------------------------
 HD1_START=2048
-HD1_SECTORS=$((16*1024*1024/512 - HD1_START))
-echo "[ocire_disk] hd1: $HD1 (single 0xEE shadow partition, FAT12 volume)"
+HD1_SLOT_SECTORS=$((64*1024*1024/512))          # 64 MiB per slot
+HD1_SECTORS=$((2*HD1_SLOT_SECTORS + HD1_START)) # p1 + p2
+echo "[ocire_disk] hd1: $HD1 (dual independent OCIRE-A/B partitions, FAT32 slots + OCBL in the MBR gap)"
 rm -f "$HD1"
-truncate -s $(( (HD1_START + HD1_SECTORS) * 512 )) "$HD1"
+truncate -s $((HD1_SECTORS * 512)) "$HD1"
 
-python3 - "$HD1" "$HD1_START" "$HD1_SECTORS" <<'PYEOF'
+# ---- 1. the OCBL BIOS image at LBA 0 (the disk is self-booting) -----
+#        [ stage1_mbr 512B ][ core ] - the stage1 keeps its boot facts
+#        in the +0x1A0 patch block (ocbl-install contract): core LBA
+#        (1, right behind stage1) + sector count.  The MBR partition
+#        table is written AFTER the image so it SURVIVES the stage1
+#        bytes (the same preserve-446..509 discipline ocbl-install
+#        uses on real targets).
+OCBL_MBR="$BUILD/.hd1.ocbl-mbr.img"
+if [ ! -f "$OC_ROOT/build/ocbl/stage1_mbr.bin" ] || \
+   [ ! -f "$OC_ROOT/build/ocbl/core.bin" ]; then
+    echo "[ocire_disk] FATAL: build/ocbl/stage1_mbr.bin or core.bin missing (make ocbl-bios)" >&2
+    exit 1
+fi
+python3 "$OC_ROOT/ocbl/build_image.py" "$OCBL_MBR" \
+    "$OC_ROOT/build/ocbl/stage1_mbr.bin" "$OC_ROOT/build/ocbl/core.bin"
+dd if="$OCBL_MBR" of="$HD1" bs=512 conv=notrunc status=none
+OCBL_SECTORS=$(( ($(stat -c%s "$OCBL_MBR") + 511) / 512 ))
+if [ "$OCBL_SECTORS" -gt 1024 ]; then
+    echo "[ocire_disk] FATAL: OCBL image ($OCBL_SECTORS sectors) would overrun the flags sector at LBA 1024" >&2
+    exit 1
+fi
+
+# ---- 2. MBR: OCBL stage1 + the two FAT32 partitions + the boot patch -
+python3 - "$HD1" "$HD1_START" "$HD1_SLOT_SECTORS" "$OCBL_SECTORS" <<'MBREOF'
 import struct, sys
-path, start, sectors = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
-mbr = bytearray(512)
-e = 446
-mbr[e+0] = 0x00                    # not flagged bootable (GRUB loads it by hand)
-mbr[e+1: e+4] = b"\x20\x21\x00"
-mbr[e+4] = 0xEE                    # GPT protective shadow entry
-mbr[e+5: e+8] = b"\xfe\xff\xff"
-mbr[e+8: e+12] = struct.pack("<I", start)
-mbr[e+12: e+16] = struct.pack("<I", sectors)
-mbr[510:512] = b"\x55\xAA"
+path, start, slot, ocbl_sectors = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4])
 with open(path, "r+b") as f:
+    mbr = bytearray(f.read(512))
+    for i in range(2):
+        off = 446 + i * 16
+        mbr[off + 0] = 0x00
+        mbr[off + 1: off + 4] = b"\x20\x21\x00"
+        mbr[off + 4] = 0x0C                    # FAT32 (LBA)
+        mbr[off + 5: off + 8] = b"\xfe\xff\xff"
+        mbr[off + 8: off + 12] = struct.pack("<I", start + i * slot)
+        mbr[off + 12: off + 16] = struct.pack("<I", slot)
+    mbr[510:512] = b"\x55\xAA"
+    # the +0x1A0 stage1 boot patch block: 'OCBL' + core LBA (lo/hi)
+    # + core sector count (the core sits right behind stage1 at LBA 1)
+    struct.pack_into("<I", mbr, 0x1A0, 0x4C42434F)          # 'OCBL'
+    struct.pack_into("<I", mbr, 0x1A4, 1)                   # core LBA lo
+    struct.pack_into("<I", mbr, 0x1A8, 0)                   # core LBA hi
+    struct.pack_into("<H", mbr, 0x1AC, ocbl_sectors - 1)    # core sectors
+    f.seek(0)
     f.write(bytes(mbr))
-print("[ocire_disk] hd1 MBR written (p1 type 0xEE, LBA %d, %d sectors, no GPT header)" % (start, sectors))
-PYEOF
+print("[ocire_disk] hd1 MBR: OCBL stage1 + p1=OCIRE-A LBA %d, p2=OCIRE-B LBA %d "
+      "(%d sectors each); core at LBA 1, %d sectors"
+      % (start, start + slot, slot, ocbl_sectors - 1))
+MBREOF
+echo "[ocire_disk] hd1 OCBL image: $OCBL_SECTORS sectors at LBA 0 (flags live at LBA 1024)"
 
-# ---- the FAT12 volume inside the 0xEE shadow partition ----
-# 8 KiB clusters keep the cluster count under 4085 (FAT12 range).
-P1PULL="$BUILD/.hd1.p1"
-dd if="$HD1" of="$P1PULL" bs=512 skip=$HD1_START count=$HD1_SECTORS status=none
-mformat -i "$P1PULL" -c 16 -v OCIRE ::
+# ---- 3. slot A: the FAT32 volume with the full recovery file set ----
+# 1 sector/cluster keeps the cluster count >= 65525 (real FAT32).
+P1PULL="$BUILD/.hd1.slotA"
+dd if=/dev/zero of="$P1PULL" bs=512 count=$HD1_SLOT_SECTORS status=none
+mformat -i "$P1PULL" -F -s 1 -v OCIRE_A ::
 
 mmd  -i "$P1PULL" ::/boot ::/golden ::/agent ::/log
 # The boot kernel goes in FIRST (fresh volume -> contiguous clusters,
@@ -105,26 +154,22 @@ GOLDEN_CFG="$BUILD/.golden.grub.cfg"      # filled after hd0 exists; placeholder
 sha256_of() { sha256sum "$1" | cut -d' ' -f1; }
 
 # ---- the log ring: 64 KiB, sector 0 = header ----
-python3 - "$P1PULL" <<'PYEOF'
+python3 - "$P1PULL" <<'LOGEOF'
 import struct, sys
 img = sys.argv[1]
-# 128 sectors: header (16 bytes: magic, write_off, boot_seq, reserved) + data
 buf = bytearray(b"\x00" * (128 * 512))
 buf[0:9] = b"OCIRELOG1"
 struct.pack_into("<I", buf, 9, 0)        # write_off (bytes past header sector)
 struct.pack_into("<I", buf, 13, 0)       # boot_seq
-from_mtools = None
 open(img + ".logring", "wb").write(buf)
 print("[ocire_disk] log ring staged (128 sectors)")
-PYEOF
+LOGEOF
 mcopy -i "$P1PULL" "$P1PULL.logring" ::/log/boot.log
 rm -f "$P1PULL.logring"
 
-# ---- the mailbox: filled after the log LBA is known ----
-
-# ---- FAT12 layout facts the kernels/GRUB need (real-structure parse) ----
-FAT12_JSON="$BUILD/.hd1.layout.json"
-python3 - "$P1PULL" "$FAT12_JSON" <<'PYEOF'
+# ---- FAT32 layout facts the kernels/GRUB need (real-structure parse) ----
+FAT32_JSON="$BUILD/.hd1.layout.json"
+python3 - "$P1PULL" "$FAT32_JSON" <<'FACTEOF'
 import json, struct, sys
 img, out = sys.argv[1], sys.argv[2]
 f = open(img, "rb")
@@ -133,75 +178,63 @@ bps = struct.unpack_from("<H", bpb, 11)[0]
 spc = bpb[13]
 reserved = struct.unpack_from("<H", bpb, 14)[0]
 nfats = bpb[16]
-rootent = struct.unpack_from("<H", bpb, 17)[0]
-fatsz = struct.unpack_from("<H", bpb, 22)[0]
-totsec = struct.unpack_from("<H", bpb, 19)[0]
-assert bps == 512 and spc == 16 and nfats == 2 and rootent and fatsz, \
-       "unexpected FAT12 geometry (bps=%d spc=%d nfats=%d rootent=%d fatsz=%d)" % (bps, spc, nfats, rootent, fatsz)
-root_secs = (rootent * 32 + 511) // 512
-fat_start = reserved
-root_start = reserved + nfats * fatsz
-data_start = root_start + root_secs
+fatsz = struct.unpack_from("<I", bpb, 36)[0]
+rootclus = struct.unpack_from("<I", bpb, 44)[0]
+totsec = struct.unpack_from("<I", bpb, 32)[0]
+assert bps == 512 and spc == 1 and nfats == 2 and fatsz and rootclus >= 2, \
+       "unexpected FAT32 geometry (bps=%d spc=%d nfats=%d fatsz=%d rootclus=%d)" \
+       % (bps, spc, nfats, fatsz, rootclus)
+data_start = reserved + nfats * fatsz
 total_clusters = (totsec - data_start) // spc
-assert total_clusters < 4085, "not FAT12: %d clusters" % total_clusters
+assert total_clusters >= 65525, "not FAT32: %d clusters" % total_clusters
 
-# FAT12 entry read
+fat_start = reserved
 f.seek(fat_start * 512)
 fat = f.read(fatsz * 512)
-def fat12(n):
-    off = n + (n >> 1)
-    v = struct.unpack_from("<H", fat, off)[0]
-    v = (v >> 4) if (n & 1) else (v & 0xFFF)
-    return v
-
-def dir_entries(root_start_sector, root_secs):
-    f.seek(root_start_sector * 512)
-    data = f.read(root_secs * 512)
-    for o in range(0, len(data), 32):
-        e = data[o:o+32]
-        if e[0] in (0x00, 0xE5):
-            continue
-        if (e[11] & 0x3F) == 0x0F:
-            continue
-        yield e
-
-def find_in_root(name):
-    # name like b"BOOT       " (11 bytes)
-    for e in dir_entries(root_start, root_secs):
-        if e[0:11].upper() == name:
-            return e
-    return None
+def fat32(n):
+    return struct.unpack_from("<I", fat, n * 4)[0] & 0x0FFFFFFF
 
 def cluster_chain(first):
     chain = []
     c = first
-    while 2 <= c < 0xFF8:
+    while 2 <= c < 0x0FFFFFF8:
         chain.append(c)
-        c = fat12(c)
+        c = fat32(c)
     return chain
 
-def file_facts(path_parts):
-    e = find_in_root(path_parts[0])
-    for part in path_parts[1:]:
-        assert e is not None, "dir not found: %s" % (path_parts,)
-        # descend
-        first = struct.unpack_from("<H", e, 26)[0]
-        sec = data_start + (first - 2) * spc
-        f.seek(sec * 512)
-        sub = f.read(spc * 512)
-        nxt = None
-        for o in range(0, len(sub), 32):
-            se = sub[o:o+32]
-            if se[0] in (0x00, 0xE5):
+def read_cluster(c):
+    f.seek((data_start + (c - 2) * spc) * 512)
+    return f.read(spc * 512)
+
+def dir_of(cluster):
+    ents = []
+    for c in cluster_chain(cluster):
+        data = read_cluster(c)
+        for o in range(0, len(data), 32):
+            e = data[o:o+32]
+            if e[0] in (0x00, 0xE5):
                 continue
-            if (se[11] & 0x3F) == 0x0F:
+            if (e[11] & 0x3F) == 0x0F:
                 continue
-            if se[0:11].upper() == part:
-                nxt = se
-                break
-        e = nxt
-    assert e is not None, "not found: %s" % (path_parts,)
-    first = struct.unpack_from("<H", e, 26)[0]
+            ents.append(e)
+    return ents
+
+def find_in_dir(cluster, name):
+    for e in dir_of(cluster):
+        if e[0:11].upper() == name:
+            return e
+    return None
+
+def file_facts(root_cluster, parts):
+    e = find_in_dir(root_cluster, parts[0])
+    for part in parts[1:]:
+        assert e is not None, "dir not found: %s" % (parts,)
+        first = struct.unpack_from("<H", e, 26)[0] | \
+                (struct.unpack_from("<H", e, 20)[0] << 16)
+        e = find_in_dir(first, part)
+    assert e is not None, "not found: %s" % (parts,)
+    first = struct.unpack_from("<H", e, 26)[0] | \
+            (struct.unpack_from("<H", e, 20)[0] << 16)
     size = struct.unpack_from("<I", e, 28)[0]
     chain = cluster_chain(first)
     return first, size, chain
@@ -209,36 +242,34 @@ def file_facts(path_parts):
 facts = {}
 for label, parts in [("kernel", (b"BOOT       ", b"OCIRE   ELF")),
                      ("log", (b"LOG        ", b"BOOT    LOG"))]:
-    first, size, chain = file_facts(parts)
-    # absolute LBA inside the partition image
+    first, size, chain = file_facts(rootclus, parts)
     lba = data_start + (first - 2) * spc
     contiguous = (chain == list(range(chain[0], chain[0] + len(chain))))
     facts[label] = {"first_cluster": first, "size": size, "clusters": len(chain),
                     "lba": lba, "contiguous": contiguous,
                     "sectors": (size + 511) // 512}
-    print("[ocire_disk] hd1 %s: cluster %d, %d bytes, %d clusters, contiguous=%s"
+    print("[ocire_disk] hd1-A %s: cluster %d, %d bytes, %d clusters, contiguous=%s"
           % (label, first, size, len(chain), contiguous))
 
-# agent facts (hash computed by the shell later; we need LBA none)
-afirst, asize, achain = file_facts((b"AGENT      ", b"AGENT   ELF"))
+afirst, asize, achain = file_facts(rootclus, (b"AGENT      ", b"AGENT   ELF"))
 acontig = (achain == list(range(achain[0], achain[0] + len(achain))))
-assert acontig, "agent.elf is fragmented - blocklist path needs it contiguous (fresh volume: should not happen)"
+assert acontig, "agent.elf fragmented (fresh volume: should not happen)"
 facts["agent"] = {"first_cluster": afirst, "size": asize, "clusters": len(achain)}
 
-assert facts["kernel"]["contiguous"], "ocire.elf fragmented on the FAT12 volume (blocklist would fail)"
-assert facts["log"]["contiguous"], "boot.log fragmented on the FAT12 volume"
+assert facts["kernel"]["contiguous"], "ocire.elf fragmented on the FAT32 slot (blocklist would fail)"
+assert facts["log"]["contiguous"], "boot.log fragmented on the FAT32 slot"
 
 facts["geometry"] = {"data_start": data_start, "spc": spc,
-                     "total_clusters": total_clusters}
+                     "total_clusters": total_clusters, "root_cluster": rootclus}
 json.dump(facts, open(out, "w"), indent=1)
-print("[ocire_disk] hd1 layout facts -> %s" % out)
-PYEOF
+print("[ocire_disk] hd1-A layout facts -> %s" % out)
+FACTEOF
 
-KERN_LBA=$(python3 -c "import json;d=json.load(open('$FAT12_JSON'));print(d['kernel']['lba'] + $HD1_START)")
-KERN_SECTORS=$(python3 -c "import json;d=json.load(open('$FAT12_JSON'));print(d['kernel']['sectors'])")
-LOG_LBA=$(python3 -c "import json;d=json.load(open('$FAT12_JSON'));print(d['log']['lba'] + $HD1_START)")
+KERN_LBA=$(python3 -c "import json;d=json.load(open('$FAT32_JSON'));print(d['kernel']['lba'] + $HD1_START)")
+KERN_SECTORS=$(python3 -c "import json;d=json.load(open('$FAT32_JSON'));print(d['kernel']['sectors'])")
+LOG_LBA=$(python3 -c "import json;d=json.load(open('$FAT32_JSON'));print(d['log']['lba'] + $HD1_START)")
 AGENT_SHA=$(sha256_of "$AGENT_ELF")
-echo "[ocire_disk] hd1 blocklist: LBA $KERN_LBA + $KERN_SECTORS sectors; log ring at LBA $LOG_LBA"
+echo "[ocire_disk] hd1-A blocklist: LBA $KERN_LBA + $KERN_SECTORS sectors; log ring at LBA $LOG_LBA"
 
 if [ "$KERN_SECTORS" -gt 1024 ]; then
     echo "[ocire_disk] FATAL: OCIRE ELF ($KERN_SECTORS sectors) exceeds the 1024-sector blocklist window" >&2
@@ -246,7 +277,7 @@ if [ "$KERN_SECTORS" -gt 1024 ]; then
 fi
 
 # ---- write the mailbox (magic, NONE state, log LBA, agent SHA-256) ----
-python3 - "$P1PULL" "$LOG_LBA" "$AGENT_SHA" <<'PYEOF'
+python3 - "$P1PULL" "$LOG_LBA" "$AGENT_SHA" <<'MBEOF'
 import binascii, struct, sys
 img, log_lba, agent_sha = sys.argv[1], int(sys.argv[2]), sys.argv[3]
 mb = bytearray(128)
@@ -257,10 +288,8 @@ struct.pack_into("<I", mb, 16, 0)       # fail_count
 struct.pack_into("<I", mb, 20, log_lba) # log ring LBA (absolute)
 struct.pack_into("<I", mb, 24, 128)     # log sectors
 mb[28:60] = binascii.unhexlify(agent_sha)
-# #52 (WP-fix-p2-p3-cleanup): ver=1 + ones-complement checksum (words
-# 0..63 skipping the cksum pair at words 32/33), mirroring
-# ocire_mb_checksum() in ocire/ocire_disk.c so a fresh disk carries
-# the same torn-write protection the kernel enforces on read.
+# #52: ver=1 + ones-complement checksum (words 0..63 skipping the
+# cksum pair at words 32/33) - mirrors ocire_mb_checksum().
 struct.pack_into("<I", mb, 60, 1)       # ver = 1
 s = 0
 for i in range(64):
@@ -272,11 +301,37 @@ for i in range(64):
 struct.pack_into("<I", mb, 64, (~s) & 0xFFFF)
 open(img + ".mb", "wb").write(bytes(mb))
 print("[ocire_disk] mailbox staged (state=NONE, log_lba=%d, ver=1)" % log_lba)
-PYEOF
+MBEOF
 mcopy -i "$P1PULL" "$P1PULL.mb" ::/mailbox.bin
 rm -f "$P1PULL.mb"
 
-dd if="$P1PULL" of="$HD1" bs=512 seek=$HD1_START count=$HD1_SECTORS conv=notrunc status=none
+# ---- 4. (slots are written AFTER the golden stage below adds the
+#         manifest + menu to the pulled slot-A image; both slots then
+#         receive the identical full content) -------------------------
+
+# ---- 5. the A/B flags sector at LBA 1024 (active=A, no try) ---------
+python3 - "$HD1" <<'ABEOF'
+import struct, sys
+path = sys.argv[1]
+sec = bytearray(512)
+sec[0:8] = b"OCIREAB1"
+sec[8] = 1      # active_slot = A
+sec[9] = 0      # try_slot = none
+sec[10] = 0     # attempts
+sec[11] = 0     # flags
+struct.pack_into("<H", sec, 12, 0)     # boot_count
+struct.pack_into("<H", sec, 14, 0)     # rsvd
+# ones-complement sum of the 20 payload bytes as LE u16 words
+s = 0
+for i in range(10):
+    s += struct.unpack_from("<H", sec, i * 2)[0]
+struct.pack_into("<I", sec, 16, (~s) & 0xFFFF)
+with open(path, "r+b") as f:
+    f.seek(1024 * 512)
+    f.write(bytes(sec))
+print("[ocire_disk] hd1 A/B flags written (active=A, try=none) at LBA 1024")
+ABEOF
+
 
 # ----------------------------------------------------------------------
 # hd0: dual-boot GRUB disk (128 MiB, p1 FAT32 from LBA 2048)
@@ -365,9 +420,13 @@ mcopy -i "$P1PULL" "$GRUB_SHARE/unicode.pf2"    ::/golden/unicode.pf2
 } > "$BUILD/.manifest.txt"
 mcopy -i "$P1PULL" "$BUILD/.manifest.txt" ::/golden/manifest.txt
 
-dd if="$P1PULL" of="$HD1" bs=512 seek=$HD1_START count=$HD1_SECTORS conv=notrunc status=none
+# WP-07: BOTH independent partitions receive the identical slot image
+# (slot A into p1, the byte-identical copy into p2).
+dd if="$P1PULL" of="$HD1" bs=512 seek=$HD1_START count=$HD1_SLOT_SECTORS conv=notrunc status=none
+dd if="$P1PULL" of="$HD1" bs=512 seek=$((HD1_START + HD1_SLOT_SECTORS)) count=$HD1_SLOT_SECTORS conv=notrunc status=none
+echo "[ocire_disk] hd1 slots A+B written (identical full recovery environments)"
 
-rm -f "$P1PULL" "$P0PULL" "$FAT12_JSON" "$BUILD/.core.img" "$BUILD/.BOOTX64.EFI" \
-      "$BUILD/.grub-dual.cfg" "$BUILD/.manifest.txt"
+rm -f "$P1PULL" "$P0PULL" "$FAT32_JSON" "$BUILD/.core.img" "$BUILD/.BOOTX64.EFI" \
+      "$BUILD/.grub-dual.cfg" "$BUILD/.manifest.txt" "$OCBL_MBR"
 echo "[ocire_disk] done:"
 ls -la "$HD0" "$HD1"

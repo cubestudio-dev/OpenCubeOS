@@ -121,6 +121,7 @@
 #define L1SVC_PWR_SUSPEND_TEST    6  /* suspend_test          */
 #define L1SVC_PWR_HALT_TEST       7  /* halt_test             */
 #define L1SVC_PWR_REBOOT_TEST     8  /* reboot_test           */
+#define L1SVC_PWR_SUSPEND         9  /* suspend (real S3, WP-07: SLEEP_ARMED) */
 #define L1SVC_DISP_STATS       1   /* stats                   */
 #define L1SVC_DISP_UNAME       2   /* uname [-a|-s|-r|-m]     */
 #define L1SVC_DISP_CLEAR       3   /* clear                   */

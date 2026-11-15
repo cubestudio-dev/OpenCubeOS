@@ -91,6 +91,15 @@ static u64 fat_byte_off(const ocbl_volume_t* v, u32 clus)
  * 512 cluster hops in 4 KiB clusters, all inside a couple of FAT
  * sectors) - one disk read per sector instead of one per lookup. */
 static u64 g_fatc_vol;                /* cached volume base_lba (~0=off) */
+static u8  g_fatc_drv;                /* WP-07: the label MUST carry the
+                                       * drive too - the recovery disk's
+                                       * slot A and the GRUB disk's p1
+                                       * both sit at base LBA 2048, and
+                                       * a base_lba-only label served
+                                       * one disk's FAT sectors to the
+                                       * other (live-caught: slot A's
+                                       * kernel load read the GRUB
+                                       * volume's chain and failed) */
 static u64 g_fatc_sec;
 static u8* fatc(void)
 {
@@ -104,10 +113,12 @@ static u32 fat_entry(const ocbl_volume_t* v, u32 clus)
     u64 off = fat_byte_off(v, clus);
     u64 sec = v->reserved_sectors + off / v->bytes_per_sector;
     u32 in = (u32)(off % v->bytes_per_sector);
-    if (g_fatc_vol != v->base_lba || g_fatc_sec != sec) {
+    if (g_fatc_vol != v->base_lba || g_fatc_drv != v->drive ||
+        g_fatc_sec != sec) {
         if (!fs_rd_vsec(v, sec, 1, fatc()))
             return 0x0FFFFFF8;         /* EOC on read failure */
         g_fatc_vol = v->base_lba;
+        g_fatc_drv = v->drive;
         g_fatc_sec = sec;
     }
     if (0) {                          /* keep the original branch shape */

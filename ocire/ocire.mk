@@ -29,6 +29,13 @@ OCIRE_OUT := $(BUILD)/ocire
 # an explicit OCIRE_VERSION=... override still wins.
 OCIRE_VERSION ?= $(OC_RELEASE_VERSION)
 
+# ---- WP-07: the Ed25519 update-verification key anchor -------------
+# The PUBLIC key compiles into OCIRE; the private key stays on the
+# build host (build/ocire/keys/, gitignored) and never ships.
+$(OCIRE_DIR)/generated/ocire_ed25519_pub.c: tools/gen_ocire_ed25519.py
+	@mkdir -p $(OCIRE_DIR)/generated build/ocire/keys
+	@python3 tools/gen_ocire_ed25519.py gen
+
 # ---- WP-02: the ring-3 log agent (OCOS L1 ABI, OCIRE's asset) -----
 # Compiled like an l1apps/ C program (gcc freestanding + user.ld @
 # 0x400000, int 0x80 syscalls) but shipped as a STANDALONE ELF on the
@@ -40,7 +47,8 @@ OCIRE_AGENT_SRC := $(OCIRE_DIR)/agent/ocire_agent.c
 OCIRE_AGENT_OBJ := $(OCIRE_OUT)/ocire_agent.o
 
 OCIRE_C := $(wildcard $(OCIRE_DIR)/*.c) \
-           $(OCIRE_DIR)/generated/ocire_cn_font_data.c
+           $(OCIRE_DIR)/generated/ocire_cn_font_data.c \
+           $(OCIRE_DIR)/generated/ocire_ed25519_pub.c
 OCIRE_S := $(wildcard $(OCIRE_DIR)/*.S)
 
 # WP06g3-4.8: the OCIRE Chinese glyph data is GENERATED from the OCSE

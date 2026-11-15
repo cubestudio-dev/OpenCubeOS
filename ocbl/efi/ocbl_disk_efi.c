@@ -154,3 +154,17 @@ bool ocbl_disk_read(u8 drive, u64 lba, u16 nsec, void* buf)
                                     buf);
     return st == EFI_SUCCESS;
 }
+
+/* WP-07: the A/B flags write path (BlockIo WriteBlocks). */
+bool ocbl_disk_write(u8 drive, u64 lba, u16 nsec, const void* buf)
+{
+    if (drive >= g_ndisks || nsec == 0)
+        return false;
+    efi_block_io* io = g_disks[drive].io;
+    efi_status st = io->write_blocks(io, io->media->media_id, lba,
+                                     (u64)nsec * g_disks[drive].block_size,
+                                     (void*)buf);
+    if (st == EFI_SUCCESS && io->flush_blocks)
+        io->flush_blocks(io);
+    return st == EFI_SUCCESS;
+}

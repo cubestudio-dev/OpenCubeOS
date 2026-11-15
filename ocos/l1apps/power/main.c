@@ -35,6 +35,7 @@ static const struct wiz_op g_ops[] = {
     {"reboot",        L1SVC_CAT_POWER, L1SVC_PWR_REBOOT},
     {"halt",          L1SVC_CAT_POWER, L1SVC_PWR_HALT},
     {"sleep",         L1SVC_CAT_POWER, L1SVC_PWR_SLEEP},
+    {"suspend",       L1SVC_CAT_POWER, L1SVC_PWR_SUSPEND},
     {"poweroff_test", L1SVC_CAT_POWER, L1SVC_PWR_POWEROFF_TEST},
     {"suspend_test",  L1SVC_CAT_POWER, L1SVC_PWR_SUSPEND_TEST},
     {"halt_test",     L1SVC_CAT_POWER, L1SVC_PWR_HALT_TEST},

@@ -57,6 +57,30 @@
 #define OCIRE_MB_STATE_SIGNAL_OK   2
 #define OCIRE_MB_STATE_ENTER_FULL  3
 
+/* ---- WP-07: the A/B slot flags sector ---------------------------- */
+
+#define OCIRE_AB_MAGIC      "OCIREAB1"
+#define OCIRE_AB_FLAGS_LBA  1024u     /* recovery-disk LBA (MBR gap) */
+#define OCIRE_AB_MAX_ATTEMPTS  2u     /* give up the try-slot after  */
+
+#pragma pack(push, 1)
+typedef struct {
+    char magic[8];        /* OCIRE_AB_MAGIC                             */
+    u8  active_slot;      /* 1 = A, 2 = B (last CONFIRMED good slot)    */
+    u8  try_slot;         /* 0 = none; else the candidate being tested  */
+    u8  attempts;         /* boot attempts already made on try_slot     */
+    u8  flags;            /* OCIRE_AB_F_*                               */
+    u16 boot_count;       /* successful OCIRE boots (informational)     */
+    u16 rsvd;             /* 0                                          */
+    u32 cksum;            /* ones-complement sum of the preceding 16
+                           * bytes (u16 words 0..7, cksum skipped - #52
+                           * discipline, mirrored by make_ocire_disk.sh
+                           * and the OCBL writer)                       */
+} ocire_abflags_t;        /* 24 bytes                                   */
+#pragma pack(pop)
+
+#define OCIRE_AB_F_DIRTY   0x01u   /* update in progress marker */
+
 #pragma pack(push, 1)
 typedef struct {
     char magic[8];
@@ -86,10 +110,26 @@ typedef struct {
     u64              ocos_part_lba;
     u64              ocos_part_sectors;
 
-    /* The OCIRE volume (the 0xEE shadow partition, FAT12). */
+    /* The OCIRE volume: the ACTIVE slot (FAT32 dual-slot disk, or
+     * the legacy FAT12 0xEE shadow, or a single FAT32 slot). */
     int              ocire_idx;     /* ata index, -1 = none */
     ocire_fat_vol_t  ocire_vol;
     u64              ocire_part_lba;
+
+    /* WP-07: the full dual-slot map of the recovery disk. */
+    int              dual_slot;     /* 1 = p1/p2 A+B pair found */
+    int              my_slot;       /* 1 = A, 2 = B, 0 = unknown */
+    u64              slot_lba[3];   /* [1] = A part LBA, [2] = B */
+    u64              slot_sectors[3];
+    ocire_abflags_t  ab;            /* the flags sector (zeros when
+                                     * absent/invalid) */
+    int              ab_valid;
+
+    /* The ESP (GPT EFI System Partition or MBR 0xEF/0x0C FAT32),
+     * the update drop zone. */
+    int              esp_idx;       /* ata index, -1 = none */
+    ocire_fat_vol_t  esp_vol;
+    u64              esp_part_lba;
 
     /* Located files (valid after ocire_disk_scan). */
     ocire_fat_file_t mb_file;       /* /MAILBOX.BIN */
@@ -102,9 +142,35 @@ typedef struct {
  *  -1  no OCIRE volume
  *  -2  no OCOS volume
  *  -3  OCIRE volume without mailbox/log (malformed recovery disk)
- * The result is cached in a singleton; ocire_layout() returns it. */
+ * The result is cached in a singleton; ocire_layout() returns it.
+ * The WP-07 dual-slot map and the ESP are filled in along the way
+ * (absent slots leave dual_slot=0 / esp_idx=-1).
+ */
 int ocire_disk_scan(void);
 const ocire_layout_t *ocire_layout(void);
+
+/* ---- WP-07: A/B slot flags access ---------------------------------
+ * Read/write the flags sector on the recovery disk (LBA 1024).
+ * ocire_ab_read validates magic + checksum; on mismatch the cached
+ * copy is zeroed and ab_valid is cleared.  ocire_ab_write
+ * recomputes the checksum and writes the sector back.  Returns 0
+ * on success, negative on I/O / no-disk errors. */
+int ocire_ab_read(ocire_layout_t *L);
+int ocire_ab_write(ocire_layout_t *L);
+
+/* Slot promotion: called once OCIRE is up and running from a
+ * try-slot - confirms the candidate (active=try, try=0).  Returns
+ * 0 when the flags were updated, 1 when nothing needed doing,
+ * negative on error. */
+int ocire_ab_confirm_boot(ocire_layout_t *L);
+
+/* The OTHER slot number (1<->2); 0 when not on a dual-slot disk. */
+int ocire_ab_other_slot(const ocire_layout_t *L);
+
+/* Mount (or re-mount) one recovery slot by number (1/2).  Returns
+ * 0 and leaves the volume in *vol, negative when the partition is
+ * absent or not a FAT32 OCIRE slot. */
+int ocire_slot_mount(ocire_layout_t *L, int slot, ocire_fat_vol_t *vol);
 
 /* Read the mailbox from the recovery volume (into the cached copy).
  * Returns 0. */

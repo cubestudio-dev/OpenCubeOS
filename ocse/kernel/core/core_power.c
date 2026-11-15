@@ -145,14 +145,28 @@ int core_power_suspend(void) {
     /* WP-10-input_chipset: real ACPI S3 (suspend to RAM) through the
      * FADT PM1a_CNT + \_S3 package + the FACS waking vector. The
      * machine stops in the sleep-write asm stub and resumes through
-     * the 32-bit trampoline (see driver_acpi_power.c). */
+     * the 32-bit trampoline (see driver_acpi_power.c).
+     *
+     * WP-07: SLEEP_ARMED brackets the whole sleep window.  The flag
+     * is set BEFORE the SLP_EN write and cleared the moment the
+     * resume path returns; if a reboot ever sees it still set, the
+     * wake vector died - OCBL records WAKE_FAILED and OCIRE offers
+     * the rollback menu. */
     if (driver_acpi_available() && driver_acpi_power_slp_typ(3) >= 0) {
+        extern void boot_state_sleep_arm(void);
+        extern void boot_state_sleep_disarm(void);
         screen_console_puts("Entering S3 (suspend to RAM)...\n");
+        boot_state_sleep_arm();
         int rc = driver_acpi_power_enter_s3();
         if (rc == 0) {
+            /* we are BACK: the resume trampoline returned - clear the
+             * flag before anything else can take the machine down */
+            boot_state_sleep_disarm();
             screen_console_puts("Resumed from S3.\n");
             return 0;
         }
+        /* the sleep write itself failed - never slept, never armed */
+        boot_state_sleep_disarm();
         screen_console_puts("S3 resume failed.\n");
         return rc;
     }

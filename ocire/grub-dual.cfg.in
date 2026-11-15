@@ -5,7 +5,9 @@
 # Purpose: TEMPLATE for the dual-boot disk menu (hd0).  The build
 #          script (tools/make_ocire_disk.sh) fills in the OCIRE
 #          kernel blocklist (@KERN_LBA@ / @KERN_SECTORS@ - the
-#          /BOOT/OCIRE.ELF data start on the FAT12 recovery volume)
+#          /BOOT/OCIRE.ELF data start on the WP-07 FAT32 slot-A
+#          recovery partition; the dual-slot A/B selection lives in
+#          OCBL, the GRUB path boots slot A)
 #          and writes the result to hd0 p1 /boot/grub/grub.cfg AND
 #          to the golden image copy (they are byte-identical, so a
 #          `repair` restores exactly this menu).
@@ -44,8 +46,8 @@ set timeout=8
 set default=0
 
 menuentry "OCIRE boot supervisor (watchdog -> Open Cube OS)" {
-  # Whole-disk blocklist onto the FAT12 recovery volume (the 0xEE
-  # shadow partition has no GRUB-visible partition path).
+  # Whole-disk blocklist onto the FAT32 slot-A recovery partition
+  # (OCBL owns the A/B selection; this menu path boots slot A).
   multiboot2 (hd1)@KERN_LBA@+@KERN_SECTORS@ ocire.mode=sup
   boot
 }
