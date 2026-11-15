@@ -1,38 +1,71 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# L1 guide: OTA and A/B
+# The OTA / A-B service from the app side
 
-## The two headers
+The update machinery lives in the selfhost service
+(`ocos/services/selfhost/`); apps reach it through the L1SVC "ota"
+category and the config store.
 
-- `kernel/ota/ota_ab.h` (21 declarations): slot discovery, flags,
-  slot state, install-onto-slot, rollback - the numbered +7.
-- `kernel/ota/ota_update.h` (12 declarations): the chain - check,
-  download, verify (SHA256 + signature), install, set_boot,
-  get_status, rollback.
+## The L1SVC surface
 
-## The L1 mirror
+| Op | Command | What it does |
+|----|---------|--------------|
+| 1 | `checkupdate` | fetch + parse the manifest, compare (numeric build compare, BUG-0347) |
+| 2 | `config` | list / get / set / restore / path - the /etc/opencube.conf store |
+| 5 | `update` | `status` / `--local <pkg>` / bare = the online chain |
+| 6 | `rollback` | flip the boot flag to the other slot |
+| 7-16 | `update_pkg_test` .. `real_update_test` | the in-guest test battery |
 
-`l1/l1_ext.h` mirrors the chain for module code:
-`l1_ext_check_update(_async)`, `l1_ext_update_check_pkg`,
-`l1_ext_update_download`, `l1_ext_update_verify`,
-`l1_ext_update_install`, `l1_ext_update_rollback`,
-`l1_ext_update_set_boot`, `l1_ext_update_get_status`.
-
-## Using it from a module
-
-The canonical flow (what the `update` command runs):
+`update status` prints the machine picture the wizards probe:
 
 ```
-l1_ext_check_update(&info);            // manifest from /etc config
-l1_ext_update_download(url, path);
-l1_ext_update_verify(path, sha256);
-l1_ext_update_install(path, "B");      // inactive slot
-// next boot flips; l1_ext_update_rollback() flips back
+update: current version: 3.0.0-...
+update: current boot: ISO          (or slot A / slot B)
+update: next boot: (default)
+update: available: none (up to date)
+update: online update: enabled
+update: A/B disk: present          <- the wizard anchor
 ```
 
-The `l1_ext_update_info_t.version[64]`/`changes[256]` mirror
-`ota_update_info_t` exactly (the 32->64 widening was a real bug:
-32 truncated the 44-char official version string).
+## The chain (what the online flow does)
+
+check (manifest from the configured `update_url`) -> download ->
+verify (manifest SHA256 enforced inside install) -> install onto the
+*inactive* slot -> set boot -> "reboot required".
+
+Offline: `update --local /path/to/package.tar.gz` runs the same
+install path from an attached volume.
+
+## The A/B disk
+
+Two slots + boot flag, created by `abdisk <dev>` (or the
+`disk-tool` A/B manager wizard). GRUB reads the flag; the menu
+offers force-slot entries. `abcfg` shows the exact grub.cfg those
+commands write. The install target is the inactive slot
+(BUG-0110: `update_target_slot()` decides, not the caller).
+
+## The config keys (/etc/opencube.conf)
+
+```
+update_url=https://cubestudio-dev.github.io/OpenCubeOS/update.json
+package_url=https://github.com/cubestudio-dev/OpenCubeOS/releases/latest
+auto_check=no
+online_update=yes
+shell.lang=en
+```
+
+`config get update_url` is what the update wizard's DNS step parses
+(scheme -> host) before resolving it.
+
+## The mega-app
+
+`update` (no args) = the 5-step wizard; every other argument shape
+is the verbatim op. See the user manual's
+[../manual/update-ota.md](../manual/update-ota.md) for the operator
+view and [wizard-library.md](wizard-library.md) for the anchor
+discipline.
 
 ## In-guest tests
 
-`ab_partition_test`, the `update_*_test` battery, `checkupdate_test`.
+`ab_partition_test`, the `update_*_test` battery,
+`checkupdate_test`, `config_test` - all classic ops of the sysdiag/
+update tables, all in the registry.

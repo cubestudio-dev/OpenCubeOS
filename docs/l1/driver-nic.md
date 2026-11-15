@@ -1,31 +1,48 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# L1 guide: NIC drivers
+# NIC and wireless drivers
 
-## The surface
+How a network family joins the net service.
 
-`drivers/nic/driver_nic.h` (34 declarations; the numbered 13):
+## The model (3.0.0)
 
-```
-driver_nic_register(name, ops, ctx)
-driver_nic_send(dev, frame, len)
-driver_nic_recv(dev, buf, maxlen)        -> length / 0 / <0
-driver_nic_link_status(dev)              -> link up/down
-driver_nic_get_mac(dev, out[6])
-```
+- Drivers live in `ocos/drivers/net/` - one file per family
+  (`drv_net_e1000e.c`, `drv_net_igb.c`, `drv_net_ixgbe.c`,
+  `drv_net_rtl8139.c`, `drv_net_rtl8169.c`, `drv_net_bcm57xx.c`,
+  `drv_net_other.c`), plus the wireless stack
+  (`drv_net_wireless.c`, `drv_net_ath.c`, `drv_net_brcm.c`,
+  `drv_net_iwlwifi.c`, `drv_net_rtlwifi.c`).
+- Identity: `OC_DRIVER_DECL("nic", "e1000e", &ops, "Intel e1000e")`
+  - or the `"wireless"` class for 802.11 families. The boot
+  collector probes; families self-report honest states (registered
+  / scanning / connected).
+- The driver-internal table API is `drv_net_api.h` - kernel
+  internal, mutated only from the family's own probe paths.
+- The net service (`ocos/services/net/`) owns the stack: IPv4 +
+  TCP/UDP, DHCP, DNS, the firewall/netfilter, TLS, SSH/sshd, and
+  the L1SVC category 3/8 surfaces.
 
-Family inits: `driver_nic_e1000e_init`, `_igb_init`, `_ixgbe_init`,
-`_rtl8139_init`, `rtl8168_init`, `rtl8125_init`, `rtl810x_init`,
-`bcm57xx_init`.
+## The wireless layer
 
-## What the stack expects
+`wifi` (status / scan / test / sdio) reports per-family state and
+beacon-derived scan lists; `bt` (status / usb / uart / test) fronts
+the Bluetooth transports (HCI-USB in `drv_misc_bt_usb.c`, H4 UART,
+the full L2CAP/SDP/RFCOMM/SPP chain). No hardware -> the honest
+"no wireless devices registered" line, never a fake list.
 
-Frames are raw Ethernet; the stack (`net/net_core.c`) owns ARP and
-above. RX can be polled or interrupt-driven per the ops you
-register. `ifconfig`, `nicstat`, the `*_test` commands observe.
+## What a new family looks like
 
-## The reference implementations
+1. `ocos/drivers/net/drv_net_<fam>.{c,h}` - PCI probe, MAC setup,
+   RX/TX into the service's packet path.
+2. `OC_DRIVER_DECL("nic", "<fam>", &ops, "description")`.
+3. Optional status/test op: APPEND the number in
+   `svc_sysapi_l1svc.h`, regenerate the mirror, add the classic
+   table row (`net-tool`'s `g_ops[]`) or a thin wrapper folder.
 
-Read one Intel (e1000e) and one Realtek (rtl8169-family) driver
-before writing yours: descriptor rings, link-state handling, and the
-error paths (bus-master disable, reset on timeout) are laid out
-differently but the contract is identical.
+## The consumer contract
+
+Apps call the service, never drivers: `net-tool ip` ->
+`sys_l1svc(NET, IP, ...)`; `ping`/`wget` ride the `SYS_NETCMD`
+bridge (op 2 / 4). The output lines (`"IP: ..."`,
+`"DHCP success: IP=..."`, `"DNS resolution failed (timeout)"`)
+are the anchors the update wizard and the docs rely on - see
+[surface-map.md](surface-map.md).

@@ -24,7 +24,7 @@ through pexpect over `-serial mon:stdio`:
 python3 tools/run_fix4_regression.py build/opencube.iso out.log
 ```
 
-It waits for the `oc>` prompt, then runs the fixed command battery
+It waits for the `ush>` prompt, then runs the fixed command battery
 (uname, help -a, heaptest, fstest, cryptotest, crashlog, l1test, and
 the whole `run *test` user-program set), and asserts 28 checks on the
 combined output - boot banner, self-tests, the L0 command count, each
@@ -76,5 +76,5 @@ make shot-uefi
 ## Speed
 
 - `-display none -serial mon:stdio` for every automated run.
-- Boot to the `oc>` prompt takes ~2 s of wall time in the regression
+- Boot to the `ush>` prompt takes ~2 s of wall time in the regression
   environment; the full 28-check battery runs in well under a minute.

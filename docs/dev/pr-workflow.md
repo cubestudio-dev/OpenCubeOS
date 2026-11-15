@@ -10,7 +10,7 @@ What a PR must clear, in order:
    accepted).
 2. **Host tests**: `make test` - zero failures.
 3. **Boots**: `make run-bios` and `make run-uefi` - both reach the
-   `oc>` prompt with `boot complete ... OK`.
+   `ush>` prompt with `boot complete ... OK`.
 4. **The deep test for whatever you touched** - the matrix in
    [CONTRIBUTING.md](../root/CONTRIBUTING.md) (storage -> fstest;
    crypto -> cryptotest + HTTPS E2E; watchdog/klog/health -> the

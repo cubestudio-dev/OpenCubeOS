@@ -14,13 +14,13 @@ qemu-system-x86_64 -m 512 -cdrom build/opencube.iso \
 ## In-guest tools
 
 ```
-oc> dmesg            (kernel ring buffer)
-oc> logcat           (live follow of the persistent log)
-oc> logctl           (log levels + filters)
-oc> health           (CPU/mem/tasks/IO + alarms)
-oc> exc              (exception self-test - proves the trap path)
-oc> crashlog         (past crash records on /etc)
-oc> dumpinfo         (crash dump details)
+ush> dmesg            (kernel ring buffer)
+ush> logcat           (live follow of the persistent log)
+ush> logctl           (log levels + filters)
+ush> health           (CPU/mem/tasks/IO + alarms)
+ush> exc              (exception self-test - proves the trap path)
+ush> crashlog         (past crash records on /etc)
+ush> dumpinfo         (crash dump details)
 ```
 
 ## The panic path

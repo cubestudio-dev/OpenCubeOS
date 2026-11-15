@@ -1,71 +1,71 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# L1 extension guide - overview
+# Ring-3 apps - overview
 
-L0 ships without any L1. The whole point of the architecture is the
-surface L0 exposes so L1 *can* exist: 162 numbered extension
-interfaces plus the driver / OTA / watchdog / health / klog header
-families, and a shared-object loader so modules can arrive at
-runtime.
+L0 is a pure service kernel: it finishes boot by launching `ush`,
+the ring-3 shell, and every user-visible command is itself a ring-3
+program. The whole point of the architecture is that the surface
+L0 exposes is small, numbered and complete - so apps can exist.
 
-## The layers, once more
+## The layers
 
 ```
-L1  your module: .so loaded by the in-tree ld.so, or a built-in
-    compiled against the surface headers
+L1  ush (the boot shell) + 284 registry programs
+    in ocos/l1apps/<name>/main.c - freestanding C against
+    ocos/interface/*.h
      |
-    162 numbered interfaces + driver/OTA/watchdog/health/klog
-    families (INTERFACES.md = the full generated tables)
+    SYS_L1SVC(cat, op, arg, out, cap)   20 categories, ~245 ops
+    SYS_* (open/read/write/fork/execve/wait4/readline/getch/...)
      |
-L0  Open Cube OS kernel + oc> shell (this repo)
+L0  Open Cube OS service kernel
+    (ocos/kernel + ocos/services + ocos/drivers)
 ```
 
 ## Where the surface lives
 
-| Header | What it covers |
-|--------|----------------|
-| `l1/l1_ext.h` | fb info, font engines, console hook, config read/write, update chain, power, shell bridge, self-test |
-| `l1/l1_wp8a.h` | process/fd/signal/mmap/chdir - the Unix-shaped user API |
-| `l1/l1_wp8b.h` | the dynamic loader (elf_load_dynamic, so_load, dlsym_impl, reloc_apply...) |
-| `l1/l1_wp8cd.h` | shell built-ins, tool embedding, jobs |
-| `tui/tui_ext.h` | 37 TUI declarations (windows/menus/forms/panels/text) |
-| `drivers/block/driver_block_blk.h` | block registration + I/O |
-| `drivers/nic/driver_nic.h` | NIC registration + I/O |
-| `drivers/snd/driver_snd.h` | sound registration + playback |
-| `kernel/ota/ota_ab.h`, `ota_update.h` | slots + the update chain |
-| `kernel/core/core_watchdog.h`, `core_health.h` | watchdog slots + health metrics |
-| `kernel/lib/lib_klog.h` | the kernel log |
+| Header (ocos/interface/) | What it covers |
+|---------------------------|----------------|
+| `l1_lib.h` | syscall wrappers, string/IO helpers, `l1svc_main()` - the verbatim wrapper body |
+| `l1svc_ops.h` | the category/op numbering contract (auto-mirrored from the L0 header) |
+| `i18n.h` | `tr_()` + the per-app bilingual tables |
+| `wizard_lib.h` | the shared wizard primitives (menus, asks, confirms, anchor probes) |
+| `fs_lib.h` | path helpers shared by the file tools |
+| `editor_core.h` | the editor engine behind `edit` and the TUI editor |
 
-The complete declaration tables (file, line, signature for all 278
-declarations) are generated into [INTERFACES.md](../root/INTERFACES.md)
-by `make api-docs`.
+The service-side declarations live in
+`ocos/services/*/interface/` (one folder per facet); the numbering
+mirror regenerates with `tools/gen_l1svc_ops.py`.
 
-## The count that matters
+## The counts that matter
 
-- **162 numbered L1 interfaces** - the README formula
-  57+8+13+7+26+11+7+9+8+16, the repo-wide consistency number.
-- 278 total callable declarations across the 13 surface headers
-  (includes internal helpers and documented unnumbered groups).
+- **284 registry programs** - 276 historical commands (the
+  interface-freeze floor; commands are added, never removed) plus
+  the 8 merged mega-apps.
+- **20 L1SVC categories** (time/block/nic/snd/power/ota/fs/net/
+  health/klog/watchdog/crypto/l1/display/input/camera/usb/ocire/
+  diag/tui), ~245 numbered ops.
+- Every program ships `i18n/{en,zh}.json` - the build fails on a
+  missing resource (a program without translations is a delivery
+  violation, not a warning).
 
-## How modules load
+## How a command runs
 
-Three paths, all real:
+```
+ush> disk-tool lsblk
+  ush forks; child execve("disk-tool", ["disk-tool","lsblk"])
+  app_main(argc, argv) sees argv[1] = "lsblk"
+  -> classic dispatch: table lookup -> sys_l1svc(BLOCK, LSBLK, ...)
+  -> service output printed verbatim
+  ush wait4()s the child, prints the next prompt
+```
 
-1. **Compiled-in L1** - your module compiles into the kernel and
-   calls the surface directly (how the TUI command bridge works).
-2. **Shared object at runtime** - `libs/ld_so.c` loads an ELF .so,
-   resolves symbols, applies relocations:
-   [solib-loader.md](solib-loader.md).
-3. **Embedded tools** - `tool_register` embeds an ELF payload the
-   shell can `run`.
+The historical single commands are the same mechanism one level
+simpler: `lsblk/main.c` is `l1svc_main(argc, argv, CAT, OP)` - the
+v2.2.0 ush SVC runner semantics, byte for byte.
 
 ## Walk-through order
 
 1. This page.
-2. [surface-map.md](surface-map.md) - the 162 by functional group.
-3. The family pages: [driver-block.md](driver-block.md),
-   [driver-nic.md](driver-nic.md), [driver-snd.md](driver-snd.md),
-   [ota.md](ota.md), [watchdog-health.md](watchdog-health.md),
-   [shell-bridge.md](shell-bridge.md).
-4. [tui-ext.md](tui-ext.md) - building UI from L1.
-5. [writing-modules.md](writing-modules.md) - a complete module,
-   from source to `run`.
+2. [surface-map.md](surface-map.md) - the categories/ops by group.
+3. [app-anatomy](app-anatomy.md) - what a main.c is made of.
+4. [writing-apps](writing-apps.md) - a complete app, source to `run`.
+5. The family pages: drivers, OTA, loader, TUI, watchdog/health.

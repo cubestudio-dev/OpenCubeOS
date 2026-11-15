@@ -1,47 +1,45 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# L1 guide: watchdog and health
+# Watchdog, health and klog from apps
 
-## Watchdog - `kernel/core/core_watchdog.h` (18 declarations; numbered 5)
+## Watchdog (service `watchdog`, L1SVC cat 11)
+
+A registered slot is a *policy* watchdog: the owning task must
+feed it; a timeout kills the task (reason logged) while the kernel
+lives. Hardware watchdogs (Intel TCO, ACPI WDAT) are layered
+underneath and reset the whole machine - the E2E suite proves
+both with real resets and second boots.
 
 ```
 watchdog_register(name, timeout_ms, policy)  -> slot
-watchdog_start(slot)
-watchdog_feed(slot)
-watchdog_stop(slot)
-watchdog_set_timeout(slot, ms)
+watchdog_start / feed / stop / set_timeout
 ```
 
-A registered slot is a *policy* watchdog: the task must feed it;
-timeout kills the task (reason logged) while the kernel lives.
-Hardware watchdogs (Intel TCO, ACPI WDAT) are layered underneath and
-reset the whole machine - the E2E suite proves both with real
-resets and second boots.
+`ush> watchdog` (or the sysdiag classic table) reports slots and
+policies; the starve test (`wd-starve`, 3000 ms) is how the E2E
+proves the kill path.
 
-## Health - `kernel/core/core_health.h` (8 declarations; numbered 5)
+## Health (service `health`, L1SVC cat 9)
 
 ```
-health_get_cpu(out)
-health_get_mem(out)
-health_get_tasks(out)
-health_get_io(out)
-health_export(path)          // valid JSON to /var/log/health.json
+health_get_cpu / mem / tasks / io      (the snapshot sources)
+health_export(path)                    (valid JSON)
 ```
 
 Thresholds raise alarms into the kernel log (`CPU-LOCKED` on a
-pinned core...); `health`, `health watch`, `health export` are the
-commands; the E2E asserts the alarm lines and JSON validity.
+pinned core, ...). The app surface: `health` (snapshot - the
+sysdiag wizard's first menu item), `health watch` (live monitor,
+ENTER exits), `health export [path]`.
 
-## klog - `kernel/lib/lib_klog.h` (29 declarations; numbered 6)
+## klog (service `klog`, L1SVC cat 10)
 
-```
-klog_write(level, fmt, ...)
-klog_set_level(lvl)
-klog_set_level_enabled(lvl, on)
-klog_flush()
-klog_rotate()
-klog_filter_set(min_level)
-```
+`dmesg [N]` (the ring, newest last), `logcat` (structured: -l
+level -m module -k key -t seconds -n N -f follow), `logctl
+status|level|...` (runtime control). The sysdiag log-tools submenu
+fronts all three.
 
-Levels: DEBUG/INFO/WARN/ERROR/FATAL; rotation
-(`kernel.log` -> `kernel.log.1`, threshold 4096) and filtering are
-real, E2E-verified behaviours.
+## The mega-app view
+
+`sysdiag` groups the whole observability story: health snapshot,
+kernel log, memory picture, scheduler stats, crash records, log
+tools, selftest lab. Watchdog + health + klog stay individually
+reachable (classic/direct) for scripts and the E2E suites.

@@ -1,84 +1,73 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# The L1 surface, group by group
+# The service surface map
 
-The numbered 162, mapped to where each group's declarations live.
-(Regenerate the raw tables any time: `make api-docs` ->
-INTERFACES.md - every declaration with file and line.)
+Every L1SVC category, what it fronts, and the apps that wrap it.
+The numbering contract is `ocos/interface/l1svc_ops.h` (mirrored
+from `ocos/services/sysapi/interface/svc_sysapi_l1svc.h`; renumber
+upstream only by appending, then regenerate).
 
-## Group 1-57 - the core foundation
+## Categories
 
-The original extension surface: framebuffer access
-(`l1_ext_fb_get_info`), the font-engine registration protocol
-(`l1_ext_register_font_engine` + the `screen_font_engine` ops
-struct), the console hook (`l1_ext_set_console_hook` /
-`l1_ext_console_hook`), configuration
-(`l1_ext_config_read/write/get_all`), the update chain entry
-(`l1_ext_check_update` + async), power (shutdown/suspend/halt/reboot
-- suspend returns 0 after a live S3 resume), and the shell bridge
-(`l1_ext_shell_register_command_ex`, list_commands_a_z /
-by_wp). All in `l1/l1_ext.h`.
+| Cat | Name | Fronts | Mega-app home |
+|-----|------|--------|---------------|
+| 1 | time | RTC / HPET / PM timer / TSC status | hwinfo |
+| 2 | block | disks: status, partition, mkfs, fsck, A/B tools, tests | disk-tool |
+| 3 | nic | NIC families + wireless (wifi/bt) | net-tool |
+| 4 | snd | audio devices, volume, play, per-driver tests | sound-tool |
+| 5 | power | shutdown/reboot/halt/sleep + path tests | power |
+| 6 | ota (selfhost) | update chain, checkupdate, config store, A/B | update |
+| 7 | fs | mount/umount/fatmount/fatstat/tree | disk-tool, files |
+| 8 | net | ip/dhcp/dns/arp/route/firewall/ssh/sshd | net-tool |
+| 9 | health | snapshot / export / watch | sysdiag |
+| 10 | klog | dmesg / logcat / logctl | sysdiag |
+| 11 | watchdog | the watchdog command family | sysdiag |
+| 12 | crypto | cryptotest / dhtest | (classic only) |
+| 13 | l1 | the registry listing itself (help -a/-w), l1test, ldd | - |
+| 14 | display | uname/stats/lang/font/encoding/IME ops | hwinfo |
+| 15 | input | touchpad / touchtest | hwinfo |
+| 16 | camera | uvc/scsi/gameport/parallel/ir + tests | hwinfo |
+| 17 | usb | usb status/dev + the usb test family | hwinfo |
+| 18 | ocire | the boot-volume log ring (guard-only ops) | - |
+| 19 | diag | memory/scheduler/vm tests, PCI/ACPI/I2C/SMBus, crash | sysdiag |
+| 20 | tui | the desktop + TUI command family | (tui apps) |
 
-## +8 - block driver items
+## Beyond L1SVC: the direct syscalls
 
-`driver_block_register / read / write / flush` (+ set_ops),
-`driver_block_ahci_init`, `driver_block_nvme_init`,
-`driver_block_ata_dma_init` (each taking the discovered pci_dev).
-`drivers/block/driver_block_blk.h`.
+| Syscall | Used by |
+|---------|---------|
+| `SYS_OPEN/READ/WRITE/CLOSE/STAT/READDIR` | the file tools (cat, cp, ls, ...) |
+| `SYS_FORK/EXECVE/WAIT4` | ush, run, files - the program-launcher pattern |
+| `SYS_PIPE/DUP/DUP2` | ush pipes and redirection |
+| `SYS_READLINE` (73) | wizard line input (echo + backspace, blocking) |
+| `SYS_GETCH` (74) | non-blocking single keys (menus, the editor) |
+| `SYS_NETCMD` (101) | ping / wget / ifconfig / netstat bridge |
+| `SYS_PS` (102) | ps / top process tables |
 
-## +13 - NIC driver items
+The full x86_64 syscall table is registered in
+`ocos/services/sysapi/src/svc_sysapi_syscall.c`.
 
-`driver_nic_register / send / recv / link_status / get_mac` plus the
-per-family init entry points (e1000e, igb, ixgbe, rtl8139, rtl8168,
-rtl8125, rtl810x, bcm57xx). `drivers/nic/driver_nic.h`.
+## The output contract
 
-## +7 - A/B update items
+Service ops return **English ASCII text** through the caller's
+buffer - these lines are the script-facing contract and the wizard
+probes:
 
-The ota_ab family: slots, flags, verify, install.
-`kernel/ota/ota_ab.h`.
+```
+"IP: 10.0.2.15"            (net ip)
+"DHCP success: IP=..."     (net dhcp)
+"A/B disk: present"        (ota update status)
+"New version available."   (ota checkupdate)
+"Current version is up to date."
+"reboot required"          (ota update, after install)
+```
 
-## +26 - sound driver items
+Renaming any of them is a breaking change: the wizards
+(`wizard_lib.h` `wiz_find`), the E2E suites and the user docs all
+read them.
 
-`driver_snd_register / play / stop / set_rate / set_volume /
-get_caps` + probe_all/make_tone + the per-hw init entries (hda, ac97,
-sb16, es1370, virtio) + the lookup/listing helpers.
-`drivers/snd/driver_snd.h`.
+## help -a / help -w
 
-## +11 - dynamic loading
-
-`elf_load_dynamic`, `ldso_run`, `so_load/so_unload`,
-`symbol_resolve`, `dlsym_impl/dlopen_impl/dlclose_impl`,
-`reloc_apply`, `elf_get_needed`. `l1/l1_wp8b.h`.
-
-## +7 - shell built-ins and jobs
-
-`shell_run`, `shell_register_builtin / unregister_builtin`,
-`tool_register / tool_list`, `job_create / job_list / job_control`.
-`l1/l1_wp8cd.h`.
-
-## +9 - process/fd/memory API
-
-`sys_proc_exec / sys_proc_exit`, `pipe_create`, `fd_dup / fd_dup2`,
-`signal_send / signal_return`, `sys_mem_mmap / munmap / mprotect /
-brk`, `sys_chdir` - the Unix-shaped surface `userprogs/` builds on.
-`l1/l1_wp8a.h`.
-
-## +8 - TUI extension items
-
-The first TUI declarations in `tui/tui_ext.h`.
-
-## +16 - watchdog/logging/health
-
-klog 6 (`klog_write / set_level / set_level_enabled / flush /
-rotate / filter_set`, `kernel/lib/lib_klog.h` lines 72-106) +
-watchdog 5 (`register / start / feed / stop / set_timeout`,
-`kernel/core/core_watchdog.h` lines 74-83) + health 5 (`get_cpu /
-get_mem / get_tasks / get_io / export`, `kernel/core/core_health.h`
-lines 76-85).
-
-## Outside the numbering (documented, real)
-
-- config/check-update: 5 interfaces.
-- rule-9 self-hosting: 5 interfaces (the in-kernel GRUB payload
-  behind install/abdisk/grub-install).
-- The full TUI widget surface beyond the numbered 8 (37 declarations
-  total in `tui/tui_ext.h`).
+The registry listing (L1SVC cat "l1" op 1) renders name + wp tag +
+bilingual hint per program. `help -w` groups by tag; the `mega`
+group (the 8 merged apps) leads the view, followed by the 18
+historical service groups.

@@ -1,44 +1,43 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# 中文控制台层
+# 中文控制台
 
-Open Cube OS 保持所有系统可见字符串为 ASCII，同时通过 `chinese/` 下的专用层渲染中文用户内容。
-
-## 是什么
-
-| 组件 | 文件 | 功能 |
-|-------|------|------|
-| 16x16 CJK 字体 | `chinese/chinese_font_data.c` | 控制台的位图字形 |
-| GB 编码 | `chinese/encoding.c` | gb2312 / utf-8 / ascii 编解码器 |
-| 中文控制台 | `chinese/console_cn.c` | 在帧缓冲上渲染 CJK 行 |
-| 渲染器 | `chinese/render_cn.c` | 字形光栅管道 |
-| 拼音输入法 | `chinese/pinyin_data.c` + ime | 音节解析与输入 |
-| 中文 TUI 应用 | `tui_cn_*.c` | 中文界面的硬件/网络/系统信息 |
-
-## 命令
+## 切换
 
 ```
-oc> chinese          (status: font / encoding / render / ime)
-oc> chinesetest      (full Chinese-support regression suite)
-oc> font             (list registered fonts + active renderer)
-oc> font-test        (render a mixed CJK/ASCII sample row)
-oc> encoding         (codec status: gb2312 / utf-8 / ascii)
-oc> encoding-test    (quick codec round-trip check)
-oc> ime              (pinyin IME status)
-oc> ime -i           (interactive pinyin input on the console line)
-oc> lang             (language console switch)
+ush> lang zh        everything user-facing switches, live:
+                    shell help, all 8 wizard apps, service surfaces
+ush> lang en        back to English
+ush> lang           show the current language
 ```
 
-## 设计规则
+locale 按调用探测（不在首次渲染时缓存），因此在长时间运行的 ush 中执行 `lang zh` 会立即影响下一行帮助输出——包括在发起切换的那个 shell 里。
 
-- **系统字符串为 ASCII**：命令名、提示符、启动消息、帮助文本——这是固件/硬件兼容性契约（参见 `CONTRIBUTING.md` 基本规则 1）。
-- **用户内容可为任意**：文件名、文件内容、编辑器缓冲区、网络负载——中文层在控制台和 TUI 中渲染它们。
+## 哪些内容被翻译
 
-因此，没有 CJK 字体的终端仍能获得完全可用的系统；启用该层后，混合语言内容能正确显示。
+| 界面 | 机制 |
+|---------|-----------|
+| ush 内置命令 | 按应用的 i18n 表（`tr_()`） |
+| 8 个大应用 | 按应用的 i18n 表——菜单、提示、判定 |
+| 约 280 个经典应用 | 按应用的 i18n 表（`_hint` + 正文串） |
+| L0 服务行（help -w 组名、注册表标题） | l0 表（`etc/i18n/l0/{en,zh}.json`） |
 
-## 构建配置
+缺失的翻译会回退到英文，再回退到键本身——未翻译的应用绝不会崩溃或打印乱码；它显示键本身，让缺口可见、可修复。
+
+## 渲染
+
+CJK 管线始终编译在内：16x16 GB2312 点阵字体、GBK/UTF-8 解码链，以及控制台渲染器。串口和帧缓冲控制台都能渲染中文；串口编码遵循 `serial_encoding`（默认 `utf8`，可切换为 `gbk`）。
+
+## 输入——输入法（IME）
+
+输入法把拼音组合为 GB2312 的 16-55 区（一级字库：3755 个常用汉字），并提供词组补全：
 
 ```
-make CONFIG_CHINESE=n     (also forces CONFIG_TUI=n)
+ush> ime             (IME status: level-1 chars, phrases)
+ush> ime -i          (interactive compose session)
 ```
 
-关闭路径是真实代码：`console_cn` 路由到 `screen_console` 中的 ASCII 等价物，配置器生成的头文件将禁用的调用映射到这些等价物。`CONFIG_CHINESE=n CONFIG_TUI=n` 构建启动时有 216 条命令（233 - 17 条中文/TUI 命令）——完整配置启动时有 233 条。
+组合会话内：输入拼音，选择候选，ESC 取消。显示服务通过 L1SVC 把同一引擎暴露给程序（IME begin / key / end 操作）。
+
+## ASCII 契约
+
+程序*名称*、文件路径和服务级的**输出行是 ASCII 英文**——它们是面向脚本的契约（向导和测试会探测这些行：`"A/B disk: present"`、`"New version available."`）。中文是面向*人*的呈现；脚本和探测在每个 locale 下都保持稳定的英文界面。

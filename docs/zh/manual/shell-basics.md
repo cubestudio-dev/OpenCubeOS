@@ -1,84 +1,76 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Shell 基础
 
-`oc>` shell 是一个带有 Unix 风格的命令行 - 支持管道、重定向、后台作业、环境变量、别名和小型脚本语言。本文档介绍其实际功能集。
+`ush` 是启动 shell——一个真正的 ring-3 程序（唯一的 `OC_L1_APP_DECL` 应用），作为整个系统的前端。
 
-## 行编辑
-
-- 历史记录：上下箭头键浏览历史命令。
-- 行内编辑：`Ctrl+U` 删除整行。
-- 输入源：PS/2 键盘和 COM1 串口输入共享同一队列 - 在 QEMU 中使用 `-serial mon:stdio` 可通过串口输入。
-
-## 命令链与作业
+## 提示符
 
 ```
-oc> dhcp && ping 10.0.2.2      (run ping only if dhcp succeeded)
-oc> cat a.txt ; cat b.txt      (sequence regardless)
-oc> health || dmesg            (second only if first failed)
-oc> ping 10.0.2.2 &            (background job)
-oc> g6_test &                  (long test in the background)
+ush>
 ```
+
+## 运行程序
+
+输入注册表程序名（共有 284 个——`help -a` 会全部列出）。8 个大应用是预期的操作面；历史单命令也继续可用：
+
+```
+ush> hwinfo
+ush> lsblk
+ush> run hello &            (the '&' suffix runs in background)
+```
+
+`run <program>` 是显式形式——它会打印所启动的 pid 并等待（或加 `&` 转入后台）。
 
 ## 管道与重定向
 
 ```
-oc> ls | grep log              (pipe stdout of ls into grep)
-oc> cat /mnt/f.txt > /tmp/g.txt     (write stdout to a file)
-oc> cat /mnt/f.txt >> /tmp/g.txt    (append)
-oc> wget 10.0.2.2 < in.txt     (stdin from a file)
+ush> cat /etc/opencube.conf | grep url
+ush> help -a > registry.txt
+ush> echo hello >> notes.txt
+ush> wc < notes.txt
 ```
 
-## 通配符
+管道（`|`）、截断重定向（`>`）、追加重定向（`>>`）与输入重定向（`<`）在所有注册表程序间通用。
 
-`*` 和 `?` 在命令执行前由 shell 展开：
+## 内置命令与程序
 
-```
-oc> ls /mnt/*.txt
-oc> cat /mnt/report?.txt
-```
+只有进程状态类命令内置于 ush：`cd`、`pwd`、`exit`、`help`、`export`、`alias`、`unalias`、`history`、`lang`、`clear`。其余一切——包括 `ls`、`cat`、`echo`、`write`——都是经 fork 运行的注册表程序。这正是 `ls` 在管道中以真实进程出现的原因。
 
-## 环境变量
+行编辑器：上/下方向键翻阅历史，Tab 补全程序名，Ctrl+C 取消当前行。
 
-```
-oc> export NAME=value          (set)
-oc> echo $NAME                 (use - $VAR expands in the line)
-oc> env                         (list all)
-```
-
-环境变量存储限制：32 个变量，名称最长 32 字节，值最长 256 字节（`shell/shell.h`）。
-
-## 别名
+## 别名与环境变量
 
 ```
-oc> alias ll ls -l
-oc> ll
-oc> unalias ll
+ush> alias dt disk-tool
+ush> alias
+ush> unalias dt
+ush> export EDITOR=edit
 ```
 
-别名值可包含完整管道 - 最多存储 512 字节，超出则拒绝（不会静默截断）。共 32 个别名槽位。
+## 脚本
 
-## 当前工作目录
-
-```
-oc> cd /mnt
-oc> pwd
-```
-
-## 脚本编程
-
-脚本是包含多行命令的文本文件；使用 shell 的脚本运行器执行（具体命令名称请参考你的构建版本中的 `help -a`）。`editor` 命令提供一个访客内全屏文本编辑器，用于编写这些脚本。
-
-## 命令帮助
+用 `;` 串联多条命令：
 
 ```
-oc> help            (short list, one line per command)
-oc> help -a         (all 233 commands, alphabetical, with descriptions)
-oc> help -w         (the same commands grouped by the work package
-                     that introduced them)
+ush> dhcp; ping 10.0.2.2; dns example.com
 ```
 
-完整的索引参考（每命令一页）请见 [commands/index.md](commands/index.md)。
+本版本没有基于文件的脚本解释器——"脚本"指的是粘贴进去的一串命令行，或你在构建期写入注册表的程序（见开发者文档）。
 
-## 约定
+## 语言
 
-命令可跨版本新增，永不删除；已发布命令的名称和整体行为保持稳定（参见 [../CONTRIBUTING.md](../root/CONTRIBUTING.md)）。命令表容量为 256，目前已注册 233 个。
+```
+ush> lang zh        (the whole UI - shell help + every wizard -
+                     switches to Chinese live)
+ush> lang           (shows the current language)
+```
+
+## 大应用契约（回顾）
+
+```
+ush> <app>                wizard (menus, single-key picks, q quits)
+ush> <app> direct <op>    explicit verbatim passthrough
+ush> <app> <op> [args]    classic dispatch (historical spelling)
+```
+
+完整契约与逐应用详解见 [mega-apps](mega-apps.md)。

@@ -1,67 +1,83 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 网络
 
-一个自包含的 TCP/IP 协议栈，从网卡驱动到 SSH 服务器一应俱全——没有移植的 libc，也没有第三方代码。
+网络操作面位于 `net-tool`（向导）及其之下的经典命令背后。
 
-## 点亮
-
-```
-oc> dhcp                  (request an address on nic0)
-oc> ping 10.0.2.2         (ICMP echo to the QEMU gateway)
-oc> dns example.com       (resolve via the QEMU DNS forwarder)
-oc> wget 10.0.2.2         (fetch http://10.0.2.2/)
-oc> wget host 8080 /path  (explicit port and path)
-oc> route                 (routing table)
-oc> tcpstats              (TCP counters + congestion state)
-oc> firewall              (stateful firewall rules)
-```
-
-在 QEMU 中，默认的 `-device e1000` 能直接匹配 e1000 驱动：
+## 地址配置
 
 ```
-qemu-system-x86_64 -m 512 -cdrom opencube.iso \
-    -netdev user,id=n1 -device e1000,netdev=n1
+ush> net-tool               -> "obtain an address via DHCP"
+ush> dhcp                   (the classic form - same call)
+ush> ip                     (show IP / mask / gateway)
 ```
 
-## 支持的网卡
+通过向导做静态配置时，地址、掩码和网关逐字段采集，因此位置参数行永远不会以错误的顺序拼接。经典形式：
 
-| 系列 | 卡片 | 驱动 |
-|--------|-------|--------|
-| Intel e1000 | e1000 (8254x) | `drivers/nic/driver_nic.c` |
-| Intel e1000e | 8257x ICH/PCH 网卡 | `driver_nic_e1000e.c` |
-| Intel igb | 82575/82576（含虚拟功能） | `driver_nic_igb.c` |
-| Intel ixgbe | 82598/82599 10 千兆以太网 | `driver_nic_ixgbe.c` |
-| Realtek rtl8139 | 8139/810x 快速以太网 | `driver_nic_rtl8139.c` |
-| Realtek rtl8169 | 8168/8125/810x 千兆系列 | `driver_nic_rtl8169.c` |
-| Broadcom BCM57xx | 5708/5709/5714 时代 | `driver_nic_bcm57xx.c` |
+```
+ush> ip 10.0.2.15 255.255.255.0 10.0.2.2
+```
 
-## 协议栈
+## 域名解析
 
-ARP、IPv4、ICMP、UDP、DNS、拥塞控制 TCP（`net_tcp_cc.c`）、面向用户程序的套接字 API，以及有状态防火墙。每一层都可通过命令查看：`arp`、`route`、`tcpstats`、`firewall`、`nicstat`。
+```
+ush> dns example.com              A record (+CNAME when present)
+ush> dns example.com aaaa         AAAA / cname / mx / txt / ns / srv
+ush> dnstest                      every record type against the resolver
+```
 
-## HTTPS 客户端（TLS 1.2 / 1.3）
+DNS 经过所配置的解析器；在 QEMU 用户态网络下，slirp 协议栈会把请求转发给真实的上游。
 
-`wget https://...` 通过 RSA 和 ECDHE 密钥交换协商 TLS，验证 X.509 链（RFC 6125 主机名策略——IP 字面 URL 无参考身份），并拒绝篡改的证书。加密核心（AES、SHA-2 家族、HMAC、RSA、NIST 曲线、Ed25519 风格原语）与 `cryptotest` 用 NIST 向量验证的代码相同。
+## 连通性测试
 
-DH 密钥交换正确性与时序：`dhtest`。
+```
+ush> net-tool               -> ping / wget / ssh / dnstest submenu
+ush> ping 10.0.2.2
+ush> wget example.com 80 /
+ush> wget https.example 443 /           (TLS is built in)
+```
 
-## SSH：客户端与服务器
+`ping` 和 `wget` 走内核的 NETCMD 桥——正是历史应用所用的那个系统调用。
 
-- **客户端**（`ssh` 命令）：连接、认证、运行远程命令——通过 curve25519 风格原语进行密钥交换。
-- **服务器**（`sshd`）：一个真正在客户机内部的 SSH 服务器。主机和客户端密钥存储在 /etc 卷上（`host_keygen_etc` 为其生成）；授权密钥也在那里管理。从你的主机：
+## WiFi 与蓝牙
 
-  ```
-  ssh -p <port> root@localhost     (forward a QEMU port to try it)
-  ```
+```
+ush> net-tool               -> WiFi manager: status / scan / test / sdio
+ush> wifi scan              (beacon-derived network list)
+ush> net-tool               -> Bluetooth: status / usb / uart / test
+ush> bt                     (transport + controller status)
+```
 
-  端到端测试套件对客户机内的 sshd 执行完整的 paramiko 登录往返测试。
+无线层按家族（ath、brcm、iwlwifi、rtlwifi）如实报告状态：已注册、扫描中、已连接——没有相应硬件的机器会直说，而不是假装。
 
-## DNS
+## 防火墙
 
-`dns <name>` 通过配置的解析器解析（QEMU 的用户模式栈会转发到主机）。缓存的条目可通过网络统计命令查看。
+```
+ush> firewall               (list rules + policies)
+ush> firewall add ...       (rule management - see the commands page)
+ush> firewall ct            (the connection-tracking table)
+```
 
-## 缺失功能（诚实清单）
+## 路由与 ARP
 
-- 未实现 IPv6。
-- Wi-Fi 关联：无线栈（`wifi` 命令）覆盖 ath/brcm/iwlwifi/rtlwifi 系列和 SDIO 总线上的状态/扫描/测试——真实硬件上的完整关联取决于网卡系列；在 QEMU 中没有可附加的 Wi-Fi 设备模型。
-- NAT 穿越/端口转发是 QEMU 用户模式的特性，而非内核功能。
+```
+ush> route                  (the full routing table)
+ush> route add 10.0.0.0 255.0.0.0 10.0.2.2
+ush> arp                    (the ARP cache)
+```
+
+## SSH 进出
+
+```
+ush> sshd                   (serve the shell - port/user/pass optional)
+ush> ssh 10.0.2.2           (connect out; credentials as arguments)
+```
+
+SSH 协议栈运行真实的 KEX/加密协商流程；主机密钥可预置在 /etc 卷上以支持无人值守启动。在 QEMU 下，用 `-netdev user,hostfwd=tcp::2223-:22` 转发端口，再从宿主机连接。
+
+## 故障排查
+
+- **DHCP 之后没有 IP**——检查网卡型号（`hwinfo` -> PCI）以及 `-netdev user` 是否存在；e1000 系列测试最充分。
+- **DNS 超时**——slirp 的 DNS 转发只在用户态网络下有效；在桥接 tap 上需要真实的解析器。
+- **首次 SSH 连接卡住**——DHCP 之后 ARP 缓存还是冷的；先跑一条客户端方向的命令（`ping` 对端）预热，再连接。
+
+更多内容见 [../troubleshooting/network-issues.md](../troubleshooting/network-issues.md)。

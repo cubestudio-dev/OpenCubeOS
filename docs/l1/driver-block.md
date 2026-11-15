@@ -1,42 +1,54 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# L1 guide: block drivers
+# Block drivers
 
-Register a storage device so the whole system (VFS, partitions, fs
-utilities) sees it.
+How a storage device family joins the block service so the whole
+system (VFS, partitions, fs utilities, the disk-tool wizard) sees
+it.
 
-## The surface
+## The model (3.0.0)
 
-`drivers/block/driver_block_blk.h` (17 declarations; the numbered
-8):
+- Drivers live in `ocos/drivers/storage/` - one file pair per
+  family (`drv_storage_ahci.{c,h}`, `drv_storage_nvme.*`,
+  `drv_storage_ata*`, `drv_storage_virtio_blk.*`, `drv_storage_scsi*`,
+  `drv_storage_sdhci.*`).
+- Identity is declared with `OC_DRIVER_DECL("block", "ahci",
+  &ops, "SATA AHCI")` - a const descriptor the boot collector
+  walks. No global registry edits, no init-call chains by hand.
+- The driver mutates the block service's device table only from
+  inside its own probe/detach path through the driver-internal API
+  (`drv_storage_api.h`: `driver_block_add_device` /
+  `remove_device`; `BLK_MAX_DEVICES` slots, 512-byte sectors,
+  32-char names). The register-class entries were removed in
+  v2.0.0 - this header is kernel-internal, NOT an L1 surface.
+- The hardware profile knobs (`CONFIG_NVME` / `CONFIG_AHCI` /
+  `CONFIG_VIRTIO_BLK`, `make defconfig` / `menuconfig`) compile
+  individual families out; the init calls are macro-stubbed by
+  `core/generated/config_gen.h`.
 
-```
-driver_block_register(name, ops, ctx)     -> device id
-driver_block_read(dev, lba, count, buf)   -> bytes read / <0
-driver_block_write(dev, lba, count, buf)  -> bytes written / <0
-driver_block_flush(dev)                   -> 0 / <0
-driver_block_set_ops(dev, ops)
-```
+## The service side
 
-Plus the family init entries that bind a discovered PCI device to a
-driver: `driver_block_ahci_init(pci)`, `driver_block_nvme_init(pci)`,
-`driver_block_ata_dma_init(pci)`.
+`ocos/services/block/` fronts the L1SVC category 2 surface: device
+listing (`lsblk`), partition tables (`parted`), mkfs (FAT32 /
+exFAT / ext4), `fsck`, `sync`, the A/B disk tools (`abdisk`,
+`install`, `grub-install`, `abcfg`), the disk stats, and the test
+family (`ahci_test` .. `fs_mount_test`). The cache gate (64 slots)
+sits between the service and the drivers.
 
-## Implementing a driver
+## What a new family looks like
 
-1. Probe your bus (PCI class match via
-   `driver_pci_find_class_mask`).
-2. Map BARs, reset the device, negotiate features.
-3. Build an ops struct (read/write/flush in sector units) and
-   `driver_block_register("myd0", &ops, ctx)` - the per-instance name
-   is what `dskstat` shows.
-4. Fail cleanly: refusal at probe with a message beats a silent
-   half-registration.
+1. `ocos/drivers/storage/drv_storage_<fam>.{c,h}` - probe the bus,
+   read the capacity, `driver_block_add_device()` per found disk.
+2. One `OC_DRIVER_DECL("block", "<fam>", &ops, "description")`
+   line at the bottom.
+3. A status op (if the family deserves one) in the service, an op
+   number APPENDED to `svc_sysapi_l1svc.h` (append-only!), the
+   mirror regenerated (`tools/gen_l1svc_ops.py`).
+4. The app side: a thin wrapper folder or a row in a mega-app's
+   classic table (`disk-tool`'s `g_ops[]` is the pattern).
 
-## Rules with teeth
+## The consumer contract
 
-- DMA bounds: 32-bit-mask devices must reject above-4GiB addresses
-  at probe AND per transfer (the xHCI precedent).
-- Alignment: ATA-DMA PRDT alignment rides on the heap's 32-byte
-  header guarantee.
-- The tests that gate you: `fstest`, `disk_rw_test`, the per-driver
-  `*_test` commands.
+Apps never touch drivers: they call the service (`disk-tool lsblk`
+-> `sys_l1svc(BLOCK, LSBLK, ...)`). Device names are the stable
+contract (`hd0`, `hd0p1`, ...); the wizards show `lsblk` and ask
+for names by that spelling.

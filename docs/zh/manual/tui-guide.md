@@ -1,72 +1,38 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# TUI 指南（终端用户界面）
+# TUI 桌面
 
-TUI 层（`tui/`）是一个运行在帧缓冲上的窗口系统：
-桌面、任务栏、菜单、表单、面板、文本编辑器和系统应用
-全部通过键盘驱动。
-
-## 启动它
+## 启动桌面
 
 ```
-oc> tui
+ush> tui
 ```
 
-桌面会接管整个屏幕。（在 QEMU 中，去掉 `-display none` 参数，
-使用 SDL/GTK 窗口以便查看；串口控制台会继续在后台运行。）
+桌面会占用图形控制台（QEMU 需以 `-vga std` 运行）；串口保留 ush 提示符，可并行访问。
 
-## 桌面
+## 屏幕布局
 
-- 带有启动器的任务栏。
-- 包含标准组件集的窗口：菜单、表单、文本区域、面板。
-- 捆绑的应用包括系统监控器（进程、内存）、
-  文件、一个 TUI 编辑器、网络状态和系统信息。
+- 顶部**面板**：时钟、电源、系统摘要
+- 中部**桌面**：应用启动器
+- **任务栏**：运行中的 TUI 应用、启动器按钮
 
-## 键盘模型
+键盘模型：方向键 + Enter 导航，ESC 后退，菜单键打开启动器。不强制使用鼠标——每个操作都能从键盘触达（这是无障碍门禁所断言的输入契约）。
 
-- 方向键 / Tab 键导航；Enter 激活；Esc 返回。
-- 编辑器使用与 Shell 行编辑器相同的行规。
-- `tui` 应用既可通过桌面启动器访问，也可作为
-  单独命令运行 - 参见命令索引中的
-  [TUI 域](commands/index.md)。
+## 内置 TUI 应用
 
-## TUI 命令
+| 应用 | 功能 |
+|-----|--------------|
+| tui-files | 浏览 / 复制 / 移动 / 删除、启动 edit |
+| tui-editor | `edit` 命令所用的同一编辑器内核，带边框 |
+| tui-proc | 进程表（`ps` 的数据） |
+| tui-apps | 应用启动器 / 注册表浏览器 |
+| tui-time | 时钟（RTC / HPET / TSC） |
+| tui-net | 网络状态界面 |
+| tui-sysinfo / tui-hw / tui-drv / tui-sys | 硬件 + 系统页面 |
 
-```
-oc> tui              (enter the desktop)
-oc> tui-test         (the TUI regression suite)
-oc> tui-hw           (TUI hardware/render diagnostics)
-oc> tui-net          (network status app)
-oc> tui-sysinfo      (system information app)
-oc> tui-time         (clock/time sources panel)
-oc> tui-sys          (system monitor)
-oc> tui-drv          (driver inventory)
-oc> tui-ext          (extension surface status)
-```
+## TUI 命令家族
 
-## 中文控制台与 TUI
+`tui`（桌面）、`tui-test`（自检）、`tui-hw`、`tui-net`、`tui-sysinfo [page]`、`tui-time`、`tui-drv [page]`、`tui-sys [page]`、`tui-ext`——全部是注册表程序，桌面运行期间也都可通过 shell 调用。
 
-中文层（`chinese` 命令）将控制台切换为
-16x16 CJK 字体并采用 GB 编码和拼音输入法，
-同时提供硬件/网络/系统信息 TUI 应用的中文版本：
+## TUI 与大应用
 
-```
-oc> chinese          (status of font/encoding/render/ime)
-oc> ime -i           (interactive pinyin input line)
-oc> lang             (language console switch)
-```
-
-系统字符串按约定保持 ASCII；中文层渲染用户内容 -
-参见 [chinese-console](chinese-console.md)。
-
-## 扩展接口面
-
-L1 模块可通过 `tui/tui_ext.h`（37 个可调用声明 - 窗口、菜单、表单、面板、文本）
-创建 TUI 窗口和组件。TUI 命令桥本身就是参考实现：
-它通过 L1 API 遍历 Shell 命令表并将其渲染为启动器。扩展指南：
-[../l1/tui-ext.md](../l1/tui-ext.md)。
-
-## 不构建 TUI 进行构建
-
-`make CONFIG_TUI=n` 会从镜像中移除 TUI（同时 `CONFIG_CHINESE=n` 会移除中文层），
-启动后注册 216 个命令（233 - 17）。这个非完整路径是具有 ASCII 等价路由的真实代码，
-而非被删除的功能。参见 [../dev/build.md](../dev/build.md)。
+TUI 呈现的是 8 个大应用所包装的同一批服务——sysinfo 页面读取的 L1SVC 操作与 `hwinfo` 相同。桌面是查看器；向导应用是操作员界面；经典命令是脚本界面——三扇门，一个系统。

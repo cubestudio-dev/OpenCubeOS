@@ -1,39 +1,50 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# L1 guide: the shared-object loader
+# The shared-object loader
 
-`libs/ld_so.c` - a real dynamic loader for the kernel, used by L1
-modules and the dynamic-linking user programs alike.
-
-## The surface (l1/l1_wp8b.h)
-
-```
-elf_load_dynamic(elf_data, size, name)    -> load + relocate
-ldso_run()                                 -> run loaded objects' init
-so_load(name, flags) / so_unload(handle)
-symbol_resolve(handle, name)
-dlopen_impl(name, flags) / dlsym_impl(handle, name) / dlclose_impl(handle)
-reloc_apply(rela, count, base, ...)
-elf_get_needed(elf_data, size, ...)
-```
+`ocos/l1apps/ld_so.c` - the in-tree dynamic loader (a ring-3
+program itself, linked at 0x10000000 via `ld_so.ld`), used by the
+dynamic-linking user programs.
 
 ## What it handles
 
-ELF dynamic objects: DT_NEEDED chains (`elf_get_needed`), symbol
-tables, relocation processing (`reloc_apply` - R_X86_64_RELATIVE/
-GLOB_DAT/JUMP_SLOT/64 families), init arrays at `ldso_run`, and
-unload with reference handling.
+ELF dynamic objects: DT_NEEDED chains, symbol tables, relocation
+processing (R_X86_64_RELATIVE / GLOB_DAT / JUMP_SLOT / 64
+families), init arrays at load, and unload with reference
+handling.
+
+## The image modes
+
+`tools/gen_userprogs.py` preserves the v2.x build modes per
+program: ET_EXEC for the static apps, ET_DYN + `PT_INTERP=/lib/ld.so`
+for `dyn_hello` / `pie_test` / `so_test` / `dlsym_test` /
+`reloc_test` (the kernel rejects a silent ET_EXEC downgrade of a
+PIE program - image type is part of the interface).
 
 ## The proof it works
 
-The `userprogs/` fleet exercises every corner from ring 3:
-`run dyn_hello`, `run so_test`, `run dlsym_test`, `run pie_test`,
-`run reloc_test` - and `ext_wp8b_selftest()` self-checks the loader
-in-kernel. If your module loads through this path, these are your
-regression anchors.
+The embedded fleet exercises every corner from ring 3:
+
+```
+ush> run dyn_hello           (loaded, init ran, hello printed)
+ush> run so_test             (foo_add(2,3)=5 through the solib)
+ush> run dlsym_test          (dlsym resolves foo_add(7,8)=15)
+ush> run pie_test            (loaded at 0x... - PIE base assignment)
+ush> run reloc_test          (foo_add=30 foo_global=42 fp=300)
+```
+
+plus `l1test`'s `ext_wp8b selftest 14/14` - the loader
+self-check that rides every regression run. If your program loads
+through this path, these are your regression anchors.
 
 ## Position independence
 
-PIE objects relocate through the same `reloc_apply`; the loader's
-base assignment is what makes `-fno-pie` kernel code and PIE modules
-coexist - see the `pie_test` source for the exact relocation mix a
-module may carry.
+PIE objects relocate through the same relocation pass; the
+loader's base assignment is what lets the `-fno-pie` apps and PIE
+programs coexist in one registry - `pie_test`'s source shows the
+exact relocation mix a dynamic program may carry.
+
+## The libfoo leg
+
+`libfoo.c` (the embedded solib) is built by
+`tools/build_solib.py` into `solib_data.h` - the same embed chain
+as every other program, so the staleness gate covers it.
