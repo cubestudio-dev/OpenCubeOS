@@ -68,6 +68,10 @@ static int l1_apps_core(void) {
  * that lost every member to the WP-03 user-plane removal are not
  * listed - help -w skips empty groups by design). */
 static const struct { const char *tag; const char *desc; } s_wp_order[] = {
+    /* WP-l1apps-merge: the 8 merged mega-apps lead the view -
+     * they are the primary user surface, the historical
+     * single-command apps follow in their service groups. */
+    { "mega",     "wp_mega" },
     { "recovery", "wp_recovery" },
     { "core",     "wp_core" },
     { "fs",       "wp_fs" },
