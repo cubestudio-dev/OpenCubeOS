@@ -33,6 +33,14 @@ window.SITE_DATA = {
       url: "downloads/opencube-3.0.0-WP-07-ocire-loop-perfect-update.tar.gz"
     }
   },
+        { name: "OpenCubeOS-recovery-dualslot-v3.0.0-WP-07.img",
+          size: 135266304,
+          url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP-07-ocire-loop-perfect/OpenCubeOS-recovery-dualslot-v3.0.0-WP-07.img",
+          note: "dual-slot recovery disk image (135 MiB; served by the GitHub Release - over the gh-pages 100 MiB repo limit)" },
+        { name: "wp07-evidence.zip",
+          size: 123803,
+          url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP-07-ocire-loop-perfect/wp07-evidence.zip",
+          note: "WP-07 verification evidence (screenshots, serial transcripts, partition dump)" },
   /* WP06e: the 3.0.0 development-preview channel.  WP06g3 carries the
      milestone forward (the real-hardware fix batch, build 414).
      Sizes + SHA256 verified against the GitHub Release API
