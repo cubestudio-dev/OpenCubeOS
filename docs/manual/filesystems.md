@@ -1,93 +1,85 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Filesystems and storage
+# Filesystems
 
-## The VFS
+## The VFS layer
 
-All file access goes through one VFS (`fs/fs_vfs.c`): a uniform
-open/read/write/seek/close/stat/mkdir/rmdir/readdir/lookup API over
-pluggable filesystem types. Paths walk the global node tree and cross
-mount points transparently. Per-filesystem case sensitivity, enforced
-permission bits, and 64-bit seek offsets are real VFS behaviours.
+The kernel VFS fronts four filesystem implementations:
 
-## Filesystem types
+| Type | Read | Write | Where it shines |
+|------|------|-------|-----------------|
+| ramfs | yes | yes | the ISO root - everything in RAM |
+| FAT32 | yes | yes | interchange with every OS |
+| exFAT | yes | yes | large removable volumes |
+| ext4 | read* | no* | inspecting Linux disks |
 
-| Type | Read | Write | Where it lives |
-|------|------|-------|----------------|
-| ramfs | yes | yes | memory (volatile) - the default root |
-| FAT32 | yes | yes | any block device; LFN supported |
-| exFAT | yes | yes | any block device |
-| ext4 | yes | yes | any block device (extent-based) |
-| /etc volume | yes | yes | a small FAT32 image mounted at /etc |
+(*) the ext4 leg is mount/read-oriented in this release.
+
+## Day-to-day file work
 
 ```
-oc> dskstat                     (list block devices)
-oc> mkfs.fat32 ata0 confirm     (format - the confirm arg is required)
-oc> mkfs.exfat usda confirm
-oc> mkfs.ext4 ata0 confirm
-oc> fatmount ata0 /mnt          (mount FAT32)
-oc> mount                       (list mounts; umount unmounts)
+ush> files                  the wizard: ls / tree / df+du / cp / mv /
+                            rm (confirmed) / edit / stat+chmod
+ush> files edit /etc/opencube.conf
 ```
 
-Formatting is destructive - every `mkfs.*` requires the literal
-`confirm` argument so a stray Enter does not erase a disk.
+or the classic programs directly - `ls`, `tree`, `df`, `du`, `cp`,
+`mv`, `rm`, `edit`, `stat`, `chmod`, `cat`, `mkdir`, `ln`, `wc`,
+`grep`, `head`, `tail`, `sort`, `awk`. They are ordinary registry
+programs; `files` is a second door into the same binaries.
+
+## Formatting and mounting
+
+`disk-tool` walks the whole flow:
+
+```
+ush> disk-tool              -> list devices (lsblk)
+                           -> partition table (parted)
+                           -> create a filesystem (mkfs.fat32 / exfat /
+                              ext4 - the device name is asked, retyped
+                              and confirmed)
+                           -> mount manager (list / mount / umount /
+                              fatmount / fatstat)
+```
+
+Classic form:
+
+```
+ush> mkfs.fat32 hd0p1       (destroys data - no wizard, no extra prompt)
+ush> mount fat32 hd0p1 /mnt
+ush> umount /mnt
+```
+
+`fatmount` is the FAT-specific convenience (auto-detects the FAT
+volume), `fatstat` reports FAT statistics, `fsck` checks a
+filesystem.
 
 ## The /etc volume
 
-A 32 MiB FAT32 image holding the system's persistent state:
+`/etc/opencube.conf` carries the persistent configuration (update
+URLs, auto-check, online-update, shell language). On an ISO boot it
+lives in RAM and resets on reboot; on an installed system (or when
+an `etc.img` disk is attached) it persists:
 
 ```
-opencube.conf     (key=value system configuration - see `config`)
-ssh host keys     (sshd identity - see [network](network.md))
-kernel.log        (rotated kernel log - see [../internals/klog.md])
-crash dumps       (see [recovery](recovery.md))
+ush> config list
+ush> config get update_url
+ush> config set online_update no
+ush> config restore         (back to defaults)
 ```
 
-Configuration reads/writes go through the `config` command and the
-L1 `l1_ext_config_*` interface family; the /etc volume is mounted
-automatically at boot when present.
+## Paths and the current directory
 
-## Block devices
+`cd`, `pwd`, `ls` behave like their Unix namesakes; paths are `/`
+separated, absolute from the ramfs root. The editor writes back in
+place; `cp`/`mv`/`rm`/`chmod`/`stat` take the obvious shapes
+(`chmod <octal> <path>`).
 
-The block layer names instances (`ata0`, `usda`, `nvme0`, `vdisk0`
-for virtio, `sd0` for SD) and provides partition scanning on top:
-
-- **ATA/ATAPI** PIO and bus-master DMA (PRDT alignment guaranteed by
-  the heap's 32-byte header block)
-- **AHCI** - SATA controllers
-- **NVMe** - PCIe SSDs
-- **virtio-blk** - the fast path under QEMU (`-device virtio-blk-pci`)
-- **USB MSC** - mass-storage sticks through any of the USB stacks
-- **SD/SDHCI** and **SCSI** (LSI 53C8xx family) controllers
-
-## Partition tables
-
-GPT and MBR (msdos) partition tables are scanned; partition devices
-appear alongside whole-disk devices. `fdisk`-style inspection plus
-per-partition mount is available - see the
-[commands reference](commands/index.md) for the disk domain.
-
-## File commands
+## What is where on a running system
 
 ```
-oc> ls /mnt
-oc> cat /mnt/hello.txt
-oc> write /mnt/hello.txt "new content"
-oc> cp /mnt/a.txt /mnt/b.txt
-oc> mv /mnt/a.txt /mnt/c.txt
-oc> rm /mnt/c.txt
-oc> mkdir /mnt/dir
-oc> touch /mnt/empty.txt
-oc> editor /mnt/notes.txt        (full-screen editor)
-oc> fsck ata0                     (filesystem check)
-oc> fstest                        (VFS + per-fs self-test suite)
+/            ramfs root (the ISO content)
+/etc         the config volume (persisted when etc.img is attached)
+/mnt, /media conventional mount points
+/bin, /lib   the embedded program registry is in-kernel; these
+             paths exist for the dynamic-linker leg (ld.so, libfoo)
 ```
-
-## Limits worth knowing
-
-- Long paths and file names: FAT32 LFN is fully supported including
-  alias generation with collision scanning and checksum/sequence
-  validation on read.
-- Dual-FAT mirror maintenance and FSINFO free-cluster hints are
-  maintained on FAT32; exFAT tracks the active FAT.
-- ramfs sparse holes read back as zeros.
-- `umount /` is refused; mount shadowing does not duplicate children.

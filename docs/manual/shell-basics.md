@@ -1,96 +1,89 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Shell basics
 
-The `oc>` shell is a Unix-flavoured command line - with pipes,
-redirection, background jobs, environment variables, aliases and a
-small scripting language. This page walks the real feature set.
+`ush` is the boot shell - a real ring-3 program (the only
+`OC_L1_APP_DECL` application) that fronts the whole system.
 
-## Line editing
-
-- History: up/down arrows walk previous lines.
-- Editing within the line; `Ctrl+U` kills the line.
-- Input sources: PS/2 keyboard and COM1 serial feed the same queue -
-  with `-serial mon:stdio` in QEMU you type over serial.
-
-## Command chaining and jobs
+## The prompt
 
 ```
-oc> dhcp && ping 10.0.2.2      (run ping only if dhcp succeeded)
-oc> cat a.txt ; cat b.txt      (sequence regardless)
-oc> health || dmesg            (second only if first failed)
-oc> ping 10.0.2.2 &            (background job)
-oc> g6_test &                  (long test in the background)
+ush>
 ```
+
+## Running programs
+
+Type a registry program name (284 available - `help -a` lists them
+all). The 8 merged apps are the intended surface; the historical
+single commands keep working:
+
+```
+ush> hwinfo
+ush> lsblk
+ush> run hello &            (the '&' suffix runs in background)
+```
+
+`run <program>` is the explicit form - it prints the started pid and
+waits (or backgrounds with `&`).
 
 ## Pipes and redirection
 
 ```
-oc> ls | grep log              (pipe stdout of ls into grep)
-oc> cat /mnt/f.txt > /tmp/g.txt     (write stdout to a file)
-oc> cat /mnt/f.txt >> /tmp/g.txt    (append)
-oc> wget 10.0.2.2 < in.txt     (stdin from a file)
+ush> cat /etc/opencube.conf | grep url
+ush> help -a > registry.txt
+ush> echo hello >> notes.txt
+ush> wc < notes.txt
 ```
 
-## Wildcards
+Pipes (`|`), truncating redirect (`>`), appending redirect (`>>`)
+and input redirect (`<`) work across registry programs.
 
-`*` and `?` expand in the shell before the command runs:
+## Built-ins vs programs
 
-```
-oc> ls /mnt/*.txt
-oc> cat /mnt/report?.txt
-```
+Only process-state commands are built into ush: `cd`, `pwd`,
+`exit`, `help`, `export`, `alias`, `unalias`, `history`, `lang`,
+`clear`. Everything else - including `ls`, `cat`, `echo`, `write` -
+is a forked registry program. That is why `ls` appears in pipes as
+a real process.
 
-## Environment variables
+The line editor: Up/Down history, Tab completion of program names,
+Ctrl+C cancels the line.
 
-```
-oc> export NAME=value          (set)
-oc> echo $NAME                 (use - $VAR expands in the line)
-oc> env                         (list all)
-```
-
-Environment storage limits: 32 variables, names up to 32 bytes,
-values up to 256 bytes (`shell/shell.h`).
-
-## Aliases
+## Aliases and environment
 
 ```
-oc> alias ll ls -l
-oc> ll
-oc> unalias ll
-```
-
-Alias values may hold full pipelines - up to 512 bytes stored in
-full or refused (never silently truncated). 32 alias slots.
-
-## Current working directory
-
-```
-oc> cd /mnt
-oc> pwd
+ush> alias dt disk-tool
+ush> alias
+ush> unalias dt
+ush> export EDITOR=edit
 ```
 
 ## Scripting
 
-A script is a text file of command lines; feed it with the shell's
-script runner (see `help -a` for the exact command name in your
-build). The `editor` command gives you an in-guest full-screen text
-editor to write those scripts.
-
-## Command help
+Multi-command sequences with `;`:
 
 ```
-oc> help            (short list, one line per command)
-oc> help -a         (all 233 commands, alphabetical, with descriptions)
-oc> help -w         (the same commands grouped by the work package
-                     that introduced them)
+ush> dhcp; ping 10.0.2.2; dns example.com
 ```
 
-The complete indexed reference with one page per command is
-[commands/index.md](commands/index.md).
+There is no file-based script interpreter in this release - a
+"script" is a pasted sequence of lines, or a program you write into
+the registry at build time (see the developer docs).
 
-## The contract
+## Language
 
-Commands may be added across versions, never removed; names and
-overall behaviour of shipped commands are stable (see
-[../CONTRIBUTING.md](../root/CONTRIBUTING.md)). The command table
-capacity is 256 with 233 registered at present.
+```
+ush> lang zh        (the whole UI - shell help + every wizard -
+                     switches to Chinese live)
+ush> lang           (shows the current language)
+```
+
+## The mega-app contract (recap)
+
+```
+ush> <app>                wizard (menus, single-key picks, q quits)
+ush> <app> direct <op>    explicit verbatim passthrough
+ush> <app> <op> [args]    classic dispatch (historical spelling)
+```
+
+See [mega-apps](mega-apps.md) for the full contract and per-app
+walkthroughs.

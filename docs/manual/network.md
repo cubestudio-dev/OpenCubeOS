@@ -1,86 +1,97 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Networking
+# Network
 
-A self-contained TCP/IP stack with everything from NIC drivers to an
-SSH server - no ported libc, no third-party code.
+The net surface lives behind `net-tool` (wizard) and the classic
+commands underneath it.
 
-## Bring-up
-
-```
-oc> dhcp                  (request an address on nic0)
-oc> ping 10.0.2.2         (ICMP echo to the QEMU gateway)
-oc> dns example.com       (resolve via the QEMU DNS forwarder)
-oc> wget 10.0.2.2         (fetch http://10.0.2.2/)
-oc> wget host 8080 /path  (explicit port and path)
-oc> route                 (routing table)
-oc> tcpstats              (TCP counters + congestion state)
-oc> firewall              (stateful firewall rules)
-```
-
-In QEMU the default `-device e1000` matches the e1000 driver
-out of the box:
+## Address setup
 
 ```
-qemu-system-x86_64 -m 512 -cdrom opencube.iso \
-    -netdev user,id=n1 -device e1000,netdev=n1
+ush> net-tool               -> "obtain an address via DHCP"
+ush> dhcp                   (the classic form - same call)
+ush> ip                     (show IP / mask / gateway)
 ```
 
-## Supported NICs
+Static addressing through the wizard collects address, mask and
+gateway one field at a time, so the positional argument line can
+never be assembled in the wrong order. Classic form:
 
-| Family | Cards | Driver |
-|--------|-------|--------|
-| Intel e1000 | e1000 (8254x) | `drivers/nic/driver_nic.c` |
-| Intel e1000e | 8257x ICH/PCH NICs | `driver_nic_e1000e.c` |
-| Intel igb | 82575/82576 (VFs included) | `driver_nic_igb.c` |
-| Intel ixgbe | 82598/82599 10 GbE | `driver_nic_ixgbe.c` |
-| Realtek rtl8139 | 8139/810x fast ethernet | `driver_nic_rtl8139.c` |
-| Realtek rtl8169 | 8168/8125/810x gigabit families | `driver_nic_rtl8169.c` |
-| Broadcom BCM57xx | 5708/5709/5714 era | `driver_nic_bcm57xx.c` |
+```
+ush> ip 10.0.2.15 255.255.255.0 10.0.2.2
+```
 
-## The stack
+## Name resolution
 
-ARP, IPv4, ICMP, UDP, DNS, TCP with congestion control
-(`net_tcp_cc.c`), a socket API for user programs, and a stateful
-firewall. Every layer is visible through commands: `arp`,
-`route`, `tcpstats`, `firewall`, `nicstat`.
+```
+ush> dns example.com              A record (+CNAME when present)
+ush> dns example.com aaaa         AAAA / cname / mx / txt / ns / srv
+ush> dnstest                      every record type against the resolver
+```
 
-## HTTPS client (TLS 1.2 / 1.3)
+DNS goes through the configured resolver; under QEMU user-mode
+networking the slirp stack forwards to the real upstream.
 
-`wget https://...` negotiates TLS with RSA and ECDHE key exchange,
-verifies X.509 chains (RFC 6125 hostname policy - IP-literal URLs
-have no reference identity), and rejects tampered certificates. The
-crypto core (AES, SHA-2 family, HMAC, RSA, NIST curves, Ed25519-style
-primitives) is the same code `cryptotest` validates with NIST vectors.
+## Connectivity tests
 
-DH key exchange correctness and timing: `dhtest`.
+```
+ush> net-tool               -> ping / wget / ssh / dnstest submenu
+ush> ping 10.0.2.2
+ush> wget example.com 80 /
+ush> wget https.example 443 /           (TLS is built in)
+```
 
-## SSH: client and server
+`ping` and `wget` ride the kernel NETCMD bridge - the exact syscall
+the historical apps used.
 
-- **Client** (`ssh` command): connect, authenticate, run a remote
-  command - key exchange via curve25519-style primitives.
-- **Server** (`sshd`): a real SSH server *inside the guest*. Host and
-  client keys live on the /etc volume (`host_keygen_etc` seeds them);
-  authorized keys are managed there too. From your host:
+## WiFi and Bluetooth
 
-  ```
-  ssh -p <port> root@localhost     (forward a QEMU port to try it)
-  ```
+```
+ush> net-tool               -> WiFi manager: status / scan / test / sdio
+ush> wifi scan              (beacon-derived network list)
+ush> net-tool               -> Bluetooth: status / usb / uart / test
+ush> bt                     (transport + controller status)
+```
 
-  The E2E suite exercises a full paramiko login round-trip against
-  the in-guest sshd.
+The wireless layer reports honest states per family (ath, brcm,
+iwlwifi, rtlwifi): registered, scanning, connected - a machine
+without the hardware says so instead of pretending.
 
-## DNS
+## Firewall
 
-`dns <name>` resolves through the configured resolver (QEMU's
-user-mode stack forwards to the host). Cached entries are visible
-through the network stats commands.
+```
+ush> firewall               (list rules + policies)
+ush> firewall add ...       (rule management - see the commands page)
+ush> firewall ct            (the connection-tracking table)
+```
 
-## What is not there (honest list)
+## Routing and ARP
 
-- IPv6 is not implemented.
-- Wi-Fi association: the wireless stack (`wifi` command) covers
-  status/scan/test across the ath/brcm/iwlwifi/rtlwifi families and
-  the SDIO bus - full association on real hardware depends on the
-  card family; in QEMU there is no Wi-Fi device model to attach.
-- NAT traversal/port forwarding are QEMU user-mode properties, not
-  kernel features.
+```
+ush> route                  (the full routing table)
+ush> route add 10.0.0.0 255.0.0.0 10.0.2.2
+ush> arp                    (the ARP cache)
+```
+
+## SSH in and out
+
+```
+ush> sshd                   (serve the shell - port/user/pass optional)
+ush> ssh 10.0.2.2           (connect out; credentials as arguments)
+```
+
+The SSH stack runs the real KEX/cipher flow; host keys can be
+pre-seeded on the /etc volume for unattended boots. Under QEMU,
+forward a port with `-netdev user,hostfwd=tcp::2223-:22` and connect
+from the host.
+
+## Troubleshooting
+
+- **No IP after DHCP** - check the NIC model (`hwinfo` -> PCI) and
+  that the `-netdev user` exists; the e1000 family is the best-tested.
+- **DNS times out** - the slirp DNS forward only works with user-mode
+  networking; on a bridged tap you need a real resolver.
+- **First SSH connect stalls** - the ARP cache is cold after DHCP;
+  run one client-direction command first (`ping` the peer) to warm
+  it, then connect.
+
+More: [../troubleshooting/network-issues.md](../troubleshooting/network-issues.md).

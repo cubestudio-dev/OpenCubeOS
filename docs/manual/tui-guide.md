@@ -1,77 +1,48 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# TUI guide (terminal user interface)
-
-The TUI layer (`tui/`) is a windowing system on the framebuffer:
-desktop, taskbar, menus, forms, panels, a text editor and system
-apps - all keyboard-driven.
+# The TUI desktop
 
 ## Starting it
 
 ```
-oc> tui
+ush> tui
 ```
 
-The desktop takes over the screen. (In QEMU, drop `-display none` and
-use the SDL/ GTK window so you can see it; the serial console keeps
-running alongside.)
+The desktop takes the graphical console (run QEMU with `-vga std`);
+the serial line keeps the ush prompt for parallel access.
 
-## The desktop
+## The screen
 
-- A taskbar with a launcher.
-- Windows with the standard widget set: menus, forms, text areas,
-  panels.
-- The bundled apps cover the system monitor (processes, memory),
-  files, a TUI editor, network status and system info.
+- the **panel** at the top: clock, power, system summary
+- the **desktop** center: the app launcher
+- the **taskbar**: running TUI apps, the launcher button
 
-## Keyboard model
+Keyboard model: arrows + Enter navigate, ESC backs out, the menu
+key opens the launcher. The mouse is not required - every action is
+reachable from the keyboard (the input contract the accessibility
+gate asserts).
 
-- Arrow keys / Tab navigate; Enter activates; Esc backs out.
-- The editor uses the same line discipline as the shell line editor.
-- `tui` apps are reachable both from the desktop launcher and as
-  individual commands - see the TUI domain in the
-  [commands index](commands/index.md).
+## The built-in TUI apps
 
-## TUI commands
+| App | What it does |
+|-----|--------------|
+| tui-files | browse / copy / move / delete, launch edit |
+| tui-editor | the same editor core the `edit` command uses, framed |
+| tui-proc | the process table (the `ps` data) |
+| tui-apps | the app launcher / registry browser |
+| tui-time | clocks (RTC / HPET / TSC) |
+| tui-net | network status surfaces |
+| tui-sysinfo / tui-hw / tui-drv / tui-sys | hardware + system pages |
 
-```
-oc> tui              (enter the desktop)
-oc> tui-test         (the TUI regression suite)
-oc> tui-hw           (TUI hardware/render diagnostics)
-oc> tui-net          (network status app)
-oc> tui-sysinfo      (system information app)
-oc> tui-time         (clock/time sources panel)
-oc> tui-sys          (system monitor)
-oc> tui-drv          (driver inventory)
-oc> tui-ext          (extension surface status)
-```
+## The TUI command family
 
-## Chinese console and TUI
+`tui` (desktop), `tui-test` (the selftests), `tui-hw`, `tui-net`,
+`tui-sysinfo [page]`, `tui-time`, `tui-drv [page]`, `tui-sys
+[page]`, `tui-ext` - all registry programs, all also reachable
+through the shell while the desktop runs.
 
-The Chinese layer (`chinese` command) swaps the console into a
-16x16 CJK font with GB encoding and a pinyin IME, and provides CN
-variants of the hardware/net/sysinfo TUI apps:
+## TUI and the merged apps
 
-```
-oc> chinese          (status of font/encoding/render/ime)
-oc> ime -i           (interactive pinyin input line)
-oc> lang             (language console switch)
-```
-
-System strings remain ASCII by contract; the Chinese layer renders
-user content - see [chinese-console](chinese-console.md).
-
-## Extension surface
-
-L1 modules can create TUI windows and widgets through
-`tui/tui_ext.h` (37 callable declarations - windows, menus, forms,
-panels, text). The TUI command bridge itself is the reference
-implementation: it enumerates the shell command table through the L1
-API and renders it as a launcher. Extension guide:
-[../l1/tui-ext.md](../l1/tui-ext.md).
-
-## Building without the TUI
-
-`make CONFIG_TUI=n` drops the TUI (and with `CONFIG_CHINESE=n` the
-Chinese layer) from the image - the boot then registers 216 commands
-(233 - 17). The off-path is real code with ASCII-equivalent routing,
-not a deleted feature. See [../dev/build.md](../dev/build.md).
+The TUI renders the same services the 8 merged apps wrap - the
+sysinfo pages read the same L1SVC ops `hwinfo` does. The desktop is
+a viewer; the wizard apps are the operator surface; the classic
+commands are the scripting surface - three doors, one system.

@@ -1,102 +1,101 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Getting started
 
-From zero to an `oc>` prompt in five minutes.
+## Boot the ISO
 
-## 1. Download
-
-Grab the current release ISO from the
-[downloads page](https://ocos.cubestudio.cn/) or the
-[GitHub releases](https://github.com/cubestudio-dev/OpenCubeOS/releases):
-
-- `opencube-<version>.iso` - hybrid BIOS+UEFI bootable image
-  (about 12 MiB)
-
-Verify the SHA256 against the value printed on the download page and
-in the release note:
+The quickest path is QEMU with the release ISO:
 
 ```
-sha256sum opencube-<version>.iso
+qemu-system-x86_64 -m 512M -cdrom opencube-3.0.0.iso -boot d \
+    -netdev user,id=n1 -device e1000,netdev=n1
 ```
 
-## 2. Boot it in QEMU
+Add `-vga std` for the graphical console (the TUI desktop needs it),
+or run headless with `-display none -serial mon:stdio`. On UEFI
+hosts add `-bios OVMF.fd` (see [boot-modes](boot-modes.md)).
+
+The boot self-tests run, then the ring-3 shell greets you:
 
 ```
-qemu-system-x86_64 -m 512 -cdrom opencube-<version>.iso \
-    -netdev user,id=n1 -device e1000,netdev=n1 \
-    -serial mon:stdio
+Open Cube OS User-space Shell (3.0.0)
+ush>
 ```
 
-What you will see:
+## The first five minutes
 
-1. The GRUB menu: *Open Cube OS (slot ISO)* plus force-slot entries
-   (A / B) - see [boot-modes](boot-modes.md). It auto-boots in 5 s.
-2. The kernel boot log: one `OK` line per subsystem as it comes up
-   (multiboot2 handshake, long mode, framebuffer, IDT, PIT, keyboard,
-   serial, PMM, VMM, heap, drivers, VFS, network, shell).
-3. The banner: `Open Cube OS <version> ready. Type 'help' for commands.`
-4. The prompt: `oc> `
-
-UEFI instead of legacy BIOS:
+The 8 merged apps are the intended surface - start with a wizard and
+watch it work:
 
 ```
-qemu-system-x86_64 -m 512 -machine q35 \
-    -bios /usr/share/ovmf/OVMF.fd \
-    -cdrom opencube-<version>.iso -display none -serial mon:stdio
+ush> hwinfo            what hardware is in this machine
+ush> sysdiag           health snapshot, kernel log, memory picture
+ush> net-tool          address setup, WiFi scan, connectivity tests
+ush> update            the 5-step OTA wizard (network -> A/B -> DNS
+                        -> check -> install)
 ```
 
-## 3. First commands
+Press a digit to pick a menu item, `q` to quit. Destructive paths
+make you retype the target name and answer a bare `y`.
+
+Two quick read-only tours:
 
 ```
-oc> help              (short command list)
-oc> help -a           (all 233, alphabetical)
-oc> help -w           (grouped by work package)
-oc> uname -a          (version + build + tree)
-oc> dskstat           (block devices found)
-oc> dhcp              (bring up networking)
-oc> ping 10.0.2.2     (the QEMU gateway)
-oc> wget 10.0.2.2     (fetch the gateway's index page)
-oc> dns example.com   (resolve a name through the QEMU DNS forwarder)
-oc> health            (CPU / memory / tasks / IO at a glance)
-oc> dmesg             (kernel ring buffer)
+ush> disk-tool             disks, partitions, mounts
+ush> files                 browse, copy, edit
 ```
 
-The full reference with every command on its own page:
-[commands](commands/index.md).
+## Classic commands still work
 
-## 4. Keyboard
-
-- The shell line editor supports history (up/down), `Ctrl+U` line kill,
-  and editing within the line.
-- On real hardware a PS/2 keyboard is driven directly; over serial
-  (COM1) every keystroke you type into `-serial mon:stdio` lands in the
-  same input queue.
-- The TUI layer (`tui` command) is keyboard-driven: menus, forms and
-  the desktop launcher - see [tui-guide](tui-guide.md).
-
-## 5. Files
-
-The boot system ships a `ramfs` (in-memory filesystem). Files you
-create vanish on reboot unless you put them on a mounted volume:
+Every historical command remains registered - the interface-freeze
+rule guarantees it (commands are added, never removed; the registry
+holds 284 programs):
 
 ```
-oc> dskstat                    (list devices: ata0, usda..., nvme0...)
-oc> mkfs.fat32 ata0 confirm    (optional: format a scratch disk)
-oc> fatmount ata0 /mnt         (FAT32; exfat/ext4 equivalents exist)
-oc> write /mnt/hello.txt "hi"  (a persistent file)
-oc> cat /mnt/hello.txt
+ush> lsblk                 same service call as disk-tool lsblk
+ush> checkupdate           same as update's step 4
+ush> help                  shell built-ins + registry summary
+ush> help -a               every registry entry, A-Z, tagged
+ush> help -w               grouped by domain (the mega group first)
 ```
 
-The `/etc` volume is a small persistent FAT32 image the system mounts
-automatically when present - it carries `opencube.conf`, SSH host
-keys, the kernel log and crash dumps.
+## Files
 
-## 6. Where to go next
+```
+ush> files                 the wizard: ls / tree / df+du / cp / mv /
+                            rm / edit / stat+chmod
+ush> files edit /etc/opencube.conf      the full-screen editor
+ush> cat /etc/opencube.conf              quick read
+ush> cd /etc && ls
+```
 
-- [shell-basics](shell-basics.md) - pipes, redirection, env, aliases,
-  scripting
-- [network](network.md) - the full networking walk-through
-- [boot-modes](boot-modes.md) - A/B slots and what the GRUB menu does
-- [update-ota](update-ota.md) - updating a running system
-- [recovery](recovery.md) - the WinRE-style recovery workflow
-- Building from source: [../dev/build.md](../dev/build.md)
+The ISO runs from RAM (ramfs root); attach a disk and use
+`disk-tool` to partition + format + mount for persistence
+([filesystems](filesystems.md)).
+
+## Network
+
+With the user-mode NIC above:
+
+```
+ush> dhcp                  or net-tool -> "obtain an address via DHCP"
+ush> ping 10.0.2.2         the QEMU gateway
+ush> dns example.com
+ush> wget example.com 80 /
+```
+
+TLS and SSH are built in: `wget` negotiates HTTPS, `sshd` serves the
+shell, `ssh` connects out ([network](network.md)).
+
+## Shut down
+
+```
+ush> power                 the wizard (confirmed shutdown/reboot)
+ush> poweroff              the classic one-shot
+```
+
+## Where to go next
+
+- [mega-apps](mega-apps.md) - the wizard / direct / classic contract
+- [shell-basics](shell-basics.md) - pipes, redirection, scripting
+- [update-ota](update-ota.md) - the update wizard and the A/B scheme
+- [chinese-console](chinese-console.md) - `lang zh` and the IME

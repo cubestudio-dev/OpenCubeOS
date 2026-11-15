@@ -1,55 +1,57 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Chinese console layer
+# The Chinese console
 
-Open Cube OS keeps every system-visible string ASCII - and still
-renders Chinese user content, through a dedicated layer under
-`chinese/`.
-
-## What it is
-
-| Piece | File | What it does |
-|-------|------|--------------|
-| 16x16 CJK font | `chinese/chinese_font_data.c` | bitmap glyphs for the console |
-| GB encoding | `chinese/encoding.c` | gb2312 / utf-8 / ascii codecs |
-| CN console | `chinese/console_cn.c` | renders CJK rows on the framebuffer |
-| Renderer | `chinese/render_cn.c` | glyph raster pipeline |
-| Pinyin IME | `chinese/pinyin_data.c` + ime | syllable resolution and input |
-| CN TUI apps | `tui_cn_*.c` | hardware / net / sysinfo in CN |
-
-## Commands
+## Switching
 
 ```
-oc> chinese          (status: font / encoding / render / ime)
-oc> chinesetest      (full Chinese-support regression suite)
-oc> font             (list registered fonts + active renderer)
-oc> font-test        (render a mixed CJK/ASCII sample row)
-oc> encoding         (codec status: gb2312 / utf-8 / ascii)
-oc> encoding-test    (quick codec round-trip check)
-oc> ime              (pinyin IME status)
-oc> ime -i           (interactive pinyin input on the console line)
-oc> lang             (language console switch)
+ush> lang zh        everything user-facing switches, live:
+                    shell help, all 8 wizard apps, service surfaces
+ush> lang en        back to English
+ush> lang           show the current language
 ```
 
-## The design rule
+The locale is probed per call (not cached at first render), so a
+`lang zh` inside a long-running ush affects the very next help line
+- including inside the shell that owns the switch.
 
-- **System strings are ASCII**: command names, prompts, boot messages,
-  help text - the firmware/hardware compatibility contract (see
-  `CONTRIBUTING.md` ground rule 1).
-- **User content may be anything**: filenames, file contents, editor
-  buffers, network payloads - and the Chinese layer renders them on
-  the console and in the TUI.
+## What is translated
 
-So a terminal without CJK fonts still gets a fully usable system;
-with the layer on, mixed-language content displays correctly.
+| Surface | Mechanism |
+|---------|-----------|
+| ush built-ins | per-app i18n tables (`tr_()`) |
+| the 8 merged apps | per-app i18n tables - menus, prompts, verdicts |
+| the ~280 classic apps | per-app i18n tables (`_hint` + body strings) |
+| L0 service lines (help -w group names, registry titles) | the l0 table (`etc/i18n/l0/{en,zh}.json`) |
 
-## Build configuration
+A missing translation falls back to English, then to the key itself
+- an untranslated app can never crash or print garbage; it shows
+the key so the gap is visible and fixable.
+
+## Rendering
+
+The CJK pipeline is always compiled in: the 16x16 GB2312 font, the
+GBK/UTF-8 decoder chain, and the console renderer. Both the serial
+line and the framebuffer console render Chinese; serial encoding
+follows `serial_encoding` (`utf8` default, `gbk` switchable).
+
+## Input - the IME
+
+The IME composes pinyin into GB2312 zones 16-55 (level-1: the 3755
+common characters) plus phrase completions:
 
 ```
-make CONFIG_CHINESE=n     (also forces CONFIG_TUI=n)
+ush> ime             (IME status: level-1 chars, phrases)
+ush> ime -i          (interactive compose session)
 ```
 
-The off-path is real code: `console_cn` routes to the ASCII
-equivalents in `screen_console`, and the configurator's generated
-header maps the disabled calls to those equivalents. A
-`CONFIG_CHINESE=n CONFIG_TUI=n` build boots with 216 commands
-(233 - 17 Chinese/TUI commands) - the full config boots 233.
+Inside a compose session: type pinyin, pick the candidate, ESC
+cancels. The display service exposes the same engine to programs
+through L1SVC (IME begin / key / end ops).
+
+## The ASCII contract
+
+Program *names*, file paths and service-level **output lines are
+ASCII English** - they are the script-facing contract (wizards and
+tests probe them: `"A/B disk: present"`, `"New version available."`).
+Chinese is the *human* rendering; scripts and probes keep a stable
+English surface in every locale.
