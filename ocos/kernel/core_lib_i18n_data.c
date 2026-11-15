@@ -43,6 +43,7 @@ const struct l0_i18n_kv L0_I18N_EN[] = {
     { "wp_fs", "file service: VFS, ext4/FAT32/exFAT/ramfs" },
     { "wp_input", "input service: keyboard, mouse, touch" },
     { "wp_l1", "L1 service: registry, jobs, IPC, ring-3 tests" },
+    { "wp_mega", "the 8 merged mega-apps (wizard + verbatim dispatch)" },
     { "wp_net", "network service: TCP/IP, DNS, DHCP, SSH" },
     { "wp_nic", "NIC service + ethernet drivers" },
     { "wp_ota", "OTA update service (A/B slots)" },
@@ -55,7 +56,7 @@ const struct l0_i18n_kv L0_I18N_EN[] = {
     { "wp_ush", "shell service commands (former ush SVC rows)" },
     { "wp_watchdog", "watchdog service" }
 };
-const int L0_I18N_EN_N = 48;
+const int L0_I18N_EN_N = 49;
 const struct l0_i18n_kv L0_I18N_ZH[] = {
     { "disp_lang_cur", "控制台输出语言：" },
     { "disp_lang_persist_ok", "（已持久化）" },
@@ -94,6 +95,7 @@ const struct l0_i18n_kv L0_I18N_ZH[] = {
     { "wp_fs", "文件服务：VFS、ext4/FAT32/exFAT/ramfs" },
     { "wp_input", "输入服务：键盘、鼠标、触摸" },
     { "wp_l1", "L1 服务：注册表、作业、IPC、ring-3 测试" },
+    { "wp_mega", "八大融合应用（向导 + 原样分发）" },
     { "wp_net", "网络服务：TCP/IP、DNS、DHCP、SSH" },
     { "wp_nic", "网卡服务 + 以太网驱动" },
     { "wp_ota", "OTA 升级服务（A/B 分区）" },
@@ -106,4 +108,4 @@ const struct l0_i18n_kv L0_I18N_ZH[] = {
     { "wp_ush", "shell 服务命令（原 ush SVC 行）" },
     { "wp_watchdog", "看门狗服务" }
 };
-const int L0_I18N_ZH_N = 48;
+const int L0_I18N_ZH_N = 49;
