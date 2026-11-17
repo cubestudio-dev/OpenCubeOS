@@ -368,8 +368,8 @@ P1 模块分布：构建/发布链 8 条；L1 应用/ush 7 条；OCIRE 恢复内
 - **编号**: #107（GitHub Issue）
 - **优先级**: P1
 - **模块**: OCSE 安装环境
-- **缺陷描述**: `/home/z/audit/release/ocse-3.0.0-WP06g3.iso` 本地下载副本 = **1269760 B / sha256 09cd
-  - - **F18 [P1]** `/home/z/audit/release/ocse-3.0.0-WP06g3.iso` 本地下载副本 = **1269760 B / sha256 09cdd8df…**，而 GitHub Release API digest = **5038080 B / 0abb622c…**（gh-pages 文件与 site-data 均为 0abb622c）。opencube g3 副本 34bcccdb ✓ 一致。即本地 ocse 副本与 Release 资产**不是同一字节流**（需重下或追查谁错）。另：任务提到的 `/home/z/audit/release/SHA256SUMS` 实际不存在（目录仅 2 个 ISO）。
+- **缺陷描述**: ocse-3.0.0-WP06g3.iso 的本地下载副本 = **1269760 B / sha256 09cd
+  - - **F18 [P1]** ocse-3.0.0-WP06g3.iso 的本地下载副本 = **1269760 B / sha256 09cdd8df…**，而 GitHub Release API digest = **5038080 B / 0abb622c…**（gh-pages 文件与 site-data 均为 0abb622c）。opencube g3 副本 34bcccdb ✓ 一致。即本地 ocse 副本与 Release 资产**不是同一字节流**（需重下或追查谁错）。另：任务提到的审计目录中的 `SHA256SUMS` 实际不存在（目录仅 2 个 ISO）。
 - **复现步骤**: 见 issue 正文与评论（WP-06h 审计附实机取证：串口字节级 / VGA 截图 / 像素级 VLM 验证）
 - **涉及文件**: （见 issue 正文）
 - **链接**: https://github.com/cubestudio-dev/OpenCubeOS/issues/107

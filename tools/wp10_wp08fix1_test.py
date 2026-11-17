@@ -16,7 +16,7 @@ Usage: python3.13 tools/wp10_wp08fix1_test.py build/opencube.iso
 import sys, os, re, time, signal
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU_BIN = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 SEABIOS_DIR = f"{OC_TOOLS}/usr/share/seabios"
 QEMU_DATADIR = f"{OC_TOOLS}/usr/share/qemu"

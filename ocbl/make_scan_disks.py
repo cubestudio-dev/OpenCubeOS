@@ -31,6 +31,7 @@ import os
 import struct
 import subprocess
 import sys
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "build/ocbl/scan_disks"
 MODE = ""
@@ -44,11 +45,11 @@ MANY_N = 0
 for a in sys.argv:
     if a.startswith("--many="):
         MANY_N = int(a.split("=")[1])
-BIN = "/home/z/opt/extract/usr/bin"
+BIN = f"{TOOLS}/usr/bin"
 ENV = dict(os.environ,
            PATH=BIN + ":" + os.environ.get("PATH", ""),
-           LD_LIBRARY_PATH="/home/z/opt/extract/usr/lib/x86_64-linux-gnu:"
-                           "/home/z/opt/extract/lib/x86_64-linux-gnu")
+           LD_LIBRARY_PATH=f"{TOOLS}/usr/lib/x86_64-linux-gnu:"
+                           f"{TOOLS}/lib/x86_64-linux-gnu")
 
 H, S = 16, 63
 SPU = H * S              # sectors per unit (track)

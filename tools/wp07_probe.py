@@ -4,7 +4,7 @@ import os
 import sys
 import pexpect
 
-OC = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 root = os.getcwd()
 cmd = ("%s/usr/bin/qemu-system-x86_64 -m 512 -L %s/usr/share/qemu -L %s/usr/share/seabios "
        "-drive file=%s/build/ocire/ocire-hd.img,if=ide,index=0,media=disk,format=raw "

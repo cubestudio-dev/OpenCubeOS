@@ -18,8 +18,10 @@ import sys
 import time
 import socket
 import pexpect
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-BUILD = "/home/z/oc-public/build"
+BUILD = f"{REPO}/build"
 DISK = f"{BUILD}/ocse-b6-disk64.raw"
 DISK2 = f"{BUILD}/ocse-b6-disk32.raw"
 MON = f"{BUILD}/ocse-b6-mon.sock"
@@ -34,8 +36,8 @@ if os.path.exists(MON):
     os.unlink(MON)
 
 QEMU = "qemu-system-x86_64"
-CMD = (f"{QEMU} -L /home/z/opt/extract/usr/share/qemu "
-       f"-L /home/z/opt/extract/usr/share/seabios -m 256M "
+CMD = (f"{QEMU} -L {TOOLS}/usr/share/qemu "
+       f"-L {TOOLS}/usr/share/seabios -m 256M "
        f"-drive file={DISK},format=raw,if=ide,index=0,media=disk "
        f"-drive file={DISK2},format=raw,if=ide,index=1,media=disk "
        f"-cdrom {BUILD}/ocse.iso -boot d "
@@ -184,8 +186,8 @@ if fails:
 MON2 = f"{BUILD}/ocse-b6-mon2.sock"
 if os.path.exists(MON2):
     os.unlink(MON2)
-CMD2 = (f"{QEMU} -L /home/z/opt/extract/usr/share/qemu "
-        f"-L /home/z/opt/extract/usr/share/seabios -m 256M "
+CMD2 = (f"{QEMU} -L {TOOLS}/usr/share/qemu "
+        f"-L {TOOLS}/usr/share/seabios -m 256M "
         f"-drive file={DISK},format=raw,if=ide,index=0,media=disk "
         f"-boot c -display none -serial stdio "
         f"-monitor unix:{MON2},server,nowait -vga std")

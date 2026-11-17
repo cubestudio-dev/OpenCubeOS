@@ -11,18 +11,20 @@
 import os
 import pexpect
 import sys
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-DISK = "/home/z/oc-public/build/ocse-test-disk64.raw"
+DISK = f"{REPO}/build/ocse-test-disk64.raw"
 if not os.path.exists(DISK) or os.path.getsize(DISK) != 64 * 1024 * 1024:
     with open(DISK, "wb") as f:
         f.truncate(64 * 1024 * 1024)
 
 QEMU = "qemu-system-x86_64"
-CMD = (f"{QEMU} -L /home/z/opt/extract/usr/share/qemu "
-       f"-L /home/z/opt/extract/usr/share/seabios -m 256M "
+CMD = (f"{QEMU} -L {TOOLS}/usr/share/qemu "
+       f"-L {TOOLS}/usr/share/seabios -m 256M "
        f"-drive file={DISK},format=raw,if=ide,index=0,media=disk "
-       f"-cdrom /home/z/oc-public/build/ocse.iso -boot d "
-       f"-bios /home/z/opt/extract/usr/share/ovmf/OVMF.fd "
+       f"-cdrom {REPO}/build/ocse.iso -boot d "
+       f"-bios {TOOLS}/usr/share/ovmf/OVMF.fd "
        f"-no-reboot -display none -serial stdio -monitor none -vga std")
 
 child = pexpect.spawn(CMD, timeout=240, encoding="utf-8")

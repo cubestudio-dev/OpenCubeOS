@@ -5,7 +5,7 @@
 import os, sys, time, socket
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 SOCK = "/tmp/fix1_tui2.sock"
 

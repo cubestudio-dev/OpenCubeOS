@@ -10,12 +10,14 @@
 #   4. lang zh under utf8         -> legal UTF-8 again after switching back
 import sys, time
 import pexpect
+import os
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-QEMU = "/home/z/tools/usr/bin/qemu-system-x86_64"
-QL   = "/home/z/tools/usr/share/qemu"
-SEA  = "/home/z/tools/usr/share/seabios"
-ISO  = "/home/z/oc-os/build/opencube.iso"
-OUT  = "/home/z/oc-os/evidence/3_0_0_wp06g3_ocse_enc_fix"
+QEMU = f"{TOOLS}/usr/bin/qemu-system-x86_64"
+QL   = f"{TOOLS}/usr/share/qemu"
+SEA  = f"{TOOLS}/usr/share/seabios"
+ISO  = f"{REPO}/build/opencube.iso"
+OUT  = f"{REPO}/evidence/3_0_0_wp06g3_ocse_enc_fix"
 
 cmd = (f"{QEMU} -L {QL} -L {SEA} -m 256M -cdrom {ISO} -boot d "
        f"-no-reboot -display none -serial stdio -vga std")
@@ -84,3 +86,4 @@ if has_utf8_kong:
 else:
     print("[5] utf8 restored: FAIL")
 import sys as _sys; _sys.exit(1)  # BUG #65: propagate failure
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))

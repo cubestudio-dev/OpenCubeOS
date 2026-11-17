@@ -14,7 +14,7 @@ import pexpect
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from qemu_runner import screen_assert_text   # BUG #66: panel assertion
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/tools")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 # BUG #66: monitor socket + screendump path for the panel assertion.
 MONITOR_SOCK = "/tmp/wp01_reg_monitor.sock"
@@ -106,7 +106,7 @@ CHECKS = [
 
 def main():
     iso = sys.argv[1]
-    outlog = sys.argv[2] if len(sys.argv) > 2 else "/home/z/work/fix4-evidence/regression_full.log"
+    outlog = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, "build", "regression_full.log")
     env = dict(os.environ)
     env["LD_LIBRARY_PATH"] = (f"{OC_TOOLS}/usr/lib/x86_64-linux-gnu:"
                               f"{OC_TOOLS}/lib/x86_64-linux-gnu")

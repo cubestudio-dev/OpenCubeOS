@@ -10,7 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # oc-os/
 SKIP_DIRS = {".git", "build", "website", "archive", "iso"}
 # tools/embed_grub.py:59 is a template header it WRITES, not its own header.
 SKIP_FILES = {os.path.join(ROOT, "tools", "embed_grub.py")}
-PAT = re.compile(r"^(\s*\*\s*File:\s*)(\S+)\s*$")
+RX_FILE_HDR = re.compile(r"^(\s*\*\s*File:\s*)(\S+)\s*$")
 changed, same, nopath = [], 0, []
 
 for dirpath, dirnames, filenames in os.walk(ROOT):
@@ -33,7 +33,7 @@ for dirpath, dirnames, filenames in os.walk(ROOT):
             continue
         hit = False
         for i, line in enumerate(lines[:15]):
-            m = PAT.match(line.rstrip("\n"))
+            m = RX_FILE_HDR.match(line.rstrip("\n"))
             if not m:
                 continue
             hit = True

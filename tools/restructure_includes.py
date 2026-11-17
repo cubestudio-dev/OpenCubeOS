@@ -3,8 +3,9 @@
 # Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 # Phase 1b: rewrite #include "old.h" -> "new.h" repo-wide after renames.
 import os, re, sys
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-ROOT = "/home/z/my-project/oc-os"
+ROOT = f"{REPO}"
 
 # header basename map (only renamed headers; same-name-moved headers excluded)
 H = {

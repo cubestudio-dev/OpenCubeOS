@@ -4,7 +4,7 @@
 # Open Cube OS - build toolchain installer (no-root sandbox).
 #
 # Downloads the Debian .deb packages needed to build + boot-test Open
-# Cube OS and extracts them into $OC_OPT (default /home/z/opt/extract).
+# Cube OS and extracts them into $OC_OPT (default $HOME/opt/extract).
 # Run with the extracted bin dirs prepended to PATH (see the hint at
 # the end). gcc itself comes from the system (Debian gcc 14.2.0 is the
 # same compiler the release builds have always used).
@@ -17,7 +17,7 @@
 # Usage: bash tools/install-toolchain.sh
 set -e
 
-OC_OPT="${OC_OPT:-/home/z/opt/extract}"
+OC_OPT="${OC_OPT:-$HOME/opt/extract}"
 DL="$OC_OPT/debs"
 mkdir -p "$DL"
 

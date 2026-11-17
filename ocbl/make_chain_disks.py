@@ -19,12 +19,13 @@ import os
 import struct
 import subprocess
 import sys
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 
-BIN = "/home/z/opt/extract/usr/bin"
+BIN = f"{TOOLS}/usr/bin"
 ENV = dict(os.environ,
            PATH=BIN + ":" + os.environ.get("PATH", ""),
-           LD_LIBRARY_PATH="/home/z/opt/extract/usr/lib/x86_64-linux-gnu:"
-                           "/home/z/opt/extract/lib/x86_64-linux-gnu")
+           LD_LIBRARY_PATH=f"{TOOLS}/usr/lib/x86_64-linux-gnu:"
+                           f"{TOOLS}/lib/x86_64-linux-gnu")
 
 H, S = 16, 63
 MBR_MAGIC = 0xAA55

@@ -648,9 +648,9 @@ static int dt_run_terminal(void) {
     tui_shutdown();
     /* WP-10-tui-native: the banner follows shell.lang too */
     screen_console_puts("\n");
-    screen_console_puts(tui_tr("[terminal] ring-3 ush - syscall-only sandbox; "
+    screen_console_puts(tui_tr("[terminal] ring-3 ush - syscall-only isolation; "
                                "type 'exit' to return to the desktop\n",
-                               "[终端] Ring 3 ush - 仅 syscall 沙箱；"
+                               "[终端] Ring 3 ush - 仅 syscall 隔离；"
                                "输入 'exit' 返回桌面\n"));
     int rc = tui_exec_interactive("run ush");
     screen_console_puts("\n");

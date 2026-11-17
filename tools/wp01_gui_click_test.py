@@ -14,11 +14,12 @@ identically on the unmodified g3 release ISO - so QMP is the injector.)
 Exit 0 = click worked; 1 = click lost (BUG #113 regression)."""
 import os, socket, sys, time, json
 import pexpect
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-BUILD = "/home/z/oc-public/build"
+BUILD = f"{REPO}/build"
 DISK = f"{BUILD}/ocse-test-disk64.raw"
 QMP = f"{BUILD}/qmp113.sock"
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 
 if not os.path.exists(DISK) or os.path.getsize(DISK) != 64 * 1024 * 1024:
     with open(DISK, "wb") as f:

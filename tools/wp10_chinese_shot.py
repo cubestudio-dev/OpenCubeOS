@@ -6,10 +6,11 @@
 import os, re, socket, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pexpect
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
-ROOT = "/home/z/oc-read/OpenCubeOS"
+ROOT = f"{REPO}"
 
 qmon = "/tmp/oc_cn_qmon.sock"
 for p in ("/tmp/oc_cn_qmon.sock",):

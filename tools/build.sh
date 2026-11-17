@@ -96,7 +96,7 @@ fi
 # OVMF under <root>/usr/...  If the caller did not export OC_TOOLS, probe
 # the known locations used by our sandbox/CI layouts.
 if [ -z "$OC_TOOLS" ]; then
-    for cand in /usr /home/z/tools/grub "$HOME/tools/grub"; do
+    for cand in /usr "$HOME/tools/grub"; do
         if [ -d "$cand/usr/lib/grub" ] || [ "$cand" = "/usr" ] && [ -d /usr/lib/grub ]; then
             export OC_TOOLS="$cand"
             break

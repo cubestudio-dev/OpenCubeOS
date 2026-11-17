@@ -39,7 +39,7 @@ import pexpect
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from qemu_runner import boot_to_recovery
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV = dict(os.environ)

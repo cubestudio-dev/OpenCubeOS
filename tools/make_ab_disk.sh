@@ -23,11 +23,11 @@ set -e
 OC_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${OC_ROOT}/build/abdisk.img"
 GRUB_CFG="${OC_ROOT}/grub-ab.cfg"
-TOOLBIN="${OC_TOOLS:-/home/z/opt/extract}/usr/bin"
+TOOLBIN="${OC_TOOLS:-$HOME/opt/extract}/usr/bin"
 export PATH="$TOOLBIN:$PATH"
 # grub-mkimage links against toolchain libs (libdevmapper etc.) - make the
 # script self-sufficient even when tools/env.sh was not sourced.
-export LD_LIBRARY_PATH="${OC_TOOLS:-/home/z/opt/extract}/usr/lib/x86_64-linux-gnu:${OC_TOOLS:-/home/z/opt/extract}/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="${OC_TOOLS:-$HOME/opt/extract}/usr/lib/x86_64-linux-gnu:${OC_TOOLS:-$HOME/opt/extract}/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 P1_START=2048                                            # 1 MiB align
 P1_SECTORS=$((64 * 1024 * 1024 / 512))                   # 64 MiB
@@ -114,7 +114,7 @@ rm -f /tmp/ab_grubenv
 # the attempt counter lives in /boot/grub/grub.cfg on partition 1). Embed
 # a core.img in the post-MBR gap and install the boot code, so the image
 # is self-bootable in QEMU/real hardware without an external ISO.
-GRUBDIR="${OC_TOOLS:-/home/z/opt/extract}/usr/lib/grub/i386-pc"
+GRUBDIR="${OC_TOOLS:-$HOME/opt/extract}/usr/lib/grub/i386-pc"
 if [ -d "$GRUBDIR" ]; then
   mmd -i "$OUT.p1" ::/boot/grub/i386-pc || true
   mcopy -s -i "$OUT.p1" "$GRUBDIR"/*.mod ::/boot/grub/i386-pc/ || true

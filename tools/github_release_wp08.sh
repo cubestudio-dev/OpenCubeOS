@@ -8,7 +8,7 @@
 #   GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxx bash tools/github_release_wp08.sh
 #
 # Prerequisites:
-#   - Your GitHub PAT (Personal Access Token) with repo + workflow scopes
+#   - Your GitHub personal access token with repo + workflow scopes
 #   - Local commit (WP-08 rename) already created
 #   - Local tag `WP-08` already created
 #   - ISO at $OC_ROOT/public/downloads/opencube-wp08.iso (or set ISO_LOCAL env)
@@ -23,10 +23,10 @@ set -e
 OC_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$OC_ROOT"
 
-# ---- 0. Validate PAT ----
+# ---- 0. Validate the token ----
 if [ -z "$GITHUB_TOKEN" ]; then
   echo "ERROR: GITHUB_TOKEN env var not set."
-  echo "       Get a PAT from https://github.com/settings/tokens (repo scope)."
+  echo "       Create a token at https://github.com/settings/tokens (repo scope)."
   echo "       Then: GITHUB_TOKEN=ghp_xxx bash tools/github_release_wp08.sh"
   exit 1
 fi

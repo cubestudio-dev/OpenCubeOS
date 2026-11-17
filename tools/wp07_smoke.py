@@ -8,7 +8,7 @@ import sys
 import pexpect
 
 OC_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-OC = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = os.path.join(OC, "usr/bin/qemu-system-x86_64")
 ENV = dict(os.environ)
 ENV["LD_LIBRARY_PATH"] = (

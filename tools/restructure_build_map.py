@@ -5,8 +5,9 @@
 # (functions declared in headers + non-static definitions + typedefs), apply
 # the naming rules, and report anything that still needs a manual decision.
 import os, re, sys, json
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-ROOT = "/home/z/my-project/oc-os"
+ROOT = f"{REPO}"
 CODE_DIRS = ["kernel", "drivers", "fs", "net", "shell", "l1", "boot", "tools",
              "tests", "userprogs"]
 

@@ -9,8 +9,10 @@ import socket
 import sys
 import time
 import pexpect
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-BUILD = "/home/z/oc-os/build"
+BUILD = f"{REPO}/build"
 OUT = f"{BUILD}/wp06g1-verify2"
 MON = f"{OUT}/mon.sock"
 LOG = f"{OUT}/pty-all.log"
@@ -20,8 +22,8 @@ for p in (MON, LOG):
         os.unlink(p)
 
 QEMU = "qemu-system-x86_64"
-CMD = (f"{QEMU} -L /home/z/opt/extract/usr/share/qemu "
-       f"-L /home/z/opt/extract/usr/share/seabios -m 256M "
+CMD = (f"{QEMU} -L {TOOLS}/usr/share/qemu "
+       f"-L {TOOLS}/usr/share/seabios -m 256M "
        f"-cdrom {BUILD}/opencube.iso -boot d "
        f"-no-reboot -display none -serial stdio "
        f"-monitor unix:{MON},server,nowait -vga std")

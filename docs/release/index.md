@@ -7,7 +7,6 @@
 | [guard-scripts](guard-scripts.md) | check_deps / check_bss / registry gate and friends |
 | [ci-gates](ci-gates.md) | the CI steps, hard assertions and the 12-point release chain |
 | [tool-inventory](tool-inventory.md) | all 117 tools/ files, one line each |
-| [disaster-recovery](disaster-recovery.md) | dual-repo sync, sandbox reset recovery, restricted-egress push channels |
 | [process](process.md) | the release SOP, gates and all |
 | [versioning](versioning.md) | stage names, build numbers, promises |
 | [release-notes-template](release-notes-template.md) | the mandatory note shape |

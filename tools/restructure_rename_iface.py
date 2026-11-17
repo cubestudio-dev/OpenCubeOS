@@ -6,8 +6,10 @@
 # literals are protected; struct members / locals that collide with prefix
 # names are explicitly shielded.
 import re, glob, sys, collections
+import os
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-ROOT = "/home/z/my-project/oc-os"
+ROOT = f"{REPO}"
 
 # ---- 0. shield list: identifiers that must NOT be touched ---------------
 # (struct members / function parameters / static locals that happen to

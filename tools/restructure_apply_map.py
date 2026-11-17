@@ -4,8 +4,9 @@
 # Phase 2a (final): build symbol rename map v2 and apply repo-wide.
 import os, re, sys, json
 from collections import defaultdict
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-ROOT = "/home/z/my-project/oc-os"
+ROOT = f"{REPO}"
 CODE_DIRS = ["kernel", "drivers", "fs", "net", "shell", "l1", "boot", "tools",
              "tests", "userprogs", "docs"]
 EXTRA_FILES = ["README.md", "MANIFEST.md"]

@@ -8,7 +8,7 @@ Usage: python3 tools/v2_registry_gate.py <iso>"""
 import os, re, sys
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 
 def main():

@@ -17,8 +17,10 @@ import gzip
 import re
 import struct
 import sys
+import os
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-ROOT = "/home/z/oc-os"
+ROOT = f"{REPO}"
 HANZI, SYM, UTO = 6763, 682, 7445
 ZI, SI = 6768, 846
 fails = 0

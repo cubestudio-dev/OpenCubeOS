@@ -5,8 +5,7 @@ Open Cube OS 构建的完整机制级参考：每一个伪目标、每一个内�
 文件目标、每一个变量、每一个 `-D` 宏、每一个按文件的优化覆盖，
 以及并行度 / 编译缓存机制。配套页面：[guard-scripts](guard-scripts.md)
 （检查脚本）、[ci-gates](ci-gates.md)（CI 与发布链）、
-[tool-inventory](tool-inventory.md)（`tools/` 全部 117 个文件）、
-[disaster-recovery](disaster-recovery.md)（沙盒与推送通道）。
+[tool-inventory](tool-inventory.md)（`tools/` 全部 117 个文件）。
 
 本文覆盖的构建文件：`Makefile`（顶层）、`ocire/ocire.mk`、
 `ocbl/ocbl.mk`、`ocse/ocse.mk`、`ocos/kernel/arch/{arm64,riscv}/build.mk`，
@@ -28,7 +27,7 @@ Open Cube OS 构建的完整机制级参考：每一个伪目标、每一个内�
 | 入口 | 相对裸 make 的附加能力 |
 |-------|----------------------------|
 | `make <target>` | 无——事实来源 |
-| `tools/build.sh <target>` | 依赖检测（每条命令对应的精确 Debian 包）、`--install` apt 回退、免 root 的 `install-toolchain.sh` 提示、`OC_TOOLS` 自动发现（`/usr`、`/home/z/tools/grub`、`$HOME/tools/grub`）、`JOBS` 并行度（默认 `nproc`） |
+| `tools/build.sh <target>` | 依赖检测（每条命令对应的精确 Debian 包）、`--install` apt 回退、免 root 的 `install-toolchain.sh` 提示、`OC_TOOLS` 自动发现（`/usr`、`$HOME/tools/grub`）、`JOBS` 并行度（默认 `nproc`） |
 | `build.ps1`（Windows） | 经 WSL2（`wsl.exe` + `wslpath`）或 MSYS2/Git-Bash（`cygpath`）翻译成对 `tools/build.sh` 的调用；`-Target`（默认 `all`）、`-Install` |
 
 `tools/build.sh` 还暴露可脚本化 API（WP-13 规范 8）：

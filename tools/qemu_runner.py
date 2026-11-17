@@ -24,7 +24,7 @@ import pexpect
 # Toolchain layout (no-root sandbox install): OC_TOOLS points at the
 # extracted toolchain root (usr/bin, usr/lib, usr/share). Override with
 # the OC_TOOLS environment variable when your layout differs.
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract/root")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 LIB_PATHS = [f"{OC_TOOLS}/usr/lib/x86_64-linux-gnu", f"{OC_TOOLS}/usr/lib"]
 ENV_LD = ":".join(LIB_PATHS)
 

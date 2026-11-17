@@ -15,10 +15,10 @@
 # run-ush bridge (lang is an SVC command in v2).
 import os, re, socket, subprocess, sys, time
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract/root")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = "/home/z/oc-work/render_e2e"
+OUT = os.environ.get("RENDER_EVD", os.path.join(ROOT, "build", "render_e2e"))
 os.makedirs(OUT, exist_ok=True)
 
 smon, qmon = f"{OUT}/ser.sock", f"{OUT}/qmon.sock"

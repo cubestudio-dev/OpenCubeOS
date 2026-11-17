@@ -7,12 +7,14 @@
 # carries BOTH the system entry and the OCIRE recovery entry.
 import os, socket, sys, time
 import pexpect
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-BUILD = "/home/z/oc-os/build"
-EV    = "/home/z/oc-os/evidence/3_0_0_wp06g3_ocse_enc_fix"
-QEMU  = "/home/z/tools/usr/bin/qemu-system-x86_64"
-QL    = "/home/z/tools/usr/share/qemu"
-SEA  = "/home/z/tools/usr/share/seabios"
+BUILD = f"{REPO}/build"
+EV    = f"{REPO}/evidence/3_0_0_wp06g3_ocse_enc_fix"
+QEMU  = f"{TOOLS}/usr/bin/qemu-system-x86_64"
+QL    = f"{TOOLS}/usr/share/qemu"
+SEA  = f"{TOOLS}/usr/share/seabios"
 DISK  = f"{EV}/install-e2e-disk.raw"
 
 with open(DISK, "wb") as f:

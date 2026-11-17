@@ -151,7 +151,7 @@ report) so `count == 0` is actually reached and the gestures classify.
 
 - Build: 0 errors 0 warnings (`-Werror`), clean rebuild from scratch.
 - WP-10-input_chipset E2E (`tools/wp10_chipset_e2e.py`): **28/28 on
-  BIOS** and **28/28 on UEFI** (`/home/z/work/wp10e-evidence/e2e_bios.log`,
+  BIOS** and **28/28 on UEFI** (evidence archived by the work package,
   `e2e_uefi.log`), covering every command above plus `lspci`,
   `help -w`, `help -a`, `uname`.
 - Full regression (`tools/run_fix4_regression.py`): **28/28**
@@ -165,7 +165,7 @@ report) so `count == 0` is actually reached and the gestures classify.
   -Idrivers/input -Idrivers/i2c -Idrivers/acpi
   tests/host_i2chid_touch_test.c kernel/lib/lib_string.c -o /tmp/i2chid_test`
   — ALL PASS.
-- QEMU evidence archived under `/home/z/work/wp10e-evidence/`.
+- QEMU evidence archived with the work package records.
 
 ## 6. Honest notes
 

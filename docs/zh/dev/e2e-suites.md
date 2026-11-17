@@ -4,7 +4,7 @@
 为发布把关的深度测试。它们全部通过 pexpect 在串口控制台上
 驱动一次真实的 QEMU 启动；下表是发布证据所引用的矩阵
 （真实输出、声明的跳过计数）。CI 本身只做构建 —— 这些在
-沙箱/发布时运行（`tools/build_release.sh --deep`）。
+本地/发布时运行（`tools/build_release.sh --deep`）。
 
 ## 1. 验证矩阵
 

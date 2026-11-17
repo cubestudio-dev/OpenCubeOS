@@ -32,7 +32,7 @@ make clean
 
 | Variable | Default / derivation | Meaning |
 |---|---|---|
-| `OC_TOOLS` | `/usr` | toolchain root for relocated (dpkg -x) trees; autodetected by `tools/build.sh` probing `/usr`, `/home/z/tools/grub`, `$HOME/tools/grub` |
+| `OC_TOOLS` | `/usr` | toolchain root for relocated (dpkg -x) trees; autodetected by `tools/build.sh` probing `/usr`, `$HOME/tools/grub` |
 | `OVMF_FD` | `$(OC_TOOLS)/share/ovmf/OVMF.fd` | UEFI firmware for the `run-uefi*` targets |
 | `QEMU_DATADIR` | `$(OC_TOOLS)/share/qemu` | QEMU `-L` path |
 | `SEABIOS_DIR` | `$(OC_TOOLS)/share/seabios` | BIOS firmware |

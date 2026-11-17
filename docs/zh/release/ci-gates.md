@@ -5,8 +5,7 @@
 tag 移动前检查什么、回归下限如何强制。配套页面：
 [process](process.md)（这些门禁所挂靠的 SOP）、
 [build-reference](build-reference.md)（CI 构建的流水线）、
-[guard-scripts](guard-scripts.md)（静态守护）、
-[disaster-recovery](disaster-recovery.md)（推送通道）。
+[guard-scripts](guard-scripts.md)（静态守护）。
 
 ## 1. 工作流——形态与出处
 
@@ -19,11 +18,11 @@ tag 移动前检查什么、回归下限如何强制。配套页面：
 - **诚实的出处说明**（声明在文件头）：3.0.0 主线在其最后
   一个主线提交时没有 CI 工作流——没有可恢复的东西。本文件
   是全新的 WP00 基础设施，使 "CI 绿" 仍是可强制的门禁。
-  **它构建；它不启动**——每次 QEMU 运行都是仅限沙盒的
+  **它构建；它不启动**——每次 QEMU 运行都是仅限本地环境的
   验收步骤。
 - 为什么仅构建的 CI 在这里可以接受：零警告门禁加确定性
   构建以机械化方式抓住大多数回归，而启动/E2E 矩阵（§5）
-  在发布沙盒中经 `tools/build_release.sh --deep` 运行。流程
+  在发布本地环境中经 `tools/build_release.sh --deep` 运行。流程
   用一条硬规则补偿：**tag 必须指向 CI 绿的提交——绝不给
   红色提交打 tag**（见 [process](process.md) 第 5 步）。
 
@@ -113,7 +112,7 @@ test "$left" -eq 0
 ## 3. CI 不运行什么（以及这些门禁住在哪里）
 
 `make test`（宿主机单元测试桩）、每次 QEMU 启动、31 项检查
-回归和 E2E 套件从不在 CI 中运行。它们是沙盒中的发布时
+回归和 E2E 套件从不在 CI 中运行。它们是发布时在本地环境中的
 门禁：
 
 - `tools/build_release.sh <ver> --deep`（SOP 第 1–5 步：干净
@@ -156,8 +155,8 @@ test "$left" -eq 0
     系统调用计数和 stats.json 行数每次发布都重新计算，绝不
     沿用。
 11. **私有镜像仓完整**——三个资产 + 发布说明 + 镜像网站
-    文件都在镜像仓中（见
-    [disaster-recovery](disaster-recovery.md) §2）。
+    文件都在镜像仓中（镜像仓规则由维护者在公开文档之外
+    维护）。
 12. **发布提交和被 tag 的提交都 CI 绿**——同一 SHA 检查
     两次，因为 tag 可能移动。
 
@@ -225,8 +224,8 @@ UEFI 启动门禁（pflash CODE + 可写 VARS 副本；在当前 OVMF
 `--deep` 门禁（`run_fix4_regression.py`、
 `wp12_watchdog_logging_e2e.py`）→ `gen_api_docs.py --pages --pages-zh --md` + `update_website.sh` + `website/build.sh` →
 打印三个 SHA256。它不推送任何东西——审查输出，然后手动
-运行发布链（有意的不对称；发布链本身是
-[disaster-recovery](disaster-recovery.md) 的领地）。
+运行发布链（有意的不对称；推送通道操作手册由维护者在
+公开文档之外维护）。
 
 较老的 `tools/github_release_wp08.sh`（WP-08 时代）推送
 commit+tag 并经 API（带 repo + workflow 权限的

@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+# Open Cube OS - internal-environment trace word list (minimum
+# baseline; additions allowed, removals forbidden - see the audit
+# work package).  One pattern per line, format:
+#     <label>\t<regex>
+# ASCII patterns are case-sensitive unless they start with (?i).
+# Lines starting with '#' are comments.
+#
+# NOTE: 'PAT' is anchored with word boundaries so path/pattern/
+# PATTERN do not match.  'last4' likewise.
+sandbox-cn	沙盒
+sandboxbox-cn	沙箱
+home-z	/home/z/
+tokens-env	TOKENS\.env
+api-push	api_push
+token-a	tokenA
+token-b	tokenB
+pat-token	\bPAT\b
+gnutls	GnuTLS
+cdn-cache	CDN 缓存
+worklog-cn	工作日志
+disaster-cn	灾备
+zai	z\.ai
+private-repo	tdghuczhdmkwicsxzjduaychuyzshjufajckafk
+github-pat-prefix	github_pat_
+last4	\blast4\b

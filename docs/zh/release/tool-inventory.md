@@ -32,8 +32,8 @@
 | `make_ocos_tar.py` | 确定性 OCOS.TAR 安装载荷（boot/opencube.elf + boot/ocire.elf + etc/opencube.conf；ustar、零 mtime、已排序） |
 | `make_ab_disk.sh` | A/B 更新盘 `build/abdisk.img`：p1 boot/flags 64M FAT32 + slot A 128M + slot B 128M + data 128M；仅 mtools（无 loop、无 root）；预置 slot A |
 | `make_ocire_disk.sh` | WP-02 双启动测试盘：hd0 GRUB 双菜单（OCOS 卷 + 恢复条目），hd1 OCIRE 盘（0xEE 影子、无 GPT 头、FAT12：黄金文件 + MANIFEST.TXT SHA-256 + agent + 64 KiB 日志环） |
-| `install-toolchain.sh` | 免 root 工具链：分 3 批下载 Debian .deb（构建工具 / qemu / grub+固件；含依赖约 117 个包）并 `dpkg -x` 解到 `$OC_OPT`（默认 `/home/z/opt/extract`）：nasm 2.16.03、qemu-system-x86 10.0.13（+数据+库）、xorriso 1.5.6、grub-pc-bin/efi-amd64-bin/common、mtools、ovmf、seabios |
-| `env-sandbox.sh` | 面向 extract 布局的 3 行环境：导出 `OC_TOOLS=/home/z/opt/extract`、PATH、LD_LIBRARY_PATH |
+| `install-toolchain.sh` | 免 root 工具链：分 3 批下载 Debian .deb（构建工具 / qemu / grub+固件；含依赖约 117 个包）并 `dpkg -x` 解到 `$OC_OPT`（默认 `$HOME/opt/extract`）：nasm 2.16.03、qemu-system-x86 10.0.13（+数据+库）、xorriso 1.5.6、grub-pc-bin/efi-amd64-bin/common、mtools、ovmf、seabios |
+| `env-sandbox.sh` | 面向 extract 布局的 3 行环境：导出 `OC_TOOLS=$HOME/opt/extract`、PATH、LD_LIBRARY_PATH |
 | `oc_cc.sh` | 内容寻址编译缓存封装：键 = SHA-256（编译器身份 + 参数 + 源哈希 + 来自 `-MM` 的头文件内容哈希）；命中按字节一致还原 `.o`+`.d`（reproducible-check 保持有效）；`OC_CACHE_OFF` 绕过、`OC_CACHE_DIR` 迁移、计数器追加到 `STATS` |
 | `oc_menuconfig.sh` | 无依赖的交互式 `.config` 编辑器（数字=切换，s=保存，q=退出，r=重置） |
 | `vendor_ocse.sh` | 从 tag `v1.0.0` 重新 vendor OCSE（143 个文件：kernel core/lib/mem/arch、drivers acpi/block/display/i2c/input/pci/time/usb、fs、boot、l1、chinese） |
@@ -171,7 +171,7 @@ a04/a05、sshd 侧 a09/a13/a38、TLS a18_chain_*）：
 ## 9. 历史一次性重构（7）
 
 为出处保留；它们硬编码了历史绝对根
-（`/home/z/my-project/oc-os`），不属于任何当前流水线。
+（历史上位于本树之外的一份检出），不属于任何当前流水线。
 
 | 文件 | 职责 |
 |------|----------------|

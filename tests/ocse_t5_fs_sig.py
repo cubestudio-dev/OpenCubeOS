@@ -16,8 +16,10 @@ import struct
 import time
 import pexpect
 import sys
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-BUILD = "/home/z/oc-public/build"
+BUILD = f"{REPO}/build"
 BIG = f"{BUILD}/ocse-test-disk-fs.raw"
 SMALL = f"{BUILD}/ocse-test-disk-tiny.raw"
 MON = f"{BUILD}/t5-mon.sock"
@@ -62,8 +64,8 @@ if os.path.exists(MON):
     os.unlink(MON)
 
 QEMU = "qemu-system-x86_64"
-CMD = (f"{QEMU} -L /home/z/opt/extract/usr/share/qemu "
-       f"-L /home/z/opt/extract/usr/share/seabios -m 256M "
+CMD = (f"{QEMU} -L {TOOLS}/usr/share/qemu "
+       f"-L {TOOLS}/usr/share/seabios -m 256M "
        f"-drive file={BIG},format=raw,if=ide,index=0,media=disk "
        f"-drive file={SMALL},format=raw,if=ide,index=1,media=disk "
        f"-cdrom {BUILD}/ocse.iso -boot d "

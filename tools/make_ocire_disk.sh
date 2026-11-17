@@ -42,11 +42,11 @@
 set -e
 
 OC_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-TOOLBIN="$(cd "${OC_TOOLS:-/home/z/opt/extract}/usr/bin" && pwd)"
+TOOLBIN="$(cd "${OC_TOOLS:-$HOME/opt/extract}/usr/bin" && pwd)"
 export PATH="$TOOLBIN:$PATH"
-GRUB_DIR="${OC_TOOLS:-/home/z/opt/extract}/usr/lib/grub"
-GRUB_SHARE="${OC_TOOLS:-/home/z/opt/extract}/usr/share/grub"
-export LD_LIBRARY_PATH="${OC_TOOLS:-/home/z/opt/extract}/usr/lib/x86_64-linux-gnu:${OC_TOOLS:-/home/z/opt/extract}/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+GRUB_DIR="${OC_TOOLS:-$HOME/opt/extract}/usr/lib/grub"
+GRUB_SHARE="${OC_TOOLS:-$HOME/opt/extract}/usr/share/grub"
+export LD_LIBRARY_PATH="${OC_TOOLS:-$HOME/opt/extract}/usr/lib/x86_64-linux-gnu:${OC_TOOLS:-$HOME/opt/extract}/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 BUILD="$OC_ROOT/build/ocire"
 OCOS_ELF="$OC_ROOT/build/opencube.elf"

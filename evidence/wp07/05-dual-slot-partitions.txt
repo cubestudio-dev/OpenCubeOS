@@ -1,4 +1,4 @@
-OCIRE recovery disk /home/z/ocos/build/ocire/ocire-hd.img (dual independent partitions)
+OCIRE recovery disk build/ocire/ocire-hd.img (dual independent partitions)
 MBR signature: 55aa
 
 p1 type=0x0C start=2048 sectors=131072 (64 MiB)

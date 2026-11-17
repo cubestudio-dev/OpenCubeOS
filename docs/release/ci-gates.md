@@ -6,7 +6,7 @@ release chain checks before a tag may move, and how the regression
 floor is enforced. Companion pages: [process](process.md) (the SOP
 these gates hang on), [build-reference](build-reference.md) (the
 pipeline CI builds), [guard-scripts](guard-scripts.md) (the static
-guards), [disaster-recovery](disaster-recovery.md) (push channels).
+guards).
 
 ## 1. The workflow — shape and provenance
 
@@ -161,8 +161,8 @@ item is a pass/fail question with a concrete verification action:
     category / L1SVC-op / syscall counts and the stats.json line count
     are recomputed every release, never carried over.
 11. **Private mirror complete** — the three assets + release note +
-    mirrored website files are in the mirror (see
-    [disaster-recovery](disaster-recovery.md) §2).
+    mirrored website files are in the mirror (the mirror rules are
+    maintained by the maintainers outside the public docs).
 12. **CI green on the release commit AND on the tagged commit** — the
     same SHA checked twice, because a tag can move.
 
@@ -236,8 +236,8 @@ silently fails to run the payload on current OVMF builds) → optional
 → `gen_api_docs.py --pages --pages-zh --md` + `update_website.sh` +
 `website/build.sh` → prints the three SHA256s. It pushes NOTHING —
 review the outputs, then run the release chain manually (deliberate
-asymmetry; the chain itself is [disaster-recovery](disaster-recovery.md)
-territory).
+asymmetry; the push-channel runbook is maintained by the maintainers
+outside the public docs).
 
 The older `tools/github_release_wp08.sh` (WP-08 era) pushes
 commit+tag and creates the Release with the ISO asset via the API

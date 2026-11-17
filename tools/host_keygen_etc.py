@@ -17,12 +17,13 @@ net/net_sshd.c.
 import os
 import secrets
 import sys
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 
 OUT = "build/ssh_host_key.bin"
 CLIENT_OUT = "build/ssh_client_key.bin"
 IMG = "build/etc.img"
-MCOPY = "/home/z/opt/extract/usr/bin/mcopy"
-MDIR = "/home/z/opt/extract/usr/bin/mdir"
+MCOPY = f"{TOOLS}/usr/bin/mcopy"
+MDIR = f"{TOOLS}/usr/bin/mdir"
 
 
 def is_probable_prime(n: int, rounds: int = 32) -> bool:

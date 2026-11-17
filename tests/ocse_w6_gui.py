@@ -36,8 +36,10 @@ import socket
 import sys
 import time
 import pexpect
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-BUILD = "/home/z/oc-private/oc-os/build"
+BUILD = f"{REPO}/build"
 DISK = f"{BUILD}/ocse-w6-disk.raw"
 MON = f"{BUILD}/ocse-w6-mon.sock"
 MB = 128                                   # target disk size
@@ -57,8 +59,8 @@ PASS = "s3cret"
 PASS_SHA = hashlib.sha256(PASS.encode()).hexdigest()
 
 QEMU = "qemu-system-x86_64"
-CMD = (f"{QEMU} -L /home/z/opt/extract/usr/share/qemu "
-       f"-L /home/z/opt/extract/usr/share/seabios -m 256M "
+CMD = (f"{QEMU} -L {TOOLS}/usr/share/qemu "
+       f"-L {TOOLS}/usr/share/seabios -m 256M "
        f"-drive file={DISK},format=raw,if=ide,index=0,media=disk "
        f"-cdrom {BUILD}/ocse.iso -boot d "
        f"-no-reboot -display none -serial stdio "
@@ -257,8 +259,8 @@ if fails or "b" not in phase:
 MON2 = f"{BUILD}/ocse-w6-mon2.sock"
 if os.path.exists(MON2):
     os.unlink(MON2)
-CMD2 = (f"{QEMU} -L /home/z/opt/extract/usr/share/qemu "
-        f"-L /home/z/opt/extract/usr/share/seabios -m 256M "
+CMD2 = (f"{QEMU} -L {TOOLS}/usr/share/qemu "
+        f"-L {TOOLS}/usr/share/seabios -m 256M "
         f"-drive file={DISK},format=raw,if=ide,index=0,media=disk "
         f"-boot c -display none -serial stdio "
         f"-monitor unix:{MON2},server,nowait -vga std")
@@ -471,8 +473,8 @@ with open(DISKZH, "wb") as f:
     f.truncate(MB * 1024 * 1024)
 if os.path.exists(MONZH):
     os.unlink(MONZH)
-CMDZH = (f"{QEMU} -L /home/z/opt/extract/usr/share/qemu "
-         f"-L /home/z/opt/extract/usr/share/seabios -m 256M "
+CMDZH = (f"{QEMU} -L {TOOLS}/usr/share/qemu "
+         f"-L {TOOLS}/usr/share/seabios -m 256M "
          f"-drive file={DISKZH},format=raw,if=ide,index=0,media=disk "
          f"-cdrom {BUILD}/ocse.iso -boot d "
          f"-no-reboot -display none -serial stdio "
@@ -626,8 +628,8 @@ def boot_vm(disk, monsock, with_cd=True):
     if os.path.exists(monsock):
         os.unlink(monsock)
     cd = (f"-cdrom {BUILD}/ocse.iso -boot d " if with_cd else "-boot c ")
-    cmd = (f"{QEMU} -L /home/z/opt/extract/usr/share/qemu "
-           f"-L /home/z/opt/extract/usr/share/seabios -m 256M "
+    cmd = (f"{QEMU} -L {TOOLS}/usr/share/qemu "
+           f"-L {TOOLS}/usr/share/seabios -m 256M "
            f"-drive file={disk},format=raw,if=ide,index=0,media=disk "
            f"{cd}-no-reboot -display none -serial stdio "
            f"-monitor unix:{monsock},server,nowait -vga std")

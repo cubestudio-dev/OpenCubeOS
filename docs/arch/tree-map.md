@@ -53,7 +53,7 @@ ocos/
 | `docs/release/` | Release process, versioning, per-release notes, website-update and wiki-sync runbooks. |
 | `docs/troubleshooting/` | Symptom-driven pages: boot failures, QEMU debugging, network/storage/common errors. |
 | `docs/root/` | Copies of the root-level documents that ship inside images. |
-| `docs/archive/` | The historical EXTENSIONS_WP*.md work-package reports, CONFIG/STATUS/WORK_LOG snapshots - the paper trail of how the tree got here. |
+| `docs/archive/` | The historical EXTENSIONS_WP*.md work-package reports and CONFIG/STATUS snapshots - the paper trail of how the tree got here. A few internal-environment records (work logs, packaging/verification runbooks) were relocated to the maintainers' internal archive during the 3.0.0 docs cleanup. |
 | `docs/data/` | Machine-generated doc inputs: `stats.json` (per-directory line counts), `commands.json`, `interfaces.json` - produced by `tools/gen_api_docs.py` (`make api-docs`). |
 | `docs/zh/` | A full Chinese mirror of manual/arch/l1/internals/troubleshooting. |
 

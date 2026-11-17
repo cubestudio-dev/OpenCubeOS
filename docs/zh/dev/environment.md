@@ -2,7 +2,7 @@
 # 开发环境
 
 如何从一台全新机器到动手改内核 —— 工具链契约、两道
-依赖门禁、免 root 沙箱安装，以及你将要游走的目录布局。
+依赖门禁、免 root 的独立目录工具链安装，以及你将要游走的目录布局。
 
 ## 1. 需求
 
@@ -40,11 +40,11 @@
      都以 file:line、该 include 及解析到的所有者退出码 1。
    在发布卫生检查之前运行它（它未接入 CI）。
 
-## 2. 免 root 沙箱安装
+## 2. 免 root 的独立目录工具链安装
 
 `tools/install-toolchain.sh` 下载 Debian `.deb` 并用
 `dpkg -x` 解压到 `$OC_OPT`（默认
-`/home/z/opt/extract`）—— 约 117 个软件包：nasm 2.16.03、
+`~/opt/extract`）—— 约 117 个软件包：nasm 2.16.03、
 qemu-system-x86 10.0.13（+ data + 库）、xorriso 1.5.6、
 grub-pc-bin + grub-efi-amd64-bin + grub-common、mtools、
 ovmf、seabios。gcc 本身来自系统。然后：

@@ -6,7 +6,7 @@
 
 | 页面 | 内容 |
 |------|------|
-| [environment](environment.md) | 工具链契约、依赖门禁、免 root 沙箱、目录布局 |
+| [environment](environment.md) | 工具链契约、依赖门禁、免 root 独立目录安装、目录布局 |
 | [build](build.md) | 目标、隐藏变量、-D 宏、0x400000 窗口与 -Os/-O0 覆盖、两阶段链接、确定性 |
 | [interface-dictionary](interface-dictionary.md) | L1SVC 接口面：协议规则 + 全部 20 个类别 / 208 个 op |
 | [syscall-reference](syscall-reference.md) | int 0x80 ABI、全部 54 个系统调用、SYS_L1SVC 细节 |

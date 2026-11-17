@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 import os
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 
 QEMU = os.environ.get('OCBL_QEMU', 'qemu-system-x86_64')
 
@@ -28,8 +29,8 @@ def main():
         os.unlink(ppm)
     cmd = [
         QEMU,
-        '-L', '/home/z/opt/extract/share/qemu',
-        '-L', '/home/z/opt/extract/share/seabios',
+        '-L', f'{TOOLS}/share/qemu',
+        '-L', f'{TOOLS}/share/seabios',
         '-m', '256M', '-cdrom', iso, '-boot', 'd', '-no-reboot',
         '-display', 'none', '-serial', 'file:/tmp/ocbl_snap_serial.log',
         '-monitor', f'unix:{sock},server,nowait', '-vga', 'std',

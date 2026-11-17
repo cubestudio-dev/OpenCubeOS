@@ -33,8 +33,8 @@ them: [build-reference](build-reference.md).
 | `make_ocos_tar.py` | deterministic OCOS.TAR install payload (boot/opencube.elf + boot/ocire.elf + etc/opencube.conf; ustar, zero mtimes, sorted) |
 | `make_ab_disk.sh` | A/B update disk `build/abdisk.img`: p1 boot/flags 64M FAT32 + slot A 128M + slot B 128M + data 128M; mtools-only (no loop, no root); seeds slot A |
 | `make_ocire_disk.sh` | WP-02 dual-boot test disks: hd0 GRUB dual-menu (OCOS volume + recovery entry), hd1 OCIRE disk (0xEE shadow, no GPT header, FAT12: golden files + MANIFEST.TXT SHA-256 + agent + 64 KiB log ring) |
-| `install-toolchain.sh` | no-root toolchain: downloads Debian .debs in 3 batches (build tools / qemu / grub+firmware; ~117 packages incl. deps) and `dpkg -x`-extracts to `$OC_OPT` (default `/home/z/opt/extract`): nasm 2.16.03, qemu-system-x86 10.0.13 (+data+libs), xorriso 1.5.6, grub-pc-bin/efi-amd64-bin/common, mtools, ovmf, seabios |
-| `env-sandbox.sh` | 3-line environment for the extract layout: exports `OC_TOOLS=/home/z/opt/extract`, PATH, LD_LIBRARY_PATH |
+| `install-toolchain.sh` | no-root toolchain: downloads Debian .debs in 3 batches (build tools / qemu / grub+firmware; ~117 packages incl. deps) and `dpkg -x`-extracts to `$OC_OPT` (default `$HOME/opt/extract`): nasm 2.16.03, qemu-system-x86 10.0.13 (+data+libs), xorriso 1.5.6, grub-pc-bin/efi-amd64-bin/common, mtools, ovmf, seabios |
+| `env-sandbox.sh` | 3-line environment for the extract layout: exports `OC_TOOLS=$HOME/opt/extract`, PATH, LD_LIBRARY_PATH |
 | `oc_cc.sh` | content-addressed compile cache wrapper: key = SHA-256(compiler identity + args + source hash + header-content hashes from `-MM`); hits restore `.o`+`.d` byte-identically (reproducible-check stays valid); `OC_CACHE_OFF` bypasses, `OC_CACHE_DIR` relocates, counters append to `STATS` |
 | `oc_menuconfig.sh` | dependency-free interactive `.config` editor (number=toggle, s=save, q=quit, r=reset) |
 | `vendor_ocse.sh` | re-vendor OCSE from tag `v1.0.0` (143 files: kernel core/lib/mem/arch, drivers acpi/block/display/i2c/input/pci/time/usb, fs, boot, l1, chinese) |
@@ -172,7 +172,7 @@ matrix client-side a04/a05, sshd-side a09/a13/a38, TLS a18_chain_*):
 ## 9. Historical one-shot restructure (7)
 
 Retained for provenance; they hardcode historical absolute roots
-(`/home/z/my-project/oc-os`) and are NOT part of any current pipeline.
+(a historical checkout outside this tree) and are NOT part of any current pipeline.
 
 | File | Responsibility |
 |------|----------------|

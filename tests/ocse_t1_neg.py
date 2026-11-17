@@ -9,11 +9,14 @@
 # honestly (serial silence after the FAIL report).
 import pexpect
 import sys
+import os
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 QEMU = "qemu-system-x86_64"
-COMMON = ("-L /home/z/opt/extract/usr/share/qemu "
-          "-L /home/z/opt/extract/usr/share/seabios "
-          "-m 256M -cdrom /home/z/oc-public/build/ocse.iso -boot d "
+COMMON = (f"-L {TOOLS}/usr/share/qemu "
+          f"-L {TOOLS}/usr/share/seabios "
+          f"-m 256M -cdrom {REPO}/build/ocse.iso -boot d "
           "-no-reboot -display none -serial stdio -monitor none -vga std")
 
 child = pexpect.spawn(f"{QEMU} {COMMON}", timeout=180, encoding="utf-8")

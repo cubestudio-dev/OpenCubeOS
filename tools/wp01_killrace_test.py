@@ -10,7 +10,7 @@ Exit code: 0 = survived all rounds; 1 = kernel crash/timeout."""
 import os, sys
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 
 def main():

@@ -26,7 +26,7 @@ persist 变体则刻意保留你的编辑。
 
 - 默认：`OVMF_FD = $(OC_TOOLS)/share/ovmf/OVMF.fd` —— 由
   工具链根推导（系统安装时为 `/usr`，
-  `tools/install-toolchain.sh` 的免 root 沙箱中为
+  `tools/install-toolchain.sh` 的免 root 独立目录中为
   `<tree>/share/ovmf/OVMF.fd`）。
 - `run-uefi` 目标把 `OVMF.fd` 复制到一个 pflash *工作*文件
   （`-drive if=pflash,...OVMF_WORK.fd`），这样固件变量镜像

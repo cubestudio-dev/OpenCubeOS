@@ -13,8 +13,10 @@ import socket
 import subprocess
 import sys
 import time
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-BUILD = "/home/z/oc-public/build"
+BUILD = f"{REPO}/build"
 MON = f"{BUILD}/wp06f-mon.sock"
 OUT = f"{BUILD}/wp06f-ps2-probe"
 for p in (MON, OUT + "-a.ppm", OUT + "-b.ppm"):
@@ -22,8 +24,8 @@ for p in (MON, OUT + "-a.ppm", OUT + "-b.ppm"):
         os.unlink(p)
 
 CMD = ("qemu-system-x86_64 "
-       "-L /home/z/opt/extract/usr/share/qemu "
-       "-L /home/z/opt/extract/usr/share/seabios "
+       f"-L {TOOLS}/usr/share/qemu "
+       f"-L {TOOLS}/usr/share/seabios "
        "-m 256M "
        f"-drive file={BUILD}/ocse-test-disk64.raw,format=raw,if=ide,index=0,media=disk "
        f"-cdrom {BUILD}/ocse.iso -boot d "

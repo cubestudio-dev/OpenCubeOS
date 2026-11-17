@@ -52,7 +52,7 @@ ocos/
 | `docs/release/` | 发布流程、版本管理、逐版说明、网站更新与 wiki 同步操作手册。 |
 | `docs/troubleshooting/` | 按症状组织的页面：引导失败、QEMU 调试、网络/存储/常见错误。 |
 | `docs/root/` | 随镜像交付的根级文档副本。 |
-| `docs/archive/` | 历史上的 EXTENSIONS_WP*.md 工作包报告、CONFIG/STATUS/WORK_LOG 快照——目录树走到今天的书面轨迹。 |
+| `docs/archive/` | 历史上的 EXTENSIONS_WP*.md 工作包报告与 CONFIG/STATUS 快照——目录树走到今天的书面轨迹。若干内部环境记录（过程日志、打包/验证手册）已在 3.0.0 文档清理中迁至维护者的内部档案。 |
 | `docs/data/` | 机器生成的文档输入：`stats.json`（按目录的行数统计）、`commands.json`、`interfaces.json`——由 `tools/gen_api_docs.py`（`make api-docs`）产出。 |
 | `docs/zh/` | manual/arch/l1/internals/troubleshooting 的完整中文镜像。 |
 

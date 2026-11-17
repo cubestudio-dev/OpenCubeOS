@@ -34,7 +34,7 @@ import time
 import pexpect
 
 OC_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-OC = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = os.path.join(OC, "usr/bin/qemu-system-x86_64")
 OUT = os.path.join(OC_ROOT, "build/ocire")
 ENV = dict(os.environ)

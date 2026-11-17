@@ -16,7 +16,7 @@ Usage: fix1_ocire_kbd_scroll.py <ocire.iso> <out.log> <before|after>
 import os, sys, time, socket
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 SSOCK = "/tmp/fix1_ocire_serial.sock"
 MSOCK = "/tmp/fix1_ocire_mon.sock"

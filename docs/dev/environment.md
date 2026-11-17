@@ -46,7 +46,7 @@ Two different "check_deps" exist - do not confuse them:
 
 `tools/install-toolchain.sh` downloads Debian `.deb`s and extracts
 them with `dpkg -x` into `$OC_OPT` (default
-`/home/z/opt/extract`) - ~117 packages: nasm 2.16.03,
+`~/opt/extract`) - ~117 packages: nasm 2.16.03,
 qemu-system-x86 10.0.13 (+ data + libs), xorriso 1.5.6,
 grub-pc-bin + grub-efi-amd64-bin + grub-common, mtools, ovmf,
 seabios. gcc itself comes from the system. Then:

@@ -25,7 +25,7 @@
 | P-13 | P2 证据 | 2.0.0 证据 README 引用的五份套件日志在两个仓库中都不存在；asset_hashes.txt 里的 SRC 文件名是错的。 | 五份日志是 2.1.0 运行重新生成的真实文件（evidence/），asset_hashes.txt 命名实际发布的文件。 |
 | P-14 | P2 计数口径 | commands.json 的 count_l1_svc=133 vs 真实的 142 行 ush SVC 表——9 个双宿主名被静默归给 L0；interfaces.json 仍携带 v1 的 162 官方计数。 | 口径在 commands.json + INTERFACES.md Part 1b 中精确陈述（142 行、9 个双宿主、账目 251 不变）；interfaces.json 报告 17/158。 |
 | P-15 | P2 文档 | docs/manual/commands 是 v1 产物（234 页，"Registered in: shell/..." 路径）；23 条 v2 新命令没有页面。 | 完全重新生成：251 页（EN + zh），真实 v2 归属、幽灵页清除、帮助提示取自 l1svc_defs.h。 |
-| P-16 | P2 治理 | 私有镜像的 SYNC-RULES.md 描述的树布局已不存在；2.0.0 工作日志不在仓库里。 | SYNC-RULES.md 按当前布局重写；WORK_LOG.md 延伸到 2.1.0（都在私有镜像中）。 |
+| P-16 | P2 治理 | 私有镜像的 SYNC-RULES.md 描述的树布局已不存在；2.0.0 的过程日志不在仓库里。 | SYNC-RULES.md 按当前布局重写；过程记录延伸到 2.1.0（都在私有镜像中）。 |
 | P-17 | P3 文本缺陷 | docs/dev/index.md 一条链接被标记为 "ost-tests (missing h)"；wp14_site_v2 证据目录名；379 文件口径注记。 | 该链接缺陷查明是误报（字节级检查显示 `[host-tests]` 一直是对的——postcheck 证据中的显示伪影吃掉了 `[h` 序列；已如实记录）。证据目录命名在 2.1.0 更正，文件数口径写入数据注记。 |
 
 ## 2.1.0 遗留问题 - 全部在 2.2.0 修复

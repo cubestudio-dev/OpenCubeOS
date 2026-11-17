@@ -8,12 +8,14 @@
 #   OCIRE: boot -> help -> screendump + serial (no Chinese support at all)
 import os, socket, sys, time
 import pexpect
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-BUILD = "/home/z/oc-os/build"
-EV    = "/home/z/oc-os/evidence/3_0_0_wp06g3_ocse_enc_fix"
-QEMU  = "/home/z/opt/extract/usr/bin/qemu-system-x86_64"
-QL    = "/home/z/opt/extract/usr/share/qemu"
-SEA   = "/home/z/opt/extract/usr/share/seabios"
+BUILD = f"{REPO}/build"
+EV    = f"{REPO}/evidence/3_0_0_wp06g3_ocse_enc_fix"
+QEMU  = f"{TOOLS}/usr/bin/qemu-system-x86_64"
+QL    = f"{TOOLS}/usr/share/qemu"
+SEA   = f"{TOOLS}/usr/share/seabios"
 os.makedirs(EV, exist_ok=True)
 
 DISK = f"{EV}/ocse-test-disk64.raw"

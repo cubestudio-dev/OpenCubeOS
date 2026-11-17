@@ -25,7 +25,7 @@
 #           target): verify its "loop: running" line, then VM-reset
 #
 # Usage: python3 tools/run_l1_per_app.py <iso> <out.log>
-# Env:   OC_TOOLS (default /home/z/opt/extract), OC_L1_TIMEOUT (cap s)
+# Env:   OC_TOOLS (default ~/opt/extract), OC_L1_TIMEOUT (cap s)
 import os
 import re
 import sys
@@ -33,7 +33,7 @@ import time
 
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU_BIN = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 QEMU_DATADIR = f"{OC_TOOLS}/usr/share/qemu"
 SEABIOS_DIR = f"{OC_TOOLS}/usr/share/seabios"

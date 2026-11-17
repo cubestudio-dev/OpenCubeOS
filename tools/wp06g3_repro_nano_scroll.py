@@ -5,12 +5,15 @@
 # have shown. Counts the full status-bar reprints per keystroke.
 import sys, time
 import pexpect
+import os
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-QEMU = "/home/z/opt/extract/usr/bin/qemu-system-x86_64"
-QL = "/home/z/opt/extract/usr/share/qemu"
-SEA = "/home/z/opt/extract/usr/share/seabios"
-ISO = "/home/z/oc-os/build/opencube.iso"
-OUT = "/home/z/oc-os/evidence/3_0_0_wp06g3_ocse_enc_fix/repro_nano_ime_scroll.bin"
+QEMU = f"{TOOLS}/usr/bin/qemu-system-x86_64"
+QL = f"{TOOLS}/usr/share/qemu"
+SEA = f"{TOOLS}/usr/share/seabios"
+ISO = f"{REPO}/build/opencube.iso"
+OUT = f"{REPO}/evidence/3_0_0_wp06g3_ocse_enc_fix/repro_nano_ime_scroll.bin"
 
 cmd = (f"{QEMU} -L {QL} -L {SEA} -m 512 -cdrom {ISO} -boot d "
        f"-no-reboot -display none -serial stdio -monitor none -vga std")

@@ -15,7 +15,7 @@ Exit code: number of failed checks.
 import os, re, socket, subprocess, sys, time
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 # v2.0.0: boot log counts the L0 recovery-shell registry (99 commands)
 BOOT_COUNT = 99

@@ -32,7 +32,7 @@ make clean
 
 | 变量 | 默认值 / 推导 | 含义 |
 |---|---|---|
-| `OC_TOOLS` | `/usr` | 迁移（dpkg -x）树的工具链根；由 `tools/build.sh` 探测 `/usr`、`/home/z/tools/grub`、`$HOME/tools/grub` 自动检测 |
+| `OC_TOOLS` | `/usr` | 迁移（dpkg -x）树的工具链根；由 `tools/build.sh` 探测 `/usr`、`$HOME/tools/grub` 自动检测 |
 | `OVMF_FD` | `$(OC_TOOLS)/share/ovmf/OVMF.fd` | `run-uefi*` 目标的 UEFI 固件 |
 | `QEMU_DATADIR` | `$(OC_TOOLS)/share/qemu` | QEMU `-L` 路径 |
 | `SEABIOS_DIR` | `$(OC_TOOLS)/share/seabios` | BIOS 固件 |

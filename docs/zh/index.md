@@ -42,7 +42,7 @@ Shell、TUI 桌面、中文控制台、8 个融合大应用 —— 都在
 | [drivers/](drivers/) | 驱动上手手册：16 个家族 |
 | [troubleshooting/](troubleshooting/) | 报错库：61 个 errno + panic、全子系统报错目录、静默失败、启动/网络/存储/QEMU 指南 |
 | [internals/](internals/) | 子系统内幕：看门狗、klog、健康、崩溃转储、密码学种子、OTA/A-B、OCIRE 守卫通道 |
-| [release/](release/) | 维护者手册：构建系统全量参考、守护脚本、CI 门禁、工具清单（117）、灾备与推送通道、流程 SOP、版本号、网站与 Wiki 同步 |
+| [release/](release/) | 维护者手册：构建系统全量参考、守护脚本、CI 门禁、工具清单（117）、流程 SOP、版本号、网站与 Wiki 同步 |
 
 ## 速览（3.0.0-WP-l1apps-merge）
 

@@ -6,8 +6,7 @@ phony target, every internal file target, every variable, every `-D`
 macro, every per-file optimization override, and the parallelism /
 compile-cache machinery. Companion pages: [guard-scripts](guard-scripts.md)
 (the checker scripts), [ci-gates](ci-gates.md) (CI and the release
-chain), [tool-inventory](tool-inventory.md) (all 117 `tools/` files),
-[disaster-recovery](disaster-recovery.md) (sandbox and push channels).
+chain), [tool-inventory](tool-inventory.md) (all 117 `tools/` files).
 
 Build files covered here: `Makefile` (top level), `ocire/ocire.mk`,
 `ocbl/ocbl.mk`, `ocse/ocse.mk`, `ocos/kernel/arch/{arm64,riscv}/build.mk`,
@@ -30,7 +29,7 @@ Three equal entries build the same thing:
 | Entry | What it adds over raw make |
 |-------|----------------------------|
 | `make <target>` | nothing — the source of truth |
-| `tools/build.sh <target>` | dependency detection with the exact Debian package per command, `--install` apt fallback, no-root `install-toolchain.sh` hint, `OC_TOOLS` autodiscovery (`/usr`, `/home/z/tools/grub`, `$HOME/tools/grub`), `JOBS` parallelism (default `nproc`) |
+| `tools/build.sh <target>` | dependency detection with the exact Debian package per command, `--install` apt fallback, no-root `install-toolchain.sh` hint, `OC_TOOLS` autodiscovery (`/usr`, `$HOME/tools/grub`), `JOBS` parallelism (default `nproc`) |
 | `build.ps1` (Windows) | WSL2 (`wsl.exe` + `wslpath`) or MSYS2/Git-Bash (`cygpath`) translation into `tools/build.sh`; `-Target` (default `all`), `-Install` |
 
 `tools/build.sh` also exposes the scriptable API (WP-13 spec 8):

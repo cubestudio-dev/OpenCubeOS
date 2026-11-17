@@ -23,7 +23,7 @@ import time
 
 import pexpect
 
-OC_TOOLS = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU_BIN = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 SEABIOS_DIR = f"{OC_TOOLS}/usr/share/seabios"
 QEMU_DATADIR = f"{OC_TOOLS}/usr/share/qemu"

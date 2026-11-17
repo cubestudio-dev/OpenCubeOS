@@ -32,8 +32,10 @@ import socket
 import sys
 import time
 import pexpect
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-BUILD = "/home/z/oc-public/build"
+BUILD = f"{REPO}/build"
 OUTDIR = f"{BUILD}/wp06f"
 DISK = f"{BUILD}/ocse-wp06f-disk.raw"
 DISK2 = f"{BUILD}/ocse-w6-disk.raw"        # the w6-installed disk (has OCOS)
@@ -50,8 +52,8 @@ if os.path.exists(MON):
     os.unlink(MON)
 
 QEMU = "qemu-system-x86_64"
-CMD = (f"{QEMU} -L /home/z/opt/extract/usr/share/qemu "
-       f"-L /home/z/opt/extract/usr/share/seabios -m 256M "
+CMD = (f"{QEMU} -L {TOOLS}/usr/share/qemu "
+       f"-L {TOOLS}/usr/share/seabios -m 256M "
        f"-drive file={DISK},format=raw,if=ide,index=0,media=disk "
        f"-cdrom {BUILD}/ocse.iso -boot d "
        f"-no-reboot -display none -serial stdio "
@@ -366,8 +368,8 @@ if os.path.exists(DISK2):
     MON2 = f"{BUILD}/wp06f-mon2.sock"
     if os.path.exists(MON2):
         os.unlink(MON2)
-    CMD2 = (f"{QEMU} -L /home/z/opt/extract/usr/share/qemu "
-            f"-L /home/z/opt/extract/usr/share/seabios -m 256M "
+    CMD2 = (f"{QEMU} -L {TOOLS}/usr/share/qemu "
+            f"-L {TOOLS}/usr/share/seabios -m 256M "
             f"-drive file={DISK2},format=raw,if=ide,index=0,media=disk "
             f"-cdrom {BUILD}/ocse.iso -boot d "
             f"-no-reboot -display none -serial stdio "

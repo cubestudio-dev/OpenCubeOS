@@ -20,7 +20,7 @@
 set -e
 
 OC_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-TOOLBIN="$(cd "${OC_TOOLS:-/home/z/opt/extract}/usr/bin" && pwd)"
+TOOLBIN="$(cd "${OC_TOOLS:-$HOME/opt/extract}/usr/bin" && pwd)"
 export PATH="$TOOLBIN:$PATH"
 
 BUILD="$OC_ROOT/build/ocire"

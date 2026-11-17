@@ -12,11 +12,14 @@
 # (OCOS on SeaBIOS is covered by T6.2: it boots to ush from the disk.)
 import pexpect
 import sys
+import os
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-BUILD = "/home/z/oc-public/build"
+BUILD = f"{REPO}/build"
 QEMU = "qemu-system-x86_64"
-COMMON = (f"-L /home/z/opt/extract/usr/share/qemu "
-          f"-L /home/z/opt/extract/usr/share/seabios -m 256M "
+COMMON = (f"-L {TOOLS}/usr/share/qemu "
+          f"-L {TOOLS}/usr/share/seabios -m 256M "
           f"-no-reboot -display none -serial stdio -monitor none -vga std")
 
 
@@ -41,11 +44,11 @@ ok &= boot("T7.1 OCIRE BIOS",
            r"ocire>", 180)
 ok &= boot("T7.2 OCIRE OVMF",
            f"-cdrom {BUILD}/ocire/ocire.iso -boot d "
-           f"-bios /home/z/opt/extract/usr/share/ovmf/OVMF.fd",
+           f"-bios {TOOLS}/usr/share/ovmf/OVMF.fd",
            r"ocire>", 240)
 ok &= boot("T7.3 OCOS OVMF",
            f"-cdrom {BUILD}/opencube.iso -boot d "
-           f"-bios /home/z/opt/extract/usr/share/ovmf/OVMF.fd",
+           f"-bios {TOOLS}/usr/share/ovmf/OVMF.fd",
            r"ush>", 240)
 
 if ok:

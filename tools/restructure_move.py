@@ -5,8 +5,10 @@
 # layout spec (one folder per module, [category]_[specific] file names).
 # Uses `git mv` so history follows the files.
 import subprocess, sys, os
+import os
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-ROOT = "/home/z/my-project/oc-os"
+ROOT = f"{REPO}"
 
 # old (relative to ROOT) -> new (relative to ROOT)
 MOVES = {

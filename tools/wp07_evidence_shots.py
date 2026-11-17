@@ -18,7 +18,7 @@ import time
 
 import pexpect
 
-OC = os.environ.get("OC_TOOLS", "/home/z/opt/extract")
+OC = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = os.path.join(OC, "usr/bin/qemu-system-x86_64")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "build/ocire")
@@ -221,7 +221,8 @@ def dump_partition_table():
     txt = os.path.join(EV, "05-dual-slot-partitions.txt")
     with open(HD, "rb") as f, open(txt, "w") as out:
         mbr = f.read(512)
-        out.write("OCIRE recovery disk %s (dual independent partitions)\n" % HD)
+        rel = os.path.relpath(HD, ROOT)
+        out.write("OCIRE recovery disk %s (dual independent partitions)\n" % rel)
         out.write("MBR signature: %s\n\n" % mbr[510:512].hex())
         for i in range(4):
             e = mbr[446 + i * 16: 446 + (i + 1) * 16]

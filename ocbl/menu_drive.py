@@ -25,8 +25,9 @@ import sys
 import time
 import os
 import socket
+TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 
-BIN = "/home/z/opt/extract/usr/bin"
+BIN = f"{TOOLS}/usr/bin"
 
 
 def main():
@@ -42,10 +43,10 @@ def main():
     # serial on a TCP server socket: bidirectional (transcript OUT,
     # keys IN) - the file: backend only captures, it cannot inject.
     cmd = [BIN + '/qemu-system-x86_64']
-    cmd += ['-L', '/home/z/opt/extract/share/qemu',
-            '-L', '/home/z/opt/extract/share/seabios']
+    cmd += ['-L', f'{TOOLS}/share/qemu',
+            '-L', f'{TOOLS}/share/seabios']
     if os.environ.get('OCBL_OVMF'):
-        cmd += ['-bios', '/home/z/opt/extract/share/ovmf/OVMF.fd']
+        cmd += ['-bios', f'{TOOLS}/share/ovmf/OVMF.fd']
     cmd += [
         '-m', '256M', '-boot', 'd', '-no-reboot',
         '-display', 'none',
