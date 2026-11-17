@@ -94,11 +94,10 @@ ush>
 **实际执行示例**：
 
 ```
-font-test
-font-test: rendering sample row (16x16 CJK):
-
-font-test: 16px row drawn above (zhongwen OpenCube shi)
-
+free
+              total        used        free
+Mem:     536739840 10969088 525770752
+Swap:            0           0            0
 ush> 
 ```
 
@@ -115,8 +114,26 @@ ush>
 **实际执行示例**：
 
 ```
-hda
-Intel HDA: not present
+health
+system health:
+  cpu:
+  busy                100 % (1 s window)
+  memory:
+  total               524160 KiB
+  used                12544 KiB
+  free                511616 KiB
+  tasks:
+  total               6
+  running             2
+  ready               1
+  blocked             3
+  disk:
+  read                0 bytes
+  written             0 bytes
+  network:
+  tx                  0 bytes
+  rx                  0 bytes
+  alarms: CPU-LOCKED 
 ush> 
 ```
 
@@ -129,59 +146,6 @@ ush>
 | 功能 | 显示 shell 内建命令与程序注册表 |
 | 隐藏参数 | 隐藏参数，非公开接口，兼容性不保证: `--all`, `--wp`, `-a`, `-w` |
 | 返回码 | 0, 1 |
-
-**实际执行示例**：
-
-```
-heapbounds
-Heap bounds test (BUG-0140 wrap / BUG-0141 ceiling):
-  PASS
-ush> 
-```
-
-### help_a_test
-
-| 字段 | 值 |
-|---|---|
-| 名称 | help_a_test |
-| 分类 | 系统工具 |
-| 功能 | 注册表 A-Z 列表不变量测试 |
-
-**实际执行示例**：
-
-```
-heaptest
-Heap overhead test (100 allocs):
-  heap_size=3657728 allocated=1583392 overhead=14176
-  requested=26542 waste=1556850 overhead%=0
-  after free: alloc=134 free=216 total_allocs=462 total_frees=328
-  PASS
-ush> 
-```
-
-### help_default_test
-
-| 字段 | 值 |
-|---|---|
-| 名称 | help_default_test |
-| 分类 | 系统工具 |
-| 功能 | 注册表默认列表测试 |
-| 返回码 | 0 |
-
-**实际执行示例**：
-
-```
-hello
-hello from userspaceush> 
-```
-
-### help_wp_test
-
-| 字段 | 值 |
-|---|---|
-| 名称 | help_wp_test |
-| 分类 | 系统工具 |
-| 功能 | 注册表工作包分组测试 |
 
 **实际执行示例**：
 
@@ -209,6 +173,58 @@ Registry: 284 programs - 'help -a' lists them all, 'help -w' groups by work pack
 ush> 
 ```
 
+### help_a_test
+
+| 字段 | 值 |
+|---|---|
+| 名称 | help_a_test |
+| 分类 | 系统工具 |
+| 功能 | 注册表 A-Z 列表不变量测试 |
+
+**实际执行示例**：
+
+```
+help_a_test
+help_a_test: 'help -a' == default A-Z view, ordering verified: PASS
+ush> 
+```
+
+### help_default_test
+
+| 字段 | 值 |
+|---|---|
+| 名称 | help_default_test |
+| 分类 | 系统工具 |
+| 功能 | 注册表默认列表测试 |
+| 返回码 | 0 |
+
+**实际执行示例**：
+
+```
+help_default_test
+help_default_test: A-Z ordering of the full command registry: PASS
+help_default_test: run 'help' to see the full A-Z listing
+ush> 
+```
+
+### help_wp_test
+
+| 字段 | 值 |
+|---|---|
+| 名称 | help_wp_test |
+| 分类 | 系统工具 |
+| 功能 | 注册表工作包分组测试 |
+
+**实际执行示例**：
+
+```
+help_wp_test
+help_wp_test: registry flat A-Z ordering (one group == all): PASS
+help_wp_test: global listing still sorted: PASS
+help_wp_test: run 'help' to see the flat A-Z listing
+ush> 
+```
+
 ### kill
 
 | 字段 | 值 |
@@ -223,23 +239,8 @@ ush>
 **实际执行示例**：
 
 ```
-irtest
-irtest: NEC / RC5 / RC6 / SIRC codec round trips
-  nec known (1A/3C): PASS
-  rc5 known (05/15 t1): PASS
-  rc6 known (12/34 t0): PASS
-  rt nec 0x12/0x34: PASS
-  rt nec 0xFF/0x00: PASS
-  rt nec repeat: PASS
-  rt rc5 0x0A/0x0C t0: PASS
-  rt rc5 0x1B/0x2D t1: PASS
-  rt rc6 0x00/0xFF t0: PASS
-  rt rc6 0xA5/0x5A t1: PASS
-  rt sirc 0x15/0x01: PASS
-  nec corrupted rejected: PASS
-  live ir devices: 0
-  (no live device: codec tests above ran on the real code paths)
-irtest: 0 failures - PASS
+kill
+usage: kill <pid>
 ush> 
 ```
 

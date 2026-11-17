@@ -106,7 +106,7 @@ def probe(child, mark, timeout=8):
         child.sendline("echo " + mark)
         child.expect(mark, timeout=timeout)
         try:
-            child.expect(r"ush>\s", timeout=5)
+            child.expect(r"(?m)^ush>\s", timeout=5)
         except (pexpect.EOF, pexpect.TIMEOUT):
             pass
         return True
@@ -142,7 +142,7 @@ def main():
                q=QEMU, qd=QDATA, sb=SEABIOS, iso=args.iso, mon=MON_PATH)
     child = pexpect.spawn(cmd, env=env, timeout=180,
                           encoding="latin-1", codec_errors="replace")
-    child.expect(r"ush>\s", timeout=180)
+    child.expect(r"(?m)^ush>\s", timeout=180)
     for _ in range(30):
         if os.path.exists(MON_PATH):
             break
@@ -160,13 +160,13 @@ def main():
                 child.sendline("exit")
                 out = quiesce(child, lull=1.2, cap=8)
                 try:
-                    child.expect(r"oc>\s", timeout=10)
+                    child.expect(r"(?m)^oc>\s", timeout=10)
                     out += child.before + child.after
                     note = "exit drops to the L0 recovery shell"
                 except (pexpect.EOF, pexpect.TIMEOUT):
                     note = ""
                 child.sendline("run ush")
-                child.expect(r"ush>\s", timeout=60)
+                child.expect(r"(?m)^ush>\s", timeout=60)
             elif name == "loop":
                 child.sendline("run loop")
                 out = quiesce(child, lull=2, cap=8)
@@ -214,7 +214,7 @@ def main():
             child = pexpect.spawn(cmd, env=env, timeout=180,
                                   encoding="latin-1",
                                   codec_errors="replace")
-            child.expect(r"ush>\s", timeout=180)
+            child.expect(r"(?m)^ush>\s", timeout=180)
             for _ in range(30):
                 if os.path.exists(MON_PATH):
                     break

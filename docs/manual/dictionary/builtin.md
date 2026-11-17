@@ -56,6 +56,7 @@ env
 PATH=/bin:/
 HOME=/
 PS1=ush> 
+ush> 
 ```
 
 ### exit
@@ -91,14 +92,12 @@ ush>
 **Executed example**:
 
 ```
-exit
-ush: 'exit' is not available; use 'shutdown' to power off, 'reboot' to restart
-ush> run ush
-started pid=10
-
-Open Cube OS User-space Shell (3.0.0-NAK)
-Type 'help' for built-in commands.
-
+export DICTVAR=1
+ush> env
+PATH=/bin:/
+HOME=/
+PS1=ush> 
+DICTVAR=1
 ush> 
 ```
 
@@ -115,8 +114,23 @@ ush>
 **Executed example**:
 
 ```
-help_a_test
-help_a_test: 'help -a' == default A-Z view, ordering verified: PASS
+history
+1 echo DICHECK_87
+2 hda
+3 echo DICHECK_88
+4 hda_test
+5 echo DICHECK_89
+6 head
+7 echo DICHECK_95
+8 help
+9 echo DICHECK_96
+10 help_a_test
+11 echo DICHECK_97
+12 help_default_test
+13 echo DICHECK_98
+14 help_wp_test
+15 echo DICHECK_99
+16 history
 ush> 
 ```
 

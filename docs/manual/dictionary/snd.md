@@ -88,8 +88,8 @@ ush>
 **Executed example**:
 
 ```
-es1370
-ES1370: not present
+es1370_test
+[es1370_test] device not present in this environment => SKIPPED (hardware absent)
 ush> 
 ```
 
@@ -106,8 +106,8 @@ ush>
 **Executed example**:
 
 ```
-grep
-usage: grep <pattern>
+hda
+Intel HDA: not present
 ush> 
 ```
 
@@ -124,8 +124,8 @@ ush>
 **Executed example**:
 
 ```
-grub-install
-usage: grub-install <device>  (write the GRUB BIOS boot loader)
+hda_test
+[hda_test] device not present in this environment => SKIPPED (hardware absent)
 ush> 
 ```
 

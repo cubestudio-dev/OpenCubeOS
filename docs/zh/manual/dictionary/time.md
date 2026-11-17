@@ -16,9 +16,12 @@
 **实际执行示例**：
 
 ```
-help_default_test
-help_default_test: A-Z ordering of the full command registry: PASS
-help_default_test: run 'help' to see the full A-Z listing
+hpet
+HPET: base=fed00000 (ACPI table, GAS SystemMemory)
+Table: block_id=8086a201 rev=1 comparators=163 counter64=0 legacy=1
+Caps: rev=1 timers=3 64bit=1 legacy=1 period=10000000fs freq=100000000Hz
+Main counter: 0000000000000000
+IRQ count (legacy-route tests): 0
 ush> 
 ```
 

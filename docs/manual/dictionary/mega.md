@@ -39,11 +39,21 @@ ush>
 **Executed example**:
 
 ```
-fatmount
-fat32: invalid device string
-vfs_mount: fs mount failed
-fatmount: ata0 -> /mnt FAILED - no FAT32 partition on device or drive not present
-(the mount point was NOT created - `ls /mnt` will report 'no such path' until a real mount succeeds)
+files nope
+files: unknown program: nope
+usage: files                (interactive menu)
+       files direct <prog> [args]    (explicit passthrough)
+       files <prog> [args]           (classic program dispatch)
+programs:  ls
+  tree
+  df
+  du
+  cp
+  mv
+  rm
+  edit
+  stat
+  chmod
 ush> 
 ```
 
@@ -64,10 +74,37 @@ ush>
 **Executed example**:
 
 ```
-help_wp_test
-help_wp_test: registry flat A-Z ordering (one group == all): PASS
-help_wp_test: global listing still sorted: PASS
-help_wp_test: run 'help' to see the flat A-Z listing
+hwinfo nope
+hwinfo: unknown op: nope
+usage: hwinfo            (interactive menu)
+       hwinfo direct <op> [args]   (explicit passthrough)
+       hwinfo <op> [args]          (classic op dispatch)
+ops:  uname
+  stats
+  font
+  encoding
+  chinese
+  rtc
+  hpet
+  pmtimer
+  tsc
+  lspci
+  pcidump
+  pcibars
+  pcie
+  acpi
+  acpidev
+  acpipow
+  i2cdetect
+  smbus
+  usb
+  usbdev
+  uvc
+  scsi
+  gameport
+  parallel
+  ir
+  touchpad
 ush> 
 ```
 

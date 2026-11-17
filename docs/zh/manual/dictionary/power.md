@@ -32,16 +32,10 @@ halt
 **实际执行示例**：
 
 ```
-gameporttest
-gameporttest: analog joystick port self test
-  axis read0: PASS
-  axis read1: PASS
-  axis read2: PASS
-  axis read3: PASS
-  buttons read: PASS
-  calibrate runs: PASS
-  calibration windows: [0,0] [0,0] [0,0] [0,0] 
-gameporttest: 0 failures - PASS
+halt_test
+halt_test: power_halt() = 'System halted.' + cli;hlt loop (kernel/power.c)
+halt_test: this test must return, so it does NOT halt; the live halt is verified by running 'halt' in a dedicated QEMU session
+halt_test: live halt not observed (destructive) : SKIP - see the dedicated halt session
 ush> 
 ```
 

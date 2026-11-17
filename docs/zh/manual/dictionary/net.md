@@ -96,8 +96,11 @@ ush>
 **实际执行示例**：
 
 ```
-fatstat
-fat32: sectors=0 free_clusters=0 cluster_size=0
+firewall
+Firewall rules:
+  (no rules)
+policies: input=ACCEPT output=ACCEPT forward=ACCEPT
+conntrack: 0 flows (firewall ct for details)
 ush> 
 ```
 
@@ -114,8 +117,10 @@ ush>
 **实际执行示例**：
 
 ```
-ime-test
-ime-test: PASS (engine ni/hao/qqq + session: phrase, compose, page, digit, space, enter, backspace, esc, passthrough)
+ip
+IP: 0.0.0.0
+Mask: 0.0.0.0
+Gateway: 0.0.0.0
 ush> 
 ```
 

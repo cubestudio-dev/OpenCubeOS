@@ -230,9 +230,9 @@ ush>
 **实际执行示例**：
 
 ```
-fork_test
-fork_test: start
-parent: pid=18 ppid=10 child=19child: pid=19 ppid=18fork_test: PASS
+fs_mount_test
+usage: fs_mount_test <device>  (formats the device!)
+  explicit argument required - never touches a device implicitly
 ush> 
 ```
 
@@ -249,11 +249,10 @@ ush>
 **实际执行示例**：
 
 ```
-frag
-PMM: free_pages=128183 fragments=7 avg_frag=18311
-Heap: free_blocks=92 free_bytes=907952
-penCube shi)
-
+fsck
+fsck: checking mounted FAT32 filesystems
+usage: fsck <device>
+  e.g. fsck hda
 ush> 
 ```
 
@@ -271,14 +270,8 @@ ush>
 **实际执行示例**：
 
 ```
-gameport
-game ports: 1
-  gp0 io=0x201 calibrated=no reads=0 timeouts=0
-    axis 0: no stick (timeout) rc=0
-    axis 1: no stick (timeout) rc=0
-    axis 2: no stick (timeout) rc=0
-    axis 3: no stick (timeout) rc=0
-    buttons=0x00
+grub-install
+usage: grub-install <device>  (write the GRUB BIOS boot loader)
 ush> 
 ```
 
@@ -296,9 +289,8 @@ ush>
 **实际执行示例**：
 
 ```
-igb_test
-[igb_test] device not present in this environment => SKIPPED (needs real hardware; no fake
-    output is produced for absent devices)
+install
+usage: install <device>  (install the running system; DESTROYS existing data)
 ush> 
 ```
 

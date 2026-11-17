@@ -236,8 +236,9 @@ ush>
 **实际执行示例**：
 
 ```
-es1370_test
-[es1370_test] device not present in this environment => SKIPPED (hardware absent)
+exc
+Running exception self-test (#DE, #UD, #PF)...
+passed 3 exceptions, kernel alive
 ush> 
 ```
 
@@ -255,12 +256,11 @@ ush>
 **实际执行示例**：
 
 ```
-font
-registered fonts:
-  ascii-8x16     built-in screen_font8x16, 8x16
-  gb2312-16x16   embedded GB2312, 6763+682 glyphs
-  total live: 2
-  active renderer: cn-8x16-16x16
+frag
+PMM: free_pages=128363 fragments=6 avg_frag=21393
+Heap: free_blocks=62 free_bytes=554880
+penCube shi)
+
 ush> 
 ```
 
@@ -278,10 +278,26 @@ ush>
 **实际执行示例**：
 
 ```
-free
-              total        used        free
-Mem:     536739840 11706368 525033472
-Swap:            0           0            0
+fstest
+vfs: cannot unmount the root filesystem
+VFS self-test:
+  mkdir /tmp/vfstest: OK
+  open(O_CREAT): OK
+  write: OK
+  read: OK -> "hello from ramfs"
+  ls /tmp/vfstest:
+    hello.txt
+  ramfs: 13 nodes, 3740 bytes
+  p2 regressions:
+    BUG-0178 dual-sided: PASS
+    BUG-0179 dual-sided: PASS
+    BUG-0180 hole is zeros: PASS
+    BUG-0182 dual-sided: PASS
+    BUG-0184 umount / refused: PASS
+    p2 regressions: ALL PASS
+  p1fix4 regressions:
+    BUG-0061 dual-sided: PASS
+    p1fix4 regressions: ALL PASS
 ush> 
 ```
 
@@ -299,8 +315,14 @@ ush>
 **实际执行示例**：
 
 ```
-hda_test
-[hda_test] device not present in this environment => SKIPPED (hardware absent)
+heap
+Kernel heap:
+  size:  3477504 bytes
+  alloc: 1551568 bytes (132 blocks)
+  free:  1915440 bytes (196 blocks)
+  overhead: 10496 bytes
+  total allocs: 350  total frees: 218
+
 ush> 
 ```
 
@@ -317,7 +339,9 @@ ush>
 **实际执行示例**：
 
 ```
-head
+heapbounds
+Heap bounds test (BUG-0140 wrap / BUG-0141 ceiling):
+  PASS
 ush> 
 ```
 
@@ -334,26 +358,12 @@ ush>
 **实际执行示例**：
 
 ```
-health
-system health:
-  cpu:
-  busy                100 % (1 s window)
-  memory:
-  total               524160 KiB
-  used                12544 KiB
-  free                511616 KiB
-  tasks:
-  total               6
-  running             2
-  ready               1
-  blocked             3
-  disk:
-  read                0 bytes
-  written             0 bytes
-  network:
-  tx                  0 bytes
-  rx                  0 bytes
-  alarms: CPU-LOCKED 
+heaptest
+Heap overhead test (100 allocs):
+  heap_size=3657728 allocated=1583392 overhead=14176
+  requested=26542 waste=1556850 overhead%=0
+  after free: alloc=134 free=216 total_allocs=462 total_frees=328
+  PASS
 ush> 
 ```
 
@@ -370,23 +380,15 @@ ush>
 **实际执行示例**：
 
 ```
-history
-1 grep
-2 grub-install
-3 halt_test
-4 hda
-5 hda_test
-6 head
-7 health
-8 heap
-9 heapbounds
-10 heaptest
-11 hello
-12 help
-13 help_a_test
-14 help_default_test
-15 help_wp_test
-16 history
+i2cdetect
+i2c-0 (piix4): -- -- -- -- -- -- -- -- -- -- -- -- -- 
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+  50 51 52 53 54 55 56 57 -- -- -- -- -- -- -- -- 
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+  -- -- -- -- -- -- -- -- 
 ush> 
 ```
 
@@ -405,12 +407,8 @@ ush>
 **实际执行示例**：
 
 ```
-hpet
-HPET: base=fed00000 (ACPI table, GAS SystemMemory)
-Table: block_id=8086a201 rev=1 comparators=163 counter64=0 legacy=1
-Caps: rev=1 timers=3 64bit=1 legacy=1 period=10000000fs freq=100000000Hz
-Main counter: 0000000000000000
-IRQ count (legacy-route tests): 0
+i2cget
+usage: i2cget <bus> <addr> [reg]  (addr/reg in hex, 0x..)
 ush> 
 ```
 
@@ -429,37 +427,8 @@ ush>
 **实际执行示例**：
 
 ```
-hwinfo nope
-hwinfo: unknown op: nope
-usage: hwinfo            (interactive menu)
-       hwinfo direct <op> [args]   (explicit passthrough)
-       hwinfo <op> [args]          (classic op dispatch)
-ops:  uname
-  stats
-  font
-  encoding
-  chinese
-  rtc
-  hpet
-  pmtimer
-  tsc
-  lspci
-  pcidump
-  pcibars
-  pcie
-  acpi
-  acpidev
-  acpipow
-  i2cdetect
-  smbus
-  usb
-  usbdev
-  uvc
-  scsi
-  gameport
-  parallel
-  ir
-  touchpad
+i2cset
+usage: i2cset <bus> <addr> <reg> <val>  (hex values)
 ush> 
 ```
 
@@ -476,16 +445,13 @@ ush>
 **实际执行示例**：
 
 ```
-i2cdetect
-i2c-0 (piix4): -- -- -- -- -- -- -- -- -- -- -- -- -- 
-  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-  50 51 52 53 54 55 56 57 -- -- -- -- -- -- -- -- 
-  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-  -- -- -- -- -- -- -- -- 
-cÒ¸H
+i2ctest
+I2C core: 1 bus(es) registered
+controller: PIIX4 (8086:7113) base 0x0700 xfers=80 errs=202
+  diag: cfg0x90=0x00000701 sts=0x00
+DesignWare: not present on this platform (honest skip)
+10-bit addressing: supported on DesignWare bus (none present)
+i2ctest: PASS
 ush> 
 ```
 
@@ -502,15 +468,11 @@ ush>
 **实际执行示例**：
 
 ```
-int3_user
-int3_user: about to int3
-
-*** EXCEPTION 3: #BP Breakpoint ***
-  error_code=0x0000000000000000  rip=0x0000000000400019  cs=0x0000000000000033  rflags=0x0000000000010202
-  rsp=0x000000003FFFFEE0  ss=0x000000000000003B
-*** KILLING user process (pid=67) due to exception 3, kernel continues ***
-[user] process killed by exception (vector=3), kernel continues
-*** IST-exit: vector=3 exit-stack rsp=0x00000000003E1FD0 [off-IST2 OK]
+irqabitest
+IRQ-entry ABI test (BUG-0137 align / BUG-0138 DF):
+  timer-IRQ bits=0x3  int0x80 bits=0x3
+  PASS
+probe runs against the secondary 16550 at boot)
 ush> 
 ```
 

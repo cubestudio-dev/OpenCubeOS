@@ -145,7 +145,15 @@ def run_to_prompt(child, cmdline, timeout=None):
     """Send one command line; capture everything until the NEXT ush
     prompt (the reliable completion signal - a fixed lull breaks too
     early for slow-starting TCG spawns).  Commands that read standard
-    input with no arguments get a Ctrl+D to close it."""
+    input with no arguments get a Ctrl+D to close it.
+
+    The prompt regexes are LINE-ANCHORED (``(?m)^ush>\\s``): command
+    OUTPUT can embed prompt-lookalike text mid-line (``env`` prints
+    ``PS1=ush> ``), and an unanchored match there consumes a fake
+    prompt, leaves the real one stale in the buffer and desyncs every
+    later capture window by one command (each entry then records the
+    PREVIOUS command's transcript).  verify_docs_counts.sh gates this
+    by checking every block opens with its own command echo."""
     t = timeout or LONG_RUNNERS.get(
         cmdline.split()[0], DEFAULT_TIMEOUT)
     child.sendline(cmdline)
@@ -153,7 +161,7 @@ def run_to_prompt(child, cmdline, timeout=None):
         time.sleep(1.0)
         child.send("\x04")       # Ctrl+D: close stdin
     try:
-        i = child.expect([r"ush>\s", pexpect.TIMEOUT, pexpect.EOF],
+        i = child.expect([r"(?m)^ush>\s", pexpect.TIMEOUT, pexpect.EOF],
                          timeout=t)
         if i == 0:
             return child.before + "ush> ", True
@@ -185,7 +193,7 @@ class VM:
         self.child = pexpect.spawn(cmd, env=env, timeout=timeout,
                                    encoding="latin-1",
                                    codec_errors="replace")
-        self.child.expect(r"ush>\s", timeout=timeout)
+        self.child.expect(r"(?m)^ush>\s", timeout=timeout)
         for _ in range(40):
             if os.path.exists(self.MON):
                 break
@@ -255,7 +263,7 @@ def probe(child, n, timeout=8):
         child.expect(mark, timeout=timeout)
         # swallow the trailing prompt
         try:
-            child.expect(r"ush>\s", timeout=5)
+            child.expect(r"(?m)^ush>\s", timeout=5)
         except (pexpect.EOF, pexpect.TIMEOUT):
             pass
         return True
@@ -328,7 +336,7 @@ def main():
                 child = vm.child
                 child.sendline("exit")
                 try:
-                    child.expect(r"oc>\s", timeout=15)
+                    child.expect(r"(?m)^oc>\s", timeout=15)
                     out = child.before + child.after
                     note = "exit drops to the L0 recovery shell"
                 except (pexpect.EOF, pexpect.TIMEOUT):
@@ -336,7 +344,7 @@ def main():
                 # come back: relaunch the L1 shell from oc>
                 child.sendline("run ush")
                 try:
-                    child.expect(r"ush>\s", timeout=60)
+                    child.expect(r"(?m)^ush>\s", timeout=60)
                     back = True
                 except (pexpect.EOF, pexpect.TIMEOUT):
                     back = False
@@ -393,7 +401,7 @@ def main():
                 for attempt in range(2):
                     vm.mon_key("esc", settle=1.0)
                     try:
-                        child.expect(r"ush>\s", timeout=45)
+                        child.expect(r"(?m)^ush>\s", timeout=45)
                         ok = True
                         break
                     except (pexpect.EOF, pexpect.TIMEOUT):

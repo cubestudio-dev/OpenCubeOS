@@ -94,11 +94,10 @@ ush>
 **Executed example**:
 
 ```
-font-test
-font-test: rendering sample row (16x16 CJK):
-
-font-test: 16px row drawn above (zhongwen OpenCube shi)
-
+free
+              total        used        free
+Mem:     536739840 10969088 525770752
+Swap:            0           0            0
 ush> 
 ```
 
@@ -115,8 +114,26 @@ ush>
 **Executed example**:
 
 ```
-hda
-Intel HDA: not present
+health
+system health:
+  cpu:
+  busy                100 % (1 s window)
+  memory:
+  total               524160 KiB
+  used                12544 KiB
+  free                511616 KiB
+  tasks:
+  total               6
+  running             2
+  ready               1
+  blocked             3
+  disk:
+  read                0 bytes
+  written             0 bytes
+  network:
+  tx                  0 bytes
+  rx                  0 bytes
+  alarms: CPU-LOCKED 
 ush> 
 ```
 
@@ -129,59 +146,6 @@ ush>
 | Function | show shell built-ins and the program registry |
 | Hidden parameters | hidden parameter, not a public interface; compatibility is not guaranteed: `--all`, `--wp`, `-a`, `-w` |
 | Return codes | 0, 1 |
-
-**Executed example**:
-
-```
-heapbounds
-Heap bounds test (BUG-0140 wrap / BUG-0141 ceiling):
-  PASS
-ush> 
-```
-
-### help_a_test
-
-| Field | Value |
-|---|---|
-| Name | help_a_test |
-| Category | System tools |
-| Function | registry A-Z listing invariant test |
-
-**Executed example**:
-
-```
-heaptest
-Heap overhead test (100 allocs):
-  heap_size=3657728 allocated=1583392 overhead=14176
-  requested=26542 waste=1556850 overhead%=0
-  after free: alloc=134 free=216 total_allocs=462 total_frees=328
-  PASS
-ush> 
-```
-
-### help_default_test
-
-| Field | Value |
-|---|---|
-| Name | help_default_test |
-| Category | System tools |
-| Function | registry default listing test |
-| Return codes | 0 |
-
-**Executed example**:
-
-```
-hello
-hello from userspaceush> 
-```
-
-### help_wp_test
-
-| Field | Value |
-|---|---|
-| Name | help_wp_test |
-| Category | System tools |
-| Function | registry work-package grouping test |
 
 **Executed example**:
 
@@ -209,6 +173,58 @@ Registry: 284 programs - 'help -a' lists them all, 'help -w' groups by work pack
 ush> 
 ```
 
+### help_a_test
+
+| Field | Value |
+|---|---|
+| Name | help_a_test |
+| Category | System tools |
+| Function | registry A-Z listing invariant test |
+
+**Executed example**:
+
+```
+help_a_test
+help_a_test: 'help -a' == default A-Z view, ordering verified: PASS
+ush> 
+```
+
+### help_default_test
+
+| Field | Value |
+|---|---|
+| Name | help_default_test |
+| Category | System tools |
+| Function | registry default listing test |
+| Return codes | 0 |
+
+**Executed example**:
+
+```
+help_default_test
+help_default_test: A-Z ordering of the full command registry: PASS
+help_default_test: run 'help' to see the full A-Z listing
+ush> 
+```
+
+### help_wp_test
+
+| Field | Value |
+|---|---|
+| Name | help_wp_test |
+| Category | System tools |
+| Function | registry work-package grouping test |
+
+**Executed example**:
+
+```
+help_wp_test
+help_wp_test: registry flat A-Z ordering (one group == all): PASS
+help_wp_test: global listing still sorted: PASS
+help_wp_test: run 'help' to see the flat A-Z listing
+ush> 
+```
+
 ### kill
 
 | Field | Value |
@@ -223,23 +239,8 @@ ush>
 **Executed example**:
 
 ```
-irtest
-irtest: NEC / RC5 / RC6 / SIRC codec round trips
-  nec known (1A/3C): PASS
-  rc5 known (05/15 t1): PASS
-  rc6 known (12/34 t0): PASS
-  rt nec 0x12/0x34: PASS
-  rt nec 0xFF/0x00: PASS
-  rt nec repeat: PASS
-  rt rc5 0x0A/0x0C t0: PASS
-  rt rc5 0x1B/0x2D t1: PASS
-  rt rc6 0x00/0xFF t0: PASS
-  rt rc6 0xA5/0x5A t1: PASS
-  rt sirc 0x15/0x01: PASS
-  nec corrupted rejected: PASS
-  live ir devices: 0
-  (no live device: codec tests above ran on the real code paths)
-irtest: 0 failures - PASS
+kill
+usage: kill <pid>
 ush> 
 ```
 

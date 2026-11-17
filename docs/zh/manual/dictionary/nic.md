@@ -106,8 +106,8 @@ ush>
 **实际执行示例**：
 
 ```
-i2cset
-usage: i2cset <bus> <addr> <reg> <val>  (hex values)
+igb
+igb: not present
 ush> 
 ```
 
@@ -124,13 +124,9 @@ ush>
 **实际执行示例**：
 
 ```
-i2ctest
-I2C core: 1 bus(es) registered
-controller: PIIX4 (8086:7113) base 0x0700 xfers=80 errs=202
-  diag: cfg0x90=0x00000701 sts=0x00
-DesignWare: not present on this platform (honest skip)
-10-bit addressing: supported on DesignWare bus (none present)
-i2ctest: PASS
+igb_test
+[igb_test] device not present in this environment => SKIPPED (needs real hardware; no fake
+    output is produced for absent devices)
 ush> 
 ```
 
@@ -147,9 +143,8 @@ ush>
 **实际执行示例**：
 
 ```
-ir
-ir devices: 0
-  no IR device present (QEMU models neither CIR hardware nor an IrDA UART; the SIR probe runs against the secondary 16550 at boot)
+ixgbe
+ixgbe: not present
 ush> 
 ```
 
@@ -166,11 +161,9 @@ ush>
 **实际执行示例**：
 
 ```
-irqabitest
-IRQ-entry ABI test (BUG-0137 align / BUG-0138 DF):
-  timer-IRQ bits=0x3  int0x80 bits=0x3
-  PASS
-probe runs against the secondary 16550 at boot)
+ixgbe_test
+[ixgbe_test] device not present in this environment => SKIPPED (needs real hardware; no fake
+    output is produced for absent devices)
 ush> 
 ```
 

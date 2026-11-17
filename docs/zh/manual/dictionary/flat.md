@@ -68,11 +68,14 @@ ush>
 **实际执行示例**：
 
 ```
-exc
-Running exception self-test (#DE, #UD, #PF)...
-passed 3 exceptions, kernel alive
-ush> 
+exec_test
+exec_test: start
+exec_test: parent waiting
+exexec_test: child execing hellohello from userspaceexec_test: PASS
+eush> 
 ```
+
+(备注: fork/exec 竞态的原样串口转录：子进程的 exec 交错于父进程的输出之间、提示符紧贴 PASS 行输出——与发货 ISO 串口实际捕获逐字一致)
 
 ### fdref_test
 
@@ -84,7 +87,9 @@ ush>
 **实际执行示例**：
 
 ```
-DICTVAR=1
+fdref_test
+FDREF PASS
+[user] process 7 exited (code=0)
 ush> 
 ```
 
@@ -99,12 +104,10 @@ ush>
 **实际执行示例**：
 
 ```
-firewall
-Firewall rules:
-  (no rules)
-policies: input=ACCEPT output=ACCEPT forward=ACCEPT
-conntrack: 0 flows (firewall ct for details)
-ush> 
+fork_test
+fork_test: start
+parent: pid=17 ppid=1 child=18child: pid=18 ppid=17fork_test: PASS
+ ush> 
 ```
 
 ### g6_exec_a
@@ -118,9 +121,11 @@ ush>
 **实际执行示例**：
 
 ```
-fs_mount_test
-usage: fs_mount_test <device>  (formats the device!)
-  explicit argument required - never touches a device implicitly
+g6_exec_a
+g6_exec_a: start
+g6_exec_a: child execing g6_exec_b
+g6_exec_b: alive, raising SIGUSR1 with no handler
+g6_exec_a: child status = 138g6_exec_a: PASS
 ush> 
 ```
 
@@ -135,10 +140,8 @@ ush>
 **实际执行示例**：
 
 ```
-fsck
-fsck: checking mounted FAT32 filesystems
-usage: fsck <device>
-  e.g. fsck hda
+g6_exec_b
+g6_exec_b: alive, raising SIGUSR1 with no handler
 ush> 
 ```
 
@@ -153,26 +156,15 @@ ush>
 **实际执行示例**：
 
 ```
-fstest
-vfs: cannot unmount the root filesystem
-VFS self-test:
-  mkdir /tmp/vfstest: OK
-  open(O_CREAT): OK
-  write: OK
-  read: OK -> "hello from ramfs"
-  ls /tmp/vfstest:
-    hello.txt
-  ramfs: 13 nodes, 3740 bytes
-  p2 regressions:
-    BUG-0178 dual-sided: PASS
-    BUG-0179 dual-sided: PASS
-    BUG-0180 hole is zeros: PASS
-    BUG-0182 dual-sided: PASS
-    BUG-0184 umount / refused: PASS
-    p2 regressions: ALL PASS
-  p1fix4 regressions:
-    BUG-0061 dual-sided: PASS
-    p1fix4 regressions: ALL PASS
+g6_oom
+g6_oom: start
+
+*** EXCEPTION 14: #PF Page Fault ***
+  error_code=0x0000000000000007  rip=0x00000000004000D4  cs=0x0000000000000033  rflags=0x0000000000010246
+  rsp=0x000000003FFFFEE0  ss=0x000000000000003B
+  cr2=0x000000003C000000  (faulting address)
+*** KILLING user process (pid=35) due to exception 14, kernel continues ***
+[user] process killed by exception (vector=14), kernel continues
 ush> 
 ```
 
@@ -187,11 +179,31 @@ ush>
 **实际执行示例**：
 
 ```
-g6_exec_a
-g6_exec_a: start
-g6_exec_a: child execing g6_exec_b
-g6_exec_b: alive, raising SIGUSR1 with no handler
-g6_exec_a: child status = 138g6_exec_a: PASS
+g6_test
+g6_test: start
+g6_test: T2 fork-mmap-inherit start
+S0
+S1
+S2
+SP
+SC
+g6_test: =PASS=
+g6_test: T5 per-proc-cwd start
+g6_test: =PASS=
+g6_test: T1 exit0-reap start
+[user] process 41 exited (code=42)
+g6_test: =PASS=
+g6_test: T3 write2-no-reader start
+g6_test: =PASS=
+g6_test: T4 sig-restorer start
+g6_test: T4 handler entered
+g6_test: T4 back from handler
+g6_test: =PASS=
+g6_test: T7 solib-reject start
+g6_test: =PASS=
+g6_test: T6 solib-window start
+g6_test: T6 dlopen count = 3839g6_test: =PASS=
+g6_test: failed tests = 0g6_test: PASS
 ush> 
 ```
 
@@ -206,8 +218,26 @@ ush>
 **实际执行示例**：
 
 ```
-g6_exec_b
-g6_exec_b: alive, raising SIGUSR1 with no handler
+g7mmap
+G7MMAP: start
+G7MMAP PASS T1 (bump RW map + round-trip)
+G7MMAP PASS T2 (addr hint honoured)
+G7MMAP PASS T3 (kernel-addr hint rejected)
+G7MMAP PASS T4 (prot 0x8 rejected)
+G7MMAP PASS T5 (over-window length rejected)
+G7MMAP PASS T6 (munmap kernel addr rejected)
+G7MMAP PASS T7 (munmap legal range)
+G7MMAP PASS T8 (mprotect RW toggle + write)
+G7MMAP PASS T9 (mprotect prot 0x9 rejected)
+G7MMAP PASS T10 (munmap beyond window rejected)
+G7MMAP T11: PF probe armed (write to R-only page)
+
+*** EXCEPTION 14: #PF Page Fault ***
+  error_code=0x0000000000000007  rip=0x000000000040031C  cs=0x0000000000000033  rflags=0x0000000000010206
+  rsp=0x000000003FFFFEE0  ss=0x000000000000003B
+  cr2=0x000000003C012000  (faulting address)
+*** KILLING user process (pid=47) due to exception 14, kernel continues ***
+[user] process killed by exception (vector=14), kernel continues
 ush> 
 ```
 
@@ -222,15 +252,8 @@ ush>
 **实际执行示例**：
 
 ```
-heap
-Kernel heap:
-  size:  3477504 bytes
-  alloc: 1551568 bytes (132 blocks)
-  free:  1915440 bytes (196 blocks)
-  overhead: 10496 bytes
-  total allocs: 350  total frees: 218
-
-ush> 
+hello
+hello from userspaceush> 
 ```
 
 ### int3_user
@@ -243,16 +266,15 @@ ush>
 **实际执行示例**：
 
 ```
-ime
-pinyin IME status:
-  syllables : 396
-  level-1   : 3755 chars (GB2312 zones 16-55)
-  phrases   : 622
-  usage     : "ime -i" opens the interactive compose line (the SAME
-              engine the nano/vi editors use - F2 inside an editor);
-              type pinyin; digits 1-9 pick; space = first; PageUp/PageDown
-              (or - / =) page; Backspace drops a letter; Enter commits the
-  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 9336 | encode 3 | convert 0 | detect 0 | miss 3
+int3_user
+int3_user: about to int3
+
+*** EXCEPTION 3: #BP Breakpoint ***
+  error_code=0x0000000000000000  rip=0x0000000000400019  cs=0x0000000000000033  rflags=0x0000000000010202
+  rsp=0x000000003FFFFEE0  ss=0x000000000000003B
+*** KILLING user process (pid=97) due to exception 3, kernel continues ***
+[user] process killed by exception (vector=3), kernel continues
+*** IST-exit: vector=3 exit-stack rsp=0x00000000003E1FD0 [off-IST2 OK]
 ush> 
 ```
 
@@ -268,8 +290,14 @@ ush>
 **实际执行示例**：
 
 ```
-kill
-usage: kill <pid>
+ld_so
+
+*** EXCEPTION 14: #PF Page Fault ***
+  error_code=0x0000000000000005  rip=0x000000001000192D  cs=0x0000000000000033  rflags=0x0000000000010212
+  rsp=0x000000003FFFFEA8  ss=0x000000000000003B
+  cr2=0x0000000008000018  (faulting address)
+*** KILLING user process (pid=119) due to exception 14, kernel continues ***
+[user] process killed by exception (vector=14), kernel continues
 ush> 
 ```
 
@@ -283,13 +311,9 @@ ush>
 **实际执行示例**：
 
 ```
-run ush
-started pid=4
-
-Open Cube OS User-space Shell (3.0.0-NAK)
-Type 'help' for built-in commands.
-
-ush> 
+run loop
+started pid=3
+loop: running
 ```
 
 (备注: run loop (async) + kill - the by-design spinner)
@@ -599,14 +623,11 @@ ush>
 **实际执行示例**：
 
 ```
-  [test thread] iteration 2
-  [test thread] iteration 3
 sse_test
-  [test thread] iteration 4
-SSE child  OK
-[user] process 46 exited (code=0)
 SSE parent OK
-[user] process 45 exited (code=0)
+SSE child  OK
+[user] process 9 exited (code=0)
+[user] process 8 exited (code=0)
 ush> 
 ```
 

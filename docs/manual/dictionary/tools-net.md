@@ -13,8 +13,8 @@
 **Executed example**:
 
 ```
-i2cget
-usage: i2cget <bus> <addr> [reg]  (addr/reg in hex, 0x..)
+ifconfig
+no NIC detected
 ush> 
 ```
 

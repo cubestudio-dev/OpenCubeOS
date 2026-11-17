@@ -209,9 +209,12 @@ ush>
 **实际执行示例**：
 
 ```
-fdref_test
-FDREF PASS
-[user] process 13 exited (code=0)
+font
+registered fonts:
+  ascii-8x16     built-in screen_font8x16, 8x16
+  gb2312-16x16   embedded GB2312, 6763+682 glyphs
+  total live: 2
+  active renderer: cn-8x16-16x16
 ush> 
 ```
 
@@ -228,21 +231,11 @@ ush>
 **实际执行示例**：
 
 ```
-files nope
-files: unknown program: nope
-usage: files                (interactive menu)
-       files direct <prog> [args]    (explicit passthrough)
-       files <prog> [args]           (classic program dispatch)
-programs:  ls
-  tree
-  df
-  du
-  cp
-  mv
-  rm
-  edit
-  stat
-  chmod
+font-test
+font-test: rendering sample row (16x16 CJK):
+
+font-test: 16px row drawn above (zhongwen OpenCube shi)
+
 ush> 
 ```
 
@@ -259,8 +252,16 @@ ush>
 **实际执行示例**：
 
 ```
-ifconfig
-no NIC detected
+ime
+pinyin IME status:
+  syllables : 396
+  level-1   : 3755 chars (GB2312 zones 16-55)
+  phrases   : 622
+  usage     : "ime -i" opens the interactive compose line (the SAME
+              engine the nano/vi editors use - F2 inside an editor);
+              type pinyin; digits 1-9 pick; space = first; PageUp/PageDown
+              (or - / =) page; Backspace drops a letter; Enter commits the
+  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 9084 | encode 0 | convert 0 | detect 0 | miss 0
 ush> 
 ```
 
@@ -277,8 +278,8 @@ ush>
 **实际执行示例**：
 
 ```
-igb
-igb: not present
+ime-test
+ime-test: PASS (engine ni/hao/qqq + session: phrase, compose, page, digit, space, enter, backspace, esc, passthrough)
 ush> 
 ```
 
@@ -295,9 +296,8 @@ ush>
 **实际执行示例**：
 
 ```
-ixgbe_test
-[ixgbe_test] device not present in this environment => SKIPPED (needs real hardware; no fake
-    output is produced for absent devices)
+lang
+Console output language: en
 ush> 
 ```
 

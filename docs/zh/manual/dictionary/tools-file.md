@@ -143,26 +143,8 @@ ush>
 **实际执行示例**：
 
 ```
-g7mmap
-G7MMAP: start
-G7MMAP PASS T1 (bump RW map + round-trip)
-G7MMAP PASS T2 (addr hint honoured)
-G7MMAP PASS T3 (kernel-addr hint rejected)
-G7MMAP PASS T4 (prot 0x8 rejected)
-G7MMAP PASS T5 (over-window length rejected)
-G7MMAP PASS T6 (munmap kernel addr rejected)
-G7MMAP PASS T7 (munmap legal range)
-G7MMAP PASS T8 (mprotect RW toggle + write)
-G7MMAP PASS T9 (mprotect prot 0x9 rejected)
-G7MMAP PASS T10 (munmap beyond window rejected)
-G7MMAP T11: PF probe armed (write to R-only page)
-
-*** EXCEPTION 14: #PF Page Fault ***
-  error_code=0x0000000000000007  rip=0x000000000040031C  cs=0x0000000000000033  rflags=0x0000000000010206
-  rsp=0x000000003FFFFEE0  ss=0x000000000000003B
-  cr2=0x000000003C012000  (faulting address)
-*** KILLING user process (pid=38) due to exception 14, kernel continues ***
-[user] process killed by exception (vector=14), kernel continues
+grep
+usage: grep <pattern>
 ush> 
 ```
 
@@ -178,10 +160,7 @@ ush>
 **实际执行示例**：
 
 ```
-halt_test
-halt_test: power_halt() = 'System halted.' + cli;hlt loop (kernel/power.c)
-halt_test: this test must return, so it does NOT halt; the live halt is verified by running 'halt' in a dedicated QEMU session
-halt_test: live halt not observed (destructive) : SKIP - see the dedicated halt session
+head
 ush> 
 ```
 
@@ -199,8 +178,8 @@ ush>
 **实际执行示例**：
 
 ```
-lang
-Console output language: en
+ln
+usage: ln <old> <new> | ln -s <abs-target> <linkpath>
 ush> 
 ```
 
@@ -258,9 +237,6 @@ ush>
 **实际执行示例**：
 
 ```
-  [task 1] iter 2
-  [task 2] iter 2
-  [task 3] iter 2
 mv
 usage: mv <src> <dst>
 ush> 
