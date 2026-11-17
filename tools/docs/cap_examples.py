@@ -72,8 +72,19 @@ NONTERM = {"loop"}
 
 POWER_REAL = ["reboot", "halt", "poweroff", "shutdown"]
 
-# commands whose example is the wizard-less usage table (deterministic)
-MEGA_USAGE = {m: [m + " nope"] for m in MEGA}
+# mega apps: the example is the SERIAL-VISIBLE classic dispatch
+# (byte-identical to the single-command app); 'nope' for those
+# whose usage renders on VGA only
+MEGA_USAGE = {
+    "disk-tool": ["disk-tool lsblk"],
+    "update": ["update status"],
+    "files": ["files nope"],
+    "net-tool": ["net-tool nope"],
+    "sound-tool": ["sound-tool nope"],
+    "sysdiag": ["sysdiag nope"],
+    "hwinfo": ["hwinfo nope"],
+    "power": ["power nope"],
+}
 
 # a few commands get explicit safe args for a richer example;
 # a LIST means a small session - all lines are sent in order and the
@@ -101,6 +112,8 @@ RICH_ARGS = {
 def classify(name):
     if name == "exit":
         return "exit_special"
+    if name == "sshd":
+        return "long_running"
     if name in NONTERM:
         return "nonterm"
     if name in INTERACTIVE:
@@ -112,7 +125,46 @@ def classify(name):
     return "plain"
 
 
+# per-command completion timeouts (seconds) - the prompt return is
+# the completion signal; stress batteries and the DH test need long
+# windows under TCG
+LONG_RUNNERS = {
+    "dhtest": 500, "pmmrace": 300, "memtest": 300, "vmtest": 300,
+    "heaptest": 240, "fstest": 240, "cryptotest": 120,
+    "checkupdate": 150, "checkupdate_test": 150, "update": 90,
+    "real_hw_test": 90, "sshd": 25, "loop": 15,
+}
+DEFAULT_TIMEOUT = 45
+
+
+STDIN_READERS = {"cat", "sort", "tail", "uniq", "wc", "head", "grep",
+                 "awk", "sed"}
+
+
+def run_to_prompt(child, cmdline, timeout=None):
+    """Send one command line; capture everything until the NEXT ush
+    prompt (the reliable completion signal - a fixed lull breaks too
+    early for slow-starting TCG spawns).  Commands that read standard
+    input with no arguments get a Ctrl+D to close it."""
+    t = timeout or LONG_RUNNERS.get(
+        cmdline.split()[0], DEFAULT_TIMEOUT)
+    child.sendline(cmdline)
+    if cmdline.split()[0] in STDIN_READERS and len(cmdline.split()) == 1:
+        time.sleep(1.0)
+        child.send("\x04")       # Ctrl+D: close stdin
+    try:
+        i = child.expect([r"ush>\s", pexpect.TIMEOUT, pexpect.EOF],
+                         timeout=t)
+        if i == 0:
+            return child.before + "ush> ", True
+        return child.before, False
+    except (pexpect.EOF, pexpect.TIMEOUT):
+        return "", False
+
+
 class VM:
+    MON = "/tmp/oc-dict-cap-mon.sock"
+
     def __init__(self, iso):
         self.iso = iso
         self.child = None
@@ -121,16 +173,45 @@ class VM:
         if self.child and self.child.isalive():
             self.child.terminate(force=True)
             time.sleep(1)
+        if os.path.exists(self.MON):
+            os.unlink(self.MON)
         env = dict(os.environ)
         env["LD_LIBRARY_PATH"] = LIB
         cmd = ("{q} -m 512 -L {qd} -L {sb} -cdrom {iso} -boot d "
-               "-net none -serial stdio -display none -no-reboot"
-               ).format(q=QEMU, qd=QDATA, sb=SEABIOS, iso=self.iso)
+               "-net none -serial stdio -display none -no-reboot "
+               "-monitor unix:{mon},server,nowait"
+               ).format(q=QEMU, qd=QDATA, sb=SEABIOS, iso=self.iso,
+                        mon=self.MON)
         self.child = pexpect.spawn(cmd, env=env, timeout=timeout,
                                    encoding="latin-1",
                                    codec_errors="replace")
         self.child.expect(r"ush>\s", timeout=timeout)
+        for _ in range(40):
+            if os.path.exists(self.MON):
+                break
+            time.sleep(0.5)
         return self.child
+
+    def mon_key(self, key, settle=1.0):
+        """Drive a real keystroke through the QEMU monitor."""
+        import socket
+        try:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.settimeout(8)
+            s.connect(self.MON)
+            s.sendall(("sendkey %s\n" % key).encode())
+            time.sleep(settle)
+            try:
+                s.settimeout(1.5)
+                while True:
+                    b = s.recv(4096)
+                    if not b:
+                        break
+            except Exception:
+                pass
+            s.close()
+        except Exception:
+            pass
 
     def kill(self):
         if self.child and self.child.isalive():
@@ -246,66 +327,108 @@ def main():
             elif cls == "exit_special":
                 child = vm.child
                 child.sendline("exit")
-                out = quiesce(child)
-                # exit drops to the L0 recovery shell (oc>)
                 try:
-                    child.expect(r"oc>\s", timeout=10)
-                    out += child.before + child.after
+                    child.expect(r"oc>\s", timeout=15)
+                    out = child.before + child.after
                     note = "exit drops to the L0 recovery shell"
                 except (pexpect.EOF, pexpect.TIMEOUT):
-                    note = ""
+                    out, note = "", ""
                 # come back: relaunch the L1 shell from oc>
-                child.sendline("ush")
+                child.sendline("run ush")
                 try:
-                    child.expect(r"ush>\s", timeout=30)
+                    child.expect(r"ush>\s", timeout=60)
                     back = True
                 except (pexpect.EOF, pexpect.TIMEOUT):
                     back = False
-                if back and probe(child, idx):
+                if back:
                     record(name, "exit", strip_ansi(out), note=note)
                     print("[cap] %-16s exit OK" % name)
                 else:
                     raise RuntimeError("could not return to ush")
-            elif cls == "interactive":
+            elif cls == "long_running":
+                # sshd: the daemon serves one session and stays up -
+                # capture the startup banner, then reset for the rest
                 child = vm.child
-                # for mega apps: the deterministic usage table first
-                if name in MEGA:
-                    child.sendline(name + " nope")
-                    out = quiesce(child)
-                    if probe(child, idx):
-                        record(name, name + " nope", strip_ansi(out))
-                        print("[cap] %-16s mega-usage OK" % name)
-                        continue
-                    raise RuntimeError("wedged after mega usage")
-                # real interactive: capture opening screen then quit
                 child.sendline(name)
-                out = quiesce(child, lull=2.5, cap=20)
-                for key in ["q", "\x1b", "\x1b", "\x18", "\r"]:
-                    if probe(child, idx):
-                        break
+                time.sleep(20)
+                out = ""
+                dl = time.time() + 6
+                while time.time() < dl:
                     try:
-                        child.send(key)
-                        out += quiesce(child, lull=1.5, cap=5)
+                        i = child.expect([".+", pexpect.TIMEOUT],
+                                         timeout=2)
+                        if i == 0:
+                            out += child.after
+                            continue
+                        break
                     except (pexpect.EOF, pexpect.TIMEOUT):
                         break
-                if probe(child, idx):
-                    record(name, name, strip_ansi(out))
+                record(name, name, strip_ansi(out),
+                        note="long-running service (the SSH daemon); "
+                             "the transcript shows the startup output, "
+                             "then the session was reset")
+                print("[cap] %-16s long-running captured" % name)
+                vm.kill()
+                vm.boot()
+            elif cls == "interactive":
+                child = vm.child
+                # for mega apps: the serial-visible classic dispatch
+                if name in MEGA:
+                    ln = MEGA_USAGE[name][0]
+                    out, ok = run_to_prompt(child, ln)
+                    if ok:
+                        record(name, ln, strip_ansi(out),
+                                note="classic dispatch (verbatim op "
+                                     "passthrough)")
+                        print("[cap] %-16s mega-classic OK" % name)
+                        continue
+                    raise RuntimeError("prompt did not return after mega")
+                # real interactive: capture opening screen then quit
+                # through the QEMU monitor (full-screen apps read the
+                # KEYBOARD, not the serial line)
+                child.sendline(name)
+                time.sleep(6)          # let the page paint (TCG)
+                out = quiesce(child, lull=2, cap=10)
+                ok = False
+                for attempt in range(2):
+                    vm.mon_key("esc", settle=1.0)
+                    try:
+                        child.expect(r"ush>\s", timeout=45)
+                        ok = True
+                        break
+                    except (pexpect.EOF, pexpect.TIMEOUT):
+                        continue
+                if ok:
+                    out += "\n(returned to the ush prompt after Esc)"
+                    record(name, name, strip_ansi(out),
+                            note="full-screen page; Esc exits (driven "
+                                 "via the QEMU monitor sendkey)")
                     print("[cap] %-16s interactive OK" % name)
                 else:
-                    raise RuntimeError("wedged interactive")
+                    # keep what we saw; reset for the next entry
+                    record(name, name, strip_ansi(out),
+                            note="full-screen page; the quit key was "
+                                 "not honored in this session - output "
+                                 "as captured, session reset")
+                    print("[cap] %-16s interactive captured (reset)" % name)
+                    vm.kill()
+                    vm.boot()
             else:
                 child = vm.child
                 lines = RICH_ARGS.get(name) or [cmdline]
                 out_all = ""
+                ok_all = True
                 for ln in lines:
-                    child.sendline(ln)
-                    out_all += quiesce(child)
-                out = out_all
-                if probe(child, idx):
-                    record(name, "; ".join(lines), strip_ansi(out))
+                    out, ok = run_to_prompt(child, ln)
+                    out_all += out
+                    if not ok:
+                        ok_all = False
+                        break
+                if ok_all:
+                    record(name, "; ".join(lines), strip_ansi(out_all))
                     print("[cap] %-16s %-10s OK" % (name, cls))
                 else:
-                    raise RuntimeError("wedged after plain run")
+                    raise RuntimeError("prompt did not return")
         except RuntimeError as e:
             print("[cap] %-16s WEDGED (%s) - reset+resume" % (name, e))
             record(name, cmdline or name, "", note="wedged:" + str(e))

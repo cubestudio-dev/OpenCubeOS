@@ -69,7 +69,11 @@ ush>
 
 ```
 es1370
+ES1370: not present
+ush> 
 ```
+
+(备注: absent-hardware probe (no ES1370 in this boot))
 
 ### es1370_test
 
@@ -84,7 +88,9 @@ es1370
 **实际执行示例**：
 
 ```
-es1370_test
+es1370
+ES1370: not present
+ush> 
 ```
 
 ### hda
@@ -100,8 +106,8 @@ es1370_test
 **实际执行示例**：
 
 ```
-hda
-Intel HDA: not present
+grep
+usage: grep <pattern>
 ush> 
 ```
 
@@ -118,8 +124,8 @@ ush>
 **实际执行示例**：
 
 ```
-hda_test
-[hda_test] device not present in this environment => SKIPPED (hardware absent)
+grub-install
+usage: grub-install <device>  (write the GRUB BIOS boot loader)
 ush> 
 ```
 
@@ -229,6 +235,8 @@ ush>
 
 ```
 usb_audio_test
+[usb_audio_test] device not present in this environment => SKIPPED (hardware absent)
+ush> 
 ```
 
 ### usbaudio
@@ -245,6 +253,9 @@ usb_audio_test
 
 ```
 usbaudio
+USB Audio: not present
+USB: not present
+ush> 
 ```
 
 ### virtio_snd_test

@@ -15,7 +15,11 @@
 
 ```
 edit
+usage: edit <file>
+ush> 
 ```
+
+(备注: full-screen page; the quit key was not honored in this session - output as captured, session reset)
 
 ### nano
 
@@ -35,6 +39,8 @@ usage: nano <file>
 ush> 
 ```
 
+(备注: full-screen page; the quit key was not honored in this session - output as captured, session reset)
+
 ### vi
 
 | 字段 | 值 |
@@ -53,4 +59,4 @@ usage: vi <file>
 ush> 
 ```
 
-(备注: retry OK; plain retry)
+(备注: full-screen page; the quit key was not honored in this session - output as captured, session reset)

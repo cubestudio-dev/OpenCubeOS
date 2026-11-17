@@ -34,6 +34,9 @@ ush>
 
 ```
 dhcp
+Sending DHCP discover...
+DHCP failed (timeout)
+ush> 
 ```
 
 ### dns
@@ -51,6 +54,8 @@ dhcp
 
 ```
 dns
+usage: dns <name> [aaaa|cname|mx|txt|ns|srv]
+ush> 
 ```
 
 ### dnstest
@@ -67,6 +72,15 @@ dns
 
 ```
 dnstest
+DNS record-type self-test (live resolver):
+  [FAIL] A    example.com = 0.0.0.0
+  [FAIL] AAAA google.com
+  [FAIL] MX   gmail.com
+  [FAIL] TXT  google.com
+  [FAIL] NS   google.com
+  [FAIL] SRV  _xmpp-server._tcp.jabber.org
+dnstest: FAILURES
+ush> 
 ```
 
 ### firewall
@@ -82,11 +96,8 @@ dnstest
 **Executed example**:
 
 ```
-firewall
-Firewall rules:
-  (no rules)
-policies: input=ACCEPT output=ACCEPT forward=ACCEPT
-conntrack: 0 flows (firewall ct for details)
+fatstat
+fat32: sectors=0 free_clusters=0 cluster_size=0
 ush> 
 ```
 
@@ -103,10 +114,8 @@ ush>
 **Executed example**:
 
 ```
-ip
-IP: 0.0.0.0
-Mask: 0.0.0.0
-Gateway: 0.0.0.0
+ime-test
+ime-test: PASS (engine ni/hao/qqq + session: phrase, compose, page, digit, space, enter, backspace, esc, passthrough)
 ush> 
 ```
 
@@ -147,6 +156,17 @@ ush>
 
 ```
 nf_test
+netfilter self-test:
+  [PASS] input drop rule + hits
+  [PASS] state matching (est bypasses, new hits)
+  [PASS] reject classification
+  [PASS] per-chain default policy
+  [PASS] conntrack TCP handshake
+  [PASS] conntrack UDP flow
+  [PASS] OUTPUT drop blocks ping (real path)
+  [FAIL] rule removal restores ping
+nf_test: FAILURES
+ush> 
 ```
 
 ### route
@@ -208,7 +228,7 @@ sshd
 [sshd] generating per-installation host key (RSA-2048, one-time)...
 ```
 
-(Note: captured before reset; long-running service (the SSH daemon); the transcript shows the startup output, then the session was reset (by-design long-running; keep captured output))
+(Note: long-running service (the SSH daemon); the transcript shows the startup output, then the session was reset)
 
 ### tcpcc_test
 

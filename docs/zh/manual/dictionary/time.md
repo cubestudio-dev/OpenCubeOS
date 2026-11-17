@@ -16,12 +16,9 @@
 **实际执行示例**：
 
 ```
-hpet
-HPET: base=fed00000 (ACPI table, GAS SystemMemory)
-Table: block_id=8086a201 rev=1 comparators=163 counter64=0 legacy=1
-Caps: rev=1 timers=3 64bit=1 legacy=1 period=10000000fs freq=100000000Hz
-Main counter: 0000000000000000
-IRQ count (legacy-route tests): 0
+help_default_test
+help_default_test: A-Z ordering of the full command registry: PASS
+help_default_test: run 'help' to see the full A-Z listing
 ush> 
 ```
 
@@ -43,7 +40,7 @@ ush>
 pmtimer
 PM timer: port=00000608 (SystemIO) width=32bit (FADT pm_tmr_blk)  delta mask=00ffffff (24bit)
 nominal: 3579545 Hz  measured: 0 Hz (not calibrated)
-read: 00e2ba9e  now64: 0000000000e2bbb9  wraps: 0
+read: 00f313d2  now64: 0000000000f314f4  wraps: 0
 ush> 
 ```
 
@@ -63,7 +60,7 @@ ush>
 
 ```
 rtc
-RTC: 2026-11-17 00:10:53 (UTC, CMOS ports 0x70/0x71)
+RTC: 2026-11-17 01:51:43 (UTC, CMOS ports 0x70/0x71)
 Status: UIP=0 BCD=1 24h=1 rate=1024Hz
 IRQ: PIE=0 AIE=0 UIE=0 VRT=1 FADT century reg=32
 Reg A=26 B=02 C=10 D=80
@@ -87,7 +84,7 @@ ush>
 
 ```
 tsc
-TSC: 00000016b9528eda (serialized rdtsc)
+TSC: 0000000a7e66d8e4 (serialized rdtsc)
 invariant: 0 (CPUID 0x80000007 EDX[8])
 calibrated: not yet (run 'tsc cal')
 ush> 

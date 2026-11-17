@@ -19,7 +19,7 @@ tui
 (returned to the ush prompt after Esc)
 ```
 
-(备注: retry OK; full-screen page; Esc exits (driven via QEMU monitor sendkey))
+(备注: full-screen page; Esc exits (driven via the QEMU monitor sendkey))
 
 ### tui-drv
 
@@ -39,7 +39,7 @@ tui-drv
 (returned to the ush prompt after Esc)
 ```
 
-(备注: retry OK; full-screen page; Esc exits (driven via QEMU monitor sendkey))
+(备注: full-screen page; Esc exits (driven via the QEMU monitor sendkey))
 
 ### tui-ext
 
@@ -55,8 +55,11 @@ tui-drv
 
 ```
 tui-ext
-ush> 
+
+(returned to the ush prompt after Esc)
 ```
+
+(备注: full-screen page; Esc exits (driven via the QEMU monitor sendkey))
 
 ### tui-hw
 
@@ -76,7 +79,7 @@ tui-hw
 (returned to the ush prompt after Esc)
 ```
 
-(备注: retry OK; full-screen page; Esc exits (driven via QEMU monitor sendkey))
+(备注: full-screen page; Esc exits (driven via the QEMU monitor sendkey))
 
 ### tui-net
 
@@ -96,7 +99,7 @@ tui-net
 (returned to the ush prompt after Esc)
 ```
 
-(备注: retry OK; full-screen page; Esc exits (driven via QEMU monitor sendkey))
+(备注: full-screen page; Esc exits (driven via the QEMU monitor sendkey))
 
 ### tui-sys
 
@@ -112,8 +115,11 @@ tui-net
 
 ```
 tui-sys
-ush> 
+
+(returned to the ush prompt after Esc)
 ```
+
+(备注: full-screen page; Esc exits (driven via the QEMU monitor sendkey))
 
 ### tui-sysinfo
 
@@ -133,7 +139,7 @@ tui-sysinfo
 (returned to the ush prompt after Esc)
 ```
 
-(备注: retry OK; full-screen page; Esc exits (driven via QEMU monitor sendkey))
+(备注: full-screen page; Esc exits (driven via the QEMU monitor sendkey))
 
 ### tui-test
 
@@ -525,6 +531,8 @@ tui-test: 93/93 checks passed, all green
 ush> 
 ```
 
+(备注: full-screen page; the quit key was not honored in this session - output as captured, session reset)
+
 ### tui-time
 
 | 字段 | 值 |
@@ -539,5 +547,8 @@ ush>
 
 ```
 tui-time
-ush> 
+
+(returned to the ush prompt after Esc)
 ```
+
+(备注: full-screen page; Esc exits (driven via the QEMU monitor sendkey))

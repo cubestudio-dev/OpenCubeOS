@@ -14,14 +14,15 @@
 **实际执行示例**：
 
 ```
-gameport
-game ports: 1
-  gp0 io=0x201 calibrated=no reads=0 timeouts=0
-    axis 0: no stick (timeout) rc=0
-    axis 1: no stick (timeout) rc=0
-    axis 2: no stick (timeout) rc=0
-    axis 3: no stick (timeout) rc=0
-    buttons=0x00
+g6_oom
+g6_oom: start
+
+*** EXCEPTION 14: #PF Page Fault ***
+  error_code=0x0000000000000007  rip=0x00000000004000D4  cs=0x0000000000000033  rflags=0x0000000000010246
+  rsp=0x000000003FFFFEE0  ss=0x000000000000003B
+  cr2=0x000000003C000000  (faulting address)
+*** KILLING user process (pid=28) due to exception 14, kernel continues ***
+[user] process killed by exception (vector=14), kernel continues
 ush> 
 ```
 
@@ -38,16 +39,31 @@ ush>
 **实际执行示例**：
 
 ```
-gameporttest
-gameporttest: analog joystick port self test
-  axis read0: PASS
-  axis read1: PASS
-  axis read2: PASS
-  axis read3: PASS
-  buttons read: PASS
-  calibrate runs: PASS
-  calibration windows: [0,0] [0,0] [0,0] [0,0] 
-gameporttest: 0 failures - PASS
+g6_test
+g6_test: start
+g6_test: T2 fork-mmap-inherit start
+S0
+S1
+S2
+SP
+SC
+g6_test: =PASS=
+g6_test: T5 per-proc-cwd start
+g6_test: =PASS=
+g6_test: T1 exit0-reap start
+[user] process 33 exited (code=42)
+g6_test: =PASS=
+g6_test: T3 write2-no-reader start
+g6_test: =PASS=
+g6_test: T4 sig-restorer start
+g6_test: T4 handler entered
+g6_test: T4 back from handler
+g6_test: =PASS=
+g6_test: T7 solib-reject start
+g6_test: =PASS=
+g6_test: T6 solib-window start
+g6_test: T6 dlopen count = 3734g6_test: =PASS=
+g6_test: failed tests = 0g6_test: PASS
 ush> 
 ```
 
@@ -64,9 +80,8 @@ ush>
 **实际执行示例**：
 
 ```
-ir
-ir devices: 0
-  no IR device present (QEMU models neither CIR hardware nor an IrDA UART; the SIR probe runs against the secondary 16550 at boot)
+install
+usage: install <device>  (install the running system; DESTROYS existing data)
 ush> 
 ```
 
@@ -83,23 +98,10 @@ ush>
 **实际执行示例**：
 
 ```
-irtest
-irtest: NEC / RC5 / RC6 / SIRC codec round trips
-  nec known (1A/3C): PASS
-  rc5 known (05/15 t1): PASS
-  rc6 known (12/34 t0): PASS
-  rt nec 0x12/0x34: PASS
-  rt nec 0xFF/0x00: PASS
-  rt nec repeat: PASS
-  rt rc5 0x0A/0x0C t0: PASS
-  rt rc5 0x1B/0x2D t1: PASS
-  rt rc6 0x00/0xFF t0: PASS
-  rt rc6 0xA5/0x5A t1: PASS
-  rt sirc 0x15/0x01: PASS
-  nec corrupted rejected: PASS
-  live ir devices: 0
-  (no live device: codec tests above ran on the real code paths)
-irtest: 0 failures - PASS
+ip
+IP: 0.0.0.0
+Mask: 0.0.0.0
+Gateway: 0.0.0.0
 ush> 
 ```
 
@@ -216,6 +218,9 @@ ush>
 
 ```
 uvc
+camera subsystem: 0 cameras
+  no camera bound (UVC class driver active; QEMU has no UVC model - attach real hardware or check `usb`)
+ush> 
 ```
 
 ### uvctest
@@ -232,4 +237,38 @@ uvc
 
 ```
 uvctest
+uvctest: lib_mjpeg + camera core + UVC descriptor parse
+  mjpeg decode rc: PASS
+  mjpeg size 16x16: PASS
+  mjpeg pixels all 200: PASS
+  mjpeg truncated rejected: PASS
+  mjpeg small buffer -> -2: PASS
+  yuy2->rgb BT.601: PASS
+  camera register: PASS
+  camera get: PASS
+  set format: PASS
+  set format unknown rejected: PASS
+  set frame: PASS
+  set frame mismatch rejected: PASS
+  set interval: PASS
+  capture refused before start: PASS
+  stream start: PASS
+  capture while streaming: PASS
+  release frame: PASS
+  brightness step snap: PASS
+  stream stop: PASS
+  camera unregister: PASS
+  uvc bind: PASS
+  uvc version 1.1: PASS
+  uvc 2 formats: PASS
+  uvc MJPEG 640x480: PASS
+  uvc intervals 666666/1333333: PASS
+  uvc YUY2 320x240: PASS
+  uvc terminals CT=1 PU=2: PASS
+  uvc caps: PASS
+  uvc descriptor dump: PASS
+  uvc disconnect: PASS
+  live cameras: 0 (none bound - no UVC hardware in this machine; the tests above ran the real code paths on spec fixtures)
+uvctest: 0 failures - PASS
+ush> 
 ```

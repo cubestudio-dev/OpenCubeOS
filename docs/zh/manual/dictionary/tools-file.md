@@ -32,7 +32,10 @@ ush>
 
 ```
 cat
+ush> 
 ```
+
+(备注: reads standard input; closed with Ctrl+D)
 
 ### chmod
 
@@ -49,6 +52,8 @@ cat
 
 ```
 chmod
+usage: chmod <mode> <path>   (mode in octal, e.g. 644)
+ush> 
 ```
 
 ### chown
@@ -66,6 +71,8 @@ chmod
 
 ```
 chown
+usage: chown <uid>[:<gid>] <path>
+ush> 
 ```
 
 ### cp
@@ -83,6 +90,8 @@ chown
 
 ```
 cp
+usage: cp <src> <dst>
+ush> 
 ```
 
 ### df
@@ -98,6 +107,9 @@ cp
 
 ```
 df
+Filesystem     Mount     Size     Used    Avail  Use%
+ramfs          /         0        5 files (kernel df for full mount table)
+ush> 
 ```
 
 ### du
@@ -113,6 +125,8 @@ df
 
 ```
 du
+3712 bytes  3 files  /
+ush> 
 ```
 
 ### grep
@@ -129,8 +143,26 @@ du
 **实际执行示例**：
 
 ```
-grep
-usage: grep <pattern>
+g7mmap
+G7MMAP: start
+G7MMAP PASS T1 (bump RW map + round-trip)
+G7MMAP PASS T2 (addr hint honoured)
+G7MMAP PASS T3 (kernel-addr hint rejected)
+G7MMAP PASS T4 (prot 0x8 rejected)
+G7MMAP PASS T5 (over-window length rejected)
+G7MMAP PASS T6 (munmap kernel addr rejected)
+G7MMAP PASS T7 (munmap legal range)
+G7MMAP PASS T8 (mprotect RW toggle + write)
+G7MMAP PASS T9 (mprotect prot 0x9 rejected)
+G7MMAP PASS T10 (munmap beyond window rejected)
+G7MMAP T11: PF probe armed (write to R-only page)
+
+*** EXCEPTION 14: #PF Page Fault ***
+  error_code=0x0000000000000007  rip=0x000000000040031C  cs=0x0000000000000033  rflags=0x0000000000010206
+  rsp=0x000000003FFFFEE0  ss=0x000000000000003B
+  cr2=0x000000003C012000  (faulting address)
+*** KILLING user process (pid=38) due to exception 14, kernel continues ***
+[user] process killed by exception (vector=14), kernel continues
 ush> 
 ```
 
@@ -146,7 +178,11 @@ ush>
 **实际执行示例**：
 
 ```
-head
+halt_test
+halt_test: power_halt() = 'System halted.' + cli;hlt loop (kernel/power.c)
+halt_test: this test must return, so it does NOT halt; the live halt is verified by running 'halt' in a dedicated QEMU session
+halt_test: live halt not observed (destructive) : SKIP - see the dedicated halt session
+ush> 
 ```
 
 ### ln
@@ -163,8 +199,8 @@ head
 **实际执行示例**：
 
 ```
-ln
-usage: ln <old> <new> | ln -s <abs-target> <linkpath>
+lang
+Console output language: en
 ush> 
 ```
 
@@ -222,6 +258,9 @@ ush>
 **实际执行示例**：
 
 ```
+  [task 1] iter 2
+  [task 2] iter 2
+  [task 3] iter 2
 mv
 usage: mv <src> <dst>
 ush> 
@@ -242,6 +281,8 @@ ush>
 
 ```
 rm
+usage: rm <file>
+ush> 
 ```
 
 ### rmdir
@@ -263,8 +304,6 @@ usage: rmdir <path>
 ush> 
 ```
 
-(备注: retry OK; plain retry)
-
 ### sort
 
 | 字段 | 值 |
@@ -280,8 +319,6 @@ ush>
 sort
 ush> 
 ```
-
-(备注: retry OK; reads standard input; closed with Ctrl+D)
 
 ### stat
 
@@ -318,8 +355,6 @@ tail
 ush> 
 ```
 
-(备注: retry OK; reads standard input; closed with Ctrl+D)
-
 ### touch
 
 | 字段 | 值 |
@@ -352,6 +387,7 @@ ush>
 
 ```
 uniq
+ush> 
 ```
 
 ### wc
@@ -370,5 +406,3 @@ wc
 0 0 0
 ush> 
 ```
-
-(备注: retry OK; reads standard input; closed with Ctrl+D)

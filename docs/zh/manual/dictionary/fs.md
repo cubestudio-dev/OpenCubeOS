@@ -15,11 +15,7 @@
 **实际执行示例**：
 
 ```
-fatmount
-fat32: invalid device string
-vfs_mount: fs mount failed
-fatmount: ata0 -> /mnt FAILED - no FAT32 partition on device or drive not present
-(the mount point was NOT created - `ls /mnt` will report 'no such path' until a real mount succeeds)
+export DICTVAR=1
 ush> 
 ```
 
@@ -37,9 +33,10 @@ ush>
 **实际执行示例**：
 
 ```
-fatstat
-fat32: sectors=0 free_clusters=0 cluster_size=0
-ush> 
+env
+PATH=/bin:/
+HOME=/
+PS1=ush> 
 ```
 
 ### mount

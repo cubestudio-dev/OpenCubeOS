@@ -76,6 +76,7 @@ AML namespace: nodes=342 methods=102 devices=54
   \_SB_.PCI0.S80_ ADR=0x100000
   \_SB_.PCI0.S88_ ADR=0x110000
   ... (truncated at 32)
+D
 ush> 
 ```
 
@@ -140,6 +141,15 @@ ush>
 
 ```
 cr3test
+CR3 switch test:
+  current CR3=0x0000003d2000
+  new AS CR3=0x000000767000
+  map at 4GiB: OK
+  switched CR3 to 0x000000767000
+  verify mapped in new AS: OK phys=0x000000769000
+  switched back to 0x0000003d2000
+  PASS
+ush> 
 ```
 
 ### crashlog
@@ -157,6 +167,8 @@ cr3test
 
 ```
 crashlog
+crashlog: no exceptions recorded
+ush> 
 ```
 
 ### crashtest
@@ -175,6 +187,16 @@ crashlog
 
 ```
 crashtest
+usage: crashtest panic|exc|pf|assert|wd|ovf|dump|policy [halt|reboot]
+  panic   : kernel_panic() direct
+  exc     : ring-0 #UD exception
+  pf      : ring-0 unmapped-address write fault
+  assert  : OC_ASSERT(0)
+  wd      : forced watchdog timeout
+  ovf     : kernel stack overflow (guard page)
+  dump    : capture a core dump without panicking
+  policy  : show/set the after-panic policy
+ush> 
 ```
 
 ### dumpinfo
@@ -192,6 +214,13 @@ crashtest
 
 ```
 dumpinfo
+core dump status:
+  no dump captured yet (trigger: crashtest panic|exc|pf)
+policy: HALT  watchdog: off (timeout 15000 ms)
+
+Block devices:
+drivers: ATA-DMA drives=0  AHCI drives=0  NVMe queues=0
+ush> 
 ```
 
 ### exc
@@ -207,7 +236,9 @@ dumpinfo
 **Executed example**:
 
 ```
-exc
+es1370_test
+[es1370_test] device not present in this environment => SKIPPED (hardware absent)
+ush> 
 ```
 
 ### frag
@@ -224,11 +255,12 @@ exc
 **Executed example**:
 
 ```
-frag
-PMM: free_pages=128363 fragments=6 avg_frag=21393
-Heap: free_blocks=62 free_bytes=554880
-penCube shi)
-
+font
+registered fonts:
+  ascii-8x16     built-in screen_font8x16, 8x16
+  gb2312-16x16   embedded GB2312, 6763+682 glyphs
+  total live: 2
+  active renderer: cn-8x16-16x16
 ush> 
 ```
 
@@ -246,26 +278,10 @@ ush>
 **Executed example**:
 
 ```
-fstest
-vfs: cannot unmount the root filesystem
-VFS self-test:
-  mkdir /tmp/vfstest: OK
-  open(O_CREAT): OK
-  write: OK
-  read: OK -> "hello from ramfs"
-  ls /tmp/vfstest:
-    hello.txt
-  ramfs: 13 nodes, 3740 bytes
-  p2 regressions:
-    BUG-0178 dual-sided: PASS
-    BUG-0179 dual-sided: PASS
-    BUG-0180 hole is zeros: PASS
-    BUG-0182 dual-sided: PASS
-    BUG-0184 umount / refused: PASS
-    p2 regressions: ALL PASS
-  p1fix4 regressions:
-    BUG-0061 dual-sided: PASS
-    p1fix4 regressions: ALL PASS
+free
+              total        used        free
+Mem:     536739840 11706368 525033472
+Swap:            0           0            0
 ush> 
 ```
 
@@ -283,7 +299,9 @@ ush>
 **Executed example**:
 
 ```
-heap
+hda_test
+[hda_test] device not present in this environment => SKIPPED (hardware absent)
+ush> 
 ```
 
 ### heapbounds
@@ -299,7 +317,8 @@ heap
 **Executed example**:
 
 ```
-heapbounds
+head
+ush> 
 ```
 
 ### heaptest
@@ -315,7 +334,27 @@ heapbounds
 **Executed example**:
 
 ```
-heaptest
+health
+system health:
+  cpu:
+  busy                100 % (1 s window)
+  memory:
+  total               524160 KiB
+  used                12544 KiB
+  free                511616 KiB
+  tasks:
+  total               6
+  running             2
+  ready               1
+  blocked             3
+  disk:
+  read                0 bytes
+  written             0 bytes
+  network:
+  tx                  0 bytes
+  rx                  0 bytes
+  alarms: CPU-LOCKED 
+ush> 
 ```
 
 ### i2cdetect
@@ -331,15 +370,23 @@ heaptest
 **Executed example**:
 
 ```
-i2cdetect
-i2c-0 (piix4): -- -- -- -- -- -- -- -- -- -- -- -- -- 
-  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-  50 51 52 53 54 55 56 57 -- -- -- -- -- -- -- -- 
-  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-  -- -- -- -- -- -- -- -- 
+history
+1 grep
+2 grub-install
+3 halt_test
+4 hda
+5 hda_test
+6 head
+7 health
+8 heap
+9 heapbounds
+10 heaptest
+11 hello
+12 help
+13 help_a_test
+14 help_default_test
+15 help_wp_test
+16 history
 ush> 
 ```
 
@@ -358,8 +405,12 @@ ush>
 **Executed example**:
 
 ```
-i2cget
-usage: i2cget <bus> <addr> [reg]  (addr/reg in hex, 0x..)
+hpet
+HPET: base=fed00000 (ACPI table, GAS SystemMemory)
+Table: block_id=8086a201 rev=1 comparators=163 counter64=0 legacy=1
+Caps: rev=1 timers=3 64bit=1 legacy=1 period=10000000fs freq=100000000Hz
+Main counter: 0000000000000000
+IRQ count (legacy-route tests): 0
 ush> 
 ```
 
@@ -378,8 +429,37 @@ ush>
 **Executed example**:
 
 ```
-i2cset
-usage: i2cset <bus> <addr> <reg> <val>  (hex values)
+hwinfo nope
+hwinfo: unknown op: nope
+usage: hwinfo            (interactive menu)
+       hwinfo direct <op> [args]   (explicit passthrough)
+       hwinfo <op> [args]          (classic op dispatch)
+ops:  uname
+  stats
+  font
+  encoding
+  chinese
+  rtc
+  hpet
+  pmtimer
+  tsc
+  lspci
+  pcidump
+  pcibars
+  pcie
+  acpi
+  acpidev
+  acpipow
+  i2cdetect
+  smbus
+  usb
+  usbdev
+  uvc
+  scsi
+  gameport
+  parallel
+  ir
+  touchpad
 ush> 
 ```
 
@@ -396,13 +476,16 @@ ush>
 **Executed example**:
 
 ```
-i2ctest
-I2C core: 1 bus(es) registered
-controller: PIIX4 (8086:7113) base 0x0700 xfers=80 errs=202
-  diag: cfg0x90=0x00000701 sts=0x00
-DesignWare: not present on this platform (honest skip)
-10-bit addressing: supported on DesignWare bus (none present)
-i2ctest: PASS
+i2cdetect
+i2c-0 (piix4): -- -- -- -- -- -- -- -- -- -- -- -- -- 
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+  50 51 52 53 54 55 56 57 -- -- -- -- -- -- -- -- 
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+  -- -- -- -- -- -- -- -- 
+cÒ¸H
 ush> 
 ```
 
@@ -419,11 +502,15 @@ ush>
 **Executed example**:
 
 ```
-irqabitest
-IRQ-entry ABI test (BUG-0137 align / BUG-0138 DF):
-  timer-IRQ bits=0x3  int0x80 bits=0x3
-  PASS
-probe runs against the secondary 16550 at boot)
+int3_user
+int3_user: about to int3
+
+*** EXCEPTION 3: #BP Breakpoint ***
+  error_code=0x0000000000000000  rip=0x0000000000400019  cs=0x0000000000000033  rflags=0x0000000000010202
+  rsp=0x000000003FFFFEE0  ss=0x000000000000003B
+*** KILLING user process (pid=67) due to exception 3, kernel continues ***
+[user] process killed by exception (vector=3), kernel continues
+*** IST-exit: vector=3 exit-stack rsp=0x00000000003E1FD0 [off-IST2 OK]
 ush> 
 ```
 
@@ -444,10 +531,10 @@ ush>
 mem
 Physical memory:
   total: 536739840 bytes (131040 pages)
-  used:  10444800 bytes (2550 pages)
-  free:  526295040 bytes (128490 pages)
+  used:  10371072 bytes (2532 pages)
+  free:  526368768 bytes (128508 pages)
   fragments: 4
-  allocs: 1155  frees: 708  failures: 0
+  allocs: 821  frees: 392  failures: 0
 ush> 
 ```
 
@@ -517,12 +604,10 @@ Spawning 3 tasks...
   [task 1] iter 0
   [task 2] iter 0
   [task 3] iter 0
-ush>   [task 1] iter 1
+  [task 1] iter 1
   [task 2] iter 1
-  [task 1] iter 2
-  [task 2] iter 2
   [task 3] iter 1
-  [task 3] iter 2
+ush> 
 ```
 
 ### nice
@@ -542,7 +627,6 @@ ush>   [task 1] iter 1
 ```
 nice
 usage: nice <tid> <prio> (0=highest..31=lowest)
-_test] no NICs registered => SKIP
 ush> 
 ```
 
@@ -612,7 +696,6 @@ capabilities per device:
   00:01.1 caps: (legacy)
   00:01.3 caps: (legacy)
   00:02.0 caps: (legacy)
-$LÀHúÍH5
 ush> 
 ```
 
@@ -639,7 +722,6 @@ Page fault test:
     legal=2 illegal=1 stack=0 heap=0
     L1 handler ran, page mapped, write verified, 1 legal PFs counted
   PASS
-ÀLÒÍí~HcÕLÀ¿
 ush> 
 ```
 
@@ -659,8 +741,7 @@ ush>
 pmmrace
 ```
 
-(Note: captured before reset; long-running stress battery; captured with an extended window (Timeout exceeded.
-<pexpect.pty_spawn.spawn object at 0x7fd38))
+(Note: long-running race detector; the transcript is a 150 s excerpt of the run)
 
 ### sched
 
@@ -677,8 +758,8 @@ pmmrace
 
 ```
 sched
-switches=2666 preemptions=1305 current_tid=3 active_tasks=4
-D (no ISA SB16 (QEMU: add -device sb16,audiodev=snd0))
+switches=262 preemptions=120 current_tid=3 active_tasks=4
+PED (no ISA SB16 (QEMU: add -device sb16,audiodev=snd0))
 ush> 
 ```
 
@@ -741,11 +822,11 @@ ush>
 ```
 spawn
 spawned tid=4
+
+  (none)
   [test thread] iteration 0
   [test thread] iteration 1
-ush>   [test thread] iteration 2
-  [test thread] iteration 3
-  [test thread] iteration 4
+ush> 
 ```
 
 ### syncstat
@@ -763,11 +844,10 @@ ush>   [test thread] iteration 2
 
 ```
 syncstat
-spin_locks=15268639 spin_unlocks=15268639
+spin_locks=8915322 spin_unlocks=8915322
 sem_waits=0 sem_posts=0
 mutex_locks=0 mutex_unlocks=0
 cond_waits=0 cond_signals=0
-ÿHÈéÆûÿÿ¸
 ush> 
 ```
 
@@ -809,6 +889,7 @@ ush>
 ```
 timer
 Registered 500ms one-shot timer
+arser=ok synrcvd-recycle=ok sack-map=ok; live negotiation covered by HTTPS E2E)
 ush> 
 ```
 
@@ -852,6 +933,7 @@ Kernel address space (PML4 at 0x0000003d2000):
   PML4[0] vaddr=0x000000000000 -> 0x0000003d3000
 
 Page faults: total=0 legal=0 illegal=0 stack=0 heap=0
+T@
 ush> 
 ```
 
@@ -870,13 +952,14 @@ ush>
 ```
 vmtest
 VMM test:
-  created AS at 0x000000795000
-  map_page(0x000100000000 -> 0x000000797000) = 0
-  is_mapped = 1 phys=0x000000797000
+  created AS at 0x000000782000
+  map_page(0x000100000000 -> 0x000000784000) = 0
+  is_mapped = 1 phys=0x000000784000
   protect(read-only) = 0
-  unmap returned 0x000000797005
+  unmap returned 0x000000784005
   is_mapped after unmap = 0
   destroyed AS
   PASS
+
 ush> 
 ```

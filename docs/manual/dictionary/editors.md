@@ -15,7 +15,11 @@
 
 ```
 edit
+usage: edit <file>
+ush> 
 ```
+
+(Note: full-screen page; the quit key was not honored in this session - output as captured, session reset)
 
 ### nano
 
@@ -35,6 +39,8 @@ usage: nano <file>
 ush> 
 ```
 
+(Note: full-screen page; the quit key was not honored in this session - output as captured, session reset)
+
 ### vi
 
 | Field | Value |
@@ -53,4 +59,4 @@ usage: vi <file>
 ush> 
 ```
 
-(Note: retry OK; plain retry)
+(Note: full-screen page; the quit key was not honored in this session - output as captured, session reset)

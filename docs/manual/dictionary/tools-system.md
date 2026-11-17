@@ -14,6 +14,8 @@
 
 ```
 date
+Open Cube OS uptime: 3130 ms since boot (no RTC driver)
+ush> 
 ```
 
 ### dmesg
@@ -29,6 +31,38 @@ date
 
 ```
 dmesg
+[0.240] INFO  boot: [00:00:00.230] VFS (virtual file system)......................... OK
+[0.270] INFO  boot: [00:00:00.260] ramfs (in-memory file system, mounted at /)....... OK
+[0.480] INFO  boot: [00:00:00.470] ATA/IDE PIO driver (LBA28)........................ OK
+[0.500] INFO  boot: [00:00:00.490] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.650] INFO  boot: [00:00:00.640] USB hosts up: 0................................... OK
+[0.660] INFO  boot: [00:00:00.650] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+[0.690] INFO  boot: [00:00:00.660] boot chain 3/4: driver-dependent services......... OK
+[0.770] INFO  boot: [00:00:00.740] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+[0.800] INFO  boot: config: created default /etc/opencube.conf (ramfs)
+[0.810] INFO  boot: [00:00:00.800] system config (/etc/opencube.conf, fat32/ramfs) (OK)
+[0.820] INFO  boot: [00:00:00.810] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+[0.830] INFO  boot: abupdate: no disk with an A/B partition layout found
+[1.430] INFO  boot: [00:00:01.420] LAPIC (local APIC)................................ OK
+[1.990] INFO  boot: [00:00:01.980] network stack (e1000 + TCP/IP + socket API)....... OK
+[1.990] INFO  watchdog: slot 1 registered: kernel-health 15000 ms policy 0
+[2.000] INFO  watchdog: slot 1 (kernel-health) ARMED, 15000 ms
+[2.010] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[2.030] INFO  boot: [00:00:02.020] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[2.210] INFO  boot: [00:00:02.200] sound: no sound card present (probe OK)........... OK
+[2.220] INFO  boot: block devices: 0 registered
+[2.230] INFO  boot: disk cache: 64 slots, LRU write-back
+[2.240] INFO  boot: [00:00:02.230] disk subsystem (block dev + cache + partition + FS). OK
+[2.250] INFO  boot: pmm: 131040 pages, 128681 free
+[2.260] INFO  boot: [00:00:02.250] kmalloc/kfree self-test........................... OK
+[2.350] INFO  boot: [00:00:02.340] boot complete..................................... OK
+[2.360] INFO  boot: [00:00:02.350] boot chain 4/4: interfaces ready.................. OK
+[2.370] INFO  boot: [00:00:02.360] crash recovery armed (panic + dump + crashlog).... OK
+[2.380] INFO  boot: [00:00:02.370] L0 ready, waiting for L1.......................... OK
+[2.390] INFO  boot: l1 launcher: booting 'ush' (ring 3, 23496 bytes)
+[13.010] ERROR health: alarm: CPU >=90% busy for 10 consecutive seconds
+-- 30 lines (ring 81/1024, dropped 0) --
+ush> 
 ```
 
 ### echo
@@ -44,6 +78,8 @@ dmesg
 
 ```
 echo hello dictionary
+hello dictionary
+ush> 
 ```
 
 ### free
@@ -58,10 +94,11 @@ echo hello dictionary
 **Executed example**:
 
 ```
-free
-              total        used        free
-Mem:     536739840 10969088 525770752
-Swap:            0           0            0
+font-test
+font-test: rendering sample row (16x16 CJK):
+
+font-test: 16px row drawn above (zhongwen OpenCube shi)
+
 ush> 
 ```
 
@@ -78,7 +115,9 @@ ush>
 **Executed example**:
 
 ```
-health
+hda
+Intel HDA: not present
+ush> 
 ```
 
 ### help
@@ -90,6 +129,59 @@ health
 | Function | show shell built-ins and the program registry |
 | Hidden parameters | hidden parameter, not a public interface; compatibility is not guaranteed: `--all`, `--wp`, `-a`, `-w` |
 | Return codes | 0, 1 |
+
+**Executed example**:
+
+```
+heapbounds
+Heap bounds test (BUG-0140 wrap / BUG-0141 ceiling):
+  PASS
+ush> 
+```
+
+### help_a_test
+
+| Field | Value |
+|---|---|
+| Name | help_a_test |
+| Category | System tools |
+| Function | registry A-Z listing invariant test |
+
+**Executed example**:
+
+```
+heaptest
+Heap overhead test (100 allocs):
+  heap_size=3657728 allocated=1583392 overhead=14176
+  requested=26542 waste=1556850 overhead%=0
+  after free: alloc=134 free=216 total_allocs=462 total_frees=328
+  PASS
+ush> 
+```
+
+### help_default_test
+
+| Field | Value |
+|---|---|
+| Name | help_default_test |
+| Category | System tools |
+| Function | registry default listing test |
+| Return codes | 0 |
+
+**Executed example**:
+
+```
+hello
+hello from userspaceush> 
+```
+
+### help_wp_test
+
+| Field | Value |
+|---|---|
+| Name | help_wp_test |
+| Category | System tools |
+| Function | registry work-package grouping test |
 
 **Executed example**:
 
@@ -117,58 +209,6 @@ Registry: 284 programs - 'help -a' lists them all, 'help -w' groups by work pack
 ush> 
 ```
 
-### help_a_test
-
-| Field | Value |
-|---|---|
-| Name | help_a_test |
-| Category | System tools |
-| Function | registry A-Z listing invariant test |
-
-**Executed example**:
-
-```
-help_a_test
-help_a_test: 'help -a' == default A-Z view, ordering verified: PASS
-ush> 
-```
-
-### help_default_test
-
-| Field | Value |
-|---|---|
-| Name | help_default_test |
-| Category | System tools |
-| Function | registry default listing test |
-| Return codes | 0 |
-
-**Executed example**:
-
-```
-help_default_test
-help_default_test: A-Z ordering of the full command registry: PASS
-help_default_test: run 'help' to see the full A-Z listing
-ush> 
-```
-
-### help_wp_test
-
-| Field | Value |
-|---|---|
-| Name | help_wp_test |
-| Category | System tools |
-| Function | registry work-package grouping test |
-
-**Executed example**:
-
-```
-help_wp_test
-help_wp_test: registry flat A-Z ordering (one group == all): PASS
-help_wp_test: global listing still sorted: PASS
-help_wp_test: run 'help' to see the flat A-Z listing
-ush> 
-```
-
 ### kill
 
 | Field | Value |
@@ -183,8 +223,23 @@ ush>
 **Executed example**:
 
 ```
-kill
-usage: kill <pid>
+irtest
+irtest: NEC / RC5 / RC6 / SIRC codec round trips
+  nec known (1A/3C): PASS
+  rc5 known (05/15 t1): PASS
+  rc6 known (12/34 t0): PASS
+  rt nec 0x12/0x34: PASS
+  rt nec 0xFF/0x00: PASS
+  rt nec repeat: PASS
+  rt rc5 0x0A/0x0C t0: PASS
+  rt rc5 0x1B/0x2D t1: PASS
+  rt rc6 0x00/0xFF t0: PASS
+  rt rc6 0xA5/0x5A t1: PASS
+  rt sirc 0x15/0x01: PASS
+  nec corrupted rejected: PASS
+  live ir devices: 0
+  (no live device: codec tests above ran on the real code paths)
+irtest: 0 failures - PASS
 ush> 
 ```
 
@@ -206,6 +261,8 @@ usage: p2test <utf8|read0|pipe>
 ush> 
 ```
 
+(Note: no-arguments usage)
+
 ### ps
 
 | Field | Value |
@@ -219,6 +276,12 @@ ush>
 
 ```
 ps
+TID  STATE  PRI  CPU(ticks)  NAME
+0    RUN   31    233          idle
+1    READY 31    26          usb-poll
+2    READY 15    28          ush
+3    RUN   15    0          ush
+ush> 
 ```
 
 ### pwd
@@ -234,6 +297,8 @@ ps
 
 ```
 pwd
+/
+ush> 
 ```
 
 ### run
@@ -572,15 +637,17 @@ ush>
 
 ```
 top
-top - up 9490 ms
-Mem: 10342400 used / 536739840 total / 526397440 free
+top - up 5290 ms
+Mem: 10825728 used / 536739840 total / 525914112 free
 TID  STATE  PRI  CPU(ticks)  NAME
-0    RUN   31    234          idle
-1    READY 31    4          usb-poll
-2    BLOCK 15    701          ush
+0    RUN   31    236          idle
+1    READY 31    14          usb-poll
+2    BLOCK 15    102          ush
 3    RUN   15    2          ush
 ush> 
 ```
+
+(Note: full-screen page; the quit key was not honored in this session - output as captured, session reset)
 
 ### ush
 
@@ -597,6 +664,11 @@ ush>
 
 ```
 ush
+
+Open Cube OS User-space Shell (3.0.0-NAK)
+Type 'help' for built-in commands.
+
+ush> 
 ```
 
 ### write

@@ -188,6 +188,8 @@ ush>
 
 ```
 disk_rw_test
+usage: disk_rw_test <device>  (hda|sda|vda|nvme0|...)
+ush> 
 ```
 
 ### dskstat
@@ -204,6 +206,14 @@ disk_rw_test
 
 ```
 dskstat
+ATA drive detection:
+  primary master: absent
+  primary slave: absent
+  secondary master: absent
+  secondary slave: absent
+Block devices:
+drivers: ATA-DMA drives=0  AHCI drives=0  NVMe queues=0
+ush> 
 ```
 
 ### fs_mount_test
@@ -220,9 +230,9 @@ dskstat
 **Executed example**:
 
 ```
-fs_mount_test
-usage: fs_mount_test <device>  (formats the device!)
-  explicit argument required - never touches a device implicitly
+fork_test
+fork_test: start
+parent: pid=18 ppid=10 child=19child: pid=19 ppid=18fork_test: PASS
 ush> 
 ```
 
@@ -239,10 +249,11 @@ ush>
 **Executed example**:
 
 ```
-fsck
-fsck: checking mounted FAT32 filesystems
-usage: fsck <device>
-  e.g. fsck hda
+frag
+PMM: free_pages=128183 fragments=7 avg_frag=18311
+Heap: free_blocks=92 free_bytes=907952
+penCube shi)
+
 ush> 
 ```
 
@@ -260,8 +271,14 @@ ush>
 **Executed example**:
 
 ```
-grub-install
-usage: grub-install <device>  (write the GRUB BIOS boot loader)
+gameport
+game ports: 1
+  gp0 io=0x201 calibrated=no reads=0 timeouts=0
+    axis 0: no stick (timeout) rc=0
+    axis 1: no stick (timeout) rc=0
+    axis 2: no stick (timeout) rc=0
+    axis 3: no stick (timeout) rc=0
+    buttons=0x00
 ush> 
 ```
 
@@ -279,8 +296,9 @@ ush>
 **Executed example**:
 
 ```
-install
-usage: install <device>  (install the running system; DESTROYS existing data)
+igb_test
+[igb_test] device not present in this environment => SKIPPED (needs real hardware; no fake
+    output is produced for absent devices)
 ush> 
 ```
 
@@ -449,6 +467,24 @@ ush>
 
 ```
 real_hw_test
+[real_hw_test] input: check execution environment
+[real_hw_test] actual: hypervisor bit set (QEMU/sandbox)
+[real_hw_test] => NOT RUN (no physical storage or NIC in a VM;
+    real-machine SATA/NVMe/ATA and WP-10b NIC validation
+    needs bare metal)
+[real_hw_test] --- WP-10u in-system update ---
+[real_hw_test] A/B update flows are validated in QEMU
+    (update_pkg_test, ab_partition_test, update_*_test,
+    real_update_test with a real reboot); real-machine A/B
+    validation (GRUB installed to a physical disk) NOT RUN
+    in this sandbox
+[real_hw_test] --- WP-10d USB (real emulated HC + devices) ---
+USB: not present
+  msc: none
+  serial: none
+  mouse: none
+USB Audio: not present
+ush> 
 ```
 
 ### sync

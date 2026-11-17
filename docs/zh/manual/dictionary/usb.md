@@ -15,6 +15,13 @@
 
 ```
 usb
+USB: not present
+class drivers: 8 registered | keyboards=0 mice=0 msc=0 serial=0
+  msc: none
+  serial: none
+  mouse: none
+USB Audio: not present
+ush> 
 ```
 
 ### usb_core_test
@@ -31,6 +38,14 @@ usb
 
 ```
 usb_core_test
+[usb_core_test] input: USB core invariants + live transfers
+[usb_core_test] usb host controllers registered => FAIL (none)
+[usb_core_test] device table consistent (0 devices) => PASS
+[usb_core_test] GET_STATUS live on every device => FAIL (no devices attached)
+[usb_core_test] class drivers registered (8) => PASS
+[usb_core_test] re-enumeration idempotent => PASS
+[usb_core_test] summary FAIL
+ush> 
 ```
 
 ### usb_hotplug_test
@@ -47,6 +62,9 @@ usb_core_test
 
 ```
 usb_hotplug_test
+[usb_hotplug_test] poll + enumerate round done (new devices: 0) => PASS
+  (no devices)
+ush> 
 ```
 
 ### usb_hub_test
@@ -63,6 +81,8 @@ usb_hotplug_test
 
 ```
 usb_hub_test
+[usb_hub_test] external hub attached => FAIL (no hub device)
+ush> 
 ```
 
 ### usb_kbd_test
@@ -79,6 +99,8 @@ usb_hub_test
 
 ```
 usb_kbd_test
+[usb_kbd_test] HID keyboard attached => FAIL (none enumerated)
+ush> 
 ```
 
 ### usb_mouse_test
@@ -95,6 +117,8 @@ usb_kbd_test
 
 ```
 usb_mouse_test
+[usb_mouse_test] HID mouse attached => FAIL (none enumerated)
+ush> 
 ```
 
 ### usb_serial_test
@@ -111,6 +135,8 @@ usb_mouse_test
 
 ```
 usb_serial_test
+[usb_serial_test] USB serial port attached => FAIL (no CDC-ACM/FTDI device enumerated)
+ush> 
 ```
 
 ### usb_storage_test
@@ -127,6 +153,8 @@ usb_serial_test
 
 ```
 usb_storage_test
+[usb_storage_test] USB storage drive attached => FAIL (no MSC device enumerated)
+ush> 
 ```
 
 ### usbdev
@@ -143,4 +171,6 @@ usb_storage_test
 
 ```
 usbdev
+usbdev: no devices
+ush> 
 ```

@@ -17,7 +17,7 @@
 halt
 ```
 
-(Note: power-real; qemu-eof=False)
+(Note: captured before the power transition)
 
 ### halt_test
 
@@ -32,10 +32,16 @@ halt
 **Executed example**:
 
 ```
-halt_test
-halt_test: power_halt() = 'System halted.' + cli;hlt loop (kernel/power.c)
-halt_test: this test must return, so it does NOT halt; the live halt is verified by running 'halt' in a dedicated QEMU session
-halt_test: live halt not observed (destructive) : SKIP - see the dedicated halt session
+gameporttest
+gameporttest: analog joystick port self test
+  axis read0: PASS
+  axis read1: PASS
+  axis read2: PASS
+  axis read3: PASS
+  buttons read: PASS
+  calibrate runs: PASS
+  calibration windows: [0,0] [0,0] [0,0] [0,0] 
+gameporttest: 0 failures - PASS
 ush> 
 ```
 
@@ -53,9 +59,10 @@ ush>
 
 ```
 poweroff
+(the machine powered off - QEMU exited)
 ```
 
-(Note: power-real; qemu-eof=True)
+(Note: power action: the console goes silent as the machine powers off)
 
 ### poweroff_test
 
@@ -71,7 +78,10 @@ poweroff
 
 ```
 poweroff_test
+(the machine powered off - QEMU exited)
 ```
+
+(Note: power action: the console goes silent as the machine powers off)
 
 ### reboot
 
@@ -106,6 +116,12 @@ reboot
 
 ```
 reboot_test
+reboot_test: block-device flush (reboot pre-step) executed
+reboot_test: reset path = 8042 controller (0x64, 0xFE) + ACPI RESET_REG fallback (0xCF9)
+reboot_test: this test must return, so it does NOT reset; the live reset is verified by 'reboot' (boot banner reappears)
+reboot_test: pre-step flush executed : PASS
+reboot_test: live reset not observed (destructive) : SKIP - see the dedicated reboot session
+ush> 
 ```
 
 ### shutdown
@@ -122,9 +138,10 @@ reboot_test
 
 ```
 shutdown
+(the machine powered off - QEMU exited)
 ```
 
-(Note: power-real; qemu-eof=True)
+(Note: power action: the console goes silent as the machine powers off)
 
 ### sleep
 
