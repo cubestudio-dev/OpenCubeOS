@@ -170,7 +170,8 @@ export default defineConfig({
             { text: 'Function dictionary (296 cmds)', link: '/manual/function-dictionary' },
             { text: 'Hidden commands & test stubs (93)', link: '/manual/hidden-commands' },
             { text: 'The ush shell reference', link: '/manual/ush-reference' },
-            { text: 'All 292 commands', link: '/manual/commands/' }
+            { text: 'All 292 commands', link: '/manual/commands/' },
+            { text: 'Application dictionary (292, with executed examples)', link: '/manual/dictionary/' }
           ]
         },
         {
@@ -193,7 +194,8 @@ export default defineConfig({
             { text: 'The PR bar', link: '/dev/pr-workflow' },
             { text: 'Portability', link: '/dev/portability' },
             { text: 'Coding style', link: '/dev/coding-style' },
-            { text: 'The recovery kernel (OCIRE)', link: '/dev/ocire' }
+            { text: 'The recovery kernel (OCIRE)', link: '/dev/ocire' },
+            { text: 'QEMU coupling inventory (audit)', link: '/reference/qemu-coupling-inventory' }
           ]
         },
         {
@@ -334,7 +336,8 @@ export default defineConfig({
             { text: '全量功能字典（296 条命令）', link: '/zh/manual/function-dictionary' },
             { text: '隐藏命令与测试桩（93 个）', link: '/zh/manual/hidden-commands' },
             { text: 'ush shell 完全参考', link: '/zh/manual/ush-reference' },
-            { text: '全部 292 条命令', link: '/zh/manual/commands/' }
+            { text: '全部 292 条命令', link: '/zh/manual/commands/' },
+            { text: '应用字典（292 条，含真实执行示例）', link: '/zh/manual/dictionary/' }
           ]
         },
         {
@@ -357,7 +360,8 @@ export default defineConfig({
             { text: '合入门槛（PR 规范）', link: '/zh/dev/pr-workflow' },
             { text: '可移植性', link: '/zh/dev/portability' },
             { text: '代码风格', link: '/zh/dev/coding-style' },
-            { text: '恢复内核（OCIRE）', link: '/zh/dev/ocire' }
+            { text: '恢复内核（OCIRE）', link: '/zh/dev/ocire' },
+            { text: 'QEMU 耦合审计清单', link: '/reference/qemu-coupling-inventory' }
           ]
         },
         {

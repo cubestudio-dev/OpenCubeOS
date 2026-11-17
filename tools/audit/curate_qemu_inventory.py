@@ -346,6 +346,23 @@ def md_inventory(out, reg, sig_ab):
     L.append("Class distribution: `%s`" % json.dumps(
         out["class_counts"], ensure_ascii=False))
     L.append("")
+    L.append("## Live verification (A/B entries actually firing)")
+    L.append("")
+    L.append("Four audited entries were triggered in a live boot of the")
+    L.append("release ISO with the coupling-relevant devices attached")
+    L.append("(transcripts: `evidence/qemu-coupling-audit/`):")
+    L.append("")
+    L.append("| Class | Entry | Live proof (verbatim console line) |")
+    L.append("|---|---|---|")
+    L.append("| A1 | `real_hw_test` CPUID hypervisor branch | "
+             "`[real_hw_test] actual: hypervisor bit set (QEMU/sandbox)` |")
+    L.append("| A5 | virtio-blk 1AF4:1004 PCI-ID match | "
+             "`[virtio_blk_test] capacity nonzero (legacy cfg @0x14) => PASS` |")
+    L.append("| B2 | e1000 legacy register-init path | "
+             "`e1000: HWaddr 52:54:00:12:34:56 ... link: UP` |")
+    L.append("| B2 | e1000 S3 resume replay (existing rings, same MAC) | "
+             "`SLEEP_ARMED set ... Resumed from S3 ... e1000: (same MAC) link: UP` |")
+    L.append("")
     L.append("## Family analyses (per category)")
     L.append("")
     for k in sorted(FAMILY_NOTES):
@@ -357,18 +374,14 @@ def md_inventory(out, reg, sig_ab):
     L.append("")
     L.append("| File | Line | Class | Real-machine impact | Blocking? |")
     L.append("|---|---|---|---|---|")
-    seen = set()
-    for e in sig_ab:
-        if e["cls"] not in OVERRIDES_LOOKUP:
+    reg_by_key = {(e["file"], e["line"]): e for e in reg}
+    for (f, ln), o in sorted(OVERRIDES.items()):
+        if not re.fullmatch(r"[AB]\d", o.get("cls", "")):
             continue
-        key = (e["file"], e["line"])
-        if key in seen:
-            continue
-        seen.add(key)
-        o = OVERRIDES[key]
+        e = reg_by_key.get((f, ln), {})
         L.append("| `%s` | %d | %s | %s | %s |" % (
-            e["file"], e["line"], o.get("cls"),
-            o.get("impact", ""), o.get("blocking", "")))
+            f, ln, o.get("cls"), o.get("impact", ""),
+            o.get("blocking", "")))
     L.append("")
     L.append("## Boundary-rule exclusions (false positives, with")
     L.append("reasons)")
