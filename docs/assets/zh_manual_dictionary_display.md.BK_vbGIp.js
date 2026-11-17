@@ -1,0 +1,143 @@
+import{_ as n,o as a,c as t,a2 as e}from"./chunks/framework.BM5YPQmL.js";const g=JSON.parse('{"title":"应用字典 - 显示 (13)","description":"","frontmatter":{},"headers":[],"relativePath":"zh/manual/dictionary/display.md","filePath":"zh/manual/dictionary/display.md"}'),p={name:"zh/manual/dictionary/display.md"};function d(l,s,i,c,o,r){return a(),t("div",null,[...s[0]||(s[0]=[e(`<h1 id="应用字典-显示-13" tabindex="-1">应用字典 - 显示 (13) <a class="header-anchor" href="#应用字典-显示-13" aria-label="Permalink to &quot;应用字典 - 显示 (13)&quot;">​</a></h1><h3 id="chinese" tabindex="-1">chinese <a class="header-anchor" href="#chinese" aria-label="Permalink to &quot;chinese&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>chinese</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>中文控制台演示</td></tr><tr><td>用法</td><td><code>chinese</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>chinese</span></span>
+<span class="line"><span>chinese support status:</span></span>
+<span class="line"><span>  font     : embedded-unifont-16x16</span></span>
+<span class="line"><span>  coverage : 6763 hanzi + 682 symbols, 16x16, 2 bytes/row</span></span>
+<span class="line"><span>  data     : 216416 + 21824 bytes embedded</span></span>
+<span class="line"><span>  slots    : 1 of 4 used</span></span>
+<span class="line"><span>  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 92 | encode 0 | convert 0 | detect 0 | miss 0</span></span>
+<span class="line"><span>  console encoding: utf-8</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div><p>(备注: full-screen page; the quit key was not honored in this session - output as captured, session reset)</p><h3 id="chinesetest" tabindex="-1">chinesetest <a class="header-anchor" href="#chinesetest" aria-label="Permalink to &quot;chinesetest&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>chinesetest</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>中文字体/编码测试组</td></tr><tr><td>用法</td><td><code>chinesetest</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>chinesetest</span></span>
+<span class="line"><span>chinesetest: full Chinese support suite</span></span>
+<span class="line"><span>[1] font data</span></span>
+<span class="line"><span>  PASS status() returns 0</span></span>
+<span class="line"><span>  PASS hanzi count == 6763</span></span>
+<span class="line"><span>  PASS symbol count == 682</span></span>
+<span class="line"><span>  PASS glyph bytes == 32 (16x16, 2 B/row)</span></span>
+<span class="line"><span>  PASS hanzi size == 216416 B</span></span>
+<span class="line"><span>  PASS symbol size == 21824 B</span></span>
+<span class="line"><span>  PASS embedded slot loaded</span></span>
+<span class="line"><span>  PASS zone 16 wei 1 -&gt; compact index 0</span></span>
+<span class="line"><span>  PASS zone 87 wei 94 -&gt; compact index 6762</span></span>
+<span class="line"><span>  PASS zone 55 wei 90 is a GB2312 gap slot</span></span>
+<span class="line"><span>  PASS all 6763 hanzi bitmaps non-empty</span></span>
+<span class="line"><span>  PASS symbol table reachable via bit15</span></span>
+<span class="line"><span>[2] font lookup</span></span>
+<span class="line"><span>  PASS U+4E2D found in unicode index</span></span>
+<span class="line"><span>  PASS zone/wei lookup agrees with unicode lookup</span></span>
+<span class="line"><span>  PASS index -&gt; unicode round-trips to U+4E2D</span></span>
+<span class="line"><span>  PASS U+3002 in symbol table (bit15 set)</span></span>
+<span class="line"><span>  PASS unmapped/mapped U+4E00 handled without crash</span></span>
+<span class="line"><span>  PASS zone 95 rejected</span></span>
+<span class="line"><span>  PASS wei 0 rejected</span></span>
+<span class="line"><span>  PASS metrics 16x16 stride 2</span></span>
+<span class="line"><span>[3] font management</span></span>
+<span class="line"><span>  PASS embedded load idempotent</span></span>
+<span class="line"><span>  PASS runtime slot allocated (&gt;=1)</span></span>
+<span class="line"><span>  PASS runtime font resolves its glyph</span></span>
+<span class="line"><span>  PASS runtime unload ok</span></span>
+<span class="line"><span>  PASS embedded slot unload rejected</span></span>
+<span class="line"><span>  PASS unknown slot rejected</span></span>
+<span class="line"><span>  PASS shutdown ok</span></span>
+<span class="line"><span>[4] GB2312 codec</span></span>
+<span class="line"><span>  PASS decode D6D0 -&gt; U+4E2D</span></span>
+<span class="line"><span>  PASS decode B0A2 -&gt; U+963F (a, &gt;= U+8000)</span></span>
+<span class="line"><span>  PASS decode &#39;A&#39; -&gt; 0x41</span></span>
+<span class="line"><span>  PASS lead 0x88 rejected</span></span>
+<span class="line"><span>  PASS truncated pair rejected</span></span>
+<span class="line"><span>  PASS encode U+4E2D -&gt; D6 D0</span></span>
+<span class="line"><span>  PASS encode U+963F -&gt; B0 A2 (&gt;= U+8000)</span></span>
+<span class="line"><span>  PASS encode non-GB2312 cp rejected</span></span>
+<span class="line"><span>[5] UTF-8 codec</span></span>
+<span class="line"><span>  PASS decode E4 B8 AD -&gt; U+4E2D</span></span>
+<span class="line"><span>  PASS decode &#39;z&#39; pass-through</span></span>
+<span class="line"><span>  PASS overlong C1 81 rejected</span></span>
+<span class="line"><span>  PASS surrogate ED A0 80 rejected</span></span>
+<span class="line"><span>  PASS truncated 3-byte rejected</span></span>
+<span class="line"><span>  PASS bad continuation byte rejected</span></span>
+<span class="line"><span>  PASS decode 4-byte U+1F600</span></span>
+<span class="line"><span>  PASS encode U+4E2D -&gt; E4 B8 AD</span></span>
+<span class="line"><span>  PASS encode surrogate rejected</span></span>
+<span class="line"><span>  PASS encode &gt; U+10FFFF rejected</span></span>
+<span class="line"><span>[6] encoding conversion</span></span>
+<span class="line"><span>  PASS GB2312 zhongwen -&gt; UTF-8</span></span>
+<span class="line"><span>  PASS UTF-8 -&gt; GB2312 round trip</span></span>
+<span class="line"><span>  PASS UTF-8 -&gt; Unicode cp U+4E2D</span></span>
+<span class="line"><span>[7] encoding detection</span></span>
+<span class="line"><span>  PASS detect ascii</span></span>
+<span class="line"><span>  PASS detect utf-8</span></span>
+<span class="line"><span>  PASS detect gb2312</span></span>
+<span class="line"><span>  PASS detect empty -&gt; ascii</span></span>
+<span class="line"><span>[8] renderer extension</span></span>
+<span class="line"><span>  PASS render_chinese_init</span></span>
+<span class="line"><span>  PASS CJK width 16 px</span></span>
+<span class="line"><span>  PASS ASCII width 8 px</span></span>
+<span class="line"><span>  PASS CJK cols 2</span></span>
+<span class="line"><span>  PASS ASCII cols 1</span></span>
+<span class="line"><span>  PASS font_select finds CJK font</span></span>
+<span class="line"><span>  PASS font_get_bitmap CJK</span></span>
+<span class="line"><span>  PASS ascii + gb2312 fonts registered</span></span>
+<span class="line"><span>  PASS active renderer keeps 8x16 cell</span></span>
+<span class="line"><span>  PASS draw CJK/ASCII/missing-box without fault</span></span>
+<span class="line"><span>[9] console extension</span></span>
+<span class="line"><span>  PASS console_cn_init</span></span>
+<span class="line"><span>  PASS default encoding utf-8</span></span>
+<span class="line"><span>  PASS encoding switch</span></span>
+<span class="line"><span>  PASS mixed rejected</span></span>
+<span class="line"><span>  PASS cp cols CJK 2</span></span>
+<span class="line"><span>  PASS display cols a[zhong]b = 4</span></span>
+<span class="line"><span>ä¸­x  PASS putcw cursor geometry SKIP (output captured)</span></span>
+<span class="line"><span>   PASS cn backspace ok</span></span>
+<span class="line"><span>[12] font engine registry</span></span>
+<span class="line"><span>  PASS font_register accepts</span></span>
+<span class="line"><span>  PASS count increments</span></span>
+<span class="line"><span>  PASS registered font resolves cp</span></span>
+<span class="line"><span>  PASS font_unregister</span></span>
+<span class="line"><span>  PASS count restored</span></span>
+<span class="line"><span>  PASS unregistered cp unresolved</span></span>
+<span class="line"><span>  PASS unknown name rejected</span></span>
+<span class="line"><span>[10] VFS UTF-8 file</span></span>
+<span class="line"><span>  PASS create /tmp/cn.txt</span></span>
+<span class="line"><span>  PASS wrote 12 UTF-8 bytes</span></span>
+<span class="line"><span>[13] GB2312 full-library round trip</span></span>
+<span class="line"><span>  PASS 6763 hanzi zone/wei &lt;-&gt; cp round trip</span></span>
+<span class="line"><span>  PASS 682 symbols zone/wei &lt;-&gt; cp round trip</span></span>
+<span class="line"><span>  full trip: 6763 hanzi (2366 at &gt;= U+8000) + 682 symbols</span></span>
+<span class="line"><span>chinesetest: 81/81 PASS</span></span>
+<span class="line"><span>chinesetest: ALL PASS</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div><p>(备注: full-screen page; the quit key was not honored in this session - output as captured, session reset)</p><h3 id="clear" tabindex="-1">clear <a class="header-anchor" href="#clear" aria-label="Permalink to &quot;clear&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>clear</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>清屏</td></tr><tr><td>用法</td><td><code>clear</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>clear</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div><h3 id="encoding" tabindex="-1">encoding <a class="header-anchor" href="#encoding" aria-label="Permalink to &quot;encoding&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>encoding</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>控制台编码状态/设置</td></tr><tr><td>用法</td><td><code>encoding</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>encoding</span></span>
+<span class="line"><span>encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 93 | encode 0 | convert 0 | detect 0 | miss 0</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div><h3 id="encoding-test" tabindex="-1">encoding-test <a class="header-anchor" href="#encoding-test" aria-label="Permalink to &quot;encoding-test&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>encoding-test</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>编码编解码测试</td></tr><tr><td>用法</td><td><code>encoding-test</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>encoding-test</span></span>
+<span class="line"><span>encoding-test: PASS (utf8+gb2312 spot checks)</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div><h3 id="font" tabindex="-1">font <a class="header-anchor" href="#font" aria-label="Permalink to &quot;font&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>font</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>字体引擎状态</td></tr><tr><td>用法</td><td><code>font</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>fdref_test</span></span>
+<span class="line"><span>FDREF PASS</span></span>
+<span class="line"><span>[user] process 13 exited (code=0)</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div><h3 id="font-test" tabindex="-1">font-test <a class="header-anchor" href="#font-test" aria-label="Permalink to &quot;font-test&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>font-test</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>字体渲染测试</td></tr><tr><td>用法</td><td><code>font-test</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>files nope</span></span>
+<span class="line"><span>files: unknown program: nope</span></span>
+<span class="line"><span>usage: files                (interactive menu)</span></span>
+<span class="line"><span>       files direct &lt;prog&gt; [args]    (explicit passthrough)</span></span>
+<span class="line"><span>       files &lt;prog&gt; [args]           (classic program dispatch)</span></span>
+<span class="line"><span>programs:  ls</span></span>
+<span class="line"><span>  tree</span></span>
+<span class="line"><span>  df</span></span>
+<span class="line"><span>  du</span></span>
+<span class="line"><span>  cp</span></span>
+<span class="line"><span>  mv</span></span>
+<span class="line"><span>  rm</span></span>
+<span class="line"><span>  edit</span></span>
+<span class="line"><span>  stat</span></span>
+<span class="line"><span>  chmod</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div><h3 id="ime" tabindex="-1">ime <a class="header-anchor" href="#ime" aria-label="Permalink to &quot;ime&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>ime</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>拼音输入法（-i 交互）</td></tr><tr><td>用法</td><td><code>ime [-i]</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>ifconfig</span></span>
+<span class="line"><span>no NIC detected</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div><h3 id="ime-test" tabindex="-1">ime-test <a class="header-anchor" href="#ime-test" aria-label="Permalink to &quot;ime-test&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>ime-test</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>输入法引擎与会话测试组</td></tr><tr><td>用法</td><td><code>ime-test</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>igb</span></span>
+<span class="line"><span>igb: not present</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div><h3 id="lang" tabindex="-1">lang <a class="header-anchor" href="#lang" aria-label="Permalink to &quot;lang&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>lang</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>显示/设置控制台语言（en/zh）</td></tr><tr><td>用法</td><td><code>lang [en|zh]</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>ixgbe_test</span></span>
+<span class="line"><span>[ixgbe_test] device not present in this environment =&gt; SKIPPED (needs real hardware; no fake</span></span>
+<span class="line"><span>    output is produced for absent devices)</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div><h3 id="serial-encoding" tabindex="-1">serial_encoding <a class="header-anchor" href="#serial-encoding" aria-label="Permalink to &quot;serial_encoding&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>serial_encoding</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>显示/设置串口输出编码（utf8/gbk）</td></tr><tr><td>用法</td><td><code>serial_encoding [utf8|gbk] (WP06g3</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>serial_encoding</span></span>
+<span class="line"><span>serial encoding: utf8</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div><h3 id="stats" tabindex="-1">stats <a class="header-anchor" href="#stats" aria-label="Permalink to &quot;stats&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>stats</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>显示管线统计</td></tr><tr><td>用法</td><td><code>stats</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>stats</span></span>
+<span class="line"><span>ticks=290  ms=2900  IRQ0=290  IRQ1=0  soft=0  one=0</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div><h3 id="uname" tabindex="-1">uname <a class="header-anchor" href="#uname" aria-label="Permalink to &quot;uname&quot;">​</a></h3><table tabindex="0"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody><tr><td>名称</td><td>uname</td></tr><tr><td>分类</td><td>显示</td></tr><tr><td>功能</td><td>系统标识</td></tr><tr><td>用法</td><td><code>uname [-a|-s|-r|-m]</code></td></tr><tr><td>来源</td><td><code>ocos/services/display/src/svc_display_l1.c</code></td></tr></tbody></table><p><strong>实际执行示例</strong>：</p><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>uname</span></span>
+<span class="line"><span>Open Cube OS</span></span>
+<span class="line"><span>ush&gt;</span></span></code></pre></div>`,55)])])}const b=n(p,[["render",d]]);export{g as __pageData,b as default};
