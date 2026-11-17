@@ -219,6 +219,20 @@ export default defineConfig({
           ]
         },
         {
+          text: 'Boot & install components',
+          collapsed: true,
+          items: [
+            { text: 'OCSE - the setup environment', link: '/components/ocse/' },
+            { text: 'OCSE: architecture', link: '/components/ocse/ocse-architecture' },
+            { text: 'OCSE: wizard & OCSECL dictionary', link: '/components/ocse/ocse-wizard' },
+            { text: 'OCSE: failures & recovery', link: '/components/ocse/ocse-recovery' },
+            { text: 'OCBL - the boot loader', link: '/components/ocbl/' },
+            { text: 'OCBL: architecture', link: '/components/ocbl/ocbl-architecture' },
+            { text: 'OCBL: dual firmware & A/B slots', link: '/components/ocbl/ocbl-ab' },
+            { text: 'OCBL: troubleshooting & status codes', link: '/components/ocbl/ocbl-troubleshooting' }
+          ]
+        },
+        {
           text: 'Ring-3 app guide',
           collapsed: true,
           items: [
@@ -366,6 +380,20 @@ export default defineConfig({
             { text: '中文支持层', link: '/zh/arch/chinese-layer' },
             { text: '崩溃恢复', link: '/zh/arch/crash-recovery' },
             { text: 'OTA 与 A/B', link: '/zh/arch/ota-ab' }
+          ]
+        },
+        {
+          text: '引导与安装组件',
+          collapsed: true,
+          items: [
+            { text: 'OCSE——安装环境', link: '/zh/components/ocse/' },
+            { text: 'OCSE：架构与职责', link: '/zh/components/ocse/ocse-architecture' },
+            { text: 'OCSE：向导与 OCSECL 字典', link: '/zh/components/ocse/ocse-wizard' },
+            { text: 'OCSE：失败与恢复', link: '/zh/components/ocse/ocse-recovery' },
+            { text: 'OCBL——引导加载器', link: '/zh/components/ocbl/' },
+            { text: 'OCBL：架构与职责', link: '/zh/components/ocbl/ocbl-architecture' },
+            { text: 'OCBL：双固件与 A/B 槽', link: '/zh/components/ocbl/ocbl-ab' },
+            { text: 'OCBL：故障排查与状态码', link: '/zh/components/ocbl/ocbl-troubleshooting' }
           ]
         },
         {

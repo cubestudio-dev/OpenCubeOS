@@ -38,12 +38,25 @@ lives in `docs/archive/KNOWN_ISSUES.md`.
 
 ## Open issues
 
-None known at 3.0.0-WP03.  The WP-02 declared honest boundary (the
-OCOS side of the OCIRE embed was unimplemented: no oc.* fact
-parsing, no SIGNAL_OK, no watchdog disarm, no agent channel) is
-CLOSED by WP-03 G4 (`src/L0/services/ocembed/`, the supervised
-battery 3/3 in `evidence/3_0_0_wp03_g4_ocembed/`).  Declared
-post-WP-03 limitations (by design, not defects):
+The three WP-07 declared limitations below are known, accepted and
+tracked (each row: phenomenon / impact / current handling / future
+ownership).  None of them is a regression introduced by WP-07; all
+three were declared at the WP-07 close-out and are the honest
+boundary of the 3.0.0 recovery lifecycle.
+
+| # | Phenomenon | Impact | Current handling | Future ownership |
+|---|------------|--------|------------------|------------------|
+| K-01 | `make test` fails to build 19 of the host-side unit-test programs (the host unit-test battery predates the 3.0.0 tree restructure; the affected programs reference pre-restructure paths and includes). | Host-side unit checks only.  The kernel, all L1 apps, the six-suite runtime matrix (31/31), dhtest, SSH E2E and HTTPS E2E are unaffected and fully green. | Accepted as an inherited baseline limitation - declared, not silently skipped.  The release gates that CI actually enforces (compile 0 errors/0 warnings, six-suite runtime matrix, L1 per-app record) do not include `make test`. | A future work package refreshes the host unit-test battery for the current tree layout; until then the runtime suites carry the regression weight. |
+| K-02 | With the i6300ESB PCI watchdog device attached, the UEFI (OVMF) OCBL payload path dies after the slot scan; a controlled rebuild of the UNMODIFIED pre-WP07 loader fails byte-identically, so the defect predates WP-07. | The UEFI watchdog chain only.  Without the device attached the entire UEFI monitor path is verified live; the BIOS flavor carries the COMPLETE verified watchdog mechanism (menu idle reset, hang detection, judged-boot-failure counting, [R]/[C] and [W]/[R]/[C] takeover menus). | Accepted as a known platform limitation: the BIOS chain must pass fully (it does); UEFI boots without the i6300ESB are verified and supported. | A future work package investigates the OCBL-EFI + i6300ESB coexistence (the UEFI BlockIo/firmware-services interaction with the PCI watchdog). |
+| K-03 | The update-site CDN may keep serving cached copies under old asset filenames, so a client fetching a freshly renamed manifest/asset can receive a 404 for a while after a release. | OTA clients only, and only during the cache-propagation window after a rename. | Dual-naming fallback: both the old and new filename variants are published for every renamed asset, so the OTA fetch succeeds against either the cached or the propagated name. | Renames are avoided going forward; the dual-naming fallback stays in place for as long as older CDN caches may exist. |
+
+Earlier boundary declarations, closed or superseded, are kept below
+for the record.  The WP-02 declared honest boundary (the OCOS side
+of the OCIRE embed was unimplemented: no oc.* fact parsing, no
+SIGNAL_OK, no watchdog disarm, no agent channel) is CLOSED by WP-03
+G4 (`src/L0/services/ocembed/`, the supervised battery 3/3 in
+`evidence/3_0_0_wp03_g4_ocembed/`).  Declared post-WP-03 limitations
+(by design, not defects):
 
 - The ush `kill` reports "no such process" when a kill of the
   ocire_guard agent is REFUSED - the syscall ABI carries a single
