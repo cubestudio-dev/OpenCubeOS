@@ -289,7 +289,7 @@ ush>
 | Name | lang |
 | Category | Display |
 | Function | show/set the console language (en/zh) |
-| Usage | `lang [en|zh]` |
+| Usage | `lang [en\|zh]` |
 | Source | `ocos/services/display/src/svc_display_l1.c` |
 
 **Executed example**:
@@ -308,7 +308,7 @@ ush>
 | Name | serial_encoding |
 | Category | Display |
 | Function | show/set the serial line encoding (utf8/gbk) |
-| Usage | `serial_encoding [utf8|gbk] (WP06g3` |
+| Usage | `serial_encoding [utf8\|gbk] (WP06g3` |
 | Source | `ocos/services/display/src/svc_display_l1.c` |
 
 **Executed example**:
@@ -344,7 +344,7 @@ ush>
 | Name | uname |
 | Category | Display |
 | Function | system identification |
-| Usage | `uname [-a|-s|-r|-m]` |
+| Usage | `uname [-a\|-s\|-r\|-m]` |
 | Source | `ocos/services/display/src/svc_display_l1.c` |
 
 **Executed example**:

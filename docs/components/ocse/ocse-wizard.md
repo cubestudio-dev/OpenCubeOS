@@ -33,7 +33,7 @@ failed command and its captured output.
 |---|---|---|
 | 1. Mount | `mount <device> /mnt` | a stale mount from a failed retry is dropped (`umount /mnt`) and the mount retried once |
 | 2. Install | `install <disk> <n> confirm` | the full install state machine: medium check, FAT gate, payload extract, boot code, boot flag |
-| 3. Config | `config set hostname <h>` then `config set lang <en|zh>`, optional `config set update_url <u>`, `config set auto_check <0|1>` | four keys on the installed config |
+| 3. Config | `config set hostname <h>` then `config set lang <en\|zh>`, optional `config set update_url <u>`, `config set auto_check <0\|1>` | four keys on the installed config |
 | 4. User record | `write /mnt/etc/users <name>:<full>:<sha256>` | the SHA-256 password hash; a record that cannot fit is refused, never truncated |
 | 5. Sync | `sync` | flush the block cache |
 | 6. Unmount | `umount /mnt` | the target is left clean |
@@ -52,7 +52,7 @@ command.
 | `parted <disk>` | show the raw partition table |
 | `mkpart <disk> <startMiB> <endMiB>` | create a partition |
 | `rmpart <disk> <n> confirm` | delete partition #n (needs `confirm`) |
-| `setflag <disk> <n> boot [on\|off]` | set a partition flag |
+| `setflag <disk> <n> boot [on\\|off]` | set a partition flag |
 | `mkfs.fat32 <device> confirm` | format FAT32 (DESTROYS DATA; needs `confirm`) |
 | `mkfs.exfat <device> confirm` | format exFAT (DESTROYS DATA; needs `confirm`) |
 | `mkfs.ext4 <device> confirm` | format ext4 (DESTROYS DATA; needs `confirm`) |
@@ -80,8 +80,8 @@ command.
 | `shutdown` | flush disks and power off |
 | `hwcheck` | re-run the four hardware checks |
 | `disks` | raw disk inventory |
-| `lang [en\|zh]` | show or set the language |
-| `serial_encoding [utf8\|gbk]` | show/set the serial line encoding |
+| `lang [en\\|zh]` | show or set the language |
+| `serial_encoding [utf8\\|gbk]` | show/set the serial line encoding |
 | `clear` | clear the screen |
 | `click <x> <y>` | probe the GUI button geometry (diagnostics) |
 | `gui` | switch back to the graphical panel |

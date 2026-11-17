@@ -33,7 +33,7 @@ ush>
 | Name | logctl |
 | Category | Kernel log |
 | Function | kernel log level control |
-| Usage | `logctl status|level|...; logctl enable|disable debug|info|warn|error|fatal ; logctl filter clear | filter [level] [module] [keyword] ; logctl status|level|enable|disable|clear|flush|rotate|threshold|export|filter|test ; logctl threshold BYTES (min 512, default 1048576` |
+| Usage | `logctl status\|level\|...; logctl enable\|disable debug\|info\|warn\|error\|fatal ; logctl filter clear \| filter [level] [module] [keyword] ; logctl status\|level\|enable\|disable\|clear\|flush\|rotate\|threshold\|export\|filter\|test ; logctl threshold BYTES (min 512, default 1048576` |
 | Hidden parameters | hidden parameter, not a public interface; compatibility is not guaranteed: `-` |
 | Return codes | 0, 1 |
 | Source | `ocos/services/klog/src/svc_klog_l1.c` |

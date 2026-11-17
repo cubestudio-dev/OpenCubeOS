@@ -8,7 +8,7 @@
 | 名称 | awk |
 | 分类 | 文件与文本工具 |
 | 功能 | 模式扫描与文本处理 |
-| 用法 | `awk '{print $N|NF|NR}' [/pat/] [file]` |
+| 用法 | `awk '{print $N\|NF\|NR}' [/pat/] [file]` |
 | 返回码 | 0 |
 
 **实际执行示例**：
@@ -192,7 +192,7 @@ ush>
 | 名称 | ln |
 | 分类 | 文件与文本工具 |
 | 功能 | 创建链接 |
-| 用法 | `ln <old> <new> | ln -s <abs-target> <linkpath>` |
+| 用法 | `ln <old> <new> \| ln -s <abs-target> <linkpath>` |
 | 参数 | `old`, `new`, `linkpath` |
 | 返回码 | 0 |
 

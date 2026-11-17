@@ -178,7 +178,7 @@ ush>
 | Name | crashtest |
 | Category | Diagnostics |
 | Function | crash handling test triggers |
-| Usage | `crashtest panic|exc|...|policy ...; crashtest panic|exc|pf|assert|wd|ovf|dump|policy [halt|reboot]` |
+| Usage | `crashtest panic\|exc\|...\|policy ...; crashtest panic\|exc\|pf\|assert\|wd\|ovf\|dump\|policy [halt\|reboot]` |
 | Hidden parameters | hidden parameter, not a public interface; compatibility is not guaranteed: `0`, `1`, `help` |
 | Return codes | 0, 1 |
 | Source | `ocos/services/diag/src/svc_diag_l1.c` |

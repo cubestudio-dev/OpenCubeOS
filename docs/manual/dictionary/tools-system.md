@@ -109,7 +109,7 @@ ush>
 | Name | health |
 | Category | System tools |
 | Function | system health snapshot/watch |
-| Usage | `health [watch|export [path]]` |
+| Usage | `health [watch\|export [path]]` |
 | Return codes | 0, 1 |
 
 **Executed example**:
@@ -250,7 +250,7 @@ ush>
 | Name | p2test |
 | Category | System tools |
 | Function | WP-fix-p2-p3-cleanup live probes (utf8 chunking / read0 / pipe) |
-| Usage | `p2test <utf8|read0|pipe>` |
+| Usage | `p2test <utf8\|read0\|pipe>` |
 | Return codes | 0, 1 |
 
 **Executed example**:
@@ -612,7 +612,7 @@ ush>
 | Name | sed |
 | Category | System tools |
 | Function | stream editor |
-| Usage | `sed s/old/new/[g] [file] | sed -n Np [file] | sed Nd [file]` |
+| Usage | `sed s/old/new/[g] [file] \| sed -n Np [file] \| sed Nd [file]` |
 | Return codes | 0 |
 
 **Executed example**:

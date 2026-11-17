@@ -30,7 +30,7 @@ Retry/Back。
 |---|---|---|
 | 1. 挂载 | `mount <device> /mnt` | 此前失败重试残留的挂载先被丢弃（`umount /mnt`）再重试一次挂载 |
 | 2. 安装 | `install <disk> <n> confirm` | 完整安装状态机：介质检查、恢复分区划分、载荷解包、引导代码、引导标志 |
-| 3. 配置 | `config set hostname <h>`，随后 `config set lang <en|zh>`、可选 `config set update_url <u>`、`config set auto_check <0|1>` | 写入已安装配置的四个键 |
+| 3. 配置 | `config set hostname <h>`，随后 `config set lang <en\|zh>`、可选 `config set update_url <u>`、`config set auto_check <0\|1>` | 写入已安装配置的四个键 |
 | 4. 用户记录 | `write /mnt/etc/users <name>:<full>:<sha256>` | SHA-256 口令散列；装不下的记录被拒绝，绝不截断 |
 | 5. 同步 | `sync` | 刷块缓存 |
 | 6. 卸载 | `umount /mnt` | 目标保持干净 |
@@ -48,7 +48,7 @@ shell 随时可从面板（热键）与串行控制台进入。`help` 列出全�
 | `parted <disk>` | 显示原始分区表 |
 | `mkpart <disk> <startMiB> <endMiB>` | 创建分区 |
 | `rmpart <disk> <n> confirm` | 删除 #n 分区（需 `confirm`） |
-| `setflag <disk> <n> boot [on\|off]` | 设置分区标志 |
+| `setflag <disk> <n> boot [on\\|off]` | 设置分区标志 |
 | `mkfs.fat32 <device> confirm` | 格式化为 FAT32（销毁数据；需 `confirm`） |
 | `mkfs.exfat <device> confirm` | 格式化为 exFAT（销毁数据；需 `confirm`） |
 | `mkfs.ext4 <device> confirm` | 格式化为 ext4（销毁数据；需 `confirm`） |
@@ -76,8 +76,8 @@ shell 随时可从面板（热键）与串行控制台进入。`help` 列出全�
 | `shutdown` | 刷盘并关机 |
 | `hwcheck` | 重新运行四项硬件检查 |
 | `disks` | 原始磁盘清单 |
-| `lang [en\|zh]` | 显示或设置语言 |
-| `serial_encoding [utf8\|gbk]` | 显示/设置串行线路编码 |
+| `lang [en\\|zh]` | 显示或设置语言 |
+| `serial_encoding [utf8\\|gbk]` | 显示/设置串行线路编码 |
 | `clear` | 清屏 |
 | `click <x> <y>` | 探测 GUI 按钮几何（诊断用） |
 | `gui` | 切回图形面板 |

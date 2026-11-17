@@ -45,7 +45,7 @@ ush>
 | 名称 | bt |
 | 分类 | 网卡 |
 | 功能 | 蓝牙状态 |
-| 用法 | `bt [status|usb|test]` |
+| 用法 | `bt [status\|usb\|test]` |
 | 来源 | `ocos/services/net/src/svc_net_nic_l1.c` |
 
 **实际执行示例**：
@@ -366,7 +366,7 @@ ush>
 | 名称 | wifi |
 | 分类 | 网卡 |
 | 功能 | 无线状态/扫描 |
-| 用法 | `wifi [status|scan|...]` |
+| 用法 | `wifi [status\|scan\|...]` |
 | 来源 | `ocos/services/net/src/svc_net_nic_l1.c` |
 
 **实际执行示例**：
