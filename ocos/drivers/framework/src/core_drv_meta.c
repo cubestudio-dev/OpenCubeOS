@@ -8,19 +8,27 @@
  * stay (see interface/core_drv_meta.h for the coexistence contract). */
 #include "core_drv_meta.h"
 #include "core_lib_string.h"
+#include "core_lib_log.h"
 
 extern const oc_driver_info_t __oc_drvi_start[], __oc_drvi_end[];
 
-static const oc_driver_info_t *s_info[256];
+static const oc_driver_info_t *s_info[64];
 static int s_ninfo;
 
 void core_drv_meta_collect(void)
 {
     s_ninfo = 0;
+    int dropped = 0;
     for (const oc_driver_info_t *p = __oc_drvi_start; p < __oc_drvi_end; p++) {
-        if (p->name && s_ninfo < (int)(sizeof(s_info) / sizeof(s_info[0])))
+        if (!p->name) continue;
+        if (s_ninfo < (int)(sizeof(s_info) / sizeof(s_info[0])))
             s_info[s_ninfo++] = p;
+        else
+            dropped++;
     }
+    if (dropped > 0)
+        lib_log_info("drvfw: metadata pool full - drivers dropped, "
+                     "raise the framework pools");
 }
 
 int core_drv_meta_count(void) { return s_ninfo; }

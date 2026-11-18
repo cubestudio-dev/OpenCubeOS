@@ -15,21 +15,21 @@ window.SITE_DATA = {
       name: "opencube-3.0.0-WP08-driver-framework.iso",
       size: 4397056,
       size_h: "4.2 MiB",
-      sha256: "6f018470511574b1eb91521fb1033ec5660db82739a4fbf75a407cebdd57ad37",
+      sha256: "d559b8acfebc6ff3cbbe81d3c1c6ccfe8a9bc812718a716400e5730f4645d1fd",
       url: "downloads/opencube-3.0.0-WP08-driver-framework.iso"
     },
     src: {
       name: "opencube-3.0.0-WP08-driver-framework-src.zip",
-      size: 7296939,
+      size: 7303568,
       size_h: "7.0 MiB",
-      sha256: "5946e16f55dcac1dd36c40d9343a87013fbd0a46926abc68a123204752a29fa9",
+      sha256: "30224a08fdeaa68777b70d875dcf6356f97a516081c8857faa0ecf8847470987",
       url: "downloads/opencube-3.0.0-WP08-driver-framework-src.zip"
     },
     ota: {
       name: "opencube-3.0.0-WP08-driver-framework-update.tar.gz",
-      size: 1512986,
+      size: 1513076,
       size_h: "1.4 MiB",
-      sha256: "40e102ebbb4a6ddaab6f984f9364ff40a03e815a761bfb9637f5abed9f885eed",
+      sha256: "c6bf354b659cb01967b9b2a9f0c1f2941792b99dc06d23753ea1e77838c81b8c",
       url: "downloads/opencube-3.0.0-WP08-driver-framework-update.tar.gz"
     }
   },

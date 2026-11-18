@@ -13,7 +13,7 @@ Boot failed: could not read the boot disk
 
 Booting from DVD/CD..OCBL stage1 ok
 
-OCBL 3.0.0 boot loader (3.0.0-WP08-driver-framework build 476)
+OCBL 3.0.0 boot loader (3.0.0-WP08-driver-framework build 477)
 long mode 64-bit C entry OK
 flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
 cpu: QEMU Virtual CPU version 2.5+
@@ -35,12 +35,12 @@ Booting from DVD/CD..OCBL stage1 ok
 [state] fresh boot - state area initialized
 [state] boot attempt seq 1
 [scan] entries: 2
-  [0] OCOS: Open Cube OS (cd0)  path=/boot/opencube.elf size=2422832
+  [0] OCOS: Open Cube OS (cd0)  path=/boot/opencube.elf size=2422896
   [1] OCIRE: OCIRE recovery (cd0)  path=/boot/ocire.elf size=388328
-c[?7l[2J[0;1HOpen Cube OS Boot Loader (3.0.0-WP08-driver-framework build 476)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOpen Cube OS (cd0)[0m[5;1HOCIRE recovery (cd0)[6;1HShutdown[2;1HBooting Open Cube OS (cd0) in 10s                                             [0m.[2;1HBooting Open Cube OS (cd0) in 9s                                              [2;1HBooting Open Cube OS (cd0) in 8s                                              [2;1HBooting Open Cube OS (cd0) in 7s                                              [2;1HBooting Open Cube OS (cd0) in 6s                                              [2;1HBooting Open Cube OS (cd0) in 5s                                              [2;1HBooting Open Cube OS (cd0) in 4s                                              [2;1HBooting Open Cube OS (cd0) in 3s                                              [2;1HBooting Open Cube OS (cd0) in 2s                                              [2;1HBooting Open Cube OS (cd0) in 1s                                              [menu] selected: Open Cube OS (cd0)
+c[?7l[2J[0;1HOpen Cube OS Boot Loader (3.0.0-WP08-driver-framework build 477)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOpen Cube OS (cd0)[0m[5;1HOCIRE recovery (cd0)[6;1HShutdown[2;1HBooting Open Cube OS (cd0) in 10s                                             [0m.[2;1HBooting Open Cube OS (cd0) in 9s                                              [2;1HBooting Open Cube OS (cd0) in 8s                                              [2;1HBooting Open Cube OS (cd0) in 7s                                              [2;1HBooting Open Cube OS (cd0) in 6s                                              [2;1HBooting Open Cube OS (cd0) in 5s                                              [2;1HBooting Open Cube OS (cd0) in 4s                                              [2;1HBooting Open Cube OS (cd0) in 3s                                              [2;1HBooting Open Cube OS (cd0) in 2s                                              [2;1HBooting Open Cube OS (cd0) in 1s                                              [menu] selected: Open Cube OS (cd0)
 [menu] B4 will load this payload (mb2 handoff)
 [boot] VBE 800x600x32 ok
-[boot] kernel loaded: entry=0x0020C7C0 size=2422832
+[boot] kernel loaded: entry=0x0020C7C0 size=2422896
 [boot] mbi built: 408 bytes at 0x50000
 [state] payload armed: NO 6300ESB watchdog - detection degrades to the next reset
 
@@ -74,7 +74,7 @@ Booting from DVD/CD..OCBL stage1 ok
 [00:00:00.000] kernel heap (kmalloc/kfree)....................... OK
 [00:00:00.000] scheduler (preemptive, priority + round-robin).... OK
 [00:00:00.000] sync primitives (spinlock/sem/mutex/cond)......... OK
-[00:00:00.000] userspace (ring 3, syscalls, ELF loader).......... OK
+[00:00:00.010] userspace (ring 3, syscalls, ELF loader).......... OK
     drivers: file-local OC_DRIVER_DECL collection ready
     services: file-local OC_SERVICE_DECL collection ready
     registry: file-local declarations collected
@@ -89,8 +89,8 @@ Booting from DVD/CD..OCBL stage1 ok
 [00:00:00.080] ACPI: RSDP rev 0 RSDT 1ffe2335 tables 5........... OK
 [00:00:00.090] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
 [00:00:00.100] ACPI: DSDT located (AML interpreter can load)..... OK
-[00:00:00.110] AML namespace (DSDT + SSDTs)...................... OK
-[00:00:00.120] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[00:00:00.120] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.130] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
 [0.150] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
 [0.160] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
 [00:00:00.170] i801/PIIX4 SMBus controller....................... OK
@@ -102,7 +102,7 @@ Booting from DVD/CD..OCBL stage1 ok
     AML: AML: undefined name VEND
     AML: AML: undefined name CSEL
     AML: AML: undefined name CPEN
-[00:00:00.270] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.260] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
 [00:00:00.270] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
 [00:00:00.280] HPET (ACPI table + MMIO caps)..................... OK
 [00:00:00.290] boot chain 2/4: drivers + driver-free services.... OK
@@ -136,24 +136,24 @@ ext4: registered (read-only)
 fat32: invalid device string
 vfs_mount: fs mount failed
     config: created default /etc/opencube.conf (ramfs)
-[00:00:00.900] system config (/etc/opencube.conf, fat32/ramfs)... OK
-[00:00:00.930] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+[00:00:00.860] system config (/etc/opencube.conf, fat32/ramfs)... OK
+[00:00:00.870] ACPI PM timer (FADT PM_TMR_BLK)................... OK
     abupdate: no disk with an A/B partition layout found
-[00:00:01.560] LAPIC (local APIC)................................ OK
+[00:00:01.470] LAPIC (local APIC)................................ OK
 virtio-net: no device found
  dev=3 func=0 cmd=0x0103
  wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
-[00:00:02.090] network stack (e1000 + TCP/IP + socket API)....... OK
-[2.100] INFO  watchdog: slot 1 registered: kernel-health 15000 ms policy 0
-[2.110] INFO  watchdog: slot 1 (kernel-health) ARMED, 15000 ms
-[2.120] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
-[00:00:02.140] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
-[00:00:02.320] sound: no sound card present (probe OK)........... OK
+[00:00:02.020] network stack (e1000 + TCP/IP + socket API)....... OK
+[2.040] INFO  watchdog: slot 1 registered: kernel-health 15000 ms policy 0
+[2.050] INFO  watchdog: slot 1 (kernel-health) ARMED, 15000 ms
+[2.060] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:02.070] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:02.240] sound: no sound card present (probe OK)........... OK
     block devices: 0 registered
     disk cache: 64 slots, LRU write-back
-[00:00:02.350] disk subsystem (block dev + cache + partition + FS). OK
+[00:00:02.280] disk subsystem (block dev + cache + partition + FS). OK
     pmm: 131040 pages, 128638 free
-[00:00:02.380] kmalloc/kfree self-test........................... OK
+[00:00:02.300] kmalloc/kfree self-test........................... OK
 ext_wp8cd: self-test start
   tool_register+tool_list: PASS
   job_list (empty): PASS (active=0)
@@ -162,11 +162,11 @@ ext_wp8cd: self-test start
   job_create(bad names): PASS (NULL/empty/unknown rejected)
 ext_wp8cd: self-test done
 
-[00:00:02.470] boot complete..................................... OK
-[00:00:02.480] boot chain 4/4: interfaces ready.................. OK
+[00:00:02.390] boot complete..................................... OK
+[00:00:02.400] boot chain 4/4: interfaces ready.................. OK
 [ocst] stage 4/6: SERVICES_READY (budget 10s)
-[00:00:02.490] crash recovery armed (panic + dump + crashlog).... OK
-[00:00:02.500] L0 ready, waiting for L1.......................... OK
+[00:00:02.410] crash recovery armed (panic + dump + crashlog).... OK
+[00:00:02.420] L0 ready, waiting for L1.......................... OK
     l1 launcher: booting 'ush' (ring 3, 23496 bytes)
 [ocst] stage 5/6: L1_LAUNCHED (budget 30s)
 [ocst] stage 6/6: L1_READY (budget 15s)
@@ -175,4 +175,4 @@ ext_wp8cd: self-test done
 Open Cube OS User-space Shell (3.0.0-WP08-driver-framework)
 Type 'help' for built-in commands.
 
-ush> qemu-system-x86_64: terminating on signal 15 from pid 19814 (timeout)
+ush> qemu-system-x86_64: terminating on signal 15 from pid 3114 (timeout)

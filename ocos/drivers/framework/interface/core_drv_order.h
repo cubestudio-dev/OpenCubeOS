@@ -27,7 +27,9 @@
 extern "C" {
 #endif
 
-#define OC_DRV_ORDER_MAX 128        /* metadata drivers supported       */
+/* 64 slots (see the pool-sizing note in core_drv_registry.c: the
+ * 0x400000 image budget counts BSS; right-sized at WP-08). */
+#define OC_DRV_ORDER_MAX 64
 
 /* Compute the order over the collected .oc_drvi registry.
  * Call once after core_drv_meta_collect().  Results:

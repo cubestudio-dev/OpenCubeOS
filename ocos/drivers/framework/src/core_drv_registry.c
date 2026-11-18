@@ -16,7 +16,13 @@
 #include "core_lib_string.h"
 #include "core_lib_log.h"
 
-#define OC_DRVFW_MAX 256
+/* Pool sizing note (WP-08): 64 slots for metadata drivers - 9x the
+ * current population (7 vtest drivers).  The kernel image has a hard
+ * 0x400000 identity-window budget and BSS counts; these pools were
+ * right-sized when the CI grub blob (1.9 kB larger than the local
+ * toolchain's) pushed the image to the boundary.  Raise together
+ * with core_drv_meta/core_drv_order when WP-09 fills the tree. */
+#define OC_DRVFW_MAX 64
 
 static oc_drv_reg_t s_reg[OC_DRVFW_MAX];
 static int s_nreg;

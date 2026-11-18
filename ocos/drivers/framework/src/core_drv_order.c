@@ -39,10 +39,12 @@ void core_drv_order_compute(void)
 
     /* done[i]   : already emitted to the order list
      * blocked[i]: isolated (cycle / missing dep) - never emitted
-     * pending_deps[i]: how many of deps[i] are still not satisfied */
+     * dep_idx[i][k]: REGISTRY INDEX of the k-th dependency (u16, not
+     * a pointer - 8 bytes -> 2 per slot, and the 0x400000 image
+     * budget counts BSS); -1 marks "missing" */
     static int done[OC_DRV_ORDER_MAX];
     static int blocked[OC_DRV_ORDER_MAX];
-    static const char *deps[OC_DRV_ORDER_MAX][8];  /* resolved pointers */
+    static short dep_idx[OC_DRV_ORDER_MAX][8];
     static int deps_n[OC_DRV_ORDER_MAX];
 
     for (int i = 0; i < n; i++) {
@@ -67,7 +69,7 @@ void core_drv_order_compute(void)
                 s_nisolated++;
                 break;                           /* one reason is enough */
             }
-            if (deps_n[i] < 8) deps[i][deps_n[i]++] = core_drv_meta_at(found)->name;
+            if (deps_n[i] < 8) dep_idx[i][deps_n[i]++] = (short)found;
         }
     }
 
@@ -78,10 +80,10 @@ void core_drv_order_compute(void)
             if (done[i] || blocked[i]) continue;
             int ready = 1;
             for (int k = 0; k < deps_n[i] && ready; k++) {
-                const char *dep = deps[i][k];
+                const oc_driver_info_t *dep = core_drv_meta_at(dep_idx[i][k]);
                 int sat = 0;
                 for (int j = 0; j < s_norder; j++)
-                    if (strcmp(s_order[j]->name, dep) == 0) { sat = 1; break; }
+                    if (s_order[j] == dep) { sat = 1; break; }
                 if (!sat) ready = 0;
             }
             if (!ready) continue;
