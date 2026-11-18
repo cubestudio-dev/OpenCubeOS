@@ -440,6 +440,23 @@
 #define L1SVC_DIAG_I2CTEST   37
 #define L1SVC_DIAG_SMBUS     38
 #define L1SVC_DIAG_SMBUSTEST 39
+/* ---- 3.0.0-WP08: driver-framework diagnostics (drv/dev surface) ----
+ * The drv/dev command families (l1apps/drv, l1apps/dev + their
+ * standalone subcommand entries).  Bodies: services/diag/
+ * svc_diag_drvfw.c.  args in <> are required; the debug knobs take
+ * on/off; bind/unbind take <drv> <node>. */
+#define L1SVC_DIAG_DRV_LIST   40  /* drv list                */
+#define L1SVC_DIAG_DRV_INFO   41  /* drv info <name>         */
+#define L1SVC_DIAG_DRV_FAILED 42  /* drv failed              */
+#define L1SVC_DIAG_DRV_BIND   43  /* drv bind <drv> <node>   (debug) */
+#define L1SVC_DIAG_DRV_UNBIND 44  /* drv unbind <drv> <node> (debug) */
+#define L1SVC_DIAG_DRV_RELOAD 45  /* drv reload <drv>        (debug) */
+#define L1SVC_DIAG_DRV_DEBUG  46  /* drv debug <on|off>      (debug) */
+#define L1SVC_DIAG_DRV_ORDER  47  /* drv order               */
+#define L1SVC_DIAG_DEV_TREE   48  /* dev tree                */
+#define L1SVC_DIAG_DEV_LIST   49  /* dev list [type]         */
+#define L1SVC_DIAG_DEV_INFO   50  /* dev info <id|name>      */
+#define L1SVC_DIAG_DEV_DEBUG  51  /* dev debug <on|off>      (debug) */
 
 /* ---- tui operations (services/tui) ---------------------------------
  * 3.0.0-WP04 G11c: the v2.2.0 tui command family (tui_cmd.c), revived

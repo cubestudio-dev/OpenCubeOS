@@ -20,6 +20,7 @@
  * Ops 27-39 stay frozen in l1svc_defs.h for the G10 chipset group. */
 #include "svc_framework.h"
 #include "svc_sysapi_l1svc.h"
+#include "svc_diag_drvfw.h"   /* WP-08 drv/dev ops */
 #include "core_mm_pmm.h"
 #include "core_mm_heap.h"
 #include "core_mm_vmm.h"
@@ -2086,7 +2087,23 @@ static int diag_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
     case L1SVC_DIAG_I2CTEST:   return diag_i2ctest();
     case L1SVC_DIAG_SMBUS:     return diag_smbus();
     case L1SVC_DIAG_SMBUSTEST: return diag_smbustest();
-    default: return -1;   /* ops 9-39 all landed: diag category complete */
+    /* 3.0.0-WP08: the drv/dev driver-framework surface (ops 40..51);
+     * one shared body in svc_diag_drvfw.c serves both the umbrella
+     * commands and their standalone subcommand twins. */
+    case L1SVC_DIAG_DRV_LIST:
+    case L1SVC_DIAG_DRV_INFO:
+    case L1SVC_DIAG_DRV_FAILED:
+    case L1SVC_DIAG_DRV_BIND:
+    case L1SVC_DIAG_DRV_UNBIND:
+    case L1SVC_DIAG_DRV_RELOAD:
+    case L1SVC_DIAG_DRV_DEBUG:
+    case L1SVC_DIAG_DRV_ORDER:
+    case L1SVC_DIAG_DEV_TREE:
+    case L1SVC_DIAG_DEV_LIST:
+    case L1SVC_DIAG_DEV_INFO:
+    case L1SVC_DIAG_DEV_DEBUG:
+        return svc_diag_drvfw_dispatch(op, a, out, cap);
+    default: return -1;   /* ops 9-51 all landed: diag category complete */
     }
 }
 

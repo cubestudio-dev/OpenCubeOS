@@ -233,6 +233,18 @@
 #define L1SVC_DIAG_I2CTEST   37
 #define L1SVC_DIAG_SMBUS     38
 #define L1SVC_DIAG_SMBUSTEST 39
+#define L1SVC_DIAG_DRV_LIST   40  /* drv list                */
+#define L1SVC_DIAG_DRV_INFO   41  /* drv info <name>         */
+#define L1SVC_DIAG_DRV_FAILED 42  /* drv failed              */
+#define L1SVC_DIAG_DRV_BIND   43  /* drv bind <drv> <node>   (debug) */
+#define L1SVC_DIAG_DRV_UNBIND 44  /* drv unbind <drv> <node> (debug) */
+#define L1SVC_DIAG_DRV_RELOAD 45  /* drv reload <drv>        (debug) */
+#define L1SVC_DIAG_DRV_DEBUG  46  /* drv debug <on|off>      (debug) */
+#define L1SVC_DIAG_DRV_ORDER  47  /* drv order               */
+#define L1SVC_DIAG_DEV_TREE   48  /* dev tree                */
+#define L1SVC_DIAG_DEV_LIST   49  /* dev list [type]         */
+#define L1SVC_DIAG_DEV_INFO   50  /* dev info <id|name>      */
+#define L1SVC_DIAG_DEV_DEBUG  51  /* dev debug <on|off>      (debug) */
 #define L1SVC_TUI_TUI        1   /* tui      (desktop)       */
 #define L1SVC_TUI_TEST       2   /* tui-test (selftests)     */
 #define L1SVC_TUI_HW         3   /* tui-hw   [page]          */
