@@ -6,31 +6,31 @@
    (opencube + ocse ISOs of the current milestone) - maintained per
    milestone, preserved by the release script. */
 window.SITE_DATA = {
-  version: "3.0.0-WP-07-ocire-loop-perfect",
-  build: 460,
-  date: "2026-11-15",
-  changes: "OCIRE lifecycle loop: dual physical A/B partitions, Ed25519-verified ESP self-update (update command), two-failure [R]/[C] takeover, S3 wake-failure [W]/[R]/[C] menu, power suspend surface",
+  version: "3.0.0-WP-fix-residual-defects",
+  build: 471,
+  date: "2026-11-18",
+  changes: "awk /pat/-vs-path deadlock fix (file arguments open again), tui-hw/tui-drv case-insensitive page names + unknown-page feedback, ci-gates page renders the CI expression verbatim",
   assets: {
     iso: {
-      name: "opencube-3.0.0-WP-07-ocire-loop-perfect.iso",
+      name: "opencube-3.0.0-WP-fix-residual-defects.iso",
       size: 4294656,
       size_h: "4.1 MiB",
-      sha256: "9fc2f5d8191c8fe4afeba25c854af93951e6c5c0fd3d7c0c10952f6696f16fad",
-      url: "downloads/opencube-3.0.0-WP-07-ocire-loop-perfect.iso"
+      sha256: "a738e75927f3c10ddf7dfd2f5e67033322fa5c505c7842a73051ad8c80f13d7b",
+      url: "downloads/opencube-3.0.0-WP-fix-residual-defects.iso"
     },
     src: {
-      name: "opencube-3.0.0-WP-07-ocire-loop-perfect-src.zip",
-      size: 7038138,
-      size_h: "6.7 MiB",
-      sha256: "68df092ddf1d791ee1aa52079380d7df1a32fc7adf04669e06c6bc6479bac7d8",
-      url: "downloads/opencube-3.0.0-WP-07-ocire-loop-perfect-src.zip"
+      name: "opencube-3.0.0-WP-fix-residual-defects-src.zip",
+      size: 7164501,
+      size_h: "6.8 MiB",
+      sha256: "8f3d41efb79229ed06b171383f05181f1363929b91be6128542dc71ca19fccc4",
+      url: "downloads/opencube-3.0.0-WP-fix-residual-defects-src.zip"
     },
     ota: {
-      name: "opencube-3.0.0-WP-07-ocire-loop-perfect-update.tar.gz",
-      size: 1453875,
+      name: "opencube-3.0.0-WP-fix-residual-defects-update.tar.gz",
+      size: 1454062,
       size_h: "1.4 MiB",
-      sha256: "efe9ee58e87071aa4d325b11cca15574d832544ec7718bbeabc16846d90a917a",
-      url: "downloads/opencube-3.0.0-WP-07-ocire-loop-perfect-update.tar.gz"
+      sha256: "5929e426ee6b338e748d9c5c2fad8673d641fdb41bd06a91be2ad5dd29561bef",
+      url: "downloads/opencube-3.0.0-WP-fix-residual-defects-update.tar.gz"
     }
   },
   /* WP06e: the 3.0.0 development-preview channel.  WP06g3 carries the
@@ -67,6 +67,9 @@ window.SITE_DATA = {
     lines: "158,474"
   },
   history: [
+    { version: "3.0.0-WP-07-ocire-loop-perfect", date: "2026-11-15",
+      iso_sha: "9fc2f5d8191c8fe4afeba25c854af93951e6c5c0fd3d7c0c10952f6696f16fad",
+      iso_size: 4294656 },
     { version: "2.2.0", date: "2026-10-26",
       iso_sha: "20f93fee8c791af7ac9ec1b6b53a525bef2ac2d5697b829721b28bbe0fd950f9",
       iso_size: 12392448 },
