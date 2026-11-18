@@ -59,7 +59,7 @@ gcc-14 是发布编译器（Debian gcc 14.2.0——发布构建一直使用的
 
 ### 第 4 步——构建（`make all`）——CI 的 "lint"
 
-`make all CC=${{ steps.cc.outputs.cc }}` 运行完整 WP-13
+<code v-pre>make all CC=${{ steps.cc.outputs.cc }}</code> 运行完整 WP-13
 流水线：userprogs → 内核（两阶段链接）→ 双固件 OCBL ISO →
 确定性 src zip → OTA 包。lint 就是构建：每个组件 Makefile
 （内核、OCIRE、OCBL、OCSE、agent）都带

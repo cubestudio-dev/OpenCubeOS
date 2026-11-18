@@ -63,7 +63,7 @@ which is itself caught by the artifact assertions in step 5.
 
 ### Step 4 — Build (`make all`) — the CI "lint"
 
-`make all CC=${{ steps.cc.outputs.cc }}` runs the full WP-13 pipeline:
+<code v-pre>make all CC=${{ steps.cc.outputs.cc }}</code> runs the full WP-13 pipeline:
 userprogs → kernel (two-stage link) → dual-firmware OCBL ISO →
 deterministic src zip → OTA package. The lint IS the build: every
 component Makefile (kernel, OCIRE, OCBL, OCSE, agent) carries
