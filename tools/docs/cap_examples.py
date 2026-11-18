@@ -106,12 +106,22 @@ RICH_ARGS = {
     "history": ["history"],
     "set": ["set"],
     "pwd": ["pwd"],
+    # WP-08: the drv/dev diagnostic families - umbrellas and the
+    # argument-taking queries get one real subcommand invocation;
+    # the debug twins run bare (their usage/refusal output IS the
+    # honest example for a debug command)
+    "drv": ["drv order"],
+    "dev": ["dev tree"],
+    "drv_info": ["drv_info vtest-ctl"],
+    "dev_info": ["dev_info vtest-ctl0"],
 }
 
 
 def classify(name):
-    if name == "exit":
-        return "exit_special"
+    # 3.0.0-WP08: `exit` is a REFUSAL builtin in the current image
+    # ("use 'shutdown'/'reboot'") - the old special dance (drop to the
+    # L0 oc> shell + `run ush` return) described a recovery shell
+    # deleted in WP-03 and desynced every later window.
     if name == "sshd":
         return "long_running"
     if name in NONTERM:
@@ -332,27 +342,6 @@ def main():
                     print("[cap] %-16s nonterm OK" % name)
                 else:
                     raise RuntimeError("wedged after loop")
-            elif cls == "exit_special":
-                child = vm.child
-                child.sendline("exit")
-                try:
-                    child.expect(r"(?m)^oc>\s", timeout=15)
-                    out = child.before + child.after
-                    note = "exit drops to the L0 recovery shell"
-                except (pexpect.EOF, pexpect.TIMEOUT):
-                    out, note = "", ""
-                # come back: relaunch the L1 shell from oc>
-                child.sendline("run ush")
-                try:
-                    child.expect(r"(?m)^ush>\s", timeout=60)
-                    back = True
-                except (pexpect.EOF, pexpect.TIMEOUT):
-                    back = False
-                if back:
-                    record(name, "exit", strip_ansi(out), note=note)
-                    print("[cap] %-16s exit OK" % name)
-                else:
-                    raise RuntimeError("could not return to ush")
             elif cls == "long_running":
                 # sshd: the daemon serves one session and stays up -
                 # capture the startup banner, then reset for the rest

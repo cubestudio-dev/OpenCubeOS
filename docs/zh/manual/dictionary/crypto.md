@@ -46,15 +46,15 @@ DH modexp self-test (Oakley Group 1, 1024-bit):
   g^0 mod p = 00000001 (expect ...0001)  PASS
   1^x mod p = 00000001 (expect ...0001)  PASS
   Computing g^x mod p (timing)...
-  g^x mod p = 302acf9630dfa1974816159842048fea...
-  Time: 4140 ms
-  premaster (first 16): fb31b9092534f649c19ee64f813b22ca
-  TLS KEX (2 modexp) time: 9180 ms (premaster non-zero)
+  g^x mod p = b0bcb6577676a87392260e4cbb295ab9...
+  Time: 4090 ms
+  premaster (first 16): 170e36c20580419bba5eddf270b2432e
+  TLS KEX (2 modexp) time: 9220 ms (premaster non-zero)
 DH group14 (2048-bit) fixed-vector truth tests:
   g^x mod p14 = e  -> PASS  (got 32a09a91..., expect 32A09A91...)
   determinism (3 runs): IDENTICAL
   f^x mod p14 = K2 -> PASS  (got 5962870f..., expect 5962870F...)
-  2048-bit modexp time: 13683 / 0 ms
+  2048-bit modexp time: 13646 / 0 ms
 DH modexp scale sweep (truth vectors, python3 pow()):
   len=8: PASS  got 1f8c25fe... expect 1f8c25fe...
   len=16: PASS  got 5ab910ce... expect 5ab910ce...

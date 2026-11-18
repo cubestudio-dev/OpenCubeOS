@@ -8,7 +8,7 @@
 | Name | awk |
 | Category | File and text tools |
 | Function | pattern scanning and processing |
-| Usage | `awk '{print $N\|NF\|NR}' [/pat/] [file]` |
+| Usage | `awk '{print $N|NF|NR}' [/pat/] [file]` |
 | Return codes | 0 |
 
 **Executed example**:
@@ -34,8 +34,6 @@ ush>
 cat
 ush> 
 ```
-
-(Note: reads standard input; closed with Ctrl+D)
 
 ### chmod
 
@@ -125,7 +123,7 @@ ush>
 
 ```
 du
-3712 bytes  3 files  /
+4038 bytes  3 files  /
 ush> 
 ```
 
@@ -171,7 +169,7 @@ ush>
 | Name | ln |
 | Category | File and text tools |
 | Function | create links |
-| Usage | `ln <old> <new> \| ln -s <abs-target> <linkpath>` |
+| Usage | `ln <old> <new> | ln -s <abs-target> <linkpath>` |
 | Parameters | `old`, `new`, `linkpath` |
 | Return codes | 0 |
 

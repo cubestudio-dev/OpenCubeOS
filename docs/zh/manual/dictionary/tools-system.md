@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# 应用字典 - 系统工具 (18)
+# 应用字典 - 系统工具 (34)
 
 ### date
 
@@ -14,7 +14,142 @@
 
 ```
 date
-Open Cube OS uptime: 3130 ms since boot (no RTC driver)
+Open Cube OS uptime: 3460 ms since boot (no RTC driver)
+ush> 
+```
+
+### dev
+
+| 字段 | 值 |
+|---|---|
+| 名称 | dev |
+| 分类 | 系统工具 |
+| 功能 | 设备树诊断（总命令） |
+
+**实际执行示例**：
+
+```
+dev tree
+device tree: 6 node(s)
+[1] root  type=root  drv=-
+  [2] vtest-bus0  type=vtest-bus  drv=vtest-bus  D0
+    [3] vtest-ctl0  type=vtest-ctl  drv=vtest-ctl  D0  mmio 0xFEE00000+0x1000  irq 11
+    [4] vtest-ctl1  type=vtest-ctl  drv=vtest-ctl  D0  mmio 0xFEE01000+0x1000  irq 11
+  [5] vtest-fail0  type=vtest-fail  drv=-  unbound (last probe error -55)
+  [6] vtest-late0  type=vtest-late  drv=vtest-late  D0
+ush> 
+```
+
+### dev_debug
+
+| 字段 | 值 |
+|---|---|
+| 名称 | dev_debug |
+| 分类 | 系统工具 |
+| 功能 | 开关设备树调试日志（调试） |
+
+**实际执行示例**：
+
+```
+dev_debug
+dev: missing argument for 'debug'
+usage: dev debug <on|off>
+ush> 
+```
+
+### dev_help
+
+| 字段 | 值 |
+|---|---|
+| 名称 | dev_help |
+| 分类 | 系统工具 |
+| 功能 | dev 命令用法 |
+
+**实际执行示例**：
+
+```
+dev_help
+dev: driver framework diagnostics
+
+usage: dev <subcommand> [args]
+
+subcommands:
+  dev tree - print the device tree
+  dev list [type] - list device nodes (optionally by type)
+  dev info <id|name> - device node details
+  dev debug <on|off> - debug: framework log switch
+  dev help - this usage text
+ush> 
+```
+
+### dev_info
+
+| 字段 | 值 |
+|---|---|
+| 名称 | dev_info |
+| 分类 | 系统工具 |
+| 功能 | 查看单个设备节点详情 |
+
+**实际执行示例**：
+
+```
+dev_info vtest-ctl0
+node: vtest-ctl0
+  id        3
+  type      vtest-ctl
+  parent    vtest-bus0 (id 2)
+  children  0
+  driver    vtest-ctl (meta path)
+  d-state   D0
+  resources 
+    mmio  0xFEE00000 + 0x1000
+    irq   11
+  priv      0xC7
+ush> 
+```
+
+### dev_list
+
+| 字段 | 值 |
+|---|---|
+| 名称 | dev_list |
+| 分类 | 系统工具 |
+| 功能 | 按类型列出设备节点 |
+
+**实际执行示例**：
+
+```
+dev_list
+device nodes:
+id   name           type         driver
+[1] root          root        -
+[2] vtest-bus0    vtest-bus   vtest-bus
+[3] vtest-ctl0    vtest-ctl   vtest-ctl
+[4] vtest-ctl1    vtest-ctl   vtest-ctl
+[5] vtest-fail0   vtest-fail  -
+[6] vtest-late0   vtest-late  vtest-late
+ush> 
+```
+
+### dev_tree
+
+| 字段 | 值 |
+|---|---|
+| 名称 | dev_tree |
+| 分类 | 系统工具 |
+| 功能 | 打印设备树 |
+
+**实际执行示例**：
+
+```
+dev_tree
+device tree: 6 node(s)
+[1] root  type=root  drv=-
+  [2] vtest-bus0  type=vtest-bus  drv=vtest-bus  D0
+    [3] vtest-ctl0  type=vtest-ctl  drv=vtest-ctl  D0  mmio 0xFEE00000+0x1000  irq 11
+    [4] vtest-ctl1  type=vtest-ctl  drv=vtest-ctl  D0  mmio 0xFEE01000+0x1000  irq 11
+  [5] vtest-fail0  type=vtest-fail  drv=-  unbound (last probe error -55)
+  [6] vtest-late0  type=vtest-late  drv=vtest-late  D0
 ush> 
 ```
 
@@ -31,37 +166,298 @@ ush>
 
 ```
 dmesg
-[0.240] INFO  boot: [00:00:00.230] VFS (virtual file system)......................... OK
-[0.270] INFO  boot: [00:00:00.260] ramfs (in-memory file system, mounted at /)....... OK
-[0.480] INFO  boot: [00:00:00.470] ATA/IDE PIO driver (LBA28)........................ OK
-[0.500] INFO  boot: [00:00:00.490] virtio-blk + AHCI + NVMe drivers.................. OK
-[0.650] INFO  boot: [00:00:00.640] USB hosts up: 0................................... OK
-[0.660] INFO  boot: [00:00:00.650] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
-[0.690] INFO  boot: [00:00:00.660] boot chain 3/4: driver-dependent services......... OK
-[0.770] INFO  boot: [00:00:00.740] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
-[0.800] INFO  boot: config: created default /etc/opencube.conf (ramfs)
-[0.810] INFO  boot: [00:00:00.800] system config (/etc/opencube.conf, fat32/ramfs) (OK)
-[0.820] INFO  boot: [00:00:00.810] ACPI PM timer (FADT PM_TMR_BLK)................... OK
-[0.830] INFO  boot: abupdate: no disk with an A/B partition layout found
-[1.430] INFO  boot: [00:00:01.420] LAPIC (local APIC)................................ OK
-[1.990] INFO  boot: [00:00:01.980] network stack (e1000 + TCP/IP + socket API)....... OK
-[1.990] INFO  watchdog: slot 1 registered: kernel-health 15000 ms policy 0
-[2.000] INFO  watchdog: slot 1 (kernel-health) ARMED, 15000 ms
-[2.010] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
-[2.030] INFO  boot: [00:00:02.020] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
-[2.210] INFO  boot: [00:00:02.200] sound: no sound card present (probe OK)........... OK
-[2.220] INFO  boot: block devices: 0 registered
-[2.230] INFO  boot: disk cache: 64 slots, LRU write-back
-[2.240] INFO  boot: [00:00:02.230] disk subsystem (block dev + cache + partition + FS). OK
-[2.250] INFO  boot: pmm: 131040 pages, 128681 free
-[2.260] INFO  boot: [00:00:02.250] kmalloc/kfree self-test........................... OK
-[2.350] INFO  boot: [00:00:02.340] boot complete..................................... OK
-[2.360] INFO  boot: [00:00:02.350] boot chain 4/4: interfaces ready.................. OK
-[2.370] INFO  boot: [00:00:02.360] crash recovery armed (panic + dump + crashlog).... OK
-[2.380] INFO  boot: [00:00:02.370] L0 ready, waiting for L1.......................... OK
-[2.390] INFO  boot: l1 launcher: booting 'ush' (ring 3, 23496 bytes)
-[13.010] ERROR health: alarm: CPU >=90% busy for 10 consecutive seconds
--- 30 lines (ring 81/1024, dropped 0) --
+[0.330] INFO  boot: [00:00:00.320] VFS (virtual file system)......................... OK
+[0.360] INFO  boot: [00:00:00.350] ramfs (in-memory file system, mounted at /)....... OK
+[0.570] INFO  boot: [00:00:00.560] ATA/IDE PIO driver (LBA28)........................ OK
+[0.590] INFO  boot: [00:00:00.580] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.750] INFO  boot: [00:00:00.740] USB hosts up: 0................................... OK
+[0.760] INFO  boot: [00:00:00.750] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+[0.790] INFO  boot: [00:00:00.760] boot chain 3/4: driver-dependent services......... OK
+[0.870] INFO  boot: [00:00:00.840] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+[0.920] INFO  boot: config: created default /etc/opencube.conf (ramfs)
+[0.950] INFO  boot: [00:00:00.920] system config (/etc/opencube.conf, fat32/ramfs) (OK)
+[0.960] INFO  boot: [00:00:00.950] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+[0.990] INFO  boot: abupdate: no disk with an A/B partition layout found
+[1.750] INFO  boot: [00:00:01.740] LAPIC (local APIC)................................ OK
+[2.300] INFO  boot: [00:00:02.290] network stack (e1000 + TCP/IP + socket API)....... OK
+[2.300] INFO  watchdog: slot 1 registered: kernel-health 15000 ms policy 0
+[2.310] INFO  watchdog: slot 1 (kernel-health) ARMED, 15000 ms
+[2.320] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[2.340] INFO  boot: [00:00:02.330] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[2.520] INFO  boot: [00:00:02.510] sound: no sound card present (probe OK)........... OK
+[2.530] INFO  boot: block devices: 0 registered
+[2.540] INFO  boot: disk cache: 64 slots, LRU write-back
+[2.550] INFO  boot: [00:00:02.540] disk subsystem (block dev + cache + partition + FS). OK
+[2.560] INFO  boot: pmm: 131040 pages, 128656 free
+[2.570] INFO  boot: [00:00:02.560] kmalloc/kfree self-test........................... OK
+[2.660] INFO  boot: [00:00:02.650] boot complete..................................... OK
+[2.670] INFO  boot: [00:00:02.660] boot chain 4/4: interfaces ready.................. OK
+[2.680] INFO  boot: [00:00:02.670] crash recovery armed (panic + dump + crashlog).... OK
+[2.690] INFO  boot: [00:00:02.680] L0 ready, waiting for L1.......................... OK
+[2.700] INFO  boot: l1 launcher: booting 'ush' (ring 3, 23496 bytes)
+[13.320] ERROR health: alarm: CPU >=90% busy for 10 consecutive seconds
+-- 30 lines (ring 88/1024, dropped 0) --
+ush> 
+```
+
+### drv
+
+| 字段 | 值 |
+|---|---|
+| 名称 | drv |
+| 分类 | 系统工具 |
+| 功能 | 驱动框架诊断（总命令） |
+
+**实际执行示例**：
+
+```
+drv order
+metadata driver init order (topological, deterministic:
+dependencies first, then priority hint, then name - never link
+order):
+  1. vtest-bus
+  2. vtest-ctl  <- vtest-bus
+  3. vtest-fail
+  4. vtest-late  <- vtest-ctl
+  5. vtest-mon
+cycle detection: 2 driver(s) isolated:
+  vtest-cyc-b: dependency cycle (reported, never looped)
+  vtest-cyc-a: dependency cycle (reported, never looped)
+legacy OC_DRIVER_DECL drivers: 38 (initialized by the kmain family-manager sequence - outside
+this computation by design)
+ush> 
+```
+
+### drv_bind
+
+| 字段 | 值 |
+|---|---|
+| 名称 | drv_bind |
+| 分类 | 系统工具 |
+| 功能 | 手动绑定驱动到设备（调试） |
+
+**实际执行示例**：
+
+```
+drv_bind
+drv: missing argument for 'bind'
+usage: drv bind <drv> <dev>
+ush> 
+```
+
+### drv_debug
+
+| 字段 | 值 |
+|---|---|
+| 名称 | drv_debug |
+| 分类 | 系统工具 |
+| 功能 | 开关驱动框架调试日志（调试） |
+
+**实际执行示例**：
+
+```
+drv_debug
+drv: missing argument for 'debug'
+usage: drv debug <on|off>
+ush> 
+```
+
+### drv_failed
+
+| 字段 | 值 |
+|---|---|
+| 名称 | drv_failed |
+| 分类 | 系统工具 |
+| 功能 | 列出 probe/init 失败 |
+
+**实际执行示例**：
+
+```
+drv_failed
+failed drivers: 1 (isolated - the boot was never blocked)
+name            err   count  last seen
+vtest-fail      -55  1     30 ms
+ush> 
+```
+
+### drv_help
+
+| 字段 | 值 |
+|---|---|
+| 名称 | drv_help |
+| 分类 | 系统工具 |
+| 功能 | drv 命令用法 |
+
+**实际执行示例**：
+
+```
+drv_help
+drv: driver framework diagnostics
+
+usage: drv <subcommand> [args]
+
+subcommands:
+  drv list - list registered drivers (name, version, state, devices)
+  drv info <name> - driver details (deps, d-states, probe result)
+  drv failed - probe/init failures and their reasons
+  drv bind <drv> <dev> - debug: manually bind a driver to a node
+  drv unbind <drv> <dev> - debug: manually unbind a driver
+  drv reload <drv> - debug: re-init and re-probe a driver
+  drv debug <on|off> - debug: framework log switch
+  drv order - init order (topological) + cycle report
+  drv help - this usage text
+ush> 
+```
+
+### drv_info
+
+| 字段 | 值 |
+|---|---|
+| 名称 | drv_info |
+| 分类 | 系统工具 |
+| 功能 | 查看单个驱动详情 |
+
+**实际执行示例**：
+
+```
+drv_info vtest-ctl
+driver: vtest-ctl
+  version   1.0
+  author    cubestudio-dev
+  license   Apache-2.0
+  desc      verification virtual device (tests/drv_framework, not hw)
+  path      meta (OC_DRIVER_INFO_DECL)
+  state     ok
+  priority  0
+  depends   vtest-bus
+  d-states  D0 D3
+  failures  0
+  hotplug   0 events received
+  devices   vtest-ctl0 (id 3), vtest-ctl1 (id 4)
+ush> 
+```
+
+### drv_list
+
+| 字段 | 值 |
+|---|---|
+| 名称 | drv_list |
+| 分类 | 系统工具 |
+| 功能 | 列出已注册驱动 |
+
+**实际执行示例**：
+
+```
+drv_list
+driver registry: 45 drivers (7 metadata + 38 legacy)
+name            version  state      devs  path    desc
+vtest-bus       1.0      ok         1     meta    verification virtual bus (tests/drv_framework, not hw)
+vtest-ctl       1.0      ok         2     meta    verification virtual device (tests/drv_framework, not hw)
+vtest-cyc-b     1.0      cycle      0     meta    verification cycle canary B (tests/drv_framework, not hw)
+vtest-cyc-a     1.0      cycle      0     meta    verification cycle canary A (tests/drv_framework, not hw)
+vtest-fail      1.0      failed     0     meta    verification failure injector (tests/drv_framework, not hw)
+vtest-late      1.0      ok         1     meta    verification late-addition (tests/drv_framework, not hw)
+vtest-mon       1.0      ok         0     meta    verification hotplug observer (tests/drv_framework, not hw)
+ac97            -        legacy     -     legacy  AC97 audio
+es1370          -        legacy     -     legacy  Ensoniq ES1370 audio
+hda             -        legacy     -     legacy  Intel HD Audio
+sb16            -        legacy     -     legacy  Sound Blaster 16
+virtio          -        legacy     -     legacy  virtio-snd audio
+btusb           -        legacy     -     legacy  Bluetooth USB transport (class 0xe0)
+uvc             -        legacy     -     legacy  USB video class (UVC camera)
+placeholder     -        legacy     -     legacy  NAK registration-mechanism test driver (collected, never probed)
+ath11k          -        legacy     -     legacy  Atheros ath11k (PCIe family)
+ath10k          -        legacy     -     legacy  Atheros ath10k (PCIe family)
+ath9k           -        legacy     -     legacy  Atheros ath9k (PCI family)
+bcm57xx         -        legacy     -     legacy  Broadcom 57xx (tg3)
+brcmfmac-sdio   -        legacy     -     legacy  brcmfmac SDIO client driver
+brcmfmac        -        legacy     -     legacy  Broadcom brcmfmac (FullMAC PCI/SDIO family)
+b43             -        legacy     -     legacy  Broadcom b43 (PCI family)
+e1000e          -        legacy     -     legacy  Intel 82574 E1000E
+igb             -        legacy     -     legacy  Intel I210/I350 (igb)
+iwlwifi         -        legacy     -     legacy  Intel Wireless (iwlwifi PCI family)
+ixgbe           -        legacy     -     legacy  Intel 82599 (ixgbe)
+other           -        legacy     -     legacy  other/virtual NICs (netfilter, loopback-bridge)
+rtl8139         -        legacy     -     legacy  Realtek 8139
+rtl810x         -        legacy     -     legacy  Realtek 810x Fast
+rtl8125         -        legacy     -     legacy  Realtek 8125 2.5GbE
+rtl8168         -        legacy     -     legacy  Realtek 8168/8111
+rtlwifi         -        legacy     -     legacy  Realtek wireless (rtlwifi PCI/USB family)
+ahci            -        legacy     -     legacy  SATA AHCI
+ata             -        legacy     -     legacy  ATA/ATAPI PIO (legacy ISA IDE)
+ata_dma         -        legacy     -     legacy  ATA Bus-Master DMA (PCI IDE)
+nvme            -        legacy     -     legacy  NVMe SSD
+scsi            -        legacy     -     legacy  SCSI disk (virtio-scsi passthrough)
+virtio_blk      -        legacy     -     legacy  virtio-blk storage
+usb-audio       -        legacy     -     legacy  USB audio class (UAC hot-plug)
+usbaudio        -        legacy     -     legacy  USB audio class
+hid-mouse       -        legacy     -     legacy  USB HID boot-protocol mouse
+hid-kbd         -        legacy     -     legacy  USB HID boot-protocol keyboard
+usb-msc         -        legacy     -     legacy  USB mass-storage BOT (SCSI passthrough)
+ftdi-serial     -        legacy     -     legacy  FTDI USB-serial adapter (vendor class)
+cdc-acm         -        legacy     -     legacy  USB CDC-ACM serial adapter
+ush> 
+```
+
+### drv_order
+
+| 字段 | 值 |
+|---|---|
+| 名称 | drv_order |
+| 分类 | 系统工具 |
+| 功能 | 显示确定性初始化顺序 |
+
+**实际执行示例**：
+
+```
+drv_order
+metadata driver init order (topological, deterministic:
+dependencies first, then priority hint, then name - never link
+order):
+  1. vtest-bus
+  2. vtest-ctl  <- vtest-bus
+  3. vtest-fail
+  4. vtest-late  <- vtest-ctl
+  5. vtest-mon
+cycle detection: 2 driver(s) isolated:
+  vtest-cyc-b: dependency cycle (reported, never looped)
+  vtest-cyc-a: dependency cycle (reported, never looped)
+legacy OC_DRIVER_DECL drivers: 38 (initialized by the kmain family-manager sequence - outside
+this computation by design)
+ush> 
+```
+
+### drv_reload
+
+| 字段 | 值 |
+|---|---|
+| 名称 | drv_reload |
+| 分类 | 系统工具 |
+| 功能 | 重载驱动（调试） |
+
+**实际执行示例**：
+
+```
+drv_reload
+drv: missing argument for 'reload'
+usage: drv reload <drv>
+ush> 
+```
+
+### drv_unbind
+
+| 字段 | 值 |
+|---|---|
+| 名称 | drv_unbind |
+| 分类 | 系统工具 |
+| 功能 | 手动解绑驱动（调试） |
+
+**实际执行示例**：
+
+```
+drv_unbind
+drv: missing argument for 'unbind'
+usage: drv unbind <drv> <dev>
 ush> 
 ```
 
@@ -96,7 +492,7 @@ ush>
 ```
 free
               total        used        free
-Mem:     536739840 10969088 525770752
+Mem:     536739840 10256384 526483456
 Swap:            0           0            0
 ush> 
 ```
@@ -108,7 +504,7 @@ ush>
 | 名称 | health |
 | 分类 | 系统工具 |
 | 功能 | 系统健康快照/监视 |
-| 用法 | `health [watch\|export [path]]` |
+| 用法 | `health [watch|export [path]]` |
 | 返回码 | 0, 1 |
 
 **实际执行示例**：
@@ -120,20 +516,20 @@ system health:
   busy                100 % (1 s window)
   memory:
   total               524160 KiB
-  used                12544 KiB
-  free                511616 KiB
+  used                11056 KiB
+  free                513104 KiB
   tasks:
-  total               6
+  total               4
   running             2
   ready               1
-  blocked             3
+  blocked             1
   disk:
   read                0 bytes
   written             0 bytes
   network:
   tx                  0 bytes
   rx                  0 bytes
-  alarms: CPU-LOCKED 
+  alarms: none
 ush> 
 ```
 
@@ -168,7 +564,7 @@ bg              send a job to the background
 exit            not available (use shutdown / reboot)
 
 All other commands are ring-3 apps served from the registry.
-Registry: 284 programs - 'help -a' lists them all, 'help -w' groups by work package.
+Registry: 300 programs - 'help -a' lists them all, 'help -w' groups by work package.
 
 ush> 
 ```
@@ -251,7 +647,7 @@ ush>
 | 名称 | p2test |
 | 分类 | 系统工具 |
 | 功能 | WP-fix-p2-p3-cleanup 实机探针（UTF-8 分块 / 零长读 / 管道） |
-| 用法 | `p2test <utf8\|read0\|pipe>` |
+| 用法 | `p2test <utf8|read0|pipe>` |
 | 返回码 | 0, 1 |
 
 **实际执行示例**：
@@ -262,7 +658,7 @@ usage: p2test <utf8|read0|pipe>
 ush> 
 ```
 
-(备注: no-arguments usage)
+(备注: retry OK; plain retry)
 
 ### ps
 
@@ -278,8 +674,8 @@ ush>
 ```
 ps
 TID  STATE  PRI  CPU(ticks)  NAME
-0    RUN   31    233          idle
-1    READY 31    26          usb-poll
+0    RUN   31    240          idle
+1    READY 31    18          usb-poll
 2    READY 15    28          ush
 3    RUN   15    0          ush
 ush> 
@@ -354,6 +750,12 @@ crashlog
 crashtest
 cryptotest
 date
+dev
+dev_debug
+dev_help
+dev_info
+dev_list
+dev_tree
 df
 dhcp
 dhtest
@@ -363,6 +765,16 @@ dlsym_test
 dmesg
 dns
 dnstest
+drv
+drv_bind
+drv_debug
+drv_failed
+drv_help
+drv_info
+drv_list
+drv_order
+drv_reload
+drv_unbind
 dskstat
 du
 dumpinfo
@@ -602,7 +1014,7 @@ wc
 wget
 wifi
 write
--- 284 programs registered --
+-- 300 programs registered --
 ush> 
 ```
 
@@ -613,7 +1025,7 @@ ush>
 | 名称 | sed |
 | 分类 | 系统工具 |
 | 功能 | 流编辑器 |
-| 用法 | `sed s/old/new/[g] [file] \| sed -n Np [file] \| sed Nd [file]` |
+| 用法 | `sed s/old/new/[g] [file] | sed -n Np [file] | sed Nd [file]` |
 | 返回码 | 0 |
 
 **实际执行示例**：
@@ -638,13 +1050,13 @@ ush>
 
 ```
 top
-top - up 5290 ms
-Mem: 10825728 used / 536739840 total / 525914112 free
+top - up 5270 ms
+Mem: 10928128 used / 536739840 total / 525811712 free
 TID  STATE  PRI  CPU(ticks)  NAME
-0    RUN   31    236          idle
-1    READY 31    14          usb-poll
-2    BLOCK 15    102          ush
-3    RUN   15    2          ush
+0    RUN   31    244          idle
+1    READY 31    4          usb-poll
+2    BLOCK 15    101          ush
+3    RUN   15    3          ush
 ush> 
 ```
 

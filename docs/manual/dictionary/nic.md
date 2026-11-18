@@ -45,7 +45,7 @@ ush>
 | Name | bt |
 | Category | Network cards |
 | Function | bluetooth status |
-| Usage | `bt [status\|usb\|test]` |
+| Usage | `bt [status|usb|test]` |
 | Source | `ocos/services/net/src/svc_net_nic_l1.c` |
 
 **Executed example**:
@@ -359,7 +359,7 @@ ush>
 | Name | wifi |
 | Category | Network cards |
 | Function | wireless status/scan |
-| Usage | `wifi [status\|scan\|...]` |
+| Usage | `wifi [status|scan|...]` |
 | Source | `ocos/services/net/src/svc_net_nic_l1.c` |
 
 **Executed example**:

@@ -20,7 +20,7 @@ chinese support status:
   coverage : 6763 hanzi + 682 symbols, 16x16, 2 bytes/row
   data     : 216416 + 21824 bytes embedded
   slots    : 1 of 4 used
-  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 92 | encode 0 | convert 0 | detect 0 | miss 0
+  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 5852 | encode 0 | convert 0 | detect 0 | miss 0
   console encoding: utf-8
 ush> 
 ```
@@ -261,7 +261,7 @@ pinyin IME status:
               engine the nano/vi editors use - F2 inside an editor);
               type pinyin; digits 1-9 pick; space = first; PageUp/PageDown
               (or - / =) page; Backspace drops a letter; Enter commits the
-  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 9084 | encode 0 | convert 0 | detect 0 | miss 0
+  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 3016 | encode 0 | convert 0 | detect 0 | miss 0
 ush> 
 ```
 
@@ -290,7 +290,7 @@ ush>
 | 名称 | lang |
 | 分类 | 显示 |
 | 功能 | 显示/设置控制台语言（en/zh） |
-| 用法 | `lang [en\|zh]` |
+| 用法 | `lang [en|zh]` |
 | 来源 | `ocos/services/display/src/svc_display_l1.c` |
 
 **实际执行示例**：
@@ -308,7 +308,7 @@ ush>
 | 名称 | serial_encoding |
 | 分类 | 显示 |
 | 功能 | 显示/设置串口输出编码（utf8/gbk） |
-| 用法 | `serial_encoding [utf8\|gbk] (WP06g3` |
+| 用法 | `serial_encoding [utf8|gbk] (WP06g3` |
 | 来源 | `ocos/services/display/src/svc_display_l1.c` |
 
 **实际执行示例**：
@@ -333,7 +333,7 @@ ush>
 
 ```
 stats
-ticks=290  ms=2900  IRQ0=290  IRQ1=0  soft=0  one=0
+ticks=288  ms=2880  IRQ0=288  IRQ1=0  soft=0  one=0
 ush> 
 ```
 
@@ -344,7 +344,7 @@ ush>
 | 名称 | uname |
 | 分类 | 显示 |
 | 功能 | 系统标识 |
-| 用法 | `uname [-a\|-s\|-r\|-m]` |
+| 用法 | `uname [-a|-s|-r|-m]` |
 | 来源 | `ocos/services/display/src/svc_display_l1.c` |
 
 **实际执行示例**：

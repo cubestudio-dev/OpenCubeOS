@@ -60,8 +60,6 @@ ush>
 mount
 VFS mount table:
   /  ramfs
-ing DESTROYS ALL DATA on the target device!
-  usage: mkfs.fat32 <device> confirm
 ush> 
 ```
 

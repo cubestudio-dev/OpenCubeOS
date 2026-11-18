@@ -136,3 +136,46 @@ WP06g2 delivery-fix addendum (post-close-out, same batch):
   assertion refresh; the wp06g3 batteries (serial_enc, ocse_enc,
   editor_rework, ocire_menu, install_ocire) and the https e2e 7/7
   carry this batch's regression weight.
+
+## K-04 (WP-08, found live): `pmmrace` triggers a pre-existing PMM
+race that can panic the kernel
+
+- `pmmrace` races `mem_pmm_alloc_contig()` in process context against
+  the IRQ-context allocator (PIT overclocked to ~7.9 kHz).  The PMM
+  bitmap operations are not atomic against IRQ preemption, so a
+  losing interleaving corrupts the frame accounting; live frames get
+  freed and rewritten, and the system dies with `#UD` (observed:
+  the idle task's saved RIP clobbered to 3).
+- PRE-EXISTING, not introduced by WP-08: reproduced on the untouched
+  baseline f5af2ab (the previous release) with a full-length run -
+  three baseline runs gave one panic, one timeout-window miss and
+  one clean `result=PASS (atomic)`; the outcome is a function of
+  IRQ/loop phase alignment, i.e. pure chance.
+- WP-08's boot-time driver-framework work shifts that phase, which
+  makes the fatal interleaving fire within seconds (3/3 runs)
+  instead of being a rare unlucky run.  The framework itself does
+  not touch the PMM; removing just the framework boot call, or just
+  the test drivers, restores the old (still broken) odds - the
+  trigger is timing, not code.
+- NOT fixed here: the proper fix is IRQ-atomicity for the PMM
+  alloc/free paths (a PMM work package of its own).  Do not treat
+  `pmmrace` passing as evidence of PMM atomicity until then - its
+  own "PASS (atomic)" verdict only covers the rounds it survived.
+
+## K-05 (WP-08, found live): a fresh clone can silently rotate the
+OCIRE Ed25519 update-verification key
+
+- `ocire/ocire.mk` declares `ocire/generated/ocire_ed25519_pub.c:
+  tools/gen_ocire_ed25519.py` with no order guard, so `make` regenerates
+  the keypair whenever the generator script's checkout mtime beats the
+  committed key file's.  A fresh clone therefore rotates the OCIRE key
+  at first build about half the time (checkout order decides), and the
+  private half lands in the gitignored `build/ocire/keys/` - the tree
+  and the artifacts stay self-consistent, but byte-reproducibility
+  across clones is gone and any external key pinning would break.
+- Live-caught this session: the fresh clone regenerated the key at the
+  first `make all`; the rotated key is committed WITH this release so
+  git matches the shipped artifacts.
+- Proper fix (not this package): make the rule idempotent (emit only
+  when the file is absent, or anchor the regeneration on an explicit
+  `make ocire-keygen` target).

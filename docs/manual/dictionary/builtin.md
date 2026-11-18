@@ -77,8 +77,6 @@ ush: 'exit' is not available; use 'shutdown' to power off, 'reboot' to restart
 ush> 
 ```
 
-(Note: exit drops to the L0 recovery shell; 'run ush' returns)
-
 ### export
 
 | Field | Value |
@@ -115,22 +113,11 @@ ush>
 
 ```
 history
-1 echo DICHECK_87
-2 hda
-3 echo DICHECK_88
-4 hda_test
-5 echo DICHECK_89
-6 head
-7 echo DICHECK_95
-8 help
-9 echo DICHECK_96
-10 help_a_test
-11 echo DICHECK_97
-12 help_default_test
-13 echo DICHECK_98
-14 help_wp_test
-15 echo DICHECK_99
-16 history
+1 help
+2 help_a_test
+3 help_default_test
+4 help_wp_test
+5 history
 ush> 
 ```
 

@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Application dictionary (292 commands)
+# Application dictionary (308 commands)
 
 Every user command of the running system, one entry each: name, category, function, parameters (hidden ones marked), return codes and a REAL executed example (captured from a live boot of the release ISO; outputs are pasted verbatim from the serial session).
 
@@ -26,7 +26,7 @@ Every user command of the running system, one entry each: name, category, functi
 | [Time and clocks](time.md) | 4 |
 | [File and text tools](tools-file.md) | 21 |
 | [Network tools](tools-net.md) | 4 |
-| [System tools](tools-system.md) | 18 |
+| [System tools](tools-system.md) | 34 |
 | [Full-screen TUI family](tui.md) | 9 |
 | [USB](usb.md) | 9 |
 | [Watchdog](watchdog.md) | 1 |

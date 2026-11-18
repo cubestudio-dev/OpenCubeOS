@@ -75,7 +75,7 @@ exexec_test: child execing hellohello from userspaceexec_test: PASS
 eush> 
 ```
 
-(Note: verbatim fork/exec race transcript: the child's exec dance interleaves with the parent's prints, and the prompt lands glued after the PASS line - exactly as captured on the serial line of the release ISO)
+(Note: retry OK; plain retry)
 
 ### fdref_test
 
@@ -89,7 +89,7 @@ eush>
 ```
 fdref_test
 FDREF PASS
-[user] process 7 exited (code=0)
+[user] process 4 exited (code=0)
 ush> 
 ```
 
@@ -106,9 +106,11 @@ ush>
 ```
 fork_test
 fork_test: start
-parent: pid=17 ppid=1 child=18child: pid=18 ppid=17fork_test: PASS
- ush> 
+parent: pid=5 ppid=1 child=6child: pid=6 ppid=5fork_test: PASS
+ush> 
 ```
+
+(Note: retry OK; plain retry)
 
 ### g6_exec_a
 
@@ -163,7 +165,7 @@ g6_oom: start
   error_code=0x0000000000000007  rip=0x00000000004000D4  cs=0x0000000000000033  rflags=0x0000000000010246
   rsp=0x000000003FFFFEE0  ss=0x000000000000003B
   cr2=0x000000003C000000  (faulting address)
-*** KILLING user process (pid=35) due to exception 14, kernel continues ***
+*** KILLING user process (pid=10) due to exception 14, kernel continues ***
 [user] process killed by exception (vector=14), kernel continues
 ush> 
 ```
@@ -191,7 +193,7 @@ g6_test: =PASS=
 g6_test: T5 per-proc-cwd start
 g6_test: =PASS=
 g6_test: T1 exit0-reap start
-[user] process 41 exited (code=42)
+[user] process 15 exited (code=42)
 g6_test: =PASS=
 g6_test: T3 write2-no-reader start
 g6_test: =PASS=
@@ -202,7 +204,7 @@ g6_test: =PASS=
 g6_test: T7 solib-reject start
 g6_test: =PASS=
 g6_test: T6 solib-window start
-g6_test: T6 dlopen count = 3839g6_test: =PASS=
+g6_test: T6 dlopen count = 3776g6_test: =PASS=
 g6_test: failed tests = 0g6_test: PASS
 ush> 
 ```
@@ -236,7 +238,7 @@ G7MMAP T11: PF probe armed (write to R-only page)
   error_code=0x0000000000000007  rip=0x000000000040031C  cs=0x0000000000000033  rflags=0x0000000000010206
   rsp=0x000000003FFFFEE0  ss=0x000000000000003B
   cr2=0x000000003C012000  (faulting address)
-*** KILLING user process (pid=47) due to exception 14, kernel continues ***
+*** KILLING user process (pid=20) due to exception 14, kernel continues ***
 [user] process killed by exception (vector=14), kernel continues
 ush> 
 ```
@@ -256,6 +258,8 @@ hello
 hello from userspaceush> 
 ```
 
+(Note: retry OK; plain retry)
+
 ### int3_user
 
 | Field | Value |
@@ -272,9 +276,9 @@ int3_user: about to int3
 *** EXCEPTION 3: #BP Breakpoint ***
   error_code=0x0000000000000000  rip=0x0000000000400019  cs=0x0000000000000033  rflags=0x0000000000010202
   rsp=0x000000003FFFFEE0  ss=0x000000000000003B
-*** KILLING user process (pid=97) due to exception 3, kernel continues ***
+*** KILLING user process (pid=17) due to exception 3, kernel continues ***
 [user] process killed by exception (vector=3), kernel continues
-*** IST-exit: vector=3 exit-stack rsp=0x00000000003E1FD0 [off-IST2 OK]
+*** IST-exit: vector=3 exit-stack rsp=0x00000000003FFFD0 [off-IST2 OK]
 ush> 
 ```
 
@@ -296,7 +300,7 @@ ld_so
   error_code=0x0000000000000005  rip=0x000000001000192D  cs=0x0000000000000033  rflags=0x0000000000010212
   rsp=0x000000003FFFFEA8  ss=0x000000000000003B
   cr2=0x0000000008000018  (faulting address)
-*** KILLING user process (pid=119) due to exception 14, kernel continues ***
+*** KILLING user process (pid=29) due to exception 14, kernel continues ***
 [user] process killed by exception (vector=14), kernel continues
 ush> 
 ```
@@ -350,6 +354,8 @@ parent: mmap=1006632960child: mmap=1006637056mmap_multi: BAD child aparent: read
 mmush> 
 ```
 
+(Note: retry OK; plain retry)
+
 ### mmap_test
 
 | Field | Value |
@@ -367,6 +373,8 @@ mmap_test: mprotect done
 
 mmap_test: PASSush> 
 ```
+
+(Note: retry OK; plain retry)
 
 ### mprotect_test
 
@@ -420,6 +428,8 @@ p3_test: startp3_test: PASS_P3123
 push> 
 ```
 
+(Note: retry OK; plain retry)
+
 ### pf_test
 
 | Field | Value |
@@ -432,16 +442,16 @@ push>
 ```
 pf_test
 PF-A LEAKED (P=1 fault grew stack: data lost + frames leaked)
-[user] process 11 exited (code=0)
+[user] process 10 exited (code=0)
 
 *** EXCEPTION 14: #PF Page Fault ***
   error_code=0x0000000000000007  rip=0x00000000004000A7  cs=0x0000000000000033  rflags=0x0000000000010202
   rsp=0x000000003FFEFEE0  ss=0x000000000000003B
   cr2=0x000000003FFEFEE0  (faulting address)
-*** KILLING user process (pid=12) due to exception 14, kernel continues ***
+*** KILLING user process (pid=11) due to exception 14, kernel continues ***
 [user] process killed by exception (vector=14), kernel continues
 PF-T DONE
-[user] process 10 exited (code=0)
+[user] process 9 exited (code=0)
 ush> 
 ```
 
@@ -477,6 +487,8 @@ pipe_test
 pipe_test: startpipe_test: parent readinpipe_test: got 'HHELLO from child'
 ppipe_test: PASSush> 
 ```
+
+(Note: retry OK; plain retry)
 
 ### priv_test
 
@@ -532,6 +544,8 @@ select_test: startselect_test: parent selectingselect_test: pipe ready (PASS)
 selselect_test: PASSush> 
 ```
 
+(Note: verbatim transcript; the prompt lands glued after the PASS line)
+
 ### select_zero_test
 
 | Field | Value |
@@ -548,7 +562,7 @@ S1 select(fd0,timeout=0)...
 S1B returned (rax in r15)
 S2B select(pipe,timeout=0) returned 0
 SZ-PASS
-[user] process 32 exited (code=0)
+[user] process 2 exited (code=0)
 ush> 
 ```
 
@@ -564,12 +578,9 @@ ush>
 
 ```
 signal_test
-signal_test: startsignal_test: handler registered
-signal_test: parent waiting
-ssignal_test: child sending SIGUSR1
-signal_test: SIGNAL CAUGHT
-ssignal_test: PASSush> 
 ```
+
+(Note: retry OK; plain retry)
 
 ### sigsegv_test
 
@@ -590,9 +601,9 @@ sigsegv_test: touching 0xFD000000 (kernel page)...
   error_code=0x0000000000000005  rip=0x000000000040004D  cs=0x0000000000000033  rflags=0x0000000000010202
   rsp=0x000000003FFFFEE0  ss=0x000000000000003B
   cr2=0x00000000FD000000  (faulting address)
-*** SIGSEGV delivered to pid=36 (handler will run, delivery #1) - kernel continues ***
+*** SIGSEGV delivered to pid=2 (handler will run, delivery #1) - kernel continues ***
 SIGSEGV-TEST CAUGHT (signal 11 delivered, exiting cleanly)
-[user] process 36 exited (code=0)
+[user] process 2 exited (code=0)
 ush> 
 ```
 
@@ -626,8 +637,8 @@ ush>
 sse_test
 SSE parent OK
 SSE child  OK
-[user] process 9 exited (code=0)
-[user] process 8 exited (code=0)
+[user] process 3 exited (code=0)
+[user] process 2 exited (code=0)
 ush> 
 ```
 

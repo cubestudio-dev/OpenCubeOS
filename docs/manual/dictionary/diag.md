@@ -142,12 +142,12 @@ ush>
 ```
 cr3test
 CR3 switch test:
-  current CR3=0x0000003d2000
+  current CR3=0x0000003f0000
   new AS CR3=0x000000767000
   map at 4GiB: OK
   switched CR3 to 0x000000767000
   verify mapped in new AS: OK phys=0x000000769000
-  switched back to 0x0000003d2000
+  switched back to 0x0000003f0000
   PASS
 ush> 
 ```
@@ -178,7 +178,7 @@ ush>
 | Name | crashtest |
 | Category | Diagnostics |
 | Function | crash handling test triggers |
-| Usage | `crashtest panic\|exc\|...\|policy ...; crashtest panic\|exc\|pf\|assert\|wd\|ovf\|dump\|policy [halt\|reboot]` |
+| Usage | `crashtest panic|exc|...|policy ...; crashtest panic|exc|pf|assert|wd|ovf|dump|policy [halt|reboot]` |
 | Hidden parameters | hidden parameter, not a public interface; compatibility is not guaranteed: `0`, `1`, `help` |
 | Return codes | 0, 1 |
 | Source | `ocos/services/diag/src/svc_diag_l1.c` |
@@ -257,10 +257,8 @@ ush>
 
 ```
 frag
-PMM: free_pages=128363 fragments=6 avg_frag=21393
-Heap: free_blocks=62 free_bytes=554880
-penCube shi)
-
+PMM: free_pages=128537 fragments=3 avg_frag=42845
+Heap: free_blocks=19 free_bytes=63360
 ush> 
 ```
 
@@ -287,7 +285,7 @@ VFS self-test:
   read: OK -> "hello from ramfs"
   ls /tmp/vfstest:
     hello.txt
-  ramfs: 13 nodes, 3740 bytes
+  ramfs: 12 nodes, 4054 bytes
   p2 regressions:
     BUG-0178 dual-sided: PASS
     BUG-0179 dual-sided: PASS
@@ -317,12 +315,12 @@ ush>
 ```
 heap
 Kernel heap:
-  size:  3477504 bytes
-  alloc: 1551568 bytes (132 blocks)
-  free:  1915440 bytes (196 blocks)
-  overhead: 10496 bytes
-  total allocs: 350  total frees: 218
-
+  size:  2220032 bytes
+  alloc: 1215232 bytes (117 blocks)
+  free:  997632 bytes (107 blocks)
+  overhead: 7168 bytes
+  total allocs: 263  total frees: 146
+£
 ush> 
 ```
 
@@ -360,9 +358,9 @@ ush>
 ```
 heaptest
 Heap overhead test (100 allocs):
-  heap_size=3657728 allocated=1583392 overhead=14176
-  requested=26542 waste=1556850 overhead%=0
-  after free: alloc=134 free=216 total_allocs=462 total_frees=328
+  heap_size=2400256 allocated=1247056 overhead=10848
+  requested=26542 waste=1220514 overhead%=0
+  after free: alloc=119 free=127 total_allocs=375 total_frees=256
   PASS
 ush> 
 ```
@@ -493,8 +491,8 @@ ush>
 mem
 Physical memory:
   total: 536739840 bytes (131040 pages)
-  used:  10371072 bytes (2532 pages)
-  free:  526368768 bytes (128508 pages)
+  used:  10473472 bytes (2557 pages)
+  free:  526266368 bytes (128483 pages)
   fragments: 4
   allocs: 821  frees: 392  failures: 0
 ush> 
@@ -566,9 +564,6 @@ Spawning 3 tasks...
   [task 1] iter 0
   [task 2] iter 0
   [task 3] iter 0
-  [task 1] iter 1
-  [task 2] iter 1
-  [task 3] iter 1
 ush> 
 ```
 
@@ -701,9 +696,12 @@ ush>
 
 ```
 pmmrace
+pmmrace: 20000 rounds of alloc_contig(512)+free vs IRQ-context allocator
+pmmrace: rounds=20000 cb_count=190817 window_overlaps=91847 hold_fail=0 torn=0 result=PASS (atomic)
+ush> 
 ```
 
-(Note: long-running race detector; the transcript is a 150 s excerpt of the run)
+(Note: run completed on this boot; the outcome is IRQ/loop phase-timing dependent - the same command can hit the pre-existing PMM race (KNOWN_ISSUES K-04) on another boot)
 
 ### sched
 
@@ -720,7 +718,7 @@ pmmrace
 
 ```
 sched
-switches=262 preemptions=120 current_tid=3 active_tasks=4
+switches=248 preemptions=109 current_tid=3 active_tasks=4
 PED (no ISA SB16 (QEMU: add -device sb16,audiodev=snd0))
 ush> 
 ```
@@ -787,7 +785,6 @@ spawned tid=4
 
   (none)
   [test thread] iteration 0
-  [test thread] iteration 1
 ush> 
 ```
 
@@ -806,7 +803,7 @@ ush>
 
 ```
 syncstat
-spin_locks=8915322 spin_unlocks=8915322
+spin_locks=8940814 spin_unlocks=8940814
 sem_waits=0 sem_posts=0
 mutex_locks=0 mutex_unlocks=0
 cond_waits=0 cond_signals=0
@@ -891,8 +888,8 @@ ush>
 
 ```
 vmmap
-Kernel address space (PML4 at 0x0000003d2000):
-  PML4[0] vaddr=0x000000000000 -> 0x0000003d3000
+Kernel address space (PML4 at 0x0000003f0000):
+  PML4[0] vaddr=0x000000000000 -> 0x0000003f1000
 
 Page faults: total=0 legal=0 illegal=0 stack=0 heap=0
 T@

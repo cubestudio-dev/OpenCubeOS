@@ -85,7 +85,7 @@ ush>
 | 名称 | config |
 | 分类 | OTA 更新 |
 | 功能 | 读写系统配置 |
-| 用法 | `config list\|get\|set` |
+| 用法 | `config list|get|set` |
 | 来源 | `ocos/services/selfhost/src/svc_selfhost_l1.c` |
 
 **实际执行示例**：

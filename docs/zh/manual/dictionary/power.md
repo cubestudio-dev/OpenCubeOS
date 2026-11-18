@@ -17,7 +17,7 @@
 halt
 ```
 
-(备注: captured before the power transition)
+(备注: power-real; qemu-eof=False)
 
 ### halt_test
 
@@ -53,10 +53,9 @@ ush>
 
 ```
 poweroff
-(the machine powered off - QEMU exited)
 ```
 
-(备注: power action: the console goes silent as the machine powers off)
+(备注: power-real; qemu-eof=True)
 
 ### poweroff_test
 
@@ -72,10 +71,9 @@ poweroff
 
 ```
 poweroff_test
-(the machine powered off - QEMU exited)
 ```
 
-(备注: power action: the console goes silent as the machine powers off)
+(备注: retry OK; plain retry)
 
 ### reboot
 
@@ -132,10 +130,9 @@ ush>
 
 ```
 shutdown
-(the machine powered off - QEMU exited)
 ```
 
-(备注: power action: the console goes silent as the machine powers off)
+(备注: power-real; qemu-eof=True)
 
 ### sleep
 

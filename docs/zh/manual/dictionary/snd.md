@@ -73,8 +73,6 @@ ES1370: not present
 ush> 
 ```
 
-(备注: absent-hardware probe (no ES1370 in this boot))
-
 ### es1370_test
 
 | 字段 | 值 |

@@ -20,7 +20,7 @@ chinese support status:
   coverage : 6763 hanzi + 682 symbols, 16x16, 2 bytes/row
   data     : 216416 + 21824 bytes embedded
   slots    : 1 of 4 used
-  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 92 | encode 0 | convert 0 | detect 0 | miss 0
+  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 5852 | encode 0 | convert 0 | detect 0 | miss 0
   console encoding: utf-8
 ush> 
 ```
@@ -261,7 +261,7 @@ pinyin IME status:
               engine the nano/vi editors use - F2 inside an editor);
               type pinyin; digits 1-9 pick; space = first; PageUp/PageDown
               (or - / =) page; Backspace drops a letter; Enter commits the
-  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 9084 | encode 0 | convert 0 | detect 0 | miss 0
+  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 3016 | encode 0 | convert 0 | detect 0 | miss 0
 ush> 
 ```
 
@@ -290,7 +290,7 @@ ush>
 | Name | lang |
 | Category | Display |
 | Function | show/set the console language (en/zh) |
-| Usage | `lang [en\|zh]` |
+| Usage | `lang [en|zh]` |
 | Source | `ocos/services/display/src/svc_display_l1.c` |
 
 **Executed example**:
@@ -308,7 +308,7 @@ ush>
 | Name | serial_encoding |
 | Category | Display |
 | Function | show/set the serial line encoding (utf8/gbk) |
-| Usage | `serial_encoding [utf8\|gbk] (WP06g3` |
+| Usage | `serial_encoding [utf8|gbk] (WP06g3` |
 | Source | `ocos/services/display/src/svc_display_l1.c` |
 
 **Executed example**:
@@ -333,7 +333,7 @@ ush>
 
 ```
 stats
-ticks=290  ms=2900  IRQ0=290  IRQ1=0  soft=0  one=0
+ticks=288  ms=2880  IRQ0=288  IRQ1=0  soft=0  one=0
 ush> 
 ```
 
@@ -344,7 +344,7 @@ ush>
 | Name | uname |
 | Category | Display |
 | Function | system identification |
-| Usage | `uname [-a\|-s\|-r\|-m]` |
+| Usage | `uname [-a|-s|-r|-m]` |
 | Source | `ocos/services/display/src/svc_display_l1.c` |
 
 **Executed example**:
