@@ -17,7 +17,12 @@
 #include "svc_tui_exec.h"
 #include "svc_display_lang.h"
 #include "core_lib_string.h"
+#include "core_console_screen.h"
 #include "core_registry.h"
+
+/* WP-fix-residual-defects: canonical page names for the unknown-page
+ * feedback (svc_tui_hw.c). */
+int tui_hw_page_list(char *buf, int cap);
 
 int tui_test_run(int verbose);
 int tui_time_main(void);
@@ -67,6 +72,22 @@ int shell_cmd_tui_hw(const char *args) {
         tui_init();
         int rc = tui_hw_run_page(args);
         tui_shutdown();
+        /* WP-fix-residual-defects: an unknown page name used to
+         * surface as the bare client line "service call failed
+         * (rc=-1)" - no page, no exit key, no hint at what went
+         * wrong. Print the offending name and the available pages
+         * AFTER tui_shutdown() so the text survives the session
+         * clear (the serial tee mirrors it). */
+        if (rc != 0) {
+            char list[256];
+            tui_hw_page_list(list, (int)sizeof(list));
+            screen_console_puts("tui-hw: unknown page '");
+            screen_console_puts(args);
+            screen_console_puts("'\n");
+            screen_console_puts("tui-hw: pages: ");
+            screen_console_puts(list);
+            screen_console_puts("\n");
+        }
         return rc;
     }
     tui_init();

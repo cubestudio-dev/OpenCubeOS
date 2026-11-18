@@ -532,8 +532,17 @@ static void hw_view_loop(tui_window_t *win) {
 int tui_hw_run_page(const char *page) {
     if (!tui_started()) return -1;
     int want = -1;
+    /* ROOT-CAUSE FIX (WP-fix-residual-defects): the page-name match
+     * was case-SENSITIVE (strcmp), so the natural user form
+     * `tui-hw pci` (and the lowercase ids the desktop tree uses)
+     * missed every entry -> want stayed -1 -> the SVC returned -1
+     * and the ring-3 client printed only "service call failed
+     * (rc=-1)": no page, no exit key, no hint. Case-insensitive
+     * (strcasecmp, kernel core_lib_string) so PCI/pci/Pci all open
+     * the page; the desktop passes the canonical capitalized names
+     * and keeps matching unchanged. */
     for (int i = 0; i < HW_PAGE_COUNT; i++)
-        if (strcmp(HW_PAGES[i].name, page) == 0) want = i;
+        if (strcasecmp(HW_PAGES[i].name, page) == 0) want = i;
     if (want < 0) return -1;
     hw_current_page = want;
     int cols, rows;
@@ -546,6 +555,24 @@ int tui_hw_run_page(const char *page) {
     tui_window_free(win);
     tui_update_panels();
     return 0;
+}
+
+/* WP-fix-residual-defects: the canonical page names, space-separated,
+ * for actionable feedback when a name is not found (the caller prints
+ * this so the user sees what IS available instead of a bare rc=-1). */
+int tui_hw_page_list(char *buf, int cap) {
+    if (!buf || cap <= 0) return -1;
+    int len = 0;
+    buf[0] = 0;
+    for (int i = 0; i < HW_PAGE_COUNT; i++) {
+        int n = (int)strlen(HW_PAGES[i].name);
+        int sep = (i > 0) ? 1 : 0;
+        if (len + sep + n + 1 > cap) break;
+        if (sep) buf[len++] = ' ';
+        for (int k = 0; k < n; k++) buf[len++] = HW_PAGES[i].name[k];
+        buf[len] = 0;
+    }
+    return len;
 }
 
 /* re-export the per-domain page entry points through the shared runner */
