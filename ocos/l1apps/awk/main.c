@@ -35,6 +35,21 @@ int app_main(int argc, char **argv) {
     field_spec[fs] = 0;
     const char *pattern = 0;
     if (argc >= 3 && argv[2][0] == '/') {
+        /* ROOT-CAUSE FIX (WP-fix-residual-defects): a /pat/ filter
+         * is ONLY a bare "/" or a word that ENDS with '/'. A word
+         * that starts with '/' but does not end with it (e.g. the
+         * path /etc/motd) is a FILE argument. The old test accepted
+         * any '/'-leading word as a pattern, so `awk '{print}'
+         * /etc/motd` set pattern="etc/motd", left file_arg beyond
+         * argc (no file was ever opened) and read STDIN instead -
+         * while ush blocked in wait4 -> the shell deadlocked (only
+         * Ctrl+D could break it). Proven live: feeding the hung
+         * shell a line containing "etc/motd" made awk print it. */
+        int alen = (int)strlen_(argv[2]);
+        if (alen != 1 && argv[2][alen - 1] != '/') {
+            /* '/'-leading but not a /.../ word: a file path - fall
+             * through with pattern == 0 so argv[2] is opened. */
+        } else {
         /* A16-13 FIX: a trailing '/' used to disable the whole
          * filter (`/apple/` set pattern=0 and was then treated as
          * the FILE argument -> "awk: cannot open /apple/"). Strip
@@ -54,6 +69,7 @@ int app_main(int argc, char **argv) {
              * pattern that matched every line. */
             argv[2][pl] = 0;
         }
+        } /* end of the /pat/ branch (bare "/" or /.../ word) */
     }
     int file_arg = (pattern ? 3 : 2);
     long src_fd = 0;
