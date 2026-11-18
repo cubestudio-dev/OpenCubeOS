@@ -1,0 +1,15 @@
+000000
+    cr3=00000000003D3000
+  Call trace:
+     (frame-pointer chain unavailable - O2 kernel)
+    stack scan (approximate return addrs, innermost first):
+     (none found)
+*** KERNEL PANIC: ring-0 exception 6 (#UD Invalid Opcode) ***
+Registers and call trace on the serial console.
+  core dump: 360 bytes captured, persisted to /var/crash/core.dump
+  crash log: 1 total, flushed 125 bytes to /var/log/crash.log; klog flushed 0 bytes to /var/log/kernel.log
+  policy: HALT - system stopped (safe halt loop)
+
+Panic recorded - system halted (see serial log).
+System halted.
+

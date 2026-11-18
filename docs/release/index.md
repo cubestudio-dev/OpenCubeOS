@@ -16,6 +16,9 @@
 
 ## Release notes
 
+- [3.0.0-WP08-driver-framework](3.0.0-WP08-driver-framework.md) - the driver framework: metadata, device tree, power hooks,
+  hotplug events, failure isolation, deterministic order, the
+  drv/dev diagnostics
 - [3.0.0-WP-l1apps-merge](3.0.0-WP-l1apps-merge.md) - the 8 merged
   mega-apps + the documentation rewrite
 - [3.0.0-WP06g3](3.0.0-WP06g3.md) - the g3 era

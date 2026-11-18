@@ -6,31 +6,31 @@
    (opencube + ocse ISOs of the current milestone) - maintained per
    milestone, preserved by the release script. */
 window.SITE_DATA = {
-  version: "3.0.0-WP-fix-residual-defects",
-  build: 471,
+  version: "3.0.0-WP08-driver-framework",
+  build: 476,
   date: "2026-11-18",
-  changes: "awk /pat/-vs-path deadlock fix (file arguments open again), tui-hw/tui-drv case-insensitive page names + unknown-page feedback, ci-gates page renders the CI expression verbatim",
+  changes: "driver framework: metadata + device tree + power hooks + hotplug + failure isolation + deterministic order; drv/dev diagnostics (16 new commands)",
   assets: {
     iso: {
-      name: "opencube-3.0.0-WP-fix-residual-defects.iso",
-      size: 4294656,
-      size_h: "4.1 MiB",
-      sha256: "a738e75927f3c10ddf7dfd2f5e67033322fa5c505c7842a73051ad8c80f13d7b",
-      url: "downloads/opencube-3.0.0-WP-fix-residual-defects.iso"
+      name: "opencube-3.0.0-WP08-driver-framework.iso",
+      size: 4397056,
+      size_h: "4.2 MiB",
+      sha256: "6f018470511574b1eb91521fb1033ec5660db82739a4fbf75a407cebdd57ad37",
+      url: "downloads/opencube-3.0.0-WP08-driver-framework.iso"
     },
     src: {
-      name: "opencube-3.0.0-WP-fix-residual-defects-src.zip",
-      size: 7164501,
-      size_h: "6.8 MiB",
-      sha256: "8f3d41efb79229ed06b171383f05181f1363929b91be6128542dc71ca19fccc4",
-      url: "downloads/opencube-3.0.0-WP-fix-residual-defects-src.zip"
+      name: "opencube-3.0.0-WP08-driver-framework-src.zip",
+      size: 7296939,
+      size_h: "7.0 MiB",
+      sha256: "5946e16f55dcac1dd36c40d9343a87013fbd0a46926abc68a123204752a29fa9",
+      url: "downloads/opencube-3.0.0-WP08-driver-framework-src.zip"
     },
     ota: {
-      name: "opencube-3.0.0-WP-fix-residual-defects-update.tar.gz",
-      size: 1454062,
+      name: "opencube-3.0.0-WP08-driver-framework-update.tar.gz",
+      size: 1512986,
       size_h: "1.4 MiB",
-      sha256: "5929e426ee6b338e748d9c5c2fad8673d641fdb41bd06a91be2ad5dd29561bef",
-      url: "downloads/opencube-3.0.0-WP-fix-residual-defects-update.tar.gz"
+      sha256: "40e102ebbb4a6ddaab6f984f9364ff40a03e815a761bfb9637f5abed9f885eed",
+      url: "downloads/opencube-3.0.0-WP08-driver-framework-update.tar.gz"
     }
   },
   /* WP06e: the 3.0.0 development-preview channel.  WP06g3 carries the
@@ -61,12 +61,15 @@ window.SITE_DATA = {
     }
   },
   stats: {
-    commands: 292,
+    commands: 308,
     interfaces: 195,
     syscalls: 54,
     lines: "158,474"
   },
   history: [
+    { version: "3.0.0-WP-fix-residual-defects", date: "2026-11-18",
+      iso_sha: "a738e75927f3c10ddf7dfd2f5e67033322fa5c505c7842a73051ad8c80f13d7b",
+      iso_size: 4294656 },
     { version: "3.0.0-WP-07-ocire-loop-perfect", date: "2026-11-15",
       iso_sha: "9fc2f5d8191c8fe4afeba25c854af93951e6c5c0fd3d7c0c10952f6696f16fad",
       iso_size: 4294656 },

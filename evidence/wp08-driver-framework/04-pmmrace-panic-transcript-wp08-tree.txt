@@ -1,0 +1,31 @@
+pmmrace
+
+*** EXCEPTION 6: #UD Invalid Opcode ***
+  error_code=0x0000000000000000  rip=0x0000000000000003  cs=0x0000000000000018  rflags=0x0000000000010082
+  rsp=0x00000000003FDD28  ss=0x0000000000000000
+
+
+*** KERNEL PANIC: ring-0 exception 6 (#UD Invalid Opcode) ***
+  kernel: Open Cube OS 3.0.0-NAK (build 0x00000000000001D9)
+  source: exception 6 (#UD Invalid Opcode) err=0x0000000000000000
+  task  : tid=0 name=idle
+  Registers (exception frame):
+    r15=00000000003FDD30 r14=00000000003FDEE8 r13=00000000003FDE80 r12=00000000003FDD30 
+    r11=0000000000000003 r10=000000000033D3A0 r9 =000000000033D3A0 r8 =0000000000000000 
+    rdi=000000000033D3A0 rsi=000000000033DD30 rbp=0000000000010206 rdx=0000000000000000 
+    rcx=000000000000000F rbx=0000000000000018 rax=0000000000000000 
+    rip=0000000000000003  cs=0x0000000000000018  ss=0x0000000000000000  rflags=0x0000000000010082
+    rsp=00000000003FDD28  int=6  err=0x0000000000000000
+    cr3=00000000003F0000
+  Call trace:
+     (frame-pointer chain unavailable - O2 kernel)
+    stack scan (approximate return addrs, innermost first):
+     (none found)
+*** KERNEL PANIC: ring-0 exception 6 (#UD Invalid Opcode) ***
+Registers and call trace on the serial console.
+  core dump: 360 bytes captured, persisted to /var/crash/core.dump
+  crash log: 1 total, flushed 125 bytes to /var/log/crash.log; klog flushed 0 bytes to /var/log/kernel.log
+  policy: HALT - system stopped (safe halt loop)
+
+Panic recorded - system halted (see serial log).
+System halted.

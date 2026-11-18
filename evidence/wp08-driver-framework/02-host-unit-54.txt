@@ -1,0 +1,72 @@
+== WP-08 host unit test: driver framework ==
+    [klog] drvfw: isolated h-miss: h-nonexistent missing (isolated)
+    [klog] drvfw: isolated h-cyc-a: cycle (isolated)
+    [klog] drvfw: isolated h-cyc-b: cycle (isolated)
+    [klog] drvfw: bind pass: bound 4 node(s), probe failures recorded: 1
+    [klog] drvfw: 4 metadata drivers, order: h-bus, h-ctl, h-fail, h-pm
+    [klog] drvfw: init ok=3 fail=0 isolated=3 (probe failures do not stop the boot)
+[ ok ] metadata collected: 7 drivers
+[ ok ] registry filled
+[ ok ] topo order: dependency h-bus precedes h-ctl
+[ ok ] cycle + missing-dep isolated: 3
+[ ok ] cycle members never ran (no tape entries)
+[ ok ] h-ctl bound to 2 devices
+[ ok ] h-fail state failed, isolated
+[ ok ] h-cyc-a state cycle
+[ ok ] h-miss state missing-dep
+[ ok ] nodes registered + findable by name
+[ ok ] find by id matches find by name
+[ ok ] auto-bind bound h-ctl to both ctl nodes
+[ ok ] failed probe left the node unbound with its error
+[ ok ] pre-order DFS visits parent before children
+[ ok ] DFS: bus before its child
+[ ok ] for-each-type counts exactly the matches
+[ ok ] for-each-child counts direct children
+[ ok ] resources recorded
+[ ok ] unregister refuses a bound node
+[ ok ] unregister refuses a node with children
+[ ok ] unregister accepts a free leaf
+[ ok ] duplicate name refused
+[ ok ] pm notify D3 ok
+[ ok ] suspend ran children-first (ctl before bus)
+[ ok ] D3-undeclared driver was skipped
+[ ok ] node d-state advanced to D3
+[ ok ] nodes in D3 queryable
+[ ok ] pm notify D0 ok
+[ ok ] resume ran parents-first (bus before ctl)
+[ ok ] node d-state back to D0
+[ ok ] pm notify D1 ok
+[ ok ] only the D1-declaring driver was called
+[ ok ] subscriptions accepted
+[ ok ] queue holds events before drain
+[ ok ] drain dispatches all
+[ ok ] type filter delivered insert+remove only
+[ ok ] node filter delivered only its node
+[ ok ] per-owner stats count deliveries
+[ ok ] unsubscribe works
+[ ok ] unsubscribed callback no longer fires
+    [klog] hotplug: queue full, event dropped
+    [klog] hotplug: queue full, event dropped
+    [klog] hotplug: queue full, event dropped
+    [klog] hotplug: queue full, event dropped
+    [klog] hotplug: queue full, event dropped
+    [klog] hotplug: queue full, event dropped
+    [klog] hotplug: queue full, event dropped
+[ ok ] overflow dropped and counted
+[ ok ] bind onto a bound node refused
+[ ok ] unbind works
+[ ok ] unbound node survives (bus owns it)
+[ ok ] type-mismatch probe returns its (positive) error code
+[ ok ] re-bind restores the pair
+    [klog] drvfw: bind pass: bound 3 node(s), probe failures recorded: 2
+[ ok ] reload h-bus: full cascade + re-registration
+[ ok ] bus node re-registered fresh (new id, re-bound)
+[ ok ] children re-bound after reload
+    [klog] drvfw: bind pass: bound 0 node(s), probe failures recorded: 1
+[ ok ] reload h-fail still fails, ledger bumps
+[ ok ] failure ledger queryable
+    [klog] drvfw: bind pass: bound 1 node(s), probe failures recorded: 1
+[ ok ] clean reload clears nothing that must stay
+[ ok ] debug flag off by default
+[ ok ] debug flag toggles
+== host unit test: 54/54 checks passed ==

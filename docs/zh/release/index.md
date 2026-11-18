@@ -16,6 +16,8 @@
 
 ## 发布说明
 
+- [3.0.0-WP08-driver-framework](3.0.0-WP08-driver-framework.md) - 驱动框架：元数据、设备树、电源钩子、热插拔事件、失败隔离、
+  确定性顺序与 drv/dev 诊断命令
 - [3.0.0-WP-l1apps-merge](3.0.0-WP-l1apps-merge.md)——8 个合并
   大应用 + 文档重写
 - [3.0.0-WP06g3](3.0.0-WP06g3.md)——g3 时代
