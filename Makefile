@@ -132,7 +132,15 @@ OC_KERNEL_BUILD ?= $(shell expr $$(git -C $(OC_ROOT) rev-list --count HEAD 2>/de
 KERNEL_DIRS := ocos/kernel ocos/kernel/arch/x86_64 \
                ocos/services ocos/drivers \
                $(patsubst %/,%,$(wildcard ocos/services/*/src)) \
-               $(patsubst %/,%,$(wildcard ocos/drivers/*/))
+               $(patsubst %/,%,$(wildcard ocos/drivers/*/)) \
+               $(patsubst %/,%,$(wildcard ocos/drivers/*/src)) \
+               tests/drv_framework
+# 3.0.0-WP08: drivers/*/src picks up the driver-framework module
+# (ocos/drivers/framework/{interface,src} - NAK interface isolation,
+# mirroring the services/ layout), and tests/drv_framework compiles
+# the VERIFICATION VIRTUAL DRIVERS into every kernel image (they are
+# test scaffolding living in tests/, NOT ocos/drivers/ members; a
+# new verification driver = one new .c file, no table edit anywhere).
 # NOTE: core/generated is deliberately NOT in KERNEL_DIRS: it only holds
 # the stage-2 generated grub_boot_data.c, which is compiled separately
 # (GRUB_DATA_OBJ) and linked in the second link stage only.  Its -I path
@@ -142,6 +150,7 @@ KERNEL_INC := $(foreach d,$(KERNEL_DIRS) tools,-I$(OC_ROOT)/$(d)) \
               -I$(OC_ROOT)/ocos/drivers -I$(OC_ROOT)/ocos/services \
               -I$(OC_ROOT)/ocos/kernel/generated \
               $(foreach d,$(wildcard ocos/services/*/interface),-I$(OC_ROOT)/$(d)) \
+              $(foreach d,$(wildcard ocos/drivers/*/interface),-I$(OC_ROOT)/$(d)) \
               -I$(OC_ROOT)/include
 
 # ---- Embedded user programs (embed chain, HANDOVER 2.3 gap) ----

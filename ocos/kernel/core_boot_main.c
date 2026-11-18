@@ -163,6 +163,7 @@ void crash_install_panic_handlers(void); /* 3.0.0-WP03 G5: services/crash */
 #include "core_registry.h"
 #include "svc_framework.h"
 #include "drv_framework.h"
+#include "core_drv_registry.h"   /* WP-08: metadata driver framework */
 #include "svc_ocembed_core.h"      /* 3.0.0-WP03 G4: OCIRE embed (boot signal + agent) */
 #include "core_boot_state.h"   /* 3.0.0-WP07a: the boot-state monitor */
 
@@ -434,6 +435,16 @@ void kmain(u64 magic, u64 mbi_phys) {
         strcat(line, " app=");  u64_to_str((u64)core_registry_apps_count(), n); strcat(line, n);
         lib_log_info(line);
     }
+
+    /* ---- 3.0.0-WP08: metadata driver framework ----
+     * Collect the .oc_drvi descriptors, compute the deterministic
+     * (dependency-topological) init order, run the init + auto-bind
+     * passes with failure isolation, drain the hotplug queue.  Runs
+     * right after the registry collectors: the heap, the scheduler
+     * and the sync primitives are up, and nothing later depends on
+     * the legacy family-manager sequence being first (the two
+     * registration paths coexist by contract). */
+    oc_drvfw_boot();
 
     /* ---- WP-10-input_chipset: ACPI + chipset + input ----
      * Order matters: AML evaluation needs the kernel heap (values are

@@ -74,6 +74,18 @@ SECTIONS
         KEEP(*(.oc_drvs))
         __oc_drvs_end = .;
     } :boot
+    /* 3.0.0-WP08: the metadata driver path.  OC_DRIVER_INFO_DECL places
+     * oc_driver_info_t records (name/version/author/license/deps/
+     * prio/d-states + probe/remove/suspend/resume) here; the driver
+     * framework collects them next to the legacy OC_DRIVER_DECL walk
+     * (both paths coexist - see ocos/drivers/framework/).  Same
+     * SUBALIGN(8) rule: sizeof(oc_driver_info_t) is a multiple of 8,
+     * so entries pack back-to-back for the registry walk. */
+    .oc_drvi : SUBALIGN(8) {
+        __oc_drvi_start = .;
+        KEEP(*(.oc_drvi))
+        __oc_drvi_end = .;
+    } :boot
     .oc_svcs : SUBALIGN(8) {
         __oc_svcs_start = .;
         KEEP(*(.oc_svcs))
