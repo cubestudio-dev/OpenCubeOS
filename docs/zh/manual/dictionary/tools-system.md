@@ -504,7 +504,7 @@ ush>
 | 名称 | health |
 | 分类 | 系统工具 |
 | 功能 | 系统健康快照/监视 |
-| 用法 | `health [watch|export [path]]` |
+| 用法 | `health [watch\|export [path]]` |
 | 返回码 | 0, 1 |
 
 **实际执行示例**：
@@ -647,7 +647,7 @@ ush>
 | 名称 | p2test |
 | 分类 | 系统工具 |
 | 功能 | WP-fix-p2-p3-cleanup 实机探针（UTF-8 分块 / 零长读 / 管道） |
-| 用法 | `p2test <utf8|read0|pipe>` |
+| 用法 | `p2test <utf8\|read0\|pipe>` |
 | 返回码 | 0, 1 |
 
 **实际执行示例**：
@@ -1025,7 +1025,7 @@ ush>
 | 名称 | sed |
 | 分类 | 系统工具 |
 | 功能 | 流编辑器 |
-| 用法 | `sed s/old/new/[g] [file] | sed -n Np [file] | sed Nd [file]` |
+| 用法 | `sed s/old/new/[g] [file] \| sed -n Np [file] \| sed Nd [file]` |
 | 返回码 | 0 |
 
 **实际执行示例**：

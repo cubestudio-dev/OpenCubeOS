@@ -178,7 +178,7 @@ ush>
 | 名称 | crashtest |
 | 分类 | 诊断 |
 | 功能 | 崩溃处理测试触发器 |
-| 用法 | `crashtest panic|exc|...|policy ...; crashtest panic|exc|pf|assert|wd|ovf|dump|policy [halt|reboot]` |
+| 用法 | `crashtest panic\|exc\|...\|policy ...; crashtest panic\|exc\|pf\|assert\|wd\|ovf\|dump\|policy [halt\|reboot]` |
 | 隐藏参数 | 隐藏参数，非公开接口，兼容性不保证: `0`, `1`, `help` |
 | 返回码 | 0, 1 |
 | 来源 | `ocos/services/diag/src/svc_diag_l1.c` |

@@ -290,7 +290,7 @@ ush>
 | 名称 | lang |
 | 分类 | 显示 |
 | 功能 | 显示/设置控制台语言（en/zh） |
-| 用法 | `lang [en|zh]` |
+| 用法 | `lang [en\|zh]` |
 | 来源 | `ocos/services/display/src/svc_display_l1.c` |
 
 **实际执行示例**：
@@ -308,7 +308,7 @@ ush>
 | 名称 | serial_encoding |
 | 分类 | 显示 |
 | 功能 | 显示/设置串口输出编码（utf8/gbk） |
-| 用法 | `serial_encoding [utf8|gbk] (WP06g3` |
+| 用法 | `serial_encoding [utf8\|gbk] (WP06g3` |
 | 来源 | `ocos/services/display/src/svc_display_l1.c` |
 
 **实际执行示例**：
@@ -344,7 +344,7 @@ ush>
 | 名称 | uname |
 | 分类 | 显示 |
 | 功能 | 系统标识 |
-| 用法 | `uname [-a|-s|-r|-m]` |
+| 用法 | `uname [-a\|-s\|-r\|-m]` |
 | 来源 | `ocos/services/display/src/svc_display_l1.c` |
 
 **实际执行示例**：

@@ -414,7 +414,7 @@ Renumber only by appending (see ocos/services/sysapi/interface/svc_sysapi_l1svc.
 | 4 | `sched      : scheduler stats` | `L1SVC_DIAG_SCHED` |
 | 5 | `syncstat   : sync primitive stats` | `L1SVC_DIAG_SYNCSTAT` |
 | 6 | `crashlog [flush]` | `L1SVC_DIAG_CRASHLOG` |
-| 7 | `crashtest panic|exc|...|policy ...` | `L1SVC_DIAG_CRASHTEST` |
+| 7 | `crashtest panic\|exc\|...\|policy ...` | `L1SVC_DIAG_CRASHTEST` |
 | 8 | `dumpinfo   : core dump status` | `L1SVC_DIAG_DUMPINFO` |
 | 26 | `G10 range (chipset) - reserved, bodies land with the group` | `L1SVC_DIAG_FSTEST` |
 
@@ -423,9 +423,9 @@ Renumber only by appending (see ocos/services/sysapi/interface/svc_sysapi_l1svc.
 | Op | Command | Constant |
 |----|---------|----------|
 | 1 | `stats` | `L1SVC_DISP_STATS` |
-| 2 | `uname [-a|-s|-r|-m]` | `L1SVC_DISP_UNAME` |
+| 2 | `uname [-a\|-s\|-r\|-m]` | `L1SVC_DISP_UNAME` |
 | 3 | `clear` | `L1SVC_DISP_CLEAR` |
-| 4 | `lang [en|zh]` | `L1SVC_DISP_LANG` |
+| 4 | `lang [en\|zh]` | `L1SVC_DISP_LANG` |
 | 5 | `chinese` | `L1SVC_DISP_CHINESE` |
 | 6 | `chinesetest` | `L1SVC_DISP_CHINESETEST` |
 | 7 | `font` | `L1SVC_DISP_FONT` |
@@ -437,8 +437,8 @@ Renumber only by appending (see ocos/services/sysapi/interface/svc_sysapi_l1svc.
 | 13 | `ime session open` | `L1SVC_DISP_IME_BEGIN` |
 | 14 | `ime session key feed` | `L1SVC_DISP_IME_KEY` |
 | 15 | `ime session close` | `L1SVC_DISP_IME_END` |
-| 16 | `locale query (en|zh)` | `L1SVC_DISP_LANG_GET` |
-| 17 | `serial_encoding [utf8|gbk] (WP06g3)` | `L1SVC_DISP_SERIAL_ENC` |
+| 16 | `locale query (en\|zh)` | `L1SVC_DISP_LANG_GET` |
+| 17 | `serial_encoding [utf8\|gbk] (WP06g3)` | `L1SVC_DISP_SERIAL_ENC` |
 
 ### services/fs (6 ops)
 
@@ -472,7 +472,7 @@ Renumber only by appending (see ocos/services/sysapi/interface/svc_sysapi_l1svc.
 |----|---------|----------|
 | 1 | `dmesg [N]` | `L1SVC_KLOG_DMESG` |
 | 2 | `logcat -l lvl -m mod -k key -t sec -n N [-f]` | `L1SVC_KLOG_LOGCAT` |
-| 3 | `logctl status|level|...` | `L1SVC_KLOG_LOGCTL` |
+| 3 | `logctl status\|level\|...` | `L1SVC_KLOG_LOGCTL` |
 
 ### services/l1 (2 ops)
 
@@ -522,15 +522,15 @@ Renumber only by appending (see ocos/services/sysapi/interface/svc_sysapi_l1svc.
 | 16 | `bcm57xx_test` | `L1SVC_NIC_BCM57XX_TEST` |
 | 17 | `other_nic_test` | `L1SVC_NIC_OTHER_TEST` |
 | 18 | `nic_rw_test` | `L1SVC_NIC_RW_TEST` |
-| 19 | `wifi [status|scan|...]` | `L1SVC_NIC_WIFI` |
-| 20 | `bt [status|usb|test]` | `L1SVC_NIC_BT` |
+| 19 | `wifi [status\|scan\|...]` | `L1SVC_NIC_WIFI` |
+| 20 | `bt [status\|usb\|test]` | `L1SVC_NIC_BT` |
 
 ### services/ota (16 ops)
 
 | Op | Command | Constant |
 |----|---------|----------|
 | 1 | `checkupdate` | `L1SVC_OTA_CHECKUPDATE` |
-| 2 | `config list|get|set` | `L1SVC_OTA_CONFIG` |
+| 2 | `config list\|get\|set` | `L1SVC_OTA_CONFIG` |
 | 3 | `config_test` | `L1SVC_OTA_CONFIG_TEST` |
 | 4 | `checkupdate_test` | `L1SVC_OTA_CHECKUPDATE_TEST` |
 | 5 | `update [...]` | `L1SVC_OTA_UPDATE` |

@@ -85,7 +85,7 @@ ush>
 | Name | config |
 | Category | OTA updates |
 | Function | read/write system config |
-| Usage | `config list|get|set` |
+| Usage | `config list\|get\|set` |
 | Source | `ocos/services/selfhost/src/svc_selfhost_l1.c` |
 
 **Executed example**:

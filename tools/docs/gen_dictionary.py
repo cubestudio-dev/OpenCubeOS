@@ -136,6 +136,19 @@ def clean_usage_line(s):
     return s
 
 
+def cell_escape(s):
+    """Escape pipes for a markdown TABLE cell.
+
+    A raw `|` splits the cell even inside a code span (the splitter
+    runs before inline parsing), which scrambles the backtick pairing
+    and can leak `` <file> `` -like fragments into the page as raw
+    HTML - VitePress then dies with "Element is missing end tag"
+    (the WP-08 31d4d192 regression).  `` \\| `` renders as a literal
+    pipe everywhere, including inside code spans.
+    """
+    return s.replace("|", "\\|")
+
+
 def params_from_usage(usage, usage_strings):
     blob = " ".join([usage or ""] + (usage_strings or []))
     ms = re.findall(r"<(\w+)>", blob)
@@ -178,7 +191,7 @@ def entry_md(c, ex, hints, lang):
         L.append("| %s | %s |" % ("功能" if zh else "Function", func))
     if usage or usages:
         u = usage + ("; " + " ; ".join(usages) if usages else "")
-        L.append("| %s | `%s` |" % ("用法" if zh else "Usage", u))
+        L.append("| %s | `%s` |" % ("用法" if zh else "Usage", cell_escape(u)))
     if params:
         L.append("| %s | %s |" % ("参数" if zh else "Parameters",
                                   ", ".join("`%s`" % p for p in params)))
@@ -190,7 +203,7 @@ def entry_md(c, ex, hints, lang):
     if c.get("mega") and c.get("ops"):
         L.append("| %s | %s |" % (
             "操作表" if zh else "Op table",
-            ", ".join(o["op"] for o in c["ops"])))
+            ", ".join(cell_escape(o["op"]) for o in c["ops"])))
     if rets:
         L.append("| %s | %s |" % (
             "返回码" if zh else "Return codes",

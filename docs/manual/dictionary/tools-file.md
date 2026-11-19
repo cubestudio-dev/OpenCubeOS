@@ -8,7 +8,7 @@
 | Name | awk |
 | Category | File and text tools |
 | Function | pattern scanning and processing |
-| Usage | `awk '{print $N|NF|NR}' [/pat/] [file]` |
+| Usage | `awk '{print $N\|NF\|NR}' [/pat/] [file]` |
 | Return codes | 0 |
 
 **Executed example**:
@@ -169,7 +169,7 @@ ush>
 | Name | ln |
 | Category | File and text tools |
 | Function | create links |
-| Usage | `ln <old> <new> | ln -s <abs-target> <linkpath>` |
+| Usage | `ln <old> <new> \| ln -s <abs-target> <linkpath>` |
 | Parameters | `old`, `new`, `linkpath` |
 | Return codes | 0 |
 

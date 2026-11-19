@@ -58,7 +58,7 @@ ush>
 | 名称 | logctl |
 | 分类 | 内核日志 |
 | 功能 | 内核日志级别控制 |
-| 用法 | `logctl status|level|...; logctl enable|disable debug|info|warn|error|fatal ; logctl filter clear | filter [level] [module] [keyword] ; logctl status|level|enable|disable|clear|flush|rotate|threshold|export|filter|test ; logctl threshold BYTES (min 512, default 1048576` |
+| 用法 | `logctl status\|level\|...; logctl enable\|disable debug\|info\|warn\|error\|fatal ; logctl filter clear \| filter [level] [module] [keyword] ; logctl status\|level\|enable\|disable\|clear\|flush\|rotate\|threshold\|export\|filter\|test ; logctl threshold BYTES (min 512, default 1048576` |
 | 隐藏参数 | 隐藏参数，非公开接口，兼容性不保证: `-` |
 | 返回码 | 0, 1 |
 | 来源 | `ocos/services/klog/src/svc_klog_l1.c` |
