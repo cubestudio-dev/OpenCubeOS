@@ -33,23 +33,24 @@ window.SITE_DATA = {
       url: "downloads/opencube-3.0.0-WP08-driver-framework-update.tar.gz"
     }
   },
-  /* WP06e: the 3.0.0 development-preview channel.  WP06g3 carries the
-     milestone forward (the real-hardware fix batch, build 414).
-     Sizes + SHA256 verified against the GitHub Release API
-     v3.0.0-WP06g3 (assets[].size / assets[].digest).  The main tree
-     carries no ISO binaries (see SYNC-NOTES.md) - the dev entries
-     link the GitHub Release download URLs directly. */
+  /* WP06e: the 3.0.0 milestone channel.  WP-presentation-consistency:
+     updated to the WP08-driver-framework milestone (build 477); the
+     OCSE medium was last cut at the WP-l1apps-merge milestone and is
+     kept as-is (no OCSE re-cut since).  Sizes + SHA256 verified
+     against the GitHub Release API (assets[].size / assets[].digest).
+     The main tree carries no ISO binaries (see SYNC-NOTES.md) - the
+     dev entries link the GitHub Release download URLs directly. */
   dev: {
-    version: "3.0.0-WP-l1apps-merge",
-    build: 455,
-    date: "2026-11-15",
+    version: "3.0.0-WP08-driver-framework",
+    build: 477,
+    date: "2026-11-19",
     assets: {
       opencube: {
-        name: "opencube-3.0.0-WP-l1apps-merge.iso",
-        size: 4257792,
-        size_h: "4.1 MiB",
-        sha256: "9ab557bd432c96f9f980747bef6e1d0afd9fa46415087670bd4c714c6c49147b",
-        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP-l1apps-merge/opencube-3.0.0-WP-l1apps-merge.iso"
+        name: "opencube-3.0.0-WP08-driver-framework.iso",
+        size: 4397056,
+        size_h: "4.2 MiB",
+        sha256: "d559b8acfebc6ff3cbbe81d3c1c6ccfe8a9bc812718a716400e5730f4645d1fd",
+        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP08-driver-framework/opencube-3.0.0-WP08-driver-framework.iso"
       },
       ocse: {
         name: "ocse-3.0.0-WP-l1apps-merge.iso",
@@ -61,10 +62,10 @@ window.SITE_DATA = {
     }
   },
   stats: {
-    commands: 308,
-    interfaces: 195,
+    commands: 311,
+    interfaces: 221,
     syscalls: 54,
-    lines: "158,474"
+    lines: "163,935"
   },
   history: [
     { version: "3.0.0-WP-fix-residual-defects", date: "2026-11-18",
