@@ -7,8 +7,8 @@
    milestone, preserved by the release script. */
 window.SITE_DATA = {
   version: "3.0.0-WP08-driver-framework",
-  build: 476,
-  date: "2026-11-18",
+  build: 477,
+  date: "2026-11-19",
   changes: "driver framework: metadata + device tree + power hooks + hotplug + failure isolation + deterministic order; drv/dev diagnostics (16 new commands)",
   assets: {
     iso: {
@@ -20,16 +20,16 @@ window.SITE_DATA = {
     },
     src: {
       name: "opencube-3.0.0-WP08-driver-framework-src.zip",
-      size: 7303568,
+      size: 7303991,
       size_h: "7.0 MiB",
-      sha256: "30224a08fdeaa68777b70d875dcf6356f97a516081c8857faa0ecf8847470987",
+      sha256: "c6508483392cde3e698aeb6e92eb5549a99c82472faa67e92e4ab16e005f4c10",
       url: "downloads/opencube-3.0.0-WP08-driver-framework-src.zip"
     },
     ota: {
       name: "opencube-3.0.0-WP08-driver-framework-update.tar.gz",
-      size: 1513076,
+      size: 1512893,
       size_h: "1.4 MiB",
-      sha256: "c6bf354b659cb01967b9b2a9f0c1f2941792b99dc06d23753ea1e77838c81b8c",
+      sha256: "34e054e35c016ee12329f341ad918a2ee24ef948562adf9cd2f1a338e4d7c104",
       url: "downloads/opencube-3.0.0-WP08-driver-framework-update.tar.gz"
     }
   },

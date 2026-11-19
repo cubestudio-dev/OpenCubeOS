@@ -1,0 +1,80 @@
+WP-08 asset re-cut + rebuild verification (2026-11-19)
+======================================================
+
+Context: the original release build host was lost before the Release
+was published.  The assets below were re-cut on a fresh toolchain
+(qemu-system-x86 10.0.13, nasm 2.16.03, xorriso 1.5.6, grub 2.12,
+system gcc 14.2.0 - the release compiler) from the tree at main
+bbfb0820 with the local tag v3.0.0-WP08-driver-framework (= the
+shipped tree, pool fixup included), version overrides
+OC_RELEASE_VERSION=3.0.0-WP08-driver-framework OC_KERNEL_BUILD=477.
+
+The OCIRE key anchor was preserved (the committed key compiles in;
+the K-05 mtime lottery on a fresh clone was defused by touching the
+generated anchor after checkout).
+
+1. SHA reconciliation (recorded at fc97d4b2/bbfb0820 vs re-cut)
+---------------------------------------------------------------
+asset      recorded                                     re-cut                                       verdict
+ISO        d559b8acfebc6ff3...45d1fd (4397056 B)       d559b8acfebc6ff3...45d1fd (4397056 B)       BIT-IDENTICAL
+src zip    30224a08fdeaa6877...70987   (7303568 B)     c6508483392cde3e...f4c10   (7303991 B)     re-cut from the tagged tree
+OTA tar.gz c6bf354b659cb019...81b8c   (1513076 B)     34e054e35c016ee1...d7c104 (1512893 B)     container stamps differ per cut
+
+- ISO: byte-identical across two independent hosts/toolchains - the
+  kernel ELF, OCBL, OCIRE key and the whole image are proven
+  reproducible.
+- src zip: the recorded cut predated the pool fixup (it matched the
+  fc97d4b2 tree).  The re-cut follows the tag (= bbfb0820) so the
+  delivered source is the exact source of the shipped binaries
+  (#138 spirit: the zip must not diverge from the release).  The
+  30224a08 cut was itself reproduced bit-exactly before re-tagging
+  (proof the recorder cut from fc97d4b2, and that git-archive cuts
+  are deterministic).
+- OTA tar.gz: tar member mtimes + gzip header mtime + the manifest
+  "time" date are baked in per cut, so container bytes cannot be
+  reproduced by construction.  The payload is stable: the manifest
+  payload digest (concatenated file bodies, archive order) is
+  a92326173a625aa23d3603e6ead952ed51e5672d7f5de57bc4aab112f61a09e5
+  on every cut, and the kernel ELF it carries is the byte-identical
+  one embedded in the proven ISO.  update.json now records the
+  re-cut container SHA 34e054e3... (size 1512893).
+- build number: the shipped kernel banner is build 477 (evidence 05
+  and 06); update.json had been left at 476 when the fixup rebuild
+  happened - aligned to 477 (the session-5 convention: update.json
+  build == kernel build).
+
+2. Gates re-run on the re-cut artifacts (all PASS)
+---------------------------------------------------
+WP-08 QEMU acceptance gate     43/43 PASS
+  (tools/run_wp08_tests.py build/opencube.iso)
+Regression (fix4)              31/31 PASS
+  (tools/run_fix4_regression.py; note: the FIRST run on this host
+  scored 30/31 - the single miss was the dynamic SCREEN framebuffer
+  probe, whose screendump artifacts were healthy on inspection; the
+  immediate re-run with a clean /tmp socket passed 31/31.  The ISO
+  is bit-identical between both runs, so the miss was a host-side
+  monitor-socket/timing transient, not an image defect.)
+SSH E2E (g11a)                 ALL PASS (ssh-auth, ssh-exec,
+  sshd-listen, sshd-exec, sshd-capture-log = 5/5; host-side keys
+  pre-seeded into build/etc.img via make + tools/host_keygen_etc.py)
+HTTPS E2E (fix4)               8/8 PASS
+dhtest                        full PASS (Oakley group-1 identities,
+  group-14 fixed vectors, 2048-bit timing, 5/5 truth sweep)
+BIOS boot banner               PASS ("Open Cube OS User-space Shell
+  (3.0.0-WP08-driver-framework)", boot complete, build 477)
+UEFI boot banner (OVMF q35)    PASS (same)
+Dictionary gate                PASS 308 = registry = enumeration
+                               = EN = zh (tools/audit/verify_docs_counts.sh)
+
+The re-run coverage matters: the committed evidence 07/08/09/10 was
+recorded against the PRE-fixup build (banner 476), while 05/06 cover
+the final build.  The re-runs put every gate on the final (pool-
+fixed) artifacts, closing that gap end-to-end.
+
+3. K-05 consequence recorded
+----------------------------
+The private half of the Ed25519 keypair anchored in this release
+existed only on the lost build host.  No release asset depends on a
+signature (the OTA flow uses the sha256 manifest), but OCIRE-signed
+update payloads for THIS anchor are not producible; the next `gen`
+rotation re-anchors.  See the K-05 entry in the release notes.
