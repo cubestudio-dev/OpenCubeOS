@@ -250,13 +250,48 @@ def extract_ush_builtins():
     registry-driven - the rows now live in the `builtin_rows[]` string
     array (one "name [args]  help" per entry); the old parser matched
     the pre-fix1 puts_("  name ...") rows and would silently drop the
-    whole built-in set from the regenerated docs."""
+    whole built-in set from the regenerated docs.
+    WP-presentation-consistency-audit: the rows were split again into
+    a `builtin_rows[]` array of "name [args]" strings plus a parallel
+    `builtin_keys[]` array of i18n keys (help text lives in
+    l1apps/ush/i18n/en.json).  Parse both arrays pairwise; keep the
+    legacy single-array format as a fallback."""
     mc = os.path.join(ROOT, "ocos", "l1apps", "ush", "main.c")
     if not os.path.exists(mc):
         return []
+    txt = open(mc, encoding="utf-8", errors="replace").read()
+
+    def string_array(name):
+        m = re.search(re.escape(name) + r"\[\] = \{(.*?)\};", txt, re.S)
+        if not m:
+            return []
+        return re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1))
+
+    rows = string_array("builtin_rows")
+    keys = string_array("builtin_keys")
+    i18n = {}
+    ij = os.path.join(ROOT, "ocos", "l1apps", "ush", "i18n", "en.json")
+    if os.path.exists(ij):
+        try:
+            i18n = json.load(open(ij, encoding="utf-8"))
+        except Exception:
+            i18n = {}
     out = []
+    if rows and keys and len(rows) == len(keys):
+        for row, key in zip(rows, keys):
+            m = re.match(r'([a-z][a-z0-9_.-]*)(?:\s+(.*))?', row.strip())
+            if not m:
+                continue
+            help_txt = i18n.get(key, "").strip()
+            if m.group(2):
+                help_txt = m.group(2).strip() + (" - " + help_txt if help_txt else "")
+            out.append({"name": m.group(1), "help": help_txt,
+                        "where": "L1-builtin", "cat": "ush"})
+        return out
+
+    # legacy single-array format ("name [args]  help" per row)
     in_block = False
-    for line in open(mc, encoding="utf-8", errors="replace"):
+    for line in txt.splitlines():
         if "builtin_rows[] = {" in line:
             in_block = True
             continue
@@ -420,7 +455,18 @@ def svc_folder_of_cat(cat):
 
 
 def extract_l1svc_surface():
-    """Parse ocos/services/sysapi/interface/svc_sysapi_l1svc.h (the category/op ABI)."""
+    """Parse ocos/services/sysapi/interface/svc_sysapi_l1svc.h (the category/op ABI).
+
+    WP-presentation-consistency-audit fixes (three parser defects that
+    made the published op counts drift from the header truth):
+      1. the L1SVC_CAT_* defines were captured as ops (20 phantom rows);
+      2. ops in a block whose banner carries no "services/<folder>"
+         (the WP-08 drvfw banner) got folder=None and vanished from
+         every per-service table - the block body's "Bodies:
+         services/<folder>/" line is now the fallback;
+      3. ops with no trailing comment (the mega-app sub-command rows)
+         were dropped entirely - the comment is now optional and the
+         op name (lowercased) is the command placeholder."""
     path = os.path.join(ROOT, "ocos", "services", "sysapi", "interface", "svc_sysapi_l1svc.h")
     text = open(path, encoding="utf-8").read()
     cats = {}
@@ -428,7 +474,9 @@ def extract_l1svc_surface():
     cur_cat = None
     cat_re = re.compile(r'#define\s+L1SVC_CAT_(\w+)\s+(\d+)')
     name_map_re = re.compile(r'\(n\)\s*==\s*L1SVC_CAT_(\w+)\s*\?\s*"([a-z0-9]+)"')
-    op_re = re.compile(r'#define\s+(L1SVC_\w+)\s+(\d+)\s*/\*\s*(.*?)\s*\*/')
+    op_re = re.compile(
+        r'#define\s+(L1SVC_(?!CAT_)\w+)\s+(\d+)'
+        r'(?:\s*/\*\s*(.*?)\s*\*/)?')
     for m in cat_re.finditer(text):
         cats[m.group(1)] = {"num": int(m.group(2)), "folder": None}
     for m in name_map_re.finditer(text):
@@ -440,10 +488,15 @@ def extract_l1svc_surface():
         header = blocks[i]
         body = blocks[i + 1] if i + 1 < len(blocks) else ""
         mm = re.search(r'services/([a-z0-9]+)', header)
+        if not mm:
+            # WP-08 drvfw banner: the folder lives in the body comment
+            # ("Bodies: services/diag/ svc_diag_drvfw.c")
+            mm = re.search(r'services/([a-z0-9]+)/', body)
         folder = mm.group(1) if mm else None
         for m in op_re.finditer(body):
             ops[m.group(1)] = {"num": int(m.group(2)),
-                               "cmd": m.group(3), "folder": folder}
+                               "cmd": m.group(3) or m.group(1).split("_", 1)[1].lower(),
+                               "folder": folder}
     return cats, ops
 
 
@@ -1331,7 +1384,7 @@ def write_interfaces_md(interfaces, stats, cmds, svc_cats=None,
     w("  below, none dropped")
     w("- %s command homes: **%d total** = %d in the L0 recovery"
       % (VER, len(cmds), len(l0)))
-    w("  shell + %d ring-3 registry apps (src/L1/) + %d ush built-ins"
+    w("  shell + %d ring-3 registry apps (ocos/l1apps/) + %d ush built-ins"
       % (len(l1app) + len(l1svc), len(l1b)))
     w("- L1SVC service surface: **%d categories / %d numbered ops**"
       % (len(svc_cats or {}), len(svc_ops or {})))

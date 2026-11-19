@@ -1,13 +1,13 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- GENERATED index (tools/gen_api_docs.py --pages). -->
 
-# Shell command reference (292 commands)
+# Shell command reference (311 commands)
 
 Grouped by the v2 home that registers each command - the tree
 structure is the domain structure. Inside a running system use
 `help -a` (alphabetical) or `help -w` (by work package).
 
-## Other (284)
+## Other (300)
 <a id="other"></a>
 
 - [ab_partition_test](ab_partition_test.md) - ring-3 half of the v2.2.0 `ab_partition_test` command
@@ -46,6 +46,12 @@ structure is the domain structure. Inside a running system use
 - [crashtest](crashtest.md) - ring-3 L1 app
 - [cryptotest](cryptotest.md) - ring-3 half of the v2.2.0 `cryptotest` command
 - [date](date.md) - ring-3 L1 app
+- [dev](dev.md) - ring-3 L1 app
+- [dev_debug](dev_debug.md) - ring-3 L1 app
+- [dev_help](dev_help.md) - ring-3 L1 app
+- [dev_info](dev_info.md) - ring-3 L1 app
+- [dev_list](dev_list.md) - ring-3 L1 app
+- [dev_tree](dev_tree.md) - ring-3 L1 app
 - [df](df.md) - ring-3 L1 app
 - [dhcp](dhcp.md) - ring-3 half of the v2.2.0 `dhcp` command
 - [dhtest](dhtest.md) - ring-3 half of the v2.2.0 `dhtest` command
@@ -55,6 +61,16 @@ structure is the domain structure. Inside a running system use
 - [dmesg](dmesg.md) - ring-3 L1 app
 - [dns](dns.md) - ring-3 half of the v2.2.0 `dns` command
 - [dnstest](dnstest.md) - ring-3 half of the v2.2.0 `dnstest` command
+- [drv](drv.md) - ring-3 L1 app
+- [drv_bind](drv_bind.md) - ring-3 L1 app
+- [drv_debug](drv_debug.md) - ring-3 L1 app
+- [drv_failed](drv_failed.md) - ring-3 L1 app
+- [drv_help](drv_help.md) - ring-3 L1 app
+- [drv_info](drv_info.md) - ring-3 L1 app
+- [drv_list](drv_list.md) - ring-3 L1 app
+- [drv_order](drv_order.md) - ring-3 L1 app
+- [drv_reload](drv_reload.md) - ring-3 L1 app
+- [drv_unbind](drv_unbind.md) - ring-3 L1 app
 - [dskstat](dskstat.md) - ring-3 half of the v2.2.0 `dskstat` command
 - [du](du.md) - ring-3 L1 app
 - [dumpinfo](dumpinfo.md) - ring-3 L1 app
@@ -295,14 +311,17 @@ structure is the domain structure. Inside a running system use
 - [wifi](wifi.md) - ring-3 half of the v2.2.0 `wifi` command
 - [write](write.md) - ring-3 L1 app
 
-## ush (ring-3 shell: SVC rows + built-ins) (8)
+## ush (ring-3 shell: SVC rows + built-ins) (11)
 <a id="ush"></a>
 
 - [alias](alias.md) - 
+- [bg](bg.md) - send a job to the background
 - [cd](cd.md) - 
 - [env](env.md) - 
 - [exit](exit.md) - 
 - [export](export.md) - 
+- [fg](fg.md) - [job] - bring a job to the foreground
 - [history](history.md) - 
+- [jobs](jobs.md) - list background jobs
 - [set](set.md) - 
 - [unalias](unalias.md) - 

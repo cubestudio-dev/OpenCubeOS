@@ -179,3 +179,35 @@ OCIRE Ed25519 update-verification key
 - Proper fix (not this package): make the rule idempotent (emit only
   when the file is absent, or anchor the regeneration on an explicit
   `make ocire-keygen` target).
+
+## WP-presentation-consistency-audit notes (all fixed in this package)
+
+Presentation-layer defects found and fixed by the audit - recorded
+here because they were real defects in published numbers/tools, each
+with a root cause:
+
+- **PA-01 (fixed)**: `tools/docs/enum_apps.sh` did not enumerate the
+  shell job-control built-ins (`jobs` / `fg` / `bg`), so the
+  published command count (308) understated the live `help -a`
+  surface (300 programs + 12 builtin rows). Fixed in the enumerator;
+  the dictionary, commands.json and every published number moved to
+  the reconciled caliber **311 = 300 ring-3 programs + 11 ush
+  built-ins** (`help` itself is a ring-3 program and dual-homes as
+  the 12th builtin row).
+- **PA-02 (fixed)**: `tools/gen_api_docs.py` under-counted the
+  L1SVC op surface (published 208): the parser counted the 20
+  `L1SVC_CAT_*` identifiers as ops, failed to attribute the WP-08
+  drvfw block (its banner carries no `services/<folder>`), and
+  dropped every op with no trailing comment. Fixed; the surface is
+  the header truth **221 numbered ops** (per-service tables in
+  INTERFACES.md now sum exactly).
+- **PA-03 (fixed, recorded)**: the WP-08 release manifest
+  (update.json) carried `package_size: 1512893` while the shipped
+  OTA container is 1512894 bytes - a 1-byte transcription slip that
+  the kernel OTA downloader would reject (it enforces the manifest
+  size against Content-Length). Fixed by hotfix `2379f93b` right
+  after the release; recorded here for the audit trail.
+- **PA-04 (fixed)**: the root `bug-list.md` leaked internal audit
+  structure (private-repo report layout, user-conversation
+  paraphrases). Archived to the private mirror and removed from the
+  public tree; GitHub Issues remains the public defect record.

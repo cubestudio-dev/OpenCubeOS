@@ -136,3 +136,78 @@ WP06g2 delivery-fix addendum (post-close-out, same batch):
   assertion refresh; the wp06g3 batteries (serial_enc, ocse_enc,
   editor_rework, ocire_menu, install_ocire) and the https e2e 7/7
   carry this batch's regression weight.
+
+## K-04 (WP-08, found live): `pmmrace` triggers a pre-existing PMM
+race that can panic the kernel
+
+- `pmmrace` races `mem_pmm_alloc_contig()` in process context against
+  the IRQ-context allocator (PIT overclocked to ~7.9 kHz).  The PMM
+  bitmap operations are not atomic against IRQ preemption, so a
+  losing interleaving corrupts the frame accounting; live frames get
+  freed and rewritten, and the system dies with `#UD` (observed:
+  the idle task's saved RIP clobbered to 3).
+- PRE-EXISTING, not introduced by WP-08: reproduced on the untouched
+  baseline f5af2ab (the previous release) with a full-length run -
+  three baseline runs gave one panic, one timeout-window miss and
+  one clean `result=PASS (atomic)`; the outcome is a function of
+  IRQ/loop phase alignment, i.e. pure chance.
+- WP-08's boot-time driver-framework work shifts that phase, which
+  makes the fatal interleaving fire within seconds (3/3 runs)
+  instead of being a rare unlucky run.  The framework itself does
+  not touch the PMM; removing just the framework boot call, or just
+  the test drivers, restores the old (still broken) odds - the
+  trigger is timing, not code.
+- NOT fixed here: the proper fix is IRQ-atomicity for the PMM
+  alloc/free paths (a PMM work package of its own).  Do not treat
+  `pmmrace` passing as evidence of PMM atomicity until then - its
+  own "PASS (atomic)" verdict only covers the rounds it survived.
+
+## K-05 (WP-08, found live): a fresh clone can silently rotate the
+OCIRE Ed25519 update-verification key
+
+- `ocire/ocire.mk` declares `ocire/generated/ocire_ed25519_pub.c:
+  tools/gen_ocire_ed25519.py` with no order guard, so `make` regenerates
+  the keypair whenever the generator script's checkout mtime beats the
+  committed key file's.  A fresh clone therefore rotates the OCIRE key
+  at first build about half the time (checkout order decides), and the
+  private half lands in the gitignored `build/ocire/keys/` - the tree
+  and the artifacts stay self-consistent, but byte-reproducibility
+  across clones is gone and any external key pinning would break.
+- Live-caught this session: the fresh clone regenerated the key at the
+  first `make all`; the rotated key is committed WITH this release so
+  git matches the shipped artifacts.
+- Proper fix (not this package): make the rule idempotent (emit only
+  when the file is absent, or anchor the regeneration on an explicit
+  `make ocire-keygen` target).
+
+## WP-presentation-consistency-audit notes (all fixed in this package)
+
+Presentation-layer defects found and fixed by the audit - recorded
+here because they were real defects in published numbers/tools, each
+with a root cause:
+
+- **PA-01 (fixed)**: `tools/docs/enum_apps.sh` did not enumerate the
+  shell job-control built-ins (`jobs` / `fg` / `bg`), so the
+  published command count (308) understated the live `help -a`
+  surface (300 programs + 12 builtin rows). Fixed in the enumerator;
+  the dictionary, commands.json and every published number moved to
+  the reconciled caliber **311 = 300 ring-3 programs + 11 ush
+  built-ins** (`help` itself is a ring-3 program and dual-homes as
+  the 12th builtin row).
+- **PA-02 (fixed)**: `tools/gen_api_docs.py` under-counted the
+  L1SVC op surface (published 208): the parser counted the 20
+  `L1SVC_CAT_*` identifiers as ops, failed to attribute the WP-08
+  drvfw block (its banner carries no `services/<folder>`), and
+  dropped every op with no trailing comment. Fixed; the surface is
+  the header truth **221 numbered ops** (per-service tables in
+  INTERFACES.md now sum exactly).
+- **PA-03 (fixed, recorded)**: the WP-08 release manifest
+  (update.json) carried `package_size: 1512893` while the shipped
+  OTA container is 1512894 bytes - a 1-byte transcription slip that
+  the kernel OTA downloader would reject (it enforces the manifest
+  size against Content-Length). Fixed by hotfix `2379f93b` right
+  after the release; recorded here for the audit trail.
+- **PA-04 (fixed)**: the root `bug-list.md` leaked internal audit
+  structure (private-repo report layout, user-conversation
+  paraphrases). Archived to the private mirror and removed from the
+  public tree; GitHub Issues remains the public defect record.

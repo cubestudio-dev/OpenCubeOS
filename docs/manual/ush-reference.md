@@ -200,7 +200,7 @@ ush> ime -i                           # interactive pinyin compose line
 
 ## Related pages
 
-- [function-dictionary.md](function-dictionary.md) — all 296 commands
+- [function-dictionary.md](function-dictionary.md) — all 311 commands
 - [shell-basics.md](shell-basics.md) — the beginner's tour
 - [getting-started.md](getting-started.md) — first boot
 - [../troubleshooting/silent-failures.md](../troubleshooting/silent-failures.md) —

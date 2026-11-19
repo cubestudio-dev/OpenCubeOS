@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# 应用字典 - ush 内建命令 (8)
+# 应用字典 - ush 内建命令 (11)
 
 ### alias
 
@@ -17,6 +17,23 @@
 alias ll=ls
 ush> alias
 ll='ls'
+ush> 
+```
+
+### bg
+
+| 字段 | 值 |
+|---|---|
+| 名称 | bg |
+| 分类 | ush 内建命令 |
+| 功能 | ush built-in command |
+| 隐藏参数 | 隐藏参数，非公开接口，兼容性不保证: `bg` |
+
+**实际执行示例**：
+
+```
+bg
+ush: job control requires external programs
 ush> 
 ```
 
@@ -47,7 +64,7 @@ ush>
 | 分类 | ush 内建命令 |
 | 功能 | ush built-in command |
 | 隐藏参数 | 隐藏参数，非公开接口，兼容性不保证: `env` |
-| 返回码 | 0, 1 |
+| 返回码 | -1, 0, 1, 2 |
 
 **实际执行示例**：
 
@@ -99,6 +116,23 @@ DICTVAR=1
 ush> 
 ```
 
+### fg
+
+| 字段 | 值 |
+|---|---|
+| 名称 | fg |
+| 分类 | ush 内建命令 |
+| 功能 | ush built-in command |
+| 隐藏参数 | 隐藏参数，非公开接口，兼容性不保证: `fg` |
+
+**实际执行示例**：
+
+```
+fg
+ush: job control requires external programs
+ush> 
+```
+
 ### history
 
 | 字段 | 值 |
@@ -118,6 +152,22 @@ history
 3 help_default_test
 4 help_wp_test
 5 history
+ush> 
+```
+
+### jobs
+
+| 字段 | 值 |
+|---|---|
+| 名称 | jobs |
+| 分类 | ush 内建命令 |
+| 功能 | ush built-in command |
+| 隐藏参数 | 隐藏参数，非公开接口，兼容性不保证: `jobs` |
+
+**实际执行示例**：
+
+```
+jobs
 ush> 
 ```
 

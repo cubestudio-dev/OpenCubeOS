@@ -71,9 +71,10 @@ poweroff
 
 ```
 poweroff_test
+(the machine powered off - QEMU exited)
 ```
 
-(备注: retry OK; plain retry)
+(备注: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### reboot
 

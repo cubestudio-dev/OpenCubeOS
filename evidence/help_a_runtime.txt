@@ -1,303 +1,319 @@
-
-Open Cube OS User-space Shell (ush) - built-in commands:
-
-cd [dir]        change directory (shell state)
-help [-a|-w]    this text; -a = full A-Z, -w = by work package
-export VAR=val  set environment variable
-alias name=val  set command alias
-unalias name    remove alias
-env             show environment variables
-set             show a variable
-history         show command history
-jobs            list background jobs
-fg [job]        bring a job to the foreground
-bg              send a job to the background
-exit            not available (use shutdown / reboot)
-
-All other commands are ring-3 apps served from the registry.
-ring-3 program registry (A-Z, 284 programs):
-  ab_partition_test  [ota]  A/B partition test
-  abcfg  [block]  A/B slot configuration
-  abdisk  [block]  A/B slot disk tool
-  ac97  [snd]  AC97 codec status
-  ac97_test  [snd]  AC97 playback test
-  acpi  [input]  ACPI table summary
-  acpidev  [input]  ACPI device tree
-  acpipow  [input]  ACPI power states
-  acpitest  [input]  ACPI parser test
-  ahci  [block]  AHCI controller status
-  ahci_test  [block]  AHCI port test
-  arp  [net]  ARP table
-  ata  [block]  ATA/IDE status
-  ata_dma_test  [block]  ATA DMA test
-  audio_rw_test  [snd]  audio read/write test
-  awk  [ush]  pattern scanning and processing
-  badapp  [l1]  intentionally misbehaving app
-  bcm57xx  [nic]  BCM57xx NIC status
-  bcm57xx_test  [nic]  BCM57xx driver test
-  bt  [nic]  bluetooth status
-  cat  [fs]  print file contents
-  checkupdate  [ota]  check for OTA updates
-  checkupdate_test  [ota]  OTA check test
-  chinese  [display]  CJK console demo
-  chinesetest  [display]  CJK font/encoding test battery
-  chmod  [ush]  change file permissions
-  chown  [ush]  change file owner
-  clear  [display]  clear the screen
-  config  [ota]  read/write system config
-  config_test  [ota]  config backend test
-  cp  [fs]  copy files
-  cr3test  [core]  CR3 register audit
-  crashlog  [core]  crash dump records
-  crashtest  [recovery]  crash handling test triggers
-  cryptotest  [crypto]  crypto primitives test
-  date  [ush]  show date/time from the RTC
-  df  [fs]  report filesystem free space
-  dhcp  [net]  DHCP lease status/renew
-  dhtest  [crypto]  Diffie-Hellman test
-  disk-tool  [mega]  disk / filesystem wizard (no args) or verbatim block+fs ops
-  disk_rw_test  [block]  disk read/write test
-  dlsym_test  [l1]  dlsym resolution test
-  dmesg  [watchdog]  show the kernel log
-  dns  [net]  resolve a hostname
-  dnstest  [net]  DNS resolver test
-  dskstat  [block]  disk I/O statistics
-  du  [fs]  report file space usage
-  dumpinfo  [recovery]  core dump status
-  dyn_hello  [l1]  PIE hello demo
-  e1000e  [nic]  e1000e NIC status
-  e1000e_test  [nic]  e1000e driver test
-  echo  [recovery]  print the arguments
-  edit  [fs]  the classic line editor face
-  encoding  [display]  console encoding status/set
-  encoding-test  [display]  encoding codec test
-  es1370  [snd]  ES1370 codec status
-  es1370_test  [snd]  ES1370 playback test
-  exc  [input]  exception report status
-  exec_test  [l1]  execve replacement test
-  fatmount  [fs]  mount a FAT32 volume
-  fatstat  [fs]  FAT32 volume statistics
-  fdref_test  [l1]  fd refcount test
-  files  [mega]  file manager wizard (no args) or direct program dispatch (ls/cp/mv/rm/edit/...)
-  firewall  [net]  packet filter rules
-  font  [display]  font engine status
-  font-test  [display]  font renderer test
-  fork_test  [l1]  fork/exit bookkeeping test
-  frag  [core]  PMM fragment report
-  free  [ush]  memory usage summary
-  fs_mount_test  [block]  filesystem mount test
-  fsck  [block]  check a filesystem
-  fstest  [fs]  VFS stress test
-  g6_exec_a  [l1]  G6 exec stage A
-  g6_exec_b  [l1]  G6 exec stage B
-  g6_oom  [l1]  G6 OOM path test
-  g6_test  [l1]  G6 process group test
-  g7mmap  [l1]  G7 mmap test
-  gameport  [camera]  game port status
-  gameporttest  [camera]  game port test
-  grep  [fs]  search text in files
-  grub-install  [block]  install the OCBL boot chain
-  halt  [power]  halt the machine
-  halt_test  [power]  halt path test
-  hda  [snd]  HD Audio codec status
-  hda_test  [snd]  HD Audio playback test
-  head  [ush]  show the first lines of a file
-  health  [watchdog]  system health snapshot/watch
-  heap  [core]  kernel heap statistics
-  heapbounds  [core]  heap boundary check
-  heaptest  [core]  heap stress test
-  hello  [l1]  hello world
-  help  [recovery]  show shell built-ins and the program registry
-  help_a_test  [recovery]  registry A-Z listing invariant test
-  help_default_test  [recovery]  registry default listing test
-  help_wp_test  [recovery]  registry work-package grouping test
-  hpet  [time]  HPET timer status
-  hwinfo  [mega]  hardware inventory wizard (no args) or verbatim info ops
-  i2cdetect  [input]  scan the I2C bus
-  i2cget  [input]  read an I2C register
-  i2cset  [input]  write an I2C register
-  i2ctest  [input]  I2C bus test
-  ifconfig  [net]  network interface status
-  igb  [nic]  igb NIC status
-  igb_test  [nic]  igb driver test
-  ime  [display]  the pinyin IME (-i interactive)
-  ime-test  [display]  IME engine + session battery
-  install  [block]  install Open Cube OS to a disk
-  int3_user  [l1]  ring-3 int3 trap test
-  ip  [net]  IP address configuration
-  ir  [camera]  infrared receiver status
-  irqabitest  [core]  IRQ affinity test
-  irtest  [camera]  IR receiver test
-  ixgbe  [nic]  ixgbe NIC status
-  ixgbe_test  [nic]  ixgbe driver test
-  kill  [core]  terminate a process
-  l1test  [l1]  L1 job/IPC/dynamic-link self-test
-  lang  [display]  show/set the console language (en/zh)
-  ld_so  [l1]  the dynamic loader itself
-  ldd  [l1]  dynamic dependency lister
-  ln  [ush]  create links
-  logcat  [watchdog]  filtered kernel log stream
-  logctl  [watchdog]  kernel log level control
-  loop  [l1]  idle loop (job test target)
-  ls  [fs]  list directory contents
-  lsblk  [block]  list block devices
-  lspci  [net]  list PCI devices
-  main_dyn  [l1]  dynamic app demo
-  mem  [core]  physical memory statistics
-  memtest  [core]  memory service test battery
-  mkdir  [fs]  create a directory
-  mkfs.exfat  [block]  create an exFAT filesystem
-  mkfs.ext4  [block]  create an ext4 filesystem
-  mkfs.fat32  [block]  create a FAT32 filesystem
-  mmap_multi  [l1]  multi-mapping test
-  mmap_test  [l1]  mmap mapping test
-  mount  [fs]  mount a filesystem / list mounts
-  mounts  [fs]  list mounted filesystems
-  mprotect_test  [l1]  mprotect permission test
-  msitest  [input]  MSI interrupt test
-  multi  [core]  multi-core wake test
-  mv  [fs]  move/rename files
-  nano  [ush]  the nano-style editor (F2 = Chinese IME)
-  net-tool  [mega]  network wizard (no args) or verbatim net+wireless ops
-  netstat  [net]  socket/connection statistics
-  nf_test  [net]  netfilter test
-  nic_rw_test  [nic]  NIC loopback test
-  nice  [core]  priority demo
-  nvme  [block]  NVMe controller status
-  nvme_test  [block]  NVMe namespace test
-  other_nic_test  [nic]  other NIC driver test
-  p0leak  [core]  user-pointer validation fence test (P0 regression)
-  p2test  [core]  WP-fix-p2-p3-cleanup live probes (utf8 chunking / read0 / pipe)
-  p3_test  [l1]  P3 security window test
-  parallel  [camera]  parallel port status
-  paralleltest  [camera]  parallel port test
-  parted  [block]  partition table editor (view)
-  partition_test  [block]  partition scan test
-  pcibars  [input]  PCI BAR assignment check
-  pcidump  [input]  dump PCI configuration
-  pcie  [input]  PCIe link status
-  pf_test  [l1]  page-fault exit test
-  pftest  [core]  page-fault handler test
-  pie_test  [l1]  PIE load test
-  ping  [net]  ICMP echo to a host
-  pipe_test  [l1]  pipe read/write test
-  play  [snd]  play a WAV file
-  pmmrace  [core]  PMM race detector
-  pmtimer  [time]  ACPI PM timer status
-  power  [mega]  power wizard (no args) or verbatim power ops (shutdown/reboot/halt/sleep)
-  poweroff  [power]  power off (ACPI)
-  poweroff_test  [power]  poweroff path test
-  priv_test  [l1]  privilege instruction trap test
-  ps  [core]  list processes
-  pwd  [fs]  print the working directory
-  real_hw_test  [block]  real hardware disk test
-  real_update_test  [ota]  OTA real-flow test
-  reboot  [ota]  reboot the machine
-  reboot_test  [power]  reboot path test
-  reloc_test  [l1]  relocation test
-  rm  [fs]  remove files
-  rmdir  [fs]  remove an empty directory
-  rollback  [ota]  roll back to the other slot
-  route  [net]  routing table
-  rtc  [time]  CMOS RTC status
-  rtl810x  [nic]  RTL810x NIC status
-  rtl810x_test  [nic]  RTL810x driver test
-  rtl8125  [nic]  RTL8125 NIC status
-  rtl8125_test  [nic]  RTL8125 driver test
-  rtl8139  [nic]  RTL8139 NIC status
-  rtl8139_test  [nic]  RTL8139 driver test
-  rtl8168  [nic]  RTL8168 NIC status
-  rtl8168_test  [nic]  RTL8168 driver test
-  run  [core]  run a program with arguments
-  sample_rate_test  [snd]  sample rate test
-  sb16  [snd]  SoundBlaster16 status
-  sb16_test  [snd]  SB16 playback test
-  sched  [core]  scheduler statistics
-  scsi  [camera]  SCSI device scan
-  scsitest  [camera]  SCSI device test
-  sed  [ush]  stream editor
-  select_test  [l1]  select multiplexing test
-  select_zero_test  [l1]  select timeout test
-  serial_encoding  [display]  show/set the serial line encoding (utf8/gbk)
-  shutdown  [power]  power off the machine
-  signal_test  [l1]  signal subsystem test
-  sigsegv_test  [l1]  SIGSEGV delivery test
-  sleep  [power]  suspend for N seconds
-  smbus  [input]  SMBus status
-  smbustest  [input]  SMBus test
-  so_test  [l1]  shared library test
-  sort  [ush]  sort lines
-  sound  [snd]  audio subsystem status
-  sound-tool  [mega]  audio wizard (no args) or verbatim snd-service ops
-  spawn  [core]  background spawn demo
-  sse_test  [l1]  SSE state preservation test
-  ssh  [crypto]  SSH client
-  sshd  [crypto]  SSH server
-  stackovf  [l1]  stack overflow guard test
-  stat  [ush]  show file metadata
-  stats  [display]  display pipeline statistics
-  suspend_test  [power]  S3 suspend test
-  sync  [block]  flush block caches to disk
-  syncstat  [core]  sync primitive statistics
-  synctest  [core]  sync primitive test
-  sysdiag  [mega]  system diagnostics wizard (no args) or verbatim diag/health/log ops
-  tail  [ush]  show the last lines of a file
-  tcpcc_test  [net]  TCP congestion control test
-  tcpstats  [net]  TCP statistics
-  tcptest  [net]  TCP loopback test
-  timer  [input]  timer test
-  top  [ush]  process overview (live)
-  touch  [fs]  create an empty file / update mtime
-  touchpad  [input]  touchpad status
-  touchtest  [input]  touchpad test
-  tree  [fs]  show a directory tree
-  tsc  [time]  TSC counter status
-  tui  [display]  the TUI desktop
-  tui-drv  [display]  TUI driver page
-  tui-ext  [display]  TUI extensions page
-  tui-hw  [display]  TUI hardware page
-  tui-net  [display]  TUI network page
-  tui-sys  [display]  TUI system page
-  tui-sysinfo  [display]  TUI system info page
-  tui-test  [display]  TUI selftests
-  tui-time  [display]  TUI clock page
-  umount  [fs]  unmount a filesystem
-  uname  [display]  system identification
-  uniq  [ush]  drop repeated adjacent lines
-  update  [mega]  OTA update wizard (no args) or the verbatim update op
-  update_check_test  [ota]  update check unit test
-  update_download_test  [ota]  OTA download test
-  update_install_test  [ota]  OTA install test
-  update_local_test  [ota]  OTA local-file test
-  update_pkg_test  [ota]  update package test
-  update_rollback_test  [ota]  OTA rollback test
-  update_status_test  [ota]  OTA status test
-  update_verify_test  [ota]  OTA verify test
-  usb  [usb]  USB host status
-  usb_audio_test  [snd]  USB audio test
-  usb_core_test  [usb]  USB core test
-  usb_hotplug_test  [usb]  USB hotplug test
-  usb_hub_test  [usb]  USB hub test
-  usb_kbd_test  [usb]  USB keyboard test
-  usb_mouse_test  [usb]  USB mouse test
-  usb_serial_test  [usb]  USB serial test
-  usb_storage_test  [usb]  USB mass storage test
-  usbaudio  [snd]  USB audio status
-  usbdev  [usb]  USB device detail
-  ush  [l1]  the Open Cube OS ring-3 shell (default entry)
-  uvc  [camera]  UVC camera status
-  uvctest  [camera]  UVC camera test
-  vi  [ush]  the modal vi editor (i/a/o insert, F2 = IME)
-  virtio_blk_test  [block]  virtio-blk test
-  virtio_snd_test  [snd]  virtio-snd test
-  virtiosnd  [snd]  virtio-sound status
-  vmkernelpt  [core]  kernel page-table dump
-  vmmap  [core]  address-space map dump
-  vmtest  [core]  VMM unit test
-  volume  [snd]  mixer volume control
-  watchdog  [watchdog]  watchdog control
-  wc  [ush]  count lines/words/bytes
-  wget  [net]  download a file over HTTP(S)
-  wifi  [nic]  wireless status/scan
-  write  [block]  write stdin to a file
-
+
+Open Cube OS User-space Shell (ush) - built-in commands:
+
+cd [dir]        change directory (shell state)
+help [-a|-w]    this text; -a = full A-Z, -w = by work package
+export VAR=val  set environment variable
+alias name=val  set command alias
+unalias name    remove alias
+env             show environment variables
+set             show a variable
+history         show command history
+jobs            list background jobs
+fg [job]        bring a job to the foreground
+bg              send a job to the background
+exit            not available (use shutdown / reboot)
+
+All other commands are ring-3 apps served from the registry.
+ring-3 program registry (A-Z, 300 programs):
+  ab_partition_test  [ota]  A/B partition test
+  abcfg  [block]  A/B slot configuration
+  abdisk  [block]  A/B slot disk tool
+  ac97  [snd]  AC97 codec status
+  ac97_test  [snd]  AC97 playback test
+  acpi  [input]  ACPI table summary
+  acpidev  [input]  ACPI device tree
+  acpipow  [input]  ACPI power states
+  acpitest  [input]  ACPI parser test
+  ahci  [block]  AHCI controller status
+  ahci_test  [block]  AHCI port test
+  arp  [net]  ARP table
+  ata  [block]  ATA/IDE status
+  ata_dma_test  [block]  ATA DMA test
+  audio_rw_test  [snd]  audio read/write test
+  awk  [ush]  pattern scanning and processing
+  badapp  [l1]  intentionally misbehaving app
+  bcm57xx  [nic]  BCM57xx NIC status
+  bcm57xx_test  [nic]  BCM57xx driver test
+  bt  [nic]  bluetooth status
+  cat  [fs]  print file contents
+  checkupdate  [ota]  check for OTA updates
+  checkupdate_test  [ota]  OTA check test
+  chinese  [display]  CJK console demo
+  chinesetest  [display]  CJK font/encoding test battery
+  chmod  [ush]  change file permissions
+  chown  [ush]  change file owner
+  clear  [display]  clear the screen
+  config  [ota]  read/write system config
+  config_test  [ota]  config backend test
+  cp  [fs]  copy files
+  cr3test  [core]  CR3 register audit
+  crashlog  [core]  crash dump records
+  crashtest  [recovery]  crash handling test triggers
+  cryptotest  [crypto]  crypto primitives test
+  date  [ush]  show date/time from the RTC
+  dev  [diag]  device tree diagnostics (umbrella command)
+  dev_debug  [diag]  toggle device-tree debug logging (debug)
+  dev_help  [diag]  dev command usage
+  dev_info  [diag]  show one device node in detail
+  dev_list  [diag]  list device nodes by type
+  dev_tree  [diag]  print the device tree
+  df  [fs]  report filesystem free space
+  dhcp  [net]  DHCP lease status/renew
+  dhtest  [crypto]  Diffie-Hellman test
+  disk-tool  [mega]  disk / filesystem wizard (no args) or verbatim block+fs ops
+  disk_rw_test  [block]  disk read/write test
+  dlsym_test  [l1]  dlsym resolution test
+  dmesg  [watchdog]  show the kernel log
+  dns  [net]  resolve a hostname
+  dnstest  [net]  DNS resolver test
+  drv  [diag]  driver framework diagnostics (umbrella command)
+  drv_bind  [diag]  manually bind a driver to a node (debug)
+  drv_debug  [diag]  toggle driver-framework debug logging (debug)
+  drv_failed  [diag]  list probe/init failures
+  drv_help  [diag]  drv command usage
+  drv_info  [diag]  show one driver in detail
+  drv_list  [diag]  list registered drivers
+  drv_order  [diag]  show the deterministic init order
+  drv_reload  [diag]  re-init and re-probe a driver (debug)
+  drv_unbind  [diag]  manually unbind a driver (debug)
+  dskstat  [block]  disk I/O statistics
+  du  [fs]  report file space usage
+  dumpinfo  [recovery]  core dump status
+  dyn_hello  [l1]  PIE hello demo
+  e1000e  [nic]  e1000e NIC status
+  e1000e_test  [nic]  e1000e driver test
+  echo  [recovery]  print the arguments
+  edit  [fs]  the classic line editor face
+  encoding  [display]  console encoding status/set
+  encoding-test  [display]  encoding codec test
+  es1370  [snd]  ES1370 codec status
+  es1370_test  [snd]  ES1370 playback test
+  exc  [input]  exception report status
+  exec_test  [l1]  execve replacement test
+  fatmount  [fs]  mount a FAT32 volume
+  fatstat  [fs]  FAT32 volume statistics
+  fdref_test  [l1]  fd refcount test
+  files  [mega]  file manager wizard (no args) or direct program dispatch (ls/cp/mv/rm/edit/...)
+  firewall  [net]  packet filter rules
+  font  [display]  font engine status
+  font-test  [display]  font renderer test
+  fork_test  [l1]  fork/exit bookkeeping test
+  frag  [core]  PMM fragment report
+  free  [ush]  memory usage summary
+  fs_mount_test  [block]  filesystem mount test
+  fsck  [block]  check a filesystem
+  fstest  [fs]  VFS stress test
+  g6_exec_a  [l1]  G6 exec stage A
+  g6_exec_b  [l1]  G6 exec stage B
+  g6_oom  [l1]  G6 OOM path test
+  g6_test  [l1]  G6 process group test
+  g7mmap  [l1]  G7 mmap test
+  gameport  [camera]  game port status
+  gameporttest  [camera]  game port test
+  grep  [fs]  search text in files
+  grub-install  [block]  install the OCBL boot chain
+  halt  [power]  halt the machine
+  halt_test  [power]  halt path test
+  hda  [snd]  HD Audio codec status
+  hda_test  [snd]  HD Audio playback test
+  head  [ush]  show the first lines of a file
+  health  [watchdog]  system health snapshot/watch
+  heap  [core]  kernel heap statistics
+  heapbounds  [core]  heap boundary check
+  heaptest  [core]  heap stress test
+  hello  [l1]  hello world
+  help  [recovery]  show shell built-ins and the program registry
+  help_a_test  [recovery]  registry A-Z listing invariant test
+  help_default_test  [recovery]  registry default listing test
+  help_wp_test  [recovery]  registry work-package grouping test
+  hpet  [time]  HPET timer status
+  hwinfo  [mega]  hardware inventory wizard (no args) or verbatim info ops
+  i2cdetect  [input]  scan the I2C bus
+  i2cget  [input]  read an I2C register
+  i2cset  [input]  write an I2C register
+  i2ctest  [input]  I2C bus test
+  ifconfig  [net]  network interface status
+  igb  [nic]  igb NIC status
+  igb_test  [nic]  igb driver test
+  ime  [display]  the pinyin IME (-i interactive)
+  ime-test  [display]  IME engine + session battery
+  install  [block]  install Open Cube OS to a disk
+  int3_user  [l1]  ring-3 int3 trap test
+  ip  [net]  IP address configuration
+  ir  [camera]  infrared receiver status
+  irqabitest  [core]  IRQ affinity test
+  irtest  [camera]  IR receiver test
+  ixgbe  [nic]  ixgbe NIC status
+  ixgbe_test  [nic]  ixgbe driver test
+  kill  [core]  terminate a process
+  l1test  [l1]  L1 job/IPC/dynamic-link self-test
+  lang  [display]  show/set the console language (en/zh)
+  ld_so  [l1]  the dynamic loader itself
+  ldd  [l1]  dynamic dependency lister
+  ln  [ush]  create links
+  logcat  [watchdog]  filtered kernel log stream
+  logctl  [watchdog]  kernel log level control
+  loop  [l1]  idle loop (job test target)
+  ls  [fs]  list directory contents
+  lsblk  [block]  list block devices
+  lspci  [net]  list PCI devices
+  main_dyn  [l1]  dynamic app demo
+  mem  [core]  physical memory statistics
+  memtest  [core]  memory service test battery
+  mkdir  [fs]  create a directory
+  mkfs.exfat  [block]  create an exFAT filesystem
+  mkfs.ext4  [block]  create an ext4 filesystem
+  mkfs.fat32  [block]  create a FAT32 filesystem
+  mmap_multi  [l1]  multi-mapping test
+  mmap_test  [l1]  mmap mapping test
+  mount  [fs]  mount a filesystem / list mounts
+  mounts  [fs]  list mounted filesystems
+  mprotect_test  [l1]  mprotect permission test
+  msitest  [input]  MSI interrupt test
+  multi  [core]  multi-core wake test
+  mv  [fs]  move/rename files
+  nano  [ush]  the nano-style editor (F2 = Chinese IME)
+  net-tool  [mega]  network wizard (no args) or verbatim net+wireless ops
+  netstat  [net]  socket/connection statistics
+  nf_test  [net]  netfilter test
+  nic_rw_test  [nic]  NIC loopback test
+  nice  [core]  priority demo
+  nvme  [block]  NVMe controller status
+  nvme_test  [block]  NVMe namespace test
+  other_nic_test  [nic]  other NIC driver test
+  p0leak  [core]  user-pointer validation fence test (P0 regression)
+  p2test  [core]  WP-fix-p2-p3-cleanup live probes (utf8 chunking / read0 / pipe)
+  p3_test  [l1]  P3 security window test
+  parallel  [camera]  parallel port status
+  paralleltest  [camera]  parallel port test
+  parted  [block]  partition table editor (view)
+  partition_test  [block]  partition scan test
+  pcibars  [input]  PCI BAR assignment check
+  pcidump  [input]  dump PCI configuration
+  pcie  [input]  PCIe link status
+  pf_test  [l1]  page-fault exit test
+  pftest  [core]  page-fault handler test
+  pie_test  [l1]  PIE load test
+  ping  [net]  ICMP echo to a host
+  pipe_test  [l1]  pipe read/write test
+  play  [snd]  play a WAV file
+  pmmrace  [core]  PMM race detector
+  pmtimer  [time]  ACPI PM timer status
+  power  [mega]  power wizard (no args) or verbatim power ops (shutdown/reboot/halt/sleep)
+  poweroff  [power]  power off (ACPI)
+  poweroff_test  [power]  poweroff path test
+  priv_test  [l1]  privilege instruction trap test
+  ps  [core]  list processes
+  pwd  [fs]  print the working directory
+  real_hw_test  [block]  real hardware disk test
+  real_update_test  [ota]  OTA real-flow test
+  reboot  [ota]  reboot the machine
+  reboot_test  [power]  reboot path test
+  reloc_test  [l1]  relocation test
+  rm  [fs]  remove files
+  rmdir  [fs]  remove an empty directory
+  rollback  [ota]  roll back to the other slot
+  route  [net]  routing table
+  rtc  [time]  CMOS RTC status
+  rtl810x  [nic]  RTL810x NIC status
+  rtl810x_test  [nic]  RTL810x driver test
+  rtl8125  [nic]  RTL8125 NIC status
+  rtl8125_test  [nic]  RTL8125 driver test
+  rtl8139  [nic]  RTL8139 NIC status
+  rtl8139_test  [nic]  RTL8139 driver test
+  rtl8168  [nic]  RTL8168 NIC status
+  rtl8168_test  [nic]  RTL8168 driver test
+  run  [core]  run a program with arguments
+  sample_rate_test  [snd]  sample rate test
+  sb16  [snd]  SoundBlaster16 status
+  sb16_test  [snd]  SB16 playback test
+  sched  [core]  scheduler statistics
+  scsi  [camera]  SCSI device scan
+  scsitest  [camera]  SCSI device test
+  sed  [ush]  stream editor
+  select_test  [l1]  select multiplexing test
+  select_zero_test  [l1]  select timeout test
+  serial_encoding  [display]  show/set the serial line encoding (utf8/gbk)
+  shutdown  [power]  power off the machine
+  signal_test  [l1]  signal subsystem test
+  sigsegv_test  [l1]  SIGSEGV delivery test
+  sleep  [power]  suspend for N seconds
+  smbus  [input]  SMBus status
+  smbustest  [input]  SMBus test
+  so_test  [l1]  shared library test
+  sort  [ush]  sort lines
+  sound  [snd]  audio subsystem status
+  sound-tool  [mega]  audio wizard (no args) or verbatim snd-service ops
+  spawn  [core]  background spawn demo
+  sse_test  [l1]  SSE state preservation test
+  ssh  [crypto]  SSH client
+  sshd  [crypto]  SSH server
+  stackovf  [l1]  stack overflow guard test
+  stat  [ush]  show file metadata
+  stats  [display]  display pipeline statistics
+  suspend_test  [power]  S3 suspend test
+  sync  [block]  flush block caches to disk
+  syncstat  [core]  sync primitive statistics
+  synctest  [core]  sync primitive test
+  sysdiag  [mega]  system diagnostics wizard (no args) or verbatim diag/health/log ops
+  tail  [ush]  show the last lines of a file
+  tcpcc_test  [net]  TCP congestion control test
+  tcpstats  [net]  TCP statistics
+  tcptest  [net]  TCP loopback test
+  timer  [input]  timer test
+  top  [ush]  process overview (live)
+  touch  [fs]  create an empty file / update mtime
+  touchpad  [input]  touchpad status
+  touchtest  [input]  touchpad test
+  tree  [fs]  show a directory tree
+  tsc  [time]  TSC counter status
+  tui  [display]  the TUI desktop
+  tui-drv  [display]  TUI driver page
+  tui-ext  [display]  TUI extensions page
+  tui-hw  [display]  TUI hardware page
+  tui-net  [display]  TUI network page
+  tui-sys  [display]  TUI system page
+  tui-sysinfo  [display]  TUI system info page
+  tui-test  [display]  TUI selftests
+  tui-time  [display]  TUI clock page
+  umount  [fs]  unmount a filesystem
+  uname  [display]  system identification
+  uniq  [ush]  drop repeated adjacent lines
+  update  [mega]  OTA update wizard (no args) or the verbatim update op
+  update_check_test  [ota]  update check unit test
+  update_download_test  [ota]  OTA download test
+  update_install_test  [ota]  OTA install test
+  update_local_test  [ota]  OTA local-file test
+  update_pkg_test  [ota]  update package test
+  update_rollback_test  [ota]  OTA rollback test
+  update_status_test  [ota]  OTA status test
+  update_verify_test  [ota]  OTA verify test
+  usb  [usb]  USB host status
+  usb_audio_test  [snd]  USB audio test
+  usb_core_test  [usb]  USB core test
+  usb_hotplug_test  [usb]  USB hotplug test
+  usb_hub_test  [usb]  USB hub test
+  usb_kbd_test  [usb]  USB keyboard test
+  usb_mouse_test  [usb]  USB mouse test
+  usb_serial_test  [usb]  USB serial test
+  usb_storage_test  [usb]  USB mass storage test
+  usbaudio  [snd]  USB audio status
+  usbdev  [usb]  USB device detail
+  ush  [l1]  the Open Cube OS ring-3 shell (default entry)
+  uvc  [camera]  UVC camera status
+  uvctest  [camera]  UVC camera test
+  vi  [ush]  the modal vi editor (i/a/o insert, F2 = IME)
+  virtio_blk_test  [block]  virtio-blk test
+  virtio_snd_test  [snd]  virtio-snd test
+  virtiosnd  [snd]  virtio-sound status
+  vmkernelpt  [core]  kernel page-table dump
+  vmmap  [core]  address-space map dump
+  vmtest  [core]  VMM unit test
+  volume  [snd]  mixer volume control
+  watchdog  [watchdog]  watchdog control
+  wc  [ush]  count lines/words/bytes
+  wget  [net]  download a file over HTTP(S)
+  wifi  [nic]  wireless status/scan
+  write  [block]  write stdin to a file
+

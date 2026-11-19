@@ -1,0 +1,771 @@
+{
+ "tool": "tools/audit/scan_presentation.sh",
+ "facts_used": {
+  "commands_total": 311,
+  "ring3": 300,
+  "builtins_enum": 11,
+  "services": 20,
+  "l1svc_ops": 221,
+  "syscalls": 54,
+  "drivers_legacy": 38,
+  "drivers_framework": 7,
+  "driver_families": 7,
+  "release_version": "3.0.0-WP08-driver-framework",
+  "release_build": 477,
+  "categories": 25,
+  "dict_pages": 26,
+  "mega_apps": 8,
+  "mega_ops": 154
+ },
+ "scanned_files": 959,
+ "findings": [
+  {
+   "file": "FAQ.md",
+   "line": 73,
+   "pattern": "commands-total",
+   "context": "total command count",
+   "claimed": 233,
+   "fact": 311,
+   "text": "baseline of 233 commands is mapped whole - see the compatibility"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 75,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u4f4d\u7f6e: `src/L0/core/core_sched.c:143-162` int core_sched_task_states(u32 *running, u32 *ready, u32 *blocked, u32 *total) {"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 77,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L0/core/core_sched.c:143`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 86,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u4f4d\u7f6e: `src/L0/core/core_sched.c:395-404`\uff08guard page \u521b\u5efa\uff09\u3001`core_sched.c:833-843`\uff08reap/destroy \u91cd\u6620\u5c04\uff09\u3001`src/L0/core/mem/mem_vmm.c:146-176`\uff08walk_pt \u5927\u9875\u5206\u652f\uff09\u3001`src/L0/boot/boot.S:106-116`\uff084 GiB \u5168\u90e8 2MiB \u5927\u9875 + G \u6807"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 88,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L0/core/core_sched.c:395`, `src/L0/core/mem/mem_vmm.c:146`, `src/L0/boot/boot.S:106`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 97,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u4f4d\u7f6e: `src/L0/services/sysapi/core_syscall.c:545-562`\uff08SIGKILL \u5206\u652f\uff09\u3001`:564-579`\uff08\u9ed8\u8ba4\u52a8\u4f5c\u5206\u652f\uff09 if (sig == SIGKILL) {"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 99,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L0/services/sysapi/core_syscall.c:545`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 108,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u4f4d\u7f6e: `src/L0/core/core_usermode.c:1015`\uff08`proc->as = create_user_address_space()`\uff09\u4e0e\u6240\u6709\u540e\u7eed\u65e9\u9000\u70b9\uff1a1047-1049\u30011098-1100\u30011172\u30011181\u30011195\u30011200\u30011205\u30011211\u30011223\u30011257\u30011317-1318 proc->as = create_user_address_space("
+  },
+  {
+   "file": "bug-list.md",
+   "line": 110,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L0/core/core_usermode.c:1015`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 119,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u4f4d\u7f6e: `src/L0/services/sysapi/core_syscall.c:1703-1712, 1726-1728` mem_vmm_as_t old_as = proc->as;"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 121,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L0/services/sysapi/core_syscall.c:1703`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 130,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u6587\u4ef6\uff1a`src/L0/drivers/acpi/driver_acpi_aml.c` - \u884c\u53f7\uff1a449-452\uff08\u8bfb SystemMemory\uff09\u3001521-527\uff08\u5199 SystemMemory\uff09\u3001455-460\uff08SystemIO\uff09\u30011355-1361\uff08OpRegion \u58f0\u660e\u89e3\u6790\uff0cregion_len \u5b58\u4e86\u4f46\u4ece\u672a\u4f7f\u7528\uff09"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 132,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L0/drivers/acpi/driver_acpi_aml.c`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 141,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u6587\u4ef6\uff1a`src/L0/services/net/net_tls.c`\uff081024-1038 TLS1.3 \u8def\u5f84\uff1b1553-1570 TLS1.2 \u8def\u5f84\uff09\u3001`src/L0/services/crypto/crypto_x509.c`\uff08523-592\uff09 - \u4ee3\u7801\uff08net_tls.c:1030-1037\uff09\uff1a"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 143,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L0/services/net/net_tls.c`, `src/L0/services/crypto/crypto_x509.c`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 152,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u6587\u4ef6\uff1a`src/L0/services/net/net_core.c` - \u884c\u53f7\uff1a4121\uff08`h->id = htons(0x1234);` \u56fa\u5b9a\u503c\uff09\u30014155-4157\uff08\u56fa\u5b9a\u6e90\u7aef\u53e3 1077 + `net_udp_send`\uff09\u30013987-3992\uff08`net_dns_handler` \u4e0d\u68c0\u67e5 id\u3001\u95ee\u9898\u57df\u540d\u3001\u6e90 IP\uff09"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 154,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L0/services/net/net_core.c`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 163,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u6587\u4ef6\uff1a`src/L0/services/net/net_core.c` - \u884c\u53f7\uff1a2722-2724\uff08`net_tcp_check_rto` \u5f00\u5934 `cli`\uff09\u30012760-2765\uff08RTO \u91cd\u4f20\u2192`net_tcp_send_raw`\uff09\u30011329\uff08`net_ip_send`\u2192`net_arp_resolve`\uff09\u30011195-1211\uff08ARP \u5fd9\u7b49\u5faa\u73af\uff09\u30014497-4498\uff08`net_poll`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 165,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L0/services/net/net_core.c`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 174,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u6587\u4ef6: `src/L1/ush/main.c:786`\uff08redirect \u8def\u5f84\uff09\u4e0e `:837-840`\uff08\u5e38\u89c4\u8def\u5f84\uff09 - \u7247\u6bb5:"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 176,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L1/ush/main.c:786`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 185,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u6587\u4ef6: `src/L1/ush/main.c:1385-1391\u30011394-1397`\uff08\u6ce8\u518c\u8868/\u5185\u5efa\u5019\u9009\uff09\u3001`:1469-1479`\uff08\u6587\u4ef6\u540d\u5019\u9009\uff09 - \u7247\u6bb5:"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 187,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L1/ush/main.c:1385`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 196,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u6587\u4ef6: `src/L1/ush/main.c:746-748`\uff08redirect \u8def\u5f84\uff09\u3001`:804-806`\uff08\u5e38\u89c4\u8def\u5f84\uff09 - \u7247\u6bb5:"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 198,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L1/ush/main.c:746`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 207,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u6587\u4ef6: `src/L1/_shared/editor_core.h:508-546`\uff08`unano_load`\uff0c`UNANO_MAX_LINES=256`/`UNANO_LINE_CAP=128`\uff09 - \u7247\u6bb5:"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 209,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L1/_shared/editor_core.h:508`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 218,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u6587\u4ef6: `src/L1/write/main.c:20-30` - \u7247\u6bb5:"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 220,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L1/write/main.c:20`, `src/L0/services/fs/fs_vfs.h:45`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 220,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L1/write/main.c:20`, `src/L0/services/fs/fs_vfs.h:45`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 229,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u6587\u4ef6: `src/L1/cp/main.c:14-33`\u3001`src/L1/mv/main.c:10-31` - \u7247\u6bb5\uff08mv\uff09:"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 231,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L1/cp/main.c:14`, `src/L1/mv/main.c:10`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 327,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP-02",
+   "claimed": "3.0.0-WP-02",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "- **\u7f3a\u9677\u63cf\u8ff0**: `ocire/generated/ocire_version_gen.h:4` \u6062\u590d\u5185\u6838\u6a2a\u5e45 `OCIRE 3.0.0-WP-02 (build 414)`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 327,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP-02",
+   "claimed": "3.0.0-WP-02",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "- **\u7f3a\u9677\u63cf\u8ff0**: `ocire/generated/ocire_version_gen.h:4` \u6062\u590d\u5185\u6838\u6a2a\u5e45 `OCIRE 3.0.0-WP-02 (build 414)`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 328,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP-02",
+   "claimed": "3.0.0-WP-02",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "- - **F3 [P1]** `ocire/generated/ocire_version_gen.h:4` \u6062\u590d\u5185\u6838\u6a2a\u5e45 `OCIRE 3.0.0-WP-02 (build 414)` \u2014\u2014 \u53d1\u5e03\u7269\u5185\u90e8\u81ea\u62a5\u7248\u672c WP-02\u3002"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 328,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP-02",
+   "claimed": "3.0.0-WP-02",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "- - **F3 [P1]** `ocire/generated/ocire_version_gen.h:4` \u6062\u590d\u5185\u6838\u6a2a\u5e45 `OCIRE 3.0.0-WP-02 (build 414)` \u2014\u2014 \u53d1\u5e03\u7269\u5185\u90e8\u81ea\u62a5\u7248\u672c WP-02\u3002"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 361,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP06g2",
+   "claimed": "3.0.0-WP06g2",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "- - **F15 [P1]** README:126 \"Each release note carries the SHA256 of every asset\" \u2014\u2014 \u5b9e\u6d4b `docs/release/3.0.0-WP06g2.md` \u4e0e `3.0.0-WP06g3.md` **\u5747\u65e0 SHA256/size \u8868**\uff08\u6a21\u677f `release-notes-template.md:27` \u548c proc"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 363,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP06g2",
+   "claimed": "3.0.0-WP06g2",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `docs/release/3.0.0-WP06g2.md`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 438,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- - \u4f4d\u7f6e: `ocse/ocse_inst.c:477-506`\uff08conf_key_valid \u8ba4 `lang`/`boot.slot`/`hostname`\uff09\uff1b`ocse/ocse_wizard.c:854-870`\uff08\u5411\u5bfc\u5199 `config set hostname/lang`\uff09\uff1b`OCOS.TAR:etc/opencube.conf`\uff0865B\uff0c`hostname=opencube/lang"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 440,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `ocse/ocse_inst.c:477`, `ocse/ocse_wizard.c:854`, `etc/opencube.c`, `src/L0/core/lib/lib_config.h:60`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 449,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- - **#110 \u6807\u9898\"L1 \u5e94\u7528 stdout \u5168\u90e8\u8c46\u8150\"\u8303\u56f4\u8fc7\u5bbd\u9700\u4fee\u6b63**\uff1a\u5b9e\u6d4b `echo \u5207\u6362\u76ee\u5f55\u6d4b\u8bd5ABC`\u3001`cat`\uff08sys_write \u8def\u5f84\uff09\u5c4f\u5e55\u6e32\u67d3**\u771f\u6c49\u5b57**\uff1b\u8c46\u8150\u4ec5\u51fa\u73b0\u5728 **ush \u81ea\u8eab\u8f93\u51fa**\uff08help/help -a/help -w\u3001\u547d\u4ee4\u56de\u663e\uff09\u3002 - \u6839\u56e0: ush \u6240\u6709\u8f93\u51fa\u8d70 `SYS_WRITE2(72)`\uff08`src/L1/ush/main.c:7,30,11"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 449,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- - **#110 \u6807\u9898\"L1 \u5e94\u7528 stdout \u5168\u90e8\u8c46\u8150\"\u8303\u56f4\u8fc7\u5bbd\u9700\u4fee\u6b63**\uff1a\u5b9e\u6d4b `echo \u5207\u6362\u76ee\u5f55\u6d4b\u8bd5ABC`\u3001`cat`\uff08sys_write \u8def\u5f84\uff09\u5c4f\u5e55\u6e32\u67d3**\u771f\u6c49\u5b57**\uff1b\u8c46\u8150\u4ec5\u51fa\u73b0\u5728 **ush \u81ea\u8eab\u8f93\u51fa**\uff08help/help -a/help -w\u3001\u547d\u4ee4\u56de\u663e\uff09\u3002 - \u6839\u56e0: ush \u6240\u6709\u8f93\u51fa\u8d70 `SYS_WRITE2(72)`\uff08`src/L1/ush/main.c:7,30,11"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 451,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L1/ush/main.c:7`, `src/L0/services/sysapi/core_syscall.c:2261`"
+  },
+  {
+   "file": "bug-list.md",
+   "line": 451,
+   "pattern": "stale-path",
+   "context": "src/L1 was restructured to ocos/l1apps",
+   "claimed": "\\bsrc/L1\\b",
+   "fact": "ocos/ layout",
+   "text": "- **\u6d89\u53ca\u6587\u4ef6**: `src/L1/ush/main.c:7`, `src/L0/services/sysapi/core_syscall.c:2261`"
+  },
+  {
+   "file": "INTERFACES.md",
+   "line": 70,
+   "pattern": "builtins",
+   "context": "ush built-in count",
+   "claimed": 19,
+   "fact": 11,
+   "text": "unique-name ledger (99 L0 + 133 SVC + 19 built-ins = 251) is"
+  },
+  {
+   "file": "README.md",
+   "line": 171,
+   "pattern": "ops-count",
+   "context": "L1SVC ops count",
+   "claimed": 208,
+   "fact": 221,
+   "text": "- **L1SVC service surface**: 20 categories / 208 numbered ops - see"
+  },
+  {
+   "file": "VERIFICATION_REPORT.md",
+   "line": 39,
+   "pattern": "commands-total",
+   "context": "total command count",
+   "claimed": 68,
+   "fact": 311,
+   "text": "[00:00:00.078] shell command system (68 commands)................ OK"
+  },
+  {
+   "file": "KNOWN_ISSUES.md",
+   "line": 57,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "G4 (`src/L0/services/ocembed/`, the supervised battery 3/3 in"
+  },
+  {
+   "file": "KNOWN_ISSUES.md",
+   "line": 76,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP06g2",
+   "claimed": "3.0.0-WP06g2",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "## 3.0.0-WP06g2 notes"
+  },
+  {
+   "file": "KNOWN_ISSUES.md",
+   "line": 79,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "(the 06g1 catch-2) is CLOSED by WP06g2: `src/L0/core/userprogs_data.h`"
+  },
+  {
+   "file": "KNOWN_ISSUES.md",
+   "line": 133,
+   "pattern": "commands-total",
+   "context": "total command count",
+   "claimed": 233,
+   "fact": 311,
+   "text": "banner, \"233 commands\") - the main ISO has booted straight to the"
+  },
+  {
+   "file": "docs/components/ocbl/ocbl-ab.md",
+   "line": 7,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "(`ocbl/`), the OCOS kernel (`src/L0/`) and the OCIRE recovery kernel"
+  },
+  {
+   "file": "docs/components/ocse/ocse-wizard.md",
+   "line": 41,
+   "pattern": "commands-total",
+   "context": "total command count",
+   "claimed": 40,
+   "fact": 311,
+   "text": "## The OCSECL command dictionary (40 commands)"
+  },
+  {
+   "file": "docs/l1/overview.md",
+   "line": 45,
+   "pattern": "ops-count",
+   "context": "L1SVC ops count",
+   "claimed": 245,
+   "fact": 221,
+   "text": "diag/tui), ~245 numbered ops."
+  },
+  {
+   "file": "docs/internals/index.md",
+   "line": 24,
+   "pattern": "ops-count",
+   "context": "L1SVC ops count",
+   "claimed": 208,
+   "fact": 221,
+   "text": "208 L1SVC ops). Architecture overview:"
+  },
+  {
+   "file": "docs/manual/hidden-commands.md",
+   "line": 295,
+   "pattern": "commands-total",
+   "context": "total command count",
+   "claimed": 296,
+   "fact": 311,
+   "text": "- [function-dictionary.md](function-dictionary.md) \u2014 all 296 commands"
+  },
+  {
+   "file": "docs/manual/ush-reference.md",
+   "line": 11,
+   "pattern": "builtins",
+   "context": "ush built-in count",
+   "claimed": 12,
+   "fact": 11,
+   "text": "## The 12 built-ins"
+  },
+  {
+   "file": "docs/manual/commands/index.md",
+   "line": 4,
+   "pattern": "commands-total",
+   "context": "total command count",
+   "claimed": 292,
+   "fact": 311,
+   "text": "# Shell command reference (292 commands)"
+  },
+  {
+   "file": "docs/manual/dictionary/tools-system.md",
+   "line": 352,
+   "pattern": "drivers-count",
+   "context": "driver count",
+   "claimed": 45,
+   "fact": 38,
+   "text": "driver registry: 45 drivers (7 metadata + 38 legacy)"
+  },
+  {
+   "file": "docs/zh/components/ocbl/ocbl-ab.md",
+   "line": 6,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "OCOS \u5185\u6838\uff08`src/L0/`\uff09\u3001OCIRE \u6062\u590d\u5185\u6838\uff08`ocire/`\uff09\u2014\u2014\u5b9a\u4e49\u5728"
+  },
+  {
+   "file": "docs/zh/manual/dictionary/tools-system.md",
+   "line": 352,
+   "pattern": "drivers-count",
+   "context": "driver count",
+   "claimed": 45,
+   "fact": 38,
+   "text": "driver registry: 45 drivers (7 metadata + 38 legacy)"
+  },
+  {
+   "file": "docs/zh/arch/system-map.md",
+   "line": 60,
+   "pattern": "drivers-count",
+   "context": "driver count",
+   "claimed": 4,
+   "fact": 38,
+   "text": "| 2/4 drivers |  | kexec OCOS ------->|  (OCOS boots with"
+  },
+  {
+   "file": "docs/zh/root/KNOWN_ISSUES.md",
+   "line": 53,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "G4 \u5173\u95ed\uff08`src/L0/services/ocembed/`\uff0c\u76d1\u7763\u6d4b\u8bd5\u7ec4 3/3 \u5728"
+  },
+  {
+   "file": "docs/zh/root/KNOWN_ISSUES.md",
+   "line": 70,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP06g2",
+   "claimed": "3.0.0-WP06g2",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "## 3.0.0-WP06g2 \u6ce8\u8bb0"
+  },
+  {
+   "file": "docs/zh/root/KNOWN_ISSUES.md",
+   "line": 73,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "\uff0806g1 \u7684 catch-2\uff09\u7531 WP06g2 \u5173\u95ed\uff1a`src/L0/core/userprogs_data.h`"
+  },
+  {
+   "file": "docs/zh/root/KNOWN_ISSUES.md",
+   "line": 121,
+   "pattern": "commands-total",
+   "context": "total command count",
+   "claimed": 233,
+   "fact": 311,
+   "text": "\u6a2a\u5e45\u3001\"233 commands\"\uff09\u2014\u2014\u4e3b ISO \u8bb8\u591a\u4e2a\u6279\u6b21\u4ee5\u6765\u76f4\u63a5\u542f\u52a8\u8fdb"
+  },
+  {
+   "file": "docs/zh/dev/ocire.md",
+   "line": 4,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP-02",
+   "claimed": "3.0.0-WP-02",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "\u7531 **3.0.0-WP-02-ocire_recovery** \u4ea4\u4ed8\uff08\u8be5\u5de5\u4f5c\u5305\u4ea4\u4ed8\u4e86\u6062\u590d\u7279\u6027\uff1a"
+  },
+  {
+   "file": "docs/zh/dev/ocire.md",
+   "line": 4,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP-02",
+   "claimed": "3.0.0-WP-02",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "\u7531 **3.0.0-WP-02-ocire_recovery** \u4ea4\u4ed8\uff08\u8be5\u5de5\u4f5c\u5305\u4ea4\u4ed8\u4e86\u6062\u590d\u7279\u6027\uff1a"
+  },
+  {
+   "file": "docs/arch/tree-map.md",
+   "line": 217,
+   "pattern": "commands-total",
+   "context": "total command count",
+   "claimed": 40,
+   "fact": 311,
+   "text": "1919 lines, 40 commands), `ocse_gui.c` + `ocse_wizard.c` +"
+  },
+  {
+   "file": "docs/arch/hidden-mechanisms.md",
+   "line": 182,
+   "pattern": "drivers-count",
+   "context": "driver count",
+   "claimed": 256,
+   "fact": 38,
+   "text": "services, 256 drivers, the app registry) and kmain logs"
+  },
+  {
+   "file": "docs/arch/system-map.md",
+   "line": 62,
+   "pattern": "drivers-count",
+   "context": "driver count",
+   "claimed": 4,
+   "fact": 38,
+   "text": "| 2/4 drivers |  | kexec OCOS ------->|  (OCOS boots with"
+  },
+  {
+   "file": "docs/root/FAQ.md",
+   "line": 73,
+   "pattern": "commands-total",
+   "context": "total command count",
+   "claimed": 233,
+   "fact": 311,
+   "text": "baseline of 233 commands is mapped whole - see the compatibility"
+  },
+  {
+   "file": "docs/root/INTERFACES.md",
+   "line": 70,
+   "pattern": "builtins",
+   "context": "ush built-in count",
+   "claimed": 19,
+   "fact": 11,
+   "text": "unique-name ledger (99 L0 + 133 SVC + 19 built-ins = 251) is"
+  },
+  {
+   "file": "docs/root/README.md",
+   "line": 171,
+   "pattern": "ops-count",
+   "context": "L1SVC ops count",
+   "claimed": 208,
+   "fact": 221,
+   "text": "- **L1SVC service surface**: 20 categories / 208 numbered ops - see"
+  },
+  {
+   "file": "docs/root/KNOWN_ISSUES.md",
+   "line": 57,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "G4 (`src/L0/services/ocembed/`, the supervised battery 3/3 in"
+  },
+  {
+   "file": "docs/root/KNOWN_ISSUES.md",
+   "line": 76,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP06g2",
+   "claimed": "3.0.0-WP06g2",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "## 3.0.0-WP06g2 notes"
+  },
+  {
+   "file": "docs/root/KNOWN_ISSUES.md",
+   "line": 79,
+   "pattern": "stale-path",
+   "context": "src/L0 was restructured to ocos/ (kernel/services/drivers)",
+   "claimed": "\\bsrc/L0\\b",
+   "fact": "ocos/ layout",
+   "text": "(the 06g1 catch-2) is CLOSED by WP06g2: `src/L0/core/userprogs_data.h`"
+  },
+  {
+   "file": "docs/root/KNOWN_ISSUES.md",
+   "line": 133,
+   "pattern": "commands-total",
+   "context": "total command count",
+   "claimed": 233,
+   "fact": 311,
+   "text": "banner, \"233 commands\") - the main ISO has booted straight to the"
+  },
+  {
+   "file": "docs/dev/index.md",
+   "line": 5,
+   "pattern": "ring3-programs",
+   "context": "ring-3 program count",
+   "claimed": 284,
+   "fact": 300,
+   "text": "service kernel, 284 ring-3 programs, the 8 merged mega-apps)."
+  },
+  {
+   "file": "docs/dev/ocire.md",
+   "line": 4,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP-02",
+   "claimed": "3.0.0-WP-02",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "Shipped by: **3.0.0-WP-02-ocire_recovery** (that work package shipped the"
+  },
+  {
+   "file": "docs/dev/ocire.md",
+   "line": 4,
+   "pattern": "stale-version",
+   "context": "stale version string 3.0.0-WP-02",
+   "claimed": "3.0.0-WP-02",
+   "fact": "3.0.0-WP08-driver-framework",
+   "text": "Shipped by: **3.0.0-WP-02-ocire_recovery** (that work package shipped the"
+  },
+  {
+   "file": "docs/dev/e2e-suites.md",
+   "line": 25,
+   "pattern": "commands-total",
+   "context": "total command count",
+   "claimed": 24,
+   "fact": 311,
+   "text": "framebuffer assertion), waits for `ush>`, runs 24 commands, then"
+  }
+ ],
+ "image_references": [
+  {
+   "file": "website/index.html",
+   "ref": "assets/shot-bios.png"
+  },
+  {
+   "file": "website/index.html",
+   "ref": "assets/shot-uefi.png"
+  }
+ ]
+}

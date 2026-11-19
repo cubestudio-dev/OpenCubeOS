@@ -20,7 +20,7 @@ chinese support status:
   coverage : 6763 hanzi + 682 symbols, 16x16, 2 bytes/row
   data     : 216416 + 21824 bytes embedded
   slots    : 1 of 4 used
-  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 5852 | encode 0 | convert 0 | detect 0 | miss 0
+  encoding: gb2312+utf8+ascii | font: embedded-unifont-16x16 | hanzi 6763 | symbols 682 | decode 5904 | encode 0 | convert 0 | detect 0 | miss 0
   console encoding: utf-8
 ush> 
 ```
@@ -333,7 +333,7 @@ ush>
 
 ```
 stats
-ticks=288  ms=2880  IRQ0=288  IRQ1=0  soft=0  one=0
+ticks=291  ms=2910  IRQ0=292  IRQ1=0  soft=0  one=0
 ush> 
 ```
 

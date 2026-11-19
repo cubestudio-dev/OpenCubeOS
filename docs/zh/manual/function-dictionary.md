@@ -2,7 +2,7 @@
 # 功能字典 — Open Cube OS 3.0.0 的全部命令
 
 本页是 3.0.0 用户面的完整、无遗漏索引：
-**296 条命令 = 284 个已注册程序 + 12 个 ush 内建命令**。
+**311 条命令 = 300 个已注册程序 + 11 个 ush 内建命令**。
 下列每个程序都可以在 `ush>` 提示符下按拼写原样输入
 （它位于内核注册表 `OC_USERPROGS[]` 中，由
 `tools/gen_userprogs.py` 从 `ocos/l1apps/` 生成）。
@@ -50,14 +50,14 @@
 | *destructive* | 会破坏数据；向导用"重新输入设备名 + 裸 `y` 确认"加以防护，classic/direct 分发则立即执行。 |
 
 12 个 ush 内建命令在此概述，完整文档见
-[ush-reference.md](ush-reference.md)。测试/诊断桩（284 个中约 93 个）
+[ush-reference.md](ush-reference.md)。测试/诊断桩（300 个中约 93 个）
 有各自的深入页面：[hidden-commands.md](hidden-commands.md)。
 
 ## 用户面从何而来
 
 - 276 条历史命令已被回归门冻结
   （`tools/run_fix4_regression.py` 测得注册表 ≥ 276；3.0.0
-  发布 284 条）。任何命令都不能被悄悄移除。
+  发布 300 条）。任何命令都不能被悄悄移除。
 - 8 个 **mega 应用** 在 3.0.0 中合并而成（`update`、`disk-tool`、
   `net-tool`、`sound-tool`、`files`、`sysdiag`、`hwinfo`、`power`）；
   历史的单命令应用仍保持注册，因此每个 op 至少有两种拼写
@@ -68,7 +68,7 @@
 ### help — 三种模式
 
 ```
-ush> help            built-in summary + "Registry: 284 programs - 'help -a'
+ush> help            built-in summary + "Registry: 300 programs - 'help -a'
                      lists them all, 'help -w' groups by work package."
 ush> help -a         built-ins + every registry entry, A-Z, tagged
 ush> help --all      (same)
@@ -131,7 +131,7 @@ ush> help --wp       the mega group renders FIRST
 | [ldd](commands/ldd.md) | 动态依赖列表器 | ⚑ 读取任意注册表程序的 PT_INTERP + DT_NEEDED：`ldd <program>` |
 | l1test | L1 作业/IPC/动态链接自测 | 无参数；PASS/FAIL 判定块 |
 | hello | hello world（平坦 asm） | 作业控制固定件 |
-| loop | 空闲循环（平坦 asm） | 作业测试目标；永久忙等（见 bug-list BUG-112） |
+| loop | 空闲循环（平坦 asm） | 作业测试目标；永久忙等（见 GitHub Issues） |
 | badapp | 故意行为不端的应用（平坦 asm） | 崩溃路径固定件 |
 | dyn_hello | 动态链接测试程序 | 打印 `hello from dynamic program` |
 | main_dyn | 动态主镜像测试 | 动态链接固定件 |
@@ -270,7 +270,7 @@ ush> help --wp       the mega group renders FIRST
 | 命令 | 用途 | 隐藏 / 扩展语法 |
 |---------|---------|--------------------------|
 | [cat](commands/cat.md) | 打印文件内容 | 无 flag |
-| [cp](commands/cp.md) | 复制文件 | `cp <src> <dst>`（无同文件防护 — bug-list BUG-36） |
+| [cp](commands/cp.md) | 复制文件 | `cp <src> <dst>`（无同文件防护——见 GitHub Issues） |
 | [df](commands/df.md) | 文件系统剩余空间 | 无参数 |
 | [du](commands/du.md) | 文件空间占用 | `du [path]` |
 | [edit](commands/edit.md) | 经典行编辑器界面 | 与 nano 完全相同（第二种拼写）；F2 = IME |
@@ -472,7 +472,7 @@ ush> help --wp       the mega group renders FIRST
 - 输出缓冲是静态 **32 KiB**。`help -a` 的完整注册表
   列表（约 12 KiB）放得下；栈截断变体是很久前已修复的
   bug。
-- rc 非零时封装打印 `<app>: service call failed (rc=-1)` — 284 个应用中约 150 个共享的这一模板（该
+- rc 非零时封装打印 `<app>: service call failed (rc=-1)` — 300 个应用中约 150 个共享的这一模板（该
   i18n 键总计被 250 个应用共享）。看到它时，真实情况在
   `dmesg` 里：统一排查见
   [../troubleshooting/error-catalog.md](../troubleshooting/error-catalog.md)

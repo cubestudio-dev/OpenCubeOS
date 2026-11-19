@@ -240,6 +240,8 @@ usage: mv <src> <dst>
 ush> 
 ```
 
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
+
 ### rm
 
 | Field | Value |

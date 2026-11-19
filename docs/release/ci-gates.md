@@ -136,9 +136,9 @@ release-time gates in the sandbox:
 Run after the assets are live (from [process](process.md) §8). Every
 item is a pass/fail question with a concrete verification action:
 
-1. **Both repos' remote HEADs match local** — `git ls-remote` on the
-   public repo and the private mirror shows the expected SHAs (the
-   push actually landed, nowhere is half-updated).
+1. **The remote HEADs match local** — `git ls-remote` on the public
+   repo shows the expected SHAs (the push actually landed, nowhere is
+   half-updated).
 2. **The tag exists on the public repo and points at a CI-green
    commit** — the Actions run for that exact SHA is green; never tag a
    red commit.
@@ -160,10 +160,7 @@ item is a pass/fail question with a concrete verification action:
 10. **Whole-repo number consistency** — the command-home /
     category / L1SVC-op / syscall counts and the stats.json line count
     are recomputed every release, never carried over.
-11. **Private mirror complete** — the three assets + release note +
-    mirrored website files are in the mirror (the mirror rules are
-    maintained by the maintainers outside the public docs).
-12. **CI green on the release commit AND on the tagged commit** — the
+11. **CI green on the release commit AND on the tagged commit** — the
     same SHA checked twice, because a tag can move.
 
 ## 5. SHA256 three-way verification

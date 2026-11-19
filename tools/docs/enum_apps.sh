@@ -307,14 +307,21 @@ ush_c = os.path.join(L1, "ush", "main.c")
 ush_txt = read(ush_c)
 BUILTINS = ["alias", "cd", "env", "exit", "export",
             "history", "set", "unalias"]
-for b in BUILTINS:
-    # locate the builtin branch: streq(argv[0], "b") and slice to the
-    # next builtin branch (or 6000 chars) - branch-local facts only
-    m = re.search(r'streq_?\s*\(\s*argv\[0\]\s*,\s*"%s"\s*\)' % b, ush_txt)
+# WP-presentation-consistency-audit: the shell job-control builtins
+# (jobs/fg/bg, handled on the expanded-arg branch in ush main.c and
+# listed by `help -a`) were missing from this enumeration - help -a
+# lists 12 builtin rows while this list carried 8.
+JOB_BUILTINS = ["jobs", "fg", "bg"]
+for b in BUILTINS + JOB_BUILTINS:
+    # locate the builtin branch: streq(argv[0], "b") or the
+    # streq(expanded, "b") job-control form - and slice to the next
+    # builtin branch (or 6000 chars) - branch-local facts only
+    m = re.search(r'streq_?\s*\(\s*(?:argv\[0\]|expanded)\s*,\s*"%s"\s*\)'
+                  % b, ush_txt)
     seg = ""
     if m:
-        nxt = re.search(r'streq_?\s*\(\s*argv\[0\]\s*,\s*"(?:%s)"\s*\)'
-                        % "|".join(BUILTINS), ush_txt[m.end():])
+        nxt = re.search(r'streq_?\s*\(\s*(?:argv\[0\]|expanded)\s*,\s*"(?:%s)"\s*\)'
+                        % "|".join(BUILTINS + JOB_BUILTINS), ush_txt[m.end():])
         seg = ush_txt[m.start():
                       m.end() + (nxt.start() if nxt else 6000)]
     u, lits, outs, rets = extract_facts(seg)

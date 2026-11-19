@@ -277,7 +277,7 @@ report; if it is your own, fix the link script.
 - `PANIC: idle task stack allocation failed - halting` — sched-init
   OOM. Increase RAM (512 MiB comfortable).
 - klog WARN `kthread %s: guard page unmap FAILED at 0x%lx (stack protection absent)` — 2 MiB huge-page split failed; the task runs
-  without stack-overflow protection (bug-list BUG-4). Harmless but
+  without stack-overflow protection (a known P1, tracked on GitHub Issues). Harmless but
   report-worthy.
 - `config: backend bring-up FAILED` — /etc could not be mounted;
   config degrades to ramfs (changes lost on reboot). See
@@ -760,7 +760,7 @@ a FAIL is a real regression of the fix they guard.
 
 ---
 
-## 8. Known bugs — bug-list.md, 1 P0 + 35 P1 (3.0.0 export)
+## 8. Known bugs — KNOWN_ISSUES.md (GitHub Issues is the live tracker)
 
 ### P0
 
@@ -860,7 +860,7 @@ a FAIL is a real regression of the fix they guard.
     fix — all ush output tofu on screen (root cause of BUG-110).
     Fixed with the WP06g1 fix.
 
-(62 P2 + 41 P3 are counted in bug-list.md but not detailed here.)
+(Lower-priority findings are tracked on GitHub Issues.)
 
 ## 9. KNOWN_ISSUES postmortems (19 fixed) + 3 open boundaries
 

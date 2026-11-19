@@ -8,12 +8,11 @@ Where a limit is quoted, the header that defines it is named.
 
 **What is Open Cube OS?**
 A from-scratch x86_64 kernel ("L0") that provides services - memory,
-scheduling, VFS, network, drivers, and a WinRE-style recovery shell
-(the 2.x `oc>` prompt) - plus a ring-3 application layer ("L1") whose
-default boot entry is the ush user shell. It boots from a hybrid
-BIOS+UEFI ISO and gives you **251 command homes** (99 in the L0
-recovery shell, 133 ring-3 service commands, 19 ush built-ins) to
-inspect and control the machine.
+scheduling, VFS, network, drivers - with zero interactive user
+surface, plus a ring-3 application layer ("L1") whose default boot
+entry is the ush user shell. It boots from a hybrid BIOS+UEFI ISO
+and gives you **311 commands** (300 ring-3 registry programs + 11
+ush built-ins) to inspect and control the machine.
 
 **What is this "L0 / L1" thing?**
 Two rings:
@@ -23,8 +22,8 @@ Two rings:
   environment.
 - **L1 = uses services.** Ring-3 applications reaching L0 capability
   through the extension surface: the numbered L1SVC op table
-  (17 categories / 158 ops, `services/l1/l1svc_defs.h`) plus the
-  classic syscalls. `l1apps/` ships the L1 side in-tree: ush (the
+  (20 categories / 238 ops, `ocos/services/sysapi/interface/svc_sysapi_l1svc.h`) plus the
+  classic syscalls. `ocos/l1apps/` ships the L1 side in-tree: ush (the
   only `OC_L1_APP_DECL` application, the default boot entry) and the
   embedded test programs.
 
@@ -67,17 +66,17 @@ and the OTA commands control it from inside the system.
 ## The shell
 
 **How many commands?**
-251 command homes: 99 L0 recovery-shell commands (`help -a` at the
-`ush>` prompt), the L1SVC service bridge (20 categories), and
-19 ush built-ins (`help` inside ush). Verify live in the guest, or
-`make api-docs` and read `docs/data/commands.json`. The v1.0.0
+311 commands: 300 ring-3 registry programs under `ocos/l1apps/`
+(`help -a` at the `ush>` prompt lists them all) plus 11 ush
+built-ins (the job-control trio included). Verify live in the
+guest, or `make api-docs` and read `docs/data/commands.json`. The v1.0.0
 baseline of 233 commands is mapped whole - see the compatibility
 table in `INTERFACES.md` Part 1c.
 
 **Where is the full command list?**
 At `ush>`: `help -a` (alphabetical), `help -w` (by work-package),
 `help` (short list). Inside ush: `help`. The reference documentation
-under `docs/manual/commands/` covers all 251.
+under `docs/manual/dictionary/` covers all 311 (both languages).
 
 **Why are all system strings English?**
 The console and kernel paths are ASCII by design (see
@@ -179,8 +178,8 @@ MSYS2 toolchain - see `BUILDING.md`.
 **How do I write an L1 extension?**
 Read `docs/l1/` (the in-tree guide set: overview, surface map,
 writing-modules, the driver/block/nic/snd/ota/watchdog guides). The
-numbered L1SVC surface (17 categories / 158 ops) is defined in
-`services/l1/l1svc_defs.h`; the still-public register-class surfaces
+numbered L1SVC surface (20 categories / 238 ops) is defined in
+`ocos/services/sysapi/interface/svc_sysapi_l1svc.h`; the still-public register-class surfaces
 (`tui/tui_ext.h`, `services/watchdog/core_watchdog.h`,
 `services/l1/l1_ext.h` and friends) and the per-service headers are
 documented in `INTERFACES.md`.

@@ -8,7 +8,7 @@
 
 `serial_encoding` - ring-3 L1 app
 
-**Usage:** `serial_encoding [utf8|gbk] `
+**Usage:** `serial_encoding [utf8|gbk]`
 
 Domain: [Other](index.md#other)
 

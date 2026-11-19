@@ -275,7 +275,7 @@ ocsecl 步骤。
 - `PANIC: idle task stack allocation failed - halting` — 调度器初始化
   OOM。增加内存（512 MiB 从容）。
 - klog WARN `kthread %s: guard page unmap FAILED at 0x%lx (stack protection absent)` — 2 MiB 大页拆分失败；该任务
-  在无栈溢出防护下运行（bug-list BUG-4）。无害但
+  在无栈溢出防护下运行（已知 P1，见 GitHub Issues 追踪）。无害但
   值得报告。
 - `config: backend bring-up FAILED` — /etc 无法挂载；
   配置降级为 ramfs（重启后变更丢失）。见
@@ -756,7 +756,7 @@ FAIL 即其所守护修复的真实回归。
 
 ---
 
-## 8. 已知 bug — bug-list.md，1 个 P0 + 35 个 P1（3.0.0 导出）
+## 8. 已知 bug — KNOWN_ISSUES.md（GitHub Issues 为实时追踪）
 
 ### P0
 
@@ -858,7 +858,7 @@ FAIL 即其所守护修复的真实回归。
     根因）。随 WP06g1 修复
     一并解决。
 
-（62 个 P2 + 41 个 P3 计入 bug-list.md 但不在此详述。）
+（较低优先级的发现由 GitHub Issues 追踪。）
 
 ## 9. KNOWN_ISSUES 事后剖析（19 个已修复）+ 3 个开放边界
 

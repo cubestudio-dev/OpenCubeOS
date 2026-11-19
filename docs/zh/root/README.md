@@ -5,9 +5,9 @@
 
 **一个从零写起、直接启动进 Ring 3 的 x86_64 内核。**
 
-当前开发预览：**3.0.0-WP-l1apps-merge**——OCBL
+当前发布：**3.0.0-WP08-driver-framework**——OCBL
 引导加载器、纯 L0 服务内核（L0 里没有 shell、没有 TUI、没有
-IME）、`ocos/l1apps/` 下的 **284 个 Ring-3 程序**——现在围绕
+IME）、`ocos/l1apps/` 下的 **300 个 Ring-3 程序**——现在围绕
 **8 个合并大应用**组织（`update` / `disk-tool` / `net-tool` /
 `sound-tool` / `files` / `sysdiag` / `hwinfo` / `power`），每一个
 既是意图向导，*又*是其下每条经典命令的逐字分发。稳定线：
@@ -37,9 +37,9 @@ Open Cube OS 是 **L0 + L1**：
   的 `oc>` 恢复 shell、内核内 TUI、输入法引擎）；L0 在
   `L0 ready, waiting for L1` 完成启动，把机器交给默认的
   Ring-3 入口。
-- **L1 使用服务。** `ocos/l1apps/` 下的 284 个 Ring-3 程序
+- **L1 使用服务。** `ocos/l1apps/` 下的 300 个 Ring-3 程序
   （一条命令 = 一个应用 = 一个文件夹）：默认启动项是 `ush`
-  用户 shell（**296 条命令 = 284 个注册表应用 + 12 个
+  用户 shell（**311 条命令 = 300 个注册表应用 + 11 个
   内建，L0 里零条命令**）、TUI 桌面、编辑器、中文控制台 +
   拼音 IME——以及给整个命令面装上按意图驱动前门的 8 个
   合并大应用：带自动检测与跨域修复的无参向导（`update`
@@ -48,7 +48,7 @@ Open Cube OS 是 **L0 + L1**：
   以及零功能损失的经典逐字分发。
 
 - **不是 Linux 分支。** Apache 2.0 下横跨 764 个文件的
-  158,474 行原创 C/汇编（验证：见下文*数据*）。
+  163,935 行原创 C/汇编（验证：见下文*数据*）。
 - **PC 平台走到哪就启动到哪：** 经 OCBL 的单一混合 BIOS +
   UEFI ISO——树内引导加载器（512 字节实模式 stage 1 /
   EFI 入口、16→32→64 位长模式、动态磁盘扫描）——512 MiB
@@ -71,9 +71,9 @@ Open Cube OS 是 **L0 + L1**：
 ```
 L0  OCOS (ocos/)          kernel + drivers + root services + the
                           numbered L1SVC ABI - no shell, no TUI
-L1  the world (ocos/l1apps/)  284 programs: ush, TUI, editor, IME,
+L1  the world (ocos/l1apps/)  300 programs: ush, TUI, editor, IME,
                           one command per app, and the 8 merged
-                          mega-apps (296 commands total)
+                          mega-apps (311 commands total)
 ```
 
 ## 亮点
@@ -89,7 +89,7 @@ L1  the world (ocos/l1apps/)  284 programs: ush, TUI, editor, IME,
 | USB | UHCI、OHCI、EHCI、xHCI；大容量存储、HID、串口、音频类 |
 | 媒体 | HDA / AC97 / SB16 / ES1370 / virtio sound；带 MJPEG 的 UVC 摄像头 |
 | 平台 | ACPI（FADT/DSDT/MCFG、真实 AML 遍历器、S3 挂起/恢复）、Intel TCO + ACPI WDAT 硬件看门狗、HPET、i2c/SMBus |
-| Shell | ush（Ring 3，默认启动项）：284 个注册表应用 + 12 个内建，带管道/重定向/环境变量/别名/作业；L0 里零条命令 |
+| Shell | ush（Ring 3，默认启动项）：300 个注册表应用 + 11 个内建，带管道/重定向/环境变量/别名/作业；L0 里零条命令 |
 | 大应用 | 8 个合并应用（`update`、`disk-tool`、`net-tool`、`sound-tool`、`files`、`sysdiag`、`hwinfo`、`power`）：带跨域修复的意图向导 + `direct` 透传 + 经典逐字分发；破坏性路径由重输 + y/N 双重确认防护 |
 | TUI | 桌面、任务栏、菜单、表单、编辑器、系统应用——依托 L1SVC tui 服务的 Ring-3 程序，外加中文控制台层（16x16 字体、拼音 IME） |
 | 可靠性 | 崩溃转储到串口 + /etc crashlog、带轮转 + 级别 + 过滤的内核日志、健康监视器（CPU/内存/任务/IO + JSON 导出）、带 SHA256 + 签名与回滚的 OTA |
@@ -110,7 +110,7 @@ qemu-system-x86_64 -m 512M -cdrom build/opencube.iso \
 # inside the guest (the default boot entry is the ring-3 ush shell)
 ush> hwinfo            (wizard: what hardware is this machine?)
 ush> update            (wizard: network -> A/B -> DNS -> check -> install)
-ush> help -a           (all 284 registry programs)
+ush> help -a           (all 300 registry programs)
 ush> dhcp
 ush> ping 10.0.2.2
 ush> lsblk             (or: disk-tool, and pick it from the menu)
@@ -152,17 +152,17 @@ Release 与私有镜像持有逐字节一致的副本。
 （`make api-docs` 写 `docs/data/*.json`；每项都引用了 README
 验证命令）：
 
-- **源代码**：764 个文件 158,474 行——ocos/（内核、
+- **源代码**：807 个文件 163,935 行——ocos/（内核、
   驱动、服务、接口、l1apps）+ ocbl/ + ocire/，含头文件、
   排除生成的数据块（生成器口径：
   `tools/gen_api_docs.py` 的 `STAT_DIRS`/`STAT_EXCLUDE`）。
   验证：
   `python3 tools/gen_api_docs.py && python3 -c "import json;d=json.load(open('docs/data/stats.json'));print(sum(v['lines'] for v in d['dirs'].values()))"`
-- **命令**：共 296 条——284 个 Ring-3 注册表应用（一条命令 =
+- **命令**：共 311 条——300 个 Ring-3 注册表应用（一条命令 =
   一个应用 = `ocos/l1apps/` 下一个文件夹，含 8 个合并
   大应用）+ 12 个 ush 内建 + L0 里 0 条。注册表下限由回归
   门禁强制（>= 276）。
-- **L1SVC 服务面**：20 个类别 / 208 个编号操作——精确
+- **L1SVC 服务面**：20 个类别 / 221 个编号操作——精确
   表格见 [INTERFACES.md](INTERFACES.md)。
 - **系统调用**：54 个——验证：
   `grep -c '#define SYS_' ocos/services/sysapi/interface/svc_sysapi_syscall.h`

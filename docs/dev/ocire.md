@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # OCIRE - OpenCubeOS Independent Recovery Environment
 
-Status: **3.0.0-WP-02-ocire_recovery** (this work package ships the
+Shipped by: **3.0.0-WP-02-ocire_recovery** (that work package shipped the
 recovery features: the boot supervisor with watchdog-based
 boot-failure detection, and the full recovery shell with syscheck /
 repair).

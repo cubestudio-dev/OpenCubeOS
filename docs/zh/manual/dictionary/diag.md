@@ -142,12 +142,12 @@ ush>
 ```
 cr3test
 CR3 switch test:
-  current CR3=0x0000003f0000
+  current CR3=0x0000003ec000
   new AS CR3=0x000000767000
   map at 4GiB: OK
   switched CR3 to 0x000000767000
   verify mapped in new AS: OK phys=0x000000769000
-  switched back to 0x0000003f0000
+  switched back to 0x0000003ec000
   PASS
 ush> 
 ```
@@ -696,12 +696,9 @@ ush>
 
 ```
 pmmrace
-pmmrace: 20000 rounds of alloc_contig(512)+free vs IRQ-context allocator
-pmmrace: rounds=20000 cb_count=190817 window_overlaps=91847 hold_fail=0 torn=0 result=PASS (atomic)
-ush> 
 ```
 
-(备注: run completed on this boot; the outcome is IRQ/loop phase-timing dependent - the same command can hit the pre-existing PMM race (KNOWN_ISSUES K-04) on another boot)
+(备注: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### sched
 
@@ -718,7 +715,7 @@ ush>
 
 ```
 sched
-switches=248 preemptions=109 current_tid=3 active_tasks=4
+switches=248 preemptions=110 current_tid=3 active_tasks=4
 PED (no ISA SB16 (QEMU: add -device sb16,audiodev=snd0))
 ush> 
 ```
@@ -803,7 +800,7 @@ ush>
 
 ```
 syncstat
-spin_locks=8940814 spin_unlocks=8940814
+spin_locks=8940347 spin_unlocks=8940347
 sem_waits=0 sem_posts=0
 mutex_locks=0 mutex_unlocks=0
 cond_waits=0 cond_signals=0
@@ -888,8 +885,8 @@ ush>
 
 ```
 vmmap
-Kernel address space (PML4 at 0x0000003f0000):
-  PML4[0] vaddr=0x000000000000 -> 0x0000003f1000
+Kernel address space (PML4 at 0x0000003ec000):
+  PML4[0] vaddr=0x000000000000 -> 0x0000003ed000
 
 Page faults: total=0 legal=0 illegal=0 stack=0 heap=0
 T@

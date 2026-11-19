@@ -75,7 +75,7 @@ exexec_test: child execing hellohello from userspaceexec_test: PASS
 eush> 
 ```
 
-(Note: retry OK; plain retry)
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### fdref_test
 
@@ -106,11 +106,11 @@ ush>
 ```
 fork_test
 fork_test: start
-parent: pid=5 ppid=1 child=6child: pid=6 ppid=5fork_test: PASS
-ush> 
+parent: pid=17 ppid=1 child=18child: pid=18 ppid=17fork_test: PASS
+ ush> 
 ```
 
-(Note: retry OK; plain retry)
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### g6_exec_a
 
@@ -204,7 +204,7 @@ g6_test: =PASS=
 g6_test: T7 solib-reject start
 g6_test: =PASS=
 g6_test: T6 solib-window start
-g6_test: T6 dlopen count = 3776g6_test: =PASS=
+g6_test: T6 dlopen count = 3788g6_test: =PASS=
 g6_test: failed tests = 0g6_test: PASS
 ush> 
 ```
@@ -258,7 +258,7 @@ hello
 hello from userspaceush> 
 ```
 
-(Note: retry OK; plain retry)
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### int3_user
 
@@ -278,7 +278,7 @@ int3_user: about to int3
   rsp=0x000000003FFFFEE0  ss=0x000000000000003B
 *** KILLING user process (pid=17) due to exception 3, kernel continues ***
 [user] process killed by exception (vector=3), kernel continues
-*** IST-exit: vector=3 exit-stack rsp=0x00000000003FFFD0 [off-IST2 OK]
+*** IST-exit: vector=3 exit-stack rsp=0x00000000003FBFD0 [off-IST2 OK]
 ush> 
 ```
 
@@ -320,7 +320,7 @@ started pid=3
 loop: running
 ```
 
-(Note: run loop (async) + kill - the by-design spinner)
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### main_dyn
 
@@ -354,7 +354,7 @@ parent: mmap=1006632960child: mmap=1006637056mmap_multi: BAD child aparent: read
 mmush> 
 ```
 
-(Note: retry OK; plain retry)
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### mmap_test
 
@@ -374,7 +374,7 @@ mmap_test: mprotect done
 mmap_test: PASSush> 
 ```
 
-(Note: retry OK; plain retry)
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### mprotect_test
 
@@ -428,7 +428,7 @@ p3_test: startp3_test: PASS_P3123
 push> 
 ```
 
-(Note: retry OK; plain retry)
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### pf_test
 
@@ -488,7 +488,7 @@ pipe_test: startpipe_test: parent readinpipe_test: got 'HHELLO from child'
 ppipe_test: PASSush> 
 ```
 
-(Note: retry OK; plain retry)
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### priv_test
 
@@ -544,7 +544,7 @@ select_test: startselect_test: parent selectingselect_test: pipe ready (PASS)
 selselect_test: PASSush> 
 ```
 
-(Note: verbatim transcript; the prompt lands glued after the PASS line)
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### select_zero_test
 
@@ -578,9 +578,14 @@ ush>
 
 ```
 signal_test
+signal_test: startsignal_test: handler registered
+signal_test: parent waiting
+ssignal_test: child sending SIGUSR1
+signal_test: SIGNAL CAUGHT
+ssignal_test: PASSush> 
 ```
 
-(Note: retry OK; plain retry)
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### sigsegv_test
 
@@ -637,10 +642,12 @@ ush>
 sse_test
 SSE parent OK
 SSE child  OK
-[user] process 3 exited (code=0)
-[user] process 2 exited (code=0)
+[user] process 9 exited (code=0)
+[user] process 8 exited (code=0)
 ush> 
 ```
+
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### stackovf
 

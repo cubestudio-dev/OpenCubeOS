@@ -14,7 +14,7 @@
 
 ```
 date
-Open Cube OS uptime: 3460 ms since boot (no RTC driver)
+Open Cube OS uptime: 3250 ms since boot (no RTC driver)
 ush> 
 ```
 
@@ -166,36 +166,36 @@ ush>
 
 ```
 dmesg
-[0.330] INFO  boot: [00:00:00.320] VFS (virtual file system)......................... OK
-[0.360] INFO  boot: [00:00:00.350] ramfs (in-memory file system, mounted at /)....... OK
+[0.310] INFO  boot: [00:00:00.300] VFS (virtual file system)......................... OK
+[0.340] INFO  boot: [00:00:00.330] ramfs (in-memory file system, mounted at /)....... OK
 [0.570] INFO  boot: [00:00:00.560] ATA/IDE PIO driver (LBA28)........................ OK
-[0.590] INFO  boot: [00:00:00.580] virtio-blk + AHCI + NVMe drivers.................. OK
-[0.750] INFO  boot: [00:00:00.740] USB hosts up: 0................................... OK
-[0.760] INFO  boot: [00:00:00.750] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
-[0.790] INFO  boot: [00:00:00.760] boot chain 3/4: driver-dependent services......... OK
-[0.870] INFO  boot: [00:00:00.840] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
-[0.920] INFO  boot: config: created default /etc/opencube.conf (ramfs)
-[0.950] INFO  boot: [00:00:00.920] system config (/etc/opencube.conf, fat32/ramfs) (OK)
-[0.960] INFO  boot: [00:00:00.950] ACPI PM timer (FADT PM_TMR_BLK)................... OK
-[0.990] INFO  boot: abupdate: no disk with an A/B partition layout found
-[1.750] INFO  boot: [00:00:01.740] LAPIC (local APIC)................................ OK
-[2.300] INFO  boot: [00:00:02.290] network stack (e1000 + TCP/IP + socket API)....... OK
-[2.300] INFO  watchdog: slot 1 registered: kernel-health 15000 ms policy 0
-[2.310] INFO  watchdog: slot 1 (kernel-health) ARMED, 15000 ms
-[2.320] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
-[2.340] INFO  boot: [00:00:02.330] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
-[2.520] INFO  boot: [00:00:02.510] sound: no sound card present (probe OK)........... OK
-[2.530] INFO  boot: block devices: 0 registered
-[2.540] INFO  boot: disk cache: 64 slots, LRU write-back
-[2.550] INFO  boot: [00:00:02.540] disk subsystem (block dev + cache + partition + FS). OK
-[2.560] INFO  boot: pmm: 131040 pages, 128656 free
-[2.570] INFO  boot: [00:00:02.560] kmalloc/kfree self-test........................... OK
-[2.660] INFO  boot: [00:00:02.650] boot complete..................................... OK
-[2.670] INFO  boot: [00:00:02.660] boot chain 4/4: interfaces ready.................. OK
-[2.680] INFO  boot: [00:00:02.670] crash recovery armed (panic + dump + crashlog).... OK
-[2.690] INFO  boot: [00:00:02.680] L0 ready, waiting for L1.......................... OK
-[2.700] INFO  boot: l1 launcher: booting 'ush' (ring 3, 23496 bytes)
-[13.320] ERROR health: alarm: CPU >=90% busy for 10 consecutive seconds
+[0.600] INFO  boot: [00:00:00.590] virtio-blk + AHCI + NVMe drivers.................. OK
+[0.760] INFO  boot: [00:00:00.750] USB hosts up: 0................................... OK
+[0.770] INFO  boot: [00:00:00.760] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+[0.800] INFO  boot: [00:00:00.770] boot chain 3/4: driver-dependent services......... OK
+[0.880] INFO  boot: [00:00:00.850] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+[0.910] INFO  boot: config: created default /etc/opencube.conf (ramfs)
+[0.920] INFO  boot: [00:00:00.910] system config (/etc/opencube.conf, fat32/ramfs) (OK)
+[0.930] INFO  boot: [00:00:00.920] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+[0.940] INFO  boot: abupdate: no disk with an A/B partition layout found
+[1.540] INFO  boot: [00:00:01.530] LAPIC (local APIC)................................ OK
+[2.100] INFO  boot: [00:00:02.090] network stack (e1000 + TCP/IP + socket API)....... OK
+[2.100] INFO  watchdog: slot 1 registered: kernel-health 15000 ms policy 0
+[2.110] INFO  watchdog: slot 1 (kernel-health) ARMED, 15000 ms
+[2.120] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[2.140] INFO  boot: [00:00:02.130] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[2.320] INFO  boot: [00:00:02.310] sound: no sound card present (probe OK)........... OK
+[2.330] INFO  boot: block devices: 0 registered
+[2.340] INFO  boot: disk cache: 64 slots, LRU write-back
+[2.350] INFO  boot: [00:00:02.340] disk subsystem (block dev + cache + partition + FS). OK
+[2.360] INFO  boot: pmm: 131040 pages, 128656 free
+[2.370] INFO  boot: [00:00:02.360] kmalloc/kfree self-test........................... OK
+[2.460] INFO  boot: [00:00:02.450] boot complete..................................... OK
+[2.470] INFO  boot: [00:00:02.460] boot chain 4/4: interfaces ready.................. OK
+[2.490] INFO  boot: [00:00:02.470] crash recovery armed (panic + dump + crashlog).... OK
+[2.500] INFO  boot: [00:00:02.490] L0 ready, waiting for L1.......................... OK
+[2.510] INFO  boot: l1 launcher: booting 'ush' (ring 3, 23496 bytes)
+[13.120] ERROR health: alarm: CPU >=90% busy for 10 consecutive seconds
 -- 30 lines (ring 88/1024, dropped 0) --
 ush> 
 ```
@@ -276,7 +276,7 @@ ush>
 drv_failed
 failed drivers: 1 (isolated - the boot was never blocked)
 name            err   count  last seen
-vtest-fail      -55  1     30 ms
+vtest-fail      -55  1     20 ms
 ush> 
 ```
 
@@ -658,7 +658,7 @@ usage: p2test <utf8|read0|pipe>
 ush> 
 ```
 
-(Note: retry OK; plain retry)
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### ps
 
@@ -674,9 +674,9 @@ ush>
 ```
 ps
 TID  STATE  PRI  CPU(ticks)  NAME
-0    RUN   31    240          idle
-1    READY 31    18          usb-poll
-2    READY 15    28          ush
+0    RUN   31    242          idle
+1    READY 31    22          usb-poll
+2    BLOCK 15    27          ush
 3    RUN   15    0          ush
 ush> 
 ```
@@ -1050,13 +1050,13 @@ ush>
 
 ```
 top
-top - up 5270 ms
+top - up 5310 ms
 Mem: 10928128 used / 536739840 total / 525811712 free
 TID  STATE  PRI  CPU(ticks)  NAME
-0    RUN   31    244          idle
-1    READY 31    4          usb-poll
-2    BLOCK 15    101          ush
-3    RUN   15    3          ush
+0    RUN   31    237          idle
+1    READY 31    14          usb-poll
+2    BLOCK 15    100          ush
+3    RUN   15    2          ush
 ush> 
 ```
 

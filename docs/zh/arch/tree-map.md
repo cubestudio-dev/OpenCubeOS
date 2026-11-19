@@ -24,7 +24,6 @@ ocos/
 | `README.md`、`BUILDING.md`、`CONTRIBUTING.md`、`FAQ.md` | 标准门面文档（同时镜像于 `docs/root/` 之下）。 |
 | `INTERFACES.md` | 历史接口登记册（编号式 L1 扩展面 1-138 的时代）；现行的 ring 3 契约是 `ocos/interface/`（[private-headers.md](private-headers.md)）。 |
 | `KNOWN_ISSUES.md` | 已声明的、有意为之的限制（例如“#DF panic 按设计保持最小”）。 |
-| `bug-list.md` | 3.0.0 缺陷普查：141 个 GitHub issue + WP-06h 审计发现，为修复工作包导出。 |
 | `VERIFICATION_REPORT.md`、`MANIFEST.md`、`ARCHIVE-README.md` | 发布证据：验证笔录、交付文件清单，以及归档材料的指引 readme。 |
 | `LICENSE`、`NOTICE` | Apache-2.0 文本与署名声明。 |
 | `build.ps1` | Windows PowerShell 构建包装器（主路径是 Makefile）。 |
@@ -76,7 +75,7 @@ ocos/
 | `core_registry.c` | | `.oc_apps` L1 应用注册表收集器 |
 | `core_console_*` | `fb.c`、`font.c`、`font_data.c`（由 `tools/gen_font.py` 生成）、`screen.c` | framebuffer 原语、8x16 字体、带唯一输出钩子槽位的文本网格控制台 |
 | `core_lib_*` | `config.c`（/etc/opencube.conf 存储）、`gzip.c`（RFC 1951/1952 inflate）、`i18n.c`+`i18n_data.c`（L0 i18n）、`klog.c`（4 通道内核日志）、`log.c`（引导阶段日志器）、`string.c`、`tar.c` | 独立（freestanding）运行时库 |
-| generated | `userprogs_data.h`（2.7 万行：**284 个 gzip 压缩的 ring 3 程序** + `OC_USERPROGS[]` 注册表，来自 `tools/gen_userprogs.py`）、`solib_data.h`（内嵌 ld.so + libfoo.so） | 构建生成的载荷 |
+| generated | `userprogs_data.h`（2.7 万行：**300 个 gzip 压缩的 ring 3 程序** + `OC_USERPROGS[]` 注册表，来自 `tools/gen_userprogs.py`）、`solib_data.h`（内嵌 ld.so + libfoo.so） | 构建生成的载荷 |
 
 `ocos/kernel/arch/x86_64/` 是真正的架构目录：`arch_idt.*`、
 `arch_exceptions.*`、`arch_irq.*`、`arch_lapic.*`、`arch_pic.h`、
@@ -117,7 +116,7 @@ ocos/
 `crypto`(12)、`l1`(13)、`display`(14) + `input`(15)、`camera`(16)、
 `usb`(17)、`ocembed`->`ocire`(18)、`diag`(19)、`tui`(20)——外加仅
 内核的机制属主 `crash`、`encoding`、`font`、`ipc`、`loader`、
-`sysapi`。220 个文件，约 6.7 万行；ring 3 面总计 20 个类别 208 个
+`sysapi`。220 个文件，约 6.7 万行；ring 3 面总计 20 个类别 221 个
 op。
 
 ### `ocos/interface/`——8 个私有的 ring 3 头文件
@@ -127,11 +126,11 @@ op。
 include 的头文件集（由 L1 编译 `-I` 路径在构建期强制）。专门页面：
 [private-headers.md](private-headers.md)。
 
-### `ocos/l1apps/`——284 个内嵌 ring 3 程序
+### `ocos/l1apps/`——300 个内嵌 ring 3 程序
 
 一条命令 = 一个应用 = 一个目录，内含 `main.c` +
 `i18n/{en,zh}.json`（252 个目录，其中 `_i18n/` 存放共享表；注册表
-计数为 `OC_USERPROGS_COUNT = 284`）。目录树中可见的类别：`ush`
+计数为 `OC_USERPROGS_COUNT = 300`）。目录树中可见的类别：`ush`
 shell 及其内建命令；按设备的状态命令（`ahci`、`hda`、`e1000e`、
 `wifi`……）；`*_test` 测试组（50+）；构建于 `wizard_lib.h` 之上的
 8 个合并巨型应用（`update`、`disk-tool`、`net-tool`、`sound-tool`、
@@ -222,7 +221,7 @@ int 0x80（无用户面）、E7 USB MSC/串口轮询器、E12 用 24 级引导
 |---|---|---|
 | 构建与打包 | `build.sh`、`build_iso.sh`、`build_ocse_iso.sh`、`build_ocire_iso.sh`、`build_release.sh`、`install-toolchain.sh`、`oc_cc.sh`、`env-sandbox.sh`、`oc_menuconfig.sh`、`make_ab_disk.sh`、`make_ocire_disk.sh`、`make_ocos_tar.py`、`make_update_pkg.sh`、`make_wdat_table.py`、`iso_zero_ctime.py`、`fat_zero_dates.py` | WP-13 流水线，从干净目录树到签名形态的 ISO + OTA 包；确定性垫片（时间戳清零） |
 | 内嵌器 | `embed_grub.py`（把 GRUB boot.img+core.img 嵌进内核）、`embed_roots.py`（CA 根 -> crypto）、`embed_userprog.py`、`build_solib.py`、`build_c_userprog.py` | 内核镜像内随船的一切 |
-| 生成器 | `gen_userprogs.py`（284 应用注册表）、`gen_font.py` / `gen_font_gz.py` / `gen_chinese_font.py`、`gen_pinyin_phrase.py`、`gen_l0_i18n.py`、`gen_l1svc_ops.py`（冻结的 ABI 镜像——[private-headers.md](private-headers.md)）、`gen_api_docs.py`（docs/data/*.json）、`gen_svc_api_headers.py`、`gen_gzip_vectors.py`、`apply_i18n_hints.py` / `apply_tool_i18n.py` | 把源数据变成编译进内核的表 |
+| 生成器 | `gen_userprogs.py`（300 应用注册表）、`gen_font.py` / `gen_font_gz.py` / `gen_chinese_font.py`、`gen_pinyin_phrase.py`、`gen_l0_i18n.py`、`gen_l1svc_ops.py`（冻结的 ABI 镜像——[private-headers.md](private-headers.md)）、`gen_api_docs.py`（docs/data/*.json）、`gen_svc_api_headers.py`、`gen_gzip_vectors.py`、`apply_i18n_hints.py` / `apply_tool_i18n.py` | 把源数据变成编译进内核的表 |
 | E2E 驱动 | `wp01_*` .. `wp12_*`、`p0*`、`fix1_*`、`run_ocire_*`、`run_l1_per_app.py`、`wp10_native_e2e.py`、`wp12_watchdog_logging_e2e.py`、…… | 引导真实镜像并 grep 串口笔录的 QEMU 测试组（验收方法论） |
 | 对端与服务器 | `https_test_server.py`、`p0_evil_tls_server.py`、`p0_redir_server.py`、`paramiko_sshd.py`、`ssh_g11a_e2e.py`、`bt_test_peer.py`、`update_server.py`、`qemu_runner.py`、`qemu_shot.py` / `qemu_shot_vnc.py` | 网络测试的线路对端；QEMU 管道 |
 | 维护与重构 | `nak_migrate.py` / `nak_fix_refs.py` / `nak_map.tsv` / `restructure_*.py`（5 个）、`fix_file_headers.py`、`check_bss.py`、`check_deps.py`、`v2_registry_gate.py`、`sync_wiki.sh`、`update_website.sh`、`github_release_wp08.sh`、主机 C 测试（`host_gzip_test.c`、`ocire_fat_host_test.c`）、数据（`ime_phrases.txt`、`update_test_vectors.h`） | 让 15 万行的目录树保持诚实的脚本 |

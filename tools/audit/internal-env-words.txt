@@ -24,3 +24,12 @@ zai	z\.ai
 private-repo	tdghuczhdmkwicsxzjduaychuyzshjufajckafk
 github-pat-prefix	github_pat_
 last4	\blast4\b
+# --- WP-presentation-consistency-audit additions (2026-11-19) ---
+private-repo-cn	私密仓
+audit-master	MASTER\.md
+audit-aud	(?<!BUG-)AUD-2[a-z][~-]
+audit-final	FINAL-REPORT
+audit-private	PRIVATE-SECURITY
+user-spec-cn	用户规约
+session-numbered-cn	会话\s*[0-9一二三四五六七八九十]+（
+ai-session-cn	本 AI|主 AI|助手会话

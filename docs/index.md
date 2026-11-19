@@ -30,31 +30,34 @@ the file that implements what they describe.
 - The whole picture, hidden corners included:
     [System map](arch/system-map.md), [tree map](arch/tree-map.md),
     [hidden mechanisms](arch/hidden-mechanisms.md)
-- Every interface: [L1SVC dictionary (208 ops)](dev/interface-dictionary.md),
+- Every interface: [L1SVC dictionary (221 ops)](dev/interface-dictionary.md),
     [syscall reference (54)](dev/syscall-reference.md),
     [kernel data structures](dev/data-structures.md)
-- The merged-app story: [3.0.0-WP-l1apps-merge](release/3.0.0-WP-l1apps-merge.md)
+- The merged-app story: [3.0.0-WP-l1apps-merge](release/3.0.0-WP-l1apps-merge.md); the driver framework: [3.0.0-WP08-driver-framework](release/3.0.0-WP08-driver-framework.md)
 
 ## The library
 
 | Section | Contents |
 |---------|----------|
-| [manual/](manual/) | User manual: the mega-apps, boot, shell, files, network, TUI, OTA, recovery, the 296-command function dictionary, hidden commands & 93 test stubs + all 292 command pages |
-| [dev/](dev/) | Developer handbook: environment, build, the L1SVC interface dictionary (208 ops), syscall reference, data structures, call chains, debug handbook, hidden debug interfaces, writing services, QEMU, tests, PR bar |
+| [manual/](manual/) | User manual: the mega-apps, boot, shell, files, network, TUI, OTA, recovery, the 311-command function dictionary, hidden commands & 93 test stubs + all command pages |
+| [dev/](dev/) | Developer handbook: environment, build, the L1SVC interface dictionary (221 ops), syscall reference, data structures, call chains, debug handbook, hidden debug interfaces, writing services, QEMU, tests, PR bar |
 | [arch/](arch/) | System anatomy: the system map, the full repository tree map, hidden mechanisms, private headers + deep dives: boot flow, memory, scheduler, interrupts, ring 3, VFS, network, drivers, TUI |
 | [l1/](l1/) | Ring-3 app development: the surface map, app anatomy, the wizard library, writing apps, service families |
-| [drivers/](drivers/) | Driver bring-up manuals: 16 families |
+| [drivers/](drivers/) | Driver bring-up manuals: 15 hardware topics |
 | [troubleshooting/](troubleshooting/) | Error library: 61 errno codes + panics, the all-subsystem error catalog, silent failures, boot/network/storage/QEMU guides |
 | [internals/](internals/) | Subsystem internals: watchdog, klog, health, crash dump, crypto seeding, OTA/A-B, the OCIRE guard channel |
-| [release/](release/) | Maintainer guide: build system reference, guard scripts, CI gates, tool inventory (117), disaster recovery & push channels, process SOP, versioning, website + wiki sync |
+| [release/](release/) | Maintainer guide: build system reference, guard scripts, CI gates, tool inventory (117), process SOP, versioning, website + wiki sync |
 
-## Quick facts (3.0.0-WP-l1apps-merge)
+## Quick facts (3.0.0-WP08-driver-framework)
 
-- 296 shell commands - 284 ring-3 registry apps (the 8 merged
-  mega-apps included) + 12 ush built-ins, zero commands in L0
+- 311 shell commands - 300 ring-3 registry apps (the 8 merged
+  mega-apps included) + 11 ush built-ins, zero commands in L0
   (`help -a` in the guest)
-- 20 SYS_L1SVC service categories / 208 numbered ops
-  (INTERFACES.md, l1svc_defs.h)
+- 20 SYS_L1SVC service categories / 221 numbered ops
+  (INTERFACES.md, svc_sysapi_l1svc.h)
 - 54 syscalls (`ocos/services/sysapi/interface/svc_sysapi_syscall.h`)
-- 158,474 lines of original source across 764 files
+- 38 drivers across 7 declared families plus the WP-08 driver
+  framework (metadata, device tree, power hooks, hotplug, failure
+  isolation, deterministic init order)
+- 163,935 lines of original source across 807 files
 - Apache 2.0, every file SPDX-tagged

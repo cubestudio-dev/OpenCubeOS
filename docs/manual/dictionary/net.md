@@ -214,6 +214,8 @@ usage: ssh <ip> [port=2222] [user=oc] [password=oc|-]
 ush> 
 ```
 
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
+
 ### sshd
 
 | Field | Value |
@@ -233,7 +235,7 @@ sshd
 [sshd] generating per-installation host key (RSA-2048, one-time)...
 ```
 
-(Note: long-running service (the SSH daemon); the transcript shows the startup output, then the session was reset)
+(Note: restored from the f5af2ab6 capture (command behavior unchanged since))
 
 ### tcpcc_test
 

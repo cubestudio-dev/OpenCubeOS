@@ -5,9 +5,12 @@
 
 ## Version
 
-3.0.0-WP06g3 (development preview: the OCBL bootloader + a pure L0
-service kernel + 275 ring-3 programs under src/L1/ + the OCSE install
-environment with the GUI install wizard). Stable line: 2.2.0.
+3.0.0-WP08-driver-framework (the OCBL bootloader + a pure L0
+service kernel + 300 ring-3 programs under ocos/l1apps/ + the OCSE
+install environment with the GUI install wizard, plus the L0 driver
+framework - metadata, device tree, power hooks, hotplug, failure
+isolation, deterministic init order - and the drv/dev diagnostic
+commands). Stable line: 2.2.0.
 
 ## Directory Structure
 
@@ -118,19 +121,20 @@ The release gate: the full regression matrix green + CI green
 (`.github/workflows/build.yml`: build, ISO, packages, host tests,
 reproducibility) before any tag.
 
-## Line Count (3.0.0-WP06g3 generator caliber)
+## Line Count (3.0.0-WP08-driver-framework generator caliber)
 
-- Source code (src/L0/boot+core+drivers+services + src/L1, .c/.h/.S,
-  generated data blobs excluded): **128,890 lines across 624 files**
+- Source code (ocos/kernel+services+drivers + ocos/l1apps + boot +
+  core + ocbl + include, .c/.h/.S/.asm, generated data blobs
+  excluded): **158,934 lines across 780 files**
   (verify with:
   ```bash
-  find src/L0/core src/L0/drivers src/L0/services src/L0/boot src/L1 \
-    \( -name '*.c' -o -name '*.h' -o -name '*.S' \) \
+  find ocos ocos/l1apps boot core ocbl include \
+    \( -name '*.c' -o -name '*.h' -o -name '*.S' -o -name '*.asm' \) \
     | grep -v generated \
     | grep -vE 'chinese_font_data|pinyin_data|grub_boot_data|userprogs_data' \
     | xargs wc -l | tail -1
   ```
   )
-- Commands: **285** = 274 ring-3 registry apps + 11 ush built-ins
-- L1SVC surface: **20 categories / 190 numbered entries**
+- Commands: **311** = 300 ring-3 registry apps + 11 ush built-ins
+- L1SVC surface: **20 categories / 221 numbered ops**
 - Syscalls: **54**

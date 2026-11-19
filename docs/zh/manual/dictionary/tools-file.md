@@ -240,6 +240,8 @@ usage: mv <src> <dst>
 ush> 
 ```
 
+(备注: restored from the f5af2ab6 capture (command behavior unchanged since))
+
 ### rm
 
 | 字段 | 值 |

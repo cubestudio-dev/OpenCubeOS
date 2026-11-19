@@ -88,16 +88,9 @@ site stats block is REGENERATED from `docs/data/*.json` (never
 copied from a stale block - the 2.0.0 site shipped a stale 130,011
 line count that way).
 
-## 7. Private mirror
+## 7. The 12-point check
 
-Copy the three assets + release note + the mirrored website files
-into the private repository (`oc-os/` tree + repo-level audit
-documents); push. Gate: `git ls-remote` on both repos shows the
-expected HEADs.
-
-## 8. The 12-point check
-
-1. Both repos' remote HEADs match local.
+1. The public repo's remote HEAD matches local.
 2. The tag exists on the public repo and points at a CI-green commit.
 3. Author identity on every release commit.
 4. gh-pages updated (live site serves the new version).
@@ -110,12 +103,11 @@ expected HEADs.
 8. The gates in step 4 all green (paste the outputs, skip counts
    declared).
 9. Token hygiene (only last-4 ever shown).
-10. Whole-repo number consistency: 251 command homes (99+133+19) /
-    17 categories / 158 L1SVC ops / 54 syscalls / the current
-    stats.json line count (recomputed every release; never a stale
-    figure).
-11. Private mirror complete.
-12. CI green on the release commit (and on the tagged commit).
+10. Whole-repo number consistency: 311 commands (300 ring-3 + 11
+    built-ins) / 20 categories / 221 L1SVC ops / 54 syscalls / the
+    current stats.json line count (recomputed every release; never a
+    stale figure).
+11. CI green on the release commit (and on the tagged commit).
 
 ## 9. Report
 

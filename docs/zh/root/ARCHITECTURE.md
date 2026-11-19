@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Open Cube OS 架构
 
-本文档描述 3.0.0-WP-l1apps-merge 时点的代码树——下文点名的
+本文档描述 3.0.0-WP08-driver-framework 时点的代码树——下文点名的
 每个组件都是你能打开的真实文件。行数与逐目录明细在
 `docs/data/stats.json`（重新生成：`make api-docs`）。
 
@@ -17,11 +17,11 @@ Open Cube OS 是一个双环系统：
 - **L1——使用服务。** 经扩展面（`SYS_L1SVC` 操作表
   和经典 syscall ABI）触达 L0 能力的 Ring-3 用户应用。
   3.0.0-WP04 把每条命令都移进了 L1：**`ocos/l1apps/` 下的
-  284 个程序**（含 8 个合并大应用）——一条命令 = 一个应用 =
+  300 个程序**（含 8 个合并大应用）——一条命令 = 一个应用 =
   一个文件夹。默认启动项是 Ring-3 的 `ush` shell
   （`ocos/kernel/core_boot_l1launch.c` 中的
-  `OC_L1_APP_DECL("ush", ..., dflt=1)`）；**296 条命令 = 284 个
-  注册表应用 + 12 个 ush 内建，L0 里零条**。
+  `OC_L1_APP_DECL("ush", ..., dflt=1)`）；**311 条命令 = 300 个
+  注册表应用 + 11 个 ush 内建，L0 里零条**。
 
 ```
               OCBL - the in-tree bootloader (hybrid BIOS + UEFI ISO)
@@ -87,7 +87,7 @@ ocos/kernel/
             core/ and drivers/ (and, where a real dependency
             exists, on other services - fs before selfhost, for
             example).
-ocos/l1apps/     the ring-3 world: 275 programs (242 app folders + 8 flat
+ocos/l1apps/     the ring-3 world: 300 programs (267 app folders + 8 flat
             .c + 25 flat .asm) - ush (the only OC_L1_APP_DECL default
             entry), the TUI desktop family, the editor, the Chinese
             console + IME, and one command per app (built by

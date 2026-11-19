@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Application dictionary - ush built-in commands (8)
+# Application dictionary - ush built-in commands (11)
 
 ### alias
 
@@ -17,6 +17,23 @@
 alias ll=ls
 ush> alias
 ll='ls'
+ush> 
+```
+
+### bg
+
+| Field | Value |
+|---|---|
+| Name | bg |
+| Category | ush built-in commands |
+| Function | ush built-in command |
+| Hidden parameters | hidden parameter, not a public interface; compatibility is not guaranteed: `bg` |
+
+**Executed example**:
+
+```
+bg
+ush: job control requires external programs
 ush> 
 ```
 
@@ -47,7 +64,7 @@ ush>
 | Category | ush built-in commands |
 | Function | ush built-in command |
 | Hidden parameters | hidden parameter, not a public interface; compatibility is not guaranteed: `env` |
-| Return codes | 0, 1 |
+| Return codes | -1, 0, 1, 2 |
 
 **Executed example**:
 
@@ -99,6 +116,23 @@ DICTVAR=1
 ush> 
 ```
 
+### fg
+
+| Field | Value |
+|---|---|
+| Name | fg |
+| Category | ush built-in commands |
+| Function | ush built-in command |
+| Hidden parameters | hidden parameter, not a public interface; compatibility is not guaranteed: `fg` |
+
+**Executed example**:
+
+```
+fg
+ush: job control requires external programs
+ush> 
+```
+
 ### history
 
 | Field | Value |
@@ -118,6 +152,22 @@ history
 3 help_default_test
 4 help_wp_test
 5 history
+ush> 
+```
+
+### jobs
+
+| Field | Value |
+|---|---|
+| Name | jobs |
+| Category | ush built-in commands |
+| Function | ush built-in command |
+| Hidden parameters | hidden parameter, not a public interface; compatibility is not guaranteed: `jobs` |
+
+**Executed example**:
+
+```
+jobs
 ush> 
 ```
 

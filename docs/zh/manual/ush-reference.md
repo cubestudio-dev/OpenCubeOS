@@ -198,7 +198,7 @@ ush> ime -i                           # interactive pinyin compose line
 
 ## 相关页面
 
-- [function-dictionary.md](function-dictionary.md) — 全部 296 条命令
+- [function-dictionary.md](function-dictionary.md) — 全部 311 条命令
 - [shell-basics.md](shell-basics.md) — 新手导览
 - [getting-started.md](getting-started.md) — 首次启动
 - [../troubleshooting/silent-failures.md](../troubleshooting/silent-failures.md) —

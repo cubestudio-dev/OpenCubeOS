@@ -1,12 +1,12 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Application dictionary (308 commands)
+# Application dictionary (311 commands)
 
 Every user command of the running system, one entry each: name, category, function, parameters (hidden ones marked), return codes and a REAL executed example (captured from a live boot of the release ISO; outputs are pasted verbatim from the serial session).
 
 | Category | Commands |
 |---|---|
 | [Block devices and disk tools](block.md) | 23 |
-| [ush built-in commands](builtin.md) | 8 |
+| [ush built-in commands](builtin.md) | 11 |
 | [Cameras](camera.md) | 10 |
 | [Cryptography](crypto.md) | 2 |
 | [Diagnostics](diag.md) | 39 |

@@ -43,7 +43,7 @@ ush>
 pmtimer
 PM timer: port=00000608 (SystemIO) width=32bit (FADT pm_tmr_blk)  delta mask=00ffffff (24bit)
 nominal: 3579545 Hz  measured: 0 Hz (not calibrated)
-read: 00e8c8ae  now64: 0000000000e8c9c9  wraps: 0
+read: 00f4925e  now64: 0000000000f4937c  wraps: 0
 ush> 
 ```
 
@@ -63,7 +63,7 @@ ush>
 
 ```
 rtc
-RTC: 2026-11-18 16:43:34 (UTC, CMOS ports 0x70/0x71)
+RTC: 2026-11-19 16:36:14 (UTC, CMOS ports 0x70/0x71)
 Status: UIP=0 BCD=1 24h=1 rate=1024Hz
 IRQ: PIE=0 AIE=0 UIE=0 VRT=1 FADT century reg=32
 Reg A=26 B=02 C=10 D=80
@@ -87,7 +87,7 @@ ush>
 
 ```
 tsc
-TSC: 0000000a838736a2 (serialized rdtsc)
+TSC: 0000000a71d938d8 (serialized rdtsc)
 invariant: 0 (CPUID 0x80000007 EDX[8])
 calibrated: not yet (run 'tsc cal')
 ush> 

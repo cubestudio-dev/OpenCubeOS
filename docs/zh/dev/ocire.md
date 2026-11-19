@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # OCIRE - OpenCubeOS 独立恢复环境
 
-状态：**3.0.0-WP-02-ocire_recovery**（本工作包交付恢复特性：
+由 **3.0.0-WP-02-ocire_recovery** 交付（该工作包交付了恢复特性：
 带看门狗式启动失败检测的启动监督器，以及带 syscheck / repair
 的完整恢复 shell）。
 

@@ -14,6 +14,7 @@ import pexpect
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from qemu_runner import screen_assert_text   # BUG #66: panel assertion
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
 QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
 # BUG #66: monitor socket + screendump path for the panel assertion.
@@ -67,10 +68,12 @@ CHECKS = [
     # is now measured from the registry listing itself: two-space
     # indented "name  [tag]  description" lines.  Interface freeze
     # rule: commands may be ADDED, never removed - so the gate asserts
-    # the count never drops below the recorded floor.  276 = the g3
+    # the count never drops below the recorded floor.  300 = the
+    # WP-presentation-consistency-audit baseline (300 ring-3
+    # programs; history: 276 = g3 275 + p0leak).
     # baseline (275) + p0leak (WP-fix-critical-security P0 fence
     # probe).
-    ("command count >= 276",     "help -a", None),   # dynamic (see main)
+    ("command count >= 300",     "help -a", None),   # dynamic (see main)
     # The release banner is the Makefile literal OC_RELEASE_VERSION.
     ("uname current tree",       "uname -a", r"Open Cube OS 3\.0\.0|Open Cube OS 1\.0\.0|WP-10-|WP-11-crash_recovery|WP-12-watchdog_logging|WP-13-build_system|WP-14-docs_release"),
     # WP-fix-critical-security: patterns re-based on the REAL success
@@ -171,7 +174,7 @@ def main():
             # dynamic check: command-count floor from help -a
             sec = section("help -a")
             n = len(re.findall(r"(?m)^  \S+ +\[[^\]]*\]  ", sec))
-            ok = n >= 276
+            ok = n >= 300
             print(f"  {'PASS' if ok else 'FAIL'}  {name} (measured {n})")
         else:
             scope = boot if cmd is None else section(cmd)
