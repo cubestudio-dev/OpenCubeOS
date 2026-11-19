@@ -1,10 +1,10 @@
 {
-    "version": "3.0.0-WP-fix-residual-defects",
-    "build": 471,
-    "time": "2026-11-18",
-    "changes": "awk /pat/-vs-path deadlock fix (file arguments open again), tui-hw/tui-drv case-insensitive page names + unknown-page feedback, ci-gates page renders the CI expression verbatim",
+    "version": "3.0.0-WP08-driver-framework",
+    "build": 477,
+    "time": "2026-11-19",
+    "changes": "driver framework: metadata + device tree + power hooks + hotplug + failure isolation + deterministic order; drv/dev diagnostics (16 new commands)",
     "changes_v2_url": "https://ocos.cubestudio.cn/update-v2.json",
-    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-fix-residual-defects-update.tar.gz",
-    "package_sha256": "5929e426ee6b338e748d9c5c2fad8673d641fdb41bd06a91be2ad5dd29561bef",
-    "package_size": 1454062
+    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP08-driver-framework-update.tar.gz",
+    "package_sha256": "34e054e35c016ee12329f341ad918a2ee24ef948562adf9cd2f1a338e4d7c104",
+    "package_size": 1512893
 }
