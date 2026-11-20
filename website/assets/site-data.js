@@ -6,68 +6,43 @@
    (opencube + ocse ISOs of the current milestone) - maintained per
    milestone, preserved by the release script. */
 window.SITE_DATA = {
-  version: "3.0.0-WP08-driver-framework",
-  build: 477,
-  date: "2026-11-19",
-  changes: "driver framework: metadata + device tree + power hooks + hotplug + failure isolation + deterministic order; drv/dev diagnostics (16 new commands)",
+  version: "3.0.0-WP-tui-input-encoding-hardening",
+  build: 478,
+  date: "2026-11-20",
+  changes: "input/encoding/display hardening: OCIRE space fix (scan-code overrun), cross-write UTF-8 TTY, serial direction verdict, VMware triple-fault fix (own IDT + low-memory discipline), TUI entry hiding (8 registered/unlisted), three-chain sweep",
   assets: {
     iso: {
-      name: "opencube-3.0.0-WP08-driver-framework.iso",
-      size: 4397056,
+      name: "opencube-3.0.0-WP-tui-input-encoding-hardening.iso",
+      size: 4399104,
       size_h: "4.2 MiB",
-      sha256: "d559b8acfebc6ff3cbbe81d3c1c6ccfe8a9bc812718a716400e5730f4645d1fd",
-      url: "downloads/opencube-3.0.0-WP08-driver-framework.iso"
+      sha256: "9f24aaf3ba81ed59d32947ec15836b9143454410d56f8a462bba39c6808754e3",
+      url: "downloads/opencube-3.0.0-WP-tui-input-encoding-hardening.iso"
     },
     src: {
-      name: "opencube-3.0.0-WP08-driver-framework-src.zip",
-      size: 7303991,
+      name: "opencube-3.0.0-WP-tui-input-encoding-hardening-src.zip",
+      size: 7390174,
       size_h: "7.0 MiB",
-      sha256: "c6508483392cde3e698aeb6e92eb5549a99c82472faa67e92e4ab16e005f4c10",
-      url: "downloads/opencube-3.0.0-WP08-driver-framework-src.zip"
+      sha256: "4d973125083499c0155886dc8a4b21d326c1a6fe22b78f66f75c49fd83c9b803",
+      url: "downloads/opencube-3.0.0-WP-tui-input-encoding-hardening-src.zip"
     },
     ota: {
-      name: "opencube-3.0.0-WP08-driver-framework-update.tar.gz",
-      size: 1512893,
+      name: "opencube-3.0.0-WP-tui-input-encoding-hardening-update.tar.gz",
+      size: 1514237,
       size_h: "1.4 MiB",
-      sha256: "34e054e35c016ee12329f341ad918a2ee24ef948562adf9cd2f1a338e4d7c104",
-      url: "downloads/opencube-3.0.0-WP08-driver-framework-update.tar.gz"
-    }
-  },
-  /* WP06e: the 3.0.0 milestone channel.  WP-presentation-consistency:
-     updated to the WP08-driver-framework milestone (build 477); the
-     OCSE medium was last cut at the WP-l1apps-merge milestone and is
-     kept as-is (no OCSE re-cut since).  Sizes + SHA256 verified
-     against the GitHub Release API (assets[].size / assets[].digest).
-     The main tree carries no ISO binaries (see SYNC-NOTES.md) - the
-     dev entries link the GitHub Release download URLs directly. */
-  dev: {
-    version: "3.0.0-WP08-driver-framework",
-    build: 477,
-    date: "2026-11-19",
-    assets: {
-      opencube: {
-        name: "opencube-3.0.0-WP08-driver-framework.iso",
-        size: 4397056,
-        size_h: "4.2 MiB",
-        sha256: "d559b8acfebc6ff3cbbe81d3c1c6ccfe8a9bc812718a716400e5730f4645d1fd",
-        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP08-driver-framework/opencube-3.0.0-WP08-driver-framework.iso"
-      },
-      ocse: {
-        name: "ocse-3.0.0-WP-l1apps-merge.iso",
-        size: 5089280,
-        size_h: "4.9 MiB",
-        sha256: "9eddea98b437973684bade9861733a8b9909d3ac2980caa5f20d1fc18c17db8a",
-        url: "https://github.com/cubestudio-dev/OpenCubeOS/releases/download/v3.0.0-WP-l1apps-merge/ocse-3.0.0-WP-l1apps-merge.iso"
-      }
+      sha256: "60d5f7a359f62ff898f782dce8dc3e508783bc544c566f3f3eb0174a22d7fb66",
+      url: "downloads/opencube-3.0.0-WP-tui-input-encoding-hardening-update.tar.gz"
     }
   },
   stats: {
-    commands: 303,
+    commands: 311,
     interfaces: 221,
     syscalls: 54,
-    lines: "163,935"
+    lines: "164,693"
   },
   history: [
+    { version: "3.0.0-WP08-driver-framework", date: "2026-11-19",
+      iso_sha: "d559b8acfebc6ff3cbbe81d3c1c6ccfe8a9bc812718a716400e5730f4645d1fd",
+      iso_size: 4397056 },
     { version: "3.0.0-WP-fix-residual-defects", date: "2026-11-18",
       iso_sha: "a738e75927f3c10ddf7dfd2f5e67033322fa5c505c7842a73051ad8c80f13d7b",
       iso_size: 4294656 },
