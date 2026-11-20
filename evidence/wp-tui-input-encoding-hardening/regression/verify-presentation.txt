@@ -1,0 +1,64 @@
+=== 1. rebuild the fact source ===
+  PASS  fact source rebuild (all internal cross-checks)
+=== 2. ledger A-row facts (re-derived) ===
+  PASS  A1 commands_total = 311
+  PASS  A1b hidden (registered, unlisted) = 8
+  PASS  A1c ring3_listed = 292
+  PASS  A1d surface_listed (292+11) = 303
+  PASS  A2 ring3 = 300
+  PASS  A3 builtins (registry caliber) = 11
+  PASS  A4 services = 20
+  PASS  A5 l1svc_ops = 221
+  PASS  A6 syscalls = 54
+  PASS  A7 drivers legacy+framework = (38, 7)
+  PASS  A10 dictionary EN/zh = (26, 26)
+  PASS  A13 mega apps/ops = (8, 154)
+=== 3. fixed surfaces carry the facts (and not the stale values) ===
+  PASS  README.md contains '311'
+  PASS  README.md contains '300 ring-3'
+  PASS  README.md contains '163,935'
+  PASS  README.md contains '303 listed'
+  PASS  README.md contains 'hidden from'
+  PASS  website/index.html contains '311'
+  PASS  website/index.html contains '221'
+  PASS  website/index.html contains '163,935'
+  PASS  website/index.html contains '3.0.0-WP08-driver-framework'
+  PASS  website/architecture.html contains '221'
+  PASS  website/architecture.html contains '300 programs'
+  PASS  website/architecture.html contains 'framework/ (.oc_drvi)'
+  PASS  website/architecture.html contains 'OC_DRIVER_INFO_DECL'
+  PASS  docs/reference/presentation-consistency-ledger.md contains '311'
+  PASS  docs/reference/presentation-consistency-ledger.md contains '221'
+  PASS  README.md free of '284 ring-3'
+  PASS  README.md free of '296 commands'
+  PASS  README.md free of '158,474'
+  PASS  website/index.html free of '296'
+  PASS  website/index.html free of '275 programs'
+  PASS  website/index.html free of 'src/L1/'
+  PASS  website/index.html free of '158,474'
+  PASS  website/index.html free of '16 driver families'
+  PASS  website/architecture.html free of '190 numbered'
+  PASS  website/architecture.html free of 'src/L0/'
+  PASS  website/architecture.html free of '128,890'
+  PASS  website/download.html free of 'WP-l1apps-merge - development preview'
+  PASS  docs/index.md free of '208 ops'
+  PASS  docs/index.md free of '296-command'
+=== 4. dictionary gate (A10) ===
+  PASS  dictionary == registry == enumeration, EN+zh, examples aligned
+=== 5. registry zero-drift (commands.json == enumeration) ===
+  PASS  enum_apps registry reconciliation
+=== 6. D1 version four-way ===
+  PASS  update.json = tag = website = 3.0.0-WP08-driver-framework (release body checked in the release step)
+=== 7. B1/B2 screenshots current (regenerated at the PA; a new
+     WP only regenerates them when the boot banner changes) ===
+  PASS  shot-bios.png is the regenerated current-release shot
+  PASS  shot-uefi.png is the regenerated current-release shot
+=== 8. E1 bug-list.md absent; E2 mirror items absent ===
+  PASS  bug-list.md removed
+  PASS  ci-gates mirror items removed (EN+zh)
+=== 9. E3 privacy scan zero (non-tool) hits ===
+  PASS  privacy word-list scan: zero real hits
+=== 10. exemption register present ===
+  PASS  ledger exemption register present
+
+verify_presentation: ALL CHECKS PASS

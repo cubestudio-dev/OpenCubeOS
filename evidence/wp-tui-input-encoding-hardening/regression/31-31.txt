@@ -1,0 +1,59 @@
+[reg] ran: uname -a (43 bytes)
+[reg] ran: help -a (13732 bytes)
+[reg] ran: heaptest (10657 bytes)
+[reg] ran: fstest (546 bytes)
+[reg] ran: cryptotest (389 bytes)
+[reg] ran: crashlog (46 bytes)
+[reg] ran: l1test (1550 bytes)
+[reg] ran: run hello (49 bytes)
+[reg] ran: run fork_test (125 bytes)
+[reg] ran: run exec_test (151 bytes)
+[reg] ran: run pipe_test (127 bytes)
+[reg] ran: run signal_test (202 bytes)
+[reg] ran: run select_test (135 bytes)
+[reg] ran: run mmap_test (128 bytes)
+[reg] ran: run mmap_multi (146 bytes)
+[reg] ran: run g7mmap (928 bytes)
+[reg] ran: run dyn_hello (62 bytes)
+[reg] ran: run so_test (54 bytes)
+[reg] ran: run dlsym_test (64 bytes)
+[reg] ran: run pie_test (65 bytes)
+[reg] ran: run reloc_test (86 bytes)
+[reg] ran: run p3_test (68 bytes)
+[reg] ran: run g6_test (608 bytes)
+[reg] g6_test tally collected (608 bytes)
+[reg] ran: run p0leak (318 bytes)
+
+=== regression checks ===
+  PASS  screen framebuffer alive (BUG #66) (2 distinct colors, 8.41% non-dominant pixels in 15484 samples)
+  PASS  boot banner ready
+  PASS  boot prompt hint
+  PASS  boot complete OK
+  PASS  exception self-test 3/3
+  PASS  command count >= 292 (measured 292)
+  PASS  uname current tree
+  PASS  heaptest pass
+  PASS  fstest pass
+  PASS  cryptotest NIST pass
+  PASS  crashlog clean boot
+  PASS  l1test wp8b loader 14/14
+  PASS  l1test job steps PASS
+  PASS  l1test overall PASS
+  PASS  hello output
+  PASS  fork_test pass
+  PASS  exec_test pass
+  PASS  pipe_test pass
+  PASS  signal_test pass
+  PASS  select_test pass
+  PASS  mmap_test pass
+  PASS  mmap_multi pass
+  PASS  g7mmap pass
+  PASS  dyn_hello output
+  PASS  so_test pass
+  PASS  dlsym_test pass
+  PASS  pie_test pass
+  PASS  reloc_test pass
+  PASS  p3_test pass
+  PASS  g6_test full chain pass
+  PASS  p0leak fence pass
+=== 31/31 checks passed, 0 failed ===
