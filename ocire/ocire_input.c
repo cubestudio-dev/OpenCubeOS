@@ -33,8 +33,17 @@ static int g_e0;
  * (sc 0x0D read the '\b' slot), and Tab (0x0F) mapped to 0 (dead
  * key). Two leading zeros put '1'..'=' at 0x02..0x0C, backspace at
  * 0x0E, and Tab at 0x0F where set 1 actually puts them; all later
- * rows (already correctly commented) keep their positions. */
-static const char map_lo[0x38] = {
+ * rows (already correctly commented) keep their positions.
+ *
+ * WP-tui-input-encoding-hardening 4.2 (the space-capture defect):
+ * the table previously ENDED at index 0x37 and the range check
+ * rejected sc > 0x37 - but SPACE is scancode 0x39 in set 1, so every
+ * space typed on the PS/2 keyboard was silently dropped and "lang
+ * zh" reached the shell as "langzh" (every spaced command died as
+ * an unknown command).  The table now covers through 0x39 (space
+ * at its true set-1 position; 0x38 = LAlt stays unmapped, the
+ * F-keys beyond it are not shell keys). */
+static const char map_lo[0x3A] = {
     /* 0x00 */ 0,   0,
     /* 0x02 */ '1','2','3','4','5','6','7','8','9','0','-','=', '\b',
     /* 0x0F */ '\t',
@@ -45,11 +54,14 @@ static const char map_lo[0x38] = {
     /* 0x2B */ '\\',
     /* 0x2C */ 'z','x','c','v','b','n','m',',','.','/',
     /* 0x36 */ 0,   /* RShift */
-    /* 0x37 */ '*'  /* keypad * */
+    /* 0x37 */ '*',  /* keypad * */
+    /* 0x38 */ 0,   /* LAlt */
+    /* 0x39 */ ' '   /* SPACE - the 4.2 fix */
 };
 
-/* Shifted map, same indexing fix as map_lo (bug 9). */
-static const char map_hi[0x38] = {
+/* Shifted map, same indexing fixes as map_lo (bug 9 + the 4.2 space
+ * extension: shifted space is still a space). */
+static const char map_hi[0x3A] = {
     /* 0x00 */ 0,   0,
     /* 0x02 */ '!','@','#','$','%','^','&','*','(',')','_','+', '\b',
     /* 0x0F */ '\t',
@@ -60,7 +72,9 @@ static const char map_hi[0x38] = {
     /* 0x2B */ '|',
     /* 0x2C */ 'Z','X','C','V','B','N','M','<','>','?',
     /* 0x36 */ 0,
-    /* 0x37 */ '*'
+    /* 0x37 */ '*',
+    /* 0x38 */ 0,   /* LAlt */
+    /* 0x39 */ ' '   /* SPACE - shifted space is a space */
 };
 
 static char kbd_poll(void) {
@@ -76,7 +90,7 @@ static char kbd_poll(void) {
     default: break;
     }
     if (sc & 0x80) return 0;                     /* any other release */
-    if (sc < 0x02 || sc > 0x37) return 0;
+    if (sc < 0x02 || sc > 0x39) return 0;        /* 4.2: include SPACE */
 
     char c = g_shift ? map_hi[sc] : map_lo[sc];
     if (!c) return 0;
