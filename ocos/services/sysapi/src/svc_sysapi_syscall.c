@@ -16,6 +16,8 @@
 #include "drv_input_console.h"
 #include "svc_display_cn.h"   /* WP06g1: sys_write console fallback -> UTF-8 wide path */
 #include "svc_encoding_core.h"     /* WP06g1: ENC_UTF8 for console_cn_puts_enc */
+#include "core_tty_utf8.h"        /* WP-tui-input-encoding-hardening 4.3:
+                                    * the cross-write UTF-8 TTY (per-byte echo) */
 #include "core_lib_string.h"
 #include "drv_input_keyboard.h"
 #include "svc_fs_path.h"   /* 3.0.0-WP03: path resolution (ex shell_resolve_path) */
@@ -850,7 +852,9 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
          * multi-byte CJK glyph as its own Latin-1 cell (three solid
          * blocks per hanzi). ASCII output is byte-identical (the cn
          * path passes < 0x80 straight to the stock putc). */
-        console_cn_puts_enc((const u8*)(uintptr_t)buf, (u32)len, ENC_UTF8);
+        /* 4.3: through the cross-write UTF-8 TTY so a per-byte
+         * echo stream renders complete glyphs (see core_tty_utf8.c) */
+        core_tty_utf8_write((const u8*)(uintptr_t)buf, (u32)len);
         return len;
     }
     /* P3-9: for the actual write path, mapping is required. */
@@ -964,8 +968,12 @@ static u64 sys_write(u64 fd, u64 buf, u64 len, u64 a4) {
             u64 chunk = utf8_safe_chunk((const u8*)(p + done), len - done, 512);
             u64 eflags;
             __asm__ volatile("pushfq; popq %0; cli" : "=r"(eflags));
-            console_cn_puts_enc((const u8*)(uintptr_t)(p + done),
-                                (u32)chunk, ENC_UTF8);
+            /* 4.3: the TTY carries an incomplete tail across the
+             * cli windows - the per-byte echo writes of the ush line
+             * editor complete their glyphs here instead of painting
+             * one raw Latin-1 block per byte */
+            core_tty_utf8_write((const u8*)(uintptr_t)(p + done),
+                                (u32)chunk);
             __asm__ volatile("pushq %0; popfq" : : "r"(eflags));
             done += chunk;
         }
@@ -2627,8 +2635,9 @@ static u64 sys_write2(u64 fd, u64 buf, u64 len, u64 a4) {
                  * byte (ush output, help tables, command echo).  The
                  * two write syscalls now REALLY behave identically:
                  * each chunk flows through the UTF-8 wide decoder. */
-                console_cn_puts_enc((const u8*)(uintptr_t)(p + done),
-                                    (u32)chunk, ENC_UTF8);
+                /* 4.3: same TTY as sys_write (cross-write UTF-8) */
+                core_tty_utf8_write((const u8*)(uintptr_t)(p + done),
+                                    (u32)chunk);
                 __asm__ volatile("pushq %0; popfq" : : "r"(eflags));
                 done += chunk;
             }
