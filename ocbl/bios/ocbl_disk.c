@@ -191,10 +191,34 @@ u32 ocbl_disk_enumerate(u8* drives, u32 max)
             continue;
         drives[n++] = d;
     }
+    /* WP-tui-input-encoding-hardening 4.5 (H2, the empty scan on
+     * VMware): the El Torito boot drive number is FIRMWARE-CHOSEN -
+     * SeaBIOS passes 0xE0+, but the reporter's VMware/Phoenix
+     * firmware passes 0x9F, which is in NEITHER range above, so the
+     * scan never saw the boot CD ("[scan] entries: 0" -> the menu
+     * fell back to Shutdown -> the auto-boot loop).  The boot drive
+     * is by definition present: always include it (deduped). */
+    {
+        u8 boot = ocbl_peek8(OCBL_LO_BOOTDRIVE);
+        u8 flavor = ocbl_peek8(OCBL_LO_FLAVOR);   /* 0 = el-torito */
+        int dup = 0;
+        for (u32 i = 0; i < n; i++)
+            if (drives[i] == boot) dup = 1;
+        if (!dup && flavor == 0 && boot >= 0x80 && boot != 0xFF &&
+            n < max && ocbl_disk_geom(boot, 0, 0))
+            drives[n++] = boot;
+    }
     return n;
 }
 
 u8 ocbl_disk_kind(u8 drive)
 {
+    /* WP-tui-input-encoding-hardening 4.5: the boot drive of an
+     * El Torito boot IS a CD whatever number the firmware chose
+     * (0x9F on the reporter's VMware) - classify it as cdrom so the
+     * 2048-byte sector gate (and every CD-aware path) applies. */
+    if (drive == ocbl_peek8(OCBL_LO_BOOTDRIVE) &&
+        ocbl_peek8(OCBL_LO_FLAVOR) == 0)
+        return 1;
     return drive >= 0xE0 ? 1 : 0;
 }

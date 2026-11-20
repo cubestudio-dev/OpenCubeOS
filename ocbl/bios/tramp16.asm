@@ -44,6 +44,10 @@
 
 %define TR_BASE     0x40000
 %define BLOCK_OFF   0x300          ; 0x40300
+%define PTBASE_WORD 0x404F0        ; 4.5: the CR3 truth (tramp_init writes it)
+%define IDTSCRATCH  0x404F4        ; 4.5: the IDT truth - 6-byte pseudo-desc
+                                   ; (u16 limit at 0x404F4, u32 base at
+                                   ; 0x404F6; tramp_init writes it)
 
 ; request block field offsets (mirror ocbl_bios.h B_*).  The general
 ; registers are FULL 32-bit slots: E820 passes EDX='SMAP' and returns
@@ -69,6 +73,13 @@ TRAMP_ENTER32:
         mov     es, ax
         mov     ss, ax
         mov     esp, 0x40E00
+        ; ---- 4.5: hand interrupt vectoring to the firmware IVT for
+        ; the real-mode window below.  The core now runs with its own
+        ; 64-bit gate table loaded (ocbl_idt.c); leaving that table
+        ; active in real mode would make every real-mode interrupt
+        ; fetch a "vector" from gate bytes - a garbage far pointer.
+        ; The firmware IVT at linear 0 IS the standard real-mode table.
+        lidt    [tramp_ivtr]
         ; ---- paging off
         mov     eax, cr0
         and     eax, 0x7FFFFFFF
@@ -151,8 +162,17 @@ BACK32:
         mov     fs, ax
         mov     gs, ax
         mov     esp, 0x40E00
-        ; ---- paging + long mode back on (the core_head sequence)
-        mov     eax, 0x8F000
+        ; ---- 4.5: restore the OCBL 64-bit IDT for the way back up
+        ; (tramp_init published the core's table facts at the fixed
+        ; scratch pair; the 6-byte pseudo-desc form is what 32-bit
+        ; mode reads, and the core image lives below 4 GiB so the
+        ; 32-bit base field carries the whole address).
+        lidt    [IDTSCRATCH]
+        ; ---- paging + long mode back on (the core_head sequence).
+        ; 4.5 (H4): CR3 comes from the published base (tramp_init
+        ; wrote it to 0x404F0 from core_head's ocbl_pt_base) - the
+        ; old hardcoded 0x8F000 broke every low-EBDA relocation.
+        mov     eax, [PTBASE_WORD]
         mov     cr3, eax
         mov     eax, cr4
         or      eax, 1 << 5                    ; PAE
@@ -204,6 +224,15 @@ tramp_gdt_end:
 tramp_gdtr:
         dw tramp_gdt_end - tramp_gdt - 1
         dd tramp_gdt
+        dd 0
+
+; 4.5: the real-mode IVT pseudo-descriptor (6-byte form: the
+; firmware interrupt table at linear 0, 256 * 4 - 1 bytes).  ENTER32
+; lidt's this on every way down; BACK32 lidt's the core's own table
+; back from the 0x404F4 scratch on every way up - the trampoline
+; never leaks a mode's vectoring discipline into the other mode.
+tramp_ivtr:
+        dw 0x3FF
         dd 0
 
 ; pad the blob so the request block starts at 0x40100

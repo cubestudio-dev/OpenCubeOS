@@ -23,6 +23,9 @@
                 global ocbl_tramp_init
                 extern ocbl_tramp_blob
                 extern ocbl_tramp_blob_end
+                extern ocbl_pt_base        ; 4.5: core_head's PT base truth
+                extern ocbl_idt_table_limit  ; 4.5: the IDT facts to publish
+                extern ocbl_idt_table_base   ; (see ocbl_idt.c)
 
 %define BLOCK   0x40300
 
@@ -106,4 +109,24 @@ ocbl_tramp_init:
         sub     rcx, rsi
         cld
         rep movsb
+        ; 4.5 (H4): publish the page-table base the core chose into
+        ; the trampoline scratch word 0x404F0 (free zone between the
+        ; request block 0x40300..0x4033F and the DAP 0x40500 - the
+        ; blob itself ends at 0x40300, so the memcpy above never
+        ; touches it).  The trampoline's BACK32 return path loads
+        ; CR3 from this word: one source of truth (ocbl_pt_base in
+        ; core_head.S), no hardcoded 0x8F000 anywhere else.
+        mov     rax, [rel ocbl_pt_base]
+        mov     dword [abs 0x404F0], eax
+        ; 4.5 (H1): publish the OCBL IDT facts the same way - the
+        ; 6-byte pseudo-descriptor BACK32 lidt's on the way back up
+        ; (u16 limit at 0x404F4, u32 base at 0x404F6; the core image
+        ; lives below 4 GiB so a 32-bit base carries the address).
+        ; Without this the first real-mode window would leave the
+        ; firmware IVT loaded and the 64-bit core would lose its own
+        ; IDT for the rest of the boot.
+        mov     eax, [rel ocbl_idt_table_limit]
+        mov     word [abs 0x404F4], ax
+        mov     rax, [rel ocbl_idt_table_base]
+        mov     dword [abs 0x404F6], eax
         ret

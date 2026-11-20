@@ -81,7 +81,20 @@ int ocbl_plat_getkey(void)
             return OCBL_KEY_DOWN;    /* SCAN_DOWN */
         if (k.unicode == '\r' || k.unicode == '\n')
             return OCBL_KEY_ENTER;
-        /* every other key is consumed and ignored (three-key rule) */
+        /* WP-tui-input-encoding-hardening 4.5: the B5-5 steal is a
+         * RACE, not a solved problem - OVMF's ConIn terminal driver
+         * can consume a serial byte our own 16550 poll was about to
+         * read, and it surfaces HERE as a unicode key.  Accept the
+         * same three navigation keys the serial contract defines
+         * ('A'/'B' the CSI-arrow tails, CR the Enter) so a stolen
+         * byte still navigates instead of dying in the three-key
+         * rule (live-caught: the menu countdown ran to zero on OVMF
+         * while the serial 'B' was being stolen).  Every other key
+         * stays consumed-and-ignored. */
+        if (k.unicode == 'A')
+            return OCBL_KEY_UP;
+        if (k.unicode == 'B')
+            return OCBL_KEY_DOWN;
     }
     return -1;
 }

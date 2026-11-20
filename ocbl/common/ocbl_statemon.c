@@ -39,7 +39,14 @@ static u8 port_inb(u16 p)
  * of the silence measurement share the exact same time scale) ----- */
 static u8 rtc_reg(u8 reg)
 {
-    port_outb(0x70, reg);
+    /* WP-tui-input-encoding-hardening 4.5: keep the NMI MASK SET
+     * (port 0x70 bit 7) while selecting the CMOS register - the old
+     * bare `reg` write CLEARED the mask on every read, arming NMIs
+     * for the whole OCBL stay.  Firmware keeps NMIs masked across
+     * POST; the masked discipline matches that (and with the OCBL
+     * IDT now loaded, an NMI would merely iret - but not arming it
+     * in the first place is the standard behavior). */
+    port_outb(0x70, (u8)(reg | 0x80));
     return port_inb(0x71);
 }
 
@@ -226,8 +233,19 @@ static void record_write(u8 kind, u8 stall, u16 seq, u32 ts,
 static u32 ebda_base(void)
 {
     /* BDA 0x40E: the EBDA segment (e.g. 0x9FC0).  0 or a value outside
-     * conventional memory means "no EBDA reported" - no extra guard. */
-    u16 seg = (u16)(((u16)port_inb(0x40F) << 8) | port_inb(0x40E));
+     * conventional memory means "no EBDA reported" - no extra guard.
+     *
+     * WP-tui-input-encoding-hardening 4.5 (H3, the guard that never
+     * fired): this used to read I/O PORTS 0x40E/0x40F (port_inb) -
+     * the BDA is a MEMORY structure at linear 0x40E, and the port
+     * read returned 0xFF/0xFF on every platform, so the guard saw
+     * seg=0xFFFF ("no EBDA") and NEVER disabled the monitor.  On
+     * QEMU/SeaBIOS the EBDA sits at 0x9FC00 (clear of the state
+     * pages) so nothing broke; on VMware configs with a lower EBDA
+     * the state writes would have landed in BIOS-private memory -
+     * exactly the "next INT call triple-faults" class the WP06f
+     * comment documents.  Read the word in MEMORY now. */
+    u16 seg = ocbl_peek16(0x40E);
     if (seg < 0x8000 || seg >= 0xA000)
         return 0;
     return (u32)seg << 4;

@@ -24,6 +24,7 @@
 #include "ocbl_wdt.h"
 #include "ocbl_chain.h"
 #include "ocbl_statemon.h"    /* 3.0.0-WP07a: the boot-state monitor */
+#include "ocbl_idt.h"         /* 4.5: the long-mode IDT (see ocbl_idt.c) */
 
 #ifndef OCBL_RELEASE
 #define OCBL_RELEASE "3.0.0-WP05"
@@ -121,8 +122,12 @@ static void bios_b2a_probe(void)
             ocbl_serial_puts(" B\r\n");
         }
     }
-    /* the CD boot drive is usually 0xE0+ when booted from El Torito */
-    if (boot_drive >= 0xE0) {
+    /* the CD boot drive: firmware-chosen (SeaBIOS 0xE0+, the
+     * reporter's VMware 0x9F - 4.5/H2), so gate on the El Torito
+     * flavor, not on a drive-number range */
+    {
+        u8 flavor = ocbl_peek8(OCBL_LO_FLAVOR);   /* 0 = el-torito */
+        if (flavor == 0 && boot_drive >= 0x80 && boot_drive != 0xFF) {
         u64 total = 0;
         u16 bps = 0;
         if (ocbl_disk_geom(boot_drive, &total, &bps)) {
@@ -154,6 +159,7 @@ static void bios_b2a_probe(void)
                 ocbl_serial_puts("\r\n");
             }
         }
+        }
     }
 }
 #endif
@@ -162,6 +168,14 @@ void ocbl_run(void)
 {
     char brand[64];
     u64 sp;
+
+    /* WP-tui-input-encoding-hardening 4.5 (H1): load OUR OWN IDT
+     * before anything else - the core used to inherit the
+     * firmware's IDTR and any asynchronous event on a firmware that
+     * leaves a non-decodable table escalated to a triple-fault
+     * reset loop (the VMware crash).  From here on: exceptions
+     * report on serial and halt; IRQs/NMIs iret. */
+    ocbl_idt_setup();
 
     ocbl_serial_init();
     ocbl_serial_puts("\r\nOCBL 3.0.0 boot loader (" OCBL_RELEASE " build ");

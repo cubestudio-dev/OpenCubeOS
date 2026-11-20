@@ -1,0 +1,10 @@
+OCBL stage1 ok
+
+OCBL 3.0.0 boot loader (3.0.0-NAK build 489)
+long mode 64-bit C entry OK
+flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
+cpu: QEMU Virtual CPU version 2.5+
+stack at 0x0008D480
+OCBL B1 chain verified
+[b2a] trampoline installed at 0x40000
+

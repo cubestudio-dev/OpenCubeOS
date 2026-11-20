@@ -82,10 +82,21 @@ core_head:
         ; below 0x8E000 for) had EBDA data stomped by these fill
         ; loops, and the very next INT 13h/16h/1Ah triple-faulted.
         ; Read the EBDA base from the BDA word at 0x40E; on overlap
-        ; relocate the whole 6-page block to [0x40000, 0x46000) - a
-        ; window no boot stage uses (the int13 bounce ends at 0x3FFFF,
-        ; the mb2 info starts at 0x50000) and that dies with OCBL
-        ; anyway: the handoff turns paging OFF before the kernel entry.
+        ; relocate the whole 6-page block to [0x41000, 0x47000) - a
+        ; window no boot stage uses (the int13 bounce ends at
+        ; 0x3FFFF, the trampoline footprint stays below 0x41000, the
+        ; mb2 info starts at 0x50000) and that dies with OCBL
+        ; anyway: the handoff turns paging OFF before the kernel
+        ; entry.
+        ; WP-tui-input-encoding-hardening 4.5 (H4): the OLD
+        ; relocation target [0x40000,0x46000) landed ON TOP of the
+        ; real-mode trampoline (tramp_init's memcpy then stomped the
+        ; relocated PML4[0]) AND the trampoline's return path
+        ; hard-reloaded CR3=0x8F000 - a low-EBDA machine triple-
+        ; faulted on the FIRST BIOS call.  The chosen base is now
+        ; stored in ocbl_pt_base (the single source of truth) and
+        ; tramp_init copies it to the fixed scratch word 0x404F0
+        ; that the return path loads CR3 from.
         mov     edi, 0x8F000                    ; default PML4
         movzx   eax, word [0x40E]               ; BDA: EBDA segment
         cmp     eax, 0x8000                     ; sane segment? (>= 0x80000)
@@ -93,9 +104,10 @@ core_head:
         shl     eax, 4                          ; EBDA linear base
         cmp     eax, 0x95000                    ; starts below window end?
         jae     .pt_base_ok                     ; clear of the window
-        mov     edi, 0x40000                    ; overlap: relocate (above)
+        mov     edi, 0x41000                    ; overlap: relocate (above)
 .pt_base_ok:
         mov     ebx, edi                        ; PT base (for cr3 load)
+        mov     [ocbl_pt_base], ebx             ; 4.5: publish the truth
         ; PML4[0] -> PDPT (base+0x1000) | P | W
         lea     eax, [edi + 0x1003]
         mov     [edi], eax
@@ -275,3 +287,17 @@ core_gdt_desc:
         dw core_gdt_end - core_gdt - 1
         dd core_gdt
         dd 0
+
+; ---------------------------------------------------------------------------
+; 4.5: the page-table base truth.  core_head stores the chosen PML4
+; physical base here (default 0x8F000, or the 0x41000 relocation when
+; the EBDA overlaps the fixed window); tramp_init copies it to the
+; trampoline scratch word 0x404F0 and the trampoline's return path
+; loads CR3 from that word - one source of truth, no hardcode.
+; ---------------------------------------------------------------------------
+        global ocbl_pt_base
+        section .data
+ocbl_pt_base:
+        dd 0x8F000
+        dd 0
+        section .text.head

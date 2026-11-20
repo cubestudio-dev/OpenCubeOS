@@ -38,6 +38,14 @@ OCBL_COMMON_H := $(wildcard $(OCBL_DIR)/common/*.h)
 OCBL_COMMON_H += $(OC_ROOT)/include/ocbl_state.h
 OCBL_OBJ := $(patsubst $(OCBL_DIR)/%.c,$(OCBL_OUT)/%.o,$(OCBL_COMMON_C))
 
+# 4.5: the long-mode IDT stubs (NASM, shared by both flavors).
+# Distinct _asm object name: the C pattern rule below already owns
+# $(OCBL_OUT)/common/ocbl_idt.o for ocbl/common/ocbl_idt.c.
+OCBL_IDT_ASM_OBJ := $(OCBL_OUT)/common/ocbl_idt_asm.o
+$(OCBL_IDT_ASM_OBJ): $(OCBL_DIR)/common/ocbl_idt.S | $(OCBL_OUT)
+	@mkdir -p $(OCBL_OUT)/common
+	$(NASM) -f elf64 -o $@ $<
+
 # ---- BIOS flavor backend implementations (B5-2 split: the int 13h /
 #      VGA / E820 / VBE / VBR-chain / RSDP-scan units moved from common
 #      to bios/; common is now firmware-agnostic and the UEFI flavor
@@ -85,10 +93,10 @@ $(OCBL_OUT)/common/%.o: $(OCBL_DIR)/common/%.c $(OCBL_COMMON_H) | $(OCBL_OUT)
 
 OCBL_BIOS_OBJS := $(OCBL_OUT)/bios/tramp_data.o $(OCBL_OUT)/bios/ocbl_bios_asm.o
 
-$(OCBL_OUT)/core.elf: $(OCBL_OUT)/bios/core_head.o $(OCBL_BIOS_OBJS) $(OCBL_OBJ) $(OCBL_BIOS_IMPL_OBJ) $(OCBL_DIR)/linker_bios.ld
+$(OCBL_OUT)/core.elf: $(OCBL_OUT)/bios/core_head.o $(OCBL_BIOS_OBJS) $(OCBL_OBJ) $(OCBL_IDT_ASM_OBJ) $(OCBL_BIOS_IMPL_OBJ) $(OCBL_DIR)/linker_bios.ld
 	$(LD) -n -nostdlib -T $(OCBL_DIR)/linker_bios.ld \
               -z max-page-size=0x1000 -z noexecstack -o $@ \
-              $(OCBL_OUT)/bios/core_head.o $(OCBL_BIOS_OBJS) $(OCBL_OBJ) $(OCBL_BIOS_IMPL_OBJ)
+              $(OCBL_OUT)/bios/core_head.o $(OCBL_BIOS_OBJS) $(OCBL_OBJ) $(OCBL_IDT_ASM_OBJ) $(OCBL_BIOS_IMPL_OBJ)
 	strip --strip-debug $@
 	python3 -c "import sys; b=open('$(abspath $@)','rb').read(); print('ocbl: core.elf %d bytes' % len(b))"
 
@@ -123,6 +131,7 @@ OCBL_EFI_CFLAGS := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
 OCBL_EFI_SRC := $(wildcard $(OCBL_DIR)/efi/*.c) \
                 $(OCBL_DIR)/common/ocbl_statemon.c \
                 $(OCBL_DIR)/common/ocbl_serial.c \
+                $(OCBL_DIR)/common/ocbl_idt.c \
                 $(OCBL_DIR)/common/ocbl_fs.c \
                 $(OCBL_DIR)/common/ocbl_part.c \
                 $(OCBL_DIR)/common/ocbl_scan.c \
@@ -144,6 +153,15 @@ $(OCBL_OUT)/efiobj/handoff_data.o: $(OCBL_DIR)/efi/handoff_data.asm $(OCBL_OUT)/
 	@mkdir -p $(dir $@)
 	$(NASM) -f elf64 -I$(OCBL_OUT)/ -o $@ $<
 
+# 4.5: the IDT stubs for the EFI flavor (same NASM source; the
+# .rodata stub table carries R_X86_64_64 relocs that --emit-relocs +
+# elf_to_efi.py relocate like every other absolute in the image).
+# Distinct _asm object name: the EFI pattern rule already owns
+# $(OCBL_OUT)/efiobj/common/ocbl_idt.o for ocbl/common/ocbl_idt.c.
+$(OCBL_OUT)/efiobj/ocbl_idt_asm.o: $(OCBL_DIR)/common/ocbl_idt.S | $(OCBL_OUT)
+	@mkdir -p $(OCBL_OUT)/efiobj
+	$(NASM) -f elf64 -o $@ $<
+
 $(OCBL_OUT)/efiobj/%.o: $(OCBL_DIR)/%.c $(OCBL_COMMON_H) $(OCBL_DIR)/efi/efi.h | $(OCBL_OUT)
 	@mkdir -p $(dir $@)
 	$(OCBL_CC) $(OCBL_EFI_CFLAGS) -c $< -o $@
@@ -157,10 +175,10 @@ $(OCBL_OUT)/efiobj/%.o: $(OCBL_DIR)/%.c $(OCBL_COMMON_H) $(OCBL_DIR)/efi/efi.h |
 #  argument - see elf_to_efi.py's header for the full chain.  The
 #  two-step link keeps every R_X86_64_64 and builds the complete
 #  directory deterministically.)
-$(OCBL_OUT)/ocbl_x64.efi: $(OCBL_EFI_OBJ) $(OCBL_OUT)/efiobj/handoff_data.o $(OCBL_DIR)/elf_to_efi.py $(OCBL_DIR)/linker_efi.ld
+$(OCBL_OUT)/ocbl_x64.efi: $(OCBL_EFI_OBJ) $(OCBL_OUT)/efiobj/ocbl_idt_asm.o $(OCBL_OUT)/efiobj/handoff_data.o $(OCBL_DIR)/elf_to_efi.py $(OCBL_DIR)/linker_efi.ld
 	$(LD) -m elf_x86_64 --emit-relocs -n -nostdlib \
               -T $(OCBL_DIR)/linker_efi.ld -o $(OCBL_OUT)/core_efi.elf \
-              $(OCBL_EFI_OBJ) $(OCBL_OUT)/efiobj/handoff_data.o
+              $(OCBL_EFI_OBJ) $(OCBL_OUT)/efiobj/ocbl_idt_asm.o $(OCBL_OUT)/efiobj/handoff_data.o
 	python3 $(OCBL_DIR)/elf_to_efi.py $(OCBL_OUT)/core_efi.elf $@ efi_main
 	python3 -c "d=open('$(abspath $@)','rb').read(); pe=int.from_bytes(d[0x3c:0x40],'little'); assert d[:2]==b'MZ' and d[pe:pe+4]==b'PE\x00\x00' and int.from_bytes(d[pe+4:pe+6],'little')==0x8664 and int.from_bytes(d[pe+0x5c:pe+0x5e],'little')==10, 'bad PE/EFI header'; print('ocbl: ocbl_x64.efi %d bytes (x64 EFI app)' % len(d))"
 
