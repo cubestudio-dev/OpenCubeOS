@@ -68,12 +68,17 @@ CHECKS = [
     # is now measured from the registry listing itself: two-space
     # indented "name  [tag]  description" lines.  Interface freeze
     # rule: commands may be ADDED, never removed - so the gate asserts
-    # the count never drops below the recorded floor.  300 = the
+    # the count never drops below the recorded floor.  292 = the
+    # WP-tui-input-encoding-hardening 4.1 baseline (300 ring-3
+    # programs minus the 8 legacy TUI sub-launchers hidden from the
+    # listing - they stay REGISTERED and directly executable; the
+    # registered caliber is separately asserted by the presentation
+    # gates at 311).  History: 300 = the
     # WP-presentation-consistency-audit baseline (300 ring-3
     # programs; history: 276 = g3 275 + p0leak).
     # baseline (275) + p0leak (WP-fix-critical-security P0 fence
     # probe).
-    ("command count >= 300",     "help -a", None),   # dynamic (see main)
+    ("command count >= 292",     "help -a", None),   # dynamic (see main)
     # The release banner is the Makefile literal OC_RELEASE_VERSION.
     ("uname current tree",       "uname -a", r"Open Cube OS 3\.0\.0|Open Cube OS 1\.0\.0|WP-10-|WP-11-crash_recovery|WP-12-watchdog_logging|WP-13-build_system|WP-14-docs_release"),
     # WP-fix-critical-security: patterns re-based on the REAL success
@@ -174,7 +179,7 @@ def main():
             # dynamic check: command-count floor from help -a
             sec = section("help -a")
             n = len(re.findall(r"(?m)^  \S+ +\[[^\]]*\]  ", sec))
-            ok = n >= 300
+            ok = n >= 292
             print(f"  {'PASS' if ok else 'FAIL'}  {name} (measured {n})")
         else:
             scope = boot if cmd is None else section(cmd)

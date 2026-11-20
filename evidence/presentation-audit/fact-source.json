@@ -352,9 +352,9 @@
  },
  "version": {
   "makefile_default": "3.0.0-NAK",
-  "makefile_kernel_build_default": 484,
+  "makefile_kernel_build_default": 491,
   "makefile_build_offset": 21,
-  "makefile_commit_count": 463,
+  "makefile_commit_count": 470,
   "update_json_version": "3.0.0-WP08-driver-framework",
   "update_json_build": 477,
   "latest_tag": "v3.0.0-WP08-driver-framework"
