@@ -16,6 +16,10 @@
 
 ## Release notes
 
+- [3.0.0-WP-tui-input-encoding-hardening](3.0.0-WP-tui-input-encoding-hardening.md) - the TUI input and
+  encoding hardening: the OCIRE space fix, the cross-write UTF-8
+  TTY, the serial direction verdict, the VMware triple-fault fix,
+  the TUI entry hiding, the three-chain sweep
 - [3.0.0-WP08-driver-framework](3.0.0-WP08-driver-framework.md) - the driver framework: metadata, device tree, power hooks,
   hotplug events, failure isolation, deterministic order, the
   drv/dev diagnostics

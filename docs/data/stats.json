@@ -1,8 +1,8 @@
 {
  "dirs": {
   "ocos/kernel": {
-   "files": 75,
-   "lines": 15634
+   "files": 77,
+   "lines": 15784
   },
   "ocos/drivers": {
    "files": 134,
@@ -10,7 +10,7 @@
   },
   "ocos/services": {
    "files": 221,
-   "lines": 80046
+   "lines": 80055
   },
   "ocos/interface": {
    "files": 8,
@@ -21,15 +21,15 @@
    "lines": 10562
   },
   "ocbl": {
-   "files": 44,
-   "lines": 7029
+   "files": 47,
+   "lines": 7491
   },
   "ocire": {
    "files": 52,
-   "lines": 8243
+   "lines": 8257
   }
  },
- "total_lines": 164058,
- "total_files": 809,
+ "total_lines": 164693,
+ "total_files": 814,
  "note": "Counts .c/.h/.S sources under the 9 STAT_DIRS (core arch drivers services recovery tui chinese boot l1apps); generated data blobs excluded, and l1apps/ .asm/.ld program files are not counted (9 of its 36 files are .c) - the same exclusions the README verification command applies."
 }

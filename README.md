@@ -5,7 +5,7 @@
 
 **A from-scratch x86_64 kernel that boots into ring 3.**
 
-Current release: **3.0.0-WP08-driver-framework** - the OCBL
+Current release: **3.0.0-WP-tui-input-encoding-hardening** - the OCBL
 bootloader, a pure L0 service kernel (no shell, no TUI, no IME in
 L0) with the driver framework (device tree, power hooks, hotplug,
 failure isolation, deterministic init order), **300 ring-3
@@ -55,8 +55,8 @@ Open Cube OS is **L0 + L1**:
   updates), `direct` explicit passthrough, and classic verbatim
   dispatch with zero functionality loss.
 
-- **Not a Linux fork.** 163,935 lines of original C/assembly across
-  807 files under Apache 2.0 (verify: see *Stats* below).
+- **Not a Linux fork.** 164,693 lines of original C/assembly across
+  814 files under Apache 2.0 (verify: see *Stats* below).
 - **Boots everywhere the PC platform goes:** one hybrid BIOS + UEFI
   ISO through OCBL, the in-tree bootloader (512-byte real-mode
   stage 1 / EFI entry, 16→32→64-bit long mode, dynamic disk scan) -
@@ -162,7 +162,7 @@ All numbers below are machine-verified at build time
 (`make api-docs` writes `docs/data/*.json`; the README verification
 command is quoted per item):
 
-- **Source code**: 163,935 lines across 807 files - ocos/ (kernel,
+- **Source code**: 164,693 lines across 814 files - ocos/ (kernel,
   drivers, services, interface, l1apps) + ocbl/ + ocire/, headers
   included, generated data blobs excluded (the generator caliber:
   `tools/gen_api_docs.py` `STAT_DIRS`/`STAT_EXCLUDE`).  Verify:

@@ -5,7 +5,7 @@
 
 **一个从零写起、直接启动进 Ring 3 的 x86_64 内核。**
 
-当前发布：**3.0.0-WP08-driver-framework**——OCBL
+当前发布：**3.0.0-WP-tui-input-encoding-hardening**——OCBL
 引导加载器、纯 L0 服务内核（L0 里没有 shell、没有 TUI、没有
 IME）、`ocos/l1apps/` 下的 **300 个 Ring-3 程序**——现在围绕
 **8 个合并大应用**组织（`update` / `disk-tool` / `net-tool` /
@@ -48,7 +48,7 @@ Open Cube OS 是 **L0 + L1**：
   以及零功能损失的经典逐字分发。
 
 - **不是 Linux 分支。** Apache 2.0 下横跨 764 个文件的
-  163,935 行原创 C/汇编（验证：见下文*数据*）。
+  164,693 行原创 C/汇编（验证：见下文*数据*）。
 - **PC 平台走到哪就启动到哪：** 经 OCBL 的单一混合 BIOS +
   UEFI ISO——树内引导加载器（512 字节实模式 stage 1 /
   EFI 入口、16→32→64 位长模式、动态磁盘扫描）——512 MiB
@@ -152,7 +152,7 @@ Release 与私有镜像持有逐字节一致的副本。
 （`make api-docs` 写 `docs/data/*.json`；每项都引用了 README
 验证命令）：
 
-- **源代码**：807 个文件 163,935 行——ocos/（内核、
+- **源代码**：814 个文件 164,693 行——ocos/（内核、
   驱动、服务、接口、l1apps）+ ocbl/ + ocire/，含头文件、
   排除生成的数据块（生成器口径：
   `tools/gen_api_docs.py` 的 `STAT_DIRS`/`STAT_EXCLUDE`）。

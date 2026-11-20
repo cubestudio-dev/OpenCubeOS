@@ -5,7 +5,7 @@
 
 ## Version
 
-3.0.0-WP08-driver-framework (the OCBL bootloader + a pure L0
+3.0.0-WP-tui-input-encoding-hardening (the OCBL bootloader + a pure L0
 service kernel + 300 ring-3 programs under ocos/l1apps/ + the OCSE
 install environment with the GUI install wizard, plus the L0 driver
 framework - metadata, device tree, power hooks, hotplug, failure
@@ -121,11 +121,11 @@ The release gate: the full regression matrix green + CI green
 (`.github/workflows/build.yml`: build, ISO, packages, host tests,
 reproducibility) before any tag.
 
-## Line Count (3.0.0-WP08-driver-framework generator caliber)
+## Line Count (3.0.0-WP-tui-input-encoding-hardening generator caliber)
 
 - Source code (ocos/kernel+services+drivers + ocos/l1apps + boot +
   core + ocbl + include, .c/.h/.S/.asm, generated data blobs
-  excluded): **158,934 lines across 780 files**
+  excluded): **161,837 lines across 796 files**
   (verify with:
   ```bash
   find ocos ocos/l1apps boot core ocbl include \

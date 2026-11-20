@@ -16,6 +16,9 @@
 
 ## 发布说明
 
+- [3.0.0-WP-tui-input-encoding-hardening](3.0.0-WP-tui-input-encoding-hardening.md) - TUI 输入与编码加固：
+  OCIRE 空格修复、跨写入 UTF-8 TTY、串口方向裁定、VMware 三重
+  故障修复、TUI 入口隐藏、三链路扩展排查
 - [3.0.0-WP08-driver-framework](3.0.0-WP08-driver-framework.md) - 驱动框架：元数据、设备树、电源钩子、热插拔事件、失败隔离、
   确定性顺序与 drv/dev 诊断命令
 - [3.0.0-WP-l1apps-merge](3.0.0-WP-l1apps-merge.md)——8 个合并

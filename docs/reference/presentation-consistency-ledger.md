@@ -24,7 +24,7 @@ surfaces; the EXEMPT rows carry their reason and stay human-audited.
 | A6 | syscalls | 54 | website meta/stat, INTERFACES.md, docs/index.md | 53 (historical quote only) | 54 | VERIFIED (no drift) |
 | A7 | drivers | 38 legacy (OC_DRIVER_DECL) + 7 framework (OC_DRIVER_INFO_DECL) | website meta/features, architecture.html ASCII diagram + table, README, docs/index.md(+zh) | 16 / 15 "families" | 38 drivers in 7 declared families + framework | FIXED (verified) |
 | A8 | driver families (declared) | 7 (block 6, nic 9, snd 6, usb 8, wireless 7, sdio 1, placeholder 1) | architecture.html, README | 15 / 16 | 7 | FIXED (verified) |
-| A9 | LOC (stats.json caliber) | 163,935 / 807 files | README, website hero/stat/about, MANIFEST (find caliber 158,934 / 780), i18n.js | 158,474 / 128,890 / 130,572 | 163,935 (stats) + 158,934 (MANIFEST find caliber, labeled) | FIXED (verified) |
+| A9 | LOC (stats.json caliber) | 164,693 / 814 files | README, website hero/stat/about, MANIFEST (find caliber 161,837 / 796), i18n.js | 163,935 / 158,934 (the WP08 calibers, superseded) | 164,693 (stats) + 161,837 (MANIFEST find caliber, labeled) | FIXED (re-derived WP-tui-input-encoding-hardening) |
 | A10 | dictionary entries | 311 = enum = registry = EN = zh | docs/manual/dictionary(+zh), verify_docs_counts gate | 308 | 311 | FIXED (gate PASS) |
 | A11 | command reference pages | 311 (+1 index) | docs/manual/commands(+zh) | 292 (+1) | 311 (+1) | FIXED (regenerated) |
 | A12 | category pages | 25 + index = 26 | dictionary tree | 25 + index | unchanged (verified) | VERIFIED |
@@ -58,7 +58,7 @@ surfaces; the EXEMPT rows carry their reason and stay human-audited.
 
 | # | Claim | Fact | Status |
 |---|-------|------|--------|
-| D1 | version (published line) | update.json = Release tag = website = 3.0.0-WP08-driver-framework, build 477 | VERIFIED (four-way) |
+| D1 | version (published line) | update.json = Release tag = website = 3.0.0-WP-tui-input-encoding-hardening, build 478 | VERIFIED (four-way; re-verified at publish) |
 | D2 | "development preview" qualifiers | the 3.0.0 line is a release line (WP08 shipped); preview qualifiers removed from website/README/download | FIXED |
 | D3 | Makefile default version | 3.0.0-NAK (the development-trunk identity; generated doc titles track it by design) | EXEMPT (documented convention; not a user-facing version claim) |
 | D4 | OCSE medium | last cut at the WP-l1apps-merge milestone; download card now says so | FIXED (labeled) |

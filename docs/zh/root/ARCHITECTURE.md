@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Open Cube OS 架构
 
-本文档描述 3.0.0-WP08-driver-framework 时点的代码树——下文点名的
+本文档描述 3.0.0-WP-tui-input-encoding-hardening 时点的代码树——下文点名的
 每个组件都是你能打开的真实文件。行数与逐目录明细在
 `docs/data/stats.json`（重新生成：`make api-docs`）。
 
