@@ -335,7 +335,12 @@
    "wget",
    "wifi",
    "write"
-  ]
+  ],
+  "help_a": {
+   "declared_count": 292,
+   "listed_programs": 292,
+   "matches_ring3_listed": true
+  }
  },
  "drivers": {
   "legacy_oc_drv_decl": 38,
@@ -347,12 +352,12 @@
  },
  "version": {
   "makefile_default": "3.0.0-NAK",
-  "makefile_kernel_build_default": 493,
+  "makefile_kernel_build_default": 495,
   "makefile_build_offset": 21,
-  "makefile_commit_count": 472,
-  "update_json_version": "3.0.0-WP08-driver-framework",
-  "update_json_build": 477,
-  "latest_tag": "v3.0.0-WP08-driver-framework"
+  "makefile_commit_count": 474,
+  "update_json_version": "3.0.0-WP-tui-input-encoding-hardening",
+  "update_json_build": 478,
+  "latest_tag": "v3.0.0-WP-tui-input-encoding-hardening"
  },
  "categories": {
   "total": 25,
@@ -392,7 +397,7 @@
  "cross_checks": {
   "enum_total": 311,
   "registry_total": 311,
-  "help_a_available": false,
+  "help_a_available": true,
   "dictionary_gate": true
  },
  "abi": {

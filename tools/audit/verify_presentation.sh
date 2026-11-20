@@ -74,10 +74,10 @@ import re, sys
 root = sys.argv[1]
 fails = []
 SURFACE_MUST = {
-  "README.md": [("311", 1), ("300 ring-3", 1), ("163,935", 1),
+  "README.md": [("311", 1), ("300 ring-3", 1), ("164,693", 1),
                  ("303 listed", 2), ("hidden from", 1)],
-  "website/index.html": [("311", 1), ("221", 1), ("163,935", 1),
-                          ("3.0.0-WP08-driver-framework", 1)],
+  "website/index.html": [("311", 1), ("221", 1), ("164,693", 1),
+                          ("3.0.0-WP-tui-input-encoding-hardening", 1)],
   "website/architecture.html": [("221", 1), ("300 programs", 1),
                                  ("framework/ (.oc_drvi)", 1),
                                  ("OC_DRIVER_INFO_DECL", 1)],
@@ -133,28 +133,29 @@ V=$(python3 -c "import json;print(json.load(open('$ROOT/website/update.json'))['
 T=$(cd "$ROOT" && git describe --tags --abbrev=0 2>/dev/null)
 U=$(python3 -c "import json,urllib.request;print('skip')" 2>/dev/null)
 TAG="v$V"
-if [ "$V" = "3.0.0-WP08-driver-framework" ] && [ "$T" = "$TAG" ] && grep -q "3.0.0-WP08-driver-framework" "$ROOT/website/index.html"; then
+if [ "$V" = "3.0.0-WP-tui-input-encoding-hardening" ] && [ "$T" = "$TAG" ] && grep -q "3.0.0-WP-tui-input-encoding-hardening" "$ROOT/website/index.html"; then
   pass "update.json = tag = website = $V (release body checked in the release step)"
 else
   fail "version four-way: update.json=$V tag=$T"
 fi
 
-echo "=== 7. B1/B2 screenshots current (regenerated at the PA; a new
-     WP only regenerates them when the boot banner changes) ==="
-# The PA regenerated both screenshots from the released ISO (banner
-# 3.0.0-WP08-driver-framework, VLM-verified).  The stale pre-PA blobs
-# (the WP06g2-era shots) are pinned below: the working tree must NOT
-# carry them.  A WP that changes the boot banner must regenerate the
-# shots (their blob will move away from HEAD's too).
+echo "=== 7. B1/B2 screenshots current (regenerated at the PA and again at
+     WP-tui-input-encoding-hardening - the banner changed; a new WP only
+     regenerates them when the boot banner changes) ==="
+# WP-tui-input-encoding-hardening regenerated both screenshots from
+# the released ISO (banner 3.0.0-WP-tui-input-encoding-hardening build
+# 478, VLM-verified).  The stale WP08-banner blobs are pinned below:
+# the working tree must NOT carry them.  A WP that changes the boot
+# banner must regenerate the shots (their blob moves again).
 for shot in shot-bios shot-uefi; do
   P="$ROOT/website/assets/$shot.png"
   if [ ! -f "$P" ]; then fail "$shot.png missing"; continue; fi
   case "$shot" in
-    shot-bios) STALE=288dce2e09ef74f56238a360323f4308b6ca6903 ;;
-    shot-uefi) STALE=cf53c7a954b2b0d2dc68b93e9a3163d0d54175a5 ;;
+    shot-bios) STALE=40775b1127d8dbe24768a51762fc2d5e13fb7d26 ;;
+    shot-uefi) STALE=800b493008497a53caf31373f55f0005548347cc ;;
   esac
   NEW=$(cd "$ROOT" && git hash-object "$P")
-  if [ "$NEW" != "$STALE" ]; then pass "$shot.png is the regenerated current-release shot"; else fail "$shot.png is the stale pre-PA blob"; fi
+  if [ "$NEW" != "$STALE" ]; then pass "$shot.png is the regenerated current-release shot"; else fail "$shot.png is the stale WP08-banner blob"; fi
 done
 
 echo "=== 8. E1 bug-list.md absent; E2 mirror items absent ==="

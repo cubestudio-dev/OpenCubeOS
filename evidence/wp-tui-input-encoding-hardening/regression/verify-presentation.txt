@@ -16,13 +16,13 @@
 === 3. fixed surfaces carry the facts (and not the stale values) ===
   PASS  README.md contains '311'
   PASS  README.md contains '300 ring-3'
-  PASS  README.md contains '163,935'
+  PASS  README.md contains '164,693'
   PASS  README.md contains '303 listed'
   PASS  README.md contains 'hidden from'
   PASS  website/index.html contains '311'
   PASS  website/index.html contains '221'
-  PASS  website/index.html contains '163,935'
-  PASS  website/index.html contains '3.0.0-WP08-driver-framework'
+  PASS  website/index.html contains '164,693'
+  PASS  website/index.html contains '3.0.0-WP-tui-input-encoding-hardening'
   PASS  website/architecture.html contains '221'
   PASS  website/architecture.html contains '300 programs'
   PASS  website/architecture.html contains 'framework/ (.oc_drvi)'
@@ -48,9 +48,10 @@
 === 5. registry zero-drift (commands.json == enumeration) ===
   PASS  enum_apps registry reconciliation
 === 6. D1 version four-way ===
-  PASS  update.json = tag = website = 3.0.0-WP08-driver-framework (release body checked in the release step)
-=== 7. B1/B2 screenshots current (regenerated at the PA; a new
-     WP only regenerates them when the boot banner changes) ===
+  PASS  update.json = tag = website = 3.0.0-WP-tui-input-encoding-hardening (release body checked in the release step)
+=== 7. B1/B2 screenshots current (regenerated at the PA and again at
+     WP-tui-input-encoding-hardening - the banner changed; a new WP only
+     regenerates them when the boot banner changes) ===
   PASS  shot-bios.png is the regenerated current-release shot
   PASS  shot-uefi.png is the regenerated current-release shot
 === 8. E1 bug-list.md absent; E2 mirror items absent ===
