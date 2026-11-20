@@ -1,10 +1,10 @@
 {
-    "version": "3.0.0-WP08-driver-framework",
-    "build": 477,
-    "time": "2026-11-19",
-    "changes": "driver framework: metadata + device tree + power hooks + hotplug + failure isolation + deterministic order; drv/dev diagnostics (16 new commands)",
+    "version": "3.0.0-WP-tui-input-encoding-hardening",
+    "build": 478,
+    "time": "2026-11-20",
+    "changes": "input/encoding/display hardening: OCIRE space fix (scan-code overrun), cross-write UTF-8 TTY, serial direction verdict, VMware triple-fault fix (own IDT + low-memory discipline), TUI entry hiding (8 registered/unlisted), three-chain sweep",
     "changes_v2_url": "https://ocos.cubestudio.cn/update-v2.json",
-    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP08-driver-framework-update.tar.gz",
-    "package_sha256": "34e054e35c016ee12329f341ad918a2ee24ef948562adf9cd2f1a338e4d7c104",
-    "package_size": 1512894
+    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-tui-input-encoding-hardening-update.tar.gz",
+    "package_sha256": "60d5f7a359f62ff898f782dce8dc3e508783bc544c566f3f3eb0174a22d7fb66",
+    "package_size": 1514237
 }
