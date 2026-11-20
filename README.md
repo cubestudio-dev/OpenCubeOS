@@ -43,7 +43,10 @@ Open Cube OS is **L0 + L1**:
 - **L1 uses services.** 300 ring-3 programs under `ocos/l1apps/`
   (one command = one app = one folder): the default boot entry is
   the `ush` user shell (**311 commands = 300 registry apps + 11
-  built-ins, zero commands in L0**), the TUI desktop, the editor,
+  built-ins, zero commands in L0**; 8 legacy TUI sub-launchers stay
+  registered and directly executable but are hidden from the
+  listings - **303 listed = 292 listed apps + 11 built-ins**), the
+  TUI desktop, the editor,
   the Chinese console + pinyin IME - and the 8 merged mega-apps
   that give the whole surface an intent-based front door:
   no-argument wizards with auto-detection and cross-domain repair
@@ -80,7 +83,7 @@ L0  OCOS (ocos/)          kernel + drivers + root services + the
                           numbered L1SVC ABI - no shell, no TUI
 L1  the world (ocos/l1apps/)  300 programs: ush, TUI, editor, IME,
                           one command per app, and the 8 merged
-                          mega-apps (311 commands total)
+                          mega-apps (311 commands total, 303 listed)
 ```
 
 ## Highlights
@@ -166,7 +169,11 @@ command is quoted per item):
   `python3 tools/gen_api_docs.py && python3 -c "import json;d=json.load(open('docs/data/stats.json'));print(sum(v['lines'] for v in d['dirs'].values()))"`
 - **Commands**: 311 total - 300 ring-3 registry apps (one command =
   one app = one folder under `ocos/l1apps/`, the 8 merged mega-apps
-  included) + 12 ush built-ins + 0 in L0. The registry floor is
+  included) + 11 ush built-ins + 0 in L0; 8 legacy TUI
+  sub-launchers (`tui-test`/`tui-hw`/`tui-net`/`tui-sysinfo`/
+  `tui-time`/`tui-drv`/`tui-sys`/`tui-ext`) are hidden from
+  `help`/`help -a`/`help -w` and the desktop tree but stay directly
+  executable (303 listed). The registry floor is
   enforced by the regression gate (>= 300).
 - **L1SVC service surface**: 20 categories / 208 numbered ops - see
   [INTERFACES.md](INTERFACES.md) for the exact tables.

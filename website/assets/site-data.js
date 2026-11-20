@@ -62,7 +62,7 @@ window.SITE_DATA = {
     }
   },
   stats: {
-    commands: 311,
+    commands: 303,
     interfaces: 221,
     syscalls: 54,
     lines: "163,935"

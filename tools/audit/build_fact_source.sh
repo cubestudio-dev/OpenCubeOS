@@ -56,9 +56,17 @@ enum = json.loads(subprocess.run(
 cmds = enum["commands"]
 ring3 = [c for c in cmds if c["kind"] != "builtin"]
 builtins = [c for c in cmds if c["kind"] == "builtin"]
+# 4.1 caliber split: hidden entries stay in the registry/source
+# enumeration but are not listed by help / help -a / help -w.
+hidden_names = set(c["name"] for c in cmds if c.get("hidden"))
+ring3_visible = [c for c in ring3 if c["name"] not in hidden_names]
 facts["commands"] = {
     "total": len(cmds),
     "ring3_total": len(ring3),
+    "ring3_listed": len(ring3_visible),
+    "hidden": len(hidden_names),
+    "hidden_names": sorted(hidden_names),
+    "surface_listed": len(ring3_visible) + len(builtins),
     "ring3_app_dir": enum["counts"]["app_dir"],
     "ring3_flat": enum["counts"]["flat"],
     "builtins": len(builtins),
@@ -87,14 +95,18 @@ if help_a_path and os.path.exists(help_a_path):
     facts["commands"]["help_a"] = {
         "declared_count": help_n,
         "listed_programs": len(help_names),
-        "matches_ring3": help_names == sorted(c["name"] for c in ring3),
+        "matches_ring3_listed": help_names == sorted(c["name"] for c in ring3_visible),
     }
-    if help_n is None or help_n != len(ring3):
-        problems.append(f"help -a count {help_n} != ring3 {len(ring3)}")
-    if help_names != sorted(c["name"] for c in ring3):
-        only_h = set(help_names) - {c["name"] for c in ring3}
-        only_s = {c["name"] for c in ring3} - set(help_names)
+    if help_n is None or help_n != len(ring3_visible):
+        problems.append(f"help -a count {help_n} != ring3-listed {len(ring3_visible)}")
+    if help_names != sorted(c["name"] for c in ring3_visible):
+        only_h = set(help_names) - {c["name"] for c in ring3_visible}
+        only_s = {c["name"] for c in ring3_visible} - set(help_names)
         problems.append(f"help -a name drift: help-only={sorted(only_h)} src-only={sorted(only_s)}")
+    # the hidden set must NOT be listed
+    leaked = hidden_names & set(help_names)
+    if leaked:
+        problems.append(f"hidden entries leaked into help -a: {sorted(leaked)}")
 
 # ---------- 2. drivers ----------
 def real_macro_hits(pattern, dirs):
@@ -217,7 +229,11 @@ print(f"commands : total={facts['commands']['total']} "
 if "help_a" in facts["commands"]:
     h = facts["commands"]["help_a"]
     print(f"help -a  : declared={h['declared_count']} listed={h['listed_programs']} "
-          f"names-match={h['matches_ring3']}")
+          f"names-match={h['matches_ring3_listed']}")
+    print(f"hidden   : {facts['commands']['hidden']} (registered, unlisted: "
+          f"{', '.join(facts['commands']['hidden_names'])})")
+    print(f"listed   : surface={facts['commands']['surface_listed']} "
+          f"(ring3 {facts['commands']['ring3_listed']} + builtins {facts['commands']['builtins']})")
 print(f"drivers  : legacy={legacy} framework={fw} total={facts['drivers']['total']}")
 print(f"services : {svc}")
 print(f"version  : makefile={makefile_default} (build {makefile_build}) "

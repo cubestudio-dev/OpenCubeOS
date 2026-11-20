@@ -1,6 +1,12 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 应用字典 - 全屏 TUI 家族 (9)
 
+> 隐藏条目口径（WP-tui-input-encoding-hardening）：下列八个子启动器
+> （`tui-test`、`tui-hw`、`tui-net`、`tui-sysinfo`、`tui-time`、
+> `tui-drv`、`tui-sys`、`tui-ext`）保持注册、可直接执行，但已从
+> `help`、`help -a`、`help -w` 与桌面菜单树隐藏。`tui` 本身保持列出
+> —— 它是唯一的桌面入口。
+
 ### tui
 
 | 字段 | 值 |

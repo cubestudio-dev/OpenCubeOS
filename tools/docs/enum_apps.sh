@@ -367,6 +367,25 @@ if REGISTRY and os.path.exists(REGISTRY):
 
 # ---------------------------------------------------------------- output
 ordered = [commands[k] for k in sorted(commands)]
+
+# WP-tui-input-encoding-hardening 4.1: the hidden-entry set parsed
+# from its single fact source (k_hidden[] in the l1 service filter);
+# hidden commands stay registered + executable, they are only not
+# LISTED (help / help -a / help -w / the desktop tree).
+HIDDEN_SRC = os.path.join(ROOT, "ocos", "services", "l1", "src",
+                          "l1_tui_entry_filter.c")
+hidden_set = set()
+try:
+    _t = open(HIDDEN_SRC, encoding="utf-8", errors="replace").read()
+    _m = re.search(r"k_hidden\[\]\s*=\s*\{(.*?)\};", _t, re.S)
+    if _m:
+        hidden_set = set(re.findall(r'"([a-z0-9_.-]+)"', _m.group(1)))
+except OSError:
+    pass
+for c in ordered:
+    if c["name"] in hidden_set:
+        c["hidden"] = True
+
 result = {
     "tool": "tools/docs/enum_apps.sh",
     "root": ROOT,
@@ -378,6 +397,9 @@ result = {
         "l1svc_wrapped": sum(1 for c in ordered if c.get("l1svc")),
         "mega_apps": sum(1 for c in ordered if c.get("mega")),
         "mega_ops_total": sum(len(v) for v in mega_ops.values()),
+        "hidden": len(hidden_set),
+        "visible": len(ordered) - sum(1 for c in ordered
+                                       if c.get("hidden")),
     },
     "mega_ops": mega_ops,
     "commands": ordered,
@@ -390,7 +412,7 @@ if FORMAT == "json":
 else:
     cols = ["name", "kind", "category", "op_sym", "usage", "handler",
             "arg_literals", "hidden_args", "usage_strings",
-            "return_codes", "mega", "ops_n"]
+            "return_codes", "mega", "ops_n", "hidden"]
     lines = ["\t".join(cols)]
     for c in ordered:
         row = []

@@ -32,6 +32,8 @@ surfaces; the EXEMPT rows carry their reason and stay human-audited.
 | A14 | per-service ops | time4 block23 nic20 snd17 power9 ota16 fs6 net14 health3 klog3 wdt1 crypto2 l1 3 disp17 inp2 cam10 usb9 ocire2 diag51 tui9 (=221) | INTERFACES.md per-service tables, architecture.html table | diag 9, l1 2, power 8, display 12 | all 20 rows = header truth | FIXED (verified) |
 | A15 | regression floor | 300 ring-3 programs | tools/run_fix4_regression.py, README(+zh) | 276 | 300 | FIXED |
 | A16 | v1 baseline quotes | 233 (v1.0.0), 251 (v2.x ledger), 19 built-ins (v1 ledger) | INTERFACES.md Part 1, FAQ, KNOWN_ISSUES history | historical record | unchanged | EXEMPT (frozen history: v1/v2 baseline ledgers) |
+| A17 | hidden entries (registered, unlisted) | 8 (tui-test/tui-hw/tui-net/tui-sysinfo/tui-time/tui-drv/tui-sys/tui-ext) - fact source: k_hidden[] in ocos/services/l1/src/l1_tui_entry_filter.c | l1 service listings (help/help -a/help -w), desktop tree ext node, README, dictionary tui page(+zh), website (hero/stat/features/architecture, EN+zh), verify_presentation A1b | tui-* fully listed | 8 hidden, directly executable | FIXED (WP-tui-input-encoding-hardening 4.1) |
+| A18 | ring3_listed / surface_listed | 292 / 303 (= 292 + 11 builtins) | help -a title, ush short help, README, website hero + stat card, i18n.js(EN+zh) | 300 / 311 (no hidden caliber) | 292 / 303 listed + 311/300 registered calibers kept | FIXED (machine-checked: build_fact_source help -a cross-check) |
 
 ## B. Images
 

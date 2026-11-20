@@ -901,6 +901,11 @@ static int dt_sysinfo_run(tui_dt_node_t *self)  { (void)self; return tui_sysinfo
 static int dt_net_run(tui_dt_node_t *self)      { (void)self; return tui_net_app(); }
 static int dt_time_run(tui_dt_node_t *self)     { (void)self; return tui_time_main(); }
 static int dt_ime_run(tui_dt_node_t *self)      { (void)self; tui_chinese_init(); return tui_cn_input_app(); }
+/* WP-tui-input-encoding-hardening 4.1: the desktop node for the
+ * extension lab is HIDDEN together with its command (tui-ext).
+ * The lab itself and the page code are untouched - the entry
+ * returns the moment the desktop tree re-lists it. */
+__attribute__((unused))
 static int dt_ext_run(tui_dt_node_t *self)      { (void)self; return tui_ext_page_main("ext"); }
 static int dt_security_run(tui_dt_node_t *self) { (void)self; return tui_ext_page_main("sys.security"); }
 static int dt_log_run(tui_dt_node_t *self)      { (void)self; return tui_ext_page_main("sys.log"); }
@@ -1080,8 +1085,15 @@ void tui_dt_bootstrap(void) {
            "run any shell command with live output",
            "\xe8\xbf\x90\xe8\xa1\x8c\xe4\xbb\xbb\xe6\x84\x8f Shell \xe5\x91\xbd\xe4\xbb\xa4\xef\xbc\x88\xe5\xae\x9e\xe6\x97\xb6\xe8\xbe\x93\xe5\x87\xba\xef\xbc\x89",
            "[>]", TUI_DT_PAGE, tui_dt_cmdbridge_run, NULL, NULL, 40, NULL);
+    /* WP-tui-input-encoding-hardening 4.1: the "Extensions" lab node
+     * is removed from the desktop tree (hidden together with its
+     * command, tui-ext).  The lab stays reachable by running the
+     * tui-ext command directly (the preserved direct-invocation
+     * path); nothing is deleted, only unlisted. */
+#if 0
     dt_add("root", "ext", "Extensions", "\xe6\x89\xa9\xe5\xb1\x95",
            "TUI L1 extension lab (7 interface sets)",
            "TUI L1 \xe6\x89\xa9\xe5\xb1\x95\xe5\xae\x9e\xe9\xaa\x8c\xe5\xae\xa4\xef\xbc\x88" "7 \xe7\xb1\xbb\xe6\x8e\xa5\xe5\x8f\xa3\xef\xbc\x89",
            "[x]", TUI_DT_PAGE, dt_ext_run, NULL, NULL, 50, NULL);
+#endif
 }

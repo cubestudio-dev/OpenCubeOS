@@ -11,6 +11,7 @@
 #include "svc_framework.h"
 #include "svc_sysapi_l1svc.h"
 #include "core_usermode.h"
+#include "svc_l1_entry_filter.h"
 #include "core_sched.h"
 #include "core_lib_string.h"
 #include "core_lib_i18n.h"
@@ -51,7 +52,13 @@ static void put_u64(u64 v) {
  * Everything renders FROM THE REGISTRY - there is no hand-written
  * command list anywhere on this path. */
 static int l1_apps_core(void) {
+    /* WP-tui-input-encoding-hardening 4.1: hidden entries (the tui-*
+     * sub-launchers, svc_l1_entry_filter.c) stay registered and
+     * executable but are not listed; the footer keeps reporting the
+     * REGISTERED total so the registered caliber stays visible. */
     for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
+        if (l1_entry_hidden(OC_USERPROGS[i].name))
+            continue;
         put(OC_USERPROGS[i].name);
         put("\n");
     }
@@ -106,11 +113,16 @@ static int wp_order_known(const char *tag) {
  * (generated from each program's i18n/en.json + i18n/zh.json
  * "_hint" key) selected by the active display locale. */
 static int l1_apps_help_a(void) {
+    /* 4.1: the title reports the LISTED (visible) count - what the
+     * listing below actually shows; the registered total stays in
+     * the "" machine-mode footer. */
     put(l0_tr_("l1_registry_title_a"));
-    put_u64(OC_USERPROGS_COUNT);
+    put_u64(l1_registry_visible_count());
     put(l0_tr_("l1_registry_title_a_tail"));
     put("\n");
     for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
+        if (l1_entry_hidden(OC_USERPROGS[i].name))
+            continue;
         put("  ");
         put(OC_USERPROGS[i].name);
         put("  [");
@@ -145,7 +157,8 @@ static int l1_apps_help_w(void) {
     for (u64 k = 0; k < sizeof(s_wp_order) / sizeof(s_wp_order[0]); k++) {
         u64 count = 0;
         for (u64 i = 0; i < OC_USERPROGS_COUNT; i++)
-            if (strcmp(OC_USERPROGS[i].wp, s_wp_order[k].tag) == 0) count++;
+            if (strcmp(OC_USERPROGS[i].wp, s_wp_order[k].tag) == 0 &&
+                !l1_entry_hidden(OC_USERPROGS[i].name)) count++;
         if (count == 0) continue;
         groups++;
         put("\n=== ");
@@ -155,6 +168,7 @@ static int l1_apps_help_w(void) {
         put(") ===\n");
         for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
             if (strcmp(OC_USERPROGS[i].wp, s_wp_order[k].tag) != 0) continue;
+            if (l1_entry_hidden(OC_USERPROGS[i].name)) continue;
             put("  ");
             put(OC_USERPROGS[i].name);
             put("\n");
@@ -165,7 +179,8 @@ static int l1_apps_help_w(void) {
      * BUG-0237 semantics: nothing is silently dropped). */
     u64 other = 0;
     for (u64 i = 0; i < OC_USERPROGS_COUNT; i++)
-        if (!wp_order_known(OC_USERPROGS[i].wp)) other++;
+        if (!wp_order_known(OC_USERPROGS[i].wp) &&
+            !l1_entry_hidden(OC_USERPROGS[i].name)) other++;
     if (other > 0) {
         put("\n=== ");
         put(l0_tr_("wp_other"));
@@ -173,6 +188,7 @@ static int l1_apps_help_w(void) {
         groups++;
         for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
             if (wp_order_known(OC_USERPROGS[i].wp)) continue;
+            if (l1_entry_hidden(OC_USERPROGS[i].name)) continue;
             put("  ");
             put(OC_USERPROGS[i].name);
             put("\n");

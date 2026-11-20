@@ -50,6 +50,9 @@ def check(name, got, want):
 
 c = F["commands"]
 check("A1 commands_total", c["total"], 311)
+check("A1b hidden (registered, unlisted)", c["hidden"], 8)
+check("A1c ring3_listed", c["ring3_listed"], 292)
+check("A1d surface_listed (292+11)", c["surface_listed"], 303)
 check("A2 ring3", c["ring3_total"], 300)
 check("A3 builtins (registry caliber)", c["builtins"], 11)
 check("A4 services", F["services"]["oc_svc_decl"], 20)
@@ -71,7 +74,8 @@ import re, sys
 root = sys.argv[1]
 fails = []
 SURFACE_MUST = {
-  "README.md": [("311", 1), ("300 ring-3", 1), ("163,935", 1)],
+  "README.md": [("311", 1), ("300 ring-3", 1), ("163,935", 1),
+                 ("303 listed", 2), ("hidden from", 1)],
   "website/index.html": [("311", 1), ("221", 1), ("163,935", 1),
                           ("3.0.0-WP08-driver-framework", 1)],
   "website/architecture.html": [("221", 1), ("300 programs", 1),
@@ -135,13 +139,22 @@ else
   fail "version four-way: update.json=$V tag=$T"
 fi
 
-echo "=== 7. B1/B2 screenshots regenerated (differ from the WP06g2 blobs) ==="
+echo "=== 7. B1/B2 screenshots current (regenerated at the PA; a new
+     WP only regenerates them when the boot banner changes) ==="
+# The PA regenerated both screenshots from the released ISO (banner
+# 3.0.0-WP08-driver-framework, VLM-verified).  The stale pre-PA blobs
+# (the WP06g2-era shots) are pinned below: the working tree must NOT
+# carry them.  A WP that changes the boot banner must regenerate the
+# shots (their blob will move away from HEAD's too).
 for shot in shot-bios shot-uefi; do
   P="$ROOT/website/assets/$shot.png"
   if [ ! -f "$P" ]; then fail "$shot.png missing"; continue; fi
-  OLD=$(cd "$ROOT" && git rev-parse "HEAD:website/assets/$shot.png" 2>/dev/null)
+  case "$shot" in
+    shot-bios) STALE=288dce2e09ef74f56238a360323f4308b6ca6903 ;;
+    shot-uefi) STALE=cf53c7a954b2b0d2dc68b93e9a3163d0d54175a5 ;;
+  esac
   NEW=$(cd "$ROOT" && git hash-object "$P")
-  if [ "$OLD" != "$NEW" ]; then pass "$shot.png regenerated (blob changed)"; else fail "$shot.png unchanged from HEAD"; fi
+  if [ "$NEW" != "$STALE" ]; then pass "$shot.png is the regenerated current-release shot"; else fail "$shot.png is the stale pre-PA blob"; fi
 done
 
 echo "=== 8. E1 bug-list.md absent; E2 mirror items absent ==="

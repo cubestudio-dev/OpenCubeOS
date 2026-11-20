@@ -4,6 +4,19 @@
  "commands": {
   "total": 311,
   "ring3_total": 300,
+  "ring3_listed": 292,
+  "hidden": 8,
+  "hidden_names": [
+   "tui-drv",
+   "tui-ext",
+   "tui-hw",
+   "tui-net",
+   "tui-sys",
+   "tui-sysinfo",
+   "tui-test",
+   "tui-time"
+  ],
+  "surface_listed": 303,
   "ring3_app_dir": 267,
   "ring3_flat": 33,
   "builtins": 11,
@@ -324,9 +337,9 @@
    "write"
   ],
   "help_a": {
-   "declared_count": 300,
-   "listed_programs": 300,
-   "matches_ring3": true
+   "declared_count": 292,
+   "listed_programs": 292,
+   "matches_ring3_listed": true
   }
  },
  "drivers": {
@@ -339,9 +352,9 @@
  },
  "version": {
   "makefile_default": "3.0.0-NAK",
-  "makefile_kernel_build_default": 481,
+  "makefile_kernel_build_default": 484,
   "makefile_build_offset": 21,
-  "makefile_commit_count": 460,
+  "makefile_commit_count": 463,
   "update_json_version": "3.0.0-WP08-driver-framework",
   "update_json_build": 477,
   "latest_tag": "v3.0.0-WP08-driver-framework"

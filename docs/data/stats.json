@@ -9,8 +9,8 @@
    "lines": 40450
   },
   "ocos/services": {
-   "files": 219,
-   "lines": 79923
+   "files": 221,
+   "lines": 80046
   },
   "ocos/interface": {
    "files": 8,
@@ -29,7 +29,7 @@
    "lines": 8243
   }
  },
- "total_lines": 163935,
- "total_files": 807,
+ "total_lines": 164058,
+ "total_files": 809,
  "note": "Counts .c/.h/.S sources under the 9 STAT_DIRS (core arch drivers services recovery tui chinese boot l1apps); generated data blobs excluded, and l1apps/ .asm/.ld program files are not counted (9 of its 36 files are .c) - the same exclusions the README verification command applies."
 }

@@ -182,6 +182,25 @@ def extract_commands_from_capture(path):
     return cmds, total
 
 
+def parse_hidden_entries(root=None):
+    """WP-tui-input-encoding-hardening 4.1: parse the k_hidden[]
+    table out of ocos/services/l1/src/l1_tui_entry_filter.c - the
+    single fact source for the hidden-entry caliber (registered and
+    directly executable, but not listed by help / help -a / help -w
+    nor present as a desktop-tree node)."""
+    base = root or ROOT
+    path = os.path.join(base, "ocos", "services", "l1", "src",
+                        "l1_tui_entry_filter.c")
+    try:
+        text = open(path, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return []
+    m = re.search(r"k_hidden\[\]\s*=\s*\{(.*?)\};", text, re.S)
+    if not m:
+        return []
+    return re.findall(r'"([a-z0-9_.-]+)"', m.group(1))
+
+
 def extract_l1_registry(path):
     """3.0.0-WP04: parse a runtime registry capture.  Two formats:
     (a) the `run` usage capture - one program name per line plus the
@@ -1207,8 +1226,22 @@ def main():
             else:
                 cmds.append({"name": nm, "help": l1_app_help(nm),
                              "where": "L1-app", "cat": "l1-app"})
-        # the ush builtins ride along (shell-internal, not registry
-        # programs; the v2 table carried them the same way)
+        # WP-tui-input-encoding-hardening 4.1: the hidden tui-*
+        # sub-launchers are absent from every registry LISTING capture
+        # by design, but they stay registered (execve keeps resolving
+        # them).  Re-add them as dictionary rows carrying hidden:true
+        # so the published registry keeps documenting every callable
+        # name while the count fields below split the two calibers.
+        hidden = parse_hidden_entries()
+        by_name = {c["name"]: c for c in cmds}
+        for nm in hidden:
+            if nm in by_name:
+                by_name[nm]["hidden"] = True
+            else:
+                cmds.append({"name": nm, "help": l1_app_help(nm),
+                             "where": "L1-app", "cat": "l1-app",
+                             "hidden": True})
+        cmds.sort(key=lambda c: c["name"])
         existing = {c["name"] for c in cmds}
         nb = 0
         for b in extract_ush_builtins():
@@ -1216,9 +1249,11 @@ def main():
                 cmds.append(b)
                 nb += 1
         cmds.sort(key=lambda c: c["name"])
+        n_hidden_rows = sum(1 for c in cmds if c.get("hidden"))
         print(f"gen_api_docs: l1 registry merged - {len(reg_names)} "
-              f"programs (declares {reg_total}) + {nb} ush builtins; "
-              f"command table now {len(cmds)} rows")
+              f"listed programs (declares {reg_total}) + "
+              f"{n_hidden_rows} hidden entries (registered, unlisted) "
+              f"+ {nb} ush builtins; command table now {len(cmds)} rows")
     capture = None
     if args.help_capture:
         with open(args.help_capture, "r", encoding="latin-1") as f:
@@ -1229,6 +1264,9 @@ def main():
     # capture (when given) cross-checks the L0 half only.
     with open(os.path.join(args.out, "commands.json"), "w") as f:
         json.dump({"count_v2_surface": len(cmds),
+                   "count_hidden": sum(1 for c in cmds if c.get("hidden")),
+                   "count_visible": sum(1 for c in cmds
+                                        if not c.get("hidden")),
                    "count_l0": sum(1 for c in cmds if c["where"] == "L0"),
                    "count_l1_svc": sum(1 for c in cmds
                                        if c["where"] == "L1-SVC"),

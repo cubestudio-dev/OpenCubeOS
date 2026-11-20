@@ -1,5 +1,7 @@
 {
  "count_v2_surface": 311,
+ "count_hidden": 8,
+ "count_visible": 303,
  "count_l0": 0,
  "count_l1_svc": 0,
  "count_l1_builtin": 11,
@@ -1589,49 +1591,57 @@
    "name": "tui-drv",
    "help": "ring-3 half of the v2.2.0 `tui-drv` command",
    "where": "L1-app",
-   "cat": "l1-app"
+   "cat": "l1-app",
+   "hidden": true
   },
   {
    "name": "tui-ext",
    "help": "ring-3 half of the v2.2.0 `tui-ext` command",
    "where": "L1-app",
-   "cat": "l1-app"
+   "cat": "l1-app",
+   "hidden": true
   },
   {
    "name": "tui-hw",
    "help": "ring-3 half of the v2.2.0 `tui-hw` command",
    "where": "L1-app",
-   "cat": "l1-app"
+   "cat": "l1-app",
+   "hidden": true
   },
   {
    "name": "tui-net",
    "help": "ring-3 half of the v2.2.0 `tui-net` command",
    "where": "L1-app",
-   "cat": "l1-app"
+   "cat": "l1-app",
+   "hidden": true
   },
   {
    "name": "tui-sys",
    "help": "ring-3 half of the v2.2.0 `tui-sys` command",
    "where": "L1-app",
-   "cat": "l1-app"
+   "cat": "l1-app",
+   "hidden": true
   },
   {
    "name": "tui-sysinfo",
    "help": "ring-3 half of the v2.2.0 `tui-sysinfo` command",
    "where": "L1-app",
-   "cat": "l1-app"
+   "cat": "l1-app",
+   "hidden": true
   },
   {
    "name": "tui-test",
    "help": "ring-3 half of the v2.2.0 `tui-test` command",
    "where": "L1-app",
-   "cat": "l1-app"
+   "cat": "l1-app",
+   "hidden": true
   },
   {
    "name": "tui-time",
    "help": "ring-3 half of the v2.2.0 `tui-time` command",
    "where": "L1-app",
-   "cat": "l1-app"
+   "cat": "l1-app",
+   "hidden": true
   },
   {
    "name": "umount",

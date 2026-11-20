@@ -1,6 +1,13 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Application dictionary - Full-screen TUI family (9)
 
+> Hidden-entry caliber (WP-tui-input-encoding-hardening): the eight
+> sub-launchers below (`tui-test`, `tui-hw`, `tui-net`, `tui-sysinfo`,
+> `tui-time`, `tui-drv`, `tui-sys`, `tui-ext`) stay registered and
+> directly executable, but are hidden from `help`, `help -a`,
+> `help -w` and the desktop tree. `tui` itself stays listed - it is
+> THE single desktop entry.
+
 ### tui
 
 | Field | Value |
