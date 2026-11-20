@@ -1,0 +1,51 @@
+WP-tui-input-encoding-hardening 4.4: raw serial-byte captures
+==============================================================
+
+Capture method: QEMU -serial (socket/file), RAW bytes, no decode.
+Direction analysis: every non-ASCII run decoded BOTH as UTF-8 and
+as GBK - the direction that yields the real source string wins.
+
+--- OCOS  (opencube.iso, lang zh + help + echo CJK) ---
+    bytes=13630  non-ASCII runs=34
+    decode: utf8-valid=34  gbk-valid=0  neither=0
+    utf8: '控制台输出语言已设为'
+    utf8: '（仅内存生效；'
+    utf8: '配置，重启后失效）'
+
+--- OCBL  (opencube.iso boot: banner+b2a+scan+menu) ---
+    bytes=9613  non-ASCII runs=0
+    decode: utf8-valid=0  gbk-valid=0  neither=0
+
+--- OCIRE (ocire.iso, lang zh + help) ---
+    bytes=3366  non-ASCII runs=22
+    decode: utf8-valid=22  gbk-valid=0  neither=0
+    utf8: '语言：中文'
+    utf8: '命令：'
+    utf8: '列出可用命令'
+
+--- OCOS serial_encoding=gbk mode ---
+    bytes=9914  non-ASCII runs=7
+    decode: utf8-valid=4  gbk-valid=3  neither=0
+    utf8: '控制台输出语言已设为'
+    utf8: '（仅内存生效；'
+    utf8: '配置，重启后失效）'
+    gbk : '控制台输出语言：'
+    gbk : '汉字测试'
+    gbk : '汉字测试'
+
+VERDICT (direction, by captured bytes - not presumed):
+  OCOS  serial output = UTF-8 (every CJK run decodes as UTF-8;
+        the same bytes decode as garbage/fail under GBK)
+  OCIRE serial output = UTF-8 (same test shape)
+  OCBL  serial output = pure ASCII + standard ANSI CSI sequences
+        (zero non-ASCII bytes; 17 ESC sequences in the menu render)
+  OCOS serial_encoding=gbk tee = GBK (runs decode as GBK and FAIL
+        as UTF-8) - the built-in compatibility mode for GBK hosts
+
+Root cause of the reported 'COM1 garbled output': the host terminal
+decoding, not the kernel.  The reporter's VMware host runs Windows
+with Host codepage=GBK (vmware.log line 3: 'Host codepage=windows-936
+encoding=GBK') - a GBK terminal fed the UTF-8 byte stream shows
+mojibake.  Fix surface: keep the unified UTF-8 output (already the
+case on all three paths) and point GBK-terminal users at the
+`serial_encoding gbk` tee mode (live-verified above).
