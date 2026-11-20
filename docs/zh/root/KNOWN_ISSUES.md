@@ -123,3 +123,25 @@ WP06g2 交付修复附记（收尾之后，同批）：
   --deep 运行。它需要断言刷新；wp06g3 测试组（serial_enc、
   ocse_enc、editor_rework、ocire_menu、install_ocire）和
   https e2e 7/7 扛起了本批的回归重担。
+
+## K-06（WP-tui-input-encoding-hardening 4.6 扩展排查）：引导服务存活期间
+OVMF 下的 OCBL 菜单无法通过键盘操作
+
+- 症状（两次诊断构建实测）：OCBL-EFI 菜单倒计时期间
+  `ReadKeyStroke` 从不返回按键——串口字节没有（OVMF 的终端驱动按
+  自身定时器抽干 16550 RBR，被消费的字节不再经 ConIn 回流），PS/2
+  按键同样没有（QEMU `sendkey` 在 10 秒窗口内同样饿死）。菜单因此总在
+  10 秒倒计时后自动引导默认条目。
+- 根因：位于 OVMF/QEMU 固件事件交互之内——一个从不进入
+  `WaitForEvent` 的轮询式 UEFI 应用在该环境下得不到驱动进展。并非
+  OCBL 轮询代码缺陷：16550 是直读的（与串口输出同一契约），ConIn 侧
+  对 'A'/'B'/CR 导航键的接纳仍保留在代码中（若某固件将来回流被窃
+  字节即可生效）。
+- 影响：OVMF 下菜单在显示期间无法通过输入设备选择引导条目。BIOS
+  侧菜单键盘操作完整可用（4.6 修复 int-14h 之后的串口 + PS/2）。
+- 规避：默认条目即操作系统（倒计时直接引导）；独立 OCIRE ISO 默认
+  引导 OCIRE；两个载荷 shell（ExitBootServices 之后由内核自有驱动
+  服务）的串口 + PS/2 输入完全正常——4.2 六路径空格矩阵全绿（含两
+  个 UEFI 格）。
+- 候选后续修复：基于 `WaitForEvent` 的菜单等待循环（倒计时期间驱动
+  固件事件系统）。超出本包范围，在此登记。

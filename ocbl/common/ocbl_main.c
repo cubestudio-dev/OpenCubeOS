@@ -169,13 +169,26 @@ void ocbl_run(void)
     char brand[64];
     u64 sp;
 
+#ifdef OCBL_FLAVOR_BIOS
     /* WP-tui-input-encoding-hardening 4.5 (H1): load OUR OWN IDT
      * before anything else - the core used to inherit the
-     * firmware's IDTR and any asynchronous event on a firmware that
-     * leaves a non-decodable table escalated to a triple-fault
-     * reset loop (the VMware crash).  From here on: exceptions
-     * report on serial and halt; IRQs/NMIs iret. */
+     * firmware's IDTR (the real-mode IVT state {0,0x3FF}, which
+     * misdecodes any vectoring in long mode) and any asynchronous
+     * event escalated to a triple-fault reset loop (the VMware
+     * crash).  From here on: exceptions report on serial and halt;
+     * IRQs/NMIs iret.
+     *
+     * BIOS FLAVOR ONLY - 4.5 live-caught on OVMF: installing the
+     * blanket-iretq table under UEFI KILLS the firmware's
+     * interrupt-driven driver ecosystem (OVMF's timer events stop
+     * firing, so its PS/2 and serial-terminal input drivers never
+     * poll, and ReadKeyStroke never returns a key - the menu became
+     * unnavigable and even sendkey died).  Under UEFI the inherited
+     * IDT is OVMF's own proper 64-bit table with working handlers,
+     * which is exactly what the H1 fix wants to guarantee; the
+     * blanket table stays a BIOS-flavor tool. */
     ocbl_idt_setup();
+#endif
 
     ocbl_serial_init();
     ocbl_serial_puts("\r\nOCBL 3.0.0 boot loader (" OCBL_RELEASE " build ");

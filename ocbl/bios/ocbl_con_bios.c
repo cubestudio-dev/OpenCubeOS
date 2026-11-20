@@ -40,16 +40,19 @@ int ocbl_plat_getkey(void)
             return sc;
         return -1;                      /* registered: ignore */
     }
-    /* serial console keying (16550 line status bit0 = data ready) */
-    ocbl_bios_regs_t s = {0};
-    s.eax = 0x0300;                     /* AH=03: line status */
-    s.edx = 0;
-    ocbl_bios_int(0x14, &s);
-    if (s.eax & 0x0100) {               /* AH bit0: receive ready */
-        s.eax = 0x0200;                 /* AH=02: read char */
-        s.edx = 0;
-        ocbl_bios_int(0x14, &s);
-        char c = (char)(s.eax & 0xFF);
+    /* serial console keying: read the 16550 directly (LSR bit 0 =
+     * data ready).  WP-tui-input-encoding-hardening 4.6 (extended
+     * sweep, live-caught): the previous int 14h AH=03/AH=02 route
+     * returned "no data" forever under QEMU/SeaBIOS (its int 14h
+     * implementation is minimal), so the menu was serial-dead while
+     * the PS/2 path worked; the direct poll matches the EFI flavor's
+     * getkey AND the serial OUTPUT path's own 0x3F8 assumption - one
+     * contract everywhere. */
+    u8 lsr;
+    __asm__ volatile("inb %1, %0" : "=a"(lsr) : "dN"((u16)0x3FD));
+    if (lsr & 0x01) {
+        char c;
+        __asm__ volatile("inb %1, %0" : "=a"(c) : "dN"((u16)0x3F8));
         if (c == 'A')
             return OCBL_KEY_UP;         /* CSI tail after ESC+'[' */
         if (c == 'B')

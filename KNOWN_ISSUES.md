@@ -211,3 +211,33 @@ with a root cause:
   structure (private-repo report layout, user-conversation
   paraphrases). Archived to the private mirror and removed from the
   public tree; GitHub Issues remains the public defect record.
+
+## K-06 (WP-tui-input-encoding-hardening 4.6, extended sweep): the
+OCBL menu cannot be driven from the keyboard under OVMF while boot
+services are live
+
+- Symptom (live-verified twice with diagnostic builds): during the
+  OCBL-EFI menu countdown, `ReadKeyStroke` never returns a key - not
+  the serial bytes (OVMF's terminal driver drains the 16550 RBR on
+  its own timer and the consumed byte never resurfaces through
+  ConIn) and not the PS/2 keys (QEMU `sendkey` equally starved in a
+  10-second window).  The menu therefore always auto-boots the
+  default entry after the 10 s countdown.
+- Root cause: inside the OVMF/QEMU firmware-event interaction - a
+  polled UEFI application that never enters `WaitForEvent` gets no
+  driver progress in this configuration.  Not an OCBL poll defect:
+  the 16550 is read directly (the same contract as the serial
+  output), and the ConIn acceptance of the 'A'/'B'/CR navigation
+  keys stays in the code (correct if a firmware ever resurfaces a
+  stolen byte).
+- Impact: under OVMF the boot entry is not user-selectable from
+  input devices while the menu is up.  The BIOS flavor's menu is
+  fully keyable (serial after the 4.6 int-14h fix + PS/2).
+- Workarounds: the default entry IS the OS (the countdown boots it);
+  the standalone OCIRE ISO defaults to OCIRE; both payload shells
+  (after ExitBootServices, the kernel's own drivers) have fully
+  working serial + PS/2 input - the 4.2 six-path space matrix is
+  all green including both UEFI cells.
+- Candidate future fix: a `WaitForEvent`-based menu loop that pumps
+  the firmware event system while the countdown runs.  Out of this
+  package's scope; registered here.
