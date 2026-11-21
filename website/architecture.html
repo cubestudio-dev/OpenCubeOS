@@ -5,7 +5,7 @@
      truth: the L0/L1 split (L0 = pure service kernel + the driver
      framework, no shell/TUI/IME; L1 = the whole ring-3 world), the OCBL
      boot flow, every ocos/ subsystem, the 300-program ocos/l1apps
-     world, the 20-service / 221-op SYS_L1SVC surface, the 311-command
+     world, the 20-service / 223-op SYS_L1SVC surface, the 311-command
      surface (300 registry apps + 11 ush built-ins; 303 listed - 8 legacy TUI sub-launchers hidden but executable), reliability
      mechanisms, cross-platform build.
      All numbers are read from the real tree (INTERFACES.md /
@@ -15,7 +15,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title data-i18n="title.architecture">Architecture - Open Cube OS</title>
-<meta name="description" content="Open Cube OS 3.0.0-WP-tui-input-encoding-hardening architecture: L0 is a pure service kernel (OCBL bootloader, kernel/drivers/services, no shell, no TUI) with a driver framework (device tree, power hooks, hotplug, failure isolation); L1 is the whole ring-3 world (300 programs under ocos/l1apps, the ush shell with 303 listed commands, 311 registered). 20 SYS_L1SVC services / 221 numbered ops, 54 syscalls, 38 drivers in 7 declared families, 164,693 lines.">
+<meta name="description" content="Open Cube OS 3.0.0-WP-tui-input-encoding-hardening architecture: L0 is a pure service kernel (OCBL bootloader, kernel/drivers/services, no shell, no TUI) with a driver framework (device tree, power hooks, hotplug, failure isolation); L1 is the whole ring-3 world (301 programs under ocos/l1apps, the ush shell with 303 listed commands, 311 registered). 20 SYS_L1SVC services / 223 numbered ops, 54 syscalls, 38 drivers in 7 declared families, 164,693 lines.">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3C/text%3E%3C/svg%3E">
 <script>
@@ -83,9 +83,9 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
        hotplug queue - failure         ocembed diag tui ...
        isolation - init order
        (OC_DRIVER_INFO_DECL)
-     <span class="hl">SYS_L1SVC(110): 20 services / 221 numbered ops</span>
+     <span class="hl">SYS_L1SVC(110): 20 services / 223 numbered ops</span>
                                   |
-                     <span class="hb">ocos/l1apps/</span>  300 programs - ush (default entry, ring 3)
+                     <span class="hb">ocos/l1apps/</span>  301 programs - ush (default entry, ring 3)
                      one command = one app = one folder
                                   |
          <span class="hl">L0 ready, waiting for L1 -&gt; exit/failure -&gt; L0 halts (reboot or the OCBL menu)</span>
@@ -94,7 +94,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
       <div class="feat"><div class="k">l0</div><h3 data-i18n="arch.layers.l0.h">L0 - the pure service kernel</h3>
         <p data-i18n-html="arch.layers.l0.p">Boot, memory, scheduling, ring-3, VFS, networking, drivers, crash machinery, OTA - laid out as <b>boot/ core/ ocos/drivers/ ocos/services/</b>. 164,693 lines across the tree, zero external runtime dependencies, <b>zero interactive user surface</b>: no shell, no commands, no TUI, no IME live in L0.</p></div>
       <div class="feat"><div class="k">l1</div><h3 data-i18n="arch.layers.l1.h">L1 - the ring-3 world</h3>
-        <p data-i18n-html="arch.layers.l1.p"><b>300 programs under ocos/l1apps/</b> (267 app folders + 8 flat .c + 25 flat .asm): ush, the TUI desktop, the editor, the Chinese console + pinyin IME, and one command per app - <b>311 commands = 300 registry apps + 11 ush built-ins</b> (<b>303 listed</b>: the 8 legacy tui-* sub-launchers stay registered and directly executable, hidden from help/help -a/help -w and the desktop tree), all served through the <b>20-service SYS_L1SVC surface (221 numbered ops)</b>.</p></div>
+        <p data-i18n-html="arch.layers.l1.p"><b>301 programs under ocos/l1apps/</b> (267 app folders + 8 flat .c + 25 flat .asm): ush, the TUI desktop, the editor, the Chinese console + pinyin IME, and one command per app - <b>311 commands = 300 registry apps + 11 ush built-ins</b> (<b>303 listed</b>: the 8 legacy tui-* sub-launchers stay registered and directly executable, hidden from help/help -a/help -w and the desktop tree), all served through the <b>20-service SYS_L1SVC surface (223 numbered ops)</b>.</p></div>
       <div class="feat"><div class="k">why</div><h3 data-i18n="arch.layers.why.h">Why split at all</h3>
         <p data-i18n-html="arch.layers.why.p">A service kernel must stay minimal and trustworthy; user-facing growth happens above it. The kernel self-tests, watchdog, crash policy and log readers stay in L0 as <i>services</i>; if the ring-3 world cannot start, L0 says so honestly and halts - the guidance is a reboot or the OCBL boot menu (there is deliberately no L0 shell to fall back to).</p></div>
     </div>
@@ -147,8 +147,8 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
         <tr><td><code>ocos/services/net/</code></td><td data-i18n="arch.mods.net">TCP/IP, TLS, SSH client + sshd</td></tr>
         <tr><td><code>ocos/services/crypto/</code></td><td data-i18n="arch.mods.crypto">AES / SHA-256 / HMAC / DRBG, RDRAND-seeded</td></tr>
         <tr><td><code>ocos/services/ota/</code></td><td data-i18n="arch.mods.ota">A/B slots, verified update install</td></tr>
-        <tr><td><code>ocos/services/sysapi/</code></td><td data-i18n="arch.mods.sysapi">svc_sysapi_syscall.h (54) + svc_sysapi_l1svc.h (20 categories / 221 ops) - the numbered ABI</td></tr>
-        <tr><td><code>ocos/l1apps/</code></td><td data-i18n="arch.mods.l1">The ring-3 world: 300 programs - ush, the TUI desktop, the editor, the Chinese console + IME, one command per app</td></tr>
+        <tr><td><code>ocos/services/sysapi/</code></td><td data-i18n="arch.mods.sysapi">svc_sysapi_syscall.h (54) + svc_sysapi_l1svc.h (20 categories / 223 ops) - the numbered ABI</td></tr>
+        <tr><td><code>ocos/l1apps/</code></td><td data-i18n="arch.mods.l1">The ring-3 world: 301 programs - ush, the TUI desktop, the editor, the Chinese console + IME, one command per app</td></tr>
         <tr><td><code>ocbl/</code></td><td data-i18n="arch.mods.ocbl">OCBL, the in-tree bootloader (BIOS stage1 + EFI entry, the boot menu)</td></tr>
         <tr><td><code>ocire/</code></td><td data-i18n="arch.mods.ocire">OCIRE, the independent recovery kernel (separate L0, its own ISO)</td></tr>
       </tbody>
@@ -176,7 +176,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
 
 <section class="section">
   <div class="wrap">
-    <h2 data-i18n="arch.surface.h">The L1SVC surface - 20 services / 221 numbered ops</h2>
+    <h2 data-i18n="arch.surface.h">The L1SVC surface - 20 services / 223 numbered ops</h2>
     <p class="sub" data-i18n-html="arch.surface.sub">SYS_L1SVC(110): one syscall routes a ring-3 call to the owning L0 service by category; the folder under services/ is the category.  Ops are plain ASCII text renderers - the ring-3 side formats nothing. Renumber only by appending (ocos/services/sysapi/interface/svc_sysapi_l1svc.h).</p>
     <div class="tbl-scroll">
     <table class="tbl">
@@ -210,7 +210,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
       </tbody>
     </table>
     </div>
-    <p class="sub" data-i18n="arch.surface.caliber" style="margin:16px 0 0;font-size:14px">Caliber: the per-service op counts above sum to 201 command ops; the 221-entry figure (INTERFACES.md) additionally counts the 20 category identifiers - 20 + 201 = 221 numbered entries in svc_sysapi_l1svc.h.</p>
+    <p class="sub" data-i18n="arch.surface.caliber" style="margin:16px 0 0;font-size:14px">Caliber: the per-service op counts above sum to 201 command ops; the 223-entry figure (INTERFACES.md) additionally counts the 20 category identifiers - 20 + 201 = 223 numbered entries in svc_sysapi_l1svc.h.</p>
     <p class="sub" style="margin:10px 0 0;font-size:14px"><a href="docs/root/INTERFACES.html">INTERFACES.md →</a> &middot; <a href="docs/l1/surface-map.html" data-i18n="arch.map.surface">L1 surface map →</a></p>
   </div>
 </section>

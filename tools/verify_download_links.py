@@ -15,7 +15,7 @@
 #            - relative URLs -> existence check under --root
 #            - --map HOST=DIR redirects an absolute host's URLs to a
 #              local mirror (offline/air-gapped verification, e.g.
-#              --map ocos.cubestudio.cn=/home/z/gh-pages)
+#              --map ocos.cubestudio.cn=<a local gh-pages checkout>)
 #
 # Usage: tools/verify_download_links.py [--root DIR] [--map HOST=DIR]...
 #                                        [--port N] [--timeout SECS]

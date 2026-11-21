@@ -1,13 +1,13 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- GENERATED index (tools/gen_api_docs.py --pages). -->
 
-# Shell command reference (311 commands)
+# Shell command reference (312 commands)
 
 Grouped by the v2 home that registers each command - the tree
 structure is the domain structure. Inside a running system use
 `help -a` (alphabetical) or `help -w` (by work package).
 
-## Other (300)
+## Other (301)
 <a id="other"></a>
 
 - [ab_partition_test](ab_partition_test.md) - ring-3 half of the v2.2.0 `ab_partition_test` command
@@ -228,6 +228,7 @@ structure is the domain structure. Inside a running system use
 - [sed](sed.md) - ring-3 L1 app
 - [select_test](select_test.md) - legacy flat L1 program
 - [select_zero_test](select_zero_test.md) - legacy flat L1 program
+- [serial-probe](serial-probe.md) - ring-3 L1 app
 - [serial_encoding](serial_encoding.md) - ring-3 L1 app
 - [shutdown](shutdown.md) - ring-3 half of the v2.2.0 `shutdown` command
 - [signal_test](signal_test.md) - legacy flat L1 program

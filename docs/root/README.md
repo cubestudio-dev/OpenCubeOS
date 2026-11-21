@@ -1,3 +1,4 @@
+<!-- GENERATED mirror of the repository-root README.md - maintained by tools/gen_api_docs.py (make api-docs); the source of truth is the root file. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <div align="center">
 
@@ -8,7 +9,7 @@
 Current release: **3.0.0-WP-tui-input-encoding-hardening** - the OCBL
 bootloader, a pure L0 service kernel (no shell, no TUI, no IME in
 L0) with the driver framework (device tree, power hooks, hotplug,
-failure isolation, deterministic init order), **300 ring-3
+failure isolation, deterministic init order), **301 ring-3
 programs** under `ocos/l1apps/` - now organized
 around **8 merged mega-apps** (`update` / `disk-tool` / `net-tool` /
 `sound-tool` / `files` / `sysdiag` / `hwinfo` / `power`), each an
@@ -40,10 +41,13 @@ Open Cube OS is **L0 + L1**:
   (the 2.x `oc>` recovery shell, the in-kernel TUI, the input
   method engine); L0 finishes boot at `L0 ready, waiting for L1`
   and hands the machine to the default ring-3 entry.
-- **L1 uses services.** 300 ring-3 programs under `ocos/l1apps/`
+- **L1 uses services.** 301 ring-3 programs under `ocos/l1apps/`
   (one command = one app = one folder): the default boot entry is
-  the `ush` user shell (**311 commands = 300 registry apps + 11
-  built-ins, zero commands in L0**), the TUI desktop, the editor,
+  the `ush` user shell (**312 commands = 301 registry apps + 11
+  built-ins, zero commands in L0**; 8 legacy TUI sub-launchers stay
+  registered and directly executable but are hidden from the
+  listings - **303 listed = 292 listed apps + 11 built-ins**), the
+  TUI desktop, the editor,
   the Chinese console + pinyin IME - and the 8 merged mega-apps
   that give the whole surface an intent-based front door:
   no-argument wizards with auto-detection and cross-domain repair
@@ -52,7 +56,7 @@ Open Cube OS is **L0 + L1**:
   updates), `direct` explicit passthrough, and classic verbatim
   dispatch with zero functionality loss.
 
-- **Not a Linux fork.** 164,693 lines of original C/assembly across
+- **Not a Linux fork.** 165,363 lines of original C/assembly across
   814 files under Apache 2.0 (verify: see *Stats* below).
 - **Boots everywhere the PC platform goes:** one hybrid BIOS + UEFI
   ISO through OCBL, the in-tree bootloader (512-byte real-mode
@@ -80,7 +84,7 @@ L0  OCOS (ocos/)          kernel + drivers + root services + the
                           numbered L1SVC ABI - no shell, no TUI
 L1  the world (ocos/l1apps/)  300 programs: ush, TUI, editor, IME,
                           one command per app, and the 8 merged
-                          mega-apps (311 commands total)
+                          mega-apps (312 commands total, 303 listed)
 ```
 
 ## Highlights
@@ -96,7 +100,7 @@ L1  the world (ocos/l1apps/)  300 programs: ush, TUI, editor, IME,
 | USB | UHCI, OHCI, EHCI, xHCI; mass storage, HID, serial, audio classes |
 | Media | HDA / AC97 / SB16 / ES1370 / virtio sound; UVC cameras with MJPEG |
 | Platform | ACPI (FADT/DSDT/MCFG, real AML walker, S3 suspend/resume), Intel TCO + ACPI WDAT hardware watchdogs, HPET, i2c/SMBus |
-| Shell | ush (ring 3, the default boot entry): 300 registry apps + 11 built-ins with pipes/redirection/env/aliases/jobs; zero commands in L0 |
+| Shell | ush (ring 3, the default boot entry): 301 registry apps + 11 built-ins with pipes/redirection/env/aliases/jobs; zero commands in L0 |
 | Mega-apps | The 8 merged apps (`update`, `disk-tool`, `net-tool`, `sound-tool`, `files`, `sysdiag`, `hwinfo`, `power`): intent wizards with cross-domain repair + `direct` passthrough + classic verbatim dispatch; destructive paths guarded by retype + y/N double confirmation |
 | TUI | Desktop, taskbar, menus, forms, editor, system apps - ring-3 programs riding the L1SVC tui service, plus a Chinese console layer (16x16 font, pinyin IME) |
 | Reliability | Crash dumps to serial + /etc crashlog, kernel log with rotation + levels + filters, health monitor (CPU/mem/tasks/IO + JSON export), OTA with SHA256 + signatures and rollback |
@@ -117,7 +121,7 @@ qemu-system-x86_64 -m 512M -cdrom build/opencube.iso \
 # inside the guest (the default boot entry is the ring-3 ush shell)
 ush> hwinfo            (wizard: what hardware is this machine?)
 ush> update            (wizard: network -> A/B -> DNS -> check -> install)
-ush> help -a           (all 300 registry programs)
+ush> help -a           (all 301 registry programs)
 ush> dhcp
 ush> ping 10.0.2.2
 ush> lsblk             (or: disk-tool, and pick it from the menu)
@@ -159,14 +163,18 @@ All numbers below are machine-verified at build time
 (`make api-docs` writes `docs/data/*.json`; the README verification
 command is quoted per item):
 
-- **Source code**: 164,693 lines across 814 files - ocos/ (kernel,
+- **Source code**: 165,363 lines across 814 files - ocos/ (kernel,
   drivers, services, interface, l1apps) + ocbl/ + ocire/, headers
   included, generated data blobs excluded (the generator caliber:
   `tools/gen_api_docs.py` `STAT_DIRS`/`STAT_EXCLUDE`).  Verify:
   `python3 tools/gen_api_docs.py && python3 -c "import json;d=json.load(open('docs/data/stats.json'));print(sum(v['lines'] for v in d['dirs'].values()))"`
-- **Commands**: 311 total - 300 ring-3 registry apps (one command =
+- **Commands**: 311 total - 301 ring-3 registry apps (one command =
   one app = one folder under `ocos/l1apps/`, the 8 merged mega-apps
-  included) + 12 ush built-ins + 0 in L0. The registry floor is
+  included) + 11 ush built-ins + 0 in L0; 8 legacy TUI
+  sub-launchers (`tui-test`/`tui-hw`/`tui-net`/`tui-sysinfo`/
+  `tui-time`/`tui-drv`/`tui-sys`/`tui-ext`) are hidden from
+  `help`/`help -a`/`help -w` and the desktop tree but stay directly
+  executable (303 listed). The registry floor is
   enforced by the regression gate (>= 300).
 - **L1SVC service surface**: 20 categories / 208 numbered ops - see
   [INTERFACES.md](INTERFACES.md) for the exact tables.
@@ -178,7 +186,7 @@ command is quoted per item):
 
 ## License
 
-Apache 2.0 - see [LICENSE](LICENSE). Every source file carries
+Apache 2.0 - see [LICENSE](LICENSE.md). Every source file carries
 `SPDX-License-Identifier: Apache-2.0`.
 
 Copyright 2026 cubestudio-dev &lt;cubestudio@qq.com&gt;

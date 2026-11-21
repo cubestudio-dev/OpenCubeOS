@@ -319,6 +319,27 @@ serial encoding: utf8
 ush> 
 ```
 
+### serial-probe
+
+| Field | Value |
+|---|---|
+| Name | serial-probe |
+| Category | Display |
+| Function | serial encoding self-check wizard (pick the line that reads correctly) |
+| Usage | `serial-probe` |
+| Source | `ocos/l1apps/serial-probe/main.c` |
+
+**Executed example**:
+
+```
+serial-probe
+serial-probe: pick the line that reads correctly
+serial-probe [1] UTF-8: <sample>
+serial-probe [2] GBK:   <sample>
+serial-probe: enter 1 (UTF-8) or 2 (GBK)
+ush>
+```
+
 ### stats
 
 | Field | Value |

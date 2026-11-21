@@ -1,11 +1,11 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- 由 tools/gen_api_docs.py --pages-zh 生成的索引。 -->
 
-# Shell 命令参考（311 条命令）
+# Shell 命令参考（312 条命令）
 
 按 v2 的注册归属分组——目录结构即领域结构。运行中的系统内使用 `help -a`（字母序）或 `help -w`（按工作包）。
 
-## 其他 (300)
+## 其他 (301)
 <a id="other"></a>
 
 - [ab_partition_test](ab_partition_test.md) - ring-3 half of the v2.2.0 `ab_partition_test` command
@@ -226,6 +226,7 @@
 - [sed](sed.md) - ring-3 L1 app
 - [select_test](select_test.md) - legacy flat L1 program
 - [select_zero_test](select_zero_test.md) - legacy flat L1 program
+- [serial-probe](serial-probe.md) - ring-3 L1 app
 - [serial_encoding](serial_encoding.md) - ring-3 L1 app
 - [shutdown](shutdown.md) - ring-3 half of the v2.2.0 `shutdown` command
 - [signal_test](signal_test.md) - legacy flat L1 program

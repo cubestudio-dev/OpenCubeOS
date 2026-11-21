@@ -1,6 +1,6 @@
 {
- "count_v2_surface": 311,
- "count_hidden": 8,
+ "count_v2_surface": 312,
+ "count_hidden": 9,
  "count_visible": 303,
  "count_l0": 0,
  "count_l1_svc": 0,
@@ -1372,6 +1372,12 @@
    "cat": "l1-app"
   },
   {
+   "name": "serial-probe",
+   "help": "ring-3 L1 app",
+   "where": "L1-app",
+   "cat": "l1-app"
+  },
+  {
    "name": "serial_encoding",
    "help": "ring-3 L1 app",
    "where": "L1-app",
@@ -1585,7 +1591,8 @@
    "name": "tui",
    "help": "ring-3 half of the v2.2.0 `tui` command",
    "where": "L1-app",
-   "cat": "l1-app"
+   "cat": "l1-app",
+   "hidden": true
   },
   {
    "name": "tui-drv",

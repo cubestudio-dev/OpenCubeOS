@@ -131,23 +131,36 @@ powershell -ExecutionPolicy Bypass -File build.ps1 iso        # kernel + ISO
 ## Multi-configuration builds
 
 ```
-make defconfig          # write .config (all options on)
+make defconfig          # write .config (TUI=n, block drivers y)
 make menuconfig         # interactive configurator (tools/oc_menuconfig.sh)
-make CONFIG_TUI=n       # one-shot override
+make CONFIG_TUI=h       # one-shot override (tri-state: y / h / n)
 ```
 
-Options: `CONFIG_TUI`, `CONFIG_CHINESE`, `CONFIG_NVME`, `CONFIG_AHCI`,
-`CONFIG_VIRTIO_BLK`. `CONFIG_CHINESE=n` forces `CONFIG_TUI=n`.
-A `CONFIG_TUI=n CONFIG_CHINESE=n` build drops the 9 TUI commands
-from the ush surface and turns the 8 chinese-locale
-SVC ops into clean -1 errors (the command bodies live in the
-filtered trees; op numbers stay stable); the full configuration
-boots 99 L0 commands with 251 command homes in total
-(2.1.0-verified live: banner + `help -a` on the off-path ISO).
-The off-path is real code, not deleted code - the configurator's
-generated header maps disabled features to no-op equivalents, and
-the L1SVC dispatch guards the locale ops (2.1.0: the v2.0.0 tree
-failed to link the off-path image - fixed).
+Options: `CONFIG_TUI` (tri-state), `CONFIG_NVME`, `CONFIG_AHCI`,
+`CONFIG_VIRTIO_BLK`. `CONFIG_CHINESE` is gone (since WP-03 the CJK
+display pipeline is always compiled in; the 2.x knob pairs are
+history).
+
+`CONFIG_TUI` controls the whole TUI plane (the `services/tui` L0
+bodies + the 9 `tui*` L1 apps) with three states:
+
+| state | built? | listed (`help -a`) | direct call (`tui-ext`) |
+|-------|--------|--------------------|--------------------------|
+| `n` (default) | no - `services/tui/src` filtered out, `gen_userprogs.py` skips the 9 app folders (images, registry entries and i18n resources all disappear) | absent | `command not found` (never registered) |
+| `h` | yes | hidden (`k_hidden[]`, all 9 entries) | intercepted: `<name>: entry hidden by build configuration (CONFIG_TUI)` + `command not found` |
+| `y` | yes | all 9 listed | runs |
+
+The `h` interception sits at the execve resolution funnel
+(`core_userprog_lookup` + `sys_execve`), so every direct-invocation
+path (shell, job API, remote exec) is covered by one policy; the
+message renders through the system i18n tables (`get_text`,
+`MSG_TUI_ENTRY_BLOCKED`) and follows `lang en|zh`. Flipping the knob
+regenerates the embedded registry automatically (a cmp-guarded value
+stamp drives `userprogs_data.h`), so `make kernel CONFIG_TUI=y` on an
+`n` tree is one command. The block-driver knobs are unchanged:
+`CONFIG_NVME=n` etc. drop the driver object and stub its init
+(config_gen.h), the op numbers stay stable, and the off-path is real
+filtered code, not deleted code.
 
 ## Build cache
 

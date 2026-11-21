@@ -319,6 +319,27 @@ serial encoding: utf8
 ush> 
 ```
 
+### serial-probe
+
+| 字段 | 值 |
+|---|---|
+| 名称 | serial-probe |
+| 分类 | 显示 |
+| 功能 | 串口编码自检向导（选出显示正常的一行） |
+| 用法 | `serial-probe` |
+| 源码 | `ocos/l1apps/serial-probe/main.c` |
+
+**实际执行示例**：
+
+```
+serial-probe
+serial-probe: pick the line that reads correctly
+serial-probe [1] UTF-8: <sample>
+serial-probe [2] GBK:   <sample>
+serial-probe: enter 1 (UTF-8) or 2 (GBK)
+ush>
+```
+
 ### stats
 
 | 字段 | 值 |

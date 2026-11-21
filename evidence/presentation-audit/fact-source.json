@@ -2,11 +2,12 @@
  "tool": "tools/audit/build_fact_source.sh",
  "root": ".",
  "commands": {
-  "total": 311,
-  "ring3_total": 300,
+  "total": 312,
+  "ring3_total": 301,
   "ring3_listed": 292,
-  "hidden": 8,
+  "hidden": 9,
   "hidden_names": [
+   "tui",
    "tui-drv",
    "tui-ext",
    "tui-hw",
@@ -17,7 +18,7 @@
    "tui-time"
   ],
   "surface_listed": 303,
-  "ring3_app_dir": 267,
+  "ring3_app_dir": 268,
   "ring3_flat": 33,
   "builtins": 11,
   "l1svc_wrapped": 198,
@@ -251,6 +252,7 @@
    "sed",
    "select_test",
    "select_zero_test",
+   "serial-probe",
    "serial_encoding",
    "set",
    "shutdown",
@@ -351,13 +353,13 @@
   "oc_svc_decl": 20
  },
  "version": {
-  "makefile_default": "3.0.0-NAK",
-  "makefile_kernel_build_default": 495,
+  "makefile_default": "3.0.0-WP-runtime-hardening-and-experience-rebase",
+  "makefile_kernel_build_default": 26,
   "makefile_build_offset": 21,
-  "makefile_commit_count": 474,
-  "update_json_version": "3.0.0-WP-tui-input-encoding-hardening",
-  "update_json_build": 478,
-  "latest_tag": "v3.0.0-WP-tui-input-encoding-hardening"
+  "makefile_commit_count": 5,
+  "update_json_version": "3.0.0-WP-runtime-hardening-and-experience-rebase",
+  "update_json_build": 479,
+  "latest_tag": "v3.0.0-WP-runtime-hardening-and-experience-rebase"
  },
  "categories": {
   "total": 25,
@@ -383,7 +385,7 @@
    "time": 4,
    "tools-file": 21,
    "tools-net": 4,
-   "tools-system": 34,
+   "tools-system": 35,
    "tui": 9,
    "usb": 9,
    "watchdog": 1
@@ -395,13 +397,13 @@
   "en_equals_zh": true
  },
  "cross_checks": {
-  "enum_total": 311,
-  "registry_total": 311,
+  "enum_total": 312,
+  "registry_total": 312,
   "help_a_available": true,
   "dictionary_gate": true
  },
  "abi": {
-  "l1svc_ops": 221,
+  "l1svc_ops": 223,
   "syscalls": 54,
   "l1svc_categories": 2
  }

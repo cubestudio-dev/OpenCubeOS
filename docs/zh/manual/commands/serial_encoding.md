@@ -8,7 +8,7 @@
 
 `serial_encoding` - ring-3 L1 app
 
-**用法：** `serial_encoding [utf8|gbk]`
+**用法：** `serial_encoding [utf8|gbk] `
 
 领域：[其他](index.md#other)
 

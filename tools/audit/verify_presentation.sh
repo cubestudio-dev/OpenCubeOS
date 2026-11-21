@@ -49,14 +49,14 @@ def check(name, got, want):
         fails.append(name)
 
 c = F["commands"]
-check("A1 commands_total", c["total"], 311)
-check("A1b hidden (registered, unlisted)", c["hidden"], 8)
+check("A1 commands_total", c["total"], 312)
+check("A1b hidden (registered, unlisted)", c["hidden"], 9)
 check("A1c ring3_listed", c["ring3_listed"], 292)
 check("A1d surface_listed (292+11)", c["surface_listed"], 303)
-check("A2 ring3", c["ring3_total"], 300)
+check("A2 ring3", c["ring3_total"], 301)
 check("A3 builtins (registry caliber)", c["builtins"], 11)
 check("A4 services", F["services"]["oc_svc_decl"], 20)
-check("A5 l1svc_ops", F["abi"]["l1svc_ops"], 221)
+check("A5 l1svc_ops", F["abi"]["l1svc_ops"], 223)
 check("A6 syscalls", F["abi"]["syscalls"], 54)
 check("A7 drivers legacy+framework", (F["drivers"]["legacy_oc_drv_decl"],
       F["drivers"]["framework_oc_drvi_decl"]), (38, 7))
@@ -74,14 +74,14 @@ import re, sys
 root = sys.argv[1]
 fails = []
 SURFACE_MUST = {
-  "README.md": [("311", 1), ("300 ring-3", 1), ("164,693", 1),
+  "README.md": [("312", 1), ("301 ring-3", 1), ("165,363", 1),
                  ("303 listed", 2), ("hidden from", 1)],
-  "website/index.html": [("311", 1), ("221", 1), ("164,693", 1),
-                          ("3.0.0-WP-tui-input-encoding-hardening", 1)],
-  "website/architecture.html": [("221", 1), ("300 programs", 1),
+  "website/index.html": [("312", 1), ("223", 1), ("165,363", 1),
+                          ("3.0.0-WP-runtime-hardening-and-experience-rebase", 1)],
+  "website/architecture.html": [("223", 1), ("301 programs", 1),
                                  ("framework/ (.oc_drvi)", 1),
                                  ("OC_DRIVER_INFO_DECL", 1)],
-  "docs/reference/presentation-consistency-ledger.md": [("311", 1), ("221", 1)],
+  "docs/reference/presentation-consistency-ledger.md": [("312", 1), ("223", 1)],
 }
 SURFACE_MUST_NOT = {
   "README.md": ["284 ring-3", "296 commands", "158,474"],
@@ -133,7 +133,7 @@ V=$(python3 -c "import json;print(json.load(open('$ROOT/website/update.json'))['
 T=$(cd "$ROOT" && git describe --tags --abbrev=0 2>/dev/null)
 U=$(python3 -c "import json,urllib.request;print('skip')" 2>/dev/null)
 TAG="v$V"
-if [ "$V" = "3.0.0-WP-tui-input-encoding-hardening" ] && [ "$T" = "$TAG" ] && grep -q "3.0.0-WP-tui-input-encoding-hardening" "$ROOT/website/index.html"; then
+if [ "$V" = "3.0.0-WP-runtime-hardening-and-experience-rebase" ] && [ "$T" = "$TAG" ] && grep -q "3.0.0-WP-runtime-hardening-and-experience-rebase" "$ROOT/website/index.html"; then
   pass "update.json = tag = website = $V (release body checked in the release step)"
 else
   fail "version four-way: update.json=$V tag=$T"
