@@ -742,6 +742,15 @@ include $(OC_ROOT)/ocse/ocse.mk
 # BIOS composite consumes $(BUILD)/ocbl/ocbl_bios.bin.
 include $(OC_ROOT)/ocrmecl/ocrmmecl.mk
 
+# WP-runtime-hardening 4.3: the STRICT QEMU boot matrix - the only
+# accepted proof the chain needs none of QEMU's default-mode nanny
+# behaviors.  Boots build/opencube.iso on BOTH firmware tracks under
+#   -cpu qemu64,enforce -machine vmport=off -boot strict=on
+# and requires the full OCRMECL -> OCBL -> kernel -> ush chain.
+.PHONY: test-strict
+test-strict: iso
+	bash tools/test_strict.sh
+
 endif # ARCH dispatch
 
 # ---- WP-14-docs_release: documentation data generation ----
