@@ -12,7 +12,10 @@
  * Written defensively: the argv data is re-read from memory after fork
  * (no live value is kept in a caller-saved register across the
  * syscall), every branch is flat, and the child path ends in an
- * explicit exit. */
+ * explicit exit.
+ * WP-runtime-hardening i18n: the human lines render through tr_();
+ * "started pid=" stays a literal - it is the E2E ack anchor
+ * (tools/run_l1_per_app.py, wp01_killrace_test.py, cap_*.py). */
 #include "l1_lib.h"
 #include "l1svc_ops.h"
 
@@ -33,7 +36,7 @@ int app_main(int argc, char **argv) {
         char out[4096];
         long rc = sys_l1svc(L1SVC_CAT_L1, L1SVC_L1_APPS, 0,
                             (long)out, (long)sizeof(out));
-        puts_("usage: run <program>   (registered programs below)\n");
+        puts_(tr_("usage: run <program>   (registered programs below)\n"));
         if (rc == 0) puts_(out);
         return 0;
     }
@@ -49,7 +52,7 @@ int app_main(int argc, char **argv) {
     }
 
     long pid = sys_fork();
-    if (pid < 0) { puts_("run: fork failed\n"); return 1; }
+    if (pid < 0) { puts_(tr_("run: fork failed\n")); return 1; }
 
     if (pid == 0) {
         /* CHILD: build argv on its own stack, then execve - never
@@ -62,19 +65,20 @@ int app_main(int argc, char **argv) {
         long ret = sys_execve((long)prog, (long)cargv, 0);
         /* only reached when execve failed */
         (void)ret;
-        puts_("run: unknown program: ");
+        puts_(tr_("run: unknown program: "));
         puts_(prog);
         putc_('\n');
         sys_exit2(1);
     }
 
     /* PARENT: report and wait (v2.2.0 printed "started pid=N" then
-     * waited for the program; wait4 is the ring-3 spelling). */
+     * waited for the program; wait4 is the ring-3 spelling).
+     * "started pid=" is the E2E contract - a literal, never tr_(). */
     puts_("started pid=");
     putu_((unsigned long)pid);
     putc_('\n');
     if (background) {
-        puts_("started in background\n");
+        puts_(tr_("started in background\n"));
         return 0;
     }
     g_target_pid = pid;

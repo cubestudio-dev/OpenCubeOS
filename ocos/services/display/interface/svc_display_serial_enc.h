@@ -43,6 +43,11 @@ const char *serial_enc_get_name(void);
  * drift apart. */
 int disp_cmd_serial_encoding(const char *args);
 
+/* WP-runtime-hardening 4.5: the serial-probe wizard op body
+ * (L1SVC_DISP_SER_PROBE) - "emit" (two labeled raw samples), "set 1|2"
+ * (encoding + persist), empty (status). */
+int disp_cmd_serial_probe(const char *args);
+
 #ifdef __cplusplus
 }
 #endif

@@ -22,6 +22,7 @@
 #include "core_console_screen.h"
 #include "core_lib_log.h"
 #include "core_lib_string.h"
+#include "core_i18n_res.h"   /* P2A-L0-I18N: get_text(MSG_BOOT_L1_DEFAULT_FAILED) */
 #include "core_boot_state.h"      /* 3.0.0-WP07a: the L1_LAUNCHED state point */
 
 /* Embedded ELF bytes live in core/userprogs_data.h (compiled once,
@@ -65,7 +66,9 @@ void l1_launcher_boot_default(void) {
     }
     pid_t pid = user_process_create(dflt->elf, *dflt->size_ptr, dflt->name);
     if (pid < 0) {
-        lib_log_info("l1 launcher: failed to start the default L1 app; entering recovery shell");
+        /* P2A-L0-I18N: the failure line follows the console locale
+         * (the message resource carries both columns). */
+        lib_log_info(get_text(MSG_BOOT_L1_DEFAULT_FAILED));
         return;
     }
     /* 3.0.0-WP07a: the default L1 entry is launched - the L1_LAUNCHED

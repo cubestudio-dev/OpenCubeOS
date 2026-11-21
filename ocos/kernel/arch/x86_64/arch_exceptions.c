@@ -13,6 +13,7 @@
 #include "core_lib_string.h"
 #include "core_console_fb.h"
 #include "core_console_screen.h"
+#include "core_i18n_res.h"   /* P2A-L0-I18N: get_text(MSG_KERN_*) panic lines */
 #include "core_mm_vmm.h"
 #include "core_usermode.h"
 #include "core_sched.h"
@@ -193,10 +194,21 @@ void arch_set_crashlog_record(void (*record)(u32 vector, u64 error_code,
     g_crashlog_record_fn = record;
 }
 
+/* P2A-L0-I18N NOTE (exception paths): the panic/kill lines below go
+ * through get_text() - a pure table index plus the static locale read
+ * (disp_lang_get), so it is safe in these hostile contexts (no locks,
+ * no allocation, no console state).  The raw ser_putc COM1 printer
+ * used here bypasses the serial-encoding tee, so a zh line reaches the
+ * serial wire as raw UTF-8 bytes (the framebuffer side renders the
+ * 16x16 CJK glyphs correctly) - accepted for exception paths: the
+ * operator's terminal either speaks UTF-8 or still sees the hex dump,
+ * and keeping ONE code path beats divergent encoders in a panic. */
 static void panic_fallback(const char *reason) {
-    screen_console_puts("\nKERNEL PANIC (no crash handler installed): ");
+    screen_console_puts(get_text(MSG_KERN_PANIC_NO_HANDLER));
     screen_console_puts(reason ? reason : "?");
-    screen_console_puts("\nSystem halted.\n");
+    screen_console_puts("\n");
+    screen_console_puts(get_text(MSG_KERN_HALTED));
+    screen_console_puts("\n");
     for (;;) __asm__ volatile("cli; hlt");
 }
 
@@ -227,7 +239,9 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
     static int exc_in_pf = 0;
     int is_pf = (f->int_no == 14);
     if (is_pf && exc_in_pf) {
-        ser_puts("\r\n*** NESTED #PF INSIDE EXCEPTION HANDLER - HALTING ***\r\n");
+        /* P2A-L0-I18N: localized (see the panic-path note above the
+         * fallback - get_text is a table index, safe on this path). */
+        ser_puts(get_text(MSG_KERN_PANIC_NESTED_PF));
         for (;;) {
             __asm__ volatile("cli; hlt");
         }
@@ -281,7 +295,8 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
         __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
         ser_puts("  cr2=0x");
         ser_hex(cr2);
-        ser_puts("  (faulting address)\r\n");
+        ser_puts(get_text(MSG_KERN_EXC_FAULT_ADDR));
+        ser_puts("\r\n");
     }
 
     /* BUG-001 FIX: If the exception came from ring-3 (user mode), kill the
@@ -363,7 +378,7 @@ void arch_exc_dispatch(arch_irq_frame_t *f) {
             /* Print on framebuffer too. */
             u32 saved_fg = screen_console_get()->fg_pixel;
             screen_console_get()->fg_pixel = screen_fb_rgb(0xFF, 0x40, 0x40);
-            screen_console_puts("[user] process killed by exception (vector=");
+            screen_console_puts(get_text(MSG_KERN_PROC_KILLED));
             u64_to_str(v, num);
             screen_console_puts(num);
             screen_console_puts("), kernel continues\n");

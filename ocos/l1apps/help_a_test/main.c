@@ -4,7 +4,9 @@
  * The v2.2.0 command verified `help -a` == the default A-Z view.  In
  * 3.0.0 there is one registry view served to `help` (and the former
  * `-a` flag), so this asserts the same ordering invariant as
- * help_default_test over the live listing. */
+ * help_default_test over the live listing.  The PASS/FAIL verdict
+ * words stay English (machine contract); the sentence renders
+ * through tr_(). */
 #include "l1_lib.h"
 #include "l1svc_ops.h"
 int app_main(int argc, char **argv) { (void)argc; (void)argv;
@@ -34,7 +36,7 @@ int app_main(int argc, char **argv) { (void)argc; (void)argv;
         }
         sorted = ok;
     }
-    puts_("help_a_test: 'help -a' == default A-Z view, ordering verified: ");
+    puts_(tr_("help_a_test: 'help -a' == default A-Z view, ordering verified: "));
     puts_(sorted ? "PASS" : "FAIL");
     putc_('\n');
     return sorted ? 0 : 1;

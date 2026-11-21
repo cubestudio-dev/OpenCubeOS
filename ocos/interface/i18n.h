@@ -27,8 +27,11 @@
 #ifndef OC_L1_I18N_H
 #define OC_L1_I18N_H
 
-/* Only the numbering contract (SYS_L1SVC + the display op numbers). */
+/* The numbering contract (SYS_L1SVC + the display op numbers) and the
+ * MSG_ID enumeration (the system message resource, i18n_res.h - the
+ * shared L0/L1 numbering so the ids can never drift). */
 #include "l1svc_ops.h"
+#include "i18n_res.h"
 
 #ifndef SYS_L1SVC
 #define SYS_L1SVC 110
@@ -109,6 +112,50 @@ static inline const char *tr_(const char *key) {
     const char *v = i18n_lookup(I18N_EN, I18N_EN_N, key);
     if (v && v[0]) return v;
     return key;
+}
+
+/* ---- system message resources (WP-runtime-hardening 4.4) ------------
+ * get_text(MSG_ID): the active-locale text of a SYSTEM message (the
+ * kernel lang_en/lang_zh tables behind core_i18n_res.c - shared
+ * surfaces like the shell errors, the config/serial family and the
+ * boot/update lines), fetched with ONE L1SVC round trip:
+ *     cat=DISPLAY, op=L1SVC_DISP_GETTEXT, arg=DECIMAL message id,
+ *     out=&buf, cap=sizeof(buf)
+ * (the same int-0x80 syscall5 contract i18n_lang_zh() spells above).
+ *
+ * The text lands in a SINGLE function-static buffer and the pointer
+ * is returned - a second call overwrites it.  NOT thread-safe by
+ * design: L1 apps are single-threaded; copy the result when you need
+ * it across calls.  Any failure (bad id, old kernel, service down)
+ * yields the literal "?" so callers never branch on the lookup. */
+static inline const char *get_text(int msg_id) {
+    /* big enough for the longest lang_en/lang_zh row (the update
+     * hints, ~110 bytes) with room to grow */
+    static char buf[256];
+    if (msg_id < 0) return "?";
+    /* the DECIMAL id string (arg line - the kernel op parses digits) */
+    char arg[12];
+    char tmp[12];
+    int n = 0, t = 0;
+    int v = msg_id;
+    if (v == 0) tmp[t++] = '0';
+    while (v > 0) { tmp[t++] = (char)('0' + v % 10); v /= 10; }
+    while (t > 0) arg[n++] = tmp[--t];
+    arg[n] = 0;
+    buf[0] = 0;
+    register long r10 __asm__("r10") = (long)buf;
+    register long r8  __asm__("r8")  = (long)sizeof(buf);
+    long rc;
+    __asm__ volatile("int $0x80"
+                     : "=a"(rc)
+                     : "a"((long)SYS_L1SVC),
+                       "D"((long)L1SVC_CAT_DISPLAY),
+                       "S"((long)L1SVC_DISP_GETTEXT),
+                       "d"((long)arg),
+                       "r"(r10), "r"(r8)
+                     : "memory");
+    if (rc >= 0 && buf[0]) return buf;
+    return "?";
 }
 
 #endif /* OC_L1_I18N_H */

@@ -139,6 +139,8 @@
 #define L1SVC_DISP_IME_END    15   /* ime session close       */
 #define L1SVC_DISP_LANG_GET   16   /* locale query (en|zh)    */
 #define L1SVC_DISP_SERIAL_ENC 17   /* serial_encoding [utf8|gbk] (WP06g3) */
+#define L1SVC_DISP_GETTEXT   18   /* get_text(MSG_ID) -> string (WP-runtime-hardening 4.4) */
+#define L1SVC_DISP_SER_PROBE 19   /* serial-probe wizard (WP-runtime-hardening 4.5) */
 #define L1SVC_INP_TOUCHPAD     1   /* touchpad                */
 #define L1SVC_INP_TOUCHTEST    2   /* touchtest               */
 #define L1SVC_CAM_UVC           1   /* uvc                     */

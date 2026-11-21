@@ -1,4 +1,6 @@
 {
   "_hint": "stream editor",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "usage: sed s/old/new/[g] [file] | sed -n Np [file] | sed Nd [file]\n": "usage: sed s/old/new/[g] [file] | sed -n Np [file] | sed Nd [file]\n",
+  "sed: unknown script\n": "sed: unknown script\n"
 }

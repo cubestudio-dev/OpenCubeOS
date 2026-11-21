@@ -1,4 +1,5 @@
 {
   "_hint": "终止进程",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: kill <pid>\n": "用法：kill <pid>\n"
 }

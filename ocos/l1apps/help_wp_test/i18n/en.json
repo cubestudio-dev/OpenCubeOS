@@ -1,4 +1,7 @@
 {
   "_hint": "registry work-package grouping test",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "help_wp_test: registry flat A-Z ordering (one group == all): ": "help_wp_test: registry flat A-Z ordering (one group == all): ",
+  "help_wp_test: global listing still sorted: ": "help_wp_test: global listing still sorted: ",
+  "help_wp_test: run 'help' to see the flat A-Z listing\n": "help_wp_test: run 'help' to see the flat A-Z listing\n"
 }

@@ -1,4 +1,6 @@
 {
   "_hint": "系统健康快照/监视",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "health: service call failed (rc=-1)\n": "health：服务调用失败（rc=-1）\n",
+  "usage: health [watch|export [path]]\n": "用法：health [watch|export [路径]]\n"
 }

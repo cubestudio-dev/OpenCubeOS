@@ -6,7 +6,9 @@
  * command table behind `help`.  The table moved: in 3.0.0 the command
  * surface is the OC_USERPROGS registry, so this test asserts the same
  * invariant over the live registry listing (L1SVC cat "l1" op 1) -
- * every registered name must be strictly ascending. */
+ * every registered name must be strictly ascending.  The PASS/FAIL
+ * verdict words stay English (machine contract); the surrounding
+ * sentences render through tr_(). */
 #include "l1_lib.h"
 #include "l1svc_ops.h"
 
@@ -44,9 +46,9 @@ static int verify_sorted(void) {
 int app_main(int argc, char **argv) {
     (void)argc; (void)argv;
     int sorted = verify_sorted();
-    puts_("help_default_test: A-Z ordering of the full command registry: ");
+    puts_(tr_("help_default_test: A-Z ordering of the full command registry: "));
     puts_(sorted ? "PASS" : "FAIL");
     putc_('\n');
-    puts_("help_default_test: run 'help' to see the full A-Z listing\n");
+    puts_(tr_("help_default_test: run 'help' to see the full A-Z listing\n"));
     return sorted ? 0 : 1;
 }

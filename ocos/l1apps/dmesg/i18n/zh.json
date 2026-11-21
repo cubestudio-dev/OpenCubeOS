@@ -1,4 +1,5 @@
 {
   "_hint": "显示内核日志",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "dmesg: service call failed (rc=-1)\n": "dmesg：服务调用失败（rc=-1）\n"
 }

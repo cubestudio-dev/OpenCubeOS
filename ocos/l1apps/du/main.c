@@ -2,7 +2,11 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS 3.0.0-WP04 - L1 app "du".
  * Moved verbatim from the ush `du` builtin (WP-10-wp08fix1): recursive
- * depth-first walk summing file sizes under argv[1] (or the cwd). */
+ * depth-first walk summing file sizes under argv[1] (or the cwd).
+ * WP-runtime-hardening i18n survey: the ONLY user-facing fragments are
+ * " bytes  " and " files  " - both stay English BY CONTRACT
+ * (tools/wp10_wp08fix1_test.py greps "bytes" and "files" in the
+ * output); there is nothing left to route through tr_(). */
 #include "l1_lib.h"
 #include "fs_lib.h"
 
@@ -54,6 +58,7 @@ int app_main(int argc, char **argv) {
             if (idx > 1024) break;
         }
     }
+    /* machine contract: "bytes" / "files" are E2E anchors - literals */
     putu_(du_total);
     puts_(" bytes  ");
     putu_((u64)du_files);

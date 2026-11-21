@@ -1,4 +1,9 @@
 {
   "_hint": "process overview (live)",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  " ms\n": " ms\n",
+  "Mem: ": "Mem: ",
+  " used / ": " used / ",
+  " total / ": " total / ",
+  " free\n": " free\n"
 }

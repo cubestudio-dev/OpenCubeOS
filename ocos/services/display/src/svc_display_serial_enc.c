@@ -20,6 +20,8 @@
 #include "svc_encoding_core.h"
 #include "core_console_screen.h"
 #include "core_lib_string.h"
+#include "core_lib_config.h"    /* WP-runtime-hardening 4.5: persistence */
+#include "core_i18n_res.h"     /* WP-runtime-hardening 4.4: get_text */
 
 #define COM1 0x3F8
 
@@ -55,11 +57,15 @@ int serial_enc_set(const char *name) {
         name[3] == '8' && name[4] == 0) {
         g_enc_gbk = 0;
         g_acc_len = 0; g_acc_need = 0;
+        /* WP-runtime-hardening 4.5: persist (best effort - the config
+         * store may be the ramfs fallback in live environments) */
+        lib_config_write("serial.encoding", "utf8");
         return 0;
     }
     if (name[0] == 'g' && name[1] == 'b' && name[2] == 'k' && name[3] == 0) {
         g_enc_gbk = 1;
         g_acc_len = 0; g_acc_need = 0;
+        lib_config_write("serial.encoding", "gbk");
         return 0;
     }
     return -1;
@@ -150,5 +156,102 @@ int disp_cmd_serial_encoding(const char *args) {
     }
     screen_console_puts("usage: serial_encoding [utf8|gbk] "
                         "(no argument shows the current encoding)\n");
+    return 1;
+}
+
+/* ---- the `serial-probe` wizard op (L1SVC_DISP_SER_PROBE, spec 4.5) --
+ * The user's serial TERMINAL decoding is the thing we cannot see from
+ * inside the machine - the wizard shows one labeled sample in each
+ * encoding and asks which one reads correctly:
+ *
+ *   serial-probe emit  - two labeled samples RAW on COM1 (bypassing
+ *                        the tee hook: sample 1 is UTF-8 bytes, sample
+ *                        2 is the same text transcoded to GBK) + the
+ *                        labels on the VGA console
+ *   serial-probe set 1 - encoding = utf8 (persisted)
+ *   serial-probe set 2 - encoding = gbk  (persisted)
+ *   serial-probe       - status
+ * The console-visible strings go through get_text (the 4.4 resource);
+ * the raw samples are byte-exact by definition. */
+static const char k_probe_sample[] =
+    "\xe4\xb8\xb2\xe5\x8f\xa3\xe7\xbc\x96\xe7\xa0\x81"
+    "\xe6\xb5\x8b\xe8\xaf\x95 123 OK";   /* 串口编码测试 123 OK */
+
+static void probe_raw(const char* s) {
+    while (*s)
+        serial_enc_putc(*s++);
+}
+
+int disp_cmd_serial_probe(const char *args) {
+    if (!args || !args[0]) {
+        screen_console_puts("serial-probe: ");
+        screen_console_puts(serial_enc_get_name());
+        screen_console_puts("\n");
+        return 0;
+    }
+    if (args[0] == 'e' && args[1] == 'm' && args[2] == 'i' &&
+        args[3] == 't' && (args[4] == 0 || args[4] == ' ')) {
+        /* labels on both channels; the SAMPLES only raw on COM1 so
+         * the tee cannot re-transcode what we are measuring */
+        probe_raw("\r\n");
+        probe_raw("serial-probe [1] UTF-8: ");
+        probe_raw(k_probe_sample);
+        probe_raw("\r\n");
+        probe_raw("serial-probe [2] GBK:   ");
+        /* transcode the sample to GBK, byte by byte, raw on the wire */
+        const u8* p = (const u8*)k_probe_sample;
+        while (*p) {
+            if (*p < 0x80) {
+                serial_enc_putc((char)*p++);
+                continue;
+            }
+            u32 cp = 0, consumed = 0;
+            u8 gb[2]; u32 produced = 0;
+            if (encoding_utf8_decode(p, 4, &cp, &consumed) != 0) {
+                serial_enc_putc('?');
+                p++;
+                continue;
+            }
+            if (encoding_gb2312_encode(cp, gb, sizeof(gb), &produced) != 0 ||
+                produced == 0) {
+                serial_enc_putc('?');
+            } else {
+                for (u32 i = 0; i < produced; ++i)
+                    serial_enc_putc((char)gb[i]);
+            }
+            p += consumed;
+        }
+        probe_raw("\r\n");
+        /* the console (VGA) side: labels + the readable UTF-8 sample */
+        screen_console_puts(get_text(MSG_SER_ENC_PROBE_UTF8));
+        screen_console_puts(" ");
+        screen_console_puts(k_probe_sample);
+        screen_console_puts("\n");
+        screen_console_puts(get_text(MSG_SER_ENC_PROBE_GBK));
+        screen_console_puts(" ");
+        screen_console_puts(k_probe_sample);
+        screen_console_puts("\n");
+        screen_console_puts(get_text(MSG_SER_ENC_PROBE_ASK));
+        screen_console_puts("\n");
+        return 0;
+    }
+    if (args[0] == 's' && args[1] == 'e' && args[2] == 't' &&
+        (args[3] == ' ' || args[3] == 0)) {
+        const char* pick = args[3] ? args + 4 : args + 3;
+        while (*pick == ' ') pick++;
+        if (pick[0] == '1' || (pick[0] == 'u' && pick[1] == 't')) {
+            serial_enc_set("utf8");
+            screen_console_puts(get_text(MSG_SER_ENC_PROBE_SAVED));
+            screen_console_puts(" (utf8)\n");
+            return 0;
+        }
+        if (pick[0] == '2' || (pick[0] == 'g' && pick[1] == 'b')) {
+            serial_enc_set("gbk");
+            screen_console_puts(get_text(MSG_SER_ENC_PROBE_SAVED));
+            screen_console_puts(" (gbk)\n");
+            return 0;
+        }
+    }
+    screen_console_puts("usage: serial-probe emit | set 1|2 | (status)\n");
     return 1;
 }

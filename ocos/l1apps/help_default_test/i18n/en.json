@@ -1,4 +1,6 @@
 {
   "_hint": "registry default listing test",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "help_default_test: A-Z ordering of the full command registry: ": "help_default_test: A-Z ordering of the full command registry: ",
+  "help_default_test: run 'help' to see the full A-Z listing\n": "help_default_test: run 'help' to see the full A-Z listing\n"
 }

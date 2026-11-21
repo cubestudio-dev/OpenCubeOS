@@ -10,6 +10,7 @@
 #include "core_mm_heap.h"
 #include "core_lib_string.h"
 #include "core_console_screen.h"
+#include "core_i18n_res.h"   /* P2A-L0-I18N: get_text(MSG_USER_*) loader errors */
 #include "arch_idt.h"
 #include "core_console_fb.h"
 #include "arch_multiboot2.h"
@@ -875,7 +876,8 @@ void user_task_launcher(void *arg) {
 
     mem_vmm_as_t user_as = proc->as;
     if (user_as == 0) {
-        screen_console_puts("[user] no address space\n");
+        screen_console_puts(get_text(MSG_USER_NO_ADDR_SPACE));
+        screen_console_puts("\n");
         /* BUG-0279 FIX (A2-15a): the old code parked this thread in
          * core_kthread_block() forever, leaking its MAX_TASKS slot (and
          * leaving the process table entry marked alive). Terminate the
@@ -929,7 +931,8 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
     elf64_hdr_t *hdr = (elf64_hdr_t*)elf_data;
     if (hdr->ident[0] != 0x7f || hdr->ident[1] != 'E' ||
         hdr->ident[2] != 'L'  || hdr->ident[3] != 'F') {
-        screen_console_puts("[user] not an ELF file\n");
+        screen_console_puts(get_text(MSG_USER_NOT_ELF));
+        screen_console_puts("\n");
         return -1;
     }
     if (hdr->ident[4] != 2) {
@@ -1059,7 +1062,11 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         /* BUG-0134 FIX: say WHY the creation failed instead of a bare -1
          * ("failed to create process" gave the operator no clue that the
          * concurrency cap had been hit, or that 16 is the limit). */
-        screen_console_puts("user: process table full (max ");
+        /* P2A-L0-I18N: the constant label goes through the message
+         * resource; the " (max N processes)" tail stays as-is (it is
+         * the variable part of the line, not a table message). */
+        screen_console_puts(get_text(MSG_USER_PROC_TABLE_FULL));
+        screen_console_puts(" (max ");
         char nb[12];
         u64_to_str((u64)MAX_USER_PROCS, nb);
         screen_console_puts(nb);
@@ -1123,7 +1130,8 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
              * pages) or wrap p_vaddr into the kernel window.  Gate the
              * table + every PT_LOAD before mapping anything. */
             if (elf64_phdrs_check(main_elf_data_orig, main_elf_size_orig) != 0) {
-                screen_console_puts("dynlink: main image failed ELF header checks\n");
+                screen_console_puts(get_text(MSG_USER_ELF_HDR_CHECKS));
+                screen_console_puts("\n");
                 proc->alive = 0;
                 goto fail_as;
             }
@@ -1145,7 +1153,8 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
                 if (map_user_pages(proc->as, load_vaddr,
                                    main_elf_data_orig + main_phdr[i].offset,
                                    main_phdr[i].filesz) != 0) {
-                    screen_console_puts("dynlink: failed to map main PT_LOAD\n");
+                    screen_console_puts(get_text(MSG_USER_MAP_PT_LOAD_FAILED));
+                    screen_console_puts("\n");
                     proc->alive = 0;
                     goto fail_as;
                 }
@@ -1284,7 +1293,8 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
      *      p_vaddr is in user space (< USER_LIMIT).
      */
     if (hdr->phentsize != sizeof(elf64_phdr_t)) {
-        screen_console_puts("[user] bad phentsize\n");
+        screen_console_puts(get_text(MSG_USER_BAD_PHENTSIZE));
+        screen_console_puts("\n");
         goto fail_as;
     }
     /* Check phoff + phnum * phentsize <= elf_size (with overflow guard). */
@@ -1313,7 +1323,8 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         /* p_vaddr + p_memsz must not overflow. */
         u64 mem_end = phdr[i].vaddr + phdr[i].memsz;
         if (mem_end < phdr[i].vaddr) {
-            screen_console_puts("[user] PT_LOAD vaddr+memsz overflow\n");
+            screen_console_puts(get_text(MSG_USER_PTL_VADDR_OVERFLOW));
+            screen_console_puts("\n");
             goto fail_as;
         }
         /* p_memsz must be >= p_filesz (BSS section is memsz - filesz). */
@@ -1323,7 +1334,8 @@ pid_t user_process_create(const u8 *elf_data, u64 elf_size, const char *name) {
         }
         /* p_vaddr must be in user space. */
         if (phdr[i].vaddr >= 0x0000800000000000ULL) {
-            screen_console_puts("[user] PT_LOAD vaddr in kernel space\n");
+            screen_console_puts(get_text(MSG_USER_PTL_IN_KERNEL_SPACE));
+            screen_console_puts("\n");
             goto fail_as;
         }
         /* Check for overlap with previous PT_LOAD segments. */

@@ -1,4 +1,6 @@
 {
   "_hint": "通过 HTTP(S) 下载文件",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: wget <host> [port] [path]\n": "用法：wget <主机> [端口] [路径]\n",
+  "wget: kernel bridge unavailable\n": "wget：内核网络桥不可用\n"
 }

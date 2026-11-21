@@ -12,6 +12,7 @@
 #include "core_mm_heap.h"
 #include "core_lib_string.h"
 #include "core_console_screen.h"
+#include "core_i18n_res.h"   /* P2A-L0-I18N: get_text(MSG_KERN_PANIC_IDLE_STACK) */
 #include "core_mm_vmm.h"
 #include "core_timer.h"
 #include "arch_irq.h"
@@ -287,7 +288,11 @@ void core_sched_init(void) {
      * no caller to return to during early init; the audit notes boot-time
      * PMM failure is unlikely - the defect is that it was unchecked). */
     if (g_idle_task->stack_base == 0) {
-        screen_console_puts("PANIC: idle task stack allocation failed - halting\n");
+        /* P2A-L0-I18N: localized through the message resource (the
+         * table entry carries no trailing newline; it is emitted
+         * separately so both columns print identically). */
+        screen_console_puts(get_text(MSG_KERN_PANIC_IDLE_STACK));
+        screen_console_puts("\n");
         __asm__ volatile("cli");
         for (;;) __asm__ volatile("hlt");
     }

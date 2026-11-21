@@ -1,4 +1,5 @@
 {
   "_hint": "网络接口状态",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  ": kernel bridge unavailable\n": "：内核网络桥不可用\n"
 }

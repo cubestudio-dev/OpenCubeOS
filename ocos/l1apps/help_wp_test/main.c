@@ -7,7 +7,9 @@
  * belonged to the removed L0 shell table; the 3.0.0 registry is one
  * flat A-Z list, so the group-ordering invariant reduces to the global
  * ordering invariant - asserted here over the live listing (declared
- * semantic re-targeting, same invariant family). */
+ * semantic re-targeting, same invariant family).  The PASS/FAIL
+ * verdict words stay English (machine contract); the surrounding
+ * sentences render through tr_(). */
 #include "l1_lib.h"
 #include "l1svc_ops.h"
 int app_main(int argc, char **argv) { (void)argc; (void)argv;
@@ -37,12 +39,12 @@ int app_main(int argc, char **argv) { (void)argc; (void)argv;
         }
         sorted = ok;
     }
-    puts_("help_wp_test: registry flat A-Z ordering (one group == all): ");
+    puts_(tr_("help_wp_test: registry flat A-Z ordering (one group == all): "));
     puts_(sorted ? "PASS" : "FAIL");
     putc_('\n');
-    puts_("help_wp_test: global listing still sorted: ");
+    puts_(tr_("help_wp_test: global listing still sorted: "));
     puts_(sorted ? "PASS" : "FAIL");
     putc_('\n');
-    puts_("help_wp_test: run 'help' to see the flat A-Z listing\n");
+    puts_(tr_("help_wp_test: run 'help' to see the flat A-Z listing\n"));
     return sorted ? 0 : 1;
 }

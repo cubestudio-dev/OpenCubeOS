@@ -1,4 +1,9 @@
 {
   "_hint": "进程总览（动态）",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  " ms\n": " 毫秒\n",
+  "Mem: ": "内存：",
+  " used / ": " 已用 / ",
+  " total / ": " 共 / ",
+  " free\n": " 空闲\n"
 }

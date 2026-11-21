@@ -1,4 +1,7 @@
 {
   "_hint": "把标准输入写入文件",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: write <path> <text>\n": "用法：write <路径> <文本>\n",
+  "write: cannot open ": "write：无法打开 ",
+  "write: write failed on ": "write：写入失败："
 }

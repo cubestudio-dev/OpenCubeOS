@@ -1,4 +1,6 @@
 {
   "_hint": "download a file over HTTP(S)",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "usage: wget <host> [port] [path]\n": "usage: wget <host> [port] [path]\n",
+  "wget: kernel bridge unavailable\n": "wget: kernel bridge unavailable\n"
 }

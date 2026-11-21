@@ -13,6 +13,7 @@
 #include "svc_display_cmds.h"
 #include "svc_display_lang.h"
 #include "svc_display_serial_enc.h"   /* WP06g3-4.2: serial_encoding op */
+#include "core_i18n_res.h"          /* WP-runtime-hardening 4.4: get_text op */
 #include "svc_display_ime_session.h"
 #include "core_lib_string.h"
 #include "core_kcap.h"
@@ -63,6 +64,34 @@ static int disp_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
             out[i] = 0;
             return 0;
         }
+        /* WP-runtime-hardening 4.4: the MSG_ID resource lookup - the
+         * L1-side get_text().  The arg line is the DECIMAL message id;
+         * the out buffer receives the active-locale text (NUL-terminated,
+         * truncated to cap-1).  A bad id yields "?" - never an error,
+         * so callers never branch on the lookup. */
+        case L1SVC_DISP_GETTEXT: {
+            int id = -1;
+            if (arg && arg[0] >= '0' && arg[0] <= '9') {
+                id = 0;
+                const char* p = arg;
+                while (*p >= '0' && *p <= '9')
+                    id = id * 10 + (*p++ - '0');
+            }
+            const char* t = get_text((msg_id_t)id);
+            int i = 0;
+            while (t[i] && i < cap - 1) { out[i] = t[i]; i++; }
+            out[i] = 0;
+            return i;
+        }
+        /* WP-runtime-hardening 4.5: the serial-probe wizard op.  The
+         * arg picks the step:
+         *   "emit"  - print the two labeled sample lines (UTF-8 raw,
+         *             GBK transcoded) straight to COM1 + console
+         *   "set 1" - set utf8 + persist serial.encoding=utf8
+         *   "set 2" - set gbk  + persist serial.encoding=gbk
+         * The wizard (l1apps/serial-probe) drives the interaction. */
+        case L1SVC_DISP_SER_PROBE:
+            return disp_cmd_serial_probe(arg);
         /* 3.0.0-WP06g2: the SYSTEM IME session - the editors' engine.
          * BEGIN/END reset the session; KEY feeds one key code (the
          * arg line is the decimal key code) and returns the action

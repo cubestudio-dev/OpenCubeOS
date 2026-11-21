@@ -2,13 +2,15 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS 3.0.0-WP04 - L1 app "sed".
  * Moved verbatim from the ush `sed` builtin: s/old/new/[g], -n Np and Nd
- * scripts over stdin or a trailing file argument. */
+ * scripts over stdin or a trailing file argument.  WP-runtime-hardening
+ * i18n: the user-facing lines render through tr_() (the script syntax
+ * itself is the command language - untranslated by design). */
 #include "l1_lib.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- sed s/old/new/[g] | -n Np | Nd [file] ---------- */
     if (argc < 2) {
-        puts_("usage: sed s/old/new/[g] [file] | sed -n Np [file] | sed Nd [file]\n");
+        puts_(tr_("usage: sed s/old/new/[g] [file] | sed -n Np [file] | sed Nd [file]\n"));
         return 0;
     }
     int src_fd = 0;
@@ -116,7 +118,7 @@ int app_main(int argc, char **argv) {
                 }
             }
         } else {
-            puts_("sed: unknown script\n");
+            puts_(tr_("sed: unknown script\n"));
             return 0;
         }
         if (i > total) break;

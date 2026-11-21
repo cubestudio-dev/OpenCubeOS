@@ -1,4 +1,6 @@
 {
   "_hint": "注册表默认列表测试",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "help_default_test: A-Z ordering of the full command registry: ": "help_default_test：全量命令注册表的 A-Z 排序：",
+  "help_default_test: run 'help' to see the full A-Z listing\n": "help_default_test：运行 'help' 查看全量 A-Z 列表\n"
 }

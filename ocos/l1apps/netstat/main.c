@@ -2,7 +2,8 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS 3.0.0-WP04 - L1 app "netstat".
  * Moved verbatim from the ush `netstat` builtin: network statistics via the kernel
- * NETCMD bridge (SYS_NETCMD). */
+ * NETCMD bridge (SYS_NETCMD).  WP-runtime-hardening i18n: the failure
+ * tail renders through tr_() (argv[0] prefix stays the command word). */
 #include "l1_lib.h"
 
 int app_main(int argc, char **argv) {
@@ -11,7 +12,7 @@ int app_main(int argc, char **argv) {
     long rc = sys_netcmd(NETCMD_NETSTAT, 0, nout, (long)sizeof(nout));
     if (rc < 0) {
         puts_(argv[0]);
-        puts_(": kernel bridge unavailable\n");
+        puts_(tr_(": kernel bridge unavailable\n"));
         return 0;
     }
     puts_(nout);

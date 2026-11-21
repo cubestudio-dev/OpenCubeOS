@@ -1,4 +1,8 @@
 {
   "_hint": "run a program with arguments",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "usage: run <program>   (registered programs below)\n": "usage: run <program>   (registered programs below)\n",
+  "run: fork failed\n": "run: fork failed\n",
+  "run: unknown program: ": "run: unknown program: ",
+  "started in background\n": "started in background\n"
 }

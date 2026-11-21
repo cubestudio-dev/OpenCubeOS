@@ -2,7 +2,8 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS 3.0.0-WP04 - L1 app "dmesg".
  * The v2.2.0 `dmesg [N]` command: kernel log ring replay, default 30
- * lines.  Body lives in services/klog (L1SVC cat "klog" op 1). */
+ * lines.  Body lives in services/klog (L1SVC cat "klog" op 1).
+ * WP-runtime-hardening i18n: the failure line renders through tr_(). */
 #include "l1_lib.h"
 #include "l1svc_ops.h"
 
@@ -20,7 +21,7 @@ int app_main(int argc, char **argv) {
     long rc = sys_l1svc(L1SVC_CAT_KLOG, L1SVC_KLOG_DMESG,
                         arg[0] ? (long)arg : 0, (long)out, (long)sizeof(out));
     if (rc != 0) {
-        puts_("dmesg: service call failed (rc=-1)\n");
+        puts_(tr_("dmesg: service call failed (rc=-1)\n"));
         return 1;
     }
     puts_(out);

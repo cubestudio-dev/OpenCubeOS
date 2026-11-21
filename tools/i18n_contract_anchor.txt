@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+# Machine-contract anchors that MUST stay English literals (i18n audit)
+#
+# Single source of truth for the P2A-L0-I18N migration (WP-runtime-
+# hardening-and-experience-rebase).  Every line below is an L0/L1 output
+# string that a MACHINE reads (a wizard wiz_find/wiz_token_after probe,
+# a tools/*.py E2E grep, or a docs-quoted verbatim contract line), so it
+# can NEVER be routed through get_text()/tr_() - localization would
+# break the reader.  A string may only leave this file after the
+# referencing file(s) on its line have been updated in the same change.
+#
+# Format:  "anchor string" | producer (file) | referencing file(s)
+#
+# --- update wizard probes (ocos/interface/wizard_lib.h contract,
+#     consumed by ocos/l1apps/update/main.c) -----------------------------
+"IP:"                                       | net svc `ip` op (services/net) | ocos/l1apps/update/main.c wiz_token_after
+"DHCP success"                              | net svc `dhcp` op (services/net) | ocos/l1apps/update/main.c wiz_find; evidence/wp08-driver-framework/08-release-ssh-e2e-5-5.txt; evidence/wp-tui-input-encoding-hardening/regression/ssh-e2e.txt
+"A/B disk: present"                         | ota_ab_print_status (services/selfhost/src/svc_selfhost_ab.c) | ocos/l1apps/update/main.c wiz_find
+"DNS resolution failed"                     | net svc `dns` op; ota_update_check_strerror/ota_update_strerror (svc_selfhost_update.c / svc_selfhost_ab.c) | ocos/l1apps/update/main.c wiz_find
+"Current version is up to date."            | ota_cmd_checkupdate + ota_update_check_thread (svc_selfhost_update.c) | ocos/l1apps/update/main.c wiz_find; tools/fix1_checkupdate_e2e.py (via "up to date")
+"New version available."                    | ota_cmd_checkupdate + ota_update_check_thread (svc_selfhost_update.c) | ocos/l1apps/update/main.c wiz_find
+"reboot required"                           | ota_cmd_update "update: reboot required" + ota_cmd_rollback "rollback: reboot required" (svc_selfhost_ab.c) | ocos/l1apps/update/main.c wiz_find
+#
+# --- tools/*.py E2E greps ------------------------------------------------
+"up to date"                                | ota_cmd_checkupdate verdict line; ota_update_strerror "up to date"; ota_ab_print_status "none (up to date)" | tools/fix1_checkupdate_e2e.py
+"Open Cube OS"                              | uname identity (OC_RELEASE_VERSION banner) | tools/fix1_checkupdate_e2e.py
+#
+# --- kept-English update-flow lines (docs quote them verbatim; zh hint
+#     APPENDED after them via get_text(MSG_UPD_NO_AB_HINT) when the
+#     console locale is zh - the English bytes themselves never change) --
+"update: no A/B disk"                       | ota_cmd_update x2 (svc_selfhost_ab.c) | docs/manual/dictionary/ota.md; docs/zh/manual/dictionary/ota.md
+"rollback: no A/B disk"                     | ota_cmd_rollback (svc_selfhost_ab.c) | docs/manual/dictionary/ota.md; docs/zh/manual/dictionary/ota.md
+"update: cannot determine target slot (not booted from A/B?)" | ota_cmd_update x2 (svc_selfhost_ab.c) | docs/arch/ota-ab.md; docs/dev/call-chains.md; docs/troubleshooting/{error-catalog,common-errors,storage-issues}.md; docs/internals/ota-ab.md; docs/zh/* mirrors
+#
+# --- inverse anchor (must NEVER appear; checked by tools/fix1_after_ush.py)
+"recovery shell taking over"                | (removed line - WP03+ has no L0 user plane) | tools/fix1_after_ush.py asserts ABSENCE
+#
+# Verified 2026-11 by P2A-L0-I18N: rg over tools/ tests/ evidence/ ocos/l1apps/
+# found no machine reader for any string migrated to get_text() in this task
+# (kernel FATAL/panic lines, usermode ELF loader errors, the checkupdate
+# "Changes: " label - the label is human-facing only; the wizard greps the
+# verdict lines, not it).

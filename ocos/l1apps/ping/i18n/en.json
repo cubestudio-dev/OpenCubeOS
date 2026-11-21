@@ -1,4 +1,6 @@
 {
   "_hint": "ICMP echo to a host",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "usage: ping <host>\n": "usage: ping <host>\n",
+  "ping: kernel bridge unavailable\n": "ping: kernel bridge unavailable\n"
 }

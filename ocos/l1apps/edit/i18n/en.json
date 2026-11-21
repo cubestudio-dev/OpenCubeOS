@@ -1,6 +1,8 @@
 {
   "_hint": "the classic line editor face",
   "svc_call_failed": ": service call failed (rc=-1)\n",
+  "usage: ": "usage: ",
+  " <file>\n": " <file>\n",
   "editor_helpbar": " ^O save ^X exit ^K cut ^R copy ^U paste ^G help F2 ime",
   "editor_ime_on": " IME:on]",
   "editor_ime_idle": " IME:on]",

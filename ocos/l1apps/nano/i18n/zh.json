@@ -1,6 +1,8 @@
 {
   "_hint": "nano 风格编辑器（F2 = 中文输入法）",
   "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: ": "用法：",
+  " <file>\n": " <文件>\n",
   "editor_helpbar": " ^O 保存 ^X 退出 ^K 剪切 ^R 复制 ^U 粘贴 ^G 帮助 F2 输入法",
   "editor_ime_on": " 输入法：开]",
   "editor_ime_idle": " 输入法：开]",

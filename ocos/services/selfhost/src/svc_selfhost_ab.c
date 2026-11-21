@@ -33,6 +33,8 @@
 #include "core_console_screen.h"
 #include "core_lib_log.h"
 #include "core_lib_string.h"
+#include "core_lib_i18n.h"   /* P2A-L0-I18N: disp_lang_get + DISP_LANG_ZH */
+#include "core_i18n_res.h"   /* P2A-L0-I18N: get_text(MSG_UPD_NO_AB_HINT) */
 #include "core_timer.h"
 
 #include <stdint.h>
@@ -1120,6 +1122,19 @@ int ota_update_install(const char *pkg_path, const char *slot) {
 /* 8. shell commands                                                   */
 /* ------------------------------------------------------------------ */
 
+/* P2A-L0-I18N: the update/rollback "no A/B disk" and "cannot determine
+ * target slot" lines are MACHINE-CONTRACT English (the update wizard
+ * greps them, the docs quote them verbatim) - they stay byte-identical.
+ * Under `lang zh` ONE hint line follows, so a zh operator still gets
+ * the actionable guidance; the append is zh-only, so the English flow
+ * is unchanged (see tools/i18n_contract_anchor.txt). */
+static void upd_ab_hint_zh(void) {
+    if (disp_lang_get() == DISP_LANG_ZH) {
+        screen_console_puts(get_text(MSG_UPD_NO_AB_HINT));
+        screen_console_puts("\n");
+    }
+}
+
 static int ota_ab_print_status(void) {
     ota_update_status_t st;
     if (ota_update_get_status(&st) != 0) {
@@ -1219,6 +1234,7 @@ int ota_cmd_update(const char *args) {
         }
         if (!g_ab_present) {
             screen_console_puts("update: no A/B disk\n");
+            upd_ab_hint_zh();
             return 1;
         }
         screen_console_puts("update: reading local package...\n");
@@ -1227,6 +1243,7 @@ int ota_cmd_update(const char *args) {
         const char *tgt = update_target_slot();   /* BUG-0110 FIX */
         if (!tgt) {
             screen_console_puts("update: cannot determine target slot (not booted from A/B?)\n");
+            upd_ab_hint_zh();
             return 1;
         }
         int rc = ota_update_install(p, tgt);
@@ -1259,6 +1276,7 @@ int ota_cmd_update(const char *args) {
     }
     if (!g_ab_present) {
         screen_console_puts("update: no A/B disk\n");
+        upd_ab_hint_zh();
         return 1;
     }
 
@@ -1293,6 +1311,7 @@ int ota_cmd_update(const char *args) {
     const char *tgt = update_target_slot();   /* BUG-0110 FIX */
     if (!tgt) {
         screen_console_puts("update: cannot determine target slot (not booted from A/B?)\n");
+        upd_ab_hint_zh();
         return 1;
     }
     rc = ota_update_install(pkg_path, tgt);
@@ -1321,6 +1340,7 @@ int ota_cmd_rollback(const char *args) {
     (void)args;
     if (!g_ab_present) {
         screen_console_puts("rollback: no A/B disk\n");
+        upd_ab_hint_zh();
         return 1;
     }
     screen_console_puts("rollback: current boot: ");

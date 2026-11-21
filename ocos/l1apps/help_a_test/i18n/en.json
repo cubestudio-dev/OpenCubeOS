@@ -1,4 +1,5 @@
 {
   "_hint": "registry A-Z listing invariant test",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "help_a_test: 'help -a' == default A-Z view, ordering verified: ": "help_a_test: 'help -a' == default A-Z view, ordering verified: "
 }

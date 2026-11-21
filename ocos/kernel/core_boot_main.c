@@ -60,6 +60,7 @@ int l1_ext_self_test(void);  /* boot/l1_selftest.c - WP-01 extension self-test *
 #include "svc_ipc_wp8a.h"   /* BUG-0254 FIX: the 21 int 0x80 wrappers get kernel-side callers (selftest step 8) */
 #include "core_lib_log.h"
 #include "core_lib_string.h"
+#include "core_i18n_res.h"   /* P2A-L0-I18N: get_text(MSG_BOOT_*) FATAL lines */
 
 /* WP-02 headers. */
 #include "arch_idt.h"
@@ -261,12 +262,18 @@ void kmain(u64 magic, u64 mbi_phys) {
 
     /* ---- 1. Validate multiboot2 ---- */
     if (magic != OC_MB2_MAGIC) {
-        screen_serial_puts("[oc] FATAL: bad multiboot2 magic\r\n");
+        /* P2A-L0-I18N: the three kmain FATAL lines render through the
+         * message resource (zh once `lang zh` persisted, en otherwise;
+         * disp_lang_get() reads its static en default until the config
+         * backend is up, so a boot-time failure is still English). */
+        screen_serial_puts(get_text(MSG_BOOT_MB2_MAGIC_BAD));
+        screen_serial_puts("\r\n");
         for (;;) { __asm__ volatile("hlt"); }
     }
     arch_multiboot2_info_t mbi;
     if (arch_multiboot2_parse(&mbi, (uintptr_t)mbi_phys) != 0) {
-        screen_serial_puts("[oc] FATAL: multiboot2 parse failed\r\n");
+        screen_serial_puts(get_text(MSG_BOOT_MB2_PARSE));
+        screen_serial_puts("\r\n");
         for (;;) { __asm__ volatile("hlt"); }
     }
 
@@ -280,7 +287,8 @@ void kmain(u64 magic, u64 mbi_phys) {
 
     /* ---- 2. Framebuffer ---- */
     if (screen_fb_init(mbi.fb) != 0) {
-        screen_serial_puts("[oc] FATAL: fb_init failed\r\n");
+        screen_serial_puts(get_text(MSG_BOOT_FB_INIT));
+        screen_serial_puts("\r\n");
         for (;;) { __asm__ volatile("hlt"); }
     }
 
@@ -569,6 +577,19 @@ void kmain(u64 magic, u64 mbi_phys) {
      * backend (the fs side lives in services/fs; core/lib keeps only
      * the key-value mechanism). */
     lib_config_init_with(fs_config_backend());
+
+    /* ---- WP-runtime-hardening 4.4/4.5: restore the persisted console
+     * locale + serial encoding (the old flow WROTE shell.lang on every
+     * `lang zh` but never read it back - a zh user rebooted to English
+     * every time; serial.encoding is new).  Unknown values degrade to
+     * the defaults (en / utf8) exactly like the manual commands. */
+    {
+        char v[32];
+        if (lib_config_read("shell.lang", v, sizeof(v)) == 0 && v[0])
+            disp_lang_set_str(v);
+        if (lib_config_read("serial.encoding", v, sizeof(v)) == 0 && v[0])
+            serial_enc_set(v);
+    }
 
     /* ---- WP-10-timer_rtc: ACPI PM timer ----
      * Initialized after lib_config_init() so the pmtimer.width config

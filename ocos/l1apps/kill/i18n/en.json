@@ -1,4 +1,5 @@
 {
   "_hint": "terminate a process",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "usage: kill <pid>\n": "usage: kill <pid>\n"
 }

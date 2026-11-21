@@ -1,4 +1,8 @@
 {
   "_hint": "带参数运行程序",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: run <program>   (registered programs below)\n": "用法：run <程序>   （已注册程序见下方列表）\n",
+  "run: fork failed\n": "run：fork 失败\n",
+  "run: unknown program: ": "run：未知程序：",
+  "started in background\n": "已在后台启动\n"
 }

@@ -1,4 +1,6 @@
 {
   "_hint": "流编辑器",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: sed s/old/new/[g] [file] | sed -n Np [file] | sed Nd [file]\n": "用法：sed s/旧/新/[g] [文件] | sed -n Np [文件] | sed Nd [文件]\n",
+  "sed: unknown script\n": "sed：未知脚本\n"
 }

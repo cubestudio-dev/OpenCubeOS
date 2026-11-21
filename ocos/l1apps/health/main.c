@@ -5,7 +5,9 @@
  * The v2.2.0 `health` command family (health / health watch /
  * health export) as ONE app: the subcommand word in argv[1] selects the
  * service op (the v2.2.0 shell dispatched the same words inside one
- * command).  Default (no subcommand) = the fresh-sample report. */
+ * command).  Default (no subcommand) = the fresh-sample report.
+ * WP-runtime-hardening i18n: the user-facing lines render through
+ * tr_(). */
 #include "l1_lib.h"
 #include "l1svc_ops.h"
 
@@ -14,7 +16,7 @@ static long call(long op, const char *arg) {
     long rc = sys_l1svc(L1SVC_CAT_HEALTH, op,
                         arg ? (long)arg : 0, (long)out, (long)sizeof(out));
     if (rc != 0) {
-        puts_("health: service call failed (rc=-1)\n");
+        puts_(tr_("health: service call failed (rc=-1)\n"));
         return 1;
     }
     puts_(out);
@@ -38,6 +40,6 @@ int app_main(int argc, char **argv) {
         }
         return call(L1SVC_HEALTH_EXPORT, path[0] ? path : 0);
     }
-    puts_("usage: health [watch|export [path]]\n");
+    puts_(tr_("usage: health [watch|export [path]]\n"));
     return 0;
 }

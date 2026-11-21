@@ -1,4 +1,7 @@
 {
   "_hint": "write stdin to a file",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  "usage: write <path> <text>\n": "usage: write <path> <text>\n",
+  "write: cannot open ": "write: cannot open ",
+  "write: write failed on ": "write: write failed on "
 }

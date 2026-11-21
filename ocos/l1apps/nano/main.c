@@ -3,14 +3,16 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "nano".
  * Moved verbatim from the ush `nano` builtin: thin shell over the
  * shared editor engine (_shared/editor_core.h, the WP-10-wp08fix1
- * nano-style editor, ^O save / ^X exit). */
+ * nano-style editor, ^O save / ^X exit).  WP-runtime-hardening
+ * i18n: the usage fragments render through tr_() (the editor core
+ * keeps its own English UI strings). */
 #include "editor_core.h"
 
 int app_main(int argc, char **argv) {
     if (argc < 2) {
-        puts_("usage: ");
+        puts_(tr_("usage: "));
         puts_(argv[0]);
-        puts_(" <file>\n");
+        puts_(tr_(" <file>\n"));
         return 0;
     }
     ush_nano_run(argv[1]);

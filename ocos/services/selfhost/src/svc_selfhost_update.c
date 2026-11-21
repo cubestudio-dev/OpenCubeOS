@@ -26,6 +26,8 @@
 #include "core_timer.h"
 #include "core_console_screen.h"
 #include "core_lib_log.h"
+#include "core_lib_i18n.h"   /* P2A-L0-I18N: disp_lang_get + DISP_LANG_ZH */
+#include "core_i18n_res.h"   /* P2A-L0-I18N: get_text(MSG_UPD_CHANGES_LABEL) */
 
 /* BUG-0347: comparison helper shared by the check and --status paths
  * (defined below, after its string helpers). */
@@ -841,8 +843,15 @@ int ota_update_check_async(void) {
 /* shell: checkupdate command                                          */
 /* ------------------------------------------------------------------ */
 
-/* checkupdate - run the update check now, print a full-English report.
- * All output strings are ASCII (0x20..0x7E) by design. */
+/* checkupdate - run the update check now, print the report.
+ * The verdict lines ("New version available." / "Current version is up
+ * to date.") are MACHINE-CONTRACT English - the update wizard greps
+ * them and tools/fix1_checkupdate_e2e.py greps "up to date" - so they
+ * stay literals.  P2A-L0-I18N: the "Changes: " LABEL follows the
+ * console locale (MSG_UPD_CHANGES_LABEL; the zh column is "更新内容："
+ * while the en flow keeps the ASCII literal below byte-identical).
+ * The changelog BODY stays as the server sent it - the v2 bilingual
+ * changelog is a separate work item. */
 int ota_cmd_checkupdate(const char *args) {
     (void)args;
     ota_update_info_t info;
@@ -858,7 +867,12 @@ int ota_cmd_checkupdate(const char *args) {
         screen_console_puts("New version available.\n");
         screen_console_puts("Version: "); screen_console_puts(info.version); screen_console_puts("\n");
         screen_console_puts("Time: ");    screen_console_puts(info.time);    screen_console_puts("\n");
-        screen_console_puts("Changes: "); screen_console_puts(info.changes); screen_console_puts("\n");
+        /* P2A-L0-I18N: zh prints the localized label from the message
+         * resource; en keeps the literal above (same bytes). */
+        screen_console_puts(disp_lang_get() == DISP_LANG_ZH
+                                ? get_text(MSG_UPD_CHANGES_LABEL)
+                                : "Changes: ");
+        screen_console_puts(info.changes); screen_console_puts("\n");
         return 0;
     }
     screen_console_puts("checkupdate: ");

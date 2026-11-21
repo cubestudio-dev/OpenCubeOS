@@ -1,4 +1,6 @@
 {
   "_hint": "对主机发 ICMP 回显",
-  "svc_call_failed": "：服务调用失败（rc=-1）\n"
+  "svc_call_failed": "：服务调用失败（rc=-1）\n",
+  "usage: ping <host>\n": "用法：ping <主机>\n",
+  "ping: kernel bridge unavailable\n": "ping：内核网络桥不可用\n"
 }

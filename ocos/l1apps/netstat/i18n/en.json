@@ -1,4 +1,5 @@
 {
   "_hint": "socket/connection statistics",
-  "svc_call_failed": ": service call failed (rc=-1)\n"
+  "svc_call_failed": ": service call failed (rc=-1)\n",
+  ": kernel bridge unavailable\n": ": kernel bridge unavailable\n"
 }
