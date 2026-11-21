@@ -81,9 +81,11 @@ jobs:
           echo "$report" | grep -q 'El Torito boot img : 1 BIOS y none'
           echo "$report" | grep -q 'El Torito boot img : 2 UEFI y none'
           ls -la dist/
-          test -s "dist/OpenCubeOS-src-3.0.0-NAK.zip"
-          test -s "dist/OpenCubeOS-3.0.0-NAK-update.tar.gz"
-          echo "artifacts verified"
+          # the release version is the Makefile default (single source)
+          V=$(grep -m1 '^OC_RELEASE_VERSION ?=' Makefile | sed 's/.*= //')
+          test -s "dist/OpenCubeOS-src-$V.zip"
+          test -s "dist/OpenCubeOS-$V-update.tar.gz"
+          echo "artifacts verified (version $V)"
 
       - name: Verify make clean leaves no products
         run: |
