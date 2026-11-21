@@ -1,0 +1,3 @@
+2565f075cef5e31767e7ef03b664b6f9a2f579580a91a4ecf40b10facf2acc89  dist/opencube-3.0.0-WP-runtime-hardening-and-experience-rebase.iso
+c735f4975f5ad98100cdaf7c4b7f2b80450be56ea777aa96f5d632766422f7b6  dist/opencube-3.0.0-WP-runtime-hardening-and-experience-rebase-src.zip
+db0c8b33a67543cd47f77d7b7b0a864445bb8350c1700acf6ebe713fa058095b  dist/opencube-3.0.0-WP-runtime-hardening-and-experience-rebase-update.tar.gz

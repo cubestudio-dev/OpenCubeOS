@@ -241,3 +241,9 @@ services are live
 - Candidate future fix: a `WaitForEvent`-based menu loop that pumps
   the firmware event system while the countdown runs.  Out of this
   package's scope; registered here.
+
+## K-07 UEFI 轨不再扫描非引导磁盘（WP-runtime-hardening）
+
+OCRMECL 的 post-EBS 架构下，OCBL 的唯一磁盘后端是引导介质的 RAM 副本：多盘扫描、
+A/B 槽位引导与外部 loader 链式加载在 UEFI 轨不可用（BIOS 轨不受影响）。修复方向：
+在 OCRMECL 中增加磁盘驱动（AHCI/NVMe/virtio），属后续工作包。

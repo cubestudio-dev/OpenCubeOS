@@ -16,6 +16,7 @@
 
 ## 发布说明
 
+- [3.0.0-WP-runtime-hardening-and-experience-rebase](3.0.0-WP-runtime-hardening-and-experience-rebase.md)（最新）
 - [3.0.0-WP-tui-input-encoding-hardening](3.0.0-WP-tui-input-encoding-hardening.md) - TUI 输入与编码加固：
   OCIRE 空格修复、跨写入 UTF-8 TTY、串口方向裁定、VMware 三重
   故障修复、TUI 入口隐藏、三链路扩展排查

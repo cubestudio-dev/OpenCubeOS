@@ -16,6 +16,7 @@
 
 ## Release notes
 
+- [3.0.0-WP-runtime-hardening-and-experience-rebase](3.0.0-WP-runtime-hardening-and-experience-rebase.md)（最新）
 - [3.0.0-WP-tui-input-encoding-hardening](3.0.0-WP-tui-input-encoding-hardening.md) - the TUI input and
   encoding hardening: the OCIRE space fix, the cross-write UTF-8
   TTY, the serial direction verdict, the VMware triple-fault fix,
