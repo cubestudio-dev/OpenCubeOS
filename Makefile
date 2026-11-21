@@ -493,6 +493,8 @@ $(KERNEL): $(BASE_ELF) $(GRUB_DATA_OBJ) $(L0_I18N_GEN) $(IME_PHRASE_GEN) $(OC_RO
 # embedded programs either.
 $(KERNEL_ISO): $(KERNEL) $(USERPROGS_HDR) $(BUILD)/ocbl/ocbl_bios.bin \
                $(BUILD)/ocbl/ocbl_x64.efi $(BUILD)/ocire/ocire.elf \
+               $(BUILD)/ocrmecl/ocrmecl_bios.bin \
+               $(BUILD)/ocrmecl/ocrmecl_x64.efi \
                $(OC_ROOT)/tools/build_iso.sh
 	mkdir -p $(BUILD)
 	bash $(OC_ROOT)/tools/build_iso.sh
