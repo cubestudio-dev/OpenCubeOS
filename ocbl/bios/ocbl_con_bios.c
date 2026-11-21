@@ -12,15 +12,59 @@
 #include "ocbl_vga.h"
 #include "ocbl_bios.h"
 
-/* ---- clock: int 1Ah AH=00h ticks since midnight (54.9 ms) ---- */
+/* ---- clock: the PIT channel 0 read directly -----------------------
+ * WP-runtime-hardening: OCRMECL flattens the machine with every PIC
+ * line masked, so the BIOS tick (IRQ0 -> BDA 0x46C -> int 1Ah) never
+ * advances and the old int-1Ah clock froze the menu countdown on the
+ * very first post-OCRMECL full-ISO boot.  The menu now reads the PIT
+ * counter itself (mode 2, 50 ms period, fractional accumulator) -
+ * the same implementation the RAW flavor uses: no IRQ, no firmware
+ * dependency, deterministic under the flattened machine. */
+#define PIT_DIV 59659u
+
+static u32 g_ms;
+static u32 g_sub;
+static u16 g_last;
+static int g_pit_ready;
+
+static void pit_out(u16 port, u8 val)
+{
+    __asm__ volatile("outb %0, %1" : : "a"(val), "Nd"(port));
+}
+
+static u8 pit_in(u16 port)
+{
+    u8 v;
+    __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(port));
+    return v;
+}
+
+static u16 pit_read(void)
+{
+    pit_out(0x43, 0x00);                       /* latch channel 0 */
+    u8 lo = pit_in(0x40);
+    u8 hi = pit_in(0x40);
+    return (u16)((hi << 8) | lo);
+}
+
 u32 ocbl_plat_ms(void)
 {
-    ocbl_bios_regs_t r = {0};
-    r.eax = 0x0000;
-    ocbl_bios_int(0x1A, &r);
-    u32 ticks = ((u32)r.ecx << 16) | (r.edx & 0xFFFF);
-    /* 18.2065 Hz -> ms; u32 wrap at ~49 days is fine for the menu */
-    return ticks * 55u;
+    if (!g_pit_ready) {
+        pit_out(0x43, 0x34);                   /* ch0, lo/hi, mode 2 */
+        pit_out(0x40, (u8)(PIT_DIV & 0xFF));
+        pit_out(0x40, (u8)(PIT_DIV >> 8));
+        g_last = pit_read();
+        g_pit_ready = 1;
+    }
+    u16 now = pit_read();
+    u16 delta = (u16)(g_last - now);
+    g_last = now;
+    g_sub += (u32)delta * 50u;
+    while (g_sub >= PIT_DIV) {
+        g_ms += 50;
+        g_sub -= PIT_DIV;
+    }
+    return g_ms;
 }
 
 /* ---- keyboard: int 16h (PS/2) + int 14h (serial line) ----

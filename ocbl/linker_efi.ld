@@ -16,7 +16,7 @@
  *          difference between the ELF start and the first PE section
  *          RVA - which made even a zero-delta load read garbage).
  */
-ENTRY(efi_main)
+ENTRY(ocbl_raw_entry)
 
 SECTIONS
 {

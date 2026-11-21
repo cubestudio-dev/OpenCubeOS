@@ -121,13 +121,16 @@ OCBL_EFI_CFLAGS := -ffreestanding -fno-stack-protector -fno-pie -fno-pic \
                    -fno-ident -fno-asynchronous-unwind-tables \
                    -Wall -Wextra -Werror -O2 -std=gnu11 \
                    -I$(OCBL_DIR)/common -I$(OCBL_DIR)/efi -I$(OC_ROOT)/include \
+                   -I$(OC_ROOT)/interface \
                    -DOCBL_FLAVOR_UEFI \
                    -DOCBL_RELEASE="\"$(OC_RELEASE_VERSION)\"" \
                    -DOCBL_BUILD=$(OC_KERNEL_BUILD)
 
-# flavor-independent common sources the EFI build links (B5-3: the
-# scanner chain - fs/part/scan - is firmware-agnostic since B5-2;
-# menu/load/acpi/wdt join as their backends land in B5-4/5/6)
+# flavor-independent common sources the EFI build links.  Since
+# WP-runtime-hardening the efi/ backends are: ocbl_raw.c (the
+# post-EBS entry), ocbl_ramdisk.c (the RAM-ISO disk), ocbl_con_efi.c
+# (fb console + PIT clock + serial keys), ocbl_mmap_efi.c (the
+# captured EBS map), ocbl_font_data.c (glyphs)
 OCBL_EFI_SRC := $(wildcard $(OCBL_DIR)/efi/*.c) \
                 $(OCBL_DIR)/common/ocbl_statemon.c \
                 $(OCBL_DIR)/common/ocbl_serial.c \
@@ -169,7 +172,7 @@ $(OCBL_OUT)/ocbl_x64.efi: $(OCBL_EFI_OBJ) $(OCBL_OUT)/efiobj/handoff_data.o $(OC
 	$(LD) -m elf_x86_64 --emit-relocs -n -nostdlib \
               -T $(OCBL_DIR)/linker_efi.ld -o $(OCBL_OUT)/core_efi.elf \
               $(OCBL_EFI_OBJ) $(OCBL_OUT)/efiobj/handoff_data.o
-	python3 $(OCBL_DIR)/elf_to_efi.py $(OCBL_OUT)/core_efi.elf $@ efi_main
+	python3 $(OCBL_DIR)/elf_to_efi.py $(OCBL_OUT)/core_efi.elf $@ ocbl_raw_entry
 	python3 -c "d=open('$(abspath $@)','rb').read(); pe=int.from_bytes(d[0x3c:0x40],'little'); assert d[:2]==b'MZ' and d[pe:pe+4]==b'PE\x00\x00' and int.from_bytes(d[pe+4:pe+6],'little')==0x8664 and int.from_bytes(d[pe+0x5c:pe+0x5e],'little')==10, 'bad PE/EFI header'; print('ocbl: ocbl_x64.efi %d bytes (x64 EFI app)' % len(d))"
 
 .PHONY: ocbl-efi
@@ -181,12 +184,19 @@ ocbl-efi: $(OCBL_OUT)/ocbl_x64.efi
 # script-only fix left the ISO stale because the file target looked fresh
 # - the same stale-dependency class as WP-02 F5; scripts in the recipe
 # chain must be dependencies).
-$(OCBL_OUT)/ocbl_test.iso: $(OCBL_OUT)/ocbl_bios.bin $(OCBL_OUT)/ocbl_x64.efi $(OCBL_DIR)/build_test_iso.py
+# WP-runtime-hardening: the test ISO carries the OCRMECL chain too -
+# BIOS El Torito = the OCRMECL composite (embeds ocbl_bios.bin), the
+# ESP BOOTX64.EFI = the OCRMECL PE, and OCBL.EFI rides the root for
+# the UEFI track's LoadImage.  Literal $(BUILD)/ocrmecl paths: this
+# file is included BEFORE ocrmecl.mk, so its variables are not set
+# at rule-parse time (make expands prerequisites immediately).
+$(OCBL_OUT)/ocbl_test.iso: $(BUILD)/ocrmecl/ocrmecl_bios.bin $(BUILD)/ocrmecl/ocrmecl_x64.efi $(OCBL_OUT)/ocbl_x64.efi $(OCBL_DIR)/build_test_iso.py
 	rm -rf $(OCBL_OUT)/iso-stage
 	mkdir -p $(OCBL_OUT)/iso-stage
-	cp $(OCBL_OUT)/ocbl_bios.bin $(OCBL_OUT)/iso-stage/OCBL.BIN
-	cp $(OCBL_OUT)/ocbl_x64.efi $(OCBL_OUT)/iso-stage/BOOTX64.EFI
-	python3 $(OCBL_DIR)/build_test_iso.py $@ $(OCBL_OUT)/iso-stage OCBL.BIN BOOTX64.EFI
+	cp $(BUILD)/ocrmecl/ocrmecl_bios.bin $(OCBL_OUT)/iso-stage/OCRMECL.BIN
+	cp $(OCBL_OUT)/ocbl_x64.efi $(OCBL_OUT)/iso-stage/OCBL.EFI
+	cp $(BUILD)/ocrmecl/ocrmecl_x64.efi $(OCBL_OUT)/iso-stage/BOOTX64.EFI
+	python3 $(OCBL_DIR)/build_test_iso.py $@ $(OCBL_OUT)/iso-stage OCRMECL.BIN BOOTX64.EFI
 
 .PHONY: ocbl-bios ocbl-iso ocbl-run-bios ocbl-run-uefi
 

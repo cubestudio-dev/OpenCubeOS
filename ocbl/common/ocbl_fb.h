@@ -23,10 +23,7 @@ typedef struct ocbl_fb_info {
     u8  blue_pos, blue_size;
 } ocbl_fb_info_t;
 
-#ifdef OCBL_FLAVOR_UEFI
-/* B5-5: the GOP backend - set 800x600x32 (or the best linear mode)
- * and fill `fb`.  Returns false when no linear framebuffer exists. */
-bool ocbl_gop_set_fb(ocbl_fb_info_t* fb);
-#endif
+/* Since WP-runtime-hardening the UEFI track fills this from the
+ * OCRMECL handoff (ocbl_raw.c) - the GOP code lives in OCRMECL now. */
 
 #endif /* OCBL_FB_H */

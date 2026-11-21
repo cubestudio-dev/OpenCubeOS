@@ -735,6 +735,13 @@ include $(OC_ROOT)/ocbl/ocbl.mk
 # from tag v1.0.0; see ocse/VENDORING.md). Independent of the OCOS tree.
 include $(OC_ROOT)/ocse/ocse.mk
 
+# 3.0.0-WP-runtime-hardening-and-experience-rebase: OCRMECL - the
+# boot compatibility layer that runs BEFORE OCBL on both firmware
+# tracks (the BIOS El Torito composite embeds ocbl_bios.bin; the UEFI
+# BOOTX64.EFI is the OCRMECL PE).  Included AFTER ocbl.mk because the
+# BIOS composite consumes $(BUILD)/ocbl/ocbl_bios.bin.
+include $(OC_ROOT)/ocrmecl/ocrmmecl.mk
+
 endif # ARCH dispatch
 
 # ---- WP-14-docs_release: documentation data generation ----

@@ -277,16 +277,11 @@ typedef struct efi_boot_services {
     void* create_event_ex;
 } efi_boot_services;
 
-/* ---- flavor globals (defined in efi_entry.c) ---- */
-extern efi_handle ocbl_efi_image;
-extern efi_system_table* ocbl_efi_st;
-extern efi_boot_services* ocbl_efi_bs;
-
-/* ---- GUIDs we need ---- */
-extern const efi_guid ocbl_efi_block_io_guid;
-extern const efi_guid ocbl_efi_gop_guid;
-extern const efi_guid ocbl_efi_loaded_image_guid;
-extern const efi_guid ocbl_efi_acpi20_guid;     /* ACPI 2.0 RSDP config entry */
-extern const efi_guid ocbl_efi_acpi10_guid;     /* ACPI 1.0 fallback */
+/* ---- types only since WP-runtime-hardening ------------------------
+ * The RAW flavor never calls a firmware service (OCRMECL did them
+ * all before the handoff); what remains here is the descriptor
+ * layout the captured EBS memory map uses (ocbl_mmap_efi.c) and the
+ * ABI helper for the raw entry (ocbl_raw.c).  The former flavor
+ * globals and GUID externs died with the firmware-flow files. */
 
 #endif /* OCBL_EFI_H */

@@ -29,6 +29,16 @@ if [ ! -f "$BUILD/ocbl/ocbl_bios.bin" ] || \
     echo "[build_iso] FATAL: OCBL images missing (make ocbl-bios ocbl-efi)" >&2
     exit 1
 fi
+# WP-runtime-hardening: the boot chain is OCRMECL -> OCBL now.  The
+# BIOS El Torito image is the OCRMECL composite (it EMBEDS
+# ocbl_bios.bin - the packer ocrmecl/bios/build_ocr_image.py appends
+# it); the UEFI BOOTX64.EFI is the OCRMECL PE, and the OCBL PE rides
+# the ISO9660 root as /OCBL.EFI for OCRMECL's LoadImage-from-buffer.
+if [ ! -f "$BUILD/ocrmecl/ocrmecl_bios.bin" ] || \
+   [ ! -f "$BUILD/ocrmecl/ocrmecl_x64.efi" ]; then
+    echo "[build_iso] FATAL: OCRMECL images missing (make ocrmecl)" >&2
+    exit 1
+fi
 # WP06g3-4.4: the recovery kernel rides the main ISO too - the OCBL
 # scanner finds /boot/ocire.elf and offers "OCIRE recovery" in the
 # boot menu straight from the install medium.
@@ -51,15 +61,16 @@ cp "$BUILD/opencube.elf" "$ISO_STAGE/boot/opencube.elf"
 #         environment was architecturally absent from every path) ---
 cp "$BUILD/ocire/ocire.elf" "$ISO_STAGE/boot/ocire.elf"
 
-# --- 2. the OCBL dual-firmware pair ---
-cp "$BUILD/ocbl/ocbl_bios.bin" "$ISO_STAGE/OCBL.BIN"
-cp "$BUILD/ocbl/ocbl_x64.efi" "$ISO_STAGE/BOOTX64.EFI"
+# --- 2. the OCRMECL boot chain: composite (BIOS) + PE pair (UEFI) ---
+cp "$BUILD/ocrmecl/ocrmecl_bios.bin" "$ISO_STAGE/OCRMECL.BIN"
+cp "$BUILD/ocbl/ocbl_x64.efi" "$ISO_STAGE/OCBL.EFI"
+cp "$BUILD/ocrmecl/ocrmecl_x64.efi" "$ISO_STAGE/BOOTX64.EFI"
 
-# --- 3. assemble: BIOS El Torito (stage1+core) + UEFI El Torito
-#        (1 MiB ESP FAT with /EFI/BOOT/BOOTX64.EFI), G13 seals and all,
-#        through the same OCBL packer the B-batches drove live ---
+# --- 3. assemble: BIOS El Torito (the OCRMECL composite) + UEFI El
+#        Torito (1 MiB ESP FAT with /EFI/BOOT/BOOTX64.EFI = OCRMECL),
+#        G13 seals and all, through the same OCBL packer ---
 python3 "$OC_ROOT/ocbl/build_test_iso.py" "$BUILD/opencube.iso" \
-        "$ISO_STAGE" OCBL.BIN BOOTX64.EFI
+        "$ISO_STAGE" OCRMECL.BIN BOOTX64.EFI
 
 echo "[build_iso] ISO: $BUILD/opencube.iso"
 ls -la "$BUILD/opencube.iso"

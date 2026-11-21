@@ -1,153 +1,180 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS - 3.0.0-WP05-ocbl
+/* Open Cube OS - 3.0.0-WP-runtime-hardening-and-experience-rebase
  * File: ocbl/efi/ocbl_con_efi.c
- * Purpose: the UEFI flavor of the platform console/clock/keyboard
- *          backend (ocbl_platform.h).  Console = the firmware ConOut
- *          (80x25 text, SetAttribute for the highlight bar - OVMF
- *          mirrors it to the serial line, so the acceptance
- *          transcripts show the same menu as the BIOS flavor's);
- *          clock = a boot-services timer event polled at 100 ms;
- *          keys = ReadKeyStroke (the PS/2 path under OVMF) plus the
- *          16550 serial line read directly - the same dual-source,
- *          three-key contract the BIOS flavor serves.
+ * Purpose: the RAW flavor of the platform console/clock/keyboard
+ *          backend (ocbl_platform.h).  Since WP-runtime-hardening the
+ *          UEFI track enters OCBL AFTER ExitBootServices (through
+ *          OCRMECL, interface/boot_handoff.h) - no ConOut, no timer
+ *          events, no ReadKeyStroke exist anymore.  The backend is
+ *          therefore pure hardware:
+ *
+ *            console - the GOP framebuffer captured by OCRMECL, with
+ *                      the 8x16 ASCII font (ocbl_font_data.c); the
+ *                      80x25 menu grid renders at 8x16 cell size
+ *            clock   - the PIT channel 0, reprogrammed to mode 2
+ *                      (divisor 59659 = 50 ms period, polled with a
+ *                      fractional accumulator; the kernel reprograms
+ *                      the PIT during its own bring-up anyway)
+ *            keys    - the 16550 serial line only (the same
+ *                      three-key contract as the BIOS flavor's
+ *                      direct-poll path; 'A'/'B' = CSI arrow tails)
+ *
+ *          The serial RENDER of the menu stays in common code
+ *          (ocbl_menu.c) - unchanged.
  */
-#include "efi.h"
 #include "../common/ocbl_platform.h"
 #include "../common/ocbl_serial.h"
+#include "ocbl_font.h"
+#include "boot_handoff.h"
 
-/* ---- clock: 100 ms timer event ---- */
-static efi_event g_timer;
-static u32 g_ticks;                  /* 100 ms units */
+/* ---- framebuffer state (set once from the OCRMECL handoff) ---- */
+static u8* g_fb;
+static u32 g_pitch, g_w, g_h;
+static u8 g_bgr;
 
-static void timer_ensure(void)
+void ocbl_fbcon_init(const ocr_uefi_handoff_t* h)
 {
-    if (g_timer)
+    g_fb = (u8*)(u64)h->fb_addr;
+    g_pitch = h->fb_pitch;
+    g_w = h->fb_width;
+    g_h = h->fb_height;
+    g_bgr = !h->fb_rgb;             /* 1 = BGRx (pixel format 1) */
+    if (!g_fb)
         return;
-    if (ocbl_efi_bs->create_event(0x80000000 /* EVT_TIMER */, 0,
-                                  0, 0, &g_timer) == EFI_SUCCESS)
-        ocbl_efi_bs->set_timer(g_timer, 1 /* Periodic */, 100 * 1000);
+    for (u32 y = 0; y < g_h; y++) {
+        u32* row = (u32*)(g_fb + (u64)y * g_pitch);
+        for (u32 x = 0; x < g_w && x * 4 < g_pitch * 8; x++)
+            row[x] = 0xFF000000;
+    }
 }
 
-u32 ocbl_plat_ms(void)
+static void put_glyph(u32 px, u32 py, char c, u32 fg, u32 bg)
 {
-    timer_ensure();
-    if (g_timer) {
-        while (ocbl_efi_bs->check_event(g_timer) == EFI_SUCCESS)
-            g_ticks++;
+    if (!g_fb || px + 8 > g_w || py + 16 > g_h)
+        return;
+    const u8* glyph = ocbl_font8x16[(u8)c - 32];
+    for (u32 y = 0; y < 16; y++) {
+        u8 bits = glyph[y];
+        u32* row = (u32*)(g_fb + (u64)(py + y) * g_pitch);
+        for (u32 x = 0; x < 8; x++) {
+            u32 v = (bits & (0x80u >> x)) ? fg : bg;
+            /* BGRA vs RGBA byte order in the 32-bit word: the QEMU
+             * std-VGA GOP exposes format 1 (BGRx: B@16 G@8 R@0) or
+             * format 0 (RGBx: R@16 G@8 B@0); fold via the flag. */
+            if (g_bgr)
+                row[px + x] = 0xFF000000u |
+                    ((v & 0xFF) << 16) | (v & 0x00FF00) | ((v >> 16) & 0xFF);
+            else
+                row[px + x] = 0xFF000000u | v;
+        }
     }
-    return g_ticks * 100u;
 }
 
-/* ---- keyboard: the 16550 line FIRST, then ReadKeyStroke ----
- * B5-5 live-caught: OVMF's Terminal/ConIn driver reads the SAME RBR
- * when ReadKeyStroke is called - calling it first steals a byte of
- * the serial CSI sequence (ESC '[' tail), and neither consumer ever
- * sees a complete key (the injected arrow silently vanished, the pick
- * fell back to the default entry).  Order matters: drain OUR OWN
- * polled serial byte first (it needs no firmware driver), and only
- * then ask ConIn for PS/2 events - those live in the firmware's own
- * queue and cannot be stolen by us. */
-/* B5-5 bring-up: key-path counters - one live run tells which of
- * the two sources is silent (diagnostics only, zero behavior).
- * ser_bytes  - raw bytes our own 16550 poll consumed
- * conin_calls- ReadKeyStroke invocations
- * conin_hits- ReadKeyStroke returns with EFI_SUCCESS */
-int ocbl_plat_getkey(void)
-{
-    /* serial console keying - the 16550 is plain port I/O under UEFI
-     * exactly as under BIOS; the harness writes the same CSI tails */
-    u8 lsr;
-    __asm__ volatile("inb %1, %0" : "=a"(lsr) : "d"((u16)0x3FD));
-    if (lsr & 0x01) {
-        char c;
-        __asm__ volatile("inb %1, %0" : "=a"(c) : "d"((u16)0x3F8));
-        if (c == 'A')
-            return OCBL_KEY_UP;      /* CSI tail after ESC+'[' */
-        if (c == 'B')
-            return OCBL_KEY_DOWN;
-        if (c == '\r' || c == '\n')
-            return OCBL_KEY_ENTER;
-        /* ESC and '[' are consumed and ignored - the tail decides */
-    }
-    /* firmware keyboard (PS/2 through OVMF) */
-    efi_input_key k;
-    if (ocbl_efi_st->con_in &&
-        ocbl_efi_st->con_in->read_keystroke(ocbl_efi_st->con_in, &k)
-            == EFI_SUCCESS) {
-        if (k.scan_code == 1)
-            return OCBL_KEY_UP;      /* SCAN_UP   */
-        if (k.scan_code == 2)
-            return OCBL_KEY_DOWN;    /* SCAN_DOWN */
-        if (k.unicode == '\r' || k.unicode == '\n')
-            return OCBL_KEY_ENTER;
-        /* WP-tui-input-encoding-hardening 4.5: the B5-5 steal is a
-         * RACE, not a solved problem - OVMF's ConIn terminal driver
-         * can consume a serial byte our own 16550 poll was about to
-         * read, and it surfaces HERE as a unicode key.  Accept the
-         * same three navigation keys the serial contract defines
-         * ('A'/'B' the CSI-arrow tails, CR the Enter) so a stolen
-         * byte still navigates instead of dying in the three-key
-         * rule (live-caught: the menu countdown ran to zero on OVMF
-         * while the serial 'B' was being stolen).  Every other key
-         * stays consumed-and-ignored. */
-        if (k.unicode == 'A')
-            return OCBL_KEY_UP;
-        if (k.unicode == 'B')
-            return OCBL_KEY_DOWN;
-    }
-    return -1;
-}
-
-/* ---- rendering: ConOut ---- */
-static void con_out_str(const char* s)
-{
-    static efi_char16 w[160];
-    u32 i = 0;
-    while (s[i] && i + 1 < sizeof(w) / sizeof(w[0])) {
-        w[i] = (efi_char16)(u8)s[i];
-        i++;
-    }
-    w[i] = 0;
-    if (ocbl_efi_st->con_out)
-        ocbl_efi_st->con_out->output_string(ocbl_efi_st->con_out, w);
-}
-
+/* ---- the ocbl_platform.h console contract (80x25 grid) ---- */
 void ocbl_plat_con_init(void)
 {
-    if (!ocbl_efi_st->con_out)
+    if (!g_fb)
         return;
-    ocbl_efi_st->con_out->reset(ocbl_efi_st->con_out, 0);
-    ocbl_efi_st->con_out->clear_screen(ocbl_efi_st->con_out);
-    ocbl_efi_st->con_out->enable_cursor(ocbl_efi_st->con_out, 0);
-    /* pad the ENTRY lines like the VGA renderer does (full-width
-     * bar): pre-clear attribute 0x07 over the 25 rows */
-    ocbl_efi_st->con_out->set_attribute(ocbl_efi_st->con_out, 0x07);
+    for (u32 y = 0; y < g_h; y++) {
+        u32* row = (u32*)(g_fb + (u64)y * g_pitch);
+        for (u32 x = 0; x < g_w; x++)
+            row[x] = 0xFF000000;
+    }
 }
 
 void ocbl_plat_con_line(u8 row, u8 col, const char* s, u8 style)
 {
-    if (!ocbl_efi_st->con_out)
+    if (!g_fb)
         return;
-    /* attributes: 0x07 gray-on-black, 0x0F bright, 0x70 inverse bar */
-    u64 attr = 0x07;
-    if (style == OCBL_CON_SELECT)
-        attr = 0x70;
-    else if (style == OCBL_CON_BRIGHT)
-        attr = 0x0F;
-    if (style == OCBL_CON_ENTRY || style == OCBL_CON_SELECT) {
-        /* full-width padded bar: spaces at the attribute, then text */
-        ocbl_efi_st->con_out->set_attribute(ocbl_efi_st->con_out, attr);
-        ocbl_efi_st->con_out->set_cursor_pos(ocbl_efi_st->con_out,
-                                             0, row);
-        static efi_char16 blank[81];
-        for (int i = 0; i < 80; i++)
-            blank[i] = ' ';
-        blank[80] = 0;
-        ocbl_efi_st->con_out->output_string(ocbl_efi_st->con_out, blank);
-    } else {
-        ocbl_efi_st->con_out->set_attribute(ocbl_efi_st->con_out, attr);
+    u32 fg = 0xCCCCCC, bg = 0x000000;
+    if (style == OCBL_CON_SELECT) {
+        fg = 0x000000;
+        bg = 0xCCCCCC;
+    } else if (style == OCBL_CON_BRIGHT) {
+        fg = 0xFFFFFF;
     }
-    ocbl_efi_st->con_out->set_cursor_pos(ocbl_efi_st->con_out, col, row);
-    con_out_str(s);
+    u32 py = (u32)row * 16;
+    /* the entry/select rows get the full-width padded bar (B3 look) */
+    if (style == OCBL_CON_ENTRY || style == OCBL_CON_SELECT) {
+        for (u8 i = 0; i < 80; i++)
+            put_glyph((u32)i * 8, py, ' ', fg, bg);
+    }
+    for (int i = 0; s[i] && col + i < 80; i++)
+        put_glyph((u32)(col + i) * 8, py, s[i], fg, bg);
+}
+
+/* ---- clock: PIT channel 0, mode 2, 50 ms period -------------------
+ * The counter counts DOWN at 1193182 Hz and reloads at the divisor;
+ * elapsed ticks between two reads = last - now (mod 2^16). */
+#define PIT_DIV 59659u
+
+static u32 g_ms;
+static u32 g_sub;
+static u16 g_last;
+static int g_pit_ready;
+
+static void outb_(u16 port, u8 val)
+{
+    __asm__ volatile("outb %0, %1" : : "a"(val), "Nd"(port));
+}
+
+static u8 inb_(u16 port)
+{
+    u8 v;
+    __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(port));
+    return v;
+}
+
+static u16 pit_read(void)
+{
+    outb_(0x43, 0x00);              /* latch channel 0 */
+    u8 lo = inb_(0x40);
+    u8 hi = inb_(0x40);
+    return (u16)((hi << 8) | lo);
+}
+
+static void pit_ensure(void)
+{
+    if (g_pit_ready)
+        return;
+    outb_(0x43, 0x34);              /* ch0, lo/hi, mode 2 */
+    outb_(0x40, (u8)(PIT_DIV & 0xFF));
+    outb_(0x40, (u8)(PIT_DIV >> 8));
+    g_last = pit_read();
+    g_pit_ready = 1;
+}
+
+u32 ocbl_plat_ms(void)
+{
+    pit_ensure();
+    u16 now = pit_read();
+    u16 delta = (u16)(g_last - now);
+    g_last = now;
+    g_sub += (u32)delta * 50u;
+    while (g_sub >= PIT_DIV) {
+        g_ms += 50;
+        g_sub -= PIT_DIV;
+    }
+    return g_ms;
+}
+
+/* ---- keys: the 16550 serial line only (post-EBS there is no other
+ *      input source; same contract + CSI tails as the BIOS flavor) */
+int ocbl_plat_getkey(void)
+{
+    u8 lsr;
+    __asm__ volatile("inb %1, %0" : "=a"(lsr) : "dN"((u16)0x3FD));
+    if (lsr & 0x01) {
+        char c;
+        __asm__ volatile("inb %1, %0" : "=a"(c) : "dN"((u16)0x3F8));
+        if (c == 'A')
+            return OCBL_KEY_UP;
+        if (c == 'B')
+            return OCBL_KEY_DOWN;
+        if (c == '\r' || c == '\n')
+            return OCBL_KEY_ENTER;
+        return -1;
+    }
+    return -1;
 }
