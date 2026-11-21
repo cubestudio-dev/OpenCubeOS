@@ -1,10 +1,14 @@
 {
-    "version": "3.0.0-WP-tui-input-encoding-hardening",
-    "build": 478,
-    "time": "2026-11-20",
-    "changes": "input/encoding/display hardening: OCIRE space fix (scan-code overrun), cross-write UTF-8 TTY, serial direction verdict, VMware triple-fault fix (own IDT + low-memory discipline), TUI entry hiding (8 registered/unlisted), three-chain sweep",
+    "version": "3.0.0-WP-runtime-hardening-and-experience-rebase",
+    "build": 479,
+    "time": "2026-11-21",
+    "changes": "runtime hardening: OCRMECL boot compatibility layer (strict-matrix green), i18n resource system with get_text, serial-probe wizard, TUI build switch, update live-mode tolerance, website download fix",
+    "description": {
+        "en": "runtime hardening: OCRMECL boot compatibility layer (strict-matrix green), i18n resource system with get_text, serial-probe wizard, TUI build switch, update live-mode tolerance, website download fix",
+        "zh": "运行时加固：OCRMECL 引导兼容层（严格矩阵双绿）、i18n 资源体系与 get_text、串口编码自检向导、TUI 三态编译开关、更新程序 Live 环境容错、官网下载直链修复"
+    },
     "changes_v2_url": "https://ocos.cubestudio.cn/update-v2.json",
-    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-tui-input-encoding-hardening-update.tar.gz",
-    "package_sha256": "60d5f7a359f62ff898f782dce8dc3e508783bc544c566f3f3eb0174a22d7fb66",
-    "package_size": 1514237
+    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-runtime-hardening-and-experience-rebase-update.tar.gz",
+    "package_sha256": "db0c8b33a67543cd47f77d7b7b0a864445bb8350c1700acf6ebe713fa058095b",
+    "package_size": 1409549
 }
