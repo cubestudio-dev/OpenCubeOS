@@ -6,6 +6,8 @@
 #define OC_CONFIG_NVME        1
 #define OC_CONFIG_AHCI        1
 #define OC_CONFIG_VIRTIO_BLK  1
+#define OC_CONFIG_TUI         0
+#define OC_CONFIG_TUI_HIDDEN  0
 #if !OC_CONFIG_NVME
 #define driver_block_nvme_init(a)     ((void)(a))
 #endif

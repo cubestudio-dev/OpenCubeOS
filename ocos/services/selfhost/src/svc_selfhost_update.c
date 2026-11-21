@@ -139,6 +139,92 @@ int ota_update_json_string(const char *json, const char *key,
     return -1;
 }
 
+/* P2D3C (spec 4.6): the bilingual "description" object.  The manifest
+ * may carry, ONE nesting level under the top-level "description" key,
+ *
+ *     "description": { "en": "<full English changelog>",
+ *                      "zh": "<full Simplified-Chinese changelog>" }
+ *
+ * This helper extracts the per-language member string in the same
+ * deliberately scoped style as ota_update_json_string (escape-aware
+ * value copy, no general JSON parser): locate the "description" key,
+ * enter its object, then walk the object's own "key": "value" pairs
+ * (string values; non-string members are skipped) until `lang` is
+ * found or the object closes.  Returns 0 on success, -1 when the
+ * object or the language member is absent (or not a string), -8 when
+ * the value does not fit out. */
+int ota_update_json_desc(const char *json, const char *lang,
+                         char *out, int outlen) {
+    if (!json || !lang || !out || outlen <= 0) return -8;
+    int llen = 0;
+    while (lang[llen]) llen++;
+
+    const char *p = json;
+    while ((p = strchr(p, '"')) != NULL) {
+        p++;                                   /* past opening quote */
+        if (strncmp(p, "description", 11) == 0 && p[11] == '"') {
+            const char *q = p + 12;
+            while (*q == ' ' || *q == ':' || *q == '\t' || *q == '\r' ||
+                   *q == '\n') q++;
+            if (*q != '{') return -1;          /* not an object value */
+            q++;
+            /* walk the object's "key": "value" members */
+            for (;;) {
+                while (*q == ' ' || *q == ',' || *q == '\t' || *q == '\r' ||
+                       *q == '\n') q++;
+                if (*q == 0) return -1;        /* unterminated object */
+                if (*q == '}') return -1;      /* closed: lang absent */
+                if (*q != '"') return -1;      /* not a string key */
+                q++;
+                int k = 0;
+                while (q[k] && q[k] != '"') k++;   /* key span */
+                int match = (k == llen && strncmp(q, lang, llen) == 0);
+                q += k;
+                if (*q != '"') return -1;      /* unterminated key */
+                q++;
+                while (*q == ' ' || *q == ':' || *q == '\t' || *q == '\r' ||
+                       *q == '\n') q++;
+                if (*q != '"') {
+                    /* non-string member (number/bool/null): skip it */
+                    while (*q && *q != ',' && *q != '}') q++;
+                    if (match) return -1;      /* lang member not a string */
+                    continue;
+                }
+                q++;                           /* past opening quote of value */
+                if (match) {
+                    int n = 0;
+                    while (*q && *q != '"') {
+                        char c = *q;
+                        if (c == '\\' && q[1]) {   /* escape: literal */
+                            q++;
+                            c = *q;
+                        }
+                        if (n >= outlen - 1) return -8;
+                        out[n++] = c;
+                        q++;
+                    }
+                    if (*q != '"') return -1;  /* unterminated value */
+                    out[n] = 0;
+                    return 0;
+                }
+                /* not our member: skip the value string (escape-aware) */
+                while (*q && *q != '"') {
+                    if (*q == '\\' && q[1]) q++;
+                    q++;
+                }
+                if (*q != '"') return -1;      /* unterminated value */
+                q++;
+            }
+        }
+        /* not our key: skip to end of this string */
+        while (*p && *p != '"') {
+            if (*p == '\\' && p[1]) p++;
+            p++;
+        }
+    }
+    return -1;
+}
+
 /* ------------------------------------------------------------------ */
 /* HTTP / HTTPS GET (body only)                                        */
 /* ------------------------------------------------------------------ */
@@ -426,12 +512,23 @@ int ota_update_changes_v2_url(const char *body, char *url, int cap) {
 /* Pick the long changelog out of a fetched v2 manifest body.  The
  * canonical field name is "changes" (docs/CONFIG.md, WP-10a..WP-10c
  * manifests); WP-10d briefly shipped it as "changes_full", so BOTH are
- * accepted - "changes" wins when both are present.  Returns 0 and
- * fills out (NUL-terminated, truncated to cap), -8 when a present value
- * is too large for cap, -1 when neither field yields a non-empty value.
+ * accepted - "changes" wins when both are present.  P2D3C (spec 4.6):
+ * when the console locale is zh and the body carries the bilingual
+ * "description" object with a non-empty "zh" member, THAT text wins
+ * (the zh user reads the zh changelog); every other case keeps the
+ * flat-field behavior below byte-for-byte.  Returns 0 and fills out
+ * (NUL-terminated, truncated to cap), -8 when a present value is too
+ * large for cap, -1 when neither field yields a non-empty value.
  * Pure parser: no network, unit-testable. */
 static int v2_pick_changes(const char *v2body, char *out, int cap) {
     if (!v2body || !out || cap <= 0) return -1;
+    /* P2D3C: zh locale + description.zh -> the zh changelog (spec 4.6).
+     * Absent/empty description falls through to the flat fields; a
+     * too-large value also falls through so the flat path can decide
+     * (it propagates its own -8 when the long text exceeds cap). */
+    if (disp_lang_get() == DISP_LANG_ZH &&
+        ota_update_json_desc(v2body, "zh", out, cap) == 0 && out[0] != 0)
+        return 0;
     static const char *const keys[] = { "changes", "changes_full" };
     for (int k = 0; k < 2; k++) {
         int r = ota_update_json_string(v2body, keys[k], out, cap);
@@ -491,6 +588,26 @@ static void ota_update_apply_changes_v2(const char *body, char *changes,
     (void)ota_update_fetch_changes_v2(v2url, changes, changescap);
 }
 
+/* P2D3C (spec 4.6): best-effort fill of the zh display buffer from the
+ * BASE manifest's bilingual description object (the same object also
+ * rides update-v2.json, so the v2 upgrade path sees it through
+ * v2_pick_changes).  Display-only semantics identical to the flat
+ * "changes" field: a value larger than outcap is parsed through a heap
+ * buffer and TRUNCATED (never the 4 KiB kernel thread stack, never a
+ * check failure); absence leaves out untouched. */
+static void ota_update_fill_changes_zh(const char *body, char *out,
+                                       int outcap) {
+    int r = ota_update_json_desc(body, "zh", out, outcap);
+    if (r != -8) return;                     /* 0 filled / -1 absent */
+    char *tmp = kmalloc(1024);
+    if (!tmp) return;
+    if (ota_update_json_desc(body, "zh", tmp, 1024) == 0) {
+        memcpy(out, tmp, outcap - 1);
+        out[outcap - 1] = 0;
+    }
+    kfree(tmp);
+}
+
 /* ------------------------------------------------------------------ */
 /* public API                                                          */
 /* ------------------------------------------------------------------ */
@@ -500,6 +617,7 @@ int ota_update_check(ota_update_info_t *out) {
         out->version[0] = 0;
         out->time[0] = 0;
         out->changes[0] = 0;
+        out->changes_zh[0] = 0;
     }
 
     /* 1. read ota_update_url.
@@ -553,6 +671,13 @@ int ota_update_check(ota_update_info_t *out) {
      * URL, upgrade the display-only changes value in place (best-effort,
      * never fails the check). */
     ota_update_apply_changes_v2(body, out->changes, (int)sizeof(out->changes));
+
+    /* P2D3C (spec 4.6): best-effort zh changelog from the base
+     * manifest's description object (display-only; every failure -
+     * absent object, empty member, oversized text - silently leaves
+     * changes_zh empty and zh display falls back to changes). */
+    ota_update_fill_changes_zh(body, out->changes_zh,
+                               (int)sizeof(out->changes_zh));
 
     /* 4. compare versions (BUG-0347: numeric build id when available,
      * git-describe descendant aware string fallback otherwise) */
@@ -615,6 +740,7 @@ int ota_update_check_pkg(ota_update_pkg_info_t *out) {
         out->info.version[0] = 0;
         out->info.time[0] = 0;
         out->info.changes[0] = 0;
+        out->info.changes_zh[0] = 0;
         out->package_url[0] = 0;
         out->package_sha256[0] = 0;
         out->package_size = 0;
@@ -661,6 +787,11 @@ int ota_update_check_pkg(ota_update_pkg_info_t *out) {
      * (display-only, best-effort, never fails the check). */
     ota_update_apply_changes_v2(body, out->info.changes,
                             (int)sizeof(out->info.changes));
+
+    /* P2D3C (spec 4.6): the zh changelog from the base manifest's
+     * description object (display-only, best-effort). */
+    ota_update_fill_changes_zh(body, out->info.changes_zh,
+                               (int)sizeof(out->info.changes_zh));
 
     /* package fields (optional; required by the `update` command) */
     int rp = ota_update_json_string(body, "package_url", out->package_url,
@@ -799,7 +930,9 @@ static void ota_update_check_thread(void *arg) {
     /* P0fix2 BUG-0037 (A5-02): line2 was 160 bytes while "Changes: "(9) +
      * info.changes (up to 255) + NUL = 265 — the server-supplied changes
      * text smashed 105 bytes of this kernel-thread stack (auto_check runs
-     * on boot).  272 covers the largest field with margin. */
+     * on boot).  272 covers the largest field with margin.  P2D3C: the
+     * zh label (MSG_UPD_CHANGES_LABEL, "更新内容：" = 15 bytes) + a
+     * 255-byte zh body + NUL = 271 - still inside the 272 budget. */
     char line2[272];
     int rc = ota_update_check(&info);
     if (rc == OC_UPDATE_OK) {
@@ -815,8 +948,15 @@ static void ota_update_check_thread(void *arg) {
         au_print(line2);
         strcpy(line2, "Time: ");    strcat(line2, info.time);
         au_print(line2);
-        if (info.changes[0]) {
-            strcpy(line2, "Changes: "); strcat(line2, info.changes);
+        if (info.changes[0] || info.changes_zh[0]) {
+            /* P2D3C (spec 4.6): zh locale prints the zh changelog with
+             * the localized label; en keeps the byte-identical literal
+             * (machine contract of the boot banner unchanged). */
+            int zh = (disp_lang_get() == DISP_LANG_ZH);
+            strcpy(line2, zh ? get_text(MSG_UPD_CHANGES_LABEL)
+                             : "Changes: ");
+            strcat(line2, (zh && info.changes_zh[0]) ? info.changes_zh
+                                                     : info.changes);
             au_print(line2);
         }
         lib_log_info("[autoupdate] check complete: new version available");
@@ -850,8 +990,9 @@ int ota_update_check_async(void) {
  * stay literals.  P2A-L0-I18N: the "Changes: " LABEL follows the
  * console locale (MSG_UPD_CHANGES_LABEL; the zh column is "更新内容："
  * while the en flow keeps the ASCII literal below byte-identical).
- * The changelog BODY stays as the server sent it - the v2 bilingual
- * changelog is a separate work item. */
+ * P2D3C (spec 4.6): in zh locale the BODY comes from the manifest's
+ * bilingual description.zh (changes_zh) when present, otherwise the
+ * flat changes value - the v2 bilingual changelog is wired end to end. */
 int ota_cmd_checkupdate(const char *args) {
     (void)args;
     ota_update_info_t info;
@@ -868,11 +1009,15 @@ int ota_cmd_checkupdate(const char *args) {
         screen_console_puts("Version: "); screen_console_puts(info.version); screen_console_puts("\n");
         screen_console_puts("Time: ");    screen_console_puts(info.time);    screen_console_puts("\n");
         /* P2A-L0-I18N: zh prints the localized label from the message
-         * resource; en keeps the literal above (same bytes). */
-        screen_console_puts(disp_lang_get() == DISP_LANG_ZH
-                                ? get_text(MSG_UPD_CHANGES_LABEL)
-                                : "Changes: ");
-        screen_console_puts(info.changes); screen_console_puts("\n");
+         * resource; en keeps the literal above (same bytes).  P2D3C:
+         * the zh BODY is description.zh (changes_zh) when the manifest
+         * carries it, else the flat changes value. */
+        int zh = (disp_lang_get() == DISP_LANG_ZH);
+        screen_console_puts(zh ? get_text(MSG_UPD_CHANGES_LABEL)
+                               : "Changes: ");
+        screen_console_puts((zh && info.changes_zh[0]) ? info.changes_zh
+                                                       : info.changes);
+        screen_console_puts("\n");
         return 0;
     }
     screen_console_puts("checkupdate: ");
@@ -1102,7 +1247,45 @@ int ota_cmd_checkupdate_test(const char *args) {
         { ok = "PASS"; pass++; }
     screen_console_puts("[checkupdate_test] numeric build-id compare: "); screen_console_puts(ok); screen_console_puts("\n");
 
-    /* 14. live probe with the configured ota_update_url (HTTP or HTTPS) */
+    /* 14. P2D3C (spec 4.6): the bilingual description object -
+     * ota_update_json_desc extracts the per-language member from the
+     * one-level-nested object, and the absence paths (-1) stay silent.
+     * Locale-independent: the lang is an explicit argument, so this
+     * pins the parser for both en and zh regardless of the console. */
+    total++;
+    ok = "FAIL";
+    {
+        static const char *doc =
+            "{\"version\":\"V\",\"time\":\"T\",\"changes\":\"one-liner\","
+            "\"description\":{\"en\":\"full english text\","
+            "\"zh\":\"运行时加固：修复\"}}";
+        char e[64], z[64];
+        if (ota_update_json_desc(doc, "en", e, (int)sizeof(e)) == 0 &&
+            strcmp(e, "full english text") == 0 &&
+            ota_update_json_desc(doc, "zh", z, (int)sizeof(z)) == 0 &&
+            strcmp(z, "运行时加固：修复") == 0 &&
+            ota_update_json_desc(doc, "fr", z, (int)sizeof(z)) == -1)
+            { ok = "PASS"; pass++; }
+    }
+    screen_console_puts("[checkupdate_test] description{en,zh} extracts per language: "); screen_console_puts(ok); screen_console_puts("\n");
+
+    /* 15. P2D3C: a manifest WITHOUT the description object leaves the
+     * zh member unfound (-1) - the zh display then falls back to the
+     * flat changes value (never a check failure) */
+    total++;
+    ok = "FAIL";
+    {
+        static const char *doc =
+            "{\"version\":\"V\",\"time\":\"T\",\"changes\":\"short\"}";
+        char z[64];
+        strcpy(z, "keep");
+        if (ota_update_json_desc(doc, "zh", z, (int)sizeof(z)) == -1 &&
+            strcmp(z, "keep") == 0)
+            { ok = "PASS"; pass++; }
+    }
+    screen_console_puts("[checkupdate_test] missing description keeps flat changes: "); screen_console_puts(ok); screen_console_puts("\n");
+
+    /* 16. live probe with the configured ota_update_url (HTTP or HTTPS) */
     total++;
     {
         ota_update_info_t info;
@@ -1141,6 +1324,10 @@ int l1_ext_check_update(l1_ext_update_info_t *out) {
             out->time[i] = info.time[i];
         for (int i = 0; i < (int)sizeof(out->changes); i++)
             out->changes[i] = info.changes[i];
+        /* P2D3C (spec 4.6): the zh changelog rides the same L1 surface
+         * (l1_ext_update_info_t mirrors ota_update_info_t). */
+        for (int i = 0; i < (int)sizeof(out->changes_zh); i++)
+            out->changes_zh[i] = info.changes_zh[i];
     }
     return rc;
 }

@@ -72,6 +72,36 @@ static int update_wizard(void) {
 
     /* 2/5 A/B disk --------------------------------------------------- */
     wiz_step(2, 5, tr_("step_ab"));
+    /* WP-runtime-hardening 4.8: LIVE-ENVIRONMENT TOLERANCE.  A live
+     * ISO boot (status "current boot: ISO") with no A/B disk attached
+     * used to fall into the for(;;) below and quiz the user for a
+     * device to REPARTITION - on a machine whose only disk may be the
+     * install medium itself.  Probe once before the loop: a live boot
+     * without an A/B disk gets the system-message explanation
+     * (get_text, follows `lang en|zh`) plus the check-only hint and a
+     * CLEAN exit 1.  Everything else (installed A/B boots, live boots
+     * WITH a disk attached) keeps the original flow below. */
+    if (wiz_svc_quiet(L1SVC_CAT_OTA, L1SVC_OTA_UPDATE, "status",
+                      out) != 0) {
+        wiz_fail(tr_("ab_probe_failed"));
+        return 1;
+    }
+    if (wiz_find(out, "current boot: ISO") &&
+        !wiz_find(out, "A/B disk: present")) {
+        /* Spec 4.8: the live-mode refusal is BILINGUAL by design -
+         * both lines print regardless of the console locale, so the
+         * message reaches the user whichever language the terminal
+         * decodes (single-line get_text buffer: one call at a time). */
+        puts_("[!!] update: this is a live/ISO environment - direct "
+              "updates are not supported here.\n");
+        puts_("     ");
+        puts_(get_text(MSG_UPD_CHECK_ONLY_HINT));
+        putc_('\n');
+        puts_("[!!] ");
+        puts_(get_text(MSG_UPD_LIVE_WIZARD));
+        putc_('\n');
+        return 1;
+    }
     for (;;) {
         if (wiz_svc_quiet(L1SVC_CAT_OTA, L1SVC_OTA_UPDATE, "status",
                           out) != 0) {

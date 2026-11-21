@@ -48,12 +48,24 @@ else
 # ---- WP-13-build_system: multi-configuration (spec 5.7) ---------------
 # The .config file is a make fragment (CONFIG_X=y|n) written by
 # `make defconfig` or `make menuconfig`; command-line overrides win.
-# 3.0.0-WP03: CONFIG_TUI and CONFIG_CHINESE are GONE - the TUI and the
-# IME user plane are deleted, and the CJK display pipeline (font /
-# encoding / render / console_cn) is always compiled in (display root
-# service).  The surviving knobs are the hardware profile options
-# (NVME / AHCI / VIRTIO_BLK); config_gen.h stubs their APIs when off.
+#
+# WP-runtime-hardening 4.7 (spec 4.7): CONFIG_TUI is a TRI-STATE knob
+# for the TUI plane (the services/tui L0 bodies + the 9 tui* L1 apps):
+#   n (DEFAULT) - NOT BUILT.  The services/tui/src bodies are filtered
+#                 out of KERNEL_C and tools/gen_userprogs.py skips the
+#                 9 tui* app folders, so their images, registry entries
+#                 and i18n resources all disappear together.
+#   h           - compiled but FULLY HIDDEN: every tui* entry is
+#                 unlisted (k_hidden[]) AND direct invocation is
+#                 intercepted at the execve resolution funnel
+#                 (OC_CONFIG_TUI_HIDDEN, MSG_TUI_ENTRY_BLOCKED).
+#   y           - fully open: all 9 tui* commands listed + runnable.
+# The CJK display pipeline (font / encoding / render / console_cn) is
+# always compiled in (display root service); the surviving hardware
+# profile knobs (NVME / AHCI / VIRTIO_BLK) are unchanged and
+# config_gen.h stubs their APIs when off.
 -include $(OC_ROOT)/.config
+CONFIG_TUI       ?= n
 CONFIG_NVME       ?= y
 CONFIG_AHCI       ?= y
 CONFIG_VIRTIO_BLK ?= y
@@ -214,8 +226,16 @@ KERNEL_ASM_B := $(wildcard $(OC_ROOT)/ocos/kernel/core_boot_*.S)
 KERNEL_ASM_K := $(wildcard $(OC_ROOT)/ocos/kernel/arch/x86_64/*.S)
 # WP-13 multi-config source filtering: individual block drivers for
 # the hardware profile options (self-registering drivers; the init
-# calls in main.c are macro-stubbed by config_gen.h).  3.0.0-WP03: the
-# TUI/chinese dir-drops above are gone (dirs deleted / always-on).
+# calls in main.c are macro-stubbed by config_gen.h).
+# WP-runtime-hardening 4.7: CONFIG_TUI=n drops the L0 "tui" service
+# bodies (services/tui/src/*) - the L1SVC cat-20 ops then return clean
+# -1s exactly like the 2.1.0 CONFIG_TUI=n off-path (no consumer
+# outside services/tui references them).
+ifeq ($(CONFIG_TUI),n)
+# NOTE: a make pattern carries ONE %-wildcard (a second % is literal),
+# so the drop is spelled with the full $(OC_ROOT) prefix.
+KERNEL_C    := $(filter-out $(OC_ROOT)/ocos/services/tui/src/%.c,$(KERNEL_C))
+endif
 ifeq ($(CONFIG_NVME),n)
 KERNEL_C    := $(filter-out %drv_storage_nvme.c,$(KERNEL_C))
 endif
@@ -285,6 +305,8 @@ $(CONFIG_GEN): FORCE
            echo '#define OC_CONFIG_NVME        $(if $(filter n,$(CONFIG_NVME)),0,1)'; \
            echo '#define OC_CONFIG_AHCI        $(if $(filter n,$(CONFIG_AHCI)),0,1)'; \
            echo '#define OC_CONFIG_VIRTIO_BLK  $(if $(filter n,$(CONFIG_VIRTIO_BLK)),0,1)'; \
+   echo '#define OC_CONFIG_TUI         $(if $(filter y h,$(CONFIG_TUI)),1,0)'; \
+   echo '#define OC_CONFIG_TUI_HIDDEN  $(if $(filter h,$(CONFIG_TUI)),1,0)'; \
            echo '#if !OC_CONFIG_NVME'; \
            echo '#define driver_block_nvme_init(a)     ((void)(a))'; \
            echo '#endif'; \
@@ -298,7 +320,7 @@ $(CONFIG_GEN): FORCE
          } > $(CONFIG_GEN).tmp
 	@if ! cmp -s $(CONFIG_GEN).tmp $(CONFIG_GEN); then \
            mv -f $(CONFIG_GEN).tmp $(CONFIG_GEN); \
-           echo "make: regenerated $$@ (NVME=$(CONFIG_NVME) AHCI=$(CONFIG_AHCI) VIRTIO_BLK=$(CONFIG_VIRTIO_BLK))"; \
+   echo "make: regenerated $$@ (TUI=$(CONFIG_TUI) NVME=$(CONFIG_NVME) AHCI=$(CONFIG_AHCI) VIRTIO_BLK=$(CONFIG_VIRTIO_BLK))"; \
          else rm -f $(CONFIG_GEN).tmp; fi
 # the header must exist before ANY object compiles (order-only: it does
 # not itself trigger rebuilds - the .d files do that)
@@ -389,13 +411,29 @@ $(BUILD)/ocos/drivers/bus/drv_bus_acpi_aml.o: $(OC_ROOT)/ocos/drivers/bus/drv_bu
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -O0 -c $< -o $@
 
+# WP-runtime-hardening 4.7: the TUI plane (services/tui/src, compiled
+# only under CONFIG_TUI=y/h) compiles at -Os so the y/h configurations
+# stay inside the 0x400000 identity window - same reason and same
+# per-set-override pattern as the wireless set above.  Measured on the
+# 28 bodies: -O2 245,313 B of allocated sections vs -Os 198,649 B
+# (-46,664 B); the y-state link was 0x440 B over the ASSERT before
+# this rule (the tree rides the window edge - the margin was eaten by
+# the self-host update-plane growth), and the UI code is not
+# performance-critical.  A correctly-pathed PATTERN rule (shorter stem
+# than the generic %.o rule below, so it wins for these files only);
+# in the n state no services/tui/src object exists, so the rule is
+# inert - it cannot change the default build.
+$(BUILD)/ocos/services/tui/src/%.o: $(OC_ROOT)/ocos/services/tui/src/%.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	$(OC_CC) $(filter-out -O2,$(CFLAGS)) -Os -c $< -o $@
+
 # NOTE (NAK cleanup): two WP-10-tui-native -Os override rules for
 # $(BUILD)/tui/tui_dt_editor.o / tui_dt_files.o referenced a root-level
 # tui/ directory that never existed in this tree - dead rules whose
 # targets never matched a real object (the real objects always compiled
 # through the generic -O2 rule below and the link ASSERT held).  They
-# are deleted instead of path-updated: activating them now would change
-# the codegen of files that have always shipped as -O2.
+# are deleted instead of path-updated: the -Os policy for the REAL
+# services/tui/src bodies is now the pattern rule above (4.7).
 
 $(BUILD)/%.o: $(OC_ROOT)/%.c | $(BUILD)
 	@mkdir -p $(dir $@)
@@ -416,7 +454,14 @@ $(STUB_OBJ): $(OC_ROOT)/ocos/kernel/core_boot_grubstub.c $(OC_ROOT)/ocos/kernel/
 	@mkdir -p $(dir $@)
 	$(OC_CC) $(CFLAGS) -c $< -o $@
 
-$(BASE_ELF): $(KERNEL_OBJ) $(STUB_OBJ) $(OC_ROOT)/ocos/kernel/arch/x86_64/linker.ld | $(BUILD)
+# WP-runtime-hardening 4.7: $(USERPROGS_HDR) rides the STAGE-1 link
+# prerequisites (FIRST, before $(KERNEL_OBJ)) so the embedded registry
+# regenerates before the objects that include it are freshness-checked
+# - `make kernel` alone can never link a kernel whose registry lags
+# the CONFIG_TUI knob (the .d files spell the header with an absolute
+# path, so the USERPROGS_HDR rule is reachable only through an explicit
+# relative-name prerequisite like this one).
+$(BASE_ELF): $(USERPROGS_HDR) $(KERNEL_OBJ) $(STUB_OBJ) $(OC_ROOT)/ocos/kernel/arch/x86_64/linker.ld | $(BUILD)
 	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ) $(STUB_OBJ)
 	strip --strip-debug $@
 
@@ -622,11 +667,12 @@ reproducible-check:
 defconfig:
 	@{ echo '# Open Cube OS build configuration (WP-13) - defaults'; \
            echo '# Written by make defconfig; edit with make menuconfig'; \
+   echo 'CONFIG_TUI=n'; \
            echo 'CONFIG_NVME=y'; \
            echo 'CONFIG_AHCI=y'; \
            echo 'CONFIG_VIRTIO_BLK=y'; \
          } > $(OC_ROOT)/.config
-	@echo "defconfig: wrote $(OC_ROOT)/.config (all options y)"
+	@echo "defconfig: wrote $(OC_ROOT)/.config (TUI=n, block drivers y)"
 
 menuconfig:
 	bash $(OC_ROOT)/tools/oc_menuconfig.sh
@@ -691,8 +737,23 @@ l0-i18n: $(L0_I18N_GEN)
 # idempotent (byte-compare, mtime kept when unchanged) so an
 # up-to-date tree rebuilds NOTHING and incremental kernel builds
 # stay fast.
-$(USERPROGS_HDR): $(USERPROG_SRCS) tools/gen_userprogs.py tools/gen_l1svc_ops.py $(BUILD_C_PY) $(EMBED_PY) $(BUILD_SOLIB_PY)
-	python3 $(OC_ROOT)/tools/gen_userprogs.py
+#
+# WP-runtime-hardening 4.7: the registry FOLLOWS CONFIG_TUI.  A value
+# stamp (cmp-guarded, same discipline as VERSION_GEN/CONFIG_GEN)
+# regenerates the header exactly when the knob flips n<->h/y - an
+# unchanged value keeps the mtime, so normal incremental builds stay
+# quiet.  gen_userprogs.py reads the value from the environment.
+TUI_CFG_STAMP := $(BUILD)/.config_tui_stamp
+$(TUI_CFG_STAMP): FORCE
+	@mkdir -p $(BUILD)
+	@echo "$(CONFIG_TUI)" > $(TUI_CFG_STAMP).tmp
+	@if ! cmp -s $(TUI_CFG_STAMP).tmp $(TUI_CFG_STAMP); then \
+	   mv -f $(TUI_CFG_STAMP).tmp $(TUI_CFG_STAMP); \
+   echo "make: CONFIG_TUI stamp -> $(CONFIG_TUI) (registry will follow)"; \
+	 else rm -f $(TUI_CFG_STAMP).tmp; fi
+
+$(USERPROGS_HDR): $(USERPROG_SRCS) tools/gen_userprogs.py tools/gen_l1svc_ops.py $(BUILD_C_PY) $(EMBED_PY) $(BUILD_SOLIB_PY) $(TUI_CFG_STAMP)
+	CONFIG_TUI=$(CONFIG_TUI) python3 $(OC_ROOT)/tools/gen_userprogs.py
 
 userprogs: $(USERPROGS_HDR)
 	@echo "userprogs: $(USERPROGS_HDR) up to date"

@@ -15,6 +15,15 @@ Discovery (name resolution is mechanical - no hand-written tables):
   - libfoo.c    : the embedded solib, handled by tools/build_solib.py
                  (solib_data.h, not this header).
 
+WP-runtime-hardening 4.7 (spec 4.7): CONFIG_TUI (passed by the
+Makefile rule through the environment, default n) is tri-state.
+In state n discovery SKIPS the 9 tui* app folders - their images,
+OC_USERPROGS[] registry entries and i18n resources all disappear
+together, so the default build's execve surface carries no TUI.  In
+states y/h discovery is unchanged; the y/h distinction is a KERNEL
+build matter (OC_CONFIG_TUI_HIDDEN in config_gen.h - the k_hidden[]
+set and the execve interception), not a registry matter.
+
 Output: one byte array + size per program, plus the OC_USERPROGS[]
 registry consumed by core_userprog_lookup() (services/sysapi/
 svc_sysapi_syscall.c) - the WP-04 replacement for the old hardcoded if-else
@@ -29,6 +38,19 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# ---- WP-runtime-hardening 4.7: the CONFIG_TUI tri-state ----------------
+# The Makefile always passes CONFIG_TUI=<n|h|y>; a bare manual run gets
+# the project default n (matching `CONFIG_TUI ?= n` / make defconfig).
+CONFIG_TUI = os.environ.get("CONFIG_TUI", "n")
+# The 9 TUI app folders (the desktop + its 8 sub-launchers) - skipped
+# by discovery when CONFIG_TUI=n; their kernel-side bodies are filtered
+# out of KERNEL_C by the same value.
+TUI_APP_DIRS = frozenset((
+    "tui", "tui-test", "tui-hw", "tui-net", "tui-sysinfo",
+    "tui-time", "tui-drv", "tui-sys", "tui-ext",
+))
+TUI_SKIP = CONFIG_TUI not in ("y", "h")
 
 # ---- 3.0.0-WP04-fix1 (bugs 5/6): per-program work-package tags -------
 # Source of truth for the wp registry field. Provenance: the 241
@@ -594,6 +616,11 @@ def discover():
         d = os.path.join(L1, entry)
         if not os.path.isdir(d) or entry in ("_shared", "_i18n"):
             continue
+        # WP-runtime-hardening 4.7: CONFIG_TUI=n - the TUI app folders
+        # are not discovered: no image, no registry entry, no i18n
+        # resource (one knob, three artifacts gone together).
+        if TUI_SKIP and entry in TUI_APP_DIRS:
+            continue
         if not os.path.exists(os.path.join(d, "main.c")) and \
            not os.path.exists(os.path.join(d, "main.asm")):
             fail(f"src/L1/{entry}/ has no main.c or main.asm - every app "
@@ -800,8 +827,10 @@ def main():
     emit(progs, blobs)
     total = sum(len(b) for b in blobs.values())
     zh_hints = sum(1 for (_n, _e, zh) in I18N_APPS if zh.get("_hint"))
+    tui_note = ("skipping 9 tui* folders (CONFIG_TUI=n)"
+                if TUI_SKIP else f"CONFIG_TUI={CONFIG_TUI}")
     print(f"gen_userprogs: {len(progs)} programs, {total} bytes total "
-          f"-> {HEADER}")
+          f"-> {HEADER} [{tui_note}]")
     print(f"gen_userprogs: i18n: {len(I18N_APPS)} apps carry "
           f"en+zh resources, {zh_hints} zh hints present")
 

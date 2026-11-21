@@ -28,6 +28,7 @@ typedef struct {
     char version[64];   /* BUG-0299 (A5-10): widened to mirror ota_update_info_t.version[64] - 32 truncated the official 44-char version string */
     char time[32];
     char changes[256];  /* mirrors ota_update_info_t (ota_update.h) */
+    char changes_zh[256];  /* P2D3C (spec 4.6): mirrors ota_update_info_t.changes_zh - description.zh, "" when absent */
 } l1_ext_update_info_t;
 
 int  l1_ext_check_update(l1_ext_update_info_t *out);

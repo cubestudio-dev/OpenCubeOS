@@ -1402,6 +1402,10 @@ int l1_ext_update_check_pkg(l1_ext_update_pkg_info_t *out) {
         strcpy(out->info.version, pkg.info.version);
         strcpy(out->info.time, pkg.info.time);
         strcpy(out->info.changes, pkg.info.changes);
+        /* P2D3C (spec 4.6): the zh changelog (description.zh) rides the
+         * same L1 surface - l1_ext_update_pkg_info_t embeds the mirrored
+         * ota_update_info_t. */
+        strcpy(out->info.changes_zh, pkg.info.changes_zh);
         strcpy(out->package_url, pkg.package_url);
         strcpy(out->package_sha256, pkg.package_sha256);
         out->package_size = pkg.package_size;

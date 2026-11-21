@@ -877,7 +877,7 @@ static int exec_single(char *cmd) {
             }
         }
         if (ret < 0) {
-            puts_("ush: command not found: ");
+            puts_(tr_("ush: command not found: "));
             puts_(argv[0]);
             putc_('\n');
         }

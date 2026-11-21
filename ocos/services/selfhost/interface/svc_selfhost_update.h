@@ -14,6 +14,18 @@
  *       "changes_v2_url": "https://host/OpenCubeOS/update-v2.json"
  *     }
  *
+ * P2D3C (spec 4.6) adds the OPTIONAL bilingual "description" object
+ * next to the flat "changes":
+ *
+ *     "description": { "en": "<full English changelog>",
+ *                      "zh": "<full Simplified-Chinese changelog>" }
+ *
+ * The flat "changes" key STAYS (old kernels read it; the <= 127-byte
+ * discipline for WP-09-era consumers is unchanged) - description is
+ * additive.  New kernels with a zh console locale display
+ * description.zh when present (ota_update_json_desc), everything else
+ * keeps the changes/changes_v2 behavior.
+ *
  * "changes_v2_url" is OPTIONAL (dual-manifest protocol, "Plan D"): the
  * base manifest carries a SHORT "changes" (<= 127 bytes) so old kernels
  * (WP-09: 128-byte buffer + hard error on overflow) keep parsing it,
@@ -79,11 +91,15 @@ extern "C" {
  * more than 255 bytes the value is TRUNCATED and the check still
  * succeeds (WP-10a-checkupdate-fix: a longer server-side changelog used
  * to fail the whole check with "JSON parse failed" because of the old
- * 128-byte buffer). */
+ * 128-byte buffer).  changes_zh (P2D3C, spec 4.6) mirrors changes for
+ * the bilingual "description" object's "zh" member: display-only,
+ * best-effort - empty when the manifest carries no description.zh, in
+ * which case zh-locale display falls back to changes. */
 typedef struct {
     char version[64];
     char time[32];
     char changes[256];
+    char changes_zh[256];   /* P2D3C: description.zh ("" when absent) */
 } ota_update_info_t;
 
 /* Error codes (see file header). */
@@ -165,9 +181,17 @@ int ota_update_url_parse(const char *url, ota_update_url_t *out);
 
 /* Flat-JSON field helpers (top-level "key": value).  ota_update_json_string
  * returns 0 ok / -1 not found / -8 value too large for out.
- * ota_update_json_uint parses a non-negative decimal number. */
+ * ota_update_json_uint parses a non-negative decimal number.
+ *
+ * P2D3C (spec 4.6): ota_update_json_desc extracts the per-language
+ * string from the ONE-LEVEL-NESTED bilingual "description" object
+ * ("description": { "en": "...", "zh": "..." }).  lang is the member
+ * key ("en" / "zh"); same return codes as ota_update_json_string.
+ * Same deliberately scoped parser family - not a general JSON parser. */
 int ota_update_json_string(const char *json, const char *key,
                           char *out, int outlen);
+int ota_update_json_desc(const char *json, const char *lang,
+                         char *out, int outlen);
 int ota_update_json_uint(const char *json, const char *key, u64 *out);
 
 /* Dual-manifest protocol ("Plan D") - long changelog support:

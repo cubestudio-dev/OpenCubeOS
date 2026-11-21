@@ -28,6 +28,9 @@
 #include "core_registry.h"
 #include "svc_framework.h" /* v2.0.0: service dispatch */
 #include "core_lib_klog.h"    /* 3.0.0-WP03 G4: ocire_guard kill refusal log */
+#include "config_gen.h"   /* WP-runtime-hardening 4.7: OC_CONFIG_TUI_HIDDEN */
+#include "svc_l1_entry_filter.h" /* 4.7: the k_hidden set (l1 service) */
+#include "core_i18n_res.h"      /* 4.7: get_text(MSG_TUI_ENTRY_BLOCKED) */
 
 /* WP-08b Batch 5: libfoo.so bytes are defined in usermode.c (which
  * #includes solib_data.h). We just reference them here so sys_map_solib
@@ -1718,6 +1721,18 @@ const u8 *core_userprog_lookup(const char *name, u64 *size_out) {
     /* compat alias used by early boot paths */
     if (strcmp(name, "usershell") == 0)
         name = "ush";
+#if OC_CONFIG_TUI_HIDDEN
+    /* WP-runtime-hardening 4.7 (spec 4.7): CONFIG_TUI=h - the hidden
+     * TUI entries never RESOLVE either.  This is the single funnel
+     * every program-name resolution passes through (sys_execve, the
+     * L1 job API, the sshd remote exec, ldd), so one policy covers
+     * every direct-invocation path.  Silent here: the human block
+     * line is printed by sys_execve (once per user-visible attempt);
+     * returning NULL gives every caller its normal "command not
+     * found" contract. */
+    if (l1_entry_hidden(name))
+        return NULL;
+#endif
     for (u64 i = 0; i < OC_USERPROGS_COUNT; i++) {
         if (strcmp(name, OC_USERPROGS[i].name) == 0) {
             /* 3.0.0-WP04 G11c: entries are gzip'd (ush is raw); the
@@ -1771,6 +1786,25 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
         path_buf[n] = 0;
     }
     const char *name = path_buf;
+
+#if OC_CONFIG_TUI_HIDDEN
+    /* WP-runtime-hardening 4.7 (spec 4.7): CONFIG_TUI=h - direct
+     * invocation of a hidden TUI entry is intercepted BEFORE the name
+     * resolution: print the block line (active locale through
+     * get_text) and fail exactly like an unknown command.  The check
+     * runs on the RAW requested path, before the argv[0] override and
+     * before the /bin/ strip: ush retries a failed execve with the
+     * "/bin/<name>" form, and that prefixed retry must stay silent
+     * (the core_userprog_lookup funnel above still blocks it), so the
+     * user sees ONE block line per command - not two. */
+    if (l1_entry_hidden(path_buf)) {
+        screen_console_puts(path_buf);
+        screen_console_puts(": ");
+        screen_console_puts(get_text(MSG_TUI_ENTRY_BLOCKED));
+        screen_console_puts("\n");
+        return (u64)-1;
+    }
+#endif
 
     /* P4 fix: if argv is provided and argv[0] is non-NULL, use argv[0]
      * as the program name (POSIX semantics — `execv("/bin/ls", ["ls",
