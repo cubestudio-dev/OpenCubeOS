@@ -5,9 +5,9 @@
 
 **一个从零写起、直接启动进 Ring 3 的 x86_64 内核。**
 
-当前发布：**3.0.0-WP-tui-input-encoding-hardening**——OCBL
-引导加载器、纯 L0 服务内核（L0 里没有 shell、没有 TUI、没有
-IME）、`ocos/l1apps/` 下的 **300 个 Ring-3 程序**——现在围绕
+当前发布：**3.0.0-WP-boot-stack-vmware-and-nak-rebase**——OCBL
+引导加载器（引导链 NAK 重构）+ VMware 串口/VGA/EFER 独立性修复（F1–F4，双固件轨严格矩阵启动）、纯 L0 服务内核（L0 里没有 shell、没有 TUI、没有
+IME）、`ocos/l1apps/` 下的 **301 个 Ring-3 程序**——现在围绕
 **8 个合并大应用**组织（`update` / `disk-tool` / `net-tool` /
 `sound-tool` / `files` / `sysdiag` / `hwinfo` / `power`），每一个
 既是意图向导，*又*是其下每条经典命令的逐字分发。稳定线：
@@ -39,7 +39,7 @@ Open Cube OS 是 **L0 + L1**：
   Ring-3 入口。
 - **L1 使用服务。** `ocos/l1apps/` 下的 300 个 Ring-3 程序
   （一条命令 = 一个应用 = 一个文件夹）：默认启动项是 `ush`
-  用户 shell（**311 条命令 = 300 个注册表应用 + 11 个
+  用户 shell（**312 条命令 = 300 个注册表应用 + 11 个
   内建，L0 里零条命令**）、TUI 桌面、编辑器、中文控制台 +
   拼音 IME——以及给整个命令面装上按意图驱动前门的 8 个
   合并大应用：带自动检测与跨域修复的无参向导（`update`
@@ -71,9 +71,9 @@ Open Cube OS 是 **L0 + L1**：
 ```
 L0  OCOS (ocos/)          kernel + drivers + root services + the
                           numbered L1SVC ABI - no shell, no TUI
-L1  the world (ocos/l1apps/)  300 programs: ush, TUI, editor, IME,
+L1  the world (ocos/l1apps/)  301 programs: ush, TUI, editor, IME,
                           one command per app, and the 8 merged
-                          mega-apps (311 commands total)
+                          mega-apps (312 commands total)
 ```
 
 ## 亮点

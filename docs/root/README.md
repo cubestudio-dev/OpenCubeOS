@@ -6,8 +6,10 @@
 
 **A from-scratch x86_64 kernel that boots into ring 3.**
 
-Current release: **3.0.0-WP-tui-input-encoding-hardening** - the OCBL
-bootloader, a pure L0 service kernel (no shell, no TUI, no IME in
+Current release: **3.0.0-WP-boot-stack-vmware-and-nak-rebase** - the OCRMECL/OCBL
+bootloader (the boot chain NAK-rebased) with the VMware
+serial/VGA/EFER independence fixes (F1-F4, strict-matrix boot on both
+firmware tracks), a pure L0 service kernel (no shell, no TUI, no IME in
 L0) with the driver framework (device tree, power hooks, hotplug,
 failure isolation, deterministic init order), **301 ring-3
 programs** under `ocos/l1apps/` - now organized
@@ -176,7 +178,7 @@ command is quoted per item):
   `help`/`help -a`/`help -w` and the desktop tree but stay directly
   executable (303 listed). The registry floor is
   enforced by the regression gate (>= 300).
-- **L1SVC service surface**: 20 categories / 208 numbered ops - see
+- **L1SVC service surface**: 20 categories / 223 numbered ops - see
   [INTERFACES.md](INTERFACES.md) for the exact tables.
 - **Syscalls**: 54 - verify:
   `grep -c '#define SYS_' ocos/services/sysapi/interface/svc_sysapi_syscall.h`

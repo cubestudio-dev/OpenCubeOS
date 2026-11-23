@@ -115,7 +115,7 @@ NUM_PATTERNS = [
 # stale work-package version strings in user-visible surfaces
 STALE_VERSIONS = [
     r"3\.0\.0-WP-l1apps-merge", r"3\.0\.0-WP06g2", r"3\.0\.0-WP-0\d\b",
-    r"3\.0\.0-WP-07\b", r"3\.0\.0-WP-l1apps", r"v?3\.0\.0-WP-(?!08-driver-framework|fix-residual-defects)\w+",
+    r"3\.0\.0-WP-07\b", r"3\.0\.0-WP-l1apps", r"v?3\.0\.0-WP-(?!08-driver-framework|fix-residual-defects)[a-zA-Z0-9-]+",
 ]
 # stale paths
 STALE_PATHS = [
@@ -184,6 +184,27 @@ for rel, kind in SURFACES:
         for rx in STALE_VERSIONS:
             m = re.search(rx, line)
             if m:
+                # live-caught (the 3.0.0-WP-boot-stack release re-run): the
+                # check used to flag EVERY WP-named mention unconditionally -
+                # including the CURRENT release naming itself in
+                # update.json/site-data (the claimed-vs-fact fields in the
+                # finding were never actually compared). It also truncated
+                # multi-segment hyphenated names at the first hyphen (\w+),
+                # so even the exact current version flagged as a truncated
+                # prefix. Compare against the fact source now: a mention of
+                # the CURRENT release version is not stale; anything else
+                # stays a finding (the historical-reference exemptions in
+                # is_exempt() above keep deciding what prose is frozen).
+                if FACT.get("release_version"):
+                    claimed = m.group(0)
+                    # asset filenames embed the version with a suffix
+                    # (-update.tar.gz / -src.zip / -ocse.iso): the version
+                    # claim inside the name is the version itself
+                    for suffix in ("-update", "-src", "-iso", "-ocse"):
+                        if claimed.endswith(suffix) and claimed[:-len(suffix)] == FACT["release_version"]:
+                            claimed = claimed[:-len(suffix)]
+                    if claimed == FACT["release_version"]:
+                        continue
                 findings.append({
                     "file": rel, "line": lineno, "pattern": "stale-version",
                     "context": f"stale version string {m.group(0)}",

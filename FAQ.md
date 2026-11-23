@@ -11,7 +11,7 @@ A from-scratch x86_64 kernel ("L0") that provides services - memory,
 scheduling, VFS, network, drivers - with zero interactive user
 surface, plus a ring-3 application layer ("L1") whose default boot
 entry is the ush user shell. It boots from a hybrid BIOS+UEFI ISO
-and gives you **311 commands** (300 ring-3 registry programs + 11
+and gives you **312 commands** (301 ring-3 registry programs + 11
 ush built-ins) to inspect and control the machine.
 
 **What is this "L0 / L1" thing?**
@@ -66,7 +66,7 @@ and the OTA commands control it from inside the system.
 ## The shell
 
 **How many commands?**
-311 commands: 300 ring-3 registry programs under `ocos/l1apps/`
+312 commands: 300 ring-3 registry programs under `ocos/l1apps/`
 (`help -a` at the `ush>` prompt lists them all) plus 11 ush
 built-ins (the job-control trio included). Verify live in the
 guest, or `make api-docs` and read `docs/data/commands.json`. The v1.0.0

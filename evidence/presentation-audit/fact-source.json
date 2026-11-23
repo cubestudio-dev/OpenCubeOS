@@ -337,12 +337,7 @@
    "wget",
    "wifi",
    "write"
-  ],
-  "help_a": {
-   "declared_count": 292,
-   "listed_programs": 292,
-   "matches_ring3_listed": true
-  }
+  ]
  },
  "drivers": {
   "legacy_oc_drv_decl": 38,
@@ -353,13 +348,13 @@
   "oc_svc_decl": 20
  },
  "version": {
-  "makefile_default": "3.0.0-WP-runtime-hardening-and-experience-rebase",
-  "makefile_kernel_build_default": 26,
+  "makefile_default": "3.0.0-WP-boot-stack-vmware-and-nak-rebase",
+  "makefile_kernel_build_default": 517,
   "makefile_build_offset": 21,
-  "makefile_commit_count": 5,
-  "update_json_version": "3.0.0-WP-runtime-hardening-and-experience-rebase",
-  "update_json_build": 479,
-  "latest_tag": "v3.0.0-WP-runtime-hardening-and-experience-rebase"
+  "makefile_commit_count": 496,
+  "update_json_version": "3.0.0-WP-boot-stack-vmware-and-nak-rebase",
+  "update_json_build": 511,
+  "latest_tag": "v3.0.0-WP-boot-stack-vmware-and-nak-rebase"
  },
  "categories": {
   "total": 25,
@@ -399,7 +394,7 @@
  "cross_checks": {
   "enum_total": 312,
   "registry_total": 312,
-  "help_a_available": true,
+  "help_a_available": false,
   "dictionary_gate": true
  },
  "abi": {

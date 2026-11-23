@@ -20,10 +20,10 @@ Open Cube OS is a two-ring system:
 - **L1 - uses services.** Ring-3 user applications that reach L0
   capability through the extension surface (the `SYS_L1SVC` op
   table and the classic syscall ABI). 3.0.0-WP04 moved every command
-  into L1: **300 programs under `ocos/l1apps/`** (the 8 merged
+  into L1: **301 programs under `ocos/l1apps/`** (the 8 merged
   mega-apps included) - one command = one app = one folder. The
   default boot entry is the ring-3 `ush` shell (`OC_L1_APP_DECL("ush",
-  ..., dflt=1)` in `ocos/kernel/core_boot_l1launch.c`); **311 commands = 300
+  ..., dflt=1)` in `ocos/kernel/core_boot_l1launch.c`); **312 commands = 301
   registry apps + 11 ush built-ins, zero in L0**.
 
 ```

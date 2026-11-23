@@ -5,8 +5,8 @@
 
 ## Version
 
-3.0.0-WP-tui-input-encoding-hardening (the OCBL bootloader + a pure L0
-service kernel + 300 ring-3 programs under ocos/l1apps/ + the OCSE
+3.0.0-WP-boot-stack-vmware-and-nak-rebase (the OCRMECL/OCBL boot chain, NAK-rebased, with the VMware serial/VGA/EFER independence fixes + a pure L0
+service kernel + 301 ring-3 programs under ocos/l1apps/ + the OCSE
 install environment with the GUI install wizard, plus the L0 driver
 framework - metadata, device tree, power hooks, hotplug, failure
 isolation, deterministic init order - and the drv/dev diagnostic
@@ -121,20 +121,13 @@ The release gate: the full regression matrix green + CI green
 (`.github/workflows/build.yml`: build, ISO, packages, host tests,
 reproducibility) before any tag.
 
-## Line Count (3.0.0-WP-tui-input-encoding-hardening generator caliber)
+## Line Count (generator caliber, refreshed at 3.0.0-WP-boot-stack-vmware-and-nak-rebase)
 
-- Source code (ocos/kernel+services+drivers + ocos/l1apps + boot +
-  core + ocbl + include, .c/.h/.S/.asm, generated data blobs
-  excluded): **161,837 lines across 796 files**
-  (verify with:
-  ```bash
-  find ocos ocos/l1apps boot core ocbl include \
-    \( -name '*.c' -o -name '*.h' -o -name '*.S' -o -name '*.asm' \) \
-    | grep -v generated \
-    | grep -vE 'chinese_font_data|pinyin_data|grub_boot_data|userprogs_data' \
-    | xargs wc -l | tail -1
-  ```
-  )
-- Commands: **311** = 300 ring-3 registry apps + 11 ush built-ins
-- L1SVC surface: **20 categories / 221 numbered ops**
+- Source code (the gen_api_docs STAT_DIRS caliber: ocos/kernel,
+  ocos/drivers, ocos/services, ocos/interface, ocos/l1apps, ocbl,
+  ocire - .c/.h/.S/.asm, generated data blobs excluded):
+  **165,416 lines across 817 files** (stats.json, regenerated with
+  `make api-docs`)
+- Commands: **312** = 301 ring-3 registry apps + 11 ush built-ins
+- L1SVC surface: **20 categories / 223 numbered ops**
 - Syscalls: **54**
