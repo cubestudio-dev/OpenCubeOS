@@ -8,35 +8,35 @@
    is generated from dist/ (the hand-maintained carry is gone) and
    every asset URL is ABSOLUTE. */
 window.SITE_DATA = {
-  version: "3.0.0-WP-runtime-hardening-and-experience-rebase",
-  build: 479,
-  date: "2026-11-21",
-  changes: "runtime hardening: OCRMECL boot compatibility layer (strict-matrix green), i18n resource system with get_text, serial-probe wizard, TUI build switch, update live-mode tolerance, website download fix",
+  version: "3.0.0-WP-boot-stack-vmware-and-nak-rebase",
+  build: 511,
+  date: "2026-11-23",
+  changes: "boot stack: the A/B/C handoff compare report, the VMware serial/VGA/EFER independence fixes (F1-F4), the NAK naming rebase of the boot chain, the strict QEMU matrix both tracks green",
   description: {
-    en: "runtime hardening: OCRMECL boot compatibility layer (strict-matrix green), i18n resource system with get_text, serial-probe wizard, TUI build switch, update live-mode tolerance, website download fix",
-    zh: "运行时加固：OCRMECL 引导兼容层（严格矩阵双绿）、i18n 资源体系与 get_text、串口编码自检向导、TUI 三态编译开关、更新程序 Live 环境容错、官网下载直链修复"
+    en: "boot stack: the A/B/C handoff compare report, the VMware serial/VGA/EFER independence fixes (F1-F4), the NAK naming rebase of the boot chain, the strict QEMU matrix both tracks green",
+    zh: "引导栈：A/B/C 三版本移交对比报告、VMware 串口/VGA/EFER 独立性修复（F1-F4）、引导链 NAK 命名落地、严格 QEMU 矩阵双轨全绿"
   },
   assets: {
     iso: {
-      name: "opencube-3.0.0-WP-runtime-hardening-and-experience-rebase.iso",
-      size: 4194304,
+      name: "opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase.iso",
+      size: 4196352,
       size_h: "4.0 MiB",
-      sha256: "2565f075cef5e31767e7ef03b664b6f9a2f579580a91a4ecf40b10facf2acc89",
-      url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-runtime-hardening-and-experience-rebase.iso"
+      sha256: "fb8965f42885088fb9e760a04084ddccba982bc18376480d3d34d5e4df4491a8",
+      url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase.iso"
     },
     src: {
-      name: "opencube-3.0.0-WP-runtime-hardening-and-experience-rebase-src.zip",
-      size: 7454974,
+      name: "opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase-src.zip",
+      size: 7466216,
       size_h: "7.1 MiB",
-      sha256: "c735f4975f5ad98100cdaf7c4b7f2b80450be56ea777aa96f5d632766422f7b6",
-      url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-runtime-hardening-and-experience-rebase-src.zip"
+      sha256: "00fbbe86610d065bd8cda26ce3d05a1d23f2050727789776aabeb85389604675",
+      url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase-src.zip"
     },
     ota: {
-      name: "opencube-3.0.0-WP-runtime-hardening-and-experience-rebase-update.tar.gz",
-      size: 1409549,
+      name: "opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase-update.tar.gz",
+      size: 1409400,
       size_h: "1.3 MiB",
-      sha256: "db0c8b33a67543cd47f77d7b7b0a864445bb8350c1700acf6ebe713fa058095b",
-      url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-runtime-hardening-and-experience-rebase-update.tar.gz"
+      sha256: "24bc7c1d8593c25dbcfa79cac7d55ac897efb0a873247e47372ec5a068d98692",
+      url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase-update.tar.gz"
     }
   },
   /* P2D3C (spec 4.9): the development-preview channel - the opencube
@@ -44,15 +44,15 @@ window.SITE_DATA = {
      from dist/ on every run (absolute URLs; the defensive GitHub
      Releases fallback lives in assets/app.js). */
   dev: {
-    version: "3.0.0-WP-runtime-hardening-and-experience-rebase",
-    date: "2026-11-21",
+    version: "3.0.0-WP-boot-stack-vmware-and-nak-rebase",
+    date: "2026-11-23",
     assets: {
       opencube: {
-        name: "opencube-3.0.0-WP-runtime-hardening-and-experience-rebase.iso",
-        size: 4194304,
+        name: "opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase.iso",
+        size: 4196352,
         size_h: "4.0 MiB",
-        sha256: "2565f075cef5e31767e7ef03b664b6f9a2f579580a91a4ecf40b10facf2acc89",
-        url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-runtime-hardening-and-experience-rebase.iso"
+        sha256: "fb8965f42885088fb9e760a04084ddccba982bc18376480d3d34d5e4df4491a8",
+        url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase.iso"
       },
       ocse: {
         name: "ocse-3.0.0-WP-l1apps-merge.iso",
@@ -70,6 +70,9 @@ window.SITE_DATA = {
     lines: "165,363"
   },
   history: [
+    { version: "3.0.0-WP-runtime-hardening-and-experience-rebase", date: "2026-11-21",
+      iso_sha: "2565f075cef5e31767e7ef03b664b6f9a2f579580a91a4ecf40b10facf2acc89",
+      iso_size: 4194304 },
     { version: "3.0.0-WP-tui-input-encoding-hardening", date: "2026-11-20",
       iso_sha: "9f24aaf3ba81ed59d32947ec15836b9143454410d56f8a462bba39c6808754e3",
       iso_size: 4399104 },

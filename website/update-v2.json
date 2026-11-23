@@ -1,14 +1,14 @@
 {
-    "version": "3.0.0-WP-runtime-hardening-and-experience-rebase",
-    "build": 479,
-    "time": "2026-11-21",
-    "changes": "runtime hardening: OCRMECL boot compatibility layer (strict-matrix green), i18n resource system with get_text, serial-probe wizard, TUI build switch, update live-mode tolerance, website download fix",
+    "version": "3.0.0-WP-boot-stack-vmware-and-nak-rebase",
+    "build": 511,
+    "time": "2026-11-23",
+    "changes": "boot stack: the A/B/C handoff compare report, the VMware serial/VGA/EFER independence fixes (F1-F4), the NAK naming rebase of the boot chain, the strict QEMU matrix both tracks green",
     "description": {
-        "en": "runtime hardening: OCRMECL boot compatibility layer (strict-matrix green), i18n resource system with get_text, serial-probe wizard, TUI build switch, update live-mode tolerance, website download fix",
-        "zh": "运行时加固：OCRMECL 引导兼容层（严格矩阵双绿）、i18n 资源体系与 get_text、串口编码自检向导、TUI 三态编译开关、更新程序 Live 环境容错、官网下载直链修复"
+        "en": "boot stack: the A/B/C handoff compare report, the VMware serial/VGA/EFER independence fixes (F1-F4), the NAK naming rebase of the boot chain, the strict QEMU matrix both tracks green",
+        "zh": "引导栈：A/B/C 三版本移交对比报告、VMware 串口/VGA/EFER 独立性修复（F1-F4）、引导链 NAK 命名落地、严格 QEMU 矩阵双轨全绿"
     },
     "changes_v2_url": "https://ocos.cubestudio.cn/update-v2.json",
-    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-runtime-hardening-and-experience-rebase-update.tar.gz",
-    "package_sha256": "db0c8b33a67543cd47f77d7b7b0a864445bb8350c1700acf6ebe713fa058095b",
-    "package_size": 1409549
+    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase-update.tar.gz",
+    "package_sha256": "24bc7c1d8593c25dbcfa79cac7d55ac897efb0a873247e47372ec5a068d98692",
+    "package_size": 1409400
 }
