@@ -319,7 +319,7 @@ xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
 Drive current: -outdev 'stdio:/home/z/my-project/workspace/OpenCubeOS/build/opencube.iso'
 Media current: stdio file, overwriteable
 Media status : is blank
-Media summary: 0 sessions, 0 data blocks, 0 data, 4096m free
+Media summary: 0 sessions, 0 data blocks, 0 data, 4083m free
 Added to ISO image: directory '/'='/home/z/my-project/workspace/OpenCubeOS/build/iso-stage'
 xorriso : UPDATE :       7 files added in 1 seconds
 xorriso : UPDATE :       7 files added in 1 seconds
@@ -342,7 +342,7 @@ iso_zero_ctime: 24 TF ctime stamp(s) zeroed (root extent lba=19 size=2048)
 [build_test_iso] El Torito img path :   1  /OCRMECL.BIN
 [build_test_iso] El Torito img path :   2  /efi.img
 [build_iso] ISO: /home/z/my-project/workspace/OpenCubeOS/build/opencube.iso
--rw-rw-r-- 1 z z 4196352 Nov 23 15:06 /home/z/my-project/workspace/OpenCubeOS/build/opencube.iso
+-rw-rw-r-- 1 z z 4196352 Nov 23 15:36 /home/z/my-project/workspace/OpenCubeOS/build/opencube.iso
 bash tools/test_strict.sh
 test-strict: strict-bios-bios-seabios booting under: -cpu qemu64,enforce -machine vmport=off -boot strict=on
 test-strict: strict-bios-bios-seabios GREEN (OCRMECL -> OCBL -> kernel -> ush)

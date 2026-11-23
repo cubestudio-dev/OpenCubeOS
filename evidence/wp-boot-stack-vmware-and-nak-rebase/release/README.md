@@ -44,3 +44,21 @@ and the gate re-run GREEN (31/31).
    (QEMU-nanny independence + observability) are proven by the strict
    matrix; the user-side VMware re-test remains the standing acceptance
    item declared in the work package.
+
+## Final release bytes (the build-511 pin)
+
+The release assets are the clean rebuild with `OC_KERNEL_BUILD=511`
+pinned (the build counter rides the commit count - every release
+engineering commit bumps it for FUTURE builds; the shipped bytes and
+every evidence banner say 511):
+
+- opencube ISO  `fb8965f42885088fb9e760a04084ddccba982bc18376480d3d34d5e4df4491a8` (4196352 B)
+- kernel ELF    `a4c673e4f59dab190e2c8b69f53913238c4a58b5b062bb1ebba341e4969f03aa` (the reproducible-check value)
+- src zip       `00fbbe86610d065bd8cda26ce3d05a1d23f2050727789776aabeb85389604675` (7466216 B)
+- update tar.gz `24bc7c1d8593c25dbcfa79cac7d55ac897efb0a873247e47372ec5a068d98692` (1409389 B)
+
+The strict matrix was RE-RUN on these exact final bytes (BOTH TRACKS
+GREEN, strict-matrix.txt in this directory). The src zip is cut from
+the release-evidence commit 1eaf8ff6 (tag~1 - a self-including archive
+is information-theoretically impossible; the note records the shipped
+zip's digest, the same cut the previous release shipped).
