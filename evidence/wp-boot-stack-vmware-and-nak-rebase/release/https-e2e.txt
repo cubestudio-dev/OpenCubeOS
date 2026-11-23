@@ -1,0 +1,9 @@
+  PASS  0 self-signed chain REFUSED by default (#21)
+  PASS  1 TLS handshake (kernel connected)
+  PASS  2 TLS1.2 + 0x0067 negotiated
+  PASS  3 encrypted GET received
+  PASS  4 canonical body served (body=24)
+  PASS  5 kernel saved the body
+  PASS  6 kernel close_notify observed (raw recorder)
+  PASS  7 truncation detected promptly
+=== 8/8 HTTPS E2E checks passed ===

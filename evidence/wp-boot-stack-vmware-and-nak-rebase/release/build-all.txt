@@ -1,0 +1,465 @@
+python3 /home/z/my-project/workspace/OpenCubeOS/tools/gen_pinyin_phrase.py
+gen_pinyin_phrase: /home/z/my-project/workspace/OpenCubeOS/ocos/services/display/interface/svc_display_pinyin_phrase.h unchanged (mtime kept)
+gen_pinyin_phrase: /home/z/my-project/workspace/OpenCubeOS/ocos/services/display/src/svc_display_pinyin_phrase_data.c unchanged (mtime kept)
+nasm -f elf64 -F dwarf -g /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_boot.S -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_boot.o
+nasm -f elf64 -F dwarf -g /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_kexec_jump.S -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_kexec_jump.o
+nasm -f elf64 -F dwarf -g /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_mb2_header.S -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_mb2_header.o
+CONFIG_TUI=n python3 /home/z/my-project/workspace/OpenCubeOS/tools/gen_userprogs.py
+src-zip: WARNING - tag v3.0.0-WP-boot-stack-vmware-and-nak-rebase not found, cutting from HEAD (development cut, NOT a release asset)
+gen_l1svc_ops: 243 constants -> /home/z/my-project/workspace/OpenCubeOS/ocos/interface/l1svc_ops.h
+build_solib: libfoo = 13456 bytes from /home/z/my-project/workspace/OpenCubeOS/build/libfoo.so (ET_DYN, DT_SONAME=libfoo.so)
+  regenerated solib_libfoo block in /home/z/my-project/workspace/OpenCubeOS/ocos/kernel/solib_data.h
+gen_userprogs: ab_partition_test = 2272 bytes [exec]
+gen_userprogs: abcfg = 2272 bytes [exec]
+gen_userprogs: abdisk = 2272 bytes [exec]
+gen_userprogs: ac97 = 2272 bytes [exec]
+gen_userprogs: ac97_test = 2272 bytes [exec]
+gen_userprogs: acpi = 2264 bytes [exec]
+gen_userprogs: acpidev = 2264 bytes [exec]
+gen_userprogs: acpipow = 2272 bytes [exec]
+gen_userprogs: acpitest = 2272 bytes [exec]
+gen_userprogs: ahci = 2280 bytes [exec]
+gen_userprogs: ahci_test = 2264 bytes [exec]
+gen_userprogs: arp = 2248 bytes [exec]
+gen_userprogs: ata = 2264 bytes [exec]
+gen_userprogs: ata_dma_test = 2264 bytes [exec]
+gen_userprogs: audio_rw_test = 2272 bytes [exec]
+src-zip: /home/z/my-project/workspace/OpenCubeOS/dist/OpenCubeOS-src-3.0.0-WP-boot-stack-vmware-and-nak-rebase.zip (7465199 bytes)
+nasm -f bin -D OCBL_ELTORITO -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/stage1_eltorito.bin /home/z/my-project/workspace/OpenCubeOS/ocbl/bios/ocbl_bios_stage1.asm
+python3 -c "import sys; b=open('/home/z/my-project/workspace/OpenCubeOS/build/ocbl/stage1_eltorito.bin','rb').read(); assert len(b)==512, 'stage1 eltorito %d bytes' % len(b); print('ocbl: stage1 eltorito 512B ok')"
+ocbl: stage1 eltorito 512B ok
+nasm -f elf64 -g -F dwarf -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios/core_head.o /home/z/my-project/workspace/OpenCubeOS/ocbl/bios/ocbl_bios_core_head.S
+nasm -f bin -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/tramp16.bin /home/z/my-project/workspace/OpenCubeOS/ocbl/bios/ocbl_bios_tramp16.asm
+python3 -c "b=open('/home/z/my-project/workspace/OpenCubeOS/build/ocbl/tramp16.bin','rb').read(); assert len(b)<=0x300, 'tramp blob %d B overflows the 0x100 code area' % len(b); print('ocbl: tramp16.bin %dB ok' % len(b))"
+ocbl: tramp16.bin 768B ok
+nasm -f elf64 -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios/ocbl_bios_asm.o /home/z/my-project/workspace/OpenCubeOS/ocbl/bios/ocbl_bios_asm.S
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_acpi.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_acpi.o
+gen_userprogs: awk = 3752 bytes [exec]
+gen_userprogs: badapp = 768 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_fs.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_fs.o
+gen_userprogs: bcm57xx = 2272 bytes [exec]
+gen_userprogs: bcm57xx_test = 2272 bytes [exec]
+gen_userprogs: bt = 2264 bytes [exec]
+gen_userprogs: cat = 2160 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_idt.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_idt.o
+gen_userprogs: checkupdate = 2272 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_load.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_load.o
+gen_userprogs: checkupdate_test = 2264 bytes [exec]
+gen_userprogs: chinese = 2272 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_main.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_main.o
+gen_userprogs: chinesetest = 2296 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_menu.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_menu.o
+gen_userprogs: chmod = 2216 bytes [exec]
+gen_userprogs: chown = 2296 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_part.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_part.o
+gen_userprogs: clear = 2256 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_scan.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_scan.o
+gen_userprogs: config = 2280 bytes [exec]
+gen_userprogs: config_test = 2272 bytes [exec]
+gen_userprogs: cp = 2816 bytes [exec]
+gen_userprogs: cr3test = 2272 bytes [exec]
+gen_userprogs: crashlog = 2272 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_serial.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_serial.o
+gen_userprogs: crashtest = 2288 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_statemon.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_statemon.o
+gen_userprogs: cryptotest = 2280 bytes [exec]
+gen_userprogs: date = 2496 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_wdt.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_wdt.o
+nasm -f elf64 -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_idt_asm.o /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_idt.S
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/bios/ocbl_chain.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_chain.o
+gen_userprogs: dev = 4392 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/bios/ocbl_con_bios.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_con_bios.o
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/bios/ocbl_disk.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_disk.o
+gen_userprogs: dev_debug = 4592 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/bios/ocbl_mmap.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_mmap.o
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/bios/ocbl_rsdp_bios.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_rsdp_bios.o
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/bios/ocbl_vbe.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_vbe.o
+gen_userprogs: dev_help = 4544 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=small -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -DOCBL_FLAVOR_BIOS -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/bios/ocbl_vga.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_vga.o
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/efi/ocbl_con_efi.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/efi/ocbl_con_efi.o
+gen_userprogs: dev_info = 4568 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/efi/ocbl_font_data.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/efi/ocbl_font_data.o
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/efi/ocbl_mmap_efi.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/efi/ocbl_mmap_efi.o
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/efi/ocbl_ramdisk.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/efi/ocbl_ramdisk.o
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/efi/ocbl_raw.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/efi/ocbl_raw.o
+gen_userprogs: dev_list = 4560 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_statemon.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_statemon.o
+gen_userprogs: dev_tree = 4520 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_serial.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_serial.o
+gen_userprogs: df = 2632 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_fs.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_fs.o
+gen_userprogs: dhcp = 2280 bytes [exec]
+gen_userprogs: dhtest = 2280 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_part.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_part.o
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_scan.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_scan.o
+gen_userprogs: disk-tool = 18880 bytes [exec]
+gen_userprogs: disk_rw_test = 2272 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_menu.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_menu.o
+gen_userprogs: dlsym_test = 13784 bytes [pie-foo]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_acpi.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_acpi.o
+gen_userprogs: dmesg = 2096 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_wdt.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_wdt.o
+gen_userprogs: dns = 2272 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocbl/common -I/home/z/my-project/workspace/OpenCubeOS/ocbl/efi -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_FLAVOR_UEFI -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocbl/common/ocbl_load.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_load.o
+gen_userprogs: dnstest = 2272 bytes [exec]
+nasm -f bin -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/handoff_blob.bin /home/z/my-project/workspace/OpenCubeOS/ocbl/efi/ocbl_efi_handoff_blob.asm
+python3 -c "b=open('/home/z/my-project/workspace/OpenCubeOS/build/ocbl/handoff_blob.bin','rb').read(); assert len(b)<=0x1000, 'handoff blob %d bytes overflows the 0x30000 code area' % len(b); print('ocbl: handoff_blob.bin %dB ok' % len(b))"
+ocbl: handoff_blob.bin 156B ok
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_acpi.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_acpi.o
+gen_userprogs: drv = 4816 bytes [exec]
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_ata.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_ata.o
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_bootsvc.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_bootsvc.o
+gen_userprogs: drv_bind = 5008 bytes [exec]
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_cn.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_cn.o
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_console.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_console.o
+gen_userprogs: drv_debug = 5016 bytes [exec]
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_disk.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_disk.o
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_ed25519.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_ed25519.o
+gen_userprogs: drv_failed = 4968 bytes [exec]
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_fat.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_fat.o
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_font.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_font.o
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_idt.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_idt.o
+gen_userprogs: drv_help = 4952 bytes [exec]
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_input.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_input.o
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_kexec.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_kexec.o
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_main.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_main.o
+gen_userprogs: drv_info = 4968 bytes [exec]
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_mb2.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_mb2.o
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_menu.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_menu.o
+gen_userprogs: drv_list = 4960 bytes [exec]
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_ocbl.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_ocbl.o
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_recover.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_recover.o
+gen_userprogs: drv_order = 4992 bytes [exec]
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_sha256.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_sha256.o
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_sha512.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_sha512.o
+gen_userprogs: drv_reload = 4984 bytes [exec]
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_shell.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_shell.o
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_update.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_update.o
+gen_userprogs: drv_unbind = 4992 bytes [exec]
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_util.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_util.o
+gen_userprogs: dskstat = 2272 bytes [exec]
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/ocire_wdt.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_wdt.o
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/generated/ocire_cn_font_data.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/generated/ocire_cn_font_data.o
+gen_userprogs: du = 2816 bytes [exec]
+bash /home/z/my-project/workspace/OpenCubeOS/tools/oc_cc.sh cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=kernel -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -g -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocire -I/home/z/my-project/workspace/OpenCubeOS/ocire/generated -I/home/z/my-project/workspace/OpenCubeOS/include -MMD -MP -c /home/z/my-project/workspace/OpenCubeOS/ocire/generated/ocire_ed25519_pub.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/generated/ocire_ed25519_pub.o
+nasm -f bin -o /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/stage1.bin /home/z/my-project/workspace/OpenCubeOS/ocrmecl/bios/ocrmecl_bios_stage1.asm
+gen_userprogs: dumpinfo = 2272 bytes [exec]
+python3 -c "b=open('/home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/stage1.bin','rb').read(); assert len(b)==512, 'ocrmecl stage1 %d bytes' % len(b); print('ocrmecl: stage1 512B ok')"
+ocrmecl: stage1 512B ok
+nasm -f bin -o /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/core.bin /home/z/my-project/workspace/OpenCubeOS/ocrmecl/bios/ocrmecl_bios_core.asm
+python3 -c "b=open('/home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/core.bin','rb').read(); assert len(b)<=0x7800, 'ocrmecl core %d bytes over budget' % len(b); print('ocrmecl: core %dB ok' % len(b))"
+gen_userprogs: dyn_hello = 13800 bytes [pie]
+ocrmecl: core 1135B ok
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocrmecl/efi -I/home/z/my-project/workspace/OpenCubeOS/ocrmecl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocrmecl/efi/ocrmecl_efi_iso9660.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/efiobj/efi/ocrmecl_efi_iso9660.o
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocrmecl/efi -I/home/z/my-project/workspace/OpenCubeOS/ocrmecl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocrmecl/efi/ocrmecl_efi_main.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/efiobj/efi/ocrmecl_efi_main.o
+gen_userprogs: e1000e = 2272 bytes [exec]
+gen_userprogs: e1000e_test = 2272 bytes [exec]
+gen_userprogs: echo = 1288 bytes [exec]
+cc -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mno-sse -mno-mmx -mno-3dnow -mcmodel=large -fno-ident -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 -std=gnu11 -I/home/z/my-project/workspace/OpenCubeOS/ocrmecl/efi -I/home/z/my-project/workspace/OpenCubeOS/ocrmecl/bios -I/home/z/my-project/workspace/OpenCubeOS/include -I/home/z/my-project/workspace/OpenCubeOS/interface -DOCBL_RELEASE="\"3.0.0-WP-boot-stack-vmware-and-nak-rebase\"" -DOCBL_BUILD=511 -c /home/z/my-project/workspace/OpenCubeOS/ocrmecl/efi/ocrmecl_efi_serial.c -o /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/efiobj/efi/ocrmecl_efi_serial.o
+nasm -f elf64 -I/home/z/my-project/workspace/OpenCubeOS/build/ocbl/ -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios/tramp_data.o /home/z/my-project/workspace/OpenCubeOS/ocbl/bios/ocbl_bios_tramp_data.asm
+nasm -f elf64 -I/home/z/my-project/workspace/OpenCubeOS/build/ocbl/ -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/handoff_data.o /home/z/my-project/workspace/OpenCubeOS/ocbl/efi/ocbl_efi_handoff_data.asm
+ld -n -nostdlib -T /home/z/my-project/workspace/OpenCubeOS/ocire/linker_ocire.ld \
+      -z max-page-size=0x1000 -z noexecstack -o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire.elf /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_acpi.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_ata.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_bootsvc.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_cn.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_console.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_disk.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_ed25519.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_fat.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_font.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_idt.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_input.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_kexec.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_main.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_mb2.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_menu.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_ocbl.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_recover.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_sha256.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_sha512.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_shell.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_update.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_util.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_wdt.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/generated/ocire_cn_font_data.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/generated/ocire_ed25519_pub.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_boot.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_kexec_jump.o /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire_mb2_header.o
+strip --strip-debug /home/z/my-project/workspace/OpenCubeOS/build/ocire/ocire.elf
+ld -m elf_x86_64 --emit-relocs -n -nostdlib \
+      -T /home/z/my-project/workspace/OpenCubeOS/ocrmecl/linker_efi.ld -o /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/core_efi.elf \
+      /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/efiobj/efi/ocrmecl_efi_iso9660.o /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/efiobj/efi/ocrmecl_efi_main.o /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/efiobj/efi/ocrmecl_efi_serial.o
+ld: warning: /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/core_efi.elf has a LOAD segment with RWX permissions
+python3 /home/z/my-project/workspace/OpenCubeOS/ocbl/elf_to_efi.py /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/core_efi.elf /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/ocrmecl_x64.efi ocr_efi_main
+[elf_to_efi] /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/ocrmecl_x64.efi: 40724 B, entry RVA 0x1350, 129 DIR64 relocs (129 operands rewritten), text 0x1000+0x2461, data 0x4000+0x7508
+python3 -c "d=open('/home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/ocrmecl_x64.efi','rb').read(); pe=int.from_bytes(d[0x3c:0x40],'little'); assert d[:2]==b'MZ' and d[pe:pe+4]==b'PE\x00\x00' and int.from_bytes(d[pe+4:pe+6],'little')==0x8664, 'bad PE/EFI header'; print('ocrmecl: ocrmecl_x64.efi %d bytes (x64 EFI app)' % len(d))"
+ocrmecl: ocrmecl_x64.efi 40724 bytes (x64 EFI app)
+ld -n -nostdlib -T /home/z/my-project/workspace/OpenCubeOS/ocbl/linker_bios.ld \
+              -z max-page-size=0x1000 -z noexecstack -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/core.elf \
+              /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios/core_head.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios/tramp_data.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios/ocbl_bios_asm.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_acpi.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_fs.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_idt.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_load.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_main.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_menu.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_part.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_scan.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_serial.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_statemon.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_wdt.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/common/ocbl_idt_asm.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_chain.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_con_bios.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_disk.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_mmap.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_rsdp_bios.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_vbe.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/bios_impl/ocbl_vga.o
+strip --strip-debug /home/z/my-project/workspace/OpenCubeOS/build/ocbl/core.elf
+python3 -c "import sys; b=open('/home/z/my-project/workspace/OpenCubeOS/build/ocbl/core.elf','rb').read(); print('ocbl: core.elf %d bytes' % len(b))"
+ocbl: core.elf 51840 bytes
+ld -m elf_x86_64 --emit-relocs -n -nostdlib \
+              -T /home/z/my-project/workspace/OpenCubeOS/ocbl/linker_efi.ld -o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/core_efi.elf \
+              /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/efi/ocbl_con_efi.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/efi/ocbl_font_data.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/efi/ocbl_mmap_efi.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/efi/ocbl_ramdisk.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/efi/ocbl_raw.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_statemon.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_serial.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_fs.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_part.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_scan.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_menu.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_acpi.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_wdt.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/common/ocbl_load.o /home/z/my-project/workspace/OpenCubeOS/build/ocbl/efiobj/handoff_data.o
+ld: warning: /home/z/my-project/workspace/OpenCubeOS/build/ocbl/core_efi.elf has a LOAD segment with RWX permissions
+python3 /home/z/my-project/workspace/OpenCubeOS/ocbl/elf_to_efi.py /home/z/my-project/workspace/OpenCubeOS/build/ocbl/core_efi.elf /home/z/my-project/workspace/OpenCubeOS/build/ocbl/ocbl_x64.efi ocbl_raw_entry
+[elf_to_efi] /home/z/my-project/workspace/OpenCubeOS/build/ocbl/ocbl_x64.efi: 82596 B, entry RVA 0x1860, 548 DIR64 relocs (548 operands rewritten), text 0x1000+0xa598, data 0xc000+0x9564
+python3 -c "d=open('/home/z/my-project/workspace/OpenCubeOS/build/ocbl/ocbl_x64.efi','rb').read(); pe=int.from_bytes(d[0x3c:0x40],'little'); assert d[:2]==b'MZ' and d[pe:pe+4]==b'PE\x00\x00' and int.from_bytes(d[pe+4:pe+6],'little')==0x8664 and int.from_bytes(d[pe+0x5c:pe+0x5e],'little')==10, 'bad PE/EFI header'; print('ocbl: ocbl_x64.efi %d bytes (x64 EFI app)' % len(d))"
+ocbl: ocbl_x64.efi 82596 bytes (x64 EFI app)
+objcopy -O binary /home/z/my-project/workspace/OpenCubeOS/build/ocbl/core.elf /home/z/my-project/workspace/OpenCubeOS/build/ocbl/core.bin
+python3 /home/z/my-project/workspace/OpenCubeOS/ocbl/build_image.py /home/z/my-project/workspace/OpenCubeOS/build/ocbl/ocbl_bios.bin /home/z/my-project/workspace/OpenCubeOS/build/ocbl/stage1_eltorito.bin /home/z/my-project/workspace/OpenCubeOS/build/ocbl/core.bin
+ocbl: image 44032 B (stage1 512 + core 43520B = 86 sectors) -> /home/z/my-project/workspace/OpenCubeOS/build/ocbl/ocbl_bios.bin
+python3 /home/z/my-project/workspace/OpenCubeOS/ocrmecl/bios/build_ocr_image.py /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/ocrmecl_bios.bin \
+	/home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/stage1.bin /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/core.bin /home/z/my-project/workspace/OpenCubeOS/build/ocbl/ocbl_bios.bin
+ocrmecl: image 46080 B (stage1 512 + core 1536B + OCBL 44032B = 90 sectors, OCBL at +2048) -> /home/z/my-project/workspace/OpenCubeOS/build/ocrmecl/ocrmecl_bios.bin
+gen_userprogs: edit = 16440 bytes [exec]
+gen_userprogs: encoding = 2288 bytes [exec]
+gen_userprogs: encoding-test = 2272 bytes [exec]
+gen_userprogs: es1370 = 2280 bytes [exec]
+gen_userprogs: es1370_test = 2272 bytes [exec]
+gen_userprogs: exc = 2280 bytes [exec]
+gen_userprogs: exec_test = 1224 bytes [exec]
+gen_userprogs: fatmount = 2272 bytes [exec]
+gen_userprogs: fatstat = 2272 bytes [exec]
+gen_userprogs: fdref_test = 1824 bytes [exec]
+gen_userprogs: files = 8736 bytes [exec]
+gen_userprogs: firewall = 2272 bytes [exec]
+gen_userprogs: font = 2272 bytes [exec]
+gen_userprogs: font-test = 2272 bytes [exec]
+gen_userprogs: fork_test = 1480 bytes [exec]
+gen_userprogs: frag = 2272 bytes [exec]
+gen_userprogs: free = 2680 bytes [exec]
+gen_userprogs: fs_mount_test = 2280 bytes [exec]
+gen_userprogs: fsck = 2272 bytes [exec]
+gen_userprogs: fstest = 2264 bytes [exec]
+gen_userprogs: g6_exec_a = 1864 bytes [exec]
+gen_userprogs: g6_exec_b = 1040 bytes [exec]
+gen_userprogs: g6_oom = 3408 bytes [exec]
+gen_userprogs: g6_test = 9416 bytes [exec]
+gen_userprogs: g7mmap = 4920 bytes [exec]
+gen_userprogs: gameport = 2272 bytes [exec]
+gen_userprogs: gameporttest = 2264 bytes [exec]
+gen_userprogs: grep = 2592 bytes [exec]
+gen_userprogs: grub-install = 2280 bytes [exec]
+gen_userprogs: halt = 2256 bytes [exec]
+gen_userprogs: halt_test = 2264 bytes [exec]
+gen_userprogs: hda = 2280 bytes [exec]
+gen_userprogs: hda_test = 2280 bytes [exec]
+gen_userprogs: head = 2464 bytes [exec]
+gen_userprogs: health = 2832 bytes [exec]
+gen_userprogs: heap = 2272 bytes [exec]
+gen_userprogs: heapbounds = 2272 bytes [exec]
+gen_userprogs: heaptest = 2264 bytes [exec]
+gen_userprogs: hello = 752 bytes [exec]
+gen_userprogs: help = 6640 bytes [exec]
+gen_userprogs: help_a_test = 2264 bytes [exec]
+gen_userprogs: help_default_test = 2976 bytes [exec]
+gen_userprogs: help_wp_test = 3040 bytes [exec]
+gen_userprogs: hpet = 2272 bytes [exec]
+gen_userprogs: hwinfo = 15088 bytes [exec]
+gen_userprogs: i2cdetect = 2272 bytes [exec]
+gen_userprogs: i2cget = 2272 bytes [exec]
+gen_userprogs: i2cset = 2280 bytes [exec]
+gen_userprogs: i2ctest = 2264 bytes [exec]
+gen_userprogs: ifconfig = 1896 bytes [exec]
+gen_userprogs: igb = 2264 bytes [exec]
+gen_userprogs: igb_test = 2264 bytes [exec]
+gen_userprogs: ime = 2304 bytes [exec]
+gen_userprogs: ime-test = 2304 bytes [exec]
+gen_userprogs: install = 2288 bytes [exec]
+gen_userprogs: int3_user = 784 bytes [exec]
+gen_userprogs: ip = 2272 bytes [exec]
+gen_userprogs: ir = 2280 bytes [exec]
+gen_userprogs: irqabitest = 2272 bytes [exec]
+gen_userprogs: irtest = 2272 bytes [exec]
+gen_userprogs: ixgbe = 2272 bytes [exec]
+gen_userprogs: ixgbe_test = 2272 bytes [exec]
+gen_userprogs: kill = 1912 bytes [exec]
+gen_userprogs: l1test = 2312 bytes [exec]
+gen_userprogs: lang = 2312 bytes [exec]
+gen_userprogs: ld_so = 12312 bytes [ld_so]
+gen_userprogs: ldd = 2280 bytes [exec]
+gen_userprogs: ln = 2704 bytes [exec]
+gen_userprogs: logcat = 2288 bytes [exec]
+gen_userprogs: logctl = 2280 bytes [exec]
+gen_userprogs: loop = 776 bytes [exec]
+gen_userprogs: ls = 1528 bytes [exec]
+gen_userprogs: lsblk = 2272 bytes [exec]
+gen_userprogs: lspci = 2272 bytes [exec]
+gen_userprogs: main_dyn = 14096 bytes [pie-foo]
+gen_userprogs: mem = 2280 bytes [exec]
+gen_userprogs: memtest = 2280 bytes [exec]
+gen_userprogs: mkdir = 2088 bytes [exec]
+gen_userprogs: mkfs.exfat = 2288 bytes [exec]
+gen_userprogs: mkfs.ext4 = 2288 bytes [exec]
+gen_userprogs: mkfs.fat32 = 2288 bytes [exec]
+gen_userprogs: mmap_multi = 1976 bytes [exec]
+gen_userprogs: mmap_test = 1344 bytes [exec]
+gen_userprogs: mount = 2304 bytes [exec]
+gen_userprogs: mounts = 2288 bytes [exec]
+gen_userprogs: mprotect_test = 1224 bytes [exec]
+gen_userprogs: msitest = 2272 bytes [exec]
+gen_userprogs: multi = 2272 bytes [exec]
+gen_userprogs: mv = 2864 bytes [exec]
+gen_userprogs: nano = 16488 bytes [exec]
+gen_userprogs: net-tool = 18624 bytes [exec]
+gen_userprogs: netstat = 1904 bytes [exec]
+gen_userprogs: nf_test = 2264 bytes [exec]
+gen_userprogs: nic_rw_test = 2272 bytes [exec]
+gen_userprogs: nice = 2264 bytes [exec]
+gen_userprogs: nvme = 2280 bytes [exec]
+gen_userprogs: nvme_test = 2280 bytes [exec]
+gen_userprogs: other_nic_test = 2280 bytes [exec]
+gen_userprogs: p0leak = 2592 bytes [exec]
+gen_userprogs: p2test = 5904 bytes [exec]
+gen_userprogs: p3_test = 1456 bytes [exec]
+gen_userprogs: parallel = 2264 bytes [exec]
+gen_userprogs: paralleltest = 2264 bytes [exec]
+gen_userprogs: parted = 2280 bytes [exec]
+gen_userprogs: partition_test = 2272 bytes [exec]
+gen_userprogs: pcibars = 2280 bytes [exec]
+gen_userprogs: pcidump = 2272 bytes [exec]
+gen_userprogs: pcie = 2272 bytes [exec]
+gen_userprogs: pf_test = 1480 bytes [exec]
+gen_userprogs: pftest = 2280 bytes [exec]
+gen_userprogs: pie_test = 13800 bytes [pie]
+gen_userprogs: ping = 2192 bytes [exec]
+gen_userprogs: pipe_test = 1496 bytes [exec]
+gen_userprogs: play = 2264 bytes [exec]
+gen_userprogs: pmmrace = 2272 bytes [exec]
+gen_userprogs: pmtimer = 2280 bytes [exec]
+gen_userprogs: power = 10032 bytes [exec]
+gen_userprogs: poweroff = 2264 bytes [exec]
+gen_userprogs: poweroff_test = 2272 bytes [exec]
+gen_userprogs: priv_test = 960 bytes [exec]
+gen_userprogs: ps = 2928 bytes [exec]
+gen_userprogs: pwd = 1272 bytes [exec]
+gen_userprogs: real_hw_test = 2280 bytes [exec]
+gen_userprogs: real_update_test = 2272 bytes [exec]
+gen_userprogs: reboot = 2256 bytes [exec]
+gen_userprogs: reboot_test = 2272 bytes [exec]
+gen_userprogs: reloc_test = 14248 bytes [pie-foo]
+gen_userprogs: rm = 2072 bytes [exec]
+gen_userprogs: rmdir = 2096 bytes [exec]
+gen_userprogs: rollback = 2280 bytes [exec]
+gen_userprogs: route = 2256 bytes [exec]
+gen_userprogs: rtc = 2264 bytes [exec]
+gen_userprogs: rtl810x = 2272 bytes [exec]
+gen_userprogs: rtl810x_test = 2272 bytes [exec]
+gen_userprogs: rtl8125 = 2272 bytes [exec]
+gen_userprogs: rtl8125_test = 2272 bytes [exec]
+gen_userprogs: rtl8139 = 2272 bytes [exec]
+gen_userprogs: rtl8139_test = 2272 bytes [exec]
+gen_userprogs: rtl8168 = 2272 bytes [exec]
+gen_userprogs: rtl8168_test = 2272 bytes [exec]
+gen_userprogs: run = 3176 bytes [exec]
+gen_userprogs: sample_rate_test = 2264 bytes [exec]
+gen_userprogs: sb16 = 2272 bytes [exec]
+gen_userprogs: sb16_test = 2272 bytes [exec]
+gen_userprogs: sched = 2272 bytes [exec]
+gen_userprogs: scsi = 2272 bytes [exec]
+gen_userprogs: scsitest = 2272 bytes [exec]
+gen_userprogs: sed = 3656 bytes [exec]
+gen_userprogs: select_test = 1624 bytes [exec]
+gen_userprogs: select_zero_test = 1680 bytes [exec]
+gen_userprogs: serial-probe = 3248 bytes [exec]
+gen_userprogs: serial_encoding = 2336 bytes [exec]
+gen_userprogs: shutdown = 2264 bytes [exec]
+gen_userprogs: signal_test = 1352 bytes [exec]
+gen_userprogs: sigsegv_test = 1472 bytes [exec]
+gen_userprogs: sleep = 2272 bytes [exec]
+gen_userprogs: smbus = 2256 bytes [exec]
+gen_userprogs: smbustest = 2256 bytes [exec]
+gen_userprogs: so_test = 14096 bytes [pie-foo]
+gen_userprogs: sort = 2432 bytes [exec]
+gen_userprogs: sound = 2280 bytes [exec]
+gen_userprogs: sound-tool = 13432 bytes [exec]
+gen_userprogs: spawn = 2272 bytes [exec]
+gen_userprogs: sse_test = 2104 bytes [exec]
+gen_userprogs: ssh = 2256 bytes [exec]
+gen_userprogs: sshd = 2256 bytes [exec]
+gen_userprogs: stackovf = 1528 bytes [exec]
+gen_userprogs: stat = 4280 bytes [exec]
+gen_userprogs: stats = 2280 bytes [exec]
+gen_userprogs: suspend_test = 2264 bytes [exec]
+gen_userprogs: sync = 2288 bytes [exec]
+gen_userprogs: syncstat = 2280 bytes [exec]
+gen_userprogs: synctest = 2272 bytes [exec]
+gen_userprogs: sysdiag = 15256 bytes [exec]
+gen_userprogs: tail = 2560 bytes [exec]
+gen_userprogs: tcpcc_test = 2288 bytes [exec]
+gen_userprogs: tcpstats = 2256 bytes [exec]
+gen_userprogs: tcptest = 2272 bytes [exec]
+gen_userprogs: timer = 2264 bytes [exec]
+gen_userprogs: top = 4896 bytes [exec]
+gen_userprogs: touch = 1744 bytes [exec]
+gen_userprogs: touchpad = 2264 bytes [exec]
+gen_userprogs: touchtest = 2264 bytes [exec]
+gen_userprogs: tree = 2272 bytes [exec]
+gen_userprogs: tsc = 2272 bytes [exec]
+gen_userprogs: umount = 2272 bytes [exec]
+gen_userprogs: uname = 2272 bytes [exec]
+gen_userprogs: uniq = 2720 bytes [exec]
+gen_userprogs: update = 14536 bytes [exec]
+gen_userprogs: update_check_test = 2280 bytes [exec]
+gen_userprogs: update_download_test = 2272 bytes [exec]
+gen_userprogs: update_install_test = 2264 bytes [exec]
+gen_userprogs: update_local_test = 2280 bytes [exec]
+gen_userprogs: update_pkg_test = 2272 bytes [exec]
+gen_userprogs: update_rollback_test = 2272 bytes [exec]
+gen_userprogs: update_status_test = 2264 bytes [exec]
+gen_userprogs: update_verify_test = 2264 bytes [exec]
+gen_userprogs: usb = 2264 bytes [exec]
+gen_userprogs: usb_audio_test = 2264 bytes [exec]
+gen_userprogs: usb_core_test = 2264 bytes [exec]
+gen_userprogs: usb_hotplug_test = 2272 bytes [exec]
+gen_userprogs: usb_hub_test = 2264 bytes [exec]
+gen_userprogs: usb_kbd_test = 2272 bytes [exec]
+gen_userprogs: usb_mouse_test = 2264 bytes [exec]
+gen_userprogs: usb_serial_test = 2264 bytes [exec]
+gen_userprogs: usb_storage_test = 2280 bytes [exec]
+gen_userprogs: usbaudio = 2264 bytes [exec]
+gen_userprogs: usbdev = 2272 bytes [exec]
+gen_userprogs: ush = 23616 bytes [exec]
+gen_userprogs: uvc = 2272 bytes [exec]
+gen_userprogs: uvctest = 2272 bytes [exec]
+gen_userprogs: vi = 17776 bytes [exec]
+gen_userprogs: virtio_blk_test = 2272 bytes [exec]
+gen_userprogs: virtio_snd_test = 2272 bytes [exec]
+gen_userprogs: virtiosnd = 2272 bytes [exec]
+gen_userprogs: vmkernelpt = 2272 bytes [exec]
+gen_userprogs: vmmap = 2280 bytes [exec]
+gen_userprogs: vmtest = 2264 bytes [exec]
+gen_userprogs: volume = 2280 bytes [exec]
+gen_userprogs: watchdog = 2264 bytes [exec]
+gen_userprogs: wc = 2776 bytes [exec]
+gen_userprogs: wget = 2600 bytes [exec]
+gen_userprogs: wifi = 2272 bytes [exec]
+gen_userprogs: write = 2504 bytes [exec]
+gen_userprogs: /home/z/my-project/workspace/OpenCubeOS/ocos/kernel/userprogs_data.h unchanged (mtime kept)
+gen_userprogs: 292 programs, 957776 bytes total -> /home/z/my-project/workspace/OpenCubeOS/ocos/kernel/userprogs_data.h [skipping 9 tui* folders (CONFIG_TUI=n)]
+gen_userprogs: i18n: 292 apps carry en+zh resources, 292 zh hints present
+mkdir -p /home/z/my-project/workspace/OpenCubeOS/build
+userprogs: ocos/kernel/userprogs_data.h up to date
+bash /home/z/my-project/workspace/OpenCubeOS/tools/build_iso.sh
+[build_iso] staging in /home/z/my-project/workspace/OpenCubeOS/build/iso-stage
+[build_test_iso] boot image 46080 B = 90 load sectors
+fat_zero_dates: scrubbed /home/z/my-project/workspace/OpenCubeOS/build/iso-stage/efi.img (bps=512 spc=1 root@0x1a00 data@0x3600)
+[build_test_iso] ESP: BOOTX64.EFI (40724 B)
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:/home/z/my-project/workspace/OpenCubeOS/build/opencube.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data, 4102m free
+Added to ISO image: directory '/'='/home/z/my-project/workspace/OpenCubeOS/build/iso-stage'
+xorriso : UPDATE :       7 files added in 1 seconds
+xorriso : UPDATE :       7 files added in 1 seconds
+xorriso : WARNING : EFI boot equipment is provided but no directory /EFI/BOOT
+xorriso : WARNING : will emerge in the ISO filesystem. A popular method to
+xorriso : WARNING : prepare a USB stick on MS-Windows relies on having in the
+xorriso : WARNING : ISO filesystem a copy of the EFI System Partition tree.
+ISO image produced: 2049 sectors
+Written to medium : 2049 sectors at LBA 0
+Writing to 'stdio:/home/z/my-project/workspace/OpenCubeOS/build/opencube.iso' completed successfully.
+
+[build_test_iso] ISO: /home/z/my-project/workspace/OpenCubeOS/build/opencube.iso (4196352 B)
+iso_zero_ctime: 24 TF ctime stamp(s) zeroed (root extent lba=19 size=2048)
+[build_test_iso] RR TF ctime zeroed (deterministic ISO)
+[build_test_iso] El Torito catalog  : 33  1
+[build_test_iso] El Torito cat path : /boot.catalog
+[build_test_iso] El Torito images   :   N  Pltf  B   Emul  Ld_seg  Hdpt  Ldsiz         LBA
+[build_test_iso] El Torito boot img :   1  BIOS  y   none  0x0000  0x00     90         546
+[build_test_iso] El Torito boot img :   2  UEFI  y   none  0x0000  0x00   2048          34
+[build_test_iso] El Torito img path :   1  /OCRMECL.BIN
+[build_test_iso] El Torito img path :   2  /efi.img
+[build_iso] ISO: /home/z/my-project/workspace/OpenCubeOS/build/opencube.iso
+-rw-rw-r-- 1 z z 4196352 Nov 23 13:53 /home/z/my-project/workspace/OpenCubeOS/build/opencube.iso
+bash /home/z/my-project/workspace/OpenCubeOS/tools/make_update_pkg.sh "3.0.0-WP-boot-stack-vmware-and-nak-rebase" "/home/z/my-project/workspace/OpenCubeOS/build/opencube.elf" "/home/z/my-project/workspace/OpenCubeOS/dist/OpenCubeOS-3.0.0-WP-boot-stack-vmware-and-nak-rebase-update.tar.gz"
+[make_update_pkg] package: /home/z/my-project/workspace/OpenCubeOS/dist/OpenCubeOS-3.0.0-WP-boot-stack-vmware-and-nak-rebase-update.tar.gz
+[make_update_pkg] payload sha256 (manifest): d311fe3ce630e6c22c6b72ebcafdc2456d18be88f97d8c250134d65c5b60eec0
+[make_update_pkg] package sha256 (.tar.gz): e5ed0bfa3fcf99f249dfad29c8d3b5a101453af311ee0beba2e61a941491e6c0
+[make_update_pkg] package size: 1409388
+ota: /home/z/my-project/workspace/OpenCubeOS/dist/OpenCubeOS-3.0.0-WP-boot-stack-vmware-and-nak-rebase-update.tar.gz
+make all: full pipeline done
+  kernel : /home/z/my-project/workspace/OpenCubeOS/build/opencube.elf
+  ISO    : /home/z/my-project/workspace/OpenCubeOS/build/opencube.iso
+  SRC    : /home/z/my-project/workspace/OpenCubeOS/dist/OpenCubeOS-src-3.0.0-WP-boot-stack-vmware-and-nak-rebase.zip
+  OTA    : /home/z/my-project/workspace/OpenCubeOS/dist/OpenCubeOS-3.0.0-WP-boot-stack-vmware-and-nak-rebase-update.tar.gz

@@ -313,6 +313,24 @@ def monitor_screendump(sock_path, ppm_path, timeout=15):
             if b"(qemu)" in buf:
                 break
         s.close()
+        # QEMU >= 9 writes the PPM asynchronously AFTER the HMP prompt
+        # returns (a background QMP job); reading the file immediately
+        # races it. Live-caught on the 3.0.0-WP-boot-stack release
+        # re-run against QEMU 10: 'unparseable screendump' (truncated
+        # read) / 'screendump failed (no monitor / no file)' (read
+        # before the write started). Wait for the file to appear and
+        # its size to settle before handing the bytes to the parser.
+        deadline = time.time() + 5
+        last_size = -1
+        while time.time() < deadline:
+            try:
+                size = os.path.getsize(ppm_path)
+            except OSError:
+                size = -1
+            if size > 0 and size == last_size:
+                break
+            last_size = size
+            time.sleep(0.1)
         with open(ppm_path, "rb") as f:
             return f.read()
     except Exception:

@@ -1,0 +1,102 @@
+python3 tools/run_host_tests.py
+--- host_a401_entry_test.c build errors (first 8):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_a401_entry_test.c:26:10: fatal error: types.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_x509.c:11:10: fatal error: svc_crypto_x509.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_rsa.c:9:10: fatal error: svc_crypto_rsa.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_bn.c:28:10: fatal error: svc_crypto_bn.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_ec_nist.c:14:10: fatal error: svc_crypto_ec_nist.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_core.c:8:10: fatal error: svc_crypto_core.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_sha512.c:8:10: fatal error: svc_crypto_sha512.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/time/src/svc_time_rtc.c:8:10: fatal error: svc_time_rtc.h: No such file or directory
+--- host_aead_test.c build errors (first 3):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_aead_test.c:12:10: fatal error: types.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_aead.c:13:10: fatal error: svc_crypto_aead.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_sha512.c:8:10: fatal error: svc_crypto_sha512.h: No such file or directory
+--- host_blk512_gate_test.c build errors (first 3):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_blk512_gate_test.c:36:10: fatal error: types.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/block/src/svc_block_drivers.c:13:10: fatal error: svc_block_drivers.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_registry_stub.c:14:10: fatal error: ../../ocos/kernel/core_registry.h: No such file or directory
+--- host_bn_ec_test.c build errors (first 3):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_bn_ec_test.c:16:10: fatal error: core_lib_string.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_bn.c:28:10: fatal error: svc_crypto_bn.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_ec_nist.c:14:10: fatal error: svc_crypto_ec_nist.h: No such file or directory
+--- host_bt_test.c build errors (first 1):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_bt_test.c:25:10: fatal error: types.h: No such file or directory
+--- host_camera_test.c build errors (first 1):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_camera_test.c:36:10: fatal error: ../core/types.h: No such file or directory
+--- host_fix4_crypto_test.c build errors (first 6):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_fix4_crypto_test.c:29:10: fatal error: types.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_bn.c:28:10: fatal error: svc_crypto_bn.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_ec_nist.c:14:10: fatal error: svc_crypto_ec_nist.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_curve25519.c:12:10: fatal error: svc_crypto_curve25519.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_core.c:8:10: fatal error: svc_crypto_core.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_sha512.c:8:10: fatal error: svc_crypto_sha512.h: No such file or directory
+--- host_fix4_tar_test.c build errors (first 1):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_fix4_tar_test.c:25:10: fatal error: core/types.h: No such file or directory
+--- host_i2chid_touch_test.c build errors (first 1):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_i2chid_touch_test.c:16:10: fatal error: core/types.h: No such file or directory
+--- host_ir_test.c build errors (first 1):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_ir_test.c:23:10: fatal error: ../core/types.h: No such file or directory
+--- host_mb2_test.c build errors (first 2):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_mb2_test.c:24:10: fatal error: types.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/kernel/arch/x86_64/arch_multiboot2.h:24:10: fatal error: types.h: No such file or directory
+--- host_rsa_test.c build errors (first 6):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_rsa_test.c:9:10: fatal error: types.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_rsa.c:9:10: fatal error: svc_crypto_rsa.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_bn.c:28:10: fatal error: svc_crypto_bn.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_core.c:8:10: fatal error: svc_crypto_core.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_sha512.c:8:10: fatal error: svc_crypto_sha512.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_pmm_stub.c:5:10: fatal error: types.h: No such file or directory
+--- host_scsi_test.c build errors (first 1):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_scsi_test.c:34:10: fatal error: ../core/types.h: No such file or directory
+--- host_tcpcc_test.c build errors (first 2):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_tcpcc_test.c:8:10: fatal error: types.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/net/src/svc_net_tcp_cc.c:15:10: fatal error: svc_net_tcp_cc.h: No such file or directory
+--- host_tls13_ks_test.c build errors (first 5):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_tls13_ks_test.c:24:10: fatal error: types.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_core.c:8:10: fatal error: svc_crypto_core.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_sha512.c:8:10: fatal error: svc_crypto_sha512.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/time/src/svc_time_rtc.c:8:10: fatal error: svc_time_rtc.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_pmm_stub.c:5:10: fatal error: types.h: No such file or directory
+--- host_tls_p0_test.c build errors (first 1):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_tls_p0_test.c:30:10: fatal error: svc_net_tls.c: No such file or directory
+--- host_wifi_test.c build errors (first 3):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_wifi_test.c:30:10: fatal error: core_lib_string.c: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_wifi_nic_stub.c:13:10: fatal error: svc_net_drivers.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_registry_stub.c:14:10: fatal error: ../../ocos/kernel/core_registry.h: No such file or directory
+--- host_x25519_test.c build errors (first 2):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_x25519_test.c:8:10: fatal error: types.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_curve25519.c:12:10: fatal error: svc_crypto_curve25519.h: No such file or directory
+--- host_x509_test.c build errors (first 8):
+    /home/z/my-project/workspace/OpenCubeOS/tests/host_x509_test.c:11:10: fatal error: types.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_x509.c:11:10: fatal error: svc_crypto_x509.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_rsa.c:9:10: fatal error: svc_crypto_rsa.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_bn.c:28:10: fatal error: svc_crypto_bn.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_ec_nist.c:14:10: fatal error: svc_crypto_ec_nist.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_core.c:8:10: fatal error: svc_crypto_core.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/crypto/src/svc_crypto_sha512.c:8:10: fatal error: svc_crypto_sha512.h: No such file or directory
+    /home/z/my-project/workspace/OpenCubeOS/ocos/services/time/src/svc_time_rtc.c:8:10: fatal error: svc_time_rtc.h: No such file or directory
+TEST                                   RESULT
+host_a401_entry_test.c                 BUILD-FAIL (see /tmp/oc_hosttest/host_a401_entry_test.c.build.log)
+host_aead_test.c                       BUILD-FAIL (see /tmp/oc_hosttest/host_aead_test.c.build.log)
+host_blk512_gate_test.c                BUILD-FAIL (see /tmp/oc_hosttest/host_blk512_gate_test.c.build.log)
+host_bn_ec_test.c                      BUILD-FAIL (see /tmp/oc_hosttest/host_bn_ec_test.c.build.log)
+host_bt_test.c                         BUILD-FAIL (see /tmp/oc_hosttest/host_bt_test.c.build.log)
+host_camera_test.c                     BUILD-FAIL (see /tmp/oc_hosttest/host_camera_test.c.build.log)
+host_drv_framework_test.c              PASS
+host_fix4_crypto_test.c                BUILD-FAIL (see /tmp/oc_hosttest/host_fix4_crypto_test.c.build.log)
+host_fix4_tar_test.c                   BUILD-FAIL (see /tmp/oc_hosttest/host_fix4_tar_test.c.build.log)
+host_i2chid_touch_test.c               BUILD-FAIL (see /tmp/oc_hosttest/host_i2chid_touch_test.c.build.log)
+host_ir_test.c                         BUILD-FAIL (see /tmp/oc_hosttest/host_ir_test.c.build.log)
+host_mb2_test.c                        BUILD-FAIL (see /tmp/oc_hosttest/host_mb2_test.c.build.log)
+host_rsa_test.c                        BUILD-FAIL (see /tmp/oc_hosttest/host_rsa_test.c.build.log)
+host_scsi_test.c                       BUILD-FAIL (see /tmp/oc_hosttest/host_scsi_test.c.build.log)
+host_tcpcc_test.c                      BUILD-FAIL (see /tmp/oc_hosttest/host_tcpcc_test.c.build.log)
+host_tls13_ks_test.c                   BUILD-FAIL (see /tmp/oc_hosttest/host_tls13_ks_test.c.build.log)
+host_tls_p0_test.c                     BUILD-FAIL (see /tmp/oc_hosttest/host_tls_p0_test.c.build.log)
+host_wifi_test.c                       BUILD-FAIL (see /tmp/oc_hosttest/host_wifi_test.c.build.log)
+host_x25519_test.c                     BUILD-FAIL (see /tmp/oc_hosttest/host_x25519_test.c.build.log)
+host_x509_test.c                       BUILD-FAIL (see /tmp/oc_hosttest/host_x509_test.c.build.log)
+
+summary: 1 passed, 19 failed/build-failed, 0 skipped (fixtures)
+make: *** [Makefile:705: test] Error 1
