@@ -206,6 +206,21 @@ handoff32:
         mov cr4, eax
         xor eax, eax
         mov cr3, eax
+        ; WP-boot-stack F4: normalize EFER to the GRUB handoff state.
+        ; The long-mode entry armed EFER.LME/NXE (core_head) and the
+        ; downgrade chain above only cleared PG/PAE/CR3 - the kernel
+        ; used to receive the "compatibility mode with long mode
+        ; armed" state while GRUB always hands over EFER=0 (it never
+        ; enters long mode). PG is off now, so clearing LME/NXE is
+        ; legal; the kernel re-arms EFER itself (core_boot_entry.S
+        ; rdmsr/or LME/wrmsr) either way. RCX carries the kernel
+        ; entry - save it around the MSR sequence.
+        push ecx                         ; kernel entry, low dword only
+        mov ecx, 0xC0000080              ; IA32_EFER
+        rdmsr
+        and eax, ~((1 << 8) | (1 << 11)) ; LME | NXE off
+        wrmsr
+        pop ecx                          ; kernel entry back
         mov eax, 0x36D76289              ; multiboot2 boot magic
         mov ebx, esi                     ; mbi physical (low dword)
         jmp ecx                          ; kernel _start

@@ -45,6 +45,12 @@ start:
         mov     sp, 0x7C00                  ; stack below the load area
         mov     es, ax                       ; ES=0: absolute low stores
         mov     [es:0x7000], dl              ; boot drive for the core (0x7000: never BIOS scratch)
+        ; F3: VGA progress marks (row 24) - observable without COM1
+        push    es
+        mov     bx, 0xB800
+        mov     es, bx
+        mov     word [es:0x0F00], 0x0F52     ; 'R' white-on-black
+        pop     es
         ; entry form check: accept
         ;   07C0:0000 -> pop ax == (.ip)      ; file-offset IP
         ;   0000:7C00 -> pop ax == (.ip)+0x7C00
@@ -67,6 +73,12 @@ start:
         call    ser_init
         mov     si, s_banner
         call    ser_str
+        ; F3: stage1 complete -> core
+        push    es
+        mov     bx, 0xB800
+        mov     es, bx
+        mov     word [es:0x0F02], 0x0F42     ; 'B' white-on-black
+        pop     es
         ; into the real-mode OCRMECL core at linear 0x7E00
         jmp     0x07E0:0x0000
 
@@ -76,6 +88,20 @@ start:
 ; ser_init: 16550 COM1 at 115200 8N1, polled (same line discipline as
 ; the OCBL stage1 - the evidence transcript stays comparable).
 ser_init:
+        ; F2: scratch-register probe (two patterns) - a missing/broken
+        ; COM1 is declared dead instantly and every later print is
+        ; skipped (the F1 per-char timeout stays as the backstop).
+        mov     dx, COM1+7
+        mov     al, 0x5A
+        out     dx, al
+        in      al, dx
+        cmp     al, 0x5A
+        jne     .dead
+        mov     al, 0xA5
+        out     dx, al
+        in      al, dx
+        cmp     al, 0xA5
+        jne     .dead
         mov     dx, COM1+1
         xor     al, al
         out     dx, al                        ; disable ints
@@ -98,24 +124,39 @@ ser_init:
         mov     al, 0x0B
         out     dx, al                         ; DTR|RTS|OUT2
         ret
+.dead:
+        mov     byte [ser_dead], 1             ; no usable COM1: line dead
+        ret
 
-; ser_str: print DS:SI NUL string to COM1.
+; ser_str: print DS:SI NUL string to COM1 - BOUNDED (WP-boot-stack F1).
+; A dead/blocked line burns the per-char budget once, is declared
+; dead, and every later print returns immediately - a broken serial
+; console must never hang the boot.
 ser_str:
+        cmp     byte [ser_dead], 1
+        je      .done
         lodsb
         or      al, al
         jz      .done
         mov     bl, al
+        mov     cx, 0xFFFF                 ; per-char wait budget
         mov     dx, COM1+5
 .w:
         in      al, dx
         test    al, 0x20
-        jz      .w
+        jnz     .go
+        loop    .w
+        mov     byte [ser_dead], 1         ; timeout: line declared dead
+        jmp     .done
+.go:
         mov     dx, COM1
         mov     al, bl
         out     dx, al
         jmp     ser_str
 .done:
         ret
+
+ser_dead:       db 0                        ; 1 = COM1 declared dead
 
 ; ---------------------------------------------------------------------------
 ; data (DS = 0x07C0, org-0 offsets are linear-correct)

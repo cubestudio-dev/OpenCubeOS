@@ -87,6 +87,14 @@ start:
 %else
         mov     byte [es:0x521], 0
 %endif
+        ; F3 (WP-boot-stack): VGA progress mark - observable without
+        ; a working COM1. 'S' = stage1 entered. (OCBL stage1 runs in
+        ; plain real mode - no unreal cache to preserve, ES=0 restored.)
+        push    es
+        mov     bx, 0xB800
+        mov     es, bx
+        mov     word [es:0x0F00], 0x0F53     ; 'S' white-on-black
+        pop     es
         ; entry form check (before DS is touched): accept
         ;   07C0:0000 -> pop ax == (.ip)      ; file-offset IP
         ;   0000:7C00 -> pop ax == (.ip)+0x7C00
@@ -292,17 +300,26 @@ ser_init:
         out     dx, al                          ; DTR|RTS|OUT2
         ret
 
-; ser_str: print DS:SI NUL string to COM1.
+; ser_str: print DS:SI NUL string to COM1 - BOUNDED (WP-boot-stack
+; F1, minimal form: the 512-byte budget admits a per-char spin cap
+; but not a dead-line flag; the 64-bit core's ocbl_serial.c carries
+; the full probe+flag discipline). A blocked line burns one budget
+; per character and the boot proceeds - a broken serial console
+; must never hang the boot.
 ser_str:
         lodsb
         or      al, al
         jz      .done
         mov     bl, al
+        mov     cx, 0xFFFF                 ; per-char wait budget
         mov     dx, COM1+5
 .w:
         in      al, dx
         test    al, 0x20
-        jz      .w
+        jnz     .ok
+        loop    .w
+        jmp     .done                      ; timeout: drop the char
+.ok:
         mov     dx, COM1
         mov     al, bl
         out     dx, al

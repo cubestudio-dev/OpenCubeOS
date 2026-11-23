@@ -64,6 +64,8 @@ start:
 
         mov     si, s_core
         call    ser_str
+        mov     al, 'F'                     ; F3: flatten start
+        call    vga_mark
 
         ; ---- 0. validate the packer patch block --------------------
         ;       {0x7DA0 magic, +4 ocbl_size, +8 stage1+core size}
@@ -102,6 +104,8 @@ start:
 .a20_on:
         mov     si, s_a20on
         call    ser_str
+        mov     al, 'A'                     ; F3: A20 verified on
+        call    vga_mark
 
         ; ---- 2. temp GDT at 0x1000, fault stub at 0x1100, ---------
         ;          256-gate IDT at 0x2000
@@ -133,6 +137,8 @@ start:
         lidt    [idtr]
         mov     si, s_idt
         call    ser_str
+        mov     al, 'G'                     ; F3: GDT + 256-gate IDT
+        call    vga_mark
 
         ; ---- 3. 8259A remap to 0x08/0x70, all masked ---------------
         mov     al, 0x11                     ; ICW1: init, cascade, ICW4
@@ -154,6 +160,8 @@ start:
         out     0xA1, al
         mov     si, s_pic
         call    ser_str
+        mov     al, 'P'                     ; F3: 8259A remapped+masked
+        call    vga_mark
 
         ; ---- 4. unreal-mode dance: flat 4G DS/ES caches, base 0 ----
         ;          (CS untouched - the classic mixed-state dance; IF=0
@@ -201,6 +209,8 @@ start:
         call    ser_dec
         mov     si, s_rte
         call    ser_str
+        mov     al, 'I'                     ; F3: IOAPIC all-RTE masked
+        call    vga_mark
 
         ; ---- 5. QEMU/firmware leftover flatten ----------------------
         mov     al, 0x20                     ; EOI both PICs
@@ -219,6 +229,8 @@ start:
         out     0xDE, al                     ;  controller 2 (4-7)
         mov     si, s_flat
         call    ser_str
+        mov     al, 'L'                     ; F3: leftovers flattened
+        call    vga_mark
 
         ; ---- 6. the OCBL move: stub at 0x6000, backward copy -------
         mov     si, stub_bytes
@@ -231,6 +243,8 @@ start:
         call    ser_dec
         mov     si, s_bytes
         call    ser_str
+        mov     al, 'M'                     ; F3: the OCBL move begins
+        call    vga_mark
         jmp     0x0600:0x0000                ; into the move stub (CS=0x600 -> linear 0x6000)
 
 ; ---------------------------------------------------------------------------
@@ -281,16 +295,27 @@ a20_check:
 ; ---------------------------------------------------------------------------
 ; serial helpers (COM1 polled; DS base 0 - labels linear)
 ; ---------------------------------------------------------------------------
+; ser_str: print DS:SI NUL string to COM1 - BOUNDED (WP-boot-stack F1).
+; A dead/blocked line burns the per-char budget once, is declared
+; dead, and every later print returns immediately - a broken serial
+; console must never hang the flatten.
 ser_str:
+        cmp     byte [ser_dead], 1
+        je      .done
         lodsb
         or      al, al
         jz      .done
         mov     bl, al
+        mov     cx, 0xFFFF                 ; per-char wait budget
         mov     dx, COM1+5
 .w:
         in      al, dx
         test    al, 0x20
-        jz      .w
+        jnz     .go
+        loop    .w
+        mov     byte [ser_dead], 1         ; timeout: line declared dead
+        jmp     .done
+.go:
         mov     dx, COM1
         mov     al, bl
         out     dx, al
@@ -298,12 +323,17 @@ ser_str:
 .done:
         ret
 
-; ser_dec: print EAX as unsigned decimal (flat DS, works pre/post dance)
+; ser_dec: print EAX as unsigned decimal (flat DS, works pre/post
+; dance) - F1 bounded (bh is the per-digit budget; ebx only carries
+; the constant divisor 10 here, so bh is free). On timeout the pushed
+; digits are drained so the stack stays balanced.
 ser_dec:
         push    eax
         push    ebx
         push    ecx
         push    edx
+        cmp     byte [ser_dead], 1
+        je      .out
         mov     ebx, 10
         xor     ecx, ecx
 .div:
@@ -317,20 +347,53 @@ ser_dec:
         pop     eax
         add     al, '0'
         mov     bl, al
+        mov     bh, 0xFF                   ; per-digit wait budget
         mov     dx, COM1+5
 .w2:
         in      al, dx
         test    al, 0x20
-        jz      .w2
+        jnz     .go2
+        dec     bh
+        jnz     .w2
+        mov     byte [ser_dead], 1         ; timeout: line declared dead
+        dec     cx                          ; this iteration did not finish
+.drain:                                     ; unwind the pushed digits so
+        pop     eax                         ; the stack stays balanced on
+        loop    .drain                      ; the failure return path
+        jmp     .out
+.go2:
         mov     dx, COM1
         mov     al, bl
         out     dx, al
         loop    .pr
+.out:
         pop     edx
         pop     ecx
         pop     ebx
         pop     eax
         ret
+
+; ---------------------------------------------------------------------------
+; F3: vga_mark - AL = char -> VGA text row 24, next column, attr 0x0F.
+; The stage1 marks 'R'/'B' own columns 0-1; the core continues at 2.
+; Preserves every register; works with the linear DS discipline.
+; ---------------------------------------------------------------------------
+vga_mark:
+        push    bx
+        push    ax
+        mov     bx, 0xB800
+        mov     fs, bx                     ; FS only - NEVER ES/DS: after
+        mov     bl, [vga_col]              ; the unreal dance ES carries the
+        xor     bh, bh                     ; flat 4G cache and a real-mode
+        shl     bx, 1                      ; ES reload (pop es!) would reset
+        mov     ah, 0x0F                   ; its base, misdirecting the move
+        mov     [fs:bx+0x0F00], ax         ; stub's a32 rep movsb
+        inc     byte [vga_col]
+        pop     ax
+        pop     bx
+        ret
+vga_col:        db 2                        ; stage1 wrote columns 0-1
+ser_dead:       db 0                        ; 1 = COM1 declared dead
 
 ; ---------------------------------------------------------------------------
 ; the move stub: copied to linear 0x6000 (CS=0x0060), runs with the
