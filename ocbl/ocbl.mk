@@ -155,7 +155,7 @@ $(OCBL_OUT)/efiobj/handoff_data.o: $(OCBL_DIR)/efi/ocbl_efi_handoff_data.asm $(O
 	@mkdir -p $(dir $@)
 	$(NASM) -f elf64 -I$(OCBL_OUT)/ -o $@ $<
 
-$(OCBL_OUT)/efiobj/%.o: $(OCBL_DIR)/%.c $(OCBL_COMMON_H) $(OCBL_DIR)/efi/efi.h | $(OCBL_OUT)
+$(OCBL_OUT)/efiobj/%.o: $(OCBL_DIR)/%.c $(OCBL_COMMON_H) $(OCBL_DIR)/efi/ocbl_efi_def.h | $(OCBL_OUT)
 	@mkdir -p $(dir $@)
 	$(OCBL_CC) $(OCBL_EFI_CFLAGS) -c $< -o $@
 
