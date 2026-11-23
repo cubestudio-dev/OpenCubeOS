@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - 3.0.0-WP-runtime-hardening-and-experience-rebase
- * File: ocrmecl/efi/boot_ocrmmecl_uefi.c
+ * File: ocrmecl/efi/ocrmecl_efi_main.c
  * Purpose: the OCRMECL UEFI track - the boot compatibility layer that
  *          runs as \EFI\BOOT\BOOTX64.EFI, BEFORE OCBL, and performs
  *          every firmware service call of the boot:
@@ -32,7 +32,7 @@
  *          After step 7 no firmware service is ever called again -
  *          OCBL runs firmware-free on the flattened machine.
  */
-#include "ocr_efi.h"
+#include "ocrmecl_efi_def.h"
 #include "boot_handoff.h"
 
 #ifndef OCBL_RELEASE

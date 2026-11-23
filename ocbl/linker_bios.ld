@@ -4,7 +4,7 @@
  * File: ocbl/linker_bios.ld
  * Purpose: link the OCBL BIOS core at linear 0x8200 (stage1 sector is
  *          prepended at image build time; both flavors put the core
- *          there).  .bss is NOBITS - core_head.S zeros it at runtime.
+ *          there).  .bss is NOBITS - ocbl_bios_core_head.S zeros it at runtime.
  */
 ENTRY(core_head)
 

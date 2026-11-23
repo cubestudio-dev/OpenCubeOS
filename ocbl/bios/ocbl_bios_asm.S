@@ -13,7 +13,7 @@
 ;          the .resume label in this very frame.
 ;
 ;          Built into the core image; the trampoline blob itself is
-;          ocbl/bios/tramp_data.asm (incbin) and copied to 0x40000 by
+;          ocbl/bios/ocbl_bios_tramp_data.asm (incbin) and copied to 0x40000 by
 ;          ocbl_tramp_init().
 
                 bits 64
@@ -115,7 +115,7 @@ ocbl_tramp_init:
         ; blob itself ends at 0x40300, so the memcpy above never
         ; touches it).  The trampoline's BACK32 return path loads
         ; CR3 from this word: one source of truth (ocbl_pt_base in
-        ; core_head.S), no hardcoded 0x8F000 anywhere else.
+        ; ocbl_bios_core_head.S), no hardcoded 0x8F000 anywhere else.
         mov     rax, [rel ocbl_pt_base]
         mov     dword [abs 0x404F0], eax
         ; 4.5 (H1): publish the OCBL IDT facts the same way - the

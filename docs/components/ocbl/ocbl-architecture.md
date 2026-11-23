@@ -10,7 +10,7 @@ disk's stage1, and the ISO's boot image are all OCBL.  It lives in
 
 | Flavor | Entry | Real-mode plumbing | Console | Disk | Video |
 |---|---|---|---|---|---|
-| BIOS | `bios/stage1.asm` | 16-bit trampolines (`tramp16.asm`), int13 DAP reads through a sub-1 MiB bounce window | VGA text + serial | int13 | VBE (`ocbl_vbe.c`) |
+| BIOS | `bios/ocbl_bios_stage1.asm` | 16-bit trampolines (`ocbl_bios_tramp16.asm`), int13 DAP reads through a sub-1 MiB bounce window | VGA text + serial | int13 | VBE (`ocbl_vbe.c`) |
 | UEFI | `efi/efi_entry.c` | none - native 64-bit from the start | GOP console + serial | EFI BlockIo (**drive numbering starts at zero**) | GOP (`ocbl_gop_efi.c`) |
 
 Both flavors compile the same `common/` core: the entry scanner

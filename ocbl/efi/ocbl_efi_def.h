@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - 3.0.0-WP05-ocbl
- * File: ocbl/efi/efi.h
+ * File: ocbl/efi/ocbl_efi_def.h
  * Purpose: self-contained minimal UEFI definitions for the OCBL EFI
  *          flavor.  Deliberately NOT gnu-efi/edk2: the WP-05 toolchain
  *          set is fixed (117 debs), the WP-05 rule is "no GRUB, no

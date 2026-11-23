@@ -85,7 +85,7 @@ Build-time `-D` macros:
 | `OCBL_FLAVOR_BIOS` | ocbl.mk BIOS objects | selects int-13h/VGA/E820/VBE backends |
 | `OCBL_FLAVOR_UEFI` | ocbl.mk EFI objects | EFI backends of the same contracts |
 | `OCSE_RELEASE`, `OCSE_BUILD` | ocse.mk | OCSE banner (`<ver>-ocse`) |
-| `OCBL_ELTORITO` / `OCBL_MBR` | NASM `-D` on `stage1.asm` | which 512-byte stage1 flavor to assemble |
+| `OCBL_ELTORITO` / `OCBL_MBR` | NASM `-D` on `ocbl_bios_stage1.asm` | which 512-byte stage1 flavor to assemble |
 | `OC_CONFIG_NVME` / `OC_CONFIG_AHCI` / `OC_CONFIG_VIRTIO_BLK` | generated `config_gen.h` (0/1) | hardware profile; `0` also stubs `driver_block_<x>_init()` |
 | `OC_VERSION_STAMP` | generated `version_gen.h` | recompile-trigger string |
 | `OCIRE_STAMP` | generated `ocire_version_gen.h` | OCIRE recompile trigger |

@@ -268,7 +268,7 @@ Class/Machine/Entry 回显）、`run-bios` → `qemu-system-<arch> -machine virt
 | `OCBL_FLAVOR_BIOS` | ocbl.mk BIOS 目标文件 | 选择 int-13h/VGA/E820/VBE 后端实现（`ocbl/common/ocbl_main.c` 中的 `#ifdef` 位点） |
 | `OCBL_FLAVOR_UEFI` | ocbl.mk EFI 目标文件 | 同一契约的 EFI 后端 |
 | `OCSE_RELEASE`、`OCSE_BUILD` | ocse.mk | OCSE 横幅（发布字面量 + `-ocse` 后缀） |
-| `OCBL_ELTORITO` / `OCBL_MBR` | `stage1.asm` 上的 NASM `-D` | 汇编哪种 512 字节 stage1 风味 |
+| `OCBL_ELTORITO` / `OCBL_MBR` | `ocbl_bios_stage1.asm` 上的 NASM `-D` | 汇编哪种 512 字节 stage1 风味 |
 | `OC_CONFIG_NVME` / `OC_CONFIG_AHCI` / `OC_CONFIG_VIRTIO_BLK` | 生成的 `config_gen.h`（0/1） | 硬件画像；`0` 还把 `driver_block_<x>_init(...)` `#define` 成空操作桩 |
 | `OC_VERSION_STAMP` | 生成的 `version_gen.h` | 触发重编译的字符串 |
 | `OCIRE_STAMP` | 生成的 `ocire_version_gen.h` | OCIRE 重编译触发器 |

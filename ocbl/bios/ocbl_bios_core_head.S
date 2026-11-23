@@ -1,7 +1,7 @@
 ; SPDX-License-Identifier: Apache-2.0
 ; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 ; Open Cube OS - 3.0.0-WP05-ocbl
-; File: ocbl/bios/core_head.S
+; File: ocbl/bios/ocbl_bios_core_head.S
 ; Purpose: 32-bit core entry at linear 0x8200 (both stage1 flavors
 ;          converge here with paging OFF and a flat 32-bit GDT loaded).
 ;

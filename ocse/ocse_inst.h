@@ -10,7 +10,7 @@
  *   extraction -> boot code -> boot flag -> completion notice) and
  *   the `config` viewer/editor for the installed /etc/opencube.conf.
  *
- * Boot-layout contract (matches ocbl/bios/stage1.asm):
+ * Boot-layout contract (matches ocbl/bios/ocbl_bios_stage1.asm):
  *   - stage1_mbr (512 B) lands at disk LBA 0; bytes 446..509 are
  *     copied over from the disk's CURRENT partition table so the
  *     edit history of mkpart/setflag survives the install;

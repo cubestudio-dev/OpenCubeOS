@@ -14,7 +14,7 @@
  *          untouched.  Post-EBS the captured map is stable by
  *          definition - no query loop, no map key, one conversion.
  */
-#include "efi.h"
+#include "ocbl_efi_def.h"
 #include "../common/ocbl_mmap.h"
 #include "../common/ocbl_serial.h"
 #include "boot_handoff.h"

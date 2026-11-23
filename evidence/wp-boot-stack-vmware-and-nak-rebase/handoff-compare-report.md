@@ -20,7 +20,7 @@ A/B 快照从 `git archive` 导出（本地 `workspace/snapA`、`snapB`）；C �
 ## 二、移交点定义
 
 - 版本 A 移交点：GRUB `multiboot2 /boot/kernel.elf` + `boot`（snapA/ocos/grub.cfg L12-13）执行后跳内核 `_start`（snapA/ocos/kernel/core_boot_multiboot2.S L90）。
-- 版本 C 移交点：`ocbl_handoff(entry, OCBL_MBI_BASE)`（ocbl/common/ocbl_main.c L408）→ ocbl/bios/core_head.S L177-211 降级到 32 位 PG off → `jmp ecx`（内核 `_start`，ocbl/bios/core_head.S L211）。
+- 版本 C 移交点：`ocbl_handoff(entry, OCBL_MBI_BASE)`（ocbl/common/ocbl_main.c L408）→ ocbl/bios/ocbl_bios_core_head.S L177-211 降级到 32 位 PG off → `jmp ecx`（内核 `_start`，ocbl/bios/ocbl_bios_core_head.S L211）。
 - 两版本内核入口均为 ocos/kernel/core_boot_entry.S `_start`（C 版，L70）——内核侧对移交状态的期待一致。
 
 ## 三、六类核心状态对比表（A=GRUB 移交 vs C=OCBL 移交）
@@ -29,8 +29,8 @@ A/B 快照从 `git archive` 导出（本地 `workspace/snapA`、`snapB`）；C �
 
 | 项 | A（GRUB 移交时） | C（OCBL 移交时） | 判定 |
 |---|---|---|---|
-| EAX | `0x36D76289`（mb2 magic） | `0x36D76289`（core_head.S L209） | 等价 |
-| EBX | mbi 物理地址 | mbi 物理地址（core_head.S L210，`OCBL_MBI_BASE=0x50000`） | 等价 |
+| EAX | `0x36D76289`（mb2 magic） | `0x36D76289`（ocbl_bios_core_head.S L209） | 等价 |
+| EBX | mbi 物理地址 | mbi 物理地址（ocbl_bios_core_head.S L210，`OCBL_MBI_BASE=0x50000`） | 等价 |
 | CS:EIP | 平坦 32 位代码段（GRUB GDT），_start | code32 选择子 0x08（OCBL core GDT），_start | 等价 |
 | DS/ES/FS/GS/SS | 平坦数据段（base 0，limit 4G） | data32 选择子 0x10（base 0，limit 4G） | 等价 |
 | SS:ESP | GRUB 自设栈 | OCBL 栈（BIOS 轨 stage1 已重建 0:0x7C00） | 等价（内核重建栈，不依赖） |
@@ -42,7 +42,7 @@ A/B 快照从 `git archive` 导出（本地 `workspace/snapA`、`snapB`）；C �
 |---|---|---|---|
 | CR0.PE | 1 | 1（handoff32 未动 PE） | 等价 |
 | CR0.PG | **0** | **0**（handoff32 L202 `btc eax,31` 清 PG） | 等价 |
-| CR0.WP | BIOS 遗留（Phoenix 常为 1） | **1 残留**（BACK32 设 WP，handoff32 只清 PG；core_head.S L146 设置） | 见差异 D2 |
+| CR0.WP | BIOS 遗留（Phoenix 常为 1） | **1 残留**（BACK32 设 WP，handoff32 只清 PG；ocbl_bios_core_head.S L146 设置） | 见差异 D2 |
 | CR0 其余（AM/CD/NW/NE/MP/TS/ET） | BIOS 遗留 | BIOS 遗留（整链未清） | 等价（GRUB 也不清） |
 | CR3 | 任意（PG=0 下无效值） | **0**（handoff32 L208 `xor eax,eax; mov cr3`） | 等价 |
 | CR4.PAE | 0 | **0**（handoff32 L205 `and eax,~0x20` 清 PAE） | 等价 |
@@ -52,7 +52,7 @@ A/B 快照从 `git archive` 导出（本地 `workspace/snapA`、`snapB`）；C �
 
 | 位 | A | C | 判定 |
 |---|---|---|---|
-| LME (bit 8) | **0**（GRUB 从不进入长模式；移交时 EFER=0） | **1 残留**（core_head.S L143 `or eax,(1<<8)|(1<<11)` 设置，ocbl_handoff 降级链只清 PG/PAE/CR3，**从未清 EFER**） | **不等价** |
+| LME (bit 8) | **0**（GRUB 从不进入长模式；移交时 EFER=0） | **1 残留**（ocbl_bios_core_head.S L143 `or eax,(1<<8)|(1<<11)` 设置，ocbl_handoff 降级链只清 PG/PAE/CR3，**从未清 EFER**） | **不等价** |
 | NXE (bit 11) | 0 | **1 残留**（同上） | **不等价** |
 | SCE/LMA 等 | 0 | LMA=1（PG on 时随 LME 联动；PG off 后 LMA 自动清 0，LME/NXE 保留） | **不等价** |
 
@@ -62,7 +62,7 @@ D1 评注：`PG=0 且 LME=1` 是合法的"长模式已武装的兼容态"（x86 
 
 | 项 | A | C | 判定 |
 |---|---|---|---|
-| 8259A 向量基 | BIOS 遗留（0x08/0x70，Phoenix/SeaBIOS POST 均如此） | 0x08/0x70（OCRMECL core 显式 remap，boot_ocrmmecl_bios_core.asm L137-154） | 等价 |
+| 8259A 向量基 | BIOS 遗留（0x08/0x70，Phoenix/SeaBIOS POST 均如此） | 0x08/0x70（OCRMECL core 显式 remap，ocrmecl_bios_core.asm L137-154） | 等价 |
 | 8259A IMR | BIOS 遗留（部分 IRQ 开放，如 IRQ1 键盘、IRQ8 RTC） | **全屏蔽 0xFF**（L152-154） | C 更严（更接近"无中断假设"） |
 | IOAPIC RTE | BIOS 遗留 | **全 mask**（L173-203，unreal-mode MMIO） | C 更严 |
 | 交付后行为 | 内核自 remap IRQ0-15→vec 32-47（内核 serial.log L20 "8259 PIC remap OK"） | 同（内核相同代码） | 等价 |
@@ -73,7 +73,7 @@ D1 评注：`PG=0 且 LME=1` 是合法的"长模式已武装的兼容态"（x86 
 
 | 项 | A | C | 判定 |
 |---|---|---|---|
-| GDTR | GRUB 平坦 GDT（3 描述符） | OCBL core GDT（core_head.S L272-289：null/code32/data32/code64/code16/data16） | 等价（内核 L80 `lgdt` 自建） |
+| GDTR | GRUB 平坦 GDT（3 描述符） | OCBL core GDT（ocbl_bios_core_head.S L272-289：null/code32/data32/code64/code16/data16） | 等价（内核 L80 `lgdt` 自建） |
 | IDTR | **BIOS 实模式 IVT（{0,0x3FF}）——在 32 位下语义无效**（GRUB 赌移交瞬间无异常） | **OCBL 自家 256 gate 64 位 IDT**（ocbl/common/ocbl_idt.c L68-99，异常报告串口+halt；BIOS 轨 trampoline 每次穿越恢复） | **C 更严**（4.5 H1 修复引入） |
 | 异常→后果 | 32 位下异常经无效 IVT → #GP → triple fault | 异常经有效 gate → 串口报告 → 有标记 halt | C 更严 |
 
@@ -81,7 +81,7 @@ D1 评注：`PG=0 且 LME=1` 是合法的"长模式已武装的兼容态"（x86 
 
 | 项 | A | C | 判定 |
 |---|---|---|---|
-| COM1 | GRUB serial 模块已初始化（115200 8N1，serial.log 有 GRUB 菜单文本实证） | OCRMECL stage1 ser_init（同参数，boot_ocrmmecl_bios_stage1.asm L67/L78-100） | 等价 |
+| COM1 | GRUB serial 模块已初始化（115200 8N1，serial.log 有 GRUB 菜单文本实证） | OCRMECL stage1 ser_init（同参数，ocrmecl_bios_stage1.asm L67/L78-100） | 等价 |
 | COM1 轮询 | GRUB 驱动层 | **全链 THR-empty 轮询无超时**（见 D3） | **不等价（健壮性）** |
 | A20 | GRUB 开 | OCRMECL 强制开+双 pattern 验证（core L86-104） | C 更严 |
 | VGA 文本进度 | GRUB gfxterm 有屏幕输出（GFXTERM_INIT） | **OCRMECL 静默 VGA（无任何文本标记）**（见 D4） | **呈现层退步** |
@@ -89,12 +89,12 @@ D1 评注：`PG=0 且 LME=1` 是合法的"长模式已武装的兼容态"（x86 
 
 ## 四、核心差异清单（含代码行号）
 
-- **D1（EFER.LME/NXE 残留）**：ocbl/bios/core_head.S L141-144 设置、L177-211 的 ocbl_handoff 降级链不清除 → 移交时 EFER≠0，与 GRUB（EFER=0）不等价。判定：非直接根因；按标准化对齐修复。
-- **D2（CR0.WP 残留）**：core_head.S L146 设 WP，handoff32 L202 只清 PG。GRUB 移交 WP=BIOS 值。判定：无害（内核 L133 自设 WP），仅申报。
+- **D1（EFER.LME/NXE 残留）**：ocbl/bios/ocbl_bios_core_head.S L141-144 设置、L177-211 的 ocbl_handoff 降级链不清除 → 移交时 EFER≠0，与 GRUB（EFER=0）不等价。判定：非直接根因；按标准化对齐修复。
+- **D2（CR0.WP 残留）**：ocbl_bios_core_head.S L146 设 WP，handoff32 L202 只清 PG。GRUB 移交 WP=BIOS 值。判定：无害（内核 L133 自设 WP），仅申报。
 - **D3（串口轮询无超时——静默死循环根因）**：
-  - ocrmecl/bios/boot_ocrmmecl_bios_stage1.asm `ser_str .w`（L108-112）
-  - ocrmecl/bios/boot_ocrmmecl_bios_core.asm `ser_str .w`（L289-293）与 `ser_dec .w2`（L321-324）
-  - ocbl/bios/stage1.asm `ser_str .w`（L301-305）
+  - ocrmecl/bios/ocrmecl_bios_stage1.asm `ser_str .w`（L108-112）
+  - ocrmecl/bios/ocrmecl_bios_core.asm `ser_str .w`（L289-293）与 `ser_dec .w2`（L321-324）
+  - ocbl/bios/ocbl_bios_stage1.asm `ser_str .w`（L301-305）
   - ocbl/common/ocbl_serial.c `ocbl_serial_putc`（L41-43）
   QEMU 的虚拟 16550 LSR.THR-empty 恒置位（宽容）；真实 16550/VMware 在设备未打开、流控、host 侧写失败等状态下 LSR 可能持续为 0 → 无限 `in al,dx` 死循环。**这是与"无串口输出、无 hlt 弹窗、无 fault 弹窗、无设备活动"的附件证据完全自洽的唯一结构性缺陷**（vmware-1/vmware-2：resize 720x400 后 12 秒完全静默直至用户手动关机）。
 - **D4（VGA 进度标记缺失——可观测性退步）**：版本 B 的 stage2a 携带 VGA_TRACE 宏（snapB/ocbl/boot/core_boot_bios_stage2.S L53-75，每完成一步在 0xB8000 行 24 写一个字符 '2'/'3'/'5'/'6'）；版本 C 全链删除了该机制。VMware 用户串口异常时屏幕完全不可观测 → 无法定位死点。

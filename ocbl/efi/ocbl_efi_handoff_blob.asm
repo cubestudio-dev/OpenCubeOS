@@ -1,7 +1,7 @@
 ; SPDX-License-Identifier: Apache-2.0
 ; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 ; Open Cube OS - 3.0.0-WP05-ocbl
-; File: ocbl/efi/handoff_blob.asm
+; File: ocbl/efi/ocbl_efi_ocbl_efi_handoff_blob.asm
 ; Purpose: the UEFI payload handoff trampoline (B5-5).  Assembled as a
 ;          POSITION-FREE flat binary org'd at 0x30000 and copied there
 ;          by efi_entry.c (the fixed bounce window the UEFI flavor
@@ -16,7 +16,7 @@
 ;          far-jump target must be such an address too - the exact
 ;          trick the BIOS flavor never needs because its core IS low.
 ;
-;          Contract (identical to bios/core_head.S ocbl_handoff, the
+;          Contract (identical to bios/ocbl_bios_core_head.S ocbl_handoff, the
 ;          GRUB mirror): 32-bit protected mode, paging OFF, our GDT,
 ;          EAX = 0x36D76289, EBX = MBI physical, jump to the kernel's
 ;          32-bit entry (boot.S _start).
@@ -31,8 +31,8 @@
 ;              0x3E000  downgrade stack top (grows down, ~52 KiB free)
 ;
 ;          The blob is embedded into the EFI image through
-;          efi/handoff_data.asm (incbin), the same two-step shape as
-;          the BIOS trampoline (tramp16.bin -> tramp_data.asm).
+;          efi/ocbl_efi_handoff_data.asm (incbin), the same two-step shape as
+;          the BIOS trampoline (tramp16.bin -> ocbl_bios_tramp_data.asm).
 
                 bits 64
                 org 0x30000

@@ -3,7 +3,7 @@
 /* Open Cube OS - 3.0.0-WP05-ocbl
  * File: ocbl/common/ocbl_main.c
  * Purpose: OCBL 64-bit C entry (BIOS flavor arrives here from
- *          core_head.S; the UEFI flavor has its own efi_entry.c that
+ *          ocbl_bios_core_head.S; the UEFI flavor has its own efi_entry.c that
  *          eventually calls ocbl_run() too).
  *
  *          B1 scope: bring-up diagnostics - banner, CPU brand probe,

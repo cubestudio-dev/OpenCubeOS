@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - 3.0.0-WP-runtime-hardening-and-experience-rebase
- * File: ocrmecl/efi/ocr_iso9660.c
+ * File: ocrmecl/efi/ocrmecl_efi_iso9660.c
  * Purpose: minimal ISO9660 reader over the in-RAM copy of the boot
  *          ISO - just enough to locate a root-directory file by its
  *          11-character ISO name (the ";1" version suffix tolerated),
@@ -19,7 +19,7 @@
  *          (LBA, data length) fully describes the bytes in the RAM
  *          image - exactly what LoadImage-from-buffer needs.
  */
-#include "ocr_efi.h"
+#include "ocrmecl_efi_def.h"
 
 #define ISO_SECTOR 2048
 

@@ -39,11 +39,11 @@ $(OCRMECL_OUT):
 	@mkdir -p $@
 
 # ---- BIOS track ------------------------------------------------------
-$(OCRMECL_OUT)/stage1.bin: $(OCRMECL_DIR)/bios/boot_ocrmmecl_bios_stage1.asm | $(OCRMECL_OUT)
+$(OCRMECL_OUT)/stage1.bin: $(OCRMECL_DIR)/bios/ocrmecl_bios_stage1.asm | $(OCRMECL_OUT)
 	$(NASM) -f bin -o $@ $<
 	python3 -c "b=open('$(abspath $@)','rb').read(); assert len(b)==512, 'ocrmecl stage1 %d bytes' % len(b); print('ocrmecl: stage1 512B ok')"
 
-$(OCRMECL_OUT)/core.bin: $(OCRMECL_DIR)/bios/boot_ocrmmecl_bios_core.asm | $(OCRMECL_OUT)
+$(OCRMECL_OUT)/core.bin: $(OCRMECL_DIR)/bios/ocrmecl_bios_core.asm | $(OCRMECL_OUT)
 	$(NASM) -f bin -o $@ $<
 	python3 -c "b=open('$(abspath $@)','rb').read(); assert len(b)<=0x7800, 'ocrmecl core %d bytes over budget' % len(b); print('ocrmecl: core %dB ok' % len(b))"
 

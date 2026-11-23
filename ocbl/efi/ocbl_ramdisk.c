@@ -12,7 +12,7 @@
  *          layers ever see: drive 0, cdrom-class, 2048-byte sectors,
  *          reads served by plain memcpy.
  */
-#include "efi.h"
+#include "ocbl_efi_def.h"
 #include "../common/ocbl_disk.h"
 #include "../common/ocbl_serial.h"
 #include "boot_handoff.h"

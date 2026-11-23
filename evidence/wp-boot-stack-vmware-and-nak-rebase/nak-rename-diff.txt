@@ -1,0 +1,81 @@
+ rename ocbl/bios/{core_head.S => ocbl_bios_core_head.S} (99%)
+ rename ocbl/bios/{stage1.asm => ocbl_bios_stage1.asm} (99%)
+ rename ocbl/bios/{tramp16.asm => ocbl_bios_tramp16.asm} (99%)
+ rename ocbl/bios/{tramp_data.asm => ocbl_bios_tramp_data.asm} (91%)
+ rename ocbl/efi/{efi.h => ocbl_efi_def.h} (99%)
+ rename ocbl/efi/{handoff_blob.asm => ocbl_efi_handoff_blob.asm} (93%)
+ rename ocbl/efi/{handoff_data.asm => ocbl_efi_handoff_data.asm} (82%)
+ rename ocrmecl/bios/{boot_ocrmmecl_bios_core.asm => ocrmecl_bios_core.asm} (100%)
+ rename ocrmecl/bios/{boot_ocrmmecl_bios_stage1.asm => ocrmecl_bios_stage1.asm} (99%)
+ rename ocrmecl/efi/{ocr_efi.h => ocrmecl_efi_def.h} (97%)
+ rename ocrmecl/efi/{ocr_iso9660.c => ocrmecl_efi_iso9660.c} (98%)
+ rename ocrmecl/efi/{boot_ocrmmecl_uefi.c => ocrmecl_efi_main.c} (99%)
+ rename ocrmecl/efi/{ocr_serial.c => ocrmecl_efi_serial.c} (96%)
+ docs/arch/boot-flow.md                             |  6 ++---
+ docs/arch/tree-map.md                              |  2 +-
+ docs/components/ocbl/ocbl-architecture.md          |  2 +-
+ docs/dev/build.md                                  |  2 +-
+ docs/release/build-reference.md                    |  2 +-
+ docs/zh/arch/boot-flow.md                          |  6 ++---
+ docs/zh/arch/tree-map.md                           |  2 +-
+ docs/zh/components/ocbl/ocbl-architecture.md       |  2 +-
+ docs/zh/dev/build.md                               |  2 +-
+ docs/zh/release/build-reference.md                 |  2 +-
+ .../handoff-compare-report.md                      | 26 +++++++++++-----------
+ ocbl/bios/ocbl_bios.h                              |  6 ++---
+ ocbl/bios/ocbl_bios_asm.S                          |  4 ++--
+ ocbl/bios/{core_head.S => ocbl_bios_core_head.S}   |  2 +-
+ ocbl/bios/{stage1.asm => ocbl_bios_stage1.asm}     |  2 +-
+ ocbl/bios/{tramp16.asm => ocbl_bios_tramp16.asm}   |  2 +-
+ .../{tramp_data.asm => ocbl_bios_tramp_data.asm}   |  2 +-
+ ocbl/common/ocbl_main.c                            |  2 +-
+ ocbl/common/ocbl_types.h                           |  4 ++--
+ ocbl/efi/{efi.h => ocbl_efi_def.h}                 |  2 +-
+ ...{handoff_blob.asm => ocbl_efi_handoff_blob.asm} |  8 +++----
+ ...{handoff_data.asm => ocbl_efi_handoff_data.asm} |  4 ++--
+ ocbl/efi/ocbl_mmap_efi.c                           |  2 +-
+ ocbl/efi/ocbl_ramdisk.c                            |  2 +-
+ ocbl/efi/ocbl_raw.c                                |  6 ++---
+ ocbl/linker_bios.ld                                |  2 +-
+ ocbl/ocbl.mk                                       | 16 ++++++-------
+ ocire/generated/ocire_version_gen.h                |  2 +-
+ ocos/kernel/generated/version_gen.h                |  2 +-
+ ...crmmecl_bios_core.asm => ocrmecl_bios_core.asm} |  0
+ ...ecl_bios_stage1.asm => ocrmecl_bios_stage1.asm} |  2 +-
+ ocrmecl/efi/{ocr_efi.h => ocrmecl_efi_def.h}       |  8 +++----
+ .../efi/{ocr_iso9660.c => ocrmecl_efi_iso9660.c}   |  4 ++--
+ .../{boot_ocrmmecl_uefi.c => ocrmecl_efi_main.c}   |  4 ++--
+ ocrmecl/efi/{ocr_serial.c => ocrmecl_efi_serial.c} |  4 ++--
+ ocrmecl/ocrmmecl.mk                                |  4 ++--
+ ocse/ocse_inst.c                                   |  2 +-
+ ocse/ocse_inst.h                                   |  2 +-
+ tools/probe/probe_uefi.c                           |  2 +-
+ 39 files changed, 78 insertions(+), 78 deletions(-)
+
+=== post-rename audit: NAK compliance of the boot chain ===
+
+ocrmecl/ (.c/.h/.asm audited):
+  bios/ocrmecl_bios_stage1.asm      [class ocrmecl][cat bios][role stage1]
+  bios/ocrmecl_bios_core.asm        [class ocrmecl][cat bios][role core]
+  efi/ocrmecl_efi_main.c            [class ocrmecl][cat efi][role main]
+  efi/ocrmecl_efi_def.h             [class ocrmecl][cat efi][role def]
+  efi/ocrmecl_efi_iso9660.c         [class ocrmecl][cat efi][role iso9660]
+  efi/ocrmecl_efi_serial.c          [class ocrmecl][cat efi][role serial]
+ocbl/ (.c/.h/.asm/.S audited):
+  bios/ocbl_bios_stage1.asm          [class ocbl][cat bios][role stage1]
+  bios/ocbl_bios_core_head.S        [class ocbl][cat bios][role core_head]
+  bios/ocbl_bios_tramp16.asm        [class ocbl][cat bios][role tramp16]
+  bios/ocbl_bios_tramp_data.asm     [class ocbl][cat bios][role tramp_data]
+  efi/ocbl_efi_def.h                [class ocbl][cat efi][role def]
+  efi/ocbl_efi_handoff_blob.asm     [class ocbl][cat efi][role handoff_blob]
+  efi/ocbl_efi_handoff_data.asm     [class ocbl][cat efi][role handoff_data]
+All other boot-chain .c/.h (ocbl_*.c/h, ocrmecl efi support) already carried
+their component prefix - compliant as-is, untouched.
+
+Folders: bios/ efi/ common/ - single-word industry-standard taxonomy
+directories (the repo-wide convention: ocbl/bios, ocos/kernel, ocire/agent),
+kept per the "industry standard names preserved" clause.
+
+Out of 4.3 scope (declared, untouched): .mk/.py/.ld (ocrmmecl.mk keeps its
+historical misspelled name; the spec mandates .c/.h/.asm/.S only; the
+Makefile-internal references were updated to the new .asm names).

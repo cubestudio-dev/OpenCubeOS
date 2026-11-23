@@ -32,7 +32,7 @@ typedef u32 ocbl_phys_t;   /* usable below-4G addressing for handoff data */
 #define OCBL_PACKED __attribute__((packed))
 #define OCBL_INLINE static inline
 
-/* Fixed low-memory map of the BIOS flavor (see also core_head.S):
+/* Fixed low-memory map of the BIOS flavor (see also ocbl_bios_core_head.S):
  *   0x00500-0x0051F  A20 test area
  *   0x00520          {u8 boot_drive, u8 flavor} written by stage1
  *   0x00600          int13h DAP scratch (stage1)
@@ -50,7 +50,7 @@ typedef u32 ocbl_phys_t;   /* usable below-4G addressing for handoff data */
 #define OCBL_LO_FLAVOR      0x521
 #define OCBL_MBI_BASE       0x50000
 #define OCBL_SCRATCH_BASE   0x60000
-/* WP06f VMware fix (kept in sync with core_head.S's `mov rsp`): the
+/* WP06f VMware fix (kept in sync with ocbl_bios_core_head.S's `mov rsp`): the
  * stack tops at 0x8E000, below every observed EBDA (VMware's starts
  * at 0x9E000 and lower; SeaBIOS's at 0x9FC00) and above the FAT cache
  * top (0x82800), still 46 KiB deep.  ocbl_statemon additionally reads

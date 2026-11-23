@@ -22,7 +22,7 @@
  *          "PROBE-UEFI done"; the shell driver diffs the DEFAULT vs
  *          STRICT transcripts into the flattening list.
  */
-#include "ocr_efi.h"
+#include "ocrmecl_efi_def.h"
 #include "boot_handoff.h"
 
 static void outb_(u16 port, u8 val)

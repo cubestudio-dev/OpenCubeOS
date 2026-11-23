@@ -15,7 +15,7 @@
  *          menu (ocbl_con_efi.c + ocbl_font_data.c), the captured
  *          EBS memory map feeds the mb2 tag (ocbl_mmap_efi.c), and
  *          the payload handoff goes through the same 0x30000
- *          downgrade trampoline as before (handoff_blob.asm).
+ *          downgrade trampoline as before (ocbl_efi_handoff_blob.asm).
  *
  *          The legacy firmware-flow files (efi_entry.c and its
  *          ConOut/BlockIo/GOP/RSDP/chainload backends) are GONE -
@@ -23,7 +23,7 @@
  *          not move (chainload of foreign loaders) is honestly
  *          parked: post-EBS there is no LoadImage.
  */
-#include "efi.h"
+#include "ocbl_efi_def.h"
 #include "../common/ocbl_serial.h"
 #include "../common/ocbl_scan.h"
 #include "../common/ocbl_disk.h"
@@ -37,7 +37,7 @@
 #include "ocbl_state.h"
 #include "boot_handoff.h"
 
-/* efi/handoff_data.asm (incbin of handoff_blob.bin) */
+/* efi/ocbl_efi_handoff_data.asm (incbin of handoff_blob.bin) */
 extern char ocbl_efi_handoff_blob[];
 extern char ocbl_efi_handoff_blob_end[];
 

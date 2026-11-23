@@ -59,22 +59,22 @@ $(OCBL_OUT)/bios_impl/%.o: $(OCBL_DIR)/bios/%.c $(OCBL_COMMON_H) $(OCBL_BIOS_IMP
 	$(OCBL_CC) $(OCBL_CFLAGS) -c $< -o $@
 
 # ---- stage 1 (two flavors from one source) ----
-$(OCBL_OUT)/stage1_eltorito.bin: $(OCBL_DIR)/bios/stage1.asm | $(OCBL_OUT)
+$(OCBL_OUT)/stage1_eltorito.bin: $(OCBL_DIR)/bios/ocbl_bios_stage1.asm | $(OCBL_OUT)
 	@mkdir -p $(OCBL_OUT)
 	$(NASM) -f bin -D OCBL_ELTORITO -o $@ $<
 	python3 -c "import sys; b=open('$(abspath $@)','rb').read(); assert len(b)==512, 'stage1 eltorito %d bytes' % len(b); print('ocbl: stage1 eltorito 512B ok')"
 
-$(OCBL_OUT)/stage1_mbr.bin: $(OCBL_DIR)/bios/stage1.asm | $(OCBL_OUT)
+$(OCBL_OUT)/stage1_mbr.bin: $(OCBL_DIR)/bios/ocbl_bios_stage1.asm | $(OCBL_OUT)
 	@mkdir -p $(OCBL_OUT)
 	$(NASM) -f bin -D OCBL_MBR -o $@ $<
 	python3 -c "import sys; b=open('$(abspath $@)','rb').read(); assert len(b)==512, 'stage1 mbr %d bytes' % len(b); print('ocbl: stage1 mbr 512B ok')"
 
 # ---- real-mode trampoline (flat binary, embedded as data) ----
-$(OCBL_OUT)/tramp16.bin: $(OCBL_DIR)/bios/tramp16.asm | $(OCBL_OUT)
+$(OCBL_OUT)/tramp16.bin: $(OCBL_DIR)/bios/ocbl_bios_tramp16.asm | $(OCBL_OUT)
 	$(NASM) -f bin -o $@ $<
 	python3 -c "b=open('$(abspath $@)','rb').read(); assert len(b)<=0x300, 'tramp blob %d B overflows the 0x100 code area' % len(b); print('ocbl: tramp16.bin %dB ok' % len(b))"
 
-$(OCBL_OUT)/bios/tramp_data.o: $(OCBL_DIR)/bios/tramp_data.asm $(OCBL_OUT)/tramp16.bin | $(OCBL_OUT)
+$(OCBL_OUT)/bios/tramp_data.o: $(OCBL_DIR)/bios/ocbl_bios_tramp_data.asm $(OCBL_OUT)/tramp16.bin | $(OCBL_OUT)
 	@mkdir -p $(OCBL_OUT)/bios
 	$(NASM) -f elf64 -I$(OCBL_OUT)/ -o $@ $<
 
@@ -83,7 +83,7 @@ $(OCBL_OUT)/bios/ocbl_bios_asm.o: $(OCBL_DIR)/bios/ocbl_bios_asm.S | $(OCBL_OUT)
 	$(NASM) -f elf64 -o $@ $<
 
 # ---- core (32-bit head + 64-bit C) ----
-$(OCBL_OUT)/bios/core_head.o: $(OCBL_DIR)/bios/core_head.S | $(OCBL_OUT)
+$(OCBL_OUT)/bios/core_head.o: $(OCBL_DIR)/bios/ocbl_bios_core_head.S | $(OCBL_OUT)
 	@mkdir -p $(OCBL_OUT)/bios
 	$(NASM) -f elf64 -g -F dwarf -o $@ $<
 
@@ -145,13 +145,13 @@ OCBL_EFI_OBJ := $(patsubst $(OCBL_DIR)/%.c,$(OCBL_OUT)/efiobj/%.o,$(OCBL_EFI_SRC
 
 # ---- B5-5: the 64->32 downgrade trampoline ----
 # flat binary org'd at the fixed bounce window (0x30000), embedded
-# into the EFI image through handoff_data.asm (incbin) exactly like
+# into the EFI image through ocbl_efi_handoff_data.asm (incbin) exactly like
 # the BIOS flavor embeds its real-mode trampoline.
-$(OCBL_OUT)/handoff_blob.bin: $(OCBL_DIR)/efi/handoff_blob.asm | $(OCBL_OUT)
+$(OCBL_OUT)/handoff_blob.bin: $(OCBL_DIR)/efi/ocbl_efi_handoff_blob.asm | $(OCBL_OUT)
 	$(NASM) -f bin -o $@ $<
 	python3 -c "b=open('$(abspath $@)','rb').read(); assert len(b)<=0x1000, 'handoff blob %d bytes overflows the 0x30000 code area' % len(b); print('ocbl: handoff_blob.bin %dB ok' % len(b))"
 
-$(OCBL_OUT)/efiobj/handoff_data.o: $(OCBL_DIR)/efi/handoff_data.asm $(OCBL_OUT)/handoff_blob.bin | $(OCBL_OUT)
+$(OCBL_OUT)/efiobj/handoff_data.o: $(OCBL_DIR)/efi/ocbl_efi_handoff_data.asm $(OCBL_OUT)/handoff_blob.bin | $(OCBL_OUT)
 	@mkdir -p $(dir $@)
 	$(NASM) -f elf64 -I$(OCBL_OUT)/ -o $@ $<
 

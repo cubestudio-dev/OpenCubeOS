@@ -1,7 +1,7 @@
 ; SPDX-License-Identifier: Apache-2.0
 ; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 ; Open Cube OS - 3.0.0-WP-runtime-hardening-and-experience-rebase
-; File: ocrmecl/bios/ocr_stage1.asm
+; File: ocrmecl/bios/ocr_ocbl_bios_stage1.asm
 ; Purpose: OCRMECL stage 1 - the 512-byte El Torito boot sector of the
 ;          OCRMECL (Open Cube Runtime Machine Environment Compatibility
 ;          Layer) BIOS track.  The ISO El Torito no-emulation image is

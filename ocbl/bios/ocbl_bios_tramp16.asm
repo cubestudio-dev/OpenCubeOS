@@ -1,7 +1,7 @@
 ; SPDX-License-Identifier: Apache-2.0
 ; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 ; Open Cube OS - 3.0.0-WP05-ocbl
-; File: ocbl/bios/tramp16.asm
+; File: ocbl/bios/ocbl_bios_tramp16.asm
 ; Purpose: the 64 <-> 16 real-mode BIOS trampoline for the BIOS flavor.
 ;
 ;          The 64-bit C core calls ocbl_bios_int() (ocbl_bios_asm.S);

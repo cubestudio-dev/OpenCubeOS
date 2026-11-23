@@ -271,7 +271,7 @@ Class/Machine/Entry echo), `run-bios` → `qemu-system-<arch> -machine virt [-cp
 | `OCBL_FLAVOR_BIOS` | ocbl.mk BIOS objects | selects the int-13h/VGA/E820/VBE backend implementations (`#ifdef` sites in `ocbl/common/ocbl_main.c`) |
 | `OCBL_FLAVOR_UEFI` | ocbl.mk EFI objects | EFI backend of the same contracts |
 | `OCSE_RELEASE`, `OCSE_BUILD` | ocse.mk | OCSE banner (release literal + `-ocse` suffix) |
-| `OCBL_ELTORITO` / `OCBL_MBR` | NASM `-D` on `stage1.asm` | which 512-byte stage1 flavor to assemble |
+| `OCBL_ELTORITO` / `OCBL_MBR` | NASM `-D` on `ocbl_bios_stage1.asm` | which 512-byte stage1 flavor to assemble |
 | `OC_CONFIG_NVME` / `OC_CONFIG_AHCI` / `OC_CONFIG_VIRTIO_BLK` | generated `config_gen.h` (0/1) | hardware profile; `0` also `#define`s `driver_block_<x>_init(...)` to a no-op stub |
 | `OC_VERSION_STAMP` | generated `version_gen.h` | recompile-trigger string |
 | `OCIRE_STAMP` | generated `ocire_version_gen.h` | OCIRE recompile trigger |

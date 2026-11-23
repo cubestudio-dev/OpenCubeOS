@@ -87,7 +87,7 @@ int ocse_inst_ocbl(int disk_idx, const char* medium_path,
         return -3;
     }
 
-    /* 4. patch block (see ocbl/bios/stage1.asm):
+    /* 4. patch block (see ocbl/bios/ocbl_bios_stage1.asm):
      *    +0x1A0 u32 magic, +0x1A4 u32 lba_lo, +0x1A8 u32 lba_hi,
      *    +0x1AC u16 core_sectors */
     work[0x1A0] = 0x4F; work[0x1A1] = 0x43;   /* 'O' 'C' */

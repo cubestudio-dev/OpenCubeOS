@@ -1,7 +1,7 @@
 ; SPDX-License-Identifier: Apache-2.0
 ; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 ; Open Cube OS - 3.0.0-WP05-ocbl
-; File: ocbl/bios/stage1.asm
+; File: ocbl/bios/ocbl_bios_stage1.asm
 ; Purpose: OCBL stage 1 - a 512-byte real-mode boot sector, built in two
 ;          flavors from this one source (nasm -D choice):
 ;

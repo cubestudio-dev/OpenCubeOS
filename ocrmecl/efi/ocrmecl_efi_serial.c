@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - 3.0.0-WP-runtime-hardening-and-experience-rebase
- * File: ocrmecl/efi/ocr_serial.c
+ * File: ocrmecl/efi/ocrmecl_efi_serial.c
  * Purpose: 16550 COM1 serial console for the OCRMECL EFI track -
  *          polled, 115200 8N1, the same line discipline every other
  *          boot stage uses, so the evidence transcript stays one
@@ -11,7 +11,7 @@
  *          (physical separation, interface/boot_handoff.h is the
  *          only contract).
  */
-#include "ocr_efi.h"
+#include "ocrmecl_efi_def.h"
 
 #define COM1 0x3F8
 

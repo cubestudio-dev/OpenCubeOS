@@ -156,7 +156,7 @@ Three backends around one firmware-agnostic core:
 
 | Folder | Files | Content |
 |---|---|---|
-| `bios/` | 16 | `stage1.asm` (the 512-byte sector, two flavors from one source: `-D OCBL_ELTORITO` / `-D OCBL_MBR`), `core_head.S` (32->64 core entry, identity page tables at 0x8F000, EBDA guard), the real-mode trampoline pair, int 10h/13h/14h/15h/16h/1Ah backends, VBE, RSDP scan, VBR chainload |
+| `bios/` | 16 | `ocbl_bios_stage1.asm` (the 512-byte sector, two flavors from one source: `-D OCBL_ELTORITO` / `-D OCBL_MBR`), `ocbl_bios_core_head.S` (32->64 core entry, identity page tables at 0x8F000, EBDA guard), the real-mode trampoline pair, int 10h/13h/14h/15h/16h/1Ah backends, VBE, RSDP scan, VBR chainload |
 | `efi/` | 10 | the freestanding UEFI type definitions (no EDK2), `efi_entry.c` (MS-ABI entry, fixed-window reserves, EBS retry loop), BlockIo disk backend, GOP, GetMemoryMap->E820, EFI chainload, the 64->32 handoff blob |
 | `common/` | 23 | the six-class scanner, the read-only FAT12/16/32+ISO9660 volume layer, MBR/GPT traversal (incl. the 0xEE shadow case), the ELF loader + mb2 builder, the 3-key menu, the boot-state monitor, ACPI S5, the 6300ESB watchdog, polled 16550 serial, and the flavor contract headers |
 

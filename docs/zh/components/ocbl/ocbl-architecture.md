@@ -10,7 +10,7 @@ ISO 的引导镜像都是 OCBL。它位于 `ocbl/`，从一份共享核心构建
 
 | 形态 | 入口 | 实模式管线 | 控制台 | 磁盘 | 视频 |
 |---|---|---|---|---|---|
-| BIOS | `bios/stage1.asm` | 16 位跳板（`tramp16.asm`），int13 DAP 经 1 MiB 以下弹跳窗读取 | VGA 文本 + 串行 | int13 | VBE（`ocbl_vbe.c`） |
+| BIOS | `bios/ocbl_bios_stage1.asm` | 16 位跳板（`ocbl_bios_tramp16.asm`），int13 DAP 经 1 MiB 以下弹跳窗读取 | VGA 文本 + 串行 | int13 | VBE（`ocbl_vbe.c`） |
 | UEFI | `efi/efi_entry.c` | 无——从头就是原生 64 位 | GOP 控制台 + 串行 | EFI BlockIo（**驱动器编号从零开始**） | GOP（`ocbl_gop_efi.c`） |
 
 两种形态编译同一份 `common/` 核心：条目扫描器（`ocbl_scan.c`）、

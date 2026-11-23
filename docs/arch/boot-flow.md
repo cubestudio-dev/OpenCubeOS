@@ -10,7 +10,7 @@ scanner -> menu -> multiboot2 handoff -> kernel entry -> kmain. The
 component panorama is [system-map.md](system-map.md); the state
 monitor's role is [hidden-mechanisms.md](hidden-mechanisms.md).
 
-## Stage 1 - the 512-byte sector (`ocbl/bios/stage1.asm`)
+## Stage 1 - the 512-byte sector (`ocbl/bios/ocbl_bios_stage1.asm`)
 
 One source, two flavors: `-D OCBL_ELTORITO` (ISO; the whole image is
 preloaded, core already at 0x7E00, prints `OCBL stage1 ok`) and `-D OCBL_MBR` (installed disk; deliberately SILENT - the 512-byte budget
@@ -36,7 +36,7 @@ follows the GRUB boot.img / ISOLINUX stage1 pattern).
 - Bytes 446..509 are zero in the image - `ocbl-install` copies the
   real partition table over them; 510..511 = 0xAA55.
 
-## Stage 2 - the OCBL core, BIOS flavor (`ocbl/bios/core_head.S`)
+## Stage 2 - the OCBL core, BIOS flavor (`ocbl/bios/ocbl_bios_core_head.S`)
 
 32-bit entry `core_head` at 0x8200 (the image links at 0x7E00 via
 `ocbl/linker_bios.ld`, `.text.head` first): flat segments, own GDT
@@ -48,7 +48,7 @@ guard** (#134): reads BDA 0x40E; on overlap it relocates the 6-page PT
 block to 0x40000.
 
 All firmware services run through the real-mode trampoline
-(`tramp16.asm` blob copied to 0x40000; `ocbl_bios_int(int_no, regs*)`
+(`ocbl_bios_tramp16.asm` blob copied to 0x40000; `ocbl_bios_int(int_no, regs*)`
 is the 64-bit wrapper - reg block at 0x40300, far jump to selector
 0x08 -> 0x40000, resume via saved RIP/RSP). Backends built on it: int
 10h VGA text console, int 1Ah clock (54.9 ms ticks), int 16h PS/2 +

@@ -9,7 +9,7 @@ core -> 扫描器 -> 菜单 -> multiboot2 交接 -> 内核入口 -> kmain。
 组件全景见 [system-map.md](system-map.md)；状态监视器的角色见
 [hidden-mechanisms.md](hidden-mechanisms.md)。
 
-## 第 1 阶段——512 字节的扇区（`ocbl/bios/stage1.asm`）
+## 第 1 阶段——512 字节的扇区（`ocbl/bios/ocbl_bios_stage1.asm`）
 
 一份源码，两种形态：`-D OCBL_ELTORITO`（ISO；整个镜像被预加载，
 core 已在 0x7E00，打印 `OCBL stage1 ok`）与 `-D OCBL_MBR`（已安装
@@ -35,7 +35,7 @@ stage1 模式）。
 - 镜像中第 446..509 字节为零——`ocbl-install` 把真实分区表拷贝到
   其上；510..511 = 0xAA55。
 
-## 第 2 阶段——OCBL core，BIOS 形态（`ocbl/bios/core_head.S`）
+## 第 2 阶段——OCBL core，BIOS 形态（`ocbl/bios/ocbl_bios_core_head.S`）
 
 32 位入口 `core_head` 位于 0x8200（镜像经 `ocbl/linker_bios.ld`
 链接于 0x7E00，`.text.head` 在前）：平坦段、自有 GDT（32+64 位
@@ -45,7 +45,7 @@ PD@0x91000..0x94000，2 MiB 大页 = 4 GiB）、PAE+LME+PG、远跳转到
 更大的 EBDA 相撞）。**EBDA 守卫**（#134）：读 BDA 0x40E；一旦
 重叠就把 6 页 PT 块重定位到 0x40000。
 
-一切固件服务都经实模式跳板运行（`tramp16.asm` blob 拷贝到
+一切固件服务都经实模式跳板运行（`ocbl_bios_tramp16.asm` blob 拷贝到
 0x40000；`ocbl_bios_int(int_no, regs*)` 是 64 位包装——reg 块位于
 0x40300，远跳转到选择子 0x08 -> 0x40000，经保存的 RIP/RSP 恢复）。
 建于其上的后端：int 10h VGA 文本控制台、int 1Ah 时钟（54.9 毫秒

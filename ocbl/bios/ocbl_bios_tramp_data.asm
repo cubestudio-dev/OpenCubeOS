@@ -1,7 +1,7 @@
 ; SPDX-License-Identifier: Apache-2.0
 ; Copyright 2026 cubestudio-dev <cubestudio@qq.com>
 ; Open Cube OS - 3.0.0-WP05-ocbl
-; File: ocbl/bios/tramp_data.asm
+; File: ocbl/bios/ocbl_bios_tramp_data.asm
 ; Purpose: embed the assembled trampoline blob (tramp16.bin) into the
 ;          core image; ocbl_tramp_init() copies it to 0x40000 at boot.
 

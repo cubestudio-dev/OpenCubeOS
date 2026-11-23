@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - 3.0.0-WP-runtime-hardening-and-experience-rebase
- * File: ocrmecl/efi/ocr_efi.h
+ * File: ocrmecl/efi/ocrmecl_efi_def.h
  * Purpose: self-contained minimal UEFI + base type definitions for
  *          the OCRMECL EFI track.  Deliberately NOT shared with
  *          ocbl/ - OCRMECL is a PHYSICALLY SEPARATE boot stage
@@ -10,7 +10,7 @@
  *          only shared contract is interface/boot_handoff.h).
  *
  *          Struct layouts mirror the UEFI spec one-to-one (the same
- *          discipline ocbl/efi/efi.h documented; offsets verified
+ *          discipline ocbl/efi/ocbl_efi_def.h documented; offsets verified
  *          live against OVMF by the WP-05 B-batches).
  */
 #ifndef OCR_EFI_H
@@ -238,13 +238,13 @@ typedef struct efi_boot_services {
     void* create_event_ex;
 } efi_boot_services;
 
-/* ---- the OCRMECL serial console (ocr_serial.c) ---- */
+/* ---- the OCRMECL serial console (ocrmecl_efi_serial.c) ---- */
 void ocr_serial_init(void);
 void ocr_serial_puts(const char* s);
 void ocr_serial_hex(u64 v, int digits);
 void ocr_serial_dec(u64 v);
 
-/* ---- the in-RAM ISO9660 probe (ocr_iso9660.c) ---- */
+/* ---- the in-RAM ISO9660 probe (ocrmecl_efi_iso9660.c) ---- */
 int ocr_iso_pvd(const u8* iso, u64 iso_size);
 int ocr_iso_pvd_sector(const u8* sec);
 int ocr_iso_find(const u8* iso, u64 iso_size, const char* want,

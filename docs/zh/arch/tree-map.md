@@ -151,7 +151,7 @@ shell 及其内建命令；按设备的状态命令（`ahci`、`hda`、`e1000e`�
 
 | 目录 | 文件数 | 内容 |
 |---|---|---|
-| `bios/` | 16 | `stage1.asm`（512 字节扇区，一份源出两种形态：`-D OCBL_ELTORITO` / `-D OCBL_MBR`）、`core_head.S`（32->64 core 入口，0x8F000 处的恒等页表，EBDA 守卫）、实模式跳板一对、int 10h/13h/14h/15h/16h/1Ah 后端、VBE、RSDP 扫描、VBR 链式加载 |
+| `bios/` | 16 | `ocbl_bios_stage1.asm`（512 字节扇区，一份源出两种形态：`-D OCBL_ELTORITO` / `-D OCBL_MBR`）、`ocbl_bios_core_head.S`（32->64 core 入口，0x8F000 处的恒等页表，EBDA 守卫）、实模式跳板一对、int 10h/13h/14h/15h/16h/1Ah 后端、VBE、RSDP 扫描、VBR 链式加载 |
 | `efi/` | 10 | 独立（freestanding）的 UEFI 类型定义（无 EDK2）、`efi_entry.c`（MS-ABI 入口、固定窗口保留、EBS 重试循环）、BlockIo 磁盘后端、GOP、GetMemoryMap->E820、EFI 链式加载、64->32 交接 blob |
 | `common/` | 23 | 六类扫描器、只读的 FAT12/16/32+ISO9660 卷层、MBR/GPT 遍历（含 0xEE 影子情形）、ELF 加载器 + mb2 构建器、3 键菜单、引导状态监视器、ACPI S5、6300ESB 看门狗、轮询式 16550 串口，以及形态契约头文件 |
 
