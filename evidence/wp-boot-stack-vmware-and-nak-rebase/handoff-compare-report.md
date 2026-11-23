@@ -130,3 +130,38 @@ D1 评注：`PG=0 且 LME=1` 是合法的"长模式已武装的兼容态"（x86 
 - QEMU 基线：默认参数冒烟（/tmp/smoke/bios-default.log，ush> 到达）；严格矩阵双轨 GREEN（evidence/wp-runtime-hardening-and-experience-rebase/strict/）
 - VMware 附件：/home/z/my-project/upload/{vmware.log,vmware-0.log,vmware-1.log,vmware-2.log,serial.log}
 - 历史 VMware 证据：evidence/wp-tui-input-encoding-hardening/vmware/vmware-reasoning.md
+
+---
+
+## 八、4.2 修复落地与验证结果（补录）
+
+修复集（commit 60602d20）：
+- F1 全链有界串口（4 个文件，含 ser_dec 的栈平衡 drain）
+- F2 COM1 SCR 探测（2 处）
+- F3 VGA 行 24 进度标记 R/B/F/A/G/P/I/L/M/S（vga_mark 经 FS 寻址——不触碰 unreal dance 的 flat ES）
+- F4 ocbl_handoff EFER 标准化清零（push ecx 保护 kernel entry——首版 mov ecx,0xC0000080 覆盖 rcx 的 bug 被 QEMU 实测当场抓获修复）
+
+修复中自我抓获并修复的三个缺陷（全部 QEMU 实测发现，详见 worklog）：
+1. F4 首版破坏 rcx → 内核 handoff 跳飞（mbi built 后死）
+2. vga_mark 首版 pop es 实模式重载 → 破坏 flat ES → move stub 复制错位 0x100 → OCBL stage1 执行错位垃圾（指令跟踪实证）
+3. vga_mark 首版 bh 残留 0xB8 → VGA 写飞 0xC470x
+
+验证矩阵（全部本沙箱 QEMU 实跑）：
+| 门 | 结果 | 证据 |
+|---|---|---|
+| make all | 0 errors（EFI 链接 RWX 警告为历史已申报预存在项） | 构建日志 |
+| 默认 QEMU BIOS 轨 | OCRMECL→OCBL→kernel→ush> GREEN | /tmp/smoke/ |
+| 严格矩阵 BIOS(SeaBIOS) | GREEN 至 ush> | evidence/wp-runtime-hardening-and-experience-rebase/strict/（修复后重跑） |
+| 严格矩阵 UEFI(OVMF) | GREEN 至 ush> | 同上 |
+| 31/31 回归 | PASS（首跑 30/31 为屏幕帧采样瞬态，重跑 31/31） | regression/31-31.txt |
+| HTTPS E2E | 8/8 PASS | regression/https-e2e.txt |
+| SSH E2E | ALL PASS（auth/exec/sshd/listen/capture） | regression/ssh-e2e.txt |
+| dhtest | 5/5 correctness | regression/dhtest.txt |
+| WP-08 门禁 | 43/43 PASS | regression/wp08-gate.txt |
+
+NAK 重命名（commit 228ed095）：13 文件 git-mv（相似度 82-100%），36 个文件引用同步（mk/include/incbin/注释/docs EN+zh），纯改名零逻辑变更。nak-rename-diff.txt 存证。
+
+诚实申报：
+1. 本沙箱无法运行 VMware——F1-F5 是依据附件证据链与三版本对比反推的结构性修复（去掉对 QEMU 宽容串口的依赖 + 恢复 VGA 可观测性），**需要用户在 VMware 复测**；复测时 VGA 行 24 的标记链（R/B/F/A/G/P/I/L/M/S）将把任何残余死点直接暴露在屏幕上（正常引导时标记在 VBE 模式切换后被清除，属设计事实）。
+2. 2.x GRUB 轨（WP-10 ISO）在 VMware 的 FAT32 注册后死点属内核设备探测层，不在本包引导链范围，需独立工作包。
+3. "三重故障重启"的历史现象（11-14 证据）与本次附件（11-22 静默死循环）现象不同，报告第五章已如实区分。
