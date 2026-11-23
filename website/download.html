@@ -13,7 +13,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title data-i18n="title.download">Download - Open Cube OS</title>
-<meta name="description" content="Download Open Cube OS: the 3.0.0-WP-runtime-hardening-and-experience-rebase release (opencube hybrid BIOS+UEFI ISO, deterministic source zip, OTA package) or the 2.2.0 stable release - with SHA256 for every asset.">
+<meta name="description" content="Download Open Cube OS: the 3.0.0-WP-boot-stack-vmware-and-nak-rebase release (opencube hybrid BIOS+UEFI ISO, deterministic source zip, OTA package) or the 2.2.0 stable release - with SHA256 for every asset.">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0f0c'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' fill='%2346d977' text-anchor='middle'%3Eoc%3C/text%3E%3C/svg%3E">
 <script>
@@ -52,30 +52,30 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
 <div class="wrap">
   <div class="dl-head">
     <h1 data-i18n="dl.h1">Download</h1>
-    <p class="sub" data-i18n-html="dl.sub">Two channels: the <b>3.0.0 release line</b> (the L0/L1 world, driver-framework milestone) and the <b>2.2.0 stable release</b>. Every asset's SHA256 is listed - verify what you download: <code>sha256sum &lt;file&gt;</code>.</p>
+    <p class="sub" data-i18n-html="dl.sub">Two channels: the <b>3.0.0 release line</b> (the L0/L1 world, boot-stack milestone) and the <b>2.2.0 stable release</b>. Every asset's SHA256 is listed - verify what you download: <code>sha256sum &lt;file&gt;</code>.</p>
     <div class="dl-tabs seg" role="group" aria-label="Release channel">
       <button type="button" id="tab-dev" class="active" aria-pressed="true" data-i18n="dl.tab.dev">Development preview</button>
       <button type="button" id="tab-stable" aria-pressed="false" data-i18n="dl.tab.stable">Stable release</button>
     </div>
   </div>
 
-  <!-- ============ channel: 3.0.0 release line (WP-tui-input-encoding-hardening) ============ -->
+  <!-- ============ channel: 3.0.0 release line (WP-boot-stack-vmware-and-nak-rebase) ============ -->
   <div id="panel-dev">
     <section class="section" style="padding-top:26px">
-      <h2 data-i18n="dl.dev.h2">3.0.0-WP-runtime-hardening-and-experience-rebase</h2>
-      <p class="sub" data-i18n-html="dl.dev.sub">The current 3.0.0 milestone: OCRMECL (the boot compatibility layer) &rarr; OCBL &rarr; OCOS (the runtime hardening: strict-matrix boot, the i18n resource system with get_text, the serial-probe wizard, the TUI build switch) &rarr; the ring-3 ush shell, plus the OCSE install environment. Boot the ISO in QEMU (<code>-cdrom</code>) or write it to USB. See the <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.0-WP-runtime-hardening-and-experience-rebase" rel="noopener">WP-tui-input-encoding-hardening release page</a>.</p>
+      <h2 data-i18n="dl.dev.h2">3.0.0-WP-boot-stack-vmware-and-nak-rebase</h2>
+      <p class="sub" data-i18n-html="dl.dev.sub">The current 3.0.0 milestone: OCRMECL (the boot compatibility layer) &rarr; OCBL (the bootloader, NAK-rebased) &rarr; OCOS with the VMware serial/VGA/EFER independence fixes (F1-F4, strict-matrix boot on both firmware tracks) &rarr; the ring-3 ush shell, plus the OCSE install environment. Boot the ISO in QEMU (<code>-cdrom</code>) or write it to USB. See the <a href="https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.0-WP-boot-stack-vmware-and-nak-rebase" rel="noopener">WP-boot-stack-vmware-and-nak-rebase release page</a>.</p>
       <div class="dl-grid">
         <div class="dl-card" id="card-dev-oc">
           <div class="type" data-i18n="dl.dev.oc.type">Bootable ISO - the OS</div>
-          <h3 id="dev-oc-name">opencube-3.0.0-WP-tui-input-encoding-hardening.iso</h3>
-          <p class="desc" data-i18n-html="dl.dev.oc.desc">Hybrid BIOS + UEFI image (4.2 MiB). Boots through OCBL into the ring-3 ush shell - the 3.0.0 release line (driver-framework milestone).</p>
+          <h3 id="dev-oc-name">opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase.iso</h3>
+          <p class="desc" data-i18n-html="dl.dev.oc.desc">Hybrid BIOS + UEFI image (4.2 MiB). Boots through OCBL into the ring-3 ush shell - the 3.0.0 release line (boot-stack milestone).</p>
           <div class="meta"><span data-i18n="dl.size">Size:</span> <b id="dev-oc-size">-</b></div>
           <div class="sha" id="dev-oc-sha">-</div>
           <a class="btn btn-primary" id="dev-oc-url" href="#" data-i18n="dl.dev.oc.btn">⬇️ Download ISO</a>
         </div>
         <div class="dl-card" id="card-dev-ocse">
           <div class="type" data-i18n="dl.dev.ocse.type">Install medium - OCSE</div>
-          <h3 id="dev-ocse-name">ocse-3.0.0-WP-tui-input-encoding-hardening-ocse.iso</h3>
+          <h3 id="dev-ocse-name">ocse-3.0.0-WP-boot-stack-vmware-and-nak-rebase-ocse.iso</h3>
           <p class="desc" data-i18n-html="dl.dev.ocse.desc">The OCSE install environment (4.8 MiB, last cut at the WP-l1apps-merge milestone): the 9-step GUI install wizard and OCSECL, en/zh - every wizard mutation is a real OCSECL command. Installs OCBL + OCOS onto a disk that then boots to ush.</p>
           <div class="meta"><span data-i18n="dl.size">Size:</span> <b id="dev-ocse-size">-</b></div>
           <div class="sha" id="dev-ocse-sha">-</div>
@@ -85,7 +85,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
     </section>
     <section class="section" style="padding-top:0">
       <h3 data-i18n="dl.dev.try.h">Try it in one command</h3>
-      <div class="cmd"><span class="c">$</span> qemu-system-x86_64 -m 512 -cdrom opencube-3.0.0-WP-tui-input-encoding-hardening.iso \
+      <div class="cmd"><span class="c">$</span> qemu-system-x86_64 -m 512 -cdrom opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase.iso \
       -netdev user,id=n1 -device e1000,netdev=n1</div>
       <p class="sub" data-i18n="dl.dev.try.p" style="margin:10px 0 0">512 MiB of RAM is comfortable; the ISO is self-contained. The installed-disk path: boot ocse, run the wizard, reboot - OCBL takes over.</p>
     </section>
@@ -146,7 +146,7 @@ document.documentElement.setAttribute("data-theme",t);}catch(e){document.documen
     <div class="steps">
       <div class="step"><div class="n">1</div><div>
         <h3 data-i18n="dl.verify.s1.h">Hash the file you downloaded</h3>
-        <div class="cmd"><span class="c">$</span> sha256sum opencube-3.0.0-WP-tui-input-encoding-hardening.iso</div>
+        <div class="cmd"><span class="c">$</span> sha256sum opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase.iso</div>
       </div></div>
       <div class="step"><div class="n">2</div><div>
         <h3 data-i18n="dl.verify.s2.h">Compare with the value above</h3>

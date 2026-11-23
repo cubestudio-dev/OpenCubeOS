@@ -67,7 +67,7 @@ window.SITE_DATA = {
     commands: 312,
     interfaces: 223,
     syscalls: 54,
-    lines: "165,363"
+    lines: "165,416"
   },
   history: [
     { version: "3.0.0-WP-runtime-hardening-and-experience-rebase", date: "2026-11-21",
