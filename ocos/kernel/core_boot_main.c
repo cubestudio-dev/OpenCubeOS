@@ -154,6 +154,7 @@ void net_wl_fw_provider_install(void); /* 3.0.0-WP03 G2: wl firmware provider (s
 #include "drv_storage_scsi_lsi.h"           /* WP-10-camera_misc: LSI HBA */
 #include "drv_time_hpet.h"               /* WP-10-timer_rtc: HPET */
 #include "drv_time_pmtimer.h"            /* WP-10-timer_rtc: ACPI PM timer */
+#include "drv_time_tsc.h"                /* WP-compat-and-security-hardening B3: TSC cal + I/O deadlines */
 #include "core_lib_config.h"   /* WP-09-fix5: /etc/opencube.conf */
 const lib_config_backend_t *fs_config_backend(void); /* 3.0.0-WP03 G5: services/fs */
 #include "core_lib_klog.h"     /* WP-12: unified kernel log */
@@ -358,9 +359,34 @@ void kmain(u64 magic, u64 mbi_phys) {
     OC_LOG_OK2("IDT + GDT + TSS (256 gates)");
     OC_LOG_OK2("8259 PIC remap (IRQ0-15 -> vec 32-47)");
 
-    /* ---- 7. WP-02: PIT timer ---- */
-    core_timer_init();
-    OC_LOG_OK2("PIT @ 100 Hz + tick counter");
+    /* ---- 7. WP-02: system tick (B4: RTC 1024 Hz first, PIT fallback) -- */
+    core_timer_init(mbi.cmdline);
+    {
+        char line[64];
+        strcpy(line, "system tick: ");
+        strcat(line, core_timer_source());
+        strcat(line, core_timer_source()[0] == 'r'
+                       ? " (RTC 1024 Hz)" : " (PIT 100 Hz fallback)");
+        OC_LOG_OK2(line);
+    }
+    /* WP-compat-and-security-hardening B3: calibrate the TSC NOW (the
+     * RTC 1024 Hz tick gives a ~31 ms window; HPET/PM timer are not up
+     * yet, PIT would cost 1.1 s).  Every I/O wait loop below (ATA PIO
+     * + DMA) gets its wall-clock deadline from this - the fix for the
+     * VMware "a 50M-iteration inb poll walks for minutes" crawl. */
+    driver_tsc_autocalibrate();
+    {
+        u64 tsc_hz; const char *tsc_src = 0;
+        if (driver_tsc_calibrated(&tsc_hz, &tsc_src) == 0) {
+            char line[88]; char n[24];
+            strcpy(line, "TSC calibrated @ ");
+            u64_to_str(tsc_hz / 1000000ull, n); strcat(line, n);
+            strcat(line, " MHz (");
+            strcat(line, tsc_src ? tsc_src : "?");
+            strcat(line, ") - I/O waits are wall-clock bounded\n");
+            OC_LOG_OK2(line);
+        }
+    }
 
     /* ---- 8. WP-02: Keyboard + serial input ---- */
     driver_input_keyboard_init();

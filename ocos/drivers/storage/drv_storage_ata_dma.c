@@ -51,6 +51,27 @@
 #include "drv_storage_api.h"
 #include "drv_storage_api.h"
 #include "drv_framework.h"
+#include "drv_time_tsc.h"   /* WP-compat-and-security-hardening B3: TSC wall-clock deadlines */
+
+/* ---- WP-compat-and-security-hardening B3: wall-clock bounded waits ----
+ *
+ * The raw iteration budgets below are ONLY the safety net for the
+ * boot window before the TSC calibration lands; the real bound is a
+ * TSC deadline.  On a hypervisor (VMware) every inb/outb is a VM
+ * exit (~1-3 us), so a "50,000,000-iteration poll" walks for
+ * MINUTES of wall clock - that was the whole-system crawl.  With a
+ * calibrated TSC the loop exits at the deadline no matter how slow
+ * the virtualized port I/O is.  TSC reads are privileged-opaque to
+ * the IF flag, so the deadlines hold inside the irqsave spinlocks. */
+#define ATA_TIMEOUT_MS_DEFAULT   100
+#define ATA_DMA_TIMEOUT_MS      1000
+
+/* TSC ticks for `ms` (0 when uncalibrated). */
+static u64 ata_tsc_ms(u64 ms) {
+    u64 hz;
+    if (driver_tsc_calibrated(&hz, (const char **)0) != 0) return 0;
+    return hz / 1000ull * ms;
+}
 
 /* ---- I/O port accessors ---- */
 static inline void outb(u16 p, u8  v) { __asm__ volatile("outb %0, %1" :: "a"(v),  "Nd"(p)); }
@@ -182,10 +203,16 @@ static void dlog_bdf(const char *prefix, u8 bus, u8 dev, u8 func,
 /* ---- low-level helpers ---- */
 
 static int driver_block_ata_wait_not_bsy(u16 base) {
+    /* B3: wall-clock bounded (TSC).  The 200000-iteration cap is only
+     * the pre-calibration safety net. */
+    u64 t0 = driver_tsc_read();
+    u64 budget = ata_tsc_ms(ATA_TIMEOUT_MS_DEFAULT);
     for (int i = 0; i < 200000; i++) {
         u8 s = inb(base + ATA_REG_STATUS);
         if (!(s & ATA_SR_BSY)) return 0;
         io_wait();
+        if (budget && (i & 0x3FFu) == 0x3FFu &&
+            driver_tsc_read() - t0 > budget) return -1;
     }
     return -1;
 }
@@ -293,21 +320,37 @@ static int driver_block_ata_dma_xfer(driver_block_ata_dma_drive_t *d, int is_wri
         /* Poll BMIS: DMA interrupt (done) or DMA error.  While polling,
          * watch for the QEMU command-drop signature (device idle with no
          * BSY/DRQ and BMIS still 0): bail out early instead of burning
-         * the full 50M polling budget, then run the sequence again. */
+         * the full 50M polling budget, then run the sequence again.
+         * B3: the REAL bound is the TSC deadline (1000 ms of wall
+         * clock) - on a hypervisor where each inb costs a VM exit the
+         * iteration budget alone walks for minutes; the deadline is
+         * checked every 4096 iterations (a few ms of exit time at
+         * worst, and the TSC read itself never traps to the host on
+         * modern hardware the way port I/O does).  The 50M cap stays
+         * as the pre-calibration safety net only. */
         rc = -1;
         s_last = 0;
-        for (u64 i = 0; i < 50000000u; i++) {
-            s_last = inb(bmis);
-            if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }
-            if (s_last & BMIS_DMA_INT)   { rc = 0;  break; }
-            if ((i & 0xFFFu) == 0xFFFu && s_last == 0) {
-                u8 stq = inb(g_chan_base[drive] + ATA_REG_STATUS);
-                if (!(stq & ATA_SR_BSY) && !(stq & ATA_SR_DRQ)) {
-                    /* re-read once: a completing DMA may race the idle check */
-                    s_last = inb(bmis);
-                    if (s_last & BMIS_DMA_INT) { rc = 0; break; }
-                    if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }
-                    rc = -5;            /* dropped: retry the sequence */
+        {
+            u64 tsc_t0 = driver_tsc_read();
+            u64 budget = ata_tsc_ms(ATA_DMA_TIMEOUT_MS);
+            for (u64 i = 0; i < 50000000u; i++) {
+                s_last = inb(bmis);
+                if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }
+                if (s_last & BMIS_DMA_INT)   { rc = 0;  break; }
+                if ((i & 0xFFFu) == 0xFFFu && s_last == 0) {
+                    u8 stq = inb(g_chan_base[drive] + ATA_REG_STATUS);
+                    if (!(stq & ATA_SR_BSY) && !(stq & ATA_SR_DRQ)) {
+                        /* re-read once: a completing DMA may race the idle check */
+                        s_last = inb(bmis);
+                        if (s_last & BMIS_DMA_INT) { rc = 0; break; }
+                        if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }
+                        rc = -5;            /* dropped: retry the sequence */
+                        break;
+                    }
+                }
+                if (budget && (i & 0xFFFu) == 0xFFFu &&
+                    driver_tsc_read() - tsc_t0 > budget) {
+                    rc = -6;                /* wall-clock timeout (B3) */
                     break;
                 }
             }

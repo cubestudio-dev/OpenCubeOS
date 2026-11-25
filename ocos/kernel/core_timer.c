@@ -1,14 +1,24 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS - WP-02
+/* Open Cube OS - WP-02 / WP-compat-and-security-hardening B4
  * File: kernel/core/core_timer.c
- * Purpose: PIT driver + system tick + soft timers.
- */
+ * Purpose: system tick + soft timers - RTC-first, PIT fallback.
+ *
+ * WP-compat-and-security-hardening B4: the system heartbeat is the
+ * CMOS RTC periodic interrupt (PIE @ 1024 Hz, IRQ8, fanned out by the
+ * single RegC-owning handler in drv_time_cmos_rtc.c) whenever the
+ * RTC hardware answers; the 8254 PIT path below is the FALLBACK and
+ * runs only when the RTC is absent/broken (or oc.tick=pit forces it
+ * for the acceptance test).  The 1024 Hz tick is converted to whole
+ * milliseconds with a half-nanosecond accumulator - exact by
+ * construction, zero cumulative drift. */
 #include "core_timer.h"
 #include "arch_idt.h"
 #include "arch_pic.h"
 #include "arch_irq.h"
 #include "core_lib_string.h"
+#include "core_lib_klog.h"
+#include "drv_time_cmos_rtc.h"
 
 static inline void outb(u16 p, u8 v) { __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(p)); }
 static inline u8   inb(u16 p)        { u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v; }
@@ -20,6 +30,13 @@ static inline u8   inb(u16 p)        { u8 v; __asm__ volatile("inb %1, %0" : "=a
 
 static u64 g_tick_count = 0;
 static u64 g_boot_ms    = 0;
+
+/* ---- WP-compat-and-security-hardening B4: the tick source ---------- */
+static int  g_tick_src = 0;   /* 0 = PIT (legacy), 1 = RTC 1024 Hz */
+static u32  g_rtc_sub;        /* half-ns accumulator: 1024 Hz period
+                               * = 976 562.5 ns = 1 953 125 half-ns */
+#define RTC_HALF_NS_PER_TICK 1953125u
+#define HALF_NS_PER_MS       2000000u
 
 /* Soft timer table. */
 #define OC_MAX_TIMERS 16
@@ -34,10 +51,47 @@ typedef struct {
 
 static core_timer_soft_timer_t g_timers[OC_MAX_TIMERS];
 
-void core_timer_init(void) {
+void core_timer_init(const char *cmdline) {
     memset(g_timers, 0, sizeof(g_timers));
     g_tick_count = 0;
     g_boot_ms    = 0;
+    g_rtc_sub    = 0;
+
+    /* WP-compat-and-security-hardening B4: oc.tick= override for the
+     * acceptance path ("rtc" / "pit"; anything else = auto).  Auto is
+     * the default and the RTC WINS whenever the hardware answers -
+     * the PIT is the fallback, not the peer. */
+    int want = 0;   /* 0 auto, 1 forced rtc, 2 forced pit */
+    if (cmdline) {
+        const char *p = cmdline;
+        while (*p) {
+            if ((p == cmdline || p[-1] == ' ') &&
+                strncmp(p, "oc.tick=", 8) == 0) {
+                if      (p[8] == 'r') want = 1;   /* rtc */
+                else if (p[8] == 'p') want = 2;   /* pit */
+                break;
+            }
+            while (*p && *p != ' ') p++;
+            while (*p == ' ') p++;
+        }
+    }
+
+    if (want != 2) {
+        if (driver_cmos_rtc_init() == 0) {
+            if (driver_cmos_rtc_pie_arm_system(6, core_timer_rtc_tick) == 0) {
+                g_tick_src = 1;
+                klog_record(KLOG_INFO, "timer",
+                            "RTC 1024 Hz system tick armed (PIT idle)");
+                return;
+            }
+        }
+        if (want == 1)
+            klog_write(KLOG_WARN, "timer",
+                       "oc.tick=rtc forced but RTC unavailable - PIT fallback");
+    }
+
+    /* ---- PIT fallback (the WP-02 path, byte-for-byte) ---------------- */
+    g_tick_src = 0;
 
     /* Program PIT channel 0: mode 2 (rate generator), 16-bit reload.
      * divisor = PIT_HZ / OC_TIMER_HZ = 11932 (for 100 Hz). */
@@ -48,18 +102,29 @@ void core_timer_init(void) {
 
     /* Register the IRQ0 handler. */
     arch_irq_register_handler(0, core_timer_irq_handler, NULL);
+    klog_record(KLOG_INFO, "timer", "PIT 100 Hz fallback tick armed");
 }
 
 void core_timer_resume(void) {
-    /* fix2: reprogram the PIT channel 0 only. The soft-timer table and
+    /* fix2: reprogram the tick source only. The soft-timer table and
      * the tick counters live in RAM and survived S3; wiping them here
      * (the old core_timer_init() call) silently killed the network
-     * poll timer on every resume. The IRQ0 handler stays registered -
-     * the dispatch table is RAM-resident too. */
+     * poll timer on every resume. The IRQ handlers stay registered -
+     * the dispatch table is RAM-resident too.
+     * B4: re-arm whichever source owns the tick - the S3 resume path
+     * may have left the RTC's PIE regime cleared by firmware. */
+    if (g_tick_src == 1) {
+        (void)driver_cmos_rtc_pie_arm_system(6, core_timer_rtc_tick);
+        return;
+    }
     u32 divisor = PIT_HZ / OC_TIMER_HZ;
     outb(PIT_CMD, 0x34);
     outb(PIT_CH0_DATA, (u8)(divisor & 0xFF));
     outb(PIT_CH0_DATA, (u8)((divisor >> 8) & 0xFF));
+}
+
+const char *core_timer_source(void) {
+    return (g_tick_src == 1) ? "rtc" : "pit";
 }
 
 u64 core_timer_now_ms(void) {
@@ -236,12 +301,8 @@ int core_timer_cancel(int id) {
     return 0;
 }
 
-/* The IRQ0 handler. Called from arch_irq_dispatch. */
-void core_timer_irq_handler(void *ctx, arch_irq_frame_t *f) {
-    (void)ctx; (void)f;
-    g_tick_count++;
-    g_boot_ms += OC_TIMER_MS_PER_TICK;
-
+/* The soft-timer + scheduler body, shared by both tick sources. */
+static void core_timer_soft_and_sched(void) {
     /* Run any due soft timers. */
     for (int i = 0; i < OC_MAX_TIMERS; i++) {
         if (!g_timers[i].in_use) continue;
@@ -266,4 +327,30 @@ void core_timer_irq_handler(void *ctx, arch_irq_frame_t *f) {
     /* WP-04: Drive the preemptive scheduler. */
     extern void core_sched_tick(void);
     core_sched_tick();
+}
+
+/* ---- WP-compat-and-security-hardening B4: the RTC tick consumer ------
+ * Called from the single RegC-owning IRQ8 handler (drv_time_cmos_rtc.c)
+ * with the already-drained RegC value.  IRQ context: no waiting, no
+ * unregistering - just the accounting and the shared body. */
+void core_timer_rtc_tick(u8 regc) {
+    if (!(regc & 0x40)) return;         /* only the periodic source */
+    g_tick_count++;
+    /* 1024 Hz -> whole ms with the half-ns accumulator: each tick is
+     * exactly 1 953 125 half-ns; a whole ms is 2 000 000.  The
+     * remainder never accumulates error (pure rational arithmetic). */
+    g_rtc_sub += RTC_HALF_NS_PER_TICK;
+    while (g_rtc_sub >= HALF_NS_PER_MS) {
+        g_rtc_sub -= HALF_NS_PER_MS;
+        g_boot_ms++;
+    }
+    core_timer_soft_and_sched();
+}
+
+/* The IRQ0 handler. Called from arch_irq_dispatch. */
+void core_timer_irq_handler(void *ctx, arch_irq_frame_t *f) {
+    (void)ctx; (void)f;
+    g_tick_count++;
+    g_boot_ms += OC_TIMER_MS_PER_TICK;
+    core_timer_soft_and_sched();
 }

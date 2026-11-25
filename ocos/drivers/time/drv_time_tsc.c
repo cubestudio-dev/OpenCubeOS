@@ -1,13 +1,14 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /*
- * Open Cube OS - WP-10-timer_rtc
+ * Open Cube OS - WP-10-timer_rtc / WP-compat-and-security-hardening B3
  * File: drivers/time/driver_tsc.c
- * Purpose: TSC reads + calibration against PIT / HPET / PM timer.
+ * Purpose: TSC reads + calibration against PIT / HPET / PM timer / RTC.
  */
 #include "drv_time_tsc.h"
 #include "drv_time_hpet.h"
 #include "drv_time_pmtimer.h"
+#include "drv_time_cmos_rtc.h"
 #include "core_timer.h"
 #include "core_sched.h"
 
@@ -104,6 +105,27 @@ int driver_tsc_calibrate_pmtimer(u64 *hz_out) {
     return 0;
 }
 
+/* ---- RTC 1024 Hz system-tick reference (B3) ------------------------------ */
+
+int driver_tsc_calibrate_rtc(u64 *hz_out) {
+    if (!driver_cmos_rtc_pie_system_active()) return -1;
+    u64 c0 = driver_cmos_rtc_irq_periodic();
+    /* Park (sti;hlt - same frame discipline as the PIT path) until a
+     * fresh tick edge, so the window starts on a boundary. */
+    while (driver_cmos_rtc_irq_periodic() == c0)
+        __asm__ volatile("sti; hlt");
+    u64 t0 = driver_tsc_read();
+    u64 want = c0 + 32;                       /* 32 ticks = 31.25 ms */
+    while (driver_cmos_rtc_irq_periodic() < want)
+        __asm__ volatile("sti; hlt");
+    u64 t1 = driver_tsc_read();
+    if (t1 <= t0) return -1;
+    u64 hz = (t1 - t0) * 1024ull / 32ull;
+    if (hz == 0) return -1;
+    if (hz_out) *hz_out = hz;
+    return 0;
+}
+
 /* ---- cached calibration --------------------------------------------------- */
 
 static void cache_calibration(u64 hz, const char *source) {
@@ -121,7 +143,9 @@ int driver_tsc_calibrated(u64 *hz_out, const char **source_out) {
 const char* driver_tsc_source(void) { return g_source; }
 
 /* Cache the best available calibration: HPET first (most precise),
- * then the PM timer, then the PIT. */
+ * then the PM timer, then the RTC 1024 Hz system tick (B3: the early
+ * kmain window - fast, ~31 ms, available before HPET/PM timer come
+ * up), then the PIT (slowest, always there). */
 void driver_tsc_autocalibrate(void) {
     u64 hz;
     if (driver_tsc_calibrate_hpet(&hz) == 0) {
@@ -130,6 +154,10 @@ void driver_tsc_autocalibrate(void) {
     }
     if (driver_tsc_calibrate_pmtimer(&hz) == 0) {
         cache_calibration(hz, "pmtimer");
+        return;
+    }
+    if (driver_tsc_calibrate_rtc(&hz) == 0) {
+        cache_calibration(hz, "rtc");
         return;
     }
     if (driver_tsc_calibrate_pit(&hz) == 0) {

@@ -35,16 +35,26 @@
 OCRMECL_DIR := $(OC_ROOT)/ocrmecl
 OCRMECL_OUT := $(BUILD)/ocrmecl
 
+# WP-compat-and-security-hardening B4: the BIOS-track VGA progress
+# marks (row-24 direct VGA writes, the SBFAJPILM residue) are OFF in
+# the default build.  `make OCRMECL_VGA_MARKS=1 ocrmecl-bios` (or
+# exporting OCRMECL_VGA_MARKS=1) re-enables them for debugging.
+ifeq ($(OCRMECL_VGA_MARKS),1)
+OCRMECL_VGA_DEFS := -DOCRMECL_VGA_MARKS
+else
+OCRMECL_VGA_DEFS :=
+endif
+
 $(OCRMECL_OUT):
 	@mkdir -p $@
 
 # ---- BIOS track ------------------------------------------------------
 $(OCRMECL_OUT)/stage1.bin: $(OCRMECL_DIR)/bios/ocrmecl_bios_stage1.asm | $(OCRMECL_OUT)
-	$(NASM) -f bin -o $@ $<
+	$(NASM) -f bin $(OCRMECL_VGA_DEFS) -o $@ $<
 	python3 -c "b=open('$(abspath $@)','rb').read(); assert len(b)==512, 'ocrmecl stage1 %d bytes' % len(b); print('ocrmecl: stage1 512B ok')"
 
 $(OCRMECL_OUT)/core.bin: $(OCRMECL_DIR)/bios/ocrmecl_bios_core.asm | $(OCRMECL_OUT)
-	$(NASM) -f bin -o $@ $<
+	$(NASM) -f bin $(OCRMECL_VGA_DEFS) -o $@ $<
 	python3 -c "b=open('$(abspath $@)','rb').read(); assert len(b)<=0x7800, 'ocrmecl core %d bytes over budget' % len(b); print('ocrmecl: core %dB ok' % len(b))"
 
 # the composite: [stage1][core][OCBL.BIN] with the patch block filled

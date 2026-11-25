@@ -377,7 +377,12 @@ ser_dec:
 ; F3: vga_mark - AL = char -> VGA text row 24, next column, attr 0x0F.
 ; The stage1 marks 'R'/'B' own columns 0-1; the core continues at 2.
 ; Preserves every register; works with the linear DS discipline.
+; WP-compat-and-security-hardening B4: the marks are OFF in the
+; default build (the SBFAJPILM residue on row 24 was debug-only);
+; -DOCRMECL_VGA_MARKS from the makefile re-enables the real body.
+; The call sites stay as-is either way (a call + ret is free).
 ; ---------------------------------------------------------------------------
+%ifdef OCRMECL_VGA_MARKS
 vga_mark:
         push    bx
         push    ax
@@ -393,6 +398,10 @@ vga_mark:
         pop     bx
         ret
 vga_col:        db 2                        ; stage1 wrote columns 0-1
+%else
+vga_mark:
+        ret
+%endif
 ser_dead:       db 0                        ; 1 = COM1 declared dead
 
 ; ---------------------------------------------------------------------------

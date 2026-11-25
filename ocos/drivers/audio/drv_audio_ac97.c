@@ -36,6 +36,7 @@
 #include "drv_bus_pci.h"
 #include "core_mm_pmm.h"
 #include "arch_irq.h"
+#include "drv_time_tsc.h"   /* WP-compat-and-security-hardening B3: wall-clock bounded waits */
 #include "core_console_screen.h"
 #include "core_lib_string.h"
 #include "drv_audio_api.h"
@@ -134,9 +135,17 @@ static void driver_snd_ac97_log(const char *s) { screen_console_puts(s); }
 /* ---- codec (mixer) register access ---- */
 
 static u16 driver_snd_ac97_codec_read(driver_snd_ac97_dev_t *d, u8 reg) {
-    /* CAS (codec access semaphore) must be clear before a read */
+    /* CAS (codec access semaphore) must be clear before a read.
+     * B3: wall-clock bounded (TSC) - the iteration cap alone is not a
+     * time bound under a hypervisor (every port read is a VM exit). */
+    u64 t0 = driver_tsc_read();
+    u64 hz = 0;
+    (void)driver_tsc_calibrated(&hz, (const char **)0);
+    u64 budget = hz ? hz / 10ull : 0;              /* 100 ms */
     for (int t = 0; t < 100000; t++) {
         if (!(driver_snd_ac97_inb(d->nabm + 0x34) & 0x01)) break;
+        if (budget && (t & 0xFFu) == 0xFFu &&
+            driver_tsc_read() - t0 > budget) break;
     }
     return driver_snd_ac97_inw(d->nam + reg);
 }
@@ -188,7 +197,16 @@ static int driver_snd_ac97_setup(driver_snd_ac97_dev_t *d, u8 bus, u8 dev, u8 fu
 
     /* reset the codec (register 0x00 write), then set the sample rate */
     driver_snd_ac97_codec_write(d, AC97_REG_RESET, 0x0000);
-    for (int t = 0; t < 100000; t++) { }
+    {   /* B3: real ~1 ms codec settle delay (TSC), not a spin count */
+        u64 hz = 0;
+        (void)driver_tsc_calibrated(&hz, (const char **)0);
+        if (hz) {
+            u64 t0 = driver_tsc_read();
+            while (driver_tsc_read() - t0 < hz / 1000ull) ;
+        } else {
+            for (int t = 0; t < 100000; t++) { }
+        }
+    }
     driver_snd_ac97_codec_write(d, AC97_REG_PCM_FRONT_RATE, 48000);
     /* PCM out volume: 0 dB, unmuted */
     driver_snd_ac97_codec_write(d, AC97_REG_PCM_OUT_VOL, 0x0000);
@@ -358,8 +376,16 @@ static int driver_snd_ac97_ops_stop(driver_snd_device_t *sdev) {
         core_sched_yield();
     }
     driver_snd_ac97_outb(d->nabm + AC97_PO_BASE + AC97_CR, AC97_CR_IOCE);
-    for (int t = 0; t < 100000; t++) {
-        if (driver_snd_ac97_inw(d->nabm + AC97_PO_BASE + AC97_SR) & AC97_SR_DCH) break;
+    {   /* B3: wall-clock bounded */
+        u64 t0 = driver_tsc_read();
+        u64 hz = 0;
+        (void)driver_tsc_calibrated(&hz, (const char **)0);
+        u64 budget = hz ? hz / 10ull : 0;          /* 100 ms */
+        for (int t = 0; t < 100000; t++) {
+            if (driver_snd_ac97_inw(d->nabm + AC97_PO_BASE + AC97_SR) & AC97_SR_DCH) break;
+            if (budget && (t & 0xFFu) == 0xFFu &&
+                driver_tsc_read() - t0 > budget) break;
+        }
     }
     /* BUG-0340 (A9-10, AC97 half): stop() left the engine position
      * registers (CIV/LVI/PIV/PICB) untouched while clearing the
@@ -372,8 +398,16 @@ static int driver_snd_ac97_ops_stop(driver_snd_device_t *sdev) {
      * defines the same reset semantics).  RR also clears RPBM/IOCE;
      * stream_start() rewrites both on the next play. */
     driver_snd_ac97_outb(d->nabm + AC97_PO_BASE + AC97_CR, AC97_CR_RR);
-    for (int t = 0; t < 100000; t++) {
-        if (!(driver_snd_ac97_inb(d->nabm + AC97_PO_BASE + AC97_CR) & AC97_CR_RR)) break;
+    {   /* B3: wall-clock bounded */
+        u64 t0 = driver_tsc_read();
+        u64 hz = 0;
+        (void)driver_tsc_calibrated(&hz, (const char **)0);
+        u64 budget = hz ? hz / 10ull : 0;          /* 100 ms */
+        for (int t = 0; t < 100000; t++) {
+            if (!(driver_snd_ac97_inb(d->nabm + AC97_PO_BASE + AC97_CR) & AC97_CR_RR)) break;
+            if (budget && (t & 0xFFu) == 0xFFu &&
+                driver_tsc_read() - t0 > budget) break;
+        }
     }
     d->running = 0;
     d->sw_pos = 0;

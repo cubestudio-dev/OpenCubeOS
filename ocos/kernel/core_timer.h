@@ -1,18 +1,18 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-/* Open Cube OS - WP-02
+/* Open Cube OS - WP-02 / WP-compat-and-security-hardening B4
  * File: kernel/core/core_timer.h
- * Purpose: 8253/8254 PIT @ 100 Hz + system tick counter + soft timers.
+ * Purpose: system tick + soft timers - RTC-first, PIT fallback.
  *
- * The PIT is the only hardware timer we use in WP-02. The HPET/local APIC
- * timer are left for a later WP. The PIT fires IRQ0 at 100 Hz; each fire:
- *   - increments g_tick_count
- *   - updates g_boot_time_ms (from tick count ? 10)
- *   - runs any registered soft-timer callbacks whose deadline has passed
- *
- * Real timestamps: core_timer_now_ms() returns milliseconds since boot,
- * derived from g_tick_count ? 10. This replaces the WP-01 placeholder
- * counter in log.c.
+ * WP-compat-and-security-hardening B4: the default heartbeat is the
+ * CMOS RTC periodic interrupt (1024 Hz on IRQ8, fanned out by the
+ * single RegC-owning handler in the RTC driver - RegC is
+ * read-to-clear, so exactly one reader).  The PIT path below is the
+ * FALLBACK: it runs only when the RTC hardware does not answer, or
+ * when oc.tick=pit forces it (the acceptance path for "RTC broken ->
+ * degrade to PIT").  Either source drives the same soft timers +
+ * the preemptive scheduler; the 1024 Hz tick is converted to whole
+ * milliseconds with a half-ns accumulator (zero drift).
  */
 #ifndef OC_TIMER_H
 #define OC_TIMER_H
@@ -20,10 +20,12 @@
 #include "types.h"
 #include "arch_idt.h"   /* for arch_irq_frame_t */
 
-#define OC_TIMER_HZ 100        /* PIT frequency */
+#define OC_TIMER_HZ 100        /* PIT frequency (fallback path) */
 #define OC_TIMER_MS_PER_TICK (1000 / OC_TIMER_HZ)
 
-void core_timer_init(void);
+/* cmdline may carry oc.tick=rtc|pit (default: auto = RTC wins when
+ * the hardware answers; PIT only as the fallback). */
+void core_timer_init(const char *cmdline);
 
 /* WP-10-chinese_support-fix2: reprogram the PIT after an ACPI S3
  * resume WITHOUT wiping the soft-timer table. core_timer_init() memsets
@@ -34,8 +36,16 @@ void core_timer_init(void);
  * itself needs reprogramming. */
 void core_timer_resume(void);
 
-/* IRQ0 handler (called from arch_irq_dispatch). */
+/* IRQ0 handler (called from arch_irq_dispatch - PIT fallback path). */
 void core_timer_irq_handler(void *ctx, arch_irq_frame_t *f);
+
+/* WP-compat-and-security-hardening B4: the RTC tick consumer (called
+ * from the single RegC-owning IRQ8 handler in drv_time_cmos_rtc.c). */
+void core_timer_rtc_tick(u8 regc);
+
+/* "rtc" or "pit" - which source owns the system tick (diagnostics +
+ * the acceptance test assert on this). */
+const char *core_timer_source(void);
 
 /* Monotonic time since timer init, in milliseconds. */
 u64 core_timer_now_ms(void);

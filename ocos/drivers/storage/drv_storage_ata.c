@@ -22,6 +22,7 @@
 #include "drv_storage_ata.h"
 #include "core_console_screen.h"
 #include "core_lib_string.h"
+#include "drv_time_tsc.h"   /* WP-compat-and-security-hardening B3: TSC wall-clock deadlines */
 
 /* ---- Port I/O helpers ---- */
 
@@ -68,25 +69,41 @@ static u8 driver_block_ata_drive_select(int drive) {
     return head;
 }
 
-/* Wait for BSY to clear. Returns 0 on success, -1 on timeout. */
+/* Wait for BSY to clear. Returns 0 on success, -1 on timeout.
+ * WP-compat-and-security-hardening B3: wall-clock bounded (TSC) -
+ * the 100000-iteration cap is only the pre-calibration safety net
+ * (on a hypervisor each inb is a VM exit, so iteration counts are
+ * not a time bound at all). */
 static int driver_block_ata_wait_bsy(u16 base) {
+    u64 t0 = driver_tsc_read();
+    u64 hz = 0;
+    (void)driver_tsc_calibrated(&hz, (const char **)0);
+    u64 budget = hz ? hz / 1000ull * 100ull : 0;   /* 100 ms */
     for (int i = 0; i < 100000; i++) {
         u8 s = inb(base + ATA_REG_STATUS);
         if ((s & ATA_SR_BSY) == 0) return 0;
         io_wait();
+        if (budget && (i & 0x3FFu) == 0x3FFu &&
+            driver_tsc_read() - t0 > budget) return -1;
     }
     return -1;
 }
 
 /* Wait for DRQ to set (and BSY clear). Returns 0 on success, -1 on timeout
- * or error. */
+ * or error.  B3: same wall-clock bounding as wait_bsy. */
 static int driver_block_ata_wait_drq(u16 base) {
+    u64 t0 = driver_tsc_read();
+    u64 hz = 0;
+    (void)driver_tsc_calibrated(&hz, (const char **)0);
+    u64 budget = hz ? hz / 1000ull * 100ull : 0;   /* 100 ms */
     for (int i = 0; i < 100000; i++) {
         u8 s = inb(base + ATA_REG_STATUS);
         if (s & ATA_SR_ERR) return -1;
         if (s & ATA_SR_DF)  return -1;
         if ((s & ATA_SR_BSY) == 0 && (s & ATA_SR_DRQ)) return 0;
         io_wait();
+        if (budget && (i & 0x3FFu) == 0x3FFu &&
+            driver_tsc_read() - t0 > budget) return -1;
     }
     return -1;
 }

@@ -16,6 +16,7 @@
 #include "core_console_screen.h"
 #include "core_mm_heap.h"
 #include "core_lib_string.h"
+#include "core_timer.h"     /* WP-compat-and-security-hardening B3: mount timing */
 
 /* ---- Forward declarations ---- */
 static fs_vfs_node_t *fs_vfs_resolve_parent_of(const char *path);
@@ -301,11 +302,42 @@ int fs_vfs_mount(const char *fs_type, const char *mount_point, const char *devic
         return -5;
     }
 
+    /* WP-compat-and-security-hardening B3: the mount tracing the
+     * performance logs need - one line before the fs-specific mount
+     * (which is where a slow device actually burns its time), one
+     * line after with the elapsed ms. */
+    {
+        char line[96];
+        strcpy(line, "[vfs] mounting ");
+        if (device) strcat(line, device);
+        else strcat(line, "(no dev)");
+        strcat(line, " -> ");
+        strcat(line, norm);
+        strcat(line, " (");
+        strcat(line, fs_type);
+        strcat(line, ")\n");
+        screen_console_puts(line);
+    }
+    u64 mount_t0 = core_timer_now_ms();
+
     /* Call fs-specific mount to get root node. */
     fs_vfs_node_t *root = ft->fs_ops->mount(device);
     if (!root) {
         screen_console_puts("vfs_mount: fs mount failed\n");
         return -6;
+    }
+    {
+        char line[96]; char n[24];
+        strcpy(line, "[vfs] mounted ");
+        if (device) strcat(line, device);
+        else strcat(line, "(no dev)");
+        strcat(line, " -> ");
+        strcat(line, norm);
+        strcat(line, " in ");
+        u64_to_str(core_timer_now_ms() - mount_t0, n);
+        strcat(line, n);
+        strcat(line, " ms\n");
+        screen_console_puts(line);
     }
     /* NOTE: do NOT stamp root->fs_type with the registry entry (ft).
      * The driver's mount() already set it to the driver's own static

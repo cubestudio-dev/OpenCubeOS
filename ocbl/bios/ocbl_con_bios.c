@@ -19,7 +19,19 @@
  * very first post-OCRMECL full-ISO boot.  The menu now reads the PIT
  * counter itself (mode 2, 50 ms period, fractional accumulator) -
  * the same implementation the RAW flavor uses: no IRQ, no firmware
- * dependency, deterministic under the flattened machine. */
+ * dependency, deterministic under the flattened machine.
+ *
+ * WP-compat-and-security-hardening B4: the CMOS RTC seconds
+ * register is the PRIMARY clock (UIP-safe read; one second boundary
+ * = exactly 1000 ms - the menu renders per second, so the
+ * granularity matches the consumer).  The PIT path is the FALLBACK
+ * and only runs when the RTC does not answer (RegD VRT clear).
+ * The old PIT arithmetic multiplied the tick delta by 50 BEFORE
+ * comparing with PIT_DIV - it counted one 50 ms period every ~1193
+ * ticks (~1 ms of wall clock), so the menu's "10 second" countdown
+ * expired in 0.2 s (50x fast, on QEMU AND VMware).  The fallback
+ * keeps the mode-2 ch0 counter but adds the RAW delta and carries
+ * 50 ms per full PIT_DIV - exactly right. */
 #define PIT_DIV 59659u
 
 static u32 g_ms;
@@ -47,8 +59,54 @@ static u16 pit_read(void)
     return (u16)((hi << 8) | lo);
 }
 
+/* ---- B4: CMOS RTC seconds anchor (UIP-safe) ---- */
+static int g_rtc_usable = -1;    /* -1 = not probed yet */
+static u8  g_rtc_last_sec = 0xFF;
+
+/* Read a CMOS RTC register through ports 0x70/0x71 (NMI masked while
+ * the index register is held, restored on exit). */
+static u8 cmos_read(u8 idx)
+{
+    u8 prev = pit_in(0x70);
+    pit_out(0x70, (u8)(idx | 0x80u));      /* NMI off while selecting */
+    u8 v = pit_in(0x71);
+    pit_out(0x70, prev & 0x7Fu);           /* restore the NMI mask bit */
+    return v;
+}
+
+/* 1 when the CMOS RTC answers and its clock is valid (RegD VRT set). */
+static int rtc_probe(void)
+{
+    if (g_rtc_usable >= 0) return g_rtc_usable;
+    /* RegD bit 7 = valid RAM and time (set while the battery holds). */
+    g_rtc_usable = (cmos_read(0x0D) & 0x80u) ? 1 : 0;
+    if (g_rtc_usable) {
+        (void)cmos_read(0x0A);             /* drain */
+        g_rtc_last_sec = cmos_read(0x00);  /* anchor the first second */
+    }
+    return g_rtc_usable;
+}
+
 u32 ocbl_plat_ms(void)
 {
+    /* ---- B4 primary: the RTC seconds anchor ----------------------
+     * Each second boundary crossed adds exactly 1000 ms - the menu
+     * renders once per second, so the granularity matches the
+     * consumer exactly.  The read is UIP-safe: while the RTC is
+     * mid-update (RegA bit 7) the seconds register may be torn, so
+     * the boundary is picked up on the next clean read instead. */
+    if (rtc_probe()) {
+        if (!(cmos_read(0x0A) & 0x80u)) {      /* UIP clear: safe */
+            u8 sec = cmos_read(0x00);
+            if (sec != g_rtc_last_sec) {
+                g_ms += 1000u;                 /* one second boundary */
+                g_rtc_last_sec = sec;
+            }
+        }
+        return g_ms;
+    }
+
+    /* ---- B4 fallback: the PIT, with the CORRECT arithmetic -------- */
     if (!g_pit_ready) {
         pit_out(0x43, 0x34);                   /* ch0, lo/hi, mode 2 */
         pit_out(0x40, (u8)(PIT_DIV & 0xFF));
@@ -59,7 +117,7 @@ u32 ocbl_plat_ms(void)
     u16 now = pit_read();
     u16 delta = (u16)(g_last - now);
     g_last = now;
-    g_sub += (u32)delta * 50u;
+    g_sub += (u32)delta;                       /* raw ticks: PIT_DIV = 50 ms */
     while (g_sub >= PIT_DIV) {
         g_ms += 50;
         g_sub -= PIT_DIV;

@@ -83,6 +83,11 @@ void ocbl_statemon_arm_payload(void);
 /* Read /HANGAT from the payload volume ('1'..'7' or absent). */
 void ocbl_statemon_probe_hangat(const ocbl_volume_t* v);
 
+/* WP-compat-and-security-hardening B4: read /TICKPIT from the payload
+ * volume (any content = present).  Adds " oc.tick=pit" to the kernel
+ * command line - the PIT-degradation acceptance hook. */
+void ocbl_statemon_probe_tickpit(const ocbl_volume_t* v);
+
 /* The extra kernel command line (" oc.hang=N" or ""). */
 const char* ocbl_statemon_cmdline_extra(void);
 

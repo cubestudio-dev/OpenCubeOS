@@ -45,12 +45,17 @@ start:
         mov     sp, 0x7C00                  ; stack below the load area
         mov     es, ax                       ; ES=0: absolute low stores
         mov     [es:0x7000], dl              ; boot drive for the core (0x7000: never BIOS scratch)
-        ; F3: VGA progress marks (row 24) - observable without COM1
+        ; F3: VGA progress marks (row 24) - observable without COM1.
+        ; WP-compat-and-security-hardening B4: OFF in the default
+        ; build (the debug residue on row 24); -DOCRMECL_VGA_MARKS
+        ; from the makefile re-enables them.
+%ifdef OCRMECL_VGA_MARKS
         push    es
         mov     bx, 0xB800
         mov     es, bx
         mov     word [es:0x0F00], 0x0F52     ; 'R' white-on-black
         pop     es
+%endif
         ; entry form check: accept
         ;   07C0:0000 -> pop ax == (.ip)      ; file-offset IP
         ;   0000:7C00 -> pop ax == (.ip)+0x7C00
@@ -74,11 +79,13 @@ start:
         mov     si, s_banner
         call    ser_str
         ; F3: stage1 complete -> core
+%ifdef OCRMECL_VGA_MARKS
         push    es
         mov     bx, 0xB800
         mov     es, bx
         mov     word [es:0x0F02], 0x0F42     ; 'B' white-on-black
         pop     es
+%endif
         ; into the real-mode OCRMECL core at linear 0x7E00
         jmp     0x07E0:0x0000
 

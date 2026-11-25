@@ -311,8 +311,10 @@ void ocbl_run(void)
 
     /* 3.0.0-WP07a: the /HANGAT diagnostic hook rides the payload
      * volume (a no-op without the file; see ocbl_statemon.h). */
-    if (e->type == OCBL_ENT_OCOS)
+    if (e->type == OCBL_ENT_OCOS) {
         ocbl_statemon_probe_hangat(&v);
+        ocbl_statemon_probe_tickpit(&v);   /* B4: oc.tick=pit hook */
+    }
 
     /* the mb2 "self" module: a raw copy of the kernel ELF at 0x800000
      * (install/abdisk copy it onto target disks from there) */

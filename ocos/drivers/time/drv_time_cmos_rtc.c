@@ -101,6 +101,14 @@ void driver_cmos_rtc_status(driver_cmos_rtc_status_t *out) {
 
 /* ---- IRQ8 counting handler ------------------------------------------ */
 
+/* WP-compat-and-security-hardening B4: the system-tick consumer + the
+ * reference count that keeps the single IRQ8 owner installed while
+ * either the system tick or a test helper needs it.  RegC is
+ * read-to-clear, so exactly one handler reads it and fans out. */
+static driver_cmos_rtc_pie_consumer_fn g_pie_consumer;
+static int g_irq8_refs = 0;
+static int g_pie_system = 0;
+
 static void cmos_rtc_irq_handler(void *ctx, arch_irq_frame_t *f) {
     (void)ctx; (void)f;
     u8 c = driver_cmos_rtc_read_reg(0x0C);
@@ -109,6 +117,8 @@ static void cmos_rtc_irq_handler(void *ctx, arch_irq_frame_t *f) {
     if (c & 0x40) g_cnt_periodic++;
     if (c & 0x20) g_cnt_alarm++;
     if (c & 0x10) g_cnt_update++;
+    if (g_pie_consumer)
+        g_pie_consumer(c);     /* single fan-out (B4: RTC 1024 Hz tick) */
 }
 
 static void counters_reset(void) {
@@ -123,14 +133,51 @@ u64 driver_cmos_rtc_irq_update(void)   { return g_cnt_update; }
 u64 driver_cmos_rtc_irq_periodic(void) { return g_cnt_periodic; }
 u64 driver_cmos_rtc_irq_alarm(void)    { return g_cnt_alarm; }
 
-/* Install the handler + reset the counters. 0 on success. */
+/* Install the handler + reset the counters. 0 on success.
+ * WP-compat-and-security-hardening B4: reference-counted - the system
+ * tick holds one reference for the whole session, the test helpers
+ * take and drop one each; the unregister only happens when the last
+ * user leaves.  Registering the same (fn, ctx) twice would double-book
+ * a chain slot, so the install is idempotent on the ref count alone. */
 static int arm_irq8(void) {
     counters_reset();
-    return arch_irq_register_handler(8, cmos_rtc_irq_handler, NULL);
+    if (g_irq8_refs > 0) { g_irq8_refs++; return 0; }
+    int rc = arch_irq_register_handler(8, cmos_rtc_irq_handler, NULL);
+    if (rc == 0) g_irq8_refs = 1;
+    return rc;
 }
 
 static void disarm_irq8(void) {
+    if (g_irq8_refs <= 0) return;
+    if (--g_irq8_refs > 0) return;          /* another user still owns it */
     arch_irq_unregister_handler(8, cmos_rtc_irq_handler, NULL);
+}
+
+/* ---- WP-compat-and-security-hardening B4: the system tick hookup ---- */
+
+int driver_cmos_rtc_pie_arm_system(int rate,
+                                   driver_cmos_rtc_pie_consumer_fn consumer) {
+    if (!g_present && driver_cmos_rtc_init() != 0) return -1;
+    if (rate_index_to_hz(rate) == 0 || !consumer) return -1;
+    /* Keep the old PIE regime to restore, exactly like pie_test does. */
+    u8 rega = driver_cmos_rtc_read_reg(0x0A);
+    u8 regb = driver_cmos_rtc_read_reg(0x0B);
+    (void)driver_cmos_rtc_read_reg(0x0C);            /* drain pending */
+    /* First call takes the session reference (idempotent install);
+     * re-calls (e.g. the S3 resume re-arm) only rewrite the regime. */
+    if (!g_pie_system && arm_irq8() != 0) return -1;
+    /* PIE off while the rate is rewritten (the divider chain must not
+     * tick mid-write), then rate + PIE on. */
+    driver_cmos_rtc_write_reg(0x0B, (u8)(regb & ~0x40));
+    driver_cmos_rtc_write_reg(0x0A, (u8)((rega & 0xF0) | ((u8)rate & 0x0F)));
+    driver_cmos_rtc_write_reg(0x0B, (u8)(regb | 0x40));
+    g_pie_consumer = consumer;
+    g_pie_system   = 1;
+    return 0;
+}
+
+int driver_cmos_rtc_pie_system_active(void) {
+    return g_pie_system;
 }
 
 /* Wait until `*counter` reaches `want` or the deadline passes.

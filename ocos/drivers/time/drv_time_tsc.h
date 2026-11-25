@@ -44,6 +44,13 @@ int  driver_tsc_calibrate_hpet(u64 *hz_out);
  * not calibrated yet. */
 int  driver_tsc_calibrate_pmtimer(u64 *hz_out);
 
+/* WP-compat-and-security-hardening B3: measure against the RTC 1024 Hz
+ * system tick over 32 ticks (~31 ms).  Fast + available right after
+ * core_timer_init() (before HPET/PM timer come up), which is exactly
+ * when the storage drivers need their wall-clock deadlines.  Returns 0
+ * on success, -1 when the system tick is not on the RTC. */
+int  driver_tsc_calibrate_rtc(u64 *hz_out);
+
 /* Cached calibration: stores the frequency + reference name
  * ("pit"/"hpet"/"pmtimer").  Returns 0 when a calibration is cached,
  * -1 when none exists yet. */

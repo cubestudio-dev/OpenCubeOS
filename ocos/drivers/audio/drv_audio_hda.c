@@ -42,6 +42,7 @@
 #include "drv_bus_pci.h"
 #include "core_mm_pmm.h"
 #include "arch_irq.h"
+#include "drv_time_tsc.h"   /* WP-compat-and-security-hardening B3: wall-clock bounded waits */
 #include "core_console_screen.h"
 #include "core_lib_config.h"
 #include "core_lib_string.h"
@@ -387,13 +388,28 @@ static u32 driver_snd_hda_sdo_base(driver_snd_hda_dev_t *d) {
 }
 
 static void driver_snd_hda_stream_reset(driver_snd_hda_dev_t *d, u32 base) {
+    /* B3: wall-clock bounded (TSC) - iteration caps are not a time
+     * bound under a hypervisor (every MMIO read is a VM exit). */
+    u64 hz = 0;
+    (void)driver_tsc_calibrated(&hz, (const char **)0);
+    u64 budget = hz ? hz / 10ull : 0;              /* 100 ms */
     driver_snd_hda_w8(d, base + HDA_SD_CTL, HDA_SD_SRST);
-    for (int t = 0; t < 100000; t++) {
-        if (driver_snd_hda_r8(d, base + HDA_SD_CTL) & HDA_SD_SRST) break;
+    {
+        u64 t0 = driver_tsc_read();
+        for (int t = 0; t < 100000; t++) {
+            if (driver_snd_hda_r8(d, base + HDA_SD_CTL) & HDA_SD_SRST) break;
+            if (budget && (t & 0xFFu) == 0xFFu &&
+                driver_tsc_read() - t0 > budget) break;
+        }
     }
     driver_snd_hda_w8(d, base + HDA_SD_CTL, 0);
-    for (int t = 0; t < 100000; t++) {
-        if (!(driver_snd_hda_r8(d, base + HDA_SD_CTL) & HDA_SD_SRST)) break;
+    {
+        u64 t0 = driver_tsc_read();
+        for (int t = 0; t < 100000; t++) {
+            if (!(driver_snd_hda_r8(d, base + HDA_SD_CTL) & HDA_SD_SRST)) break;
+            if (budget && (t & 0xFFu) == 0xFFu &&
+                driver_tsc_read() - t0 > budget) break;
+        }
     }
 }
 
@@ -442,12 +458,28 @@ static int driver_snd_hda_setup(driver_snd_hda_dev_t *d, u8 bus, u8 dev, u8 func
 
     /* controller reset: clear CRST, wait, set again, wait for codecs */
     driver_snd_hda_w32(d, HDA_GCTL, 0);
-    for (int t = 0; t < 100000; t++) {
-        if (!(driver_snd_hda_r32(d, HDA_GCTL) & HDA_GCTL_CRST)) break;
+    {   /* B3: wall-clock bounded */
+        u64 hz = 0;
+        (void)driver_tsc_calibrated(&hz, (const char **)0);
+        u64 budget = hz ? hz / 10ull : 0;          /* 100 ms */
+        u64 t0 = driver_tsc_read();
+        for (int t = 0; t < 100000; t++) {
+            if (!(driver_snd_hda_r32(d, HDA_GCTL) & HDA_GCTL_CRST)) break;
+            if (budget && (t & 0xFFu) == 0xFFu &&
+                driver_tsc_read() - t0 > budget) break;
+        }
     }
     driver_snd_hda_w32(d, HDA_GCTL, HDA_GCTL_CRST | HDA_GCTL_UNSOL);
-    for (int t = 0; t < 100000; t++) {
-        if (driver_snd_hda_r32(d, HDA_GCTL) & HDA_GCTL_CRST) break;
+    {   /* B3: wall-clock bounded */
+        u64 hz = 0;
+        (void)driver_tsc_calibrated(&hz, (const char **)0);
+        u64 budget = hz ? hz / 10ull : 0;          /* 100 ms */
+        u64 t0 = driver_tsc_read();
+        for (int t = 0; t < 100000; t++) {
+            if (driver_snd_hda_r32(d, HDA_GCTL) & HDA_GCTL_CRST) break;
+            if (budget && (t & 0xFFu) == 0xFFu &&
+                driver_tsc_read() - t0 > budget) break;
+        }
     }
     if (!(driver_snd_hda_r32(d, HDA_GCTL) & HDA_GCTL_CRST)) {
         driver_snd_hda_log("hda: controller reset failed\n");

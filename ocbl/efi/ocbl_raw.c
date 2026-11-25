@@ -166,8 +166,10 @@ EFI_CALL void ocbl_raw_entry(const ocr_uefi_handoff_t* h, u64 magic)
     if (e->type == OCBL_ENT_OCOS)
         slot = e->slot == 1 ? "A" : (e->slot == 2 ? "B" : "ISO");
 
-    if (e->type == OCBL_ENT_OCOS)
+    if (e->type == OCBL_ENT_OCOS) {
         ocbl_statemon_probe_hangat(&v);
+        ocbl_statemon_probe_tickpit(&v);   /* B4: oc.tick=pit hook */
+    }
 
     u32 self_size = 0;
     if (e->type == OCBL_ENT_OCOS)

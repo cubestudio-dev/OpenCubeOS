@@ -52,6 +52,29 @@ int driver_cmos_rtc_init(void);
 /* 1 after a successful driver_cmos_rtc_init(). */
 int driver_cmos_rtc_available(void);
 
+/* ---- WP-compat-and-security-hardening B4: RTC-first system tick ------
+ *
+ * Reg C is READ-TO-CLEAR: only ONE handler may touch it, so the
+ * counting handler below is the single IRQ8 owner and fans the
+ * drained RegC value out to a registered consumer (the core timer's
+ * RTC tick).  The consumer runs in IRQ8 context - it must never
+ * wait, never unregister itself, and must tolerate being called
+ * with any RegC bits (it filters on its own). */
+typedef void (*driver_cmos_rtc_pie_consumer_fn)(u8 regc);
+
+/* Arm periodic interrupts at 32768>>(rate-1) Hz, install the IRQ8
+ * owner handler (reference-counted, shared with the test helpers)
+ * and register the tick consumer.  This is the SYSTEM tick hookup -
+ * the reference stays held for the whole session.  Returns 0 on
+ * success, -1 when the RTC was not detected.  Idempotent: a second
+ * call re-registers the consumer (the previous one is replaced). */
+int driver_cmos_rtc_pie_arm_system(int rate, driver_cmos_rtc_pie_consumer_fn consumer);
+
+/* 1 when the system tick owns PIE (armed by pie_arm_system and not
+ * torn down).  The RTC test helpers use this to stay honest about
+ * the rate/RegB windows they borrow. */
+int driver_cmos_rtc_pie_system_active(void);
+
 /* Fill a fresh status snapshot.  Never fails. */
 void driver_cmos_rtc_status(driver_cmos_rtc_status_t *out);
 

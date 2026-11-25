@@ -428,6 +428,7 @@ void ocbl_statemon_user_request(void)
 
 /* ---- 4. the /HANGAT diagnostic hook ---------------------------------- */
 static u8 g_hangat;                     /* 0 = absent */
+static u8 g_tickpit;                    /* 0 = absent; 1 = /TICKPIT seen */
 
 void ocbl_statemon_probe_hangat(const ocbl_volume_t* v)
 {
@@ -444,9 +445,25 @@ void ocbl_statemon_probe_hangat(const ocbl_volume_t* v)
     }
 }
 
+/* WP-compat-and-security-hardening B4: /TICKPIT on the payload volume
+ * forces the kernel's system tick onto the PIT fallback ("degrade to
+ * PIT when the RTC is unusable" - the acceptance hook; the RTC itself
+ * stays physically present, the kernel is simply told to fall back). */
+void ocbl_statemon_probe_tickpit(const ocbl_volume_t* v)
+{
+    char c = 0;
+    g_tickpit = 0;
+    if (!v || !g_monitor_ok)
+        return;
+    if (ocbl_fs_read_file(v, "/TICKPIT.TXT", &c, 1) == 1) {
+        g_tickpit = 1;
+        ocbl_serial_puts("[state] /TICKPIT.TXT diagnostic hook: oc.tick=pit\r\n");
+    }
+}
+
 const char* ocbl_statemon_cmdline_extra(void)
 {
-    static char buf[32];
+    static char buf[48];
     u32 o = 0;
     if (!g_monitor_ok) {
         static const char off[] = " oc.stmon=off";
@@ -455,8 +472,15 @@ const char* ocbl_statemon_cmdline_extra(void)
         buf[o] = 0;
         return buf;
     }
-    if (!g_hangat)
-        return "";
+    if (g_tickpit) {
+        static const char pit[] = " oc.tick=pit";
+        for (u32 k = 0; pit[k]; k++)
+            buf[o++] = pit[k];
+    }
+    if (!g_hangat) {
+        buf[o] = 0;
+        return (o ? buf : "");
+    }
     buf[o++] = ' ';
     buf[o++] = 'o';
     buf[o++] = 'c';
