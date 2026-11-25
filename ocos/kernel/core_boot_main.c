@@ -606,6 +606,13 @@ void kmain(u64 magic, u64 mbi_phys) {
      * pessimistic bootfail marker is written here (removed again by
      * ota_update_confirm_boot() once the system is fully up). */
     ota_ab_set_boot_slot_arg(mbi.cmdline);
+    /* WP-compat-and-security-hardening B2: arm the OCIRE recovery
+     * disk(s) read-only UNCONDITIONALLY before any partition child
+     * device exists.  Every L1 write surface (mkfs.*, disk_rw, fs
+     * mounts) inherits the refusal; the kernel trusted channel
+     * (mailbox/log) stays open.  Runs on every boot - the WP-03
+     * "supervised only" gate is closed here. */
+    ocembed_early_protect();
     driver_block_part_scan_register_all();   /* WP-10d-pre: expose <disk>pN for every
                                    partition before the A/B scan so
                                    install disks are mountable too */

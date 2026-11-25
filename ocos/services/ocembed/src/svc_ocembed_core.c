@@ -498,11 +498,81 @@ int ocembed_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
 
 /* ---- boot confirm ------------------------------------------------------ */
 
+/* ---- WP-compat-and-security-hardening B2: unconditional early
+ * OCIRE-disk write protection ------------------------------------------
+ *
+ * The WP-03 contract armed the whole-disk protection ONLY on a
+ * supervised boot (oc.mb= present) inside ocembed_boot_confirm() -
+ * so on every NORMAL boot the OCIRE recovery disk sat fully writable
+ * and a plain `mkfs` from any L1 app could destroy it (verified by
+ * the OCIRE attack report: 3574 sectors gone in 20 seconds).
+ *
+ * This function runs UNCONDITIONALLY, EARLY (called from kmain right
+ * after the whole block table was probed and BEFORE the partition
+ * scan registers child devices): every present device is probed for
+ * the OCIRE on-disk anchors and every hit is armed read-only at the
+ * BLOCK DRIVER layer (driver_block_write_sectors_raw/cached refuse
+ * with -OC_EPERM; only the kernel-internal trusted channel still
+ * writes - the OCIRE mailbox/log protocol itself).
+ *
+ * Anchors (two independent ones, either hit arms the disk):
+ *   LBA 1024 "OCIREAB1" - the A/B flags sector, fixed position in the
+ *                        MBR gap (the same anchor WP-07 partscan and
+ *                        OCBL use)
+ *   LBA 2048 "OCIREMB2" - the mailbox first sector (survives even a
+ *                        flags-sector wipe)
+ * No boot flag, no command line, no L1 filter involved - and nothing
+ * for an application to race: the arms happen before the first
+ * partition child device even exists. */
+void ocembed_early_protect(void) {
+    int n = driver_block_num_devices();
+    int armed = 0;
+    for (int i = 0; i < n; i++) {
+        driver_block_device_t *d = driver_block_get_device(i);
+        if (!d || !d->present) continue;
+        u8 sec[512];
+        int hit = 0;
+        if (driver_block_read_sectors_raw(i, 1024, 1, sec) == 0 &&
+            memcmp(sec, "OCIREAB1", 8) == 0)
+            hit = 1;
+        if (!hit &&
+            driver_block_read_sectors_raw(i, 2048, 1, sec) == 0 &&
+            memcmp(sec, "OCIREMB2", 8) == 0)
+            hit = 1;
+        if (!hit) continue;
+        driver_block_set_protected(i);
+        armed++;
+        char line[112];
+        strcpy(line, "ocire protect: ");
+        if (d->name[0]) strcat(line, d->name);
+        strcat(line, " ARMED read-only (recovery disk, unconditional)\n");
+        screen_console_puts(line);
+        klog_write(KLOG_WARN, "ocire",
+                   "early protect: dev %d (%s) armed read-only",
+                   i, (d->name[0]) ? d->name : "?");
+    }
+    if (armed == 0) {
+        klog_record(KLOG_INFO, "ocire",
+                    "early protect: no OCIRE recovery disk present");
+    } else {
+        char line[80]; char num[8];
+        strcpy(line, "ocire protect: ");
+        u64_to_str((u64)armed, num); strcat(line, num);
+        strcat(line, " recovery disk(s) armed before partscan\n");
+        screen_console_puts(line);
+    }
+}
+
 void ocembed_boot_confirm(void) {
     if (!g_embed_active) return;
 
     /* 1. locate the recovery disk (the block table is fully probed by
-     * now - this runs after the whole L0 init). */
+     * now - this runs after the whole L0 init).  NOTE (B2): the
+     * whole-disk protection itself NO LONGER depends on reaching this
+     * point - ocembed_early_protect() armed it unconditionally early
+     * in kmain, on every boot.  The set_protected() below is an
+     * idempotent re-arm (defence in depth) and stays correct even if
+     * the mailbox LBA resolves to a different covering device. */
     g_mb_dev = mb_find_device();
     if (g_mb_dev < 0) {
         screen_console_puts("ocire embed: NO block device covers the mailbox "

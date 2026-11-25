@@ -46,6 +46,17 @@ void ocembed_early_init(const char *cmdline);
 /* 1 = this boot is OCIRE-supervised (the mailbox fact was present). */
 int  ocembed_active(void);
 
+/* WP-compat-and-security-hardening B2: UNCONDITIONAL early OCIRE-disk
+ * write protection.  Call from kmain after the whole block table was
+ * probed and BEFORE driver_block_part_scan_register_all(): scans
+ * every present device for the OCIRE anchors (OCIREAB1 at LBA 1024,
+ * OCIREMB2 at LBA 2048) and arms every hit read-only at the block
+ * driver layer (-OC_EPERM on writes; the kernel-internal trusted
+ * channel stays open for the OCIRE mailbox/log protocol).  Runs on
+ * EVERY boot - supervised or not; this is the fix for the "normal
+ * boot leaves the recovery disk writable" hole. */
+void ocembed_early_protect(void);
+
 /* The boot-confirmation step, called once the whole L0 is up (right
  * before "L0 ready"): writes SIGNAL_OK into the mailbox, disarms the
  * i6300esb watchdog, arms the whole-disk write protection and spawns

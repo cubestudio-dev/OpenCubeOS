@@ -293,6 +293,13 @@ int blk_cmd_disk_rw_test(const char *args) {
         t_fail("disk_rw_test", "device lookup", "not found");
         return 1;
     }
+    /* WP-compat-and-security-hardening B2: the OCIRE recovery disk is
+     * write-closed at the driver layer; report it as the expected
+     * refusal instead of a mid-test failure (nothing was written). */
+    if (driver_block_is_protected(idx)) {
+        t_fail("disk_rw_test", "device gate", "EPERM: OCIRE recovery disk is write-protected");
+        return 1;
+    }
     driver_block_device_t *d = driver_block_get_device(idx);
     int fails = 0;
     if (rw_roundtrip("disk_rw_test", idx, safe_test_lba(d), 4) != 0) fails++;

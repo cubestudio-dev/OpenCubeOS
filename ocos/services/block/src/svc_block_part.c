@@ -410,10 +410,16 @@ void driver_block_part_scan_register_all(void) {
         driver_block_device_t *dev = driver_block_get_device(i);
         if (!dev || !dev->present) continue;
         /* WP-07: the OCIRE recovery disk stays opaque - no child
-         * devices, nothing for parted/mkfs/disk_rw to touch */
+         * devices, nothing for parted/mkfs/disk_rw to touch.
+         * WP-compat-and-security-hardening B2: defense in depth -
+         * the anchor hit ALSO (re-)arms the whole-disk write
+         * protection, so the isolation and the write-closure can
+         * never drift apart (ocembed_early_protect() already armed
+         * it before this scan on every boot). */
         if (driver_block_is_ocire_disk_impl(i)) {
             lib_log_info("partscan: OCIRE recovery disk - partitions "
-                         "not exposed");
+                         "not exposed, disk armed read-only");
+            driver_block_set_protected(i);
             continue;
         }
         driver_block_part_table_t tbl;

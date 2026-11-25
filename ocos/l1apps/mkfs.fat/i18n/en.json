@@ -1,0 +1,4 @@
+{
+  "_hint": "create a FAT filesystem (alias of mkfs.fat32)",
+  "svc_call_failed": ": service call failed (rc=-1)\n"
+}

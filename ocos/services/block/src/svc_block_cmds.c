@@ -201,6 +201,42 @@ int driver_block_mkfs_fat32_device(int dev_idx) {
     return 0;
 }
 
+/* ---- WP-compat-and-security-hardening B2: command-layer guards ----
+ * The REAL wall is the block driver layer (driver_block_write_sectors_
+ * raw/cached refuse with -OC_EPERM once ocembed_early_protect() armed
+ * the disk).  These command-layer guards only make the refusal a
+ * clean, actionable message instead of a mid-format failure - the
+ * L1-filter-pretends-to-be-security anti-pattern is explicitly NOT
+ * what this is: remove these guards and the write still fails. */
+
+/* Strip the optional /dev/ prefix from a device token ("/dev/hdb" ->
+ * "hdb"); the block table stores bare names.  In-place, returns dev. */
+static char *blk_devname_norm(char *dev) {
+    if (dev[0] == '/' &&
+        dev[1] == 'd' && dev[2] == 'e' && dev[3] == 'v' && dev[4] == '/') {
+        int i = 0;
+        while (dev[i + 5]) { dev[i] = dev[i + 5]; i++; }
+        dev[i] = 0;
+    }
+    return dev;
+}
+
+/* Refuse a destructive command on an OCIRE-armed device with a clear
+ * EPERM report.  Returns 1 when refused (caller: stop, nothing was
+ * written). */
+static int blk_dev_refuse_protected(const char *cmd, int dev_idx) {
+    if (!driver_block_is_protected(dev_idx)) return 0;
+    driver_block_device_t *d = driver_block_get_device(dev_idx);
+    screen_console_puts(cmd);
+    screen_console_puts(": ");
+    if (d && d->name[0]) screen_console_puts(d->name);
+    screen_console_puts(" is the OCIRE recovery disk (write-protected, "
+                        "EPERM)\n");
+    screen_console_puts("  the recovery media is read-only by design - "
+                        "nothing was written\n");
+    return 1;
+}
+
 /* ---- BUG-0239 FIX (A15-13): mkfs.* confirmation gate ----
  * Formatting DESTROYS ALL DATA on the target device, and a typo'd device
  * name (hda vs hdb) used to wipe it on Enter with no way back. All three
@@ -263,11 +299,13 @@ int blk_cmd_mkfs_fat32(const char *args) {
     if (blk_mkfs_gate("mkfs.fat32", args, dev, (int)sizeof(dev)) != 0) {
         return 1;
     }
+    blk_devname_norm(dev);   /* B2: "/dev/hdb" and "hdb" both address hdb */
     int dev_idx = driver_block_find_device(dev);
     if (dev_idx < 0) {
         screen_console_puts("mkfs.fat32: device not found\n");
         return 1;
     }
+    if (blk_dev_refuse_protected("mkfs.fat32", dev_idx) != 0) return 1;
     if (driver_block_mkfs_fat32_device(dev_idx) != 0) {
         screen_console_puts("mkfs.fat32: device too small\n");
         return 1;
@@ -284,8 +322,10 @@ int blk_cmd_mkfs_exfat(const char *args) {
     if (blk_mkfs_gate("mkfs.exfat", args, dev, (int)sizeof(dev)) != 0) {
         return 1;
     }
+    blk_devname_norm(dev);   /* B2: "/dev/hdb" and "hdb" both address hdb */
     int dev_idx = driver_block_find_device(dev);
     if (dev_idx < 0) { screen_console_puts("mkfs.exfat: device not found\n"); return 1; }
+    if (blk_dev_refuse_protected("mkfs.exfat", dev_idx) != 0) return 1;
     driver_block_device_t *devp = driver_block_get_device(dev_idx);
     if (!devp) return 1;
     /* BUG-0244 FIX (A15-18): the fixed layout below reserves sectors
@@ -404,8 +444,10 @@ int blk_cmd_mkfs_ext4(const char *args) {
     if (blk_mkfs_gate("mkfs.ext4", args, dev, (int)sizeof(dev)) != 0) {
         return 1;
     }
+    blk_devname_norm(dev);   /* B2: "/dev/hdb" and "hdb" both address hdb */
     int dev_idx = driver_block_find_device(dev);
     if (dev_idx < 0) { screen_console_puts("mkfs.ext4: device not found\n"); return 1; }
+    if (blk_dev_refuse_protected("mkfs.ext4", dev_idx) != 0) return 1;
     driver_block_device_t *devp = driver_block_get_device(dev_idx);
     if (!devp) return 1;
     /* P2-75: Minimal ext4 format — write superblock at byte offset 1024. */

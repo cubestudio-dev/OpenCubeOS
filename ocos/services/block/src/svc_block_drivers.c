@@ -18,6 +18,7 @@
 #include "core_mm_heap.h"
 #include "core_lib_string.h"
 #include "core_console_screen.h"
+#include "oc_errno.h"       /* WP-compat-and-security-hardening B2: -OC_EPERM */
 
 static driver_block_device_t g_blk_devs[BLK_MAX_DEVICES];
 static driver_block_stats_t  g_blk_stats[BLK_MAX_DEVICES];
@@ -161,17 +162,20 @@ int driver_block_read_sectors_raw(int dev_idx, u64 lba, u32 count, void *buf) {
 int driver_block_write_sectors_raw(int dev_idx, u64 lba, u32 count, const void *buf) {
     driver_block_device_t *d = driver_block_get_device(dev_idx);
     if (!d || !d->ops || !d->ops->write) return -1;
-    /* 3.0.0-WP03 G4: the recovery disk is write-closed.  Refuse BEFORE
-     * touching the device (whole-disk hard protection; reads stay
-     * open).  The embed service writes through the trusted channel. */
+    /* 3.0.0-WP03 G4 + WP-compat-and-security-hardening B2: the OCIRE
+     * recovery disk is write-closed UNCONDITIONALLY (armed early in
+     * kmain by ocembed_early_protect(), supervised boot or not).
+     * Refuse BEFORE touching the device (whole-disk hard protection;
+     * reads stay open) with the machine-readable -OC_EPERM.  The
+     * embed service writes through the trusted channel. */
     if (g_blk_protected[dev_idx]) {
         char line[96]; char n[24];
         strcpy(line, "blk: write to protected device ");
         if (d->name[0]) strcat(line, d->name);
         u64_to_str(lba, n); strcat(line, " lba="); strcat(line, n);
-        strcat(line, " REFUSED (ocire recovery disk)\n");
+        strcat(line, " REFUSED (ocire recovery disk, EPERM)\n");
         screen_console_puts(line);
-        return -1;
+        return -OC_EPERM;
     }
     int rc = d->ops->write(d, lba, count, buf);
     if (rc == 0) {
@@ -203,12 +207,14 @@ int driver_block_read_sectors(int dev_idx, u64 lba, u32 count, void *buf) {
  * while every caller believed the write succeeded. Errors from the
  * cache layer (including the write-through fallback) now propagate. */
 int driver_block_write_sectors(int dev_idx, u64 lba, u32 count, const void *buf) {
-    /* 3.0.0-WP03 G4: refuse BEFORE creating dirty cache lines on the
-     * protected recovery disk (the raw-write guard alone would leave
-     * unflushable dirty slots behind). */
+    /* 3.0.0-WP03 G4 + WP-compat-and-security-hardening B2: refuse
+     * BEFORE creating dirty cache lines on the protected OCIRE
+     * recovery disk (the raw-write guard alone would leave
+     * unflushable dirty slots behind), with the machine-readable
+     * -OC_EPERM. */
     if (dev_idx >= 0 && dev_idx < BLK_MAX_DEVICES && g_blk_protected[dev_idx]) {
-        screen_console_puts("blk: cached write to protected device REFUSED (ocire recovery disk)\n");
-        return -1;
+        screen_console_puts("blk: cached write to protected device REFUSED (ocire recovery disk, EPERM)\n");
+        return -OC_EPERM;
     }
     const u8 *src = (const u8 *)buf;
     for (u32 i = 0; i < count; i++) {
