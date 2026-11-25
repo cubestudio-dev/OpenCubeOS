@@ -264,6 +264,11 @@ int screen_console_call_hook(u8 ch) {
     return 0;
 }
 
+void screen_console_get_size(u32 *cols, u32 *rows) {
+    if (cols) *cols = g_console.cols;
+    if (rows) *rows = g_console.rows;
+}
+
 void screen_console_clear(void) {
     spin_lock(&g_console_lock);
     screen_fb_clear(g_console.bg_pixel);

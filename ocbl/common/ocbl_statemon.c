@@ -461,6 +461,24 @@ void ocbl_statemon_probe_tickpit(const ocbl_volume_t* v)
     }
 }
 
+/* WP-compat-and-security-hardening B5: /NOSPLASH.TXT on the payload
+ * volume boots the kernel with oc.splash=0 (the classic scrolling
+ * console log) - the diagnostics switch for the acceptance runs that
+ * assert on console/serial boot output. */
+static u8 g_nosplash;                     /* 0 = absent */
+
+void ocbl_statemon_probe_nosplash(const ocbl_volume_t* v)
+{
+    char c = 0;
+    g_nosplash = 0;
+    if (!v || !g_monitor_ok)
+        return;
+    if (ocbl_fs_read_file(v, "/NOSPLASH.TXT", &c, 1) == 1) {
+        g_nosplash = 1;
+        ocbl_serial_puts("[state] /NOSPLASH.TXT diagnostic hook: oc.splash=0\r\n");
+    }
+}
+
 const char* ocbl_statemon_cmdline_extra(void)
 {
     static char buf[48];
@@ -476,6 +494,11 @@ const char* ocbl_statemon_cmdline_extra(void)
         static const char pit[] = " oc.tick=pit";
         for (u32 k = 0; pit[k]; k++)
             buf[o++] = pit[k];
+    }
+    if (g_nosplash) {
+        static const char nsp[] = " oc.splash=0";
+        for (u32 k = 0; nsp[k]; k++)
+            buf[o++] = nsp[k];
     }
     if (!g_hangat) {
         buf[o] = 0;

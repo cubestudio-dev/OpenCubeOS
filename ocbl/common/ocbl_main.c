@@ -314,6 +314,7 @@ void ocbl_run(void)
     if (e->type == OCBL_ENT_OCOS) {
         ocbl_statemon_probe_hangat(&v);
         ocbl_statemon_probe_tickpit(&v);   /* B4: oc.tick=pit hook */
+        ocbl_statemon_probe_nosplash(&v); /* B5: oc.splash=0 hook */
     }
 
     /* the mb2 "self" module: a raw copy of the kernel ELF at 0x800000

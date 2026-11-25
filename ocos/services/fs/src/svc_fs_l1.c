@@ -22,6 +22,8 @@
 #include "core_usermode.h"
 #include "svc_fs_path.h"   /* 3.0.0-WP03: path resolution (ex shell_) */
 #include "core_lib_string.h"
+#include "drv_storage_api.h"     /* WP-compat B7: driver_block_find_device */
+#include "svc_block_drivers.h"     /* WP-compat B7: driver_block_is_protected */
 
 #include <stdint.h>
 
@@ -148,9 +150,15 @@ static int l1_fs_tree(const char *args) {
 
 /* ------------------------------------------------------------------ */
 /* mount / mounts (L1SVC_FS_MOUNT / L1SVC_FS_MOUNTS)                   */
+/* mount / mounts (L1SVC_FS_MOUNT / L1SVC_FS_MOUNTS)                   */
 /* ------------------------------------------------------------------ */
 static int l1_fs_mount(const char *args) {
-    /* P2 fix carried over: mount <type> <device> <path> or list. */
+    /* P2 fix carried over: mount <type> <device> <path> or list.
+     * WP-compat-and-security-hardening B7 adds the one-shot form
+     *   mount <device> <path>          (auto-probe: fat32/exfat/ext4)
+     *   mount /dev/<device> <path>     (the /dev/ prefix is stripped)
+     * The 3-argument form stays first-class (explicit type, no
+     * probing) - full backward compatibility. */
     if (!args || !args[0]) {
         /* Shared renderer (fs_vfs_list_mounts_str). */
         char chunk[1024];
@@ -158,21 +166,71 @@ static int l1_fs_mount(const char *args) {
         put(chunk);
         return 0;
     }
-    char type[32], dev[32], path[64];
-    int i = 0, j = 0;
-    while (args[i] && args[i] != ' ' && j < 31) { type[j++] = args[i++]; }
-    type[j] = 0;
-    while (args[i] == ' ') i++;
-    j = 0;
-    while (args[i] && args[i] != ' ' && j < 31) { dev[j++] = args[i++]; }
-    dev[j] = 0;
-    while (args[i] == ' ') i++;
-    j = 0;
-    while (args[i] && j < 63) { path[j++] = args[i++]; }
-    path[j] = 0;
-    if (!type[0] || !dev[0] || !path[0]) {
-        put("usage: mount <type> <device> <path>\n");
+    char tok[3][64];
+    int ntok = 0;
+    {
+        int i = 0;
+        while (args[i] && ntok < 3) {
+            while (args[i] == ' ') i++;
+            int j = 0;
+            while (args[i] && args[i] != ' ' && j < 63)
+                tok[ntok][j++] = args[i++];
+            tok[ntok][j] = 0;
+            if (j) ntok++;
+            else break;
+        }
+    }
+    if (ntok == 2) {
+        /* ---- B7: the one-shot auto-probe mount ---- */
+        char *dev = tok[0], *path = tok[1];
+        if (dev[0] == '/' && dev[1] == 'd' && dev[2] == 'e' &&
+            dev[3] == 'v' && dev[4] == '/') {
+            int m = 0, k = 5;
+            while (dev[k]) dev[m++] = dev[k++];
+            dev[m] = 0;
+        }
+        int idx = driver_block_find_device(dev);
+        if (idx < 0) {
+            put("mount: device not found: ");
+            put(dev);
+            put("\n");
+            return 1;
+        }
+        if (driver_block_is_protected(idx)) {
+            put("mount: ");
+            put(dev);
+            put(" is the OCIRE recovery disk (write-protected, EPERM)\n");
+            return 1;
+        }
+        fs_vfs_mkdir(path);
+        static const char *probe[] = { "fat32", "exfat", "ext4", 0 };
+        for (int t = 0; probe[t]; t++) {
+            if (fs_vfs_mount(probe[t], path, dev) == 0) {
+                put("mounted ");
+                put(probe[t]);
+                put(" (auto-detected) on ");
+                put(path);
+                put("\n");
+                return 0;
+            }
+        }
+        put("mount: no recognizable filesystem on ");
+        put(dev);
+        put(" (tried fat32, exfat, ext4)\n");
         return 1;
+    }
+    if (ntok != 3) {
+        put("usage: mount <type> <device> <path>\n");
+        put("       mount <device> <path>   (auto-probe: fat32/exfat/ext4)\n");
+        return 1;
+    }
+    char *type = tok[0], *dev = tok[1], *path = tok[2];
+    /* B7: accept the /dev/ prefix in the explicit form too. */
+    if (dev[0] == '/' && dev[1] == 'd' && dev[2] == 'e' &&
+        dev[3] == 'v' && dev[4] == '/') {
+        int m = 0, k = 5;
+        while (dev[k]) dev[m++] = dev[k++];
+        dev[m] = 0;
     }
     /* Ensure mount point exists (same as v1). */
     fs_vfs_mkdir(path);

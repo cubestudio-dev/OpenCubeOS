@@ -47,6 +47,11 @@ void screen_console_putc (char ch);          /* handles \n, \r, \t */
 void screen_console_puts (const char* s);
 void screen_console_clear(void);
 
+/* WP-compat-and-security-hardening B5: the character-grid dimensions
+ * (cols x rows, 0 x 0 before the framebuffer console is up).  Used by
+ * the boot splash to center its logo/bar block. */
+void screen_console_get_size(u32 *cols, u32 *rows);
+
 /* ---- Console output hook (driver-owned since 3.0.0) ----------------
  * Called for every character BEFORE it is drawn.  Return 0 = let the
  * console draw the char normally; non-zero = the hook handled it

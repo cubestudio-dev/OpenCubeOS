@@ -88,6 +88,11 @@ void ocbl_statemon_probe_hangat(const ocbl_volume_t* v);
  * command line - the PIT-degradation acceptance hook. */
 void ocbl_statemon_probe_tickpit(const ocbl_volume_t* v);
 
+/* WP-compat-and-security-hardening B5: read /NOSPLASH.TXT from the
+ * payload volume (any content = present).  Adds " oc.splash=0" to the
+ * kernel command line - the classic-boot diagnostics switch. */
+void ocbl_statemon_probe_nosplash(const ocbl_volume_t* v);
+
 /* The extra kernel command line (" oc.hang=N" or ""). */
 const char* ocbl_statemon_cmdline_extra(void);
 

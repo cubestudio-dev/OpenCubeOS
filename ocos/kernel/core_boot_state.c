@@ -17,6 +17,7 @@
  *          stage knowledge the kernel has.
  */
 #include "core_boot_state.h"
+#include "core_boot_splash.h"
 #include "ocbl_state.h"        /* the shared contract (include/) */
 #include "svc_time_rtc.h"          /* core_rtc_unix_now() - CMOS wall clock */
 #include "core_timer.h"        /* core_timer_register_periodic() */
@@ -255,6 +256,10 @@ void boot_state_advance(u32 stage)
         return;
     g_stage = stage;
 
+    /* WP-compat-and-security-hardening B5: the phase drives the splash
+     * progress bar (no-op when the splash is off / the classic boot). */
+    boot_splash_set_stage((int)stage);
+
     /* blind writes only - the mirror above is the kernel's knowledge */
     g_state->stage = (ocst_u8)stage;
     g_state->last_progress = (ocst_u32)core_rtc_unix_now();
@@ -377,6 +382,12 @@ void boot_state_l1_syscall(void)
     g_l1_pending = 0;
 
     boot_state_advance(OCST_STAGE_L1_READY);
+
+    /* WP-compat-and-security-hardening B5: the FIRST L1 syscall is ush
+     * about to draw its prompt - release the screen NOW (clear + hook
+     * off) so the prompt lands on a clean console (this runs before
+     * the syscall body executes, i.e. before a single prompt byte). */
+    boot_splash_finish();
 
     /* WP-07: the runtime heartbeat below invalidates any stale
      * BOOT_FAILED record once the system has demonstrably STAYED up

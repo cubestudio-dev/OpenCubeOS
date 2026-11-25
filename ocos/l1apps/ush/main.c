@@ -111,6 +111,7 @@ static inline long syscall3(long n, long a, long b, long c) {
 
 #define sys_write(fd, buf, len)  syscall3(SYS_WRITE2, (fd), (long)(buf), (len))
 #define sys_readline(buf, max)   syscall2(SYS_READLINE, (long)(buf), (max))
+#define sys_read1(buf)            syscall3(SYS_READ, 0, (long)(buf), 1)
 #define sys_getch()           syscall0(SYS_GETCH)
 #define sys_fork()               syscall0(SYS_FORK)
 #define sys_execve(path, argv, envp) syscall3(SYS_EXECVE, (long)(path), (long)(argv), (long)(envp))
@@ -210,11 +211,148 @@ static int __attribute__((unused)) atoi_(const char *s) {
 /* 3.0.0-WP04 G5: strstr_/strcmp_ moved to _shared (fs_lib.h carries
  * strstr_; l1_lib.h carries strcmp_) - grep/awk/sort are apps now. */
 
+/* ==================================================================
+ * WP-compat-and-security-hardening B6: the long-output pager.
+ *
+ * `help -a` dumps ~300 lines and the top scrolls away before it can
+ * be read.  While the pager is active, puts_/putc_ CAPTURE the output
+ * into a line buffer instead of emitting it; pager_end() then either
+ * passes a short burst (<= one screen) straight through, or enters
+ * the viewer:
+ *   PgDn (keycode 0x87, ANSI [6~)  - forward one screen
+ *   PgUp (keycode 0x86, ANSI [5~)  - back one screen
+ *   space - forward; q / Enter - leave the viewer (rest is dropped)
+ * Keys are read through sys_read(0, &c, 1) - the kernel's blocking
+ * key read (the sti;hlt park behind it burns no CPU).  No new kernel
+ * interface: the keycodes are what the keyboard/serial drivers
+ * already enqueue for those keys.
+ * ================================================================== */
+#define PAGER_MAX_LINES    480   /* help -a measures ~311 lines */
+#define PAGER_LINE_BYTES   100
+#define PAGER_SCREEN_ROWS  24    /* one classic text screen */
+#define PAGER_KEY_PGUP     0x86
+#define PAGER_KEY_PGDN     0x87
+
+static char g_pager_lines[PAGER_MAX_LINES][PAGER_LINE_BYTES];
+static int  g_pager_count;
+static int  g_pager_active;
+static int  g_pager_overflow;
+
+static void pager_begin(void) {
+    g_pager_count = 0;
+    g_pager_active = 1;
+    g_pager_overflow = 0;
+}
+
+/* Capture one output string, splitting at '\n' (an exact capture of
+ * the stream semantics - the bytes leave through pager_end instead). */
+static void pager_feed(const char *s) {
+    if (g_pager_overflow) return;      /* capacity exceeded: passthrough mode */
+    while (*s) {
+        if (g_pager_count >= PAGER_MAX_LINES) {
+            /* Over capacity: dump what we hold in order, then stream
+             * the remainder directly (the pager degrades to a plain
+             * passthrough instead of truncating silently). */
+            g_pager_overflow = 1;
+            for (int i = 0; i < g_pager_count; i++) {
+                sys_write(1, g_pager_lines[i], strlen_(g_pager_lines[i]));
+                sys_write(1, "\n", 1);
+            }
+            g_pager_active = 0;
+            return;
+        }
+        char *dst = g_pager_lines[g_pager_count];
+        int n = 0;
+        while (*s && *s != '\n' && n < PAGER_LINE_BYTES - 1) dst[n++] = *s++;
+        dst[n] = 0;
+        if (*s == '\n') s++;
+        g_pager_count++;
+    }
+}
+
+static void pager_render_status(int top, int end) {
+    char bar[PAGER_LINE_BYTES];
+    int o = 0;
+    const char pre[] = "[-- lines ";
+    for (int i = 0; pre[i] && o < 96; i++) bar[o++] = pre[i];
+    o += 0;   /* numbers below appended manually */
+    char n[12];
+    /* from-line */
+    int v = top + 1, k = 0;
+    if (v == 0) n[k++] = '0';
+    while (v > 0 && k < 10) { n[k++] = '0' + (v % 10); v /= 10; }
+    for (int i = k - 1; i >= 0 && o < 96; i--) bar[o++] = n[i];
+    if (o < 96) bar[o++] = '-';
+    /* to-line */
+    v = end, k = 0;
+    if (v == 0) n[k++] = '0';
+    while (v > 0 && k < 10) { n[k++] = '0' + (v % 10); v /= 10; }
+    for (int i = k - 1; i >= 0 && o < 96; i--) bar[o++] = n[i];
+    /* total */
+    if (o < 96) bar[o++] = '/';
+    v = g_pager_count, k = 0;
+    if (v == 0) n[k++] = '0';
+    while (v > 0 && k < 10) { n[k++] = '0' + (v % 10); v /= 10; }
+    for (int i = k - 1; i >= 0 && o < 96; i++) bar[o++] = n[i];
+    const char post[] = "  PgDn:next PgUp:prev q:quit --]";
+    for (int i = 0; post[i] && o < 98; i++) bar[o++] = post[i];
+    bar[o] = 0;
+    sys_write(1, bar, o);
+    sys_write(1, "\n", 1);
+}
+
+static void pager_end(void) {
+    if (!g_pager_active) return;
+    g_pager_active = 0;
+    if (g_pager_count <= PAGER_SCREEN_ROWS) {
+        /* short burst: straight through, no viewer */
+        for (int i = 0; i < g_pager_count; i++) {
+            sys_write(1, g_pager_lines[i], strlen_(g_pager_lines[i]));
+            sys_write(1, "\n", 1);
+        }
+        return;
+    }
+    int rows = PAGER_SCREEN_ROWS - 1;   /* keep the last row for the status bar */
+    int top = 0;
+    for (;;) {
+        int end = top + rows;
+        if (end > g_pager_count) end = g_pager_count;
+        for (int i = top; i < end; i++) {
+            sys_write(1, g_pager_lines[i], strlen_(g_pager_lines[i]));
+            sys_write(1, "\n", 1);
+        }
+        pager_render_status(top, end);
+        char c = 0;
+        long got = sys_read1(&c);            /* blocking key read (SYS_READ fd 0) */
+        if (got != 1) break;
+        if ((unsigned char)c == PAGER_KEY_PGDN || c == ' ') {
+            top += rows;
+            if (top >= g_pager_count) break;   /* ran off the end */
+            /* the last page: align it to the bottom */
+            if (top > g_pager_count - rows) top = g_pager_count - rows;
+        } else if ((unsigned char)c == PAGER_KEY_PGUP) {
+            top -= rows;
+            if (top < 0) top = 0;
+        } else if (c == 'q' || c == 'Q' || c == '\n' || c == '\r') {
+            break;
+        }
+        /* any other key: redisplay the same window */
+    }
+}
+
 /* Output helpers */
 static void puts_(const char *s) {
+    if (g_pager_active) { pager_feed(s); return; }
     sys_write(1, s, strlen_(s));
 }
 static void putc_(char c) {
+    if (g_pager_active) {
+        char b[2];
+        b[0] = c; b[1] = 0;
+        if (c == '\n') pager_feed("\n");
+        else pager_feed(b);
+        return;
+    }
     sys_write(1, &c, 1);
 }
 static void putu_(u64 v) {
@@ -446,6 +584,7 @@ static int builtin_cmd(int argc, char *argv[]) {
                 return 1;
             }
         }
+        pager_begin();   /* B6: capture the whole help burst */
         puts_(tr_("help_title"));
         for (int i = 0; builtin_rows[i]; i++) {
             puts_(builtin_rows[i]);
@@ -484,6 +623,7 @@ static int builtin_cmd(int argc, char *argv[]) {
             else puts_(tr_("help_registry_listing_failed"));
         }
         putc_('\n');
+        pager_end();   /* B6: the long-output viewer */
         return 1;
     }
     /* 3.0.0-WP04 G5: write moved to src/L1/write/ (app via execve). */

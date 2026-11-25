@@ -168,6 +168,7 @@ void crash_install_panic_handlers(void); /* 3.0.0-WP03 G5: services/crash */
 #include "core_drv_registry.h"   /* WP-08: metadata driver framework */
 #include "svc_ocembed_core.h"      /* 3.0.0-WP03 G4: OCIRE embed (boot signal + agent) */
 #include "core_boot_state.h"   /* 3.0.0-WP07a: the boot-state monitor */
+#include "core_boot_splash.h"  /* WP-compat B5: the boot splash */
 
 /* User program data (defined in usermode.c). */
 /* 3.0.0-WP04 G11c: a 70-line block of dead `extern const u8
@@ -305,6 +306,14 @@ void kmain(u64 magic, u64 mbi_phys) {
     screen_console_reset(screen_fb_rgb(0xE0, 0xE0, 0xE0),
                      screen_fb_rgb(0x10, 0x10, 0x14));
     core_kcap_set_base_hook(serial_enc_hook, NULL);
+
+    /* WP-compat-and-security-hardening B5: the boot splash goes up
+     * BEFORE the first console log line: from here on the screen
+     * shows the centered logo + the phase progress bar, and every
+     * kernel log byte is captured to klog (the background boot log -
+     * /var/log/kernel.log + the serial transcript) instead of
+     * scrolling past.  oc.splash=0 boots the classic way. */
+    boot_splash_begin(mbi.cmdline);
 
     /* G5 boot chain marker: phase 1/4 - kernel core mechanisms (the
      * console/log stack above IS phase 1's first bring-up; the marker

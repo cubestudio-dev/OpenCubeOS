@@ -9,6 +9,7 @@
  * registering a handler.
  */
 #include "arch_exceptions.h"
+#include "core_boot_splash.h"   /* WP-compat B5: panic tears the splash down */
 #include "arch_idt.h"
 #include "core_lib_string.h"
 #include "core_console_fb.h"
@@ -213,11 +214,16 @@ static void panic_fallback(const char *reason) {
 }
 
 void kernel_panic(const char *reason) {
+    /* WP-compat-and-security-hardening B5: a panic must land on the
+     * FULL-SCREEN console - tear the splash down before anything else
+     * (hook off + clear screen), so the report below is readable. */
+    boot_splash_abort();
     if (g_panic_fn) g_panic_fn(reason);
     panic_fallback(reason);
 }
 
 void kernel_panic_frame(const char *reason, const arch_irq_frame_t *f) {
+    boot_splash_abort();                 /* B5: same contract */
     if (g_panic_frame_fn) g_panic_frame_fn(reason, f);
     (void)f;
     panic_fallback(reason);
