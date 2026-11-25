@@ -1,14 +1,14 @@
 {
-    "version": "3.0.0-WP-boot-stack-vmware-and-nak-rebase",
-    "build": 511,
-    "time": "2026-11-23",
-    "changes": "boot stack: the A/B/C handoff compare report, the VMware serial/VGA/EFER independence fixes (F1-F4), the NAK naming rebase of the boot chain, the strict QEMU matrix both tracks green",
+    "version": "3.0.0-WP-compat-and-security-hardening",
+    "build": 521,
+    "time": "2026-11-25",
+    "changes": "compat and security hardening: the OCIRE recovery disk write-armed unconditionally, the RTC-first system tick (PIT fallback) + the 10 s menu clock fix, wall-clock-bounded I/O waits (VMware slow boot), the boot splash + pager + one-shot mount, the OCSE medium rebuilt",
     "description": {
-        "en": "boot stack: the A/B/C handoff compare report, the VMware serial/VGA/EFER independence fixes (F1-F4), the NAK naming rebase of the boot chain, the strict QEMU matrix both tracks green",
-        "zh": "引导栈：A/B/C 三版本移交对比报告、VMware 串口/VGA/EFER 独立性修复（F1-F4）、引导链 NAK 命名落地、严格 QEMU 矩阵双轨全绿"
+        "en": "compat and security hardening: the OCIRE recovery disk write-armed unconditionally, the RTC-first system tick (PIT fallback) + the 10 s menu clock fix, wall-clock-bounded I/O waits (VMware slow boot), the boot splash + pager + one-shot mount, the OCSE medium rebuilt",
+        "zh": "兼容性与安全加固：OCIRE 恢复盘无条件布防、RTC 优先系统节拍（PIT 兜底）与 10 秒菜单时钟修复、I/O 等待真实时间上界（VMware 慢启动根因）、启动画面与分页器与一键挂载、OCSE 安装介质重建"
     },
     "changes_v2_url": "https://ocos.cubestudio.cn/update-v2.json",
-    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-boot-stack-vmware-and-nak-rebase-update.tar.gz",
-    "package_sha256": "24bc7c1d8593c25dbcfa79cac7d55ac897efb0a873247e47372ec5a068d98692",
-    "package_size": 1409400
+    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-compat-and-security-hardening-update.tar.gz",
+    "package_sha256": "59e27cc3718c9df3f73c3ba3f79be5edf732d01c4a7166c0775bf6dfb02340d1",
+    "package_size": 1419439
 }

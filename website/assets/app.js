@@ -226,7 +226,10 @@
          block or one of its assets is missing the button falls back to
          the GitHub Releases page instead of keeping the dead '#' href
          (spec 4.9 defensive hardening). */
-      var drows = [["oc", "opencube"], ["ocse", "ocse"]];
+      /* WP-compat B8: the dev channel is the FOUR-asset surface (ISO +
+         OCSE + OTA + src) the workpack spec demands. */
+      var drows = [["oc", "opencube"], ["ocse", "ocse"],
+                   ["ota", "ota"], ["src", "src"]];
       for (var r2 = 0; r2 < drows.length; r2++) {
         var kk = drows[r2][0];
         var dst = (d.dev && d.dev.assets)
