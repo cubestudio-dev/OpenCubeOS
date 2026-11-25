@@ -50,9 +50,9 @@ SRC_MAP = {
     "kernel/font_data.c": "ocos/kernel/core_console_font_data.c",
     "kernel/console.c": "ocos/kernel/core_console_screen.c",
     "kernel/keyboard.c": "ocos/drivers/input/drv_input_keyboard.c",
-    "kernel/nic.c": "src/L0/drivers/nic/driver_nic.c",
+    "kernel/nic.c": "ocos/drivers/net/drv_net_e1000e.c",
     "kernel/e1000.c": "ocos/drivers/net/drv_net_e1000e.c",
-    "kernel/snd.c": "src/L0/services/audio/snd_svc.c",
+    "kernel/snd.c": "ocos/services/audio/src/svc_audio_drivers.c",
     "drivers/block/driver_block_blk.c": "ocos/services/block/src/svc_block_drivers.c",
     "net/net_tcp_cc.c": "ocos/services/net/src/svc_net_tcp_cc.c",
     "kernel/arch/x86_64/arch_multiboot2.c": "ocos/kernel/arch/x86_64/arch_multiboot2.c",
@@ -70,10 +70,10 @@ SRC_MAP = {
     "kernel/usb.c": "ocos/drivers/usb/drv_usb_core.c",
     "kernel/hid.c": "ocos/drivers/usb/drv_usb_hid.c",
     "kernel/ata.c": "ocos/drivers/storage/drv_storage_ata.c",
-    "kernel/blk.c": "src/L0/drivers/block/driver_blk.c" if os.path.exists(os.path.join(ROOT, "drivers/block/driver_block_blk.c")) is False else "drivers/block/driver_block_blk.c",
+    "kernel/blk.c": "ocos/services/block/src/svc_block_drivers.c",
     "kernel/cache.c": "ocos/drivers/storage/drv_storage_cache.c",
     "kernel/part.c": "ocos/drivers/storage/drv_storage_part.c",
-    "kernel/disk_setup.c": "src/L0/drivers/block/driver_block_disk_setup.c",
+    "kernel/disk_setup.c": "ocos/drivers/storage/drv_storage_disk_setup.h",
     "kernel/acpi.c": "ocos/drivers/bus/drv_bus_acpi.c",
     "kernel/aml.c": "ocos/drivers/bus/drv_bus_acpi_aml.c",
     "kernel/hpet.c": "ocos/drivers/time/drv_time_hpet.c",
@@ -90,15 +90,20 @@ SRC_MAP = {
     "kernel/ota_ab.c": "ocos/services/selfhost/src/svc_selfhost_ab.c",
     "kernel/ota_update.c": "ocos/services/selfhost/src/svc_selfhost_update.c",
 }
+# WP-compat-and-security-hardening (regression batch): the remap now
+# targets the LIVE NAK tree (ocos/) - the src/L0 targets died with the
+# WP-refactor-to-nak-architecture move and the 31/31 battery had been
+# silently build-failing since (live-caught by this release's full
+# regression run).
 INC_MAP = {
-    "-Ikernel/net": "-Isrc/L0/services/net",
-    "-Ikernel/drivers": "-Isrc/L0/drivers",
-    "-Ikernel": "-Isrc/L0/core",
-    "-Ikernel/lib": "-Isrc/L0/core/lib",
-    "-Ikernel/crypto": "-Isrc/L0/services/crypto",
-    "-Ikernel/mem": "-Isrc/L0/core/mem",
-    "-Ikernel/core": "-Isrc/L0/core",
-    "-Ikernel/arch/x86_64": "-Isrc/L0/core/arch/x86_64",
+    "-Ikernel/net": "-Iocos/services/net/src",
+    "-Ikernel/drivers": "-Iocos/drivers",
+    "-Ikernel": "-Iocos/kernel",
+    "-Ikernel/lib": "-Iocos/kernel",
+    "-Ikernel/crypto": "-Iocos/services/crypto/src",
+    "-Ikernel/mem": "-Iocos/kernel",
+    "-Ikernel/core": "-Iocos/kernel",
+    "-Ikernel/arch/x86_64": "-Iocos/kernel/arch/x86_64",
 }
 # tests with external-fixture requirements (compile but skip run).
 # WP-10-tui-qa: the skip is now CONDITIONAL - when the fixture tree is
@@ -129,10 +134,12 @@ EXTRA_SRC = {"host_tls_p0_test.c": ["tests/host_tls_p0_stub.c"],
              # real registry (empty section boundaries via the stub)
              "host_wifi_test.c": ["tests/host_wifi_nic_stub.c",
                                    "tests/host_registry_stub.c",
-                                   "ocos/kernel/core_registry.c"],
-             # v2.0.0: svc_block_drivers.c probe path walks the driver registry
+                                   "ocos/kernel/core_registry.c", "ocos/drivers/drv_framework.c"],
+             # v2.0.0: svc_block_drivers.c probe path walks the driver
+             # registry (and the framework section walker it needs)
              "host_blk512_gate_test.c": ["tests/host_registry_stub.c",
-                                          "ocos/kernel/core_registry.c"]}
+                                          "ocos/kernel/core_registry.c",
+                                          "ocos/drivers/drv_framework.c"]}
 
 
 def _clean(seg):
@@ -175,30 +182,44 @@ def normalize(toks):
     return out
 
 
-# 3.0.0-WP03 G2: src/L0 layout.  "-Isrc/L0" lets the tests keep their
+# WP-compat regression: the ocos/ NAK tree.  The historical src/L0
 # historical path-shaped includes ("core/types.h", "drivers/input/x.c").
-SAFE_INCS = ["-Isrc/L0", "-Isrc/L1", "-Isrc/L0/core", "-Isrc/L0/core/lib",
-             "-Isrc/L0/core/mem", "-Isrc/L0/core/generated",
-             "-Isrc/L0/core/arch/x86_64", "-Isrc/L0/services/crypto",
-             "-Isrc/L0/services/selfhost", "-Isrc/L0/services/klog",
-             "-Isrc/L0/services/health", "-Isrc/L0/services/crash",
-             "-Isrc/L0/services/power", "-Isrc/L0/services/time",
-             "-Isrc/L0/services/fs", "-Isrc/L0/services/net",
-             "-Isrc/L0/services/sysapi", "-Isrc/L0/services/block",
-             "-Isrc/L0/services/audio", "-Isrc/L0/services/display",
-             "-Isrc/L0/services/font", "-Isrc/L0/services/encoding",
-             "-Isrc/L0/services/ipc", "-Isrc/L0/services/loader",
-             "-Isrc/L0/services/camera", "-Isrc/L0/services/usb",
-             "-Isrc/L0/drivers", "-Itests",
-             "-Isrc/L0/drivers/block", "-Isrc/L0/drivers/nic",
-             "-Isrc/L0/drivers/snd", "-Isrc/L0/drivers/usb",
-             "-Isrc/L0/drivers/input", "-Isrc/L0/core/console",
-             "-Isrc/L0/drivers/pci", "-Isrc/L0/drivers/i2c",
-             "-Isrc/L0/drivers/acpi", "-Isrc/L0/drivers/time",
-             "-Isrc/L0/drivers/wireless", "-Isrc/L0/drivers/bluetooth",
-             "-Isrc/L0/drivers/camera", "-Isrc/L0/drivers/misc",
-             "-Isrc/L0/drivers/scsi", "-Isrc/L0/drivers/sd",
-             "-Isrc/L0/boot"]
+SAFE_INCS = ["-Iocos", "-Iocos/kernel", "-Iocos/kernel/lib",
+             "-Iocos/kernel/generated",
+             "-Iocos/kernel/arch/x86_64",
+             "-Iocos/services/crypto/src",
+             "-Iocos/services/crypto/interface",
+             "-Iocos/services/selfhost/src",
+             "-Iocos/services/selfhost/interface",
+             "-Iocos/services/klog/interface",
+             "-Iocos/services/health/interface",
+             "-Iocos/services/crash/interface",
+             "-Iocos/services/power/interface",
+             "-Iocos/services/time/interface",
+             "-Iocos/services/fs/interface", "-Iocos/services/fs/src",
+             "-Iocos/services/net/interface", "-Iocos/services/net/src",
+             "-Iocos/services/sysapi/interface",
+             "-Iocos/services/block/interface",
+             "-Iocos/services/audio/interface",
+             "-Iocos/services/display/interface", "-Iocos/services/display/src",
+             "-Iocos/services/font/interface",
+             "-Iocos/services/encoding/interface",
+             "-Iocos/services/ipc/interface",
+             "-Iocos/services/loader/interface",
+             "-Iocos/services/camera/interface",
+             "-Iocos/services/usb/interface",
+             "-Iocos/services/tui/interface",
+             "-Iocos/services/diag/src",
+             "-Iocos/drivers", "-Itests", "-Iinclude",
+             "-Iocos/drivers/storage", "-Iocos/drivers/net",
+             "-Iocos/drivers/audio", "-Iocos/drivers/usb",
+             "-Iocos/drivers/input", "-Iocos/drivers/bus",
+             "-Iocos/drivers/i2c", "-Iocos/drivers/misc",
+             "-Iocos/drivers/time", "-Iocos/drivers/display",
+             "-Iocos/services",
+             "-I."]     # the tree root: core/ (a symlink to ocos/kernel)
+                        # serves the historical "core/types.h" and
+                        # "../core/types.h" includes of the older tests
 
 
 def remap(cmd):

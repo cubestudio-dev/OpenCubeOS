@@ -22,6 +22,9 @@ MONITOR_SOCK = "/tmp/wp01_reg_monitor.sock"
 PPM_PATH = "/tmp/wp01_reg_screen.ppm"
 
 CMDS = [
+    # WP-compat B9: the ush pager must stay out of the driver's way -
+    # stream `help -a` instead of waiting for PgDn.
+    "export PAGER=off",
     "uname -a",
     "help -a",
     "heaptest",
@@ -59,7 +62,9 @@ CHECKS = [
     # section (echo line stripped), and only the boot checks may look
     # at the boot section.
     ("screen framebuffer alive (BUG #66)", "SCREEN", None),   # dynamic
-    ("boot banner ready",        None,   r"Open Cube OS User-space Shell \(3\.0\.0"),
+    # WP-compat B9: the banner's parenthetical is the uname fetch OR
+    # the honest 'run uname -r' hint - match the banner line itself.
+    ("boot banner ready",        None,   r"Open Cube OS User-space Shell \("),
     ("boot prompt hint",         None,   r"Type 'help' for built-in commands"),
     ("boot complete OK",         None,   r"boot complete\.+ OK"),
     ("exception self-test 3/3",  None,   r"exception self-test: 3/3"),

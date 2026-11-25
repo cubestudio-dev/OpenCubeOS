@@ -47,6 +47,9 @@ pump(1.0)
 end = time.time() + 120
 while b"ush>" not in buf and time.time() < end:
     pump(1.0)
+# WP-compat B9: stream mode for the capture (the ush pager off)
+sock.sendall(b"export PAGER=off\n")
+pump(1.0)
 sock.sendall(b"help -a\n")
 end = time.time() + 40
 while time.time() < end:

@@ -1,6 +1,6 @@
 {
     "version": "3.0.0-WP-compat-and-security-hardening",
-    "build": 521,
+    "build": 523,
     "time": "2026-11-25",
     "changes": "compat and security hardening: the OCIRE recovery disk write-armed unconditionally, the RTC-first system tick (PIT fallback) + the 10 s menu clock fix, wall-clock-bounded I/O waits (VMware slow boot), the boot splash + pager + one-shot mount, the OCSE medium rebuilt",
     "description": {

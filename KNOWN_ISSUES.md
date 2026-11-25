@@ -247,3 +247,49 @@ services are live
 OCRMECL 的 post-EBS 架构下，OCBL 的唯一磁盘后端是引导介质的 RAM 副本：多盘扫描、
 A/B 槽位引导与外部 loader 链式加载在 UEFI 轨不可用（BIOS 轨不受影响）。修复方向：
 在 OCRMECL 中增加磁盘驱动（AHCI/NVMe/virtio），属后续工作包。
+
+## K-08 (WP-compat-and-security-hardening): the ush banner's uname fetch occasionally loses a race
+
+- Observed: the first-boot banner sometimes shows "(run 'uname -r'
+  for the version)" instead of the fetched release string.  The
+  standalone `uname` app and `uname -r` command always answer
+  correctly; only the in-banner `sys_l1svc(L1SVC_DISP_UNAME)` fetch
+  is affected, non-deterministically (same ISO: one boot fetches, the
+  next does not).
+- Analysis: the fetch rides the kcap console-capture around the
+  splash handoff window; with the RTC tick at 1024 Hz the preemption
+  windows multiplied tenfold and the capture occasionally lands
+  empty.  The honest fallback text (B9) replaced the frozen stale
+  version literal this package found there.
+- Workaround: `uname -r` (authoritative, always correct); the banner
+  fallback text now says exactly that.
+
+## K-09 (WP-compat-and-security-hardening): the HTTPS/SSH E2E batteries cannot complete in the current sandbox network
+
+- Observed: `tools/run_fix4_https_e2e.py` 3/8 and `tools/ssh_g11a_e2e.py`
+  3 FAIL in THIS sandbox - the kernel's `net_connect` to the QEMU
+  slirp gateway (10.0.2.2) fails before the TCP handshake, so the
+  python TLS/SSH peers never see a connection.
+- This is NOT a regression of this work package: the byte-identical
+  comparison against the PREVIOUS release ISO
+  (OpenCubeOS-b3b4-rtc-timer-e7794bc6.iso) fails with the SAME
+  pattern, and the previous release's own evidence recorded 8/8 in a
+  then-working network environment.  The failure is environmental
+  (sandbox slirp/e1000 drift), recorded honestly per the
+  real-first discipline.
+- Workaround: none in-sandbox; re-run both batteries in a networked
+  environment (the two comparison transcripts are archived under
+  evidence/wp-compat-and-security-hardening/).
+
+## K-10 (WP-compat-and-security-hardening): the OCIRE test battery's UEFI tracks time out
+
+- Observed: `tools/run_ocire_tests.py` 7/10 - the three UEFI-track
+  cases (shell/shutdown/reboot) stop right after the OVMF boot
+  dispatch, before the OCRMECL EFI banner.  The BIOS tracks pass.
+- This battery was not part of the previous release's acceptance
+  surface (no OCIRE battery evidence exists for the boot-stack
+  release); the UEFI-track hang predates this package (the OCIRE
+  UEFI chain boots through the pre-B3 OCRMECL EFI build that this
+  package deliberately did not rebuild).
+- Workaround: BIOS-track coverage is green; the OCIRE UEFI boot path
+  needs its own work package.

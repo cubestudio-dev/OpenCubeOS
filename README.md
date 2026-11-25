@@ -5,13 +5,22 @@
 
 **A from-scratch x86_64 kernel that boots into ring 3.**
 
-Current release: **3.0.0-WP-boot-stack-vmware-and-nak-rebase** - the OCRMECL/OCBL
-bootloader (the boot chain NAK-rebased) with the VMware
-serial/VGA/EFER independence fixes (F1-F4, strict-matrix boot on both
-firmware tracks), a pure L0 service kernel (no shell, no TUI, no IME in
-L0) with the driver framework (device tree, power hooks, hotplug,
-failure isolation, deterministic init order), **301 ring-3
-programs** under `ocos/l1apps/` - organized
+Current release: **3.0.0-WP-compat-and-security-hardening** - compatibility
+and security hardening on the boot-stack line: the OCIRE recovery disk
+is write-armed **unconditionally at boot** (block-driver-layer
+`-OC_EPERM`, the WP-03 supervised-only gate closed), the system
+heartbeat is the **CMOS RTC (1024 Hz PIE)** with the PIT as the
+fallback (the 50x-fast OCBL menu clock fixed - the 10 s countdown is
+real), every I/O wait is **wall-clock bounded** (TSC deadlines - the
+VMware slow-boot root cause), the boot shows a centered splash with a
+phase progress bar (full log captured to klog), `ush` gained PgUp/PgDn
+paging for `help -a`, `mount <dev> <path>` auto-probes
+fat32/exfat/ext4, and the download page's dev channel carries the full
+four assets (ISO + the rebuilt OCSE medium + OTA + source). A pure L0
+service kernel (no shell, no TUI, no IME in L0) with the driver
+framework (device tree, power hooks, hotplug, failure isolation,
+deterministic init order), **301 ring-3 programs** under
+`ocos/l1apps/` - organized
 around **8 merged mega-apps** (`update` / `disk-tool` / `net-tool` /
 `sound-tool` / `files` / `sysdiag` / `hwinfo` / `power`), each an
 intent wizard *and* a verbatim dispatch for every classic command

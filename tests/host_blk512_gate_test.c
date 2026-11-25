@@ -37,7 +37,8 @@
 #include "core_lib_string.h"
 #include "core_console_screen.h"
 #include "drv_storage_api.h"
-#include "drv_storage_cache.h"
+#include "svc_block_cache.h"   /* NAK rename: drv_storage_cache.h */
+#include "svc_block_drivers.h"  /* block_svc_init */
 
 /* ---- host shims for the kernel dependencies of driver_block_blk.c ---- */
 

@@ -10,7 +10,7 @@
    every asset URL is ABSOLUTE. */
 window.SITE_DATA = {
   version: "3.0.0-WP-compat-and-security-hardening",
-  build: 521,
+  build: 523,
   date: "2026-11-25",
   changes: "compat and security hardening: the OCIRE recovery disk write-armed unconditionally, the RTC-first system tick (PIT fallback) + the 10 s menu clock fix, wall-clock-bounded I/O waits (VMware slow boot), the boot splash + pager + one-shot mount, the OCSE medium rebuilt",
   description: {
@@ -80,10 +80,10 @@ window.SITE_DATA = {
     }
   },
   stats: {
-    commands: 312,
+    commands: 313,
     interfaces: 223,
     syscalls: 54,
-    lines: "165,416"
+    lines: "166,643"
   },
   history: [
     { version: "3.0.0-WP-boot-stack-vmware-and-nak-rebase", date: "2026-11-23",

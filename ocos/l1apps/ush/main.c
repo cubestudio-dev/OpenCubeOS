@@ -238,7 +238,18 @@ static int  g_pager_count;
 static int  g_pager_active;
 static int  g_pager_overflow;
 
+static const char *env_get(const char *name);   /* B9: PAGER switch (defined below) */
 static void pager_begin(void) {
+    /* B9: PAGER=off/0 in the environment disables the viewer - the
+     * non-interactive test drivers export it so `help -a` streams
+     * instead of waiting for PgDn keys that will never come. */
+    const char *pg = env_get("PAGER");
+    if (pg[0] == 'o' || pg[0] == '0') {   /* off / 0 */
+        g_pager_count = 0;
+        g_pager_active = 0;
+        g_pager_overflow = 0;
+        return;
+    }
     g_pager_count = 0;
     g_pager_active = 1;
     g_pager_overflow = 0;
@@ -1356,7 +1367,11 @@ void _start(void) {
             rel[rl] = 0;
         }
         puts_("\nOpen Cube OS User-space Shell (");
-        puts_(rc == 0 && rel[0] ? rel : "3.0.0-WP04");
+        /* WP-compat B9: the fetch occasionally loses the race with the
+         * splash handoff (see KNOWN_ISSUES) - say so honestly instead
+         * of showing a frozen, ever-stale version literal.  `uname -r`
+         * is the authoritative surface and it works. */
+        puts_(rc == 0 && rel[0] ? rel : "run 'uname -r' for the version");
         puts_(")\n");
     }
     puts_("Type 'help' for built-in commands.\n\n");

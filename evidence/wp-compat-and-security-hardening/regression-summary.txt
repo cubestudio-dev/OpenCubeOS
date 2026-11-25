@@ -1,0 +1,46 @@
+Open Cube OS - WP-compat-and-security-hardening
+Full regression battery - 2026-11-25 (build 521)
+
+make all .............. 0 errors, 0 warnings (the pre-declared EFI ld
+                        RWX pair is the only warning in a clean build;
+                        incremental runs show 0/0)
+host tests ............ 19 passed, 0 failed, 1 SKIP-FIXTURE (x509 needs
+                        live chains from three sites - unreachable from
+                        this sandbox, skipped honestly by design; the RSA
+                        fixture was regenerated locally and runs)
+31-check regression ... 31/31 PASS (run_fix4_regression.py on the
+                        /NOSPLASH.TXT diagnostic ISO with PAGER=off -
+                        the splash captures the console boot log and the
+                        ush pager would otherwise wait for keys that a
+                        driver never sends; both are the diagnostics
+                        switches this package added)
+strict matrix ......... BOTH TRACKS GREEN (test_strict.sh: BIOS + UEFI
+                        under -cpu qemu64,enforce -machine vmport=off
+                        -boot strict=on; the verdict chain is OCRMECL ->
+                        ush> - the intermediate "boot complete" banner is
+                        console output the splash legitimately captures)
+dhtest ................ PASS (qemu_runner: 5/5 truth vectors vs python
+                        pow(), 2048-bit modexp exercised)
+WP-08 gate ............ 43/43 PASS
+B2 OCIRE acceptance ... PASS x3 (early arm log / mkfs.fat refused with
+                        EPERM / image sha256 unchanged - write-through)
+B3/B4 timer ........... PASS x4 (RTC tick, TSC cal, 9.69 s countdown,
+                        [vfs] trace) + PASS (oc.tick=pit degradation)
+B5/B6/B7 UX ........... PASS x4 (splash logo rows + bar / clean handoff
+                        / PgDn 24-46 + PgUp 1-23 / one-shot mount)
+website four assets ... DOM-asserted (all four dev-channel buttons
+                        populated: ISO/OCSE/OTA/SRC with sha256) +
+                        gh-pages API-verified 200 for all four files
+                        (download.html + the four downloads/*)
+CI .................... green on every push (feda0c5b latest: completed
+                        success)
+HTTPS E2E ............. 3/8 in THIS sandbox - ENVIRONMENTAL, not a
+                        regression: the byte-identical previous-release
+                        ISO fails with the same pattern (both transcripts
+                        archived); the previous release recorded 8/8 in
+                        a then-working network.  See KNOWN_ISSUES K-09.
+SSH E2E ............... same environmental class (net_connect to the
+                        slirp gateway fails before TCP on both ISOs)
+OCIRE battery ......... 7/10 (the 3 UEFI-track cases time out; this
+                        battery was not in the previous release's
+                        acceptance surface - see KNOWN_ISSUES K-10)
