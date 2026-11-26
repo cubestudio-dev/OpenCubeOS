@@ -5,18 +5,22 @@
 
 **A from-scratch x86_64 kernel that boots into ring 3.**
 
-Current release: **3.0.0-WP-compat-and-security-hardening** - compatibility
-and security hardening on the boot-stack line: the OCIRE recovery disk
-is write-armed **unconditionally at boot** (block-driver-layer
-`-OC_EPERM`, the WP-03 supervised-only gate closed), the system
-heartbeat is the **CMOS RTC (1024 Hz PIE)** with the PIT as the
-fallback (the 50x-fast OCBL menu clock fixed - the 10 s countdown is
-real), every I/O wait is **wall-clock bounded** (TSC deadlines - the
-VMware slow-boot root cause), the boot shows a centered splash with a
-phase progress bar (full log captured to klog), `ush` gained PgUp/PgDn
-paging for `help -a`, `mount <dev> <path>` auto-probes
-fat32/exfat/ext4, and the download page's dev channel carries the full
-four assets (ISO + the rebuilt OCSE medium + OTA + source). A pure L0
+Current release: **3.0.1-WP-severe-fix-and-closure** - the severe-fix
+and closure line, five field-reported defects root-caused and closed:
+the **VMware boot crawl** (un-paced port-I/O poll loops + a false
+"command dropped" verdict retry storm - every hot poll is now paced by
+a zero-port-I/O TSC pause, the drop verdict is wall-clock gated; QEMU
+measured 446x fewer port I/Os per boot), the **K-08 banner race**
+(closed by construction - 20/20 consecutive boots with the real
+version string), the **K-09 E2E "network" failures** (misdiagnosed -
+the kernel stack proved healthy with its own counters; the real
+defects were the test harness and a COM1 RX edge-loss window, now
+fixed - HTTPS E2E 8/8, SSH outbound green), the **K-10 OCIRE UEFI
+death** (the wrong PE behind the BOOTX64.EFI entry - the OCIRE battery
+14/14 for the first time), and the **update full chain**
+(the L1 update wizard -> OTA download -> A/B slot -> flash, proven
+end-to-end with a byte-identical flash proof, plus the RFC 2131 DHCP
+retransmission the wizard used to trip over). A pure L0
 service kernel (no shell, no TUI, no IME in L0) with the driver
 framework (device tree, power hooks, hotplug, failure isolation,
 deterministic init order), **301 ring-3 programs** under

@@ -476,8 +476,9 @@ int ota_update_download(const char *url, const char *path) {
         while (header_end < 0) {
             if (core_timer_ticks() - t0 > DL_NO_DATA_TICKS) { err = OC_UPDATE_E_TIMEOUT; break; }
             int n = net_tls_recv(c, hdr + hlen, 16639 - hlen);
-            if (n < 0) { err = OC_UPDATE_E_TIMEOUT; break; }
+            if (n < 0) continue;   /* WP-severe-fix-and-closure (update chain): no data in this net_recv window - retry until the DL_NO_DATA_TICKS deadline, a single empty window must not abort a 1.4 MB transfer (net_recv waits only ~1.5 s internally; slirp + TCG hit empty windows intermittently) */
             if (n == 0) { err = OC_UPDATE_E_HTTP; break; }
+            t0 = core_timer_ticks();   /* progress: restart the no-data clock */
             hlen += n;
             hdr[hlen] = 0;
             for (int k = 0; k <= hlen - 4; k++) {
@@ -557,8 +558,9 @@ int ota_update_download(const char *url, const char *path) {
                 if (core_timer_ticks() - t1 > DL_NO_DATA_TICKS) { err = OC_UPDATE_E_TIMEOUT; break; }
                 if ((u64)total >= DL_MAX_TOTAL) { err = OC_UPDATE_E_BUFSIZE; break; }
                 int n = net_tls_recv(c, chunk, DL_CHUNK);
-                if (n < 0) { err = OC_UPDATE_E_TIMEOUT; break; }
+                if (n < 0) continue;   /* WP-severe-fix-and-closure (update chain): an empty net_recv window (~1.5 s internally) is NOT a timeout - retry until the DL_NO_DATA_TICKS no-progress deadline; live-caught as an intermittent mid-transfer abort on a healthy slirp LAN */
                 if (n == 0) break;              /* close_notify / FIN */
+                t1 = core_timer_ticks();   /* progress: restart the no-data clock */
                 /* BUG-0304 (A5-15): check the write result (disk full etc.) */
                 int w = fs_vfs_write(fd, chunk, n);
                 if (w != n) { err = OC_UPDATE_E_IO; break; }
@@ -615,9 +617,12 @@ int ota_update_download(const char *url, const char *path) {
          * accumulator wrapped negative on absurd values, the phase-2 loop
          * then never ran and a truncated package reported success. */
         u64 content_length = 0; int have_cl = 0, body_received = 0;
+        u64 thdr = core_timer_ticks();
         while (header_end < 0) {
+            if (core_timer_ticks() - thdr > DL_NO_DATA_TICKS) { err = OC_UPDATE_E_TIMEOUT; break; }
             int n = net_recv(sock, hdr + total_header, 16639 - total_header);
-            if (n <= 0) { err = OC_UPDATE_E_TIMEOUT; break; }
+            if (n <= 0) continue;   /* WP-severe-fix-and-closure (update chain): an empty net_recv window is not a timeout - retry until the DL_NO_DATA_TICKS no-progress deadline (a single empty window used to abort the whole transfer) */
+            thdr = core_timer_ticks();   /* progress: restart the no-data clock */
             total_header += n;
             hdr[total_header] = 0;
             for (int k = 0; k <= total_header - 4; k++) {
@@ -712,10 +717,22 @@ int ota_update_download(const char *url, const char *path) {
                 if (w != body_received) err = OC_UPDATE_E_IO;   /* BUG-0304 */
                 else total += body_received;
             }
-            /* phase 2: stream the rest of the body */
+            /* phase 2: stream the rest of the body
+             * WP-severe-fix-and-closure (update chain): an empty net_recv
+             * window (~1.5 s of no data inside net_recv) is NOT a
+             * completed transfer - the old `if (n <= 0) break;` aborted a
+             * healthy 1.4 MB download on any single empty window (~350
+             * windows per package; slirp + TCG hit empty windows
+             * intermittently - the full-chain battery caught it as a
+             * once-in-two-runs "download failed: no response (timeout)").
+             * Retry until the DL_NO_DATA_TICKS no-progress deadline; a
+             * dead connection still ends at that deadline, never hangs. */
+            u64 tbody = core_timer_ticks();
             while (!err && (u64)total < content_length) {
+                if (core_timer_ticks() - tbody > DL_NO_DATA_TICKS) { err = OC_UPDATE_E_TIMEOUT; break; }
                 int n = net_recv(sock, chunk, DL_CHUNK);
-                if (n <= 0) break;
+                if (n <= 0) continue;   /* empty window - retry */
+                tbody = core_timer_ticks();   /* progress: restart the no-data clock */
                 int w = fs_vfs_write(fd, chunk, n);
                 if (w != n) { err = OC_UPDATE_E_IO; break; }   /* BUG-0304 */
                 total += n;

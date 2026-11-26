@@ -145,3 +145,79 @@ OVMF 下的 OCBL 菜单无法通过键盘操作
   个 UEFI 格）。
 - 候选后续修复：基于 `WaitForEvent` 的菜单等待循环（倒计时期间驱动
   固件事件系统）。超出本包范围，在此登记。
+
+## K-07 UEFI 轨不再扫描非引导磁盘（WP-runtime-hardening）
+
+OCRMECL 的 post-EBS 架构下，OCBL 的唯一磁盘后端是引导介质的 RAM 副本：多盘扫描、
+A/B 槽位引导与外部 loader 链式加载在 UEFI 轨不可用（BIOS 轨不受影响）。修复方向：
+在 OCRMECL 中增加磁盘驱动（AHCI/NVMe/virtio），属后续工作包。
+
+## K-08（WP-compat-and-security-hardening）：已在 WP-severe-fix-and-closure
+以构造性方式关闭——横幅竞态的根因是 pid 注册窗口
+
+- 已关闭：根因定位 + 三层防御修复；连续 20 次启动横幅均为真实版本串、
+  `uname -r` 精确、`uname -a` 完整、零 panic（验收组在默认启动画面
+  模式下运行——即竞态的主场）。
+- 根因（monitor hunter + 2.7 GB 中断 trace 实况捕获）：
+  `l1_launcher_boot_default()` 在 `user_process_create()` 返回并
+  `boot_state_advance()` 打印之后才注册 `g_l1_entry_pid`，而 launcher
+  内核线程此时已就绪——该窗口内一次定时器抢占使 ush 在 pid 存在
+  之前跑到首个系统调用，L1_READY 一次性钩子的 pid 比对失败，
+  `boot_splash_finish()` 从未执行，仍安装着的 splash 钩子（抑制
+  控制台输出）吞掉了整个横幅与首个提示符，而 ush 本体健康地在
+  getch 自旋等待。
+- 修复分层：(1) 根因层——创建 + 注册收进同一段关中断窗口（本单 CPU
+  设计中定时器 IRQ 是唯一抢占源），失败启动路径也会拆除 splash；
+  (2) 第二道防线——`g_l1_entry_pid==0` 期间任意 pid 的首个系统调用
+  都触发一次性钩子（默认入口是引导时唯一的环 3 进程）；(3) 症状层
+  ——uname 操作（L1SVC_DISP_UNAME）改为与 LANG_GET 同形的纯缓冲填充
+  （字节同形，横幅路径不再有 kcap 控制台捕获；交互式
+  `uname`/`-r`/`-a` 行为不变）。
+- 证据：evidence/wp-severe-fix-and-closure/b-k08-uname-race.md
+  + 猎捕 transcript。
+
+## K-09（WP-severe-fix-and-closure）：以"误诊"关闭——网络栈是健康的，
+不健康的是测试台架。入站 SSH 尚余一条诚实边界。
+
+- 已关闭（原结论被计数器推翻）：WP-compat 条目把 HTTPS/SSH E2E 失败
+  归咎"沙箱网络"。WP-severe-fix-and-closure 的猎捕用内核自身计数器
+  （netstat：DHCP 已服务、ARP 已解析、ICMP 4/4、TCP 正常、一个明文
+  HTTP 下载已保存）加一次真实 TLS 1.2 会话证明了相反结论。真实缺陷：
+  (1) 一次性 TLS 测试服务器死于内核 TLS1.3 优先的 hello（RFC 7507
+  回退重连撞上已死监听者）；(2) `-serial mon:stdio` 台架通道在本沙箱
+  可测地饿死 QEMU 主循环（unix-socket 串口下同一 ISO ping 4/4）；
+  (3) 陈旧提示符匹配把下一条命令射进仍在执行的命令里，暴露出
+  (4) 真实内核缺陷：COM1 RX 边沿丢失窗口（8259 边沿触发下 16550
+  电平保持的 INTR 可把粘贴的长命令行永远滞留 FIFO）——已用 10 ms
+  tick 兜底 RX 轮询修复。HTTPS E2E 现在 8/8；SSH E2E 出站场景通过
+  （ssh-auth + ssh-exec）。
+- 余留（诚实边界）：SSH 入站场景（宿主 paramiko 客户端 -> 客内 sshd
+  经 hostfwd）仍存在时序相关的滞留——已有完整 pcap、滞留连接
+  monitor 转储（rtx_len==0、窗口开放、ESTABLISHED、客侧 KEXINIT
+  从未上线）与新增 netstat TX-errors 计数器（为零——驱动从未见失败
+  帧）证据。已落防线：超队列 ACK 不再静默丢弃发送队列，net_poll
+  为已接受未发送数据加了每轮冲刷助推。
+- 证据：evidence/wp-severe-fix-and-closure/b-k09-e2e-network.md。
+
+## K-10（WP-compat-and-security-hardening）：已在 WP-severe-fix-and-closure
+关闭——单字符 '!' 之死是入口后放错了 PE
+
+- 已关闭：全部三个 UEFI 场景（shell/shutdown/reboot）转绿——OCIRE
+  测试组 14/14，为该测试组存在以来首次（七个 UEFI 场景全绿：
+  shell:help/unknown/backspace、shutdown:notice/qemu-exit、
+  reboot:notice/qemu-exit）。
+- 根因：每个 UEFI 场景都在 OVMF 分发之后随即死亡，串口线上只有单个
+  '!'——那是 OCBL `ocbl_raw_entry` 的 ABI 违例标记（handoff 魔数比对
+  失败），因为 `tools/build_ocire_iso.sh` 把 `build/ocbl/ocbl_x64.efi`
+  （入口 RVA 是 post-EBS 裸入口，期待 RCX=handoff /
+  RDX=OCR_UEFI_HANDOFF_MAGIC）直接当作 BOOTX64.EFI 摆放——OVMF 的
+  StartImage 以 EFI ABI（RCX=镜像句柄、RDX=系统表）到达，轨道在入口
+  即死。主 ISO 从无此问题（其 BOOTX64.EFI 是 OCRMECL PE）；恢复盘
+  ISO 还停留在 pre-OCRMECL 布局。
+- 修复：恢复盘 ISO 现在摆放主 ISO 的链条（BOOTX64.EFI =
+  ocrmecl_x64.efi、/OCBL.EFI = ocbl_x64.efi、El Torito = OCRMECL
+  复合镜像）；G13 封印不变。
+- 旧结论"UEFI 引导路径需要独立工作包"是错的——它需要的只是入口后
+  放对 PE。
+- 证据：evidence/wp-severe-fix-and-closure/b-k10-ocire-uefi.md +
+  build/ocire/test-*.log。

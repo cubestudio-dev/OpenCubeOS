@@ -85,7 +85,9 @@ CHECKS = [
     # probe).
     ("command count >= 292",     "help -a", None),   # dynamic (see main)
     # The release banner is the Makefile literal OC_RELEASE_VERSION.
-    ("uname current tree",       "uname -a", r"Open Cube OS 3\.0\.0|Open Cube OS 1\.0\.0|WP-10-|WP-11-crash_recovery|WP-12-watchdog_logging|WP-13-build_system|WP-14-docs_release"),
+    # (Bump with every release: 3.0.0-WP-compat-and-security-hardening,
+    # 3.0.1-WP-severe-fix-and-closure, ...)
+    ("uname current tree",       "uname -a", r"Open Cube OS 3\.0\.[01]|Open Cube OS 1\.0\.0|WP-10-|WP-11-crash_recovery|WP-12-watchdog_logging|WP-13-build_system|WP-14-docs_release"),
     # WP-fix-critical-security: patterns re-based on the REAL success
     # markers of each program (the old name-bearing patterns were
     # satisfied by the command echo itself - always-true).

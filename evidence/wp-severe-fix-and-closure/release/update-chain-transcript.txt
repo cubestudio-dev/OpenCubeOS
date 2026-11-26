@@ -1,0 +1,106 @@
+BOOT_SLOT=A
+[?25lGNU GRUB  version 2.12-9+deb13u4
+
++----------------------------------------------------------------------------+||||||||||||||||||||||||+----------------------------------------------------------------------------+     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                            *Open Cube OS (slot A)                                                       Open Cube OS (slot A, force)                                                Open Cube OS (slot B, force)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               The highlighted entry will be executed automatically in 5s.                    The highlighted entry will be executed automatically in 4s.                    The highlighted entry will be executed automatically in 3s.                    The highlighted entry will be executed automatically in 2s.                    The highlighted entry will be executed automatically in 1s.                    The highlighted entry will be executed automatically in 0s.                 [?25h  Booting `Open Cube OS (slot A)'
+
+
+[oc] Open Cube OS 3.0.1-WP-severe-fix-and-closure kmain entered
+[ocst] boot-state monitor: state area 0x98000, watchdog absent - stage recording only, no hardware reset enforcement
+[ocst] stage 1/6: KM_AIN_ENTERED (budget 10s)
+[ocst] stage 2/6: SCHED_READY (budget 10s)
+[ocst] stage 3/6: DRIVERS_READY (budget 10s)
+[ocst] stage 4/6: SERVICES_READY (budget 10s)
+[ocst] stage 6/6: L1_READY (budget 15s)
+[perf] ata_dma: port_io=1108 polls=1108 xfers=554 retries=0 drops=0 wait_ms=0
+[ocst] L1 isolation verified: no user mapping covers the state pages (live CR3 walk)
+
+Open Cube OS User-space Shell (3.0.1-WP-severe-fix-and-closure)
+Type 'help' for built-in commands.
+
+ush> dhcp
+Sending DHCP discover...
+DHCP DISCOVER hex:
+  00: 01 01 06 00 12 34 56 78 00 00 80 00 00 00 00 00 
+  10: 00 00 00 00 00 00 00 00 00 00 00 00 52 54 00 12 
+  20: 34 56 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+  30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+DHCP success: IP=10.0.2.15
+  mask=255.255.255.0
+  gateway=10.0.2.2
+  DNS=10.0.2.3
+ush> config set update_url http://10.0.2.2:8008/update.json
+config: saved
+ush> update --status
+update: current version: 3.0.1-WP-severe-fix-and-closure
+update: current boot: A
+update: next boot: A
+update: available: unknown (run update or checkupdate)
+update: online update: enabled
+update: A/B disk: present
+ush> update
+
+===== OpenCubeOS OTA update wizard =====
+Press ENTER to start the checks...
+
+[1/5] Step 1/5: checking network
+[OK] Network is up.
+
+[2/5] Step 2/5: checking the A/B update disk
+[OK] A/B disk is present.
+
+[3/5] Step 3/5: resolving the update server
+Resolved 10.0.2.2:8008 -> 10.0.2.2 (literal)
+[OK] Update server resolved.
+
+[4/5] Step 4/5: checking for updates
+checkupdate: reading /etc/opencube.conf
+New version available.
+Version: 3.0.1-WP-severe-fix-test
+Time: 2026-11-26
+Changes: WP-severe-fix-and-closure full-chain test payload
+
+[5/5] Step 5/5: installing the update
+Download and install the new version now? (y/N) y
+update: checking...
+update: 3.0.1-WP-severe-fix-test available
+update: downloading... (1386 KB)
+update: verifying SHA256... OK
+update: extracting to B partition... OK
+update: setting boot to B... OK
+update: reboot required
+[OK] Update installed.
+Reboot into the new version now? (y/N) y
+[ocst] clean-reboot marker recorded
+BOOT_SLOT=B
+[?25lGNU GRUB  version 2.12-9+deb13u4
+
++----------------------------------------------------------------------------+||||||||||||||||||||||||+----------------------------------------------------------------------------+     Use the ^ and v keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line.                            *Open Cube OS (slot B)                                                       Open Cube OS (slot A, force)                                                Open Cube OS (slot B, force)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               The highlighted entry will be executed automatically in 5s.                    The highlighted entry will be executed automatically in 4s.                    The highlighted entry will be executed automatically in 3s.                    The highlighted entry will be executed automatically in 2s.                    The highlighted entry will be executed automatically in 1s.                    The highlighted entry will be executed automatically in 0s.                 [?25h  Booting `Open Cube OS (slot B)'
+
+
+[oc] Open Cube OS 3.0.1-WP-severe-fix-test kmain entered
+[ocst] boot-state monitor: state area 0x98000, watchdog absent - stage recording only, no hardware reset enforcement
+[ocst] stage 1/6: KM_AIN_ENTERED (budget 10s)
+[ocst] stage 2/6: SCHED_READY (budget 10s)
+[ocst] stage 3/6: DRIVERS_READY (budget 10s)
+[ocst] stage 4/6: SERVICES_READY (budget 10s)
+[ocst] stage 6/6: L1_READY (budget 15s)
+[perf] ata_dma: port_io=40543 polls=40543 xfers=618 retries=1 drops=0 wait_ms=1000
+[ocst] L1 isolation verified: no user mapping covers the state pages (live CR3 walk)
+
+Open Cube OS User-space Shell (3.0.1-WP-severe-fix-test)
+Type 'help' for built-in commands.
+
+ush> uname -r
+3.0.1-WP-severe-fix-test
+ush> update --status
+update: current version: 3.0.1-WP-severe-fix-and-closure
+update: current boot: B
+update: next boot: B
+update: available: unknown (run update or checkupdate)
+update: online update: enabled
+update: A/B disk: present
+ush> 

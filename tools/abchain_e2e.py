@@ -9,7 +9,7 @@ The spec: "从 L1 update 程序 → 网络下载 OTA → A/B 槽位识别 → �
 The chain, every link proven on the serial transcript:
 
   [1] the A/B disk boots through GRUB -> slot A (BOOT_SLOT=A, the
-      3.0.0-WP-compat-and-security-hardening banner)
+      current tree kernel's banner)
   [2] dhcp brings the NIC up (slirp 10.0.2.15)
   [3] config set update_url http://10.0.2.2:8008/update.json
   [4] update --status prints the A/B state (current boot: A / next boot: A /
@@ -24,8 +24,8 @@ The chain, every link proven on the serial transcript:
         5/5 confirmed install: package download (Content-Length enforced),
             SHA256 verified, extract to the B partition, set boot to B,
             "reboot required", then a confirmed reboot
-  [6] the reboot boots slot B: BOOT_SLOT=B, the 3.0.1-WP-severe-fix-test
-      banner (the package kernel - proves the flash landed), uname -r, and
+  [6] the reboot boots slot B: BOOT_SLOT=B, the TEST_VERSION package
+      kernel banner (proves the flash landed), uname -r, and
       update --status shows current boot: B / next boot: B (confirm_boot
       promoted B to the confirmed default)
   [7] host-side byte proof: the B partition's /boot/opencube.elf extracted
@@ -67,7 +67,15 @@ SEED_KERNEL = "/tmp/abchain-seed-kernel.elf"
 PKG_KERNEL = "/tmp/abchain-pkg-kernel.elf"
 PORT = 8008
 TEST_VERSION = "3.0.1-WP-severe-fix-test"
-SEED_VERSION = "3.0.0-WP-compat-and-security-hardening"
+
+
+def kernel_banner(path):
+    """The 'Open Cube OS <version> kmain entered' string from a kernel
+    ELF (the banner the B-slot boot proves the flash with)."""
+    r = subprocess.run(
+        f"strings {path} | grep -m1 'Open Cube OS .* kmain entered'",
+        shell=True, capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
 
 
 def die(msg):
@@ -88,22 +96,34 @@ def run(cmd, **kw):
 # ------------------------------------------------------------------ #
 
 def prepare_assets():
-    # A. the 3.0.1 test kernel (the package payload)
+    # B. the test package from the TEST_VERSION kernel (a different
+    # banner than the tree kernel - asserted in prepare, so the B-slot
+    # uname and the byte-proof stay discriminating)
     run(f"make OC_RELEASE_VERSION={TEST_VERSION} OC_KERNEL_BUILD=999 kernel")
     shutil.copyfile(f"{ROOT}/build/opencube.elf", PKG_KERNEL)
 
-    # B. the test package from the 3.0.1 kernel
     run(f"bash tools/make_update_pkg.sh WP-severe-fix build/opencube.elf "
         f"{PKG}")
 
     # C. restore the current-tree kernel (the slot-A seed)
     run("make kernel")
     shutil.copyfile(f"{ROOT}/build/opencube.elf", SEED_KERNEL)
-    ident = subprocess.run(
-        f"strings {SEED_KERNEL} | grep -m1 'Open Cube OS {SEED_VERSION}'",
-        shell=True, capture_output=True, text=True)
-    if ident.returncode != 0:
-        die("slot-A seed kernel does not carry the 3.0.0 banner")
+    seed_banner = kernel_banner(SEED_KERNEL)
+    pkg_banner = kernel_banner(PKG_KERNEL)
+    # the seed must be a real tree kernel (a banner exists) and must be
+    # DISTINGUISHABLE from the package kernel - the whole byte-proof and
+    # the B-slot uname check rest on the two banners being different
+    # (the tree version moves with every release; the TEST_VERSION
+    # literal above is the one that must never collide with it).
+    if not seed_banner:
+        die("slot-A seed kernel carries no 'Open Cube OS ... kmain entered' "
+            "banner")
+    if seed_banner == pkg_banner:
+        die(f"the tree kernel and the test package kernel carry the SAME "
+            f"banner ({seed_banner}) - bump TEST_VERSION so the B-slot "
+            f"boot proves the flash")
+    print(f"[chain] seed banner : {seed_banner}", flush=True)
+    print(f"[chain] pkg banner  : {pkg_banner}", flush=True)
 
     # D. the GRUB self-booting A/B disk (slot A seeded with 3.0.0)
     run(f"bash tools/make_ab_disk.sh {SEED_KERNEL}")
@@ -256,8 +276,9 @@ def verify_flash():
     # p3 @395264 (128M), p4 @657408 (128M)
     checks = []
     for part, start, label, expect in (
-            (2, 133120, "the slot-A kernel (seed 3.0.0)", SEED_KERNEL),
-            (3, 395264, "the slot-B kernel (the flashed package)", PKG_KERNEL)):
+            (2, 133120, "the slot-A kernel (the tree seed)", SEED_KERNEL),
+            (3, 395264, "the slot-B kernel (the flashed package)",
+             PKG_KERNEL)):
         pimg = f"/tmp/abchain-p{part}.img"
         pull_partition(ABDISK, part, start, 262144, pimg)
         kfile = f"/tmp/abchain-p{part}-opencube.elf"
@@ -391,19 +412,20 @@ def main():
                          "the reboot offer")
     sock.send("y")
 
-    # [6] the slot-B boot: BOOT_SLOT=B + the 3.0.1 package banner
+    # [6] the slot-B boot: BOOT_SLOT=B + the TEST_VERSION package banner
     ok_b = sock.wait_for(b"BOOT_SLOT=B", 240, "GRUB selects slot B")
     ok_b = ok_b and sock.wait_for(
         f"Open Cube OS {TEST_VERSION} kmain entered".encode(), 240,
         "the package kernel boots (the flash landed)")
-    ok_b = ok_b and sock.wait_for(b"ush>", 240, "slot-B prompt")
-    ok.append(("reboot boots slot B (BOOT_SLOT=B, 3.0.1 banner)", ok_b))
+    ok_b = ok_b and sock.wait_for(b"ush>", 240, "the slot-B prompt")
+    ok.append(("reboot boots slot B (BOOT_SLOT=B, the package banner)",
+               ok_b))
     if not ok_b:
         return finish(child, sock, out, ok, srv)
 
-    ok.append(("uname -r on slot B (3.0.1 package version)", sock.cmd(
+    ok.append(("uname -r on slot B (the package kernel version)", sock.cmd(
         "uname -r", 60) and
-        sock.was_seen(TEST_VERSION.encode(), "uname -r 3.0.1")))
+        sock.was_seen(TEST_VERSION.encode(), "uname -r " + TEST_VERSION)))
     ok.append(("update --status on slot B (current B, confirmed)", sock.cmd(
         "update --status", 60) and
         sock.was_seen(b"current boot: B", "current boot: B") and

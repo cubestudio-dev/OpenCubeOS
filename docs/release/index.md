@@ -16,7 +16,8 @@
 
 ## Release notes
 
-- [3.0.0-WP-boot-stack-vmware-and-nak-rebase](3.0.0-WP-boot-stack-vmware-and-nak-rebase.md)（最新）
+- [3.0.1-WP-severe-fix-and-closure](3.0.1-WP-severe-fix-and-closure.md)（最新）
+- [3.0.0-WP-boot-stack-vmware-and-nak-rebase](3.0.0-WP-boot-stack-vmware-and-nak-rebase.md)
 - [3.0.0-WP-runtime-hardening-and-experience-rebase](3.0.0-WP-runtime-hardening-and-experience-rebase.md)
 - [3.0.0-WP-tui-input-encoding-hardening](3.0.0-WP-tui-input-encoding-hardening.md) - the TUI input and
   encoding hardening: the OCIRE space fix, the cross-write UTF-8

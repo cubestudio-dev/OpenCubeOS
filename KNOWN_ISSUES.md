@@ -242,27 +242,42 @@ services are live
   the firmware event system while the countdown runs.  Out of this
   package's scope; registered here.
 
-## K-07 UEFI 轨不再扫描非引导磁盘（WP-runtime-hardening）
+## K-07 (WP-runtime-hardening): the UEFI track no longer scans non-boot disks
 
-OCRMECL 的 post-EBS 架构下，OCBL 的唯一磁盘后端是引导介质的 RAM 副本：多盘扫描、
-A/B 槽位引导与外部 loader 链式加载在 UEFI 轨不可用（BIOS 轨不受影响）。修复方向：
-在 OCRMECL 中增加磁盘驱动（AHCI/NVMe/virtio），属后续工作包。
+Under the OCRMECL post-EBS architecture, OCBL's only disk backend is the
+RAM copy of the boot medium: multi-disk scanning, A/B slot boot, and
+external loader chaining are unavailable on the UEFI track (the BIOS
+track is unaffected).  The fix direction - a disk driver (AHCI/NVMe/
+virtio) in OCRMECL - belongs to a future work package.
 
-## K-08 (WP-compat-and-security-hardening): the ush banner's uname fetch occasionally loses a race
+## K-08 (WP-compat-and-security-hardening): CLOSED by construction in WP-severe-fix-and-closure - the banner race was the pid-registration window
 
-- Observed: the first-boot banner sometimes shows "(run 'uname -r'
-  for the version)" instead of the fetched release string.  The
-  standalone `uname` app and `uname -r` command always answer
-  correctly; only the in-banner `sys_l1svc(L1SVC_DISP_UNAME)` fetch
-  is affected, non-deterministically (same ISO: one boot fetches, the
-  next does not).
-- Analysis: the fetch rides the kcap console-capture around the
-  splash handoff window; with the RTC tick at 1024 Hz the preemption
-  windows multiplied tenfold and the capture occasionally lands
-  empty.  The honest fallback text (B9) replaced the frozen stale
-  version literal this package found there.
-- Workaround: `uname -r` (authoritative, always correct); the banner
-  fallback text now says exactly that.
+- CLOSED: root-caused and fixed with a three-layer defense; 20/20
+  consecutive boots with the real release string in the banner,
+  `uname -r` exact, `uname -a` full, zero panics (the acceptance
+  battery ran on default-splash boots - the race's home turf).
+- Root cause (live-caught with the monitor hunter + a 2.7 GB
+  interrupt trace): `l1_launcher_boot_default()` registered
+  `g_l1_entry_pid` only AFTER `user_process_create()` returned and
+  `boot_state_advance()` printed, while the launcher kthread was
+  already READY - a timer preemption in that window ran ush to its
+  first syscall before the pid existed, the L1_READY one-shot failed
+  its pid compare, `boot_splash_finish()` never ran, and the
+  still-installed splash hook (suppress console) swallowed the
+  whole banner + first prompt while ush sat healthy in its getch
+  spin-wait.
+- Fix layers: (1) the root - create + register inside ONE
+  interrupts-off window (the timer IRQ is the only preemption
+  source on this single-CPU design), and the failed-start path now
+  tears the splash down; (2) the second line - while
+  `g_l1_entry_pid==0` the first syscall from ANY pid triggers the
+  one-shot (the default entry is the only ring-3 process at boot);
+  (3) the symptom layer - the uname op (L1SVC_DISP_UNAME) is a pure
+  buffer fill like LANG_GET (byte-identical shapes, no kcap console
+  capture in the banner path; interactive `uname`/`-r`/`-a` are
+  unchanged).
+- Evidence: evidence/wp-severe-fix-and-closure/b-k08-uname-race.md
+  + the hunt transcripts.
 
 ## K-09 (WP-severe-fix-and-closure): CLOSED as misdiagnosed - the network stack was healthy; the harness was not.  One residual inbound-SSH boundary remains.
 
@@ -296,15 +311,26 @@ A/B 槽位引导与外部 loader 链式加载在 UEFI 轨不可用（BIOS 轨不
 - Workaround: outbound SSH (the kernel ssh client) is fully green;
   the inbound sshd path is the single remaining item.
 
-## K-10 (WP-compat-and-security-hardening): the OCIRE test battery's UEFI tracks time out
+## K-10 (WP-compat-and-security-hardening): CLOSED in WP-severe-fix-and-closure - the single-'!' death was the wrong PE behind the entry
 
-- Observed: `tools/run_ocire_tests.py` 7/10 - the three UEFI-track
-  cases (shell/shutdown/reboot) stop right after the OVMF boot
-  dispatch, before the OCRMECL EFI banner.  The BIOS tracks pass.
-- This battery was not part of the previous release's acceptance
-  surface (no OCIRE battery evidence exists for the boot-stack
-  release); the UEFI-track hang predates this package (the OCIRE
-  UEFI chain boots through the pre-B3 OCRMECL EFI build that this
-  package deliberately did not rebuild).
-- Workaround: BIOS-track coverage is green; the OCIRE UEFI boot path
-  needs its own work package.
+- CLOSED: all three UEFI scenes (shell/shutdown/reboot) green - the
+  OCIRE battery 14/14 for the first time since it existed (all seven
+  UEFI scenes: shell:help/unknown/backspace,
+  shutdown:notice/qemu-exit, reboot:notice/qemu-exit).
+- Root cause: every UEFI scene died right after the OVMF dispatch
+  with a single '!' on the serial line - OCBL's ABI-violation marker
+  in `ocbl_raw_entry` (the handoff magic check failed), because
+  `tools/build_ocire_iso.sh` staged `build/ocbl/ocbl_x64.efi` (whose
+  entry RVA is the POST-EBS raw entry expecting RCX=handoff /
+  RDX=OCR_UEFI_HANDOFF_MAGIC) directly as BOOTX64.EFI - OVMF's
+  StartImage arrived with the EFI ABI (RCX=image handle, RDX=system
+  table) and the track died on entry.  The main ISO never had this
+  (its BOOTX64.EFI is the OCRMECL PE); the recovery ISO was still
+  staging the pre-OCRMECL layout.
+- Fix: the recovery ISO stages the main ISO's chain now (BOOTX64.EFI
+  = ocrmecl_x64.efi, /OCBL.EFI = ocbl_x64.efi, El Torito = the
+  OCRMECL composite); G13 seals unchanged.
+- The old "the UEFI boot path needs its own work package" verdict
+  was wrong - it needed the right PE behind the entry.
+- Evidence: evidence/wp-severe-fix-and-closure/b-k10-ocire-uefi.md +
+  build/ocire/test-*.log.

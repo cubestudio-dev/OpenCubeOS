@@ -200,6 +200,17 @@ void boot_splash_set_stage(int stage) {
 }
 
 void boot_splash_finish(void) {
+    /* K-08 regression fix (WP-severe-fix-and-closure): a NO-SPLASH boot
+     * (oc.splash=0, the /NOSPLASH.TXT diagnostics switch) must not
+     * touch the console hook chain here.  boot_splash_begin() returned
+     * before saving g_hook_saved, so the restore below would install
+     * the zero-initialized {NULL, NULL} pair - wiping the kcap -> serial
+     * tee chain and killing the serial transcript for the whole
+     * session (live-caught by the 31/31 gate on the diagnostic ISO:
+     * the boot ran to "L1 isolation verified" and ush's banner + first
+     * prompt vanished - ush itself healthy behind a dead console).
+     * The splash is only ours to finish when it was ours to begin. */
+    if (!g_splash_on) return;
     /* 100% + the handoff caption, then release the screen: the caller
      * runs AFTER the L1 launcher's own prints and BEFORE ush draws its
      * prompt (the L1_READY one-shot point). */

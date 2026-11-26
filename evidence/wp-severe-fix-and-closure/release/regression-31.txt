@@ -1,0 +1,957 @@
+OCRMECL stage1 ok
+OCRMECL core: flatten start
+OCRMECL: A20 on
+OCRMECL: gdt+idt(256 gates) at 0x1000/0x2000
+OCRMECL: 8259A remapped+masked
+OCRMECL: IOAPIC masked (24 rte)
+OCRMECL: leftovers flattened (eoi ps2 dma)
+OCRMECL: moving OCBL 45568 bytes -> 0x7C00, handing off
+OCBL stage1 ok
+
+OCBL 3.0.0 boot loader (3.0.0-WP-compat-and-security-hardening build 525)
+long mode 64-bit C entry OK
+flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
+cpu: QEMU Virtual CPU version 2.5+
+stack at 0x0008D480
+OCBL B1 chain verified
+[b2a] trampoline installed at 0x40000
+[b2a] E820 entries: 7
+  [0] base=0x00000000 len=0x0009FC00 type=1
+  [1] base=0x0009FC00 len=0x00000400 type=2
+  [2] base=0x000F0000 len=0x00010000 type=2
+  [3] base=0x00100000 len=0x1FEE0000 type=1
+  [4] base=0x1FFE0000 len=0x00020000 type=2
+  [5] base=0xFFFC0000 len=0x00040000 type=2
+  [6] base=0x00000000 len=0x00000000 type=2
+[b2a] scanning BIOS drives (boot=0xE0)
+  cdrom 0xE0: 18446744073709551615 sectors x 2048 B
+  PVD: 'CD001' type=1
+  boot image first bytes: EB 3C 90 4D 54 4F 4F 34
+[state] fresh boot - state area initialized
+[state] boot attempt seq 1
+[scan] entries: 2
+  [0] OCOS: Open Cube OS (cd0)  path=/boot/opencube.elf size=2227856
+  [1] OCIRE: OCIRE recovery (cd0)  path=/boot/ocire.elf size=388328
+[0;1HOpen Cube OS Boot Loader (3.0.0-WP-compat-and-security-hardening build 525)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOpen Cube OS (cd0)[0m[5;1HOCIRE recovery (cd0)[6;1HShutdown[2;1HBooting Open Cube OS (cd0) in 10s                                             [2;1HBooting Open Cube OS (cd0) in 9s                                              [2;1HBooting Open Cube OS (cd0) in 8s                                              [2;1HBooting Open Cube OS (cd0) in 7s                                              [2;1HBooting Open Cube OS (cd0) in 6s                                              [2;1HBooting Open Cube OS (cd0) in 5s                                              [2;1HBooting Open Cube OS (cd0) in 4s                                              [2;1HBooting Open Cube OS (cd0) in 3s                                              [2;1HBooting Open Cube OS (cd0) in 2s                                              [2;1HBooting Open Cube OS (cd0) in 1s                                              [menu] poll iterations: 118
+[menu] selected: Open Cube OS (cd0)
+[menu] B4 will load this payload (mb2 handoff)
+[state] /NOSPLASH.TXT diagnostic hook: oc.splash=0
+[boot] VBE 800x600x32 ok
+[boot] kernel loaded: entry=0x001EAD80 size=2227856
+[boot] mbi built: 416 bytes at 0x50000
+[state] payload armed: NO 6300ESB watchdog - detection degrades to the next reset
+
+[oc] Open Cube OS 3.0.1-WP-severe-fix-and-closure kmain entered
+[ocst] boot-state monitor: state area 0x98000, watchdog absent - stage recording only, no hardware reset enforcement
+[ocst] stage 1/6: KM_AIN_ENTERED (budget 10s)
+[00:00:00.000] boot chain 1/4: kernel core mechanisms............ OK
+  Open Cube OS  [3.0.1-WP-severe-fix-and-closure]    Open Cube OS - L0 kernel (3.0.1-WP-severe-fix-and-closure)
+    Apache 2.0 licensed. See LICENSE.
+
+[00:00:00.000] multiboot2 handshake.............................. OK
+[00:00:00.000] long mode entry................................... OK
+[00:00:00.000] framebuffer 800x600x32............................ OK
+    fb: addr=0x0000fd000000 pitch=3200 mask=R8G8B8
+[00:00:00.000] console grid...................................... OK
+[00:00:00.000] default 8x16 font engine.......................... OK
+[00:00:00.000] WP-01 ext: fb access / renderer / font / console hook. OK
+[00:00:00.000] IDT + GDT + TSS (256 gates)....................... OK
+[00:00:00.000] 8259 PIC remap (IRQ0-15 -> vec 32-47)............. OK
+[00:00:00.000] system tick: rtc (RTC 1024 Hz).................... OK
+[00:00:00.031] TSC calibrated @ 3068 MHz (rtc) - I/O waits are wall-clock bounded
+. OK
+[00:00:00.032] PS/2 keyboard (scancode set 1 -> ASCII)........... OK
+[00:00:00.032] COM1 serial RX -> keyboard queue.................. OK
+[00:00:00.033] console input line editor......................... OK
+[00:00:00.033] interrupts enabled (sti).......................... OK
+@    WP-01 ext self-test: 4/4 points reachable
+[00:00:00.034] WP-01 extension self-test......................... OK
+    exception self-test: 3/3 (#DE/#UD/#PF) caught, kernel alive
+[00:00:00.035] exception self-test............................... OK
+[00:00:00.038] PMM (physical memory manager)..................... OK
+[00:00:00.038] VMM (virtual memory manager)...................... OK
+[00:00:00.040] kernel heap (kmalloc/kfree)....................... OK
+[00:00:00.041] scheduler (preemptive, priority + round-robin).... OK
+[00:00:00.042] sync primitives (spinlock/sem/mutex/cond)......... OK
+[00:00:00.043] userspace (ring 3, syscalls, ELF loader).......... OK
+    drivers: file-local OC_DRIVER_DECL collection ready
+    services: file-local OC_SERVICE_DECL collection ready
+    registry: file-local declarations collected
+    registry: drv=38 svc=19 app=1
+    drvfw: isolated vtest-cyc-b: cycle (isolated)
+    drvfw: isolated vtest-cyc-a: cycle (isolated)
+    drvfw: bind pass: bound 4 node(s), probe failures recorded: 1
+    vtest-mon: event insert vtest-ctl0 (type vtest-ctl) from vtest-bus
+    vtest-mon: event insert vtest-ctl1 (type vtest-ctl) from vtest-bus
+    drvfw: 5 metadata drivers, order: vtest-bus, vtest-ctl, vtest-fail, vtest-late, vtest-mon
+    drvfw: init ok=4 fail=0 isolated=2 (probe failures do not stop the boot)
+[00:00:00.065] ACPI: RSDP rev 0 RSDT 1ffe2335 tables 5........... OK
+[00:00:00.066] ACPI: FADT parsed (PM1a_CNT / GPE0 / SCI ready)... OK
+[00:00:00.067] ACPI: DSDT located (AML interpreter can load)..... OK
+[00:00:00.071] AML namespace (DSDT + SSDTs)...................... OK
+[00:00:00.074] ACPI power: SCI IRQ 9 PM1a_CNT 0x0604 sleep mask 0x38. OK
+[0.088] INFO  watchdog: no hardware watchdog (WDAT absent, no Intel TCO LPC)
+[0.090] INFO  watchdog: slot 0 registered: system-heartbeat 15000 ms policy 0
+[00:00:00.091] i801/PIIX4 SMBus controller....................... OK
+[00:00:00.094] SMBus: 8 device(s) at scan........................ OK
+    AML: AML: undefined name PRQ0
+    AML: AML: undefined name PRQ1
+    AML: AML: undefined name PRQ2
+    AML: AML: undefined name PRQ3
+    AML: AML: undefined name VEND
+    AML: AML: undefined name CSEL
+    AML: AML: undefined name CPEN
+[00:00:00.107] chipset layer (PCIe/MSI/I2C/SMBus/touchpad)....... OK
+[00:00:00.108] CMOS RTC (ports 0x70/0x71, VRT set)............... OK
+[00:00:00.110] HPET (ACPI table + MMIO caps)..................... OK
+[00:00:00.112] boot chain 2/4: drivers + driver-free services.... OK
+[ocst] stage 2/6: SCHED_READY (budget 10s)
+[00:00:00.114] VFS (virtual file system)......................... OK
+[vfs] mounting (no dev) -> / (ramfs)
+[vfs] mounted (no dev) -> / in 1 ms
+vfs: mounted ramfs at /
+ramfs: mounted at /
+[00:00:00.124] ramfs (in-memory file system, mounted at /)....... OK
+ata_dma: IDE controller at 00:01.1 BAR4=0xc040
+virtio-blk: no legacy PCI device found (modern-only devices not supported)
+ahci: no controller found
+nvme: no controller found
+[00:00:00.774] ATA/IDE PIO driver (LBA28)........................ OK
+[00:00:00.786] virtio-blk + AHCI + NVMe drivers.................. OK
+usb: class driver collected: btusb
+usb: class driver collected: uvc
+usb: class driver collected: usb-audio
+usb: class driver collected: hid-mouse
+usb: class driver collected: hid-kbd
+usb: class driver collected: usb-msc
+usb: class driver collected: ftdi-serial
+usb: class driver collected: cdc-acm
+[00:00:00.867] USB hosts up: 0................................... OK
+[00:00:00.869] USB stack (4 HC backends, HID/MSC/serial/audio)... OK
+[00:00:00.872] boot chain 3/4: driver-dependent services......... OK
+[ocst] stage 3/6: DRIVERS_READY (budget 10s)
+fat32: registered (read/write)
+exfat: registered (read/write)
+ext4: registered (read-only)
+[00:00:00.880] FAT32 (R/W) + exFAT (R/W) + ext4 (RO) drivers..... OK
+[vfs] mounting ata0 -> /etc (fat32)
+fat32: invalid device string
+vfs_mount: fs mount failed
+    config: created default /etc/opencube.conf (ramfs)
+[00:00:00.892] system config (/etc/opencube.conf, fat32/ramfs)... OK
+[00:00:00.896] ACPI PM timer (FADT PM_TMR_BLK)................... OK
+    abupdate: no disk with an A/B partition layout found
+[00:00:01.528] LAPIC (local APIC)................................ OK
+virtio-net: no device found
+ dev=3 func=0 cmd=0x0103
+ wrote=0x0107 after=0x0107 bus=0 dev=3 func=0
+[00:00:02.072] network stack (e1000 + TCP/IP + socket API)....... OK
+[2.074] INFO  watchdog: slot 1 registered: kernel-health 15000 ms policy 0
+[2.075] INFO  watchdog: slot 1 (kernel-health) ARMED, 15000 ms
+[2.076] INFO  health: monitor started (1 s samples, alarms: mem>90% tasks>64 cpu>=90%x10s)
+[00:00:02.077] health monitor (cpu/mem/tasks/disk/net + alarms).. OK
+[00:00:02.247] sound: no sound card present (probe OK)........... OK
+    block devices: 0 registered
+    disk cache: 64 slots, LRU write-back
+[00:00:02.250] disk subsystem (block dev + cache + partition + FS). OK
+    pmm: 131040 pages, 128686 free
+[00:00:02.254] kmalloc/kfree self-test........................... OK
+ext_wp8cd: self-test start
+  tool_register+tool_list: PASS
+  job_list (empty): PASS (active=0)
+  job_control(invalid): PASS (correctly rejected)
+  job_control(valid action, no job): PASS (correctly rejected)
+  job_create(bad names): PASS (NULL/empty/unknown rejected)
+ext_wp8cd: self-test done
+
+[00:00:02.265] boot complete..................................... OK
+[00:00:02.266] boot chain 4/4: interfaces ready.................. OK
+[ocst] stage 4/6: SERVICES_READY (budget 10s)
+[00:00:02.267] crash recovery armed (panic + dump + crashlog).... OK
+[00:00:02.268] L0 ready, waiting for L1.......................... OK
+    l1 launcher: booting 'ush' (ring 3, 28088 bytes)
+[ocst] stage 6/6: L1_READY (budget 15s)
+[perf] ata_dma: port_io=0 polls=0 xfers=0 retries=0 drops=0 wait_ms=0
+[ocst] L1 isolation verified: no user mapping covers the state pages (live CR3 walk)
+
+Open Cube OS User-space Shell (3.0.1-WP-severe-fix-and-closure)
+Type 'help' for built-in commands.
+
+
+--- [export PAGER=off] ---
+export PAGER=off
+
+--- [uname -a] ---
+uname -a
+Open Cube OS 3.0.1-WP-severe-fix-and-closure x86_64
+
+--- [help -a] ---
+help -a
+
+Open Cube OS User-space Shell (ush) - built-in commands:
+
+cd [dir]        change directory (shell state)
+help [-a|-w]    this text; -a = full A-Z, -w = by work package
+export VAR=val  set environment variable
+alias name=val  set command alias
+unalias name    remove alias
+env             show environment variables
+set             show a variable
+history         show command history
+jobs            list background jobs
+fg [job]        bring a job to the foreground
+bg              send a job to the background
+exit            not available (use shutdown / reboot)
+
+All other commands are ring-3 apps served from the registry.
+ring-3 program registry (A-Z, 293 programs):
+  ab_partition_test  [ota]  A/B partition test
+  abcfg  [block]  A/B slot configuration
+  abdisk  [block]  A/B slot disk tool
+  ac97  [snd]  AC97 codec status
+  ac97_test  [snd]  AC97 playback test
+  acpi  [input]  ACPI table summary
+  acpidev  [input]  ACPI device tree
+  acpipow  [input]  ACPI power states
+  acpitest  [input]  ACPI parser test
+  ahci  [block]  AHCI controller status
+  ahci_test  [block]  AHCI port test
+  arp  [net]  ARP table
+  ata  [block]  ATA/IDE status
+  ata_dma_test  [block]  ATA DMA test
+  audio_rw_test  [snd]  audio read/write test
+  awk  [ush]  pattern scanning and processing
+  badapp  [l1]  intentionally misbehaving app
+  bcm57xx  [nic]  BCM57xx NIC status
+  bcm57xx_test  [nic]  BCM57xx driver test
+  bt  [nic]  bluetooth status
+  cat  [fs]  print file contents
+  checkupdate  [ota]  check for OTA updates
+  checkupdate_test  [ota]  OTA check test
+  chinese  [display]  CJK console demo
+  chinesetest  [display]  CJK font/encoding test battery
+  chmod  [ush]  change file permissions
+  chown  [ush]  change file owner
+  clear  [display]  clear the screen
+  config  [ota]  read/write system config
+  config_test  [ota]  config backend test
+  cp  [fs]  copy files
+  cr3test  [core]  CR3 register audit
+  crashlog  [core]  crash dump records
+  crashtest  [recovery]  crash handling test triggers
+  cryptotest  [crypto]  crypto primitives test
+  date  [ush]  show date/time from the RTC
+  dev  [diag]  device tree diagnostics (umbrella command)
+  dev_debug  [diag]  toggle device-tree debug logging (debug)
+  dev_help  [diag]  dev command usage
+  dev_info  [diag]  show one device node in detail
+  dev_list  [diag]  list device nodes by type
+  dev_tree  [diag]  print the device tree
+  df  [fs]  report filesystem free space
+  dhcp  [net]  DHCP lease status/renew
+  dhtest  [crypto]  Diffie-Hellman test
+  disk-tool  [mega]  disk / filesystem wizard (no args) or verbatim block+fs ops
+  disk_rw_test  [block]  disk read/write test
+  dlsym_test  [l1]  dlsym resolution test
+  dmesg  [watchdog]  show the kernel log
+  dns  [net]  resolve a hostname
+  dnstest  [net]  DNS resolver test
+  drv  [diag]  driver framework diagnostics (umbrella command)
+  drv_bind  [diag]  manually bind a driver to a node (debug)
+  drv_debug  [diag]  toggle driver-framework debug logging (debug)
+  drv_failed  [diag]  list probe/init failures
+  drv_help  [diag]  drv command usage
+  drv_info  [diag]  show one driver in detail
+  drv_list  [diag]  list registered drivers
+  drv_order  [diag]  show the deterministic init order
+  drv_reload  [diag]  re-init and re-probe a driver (debug)
+  drv_unbind  [diag]  manually unbind a driver (debug)
+  dskstat  [block]  disk I/O statistics
+  du  [fs]  report file space usage
+  dumpinfo  [recovery]  core dump status
+  dyn_hello  [l1]  PIE hello demo
+  e1000e  [nic]  e1000e NIC status
+  e1000e_test  [nic]  e1000e driver test
+  echo  [recovery]  print the arguments
+  edit  [fs]  the classic line editor face
+  encoding  [display]  console encoding status/set
+  encoding-test  [display]  encoding codec test
+  es1370  [snd]  ES1370 codec status
+  es1370_test  [snd]  ES1370 playback test
+  exc  [input]  exception report status
+  exec_test  [l1]  execve replacement test
+  fatmount  [fs]  mount a FAT32 volume
+  fatstat  [fs]  FAT32 volume statistics
+  fdref_test  [l1]  fd refcount test
+  files  [mega]  file manager wizard (no args) or direct program dispatch (ls/cp/mv/rm/edit/...)
+  firewall  [net]  packet filter rules
+  font  [display]  font engine status
+  font-test  [display]  font renderer test
+  fork_test  [l1]  fork/exit bookkeeping test
+  frag  [core]  PMM fragment report
+  free  [ush]  memory usage summary
+  fs_mount_test  [block]  filesystem mount test
+  fsck  [block]  check a filesystem
+  fstest  [fs]  VFS stress test
+  g6_exec_a  [l1]  G6 exec stage A
+  g6_exec_b  [l1]  G6 exec stage B
+  g6_oom  [l1]  G6 OOM path test
+  g6_test  [l1]  G6 process group test
+  g7mmap  [l1]  G7 mmap test
+  gameport  [camera]  game port status
+  gameporttest  [camera]  game port test
+  grep  [fs]  search text in files
+  grub-install  [block]  install the OCBL boot chain
+  halt  [power]  halt the machine
+  halt_test  [power]  halt path test
+  hda  [snd]  HD Audio codec status
+  hda_test  [snd]  HD Audio playback test
+  head  [ush]  show the first lines of a file
+  health  [watchdog]  system health snapshot/watch
+  heap  [core]  kernel heap statistics
+  heapbounds  [core]  heap boundary check
+  heaptest  [core]  heap stress test
+  hello  [l1]  hello world
+  help  [recovery]  show shell built-ins and the program registry
+  help_a_test  [recovery]  registry A-Z listing invariant test
+  help_default_test  [recovery]  registry default listing test
+  help_wp_test  [recovery]  registry work-package grouping test
+  hpet  [time]  HPET timer status
+  hwinfo  [mega]  hardware inventory wizard (no args) or verbatim info ops
+  i2cdetect  [input]  scan the I2C bus
+  i2cget  [input]  read an I2C register
+  i2cset  [input]  write an I2C register
+  i2ctest  [input]  I2C bus test
+  ifconfig  [net]  network interface status
+  igb  [nic]  igb NIC status
+  igb_test  [nic]  igb driver test
+  ime  [display]  the pinyin IME (-i interactive)
+  ime-test  [display]  IME engine + session battery
+  install  [block]  install Open Cube OS to a disk
+  int3_user  [l1]  ring-3 int3 trap test
+  ip  [net]  IP address configuration
+  ir  [camera]  infrared receiver status
+  irqabitest  [core]  IRQ affinity test
+  irtest  [camera]  IR receiver test
+  ixgbe  [nic]  ixgbe NIC status
+  ixgbe_test  [nic]  ixgbe driver test
+  kill  [core]  terminate a process
+  l1test  [l1]  L1 job/IPC/dynamic-link self-test
+  lang  [display]  show/set the console language (en/zh)
+  ld_so  [l1]  the dynamic loader itself
+  ldd  [l1]  dynamic dependency lister
+  ln  [ush]  create links
+  logcat  [watchdog]  filtered kernel log stream
+  logctl  [watchdog]  kernel log level control
+  loop  [l1]  idle loop (job test target)
+  ls  [fs]  list directory contents
+  lsblk  [block]  list block devices
+  lspci  [net]  list PCI devices
+  main_dyn  [l1]  dynamic app demo
+  mem  [core]  physical memory statistics
+  memtest  [core]  memory service test battery
+  mkdir  [fs]  create a directory
+  mkfs.exfat  [block]  create an exFAT filesystem
+  mkfs.ext4  [block]  create an ext4 filesystem
+  mkfs.fat  [l1]  create a FAT filesystem (alias of mkfs.fat32)
+  mkfs.fat32  [block]  create a FAT32 filesystem
+  mmap_multi  [l1]  multi-mapping test
+  mmap_test  [l1]  mmap mapping test
+  mount  [fs]  mount a filesystem / list mounts
+  mounts  [fs]  list mounted filesystems
+  mprotect_test  [l1]  mprotect permission test
+  msitest  [input]  MSI interrupt test
+  multi  [core]  multi-core wake test
+  mv  [fs]  move/rename files
+  nano  [ush]  the nano-style editor (F2 = Chinese IME)
+  net-tool  [mega]  network wizard (no args) or verbatim net+wireless ops
+  netstat  [net]  socket/connection statistics
+  nf_test  [net]  netfilter test
+  nic_rw_test  [nic]  NIC loopback test
+  nice  [core]  priority demo
+  nvme  [block]  NVMe controller status
+  nvme_test  [block]  NVMe namespace test
+  other_nic_test  [nic]  other NIC driver test
+  p0leak  [core]  user-pointer validation fence test (P0 regression)
+  p2test  [core]  WP-fix-p2-p3-cleanup live probes (utf8 chunking / read0 / pipe)
+  p3_test  [l1]  P3 security window test
+  parallel  [camera]  parallel port status
+  paralleltest  [camera]  parallel port test
+  parted  [block]  partition table editor (view)
+  partition_test  [block]  partition scan test
+  pcibars  [input]  PCI BAR assignment check
+  pcidump  [input]  dump PCI configuration
+  pcie  [input]  PCIe link status
+  pf_test  [l1]  page-fault exit test
+  pftest  [core]  page-fault handler test
+  pie_test  [l1]  PIE load test
+  ping  [net]  ICMP echo to a host
+  pipe_test  [l1]  pipe read/write test
+  play  [snd]  play a WAV file
+  pmmrace  [core]  PMM race detector
+  pmtimer  [time]  ACPI PM timer status
+  power  [mega]  power wizard (no args) or verbatim power ops (shutdown/reboot/halt/sleep)
+  poweroff  [power]  power off (ACPI)
+  poweroff_test  [power]  poweroff path test
+  priv_test  [l1]  privilege instruction trap test
+  ps  [core]  list processes
+  pwd  [fs]  print the working directory
+  real_hw_test  [block]  real hardware disk test
+  real_update_test  [ota]  OTA real-flow test
+  reboot  [ota]  reboot the machine
+  reboot_test  [power]  reboot path test
+  reloc_test  [l1]  relocation test
+  rm  [fs]  remove files
+  rmdir  [fs]  remove an empty directory
+  rollback  [ota]  roll back to the other slot
+  route  [net]  routing table
+  rtc  [time]  CMOS RTC status
+  rtl810x  [nic]  RTL810x NIC status
+  rtl810x_test  [nic]  RTL810x driver test
+  rtl8125  [nic]  RTL8125 NIC status
+  rtl8125_test  [nic]  RTL8125 driver test
+  rtl8139  [nic]  RTL8139 NIC status
+  rtl8139_test  [nic]  RTL8139 driver test
+  rtl8168  [nic]  RTL8168 NIC status
+  rtl8168_test  [nic]  RTL8168 driver test
+  run  [core]  run a program with arguments
+  sample_rate_test  [snd]  sample rate test
+  sb16  [snd]  SoundBlaster16 status
+  sb16_test  [snd]  SB16 playback test
+  sched  [core]  scheduler statistics
+  scsi  [camera]  SCSI device scan
+  scsitest  [camera]  SCSI device test
+  sed  [ush]  stream editor
+  select_test  [l1]  select multiplexing test
+  select_zero_test  [l1]  select timeout test
+  serial-probe  [l1]  serial encoding wizard (pick the line that reads correctly)
+  serial_encoding  [display]  show/set the serial line encoding (utf8/gbk)
+  shutdown  [power]  power off the machine
+  signal_test  [l1]  signal subsystem test
+  sigsegv_test  [l1]  SIGSEGV delivery test
+  sleep  [power]  suspend for N seconds
+  smbus  [input]  SMBus status
+  smbustest  [input]  SMBus test
+  so_test  [l1]  shared library test
+  sort  [ush]  sort lines
+  sound  [snd]  audio subsystem status
+  sound-tool  [mega]  audio wizard (no args) or verbatim snd-service ops
+  spawn  [core]  background spawn demo
+  sse_test  [l1]  SSE state preservation test
+  ssh  [crypto]  SSH client
+  sshd  [crypto]  SSH server
+  stackovf  [l1]  stack overflow guard test
+  stat  [ush]  show file metadata
+  stats  [display]  display pipeline statistics
+  suspend_test  [power]  S3 suspend test
+  sync  [block]  flush block caches to disk
+  syncstat  [core]  sync primitive statistics
+  synctest  [core]  sync primitive test
+  sysdiag  [mega]  system diagnostics wizard (no args) or verbatim diag/health/log ops
+  tail  [ush]  show the last lines of a file
+  tcpcc_test  [net]  TCP congestion control test
+  tcpstats  [net]  TCP statistics
+  tcptest  [net]  TCP loopback test
+  timer  [input]  timer test
+  top  [ush]  process overview (live)
+  touch  [fs]  create an empty file / update mtime
+  touchpad  [input]  touchpad status
+  touchtest  [input]  touchpad test
+  tree  [fs]  show a directory tree
+  tsc  [time]  TSC counter status
+  umount  [fs]  unmount a filesystem
+  uname  [display]  system identification
+  uniq  [ush]  drop repeated adjacent lines
+  update  [mega]  OTA update wizard (no args) or the verbatim update op
+  update_check_test  [ota]  update check unit test
+  update_download_test  [ota]  OTA download test
+  update_install_test  [ota]  OTA install test
+  update_local_test  [ota]  OTA local-file test
+  update_pkg_test  [ota]  update package test
+  update_rollback_test  [ota]  OTA rollback test
+  update_status_test  [ota]  OTA status test
+  update_verify_test  [ota]  OTA verify test
+  usb  [usb]  USB host status
+  usb_audio_test  [snd]  USB audio test
+  usb_core_test  [usb]  USB core test
+  usb_hotplug_test  [usb]  USB hotplug test
+  usb_hub_test  [usb]  USB hub test
+  usb_kbd_test  [usb]  USB keyboard test
+  usb_mouse_test  [usb]  USB mouse test
+  usb_serial_test  [usb]  USB serial test
+  usb_storage_test  [usb]  USB mass storage test
+  usbaudio  [snd]  USB audio status
+  usbdev  [usb]  USB device detail
+  ush  [l1]  the Open Cube OS ring-3 shell (default entry)
+  uvc  [camera]  UVC camera status
+  uvctest  [camera]  UVC camera test
+  vi  [ush]  the modal vi editor (i/a/o insert, F2 = IME)
+  virtio_blk_test  [block]  virtio-blk test
+  virtio_snd_test  [snd]  virtio-snd test
+  virtiosnd  [snd]  virtio-sound status
+  vmkernelpt  [core]  kernel page-table dump
+  vmmap  [core]  address-space map dump
+  vmtest  [core]  VMM unit test
+  volume  [snd]  mixer volume control
+  watchdog  [watchdog]  watchdog control
+  wc  [ush]  count lines/words/bytes
+  wget  [net]  download a file over HTTP(S)
+  wifi  [nic]  wireless status/scan
+  write  [block]  write stdin to a file
+
+
+--- [heaptest] ---
+heaptest
+Heap overhead test (100 allocs):
+  heap_size=1126400 allocated=1052720 overhead=6304
+  requested=26542 waste=1026178 overhead%=0
+  after free: alloc=76 free=23 total_allocs=252 total_frees=176
+  PASS
+st registered drivers
+  drv_order  [diag]  show the deterministic init order
+  drv_reload  [diag]  re-init and re-probe a driver (debug)
+  drv_unbind  [diag]  manually unbind a driver (debug)
+  dskstat  [block]  disk I/O statistics
+  du  [fs]  report file space usage
+  dumpinfo  [recovery]  core dump status
+  dyn_hello  [l1]  PIE hello demo
+  e1000e  [nic]  e1000e NIC status
+  e1000e_test  [nic]  e1000e driver test
+  echo  [recovery]  print the arguments
+  edit  [fs]  the classic line editor face
+  encoding  [display]  console encoding status/set
+  encoding-test  [display]  encoding codec test
+  es1370  [snd]  ES1370 codec status
+  es1370_test  [snd]  ES1370 playback test
+  exc  [input]  exception report status
+  exec_test  [l1]  execve replacement test
+  fatmount  [fs]  mount a FAT32 volume
+  fatstat  [fs]  FAT32 volume statistics
+  fdref_test  [l1]  fd refcount test
+  files  [mega]  file manager wizard (no args) or direct program dispatch (ls/cp/mv/rm/edit/...)
+  firewall  [net]  packet filter rules
+  font  [display]  font engine status
+  font-test  [display]  font renderer test
+  fork_test  [l1]  fork/exit bookkeeping test
+  frag  [core]  PMM fragment report
+  free  [ush]  memory usage summary
+  fs_mount_test  [block]  filesystem mount test
+  fsck  [block]  check a filesystem
+  fstest  [fs]  VFS stress test
+  g6_exec_a  [l1]  G6 exec stage A
+  g6_exec_b  [l1]  G6 exec stage B
+  g6_oom  [l1]  G6 OOM path test
+  g6_test  [l1]  G6 process group test
+  g7mmap  [l1]  G7 mmap test
+  gameport  [camera]  game port status
+  gameporttest  [camera]  game port test
+  grep  [fs]  search text in files
+  grub-install  [block]  install the OCBL boot chain
+  halt  [power]  halt the machine
+  halt_test  [power]  halt path test
+  hda  [snd]  HD Audio codec status
+  hda_test  [snd]  HD Audio playback test
+  head  [ush]  show the first lines of a file
+  health  [watchdog]  system health snapshot/watch
+  heap  [core]  kernel heap statistics
+  heapbounds  [core]  heap boundary check
+  heaptest  [core]  heap stress test
+  hello  [l1]  hello world
+  help  [recovery]  show shell built-ins and the program registry
+  help_a_test  [recovery]  registry A-Z listing invariant test
+  help_default_test  [recovery]  registry default listing test
+  help_wp_test  [recovery]  registry work-package grouping test
+  hpet  [time]  HPET timer status
+  hwinfo  [mega]  hardware inventory wizard (no args) or verbatim info ops
+  i2cdetect  [input]  scan the I2C bus
+  i2cget  [input]  read an I2C register
+  i2cset  [input]  write an I2C register
+  i2ctest  [input]  I2C bus test
+  ifconfig  [net]  network interface status
+  igb  [nic]  igb NIC status
+  igb_test  [nic]  igb driver test
+  ime  [display]  the pinyin IME (-i interactive)
+  ime-test  [display]  IME engine + session battery
+  install  [block]  install Open Cube OS to a disk
+  int3_user  [l1]  ring-3 int3 trap test
+  ip  [net]  IP address configuration
+  ir  [camera]  infrared receiver status
+  irqabitest  [core]  IRQ affinity test
+  irtest  [camera]  IR receiver test
+  ixgbe  [nic]  ixgbe NIC status
+  ixgbe_test  [nic]  ixgbe driver test
+  kill  [core]  terminate a process
+  l1test  [l1]  L1 job/IPC/dynamic-link self-test
+  lang  [display]  show/set the console language (en/zh)
+  ld_so  [l1]  the dynamic loader itself
+  ldd  [l1]  dynamic dependency lister
+  ln  [ush]  create links
+  logcat  [watchdog]  filtered kernel log stream
+  logctl  [watchdog]  kernel log level control
+  loop  [l1]  idle loop (job test target)
+  ls  [fs]  list directory contents
+  lsblk  [block]  list block devices
+  lspci  [net]  list PCI devices
+  main_dyn  [l1]  dynamic app demo
+  mem  [core]  physical memory statistics
+  memtest  [core]  memory service test battery
+  mkdir  [fs]  create a directory
+  mkfs.exfat  [block]  create an exFAT filesystem
+  mkfs.ext4  [block]  create an ext4 filesystem
+  mkfs.fat  [l1]  create a FAT filesystem (alias of mkfs.fat32)
+  mkfs.fat32  [block]  create a FAT32 filesystem
+  mmap_multi  [l1]  multi-mapping test
+  mmap_test  [l1]  mmap mapping test
+  mount  [fs]  mount a filesystem / list mounts
+  mounts  [fs]  list mounted filesystems
+  mprotect_test  [l1]  mprotect permission test
+  msitest  [input]  MSI interrupt test
+  multi  [core]  multi-core wake test
+  mv  [fs]  move/rename files
+  nano  [ush]  the nano-style editor (F2 = Chinese IME)
+  net-tool  [mega]  network wizard (no args) or verbatim net+wireless ops
+  netstat  [net]  socket/connection statistics
+  nf_test  [net]  netfilter test
+  nic_rw_test  [nic]  NIC loopback test
+  nice  [core]  priority demo
+  nvme  [block]  NVMe controller status
+  nvme_test  [block]  NVMe namespace test
+  other_nic_test  [nic]  other NIC driver test
+  p0leak  [core]  user-pointer validation fence test (P0 regression)
+  p2test  [core]  WP-fix-p2-p3-cleanup live probes (utf8 chunking / read0 / pipe)
+  p3_test  [l1]  P3 security window test
+  parallel  [camera]  parallel port status
+  paralleltest  [camera]  parallel port test
+  parted  [block]  partition table editor (view)
+  partition_test  [block]  partition scan test
+  pcibars  [input]  PCI BAR assignment check
+  pcidump  [input]  dump PCI configuration
+  pcie  [input]  PCIe link status
+  pf_test  [l1]  page-fault exit test
+  pftest  [core]  page-fault handler test
+  pie_test  [l1]  PIE load test
+  ping  [net]  ICMP echo to a host
+  pipe_test  [l1]  pipe read/write test
+  play  [snd]  play a WAV file
+  pmmrace  [core]  PMM race detector
+  pmtimer  [time]  ACPI PM timer status
+  power  [mega]  power wizard (no args) or verbatim power ops (shutdown/reboot/halt/sleep)
+  poweroff  [power]  power off (ACPI)
+  poweroff_test  [power]  poweroff path test
+  priv_test  [l1]  privilege instruction trap test
+  ps  [core]  list processes
+  pwd  [fs]  print the working directory
+  real_hw_test  [block]  real hardware disk test
+  real_update_test  [ota]  OTA real-flow test
+  reboot  [ota]  reboot the machine
+  reboot_test  [power]  reboot path test
+  reloc_test  [l1]  relocation test
+  rm  [fs]  remove files
+  rmdir  [fs]  remove an empty directory
+  rollback  [ota]  roll back to the other slot
+  route  [net]  routing table
+  rtc  [time]  CMOS RTC status
+  rtl810x  [nic]  RTL810x NIC status
+  rtl810x_test  [nic]  RTL810x driver test
+  rtl8125  [nic]  RTL8125 NIC status
+  rtl8125_test  [nic]  RTL8125 driver test
+  rtl8139  [nic]  RTL8139 NIC status
+  rtl8139_test  [nic]  RTL8139 driver test
+  rtl8168  [nic]  RTL8168 NIC status
+  rtl8168_test  [nic]  RTL8168 driver test
+  run  [core]  run a program with arguments
+  sample_rate_test  [snd]  sample rate test
+  sb16  [snd]  SoundBlaster16 status
+  sb16_test  [snd]  SB16 playback test
+  sched  [core]  scheduler statistics
+  scsi  [camera]  SCSI device scan
+  scsitest  [camera]  SCSI device test
+  sed  [ush]  stream editor
+  select_test  [l1]  select multiplexing test
+  select_zero_test  [l1]  select timeout test
+  serial-probe  [l1]  serial encoding wizard (pick the line that reads correctly)
+  serial_encoding  [display]  show/set the serial line encoding (utf8/gbk)
+  shutdown  [power]  power off the machine
+  signal_test  [l1]  signal subsystem test
+  sigsegv_test  [l1]  SIGSEGV delivery test
+  sleep  [power]  suspend for N seconds
+  smbus  [input]  SMBus status
+  smbustest  [input]  SMBus test
+  so_test  [l1]  shared library test
+  sort  [ush]  sort lines
+  sound  [snd]  audio subsystem status
+  sound-tool  [mega]  audio wizard (no args) or verbatim snd-service ops
+  spawn  [core]  background spawn demo
+  sse_test  [l1]  SSE state preservation test
+  ssh  [crypto]  SSH client
+  sshd  [crypto]  SSH server
+  stackovf  [l1]  stack overflow guard test
+  stat  [ush]  show file metadata
+  stats  [display]  display pipeline statistics
+  suspend_test  [power]  S3 suspend test
+  sync  [block]  flush block caches to disk
+  syncstat  [core]  sync primitive statistics
+  synctest  [core]  sync primitive test
+  sysdiag  [mega]  system diagnostics wizard (no args) or verbatim diag/health/log ops
+  tail  [ush]  show the last lines of a file
+  tcpcc_test  [net]  TCP congestion control test
+  tcpstats  [net]  TCP statistics
+  tcptest  [net]  TCP loopback test
+  timer  [input]  timer test
+  top  [ush]  process overview (live)
+  touch  [fs]  create an empty file / update mtime
+  touchpad  [input]  touchpad status
+  touchtest  [input]  touchpad test
+  tree  [fs]  show a directory tree
+  tsc  [time]  TSC counter status
+  umount  [fs]  unmount a filesystem
+  uname  [display]  system identification
+  uniq  [ush]  drop repeated adjacent lines
+  update  [mega]  OTA update wizard (no args) or the verbatim update op
+  update_check_test  [ota]  update check unit test
+  update_download_test  [ota]  OTA download test
+  update_install_test  [ota]  OTA install test
+  update_local_test  [ota]  OTA local-file test
+  update_pkg_test  [ota]  update package test
+  update_rollback_test  [ota]  OTA rollback test
+  update_status_test  [ota]  OTA status test
+  update_verify_test  [ota]  OTA verify test
+  usb  [usb]  USB host status
+  usb_audio_test  [snd]  USB audio test
+  usb_core_test  [usb]  USB core test
+  usb_hotplug_test  [usb]  USB hotplug test
+  usb_hub_test  [usb]  USB hub test
+  usb_kbd_test  [usb]  USB keyboard test
+  usb_mouse_test  [usb]  USB mouse test
+  usb_serial_test  [usb]  USB serial test
+  usb_storage_test  [usb]  USB mass storage test
+  usbaudio  [snd]  USB audio status
+  usbdev  [usb]  USB device detail
+  ush  [l1]  the Open Cube OS ring-3 shell (default entry)
+  uvc  [camera]  UVC camera status
+  uvctest  [camera]  UVC camera test
+  vi  [ush]  the modal vi editor (i/a/o insert, F2 = IME)
+  virtio_blk_test  [block]  virtio-blk test
+  virtio_snd_test  [snd]  virtio-snd test
+  virtiosnd  [snd]  virtio-sound status
+  vmkernelpt  [core]  kernel page-table dump
+  vmmap  [core]  address-space map dump
+  vmtest  [core]  VMM unit test
+  volume  [snd]  mixer volume control
+  watchdog  [watchdog]  watchdog control
+  wc  [ush]  count lines/words/bytes
+  wget  [net]  download a file over HTTP(S)
+  wifi  [nic]  wireless status/scan
+  write  [block]  write stdin to a file
+
+--- [fstest] ---
+fstest
+vfs: cannot unmount the root filesystem
+VFS self-test:
+  mkdir /tmp/vfstest: OK
+  open(O_CREAT): OK
+  write: OK
+  read: OK -> "hello from ramfs"
+  ls /tmp/vfstest:
+    hello.txt
+  ramfs: 12 nodes, 4097 bytes
+  p2 regressions:
+    BUG-0178 dual-sided: PASS
+    BUG-0179 dual-sided: PASS
+    BUG-0180 hole is zeros: PASS
+    BUG-0182 dual-sided: PASS
+    BUG-0184 umount / refused: PASS
+    p2 regressions: ALL PASS
+  p1fix4 regressions:
+    BUG-0061 dual-sided: PASS
+    p1fix4 regressions: ALL PASS
+
+--- [cryptotest] ---
+cryptotest
+Crypto self-test (NIST vectors):
+  SHA-256("abc") = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+    SHA-256: PASS
+  AES-128(plain) = 69c4e0d86a7b0430d8cdb78070b4c55a
+    AES-128: PASS
+  HMAC-SHA256 = b0344c61d8db3853...
+    HMAC-SHA256: PASS
+  HMAC-SHA384 = afd03944d84895626b0825f4ab46907f...
+    HMAC-SHA384: PASS
+  4/4 tests passed
+
+--- [crashlog] ---
+crashlog
+crashlog: no exceptions recorded
+
+--- [l1test] ---
+l1test
+loop: running
+hello from userspace  ext_wp8b: elf_get_needed(so_test) = 1 (libfoo.so) - PASS
+  ext_wp8b: elf_get_needed(hello) = 0 (static, correct) - PASS
+  ext_wp8b: so_unload(0) = -1 (NULL handle rejected) - PASS
+  ext_wp8b: ldso_run = 0 (kernel context, correct) - PASS
+  ext_wp8b: elf_get_needed(truncated 48B) = 0 (rejected) - PASS
+  ext_wp8b: elf_get_needed(vaddr!=off) = 1 (libx.so) - PASS
+  ext_wp8b: elf_get_needed(wild strtab) = 0 (rejected) - PASS
+  ext_wp8b: so_bss_zero boundary page (0xA7 tail -> 0) - PASS
+  ext_wp8b: symbol_resolve(libfoo, foo_add) - PASS
+  ext_wp8b: symbol_resolve(libfoo, foo_global) - PASS
+  ext_wp8b: symbol_resolve(wild symtab) = 0 (rejected) - PASS
+  ext_wp8b: reloc GLOB_DAT cross-lib resolve - PASS
+  ext_wp8b: reloc RELATIVE base+addend - PASS
+  ext_wp8b: reloc hostile sym_idx bounded - PASS
+  ext_wp8b: 14/14 self-tests passed
+L1 job interface test:
+  step 1: job_create("loop") (real background spawn)
+  job_create -> job_id=0 spawned loop pid=8 - PASS
+  step 3: job_list()
+  job_list: 1 active job:
+[0] pid=8 loop
+  step 4: job_control(job, bg=1)
+  job_control(bg) = 0 - PASS
+  step 5: job_create("hello") + job_control(fg) waits for exit
+  fg returned after target exit (pid=9 alive=0, job retired) - PASS
+  job_list after fg: 1 active (loop) - PASS
+  step 6: job_control(job, kill=2)
+  kill (process reaped) + job_list=0 active - PASS
+  step 7: ext_wp8b_selftest()
+  ext_wp8b selftest 14/14 - PASS
+  L1 job interface test: PASS
+
+--- [run hello] ---
+run hello
+hello from userspacestarted pid=11
+
+--- [run fork_test] ---
+run fork_test
+fork_test: start
+started pid=13
+parent: pid=child: pid=14 ppid=1313 ppid=12 child=14fork_test: PASS
+
+--- [run exec_test] ---
+run exec_test
+started pid=16
+exec_test: start
+exec_test: child execing hellohello from userspaceexec_test: parent waiting
+exexec_test: PASS
+e
+--- [run pipe_test] ---
+run pipe_test
+started pid=19
+pipe_test: startpipe_test: parent readinpipe_test: got 'HHELLO from child'
+ppipe_test: PASS
+--- [run signal_test] ---
+run signal_test
+signal_test: startsignal_test: handler registered
+started pid=22
+signal_test: parent waiting
+ssignal_test: child sending SIGUSR1
+signal_test: SIGNAL CAUGHT
+ssignal_test: PASS
+--- [run select_test] ---
+run select_test
+select_test: startstarted pid=25
+select_test: parent selectingselect_test: pipe ready (PASS)
+selselect_test: PASS
+--- [run mmap_test] ---
+run mmap_test
+mmap_test: startstarted pid=28
+mmap_test: wrote to mmaMMAP_OK!
+mmap_test: mprotect done
+
+mmap_test: PASS
+--- [run mmap_multi] ---
+run mmap_multi
+parent: mmap=started pid=30
+1006632960child: mmap=1006637056mmap_multi: BAD child aparent: readback=PAAAmmap_multi: PASS
+mm
+--- [run g7mmap] ---
+run g7mmap
+G7MMAP: start
+started pid=33
+G7MMAP PASS T1 (bump RW map + round-trip)
+G7MMAP PASS T2 (addr hint honoured)
+G7MMAP PASS T3 (kernel-addr hint rejected)
+G7MMAP PASS T4 (prot 0x8 rejected)
+G7MMAP PASS T5 (over-window length rejected)
+G7MMAP PASS T6 (munmap kernel addr rejected)
+G7MMAP PASS T7 (munmap legal range)
+G7MMAP PASS T8 (mprotect RW toggle + write)
+G7MMAP PASS T9 (mprotect prot 0x9 rejected)
+G7MMAP PASS T10 (munmap beyond window rejected)
+G7MMAP T11: PF probe armed (write to R-only page)
+
+*** EXCEPTION 14: #PF Page Fault ***
+  error_code=0x0000000000000007  rip=0x000000000040031C  cs=0x0000000000000033  rflags=0x0000000000010206
+  rsp=0x000000003FFFFED8  ss=0x000000000000003B
+  cr2=0x000000003C012000  (faulting address)
+*** KILLING user process (pid=33) due to exception 14, kernel continues ***
+[user] process killed by exception (vector=14), kernel continues
+
+--- [run dyn_hello] ---
+run dyn_hello
+started pid=35
+hello from dynamic program
+
+--- [run so_test] ---
+run so_test
+started pid=37
+main: foo_add(2,3)=5
+
+--- [run dlsym_test] ---
+run dlsym_test
+started pid=39
+dlsym_test: foo_add(7,8)=15
+
+--- [run pie_test] ---
+run pie_test
+started pid=41
+pie_test: loaded at 0x20000000
+
+--- [run reloc_test] ---
+run reloc_test
+started pid=43
+reloc_test: foo_add=30 foo_global=42 fp=300 msg=r
+
+--- [run p3_test] ---
+run p3_test
+p3_test: startstarted pid=45
+p3_test: PASS_P3123
+p
+--- [run g6_test] ---
+run g6_test
+g6_test: start
+started pid=47
+g6_test: T2 fork-mmap-inherit start
+S0
+S1
+S2
+SC
+SP
+g6_test: =PASS=
+g6_test: T5 per-proc-cwd start
+g6_test: =PASS=
+g6_test: T1 exit0-reap start
+[user] process 51 exited (code=42)
+g6_test: =PASS=
+g6_test: T3 write2-no-reader start
+g6_test: =PASS=
+g6_test: T4 sig-restorer start
+g6_test: T4 handler entered
+g6_test: T4 back from handler
+g6_test: =PASS=
+g6_test: T7 solib-reject start
+g6_test: =PASS=
+g6_test: T6 solib-window start
+g6_test: T6 dlopen count = 3953g6_test: =PASS=
+g6_test: failed tests = 0g6_test: PASS
+
+--- [run p0leak] ---
+run p0leak
+p0leak: BUG-AUD-2a-001 user-pointer fence test
+started pid=57
+p0leak: brk grown to 0x700000 (2MiB split forced)
+p0leak: kernel-image write REJECTED (-1) OK
+p0leak: split-sibling write REJECTED (-1) OK
+p0leak: kernel-addr read REJECTED (-1) OK
+p0leak: PASS - all kernel-address probes fenced

@@ -1,0 +1,142 @@
+OCRMECL stage1 ok
+OCRMECL core: flatten start
+OCRMECL: A20 on
+OCRMECL: gdt+idt(256 gates) at 0x1000/0x2000
+OCRMECL: 8259A remapped+masked
+OCRMECL: IOAPIC masked (24 rte)
+OCRMECL: leftovers flattened (eoi ps2 dma)
+OCRMECL: moving OCBL 45568 bytes -> 0x7C00, handing off
+OCBL stage1 ok
+
+OCBL 3.0.0 boot loader (3.0.0-WP-compat-and-security-hardening build 525)
+long mode 64-bit C entry OK
+flavor: el-torito  boot drive: 0xE0  stage1 CS: 0x0000
+cpu: QEMU Virtual CPU version 2.5+
+stack at 0x0008D480
+OCBL B1 chain verified
+[b2a] trampoline installed at 0x40000
+[b2a] E820 entries: 7
+  [0] base=0x00000000 len=0x0009FC00 type=1
+  [1] base=0x0009FC00 len=0x00000400 type=2
+  [2] base=0x000F0000 len=0x00010000 type=2
+  [3] base=0x00100000 len=0x1FEE0000 type=1
+  [4] base=0x1FFE0000 len=0x00020000 type=2
+  [5] base=0xFFFC0000 len=0x00040000 type=2
+  [6] base=0x00000000 len=0x00000000 type=2
+[b2a] hd 0x80 LBA0:EB58904D544F4F34 sig=AA55
+[b2a] scanning BIOS drives (boot=0xE0)
+  drive 0x80: 65536 sectors x 512 B
+  cdrom 0xE0: 18446744073709551615 sectors x 2048 B
+  PVD: 'CD001' type=1
+  boot image first bytes: EB 3C 90 4D 54 4F 4F 34
+[state] fresh boot - state area initialized
+[state] boot attempt seq 1
+[scan] entries: 2
+  [0] OCOS: Open Cube OS (cd0)  path=/boot/opencube.elf size=2227856
+  [1] OCIRE: OCIRE recovery (cd0)  path=/boot/ocire.elf size=388328
+[0;1HOpen Cube OS Boot Loader (3.0.0-WP-compat-and-security-hardening build 525)[1;1HUp/Down to select, Enter to boot.[7m[4;1HOpen Cube OS (cd0)[0m[5;1HOCIRE recovery (cd0)[6;1HShutdown[2;1HBooting Open Cube OS (cd0) in 10s                                             [2;1HBooting Open Cube OS (cd0) in 9s                                              [2;1HBooting Open Cube OS (cd0) in 8s                                              [2;1HBooting Open Cube OS (cd0) in 7s                                              [2;1HBooting Open Cube OS (cd0) in 6s                                              [2;1HBooting Open Cube OS (cd0) in 5s                                              [2;1HBooting Open Cube OS (cd0) in 4s                                              [2;1HBooting Open Cube OS (cd0) in 3s                                              [2;1HBooting Open Cube OS (cd0) in 2s                                              [2;1HBooting Open Cube OS (cd0) in 1s                                              [menu] poll iterations: 91
+[menu] selected: Open Cube OS (cd0)
+[menu] B4 will load this payload (mb2 handoff)
+[boot] VBE 800x600x32 ok
+[boot] kernel loaded: entry=0x001EAD80 size=2227856
+[boot] mbi built: 408 bytes at 0x50000
+[state] payload armed: NO 6300ESB watchdog - detection degrades to the next reset
+
+[oc] Open Cube OS 3.0.1-WP-severe-fix-and-closure kmain entered
+[ocst] boot-state monitor: state area 0x98000, watchdog absent - stage recording only, no hardware reset enforcement
+[ocst] stage 1/6: KM_AIN_ENTERED (budget 10s)
+[ocst] stage 2/6: SCHED_READY (budget 10s)
+[ocst] stage 3/6: DRIVERS_READY (budget 10s)
+[ocst] stage 4/6: SERVICES_READY (budget 10s)
+[ocst] stage 6/6: L1_READY (budget 15s)
+[perf] ata_dma: port_io=36561 polls=36561 xfers=80 retries=1 drops=0 wait_ms=1000
+[ocst] L1 isolation verified: no user mapping covers the state pages (live CR3 walk)
+
+Open Cube OS User-space Shell (3.0.1-WP-severe-fix-and-closure)
+Type 'help' for built-in commands.
+
+ush> ssh 10.0.2.2 2222 oc oc
+[ssh] connecting to 10.0.2.2:2222 user=oc
+[ssh] connecting...
+[ssh] TCP connected
+[ssh] version banner exchange OK
+SSH-2.0-paramiko_oc_test
+[ssh]   recv encrypted: type=20 plen=236
+[ssh] negotiated KEX: curve25519-sha256
+[ssh] negotiated cipher: aes128-ctr
+[ssh] KEXINIT exchange OK
+[ssh]   recv encrypted: type=31 plen=599
+[ssh] curve25519 KEX complete (no modexp needed)
+[ssh] H input: V_C=24 V_S=24 I_C=276 I_S=237 K_S=279
+[ssh] I_C[0..15]: 14bce63859a2961ca831361d0cf7093e
+[ssh] I_S[0..15]: 1414b00aac8dfddf75126eb2da62394e
+[ssh] H (first 16): 9b3462e1a4e148ee7c71fc91560a2f4c
+[ssh] K (first 8): 0000000000000000
+[ssh] host key fingerprint (sha256): 03b7b7426e8db256 775e96e821a3ef76 76c9c80072b37164 
+[ssh] TOFU: first connection, key recorded for 10.0.2.2:2222
+[ssh] host signature verified
+[ssh]   session_id (first 8): 9b3462e1a4e148ee
+[ssh] enc_key_c2s (first 8): 48e96528daa0bd5f
+[ssh] iv_c2s (first 8): fc2c05615a8a716d
+[ssh]   recv encrypted: type=21 plen=0
+[ssh] strict-kex: sequence numbers reset to 0
+[ssh] NEWKEYS exchange OK ��� encrypted mode active
+[ssh] SSH transport layer established (KEX + NEWKEYS complete)
+[ssh] sent SERVICE_REQUEST (ssh-userauth)
+[ssh]   recv encrypted: type=6 plen=16
+[ssh] SERVICE_ACCEPT received
+[ssh] sent USERAUTH_REQUEST (password)
+[ssh]   recv encrypted: type=52 plen=0
+[ssh] USERAUTH_SUCCESS — authenticated
+[ssh] authenticated (USERAUTH_SUCCESS)
+[ssh] sent CHANNEL_OPEN (session)
+[ssh]   recv encrypted: type=91 plen=16
+[ssh] got CHANNEL_OPEN_CONFIRMATION
+[ssh] sent CHANNEL_REQUEST (exec)
+[ssh]   recv encrypted: type=94 plen=41
+[ssh]   recv encrypted: type=96 plen=4
+[ssh] got CHANNEL_EOF
+[ssh] exec complete
+[ssh] exec output: hello-from-OpenCubeOS-kernel-ssh
+
+ush> 
+[g11a] PASS ssh-auth
+
+[g11a] PASS ssh-exec
+dhcp
+Sending DHCP discover...
+DHCP DISCOVER hex:
+  00: 01 01 06 00 12 34 56 78 00 00 80 00 00 00 00 00 
+  10: 00 00 00 00 00 00 00 00 00 00 00 00 52 54 00 12 
+  20: 34 56 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+  30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+DHCP success: IP=10.0.2.15
+  mask=255.255.255.0
+  gateway=10.0.2.2
+  DNS=10.0.2.3
+ush> sshd 22 oc oc
+[sshd] starting on port 22 (one session, then exit; Ctrl+C cancels wait)
+[sshd] host key: per-installation (1 authorized key)
+[sshd] listening on port 22 (serves one session then returns; Ctrl+C cancels the wait)
+
+[g11a] PASS sshd-listen
+
+[g11a] sshd connect failed: 
+
+[g11a] FAIL sshd-exec (client saw: None)
+[sshd] connection from 10.0.2.2
+[sshd] client banner: 5353482d322e302d706172616d696b6f
+[sshd] banner exchange OK
+[sshd] recv_unenc: pkt_len=1124 type=20 first8=0814d255
+[sshd] negotiated KEX: curve25519-sha256
+[sshd] kex list len: 222
+[sshd] kex list head: 637572766532353531392d736861323536406c69627373682e6f72672c656364
+[sshd] negotiated cipher: aes128-ctr
+[sshd] KEXINIT exchange OK
+[sshd] recv_unenc: timeout reading 4-byte length
+[sshd] session failed (code 5)
+ush> 
+[g11a] FAIL sshd-capture-log
+poweroff
+
+[g11a] FAILURES
