@@ -230,3 +230,27 @@ int ocbl_plat_getkey(void)
     }
     return -1;
 }
+
+/* ---- WP-severe-fix-and-closure B-vmx1: the menu idle pace -----------
+ *
+ * Same contract as the BIOS flavor: the EFI menu loop spins on the
+ * 16550 LSR port read + the CMOS RTC reads with no idle gap - an
+ * un-throttled port-I/O (VM-exit) storm for the whole countdown on
+ * VMware.  Pure-CPU spin, zero port I/O. */
+static u32 g_menu_poll_iters;
+
+void ocbl_plat_idle_pause(void)
+{
+    for (volatile u32 i = 0; i < 600000u; i++)
+        __asm__ volatile("pause");
+}
+
+u32 ocbl_plat_menu_poll_count(void)
+{
+    return g_menu_poll_iters;
+}
+
+void ocbl_plat_menu_poll_tick(void)
+{
+    g_menu_poll_iters++;
+}

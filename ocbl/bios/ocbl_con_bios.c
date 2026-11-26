@@ -166,6 +166,36 @@ int ocbl_plat_getkey(void)
     return -1;
 }
 
+/* ---- WP-severe-fix-and-closure B-vmx1: the menu idle pace -----------
+ *
+ * The menu loop (ocbl_menu_run) spins on getkey + plat_ms with NO
+ * idle gap: every iteration costs a BIOS int 16h call (a VM exit
+ * into the firmware under VMware), a 16550 LSR port read (another
+ * exit) and up to 8 CMOS port ops in plat_ms - an un-throttled exit
+ * storm for the whole 10 s countdown.  This pure-CPU spin adds ~1-2
+ * ms of ZERO-port-I/O idle between polls: the exit rate drops
+ * ~1000x while key latency stays human-invisible.  OCBL has no TSC
+ * calibration - a fixed spin count is deliberately approximate
+ * (any post-2005 x86_64 runs it in 0.4-4 ms); the exact duration is
+ * irrelevant, only the port-I/O rate matters. */
+static u32 g_menu_poll_iters;   /* the before/after loop-volume evidence */
+
+void ocbl_plat_idle_pause(void)
+{
+    for (volatile u32 i = 0; i < 600000u; i++)
+        __asm__ volatile("pause");
+}
+
+u32 ocbl_plat_menu_poll_count(void)
+{
+    return g_menu_poll_iters;
+}
+
+void ocbl_plat_menu_poll_tick(void)
+{
+    g_menu_poll_iters++;
+}
+
 /* ---- rendering ---- */
 void ocbl_plat_con_init(void)
 {

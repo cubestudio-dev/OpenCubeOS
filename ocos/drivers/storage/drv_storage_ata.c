@@ -73,7 +73,12 @@ static u8 driver_block_ata_drive_select(int drive) {
  * WP-compat-and-security-hardening B3: wall-clock bounded (TSC) -
  * the 100000-iteration cap is only the pre-calibration safety net
  * (on a hypervisor each inb is a VM exit, so iteration counts are
- * not a time bound at all). */
+ * not a time bound at all).
+ * WP-severe-fix-and-closure B-vmx1: PACED - one status read per ~50 us
+ * of wall clock (zero-port TSC spin between reads).  B3 bounded the
+ * wait TIME; this bounds the VM-EXIT COUNT, which is the actual
+ * VMware boot-crawl driver: an un-paced poll does millions of port
+ * reads ( = millions of exits) per second. */
 static int driver_block_ata_wait_bsy(u16 base) {
     u64 t0 = driver_tsc_read();
     u64 hz = 0;
@@ -82,15 +87,14 @@ static int driver_block_ata_wait_bsy(u16 base) {
     for (int i = 0; i < 100000; i++) {
         u8 s = inb(base + ATA_REG_STATUS);
         if ((s & ATA_SR_BSY) == 0) return 0;
-        io_wait();
-        if (budget && (i & 0x3FFu) == 0x3FFu &&
-            driver_tsc_read() - t0 > budget) return -1;
+        driver_tsc_pause_us(50);
+        if (budget && driver_tsc_read() - t0 > budget) return -1;
     }
     return -1;
 }
 
 /* Wait for DRQ to set (and BSY clear). Returns 0 on success, -1 on timeout
- * or error.  B3: same wall-clock bounding as wait_bsy. */
+ * or error.  B3: same wall-clock bounding.  B-vmx1: same pacing. */
 static int driver_block_ata_wait_drq(u16 base) {
     u64 t0 = driver_tsc_read();
     u64 hz = 0;
@@ -101,9 +105,8 @@ static int driver_block_ata_wait_drq(u16 base) {
         if (s & ATA_SR_ERR) return -1;
         if (s & ATA_SR_DF)  return -1;
         if ((s & ATA_SR_BSY) == 0 && (s & ATA_SR_DRQ)) return 0;
-        io_wait();
-        if (budget && (i & 0x3FFu) == 0x3FFu &&
-            driver_tsc_read() - t0 > budget) return -1;
+        driver_tsc_pause_us(50);
+        if (budget && driver_tsc_read() - t0 > budget) return -1;
     }
     return -1;
 }

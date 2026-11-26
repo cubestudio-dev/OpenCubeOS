@@ -137,15 +137,18 @@ static void driver_snd_ac97_log(const char *s) { screen_console_puts(s); }
 static u16 driver_snd_ac97_codec_read(driver_snd_ac97_dev_t *d, u8 reg) {
     /* CAS (codec access semaphore) must be clear before a read.
      * B3: wall-clock bounded (TSC) - the iteration cap alone is not a
-     * time bound under a hypervisor (every port read is a VM exit). */
+     * time bound under a hypervisor (every port read is a VM exit).
+     * B-vmx1 (WP-severe-fix-and-closure): PACED - one port read per
+     * ~50 us of wall clock; B3 bounded the time, the pacing bounds
+     * the VM-exit count (the actual VMware crawl). */
     u64 t0 = driver_tsc_read();
     u64 hz = 0;
     (void)driver_tsc_calibrated(&hz, (const char **)0);
     u64 budget = hz ? hz / 10ull : 0;              /* 100 ms */
     for (int t = 0; t < 100000; t++) {
         if (!(driver_snd_ac97_inb(d->nabm + 0x34) & 0x01)) break;
-        if (budget && (t & 0xFFu) == 0xFFu &&
-            driver_tsc_read() - t0 > budget) break;
+        driver_tsc_pause_us(50);
+        if (budget && driver_tsc_read() - t0 > budget) break;
     }
     return driver_snd_ac97_inw(d->nam + reg);
 }

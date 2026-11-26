@@ -389,7 +389,11 @@ static u32 driver_snd_hda_sdo_base(driver_snd_hda_dev_t *d) {
 
 static void driver_snd_hda_stream_reset(driver_snd_hda_dev_t *d, u32 base) {
     /* B3: wall-clock bounded (TSC) - iteration caps are not a time
-     * bound under a hypervisor (every MMIO read is a VM exit). */
+     * bound under a hypervisor (every MMIO read is a VM exit).
+     * B-vmx1 (WP-severe-fix-and-closure): PACED - one MMIO read per
+     * ~50 us (TSC spin between reads) bounds the exit COUNT; HDA is
+     * the default audio device class on VMware, so this loop ran
+     * un-throttled on every boot there. */
     u64 hz = 0;
     (void)driver_tsc_calibrated(&hz, (const char **)0);
     u64 budget = hz ? hz / 10ull : 0;              /* 100 ms */
@@ -398,8 +402,8 @@ static void driver_snd_hda_stream_reset(driver_snd_hda_dev_t *d, u32 base) {
         u64 t0 = driver_tsc_read();
         for (int t = 0; t < 100000; t++) {
             if (driver_snd_hda_r8(d, base + HDA_SD_CTL) & HDA_SD_SRST) break;
-            if (budget && (t & 0xFFu) == 0xFFu &&
-                driver_tsc_read() - t0 > budget) break;
+            driver_tsc_pause_us(50);
+            if (budget && driver_tsc_read() - t0 > budget) break;
         }
     }
     driver_snd_hda_w8(d, base + HDA_SD_CTL, 0);
@@ -407,8 +411,8 @@ static void driver_snd_hda_stream_reset(driver_snd_hda_dev_t *d, u32 base) {
         u64 t0 = driver_tsc_read();
         for (int t = 0; t < 100000; t++) {
             if (!(driver_snd_hda_r8(d, base + HDA_SD_CTL) & HDA_SD_SRST)) break;
-            if (budget && (t & 0xFFu) == 0xFFu &&
-                driver_tsc_read() - t0 > budget) break;
+            driver_tsc_pause_us(50);
+            if (budget && driver_tsc_read() - t0 > budget) break;
         }
     }
 }

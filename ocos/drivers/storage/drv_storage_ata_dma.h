@@ -48,4 +48,8 @@ int driver_block_ata_dma_flush(int drive);
 /* Print BMDMA controller state (BDF, BAR4, PRDT, status words). */
 void driver_block_ata_dma_print_state(void);
 
+/* WP-severe-fix-and-closure B-vmx1: print the wait-path port-I/O
+ * accounting onto the serial transcript (called once at L1_READY). */
+void driver_block_ata_dma_perf_report(void);
+
 #endif /* OC_ATA_DMA_H */

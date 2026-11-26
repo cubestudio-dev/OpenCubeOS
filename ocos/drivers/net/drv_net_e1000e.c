@@ -27,6 +27,7 @@
 #include "core_console_screen.h"
 #include "core_lib_string.h"
 #include "core_mm_pmm.h"
+#include "drv_time_tsc.h"   /* B-vmx1: paced + bounded EEPROM read wait */
 
 #include <stdint.h>
 #include "drv_framework.h"
@@ -164,9 +165,21 @@ static void driver_nic_e1000e_read_mac(driver_nic_e1000e_dev_t *d) {
             mmio_write32((volatile void *)((u8 *)d->mmio + E1000E_EERD),
                          1u | ((u32)word << 8) | (1u << 4));
             u32 val = 0;
+            /* B-vmx1 (WP-severe-fix-and-closure): paced + wall-clock
+             * bounded EEPROM read.  The raw 100000-iteration MMIO loop
+             * is a VM-exit storm under VMware (MMIO exits like port
+             * I/O); the e1000 family is the DEFAULT VMware NIC, so
+             * this ran on every boot whenever RA[] read back zero.
+             * 10 ms wall-clock is orders above a real EEPROM read. */
+            u64 hz = 0;
+            (void)driver_tsc_calibrated(&hz, (const char **)0);
+            u64 budget = hz ? hz / 100ull : 0;          /* 10 ms */
+            u64 t0 = driver_tsc_read();
             for (int t = 0; t < 100000; t++) {
                 val = mmio_read32((volatile void *)((u8 *)d->mmio + E1000E_EERD));
                 if (val & (1u << 9)) break;   /* DONE */
+                driver_tsc_pause_us(50);
+                if (budget && driver_tsc_read() - t0 > budget) break;
             }
             u16 data = (u16)((val >> 16) & 0xFFFF);
             if (word == 0)      { mac[0] = data & 0xFF; mac[1] = (data >> 8) & 0xFF; }

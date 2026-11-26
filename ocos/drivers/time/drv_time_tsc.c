@@ -181,3 +181,32 @@ int driver_tsc_delay_ms(u64 ms, u64 *actual_ms) {
     if (actual_ms) *actual_ms = ms1 - ms0;
     return 0;
 }
+
+void driver_tsc_pause_us(u64 us) {
+    if (us == 0) {
+        __asm__ volatile("pause");
+        return;
+    }
+    if (g_hz != 0) {
+        /* Calibrated path: exact wall-clock microsecond spin.  The raw
+         * rdtsc (not the cpuid-serialized driver_tsc_read) keeps the
+         * spin cheap; the cpuid fence matters for bracketing real
+         * events, not for a paced idle. */
+        u32 lo, hi;
+        __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
+        u64 t0 = ((u64)hi << 32) | (u64)lo;
+        u64 need = us * g_hz / 1000000ull;
+        if (need == 0) need = 1;
+        for (;;) {
+            __asm__ volatile("pause");
+            __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
+            if (((u64)hi << 32 | (u64)lo) - t0 >= need) return;
+        }
+    }
+    /* Uncalibrated fallback: bounded pure-CPU spin, ~us at any post-2005
+     * x86_64 clock (>= 1 GHz -> >= 1 cycle per ns).  Approximate time,
+     * ZERO port I/O - the property that matters on a hypervisor. */
+    u64 spins = us * 400ull;
+    for (u64 i = 0; i < spins; i++)
+        __asm__ volatile("pause");
+}

@@ -186,6 +186,7 @@ u32 ocbl_menu_run(void)
     u32 last_shown = 0;
     u32 cancelled = 0;
     for (;;) {
+        ocbl_plat_menu_poll_tick();       /* B-vmx1: loop-volume evidence */
         int k = ocbl_plat_getkey();
         if (k == OCBL_KEY_UP || k == OCBL_KEY_DOWN) {
             if (k == OCBL_KEY_UP)
@@ -204,12 +205,30 @@ u32 ocbl_menu_run(void)
         if (cancelled)
             continue;                   /* armed mode: no timeout */
         u32 dt = (ocbl_plat_ms() - base) / 1000;
-        if (dt >= OCBL_MENU_TIMEOUT_SEC)
+        if (dt >= OCBL_MENU_TIMEOUT_SEC) {
+            /* B-vmx1: the loop-volume evidence on the serial transcript
+             * (before/after the idle pace - on VMware each iteration was
+             * ~10 port ops = ~10 VM exits, so the count is the exit
+             * count the pacing must collapse). */
+            {
+                char n[12];
+                ocbl_serial_puts("[menu] poll iterations: ");
+                u32 v = ocbl_plat_menu_poll_count();
+                u32 i = 0;
+                do { n[i++] = (char)('0' + v % 10); v /= 10; } while (v);
+                while (i) ocbl_serial_putc(n[--i]);
+                ocbl_serial_puts("\r\n");
+            }
             return sel;                 /* default boots */
+        }
         if (dt != last_shown) {
             last_shown = dt;
             render_countdown(OCBL_MENU_TIMEOUT_SEC - dt, 1);
         }
+        /* B-vmx1: pace the idle spin - the un-paced loop burned one
+         * int 16h + one LSR read + up to 8 CMOS port ops per iteration
+         * (a VM exit each on VMware) for the whole countdown. */
+        ocbl_plat_idle_pause();
     }
 }
 

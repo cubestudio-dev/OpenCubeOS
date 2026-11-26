@@ -21,6 +21,7 @@
 #include "ocbl_state.h"        /* the shared contract (include/) */
 #include "svc_time_rtc.h"          /* core_rtc_unix_now() - CMOS wall clock */
 #include "core_timer.h"        /* core_timer_register_periodic() */
+#include "drv_storage_ata_dma.h"   /* B-vmx1: the L1_READY perf report */
 
 /* ---- raw COM1 serial (same bring-up as kmain's early console) ---- */
 static void bs_outb(u16 port, u8 v)
@@ -388,6 +389,13 @@ void boot_state_l1_syscall(void)
      * off) so the prompt lands on a clean console (this runs before
      * the syscall body executes, i.e. before a single prompt byte). */
     boot_splash_finish();
+
+    /* WP-severe-fix-and-closure B-vmx1: the wait-path port-I/O
+     * accounting lands on the serial transcript at L1_READY - the
+     * before/after VM-exit evidence for the VMware boot-crawl fix
+     * (every port op on VMware is an exit; the pacing must show this
+     * count collapsing).  Serial-first printing, splash state safe. */
+    driver_block_ata_dma_perf_report();
 
     /* WP-07: the runtime heartbeat below invalidates any stale
      * BOOT_FAILED record once the system has demonstrably STAYED up

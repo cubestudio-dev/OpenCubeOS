@@ -51,4 +51,13 @@ u32 ocbl_plat_ms(void);
  * or -1 when nothing (or an unregistered key) is pending. */
 int ocbl_plat_getkey(void);
 
+/* WP-severe-fix-and-closure B-vmx1: the menu idle pace.  Pure-CPU
+ * spin (~1-2 ms, ZERO port I/O) called once per idle menu iteration;
+ * on VMware the un-paced loop's int 16h / LSR / CMOS polls are a VM
+ * exit storm.  menu_poll_tick counts loop iterations (the
+ * before/after loop-volume evidence), menu_poll_count reads it. */
+void ocbl_plat_idle_pause(void);
+void ocbl_plat_menu_poll_tick(void);
+u32  ocbl_plat_menu_poll_count(void);
+
 #endif /* OCBL_PLATFORM_H */

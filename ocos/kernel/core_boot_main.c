@@ -195,8 +195,18 @@ static void screen_serial_init(void) {
     outb(COM1 + 4, 0x0B);
 }
 static void screen_serial_putc(char c) {
-    while ((inb(COM1 + 5) & 0x20) == 0) ;
-    outb(COM1, (u8)c);
+    /* B-vmx1 (WP-severe-fix-and-closure): the THRE wait is now bounded.
+     * The raw loop spun on inb(COM1+5) forever when the UART is broken
+     * or absent (an un-throttled port-I/O = VM-exit storm under
+     * VMware); a healthy 16550 answers THRE on the first read, so the
+     * cap only ever fires on dead hardware - and then we drop the byte
+     * instead of hanging the boot. */
+    for (int i = 0; i < 1000000; i++) {
+        if (inb(COM1 + 5) & 0x20) {
+            outb(COM1, (u8)c);
+            return;
+        }
+    }
 }
 static void screen_serial_puts(const char *s) {
     while (*s) screen_serial_putc(*s++);

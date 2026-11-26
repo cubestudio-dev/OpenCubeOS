@@ -66,4 +66,14 @@ void driver_tsc_autocalibrate(void);
  * PIT-measured actual elapsed time.  Returns 0 on success. */
 int  driver_tsc_delay_ms(u64 ms, u64 *actual_ms);
 
+/* WP-severe-fix-and-closure B-vmx1: microsecond pause with ZERO port
+ * I/O - a pure rdtsc/`pause` spin.  Under VMware every inb/outb is a
+ * VM exit (1-3 us of host time), so an un-paced poll loop does
+ * millions of exits per second; pacing the polls with THIS spin (the
+ * TSC read and the pause instruction never trap) cuts the exit rate
+ * by ~1000x while the polled latency stays in the same range.  When
+ * the TSC is uncalibrated the fallback is a bounded pure-CPU spin
+ * (still zero port I/O - approximate time, correct behavior). */
+void driver_tsc_pause_us(u64 us);
+
 #endif /* OC_DRIVER_TSC_H */

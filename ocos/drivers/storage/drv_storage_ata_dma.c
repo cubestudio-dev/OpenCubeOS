@@ -80,6 +80,48 @@ static inline u8   inb (u16 p)        { u8  v; __asm__ volatile("inb %1, %0" : "
 static inline u32  inl (u16 p)        { u32 v; __asm__ volatile("inl %1, %0" : "=a"(v) : "Nd"(p)); return v; }
 static inline void io_wait(void)      { outb(0x80, 0); }
 
+/* ---- WP-severe-fix-and-closure B-vmx1: port-I/O accounting -------------
+ *
+ * The honest VMware evidence engine.  Every inb/outb executed by THIS
+ * driver's wait paths is counted here; on VMware each of them is a
+ * VM exit (QEMU TCG ports are ~free, so the SAME counter is the
+ * before/after proof on both platforms: the fix must show this count
+ * collapsing regardless of where the machine runs).  The report lands
+ * on the serial transcript at L1_READY (core_boot_state.c). */
+static u64 g_perf_port_io;    /* total inb/outb in the wait paths     */
+static u64 g_perf_polls;      /* status/BMIS read attempts            */
+static u64 g_perf_xfers;      /* DMA transfer commands issued         */
+static u64 g_perf_retries;    /* full command-sequence retries        */
+static u64 g_perf_drops;      /* idle-verdict "dropped" detections    */
+static u64 g_perf_wait_tsc;   /* accumulated wall-clock (TSC ticks)    */
+
+static inline u8 perf_inb(u16 p) {
+    g_perf_port_io++;
+    u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v;
+}
+static inline void perf_outb(u16 p, u8 v) {
+    g_perf_port_io++;
+    __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(p));
+}
+
+/* Poll pacing interval (wall-clock us).  B-vmx1: the B3 deadlines
+ * bounded the wait TIME but the loops still executed one inb per
+ * iteration - on VMware each of those is a VM exit, so the boot
+ * burned millions of exits.  Pacing with the zero-port TSC spin
+ * (driver_tsc_pause_us) cuts the exit rate ~1000x; the completion
+ * latency stays dominated by the device's own transfer time. */
+#define ATA_POLL_PACE_US   50u     /* status polls                          */
+#define DMA_POLL_PACE_US   25u     /* BMIS completion polls                 */
+/* B-vmx1: the QEMU command-drop detector gate moves from a raw
+ * ITERATION count (4096 - a few MICROseconds on QEMU but 10+ ms of
+ * VM-exit time on VMware, firing FALSE "dropped" verdicts on every
+ * healthy-but-slow-to-start virtual disk and driving the 8-retry
+ * storm) to a real wall-clock idle window.  10 ms of BMIS==0 AND the
+ * device idle is a safe verdict on both platforms: a QEMU-dropped
+ * command sits idle for the whole 1000 ms deadline; a healthy
+ * transfer starts within a couple of ms everywhere. */
+#define DMA_DROP_IDLE_MS   10ull
+
 /* ---- ATA task-file regs (same layout as ata.c) ---- */
 #define ATA_REG_FEATURES 1
 #define ATA_REG_ERROR    1
@@ -203,16 +245,22 @@ static void dlog_bdf(const char *prefix, u8 bus, u8 dev, u8 func,
 /* ---- low-level helpers ---- */
 
 static int driver_block_ata_wait_not_bsy(u16 base) {
-    /* B3: wall-clock bounded (TSC).  The 200000-iteration cap is only
-     * the pre-calibration safety net. */
+    /* B-vmx1: wall-clock bounded (TSC) AND paced - one status read per
+     * ATA_POLL_PACE_US of wall clock instead of one per iteration.
+     * B3's deadline bound the time; the pacing bounds the VM-EXIT COUNT
+     * (each inb is an exit on VMware).  The raw iteration cap remains
+     * only as the pre-calibration safety net. */
     u64 t0 = driver_tsc_read();
     u64 budget = ata_tsc_ms(ATA_TIMEOUT_MS_DEFAULT);
     for (int i = 0; i < 200000; i++) {
-        u8 s = inb(base + ATA_REG_STATUS);
-        if (!(s & ATA_SR_BSY)) return 0;
-        io_wait();
-        if (budget && (i & 0x3FFu) == 0x3FFu &&
-            driver_tsc_read() - t0 > budget) return -1;
+        u8 s = perf_inb(base + ATA_REG_STATUS);
+        g_perf_polls++;
+        if (!(s & ATA_SR_BSY)) {
+            g_perf_wait_tsc += driver_tsc_read() - t0;
+            return 0;
+        }
+        driver_tsc_pause_us(ATA_POLL_PACE_US);
+        if (budget && driver_tsc_read() - t0 > budget) return -1;
     }
     return -1;
 }
@@ -307,10 +355,13 @@ static int driver_block_ata_dma_xfer(driver_block_ata_dma_drive_t *d, int is_wri
         outl((u16)(d->ctrl->bar4 + BMIDTP_OFF(chan)),
              (u32)((u64)(uintptr_t)d->prdt & 0xFFFFFFFCu));
 
-        /* 5. task file + command (wait_not_bsy is bounded inside). */
+        /* 5. task file + command (wait_not_bsy is bounded + paced inside). */
         if (driver_block_ata_dma_setup_taskfile(drive, lba, (u8)sectors, cmd) != 0) {
             rc = -4;                     /* controller busy -> retry */
-            for (volatile int stall = 0; stall < 20000; stall++) io_wait();
+            g_perf_retries++;
+            driver_tsc_pause_us(2000);   /* B-vmx1: 2 ms TSC stall - zero port I/O
+                                          * (the old 20000 x io_wait was 20000
+                                          * port writes = 20000 VM exits) */
             continue;
         }
 
@@ -320,49 +371,75 @@ static int driver_block_ata_dma_xfer(driver_block_ata_dma_drive_t *d, int is_wri
         /* Poll BMIS: DMA interrupt (done) or DMA error.  While polling,
          * watch for the QEMU command-drop signature (device idle with no
          * BSY/DRQ and BMIS still 0): bail out early instead of burning
-         * the full 50M polling budget, then run the sequence again.
+         * the full deadline, then run the sequence again.
          * B3: the REAL bound is the TSC deadline (1000 ms of wall
          * clock) - on a hypervisor where each inb costs a VM exit the
-         * iteration budget alone walks for minutes; the deadline is
-         * checked every 4096 iterations (a few ms of exit time at
-         * worst, and the TSC read itself never traps to the host on
-         * modern hardware the way port I/O does).  The 50M cap stays
-         * as the pre-calibration safety net only. */
+         * iteration budget alone walks for minutes.
+         * B-vmx1 (the VMware half B3 missed): the deadline bounds TIME,
+         * not EXIT COUNT - the loop still ran one inb per iteration,
+         * which on VMware is an un-throttled exit storm, AND the
+         * drop-detector gate was a raw ITERATION count (4096): on QEMU
+         * that is a few microseconds, on VMware 10+ ms of exit time,
+         * so every healthy-but-slow-to-start virtual disk drew a FALSE
+         * "dropped" verdict and the 8-retry storm walked the boot into
+         * minutes.  Two changes: (a) the poll is PACED - one inb per
+         * DMA_POLL_PACE_US of wall clock (zero-port TSC spin between
+         * reads); (b) the drop verdict now needs a real 10 ms
+         * wall-clock idle window (BMIS==0 AND device not BSY/DRQ),
+         * which a QEMU-dropped command satisfies (it idles for the
+         * full 1000 ms deadline) and a healthy transfer never does. */
         rc = -1;
         s_last = 0;
+        g_perf_xfers++;
         {
             u64 tsc_t0 = driver_tsc_read();
             u64 budget = ata_tsc_ms(ATA_DMA_TIMEOUT_MS);
+            u64 drop_t0 = 0;             /* idle-window start (0 = none) */
             for (u64 i = 0; i < 50000000u; i++) {
-                s_last = inb(bmis);
+                s_last = perf_inb(bmis);
+                g_perf_polls++;
                 if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }
                 if (s_last & BMIS_DMA_INT)   { rc = 0;  break; }
-                if ((i & 0xFFFu) == 0xFFFu && s_last == 0) {
-                    u8 stq = inb(g_chan_base[drive] + ATA_REG_STATUS);
-                    if (!(stq & ATA_SR_BSY) && !(stq & ATA_SR_DRQ)) {
-                        /* re-read once: a completing DMA may race the idle check */
-                        s_last = inb(bmis);
-                        if (s_last & BMIS_DMA_INT) { rc = 0; break; }
-                        if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }
-                        rc = -5;            /* dropped: retry the sequence */
-                        break;
+                if (s_last == 0) {
+                    /* accumulate the idle window in wall clock */
+                    if (drop_t0 == 0) drop_t0 = driver_tsc_read();
+                    u64 idle = driver_tsc_read() - drop_t0;
+                    u64 idle_budget = ata_tsc_ms(DMA_DROP_IDLE_MS);
+                    if (idle_budget && idle > idle_budget) {
+                        u8 stq = perf_inb(g_chan_base[drive] + ATA_REG_STATUS);
+                        g_perf_polls++;
+                        if (!(stq & ATA_SR_BSY) && !(stq & ATA_SR_DRQ)) {
+                            /* re-read once: a completing DMA may race the idle check */
+                            s_last = perf_inb(bmis);
+                            g_perf_polls++;
+                            if (s_last & BMIS_DMA_INT)   { rc = 0;  break; }
+                            if (s_last & BMIS_DMA_ERROR) { rc = -2; break; }
+                            rc = -5;            /* dropped: retry the sequence */
+                            g_perf_drops++;
+                            break;
+                        }
+                        drop_t0 = 0;      /* device busy after all: window restarts */
                     }
+                } else {
+                    drop_t0 = 0;          /* any BMIS activity resets the window */
                 }
-                if (budget && (i & 0xFFFu) == 0xFFFu &&
-                    driver_tsc_read() - tsc_t0 > budget) {
+                if (budget && driver_tsc_read() - tsc_t0 > budget) {
                     rc = -6;                /* wall-clock timeout (B3) */
                     break;
                 }
+                driver_tsc_pause_us(DMA_POLL_PACE_US);
             }
+            g_perf_wait_tsc += driver_tsc_read() - tsc_t0;
         }
 
         /* 7. stop + clear. */
         driver_block_ata_dma_stop_clear(d, chan);
 
         if (rc == 0) break;
-        /* command dropped / error: stall briefly, then run the whole
-         * sequence again */
-        for (volatile int stall = 0; stall < 20000; stall++) io_wait();
+        /* command dropped / error: stall briefly (B-vmx1: TSC stall, zero
+         * port I/O), then run the whole sequence again */
+        g_perf_retries++;
+        driver_tsc_pause_us(2000);
     }
 
     if (rc != 0) {
@@ -667,3 +744,46 @@ void driver_block_ata_dma_print_state(void) {
 static int blk_probe_ata_dma(void) { return driver_block_ata_dma_init(NULL); }
 static const blk_drv_ops_t g_blk_probe_ata_dma = { blk_probe_ata_dma };
 OC_DRIVER_DECL("block", "ata_dma", &g_blk_probe_ata_dma, "ATA Bus-Master DMA (PCI IDE)");
+
+/* ---- WP-severe-fix-and-closure B-vmx1: the honest perf report --------
+ *
+ * Printed once at L1_READY (core_boot_state.c) onto the serial
+ * transcript: the port-I/O count this driver's wait paths executed.
+ * On VMware every one of those was a VM exit, so the SAME number is
+ * the exit-count evidence; on QEMU it proves the pacing collapsed
+ * the loop volume.  wait_us is wall-clock us accumulated in the
+ * waits (TSC-calibrated when available). */
+void driver_block_ata_dma_perf_report(void) {
+    char line[160]; char n[24];
+    u64 hz = 0;
+    (void)driver_tsc_calibrated(&hz, (const char **)0);
+    u64 wait_us = hz ? g_perf_wait_tsc / (hz / 1000000ull ? hz / 1000000ull : 1) : 0;
+    strcpy(line, "[perf] ata_dma: port_io=");
+    u64_to_str(g_perf_port_io, n);   strcat(line, n);
+    strcat(line, " polls=");
+    u64_to_str(g_perf_polls, n);     strcat(line, n);
+    strcat(line, " xfers=");
+    u64_to_str(g_perf_xfers, n);     strcat(line, n);
+    strcat(line, " retries=");
+    u64_to_str(g_perf_retries, n);   strcat(line, n);
+    strcat(line, " drops=");
+    u64_to_str(g_perf_drops, n);     strcat(line, n);
+    strcat(line, " wait_ms=");
+    u64_to_str(wait_us / 1000ull, n); strcat(line, n);
+    strcat(line, "\n");
+    /* serial-first: this must be visible on the boot transcript even
+     * while the console hook chain is in any state (bs-puts style raw
+     * COM1 write, same contract as the [ocst] lines) */
+    {
+        const char *p = line;
+        while (*p) {
+            u16 port = 0x3F8;
+            u8 ls;
+            int guard = 0;
+            do { __asm__ volatile("inb %1, %0" : "=a"(ls) : "Nd"((u16)(port + 5))); }
+            while ((ls & 0x20) == 0 && ++guard < 100000);
+            __asm__ volatile("outb %0, %1" :: "a"((u8)*p), "Nd"(port));
+            p++;
+        }
+    }
+}
