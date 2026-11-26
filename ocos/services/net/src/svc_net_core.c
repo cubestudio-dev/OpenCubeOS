@@ -3969,9 +3969,6 @@ int net_dhcp_discover(void) {
         p->options[oi++] = 0;  /* PAD option */
         pkt_len++;
     }
-    g_dhcp_got_offer = 0;
-    g_dhcp_got_ack = 0;
-    g_dhcp_server_ip = 0;   /* WP-10-tui-qa: fresh transaction */
 
     /* Send DHCP DISCOVER with src IP 0.0.0.0 (per DHCP spec).
      * Temporarily set g_ip=0 so net_ip_send uses 0.0.0.0 as src. */
@@ -3980,41 +3977,66 @@ int net_dhcp_discover(void) {
     g_ip = 0;
     g_mask = 0;
 
-    /* Send DHCPDISCOVER (broadcast). */
-    /* Debug: dump first 64 bytes of DHCP packet */
-    {
-        char dbuf[200]; char dn[20];
-        strcpy(dbuf, "DHCP DISCOVER hex:\n");
-        screen_console_puts(dbuf);
-        for (int i = 0; i < 64; i++) {
-            if (i % 16 == 0) {
-                strcpy(dbuf, "  ");
-                u64_to_hex((u64)i, dn, 2); strcat(dbuf, dn);
-                strcat(dbuf, ": ");
-            }
-            u64_to_hex(buf[i], dn, 2);
-            strcat(dbuf, dn); strcat(dbuf, " ");
-            if (i % 16 == 15) {
-                strcat(dbuf, "\n");
-                screen_console_puts(dbuf);
-                dbuf[0] = 0;
-            }
-        }
-        if (64 % 16 != 0) { strcat(dbuf, "\n"); screen_console_puts(dbuf); }
-    }
-    net_udp_send(0xFFFFFFFF, DHCP_SERVER_PORT, DHCP_CLIENT_PORT, buf, pkt_len);
-    
-    /* Restore IP and mask for receiving the reply. */
-    g_ip = saved_ip;
-    g_mask = saved_mask;
+    /* WP-severe-fix-and-closure (update chain): RFC 2131 4.1 retransmit
+     * the DISCOVER.  A single shot + a ~500 ms window reported a healthy
+     * slirp LAN as "DHCP failed (timeout)" once in ~8 boots (live-caught
+     * by the update full-chain battery: the wizard then offered its
+     * DHCP fix while the IP had already arrived via the late offer).
+     * UDP broadcast loss is normal on real networks too - every
+     * mainstream client retransmits.  3 attempts x 800 ms (wall-clock
+     * ms via core_timer_now_ms, identical on the RTC and the PIT
+     * fallback tick sources). */
+#define DHCP_ATTEMPTS 3
+#define DHCP_WAIT_MS  800
+    int offer = 0;
+    for (int attempt = 0; attempt < DHCP_ATTEMPTS && !offer; attempt++) {
+        if (attempt > 0)
+            screen_console_puts("[dhcp] retransmitting DISCOVER...\n");
+        g_dhcp_got_offer = 0;
+        g_dhcp_got_ack = 0;
+        g_dhcp_server_ip = 0;
 
-    /* Wait for DHCPOFFER. */
-    u64 start = core_timer_ticks();
-    while ((core_timer_ticks() - start) < 500) {
-        net_poll();
-        if (g_dhcp_got_offer) break;
+        /* Debug: dump first 64 bytes of DHCP packet */
+        if (attempt == 0) {
+            char dbuf[200]; char dn[20];
+            strcpy(dbuf, "DHCP DISCOVER hex:\n");
+            screen_console_puts(dbuf);
+            for (int i = 0; i < 64; i++) {
+                if (i % 16 == 0) {
+                    strcpy(dbuf, "  ");
+                    u64_to_hex((u64)i, dn, 2); strcat(dbuf, dn);
+                    strcat(dbuf, ": ");
+                }
+                u64_to_hex(buf[i], dn, 2);
+                strcat(dbuf, dn); strcat(dbuf, " ");
+                if (i % 16 == 15) {
+                    strcat(dbuf, "\n");
+                    screen_console_puts(dbuf);
+                    dbuf[0] = 0;
+                }
+            }
+            if (64 % 16 != 0) { strcat(dbuf, "\n"); screen_console_puts(dbuf); }
+        }
+        net_udp_send(0xFFFFFFFF, DHCP_SERVER_PORT, DHCP_CLIENT_PORT, buf,
+                     pkt_len);
+
+        /* Restore IP and mask for receiving the reply. */
+        g_ip = saved_ip;
+        g_mask = saved_mask;
+
+        /* Wait for DHCPOFFER. */
+        u64 start = core_timer_now_ms();
+        while ((core_timer_now_ms() - start) < DHCP_WAIT_MS) {
+            net_poll();
+            if (g_dhcp_got_offer) { offer = 1; break; }
+        }
+        if (!offer) {
+            /* the next attempt needs the 0.0.0.0 source again */
+            g_ip = 0;
+            g_mask = 0;
+        }
     }
-    if (!g_dhcp_got_offer) return -1;
+    if (!offer) { g_ip = saved_ip; g_mask = saved_mask; return -1; }
 
     /* Send DHCPREQUEST. */
     memset(p, 0, sizeof(net_dhcp_pkt_t));
@@ -4039,21 +4061,32 @@ int net_dhcp_discover(void) {
     pkt_len = (int)((u8 *)(p->options + oi) - buf);
 
     g_dhcp_got_ack = 0;
-    /* DHCP REQUEST also uses src 0.0.0.0 */
-    g_ip = 0;
-    g_mask = 0;
-    net_udp_send(0xFFFFFFFF, DHCP_SERVER_PORT, DHCP_CLIENT_PORT, buf, pkt_len);
-    g_ip = saved_ip;
-    g_mask = saved_mask;
+    /* WP-severe-fix-and-closure: retransmit the REQUEST as well (same
+     * xid = the same transaction, RFC 2131 4.4.1) - the ACK ride the
+     * same lossy path the OFFER did. */
+    int acked = 0;
+    for (int attempt = 0; attempt < DHCP_ATTEMPTS && !acked; attempt++) {
+        if (attempt > 0)
+            screen_console_puts("[dhcp] retransmitting REQUEST...\n");
+        g_dhcp_got_ack = 0;
+        /* DHCP REQUEST also uses src 0.0.0.0 */
+        g_ip = 0;
+        g_mask = 0;
+        net_udp_send(0xFFFFFFFF, DHCP_SERVER_PORT, DHCP_CLIENT_PORT, buf,
+                     pkt_len);
+        g_ip = saved_ip;
+        g_mask = saved_mask;
 
-    /* Wait for DHCPACK. */
-    start = core_timer_ticks();
-    while ((core_timer_ticks() - start) < 500) {
-        net_poll();
-        if (g_dhcp_got_ack) {
-            g_ip = g_dhcp_offered_ip;
-            return 0;
+        /* Wait for DHCPACK. */
+        u64 start = core_timer_now_ms();
+        while ((core_timer_now_ms() - start) < DHCP_WAIT_MS) {
+            net_poll();
+            if (g_dhcp_got_ack) { acked = 1; break; }
         }
+    }
+    if (acked) {
+        g_ip = g_dhcp_offered_ip;
+        return 0;
     }
     return -1;
 }
@@ -5391,6 +5424,30 @@ int net_cmd_dns(const char *args) {
         return 1;
     }
     char buf[600];
+    /* K-10/update-chain (WP-severe-fix-and-closure): an IP LITERAL is
+     * not a name - resolve it directly.  The update wizard's DNS step
+     * feeds the update_url's authority component here; a LAN/intranet
+     * update server spelled as an IP ("http://10.0.2.2:8008/...")
+     * used to go through the recursive resolver, time out after 3 s
+     * and abort the whole wizard at step 3/5 with "DNS resolution
+     * failed (timeout)" - the network was fine, the name was simply
+     * never a name.  (net_connect/ota_update_url_parse have always
+     * accepted IP literals; the wizard's DNS gate is the only step
+     * that insisted on a name.) */
+    {
+        u32 lit = parse_ip(args);
+        if (lit != 0) {
+            char ipstr[16];
+            format_ip(lit, ipstr);
+            strcpy(buf, "Resolved ");
+            strcat(buf, args);
+            strcat(buf, " -> ");
+            strcat(buf, ipstr);
+            strcat(buf, " (literal)\n");
+            screen_console_puts(buf);
+            return 0;
+        }
+    }
     /* WP-09: check for record-type subcommand */
     int do_aaaa = 0, do_cname = 0, do_mx = 0, do_txt = 0, do_ns = 0, do_srv = 0;
     const char *name = args;
