@@ -19,4 +19,13 @@ void screen_serial_in_init(void);
 /* IRQ4 handler (called from arch_irq_dispatch). */
 void screen_serial_in_irq_handler(void *ctx, arch_irq_frame_t *f);
 
+/* K-09 (WP-severe-fix-and-closure): the 10 ms tick-bailout RX poll.
+ * Belt-and-braces backstop for the 16550-level-INTR-behind-edge-8259
+ * loss window (a burst landing mid-service raises no new edge; after
+ * the EOI the remainder sat uncollected - a pasted long command line
+ * could lose every byte). Registered from screen_serial_in_init();
+ * idempotent with the IRQ handler (both feed the same per-byte
+ * decoder). */
+void screen_serial_in_poll(void *ctx);
+
 #endif /* OC_SERIAL_IN_H */

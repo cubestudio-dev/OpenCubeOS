@@ -264,22 +264,37 @@ A/B 槽位引导与外部 loader 链式加载在 UEFI 轨不可用（BIOS 轨不
 - Workaround: `uname -r` (authoritative, always correct); the banner
   fallback text now says exactly that.
 
-## K-09 (WP-compat-and-security-hardening): the HTTPS/SSH E2E batteries cannot complete in the current sandbox network
+## K-09 (WP-severe-fix-and-closure): CLOSED as misdiagnosed - the network stack was healthy; the harness was not.  One residual inbound-SSH boundary remains.
 
-- Observed: `tools/run_fix4_https_e2e.py` 3/8 and `tools/ssh_g11a_e2e.py`
-  3 FAIL in THIS sandbox - the kernel's `net_connect` to the QEMU
-  slirp gateway (10.0.2.2) fails before the TCP handshake, so the
-  python TLS/SSH peers never see a connection.
-- This is NOT a regression of this work package: the byte-identical
-  comparison against the PREVIOUS release ISO
-  (OpenCubeOS-b3b4-rtc-timer-e7794bc6.iso) fails with the SAME
-  pattern, and the previous release's own evidence recorded 8/8 in a
-  then-working network environment.  The failure is environmental
-  (sandbox slirp/e1000 drift), recorded honestly per the
-  real-first discipline.
-- Workaround: none in-sandbox; re-run both batteries in a networked
-  environment (the two comparison transcripts are archived under
-  evidence/wp-compat-and-security-hardening/).
+- CLOSED (the original claim refuted with counters): the WP-compat
+  entry blamed "the sandbox network" for the HTTPS/SSH E2E failures.
+  The WP-severe-fix-and-closure hunt proved the opposite with the
+  kernel's own counters (netstat: DHCP served, ARP resolved, ICMP
+  4/4, TCP up, a plain-HTTP download saved) and with a REAL TLS 1.2
+  session - the actual defects were: (1) the one-shot TLS test server
+  died on the kernel's TLS1.3-first hello (the RFC 7507 fallback
+  reconnect then hit a dead listener), (2) the `-serial mon:stdio`
+  harness channel measurably starves the QEMU main loop in this
+  sandbox (ping 2/4 vs 4/4 over a unix-socket serial - both E2E
+  runners now drive the guest over a unix socket), (3) the
+  stale-prompt match fired the next command into a still-running
+  one, which exposed (4) a REAL kernel defect: the COM1 RX
+  edge-loss window (a 16550 level-held INTR behind the 8259's edge
+  trigger could strand a pasted command line in the FIFO forever) -
+  fixed with a 10 ms tick-bailout RX poll.  The HTTPS E2E now runs
+  8/8; the SSH E2E's OUTBOUND scene passes (ssh-auth + ssh-exec).
+- REMAINING (the honest boundary): the SSH INBOUND scene (host
+  paramiko client -> guest sshd through the hostfwd) still fails
+  with a timing-dependent strand - captured with the full pcap, the
+  stalled-connection monitor dump (rtx_len==0, window open, state
+  ESTABLISHED, the guest's KEXINIT never reaching the wire) and the
+  new netstat TX-errors counter (zero - the driver never saw a
+  failed frame).  Defenses landed: the beyond-queue ACK no longer
+  silently drops the send queue, and net_poll carries a per-poll
+  flush nudger for accepted-but-unsent data.  Evidence:
+  evidence/wp-severe-fix-and-closure/b-k09-e2e-network.md.
+- Workaround: outbound SSH (the kernel ssh client) is fully green;
+  the inbound sshd path is the single remaining item.
 
 ## K-10 (WP-compat-and-security-hardening): the OCIRE test battery's UEFI tracks time out
 

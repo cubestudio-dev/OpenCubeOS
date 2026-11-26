@@ -69,29 +69,96 @@ def wait_port(port, t=4):
     return True
 
 def boot_guest(port, path_out, insecure=False):
+    """K-09 root fix (WP-severe-fix-and-closure): drive the guest over a
+    unix-socket serial line instead of `-serial mon:stdio` + pexpect.
+    The stdio chardev measurably starves the QEMU main loop in this
+    sandbox (a mon:stdio boot answers ping 2/4 - same ISO answers 4/4
+    over a unix-socket serial); the TCP handshake then misses the
+    kernel's connect-wait window and the E2E wrongly reported a
+    broken network stack.  The kernel side is identical - this changes
+    ONLY how the test harness talks to the same serial console."""
+    import socket as _socket
     env = dict(os.environ)
     env["LD_LIBRARY_PATH"] = (f"{OC_TOOLS}/usr/lib/x86_64-linux-gnu:"
                               f"{OC_TOOLS}/lib/x86_64-linux-gnu")
-    child = pexpect.spawn(QEMU, [
+    ser = f"/tmp/fix4_serial_{port}.sock"
+    if os.path.exists(ser):
+        os.unlink(ser)
+    child = subprocess.Popen([QEMU,
         "-m","512M","-cdrom",f"{ROOT}/build/opencube.iso","-boot","d",
         "-L",f"{OC_TOOLS}/usr/share/qemu","-L",f"{OC_TOOLS}/usr/share/seabios",
-        "-vga","std","-display","none","-serial","mon:stdio",
+        "-vga","std","-display","none","-monitor","none","-no-reboot",
         "-netdev","user,id=n1","-device","e1000,netdev=n1",
-    ], timeout=150, encoding="latin-1", codec_errors="replace", env=env)
-    child.expect(r"ush>\s", timeout=150)
+        "-serial",f"unix:{ser},server=on,wait=on",
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+    sock = None
+    for _ in range(120):
+        try:
+            sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+            sock.connect(ser)
+            break
+        except OSError:
+            sock = None
+            time.sleep(0.5)
+    if sock is None:
+        child.kill()
+        open(path_out, "w").write("(harness) serial socket never came up")
+        return ""
+    sock.settimeout(0.3)
+    buf = b""
+
+    def pump(t):
+        nonlocal buf
+        end = time.time() + t
+        while time.time() < end:
+            try:
+                d = sock.recv(4096)
+                if d:
+                    buf += d
+            except _socket.timeout:
+                pass
+
+    def wait_for(pat, timeout):
+        end = time.time() + timeout
+        while time.time() < end:
+            if pat in buf:
+                return True
+            pump(0.5)
+        return pat in buf
+
+    wait_for(b"ush>", 150)
+    pump(1.0)
+
     def sc(cmd, t=90):
-        child.sendline(cmd)
-        child.expect(r"ush>\s", timeout=t)
-        return child.before or ""
+        """Send one command line and wait for the NEXT prompt (a fresh
+        'ush>' AFTER the send offset).  The old form matched a STALE
+        prompt already in the buffer and fired the next command into
+        the guest while the previous one was still executing - the
+        back-to-back serial burst then raced the COM1 RX path (a lost
+        edge on the level-held INTR line drops the whole second line:
+        the command bytes sit in the FIFO uncollected and the E2E hung
+        waiting for output that never comes; see the K-09 evidence)."""
+        pre = len(buf)
+        sock.sendall(cmd.encode() + b"\n")
+        end = time.time() + t
+        while time.time() < end:
+            pump(0.5)
+            if buf.find(b"ush>", pre) != -1:
+                break
+        pump(0.8)
+        return ""
+
     # BUG #21 (WP-fix-critical-security): the kernel REFUSES un-anchored
     # (self-signed) chains by default; the historical lenient behaviour
     # is an explicit opt-in (`config set tls.insecure 1`, the wget -k /
     # curl -k pattern) which this E2E uses for the compatibility checks.
     if insecure:
         sc("config set tls.insecure 1", 30)
-    out = sc(f"wget https://10.0.2.2:{port}/hello.txt", 120)
-    out += "\n" + sc("cat /wget_https.html", 60)
-    child.close(force=True)
+    sc(f"wget https://10.0.2.2:{port}/hello.txt", 120)
+    sc("cat /wget_https.html", 60)
+    child.kill()
+    sock.close()
+    out = buf.decode("utf-8", "replace")
     open(path_out, "w").write(out)
     return out
 
@@ -173,28 +240,82 @@ def main():
         if not wait_port(8444):
             results.append(("7 eof server started", False))
         else:
+            # K-09: same unix-socket serial harness as boot_guest (the
+            # mon:stdio channel starves the QEMU main loop here too).
+            import socket as _socket
             env = dict(os.environ)
             env["LD_LIBRARY_PATH"] = (f"{OC_TOOLS}/usr/lib/x86_64-linux-gnu:"
                                       f"{OC_TOOLS}/lib/x86_64-linux-gnu")
-            child = pexpect.spawn(QEMU, [
+            ser = "/tmp/fix4_serial_8444.sock"
+            if os.path.exists(ser):
+                os.unlink(ser)
+            child = subprocess.Popen([QEMU,
                 "-m","512M","-cdrom",f"{ROOT}/build/opencube.iso","-boot","d",
                 "-L",f"{OC_TOOLS}/usr/share/qemu","-L",f"{OC_TOOLS}/usr/share/seabios",
-                "-vga","std","-display","none","-serial","mon:stdio",
+                "-vga","std","-display","none","-monitor","none","-no-reboot",
                 "-netdev","user,id=n1","-device","e1000,netdev=n1",
-            ], timeout=150, encoding="latin-1", codec_errors="replace", env=env)
-            child.expect(r"ush>\s", timeout=150)
-            child.sendline("config set tls.insecure 1")
-            child.expect(r"ush>\s", timeout=30)
-            t0 = time.time()
-            child.sendline("wget https://10.0.2.2:8444/hello.txt")
-            idx = child.expect([r"ush>\s", pexpect.TIMEOUT], timeout=45)
-            dt = time.time() - t0
-            out = (child.before or "") + (f"\n<<TIMEOUT after {dt:.0f}s>>" if idx == 1 else "")
-            child.close(force=True)
+                "-serial",f"unix:{ser},server=on,wait=on",
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+            sock = None
+            for _ in range(120):
+                try:
+                    sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+                    sock.connect(ser)
+                    break
+                except OSError:
+                    sock = None
+                    time.sleep(0.5)
+            out = ""
+            if sock is not None:
+                sock.settimeout(0.3)
+                buf = b""
+                def _pump(t):
+                    nonlocal buf
+                    end = time.time() + t
+                    while time.time() < end:
+                        try:
+                            d = sock.recv(4096)
+                            if d: buf += d
+                        except _socket.timeout:
+                            pass
+                def _wait_for(pat, timeout):
+                    end = time.time() + timeout
+                    while time.time() < end:
+                        if pat in buf: return True
+                        _pump(0.5)
+                    return pat in buf
+                _wait_for(b"ush>", 150)
+                _pump(1.0)
+                _pre = len(buf)
+                sock.sendall(b"config set tls.insecure 1\n")
+                _end = time.time() + 30
+                while time.time() < _end:
+                    _pump(0.5)
+                    if buf.find(b"ush>", _pre) != -1:
+                        break
+                _pump(0.8)
+                t0 = time.time()
+                _pre2 = len(buf)
+                sock.sendall(b"wget https://10.0.2.2:8444/hello.txt\n")
+                ok = False
+                _end2 = time.time() + 45
+                while time.time() < _end2:
+                    _pump(0.5)
+                    if buf.find(b"ush>", _pre2) != -1:
+                        ok = True
+                        break
+                dt = time.time() - t0
+                _pump(1.0)
+                out = buf.decode("utf-8", "replace")
+                if not ok:
+                    out += f"\n<<TIMEOUT after {dt:.0f}s>>"
+                sock.close()
+            child.kill()
+            child.wait()
             open(f"{EVD}/https_kernel_eof.log", "w").write(out)
             # kernel must fail promptly (error text) and never hang past 45 s
             results.append(("7 truncation detected promptly",
-                            idx == 0 and dt < 45 and re.search(r"fail|error|truncat", out, re.I) is not None))
+                            ok and dt < 45 and re.search(r"fail|error|truncat", out, re.I) is not None))
     finally:
         srv2.terminate()
 

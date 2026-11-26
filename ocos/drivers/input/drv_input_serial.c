@@ -28,6 +28,7 @@
 #include "drv_input_keyboard.h"
 #include "arch_irq.h"
 #include "arch_idt.h"
+#include "core_timer.h"   /* K-09: the tick-bailout poll registration */
 
 static inline u8 inb(u16 p) { u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v; }
 static inline void outb(u16 p, u8 v) { __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(p)); }
@@ -41,6 +42,9 @@ static u8  g_csi_state;
 static u8  g_csi_buf[16];
 static u8  g_csi_len;
 
+/* forward: the per-byte decoder (defined below the drain) */
+static void serial_in_feed(u8 b);
+
 void screen_serial_in_init(void) {
     /* Enable FIFO + trigger at 1 byte. */
     outb(COM1 + 2, 0xC7);
@@ -51,6 +55,11 @@ void screen_serial_in_init(void) {
     g_csi_len = 0;
     /* IRQ4 will now fire on each byte received. */
     arch_irq_register_handler(4, screen_serial_in_irq_handler, NULL);
+    /* K-09 (WP-severe-fix-and-closure): the 10 ms tick backstop for the
+     * edge-loss window (see screen_serial_in_poll below) - whatever a
+     * lost INTR edge strands in the RBR, the tick collects within
+     * 10 ms, paste bursts included. */
+    core_timer_register_periodic(screen_serial_in_poll, NULL, 10);
 }
 
 /* Map a finished CSI/SS3 body to an OC_KEY_* code. Returns 0 when the
@@ -119,133 +128,169 @@ static int csi_finalize(const u8 *b, u8 n) {
     return -1;
 }
 
+/* The shared drain: run the CSI/SS3 decode + queue injection over every
+ * byte the RBR currently holds. Called from the IRQ4 handler (the fast
+ * lane) and from the K-09 tick poll (the edge-loss backstop below).
+ *
+ * BUG-0323 (A7-18): the drain is bounded (a stuck or absent UART whose
+ * LSR data-ready bit reads 1 forever - 0xFF from a nonexistent port -
+ * used to spin this loop for eternity and hang the whole machine).
+ * Whatever a bound leaves behind waits for the next IRQ (the FIFO
+ * trigger re-arms) or the tick poll. */
+static void serial_in_drain(void) {
+    /* Check IIR: bit 0 = 0 means interrupt pending. An IIR with no
+     * interrupt pending can still be called with LSR DR=1 (the tick
+     * poll's precondition) - exactly the level-held state an edge loss
+     * strands - so the drain walks the DR bit, not the IIR. */
+    if (inb(COM1 + 5) & 0x01) {
+        int drained = 0;
+        while (drained < 32 && (inb(COM1 + 5) & 0x01)) {
+            drained++;
+            serial_in_feed(inb(COM1));
+        }
+    }
+}
+
 void screen_serial_in_irq_handler(void *ctx, arch_irq_frame_t *f) {
     (void)ctx; (void)f;
-    /* Check IIR: bit 0 = 0 means interrupt pending. */
-    u8 iir = inb(COM1 + 2);
-    if (iir & 0x01) return;  /* no interrupt */
+    serial_in_drain();
+}
 
-    /* Drain all available bytes (FIFO may have multiple).
-     * BUG-0323 (A7-18): the drain used to be open-ended - a stuck or
-     * absent UART whose LSR data-ready bit reads 1 forever (0xFF from a
-     * nonexistent port) spun this IRQ handler for eternity and hung the
-     * whole machine. Bound the burst; anything left waits for the next
-     * IRQ (the FIFO trigger re-arms). */
-    int drained = 0;
-    while (drained < 32 && (inb(COM1 + 5) & 0x01)) {
-        drained++;
-        u8 b = inb(COM1);
-
-        /* ---- 3.0.0-WP04-fix1: CSI/SS3 pre-decode ---- */
-        if (g_csi_state == 5) {
-            /* raw passthrough (xterm SGR mouse): forward until the
-             * final M/m byte, then back to idle. */
-            u16 key = (b >= 0x80) ? (u16)b + 0x100 : (u16)b;
-            driver_input_keyboard_inject(key);
-            if (b == 'M' || b == 'm') g_csi_state = 0;
-            continue;
-        }
-        if (g_csi_state == 1) {           /* saw ESC */
-            if (b == '[') { g_csi_state = 2; g_csi_len = 0; continue; }
-            if (b == 'O') { g_csi_state = 4; g_csi_len = 0; continue; }
-            /* Not a sequence opener: deliver the physical Esc code and
-             * reprocess this byte from idle. */
-            driver_input_keyboard_inject(OC_KEY_ESC_KEY);
-            g_csi_state = 0;
-            /* fall through to the idle handling of b below */
-        } else if (g_csi_state == 2 || g_csi_state == 3) {
-            /* in CSI: first param byte decides mouse passthrough. */
-            if (g_csi_state == 2 && b == '<') {
-                /* SGR mouse: replay the consumed prefix raw (the TUI
-                 * mouse decoder wants the full original sequence),
-                 * then forward everything up to the final byte. */
-                driver_input_keyboard_inject(0x1B);
-                driver_input_keyboard_inject((u16)'[');
-                driver_input_keyboard_inject((u16)'<');
-                g_csi_state = 5;
-                continue;
-            }
-            if ((b >= '0' && b <= '9') || b == ';' || b == '?') {
-                if (g_csi_len < sizeof(g_csi_buf)) g_csi_buf[g_csi_len++] = b;
-                if (g_csi_len >= sizeof(g_csi_buf)) g_csi_state = 0; /* overflow: drop */
-                else g_csi_state = 3;
-                continue;
-            }
-            /* final byte */
-            if (b >= 0x40 && b <= 0x7E) {
-                if (g_csi_len < sizeof(g_csi_buf)) g_csi_buf[g_csi_len] = b;
-                else { g_csi_state = 0; continue; }   /* overflow: drop */
-                int key = csi_finalize(g_csi_buf, g_csi_len + 1);
-                g_csi_state = 0;
-                if (key > 0) driver_input_keyboard_inject((u16)key);
-                /* <= 0: swallowed (unknown or intentionally unbound) */
-                continue;
-            }
-            /* garbage inside a sequence: drop the whole thing */
-            g_csi_state = 0;
-            continue;
-        } else if (g_csi_state == 4) {    /* SS3: one final byte */
-            g_csi_state = 0;
-            if (b >= 'A' && b <= 'D') {
-                static const u16 ss3_arrows[4] = {
-                    OC_KEY_UP, OC_KEY_DOWN, OC_KEY_RIGHT, OC_KEY_LEFT
-                };
-                driver_input_keyboard_inject(ss3_arrows[b - 'A']);
-            } else if (b == 'P' || b == 'Q' || b == 'R' || b == 'S') {
-                /* WP06g2: xterm application-mode F1..F4 */
-                static const u16 ss3_fkeys[4] = {
-                    OC_KEY_F1, OC_KEY_F2, OC_KEY_F3, OC_KEY_F4
-                };
-                driver_input_keyboard_inject(ss3_fkeys[b - 'P']);
-            }
-            continue;  /* unknown SS3 pair swallowed */
-        }
-
-        /* ---- idle: legacy single-byte mapping (unchanged) ---- */
-        u16 key;
-        switch (b) {
-            case '\r': case '\n':
-                key = OC_KEY_ENTER;
-                break;
-            case 0x7F: case 0x08:
-                key = OC_KEY_BACKSPACE;
-                break;
-            case 0x03: /* Ctrl+C */
-                key = OC_KEY_CTRL_C;
-                break;
-            case 0x04: /* Ctrl+D */
-                key = OC_KEY_CTRL_D;
-                break;
-            case 0x1B:
-                g_csi_state = 1;   /* arm the sequence detector */
-                continue;
-            case '\t':
-                key = OC_KEY_TAB;
-                break;
-            default:
-                if (b >= 0x20 && b < 0x7F) {
-                    key = (u16)b;
-                } else if (b >= 0x01 && b < 0x20) {
-                    /* WP-10-wp08fix1: pass the remaining Ctrl+letter codes
-                     * (0x01=A ... 0x1A=Z) straight through - the kernel
-                     * line editor and the editors bind them (Ctrl+A/E/U/
-                     * K/W, Ctrl+O save, Ctrl+X exit, Ctrl+K del line...).
-                     * A real terminal sends exactly these bytes. */
-                    key = (u16)b;
-                } else if (b >= 0x80) {
-                    /* WP-10-chinese_support: 8-bit bytes are UTF-8
-                     * continuation/lead bytes (pasted CJK text). They
-                     * must not collide with the OC_KEY_* special range
-                     * (0x80..0x9B), so inject them biased by +0x100;
-                     * the line editor strips the bias before storing. */
-                    key = (u16)b + 0x100;
-                } else {
-                    continue;
-                }
-        }
-        /* Push directly into the keyboard queue via the internal API.
-         * We mark the modifiers as 0 since serial doesn't carry mods. */
-        /* Reuse the keyboard IRQ handler's queue by calling a helper. */
+/* K-09 (WP-severe-fix-and-closure): the tick-bailout serial RX poll.
+ *
+ * The COM1 RX interrupt path is a LEVEL source (the 16550 holds INTR
+ * high while the RBR holds data) behind an EDGE-triggered 8259 input.
+ * When a burst lands while line service is in flight the new bytes
+ * raise no new edge, and after the EOI the whole remainder can sit in
+ * the FIFO uncollected - the live-caught face of this: a long command
+ * line fired back-to-back after a previous one (a paste, or a test
+ * harness matching a stale prompt) lost EVERY byte of the second line
+ * (keyboard queue empty, no echo, the shell waiting forever - the
+ * HTTPS E2E's 'hung' wget). The tick poll is the belt-and-braces
+ * backstop: every 10 ms the LSR data-ready bit is checked and the
+ * same drain runs - whatever an edge loss strands, the tick collects
+ * within 10 ms. The IRQ path stays the fast lane; the poll only ever
+ * sees what the IRQ path failed to collect. */
+void screen_serial_in_poll(void *ctx) {
+    (void)ctx;
+    if (inb(COM1 + 5) & 0x01)
+        serial_in_drain();
+}
+/* The per-byte decoder (CSI/SS3 pre-decode + legacy mapping).
+ * Shared by the IRQ4 fast lane and the K-09 tick backstop: every
+ * byte the RBR hands over goes through this exactly once.
+ * A `return` ends THIS byte; the caller moves to the next one. */
+static void serial_in_feed(u8 b) {
+    /* ---- 3.0.0-WP04-fix1: CSI/SS3 pre-decode ---- */
+    if (g_csi_state == 5) {
+        /* raw passthrough (xterm SGR mouse): forward until the
+         * final M/m byte, then back to idle. */
+        u16 key = (b >= 0x80) ? (u16)b + 0x100 : (u16)b;
         driver_input_keyboard_inject(key);
+        if (b == 'M' || b == 'm') g_csi_state = 0;
+        return;
     }
+    if (g_csi_state == 1) {           /* saw ESC */
+        if (b == '[') { g_csi_state = 2; g_csi_len = 0; return; }
+        if (b == 'O') { g_csi_state = 4; g_csi_len = 0; return; }
+        /* Not a sequence opener: deliver the physical Esc code and
+         * reprocess this byte from idle. */
+        driver_input_keyboard_inject(OC_KEY_ESC_KEY);
+        g_csi_state = 0;
+        /* fall through to the idle handling of b below */
+    } else if (g_csi_state == 2 || g_csi_state == 3) {
+        /* in CSI: first param byte decides mouse passthrough. */
+        if (g_csi_state == 2 && b == '<') {
+            /* SGR mouse: replay the consumed prefix raw (the TUI
+             * mouse decoder wants the full original sequence),
+             * then forward everything up to the final byte. */
+            driver_input_keyboard_inject(0x1B);
+            driver_input_keyboard_inject((u16)'[');
+            driver_input_keyboard_inject((u16)'<');
+            g_csi_state = 5;
+            return;
+        }
+        if ((b >= '0' && b <= '9') || b == ';' || b == '?') {
+            if (g_csi_len < sizeof(g_csi_buf)) g_csi_buf[g_csi_len++] = b;
+            if (g_csi_len >= sizeof(g_csi_buf)) g_csi_state = 0; /* overflow: drop */
+            else g_csi_state = 3;
+            return;
+        }
+        /* final byte */
+        if (b >= 0x40 && b <= 0x7E) {
+            if (g_csi_len < sizeof(g_csi_buf)) g_csi_buf[g_csi_len] = b;
+            else { g_csi_state = 0; return; }   /* overflow: drop */
+            int key = csi_finalize(g_csi_buf, g_csi_len + 1);
+            g_csi_state = 0;
+            if (key > 0) driver_input_keyboard_inject((u16)key);
+            /* <= 0: swallowed (unknown or intentionally unbound) */
+            return;
+        }
+        /* garbage inside a sequence: drop the whole thing */
+        g_csi_state = 0;
+        return;
+    } else if (g_csi_state == 4) {    /* SS3: one final byte */
+        g_csi_state = 0;
+        if (b >= 'A' && b <= 'D') {
+            static const u16 ss3_arrows[4] = {
+                OC_KEY_UP, OC_KEY_DOWN, OC_KEY_RIGHT, OC_KEY_LEFT
+            };
+            driver_input_keyboard_inject(ss3_arrows[b - 'A']);
+        } else if (b == 'P' || b == 'Q' || b == 'R' || b == 'S') {
+            /* WP06g2: xterm application-mode F1..F4 */
+            static const u16 ss3_fkeys[4] = {
+                OC_KEY_F1, OC_KEY_F2, OC_KEY_F3, OC_KEY_F4
+            };
+            driver_input_keyboard_inject(ss3_fkeys[b - 'P']);
+        }
+        return;  /* unknown SS3 pair swallowed */
+    }
+
+    /* ---- idle: legacy single-byte mapping (unchanged) ---- */
+    u16 key;
+    switch (b) {
+        case '\r': case '\n':
+            key = OC_KEY_ENTER;
+            break;
+        case 0x7F: case 0x08:
+            key = OC_KEY_BACKSPACE;
+            break;
+        case 0x03: /* Ctrl+C */
+            key = OC_KEY_CTRL_C;
+            break;
+        case 0x04: /* Ctrl+D */
+            key = OC_KEY_CTRL_D;
+            break;
+        case 0x1B:
+            g_csi_state = 1;   /* arm the sequence detector */
+            return;
+        case '\t':
+            key = OC_KEY_TAB;
+            break;
+        default:
+            if (b >= 0x20 && b < 0x7F) {
+                key = (u16)b;
+            } else if (b >= 0x01 && b < 0x20) {
+                /* WP-10-wp08fix1: pass the remaining Ctrl+letter codes
+                 * (0x01=A ... 0x1A=Z) straight through - the kernel
+                 * line editor and the editors bind them (Ctrl+A/E/U/
+                 * K/W, Ctrl+O save, Ctrl+X exit, Ctrl+K del line...).
+                 * A real terminal sends exactly these bytes. */
+                key = (u16)b;
+            } else if (b >= 0x80) {
+                /* WP-10-chinese_support: 8-bit bytes are UTF-8
+                 * continuation/lead bytes (pasted CJK text). They
+                 * must not collide with the OC_KEY_* special range
+                 * (0x80..0x9B), so inject them biased by +0x100;
+                 * the line editor strips the bias before storing. */
+                key = (u16)b + 0x100;
+            } else {
+                return;
+            }
+    }
+    /* Push directly into the keyboard queue via the internal API.
+     * We mark the modifiers as 0 since serial doesn't carry mods. */
+    /* Reuse the keyboard IRQ handler's queue by calling a helper. */
+    driver_input_keyboard_inject(key);
+
 }

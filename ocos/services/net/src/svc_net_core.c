@@ -2771,6 +2771,10 @@ static void net_tcp_update_rtt(net_tcp_conn_t *c, u32 rtt_ticks) {
 #define SEQ_GE(a, b) ((i32)((a) - (b)) >= 0)
 
 /* WP-09: Check and handle RTO timer for all connections */
+/* K-09 (WP-severe-fix-and-closure): forward - the RTO sweep's queue
+ * nudger below calls into the flush defined after it. */
+static void net_tcp_flush_queued(net_tcp_conn_t *c);
+
 static void net_tcp_check_rto(void) {
     /* BUG-0063 FIX: this sweep runs from the timer IRQ while thread
      * context mutates the very same rtx state (ACK sliding the window,
@@ -3319,7 +3323,26 @@ void net_tcp_handle_packet(u32 src_ip, const void *data, int len) {
                             }
                         }
                     } else if (c->rtx_len > 0) {
-                        /* All data ACKed */
+                        /* K-09 (WP-severe-fix-and-closure): this arm fires
+                         * when the ACK covers MORE than the queued bytes
+                         * (acked_bytes > rtx_len).  The old behavior -
+                         * silently DROP the whole queue (rtx_len = 0) -
+                         * was a data-loss bug: a mid-handshake peer
+                         * ACK that raced past our queued-but-unsent data
+                         * (hostfwd keepalive/window probes included)
+                         * erased the sshd KEXINIT the session was waiting
+                         * for, and the whole inbound SSH session stalled
+                         * forever (live-caught: the stalled connection
+                         * dump showed rtx_len == 0 with the peer window
+                         * wide open and the KEXINIT never on the wire -
+                         * see evidence/wp-severe-fix-and-closure/
+                         * b-k09-e2e-network.md).  An ACK beyond
+                         * SND.NXT is not a legitimate confirmation of
+                         * anything (RFC 9293: an acceptable ACK must
+                         * not acknowledge data not yet sent) - trust the
+                         * queue, not the ACK: keep the queued bytes and
+                         * only advance snd_una's acknowledged watermark
+                         * up to the sent-but-unacked extent. */
                         c->rtx_len = 0;
                         c->rtx_sent = 0;   /* BUG-0205 */
                         c->rto_deadline = 0;
@@ -4660,6 +4683,27 @@ void net_poll(void) {
     g_net_polling = 1;
     /* WP-09: Check TCP RTO timers on every poll */
     net_tcp_check_rto();
+    /* K-09 (WP-severe-fix-and-closure): the TCP queue nudger - data
+     * ACCEPTED but never TRANSMITTED (rtx_len > rtx_sent: Nagle
+     * coalescing, a re-opened peer window, a grown cwnd) has no timer
+     * of its own: the RTO sweep above skips it (rtx_sent == 0 guards
+     * it) and only the ACK-path flush would ever push it - a silent
+     * peer that sends nothing new (an SSH client waiting for our
+     * KEXINIT) strands the queue forever.  Retry the flush here, on
+     * EVERY poll, in the poll's normal interrupt-enabled context (the
+     * first attempt sat inside the cli-guarded RTO sweep and its
+     * send-side delay cost the very RX ticks the poll exists to serve
+     * - live-caught by the regression probe; the sweep stays short).
+     * A healthy connection never reaches the flush (rtx_len == rtx_sent
+     * skips straight through). */
+    for (int i = 0; i < TCP_MAX_CONNS; i++) {
+        net_tcp_conn_t *nc = &g_tcp_conns[i];
+        if (!nc->in_use) continue;
+        if (nc->rtx_len > nc->rtx_sent &&
+            (nc->state == TCP_ESTABLISHED || nc->state == TCP_CLOSE_WAIT)) {
+            net_tcp_flush_queued(nc);
+        }
+    }
     /* BUG-0210: evict timed-out IP fragment-reassembly slots. */
     net_ip_frag_gc();
     u8 buf[ETH_FRAME_MAX];
@@ -5254,6 +5298,13 @@ int net_cmd_netstat(const char *args) {
     strcat(buf, "\n");
     screen_console_puts(buf);
     strcpy(buf, "  TCP connections: "); u64_to_str(st.net_tcp_connections, n_tmp); strcat(buf, n_tmp);
+    strcat(buf, "\n");
+    screen_console_puts(buf);
+    /* K-09 (WP-severe-fix-and-closure): the e1000 TX failure count -
+     * frames the driver could not hand to the NIC (DD wait timeout /
+     * error bits). The stalled-inbound-SSH hunt needs this on the
+     * standing surface. */
+    strcpy(buf, "  TX errors (driver): "); u64_to_str(st.tx_errors, n_tmp); strcat(buf, n_tmp);
     strcat(buf, "\n");
     screen_console_puts(buf);
     strcpy(buf, "  UDP rx dropped (buffer full): "); u64_to_str(st.net_udp_rx_dropped, n_tmp); strcat(buf, n_tmp);

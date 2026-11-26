@@ -74,21 +74,51 @@ def tls_serve_once(cert, key, dhparam, port, eof_mode):
     lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     lsock.bind(("127.0.0.1", port))
-    lsock.listen(1)
+    lsock.listen(4)
     lsock.settimeout(180)
-    try:
-        raw, addr = lsock.accept()
-    except socket.timeout:
-        print("[srv] TIMEOUT waiting for kernel connection")
-        return 1
-    print(f"[srv] TCP accepted from {addr}")
+    # K-09 root fix (WP-severe-fix-and-closure): the kernel TLS client
+    # offers TLS 1.3 FIRST and reconnects with the TLS 1.2 fallback
+    # (RFC 7507 SCSV) when a legacy/version-intolerant server answers
+    # the first hello with an alert or a bare close.  A ONE-shot server
+    # DIES on that first connection (the wrap_socket() raises on the
+    # 1.3 hello) and the kernel's fallback reconnect lands on a dead
+    # listener - the E2E then reported "net_connect fails / TIMEOUT
+    # waiting for kernel connection" and the whole battery collapsed
+    # to 3/8, previously misattributed to "the sandbox network" (the
+    # live network here is fine: ping/DHCP/ARP/TCP/TLS all work, see
+    # evidence/wp-severe-fix-and-closure/b-k09-e2e-network.md).  Serve
+    # until ONE fully-successful TLS session completes: a first
+    # connection that fails its wrap_socket is an EXPECTED probe the
+    # server logs and keeps listening for the fallback.
+    raw = None
+    ssock = None
+    while True:
+        try:
+            raw, addr = lsock.accept()
+        except socket.timeout:
+            print("[srv] TIMEOUT waiting for kernel connection")
+            return 1
+        print(f"[srv] TCP accepted from {addr}")
+        sys.stdout.flush()
+        raw.settimeout(120)
+        try:
+            ssock = ctx.wrap_socket(raw, server_side=True)
+            break
+        except Exception as e:
+            # a TLS 1.3 first-hello probe: the kernel reconnects with
+            # the 1.2 fallback; keep the listener alive for it.
+            print(f"[srv] first connection closed in handshake "
+                  f"({type(e).__name__}: {e}) - awaiting the fallback")
+            sys.stdout.flush()
+            try:
+                raw.close()
+            except OSError:
+                pass
+            raw = None
+    print(f"[srv] TLS handshake OK: {ssock.version()} cipher={ssock.cipher()}")
     sys.stdout.flush()
 
-    with raw:
-        raw.settimeout(120)
-        ssock = ctx.wrap_socket(raw, server_side=True)
-        print(f"[srv] TLS handshake OK: {ssock.version()} cipher={ssock.cipher()}")
-        sys.stdout.flush()
+    with ssock:
 
         req = b""
         while b"\r\n\r\n" not in req and len(req) < 4096:
@@ -136,58 +166,94 @@ def observe_serve(cert, key, dhparam, port):
     layer eats it). The honest observer is a RAW BYTE recorder: the real
     TLS server runs on port+1; this recorder accepts the kernel on `port`,
     pipes bytes both ways, and scans the client->server stream for an outer
-    content type 0x15 (TLS alert - the kernel's close_notify)."""
+    content type 0x15 (TLS alert - the kernel's close_notify).
+
+    K-09 root fix (WP-severe-fix-and-closure): the kernel TLS client's
+    TLS1.3-first / TLS1.2-fallback sequence needs TWO connections - the
+    recorder must bridge EVERY connection to a fresh upstream, not just
+    the first (the old single-accept recorder left the fallback
+    reconnect unanswered and then crashed on its own accept timeout)."""
     import threading
+    import time
     t = threading.Thread(target=tls_serve_once,
                          args=(cert, key, dhparam, port + 1, False), daemon=True)
     t.start()
     rec = socket.socket()
     rec.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     rec.bind(("127.0.0.1", port))
-    rec.listen(1)
+    rec.listen(4)
     rec.settimeout(120)
     print(f"[obs] recorder on 127.0.0.1:{port} -> TLS server on {port + 1}")
     sys.stdout.flush()
-    c, _ = rec.accept()
-    up = socket.socket()
-    up.connect(("127.0.0.1", port + 1))
     alert_seen = [False]
-    done = threading.Event()
 
-    def c2s():
+    def bridge(c):
+        """Bridge one client connection to a fresh upstream; scan the
+        client->server bytes for the outer alert record type."""
+        try:
+            up = socket.socket()
+            up.connect(("127.0.0.1", port + 1))
+        except OSError as e:
+            print(f"[obs] upstream connect failed: {e}")
+            sys.stdout.flush()
+            try:
+                c.close()
+            except OSError:
+                pass
+            return
+        done = threading.Event()
+
+        def c2s():
+            try:
+                while True:
+                    d = c.recv(4096)
+                    if not d:
+                        break
+                    if d[0] == 0x15:
+                        alert_seen[0] = True
+                        print(f"[obs] CLIENT ALERT RECORD seen "
+                              f"({len(d)}B, first={d[:8].hex()})")
+                        sys.stdout.flush()
+                    up.sendall(d)
+            except Exception:
+                pass
+            try:
+                up.shutdown(socket.SHUT_WR)
+            except Exception:
+                pass
+            done.set()
+
+        th = threading.Thread(target=c2s, daemon=True)
+        th.start()
         try:
             while True:
-                d = c.recv(4096)
+                d = up.recv(4096)
                 if not d:
                     break
-                if d[0] == 0x15:
-                    alert_seen[0] = True
-                    print(f"[obs] CLIENT ALERT RECORD seen "
-                          f"({len(d)}B, first={d[:8].hex()})")
-                up.sendall(d)
+                c.sendall(d)
         except Exception:
             pass
         try:
-            up.shutdown(socket.SHUT_WR)
+            c.shutdown(socket.SHUT_WR)
         except Exception:
             pass
-        done.set()
+        done.wait(10)
+        try:
+            up.close()
+        except OSError:
+            pass
 
-    th = threading.Thread(target=c2s, daemon=True)
-    th.start()
-    try:
-        while True:
-            d = up.recv(4096)
-            if not d:
-                break
-            c.sendall(d)
-    except Exception:
-        pass
-    try:
-        c.shutdown(socket.SHUT_WR)
-    except Exception:
-        pass
-    done.wait(10)
+    # bridge every incoming connection until the kernel's close_notify
+    # is observed (alert_seen) or the accept times out
+    import time as _t
+    deadline = _t.time() + 150
+    while not alert_seen[0] and _t.time() < deadline:
+        try:
+            c, _ = rec.accept()
+        except socket.timeout:
+            break
+        c.settimeout(90)
+        bridge(c)
     print(f"[obs] kernel alert record observed: {'YES' if alert_seen[0] else 'NO'}")
     print(f"[obs] CLOSE_NOTIFY_ASSERT: {'PASS' if alert_seen[0] else 'FAIL'}")
     sys.stdout.flush()
