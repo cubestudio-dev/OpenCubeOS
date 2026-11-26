@@ -23,7 +23,7 @@ end-to-end with a byte-identical flash proof, plus the RFC 2131 DHCP
 retransmission the wizard used to trip over). A pure L0
 service kernel (no shell, no TUI, no IME in L0) with the driver
 framework (device tree, power hooks, hotplug, failure isolation,
-deterministic init order), **301 ring-3 programs** under
+deterministic init order), **269 ring-3 programs** under
 `ocos/l1apps/` - organized
 around **8 merged mega-apps** (`update` / `disk-tool` / `net-tool` /
 `sound-tool` / `files` / `sysdiag` / `hwinfo` / `power`), each an
@@ -55,7 +55,7 @@ Open Cube OS is **L0 + L1**:
   (the 2.x `oc>` recovery shell, the in-kernel TUI, the input
   method engine); L0 finishes boot at `L0 ready, waiting for L1`
   and hands the machine to the default ring-3 entry.
-- **L1 uses services.** 301 ring-3 programs under `ocos/l1apps/`
+- **L1 uses services.** 269 ring-3 programs under `ocos/l1apps/`
   (one command = one app = one folder): the default boot entry is
   the `ush` user shell (**312 commands = 301 registry apps + 11
   built-ins, zero commands in L0**; 8 legacy TUI sub-launchers stay

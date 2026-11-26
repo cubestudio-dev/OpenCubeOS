@@ -1,14 +1,14 @@
 {
-    "version": "3.0.0-WP-compat-and-security-hardening",
-    "build": 523,
-    "time": "2026-11-25",
-    "changes": "compat and security hardening: the OCIRE recovery disk write-armed unconditionally, the RTC-first system tick (PIT fallback) + the 10 s menu clock fix, wall-clock-bounded I/O waits (VMware slow boot), the boot splash + pager + one-shot mount, the OCSE medium rebuilt",
+    "version": "3.0.1-WP-severe-fix-and-closure",
+    "build": 529,
+    "time": "2026-11-26",
+    "changes": "severe-fix and closure: the VMware boot crawl paced (446x fewer port I/Os), K-08 banner race closed by construction, K-09 refuted with counters + the COM1 RX fix, K-10 OCIRE UEFI 14/14, the update full chain byte-proven + the RFC 2131 DHCP retransmission",
     "description": {
-        "en": "compat and security hardening: the OCIRE recovery disk write-armed unconditionally, the RTC-first system tick (PIT fallback) + the 10 s menu clock fix, wall-clock-bounded I/O waits (VMware slow boot), the boot splash + pager + one-shot mount, the OCSE medium rebuilt",
-        "zh": "兼容性与安全加固：OCIRE 恢复盘无条件布防、RTC 优先系统节拍（PIT 兜底）与 10 秒菜单时钟修复、I/O 等待真实时间上界（VMware 慢启动根因）、启动画面与分页器与一键挂载、OCSE 安装介质重建"
+        "en": "severe-fix and closure: the VMware boot crawl paced (446x fewer port I/Os), K-08 banner race closed by construction, K-09 refuted with counters + the COM1 RX fix, K-10 OCIRE UEFI 14/14, the update full chain byte-proven + the RFC 2131 DHCP retransmission",
+        "zh": "严重修复与收口：VMware 启动龟速根因配速（端口 I/O 削减 446 倍）、K-08 横幅竞态按构造关闭、K-09 以计数器推翻 + COM1 RX 修复、K-10 OCIRE UEFI 14/14、update 全链字节级证明 + RFC 2131 DHCP 重传"
     },
     "changes_v2_url": "https://ocos.cubestudio.cn/update-v2.json",
-    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-compat-and-security-hardening-update.tar.gz",
-    "package_sha256": "59e27cc3718c9df3f73c3ba3f79be5edf732d01c4a7166c0775bf6dfb02340d1",
-    "package_size": 1419439
+    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.1-WP-severe-fix-and-closure-update.tar.gz",
+    "package_sha256": "26c7e7cd3742186dafd1f2b4d161881106afa6c3ed5a93a6be178d23324c426a",
+    "package_size": 1419887
 }

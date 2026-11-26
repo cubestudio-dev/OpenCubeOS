@@ -1,5 +1,5 @@
 {
- "declared_total": 112,
+ "declared_total": 111,
  "l1_official_count": 223,
  "l1svc_categories": 20,
  "v1_declaration_entries": 278,
@@ -47,7 +47,6 @@
   ],
   "ocos/services/display/src/svc_display_cmds.h": [
    "disp_cmd_stats",
-   "disp_cmd_uname",
    "disp_cmd_clear",
    "disp_cmd_lang",
    "disp_cmd_chinese",

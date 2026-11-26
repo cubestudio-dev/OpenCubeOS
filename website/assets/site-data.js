@@ -9,35 +9,35 @@
    is generated from dist/ (the hand-maintained carry is gone) and
    every asset URL is ABSOLUTE. */
 window.SITE_DATA = {
-  version: "3.0.0-WP-compat-and-security-hardening",
-  build: 523,
-  date: "2026-11-25",
-  changes: "compat and security hardening: the OCIRE recovery disk write-armed unconditionally, the RTC-first system tick (PIT fallback) + the 10 s menu clock fix, wall-clock-bounded I/O waits (VMware slow boot), the boot splash + pager + one-shot mount, the OCSE medium rebuilt",
+  version: "3.0.1-WP-severe-fix-and-closure",
+  build: 529,
+  date: "2026-11-26",
+  changes: "severe-fix and closure: the VMware boot crawl paced (446x fewer port I/Os), K-08 banner race closed by construction, K-09 refuted with counters + the COM1 RX fix, K-10 OCIRE UEFI 14/14, the update full chain byte-proven + the RFC 2131 DHCP retransmission",
   description: {
-    en: "compat and security hardening: the OCIRE recovery disk write-armed unconditionally, the RTC-first system tick (PIT fallback) + the 10 s menu clock fix, wall-clock-bounded I/O waits (VMware slow boot), the boot splash + pager + one-shot mount, the OCSE medium rebuilt",
-    zh: "兼容性与安全加固：OCIRE 恢复盘无条件布防、RTC 优先系统节拍（PIT 兜底）与 10 秒菜单时钟修复、I/O 等待真实时间上界（VMware 慢启动根因）、启动画面与分页器与一键挂载、OCSE 安装介质重建"
+    en: "severe-fix and closure: the VMware boot crawl paced (446x fewer port I/Os), K-08 banner race closed by construction, K-09 refuted with counters + the COM1 RX fix, K-10 OCIRE UEFI 14/14, the update full chain byte-proven + the RFC 2131 DHCP retransmission",
+    zh: "严重修复与收口：VMware 启动龟速根因配速（端口 I/O 削减 446 倍）、K-08 横幅竞态按构造关闭、K-09 以计数器推翻 + COM1 RX 修复、K-10 OCIRE UEFI 14/14、update 全链字节级证明 + RFC 2131 DHCP 重传"
   },
   assets: {
     iso: {
-      name: "opencube-3.0.0-WP-compat-and-security-hardening.iso",
-      size: 4212736,
+      name: "opencube-3.0.1-WP-severe-fix-and-closure.iso",
+      size: 4216832,
       size_h: "4.0 MiB",
-      sha256: "040a60ad47680b2d8e17b1eaff1e9b8b227ec6add5b577d4d6ef3dd7d0c01e20",
-      url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-compat-and-security-hardening.iso"
+      sha256: "e4bfd7107971486714a8d08003d398d557d447448f4209a81b6430acd32b2e3d",
+      url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.1-WP-severe-fix-and-closure.iso"
     },
     src: {
-      name: "opencube-3.0.0-WP-compat-and-security-hardening-src.zip",
-      size: 7499265,
+      name: "opencube-3.0.1-WP-severe-fix-and-closure-src.zip",
+      size: 7523459,
       size_h: "7.2 MiB",
-      sha256: "10632cef3409b820ea51869517cdbd7656fa5272bf523a0f4599387230033bbf",
-      url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-compat-and-security-hardening-src.zip"
+      sha256: "b9267dafe24ac441f9918600a9a2a383535223618398cc83e3946cf6446b60f9",
+      url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.1-WP-severe-fix-and-closure-src.zip"
     },
     ota: {
-      name: "opencube-3.0.0-WP-compat-and-security-hardening-update.tar.gz",
-      size: 1419439,
+      name: "opencube-3.0.1-WP-severe-fix-and-closure-update.tar.gz",
+      size: 1419887,
       size_h: "1.4 MiB",
-      sha256: "59e27cc3718c9df3f73c3ba3f79be5edf732d01c4a7166c0775bf6dfb02340d1",
-      url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-compat-and-security-hardening-update.tar.gz"
+      sha256: "26c7e7cd3742186dafd1f2b4d161881106afa6c3ed5a93a6be178d23324c426a",
+      url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.1-WP-severe-fix-and-closure-update.tar.gz"
     }
   },
   /* P2D3C (spec 4.9) + WP-compat B8: the development-preview channel
@@ -46,36 +46,36 @@ window.SITE_DATA = {
      run (absolute URLs; the defensive GitHub Releases fallback lives
      in assets/app.js). */
   dev: {
-    version: "3.0.0-WP-compat-and-security-hardening",
-    date: "2026-11-25",
+    version: "3.0.1-WP-severe-fix-and-closure",
+    date: "2026-11-26",
     assets: {
       opencube: {
-        name: "opencube-3.0.0-WP-compat-and-security-hardening.iso",
-        size: 4212736,
+        name: "opencube-3.0.1-WP-severe-fix-and-closure.iso",
+        size: 4216832,
         size_h: "4.0 MiB",
-        sha256: "040a60ad47680b2d8e17b1eaff1e9b8b227ec6add5b577d4d6ef3dd7d0c01e20",
-        url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-compat-and-security-hardening.iso"
+        sha256: "e4bfd7107971486714a8d08003d398d557d447448f4209a81b6430acd32b2e3d",
+        url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.1-WP-severe-fix-and-closure.iso"
       },
       ocse: {
-        name: "ocse-3.0.0-WP-compat-and-security-hardening.iso",
-        size: 5007360,
+        name: "ocse-3.0.1-WP-severe-fix-and-closure.iso",
+        size: 5013504,
         size_h: "4.8 MiB",
-        sha256: "c22095c60246b7e783d9679d4e89e13a84510ddbc16723c87cec2de77bbfe947",
-        url: "https://ocos.cubestudio.cn/downloads/ocse-3.0.0-WP-compat-and-security-hardening.iso"
+        sha256: "06a29b3bb00fada547ca615c88bd62f1bbbdfd9ac83dc247158aee95027c3702",
+        url: "https://ocos.cubestudio.cn/downloads/ocse-3.0.1-WP-severe-fix-and-closure.iso"
       },
       ota: {
-        name: "opencube-3.0.0-WP-compat-and-security-hardening-update.tar.gz",
-        size: 1419439,
+        name: "opencube-3.0.1-WP-severe-fix-and-closure-update.tar.gz",
+        size: 1419887,
         size_h: "1.4 MiB",
-        sha256: "59e27cc3718c9df3f73c3ba3f79be5edf732d01c4a7166c0775bf6dfb02340d1",
-        url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-compat-and-security-hardening-update.tar.gz"
+        sha256: "26c7e7cd3742186dafd1f2b4d161881106afa6c3ed5a93a6be178d23324c426a",
+        url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.1-WP-severe-fix-and-closure-update.tar.gz"
       },
       src: {
-        name: "opencube-3.0.0-WP-compat-and-security-hardening-src.zip",
-        size: 7499265,
+        name: "opencube-3.0.1-WP-severe-fix-and-closure-src.zip",
+        size: 7523459,
         size_h: "7.2 MiB",
-        sha256: "10632cef3409b820ea51869517cdbd7656fa5272bf523a0f4599387230033bbf",
-        url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-compat-and-security-hardening-src.zip"
+        sha256: "b9267dafe24ac441f9918600a9a2a383535223618398cc83e3946cf6446b60f9",
+        url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.1-WP-severe-fix-and-closure-src.zip"
       }
     }
   },
@@ -83,9 +83,12 @@ window.SITE_DATA = {
     commands: 313,
     interfaces: 223,
     syscalls: 54,
-    lines: "166,643"
+    lines: "167,195"
   },
   history: [
+    { version: "3.0.0-WP-compat-and-security-hardening", date: "2026-11-25",
+      iso_sha: "040a60ad47680b2d8e17b1eaff1e9b8b227ec6add5b577d4d6ef3dd7d0c01e20",
+      iso_size: 4212736 },
     { version: "3.0.0-WP-boot-stack-vmware-and-nak-rebase", date: "2026-11-23",
       iso_sha: "fb8965f42885088fb9e760a04084ddccba982bc18376480d3d34d5e4df4491a8",
       iso_size: 4196352 },
