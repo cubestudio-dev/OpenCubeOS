@@ -24,11 +24,19 @@
 #include "core_lib_string.h"
 #include "core_i18n_res.h"   /* P2A-L0-I18N: get_text(MSG_BOOT_L1_DEFAULT_FAILED) */
 #include "core_boot_state.h"      /* 3.0.0-WP07a: the L1_LAUNCHED state point */
+#include "core_boot_splash.h"    /* K-08: splash teardown on the failed-start path */
 
 /* Embedded ELF bytes live in core/userprogs_data.h (compiled once,
  * inside core_usermode.o) - reference them, never re-include. */
 extern const u8 userprog_ush[];
 extern const u64 userprog_ush_size;
+
+/* the default-entry exit flag + pid (defined in core_usermode.c;
+ * declared here so the create-and-register window and the park loop
+ * share the same externs) */
+extern volatile int g_l1_entry_running;
+extern volatile int g_l1_entry_pid;
+extern void core_sched_yield(void);
 
 /* ---- The default L1 entry: the user-space shell (ush) ------------- */
 OC_L1_APP_DECL("ush", userprog_ush, &userprog_ush_size, 1,
@@ -64,12 +72,42 @@ void l1_launcher_boot_default(void) {
         strcat(line, " bytes)");
         lib_log_info(line);
     }
-    pid_t pid = user_process_create(dflt->elf, *dflt->size_ptr, dflt->name);
-    if (pid < 0) {
-        /* P2A-L0-I18N: the failure line follows the console locale
-         * (the message resource carries both columns). */
-        lib_log_info(get_text(MSG_BOOT_L1_DEFAULT_FAILED));
-        return;
+    {
+        /* K-08 ROOT FIX (WP-severe-fix-and-closure): the pid registration
+         * used to sit a print-and-advance call AFTER user_process_create()
+         * returned - but user_process_create() queues the launcher kthread
+         * READY, so a timer preemption inside that window ran ush's FIRST
+         * syscall before g_l1_entry_pid was ever set.  The L1_READY
+         * one-shot then failed its pid compare, boot_splash_finish() never
+         * ran, and the still-installed splash hook swallowed ush's whole
+         * banner + first prompt (framebuffer AND serial - the screen
+         * stays black, the transcript stays silent) while ush itself sat
+         * healthy in its getch loop: the "no banner, no prompt" boot,
+         * reproduced ~50% on this tree.  Close the window BY CONSTRUCTION:
+         * create + register inside one interrupts-off window (the timer
+         * IRQ is the only preemption source on this single-CPU design,
+         * and user_process_create() never yields - it only queues). */
+        unsigned long _irqf;
+        __asm__ volatile("pushfq; popq %0; cli" : "=r"(_irqf) :: "memory");
+        pid_t pid = user_process_create(dflt->elf, *dflt->size_ptr,
+                                         dflt->name);
+        if (pid >= 0) {
+            g_l1_entry_pid = pid;     /* only THIS exit clears the flag */
+            g_l1_entry_running = 1;
+        }
+        if (_irqf & 0x200) __asm__ volatile("sti" ::: "memory");
+        if (pid < 0) {
+            /* the failure path must tear the splash down too - the
+             * one-shot that would have released the console never
+             * fires for a process that was never created, and the
+             * splash would swallow the failure diagnostics the same
+             * way it swallowed the banner. */
+            boot_splash_abort();
+            /* P2A-L0-I18N: the failure line follows the console locale
+             * (the message resource carries both columns). */
+            lib_log_info(get_text(MSG_BOOT_L1_DEFAULT_FAILED));
+            return;
+        }
     }
     /* 3.0.0-WP07a: the default L1 entry is launched - the L1_LAUNCHED
      * state point (L1_READY follows on its first syscall, see
@@ -96,11 +134,6 @@ void l1_launcher_boot_default(void) {
      * boot task burning its slice in ready-park is harmless on this
      * single-CPU design (the idle task still runs whenever nothing
      * else is ready). */
-    extern volatile int g_l1_entry_running;
-    extern volatile int g_l1_entry_pid;   /* 3.0.0-WP04 G7 live-catch */
-    extern void core_sched_yield(void);
-    g_l1_entry_pid = pid;                /* only THIS exit clears the flag */
-    g_l1_entry_running = 1;
     while (g_l1_entry_running) {
         core_sched_yield();
     }

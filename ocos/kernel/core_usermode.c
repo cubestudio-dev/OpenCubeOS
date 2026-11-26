@@ -513,11 +513,20 @@ void core_syscall_dispatch(u64 *regs) {
     /* 3.0.0-WP07a: the FIRST syscall from the default L1 entry marks
      * L1_READY - ush is up and actually serving (its first console
      * write lands here).  The gate is a single global load on the
-     * hot path; the pid compare only runs until the one-shot fires. */
+     * hot path; the pid compare only runs until the one-shot fires.
+     *
+     * K-08 second line of defense (WP-severe-fix-and-closure): while
+     * g_l1_entry_pid is still 0 - the registration window the
+     * launcher now closes with an interrupts-off create - the default
+     * entry is the ONLY ring-3 process that exists, so a first
+     * syscall from ANY pid is the L1_READY point.  Without this the
+     * residual window (a timer IRQ landing between create and
+     * register) would again leave the splash hook installed and
+     * swallow the whole banner. */
     if (boot_state_l1_pending()) {
         user_proc_t *bs_p = user_process_current();
         extern volatile int g_l1_entry_pid;
-        if (bs_p && bs_p->pid == g_l1_entry_pid)
+        if (bs_p && (bs_p->pid == g_l1_entry_pid || g_l1_entry_pid == 0))
             boot_state_l1_syscall();
     }
 

@@ -17,8 +17,22 @@
 #include "svc_display_ime_session.h"
 #include "core_lib_string.h"
 #include "core_kcap.h"
+#include "version_gen.h"
 
 typedef int (*disp_cmd_fn_t)(const char *);
+
+/* K-08 helper: append `s` into out[n..cap) and return the new length.
+ * (A function, not a macro - the macro form tripped
+ * -Werror=misleading-indentation on the guarded copy loop.) */
+static int disp_uname_append(char *out, int cap, int n, const char *s) {
+    int l = 0;
+    while (s[l]) l++;
+    if (n + l < cap - 1) {
+        for (int i = 0; i < l; i++) out[n + i] = s[i];
+        n += l;
+    }
+    return n;
+}
 
 static int disp_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
     if (!out || cap <= 0) return -1;
@@ -39,7 +53,43 @@ static int disp_l1_dispatch(u32 op, const char *arg, char *out, int cap) {
     disp_cmd_fn_t fn = 0;
     switch (op) {
         case L1SVC_DISP_STATS:       fn = disp_cmd_stats; break;
-        case L1SVC_DISP_UNAME:       fn = disp_cmd_uname; break;
+        /* L1SVC_DISP_UNAME: the K-08 fix (WP-severe-fix-and-closure)
+         * moved the op OFF the kcap console capture.  The banner fetch
+         * (ush's startup syscall) used to ride the capture through the
+         * splash-handoff window - the hook chain being restored there
+         * raced the capture install, and the fetch occasionally landed
+         * EMPTY (the "(run 'uname -r' ...)" fallback, KNOWN_ISSUES
+         * K-08).  The op is a pure buffer fill now, like LANG_GET
+         * below: the string shapes are byte-identical with what
+         * disp_cmd_uname always printed, written straight into `out`.
+         * No console hook, no capture, no race - the FIRST-syscall
+         * window can no longer lose the version string.  (The wrapper
+         * apps print `out` themselves, so the interactive `uname`
+         * command is unchanged.) */
+        case L1SVC_DISP_UNAME: {
+            int show_all = 0, show_s = 0, show_r = 0, show_m = 0;
+            if (arg && arg[0] == '-' && arg[1]) {
+                for (int i = 1; arg[i] && arg[i] != ' '; i++) {
+                    if (arg[i] == 'a') show_all = 1;
+                    else if (arg[i] == 's') show_s = 1;
+                    else if (arg[i] == 'r') show_r = 1;
+                    else if (arg[i] == 'm') show_m = 1;
+                }
+            } else {
+                show_s = 1;  /* default */
+            }
+            int n = 0;
+            if (show_all) {
+                n = disp_uname_append(out, cap, n,
+                                      "Open Cube OS " OC_RELEASE_VERSION " x86_64\n");
+            } else {
+                if (show_s) n = disp_uname_append(out, cap, n, "Open Cube OS\n");
+                if (show_r) n = disp_uname_append(out, cap, n, OC_RELEASE_VERSION "\n");
+                if (show_m) n = disp_uname_append(out, cap, n, "x86_64\n");
+            }
+            out[n] = 0;
+            return 0;
+        }
         case L1SVC_DISP_CLEAR:       fn = disp_cmd_clear; break;
         case L1SVC_DISP_LANG:        fn = disp_cmd_lang; break;
         /* WP06g3-4.2: the serial line output encoding - the single

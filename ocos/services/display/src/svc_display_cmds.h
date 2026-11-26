@@ -17,9 +17,10 @@
 extern "C" {
 #endif
 
-/* services/display/disp_cmds_kern.c (rescued from core/main.c) */
+/* services/display/disp_cmds_kern.c (rescued from core/main.c).
+ * disp_cmd_uname is GONE - the K-08 fix (WP-severe-fix-and-closure)
+ * turned the uname op into a pure buffer fill in svc_display_l1.c. */
 int disp_cmd_stats(const char *args);
-int disp_cmd_uname(const char *args);
 int disp_cmd_clear(const char *args);
 /* services/display/disp_lang.c (lang op) */
 int disp_cmd_lang(const char *args);

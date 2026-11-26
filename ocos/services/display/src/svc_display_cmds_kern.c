@@ -41,27 +41,10 @@ int disp_cmd_stats(const char *args) {
     return 0;
 }
 
-int disp_cmd_uname(const char *args) {
-    int show_all = 0, show_s = 0, show_r = 0, show_m = 0;
-    if (args && args[0] == '-' && args[1]) {
-        for (int i = 1; args[i] && args[i] != ' '; i++) {
-            if (args[i] == 'a') show_all = 1;
-            else if (args[i] == 's') show_s = 1;
-            else if (args[i] == 'r') show_r = 1;
-            else if (args[i] == 'm') show_m = 1;
-        }
-    } else {
-        show_s = 1;  /* default */
-    }
-    if (show_all) {
-        screen_console_puts("Open Cube OS " OC_RELEASE_VERSION " x86_64\n");
-        return 0;
-    }
-    if (show_s) screen_console_puts("Open Cube OS\n");
-    if (show_r) screen_console_puts(OC_RELEASE_VERSION "\n");
-    if (show_m) screen_console_puts("x86_64\n");
-    return 0;
-}
+/* disp_cmd_uname was removed by the K-08 fix (WP-severe-fix-and-
+ * closure): the op is a pure buffer fill in svc_display_l1.c now -
+ * it used to ride the kcap console capture through the splash-handoff
+ * window and the race emptied the banner fetch (KNOWN_ISSUES K-08). */
 
 int disp_cmd_clear(const char *args) {
     (void)args;
