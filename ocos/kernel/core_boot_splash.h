@@ -16,6 +16,8 @@
 #include "types.h"
 
 void boot_splash_begin(const char *cmdline);
+/* Late promotion once the persisted boot.ui choice is readable. */
+void boot_splash_promote(void);
 void boot_splash_set_stage(int stage);
 void boot_splash_finish(void);
 void boot_splash_abort(void);

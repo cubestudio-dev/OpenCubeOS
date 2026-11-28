@@ -195,8 +195,11 @@ BACK64:
         mov     ss, ax
         mov     fs, ax
         mov     gs, ax
-        mov     rsp, [0x40300 + B_RSP]
-        mov     rax, [0x40300 + B_RIP]
+        ; WP-vmware-input-fix: `abs` marks these as plain absolute
+        ; addresses. Without it nasm >= 3 infers DEFAULT ABS and warns
+        ; (-w+implicit-abs-deprecated), which breaks the 0-warning gate.
+        mov     rsp, [abs 0x40300 + B_RSP]
+        mov     rax, [abs 0x40300 + B_RIP]
         jmp     rax
 
 ; ---------------------------------------------------------------------------

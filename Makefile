@@ -506,12 +506,20 @@ iso: $(KERNEL_ISO)
 # configuration edits survive reboots.  Built from etc/opencube.conf.
 ETC_IMG := $(BUILD)/etc.img
 
+# WP-vmware-input-fix: OC_TOOLS is either a `dpkg -x` extraction root (the
+# tools live under <root>/usr/bin) or a system install (OC_TOOLS=/usr and
+# the tools are in /usr/bin directly). Joining "/usr" + "/usr/bin" gave
+# "/usr/usr/bin" and broke the mtools calls on a system toolchain. Pick
+# whichever directory actually holds mformat.
+MT_BINDIR := $(firstword $(wildcard $(OC_TOOLS)/usr/bin $(OC_TOOLS)/bin))
+MT_STAGE  := $(if $(MT_BINDIR),$(MT_BINDIR):,)
+
 $(ETC_IMG): $(OC_ROOT)/etc/opencube.conf | $(BUILD)
 	rm -f $(ETC_IMG)
 	truncate -s 32M $(ETC_IMG)
 	printf 'drive e: file="%s"\n' "$(abspath $(ETC_IMG))" > $(BUILD)/mtoolsrc
-	PATH=$(OC_TOOLS)/usr/bin:$$PATH MTOOLSRC=$(BUILD)/mtoolsrc mformat -F -v OCS_ETC e:
-	PATH=$(OC_TOOLS)/usr/bin:$$PATH MTOOLSRC=$(BUILD)/mtoolsrc mcopy $(OC_ROOT)/etc/opencube.conf e:opencube.conf
+	PATH=$(MT_STAGE)$$PATH MTOOLSRC=$(BUILD)/mtoolsrc mformat -F -v OCS_ETC e:
+	PATH=$(MT_STAGE)$$PATH MTOOLSRC=$(BUILD)/mtoolsrc mcopy $(OC_ROOT)/etc/opencube.conf e:opencube.conf
 
 # ---- QEMU runs ----
 

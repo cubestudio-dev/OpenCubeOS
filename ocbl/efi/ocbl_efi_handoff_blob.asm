@@ -46,7 +46,7 @@ ocbl_efi_ho_entry:
         mov     rcx, rdi               ; kernel 32-bit entry (low 32)
         mov     ebx, esi               ; MBI physical (low 32)
         ; our own GDT: code32 0x08 / data32 0x10, flat 4 GiB
-        lgdt    [ocbl_ho_gdt_desc]
+        lgdt    [abs ocbl_ho_gdt_desc]   ; abs: no implicit-ABS warning (nasm 3)
         ; low-address stack INSIDE the reserved window
         mov     rsp, 0x3E000
         ; STEP 1: far-jump into the 32-bit COMPATIBLE code segment while
@@ -54,9 +54,9 @@ ocbl_efi_ho_entry:
         ; the B1 lesson, unchanged under UEFI).  64-bit far jmp reads
         ; m16:64: 8-byte offset + selector.
         mov     rax, ocbl_ho_32
-        mov     [ocbl_ho_fptr], rax
-        mov     word [ocbl_ho_fptr+8], 0x08
-        jmp     far [ocbl_ho_fptr]
+        mov     [abs ocbl_ho_fptr], rax
+        mov     word [abs ocbl_ho_fptr+8], 0x08
+        jmp     far [abs ocbl_ho_fptr]   ; abs: no implicit-ABS warning (nasm 3)
 
         align 8
 ocbl_ho_fptr:

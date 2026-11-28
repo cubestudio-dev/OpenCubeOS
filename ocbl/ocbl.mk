@@ -170,6 +170,7 @@ $(OCBL_OUT)/efiobj/%.o: $(OCBL_DIR)/%.c $(OCBL_COMMON_H) $(OCBL_DIR)/efi/ocbl_ef
 #  directory deterministically.)
 $(OCBL_OUT)/ocbl_x64.efi: $(OCBL_EFI_OBJ) $(OCBL_OUT)/efiobj/handoff_data.o $(OCBL_DIR)/elf_to_efi.py $(OCBL_DIR)/linker_efi.ld
 	$(LD) -m elf_x86_64 --emit-relocs -n -nostdlib \
+              --no-warn-rwx-segments \
               -T $(OCBL_DIR)/linker_efi.ld -o $(OCBL_OUT)/core_efi.elf \
               $(OCBL_EFI_OBJ) $(OCBL_OUT)/efiobj/handoff_data.o
 	python3 $(OCBL_DIR)/elf_to_efi.py $(OCBL_OUT)/core_efi.elf $@ ocbl_raw_entry

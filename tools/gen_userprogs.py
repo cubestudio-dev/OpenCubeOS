@@ -92,6 +92,7 @@ WP_TAGS = {
     "chown": "ush",
     "clear": "display",
     "config": "ota",
+    "boot-ui": "ota",   # WP-vmware-input-fix 4.2: boot.ui key
     "config_test": "ota",
     "cp": "fs",
     "cr3test": "core",

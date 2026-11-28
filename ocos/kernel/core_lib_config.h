@@ -65,6 +65,22 @@ extern "C" {
 #define OC_CONFIG_KEY_ONLINE_UPDATE "online_update"
 /* fix3: user-configurable shell output language (en / zh) */
 #define OC_CONFIG_KEY_SHELL_LANG "shell.lang"
+
+/* WP-vmware-input-fix 4.2: which boot UI the NEXT boot uses.
+ *
+ *   boot.ui = log     - the classic scrolling console: every stage line
+ *                       with its timestamp goes to the screen (the
+ *                       factory default; it is what makes a failure
+ *                       diagnosable instead of hidden behind a bar)
+ *   boot.ui = splash  - the centered logo + phase progress bar, with the
+ *                       full log still captured to klog
+ *
+ * Set from ring 3 with `config set boot.ui splash` (persisted here) or
+ * from the shell with `boot-ui splash`.  Unknown values are rejected, so
+ * a typo cannot leave the machine in an unbootable UI state. */
+#define OC_CONFIG_KEY_BOOT_UI  "boot.ui"
+#define OC_CONFIG_BOOT_UI_LOG    "log"
+#define OC_CONFIG_BOOT_UI_SPLASH "splash"
 #define OC_CONFIG_DEFAULT_SHELL_LANG "en"
 
 #define OC_CONFIG_DEFAULT_URL       "https://cubestudio-dev.github.io/OpenCubeOS/update.json"

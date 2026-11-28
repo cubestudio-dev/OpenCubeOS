@@ -1,0 +1,8 @@
+{
+  "_hint": "切换开机显示（日志 / 进度条），对下次开发生效并持久化",
+  "svc_call_failed": "：配置服务调用失败\n",
+  "ui_usage": "用法：boot-ui [log|splash]\n",
+  "ui_log": "  log     开机显示带时间戳的完整日志（默认）\n",
+  "ui_splash": "  splash  开机显示 Logo + 进度条\n",
+  "ui_noarg": "  （不带参数则打印下次开机使用的模式）\n"
+}

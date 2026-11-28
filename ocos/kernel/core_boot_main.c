@@ -623,6 +623,42 @@ void kmain(u64 magic, u64 mbi_phys) {
      * the key-value mechanism). */
     lib_config_init_with(fs_config_backend());
 
+    /* ---- WP-vmware-input-fix 4.2: apply the persisted boot UI ----
+     *
+     * boot_splash_begin() runs at the very top of kmain, BEFORE any
+     * storage exists, so it can only honour the command line there and
+     * falls back to the factory default (the scrolling log).  The
+     * user's choice lives in /etc/opencube.conf, which only becomes
+     * readable here - after the FS drivers and the config backend are
+     * up.  That is why the splash is not simply "on unless told
+     * otherwise": the machine boots printing its real log, and this
+     * point promotes the screen to the progress bar when the user asked
+     * for it.  Everything above still lands in klog + the serial
+     * transcript, so nothing is lost either way.
+     *
+     * The command line keeps the final word, matching boot_splash_begin:
+     * an explicit oc.splash=0/1 must not be undone by the file. */
+    {
+        int cmdline_says = 0;          /* 0 = not given, 1 = force on, -1 = force off */
+        if (mbi.cmdline) {
+            const char *p = mbi.cmdline;
+            while (*p) {
+                if (p == mbi.cmdline || p[-1] == ' ') {
+                    if (strncmp(p, "oc.splash=0", 11) == 0) cmdline_says = -1;
+                    else if (strncmp(p, "oc.splash=1", 11) == 0) cmdline_says = 1;
+                }
+                while (*p && *p != ' ') p++;
+                while (*p == ' ') p++;
+            }
+        }
+        if (cmdline_says == 0) {
+            char v[OC_CONFIG_VAL_MAX];
+            if (lib_config_read(OC_CONFIG_KEY_BOOT_UI, v, sizeof(v)) == 0 &&
+                strcmp(v, OC_CONFIG_BOOT_UI_SPLASH) == 0)
+                boot_splash_promote();
+        }
+    }
+
     /* ---- WP-runtime-hardening 4.4/4.5: restore the persisted console
      * locale + serial encoding (the old flow WROTE shell.lang on every
      * `lang zh` but never read it back - a zh user rebooted to English

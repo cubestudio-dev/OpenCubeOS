@@ -89,6 +89,7 @@ $(OCRMECL_OUT)/efiobj/%.o: $(OCRMECL_DIR)/%.c $(wildcard $(OCRMECL_DIR)/efi/*.h)
 
 $(OCRMECL_OUT)/ocrmecl_x64.efi: $(OCRMECL_EFI_OBJ) $(OCBL_DIR)/elf_to_efi.py $(OCRMECL_DIR)/linker_efi.ld
 	$(LD) -m elf_x86_64 --emit-relocs -n -nostdlib \
+              --no-warn-rwx-segments \
 	      -T $(OCRMECL_DIR)/linker_efi.ld -o $(OCRMECL_OUT)/core_efi.elf \
 	      $(OCRMECL_EFI_OBJ)
 	python3 $(OCBL_DIR)/elf_to_efi.py $(OCRMECL_OUT)/core_efi.elf $@ ocr_efi_main

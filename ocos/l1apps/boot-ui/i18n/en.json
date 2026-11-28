@@ -1,0 +1,8 @@
+{
+  "_hint": "switch the boot UI (log / splash), persisted for the next boot",
+  "svc_call_failed": ": config service call failed\n",
+  "ui_usage": "usage: boot-ui [log|splash]\n",
+  "ui_log": "  log     boot with the classic scrolling log (default)\n",
+  "ui_splash": "  splash  boot with the logo + progress bar\n",
+  "ui_noarg": "  (no argument prints the mode the next boot will use)\n"
+}

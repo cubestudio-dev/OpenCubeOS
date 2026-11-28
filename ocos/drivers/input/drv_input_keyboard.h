@@ -96,6 +96,11 @@ typedef int (*driver_input_kbd_handler_fn)(u16 keycode, u8 mods);
 int driver_input_keyboard_register_handler(driver_input_kbd_handler_fn handler);
 int driver_input_keyboard_unregister_handler(driver_input_kbd_handler_fn handler);
 
+/* WP-vmware-input-fix 4.1: 1 when i8042_init() found an enabled keyboard,
+ * 0 when the machine has no PS/2 keyboard (serial-only console). The IRQ1
+ * handler stays inert when this is 0. */
+int driver_input_keyboard_present(void);
+
 #endif /* OC_KEYBOARD_H */
 
 /* WP-10-chinese_support-fix4: runtime keyboard layout ("us" | "dvorak").

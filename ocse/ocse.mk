@@ -131,7 +131,11 @@ $(OCSE_ELF): $(OCSE_OBJ) $(OCSE_DIR)/linker_ocse.ld
 ocse-elf: ocse-vendor-check $(OCSE_ELF)
 
 .PHONY: ocse-iso
-ocse-iso: ocse-elf ocbl-bios
+# WP-vmware-input-fix 4.3: the install medium boots through OCRMECL + OCBL
+# (the same chain as the product ISO), and its OCOS.TAR payload needs the
+# main kernel + the recovery kernel, so all of those are prerequisites of
+# the ISO, not just of `make all`.
+ocse-iso: ocse-elf ocbl-bios ocrmecl kernel ocire-kernel
 	bash tools/build_ocse_iso.sh
 
 .PHONY: ocse-clean

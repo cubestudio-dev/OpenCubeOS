@@ -33,15 +33,21 @@
 #include "core_lib_string.h"
 #include "core_lib_klog.h"
 #include "core_lib_log.h"
+#include "core_lib_config.h"   /* boot.ui: the persisted boot-UI choice */
 
-/* ---- the logo (7 lines, 56 columns max) ---------------------------- */
+/* ---- the logo (6 lines, 48 columns) --------------------------------
+ * WP-vmware-input-fix 4.2: this used to be a hand-typed figlet that had
+ * drifted from the real font - the letters after "Open " were wrong (the
+ * "u" of Cube was rendered with the strokes of "pen", so the banner read
+ * as a mangled "Open" plus a tall nonsense block). It is now byte-exact
+ * `figlet -f standard 'Open Cube'`, regenerated rather than retyped. */
 static const char *const g_logo[] = {
-    "  ___                    _        ____                  ",
-    " / _ \\ _ __   ___ _ __ (_)_ __  / ___|  ___ __ _ _ __  ",
-    "| | | | '_ \\ / _ \\ '_ \\| | '_ \\| |     / __/ _` | '_ \\ ",
-    "| |_| | |_) |  __/ | | | | | | | |___ | (_| (_| | | | |",
-    " \\___/| .__/ \\___|_| |_|_|_| |_|\\____| \\___\\__,_|_| |_|",
-    "      |_|                                              ",
+    "  ___                      ____      _          ",
+    " / _ \\ _ __   ___ _ __    / ___|   _| |__   ___ ",
+    "| | | | '_ \\ / _ \\ '_ \\  | |  | | | | '_ \\ / _ \\",
+    "| |_| | |_) |  __/ | | | | |__| |_| | |_) |  __/",
+    " \\___/| .__/ \\___|_| |_| \\____\\__,_|_.__/ \\___|",
+    "      |_|                                       ",
     0
 };
 
@@ -169,27 +175,82 @@ int boot_splash_active(void) {
     return g_splash_on;
 }
 
-void boot_splash_begin(const char *cmdline) {
-    g_splash_on = 0;
-    g_line_len = 0;
-    /* oc.splash=0 -> classic boot (the diagnostics switch) */
+/* WP-vmware-input-fix 4.2: is the progress-bar UI wanted for THIS boot?
+ *
+ * Order of precedence (lowest to highest):
+ *   1. factory default  = LOG      - the classic scrolling boot log
+ *   2. /etc/opencube.conf  boot.ui = log | splash
+ *   3. kernel cmdline    oc.splash=1 | oc.splash=0
+ *
+ * The tool this replaces decided the default by simply switching the
+ * splash ON unconditionally unless told otherwise, which hid the boot
+ * log from every user and made a failure at stage 3 look like a bar
+ * that stopped moving.  Log is now the default: a machine that boots
+ * wrong prints WHY on the console out of the box.  Users who prefer the
+ * bar opt in once (it persists), and either way the full log still goes
+ * to klog + the serial transcript. */
+static int boot_ui_wants_splash(const char *cmdline) {
+    int want = 0;                      /* (1) factory default: log */
+
+    /* (2) persisted user choice */
+    char val[OC_CONFIG_VAL_MAX];
+    if (lib_config_read(OC_CONFIG_KEY_BOOT_UI, val, sizeof(val)) == 0 &&
+        strcmp(val, OC_CONFIG_BOOT_UI_SPLASH) == 0)
+        want = 1;
+
+    /* (3) the command line overrides the file in both directions */
     if (cmdline) {
         const char *p = cmdline;
         while (*p) {
-            if ((p == cmdline || p[-1] == ' ') &&
-                strncmp(p, "oc.splash=0", 11) == 0)
-                return;
+            if (p == cmdline || p[-1] == ' ') {
+                if (strncmp(p, "oc.splash=0", 11) == 0) return 0;
+                if (strncmp(p, "oc.splash=1", 11) == 0) return 1;
+            }
             while (*p && *p != ' ') p++;
             while (*p == ' ') p++;
         }
     }
+    return want;
+}
+
+void boot_splash_begin(const char *cmdline) {
+    g_splash_on = 0;
+    g_line_len = 0;
+
+    if (!boot_ui_wants_splash(cmdline)) {
+        /* Classic boot: nothing is displaced, the log scrolls. */
+        klog_record(KLOG_INFO, "boot",
+                    "boot UI: log (boot.ui=splash or oc.splash=1 for the bar)");
+        return;
+    }
+
     g_splash_stage = 0;
     g_splash_on = 1;
     screen_console_clear();
     splash_draw_bar(0);
     screen_console_get_hook(&g_hook_saved);   /* kcap chain displaced */
     screen_console_set_hook(splash_hook, NULL);
-    klog_record(KLOG_INFO, "boot", "splash: boot log captured to klog (oc.splash=0 for the classic boot)");
+    klog_record(KLOG_INFO, "boot",
+                "boot UI: splash (boot.ui=log or oc.splash=0 for the log)");
+}
+
+/* Late promotion to the splash UI (WP-vmware-input-fix 4.2).
+ *
+ * Called from kmain once /etc/opencube.conf is readable and the user has
+ * boot.ui=splash.  By then a handful of log lines have already scrolled;
+ * promoting clears the screen and paints the logo + bar at the current
+ * stage, so the user sees the bar for the rest of the boot.  A no-op when
+ * the splash is already up (the command line may have turned it on at
+ * boot_splash_begin time) - begin() and promote() must never fight. */
+void boot_splash_promote(void) {
+    if (g_splash_on) return;
+    g_splash_stage = 0;
+    g_splash_on = 1;
+    screen_console_clear();
+    splash_draw_bar(0);
+    screen_console_get_hook(&g_hook_saved);
+    screen_console_set_hook(splash_hook, NULL);
+    klog_record(KLOG_INFO, "boot", "boot UI: splash (promoted from boot.ui)");
 }
 
 void boot_splash_set_stage(int stage) {

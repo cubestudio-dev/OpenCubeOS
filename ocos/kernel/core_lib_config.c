@@ -319,6 +319,17 @@ int lib_config_write(const char *key, const char *value) {
         else if (strcasecmp(canon, "no") == 0)  { canon[0]='n'; canon[1]='o'; canon[2]=0; }
         else return OC_CONFIG_E_ARGS;   /* invalid online_update -> rejected */
     }
+    if (strcmp(key, OC_CONFIG_KEY_BOOT_UI) == 0) {
+        /* WP-vmware-input-fix 4.2: only the two UIs exist; canonical
+         * lowercase is stored so the boot-time reader compares once. */
+        if (strcasecmp(canon, OC_CONFIG_BOOT_UI_LOG) == 0) {
+            for (int i = 0; OC_CONFIG_BOOT_UI_LOG[i]; i++) canon[i] = OC_CONFIG_BOOT_UI_LOG[i];
+            canon[3] = 0;
+        } else if (strcasecmp(canon, OC_CONFIG_BOOT_UI_SPLASH) == 0) {
+            for (int i = 0; OC_CONFIG_BOOT_UI_SPLASH[i]; i++) canon[i] = OC_CONFIG_BOOT_UI_SPLASH[i];
+            canon[6] = 0;
+        } else return OC_CONFIG_E_ARGS;   /* invalid boot.ui -> rejected */
+    }
     if (strcmp(key, OC_CONFIG_KEY_SHELL_LANG) == 0) {
         /* fix3: only en / zh are valid; canonical lowercase is stored */
         if (strcasecmp(canon, "en") == 0)       { canon[0]='e'; canon[1]='n'; canon[2]=0; }

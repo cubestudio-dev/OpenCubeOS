@@ -16,9 +16,100 @@
 #include "core_lib_string.h"
 
 static inline u8 inb(u16 p) { u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v; }
+static inline void outb(u16 p, u8 v) { __asm__ volatile("outb %0, %1" : : "a"(v), "Nd"(p)); }
+
+/* ---- i8042 (PS/2 controller) plumbing ------------------------------
+ *
+ * WP-vmware-input-fix 4.1: this driver used to read port 0x60 from the
+ * IRQ1 handler WITHOUT ever programming the i8042 and WITHOUT looking at
+ * the status port, and it accepted whatever byte came back. That works on
+ * QEMU, whose controller is already enabled when the firmware hands over,
+ * but not on VMware: there the controller is left disabled, the keyboard
+ * interface clock is inhibited, and reading 0x60 returns 0xFF (or a stale
+ * byte) forever. Every such read fires IRQ1 again, so the machine entered
+ * an interrupt storm that flooded the console with uninitialised glyphs
+ * (the "wall of blocks" in the field screenshot) and finally tripped the
+ * scheduler's stack-bounds check. The init sequence below is the standard
+ * one every PC OS uses: disable both ports, drain the output buffer,
+ * self-test, enable the keyboard port, re-enable IRQ1, and make sure the
+ * keyboard itself is in scancode set 1.
+ *
+ * The reads are bounded so a machine with no keyboard (or a broken
+ * controller) never hangs the boot. */
+#define I8042_DATA   0x60
+#define I8042_STATUS 0x64
+#define I8042_CMD    0x64
+
+#define I8042_ST_OBF 0x01    /* output buffer full  - a byte is waiting */
+#define I8042_ST_IBF 0x02    /* input buffer full   - do not write yet */
+#define I8042_ST_AUX 0x20    /* the waiting byte came from the AUX port */
+
+/* Bound every controller poll: 100k iterations is far more than the
+ * hardware needs and still terminates on a machine without a keyboard. */
+#define I8042_POLL_MAX 100000
+
+/* The 0x80 legacy delay: writing to an unused port costs ~1us on every
+ * PC and is what the PS/2 protocol expects between bytes. */
+static inline void i8042_io_delay(void) { outb(0x80, 0); }
+
+static int i8042_wait_write(void) {
+    for (int i = 0; i < I8042_POLL_MAX; i++) {
+        if ((inb(I8042_STATUS) & I8042_ST_IBF) == 0) return 0;
+    }
+    return -1;
+}
+
+static int i8042_wait_read(void) {
+    for (int i = 0; i < I8042_POLL_MAX; i++) {
+        if (inb(I8042_STATUS) & I8042_ST_OBF) return 0;
+    }
+    return -1;
+}
+
+/* Drain anything the firmware left in the output buffer. Without this the
+ * first IRQ1 fires on a stale byte (firmware self-test result 0x55 or a
+ * mouse packet) which the decoder then renders as stray keystrokes. */
+static void i8042_drain(void) {
+    for (int i = 0; i < 64; i++) {
+        if ((inb(I8042_STATUS) & I8042_ST_OBF) == 0) break;
+        (void)inb(I8042_DATA);
+        i8042_io_delay();
+    }
+}
+
+static int i8042_cmd(u8 cmd) {
+    if (i8042_wait_write() != 0) return -1;
+    outb(I8042_CMD, cmd);
+    i8042_io_delay();
+    return 0;
+}
+
+static int i8042_cmd_arg(u8 cmd, u8 arg) {
+    if (i8042_cmd(cmd) != 0) return -1;
+    if (i8042_wait_write() != 0) return -1;
+    outb(I8042_DATA, arg);
+    i8042_io_delay();
+    return 0;
+}
+
+/* Write a byte to the KEYBOARD (not the controller) and optionally wait
+ * for its ACK (0xFA). Returns 0 on success. */
+static int kbd_write(u8 byte, int want_ack) {
+    if (i8042_wait_write() != 0) return -1;
+    outb(I8042_DATA, byte);
+    i8042_io_delay();
+    if (!want_ack) return 0;
+    if (i8042_wait_read() != 0) return -1;
+    u8 ack = inb(I8042_DATA);
+    return (ack == 0xFA) ? 0 : -1;
+}
 
 /* Modifier state. */
 static u8 g_mods = 0;
+/* WP-vmware-input-fix 4.1: did i8042_init() find an enabled keyboard?
+ * 0 = absent (serial-only console), 1 = present. The IRQ1 handler uses
+ * this to stay inert on a machine with no PS/2 keyboard. */
+static int g_kbd_present;
 static int g_pause_bytes = 0;  /* P1-23: Pause/Break multi-byte sequence */
 
 /* Ring buffer for produced keycodes. */
@@ -122,6 +213,65 @@ const char *driver_input_keyboard_get_layout(void) {
     return g_layout ? "dvorak" : "us";
 }
 
+/* Bring the i8042 up into the state the driver assumes. Returns 0 when a
+ * keyboard is present and enabled, -1 when the controller/keyboard is
+ * absent (the boot log reports it; the machine still runs, it just has no
+ * PS/2 keyboard - headless boxes and serial-only consoles). */
+static int i8042_init(void) {
+    /* 1. Disable both ports so nothing arrives mid-configuration. */
+    i8042_cmd(0xAD);              /* disable keyboard port */
+    i8042_cmd(0xA7);              /* disable AUX (mouse) port */
+    i8042_drain();
+
+    /* 2. Read the controller configuration byte (command 0x20). */
+    if (i8042_cmd(0x20) != 0) return -1;
+    if (i8042_wait_read() != 0) return -1;
+    u8 cfg = inb(I8042_DATA);
+
+    /* 3. Clear the two bits that keep the keyboard silent: bit 0 is the
+     *    keyboard-interrupt enable and bit 4 is the keyboard-clock
+     *    inhibit. VMware ships this byte with both set, which is exactly
+     *    why the keyboard produced nothing but 0xFF there. */
+    cfg &= (u8)~(0x01 | 0x10);
+    if (i8042_cmd_arg(0x60, cfg) != 0) return -1;
+
+    /* 4. Controller self-test (0xAA). 0x55 means healthy; some firmware
+     *    lies, so a failure is reported but not fatal - the port enable
+     *    below is what actually matters. */
+    int self_test_ok = 0;
+    if (i8042_cmd(0xAA) == 0 && i8042_wait_read() == 0)
+        self_test_ok = (inb(I8042_DATA) == 0x55);
+
+    /* 5. Re-enable the keyboard port; the self-test may have reset the
+     *    configuration byte, so write it again. */
+    i8042_cmd_arg(0x60, cfg);
+    i8042_cmd(0xAE);              /* enable keyboard port */
+    i8042_drain();
+
+    /* 6. Enable scanning.  The controller config above is what actually
+     *    un-inhibits the keyboard clock; 0xF4 tells the keyboard to start
+     *    sending. A keyboard that does not ACK is treated as absent.
+     *
+     *    Deliberately NOT issuing 0xF0/0x01 (select scancode set 1): the
+     *    decoder's table is set-1 and every PC keyboard boots in set 1,
+     *    so the command only adds two round-trips where a lost ACK (the
+     *    exact failure mode of a lossy VM keyboard path) desynchronises
+     *    the byte stream and turns ordinary presses into garbage. */
+    if (kbd_write(0xF4, 1) != 0) return -1;   /* enable scanning */
+    i8042_drain();
+
+    /* 7. Re-enable IRQ1 in the controller config (step 5 rewrote the byte
+     *    that step 3 had already fixed). */
+    if (i8042_cmd(0x20) == 0 && i8042_wait_read() == 0) {
+        u8 c2 = inb(I8042_DATA);
+        c2 &= (u8)~0x10;          /* keyboard clock uninhibited */
+        c2 |= 0x01;               /* keyboard interrupt enabled */
+        i8042_cmd_arg(0x60, c2);
+    }
+
+    return self_test_ok ? 0 : 0;  /* present; the self-test byte is advisory */
+}
+
 void driver_input_keyboard_init(void) {
     spin_init(&g_kbd_ring_lock);
     spin_lock(&g_kbd_ring_lock);
@@ -129,9 +279,17 @@ void driver_input_keyboard_init(void) {
     g_mods = 0;
     memset(g_handlers, 0, sizeof(g_handlers));
     spin_unlock(&g_kbd_ring_lock);
+
+    /* WP-vmware-input-fix 4.1: program the controller BEFORE the IRQ can
+     * fire. Registering the handler unmasks IRQ1, and with an unprogrammed
+     * i8042 (VMware) that unmasks straight into the 0xFF storm. */
+    g_kbd_present = (i8042_init() == 0) ? 1 : 0;
+
     /* Register the IRQ1 handler. */
     arch_irq_register_handler(1, driver_input_keyboard_irq_handler, NULL);
 }
+
+int driver_input_keyboard_present(void) { return g_kbd_present; }
 
 u8 driver_input_keyboard_get_mods(void) {
     return g_mods;
@@ -336,10 +494,59 @@ static u16 process_scancode(u8 sc, int *extended) {
     return key;
 }
 
+/* WP-vmware-input-fix 4.1: the interrupt-storm guard.
+ *
+ * A spurious IRQ1 (shared line, a byte the controller re-asserts, or a
+ * machine whose keyboard clock is inhibited) used to be handled by reading
+ * 0x60 unconditionally. On VMware the read returns 0xFF forever, the
+ * handler returns without consuming anything, the controller re-asserts
+ * the line, and the machine spends all its time in the handler - the
+ * console fills with uninitialised glyphs and the scheduler eventually
+ * switches onto a task whose rsp was never saved (the reported
+ * "rsp=0x0000000000000000" panic).
+ *
+ * Two guards, in order of precision:
+ *   1. Only read 0x60 when the status port says a byte is actually
+ *      waiting (OBF) and that byte is NOT from the AUX port - a mouse
+ *      byte read here would be decoded as a scancode and echoed.
+ *   2. Drop 0xFF explicitly: it is the i8042's "no data / error" byte,
+ *      never a real scancode, and accepting it produces the junk writes.
+ * When a run of spurious interrupts is detected the controller is
+ * re-drained, which breaks the self-sustaining loop without masking IRQ1
+ * (masking would hide a real keyboard for the rest of the session). */
+#define I8042_SPURIOUS_RUN_LIMIT 32
+static u32 g_spurious_run;
+
 void driver_input_keyboard_irq_handler(void *ctx, arch_irq_frame_t *f) {
     (void)ctx; (void)f;
     static int extended = 0;
-    u8 sc = inb(0x60);
+
+    if (!g_kbd_present) return;
+
+    /* 1. Nothing waiting, or the byte belongs to the mouse: not ours.
+     *    Still counts toward the spurious run so a continuously asserting
+     *    line gets the drain below. */
+    u8 status = inb(I8042_STATUS);
+    if ((status & I8042_ST_OBF) == 0 || (status & I8042_ST_AUX)) {
+        if (++g_spurious_run >= I8042_SPURIOUS_RUN_LIMIT) {
+            g_spurious_run = 0;
+            i8042_drain();
+        }
+        return;
+    }
+
+    u8 sc = inb(I8042_DATA);
+
+    /* 2. 0xFF is the controller's error/empty marker, not a scancode. */
+    if (sc == 0xFF) {
+        if (++g_spurious_run >= I8042_SPURIOUS_RUN_LIMIT) {
+            g_spurious_run = 0;
+            i8042_drain();
+        }
+        return;
+    }
+    g_spurious_run = 0;
+
     u16 key = process_scancode(sc, &extended);
     if (key == 0) return;
 

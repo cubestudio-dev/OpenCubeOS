@@ -30,6 +30,16 @@ if [ ! -f "$BUILD/ocbl/ocbl_bios.bin" ] || \
     echo "[ocse_iso] FATAL: OCBL images missing (make ocbl-bios ocbl-efi)" >&2
     exit 1
 fi
+# WP-vmware-input-fix 4.3: the install medium boots through the SAME
+# chain as the product ISO - OCRMECL flattens the firmware state and
+# hands off to OCBL.  This medium used to stage OCBL.BIN directly, i.e.
+# the 1.0.0-era chain with no compatibility layer, which is why it could
+# not come up on machines whose firmware needed flattening.
+if [ ! -f "$BUILD/ocrmecl/ocrmecl_bios.bin" ] || \
+   [ ! -f "$BUILD/ocrmecl/ocrmecl_x64.efi" ]; then
+    echo "[ocse_iso] FATAL: OCRMECL images missing (make ocrmecl)" >&2
+    exit 1
+fi
 # WP-06b: the MBR-flavor stage1 + core are what ocbl-install writes
 # to disks (the El Torito pair above is only for booting the ISO).
 if [ ! -f "$BUILD/ocbl/stage1_mbr.bin" ] || \
@@ -67,9 +77,19 @@ release: $(git -C "$OC_ROOT" describe --tags --always 2>/dev/null || echo dev)
 work-package: 3.0.0-WP06a
 EOF
 
-# --- 3. the OCBL dual-firmware pair ---
+# --- 3. the OCRMECL dual-firmware pair (the El Torito boot images) ---
+#      OCRMECL is the compatibility layer the product ISO boots through:
+#      it flattens the firmware state (A20/GDT/IDT/PIC/IOAPIC), scans the
+#      volumes and hands off to OCBL.  The install medium now boots the
+#      identical way, so an installer and the OS it installs cannot
+#      disagree about the boot path.
+cp "$BUILD/ocrmecl/ocrmecl_bios.bin" "$STAGE/OCRMECL.BIN"
+cp "$BUILD/ocrmecl/ocrmecl_x64.efi" "$STAGE/BOOTX64.EFI"
+
+# --- 3a. the OCBL pair still ships on the medium: ocbl-install writes
+#       these to the target disk, which is a different job from booting
+#       this ISO. ---
 cp "$BUILD/ocbl/ocbl_bios.bin" "$STAGE/OCBL.BIN"
-cp "$BUILD/ocbl/ocbl_x64.efi" "$STAGE/BOOTX64.EFI"
 
 # --- 3b. (WP-06b) the disk-flavor OCBL image ocbl-install writes:
 #         [ stage1_mbr 512B ][ core ] - ocbl-install patches the
@@ -86,7 +106,7 @@ python3 "$OC_ROOT/tools/make_ocos_tar.py" "$STAGE/OCOS.TAR" \
 
 # --- 4. pack: BIOS El Torito + UEFI El Torito (1 MiB ESP), G13 seals ---
 python3 "$OC_ROOT/ocbl/build_test_iso.py" "$BUILD/ocse.iso" \
-        "$STAGE" OCBL.BIN BOOTX64.EFI
+        "$STAGE" OCRMECL.BIN BOOTX64.EFI
 
 echo "[ocse_iso] ISO: $BUILD/ocse.iso"
 ls -la "$BUILD/ocse.iso"
