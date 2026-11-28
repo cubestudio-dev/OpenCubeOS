@@ -2,7 +2,7 @@
 # 服务表面图
 
 每个 L1SVC 类别、它代理什么、包装它的应用。编号契约是
-`ocos/interface/l1svc_ops.h`（从
+`ocos/interface/l1_svc_ops.h`（从
 `ocos/services/sysapi/interface/svc_sysapi_l1svc.h` 镜像而来；
 上游只允许追加式重编号，然后重新生成）。
 
@@ -60,7 +60,7 @@
 "reboot required"          (ota update, after install)
 ```
 
-重命名其中任何一行都是破坏性变更：向导（`wizard_lib.h` 的
+重命名其中任何一行都是破坏性变更：向导（`l1_wizard_api.h` 的
 `wiz_find`）、E2E 套件和用户文档都在读它们。
 
 ## help -a / help -w

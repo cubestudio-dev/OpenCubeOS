@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "cat".
  * Moved verbatim from the ush `cat` builtin: no argument copies stdin
  * to stdout, otherwise prints every argv[1..] file. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- cat [file...] ---------- */

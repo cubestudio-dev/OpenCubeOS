@@ -16,10 +16,10 @@
  * WP-runtime-hardening i18n: the human lines render through tr_();
  * "started pid=" stays a literal - it is the E2E ack anchor
  * (tools/run_l1_per_app.py, wp01_killrace_test.py, cap_*.py). */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
-/* fork/execve/wait4 wrappers (not in l1_lib.h - most apps reach
+/* fork/execve/wait4 wrappers (not in l1_api_syscall.h - most apps reach
  * programs only through ush; this app IS the run interface) */
 static inline long sys_fork(void) { return syscall0(SYS_FORK); }
 static inline long sys_execve(long path, long argv, long envp) {

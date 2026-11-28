@@ -49,6 +49,22 @@ P_DRIVE         equ 0x7000          ; u8  boot drive (stage1 wrote it)
 P_SRC           equ 0x7010          ; u32 move source linear
 P_CNT           equ 0x7014          ; u32 move byte count
 P_RTECNT        equ 0x7020          ; u32 scratch (IOAPIC RTE count)
+P_IDTR          equ 0x7030          ; 6 B  saved firmware IDTR (limit+base, real-mode ABI)
+
+; OCBL stage1 runs in REAL MODE until its own PE switch and therefore
+; uses 4-byte IVT entries (offset:segment) addressed through IDTR, not
+; the 16-byte gate format of our 256-gate table at 0x2000.  Handing our
+; table over while stage1 is still in real mode makes every int 13h /
+; int 15h in stage1 read a 4-byte window out of the MIDDLE of a 16-byte
+; gate and vector into garbage.  Observed live under QEMU 10.2.1:
+; int 15h AX=2401 resolved to 0000:8E00 (gate 0x15's bytes 4..7) and
+; the machine executed OCBL-core fragments, then the zero page, then
+; VGA memory; the resulting #UD storm wrote a wide value to COM1 and
+; tripped QEMU's 16550 assertion (size == 1 && addr < 8).
+; So: SAVE the firmware's real-mode IDTR before we install ours, and
+; RESTORE it in the move stub immediately before the far jump - OCBL
+; then sees exactly the real-mode vector table the firmware gave us,
+; which is the El Torito contract we promise in interface/boot_handoff.h.
 
 T_GDT           equ 0x1000          ; 40 bytes
 T_FAULT         equ 0x1100          ; 12 bytes
@@ -133,6 +149,10 @@ start:
         mov     dword [es:di+8], 0
         add     di, 16
         loop    .gate
+        ; SAVE the firmware's real-mode IDTR first - the move stub
+        ; restores it before handing off (see P_IDTR).  Read before
+        ; our own LIDT overwrites it.
+        sidt    [P_IDTR]
         lgdt    [gdtr]
         lidt    [idtr]
         mov     si, s_idt
@@ -425,6 +445,13 @@ stub_bytes:
         mov     edi, 0x7C00                  ; dst: a design constant
         mov     ecx, [dword P_CNT]
         a32 rep movsb                         ; ascending, flat caches
+        ; Restore the firmware's REAL-MODE IDTR before the jump: OCBL
+        ; stage1 runs in real mode (4-byte IVT entries), and the
+        ; 16-byte-gate table we installed at 0x2000 is unreadable in
+        ; that format.  DS/ES are flat base-0 caches here, so P_IDTR
+        ; is linear-addressable.  (Root cause of the QEMU 10.2.1
+        ; serial_ioport_write abort on the BIOS track.)
+        lidt    [P_IDTR]
         mov     dl, [P_DRIVE]                ; boot drive passthrough
         jmp     0x0000:0x7C00                ; the El Torito contract
 stub_end:

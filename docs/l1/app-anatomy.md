@@ -21,8 +21,8 @@ modes; their i18n lives in `ocos/l1apps/_i18n/<name>/`.
 ## 2. The entry point
 
 ```c
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 int app_main(int argc, char **argv)
 { return l1svc_main(argc, argv, L1SVC_CAT_OTA, L1SVC_OTA_UPDATE); }
@@ -71,7 +71,7 @@ spellings (static argv storage, explicit child exit).
 ## 5. The wizard layer
 
 ```c
-#include "wizard_lib.h"
+#include "l1_wizard_api.h"
 
 static char g_out[WIZ_OUT_CAP];      /* 32 KiB, BSS not stack */
 
@@ -83,7 +83,7 @@ int app_main(int argc, char **argv)
 }
 ```
 
-`wizard_lib.h` (header-only, every app compiles its own copy)
+`l1_wizard_api.h` (header-only, every app compiles its own copy)
 provides: `wiz_svc` / `wiz_svc_quiet` (L1SVC with a 32 KiB static
 buffer), `wiz_find` (anchor probe), `wiz_token_after` (word after a
 key - the IP extractor), `wiz_ask` / `wiz_confirm` / `wiz_pause`

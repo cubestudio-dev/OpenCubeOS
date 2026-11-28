@@ -6,7 +6,7 @@ L1SVC ring-3 服务调用面的完整权威清单：20 个类别、208 个
 内核侧编号头文件
 （`ocos/services/sysapi/interface/svc_sysapi_l1svc.h`，
 461 行）、自动生成的 ring-3 镜像
-（`ocos/interface/l1svc_ops.h`，由
+（`ocos/interface/l1_svc_ops.h`，由
 `tools/gen_l1svc_ops.py` 产出），以及在服务源码中核验过的
 各家族 op 表。下述结构体与宏为原文照录。
 
@@ -36,7 +36,7 @@ static inline long syscall5(long n, long a, long b, long c, long e, long f) {
 }
 ```
 
-（来自 `ocos/interface/l1_lib.h` 的 ring-3 辅助函数；类型化
+（来自 `ocos/interface/l1_api_syscall.h` 的 ring-3 辅助函数；类型化
 包装 `sys_l1svc(cat, op, arg, out, cap)` 调用
 `syscall5(SYS_L1SVC, cat, op, arg, out, cap)`）：
 
@@ -83,7 +83,7 @@ static inline long syscall5(long n, long a, long b, long c, long e, long f) {
   稳定的关键子串（"A/B disk: present"、"New version
   available."、"DHCP success"、"DNS resolution failed"、
   "reboot required"、"Current version is up to date."、
-  "IP:"）。`ocos/interface/wizard_lib.h` 中的
+  "IP:"）。`ocos/interface/l1_wizard_api.h` 中的
   `wiz_find()`/`wiz_token_after()` 解析的正是这些锚点；
   ring-3 侧不做任何格式化。
 - **影响**：服务输出字符串就是 ABI。改动一句渲染出的句子
@@ -172,7 +172,7 @@ static inline long syscall5(long n, long a, long b, long c, long e, long f) {
 
 以下是 `ocos/services/sysapi/interface/svc_sysapi_l1svc.h`
 的逐字 `#define` 集（镜像到
-`ocos/interface/l1svc_ops.h`）：20 个类别 define + 208 个
+`ocos/interface/l1_svc_ops.h`）：20 个类别 define + 208 个
 op define = 228 条 `L1SVC_*` define。
 
 ```c
@@ -785,13 +785,13 @@ F5 重绘、Esc/F10/q 离开。
 标准包装体（284 个程序中约 150 个正是这个）：
 
 ```c
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 int app_main(int argc, char **argv)
 { return l1svc_main(argc, argv, L1SVC_CAT_X, L1SVC_X_OP); }
 ```
 
-`l1svc_main()`（位于 `ocos/interface/l1_lib.h`）：
+`l1svc_main()`（位于 `ocos/interface/l1_api_syscall.h`）：
 
 - 把 `argv[1..]` 以单空格拼成 256 字节参数行（因此多词
   语法与键入时完全一致地到达），

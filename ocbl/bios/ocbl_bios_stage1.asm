@@ -217,8 +217,25 @@ start:
         jmp     .hang_a
 .a20_on:
 
-        ; ---- 32-bit protected mode, far jump to the core head
+        ; ---- protected-mode window guard ---------------------------
+        ; OCRMECL restores the firmware's REAL-MODE IDTR before the
+        ; handoff (its 16-byte-gate table is unreadable with 4-byte
+        ; IVT entries, which is what aborted the BIOS track on
+        ; QEMU 10.2.1).  Real-mode int 13h/int 15h above therefore use
+        ; the firmware vectors, as the El Torito contract requires.
+        ;
+        ; From the PE switch until OCBL's own ocbl_idt_setup() runs,
+        ; however, a 2-byte-gate real-mode table is unsafe: an
+        ; exception would read a gate past its 0x3FF limit, escalate
+        ; to #DF and triple-fault.  OCRMECL leaves a 256-gate
+        ; fault-guard table at linear 0x2000 whose every gate vectors
+        ; to a serial-'!'-and-halt stub (interface/boot_handoff.h,
+        ; BIOS section; it survives the OCBL move because it lives
+        ; below 0x7C00).  LIDT is legal in real mode, so arm that
+        ; table HERE - the last instruction before PE - and keep the
+        ; guard window closed without extending it into real mode.
         lgdt    [gdt_desc]
+        lidt    [guard_idtr]
         mov     eax, cr0
         or      eax, 1
         mov     cr0, eax
@@ -349,6 +366,16 @@ gdt_end:
 gdt_desc:
         dw gdt_end - gdt_start - 1
         dd (0x7C00 + gdt_start)                  ; base 0x7C00 (entry check)
+
+; The OCRMECL fault-guard IDT at linear 0x2000: 256 gates, every gate
+; -> the serial-'!' hlt stub at 0x1100 (interface/boot_handoff.h).  Armed
+; by the LIDT above, i.e. only for the PE window - real mode keeps the
+; firmware IVT OCRMECL restored.
+OCR_GUARD_IDT   equ 0x2000
+OCR_GUARD_GATES equ 256
+guard_idtr:
+        dw (OCR_GUARD_GATES * 16) - 1
+        dd OCR_GUARD_IDT
 
 ; patch block (offset 0x1A0, MBR flavor)
 times PATCH-($-$$) db 0

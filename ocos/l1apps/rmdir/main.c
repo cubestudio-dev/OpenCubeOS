@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "rmdir".
  * Moved verbatim from the ush `rmdir` builtin: removes argv[1],
  * reporting "rmdir: cannot remove '<path>'" on failure. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- rmdir <path> ---------- */

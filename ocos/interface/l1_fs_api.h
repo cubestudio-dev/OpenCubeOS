@@ -2,18 +2,18 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS 3.0.0-WP04 - shared L1 filesystem helper library.
  *
- * A header-only library (same style as l1_lib.h): each L1 app folder
+ * A header-only library (same style as l1_api_syscall.h): each L1 app folder
  * compiles its own copy; there is no shared runtime to link.  It holds
  * the VFS on-wire structures and the small string helpers that the
  * 3.0.0-WP04 G5 file-tool apps (ls/cat/stat/du/... moved out of the
- * ush shell) need on top of _shared/l1_lib.h.
+ * ush shell) need on top of ocos/interface/l1_api_syscall.h.
  *
- * Include from any app as:  #include "fs_lib.h"
- * (the app build adds -I src/L1 to the compiler invocation). */
+ * Include from any app as:  #include "l1_fs_api.h"
+ * (the app build adds -I ocos/interface to the compiler invocation). */
 #ifndef OC_L1_FS_LIB_H
 #define OC_L1_FS_LIB_H
 
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 /* VFS node types (match kernel vfs.h: VFS_TYPE_FILE=1, DIR=2, DEVICE=3).
  * Moved verbatim from ush (the USH_ prefix is a historical name - the

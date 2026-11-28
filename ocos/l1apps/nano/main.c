@@ -2,11 +2,11 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS 3.0.0-WP04 - L1 app "nano".
  * Moved verbatim from the ush `nano` builtin: thin shell over the
- * shared editor engine (_shared/editor_core.h, the WP-10-wp08fix1
+ * shared editor engine (ocos/interface/l1_editor_core.h, the WP-10-wp08fix1
  * nano-style editor, ^O save / ^X exit).  WP-runtime-hardening
  * i18n: the usage fragments render through tr_() (the editor core
  * keeps its own English UI strings). */
-#include "editor_core.h"
+#include "l1_editor_core.h"
 
 int app_main(int argc, char **argv) {
     if (argc < 2) {

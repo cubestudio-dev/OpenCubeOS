@@ -29,8 +29,8 @@
 #ifndef OC_L1_WIZARD_LIB_H
 #define OC_L1_WIZARD_LIB_H
 
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 /* One L1SVC text result fits (help -a's full registry is ~12 KiB;
  * the biggest single op output stays well under this). */
@@ -65,7 +65,7 @@ static inline long wiz_svc_quiet(long cat, long op, const char *arg,
 
 /* ---- output anchors --------------------------------------------------
  * wiz_find: plain substring probe (1 = present).  Written locally so
- * this header depends on nothing but l1_lib.h. */
+ * this header depends on nothing but l1_api_syscall.h. */
 static inline int wiz_find(const char *hay, const char *needle) {
     if (!hay || !needle || !needle[0]) return 0;
     for (const char *h = hay; *h; h++) {

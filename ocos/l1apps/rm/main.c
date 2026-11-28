@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "rm".
  * Moved verbatim from the ush `rm` builtin: unlinks argv[1], reporting
  * "rm: cannot remove '<path>'" on failure. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- rm <file> ---------- */

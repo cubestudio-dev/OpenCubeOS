@@ -21,8 +21,8 @@ ocos/l1apps/hello2/
 ```c
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 int app_main(int argc, char **argv)
 { return l1svc_main(argc, argv, L1SVC_CAT_DIAG, L1SVC_DIAG_SCHED); }
@@ -60,9 +60,9 @@ default to "l1", which is honest but ungrouped.
 ## Step 5 - make it a wizard
 
 ```c
-#include "l1_lib.h"
-#include "l1svc_ops.h"
-#include "wizard_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
+#include "l1_wizard_api.h"
 
 static char g_out[WIZ_OUT_CAP];
 

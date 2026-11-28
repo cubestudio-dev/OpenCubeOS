@@ -20,9 +20,9 @@
  * The wizard is a guided inventory tour: system summary, clocks,
  * buses, firmware tables, devices - read-only, nothing to confirm,
  * nothing to break. */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
-#include "wizard_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
+#include "l1_wizard_api.h"
 
 struct wiz_op {
     const char *name;

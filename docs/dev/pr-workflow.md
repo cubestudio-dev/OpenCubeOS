@@ -23,6 +23,15 @@ What a PR must clear, in order:
 7. **CI green**: the workflow runs build, ISO, packages, host tests
    and the reproducibility gate on every PR - merge only on green.
 
+## Push and version rules (cross-reference)
+
+Two standing rules bound this bar and live in
+[CONTRIBUTING.md](../root/CONTRIBUTING.md): **commit and push discipline**
+(one verified batch -> one push, both repositories, after the full battery;
+gh-pages verified after the push) and **version discipline** (the 3.0.0
+phase keeps the version stem fixed at `3.0.0-WP-<work-package>`, and a
+version change is a repo-wide reconcile, never a one-file edit).
+
 ## Writing the PR description
 
 - What changed and *why* - the commit messages carry the detail.

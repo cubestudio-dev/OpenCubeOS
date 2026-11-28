@@ -4,7 +4,7 @@
  * Moved verbatim from the ush `sort` builtin: reads argv[1] (P2-03 fix)
  * or stdin into a 16 KiB buffer (A16-12 full-capacity read fix), then
  * bubble-sorts up to 512 lines and prints them. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- sort (file or stdin) ---------- */

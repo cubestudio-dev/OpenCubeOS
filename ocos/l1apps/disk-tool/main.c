@@ -23,9 +23,9 @@
  *     the argument order can never be mixed up;
  *   - everything else (lsblk/parted/fsck/dskstat/abcfg, the A/B
  *     status) is read-only and runs immediately. */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
-#include "wizard_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
+#include "l1_wizard_api.h"
 
 /* ---- the verbatim op table ------------------------------------------
  * name = the historical command spelling (what the single-command

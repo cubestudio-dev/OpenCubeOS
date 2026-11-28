@@ -142,7 +142,7 @@ VFS 后备的落点；kmain 中的 `lib_config_init_with(fs_config_backend())`�
 - **系统调用**：文件组（open/close/stat/readdir/mkdir/rmdir/
   unlink/read/write2/symlink/readlink/link/chmod/chown）与 fd 感知
   的管道/dup 层（见 [syscall-ring3.md](syscall-ring3.md)）。
-- **Ring 3**：`fs_lib.h` 的线上传输结构体
+- **Ring 3**：`l1_fs_api.h` 的线上传输结构体
   （[private-headers.md](private-headers.md)）——`ush_dirent`/
   `ush_stat` 必须与内核形态逐字节一致。
 - **klog**：/var/log/kernel.log 文件通道 + 轮转

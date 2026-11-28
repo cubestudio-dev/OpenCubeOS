@@ -1,3 +1,7 @@
+# NOTE: this record was captured during the withdrawn pre-rollback naming
+# period; every version string below has been rolled back to
+# 3.0.0-WP-severe-fix-and-closure per the version-discipline rule
+# (CONTRIBUTING.md). Nothing else in this snapshot was touched.
 [H[J[1;1HBOOT_SLOT=A
 [?25l[m[H[J[1;1H[2;25HGNU GRUB  version 2.12-9+deb13u4
 
@@ -57,14 +61,14 @@ Resolved 10.0.2.2:8008 -> 10.0.2.2 (literal)
 [4/5] Step 4/5: checking for updates
 checkupdate: reading /etc/opencube.conf
 New version available.
-Version: 3.0.1-WP-severe-fix-test
+Version: 3.0.0-WP-severe-fix-test
 Time: 2026-11-26
 Changes: WP-severe-fix-and-closure full-chain test payload
 
 [5/5] Step 5/5: installing the update
 Download and install the new version now? (y/N) y
 update: checking...
-update: 3.0.1-WP-severe-fix-test available
+update: 3.0.0-WP-severe-fix-test available
 update: downloading... (1387 KB)
 update: verifying SHA256... OK
 update: extracting to B partition... OK
@@ -81,7 +85,7 @@ Reboot into the new version now? (y/N) y
       before booting or `c' for a command-line.                           [5;80H [7m[5;3H*Open Cube OS (slot B)                                                      [m[5;78H[m[m[6;3H Open Cube OS (slot A, force)                                               [m[6;78H[m[m[7;3H Open Cube OS (slot B, force)                                               [m[7;78H[m[m[8;3H                                                                            [m[8;78H[m[m[9;3H                                                                            [m[9;78H[m[m[10;3H                                                                            [m[10;78H[m[m[11;3H                                                                            [m[11;78H[m[m[12;3H                                                                            [m[12;78H[m[m[13;3H                                                                            [m[13;78H[m[m[14;3H                                                                            [m[14;78H[m[m[15;3H                                                                            [m[15;78H[m[m[16;3H                                                                            [m[16;78H[m[16;80H [5;78H[22;1H   The highlighted entry will be executed automatically in 5s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 4s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 3s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 2s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 1s.                 [5;78H[22;1H   The highlighted entry will be executed automatically in 0s.                 [5;78H[?25h[H[J[1;1H[H[J[1;1H  Booting `Open Cube OS (slot B)'
 
 
-[oc] Open Cube OS 3.0.1-WP-severe-fix-test kmain entered
+[oc] Open Cube OS 3.0.0-WP-severe-fix-test kmain entered
 [ocst] boot-state monitor: state area 0x98000, watchdog absent - stage recording only, no hardware reset enforcement
 [ocst] stage 1/6: KM_AIN_ENTERED (budget 10s)
 [ocst] stage 2/6: SCHED_READY (budget 10s)
@@ -91,11 +95,11 @@ Reboot into the new version now? (y/N) y
 [perf] ata_dma: port_io=40195 polls=40195 xfers=618 retries=1 drops=0 wait_ms=1001
 [ocst] L1 isolation verified: no user mapping covers the state pages (live CR3 walk)
 
-Open Cube OS User-space Shell (3.0.1-WP-severe-fix-test)
+Open Cube OS User-space Shell (3.0.0-WP-severe-fix-test)
 Type 'help' for built-in commands.
 
 ush> uname -r
-3.0.1-WP-severe-fix-test
+3.0.0-WP-severe-fix-test
 ush> update --status
 update: current version: 3.0.0-WP-compat-and-security-hardening
 update: current boot: B

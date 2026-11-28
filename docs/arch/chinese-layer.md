@@ -142,7 +142,7 @@ redraws, same live-output rule as sshd and the TUI ops
 
 ### The editor bridge (the protocol's main client)
 
-`editor_core.h`'s `unano_ime_feed(key)` calls `DISPLAY/IME_KEY` with
+`l1_editor_core.h`'s `unano_ime_feed(key)` calls `DISPLAY/IME_KEY` with
 the decimal key code as the arg string; F2 (key code 0x91) toggles
 via `IME_BEGIN`/`IME_END`; the preedit strip is the 160-byte
 `unano_strip`; action 4 exists specifically so a failing service can

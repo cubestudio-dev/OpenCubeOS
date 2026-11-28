@@ -24,8 +24,25 @@ EV="evidence/wp-runtime-hardening-and-experience-rebase/strict"
 mkdir -p "$EV"
 
 OC_TOOLS="${OC_TOOLS:-$HOME/opt/extract}"
-QEMU="$OC_TOOLS/usr/bin/qemu-system-x86_64"
-OVMF="$OC_TOOLS/usr/share/ovmf/OVMF.fd"
+
+# Resolve the toolchain layout: the historical default
+# (~/opt/extract) is a `dpkg -x` EXTRACTION ROOT, so tools live at
+# <root>/usr/bin and firmware at <root>/usr/share.  A system install
+# sets OC_TOOLS=/usr and the tools live at /usr/bin DIRECTLY - joining
+# "/usr" + "/usr/bin" produced "/usr/usr/bin/qemu-system-x86_64" and the
+# strict matrix silently reported RED because QEMU never started (no log
+# file was even created).  Detect the shape and fall back to PATH.
+_OC_BINDIR="$OC_TOOLS/usr/bin"
+_OC_SHAREDIR="$OC_TOOLS/usr/share"
+if [ ! -d "$_OC_BINDIR" ] && [ -d "$OC_TOOLS/bin" ]; then
+    _OC_BINDIR="$OC_TOOLS/bin"
+    _OC_SHAREDIR="$OC_TOOLS/share"
+fi
+QEMU="$_OC_BINDIR/qemu-system-x86_64"
+[ -x "$QEMU" ] || QEMU="$(command -v qemu-system-x86_64 || true)"
+OVMF="$_OC_SHAREDIR/ovmf/OVMF.fd"
+[ -f "$OVMF" ] || OVMF="$_OC_SHAREDIR/OVMF/OVMF.fd"
+[ -f "$OVMF" ] || OVMF="/usr/share/ovmf/OVMF.fd"
 export LD_LIBRARY_PATH="$OC_TOOLS/usr/lib/x86_64-linux-gnu:$OC_TOOLS/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 ISO="${1:-build/opencube.iso}"

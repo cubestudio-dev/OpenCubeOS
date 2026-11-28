@@ -4,7 +4,7 @@
  * File: ocos/kernel/core_i18n_res.c
  * Purpose: the lang_en / lang_zh system message tables and the
  *          get_text(MSG_ID) accessor (the 4.4 resource layer; see
- *          core_i18n_res.h and ocos/interface/i18n_res.h for the
+ *          core_i18n_res.h and ocos/interface/l1_i18n_res.h for the
  *          contract and the append-only extension protocol).
  *
  *          zh entries are UTF-8; the CJK console pipeline renders

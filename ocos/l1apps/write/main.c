@@ -6,7 +6,7 @@
  * into argv[1] (O_CREAT, no truncate - as the shell builtin did).
  * WP-runtime-hardening i18n: the user-facing lines render through
  * tr_() (the gettext model - the key is the English sentence). */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* v2.0.0: the v1 oc> `write <path> <text>` command, as a ush

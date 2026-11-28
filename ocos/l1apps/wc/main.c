@@ -4,7 +4,7 @@
  * Moved verbatim from the ush `wc` builtin: counts lines/words/chars of
  * argv[1] (RDONLY - a missing path is an error, creates nothing) or
  * stdin, printing "<lines> <words> <chars> [file]". */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- wc [file] ---------- */

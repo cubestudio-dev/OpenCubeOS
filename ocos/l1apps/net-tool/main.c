@@ -19,9 +19,9 @@
  * used).  The static-IP path collects address / mask / gateway one
  * field at a time so the op's positional argument line can never be
  * assembled in the wrong order. */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
-#include "wizard_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
+#include "l1_wizard_api.h"
 
 struct wiz_op {
     const char *name;

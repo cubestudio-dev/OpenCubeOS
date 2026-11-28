@@ -122,12 +122,16 @@ kernel-only mechanism owners `crash`, `encoding`, `font`, `ipc`,
 `loader`, `sysapi`. 220 files, ~67k lines; the ring-3 surface totals
 221 ops over 20 categories.
 
-### `ocos/interface/` - the 8 private ring-3 headers
+### `ocos/interface/` - the 10 private ring-3 headers
 
-`crt0.asm`, `oc_l1_api.h`, `l1_lib.h`, `l1svc_ops.h`, `fs_lib.h`,
-`i18n.h`, `wizard_lib.h`, `editor_core.h` - the ONLY header set a
-ring-3 application may include (enforced at build time by the L1 compile
-`-I` path). Dedicated page:
+`l1_api_surface.h`, `l1_api_syscall.h`, `l1_svc_ops.h`, `l1_fs_api.h`,
+`l1_i18n_api.h`, `l1_i18n_res.h`, `l1_wizard_api.h`,
+`l1_editor_core.h`, `l1_diag_cmds.h`, `l1_crt_entry.asm` - the ONLY
+header set a ring-3 application may include (enforced at build time by
+the L1 compile `-I` path). Every file is NAK-named
+`l1_<class>_<role>`: the whole directory is the L1-facing side of the
+L0 service surface, so the NAK "major class" is `l1_` for all ten
+(`diag` keeps its historical `l1_diag_cmds` spelling). Dedicated page:
 [private-headers.md](private-headers.md).
 
 ### `ocos/l1apps/` - 300 embedded ring-3 programs
@@ -138,8 +142,8 @@ is `OC_USERPROGS_COUNT = 300`). Categories visible in the tree: the
 `ush` shell and its builtins; per-device status commands (`ahci`, `hda`,
 `e1000e`, `wifi`...); the `*_test` batteries (50+); the 8 merged
 mega-apps (`update`, `disk-tool`, `net-tool`, `sound-tool`, `files`,
-`sysdiag`, `hwinfo`, `power`) built on `wizard_lib.h`; the editors
-(`nano`, `vi`, `edit` sharing `editor_core.h`); text tools (`cat`,
+`sysdiag`, `hwinfo`, `power`) built on `l1_wizard_api.h`; the editors
+(`nano`, `vi`, `edit` sharing `l1_editor_core.h`); text tools (`cat`,
 `grep`, `sed`, `awk`, `sort`, `wc`...). Plus ~34 flat top-level sources:
 the legacy `.asm` test programs (`fork_test.asm`, `g6_*.asm`, ...), the
 dynamic-link test set (`ld_so.c`, `libfoo.c`, `main_dyn.c`,

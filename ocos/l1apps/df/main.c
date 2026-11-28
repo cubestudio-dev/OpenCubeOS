@@ -4,8 +4,8 @@
  * Moved verbatim from the ush `df` builtin: ring 3 cannot see the
  * kernel mount table, so it counts real VFS nodes/sizes under / via
  * sys_readdir/sys_stat and prints one ramfs row. */
-#include "l1_lib.h"
-#include "fs_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_fs_api.h"
 
 int app_main(int argc, char **argv) {
     (void)argc; (void)argv;

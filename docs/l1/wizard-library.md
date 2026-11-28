@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# The wizard library (wizard_lib.h)
+# The wizard library (l1_wizard_api.h)
 
 The shared primitives behind the 8 merged apps. Header-only in
-`ocos/interface/wizard_lib.h` - every app compiles its own copy
+`ocos/interface/l1_wizard_api.h` - every app compiles its own copy
 (the `_shared` style); the verbatim passthrough paths never touch
 it (they keep the historical `l1svc_main()` semantics).
 

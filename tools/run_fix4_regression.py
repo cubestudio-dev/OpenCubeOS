@@ -16,7 +16,27 @@ from qemu_runner import screen_assert_text   # BUG #66: panel assertion
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
-QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
+def _oc_layout(root):
+    """Resolve extraction-root (~/opt/extract) vs system (/usr) layout.
+
+    The extract layout keeps tools at <root>/usr/bin; a system install
+    has OC_TOOLS=/usr and tools at /usr/bin directly.  Joining blindly
+    produced "/usr/usr/bin/..." which pexpect rejects (live-caught on the
+    permanent host).  Returns (qemu_bin, qemu_datadir, seabios_dir).
+    """
+    bindir = os.path.join(root, "usr", "bin")
+    sharedir = os.path.join(root, "usr", "share")
+    if not os.path.isdir(bindir) and os.path.isdir(os.path.join(root, "bin")):
+        bindir = os.path.join(root, "bin")
+        sharedir = os.path.join(root, "share")
+    q = os.path.join(bindir, "qemu-system-x86_64")
+    if not os.path.exists(q):
+        import shutil as _sh
+        q = _sh.which("qemu-system-x86_64") or q
+    return q, os.path.join(sharedir, "qemu"), os.path.join(sharedir, "seabios")
+
+
+QEMU, QEMU_DATADIR, SEABIOS_DIR = _oc_layout(OC_TOOLS)
 # BUG #66: monitor socket + screendump path for the panel assertion.
 MONITOR_SOCK = "/tmp/wp01_reg_monitor.sock"
 PPM_PATH = "/tmp/wp01_reg_screen.ppm"
@@ -86,7 +106,7 @@ CHECKS = [
     ("command count >= 292",     "help -a", None),   # dynamic (see main)
     # The release banner is the Makefile literal OC_RELEASE_VERSION.
     # (Bump with every release: 3.0.0-WP-compat-and-security-hardening,
-    # 3.0.1-WP-severe-fix-and-closure, ...)
+    # 3.0.0-WP-severe-fix-and-closure, ...)
     ("uname current tree",       "uname -a", r"Open Cube OS 3\.0\.[01]|Open Cube OS 1\.0\.0|WP-10-|WP-11-crash_recovery|WP-12-watchdog_logging|WP-13-build_system|WP-14-docs_release"),
     # WP-fix-critical-security: patterns re-based on the REAL success
     # markers of each program (the old name-bearing patterns were
@@ -127,7 +147,7 @@ def main():
                               f"{OC_TOOLS}/lib/x86_64-linux-gnu")
     child = pexpect.spawn(QEMU, [
         "-m","512M","-cdrom",iso,"-boot","d",
-        "-L",f"{OC_TOOLS}/usr/share/qemu","-L",f"{OC_TOOLS}/usr/share/seabios",
+        "-L",QEMU_DATADIR,"-L",SEABIOS_DIR,
         "-vga","std","-display","none","-serial","mon:stdio",
         "-netdev","user,id=n1","-device","e1000,netdev=n1",
         # BUG #66: a real HMP channel so the gate can screendump and

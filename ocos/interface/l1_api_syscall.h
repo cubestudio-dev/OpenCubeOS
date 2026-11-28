@@ -8,8 +8,8 @@
  * tiny string/IO helpers, and the argv fetch (the kernel execve entry
  * leaves argc at [rsp]).
  *
- * Include from any app as:  #include "l1_lib.h"
- * (the app build adds -I src/L1 to the compiler invocation). */
+ * Include from any app as:  #include "l1_api_syscall.h"
+ * (the app build adds -I ocos/interface to the compiler invocation). */
 #ifndef OC_L1_LIB_H
 #define OC_L1_LIB_H
 
@@ -165,8 +165,8 @@ static inline long sys_netcmd(long op, const void *arg, void *out, long cap) {
  * The kernel execve entry leaves argc at [rsp], argv[] right above it.
  * A compiled C _start() cannot read that layout itself (the compiler
  * may insert a stack prologue before any asm - the WP04 G5 live-catch),
- * so every folder app links the _shared/crt0.asm trampoline, which
- * hands argc/argv to app_main(int argc, char **argv). */
+ * so every folder app links the ocos/interface/l1_crt_entry.asm
+ * trampoline, which hands argc/argv to app_main(int argc, char **argv). */
 
 /* ---- tiny string / IO helpers -------------------------------------- */
 static inline long strlen_(const char *s) {
@@ -232,7 +232,7 @@ static inline void putx_(unsigned long v) {
  * above).  Included here so l1svc_main's failure line renders
  * through tr_("svc_call_failed"); apps add translations in their
  * own i18n/{en,zh}.json - nothing is hardcoded. */
-#include "i18n.h"
+#include "l1_i18n_api.h"
 
 /* ---- the standard L1SVC wrapper app body ---------------------------
  * v2.2.0 parity: the ush SVC_CMDS runner joined argv[1..] with single
@@ -241,8 +241,8 @@ static inline void putx_(unsigned long v) {
  * and printed `out` (plus a trailing newline when the text did not end
  * with one).  l1svc_main() is exactly that body, verbatim semantics;
  * each wrapper app is:
- *     #include "l1_lib.h"
- *     #include "l1svc_ops.h"
+ *     #include "l1_api_syscall.h"
+ *     #include "l1_svc_ops.h"
  *     int app_main(int argc, char **argv)
  *     { return l1svc_main(argc, argv, CAT, OP); }
  * Errors print "<name>: service call failed (rc=-1)" like ush did.

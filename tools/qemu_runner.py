@@ -25,12 +25,41 @@ import pexpect
 # extracted toolchain root (usr/bin, usr/lib, usr/share). Override with
 # the OC_TOOLS environment variable when your layout differs.
 OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
-LIB_PATHS = [f"{OC_TOOLS}/usr/lib/x86_64-linux-gnu", f"{OC_TOOLS}/usr/lib"]
+
+
+def _oc_tools_layout(root):
+    """Resolve the toolchain layout: extraction root vs system install.
+
+    The historical default (~/opt/extract) is a `dpkg -x` EXTRACTION
+    ROOT, so tools live at <root>/usr/bin and firmware at
+    <root>/usr/share.  A system install sets OC_TOOLS=/usr and the
+    tools live at /usr/bin DIRECTLY - blindly joining "/usr" + "/usr/bin"
+    produced "/usr/usr/bin/qemu-system-x86_64", which pexpect rejects as
+    "command not found" (live-caught running the release gates on the
+    permanent host, which has no extract layout).  Return (bindir,
+    sharedir, libdir) for whichever shape this root actually is, and
+    let the caller fall back to PATH when the binary is not under it.
+    """
+    bindir = os.path.join(root, "usr", "bin")
+    sharedir = os.path.join(root, "usr", "share")
+    libdir = os.path.join(root, "usr", "lib", "x86_64-linux-gnu")
+    if not os.path.isdir(bindir) and os.path.isdir(os.path.join(root, "bin")):
+        bindir = os.path.join(root, "bin")
+        sharedir = os.path.join(root, "share")
+        libdir = os.path.join(root, "lib", "x86_64-linux-gnu")
+    return bindir, sharedir, libdir
+
+
+_OC_BINDIR, _OC_SHAREDIR, _OC_LIBDIR = _oc_tools_layout(OC_TOOLS)
+LIB_PATHS = [_OC_LIBDIR, os.path.join(OC_TOOLS, "usr", "lib")]
 ENV_LD = ":".join(LIB_PATHS)
 
-QEMU_BIN = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
-SEABIOS_DIR = f"{OC_TOOLS}/usr/share/seabios"
-QEMU_DATADIR = f"{OC_TOOLS}/usr/share/qemu"
+QEMU_BIN = os.path.join(_OC_BINDIR, "qemu-system-x86_64")
+if not os.path.exists(QEMU_BIN):
+    import shutil as _shutil
+    QEMU_BIN = _shutil.which("qemu-system-x86_64") or QEMU_BIN
+SEABIOS_DIR = os.path.join(_OC_SHAREDIR, "seabios")
+QEMU_DATADIR = os.path.join(_OC_SHAREDIR, "qemu")
 
 # v2.0.0 boot flow: the kernel launcher boots straight into the ring-3
 # ush shell, so the serial prompt is 'ush>' after boot and 'oc>' only

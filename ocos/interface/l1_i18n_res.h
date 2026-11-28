@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* Open Cube OS - 3.0.0-WP-runtime-hardening-and-experience-rebase
- * File: ocos/interface/i18n_res.h
+ * File: ocos/interface/l1_i18n_res.h
  * Purpose: the MSG_ID message-resource contract - the single shared
  *          enumeration for the system message tables
  *          (ocos/kernel/core_i18n_res.c: lang_en[] / lang_zh[], served
@@ -116,7 +116,7 @@ typedef enum {
     MSG_ID_COUNT
 } msg_id_t;
 
-/* L1-side helper (ocos/interface/i18n.h wraps this through L1SVC):
+/* L1-side helper (ocos/interface/l1_i18n_api.h wraps this through L1SVC):
  * fills `out` with the active-locale text for `id` (NUL-terminated,
  * truncated to cap-1).  Returns the copied length, -1 on a bad id. */
 int i18n_res_get_text(int id, char* out, int cap);

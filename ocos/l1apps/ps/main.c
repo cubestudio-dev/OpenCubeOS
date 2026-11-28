@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "ps".
  * Moved verbatim from the ush `ps` builtin: dumps the real kernel
  * process table via SYS_PS (TID/state/priority/CPU ticks/name). */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     (void)argc; (void)argv;

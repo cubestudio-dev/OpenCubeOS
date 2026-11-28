@@ -5,7 +5,7 @@
  * scripts over stdin or a trailing file argument.  WP-runtime-hardening
  * i18n: the user-facing lines render through tr_() (the script syntax
  * itself is the command language - untranslated by design). */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- sed s/old/new/[g] | -n Np | Nd [file] ---------- */

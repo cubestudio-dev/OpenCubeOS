@@ -38,7 +38,7 @@ wraps it).
    `user_aslr_page_slice` (two rdtsc samples + splitmix64
    finalizer), then control transfers to ld.so's entry - ld.so
    (ring 3) resolves .dynamic, patches GOT/PLT and jumps to
-   `app_main`'s caller `_start` (the shared `crt0.asm` reads
+   `app_main`'s caller `_start` (the shared `l1_crt_entry.asm` reads
    `[rsp]`=argc / `[rsp+8]`=argv, aligns, calls `app_main`).
 5. **Address-space construction**: fresh PML4; kernel PML4[1..3]
    copied; PRIVATE PDPT[0]+PD0 (copy of the kernel 512 x 2 MiB
@@ -61,7 +61,7 @@ path.
 **Trigger**: a ring-3 wrapper calls
 `syscall5(SYS_L1SVC, cat, op, arg, out, cap)`.
 
-1. **Ring-3 wrapper** (`ocos/interface/l1_lib.h`): `l1svc_main`
+1. **Ring-3 wrapper** (`ocos/interface/l1_api_syscall.h`): `l1svc_main`
    joins argv into a 256-byte arg line; `out` is a static 32 KiB
    BSS buffer.
 2. **Entry**: `int 0x80` -> IDT vector 128 (DPL=3 gate) -> stub

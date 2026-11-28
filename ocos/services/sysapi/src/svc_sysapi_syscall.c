@@ -1988,7 +1988,18 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
                 u64 page = bss_start & ~0xFFFULL;
                 while (page < bss_end) {
                     u64 phys;
-                    if (!mem_vmm_is_mapped(new_as, page, &phys)) {
+                    /* Test the USER view, not the bare PRESENT bit.
+                     * Splitting a 2 MiB kernel identity PDE for this
+                     * address space installs 512 PRESENT-but-SUPERVISOR
+                     * child PTEs that alias kernel frames.  A
+                     * PRESENT-only test answers "already mapped" for a
+                     * bss page user mode can never touch, the loop skips
+                     * allocating a real frame, and the first user write
+                     * faults (error_code 0x7 on a page-aligned cr2 -
+                     * live-caught by `run reloc_test`, whose RW PT_LOAD
+                     * ends exactly on such a boundary).  Require
+                     * USER+WRITE and install a real zeroed user frame. */
+                    if (!mem_vmm_is_mapped_user(new_as, page, 1, &phys)) {
                         phys = mem_pmm_alloc_frame();
                         if (phys) {
                             mem_vmm_map_page(new_as, page, phys,
@@ -2033,7 +2044,9 @@ static u64 sys_execve(u64 path, u64 argv, u64 envp, u64 a4) {
                         u64 page = bss_start & ~0xFFFULL;
                         while (page < bss_end) {
                             u64 phys;
-                            if (!mem_vmm_is_mapped(new_as, page, &phys)) {
+                            /* Same USER-view rule as the main-program bss
+                             * loop above. */
+                            if (!mem_vmm_is_mapped_user(new_as, page, 1, &phys)) {
                                 phys = mem_pmm_alloc_frame();
                                 if (phys) {
                                     mem_vmm_map_page(new_as, page, phys,

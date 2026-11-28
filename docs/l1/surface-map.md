@@ -2,7 +2,7 @@
 # The service surface map
 
 Every L1SVC category, what it fronts, and the apps that wrap it.
-The numbering contract is `ocos/interface/l1svc_ops.h` (mirrored
+The numbering contract is `ocos/interface/l1_svc_ops.h` (mirrored
 from `ocos/services/sysapi/interface/svc_sysapi_l1svc.h`; renumber
 upstream only by appending, then regenerate).
 
@@ -62,7 +62,7 @@ probes:
 ```
 
 Renaming any of them is a breaking change: the wizards
-(`wizard_lib.h` `wiz_find`), the E2E suites and the user docs all
+(`l1_wizard_api.h` `wiz_find`), the E2E suites and the user docs all
 read them.
 
 ## help -a / help -w

@@ -3,8 +3,8 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "ls".
  * Moved verbatim from the ush `ls` builtin: lists the given directory
  * (or the cwd) one entry per line, tagged d/c/- by VFS node type. */
-#include "l1_lib.h"
-#include "fs_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_fs_api.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- ls [path] ---------- */

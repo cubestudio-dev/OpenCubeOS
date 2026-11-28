@@ -109,6 +109,72 @@ and reproducibility gate on every PR - it must be green before merge.
 4. Expect review comments about edge cases, DMA bounds and error
    paths - that is normal for kernel code.
 
+## Version discipline (3.0.0 phase)
+
+**One phase, one version stem.** Until the 74 work packages that make up the
+3.0.0 phase are complete, the release version is fixed to
+`3.0.0-WP-<work-package-name>`. The minor and patch components do **not**
+move on their own: no contributor, and no work package acting alone, may
+raise the patch number, the minor number, or the major number during this
+phase - the stem stays `3.0.0`. A work package names itself in the suffix;
+it never raises the stem.
+
+**The Makefile literal is the only source of truth.** `OC_RELEASE_VERSION`
+in the `Makefile` (`Makefile:102`) is the single authority for the version
+string - the kernel banner, `uname`, the OTA manifest and the ISO all take
+it from there. Editing that literal is a *release action*, not a code
+change: it requires work-package authorization and it drags the whole tree
+with it.
+
+**The version lives in many places; a change must reach all of them.** The
+same string appears in the `Makefile`, `README.md`, `docs/release/`, the
+`website/` static pages and `website/assets/site-data.js`, the
+`update.json` / `update-v2.json` manifests, the git tag name, and the asset
+filenames (`.iso`, `-src.zip`, `-update.tar.gz`). Editing one surface is
+never a version change - a version change is a repo-wide reconcile.
+Acceptance is mechanical: `git grep -n '<old-version>'` must return nothing
+except documented non-version matches (upstream npm package versions,
+documentation IP literals, archived evidence filenames).
+
+**A violation is a release incident.** An unauthorized version jump is
+treated as a publishing incident, not a typo. The rollback procedure is:
+replace the string repo-wide, re-tag, re-upload the assets, and redeploy
+gh-pages - in that order, with the `git grep` check green between steps.
+
+Reference: `docs/release/versioning.md` (versioning rules, build
+numbers and the compatibility promises).
+
+### Commit and push discipline
+
+This applies to **every** task, not only release tasks.
+
+**One verified batch, one push.** Commit and push only after *all* tasks in
+the batch are complete and verified. Do not push while working, and never
+push a half-finished state: a push is a claim that the tree builds, boots
+and passes its gates.
+
+**Before the commit, all of this must be true:** `make all` finishes with
+0 errors and 0 warnings, the full regression battery passes, `git status`
+shows no missed generated artifacts (version stamps, `docs/data/*.json`,
+generated mirrors), and no background build or test process is still
+running.
+
+**Two repositories, one push.** The public repository
+`cubestudio-dev/OpenCubeOS` and the private mirror repository are pushed
+**together** - a single push covers both. A commit that reaches only one of
+them is an incomplete delivery.
+
+**The author identity is a machine gate.** The git author must be
+`cubestudio-dev <cubestudio@qq.com>`; `tools/build_release.sh` (`:44-45`)
+enforces the identity mechanically and fails the build otherwise.
+
+**gh-pages follows the push.** Deploy gh-pages only after the push lands,
+then verify the live site - the deployed pages are part of the delivery,
+not a follow-up.
+
+Related: `docs/dev/pr-workflow.md` (the pull-request bar this batch
+discipline rides on).
+
 ## Reporting bugs
 
 Open an issue with:

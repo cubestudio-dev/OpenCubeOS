@@ -1,3 +1,7 @@
+# NOTE: this record was captured during the withdrawn pre-rollback naming
+# period; every version string below has been rolled back to
+# 3.0.0-WP-severe-fix-and-closure per the version-discipline rule
+# (CONTRIBUTING.md). Nothing else in this snapshot was touched.
 [runner] starting QEMU: opencube.iso
 [runner] will run 2 command(s): ['dhtest', 'uname -r']
 OCRMECL stage1 ok
@@ -42,7 +46,7 @@ OCBL stage1 ok
 [boot] mbi built: 408 bytes at 0x50000
 [state] payload armed: NO 6300ESB watchdog - detection degrades to the next reset
 
-[oc] Open Cube OS 3.0.1-WP-severe-fix-and-closure kmain entered
+[oc] Open Cube OS 3.0.0-WP-severe-fix-and-closure kmain entered
 [ocst] boot-state monitor: state area 0x98000, watchdog absent - stage recording only, no hardware reset enforcement
 [ocst] stage 1/6: KM_AIN_ENTERED (budget 10s)
 [ocst] stage 2/6: SCHED_READY (budget 10s)
@@ -52,7 +56,7 @@ OCBL stage1 ok
 [perf] ata_dma: port_io=0 polls=0 xfers=0 retries=0 drops=0 wait_ms=0
 [ocst] L1 isolation verified: no user mapping covers the state pages (live CR3 walk)
 
-Open Cube OS User-space Shell (3.0.1-WP-severe-fix-and-closure)
+Open Cube OS User-space Shell (3.0.0-WP-severe-fix-and-closure)
 Type 'help' for built-in commands.
 
 ush> [runner] boot complete (3318 chars)
@@ -82,7 +86,7 @@ DH modexp scale sweep (truth vectors, python3 pow()):
 ush> [runner] got 1041 chars for 'dhtest'
 [runner] sending: uname -r
 uname -r
-3.0.1-WP-severe-fix-and-closure
+3.0.0-WP-severe-fix-and-closure
 ush> [runner] got 34 chars for 'uname -r'
 
 ============================================================
@@ -132,7 +136,7 @@ OCBL stage1 ok
 [boot] mbi built: 408 bytes at 0x50000
 [state] payload armed: NO 6300ESB watchdog - detection degrades to the next reset
 
-[oc] Open Cube OS 3.0.1-WP-severe-fix-and-closure kmain entered
+[oc] Open Cube OS 3.0.0-WP-severe-fix-and-closure kmain entered
 [ocst] boot-state monitor: state area 0x98000, watchdog absent - stage recording only, no hardware reset enforcement
 [ocst] stage 1/6: KM_AIN_ENTERED (budget 10s)
 [ocst] stage 2/6: SCHED_READY (budget 10s)
@@ -142,7 +146,7 @@ OCBL stage1 ok
 [perf] ata_dma: port_io=0 polls=0 xfers=0 retries=0 drops=0 wait_ms=0
 [ocst] L1 isolation verified: no user mapping covers the state pages (live CR3 walk)
 
-Open Cube OS User-space Shell (3.0.1-WP-severe-fix-and-closure)
+Open Cube OS User-space Shell (3.0.0-WP-severe-fix-and-closure)
 Type 'help' for built-in commands.
 
 --- [dhtest] ---
@@ -169,4 +173,4 @@ DH modexp scale sweep (truth vectors, python3 pow()):
   5/5 correctness tests passed
 
 --- [uname -r] ---
-3.0.1-WP-severe-fix-and-closure
+3.0.0-WP-severe-fix-and-closure

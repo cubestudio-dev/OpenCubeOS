@@ -36,7 +36,7 @@ for svc in services:
         "/* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */",
         "/* NAK service API umbrella: %s." % svc,
         " * Ring-3 surface: the L1SVC \"%s\" category (op numbering in" % svc,
-        " * ocos/interface/l1svc_ops.h).  Kernel-side public headers:",
+        " * ocos/interface/l1_svc_ops.h).  Kernel-side public headers:",
         " * every interface/ resident below. */",
         "#ifndef %s" % guard,
         "#define %s" % guard,

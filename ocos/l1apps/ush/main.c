@@ -53,14 +53,15 @@
 #define SYS_L1SVC   110
 
 /* 3.0.0-WP04: the SVC dispatch table is GONE from ush.  Every former
- * table row is now its own ring-3 app (src/L1/<name>/main.c, a thin
- * l1svc_main() wrapper over _shared/l1_lib.h); ush reaches them like
- * any other program through fork + execve + the generated OC_USERPROGS
- * registry.  G5: the file tools, the net bridge tools and the nano/vi
- * editor moved out the same way (see the `3.0.0-WP04: ... moved to
- * src/L1/<name>/` markers below); the shell keeps only its own
- * process-state builtins (cd/exit/help/export/alias/unalias/history/
- * set/env/jobs/fg/bg) plus the line editor. */
+ * table row is now its own ring-3 app (ocos/l1apps/<name>/main.c, a
+ * thin l1svc_main() wrapper over ocos/interface/l1_api_syscall.h); ush
+ * reaches them like any other program through fork + execve + the
+ * generated OC_USERPROGS registry.  G5: the file tools, the net bridge
+ * tools and the nano/vi editor moved out the same way (see the
+ * `3.0.0-WP04: ... moved to src/L1/<name>/` markers below); the shell
+ * keeps only its own process-state builtins
+ * (cd/exit/help/export/alias/unalias/history/set/env/jobs/fg/bg) plus
+ * the line editor. */
 
 /* SYS_NETCMD bridge op codes (kernel net_core.c contract) */
 #define NETCMD_IFCONFIG  1
@@ -68,8 +69,8 @@
 #define NETCMD_NETSTAT   3
 #define NETCMD_WGET      4
 
-/* 3.0.0-WP04 G5: USH_TYPE_* moved to _shared/fs_lib.h (only the moved
- * file-tool apps use them now). */
+/* 3.0.0-WP04 G5: USH_TYPE_* moved to ocos/interface/l1_fs_api.h (only
+ * the moved file-tool apps use them now). */
 
 typedef unsigned long u64;
 /* VFS on-wire structures - must match kernel layout (vfs.h, VFS_NAME_LEN=64).
@@ -77,15 +78,16 @@ typedef unsigned long u64;
  * bytes into our buffer, so our struct size must equal the kernel's.
  * WP-10-wp08fix1: fs_vfs_stat_t grew mode/uid/gid/nlink - mirrored here.
  * 3.0.0-WP04 G5: the shared copy of these structs now lives in
- * _shared/fs_lib.h; ush_stat and ush_ps_entry are GONE from here (all
- * their users became apps) - ush keeps ush_dirent for Tab file-name
+ * ocos/interface/l1_fs_api.h; ush_stat and ush_ps_entry are GONE from
+ * here (all their users became apps) - ush keeps ush_dirent for Tab file-name
  * completion. */
 struct ush_dirent {
     char name[64];
     int  type;
     u64  inode;
 };
-/* 3.0.0-WP04 G5: ush_ps_entry moved to _shared/l1_lib.h (ps/top apps). */
+/* 3.0.0-WP04 G5: ush_ps_entry moved to
+ * ocos/interface/l1_api_syscall.h (ps/top apps). */
 
 /* Inline syscall wrappers */
 static inline long syscall0(long n) {
@@ -130,7 +132,7 @@ static inline long syscall3(long n, long a, long b, long c) {
 #define sys_l1svc(cat, op, arg, out, cap) syscall5(SYS_L1SVC, (long)(cat), (long)(op), (long)(arg), (long)(out), (long)(cap))
 
 /* 3.0.0-WP04 G5: the fs/proc/mem/net macro wrappers below moved to
- * _shared/l1_lib.h as static inline functions (sys_read/sys_stat/
+ * ocos/interface/l1_api_syscall.h as static inline functions (sys_read/sys_stat/
  * sys_mkdir/sys_rmdir/sys_unlink/sys_kill/sys_getcwd/sys_uptime/
  * sys_meminfo/sys_symlink/sys_readlink/sys_link/sys_chmod/sys_chown/
  * sys_netcmd/sys_ps) - only the migrated tool apps use them now. */
@@ -145,11 +147,11 @@ static inline long syscall5(long n, long a, long b, long c, long d, long e) {
 }
 
 /* 3.0.0-WP04-fix1: the L1SVC category/op numbers come from the SAME
- * generated mirror every other L1 app uses (_shared/l1svc_ops.h) -
+ * generated mirror every other L1 app uses (ocos/interface/l1_svc_ops.h) -
  * ush previously hand-spelled its op constants, which is how the WP-08
  * era constants drifted from the numbering contract. */
-#include "l1svc_ops.h"
-#include "i18n.h"   /* WP06g2: tr_() + the per-app tables */
+#include "l1_svc_ops.h"
+#include "l1_i18n_api.h"   /* WP06g2: tr_() + the per-app tables */
 
 /* String helpers (no libc) */
 static int strlen_(const char *s) {
@@ -208,8 +210,9 @@ static int __attribute__((unused)) atoi_(const char *s) {
     return n * sign;
 }
 
-/* 3.0.0-WP04 G5: strstr_/strcmp_ moved to _shared (fs_lib.h carries
- * strstr_; l1_lib.h carries strcmp_) - grep/awk/sort are apps now. */
+/* 3.0.0-WP04 G5: strstr_/strcmp_ moved to ocos/interface (l1_fs_api.h
+ * carries strstr_; l1_api_syscall.h carries strcmp_) - grep/awk/sort are
+ * apps now. */
 
 /* ==================================================================
  * WP-compat-and-security-hardening B6: the long-output pager.
@@ -516,7 +519,7 @@ static int parse_args(char *line, char *argv[], int max_argv) {
     return argc;
 }
 
-/* 3.0.0-WP04 G5: the nano/vi editor moved to _shared/editor_core.h;
+/* 3.0.0-WP04 G5: the nano/vi editor moved to ocos/interface/l1_editor_core.h;
  * the apps src/L1/nano/, src/L1/vi/ and src/L1/edit/ (the v2.2.0 L0
  * `edit` command) are thin shells over it (reached via execve). */
 
@@ -812,7 +815,7 @@ static int builtin_cmd(int argc, char *argv[]) {
     /* 3.0.0-WP04 G5: netstat/ifconfig moved to src/L1/{netstat,ifconfig}/ (apps via execve). */
 
     /* 3.0.0-WP04 G5: nano/vi moved to src/L1/{nano,vi,edit}/ over
-     * _shared/editor_core.h (apps via execve). */
+     * ocos/interface/l1_editor_core.h (apps via execve). */
 
     return 0;
 }

@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "free".
  * Moved verbatim from the ush `free` builtin: real PMM numbers via
  * SYS_MEMINFO (WP-09-FIX BUG-014) instead of hardcoded fake data. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     (void)argc; (void)argv;

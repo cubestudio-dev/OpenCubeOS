@@ -4,7 +4,7 @@
  * Moved verbatim from the ush `date` builtin: the kernel has no RTC
  * driver, so it reports the kernel uptime (PIT tick counter in ms
  * since boot) via SYS_UPTIME instead of a fabricated date string. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     (void)argc; (void)argv;

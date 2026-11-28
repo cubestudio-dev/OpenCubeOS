@@ -66,6 +66,21 @@ cp "$BUILD/ocrmecl/ocrmecl_bios.bin" "$ISO_STAGE/OCRMECL.BIN"
 cp "$BUILD/ocbl/ocbl_x64.efi" "$ISO_STAGE/OCBL.EFI"
 cp "$BUILD/ocrmecl/ocrmecl_x64.efi" "$ISO_STAGE/BOOTX64.EFI"
 
+# --- 2b. OC_ISO_NOSPLASH=1: stage the /NOSPLASH.TXT diagnostics switch.
+#          The marker must be NON-EMPTY: OCBL's detector reads one byte
+#          and treats "1 byte copied" as present, while a zero-byte file
+#          is indistinguishable from a missing one (both return 0).  With
+#          this switch on, the kernel boots with oc.splash=0, the classic
+#          scrolling console log - required by the acceptance batteries
+#          that assert on lines like "boot complete ... OK" and
+#          "exception self-test: 3/3" (the splash otherwise captures
+#          those lines into klog and the serial transcript never sees
+#          them).  Off by default so shipped media keep the splash. ---
+if [ "${OC_ISO_NOSPLASH:-0}" = "1" ]; then
+    printf 'nosplash\n' > "$ISO_STAGE/NOSPLASH.TXT"
+    echo "[build_iso] OC_ISO_NOSPLASH=1: staged /NOSPLASH.TXT (oc.splash=0)"
+fi
+
 # --- 3. assemble: BIOS El Torito (the OCRMECL composite) + UEFI El
 #        Torito (1 MiB ESP FAT with /EFI/BOOT/BOOTX64.EFI = OCRMECL),
 #        G13 seals and all, through the same OCBL packer ---

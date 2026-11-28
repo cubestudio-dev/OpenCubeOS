@@ -18,7 +18,7 @@ line + output buffer).
 |------|----------------|
 | [overview](overview.md) | the app model, the layers, the counts |
 | [surface-map](surface-map.md) | every L1SVC category and op, the syscall bridge |
-| [app-anatomy](app-anatomy.md) | main.c / crt0 / i18n / wizard_lib.h - the full anatomy |
+| [app-anatomy](app-anatomy.md) | main.c / crt0 / i18n / l1_wizard_api.h - the full anatomy |
 | [writing-apps](writing-apps.md) | a complete app from source to `run` - tutorial |
 | [wizard-library](wizard-library.md) | the shared wizard primitives behind the 8 mega-apps |
 | [driver-block](driver-block.md) | extending the block service |
@@ -35,4 +35,4 @@ The 8 merged apps (`update`, `disk-tool`, `net-tool`, `sound-tool`,
 `files`, `sysdiag`, `hwinfo`, `power`) established the three-door
 contract - no-arg wizard, `direct` passthrough, classic op dispatch.
 New apps are free to adopt it; the wizard primitives are one
-`#include "wizard_lib.h"` away.
+`#include "l1_wizard_api.h"` away.

@@ -114,7 +114,7 @@ L1SVC `l1/apps` op 获取（跳过页脚 `--` 行，上限
 
 ## 编辑器
 
-一个共享引擎（`ocos/interface/editor_core.h`），三张面孔：
+一个共享引擎（`ocos/interface/l1_editor_core.h`），三张面孔：
 **nano** 与 **edit** 是逐字节相同的 nano 风格面孔（edit
 是 v2.2.0 拼写）；**vi** 是同一引擎之上的真实模态层。
 限制：256 行 × 每行 128 字节；超出限制的文件

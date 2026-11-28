@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "echo".
  * Moved verbatim from the ush `echo` builtin: prints argv[1..] joined
  * by single spaces plus a trailing newline. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {

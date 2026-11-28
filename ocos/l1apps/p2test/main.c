@@ -30,9 +30,9 @@
  *                   MAX_PIPES is 32, so a leaking in_use flag died at
  *                   round 17 in the pre-fix stress run.
  */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
-/* SYS_WRITE2(72) is defined in l1_lib.h but has no wrapper; the utf8
+/* SYS_WRITE2(72) is defined in l1_api_syscall.h but has no wrapper; the utf8
  * probe needs the raw fd-aware path. */
 static inline long write2_call(long fd, const void *buf, long len) {
     return syscall3(SYS_WRITE2, fd, (long)buf, len);

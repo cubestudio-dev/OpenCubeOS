@@ -4,8 +4,8 @@
  * The v2.2.0 `dmesg [N]` command: kernel log ring replay, default 30
  * lines.  Body lives in services/klog (L1SVC cat "klog" op 1).
  * WP-runtime-hardening i18n: the failure line renders through tr_(). */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 int app_main(int argc, char **argv) {
     (void)argc; (void)argv;

@@ -3,8 +3,8 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "awk".
  * Moved verbatim from the ush `awk` builtin: {print $N|NF|NR} with an
  * optional /pat/ filter and an optional trailing file argument. */
-#include "l1_lib.h"
-#include "fs_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_fs_api.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- awk '{print $N | NF | NR}' [/pat/] [file] ---------- */

@@ -23,12 +23,16 @@ L0  Open Cube OS service kernel
 
 | 头文件（ocos/interface/） | 覆盖内容 |
 |---------------------------|----------------|
-| `l1_lib.h` | 系统调用包装、字符串/IO 辅助、`l1svc_main()` - 逐字的服务包装体 |
-| `l1svc_ops.h` | 类别/操作编号契约（从 L0 头文件自动镜像） |
-| `i18n.h` | `tr_()` + 每应用双语表 |
-| `wizard_lib.h` | 共享向导原语（菜单、询问、确认、锚点探测） |
-| `fs_lib.h` | 文件工具共享的路径辅助 |
-| `editor_core.h` | `edit` 与 TUI 编辑器背后的编辑器引擎 |
+| `l1_api_syscall.h` | 系统调用包装、字符串/IO 辅助、`l1svc_main()` - 逐字的服务包装体 |
+| `l1_svc_ops.h` | 类别/操作编号契约（从 L0 头文件自动镜像） |
+| `l1_i18n_api.h` | `tr_()` + 每应用双语表 |
+| `l1_wizard_api.h` | 共享向导原语（菜单、询问、确认、锚点探测） |
+| `l1_fs_api.h` | 文件工具共享的路径辅助 |
+| `l1_editor_core.h` | `edit` 与 TUI 编辑器背后的编辑器引擎 |
+| `l1_i18n_res.h` | 共享的 `MSG_ID` 系统消息编号（L0/L1 通用） |
+| `l1_diag_cmds.h` | 共享的 `dev`/`drv` 诊断命令层 |
+| `l1_api_surface.h` | 伞形头："L1 能看见什么"的审计点 |
+| `l1_crt_entry.asm` | 被链接（而非 include）的 `_start` 跳板 |
 
 服务侧声明住在 `ocos/services/*/interface/`（每个侧面一个
 文件夹）；编号镜像用 `tools/gen_l1svc_ops.py` 重新生成。

@@ -116,7 +116,7 @@ print `ush: fork failed`; alias expansion that overflows prints `ush: alias expa
 
 ## The editors
 
-One shared engine (`ocos/interface/editor_core.h`), three faces:
+One shared engine (`ocos/interface/l1_editor_core.h`), three faces:
 **nano** and **edit** are byte-for-byte the same nano-style face (edit
 is the v2.2.0 spelling); **vi** is a real modal layer over the same
 engine. Limits: 256 lines × 128 bytes/line; a file past the limits

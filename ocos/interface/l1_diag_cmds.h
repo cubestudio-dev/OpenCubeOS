@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP08 - L1 diag command shared layer (the
  * l1_diag_drv_core / l1_diag_dev_core of the WP naming, one header
  * because every ring-3 app links alone and shares code through
- * ocos/interface/ headers - the wizard_lib.h precedent).
+ * ocos/interface/ headers - the l1_wizard_api.h precedent).
  *
  * ONE implementation serves BOTH surfaces of each family:
  *   - the umbrella command  `drv <sub> [args...]`  (l1apps/drv)
@@ -18,8 +18,8 @@
 #ifndef OC_L1_DIAG_CMDS_H
 #define OC_L1_DIAG_CMDS_H
 
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 #ifdef __cplusplus
 extern "C" {

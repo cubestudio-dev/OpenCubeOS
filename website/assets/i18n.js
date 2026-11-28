@@ -35,14 +35,14 @@
       "foot.update": "Update manifest (JSON)",
       "foot.wiki": "GitHub Wiki",
       /* ---- index: hero ---- */
-      "title.index": "Open Cube OS 3.0.1-WP-severe-fix-and-closure - a from-scratch x86_64 kernel that boots into ring 3",
+      "title.index": "Open Cube OS 3.0.0-WP-severe-fix-and-closure - a from-scratch x86_64 kernel that boots into ring 3",
       "hero.h1a": "A from-scratch",
       "hero.h1b": "x86_64 kernel.",
       "hero.h1c": "Boots into ring 3.",
-      "hero.tagline": "<b>Open Cube OS</b> 3.0.1-WP-severe-fix-and-closure boots through its own bootloader and kernel (L0), then hands the machine to the default ring-3 application &mdash; the <b><code>ush</code></b> user shell with <b id=\"stat-cmds\">304</b> listed commands (313 registered; 8 hidden legacy TUI sub-launchers stay directly executable) riding the SYS_L1SVC service surface. L0 is a pure service kernel: no shell, no commands, no TUI. Not a Linux fork: <b id=\"stat-lines2\">167,195</b> lines of original code, Apache&nbsp;2.0.",
+      "hero.tagline": "<b>Open Cube OS</b> 3.0.0-WP-severe-fix-and-closure boots through its own bootloader and kernel (L0), then hands the machine to the default ring-3 application &mdash; the <b><code>ush</code></b> user shell with <b id=\"stat-cmds\">304</b> listed commands (313 registered; 8 hidden legacy TUI sub-launchers stay directly executable) riding the SYS_L1SVC service surface. L0 is a pure service kernel: no shell, no commands, no TUI. Not a Linux fork: <b id=\"stat-lines2\">167,195</b> lines of original code, Apache&nbsp;2.0.",
       "hero.download": "\u2b07\ufe0f Download the ISO",
       "hero.docs": "Documentation \u2192",
-      "hero.term.title": "qemu — Open Cube OS 3.0.1-WP-severe-fix-and-closure",
+      "hero.term.title": "qemu — Open Cube OS 3.0.0-WP-severe-fix-and-closure",
 
       /* ---- index: stats ---- */
       "stats.commands": "commands",
@@ -114,11 +114,11 @@
 
       /* ---- index: screenshots ---- */
       "shots.h2": "It really runs",
-      "shots.sub": "Captured from the 3.0.1-WP-severe-fix-and-closure release ISO in QEMU - the BIOS and the UEFI boot path, through OCBL to the ring-3 ush prompt.",
-      "shots.bios": "Legacy BIOS boot - 3.0.1-WP-severe-fix-and-closure",
-      "shots.uefi": "UEFI boot (OVMF) - 3.0.1-WP-severe-fix-and-closure",
-      "shots.bios.alt": "Open Cube OS 3.0.1-WP-severe-fix-and-closure booted in QEMU via legacy BIOS: the OCBL handoff, the L0 boot log ending at L0 ready waiting for L1, and the ush shell prompt",
-      "shots.uefi.alt": "Open Cube OS 3.0.1-WP-severe-fix-and-closure booted in QEMU via UEFI (OVMF): the same L0 boot log and the ring-3 ush shell prompt",
+      "shots.sub": "Captured from the 3.0.0-WP-severe-fix-and-closure release ISO in QEMU - the BIOS and the UEFI boot path, through OCBL to the ring-3 ush prompt.",
+      "shots.bios": "Legacy BIOS boot - 3.0.0-WP-severe-fix-and-closure",
+      "shots.uefi": "UEFI boot (OVMF) - 3.0.0-WP-severe-fix-and-closure",
+      "shots.bios.alt": "Open Cube OS 3.0.0-WP-severe-fix-and-closure booted in QEMU via legacy BIOS: the OCBL handoff, the L0 boot log ending at L0 ready waiting for L1, and the ush shell prompt",
+      "shots.uefi.alt": "Open Cube OS 3.0.0-WP-severe-fix-and-closure booted in QEMU via UEFI (OVMF): the same L0 boot log and the ring-3 ush shell prompt",
 
       /* ---- index: layered ---- */
       "layer.h2": "The two-layer idea",
@@ -133,7 +133,7 @@
       /* ---- architecture page ---- */
       "title.architecture": "Architecture - Open Cube OS",
       "arch.h1": "Architecture",
-      "arch.sub": "How the machine is put together at 3.0.1-WP-severe-fix-and-closure: the L0/L1 split, the OCBL boot flow, every L0 subsystem, the 269-program L1 world, and the 20-service SYS_L1SVC surface. Everything below is read straight from the tree.",
+      "arch.sub": "How the machine is put together at 3.0.0-WP-severe-fix-and-closure: the L0/L1 split, the OCBL boot flow, every L0 subsystem, the 269-program L1 world, and the 20-service SYS_L1SVC surface. Everything below is read straight from the tree.",
       "arch.layers.h": "Two layers by design",
       "arch.layers.sub": "L0 is a pure service kernel: kernel + drivers + root services + the numbered interface, and nothing else - no shell, no commands, no TUI, no input method (the 2.x recovery shell was removed in WP-03). L1 is the whole user world in ring 3, and 3.0.0 ships both in one tree under ocos/ and ocos/l1apps/.",
       "arch.layers.l0.h": "L0 - the pure service kernel",
@@ -222,7 +222,7 @@
       /* ---- download page ---- */
       "title.download": "Download - Open Cube OS",
       "dl.h1": "Download",
-      "dl.sub": "Two channels: the <b>3.0.1 release line</b> (the L0/L1 world, severe-fix milestone) and the <b>2.2.0 stable release</b>. Every asset's SHA256 is listed - verify what you download: <code>sha256sum &lt;file&gt;</code>.",
+      "dl.sub": "Two channels: the <b>3.0.0 release line</b> (the L0/L1 world, severe-fix milestone) and the <b>2.2.0 stable release</b>. Every asset's SHA256 is listed - verify what you download: <code>sha256sum &lt;file&gt;</code>.",
       "dl.iso.type": "Bootable ISO",
       "dl.iso.desc": "Hybrid BIOS + UEFI image (~12 MiB). Boot it in QEMU (<code>-cdrom</code>) or write it to a USB stick for real hardware.",
       "dl.src.type": "Source",
@@ -234,10 +234,10 @@
       "dl.ota.btn": "\u2b07\ufe0f Download package",
       "dl.tab.dev": "Development preview",
       "dl.tab.stable": "Stable release",
-      "dl.dev.h2": "3.0.1-WP-severe-fix-and-closure - the severe-fix release line",
-      "dl.dev.sub": "The current 3.0.1 release: severe fixes and closure - the VMware boot crawl paced (446x fewer port I/Os per boot), the ush banner race closed by construction (20/20 boots), the E2E 'network' verdict refuted with the kernel's own counters + the COM1 RX fix, the OCIRE UEFI battery 14/14 for the first time, and the update full chain (L1 wizard -> OTA download -> A/B slot -> flash) proven end-to-end with a byte-identical flash proof. Boot the ISO in QEMU (<code>-cdrom</code>) or write it to USB.",
+      "dl.dev.h2": "3.0.0-WP-severe-fix-and-closure - the severe-fix release line",
+      "dl.dev.sub": "The current 3.0.0 release (severe-fix and closure): the severe fixes - the VMware boot crawl paced (446x fewer port I/Os per boot), the ush banner race closed by construction (20/20 boots), the E2E 'network' verdict refuted with the kernel's own counters + the COM1 RX fix, the OCIRE UEFI battery 14/14 for the first time, and the update full chain (L1 wizard -> OTA download -> A/B slot -> flash) proven end-to-end with a byte-identical flash proof. Boot the ISO in QEMU (<code>-cdrom</code>) or write it to USB.",
       "dl.dev.oc.type": "Bootable ISO - the OS",
-      "dl.dev.oc.desc": "Hybrid BIOS + UEFI image (4.2 MiB). Boots through OCBL into the ring-3 ush shell - the 3.0.1 release line (the severe-fix milestone).",
+      "dl.dev.oc.desc": "Hybrid BIOS + UEFI image (4.2 MiB). Boots through OCBL into the ring-3 ush shell - the 3.0.0 release line (the severe-fix milestone).",
       "dl.dev.oc.btn": "⬇️ Download ISO",
       "dl.dev.ocse.type": "Install medium - OCSE",
       "dl.dev.ocse.desc": "The OCSE install environment (4.9 MiB, last cut at the WP-l1apps-merge milestone): the 9-step GUI install wizard and OCSECL, en/zh - every wizard mutation is a real OCSECL command. Installs OCBL + OCOS onto a disk that then boots to ush.",
@@ -325,14 +325,14 @@
       "foot.update": "更新清单（JSON）",
       "foot.wiki": "GitHub Wiki",
       /* ---- 首页：首屏 ---- */
-      "title.index": "Open Cube OS 3.0.1-WP-severe-fix-and-closure—— 从零编写、直接启动进 Ring 3 的 x86_64 内核",
+      "title.index": "Open Cube OS 3.0.0-WP-severe-fix-and-closure—— 从零编写、直接启动进 Ring 3 的 x86_64 内核",
       "hero.h1a": "从零写起的",
       "hero.h1b": "x86_64 内核。",
       "hero.h1c": "直上 Ring 3。",
-      "hero.tagline": "<b>Open Cube OS</b> 3.0.1-WP-severe-fix-and-closure经由自研引导器和内核（L0）启动，然后把整机交给默认的 Ring 3 应用 —— 带有 <b id=\"stat-cmds\">304</b> 条已列出命令（共注册 313 条，8 条隐藏的传统 TUI 子启动器仍可直接执行）、运行在 SYS_L1SVC 服务面上的 <b><code>ush</code></b> 用户 Shell。L0 是纯服务内核：无 Shell、无命令、无 TUI。不是 Linux 分支：<b id=\"stat-lines2\">167,195</b> 行原创代码，Apache&nbsp;2.0。",
+      "hero.tagline": "<b>Open Cube OS</b> 3.0.0-WP-severe-fix-and-closure经由自研引导器和内核（L0）启动，然后把整机交给默认的 Ring 3 应用 —— 带有 <b id=\"stat-cmds\">304</b> 条已列出命令（共注册 313 条，8 条隐藏的传统 TUI 子启动器仍可直接执行）、运行在 SYS_L1SVC 服务面上的 <b><code>ush</code></b> 用户 Shell。L0 是纯服务内核：无 Shell、无命令、无 TUI。不是 Linux 分支：<b id=\"stat-lines2\">167,195</b> 行原创代码，Apache&nbsp;2.0。",
       "hero.download": "\u2b07\ufe0f 下载 ISO",
       "hero.docs": "查阅文档 \u2192",
-      "hero.term.title": "qemu — Open Cube OS 3.0.1-WP-severe-fix-and-closure",
+      "hero.term.title": "qemu — Open Cube OS 3.0.0-WP-severe-fix-and-closure",
 
       /* ---- 首页：统计 ---- */
       "stats.commands": "条命令",
@@ -404,11 +404,11 @@
 
       /* ---- 首页：截图 ---- */
       "shots.h2": "它真的能跑",
-      "shots.sub": "从 3.0.1-WP-severe-fix-and-closure 发布版 ISO 在 QEMU 里截取 —— BIOS 与 UEFI 两条启动路径，经 OCBL 到 Ring 3 的 ush 提示符。",
-      "shots.bios": "传统 BIOS 启动 —— 3.0.1-WP-severe-fix-and-closure",
-      "shots.uefi": "UEFI 启动（OVMF）—— 3.0.1-WP-severe-fix-and-closure",
-      "shots.bios.alt": "Open Cube OS 3.0.1-WP-severe-fix-and-closure 在 QEMU 中以传统 BIOS 启动：OCBL 交接、以 L0 ready waiting for L1 结尾的 L0 启动日志，以及 ush Shell 提示符",
-      "shots.uefi.alt": "Open Cube OS 3.0.1-WP-severe-fix-and-closure 在 QEMU 中以 UEFI（OVMF）启动：同样的 L0 启动日志和 Ring 3 的 ush Shell 提示符",
+      "shots.sub": "从 3.0.0-WP-severe-fix-and-closure 发布版 ISO 在 QEMU 里截取 —— BIOS 与 UEFI 两条启动路径，经 OCBL 到 Ring 3 的 ush 提示符。",
+      "shots.bios": "传统 BIOS 启动 —— 3.0.0-WP-severe-fix-and-closure",
+      "shots.uefi": "UEFI 启动（OVMF）—— 3.0.0-WP-severe-fix-and-closure",
+      "shots.bios.alt": "Open Cube OS 3.0.0-WP-severe-fix-and-closure 在 QEMU 中以传统 BIOS 启动：OCBL 交接、以 L0 ready waiting for L1 结尾的 L0 启动日志，以及 ush Shell 提示符",
+      "shots.uefi.alt": "Open Cube OS 3.0.0-WP-severe-fix-and-closure 在 QEMU 中以 UEFI（OVMF）启动：同样的 L0 启动日志和 Ring 3 的 ush Shell 提示符",
 
       /* ---- 首页：分层理念 ---- */
       "layer.h2": "两层设计",
@@ -423,7 +423,7 @@
       /* ---- 架构页 ---- */
       "title.architecture": "架构 - Open Cube OS",
       "arch.h1": "架构",
-      "arch.sub": "3.0.1-WP-severe-fix-and-closure 时点的整机结构：L0/L1 分层、OCBL 启动流程、每个 L0 子系统、269 个程序的 L1 世界、20 服务的 SYS_L1SVC 面。以下全部读自真实代码树。",
+      "arch.sub": "3.0.0-WP-severe-fix-and-closure 时点的整机结构：L0/L1 分层、OCBL 启动流程、每个 L0 子系统、269 个程序的 L1 世界、20 服务的 SYS_L1SVC 面。以下全部读自真实代码树。",
       "arch.layers.h": "两层设计",
       "arch.layers.sub": "L0 是纯服务内核：内核 + 驱动 + 根服务 + 编号接口，仅此而已 —— 无 Shell、无命令、无 TUI、无输入法（2.x 恢复 Shell 已在 WP-03 删除）。L1 是 Ring 3 里的全部用户世界，3.0.0 把两者放在同一棵树里：ocos/ 与 ocos/l1apps/。",
       "arch.layers.l0.h": "L0 —— 纯服务内核",
@@ -512,7 +512,7 @@
       /* ---- 下载页 ---- */
       "title.download": "下载 - Open Cube OS",
       "dl.h1": "下载",
-      "dl.sub": "两个通道：<b>3.0.1 发布线</b>（L0/L1 世界，严重修复里程碑）和 <b>2.2.0 正式版</b>。每个资产都列出 SHA256 —— 下载后请校验：<code>sha256sum &lt;文件&gt;</code>。",
+      "dl.sub": "两个通道：<b>3.0.0 发布线</b>（L0/L1 世界，严重修复里程碑）和 <b>2.2.0 正式版</b>。每个资产都列出 SHA256 —— 下载后请校验：<code>sha256sum &lt;文件&gt;</code>。",
       "dl.iso.type": "可启动 ISO",
       "dl.iso.desc": "BIOS + UEFI 混合镜像（约 12 MiB）。QEMU 里 <code>-cdrom</code> 直接启动，或写入 U 盘在真实硬件上启动。",
       "dl.src.type": "源码",
@@ -522,12 +522,12 @@
       "dl.iso.btn": "\u2b07\ufe0f 下载 ISO",
       "dl.src.btn": "\u2b07\ufe0f 下载源码",
       "dl.ota.btn": "\u2b07\ufe0f 下载更新包",
-      "dl.tab.dev": "3.0.1 发布线",
+      "dl.tab.dev": "3.0.0 发布线",
       "dl.tab.stable": "正式版",
-      "dl.dev.h2": "3.0.1-WP-severe-fix-and-closure —— 严重修复发布线",
-      "dl.dev.sub": "当前 3.0.1 发布：严重修复与收口——VMware 启动龟速根因配速（每次启动端口 I/O 削减 446 倍）、K-08 横幅竞态按构造关闭（连续 20 次启动）、K-09 “网络”误诊以内核自身计数器推翻 + COM1 RX 修复、K-10 OCIRE UEFI 电池首次 14/14、update 全链（L1 向导 → OTA 下载 → A/B 槽位 → 刷写）以字节级刷写铁证端到端贯通。ISO 在 QEMU 里 <code>-cdrom</code> 启动或写入 U 盘。详见 <a href=\"https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.1-WP-severe-fix-and-closure\" rel=\"noopener\">WP-severe-fix-and-closure 发布页</a>。",
+      "dl.dev.h2": "3.0.0-WP-severe-fix-and-closure —— 严重修复发布线",
+      "dl.dev.sub": "当前发布 3.0.0-WP-severe-fix-and-closure：严重修复与收口——VMware 启动龟速根因配速（每次启动端口 I/O 削减 446 倍）、K-08 横幅竞态按构造关闭（连续 20 次启动）、K-09 “网络”误诊以内核自身计数器推翻 + COM1 RX 修复、K-10 OCIRE UEFI 电池首次 14/14、update 全链（L1 向导 → OTA 下载 → A/B 槽位 → 刷写）以字节级刷写铁证端到端贯通。ISO 在 QEMU 里 <code>-cdrom</code> 启动或写入 U 盘。详见 <a href=\"https://github.com/cubestudio-dev/OpenCubeOS/releases/tag/v3.0.0-WP-severe-fix-and-closure\" rel=\"noopener\">WP-severe-fix-and-closure 发布页</a>。",
       "dl.dev.oc.type": "可启动 ISO —— 操作系统",
-      "dl.dev.oc.desc": "BIOS + UEFI 混合镜像（4.2 MiB）。经 OCBL 启动进 Ring 3 的 ush Shell —— 3.0.1 发布线（严重修复里程碑）。",
+      "dl.dev.oc.desc": "BIOS + UEFI 混合镜像（4.2 MiB）。经 OCBL 启动进 Ring 3 的 ush Shell —— 3.0.0 发布线（严重修复里程碑）。",
       "dl.dev.oc.btn": "⬇️ 下载 ISO",
       "dl.dev.ocse.type": "安装介质 —— OCSE",
       "dl.dev.ocse.desc": "OCSE 安装环境（4.9 MiB，最近一次切版于 WP-l1apps-merge 里程碑）：9 步 GUI 安装向导和 OCSECL，中/英 —— 向导的每一步修改都是真实的 OCSECL 命令。把 OCBL + OCOS 装进磁盘，装完启动到 ush。",

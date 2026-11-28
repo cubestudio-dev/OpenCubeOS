@@ -8,8 +8,8 @@
  * command).  Default (no subcommand) = the fresh-sample report.
  * WP-runtime-hardening i18n: the user-facing lines render through
  * tr_(). */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 static long call(long op, const char *arg) {
     char out[4096];

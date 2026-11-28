@@ -28,9 +28,9 @@
 #ifndef OC_L1_EDITOR_CORE_H
 #define OC_L1_EDITOR_CORE_H
 
-#include "l1_lib.h"
-#include "l1svc_ops.h"
-#include "fs_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
+#include "l1_fs_api.h"
 
 /* ==================================================================
  * WP-10-wp08fix1: nano-style editor (moved verbatim from ush)

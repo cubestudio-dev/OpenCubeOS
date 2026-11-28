@@ -6,7 +6,7 @@ surface: 20 categories, 208 numbered operations, reached through the
 single syscall `SYS_L1SVC` (110). This page merges the kernel-side
 numbering header (`ocos/services/sysapi/interface/svc_sysapi_l1svc.h`,
 461 lines), the auto-generated ring-3 mirror
-(`ocos/interface/l1svc_ops.h`, produced by
+(`ocos/interface/l1_svc_ops.h`, produced by
 `tools/gen_l1svc_ops.py`), and the per-family op tables verified in
 the service sources. Structs and defines below are copied verbatim.
 
@@ -36,7 +36,7 @@ static inline long syscall5(long n, long a, long b, long c, long e, long f) {
 }
 ```
 
-(the ring-3 helper from `ocos/interface/l1_lib.h`; the typed
+(the ring-3 helper from `ocos/interface/l1_api_syscall.h`; the typed
 wrapper `sys_l1svc(cat, op, arg, out, cap)` calls
 `syscall5(SYS_L1SVC, cat, op, arg, out, cap)`):
 
@@ -85,7 +85,7 @@ wrapper `sys_l1svc(cat, op, arg, out, cap)` calls
   "New version available.", "DHCP success", "DNS resolution
   failed", "reboot required", "Current version is up to date.",
   "IP:"). `wiz_find()`/`wiz_token_after()` in
-  `ocos/interface/wizard_lib.h` parse exactly these anchors; the
+  `ocos/interface/l1_wizard_api.h` parse exactly these anchors; the
   ring-3 side formats nothing.
 - **Impact**: service output strings are ABI. Changing a rendered
   sentence breaks wizards and release gates the same way a
@@ -177,7 +177,7 @@ Kernel-only families with no category and no ops: `crash`,
 
 The following is the verbatim `#define` set from
 `ocos/services/sysapi/interface/svc_sysapi_l1svc.h` (mirrored into
-`ocos/interface/l1svc_ops.h`): 20 category defines + 208 op defines
+`ocos/interface/l1_svc_ops.h`): 20 category defines + 208 op defines
 = 228 `L1SVC_*` defines.
 
 ```c
@@ -789,13 +789,13 @@ The standard wrapper body (about 150 of the 284 programs are
 exactly this):
 
 ```c
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 int app_main(int argc, char **argv)
 { return l1svc_main(argc, argv, L1SVC_CAT_X, L1SVC_X_OP); }
 ```
 
-`l1svc_main()` (in `ocos/interface/l1_lib.h`):
+`l1svc_main()` (in `ocos/interface/l1_api_syscall.h`):
 
 - joins `argv[1..]` with single spaces into a 256-byte argument
   line (so multi-word grammar arrives exactly as typed),

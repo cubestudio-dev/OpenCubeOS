@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "mv".
  * Moved verbatim from the ush `mv` builtin: copy argv[1] to argv[2]
  * (O_TRUNC target, BUG-0089 fix) then unlink the source. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- mv <src> <dst> ---------- */

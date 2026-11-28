@@ -18,11 +18,11 @@
  * fork + execve + wait4, the exact `run` mechanism, not an L1SVC
  * wrap.  The wizard layers intent on top: browse, tree, usage, copy,
  * move, delete (with a confirmation), edit, permissions. */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
-#include "wizard_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
+#include "l1_wizard_api.h"
 
-/* fork/execve wrappers (not in l1_lib.h - most apps reach programs
+/* fork/execve wrappers (not in l1_api_syscall.h - most apps reach programs
  * only through ush; this app IS a program launcher, the run/main.c
  * pattern) */
 static inline long sys_fork_(void) { return syscall0(SYS_FORK); }

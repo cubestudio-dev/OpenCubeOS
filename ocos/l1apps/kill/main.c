@@ -5,7 +5,7 @@
  * numeric pid in argv[1].  WP-runtime-hardening i18n: the usage line
  * renders through tr_(); "kill: no such process" stays a literal -
  * it is the E2E refusal anchor (tools/run_ocire_supervised_tests.py). */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- kill <pid> ---------- */

@@ -464,7 +464,7 @@ ush> help --wp       the mega group renders FIRST
 上面大多数命令是服务 op 之上的薄封装，其参数处理方式
 解释了几个令用户意外的行为：
 
-- 标准应用骨架（`l1_lib.h`、`l1svc_main`）将 `argv[1..]`
+- 标准应用骨架（`l1_api_syscall.h`、`l1svc_main`）将 `argv[1..]`
   以单空格连接成一条 **256 字节参数行**，
   通过 `sys_l1svc(cat, op, arg, out, 32768)` 发送，
   并打印结果。因此多词语法（`firewall add in drop tcp port 22`）

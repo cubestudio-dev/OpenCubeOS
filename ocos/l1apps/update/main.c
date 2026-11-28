@@ -34,9 +34,9 @@
  * script-facing contract): "IP:", "DHCP success", "A/B disk:
  * present", "New version available.", "Current version is up to
  * date.", "DNS resolution failed", "reboot required". */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
-#include "wizard_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
+#include "l1_wizard_api.h"
 
 /* ---- the intent wizard ---------------------------------------------- */
 static int update_wizard(void) {

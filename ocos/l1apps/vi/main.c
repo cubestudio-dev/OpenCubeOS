@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP06g2 - L1 app "vi".
  *
  * The vi face over the shared editor engine: a REAL modal layer on
- * top of _shared/editor_core.h (the WP06g2 UTF-8/IME engine).
+ * top of ocos/interface/l1_editor_core.h (the WP06g2 UTF-8/IME engine).
  *
  * COMMAND mode (default): h/j/k/l or arrows move (glyph-wise for
  *   h/l), 0/$ line start/end, x deletes the glyph at the cursor, dd
@@ -17,7 +17,7 @@
  * The edit primitives (motion, glyph deletion, multi-byte insert,
  * cut/copy/paste, save/load, the IME bridge) all come from the
  * shared engine - this file is ONLY the modal loop. */
-#include "editor_core.h"
+#include "l1_editor_core.h"
 
 #define VI_MODE_CMD 0
 #define VI_MODE_INS 1

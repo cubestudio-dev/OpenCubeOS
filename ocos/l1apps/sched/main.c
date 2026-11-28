@@ -5,8 +5,8 @@
  * (L1SVC cat "diag" op 4); the app joins argv[1..] into the
  * argument line and prints the service text - the exact ush
  * svc_cmd_run semantics. */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 int app_main(int argc, char **argv)
 { return l1svc_main(argc, argv, L1SVC_CAT_DIAG, L1SVC_DIAG_SCHED); }

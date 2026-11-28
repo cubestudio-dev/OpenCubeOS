@@ -148,7 +148,7 @@ sink; `lib_config_init_with(fs_config_backend())` in kmain.
 - **Syscalls**: the file group (open/close/stat/readdir/mkdir/rmdir/
   unlink/read/write2/symlink/readlink/link/chmod/chown) and the
   fd-aware pipe/dup layer ([syscall-ring3.md](syscall-ring3.md)).
-- **Ring 3**: `fs_lib.h`'s on-wire structs
+- **Ring 3**: `l1_fs_api.h`'s on-wire structs
   ([private-headers.md](private-headers.md)) - `ush_dirent`/
   `ush_stat` MUST match the kernel shapes byte-for-byte.
 - **klog**: the /var/log/kernel.log file channel + rotation

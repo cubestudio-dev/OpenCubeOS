@@ -94,7 +94,7 @@ Add to `ocos/services/sysapi/interface/svc_sysapi_l1svc.h`:
 
 Run `python3 tools/gen_l1svc_ops.py` - it mirrors the single-line
 `#define L1SVC_*` block verbatim into
-`ocos/interface/l1svc_ops.h` (the only header set a ring-3 app may
+`ocos/interface/l1_svc_ops.h` (the only header set a ring-3 app may
 include; the `L1SVC_CAT_NAME` function macro is skipped). The
 ush-side constant table carries a verbatim copy; the whole
 numbering is append-only so no existing consumer ever shifts.
@@ -195,13 +195,13 @@ After `make kernel`, the boot line
 `ocos/l1apps/echo/main.c`:
 
 ```c
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 int app_main(int argc, char **argv)
 { return l1svc_main(argc, argv, L1SVC_CAT_ECHO, L1SVC_ECHO_HELLO); }
 ```
 
-`l1svc_main` (in `ocos/interface/l1_lib.h`) joins argv into a
+`l1svc_main` (in `ocos/interface/l1_api_syscall.h`) joins argv into a
 256-byte arg line, calls `sys_l1svc(cat, op, arg, out, 32768)`
 with a static 32 KiB BSS buffer, prints `out` plus the missing
 newline. `tools/gen_userprogs.py` picks the folder up

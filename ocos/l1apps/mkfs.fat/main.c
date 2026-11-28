@@ -11,8 +11,8 @@
  * block driver layer - the B2 acceptance case is literally
  *   mkfs.fat /dev/hdb
  * expecting "refused, sectors unchanged". */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 int app_main(int argc, char **argv)
 { return l1svc_main(argc, argv, L1SVC_CAT_BLOCK, L1SVC_BLK_MKFS_FAT32); }

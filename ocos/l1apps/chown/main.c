@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "chown".
  * Moved verbatim from the ush `chown` builtin (WP-10-wp08fix1): parses
  * "<uid>[:<gid>]" in argv[1] and applies it to argv[2] via SYS_CHOWN. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- chown <uid>[:<gid>] <path> ---------- */

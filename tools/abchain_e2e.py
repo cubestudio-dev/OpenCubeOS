@@ -33,7 +33,7 @@ The chain, every link proven on the serial transcript:
       (sha256), and slot A still equals the seeded 3.0.0 kernel.
 
 Assets are self-prepared (idempotent, needs the toolchain on PATH):
-  - a 3.0.1-WP-severe-fix-test test kernel (build 999) -> the package
+  - a 3.0.0-WP-severe-fix-test test kernel (build 999) -> the package
   - the current-tree 3.0.0 kernel -> the slot-A seed
   - tools/make_ab_disk.sh builds the GRUB self-booting A/B disk
   - build/update.json is regenerated from the package's real sha256/size
@@ -66,7 +66,7 @@ MANIFEST = f"{ROOT}/build/update.json"
 SEED_KERNEL = "/tmp/abchain-seed-kernel.elf"
 PKG_KERNEL = "/tmp/abchain-pkg-kernel.elf"
 PORT = 8008
-TEST_VERSION = "3.0.1-WP-severe-fix-test"
+TEST_VERSION = "3.0.0-WP-severe-fix-test"
 
 
 def kernel_banner(path):

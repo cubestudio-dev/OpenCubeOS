@@ -5,7 +5,7 @@
 
 **A from-scratch x86_64 kernel that boots into ring 3.**
 
-Current release: **3.0.1-WP-severe-fix-and-closure** - the severe-fix
+Current release: **3.0.0-WP-severe-fix-and-closure** - the severe-fix
 and closure line, five field-reported defects root-caused and closed:
 the **VMware boot crawl** (un-paced port-I/O poll loops + a false
 "command dropped" verdict retry storm - every hot poll is now paced by

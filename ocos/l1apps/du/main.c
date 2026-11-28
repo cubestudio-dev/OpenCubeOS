@@ -7,8 +7,8 @@
  * " bytes  " and " files  " - both stay English BY CONTRACT
  * (tools/wp10_wp08fix1_test.py greps "bytes" and "files" in the
  * output); there is nothing left to route through tr_(). */
-#include "l1_lib.h"
-#include "fs_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_fs_api.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- du [path] (WP-10-wp08fix1: recursive) ---------- */

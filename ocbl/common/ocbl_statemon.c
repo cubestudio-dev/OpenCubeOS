@@ -471,8 +471,30 @@ void ocbl_statemon_probe_nosplash(const ocbl_volume_t* v)
 {
     char c = 0;
     g_nosplash = 0;
-    if (!v || !g_monitor_ok)
+    /* WP-compat-fix: the /NOSPLASH.TXT switch must NOT depend on the
+     * monitor window.  g_monitor_ok is only settled LATER in the boot
+     * (the fixed pages are validated after the volume scan), so this
+     * probe - which runs during the scan, right after probe_hangat and
+     * probe_tickpit - used to return before ever reading the file.  The
+     * switch therefore never armed on the release ISO and every
+     * acceptance run that asserts on the scrolling boot log
+     * ("boot complete ... OK", "exception self-test: 3/3") failed even
+     * though the kernel had printed those lines into the splash capture.
+     * The probe only READS the volume and sets a flag; it touches no
+     * low memory, so the monitor state is irrelevant to it. */
+    if (!v)
         return;
+    /* Presence is the signal; the marker's CONTENT is irrelevant, so
+     * any non-empty file works.  Note the trap that used to make this
+     * switch dead on the release ISO: ocbl_fs_read_file() returns the
+     * number of bytes COPIED, so a zero-byte marker yields 0 - exactly
+     * what a MISSING file yields.  The old test demanded == 1 and the
+     * build staged an empty marker, so the switch never armed and every
+     * acceptance run asserting on the scrolling boot log
+     * ("boot complete ... OK", "exception self-test: 3/3") failed while
+     * the kernel had printed those lines into the splash capture.  The
+     * build now stages a one-byte marker (tools/build_iso.sh), which
+     * makes the read-count test exact again. */
     if (ocbl_fs_read_file(v, "/NOSPLASH.TXT", &c, 1) == 1) {
         g_nosplash = 1;
         ocbl_serial_puts("[state] /NOSPLASH.TXT diagnostic hook: oc.splash=0\r\n");

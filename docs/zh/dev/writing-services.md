@@ -91,7 +91,7 @@ int svc_framework_dispatch(const char *cat, u32 op,
 
 运行 `python3 tools/gen_l1svc_ops.py` —— 它把单行
 `#define L1SVC_*` 块原样镜像到
-`ocos/interface/l1svc_ops.h`（ring-3 应用唯一可以 include
+`ocos/interface/l1_svc_ops.h`（ring-3 应用唯一可以 include
 的头文件集；`L1SVC_CAT_NAME` 函数宏被跳过）。ush 侧的
 常量表携带一份逐字副本；整个编号体系只追加，因此任何
 既有消费者都不会移位。
@@ -192,13 +192,13 @@ kmain 调用你服务的 init（只有需要探测轮时才用
 `ocos/l1apps/echo/main.c`：
 
 ```c
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 int app_main(int argc, char **argv)
 { return l1svc_main(argc, argv, L1SVC_CAT_ECHO, L1SVC_ECHO_HELLO); }
 ```
 
-`l1svc_main`（位于 `ocos/interface/l1_lib.h`）把 argv 拼成
+`l1svc_main`（位于 `ocos/interface/l1_api_syscall.h`）把 argv 拼成
 256 字节参数行，以静态 32 KiB BSS 缓冲区调用
 `sys_l1svc(cat, op, arg, out, 32768)`，打印 `out` 加上
 缺失的换行。`tools/gen_userprogs.py` 在下一次

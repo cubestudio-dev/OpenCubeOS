@@ -43,7 +43,7 @@ OCOS 内核完整的 ring-3 系统调用面：入口约定、54 个已注册
   `core_syscall_wp08fix1_init()` 和
   `core_syscall_l1svc_init()`（都在 services/sysapi）。
 
-ring-3 辅助函数位于 `ocos/interface/l1_lib.h`：
+ring-3 辅助函数位于 `ocos/interface/l1_api_syscall.h`：
 `syscall0..syscall4`（r10 作第 4 参）和 `syscall5`
 （r8 作第 5 参，供 L1SVC）。
 
@@ -122,7 +122,7 @@ ring-3 辅助函数位于 `ocos/interface/l1_lib.h`：
 ## 3. ring 3 共享的底层结构
 
 系统调用方必须精确排布的线上结构体（来自
-`ocos/interface/fs_lib.h`；必须与内核 `vfs.h` 一致，
+`ocos/interface/l1_fs_api.h`；必须与内核 `vfs.h` 一致，
 `VFS_NAME_LEN=64` —— 内核按 `sizeof(struct)` memcpy）：
 
 ```c
@@ -133,7 +133,7 @@ struct ush_dirent { char name[64]; int type; u64 inode; };
 struct ush_stat  { int type; u64 size; u32 mode; u32 uid; u32 gid; u32 nlink; char name[64]; };
 ```
 
-`SYS_PS` 的 ABI 行（`l1_lib.h`）：
+`SYS_PS` 的 ABI 行（`l1_api_syscall.h`）：
 
 ```c
 struct ush_ps_entry {i32 tid; i32 state; i32 priority; char name[32]; u64 cpu_time_ticks;}

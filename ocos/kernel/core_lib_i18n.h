@@ -10,8 +10,8 @@
  * back to the key itself, so a missing entry is visible as the key
  * string and never a crash.
  *
- * This is the L0 twin of the per-app _shared/i18n.h (L1 apps embed
- * their own tables through gen_userprogs.py); L0 keeps ONE shared
+ * This is the L0 twin of the per-app ocos/interface/l1_i18n_api.h (L1
+ * apps embed their own tables through gen_userprogs.py); L0 keeps ONE shared
  * table because all services link into the same kernel image. */
 #ifndef OC_L0_I18N_H
 #define OC_L0_I18N_H

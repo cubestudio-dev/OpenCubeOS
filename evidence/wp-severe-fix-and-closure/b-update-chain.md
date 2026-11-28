@@ -25,7 +25,7 @@ host-side HTTP fixture on 10.0.2.2:8008):
    - 1/5 `[OK] Network is up.`
    - 2/5 `[OK] A/B disk is present.`
    - 3/5 `Resolved 10.0.2.2:8008 -> 10.0.2.2 (literal)` (IP-literal fix below)
-   - 4/5 `New version available.` -> `3.0.1-WP-severe-fix-test`
+   - 4/5 `New version available.` -> `3.0.0-WP-severe-fix-test`
    - 5/5 (confirmed `y`):
      `update: downloading... (1387 KB)` ->
      `update: verifying SHA256... OK` ->
@@ -33,9 +33,9 @@ host-side HTTP fixture on 10.0.2.2:8008):
      `update: setting boot to B... OK` ->
      `update: reboot required` -> `[OK] Update installed.`
    - confirmed reboot (`y`) -> `[ocst] clean-reboot marker recorded`
-6. the reboot boots slot B: `BOOT_SLOT=B` -> the **3.0.1** package kernel
-   banner (`[oc] Open Cube OS 3.0.1-WP-severe-fix-test kmain entered`) ->
-   `uname -r` -> `3.0.1-WP-severe-fix-test` ->
+6. the reboot boots slot B: `BOOT_SLOT=B` -> the **3.0.0** package kernel
+   banner (`[oc] Open Cube OS 3.0.0-WP-severe-fix-test kmain entered`) ->
+   `uname -r` -> `3.0.0-WP-severe-fix-test` ->
    `update --status` -> `current boot: B` / `next boot: B` (confirm_boot
    promoted B to the confirmed default)
 
@@ -109,7 +109,7 @@ python3 tools/abchain_e2e.py --no-prepare   # reuse built assets
 Asset preparation embedded in the driver (idempotent):
 
 ```
-make OC_RELEASE_VERSION=3.0.1-WP-severe-fix-test OC_KERNEL_BUILD=999 kernel
+make OC_RELEASE_VERSION=3.0.0-WP-severe-fix-test OC_KERNEL_BUILD=999 kernel
 bash tools/make_update_pkg.sh WP-severe-fix build/opencube.elf build/update-pkg.tar.gz
 make kernel                                     # restore the 3.0.0 tree kernel
 bash tools/make_ab_disk.sh build/opencube.elf   # slot A seeded with 3.0.0

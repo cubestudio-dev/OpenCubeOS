@@ -466,7 +466,7 @@ Most of the commands above are thin wrappers over a service op, and
 the argument handling explains several behaviors users find
 surprising:
 
-- The standard app skeleton (`l1_lib.h`, `l1svc_main`) joins
+- The standard app skeleton (`l1_api_syscall.h`, `l1svc_main`) joins
   `argv[1..]` with single spaces into one **256-byte argument line**,
   sends it with `sys_l1svc(cat, op, arg, out, 32768)`, and prints the
   result. So multi-word grammar (`firewall add in drop tcp port 22`)

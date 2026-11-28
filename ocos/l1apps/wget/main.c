@@ -5,7 +5,7 @@
  * the NETCMD bridge (SYS_NETCMD op 4), host [port] [path] packed into
  * one space-joined 256-byte line.  WP-runtime-hardening i18n: the
  * user-facing lines render through tr_(). */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- wget <host> [port] [path] ---------- */

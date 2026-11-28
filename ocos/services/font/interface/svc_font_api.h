@@ -2,7 +2,7 @@
 /* Copyright 2026 cubestudio-dev <cubestudio@qq.com> */
 /* NAK service API umbrella: font.
  * Ring-3 surface: the L1SVC "font" category (op numbering in
- * ocos/interface/l1svc_ops.h).  Kernel-side public headers:
+ * ocos/interface/l1_svc_ops.h).  Kernel-side public headers:
  * every interface/ resident below. */
 #ifndef SVC_FONT_API_H
 #define SVC_FONT_API_H

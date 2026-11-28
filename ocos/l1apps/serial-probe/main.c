@@ -22,10 +22,10 @@
  * Every human line this app prints by ITSELF goes through
  * get_text(MSG_*) - the 4.4 system message resource - so `lang zh`
  * flips the whole wizard live.  The single tr_() consumer is the
- * shared wizard failure line (wizard_lib.h wiz_svc -> tr_()). */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
-#include "wizard_lib.h"
+ * shared wizard failure line (l1_wizard_api.h wiz_svc -> tr_()). */
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
+#include "l1_wizard_api.h"
 
 int app_main(int argc, char **argv)
 {

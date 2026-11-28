@@ -4,7 +4,7 @@
  * Moved verbatim from the ush `ping` builtin: ICMP echo via the kernel
  * NETCMD bridge (SYS_NETCMD op 2).  WP-runtime-hardening i18n: the
  * user-facing lines render through tr_(). */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- ping <host> (kernel ICMP via NETCMD bridge) ---------- */

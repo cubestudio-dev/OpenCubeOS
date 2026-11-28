@@ -167,6 +167,21 @@ static void aml_val_clear(acpi_value_t *v) {
 }
 
 static int aml_val_copy(acpi_value_t *dst, const acpi_value_t *src) {
+    /* aml_val_clear() frees whatever dst claims to own, so dst MUST be
+     * a valid acpi_value_t.  Every caller in this file passes either a
+     * zeroed struct (memset/ctx slots) or a stack local that was never
+     * initialised - the latter handed aml_val_clear a garbage `kind`
+     * and it kfree()'d a garbage pointer.  Live-caught on the BIOS
+     * track under QEMU 10.2.1 once the OCRMECL handoff fix let the
+     * boot reach ACPI: the #GP came from kfree([rdi-0x20]) with rdi a
+     * stack-garbage value, reached through
+     * aml_eval_termarg -> aml_exec_statement -> aml_store_value ->
+     * aml_val_copy -> aml_val_clear.  NULL every owned pointer before
+     * the clear so an uninitialised dst is always a no-op there. */
+    dst->buf = NULL; dst->buf_len = 0;
+    dst->str = NULL;
+    dst->elems = NULL; dst->elem_count = 0;
+    dst->node = NULL;
     aml_val_clear(dst);
     dst->kind = src->kind;
     dst->integer = src->integer;
@@ -209,8 +224,10 @@ static void aml_store_value(acpi_node_t *node, const acpi_value_t *v) {
     default:
         break;
     }
-    /* take ownership of a copy */
+    /* take ownership of a copy (zeroed first: aml_val_clear inside
+     * aml_val_copy walks the owned pointers) */
     acpi_value_t copy;
+    memset(&copy, 0, sizeof(copy));
     if (aml_val_copy(&copy, v) != 0) return;
     kfree(node->data);
     node->data = NULL;

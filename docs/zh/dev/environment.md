@@ -85,9 +85,11 @@ ocos/services/    one folder per service facet: block, net, audio,
                   watchdog, display, tui, crypto, camera, usb, ...
 ocos/drivers/     one folder per class: storage, net, audio, bus
                   (pci/acpi/i2c), usb, input, display, time, misc
-ocos/interface/   the ring-3 contract headers: l1_lib.h,
-                  l1svc_ops.h, i18n.h, wizard_lib.h, fs_lib.h,
-                  editor_core.h, oc_l1_api.h, crt0.asm
+ocos/interface/   ring 3 契约头文件（10 个 NAK l1_* 文件）：
+                  l1_api_syscall.h、l1_svc_ops.h、l1_i18n_api.h、
+                  l1_i18n_res.h、l1_wizard_api.h、l1_fs_api.h、
+                  l1_editor_core.h、l1_diag_cmds.h、l1_api_surface.h、
+                  l1_crt_entry.asm
 ocos/l1apps/      one command = one app = one folder (284 programs)
                   + _i18n/ for the flat legacy test programs
 ocire/            the independent recovery kernel (second L0)

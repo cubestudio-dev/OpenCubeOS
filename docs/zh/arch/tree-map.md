@@ -119,11 +119,15 @@ ocos/
 `sysapi`。220 个文件，约 6.7 万行；ring 3 面总计 20 个类别 221 个
 op。
 
-### `ocos/interface/`——8 个私有的 ring 3 头文件
+### `ocos/interface/`——10 个私有的 ring 3 头文件
 
-`crt0.asm`、`oc_l1_api.h`、`l1_lib.h`、`l1svc_ops.h`、`fs_lib.h`、
-`i18n.h`、`wizard_lib.h`、`editor_core.h`——ring 3 应用程序唯一可以
-include 的头文件集（由 L1 编译 `-I` 路径在构建期强制）。专门页面：
+`l1_api_surface.h`、`l1_api_syscall.h`、`l1_svc_ops.h`、`l1_fs_api.h`、
+`l1_i18n_api.h`、`l1_i18n_res.h`、`l1_wizard_api.h`、
+`l1_editor_core.h`、`l1_diag_cmds.h`、`l1_crt_entry.asm`——ring 3
+应用程序唯一可以 include 的头文件集（由 L1 编译 `-I` 路径在构建期
+强制）。每个文件都按 NAK 的 `l1_<分类>_<作用>` 命名：整个目录就是
+L0 服务面中面向 L1 的那一侧，因此十个文件的 NAK 大类统一为 `l1_`
+（`diag` 保留历史上的 `l1_diag_cmds` 拼写）。专门页面：
 [private-headers.md](private-headers.md)。
 
 ### `ocos/l1apps/`——300 个内嵌 ring 3 程序
@@ -132,10 +136,10 @@ include 的头文件集（由 L1 编译 `-I` 路径在构建期强制）。专�
 `i18n/{en,zh}.json`（252 个目录，其中 `_i18n/` 存放共享表；注册表
 计数为 `OC_USERPROGS_COUNT = 300`）。目录树中可见的类别：`ush`
 shell 及其内建命令；按设备的状态命令（`ahci`、`hda`、`e1000e`、
-`wifi`……）；`*_test` 测试组（50+）；构建于 `wizard_lib.h` 之上的
+`wifi`……）；`*_test` 测试组（50+）；构建于 `l1_wizard_api.h` 之上的
 8 个合并巨型应用（`update`、`disk-tool`、`net-tool`、`sound-tool`、
 `files`、`sysdiag`、`hwinfo`、`power`）；编辑器（`nano`、`vi`、
-`edit` 共享 `editor_core.h`）；文本工具（`cat`、`grep`、`sed`、
+`edit` 共享 `l1_editor_core.h`）；文本工具（`cat`、`grep`、`sed`、
 `awk`、`sort`、`wc`……）。另有约 34 个扁平的顶层源文件：遗留的
 `.asm` 测试程序（`fork_test.asm`、`g6_*.asm`……）、动态链接测试集
 （`ld_so.c`、`libfoo.c`、`main_dyn.c`、`pie_test.c`）以及 `user.ld`

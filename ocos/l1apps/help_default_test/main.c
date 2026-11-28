@@ -9,8 +9,8 @@
  * every registered name must be strictly ascending.  The PASS/FAIL
  * verdict words stay English (machine contract); the surrounding
  * sentences render through tr_(). */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 static int verify_sorted(void) {
     char out[8192];

@@ -18,7 +18,36 @@ import os, sys, time, subprocess, socket
 import paramiko
 
 OC_TOOLS = os.environ.get("OC_TOOLS", os.path.expanduser("~/opt/extract"))
-QEMU = f"{OC_TOOLS}/usr/bin/qemu-system-x86_64"
+def _oc_tools_layout(root):
+    """Resolve the toolchain layout.
+
+    The historical default (~/opt/extract) is a dpkg -x EXTRACTION ROOT,
+    so the tools live at <root>/usr/bin and the firmware at
+    <root>/usr/share.  A system install has OC_TOOLS=/usr and the tools
+    live at /usr/bin directly - joining "/usr" + "/usr/bin" produced the
+    nonsense path "/usr/usr/bin/qemu-system-x86_64" (live-caught running
+    the gate on the permanent host, which does not use the extract
+    layout).  Detect which one this is and return (bindir, sharedir,
+    libdir) accordingly, falling back to PATH for the binary.
+    """
+    import shutil
+    bindir = os.path.join(root, "usr", "bin")
+    sharedir = os.path.join(root, "usr", "share")
+    libdir = os.path.join(root, "usr", "lib", "x86_64-linux-gnu")
+    if not os.path.isdir(bindir):
+        # system layout: <root>/bin
+        cand = os.path.join(root, "bin")
+        if os.path.isdir(cand):
+            bindir = cand
+            sharedir = os.path.join(root, "share")
+            libdir = os.path.join(root, "lib", "x86_64-linux-gnu")
+    return bindir, sharedir, libdir
+
+_OC_BINDIR, _OC_SHAREDIR, _OC_LIBDIR = _oc_tools_layout(OC_TOOLS)
+import shutil
+QEMU = os.path.join(_OC_BINDIR, "qemu-system-x86_64")
+if not os.path.exists(QEMU):
+    QEMU = shutil.which("qemu-system-x86_64") or QEMU
 
 def main():
     iso = sys.argv[1]
@@ -29,15 +58,15 @@ def main():
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(1.5)
     env = dict(os.environ)
-    env["LD_LIBRARY_PATH"] = (f"{OC_TOOLS}/usr/lib/x86_64-linux-gnu:"
-                              f"{OC_TOOLS}/lib/x86_64-linux-gnu")
+    env["LD_LIBRARY_PATH"] = (f"{_OC_LIBDIR}:"
+                                  f"{os.path.join(OC_TOOLS, 'lib', 'x86_64-linux-gnu')}")
     ser = "/tmp/g11a_serial.sock"
     if os.path.exists(ser):
         os.unlink(ser)
     child = subprocess.Popen([QEMU,
         "-m", "512M", "-cdrom", iso, "-boot", "d",
-        "-L", f"{OC_TOOLS}/usr/share/qemu",
-        "-L", f"{OC_TOOLS}/usr/share/seabios",
+        "-L", os.path.join(_OC_SHAREDIR, "qemu"),
+        "-L", os.path.join(_OC_SHAREDIR, "seabios"),
         "-display", "none", "-monitor", "none", "-no-reboot", "-snapshot",
         "-netdev", "user,id=n1,hostfwd=tcp::2223-:22",
         "-object", "filter-dump,id=f0,netdev=n1,file=/tmp/g11a_net.pcap",

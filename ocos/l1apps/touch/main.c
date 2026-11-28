@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "touch".
  * Moved verbatim from the ush `touch` builtin: open(argv[1], 6)
  * (WRONLY|CREAT) + close - creates the file or leaves it untouched. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- touch <file> ---------- */

@@ -34,7 +34,7 @@
    做 ASLR（两次 rdtsc 采样 + splitmix64 终结器），然后
    控制权转给 ld.so 的入口 —— ld.so（ring 3）解析
    .dynamic、修补 GOT/PLT 并跳转到 `app_main` 的调用者
-   `_start`（共享的 `crt0.asm` 读 `[rsp]`=argc /
+   `_start`（共享的 `l1_crt_entry.asm` 读 `[rsp]`=argc /
    `[rsp+8]`=argv、对齐、调用 `app_main`）。
 5. **地址空间构造**：全新 PML4；拷贝内核 PML4[1..3]；
    PRIVATE PDPT[0]+PD0（内核 512 x 2 MiB 大页 PDE 的
@@ -55,7 +55,7 @@
 **触发**：一个 ring-3 包装调用
 `syscall5(SYS_L1SVC, cat, op, arg, out, cap)`。
 
-1. **ring-3 包装**（`ocos/interface/l1_lib.h`）：
+1. **ring-3 包装**（`ocos/interface/l1_api_syscall.h`）：
    `l1svc_main` 把 argv 拼成 256 字节参数行；`out` 是
    静态 32 KiB BSS 缓冲区。
 2. **入口**：`int 0x80` -> IDT 向量 128（DPL=3 门）->

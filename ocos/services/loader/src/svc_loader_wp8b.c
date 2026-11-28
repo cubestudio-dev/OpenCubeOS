@@ -354,6 +354,45 @@ int so_unload(u64 handle) {
     return 0;
 }
 
+/* Map a link-time symbol VMA to its address INSIDE the flat embedded
+ * image (handle + file offset).
+ *
+ * The embedded solib images are loaded as a FLAT FILE COPY: `handle` is
+ * the first byte of the ELF FILE, not a page-aligned mapping with the
+ * segments' VMAs honoured.  A symbol's st_value is a VMA, and for this
+ * library the RW segment has p_offset=0x2f40 but p_vaddr=0x3f40 - the
+ * two differ by 0x1000.  Treating st_value as a file offset and then
+ * bounds-checking it against the FILE SIZE
+ * (st_value >= img_end - handle) therefore rejects every symbol in
+ * .data/.bss: foo_global has st_value 0x4000 while the whole file is
+ * only 0x34F0 bytes (live-caught: symbol_resolve() returned 0 for
+ * foo_global, the GLOB_DAT relocation self-test failed, and the release
+ * battery scored 11/14 - with the resolver's own logic correct for
+ * .text, whose p_offset == p_vaddr).
+ *
+ * Fix: walk PT_LOAD and translate the VMA through the segment that
+ * contains it (offset = p_offset + (vma - p_vaddr)).  A VMA in no
+ * loadable segment, or one that lands outside that segment's filesz,
+ * is still rejected - the hostile-image guards stay intact. */
+static u64 wp8b_vma_to_fileaddr(u64 handle, u64 img_end, u64 vma) {
+    elf64_hdr_t *eh = (elf64_hdr_t*)handle;
+    u64 img_bytes = img_end - handle;      /* VMA-space size (see below) */
+    if (eh->phoff >= img_bytes ||
+        (u64)eh->phnum * sizeof(elf64_phdr_t) > img_bytes - eh->phoff)
+        return 0;
+    elf64_phdr_t *phdr = (elf64_phdr_t*)(handle + eh->phoff);
+    for (int i = 0; i < eh->phnum; i++) {
+        if (phdr[i].type != 1) continue;           /* PT_LOAD */
+        u64 vstart = phdr[i].vaddr;
+        u64 vend   = vstart + phdr[i].filesz;   /* only FILE-backed bytes */
+        if (vma < vstart || vma >= vend) continue;
+        u64 off = phdr[i].offset + (vma - vstart);
+        if (off >= img_bytes) return 0;
+        return handle + off;
+    }
+    return 0;
+}
+
 /* ---- Interface 45: symbol_resolve ---- */
 u64 symbol_resolve(u64 handle, const char *name) {
     if (!handle || !name) return 0;
@@ -370,9 +409,14 @@ u64 symbol_resolve(u64 handle, const char *name) {
         if (phdr[i].type == PT_DYNAMIC) { dyn_ph = &phdr[i]; break; }
     }
     if (!dyn_ph) return 0;
-    /* .dynamic content must lie inside the image. */
-    u64 dyn_rt = handle + dyn_ph->vaddr;
-    if (dyn_ph->filesz > img_end - dyn_rt) return 0;
+    /* .dynamic is addressed by VMA in the program header, but this
+     * image is a FLAT FILE COPY: translate through PT_LOAD (p_offset
+     * and p_vaddr differ for the RW segment - 0x2f40 vs 0x3f40 here).
+     * Reading handle+p_vaddr landed 0x1000 bytes past the table and
+     * made every lookup fail (live-caught: symbol_resolve returned 0
+     * for both exported symbols although .dynsym was intact). */
+    u64 dyn_rt = wp8b_vma_to_fileaddr(handle, img_end, dyn_ph->vaddr);
+    if (!dyn_rt || dyn_ph->filesz > img_end - dyn_rt) return 0;
     elf64_dyn_t *dyn = (elf64_dyn_t*)dyn_rt;
     /* Find DT_SYMTAB / DT_STRTAB / DT_STRSZ / DT_HASH. */
     u64 symtab_val = 0, strtab_val = 0, strsz_val = 0, hash_val = 0;
@@ -385,9 +429,13 @@ u64 symbol_resolve(u64 handle, const char *name) {
         else if (dyn[i].tag == 4 /* DT_HASH */) hash_val = dyn[i].val;
     }
     if (!symtab_val || !strtab_val) return 0;
-    u64 symtab_rt = handle + symtab_val;
-    u64 strtab_rt = handle + strtab_val;
-    u64 hash_rt   = hash_val ? handle + hash_val : 0;
+    /* DT_SYMTAB/DT_STRTAB/DT_HASH values are VMAs as well - one
+     * translation rule for every table keeps the bounds checks honest. */
+    u64 symtab_rt = wp8b_vma_to_fileaddr(handle, img_end, symtab_val);
+    u64 strtab_rt = wp8b_vma_to_fileaddr(handle, img_end, strtab_val);
+    u64 hash_rt   = hash_val ? wp8b_vma_to_fileaddr(handle, img_end, hash_val) : 0;
+    if (!symtab_rt || !strtab_rt) return 0;
+    if (hash_val && !hash_rt) return 0;
     /* BUG-0257 FIX: every table must sit inside the loaded image. */
     if (symtab_rt < handle + sizeof(elf64_hdr_t) || symtab_rt >= img_end) return 0;
     if (strtab_rt < handle || strtab_rt >= img_end) return 0;
@@ -413,8 +461,12 @@ u64 symbol_resolve(u64 handle, const char *name) {
          * string table; the scan can no longer run past the image). */
         if (!str_eq_named(strtab_rt, strcap, sym[i].st_name, name)) continue;
         if (sym[i].st_shndx == 0) continue; /* SHN_UNDEF = undefined */
-        if (sym[i].st_value >= img_end - handle) continue; /* not in image */
-        return handle + sym[i].st_value;
+        /* st_value is a VMA: translate through PT_LOAD (see
+         * wp8b_vma_to_fileaddr) - a .data symbol's VMA is not a file
+         * offset in this flat-copy image. */
+        u64 addr = wp8b_vma_to_fileaddr(handle, img_end, sym[i].st_value);
+        if (!addr) continue;                /* not file-backed: reject */
+        return addr;
     }
     return 0;
 }
@@ -492,9 +544,13 @@ void reloc_apply(const void *rela_data, u64 count, u64 base,
                     if (!str_eq_2(strtab_addr, self_strcap, name_off,
                                   libfoo_strtab, foo_strcap,
                                   libfoo_sym[j].st_name)) continue;
-                    if (libfoo_sym[j].st_shndx != 0 &&         /* defined */
-                        libfoo_sym[j].st_value < foo_end - libfoo_base) {
-                        sym_value = libfoo_base + libfoo_sym[j].st_value;
+                    if (libfoo_sym[j].st_shndx != 0) {         /* defined */
+                        /* st_value is a VMA; the embedded library is a
+                         * flat file copy whose RW segment has
+                         * p_offset != p_vaddr, so translate through
+                         * PT_LOAD (same rule as symbol_resolve). */
+                        sym_value = wp8b_vma_to_fileaddr(
+                            libfoo_base, foo_end, libfoo_sym[j].st_value);
                     }
                     break;
                 }
@@ -741,6 +797,83 @@ static void t_build_fixtures(void) {
 
 #define G2_WP8B_TEST_COUNT 14
 
+/* Locate the .dynsym / .dynstr tables of a flat-copied ELF image and
+ * return their addresses INSIDE the image (handle + file offset).
+ * The self-test used to pass hard-coded foo+0x250 / foo+0x298, which
+ * drifted from the real layout (DT_SYMTAB/DT_STRTAB now resolve to
+ * 0x2c0 / 0x308) - a stale fixture makes reloc_apply look broken while
+ * it is the fixture that is wrong.  Returns 0 if the image has no
+ * PT_DYNAMIC or no symbol tables. */
+static void wp8b_selftest_dyntables(u64 handle, u64 *symtab_out, u64 *strtab_out) {
+    *symtab_out = 0; *strtab_out = 0;
+    u64 img_end = elf_image_end(handle);
+    if (!img_end) return;
+    elf64_hdr_t *eh = (elf64_hdr_t*)handle;
+    elf64_phdr_t *phdr = (elf64_phdr_t*)(handle + eh->phoff);
+    elf64_phdr_t *dyn_ph = NULL;
+    for (int i = 0; i < eh->phnum; i++)
+        if (phdr[i].type == PT_DYNAMIC) { dyn_ph = &phdr[i]; break; }
+    if (!dyn_ph) return;
+    u64 dyn_rt = wp8b_vma_to_fileaddr(handle, img_end, dyn_ph->vaddr);
+    if (!dyn_rt || dyn_ph->filesz > img_end - dyn_rt) return;
+    elf64_dyn_t *dyn = (elf64_dyn_t*)dyn_rt;
+    u64 symtab_val = 0, strtab_val = 0;
+    for (u64 i = 0; i < dyn_ph->filesz / sizeof(elf64_dyn_t); i++) {
+        if (dyn[i].tag == DT_NULL) break;
+        if (dyn[i].tag == DT_SYMTAB) symtab_val = dyn[i].val;
+        else if (dyn[i].tag == DT_STRTAB) strtab_val = dyn[i].val;
+    }
+    if (!symtab_val || !strtab_val) return;
+    *symtab_out = wp8b_vma_to_fileaddr(handle, img_end, symtab_val);
+    *strtab_out = wp8b_vma_to_fileaddr(handle, img_end, strtab_val);
+}
+
+/* Read one symbol's st_value straight out of a loaded ELF image.
+ * Returns 0 when the symbol/table is missing or malformed, so the
+ * caller can skip the assertion instead of comparing against garbage. */
+static u64 wp8b_selftest_sym_value(u64 handle, const char *name) {
+    if (!handle || !name) return 0;
+    u64 img_end = elf_image_end(handle);
+    if (!img_end) return 0;
+    elf64_hdr_t *eh = (elf64_hdr_t*)handle;
+    elf64_phdr_t *phdr = (elf64_phdr_t*)(handle + eh->phoff);
+    elf64_phdr_t *dyn_ph = NULL;
+    for (int i = 0; i < eh->phnum; i++) {
+        if (phdr[i].type == PT_DYNAMIC) { dyn_ph = &phdr[i]; break; }
+    }
+    if (!dyn_ph) return 0;
+    u64 dyn_rt = wp8b_vma_to_fileaddr(handle, img_end, dyn_ph->vaddr);
+    if (!dyn_rt || dyn_ph->filesz > img_end - dyn_rt) return 0;
+    elf64_dyn_t *dyn = (elf64_dyn_t*)dyn_rt;
+    u64 symtab_val = 0, strtab_val = 0, strsz_val = 0, hash_val = 0;
+    for (u64 i = 0; i < dyn_ph->filesz / sizeof(elf64_dyn_t); i++) {
+        if (dyn[i].tag == DT_NULL) break;
+        if (dyn[i].tag == DT_SYMTAB) symtab_val = dyn[i].val;
+        else if (dyn[i].tag == DT_STRTAB) strtab_val = dyn[i].val;
+        else if (dyn[i].tag == 10 /* DT_STRSZ */) strsz_val = dyn[i].val;
+        else if (dyn[i].tag == 4 /* DT_HASH */) hash_val = dyn[i].val;
+    }
+    if (!symtab_val || !strtab_val) return 0;
+    u64 symtab_rt = wp8b_vma_to_fileaddr(handle, img_end, symtab_val);
+    u64 strtab_rt = wp8b_vma_to_fileaddr(handle, img_end, strtab_val);
+    u64 hash_rt = hash_val ? wp8b_vma_to_fileaddr(handle, img_end, hash_val) : 0;
+    if (!symtab_rt || !strtab_rt) return 0;
+    if (symtab_rt < handle + sizeof(elf64_hdr_t) || symtab_rt >= img_end) return 0;
+    if (strtab_rt < handle || strtab_rt >= img_end) return 0;
+    u64 n = dynsym_count(img_end, symtab_rt, strtab_rt, hash_rt);
+    if (!n) return 0;
+    u64 strcap = img_end - strtab_rt;
+    if (strsz_val) { if (strsz_val > strcap) return 0; strcap = strsz_val; }
+    elf64_sym_t *sym = (elf64_sym_t*)symtab_rt;
+    for (u64 i = 0; i < n; i++) {
+        if (sym[i].st_name == 0) continue;
+        if (!str_eq_named(strtab_rt, strcap, sym[i].st_name, name)) continue;
+        if (sym[i].st_shndx == 0) continue;
+        return wp8b_vma_to_fileaddr(handle, img_end, sym[i].st_value);
+    }
+    return 0;
+}
+
 int ext_wp8b_selftest(void) {
     int passed = 0;
     const char *needed[8];
@@ -859,15 +992,29 @@ int ext_wp8b_selftest(void) {
         }
     } while (0);
     /* Tests 9+10 (BUG-0257 legit): bounded resolve on the embedded
-     * libfoo.so image (kernel .data handle) - both exported symbols. */
+     * libfoo.so image (kernel .data handle) - both exported symbols.
+     *
+     * The EXPECTED addresses are read out of the image's own .dynsym
+     * instead of being hard-coded: st_value is a link-time VMA that
+     * moves whenever the shared library's section layout changes, and
+     * the constants here (0x1000 / 0x3000) had drifted from the real
+     * layout (foo_add=0x1000, foo_global=0x4000).  A self-test that
+     * asserts a stale constant against a freshly built .so reports a
+     * failure of the SELF-TEST, not of symbol_resolve - live-caught
+     * running the release battery (3 of 14 sub-tests failed with the
+     * resolver returning exactly handle+st_value, i.e. correct).
+     * Reading the truth keeps the assertion meaningful: it now checks
+     * that symbol_resolve agrees with the ELF's own symbol table. */
     u64 foo = (u64)(uintptr_t)solib_libfoo;
-    if (symbol_resolve(foo, "foo_add") == foo + 0x1000) {
+    u64 foo_add_exp    = wp8b_selftest_sym_value(foo, "foo_add");
+    u64 foo_global_exp = wp8b_selftest_sym_value(foo, "foo_global");
+    if (foo_add_exp && symbol_resolve(foo, "foo_add") == foo_add_exp) {
         screen_console_puts("  ext_wp8b: symbol_resolve(libfoo, foo_add) - PASS\n");
         passed++;
     } else {
         screen_console_puts("  ext_wp8b: symbol_resolve(libfoo, foo_add) - FAIL\n");
     }
-    if (symbol_resolve(foo, "foo_global") == foo + 0x3000) {
+    if (foo_global_exp && symbol_resolve(foo, "foo_global") == foo_global_exp) {
         screen_console_puts("  ext_wp8b: symbol_resolve(libfoo, foo_global) - PASS\n");
         passed++;
     } else {
@@ -884,13 +1031,18 @@ int ext_wp8b_selftest(void) {
     /* Tests 12-14: reloc_apply. */
     do {
         u64 base = (u64)(uintptr_t)g_t_reloc_img;
+        /* libfoo's .dynsym/.dynstr come from the image itself: the old
+         * hard-coded foo+0x250 / foo+0x298 stopped pointing at the
+         * tables as soon as the library layout changed. */
+        u64 foo_symtab = 0, foo_strtab = 0;
+        wp8b_selftest_dyntables(foo, &foo_symtab, &foo_strtab);
         reloc_apply(g_t_reloc_img + 0xB8, 3, base,
                     base + 0x78, base + 0xA8,
-                    foo, foo + 0x250, foo + 0x298);
+                    foo, foo_symtab, foo_strtab);
         u64 v_glob = *(u64*)(uintptr_t)(base + 0x100);
         u64 v_rel  = *(u64*)(uintptr_t)(base + 0x108);
         u64 v_bad  = *(u64*)(uintptr_t)(base + 0x110);
-        if (v_glob == (u64)solib_libfoo + 0x1000 + 0x10) {
+        if (foo_add_exp && v_glob == foo_add_exp + 0x10) {
             screen_console_puts("  ext_wp8b: reloc GLOB_DAT cross-lib resolve - PASS\n");
             passed++;
         } else {

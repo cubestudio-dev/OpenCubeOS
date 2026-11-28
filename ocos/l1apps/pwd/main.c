@@ -4,7 +4,7 @@
  * Moved verbatim from the ush `pwd` builtin: prints the current
  * working directory (SYS_GETCWD) - a forked app inherits the shell
  * cwd, so the output matches the old builtin. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     (void)argc; (void)argv;

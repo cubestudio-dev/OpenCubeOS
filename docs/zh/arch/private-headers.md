@@ -5,26 +5,31 @@
 ——由构建期强制：`tools/gen_userprogs.py` 的 `CFLAGS_BASE` 在 L1 编译
 的 `-I` 路径上恰好只导出该目录，`ocos/kernel`、`ocos/drivers` 或
 `ocos/services` 之下的任何东西都不会出现在 L1 include 路径上。
-`oc_l1_api.h` 在其头注释中言明此规则，并自称“审计 L1 能看见什么的
-唯一地点”。八个文件，一个 ABI：
+`l1_api_surface.h` 在其头注释中言明此规则，并自称“审计 L1 能看见什么的
+唯一地点”。十个文件，一个 ABI。所有文件名都是 NAK 的
+`l1_<分类>_<作用>` 三段式：整个目录就是 L0 服务面中面向 L1 的那一侧，
+因此十个文件的 NAK 大类统一为 `l1_`（唯一保留历史拼写的是
+`l1_diag_cmds.h`，它本来就合规）：
 
-| 文件 | 行数 | 角色 |
+| 文件 | 行数 | 分类 / 作用 |
 |---|---|---|
-| `crt0.asm` | 36 | 共享的 ring 3 入口跳板 |
-| `oc_l1_api.h` | 36 | 伞形总括 include |
-| `l1_lib.h` | 337 | ring 3 运行时库（仅头文件） |
-| `l1svc_ops.h` | 245 | L1SVC 协议常量（自动生成的镜像） |
-| `fs_lib.h` | 87 | VFS 线上传输结构体 + 辅助函数 |
-| `i18n.h` | 114 | 按应用的双语运行时 |
-| `wizard_lib.h` | 218 | 交互式向导原语 |
-| `editor_core.h` | 810 | 共享编辑器引擎 |
+| `l1_api_surface.h` | 42 | api / surface——伞形总括 include |
+| `l1_api_syscall.h` | 337 | api / syscall——ring 3 运行时库（仅头文件） |
+| `l1_svc_ops.h` | 261 | svc / ops——L1SVC 协议常量（自动生成的镜像） |
+| `l1_fs_api.h` | 87 | fs / api——VFS 线上传输结构体 + 辅助函数 |
+| `l1_i18n_api.h` | 162 | i18n / api——按应用的双语运行时 |
+| `l1_i18n_res.h` | 128 | i18n / res——共享的 MSG_ID 消息资源 |
+| `l1_wizard_api.h` | 218 | wizard / api——交互式向导原语 |
+| `l1_editor_core.h` | 810 | editor / core——共享编辑器引擎 |
+| `l1_diag_cmds.h` | 234 | diag / cmds——共享的驱动/设备诊断层 |
+| `l1_crt_entry.asm` | 36 | crt / entry——共享的 ring 3 入口跳板 |
 
 面向读者的配套文档是 [../l1/overview.md](../l1/overview.md)、
 [../l1/writing-apps.md](../l1/writing-apps.md) 与
 [../l1/app-anatomy.md](../l1/app-anatomy.md)；契约的系统调用一侧是
 [syscall-ring3.md](syscall-ring3.md)。
 
-## `crt0.asm`——ring 3 入口
+## `l1_crt_entry.asm`——ring 3 入口
 
 内核 `execve` 以 `[rsp]=argc, [rsp+8]=argv[0]..` 进入新进程——这是
 编译出来的 C `_start` 无法安全读取的布局（编译器序言可能在触碰
@@ -47,7 +52,7 @@ section .note.GNU-stack noalloc noexec nowrite progbits
 退出走 `SYS_EXIT2`（16）——运行统一进程收割器的现代退出。
 `noexec` GNU-stack 注记使链接器不至于要求可执行栈。
 
-## `l1svc_ops.h`——冻结的协议镜像
+## `l1_svc_ops.h`——冻结的协议镜像
 
 由 `tools/gen_l1svc_ops.py` 生成，是
 `ocos/services/sysapi/interface/svc_sysapi_l1svc.h` 的**逐字镜像**
@@ -82,18 +87,20 @@ OCIRE 日志代理是逐字契约。20 个类别：
 ```
 
 随后是 208 个 op 定义，每个服务操作一个（完整表格见
-[syscall-ring3.md](syscall-ring3.md)）。使用者：经 `l1_lib.h` 的
+[syscall-ring3.md](syscall-ring3.md)）。使用者：经 `l1_api_syscall.h` 的
 `l1svc()` 包装使用它的每个 L1 应用，以及 OCIRE 代理（它把这些
 编号当 ABI 编译，而非 include）。
 
-## `oc_l1_api.h`——伞形总括
+## `l1_api_surface.h`——伞形总括
 
-包含其余五个 C 头文件（`l1_lib.h`、`l1svc_ops.h`、`fs_lib.h`、
-`editor_core.h`、`i18n.h`）。只 include 这一个头的应用即可看见全部
-合法 L1 面——这正是让上文审计声明成立的原因。`crt0.asm` 是链接
-而非 include；`wizard_lib.h` 由需要它的应用直接 include。
+包含其余八个 C 头文件中的五个（`l1_api_syscall.h`、`l1_svc_ops.h`、
+`l1_fs_api.h`、`l1_editor_core.h`、`l1_i18n_api.h`）。只 include 这一个头
+的应用即可看见合法 L1 面的这一整片——这正是让上文审计声明成立的
+原因。`l1_crt_entry.asm` 是链接而非 include；`l1_wizard_api.h`、
+`l1_diag_cmds.h` 与 `l1_i18n_res.h`（后者由 `l1_i18n_api.h` 传递引入）
+由需要它们的应用直接 include。
 
-## `l1_lib.h`——ring 3 运行时库
+## `l1_api_syscall.h`——ring 3 运行时库
 
 仅头文件（全部 `static inline`）——每个应用编译自己的副本，不存在
 共享的用户库。按依赖顺序导出：
@@ -115,9 +122,9 @@ OCIRE 日志代理是逐字契约。20 个类别：
 - **微型字符串/IO**：`strlen_ streq_ starts_with_ strcpy_ strcat_ strcmp_ atoi_ puts_ putc_ putu_ putx_`。
 - **定宽别名**（`u64/i64/i32/u32/i8/u8`）与内核 ABI 结构体
   `struct ush_ps_entry {i32 tid; i32 state; i32 priority; char name[32]; u64 cpu_time_ticks;}`（`SYS_PS` 的线上形态）。
-- 在其尾部 include `i18n.h`，因此每个应用免费获得 `tr_()`。
+- 在其尾部 include `l1_i18n_api.h`，因此每个应用免费获得 `tr_()`。
 
-## `fs_lib.h`——VFS 线上传输结构体
+## `l1_fs_api.h`——VFS 线上传输结构体
 
 这些结构体必须与内核的 `vfs.h` 逐字节一致（`VFS_NAME_LEN=64`；
 内核把 `sizeof(struct)` memcpy 进调用者缓冲——不一致将是无声的
@@ -135,7 +142,7 @@ struct ush_stat  { int type; u64 size; u32 mode; u32 uid; u32 gid; u32 nlink; ch
 使用者：每个触碰文件的应用（`ls`、`files`、编辑器的载入/保存
 路径、`disk-tool`）。
 
-## `i18n.h`——按应用的双语运行时
+## `l1_i18n_api.h`——按应用的双语运行时
 
 按应用的表生成进每个应用的 `i18n_gen.c`（`I18N_EN[]/I18N_ZH[]`，
 按 key 排序的 `struct i18n_kv`），来源是应用的 `i18n/{en,zh}.json`
@@ -155,7 +162,16 @@ struct ush_stat  { int type; u64 size; u32 mode; u32 uid; u32 gid; u32 nlink; ch
 L0 侧的对应物（内核服务自身的 i18n）是 `core_lib_i18n.c` +
 `etc/i18n/l0/*.json`——另一套机制，见 [chinese-layer.md](chinese-layer.md)。
 
-## `wizard_lib.h`——向导原语 + 锚点契约
+## `l1_i18n_res.h`——共享消息资源
+
+`MSG_ID` 枚举（`msg_id_t`，以 `MSG_ID_COUNT` 收尾）是系统消息表的
+唯一共享编号：内核侧 `ocos/kernel/core_i18n_res.c` 用它填充
+`lang_en[]`/`lang_zh[]` 并提供 `get_text(MSG_ID)`；L1 侧经
+`l1_i18n_api.h`（`tr_()` 及其包装的 L1SVC op）触达同一批 id。两个
+ring 共用一份枚举，意味着 id 绝不可能在内核表与应用查询之间漂移；
+追加式扩展协议与构建期尺寸断言分别落在两张表的头文件里。
+
+## `l1_wizard_api.h`——向导原语 + 锚点契约
 
 由 8 个合并巨型应用使用（`update`、`disk-tool`、`net-tool`、
 `sound-tool`、`files`、`sysdiag`、`hwinfo`、`power`）。契约：调用者
@@ -177,7 +193,7 @@ key）、`wiz_banner`、`wiz_step(step,total,what)`、`wiz_ok` /
 命令面之上的自有向导）是 `ocse/ocse_wzctl.c`——同一模式，不同
 世界。教程见 [../l1/wizard-library.md](../l1/wizard-library.md)。
 
-## `editor_core.h`——共享编辑器引擎
+## `l1_editor_core.h`——共享编辑器引擎
 
 810 行的 nano 风格引擎，被 **nano**、**vi**（在其模态层之下）与
 **edit** include（而非链接）——三条命令，一个引擎。关键事实：
@@ -211,11 +227,13 @@ key）、`wiz_banner`、`wiz_step(step,total,what)`、`wiz_ok` /
 
 | 头文件 | 消费者 |
 |---|---|
-| `crt0.asm` | 每个 L1 应用 + OCIRE 日志代理（经同一 `user.ld` 模式链接） |
-| `oc_l1_api.h` | 想一次 include 拿到全部面的应用 |
-| `l1_lib.h` | 每个 L1 应用（直接或经伞形头） |
-| `l1svc_ops.h` | `l1_lib.h` 的使用者；OCIRE 代理（ABI 编号） |
-| `fs_lib.h` | 操作文件的应用 |
-| `i18n.h` | 每个带 `i18n/` 目录的应用（由 `l1_lib.h` 尾部自动 include） |
-| `wizard_lib.h` | 8 个巨型应用 |
-| `editor_core.h` | `nano`、`vi`、`edit` |
+| `l1_crt_entry.asm` | 每个 L1 应用 + OCIRE 日志代理（经同一 `user.ld` 模式链接） |
+| `l1_api_surface.h` | 想一次 include 拿到全部面的应用 |
+| `l1_api_syscall.h` | 每个 L1 应用（直接或经伞形头） |
+| `l1_svc_ops.h` | `l1_api_syscall.h` 的使用者；OCIRE 代理（ABI 编号） |
+| `l1_fs_api.h` | 操作文件的应用 |
+| `l1_i18n_api.h` | 每个带 `i18n/` 目录的应用（由 `l1_api_syscall.h` 尾部自动 include） |
+| `l1_i18n_res.h` | `l1_i18n_api.h`（MSG_ID 编号）；内核 `core_i18n_res.c` 的两张表 |
+| `l1_diag_cmds.h` | `dev`/`dev_*` 与 `drv`/`drv_*` 诊断命令家族 |
+| `l1_wizard_api.h` | 8 个巨型应用 |
+| `l1_editor_core.h` | `nano`、`vi`、`edit` |

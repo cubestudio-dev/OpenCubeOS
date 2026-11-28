@@ -4,8 +4,8 @@
  * Moved verbatim from the ush `stat` builtin (WP-10-wp08fix1): prints
  * the real fs_vfs_stat_t data (type/size/mode/uid/gid/nlink/name)
  * returned by SYS_STAT. */
-#include "l1_lib.h"
-#include "fs_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_fs_api.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- stat <path> (WP-10-wp08fix1) ----------

@@ -165,7 +165,7 @@ KLOG_SNAPSHOT）——针对 `ocire/agent/ocire_agent.c` 的冻结 ABI，
 ## 进程、ELF 与 ring 3 世界
 
 - **入口**：`execve` 留下 `[rsp]=argc, [rsp+8]=argv`；每个应用
-  链接 `ocos/interface/crt0.asm`，由它安全读取并调用
+  链接 `ocos/interface/l1_crt_entry.asm`，由它安全读取并调用
   `app_main(argc, argv)`，经 `SYS_EXIT2` 退出。
 - **ELF 装载**：静态 ET_EXEC 与 ET_DYN（PIE）带 ASLR，外加动态
   路径——PT_INTERP 探测、ld.so 映射于 0x10000000、由用户态 ld.so

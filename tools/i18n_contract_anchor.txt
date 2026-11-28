@@ -11,7 +11,7 @@
 #
 # Format:  "anchor string" | producer (file) | referencing file(s)
 #
-# --- update wizard probes (ocos/interface/wizard_lib.h contract,
+# --- update wizard probes (ocos/interface/l1_wizard_api.h contract,
 #     consumed by ocos/l1apps/update/main.c) -----------------------------
 "IP:"                                       | net svc `ip` op (services/net) | ocos/l1apps/update/main.c wiz_token_after
 "DHCP success"                              | net svc `dhcp` op (services/net) | ocos/l1apps/update/main.c wiz_find; evidence/wp08-driver-framework/08-release-ssh-e2e-5-5.txt; evidence/wp-tui-input-encoding-hardening/regression/ssh-e2e.txt

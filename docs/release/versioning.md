@@ -62,3 +62,18 @@ must point at a CI-green commit (2.1.0 release gate).
 
 SemVer rules above; `build` = commit count + 21 on release day -
 never hand-picked.
+
+## Version discipline (cross-reference)
+
+The binding rule for the 3.0.0 phase is in
+[CONTRIBUTING.md](../root/CONTRIBUTING.md#version-discipline-300-phase):
+the version stem stays `3.0.0-WP-<work-package-name>` until the 74 work
+packages are done, `OC_RELEASE_VERSION` is the only source of truth, and a
+version change is a repo-wide reconcile verified with `git grep`, never a
+one-file edit.
+
+## Commit and push discipline (cross-reference)
+
+[batch delivery rule](../root/CONTRIBUTING.md#commit-and-push-discipline):
+one verified batch -> one push, covering both the public and the private
+mirror repository, with gh-pages verified after the push.

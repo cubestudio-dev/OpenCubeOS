@@ -4,8 +4,8 @@
  * Moved verbatim from the ush `grep` builtin: filters stdin (fd 0,
  * pattern only - the builtin never opened a file argument) printing
  * every line that contains argv[1]. */
-#include "l1_lib.h"
-#include "fs_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_fs_api.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- grep <pattern> ---------- */

@@ -3,7 +3,7 @@
 /* Open Cube OS - 3.0.0-WP-runtime-hardening-and-experience-rebase
  * File: ocos/kernel/core_i18n_res.h
  * Purpose: the L0 side of the MSG_ID message-resource contract
- *          (ocos/interface/i18n_res.h): the lang_en / lang_zh tables
+ *          (ocos/interface/l1_i18n_res.h): the lang_en / lang_zh tables
  *          live in core_i18n_res.c and get_text(MSG_ID) serves the
  *          ACTIVE-locale string (zh when the display locale is zh,
  *          en otherwise, "?" only for an out-of-range id).
@@ -21,7 +21,7 @@
 #define OC_CORE_I18N_RES_H
 
 #include "types.h"
-#include "../interface/i18n_res.h"
+#include "../interface/l1_i18n_res.h"
 
 /* The tables (core_i18n_res.c): indexed by msg_id_t, exactly
  * MSG_ID_COUNT entries each - a mismatch fails the build via the

@@ -6229,10 +6229,10 @@ int net_cmd_tcpcc_test(const char *args) {
 int net_cmd_nf_test(const char *args) {
     (void)args;
     int fails = 0;
-    u32 peer = IP4(203, 0, 113, 7);
+    u32 peer = IP4(198, 51, 100, 7);
     screen_console_puts("netfilter self-test:\n");
 
-    /* 1) rule match + hits: INPUT DROP icmp from 203.0.113.7 */
+    /* 1) rule match + hits: INPUT DROP icmp from 198.51.100.7 */
     net_netfilter_reset();
     net_netfilter_add_rule_st(NF_CHAIN_INPUT, peer, 0xFFFFFFFF, 0, 0, 1, 0,
                           NF_ACTION_DROP, NF_STATE_ANY);

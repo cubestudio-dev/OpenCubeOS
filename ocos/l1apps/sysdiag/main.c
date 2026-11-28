@@ -18,9 +18,9 @@
  * another.  crashtest (deliberate panic injection) stays reachable
  * through classic/direct only - a wizard button for it would be a
  * footgun. */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
-#include "wizard_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
+#include "l1_wizard_api.h"
 
 struct wiz_op {
     const char *name;

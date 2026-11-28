@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "tail".
  * Moved verbatim from the ush `tail` builtin: prints the last 10
  * lines (or `-N`/`N`, capped at 512) of stdin or the file argument. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- tail [N] [file] ---------- */

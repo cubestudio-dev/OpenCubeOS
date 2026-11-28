@@ -4,7 +4,7 @@
  * Moved verbatim from the ush `ifconfig` builtin: network interface info via the kernel
  * NETCMD bridge (SYS_NETCMD).  WP-runtime-hardening i18n: the failure
  * tail renders through tr_() (argv[0] prefix stays the command word). */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     (void)argc;

@@ -21,8 +21,8 @@ ocos/l1apps/<name>/
 ## 2. 入口
 
 ```c
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 int app_main(int argc, char **argv)
 { return l1svc_main(argc, argv, L1SVC_CAT_OTA, L1SVC_OTA_UPDATE); }
@@ -70,7 +70,7 @@ int app_main(int argc, char **argv)
 ## 5. 向导层
 
 ```c
-#include "wizard_lib.h"
+#include "l1_wizard_api.h"
 
 static char g_out[WIZ_OUT_CAP];      /* 32 KiB, BSS not stack */
 
@@ -82,7 +82,7 @@ int app_main(int argc, char **argv)
 }
 ```
 
-`wizard_lib.h`（仅头文件，每个应用编译自己的副本）提供：
+`l1_wizard_api.h`（仅头文件，每个应用编译自己的副本）提供：
 `wiz_svc` / `wiz_svc_quiet`（带 32 KiB 静态缓冲的 L1SVC）、
 `wiz_find`（锚点探测）、`wiz_token_after`（某键后的第一个词 -
 IP 提取器）、`wiz_ask` / `wiz_confirm` / `wiz_pause`（基于

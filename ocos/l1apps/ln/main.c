@@ -4,7 +4,7 @@
  * Moved verbatim from the ush `ln` builtin (WP-10-wp08fix1): `ln -s
  * <abs-target> <linkpath>` makes a symlink, `ln <old> <new>` a hard
  * link, with the errno-ish decimal on failure. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- ln [-s] <target/old> <linkpath> ---------- */

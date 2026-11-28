@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# 向导库（wizard_lib.h）
+# 向导库（l1_wizard_api.h）
 
 8 个合并应用背后的共享原语。仅头文件，位于
-`ocos/interface/wizard_lib.h` - 每个应用编译自己的副本
+`ocos/interface/l1_wizard_api.h` - 每个应用编译自己的副本
 （`_shared` 风格）；逐字直通路径从不触碰它（它们保留历史的
 `l1svc_main()` 语义）。
 

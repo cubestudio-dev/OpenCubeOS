@@ -10,8 +10,8 @@
  * 4096-byte text result).  The full-screen page renders live on the
  * console/framebuffer (the op routes directly, bypassing the text
  * capture); tui-test serves its verdict block through the capture. */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 int app_main(int argc, char **argv)
 { return l1svc_main(argc, argv, L1SVC_CAT_TUI, L1SVC_TUI_HW); }

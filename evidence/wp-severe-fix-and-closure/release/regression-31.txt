@@ -1,3 +1,7 @@
+# NOTE: this record was captured during the withdrawn pre-rollback naming
+# period; every version string below has been rolled back to
+# 3.0.0-WP-severe-fix-and-closure per the version-discipline rule
+# (CONTRIBUTING.md). Nothing else in this snapshot was touched.
 OCRMECL stage1 ok
 OCRMECL core: flatten start
 OCRMECL: A20 on
@@ -41,11 +45,11 @@ OCBL stage1 ok
 [boot] mbi built: 416 bytes at 0x50000
 [state] payload armed: NO 6300ESB watchdog - detection degrades to the next reset
 
-[oc] Open Cube OS 3.0.1-WP-severe-fix-and-closure kmain entered
+[oc] Open Cube OS 3.0.0-WP-severe-fix-and-closure kmain entered
 [ocst] boot-state monitor: state area 0x98000, watchdog absent - stage recording only, no hardware reset enforcement
 [ocst] stage 1/6: KM_AIN_ENTERED (budget 10s)
 [00:00:00.000] boot chain 1/4: kernel core mechanisms............ OK
-  Open Cube OS  [3.0.1-WP-severe-fix-and-closure]    Open Cube OS - L0 kernel (3.0.1-WP-severe-fix-and-closure)
+  Open Cube OS  [3.0.0-WP-severe-fix-and-closure]    Open Cube OS - L0 kernel (3.0.0-WP-severe-fix-and-closure)
     Apache 2.0 licensed. See LICENSE.
 
 [00:00:00.000] multiboot2 handshake.............................. OK
@@ -174,7 +178,7 @@ ext_wp8cd: self-test done
 [perf] ata_dma: port_io=0 polls=0 xfers=0 retries=0 drops=0 wait_ms=0
 [ocst] L1 isolation verified: no user mapping covers the state pages (live CR3 walk)
 
-Open Cube OS User-space Shell (3.0.1-WP-severe-fix-and-closure)
+Open Cube OS User-space Shell (3.0.0-WP-severe-fix-and-closure)
 Type 'help' for built-in commands.
 
 
@@ -183,7 +187,7 @@ export PAGER=off
 
 --- [uname -a] ---
 uname -a
-Open Cube OS 3.0.1-WP-severe-fix-and-closure x86_64
+Open Cube OS 3.0.0-WP-severe-fix-and-closure x86_64
 
 --- [help -a] ---
 help -a

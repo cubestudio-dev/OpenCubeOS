@@ -43,7 +43,7 @@ Register ABI:
   calls `core_syscall_wp08a_init()`, `core_syscall_wp08fix1_init()`
   and `core_syscall_l1svc_init()` (all in services/sysapi).
 
-Ring-3 helpers live in `ocos/interface/l1_lib.h`:
+Ring-3 helpers live in `ocos/interface/l1_api_syscall.h`:
 `syscall0..syscall4` (r10 as 4th) and `syscall5` (r8 as 5th, for
 L1SVC).
 
@@ -122,7 +122,7 @@ describes the notable failure paths.
 ## 3. Underlying structures ring 3 shares
 
 On-wire structs a syscall caller must lay out exactly (from
-`ocos/interface/fs_lib.h`; MUST match kernel `vfs.h`,
+`ocos/interface/l1_fs_api.h`; MUST match kernel `vfs.h`,
 `VFS_NAME_LEN=64` - the kernel memcpy's `sizeof(struct)`):
 
 ```c
@@ -133,7 +133,7 @@ struct ush_dirent { char name[64]; int type; u64 inode; };
 struct ush_stat  { int type; u64 size; u32 mode; u32 uid; u32 gid; u32 nlink; char name[64]; };
 ```
 
-The `SYS_PS` ABI row (`l1_lib.h`):
+The `SYS_PS` ABI row (`l1_api_syscall.h`):
 
 ```c
 struct ush_ps_entry {i32 tid; i32 state; i32 priority; char name[32]; u64 cpu_time_ticks;}

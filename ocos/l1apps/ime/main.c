@@ -10,8 +10,8 @@
  * argument line joined from argv, 4096-byte text result).  "ime -i"
  * runs the interactive console compose line (the dispatch routes it
  * on the live console path, bypassing the text capture). */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 int app_main(int argc, char **argv)
 { return l1svc_main(argc, argv, L1SVC_CAT_DISPLAY, L1SVC_DISP_IME); }

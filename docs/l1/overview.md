@@ -24,12 +24,16 @@ L0  Open Cube OS service kernel
 
 | Header (ocos/interface/) | What it covers |
 |---------------------------|----------------|
-| `l1_lib.h` | syscall wrappers, string/IO helpers, `l1svc_main()` - the verbatim wrapper body |
-| `l1svc_ops.h` | the category/op numbering contract (auto-mirrored from the L0 header) |
-| `i18n.h` | `tr_()` + the per-app bilingual tables |
-| `wizard_lib.h` | the shared wizard primitives (menus, asks, confirms, anchor probes) |
-| `fs_lib.h` | path helpers shared by the file tools |
-| `editor_core.h` | the editor engine behind `edit` and the TUI editor |
+| `l1_api_syscall.h` | syscall wrappers, string/IO helpers, `l1svc_main()` - the verbatim wrapper body |
+| `l1_svc_ops.h` | the category/op numbering contract (auto-mirrored from the L0 header) |
+| `l1_i18n_api.h` | `tr_()` + the per-app bilingual tables |
+| `l1_wizard_api.h` | the shared wizard primitives (menus, asks, confirms, anchor probes) |
+| `l1_fs_api.h` | path helpers shared by the file tools |
+| `l1_editor_core.h` | the editor engine behind `edit` and the TUI editor |
+| `l1_i18n_res.h` | the shared `MSG_ID` system-message numbering (L0/L1 common) |
+| `l1_diag_cmds.h` | the shared `dev`/`drv` diag command layer |
+| `l1_api_surface.h` | the umbrella: the audit point for "what L1 can see" |
+| `l1_crt_entry.asm` | the linked (not included) `_start` trampoline |
 
 The service-side declarations live in
 `ocos/services/*/interface/` (one folder per facet); the numbering

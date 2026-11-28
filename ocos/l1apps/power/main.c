@@ -19,9 +19,9 @@
  * session) carry their own warning + confirmation.  Classic and
  * direct dispatch stay verbatim - scripted `poweroff` keeps its
  * historical no-questions behavior. */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
-#include "wizard_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
+#include "l1_wizard_api.h"
 
 struct wiz_op {
     const char *name;

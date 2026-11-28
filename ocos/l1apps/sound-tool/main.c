@@ -15,9 +15,9 @@
  * The wizard groups by intent: device overview, volume (the number
  * is validated before it ever reaches the service), the 440 Hz test
  * tone, per-driver status and the selftest family. */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
-#include "wizard_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
+#include "l1_wizard_api.h"
 
 struct wiz_op {
     const char *name;

@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "head".
  * Moved verbatim from the ush `head` builtin: prints the first 10
  * lines (or `-N`/`N` when given) of stdin or the file argument. */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- head [N] [file] ---------- */

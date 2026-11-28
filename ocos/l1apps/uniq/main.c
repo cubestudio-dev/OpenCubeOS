@@ -3,8 +3,8 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "uniq".
  * Moved verbatim from the ush `uniq` builtin: reads argv[1] (P2-03 fix)
  * or stdin, printing consecutive duplicate lines only once. */
-#include "l1_lib.h"
-#include "fs_lib.h"
+#include "l1_api_syscall.h"
+#include "l1_fs_api.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- uniq (file or stdin) ---------- */

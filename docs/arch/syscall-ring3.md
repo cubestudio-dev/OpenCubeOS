@@ -172,7 +172,7 @@ Three routing styles per op (documented in the l1 files):
 ## Processes, ELF, and the ring-3 world
 
 - **Entry**: `execve` leaves `[rsp]=argc, [rsp+8]=argv`; every app
-  links `ocos/interface/crt0.asm` which reads them safely and calls
+  links `ocos/interface/l1_crt_entry.asm` which reads them safely and calls
   `app_main(argc, argv)`, exiting via `SYS_EXIT2`.
 - **ELF loading**: static ET_EXEC and ET_DYN (PIE) with ASLR, plus the
   dynamic path - PT_INTERP detection, ld.so mapped at 0x10000000,

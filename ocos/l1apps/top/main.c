@@ -9,7 +9,7 @@
  * state words stay English BY CONTRACT - "top - up" and "TID" are
  * E2E anchors (tools/wp10_wp08fix1_test.py) and the zh_CN column
  * skeleton convention keeps the alignment (see apply_tool_i18n.py). */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- top (WP-10-wp08fix1: snapshot + optional refresh) ----------

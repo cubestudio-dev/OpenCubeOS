@@ -17,7 +17,7 @@
 |------|------|
 | [overview](overview.md) | 应用模型、分层、数量 |
 | [surface-map](surface-map.md) | 每个 L1SVC 类别与操作、系统调用桥 |
-| [app-anatomy](app-anatomy.md) | main.c / crt0 / i18n / wizard_lib.h - 完整解剖 |
+| [app-anatomy](app-anatomy.md) | main.c / crt0 / i18n / l1_wizard_api.h - 完整解剖 |
 | [writing-apps](writing-apps.md) | 从源码到 `run` 的完整应用 - 教程 |
 | [wizard-library](wizard-library.md) | 8 个大应用背后的共享向导原语 |
 | [driver-block](driver-block.md) | 扩展块服务 |
@@ -33,4 +33,4 @@
 8 个已合并的应用（`update`、`disk-tool`、`net-tool`、
 `sound-tool`、`files`、`sysdiag`、`hwinfo`、`power`）确立了
 三门契约 - 无参向导、`direct` 直通、经典操作分发。新应用可以
-自由采纳它；向导原语只差一次 `#include "wizard_lib.h"`。
+自由采纳它；向导原语只差一次 `#include "l1_wizard_api.h"`。

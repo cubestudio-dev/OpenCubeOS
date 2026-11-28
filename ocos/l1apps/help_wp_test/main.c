@@ -10,8 +10,8 @@
  * semantic re-targeting, same invariant family).  The PASS/FAIL
  * verdict words stay English (machine contract); the surrounding
  * sentences render through tr_(). */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 int app_main(int argc, char **argv) { (void)argc; (void)argv;
     char out[8192];
     long rc = sys_l1svc(L1SVC_CAT_L1, L1SVC_L1_APPS, 0,

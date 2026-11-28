@@ -3,7 +3,7 @@
 /* Open Cube OS 3.0.0-WP04 - L1 app "cp".
  * Moved verbatim from the ush `cp` builtin: copies argv[1] to argv[2]
  * with O_TRUNC on the target (BUG-0089 fix). */
-#include "l1_lib.h"
+#include "l1_api_syscall.h"
 
 int app_main(int argc, char **argv) {
     /* ---------- cp <src> <dst> ---------- */

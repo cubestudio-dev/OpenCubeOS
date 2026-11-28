@@ -7,8 +7,8 @@
  * lives in the L0 "time" service; the
  * call itself is the exact ush svc_cmd_run() semantics carried over
  * (256-byte argument line joined from argv, 4096-byte text result). */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 int app_main(int argc, char **argv)
 { return l1svc_main(argc, argv, L1SVC_CAT_TIME, L1SVC_TIME_PMTIMER); }

@@ -17,8 +17,8 @@
  * apply_tool_i18n.py).  The unknown-option line stays a literal:
  * "unknown option" is an E2E anchor (tools/fix1_after_ush*.py, via
  * the mirrored ush builtin) and ush keeps its copy literal too. */
-#include "l1_lib.h"
-#include "l1svc_ops.h"
+#include "l1_api_syscall.h"
+#include "l1_svc_ops.h"
 
 int app_main(int argc, char **argv) {
     const char *mode = "";

@@ -130,7 +130,7 @@ TUI op 遵循同一实时输出规则（见 [tui-engine.md](tui-engine.md)）。
 
 ### 编辑器桥（该协议的主要客户端）
 
-`editor_core.h` 的 `unano_ime_feed(key)` 以十进制键码作为 arg 字符
+`l1_editor_core.h` 的 `unano_ime_feed(key)` 以十进制键码作为 arg 字符
 串调用 `DISPLAY/IME_KEY`；F2（键码 0x91）经 `IME_BEGIN`/`IME_END`
 切换；预编辑条是 160 字节的 `unano_strip`；动作 4 的存在正是为了
 让失败的服务永远无法污染被编辑的文件。TUI 桌面的编辑器与终端使用

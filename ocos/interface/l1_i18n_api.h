@@ -6,13 +6,14 @@
  * copy.  The PER-APP string tables live in the generated
  * i18n_gen.c (built by tools/gen_userprogs.py from the app's
  * i18n/en.json + i18n/zh.json - flat legacy programs read theirs
- * from src/L1/_i18n/<name>/).  Nothing is hand-written in C: the
+ * from ocos/l1apps/_i18n/<name>/).  Nothing is hand-written in C: the
  * app sources say tr_("key") and the resource files carry the text.
  *
  * SELF-CONTAINED by design: the locale probe carries its own inline
  * int-0x80 sequence and the compare its own loop, so this header
- * never depends on _shared/l1_lib.h's wrapper order - l1_lib.h
- * includes it at its tail and every app gets tr_() for free.
+ * never depends on l1_api_syscall.h's wrapper order - the syscall
+ * header includes this one at its tail and every app gets tr_() for
+ * free.
  *
  * Lookup: i18n_lang_zh() asks the SYSTEM locale per call
  * (SYS_L1SVC display/LANG_GET - live, so `lang` switches take
@@ -28,10 +29,10 @@
 #define OC_L1_I18N_H
 
 /* The numbering contract (SYS_L1SVC + the display op numbers) and the
- * MSG_ID enumeration (the system message resource, i18n_res.h - the
+ * MSG_ID enumeration (the system message resource, l1_i18n_res.h - the
  * shared L0/L1 numbering so the ids can never drift). */
-#include "l1svc_ops.h"
-#include "i18n_res.h"
+#include "l1_svc_ops.h"
+#include "l1_i18n_res.h"
 
 #ifndef SYS_L1SVC
 #define SYS_L1SVC 110
@@ -58,7 +59,7 @@ extern const int            I18N_ZH_N;
  * (kernel side: a 2-byte copy out of disp_lang_get()), so tr_()
  * stays cheap even for help -a's ~300 strings.  Any failure (old
  * kernel, service down) still reads as English - the safe default.
- * The int-0x80 sequence is the l1_lib.h syscall5 contract spelled
+ * The int-0x80 sequence is the l1_api_syscall.h syscall5 contract spelled
  * locally: SYS_L1SVC(110), cat=DISPLAY, op=LANG_GET, arg=0,
  * out=&buf, cap=sizeof(buf). */
 static inline int i18n_lang_zh(void) {
