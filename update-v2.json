@@ -1,0 +1,14 @@
+{
+    "version": "3.0.0-WP-severe-fix-and-closure",
+    "build": 532,
+    "time": "2026-11-28",
+    "changes": "3.0.0-WP-severe-fix-and-closure release. See the GitHub release note for the full change list, new interfaces and known issues.",
+    "description": {
+        "en": "3.0.0-WP-severe-fix-and-closure release. See the GitHub release note for the full change list, new interfaces and known issues.",
+        "zh": "3.0.0-WP-severe-fix-and-closure release. See the GitHub release note for the full change list, new interfaces and known issues."
+    },
+    "changes_v2_url": "https://ocos.cubestudio.cn/update-v2.json",
+    "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-severe-fix-and-closure-update.tar.gz",
+    "package_sha256": "dbea89027315714dbbfd592d5f6ff2054f74f9cd4b7357030b676312321f3a25",
+    "package_size": 1436641
+}
