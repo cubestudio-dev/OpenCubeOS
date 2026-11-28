@@ -1,11 +1,14 @@
 # Build artifacts
 build/
+dist/
 *.o
 *.d
 *.elf
 *.so
 *.iso
+*.img
 *.zip
+*.tar.gz
 
 # Python cache
 __pycache__/
