@@ -113,7 +113,15 @@ fi
 
 # ---- 5. website + docs data -------------------------------------------
 echo "== [5/5] release data =="
-BUILD_NO=$(git rev-list --count HEAD)
+# The kernel banner, uname and the OTA manifest all compare build ids
+# NUMERICALLY (BUG-0347).  The kernel's id is `git rev-list --count HEAD`
+# + OC_KERNEL_BUILD_OFFSET (Makefile:115-116, the +21 alignment).  This
+# script used the raw count, so the website/OTA manifest published a build
+# id 21 LOWER than the kernel it described - an installed machine running
+# that very release would see the "new" manifest as a DOWNGRADE and skip
+# it.  Take the offset from the Makefile so the two can never drift.
+OC_KERNEL_BUILD_OFFSET=$(sed -n 's/^OC_KERNEL_BUILD_OFFSET *:= *\([0-9]*\).*/\1/p' Makefile | head -1)
+BUILD_NO=$(( $(git rev-list --count HEAD) + ${OC_KERNEL_BUILD_OFFSET:-0} ))
 DATE=$(date -u +%F)
 python3 tools/gen_api_docs.py --help-capture evidence/help_a_runtime.txt --pages-zh \
     --pages --md

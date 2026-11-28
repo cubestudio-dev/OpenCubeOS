@@ -10,33 +10,33 @@
    every asset URL is ABSOLUTE. */
 window.SITE_DATA = {
   version: "3.0.0-WP-severe-fix-and-closure",
-  build: 529,
-  date: "2026-11-26",
-  changes: "severe-fix and closure: the VMware boot crawl paced (446x fewer port I/Os), K-08 banner race closed by construction, K-09 refuted with counters + the COM1 RX fix, K-10 OCIRE UEFI 14/14, the update full chain byte-proven + the RFC 2131 DHCP retransmission",
+  build: 532,
+  date: "2026-11-28",
+  changes: "3.0.0-WP-severe-fix-and-closure release - see the GitHub release note for the change list",
   description: {
-    en: "severe-fix and closure: the VMware boot crawl paced (446x fewer port I/Os), K-08 banner race closed by construction, K-09 refuted with counters + the COM1 RX fix, K-10 OCIRE UEFI 14/14, the update full chain byte-proven + the RFC 2131 DHCP retransmission",
-    zh: "严重修复与收口：VMware 启动龟速根因配速（端口 I/O 削减 446 倍）、K-08 横幅竞态按构造关闭、K-09 以计数器推翻 + COM1 RX 修复、K-10 OCIRE UEFI 14/14、update 全链字节级证明 + RFC 2131 DHCP 重传"
+    en: "3.0.0-WP-severe-fix-and-closure release - see the GitHub release note for the change list",
+    zh: "3.0.0-WP-severe-fix-and-closure release - see the GitHub release note for the change list"
   },
   assets: {
     iso: {
       name: "opencube-3.0.0-WP-severe-fix-and-closure.iso",
-      size: 4216832,
-      size_h: "4.0 MiB",
-      sha256: "e4bfd7107971486714a8d08003d398d557d447448f4209a81b6430acd32b2e3d",
+      size: 4251648,
+      size_h: "4.1 MiB",
+      sha256: "f4b20068346c9a972a38a755d3ddc807b8c9bece7914345fb5b8340312e98767",
       url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-severe-fix-and-closure.iso"
     },
     src: {
       name: "opencube-3.0.0-WP-severe-fix-and-closure-src.zip",
-      size: 7523459,
+      size: 7498452,
       size_h: "7.2 MiB",
-      sha256: "b9267dafe24ac441f9918600a9a2a383535223618398cc83e3946cf6446b60f9",
+      sha256: "0095e072e2caf9279d01f74a30284800217bd2d949289502e0c18bf3e705eb75",
       url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-severe-fix-and-closure-src.zip"
     },
     ota: {
       name: "opencube-3.0.0-WP-severe-fix-and-closure-update.tar.gz",
-      size: 1419887,
+      size: 1436641,
       size_h: "1.4 MiB",
-      sha256: "26c7e7cd3742186dafd1f2b4d161881106afa6c3ed5a93a6be178d23324c426a",
+      sha256: "dbea89027315714dbbfd592d5f6ff2054f74f9cd4b7357030b676312321f3a25",
       url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-severe-fix-and-closure-update.tar.gz"
     }
   },
@@ -47,34 +47,34 @@ window.SITE_DATA = {
      in assets/app.js). */
   dev: {
     version: "3.0.0-WP-severe-fix-and-closure",
-    date: "2026-11-26",
+    date: "2026-11-28",
     assets: {
       opencube: {
         name: "opencube-3.0.0-WP-severe-fix-and-closure.iso",
-        size: 4216832,
-        size_h: "4.0 MiB",
-        sha256: "e4bfd7107971486714a8d08003d398d557d447448f4209a81b6430acd32b2e3d",
+        size: 4251648,
+        size_h: "4.1 MiB",
+        sha256: "f4b20068346c9a972a38a755d3ddc807b8c9bece7914345fb5b8340312e98767",
         url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-severe-fix-and-closure.iso"
       },
       ocse: {
         name: "ocse-3.0.0-WP-severe-fix-and-closure.iso",
-        size: 5013504,
+        size: 5046272,
         size_h: "4.8 MiB",
-        sha256: "06a29b3bb00fada547ca615c88bd62f1bbbdfd9ac83dc247158aee95027c3702",
+        sha256: "5a48e99982761664b60ae99565176197a0894eb16b3f44d1eb5eddf1b0709413",
         url: "https://ocos.cubestudio.cn/downloads/ocse-3.0.0-WP-severe-fix-and-closure.iso"
       },
       ota: {
         name: "opencube-3.0.0-WP-severe-fix-and-closure-update.tar.gz",
-        size: 1419887,
+        size: 1436641,
         size_h: "1.4 MiB",
-        sha256: "26c7e7cd3742186dafd1f2b4d161881106afa6c3ed5a93a6be178d23324c426a",
+        sha256: "dbea89027315714dbbfd592d5f6ff2054f74f9cd4b7357030b676312321f3a25",
         url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-severe-fix-and-closure-update.tar.gz"
       },
       src: {
         name: "opencube-3.0.0-WP-severe-fix-and-closure-src.zip",
-        size: 7523459,
+        size: 7498452,
         size_h: "7.2 MiB",
-        sha256: "b9267dafe24ac441f9918600a9a2a383535223618398cc83e3946cf6446b60f9",
+        sha256: "0095e072e2caf9279d01f74a30284800217bd2d949289502e0c18bf3e705eb75",
         url: "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-severe-fix-and-closure-src.zip"
       }
     }

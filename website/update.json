@@ -1,14 +1,14 @@
 {
     "version": "3.0.0-WP-severe-fix-and-closure",
-    "build": 529,
-    "time": "2026-11-26",
-    "changes": "severe-fix and closure: the VMware boot crawl paced (446x fewer port I/Os), K-08 banner race closed by construction, K-09 refuted with counters + the COM1 RX fix, K-10 OCIRE UEFI 14/14, the update full chain byte-proven + the RFC 2131 DHCP retransmission",
+    "build": 532,
+    "time": "2026-11-28",
+    "changes": "3.0.0-WP-severe-fix-and-closure release. See the GitHub release note for the full change list, new interfaces and known issues.",
     "description": {
-        "en": "severe-fix and closure: the VMware boot crawl paced (446x fewer port I/Os), K-08 banner race closed by construction, K-09 refuted with counters + the COM1 RX fix, K-10 OCIRE UEFI 14/14, the update full chain byte-proven + the RFC 2131 DHCP retransmission",
-        "zh": "严重修复与收口：VMware 启动龟速根因配速（端口 I/O 削减 446 倍）、K-08 横幅竞态按构造关闭、K-09 以计数器推翻 + COM1 RX 修复、K-10 OCIRE UEFI 14/14、update 全链字节级证明 + RFC 2131 DHCP 重传"
+        "en": "3.0.0-WP-severe-fix-and-closure release. See the GitHub release note for the full change list, new interfaces and known issues.",
+        "zh": "3.0.0-WP-severe-fix-and-closure release. See the GitHub release note for the full change list, new interfaces and known issues."
     },
     "changes_v2_url": "https://ocos.cubestudio.cn/update-v2.json",
     "package_url": "https://ocos.cubestudio.cn/downloads/opencube-3.0.0-WP-severe-fix-and-closure-update.tar.gz",
-    "package_sha256": "26c7e7cd3742186dafd1f2b4d161881106afa6c3ed5a93a6be178d23324c426a",
-    "package_size": 1419887
+    "package_sha256": "dbea89027315714dbbfd592d5f6ff2054f74f9cd4b7357030b676312321f3a25",
+    "package_size": 1436641
 }

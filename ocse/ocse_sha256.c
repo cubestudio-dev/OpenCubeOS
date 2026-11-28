@@ -102,7 +102,10 @@ void ocse_sha256(const u8 *data, int len, u8 hash[32]) {
 }
 
 void ocse_sha256_hex(const u8 hash[32], char out[65]) {
-    static const char hexd[16] = "0123456789abcdef";
+    /* gcc 15 warns (-Werror=unterminated-string-initialization) when a
+     * 16-char literal fills a 16-byte array with no NUL slot; the extra
+     * byte keeps the same table and silences the new diagnostic. */
+    static const char hexd[17] = "0123456789abcdef";
     for (int i = 0; i < 32; i++) {
         out[i*2]   = hexd[(hash[i] >> 4) & 0xF];
         out[i*2+1] = hexd[hash[i] & 0xF];
